@@ -509,7 +509,7 @@ HRESULT VirtualBox::init()
 
         /* events */
         if (SUCCEEDED(rc = unconst(m->pEventSource).createObject()))
-            rc = m->pEventSource->init(static_cast<IVirtualBox*>(this));
+            rc = m->pEventSource->init();
         if (FAILED(rc)) throw rc;
 
 #ifdef VBOX_WITH_EXTPACK
@@ -807,7 +807,11 @@ void VirtualBox::uninit()
     LogFlowThisFunc(("Releasing event source...\n"));
     if (m->pEventSource)
     {
-        // we don't perform uninit() as it's possible that some pending event refers to this source
+        // Must uninit the event source here, because it makes no sense that
+        // it survives longer than the base object. If someone gets an event
+        // with such an event source then that's life and it has to be dealt
+        // with appropriately on the API client side.
+        m->pEventSource->uninit();
         unconst(m->pEventSource).setNull();
     }
 

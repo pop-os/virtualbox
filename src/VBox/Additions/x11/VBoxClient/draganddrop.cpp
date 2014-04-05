@@ -14,6 +14,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include <errno.h>
+#include <poll.h>
+
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 //#include <X11/extensions/XTest.h>
@@ -423,7 +426,6 @@ public:
       , m_hX11Thread(NIL_RTTHREAD)
       , m_hEventSem(NIL_RTSEMEVENT)
       , m_pCurDnD(0)
-      , m_fSrvStopping(false)
     {}
 
     virtual const char *getPidFilePath() { return ".vboxclient-draganddrop.pid"; }
@@ -434,14 +436,13 @@ public:
 
     virtual void cleanup()
     {
-        /* Cleanup */
-        x11DragAndDropTerm();
+        /* Nothing to do, everything should be cleaned up automatically when the
+         * user process/X11 client exits. */
         VbglR3DnDTerm();
     };
 
 private:
     int x11DragAndDropInit();
-    int x11DragAndDropTerm();
     static int hgcmEventThread(RTTHREAD hThread, void *pvUser);
     static int x11EventThread(RTTHREAD hThread, void *pvUser);
 
@@ -474,7 +475,6 @@ private:
     RTTHREAD             m_hX11Thread;
     RTSEMEVENT           m_hEventSem;
     DragInstance        *m_pCurDnD;
-    bool                 m_fSrvStopping;
 
     friend class DragInstance;
 };
@@ -1662,7 +1662,8 @@ int DragAndDropService::run(bool fDaemonised /* = false */)
                     }
                 }
             }
-        } while (!ASMAtomicReadBool(&m_fSrvStopping));
+            XFlush(m_pDisplay);
+        } while (1);
     } while (0);
 
     LogRelFlowFunc(("returning %Rrc\n", rc));
@@ -1698,49 +1699,10 @@ int DragAndDropService::x11DragAndDropInit()
                             "X11-NOTIFY");
     } while (0);
 
-    /* Cleanup on failure */
-    if (RT_FAILURE(rc))
-        x11DragAndDropTerm();
+    /* No clean-up code for now, as we have no good way of testing it and things
+     * should get cleaned up when the user process/X11 client exits. */
 
     return rc;
-}
-
-int DragAndDropService::x11DragAndDropTerm()
-{
-    /* Mark that we are stopping. */
-    ASMAtomicWriteBool(&m_fSrvStopping, true);
-    RTSemEventSignal(m_hEventSem);
-
-    if (m_pDisplay)
-    {
-        /* Send a x11 client messages to the x11 event loop. */
-        XClientMessageEvent m;
-        RT_ZERO(m);
-        m.type         = ClientMessage;
-        m.display      = m_pDisplay;
-        m.window       = None;
-        m.message_type = xAtom(XA_dndstop);
-        m.format       = 32;
-        int xrc = XSendEvent(m_pDisplay, None, True, NoEventMask, reinterpret_cast<XEvent*>(&m));
-        if (RT_UNLIKELY(xrc == 0))
-                DO(("DnD_TERM: error sending xevent\n"));
-    }
-
-    /* We cannot signal the m_hHGCMThread as it is most likely waiting in vbglR3DoIOCtl() */
-    /* Wait for our event threads to stop. */
-    if (m_hX11Thread)
-        RTThreadWait(m_hX11Thread, RT_INDEFINITE_WAIT, NULL);
-    /* Cleanup */
-    /* todo: This doesn't work. The semaphore was interrupted by the user
-     * signal. It is not possible to destroy a semaphore while it is in interrupted state.
-     * According to Frank, the cleanup stuff done here is done _wrong_. We just
-     * should signal the main loop to stop and do the cleanup there. Needs
-     * adoption in all VBoxClient::Service's. */
-//    if (m_hEventSem)
-//        RTSemEventDestroy(m_hEventSem);
-    if (m_pDisplay)
-        XCloseDisplay(m_pDisplay);
-    return VINF_SUCCESS;
 }
 
 /* static */
@@ -1762,7 +1724,7 @@ int DragAndDropService::hgcmEventThread(RTTHREAD hThread, void *pvUser)
             if (RT_FAILURE(rc))
                 return rc;
         }
-    } while (!ASMAtomicReadBool(&pThis->m_fSrvStopping));
+    } while (1);
 
     return VINF_SUCCESS;
 }
@@ -1775,24 +1737,17 @@ int DragAndDropService::x11EventThread(RTTHREAD hThread, void *pvUser)
     DnDEvent e;
     do
     {
-        /* Wait for new events. We can't use XIfEvent here, cause this locks
+        /* Wait for new events. We can't use XIfEvent here, because this locks
          * the window connection with a mutex and if no X11 events occurs this
-         * blocks any other calls we made to X11. So instead check for new
-         * events and if there are not any new one, sleep for a certain amount
-         * of time. */
+         * blocks any other calls we made to X11. So instead poll for new events
+         * on the connection file descriptor. */
+        /** @todo Make sure the locking is right - Xlib displays should never be
+         * used from two threads at once. */
         if (XEventsQueued(pThis->m_pDisplay, QueuedAfterFlush) > 0)
         {
             RT_ZERO(e);
             e.type = DnDEvent::X11_Type;
             XNextEvent(pThis->m_pDisplay, &e.x11);
-#if 0
-            /* We never detect the stop event here for some reason */
-            /* Check for a stop message. */
-            if (   e.x11.type == ClientMessage
-                && e.x11.xclient.message_type == xAtom(XA_dndstop))
-                break;
-#endif
-//            if (isDnDRespondEvent(pThis->m_pDisplay, &e.x11, 0))
             {
                 /* Appending makes a copy of the event structure. */
                 pThis->m_eventQueue.append(e);
@@ -1802,8 +1757,21 @@ int DragAndDropService::x11EventThread(RTTHREAD hThread, void *pvUser)
             }
         }
         else
-            RTThreadSleep(25);
-    } while (!ASMAtomicReadBool(&pThis->m_fSrvStopping));
+        {
+            struct pollfd pollFD;
+
+            pollFD.fd = ConnectionNumber(pThis->m_pDisplay);
+            pollFD.events = POLLIN | POLLPRI;
+            if (   (poll(&pollFD, 1, -1) < 0 && errno != EINTR)
+                || pollFD.revents & POLLNVAL)
+            {
+                LogRel(("X11 event thread: poll failed, stopping.\n"));
+                /** @todo Just stop the whole service.  What use is it just
+                 *        to stop one thread? */
+                return RTErrConvertFromErrno(errno);
+            }
+        }
+    } while (1);
 
     return VINF_SUCCESS;
 }

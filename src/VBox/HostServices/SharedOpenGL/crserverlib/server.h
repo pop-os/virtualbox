@@ -115,7 +115,7 @@ GLboolean crServerClientInBeginEnd(const CRClient *client);
 
 GLint crServerDispatchCreateContextEx(const char *dpyName, GLint visualBits, GLint shareCtx, GLint preloadCtxID, int32_t internalID);
 GLint crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preloadWinID);
-GLint crServerMuralInit(CRMuralInfo *mural, const char *dpyName, GLint visBits, GLint preloadWinID);
+GLint crServerMuralInit(CRMuralInfo *mural, GLboolean fGuestWindow, GLint visBits, GLint preloadWinID);
 void crServerMuralTerm(CRMuralInfo *mural);
 GLboolean crServerMuralSize(CRMuralInfo *mural, GLint width, GLint height);
 void crServerMuralPosition(CRMuralInfo *mural, GLint x, GLint y);
@@ -154,6 +154,8 @@ HCR_FRAMEBUFFER CrPMgrFbGetFirstEnabled();
 HCR_FRAMEBUFFER CrPMgrFbGetNextEnabled(HCR_FRAMEBUFFER hFb);
 HCR_FRAMEBUFFER CrPMgrFbGetFirstInitialized();
 HCR_FRAMEBUFFER CrPMgrFbGetNextInitialized(HCR_FRAMEBUFFER hFb);
+
+int CrFbRegionsClear(HCR_FRAMEBUFFER hFb);
 
 
 #define CR_SERVER_FBO_BB_IDX(_mural) ((_mural)->iBbBuffer)
@@ -425,7 +427,7 @@ typedef DECLCALLBACKPTR(bool, PFNCR_FRAMEBUFFER_ENTRIES_VISITOR_CB)(HCR_FRAMEBUF
 bool CrFbHas3DData(HCR_FRAMEBUFFER hFb);
 void CrFbVisitCreatedEntries(HCR_FRAMEBUFFER hFb, PFNCR_FRAMEBUFFER_ENTRIES_VISITOR_CB pfnVisitorCb, void *pvContext);
 int CrFbResize(HCR_FRAMEBUFFER hFb, const struct VBVAINFOSCREEN * pScreen, void *pvVRAM);
-int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTRECT *pSrcRect, uint32_t cRects, const RTRECT *pPrects, CR_BLITTER_IMG *pImg);
+int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTRECT *pSrcRect, const RTRECT *pDstRect, uint32_t cRects, const RTRECT *pPrects, CR_BLITTER_IMG *pImg);
 bool CrFbIsEnabled(HCR_FRAMEBUFFER hFb);
 int CrFbEntryCreateForTexId(HCR_FRAMEBUFFER hFb, GLuint idTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);
 int CrFbEntryCreateForTexData(HCR_FRAMEBUFFER hFb, struct CR_TEXDATA *pTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);

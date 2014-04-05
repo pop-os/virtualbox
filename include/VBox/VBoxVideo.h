@@ -852,9 +852,9 @@ typedef struct VBVABUFFER
 #define VBVA_INFO_CAPS   12 /* informs host about HGSMI caps. see VBVACAPS below */
 #define VBVA_SCANLINE_CFG    13 /* configures scanline, see VBVASCANLINECFG below */
 #define VBVA_SCANLINE_INFO   14 /* requests scanline info, see VBVASCANLINEINFO below */
-#define VBVA_CMDVBVA_ENABLE  15 /* enables command ring buffer VBVA */
 #define VBVA_CMDVBVA_SUBMIT  16 /* inform host about VBVA Command submission */
 #define VBVA_CMDVBVA_FLUSH   17 /* inform host about VBVA Command submission */
+#define VBVA_CMDVBVA_CTL     18 /* G->H DMA command             */
 
 /* host->guest commands */
 #define VBVAHG_EVENT              1
@@ -1414,8 +1414,7 @@ typedef struct VBOXVDMACMD_CHILD_STATUS_IRQ
 # pragma pack()
 #endif /* #ifdef VBOX_WITH_VDMA */
 
-#ifdef VBOX_WITH_CRHGSMI
-# pragma pack(1)
+#pragma pack(1)
 typedef struct VBOXVDMACMD_CHROMIUM_BUFFER
 {
     VBOXVIDEOOFFSET offBuffer;
@@ -1439,7 +1438,7 @@ typedef enum
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END,
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_MAINCB,
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRCONNECT,
-    VBOXVDMACMD_CHROMIUM_CTL_TYPE_SIZEHACK = 0xfffffffe
+    VBOXVDMACMD_CHROMIUM_CTL_TYPE_SIZEHACK = 0x7fffffff
 } VBOXVDMACMD_CHROMIUM_CTL_TYPE;
 
 typedef struct VBOXVDMACMD_CHROMIUM_CTL
@@ -1448,24 +1447,12 @@ typedef struct VBOXVDMACMD_CHROMIUM_CTL
     uint32_t cbCmd;
 } VBOXVDMACMD_CHROMIUM_CTL, *PVBOXVDMACMD_CHROMIUM_CTL;
 
-typedef struct VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP
-{
-    VBOXVDMACMD_CHROMIUM_CTL Hdr;
-    union
-    {
-        void *pvVRamBase;
-        uint64_t uAlignment;
-    };
-    uint64_t cbVRam;
-    struct VBOXCRCMD_CLTINFO *pCrCmdClientInfo;
-} VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP, *PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP;
-
 
 typedef struct PDMIDISPLAYVBVACALLBACKS *HCRHGSMICMDCOMPLETION;
 typedef DECLCALLBACK(int) FNCRHGSMICMDCOMPLETION(HCRHGSMICMDCOMPLETION hCompletion, PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc);
 typedef FNCRHGSMICMDCOMPLETION *PFNCRHGSMICMDCOMPLETION;
 
-typedef DECLCALLBACK(bool) FNCROGLHASDATA();
+typedef DECLCALLBACK(bool) FNCROGLHASDATA(void);
 typedef FNCROGLHASDATA *PFNCROGLHASDATA;
 
 /* callbacks chrogl gives to main */
@@ -1636,7 +1623,7 @@ typedef struct VBOXCMDVBVA_HDR
         /* result, 0 on success, otherwise contains the failure code TBD */
         int8_t i8Result;
         uint8_t u8PrimaryID;
-    };
+    } u;
     /* DXGK DDI fence ID */
     volatile uint32_t u32FenceID;
 } VBOXCMDVBVA_HDR;
@@ -1668,7 +1655,7 @@ typedef struct VBOXCMDVBVA_ALLOCINFO
     {
         VBOXCMDVBVAOFFSET offVRAM;
         uint32_t id;
-    };
+    } u;
 } VBOXCMDVBVA_ALLOCINFO;
 
 typedef struct VBOXCMDVBVA_RECT
@@ -1723,7 +1710,8 @@ typedef struct VBOXCMDVBVA_CLRFILL
 typedef struct VBOXCMDVBVA_SYSMEMEL
 {
     uint32_t cPagesAfterFirst  : 12;
-    VBOXCMDVBVAPHADDR iPage    : 52;
+    uint32_t iPage1            : 20;
+    uint32_t iPage2;
 } VBOXCMDVBVA_SYSMEMEL;
 
 typedef struct VBOXCMDVBVA_PAGING_TRANSFER
@@ -1745,9 +1733,47 @@ typedef struct VBOXCMDVBVA_PAGING_FILL
     VBOXCMDVBVAOFFSET offVRAM;
 } VBOXCMDVBVA_PAGING_FILL;
 
-# pragma pack()
+#define VBOXCMDVBVACTL_TYPE_ENABLE     1
+#define VBOXCMDVBVACTL_TYPE_3DCTL      2
 
-#endif
+typedef struct VBOXCMDVBVA_CTL
+{
+    uint32_t u32Type;
+    int32_t i32Result;
+} VBOXCMDVBVA_CTL;
+
+typedef struct VBOXCMDVBVA_CTL_ENABLE
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBVAENABLE Enable;
+} VBOXCMDVBVA_CTL_ENABLE;
+
+#define VBOXCMDVBVA3DCTL_TYPE_CONNECT     1
+#define VBOXCMDVBVA3DCTL_TYPE_DISCONNECT  2
+#define VBOXCMDVBVA3DCTL_TYPE_CMD         3
+
+typedef struct VBOXCMDVBVA_3DCTL
+{
+    uint32_t u32Type;
+    uint32_t u32CmdClientId;
+} VBOXCMDVBVA_3DCTL;
+
+typedef struct VBOXCMDVBVA_3DCTL_CONNECT
+{
+    VBOXCMDVBVA_3DCTL Hdr;
+    uint32_t u32MajorVersion;
+    uint32_t u32MinorVersion;
+    uint64_t u64Pid;
+} VBOXCMDVBVA_3DCTL_CONNECT;
+
+typedef struct VBOXCMDVBVA_3DCTL_CMD
+{
+    VBOXCMDVBVA_3DCTL Hdr;
+    VBOXCMDVBVA_HDR Cmd;
+} VBOXCMDVBVA_3DCTL_CMD;
+
+#pragma pack()
+
 
 #ifdef VBOXVDMA_WITH_VBVA
 # pragma pack(1)

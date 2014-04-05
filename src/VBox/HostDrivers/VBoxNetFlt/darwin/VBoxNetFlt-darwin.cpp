@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -138,11 +138,88 @@ static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
  * It is used for tagging mbufs. */
 static mbuf_tag_id_t g_idTag;
 
-/** the offset of the struct ifnet::if_pcount variable. */
+/** The offset of the struct ifnet::if_pcount variable.
+ * @remarks Initial value is valid for Lion and earlier. We adjust it on attach
+ *          for later releases.  */
 static unsigned g_offIfNetPCount = sizeof(void *) * (1 /*if_softc*/ + 1 /*if_name*/ + 2 /*if_link*/ + 2 /*if_addrhead*/ + 1 /*if_check_multi*/)
                                  + sizeof(u_long) /*if_refcnt*/;
 /** Macro for accessing ifnet::if_pcount. */
 #define VBOX_GET_PCOUNT(pIfNet) ( *(int *)((uintptr_t)pIfNet + g_offIfNetPCount) )
+/** The size of area of ifnet structure we try to locate if_pcount in. */
+#define VBOXNETFLT_DARWIN_IFNET_SIZE 256
+/** Indicates whether g_offIfNetPCount has been adjusted already (no point in
+ * doing it more than once). */
+static bool g_fNetPCountFound  = false;
+
+
+/**
+ * Change the promiscuous setting and try spot the changed in @a pIfNet.
+ *
+ * @returns Offset of potential p_count field.
+ * @param   pIfNet      The interface we're attaching to.
+ * @param   iPromisc    Whether to enable (1) or disable (0) promiscuous mode.
+ *
+ * @note    This implementation relies on if_pcount to be aligned on sizeof(int).
+ */
+static unsigned vboxNetFltDarwinSetAndDiff(ifnet_t pIfNet, int iPromisc)
+{
+    int aiSavedState[VBOXNETFLT_DARWIN_IFNET_SIZE / sizeof(int)];
+    memcpy(aiSavedState, pIfNet, sizeof(aiSavedState));
+
+    ifnet_set_promiscuous(pIfNet, iPromisc);
+
+    int const iDiff = iPromisc ? 1 : -1;
+
+    /*
+     * We assume that ifnet structure will never have less members in front of if_pcount
+     * than it used to have in Lion. If this turns out to be false assumption we will
+     * have to start from zero offset.
+     */
+    for (unsigned i = g_offIfNetPCount / sizeof(int); i < RT_ELEMENTS(aiSavedState); i++)
+        if (((int*)pIfNet)[i] - aiSavedState[i] == iDiff)
+            return i * sizeof(int);
+
+    return 0;
+}
+
+
+/**
+ * Detect and adjust the offset of ifnet::if_pcount.
+ *
+ * @param   pIfNet      The interface we're attaching to.
+ */
+static void vboxNetFltDarwinDetectPCountOffset(ifnet_t pIfNet)
+{
+    if (g_fNetPCountFound)
+        return;
+
+    /*
+     * It would be nice to use locking at this point, but it is not available via KPI.
+     * This is why we try several times. At each attempt we modify if_pcount four times
+     * to rule out false detections.
+     */
+    unsigned offTry1, offTry2, offTry3, offTry4;
+    for (int iAttempt = 0; iAttempt < 3; iAttempt++)
+    {
+        offTry1 = vboxNetFltDarwinSetAndDiff(pIfNet, 1);
+        offTry2 = vboxNetFltDarwinSetAndDiff(pIfNet, 1);
+        offTry3 = vboxNetFltDarwinSetAndDiff(pIfNet, 0);
+        offTry4 = vboxNetFltDarwinSetAndDiff(pIfNet, 0);
+        if (offTry1 == offTry2 && offTry2 == offTry3 && offTry3 == offTry4)
+        {
+            if (g_offIfNetPCount != offTry1)
+            {
+                Log(("VBoxNetFltDarwinDetectPCountOffset: Adjusted if_pcount offset to %x from %x.\n", offTry1, g_offIfNetPCount));
+                g_offIfNetPCount = offTry1;
+                g_fNetPCountFound = true;
+            }
+            break;
+        }
+    }
+
+    if (g_offIfNetPCount != offTry1)
+        LogRel(("VBoxNetFlt: Failed to detect promiscuous count, all traffic may reach wire (%x != %x).\n", g_offIfNetPCount, offTry1));
+}
 
 
 /**
@@ -954,6 +1031,9 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
     RTSpinlockAcquire(pThis->hSpinlock);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
     RTSpinlockReleaseNoInts(pThis->hSpinlock);
+
+    /* Adjust g_offIfNetPCount as it varies for different versions of xnu. */
+    vboxNetFltDarwinDetectPCountOffset(pIfNet);
 
     /* Prevent stuck-in-dock issue by associating interface receive thread with kernel thread. */
     vboxNetFltSendDummy(pIfNet);

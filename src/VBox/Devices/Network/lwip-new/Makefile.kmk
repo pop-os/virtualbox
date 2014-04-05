@@ -15,13 +15,6 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-#
-# Recommended kmk flags:
-#
-# VBOX_WITH_NAT_SERVICE=1
-# VBOX_WITH_LWIP_NAT=1
-#
-
 LWIP_INCS += \
     src/include \
     src/include/ipv4 \
@@ -101,9 +94,6 @@ LWIP_SOURCES += \
 #     src/netif/ppp/vj.c
 
 
-define def_vbox_lwip_flags # VAR_BaseName, path/to/lwip/dir
-  $(strip $1)_INCS += $(foreach incdir, $(LWIP_INCS), $(strip $2)/$(incdir))
-endef
 
 define _def_vbox_lwip_use # VAR_BaseName, path/to/lwip/dir
   $(strip $1)_SOURCES += \
@@ -112,6 +102,25 @@ define _def_vbox_lwip_use # VAR_BaseName, path/to/lwip/dir
   # if individual lwip files need special settings, add them here:
   # $(strip $2)/src/foo/bar.c_CFLAGS += -magic
 endef
+
+
+define def_vbox_lwip_flags # PROTO_BaseName, VAR_BaseName, path/to/lwip/dir
+  # add anything configured for the component via PROTO_BaseName
+  $(foreach suffix, INCS DEFS,
+    $(if $(value $(strip $1)_LWIP_$(suffix)),
+      $(eval #
+        $(strip $2)_$(suffix) += $(value $(strip $1)_LWIP_$(suffix))
+      )))
+
+  # add lwip's own includes
+  $(strip $2)_INCS += $(foreach incdir, $(LWIP_INCS), $(strip $3)/$(incdir))
+
+  # disable lwip assertions for some build types
+  $(strip $2)_DEFS.release  += LWIP_NOASSERT
+  $(strip $2)_DEFS.profile  += LWIP_NOASSERT
+  $(strip $2)_DEFS.kprofile += LWIP_NOASSERT
+endef
+
 
 ###
 ### Call this if you want to expose lwip to your component as a whole.
@@ -123,8 +132,9 @@ endef
 ###
 define def_vbox_lwip_public # VAR_BaseName, path/to/lwip/dir
   $(eval $(call _def_vbox_lwip_use, $1, $2))
-  $(eval $(call def_vbox_lwip_flags, $1, $2))
+  $(eval $(call def_vbox_lwip_flags, $1, $1, $2))
 endef
+
 
 ###
 ### Call this if you want to expose lwip only to a few selected files.
@@ -137,7 +147,7 @@ endef
 define def_vbox_lwip_private # VAR_BaseName, path/to/lwip/dir
   $(eval $(call _def_vbox_lwip_use, $1, $2))
   $(foreach file, $(LWIP_SOURCES), \
-    $(eval $(call def_vbox_lwip_flags, $(strip $2)/$(file), $2)))
+    $(eval $(call def_vbox_lwip_flags, $1, $(strip $2)/$(file), $2)))
 endef
 
 

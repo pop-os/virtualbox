@@ -97,10 +97,22 @@ public:
     /* API: 3D overlay visibility stuff: */
     virtual void notifyAbout3DOverlayVisibilityChange(bool fVisible);
 
+    /** Performs HID LEDs sync. */
+    bool isHidLedsSyncEnabled() { return m_isHidLedsSyncEnabled; };
+
 protected slots:
 
     /** Checks if some visual-state type was requested. */
     virtual void sltCheckForRequestedVisualStateType() {}
+
+    /** Requests visual-state change to 'normal' (window). */
+    virtual void sltChangeVisualStateToNormal();
+    /** Requests visual-state change to 'fullscreen'. */
+    virtual void sltChangeVisualStateToFullscreen();
+    /** Requests visual-state change to 'seamless'. */
+    virtual void sltChangeVisualStateToSeamless();
+    /** Requests visual-state change to 'scale'. */
+    virtual void sltChangeVisualStateToScale();
 
     /* Console callback handlers: */
     virtual void sltMachineStateChanged();
@@ -132,7 +144,6 @@ protected:
     void setMouseHandler(UIMouseHandler *pMouseHandler);
     void addMachineWindow(UIMachineWindow *pMachineWindow);
     void retranslateUi();
-    bool isHidLedsSyncEnabled();
 #ifdef Q_WS_MAC
     bool isDockIconPreviewEnabled() const { return m_fIsDockIconEnabled; }
     void setDockIconPreviewEnabled(bool fIsDockIconPreviewEnabled) { m_fIsDockIconEnabled = fIsDockIconPreviewEnabled; }
@@ -232,6 +243,7 @@ private slots:
 #endif /* RT_OS_DARWIN */
 
     /* Handlers: Keyboard LEDs sync logic: */
+    void sltHidLedsSyncStateChanged(bool fEnabled);
     void sltSwitchKeyboardLedsToGuestLeds();
     void sltSwitchKeyboardLedsToPreviousLeds();
 
@@ -277,6 +289,7 @@ private:
 #endif /* Q_WS_MAC */
 
     void *m_pHostLedsState;
+    bool m_isHidLedsSyncEnabled;
 
     /* Friend classes: */
     friend class UIMachineWindow;

@@ -95,9 +95,20 @@ public slots:
                 Assert(!!vboxGlobal().settings());
             }
         }
-#ifdef Q_WS_MAC
         else if (vboxGlobal().isVMConsoleProcess())
         {
+            /* Take care about HID LEDs sync */
+            if (strKey == GUI_HidLedsSync)
+            {
+                /* If extra data GUI/HidLedsSync is not present in VM config or set
+                 * to 1 then sync is enabled. Otherwise, it is disabled. */
+
+                /* (temporary disabled by default) */
+                bool f = (strValue == "1") ? true : false;
+                emit sigHidLedsSyncStateChanged(f);
+            }
+
+#ifdef Q_WS_MAC
             /* Check for the currently running machine */
             if (strId == vboxGlobal().managedVMUuid())
             {
@@ -108,8 +119,8 @@ public slots:
                     emit sigDockIconAppearanceChange(f);
                 }
             }
-        }
 #endif /* Q_WS_MAC */
+        }
     }
 
 signals:
@@ -117,6 +128,7 @@ signals:
     void sigGUILanguageChange(QString strLang);
     void sigSelectorShortcutsChanged();
     void sigMachineShortcutsChanged();
+    void sigHidLedsSyncStateChanged(bool fEnabled);
 #ifdef RT_OS_DARWIN
     void sigPresentationModeChange(bool fEnabled);
     void sigDockIconAppearanceChange(bool fEnabled);
@@ -188,6 +200,10 @@ UIExtraDataEventHandler::UIExtraDataEventHandler()
 
     connect(m_pHandler, SIGNAL(sigMachineShortcutsChanged()),
             this, SIGNAL(sigMachineShortcutsChanged()),
+            Qt::QueuedConnection);
+
+    connect(m_pHandler, SIGNAL(sigHidLedsSyncStateChanged(bool)),
+            this, SIGNAL(sigHidLedsSyncStateChanged(bool)),
             Qt::QueuedConnection);
 
 #ifdef Q_WS_MAC
