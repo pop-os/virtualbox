@@ -21,3 +21,4 @@ virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxNetDHCP
 virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxNetAdpCtl
 virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxHeadless
 virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxSDL
+virtualbox: embedded-library usr/lib/virtualbox/VBoxXPCOM.so: nspr

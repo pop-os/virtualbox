@@ -6,6 +6,10 @@ virtualbox (4.3.10-dfsg-1) unstable; urgency=medium
   * New upstream release, patch refresh.
   * d/control, enforcing gsoap min required version.
 
+  [ Felix Geyer ]
+  * Override embedded-library nspr lintian warning, it's a locally modified
+    version.
+
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 10 Mar 2014 10:35:35 +0100
 
 virtualbox (4.3.6-dfsg-2) unstable; urgency=medium
