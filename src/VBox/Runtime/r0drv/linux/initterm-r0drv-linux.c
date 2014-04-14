@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@ static DECLARE_TASK_QUEUE(g_rtR0LnxWorkQueue);
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#ifdef RT_ARCH_AMD64
 /* in alloc-r0drv0-linux.c */
 DECLHIDDEN(void) rtR0MemExecCleanup(void);
 #endif
@@ -114,7 +114,7 @@ DECLHIDDEN(void) rtR0TermNative(void)
     g_prtR0LnxWorkQueue = NULL;
 #endif
 
-#if defined(RT_ARCH_AMD64) && LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
+#ifdef RT_ARCH_AMD64
     rtR0MemExecCleanup();
 #endif
 }

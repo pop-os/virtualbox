@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,16 @@
  * @{
  */
 
+/*
+ * Include sys/cdefs.h if present, if not define the stuff we need.
+ */
+#ifdef HAVE_SYS_CDEFS_H
+# if defined(RT_ARCH_LINUX) && defined(__KERNEL__)
+#  error "oops"
+# endif
+# include <sys/cdefs.h>
+#else
+
 /** @def RT_C_DECLS_BEGIN
  * Used to start a block of function declarations which are shared
  * between C and C++ program.
@@ -41,12 +51,14 @@
  * between C and C++ program.
  */
 
-#if defined(__cplusplus)
-# define RT_C_DECLS_BEGIN extern "C" {
-# define RT_C_DECLS_END   }
-#else
-# define RT_C_DECLS_BEGIN
-# define RT_C_DECLS_END
+# if defined(__cplusplus)
+#  define RT_C_DECLS_BEGIN extern "C" {
+#  define RT_C_DECLS_END   }
+# else
+#  define RT_C_DECLS_BEGIN
+#  define RT_C_DECLS_END
+# endif
+
 #endif
 
 
@@ -67,7 +79,6 @@
 # define IN_RT_R3
 # define IN_RT_STATIC
 # define RT_STRICT
-# define RT_NO_STRICT
 # define RT_LOCK_STRICT
 # define RT_LOCK_NO_STRICT
 # define RT_LOCK_STRICT_ORDER
@@ -97,11 +108,7 @@
 /** @def RT_ARCH_SPARC64
  * Indicates that we're compiling for the SPARC V9 architecture (64-bit).
  */
-#if !defined(RT_ARCH_X86) \
- && !defined(RT_ARCH_AMD64) \
- && !defined(RT_ARCH_SPARC) \
- && !defined(RT_ARCH_SPARC64) \
- && !defined(RT_ARCH_ARM)
+#if !defined(RT_ARCH_X86) && !defined(RT_ARCH_AMD64) && !defined(RT_ARCH_SPARC) && !defined(RT_ARCH_SPARC64)
 # if defined(__amd64__) || defined(__x86_64__) || defined(_M_X64) || defined(__AMD64__)
 #  define RT_ARCH_AMD64
 # elif defined(__i386__) || defined(_M_IX86) || defined(__X86__)
@@ -110,8 +117,6 @@
 #  define RT_ARCH_SPARC64
 # elif defined(__sparc__)
 #  define RT_ARCH_SPARC
-# elif defined(__arm__) || defined(__arm32__)
-#  define RT_ARCH_ARM
 # else /* PORTME: append test for new archs. */
 #  error "Check what predefined macros your compiler uses to indicate architecture."
 # endif
@@ -128,14 +133,6 @@
 # error "Both RT_ARCH_AMD64 and RT_ARCH_SPARC64 cannot be defined at the same time!"
 #elif defined(RT_ARCH_SPARC) && defined(RT_ARCH_SPARC64)
 # error "Both RT_ARCH_SPARC and RT_ARCH_SPARC64 cannot be defined at the same time!"
-#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_AMD64)
-# error "Both RT_ARCH_ARM and RT_ARCH_AMD64 cannot be defined at the same time!"
-#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_X86)
-# error "Both RT_ARCH_ARM and RT_ARCH_X86 cannot be defined at the same time!"
-#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_SPARC64)
-# error "Both RT_ARCH_ARM and RT_ARCH_SPARC64 cannot be defined at the same time!"
-#elif defined(RT_ARCH_ARM) && defined(RT_ARCH_SPARC)
-# error "Both RT_ARCH_ARM and RT_ARCH_SPARC cannot be defined at the same time!"
 #endif
 
 
@@ -148,7 +145,7 @@
  * Indicates that we're compiling for the AMD64 architecture.
  * @deprecated
  */
-#if !defined(__X86__) && !defined(__AMD64__) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
+#if !defined(__X86__) && !defined(__AMD64__) && !defined(RT_ARCH_SPARC) && !defined(RT_ARCH_SPARC64)
 # if defined(RT_ARCH_AMD64)
 #  define __AMD64__
 # elif defined(RT_ARCH_X86)
@@ -159,16 +156,16 @@
 #elif defined(__X86__) && defined(__AMD64__)
 # error "Both __X86__ and __AMD64__ cannot be defined at the same time!"
 #elif defined(__X86__) && !defined(RT_ARCH_X86)
-# error "__X86__ without RT_ARCH_X86!"
+# error "Both __X86__ without RT_ARCH_X86!"
 #elif defined(__AMD64__) && !defined(RT_ARCH_AMD64)
-# error "__AMD64__ without RT_ARCH_AMD64!"
+# error "Both __AMD64__ without RT_ARCH_AMD64!"
 #endif
 
 /** @def RT_BIG_ENDIAN
  * Defined if the architecture is big endian.  */
 /** @def RT_LITTLE_ENDIAN
  * Defined if the architecture is little endian.  */
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86) || defined(RT_ARCH_ARM)
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
 # define RT_LITTLE_ENDIAN
 #elif defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
 # define RT_BIG_ENDIAN
@@ -269,321 +266,6 @@
 #  define GC_ARCH_BITS 32
 # endif
 #endif
-
-
-
-/** @name RT_OPSYS_XXX - Operative System Identifiers.
- * These are the value that the RT_OPSYS \#define can take. @{
- */
-/** Unknown OS. */
-#define RT_OPSYS_UNKNOWN    0
-/** OS Agnostic. */
-#define RT_OPSYS_AGNOSTIC   1
-/** Darwin - aka Mac OS X. */
-#define RT_OPSYS_DARWIN     2
-/** DragonFly BSD. */
-#define RT_OPSYS_DRAGONFLY  3
-/** DOS. */
-#define RT_OPSYS_DOS        4
-/** FreeBSD. */
-#define RT_OPSYS_FREEBSD    5
-/** Haiku. */
-#define RT_OPSYS_HAIKU      6
-/** Linux. */
-#define RT_OPSYS_LINUX      7
-/** L4. */
-#define RT_OPSYS_L4         8
-/** Minix. */
-#define RT_OPSYS_MINIX      9
-/** NetBSD. */
-#define RT_OPSYS_NETBSD     11
-/** Netware. */
-#define RT_OPSYS_NETWARE    12
-/** NT (native). */
-#define RT_OPSYS_NT         13
-/** OpenBSD. */
-#define RT_OPSYS_OPENBSD    14
-/** OS/2. */
-#define RT_OPSYS_OS2        15
-/** Plan 9. */
-#define RT_OPSYS_PLAN9      16
-/** QNX. */
-#define RT_OPSYS_QNX        17
-/** Solaris. */
-#define RT_OPSYS_SOLARIS    18
-/** UEFI. */
-#define RT_OPSYS_UEFI       19
-/** Windows. */
-#define RT_OPSYS_WINDOWS    20
-/** The max RT_OPSYS_XXX value (exclusive). */
-#define RT_OPSYS_MAX        21
-/** @} */
-
-/** @def RT_OPSYS
- * Indicates which OS we're targetting. It's a \#define with is
- * assigned one of the RT_OPSYS_XXX defines above.
- *
- * So to test if we're on FreeBSD do the following:
- * @code
- *  #if RT_OPSYS == RT_OPSYS_FREEBSD
- *  some_funky_freebsd_specific_stuff();
- *  #endif
- * @endcode
- */
-
-/*
- * Set RT_OPSYS_XXX according to RT_OS_XXX.
- *
- * Search:  #define RT_OPSYS_([A-Z0-9]+) .*
- * Replace: # elif defined(RT_OS_\1)\n#  define RT_OPSYS RT_OPSYS_\1
- */
-#ifndef RT_OPSYS
-# if defined(RT_OS_UNKNOWN)
-#  define RT_OPSYS RT_OPSYS_UNKNOWN
-# elif defined(RT_OS_AGNOSTIC)
-#  define RT_OPSYS RT_OPSYS_AGNOSTIC
-# elif defined(RT_OS_DARWIN)
-#  define RT_OPSYS RT_OPSYS_DARWIN
-# elif defined(RT_OS_DRAGONFLY)
-#  define RT_OPSYS RT_OPSYS_DRAGONFLY
-# elif defined(RT_OS_DOS)
-#  define RT_OPSYS RT_OPSYS_DOS
-# elif defined(RT_OS_FREEBSD)
-#  define RT_OPSYS RT_OPSYS_FREEBSD
-# elif defined(RT_OS_HAIKU)
-#  define RT_OPSYS RT_OPSYS_HAIKU
-# elif defined(RT_OS_LINUX)
-#  define RT_OPSYS RT_OPSYS_LINUX
-# elif defined(RT_OS_L4)
-#  define RT_OPSYS RT_OPSYS_L4
-# elif defined(RT_OS_MINIX)
-#  define RT_OPSYS RT_OPSYS_MINIX
-# elif defined(RT_OS_NETBSD)
-#  define RT_OPSYS RT_OPSYS_NETBSD
-# elif defined(RT_OS_NETWARE)
-#  define RT_OPSYS RT_OPSYS_NETWARE
-# elif defined(RT_OS_NT)
-#  define RT_OPSYS RT_OPSYS_NT
-# elif defined(RT_OS_OPENBSD)
-#  define RT_OPSYS RT_OPSYS_OPENBSD
-# elif defined(RT_OS_OS2)
-#  define RT_OPSYS RT_OPSYS_OS2
-# elif defined(RT_OS_PLAN9)
-#  define RT_OPSYS RT_OPSYS_PLAN9
-# elif defined(RT_OS_QNX)
-#  define RT_OPSYS RT_OPSYS_QNX
-# elif defined(RT_OS_SOLARIS)
-#  define RT_OPSYS RT_OPSYS_SOLARIS
-# elif defined(RT_OS_UEFI)
-#  define RT_OPSYS RT_OPSYS_UEFI
-# elif defined(RT_OS_WINDOWS)
-#  define RT_OPSYS RT_OPSYS_WINDOWS
-# endif
-#endif
-
-/*
- * Guess RT_OPSYS based on compiler predefined macros.
- */
-#ifndef RT_OPSYS
-# if defined(__APPLE__)
-#  define RT_OPSYS      RT_OPSYS_DARWIN
-# elif defined(__DragonFly__)
-#  define RT_OPSYS      RT_OPSYS_DRAGONFLY
-# elif defined(__FreeBSD__) /*??*/
-#  define RT_OPSYS      RT_OPSYS_FREEBSD
-# elif defined(__gnu_linux__)
-#  define RT_OPSYS      RT_OPSYS_LINUX
-# elif defined(__NetBSD__) /*??*/
-#  define RT_OPSYS      RT_OPSYS_NETBSD
-# elif defined(__OpenBSD__) /*??*/
-#  define RT_OPSYS      RT_OPSYS_OPENBSD
-# elif defined(__OS2__)
-#  define RT_OPSYS      RT_OPSYS_OS2
-# elif defined(__sun__) || defined(__SunOS__) || defined(__sun) || defined(__SunOS)
-#  define RT_OPSYS      RT_OPSYS_SOLARIS
-# elif defined(_WIN32) || defined(_WIN64)
-#  define RT_OPSYS      RT_OPSYS_WINDOWS
-# else
-#  error "Port Me"
-# endif
-#endif
-
-#if RT_OPSYS < RT_OPSYS_UNKNOWN || RT_OPSYS >= RT_OPSYS_MAX
-# error "Invalid RT_OPSYS value."
-#endif
-
-/*
- * Do some consistency checks.
- *
- * Search:  #define RT_OPSYS_([A-Z0-9]+) .*
- * Replace: #if defined(RT_OS_\1) && RT_OPSYS != RT_OPSYS_\1\n# error RT_OPSYS vs RT_OS_\1\n#endif
- */
-#if defined(RT_OS_UNKNOWN) && RT_OPSYS != RT_OPSYS_UNKNOWN
-# error RT_OPSYS vs RT_OS_UNKNOWN
-#endif
-#if defined(RT_OS_AGNOSTIC) && RT_OPSYS != RT_OPSYS_AGNOSTIC
-# error RT_OPSYS vs RT_OS_AGNOSTIC
-#endif
-#if defined(RT_OS_DARWIN) && RT_OPSYS != RT_OPSYS_DARWIN
-# error RT_OPSYS vs RT_OS_DARWIN
-#endif
-#if defined(RT_OS_DRAGONFLY) && RT_OPSYS != RT_OPSYS_DRAGONFLY
-# error RT_OPSYS vs RT_OS_DRAGONFLY
-#endif
-#if defined(RT_OS_DOS) && RT_OPSYS != RT_OPSYS_DOS
-# error RT_OPSYS vs RT_OS_DOS
-#endif
-#if defined(RT_OS_FREEBSD) && RT_OPSYS != RT_OPSYS_FREEBSD
-# error RT_OPSYS vs RT_OS_FREEBSD
-#endif
-#if defined(RT_OS_HAIKU) && RT_OPSYS != RT_OPSYS_HAIKU
-# error RT_OPSYS vs RT_OS_HAIKU
-#endif
-#if defined(RT_OS_LINUX) && RT_OPSYS != RT_OPSYS_LINUX
-# error RT_OPSYS vs RT_OS_LINUX
-#endif
-#if defined(RT_OS_L4) && RT_OPSYS != RT_OPSYS_L4
-# error RT_OPSYS vs RT_OS_L4
-#endif
-#if defined(RT_OS_MINIX) && RT_OPSYS != RT_OPSYS_MINIX
-# error RT_OPSYS vs RT_OS_MINIX
-#endif
-#if defined(RT_OS_NETBSD) && RT_OPSYS != RT_OPSYS_NETBSD
-# error RT_OPSYS vs RT_OS_NETBSD
-#endif
-#if defined(RT_OS_NETWARE) && RT_OPSYS != RT_OPSYS_NETWARE
-# error RT_OPSYS vs RT_OS_NETWARE
-#endif
-#if defined(RT_OS_NT) && RT_OPSYS != RT_OPSYS_NT
-# error RT_OPSYS vs RT_OS_NT
-#endif
-#if defined(RT_OS_OPENBSD) && RT_OPSYS != RT_OPSYS_OPENBSD
-# error RT_OPSYS vs RT_OS_OPENBSD
-#endif
-#if defined(RT_OS_OS2) && RT_OPSYS != RT_OPSYS_OS2
-# error RT_OPSYS vs RT_OS_OS2
-#endif
-#if defined(RT_OS_PLAN9) && RT_OPSYS != RT_OPSYS_PLAN9
-# error RT_OPSYS vs RT_OS_PLAN9
-#endif
-#if defined(RT_OS_QNX) && RT_OPSYS != RT_OPSYS_QNX
-# error RT_OPSYS vs RT_OS_QNX
-#endif
-#if defined(RT_OS_SOLARIS) && RT_OPSYS != RT_OPSYS_SOLARIS
-# error RT_OPSYS vs RT_OS_SOLARIS
-#endif
-#if defined(RT_OS_UEFI) && RT_OPSYS != RT_OPSYS_UEFI
-# error RT_OPSYS vs RT_OS_UEFI
-#endif
-#if defined(RT_OS_WINDOWS) && RT_OPSYS != RT_OPSYS_WINDOWS
-# error RT_OPSYS vs RT_OS_WINDOWS
-#endif
-
-/*
- * Make sure the RT_OS_XXX macro is defined.
- *
- * Search:  #define RT_OPSYS_([A-Z0-9]+) .*
- * Replace: #elif RT_OPSYS == RT_OPSYS_\1\n# ifndef RT_OS_\1\n#  define RT_OS_\1\n# endif
- */
-#if RT_OPSYS == RT_OPSYS_UNKNOWN
-# ifndef RT_OS_UNKNOWN
-#  define RT_OS_UNKNOWN
-# endif
-#elif RT_OPSYS == RT_OPSYS_AGNOSTIC
-# ifndef RT_OS_AGNOSTIC
-#  define RT_OS_AGNOSTIC
-# endif
-#elif RT_OPSYS == RT_OPSYS_DARWIN
-# ifndef RT_OS_DARWIN
-#  define RT_OS_DARWIN
-# endif
-#elif RT_OPSYS == RT_OPSYS_DRAGONFLY
-# ifndef RT_OS_DRAGONFLY
-#  define RT_OS_DRAGONFLY
-# endif
-#elif RT_OPSYS == RT_OPSYS_DOS
-# ifndef RT_OS_DOS
-#  define RT_OS_DOS
-# endif
-#elif RT_OPSYS == RT_OPSYS_FREEBSD
-# ifndef RT_OS_FREEBSD
-#  define RT_OS_FREEBSD
-# endif
-#elif RT_OPSYS == RT_OPSYS_HAIKU
-# ifndef RT_OS_HAIKU
-#  define RT_OS_HAIKU
-# endif
-#elif RT_OPSYS == RT_OPSYS_LINUX
-# ifndef RT_OS_LINUX
-#  define RT_OS_LINUX
-# endif
-#elif RT_OPSYS == RT_OPSYS_L4
-# ifndef RT_OS_L4
-#  define RT_OS_L4
-# endif
-#elif RT_OPSYS == RT_OPSYS_MINIX
-# ifndef RT_OS_MINIX
-#  define RT_OS_MINIX
-# endif
-#elif RT_OPSYS == RT_OPSYS_NETBSD
-# ifndef RT_OS_NETBSD
-#  define RT_OS_NETBSD
-# endif
-#elif RT_OPSYS == RT_OPSYS_NETWARE
-# ifndef RT_OS_NETWARE
-#  define RT_OS_NETWARE
-# endif
-#elif RT_OPSYS == RT_OPSYS_NT
-# ifndef RT_OS_NT
-#  define RT_OS_NT
-# endif
-#elif RT_OPSYS == RT_OPSYS_OPENBSD
-# ifndef RT_OS_OPENBSD
-#  define RT_OS_OPENBSD
-# endif
-#elif RT_OPSYS == RT_OPSYS_OS2
-# ifndef RT_OS_OS2
-#  define RT_OS_OS2
-# endif
-#elif RT_OPSYS == RT_OPSYS_PLAN9
-# ifndef RT_OS_PLAN9
-#  define RT_OS_PLAN9
-# endif
-#elif RT_OPSYS == RT_OPSYS_QNX
-# ifndef RT_OS_QNX
-#  define RT_OS_QNX
-# endif
-#elif RT_OPSYS == RT_OPSYS_SOLARIS
-# ifndef RT_OS_SOLARIS
-#  define RT_OS_SOLARIS
-# endif
-#elif RT_OPSYS == RT_OPSYS_UEFI
-# ifndef RT_OS_UEFI
-#  define RT_OS_UEFI
-# endif
-#elif RT_OPSYS == RT_OPSYS_WINDOWS
-# ifndef RT_OS_WINDOWS
-#  define RT_OS_WINDOWS
-# endif
-#else
-# error "Bad RT_OPSYS value."
-#endif
-
-
-/**
- * Checks whether the given OpSys uses DOS-style paths or not.
- *
- * By DOS-style paths we include drive lettering and UNC paths.
- *
- * @returns true / false
- * @param   a_OpSys     The RT_OPSYS_XXX value to check, will be reference
- *                      multiple times.
- */
-#define RT_OPSYS_USES_DOS_PATHS(a_OpSys) \
-    (   (a_OpSys) == RT_OPSYS_WINDOWS \
-     || (a_OpSys) == RT_OPSYS_OS2 \
-     || (a_OpSys) == RT_OPSYS_DOS )
-
 
 
 /** @def CTXTYPE
@@ -902,7 +584,7 @@
  */
 #ifdef RT_EXCEPTIONS_ENABLED
 # ifdef _MSC_VER
-#  if _MSC_VER >= 1310
+#  if _MSC_VER >= 1400
 #   define RT_THROW(type)
 #  else
 #   define RT_THROW(type)       throw(type)
@@ -929,8 +611,9 @@
 # define RTCALL     __cdecl
 #elif defined(RT_OS_OS2)
 # define RTCALL     __cdecl
-#elif defined(__GNUC__) && defined(IN_RING0) && defined(RT_ARCH_X86) /** @todo consider dropping IN_RING0 here. */
-# define RTCALL     __attribute__((cdecl,regparm(0))) /* regparm(0) deals with -mregparm=x use in the linux kernel. */
+#elif defined(__GNUC__) && defined(IN_RING0) \
+  && !(defined(RT_ARCH_AMD64) || defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)) /* the latter is kernel/gcc */
+# define RTCALL     __attribute__((cdecl,regparm(0)))
 #else
 # define RTCALL
 #endif
@@ -998,7 +681,7 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef __cplusplus
-# if defined(_MSC_VER) || defined(RT_OS_OS2)
+# ifdef _MSC_VER
 #  define DECLASM(type)          extern "C" type __cdecl
 # elif defined(__GNUC__) && defined(RT_ARCH_X86)
 #  define DECLASM(type)          extern "C" type __attribute__((cdecl,regparm(0)))
@@ -1006,7 +689,7 @@
 #  define DECLASM(type)          extern "C" type
 # endif
 #else
-# if defined(_MSC_VER) || defined(RT_OS_OS2)
+# ifdef _MSC_VER
 #  define DECLASM(type)          type __cdecl
 # elif defined(__GNUC__) && defined(RT_ARCH_X86)
 #  define DECLASM(type)          type __attribute__((cdecl,regparm(0)))
@@ -1019,7 +702,7 @@
  * How to declare an internal assembly function type.
  * @param   type    The return type of the function.
  */
-# if defined(_MSC_VER) || defined(RT_OS_OS2)
+#ifdef _MSC_VER
 # define DECLASMTYPE(type)      type __cdecl
 #else
 # define DECLASMTYPE(type)      type
@@ -1040,20 +723,6 @@
 # define DECLNORETURN(type)     type
 #endif
 
-/** @def DECLWEAK
- * How to declare a variable which is not necessarily resolved at
- * runtime.
- * @note: This macro can be combined with other macros, for example
- * @code
- *   EMR3DECL(DECLWEAK(int)) foo;
- * @endcode
- */
-#if defined(__GNUC__)
-# define DECLWEAK(type)         type __attribute__((weak))
-#else
-# define DECLWEAK(type)         type
-#endif
-
 /** @def DECLCALLBACK
  * How to declare an call back function type.
  * @param   type    The return type of the function declaration.
@@ -1065,22 +734,14 @@
  * @param   type    The return type of the function declaration.
  * @param   name    The name of the variable member.
  */
-#if defined(__IBMC__) || defined(__IBMCPP__)
-# define DECLCALLBACKPTR(type, name)    type (* RTCALL name)
-#else
-# define DECLCALLBACKPTR(type, name)    type (RTCALL * name)
-#endif
+#define DECLCALLBACKPTR(type, name)  type (RTCALL * name)
 
 /** @def DECLCALLBACKMEMBER
  * How to declare an call back function pointer member.
  * @param   type    The return type of the function declaration.
  * @param   name    The name of the struct/union/class member.
  */
-#if defined(__IBMC__) || defined(__IBMCPP__)
-# define DECLCALLBACKMEMBER(type, name) type (* RTCALL name)
-#else
-# define DECLCALLBACKMEMBER(type, name) type (RTCALL * name)
-#endif
+#define DECLCALLBACKMEMBER(type, name)  type (RTCALL * name)
 
 /** @def DECLR3CALLBACKMEMBER
  * How to declare an call back function pointer member - R3 Ptr.
@@ -1089,7 +750,7 @@
  * @param   args    The argument list enclosed in parentheses.
  */
 #ifdef IN_RING3
-# define DECLR3CALLBACKMEMBER(type, name, args)  DECLCALLBACKMEMBER(type, name) args
+# define DECLR3CALLBACKMEMBER(type, name, args)  type (RTCALL * name) args
 #else
 # define DECLR3CALLBACKMEMBER(type, name, args)  RTR3PTR name
 #endif
@@ -1101,7 +762,7 @@
  * @param   args    The argument list enclosed in parentheses.
  */
 #ifdef IN_RC
-# define DECLRCCALLBACKMEMBER(type, name, args)  DECLCALLBACKMEMBER(type, name)  args
+# define DECLRCCALLBACKMEMBER(type, name, args)  type (RTCALL * name) args
 #else
 # define DECLRCCALLBACKMEMBER(type, name, args)  RTRCPTR name
 #endif
@@ -1113,7 +774,7 @@
  * @param   args    The argument list enclosed in parentheses.
  */
 #ifdef IN_RING0
-# define DECLR0CALLBACKMEMBER(type, name, args)  DECLCALLBACKMEMBER(type, name) args
+# define DECLR0CALLBACKMEMBER(type, name, args)  type (RTCALL * name) args
 #else
 # define DECLR0CALLBACKMEMBER(type, name, args)  RTR0PTR name
 #endif
@@ -1245,27 +906,16 @@
 /** @def RTDATADECL(type)
  * Runtime Library export or import declaration.
  * Data declared using this macro exists in all contexts.
- * @param   type    The data type.
- */
-/** @def RT_DECL_DATA_CONST(type)
- * Definition of a const variable. See DECL_HIDDEN_CONST.
- * @param   type    The const data type.
+ * @param   type    The return type of the function declaration.
  */
 #if defined(IN_RT_R3) || defined(IN_RT_RC) || defined(IN_RT_R0)
 # ifdef IN_RT_STATIC
-#  define RTDATADECL(type)          DECLHIDDEN(type)
-#  define RT_DECL_DATA_CONST(type)  DECL_HIDDEN_CONST(type)
+#  define RTDATADECL(type)  DECLHIDDEN(type)
 # else
-#  define RTDATADECL(type)          DECLEXPORT(type)
-#  if defined(__cplusplus) && defined(__GNUC__)
-#   define RT_DECL_DATA_CONST(type) type
-#  else
-#   define RT_DECL_DATA_CONST(type) DECLEXPORT(type)
-#  endif
+#  define RTDATADECL(type)  DECLEXPORT(type)
 # endif
 #else
-# define RTDATADECL(type)           DECLIMPORT(type)
-# define RT_DECL_DATA_CONST(type)   DECLIMPORT(type)
+# define RTDATADECL(type)   DECLIMPORT(type)
 #endif
 
 /** @def RT_DECL_CLASS
@@ -1407,21 +1057,6 @@
 /** RT_CONCAT4 helper, don't use.  */
 #define RT_CONCAT4_HLP(a,b,c,d)     a##b##c##d
 
-/**
- * String constant tuple - string constant, strlen(string constant).
- *
- * @param   a_szConst   String constant.
- */
-#define RT_STR_TUPLE(a_szConst)  a_szConst, (sizeof(a_szConst) - 1)
-
-
-/**
- * Macro for using in switch statements that turns constants into strings.
- *
- * @param   a_Const     The constant (not string).
- */
-#define RT_CASE_RET_STR(a_Const)     case a_Const: return #a_Const
-
 
 /** @def RT_BIT
  * Convert a bit number into an integer bitmask (unsigned).
@@ -1539,11 +1174,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#if defined(__GNUC__) && defined(__cplusplus) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
-# define RT_OFFSETOF(type, member)              ( (int)(uintptr_t)&( ((type *)(void *)0x1000)->member) - 0x1000 )
-#else
-# define RT_OFFSETOF(type, member)              ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
-#endif
+#define RT_OFFSETOF(type, member)               ( (int)(uintptr_t)&( ((type *)(void *)0)->member) )
 
 /** @def RT_UOFFSETOF
  * Our own special offsetof() variant, returns an unsigned result.
@@ -1557,11 +1188,7 @@
  * @param   type    Structure type.
  * @param   member  Member.
  */
-#if defined(__GNUC__) && defined(__cplusplus) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
-# define RT_UOFFSETOF(type, member)             ( (uintptr_t)&( ((type *)(void *)0x1000)->member) - 0x1000 )
-#else
-# define RT_UOFFSETOF(type, member)             ( (uintptr_t)&( ((type *)(void *)0)->member) )
-#endif
+#define RT_UOFFSETOF(type, member)              ( (uintptr_t)&( ((type *)(void *)0)->member) )
 
 /** @def RT_OFFSETOF_ADD
  * RT_OFFSETOF with an addend.
@@ -1700,9 +1327,9 @@
 /** @def RT_LO_U16
  * Gets the low uint16_t of a uint32_t or something equivalent. */
 #ifdef __GNUC__
-# define RT_LO_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint32_t)); (uint16_t)(a); })
+# define RT_LO_U16(a)   __extension__ ({ AssertCompile(sizeof((a)) == sizeof(uint64_t)); (uint32_t)(a); })
 #else
-# define RT_LO_U16(a)                           ( (uint16_t)(a) )
+# define RT_LO_U16(a)                           ( (uint32_t)(a) )
 #endif
 /** @def RT_HI_U16
  * Gets the high uint16_t of a uint32_t or something equivalent). */
@@ -2256,59 +1883,6 @@
 #define _2E             0x2000000000000000ULL
 /** @} */
 
-/** @defgroup grp_rt_cdefs_decimal_grouping   Decimal Constant Grouping Macros
- * @{ */
-#define RT_D1(g1)                                   g1
-#define RT_D2(g1, g2)                               g1#g2
-#define RT_D3(g1, g2, g3)                           g1#g2#g3
-#define RT_D4(g1, g2, g3, g4)                       g1#g2#g3#g4
-#define RT_D5(g1, g2, g3, g4, g5)                   g1#g2#g3#g4#g5
-#define RT_D6(g1, g2, g3, g4, g5, g6)               g1#g2#g3#g4#g5#g6
-#define RT_D7(g1, g2, g3, g4, g5, g6, g7)           g1#g2#g3#g4#g5#g6#g7
-
-#define RT_D1_U(g1)                                 UINT32_C(g1)
-#define RT_D2_U(g1, g2)                             UINT32_C(g1#g2)
-#define RT_D3_U(g1, g2, g3)                         UINT32_C(g1#g2#g3)
-#define RT_D4_U(g1, g2, g3, g4)                     UINT64_C(g1#g2#g3#g4)
-#define RT_D5_U(g1, g2, g3, g4, g5)                 UINT64_C(g1#g2#g3#g4#g5)
-#define RT_D6_U(g1, g2, g3, g4, g5, g6)             UINT64_C(g1#g2#g3#g4#g5#g6)
-#define RT_D7_U(g1, g2, g3, g4, g5, g6, g7)         UINT64_C(g1#g2#g3#g4#g5#g6#g7)
-
-#define RT_D1_S(g1)                                 INT32_C(g1)
-#define RT_D2_S(g1, g2)                             INT32_C(g1#g2)
-#define RT_D3_S(g1, g2, g3)                         INT32_C(g1#g2#g3)
-#define RT_D4_S(g1, g2, g3, g4)                     INT64_C(g1#g2#g3#g4)
-#define RT_D5_S(g1, g2, g3, g4, g5)                 INT64_C(g1#g2#g3#g4#g5)
-#define RT_D6_S(g1, g2, g3, g4, g5, g6)             INT64_C(g1#g2#g3#g4#g5#g6)
-#define RT_D7_S(g1, g2, g3, g4, g5, g6, g7)         INT64_C(g1#g2#g3#g4#g5#g6#g7)
-
-#define RT_D1_U32(g1)                               UINT32_C(g1)
-#define RT_D2_U32(g1, g2)                           UINT32_C(g1#g2)
-#define RT_D3_U32(g1, g2, g3)                       UINT32_C(g1#g2#g3)
-#define RT_D4_U32(g1, g2, g3, g4)                   UINT32_C(g1#g2#g3#g4)
-
-#define RT_D1_S32(g1)                               INT32_C(g1)
-#define RT_D2_S32(g1, g2)                           INT32_C(g1#g2)
-#define RT_D3_S32(g1, g2, g3)                       INT32_C(g1#g2#g3)
-#define RT_D4_S32(g1, g2, g3, g4)                   INT32_C(g1#g2#g3#g4)
-
-#define RT_D1_U64(g1)                               UINT64_C(g1)
-#define RT_D2_U64(g1, g2)                           UINT64_C(g1#g2)
-#define RT_D3_U64(g1, g2, g3)                       UINT64_C(g1#g2#g3)
-#define RT_D4_U64(g1, g2, g3, g4)                   UINT64_C(g1#g2#g3#g4)
-#define RT_D5_U64(g1, g2, g3, g4, g5)               UINT64_C(g1#g2#g3#g4#g5)
-#define RT_D6_U64(g1, g2, g3, g4, g5, g6)           UINT64_C(g1#g2#g3#g4#g5#g6)
-#define RT_D7_U64(g1, g2, g3, g4, g5, g6, g7)       UINT64_C(g1#g2#g3#g4#g5#g6#g7)
-
-#define RT_D1_S64(g1)                               INT64_C(g1)
-#define RT_D2_S64(g1, g2)                           INT64_C(g1#g2)
-#define RT_D3_S64(g1, g2, g3)                       INT64_C(g1#g2#g3)
-#define RT_D4_S64(g1, g2, g3, g4)                   INT64_C(g1#g2#g3#g4)
-#define RT_D5_S64(g1, g2, g3, g4, g5)               INT64_C(g1#g2#g3#g4#g5)
-#define RT_D6_S64(g1, g2, g3, g4, g5, g6)           INT64_C(g1#g2#g3#g4#g5#g6)
-#define RT_D7_S64(g1, g2, g3, g4, g5, g6, g7)       INT64_C(g1#g2#g3#g4#g5#g6#g7)
-/** @}  */
-
 
 /** @defgroup grp_rt_cdefs_time     Time Constants
  * @{
@@ -2317,16 +1891,6 @@
 #define RT_NS_1HOUR             UINT64_C(3600000000000)
 /** 1 minute expressed in nanoseconds (64-bit). */
 #define RT_NS_1MIN              UINT64_C(60000000000)
-/** 45 second expressed in nanoseconds. */
-#define RT_NS_45SEC             UINT64_C(45000000000)
-/** 30 second expressed in nanoseconds. */
-#define RT_NS_30SEC             UINT64_C(30000000000)
-/** 20 second expressed in nanoseconds. */
-#define RT_NS_20SEC             UINT64_C(20000000000)
-/** 15 second expressed in nanoseconds. */
-#define RT_NS_15SEC             UINT64_C(15000000000)
-/** 10 second expressed in nanoseconds. */
-#define RT_NS_10SEC             UINT64_C(10000000000)
 /** 1 second expressed in nanoseconds. */
 #define RT_NS_1SEC              UINT32_C(1000000000)
 /** 100 millsecond expressed in nanoseconds. */
@@ -2525,10 +2089,6 @@
 #  endif
 # endif /* !IN_RING3 */
 
-#elif defined(RT_ARCH_ARM)
-/* ASSUMES that at least the last and first 4K are out of bounds. */
-# define RT_VALID_PTR(ptr)      ( (uintptr_t)(ptr) + 0x1000U >= 0x2000U )
-
 #else
 # error "Architecture identifier missing / not implemented."
 #endif
@@ -2576,27 +2136,19 @@
  *  for the other compilers.
  */
 #if !defined(__GNUC__) && !defined(__PRETTY_FUNCTION__)
-# ifdef _MSC_VER
-#  define __PRETTY_FUNCTION__    __FUNCSIG__
-# else
-#  define __PRETTY_FUNCTION__    __FUNCTION__
-# endif
+# define __PRETTY_FUNCTION__    __FUNCTION__
 #endif
 
 
 /** @def RT_STRICT
  * The \#define RT_STRICT controls whether or not assertions and other runtime
- * checks should be compiled in or not.  This is defined when DEBUG is defined.
- * If RT_NO_STRICT is defined, it will unconditionally be undefined.
+ * checks should be compiled in or not.
  *
  * If you want assertions which are not subject to compile time options use
  * the AssertRelease*() flavors.
  */
 #if !defined(RT_STRICT) && defined(DEBUG)
 # define RT_STRICT
-#endif
-#ifdef RT_NO_STRICT
-# undef RT_STRICT
 #endif
 
 /** @todo remove this: */
@@ -2670,17 +2222,10 @@
 #endif
 
 /** @def RT_INLINE_ASM_USES_INTRIN
- * Defined as the major MSC version if the compiler have and uses intrin.h.
- * Otherwise it is 0. */
+ * Defined as 1 if the compiler have and uses intrin.h. Otherwise it is 0. */
 #ifdef _MSC_VER
-# if   _MSC_VER >= 1700 /* Visual C++ v11.0 / 2012 */
-#  define RT_INLINE_ASM_USES_INTRIN 17
-# elif _MSC_VER >= 1600 /* Visual C++ v10.0 / 2010 */
-#  define RT_INLINE_ASM_USES_INTRIN 16
-# elif _MSC_VER >= 1500 /* Visual C++ v9.0 / 2008 */
-#  define RT_INLINE_ASM_USES_INTRIN 15
-# elif _MSC_VER >= 1400 /* Visual C++ v8.0 / 2005 */
-#  define RT_INLINE_ASM_USES_INTRIN 14
+# if _MSC_VER >= 1400
+#  define RT_INLINE_ASM_USES_INTRIN 1
 # endif
 #endif
 #ifndef RT_INLINE_ASM_USES_INTRIN

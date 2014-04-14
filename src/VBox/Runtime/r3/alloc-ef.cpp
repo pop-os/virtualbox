@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,15 +53,15 @@
 static volatile uint32_t    g_BlocksLock;
 /** Tree tracking the allocations. */
 static AVLPVTREE            g_BlocksTree;
-# ifdef RTALLOC_EFENCE_FREE_DELAYED
+#ifdef RTALLOC_EFENCE_FREE_DELAYED
 /** Tail of the delayed blocks. */
 static volatile PRTMEMBLOCK g_pBlocksDelayHead;
 /** Tail of the delayed blocks. */
 static volatile PRTMEMBLOCK g_pBlocksDelayTail;
 /** Number of bytes in the delay list (includes fences). */
 static volatile size_t      g_cbBlocksDelay;
-# endif /* RTALLOC_EFENCE_FREE_DELAYED */
-#endif /* RTALLOC_EFENCE_TRACE */
+#endif
+#endif
 /** Array of pointers free watches for. */
 void   *gapvRTMemFreeWatch[4] = {NULL, NULL, NULL, NULL};
 /** Enable logging of all freed memory. */
@@ -95,8 +95,6 @@ DECLINLINE(void) rtmemLog(const char *pszOp, const char *pszFormat, ...)
     va_start(args, pszFormat);
     vfprintf(stderr, pszFormat, args);
     va_end(args);
-#else
-    NOREF(pszOp); NOREF(pszFormat);
 #endif
 }
 
@@ -110,7 +108,7 @@ DECLINLINE(void) rtmemBlockLock(void)
 {
     unsigned c = 0;
     while (!ASMAtomicCmpXchgU32(&g_BlocksLock, 1, 0))
-        RTThreadSleepNoLog(((++c) >> 2) & 31);
+        RTThreadSleep(((++c) >> 2) & 31);
 }
 
 
@@ -201,7 +199,6 @@ static DECLCALLBACK(int) RTMemDumpOne(PAVLPVNODECORE pNode, void *pvUser)
             (unsigned long)pBlock->cbUnaligned,
             (unsigned long)(pBlock->cbAligned - pBlock->cbUnaligned),
             pBlock->pvCaller);
-    NOREF(pvUser);
     return 0;
 }
 
@@ -216,8 +213,8 @@ void RTMemDump(void)
     RTAvlPVDoWithAll(&g_BlocksTree, true, RTMemDumpOne, NULL);
 }
 
-# ifdef RTALLOC_EFENCE_FREE_DELAYED
 
+#ifdef RTALLOC_EFENCE_FREE_DELAYED
 /**
  * Insert a delayed block.
  */
@@ -266,7 +263,8 @@ DECLINLINE(PRTMEMBLOCK) rtmemBlockDelayRemove(void)
     return pBlock;
 }
 
-# endif  /* RTALLOC_EFENCE_FREE_DELAYED */
+
+#endif  /* DELAY */
 
 #endif /* RTALLOC_EFENCE_TRACE */
 
@@ -378,8 +376,6 @@ RTDECL(void *) rtR3MemAlloc(const char *pszOp, RTMEMTYPE enmType, size_t cbUnali
  */
 RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *pvCaller, RT_SRC_POS_DECL)
 {
-    NOREF(enmType); RT_SRC_POS_NOREF();
-
     /*
      * Simple case.
      */
@@ -418,7 +414,7 @@ RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *p
                                         RTALLOC_EFENCE_NOMAN_FILLER);
         if (pvWrong)
             RTAssertDoPanic();
-        pvWrong = ASMMemIsAll8((void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK),
+        pvWrong = ASMMemIsAll8((void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK),
                                RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) - pBlock->cbAligned,
                                RTALLOC_EFENCE_NOMAN_FILLER);
 #  endif
@@ -451,7 +447,7 @@ RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *p
 #  ifdef RTALLOC_EFENCE_IN_FRONT
                 void  *pvBlock = (char *)pv - RTALLOC_EFENCE_SIZE;
 #  else
-                void  *pvBlock = (void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK);
+                void  *pvBlock = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
 #  endif
                 size_t cbBlock = RT_ALIGN_Z(pBlock->cbAligned, PAGE_SIZE) + RTALLOC_EFENCE_SIZE;
                 rc = RTMemProtect(pvBlock, cbBlock, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
@@ -474,7 +470,7 @@ RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *p
         void *pvBlock = (char *)pv - RTALLOC_EFENCE_SIZE;
         void *pvEFence = pvBlock;
 #  else
-        void *pvBlock = (void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK);
+        void *pvBlock = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
         void *pvEFence = (char *)pv + pBlock->cb;
 #  endif
         int rc = RTMemProtect(pvEFence, RTALLOC_EFENCE_SIZE, RTMEM_PROT_READ | RTMEM_PROT_WRITE);
@@ -497,9 +493,9 @@ RTDECL(void) rtR3MemFree(const char *pszOp, RTMEMTYPE enmType, void *pv, void *p
      * Let's just expand the E-fence to the first page of the user bit
      * since we know that it's around.
      */
-    int rc = RTMemProtect((void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK), PAGE_SIZE, RTMEM_PROT_NONE);
+    int rc = RTMemProtect((void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK), PAGE_SIZE, RTMEM_PROT_NONE);
     if (RT_FAILURE(rc))
-        rtmemComplain(pszOp, "RTMemProtect(%p, PAGE_SIZE, RTMEM_PROT_NONE) -> %d\n", (void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK), rc);
+        rtmemComplain(pszOp, "RTMemProtect(%p, PAGE_SIZE, RTMEM_PROT_NONE) -> %d\n", (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK), rc);
 #endif /* !RTALLOC_EFENCE_TRACE */
 }
 

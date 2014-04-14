@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 /* Local includes */
 #include "UIKeyboardHandlerSeamless.h"
 #include "UIMachineWindow.h"
-#include "UIShortcutPool.h"
+#include "UIMachineShortcuts.h"
 
 /* Fullscreen keyboard-handler constructor: */
 UIKeyboardHandlerSeamless::UIKeyboardHandlerSeamless(UIMachineLogic* pMachineLogic)
@@ -55,10 +55,10 @@ bool UIKeyboardHandlerSeamless::eventFilter(QObject *pWatchedObject, QEvent *pEv
                 /* Get key-event: */
                 QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
                 /* Process Host+Home for menu popup: */
-                if (isHostKeyPressed() && pKeyEvent->key() == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
+                if (isHostKeyPressed() && pKeyEvent->key() == gMS->keySequence(UIMachineShortcuts::PopupMenuShortcut))
                 {
                     /* Post request to show popup-menu: */
-                    QTimer::singleShot(0, m_windows[uScreenId], SLOT(sltPopupMainMenu()));
+                    QTimer::singleShot(0, m_windows[uScreenId]->machineWindow(), SLOT(sltPopupMainMenu()));
                     /* Filter-out this event: */
                     return true;
                 }

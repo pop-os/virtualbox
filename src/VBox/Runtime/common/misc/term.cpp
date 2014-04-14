@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -76,9 +76,10 @@ static PRTTERMCALLBACKREC   g_pCallbackHead = NULL;
  * Initializes the globals.
  *
  * @returns IPRT status code
- * @param   pvUser              Ignored.
+ * @param   pvUser1             Ignored.
+ * @param   pvUser2             Ignored.
  */
-static DECLCALLBACK(int32_t) rtTermInitOnce(void *pvUser)
+static DECLCALLBACK(int32_t) rtTermInitOnce(void *pvUser1, void *pvUser2)
 {
     RTSEMFASTMUTEX  hFastMutex;
     int             rc;
@@ -91,7 +92,8 @@ static DECLCALLBACK(int32_t) rtTermInitOnce(void *pvUser)
     if (RT_SUCCESS(rc))
         g_hFastMutex = hFastMutex;
 
-    NOREF(pvUser);
+    NOREF(pvUser1);
+    NOREF(pvUser2);
 
     return rc;
 }
@@ -108,7 +110,7 @@ RTDECL(int) RTTermRegisterCallback(PFNRTTERMCALLBACK pfnCallback, void *pvUser)
      */
     AssertPtrReturn(pfnCallback, VERR_INVALID_POINTER);
 
-    rc = RTOnce(&g_InitTermCallbacksOnce, rtTermInitOnce, NULL);
+    rc = RTOnce(&g_InitTermCallbacksOnce, rtTermInitOnce, NULL, NULL);
     if (RT_FAILURE(rc))
         return rc;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,8 @@
 #include <VBox/log.h>
 #include <iprt/mem.h>
 
-#include "pulse_mangling.h"
-#include "pulse_stubs.h"
 #include <pulse/pulseaudio.h>
+#include "pulse_stubs.h"
 
 #include "vl_vbox.h"
 #include "audio.h"

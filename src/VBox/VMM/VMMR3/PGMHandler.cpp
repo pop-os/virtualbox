@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,13 +29,9 @@
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/csam.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
+#include <VBox/vmm/rem.h>
 #include <VBox/vmm/dbgf.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
+#include <VBox/vmm/rem.h>
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/ssm.h>
 #include "PGMInternal.h"
@@ -51,7 +47,7 @@
 #include <iprt/string.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-#include <VBox/vmm/hm.h>
+#include <VBox/vmm/hwaccm.h>
 
 
 /*******************************************************************************
@@ -68,7 +64,7 @@ static DECLCALLBACK(int) pgmR3InfoHandlersVirtualOne(PAVLROGCPTRNODECORE pNode, 
  * Register a access handler for a physical range.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM handle.
  * @param   enmType         Handler type. Any of the PGMPHYSHANDLERTYPE_PHYSICAL* enums.
  * @param   GCPhys          Start physical address.
  * @param   GCPhysLast      Last physical address. (inclusive)
@@ -119,8 +115,7 @@ VMMR3DECL(int) PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType,
          * Resolve the GC handler.
          */
         RTRCPTR pfnHandlerRC = NIL_RTRCPTR;
-        if (!HMIsEnabled(pVM))
-            rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
+        rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
         if (RT_SUCCESS(rc))
             return PGMHandlerPhysicalRegisterEx(pVM, enmType, GCPhys, GCPhysLast, pfnHandlerR3, pvUserR3,
                                                 pfnHandlerR0, pvUserR0, pfnHandlerRC, pvUserRC, pszDesc);
@@ -137,7 +132,7 @@ VMMR3DECL(int) PGMR3HandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmType,
 /**
  * Updates the physical page access handlers.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     VM handle.
  * @remark  Only used when restoring a saved state.
  */
 void pgmR3HandlerPhysicalUpdateAll(PVM pVM)
@@ -160,7 +155,7 @@ void pgmR3HandlerPhysicalUpdateAll(PVM pVM)
  *
  * @returns 0
  * @param   pNode   Pointer to a PGMPHYSHANDLER.
- * @param   pvUser  Pointer to the VM.
+ * @param   pvUser  VM handle.
  */
 static DECLCALLBACK(int) pgmR3HandlerPhysicalOneClear(PAVLROGCPHYSNODECORE pNode, void *pvUser)
 {
@@ -190,7 +185,7 @@ static DECLCALLBACK(int) pgmR3HandlerPhysicalOneClear(PAVLROGCPHYSNODECORE pNode
  *
  * @returns 0
  * @param   pNode   Pointer to a PGMPHYSHANDLER.
- * @param   pvUser  Pointer to the VM.
+ * @param   pvUser  VM handle.
  */
 static DECLCALLBACK(int) pgmR3HandlerPhysicalOneSet(PAVLROGCPHYSNODECORE pNode, void *pvUser)
 {
@@ -220,7 +215,7 @@ static DECLCALLBACK(int) pgmR3HandlerPhysicalOneSet(PAVLROGCPHYSNODECORE pNode, 
  * Register a access handler for a virtual range.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM handle.
  * @param   enmType         Handler type. Any of the PGMVIRTHANDLERTYPE_* enums.
  * @param   GCPtr           Start address.
  * @param   GCPtrLast       Last address (inclusive).
@@ -240,7 +235,7 @@ VMMR3DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
              enmType, GCPtr, GCPtrLast, pszHandlerRC, pszHandlerRC, pszModRC, pszModRC, pszDesc));
 
     /* Not supported/relevant for VT-x and AMD-V. */
-    if (HMIsEnabled(pVM))
+    if (HWACCMIsEnabled(pVM))
         return VERR_NOT_IMPLEMENTED;
 
     /*
@@ -260,8 +255,7 @@ VMMR3DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
     RTRCPTR pfnHandlerRC;
     int rc = PDMR3LdrGetSymbolRCLazy(pVM, pszModRC, NULL /*pszSearchPath*/, pszHandlerRC, &pfnHandlerRC);
     if (RT_SUCCESS(rc))
-        return PGMR3HandlerVirtualRegisterEx(pVM, enmType, GCPtr, GCPtrLast, pfnInvalidateR3,
-                                             pfnHandlerR3, pfnHandlerRC, pszDesc);
+        return PGMR3HandlerVirtualRegisterEx(pVM, enmType, GCPtr, GCPtrLast, pfnInvalidateR3, pfnHandlerR3, pfnHandlerRC, pszDesc);
 
     AssertMsgFailed(("Failed to resolve %s.%s, rc=%Rrc.\n", pszModRC, pszHandlerRC, rc));
     return rc;
@@ -272,7 +266,7 @@ VMMR3DECL(int) PGMR3HandlerVirtualRegister(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
  * Register an access handler for a virtual range.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM handle.
  * @param   enmType         Handler type. Any of the PGMVIRTHANDLERTYPE_* enums.
  * @param   GCPtr           Start address.
  * @param   GCPtrLast       Last address (inclusive).
@@ -294,7 +288,7 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
          enmType, GCPtr, GCPtrLast, pfnInvalidateR3, pfnHandlerR3, pfnHandlerRC, pszDesc));
 
     /* Not supported/relevant for VT-x and AMD-V. */
-    if (HMIsEnabled(pVM))
+    if (HWACCMIsEnabled(pVM))
         return VERR_NOT_IMPLEMENTED;
 
     /*
@@ -410,8 +404,9 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
         pgmUnlock(pVM);
 
 #ifdef VBOX_WITH_STATISTICS
-        rc = STAMR3RegisterF(pVM, &pNew->Stat, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, pszDesc,
-                             "/PGM/VirtHandler/Calls/%RGv-%RGv", pNew->Core.Key, pNew->Core.KeyLast);
+        char szPath[256];
+        RTStrPrintf(szPath, sizeof(szPath), "/PGM/VirtHandler/Calls/%RGv-%RGv", pNew->Core.Key, pNew->Core.KeyLast);
+        rc = STAMR3Register(pVM, &pNew->Stat, STAMTYPE_PROFILE, STAMVISIBILITY_USED, szPath, STAMUNIT_TICKS_PER_CALL, pszDesc);
         AssertRC(rc);
 #endif
         return VINF_SUCCESS;
@@ -429,7 +424,7 @@ VMMDECL(int) PGMR3HandlerVirtualRegisterEx(PVM pVM, PGMVIRTHANDLERTYPE enmType, 
  * (add more when needed)
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM handle.
  * @param   GCPtr           Start address.
  * @param   pfnInvalidateR3 The R3 invalidate callback (can be 0)
  * @remarks Doesn't work with the hypervisor access handler type.
@@ -453,7 +448,7 @@ VMMDECL(int) PGMHandlerVirtualChangeInvalidateCallback(PVM pVM, RTGCPTR GCPtr, P
  * Deregister an access handler for a virtual range.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   GCPtr       Start address.
  * @thread  EMT
  */
@@ -494,9 +489,7 @@ VMMDECL(int) PGMHandlerVirtualDeregister(PVM pVM, RTGCPTR GCPtr)
         if (RT_UNLIKELY(!pCur))
         {
             pgmUnlock(pVM);
-#ifndef DEBUG_sander
             AssertMsgFailed(("Range %#x not found!\n", GCPtr));
-#endif
             return VERR_INVALID_PARAMETER;
         }
 
@@ -507,9 +500,7 @@ VMMDECL(int) PGMHandlerVirtualDeregister(PVM pVM, RTGCPTR GCPtr)
 
     pgmUnlock(pVM);
 
-#ifdef VBOX_WITH_STATISTICS
-    STAMR3DeregisterF(pVM->pUVM, "/PGM/VirtHandler/Calls/%RGv-%RGv", pCur->Core.Key, pCur->Core.KeyLast);
-#endif
+    STAM_DEREG(pVM, &pCur->Stat);
     MMHyperFree(pVM, pCur);
 
     return VINF_SUCCESS;
@@ -559,12 +550,8 @@ DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
     {
         pHlp->pfnPrintf(pHlp,
             "Physical handlers: (PhysHandlers=%d (%#x))\n"
-            "%*s %*s %*s %*s HandlerGC UserGC    Type     Description\n",
-            pVM->pgm.s.pTreesR3->PhysHandlers, pVM->pgm.s.pTreesR3->PhysHandlers,
-            - (int)sizeof(RTGCPHYS) * 2,     "From",
-            - (int)sizeof(RTGCPHYS) * 2 - 3, "- To (incl)",
-            - (int)sizeof(RTHCPTR)  * 2 - 1, "HandlerHC",
-            - (int)sizeof(RTHCPTR)  * 2 - 1, "UserHC");
+            "From     - To (incl) HandlerHC UserHC    HandlerGC UserGC    Type     Description\n",
+            pVM->pgm.s.pTreesR3->PhysHandlers, pVM->pgm.s.pTreesR3->PhysHandlers);
         RTAvlroGCPhysDoWithAll(&pVM->pgm.s.pTreesR3->PhysHandlers, true, pgmR3InfoHandlersPhysicalOne, &Args);
     }
 
@@ -572,11 +559,7 @@ DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
     {
         pHlp->pfnPrintf(pHlp,
             "Virtual handlers:\n"
-            "%*s %*s %*s %*s Type       Description\n",
-            - (int)sizeof(RTGCPTR) * 2,     "From",
-            - (int)sizeof(RTGCPTR) * 2 - 3, "- To (excl)",
-            - (int)sizeof(RTHCPTR) * 2 - 1, "HandlerHC",
-            - (int)sizeof(RTRCPTR) * 2 - 1, "HandlerGC");
+            "From     - To (excl) HandlerHC HandlerGC Type     Description\n");
         RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->VirtHandlers, true, pgmR3InfoHandlersVirtualOne, &Args);
     }
 
@@ -584,11 +567,7 @@ DECLCALLBACK(void) pgmR3InfoHandlers(PVM pVM, PCDBGFINFOHLP pHlp, const char *ps
     {
         pHlp->pfnPrintf(pHlp,
             "Hypervisor Virtual handlers:\n"
-            "%*s %*s %*s %*s Type       Description\n",
-            - (int)sizeof(RTGCPTR) * 2,     "From",
-            - (int)sizeof(RTGCPTR) * 2 - 3, "- To (excl)",
-            - (int)sizeof(RTHCPTR) * 2 - 1, "HandlerHC",
-            - (int)sizeof(RTRCPTR) * 2 - 1, "HandlerGC");
+            "From     - To (excl) HandlerHC HandlerGC Type     Description\n");
         RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->HyperVirtHandlers, true, pgmR3InfoHandlersVirtualOne, &Args);
     }
 }

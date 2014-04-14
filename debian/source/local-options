@@ -1,3 +1,0 @@
-unapply-patches
-abort-on-upstream-changes
-tar-ignore = "debian/gbp.conf"

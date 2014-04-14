@@ -2,7 +2,7 @@
 #
 # VirtualBox Guest Additions kernel module control script for Solaris.
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,6 @@ export LANG
 SILENTUNLOAD=""
 MODNAME="vboxguest"
 VFSMODNAME="vboxfs"
-VMSMODNAME="vboxms"
 MODDIR32="/usr/kernel/drv"
 MODDIR64="/usr/kernel/drv/amd64"
 VFSDIR32="/usr/kernel/fs"
@@ -88,12 +87,6 @@ vboxfs_loaded()
     return $?
 }
 
-vboxms_loaded()
-{
-    module_loaded $VMSMODNAME
-    return $?
-}
-
 check_root()
 {
     # the reason we don't use "-u" is that some versions of id are old and do not
@@ -114,7 +107,7 @@ start_module()
     elif test -c "/devices/pci@0,0/pci80ee,cafe@4:$MODNAME"; then
         info "VirtualBox guest kernel module loaded."
     else
-        info "VirtualBox guest kernel module failed to attach."
+        abort "Aborting due to attach failure."
     fi
 }
 
@@ -135,7 +128,7 @@ start_vboxfs()
     else
         /usr/sbin/modload -p fs/$VFSMODNAME || abort "Failed to load VirtualBox FileSystem kernel module."
         if test ! vboxfs_loaded; then
-            info "Failed to load VirtualBox FileSystem kernel module."
+            abort "Failed to load VirtualBox FileSystem kernel module."
         else
             info "VirtualBox FileSystem kernel module loaded."
         fi
@@ -155,28 +148,6 @@ stop_vboxfs()
     fi
 }
 
-start_vboxms()
-{
-    /usr/sbin/add_drv -m'* 0666 root sys' $VMSMODNAME
-    if test ! vboxms_loaded; then
-        abort "Failed to load VirtualBox pointer integration module."
-    elif test -c "/devices/pseudo/$VMSMODNAME@0:$VMSMODNAME"; then
-        info "VirtualBox pointer integration module loaded."
-    else
-        info "VirtualBox pointer integration module failed to attach."
-    fi
-}
-
-stop_vboxms()
-{
-    if vboxms_loaded; then
-        /usr/sbin/rem_drv $VMSMODNAME || abort "Failed to unload VirtualBox pointer integration module."
-        info "VirtualBox pointer integration module unloaded."
-    elif test -z "$SILENTUNLOAD"; then
-        info "VirtualBox pointer integration module not loaded."
-    fi
-}
-
 status_module()
 {
     if vboxguest_loaded; then
@@ -188,7 +159,6 @@ status_module()
 
 stop_all()
 {
-    stop_vboxms
     stop_vboxfs
     stop_module
     return 0
@@ -199,7 +169,6 @@ restart_all()
     stop_all
     start_module
     start_vboxfs
-    start_vboxms
     return 0
 }
 
@@ -219,10 +188,8 @@ restartall)
     ;;
 start)
     start_module
-    start_vboxms
     ;;
 stop)
-    stop_vboxms
     stop_module
     ;;
 status)
@@ -233,12 +200,6 @@ vfsstart)
     ;;
 vfsstop)
     stop_vboxfs
-    ;;
-vmsstart)
-    start_vboxms
-    ;;
-vmsstop)
-    stop_vboxms
     ;;
 *)
     echo "Usage: $0 {start|stop|restart|status}"

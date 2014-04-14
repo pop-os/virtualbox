@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,9 @@
 *******************************************************************************/
 /** Converts a pointer to DRVRAWFILE::IMedia to a PDRVRAWFILE. */
 #define PDMISTREAM_2_DRVRAWFILE(pInterface) ( (PDRVRAWFILE)((uintptr_t)pInterface - RT_OFFSETOF(DRVRAWFILE, IStream)) )
+
+/** Converts a pointer to PDMDRVINS::IBase to a PPDMDRVINS. */
+#define PDMIBASE_2_DRVINS(pInterface)   ( (PPDMDRVINS)((uintptr_t)pInterface - RT_OFFSETOF(PDMDRVINS, IBase)) )
 
 
 /*******************************************************************************
@@ -94,7 +97,7 @@ static DECLCALLBACK(int) drvRawFileWrite(PPDMISTREAM pInterface, const void *pvB
  */
 static DECLCALLBACK(void *) drvRawFileQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS  pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PPDMDRVINS  pDrvIns = PDMIBASE_2_DRVINS(pInterface);
     PDRVRAWFILE pThis   = PDMINS_2_DATA(pDrvIns, PDRVRAWFILE);
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
@@ -139,11 +142,8 @@ static DECLCALLBACK(void) drvRawFileDestruct(PPDMDRVINS pDrvIns)
     if (pThis->pszLocation)
         MMR3HeapFree(pThis->pszLocation);
 
-    if (pThis->hOutputFile != NIL_RTFILE)
-    {
-        RTFileClose(pThis->hOutputFile);
-        pThis->hOutputFile = NIL_RTFILE;
-    }
+    RTFileClose(pThis->hOutputFile);
+    pThis->hOutputFile = NIL_RTFILE;
 }
 
 

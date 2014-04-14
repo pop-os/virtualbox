@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,33 +18,51 @@
 
 #define __STDC_CONSTANT_MACROS  /* needed for a definition in iprt/string.h */
 
-#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+#ifdef RT_OS_WINDOWS
+# include <iprt/alloc.h>
+# include <iprt/string.h>
+# include <iprt/assert.h>
+# include <iprt/stream.h>
+# include <VBox/vmm/ssm.h>
+# include <VBox/hgcmsvc.h>
+# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+# include "cr_server.h"
+# define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+# include <VBox/log.h>
 
-#include <iprt/assert.h>
-#include <iprt/asm.h>
-#include <iprt/critsect.h>
-#include <iprt/mem.h>
-#include <iprt/semaphore.h>
-#include <iprt/stream.h>
-#include <iprt/string.h>
-#include <iprt/thread.h>
+# include <VBox/com/com.h>
+# include <VBox/com/string.h>
+# include <VBox/com/array.h>
+# include <VBox/com/Guid.h>
+# include <VBox/com/ErrorInfo.h>
+# include <VBox/com/EventQueue.h>
+# include <VBox/com/VirtualBox.h>
+# include <VBox/com/assert.h>
 
-#include <VBox/hgcmsvc.h>
-#include <VBox/log.h>
-#include <VBox/com/ErrorInfo.h>
-#include <VBox/com/VirtualBox.h>
+#else
+# include <VBox/com/VirtualBox.h>
+# include <iprt/assert.h>
+# include <VBox/vmm/ssm.h>
+# include <VBox/hgcmsvc.h>
+# include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+
+# include "cr_server.h"
+# define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+# include <VBox/log.h>
+# include <VBox/com/ErrorInfo.h>
+#endif /* RT_OS_WINDOWS */
+
 #include <VBox/com/errorprint.h>
-#include <VBox/HostServices/VBoxCrOpenGLSvc.h>
-#include <VBox/vmm/ssm.h>
+#include <iprt/thread.h>
+#include <iprt/critsect.h>
+#include <iprt/semaphore.h>
+#include <iprt/asm.h>
 
 #include "cr_mem.h"
-#include "cr_server.h"
 
 PVBOXHGCMSVCHELPERS g_pHelpers;
 static IConsole* g_pConsole = NULL;
-static uint32_t g_u32ScreenCount = 0;
 static PVM g_pVM = NULL;
-static uint32_t g_u32fCrHgcmDisabled = 0;
 
 #ifndef RT_OS_WINDOWS
 # define DWORD int
@@ -226,29 +244,6 @@ static int svcPresentFBOTearDown(void)
     return rc;
 }
 
-static DECLCALLBACK(void) svcNotifyEventCB(int32_t screenId, uint32_t uEvent, void*pvData)
-{
-    ComPtr<IDisplay> pDisplay;
-    ComPtr<IFramebuffer> pFramebuffer;
-    LONG xo, yo;
-
-    if (!g_pConsole)
-    {
-        crWarning("Console not defined!");
-        return;
-    }
-
-    CHECK_ERROR2_STMT(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()), return);
-
-    CHECK_ERROR2_STMT(pDisplay, GetFramebuffer(screenId, pFramebuffer.asOutParam(), &xo, &yo), return);
-
-    if (!pFramebuffer)
-        return;
-
-    pFramebuffer->Notify3DEvent(uEvent, (BYTE*)pvData);
-}
-
-
 static DECLCALLBACK(int) svcUnload (void *)
 {
     int rc = VINF_SUCCESS;
@@ -268,12 +263,6 @@ static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClien
 
     NOREF(pvClient);
 
-    if (g_u32fCrHgcmDisabled)
-    {
-        WARN(("connect not expected"));
-        return VERR_INVALID_STATE;
-    }
-
     Log(("SHARED_CROPENGL svcConnect: u32ClientID = %d\n", u32ClientID));
 
     rc = crVBoxServerAddClient(u32ClientID);
@@ -286,12 +275,6 @@ static DECLCALLBACK(int) svcDisconnect (void *, uint32_t u32ClientID, void *pvCl
     int rc = VINF_SUCCESS;
 
     NOREF(pvClient);
-
-    if (g_u32fCrHgcmDisabled)
-    {
-        WARN(("disconnect not expected"));
-        return VINF_SUCCESS;
-    }
 
     Log(("SHARED_CROPENGL svcDisconnect: u32ClientID = %d\n", u32ClientID));
 
@@ -374,6 +357,13 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
     AssertRCReturn(rc, rc);
 
     /* The state itself */
+#if SHCROGL_SSM_VERSION==24
+    if (ui32==23)
+    {
+        rc = crVBoxServerLoadState(pSSM, 24);
+    }
+    else
+#endif
     rc = crVBoxServerLoadState(pSSM, ui32);
 
     if (rc==VERR_SSM_DATA_UNIT_FORMAT_CHANGED && ui32!=SHCROGL_SSM_VERSION)
@@ -381,7 +371,7 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
         LogRel(("SHARED_CROPENGL svcLoadState: unsupported save state version %d\n", ui32));
 
         /*@todo ugly hack, as we don't know size of stored opengl data try to read untill end of opengl data marker*/
-        /*VBoxSharedCrOpenGL isn't last hgcm service now, so can't use SSMR3SkipToEndOfUnit*/
+        /*VboxSharedCrOpenGL isn't last hgcm service now, so can't use SSMR3SkipToEndOfUnit*/
         {
             const char *pMatch = &gszVBoxOGLSSMMagic[0];
             char current;
@@ -489,7 +479,7 @@ static CRVBOXSVCBUFFER_t* svcGetBuffer(uint32_t iBuffer, uint32_t cbBufferSize)
         {
             if (pBuffer->uiId == iBuffer)
             {
-                if (cbBufferSize && pBuffer->uiSize!=cbBufferSize)
+                if (pBuffer->uiSize!=cbBufferSize)
                 {
                     static int shown=0;
 
@@ -570,12 +560,6 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
     int rc = VINF_SUCCESS;
 
     NOREF(pvClient);
-
-    if (g_u32fCrHgcmDisabled)
-    {
-        WARN(("cr hgcm disabled!"));
-        return;
-    }
 
     Log(("SHARED_CROPENGL svcCall: u32ClientID = %d, fn = %d, cParms = %d, pparms = %d\n", u32ClientID, u32Function, cParms, paParms));
 
@@ -915,65 +899,8 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
             break;
         }
 
-        case SHCRGL_GUEST_FN_GET_CAPS_NEW:
-        {
-            Log(("svcCall: SHCRGL_GUEST_FN_GET_CAPS_NEW\n"));
-
-            /* Verify parameter count and types. */
-            if (cParms != SHCRGL_CPARMS_GET_CAPS_NEW)
-            {
-                WARN(("invalid parameter count"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms[0].type != VBOX_HGCM_SVC_PARM_PTR)
-            {
-                WARN(("invalid parameter"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms[0].u.pointer.size < sizeof (CR_CAPS_INFO))
-            {
-                WARN(("invalid buffer size"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            CR_CAPS_INFO *pInfo = (CR_CAPS_INFO*)paParms[0].u.pointer.addr;
-            rc = crVBoxServerClientGetCapsNew(u32ClientID, pInfo);
-            AssertRC(rc);
-
-            break;
-        }
-
-        case SHCRGL_GUEST_FN_GET_CAPS_LEGACY:
-        {
-            Log(("svcCall: SHCRGL_GUEST_FN_GET_CAPS_LEGACY\n"));
-
-            /* Verify parameter count and types. */
-            if (cParms != SHCRGL_CPARMS_GET_CAPS_LEGACY)
-            {
-                rc = VERR_INVALID_PARAMETER;
-            }
-            else if (paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT)
-            {
-                rc = VERR_INVALID_PARAMETER;
-            }
-            else
-            {
-                /* Execute the function. */
-                rc = crVBoxServerClientGetCapsLegacy(u32ClientID, &paParms[0].u.uint32);
-                AssertRC(rc);
-            }
-
-            break;
-        }
-
         default:
         {
-            WARN(("svcCall: unexpected u32Function %d", u32Function));
             rc = VERR_NOT_IMPLEMENTED;
         }
     }
@@ -984,36 +911,10 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
     g_pHelpers->pfnCallComplete (callHandle, rc);
 }
 
-static void crScreenshotHandle(CRVBOXHGCMTAKESCREENSHOT *pScreenshot, uint32_t idScreen, uint64_t u64Now)
-{
-    if (!pScreenshot->pfnScreenshotBegin || pScreenshot->pfnScreenshotBegin(pScreenshot->pvContext, idScreen, u64Now))
-    {
-        CR_SCREENSHOT Screenshot;
-
-        int rc = crServerVBoxScreenshotGet(idScreen, pScreenshot->u32Width, pScreenshot->u32Height, pScreenshot->u32Pitch, pScreenshot->pvBuffer, &Screenshot);
-        if (RT_SUCCESS(rc))
-        {
-            if (pScreenshot->pfnScreenshotPerform)
-                pScreenshot->pfnScreenshotPerform(pScreenshot->pvContext, idScreen,
-                        0, 0, 32,
-                        Screenshot.Img.pitch, Screenshot.Img.width, Screenshot.Img.height,
-                        (uint8_t*)Screenshot.Img.pvData, u64Now);
-            crServerVBoxScreenshotRelease(&Screenshot);
-        }
-        else
-        {
-            Assert(rc == VERR_INVALID_STATE);
-        }
-
-        if (pScreenshot->pfnScreenshotEnd)
-            pScreenshot->pfnScreenshotEnd(pScreenshot->pvContext, idScreen, u64Now);
-    }
-}
-
 /*
  * We differentiate between a function handler for the guest and one for the host.
  */
-static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
 
@@ -1096,14 +997,8 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                     CHECK_ERROR_BREAK(pMachine, COMGETTER(MonitorCount)(&monitorCount));
                     CHECK_ERROR_BREAK(pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
 
-                    g_pConsole = pConsole;
-                    g_u32ScreenCount = monitorCount;
-
                     rc = crVBoxServerSetScreenCount(monitorCount);
                     AssertRCReturn(rc, rc);
-
-#if 1
-                    crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
 
                     for (i=0; i<monitorCount; ++i)
                     {
@@ -1125,8 +1020,7 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                         }
                     }
 
-                    crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
-#endif
+                    g_pConsole = pConsole;
 
                     rc = VINF_SUCCESS;
                 }
@@ -1177,15 +1071,16 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
             }
 
             if (    paParms[0].type != VBOX_HGCM_SVC_PARM_PTR     /* pRects */
+                 || paParms[1].type != VBOX_HGCM_SVC_PARM_32BIT   /* cRects */
                )
             {
                 rc = VERR_INVALID_PARAMETER;
                 break;
             }
 
-            Assert(sizeof (RTRECT) == 4 * sizeof (GLint));
+            Assert(sizeof(RTRECT)==4*sizeof(GLint));
 
-            rc = crVBoxServerSetRootVisibleRegion(paParms[0].u.pointer.size / sizeof (RTRECT), (const RTRECT*)paParms[0].u.pointer.addr);
+            rc = crVBoxServerSetRootVisibleRegion(paParms[1].u.uint32, (GLint*)paParms[0].u.pointer.addr);
             break;
         }
         case SHCRGL_HOST_FN_SCREEN_CHANGED:
@@ -1217,8 +1112,6 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                 CHECK_ERROR_RET(g_pConsole, COMGETTER(Display)(pDisplay.asOutParam()), rc);
                 CHECK_ERROR_RET(pDisplay, GetFramebuffer(screenId, pFramebuffer.asOutParam(), &xo, &yo), rc);
 
-                crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
-
                 if (!pFramebuffer)
                 {
                     rc = crVBoxServerUnmapScreen(screenId);
@@ -1226,214 +1119,26 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                 }
                 else
                 {
-#if 0
-                    CHECK_ERROR_RET(pFramebuffer, Lock(), rc);
-#endif
+                    CHECK_ERROR_RET(pFramebuffer, COMGETTER(WinId)(&winId), rc);
 
-                    do {
-                        /* determine if the framebuffer is functional */
-                        rc = pFramebuffer->Notify3DEvent(VBOX3D_NOTIFY_EVENT_TYPE_TEST_FUNCTIONAL, NULL);
+                    if (!winId)
+                    {
+                        /* View associated with framebuffer is destroyed, happens with 2d accel enabled */
+                        rc = crVBoxServerUnmapScreen(screenId);
+                        AssertRCReturn(rc, rc);
+                    }
+                    else
+                    {
+                        CHECK_ERROR_RET(pFramebuffer, COMGETTER(Width)(&w), rc);
+                        CHECK_ERROR_RET(pFramebuffer, COMGETTER(Height)(&h), rc);
 
-                        if (rc == S_OK)
-                            CHECK_ERROR_BREAK(pFramebuffer, COMGETTER(WinId)(&winId));
-
-                        if (!winId)
-                        {
-                            /* View associated with framebuffer is destroyed, happens with 2d accel enabled */
-                            rc = crVBoxServerUnmapScreen(screenId);
-                            AssertRCReturn(rc, rc);
-                        }
-                        else
-                        {
-                            CHECK_ERROR_BREAK(pFramebuffer, COMGETTER(Width)(&w));
-                            CHECK_ERROR_BREAK(pFramebuffer, COMGETTER(Height)(&h));
-
-                            rc = crVBoxServerMapScreen(screenId, xo, yo, w, h, winId);
-                            AssertRCReturn(rc, rc);
-                        }
-                    } while (0);
-#if 0
-                    CHECK_ERROR_RET(pFramebuffer, Unlock(), rc);
-#endif
+                        rc = crVBoxServerMapScreen(screenId, xo, yo, w, h, winId);
+                        AssertRCReturn(rc, rc);
+                    }
                 }
-
-                crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
 
                 rc = VINF_SUCCESS;
             }
-            break;
-        }
-        case SHCRGL_HOST_FN_TAKE_SCREENSHOT:
-        {
-            if (cParms != 1)
-            {
-                LogRel(("SHCRGL_HOST_FN_TAKE_SCREENSHOT: cParms invalid - %d", cParms));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms->type != VBOX_HGCM_SVC_PARM_PTR)
-            {
-                AssertMsgFailed(("invalid param\n"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (!paParms->u.pointer.addr)
-            {
-                AssertMsgFailed(("invalid param\n"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms->u.pointer.size != sizeof (CRVBOXHGCMTAKESCREENSHOT))
-            {
-                AssertMsgFailed(("invalid param\n"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            CRVBOXHGCMTAKESCREENSHOT *pScreenshot = (CRVBOXHGCMTAKESCREENSHOT*)paParms->u.pointer.addr;
-            uint64_t u64Now = RTTimeProgramMilliTS();
-
-            if (pScreenshot->u32Screen == CRSCREEN_ALL)
-            {
-                for (uint32_t i = 0; i < g_u32ScreenCount; ++i)
-                {
-                    crScreenshotHandle(pScreenshot, i, u64Now);
-                }
-            }
-            else if (pScreenshot->u32Screen < g_u32ScreenCount)
-            {
-                crScreenshotHandle(pScreenshot, pScreenshot->u32Screen, u64Now);
-            }
-            else
-            {
-                AssertMsgFailed(("invalid screen id\n"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-            break;
-        }
-        case SHCRGL_HOST_FN_DEV_RESIZE:
-        {
-            Log(("svcCall: SHCRGL_HOST_FN_DEV_RESIZE\n"));
-
-            /* Verify parameter count and types. */
-            if (cParms != SHCRGL_CPARMS_DEV_RESIZE)
-            {
-                LogRel(("SHCRGL_HOST_FN_DEV_RESIZE: cParms invalid - %d", cParms));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms->type != VBOX_HGCM_SVC_PARM_PTR)
-            {
-                AssertMsgFailed(("invalid param\n"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            if (!paParms->u.pointer.addr)
-            {
-                AssertMsgFailed(("invalid param\n"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            if (paParms->u.pointer.size != sizeof (CRVBOXHGCMDEVRESIZE))
-            {
-                AssertMsgFailed(("invalid param\n"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            CRVBOXHGCMDEVRESIZE *pResize = (CRVBOXHGCMDEVRESIZE*)paParms->u.pointer.addr;
-
-            rc = crVBoxServerNotifyResize(&pResize->Screen, pResize->pvVRAM);
-            break;
-        }
-        case SHCRGL_HOST_FN_VIEWPORT_CHANGED:
-        {
-            Log(("svcCall: SHCRGL_HOST_FN_VIEWPORT_CHANGED\n"));
-
-            /* Verify parameter count and types. */
-            if (cParms != SHCRGL_CPARMS_VIEWPORT_CHANGED)
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: cParms invalid - %d", cParms));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            for (int i = 0; i < SHCRGL_CPARMS_VIEWPORT_CHANGED; ++i)
-            {
-                if (paParms[i].type != VBOX_HGCM_SVC_PARM_32BIT)
-                {
-                    LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: param[%d] type invalid - %d", i, paParms[i].type));
-                    rc = VERR_INVALID_PARAMETER;
-                    break;
-                }
-            }
-
-            if (!RT_SUCCESS(rc))
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: param validation failed, returning.."));
-                break;
-            }
-
-            crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
-
-            rc = crVBoxServerSetScreenViewport((int)paParms[0].u.uint32,
-                    paParms[1].u.uint32, /* x */
-                    paParms[2].u.uint32, /* y */
-                    paParms[3].u.uint32, /* w */
-                    paParms[4].u.uint32  /* h */);
-            if (!RT_SUCCESS(rc))
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: crVBoxServerSetScreenViewport failed, rc %d", rc));
-            }
-
-            crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
-
-            break;
-        }
-        case SHCRGL_HOST_FN_VIEWPORT_CHANGED2:
-        {
-            Log(("svcCall: SHCRGL_HOST_FN_VIEWPORT_CHANGED\n"));
-
-            /* Verify parameter count and types. */
-            if (cParms != SHCRGL_CPARMS_VIEWPORT_CHANGED)
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: cParms invalid - %d", cParms));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms[0].type != VBOX_HGCM_SVC_PARM_PTR
-                    || !paParms[0].u.pointer.addr
-                    || paParms[0].u.pointer.size != sizeof (CRVBOXHGCMVIEWPORT))
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: param invalid - %d, %#x, %d",
-                        paParms[0].type,
-                        paParms[0].u.pointer.addr,
-                        paParms[0].u.pointer.size));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
-
-            CRVBOXHGCMVIEWPORT *pViewportInfo = (CRVBOXHGCMVIEWPORT*)paParms[0].u.pointer.addr;
-
-            rc = crVBoxServerSetScreenViewport(pViewportInfo->u32Screen,
-                    pViewportInfo->x, /* x */
-                    pViewportInfo->y, /* y */
-                    pViewportInfo->width, /* w */
-                    pViewportInfo->height  /* h */);
-            if (!RT_SUCCESS(rc))
-            {
-                LogRel(("SHCRGL_HOST_FN_VIEWPORT_CHANGED: crVBoxServerSetScreenViewport failed, rc %d", rc));
-            }
-
-            crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
-
             break;
         }
         case SHCRGL_HOST_FN_SET_OUTPUT_REDIRECT:
@@ -1468,7 +1173,9 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                 }
                 else /* Execute the function. */
                 {
-                    if (pOutputRedirect->H3DORBegin != NULL)
+                    rc = crVBoxServerSetOffscreenRendering(GL_TRUE);
+
+                    if (RT_SUCCESS(rc))
                     {
                         CROutputRedirect outputRedirect;
                         outputRedirect.pvContext = pOutputRedirect->pvContext;
@@ -1479,144 +1186,18 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                         outputRedirect.CROREnd = pOutputRedirect->H3DOREnd;
                         outputRedirect.CRORContextProperty = pOutputRedirect->H3DORContextProperty;
                         rc = crVBoxServerOutputRedirectSet(&outputRedirect);
-                        if (RT_SUCCESS(rc))
-                        {
-                            rc = crVBoxServerSetOffscreenRendering(GL_TRUE);
-                        }
-                    }
-                    else
-                    {
-                        /* Redirection is disabled. */
-                        crVBoxServerSetOffscreenRendering(GL_FALSE);
-                        crVBoxServerOutputRedirectSet(NULL);
                     }
                 }
             }
             break;
         }
-        case SHCRGL_HOST_FN_WINDOWS_SHOW:
-        {
-            /* Verify parameter count and types. */
-            if (cParms != 1)
-            {
-                WARN(("invalid parameter"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            if (paParms[0].type != VBOX_HGCM_SVC_PARM_32BIT)
-            {
-                WARN(("invalid parameter"));
-                rc = VERR_INVALID_PARAMETER;
-                break;
-            }
-
-            rc = crServerVBoxWindowsShow(!!paParms[0].u.uint32);
-            if (!RT_SUCCESS(rc))
-                WARN(("crServerVBoxWindowsShow failed rc %d", rc));
-
-            break;
-        }
         default:
-            WARN(("svcHostCallPerform: unexpected u32Function %d", u32Function));
             rc = VERR_NOT_IMPLEMENTED;
             break;
     }
 
     LogFlow(("svcHostCall: rc = %Rrc\n", rc));
     return rc;
-}
-
-int crVBoxServerHostCtl(VBOXCRCMDCTL *pCtl, uint32_t cbCtl)
-{
-    if ((cbCtl - sizeof (VBOXCRCMDCTL)) % sizeof(VBOXHGCMSVCPARM))
-    {
-        WARN(("invalid param size"));
-        return VERR_INVALID_PARAMETER;
-    }
-    uint32_t cParams = (cbCtl - sizeof (VBOXCRCMDCTL)) / sizeof (VBOXHGCMSVCPARM);
-    bool fHasCallout = VBOXCRCMDCTL_IS_CALLOUT_AVAILABLE(pCtl);
-    if (fHasCallout)
-        crVBoxServerCalloutEnable(pCtl);
-
-    int rc = svcHostCallPerform(pCtl->u32Function, cParams, (VBOXHGCMSVCPARM*)(pCtl + 1));
-
-    if (fHasCallout)
-        crVBoxServerCalloutDisable();
-
-    return rc;
-}
-
-static DECLCALLBACK(int) svcHostCall(void *, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
-{
-    switch (u32Function)
-    {
-        case SHCRGL_HOST_FN_CTL:
-        {
-            if (cParms != 1)
-            {
-                WARN(("cParams != 1"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            if (paParms->type != VBOX_HGCM_SVC_PARM_PTR)
-            {
-                WARN(("invalid param type"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            if (paParms->u.pointer.size < sizeof (VBOXCRCMDCTL))
-            {
-                WARN(("invalid param size"));
-                return VERR_INVALID_PARAMETER;
-            }
-
-            VBOXCRCMDCTL *pCtl = (VBOXCRCMDCTL*)paParms->u.pointer.addr;
-            switch (pCtl->enmType)
-            {
-                case VBOXCRCMDCTL_TYPE_HGCM:
-                {
-                    return crVBoxServerHostCtl(pCtl, paParms->u.pointer.size);
-                }
-                case VBOXCRCMDCTL_TYPE_DISABLE:
-                {
-                    if (paParms->u.pointer.size != sizeof (VBOXCRCMDCTL_DISABLE))
-                        WARN(("invalid param size"));
-                    VBOXCRCMDCTL_DISABLE *pDisable = (VBOXCRCMDCTL_DISABLE*)pCtl;
-                    int rc = crVBoxServerHgcmDisable(&pDisable->Data);
-                    if (RT_SUCCESS(rc))
-                        g_u32fCrHgcmDisabled = 1;
-                    else
-                        WARN(("crVBoxServerHgcmDisable failed %d", rc));
-                    return rc;
-                }
-                case VBOXCRCMDCTL_TYPE_ENABLE:
-                {
-                    if (paParms->u.pointer.size != sizeof (VBOXCRCMDCTL_ENABLE))
-                        WARN(("invalid param size"));
-                    VBOXCRCMDCTL_ENABLE *pEnable = (VBOXCRCMDCTL_ENABLE*)pCtl;
-                    int rc = crVBoxServerHgcmEnable(&pEnable->Data);
-                    if (RT_SUCCESS(rc))
-                        g_u32fCrHgcmDisabled = 0;
-                    else
-                        WARN(("crVBoxServerHgcmEnable failed %d", rc));
-                    return rc;
-                }
-                default:
-                    WARN(("svcHostCall: invalid function %d", pCtl->enmType));
-                    return VERR_INVALID_PARAMETER;
-            }
-            WARN(("should not be here!"));
-            return VERR_INTERNAL_ERROR;
-        }
-        default:
-            if (g_u32fCrHgcmDisabled)
-            {
-                WARN(("cr hgcm disabled!"));
-                return VERR_INVALID_STATE;
-            }
-            return svcHostCallPerform(u32Function, cParms, paParms);
-    }
 }
 
 extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *ptable)
@@ -1642,8 +1223,6 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
         {
             g_pHelpers = ptable->pHelpers;
 
-            g_u32fCrHgcmDisabled = 0;
-
             ptable->cbClient = sizeof (void*);
 
             ptable->pfnUnload     = svcUnload;
@@ -1659,8 +1238,6 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
                 return VERR_NOT_SUPPORTED;
 
             rc = svcPresentFBOInit();
-
-            crServerVBoxSetNotifyEventCB(svcNotifyEventCB);
         }
     }
 

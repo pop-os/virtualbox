@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,11 +50,7 @@ RT_C_DECLS_BEGIN
  *
  * @note This alignment is not forced if the electric fence is active!
  */
-#if defined(RT_OS_OS2)
-# define RTMEM_ALIGNMENT    4
-#else
-# define RTMEM_ALIGNMENT    8
-#endif
+#define RTMEM_ALIGNMENT    8
 
 /** @def RTMEM_TAG
  * The default allocation tag used by the RTMem allocation APIs.
@@ -313,16 +309,8 @@ RTDECL(void)    RTMemFree(void *pv) RT_NO_THROW;
 /** Allocate and free from any context.
  * Will return VERR_NOT_SUPPORTED if not supported. */
 #define RTMEMALLOCEX_FLAGS_ANY_CTX          (RTMEMALLOCEX_FLAGS_ANY_CTX_ALLOC | RTMEMALLOCEX_FLAGS_ANY_CTX_FREE)
-/** Reachable by 16-bit address.
- * Will return VERR_NOT_SUPPORTED if not supported.  */
-#define RTMEMALLOCEX_FLAGS_16BIT_REACH      RT_BIT(4)
-/** Reachable by 32-bit address.
- * Will return VERR_NOT_SUPPORTED if not supported.  */
-#define RTMEMALLOCEX_FLAGS_32BIT_REACH      RT_BIT(5)
 /** Mask of valid flags. */
-#define RTMEMALLOCEX_FLAGS_VALID_MASK       UINT32_C(0x0000003f)
-/** Mask of valid flags for ring-0. */
-#define RTMEMALLOCEX_FLAGS_VALID_MASK_R0    UINT32_C(0x0000000f)
+#define RTMEMALLOCEX_FLAGS_VALID_MASK       UINT32_C(0x0000000f)
 /** @}  */
 
 /**
@@ -345,9 +333,6 @@ RTDECL(void)    RTMemFree(void *pv) RT_NO_THROW;
 /**
  * Extended heap allocation API, custom tag.
  *
- * Depending on the implementation, using this function may add extra overhead,
- * so use the simpler APIs where ever possible.
- *
  * @returns IPRT status code.
  * @retval  VERR_NO_MEMORY if we're out of memory.
  * @retval  VERR_NO_EXEC_MEMORY if we're out of executable memory.
@@ -368,11 +353,6 @@ RTDECL(int) RTMemAllocExTag(size_t cb, size_t cbAlignment, uint32_t fFlags, cons
  *
  * @param   pv                  What to free, NULL is fine.
  * @param   cb                  The amount of allocated memory.
- * @param   fFlags              The flags specified when allocating the memory.
- *                              Whether the exact flags are requires depends on
- *                              the implementation, but in general, ring-0
- *                              doesn't require anything while ring-3 requires
- *                              RTMEMALLOCEX_FLAGS_EXEC if used.
  */
 RTDECL(void) RTMemFreeEx(void *pv, size_t cb) RT_NO_THROW;
 
@@ -422,6 +402,23 @@ RTDECL(void)    RTMemExecFree(void *pv, size_t cb) RT_NO_THROW;
  * @param   cb          The size of the memory block.
  */
 RTR0DECL(int) RTR0MemExecDonate(void *pvMemory, size_t cb) RT_NO_THROW;
+
+/**
+ * Allocate read+write+execute memory to the exec heap.
+ *
+ * This API is specific to AMD64 and Linux/GNU. A kernel module that desires to
+ * use RTMemExecAlloc on AMD64 Linux/GNU will have to initialize some allocated
+ * memory in the module range if it wishes for GCC generated code to work. GCC
+ * can only generate modules that work in the address range ~2GB to ~0 currently.
+ * As RTR0MemExecDonate() does not work if CONFIG_DEBUG_SET_MODULE_RONX is
+ * enabled, use a different approach (only very recent Linux kernels).
+ *
+ * The API only accept one single initialization.
+ *
+ * @returns IPRT status code.
+ * @param   cb          The size of the memory block.
+ */
+RTR0DECL(int) RTR0MemExecInit(size_t cb) RT_NO_THROW;
 #endif /* R0+AMD64+LINUX */
 
 /**
@@ -504,91 +501,6 @@ RTDECL(int) RTMemProtect(void *pv, size_t cb, unsigned fProtect) RT_NO_THROW;
  * @param   cMinPasses  The minimum number of passes to make.
  */
 RTDECL(void) RTMemWipeThoroughly(void *pv, size_t cb, size_t cMinPasses) RT_NO_THROW;
-
-/**
- * Allocate locked memory with default tag - extended version.
- *
- * @returns IPRT status code.
- * @param   cb      The amount of memory to allocate.
- * @param   ppv     Where to store the pointer to the allocated memory on success.
- */
-#define RTMemLockedAllocEx(cb, ppv) RTMemLockedAllocExTag((cb), RTMEM_TAG, (ppv))
-
-/**
- * Allocate locked memory - extended version.
- *
- * @returns IPRT status code.
- * @param   cb      The amount of memory to allocate.
- * @param   pszTag  Allocation tag used for statistics and such.
- * @param   ppv     Where to store the pointer to the allocated memory on success.
- */
-RTDECL(int) RTMemLockedAllocExTag(size_t cb, const char *pszTag, void **ppv) RT_NO_THROW;
-
-/**
- * Allocate zeroed locked memory with default tag - extended version.
- *
- * @returns IPRT status code.
- * @param   cb      The amount of memory to allocate.
- * @param   ppv     Where to store the pointer to the allocated memory on success.
- */
-#define RTMemLockedAllocZEx(cb, ppv) RTMemLockedAllocZExTag((cb), RTMEM_TAG, (ppv))
-
-/**
- * Allocate zeroed locked memory - extended version.
- *
- * @returns IPRT status code.
- * @param   cb      The amount of memory to allocate.
- * @param   pszTag  Allocation tag used for statistics and such.
- * @param   ppv     Where to store the pointer to the allocated memory on success.
- */
-RTDECL(int) RTMemLockedAllocZExTag(size_t cb, const char *pszTag, void **ppv) RT_NO_THROW;
-
-/**
- * Allocate locked memory with the default tag - shortcut for RTMemLockedAllocExTag().
- *
- * @returns Pointer to allocated memory on success.
- * @returns NULL on failure (use RTMemLockedAllocExTag() if the specific reason is required)
- * @param   cb      The amount of memory to allocate.
- */
-#define RTMemLockedAlloc(cb) RTMemLockedAllocTag((cb), RTMEM_TAG)
-
-/**
- * Allocate locked memory - shortcut for RTMemLockedAllocExTag().
- *
- * @returns Pointer to allocated memory on success.
- * @returns NULL on failure (use RTMemLockedAllocExTag() if the specific reason is required)
- * @param   cb      The amount of memory to allocate.
- * @param   pszTag  Allocation tag used for statistics and such.
- */
-RTDECL(void *) RTMemLockedAllocTag(size_t cb, const char *pszTag) RT_NO_THROW;
-
-/**
- * Allocate locked zeroed memory with the default tag - shortcut for RTMemLockedAllocZExTag().
- *
- * @returns Pointer to allocated memory on success.
- * @returns NULL on failure (use RTMemLockedAllocZExTag() if the specific reason is required)
- * @param   cb      The amount of memory to allocate.
- */
-#define RTMemLockedAllocZ(cb) RTMemLockedAllocZTag((cb), RTMEM_TAG)
-
-/**
- * Allocate locked zeroed memory - shortcut for RTMemLockedAllocZExTag().
- *
- * @returns Pointer to allocated memory on success.
- * @returns NULL on failure (use RTMemLockedAllocZExTag() if the specific reason is required)
- * @param   cb      The amount of memory to allocate.
- * @param   pszTag  Allocation tag used for statistics and such.
- */
-RTDECL(void *) RTMemLockedAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW;
-
-/**
- * Frees memory allocated with any of the RTMemLockedAlloc* API.
- *
- * @returns nothing.
- * @param   pv    Pointer to the memory block to free.
- */
-RTDECL(void) RTMemLockedFree(void *pv) RT_NO_THROW;
-
 
 #ifdef IN_RING0
 
@@ -677,34 +589,6 @@ RTR0DECL(bool) RTR0MemKernelIsValidAddr(void *pv);
  * @returns true if they are, false if not.
  */
 RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void);
-
-/**
- * Copy memory from an potentially unsafe kernel mode location and into a safe
- * (kernel) buffer.
- *
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_ACCESS_DENIED on error.
- * @retval  VERR_NOT_SUPPORTED if not (yet) supported.
- *
- * @param   pvDst       The destination address (safe).
- * @param   pvSrc       The source address (potentially unsafe).
- * @param   cb          The number of bytes to copy.
- */
-RTR0DECL(int) RTR0MemKernelCopyFrom(void *pvDst, void const *pvSrc, size_t cb);
-
-/**
- * Copy from a safe (kernel) buffer and to a potentially unsafe kenrel mode
- * location.
- *
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_ACCESS_DENIED on error.
- * @retval  VERR_NOT_SUPPORTED if not (yet) supported.
- *
- * @param   pvDst       The destination address (potentially unsafe).
- * @param   pvSrc       The source address (safe).
- * @param   cb          The number of bytes to copy.
- */
-RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb);
 
 #endif /* IN_RING0 */
 
@@ -833,45 +717,45 @@ RTDECL(void *) RTMemEfDupEx(const void *pvSrc, size_t cbSrc, size_t cbExtra, con
 #if defined(RTMEM_WRAP_SOME_NEW_AND_DELETE_TO_EF) && !defined(RTMEM_NO_WRAP_SOME_NEW_AND_DELETE_TO_EF)
 # if defined(RT_EXCEPTIONS_ENABLED)
 #  define RTMEMEF_NEW_AND_DELETE_OPERATORS() \
-        void *operator new(size_t cb) RT_THROW(std::bad_alloc) \
+        void *operator new(size_t cb) throw(std::bad_alloc) \
         { \
             void *pv = RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
             if (RT_UNLIKELY(!pv)) \
                 throw std::bad_alloc(); \
             return pv; \
         } \
-        void *operator new(size_t cb, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
+        void *operator new(size_t cb, const std::nothrow_t &nothrow_constant) throw() \
         { \
             NOREF(nothrow_constant); \
             return RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
         } \
-        void *operator new[](size_t cb) RT_THROW(std::bad_alloc) \
+        void *operator new[](size_t cb) throw(std::bad_alloc) \
         { \
             void *pv = RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
             if (RT_UNLIKELY(!pv)) \
                 throw std::bad_alloc(); \
             return pv; \
         } \
-        void *operator new[](size_t cb, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
+        void *operator new[](size_t cb, const std::nothrow_t &nothrow_constant) throw() \
         { \
             NOREF(nothrow_constant); \
             return RTMemEfAlloc(cb, RTMEM_TAG, RT_SRC_POS); \
         } \
         \
-        void operator delete(void *pv) RT_NO_THROW \
+        void operator delete(void *pv) throw() \
         { \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete(void *pv, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
+        void operator delete(void *pv, const std::nothrow_t &nothrow_constant) throw() \
         { \
             NOREF(nothrow_constant); \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete[](void *pv) RT_NO_THROW \
+        void operator delete[](void *pv) throw() \
         { \
             RTMemEfFree(pv, RT_SRC_POS); \
         } \
-        void operator delete[](void *pv, const std::nothrow_t &nothrow_constant) RT_NO_THROW \
+        void operator delete[](void *pv, const std::nothrow_t &nothrow_constant) throw() \
         { \
             NOREF(nothrow_constant); \
             RTMemEfFree(pv, RT_SRC_POS); \

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,17 +28,13 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <iprt/dvm.h>
-
+#include <iprt/initterm.h>
 #include <iprt/err.h>
 #include <iprt/test.h>
+#include <iprt/dvm.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
 
-
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
 /**
  * Disk structure.
  */
@@ -56,15 +52,14 @@ typedef struct TSTRTDVMDISK
     };
 } TSTRTDVMDISK, *PTSTRTDVMDISK;
 
-
-
 static int dvmDiskRead(void *pvUser, uint64_t off, void *pvBuf, size_t cbRead)
 {
     PTSTRTDVMDISK pDisk = (PTSTRTDVMDISK)pvUser;
 
     if (pDisk->fUseImage)
         return RTFileReadAt(pDisk->hImage, off, pvBuf, cbRead, NULL);
-    return RTDvmVolumeRead(pDisk->hVol, off, pvBuf, cbRead);
+    else
+        return RTDvmVolumeRead(pDisk->hVol, off, pvBuf, cbRead);
 }
 
 static int dvmDiskWrite(void *pvUser, uint64_t off, const void *pvBuf, size_t cbWrite)
@@ -73,7 +68,8 @@ static int dvmDiskWrite(void *pvUser, uint64_t off, const void *pvBuf, size_t cb
 
     if (pDisk->fUseImage)
         return RTFileWriteAt(pDisk->hImage, off, pvBuf, cbWrite, NULL);
-    return RTDvmVolumeWrite(pDisk->hVol, off, pvBuf, cbWrite);
+    else
+        return RTDvmVolumeWrite(pDisk->hVol, off, pvBuf, cbWrite);
 }
 
 static int tstRTDvmVolume(RTTEST hTest, PTSTRTDVMDISK pDisk, uint64_t cb, unsigned cNesting)
@@ -81,7 +77,7 @@ static int tstRTDvmVolume(RTTEST hTest, PTSTRTDVMDISK pDisk, uint64_t cb, unsign
     char szPrefix[100];
     int rc = VINF_SUCCESS;
 
-    RT_ZERO(szPrefix);
+    memset(szPrefix, 0, sizeof(szPrefix));
 
     if (cNesting < sizeof(szPrefix) - 1)
     {
@@ -91,7 +87,7 @@ static int tstRTDvmVolume(RTTEST hTest, PTSTRTDVMDISK pDisk, uint64_t cb, unsign
 
     RTTestSubF(hTest, "Create DVM");
     RTDVM hVolMgr;
-    rc = RTDvmCreate(&hVolMgr, dvmDiskRead, dvmDiskWrite, cb, 512, 0, pDisk);
+    rc = RTDvmCreate(&hVolMgr, dvmDiskRead, dvmDiskWrite, cb, 512, pDisk);
     if (RT_FAILURE(rc))
     {
         RTTestIFailed("RTDvmCreate -> %Rrc", rc);
@@ -106,7 +102,7 @@ static int tstRTDvmVolume(RTTEST hTest, PTSTRTDVMDISK pDisk, uint64_t cb, unsign
         RTTestIFailed("RTDvmOpen -> %Rrc", rc);
         return RTTestSummaryAndDestroy(hTest);
     }
-    if (rc == VERR_NOT_SUPPORTED)
+    else if (rc == VERR_NOT_SUPPORTED)
         return VINF_SUCCESS;
 
     RTTestIPrintf(RTTESTLVL_ALWAYS, "%s Successfully opened map with format: %s.\n", szPrefix, RTDvmMapGetFormat(hVolMgr));

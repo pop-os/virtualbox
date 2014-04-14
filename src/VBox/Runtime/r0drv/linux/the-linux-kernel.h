@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,7 @@
 #define bool linux_bool
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 # include <generated/autoconf.h>
 #else
 # ifndef AUTOCONF_INCLUDED
@@ -90,9 +90,6 @@
 #include <linux/slab.h>
 #include <linux/time.h>
 #include <linux/sched.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
-# include <linux/sched/rt.h>
-#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 7)
 # include <linux/jiffies.h>
 #endif
@@ -124,11 +121,6 @@
 #include <asm/uaccess.h>
 #include <asm/div64.h>
 
-/* For thread-context hooks. */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 18) && defined(CONFIG_PREEMPT_NOTIFIERS)
-# include <linux/preempt.h>
-#endif
-
 /* for workqueue / task queues. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 41)
 # include <linux/workqueue.h>
@@ -148,10 +140,6 @@
 
 #ifndef DEFINE_WAIT
 # define DEFINE_WAIT(name) DECLARE_WAITQUEUE(name, current)
-#endif
-
-#ifndef __GFP_NOWARN
-# define __GFP_NOWARN 0
 #endif
 
 /*

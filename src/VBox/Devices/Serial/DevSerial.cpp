@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -159,7 +159,7 @@ struct SerialFifo
  * @implements  PDMIBASE
  * @implements  PDMICHARPORT
  */
-typedef struct SerialState
+struct SerialState
 {
     /** Access critical section. */
     PDMCRITSECT                     CritSect;
@@ -226,31 +226,45 @@ typedef struct SerialState
     uint64_t                        char_transmit_time;
 
 #ifdef VBOX_SERIAL_PCI
-    PCIDEVICE                       PciDev;
+    PCIDEVICE                       dev;
 #endif /* VBOX_SERIAL_PCI */
-} DEVSERIAL;
-/** Pointer to the serial device state. */
-typedef DEVSERIAL *PDEVSERIAL;
+};
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
+
+#ifdef VBOX_SERIAL_PCI
+#define PCIDEV_2_SERIALSTATE(pPciDev)           ( (SerialState *)((uintptr_t)(pPciDev) - RT_OFFSETOF(SerialState, dev)) )
+#endif /* VBOX_SERIAL_PCI */
+#define PDMIBASE_2_SERIALSTATE(pInstance)       ( (SerialState *)((uintptr_t)(pInterface) - RT_OFFSETOF(SerialState, IBase)) )
+#define PDMICHARPORT_2_SERIALSTATE(pInstance)   ( (SerialState *)((uintptr_t)(pInterface) - RT_OFFSETOF(SerialState, ICharPort)) )
+
+
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+RT_C_DECLS_BEGIN
+PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
+PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
+RT_C_DECLS_END
+
 #ifdef IN_RING3
 
-static int serial_can_receive(PDEVSERIAL pThis);
-static void serial_receive(PDEVSERIAL pThis, const uint8_t *buf, int size);
+static int serial_can_receive(SerialState *s);
+static void serial_receive(void *opaque, const uint8_t *buf, int size);
 
-static void fifo_clear(PDEVSERIAL pThis, int fifo)
+static void fifo_clear(SerialState *s, int fifo)
 {
-    SerialFifo *f = (fifo) ? &pThis->recv_fifo : &pThis->xmit_fifo;
+    SerialFifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
     memset(f->data, 0, UART_FIFO_LENGTH);
     f->count = 0;
     f->head = 0;
     f->tail = 0;
 }
 
-static int fifo_put(PDEVSERIAL pThis, int fifo, uint8_t chr)
+static int fifo_put(SerialState *s, int fifo, uint8_t chr)
 {
-    SerialFifo *f = (fifo) ? &pThis->recv_fifo : &pThis->xmit_fifo;
+    SerialFifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
 
     /* Receive overruns do not overwrite FIFO contents. */
     if (fifo == XMIT_FIFO || f->count < UART_FIFO_LENGTH)
@@ -265,14 +279,14 @@ static int fifo_put(PDEVSERIAL pThis, int fifo, uint8_t chr)
     else if (fifo == XMIT_FIFO) /* need to at least adjust tail to maintain pipe state consistency */
         ++f->tail;
     else if (fifo == RECV_FIFO)
-        pThis->lsr |= UART_LSR_OE;
+        s->lsr |= UART_LSR_OE;
 
     return 1;
 }
 
-static uint8_t fifo_get(PDEVSERIAL pThis, int fifo)
+static uint8_t fifo_get(SerialState *s, int fifo)
 {
-    SerialFifo *f = (fifo) ? &pThis->recv_fifo : &pThis->xmit_fifo;
+    SerialFifo *f = (fifo) ? &s->recv_fifo : &s->xmit_fifo;
     uint8_t c;
 
     if (f->count == 0)
@@ -286,270 +300,272 @@ static uint8_t fifo_get(PDEVSERIAL pThis, int fifo)
     return c;
 }
 
-static void serial_update_irq(PDEVSERIAL pThis)
+static void serial_update_irq(SerialState *s)
 {
     uint8_t tmp_iir = UART_IIR_NO_INT;
 
-    if (   (pThis->ier & UART_IER_RLSI)
-        && (pThis->lsr & UART_LSR_INT_ANY)) {
+    if (   (s->ier & UART_IER_RLSI)
+        && (s->lsr & UART_LSR_INT_ANY)) {
         tmp_iir = UART_IIR_RLSI;
-    } else if ((pThis->ier & UART_IER_RDI) && pThis->timeout_ipending) {
-        /* Note that(pThis->ier & UART_IER_RDI) can mask this interrupt,
+    } else if ((s->ier & UART_IER_RDI) && s->timeout_ipending) {
+        /* Note that(s->ier & UART_IER_RDI) can mask this interrupt,
          * this is not in the specification but is observed on existing
          * hardware. */
         tmp_iir = UART_IIR_CTI;
-    } else if (   (pThis->ier & UART_IER_RDI)
-               && (pThis->lsr & UART_LSR_DR)
-               && (   !(pThis->fcr & UART_FCR_FE)
-                   || pThis->recv_fifo.count >= pThis->recv_fifo.itl)) {
+    } else if (   (s->ier & UART_IER_RDI)
+               && (s->lsr & UART_LSR_DR)
+               && (   !(s->fcr & UART_FCR_FE)
+                   || s->recv_fifo.count >= s->recv_fifo.itl)) {
         tmp_iir = UART_IIR_RDI;
-    } else if (   (pThis->ier & UART_IER_THRI)
-               && pThis->thr_ipending) {
+    } else if (   (s->ier & UART_IER_THRI)
+               && s->thr_ipending) {
         tmp_iir = UART_IIR_THRI;
-    } else if (   (pThis->ier & UART_IER_MSI)
-               && (pThis->msr & UART_MSR_ANY_DELTA)) {
+    } else if (   (s->ier & UART_IER_MSI)
+               && (s->msr & UART_MSR_ANY_DELTA)) {
         tmp_iir = UART_IIR_MSI;
     }
-    pThis->iir = tmp_iir | (pThis->iir & 0xF0);
+    s->iir = tmp_iir | (s->iir & 0xF0);
 
     /** XXX only call the SetIrq function if the state really changes! */
     if (tmp_iir != UART_IIR_NO_INT) {
-        Log(("serial_update_irq %d 1\n", pThis->irq));
+        Log(("serial_update_irq %d 1\n", s->irq));
 # ifdef VBOX_SERIAL_PCI
-        PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 1);
+        PDMDevHlpPCISetIrqNoWait(s->CTX_SUFF(pDevIns), 0, 1);
 # else /* !VBOX_SERIAL_PCI */
-        PDMDevHlpISASetIrqNoWait(pThis->CTX_SUFF(pDevIns), pThis->irq, 1);
+        PDMDevHlpISASetIrqNoWait(s->CTX_SUFF(pDevIns), s->irq, 1);
 # endif /* !VBOX_SERIAL_PCI */
     } else {
-        Log(("serial_update_irq %d 0\n", pThis->irq));
+        Log(("serial_update_irq %d 0\n", s->irq));
 # ifdef VBOX_SERIAL_PCI
-        PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 0);
+        PDMDevHlpPCISetIrqNoWait(s->CTX_SUFF(pDevIns), 0, 0);
 # else /* !VBOX_SERIAL_PCI */
-        PDMDevHlpISASetIrqNoWait(pThis->CTX_SUFF(pDevIns), pThis->irq, 0);
+        PDMDevHlpISASetIrqNoWait(s->CTX_SUFF(pDevIns), s->irq, 0);
 # endif /* !VBOX_SERIAL_PCI */
     }
 }
 
-static void serial_tsr_retry_update_parameters(PDEVSERIAL pThis, uint64_t tf)
+static void serial_tsr_retry_update_parameters(SerialState *s, uint64_t tf)
 {
-    pThis->tsr_retry_bound_max = RT_MAX((tf * MAX_XMIT_RETRY_TIME) / pThis->char_transmit_time, MIN_XMIT_RETRY);
-    pThis->tsr_retry_bound_min = RT_MAX(pThis->tsr_retry_bound_max / (1000 * MAX_XMIT_RETRY_TIME), MIN_XMIT_RETRY);
+    s->tsr_retry_bound_max = RT_MAX((tf * MAX_XMIT_RETRY_TIME) / s->char_transmit_time, MIN_XMIT_RETRY);
+    s->tsr_retry_bound_min = RT_MAX(s->tsr_retry_bound_max / (1000 * MAX_XMIT_RETRY_TIME), MIN_XMIT_RETRY);
     /* for simplicity just reset to max retry count */
-    pThis->tsr_retry_bound = pThis->tsr_retry_bound_max;
+    s->tsr_retry_bound = s->tsr_retry_bound_max;
 }
 
-static void serial_tsr_retry_bound_reached(PDEVSERIAL pThis)
+static void serial_tsr_retry_bound_reached(SerialState *s)
 {
     /* this is most likely means we have some backend connection issues */
     /* decrement the retry bound */
-    pThis->tsr_retry_bound = RT_MAX(pThis->tsr_retry_bound / (10 * MAX_XMIT_RETRY_TIME), pThis->tsr_retry_bound_min);
+    s->tsr_retry_bound = RT_MAX(s->tsr_retry_bound / (10 * MAX_XMIT_RETRY_TIME), s->tsr_retry_bound_min);
 }
 
-static void serial_tsr_retry_succeeded(PDEVSERIAL pThis)
+static void serial_tsr_retry_succeeded(SerialState *s)
 {
     /* success means we have a backend connection working OK,
      * set retry bound to its maximum value */
-    pThis->tsr_retry_bound = pThis->tsr_retry_bound_max;
+    s->tsr_retry_bound = s->tsr_retry_bound_max;
 }
 
-static void serial_update_parameters(PDEVSERIAL pThis)
+static void serial_update_parameters(SerialState *s)
 {
     int speed, parity, data_bits, stop_bits, frame_size;
 
-    if (pThis->divider == 0)
+    if (s->divider == 0)
         return;
 
     frame_size = 1;
-    if (pThis->lcr & 0x08) {
+    if (s->lcr & 0x08) {
         frame_size++;
-        if (pThis->lcr & 0x10)
+        if (s->lcr & 0x10)
             parity = 'E';
         else
             parity = 'O';
     } else {
             parity = 'N';
     }
-    if (pThis->lcr & 0x04)
+    if (s->lcr & 0x04)
         stop_bits = 2;
     else
         stop_bits = 1;
 
-    data_bits = (pThis->lcr & 0x03) + 5;
+    data_bits = (s->lcr & 0x03) + 5;
     frame_size += data_bits + stop_bits;
-    speed = 115200 / pThis->divider;
-    uint64_t tf = TMTimerGetFreq(CTX_SUFF(pThis->transmit_timer));
-    pThis->char_transmit_time = (tf / speed) * frame_size;
-    serial_tsr_retry_update_parameters(pThis, tf);
+    speed = 115200 / s->divider;
+    uint64_t tf = TMTimerGetFreq(CTX_SUFF(s->transmit_timer));
+    s->char_transmit_time = (tf / speed) * frame_size;
+    serial_tsr_retry_update_parameters(s, tf);
 
     Log(("speed=%d parity=%c data=%d stop=%d\n", speed, parity, data_bits, stop_bits));
 
-    if (RT_LIKELY(pThis->pDrvChar))
-        pThis->pDrvChar->pfnSetParameters(pThis->pDrvChar, speed, parity, data_bits, stop_bits);
+    if (RT_LIKELY(s->pDrvChar))
+        s->pDrvChar->pfnSetParameters(s->pDrvChar, speed, parity, data_bits, stop_bits);
 }
 
-static void serial_xmit(PDEVSERIAL pThis, bool bRetryXmit)
+static void serial_xmit(void *opaque, bool bRetryXmit)
 {
-    if (pThis->tsr_retry <= 0) {
-        if (pThis->fcr & UART_FCR_FE) {
-            pThis->tsr = fifo_get(pThis, XMIT_FIFO);
-            if (!pThis->xmit_fifo.count)
-                pThis->lsr |= UART_LSR_THRE;
+    SerialState *s = (SerialState*)opaque;
+
+    if (s->tsr_retry <= 0) {
+        if (s->fcr & UART_FCR_FE) {
+            s->tsr = fifo_get(s, XMIT_FIFO);
+            if (!s->xmit_fifo.count)
+                s->lsr |= UART_LSR_THRE;
         } else {
-            pThis->tsr = pThis->thr;
-            pThis->lsr |= UART_LSR_THRE;
+            s->tsr = s->thr;
+            s->lsr |= UART_LSR_THRE;
         }
     }
 
-    if (pThis->mcr & UART_MCR_LOOP) {
+    if (s->mcr & UART_MCR_LOOP) {
         /* in loopback mode, say that we just received a char */
-        serial_receive(pThis, &pThis->tsr, 1);
-    } else if (   RT_LIKELY(pThis->pDrvChar)
-               && RT_FAILURE(pThis->pDrvChar->pfnWrite(pThis->pDrvChar, &pThis->tsr, 1))) {
-        if ((pThis->tsr_retry >= 0) && ((!bRetryXmit) || (pThis->tsr_retry <= pThis->tsr_retry_bound))) {
-            if (!pThis->tsr_retry)
-                pThis->tsr_retry = 1; /* make sure the retry state is always set */
+        serial_receive(s, &s->tsr, 1);
+    } else if (   RT_LIKELY(s->pDrvChar)
+               && RT_FAILURE(s->pDrvChar->pfnWrite(s->pDrvChar, &s->tsr, 1))) {
+        if ((s->tsr_retry >= 0) && ((!bRetryXmit) || (s->tsr_retry <= s->tsr_retry_bound))) {
+            if (!s->tsr_retry)
+                s->tsr_retry = 1; /* make sure the retry state is always set */
             else if (bRetryXmit) /* do not increase the retry count if the retry is actually caused by next char write */
-                pThis->tsr_retry++;
+                s->tsr_retry++;
 
-            TMTimerSet(CTX_SUFF(pThis->transmit_timer), TMTimerGet(CTX_SUFF(pThis->transmit_timer)) + pThis->char_transmit_time * 4);
+            TMTimerSet(CTX_SUFF(s->transmit_timer), TMTimerGet(CTX_SUFF(s->transmit_timer)) + s->char_transmit_time * 4);
             return;
         } else {
             /* drop this character. */
-            pThis->tsr_retry = 0;
-            serial_tsr_retry_bound_reached(pThis);
+            s->tsr_retry = 0;
+            serial_tsr_retry_bound_reached(s);
         }
     }
     else {
-        pThis->tsr_retry = 0;
-        serial_tsr_retry_succeeded(pThis);
+        s->tsr_retry = 0;
+        serial_tsr_retry_succeeded(s);
     }
 
-    if (!(pThis->lsr & UART_LSR_THRE))
-        TMTimerSet(CTX_SUFF(pThis->transmit_timer),
-                   TMTimerGet(CTX_SUFF(pThis->transmit_timer)) + pThis->char_transmit_time);
+    if (!(s->lsr & UART_LSR_THRE))
+        TMTimerSet(CTX_SUFF(s->transmit_timer),
+                   TMTimerGet(CTX_SUFF(s->transmit_timer)) + s->char_transmit_time);
 
-    if (pThis->lsr & UART_LSR_THRE) {
-        pThis->lsr |= UART_LSR_TEMT;
-        pThis->thr_ipending = 1;
-        serial_update_irq(pThis);
+    if (s->lsr & UART_LSR_THRE) {
+        s->lsr |= UART_LSR_TEMT;
+        s->thr_ipending = 1;
+        serial_update_irq(s);
     }
 }
 
 #endif /* IN_RING3 */
 
-static int serial_ioport_write(PDEVSERIAL pThis, uint32_t addr, uint32_t val)
+static int serial_ioport_write(SerialState *s, uint32_t addr, uint32_t val)
 {
     addr &= 7;
 
 #ifndef IN_RING3
-    NOREF(pThis);
-    return VINF_IOM_R3_IOPORT_WRITE;
+    NOREF(s);
+    return VINF_IOM_HC_IOPORT_WRITE;
 #else
     switch(addr) {
     default:
     case 0:
-        if (pThis->lcr & UART_LCR_DLAB) {
-            pThis->divider = (pThis->divider & 0xff00) | val;
-            serial_update_parameters(pThis);
+        if (s->lcr & UART_LCR_DLAB) {
+            s->divider = (s->divider & 0xff00) | val;
+            serial_update_parameters(s);
         } else {
-            pThis->thr = (uint8_t) val;
-            if (pThis->fcr & UART_FCR_FE) {
-                fifo_put(pThis, XMIT_FIFO, pThis->thr);
-                pThis->thr_ipending = 0;
-                pThis->lsr &= ~UART_LSR_TEMT;
-                pThis->lsr &= ~UART_LSR_THRE;
-                serial_update_irq(pThis);
+            s->thr = (uint8_t) val;
+            if (s->fcr & UART_FCR_FE) {
+                fifo_put(s, XMIT_FIFO, s->thr);
+                s->thr_ipending = 0;
+                s->lsr &= ~UART_LSR_TEMT;
+                s->lsr &= ~UART_LSR_THRE;
+                serial_update_irq(s);
             } else {
-                pThis->thr_ipending = 0;
-                pThis->lsr &= ~UART_LSR_THRE;
-                serial_update_irq(pThis);
+                s->thr_ipending = 0;
+                s->lsr &= ~UART_LSR_THRE;
+                serial_update_irq(s);
             }
-            serial_xmit(pThis, false);
+            serial_xmit(s, false);
         }
         break;
     case 1:
-        if (pThis->lcr & UART_LCR_DLAB) {
-            pThis->divider = (pThis->divider & 0x00ff) | (val << 8);
-            serial_update_parameters(pThis);
+        if (s->lcr & UART_LCR_DLAB) {
+            s->divider = (s->divider & 0x00ff) | (val << 8);
+            serial_update_parameters(s);
         } else {
-            pThis->ier = val & 0x0f;
-            if (pThis->lsr & UART_LSR_THRE) {
-                pThis->thr_ipending = 1;
-                serial_update_irq(pThis);
+            s->ier = val & 0x0f;
+            if (s->lsr & UART_LSR_THRE) {
+                s->thr_ipending = 1;
+                serial_update_irq(s);
             }
         }
         break;
     case 2:
-        if (!pThis->f16550AEnabled)
+        if (!s->f16550AEnabled)
             break;
 
         val = val & 0xFF;
 
-        if (pThis->fcr == val)
+        if (s->fcr == val)
             break;
 
         /* Did the enable/disable flag change? If so, make sure FIFOs get flushed */
-        if ((val ^ pThis->fcr) & UART_FCR_FE)
+        if ((val ^ s->fcr) & UART_FCR_FE)
             val |= UART_FCR_XFR | UART_FCR_RFR;
 
         /* FIFO clear */
         if (val & UART_FCR_RFR) {
-            TMTimerStop(pThis->fifo_timeout_timer);
-            pThis->timeout_ipending = 0;
-            fifo_clear(pThis, RECV_FIFO);
+            TMTimerStop(s->fifo_timeout_timer);
+            s->timeout_ipending = 0;
+            fifo_clear(s, RECV_FIFO);
         }
         if (val & UART_FCR_XFR) {
-            fifo_clear(pThis, XMIT_FIFO);
+            fifo_clear(s, XMIT_FIFO);
         }
 
         if (val & UART_FCR_FE) {
-            pThis->iir |= UART_IIR_FE;
+            s->iir |= UART_IIR_FE;
             /* Set RECV_FIFO trigger Level */
             switch (val & 0xC0) {
             case UART_FCR_ITL_1:
-                pThis->recv_fifo.itl = 1;
+                s->recv_fifo.itl = 1;
                 break;
             case UART_FCR_ITL_2:
-                pThis->recv_fifo.itl = 4;
+                s->recv_fifo.itl = 4;
                 break;
             case UART_FCR_ITL_3:
-                pThis->recv_fifo.itl = 8;
+                s->recv_fifo.itl = 8;
                 break;
             case UART_FCR_ITL_4:
-                pThis->recv_fifo.itl = 14;
+                s->recv_fifo.itl = 14;
                 break;
             }
         } else
-            pThis->iir &= ~UART_IIR_FE;
+            s->iir &= ~UART_IIR_FE;
 
         /* Set fcr - or at least the bits in it that are supposed to "stick" */
-        pThis->fcr = val & 0xC9;
-        serial_update_irq(pThis);
+        s->fcr = val & 0xC9;
+        serial_update_irq(s);
         break;
     case 3:
         {
             int break_enable;
-            pThis->lcr = val;
-            serial_update_parameters(pThis);
+            s->lcr = val;
+            serial_update_parameters(s);
             break_enable = (val >> 6) & 1;
-            if (break_enable != pThis->last_break_enable) {
-                pThis->last_break_enable = break_enable;
-                if (RT_LIKELY(pThis->pDrvChar))
+            if (break_enable != s->last_break_enable) {
+                s->last_break_enable = break_enable;
+                if (RT_LIKELY(s->pDrvChar))
                 {
                     Log(("serial_ioport_write: Set break %d\n", break_enable));
-                    int rc = pThis->pDrvChar->pfnSetBreak(pThis->pDrvChar, !!break_enable);
+                    int rc = s->pDrvChar->pfnSetBreak(s->pDrvChar, !!break_enable);
                     AssertRC(rc);
                 }
             }
         }
         break;
     case 4:
-        pThis->mcr = val & 0x1f;
-        if (RT_LIKELY(pThis->pDrvChar))
+        s->mcr = val & 0x1f;
+        if (RT_LIKELY(s->pDrvChar))
         {
-            int rc = pThis->pDrvChar->pfnSetModemLines(pThis->pDrvChar,
-                                                   !!(pThis->mcr & UART_MCR_RTS),
-                                                   !!(pThis->mcr & UART_MCR_DTR));
+            int rc = s->pDrvChar->pfnSetModemLines(s->pDrvChar,
+                                                   !!(s->mcr & UART_MCR_RTS),
+                                                   !!(s->mcr & UART_MCR_DTR));
             AssertRC(rc);
         }
         break;
@@ -558,15 +574,16 @@ static int serial_ioport_write(PDEVSERIAL pThis, uint32_t addr, uint32_t val)
     case 6:
         break;
     case 7:
-        pThis->scr = val;
+        s->scr = val;
         break;
     }
     return VINF_SUCCESS;
 #endif
 }
 
-static uint32_t serial_ioport_read(PDEVSERIAL pThis, uint32_t addr, int *pRC)
+static uint32_t serial_ioport_read(void *opaque, uint32_t addr, int *pRC)
 {
+    SerialState *s = (SerialState *)opaque;
     uint32_t ret = ~0U;
 
     *pRC = VINF_SUCCESS;
@@ -575,107 +592,107 @@ static uint32_t serial_ioport_read(PDEVSERIAL pThis, uint32_t addr, int *pRC)
     switch(addr) {
     default:
     case 0:
-        if (pThis->lcr & UART_LCR_DLAB) {
+        if (s->lcr & UART_LCR_DLAB) {
             /* DLAB == 1: divisor latch (LS) */
-            ret = pThis->divider & 0xff;
+            ret = s->divider & 0xff;
         } else {
 #ifndef IN_RING3
-            *pRC = VINF_IOM_R3_IOPORT_READ;
+            *pRC = VINF_IOM_HC_IOPORT_READ;
 #else
-            if (pThis->fcr & UART_FCR_FE) {
-                ret = fifo_get(pThis, RECV_FIFO);
-                if (pThis->recv_fifo.count == 0)
-                    pThis->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
+            if (s->fcr & UART_FCR_FE) {
+                ret = fifo_get(s, RECV_FIFO);
+                if (s->recv_fifo.count == 0)
+                    s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
                 else
-                    TMTimerSet(pThis->fifo_timeout_timer,
-                               TMTimerGet(pThis->fifo_timeout_timer) + pThis->char_transmit_time * 4);
-                pThis->timeout_ipending = 0;
+                    TMTimerSet(s->fifo_timeout_timer,
+                               TMTimerGet(s->fifo_timeout_timer) + s->char_transmit_time * 4);
+                s->timeout_ipending = 0;
             } else {
-                Log(("serial_io_port_read: read 0x%X\n", pThis->rbr));
-                ret = pThis->rbr;
-                pThis->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
+                Log(("serial_io_port_read: read 0x%X\n", s->rbr));
+                ret = s->rbr;
+                s->lsr &= ~(UART_LSR_DR | UART_LSR_BI);
             }
-            serial_update_irq(pThis);
-            if (pThis->fRecvWaiting)
+            serial_update_irq(s);
+            if (s->fRecvWaiting)
             {
-                pThis->fRecvWaiting = false;
-                int rc = RTSemEventSignal(pThis->ReceiveSem);
+                s->fRecvWaiting = false;
+                int rc = RTSemEventSignal(s->ReceiveSem);
                 AssertRC(rc);
             }
 #endif
         }
         break;
     case 1:
-        if (pThis->lcr & UART_LCR_DLAB) {
+        if (s->lcr & UART_LCR_DLAB) {
             /* DLAB == 1: divisor latch (MS) */
-            ret = (pThis->divider >> 8) & 0xff;
+            ret = (s->divider >> 8) & 0xff;
         } else {
-            ret = pThis->ier;
+            ret = s->ier;
         }
         break;
     case 2:
 #ifndef IN_RING3
-        *pRC = VINF_IOM_R3_IOPORT_READ;
+        *pRC = VINF_IOM_HC_IOPORT_READ;
 #else
-        ret = pThis->iir;
+        ret = s->iir;
         if ((ret & UART_IIR_ID) == UART_IIR_THRI) {
-            pThis->thr_ipending = 0;
-            serial_update_irq(pThis);
+            s->thr_ipending = 0;
+            serial_update_irq(s);
         }
         /* reset msr changed bit */
-        pThis->msr_changed = false;
+        s->msr_changed = false;
 #endif
         break;
     case 3:
-        ret = pThis->lcr;
+        ret = s->lcr;
         break;
     case 4:
-        ret = pThis->mcr;
+        ret = s->mcr;
         break;
     case 5:
-        if ((pThis->lsr & UART_LSR_DR) == 0 && pThis->fYieldOnLSRRead)
+        if ((s->lsr & UART_LSR_DR) == 0 && s->fYieldOnLSRRead)
         {
             /* No data available and yielding is enabled, so yield in ring3. */
 #ifndef IN_RING3
-            *pRC = VINF_IOM_R3_IOPORT_READ;
+            *pRC = VINF_IOM_HC_IOPORT_READ;
             break;
 #else
             RTThreadYield ();
 #endif
         }
-        ret = pThis->lsr;
+        ret = s->lsr;
         /* Clear break and overrun interrupts */
-        if (pThis->lsr & (UART_LSR_BI|UART_LSR_OE)) {
+        if (s->lsr & (UART_LSR_BI|UART_LSR_OE)) {
 #ifndef IN_RING3
-            *pRC = VINF_IOM_R3_IOPORT_READ;
+            *pRC = VINF_IOM_HC_IOPORT_READ;
 #else
-            pThis->lsr &= ~(UART_LSR_BI|UART_LSR_OE);
-            serial_update_irq(pThis);
+            s->lsr &= ~(UART_LSR_BI|UART_LSR_OE);
+            serial_update_irq(s);
 #endif
         }
         break;
     case 6:
-        if (pThis->mcr & UART_MCR_LOOP) {
+        if (s->mcr & UART_MCR_LOOP) {
             /* in loopback, the modem output pins are connected to the
                inputs */
-            ret = (pThis->mcr & 0x0c) << 4;
-            ret |= (pThis->mcr & 0x02) << 3;
-            ret |= (pThis->mcr & 0x01) << 5;
+            ret = (s->mcr & 0x0c) << 4;
+            ret |= (s->mcr & 0x02) << 3;
+            ret |= (s->mcr & 0x01) << 5;
         } else {
-            ret = pThis->msr;
+            ret = s->msr;
             /* Clear delta bits & msr int after read, if they were set */
-            if (pThis->msr & UART_MSR_ANY_DELTA) {
+            if (s->msr & UART_MSR_ANY_DELTA) {
 #ifndef IN_RING3
-                *pRC = VINF_IOM_R3_IOPORT_READ;
+                *pRC = VINF_IOM_HC_IOPORT_READ;
 #else
-                pThis->msr &= 0xF0;
-                serial_update_irq(pThis);
+                s->msr &= 0xF0;
+                serial_update_irq(s);
 #endif
             }
         }
         break;
     case 7:
-        ret = pThis->scr;
+        ret = s->scr;
         break;
     }
     return ret;
@@ -683,45 +700,43 @@ static uint32_t serial_ioport_read(PDEVSERIAL pThis, uint32_t addr, int *pRC)
 
 #ifdef IN_RING3
 
-static int serial_can_receive(PDEVSERIAL pThis)
+static int serial_can_receive(SerialState *s)
 {
-    if (pThis->fcr & UART_FCR_FE) {
-        if (pThis->recv_fifo.count < UART_FIFO_LENGTH)
-            return (pThis->recv_fifo.count <= pThis->recv_fifo.itl)
-                ? pThis->recv_fifo.itl - pThis->recv_fifo.count : 1;
+    if (s->fcr & UART_FCR_FE) {
+        if (s->recv_fifo.count < UART_FIFO_LENGTH)
+            return (s->recv_fifo.count <= s->recv_fifo.itl)
+                ? s->recv_fifo.itl - s->recv_fifo.count : 1;
         else
             return 0;
     } else {
-        return !(pThis->lsr & UART_LSR_DR);
+        return !(s->lsr & UART_LSR_DR);
     }
 }
 
-static void serial_receive(PDEVSERIAL pThis, const uint8_t *buf, int size)
+static void serial_receive(void *opaque, const uint8_t *buf, int size)
 {
-    if (pThis->fcr & UART_FCR_FE) {
+    SerialState *s = (SerialState*)opaque;
+    if (s->fcr & UART_FCR_FE) {
         int i;
         for (i = 0; i < size; i++) {
-            fifo_put(pThis, RECV_FIFO, buf[i]);
+            fifo_put(s, RECV_FIFO, buf[i]);
         }
-        pThis->lsr |= UART_LSR_DR;
+        s->lsr |= UART_LSR_DR;
         /* call the timeout receive callback in 4 char transmit time */
-        TMTimerSet(pThis->fifo_timeout_timer, TMTimerGet(pThis->fifo_timeout_timer) + pThis->char_transmit_time * 4);
+        TMTimerSet(s->fifo_timeout_timer, TMTimerGet(s->fifo_timeout_timer) + s->char_transmit_time * 4);
     } else {
-        if (pThis->lsr & UART_LSR_DR)
-            pThis->lsr |= UART_LSR_OE;
-        pThis->rbr = buf[0];
-        pThis->lsr |= UART_LSR_DR;
+        if (s->lsr & UART_LSR_DR)
+            s->lsr |= UART_LSR_OE;
+        s->rbr = buf[0];
+        s->lsr |= UART_LSR_DR;
     }
-    serial_update_irq(pThis);
+    serial_update_irq(s);
 }
 
-
-/**
- * @interface_method_impl{PDMICHARPORT,pfnNotifyRead}
- */
+/** @copydoc PDMICHARPORT::pfnNotifyRead */
 static DECLCALLBACK(int) serialNotifyRead(PPDMICHARPORT pInterface, const void *pvBuf, size_t *pcbRead)
 {
-    PDEVSERIAL pThis = RT_FROM_MEMBER(pInterface, DEVSERIAL, ICharPort);
+    SerialState *pThis = PDMICHARPORT_2_SERIALSTATE(pInterface);
     const uint8_t *pu8Buf = (const uint8_t*)pvBuf;
     size_t cbRead = *pcbRead;
 
@@ -744,12 +759,10 @@ static DECLCALLBACK(int) serialNotifyRead(PPDMICHARPORT pInterface, const void *
     return VINF_SUCCESS;
 }
 
-/**
- * @@interface_method_impl{PDMICHARPORT,pfnNotifyStatusLinesChanged}
- */
+/** @copydoc PDMICHARPORT::pfnNotifyStatusLinesChanged */
 static DECLCALLBACK(int) serialNotifyStatusLinesChanged(PPDMICHARPORT pInterface, uint32_t newStatusLines)
 {
-    PDEVSERIAL pThis = RT_FROM_MEMBER(pInterface, DEVSERIAL, ICharPort);
+    SerialState *pThis = PDMICHARPORT_2_SERIALSTATE(pInterface);
     uint8_t newMsr = 0;
 
     Log(("%s: pInterface=%p newStatusLines=%u\n", __FUNCTION__, pInterface, newStatusLines));
@@ -785,22 +798,16 @@ static DECLCALLBACK(int) serialNotifyStatusLinesChanged(PPDMICHARPORT pInterface
     return VINF_SUCCESS;
 }
 
-
-/**
- * @interface_method_impl{PDMICHARPORT,pfnNotifyBufferFull}
- */
+/** @copydoc PDMICHARPORT::pfnNotifyBufferFull */
 static DECLCALLBACK(int) serialNotifyBufferFull(PPDMICHARPORT pInterface, bool fFull)
 {
     return VINF_SUCCESS;
 }
 
-
-/**
- * @interface_method_impl{PDMICHARPORT,pfnNotifyBreak}
- */
+/** @copydoc PDMICHARPORT::pfnNotifyBreak */
 static DECLCALLBACK(int) serialNotifyBreak(PPDMICHARPORT pInterface)
 {
-    PDEVSERIAL pThis = RT_FROM_MEMBER(pInterface, DEVSERIAL, ICharPort);
+    SerialState *pThis = PDMICHARPORT_2_SERIALSTATE(pInterface);
 
     Log(("%s: pInterface=%p\n", __FUNCTION__, pInterface));
 
@@ -814,15 +821,12 @@ static DECLCALLBACK(int) serialNotifyBreak(PPDMICHARPORT pInterface)
     return VINF_SUCCESS;
 }
 
-
-/* -=-=-=-=-=-=-=-=- Timer callbacks -=-=-=-=-=-=-=-=- */
-
 /**
- * @callback_method_tmpl{FNTMTIMERDEV, Fifo timer function.}
+ * Fifo timer functions.
  */
 static DECLCALLBACK(void) serialFifoTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PDEVSERIAL pThis = (PDEVSERIAL)pvUser;
+    SerialState *pThis = (SerialState *)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
     if (pThis->recv_fifo.count)
     {
@@ -832,27 +836,73 @@ static DECLCALLBACK(void) serialFifoTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, v
 }
 
 /**
- * @callback_method_tmpl{FNTMTIMERDEV, Transmit timer function.}
- *
+ * Transmit timer function.
  * Just retry to transmit a character.
+ *
+ * @param   pTimer      The timer handle.
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      The user pointer.
  */
 static DECLCALLBACK(void) serialTransmitTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser)
 {
-    PDEVSERIAL pThis = (PDEVSERIAL)pvUser;
+    SerialState *pThis = (SerialState *)pvUser;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
     serial_xmit(pThis, true);
 }
 
+/**
+ * Reset the serial device.
+ *
+ * @param   pDevIns     The device instance.
+ */
+static DECLCALLBACK(void) serialReset(PPDMDEVINS pDevIns)
+{
+    SerialState *s = PDMINS_2_DATA(pDevIns, SerialState *);
+
+    s->rbr = 0;
+    s->ier = 0;
+    s->iir = UART_IIR_NO_INT;
+    s->lcr = 0;
+    s->lsr = UART_LSR_TEMT | UART_LSR_THRE;
+    s->msr = UART_MSR_DCD | UART_MSR_DSR | UART_MSR_CTS;
+    /* Default to 9600 baud, 1 start bit, 8 data bits, 1 stop bit, no parity. */
+    s->divider = 0x0C;
+    s->mcr = UART_MCR_OUT2;
+    s->scr = 0;
+    s->tsr_retry = 0;
+    uint64_t tf = TMTimerGetFreq(CTX_SUFF(s->transmit_timer));
+    s->char_transmit_time = (tf / 9600) * 10;
+    serial_tsr_retry_update_parameters(s, tf);
+
+    fifo_clear(s, RECV_FIFO);
+    fifo_clear(s, XMIT_FIFO);
+
+    s->thr_ipending = 0;
+    s->last_break_enable = 0;
+# ifdef VBOX_SERIAL_PCI
+        PDMDevHlpPCISetIrqNoWait(s->CTX_SUFF(pDevIns), 0, 0);
+# else /* !VBOX_SERIAL_PCI */
+        PDMDevHlpISASetIrqNoWait(s->CTX_SUFF(pDevIns), s->irq, 0);
+# endif /* !VBOX_SERIAL_PCI */
+}
+
 #endif /* IN_RING3 */
 
-/* -=-=-=-=-=-=-=-=- I/O Port Access Handlers -=-=-=-=-=-=-=-=- */
-
 /**
- * @callback_method_impl{FNIOMIOPORTOUT}
+ * Port I/O Handler for OUT operations.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   Port        Port number used for the IN operation.
+ * @param   u32         The value to output.
+ * @param   cb          The value size in bytes.
  */
-PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser,
+                                     RTIOPORT Port, uint32_t u32, unsigned cb)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
     int          rc;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
 
@@ -870,13 +920,21 @@ PDMBOTHCBDECL(int) serialIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
     return rc;
 }
 
-
 /**
- * @callback_method_impl{FNIOMIOPORTIN}
+ * Port I/O Handler for IN operations.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   Port        Port number used for the IN operation.
+ * @param   u32         The value to output.
+ * @param   cb          The value size in bytes.
  */
-PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser,
+                                    RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
     int          rc;
     Assert(PDMCritSectIsOwner(&pThis->CritSect));
 
@@ -893,26 +951,26 @@ PDMBOTHCBDECL(int) serialIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT P
 
 #ifdef IN_RING3
 
-/* -=-=-=-=-=-=-=-=- Saved State -=-=-=-=-=-=-=-=- */
-
 /**
- * @callback_method_tmpl{FNSSMDEVLIVEEXEC}
+ * @copydoc FNSSMDEVLIVEEXEC
  */
-static DECLCALLBACK(int) serialLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
+static DECLCALLBACK(int) serialLiveExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM,
+                                        uint32_t uPass)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
     SSMR3PutS32(pSSM, pThis->irq);
     SSMR3PutU32(pSSM, pThis->base);
     return VINF_SSM_DONT_CALL_AGAIN;
 }
 
-
 /**
- * @callback_method_tmpl{FNSSMDEVSAVEEXEC}
+ * @copydoc FNSSMDEVSAVEEXEC
  */
-static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
 
     SSMR3PutU16(pSSM, pThis->divider);
     SSMR3PutU8(pSSM, pThis->rbr);
@@ -937,13 +995,15 @@ static DECLCALLBACK(int) serialSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     return SSMR3PutU32(pSSM, ~0); /* sanity/terminator */
 }
 
-
 /**
- * @callback_method_tmpl{FNSSMDEVLOADEXEC}
+ * @copydoc FNSSMDEVLOADEXEC
  */
-static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns,
+                                        PSSMHANDLE pSSM,
+                                        uint32_t uVersion,
+                                        uint32_t uPass)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
 
     if (uVersion == SERIAL_SAVED_STATE_VERSION_16450)
     {
@@ -1014,16 +1074,21 @@ static DECLCALLBACK(int) serialLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uin
 }
 
 
-#ifdef VBOX_SERIAL_PCI
-/* -=-=-=-=-=-=-=-=- PCI Device Callback(s) -=-=-=-=-=-=-=-=- */
-
 /**
- * @callback_method_impl{FNPCIIOREGIONMAP}
+ * @copydoc FNPDMDEVRELOCATE
  */
-static DECLCALLBACK(int) serialIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS GCPhysAddress,
-                                               uint32_t cb, PCIADDRESSSPACE enmType)
+static DECLCALLBACK(void) serialRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
-    PDEVSERIAL pThis = RT_FROM_MEMBER(pPciDev, DEVSERIAL, PciDev);
+    SerialState *pThis      = PDMINS_2_DATA(pDevIns, SerialState *);
+    pThis->pDevInsRC        = PDMDEVINS_2_RCPTR(pDevIns);
+    pThis->transmit_timerRC = TMTimerRCPtr(pThis->transmit_timerR3);
+}
+
+#ifdef VBOX_SERIAL_PCI
+
+static DECLCALLBACK(int) serialIOPortRegionMap(PPCIDEVICE pPciDev, /* unsigned */ int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType)
+{
+    SerialState *pThis = PCIDEV_2_SERIALSTATE(pPciDev);
     int rc = VINF_SUCCESS;
 
     Assert(enmType == PCI_ADDRESS_SPACE_IO);
@@ -1045,75 +1110,29 @@ static DECLCALLBACK(int) serialIOPortRegionMap(PPCIDEVICE pPciDev, int iRegion, 
 
 #endif /* VBOX_SERIAL_PCI */
 
-
-/* -=-=-=-=-=-=-=-=- PDMIBASE on LUN#1 -=-=-=-=-=-=-=-=- */
-
 /**
  * @interface_method_impl{PDMIBASE, pfnQueryInterface}
  */
 static DECLCALLBACK(void *) serialQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PDEVSERIAL pThis = RT_FROM_MEMBER(pInterface, DEVSERIAL, IBase);
+    SerialState *pThis = PDMIBASE_2_SERIALSTATE(pInterface);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMICHARPORT, &pThis->ICharPort);
     return NULL;
 }
 
-
-/* -=-=-=-=-=-=-=-=- PDMDEVREG -=-=-=-=-=-=-=-=- */
-
 /**
- * @interface_method_impl{PDMDEVREG, pfnRelocate}
- */
-static DECLCALLBACK(void) serialRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
-{
-    PDEVSERIAL pThis      = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
-    pThis->pDevInsRC        = PDMDEVINS_2_RCPTR(pDevIns);
-    pThis->transmit_timerRC = TMTimerRCPtr(pThis->transmit_timerR3);
-}
-
-
-/**
- * @interface_method_impl{PDMDEVREG, pfnReset}
- */
-static DECLCALLBACK(void) serialReset(PPDMDEVINS pDevIns)
-{
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
-
-    pThis->rbr = 0;
-    pThis->ier = 0;
-    pThis->iir = UART_IIR_NO_INT;
-    pThis->lcr = 0;
-    pThis->lsr = UART_LSR_TEMT | UART_LSR_THRE;
-    pThis->msr = UART_MSR_DCD | UART_MSR_DSR | UART_MSR_CTS;
-    /* Default to 9600 baud, 1 start bit, 8 data bits, 1 stop bit, no parity. */
-    pThis->divider = 0x0C;
-    pThis->mcr = UART_MCR_OUT2;
-    pThis->scr = 0;
-    pThis->tsr_retry = 0;
-    uint64_t tf = TMTimerGetFreq(CTX_SUFF(pThis->transmit_timer));
-    pThis->char_transmit_time = (tf / 9600) * 10;
-    serial_tsr_retry_update_parameters(pThis, tf);
-
-    fifo_clear(pThis, RECV_FIFO);
-    fifo_clear(pThis, XMIT_FIFO);
-
-    pThis->thr_ipending = 0;
-    pThis->last_break_enable = 0;
-# ifdef VBOX_SERIAL_PCI
-        PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 0);
-# else /* !VBOX_SERIAL_PCI */
-        PDMDevHlpISASetIrqNoWait(pThis->CTX_SUFF(pDevIns), pThis->irq, 0);
-# endif /* !VBOX_SERIAL_PCI */
-}
-
-
-/**
- * @interface_method_impl{PDMDEVREG, pfnDestruct}
+ * Destruct a device instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that any non-VM
+ * resources can be freed correctly.
+ *
+ * @returns VBox status.
+ * @param   pDevIns     The device instance data.
  */
 static DECLCALLBACK(int) serialDestruct(PPDMDEVINS pDevIns)
 {
-    PDEVSERIAL pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
+    SerialState *pThis = PDMINS_2_DATA(pDevIns, SerialState *);
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
     RTSemEventDestroy(pThis->ReceiveSem);
@@ -1129,8 +1148,8 @@ static DECLCALLBACK(int) serialDestruct(PPDMDEVINS pDevIns)
  */
 static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    PDEVSERIAL     pThis = PDMINS_2_DATA(pDevIns, PDEVSERIAL);
     int            rc;
+    SerialState   *pThis = PDMINS_2_DATA(pDevIns, SerialState*);
     uint16_t       io_base;
     uint8_t        irq_lvl;
 
@@ -1144,7 +1163,6 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     pThis->pDevInsR3 = pDevIns;
     pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    pThis->ReceiveSem = NIL_RTSEMEVENT;
 
     /* IBase */
     pThis->IBase.pfnQueryInterface = serialQueryInterface;
@@ -1157,17 +1175,17 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
 #ifdef VBOX_SERIAL_PCI
     /* the PCI device */
-    pThis->PciDev.config[0x00] = 0xee; /* Vendor: ??? */
-    pThis->PciDev.config[0x01] = 0x80;
-    pThis->PciDev.config[0x02] = 0x01; /* Device: ??? */
-    pThis->PciDev.config[0x03] = 0x01;
-    pThis->PciDev.config[0x04] = PCI_COMMAND_IOACCESS;
-    pThis->PciDev.config[0x09] = 0x01; /* Programming interface: 16450 */
-    pThis->PciDev.config[0x0a] = 0x00; /* Subclass: Serial controller */
-    pThis->PciDev.config[0x0b] = 0x07; /* Class: Communication controller */
-    pThis->PciDev.config[0x0e] = 0x00; /* Header type: standard */
-    pThis->PciDev.config[0x3c] = irq_lvl; /* preconfigure IRQ number (0 = autoconfig)*/
-    pThis->PciDev.config[0x3d] = 1;    /* interrupt pin 0 */
+    pThis->dev.config[0x00] = 0xee; /* Vendor: ??? */
+    pThis->dev.config[0x01] = 0x80;
+    pThis->dev.config[0x02] = 0x01; /* Device: ??? */
+    pThis->dev.config[0x03] = 0x01;
+    pThis->dev.config[0x04] = PCI_COMMAND_IOACCESS;
+    pThis->dev.config[0x09] = 0x01; /* Programming interface: 16450 */
+    pThis->dev.config[0x0a] = 0x00; /* Subclass: Serial controller */
+    pThis->dev.config[0x0b] = 0x07; /* Class: Communication controller */
+    pThis->dev.config[0x0e] = 0x00; /* Header type: standard */
+    pThis->dev.config[0x3c] = irq_lvl; /* preconfigure IRQ number (0 = autoconfig)*/
+    pThis->dev.config[0x3d] = 1;    /* interrupt pin 0 */
 #endif /* VBOX_SERIAL_PCI */
 
     /*
@@ -1284,7 +1302,7 @@ static DECLCALLBACK(int) serialConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     /*
      * Register the PCI Device and region.
      */
-    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->PciDev);
+    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->dev);
     if (RT_FAILURE(rc))
         return rc;
     rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, 8, PCI_ADDRESS_SPACE_IO, serialIOPortRegionMap);
@@ -1381,14 +1399,14 @@ const PDMDEVREG g_DeviceSerialPort =
     /* cMaxInstances */
     UINT32_MAX,
     /* cbInstance */
-    sizeof(DEVSERIAL),
+    sizeof(SerialState),
     /* pfnConstruct */
     serialConstruct,
     /* pfnDestruct */
     serialDestruct,
     /* pfnRelocate */
     serialRelocate,
-    /* pfnMemSetup */
+    /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
     NULL,

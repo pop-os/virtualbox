@@ -46,7 +46,6 @@ class APIFunction:
 		self.paramset = []
 		self.props = []
 		self.chromium = []
-		self.chrelopcode = -1
 
 
 
@@ -162,9 +161,6 @@ def ProcessSpecFile(filename, userFunc):
 						record.params[i] = (name, type, vecSize)
 						break
 
-			elif tokens[0] == 'chrelopcode':
-				record.chrelopcode = int(tokens[1])
-
 			else:
 				print 'Invalid token %s after function %s' % (tokens[0], record.name)
 			#endif
@@ -227,17 +223,6 @@ def GetAllFunctions(specFile = ""):
 	funcs.sort()
 	return funcs
 	
-def GetAllFunctionsAndOmittedAliases(specFile = ""):
-	"""Return sorted list of all functions known to Chromium."""
-	d = GetFunctionDict(specFile)
-	funcs = []
-	for func in d.keys():
-		rec = d[func]
-		if (not "omit" in rec.chromium or
-			rec.alias != ''):
-			funcs.append(func)
-	funcs.sort()
-	return funcs
 
 def GetDispatchedFunctions(specFile = ""):
 	"""Return sorted list of all functions handled by SPU dispatch table."""
@@ -315,12 +300,6 @@ def ChromiumProps(funcName):
 	"""Return list of Chromium-specific properties of the named GL function."""
 	d = GetFunctionDict()
 	return d[funcName].chromium
-	
-def ChromiumRelOpCode(funcName):
-	"""Return list of Chromium-specific properties of the named GL function."""
-	d = GetFunctionDict()
-	return d[funcName].chrelopcode
-	
 
 def ParamProps(funcName):
 	"""Return list of Parameter-specific properties of the named GL function."""
@@ -377,10 +356,10 @@ def GetCategoryWrapper(func_name):
 		cat == "VBox"):
 		return ''
 	elif (cat == '1.3' or
-		  cat == '1.4' or
-		  cat == '1.5' or
-		  cat == '2.0' or
-		  cat == '2.1'):
+          cat == '1.4' or
+          cat == '1.5' or
+          cat == '2.0' or
+          cat == '2.1'):
 		# i.e. OpenGL 1.3 or 1.4 or 1.5
 		return "OPENGL_VERSION_" + string.replace(cat, ".", "_")
 	else:
@@ -588,19 +567,6 @@ def MakeDeclarationString(params):
 	#endif
 #enddef
 
-def MakeDeclarationStringWithContext(ctx_macro_prefix, params):
-	"""Same as MakeDeclarationString, but adds a context macro
-	"""
-	
-	n = len(params)
-	if n == 0:
-		return ctx_macro_prefix + '_ARGSINGLEDECL'
-	else:
-		result = MakeDeclarationString(params)
-		return ctx_macro_prefix + '_ARGDECL ' + result
-	#endif
-#enddef
-
 
 def MakePrototypeString(params):
 	"""Given a list of (name, type, vectorSize) parameters, make a C-style
@@ -646,9 +612,9 @@ __lengths = {
 	'int': 4,
 	'GLintptrARB': 4,   # XXX or 8 bytes?
 	'GLsizeiptrARB': 4, # XXX or 8 bytes?
-	'VBoxGLhandleARB': 4,
+	'GLhandleARB': 4,
 	'GLcharARB': 1,
-	'uintptr_t': 4
+    'uintptr_t': 4
 }
 
 def sizeof(type):

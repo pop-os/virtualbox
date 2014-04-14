@@ -293,8 +293,3 @@ STDMETHODIMP VRDPFramebuffer::ProcessVHWACommand(BYTE *pCommand)
 {
     return E_NOTIMPL;
 }
-
-STDMETHODIMP VRDPFramebuffer::Notify3DEvent(ULONG uType, BYTE *pReserved)
-{
-    return E_NOTIMPL;
-}

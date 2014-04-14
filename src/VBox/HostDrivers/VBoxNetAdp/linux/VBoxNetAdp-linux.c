@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -183,9 +183,6 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
     /* No need for private data. */
     pNetDev = alloc_netdev(sizeof(VBOXNETADPPRIV),
                            pThis->szName[0] ? pThis->szName : VBOXNETADP_LINUX_NAME,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
-                           NET_NAME_UNKNOWN,
-#endif
                            vboxNetAdpNetDevInit);
     if (pNetDev)
     {
@@ -236,7 +233,6 @@ static int VBoxNetAdpLinuxOpen(struct inode *pInode, struct file *pFilp)
 {
     Log(("VBoxNetAdpLinuxOpen: pid=%d/%d %s\n", RTProcSelf(), current->pid, current->comm));
 
-#ifdef VBOX_WITH_HARDENING
     /*
      * Only root is allowed to access the device, enforce it!
      */
@@ -245,7 +241,6 @@ static int VBoxNetAdpLinuxOpen(struct inode *pInode, struct file *pFilp)
         Log(("VBoxNetAdpLinuxOpen: admin privileges required!\n"));
         return -EPERM;
     }
-#endif
 
     return 0;
 }
@@ -317,7 +312,7 @@ static long VBoxNetAdpLinuxIOCtlUnlocked(struct file *pFilp,
             if (RT_FAILURE(rc))
             {
                 Log(("VBoxNetAdpLinuxIOCtl: vboxNetAdpCreate -> %Rrc\n", rc));
-                return -(rc == VERR_OUT_OF_RESOURCES ? ENOMEM : EINVAL);
+                return -EINVAL;
             }
 
             Assert(strlen(pAdp->szName) < sizeof(Req.szName));

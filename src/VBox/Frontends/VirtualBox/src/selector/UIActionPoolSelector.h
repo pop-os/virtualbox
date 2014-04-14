@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,53 +23,10 @@
 #include "UIActionPool.h"
 
 /* Action keys: */
-enum UIActionIndexSelector
+enum UIActionIndexOffline
 {
-    /* 'File' menu actions: */
-    UIActionIndexSelector_Menu_File = UIActionIndex_Max + 1,
-    UIActionIndexSelector_Simple_File_MediumManagerDialog,
-    UIActionIndexSelector_Simple_File_ImportApplianceWizard,
-    UIActionIndexSelector_Simple_File_ExportApplianceWizard,
-    UIActionIndexSelector_Simple_File_PreferencesDialog,
-    UIActionIndexSelector_Simple_File_Exit,
-
-    /* 'Group' menu actions: */
-    UIActionIndexSelector_Menu_Group,
-    UIActionIndexSelector_Simple_Group_New,
-    UIActionIndexSelector_Simple_Group_Add,
-    UIActionIndexSelector_Simple_Group_Rename,
-    UIActionIndexSelector_Simple_Group_Remove,
-    UIActionIndexSelector_Simple_Group_Sort,
-    UIActionIndexSelector_Menu_Group_Close,
-    UIActionIndexSelector_Simple_Group_Close_Save,
-    UIActionIndexSelector_Simple_Group_Close_ACPIShutdown,
-    UIActionIndexSelector_Simple_Group_Close_PowerOff,
-
-    /* 'Machine' menu actions: */
-    UIActionIndexSelector_Menu_Machine,
-    UIActionIndexSelector_Simple_Machine_New,
-    UIActionIndexSelector_Simple_Machine_Add,
-    UIActionIndexSelector_Simple_Machine_Settings,
-    UIActionIndexSelector_Simple_Machine_Clone,
-    UIActionIndexSelector_Simple_Machine_Remove,
-    UIActionIndexSelector_Simple_Machine_AddGroup,
-    UIActionIndexSelector_Simple_Machine_SortParent,
-    UIActionIndexSelector_Menu_Machine_Close,
-    UIActionIndexSelector_Simple_Machine_Close_Save,
-    UIActionIndexSelector_Simple_Machine_Close_ACPIShutdown,
-    UIActionIndexSelector_Simple_Machine_Close_PowerOff,
-
-    /* Common 'Group' / 'Machine' menu actions: */
-    UIActionIndexSelector_State_Common_StartOrShow,
-    UIActionIndexSelector_Toggle_Common_PauseAndResume,
-    UIActionIndexSelector_Simple_Common_Reset,
-    UIActionIndexSelector_Simple_Common_Discard,
-    UIActionIndexSelector_Simple_Common_Refresh,
-    UIActionIndexSelector_Simple_Common_ShowInFileManager,
-    UIActionIndexSelector_Simple_Common_CreateShortcut,
-
     /* Maximum index: */
-    UIActionIndexSelector_Max
+    UIActionIndexOffline_Max = UIActionIndex_Max + 1
 };
 
 /* Singleton runtime action pool: */
@@ -77,23 +34,20 @@ class UIActionPoolSelector : public UIActionPool
 {
     Q_OBJECT;
 
+public:
+
+    /* Singleton methods: */
+    static void create();
+    static void destroy();
+
 private:
 
     /* Constructor: */
-    UIActionPoolSelector();
+    UIActionPoolSelector() : UIActionPool(UIActionPoolType_Offline) {}
 
-    /** Translation handler. */
-    void retranslateUi();
-
-    /* Helper: Shortcuts stuff: */
-    QString shortcutsExtraDataID() const;
-
-    /* Helpers: Prepare stuff: */
+    /* Virtual helping stuff: */
     void createActions();
     void createMenus();
-
-    /* Friend zone: */
-    friend class UIActionPool;
 };
 
 #endif // __UIActionPoolSelector_h__

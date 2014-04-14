@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -669,9 +669,8 @@ typedef struct GMMSHAREDPAGEDESC
     RTGCPHYS                    GCPhys;
     /** GMM page id. (in/out) */
     uint32_t                    idPage;
-    /** CRC32 of the page in strict builds (0 if page not available).
-     * In non-strict build this serves as structure alignment. */
-    uint32_t                    u32StrictChecksum;
+    /** Align at 8 byte boundary. */
+    uint32_t                    uAlignment;
 } GMMSHAREDPAGEDESC;
 /** Pointer to a GMMSHAREDPAGEDESC. */
 typedef GMMSHAREDPAGEDESC *PGMMSHAREDPAGEDESC;

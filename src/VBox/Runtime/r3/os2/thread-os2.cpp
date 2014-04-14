@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,6 @@
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/asm-amd64-x86.h>
-#include <iprt/cpuset.h>
 #include <iprt/string.h>
 #include <iprt/err.h>
 #include "internal/thread.h"
@@ -78,7 +77,7 @@ DECLHIDDEN(int) rtThreadNativeInit(void)
 }
 
 
-static void rtThreadOs2BlockSigAlarm(void)
+DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
 {
     /*
      * Block SIGALRM - required for timer-posix.cpp.
@@ -89,17 +88,6 @@ static void rtThreadOs2BlockSigAlarm(void)
     sigemptyset(&SigSet);
     sigaddset(&SigSet, SIGALRM);
     sigprocmask(SIG_BLOCK, &SigSet, NULL);
-}
-
-
-DECLHIDDEN(void) rtThreadNativeReInitObtrusive(void)
-{
-    rtThreadOs2BlockSigAlarm();
-}
-
-
-DECLHIDDEN(int) rtThreadNativeAdopt(PRTTHREADINT pThread)
-{
 
     *g_ppCurThread = pThread;
     return VINF_SUCCESS;
@@ -118,7 +106,15 @@ DECLHIDDEN(void) rtThreadNativeDestroy(PRTTHREADINT pThread)
  */
 static void rtThreadNativeMain(void *pvArgs)
 {
-    rtThreadOs2BlockSigAlarm();
+    /*
+     * Block SIGALRM - required for timer-posix.cpp.
+     * This is done to limit harm done by OSes which doesn't do special SIGALRM scheduling.
+     * It will not help much if someone creates threads directly using pthread_create. :/
+     */
+    sigset_t SigSet;
+    sigemptyset(&SigSet);
+    sigaddset(&SigSet, SIGALRM);
+    sigprocmask(SIG_BLOCK, &SigSet, NULL);
 
     /*
      * Call common main.
@@ -191,13 +187,6 @@ RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
 }
 
 
-RTDECL(int)   RTThreadSleepNoLog(RTMSINTERVAL cMillies)
-{
-    DosSleep(cMillies);
-    return VINF_SUCCESS;
-}
-
-
 RTDECL(bool) RTThreadYield(void)
 {
     uint64_t u64TS = ASMReadTSC();
@@ -208,6 +197,11 @@ RTDECL(bool) RTThreadYield(void)
     return fRc;
 }
 
+
+RTR3DECL(int) RTThreadGetAffinity(PRTCPUSET pCpuSet)
+{
+    return VINF_SUCCESS;
+}
 
 RTR3DECL(int) RTThreadGetAffinity(PRTCPUSET pCpuSet)
 {

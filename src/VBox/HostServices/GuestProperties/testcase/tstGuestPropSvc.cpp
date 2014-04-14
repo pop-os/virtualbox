@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -431,7 +431,7 @@ int doSetProperty(VBOXHGCMSVCFNTABLE *pTable, const char *pcszName,
  */
 static void testSetProp(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("SET_PROP, _VALUE, _HOST, _VALUE_HOST");
+    RTTestISub("SET_PROP, SET_PROP_VALUE, SET_PROP_HOST, SET_PROP_VALUE_HOST");
 
     /** Array of properties for testing SET_PROP_HOST and _GUEST. */
     static const struct
@@ -671,33 +671,24 @@ static void testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
     RTTestISub("GET_NOTIFICATION");
 
     /* Test "buffer too small" */
+    char                        achBuffer[MAX_NAME_LEN + MAX_VALUE_LEN + MAX_FLAGS_LEN];
     static char                 s_szPattern[] = "";
     VBOXHGCMCALLHANDLE_TYPEDEF  callHandle = { VINF_SUCCESS };
     VBOXHGCMSVCPARM             aParms[4];
-    uint32_t                    cbRetNeeded;
+    aParms[0].setPointer((void *)s_szPattern, sizeof(s_szPattern));
+    aParms[1].setUInt64(1);
+    aParms[2].setPointer((void *)achBuffer, g_aGetNotifications[0].cbBuffer - 1);
+    pTable->pfnCall(pTable->pvService, &callHandle, 0, NULL, GET_NOTIFICATION, 4, aParms);
 
-    for (uint32_t cbBuf = 1;
-         cbBuf < g_aGetNotifications[0].cbBuffer - 1;
-         cbBuf++)
+    uint32_t cbRetNeeded;
+    if (   callHandle.rc != VERR_BUFFER_OVERFLOW
+        || RT_FAILURE(aParms[3].getUInt32(&cbRetNeeded))
+        || cbRetNeeded != g_aGetNotifications[0].cbBuffer
+       )
     {
-        void *pvBuf = RTTestGuardedAllocTail(g_hTest, cbBuf);
-        RTTESTI_CHECK_BREAK(pvBuf);
-        memset(pvBuf, 0x55, cbBuf);
-
-        aParms[0].setPointer((void *)s_szPattern, sizeof(s_szPattern));
-        aParms[1].setUInt64(1);
-        aParms[2].setPointer(pvBuf, cbBuf);
-        pTable->pfnCall(pTable->pvService, &callHandle, 0, NULL, GET_NOTIFICATION, 4, aParms);
-
-        if (   callHandle.rc != VERR_BUFFER_OVERFLOW
-            || RT_FAILURE(aParms[3].getUInt32(&cbRetNeeded))
-            || cbRetNeeded != g_aGetNotifications[0].cbBuffer
-           )
-        {
-            RTTestIFailed("Getting notification for property '%s' with a too small buffer did not fail correctly: %Rrc",
-                          g_aGetNotifications[0].pchBuffer, callHandle.rc);
-        }
-        RTTestGuardedFree(g_hTest, pvBuf);
+        RTTestIFailed("Getting notification for property '%s' with a too small buffer did not fail correctly.",
+                      g_aGetNotifications[0].pchBuffer);
+        return;
     }
 
     /* Test successful notification queries.  Start with an unknown timestamp
@@ -705,27 +696,21 @@ static void testGetNotification(VBOXHGCMSVCFNTABLE *pTable)
     uint64_t u64Timestamp = 1;
     for (unsigned i = 0; i < RT_ELEMENTS(g_aGetNotifications); ++i)
     {
-        uint32_t cbBuf = g_aGetNotifications[i].cbBuffer + _1K;
-        void *pvBuf = RTTestGuardedAllocTail(g_hTest, cbBuf);
-        RTTESTI_CHECK_BREAK(pvBuf);
-        memset(pvBuf, 0x55, cbBuf);
-
         aParms[0].setPointer((void *)s_szPattern, sizeof(s_szPattern));
         aParms[1].setUInt64(u64Timestamp);
-        aParms[2].setPointer(pvBuf, cbBuf);
+        aParms[2].setPointer((void *)achBuffer, sizeof(achBuffer));
         pTable->pfnCall(pTable->pvService, &callHandle, 0, NULL, GET_NOTIFICATION, 4, aParms);
         if (   RT_FAILURE(callHandle.rc)
             || (i == 0 && callHandle.rc != VWRN_NOT_FOUND)
             || RT_FAILURE(aParms[1].getUInt64(&u64Timestamp))
             || RT_FAILURE(aParms[3].getUInt32(&cbRetNeeded))
             || cbRetNeeded != g_aGetNotifications[i].cbBuffer
-            || memcmp(pvBuf, g_aGetNotifications[i].pchBuffer, cbRetNeeded) != 0
+            || memcmp(achBuffer, g_aGetNotifications[i].pchBuffer, cbRetNeeded) != 0
            )
         {
             RTTestIFailed("Failed to get notification for property '%s' (rc=%Rrc).",
                           g_aGetNotifications[i].pchBuffer, callHandle.rc);
         }
-        RTTestGuardedFree(g_hTest, pvBuf);
     }
 }
 
@@ -745,7 +730,7 @@ struct asyncNotification_
  */
 static void setupAsyncNotification(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("Async GET_NOTIFICATION without notifications");
+    RTTestISub("Asynchronous GET_NOTIFICATION call with no notifications are available");
     static char s_szPattern[] = "";
 
     g_AsyncNotification.aParms[0].setPointer((void *)s_szPattern, sizeof(s_szPattern));
@@ -796,7 +781,7 @@ static void test2(void)
     /* Set up the asynchronous notification test */
     setupAsyncNotification(&svcTable);
     testSetProp(&svcTable);
-    RTTestISub("Async notification call data");
+    RTTestISub("Checking the data returned by the asynchronous notification call");
     testAsyncNotification(&svcTable); /* Our previous notification call should have completed by now. */
 
     testDelProp(&svcTable);
@@ -838,7 +823,7 @@ static int doSetGlobalFlags(VBOXHGCMSVCFNTABLE *pTable, ePropFlags eFlags)
  */
 static void testSetPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("global READONLYGUEST and SET_PROP*");
+    RTTestISub("SET_PROP, SET_PROP_VALUE, SET_PROP_HOST and SET_PROP_VALUE_HOST calls with READONLYGUEST set globally");
 
     /** Array of properties for testing SET_PROP_HOST and _GUEST with the
      * READONLYGUEST global flag set. */
@@ -908,7 +893,7 @@ static void testSetPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
  */
 static void testDelPropROGuest(VBOXHGCMSVCFNTABLE *pTable)
 {
-    RTTestISub("global READONLYGUEST and DEL_PROP*");
+    RTTestISub("DEL_PROP and DEL_PROP_HOST calls with RDONLYGUEST set globally");
 
     /** Array of properties for testing DEL_PROP_HOST and _GUEST with
      * READONLYGUEST set globally. */

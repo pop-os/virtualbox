@@ -157,9 +157,6 @@ GetIntegerv
 GetError
 StencilFunc
 StencilOp
-StencilFuncSeparate
-StencilOpSeparate
-ActiveStencilFaceEXT
 ClearStencil
 StencilMask
 Viewport
@@ -376,10 +373,5 @@ UseProgram
 DeleteProgram
 ValidateProgram
 BindAttribLocation
-GetAttribLocation
 GetUniformLocation
 CopyTexImage2D
-GenFramebuffersEXT
-GenRenderbuffersEXT
-IsRenderbufferEXT
-IsFramebufferEXT

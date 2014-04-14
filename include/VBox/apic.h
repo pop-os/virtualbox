@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,41 +31,28 @@
 #include <iprt/types.h>
 
 #define APIC_REG_VERSION                        0x0030
-#define APIC_REG_VERSION_GET_VER(u32)           (u32 & 0xff)
-#define APIC_REG_VERSION_GET_MAX_LVT(u32)       ((u32 & 0xff0000) >> 16)
+#define   APIC_REG_VERSION_GET_VER(u32)         (u32 & 0xff)
+#define   APIC_REG_VERSION_GET_MAX_LVT(u32)     ((u32 & 0xff0000) >> 16)
 
-/* Defines according to Figure 10-8 of the Intel Software Developers Manual Vol 3A */
+/* defines according to Figure 10-8 of the Intel Software Developers Manual Vol 3A */
 #define APIC_REG_LVT_LINT0                      0x0350
 #define APIC_REG_LVT_LINT1                      0x0360
 #define APIC_REG_LVT_ERR                        0x0370
 #define APIC_REG_LVT_PC                         0x0340
 #define APIC_REG_LVT_THMR                       0x0330
-#define APIC_REG_LVT_MODE_MASK                  (RT_BIT(8) | RT_BIT(9) | RT_BIT(10))
-#define APIC_REG_LVT_MODE_FIXED                 0
-#define APIC_REG_LVT_MODE_NMI                   RT_BIT(10)
-#define APIC_REG_LVT_MODE_EXTINT                (RT_BIT(8) | RT_BIT(9) | RT_BIT(10))
-#define APIC_REG_LVT_PIN_POLARIY                RT_BIT(13)
-#define APIC_REG_LVT_REMOTE_IRR                 RT_BIT(14)
-#define APIC_REG_LVT_LEVEL_TRIGGER              RT_BIT(15)
-#define APIC_REG_LVT_MASKED                     RT_BIT(16)
+#define   APIC_REG_LVT_MODE_MASK                (RT_BIT(8)|RT_BIT(9)|RT_BIT(10))
+#define   APIC_REG_LVT_MODE_FIXED               0
+#define   APIC_REG_LVT_MODE_NMI                 (RT_BIT(10))
+#define   APIC_REG_LVT_MODE_EXTINT              (RT_BIT(8)|RT_BIT(9)|RT_BIT(10))
+#define   APIC_REG_LVT_PIN_POLARIY              RT_BIT(13)
+#define   APIC_REG_LVT_REMOTE_IRR               RT_BIT(14)
+#define   APIC_REG_LVT_LEVEL_TRIGGER            RT_BIT(15)
+#define   APIC_REG_LVT_MASKED                   RT_BIT(16)
 
-DECLINLINE(uint32_t) ApicRegRead(void *pvBase, uint32_t offReg)
+DECLINLINE(uint32_t) ApicRegRead(void *pBase, uint32_t reg)
 {
-    return *(const volatile uint32_t *)((uintptr_t)pvBase + offReg);
+    return *(const volatile uint32_t*)((uintptr_t)pBase + reg);
 }
 
-
-#ifdef ___iprt_asm_amd64_x86_h
-/**
- * Reads an X2APIC register.
- *
- * @param   offReg      MMIO offset, APIC_REG_XXX.
- */
-DECLINLINE(uint32_t) ApicX2RegRead32(uint32_t offReg)
-{
-    return ASMRdMsr((offReg >> 4) + MSR_IA32_X2APIC_START);
-}
 #endif
-
-#endif /* ___VBox_apic_h */
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,13 +16,23 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 # This is only used in the 32-bit build (see ../Stub/Makefile.kmk).
-PROGRAMS.x86 += VBoxStubBld
-VBoxStubBld_TEMPLATE= VBoxBldProg
-VBoxStubBld_DEFS    = _WIN32_WINNT=0x0400 VBOX_SVN_REV=$(VBOX_SVN_REV) $(VBOX_SVN_REV_KMK)
-VBoxStubBld_SOURCES = VBoxStubBld.cpp
+if "$(KBUILD_TARGET_ARCH)" == "x86"
 
-include $(FILE_KBUILD_SUB_FOOTER)
+PROGRAMS.x86 += VBoxStubBld
+VBoxStubBld_TEMPLATE= VBOXBLDPROG
+VBoxStubBld_DEFS    = _WIN32_WINNT=0x0400
+VBoxStubBld_SOURCES = \
+	VBoxStubBld.cpp
+VBoxStubBld_LIBS = \
+	$(PATH_SDK_W2K3DDK_LIB)/Msi.lib
+
+VBoxStubBld.cpp_DEFS += VBOX_SVN_REV=$(VBOX_SVN_REV)
+VBoxStubBld.cpp_DEPS = $(VBOX_SVN_REV_KMK)
+
+endif # x86 only
+
+include	$(KBUILD_PATH)/subfooter.kmk
 

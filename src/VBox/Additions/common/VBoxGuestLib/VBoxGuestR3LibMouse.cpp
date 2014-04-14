@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,9 +66,7 @@ VBGLR3DECL(int) VbglR3GetMouseStatus(uint32_t *pfFeatures, uint32_t *px, uint32_
  *
  * @returns VBox status code.
  *
- * @param   fFeatures  Supported mouse pointer features.  The main guest driver
- *                     will mediate different callers and show the host any
- *                     feature enabled by any guest caller.
+ * @param   fFeatures  Supported mouse pointer features.
  */
 VBGLR3DECL(int) VbglR3SetMouseStatus(uint32_t fFeatures)
 {

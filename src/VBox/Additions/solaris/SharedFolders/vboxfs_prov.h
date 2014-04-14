@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,9 +31,6 @@
 #ifdef	__cplusplus
 extern "C" {
 #endif
-
-#include "../../common/VBoxGuestLib/VBoxGuestR0LibSharedFolders.h"
-
 
 /*
  * These are the provider interfaces used by sffs to access the underlying
@@ -65,18 +62,8 @@ extern void sfprov_disconnect(sfp_connection_t *);
  *
  * sfprov_unmount() unmounts the mounted file system. It returns 0 on
  * success and any relevant errno on failure.
- * 
- * spf_mount_t is the representation of an active mount point.
  */
-typedef struct spf_mount_t {
-	VBSFMAP		map;		/* guest<->host mapping */
-	uid_t		sf_uid;		/* owner of the mount point */
-	gid_t		sf_gid;		/* group of the mount point */
-	mode_t		sf_dmode;   /* mode of all directories if != ~0U */
-	mode_t		sf_fmode;   /* mode of all files if != ~0U */
-	mode_t		sf_dmask;   /* mask of all directories */
-	mode_t		sf_fmask;   /* mask of all files */
-} sfp_mount_t;
+typedef struct sfp_mount sfp_mount_t;
 
 extern int sfprov_mount(sfp_connection_t *, char *, sfp_mount_t **);
 extern int sfprov_unmount(sfp_mount_t *);
@@ -113,8 +100,7 @@ typedef struct sfp_file sfp_file_t;
 
 extern int sfprov_create(sfp_mount_t *, char *path, mode_t mode,
     sfp_file_t **fp, sffs_stat_t *stat);
-extern int sfprov_diropen(sfp_mount_t *mnt, char *path, sfp_file_t **fp);
-extern int sfprov_open(sfp_mount_t *, char *path, sfp_file_t **fp, int flag);
+extern int sfprov_open(sfp_mount_t *, char *path, sfp_file_t **fp);
 extern int sfprov_close(sfp_file_t *fp);
 extern int sfprov_read(sfp_file_t *, char * buffer, uint64_t offset,
     uint32_t *numbytes);
@@ -140,6 +126,7 @@ extern int sfprov_set_size(sfp_mount_t *, char *, uint64_t);
 /*
  * File/Directory operations
  */
+extern int sfprov_trunc(sfp_mount_t *, char *);
 extern int sfprov_remove(sfp_mount_t *, char *path, uint_t is_link);
 extern int sfprov_mkdir(sfp_mount_t *, char *path, mode_t mode,
     sfp_file_t **fp, sffs_stat_t *stat);
@@ -177,11 +164,10 @@ typedef struct sffs_dirents {
 #define SFFS_DIRENTS_OFF	(offsetof(sffs_dirents_t, sf_entries[0]))
 
 extern int sfprov_readdir(sfp_mount_t *mnt, char *path,
-	sffs_dirents_t **dirents, int flag);
+	sffs_dirents_t **dirents);
 
 #ifdef	__cplusplus
 }
 #endif
 
 #endif	/* !___VBoxFS_prov_Solaris_h */
-

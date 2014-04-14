@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2014 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
+/* Local includes */
 #include "UICocoaApplication.h"
 #include "VBoxUtils-darwin.h"
 
@@ -67,15 +67,6 @@
 - (void)sendEvent:(NSEvent *)theEvent;
 - (void)setCallback:(uint32_t)fMask :(PFNVBOXCACALLBACK)pfnCallback :(void *)pvUser;
 - (void)unsetCallback:(uint32_t)fMask :(PFNVBOXCACALLBACK)pfnCallback :(void *)pvUser;
-
-- (void)registerToNotificationOfWorkspace :(NSString*)pstrNotificationName;
-- (void)unregisterFromNotificationOfWorkspace :(NSString*)pstrNotificationName;
-
-- (void)registerToNotificationOfWindow :(NSString*)pstrNotificationName :(NSWindow*)pWindow;
-- (void)unregisterFromNotificationOfWindow :(NSString*)pstrNotificationName :(NSWindow*)pWindow;
-
-- (void)notificationCallbackOfObject :(NSNotification*)notification;
-- (void)notificationCallbackOfWindow :(NSNotification*)notification;
 @end /* @interface UICocoaApplicationPrivate */
 
 @implementation UICocoaApplicationPrivate
@@ -168,79 +159,6 @@
         fNewMask |= pData->fMask;
     m_fMask = fNewMask;
 }
-
-/** Register to cocoa notification @a pstrNotificationName. */
-- (void) registerToNotificationOfWorkspace :(NSString*)pstrNotificationName
-{
-    /* Register notification observer: */
-    NSNotificationCenter *pNotificationCenter = [[NSWorkspace sharedWorkspace] notificationCenter];
-    [pNotificationCenter addObserver:self
-                            selector:@selector(notificationCallbackOfObject:)
-                                name:pstrNotificationName
-                              object:nil];
-}
-
-/** Unregister @a pWindow from cocoa notification @a pstrNotificationName. */
-- (void) unregisterFromNotificationOfWorkspace :(NSString*)pstrNotificationName
-{
-    /* Uninstall notification observer: */
-    NSNotificationCenter *pNotificationCenter = [[NSWorkspace sharedWorkspace] notificationCenter];
-    [pNotificationCenter removeObserver:self
-                                   name:pstrNotificationName
-                                 object:nil];
-}
-
-/** Register @a pWindow to cocoa notification @a pstrNotificationName. */
-- (void) registerToNotificationOfWindow :(NSString*)pstrNotificationName :(NSWindow*)pWindow
-{
-    /* Register notification observer: */
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(notificationCallbackOfWindow:)
-                                                 name:pstrNotificationName
-                                               object:pWindow];
-}
-
-/** Unregister @a pWindow from cocoa notification @a pstrNotificationName. */
-- (void) unregisterFromNotificationOfWindow :(NSString*)pstrNotificationName :(NSWindow*)pWindow
-{
-    /* Uninstall notification observer: */
-    [[NSNotificationCenter defaultCenter] removeObserver:self
-                                                    name:pstrNotificationName
-                                                  object:pWindow];
-}
-
-/** Redirects cocoa @a notification to UICocoaApplication instance. */
-- (void) notificationCallbackOfObject :(NSNotification*)notification
-{
-    /* Get current notification name: */
-    NSString *pstrName = [notification name];
-
-    /* Prepare user-info: */
-    QMap<QString, QString> userInfo;
-
-    /* Process known notifications: */
-    if (   [pstrName isEqualToString :@"NSWorkspaceDidActivateApplicationNotification"]
-        || [pstrName isEqualToString :@"NSWorkspaceDidDeactivateApplicationNotification"])
-    {
-        NSDictionary *pUserInfo = [notification userInfo];
-        NSRunningApplication *pApplication = [pUserInfo valueForKey :@"NSWorkspaceApplicationKey"];
-        NSString *pstrBundleIndentifier = [pApplication bundleIdentifier];
-        userInfo.insert("BundleIdentifier", darwinFromNativeString((NativeNSStringRef)pstrBundleIndentifier));
-    }
-
-    /* Redirect known notifications to objects: */
-    UICocoaApplication::instance()->nativeNotificationProxyForObject(pstrName, userInfo);
-}
-
-/** Redirects cocoa @a notification to UICocoaApplication instance. */
-- (void) notificationCallbackOfWindow :(NSNotification*)notification
-{
-    /* Get current notification name: */
-    NSString *pstrName = [notification name];
-
-    /* Redirect known notifications to widgets: */
-    UICocoaApplication::instance()->nativeNotificationProxyForWidget(pstrName, [notification object]);
-}
 @end /* @implementation UICocoaApplicationPrivate */
 
 /* C++ singleton for our private NSApplication object */
@@ -272,16 +190,6 @@ UICocoaApplication::~UICocoaApplication()
     [m_pPool release];
 }
 
-bool UICocoaApplication::isActive() const
-{
-    return [m_pNative isActive];
-}
-
-void UICocoaApplication::hide()
-{
-    [m_pNative hide:m_pNative];
-}
-
 void UICocoaApplication::registerForNativeEvents(uint32_t fMask, PFNVBOXCACALLBACK pfnCallback, void *pvUser)
 {
     [m_pNative setCallback:fMask :pfnCallback :pvUser];
@@ -290,96 +198,5 @@ void UICocoaApplication::registerForNativeEvents(uint32_t fMask, PFNVBOXCACALLBA
 void UICocoaApplication::unregisterForNativeEvents(uint32_t fMask, PFNVBOXCACALLBACK pfnCallback, void *pvUser)
 {
     [m_pNative unsetCallback:fMask :pfnCallback :pvUser];
-}
-
-void UICocoaApplication::registerToNotificationOfWorkspace(const QString &strNativeNotificationName, QObject *pObject,
-                                                           PfnNativeNotificationCallbackForQObject pCallback)
-{
-    /* Make sure it is not registered yet: */
-    AssertReturnVoid(!m_objectCallbacks.contains(pObject) || !m_objectCallbacks[pObject].contains(strNativeNotificationName));
-
-    /* Remember callback: */
-    m_objectCallbacks[pObject][strNativeNotificationName] = pCallback;
-
-    /* Register observer: */
-    NativeNSStringRef pstrNativeNotificationName = darwinToNativeString(strNativeNotificationName.toLatin1().constData());
-    [m_pNative registerToNotificationOfWorkspace :pstrNativeNotificationName];
-}
-
-void UICocoaApplication::unregisterFromNotificationOfWorkspace(const QString &strNativeNotificationName, QObject *pObject)
-{
-    /* Make sure it is registered yet: */
-    AssertReturnVoid(m_objectCallbacks.contains(pObject) && m_objectCallbacks[pObject].contains(strNativeNotificationName));
-
-    /* Forget callback: */
-    m_objectCallbacks[pObject].remove(strNativeNotificationName);
-    if (m_objectCallbacks[pObject].isEmpty())
-        m_objectCallbacks.remove(pObject);
-
-    /* Unregister observer: */
-    NativeNSStringRef pstrNativeNotificationName = darwinToNativeString(strNativeNotificationName.toLatin1().constData());
-    [m_pNative unregisterFromNotificationOfWorkspace :pstrNativeNotificationName];
-}
-
-void UICocoaApplication::registerToNotificationOfWindow(const QString &strNativeNotificationName, QWidget *pWidget,
-                                                        PfnNativeNotificationCallbackForQWidget pCallback)
-{
-    /* Make sure it is not registered yet: */
-    AssertReturnVoid(!m_widgetCallbacks.contains(pWidget) || !m_widgetCallbacks[pWidget].contains(strNativeNotificationName));
-
-    /* Remember callback: */
-    m_widgetCallbacks[pWidget][strNativeNotificationName] = pCallback;
-
-    /* Register observer: */
-    NativeNSStringRef pstrNativeNotificationName = darwinToNativeString(strNativeNotificationName.toLatin1().constData());
-    NativeNSWindowRef pWindow = darwinToNativeWindow(pWidget);
-    [m_pNative registerToNotificationOfWindow :pstrNativeNotificationName :pWindow];
-}
-
-void UICocoaApplication::unregisterFromNotificationOfWindow(const QString &strNativeNotificationName, QWidget *pWidget)
-{
-    /* Make sure it is registered yet: */
-    AssertReturnVoid(m_widgetCallbacks.contains(pWidget) && m_widgetCallbacks[pWidget].contains(strNativeNotificationName));
-
-    /* Forget callback: */
-    m_widgetCallbacks[pWidget].remove(strNativeNotificationName);
-    if (m_widgetCallbacks[pWidget].isEmpty())
-        m_widgetCallbacks.remove(pWidget);
-
-    /* Unregister observer: */
-    NativeNSStringRef pstrNativeNotificationName = darwinToNativeString(strNativeNotificationName.toLatin1().constData());
-    NativeNSWindowRef pWindow = darwinToNativeWindow(pWidget);
-    [m_pNative unregisterFromNotificationOfWindow :pstrNativeNotificationName :pWindow];
-}
-
-void UICocoaApplication::nativeNotificationProxyForObject(NativeNSStringRef pstrNotificationName, const QMap<QString, QString> &userInfo)
-{
-    /* Get notification name: */
-    QString strNotificationName = darwinFromNativeString(pstrNotificationName);
-
-    /* Check if existing object(s) have corresponding notification handler: */
-    foreach (QObject *pObject, m_objectCallbacks.keys())
-    {
-        const QMap<QString, PfnNativeNotificationCallbackForQObject> &callbacks = m_objectCallbacks[pObject];
-        if (callbacks.contains(strNotificationName))
-            callbacks[strNotificationName](pObject, userInfo);
-    }
-}
-
-void UICocoaApplication::nativeNotificationProxyForWidget(NativeNSStringRef pstrNotificationName, NativeNSWindowRef pWindow)
-{
-    /* Get notification name: */
-    QString strNotificationName = darwinFromNativeString(pstrNotificationName);
-
-    /* Check if existing widget(s) have corresponding notification handler: */
-    foreach (QWidget *pWidget, m_widgetCallbacks.keys())
-    {
-        if (darwinToNativeWindow(pWidget) == pWindow)
-        {
-            const QMap<QString, PfnNativeNotificationCallbackForQWidget> &callbacks = m_widgetCallbacks[pWidget];
-            if (callbacks.contains(strNotificationName))
-                callbacks[strNotificationName](strNotificationName, pWidget);
-        }
-    }
 }
 

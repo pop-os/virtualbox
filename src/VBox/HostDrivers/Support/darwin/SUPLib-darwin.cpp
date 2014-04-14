@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,10 +61,8 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** System device name. */
-#define DEVICE_NAME_SYS "/dev/vboxdrv"
-/** User device name. */
-#define DEVICE_NAME_USR "/dev/vboxdrvu"
+/** BSD Device name. */
+#define DEVICE_NAME     "/dev/vboxdrv"
 /** The IOClass key of the service (see SUPDrv-darwin.cpp / Info.plist). */
 #define IOCLASS_NAME    "org_virtualbox_SupDrv"
 
@@ -75,14 +73,14 @@
  *
  * @returns VBox status code.
  */
-static int suplibDarwinOpenDevice(PSUPLIBDATA pThis, bool fUnrestricted)
+static int suplibDarwinOpenDevice(PSUPLIBDATA pThis)
 {
     /*
      * Open the BSD device.
      * This will connect to the session created when the SupDrvClient was
      * started, so it has to be done after opening the service (IOC v9.1+).
      */
-    int hDevice = open(fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, O_RDWR, 0);
+    int hDevice = open(DEVICE_NAME, O_RDWR, 0);
     if (hDevice < 0)
     {
         int rc;
@@ -94,7 +92,7 @@ static int suplibDarwinOpenDevice(PSUPLIBDATA pThis, bool fUnrestricted)
             case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
             default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
         }
-        LogRel(("SUP: Failed to open \"%s\", errno=%d, rc=%Rrc\n", fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, errno, rc));
+        LogRel(("SUP: Failed to open \"%s\", errno=%d, rc=%Rrc\n", DEVICE_NAME, errno, rc));
         return rc;
     }
 
@@ -114,8 +112,7 @@ static int suplibDarwinOpenDevice(PSUPLIBDATA pThis, bool fUnrestricted)
         return rc;
     }
 
-    pThis->hDevice       = hDevice;
-    pThis->fUnrestricted = fUnrestricted;
+    pThis->hDevice = hDevice;
     return VINF_SUCCESS;
 }
 
@@ -185,7 +182,7 @@ static int suplibDarwinOpenService(PSUPLIBDATA pThis)
 }
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 {
     /*
      * Nothing to do if pre-inited.
@@ -200,7 +197,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     int rc = suplibDarwinOpenService(pThis);
     if (RT_SUCCESS(rc))
     {
-        rc = suplibDarwinOpenDevice(pThis, fUnrestricted);
+        rc = suplibDarwinOpenDevice(pThis);
         if (RT_FAILURE(rc))
         {
             kern_return_t kr = IOServiceClose((io_connect_t)pThis->uConnection);

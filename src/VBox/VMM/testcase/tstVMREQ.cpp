@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,9 +48,9 @@ static int g_cErrors = 0;
 /**
  * Testings va_list passing in VMSetRuntimeError.
  */
-static DECLCALLBACK(void) MyAtRuntimeError(PUVM pUVM, void *pvUser, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
+static DECLCALLBACK(void) MyAtRuntimeError(PVM pVM, void *pvUser, uint32_t fFlags, const char *pszErrorId, const char *pszFormat, va_list va)
 {
-    NOREF(pUVM);
+    NOREF(pVM);
     if (strcmp((const char *)pvUser, "user argument"))
     {
         RTPrintf(TESTCASE ": pvUser=%p:{%s}!\n", pvUser, (const char *)pvUser);
@@ -85,9 +85,9 @@ static DECLCALLBACK(void) MyAtRuntimeError(PUVM pUVM, void *pvUser, uint32_t fFl
 /**
  * The function PassVA and PassVA2 calls.
  */
-static DECLCALLBACK(int) PassVACallback(PUVM pUVM, unsigned u4K, unsigned u1G, const char *pszFormat, va_list *pva)
+static DECLCALLBACK(int) PassVACallback(PVM pVM, unsigned u4K, unsigned u1G, const char *pszFormat, va_list *pva)
 {
-    NOREF(pUVM);
+    NOREF(pVM);
     if (u4K != _4K)
     {
         RTPrintf(TESTCASE ": u4K=%#x!\n", u4K);
@@ -121,17 +121,17 @@ static DECLCALLBACK(int) PassVACallback(PUVM pUVM, unsigned u4K, unsigned u1G, c
  * Functions that tests passing a va_list * argument in a request,
  * similar to VMSetRuntimeError.
  */
-static void PassVA2(PUVM pUVM, const char *pszFormat, va_list va)
+static void PassVA2(PVM pVM, const char *pszFormat, va_list va)
 {
 #if 0 /** @todo test if this is a GCC problem only or also happens with AMD64+VCC80... */
     void *pvVA = &va;
 #else
     va_list va2;
     va_copy(va2, va);
-    void *pvVA = &va2;
+    void *pvVA = va2;
 #endif
 
-    int rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)PassVACallback, 5, pUVM, _4K, _1G, pszFormat, pvVA);
+    int rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)PassVACallback, 5, pVM, _4K, _1G, pszFormat, pvVA);
     NOREF(rc);
 
 #if 1
@@ -144,19 +144,19 @@ static void PassVA2(PUVM pUVM, const char *pszFormat, va_list va)
  * Functions that tests passing a va_list * argument in a request,
  * similar to VMSetRuntimeError.
  */
-static void PassVA(PUVM pUVM, const char *pszFormat, ...)
+static void PassVA(PVM pVM, const char *pszFormat, ...)
 {
     /* 1st test */
     va_list va1;
     va_start(va1, pszFormat);
-    int rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)PassVACallback, 5, pUVM, _4K, _1G, pszFormat, &va1);
+    int rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)PassVACallback, 5, pVM, _4K, _1G, pszFormat, &va1);
     va_end(va1);
     NOREF(rc);
 
     /* 2nd test */
     va_list va2;
     va_start(va2, pszFormat);
-    PassVA2(pUVM, pszFormat, va2);
+    PassVA2(pVM, pszFormat, va2);
     va_end(va2);
 }
 
@@ -167,7 +167,7 @@ static void PassVA(PUVM pUVM, const char *pszFormat, ...)
 static DECLCALLBACK(int) Thread(RTTHREAD hThreadSelf, void *pvUser)
 {
     int rc = VINF_SUCCESS;
-    PUVM pUVM = (PUVM)pvUser;
+    PVM pVM = (PVM)pvUser;
     NOREF(hThreadSelf);
 
     for (unsigned i = 0; i < 100000; i++)
@@ -177,7 +177,7 @@ static DECLCALLBACK(int) Thread(RTTHREAD hThreadSelf, void *pvUser)
         unsigned        iReq;
         for (iReq = 0; iReq < cReqs; iReq++)
         {
-            rc = VMR3ReqAlloc(pUVM, &apReq[iReq], VMREQTYPE_INTERNAL, VMCPUID_ANY);
+            rc = VMR3ReqAlloc(pVM, &apReq[iReq], VMREQTYPE_INTERNAL, VMCPUID_ANY);
             if (RT_FAILURE(rc))
             {
                 RTPrintf(TESTCASE ": i=%d iReq=%d cReqs=%d rc=%Rrc (alloc)\n", i, iReq, cReqs, rc);
@@ -207,37 +207,18 @@ static DECLCALLBACK(int) Thread(RTTHREAD hThreadSelf, void *pvUser)
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int)
-tstVMREQConfigConstructor(PUVM pUVM, PVM pVM, void *pvUser)
-{
-    NOREF(pvUser);
-    int rc = CFGMR3ConstructDefaultTree(pVM);
-    if (RT_SUCCESS(rc))
-    {
-        /* Disable HM, otherwise it will fail on machines without unrestricted guest execution
-         * because the allocation of HM_VTX_TOTAL_DEVHEAP_MEM will fail -- no VMMDev */
-        PCFGMNODE pRoot = CFGMR3GetRoot(pVM);
-        rc = CFGMR3InsertInteger(pRoot, "HMEnabled", false);
-        if (RT_FAILURE(rc))
-            RTPrintf("CFGMR3InsertInteger(pRoot,\"HMEnabled\",) -> %Rrc\n", rc);
-    }
-    return rc;
-}
 
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+
+int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitAndSUPLib();
     RTPrintf(TESTCASE ": TESTING...\n");
-    RTStrmFlush(g_pStdOut);
 
     /*
      * Create empty VM.
      */
-    PUVM pUVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, tstVMREQConfigConstructor, NULL, NULL, &pUVM);
+    PVM pVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -245,11 +226,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          */
         uint64_t u64StartTS = RTTimeNanoTS();
         RTTHREAD Thread0;
-        rc = RTThreadCreate(&Thread0, Thread, pUVM, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "REQ1");
+        rc = RTThreadCreate(&Thread0, Thread, pVM, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "REQ1");
         if (RT_SUCCESS(rc))
         {
             RTTHREAD Thread1;
-            rc = RTThreadCreate(&Thread1, Thread, pUVM, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "REQ1");
+            rc = RTThreadCreate(&Thread1, Thread, pVM, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "REQ1");
             if (RT_SUCCESS(rc))
             {
                 int rcThread1;
@@ -285,37 +266,35 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
         uint64_t u64ElapsedTS = RTTimeNanoTS() - u64StartTS;
         RTPrintf(TESTCASE  ": %llu ns elapsed\n", u64ElapsedTS);
-        RTStrmFlush(g_pStdOut);
 
         /*
          * Print stats.
          */
-        STAMR3Print(pUVM, "/VM/Req/*");
+        STAMR3Print(pVM, "/VM/Req/*");
 
         /*
          * Testing va_list fun.
          */
-        RTPrintf(TESTCASE ": va_list argument test...\n"); RTStrmFlush(g_pStdOut);
-        PassVA(pUVM, "hello %s", "world");
-        VMR3AtRuntimeErrorRegister(pUVM, MyAtRuntimeError, (void *)"user argument");
-        VMSetRuntimeError(VMR3GetVM(pUVM), 0 /*fFlags*/, "enum", "some %s string", "error");
+        RTPrintf(TESTCASE ": va_list argument test...\n");
+        PassVA(pVM, "hello %s", "world");
+        VMR3AtRuntimeErrorRegister(pVM, MyAtRuntimeError, (void *)"user argument");
+        VMSetRuntimeError(pVM, 0 /*fFlags*/, "enum", "some %s string", "error");
 
         /*
          * Cleanup.
          */
-        rc = VMR3PowerOff(pUVM);
+        rc = VMR3PowerOff(pVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to power off vm! rc=%Rrc\n", rc);
             g_cErrors++;
         }
-        rc = VMR3Destroy(pUVM);
+        rc = VMR3Destroy(pVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to destroy vm! rc=%Rrc\n", rc);
             g_cErrors++;
         }
-        VMR3ReleaseUVM(pUVM);
     }
     else
     {
@@ -333,15 +312,3 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     return !!g_cErrors;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
-

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,17 +18,12 @@
 #ifndef ___IOMInternal_h
 #define ___IOMInternal_h
 
-#define IOM_WITH_CRIT_SECT_RW
-
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/pdmcritsect.h>
-#ifdef IOM_WITH_CRIT_SECT_RW
-# include <VBox/vmm/pdmcritsectrw.h>
-#endif
 #include <VBox/param.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -328,11 +323,32 @@ typedef struct IOM
 #endif
 
     /** Lock serializing EMT access to IOM. */
-#ifdef IOM_WITH_CRIT_SECT_RW
-    PDMCRITSECTRW                   CritSect;
-#else
     PDMCRITSECT                     CritSect;
-#endif
+
+    /** @name Caching of I/O Port and MMIO ranges and statistics.
+     * (Saves quite some time in rep outs/ins instruction emulation.)
+     * @{ */
+    R3PTRTYPE(PIOMIOPORTRANGER3)    pRangeLastReadR3;
+    R3PTRTYPE(PIOMIOPORTRANGER3)    pRangeLastWriteR3;
+    R3PTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadR3;
+    R3PTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteR3;
+    R3PTRTYPE(PIOMMMIORANGE)        pMMIORangeLastR3;
+    R3PTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastR3;
+
+    R0PTRTYPE(PIOMIOPORTRANGER0)    pRangeLastReadR0;
+    R0PTRTYPE(PIOMIOPORTRANGER0)    pRangeLastWriteR0;
+    R0PTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadR0;
+    R0PTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteR0;
+    R0PTRTYPE(PIOMMMIORANGE)        pMMIORangeLastR0;
+    R0PTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastR0;
+
+    RCPTRTYPE(PIOMIOPORTRANGERC)    pRangeLastReadRC;
+    RCPTRTYPE(PIOMIOPORTRANGERC)    pRangeLastWriteRC;
+    RCPTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadRC;
+    RCPTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteRC;
+    RCPTRTYPE(PIOMMMIORANGE)        pMMIORangeLastRC;
+    RCPTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastRC;
+    /** @} */
 
     /** @name I/O Port statistics.
      * @{ */
@@ -386,33 +402,16 @@ typedef IOM *PIOM;
 typedef struct IOMCPU
 {
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack. */
-    DISCPUSTATE                     DisState;
-
-    /** @name Caching of I/O Port and MMIO ranges and statistics.
-     * (Saves quite some time in rep outs/ins instruction emulation.)
-     * @{ */
-    R3PTRTYPE(PIOMIOPORTRANGER3)    pRangeLastReadR3;
-    R3PTRTYPE(PIOMIOPORTRANGER3)    pRangeLastWriteR3;
-    R3PTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadR3;
-    R3PTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteR3;
-    R3PTRTYPE(PIOMMMIORANGE)        pMMIORangeLastR3;
-    R3PTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastR3;
-
-    R0PTRTYPE(PIOMIOPORTRANGER0)    pRangeLastReadR0;
-    R0PTRTYPE(PIOMIOPORTRANGER0)    pRangeLastWriteR0;
-    R0PTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadR0;
-    R0PTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteR0;
-    R0PTRTYPE(PIOMMMIORANGE)        pMMIORangeLastR0;
-    R0PTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastR0;
-
-    RCPTRTYPE(PIOMIOPORTRANGERC)    pRangeLastReadRC;
-    RCPTRTYPE(PIOMIOPORTRANGERC)    pRangeLastWriteRC;
-    RCPTRTYPE(PIOMIOPORTSTATS)      pStatsLastReadRC;
-    RCPTRTYPE(PIOMIOPORTSTATS)      pStatsLastWriteRC;
-    RCPTRTYPE(PIOMMMIORANGE)        pMMIORangeLastRC;
-    RCPTRTYPE(PIOMMMIOSTATS)        pMMIOStatsLastRC;
-    /** @} */
+     * on the stack.
+     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
+    union
+    {
+        /** The disassembler scratch space. */
+        DISCPUSTATE                 DisState;
+        /** Padding. */
+        uint8_t                     abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
+    };
+    uint8_t                         Dummy[16];
 } IOMCPU;
 /** Pointer to IOM per virtual CPU instance data. */
 typedef IOMCPU *PIOMCPU;
@@ -422,6 +421,7 @@ RT_C_DECLS_BEGIN
 
 void                iomMmioFreeRange(PVM pVM, PIOMMMIORANGE pRange);
 #ifdef IN_RING3
+PIOMIOPORTSTATS     iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc);
 PIOMMMIOSTATS       iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc);
 #endif /* IN_RING3 */
 
@@ -433,33 +433,13 @@ DECLCALLBACK(int)   IOMR3MMIOHandler(PVM pVM, RTGCPHYS GCPhys, void *pvPhys, voi
 #endif
 
 /* IOM locking helpers. */
-#ifdef IOM_WITH_CRIT_SECT_RW
-# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectRwEnterExcl(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
-# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectRwLeaveExcl(&(a_pVM)->iom.s.CritSect); } while (0)
-# if 0 /* (in case needed for debugging) */
-# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectRwEnterExcl(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
-# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectRwLeaveExcl(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectRwIsWriteOwner(&(a_pVM)->iom.s.CritSect)
-# else
-# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectRwEnterShared(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
-# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectRwLeaveShared(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectRwIsReadOwner(&(a_pVM)->iom.s.CritSect, true)
-# endif
-# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectRwIsWriteOwner(&(a_pVM)->iom.s.CritSect)
-#else
-# define IOM_LOCK_EXCL(a_pVM)                   PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
-# define IOM_UNLOCK_EXCL(a_pVM)                 do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_LOCK_SHARED_EX(a_pVM, a_rcBusy)    PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, (a_rcBusy))
-# define IOM_UNLOCK_SHARED(a_pVM)               do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
-# define IOM_IS_SHARED_LOCK_OWNER(a_pVM)        PDMCritSectIsOwner(&(a_pVM)->iom.s.CritSect)
-# define IOM_IS_EXCL_LOCK_OWNER(a_pVM)          PDMCritSectIsOwner(&(a_pVM)->iom.s.CritSect)
-#endif
-#define IOM_LOCK_SHARED(a_pVM)                  IOM_LOCK_SHARED_EX(a_pVM, VERR_SEM_BUSY)
+#define IOM_LOCK(a_pVM)     PDMCritSectEnter(&(a_pVM)->iom.s.CritSect, VERR_SEM_BUSY)
+#define IOM_UNLOCK(a_pVM)   do { PDMCritSectLeave(&(a_pVM)->iom.s.CritSect); } while (0)
 
 
 /* Disassembly helpers used in IOMAll.cpp & IOMAllMMIO.cpp */
-bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
-bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCDISOPPARAM pParam, PCPUMCTXCORE pRegFrame, uint64_t u64Data);
+bool    iomGetRegImmData(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t *pu64Data, unsigned *pcbSize);
+bool    iomSaveDataToReg(PDISCPUSTATE pCpu, PCOP_PARAMETER pParam, PCPUMCTXCORE pRegFrame, uint64_t u32Data);
 
 RT_C_DECLS_END
 

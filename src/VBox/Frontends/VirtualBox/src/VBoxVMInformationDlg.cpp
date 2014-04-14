@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,11 +21,7 @@
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
-#include <QTimer>
-#include <QScrollBar>
-
-/* GUI includes: */
+/* Local Includes */
 #include "UIIconPool.h"
 #include "UIMachineLogic.h"
 #include "UIMachineView.h"
@@ -33,19 +29,10 @@
 #include "UISession.h"
 #include "VBoxGlobal.h"
 #include "VBoxVMInformationDlg.h"
-#include "UIConverter.h"
 
-/* COM includes: */
-#include "COMEnums.h"
-#include "CConsole.h"
-#include "CSystemProperties.h"
-#include "CMachineDebugger.h"
-#include "CDisplay.h"
-#include "CGuest.h"
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
-#include "CNetworkAdapter.h"
-#include "CVRDEServerInfo.h"
+/* Global Includes */
+#include <QTimer>
+#include <QScrollBar>
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -58,7 +45,7 @@ void VBoxVMInformationDlg::createInformationDlg(UIMachineWindow *pMachineWindow)
     {
         /* Creating new information dialog if there is no one existing */
         VBoxVMInformationDlg *id = new VBoxVMInformationDlg(pMachineWindow, Qt::Window);
-        id->centerAccording (pMachineWindow);
+        id->centerAccording (pMachineWindow->machineWindow());
         // TODO_NEW_CORE: this seems not necessary, cause we set WA_DeleteOnClose.
         id->setAttribute (Qt::WA_DeleteOnClose);
         mSelfArray [machine.GetName()] = id;
@@ -73,7 +60,7 @@ void VBoxVMInformationDlg::createInformationDlg(UIMachineWindow *pMachineWindow)
 
 VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt::WindowFlags aFlags)
 # ifdef Q_WS_MAC
-    : QIWithRetranslateUI2 <QIMainDialog> (pMachineWindow, aFlags)
+    : QIWithRetranslateUI2 <QIMainDialog> (pMachineWindow->machineWindow(), aFlags)
 # else /* Q_WS_MAC */
     : QIWithRetranslateUI2 <QIMainDialog> (0, aFlags)
 # endif /* Q_WS_MAC */
@@ -115,7 +102,7 @@ VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt:
      * more than one screens. */
     connect (pMachineWindow->machineView(), SIGNAL (resizeHintDone()), this, SLOT (processStatistics()));
     connect (mInfoStack, SIGNAL (currentChanged (int)), this, SLOT (onPageChanged (int)));
-    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(updateDetails()));
+    connect (&vboxGlobal(), SIGNAL (mediumEnumFinished (const VBoxMediaList &)), this, SLOT (updateDetails()));
     connect (mStatTimer, SIGNAL (timeout()), this, SLOT (processStatistics()));
 
     /* Loading language constants */
@@ -129,7 +116,7 @@ VBoxVMInformationDlg::VBoxVMInformationDlg (UIMachineWindow *pMachineWindow, Qt:
     mStatTimer->start (5000);
 
     /* Preload dialog attributes for this vm */
-    QString dlgsize = mSession.GetMachine().GetExtraData(GUI_InfoDlgState);
+    QString dlgsize = mSession.GetMachine().GetExtraData (VBoxDefs::GUI_InfoDlgState);
     if (dlgsize.isEmpty())
     {
         mWidth = 400;
@@ -151,8 +138,8 @@ VBoxVMInformationDlg::~VBoxVMInformationDlg()
 {
     /* Save dialog attributes for this vm */
     QString dlgsize ("%1,%2,%3");
-    mSession.GetMachine().SetExtraData(GUI_InfoDlgState,
-                                       dlgsize.arg(mWidth).arg(mHeight).arg(isMaximized() ? "max" : "normal"));
+    mSession.GetMachine().SetExtraData (VBoxDefs::GUI_InfoDlgState,
+        dlgsize.arg (mWidth).arg (mHeight).arg (isMaximized() ? "max" : "normal"));
 
     if (!mSession.isNull() && !mSession.GetMachine().isNull())
         mSelfArray.remove (mSession.GetMachine().GetName());
@@ -171,6 +158,10 @@ void VBoxVMInformationDlg::retranslateUi()
 
     /* Setup a dialog caption */
     setWindowTitle (tr ("%1 - Session Information").arg (machine.GetName()));
+
+    /* Setup a tabwidget page names */
+    mInfoStack->setTabText (0, tr ("&Details"));
+    mInfoStack->setTabText (1, tr ("&Runtime"));
 
     /* Clear counter names initially */
     mNamesMap.clear();
@@ -392,8 +383,8 @@ void VBoxVMInformationDlg::processStatistics()
     /* Process selected statistics: */
     for (DataMapType::const_iterator it = mNamesMap.begin(); it != mNamesMap.end(); ++ it)
     {
-        info = dbg.GetStats(it.key(), true);
-        mValuesMap[it.key()] = parseStatistics(info);
+        dbg.GetStats (it.key(), true, info);
+        mValuesMap [it.key()] = parseStatistics (info);
     }
 
     /* Statistics page update */
@@ -464,20 +455,12 @@ void VBoxVMInformationDlg::refreshStatistics()
         ULONG width = 0;
         ULONG height = 0;
         ULONG bpp = 0;
-        LONG xOrigin = 0;
-        LONG yOrigin = 0;
-        console.GetDisplay().GetScreenResolution(0, width, height, bpp, xOrigin, yOrigin);
+        console.GetDisplay().GetScreenResolution(0, width, height, bpp);
         QString resolution = QString ("%1x%2")
             .arg (width)
             .arg (height);
         if (bpp)
             resolution += QString ("x%1").arg (bpp);
-        resolution += QString (" @%1,%2")
-                          .arg (xOrigin)
-                          .arg (yOrigin);
-
-        QString clipboardMode = gpConverter->toString(m.GetClipboardMode());
-        QString dragAndDropMode = gpConverter->toString(m.GetDragAndDropMode());
 
         CMachineDebugger debugger = console.GetDebugger();
         QString virtualization = debugger.GetHWVirtExEnabled() ?
@@ -486,20 +469,11 @@ void VBoxVMInformationDlg::refreshStatistics()
         QString nested = debugger.GetHWVirtExNestedPagingEnabled() ?
             VBoxGlobal::tr ("Enabled", "details report (Nested Paging)") :
             VBoxGlobal::tr ("Disabled", "details report (Nested Paging)");
-        QString unrestricted = debugger.GetHWVirtExUXEnabled() ?
-            VBoxGlobal::tr ("Enabled", "details report (Unrestricted Execution)") :
-            VBoxGlobal::tr ("Disabled", "details report (Unrestricted Execution)");
 
         CGuest guest = console.GetGuest();
         QString addVersionStr = guest.GetAdditionsVersion();
         if (addVersionStr.isEmpty())
             addVersionStr = tr("Not Detected", "guest additions");
-        else
-        {
-            ULONG revision = guest.GetAdditionsRevision();
-            if (revision != 0)
-                addVersionStr += QString(" r%1").arg(revision);
-        }
         QString osType = guest.GetOSTypeId();
         if (osType.isEmpty())
             osType = tr ("Not Detected", "guest os type");
@@ -513,7 +487,7 @@ void VBoxVMInformationDlg::refreshStatistics()
 
         /* Searching for longest string */
         QStringList valuesList;
-        valuesList << resolution << virtualization << nested << unrestricted << addVersionStr << osType << vrdeInfo;
+        valuesList << resolution << virtualization << nested << addVersionStr << osType << vrdeInfo;
         int maxLength = 0;
         foreach (const QString &value, valuesList)
             maxLength = maxLength < fontMetrics().width (value) ?
@@ -521,11 +495,8 @@ void VBoxVMInformationDlg::refreshStatistics()
 
         result += hdrRow.arg (":/state_running_16px.png").arg (tr ("Runtime Attributes"));
         result += formatValue (tr ("Screen Resolution"), resolution, maxLength);
-        result += formatValue (tr ("Clipboard Mode"), clipboardMode, maxLength);
-        result += formatValue (tr ("Drag'n'Drop Mode"), dragAndDropMode, maxLength);
         result += formatValue (VBoxGlobal::tr ("VT-x/AMD-V", "details report"), virtualization, maxLength);
         result += formatValue (VBoxGlobal::tr ("Nested Paging", "details report"), nested, maxLength);
-        result += formatValue (VBoxGlobal::tr ("Unrestricted Execution", "details report"), unrestricted, maxLength);
         result += formatValue (tr ("Guest Additions"), addVersionStr, maxLength);
         result += formatValue (tr ("Guest OS Type"), osType, maxLength);
         result += formatValue (VBoxGlobal::tr ("Remote Desktop Server Port", "details report (VRDE Server)"), vrdeInfo, maxLength);
@@ -536,7 +507,7 @@ void VBoxVMInformationDlg::refreshStatistics()
     {
         QString storageStat;
 
-        result += hdrRow.arg (":/hd_16px.png").arg (tr ("Storage Statistics"));
+        result += hdrRow.arg (":/attachment_16px.png").arg (tr ("Storage Statistics"));
 
         CStorageControllerVector controllers = mSession.GetMachine().GetStorageControllers();
         int ideCount = 0, sataCount = 0, scsiCount = 0;
@@ -548,8 +519,7 @@ void VBoxVMInformationDlg::refreshStatistics()
             if (!attachments.isEmpty() && busType != KStorageBus_Floppy)
             {
                 QString header = "<tr><td></td><td colspan=2><nobr>%1</nobr></td></tr>";
-                QString strControllerName = QApplication::translate("UIMachineSettingsStorage", "Controller: %1");
-                storageStat += header.arg(strControllerName.arg(controller.GetName()));
+                storageStat += header.arg (ctrName);
                 int scsiIndex = 0;
                 foreach (const CMediumAttachment &attachment, attachments)
                 {
@@ -658,18 +628,12 @@ void VBoxVMInformationDlg::refreshStatistics()
 QString VBoxVMInformationDlg::formatValue (const QString &aValueName,
                                            const QString &aValue, int aMaxSize)
 {
-    QString strMargin;
-    int size = aMaxSize - fontMetrics().width(aValue);
-    for (int i = 0; i < size; ++i)
-        strMargin += QString("<img width=1 height=1 src=:/tpixel.png>");
+    QString bdyRow = "<tr><td></td><td width=50%><nobr>%1</nobr></td>"
+                     "<td align=right><nobr>%2"
+                     "<img src=:/tpixel.png width=%3 height=1></nobr></td></tr>";
 
-    QString bdyRow = "<tr>"
-                     "<td></td>"
-                     "<td><nobr>%1</nobr></td>"
-                     "<td align=right><nobr>%2%3</nobr></td>"
-                     "</tr>";
-
-    return bdyRow.arg (aValueName).arg (aValue).arg (strMargin);
+    int size = aMaxSize - fontMetrics().width (aValue);
+    return bdyRow.arg (aValueName).arg (aValue).arg (size);
 }
 
 QString VBoxVMInformationDlg::formatMedium (const QString &aCtrName,
@@ -681,7 +645,7 @@ QString VBoxVMInformationDlg::formatMedium (const QString &aCtrName,
 
     QString header = "<tr><td></td><td colspan=2><nobr>&nbsp;&nbsp;%1:</nobr></td></tr>";
     CStorageController ctr = mSession.GetMachine().GetStorageControllerByName (aCtrName);
-    QString name = gpConverter->toString (StorageSlot (ctr.GetBus(), aPort, aDevice));
+    QString name = vboxGlobal().toString (StorageSlot (ctr.GetBus(), aPort, aDevice));
     return header.arg (name) + composeArticle (aBelongsTo, 2);
 }
 

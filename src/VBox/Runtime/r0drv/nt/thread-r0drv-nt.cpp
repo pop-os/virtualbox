@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,7 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 }
 
 
-static int rtR0ThreadNtSleepCommon(RTMSINTERVAL cMillies)
+RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
 {
     LARGE_INTEGER Interval;
     Interval.QuadPart = -(int64_t)cMillies * 10000;
@@ -66,18 +66,6 @@ static int rtR0ThreadNtSleepCommon(RTMSINTERVAL cMillies)
         default:
             return RTErrConvertFromNtStatus(rcNt);
     }
-}
-
-
-RTDECL(int)   RTThreadSleep(RTMSINTERVAL cMillies)
-{
-    return rtR0ThreadNtSleepCommon(cMillies);
-}
-
-
-RTDECL(int)   RTThreadSleepCommon(RTMSINTERVAL cMillies)
-{
-    return rtR0ThreadNtSleepCommon(cMillies);
 }
 
 
@@ -106,7 +94,6 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
     /*
      * Read the globals and check if they are useful.
      */
-/** @todo Should we check KPRCB.InterruptRequest and KPRCB.DpcInterruptRequested (older kernels).  */
     uint32_t const offQuantumEnd     = g_offrtNtPbQuantumEnd;
     uint32_t const cbQuantumEnd      = g_cbrtNtPbQuantumEnd;
     uint32_t const offDpcQueueDepth  = g_offrtNtPbDpcQueueDepth;
@@ -160,14 +147,10 @@ RTDECL(bool) RTThreadPreemptIsPending(RTTHREAD hThread)
 
 RTDECL(bool) RTThreadPreemptIsPendingTrusty(void)
 {
-#if 0 /** @todo RTThreadPreemptIsPending isn't good enough on w7 and possibly elsewhere. */
     /* RTThreadPreemptIsPending is only reliable if we've got both offsets and size. */
     return g_offrtNtPbQuantumEnd    != 0
         && g_cbrtNtPbQuantumEnd     != 0
         && g_offrtNtPbDpcQueueDepth != 0;
-#else
-    return false;
-#endif
 }
 
 

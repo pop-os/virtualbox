@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,16 +26,11 @@
 
 #include <iprt/process.h>
 
-/*******************************************************************************
-*  Defined Constants And Macros                                                *
-*******************************************************************************/
-#define DEVICE_NAME     "/devices/pseudo/vboxdrv@0:vboxdrv"
-#define DEVICE_NAME_USR "/devices/pseudo/vboxdrv@0:vboxdrvu"
+#define DEVICE_NAME     "/dev/vboxdrv"
 
 int main(int argc, char *argv[])
 {
     int hDevice = -1;
-    int hDeviceUsr = -1;
 
     /* Check root permissions. */
     if (geteuid() != 0)
@@ -57,22 +52,11 @@ int main(int argc, char *argv[])
         return errno;
     }
 
-    /* Open the user device. */
-    hDeviceUsr = open(DEVICE_NAME_USR, O_RDWR, 0);
-    if (hDeviceUsr < 0)
-    {
-        fprintf(stderr, "Failed to open '%s'. errno=%d\n", DEVICE_NAME_USR, errno);
-        close(hDevice);
-        return errno;
-    }
-
     /* Mark the file handle close on exec. */
-    if (   fcntl(hDevice,    F_SETFD, FD_CLOEXEC) != 0
-        || fcntl(hDeviceUsr, F_SETFD, FD_CLOEXEC) != 0)
+    if (fcntl(hDevice, F_SETFD, FD_CLOEXEC) != 0)
     {
         fprintf(stderr, "Failed to set close on exec. errno=%d\n", errno);
         close(hDevice);
-        close(hDeviceUsr);
         return errno;
     }
 
@@ -81,7 +65,6 @@ int main(int argc, char *argv[])
     sleep(500000000U);
 
     close(hDevice);
-    close(hDeviceUsr);
 
     return 0;
 }

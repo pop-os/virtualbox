@@ -29,16 +29,14 @@
 #include <VBox/log.h>
 #endif
 
-#ifdef VBOX
-# include "alsa_stubs.h"
-# include "alsa_mangling.h"
-#endif
-
 #include <alsa/asoundlib.h>
 
 #include "VBoxDD.h"
 #include "vl_vbox.h"
 #include "audio.h"
+#ifdef VBOX
+#include "alsa_stubs.h"
+#endif
 #include <iprt/alloc.h>
 
 #define AUDIO_CAP "alsa"
@@ -1136,30 +1134,30 @@ static void alsa_audio_fini (void *opaque)
 }
 
 static struct audio_option alsa_options[] = {
-    {"DACSizeInUsec", AUD_OPT_BOOL, &conf.size_in_usec_out,
+    {"DAC_SIZE_IN_USEC", AUD_OPT_BOOL, &conf.size_in_usec_out,
      "DAC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
-    {"DACPeriodSize", AUD_OPT_INT, &conf.period_size_out,
+    {"DAC_PERIOD_SIZE", AUD_OPT_INT, &conf.period_size_out,
      "DAC period size", &conf.period_size_out_overriden, 0},
-    {"DACBufferSize", AUD_OPT_INT, &conf.buffer_size_out,
+    {"DAC_BUFFER_SIZE", AUD_OPT_INT, &conf.buffer_size_out,
      "DAC buffer size", &conf.buffer_size_out_overriden, 0},
 
-    {"ADCSizeInUsec", AUD_OPT_BOOL, &conf.size_in_usec_in,
+    {"ADC_SIZE_IN_USEC", AUD_OPT_BOOL, &conf.size_in_usec_in,
      "ADC period/buffer size in microseconds (otherwise in frames)", NULL, 0},
-    {"ADCPeriodSize", AUD_OPT_INT, &conf.period_size_in,
+    {"ADC_PERIOD_SIZE", AUD_OPT_INT, &conf.period_size_in,
      "ADC period size", &conf.period_size_in_overriden, 0},
-    {"ADCBufferSize", AUD_OPT_INT, &conf.buffer_size_in,
+    {"ADC_BUFFER_SIZE", AUD_OPT_INT, &conf.buffer_size_in,
      "ADC buffer size", &conf.buffer_size_in_overriden, 0},
 
-    {"Threshold", AUD_OPT_INT, &conf.threshold,
+    {"THRESHOLD", AUD_OPT_INT, &conf.threshold,
      "(undocumented)", NULL, 0},
 
-    {"DACDev", AUD_OPT_STR, &conf.pcm_name_out,
+    {"DAC_DEV", AUD_OPT_STR, &conf.pcm_name_out,
      "DAC device name (for instance dmix)", NULL, 0},
 
-    {"ADCDev", AUD_OPT_STR, &conf.pcm_name_in,
+    {"ADC_DEV", AUD_OPT_STR, &conf.pcm_name_in,
      "ADC device name", NULL, 0},
 
-    {"Verbose", AUD_OPT_BOOL, &conf.verbose,
+    {"VERBOSE", AUD_OPT_BOOL, &conf.verbose,
      "Behave in a more verbose way", NULL, 0},
 
     {NULL, 0, NULL, NULL, NULL, 0}

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,9 +42,6 @@ extern Service *GetClipboardService();
 extern Service *GetSeamlessService();
 extern Service *GetDisplayService();
 extern Service *GetHostVersionService();
-#ifdef VBOX_WITH_DRAG_AND_DROP
-extern Service *GetDragAndDropService();
-#endif /* VBOX_WITH_DRAG_AND_DROP */
 
 extern void CleanUp();
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,14 +144,8 @@ void sf_init_inode(struct sf_glob_info *sf_g, struct inode *inode,
 #endif
     }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0)
-    inode->i_uid = make_kuid(current_user_ns(), sf_g->uid);
-    inode->i_gid = make_kgid(current_user_ns(), sf_g->gid);
-#else
     inode->i_uid = sf_g->uid;
     inode->i_gid = sf_g->gid;
-#endif
-
     inode->i_size = info->cbObject;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && !defined(KERNEL_FC6)
     inode->i_blksize = 4096;
@@ -257,20 +251,15 @@ int sf_inode_revalidate(struct dentry *dentry)
    [dentry] in the cache is still valid. the job is handled by
    [sf_inode_revalidate] */
 static int
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
-sf_dentry_revalidate(struct dentry *dentry, unsigned flags)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-sf_dentry_revalidate(struct dentry *dentry, struct nameidata *nd)
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0)
 sf_dentry_revalidate(struct dentry *dentry, int flags)
+#else
+sf_dentry_revalidate(struct dentry *dentry, struct nameidata *nd)
 #endif
 {
     TRACE();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
-    if (flags & LOOKUP_RCU)
-        return -ECHILD;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
     /* see Documentation/filesystems/vfs.txt */
     if (nd && nd->flags & LOOKUP_RCU)
         return -ECHILD;
@@ -587,13 +576,11 @@ int sf_nlscpy(struct sf_glob_info *sf_g,
         while (in_bound_len)
         {
             int nb;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
-            unicode_t uni;
+            wchar_t uni; /** @todo this should be unicode_t in more recent kernel versions. */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
             nb = utf8_to_utf32(in, in_bound_len, &uni);
 #else
-            linux_wchar_t uni;
-
             nb = utf8_mbtowc(&uni, in, in_bound_len);
 #endif
             if (nb < 0)

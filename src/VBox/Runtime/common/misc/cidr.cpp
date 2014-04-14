@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
 #include <iprt/stream.h>
 
 
-RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTNETADDRIPV4 pNetwork, PRTNETADDRIPV4 pNetmask)
+RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTIPV4ADDR pNetwork, PRTIPV4ADDR pNetmask)
 {
     uint8_t cBits;
     uint8_t addr[4];
@@ -110,8 +110,8 @@ RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTNETADDRIPV4 pNetwork, PRT
     if ((u32Network & ~u32Netmask) != 0)
         return VERR_INVALID_PARAMETER;
 
-    pNetmask->u = u32Netmask;
-    pNetwork->u = u32Network;
+    *pNetmask = u32Netmask;
+    *pNetwork = u32Network;
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTCidrStrToIPv4);

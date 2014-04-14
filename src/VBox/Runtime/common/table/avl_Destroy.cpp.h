@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 1999-2011 knut st. osmundsen (bird-src-spam@anduin.net)
+ * Copyright (C) 1999-2007 knut st. osmundsen (bird-src-spam@anduin.net)
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ KAVL_DECL(int) KAVL_FN(Destroy)(PPKAVLNODECORE ppTree, PKAVLCALLBACK pfnCallBack
     int             rc;
 
     if (*ppTree == KAVL_NULL)
-        return VINF_SUCCESS;
+        return 0;
 
     cEntries = 1;
     apEntries[0] = KAVL_GET_POINTER(ppTree);
@@ -74,7 +74,7 @@ KAVL_DECL(int) KAVL_FN(Destroy)(PPKAVLNODECORE ppTree, PKAVLCALLBACK pfnCallBack
                 pEqual->pList = KAVL_NULL;
 
                 rc = pfnCallBack(pEqual, pvUser);
-                if (rc != VINF_SUCCESS)
+                if (rc)
                     return rc;
             }
 #endif
@@ -96,14 +96,14 @@ KAVL_DECL(int) KAVL_FN(Destroy)(PPKAVLNODECORE ppTree, PKAVLCALLBACK pfnCallBack
             kASSERT(pNode->pLeft == KAVL_NULL);
             kASSERT(pNode->pRight == KAVL_NULL);
             rc = pfnCallBack(pNode, pvUser);
-            if (rc != VINF_SUCCESS)
+            if (rc)
                 return rc;
         }
     } /* while */
 
     kASSERT(*ppTree == KAVL_NULL);
 
-    return VINF_SUCCESS;
+    return 0;
 }
 
 #endif

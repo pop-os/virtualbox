@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
  *
  * VBoxDrv - OS/2 specifics.
  *
- * Copyright (c) 2007-2012 knut st. osmundsen <bird-src-spam@anduin.net>
+ * Copyright (c) 2007 knut st. osmundsen <bird-src-spam@anduin.net>
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -163,7 +163,7 @@ DECLASM(int) VBoxGuestOS2Init(const char *pszArgs)
                 /*
                  * Initialize the session hash table.
                  */
-                rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxGuestOS2");
+                rc = RTSpinlockCreate(&g_Spinlock);
                 if (RT_SUCCESS(rc))
                 {
                     /*
@@ -369,10 +369,11 @@ DECLASM(int) VBoxGuestOS2Open(uint16_t sfn)
          * Insert it into the hash table.
          */
         unsigned iHash = SESSION_HASH(sfn);
-        RTSpinlockAcquire(g_Spinlock);
+        RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
         pSession->pNextHash = g_apSessionHashTab[iHash];
         g_apSessionHashTab[iHash] = pSession;
-        RTSpinlockReleaseNoInts(g_Spinlock);
+        RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     }
 
     Log(("VBoxGuestOS2Open: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
@@ -390,7 +391,8 @@ DECLASM(int) VBoxGuestOS2Close(uint16_t sfn)
     PVBOXGUESTSESSION   pSession;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(sfn);
-    RTSpinlockAcquire(g_Spinlock);
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
 
     pSession = g_apSessionHashTab[iHash];
     if (pSession)
@@ -421,7 +423,7 @@ DECLASM(int) VBoxGuestOS2Close(uint16_t sfn)
             }
         }
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
         Log(("VBoxGuestIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d sfn=%d\n", (int)Process, sfn));
@@ -441,11 +443,12 @@ DECLASM(int) VBoxGuestOS2IOCtlFast(uint16_t sfn, uint8_t iFunction, int32_t *prc
     /*
      * Find the session.
      */
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(sfn);
     PVBOXGUESTSESSION   pSession;
 
-    RTSpinlockAcquire(g_Spinlock);
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     pSession = g_apSessionHashTab[iHash];
     if (pSession && pSession->Process != Process)
     {
@@ -454,7 +457,7 @@ DECLASM(int) VBoxGuestOS2IOCtlFast(uint16_t sfn, uint8_t iFunction, int32_t *prc
                &&   (   pSession->sfn != sfn
                      || pSession->Process != Process));
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (RT_UNLIKELY(!pSession))
     {
         Log(("VBoxGuestIoctl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));
@@ -532,11 +535,12 @@ DECLASM(int) VBoxGuestOS2IOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, vo
     /*
      * Find the session.
      */
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(sfn);
     PVBOXGUESTSESSION   pSession;
 
-    RTSpinlockAcquire(g_Spinlock);
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     pSession = g_apSessionHashTab[iHash];
     if (pSession && pSession->Process != Process)
     {
@@ -545,7 +549,7 @@ DECLASM(int) VBoxGuestOS2IOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, vo
                &&   (   pSession->sfn != sfn
                      || pSession->Process != Process));
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
         Log(("VBoxGuestIoctl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));

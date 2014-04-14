@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,8 @@
 # include <VBox/com/array.h>
 # include <VBox/com/ErrorInfo.h>
 # include <VBox/com/errorprint.h>
+# include <VBox/com/EventQueue.h>
+
 # include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
 
@@ -153,125 +155,97 @@ int handleUnregisterVM(HandlerArg *a)
                                                machine.asOutParam()),
                     RTEXITCODE_FAILURE);
     SafeIfaceArray<IMedium> aMedia;
-    CHECK_ERROR_RET(machine, Unregister(CleanupMode_DetachAllReturnHardDisksOnly,
+    CHECK_ERROR_RET(machine, Unregister(fDelete ? (CleanupMode_T)CleanupMode_DetachAllReturnHardDisksOnly : (CleanupMode_T)CleanupMode_DetachAllReturnNone,
                                         ComSafeArrayAsOutParam(aMedia)),
                     RTEXITCODE_FAILURE);
     if (fDelete)
     {
         ComPtr<IProgress> pProgress;
-        CHECK_ERROR_RET(machine, DeleteConfig(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),
+        CHECK_ERROR_RET(machine, Delete(ComSafeArrayAsInParam(aMedia), pProgress.asOutParam()),
                         RTEXITCODE_FAILURE);
-
         rc = showProgress(pProgress);
-        CHECK_PROGRESS_ERROR_RET(pProgress, ("Machine delete failed"), RTEXITCODE_FAILURE);
-    }
-    else
-    {
-        /* Note that the IMachine::Unregister method will return the medium
-         * reference in a sane order, which means that closing will normally
-         * succeed, unless there is still another machine which uses the
-         * medium. No harm done if we ignore the error. */
-        for (size_t i = 0; i < aMedia.size(); i++)
+        if (FAILED(rc))
         {
-            IMedium *pMedium = aMedia[i];
-            if (pMedium)
-                rc = pMedium->Close();
+            com::ProgressErrorInfo ErrInfo(pProgress);
+            com::GluePrintErrorInfo(ErrInfo);
+            return RTEXITCODE_FAILURE;
         }
-        rc = S_OK;
     }
     return RTEXITCODE_SUCCESS;
 }
 
-static const RTGETOPTDEF g_aCreateVMOptions[] =
-{
-    { "--name",           'n', RTGETOPT_REQ_STRING },
-    { "-name",            'n', RTGETOPT_REQ_STRING },
-    { "--groups",         'g', RTGETOPT_REQ_STRING },
-    { "--basefolder",     'p', RTGETOPT_REQ_STRING },
-    { "-basefolder",      'p', RTGETOPT_REQ_STRING },
-    { "--ostype",         'o', RTGETOPT_REQ_STRING },
-    { "-ostype",          'o', RTGETOPT_REQ_STRING },
-    { "--uuid",           'u', RTGETOPT_REQ_UUID },
-    { "-uuid",            'u', RTGETOPT_REQ_UUID },
-    { "--register",       'r', RTGETOPT_REQ_NOTHING },
-    { "-register",        'r', RTGETOPT_REQ_NOTHING },
-};
-
 int handleCreateVM(HandlerArg *a)
 {
     HRESULT rc;
-    Bstr bstrBaseFolder;
-    Bstr bstrName;
-    Bstr bstrOsTypeId;
-    Bstr bstrUuid;
+    Bstr baseFolder;
+    Bstr name;
+    Bstr osTypeId;
+    RTUUID id;
     bool fRegister = false;
-    com::SafeArray<BSTR> groups;
 
-    int c;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-    // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aCreateVMOptions, RT_ELEMENTS(g_aCreateVMOptions),
-                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
-    while ((c = RTGetOpt(&GetState, &ValueUnion)))
+    RTUuidClear(&id);
+    for (int i = 0; i < a->argc; i++)
     {
-        switch (c)
+        if (   !strcmp(a->argv[i], "--basefolder")
+            || !strcmp(a->argv[i], "-basefolder"))
         {
-            case 'n':   // --name
-                bstrName = ValueUnion.psz;
-                break;
-
-            case 'g':   // --groups
-                parseGroups(ValueUnion.psz, &groups);
-                break;
-
-            case 'p':   // --basefolder
-                bstrBaseFolder = ValueUnion.psz;
-                break;
-
-            case 'o':   // --ostype
-                bstrOsTypeId = ValueUnion.psz;
-                break;
-
-            case 'u':   // --uuid
-                bstrUuid = Guid(ValueUnion.Uuid).toUtf16().raw();
-                break;
-
-            case 'r':   // --register
-                fRegister = true;
-                break;
-
-            default:
-                return errorGetOpt(USAGE_CREATEVM, c, &ValueUnion);
+            if (a->argc <= i + 1)
+                return errorArgument("Missing argument to '%s'", a->argv[i]);
+            i++;
+            baseFolder = a->argv[i];
         }
+        else if (   !strcmp(a->argv[i], "--name")
+                 || !strcmp(a->argv[i], "-name"))
+        {
+            if (a->argc <= i + 1)
+                return errorArgument("Missing argument to '%s'", a->argv[i]);
+            i++;
+            name = a->argv[i];
+        }
+        else if (   !strcmp(a->argv[i], "--ostype")
+                 || !strcmp(a->argv[i], "-ostype"))
+        {
+            if (a->argc <= i + 1)
+                return errorArgument("Missing argument to '%s'", a->argv[i]);
+            i++;
+            osTypeId = a->argv[i];
+        }
+        else if (   !strcmp(a->argv[i], "--uuid")
+                 || !strcmp(a->argv[i], "-uuid"))
+        {
+            if (a->argc <= i + 1)
+                return errorArgument("Missing argument to '%s'", a->argv[i]);
+            i++;
+            if (RT_FAILURE(RTUuidFromStr(&id, a->argv[i])))
+                return errorArgument("Invalid UUID format %s\n", a->argv[i]);
+        }
+        else if (   !strcmp(a->argv[i], "--register")
+                 || !strcmp(a->argv[i], "-register"))
+        {
+            fRegister = true;
+        }
+        else
+            return errorSyntax(USAGE_CREATEVM, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
     }
 
     /* check for required options */
-    if (bstrName.isEmpty())
+    if (name.isEmpty())
         return errorSyntax(USAGE_CREATEVM, "Parameter --name is required");
 
     do
     {
-        Bstr createFlags;
-        if (!bstrUuid.isEmpty())
-            createFlags = BstrFmt("UUID=%ls", bstrUuid.raw());
-        Bstr bstrPrimaryGroup;
-        if (groups.size())
-            bstrPrimaryGroup = groups[0];
         Bstr bstrSettingsFile;
         CHECK_ERROR_BREAK(a->virtualBox,
-                          ComposeMachineFilename(bstrName.raw(),
-                                                 bstrPrimaryGroup.raw(),
-                                                 createFlags.raw(),
-                                                 bstrBaseFolder.raw(),
+                          ComposeMachineFilename(name.raw(),
+                                                 baseFolder.raw(),
                                                  bstrSettingsFile.asOutParam()));
         ComPtr<IMachine> machine;
         CHECK_ERROR_BREAK(a->virtualBox,
                           CreateMachine(bstrSettingsFile.raw(),
-                                        bstrName.raw(),
-                                        ComSafeArrayAsInParam(groups),
-                                        bstrOsTypeId.raw(),
-                                        createFlags.raw(),
+                                        name.raw(),
+                                        osTypeId.raw(),
+                                        Guid(id).toUtf16().raw(),
+                                        FALSE /* forceOverwrite */,
                                         machine.asOutParam()));
 
         CHECK_ERROR_BREAK(machine, SaveSettings());
@@ -286,7 +260,7 @@ int handleCreateVM(HandlerArg *a)
         RTPrintf("Virtual machine '%ls' is created%s.\n"
                  "UUID: %s\n"
                  "Settings file: '%ls'\n",
-                 bstrName.raw(), fRegister ? " and registered" : "",
+                 name.raw(), fRegister ? " and registered" : "",
                  Utf8Str(uuid).c_str(), settingsFile.raw());
     }
     while (0);
@@ -298,12 +272,11 @@ static const RTGETOPTDEF g_aCloneVMOptions[] =
 {
     { "--snapshot",       's', RTGETOPT_REQ_STRING },
     { "--name",           'n', RTGETOPT_REQ_STRING },
-    { "--groups",         'g', RTGETOPT_REQ_STRING },
     { "--mode",           'm', RTGETOPT_REQ_STRING },
     { "--options",        'o', RTGETOPT_REQ_STRING },
     { "--register",       'r', RTGETOPT_REQ_NOTHING },
     { "--basefolder",     'p', RTGETOPT_REQ_STRING },
-    { "--uuid",           'u', RTGETOPT_REQ_UUID },
+    { "--uuid",           'u', RTGETOPT_REQ_STRING },
 };
 
 static int parseCloneMode(const char *psz, CloneMode_T *pMode)
@@ -365,7 +338,6 @@ int handleCloneVM(HandlerArg *a)
     const char                    *pszTrgBaseFolder = NULL;
     bool                           fRegister        = false;
     Bstr                           bstrUuid;
-    com::SafeArray<BSTR> groups;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -381,18 +353,6 @@ int handleCloneVM(HandlerArg *a)
                 pszSnapshotName = ValueUnion.psz;
                 break;
 
-            case 'n':   // --name
-                pszTrgName = ValueUnion.psz;
-                break;
-
-            case 'g':   // --groups
-                parseGroups(ValueUnion.psz, &groups);
-                break;
-
-            case 'p':   // --basefolder
-                pszTrgBaseFolder = ValueUnion.psz;
-                break;
-
             case 'm':   // --mode
                 if (RT_FAILURE(parseCloneMode(ValueUnion.psz, &mode)))
                     return errorArgument("Invalid clone mode '%s'\n", ValueUnion.psz);
@@ -403,8 +363,20 @@ int handleCloneVM(HandlerArg *a)
                     return errorArgument("Invalid clone options '%s'\n", ValueUnion.psz);
                 break;
 
+            case 'n':   // --name
+                pszTrgName = ValueUnion.psz;
+                break;
+
+            case 'p':   // --basefolder
+                pszTrgBaseFolder = ValueUnion.psz;
+                break;
+
             case 'u':   // --uuid
-                bstrUuid = Guid(ValueUnion.Uuid).toUtf16().raw();
+                RTUUID trgUuid;
+                if (RT_FAILURE(RTUuidFromStr(&trgUuid, ValueUnion.psz)))
+                    return errorArgument("Invalid UUID format %s\n", ValueUnion.psz);
+                else
+                    bstrUuid = Guid(trgUuid).toUtf16().raw();
                 break;
 
             case 'r':   // --register
@@ -449,17 +421,9 @@ int handleCloneVM(HandlerArg *a)
     if (!pszTrgName)
         pszTrgName = RTStrAPrintf2("%s Clone", pszSrcName);
 
-    Bstr createFlags;
-    if (!bstrUuid.isEmpty())
-        createFlags = BstrFmt("UUID=%ls", bstrUuid.raw());
-    Bstr bstrPrimaryGroup;
-    if (groups.size())
-        bstrPrimaryGroup = groups[0];
     Bstr bstrSettingsFile;
     CHECK_ERROR_RET(a->virtualBox,
                     ComposeMachineFilename(Bstr(pszTrgName).raw(),
-                                           bstrPrimaryGroup.raw(),
-                                           createFlags.raw(),
                                            Bstr(pszTrgBaseFolder).raw(),
                                            bstrSettingsFile.asOutParam()),
                     RTEXITCODE_FAILURE);
@@ -467,9 +431,9 @@ int handleCloneVM(HandlerArg *a)
     ComPtr<IMachine> trgMachine;
     CHECK_ERROR_RET(a->virtualBox, CreateMachine(bstrSettingsFile.raw(),
                                                  Bstr(pszTrgName).raw(),
-                                                 ComSafeArrayAsInParam(groups),
                                                  NULL,
-                                                 createFlags.raw(),
+                                                 bstrUuid.raw(),
+                                                 FALSE,
                                                  trgMachine.asOutParam()),
                     RTEXITCODE_FAILURE);
 
@@ -481,14 +445,19 @@ int handleCloneVM(HandlerArg *a)
                                         progress.asOutParam()),
                     RTEXITCODE_FAILURE);
     rc = showProgress(progress);
-    CHECK_PROGRESS_ERROR_RET(progress, ("Clone VM failed"), RTEXITCODE_FAILURE);
+    if (FAILED(rc))
+    {
+        com::ProgressErrorInfo ErrInfo(progress);
+        com::GluePrintErrorInfo(ErrInfo);
+        return RTEXITCODE_FAILURE;
+    }
 
     if (fRegister)
         CHECK_ERROR_RET(a->virtualBox, RegisterMachine(trgMachine), RTEXITCODE_FAILURE);
 
     Bstr bstrNewName;
     CHECK_ERROR_RET(trgMachine, COMGETTER(Name)(bstrNewName.asOutParam()), RTEXITCODE_FAILURE);
-    RTPrintf("Machine has been successfully cloned as \"%ls\"\n", bstrNewName.raw());
+    RTPrintf("Machine has been successfully cloned as \"%lS\"\n", bstrNewName.raw());
 
     return RTEXITCODE_SUCCESS;
 }
@@ -497,7 +466,7 @@ int handleStartVM(HandlerArg *a)
 {
     HRESULT rc = S_OK;
     std::list<const char *> VMs;
-    Bstr sessionType;
+    Bstr sessionType = "gui";
 
     static const RTGETOPTDEF s_aStartVMOptions[] =
     {
@@ -723,7 +692,7 @@ int handleGetExtraData(HandlerArg *a)
                 CHECK_ERROR(a->virtualBox, GetExtraData(bstrKey.raw(),
                                                         bstrValue.asOutParam()));
 
-                RTPrintf("Key: %ls, Value: %ls\n", bstrKey.raw(), bstrValue.raw());
+                RTPrintf("Key: %lS, Value: %lS\n", bstrKey.raw(), bstrValue.raw());
             }
         }
         else
@@ -732,7 +701,7 @@ int handleGetExtraData(HandlerArg *a)
             CHECK_ERROR(a->virtualBox, GetExtraData(Bstr(a->argv[1]).raw(),
                                                     value.asOutParam()));
             if (!value.isEmpty())
-                RTPrintf("Value: %ls\n", value.raw());
+                RTPrintf("Value: %lS\n", value.raw());
             else
                 RTPrintf("No value set!\n");
         }
@@ -759,7 +728,7 @@ int handleGetExtraData(HandlerArg *a)
                     CHECK_ERROR(machine, GetExtraData(bstrKey.raw(),
                                                       bstrValue.asOutParam()));
 
-                    RTPrintf("Key: %ls, Value: %ls\n", bstrKey.raw(), bstrValue.raw());
+                    RTPrintf("Key: %lS, Value: %lS\n", bstrKey.raw(), bstrValue.raw());
                 }
             }
             else
@@ -768,7 +737,7 @@ int handleGetExtraData(HandlerArg *a)
                 CHECK_ERROR(machine, GetExtraData(Bstr(a->argv[1]).raw(),
                                                   value.asOutParam()));
                 if (!value.isEmpty())
-                    RTPrintf("Value: %ls\n", value.raw());
+                    RTPrintf("Value: %lS\n", value.raw());
                 else
                     RTPrintf("No value set!\n");
             }
@@ -837,18 +806,6 @@ int handleSetProperty(HandlerArg *a)
         else
             CHECK_ERROR(systemProperties, COMSETTER(DefaultMachineFolder)(Bstr(a->argv[1]).raw()));
     }
-    else if (!strcmp(a->argv[0], "hwvirtexclusive"))
-    {
-        bool   fHwVirtExclusive;
-
-        if (!strcmp(a->argv[1], "on"))
-            fHwVirtExclusive = true;
-        else if (!strcmp(a->argv[1], "off"))
-            fHwVirtExclusive = false;
-        else
-            return errorArgument("Invalid hwvirtexclusive argument '%s'", a->argv[1]);
-        CHECK_ERROR(systemProperties, COMSETTER(ExclusiveHwVirt)(fHwVirtExclusive));
-    }
     else if (   !strcmp(a->argv[0], "vrdeauthlibrary")
              || !strcmp(a->argv[0], "vrdpauthlibrary"))
     {
@@ -885,21 +842,6 @@ int handleSetProperty(HandlerArg *a)
         if (vrc != VINF_SUCCESS)
             return errorArgument("Error parsing Log history count '%s'", a->argv[1]);
         CHECK_ERROR(systemProperties, COMSETTER(LogHistoryCount)(uVal));
-    }
-    else if (!strcmp(a->argv[0], "autostartdbpath"))
-    {
-        /* disable? */
-        if (!strcmp(a->argv[1], "null"))
-            CHECK_ERROR(systemProperties, COMSETTER(AutostartDatabasePath)(NULL));
-        else
-            CHECK_ERROR(systemProperties, COMSETTER(AutostartDatabasePath)(Bstr(a->argv[1]).raw()));
-    }
-    else if (!strcmp(a->argv[0], "defaultfrontend"))
-    {
-        Bstr bstrDefaultFrontend(a->argv[1]);
-        if (!strcmp(a->argv[1], "default"))
-            bstrDefaultFrontend.setNull();
-        CHECK_ERROR(systemProperties, COMSETTER(DefaultFrontend)(bstrDefaultFrontend.raw()));
     }
     else
         return errorSyntax(USAGE_SETPROPERTY, "Invalid parameter '%s'", a->argv[0]);
@@ -981,7 +923,7 @@ int handleSharedFolder(HandlerArg *a)
 
         if (fTransient)
         {
-            ComPtr<IConsole> console;
+            ComPtr <IConsole> console;
 
             /* open an existing session for the VM */
             CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
@@ -1047,7 +989,7 @@ int handleSharedFolder(HandlerArg *a)
 
         if (fTransient)
         {
-            ComPtr<IConsole> console;
+            ComPtr <IConsole> console;
 
             /* open an existing session for the VM */
             CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
@@ -1140,9 +1082,16 @@ int handleExtPack(HandlerArg *a)
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2_RET(ptrExtPackFile, Install(fReplace, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
         hrc = showProgress(ptrProgress);
-        CHECK_PROGRESS_ERROR_RET(ptrProgress, ("Failed to install \"%s\"", szPath), RTEXITCODE_FAILURE);
-
-        RTPrintf("Successfully installed \"%ls\".\n", bstrName.raw());
+        if (FAILED(hrc))
+        {
+            com::ProgressErrorInfo ErrInfo(ptrProgress);
+            if (ErrInfo.isBasicAvailable())
+                RTMsgError("Failed to install \"%s\": %lS", szPath, ErrInfo.getText().raw());
+            else
+                RTMsgError("Failed to install \"%s\": No error message available!", szPath);
+            return RTEXITCODE_FAILURE;
+        }
+        RTPrintf("Successfully installed \"%lS\".\n", bstrName.raw());
     }
     else if (!strcmp(a->argv[0], "uninstall"))
     {
@@ -1180,8 +1129,15 @@ int handleExtPack(HandlerArg *a)
         ComPtr<IProgress> ptrProgress;
         CHECK_ERROR2_RET(ptrExtPackMgr, Uninstall(bstrName.raw(), fForced, NULL, ptrProgress.asOutParam()), RTEXITCODE_FAILURE);
         hrc = showProgress(ptrProgress);
-        CHECK_PROGRESS_ERROR_RET(ptrProgress, ("Failed to uninstall \"%s\"", pszName), RTEXITCODE_FAILURE);
-
+        if (FAILED(hrc))
+        {
+            com::ProgressErrorInfo ErrInfo(ptrProgress);
+            if (ErrInfo.isBasicAvailable())
+                RTMsgError("Failed to uninstall \"%s\": %lS", pszName, ErrInfo.getText().raw());
+            else
+                RTMsgError("Failed to uninstall \"%s\": No error message available!", pszName);
+            return RTEXITCODE_FAILURE;
+        }
         RTPrintf("Successfully uninstalled \"%s\".\n", pszName);
     }
     else if (!strcmp(a->argv[0], "cleanup"))

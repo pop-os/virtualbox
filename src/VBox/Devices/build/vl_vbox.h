@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -323,13 +323,11 @@ DECLINLINE(type) cpu_to_ ## endian ## size(type v)\
 \
 DECLINLINE(void) endian ## size ## _to_cpus(type *p)\
 {\
-    NOREF(p); \
     endian ## _bswaps(p, size)\
 }\
 \
 DECLINLINE(void) cpu_to_ ## endian ## size ## s(type *p)\
 {\
-    NOREF(p); \
     endian ## _bswaps(p, size)\
 }\
 \

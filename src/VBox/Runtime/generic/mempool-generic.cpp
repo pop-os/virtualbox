@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,7 +137,7 @@ RTDECL(int) RTMemPoolCreate(PRTMEMPOOL phMemPool, const char *pszName)
     PRTMEMPOOLINT   pMemPool = (PRTMEMPOOLINT)RTMemAlloc(RT_OFFSETOF(RTMEMPOOLINT, szName[cchName + 1]));
     if (!pMemPool)
         return VERR_NO_MEMORY;
-    int rc = RTSpinlockCreate(&pMemPool->hSpinLock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "RTMemPoolCreate");
+    int rc = RTSpinlockCreate(&pMemPool->hSpinLock);
     if (RT_SUCCESS(rc))
     {
         pMemPool->u32Magic = RTMEMPOOL_MAGIC;
@@ -202,7 +202,8 @@ DECLINLINE(void) rtMemPoolInitAndLink(PRTMEMPOOLINT pMemPool, PRTMEMPOOLENTRY pE
 
     if (pMemPool->hSpinLock != NIL_RTSPINLOCK)
     {
-        RTSpinlockAcquire(pMemPool->hSpinLock);
+        RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquire(pMemPool->hSpinLock, &Tmp);
 
         PRTMEMPOOLENTRY pHead = pMemPool->pHead;
         pEntry->pNext = pHead;
@@ -210,7 +211,7 @@ DECLINLINE(void) rtMemPoolInitAndLink(PRTMEMPOOLINT pMemPool, PRTMEMPOOLENTRY pE
             pHead->pPrev = pEntry;
         pMemPool->pHead = pEntry;
 
-        RTSpinlockRelease(pMemPool->hSpinLock);
+        RTSpinlockRelease(pMemPool->hSpinLock, &Tmp);
     }
 
     ASMAtomicIncU32(&pMemPool->cEntries);
@@ -222,7 +223,8 @@ DECLINLINE(void) rtMemPoolUnlink(PRTMEMPOOLENTRY pEntry)
     PRTMEMPOOLINT pMemPool = pEntry->pMemPool;
     if (pMemPool->hSpinLock != NIL_RTSPINLOCK)
     {
-        RTSpinlockAcquire(pMemPool->hSpinLock);
+        RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquire(pMemPool->hSpinLock, &Tmp);
 
         PRTMEMPOOLENTRY pNext = pEntry->pNext;
         PRTMEMPOOLENTRY pPrev = pEntry->pPrev;
@@ -234,7 +236,7 @@ DECLINLINE(void) rtMemPoolUnlink(PRTMEMPOOLENTRY pEntry)
             pMemPool->pHead = pNext;
         pEntry->pMemPool = NULL;
 
-        RTSpinlockRelease(pMemPool->hSpinLock);
+        RTSpinlockRelease(pMemPool->hSpinLock, &Tmp);
     }
     else
         pEntry->pMemPool = NULL;

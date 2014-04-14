@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/pdmapi.h>
-#ifdef VBOX_WITH_REM
-# include <VBox/vmm/rem.h>
-#endif
+#include <VBox/vmm/rem.h>
 #include <VBox/vmm/tm.h>
 #include "VMInternal.h"
 #include <VBox/vmm/vm.h>
@@ -160,7 +158,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 break;
             }
 
-            if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+            if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
             {
                 rc = VMMR3EmtRendezvousFF(pVM, &pVM->aCpus[idCpu]);
                 Log(("vmR3EmulationThread: Rendezvous rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
@@ -181,7 +179,7 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 rc = VMR3ReqProcessU(pUVM, pUVCpu->idCpu, false /*fPriorityOnly*/);
                 Log(("vmR3EmulationThread: Req (cpu=%u) rc=%Rrc, VM state %s -> %s\n", pUVCpu->idCpu, rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
-            else if (VM_FF_IS_SET(pVM, VM_FF_DBGF))
+            else if (VM_FF_ISSET(pVM, VM_FF_DBGF))
             {
                 /*
                  * Service the debugger request.
@@ -189,12 +187,12 @@ int vmR3EmulationThreadWithId(RTTHREAD ThreadSelf, PUVMCPU pUVCpu, VMCPUID idCpu
                 rc = DBGFR3VMMForcedAction(pVM);
                 Log(("vmR3EmulationThread: Dbg rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
-            else if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_RESET))
+            else if (VM_FF_TESTANDCLEAR(pVM, VM_FF_RESET))
             {
                 /*
                  * Service a delayed reset request.
                  */
-                rc = VMR3Reset(pVM->pUVM);
+                rc = VMR3Reset(pVM);
                 VM_FF_CLEAR(pVM, VM_FF_RESET);
                 Log(("vmR3EmulationThread: Reset rc=%Rrc, VM state %s -> %s\n", rc, VMR3GetStateName(enmBefore), VMR3GetStateName(pVM->enmVMState)));
             }
@@ -337,13 +335,13 @@ static DECLCALLBACK(int) vmR3HaltOldDoHalt(PUVMCPU pUVCpu, const uint32_t fMask,
         TMR3TimerQueuesDo(pVM);
         uint64_t const cNsElapsedTimers = RTTimeNanoTS() - u64StartTimers;
         STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltTimers, cNsElapsedTimers);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
         uint64_t u64NanoTS;
         TMTimerPollGIP(pVM, pVCpu, &u64NanoTS);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
 
         /*
@@ -404,7 +402,7 @@ static DECLCALLBACK(int) vmR3HaltOldDoHalt(PUVMCPU pUVCpu, const uint32_t fMask,
  * Initialize the configuration of halt method 1 & 2.
  *
  * @return VBox status code. Failure on invalid CFGM data.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  */
 static int vmR3HaltMethod12ReadConfigU(PUVM pUVM)
 {
@@ -536,8 +534,8 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         TMR3TimerQueuesDo(pVM);
         uint64_t const cNsElapsedTimers = RTTimeNanoTS() - u64StartTimers;
         STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltTimers, cNsElapsedTimers);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
 
         /*
@@ -545,8 +543,8 @@ static DECLCALLBACK(int) vmR3HaltMethod1Halt(PUVMCPU pUVCpu, const uint32_t fMas
          */
         uint64_t u64NanoTS;
         TMTimerPollGIP(pVM, pVCpu, &u64NanoTS);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
 
         /*
@@ -666,7 +664,6 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
     PVMCPU  pVCpu = pUVCpu->pVCpu;
     PVM     pVM   = pUVCpu->pVM;
     Assert(VMMGetCpu(pVM) == pVCpu);
-    NOREF(u64Now);
 
     /*
      * Halt loop.
@@ -685,8 +682,8 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         TMR3TimerQueuesDo(pVM);
         uint64_t const cNsElapsedTimers = RTTimeNanoTS() - u64StartTimers;
         STAM_REL_PROFILE_ADD_PERIOD(&pUVCpu->vm.s.StatHaltTimers, cNsElapsedTimers);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
 
         /*
@@ -695,8 +692,8 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         //u64NowLog = RTTimeNanoTS();
         uint64_t u64Delta;
         uint64_t u64GipTime = TMTimerPollGIP(pVM, pVCpu, &u64Delta);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
             break;
 
         /*
@@ -705,8 +702,8 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Halt(PUVMCPU pUVCpu, const uint32_t fMas
         if (u64Delta >= pUVM->vm.s.Halt.Global1.cNsSpinBlockThresholdCfg)
         {
             VMMR3YieldStop(pVM);
-            if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-                ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+            if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+                ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
                 break;
 
             //RTLogPrintf("loop=%-3d  u64GipTime=%'llu / %'llu   now=%'llu / %'llu\n", cLoops, u64GipTime, u64Delta, u64NowLog, u64GipTime - u64NowLog);
@@ -773,8 +770,8 @@ static DECLCALLBACK(int) vmR3HaltGlobal1Wait(PUVMCPU pUVCpu)
         /*
          * Check Relevant FFs.
          */
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK))
             break;
 
         /*
@@ -822,13 +819,11 @@ static DECLCALLBACK(void) vmR3HaltGlobal1NotifyCpuFF(PUVMCPU pUVCpu, uint32_t fF
                 AssertRC(rc);
             }
         }
-#ifdef VBOX_WITH_REM
         else if (enmState == VMCPUSTATE_STARTED_EXEC_REM)
         {
             if (!(fFlags & VMNOTIFYFF_FLAGS_DONE_REM))
                 REMR3NotifyFF(pUVCpu->pVM);
         }
-#endif
     }
 }
 
@@ -857,8 +852,8 @@ static DECLCALLBACK(int) vmR3BootstrapWait(PUVMCPU pUVCpu)
             break;
 
         if (    pUVCpu->pVM
-            &&  (   VM_FF_IS_PENDING(pUVCpu->pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
-                 || VMCPU_FF_IS_PENDING(VMMGetCpu(pUVCpu->pVM), VMCPU_FF_EXTERNAL_SUSPENDED_MASK)
+            &&  (   VM_FF_ISPENDING(pUVCpu->pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
+                 || VMCPU_FF_ISPENDING(VMMGetCpu(pUVCpu->pVM), VMCPU_FF_EXTERNAL_SUSPENDED_MASK)
                 )
             )
             break;
@@ -919,8 +914,8 @@ static DECLCALLBACK(int) vmR3DefaultWait(PUVMCPU pUVCpu)
         /*
          * Check Relevant FFs.
          */
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK))
+        if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
+            ||  VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK))
             break;
 
         /*
@@ -955,12 +950,10 @@ static DECLCALLBACK(void) vmR3DefaultNotifyCpuFF(PUVMCPU pUVCpu, uint32_t fFlags
         int rc = RTSemEventSignal(pUVCpu->vm.s.EventSemWait);
         AssertRC(rc);
     }
-#ifdef VBOX_WITH_REM
     else if (   !(fFlags & VMNOTIFYFF_FLAGS_DONE_REM)
              && pUVCpu->pVCpu
              && pUVCpu->pVCpu->enmState == VMCPUSTATE_STARTED_EXEC_REM)
         REMR3NotifyFF(pUVCpu->pVM);
-#endif
 }
 
 
@@ -1001,9 +994,8 @@ static const struct VMHALTMETHODDESC
  *
  * @param   pUVM            Pointer to the user mode VM structure.
  * @param   fFlags          Notification flags, VMNOTIFYFF_FLAGS_*.
- * @internal
  */
-VMMR3_INT_DECL(void) VMR3NotifyGlobalFFU(PUVM pUVM, uint32_t fFlags)
+VMMR3DECL(void) VMR3NotifyGlobalFFU(PUVM pUVM, uint32_t fFlags)
 {
     LogFlow(("VMR3NotifyGlobalFFU:\n"));
     uint32_t iHaldMethod = pUVM->vm.s.iHaltMethod;
@@ -1024,9 +1016,8 @@ VMMR3_INT_DECL(void) VMR3NotifyGlobalFFU(PUVM pUVM, uint32_t fFlags)
  *
  * @param   pUVM            Pointer to the user mode VM structure.
  * @param   fFlags          Notification flags, VMNOTIFYFF_FLAGS_*.
- * @internal
  */
-VMMR3_INT_DECL(void) VMR3NotifyCpuFFU(PUVMCPU pUVCpu, uint32_t fFlags)
+VMMR3DECL(void) VMR3NotifyCpuFFU(PUVMCPU pUVCpu, uint32_t fFlags)
 {
     PUVM pUVM = pUVCpu->pUVM;
 
@@ -1041,13 +1032,12 @@ VMMR3_INT_DECL(void) VMR3NotifyCpuFFU(PUVMCPU pUVCpu, uint32_t fFlags)
  *
  * @returns VINF_SUCCESS unless a fatal error occurred. In the latter
  *          case an appropriate status code is returned.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         VM handle.
+ * @param   pVCpu       VMCPU handle.
  * @param   fIgnoreInterrupts   If set the VM_FF_INTERRUPT flags is ignored.
  * @thread  The emulation thread.
- * @internal
  */
-VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts)
+VMMR3DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts)
 {
     LogFlow(("VMR3WaitHalted: fIgnoreInterrupts=%d\n", fIgnoreInterrupts));
 
@@ -1057,8 +1047,8 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
     const uint32_t fMask = !fIgnoreInterrupts
         ? VMCPU_FF_EXTERNAL_HALTED_MASK
         : VMCPU_FF_EXTERNAL_HALTED_MASK & ~(VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC);
-    if (    VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
-        ||  VMCPU_FF_IS_PENDING(pVCpu, fMask))
+    if (    VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_HALTED_MASK)
+        ||  VMCPU_FF_ISPENDING(pVCpu, fMask))
     {
         LogFlow(("VMR3WaitHalted: returns VINF_SUCCESS (FF %#x FFCPU %#x)\n", pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions));
         return VINF_SUCCESS;
@@ -1098,7 +1088,7 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
     /*
      * Do the halt.
      */
-    VMCPU_ASSERT_STATE(pVCpu, VMCPUSTATE_STARTED);
+    Assert(VMCPU_GET_STATE(pVCpu) == VMCPUSTATE_STARTED);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HALTED);
     PUVM pUVM = pUVCpu->pUVM;
     int rc = g_aHaltMethods[pUVM->vm.s.iHaltMethod].pfnHalt(pUVCpu, fMask, u64Now);
@@ -1125,9 +1115,8 @@ VMMR3_INT_DECL(int) VMR3WaitHalted(PVM pVM, PVMCPU pVCpu, bool fIgnoreInterrupts
  *          case an appropriate status code is returned.
  * @param   pUVCpu          Pointer to the user mode VMCPU structure.
  * @thread  The emulation thread.
- * @internal
  */
-VMMR3_INT_DECL(int) VMR3WaitU(PUVMCPU pUVCpu)
+VMMR3DECL(int) VMR3WaitU(PUVMCPU pUVCpu)
 {
     LogFlow(("VMR3WaitU:\n"));
 
@@ -1138,8 +1127,8 @@ VMMR3_INT_DECL(int) VMR3WaitU(PUVMCPU pUVCpu)
     PVMCPU pVCpu = pUVCpu->pVCpu;
 
     if (    pVM
-        &&  (   VM_FF_IS_PENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
-             || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK)
+        &&  (   VM_FF_ISPENDING(pVM, VM_FF_EXTERNAL_SUSPENDED_MASK)
+             || VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_EXTERNAL_SUSPENDED_MASK)
             )
         )
     {
@@ -1192,8 +1181,8 @@ VMMR3_INT_DECL(void) VMR3AsyncPdmNotificationWakeupU(PUVM pUVM)
  * Rendezvous callback that will be called once.
  *
  * @returns VBox strict status code.
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU of the calling EMT.
+ * @param   pVM                 VM handle.
+ * @param   pVCpu               The VMCPU handle for the calling EMT.
  * @param   pvUser              The new g_aHaltMethods index.
  */
 static DECLCALLBACK(VBOXSTRICTRC) vmR3SetHaltMethodCallback(PVM pVM, PVMCPU pVCpu, void *pvUser)

@@ -194,8 +194,6 @@ void SERVER_DISPATCH_APIENTRY
 crServerDispatchSwapBuffers( GLint window, GLint flags )
 {
   CRMuralInfo *mural;
-  CRContext *ctx;
-
 #ifdef VBOXCR_LOGFPS
   static VBOXCRFPS Fps;
   static bool bFpsInited = false;
@@ -425,68 +423,34 @@ crServerDispatchSwapBuffers( GLint window, GLint flags )
 	if (!cr_server.clients[0]->conn->actual_network && window == MAGIC_OFFSET)
 		window = 0;
 
-	ctx = crStateGetCurrent();
-
-	CRASSERT(cr_server.curClient && cr_server.curClient->currentMural == mural);
-
-    if (ctx->framebufferobject.drawFB
-            || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-        mural->bFbDraw = GL_FALSE;
-
-    CR_SERVER_DUMP_SWAPBUFFERS_ENTER();
-
     if (crServerIsRedirectedToFBO())
     {
-        crServerMuralFBOSwapBuffers(mural);
         crServerPresentFBO(mural);
     }
     else
     {
         cr_server.head_spu->dispatch_table.SwapBuffers( mural->spuWindow, flags );
     }
-
-    CR_SERVER_DUMP_SWAPBUFFERS_LEAVE();
 }
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchFlush(void)
 {
-    CRContext *ctx = crStateGetCurrent();
     cr_server.head_spu->dispatch_table.Flush();
 
-    if (cr_server.curClient && cr_server.curClient->currentMural)
+    if (crServerIsRedirectedToFBO())
     {
-        CRMuralInfo *mural = cr_server.curClient->currentMural;
-        if (mural->bFbDraw)
-        {
-            if (crServerIsRedirectedToFBO())
-                crServerPresentFBO(mural);
-        }
-
-        if (ctx->framebufferobject.drawFB
-                || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-            mural->bFbDraw = GL_FALSE;
+        crServerPresentFBO(cr_server.curClient->currentMural);
     }
 }
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchFinish(void)
 {
-    CRContext *ctx = crStateGetCurrent();
-
     cr_server.head_spu->dispatch_table.Finish();
 
-    if (cr_server.curClient && cr_server.curClient->currentMural)
+    if (crServerIsRedirectedToFBO())
     {
-        CRMuralInfo *mural = cr_server.curClient->currentMural;
-        if (mural->bFbDraw)
-        {
-            if (crServerIsRedirectedToFBO())
-                crServerPresentFBO(mural);
-        }
-
-        if (ctx->framebufferobject.drawFB
-                || (ctx->buffer.drawBuffer != GL_FRONT && ctx->buffer.drawBuffer != GL_FRONT_LEFT))
-            mural->bFbDraw = GL_FALSE;
+        crServerPresentFBO(cr_server.curClient->currentMural);
     }
 }

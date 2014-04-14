@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,15 +21,6 @@
 #include <iprt/env.h>
 #include <iprt/path.h>
 #include <iprt/param.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <net/if.h>
-#include <errno.h>
-#include <unistd.h>
-
-#if defined(RT_OS_SOLARIS)
-# include <sys/sockio.h>
-#endif
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
 # include <cstdio>
@@ -85,50 +76,6 @@ static int NetIfAdpCtl(HostNetworkInterface * pIf, const char *pszAddr, const ch
     pIf->COMGETTER(Name)(interfaceName.asOutParam());
     Utf8Str strName(interfaceName);
     return NetIfAdpCtl(strName.c_str(), pszAddr, pszOption, pszMask);
-}
-
-int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer, size_t cBufSize)
-{
-    char szAdpCtl[RTPATH_MAX];
-    int rc = RTPathExecDir(szAdpCtl, sizeof(szAdpCtl) - sizeof("/" VBOXNETADPCTL_NAME " ") - strlen(pcszCmd));
-    if (RT_FAILURE(rc))
-    {
-        LogRel(("NetIfAdpCtlOut: Failed to get program path, rc=%Rrc\n", rc));
-        return VERR_INVALID_PARAMETER;
-    }
-    strcat(szAdpCtl, "/" VBOXNETADPCTL_NAME " ");
-    if (pcszName && strlen(pcszName) <= RTPATH_MAX - strlen(szAdpCtl) - 1 - strlen(pcszCmd))
-    {
-        strcat(szAdpCtl, pcszName);
-        strcat(szAdpCtl, " ");
-        strcat(szAdpCtl, pcszCmd);
-    }
-    else
-    {
-        LogRel(("NetIfAdpCtlOut: Command line is too long: %s%s %s\n", szAdpCtl, pcszName, pcszCmd));
-        return VERR_INVALID_PARAMETER;
-    }
-    if (strlen(szAdpCtl) < RTPATH_MAX - sizeof(" 2>&1"))
-        strcat(szAdpCtl, " 2>&1");
-    FILE *fp = popen(szAdpCtl, "r");
-    if (fp)
-    {
-        if (fgets(pszBuffer, cBufSize, fp))
-        {
-            if (!strncmp(VBOXNETADPCTL_NAME ":", pszBuffer, sizeof(VBOXNETADPCTL_NAME)))
-            {
-                LogRel(("NetIfAdpCtlOut: %s", pszBuffer));
-                rc = VERR_INTERNAL_ERROR;
-            }
-        }
-        else
-        {
-            LogRel(("NetIfAdpCtlOut: No output from " VBOXNETADPCTL_NAME));
-            rc = VERR_INTERNAL_ERROR;
-        }
-        pclose(fp);
-    }
-    return rc;
 }
 
 int NetIfEnableStaticIpConfig(VirtualBox * /* vBox */, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask)
@@ -218,29 +165,16 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
             }
             else
                 strcat(szAdpCtl, "add");
-            if (strlen(szAdpCtl) < RTPATH_MAX - sizeof(" 2>&1"))
-                strcat(szAdpCtl, " 2>&1");
             FILE *fp = popen(szAdpCtl, "r");
 
             if (fp)
             {
-                char szBuf[128]; /* We are not interested in long error messages. */
+                char szBuf[VBOXNET_MAX_SHORT_NAME];
                 if (fgets(szBuf, sizeof(szBuf), fp))
                 {
-                    /* Remove trailing new line characters. */
                     char *pLast = szBuf + strlen(szBuf) - 1;
                     if (pLast >= szBuf && *pLast == '\n')
                         *pLast = 0;
-
-                    if (!strncmp(VBOXNETADPCTL_NAME ":", szBuf, sizeof(VBOXNETADPCTL_NAME)))
-                    {
-                        progress->notifyComplete(E_FAIL,
-                                                 COM_IIDOF(IHostNetworkInterface),
-                                                 HostNetworkInterface::getStaticComponentName(),
-                                                 "%s", szBuf);
-                        pclose(fp);
-                        return E_FAIL;
-                    }
 
                     size_t cbNameLen = strlen(szBuf) + 1;
                     PNETIFINFO pInfo = (PNETIFINFO)RTMemAllocZ(RT_OFFSETOF(NETIFINFO, szName[cbNameLen]));
@@ -270,30 +204,18 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
                         }
                         RTMemFree(pInfo);
                     }
-                    if ((rc = pclose(fp)) != 0)
-                    {
-                        progress->notifyComplete(E_FAIL,
-                                                 COM_IIDOF(IHostNetworkInterface),
-                                                 HostNetworkInterface::getStaticComponentName(),
-                                                 "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
-                        rc = VERR_INTERNAL_ERROR;
-                    }
                 }
-                else
+                if ((rc = pclose(fp)) != 0)
                 {
-                    /* Failed to add an interface */
-                    rc = VERR_PERMISSION_DENIED;
                     progress->notifyComplete(E_FAIL,
                                              COM_IIDOF(IHostNetworkInterface),
                                              HostNetworkInterface::getStaticComponentName(),
-                                             "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d). Check permissions!", rc);
-                    pclose(fp);
+                                             "Failed to execute '"VBOXNETADPCTL_NAME " add' (exit status: %d)", rc);
+                    rc = VERR_INTERNAL_ERROR;
                 }
             }
             if (RT_SUCCESS(rc))
                 progress->notifyComplete(rc);
-            else
-                hrc = E_FAIL;
         }
     }
 
@@ -303,7 +225,6 @@ int NetIfCreateHostOnlyNetworkInterface(VirtualBox *pVBox,
     NOREF(pVBox);
     NOREF(aHostNetworkInterface);
     NOREF(aProgress);
-    NOREF(pcszName);
     return VERR_NOT_IMPLEMENTED;
 #endif
 }
@@ -318,7 +239,7 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
     ComPtr<IHost> host;
     int rc = VINF_SUCCESS;
     HRESULT hr = pVBox->COMGETTER(Host)(host.asOutParam());
-    if (SUCCEEDED(hr))
+    if(SUCCEEDED(hr))
     {
         Bstr ifname;
         ComPtr<IHostNetworkInterface> iface;
@@ -331,7 +252,7 @@ int NetIfRemoveHostOnlyNetworkInterface(VirtualBox *pVBox, IN_GUID aId,
         rc = progress->init(pVBox, host,
                             Bstr("Removing host network interface").raw(),
                             FALSE /* aCancelable */);
-        if (SUCCEEDED(rc))
+        if(SUCCEEDED(rc))
         {
             progress.queryInterfaceTo(aProgress);
             rc = NetIfAdpCtl(Utf8Str(ifname).c_str(), "remove", NULL, NULL);
@@ -363,34 +284,8 @@ int NetIfGetConfig(HostNetworkInterface * /* pIf */, NETIFINFO *)
     return VERR_NOT_IMPLEMENTED;
 }
 
-int NetIfDhcpRediscover(VirtualBox * /* pVBox */, HostNetworkInterface * /* pIf */)
+int NetIfDhcpRediscover(VirtualBox * /* pVbox */, HostNetworkInterface * /* pIf */)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
-/**
- * Obtain the current state of the interface.
- *
- * @returns VBox status code.
- *
- * @param   pcszIfName  Interface name.
- * @param   penmState   Where to store the retrieved state.
- */
-int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState)
-{
-    int sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (sock < 0)
-        return VERR_OUT_OF_RESOURCES;
-    struct ifreq Req;
-    RT_ZERO(Req);
-    RTStrCopy(Req.ifr_name, sizeof(Req.ifr_name), pcszIfName);
-    if (ioctl(sock, SIOCGIFFLAGS, &Req) < 0)
-    {
-        Log(("NetIfGetState: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
-        *penmState = NETIF_S_UNKNOWN;
-    }
-    else
-        *penmState = (Req.ifr_flags & IFF_UP) ? NETIF_S_UP : NETIF_S_DOWN;
-    close(sock);
-    return VINF_SUCCESS;
-}

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,13 +25,11 @@
 #include <VBox/vmm/mm.h>
 #include "DBGFInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/uvm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
-#include <iprt/param.h>
 #include <iprt/semaphore.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
@@ -79,26 +77,26 @@ static const DBGFINFOHLP g_dbgfR3InfoStdErrHlp =
  * Initialize the info handlers.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM     VM handle.
  */
-int dbgfR3InfoInit(PUVM pUVM)
+int dbgfR3InfoInit(PVM pVM)
 {
     /*
      * Make sure we already didn't initialized in the lazy manner.
      */
-    if (RTCritSectIsInitialized(&pUVM->dbgf.s.InfoCritSect))
+    if (RTCritSectIsInitialized(&pVM->dbgf.s.InfoCritSect))
         return VINF_SUCCESS;
 
     /*
      * Initialize the crit sect.
      */
-    int rc = RTCritSectInit(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectInit(&pVM->dbgf.s.InfoCritSect);
     AssertRCReturn(rc, rc);
 
     /*
      * Register the 'info help' item.
      */
-    rc = DBGFR3InfoRegisterInternal(pUVM->pVM, "help", "List of info items.", dbgfR3InfoHelp);
+    rc = DBGFR3InfoRegisterInternal(pVM, "help", "List of info items.", dbgfR3InfoHelp);
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -109,14 +107,14 @@ int dbgfR3InfoInit(PUVM pUVM)
  * Terminate the info handlers.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM     VM handle.
  */
-int dbgfR3InfoTerm(PUVM pUVM)
+int dbgfR3InfoTerm(PVM pVM)
 {
     /*
      * Delete the crit sect.
      */
-    int rc = RTCritSectDelete(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectDelete(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
     return rc;
 }
@@ -126,7 +124,6 @@ int dbgfR3InfoTerm(PUVM pUVM)
  * @copydoc DBGFINFOHLP::pfnPrintf */
 static DECLCALLBACK(void) dbgfR3InfoLog_Printf(PCDBGFINFOHLP pHlp, const char *pszFormat, ...)
 {
-    NOREF(pHlp);
     va_list args;
     va_start(args, pszFormat);
     RTLogPrintfV(pszFormat, args);
@@ -137,7 +134,6 @@ static DECLCALLBACK(void) dbgfR3InfoLog_Printf(PCDBGFINFOHLP pHlp, const char *p
  * @copydoc DBGFINFOHLP::pfnPrintfV */
 static DECLCALLBACK(void) dbgfR3InfoLog_PrintfV(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list args)
 {
-    NOREF(pHlp);
     RTLogPrintfV(pszFormat, args);
 }
 
@@ -158,7 +154,6 @@ VMMR3DECL(PCDBGFINFOHLP) DBGFR3InfoLogHlp(void)
  * @copydoc DBGFINFOHLP::pfnPrintf */
 static DECLCALLBACK(void) dbgfR3InfoLogRel_Printf(PCDBGFINFOHLP pHlp, const char *pszFormat, ...)
 {
-    NOREF(pHlp);
     va_list args;
     va_start(args, pszFormat);
     RTLogRelPrintfV(pszFormat, args);
@@ -169,7 +164,6 @@ static DECLCALLBACK(void) dbgfR3InfoLogRel_Printf(PCDBGFINFOHLP pHlp, const char
  * @copydoc DBGFINFOHLP::pfnPrintfV */
 static DECLCALLBACK(void) dbgfR3InfoLogRel_PrintfV(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list args)
 {
-    NOREF(pHlp);
     RTLogRelPrintfV(pszFormat, args);
 }
 
@@ -178,7 +172,6 @@ static DECLCALLBACK(void) dbgfR3InfoLogRel_PrintfV(PCDBGFINFOHLP pHlp, const cha
  * @copydoc DBGFINFOHLP::pfnPrintf */
 static DECLCALLBACK(void) dbgfR3InfoStdErr_Printf(PCDBGFINFOHLP pHlp, const char *pszFormat, ...)
 {
-    NOREF(pHlp);
     va_list args;
     va_start(args, pszFormat);
     RTStrmPrintfV(g_pStdErr, pszFormat, args);
@@ -189,7 +182,6 @@ static DECLCALLBACK(void) dbgfR3InfoStdErr_Printf(PCDBGFINFOHLP pHlp, const char
  * @copydoc DBGFINFOHLP::pfnPrintfV */
 static DECLCALLBACK(void) dbgfR3InfoStdErr_PrintfV(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list args)
 {
-    NOREF(pHlp);
     RTStrmPrintfV(g_pStdErr, pszFormat, args);
 }
 
@@ -212,13 +204,13 @@ VMMR3DECL(PCDBGFINFOHLP) DBGFR3InfoLogRelHlp(void)
  * Upon successful return the we're inside the crit sect and the caller must leave it.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   fFlags      The flags.
  * @param   ppInfo      Where to store the created
  */
-static int dbgfR3InfoRegister(PUVM pUVM, const char *pszName, const char *pszDesc, uint32_t fFlags, PDBGFINFO *ppInfo)
+static int dbgfR3InfoRegister(PVM pVM, const char *pszName, const char *pszDesc, uint32_t fFlags, PDBGFINFO *ppInfo)
 {
     /*
      * Validate.
@@ -233,7 +225,7 @@ static int dbgfR3InfoRegister(PUVM pUVM, const char *pszName, const char *pszDes
      */
     int rc;
     size_t cchName = strlen(pszName) + 1;
-    PDBGFINFO pInfo = (PDBGFINFO)MMR3HeapAllocU(pUVM, MM_TAG_DBGF_INFO, RT_OFFSETOF(DBGFINFO, szName[cchName]));
+    PDBGFINFO pInfo = (PDBGFINFO)MMR3HeapAlloc(pVM, MM_TAG_DBGF_INFO, RT_OFFSETOF(DBGFINFO, szName[cchName]));
     if (pInfo)
     {
         pInfo->enmType = DBGFINFOTYPE_INVALID;
@@ -244,25 +236,25 @@ static int dbgfR3InfoRegister(PUVM pUVM, const char *pszName, const char *pszDes
 
         /* lazy init */
         rc = VINF_SUCCESS;
-        if (!RTCritSectIsInitialized(&pUVM->dbgf.s.InfoCritSect))
-            rc = dbgfR3InfoInit(pUVM);
+        if (!RTCritSectIsInitialized(&pVM->dbgf.s.InfoCritSect))
+            rc = dbgfR3InfoInit(pVM);
         if (RT_SUCCESS(rc))
         {
             /*
              * Insert in alphabetical order.
              */
-            rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+            rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
             AssertRC(rc);
             PDBGFINFO pPrev = NULL;
             PDBGFINFO pCur;
-            for (pCur = pUVM->dbgf.s.pInfoFirst; pCur; pPrev = pCur, pCur = pCur->pNext)
+            for (pCur = pVM->dbgf.s.pInfoFirst; pCur; pPrev = pCur, pCur = pCur->pNext)
                 if (strcmp(pszName, pCur->szName) < 0)
                     break;
             pInfo->pNext = pCur;
             if (pPrev)
                 pPrev->pNext = pInfo;
             else
-                pUVM->dbgf.s.pInfoFirst = pInfo;
+                pVM->dbgf.s.pInfoFirst = pInfo;
 
             *ppInfo = pInfo;
             return VINF_SUCCESS;
@@ -279,14 +271,13 @@ static int dbgfR3InfoRegister(PUVM pUVM, const char *pszName, const char *pszDes
  * Register a info handler owned by a device.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   pfnHandler  The handler function to be called to display the info.
  * @param   pDevIns     The device instance owning the info.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc,
-                                             PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns)
+VMMR3DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns)
 {
     LogFlow(("DBGFR3InfoRegisterDevice: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p pDevIns=%p\n",
              pszName, pszName, pszDesc, pszDesc, pfnHandler, pDevIns));
@@ -294,20 +285,28 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const
     /*
      * Validate the specific stuff.
      */
-    AssertPtrReturn(pfnHandler, VERR_INVALID_POINTER);
-    AssertPtrReturn(pDevIns, VERR_INVALID_POINTER);
+    if (!pfnHandler)
+    {
+        AssertMsgFailed(("No handler\n"));
+        return VERR_INVALID_PARAMETER;
+    }
+    if (!pDevIns)
+    {
+        AssertMsgFailed(("No pDevIns\n"));
+        return VERR_INVALID_PARAMETER;
+    }
 
     /*
      * Register
      */
     PDBGFINFO pInfo;
-    int rc = dbgfR3InfoRegister(pVM->pUVM, pszName, pszDesc, 0, &pInfo);
+    int rc = dbgfR3InfoRegister(pVM, pszName, pszDesc, 0, &pInfo);
     if (RT_SUCCESS(rc))
     {
         pInfo->enmType = DBGFINFOTYPE_DEV;
         pInfo->u.Dev.pfnHandler = pfnHandler;
         pInfo->u.Dev.pDevIns = pDevIns;
-        RTCritSectLeave(&pVM->pUVM->dbgf.s.InfoCritSect);
+        RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     }
 
     return rc;
@@ -318,13 +317,13 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const
  * Register a info handler owned by a driver.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   pfnHandler  The handler function to be called to display the info.
  * @param   pDrvIns     The driver instance owning the info.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler, PPDMDRVINS pDrvIns)
+VMMR3DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler, PPDMDRVINS pDrvIns)
 {
     LogFlow(("DBGFR3InfoRegisterDriver: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p pDrvIns=%p\n",
              pszName, pszName, pszDesc, pszDesc, pfnHandler, pDrvIns));
@@ -332,20 +331,28 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const
     /*
      * Validate the specific stuff.
      */
-    AssertPtrReturn(pfnHandler, VERR_INVALID_POINTER);
-    AssertPtrReturn(pDrvIns, VERR_INVALID_POINTER);
+    if (!pfnHandler)
+    {
+        AssertMsgFailed(("No handler\n"));
+        return VERR_INVALID_PARAMETER;
+    }
+    if (!pDrvIns)
+    {
+        AssertMsgFailed(("No pDrvIns\n"));
+        return VERR_INVALID_PARAMETER;
+    }
 
     /*
      * Register
      */
     PDBGFINFO pInfo;
-    int rc = dbgfR3InfoRegister(pVM->pUVM, pszName, pszDesc, 0, &pInfo);
+    int rc = dbgfR3InfoRegister(pVM, pszName, pszDesc, 0, &pInfo);
     if (RT_SUCCESS(rc))
     {
         pInfo->enmType = DBGFINFOTYPE_DRV;
         pInfo->u.Drv.pfnHandler = pfnHandler;
         pInfo->u.Drv.pDrvIns = pDrvIns;
-        RTCritSectLeave(&pVM->pUVM->dbgf.s.InfoCritSect);
+        RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     }
 
     return rc;
@@ -356,12 +363,12 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const
  * Register a info handler owned by an internal component.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   pfnHandler  The handler function to be called to display the info.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler)
+VMMR3DECL(int) DBGFR3InfoRegisterInternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler)
 {
     return DBGFR3InfoRegisterInternalEx(pVM, pszName, pszDesc, pfnHandler, 0);
 }
@@ -371,14 +378,13 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternal(PVM pVM, const char *pszName, con
  * Register a info handler owned by an internal component.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   pfnHandler  The handler function to be called to display the info.
  * @param   fFlags      Flags, see the DBGFINFO_FLAGS_*.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, const char *pszDesc,
-                                                 PFNDBGFHANDLERINT pfnHandler, uint32_t fFlags)
+VMMR3DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler, uint32_t fFlags)
 {
     LogFlow(("DBGFR3InfoRegisterInternal: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p fFlags=%x\n",
              pszName, pszName, pszDesc, pszDesc, pfnHandler, fFlags));
@@ -386,18 +392,22 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, c
     /*
      * Validate the specific stuff.
      */
-    AssertPtrReturn(pfnHandler, VERR_INVALID_POINTER);
+    if (!pfnHandler)
+    {
+        AssertMsgFailed(("No handler\n"));
+        return VERR_INVALID_PARAMETER;
+    }
 
     /*
      * Register
      */
     PDBGFINFO pInfo;
-    int rc = dbgfR3InfoRegister(pVM->pUVM, pszName, pszDesc, fFlags, &pInfo);
+    int rc = dbgfR3InfoRegister(pVM, pszName, pszDesc, fFlags, &pInfo);
     if (RT_SUCCESS(rc))
     {
         pInfo->enmType = DBGFINFOTYPE_INT;
         pInfo->u.Int.pfnHandler = pfnHandler;
-        RTCritSectLeave(&pVM->pUVM->dbgf.s.InfoCritSect);
+        RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     }
 
     return rc;
@@ -408,14 +418,13 @@ VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, c
  * Register a info handler owned by an external component.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info.
  * @param   pszDesc     The description of the info and any arguments the handler may take.
  * @param   pfnHandler  The handler function to be called to display the info.
  * @param   pvUser      User argument to be passed to the handler.
  */
-VMMR3DECL(int) DBGFR3InfoRegisterExternal(PUVM pUVM, const char *pszName, const char *pszDesc,
-                                          PFNDBGFHANDLEREXT pfnHandler, void *pvUser)
+VMMR3DECL(int) DBGFR3InfoRegisterExternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLEREXT pfnHandler, void *pvUser)
 {
     LogFlow(("DBGFR3InfoRegisterExternal: pszName=%p:{%s} pszDesc=%p:{%s} pfnHandler=%p pvUser=%p\n",
              pszName, pszName, pszDesc, pszDesc, pfnHandler, pvUser));
@@ -423,20 +432,23 @@ VMMR3DECL(int) DBGFR3InfoRegisterExternal(PUVM pUVM, const char *pszName, const 
     /*
      * Validate the specific stuff.
      */
-    AssertPtrReturn(pfnHandler, VERR_INVALID_POINTER);
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    if (!pfnHandler)
+    {
+        AssertMsgFailed(("No handler\n"));
+        return VERR_INVALID_PARAMETER;
+    }
 
     /*
      * Register
      */
     PDBGFINFO pInfo;
-    int rc = dbgfR3InfoRegister(pUVM, pszName, pszDesc, 0, &pInfo);
+    int rc = dbgfR3InfoRegister(pVM, pszName, pszDesc, 0, &pInfo);
     if (RT_SUCCESS(rc))
     {
         pInfo->enmType = DBGFINFOTYPE_EXT;
         pInfo->u.Ext.pfnHandler = pfnHandler;
         pInfo->u.Ext.pvUser = pvUser;
-        RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+        RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     }
 
     return rc;
@@ -447,29 +459,32 @@ VMMR3DECL(int) DBGFR3InfoRegisterExternal(PUVM pUVM, const char *pszName, const 
  * Deregister one(/all) info handler(s) owned by a device.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pDevIns     Device instance.
  * @param   pszName     The identifier of the info. If NULL all owned by the device.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName)
+VMMR3DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName)
 {
     LogFlow(("DBGFR3InfoDeregisterDevice: pDevIns=%p pszName=%p:{%s}\n", pDevIns, pszName, pszName));
 
     /*
      * Validate input.
      */
-    AssertPtrReturn(pDevIns, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
+    if (!pDevIns)
+    {
+        AssertMsgFailed(("!pDevIns\n"));
+        return VERR_INVALID_PARAMETER;
+    }
     size_t cchName = pszName ? strlen(pszName) : 0;
-    PUVM pUVM = pVM->pUVM;
 
     /*
      * Enumerate the info handlers and free the requested entries.
      */
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect); AssertRC(rc);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
+    AssertRC(rc);
     rc = VERR_FILE_NOT_FOUND;
     PDBGFINFO pPrev = NULL;
-    PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst;
+    PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst;
     if (pszName)
     {
         /*
@@ -484,7 +499,7 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, cons
                 if (pPrev)
                     pPrev->pNext = pInfo->pNext;
                 else
-                    pUVM->dbgf.s.pInfoFirst = pInfo->pNext;
+                    pVM->dbgf.s.pInfoFirst = pInfo->pNext;
                 MMR3HeapFree(pInfo);
                 rc = VINF_SUCCESS;
                 break;
@@ -493,7 +508,7 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, cons
     else
     {
         /*
-         * Free all owned by the device.
+         * Free all owned by the driver.
          */
         for (; pInfo; pPrev = pInfo, pInfo = pInfo->pNext)
             if (    pInfo->enmType == DBGFINFOTYPE_DEV
@@ -502,13 +517,13 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, cons
                 if (pPrev)
                     pPrev->pNext = pInfo->pNext;
                 else
-                    pUVM->dbgf.s.pInfoFirst = pInfo->pNext;
+                    pVM->dbgf.s.pInfoFirst = pInfo->pNext;
                 MMR3HeapFree(pInfo);
                 pInfo = pPrev;
             }
         rc = VINF_SUCCESS;
     }
-    int rc2 = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    int rc2 = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc2);
     AssertRC(rc);
     LogFlow(("DBGFR3InfoDeregisterDevice: returns %Rrc\n", rc));
@@ -519,29 +534,32 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, cons
  * Deregister one(/all) info handler(s) owned by a driver.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pDrvIns     Driver instance.
  * @param   pszName     The identifier of the info. If NULL all owned by the driver.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName)
+VMMR3DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName)
 {
     LogFlow(("DBGFR3InfoDeregisterDriver: pDrvIns=%p pszName=%p:{%s}\n", pDrvIns, pszName, pszName));
 
     /*
      * Validate input.
      */
-    AssertPtrReturn(pDrvIns, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pszName, VERR_INVALID_POINTER);
+    if (!pDrvIns)
+    {
+        AssertMsgFailed(("!pDrvIns\n"));
+        return VERR_INVALID_PARAMETER;
+    }
     size_t cchName = pszName ? strlen(pszName) : 0;
-    PUVM pUVM = pVM->pUVM;
 
     /*
      * Enumerate the info handlers and free the requested entries.
      */
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect); AssertRC(rc);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
+    AssertRC(rc);
     rc = VERR_FILE_NOT_FOUND;
     PDBGFINFO pPrev = NULL;
-    PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst;
+    PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst;
     if (pszName)
     {
         /*
@@ -556,7 +574,7 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, cons
                 if (pPrev)
                     pPrev->pNext = pInfo->pNext;
                 else
-                    pUVM->dbgf.s.pInfoFirst = pInfo->pNext;
+                    pVM->dbgf.s.pInfoFirst = pInfo->pNext;
                 MMR3HeapFree(pInfo);
                 rc = VINF_SUCCESS;
                 break;
@@ -574,13 +592,13 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, cons
                 if (pPrev)
                     pPrev->pNext = pInfo->pNext;
                 else
-                    pUVM->dbgf.s.pInfoFirst = pInfo->pNext;
+                    pVM->dbgf.s.pInfoFirst = pInfo->pNext;
                 MMR3HeapFree(pInfo);
                 pInfo = pPrev;
             }
         rc = VINF_SUCCESS;
     }
-    int rc2 = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    int rc2 = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc2);
     AssertRC(rc);
     LogFlow(("DBGFR3InfoDeregisterDriver: returns %Rrc\n", rc));
@@ -592,26 +610,30 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, cons
  * Internal deregistration helper.
  *
  * @returns VBox status code.
- * @param   pUVM        Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pszName     The identifier of the info.
  * @param   enmType     The info owner type.
  */
-static int dbgfR3InfoDeregister(PUVM pUVM, const char *pszName, DBGFINFOTYPE enmType)
+static int dbgfR3InfoDeregister(PVM pVM, const char *pszName, DBGFINFOTYPE enmType)
 {
     /*
      * Validate input.
      */
-    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
+    if (!pszName)
+    {
+        AssertMsgFailed(("!pszName\n"));
+        return VERR_INVALID_PARAMETER;
+    }
 
     /*
      * Find the info handler.
      */
     size_t cchName = strlen(pszName);
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
     rc = VERR_FILE_NOT_FOUND;
     PDBGFINFO pPrev = NULL;
-    PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst;
+    PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst;
     for (; pInfo; pPrev = pInfo, pInfo = pInfo->pNext)
         if (    pInfo->cchName == cchName
             &&  !strcmp(pInfo->szName, pszName)
@@ -620,12 +642,12 @@ static int dbgfR3InfoDeregister(PUVM pUVM, const char *pszName, DBGFINFOTYPE enm
             if (pPrev)
                 pPrev->pNext = pInfo->pNext;
             else
-                pUVM->dbgf.s.pInfoFirst = pInfo->pNext;
+                pVM->dbgf.s.pInfoFirst = pInfo->pNext;
             MMR3HeapFree(pInfo);
             rc = VINF_SUCCESS;
             break;
         }
-    int rc2 = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    int rc2 = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc2);
     AssertRC(rc);
     LogFlow(("dbgfR3InfoDeregister: returns %Rrc\n", rc));
@@ -637,13 +659,13 @@ static int dbgfR3InfoDeregister(PUVM pUVM, const char *pszName, DBGFINFOTYPE enm
  * Deregister a info handler owned by an internal component.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pszName     The identifier of the info. If NULL all owned by the device.
  */
-VMMR3_INT_DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName)
+VMMR3DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName)
 {
     LogFlow(("DBGFR3InfoDeregisterInternal: pszName=%p:{%s}\n", pszName, pszName));
-    return dbgfR3InfoDeregister(pVM->pUVM, pszName, DBGFINFOTYPE_INT);
+    return dbgfR3InfoDeregister(pVM, pszName, DBGFINFOTYPE_INT);
 }
 
 
@@ -651,40 +673,41 @@ VMMR3_INT_DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName)
  * Deregister a info handler owned by an external component.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         VM Handle.
  * @param   pszName     The identifier of the info. If NULL all owned by the device.
  */
-VMMR3DECL(int) DBGFR3InfoDeregisterExternal(PUVM pUVM, const char *pszName)
+VMMR3DECL(int) DBGFR3InfoDeregisterExternal(PVM pVM, const char *pszName)
 {
     LogFlow(("DBGFR3InfoDeregisterExternal: pszName=%p:{%s}\n", pszName, pszName));
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    return dbgfR3InfoDeregister(pUVM, pszName, DBGFINFOTYPE_EXT);
+    return dbgfR3InfoDeregister(pVM, pszName, DBGFINFOTYPE_EXT);
 }
 
 
 /**
- * Worker for DBGFR3Info and DBGFR3InfoEx.
- *
+ * Worker for DBGFR3Info and DBGFR3InfoEx. 
+ *  
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       Which CPU to run EMT bound handlers on.  VMCPUID_ANY or
- *                      a valid CPU ID.
- * @param   pszName     What to dump.
- * @param   pszArgs     Arguments, optional.
- * @param   pHlp        Output helper, optional.
+ * @param   pVM                 The VM handle. 
+ * @param   idCpu               Which CPU to run EMT bound handlers on. 
+ *                              VMCPUID_ANY or a valid CPU ID.
+ * @param   pszName             What to dump.
+ * @param   pszArgs             Arguments, optional.
+ * @param   pHlp                Output helper, optional.
  */
-static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
+static DECLCALLBACK(int) dbgfR3Info(PVM pVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
     /*
      * Validate input.
      */
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(pszArgs, VERR_INVALID_POINTER);
     if (pHlp)
     {
-        AssertPtrReturn(pHlp, VERR_INVALID_PARAMETER);
-        AssertPtrReturn(pHlp->pfnPrintf, VERR_INVALID_PARAMETER);
-        AssertPtrReturn(pHlp->pfnPrintfV, VERR_INVALID_PARAMETER);
+        if (    !pHlp->pfnPrintf
+            ||  !pHlp->pfnPrintfV)
+        {
+            AssertMsgFailed(("A pHlp member is missing!\n"));
+            return VERR_INVALID_PARAMETER;
+        }
     }
     else
         pHlp = &g_dbgfR3InfoLogHlp;
@@ -693,9 +716,9 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
      * Find the info handler.
      */
     size_t cchName = strlen(pszName);
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
-    PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst;
+    PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst;
     for (; pInfo; pInfo = pInfo->pNext)
         if (    pInfo->cchName == cchName
             &&  !memcmp(pInfo->szName, pszName, cchName))
@@ -708,40 +731,35 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
          *      Switch on the type and invoke the handler.
          */
         DBGFINFO Info = *pInfo;
-        rc = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+        rc = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
         AssertRC(rc);
         rc = VINF_SUCCESS;
         switch (Info.enmType)
         {
             case DBGFINFOTYPE_DEV:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)Info.u.Dev.pfnHandler, 3, Info.u.Dev.pDevIns, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, idCpu, (PFNRT)Info.u.Dev.pfnHandler, 3, Info.u.Dev.pDevIns, pHlp, pszArgs);
                 else
                     Info.u.Dev.pfnHandler(Info.u.Dev.pDevIns, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_DRV:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)Info.u.Drv.pfnHandler, 3, Info.u.Drv.pDrvIns, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, idCpu, (PFNRT)Info.u.Drv.pfnHandler, 3, Info.u.Drv.pDrvIns, pHlp, pszArgs);
                 else
                     Info.u.Drv.pfnHandler(Info.u.Drv.pDrvIns, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_INT:
-                if (RT_VALID_PTR(pUVM->pVM))
-                {
-                    if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                        rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)Info.u.Int.pfnHandler, 3, pUVM->pVM, pHlp, pszArgs);
-                    else
-                        Info.u.Int.pfnHandler(pUVM->pVM, pHlp, pszArgs);
-                }
+                if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
+                    rc = VMR3ReqCallVoidWait(pVM, idCpu, (PFNRT)Info.u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
                 else
-                    rc = VERR_INVALID_VM_HANDLE;
+                    Info.u.Int.pfnHandler(pVM, pHlp, pszArgs);
                 break;
 
             case DBGFINFOTYPE_EXT:
                 if (Info.fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                    rc = VMR3ReqCallVoidWaitU(pUVM, idCpu, (PFNRT)Info.u.Ext.pfnHandler, 3, Info.u.Ext.pvUser, pHlp, pszArgs);
+                    rc = VMR3ReqCallVoidWait(pVM, idCpu, (PFNRT)Info.u.Ext.pfnHandler, 3, Info.u.Ext.pvUser, pHlp, pszArgs);
                 else
                     Info.u.Ext.pfnHandler(Info.u.Ext.pvUser, pHlp, pszArgs);
                 break;
@@ -752,7 +770,7 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
     }
     else
     {
-        rc = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+        rc = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
         AssertRC(rc);
         rc = VERR_FILE_NOT_FOUND;
     }
@@ -763,15 +781,14 @@ static DECLCALLBACK(int) dbgfR3Info(PUVM pUVM, VMCPUID idCpu, const char *pszNam
  * Display a piece of info writing to the supplied handler.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         VM handle.
  * @param   pszName     The identifier of the info to display.
  * @param   pszArgs     Arguments to the info handler.
  * @param   pHlp        The output helper functions. If NULL the logger will be used.
  */
-VMMR3DECL(int) DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
+VMMR3DECL(int) DBGFR3Info(PVM pVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    return dbgfR3Info(pUVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
+    return dbgfR3Info(pVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
 }
 
 
@@ -779,20 +796,19 @@ VMMR3DECL(int) DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, P
  * Display a piece of info writing to the supplied handler.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The CPU to exectue the request on.  Pass NIL_VMCPUID
+ * @param   pVM         VM handle. 
+ * @param   idCpu       The CPU to exectue the request on.  Pass NIL_VMCPUID 
  *                      to not involve any EMT.
  * @param   pszName     The identifier of the info to display.
  * @param   pszArgs     Arguments to the info handler.
  * @param   pHlp        The output helper functions. If NULL the logger will be used.
  */
-VMMR3DECL(int) DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
+VMMR3DECL(int) DBGFR3InfoEx(PVM pVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     if (idCpu == NIL_VMCPUID)
-        return dbgfR3Info(pUVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu,
-                                    (PFNRT)dbgfR3Info, 5, pUVM, idCpu, pszName, pszArgs, pHlp);
+        return dbgfR3Info(pVM, VMCPUID_ANY, pszName, pszArgs, pHlp);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, 
+                                   (PFNRT)dbgfR3Info, 5, pVM, idCpu, pszName, pszArgs, pHlp);
 }
 
 
@@ -800,13 +816,13 @@ VMMR3DECL(int) DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const
  * Wrapper for DBGFR3Info that outputs to the release log.
  *
  * @returns See DBGFR3Info.
- * @param   pUVM        The user mode VM handle.
- * @param   pszName     See DBGFR3Info.
- * @param   pszArgs     See DBGFR3Info.
+ * @param   pVM                 The VM handle.
+ * @param   pszName             See DBGFR3Info.
+ * @param   pszArgs             See DBGFR3Info.
  */
-VMMR3DECL(int) DBGFR3InfoLogRel(PUVM pUVM, const char *pszName, const char *pszArgs)
+VMMR3DECL(int) DBGFR3InfoLogRel(PVM pVM, const char *pszName, const char *pszArgs)
 {
-    return DBGFR3Info(pUVM, pszName, pszArgs, &g_dbgfR3InfoLogRelHlp);
+    return DBGFR3Info(pVM, pszName, pszArgs, &g_dbgfR3InfoLogRelHlp);
 }
 
 
@@ -814,13 +830,13 @@ VMMR3DECL(int) DBGFR3InfoLogRel(PUVM pUVM, const char *pszName, const char *pszA
  * Wrapper for DBGFR3Info that outputs to standard error.
  *
  * @returns See DBGFR3Info.
- * @param   pUVM        The user mode VM handle.
- * @param   pszName     See DBGFR3Info.
- * @param   pszArgs     See DBGFR3Info.
+ * @param   pVM                 The VM handle.
+ * @param   pszName             See DBGFR3Info.
+ * @param   pszArgs             See DBGFR3Info.
  */
-VMMR3DECL(int) DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char *pszArgs)
+VMMR3DECL(int) DBGFR3InfoStdErr(PVM pVM, const char *pszName, const char *pszArgs)
 {
-    return DBGFR3Info(pUVM, pszName, pszArgs, &g_dbgfR3InfoStdErrHlp);
+    return DBGFR3Info(pVM, pszName, pszArgs, &g_dbgfR3InfoStdErrHlp);
 }
 
 
@@ -830,7 +846,7 @@ VMMR3DECL(int) DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char *pszA
  * This is intended used by the fatal error dump only.
  *
  * @returns
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The VM handle.
  * @param   pszIncludePat   Simple string pattern of info items to include.
  * @param   pszExcludePat   Simple string pattern of info items to exclude.
  * @param   pszSepFmt       Item separator format string.  The item name will be
@@ -840,13 +856,12 @@ VMMR3DECL(int) DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char *pszA
  *
  * @threads EMT
  */
-VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *pszExcludePat, const char *pszSepFmt,
-                                    PCDBGFINFOHLP pHlp)
+VMMR3DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *pszExcludePat, const char *pszSepFmt,
+                               PCDBGFINFOHLP pHlp)
 {
     /*
      * Validate input.
      */
-    PUVM pUVM = pVM->pUVM;
     VM_ASSERT_EMT_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
     AssertPtrReturn(pszIncludePat, VERR_INVALID_POINTER);
     AssertPtrReturn(pszExcludePat, VERR_INVALID_POINTER);
@@ -866,10 +881,10 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
      * Enumerate the info handlers and call the ones matching.
      * Note! We won't leave the critical section here...
      */
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
     rc = VWRN_NOT_FOUND;
-    for (PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
+    for (PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
     {
         if (   RTStrSimplePatternMultiMatch(pszIncludePat, cchIncludePat, pInfo->szName, pInfo->cchName, NULL)
             && !RTStrSimplePatternMultiMatch(pszExcludePat, cchExcludePat, pInfo->szName, pInfo->cchName, NULL))
@@ -880,31 +895,28 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
             {
                 case DBGFINFOTYPE_DEV:
                     if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Dev.pfnHandler, 3,
-                                                  pInfo->u.Dev.pDevIns, pHlp, pszArgs);
+                        rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)pInfo->u.Dev.pfnHandler, 3, pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                     else
                         pInfo->u.Dev.pfnHandler(pInfo->u.Dev.pDevIns, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_DRV:
                     if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Drv.pfnHandler, 3,
-                                                  pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
+                        rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)pInfo->u.Drv.pfnHandler, 3, pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                     else
                         pInfo->u.Drv.pfnHandler(pInfo->u.Drv.pDrvIns, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_INT:
                     if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
+                        rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)pInfo->u.Int.pfnHandler, 3, pVM, pHlp, pszArgs);
                     else
                         pInfo->u.Int.pfnHandler(pVM, pHlp, pszArgs);
                     break;
 
                 case DBGFINFOTYPE_EXT:
                     if (pInfo->fFlags & DBGFINFO_FLAGS_RUN_ON_EMT)
-                        rc = VMR3ReqCallVoidWaitU(pUVM, VMCPUID_ANY, (PFNRT)pInfo->u.Ext.pfnHandler, 3,
-                                                  pInfo->u.Ext.pvUser, pHlp, pszArgs);
+                        rc = VMR3ReqCallVoidWait(pVM, VMCPUID_ANY, (PFNRT)pInfo->u.Ext.pfnHandler, 3, pInfo->u.Ext.pvUser, pHlp, pszArgs);
                     else
                         pInfo->u.Ext.pfnHandler(pInfo->u.Ext.pvUser, pHlp, pszArgs);
                     break;
@@ -914,7 +926,7 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
             }
         }
     }
-    int rc2 = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    int rc2 = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc2);
 
     return rc;
@@ -925,11 +937,11 @@ VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const ch
  * Enumerate all the register info handlers.
  *
  * @returns VBox status code.
- * @param   pUVM            The user mode VM handle.
+ * @param   pVM             VM handle.
  * @param   pfnCallback     Pointer to callback function.
  * @param   pvUser          User argument to pass to the callback.
  */
-VMMR3DECL(int) DBGFR3InfoEnum(PUVM pUVM, PFNDBGFINFOENUM pfnCallback, void *pvUser)
+VMMR3DECL(int) DBGFR3InfoEnum(PVM pVM, PFNDBGFINFOENUM pfnCallback, void *pvUser)
 {
     LogFlow(("DBGFR3InfoLog: pfnCallback=%p pvUser=%p\n", pfnCallback, pvUser));
 
@@ -941,22 +953,21 @@ VMMR3DECL(int) DBGFR3InfoEnum(PUVM pUVM, PFNDBGFINFOENUM pfnCallback, void *pvUs
         AssertMsgFailed(("!pfnCallback\n"));
         return VERR_INVALID_PARAMETER;
     }
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Enter and enumerate.
      */
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
 
     rc = VINF_SUCCESS;
-    for (PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst; RT_SUCCESS(rc) && pInfo; pInfo = pInfo->pNext)
-        rc = pfnCallback(pUVM, pInfo->szName, pInfo->pszDesc, pvUser);
+    for (PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst; RT_SUCCESS(rc) && pInfo; pInfo = pInfo->pNext)
+        rc = pfnCallback(pVM, pInfo->szName, pInfo->pszDesc, pvUser);
 
     /*
      * Leave and exit.
      */
-    int rc2 = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    int rc2 = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc2);
 
     LogFlow(("DBGFR3InfoLog: returns %Rrc\n", rc));
@@ -967,7 +978,7 @@ VMMR3DECL(int) DBGFR3InfoEnum(PUVM pUVM, PFNDBGFINFOENUM pfnCallback, void *pvUs
 /**
  * Info handler, internal version.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */
@@ -978,13 +989,12 @@ static DECLCALLBACK(void) dbgfR3InfoHelp(PVM pVM, PCDBGFINFOHLP pHlp, const char
     /*
      * Enter and enumerate.
      */
-    PUVM pUVM = pVM->pUVM;
-    int rc = RTCritSectEnter(&pUVM->dbgf.s.InfoCritSect);
+    int rc = RTCritSectEnter(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
 
     if (pszArgs && *pszArgs)
     {
-        for (PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
+        for (PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
         {
             const char *psz = strstr(pszArgs, pInfo->szName);
             if (    psz
@@ -998,7 +1008,7 @@ static DECLCALLBACK(void) dbgfR3InfoHelp(PVM pVM, PCDBGFINFOHLP pHlp, const char
     }
     else
     {
-        for (PDBGFINFO pInfo = pUVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
+        for (PDBGFINFO pInfo = pVM->dbgf.s.pInfoFirst; pInfo; pInfo = pInfo->pNext)
             pHlp->pfnPrintf(pHlp, "%-16s  %s\n",
                             pInfo->szName, pInfo->pszDesc);
     }
@@ -1006,7 +1016,7 @@ static DECLCALLBACK(void) dbgfR3InfoHelp(PVM pVM, PCDBGFINFOHLP pHlp, const char
     /*
      * Leave and exit.
      */
-    rc = RTCritSectLeave(&pUVM->dbgf.s.InfoCritSect);
+    rc = RTCritSectLeave(&pVM->dbgf.s.InfoCritSect);
     AssertRC(rc);
 }
 

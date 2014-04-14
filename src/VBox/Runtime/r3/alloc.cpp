@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,10 +37,6 @@
 /* Don't enable the tracker when building the minimal IPRT. */
 #ifdef RT_MINI
 # undef RTMEMALLOC_USE_TRACKER
-#endif
-
-#if defined(RTMEMALLOC_USE_TRACKER) && defined(RTALLOC_USE_EFENCE)
-# error "Cannot define both RTMEMALLOC_USE_TRACKER and RTALLOC_USE_EFENCE!"
 #endif
 
 
@@ -114,7 +110,7 @@ RTDECL(void *) RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW
 # ifdef RTMEMALLOC_USE_TRACKER
     void *pv = RTMemTrackerHdrAlloc(malloc(cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, RTMEMTRACKERMETHOD_ALLOC);
 # else
-    void *pv = malloc(cb); NOREF(pszTag);
+    void *pv = malloc(cb);
 # endif
     AssertMsg(pv, ("malloc(%#zx) failed!!!\n", cb));
     AssertMsg(   cb < RTMEM_ALIGNMENT
@@ -138,7 +134,7 @@ RTDECL(void *) RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW
 # ifdef RTMEMALLOC_USE_TRACKER
     void *pv = RTMemTrackerHdrAlloc(calloc(1, cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, RTMEMTRACKERMETHOD_ALLOCZ);
 #else
-    void *pv = calloc(1, cb); NOREF(pszTag);
+    void *pv = calloc(1, cb);
 #endif
     AssertMsg(pv, ("calloc(1,%#zx) failed!!!\n", cb));
     AssertMsg(   cb < RTMEM_ALIGNMENT
@@ -195,7 +191,7 @@ RTDECL(void *)  RTMemReallocTag(void *pvOld, size_t cbNew, const char *pszTag) R
     void *pvNew      = realloc(pvRealOld, cbRealNew);
     void *pv         = RTMemTrackerHdrReallocDone(pvNew, cbNew, pvOld, pszTag);
 # else
-    void *pv = realloc(pvOld, cbNew); NOREF(pszTag);
+    void *pv = realloc(pvOld, cbNew);
 # endif
     AssertMsg(pv || !cbNew, ("realloc(%p, %#zx) failed!!!\n", pvOld, cbNew));
     AssertMsg(   cbNew < RTMEM_ALIGNMENT

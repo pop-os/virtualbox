@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kLdr.h 29 2009-07-01 20:30:29Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -336,8 +336,6 @@ typedef enum KLDRTYPE
     KLDRTYPE_FORWARDER_DLL,
     /** Core or dump. */
     KLDRTYPE_CORE,
-    /** Debug module (debug info with empty code & data segments). */
-    KLDRTYPE_DEBUG_INFO,
     /** The end of the valid types values (exclusive). */
     KLDRTYPE_END,
     /** Hack to blow the type up to 32-bit. */
@@ -524,7 +522,6 @@ typedef FNKLDRMODENUMSYMS *PFNKLDRMODENUMSYMS;
  * @param   enmType     The debug info type.
  * @param   iMajorVer   The major version number of the debug info format. -1 if unknow - implies invalid iMinorVer.
  * @param   iMinorVer   The minor version number of the debug info format. -1 when iMajorVer is -1.
- * @param   pszPartNm   The name of the debug info part, NULL if not applicable.
  * @param   offFile     The file offset *if* this type has one specific location in the executable image file.
  *                      This is -1 if there isn't any specific file location.
  * @param   LinkAddress The link address of the debug info if it's loadable. NIL_KLDRADDR if not loadable.
@@ -534,8 +531,7 @@ typedef FNKLDRMODENUMSYMS *PFNKLDRMODENUMSYMS;
  * @param   pvUser      The user parameter specified to kLdrModEnumDbgInfo.
  */
 typedef int FNKLDRENUMDBG(PKLDRMOD pMod, KU32 iDbgInfo, KLDRDBGINFOTYPE enmType, KI16 iMajorVer, KI16 iMinorVer,
-                          const char *pszPartNm, KLDRFOFF offFile, KLDRADDR LinkAddress, KLDRSIZE cb,
-                          const char *pszExtFile, void *pvUser);
+                          KLDRFOFF offFile, KLDRADDR LinkAddress, KLDRSIZE cb, const char *pszExtFile, void *pvUser);
 /** Pointer to a debug info enumerator callback. */
 typedef FNKLDRENUMDBG *PFNKLDRENUMDBG;
 
@@ -588,14 +584,6 @@ typedef FNKLDRENUMRSRC *PFNKLDRENUMRSRC;
 #define KLDR_LANG_ID_UI_CUSTOM_DEFAULT  ( ~(KU32)7 )
 /** @} */
 
-/** @name Module Open Flags
- * @{ */
-/** Indicates that we won't be loading the module, we're just getting
- *  information (like symbols and line numbers) out of it. */
-#define KLDRMOD_OPEN_FLAGS_FOR_INFO     K_BIT32(0)
-/** Mask of valid flags.    */
-#define KLDRMOD_OPEN_FLAGS_VALID_MASK   KU32_C(0x00000001)
-/** @} */
 
 int     kLdrModOpen(const char *pszFilename, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);
 int     kLdrModOpenFromRdr(PKRDR pRdr, KU32 fFlags, KCPUARCH enmCpuArch, PPKLDRMOD ppMod);
@@ -613,7 +601,6 @@ KI32    kLdrModNumberOfImports(PKLDRMOD pMod, const void *pvBits);
 int     kLdrModCanExecuteOn(PKLDRMOD pMod, const void *pvBits, KCPUARCH enmArch, KCPU enmCpu);
 int     kLdrModGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo);
 int     kLdrModQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRADDR pMainEPAddress);
-int     kLdrModQueryImageUuid(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE cbUuid);
 int     kLdrModQueryResource(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
                              KU32 idName, const char *pszName, KU32 idLang, PKLDRADDR pAddrRsrc, KSIZE *pcbRsrc);
 int     kLdrModEnumResources(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
@@ -699,8 +686,6 @@ typedef struct KLDRMODOPS
     int (* pfnGetStackInfo)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo);
     /** @copydoc kLdrModQueryMainEntrypoint */
     int (* pfnQueryMainEntrypoint)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRADDR pMainEPAddress);
-    /** @copydoc kLdrModQueryImageUuid  */
-    int (* pfnQueryImageUuid)(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE pcbUuid);
     /** @copydoc kLdrModQueryResource */
     int (* pfnQueryResource)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
                              KU32 idName, const char *pszName, KU32 idLang, PKLDRADDR pAddrRsrc, KSIZE *pcbRsrc);

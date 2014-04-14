@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,7 +56,8 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
     /*
      * Allocation loop.
      */
-    rtHandleTableLock(pThis);
+    RTSPINLOCKTMP Tmp /*= no init */;
+    rtHandleTableLock(pThis, &Tmp);
 
     int rc;
     do
@@ -106,7 +107,7 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
             Assert(!cLevel1 || pThis->cMax / RTHT_LEVEL2_ENTRIES >= RTHT_LEVEL1_DYN_ALLOC_THRESHOLD);
 
             /* leave the lock (never do fancy stuff from behind a spinlock). */
-            rtHandleTableUnlock(pThis);
+            rtHandleTableUnlock(pThis, &Tmp);
 
             /*
              * Do the allocation(s).
@@ -128,7 +129,7 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
             }
 
             /* re-enter the lock. */
-            rtHandleTableLock(pThis);
+            rtHandleTableLock(pThis, &Tmp);
 
             /*
              * Insert the new bits, but be a bit careful as someone might have
@@ -150,9 +151,9 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
                 }
 
                 /* free the obsolete one (outside the lock of course) */
-                rtHandleTableUnlock(pThis);
+                rtHandleTableUnlock(pThis, &Tmp);
                 RTMemFree(papvLevel1);
-                rtHandleTableLock(pThis);
+                rtHandleTableLock(pThis, &Tmp);
             }
 
             /* insert the table we allocated. */
@@ -184,16 +185,16 @@ RTDECL(int)     RTHandleTableAlloc(RTHANDLETABLE hHandleTable, void *pvObj, uint
             else
             {
                 /* free the table (raced someone, and we lost). */
-                rtHandleTableUnlock(pThis);
+                rtHandleTableUnlock(pThis, &Tmp);
                 RTMemFree(paTable);
-                rtHandleTableLock(pThis);
+                rtHandleTableLock(pThis, &Tmp);
             }
 
             rc = VERR_TRY_AGAIN;
         }
     } while (rc == VERR_TRY_AGAIN);
 
-    rtHandleTableUnlock(pThis);
+    rtHandleTableUnlock(pThis, &Tmp);
 
     return rc;
 }
@@ -211,7 +212,8 @@ RTDECL(void *)  RTHandleTableLookup(RTHANDLETABLE hHandleTable, uint32_t h)
     void *pvObj = NULL;
 
     /* acquire the lock */
-    rtHandleTableLock(pThis);
+    RTSPINLOCKTMP Tmp /*= no init */;
+    rtHandleTableLock(pThis, &Tmp);
 
     /*
      * Perform the lookup and retaining.
@@ -234,7 +236,7 @@ RTDECL(void *)  RTHandleTableLookup(RTHANDLETABLE hHandleTable, uint32_t h)
     }
 
     /* release the lock */
-    rtHandleTableUnlock(pThis);
+    rtHandleTableUnlock(pThis, &Tmp);
     return pvObj;
 }
 RT_EXPORT_SYMBOL(RTHandleTableLookup);
@@ -251,7 +253,8 @@ RTDECL(void *)  RTHandleTableFree(RTHANDLETABLE hHandleTable, uint32_t h)
     void *pvObj = NULL;
 
     /* acquire the lock */
-    rtHandleTableLock(pThis);
+    RTSPINLOCKTMP Tmp /*= no init */;
+    rtHandleTableLock(pThis, &Tmp);
 
     /*
      * Perform the lookup and retaining.
@@ -297,7 +300,7 @@ RTDECL(void *)  RTHandleTableFree(RTHANDLETABLE hHandleTable, uint32_t h)
     }
 
     /* release the lock */
-    rtHandleTableUnlock(pThis);
+    rtHandleTableUnlock(pThis, &Tmp);
     return pvObj;
 }
 RT_EXPORT_SYMBOL(RTHandleTableFree);

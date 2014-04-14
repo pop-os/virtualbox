@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -130,6 +130,7 @@ int main()
         return rc;
     RTTestBanner(hTest);
 
+    int rcRet = 0;
     int i;
     int j;
     int k;

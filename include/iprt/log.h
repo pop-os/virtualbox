@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,8 +52,6 @@ typedef enum RTLOGGROUP
 {
     /** Default logging group. */
     RTLOGGROUP_DEFAULT,
-    RTLOGGROUP_DBG,
-    RTLOGGROUP_DBG_DWARF,
     RTLOGGROUP_DIR,
     RTLOGGROUP_FILE,
     RTLOGGROUP_FS,
@@ -83,8 +81,6 @@ typedef enum RTLOGGROUP
  */
 #define RT_LOGGROUP_NAMES \
     "DEFAULT",      \
-    "RT_DBG",       \
-    "RT_DBG_DWARF", \
     "RT_DIR",       \
     "RT_FILE",      \
     "RT_FS",        \
@@ -95,6 +91,8 @@ typedef enum RTLOGGROUP
     "RT_THREAD",    \
     "RT_TIME",      \
     "RT_TIMER",     \
+    "RT_11", \
+    "RT_12", \
     "RT_13", \
     "RT_14", \
     "RT_15", \
@@ -702,22 +700,6 @@ RTDECL(void) RTLogPrintfEx(void *pvInstance, unsigned fFlags, unsigned iGroup, c
     _LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_1, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
 #else
 # define LogFunc(a) \
-    do { Log((LOG_FN_FMT ": ", __PRETTY_FUNCTION__)); Log(a); } while (0)
-#endif
-
-/** @def Log4Func
- * Level 4 logging inside C/C++ functions.
- *
- * Prepends the given log message with the function name followed by a
- * semicolon and space.
- *
- * @param   a   Log message in format <tt>("string\n" [, args])</tt>.
- */
-#ifdef LOG_USE_C99
-# define Log4Func(a) \
-    _LogIt(LOG_INSTANCE, RTLOGGRPFLAGS_LEVEL_4, LOG_GROUP, LOG_FN_FMT ": %M", __PRETTY_FUNCTION__, _LogRemoveParentheseis a )
-#else
-# define Log4Func(a) \
     do { Log((LOG_FN_FMT ": ", __PRETTY_FUNCTION__)); Log(a); } while (0)
 #endif
 
@@ -1660,9 +1642,9 @@ RTDECL(int) RTLogGetGroupSettings(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf
  * @returns iprt status code.
  *          Failures can safely be ignored.
  * @param   pLogger     Logger instance (NULL for default logger).
- * @param   pszValue    Value to parse.
+ * @param   pszVar      Value to parse.
  */
-RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszValue);
+RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszVar);
 #endif /* !IN_RC */
 
 /**
@@ -1672,9 +1654,9 @@ RTDECL(int) RTLogGroupSettings(PRTLOGGER pLogger, const char *pszValue);
  * @returns iprt status code.
  *          Failures can safely be ignored.
  * @param   pLogger     Logger instance (NULL for default logger).
- * @param   pszValue    Value to parse.
+ * @param   pszVar      Value to parse.
  */
-RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszValue);
+RTDECL(int) RTLogFlags(PRTLOGGER pLogger, const char *pszVar);
 
 /**
  * Changes the buffering setting of the specified logger.
@@ -1719,9 +1701,9 @@ RTDECL(int) RTLogGetFlags(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf);
  *
  * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
  * @param   pLogger             Logger instance (NULL for default logger).
- * @param   pszValue            The value to parse.
+ * @param   pszVar              The value to parse.
  */
-RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszValue);
+RTDECL(int) RTLogDestinations(PRTLOGGER pLogger, char const *pszVar);
 
 /**
  * Get the current log destinations as a string.
@@ -1815,16 +1797,6 @@ RTDECL(void) RTLogPrintf(const char *pszFormat, ...);
  * @remark The API doesn't support formatting of floating point numbers at the moment.
  */
 RTDECL(void) RTLogPrintfV(const char *pszFormat, va_list args);
-
-/**
- * Dumper vprintf-like function outputting to a logger.
- *
- * @param   pvUser          Pointer to the logger instance to use, NULL for
- *                          default instance.
- * @param   pszFormat       Format string.
- * @param   va              Format arguments.
- */
-RTDECL(void) RTLogDumpPrintfV(void *pvUser, const char *pszFormat, va_list va);
 
 
 #ifndef DECLARED_FNRTSTROUTPUT          /* duplicated in iprt/string.h */

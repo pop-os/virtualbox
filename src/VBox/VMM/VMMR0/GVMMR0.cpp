@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
  * The Global VM Manager lives in ring-0.  Its main function at the moment is
  * to manage a list of all running VMs, keep a ring-0 only structure (GVM) for
  * each of them, and assign them unique identifiers (so GMM can track page
- * owners).  The GVMM also manage some of the host CPU resources, like the
+ * owners).  The GVMM also manage some of the host CPU resources, like the the
  * periodic preemption timer.
  *
  * The GVMM will create a ring-0 object for each VM when it is registered, this
@@ -55,11 +55,9 @@
 #include "GVMMR0Internal.h"
 #include <VBox/vmm/gvm.h>
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/vmcpuset.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/param.h>
 #include <VBox/err.h>
-
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/mem.h>
@@ -77,8 +75,6 @@
 #include <iprt/cpuset.h>
 #include <iprt/spinlock.h>
 #include <iprt/timer.h>
-
-#include "dtrace/VBoxVMM.h"
 
 
 /*******************************************************************************
@@ -259,7 +255,7 @@ typedef struct GVMM
 typedef GVMM *PGVMM;
 
 /** The GVMM::u32Magic value (Charlie Haden). */
-#define GVMM_MAGIC      UINT32_C(0x19370806)
+#define GVMM_MAGIC      0x19370806
 
 
 
@@ -415,7 +411,7 @@ GVMMR0DECL(int) GVMMR0Init(void)
                                          gvmmR0SchedPeriodicPreemptionTimerCallback,
                                          &pGVMM->aHostCpus[iCpu]);
                     if (RT_SUCCESS(rc))
-                        rc = RTSpinlockCreate(&pGVMM->aHostCpus[iCpu].Ppt.hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "GVMM/CPU");
+                        rc = RTSpinlockCreate(&pGVMM->aHostCpus[iCpu].Ppt.hSpinlock);
                     if (RT_FAILURE(rc))
                     {
                         while (iCpu < cHostCpus)
@@ -544,7 +540,7 @@ GVMMR0DECL(int) GVMMR0SetConfig(PSUPDRVSESSION pSession, const char *pszName, ui
     /*
      * String switch time!
      */
-    if (strncmp(pszName, RT_STR_TUPLE("/GVMM/")))
+    if (strncmp(pszName, "/GVMM/", sizeof("/GVMM/") - 1))
         return VERR_CFGM_VALUE_NOT_FOUND; /* borrow status codes from CFGM... */
     int rc = VINF_SUCCESS;
     pszName += sizeof("/GVMM/") - 1;
@@ -612,7 +608,7 @@ GVMMR0DECL(int) GVMMR0QueryConfig(PSUPDRVSESSION pSession, const char *pszName, 
     /*
      * String switch time!
      */
-    if (strncmp(pszName, RT_STR_TUPLE("/GVMM/")))
+    if (strncmp(pszName, "/GVMM/", sizeof("/GVMM/") - 1))
         return VERR_CFGM_VALUE_NOT_FOUND; /* borrow status codes from CFGM... */
     int rc = VINF_SUCCESS;
     pszName += sizeof("/GVMM/") - 1;
@@ -753,7 +749,7 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
 
     RTNATIVETHREAD hEMT0 = RTThreadNativeSelf();
     AssertReturn(hEMT0 != NIL_RTNATIVETHREAD, VERR_GVMM_BROKEN_IPRT);
-    RTPROCESS      ProcId = RTProcSelf();
+    RTNATIVETHREAD ProcId = RTProcSelf();
     AssertReturn(ProcId != NIL_RTPROCESS, VERR_GVMM_BROKEN_IPRT);
 
     /*
@@ -867,9 +863,8 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                                         pVM->aCpus[i].hNativeThreadR0 = NIL_RTNATIVETHREAD;
                                     }
 
-                                    rc = RTR0MemObjMapUser(&pGVM->gvmm.s.VMPagesMapObj, pGVM->gvmm.s.VMPagesMemObj, (RTR3PTR)-1,
-                                                           0 /* uAlignment */, RTMEM_PROT_READ | RTMEM_PROT_WRITE,
-                                                           NIL_RTR0PROCESS);
+                                    rc = RTR0MemObjMapUser(&pGVM->gvmm.s.VMPagesMapObj, pGVM->gvmm.s.VMPagesMemObj, (RTR3PTR)-1, 0,
+                                                           RTMEM_PROT_READ | RTMEM_PROT_WRITE, NIL_RTR0PROCESS);
                                     if (RT_SUCCESS(rc))
                                     {
                                         pVM->paVMPagesR3 = RTR0MemObjAddressR3(pGVM->gvmm.s.VMPagesMapObj);
@@ -888,18 +883,12 @@ GVMMR0DECL(int) GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppV
                                         pVM->aCpus[0].hNativeThreadR0 = hEMT0;
                                         pGVMM->cEMTs += cCpus;
 
-                                        rc = VMMR0ThreadCtxHooksCreate(&pVM->aCpus[0]);
-                                        if (RT_SUCCESS(rc))
-                                        {
-                                            VBOXVMM_R0_GVMM_VM_CREATED(pGVM, pVM, ProcId, (void *)hEMT0, cCpus);
+                                        gvmmR0UsedUnlock(pGVMM);
+                                        gvmmR0CreateDestroyUnlock(pGVMM);
 
-                                            gvmmR0UsedUnlock(pGVMM);
-                                            gvmmR0CreateDestroyUnlock(pGVMM);
-
-                                            *ppVM = pVM;
-                                            Log(("GVMMR0CreateVM: pVM=%p pVMR3=%p pGVM=%p hGVM=%d\n", pVM, pVM->pVMR3, pGVM, iHandle));
-                                            return VINF_SUCCESS;
-                                        }
+                                        *ppVM = pVM;
+                                        Log(("GVMMR0CreateVM: pVM=%p pVMR3=%p pGVM=%p hGVM=%d\n", pVM, pVM->pVMR3, pGVM, iHandle));
+                                        return VINF_SUCCESS;
                                     }
 
                                     RTR0MemObjFree(pGVM->gvmm.s.VMMapObj, false /* fFreeMappings */);
@@ -970,7 +959,7 @@ static void gvmmR0InitPerVMData(PGVM pGVM)
  * Does the VM initialization.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  */
 GVMMR0DECL(int) GVMMR0InitVM(PVM pVM)
 {
@@ -1010,7 +999,7 @@ GVMMR0DECL(int) GVMMR0InitVM(PVM pVM)
  * Indicates that we're done with the ring-0 initialization
  * of the VM.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  * @thread  EMT(0)
  */
 GVMMR0DECL(void) GVMMR0DoneInitVM(PVM pVM)
@@ -1030,7 +1019,7 @@ GVMMR0DECL(void) GVMMR0DoneInitVM(PVM pVM)
  * Indicates that we're doing the ring-0 termination of the VM.
  *
  * @returns true if termination hasn't been done already, false if it has.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  * @param   pGVM        Pointer to the global VM structure. Optional.
  * @thread  EMT(0)
  */
@@ -1063,7 +1052,7 @@ GVMMR0DECL(bool) GVMMR0DoingTermVM(PVM pVM, PGVM pGVM)
  * could've associated the calling thread with the VM up front.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Where to store the pointer to the VM structure.
  *
  * @thread  EMT(0) if it's associated with the VM, otherwise any thread.
  */
@@ -1073,13 +1062,13 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
     PGVMM pGVMM;
     GVMM_GET_VALID_INSTANCE(pGVMM, VERR_GVMM_INSTANCE);
 
+
     /*
      * Validate the VM structure, state and caller.
      */
     AssertPtrReturn(pVM, VERR_INVALID_POINTER);
     AssertReturn(!((uintptr_t)pVM & PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
-    AssertMsgReturn(pVM->enmVMState >= VMSTATE_CREATING && pVM->enmVMState <= VMSTATE_TERMINATED, ("%d\n", pVM->enmVMState),
-                    VERR_WRONG_ORDER);
+    AssertMsgReturn(pVM->enmVMState >= VMSTATE_CREATING && pVM->enmVMState <= VMSTATE_TERMINATED, ("%d\n", pVM->enmVMState), VERR_WRONG_ORDER);
 
     uint32_t hGVM = pVM->hSelf;
     AssertReturn(hGVM != NIL_GVM_HANDLE, VERR_INVALID_HANDLE);
@@ -1089,7 +1078,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
     AssertReturn(pHandle->pVM == pVM, VERR_NOT_OWNER);
 
     RTPROCESS      ProcId = RTProcSelf();
-    RTNATIVETHREAD hSelf  = RTThreadNativeSelf();
+    RTNATIVETHREAD hSelf = RTThreadNativeSelf();
     AssertReturn(   (   pHandle->hEMT0  == hSelf
                      && pHandle->ProcId == ProcId)
                  || pHandle->hEMT0 == NIL_RTNATIVETHREAD, VERR_NOT_OWNER);
@@ -1102,7 +1091,7 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
     int rc = gvmmR0CreateDestroyLock(pGVMM);
     AssertRC(rc);
 
-    /* Be careful here because we might theoretically be racing someone else cleaning up. */
+    /* be careful here because we might theoretically be racing someone else cleaning up. */
     if (    pHandle->pVM == pVM
         &&  (   (   pHandle->hEMT0  == hSelf
                  && pHandle->ProcId == ProcId)
@@ -1115,15 +1104,6 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PVM pVM)
         void *pvObj = pHandle->pvObj;
         pHandle->pvObj = NULL;
         gvmmR0CreateDestroyUnlock(pGVMM);
-
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
-        {
-            /** @todo Can we busy wait here for all thread-context hooks to be
-             *        deregistered before releasing (destroying) it? Only until we find a
-             *        solution for not deregistering hooks everytime we're leaving HMR0
-             *        context. */
-            VMMR0ThreadCtxHooksRelease(&pVM->aCpus[idCpu]);
-        }
 
         SUPR0ObjRelease(pvObj, pHandle->pSession);
     }
@@ -1313,7 +1293,7 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvGVMM, v
     ASMAtomicWriteNullPtr(&pHandle->pvObj);
     ASMAtomicWriteNullPtr(&pHandle->pSession);
     ASMAtomicWriteHandle(&pHandle->hEMT0,        NIL_RTNATIVETHREAD);
-    ASMAtomicWriteU32(&pHandle->ProcId,          NIL_RTPROCESS);
+    ASMAtomicWriteSize(&pHandle->ProcId,         NIL_RTPROCESS);
 
     gvmmR0UsedUnlock(pGVMM);
     gvmmR0CreateDestroyUnlock(pGVMM);
@@ -1327,7 +1307,7 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvGVMM, v
  * Note that VCPU 0 is automatically registered during VM creation.
  *
  * @returns VBox status code
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The shared VM structure (the ring-0 mapping).
  * @param   idCpu           VCPU id.
  */
 GVMMR0DECL(int) GVMMR0RegisterVCpu(PVM pVM, VMCPUID idCpu)
@@ -1350,8 +1330,7 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PVM pVM, VMCPUID idCpu)
 
     pVM->aCpus[idCpu].hNativeThreadR0 = pGVM->aCpus[idCpu].hEMT = RTThreadNativeSelf();
 
-    rc = VMMR0ThreadCtxHooksCreate(&pVM->aCpus[idCpu]);
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -1393,7 +1372,7 @@ GVMMR0DECL(PGVM) GVMMR0ByHandle(uint32_t hGVM)
  * are by threads inside the same process, so this will not be an issue.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The shared VM structure (the ring-0 mapping).
  * @param   ppGVM           Where to store the GVM pointer.
  * @param   ppGVMM          Where to store the pointer to the GVMM instance data.
  * @param   fTakeUsedLock   Whether to take the used lock or not.
@@ -1470,7 +1449,7 @@ static int gvmmR0ByVM(PVM pVM, PGVM *ppGVM, PGVMM *ppGVMM, bool fTakeUsedLock)
  * Lookup a GVM structure by the shared VM structure.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM     The shared VM structure (the ring-0 mapping).
  * @param   ppGVM       Where to store the GVM pointer.
  *
  * @remark  This will not take the 'used'-lock because it doesn't do
@@ -1488,7 +1467,7 @@ GVMMR0DECL(int) GVMMR0ByVM(PVM pVM, PGVM *ppGVM)
  * caller is an EMT thread.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The shared VM structure (the ring-0 mapping).
  * @param   idCpu       The Virtual CPU ID of the calling EMT.
  * @param   ppGVM       Where to store the GVM pointer.
  * @param   ppGVMM      Where to store the pointer to the GVMM instance data.
@@ -1538,7 +1517,7 @@ static int gvmmR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM, PGVMM *ppGVMM)
  * and ensuring that the caller is the EMT thread.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The shared VM structure (the ring-0 mapping).
  * @param   idCpu       The Virtual CPU ID of the calling EMT.
  * @param   ppGVM       Where to store the GVM pointer.
  * @thread  EMT
@@ -1554,7 +1533,7 @@ GVMMR0DECL(int) GVMMR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM)
 /**
  * Lookup a VM by its global handle.
  *
- * @returns Pointer to the VM on success, NULL on failure.
+ * @returns The VM handle on success, NULL on failure.
  * @param   hGVM    The global VM handle. Asserts on bad handle.
  */
 GVMMR0DECL(PVM) GVMMR0GetVMByHandle(uint32_t hGVM)
@@ -1571,7 +1550,7 @@ GVMMR0DECL(PVM) GVMMR0GetVMByHandle(uint32_t hGVM)
  * unnecessary kernel panics when the EMT thread hits an assertion. The
  * call may or not be an EMT thread.
  *
- * @returns Pointer to the VM on success, NULL on failure.
+ * @returns The VM handle on success, NULL on failure.
  * @param   hEMT    The native thread handle of the EMT.
  *                  NIL_RTNATIVETHREAD means the current thread
  */
@@ -1769,7 +1748,7 @@ static unsigned gvmmR0SchedDoWakeUps(PGVMM pGVMM, uint64_t u64Now)
  *
  * @returns VINF_SUCCESS normal wakeup (timeout or kicked by other thread).
  *          VERR_INTERRUPTED if a signal was scheduled for the thread.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The Virtual CPU ID of the calling EMT.
  * @param   u64ExpireGipTime    The time for the sleep to expire expressed as GIP time.
  * @thread  EMT(idCpu).
@@ -1904,7 +1883,7 @@ DECLINLINE(int) gvmmR0SchedWakeUpOne(PGVM pGVM, PGVMCPU pGVCpu)
  * @retval  VINF_SUCCESS if successfully woken up.
  * @retval  VINF_GVM_NOT_BLOCKED if the EMT wasn't blocked.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The Virtual CPU ID of the EMT to wake up.
  * @param   fTakeUsedLock       Take the used lock or not
  * @thread  Any but EMT.
@@ -1958,7 +1937,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
  * @retval  VINF_SUCCESS if successfully woken up.
  * @retval  VINF_GVM_NOT_BLOCKED if the EMT wasn't blocked.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The Virtual CPU ID of the EMT to wake up.
  * @thread  Any but EMT.
  */
@@ -1976,7 +1955,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUp(PVM pVM, VMCPUID idCpu)
  * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
  *
  * @param   pGVM                The global (ring-0) VM structure.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The Virtual CPU handle.
  */
 DECLINLINE(int) gvmmR0SchedPokeOne(PGVM pGVM, PVMCPU pVCpu)
 {
@@ -2002,7 +1981,7 @@ DECLINLINE(int) gvmmR0SchedPokeOne(PGVM pGVM, PVMCPU pVCpu)
  * @retval  VINF_SUCCESS if poked successfully.
  * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The ID of the virtual CPU to poke.
  * @param   fTakeUsedLock       Take the used lock or not
  */
@@ -2040,7 +2019,7 @@ GVMMR0DECL(int) GVMMR0SchedPokeEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
  * @retval  VINF_SUCCESS if poked successfully.
  * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The ID of the virtual CPU to poke.
  */
 GVMMR0DECL(int) GVMMR0SchedPoke(PVM pVM, VMCPUID idCpu)
@@ -2054,7 +2033,7 @@ GVMMR0DECL(int) GVMMR0SchedPoke(PVM pVM, VMCPUID idCpu)
  *
  * @returns VBox status code, no informational stuff.
  *
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   pSleepSet           The set of sleepers to wake up.
  * @param   pPokeSet            The set of CPUs to poke.
  */
@@ -2100,8 +2079,8 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
  * VMMR0 request wrapper for GVMMR0SchedWakeUpAndPokeCpus.
  *
  * @returns see GVMMR0SchedWakeUpAndPokeCpus.
- * @param   pVM             Pointer to the VM.
- * @param   pReq            Pointer to the request packet.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pReq            The request packet.
  */
 GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq)
 {
@@ -2124,7 +2103,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKE
  *
  * @returns VINF_SUCCESS if not yielded.
  *          VINF_GVM_YIELDED if an attempt to switch to a different VM task was made.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 Pointer to the shared VM structure.
  * @param   idCpu               The Virtual CPU ID of the calling EMT.
  * @param   u64ExpireGipTime    The time for the sleep to expire expressed as GIP time.
  * @param   fYield              Whether to yield or not.
@@ -2175,7 +2154,6 @@ GVMMR0DECL(int) GVMMR0SchedPoll(PVM pVM, VMCPUID idCpu, bool fYield)
 static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
 {
     PGVMMHOSTCPU pCpu = (PGVMMHOSTCPU)pvUser;
-    NOREF(pTimer); NOREF(iTick);
 
     /*
      * Termination check
@@ -2186,7 +2164,8 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
     /*
      * Do the house keeping.
      */
-    RTSpinlockAcquire(pCpu->Ppt.hSpinlock);
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+    RTSpinlockAcquireNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 
     if (++pCpu->Ppt.iTickHistorization >= pCpu->Ppt.cTicksHistoriziationInterval)
     {
@@ -2206,7 +2185,7 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
             if (pCpu->Ppt.aHzHistory[i] > uHistMaxHz)
                 uHistMaxHz = pCpu->Ppt.aHzHistory[i];
         if (uHistMaxHz == pCpu->Ppt.uTimerHz)
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
         else if (uHistMaxHz)
         {
             /*
@@ -2223,7 +2202,7 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
                                                        / cNsInterval;
             else
                 pCpu->Ppt.cTicksHistoriziationInterval = 1;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 
             /*SUPR0Printf("Cpu%u: change to %u Hz / %u ns\n", pCpu->idxCpuSet, uHistMaxHz, cNsInterval);*/
             RTTimerChangeInterval(pTimer, cNsInterval);
@@ -2236,14 +2215,14 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
             pCpu->Ppt.fStarted    = false;
             pCpu->Ppt.uTimerHz    = 0;
             pCpu->Ppt.cNsInterval = 0;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 
             /*SUPR0Printf("Cpu%u: stopping (%u Hz)\n", pCpu->idxCpuSet, uHistMaxHz);*/
             RTTimerStop(pTimer);
         }
     }
     else
-        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 }
 #endif /* GVMM_SCHED_WITH_PPT */
 
@@ -2254,13 +2233,12 @@ static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pT
  * The caller must have disabled preemption!
  * The caller must check that the host can do high resolution timers.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   idHostCpu   The current host CPU id.
  * @param   uHz         The desired frequency.
  */
 GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHostCpu, uint32_t uHz)
 {
-    NOREF(pVM);
 #ifdef GVMM_SCHED_WITH_PPT
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     Assert(RTTimerCanDoHighResolution());
@@ -2290,7 +2268,8 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
                     && uHz >= pCpu->Ppt.uMinHz
                     && !pCpu->Ppt.fStarting /* solaris paranoia */))
     {
-        RTSpinlockAcquire(pCpu->Ppt.hSpinlock);
+        RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquireNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 
         pCpu->Ppt.uDesiredHz = uHz;
         uint32_t cNsInterval = 0;
@@ -2310,7 +2289,7 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
                 pCpu->Ppt.cTicksHistoriziationInterval = 1;
         }
 
-        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+        RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
 
         if (cNsInterval)
         {
@@ -2318,16 +2297,14 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
             int rc = RTTimerStart(pCpu->Ppt.pTimer, cNsInterval);
             AssertRC(rc);
 
-            RTSpinlockAcquire(pCpu->Ppt.hSpinlock);
+            RTSpinlockAcquireNoInts(pCpu->Ppt.hSpinlock, &Tmp);
             if (RT_FAILURE(rc))
                 pCpu->Ppt.fStarted = false;
             pCpu->Ppt.fStarting = false;
-            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock);
+            RTSpinlockReleaseNoInts(pCpu->Ppt.hSpinlock, &Tmp);
         }
     }
-#else  /* !GVMM_SCHED_WITH_PPT */
-    NOREF(idHostCpu); NOREF(uHz);
-#endif /* !GVMM_SCHED_WITH_PPT */
+#endif /* GVMM_SCHED_WITH_PPT */
 }
 
 
@@ -2451,8 +2428,8 @@ GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession
  * VMMR0 request wrapper for GVMMR0QueryStatistics.
  *
  * @returns see GVMMR0QueryStatistics.
- * @param   pVM             Pointer to the VM. Optional.
- * @param   pReq            Pointer to the request packet.
+ * @param   pVM             Pointer to the shared VM structure. Optional.
+ * @param   pReq            The request packet.
  */
 GVMMR0DECL(int) GVMMR0QueryStatisticsReq(PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq)
 {
@@ -2566,8 +2543,8 @@ GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSessio
  * VMMR0 request wrapper for GVMMR0ResetStatistics.
  *
  * @returns see GVMMR0ResetStatistics.
- * @param   pVM             Pointer to the VM. Optional.
- * @param   pReq            Pointer to the request packet.
+ * @param   pVM             Pointer to the shared VM structure. Optional.
+ * @param   pReq            The request packet.
  */
 GVMMR0DECL(int) GVMMR0ResetStatisticsReq(PVM pVM, PGVMMRESETSTATISTICSSREQ pReq)
 {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -759,7 +759,6 @@ void vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete)
         &&  ((pSetup->bmRequestType >> 5) & 0x3) >= 2 /* vendor */
         &&  (fComplete || !(pSetup->bmRequestType >> 7))
         &&  pDev
-        &&  pDev->pDescCache
         &&  pDev->pDescCache->pDevice
         &&  pDev->pDescCache->pDevice->idVendor == 0x046d
         &&  (   pDev->pDescCache->pDevice->idProduct == 0x8f6
@@ -934,6 +933,7 @@ static void vusbCtrlCompletion(PVUSBURB pUrb)
             vusbMsgStatusCompletion(pUrb);
             break;
     }
+    vusbUrbCompletionRh(pUrb);
 }
 
 /**
@@ -946,8 +946,6 @@ static void vusbMsgCompletion(PVUSBURB pUrb)
 {
     PVUSBDEV        pDev   = pUrb->VUsb.pDev;
     PVUSBPIPE       pPipe  = &pDev->aPipes[pUrb->EndPt];
-
-    RTCritSectEnter(&pPipe->CritSectCtrl);
     PVUSBCTRLEXTRA  pExtra = pPipe->pCtrl;
 
 #ifdef LOG_ENABLED
@@ -977,10 +975,6 @@ static void vusbMsgCompletion(PVUSBURB pUrb)
            || pUrb->enmState == VUSBURBSTATE_CANCELLED);
     if (pUrb->enmState != VUSBURBSTATE_CANCELLED)
         pUrb->enmState = VUSBURBSTATE_ALLOCATED;
-    RTCritSectLeave(&pPipe->CritSectCtrl);
-
-    /* Complete the original control URB on the root hub now. */
-    vusbUrbCompletionRh(pCtrlUrb);
 }
 
 /**
@@ -990,11 +984,10 @@ static void vusbMsgCompletion(PVUSBURB pUrb)
  * @returns false if it should be completed with failure.
  * @param   pUrb    The URB in question.
  */
-int vusbUrbErrorRh(PVUSBURB pUrb)
+static int vusbUrbErrorRh(PVUSBURB pUrb)
 {
     PVUSBDEV pDev = pUrb->VUsb.pDev;
     PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
-    AssertPtrReturn(pRh, VERR_VUSB_DEVICE_NOT_ATTACHED);
     LogFlow(("%s: vusbUrbErrorRh: pDev=%p[%s] rh=%p\n", pUrb->pszDesc, pDev, pDev->pUsbIns ? pDev->pUsbIns->pszName : "", pRh));
     return pRh->pIRhPort->pfnXferError(pRh->pIRhPort, pUrb);
 }
@@ -1011,24 +1004,12 @@ void vusbUrbCompletionRh(PVUSBURB pUrb)
     AssertMsg(   pUrb->enmState == VUSBURBSTATE_REAPED
               || pUrb->enmState == VUSBURBSTATE_CANCELLED, ("%d\n", pUrb->enmState));
 
-    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
-    AssertPtrReturnVoid(pRh);
-
-    /* If there is a sniffer on the roothub record the completed URB there too. */
-    if (pRh->hSniffer != VUSBSNIFFER_NIL)
-    {
-        int rc = VUSBSnifferRecordEvent(pRh->hSniffer, pUrb,
-                                          pUrb->enmStatus == VUSBSTATUS_OK
-                                        ? VUSBSNIFFEREVENT_COMPLETE
-                                        : VUSBSNIFFEREVENT_ERROR_COMPLETE);
-        if (RT_FAILURE(rc))
-            LogRel(("VUSB: Capturing URB completion event on the root hub failed with %Rrc\n", rc));
-    }
 
 #ifdef VBOX_WITH_STATISTICS
     /*
      * Total and per-type submit statistics.
      */
+    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
     if (pUrb->enmType != VUSBXFERTYPE_MSG)
     {
         Assert(pUrb->enmType >= 0 && pUrb->enmType < (int)RT_ELEMENTS(pRh->aTypes));
@@ -1130,8 +1111,15 @@ void vusbUrbCompletionRh(PVUSBURB pUrb)
 #ifdef LOG_ENABLED
     vusbUrbTrace(pUrb, "vusbUrbCompletionRh", true);
 #endif
+#ifndef VBOX_WITH_STATISTICS
+    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
+#endif
 
+    /** @todo explain why we do this pDev change. */
+    PVUSBDEV pTmp = pUrb->VUsb.pDev;
+    pUrb->VUsb.pDev = &pRh->Hub.Dev;
     pRh->pIRhPort->pfnXferCompletion(pRh->pIRhPort, pUrb);
+    pUrb->VUsb.pDev = pTmp;
     if (pUrb->enmState == VUSBURBSTATE_REAPED)
     {
         LogFlow(("%s: vusbUrbCompletionRh: Freeing URB\n", pUrb->pszDesc));
@@ -1212,26 +1200,25 @@ int vusbUrbQueueAsyncRh(PVUSBURB pUrb)
         return VERR_OBJECT_DESTROYED;
     }
 
-    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     int rc = pUrb->pUsbIns->pReg->pfnUrbQueue(pUrb->pUsbIns, pUrb);
     if (RT_FAILURE(rc))
     {
         LogFlow(("%s: vusbUrbQueueAsyncRh: returns %Rrc (queue_urb)\n", pUrb->pszDesc, rc));
-        RTCritSectLeave(&pDev->CritSectAsyncUrbs);
         return rc;
     }
 
-    ASMAtomicIncU32(&pDev->aPipes[pUrb->EndPt].async);
+    pDev->aPipes[pUrb->EndPt].async++;
 
     /* Queue the pUrb on the roothub */
-    pUrb->VUsb.pNext = pDev->pAsyncUrbHead;
-    if (pDev->pAsyncUrbHead)
-        pDev->pAsyncUrbHead->VUsb.ppPrev = &pUrb->VUsb.pNext;
-    pDev->pAsyncUrbHead = pUrb;
-    pUrb->VUsb.ppPrev = &pDev->pAsyncUrbHead;
-    RTCritSectLeave(&pDev->CritSectAsyncUrbs);
+    RTCritSectEnter(&pRh->CritSect);
+    pUrb->VUsb.pNext = pRh->pAsyncUrbHead;
+    if (pRh->pAsyncUrbHead)
+        pRh->pAsyncUrbHead->VUsb.ppPrev = &pUrb->VUsb.pNext;
+    pRh->pAsyncUrbHead = pUrb;
+    pUrb->VUsb.ppPrev = &pRh->pAsyncUrbHead;
+    RTCritSectLeave(&pRh->CritSect);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 
@@ -1271,7 +1258,6 @@ static void vusbMsgSubmitSynchronously(PVUSBURB pUrb, bool fSafeRequest)
     pExtra->cbLeft = cbData; /* used by IN only */
 
     vusbCtrlCompletion(pUrb);
-    vusbUrbCompletionRh(pUrb);
 
     /*
      * 'Free' the message URB, i.e. put it back to the allocated state.
@@ -1486,7 +1472,7 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
     pSetup->wIndex          = RT_LE2H_U16(pSetupIn->wIndex);
     pSetup->wLength         = RT_LE2H_U16(pSetupIn->wLength);
 
-    LogFlow(("vusbMsgSetup(%p,,%d): bmRequestType=%#04x bRequest=%#04x wValue=%#06x wIndex=%#06x wLength=0x%.4x\n",
+    LogFlow(("vusbMsgSetup(%p,,%d): bmRequestType=%#04x bRequest=%#04x wValue=%#06x wIndex=%#06x wLength=%d\n",
              pPipe, cbBuf, pSetup->bmRequestType, pSetup->bRequest, pSetup->wValue, pSetup->wIndex, pSetup->wLength));
     return true;
 }
@@ -1584,15 +1570,9 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
 #endif
     PVUSBDEV        pDev = pUrb->VUsb.pDev;
     PVUSBPIPE       pPipe = &pDev->aPipes[pUrb->EndPt];
-
-    RTCritSectEnter(&pPipe->CritSectCtrl);
     PVUSBCTRLEXTRA  pExtra = pPipe->pCtrl;
-
     if (!pExtra && !(pExtra = pPipe->pCtrl = vusbMsgAllocExtraData(pUrb)))
-    {
-        RTCritSectLeave(&pPipe->CritSectCtrl);
         return VERR_VUSB_NO_URB_MEMORY;
-    }
     PVUSBSETUP      pSetup = pExtra->pMsg;
 
     AssertMsgReturn(!pPipe->async, ("%u\n", pPipe->async), VERR_GENERAL_FAILURE);
@@ -1631,8 +1611,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             if (pUrb->enmDir != VUSBDIRECTION_SETUP)
             {
                 Log(("%s: vusbUrbSubmitCtrl: Stall at setup stage (dir=%#x)!!\n", pUrb->pszDesc, pUrb->enmDir));
-                vusbMsgStall(pUrb);
-                break;
+                return vusbMsgStall(pUrb);
             }
 
             /* Store setup details, return DNR if corrupt */
@@ -1641,7 +1620,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
                 pUrb->enmState = VUSBURBSTATE_REAPED;
                 pUrb->enmStatus = VUSBSTATUS_DNR;
                 vusbUrbCompletionRh(pUrb);
-                break;
+                return VINF_SUCCESS;
             }
             if (pPipe->pCtrl != pExtra)
             {
@@ -1699,8 +1678,7 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
                 else
                 {
                     Log(("%s: vusbUrbSubmitCtrl: Stall at data stage!!\n", pUrb->pszDesc));
-                    vusbMsgStall(pUrb);
-                    break;
+                    return vusbMsgStall(pUrb);
                 }
             }
 
@@ -1767,7 +1745,6 @@ static int vusbUrbSubmitCtrl(PVUSBURB pUrb)
             break;
     }
 
-    RTCritSectLeave(&pPipe->CritSectCtrl);
     return VINF_SUCCESS;
 }
 
@@ -1817,7 +1794,7 @@ static int vusbUrbSubmitIsochronous(PVUSBURB pUrb)
  * @return VINF_SUCCESS (the Urb status indicates the error).
  * @param   pUrb    The URB.
  */
-int vusbUrbSubmitHardError(PVUSBURB pUrb)
+static int vusbUrbSubmitHardError(PVUSBURB pUrb)
 {
     /* FIXME: Find out the correct return code from the spec */
     pUrb->enmState = VUSBURBSTATE_REAPED;
@@ -1841,7 +1818,7 @@ int vusbUrbSubmit(PVUSBURB pUrb)
     /*
      * Check that the device is in a valid state.
      */
-    const VUSBDEVICESTATE enmState = vusbDevGetState(pDev);
+    const VUSBDEVICESTATE enmState = pDev->enmState;
     if (enmState == VUSB_DEVICE_STATE_RESET)
     {
         LogRel(("VUSB: %s: power off ignored, the device is resetting!\n", pDev->pUsbIns->pszName));
@@ -1903,9 +1880,9 @@ int vusbUrbSubmit(PVUSBURB pUrb)
     int rc;
 
 #ifdef VBOX_WITH_USB
-    if (pPipe && pPipe->hReadAhead)
+    if (pPipe && pPipe->pBuffUrbHead)
     {
-        rc = vusbUrbSubmitBufferedRead(pUrb, pPipe->hReadAhead);
+        rc = vusbUrbSubmitBufferedRead(pUrb, pPipe);
         return rc;
     }
 #endif
@@ -1945,7 +1922,7 @@ int vusbUrbSubmit(PVUSBURB pUrb)
      * makes sure we don't halt bulk endpoints at the wrong time.
      */
     else if (   RT_FAILURE(rc)
-             && !ASMAtomicReadU32(&pDev->aPipes[pUrb->EndPt].async)
+             && !pDev->aPipes[pUrb->EndPt].async
              /* && pUrb->enmType == VUSBXFERTYPE_BULK ?? */
              && !vusbUrbErrorRh(pUrb))
     {
@@ -1977,20 +1954,13 @@ void vusbUrbDoReapAsync(PVUSBURB pHead, RTMSINTERVAL cMillies)
         PVUSBDEV pDev = pUrb->VUsb.pDev;
 
         /* Don't touch resetting devices - paranoid safety precaution. */
-        if (vusbDevGetState(pDev) != VUSB_DEVICE_STATE_RESET)
+        if (pDev->enmState != VUSB_DEVICE_STATE_RESET)
         {
             /*
              * Reap most URBs pending on a single device.
              */
             PVUSBURB pRipe;
-
-            /**
-             * This is workaround for race(should be fixed) detach on one EMT thread and frame boundary timer on other
-             * and leaked URBs (shouldn't be affected by leaked URBs).
-             */
-            Assert(pDev->pUsbIns);
-            while (   pDev->pUsbIns
-                   && ((pRipe = pDev->pUsbIns->pReg->pfnUrbReap(pDev->pUsbIns, cMillies)) != NULL))
+            while ((pRipe = pDev->pUsbIns->pReg->pfnUrbReap(pDev->pUsbIns, cMillies)) != NULL)
             {
                 vusbUrbAssert(pRipe);
                 if (pRipe == pUrbNext)
@@ -2004,41 +1974,6 @@ void vusbUrbDoReapAsync(PVUSBURB pHead, RTMSINTERVAL cMillies)
     }
 }
 
-/**
- * Reap URBs on a per device level.
- *
- * @returns nothing.
- * @param   pDev        The device instance to reap URBs for.
- * @param   cMillies    Number of milliseconds to block in each reap operation.
- *                      Use 0 to not block at all.
- */
-void vusbUrbDoReapAsyncDev(PVUSBDEV pDev, RTMSINTERVAL cMillies)
-{
-    Assert(pDev->enmState != VUSB_DEVICE_STATE_RESET);
-
-    /*
-     * Reap most URBs pending on a single device.
-     */
-    PVUSBURB pRipe;
-
-    /**
-     * This is workaround for race(should be fixed) detach on one EMT thread and frame boundary timer on other
-     * and leaked URBs (shouldn't be affected by leaked URBs).
-     */
-
-    if (ASMAtomicXchgBool(&pDev->fWokenUp, false))
-        return;
-
-    Assert(pDev->pUsbIns);
-    while (   pDev->pUsbIns
-           && ((pRipe = pDev->pUsbIns->pReg->pfnUrbReap(pDev->pUsbIns, cMillies)) != NULL))
-    {
-        vusbUrbAssert(pRipe);
-        vusbUrbRipe(pRipe);
-        if (ASMAtomicXchgBool(&pDev->fWokenUp, false))
-            break;
-    }
-}
 
 /**
  * Completes the URB.
@@ -2046,7 +1981,7 @@ void vusbUrbDoReapAsyncDev(PVUSBDEV pDev, RTMSINTERVAL cMillies)
 static void vusbUrbCompletion(PVUSBURB pUrb)
 {
     Assert(pUrb->VUsb.pDev->aPipes);
-    ASMAtomicDecU32(&pUrb->VUsb.pDev->aPipes[pUrb->EndPt].async);
+    pUrb->VUsb.pDev->aPipes[pUrb->EndPt].async--;
 
     if (pUrb->enmState == VUSBURBSTATE_REAPED)
         vusbUrbUnlink(pUrb);
@@ -2059,14 +1994,32 @@ static void vusbUrbCompletion(PVUSBURB pUrb)
         vusbUrbCompletionRh(pUrb);
 }
 
+
 /**
- * The worker for vusbUrbCancel() which is executed on the I/O thread.
+ * Cancels an URB with CRC failure.
  *
- * @returns nothing.
+ * Cancelling an URB is a tricky thing. The USBProxy backend can not
+ * all cancel it and we must keep the URB around until it's ripe and
+ * can be reaped the normal way. However, we must complete the URB
+ * now, before leaving this function. This is not nice. sigh.
+ *
+ * This function will cancel the URB if it's in-flight and complete
+ * it. The device will in its pfnCancel method be given the chance to
+ * say that the URB doesn't need reaping and should be unlinked.
+ *
+ * An URB which is in the cancel state after pfnCancel will remain in that
+ * state and in the async list until its reaped. When it's finally reaped
+ * it will be unlinked and freed without doing any completion.
+ *
+ * There are different modes of canceling an URB. When devices are being
+ * disconnected etc., they will be completed with an error (CRC). However,
+ * when the HC needs to temporarily halt communication with a device, the
+ * URB/TD must be left alone if possible.
+ *
  * @param   pUrb        The URB to cancel.
- * @param   enmMode     The way the URB should be canceled.
+ * @param   mode        The way the URB should be canceled.
  */
-DECLHIDDEN(void) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode)
+void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode)
 {
     vusbUrbAssert(pUrb);
 #ifdef VBOX_WITH_STATISTICS
@@ -2106,7 +2059,7 @@ DECLHIDDEN(void) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode)
     else
     {
         AssertMsg(pUrb->enmState == VUSBURBSTATE_CANCELLED, ("Invalid state %d, pUrb=%p\n", pUrb->enmState, pUrb));
-        switch (enmMode)
+        switch (mode)
         {
             default:
                 AssertMsgFailed(("Invalid cancel mode\n"));
@@ -2119,46 +2072,6 @@ DECLHIDDEN(void) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode)
 
         }
     }
-}
-
-/**
- * Cancels an URB with CRC failure.
- *
- * Cancelling an URB is a tricky thing. The USBProxy backend can not
- * all cancel it and we must keep the URB around until it's ripe and
- * can be reaped the normal way. However, we must complete the URB
- * now, before leaving this function. This is not nice. sigh.
- *
- * This function will cancel the URB if it's in-flight and complete
- * it. The device will in its pfnCancel method be given the chance to
- * say that the URB doesn't need reaping and should be unlinked.
- *
- * An URB which is in the cancel state after pfnCancel will remain in that
- * state and in the async list until its reaped. When it's finally reaped
- * it will be unlinked and freed without doing any completion.
- *
- * There are different modes of canceling an URB. When devices are being
- * disconnected etc., they will be completed with an error (CRC). However,
- * when the HC needs to temporarily halt communication with a device, the
- * URB/TD must be left alone if possible.
- *
- * @param   pUrb        The URB to cancel.
- * @param   mode        The way the URB should be canceled.
- */
-void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode)
-{
-    int rc = vusbDevIoThreadExecSync(pUrb->VUsb.pDev, (PFNRT)vusbUrbCancelWorker, 2, pUrb, mode);
-    AssertRC(rc);
-}
-
-
-/**
- * Async version of vusbUrbCancel() - doesn't wait for the cancelling to be complete.
- */
-void vusbUrbCancelAsync(PVUSBURB pUrb, CANCELMODE mode)
-{
-    int rc = vusbDevIoThreadExec(pUrb->VUsb.pDev, 0 /* fFlags */, (PFNRT)vusbUrbCancelWorker, 2, pUrb, mode);
-    AssertRC(rc);
 }
 
 

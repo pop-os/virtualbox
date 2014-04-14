@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,8 @@
 #ifndef ___VBox_vmm_cpumctx_h
 #define ___VBox_vmm_cpumctx_h
 
-#ifndef VBOX_FOR_DTRACE_LIB
-# include <iprt/x86.h>
-# include <VBox/types.h>
-#else
-# pragma D depends_on library x86.d
-#endif
+#include <iprt/types.h>
+#include <iprt/x86.h>
 
 
 RT_C_DECLS_BEGIN
@@ -44,21 +40,11 @@ RT_C_DECLS_BEGIN
 /**
  * Selector hidden registers.
  */
-typedef struct CPUMSELREG
+typedef struct CPUMSELREGHID
 {
-    /** The selector register. */
-    RTSEL       Sel;
-    /** Padding, don't use. */
-    RTSEL       PaddingSel;
-    /** The selector which info resides in u64Base, u32Limit and Attr, provided
-     * that CPUMSELREG_FLAGS_VALID is set. */
-    RTSEL       ValidSel;
-    /** Flags, see CPUMSELREG_FLAGS_XXX. */
-    uint16_t    fFlags;
-
     /** Base register.
      *
-     * Long mode remarks:
+     *  Long mode remarks:
      *  - Unused in long mode for CS, DS, ES, SS
      *  - 32 bits for FS & GS; FS(GS)_BASE msr used for the base address
      *  - 64 bits for TR & LDTR
@@ -70,37 +56,8 @@ typedef struct CPUMSELREG
      * This is the high 32-bit word of the descriptor entry.
      * Only the flags, dpl and type are used. */
     X86DESCATTR Attr;
-} CPUMSELREG;
+} CPUMSELREGHID;
 
-/** @name CPUMSELREG_FLAGS_XXX - CPUMSELREG::fFlags values.
- * @{ */
-#define CPUMSELREG_FLAGS_VALID      UINT16_C(0x0001)
-#define CPUMSELREG_FLAGS_STALE      UINT16_C(0x0002)
-#define CPUMSELREG_FLAGS_VALID_MASK UINT16_C(0x0003)
-/** @} */
-
-/** Checks if the hidden parts of the selector register are valid. */
-#ifdef VBOX_WITH_RAW_MODE_NOT_R0
-# define CPUMSELREG_ARE_HIDDEN_PARTS_VALID(a_pVCpu, a_pSelReg) \
-    (   ((a_pSelReg)->fFlags & CPUMSELREG_FLAGS_VALID) \
-     && (   (a_pSelReg)->ValidSel == (a_pSelReg)->Sel \
-         || (   (a_pVCpu) /*!= NULL*/ \
-             && (a_pSelReg)->ValidSel == ((a_pSelReg)->Sel & X86_SEL_MASK_OFF_RPL) \
-             && ((a_pSelReg)->Sel      & X86_SEL_RPL) == 1 \
-             && ((a_pSelReg)->ValidSel & X86_SEL_RPL) == 0 \
-             && CPUMIsGuestInRawMode(a_pVCpu) \
-            ) \
-        ) \
-    )
-#else
-# define CPUMSELREG_ARE_HIDDEN_PARTS_VALID(a_pVCpu, a_pSelReg) \
-    (   ((a_pSelReg)->fFlags & CPUMSELREG_FLAGS_VALID) \
-     && (a_pSelReg)->ValidSel == (a_pSelReg)->Sel  )
-#endif
-
-/** Old type used for the hidden register part.
- * @deprecated  */
-typedef CPUMSELREG CPUMSELREGHID;
 
 /**
  * The sysenter register set.
@@ -119,86 +76,90 @@ typedef struct CPUMSYSENTER
     uint64_t    esp;
 } CPUMSYSENTER;
 
-/**
- * For compilers (like DTrace) that does not grok nameless unions, we have a
- * little hack to make them palatable.
- */
-#ifdef VBOX_FOR_DTRACE_LIB
-# define CPUM_UNION_NAME(a_Nm)  a_Nm
-#elif defined(VBOX_WITHOUT_UNNAMED_UNIONS)
-# define CPUM_UNION_NAME(a_Nm)  a_Nm
-#else
-# define CPUM_UNION_NAME(a_Nm)
-#endif
-
 
 /**
  * CPU context core.
- *
- * @todo        Eliminate this structure!
- * @deprecated  We don't push any context cores any more in TRPM.
  */
+#ifndef VBOX_WITHOUT_UNNAMED_UNIONS
 #pragma pack(1)
 typedef struct CPUMCTXCORE
 {
-    /** @name General Register.
-     * @note  These follow the encoding order (X86_GREG_XXX) and can be accessed as
-     *        an array starting a rax.
-     * @{ */
     union
     {
-        uint8_t         al;
-        uint16_t        ax;
-        uint32_t        eax;
-        uint64_t        rax;
-    } CPUM_UNION_NAME(rax);
+        uint16_t        di;
+        uint32_t        edi;
+        uint64_t        rdi;
+    };
     union
     {
-        uint8_t         cl;
-        uint16_t        cx;
-        uint32_t        ecx;
-        uint64_t        rcx;
-    } CPUM_UNION_NAME(rcx);
-    union
-    {
-        uint8_t         dl;
-        uint16_t        dx;
-        uint32_t        edx;
-        uint64_t        rdx;
-    } CPUM_UNION_NAME(rdx);
-    union
-    {
-        uint8_t         bl;
-        uint16_t        bx;
-        uint32_t        ebx;
-        uint64_t        rbx;
-    } CPUM_UNION_NAME(rbx);
-    union
-    {
-        uint16_t        sp;
-        uint32_t        esp;
-        uint64_t        rsp;
-    } CPUM_UNION_NAME(rsp);
+        uint16_t        si;
+        uint32_t        esi;
+        uint64_t        rsi;
+    };
     union
     {
         uint16_t        bp;
         uint32_t        ebp;
         uint64_t        rbp;
-    } CPUM_UNION_NAME(rbp);
+    };
     union
     {
-        uint8_t         sil;
-        uint16_t        si;
-        uint32_t        esi;
-        uint64_t        rsi;
-    } CPUM_UNION_NAME(rsi);
+        uint16_t        ax;
+        uint32_t        eax;
+        uint64_t        rax;
+    };
     union
     {
-        uint8_t         dil;
-        uint16_t        di;
-        uint32_t        edi;
-        uint64_t        rdi;
-    } CPUM_UNION_NAME(rdi);
+        uint16_t        bx;
+        uint32_t        ebx;
+        uint64_t        rbx;
+    };
+    union
+    {
+        uint16_t        dx;
+        uint32_t        edx;
+        uint64_t        rdx;
+    };
+    union
+    {
+        uint16_t        cx;
+        uint32_t        ecx;
+        uint64_t        rcx;
+    };
+    union
+    {
+        uint16_t        sp;
+        uint32_t        esp;
+        uint64_t        rsp;
+    };
+    /* Note: lss esp, [] in the switcher needs some space, so we reserve it here instead of relying on the exact esp & ss layout as before. */
+    uint32_t            lss_esp;
+    RTSEL               ss;
+    RTSEL               ssPadding;
+
+    RTSEL               gs;
+    RTSEL               gsPadding;
+    RTSEL               fs;
+    RTSEL               fsPadding;
+    RTSEL               es;
+    RTSEL               esPadding;
+    RTSEL               ds;
+    RTSEL               dsPadding;
+    RTSEL               cs;
+    RTSEL               csPadding[3];  /* 3 words to force 8 byte alignment for the remainder */
+
+    union
+    {
+        X86EFLAGS       eflags;
+        X86RFLAGS       rflags;
+    };
+    union
+    {
+        uint16_t        ip;
+        uint32_t        eip;
+        uint64_t        rip;
+    };
+
     uint64_t            r8;
     uint64_t            r9;
     uint64_t            r10;
@@ -207,43 +168,29 @@ typedef struct CPUMCTXCORE
     uint64_t            r13;
     uint64_t            r14;
     uint64_t            r15;
+
+    /** Hidden selector registers.
+     * @{ */
+    CPUMSELREGHID   esHid;
+    CPUMSELREGHID   csHid;
+    CPUMSELREGHID   ssHid;
+    CPUMSELREGHID   dsHid;
+    CPUMSELREGHID   fsHid;
+    CPUMSELREGHID   gsHid;
     /** @} */
-
-    /** @name Segment registers.
-     * @note These follow the encoding order (X86_SREG_XXX) and can be accessed as
-     *       an array starting a es.
-     * @{  */
-    CPUMSELREG          es;
-    CPUMSELREG          cs;
-    CPUMSELREG          ss;
-    CPUMSELREG          ds;
-    CPUMSELREG          fs;
-    CPUMSELREG          gs;
-    /** @} */
-
-    /** The program counter. */
-    union
-    {
-        uint16_t        ip;
-        uint32_t        eip;
-        uint64_t        rip;
-    } CPUM_UNION_NAME(rip);
-
-    /** The flags register. */
-    union
-    {
-        X86EFLAGS       eflags;
-        X86RFLAGS       rflags;
-    } CPUM_UNION_NAME(rflags);
 
 } CPUMCTXCORE;
 #pragma pack()
+#else  /* VBOX_WITHOUT_UNNAMED_UNIONS */
+typedef struct CPUMCTXCORE CPUMCTXCORE;
+#endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
 
 
 /**
  * CPU context.
  */
-#pragma pack(1) /* for VBOXIDTR / VBOXGDTR. */
+#ifndef VBOX_WITHOUT_UNNAMED_UNIONS
+# pragma pack(1)
 typedef struct CPUMCTX
 {
     /** FPU state. (16-byte alignment)
@@ -253,65 +200,90 @@ typedef struct CPUMCTX
 
     /** CPUMCTXCORE Part.
      * @{ */
-
-    /** @name General Register.
-     * @note  These follow the encoding order (X86_GREG_XXX) and can be accessed as
-     *        an array starting at rax.
-     * @{ */
-    union
-    {
-        uint8_t         al;
-        uint16_t        ax;
-        uint32_t        eax;
-        uint64_t        rax;
-    } CPUM_UNION_NAME(rax);
-    union
-    {
-        uint8_t         cl;
-        uint16_t        cx;
-        uint32_t        ecx;
-        uint64_t        rcx;
-    } CPUM_UNION_NAME(rcx);
-    union
-    {
-        uint8_t         dl;
-        uint16_t        dx;
-        uint32_t        edx;
-        uint64_t        rdx;
-    } CPUM_UNION_NAME(rdx);
-    union
-    {
-        uint8_t         bl;
-        uint16_t        bx;
-        uint32_t        ebx;
-        uint64_t        rbx;
-    } CPUM_UNION_NAME(rbx);
-    union
-    {
-        uint16_t        sp;
-        uint32_t        esp;
-        uint64_t        rsp;
-    } CPUM_UNION_NAME(rsp);
-    union
-    {
-        uint16_t        bp;
-        uint32_t        ebp;
-        uint64_t        rbp;
-    } CPUM_UNION_NAME(rbp);
-    union
-    {
-        uint8_t         sil;
-        uint16_t        si;
-        uint32_t        esi;
-        uint64_t        rsi;
-    } CPUM_UNION_NAME(rsi);
     union
     {
         uint8_t         dil;
         uint16_t        di;
         uint32_t        edi;
         uint64_t        rdi;
-    } CPUM_UNION_NAME(rdi);
+    };
+    union
+    {
+        uint8_t         sil;
+        uint16_t        si;
+        uint32_t        esi;
+        uint64_t        rsi;
+    };
+    union
+    {
+        uint16_t        bp;
+        uint32_t        ebp;
+        uint64_t        rbp;
+    };
+    union
+    {
+        uint8_t         al;
+        uint16_t        ax;
+        uint32_t        eax;
+        uint64_t        rax;
+    };
+    union
+    {
+        uint8_t         bl;
+        uint16_t        bx;
+        uint32_t        ebx;
+        uint64_t        rbx;
+    };
+    union
+    {
+        uint8_t         dl;
+        uint16_t        dx;
+        uint32_t        edx;
+        uint64_t        rdx;
+    };
+    union
+    {
+        uint8_t         cl;
+        uint16_t        cx;
+        uint32_t        ecx;
+        uint64_t        rcx;
+    };
+    union
+    {
+        uint16_t        sp;
+        uint32_t        esp;
+        uint64_t        rsp;
+    };
+    /** @note lss esp, [] in the switcher needs some space, so we reserve it here
+     *        instead of relying on the exact esp & ss layout as before (prevented
+     *        us from using a union with rsp). */
+    uint32_t            lss_esp;
+    RTSEL               ss;
+    RTSEL               ssPadding;
+
+    RTSEL               gs;
+    RTSEL               gsPadding;
+    RTSEL               fs;
+    RTSEL               fsPadding;
+    RTSEL               es;
+    RTSEL               esPadding;
+    RTSEL               ds;
+    RTSEL               dsPadding;
+    RTSEL               cs;
+    RTSEL               csPadding[3];  /* 3 words to force 8 byte alignment for the remainder */
+
+    union
+    {
+        X86EFLAGS       eflags;
+        X86RFLAGS       rflags;
+    };
+    union
+    {
+        uint16_t        ip;
+        uint32_t        eip;
+        uint64_t        rip;
+    };
+
     uint64_t            r8;
     uint64_t            r9;
     uint64_t            r10;
@@ -320,44 +292,25 @@ typedef struct CPUMCTX
     uint64_t            r13;
     uint64_t            r14;
     uint64_t            r15;
-    /** @} */
 
-    /** @name Segment registers.
-     * @note These follow the encoding order (X86_SREG_XXX) and can be accessed as
-     *       an array starting at es.
-     * @{  */
-    CPUMSELREG          es;
-    CPUMSELREG          cs;
-    CPUMSELREG          ss;
-    CPUMSELREG          ds;
-    CPUMSELREG          fs;
-    CPUMSELREG          gs;
-    /** @} */
-
-    /** The program counter. */
-    union
-    {
-        uint16_t        ip;
-        uint32_t        eip;
-        uint64_t        rip;
-    } CPUM_UNION_NAME(rip);
-
-    /** The flags register. */
-    union
-    {
-        X86EFLAGS       eflags;
-        X86RFLAGS       rflags;
-    } CPUM_UNION_NAME(rflags);
-
-    /** @} */ /*(CPUMCTXCORE)*/
-
-
-    /** @name Control registers.
+    /** Hidden selector registers.
      * @{ */
-    uint64_t            cr0;
-    uint64_t            cr2;
-    uint64_t            cr3;
-    uint64_t            cr4;
+    CPUMSELREGHID   esHid;
+    CPUMSELREGHID   csHid;
+    CPUMSELREGHID   ssHid;
+    CPUMSELREGHID   dsHid;
+    CPUMSELREGHID   fsHid;
+    CPUMSELREGHID   gsHid;
+    /** @} */
+
+    /** @} */
+
+    /** Control registers.
+     * @{ */
+    uint64_t        cr0;
+    uint64_t        cr2;
+    uint64_t        cr3;
+    uint64_t        cr4;
     /** @} */
 
     /** Debug registers.
@@ -365,102 +318,265 @@ typedef struct CPUMCTX
      *          DR6 and DR7 respectively on both AMD and Intel CPUs.
      * @remarks DR8-15 are currently not supported by AMD or Intel, so
      *          neither do we.
-     */
+     * @{ */
     uint64_t        dr[8];
+    /** @} */
 
-    /** Padding before the structure so the 64-bit member is correctly aligned.
-     * @todo fix this structure!  */
-    uint16_t        gdtrPadding[3];
     /** Global Descriptor Table register. */
     VBOXGDTR        gdtr;
-
-    /** Padding before the structure so the 64-bit member is correctly aligned.
-     * @todo fix this structure!  */
-    uint16_t        idtrPadding[3];
+    uint16_t        gdtrPadding;
     /** Interrupt Descriptor Table register. */
     VBOXIDTR        idtr;
-
+    uint16_t        idtrPadding;
     /** The task register.
      * Only the guest context uses all the members. */
-    CPUMSELREG      ldtr;
+    RTSEL           ldtr;
+    RTSEL           ldtrPadding;
     /** The task register.
      * Only the guest context uses all the members. */
-    CPUMSELREG      tr;
+    RTSEL           tr;
+    RTSEL           trPadding;
 
     /** The sysenter msr registers.
      * This member is not used by the hypervisor context. */
     CPUMSYSENTER    SysEnter;
 
-    /** @name System MSRs.
+    /** System MSRs.
      * @{ */
     uint64_t        msrEFER;
     uint64_t        msrSTAR;            /**< Legacy syscall eip, cs & ss. */
-    uint64_t        msrPAT;             /**< Page attribute table. */
+    uint64_t        msrPAT;
     uint64_t        msrLSTAR;           /**< 64 bits mode syscall rip. */
     uint64_t        msrCSTAR;           /**< Compatibility mode syscall rip. */
     uint64_t        msrSFMASK;          /**< syscall flag mask. */
     uint64_t        msrKERNELGSBASE;    /**< swapgs exchange value. */
-    uint64_t        msrApicBase;        /**< The local APIC base (IA32_APIC_BASE MSR). */
     /** @} */
 
-    /** Size padding. */
-    uint32_t        au32SizePadding[6];
+    /** Hidden selector registers.
+     * @{ */
+    CPUMSELREGHID   ldtrHid;
+    CPUMSELREGHID   trHid;
+    /** @} */
+
+# if 0
+    /** Padding to align the size on a 64 byte boundary. */
+    uint32_t        padding[6];
+# endif
 } CPUMCTX;
+# pragma pack()
+#else  /* VBOX_WITHOUT_UNNAMED_UNIONS */
+typedef struct CPUMCTX CPUMCTX;
+#endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
+
+/**
+ * Gets the CPUMCTXCORE part of a CPUMCTX.
+ */
+#define CPUMCTX2CORE(pCtx) ((PCPUMCTXCORE)(void *)&(pCtx)->edi)
+
+/**
+ * Selector hidden registers, for version 1.6 saved state.
+ */
+typedef struct CPUMSELREGHID_VER1_6
+{
+    /** Base register. */
+    uint32_t    u32Base;
+    /** Limit (expanded). */
+    uint32_t    u32Limit;
+    /** Flags.
+     * This is the high 32-bit word of the descriptor entry.
+     * Only the flags, dpl and type are used. */
+    X86DESCATTR Attr;
+} CPUMSELREGHID_VER1_6;
+
+/**
+ * CPU context, for version 1.6 saved state.
+ * @remarks PATM uses this, which is why it has to be here.
+ */
+#ifndef VBOX_WITHOUT_UNNAMED_UNIONS
+# pragma pack(1)
+typedef struct CPUMCTX_VER1_6
+{
+    /** FPU state. (16-byte alignment)
+     * @todo This doesn't have to be in X86FXSTATE on CPUs without fxsr - we need a type for the
+     *       actual format or convert it (waste of time).  */
+    X86FXSTATE      fpu;
+
+    /** CPUMCTXCORE Part.
+     * @{ */
+    union
+    {
+        uint32_t        edi;
+        uint64_t        rdi;
+    };
+    union
+    {
+        uint32_t        esi;
+        uint64_t        rsi;
+    };
+    union
+    {
+        uint32_t        ebp;
+        uint64_t        rbp;
+    };
+    union
+    {
+        uint32_t        eax;
+        uint64_t        rax;
+    };
+    union
+    {
+        uint32_t        ebx;
+        uint64_t        rbx;
+    };
+    union
+    {
+        uint32_t        edx;
+        uint64_t        rdx;
+    };
+    union
+    {
+        uint32_t        ecx;
+        uint64_t        rcx;
+    };
+    /** @note We rely on the exact layout, because we use lss esp, [] in the
+     *        switcher. */
+    uint32_t        esp;
+    RTSEL           ss;
+    RTSEL           ssPadding;
+    /* Note: no overlap with esp here. */
+    uint64_t        rsp_notused;
+
+    RTSEL           gs;
+    RTSEL           gsPadding;
+    RTSEL           fs;
+    RTSEL           fsPadding;
+    RTSEL           es;
+    RTSEL           esPadding;
+    RTSEL           ds;
+    RTSEL           dsPadding;
+    RTSEL           cs;
+    RTSEL           csPadding[3];   /**< 3 words to force 8 byte alignment for the remainder. */
+
+    union
+    {
+        X86EFLAGS       eflags;
+        X86RFLAGS       rflags;
+    };
+    union
+    {
+        uint32_t        eip;
+        uint64_t        rip;
+    };
+
+    uint64_t            r8;
+    uint64_t            r9;
+    uint64_t            r10;
+    uint64_t            r11;
+    uint64_t            r12;
+    uint64_t            r13;
+    uint64_t            r14;
+    uint64_t            r15;
+
+    /** Hidden selector registers.
+     * @{ */
+    CPUMSELREGHID_VER1_6   esHid;
+    CPUMSELREGHID_VER1_6   csHid;
+    CPUMSELREGHID_VER1_6   ssHid;
+    CPUMSELREGHID_VER1_6   dsHid;
+    CPUMSELREGHID_VER1_6   fsHid;
+    CPUMSELREGHID_VER1_6   gsHid;
+    /** @} */
+
+    /** @} */
+
+    /** Control registers.
+     * @{ */
+    uint64_t        cr0;
+    uint64_t        cr2;
+    uint64_t        cr3;
+    uint64_t        cr4;
+    uint64_t        cr8;
+    /** @} */
+
+    /** Debug registers.
+     * @{ */
+    uint64_t        dr0;
+    uint64_t        dr1;
+    uint64_t        dr2;
+    uint64_t        dr3;
+    uint64_t        dr4; /**< @todo remove dr4 and dr5. */
+    uint64_t        dr5;
+    uint64_t        dr6;
+    uint64_t        dr7;
+    /* DR8-15 are currently not supported */
+    /** @} */
+
+    /** Global Descriptor Table register. */
+    VBOXGDTR_VER1_6 gdtr;
+    uint16_t        gdtrPadding;
+    uint32_t        gdtrPadding64;/** @todo fix this hack */
+    /** Interrupt Descriptor Table register. */
+    VBOXIDTR_VER1_6 idtr;
+    uint16_t        idtrPadding;
+    uint32_t        idtrPadding64;/** @todo fix this hack */
+    /** The task register.
+     * Only the guest context uses all the members. */
+    RTSEL           ldtr;
+    RTSEL           ldtrPadding;
+    /** The task register.
+     * Only the guest context uses all the members. */
+    RTSEL           tr;
+    RTSEL           trPadding;
+
+    /** The sysenter msr registers.
+     * This member is not used by the hypervisor context. */
+    CPUMSYSENTER    SysEnter;
+
+    /** System MSRs.
+     * @{ */
+    uint64_t        msrEFER;
+    uint64_t        msrSTAR;
+    uint64_t        msrPAT;
+    uint64_t        msrLSTAR;
+    uint64_t        msrCSTAR;
+    uint64_t        msrSFMASK;
+    uint64_t        msrFSBASE;
+    uint64_t        msrGSBASE;
+    uint64_t        msrKERNELGSBASE;
+    /** @} */
+
+    /** Hidden selector registers.
+     * @{ */
+    CPUMSELREGHID_VER1_6   ldtrHid;
+    CPUMSELREGHID_VER1_6   trHid;
+    /** @} */
+
+    /** padding to get 32byte aligned size. */
+    uint32_t        padding[2];
+} CPUMCTX_VER1_6;
 #pragma pack()
-
-#ifndef VBOX_FOR_DTRACE_LIB
-
-/**
- * Gets the CPUMCTXCORE part of a CPUMCTX.
- */
-# define CPUMCTX2CORE(pCtx) ((PCPUMCTXCORE)(void *)&(pCtx)->rax)
+#else  /* VBOX_WITHOUT_UNNAMED_UNIONS */
+typedef struct CPUMCTX_VER1_6 CPUMCTX_VER1_6;
+#endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
 
 /**
- * Gets the CPUMCTXCORE part of a CPUMCTX.
- */
-# define CPUMCTX_FROM_CORE(a_pCtxCore) RT_FROM_MEMBER(a_pCtxCore, CPUMCTX, rax)
-
-/**
- * Gets the first selector register of a CPUMCTX.
+ * Guest MSR state.
  *
- * Use this with X86_SREG_COUNT to loop thru the selector registers.
+ * @note    Never change the order here because of saved stated!
  */
-# define CPUMCTX_FIRST_SREG(a_pCtx) (&(a_pCtx)->es)
-
-#endif /* !VBOX_FOR_DTRACE_LIB */
-
-/**
- * Additional guest MSRs (i.e. not part of the CPU context structure).
- *
- * @remarks Never change the order here because of the saved stated!  The size
- *          can in theory be changed, but keep older VBox versions in mind.
- */
-typedef union CPUMCTXMSRS
+typedef union CPUMCTXMSR
 {
     struct
     {
-        uint64_t    TscAux;             /**< MSR_K8_TSC_AUX */
-        uint64_t    MiscEnable;         /**< MSR_IA32_MISC_ENABLE */
-        uint64_t    MtrrDefType;        /**< IA32_MTRR_DEF_TYPE */
-        uint64_t    MtrrFix64K_00000;   /**< IA32_MTRR_FIX16K_80000 */
-        uint64_t    MtrrFix16K_80000;   /**< IA32_MTRR_FIX16K_80000 */
-        uint64_t    MtrrFix16K_A0000;   /**< IA32_MTRR_FIX16K_A0000 */
-        uint64_t    MtrrFix4K_C0000;    /**< IA32_MTRR_FIX4K_C0000 */
-        uint64_t    MtrrFix4K_C8000;    /**< IA32_MTRR_FIX4K_C8000 */
-        uint64_t    MtrrFix4K_D0000;    /**< IA32_MTRR_FIX4K_D0000 */
-        uint64_t    MtrrFix4K_D8000;    /**< IA32_MTRR_FIX4K_D8000 */
-        uint64_t    MtrrFix4K_E0000;    /**< IA32_MTRR_FIX4K_E0000 */
-        uint64_t    MtrrFix4K_E8000;    /**< IA32_MTRR_FIX4K_E8000 */
-        uint64_t    MtrrFix4K_F0000;    /**< IA32_MTRR_FIX4K_F0000 */
-        uint64_t    MtrrFix4K_F8000;    /**< IA32_MTRR_FIX4K_F8000 */
-        uint64_t    PkgCStateCfgCtrl;   /**< MSR_PKG_CST_CONFIG_CONTROL */
+        uint64_t        tscAux;         /**< MSR_K8_TSC_AUX */
+        uint64_t        miscEnable;     /**< MSR_IA32_MISC_ENABLE */
     } msr;
     uint64_t    au64[64];
-} CPUMCTXMSRS;
+} CPUMCTXMSR;
 /** Pointer to the guest MSR state. */
-typedef CPUMCTXMSRS *PCPUMCTXMSRS;
+typedef CPUMCTXMSR *PCPUMCTXMSR;
 /** Pointer to the const guest MSR state. */
-typedef const CPUMCTXMSRS *PCCPUMCTXMSRS;
+typedef const CPUMCTXMSR *PCCPUMCTXMSR;
 
 /**
  * The register set returned by a CPUID operation.

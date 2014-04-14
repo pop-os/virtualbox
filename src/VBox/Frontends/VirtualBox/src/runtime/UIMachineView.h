@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,26 +19,23 @@
 #ifndef ___UIMachineView_h___
 #define ___UIMachineView_h___
 
-/* Qt includes: */
+/* Global includes */
 #include <QAbstractScrollArea>
 #include <QEventLoop>
 
-/* GUI includes: */
-#include "UIDefs.h"
+/* Local includes */
+#include "COMDefs.h"
 #include "UIMachineDefs.h"
+
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 #endif /* Q_WS_MAC */
 
-/* COM includes: */
-#include "COMEnums.h"
-
-/* Forward declarations: */
+/* Local forwards */
 class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIFrameBuffer;
-class CSession;
 
 class UIMachineView : public QAbstractScrollArea
 {
@@ -46,20 +43,8 @@ class UIMachineView : public QAbstractScrollArea
 
 public:
 
-    /** Policy for determining which guest resolutions we wish to
-     * handle.  We also accept anything smaller than the current
-     * resolution. */
-    enum MaxGuestSizePolicy
-    {
-        /** Policy not set correctly. */
-        MaxGuestSizePolicy_Invalid = 0,
-        /** Anything up to a fixed size. */
-        MaxGuestSizePolicy_Fixed,
-        /** Anything up to available space on the host desktop. */
-        MaxGuestSizePolicy_Automatic,
-        /** We accept anything. */
-        MaxGuestSizePolicy_Any
-    };
+    /* Desktop geometry types: */
+    enum DesktopGeo { DesktopGeo_Invalid = 0, DesktopGeo_Fixed, DesktopGeo_Automatic, DesktopGeo_Any };
 
     /* Factory function to create machine-view: */
     static UIMachineView* create(  UIMachineWindow *pMachineWindow
@@ -75,9 +60,8 @@ public:
     /* Public setters: */
     virtual void setGuestAutoresizeEnabled(bool /* fEnabled */) {}
 
-    /** Adjusts guest-screen size to correspond current visual-style.
-      * @note Reimplemented in sub-classes. Base implementation does nothing. */
-    virtual void adjustGuestScreenSize() {}
+    /* Public members: */
+    virtual void normalizeGeometry(bool /* bAdjustPosition = false */) = 0;
 
     /* Framebuffer aspect ratio: */
     double aspectRatio() const;
@@ -88,26 +72,6 @@ signals:
     void resizeHintDone();
 
 protected slots:
-
-    /* Slot to perform guest resize: */
-    void sltPerformGuestResize(const QSize &aSize = QSize());
-
-    /* Handler: Frame-buffer RequestResize stuff: */
-    virtual void sltHandleRequestResize(int iPixelFormat, uchar *pVRAM,
-                                int iBitsPerPixel, int iBytesPerLine,
-                                int iWidth, int iHeight);
-
-    /* Handler: Frame-buffer NotifyUpdate stuff: */
-    virtual void sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeight);
-
-    /* Handler: Frame-buffer SetVisibleRegion stuff: */
-    virtual void sltHandleSetVisibleRegion(QRegion region);
-
-    /* Handler: Frame-buffer 3D overlay visibility stuff: */
-    virtual void sltHandle3DOverlayVisibilityChange(bool fVisible);
-
-    /* Watch dog for desktop resizes: */
-    void sltDesktopResized();
 
     /* Console callback handlers: */
     virtual void sltMachineStateChanged();
@@ -125,13 +89,12 @@ protected:
     virtual ~UIMachineView();
 
     /* Prepare routines: */
-    void prepareViewport();
-    void prepareFrameBuffer();
+    virtual void prepareViewport();
+    virtual void prepareFrameBuffer();
     virtual void prepareCommon();
     virtual void prepareFilters();
-    virtual void prepareConnections();
     virtual void prepareConsoleConnections();
-    void loadMachineViewSettings();
+    virtual void loadMachineViewSettings();
 
     /* Cleanup routines: */
     //virtual void saveMachineViewSettings() {}
@@ -142,7 +105,7 @@ protected:
     //virtual void cleanupViewport();
 
     /* Protected getters: */
-    UIMachineWindow* machineWindow() const { return m_pMachineWindow; }
+    UIMachineWindow* machineWindowWrapper() const { return m_pMachineWindow; }
     UIMachineLogic* machineLogic() const;
     UISession* uisession() const;
     CSession& session();
@@ -155,52 +118,38 @@ protected:
     int visibleHeight() const;
     ulong screenId() const { return m_uScreenId; }
     UIFrameBuffer* frameBuffer() const { return m_pFrameBuffer; }
+    bool isMachineWindowResizeIgnored() const { return m_bIsMachineWindowResizeIgnored; }
     const QPixmap& pauseShot() const { return m_pauseShot; }
-    /** Atomically store the maximum guest resolution which we currently wish
-     * to handle for @a maxGuestSize() to read.  Should be called if anything
-     * happens (e.g. a screen hotplug) which might cause the value to change.
-     * @sa m_u64MaxGuestSize. */
-    void setMaxGuestSize(const QSize &minimumSizeHint = QSize());
-    /** Atomically read the maximum guest resolution which we currently wish to
-     * handle.  This may safely be called from another thread (called by
-     * UIFramebuffer on EMT).
-     * @sa m_u64MaxGuestSize. */
-    QSize maxGuestSize();
-    /** Retrieve the last non-fullscreen guest size hint (from extra data).
-     */
+    QSize storedConsoleSize() const { return m_storedConsoleSize; }
+    DesktopGeo desktopGeometryType() const { return m_desktopGeometryType; }
+    QSize desktopGeometry() const;
     QSize guestSizeHint();
 
     /* Protected setters: */
-    /** Store a guest size hint value to extra data, called on switching to
-     * fullscreen. */
+    void setDesktopGeometry(DesktopGeo geometry, int iWidth, int iHeight);
+    void storeConsoleSize(int iWidth, int iHeight);
+    void setMachineWindowResizeIgnored(bool fIgnore = true) { m_bIsMachineWindowResizeIgnored = fIgnore; }
     void storeGuestSizeHint(const QSize &sizeHint);
 
     /* Protected helpers: */
     virtual void takePauseShotLive();
     virtual void takePauseShotSnapshot();
     virtual void resetPauseShot() { m_pauseShot = QPixmap(); }
-    /** The available area on the current screen for application windows. */
-    virtual QRect workingArea() const = 0;
-    /** Calculate how big the guest desktop can be while still fitting on one
-     * host screen. */
-    virtual QSize calculateMaxGuestSize() const = 0;
+    virtual QRect workingArea() = 0;
+    virtual void calculateDesktopGeometry() = 0;
+    virtual void maybeRestrictMinimumSize() = 0;
     virtual void updateSliders();
     QPoint viewportToContents(const QPoint &vp) const;
     void scrollBy(int dx, int dy);
     static void dimImage(QImage &img);
+#ifdef VBOX_WITH_VIDEOHWACCEL
     void scrollContentsBy(int dx, int dy);
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 #ifdef Q_WS_MAC
     void updateDockIcon();
     CGImageRef vmContentImage();
     CGImageRef frameBuffertoCGImageRef(UIFrameBuffer *pFrameBuffer);
 #endif /* Q_WS_MAC */
-    /** What view mode (normal, fullscreen etc.) are we in? */
-    UIVisualStateType visualStateType() const;
-    /** Is this a fullscreen-type view? */
-    bool isFullscreenOrSeamless() const;
-    /** Return a string consisting of @a base with a suffix for the active
-     * virtual monitor.  Used for storing monitor-specific extra data. */
-    QString makeExtraDataKeyPerMonitor(QString base) const;
 
     /* Cross-platforms event processors: */
     bool event(QEvent *pEvent);
@@ -209,15 +158,6 @@ protected:
     void moveEvent(QMoveEvent *pEvent);
     void paintEvent(QPaintEvent *pEvent);
 
-#ifdef VBOX_WITH_DRAG_AND_DROP
-    void dragEnterEvent(QDragEnterEvent *pEvent);
-    void dragLeaveEvent(QDragLeaveEvent *pEvent);
-    void dragMoveEvent(QDragMoveEvent *pEvent);
-    void dropEvent(QDropEvent *pEvent);
-
-    void handleGHDnd();
-#endif /* VBOX_WITH_DRAG_AND_DROP */
-
     /* Platform specific event processors: */
 #if defined(Q_WS_WIN)
     bool winEvent(MSG *pMsg, long *puResult);
@@ -225,32 +165,17 @@ protected:
     bool x11Event(XEvent *event);
 #endif
 
-    /* Protected members: */
+    /* Private members: */
     UIMachineWindow *m_pMachineWindow;
     ulong m_uScreenId;
     UIFrameBuffer *m_pFrameBuffer;
     KMachineState m_previousState;
-    /** HACK: when switching out of fullscreen or seamless we wish to override
-     * the default size hint to avoid short resizes back to fullscreen size.
-     * Not explicitly initialised (i.e. invalid by default). */
-    QSize m_sizeHintOverride;
 
-    /** The policy for calculating the maximum guest resolution which we wish
-     * to handle. */
-    MaxGuestSizePolicy m_maxGuestSizePolicy;
-    /** The maximum guest size for fixed size policy. */
-    QSize m_fixedMaxGuestSize;
-    /** Maximum guest resolution which we wish to handle.  Must be accessed
-     * atomically.
-     * @note The background for this variable is that we need this value to be
-     * available to the EMT thread, but it can only be calculated by the
-     * GUI, and GUI code can only safely be called on the GUI thread due to
-     * (at least) X11 threading issues.  So we calculate the value in advance,
-     * monitor things in case it changes and update it atomically when it does.
-     */
-    /** @todo This should be private. */
-    volatile uint64_t m_u64MaxGuestSize;
+    DesktopGeo m_desktopGeometryType;
+    QSize m_desktopGeometry;
+    QSize m_storedConsoleSize;
 
+    bool m_bIsMachineWindowResizeIgnored : 1;
 #ifdef VBOX_WITH_VIDEOHWACCEL
     bool m_fAccelerate2DVideo : 1;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
@@ -263,9 +188,8 @@ protected:
     friend class UIMachineLogic;
     friend class UIFrameBuffer;
     friend class UIFrameBufferQImage;
-#ifdef VBOX_GUI_USE_QUARTZ2D
     friend class UIFrameBufferQuartz2D;
-#endif /* VBOX_GUI_USE_QUARTZ2D */
+    friend class UIFrameBufferQGL;
     template<class, class, class> friend class VBoxOverlayFrameBuffer;
 };
 
@@ -273,7 +197,6 @@ protected:
  * It allows to block main GUI thread until specific event received.
  * Later it will become more abstract but now its just used to help
  * fullscreen & seamless modes to restore normal guest size hint. */
-/** @todo This class is now unused - can it be removed altogether? */
 class UIMachineViewBlocker : public QEventLoop
 {
     Q_OBJECT;

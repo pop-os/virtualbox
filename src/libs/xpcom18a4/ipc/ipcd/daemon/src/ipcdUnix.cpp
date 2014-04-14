@@ -473,7 +473,7 @@ int main(int argc, char **argv)
 
 #ifdef VBOX
     /* Set up the runtime without loading the support driver. */
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 #endif
 
     //

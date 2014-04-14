@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,6 @@
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxGuest2.h>
 #include <VBox/hgcmsvc.h>
-#include <VBox/VBoxVideo.h>
-#include <VBox/VBoxVideoHost3D.h>
 
 /* crOpenGL host functions */
 #define SHCRGL_HOST_FN_SET_CONSOLE (1)
@@ -43,13 +41,7 @@
 #define SHCRGL_HOST_FN_CRHGSMI_CMD (10)
 #define SHCRGL_HOST_FN_CRHGSMI_CTL (11)
 #endif
-#define SHCRGL_HOST_FN_VIEWPORT_CHANGED (15)
 #define SHCRGL_HOST_FN_SET_OUTPUT_REDIRECT (20)
-#define SHCRGL_HOST_FN_DEV_RESIZE          (22)
-#define SHCRGL_HOST_FN_VIEWPORT_CHANGED2 (23)
-#define SHCRGL_HOST_FN_TAKE_SCREENSHOT (24)
-#define SHCRGL_HOST_FN_WINDOWS_SHOW (25)
-#define SHCRGL_HOST_FN_CTL          (26)
 /* crOpenGL guest functions */
 #define SHCRGL_GUEST_FN_WRITE       (2)
 #define SHCRGL_GUEST_FN_READ        (3)
@@ -59,35 +51,27 @@
 #define SHCRGL_GUEST_FN_SET_PID     (12)
 #define SHCRGL_GUEST_FN_WRITE_BUFFER        (13)
 #define SHCRGL_GUEST_FN_WRITE_READ_BUFFERED (14)
-#define SHCRGL_GUEST_FN_GET_CAPS_LEGACY     (15)
-#define SHCRGL_GUEST_FN_GET_CAPS_NEW     (16)
 
 /* Parameters count */
 #define SHCRGL_CPARMS_SET_CONSOLE (1)
 #define SHCRGL_CPARMS_SET_VM (1)
-#define SHCRGL_CPARMS_SET_VISIBLE_REGION (1)
+#define SHCRGL_CPARMS_SET_VISIBLE_REGION (2)
 #define SHCRGL_CPARMS_WRITE      (1)
 #define SHCRGL_CPARMS_READ       (2)
 #define SHCRGL_CPARMS_WRITE_READ (3)
 #define SHCRGL_CPARMS_SET_VERSION (2)
 #define SHCRGL_CPARMS_SCREEN_CHANGED (1)
-#define SHCRGL_CPARMS_DEV_RESIZE (1)
 #define SHCRGL_CPARMS_INJECT (2)
 #define SHCRGL_CPARMS_SET_PID (1)
 #define SHCRGL_CPARMS_WRITE_BUFFER        (4)
 #define SHCRGL_CPARMS_WRITE_READ_BUFFERED (3)
 #define SHCRGL_CPARMS_SET_OUTPUT_REDIRECT (1)
-#define SHCRGL_CPARMS_CRCMD_NOTIFY_CMDS (0)
-#define SHCRGL_CPARMS_VIEWPORT_CHANGED (5)
-#define SHCRGL_CPARMS_VIEWPORT_CHANGED2 (1)
-#define SHCRGL_CPARMS_GET_CAPS_LEGACY (1)
-#define SHCRGL_CPARMS_GET_CAPS_NEW (1)
+
 
 /* @todo Move to H3DOR.h begin */
 
 /* Names of supported output redirect formats. */
 #define H3DOR_FMT_RGBA_TOPDOWN "H3DOR_FMT_RGBA_TOPDOWN"
-#define H3DOR_FMT_RGBA "H3DOR_FMT_RGBA"
 
 /* Comma separated list of output formats supported by the output redirect target. */
 #define H3DOR_PROP_FORMATS 0
@@ -104,7 +88,7 @@ typedef struct {
                                                       int32_t x, int32_t y, uint32_t w, uint32_t h));
     /* Update the window visible region. */
     DECLR3CALLBACKMEMBER(void, H3DORVisibleRegion,   (void *pvInstance,
-                                                      uint32_t cRects, const RTRECT *paRects));
+                                                      uint32_t cRects, RTRECT *paRects));
     /* A rendered 3D frame is ready. Format of pvData is "pszFormat" parameter of H3DORBegin. */
     DECLR3CALLBACKMEMBER(void, H3DORFrame,           (void *pvInstance,
                                                       void *pvData, uint32_t cbData));
@@ -283,17 +267,6 @@ typedef struct
 
 } CRVBOXHGCMSETVERSION;
 
-/** GUEST_FN_GET_CAPS Parameters structure. */
-typedef struct
-{
-    VBoxGuestHGCMCallInfo   hdr;
-
-    /** 32bit, out
-     *  Caps
-     */
-    HGCMFunctionParameter   Caps;
-} CRVBOXHGCMGETCAPS;
-
 /** GUEST_FN_INJECT Parameters structure. */
 typedef struct
 {
@@ -368,45 +341,5 @@ typedef struct
     HGCMFunctionParameter   cbWriteback;
 
 } CRVBOXHGCMWRITEREADBUFFERED;
-
-
-typedef struct
-{
-    VBVAINFOSCREEN Screen;
-    void *pvVRAM;
-} CRVBOXHGCMDEVRESIZE;
-
-typedef struct
-{
-    uint32_t u32Screen;
-    uint32_t x;
-    uint32_t y;
-    uint32_t width;
-    uint32_t height;
-} CRVBOXHGCMVIEWPORT;
-
-typedef DECLCALLBACKPTR(void, PFNCRSCREENSHOTREPORT)(void *pvCtx, uint32_t uScreen,
-                uint32_t x, uint32_t y, uint32_t uBitsPerPixel,
-                uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
-                uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
-
-typedef DECLCALLBACKPTR(bool, PFNCRSCREENSHOTBEGIN)(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
-typedef DECLCALLBACKPTR(void, PFNCRSCREENSHOTEND)(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
-
-#define CRSCREEN_ALL (0xffffffff)
-
-typedef struct
-{
-    /* screen id or CRSCREEN_ALL to specify all enabled */
-    uint32_t u32Screen;
-    uint32_t u32Width;
-    uint32_t u32Height;
-    uint32_t u32Pitch;
-    void *pvBuffer;
-    void *pvContext;
-    PFNCRSCREENSHOTBEGIN pfnScreenshotBegin;
-    PFNCRSCREENSHOTREPORT pfnScreenshotPerform;
-    PFNCRSCREENSHOTEND pfnScreenshotEnd;
-} CRVBOXHGCMTAKESCREENSHOT;
 
 #endif

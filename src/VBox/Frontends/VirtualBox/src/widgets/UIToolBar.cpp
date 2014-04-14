@@ -1,4 +1,3 @@
-/* $Id: UIToolBar.cpp $ */
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
@@ -6,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,20 +20,19 @@
 #include "UIToolBar.h"
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
-#endif /* Q_WS_MAC */
+#endif
 
-/* Qt includes: */
+/* Global includes */
 #include <QLayout>
 #include <QMainWindow>
-/* Note: These styles are available on _all_ platforms: */
+/* Note: This styles are available on _all_ platforms. */
 #include <QCleanlooksStyle>
 #include <QWindowsStyle>
 
-UIToolBar::UIToolBar(QWidget *pParent /* = 0*/)
+UIToolBar::UIToolBar(QWidget *pParent)
     : QToolBar(pParent)
-    , m_pMainWindow(qobject_cast<QMainWindow*>(pParent))
+    , m_pMainWindow(qobject_cast <QMainWindow*>(pParent))
 {
-    /* Configure tool-bar: */
     setFloatable(false);
     setMovable(false);
 
@@ -44,24 +42,10 @@ UIToolBar::UIToolBar(QWidget *pParent /* = 0*/)
         qobject_cast <QWindowsStyle*>(QToolBar::style()))
         setStyleSheet("QToolBar { border: 0px none black; }");
 
-    /* Configure layout: */
     if (layout())
         layout()->setContentsMargins(0, 0, 0, 0);;
 
-    /* Configure context-menu policy: */
     setContextMenuPolicy(Qt::NoContextMenu);
-}
-
-void UIToolBar::setUsesTextLabel(bool fEnable)
-{
-    Qt::ToolButtonStyle tbs = Qt::ToolButtonTextUnderIcon;
-    if (!fEnable)
-        tbs = Qt::ToolButtonIconOnly;
-
-    if (m_pMainWindow)
-        m_pMainWindow->setToolButtonStyle(tbs);
-    else
-        setToolButtonStyle(tbs);
 }
 
 #ifdef Q_WS_MAC
@@ -75,9 +59,11 @@ void UIToolBar::setShowToolBarButton(bool fShow)
 {
     ::darwinSetShowsToolbarButton(this, fShow);
 }
+#endif /* Q_WS_MAC */
 
 void UIToolBar::updateLayout()
 {
+#ifdef Q_WS_MAC
     /* There is a bug in Qt Cocoa which result in showing a "more arrow" when
        the necessary size of the toolbar is increased. Also for some languages
        the with doesn't match if the text increase. So manually adjust the size
@@ -88,6 +74,18 @@ void UIToolBar::updateLayout()
     setSizePolicy(sp);
     layout()->invalidate();
     layout()->activate();
-}
 #endif /* Q_WS_MAC */
+}
+
+void UIToolBar::setUsesTextLabel(bool fEnable)
+{
+    Qt::ToolButtonStyle tbs = Qt::ToolButtonTextUnderIcon;
+    if (!fEnable)
+        tbs = Qt::ToolButtonIconOnly;
+
+    if (m_pMainWindow)
+        m_pMainWindow->setToolButtonStyle(tbs);
+    else
+        setToolButtonStyle(tbs);
+}
 

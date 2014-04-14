@@ -39,9 +39,6 @@
 // DConnect service is multithreaded by default...
 #if !defined(DCONNECT_SINGLETHREADED) && !defined(DCONNECT_MULTITHREADED)
 #define DCONNECT_MULTITHREADED
-# ifdef VBOX
-//#  define DCONNECT_WITH_IPRT_REQ_POOL
-# endif
 #endif
 
 #include "ipcIDConnectService.h"
@@ -61,11 +58,6 @@
 #include "xptinfo.h"
 
 #if defined(DCONNECT_MULTITHREADED)
-# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
-
-#  include <iprt/req.h>
-
-# else /* !DCONNECT_WITH_IPRT_REQ_POOL*/
 
 #include "ipcList.h"
 
@@ -87,7 +79,6 @@ struct DConnectRequest : public ipcListNode<DConnectRequest>
   const PRUint32 opLen;
 };
 
-# endif // !DCONNECT_WITH_IPRT_REQ_POOL
 #endif // DCONNECT_MULTITHREADED
 
 class nsIException;
@@ -283,11 +274,7 @@ private:
   NS_HIDDEN_(void) OnInvoke(PRUint32 peer, const struct DConnectInvoke *, PRUint32 opLen);
 
 #if defined(DCONNECT_MULTITHREADED)
-# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
-  static DECLCALLBACK(void) ProcessMessageOnWorkerThread(ipcDConnectService *aThis, PRUint32 aSenderID, void *aData, PRUint32 aDataLen);
-# else
   NS_HIDDEN_(nsresult) CreateWorker();
-# endif
 #endif
 
 private:
@@ -322,12 +309,6 @@ private:
   PRLock *mStubQILock;
 
 #if defined(DCONNECT_MULTITHREADED)
-# if defined(DCONNECT_WITH_IPRT_REQ_POOL)
-
-  /** Request pool. */
-  RTREQPOOL mhReqPool;
-
-# else
 
   friend class DConnectWorker;
 
@@ -341,7 +322,7 @@ private:
   PRUint32 mWaitingWorkers;
   // monitor used to wait on changes in mWaitingWorkers.
   PRMonitor *mWaitingWorkersMon;
-# endif
+
 #endif
 
   // global ipcDConnectService instance for internal usage

@@ -18,15 +18,15 @@
         pretty quotes for English in the LaTeX output generated
         by this XSLT (see below).
 
-    Copyright (C) 2006-2012 Oracle Corporation
+     Copyright (C) 2006-2012 Oracle Corporation
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+     This file is part of VirtualBox Open Source Edition (OSE), as
+     available from http://www.virtualbox.org. This file is free software;
+     you can redistribute it and/or modify it under the terms of the GNU
+     General Public License (GPL) as published by the Free Software
+     Foundation, in version 2 as it comes in the "COPYING" file of the
+     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
   -->
 
 <xsl:stylesheet
@@ -85,7 +85,6 @@
   <xsl:output method="text"/>
 
   <xsl:strip-space elements="*"/>
-  <xsl:preserve-space elements="para"/>
 
   <xsl:template match="/book">
     <xsl:text>
@@ -100,7 +99,6 @@
             a4paper,
             colorlinks=true,
             linkcolor=blue,
-            urlcolor=darkgreen,
             bookmarksnumbered,
             bookmarksopen=true,
             bookmarksopenlevel=0,
@@ -115,7 +113,6 @@
 \usepackage{fancyvrb}
 \usepackage{alltt}
 \usepackage{color}
-\definecolor{darkgreen}{rgb}{0,0.6,0}
 
 </xsl:text>
   <xsl:if test="$TARGETLANG='de_DE'">\usepackage[ngerman]{babel}&#10;\PrerenderUnicode{ü}</xsl:if>
@@ -239,14 +236,7 @@
 
 {\fontsize{16pt}{20pt}\selectfont\rmfamily%
 \begin{center}
-</xsl:text>
-    <xsl:if test="//bookinfo/othercredit">
-      <xsl:text>\docbookbookinfoothercreditcontrib{}: \docbookbookinfoothercreditfirstname{} \docbookbookinfoothercreditsurname
-
-\vspace{8mm}
-</xsl:text>
-    </xsl:if>
-    <xsl:text>\docbooktitleedition
+\docbooktitleedition
 
 \vspace{2mm}
 
@@ -323,7 +313,7 @@
         <xsl:text>}</xsl:text>
       </xsl:when>
     </xsl:choose>
-    <xsl:variable name="refid" select="../@id" />
+    <xsl:variable name="refid" select="(@id) | (../@id)" />
     <xsl:if test="$refid">
       <xsl:value-of select="concat('&#x0a;\label{', $refid, '}')" />
     </xsl:if>
@@ -380,36 +370,6 @@
     </xsl:choose>
   </xsl:template>
 
-  <xsl:template match="firstname">
-    <xsl:choose>
-      <xsl:when test="name(..)='othercredit'">
-        <xsl:text>\newcommand\docbookbookinfoothercreditfirstname{</xsl:text>
-        <xsl:apply-templates />
-        <xsl:text>}&#x0a;</xsl:text>
-      </xsl:when>
-    </xsl:choose>
-  </xsl:template>
-
-  <xsl:template match="surname">
-    <xsl:choose>
-      <xsl:when test="name(..)='othercredit'">
-        <xsl:text>\newcommand\docbookbookinfoothercreditsurname{</xsl:text>
-        <xsl:apply-templates />
-        <xsl:text>}&#x0a;</xsl:text>
-      </xsl:when>
-    </xsl:choose>
-  </xsl:template>
-
-  <xsl:template match="contrib">
-    <xsl:choose>
-      <xsl:when test="name(..)='othercredit'">
-        <xsl:text>\newcommand\docbookbookinfoothercreditcontrib{</xsl:text>
-        <xsl:apply-templates />
-        <xsl:text>}&#x0a;</xsl:text>
-      </xsl:when>
-    </xsl:choose>
-  </xsl:template>
-
   <xsl:template match="glossary">
     <xsl:text>&#x0a;&#x0a;\backmatter&#x0a;\chapter{Glossary}&#x0a;</xsl:text>
     <xsl:apply-templates />
@@ -453,14 +413,7 @@
   </xsl:template>
 
   <xsl:template match="tgroup">
-    <xsl:choose>
-      <xsl:when test="@style='verywide'">
-        <xsl:text>&#x0a;&#x0a;{\small\begin{center}&#x0a;\begin{tabulary}{1.1\textwidth}[]{|L|L|L|}&#x0a;\hline&#x0a;</xsl:text>
-      </xsl:when>
-      <xsl:otherwise>
-        <xsl:text>&#x0a;&#x0a;{\small\begin{center}&#x0a;\begin{tabulary}{.9\textwidth}[]{|L|L|L|}&#x0a;\hline&#x0a;</xsl:text>
-      </xsl:otherwise>
-    </xsl:choose>
+    <xsl:text>&#x0a;&#x0a;{\small\begin{center}&#x0a;\begin{tabulary}{.9\textwidth}[]{|L|L|L|}&#x0a;\hline&#x0a;</xsl:text>
     <xsl:apply-templates />
     <xsl:text>&#x0a;\end{tabulary}&#x0a;\end{center}}&#x0a;</xsl:text>
   </xsl:template>

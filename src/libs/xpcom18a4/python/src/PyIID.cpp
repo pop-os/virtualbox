@@ -66,7 +66,7 @@ PYXPCOM_EXPORT PyObject *PyXPCOMMethod_IID(PyObject *self, PyObject *args)
 			int size = (*pb->bf_getreadbuffer)(obBuf, 0, &buf);
 			if (size != sizeof(nsIID) || buf==NULL) {
 #ifdef VBOX
-                                PyErr_Format(PyExc_ValueError, "A buffer object to be converted to an IID must be exactly %d bytes long", (int)sizeof(nsIID));
+                                PyErr_Format(PyExc_ValueError, "A buffer object to be converted to an IID must be exactly %u bytes long", sizeof(nsIID));
 #else
 				PyErr_Format(PyExc_ValueError, "A buffer object to be converted to an IID must be exactly %d bytes long", sizeof(nsIID));
 #endif
@@ -114,7 +114,7 @@ Py_nsIID::IIDFromPyObject(PyObject *ob, nsIID *pRet) {
 		}
 	} else if (ob->ob_type == &type) {
 		iid = ((Py_nsIID *)ob)->m_iid;
-	} else if (PyObject_HasAttrString(ob, "__class__")) {
+	} else if (PyInstance_Check(ob)) {
 		// Get the _iidobj_ attribute
 		PyObject *use_ob = PyObject_GetAttrString(ob, "_iidobj_");
 		if (use_ob==NULL) {

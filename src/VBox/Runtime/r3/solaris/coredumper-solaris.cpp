@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -162,7 +162,7 @@ static int ReadFileNoIntr(int fd, void *pv, size_t cbToRead)
  *
  * @param fd                Handle to the file to write to.
  * @param pv                Pointer to what to write.
- * @param cbToWrite         Size of data to write.
+ * @param cbToWrite          Size of data to write.
  *
  * @return IPRT status code.
  */
@@ -191,9 +191,9 @@ static int WriteFileNoIntr(int fd, const void *pv, size_t cbToWrite)
  * Read from a given offset in the process' address space.
  *
  * @param pSolProc         Pointer to the solaris process.
- * @param off              The offset to read from.
- * @param pvBuf            Where to read the data into.
- * @param cbToRead         Number of bytes to read.
+ * @param pv                Where to read the data into.
+ * @param cb                Size of the read buffer.
+ * @param off               Offset to read from.
  *
  * @return VINF_SUCCESS, if all the given bytes was read in, otherwise VERR_READ_ERROR.
  */
@@ -246,12 +246,7 @@ static size_t GetFileSizeByFd(int fd)
 {
     struct stat st;
     if (fstat(fd, &st) == 0)
-    {
-        if (st.st_size <= 0)
-            return 0;
-        size_t cbFile = (size_t)st.st_size;
-        return (off_t)cbFile == st.st_size ? cbFile : ~(size_t)0;
-    }
+        return st.st_size < ~(size_t)0 ? (size_t)st.st_size : ~(size_t)0;
 
     CORELOGRELSYS((CORELOG_NAME "GetFileSizeByFd: fstat failed rc=%Rrc\n", RTErrConvertFromErrno(errno)));
     return 0;
@@ -705,8 +700,7 @@ static int ProcReadMappings(PRTSOLCORE pSolCore)
                         /*
                          * Allocate for each prmap_t object, a corresponding RTSOLCOREMAPINFO object.
                          */
-                        pSolProc->pMapInfoHead = (PRTSOLCOREMAPINFO)GetMemoryChunk(pSolCore,
-                                                                                pSolProc->cMappings * sizeof(RTSOLCOREMAPINFO));
+                        pSolProc->pMapInfoHead = (PRTSOLCOREMAPINFO)GetMemoryChunk(pSolCore, pSolProc->cMappings * sizeof(RTSOLCOREMAPINFO));
                         if (pSolProc->pMapInfoHead)
                         {
                             /*
@@ -774,10 +768,7 @@ static int ProcReadMappings(PRTSOLCORE pSolCore)
                     }
                 }
                 else
-                {
-                    CORELOGRELSYS((CORELOG_NAME "ProcReadMappings: FileReadNoIntr failed. rc=%Rrc cbMapFile=%u\n", rc,
-                                   cbMapFile));
-                }
+                    CORELOGRELSYS((CORELOG_NAME "ProcReadMappings: FileReadNoIntr failed. rc=%Rrc cbMapFile=%u\n", rc, cbMapFile));
             }
             else
             {
@@ -907,7 +898,7 @@ static int ProcReadThreads(PRTSOLCORE pSolCore)
                                     memcpy(&pStatus->pr_lwphold, &pSolProc->pCurThreadCtx->uc_sigmask, sizeof(pStatus->pr_lwphold));
                                     pStatus->pr_ustack = (uintptr_t)&pSolProc->pCurThreadCtx->uc_stack;
 
-                                    CORELOG((CORELOG_NAME "ProcReadThreads: patched dumper thread with pre-dump time context.\n"));
+                                    CORELOG((CORELOG_NAME "ProcReadThreads: patched dumper thread context with pre-dump time context.\n"));
                                 }
 
                                 pCur->pStatus = pStatus;
@@ -942,8 +933,8 @@ static int ProcReadThreads(PRTSOLCORE pSolCore)
             }
             else
             {
-                CORELOGRELSYS((CORELOG_NAME "ProcReadThreads: huh!? cbStatusHdrAndData=%u prheader_t=%u entsize=%u\n",
-                               cbStatusHdrAndData, sizeof(prheader_t), pStatusHdr->pr_entsize));
+                CORELOGRELSYS((CORELOG_NAME "ProcReadThreads: huh!? cbStatusHdrAndData=%u prheader_t=%u entsize=%u\n", cbStatusHdrAndData,
+                            sizeof(prheader_t), pStatusHdr->pr_entsize));
                 CORELOGRELSYS((CORELOG_NAME "ProcReadThreads: huh!? cbInfoHdrAndData=%u entsize=%u\n", cbInfoHdrAndData,
                                pStatusHdr->pr_entsize));
                 rc = VERR_INVALID_STATE;
@@ -1263,8 +1254,51 @@ static int rtCoreDumperResumeThreads(PRTSOLCORE pSolCore)
 {
     AssertReturn(pSolCore, VERR_INVALID_POINTER);
 
+#if 1
     uint64_t cThreads;
     return rtCoreDumperForEachThread(pSolCore, &cThreads, resumeThread);
+#else
+    PRTSOLCOREPROCESS pSolProc = &pSolCore->SolProc;
+
+    char szCurThread[128];
+    char szPath[PATH_MAX];
+    PRTDIR pDir = NULL;
+
+    RTStrPrintf(szPath, sizeof(szPath), "/proc/%d/lwp", (int)pSolProc->Process);
+    RTStrPrintf(szCurThread, sizeof(szCurThread), "%d", (int)pSolProc->hCurThread);
+
+    int32_t cRunningThreads = 0;
+    int rc = RTDirOpen(&pDir, szPath);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Loop through all our threads & resume them.
+         */
+        RTDIRENTRY DirEntry;
+        while (RT_SUCCESS(RTDirRead(pDir, &DirEntry, NULL)))
+        {
+            if (   !strcmp(DirEntry.szName, ".")
+                || !strcmp(DirEntry.szName, ".."))
+                continue;
+
+            if ( !strcmp(DirEntry.szName, szCurThread))
+                continue;
+
+            int32_t ThreadId = RTStrToInt32(DirEntry.szName);
+            _lwp_continue((lwpid_t)ThreadId);
+            ++cRunningThreads;
+        }
+
+        CORELOG((CORELOG_NAME "ResumeAllThreads: resumed %d threads\n", cRunningThreads));
+        RTDirClose(pDir);
+    }
+    else
+    {
+        CORELOGRELSYS((CORELOG_NAME "ResumeAllThreads: Failed to open %s\n", szPath));
+        rc = VERR_READ_ERROR;
+    }
+    return rc;
+#endif
 }
 
 
@@ -1284,6 +1318,7 @@ static int rtCoreDumperSuspendThreads(PRTSOLCORE pSolCore)
      * or a combination of spawning and terminating threads can cause any threads to be left running.
      * The assumption here is that threads can only increase not decrease across iterations.
      */
+#if 1
     uint16_t cTries = 0;
     uint64_t aThreads[4];
     RT_ZERO(aThreads);
@@ -1303,6 +1338,64 @@ static int rtCoreDumperSuspendThreads(PRTSOLCORE pSolCore)
         rc = VERR_TIMEOUT;
     }
     return rc;
+#else
+    PRTSOLCOREPROCESS pSolProc = &pSolCore->SolProc;
+
+    char szCurThread[128];
+    char szPath[PATH_MAX];
+    PRTDIR pDir = NULL;
+
+    RTStrPrintf(szPath, sizeof(szPath), "/proc/%d/lwp", (int)pSolProc->Process);
+    RTStrPrintf(szCurThread, sizeof(szCurThread), "%d", (int)pSolProc->hCurThread);
+
+    int rc = -1;
+    uint32_t cThreads = 0;
+    uint16_t cTries = 0;
+    for (cTries = 0; cTries < 10; cTries++)
+    {
+        uint32_t cRunningThreads = 0;
+        rc = RTDirOpen(&pDir, szPath);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Loop through all our threads & suspend them, multiple calls to _lwp_suspend() are okay.
+             */
+            RTDIRENTRY DirEntry;
+            while (RT_SUCCESS(RTDirRead(pDir, &DirEntry, NULL)))
+            {
+                if (   !strcmp(DirEntry.szName, ".")
+                    || !strcmp(DirEntry.szName, ".."))
+                    continue;
+
+                if ( !strcmp(DirEntry.szName, szCurThread))
+                    continue;
+
+                int32_t ThreadId = RTStrToInt32(DirEntry.szName);
+                _lwp_suspend((lwpid_t)ThreadId);
+                ++cRunningThreads;
+            }
+
+            if (cTries > 5 && cThreads == cRunningThreads)
+            {
+                rc = VINF_SUCCESS;
+                break;
+            }
+            cThreads = cRunningThreads;
+            RTDirClose(pDir);
+        }
+        else
+        {
+            CORELOGRELSYS((CORELOG_NAME "SuspendThreads: Failed to open %s cTries=%d\n", szPath, cTries));
+            rc = VERR_READ_ERROR;
+            break;
+        }
+    }
+
+    if (RT_SUCCESS(rc))
+        CORELOG((CORELOG_NAME "SuspendThreads: Stopped %u threads successfully with %u tries\n", cThreads, cTries));
+
+    return rc;
+#endif
 }
 
 
@@ -1347,7 +1440,7 @@ static int ElfWriteNoteHeader(PRTSOLCORE pSolCore, uint_t Type, const void *pcv,
     ElfNoteHdr.achName[3] = 'E';
 
     /*
-     * This is a known violation of the 64-bit ELF spec., see xTracker @bugref{5211}
+     * This is a known violation of the 64-bit ELF spec., see xTracker #5211 comment#3
      * for the historic reasons as to the padding and namesz anomalies.
      */
     static const char s_achPad[3] = { 0, 0, 0 };
@@ -1500,8 +1593,7 @@ static int ElfWriteNoteSection(PRTSOLCORE pSolCore, RTSOLCORETYPE enmType)
                 rc = ElfWriteNoteHeader(pSolCore, aElfNotes[i].Type, aElfNotes[i].pcv, aElfNotes[i].cb);
                 if (RT_FAILURE(rc))
                 {
-                    CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader failed for %s. rc=%Rrc\n",
-                                   aElfNotes[i].pszType, rc));
+                    CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader failed for %s. rc=%Rrc\n", aElfNotes[i].pszType, rc));
                     break;
                 }
             }
@@ -1558,8 +1650,7 @@ static int ElfWriteNoteSection(PRTSOLCORE pSolCore, RTSOLCORETYPE enmType)
                 rc = ElfWriteNoteHeader(pSolCore, aElfNotes[i].Type, aElfNotes[i].pcv, aElfNotes[i].cb);
                 if (RT_FAILURE(rc))
                 {
-                    CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader failed for %s. rc=%Rrc\n",
-                                   aElfNotes[i].pszType, rc));
+                    CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader failed for %s. rc=%Rrc\n", aElfNotes[i].pszType, rc));
                     break;
                 }
             }
@@ -1583,8 +1674,7 @@ static int ElfWriteNoteSection(PRTSOLCORE pSolCore, RTSOLCORETYPE enmType)
                     rc = ElfWriteNoteHeader(pSolCore, NT_LWPSTATUS, pThreadInfo->pStatus, sizeof(lwpstatus_t));
                     if (RT_FAILURE(rc))
                     {
-                        CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader for NT_LWPSTATUS failed. rc=%Rrc\n",
-                                       rc));
+                        CORELOGRELSYS((CORELOG_NAME "ElfWriteNoteSection: ElfWriteNoteHeader for NT_LWPSTATUS failed. rc=%Rrc\n", rc));
                         break;
                     }
                 }
@@ -1715,15 +1805,61 @@ static int ElfWriteMappingHeaders(PRTSOLCORE pSolCore)
     return rc;
 }
 
+
 /**
- * Inner worker for rtCoreDumperWriteCore, which purpose is to
- * squash cleanup gotos.
+ * Write a prepared core file using a user-passed in writer function, requires all threads
+ * to be in suspended state (i.e. called after CreateCore).
+ *
+ * @param pSolCore          Pointer to the core object.
+ * @param pfnWriter         Pointer to the writer function to override default writer (NULL uses default).
+ *
+ * @remarks Resumes all suspended threads, unless it's an invalid core. This
+ *          function must be called only -after- rtCoreDumperCreateCore().
+ * @return IPRT status.
  */
-static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWriter,
-                                     PRTSOLCOREPROCESS pSolProc)
+static int rtCoreDumperWriteCore(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWriter)
 {
+    AssertReturn(pSolCore, VERR_INVALID_POINTER);
+
+    if (!pSolCore->fIsValid)
+        return VERR_INVALID_STATE;
+
+    if (pfnWriter)
+        pSolCore->pfnWriter = pfnWriter;
+
+    PRTSOLCOREPROCESS pSolProc = &pSolCore->SolProc;
+    char szPath[PATH_MAX];
+    int rc = VINF_SUCCESS;
+
+    /*
+     * Open the process address space file.
+     */
+    RTStrPrintf(szPath, sizeof(szPath), "/proc/%d/as", (int)pSolProc->Process);
+    int fd = open(szPath, O_RDONLY);
+    if (fd < 0)
+    {
+        rc = RTErrConvertFromErrno(fd);
+        CORELOGRELSYS((CORELOG_NAME "WriteCore: Failed to open address space, %s. rc=%Rrc\n", szPath, rc));
+        goto WriteCoreDone;
+    }
+
+    pSolProc->fdAs = fd;
+
+    /*
+     * Create the core file.
+     */
+    fd = open(pSolCore->szCorePath, O_CREAT | O_TRUNC | O_RDWR, S_IRUSR);
+    if (fd < 0)
+    {
+        rc = RTErrConvertFromErrno(fd);
+        CORELOGRELSYS((CORELOG_NAME "WriteCore: failed to open %s. rc=%Rrc\n", pSolCore->szCorePath, rc));
+        goto WriteCoreDone;
+    }
+
+    pSolCore->fdCoreFile = fd;
+
     pSolCore->offWrite = 0;
-    uint32_t cProgHdrs = pSolProc->cMappings + 2; /* two PT_NOTE program headers (old, new style) */
+    uint32_t cProgHdrs  = pSolProc->cMappings + 2; /* two PT_NOTE program headers (old, new style) */
 
     /*
      * Write the ELF header.
@@ -1752,11 +1888,11 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     ElfHdr.e_phoff           = sizeof(ElfHdr);
     ElfHdr.e_phentsize       = sizeof(Elf_Phdr);
     ElfHdr.e_shentsize       = sizeof(Elf_Shdr);
-    int rc = pSolCore->pfnWriter(pSolCore->fdCoreFile, &ElfHdr, sizeof(ElfHdr));
+    rc = pSolCore->pfnWriter(pSolCore->fdCoreFile, &ElfHdr, sizeof(ElfHdr));
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: pfnWriter failed writing ELF header. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1777,7 +1913,7 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: pfnWriter failed writing old-style ELF program Header. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1790,7 +1926,7 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: pfnWriter failed writing new-style ELF program header. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1801,7 +1937,7 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "Write: ElfWriteMappings failed. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1811,7 +1947,7 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: ElfWriteNoteSection old-style failed. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1821,7 +1957,7 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: ElfWriteNoteSection new-style failed. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
     /*
@@ -1831,75 +1967,21 @@ static int rtCoreDumperWriteCoreDoIt(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWri
     if (RT_FAILURE(rc))
     {
         CORELOGRELSYS((CORELOG_NAME "WriteCore: ElfWriteMappings failed. rc=%Rrc\n", rc));
-        return rc;
+        goto WriteCoreDone;
     }
 
-    return rc;
-}
 
-
-/**
- * Write a prepared core file using a user-passed in writer function, requires all threads
- * to be in suspended state (i.e. called after CreateCore).
- *
- * @param pSolCore          Pointer to the core object.
- * @param pfnWriter         Pointer to the writer function to override default writer (NULL uses default).
- *
- * @remarks Resumes all suspended threads, unless it's an invalid core. This
- *          function must be called only -after- rtCoreDumperCreateCore().
- * @return IPRT status.
- */
-static int rtCoreDumperWriteCore(PRTSOLCORE pSolCore, PFNRTCOREWRITER pfnWriter)
-{
-    AssertReturn(pSolCore, VERR_INVALID_POINTER);
-
-    if (!pSolCore->fIsValid)
-        return VERR_INVALID_STATE;
-
-    if (pfnWriter)
-        pSolCore->pfnWriter = pfnWriter;
-
-    PRTSOLCOREPROCESS pSolProc = &pSolCore->SolProc;
-    char szPath[PATH_MAX];
-    int  rc;
-
-    /*
-     * Open the process address space file.
-     */
-    RTStrPrintf(szPath, sizeof(szPath), "/proc/%d/as", (int)pSolProc->Process);
-    int fd = open(szPath, O_RDONLY);
-    if (fd >= 0)
+WriteCoreDone:
+    if (pSolCore->fdCoreFile != -1)     /* Initialized in rtCoreDumperCreateCore() */
     {
-        pSolProc->fdAs = fd;
+        close(pSolCore->fdCoreFile);
+        pSolCore->fdCoreFile = -1;
+    }
 
-        /*
-         * Create the core file.
-         */
-        fd = open(pSolCore->szCorePath, O_CREAT | O_TRUNC | O_RDWR, S_IRUSR);
-        if (fd >= 0)
-        {
-            pSolCore->fdCoreFile = fd;
-
-            /*
-             * Do the actual writing.
-             */
-            rc = rtCoreDumperWriteCoreDoIt(pSolCore, pfnWriter, pSolProc);
-
-            close(pSolCore->fdCoreFile);
-            pSolCore->fdCoreFile = -1;
-        }
-        else
-        {
-            rc = RTErrConvertFromErrno(fd);
-            CORELOGRELSYS((CORELOG_NAME "WriteCore: failed to open %s. rc=%Rrc\n", pSolCore->szCorePath, rc));
-        }
+    if (pSolProc->fdAs != -1)           /* Initialized in rtCoreDumperCreateCore() */
+    {
         close(pSolProc->fdAs);
         pSolProc->fdAs = -1;
-    }
-    else
-    {
-        rc = RTErrConvertFromErrno(fd);
-        CORELOGRELSYS((CORELOG_NAME "WriteCore: Failed to open address space, %s. rc=%Rrc\n", szPath, rc));
     }
 
     rtCoreDumperResumeThreads(pSolCore);
@@ -1982,8 +2064,7 @@ static int rtCoreDumperCreateCore(PRTSOLCORE pSolCore, ucontext_t *pContext, con
             if (IsProcessArchNative(pSolProc))
             {
                 /*
-                 * Read process status, information such as number of active LWPs will be
-                 * invalid since we just quiesced the process.
+                 * Read process status, information such as number of active LWPs will be invalid since we just quiesced the process.
                  */
                 rc = ProcReadStatus(pSolCore);
                 if (RT_SUCCESS(rc))
@@ -2073,7 +2154,8 @@ static int rtCoreDumperDestroyCore(PRTSOLCORE pSolCore)
 
 
 /**
- * Takes a core dump.
+ * Takes a core dump. This function has no other parameters than the context
+ * because it can be called from signal handlers.
  *
  * @param   pContext            The context of the caller.
  * @param   pszOutputFile       Path of the core file. If NULL is passed, the
@@ -2165,8 +2247,7 @@ static void rtCoreDumperSignalHandler(int Sig, siginfo_t *pSigInfo, void *pvArg)
              * Some other thread in the process is triggering a crash, wait a while
              * to let our core dumper finish, on timeout trigger system dump.
              */
-            CORELOGRELSYS((CORELOG_NAME "SignalHandler: Core dump already in progress! Waiting a while for completion Sig=%d.\n",
-                           Sig));
+            CORELOGRELSYS((CORELOG_NAME "SignalHandler: Core dump already in progress! Waiting a while for completion Sig=%d.\n", Sig));
             int64_t iTimeout = 16000;  /* timeout (ms) */
             for (;;)
             {

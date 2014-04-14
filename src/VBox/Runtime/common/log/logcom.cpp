@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -101,7 +101,6 @@ RT_EXPORT_SYMBOL(RTLogComPrintfV);
  */
 static DECLCALLBACK(size_t) rtLogComOutput(void *pv, const char *pachChars, size_t cbChars)
 {
-    NOREF(pv);
     if (cbChars)
         RTLogWriteCom(pachChars, cbChars);
     return cbChars;
@@ -128,7 +127,7 @@ RTDECL(void) RTLogWriteCom(const char *pach, size_t cb)
             RTLogWriteCom("\r", 1);
 
         /* Check if port is ready. */
-        cMaxWait = ~0U;
+        cMaxWait = ~0;
         do
         {
             u8 = ASMInU8(IPRT_UART_BASE + 5);

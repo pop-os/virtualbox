@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -425,7 +425,7 @@ public:
         if (length())
         {
             /* Folding an UTF-8 string may result in a shorter encoding (see
-               testcase), so recalculate the length afterwards. */
+               testcase), so recalculate the length afterwars. */
             ::RTStrToUpper(m_psz);
             size_t cchNew = strlen(m_psz);
             Assert(cchNew <= m_cch);
@@ -444,7 +444,7 @@ public:
         if (length())
         {
             /* Folding an UTF-8 string may result in a shorter encoding (see
-               testcase), so recalculate the length afterwards. */
+               testcase), so recalculate the length afterwars. */
             ::RTStrToLower(m_psz);
             size_t cchNew = strlen(m_psz);
             Assert(cchNew <= m_cch);
@@ -851,7 +851,7 @@ public:
      * @returns separated strings as string list.
      */
     RTCList<RTCString, RTCString *> split(const RTCString &a_rstrSep,
-                                          SplitMode a_enmMode = RemoveEmptyParts) const;
+                                          SplitMode a_enmMode = RemoveEmptyParts);
 
     /**
      * Joins a list of strings together using the provided separator.
@@ -977,45 +977,6 @@ RTDECL(const RTCString) operator+(const RTCString &a_rstr1, const char *a_psz2);
  * @relates RTCString
  */
 RTDECL(const RTCString) operator+(const char *a_psz1, const RTCString &a_rstr2);
-
-/**
- * Class with RTCString::printf as constructor for your convenience.
- *
- * Constructing a RTCString string object from a format string and a variable
- * number of arguments can easily be confused with the other RTCString
- * constructors, thus this child class.
- *
- * The usage of this class is like the following:
- * @code
-    RTCStringFmt strName("program name = %s", argv[0]);
-   @endcode
- */
-class RTCStringFmt : public RTCString
-{
-public:
-
-    /**
-     * Constructs a new string given the format string and the list of the
-     * arguments for the format string.
-     *
-     * @param   a_pszFormat     Pointer to the format string (UTF-8),
-     *                          @see pg_rt_str_format.
-     * @param   ...             Ellipsis containing the arguments specified by
-     *                          the format string.
-     */
-    explicit RTCStringFmt(const char *a_pszFormat, ...)
-    {
-        va_list va;
-        va_start(va, a_pszFormat);
-        printfV(a_pszFormat, va);
-        va_end(va);
-    }
-
-    RTMEMEF_NEW_AND_DELETE_OPERATORS();
-
-protected:
-    RTCStringFmt() {}
-};
 
 /** @} */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -151,7 +151,7 @@ VMMR3DECL(void *) MMR3HeapAllocU(PUVM pUVM, MMTAG enmTag, size_t cbSize)
  * freed during the life of the VM.
  *
  * @returns Pointer to allocated memory.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   enmTag      Statistics tag. Statistics are collected on a per tag
  *                      basis in addition to a global one. Thus we can easily
  *                      identify how memory is used by the VM. See MM_TAG_*.
@@ -191,7 +191,7 @@ VMMR3DECL(int) MMR3HeapAllocExU(PUVM pUVM, MMTAG enmTag, size_t cbSize, void **p
  * Same as MMR3HeapAlloc().
  *
  * @returns Pointer to allocated memory.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   enmTag      Statistics tag. Statistics are collected on a per tag
  *                      basis in addition to a global one. Thus we can easily
  *                      identify how memory is used by the VM. See MM_TAG_*.
@@ -230,7 +230,7 @@ VMMR3DECL(void *) MMR3HeapAllocZU(PUVM pUVM, MMTAG enmTag, size_t cbSize)
  * Same as MMR3HeapAlloc() only the memory is zeroed.
  *
  * @returns Pointer to allocated memory.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   enmTag      Statistics tag. Statistics are collected on a per tag
  *                      basis in addition to a global one. Thus we can easily
  *                      identify how memory is used by the VM. See MM_TAG_*.
@@ -270,7 +270,7 @@ VMMR3DECL(int) MMR3HeapAllocZExU(PUVM pUVM, MMTAG enmTag, size_t cbSize, void **
  * Same as MMR3HeapAllocZ().
  *
  * @returns Pointer to allocated memory.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   enmTag      Statistics tag. Statistics are collected on a per tag
  *                      basis in addition to a global one. Thus we can easily
  *                      identify how memory is used by the VM. See MM_TAG_*.
@@ -539,7 +539,7 @@ VMMR3DECL(char *) MMR3HeapStrDupU(PUVM pUVM, MMTAG enmTag, const char *psz)
  *
  * @returns Pointer to the duplicate.
  * @returns NULL on failure or when input NULL.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   enmTag      Statistics tag. Statistics are collected on a per tag
  *                      basis in addition to a global one. Thus we can easily
  *                      identify how memory is used by the VM. See MM_TAG_*.

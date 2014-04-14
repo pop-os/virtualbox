@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,11 +144,6 @@ typedef struct _HGSMIBUFFERTAIL
 AssertCompile(sizeof (HGSMIBUFFERHEADER) == 16);
 AssertCompile(sizeof (HGSMIBUFFERTAIL) == 8);
 
-/* Heap types. */
-#define HGSMI_HEAP_TYPE_NULL    0 /* Heap not initialized. */
-#define HGSMI_HEAP_TYPE_POINTER 1 /* Deprecated. RTHEAPSIMPLE. */
-#define HGSMI_HEAP_TYPE_OFFSET  2 /* Deprecated. RTHEAPOFFSET. */
-#define HGSMI_HEAP_TYPE_MA      3 /* Memory allocator. */
 
 #pragma pack(1)
 typedef struct _HGSMIHEAP
@@ -299,12 +294,6 @@ void HGSMIHeapSetupUnitialized (HGSMIHEAP *pHeap);
 bool HGSMIHeapIsItialized (HGSMIHEAP *pHeap);
 
 void HGSMIHeapDestroy (HGSMIHEAP *pHeap);
-
-void* HGSMIHeapBufferAlloc (HGSMIHEAP *pHeap,
-        HGSMISIZE cbBuffer);
-
-void HGSMIHeapBufferFree(HGSMIHEAP *pHeap,
-                    void *pvBuf);
 
 void *HGSMIHeapAlloc (HGSMIHEAP *pHeap,
                       HGSMISIZE cbData,

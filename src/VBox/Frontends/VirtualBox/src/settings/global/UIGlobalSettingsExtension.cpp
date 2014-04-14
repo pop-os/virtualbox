@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,21 +17,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
+/* Global includes */
 #include <QHeaderView>
 
-/* GUI includes: */
+/* Local includes */
 #include "UIGlobalSettingsExtension.h"
 #include "UIIconPool.h"
 #include "QIFileDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "VBoxLicenseViewer.h"
-
-/* COM includes: */
-#include "CExtPackManager.h"
-#include "CExtPack.h"
-#include "CExtPackFile.h"
 
 /* Extension package item: */
 class UIExtensionPackageItem : public QTreeWidgetItem
@@ -103,7 +98,6 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     /* Setup tool-bar: */
     m_pPackagesToolbar->setUsesTextLabel(false);
     m_pPackagesToolbar->setIconSize(QSize(16, 16));
-    m_pPackagesToolbar->setOrientation(Qt::Vertical);
     m_pActionAdd = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_install_16px.png",
                                                                      ":/extension_pack_install_disabled_16px.png"),
                                                  QString(), this, SLOT(sltInstallPackage()));
@@ -115,9 +109,20 @@ UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     retranslateUi();
 }
 
-/* static */
-void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QString const &strDigest,
-                                               QWidget *pParent, QString *pstrExtPackName)
+/**
+ * Attempt the actual installation.
+ *
+ * This code is shared by UIGlobalSettingsExtension::sltInstallPackage and
+ * VBoxSelectorWnd::sltOpenUrls.
+ *
+ * @param   strFilePath     The path to the tarball.
+ * @param   strDigest       The digest of the file (SHA-256). Empty string if no
+ *                          digest was performed.
+ * @param   pParent         The parent widget.
+ * @param   pstrExtPackName Where to return the extension pack name. Optional.
+ */
+/*static*/ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QString const &strDigest,
+                                                          QWidget *pParent, QString *pstrExtPackName)
 {
     /*
      * Open the extpack tarball via IExtPackManager.
@@ -139,13 +144,18 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
 
     if (!extPackFile.GetUsable())
     {
-        msgCenter().warnAboutBadExtPackFile(strFilePath, extPackFile, pParent);
+        msgCenter().badExtPackFile(strFilePath, extPackFile, pParent);
         return;
     }
 
     QString strPackName = extPackFile.GetName();
     QString strPackDescription = extPackFile.GetDescription();
-    QString strPackVersion = QString("%1r%2%3").arg(extPackFile.GetVersion()).arg(extPackFile.GetRevision()).arg(extPackFile.GetEdition());
+    QString strVersion(extPackFile.GetVersion().section(QRegExp("[-_]"), 0, 0));
+    QString strAppend;
+    /* workaround for http://qt.gitorious.org/qt/qt/commit/7fc63dd0ff368a637dcd17e692b9d6b26278b538 */
+    if (extPackFile.GetVersion().contains(QRegExp("[-_]")))
+        strAppend = extPackFile.GetVersion().section(QRegExp("[-_]"), 1, -1, QString::SectionIncludeLeadingSep);
+    QString strPackVersion = QString("%1r%2%3").arg(strVersion).arg(extPackFile.GetRevision()).arg(strAppend);
 
     /*
      * Check if there is a version of the extension pack already
@@ -156,8 +166,13 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
     bool fReplaceIt = extPackCur.isOk();
     if (fReplaceIt)
     {
-        QString strPackVersionCur = QString("%1r%2%3").arg(extPackCur.GetVersion()).arg(extPackCur.GetRevision()).arg(extPackCur.GetEdition());
-        if (!msgCenter().confirmReplaceExtensionPack(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
+        QString strVersionCur(extPackCur.GetVersion().section(QRegExp("[-_]"), 0, 0));
+        QString strAppendCur;
+        /* workaround for http://qt.gitorious.org/qt/qt/commit/7fc63dd0ff368a637dcd17e692b9d6b26278b538 */
+        if (extPackCur.GetVersion().contains(QRegExp("[-_]")))
+            strAppendCur = extPackCur.GetVersion().section(QRegExp("[-_]"), 1, -1, QString::SectionIncludeLeadingSep);
+        QString strPackVersionCur = QString("%1r%2%3").arg(strVersionCur).arg(extPackCur.GetRevision()).arg(strAppendCur);
+        if (!msgCenter().confirmReplacePackage(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
             return;
     }
     /*
@@ -165,7 +180,7 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
      */
     else
     {
-        if (!msgCenter().confirmInstallExtensionPack(strPackName, strPackVersion, strPackDescription, pParent))
+        if (!msgCenter().confirmInstallingPackage(strPackName, strPackVersion, strPackDescription, pParent))
             return;
     }
 
@@ -187,26 +202,29 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
      * do a refresh even on failure.
      */
     QString displayInfo;
-#ifdef Q_WS_WIN
+#ifdef RT_OS_WINDOWS
     if (pParent)
         displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)pParent->winId());
-#endif /* Q_WS_WIN */
-    /* Prepare installation progress: */
+#endif
     CProgress progress = extPackFile.Install(fReplaceIt, displayInfo);
     if (extPackFile.isOk())
     {
-        /* Show installation progress: */
-        msgCenter().showModalProgressDialog(progress, tr("Extensions"), ":/progress_install_guest_additions_90px.png", pParent);
-        if (!progress.GetCanceled())
+        if (progress.isNull())
+            msgCenter().notifyAboutExtPackInstalled(strPackName, pParent);
+        else
         {
-            if (progress.isOk() && progress.GetResultCode() == 0)
-                msgCenter().warnAboutExtPackInstalled(strPackName, pParent);
-            else
-                msgCenter().cannotInstallExtPack(progress, strFilePath, pParent);
+            msgCenter().showModalProgressDialog(progress, tr("Extensions"));
+            if (!progress.GetCanceled())
+            {
+                if (progress.isOk() && progress.GetResultCode() == 0)
+                    msgCenter().notifyAboutExtPackInstalled(strPackName, pParent);
+                else
+                    msgCenter().cannotInstallExtPack(strFilePath, extPackFile, progress, pParent);
+            }
         }
     }
     else
-        msgCenter().cannotInstallExtPack(extPackFile, strFilePath, pParent);
+        msgCenter().cannotInstallExtPack(strFilePath, extPackFile, progress, pParent);
 
     if (pstrExtPackName)
         *pstrExtPackName = strPackName;
@@ -263,12 +281,14 @@ void UIGlobalSettingsExtension::saveFromCacheTo(QVariant &data)
     UISettingsPageGlobal::uploadData(data);
 }
 
+/* Navigation stuff: */
 void UIGlobalSettingsExtension::setOrderAfter(QWidget *pWidget)
 {
     /* Setup tab-order: */
     setTabOrder(pWidget, m_pPackagesTree);
 }
 
+/* Translation stuff: */
 void UIGlobalSettingsExtension::retranslateUi()
 {
     /* Translate uic generated strings: */
@@ -279,6 +299,7 @@ void UIGlobalSettingsExtension::retranslateUi()
     m_pActionRemove->setText(tr("Remove package"));
 }
 
+/* Handle current-item change fact: */
 void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem)
 {
     /* Check action's availability: */
@@ -286,6 +307,7 @@ void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCur
     m_pActionRemove->setEnabled(pCurrentItem);
 }
 
+/* Invoke context menu: */
 void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
 {
     QMenu menu;
@@ -301,6 +323,7 @@ void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
     menu.exec(m_pPackagesTree->viewport()->mapToGlobal(position));
 }
 
+/* Package add procedure: */
 void UIGlobalSettingsExtension::sltInstallPackage()
 {
     /*
@@ -318,8 +341,8 @@ void UIGlobalSettingsExtension::sltInstallPackage()
     }
     QString strTitle = tr("Select an extension package file");
     QStringList extensions;
-    for (int i = 0; i < VBoxExtPackFileExts.size(); ++i)
-        extensions << QString("*.%1").arg(VBoxExtPackFileExts[i]);
+    for (int i = 0; i < VBoxDefs::VBoxExtPackFileExts.size(); ++i)
+        extensions << QString("*.%1").arg(VBoxDefs::VBoxExtPackFileExts[i]);
     QString strFilter = tr("Extension package files (%1)").arg(extensions.join(" "));
 
     QStringList fileNames = QIFileDialog::getOpenFileNames(strBaseFolder, strFilter, this, strTitle, 0, true, true);
@@ -377,6 +400,7 @@ void UIGlobalSettingsExtension::sltInstallPackage()
     }
 }
 
+/* Package remove procedure: */
 void UIGlobalSettingsExtension::sltRemovePackage()
 {
     /* Get current item: */
@@ -391,7 +415,7 @@ void UIGlobalSettingsExtension::sltRemovePackage()
         /* Get name of current package: */
         QString strSelectedPackageName = pItem->name();
         /* Ask the user about package removing: */
-        if (msgCenter().confirmRemoveExtensionPack(strSelectedPackageName, this))
+        if (msgCenter().confirmRemovingPackage(strSelectedPackageName, this))
         {
             /*
              * Uninstall the package.
@@ -399,16 +423,19 @@ void UIGlobalSettingsExtension::sltRemovePackage()
             CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
             /** @todo Refuse this if any VMs are running. */
             QString displayInfo;
-#ifdef Q_WS_WIN
+#ifdef RT_OS_WINDOWS
             displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)this->winId());
-#endif /* Q_WS_WIN */
-            /* Prepare uninstallation progress: */
+#endif
             CProgress progress = manager.Uninstall(strSelectedPackageName, false /* forced removal? */, displayInfo);
             if (manager.isOk())
             {
-                /* Show uninstallation progress: */
-                msgCenter().showModalProgressDialog(progress, tr("Extensions"), ":/progress_install_guest_additions_90px.png", this);
-                if (progress.isOk() && progress.GetResultCode() == 0)
+                bool fOk = true;
+                if (!progress.isNull())
+                {
+                    msgCenter().showModalProgressDialog(progress, tr("Extensions"));
+                    fOk = progress.isOk() && progress.GetResultCode() == 0;
+                }
+                if (fOk)
                 {
                     /* Remove selected package from cache: */
                     for (int i = 0; i < m_cache.m_items.size(); ++i)
@@ -419,14 +446,15 @@ void UIGlobalSettingsExtension::sltRemovePackage()
                             break;
                         }
                     }
+
                     /* Remove selected package from tree: */
                     delete pItem;
                 }
                 else
-                    msgCenter().cannotUninstallExtPack(progress, strSelectedPackageName, this);
+                    msgCenter().cannotUninstallExtPack(strSelectedPackageName, manager, progress, this);
             }
             else
-                msgCenter().cannotUninstallExtPack(manager, strSelectedPackageName, this);
+                msgCenter().cannotUninstallExtPack(strSelectedPackageName, manager, progress, this);
         }
     }
 }

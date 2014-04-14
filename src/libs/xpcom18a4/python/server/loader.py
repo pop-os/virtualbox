@@ -57,15 +57,11 @@ def FindCOMComponents(py_module):
     # For now, just run over all classes looking for likely candidates.
     comps = []
     for name, object in py_module.__dict__.items():
-        try:
-            if (type(object) == types.ClassType or issubclass(object, object)) and \
-               _has_good_attr(object, "_com_interfaces_") and \
-               _has_good_attr(object, "_reg_clsid_") and \
-               _has_good_attr(object, "_reg_contractid_"):
-                comps.append(object)
-        except TypeError:
-            # The issubclass call raises TypeError when the obj is not a class.
-            pass;
+        if type(object)==types.ClassType and \
+           _has_good_attr(object, "_com_interfaces_") and \
+           _has_good_attr(object, "_reg_clsid_") and \
+           _has_good_attr(object, "_reg_contractid_"):
+            comps.append(object)
     return comps
 
 def register_self(klass, compMgr, location, registryLocation, componentType):

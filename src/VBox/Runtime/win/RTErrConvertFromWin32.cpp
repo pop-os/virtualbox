@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,6 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         case ERROR_PATH_NOT_FOUND:          return VERR_PATH_NOT_FOUND;
         case ERROR_TOO_MANY_OPEN_FILES:     return VERR_TOO_MANY_OPEN_FILES;
         case ERROR_ACCESS_DENIED:           return VERR_ACCESS_DENIED;
-        case ERROR_NOACCESS:                return VERR_ACCESS_DENIED;
 
         case ERROR_INVALID_HANDLE:
         case ERROR_DIRECT_ACCESS_HANDLE:    return VERR_INVALID_HANDLE;
@@ -392,18 +391,10 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
         //case WSAVERNOTSUPPORTED      (WSABASEERR+92)
         //case WSANOTINITIALISED       (WSABASEERR+93)
 
-#ifdef WSAHOST_NOT_FOUND
-        case WSAHOST_NOT_FOUND:     return VERR_NET_HOST_NOT_FOUND;
-#endif
-#ifdef WSATRY_AGAIN
-        case WSATRY_AGAIN:          return VERR_TRY_AGAIN;
-#endif
-#ifndef WSANO_RECOVERY
-        case WSANO_RECOVERY:        return VERR_IO_GEN_FAILURE;
-#endif
-#ifdef WSANO_DATA
-        case WSANO_DATA:            return VERR_NET_ADDRESS_NOT_AVAILABLE;
-#endif
+        //case WSAHOST_NOT_FOUND       (WSABASEERR+1001)
+        //case WSATRY_AGAIN            (WSABASEERR+1002)
+        //case WSANO_RECOVERY          (WSABASEERR+1003)
+        //case WSANO_DATA              (WSABASEERR+1004)
 
 
 #ifndef ERROR_NOT_A_REPARSE_POINT
@@ -411,7 +402,6 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
 #endif
         case ERROR_NOT_A_REPARSE_POINT: return VERR_NOT_SYMLINK;
 
-        case NTE_BAD_ALGID:         return VERR_CR_PKIX_UNKNOWN_DIGEST_TYPE;
     }
 
     /* unknown error. */

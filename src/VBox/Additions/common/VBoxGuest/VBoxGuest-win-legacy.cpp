@@ -1,10 +1,8 @@
-/* $Id: VBoxGuest-win-legacy.cpp $ */
 /** @file
+ *
  * VBoxGuest-win-legacy - Windows NT4 specifics.
- */
-
-/*
- * Copyright (C) 2010-2013 Oracle Corporation
+ *
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +22,15 @@
 #include <VBox/log.h>
 #include <VBox/version.h>
 #include <VBox/VBoxGuestLib.h>
-#include <iprt/string.h>
 
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
+
+/* Reenable logging, this was #undef'ed on iprt/log.h for RING0. */
+#define LOG_ENABLED
+
 #ifndef PCI_MAX_BUSES
 # define PCI_MAX_BUSES 256
 #endif
@@ -39,12 +40,13 @@
 *   Internal Functions                                                         *
 *******************************************************************************/
 RT_C_DECLS_BEGIN
-static NTSTATUS vbgdNt4FindPciDevice(PULONG pulBusNumber, PPCI_SLOT_NUMBER pSlotNumber);
+NTSTATUS vboxguestwinnt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
+static NTSTATUS vboxguestwinnt4FindPCIDevice(PULONG pBusNumber, PPCI_SLOT_NUMBER pSlotNumber);
 RT_C_DECLS_END
 
 #ifdef ALLOC_PRAGMA
-# pragma alloc_text(INIT, vbgdNt4CreateDevice)
-# pragma alloc_text(INIT, vbgdNt4FindPciDevice)
+#pragma alloc_text (INIT, vboxguestwinnt4CreateDevice)
+#pragma alloc_text (INIT, vboxguestwinnt4FindPCIDevice)
 #endif
 
 
@@ -53,86 +55,97 @@ RT_C_DECLS_END
  *
  * @returns NT status code.
  *
- * @param   pDrvObj         The driver object.
- * @param   pDevObj         Unused. NULL. Dunno why it's here, makes no sense.
- * @param   pRegPath        The driver registry path.
+ * @param pDrvObj
+ * @param pDevObj
+ * @param pRegPath
  */
-NTSTATUS vbgdNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath)
+NTSTATUS vboxguestwinnt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath)
 {
-    Log(("VBoxGuest::vbgdNt4CreateDevice: pDrvObj=%p, pDevObj=%p, pRegPath=%p\n", pDrvObj, pDevObj, pRegPath));
+    int vrc = VINF_SUCCESS;
+    NTSTATUS rc = STATUS_SUCCESS;
+
+    Log(("VBoxGuest::vboxguestwinnt4CreateDevice: pDrvObj=%p, pDevObj=%p, pRegPath=%p\n",
+         pDrvObj, pDevObj, pRegPath));
 
     /*
      * Find our virtual PCI device
      */
-    ULONG uBusNumber;
-    PCI_SLOT_NUMBER SlotNumber;
-    NTSTATUS rc = vbgdNt4FindPciDevice(&uBusNumber, &SlotNumber);
+    ULONG uBusNumber, uSlotNumber;
+    rc = vboxguestwinnt4FindPCIDevice(&uBusNumber, (PCI_SLOT_NUMBER*)&uSlotNumber);
     if (NT_ERROR(rc))
+        Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Device not found!\n"));
+
+    bool fSymbolicLinkCreated = false;
+    UNICODE_STRING szDosName;
+    PDEVICE_OBJECT pDeviceObject = NULL;
+    if (NT_SUCCESS(rc))
     {
-        Log(("VBoxGuest::vbgdNt4CreateDevice: Device not found!\n"));
-        return rc;
+        /*
+         * Create device.
+         */
+        UNICODE_STRING szDevName;
+        RtlInitUnicodeString(&szDevName, VBOXGUEST_DEVICE_NAME_NT);
+        rc = IoCreateDevice(pDrvObj, sizeof(VBOXGUESTDEVEXT), &szDevName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pDeviceObject);
+        if (NT_SUCCESS(rc))
+        {
+            Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Device created\n"));
+
+            RtlInitUnicodeString(&szDosName, VBOXGUEST_DEVICE_NAME_DOS);
+            rc = IoCreateSymbolicLink(&szDosName, &szDevName);
+            if (NT_SUCCESS(rc))
+            {
+                Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Symlink created\n"));
+                fSymbolicLinkCreated = true;
+            }
+            else
+                Log(("VBoxGuest::vboxguestwinnt4CreateDevice: IoCreateSymbolicLink failed with rc = %#x\n", rc));
+        }
+        else
+            Log(("VBoxGuest::vboxguestwinnt4CreateDevice: IoCreateDevice failed with rc = %#x\n", rc));
     }
 
     /*
-     * Create device.
+     * Setup the device extension.
      */
-    UNICODE_STRING szDevName;
-    RtlInitUnicodeString(&szDevName, VBOXGUEST_DEVICE_NAME_NT);
-    PDEVICE_OBJECT pDeviceObject = NULL;
-    rc = IoCreateDevice(pDrvObj, sizeof(VBOXGUESTDEVEXTWIN), &szDevName, FILE_DEVICE_UNKNOWN, 0, FALSE, &pDeviceObject);
+    PVBOXGUESTDEVEXT pDevExt = NULL;
     if (NT_SUCCESS(rc))
     {
-        Log(("VBoxGuest::vbgdNt4CreateDevice: Device created\n"));
+        Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Setting up device extension ...\n"));
 
-        UNICODE_STRING DosName;
-        RtlInitUnicodeString(&DosName, VBOXGUEST_DEVICE_NAME_DOS);
-        rc = IoCreateSymbolicLink(&DosName, &szDevName);
-        if (NT_SUCCESS(rc))
-        {
-            Log(("VBoxGuest::vbgdNt4CreateDevice: Symlink created\n"));
-
-            /*
-             * Setup the device extension.
-             */
-            Log(("VBoxGuest::vbgdNt4CreateDevice: Setting up device extension ...\n"));
-
-            PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDeviceObject->DeviceExtension;
-            RT_ZERO(*pDevExt);
-
-            Log(("VBoxGuest::vbgdNt4CreateDevice: Device extension created\n"));
-
-            /* Store a reference to ourself. */
-            pDevExt->pDeviceObject = pDeviceObject;
-
-            /* Store bus and slot number we've queried before. */
-            pDevExt->busNumber  = uBusNumber;
-            pDevExt->slotNumber = SlotNumber.u.AsULONG;
-
-#ifdef VBOX_WITH_GUEST_BUGCHECK_DETECTION
-            rc = hlpRegisterBugCheckCallback(pDevExt);
-#endif
-
-            /* Do the actual VBox init ... */
-            if (NT_SUCCESS(rc))
-            {
-                rc = vbgdNtInit(pDrvObj, pDeviceObject, pRegPath);
-                if (NT_SUCCESS(rc))
-                {
-                    Log(("VBoxGuest::vbgdNt4CreateDevice: Returning rc = 0x%x (succcess)\n", rc));
-                    return rc;
-                }
-
-                /* bail out */
-            }
-            IoDeleteSymbolicLink(&DosName);
-        }
-        else
-            Log(("VBoxGuest::vbgdNt4CreateDevice: IoCreateSymbolicLink failed with rc = %#x\n", rc));
-        IoDeleteDevice(pDeviceObject);
+        pDevExt = (PVBOXGUESTDEVEXT)pDeviceObject->DeviceExtension;
+        RtlZeroMemory(pDevExt, sizeof(VBOXGUESTDEVEXT));
     }
-    else
-        Log(("VBoxGuest::vbgdNt4CreateDevice: IoCreateDevice failed with rc = %#x\n", rc));
-    Log(("VBoxGuest::vbgdNt4CreateDevice: Returning rc = 0x%x\n", rc));
+
+    if (NT_SUCCESS(rc) && pDevExt)
+    {
+        Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Device extension created\n"));
+
+        /* Store a reference to ourself. */
+        pDevExt->win.s.pDeviceObject = pDeviceObject;
+
+        /* Store bus and slot number we've queried before. */
+        pDevExt->win.s.busNumber = uBusNumber;
+        pDevExt->win.s.slotNumber = uSlotNumber;
+
+    #ifdef VBOX_WITH_GUEST_BUGCHECK_DETECTION
+        rc = hlpRegisterBugCheckCallback(pDevExt);
+    #endif
+    }
+
+    /* Do the actual VBox init ... */
+    if (NT_SUCCESS(rc))
+        rc = vboxguestwinInit(pDrvObj, pDeviceObject, pRegPath);
+
+    /* Clean up in case of errors. */
+    if (NT_ERROR(rc))
+    {
+        if (fSymbolicLinkCreated && szDosName.Length > 0)
+            IoDeleteSymbolicLink(&szDosName);
+        if (pDeviceObject)
+            IoDeleteDevice(pDeviceObject);
+    }
+
+    Log(("VBoxGuest::vboxguestwinnt4CreateDevice: Returning rc = 0x%x\n", rc));
     return rc;
 }
 
@@ -142,57 +155,70 @@ NTSTATUS vbgdNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUN
  *
  * @returns NT status code.
  *
- * @param   pulBusNumber    Where to return the bus number on success.
- * @param   pSlotNumber     Where to return the slot number on success.
+ * @param pBusNumber
+ * @param pSlotNumber
+ *
  */
-static NTSTATUS vbgdNt4FindPciDevice(PULONG pulBusNumber, PPCI_SLOT_NUMBER pSlotNumber)
+static NTSTATUS vboxguestwinnt4FindPCIDevice(PULONG pBusNumber, PPCI_SLOT_NUMBER pSlotNumber)
 {
-    Log(("VBoxGuest::vbgdNt4FindPciDevice\n"));
+    NTSTATUS rc;
 
-    PCI_SLOT_NUMBER SlotNumber;
-    SlotNumber.u.AsULONG = 0;
+    ULONG busNumber;
+    ULONG deviceNumber;
+    ULONG functionNumber;
+    PCI_SLOT_NUMBER slotNumber;
+    PCI_COMMON_CONFIG pciData;
+
+    Log(("VBoxGuest::vboxguestwinnt4FindPCIDevice\n"));
+
+    rc = STATUS_DEVICE_DOES_NOT_EXIST;
+    slotNumber.u.AsULONG = 0;
 
     /* Scan each bus. */
-    for (ULONG ulBusNumber = 0; ulBusNumber < PCI_MAX_BUSES; ulBusNumber++)
+    for (busNumber = 0; busNumber < PCI_MAX_BUSES; busNumber++)
     {
         /* Scan each device. */
-        for (ULONG deviceNumber = 0; deviceNumber < PCI_MAX_DEVICES; deviceNumber++)
+        for (deviceNumber = 0; deviceNumber < PCI_MAX_DEVICES; deviceNumber++)
         {
-            SlotNumber.u.bits.DeviceNumber = deviceNumber;
+            slotNumber.u.bits.DeviceNumber = deviceNumber;
 
             /* Scan each function (not really required...). */
-            for (ULONG functionNumber = 0; functionNumber < PCI_MAX_FUNCTION; functionNumber++)
+            for (functionNumber = 0; functionNumber < PCI_MAX_FUNCTION; functionNumber++)
             {
-                SlotNumber.u.bits.FunctionNumber = functionNumber;
+                slotNumber.u.bits.FunctionNumber = functionNumber;
 
                 /* Have a look at what's in this slot. */
-                PCI_COMMON_CONFIG PciData;
-                if (!HalGetBusData(PCIConfiguration, ulBusNumber, SlotNumber.u.AsULONG, &PciData, sizeof(ULONG)))
+                if (!HalGetBusData(PCIConfiguration, busNumber, slotNumber.u.AsULONG,
+                                   &pciData, sizeof(ULONG)))
                 {
                     /* No such bus, we're done with it. */
                     deviceNumber = PCI_MAX_DEVICES;
                     break;
                 }
 
-                if (PciData.VendorID == PCI_INVALID_VENDORID)
+                if (pciData.VendorID == PCI_INVALID_VENDORID)
+                {
                     /* We have to proceed to the next function. */
                     continue;
+                }
 
                 /* Check if it's another device. */
-                if (   PciData.VendorID != VMMDEV_VENDORID
-                    || PciData.DeviceID != VMMDEV_DEVICEID)
+                if ((pciData.VendorID != VMMDEV_VENDORID) ||
+                    (pciData.DeviceID != VMMDEV_DEVICEID))
+                {
                     continue;
+                }
 
                 /* Hooray, we've found it! */
-                Log(("VBoxGuest::vbgdNt4FindPciDevice: Device found!\n"));
+                Log(("VBoxGuest::vboxguestwinnt4FindPCIDevice: Device found!\n"));
 
-                *pulBusNumber = ulBusNumber;
-                *pSlotNumber  = SlotNumber;
-                return STATUS_SUCCESS;
+                *pBusNumber = busNumber;
+                *pSlotNumber = slotNumber;
+                rc = STATUS_SUCCESS;
             }
         }
     }
 
-    return STATUS_DEVICE_DOES_NOT_EXIST;
+    return rc;
 }
 

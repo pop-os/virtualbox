@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,16 +37,13 @@
 #define NUM_CPUS  16
 
 
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
 
     /*
      * Init runtime.
      */
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Create empty VM structure and call MMR3Init().
@@ -85,13 +82,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     if (RT_FAILURE(rc))
     {
         RTPrintf("FAILURE: STAMR3Init failed. rc=%Rrc\n", rc);
-        return 1;
-    }
-
-    rc = CFGMR3Init(pVM, NULL, NULL);
-    if (RT_FAILURE(rc))
-    {
-        RTPrintf("FAILURE: CFGMR3Init failed. rc=%Rrc\n", rc);
         return 1;
     }
 
@@ -243,15 +233,3 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 #endif
     return 0;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
-

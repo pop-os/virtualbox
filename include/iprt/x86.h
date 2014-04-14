@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +28,8 @@
 #ifndef ___iprt_x86_h
 #define ___iprt_x86_h
 
-#ifndef VBOX_FOR_DTRACE_LIB
-# include <iprt/types.h>
-# include <iprt/assert.h>
-#else
-# pragma D depends_on library vbox-types.d
-#endif
+#include <iprt/types.h>
+#include <iprt/assert.h>
 
 /* Workaround for Solaris sys/regset.h defining CS, DS */
 #ifdef RT_OS_SOLARIS
@@ -46,7 +42,6 @@
  * @{
  */
 
-#ifndef VBOX_FOR_DTRACE_LIB
 /**
  * EFLAGS Bits.
  */
@@ -101,7 +96,6 @@ typedef struct X86EFLAGSBITS
 typedef X86EFLAGSBITS *PX86EFLAGSBITS;
 /** Pointer to const EFLAGS bits. */
 typedef const X86EFLAGSBITS *PCX86EFLAGSBITS;
-#endif /* !VBOX_FOR_DTRACE_LIB */
 
 /**
  * EFLAGS.
@@ -110,10 +104,8 @@ typedef union X86EFLAGS
 {
     /** The plain unsigned view. */
     uint32_t        u;
-#ifndef VBOX_FOR_DTRACE_LIB
     /** The bitfield view. */
     X86EFLAGSBITS   Bits;
-#endif
     /** The 8-bit view. */
     uint8_t         au8[4];
     /** The 16-bit view. */
@@ -135,10 +127,8 @@ typedef union X86RFLAGS
 {
     /** The plain unsigned view. */
     uint64_t        u;
-#ifndef VBOX_FOR_DTRACE_LIB
     /** The bitfield view. */
     X86EFLAGSBITS   Bits;
-#endif
     /** The 8-bit view. */
     uint8_t         au8[8];
     /** The 16-bit view. */
@@ -161,20 +151,16 @@ typedef const X86RFLAGS *PCX86RFLAGS;
  */
 /** Bit 0 - CF - Carry flag - Status flag. */
 #define X86_EFL_CF          RT_BIT(0)
-#define X86_EFL_CF_BIT      0
 /** Bit 1 - Reserved, reads as 1. */
 #define X86_EFL_1           RT_BIT(1)
 /** Bit 2 - PF - Parity flag - Status flag. */
 #define X86_EFL_PF          RT_BIT(2)
 /** Bit 4 - AF - Auxiliary carry flag - Status flag. */
 #define X86_EFL_AF          RT_BIT(4)
-#define X86_EFL_AF_BIT      4
 /** Bit 6 - ZF - Zero flag - Status flag. */
 #define X86_EFL_ZF          RT_BIT(6)
-#define X86_EFL_ZF_BIT      6
 /** Bit 7 - SF - Signed flag - Status flag. */
 #define X86_EFL_SF          RT_BIT(7)
-#define X86_EFL_SF_BIT      7
 /** Bit 8 - TF - Trap flag - System flag. */
 #define X86_EFL_TF          RT_BIT(8)
 /** Bit 9 - IF - Interrupt flag - System flag. */
@@ -183,7 +169,6 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_DF          RT_BIT(10)
 /** Bit 11 - OF - Overflow flag - Status flag. */
 #define X86_EFL_OF          RT_BIT(11)
-#define X86_EFL_OF_BIT      11
 /** Bit 12-13 - IOPL - I/O prvilege level flag - System flag. */
 #define X86_EFL_IOPL        (RT_BIT(12) | RT_BIT(13))
 /** Bit 14 - NT - Nested task flag - System flag. */
@@ -200,26 +185,18 @@ typedef const X86RFLAGS *PCX86RFLAGS;
 #define X86_EFL_VIP         RT_BIT(20)
 /** Bit 21 - ID - CPUID flag - System flag. If this responds to flipping CPUID is supported. */
 #define X86_EFL_ID          RT_BIT(21)
-/** All live bits. */
-#define X86_EFL_LIVE_MASK   UINT32_C(0x003f7fd5)
-/** Read as 1 bits. */
-#define X86_EFL_RA1_MASK    RT_BIT_32(1)
 /** IOPL shift. */
 #define X86_EFL_IOPL_SHIFT  12
 /** The the IOPL level from the flags. */
 #define X86_EFL_GET_IOPL(efl)   (((efl) >> X86_EFL_IOPL_SHIFT) & 3)
 /** Bits restored by popf */
-#define X86_EFL_POPF_BITS       (  X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_TF | X86_EFL_IF \
-                                 | X86_EFL_DF | X86_EFL_OF | X86_EFL_IOPL | X86_EFL_NT | X86_EFL_AC | X86_EFL_ID )
-/** The status bits commonly updated by arithmetic instructions. */
-#define X86_EFL_STATUS_BITS     ( X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_OF )
+#define X86_EFL_POPF_BITS       (X86_EFL_CF | X86_EFL_PF | X86_EFL_AF | X86_EFL_ZF | X86_EFL_SF | X86_EFL_TF | X86_EFL_IF | X86_EFL_DF | X86_EFL_OF | X86_EFL_IOPL | X86_EFL_NT | X86_EFL_AC | X86_EFL_ID)
 /** @} */
 
 
 /** CPUID Feature information - ECX.
  * CPUID query with EAX=1.
  */
-#ifndef VBOX_FOR_DTRACE_LIB
 typedef struct X86CPUIDFEATECX
 {
     /** Bit 0 - SSE3 - Supports SSE3 or not. */
@@ -285,9 +262,6 @@ typedef struct X86CPUIDFEATECX
     /** Bit 31 - Hypervisor present (we're a guest). */
     unsigned    u1HVP : 1;
 } X86CPUIDFEATECX;
-#else  /* VBOX_FOR_DTRACE_LIB */
-typedef uint32_t X86CPUIDFEATECX;
-#endif /* VBOX_FOR_DTRACE_LIB */
 /** Pointer to CPUID Feature Information - ECX. */
 typedef X86CPUIDFEATECX *PX86CPUIDFEATECX;
 /** Pointer to const CPUID Feature Information - ECX. */
@@ -297,7 +271,6 @@ typedef const X86CPUIDFEATECX *PCX86CPUIDFEATECX;
 /** CPUID Feature Information - EDX.
  * CPUID query with EAX=1.
  */
-#ifndef VBOX_FOR_DTRACE_LIB /* DTrace different (brain-dead from a C pov) bitfield implementation */
 typedef struct X86CPUIDFEATEDX
 {
     /** Bit 0 - FPU - x87 FPU on Chip. */
@@ -365,9 +338,6 @@ typedef struct X86CPUIDFEATEDX
     /** Bit 31 - PBE - Pending Break Enabled. */
     unsigned    u1PBE : 1;
 } X86CPUIDFEATEDX;
-#else  /* VBOX_FOR_DTRACE_LIB */
-typedef uint32_t X86CPUIDFEATEDX;
-#endif /* VBOX_FOR_DTRACE_LIB */
 /** Pointer to CPUID Feature Information - EDX. */
 typedef X86CPUIDFEATEDX *PX86CPUIDFEATEDX;
 /** Pointer to const CPUID Feature Information - EDX. */
@@ -384,10 +354,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_VENDOR_AMD_EBX        0x68747541      /* Auth */
 #define X86_CPUID_VENDOR_AMD_ECX        0x444d4163      /* cAMD */
 #define X86_CPUID_VENDOR_AMD_EDX        0x69746e65      /* enti */
-
-#define X86_CPUID_VENDOR_VIA_EBX        0x746e6543      /* Cent */
-#define X86_CPUID_VENDOR_VIA_ECX        0x736c7561      /* auls */
-#define X86_CPUID_VENDOR_VIA_EDX        0x48727561      /* aurH */
 /** @} */
 
 
@@ -449,8 +415,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_ECX_OSXSAVE   RT_BIT(27)
 /** ECX Bit 28 - AVX. */
 #define X86_CPUID_FEATURE_ECX_AVX       RT_BIT(28)
-/** ECX Bit 29 - F16C - Half-precision convert instruction support. */
-#define X86_CPUID_FEATURE_ECX_F16C      RT_BIT(29)
 /** ECX Bit 31 - Hypervisor Present (software only). */
 #define X86_CPUID_FEATURE_ECX_HVP       RT_BIT(31)
 
@@ -475,7 +439,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_FEATURE_EDX_CX8       RT_BIT(8)
 /** Bit 9 - APIC - APIC On-Chip. */
 #define X86_CPUID_FEATURE_EDX_APIC      RT_BIT(9)
-/** Bit 11 - SEP - SYSENTER and SYSEXIT Present. */
+/** Bit 11 - SEP - SYSENTER and SYSEXIT. */
 #define X86_CPUID_FEATURE_EDX_SEP       RT_BIT(11)
 /** Bit 12 - MTRR - Memory Type Range Registers. */
 #define X86_CPUID_FEATURE_EDX_MTRR      RT_BIT(12)
@@ -526,25 +490,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** @} */
 
 
-/** @name CPUID Extended Feature information.
- *  CPUID query with EAX=0x80000001.
- *  @{
- */
-/** ECX Bit 0 - LAHF/SAHF support in 64-bit mode. */
-#define X86_CPUID_EXT_FEATURE_ECX_LAHF_SAHF     RT_BIT(0)
-
-/** EDX Bit 11 - SYSCALL/SYSRET. */
-#define X86_CPUID_EXT_FEATURE_EDX_SYSCALL       RT_BIT(11)
-/** EDX Bit 20 - No-Execute/Execute-Disable. */
-#define X86_CPUID_EXT_FEATURE_EDX_NX            RT_BIT(20)
-/** EDX Bit 26 - 1 GB large page. */
-#define X86_CPUID_EXT_FEATURE_EDX_PAGE1GB       RT_BIT(26)
-/** EDX Bit 27 - RDTSCP. */
-#define X86_CPUID_EXT_FEATURE_EDX_RDTSCP        RT_BIT(27)
-/** EDX Bit 29 - AMD Long Mode/Intel-64 Instructions. */
-#define X86_CPUID_EXT_FEATURE_EDX_LONG_MODE     RT_BIT(29)
-/** @}*/
-
 /** @name CPUID AMD Feature information.
  * CPUID query with EAX=0x80000001.
  * @{
@@ -569,6 +514,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_FEATURE_EDX_CX8       RT_BIT(8)
 /** Bit 9 - APIC - APIC On-Chip. */
 #define X86_CPUID_AMD_FEATURE_EDX_APIC      RT_BIT(9)
+/** Bit 11 - SEP - AMD SYSCALL and SYSRET. */
+#define X86_CPUID_AMD_FEATURE_EDX_SEP       RT_BIT(11)
 /** Bit 12 - MTRR - Memory Type Range Registers. */
 #define X86_CPUID_AMD_FEATURE_EDX_MTRR      RT_BIT(12)
 /** Bit 13 - PGE - PTE Global Bit. */
@@ -581,6 +528,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_FEATURE_EDX_PAT       RT_BIT(16)
 /** Bit 17 - PSE-36 - 36-bit Page Size Extention. */
 #define X86_CPUID_AMD_FEATURE_EDX_PSE36     RT_BIT(17)
+/** Bit 20 - NX - AMD No-Execute Page Protection. */
+#define X86_CPUID_AMD_FEATURE_EDX_NX        RT_BIT(20)
 /** Bit 22 - AXMMX - AMD Extensions to MMX Instructions. */
 #define X86_CPUID_AMD_FEATURE_EDX_AXMMX     RT_BIT(22)
 /** Bit 23 - MMX - Intel MMX Technology. */
@@ -589,11 +538,19 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_AMD_FEATURE_EDX_FXSR      RT_BIT(24)
 /** Bit 25 - FFXSR - AMD fast FXSAVE and FXRSTOR Instructions. */
 #define X86_CPUID_AMD_FEATURE_EDX_FFXSR     RT_BIT(25)
+/** Bit 26 - PAGE1GB - AMD 1GB large page support. */
+#define X86_CPUID_AMD_FEATURE_EDX_PAGE1GB   RT_BIT(26)
+/** Bit 27 - RDTSCP - AMD RDTSCP instruction. */
+#define X86_CPUID_AMD_FEATURE_EDX_RDTSCP    RT_BIT(27)
+/** Bit 29 - LM - AMD Long Mode. */
+#define X86_CPUID_AMD_FEATURE_EDX_LONG_MODE RT_BIT(29)
 /** Bit 30 - 3DNOWEXT - AMD Extensions to 3DNow. */
 #define X86_CPUID_AMD_FEATURE_EDX_3DNOW_EX  RT_BIT(30)
 /** Bit 31 - 3DNOW - AMD 3DNow. */
 #define X86_CPUID_AMD_FEATURE_EDX_3DNOW     RT_BIT(31)
 
+/** Bit 0 - LAHF/SAHF - AMD LAHF and SAHF in 64-bit mode. */
+#define X86_CPUID_AMD_FEATURE_ECX_LAHF_SAHF RT_BIT(0)
 /** Bit 1 - CMPL - Core multi-processing legacy mode. */
 #define X86_CPUID_AMD_FEATURE_ECX_CMPL      RT_BIT(1)
 /** Bit 2 - SVM - AMD VM extensions. */
@@ -750,8 +707,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_DR6_B2                          RT_BIT(2)
 /** Bit 3 - B3 - Breakpoint 3 condition detected. */
 #define X86_DR6_B3                          RT_BIT(3)
-/** Mask of all the Bx bits. */
-#define X86_DR6_B_MASK                      UINT64_C(0x0000000f)
 /** Bit 13 - BD - Debug register access detected. Corresponds to the X86_DR7_GD bit. */
 #define X86_DR6_BD                          RT_BIT(13)
 /** Bit 14 - BS - Single step */
@@ -760,16 +715,7 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_DR6_BT                          RT_BIT(15)
 /** Value of DR6 after powerup/reset. */
 #define X86_DR6_INIT_VAL                    UINT64_C(0xFFFF0FF0)
-/** Bits which must be 1s in DR6. */
-#define X86_DR6_RA1_MASK                    UINT64_C(0xffff0ff0)
-/** Bits which must be 0s in DR6. */
-#define X86_DR6_RAZ_MASK                    RT_BIT_64(12)
-/** Bits which must be 0s on writes to DR6. */
-#define X86_DR6_MBZ_MASK                    UINT64_C(0xffffffff00000000)
 /** @} */
-
-/** Get the DR6.Bx bit for a the given breakpoint. */
-#define X86_DR6_B(iBp)                      RT_BIT_64(iBp)
 
 
 /** @name DR7
@@ -795,11 +741,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** Bit 9 - GE - Local breakpoint exact. (Not supported (read ignored) by P6 and later.) */
 #define X86_DR7_GE                          RT_BIT(9)
 
-/** L0, L1, L2, and L3.  */
-#define X86_DR7_LE_ALL                      UINT64_C(0x0000000000000055)
-/** L0, L1, L2, and L3.  */
-#define X86_DR7_GE_ALL                      UINT64_C(0x00000000000000aa)
-
 /** Bit 13 - GD - General detect enable. Enables emulators to get exceptions when
  * any DR register is accessed. */
 #define X86_DR7_GD                          RT_BIT(13)
@@ -820,12 +761,8 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 /** Bit 30 & 31 - LEN3 - Length field 0. Values X86_DR7_LEN_*. */
 #define X86_DR7_LEN3_MASK                   (3 << 30)
 
-/** Bits which reads as 1s. */
-#define X86_DR7_RA1_MASK                    (RT_BIT(10))
-/** Bits which reads as zeros. */
-#define X86_DR7_RAZ_MASK                    UINT64_C(0x0000d800)
-/** Bits which must be 0s when writing to DR7. */
-#define X86_DR7_MBZ_MASK                    UINT64_C(0xffffffff00000000)
+/** Bits which must be 1s. */
+#define X86_DR7_MB1_MASK                    (RT_BIT(10))
 
 /** Calcs the L bit of Nth breakpoint.
  * @param   iBp     The breakpoint number [0..3].
@@ -836,11 +773,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
  * @param   iBp     The breakpoint number [0..3].
  */
 #define X86_DR7_G(iBp)                      ( UINT32_C(1) << (iBp * 2 + 1) )
-
-/** Calcs the L and G bits of Nth breakpoint.
- * @param   iBp     The breakpoint number [0..3].
- */
-#define X86_DR7_L_G(iBp)                    ( UINT32_C(3) << (iBp * 2) )
 
 /** @name Read/Write values.
  * @{ */
@@ -860,33 +792,6 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
  */
 #define X86_DR7_RW(iBp, fRw)                ( (fRw) << ((iBp) * 4 + 16) )
 
-/** Fetch the the R/Wx bits for a given breakpoint (so it can be compared with
- * one of the X86_DR7_RW_XXX constants).
- *
- * @returns X86_DR7_RW_XXX
- * @param   uDR7    DR7 value
- * @param   iBp     The breakpoint number [0..3].
- */
-#define X86_DR7_GET_RW(uDR7, iBp)            ( ( (uDR7) >> ((iBp) * 4 + 16) ) & UINT32_C(3) )
-
-/** R/W0, R/W1, R/W2, and R/W3. */
-#define X86_DR7_RW_ALL_MASKS                UINT32_C(0x33330000)
-
-/** Checks if there are any I/O breakpoint types configured in the RW
- * registers.  Does NOT check if these are enabled, sorry. */
-#define X86_DR7_ANY_RW_IO(uDR7) \
-    (   (    UINT32_C(0x22220000) & (uDR7) ) /* any candidates? */ \
-     && ( ( (UINT32_C(0x22220000) & (uDR7) ) >> 1 )  &  ~(uDR7) ) )
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x33330000)) == 0);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x22220000)) == 1);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x32320000)) == 1);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x23230000)) == 1);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00000000)) == 0);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00010000)) == 0);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00020000)) == 1);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00030000)) == 0);
-AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
-
 /** @name Length values.
  * @{ */
 #define X86_DR7_LEN_BYTE                    0U
@@ -905,15 +810,13 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
  * @param   uDR7    DR7 value
  * @param   iBp     The breakpoint number [0..3].
  */
-#define X86_DR7_GET_LEN(uDR7, iBp)          ( ( (uDR7) >> ((iBp) * 4 + 18) ) & UINT32_C(0x3) )
+#define X86_DR7_GET_LEN(uDR7, iBp)          ( ( (uDR7) >> ((iBp) * 4 + 18) ) & 0x3U)
 
 /** Mask used to check if any breakpoints are enabled. */
-#define X86_DR7_ENABLED_MASK                UINT32_C(0x000000ff)
+#define X86_DR7_ENABLED_MASK                (RT_BIT(0) | RT_BIT(1) | RT_BIT(2) | RT_BIT(3) | RT_BIT(4) | RT_BIT(5) | RT_BIT(6) | RT_BIT(7))
 
-/** LEN0, LEN1, LEN2, and LEN3. */
-#define X86_DR7_LEN_ALL_MASKS               UINT32_C(0xcccc0000)
-/** R/W0, R/W1, R/W2, R/W3,LEN0, LEN1, LEN2, and LEN3. */
-#define X86_DR7_RW_LEN_ALL_MASKS            UINT32_C(0xffff0000)
+/** Mask used to check if any io breakpoints are set. */
+#define X86_DR7_IO_ENABLED_MASK             (X86_DR7_RW(0, X86_DR7_RW_IO) | X86_DR7_RW(1, X86_DR7_RW_IO) | X86_DR7_RW(2, X86_DR7_RW_IO) | X86_DR7_RW(3, X86_DR7_RW_IO))
 
 /** Value of DR7 after powerup/reset. */
 #define X86_DR7_INIT_VAL                    0x400
@@ -923,41 +826,19 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** @name Machine Specific Registers
  * @{
  */
-/** Machine check address register (P5). */
-#define MSR_P5_MC_ADDR                      UINT32_C(0x00000000)
-/** Machine check type register (P5). */
-#define MSR_P5_MC_TYPE                      UINT32_C(0x00000001)
+
 /** Time Stamp Counter. */
 #define MSR_IA32_TSC                        0x10
-#define MSR_IA32_CESR                       UINT32_C(0x00000011)
-#define MSR_IA32_CTR0                       UINT32_C(0x00000012)
-#define MSR_IA32_CTR1                       UINT32_C(0x00000013)
 
 #define MSR_IA32_PLATFORM_ID                0x17
 
 #ifndef MSR_IA32_APICBASE /* qemu cpu.h kludge */
-# define MSR_IA32_APICBASE                  0x1b
-/** Local APIC enabled. */
-# define MSR_IA32_APICBASE_EN               RT_BIT_64(11)
-/** X2APIC enabled (requires the EN bit to be set). */
-# define MSR_IA32_APICBASE_EXTD             RT_BIT_64(10)
-/** The processor is the boot strap processor (BSP). */
-# define MSR_IA32_APICBASE_BSP              RT_BIT_64(8)
-/** Minimum base address mask, consult CPUID leaf 0x80000008 for the actual
- *  width. */
-# define MSR_IA32_APICBASE_BASE_MIN         UINT64_C(0x0000000ffffff000)
+#define MSR_IA32_APICBASE                   0x1b
 #endif
-
-/** Undocumented intel MSR for reporting thread and core counts.
- * Judging from the XNU sources, it seems to be introduced in Nehalem. The
- * first 16 bits is the thread count. The next 16 bits the core count, except
- * on Westmere where it seems it's only the next 4 bits for some reason. */
-#define MSR_CORE_THREAD_COUNT               0x35
 
 /** CPU Feature control. */
 #define MSR_IA32_FEATURE_CONTROL            0x3A
 #define MSR_IA32_FEATURE_CONTROL_LOCK       RT_BIT(0)
-#define MSR_IA32_FEATURE_CONTROL_SMX_VMXON  RT_BIT(1)
 #define MSR_IA32_FEATURE_CONTROL_VMXON      RT_BIT(2)
 
 /** BIOS update trigger (microcode update). */
@@ -981,19 +862,9 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** Get FSB clock status (Intel-specific). */
 #define MSR_IA32_FSB_CLOCK_STS              0xCD
 
-/** C-State configuration control. Intel specific: Nehalem, Sandy Bridge. */
-#define MSR_PKG_CST_CONFIG_CONTROL          UINT32_C(0x000000e2)
-
-/** C0 Maximum Frequency Clock Count */
-#define MSR_IA32_MPERF                      0xE7
-/** C0 Actual Frequency Clock Count */
-#define MSR_IA32_APERF                      0xE8
-
 /** MTRR Capabilities. */
 #define MSR_IA32_MTRR_CAP                   0xFE
 
-/** Cache control/info. */
-#define MSR_BBL_CR_CTL3                     UINT32_C(0x11e)
 
 #ifndef MSR_IA32_SYSENTER_CS /* qemu cpu.h kludge */
 /** SYSENTER_CS - the R0 CS, indirectly giving R0 SS, R3 CS and R3 DS.
@@ -1009,11 +880,14 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #endif
 
 /** Machine Check Global Capabilities Register. */
-#define MSR_IA32_MCG_CAP                    0x179
+#define MSR_IA32_MCP_CAP                    0x179
 /** Machine Check Global Status Register. */
-#define MSR_IA32_MCG_STATUS                 0x17A
+#define MSR_IA32_MCP_STATUS                 0x17A
 /** Machine Check Global Control Register. */
-#define MSR_IA32_MCG_CTRL                   0x17B
+#define MSR_IA32_MCP_CTRL                   0x17B
+
+/** Trace/Profile Resource Control (R/W) */
+#define MSR_IA32_DEBUGCTL                   0x1D9
 
 /** Page Attribute Table. */
 #define MSR_IA32_CR_PAT                     0x277
@@ -1021,14 +895,7 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** Performance counter MSRs. (Intel only) */
 #define MSR_IA32_PERFEVTSEL0                0x186
 #define MSR_IA32_PERFEVTSEL1                0x187
-/** Flexible ratio, seems to be undocumented, used by XNU (tsc.c).
- * The 16th bit whether flex ratio is being used, in which case bits 15:8
- * holds a ratio that Apple takes for TSC granularity.
- *
- * @note This MSR conflics the P4 MSR_MCG_R12 register. */
-#define MSR_FLEX_RATIO                      0x194
-/** Performance state value and starting with Intel core more.
- * Apple uses the >=core features to determine TSC granularity on older CPUs. */
+#define MSR_IA32_FLEX_RATIO                 0x194
 #define MSR_IA32_PERF_STATUS                0x198
 #define MSR_IA32_PERF_CTL                   0x199
 #define MSR_IA32_THERM_STATUS               0x19c
@@ -1036,75 +903,25 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** Enable misc. processor features (R/W). */
 #define MSR_IA32_MISC_ENABLE                   0x1A0
 /** Enable fast-strings feature (for REP MOVS and REP STORS). */
-#define MSR_IA32_MISC_ENABLE_FAST_STRINGS      RT_BIT_64(0)
+#define MSR_IA32_MISC_ENABLE_FAST_STRINGS      RT_BIT(0)
 /** Automatic Thermal Control Circuit Enable (R/W). */
-#define MSR_IA32_MISC_ENABLE_TCC               RT_BIT_64(3)
+#define MSR_IA32_MISC_ENABLE_TCC               RT_BIT(3)
 /** Performance Monitoring Available (R). */
-#define MSR_IA32_MISC_ENABLE_PERF_MON          RT_BIT_64(7)
+#define MSR_IA32_MISC_ENABLE_PERF_MON          RT_BIT(7)
 /** Branch Trace Storage Unavailable (R/O). */
-#define MSR_IA32_MISC_ENABLE_BTS_UNAVAIL       RT_BIT_64(11)
+#define MSR_IA32_MISC_ENABLE_BTS_UNAVAIL       RT_BIT(11)
 /** Precise Event Based Sampling (PEBS) Unavailable (R/O). */
-#define MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL      RT_BIT_64(12)
+#define MSR_IA32_MISC_ENABLE_PEBS_UNAVAIL      RT_BIT(12)
 /** Enhanced Intel SpeedStep Technology Enable (R/W). */
-#define MSR_IA32_MISC_ENABLE_SST_ENABLE        RT_BIT_64(16)
+#define MSR_IA32_MISC_ENABLE_SST_ENABLE        RT_BIT(16)
 /** If MONITOR/MWAIT is supported (R/W). */
-#define MSR_IA32_MISC_ENABLE_MONITOR           RT_BIT_64(18)
+#define MSR_IA32_MISC_ENABLE_MONITOR           RT_BIT(18)
 /** Limit CPUID Maxval to 3 leafs (R/W). */
-#define MSR_IA32_MISC_ENABLE_LIMIT_CPUID       RT_BIT_64(22)
+#define MSR_IA32_MISC_ENABLE_LIMIT_CPUID       RT_BIT(22)
 /** When set to 1, xTPR messages are disabled (R/W). */
-#define MSR_IA32_MISC_ENABLE_XTPR_MSG_DISABLE  RT_BIT_64(23)
+#define MSR_IA32_MISC_ENABLE_XTPR_MSG_DISABLE  RT_BIT(23)
 /** When set to 1, the Execute Disable Bit feature (XD Bit) is disabled (R/W). */
-#define MSR_IA32_MISC_ENABLE_XD_DISABLE        RT_BIT_64(34)
-
-/** Trace/Profile Resource Control (R/W) */
-#define MSR_IA32_DEBUGCTL                   UINT32_C(0x000001d9)
-/** The number (0..3 or 0..15) of the last branch record register on P4 and
- * related Xeons. */
-#define MSR_P4_LASTBRANCH_TOS               UINT32_C(0x000001da)
-/** @name Last branch registers for P4 and Xeon, models 0 thru 2.
- * @{ */
-#define MSR_P4_LASTBRANCH_0                 UINT32_C(0x000001db)
-#define MSR_P4_LASTBRANCH_1                 UINT32_C(0x000001dc)
-#define MSR_P4_LASTBRANCH_2                 UINT32_C(0x000001dd)
-#define MSR_P4_LASTBRANCH_3                 UINT32_C(0x000001de)
-/** @} */
-
-
-#define IA32_MTRR_PHYSBASE0                 0x200
-#define IA32_MTRR_PHYSMASK0                 0x201
-#define IA32_MTRR_PHYSBASE1                 0x202
-#define IA32_MTRR_PHYSMASK1                 0x203
-#define IA32_MTRR_PHYSBASE2                 0x204
-#define IA32_MTRR_PHYSMASK2                 0x205
-#define IA32_MTRR_PHYSBASE3                 0x206
-#define IA32_MTRR_PHYSMASK3                 0x207
-#define IA32_MTRR_PHYSBASE4                 0x208
-#define IA32_MTRR_PHYSMASK4                 0x209
-#define IA32_MTRR_PHYSBASE5                 0x20a
-#define IA32_MTRR_PHYSMASK5                 0x20b
-#define IA32_MTRR_PHYSBASE6                 0x20c
-#define IA32_MTRR_PHYSMASK6                 0x20d
-#define IA32_MTRR_PHYSBASE7                 0x20e
-#define IA32_MTRR_PHYSMASK7                 0x20f
-#define IA32_MTRR_PHYSBASE8                 0x210
-#define IA32_MTRR_PHYSMASK8                 0x211
-#define IA32_MTRR_PHYSBASE9                 0x212
-#define IA32_MTRR_PHYSMASK9                 0x213
-
-/** Fixed range MTRRs.
- * @{  */
-#define IA32_MTRR_FIX64K_00000              0x250
-#define IA32_MTRR_FIX16K_80000              0x258
-#define IA32_MTRR_FIX16K_A0000              0x259
-#define IA32_MTRR_FIX4K_C0000               0x268
-#define IA32_MTRR_FIX4K_C8000               0x269
-#define IA32_MTRR_FIX4K_D0000               0x26a
-#define IA32_MTRR_FIX4K_D8000               0x26b
-#define IA32_MTRR_FIX4K_E0000               0x26c
-#define IA32_MTRR_FIX4K_E8000               0x26d
-#define IA32_MTRR_FIX4K_F0000               0x26e
-#define IA32_MTRR_FIX4K_F8000               0x26f
-/** @}  */
+#define MSR_IA32_MISC_ENABLE_XD_DISABLE        RT_BIT(34)
 
 /** MTRR Default Range. */
 #define MSR_IA32_MTRR_DEF_TYPE              0x2FF
@@ -1134,23 +951,18 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #define MSR_IA32_VMX_CR4_FIXED1             0x489
 /** Information for enumerating fields in the VMCS. */
 #define MSR_IA32_VMX_VMCS_ENUM              0x48A
-/** Allowed settings for the VM-functions controls. */
-#define MSR_IA32_VMX_VMFUNC                 0x491
 /** Allowed settings for secondary proc-based VM execution controls */
 #define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 /** EPT capabilities. */
-#define MSR_IA32_VMX_EPT_VPID_CAP           0x48C
+#define MSR_IA32_VMX_EPT_CAPS               0x48C
 /** DS Save Area (R/W). */
 #define MSR_IA32_DS_AREA                    0x600
-/** Running Average Power Limit (RAPL) power units. */
-#define MSR_RAPL_POWER_UNIT                 0x606
 /** X2APIC MSR ranges. */
-#define MSR_IA32_X2APIC_START               0x800
-#define MSR_IA32_X2APIC_TPR                 0x808
-#define MSR_IA32_X2APIC_END                 0xBFF
+#define MSR_IA32_APIC_START                 0x800
+#define MSR_IA32_APIC_END                   0x900
 
 /** K6 EFER - Extended Feature Enable Register. */
-#define MSR_K6_EFER                         UINT32_C(0xc0000080)
+#define MSR_K6_EFER                         0xc0000080
 /** @todo document EFER */
 /** Bit 0 - SCE - System call extensions (SYSCALL / SYSRET). (R/W) */
 #define  MSR_K6_EFER_SCE                     RT_BIT(0)
@@ -1167,71 +979,66 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 /** Bit 14 - FFXSR - Fast FXSAVE / FXRSTOR (skip XMM*). (R/W) */
 #define  MSR_K6_EFER_FFXSR                   RT_BIT(14)
 /** K6 STAR - SYSCALL/RET targets. */
-#define MSR_K6_STAR                         UINT32_C(0xc0000081)
+#define MSR_K6_STAR                         0xc0000081
 /** Shift value for getting the SYSRET CS and SS value. */
 #define  MSR_K6_STAR_SYSRET_CS_SS_SHIFT     48
 /** Shift value for getting the SYSCALL CS and SS value. */
 #define  MSR_K6_STAR_SYSCALL_CS_SS_SHIFT    32
 /** Selector mask for use after shifting. */
-#define  MSR_K6_STAR_SEL_MASK               UINT32_C(0xffff)
+#define  MSR_K6_STAR_SEL_MASK               0xffff
 /** The mask which give the SYSCALL EIP. */
-#define  MSR_K6_STAR_SYSCALL_EIP_MASK       UINT32_C(0xffffffff)
+#define  MSR_K6_STAR_SYSCALL_EIP_MASK       0xffffffff
 /** K6 WHCR - Write Handling Control Register. */
-#define MSR_K6_WHCR                         UINT32_C(0xc0000082)
+#define MSR_K6_WHCR                         0xc0000082
 /** K6 UWCCR - UC/WC Cacheability Control Register. */
-#define MSR_K6_UWCCR                        UINT32_C(0xc0000085)
+#define MSR_K6_UWCCR                        0xc0000085
 /** K6 PSOR - Processor State Observability Register. */
-#define MSR_K6_PSOR                         UINT32_C(0xc0000087)
+#define MSR_K6_PSOR                         0xc0000087
 /** K6 PFIR - Page Flush/Invalidate Register. */
-#define MSR_K6_PFIR                         UINT32_C(0xc0000088)
+#define MSR_K6_PFIR                         0xc0000088
 
 /** Performance counter MSRs. (AMD only) */
-#define MSR_K7_EVNTSEL0                     UINT32_C(0xc0010000)
-#define MSR_K7_EVNTSEL1                     UINT32_C(0xc0010001)
-#define MSR_K7_EVNTSEL2                     UINT32_C(0xc0010002)
-#define MSR_K7_EVNTSEL3                     UINT32_C(0xc0010003)
-#define MSR_K7_PERFCTR0                     UINT32_C(0xc0010004)
-#define MSR_K7_PERFCTR1                     UINT32_C(0xc0010005)
-#define MSR_K7_PERFCTR2                     UINT32_C(0xc0010006)
-#define MSR_K7_PERFCTR3                     UINT32_C(0xc0010007)
+#define MSR_K7_EVNTSEL0                     0xc0010000
+#define MSR_K7_EVNTSEL1                     0xc0010001
+#define MSR_K7_EVNTSEL2                     0xc0010002
+#define MSR_K7_EVNTSEL3                     0xc0010003
+#define MSR_K7_PERFCTR0                     0xc0010004
+#define MSR_K7_PERFCTR1                     0xc0010005
+#define MSR_K7_PERFCTR2                     0xc0010006
+#define MSR_K7_PERFCTR3                     0xc0010007
+
+#define MSR_K8_HWCR                         0xc0010015
 
 /** K8 LSTAR - Long mode SYSCALL target (RIP). */
-#define MSR_K8_LSTAR                        UINT32_C(0xc0000082)
+#define MSR_K8_LSTAR                        0xc0000082
 /** K8 CSTAR - Compatibility mode SYSCALL target (RIP). */
-#define MSR_K8_CSTAR                        UINT32_C(0xc0000083)
+#define MSR_K8_CSTAR                        0xc0000083
 /** K8 SF_MASK - SYSCALL flag mask. (aka SFMASK) */
-#define MSR_K8_SF_MASK                      UINT32_C(0xc0000084)
+#define MSR_K8_SF_MASK                      0xc0000084
 /** K8 FS.base - The 64-bit base FS register. */
-#define MSR_K8_FS_BASE                      UINT32_C(0xc0000100)
+#define MSR_K8_FS_BASE                      0xc0000100
 /** K8 GS.base - The 64-bit base GS register. */
-#define MSR_K8_GS_BASE                      UINT32_C(0xc0000101)
+#define MSR_K8_GS_BASE                      0xc0000101
 /** K8 KernelGSbase - Used with SWAPGS. */
-#define MSR_K8_KERNEL_GS_BASE               UINT32_C(0xc0000102)
-/** K8 TSC_AUX - Used with RDTSCP. */
-#define MSR_K8_TSC_AUX                      UINT32_C(0xc0000103)
-#define MSR_K8_SYSCFG                       UINT32_C(0xc0010010)
-#define MSR_K8_HWCR                         UINT32_C(0xc0010015)
-#define MSR_K8_IORRBASE0                    UINT32_C(0xc0010016)
-#define MSR_K8_IORRMASK0                    UINT32_C(0xc0010017)
-#define MSR_K8_IORRBASE1                    UINT32_C(0xc0010018)
-#define MSR_K8_IORRMASK1                    UINT32_C(0xc0010019)
-#define MSR_K8_TOP_MEM1                     UINT32_C(0xc001001a)
-#define MSR_K8_TOP_MEM2                     UINT32_C(0xc001001d)
-/** North bridge config? See BIOS & Kernel dev guides for
- * details. */
-#define MSR_K8_NB_CFG                       UINT32_C(0xc001001f)
-
-/** Hypertransport interrupt pending register.
- * "BIOS and Kernel Developer's Guide for AMD NPT Family 0Fh Processors" */
-#define MSR_K8_INT_PENDING                  UINT32_C(0xc0010055)
-#define MSR_K8_VM_CR                        UINT32_C(0xc0010114)
+#define MSR_K8_KERNEL_GS_BASE               0xc0000102
+#define MSR_K8_TSC_AUX                      0xc0000103
+#define MSR_K8_SYSCFG                       0xc0010010
+#define MSR_K8_HWCR                         0xc0010015
+#define MSR_K8_IORRBASE0                    0xc0010016
+#define MSR_K8_IORRMASK0                    0xc0010017
+#define MSR_K8_IORRBASE1                    0xc0010018
+#define MSR_K8_IORRMASK1                    0xc0010019
+#define MSR_K8_TOP_MEM1                     0xc001001a
+#define MSR_K8_TOP_MEM2                     0xc001001d
+#define MSR_K8_VM_CR                        0xc0010114
 #define MSR_K8_VM_CR_SVM_DISABLE            RT_BIT(4)
 
-#define MSR_K8_IGNNE                        UINT32_C(0xc0010115)
-#define MSR_K8_SMM_CTL                      UINT32_C(0xc0010116)
+#define MSR_K8_IGNNE                        0xc0010115
+#define MSR_K8_SMM_CTL                      0xc0010116
 /** SVM - VM_HSAVE_PA - Physical address for saving and restoring
- *                      host state during world switch. */
-#define MSR_K8_VM_HSAVE_PA                  UINT32_C(0xc0010117)
+ *                      host state during world switch.
+ */
+#define MSR_K8_VM_HSAVE_PA                  0xc0010117
 
 /** @} */
 
@@ -1302,10 +1109,6 @@ typedef X86PGPAEUINT const *PCX86PGPAEUINT;
 /** The 4MB page base mask for virtual addresses - 32bit version. */
 #define X86_PAGE_4M_BASE_MASK_32            0xffc00000U
 
-/**
- * Check if the given address is canonical.
- */
-#define X86_IS_CANONICAL(a_u64Addr)         ((uint64_t)(a_u64Addr) + UINT64_C(0x800000000000) < UINT64_C(0x1000000000000))
 
 
 /** @name Page Table Entry
@@ -2167,9 +1970,7 @@ typedef struct X86FPUSTATE
         /** FPU view - todo. */
         X86FPUMMX   fpu;
         /** Extended precision floating point view. */
-        RTFLOAT80U  r80;
-        /** Extended precision floating point view v2. */
-        RTFLOAT80U2 r80Ex;
+        RTFLOAT80U2 r80;
         /** 8-bit view. */
         uint8_t     au8[16];
         /** 16-bit view. */
@@ -2225,9 +2026,7 @@ typedef struct X86FXSTATE
         /** FPU view - todo. */
         X86FPUMMX   fpu;
         /** Extended precision floating point view. */
-        RTFLOAT80U  r80;
-        /** Extended precision floating point view v2 */
-        RTFLOAT80U2 r80Ex;
+        RTFLOAT80U2 r80;
         /** 8-bit view. */
         uint8_t     au8[16];
         /** 16-bit view. */
@@ -2256,24 +2055,13 @@ typedef struct X86FXSTATE
         uint128_t   au128[1];
     } aXMM[16]; /* 8 registers in 32 bits mode; 16 in long mode */
     /* - offset 416 - */
-    uint32_t    au32RsrvdRest[(464 - 416) / sizeof(uint32_t)];
-    /* - offset 464 - Software usable reserved bits. */
-    uint32_t    au32RsrvdForSoftware[(512 - 464) / sizeof(uint32_t)];
+    uint32_t    au32RsrvdRest[(512 - 416) / sizeof(uint32_t)];
 } X86FXSTATE;
 #pragma pack()
 /** Pointer to a FPU Extended state. */
 typedef X86FXSTATE *PX86FXSTATE;
 /** Pointer to a const FPU Extended state. */
 typedef const X86FXSTATE *PCX86FXSTATE;
-
-/** Offset for software usable reserved bits (464:511) where we store a 32-bit
- *  magic. Don't forget to update x86.mac if you change this! */
-#define X86_OFF_FXSTATE_RSVD            0x1d0
-/** The 32-bit magic used to recognize if this a 32-bit FPU state. Don't
- *  forget to update x86.mac if you change this! */
-#define X86_FXSTATE_RSVD_32BIT_MAGIC    0x32b3232b
-AssertCompileSize(X86FXSTATE, 512);
-AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD);
 
 /** @name FPU status word flags.
  * @{ */
@@ -2293,10 +2081,6 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_FSW_SF          RT_BIT(6)
 /** Error summary status. */
 #define X86_FSW_ES          RT_BIT(7)
-/** Mask of exceptions flags, excluding the summary bit. */
-#define X86_FSW_XCPT_MASK   UINT16_C(0x007f)
-/** Mask of exceptions flags, including the summary bit. */
-#define X86_FSW_XCPT_ES_MASK UINT16_C(0x00ff)
 /** Condition code 0. */
 #define X86_FSW_C0          RT_BIT(8)
 /** Condition code 1. */
@@ -2313,103 +2097,8 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
 #define X86_FSW_TOP_GET(a_uFsw) (((a_uFsw) >> X86_FSW_TOP_SHIFT) & X86_FSW_TOP_SMASK)
 /** Condition code 3. */
 #define X86_FSW_C3          RT_BIT(14)
-/** Mask of exceptions flags, including the summary bit. */
-#define X86_FSW_C_MASK      UINT16_C(0x4700)
 /** FPU busy. */
 #define X86_FSW_B           RT_BIT(15)
-/** @} */
-
-
-/** @name FPU control word flags.
- * @{ */
-/** Exception Mask: Invalid operation.  */
-#define X86_FCW_IM          RT_BIT(0)
-/** Exception Mask: Denormalized operand.  */
-#define X86_FCW_DM          RT_BIT(1)
-/** Exception Mask: Zero divide.  */
-#define X86_FCW_ZM          RT_BIT(2)
-/** Exception Mask: Overflow.  */
-#define X86_FCW_OM          RT_BIT(3)
-/** Exception Mask: Underflow.  */
-#define X86_FCW_UM          RT_BIT(4)
-/** Exception Mask: Precision.  */
-#define X86_FCW_PM          RT_BIT(5)
-/** Mask all exceptions, the value typically loaded (by for instance fninit).
- * @remarks This includes reserved bit 6.  */
-#define X86_FCW_MASK_ALL    UINT16_C(0x007f)
-/** Mask all exceptions. Same as X86_FSW_XCPT_MASK. */
-#define X86_FCW_XCPT_MASK    UINT16_C(0x003f)
-/** Precision control mask. */
-#define X86_FCW_PC_MASK     UINT16_C(0x0300)
-/** Precision control: 24-bit. */
-#define X86_FCW_PC_24       UINT16_C(0x0000)
-/** Precision control: Reserved. */
-#define X86_FCW_PC_RSVD     UINT16_C(0x0100)
-/** Precision control: 53-bit. */
-#define X86_FCW_PC_53       UINT16_C(0x0200)
-/** Precision control: 64-bit. */
-#define X86_FCW_PC_64       UINT16_C(0x0300)
-/** Rounding control mask. */
-#define X86_FCW_RC_MASK     UINT16_C(0x0c00)
-/** Rounding control: To nearest. */
-#define X86_FCW_RC_NEAREST  UINT16_C(0x0000)
-/** Rounding control: Down. */
-#define X86_FCW_RC_DOWN     UINT16_C(0x0400)
-/** Rounding control: Up. */
-#define X86_FCW_RC_UP       UINT16_C(0x0800)
-/** Rounding control: Towards zero. */
-#define X86_FCW_RC_ZERO     UINT16_C(0x0c00)
-/** Bits which should be zero, apparently. */
-#define X86_FCW_ZERO_MASK   UINT16_C(0xf080)
-/** @} */
-
-/** @name SSE MXCSR
- * @{ */
-/** Exception Flag: Invalid operation.  */
-#define X86_MSXCR_IE          RT_BIT(0)
-/** Exception Flag: Denormalized operand.  */
-#define X86_MSXCR_DE          RT_BIT(1)
-/** Exception Flag: Zero divide.  */
-#define X86_MSXCR_ZE          RT_BIT(2)
-/** Exception Flag: Overflow.  */
-#define X86_MSXCR_OE          RT_BIT(3)
-/** Exception Flag: Underflow.  */
-#define X86_MSXCR_UE          RT_BIT(4)
-/** Exception Flag: Precision.  */
-#define X86_MSXCR_PE          RT_BIT(5)
-
-/** Denormals are zero. */
-#define X86_MSXCR_DAZ         RT_BIT(6)
-
-/** Exception Mask: Invalid operation. */
-#define X86_MSXCR_IM          RT_BIT(7)
-/** Exception Mask: Denormalized operand. */
-#define X86_MSXCR_DM          RT_BIT(8)
-/** Exception Mask: Zero divide.  */
-#define X86_MSXCR_ZM          RT_BIT(9)
-/** Exception Mask: Overflow.  */
-#define X86_MSXCR_OM          RT_BIT(10)
-/** Exception Mask: Underflow.  */
-#define X86_MSXCR_UM          RT_BIT(11)
-/** Exception Mask: Precision.  */
-#define X86_MSXCR_PM          RT_BIT(12)
-
-/** Rounding control mask. */
-#define X86_MSXCR_RC_MASK     UINT16_C(0x6000)
-/** Rounding control: To nearest. */
-#define X86_MSXCR_RC_NEAREST  UINT16_C(0x0000)
-/** Rounding control: Down. */
-#define X86_MSXCR_RC_DOWN     UINT16_C(0x2000)
-/** Rounding control: Up. */
-#define X86_MSXCR_RC_UP       UINT16_C(0x4000)
-/** Rounding control: Towards zero. */
-#define X86_MSXCR_RC_ZERO     UINT16_C(0x6000)
-
-/** Flush-to-zero for masked underflow.  */
-#define X86_MSXCR_FZ          RT_BIT(15)
-
-/** Misaligned Exception Mask.  */
-#define X86_MSXCR_MM          RT_BIT(16)
 /** @} */
 
 
@@ -2417,9 +2106,8 @@ AssertCompileMemberOffset(X86FXSTATE, au32RsrvdForSoftware, X86_OFF_FXSTATE_RSVD
  * @{
  */
 
-#ifndef VBOX_FOR_DTRACE_LIB
 /**
- * Descriptor attributes (as seen by VT-x).
+ * Descriptor attributes.
  */
 typedef struct X86DESCATTRBITS
 {
@@ -2443,35 +2131,16 @@ typedef struct X86DESCATTRBITS
     /** 0f - Granularity of the limit. If set 4KB granularity is used, if
      * clear byte. */
     unsigned    u1Granularity : 1;
-    /** 10 - "Unusable" selector, special Intel (VT-x only?) bit. */
-    unsigned    u1Unusable : 1;
 } X86DESCATTRBITS;
-#endif /* !VBOX_FOR_DTRACE_LIB */
 
-/** @name X86DESCATTR masks
- * @{ */
-#define X86DESCATTR_TYPE            UINT32_C(0x0000000f)
-#define X86DESCATTR_DT              UINT32_C(0x00000010)
-#define X86DESCATTR_DPL             UINT32_C(0x00000060)
-#define X86DESCATTR_DPL_SHIFT       5 /**< Shift count for the DPL value. */
-#define X86DESCATTR_P               UINT32_C(0x00000080)
-#define X86DESCATTR_LIMIT_HIGH      UINT32_C(0x00000f00)
-#define X86DESCATTR_AVL             UINT32_C(0x00001000)
-#define X86DESCATTR_L               UINT32_C(0x00002000)
-#define X86DESCATTR_D               UINT32_C(0x00004000)
-#define X86DESCATTR_G               UINT32_C(0x00008000)
-#define X86DESCATTR_UNUSABLE        UINT32_C(0x00010000)
-/** @}  */
 
 #pragma pack(1)
 typedef union X86DESCATTR
 {
     /** Unsigned integer view. */
     uint32_t           u;
-#ifndef VBOX_FOR_DTRACE_LIB
     /** Normal view. */
     X86DESCATTRBITS    n;
-#endif
 } X86DESCATTR;
 #pragma pack()
 /** Pointer to descriptor attributes. */
@@ -2479,7 +2148,6 @@ typedef X86DESCATTR *PX86DESCATTR;
 /** Pointer to const descriptor attributes. */
 typedef const X86DESCATTR *PCX86DESCATTR;
 
-#ifndef VBOX_FOR_DTRACE_LIB
 
 /**
  * Generic descriptor table entry
@@ -2487,34 +2155,34 @@ typedef const X86DESCATTR *PCX86DESCATTR;
 #pragma pack(1)
 typedef struct X86DESCGENERIC
 {
-    /** 00 - Limit - Low word. */
+    /** Limit - Low word. */
     unsigned    u16LimitLow : 16;
-    /** 10 - Base address - lowe word.
+    /** Base address - lowe word.
      * Don't try set this to 24 because MSC is doing stupid things then. */
     unsigned    u16BaseLow : 16;
-    /** 20 - Base address - first 8 bits of high word. */
+    /** Base address - first 8 bits of high word. */
     unsigned    u8BaseHigh1 : 8;
-    /** 28 - Segment Type. */
+    /** Segment Type. */
     unsigned    u4Type : 4;
-    /** 2c - Descriptor Type. System(=0) or code/data selector */
+    /** Descriptor Type. System(=0) or code/data selector */
     unsigned    u1DescType : 1;
-    /** 2d - Descriptor Privelege level. */
+    /** Descriptor Privelege level. */
     unsigned    u2Dpl : 2;
-    /** 2f - Flags selector present(=1) or not. */
+    /** Flags selector present(=1) or not. */
     unsigned    u1Present : 1;
-    /** 30 - Segment limit 16-19. */
+    /** Segment limit 16-19. */
     unsigned    u4LimitHigh : 4;
-    /** 34 - Available for system software. */
+    /** Available for system software. */
     unsigned    u1Available : 1;
-    /** 35 - 32 bits mode: Reserved - 0, long mode: Long Attribute Bit. */
+    /** 32 bits mode: Reserved - 0, long mode: Long Attribute Bit. */
     unsigned    u1Long : 1;
-    /** 36 - This flags meaning depends on the segment type. Try make sense out
+    /** This flags meaning depends on the segment type. Try make sense out
      * of the intel manual yourself.  */
     unsigned    u1DefBig : 1;
-    /** 37 - Granularity of the limit. If set 4KB granularity is used, if
+    /** Granularity of the limit. If set 4KB granularity is used, if
      * clear byte. */
     unsigned    u1Granularity : 1;
-    /** 38 - Base address - highest 8 bits. */
+    /** Base address - highest 8 bits. */
     unsigned    u8BaseHigh2 : 8;
 } X86DESCGENERIC;
 #pragma pack()
@@ -2522,23 +2190,6 @@ typedef struct X86DESCGENERIC
 typedef X86DESCGENERIC *PX86DESCGENERIC;
 /** Pointer to a const generic descriptor entry. */
 typedef const X86DESCGENERIC *PCX86DESCGENERIC;
-
-/** @name Bit offsets of X86DESCGENERIC members.
- * @{*/
-#define X86DESCGENERIC_BIT_OFF_LIMIT_LOW        (0)   /**< Bit offset of X86DESCGENERIC::u16LimitLow. */
-#define X86DESCGENERIC_BIT_OFF_BASE_LOW         (16)  /**< Bit offset of X86DESCGENERIC::u16BaseLow. */
-#define X86DESCGENERIC_BIT_OFF_BASE_HIGH1       (32)  /**< Bit offset of X86DESCGENERIC::u8BaseHigh1. */
-#define X86DESCGENERIC_BIT_OFF_TYPE             (40)  /**< Bit offset of X86DESCGENERIC::u4Type. */
-#define X86DESCGENERIC_BIT_OFF_DESC_TYPE        (44)  /**< Bit offset of X86DESCGENERIC::u1DescType. */
-#define X86DESCGENERIC_BIT_OFF_DPL              (45)  /**< Bit offset of X86DESCGENERIC::u2Dpl. */
-#define X86DESCGENERIC_BIT_OFF_PRESENT          (47)  /**< Bit offset of X86DESCGENERIC::uu1Present. */
-#define X86DESCGENERIC_BIT_OFF_LIMIT_HIGH       (48)  /**< Bit offset of X86DESCGENERIC::u4LimitHigh. */
-#define X86DESCGENERIC_BIT_OFF_AVAILABLE        (52)  /**< Bit offset of X86DESCGENERIC::u1Available. */
-#define X86DESCGENERIC_BIT_OFF_LONG             (53)  /**< Bit offset of X86DESCGENERIC::u1Long. */
-#define X86DESCGENERIC_BIT_OFF_DEF_BIG          (54)  /**< Bit offset of X86DESCGENERIC::u1DefBig. */
-#define X86DESCGENERIC_BIT_OFF_GRANULARITY      (55)  /**< Bit offset of X86DESCGENERIC::u1Granularity. */
-#define X86DESCGENERIC_BIT_OFF_BASE_HIGH2       (56)  /**< Bit offset of X86DESCGENERIC::u8BaseHigh2. */
-/** @}  */
 
 /**
  * Call-, Interrupt-, Trap- or Task-gate descriptor (legacy).
@@ -2568,12 +2219,11 @@ typedef struct X86DESCGATE
      * Ignored if task-gate. */
     unsigned    u16OffsetHigh : 16;
 } X86DESCGATE;
+AssertCompileSize(X86DESCGATE, 8);
 /** Pointer to a Call-, Interrupt-, Trap- or Task-gate descriptor entry. */
 typedef X86DESCGATE *PX86DESCGATE;
 /** Pointer to a const Call-, Interrupt-, Trap- or Task-gate descriptor entry. */
 typedef const X86DESCGATE *PCX86DESCGATE;
-
-#endif /* VBOX_FOR_DTRACE_LIB */
 
 /**
  * Descriptor table entry.
@@ -2581,12 +2231,10 @@ typedef const X86DESCGATE *PCX86DESCGATE;
 #pragma pack(1)
 typedef union X86DESC
 {
-#ifndef VBOX_FOR_DTRACE_LIB
     /** Generic descriptor view. */
     X86DESCGENERIC  Gen;
     /** Gate descriptor view. */
     X86DESCGATE     Gate;
-#endif
 
     /** 8 bit unsigned integer view. */
     uint8_t         au8[8];
@@ -2599,9 +2247,7 @@ typedef union X86DESC
     /** Unsigned integer view. */
     uint64_t        u;
 } X86DESC;
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(X86DESC, 8);
-#endif
 #pragma pack()
 /** Pointer to descriptor table entry. */
 typedef X86DESC *PX86DESC;
@@ -2611,36 +2257,24 @@ typedef const X86DESC *PCX86DESC;
 /** @def X86DESC_BASE
  * Return the base address of a descriptor.
  */
-#define X86DESC_BASE(a_pDesc) /*ASM-NOINC*/ \
-        (  ((uint32_t)((a_pDesc)->Gen.u8BaseHigh2) << 24) \
-         | (           (a_pDesc)->Gen.u8BaseHigh1  << 16) \
-         | (           (a_pDesc)->Gen.u16BaseLow        ) )
+#define X86DESC_BASE(desc) /*ASM-NOINC*/ \
+        (  ((uint32_t)((desc).Gen.u8BaseHigh2) << 24) \
+         | (           (desc).Gen.u8BaseHigh1  << 16) \
+         | (           (desc).Gen.u16BaseLow        ) )
 
 /** @def X86DESC_LIMIT
  * Return the limit of a descriptor.
  */
-#define X86DESC_LIMIT(a_pDesc) /*ASM-NOINC*/ \
-        (  ((uint32_t)((a_pDesc)->Gen.u4LimitHigh) << 16) \
-         | (           (a_pDesc)->Gen.u16LimitLow       ) )
-
-/** @def X86DESC_LIMIT_G
- * Return the limit of a descriptor with the granularity bit taken into account.
- * @returns Selector limit (uint32_t).
- * @param   a_pDesc     Pointer to the descriptor.
- */
-#define X86DESC_LIMIT_G(a_pDesc) /*ASM-NOINC*/ \
-        ( (a_pDesc)->Gen.u1Granularity \
-         ? ( ( ((uint32_t)(a_pDesc)->Gen.u4LimitHigh << 16) | (a_pDesc)->Gen.u16LimitLow ) << 12 ) | UINT32_C(0xfff) \
-         :     ((uint32_t)(a_pDesc)->Gen.u4LimitHigh << 16) | (a_pDesc)->Gen.u16LimitLow \
-        )
+#define X86DESC_LIMIT(desc) /*ASM-NOINC*/ \
+        (  ((uint32_t)((desc).Gen.u4LimitHigh) << 16) \
+         | (           (desc).Gen.u16LimitLow       ) )
 
 /** @def X86DESC_GET_HID_ATTR
  * Get the descriptor attributes for the hidden register.
  */
-#define X86DESC_GET_HID_ATTR(a_pDesc) /*ASM-NOINC*/ \
-        ( ((a_pDesc)->u >> (16+16+8)) & UINT32_C(0xf0ff) ) /** @todo do we have a define for 0xf0ff? */
+#define X86DESC_GET_HID_ATTR(desc) /*ASM-NOINC*/ \
+        ( (desc.u >> (16+16+8)) & UINT32_C(0xf0ff) ) /** @todo do we have a define for 0xf0ff? */
 
-#ifndef VBOX_FOR_DTRACE_LIB
 
 /**
  * 64 bits generic descriptor table entry
@@ -2651,7 +2285,7 @@ typedef struct X86DESC64GENERIC
 {
     /** Limit - Low word - *IGNORED*. */
     unsigned    u16LimitLow : 16;
-    /** Base address - low word. - *IGNORED*
+    /** Base address - lowe word. - *IGNORED*
      * Don't try set this to 24 because MSC is doing stupid things then. */
     unsigned    u16BaseLow : 16;
     /** Base address - first 8 bits of high word. - *IGNORED* */
@@ -2777,7 +2411,6 @@ typedef X86DESC64GATE *PX86DESC64GATE;
 /** Pointer to a const Call-, Interrupt-, Trap- or Task-gate descriptor entry. */
 typedef const X86DESC64GATE *PCX86DESC64GATE;
 
-#endif /* VBOX_FOR_DTRACE_LIB */
 
 /**
  * Descriptor table entry.
@@ -2785,14 +2418,12 @@ typedef const X86DESC64GATE *PCX86DESC64GATE;
 #pragma pack(1)
 typedef union X86DESC64
 {
-#ifndef VBOX_FOR_DTRACE_LIB
     /** Generic descriptor view. */
     X86DESC64GENERIC    Gen;
     /** System descriptor view. */
     X86DESC64SYSTEM     System;
     /** Gate descriptor view. */
     X86DESC64GATE       Gate;
-#endif
 
     /** 8 bit unsigned integer view. */
     uint8_t             au8[16];
@@ -2803,9 +2434,7 @@ typedef union X86DESC64
     /** 64 bit unsigned integer view. */
     uint64_t            au64[2];
 } X86DESC64;
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(X86DESC64, 16);
-#endif
 #pragma pack()
 /** Pointer to descriptor table entry. */
 typedef X86DESC64 *PX86DESC64;
@@ -2815,11 +2444,11 @@ typedef const X86DESC64 *PCX86DESC64;
 /** @def X86DESC64_BASE
  * Return the base of a 64-bit descriptor.
  */
-#define X86DESC64_BASE(a_pDesc) /*ASM-NOINC*/ \
-        (  ((uint64_t)((a_pDesc)->Gen.u32BaseHigh3) << 32) \
-         | ((uint32_t)((a_pDesc)->Gen.u8BaseHigh2)  << 24) \
-         | (           (a_pDesc)->Gen.u8BaseHigh1   << 16) \
-         | (           (a_pDesc)->Gen.u16BaseLow         ) )
+#define X86DESC64_BASE(desc) /*ASM-NOINC*/ \
+        (  ((uint64_t)((desc).Gen.u32BaseHigh3) << 32) \
+         | ((uint32_t)((desc).Gen.u8BaseHigh2)  << 24) \
+         | (           (desc).Gen.u8BaseHigh1   << 16) \
+         | (           (desc).Gen.u16BaseLow         ) )
 
 
 
@@ -2866,8 +2495,6 @@ typedef PCX86DESC   PCX86DESCHC;
 #define X86_SEL_TYPE_WRITE                  2
 /** Read bit (for code selectors only). */
 #define X86_SEL_TYPE_READ                   2
-/** The bit number of the code segment read bit (relative to u4Type). */
-#define X86_SEL_TYPE_READ_BIT               1
 
 /** Read only selector type. */
 #define X86_SEL_TYPE_RO                     0
@@ -3040,9 +2667,7 @@ typedef struct X86TSS16
     /** LDTR before task switch. */
     RTSEL       selLdt;
 } X86TSS16;
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(X86TSS16, 44);
-#endif
 #pragma pack()
 /** Pointer to a 16-bit task segment. */
 typedef X86TSS16 *PX86TSS16;
@@ -3169,9 +2794,7 @@ typedef struct X86TSS64
 typedef X86TSS64 *PX86TSS64;
 /** Pointer to a const 64-bit task segment. */
 typedef const X86TSS64 *PCX86TSS64;
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileSize(X86TSS64, 136);
-#endif
 
 /** @} */
 
@@ -3183,35 +2806,21 @@ AssertCompileSize(X86TSS64, 136);
 /**
  * The shift used to convert a selector from and to index an index (C).
  */
-#define X86_SEL_SHIFT           3
+#define X86_SEL_SHIFT       3
 
 /**
- * The mask used to mask off the table indicator and RPL of an selector.
+ * The mask used to mask off the table indicator and CPL of an selector.
  */
-#define X86_SEL_MASK            0xfff8U
-
-/**
- * The mask used to mask off the RPL of an selector.
- * This is suitable for checking for NULL selectors.
- */
-#define X86_SEL_MASK_OFF_RPL    0xfffcU
+#define X86_SEL_MASK        0xfff8U
 
 /**
  * The bit indicating that a selector is in the LDT and not in the GDT.
  */
-#define X86_SEL_LDT             0x0004U
-
+#define X86_SEL_LDT         0x0004U
 /**
  * The bit mask for getting the RPL of a selector.
  */
-#define X86_SEL_RPL             0x0003U
-
-/**
- * The mask covering both RPL and LDT.
- * This is incidentally the same as sizeof(X86DESC) - 1, so good for limit
- * checks.
- */
-#define X86_SEL_RPL_LDT         0x0007U
+#define X86_SEL_RPL         0x0003U
 
 /** @} */
 
@@ -3251,7 +2860,7 @@ typedef enum X86XCPT
     X86_XCPT_GP = 0x0d,
     /** \#PF - Page fault. */
     X86_XCPT_PF = 0x0e,
-    /* 0x0f is reserved (to avoid conflict with spurious interrupts in BIOS setup). */
+    /* 0x0f is reserved. */
     /** \#MF - Math fault (FPU). */
     X86_XCPT_MF = 0x10,
     /** \#AC - Alignment check. */
@@ -3259,18 +2868,12 @@ typedef enum X86XCPT
     /** \#MC - Machine check. */
     X86_XCPT_MC = 0x12,
     /** \#XF - SIMD Floating-Pointer Exception. */
-    X86_XCPT_XF = 0x13,
-    /** \#VE - Virtualzation Exception. */
-    X86_XCPT_VE = 0x14,
-    /** \#SX - Security Exception. */
-    X86_XCPT_SX = 0x1f
+    X86_XCPT_XF = 0x13
 } X86XCPT;
 /** Pointer to a x86 exception code. */
 typedef X86XCPT *PX86XCPT;
 /** Pointer to a const x86 exception code. */
 typedef const X86XCPT *PCX86XCPT;
-/** The maximum exception value. */
-#define X86_XCPT_MAX                (X86_XCPT_SX)
 
 
 /** @name Trap Error Codes
@@ -3306,19 +2909,6 @@ typedef const X86XCPT *PCX86XCPT;
 
 #pragma pack(1)
 /**
- * 16-bit IDTR.
- */
-typedef struct X86IDTR16
-{
-    /** Offset. */
-    uint16_t    offSel;
-    /** Selector. */
-    uint16_t    uSel;
-} X86IDTR16, *PX86IDTR16;
-#pragma pack()
-
-#pragma pack(1)
-/**
  * 32-bit IDTR/GDTR.
  */
 typedef struct X86XDTR32
@@ -3326,11 +2916,7 @@ typedef struct X86XDTR32
     /** Size of the descriptor table. */
     uint16_t    cb;
     /** Address of the descriptor table. */
-#ifndef VBOX_FOR_DTRACE_LIB
     uint32_t    uAddr;
-#else
-    uint16_t    au16Addr[2];
-#endif
 } X86XDTR32, *PX86XDTR32;
 #pragma pack()
 
@@ -3343,11 +2929,7 @@ typedef struct X86XDTR64
     /** Size of the descriptor table. */
     uint16_t    cb;
     /** Address of the descriptor table. */
-#ifndef VBOX_FOR_DTRACE_LIB
     uint64_t    uAddr;
-#else
-    uint16_t    au16Addr[4];
-#endif
 } X86XDTR64, *PX86XDTR64;
 #pragma pack()
 
@@ -3361,11 +2943,9 @@ typedef struct X86XDTR64
 #define X86_MODRM_MOD_MASK      UINT8_C(0xc0)
 #define X86_MODRM_MOD_SMASK     UINT8_C(0x03)
 #define X86_MODRM_MOD_SHIFT     6
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompile((X86_MODRM_RM_MASK | X86_MODRM_REG_MASK | X86_MODRM_MOD_MASK) == 0xff);
 AssertCompile((X86_MODRM_REG_MASK >> X86_MODRM_REG_SHIFT) == X86_MODRM_REG_SMASK);
 AssertCompile((X86_MODRM_MOD_MASK >> X86_MODRM_MOD_SHIFT) == X86_MODRM_MOD_SMASK);
-#endif
 /** @} */
 
 /** @name SIB
@@ -3377,11 +2957,9 @@ AssertCompile((X86_MODRM_MOD_MASK >> X86_MODRM_MOD_SHIFT) == X86_MODRM_MOD_SMASK
 #define X86_SIB_SCALE_MASK    UINT8_C(0xc0)
 #define X86_SIB_SCALE_SMASK   UINT8_C(0x03)
 #define X86_SIB_SCALE_SHIFT   6
-#ifndef VBOX_FOR_DTRACE_LIB
 AssertCompile((X86_SIB_BASE_MASK | X86_SIB_INDEX_MASK | X86_SIB_SCALE_MASK) == 0xff);
 AssertCompile((X86_SIB_INDEX_MASK >> X86_SIB_INDEX_SHIFT) == X86_SIB_INDEX_SMASK);
 AssertCompile((X86_SIB_SCALE_MASK >> X86_SIB_SCALE_SHIFT) == X86_SIB_SCALE_SMASK);
-#endif
 /** @} */
 
 /** @name General register indexes
@@ -3412,28 +2990,6 @@ AssertCompile((X86_SIB_SCALE_MASK >> X86_SIB_SCALE_SHIFT) == X86_SIB_SCALE_SMASK
 #define X86_SREG_DS             3
 #define X86_SREG_FS             4
 #define X86_SREG_GS             5
-/** @} */
-/** Segment register count. */
-#define X86_SREG_COUNT          6
-
-
-/** @name X86_OP_XXX - Prefixes
- * @{ */
-#define X86_OP_PRF_CS           UINT8_C(0x2e)
-#define X86_OP_PRF_SS           UINT8_C(0x36)
-#define X86_OP_PRF_DS           UINT8_C(0x3e)
-#define X86_OP_PRF_ES           UINT8_C(0x26)
-#define X86_OP_PRF_FS           UINT8_C(0x64)
-#define X86_OP_PRF_GS           UINT8_C(0x65)
-#define X86_OP_PRF_SIZE_OP      UINT8_C(0x66)
-#define X86_OP_PRF_SIZE_ADDR    UINT8_C(0x67)
-#define X86_OP_PRF_LOCK         UINT8_C(0xf0)
-#define X86_OP_PRF_REPZ         UINT8_C(0xf2)
-#define X86_OP_PRF_REPNZ        UINT8_C(0xf3)
-#define X86_OP_REX_B            UINT8_C(0x41)
-#define X86_OP_REX_X            UINT8_C(0x42)
-#define X86_OP_REX_R            UINT8_C(0x44)
-#define X86_OP_REX_W            UINT8_C(0x48)
 /** @} */
 
 

@@ -1,9 +1,10 @@
 /** @file
- * MS COM / XPCOM Abstraction Layer - ErrorInfo class declaration.
+ * MS COM / XPCOM Abstraction Layer:
+ * ErrorInfo class declaration
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,71 +37,6 @@ struct IVirtualBoxErrorInfo;
 
 namespace com
 {
-
-/**
- * General discussion:
- *
- * In COM all errors are stored on a per thread basis. In general this means
- * only _one_ active error is possible per thread. A new error will overwrite
- * the previous one. To prevent this use MultiResult or ErrorInfoKeeper (see
- * below). The implementations in MSCOM/XPCOM differ slightly, but the details
- * are handled by this glue code.
- *
- * We have different classes which are involved in the error management. I try
- * to describe them separately to make clear what they are there for.
- *
- * ErrorInfo:
- *
- *  This class is able to retrieve the per thread error and store it into its
- *  member variables. This class can also handle non-VirtualBox errors (like
- *  standard COM errors).
- *
- * ProgressErrorInfo:
- *
- *  This is just a simple wrapper class to get the ErrorInfo stored within an
- *  IProgress object. That is the error which was stored when the progress
- *  object was in use and not an error produced by IProgress itself.
- *
- * IVirtualBoxErrorInfo:
- *
- *  The VirtualBox interface class for accessing error information from Main
- *  clients. This class is also used for storing the error information in the
- *  thread context.
- *
- * ErrorInfoKeeper:
- *
- *  A helper class which stores the current per thread info internally. After
- *  calling methods which may produce other errors it is possible to restore
- *  the previous error and therefore restore the situation before calling the
- *  other methods.
- *
- * MultiResult:
- *
- *  Creating an instance of MultiResult turns error chain saving on. All errors
- *  which follow will be saved in a chain for later access.
- *
- * COMErrorInfo (Qt/Gui only):
- *
- *  The Qt GUI does some additional work for saving errors. Because we create
- *  wrappers for _every_ COM call, it is possible to automatically save the
- *  error info after the execution. This allow some additional info like saving
- *  the callee. Please note that this error info is saved on the client side
- *  and therefore locally to the object instance. See COMBaseWithEI,
- *  COMErrorInfo and the generated COMWrappers.cpp in the GUI.
- *
- * Errors itself are set in VirtualBoxBase::setErrorInternal. First a
- * IVirtualBoxErrorInfo object is created and the given error is saved within.
- * If MultiResult is active the current per thread error is fetched and
- * attached to the new created IVirtualBoxErrorInfo object. Next this object is
- * set as the new per thread error.
- *
- * Some general hints:
- *
- * - Always use setError, especially when you are working in an asynchronous thread
- *   to indicate an error. Otherwise the error information itself will not make
- *   it into the client.
- *
- */
 
 /**
  *  The ErrorInfo class provides a convenient way to retrieve error
@@ -173,7 +109,6 @@ public:
         : mIsBasicAvailable(false),
           mIsFullAvailable(false),
           mResultCode(S_OK),
-          mResultDetail(0),
           m_pNext(NULL)
     {
         init();
@@ -183,7 +118,6 @@ public:
         : mIsBasicAvailable(false),
           mIsFullAvailable(false),
           mResultCode(S_OK),
-          mResultDetail(0),
           m_pNext(NULL)
     {
         init(pObj, aIID);
@@ -192,7 +126,7 @@ public:
     /** Specialization for the IVirtualBoxErrorInfo smart pointer */
     ErrorInfo (const ComPtr <IVirtualBoxErrorInfo> &aPtr)
         : mIsBasicAvailable (false), mIsFullAvailable (false)
-        , mResultCode (S_OK), mResultDetail(0)
+        , mResultCode (S_OK)
         { init (aPtr); }
 
     /**
@@ -205,7 +139,7 @@ public:
      */
     ErrorInfo (IVirtualBoxErrorInfo *aInfo)
         : mIsBasicAvailable (false), mIsFullAvailable (false)
-        , mResultCode (S_OK), mResultDetail(0)
+        , mResultCode (S_OK)
         { init (aInfo); }
 
     ErrorInfo(const ErrorInfo &x)
@@ -265,14 +199,6 @@ public:
     HRESULT getResultCode() const
     {
         return mResultCode;
-    }
-
-    /**
-     *  Returns the (optional) result detail code of the failed operation.
-     */
-    LONG getResultDetail() const
-    {
-        return mResultDetail;
     }
 
     /**
@@ -339,8 +265,6 @@ public:
         return mCalleeName;
     }
 
-    HRESULT getVirtualBoxErrorInfo(ComPtr<IVirtualBoxErrorInfo> &pVirtualBoxErrorInfo);
-
     /**
      *  Resets all collected error information. #isBasicAvailable() and
      *  #isFullAvailable will return @c true after this method is called.
@@ -370,7 +294,6 @@ protected:
     bool mIsFullAvailable : 1;
 
     HRESULT mResultCode;
-    LONG    mResultDetail;
     Guid    mInterfaceID;
     Bstr    mComponent;
     Bstr    mText;
@@ -453,19 +376,6 @@ public:
     {
         if (!aIsNull)
             init(true /* aKeepObj */);
-    }
-
-    /**
-     *  Constructs a new instance from an ErrorInfo object, to inject a full
-     *  error info created elsewhere.
-     *
-     *  @param aInfo    @c true to prevent fetching error info and leave
-     *                  the instance uninitialized.
-     */
-    ErrorInfoKeeper(const ErrorInfo &aInfo)
-        : ErrorInfo(false), mForgot(false)
-    {
-        copyFrom(aInfo);
     }
 
     /**

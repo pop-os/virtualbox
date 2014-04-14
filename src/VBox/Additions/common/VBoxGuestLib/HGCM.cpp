@@ -1,4 +1,4 @@
-/* $Revision: 83575 $ */
+/* $Revision: 76864 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

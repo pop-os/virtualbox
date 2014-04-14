@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kLdrModLX.c 29 2009-07-01 20:30:29Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -2639,7 +2639,6 @@ KLDRMODOPS g_kLdrModLXOps =
     NULL /* can execute one is optional */,
     kldrModLXGetStackInfo,
     kldrModLXQueryMainEntrypoint,
-    NULL /* pfnQueryImageUuid */,
     NULL /* fixme */,
     NULL /* fixme */,
     kldrModLXEnumDbgInfo,

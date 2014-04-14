@@ -1,9 +1,11 @@
 /** @file
- * VBox Qt GUI - UIMachine class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachine class declaration
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,22 +16,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachine_h___
-#define ___UIMachine_h___
+#ifndef __UIMachine_h__
+#define __UIMachine_h__
 
-/* Qt includes: */
+/* Global includes */
 #include <QObject>
 
-/* GUI includes: */
-#include "UIDefs.h"
+/* Local includes */
+#include "COMDefs.h"
 #include "UIMachineDefs.h"
 
-/* COM includes: */
-#include "COMEnums.h"
-#include "CSession.h"
-
-/* Forward declarations: */
+/* Global forwards: */
 class QWidget;
+
+/* Local forwards */
 class UISession;
 class UIVisualState;
 class UIMachineLogic;
@@ -38,11 +38,6 @@ class UIMachine : public QObject
 {
     Q_OBJECT;
 
-signals:
-
-    /** Requests async visual-state change. */
-    void sigRequestAsyncVisualStateChange(UIVisualStateType visualStateType);
-
 public:
 
     /* Virtual Machine constructor/destructor: */
@@ -50,21 +45,16 @@ public:
     virtual ~UIMachine();
 
     /* Public getters: */
-    QWidget* activeWindow() const;
+    QWidget* mainWindow() const;
     UISession *uisession() const { return m_pSession; }
-
-    /* API: Visual-state stuff: */
-    bool isVisualStateAllowedFullscreen() const { return m_allowedVisualStateTypes & UIVisualStateType_Fullscreen; }
-    bool isVisualStateAllowedSeamless() const { return m_allowedVisualStateTypes & UIVisualStateType_Seamless; }
-    bool isVisualStateAllowedScale() const { return m_allowedVisualStateTypes & UIVisualStateType_Scale; }
-
-    /** Requests async visual-state change. */
-    void asyncChangeVisualState(UIVisualStateType visualStateType);
 
 private slots:
 
     /* Visual state-change handler: */
     void sltChangeVisualState(UIVisualStateType visualStateType);
+
+    /* Close VM slot: */
+    void sltCloseVirtualMachine();
 
 private:
 
@@ -86,11 +76,10 @@ private:
     CSession m_session;
     UISession *m_pSession;
     UIVisualState *m_pVisualState;
-    UIVisualStateType m_allowedVisualStateTypes;
 
     /* Friend classes: */
     friend class UISession;
 };
 
-#endif /* !___UIMachine_h___ */
+#endif // __UIMachine_h__
 

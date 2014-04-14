@@ -46,29 +46,14 @@ packSPUInit( int id, SPU *child, SPU *self,
 
     packspuSetVBoxConfiguration( child );
 
-#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
-    pack_spu.bRunningUnderWDDM = !!GetModuleHandle(VBOX_MODNAME_DISPD3D);
-#endif
+    /* This connects to the server, sets up the packer, etc. */
+    thread = packspuNewThread( crThreadID() );
 
-#ifdef VBOX_WITH_CRPACKSPU_DUMPER
-    memset(&pack_spu.Dumper, 0, sizeof (pack_spu.Dumper));
-#endif
-
-    if (!CRPACKSPU_IS_WDDM_CRHGSMI())
-    {
-        /* This connects to the server, sets up the packer, etc. */
-        thread = packspuNewThread(
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-            NULL
-#endif
-                 );
-
-        if (!thread) {
-            return NULL;
-        }
-        CRASSERT( thread == &(pack_spu.thread[0]) );
-        pack_spu.idxThreadInUse = 0;
+    if (!thread) {
+        return NULL;
     }
+    CRASSERT( thread == &(pack_spu.thread[0]) );
+    pack_spu.idxThreadInUse = 0;
 
     packspuCreateFunctions();
     crStateInit();
@@ -79,8 +64,7 @@ packSPUInit( int id, SPU *child, SPU *self,
 static void
 packSPUSelfDispatch(SPUDispatchTable *self)
 {
-    crSPUInitDispatchTable( &(pack_spu.self) );
-    crSPUCopyDispatchTable( &(pack_spu.self), self );
+    (void)self;
 }
 
 static int

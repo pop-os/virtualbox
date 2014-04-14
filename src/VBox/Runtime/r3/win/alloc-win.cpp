@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,6 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-/*#define USE_VIRTUAL_ALLOC*/
 #define LOG_GROUP RTLOGGROUP_MEM
 #include <Windows.h>
 
@@ -54,8 +53,14 @@ RTDECL(void *) RTMemExecAllocTag(size_t cb, const char *pszTag) RT_NO_THROW
     AssertMsg(pv, ("malloc(%d) failed!!!\n", cb));
     if (pv)
     {
+        /*
+         * Add PROT_EXEC flag to the page.
+         *
+         * This is in violation of the SuS where I think it saith that mprotect() shall
+         * only be used with mmap()'ed memory. Works on linux and OS/2 LIBC v0.6.
+         */
         memset(pv, 0xcc, cb);
-        void   *pvProt = (void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK);
+        void   *pvProt = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
         size_t  cbProt = ((uintptr_t)pv & PAGE_OFFSET_MASK) + cb;
         cbProt = RT_ALIGN_Z(cbProt, PAGE_SIZE);
         DWORD fFlags = 0;
@@ -185,7 +190,7 @@ RTDECL(int) RTMemProtect(void *pv, size_t cb, unsigned fProtect) RT_NO_THROW
      * Align the request.
      */
     cb += (uintptr_t)pv & PAGE_OFFSET_MASK;
-    pv = (void *)((uintptr_t)pv & ~(uintptr_t)PAGE_OFFSET_MASK);
+    pv = (void *)((uintptr_t)pv & ~PAGE_OFFSET_MASK);
 
     /*
      * Change the page attributes.

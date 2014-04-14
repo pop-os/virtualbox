@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,7 @@ DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu)
 {
     PRTMPNOTIFYREG  pCur;
     RTSPINLOCK      hSpinlock;
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * This is a little bit tricky as we cannot be holding the spinlock
@@ -117,7 +118,7 @@ DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu)
     hSpinlock = g_hRTMpNotifySpinLock;
     if (hSpinlock == NIL_RTSPINLOCK)
         return;
-    RTSpinlockAcquire(hSpinlock);
+    RTSpinlockAcquire(hSpinlock, &Tmp);
 
     /* Clear the bit. */
     for (pCur = g_pRTMpCallbackHead; pCur; pCur = pCur->pNext)
@@ -136,7 +137,7 @@ DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu)
                 PFNRTMPNOTIFICATION pfnCallback = pCur->pfnCallback;
                 void *pvUser = pCur->pvUser;
                 pCur = pCur->pNext;
-                RTSpinlockRelease(g_hRTMpNotifySpinLock);
+                RTSpinlockRelease(g_hRTMpNotifySpinLock, &Tmp);
 
                 pfnCallback(enmEvent, idCpu, pvUser);
 
@@ -144,7 +145,7 @@ DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu)
                 hSpinlock = g_hRTMpNotifySpinLock;
                 if (hSpinlock == NIL_RTSPINLOCK)
                     return;
-                RTSpinlockAcquire(hSpinlock);
+                RTSpinlockAcquire(hSpinlock, &Tmp);
                 if (ASMAtomicUoReadU32(&g_iRTMpGeneration) != iGeneration)
                     break;
             }
@@ -153,7 +154,7 @@ DECLHIDDEN(void) rtMpNotificationDoCallbacks(RTMPEVENT enmEvent, RTCPUID idCpu)
         }
     } while (pCur);
 
-    RTSpinlockRelease(hSpinlock);
+    RTSpinlockRelease(hSpinlock, &Tmp);
 }
 
 
@@ -162,6 +163,7 @@ RTDECL(int) RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUs
 {
     PRTMPNOTIFYREG  pCur;
     PRTMPNOTIFYREG  pNew;
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * Validation.
@@ -170,12 +172,12 @@ RTDECL(int) RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUs
     AssertReturn(g_hRTMpNotifySpinLock != NIL_RTSPINLOCK, VERR_WRONG_ORDER);
     RT_ASSERT_PREEMPTIBLE();
 
-    RTSpinlockAcquire(g_hRTMpNotifySpinLock);
+    RTSpinlockAcquire(g_hRTMpNotifySpinLock, &Tmp);
     for (pCur = g_pRTMpCallbackHead; pCur; pCur = pCur->pNext)
         if (    pCur->pvUser == pvUser
             &&  pCur->pfnCallback == pfnCallback)
             break;
-    RTSpinlockRelease(g_hRTMpNotifySpinLock);
+    RTSpinlockRelease(g_hRTMpNotifySpinLock, &Tmp);
     AssertMsgReturn(!pCur, ("pCur=%p pfnCallback=%p pvUser=%p\n", pCur, pfnCallback, pvUser), VERR_ALREADY_EXISTS);
 
     /*
@@ -190,7 +192,7 @@ RTDECL(int) RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUs
     pNew->pvUser = pvUser;
     memset(&pNew->bmDone[0], 0xff, sizeof(pNew->bmDone));
 
-    RTSpinlockAcquire(g_hRTMpNotifySpinLock);
+    RTSpinlockAcquire(g_hRTMpNotifySpinLock, &Tmp);
 
     pCur = g_pRTMpCallbackHead;
     if (!pCur)
@@ -211,7 +213,7 @@ RTDECL(int) RTMpNotificationRegister(PFNRTMPNOTIFICATION pfnCallback, void *pvUs
 
     ASMAtomicIncU32(&g_iRTMpGeneration);
 
-    RTSpinlockRelease(g_hRTMpNotifySpinLock);
+    RTSpinlockRelease(g_hRTMpNotifySpinLock, &Tmp);
 
     /* duplicate? */
     if (pCur)
@@ -229,6 +231,7 @@ RTDECL(int) RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pv
 {
     PRTMPNOTIFYREG  pPrev;
     PRTMPNOTIFYREG  pCur;
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * Validation.
@@ -240,7 +243,7 @@ RTDECL(int) RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pv
     /*
      * Find and unlink the record from the list.
      */
-    RTSpinlockAcquire(g_hRTMpNotifySpinLock);
+    RTSpinlockAcquire(g_hRTMpNotifySpinLock, &Tmp);
     pPrev = NULL;
     for (pCur = g_pRTMpCallbackHead; pCur; pCur = pCur->pNext)
     {
@@ -257,7 +260,7 @@ RTDECL(int) RTMpNotificationDeregister(PFNRTMPNOTIFICATION pfnCallback, void *pv
             g_pRTMpCallbackHead = pCur->pNext;
         ASMAtomicIncU32(&g_iRTMpGeneration);
     }
-    RTSpinlockRelease(g_hRTMpNotifySpinLock);
+    RTSpinlockRelease(g_hRTMpNotifySpinLock, &Tmp);
 
     if (!pCur)
         return VERR_NOT_FOUND;
@@ -276,7 +279,7 @@ RT_EXPORT_SYMBOL(RTMpNotificationDeregister);
 
 DECLHIDDEN(int) rtR0MpNotificationInit(void)
 {
-    int rc = RTSpinlockCreate((PRTSPINLOCK)&g_hRTMpNotifySpinLock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "RTR0Mp");
+    int rc = RTSpinlockCreate((PRTSPINLOCK)&g_hRTMpNotifySpinLock);
     if (RT_SUCCESS(rc))
     {
         rc = rtR0MpNotificationNativeInit();
@@ -293,18 +296,19 @@ DECLHIDDEN(int) rtR0MpNotificationInit(void)
 DECLHIDDEN(void) rtR0MpNotificationTerm(void)
 {
     PRTMPNOTIFYREG  pHead;
+    RTSPINLOCKTMP   Tmp       = RTSPINLOCKTMP_INITIALIZER;
     RTSPINLOCK      hSpinlock = g_hRTMpNotifySpinLock;
     AssertReturnVoid(hSpinlock != NIL_RTSPINLOCK);
 
     rtR0MpNotificationNativeTerm();
 
     /* pick up the list and the spinlock. */
-    RTSpinlockAcquire(hSpinlock);
+    RTSpinlockAcquire(hSpinlock, &Tmp);
     ASMAtomicWriteHandle(&g_hRTMpNotifySpinLock, NIL_RTSPINLOCK);
     pHead = g_pRTMpCallbackHead;
     g_pRTMpCallbackHead = NULL;
     ASMAtomicIncU32(&g_iRTMpGeneration);
-    RTSpinlockRelease(hSpinlock);
+    RTSpinlockRelease(hSpinlock, &Tmp);
 
     /* free the list. */
     while (pHead)

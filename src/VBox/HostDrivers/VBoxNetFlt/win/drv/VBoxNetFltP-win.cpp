@@ -4,7 +4,7 @@
  * Protocol edge
  */
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,6 +161,8 @@ static VOID vboxNetFltWinPtOpenAdapterComplete(IN NDIS_HANDLE hProtocolBindingCo
 
 static void vboxNetFltWinPtRequestsWaitComplete(PVBOXNETFLTINS pNetFlt)
 {
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+
     /* wait for request to complete */
     while (vboxNetFltWinAtomicUoReadWinState(pNetFlt->u.s.WinIf.StateFlags).fRequestInfo == VBOXNDISREQUEST_INPROGRESS)
     {
@@ -170,23 +172,24 @@ static void vboxNetFltWinPtRequestsWaitComplete(PVBOXNETFLTINS pNetFlt)
     /*
      * If the below miniport is going to low power state, complete the queued request
      */
-    RTSpinlockAcquire(pNetFlt->hSpinlock);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
     if (pNetFlt->u.s.WinIf.StateFlags.fRequestInfo & VBOXNDISREQUEST_QUEUED)
     {
         /* mark the request as InProgress before posting it to RequestComplete */
         pNetFlt->u.s.WinIf.StateFlags.fRequestInfo = VBOXNDISREQUEST_INPROGRESS;
-        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         vboxNetFltWinPtRequestComplete(pNetFlt, &pNetFlt->u.s.WinIf.PassDownRequest, NDIS_STATUS_FAILURE);
     }
     else
     {
-        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
     }
 }
 
 DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtDoUnbinding(PVBOXNETFLTINS pNetFlt, bool bOnUnbind)
 {
     NDIS_STATUS Status;
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint64_t NanoTS = RTTimeSystemNanoTS();
     int cPPUsage;
 
@@ -196,7 +199,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtDoUnbinding(PVBOXNETFLTINS pNetFlt, bool 
 
     Assert(vboxNetFltWinGetOpState(&pNetFlt->u.s.WinIf.PtState) == kVBoxNetDevOpState_Initialized);
 
-    RTSpinlockAcquire(pNetFlt->hSpinlock);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 
     ASMAtomicUoWriteBool(&pNetFlt->fDisconnectedFromHost, true);
     ASMAtomicUoWriteBool(&pNetFlt->fRediscoveryPending, false);
@@ -208,7 +211,7 @@ DECLHIDDEN(NDIS_STATUS) vboxNetFltWinPtDoUnbinding(PVBOXNETFLTINS pNetFlt, bool 
         vboxNetFltWinSetOpState(&pNetFlt->u.s.WinIf.MpState, kVBoxNetDevOpState_Deinitializing);
     }
 
-    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
     vboxNetFltWinPtRequestsWaitComplete(pNetFlt);
 
@@ -1190,7 +1193,7 @@ static NDIS_STATUS vboxNetFltWinPtReceive(IN NDIS_HANDLE hProtocolBindingContext
             Assert(fWinIfActive);
 
             vboxNetFltWinRecvIndicatePassThru(pNetFlt, MacReceiveContext, pHeaderBuffer, cbHeaderBuffer, pLookAheadBuffer, cbLookAheadBuffer, cbPacket);
-            /* the status could contain an error value here in case the IntNet recv failed,
+            /* the status could contain an error value here in case the the IntNet recv failed,
              * ensure we return back success status */
             Status = NDIS_STATUS_SUCCESS;
 
@@ -1396,23 +1399,25 @@ static INT vboxNetFltWinPtReceivePacket(NDIS_HANDLE hProtocolBindingContext, PND
 
 DECLHIDDEN(bool) vboxNetFltWinPtCloseInterface(PVBOXNETFLTINS pNetFlt, PNDIS_STATUS pStatus)
 {
-    RTSpinlockAcquire(pNetFlt->hSpinlock);
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 
     if (pNetFlt->u.s.WinIf.StateFlags.fInterfaceClosing)
     {
-        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         Assert(0);
         return false;
     }
     if (pNetFlt->u.s.WinIf.hBinding == NULL)
     {
-        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         Assert(0);
         return false;
     }
 
     pNetFlt->u.s.WinIf.StateFlags.fInterfaceClosing = TRUE;
-    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+    RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
     NdisResetEvent(&pNetFlt->u.s.WinIf.OpenCloseEvent);
     NdisCloseAdapter(pStatus, pNetFlt->u.s.WinIf.hBinding);
@@ -1432,8 +1437,9 @@ DECLHIDDEN(bool) vboxNetFltWinPtCloseInterface(PVBOXNETFLTINS pNetFlt, PNDIS_STA
 static NDIS_STATUS vboxNetFltWinPtPnPSetPower(PVBOXNETFLTINS pNetFlt, NDIS_DEVICE_POWER_STATE enmPowerState)
 {
     NDIS_DEVICE_POWER_STATE enmPrevPowerState = vboxNetFltWinGetPowerState(&pNetFlt->u.s.WinIf.PtState);
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
 
-    RTSpinlockAcquire(pNetFlt->hSpinlock);
+    RTSpinlockAcquireNoInts(pNetFlt->hSpinlock, &Tmp);
 
     vboxNetFltWinSetPowerState(&pNetFlt->u.s.WinIf.PtState, enmPowerState);
 
@@ -1443,7 +1449,7 @@ static NDIS_STATUS vboxNetFltWinPtPnPSetPower(PVBOXNETFLTINS pNetFlt, NDIS_DEVIC
         {
             pNetFlt->u.s.WinIf.StateFlags.fStandBy = TRUE;
         }
-        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+        RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         vboxNetFltWinPtRequestsWaitComplete(pNetFlt);
         vboxNetFltWinWaitDereference(&pNetFlt->u.s.WinIf.MpState);
         vboxNetFltWinWaitDereference(&pNetFlt->u.s.WinIf.PtState);
@@ -1468,13 +1474,13 @@ static NDIS_STATUS vboxNetFltWinPtPnPSetPower(PVBOXNETFLTINS pNetFlt, NDIS_DEVIC
         if (pNetFlt->u.s.WinIf.StateFlags.fRequestInfo & VBOXNDISREQUEST_QUEUED)
         {
             pNetFlt->u.s.WinIf.StateFlags.fRequestInfo = VBOXNDISREQUEST_INPROGRESS;
-            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
 
             vboxNetFltWinMpRequestPost(pNetFlt);
         }
         else
         {
-            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock);
+            RTSpinlockReleaseNoInts(pNetFlt->hSpinlock, &Tmp);
         }
     }
 

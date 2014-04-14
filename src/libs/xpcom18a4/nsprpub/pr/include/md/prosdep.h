@@ -138,6 +138,9 @@ PR_BEGIN_EXTERN_C
 #elif defined(NTO)
 #include "md/_nto.h"
 
+#elif defined(L4ENV)
+#include "md/_l4v2.h"
+
 #else
 #error unknown Unix flavor
 

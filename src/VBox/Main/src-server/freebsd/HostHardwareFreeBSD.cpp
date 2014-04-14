@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 #include <iprt/mem.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+#include <iprt/thread.h>  /* for RTThreadSleep() */
 #include <iprt/string.h>
 
 #ifdef RT_OS_FREEBSD
@@ -171,8 +172,8 @@ static int getDVDInfoFromCAM(DriveInfoList *pList, bool *pfSuccess)
         struct dev_match_pattern DeviceMatchPattern;
         struct dev_match_result *paMatches = NULL;
 
-        RT_ZERO(DeviceCCB);
-        RT_ZERO(DeviceMatchPattern);
+        memset(&DeviceCCB, 0, sizeof(union ccb));
+        memset(&DeviceMatchPattern, 0, sizeof(struct device_match_pattern));
 
         /* We want to get all devices. */
         DeviceCCB.ccb_h.func_code  = XPT_DEV_MATCH;
@@ -235,9 +236,9 @@ static int getDVDInfoFromCAM(DriveInfoList *pList, bool *pfSuccess)
                         struct periph_match_result *pPeriphResult = NULL;
                         unsigned iPeriphMatch = 0;
 
-                        RT_ZERO(PeriphCCB);
-                        RT_ZERO(PeriphMatchPattern);
-                        RT_ZERO(aPeriphMatches);
+                        memset(&PeriphCCB, 0, sizeof(union ccb));
+                        memset(&PeriphMatchPattern, 0, sizeof(struct dev_match_pattern));
+                        memset(aPeriphMatches, 0, sizeof(aPeriphMatches));
 
                         /* This time we only want the specific nodes for the device. */
                         PeriphCCB.ccb_h.func_code  = XPT_DEV_MATCH;

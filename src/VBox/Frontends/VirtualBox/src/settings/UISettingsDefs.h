@@ -1,11 +1,11 @@
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
- * Header with definitions and functions related to settings window
+ * Header with definitions and functions related to settings dialog
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,8 @@
 #include <QPair>
 #include <QMap>
 
-/* COM includes: */
-#include "COMEnums.h"
+/* VBox includes: */
+#include "COMDefs.h"
 
 /* Settings dialog namespace: */
 namespace UISettingsDefs
@@ -39,7 +39,7 @@ namespace UISettingsDefs
     };
 
     /* Machine state => Settings dialog type converter: */
-    SettingsDialogType determineSettingsDialogType(KSessionState sessionState, KMachineState machineState);
+    SettingsDialogType machineStateToSettingsDialogType(KMachineState machineState);
 }
 
 /* Template to operate settings cache item: */

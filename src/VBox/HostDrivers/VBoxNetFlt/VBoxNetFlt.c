@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -374,6 +374,7 @@ static void vboxNetFltUnlinkLocked(PVBOXNETFLTGLOBALS pGlobals, PVBOXNETFLTINS p
  */
 static bool vboxNetFltMaybeRediscovered(PVBOXNETFLTINS pThis)
 {
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint64_t        Now;
     bool            fRediscovered;
     bool            fDoIt;
@@ -394,7 +395,7 @@ static bool vboxNetFltMaybeRediscovered(PVBOXNETFLTINS pThis)
      * Rediscovered already? Time to try again?
      */
     Now = RTTimeNanoTS();
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
 
     fRediscovered = !ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost);
     fDoIt = !fRediscovered
@@ -403,7 +404,7 @@ static bool vboxNetFltMaybeRediscovered(PVBOXNETFLTINS pThis)
     if (fDoIt)
         ASMAtomicWriteBool(&pThis->fRediscoveryPending, true);
 
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     /*
      * Call the OS specific code to do the job.
@@ -497,6 +498,7 @@ static DECLCALLBACK(int) vboxNetFltPortWaitForIdle(PINTNETTRUNKIFPORT pIfPort, u
 static DECLCALLBACK(INTNETTRUNKIFSTATE) vboxNetFltPortSetState(PINTNETTRUNKIFPORT pIfPort, INTNETTRUNKIFSTATE enmState)
 {
     PVBOXNETFLTINS      pThis = IFPORT_2_VBOXNETFLTINS(pIfPort);
+    RTSPINLOCKTMP       Tmp   = RTSPINLOCKTMP_INITIALIZER;
     INTNETTRUNKIFSTATE  enmOldTrunkState;
 
     /*
@@ -512,11 +514,11 @@ static DECLCALLBACK(INTNETTRUNKIFSTATE) vboxNetFltPortSetState(PINTNETTRUNKIFPOR
     /*
      * Take the lock and change the state.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     enmOldTrunkState = pThis->enmTrunkState;
     if (enmOldTrunkState != enmState)
         ASMAtomicWriteU32((uint32_t volatile *)&pThis->enmTrunkState, enmState);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     /*
      * If the state change indicates that the trunk has become active or
@@ -599,6 +601,7 @@ static DECLCALLBACK(void) vboxNetFltPortDisconnectInterface(PINTNETTRUNKIFPORT p
 static DECLCALLBACK(void) vboxNetFltPortDisconnectAndRelease(PINTNETTRUNKIFPORT pIfPort)
 {
     PVBOXNETFLTINS pThis = IFPORT_2_VBOXNETFLTINS(pIfPort);
+    RTSPINLOCKTMP  Tmp   = RTSPINLOCKTMP_INITIALIZER;
 
     /*
      * Serious paranoia.
@@ -619,17 +622,17 @@ static DECLCALLBACK(void) vboxNetFltPortDisconnectAndRelease(PINTNETTRUNKIFPORT 
     /*
      * Disconnect and release it.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     vboxNetFltSetState(pThis, kVBoxNetFltInsState_Disconnecting);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     vboxNetFltOsDisconnectIt(pThis);
     pThis->pSwitchPort = NULL;
 
 #ifdef VBOXNETFLT_STATIC_CONFIG
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     vboxNetFltSetState(pThis, kVBoxNetFltInsState_Unconnected);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 #endif
 
     vboxNetFltRelease(pThis, false /* fBusy */);
@@ -810,6 +813,7 @@ DECLHIDDEN(void) vboxNetFltRetain(PVBOXNETFLTINS pThis, bool fBusy)
  */
 DECLHIDDEN(bool) vboxNetFltTryRetainBusyActive(PVBOXNETFLTINS pThis)
 {
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint32_t        cRefs;
     bool            fRc;
 
@@ -829,7 +833,7 @@ DECLHIDDEN(bool) vboxNetFltTryRetainBusyActive(PVBOXNETFLTINS pThis)
     /*
      * Do the retaining and checking behind the spinlock.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     fRc = pThis->enmTrunkState == INTNETTRUNKIFSTATE_ACTIVE;
     if (fRc)
     {
@@ -839,7 +843,7 @@ DECLHIDDEN(bool) vboxNetFltTryRetainBusyActive(PVBOXNETFLTINS pThis)
         cRefs = ASMAtomicIncU32(&pThis->cBusy);
         AssertMsg(cRefs >= 1 && cRefs < UINT32_MAX / 2, ("%d\n", cRefs)); NOREF(cRefs);
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     return fRc;
 }
@@ -856,6 +860,7 @@ DECLHIDDEN(bool) vboxNetFltTryRetainBusyActive(PVBOXNETFLTINS pThis)
  */
 DECLHIDDEN(bool) vboxNetFltTryRetainBusyNotDisconnected(PVBOXNETFLTINS pThis)
 {
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint32_t        cRefs;
     bool            fRc;
 
@@ -875,7 +880,7 @@ DECLHIDDEN(bool) vboxNetFltTryRetainBusyNotDisconnected(PVBOXNETFLTINS pThis)
     /*
      * Do the retaining and checking behind the spinlock.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     fRc =  pThis->enmTrunkState == INTNETTRUNKIFSTATE_ACTIVE
         || pThis->enmTrunkState == INTNETTRUNKIFSTATE_INACTIVE;
     if (fRc)
@@ -886,7 +891,7 @@ DECLHIDDEN(bool) vboxNetFltTryRetainBusyNotDisconnected(PVBOXNETFLTINS pThis)
         cRefs = ASMAtomicIncU32(&pThis->cBusy);
         AssertMsg(cRefs >= 1 && cRefs < UINT32_MAX / 2, ("%d\n", cRefs)); NOREF(cRefs);
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     return fRc;
 }
@@ -1011,7 +1016,7 @@ static int vboxNetFltNewInstance(PVBOXNETFLTGLOBALS pGlobals, const char *pszNam
     pNew->hEventIdle                    = NIL_RTSEMEVENT;
     memcpy(pNew->szName, pszName, cchName + 1);
 
-    rc = RTSpinlockCreate(&pNew->hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxNetFltNewInstance");
+    rc = RTSpinlockCreate(&pNew->hSpinlock);
     if (RT_SUCCESS(rc))
     {
         rc = RTSemEventCreate(&pNew->hEventIdle);

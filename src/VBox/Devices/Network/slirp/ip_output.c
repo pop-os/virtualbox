@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,7 +72,7 @@ static const uint8_t broadcast_ethaddr[6] =
 static int rt_lookup_in_cache(PNATState pData, uint32_t dst, uint8_t *ether)
 {
     int rc;
-    LogFlowFunc(("ENTER: dst:%RTnaipv4, ether:%RTmac\n", dst, ether));
+    LogFlowFunc(("ENTER: dst:%RTnaipv4, ether:%p\n", dst, ether));
     if (dst == INADDR_BROADCAST)
     {
         memcpy(ether, broadcast_ethaddr, ETH_ALEN);
@@ -121,17 +121,14 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
     register struct mbuf *m = m0;
     register int hlen = sizeof(struct ip);
     int len, off, error = 0;
+    extern uint8_t zerro_ethaddr[ETH_ALEN];
     struct ethhdr *eh = NULL;
     uint8_t eth_dst[ETH_ALEN];
     int rc = 1;
 
     STAM_PROFILE_START(&pData->StatIP_output, a);
 
-#ifdef LOG_ENABLED
     LogFlowFunc(("ip_output: so = %R[natsock], m0 = %lx\n", so, (long)m0));
-#else
-    NOREF(so);
-#endif
 
     M_ASSERTPKTHDR(m);
     Assert(m->m_pkthdr.header);
@@ -172,7 +169,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
         ip->ip_sum = 0;
         ip->ip_sum = cksum(m, hlen);
 
-        if (!(m->m_flags & M_SKIP_FIREWALL)){
+        {
             struct m_tag *t;
             STAM_PROFILE_START(&pData->StatALIAS_output, b);
             if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
@@ -189,8 +186,6 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
             }
             STAM_PROFILE_STOP(&pData->StatALIAS_output, b);
         }
-        else
-            m->m_flags &= ~M_SKIP_FIREWALL;
 
         memcpy(eh->h_source, eth_dst, ETH_ALEN);
 
@@ -297,7 +292,7 @@ ip_output0(PNATState pData, struct socket *so, struct mbuf *m0, int urg)
         ip->ip_sum = cksum(m, mhlen);
 
 send_or_free:
-        if (!(m->m_flags & M_SKIP_FIREWALL)){
+        {
             /* @todo: We can't alias all fragments because the way libalias processing
              * the fragments brake the sequence. libalias put alias_address to the source
              * address of IP header of fragment, while IP header of the first packet is
@@ -321,8 +316,6 @@ send_or_free:
             }
             Log2(("NAT: LibAlias return %d\n", rcLa));
         }
-        else
-            m->m_flags &= ~M_SKIP_FIREWALL;
         for (m = m0; m; m = m0)
         {
             m0 = m->m_nextpkt;

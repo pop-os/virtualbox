@@ -1,10 +1,10 @@
 /* $Id: VirtioNet-solaris.c $ */
 /** @file
- * VirtualBox Guest Additions - Virtio Network Driver for Solaris.
+ * VirtualBox Guest Additions: Virtio Network Driver for Solaris.
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,9 +27,6 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifdef DEBUG_ramshankar
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include "Virtio-solaris.h"
 #include "VirtioPci-solaris.h"
 
@@ -77,6 +74,14 @@
 #define VIRTIO_NET_CTRL_RX        0x00040000      /* Control channel RX mode support */
 #define VIRTIO_NET_CTRL_VLAN      0x00080000      /* Control channel VLAN filtering */
 
+#if defined(DEBUG_ramshankar)
+# undef LogFlowFunc
+# define LogFlowFunc        LogRel
+# undef Log
+# define Log                LogRel
+# undef LogFlow
+# define LogFlow            LogRel
+#endif
 
 /*******************************************************************************
 *   Internal Functions                                                         *

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@ typedef enum { kUndefOp_Fail, kUndefOp_All, kUndefOp_DefineByte, kUndefOp_End } 
 
 typedef struct MYDISSTATE
 {
-    DISSTATE        Dis;
+    DISCPUSTATE     Cpu;
     uint64_t        uAddress;           /**< The current instruction address. */
     uint8_t        *pbInstr;            /**< The current instruction (pointer). */
     uint32_t        cbInstr;            /**< The size of the current instruction. */
@@ -92,7 +92,7 @@ static void MyDisasYasmFormatter(PMYDISSTATE pState)
     *pszEnd = '\0';
 
 #else
-    size_t cch = DISFormatYasmEx(&pState->Dis, szTmp, sizeof(szTmp),
+    size_t cch = DISFormatYasmEx(&pState->Cpu, szTmp, sizeof(szTmp),
                                  DIS_FMT_FLAGS_STRICT | DIS_FMT_FLAGS_ADDR_RIGHT | DIS_FMT_FLAGS_ADDR_COMMENT
                                  | DIS_FMT_FLAGS_BYTES_RIGHT | DIS_FMT_FLAGS_BYTES_COMMENT | DIS_FMT_FLAGS_BYTES_SPACED,
                                  NULL, NULL);
@@ -102,7 +102,324 @@ static void MyDisasYasmFormatter(PMYDISSTATE pState)
     szTmp[cch] = '\0';
 #endif
 
-    RTPrintf("    %s ; %s", szTmp, pState->szLine);
+    RTPrintf("    %s ; %08llu %s", szTmp, pState->uAddress, pState->szLine);
+}
+
+
+/**
+ * Checks if the encoding of the current instruction is something
+ * we can never get the assembler to produce.
+ *
+ * @returns true if it's odd, false if it isn't.
+ * @param   pCpu        The disassembler output.
+ */
+static bool MyDisasYasmFormatterIsOddEncoding(PMYDISSTATE pState)
+{
+    /*
+     * Mod rm + SIB: Check for duplicate EBP encodings that yasm won't use for very good reasons.
+     */
+    if (    pState->Cpu.addrmode != CPUMODE_16BIT ///@todo correct?
+        &&  pState->Cpu.ModRM.Bits.Rm == 4
+        &&  pState->Cpu.ModRM.Bits.Mod != 3)
+    {
+        /* No scaled index SIB (index=4), except for ESP. */
+        if (    pState->Cpu.SIB.Bits.Index == 4
+            &&  pState->Cpu.SIB.Bits.Base != 4)
+            return true;
+
+        /* EBP + displacement */
+        if (    pState->Cpu.ModRM.Bits.Mod != 0
+             && pState->Cpu.SIB.Bits.Base == 5
+             && pState->Cpu.SIB.Bits.Scale == 0)
+            return true;
+    }
+
+    /*
+     * Seems to be an instruction alias here, but I cannot find any docs on it... hrmpf!
+     */
+    if (    pState->Cpu.pCurInstr->opcode == OP_SHL
+        &&  pState->Cpu.ModRM.Bits.Reg == 6)
+        return true;
+
+    /*
+     * Check for multiple prefixes of the same kind.
+     */
+    uint32_t fPrefixes = 0;
+    for (uint8_t const *pu8 = pState->pbInstr;; pu8++)
+    {
+        uint32_t f;
+        switch (*pu8)
+        {
+            case 0xf0:
+                f = PREFIX_LOCK;
+                break;
+
+            case 0xf2:
+            case 0xf3:
+                f = PREFIX_REP; /* yes, both */
+                break;
+
+            case 0x2e:
+            case 0x3e:
+            case 0x26:
+            case 0x36:
+            case 0x64:
+            case 0x65:
+                f = PREFIX_SEG;
+                break;
+
+            case 0x66:
+                f = PREFIX_OPSIZE;
+                break;
+
+            case 0x67:
+                f = PREFIX_ADDRSIZE;
+                break;
+
+            case 0x40: case 0x41: case 0x42: case 0x43: case 0x44: case 0x45: case 0x46: case 0x47:
+            case 0x48: case 0x49: case 0x4a: case 0x4b: case 0x4c: case 0x4d: case 0x4e: case 0x4f:
+                f = pState->Cpu.mode == CPUMODE_64BIT ? PREFIX_REX : 0;
+                break;
+
+            default:
+                f = 0;
+                break;
+        }
+        if (!f)
+            break; /* done */
+        if (fPrefixes & f)
+            return true;
+        fPrefixes |= f;
+    }
+
+    /* segment overrides are fun */
+    if (fPrefixes & PREFIX_SEG)
+    {
+        /* no effective address which it may apply to. */
+        Assert((pState->Cpu.prefix & PREFIX_SEG) || pState->Cpu.mode == CPUMODE_64BIT);
+        if (    !DIS_IS_EFFECTIVE_ADDR(pState->Cpu.param1.flags)
+            &&  !DIS_IS_EFFECTIVE_ADDR(pState->Cpu.param2.flags)
+            &&  !DIS_IS_EFFECTIVE_ADDR(pState->Cpu.param3.flags))
+            return true;
+    }
+
+    /* fixed register + addr override doesn't go down all that well. */
+    if (fPrefixes & PREFIX_ADDRSIZE)
+    {
+        Assert(pState->Cpu.prefix & PREFIX_ADDRSIZE);
+        if (    pState->Cpu.pCurInstr->param3 == OP_PARM_NONE
+            &&  pState->Cpu.pCurInstr->param2 == OP_PARM_NONE
+            &&  (   pState->Cpu.pCurInstr->param1 >= OP_PARM_REG_GEN32_START
+                 && pState->Cpu.pCurInstr->param1 <= OP_PARM_REG_GEN32_END))
+            return true;
+    }
+
+    /* Almost all prefixes are bad. */
+    if (fPrefixes)
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            /* nop w/ prefix(es). */
+            case OP_NOP:
+                return true;
+
+            case OP_JMP:
+                if (    pState->Cpu.pCurInstr->param1 != OP_PARM_Jb
+                    &&  pState->Cpu.pCurInstr->param1 != OP_PARM_Jv)
+                    break;
+                /* fall thru */
+            case OP_JO:
+            case OP_JNO:
+            case OP_JC:
+            case OP_JNC:
+            case OP_JE:
+            case OP_JNE:
+            case OP_JBE:
+            case OP_JNBE:
+            case OP_JS:
+            case OP_JNS:
+            case OP_JP:
+            case OP_JNP:
+            case OP_JL:
+            case OP_JNL:
+            case OP_JLE:
+            case OP_JNLE:
+                /** @todo branch hinting 0x2e/0x3e... */
+                return true;
+        }
+
+    }
+
+    /* All but the segment prefix is bad news. */
+    if (fPrefixes & ~PREFIX_SEG)
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            case OP_POP:
+            case OP_PUSH:
+                if (    pState->Cpu.pCurInstr->param1 >= OP_PARM_REG_SEG_START
+                    &&  pState->Cpu.pCurInstr->param1 <= OP_PARM_REG_SEG_END)
+                    return true;
+                if (    (fPrefixes & ~PREFIX_OPSIZE)
+                    &&  pState->Cpu.pCurInstr->param1 >= OP_PARM_REG_GEN32_START
+                    &&  pState->Cpu.pCurInstr->param1 <= OP_PARM_REG_GEN32_END)
+                    return true;
+                break;
+
+            case OP_POPA:
+            case OP_POPF:
+            case OP_PUSHA:
+            case OP_PUSHF:
+                if (fPrefixes & ~PREFIX_OPSIZE)
+                    return true;
+                break;
+        }
+    }
+
+    /* Implicit 8-bit register instructions doesn't mix with operand size. */
+    if (    (fPrefixes & PREFIX_OPSIZE)
+        &&  (   (   pState->Cpu.pCurInstr->param1 == OP_PARM_Gb /* r8 */
+                 && pState->Cpu.pCurInstr->param2 == OP_PARM_Eb /* r8/mem8 */)
+             || (   pState->Cpu.pCurInstr->param2 == OP_PARM_Gb /* r8 */
+                 && pState->Cpu.pCurInstr->param1 == OP_PARM_Eb /* r8/mem8 */))
+       )
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            case OP_ADD:
+            case OP_OR:
+            case OP_ADC:
+            case OP_SBB:
+            case OP_AND:
+            case OP_SUB:
+            case OP_XOR:
+            case OP_CMP:
+                return true;
+            default:
+                break;
+        }
+    }
+
+
+    /*
+     * Check for the version of xyz reg,reg instruction that the assembler doesn't use.
+     *
+     * For example:
+     *    expected: 1aee   sbb ch, dh     ; SBB r8, r/m8
+     *        yasm: 18F5   sbb ch, dh     ; SBB r/m8, r8
+     */
+    if (pState->Cpu.ModRM.Bits.Mod == 3 /* reg,reg */)
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            case OP_ADD:
+            case OP_OR:
+            case OP_ADC:
+            case OP_SBB:
+            case OP_AND:
+            case OP_SUB:
+            case OP_XOR:
+            case OP_CMP:
+                if (    (    pState->Cpu.pCurInstr->param1 == OP_PARM_Gb /* r8 */
+                         && pState->Cpu.pCurInstr->param2 == OP_PARM_Eb /* r8/mem8 */)
+                    ||  (    pState->Cpu.pCurInstr->param1 == OP_PARM_Gv /* rX */
+                         && pState->Cpu.pCurInstr->param2 == OP_PARM_Ev /* rX/memX */))
+                    return true;
+
+                /* 82 (see table A-6). */
+                if (pState->Cpu.opcode == 0x82)
+                    return true;
+                break;
+
+            /* ff /0, fe /0, ff /1, fe /0 */
+            case OP_DEC:
+            case OP_INC:
+                return true;
+
+            case OP_POP:
+            case OP_PUSH:
+                Assert(pState->Cpu.opcode == 0x8f);
+                return true;
+
+            default:
+                break;
+        }
+    }
+
+    /* shl eax,1 will be assembled to the form without the immediate byte. */
+    if (    pState->Cpu.pCurInstr->param2 == OP_PARM_Ib
+        &&  (uint8_t)pState->Cpu.param2.parval == 1)
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            case OP_SHL:
+            case OP_SHR:
+            case OP_SAR:
+            case OP_RCL:
+            case OP_RCR:
+            case OP_ROL:
+            case OP_ROR:
+                return true;
+        }
+    }
+
+    /* And some more - see table A-6. */
+    if (pState->Cpu.opcode == 0x82)
+    {
+        switch (pState->Cpu.pCurInstr->opcode)
+        {
+            case OP_ADD:
+            case OP_OR:
+            case OP_ADC:
+            case OP_SBB:
+            case OP_AND:
+            case OP_SUB:
+            case OP_XOR:
+            case OP_CMP:
+                return true;
+                break;
+        }
+    }
+
+
+    /* check for REX.X = 1 without SIB. */
+
+    /* Yasm encodes setnbe al with /2 instead of /0 like the AMD manual
+       says (intel doesn't appear to care). */
+    switch (pState->Cpu.pCurInstr->opcode)
+    {
+        case OP_SETO:
+        case OP_SETNO:
+        case OP_SETC:
+        case OP_SETNC:
+        case OP_SETE:
+        case OP_SETNE:
+        case OP_SETBE:
+        case OP_SETNBE:
+        case OP_SETS:
+        case OP_SETNS:
+        case OP_SETP:
+        case OP_SETNP:
+        case OP_SETL:
+        case OP_SETNL:
+        case OP_SETLE:
+        case OP_SETNLE:
+            AssertMsg(pState->Cpu.opcode >= 0x90 && pState->Cpu.opcode <= 0x9f, ("%#x\n", pState->Cpu.opcode));
+            if (pState->Cpu.ModRM.Bits.Reg != 2)
+                return true;
+            break;
+    }
+
+    /*
+     * The MOVZX reg32,mem16 instruction without an operand size prefix
+     * doesn't quite make sense...
+     */
+    if (    pState->Cpu.pCurInstr->opcode == OP_MOVZX
+        &&  pState->Cpu.opcode == 0xB7
+        &&  (pState->Cpu.mode == CPUMODE_16BIT) != !!(fPrefixes & PREFIX_OPSIZE))
+        return true;
+
+    return false;
 }
 
 
@@ -127,32 +444,32 @@ static void MyDisasMasmFormatter(PMYDISSTATE pState)
  *
  * @returns true if it's valid. false if it isn't.
  *
- * @param   pDis        The disassembler output.
+ * @param   pCpu        The disassembler output.
  */
-static bool MyDisasIsValidInstruction(DISSTATE const *pDis)
+static bool MyDisasIsValidInstruction(DISCPUSTATE const *pCpu)
 {
-    switch (pDis->pCurInstr->uOpcode)
+    switch (pCpu->pCurInstr->opcode)
     {
         /* These doesn't take memory operands. */
         case OP_MOV_CR:
         case OP_MOV_DR:
         case OP_MOV_TR:
-            if (pDis->ModRM.Bits.Mod != 3)
+            if (pCpu->ModRM.Bits.Mod != 3)
                 return false;
             break;
 
          /* The 0x8f /0 variant of this instruction doesn't get its /r value verified. */
         case OP_POP:
-            if (    pDis->bOpCode == 0x8f
-                &&  pDis->ModRM.Bits.Reg != 0)
+            if (    pCpu->opcode == 0x8f
+                &&  pCpu->ModRM.Bits.Reg != 0)
                 return false;
             break;
 
         /* The 0xc6 /0 and 0xc7 /0 variants of this instruction don't get their /r values verified. */
         case OP_MOV:
-            if (    (   pDis->bOpCode == 0xc6
-                     || pDis->bOpCode == 0xc7)
-                &&  pDis->ModRM.Bits.Reg != 0)
+            if (    (   pCpu->opcode == 0xc6
+                     || pCpu->opcode == 0xc7)
+                &&  pCpu->ModRM.Bits.Reg != 0)
                 return false;
             break;
 
@@ -165,56 +482,100 @@ static bool MyDisasIsValidInstruction(DISSTATE const *pDis)
 
 
 /**
- * @interface_method_impl{FNDISREADBYTES}
+ * Callback for reading bytes.
+ *
+ * @todo This should check that the disassembler doesn't do unnecessary reads,
+ *       however the current doesn't do this and is just complicated...
  */
-static DECLCALLBACK(int) MyDisasInstrRead(PDISSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
+static DECLCALLBACK(int) MyDisasInstrRead(RTUINTPTR uSrcAddr, uint8_t *pbDst, uint32_t cbRead, void *pvDisCpu)
 {
-    PMYDISSTATE pState   = (PMYDISSTATE)pDis;
-    RTUINTPTR   uSrcAddr = pState->Dis.uInstrAddr + offInstr;
+    PMYDISSTATE pState = (PMYDISSTATE)pvDisCpu;
     if (RT_LIKELY(   pState->uNextAddr == uSrcAddr
-                  && pState->cbLeft >= cbMinRead))
+                  && pState->cbLeft >= cbRead))
     {
         /*
          * Straight forward reading.
          */
-        //size_t cbToRead    = cbMaxRead;
-        size_t cbToRead    = cbMinRead;
-        memcpy(&pState->Dis.abInstr[offInstr], pState->pbNext, cbToRead);
-        pState->Dis.cbCachedInstr = offInstr + cbToRead;
-        pState->pbNext    += cbToRead;
-        pState->cbLeft    -= cbToRead;
-        pState->uNextAddr += cbToRead;
-        return VINF_SUCCESS;
-    }
-
-    if (pState->uNextAddr == uSrcAddr)
-    {
-        /*
-         * Reading too much.
-         */
-        if (pState->cbLeft > 0)
+        if (cbRead == 1)
         {
-            memcpy(&pState->Dis.abInstr[offInstr], pState->pbNext, pState->cbLeft);
-            offInstr          += (uint8_t)pState->cbLeft;
-            cbMinRead         -= (uint8_t)pState->cbLeft;
-            pState->pbNext    += pState->cbLeft;
-            pState->uNextAddr += pState->cbLeft;
-            pState->cbLeft     = 0;
+            pState->cbLeft--;
+            *pbDst = *pState->pbNext++;
+            pState->uNextAddr++;
         }
-        memset(&pState->Dis.abInstr[offInstr], 0xcc, cbMinRead);
-        pState->rc = VERR_EOF;
+        else
+        {
+            memcpy(pbDst, pState->pbNext, cbRead);
+            pState->pbNext += cbRead;
+            pState->cbLeft -= cbRead;
+            pState->uNextAddr += cbRead;
+        }
     }
     else
     {
         /*
-         * Non-sequential read, that's an error.
+         * Jumping up the stream.
+         * This occurs when the byte sequence is added to the output string.
          */
-        RTStrmPrintf(g_pStdErr, "Reading before current instruction!\n");
-        memset(&pState->Dis.abInstr[offInstr], 0x90, cbMinRead);
-        pState->rc = VERR_INTERNAL_ERROR;
+        uint64_t offReq64 = uSrcAddr - pState->uAddress;
+        if (offReq64 < 32)
+        {
+            uint32_t offReq = offReq64;
+            uintptr_t off = pState->pbNext - pState->pbInstr;
+            if (off + pState->cbLeft <= offReq)
+            {
+                pState->pbNext += pState->cbLeft;
+                pState->uNextAddr += pState->cbLeft;
+                pState->cbLeft = 0;
+
+                memset(pbDst, 0xcc, cbRead);
+                pState->rc = VERR_EOF;
+                return VERR_EOF;
+            }
+
+            /* reset the stream. */
+            pState->cbLeft += off;
+            pState->pbNext = pState->pbInstr;
+            pState->uNextAddr = pState->uAddress;
+
+            /* skip ahead. */
+            pState->cbLeft -= offReq;
+            pState->pbNext += offReq;
+            pState->uNextAddr += offReq;
+
+            /* do the reading. */
+            if (pState->cbLeft >= cbRead)
+            {
+                memcpy(pbDst, pState->pbNext, cbRead);
+                pState->cbLeft -= cbRead;
+                pState->pbNext += cbRead;
+                pState->uNextAddr += cbRead;
+            }
+            else
+            {
+                if (pState->cbLeft > 0)
+                {
+                    memcpy(pbDst, pState->pbNext, pState->cbLeft);
+                    pbDst += pState->cbLeft;
+                    cbRead -= (uint32_t)pState->cbLeft;
+                    pState->pbNext += pState->cbLeft;
+                    pState->uNextAddr += pState->cbLeft;
+                    pState->cbLeft = 0;
+                }
+                memset(pbDst, 0xcc, cbRead);
+                pState->rc = VERR_EOF;
+                return VERR_EOF;
+            }
+        }
+        else
+        {
+            RTStrmPrintf(g_pStdErr, "Reading before current instruction!\n");
+            memset(pbDst, 0x90, cbRead);
+            pState->rc = VERR_INTERNAL_ERROR;
+            return VERR_INTERNAL_ERROR;
+        }
     }
-    pState->Dis.cbCachedInstr = offInstr + cbMinRead;
-    return pState->rc;
+
+    return VINF_SUCCESS;
 }
 
 
@@ -241,6 +602,8 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
      * Initialize the CPU context.
      */
     MYDISSTATE State;
+    State.Cpu.mode = enmCpuMode;
+    State.Cpu.pfnReadBytes = MyDisasInstrRead;
     State.uAddress = uAddress;
     State.pbInstr = pbFile;
     State.cbInstr = 0;
@@ -258,7 +621,7 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
             break;
 
         case kAsmStyle_yasm:
-            RTPrintf("    BITS %d\n", enmCpuMode == DISCPUMODE_16BIT ? 16 : enmCpuMode == DISCPUMODE_32BIT ? 32 : 64);
+            RTPrintf("    BITS %d\n", enmCpuMode == CPUMODE_16BIT ? 16 : enmCpuMode == CPUMODE_32BIT ? 32 : 64);
             pfnFormatter = MyDisasYasmFormatter;
             break;
 
@@ -284,8 +647,7 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
         State.uNextAddr = State.uAddress;
         State.pbNext = State.pbInstr;
 
-        int rc = DISInstrToStrWithReader(State.uAddress, enmCpuMode, MyDisasInstrRead, &State,
-                                         &State.Dis, &State.cbInstr, State.szLine, sizeof(State.szLine));
+        int rc = DISInstr(&State.Cpu, State.uAddress, 0, &State.cbInstr, State.szLine);
         if (    RT_SUCCESS(rc)
             ||  (   (   rc == VERR_DIS_INVALID_OPCODE
                      || rc == VERR_DIS_GEN_FAILURE)
@@ -293,32 +655,32 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
         {
             State.fUndefOp = rc == VERR_DIS_INVALID_OPCODE
                           || rc == VERR_DIS_GEN_FAILURE
-                          || State.Dis.pCurInstr->uOpcode == OP_INVALID
-                          || State.Dis.pCurInstr->uOpcode == OP_ILLUD2
-                          || (   State.enmUndefOp == kUndefOp_DefineByte
-                              && !MyDisasIsValidInstruction(&State.Dis));
+                          || State.Cpu.pCurInstr->opcode == OP_INVALID
+                          || State.Cpu.pCurInstr->opcode == OP_ILLUD2
+                          || (    State.enmUndefOp == kUndefOp_DefineByte
+                              && !MyDisasIsValidInstruction(&State.Cpu));
             if (State.fUndefOp && State.enmUndefOp == kUndefOp_DefineByte)
             {
-                if (!State.cbInstr)
-                {
-                    State.Dis.abInstr[0] = 0;
-                    State.Dis.pfnReadBytes(&State.Dis, 0, 1, 1);
-                    State.cbInstr = 1;
-                }
                 RTPrintf("    db");
+                if (!State.cbInstr)
+                    State.cbInstr = 1;
                 for (unsigned off = 0; off < State.cbInstr; off++)
-                    RTPrintf(off ? ", %03xh" : " %03xh", State.Dis.abInstr[off]);
+                {
+                    uint8_t b;
+                    State.Cpu.pfnReadBytes(State.uAddress + off, &b, 1, &State.Cpu);
+                    RTPrintf(off ? ", %03xh" : " %03xh", b);
+                }
                 RTPrintf("    ; %s\n", State.szLine);
             }
             else if (!State.fUndefOp && State.enmUndefOp == kUndefOp_All)
             {
-                RTPrintf("%s: error at %#RX64: unexpected valid instruction (op=%d)\n", argv0, State.uAddress, State.Dis.pCurInstr->uOpcode);
+                RTPrintf("%s: error at %#RX64: unexpected valid instruction (op=%d)\n", argv0, State.uAddress, State.Cpu.pCurInstr->opcode);
                 pfnFormatter(&State);
                 rcRet = VERR_GENERAL_FAILURE;
             }
             else if (State.fUndefOp && State.enmUndefOp == kUndefOp_Fail)
             {
-                RTPrintf("%s: error at %#RX64: undefined opcode (op=%d)\n", argv0, State.uAddress, State.Dis.pCurInstr->uOpcode);
+                RTPrintf("%s: error at %#RX64: undefined opcode (op=%d)\n", argv0, State.uAddress, State.Cpu.pCurInstr->opcode);
                 pfnFormatter(&State);
                 rcRet = VERR_GENERAL_FAILURE;
             }
@@ -326,11 +688,15 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
             {
                 /* Use db for odd encodings that we can't make the assembler use. */
                 if (    State.enmUndefOp == kUndefOp_DefineByte
-                    &&  DISFormatYasmIsOddEncoding(&State.Dis))
+                    &&  MyDisasYasmFormatterIsOddEncoding(&State))
                 {
                     RTPrintf("    db");
                     for (unsigned off = 0; off < State.cbInstr; off++)
-                        RTPrintf(off ? ", %03xh" : " %03xh", State.Dis.abInstr[off]);
+                    {
+                        uint8_t b;
+                        State.Cpu.pfnReadBytes(State.uAddress + off, &b, 1, &State.Cpu);
+                        RTPrintf(off ? ", %03xh" : " %03xh", b);
+                    }
                     RTPrintf(" ; ");
                 }
 
@@ -356,25 +722,6 @@ static int MyDisasmBlock(const char *argv0, DISCPUMODE enmCpuMode, uint64_t uAdd
         /* Highlight this instruction? */
         if (uHighlightAddr - State.uAddress < State.cbInstr)
             RTPrintf("; ^^^^^^^^^^^^^^^^^^^^^\n");
-
-        /* Check that the size-only mode returns the smae size on success. */
-        if (RT_SUCCESS(rc))
-        {
-            uint32_t cbInstrOnly = 32;
-            uint8_t  abInstr[sizeof(State.Dis.abInstr)];
-            memcpy(abInstr, State.Dis.abInstr, sizeof(State.Dis.abInstr));
-            int rcOnly = DISInstrWithPrefetchedBytes(State.uAddress, enmCpuMode, 0 /*fFilter - none */,
-                                                     abInstr, State.Dis.cbCachedInstr, MyDisasInstrRead, &State,
-                                                     &State.Dis, &cbInstrOnly);
-            if (   rcOnly != rc
-                || cbInstrOnly != State.cbInstr)
-            {
-                RTPrintf("; Instruction size only check failed rc=%Rrc cbInstrOnly=%#x exepcted %Rrc and %#x\n",
-                         rcOnly, cbInstrOnly, rc, State.cbInstr);
-                rcRet = VERR_GENERAL_FAILURE;
-                break;
-            }
-        }
 
         /* next */
         State.uAddress += State.cbInstr;
@@ -417,7 +764,7 @@ static int HexDigitToNum(char ch)
         case 'F':
         case 'f': return 0xf;
         default:
-            RTPrintf("error: Invalid hex digit '%c'\n", ch);
+            RTPrintf("error: Invalid hex digig '%c'\n", ch);
             return -1;
     }
 }
@@ -457,7 +804,7 @@ static int Usage(const char *argv0)
 
 int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
     const char * const argv0 = RTPathFilename(argv[0]);
 
     /* options */
@@ -466,7 +813,7 @@ int main(int argc, char **argv)
     ASMSTYLE enmStyle = kAsmStyle_Default;
     UNDEFOPHANDLING enmUndefOp = kUndefOp_Fail;
     bool fListing = true;
-    DISCPUMODE enmCpuMode = DISCPUMODE_32BIT;
+    DISCPUMODE enmCpuMode = CPUMODE_32BIT;
     RTFOFF off = 0;
     RTFOFF cbMax = _1G;
     bool fHexBytes = false;
@@ -506,11 +853,11 @@ int main(int argc, char **argv)
 
             case 'c':
                 if (ValueUnion.u32 == 16)
-                    enmCpuMode = DISCPUMODE_16BIT;
+                    enmCpuMode = CPUMODE_16BIT;
                 else if (ValueUnion.u32 == 32)
-                    enmCpuMode = DISCPUMODE_32BIT;
+                    enmCpuMode = CPUMODE_32BIT;
                 else if (ValueUnion.u32 == 64)
-                    enmCpuMode = DISCPUMODE_64BIT;
+                    enmCpuMode = CPUMODE_64BIT;
                 else
                 {
                     RTStrmPrintf(g_pStdErr, "%s: Invalid CPU mode value %RU32\n", argv0, ValueUnion.u32);
@@ -570,7 +917,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 89645 $\n");
+                RTPrintf("$Revision: $\n");
                 return 0;
 
             default:
@@ -598,19 +945,12 @@ int main(int argc, char **argv)
             {
                 /** @todo this stuff belongs in IPRT, same stuff as mac address reading. Could be reused for IPv6 with a different item size.*/
                 /* skip white space, and for the benefit of linux panics '<' and '>'. */
-                while (RT_C_IS_SPACE(ch2 = *psz) || ch2 == '<' || ch2 == '>' || ch2 == ',' || ch2 == ';')
+                while (RT_C_IS_SPACE(ch2 = *psz) || ch2 == '<' || ch2 == '>')
                 {
                     if (ch2 == '<')
                         uHighlightAddr = uAddress + cb;
                     psz++;
                 }
-
-                if (ch2 == '0' && (psz[1] == 'x' || psz[1] == 'X'))
-                {
-                    psz += 2;
-                    ch2 = *psz;
-                }
-
                 if (!ch2)
                     break;
 
@@ -618,7 +958,7 @@ int main(int argc, char **argv)
                 int iNum = HexDigitToNum(*psz++);
                 if (iNum == -1)
                     return 1;
-                if (!RT_C_IS_SPACE(ch2 = *psz) && ch2 != '\0' && ch2 != '>' && ch2 != ',' && ch2 != ';')
+                if (!RT_C_IS_SPACE(ch2 = *psz) && ch2 != '\0' && ch2 != '>')
                 {
                     int iDigit = HexDigitToNum(*psz++);
                     if (iDigit == -1)

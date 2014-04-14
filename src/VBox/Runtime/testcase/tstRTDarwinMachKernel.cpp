@@ -28,17 +28,17 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#include <iprt/dbg.h>
+#include <iprt/darwin/machkernel.h>
 #include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
 
 
 
-static void dotest(void)
+static void dotest(const char *pszMachKernel)
 {
-    RTDBGKRNLINFO hKrnlInfo;
-    RTTESTI_CHECK_RC_RETV(RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0), VINF_SUCCESS);
+    RTR0MACHKERNEL hKernel;
+    RTTESTI_CHECK_RC_RETV(RTR0MachKernelOpen(pszMachKernel, &hKernel), VINF_SUCCESS);
     static const char * const s_apszSyms[] =
     {
         "ast_pending",
@@ -52,28 +52,28 @@ static void dotest(void)
     for (unsigned i = 0; i < RT_ELEMENTS(s_apszSyms); i++)
     {
         void *pvValue = NULL;
-        int rc = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, s_apszSyms[i], &pvValue);
+        int rc = RTR0MachKernelGetSymbol(hKernel, s_apszSyms[i], &pvValue);
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%Rrc %p %s\n", rc, pvValue, s_apszSyms[i]);
         RTTESTI_CHECK_RC(rc, VINF_SUCCESS);
         if (RT_SUCCESS(rc))
-            RTTESTI_CHECK_RC(RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, s_apszSyms[i], NULL), VINF_SUCCESS);
+            RTTESTI_CHECK_RC(RTR0MachKernelGetSymbol(hKernel, s_apszSyms[i], NULL), VINF_SUCCESS);
     }
 
-    RTTESTI_CHECK_RC(RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "no_such_symbol_name_really", NULL), VERR_SYMBOL_NOT_FOUND);
-    RTTESTI_CHECK(RTR0DbgKrnlInfoRelease(hKrnlInfo) == 0);
-    RTTESTI_CHECK(RTR0DbgKrnlInfoRelease(NIL_RTDBGKRNLINFO) == 0);
+    RTTESTI_CHECK_RC(RTR0MachKernelGetSymbol(hKernel, "no_such_symbol_name_really", NULL), VERR_SYMBOL_NOT_FOUND);
+    RTTESTI_CHECK_RC(RTR0MachKernelClose(hKernel), VINF_SUCCESS);
+    RTTESTI_CHECK_RC(RTR0MachKernelClose(NIL_RTR0MACHKERNEL), VINF_SUCCESS);
 }
 
 
 int main(int argc, char **argv)
 {
     RTTEST hTest;
-    RTEXITCODE rcExit = RTTestInitAndCreate("tstRTDarwinMachKernel", &hTest);
+    RTEXITCODE rcExit = RTTestInitAndCreate("tstRTMachKernel", &hTest);
     if (rcExit != RTEXITCODE_SUCCESS)
         return rcExit;
     RTTestBanner(hTest);
 
-    dotest();
+    dotest("/mach_kernel");
 
     return RTTestSummaryAndDestroy(hTest);
 }

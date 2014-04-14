@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2012 Oracle Corporation
+# Copyright (C) 2007-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@ PATH=$PATH:/bin:/sbin:/usr/sbin
 
 # Include routines and utilities needed by the installer
 . ./routines.sh
-#include installer-common.sh
+#include installer-utils.sh
 
 LOG="/var/log/vbox-install.log"
 VERSION="_VERSION_"
@@ -27,10 +27,6 @@ SVNREV="_SVNREV_"
 BUILD="_BUILD_"
 ARCH="_ARCH_"
 HARDENED="_HARDENED_"
-# The "BUILD_" prefixes prevent the variables from being overwritten when we
-# read the configuration from the previous installation.
-BUILD_BUILDTYPE="_BUILDTYPE_"
-BUILD_USERNAME="_USERNAME_"
 CONFIG_DIR="/etc/vbox"
 CONFIG="vbox.cfg"
 CONFIG_FILES="filelist"
@@ -109,7 +105,6 @@ check_previous() {
     check_binary "/usr/bin/VBoxVRDP" "$install_dir" &&
     check_binary "/usr/bin/VBoxHeadless" "$install_dir" &&
     check_binary "/usr/bin/VBoxBalloonCtrl" "$install_dir" &&
-    check_binary "/usr/bin/VBoxAutostart" "$install_dir" &&
     check_binary "/usr/bin/vboxwebsrv" "$install_dir"
 }
 
@@ -125,9 +120,6 @@ check_root
 
 # Set up logging before anything else
 create_log $LOG
-
-# Now stop the autostart service otherwise it will keep VBoxSVC running
-stop_init_script vboxautostart-service
 
 # Now stop the ballon control service otherwise it will keep VBoxSVC running
 stop_init_script vboxballoonctrl-service
@@ -213,9 +205,6 @@ do
 done
 
 if [ "$ACTION" = "install" ]; then
-    # Choose a proper umask
-    umask 022
-
     # Find previous installation
     if [ ! -r $CONFIG_DIR/$CONFIG ]; then
         mkdir -p -m 755 $CONFIG_DIR
@@ -246,7 +235,6 @@ if [ "$ACTION" = "install" ]; then
     # Terminate Server and VBoxNetDHCP if running
     terminate_proc VBoxSVC
     terminate_proc VBoxNetDHCP
-    terminate_proc VBoxNetNAT
 
     # Remove previous installation
     if [ -n "$PREV_INSTALLATION" -a -z "$FORCE_UPGRADE" -a ! "$VERSION" = "$INSTALL_VER" ] &&
@@ -349,28 +337,41 @@ if [ "$ACTION" = "install" ]; then
     echo "uninstall.sh" >> $CONFIG_DIR/$CONFIG_FILES
 
     # XXX SELinux: allow text relocation entries
-    set_selinux_permissions "$INSTALLATION_DIR" \
-                            "$INSTALLATION_DIR"
+    if [ -x /usr/bin/chcon ]; then
+        chcon -t texrel_shlib_t $INSTALLATION_DIR/VBox* > /dev/null 2>&1
+        chcon -t texrel_shlib_t $INSTALLATION_DIR/VBoxAuth.so > /dev/null 2>&1
+        chcon -t texrel_shlib_t $INSTALLATION_DIR/VirtualBox.so > /dev/null 2>&1
+        chcon -t texrel_shlib_t $INSTALLATION_DIR/components/VBox*.so > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/VirtualBox > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/VBoxSDL > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/VBoxHeadless > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/VBoxNetDHCP > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/VBoxExtPackHelperApp > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/vboxwebsrv > /dev/null 2>&1
+        chcon -t java_exec_t    $INSTALLATION_DIR/webtest > /dev/null 2>&1
+        chcon -t bin_t          $INSTALLATION_DIR/src/vboxhost/*/build_in_tmp > /dev/null 2>&1
+    fi
 
     # Hardened build: Mark selected binaries set-user-ID-on-execution,
     #                 create symlinks for working around unsupported $ORIGIN/.. in VBoxC.so (setuid),
     #                 and finally make sure the directory is only writable by the user (paranoid).
     if [ -n "$HARDENED" ]; then
-        test -e $INSTALLATION_DIR/VirtualBox     && chmod 4511 $INSTALLATION_DIR/VirtualBox
-        test -e $INSTALLATION_DIR/VBoxSDL        && chmod 4511 $INSTALLATION_DIR/VBoxSDL
-        test -e $INSTALLATION_DIR/VBoxHeadless   && chmod 4511 $INSTALLATION_DIR/VBoxHeadless
-        test -e $INSTALLATION_DIR/VBoxNetDHCP    && chmod 4511 $INSTALLATION_DIR/VBoxNetDHCP
-        test -e $INSTALLATION_DIR/VBoxNetNAT     && chmod 4511 $INSTALLATION_DIR/VBoxNetNAT
+        test -e $INSTALLATION_DIR/VirtualBox    && chmod 4511 $INSTALLATION_DIR/VirtualBox
+        test -e $INSTALLATION_DIR/VBoxSDL       && chmod 4511 $INSTALLATION_DIR/VBoxSDL
+        test -e $INSTALLATION_DIR/VBoxHeadless  && chmod 4511 $INSTALLATION_DIR/VBoxHeadless
+        test -e $INSTALLATION_DIR/VBoxNetDHCP   && chmod 4511 $INSTALLATION_DIR/VBoxNetDHCP
 
         ln -sf $INSTALLATION_DIR/VBoxVMM.so   $INSTALLATION_DIR/components/VBoxVMM.so
+        ln -sf $INSTALLATION_DIR/VBoxREM.so   $INSTALLATION_DIR/components/VBoxREM.so
         ln -sf $INSTALLATION_DIR/VBoxRT.so    $INSTALLATION_DIR/components/VBoxRT.so
+        ln -sf $INSTALLATION_DIR/VBoxDDU.so   $INSTALLATION_DIR/components/VBoxDDU.so
+        ln -sf $INSTALLATION_DIR/VBoxXPCOM.so $INSTALLATION_DIR/components/VBoxXPCOM.so
 
         chmod go-w $INSTALLATION_DIR
     fi
 
-    # This binaries need to be suid root in any case, even if not hardened
+    # This binary needs to be suid root in any case, even if not hardened
     test -e $INSTALLATION_DIR/VBoxNetAdpCtl && chmod 4511 $INSTALLATION_DIR/VBoxNetAdpCtl
-    test -e $INSTALLATION_DIR/VBoxVolInfo && chmod 4511 $INSTALLATION_DIR/VBoxVolInfo
 
     # Install runlevel scripts
     # Note: vboxdrv is also handled by setup_init_script. This function will
@@ -379,19 +380,16 @@ if [ "$ACTION" = "install" ]; then
     #       header!
     install_init_script vboxdrv.sh vboxdrv
     install_init_script vboxballoonctrl-service.sh vboxballoonctrl-service
-    install_init_script vboxautostart-service.sh vboxautostart-service
     install_init_script vboxweb-service.sh vboxweb-service
     delrunlevel vboxdrv > /dev/null 2>&1
     addrunlevel vboxdrv 20 80 # This may produce useful output
     delrunlevel vboxballoonctrl-service > /dev/null 2>&1
     addrunlevel vboxballoonctrl-service 25 75 # This may produce useful output
-    delrunlevel vboxautostart-service > /dev/null 2>&1
-    addrunlevel vboxautostart-service 25 75 # This may produce useful output
     delrunlevel vboxweb-service > /dev/null 2>&1
     addrunlevel vboxweb-service 25 75 # This may produce useful output
 
     # Create users group
-    groupadd -r -f $GROUPNAME 2> /dev/null
+    groupadd $GROUPNAME 2> /dev/null
 
     # Create symlinks to start binaries
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VirtualBox
@@ -400,7 +398,6 @@ if [ "$ACTION" = "install" ]; then
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxVRDP
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxHeadless
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxBalloonCtrl
-    ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxAutostart
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/vboxwebsrv
     ln -sf $INSTALLATION_DIR/VBox.png /usr/share/pixmaps/VBox.png
     # Unity and Nautilus seem to look here for their icons
@@ -423,7 +420,7 @@ if [ "$ACTION" = "install" ]; then
         cd $i
         if [ -d /usr/share/icons/hicolor/$i ]; then
             for j in *; do
-                if expr "$j" : "virtualbox\..*" > /dev/null; then
+                if [ "$j" = "virtualbox.png" ]; then
                     dst=apps
                 else
                     dst=mimetypes
@@ -458,8 +455,8 @@ if [ "$ACTION" = "install" ]; then
     echo "INSTALL_VER='$VERSION'" >> $CONFIG_DIR/$CONFIG
     echo "INSTALL_REV='$SVNREV'" >> $CONFIG_DIR/$CONFIG
     echo "# Build type and user name for logging purposes" >> $CONFIG_DIR/$CONFIG
-    echo "BUILD_TYPE='$BUILD_BUILDTYPE'" >> $CONFIG_DIR/$CONFIG
-    echo "USERNAME='$BUILD_USERNAME'" >> $CONFIG_DIR/$CONFIG
+    echo "BUILD_TYPE='$BUILD_TYPE'" >> $CONFIG_DIR/$CONFIG
+    echo "USERNAME='$USERNAME'" >> $CONFIG_DIR/$CONFIG
 
     # Make kernel module
     MODULE_FAILED="false"
@@ -477,7 +474,6 @@ if [ "$ACTION" = "install" ]; then
             RC_SCRIPT=1
         fi
         start_init_script vboxballoonctrl-service
-        start_init_script vboxautostart-service
         start_init_script vboxweb-service
         log ""
         log "End of the output from the Linux kernel build system."

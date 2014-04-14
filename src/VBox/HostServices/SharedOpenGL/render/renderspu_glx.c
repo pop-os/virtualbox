@@ -85,7 +85,6 @@ renderDestroyWindow( Display *dpy, Window w )
     return WindowExistsFlag;
 }
 
-#if 0
 /*
  * Garbage collection function.
  * Loop over all known windows and check if corresponding X window still
@@ -110,7 +109,6 @@ renderspu_GCWindow(void)
         }
     }
 }
-#endif
 
 static Colormap 
 GetLUTColormap( Display *dpy, XVisualInfo *vi )
@@ -403,314 +401,6 @@ chooseFBConfig( Display *dpy, int screen, GLbitfield visAttribs )
 }
 #endif /* GLX_VERSION_1_3 */
 
-static const char * renderspuGetDisplayName()
-{
-    const char *dpyName;
-
-    if (render_spu.display_string[0])
-        dpyName = render_spu.display_string;
-    else
-    {
-        crWarning("Render SPU: no display..");
-        dpyName = NULL;
-    }
-    return dpyName;
-}
-
-static int renderspuWinCmdWinCreate(WindowInfo *pWindow)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-static int renderspuWinCmdWinDestroy(WindowInfo *pWindow)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-static int renderspuWinCmdInit()
-{
-    const char * dpyName;
-    int rc = VERR_GENERAL_FAILURE;
-    
-    if (!crHashtableAllocRegisterKey(render_spu.windowTable, CR_RENDER_WINCMD_ID))
-    {
-        crError("CR_RENDER_WINCMD_ID %d is occupied already", CR_RENDER_WINCMD_ID);
-        return VERR_INVALID_STATE;
-    }
-    
-    render_spu.pWinToInfoTable = crAllocHashtable();
-    if (render_spu.pWinToInfoTable)
-    {
-        dpyName = renderspuGetDisplayName();
-        if (dpyName)
-        {
-            GLboolean bRc = renderspuInitVisual(&render_spu.WinCmdVisual, dpyName, render_spu.default_visual);
-            if (bRc)
-            {
-                bRc = renderspuWinInitWithVisual(&render_spu.WinCmdWindow, &render_spu.WinCmdVisual, GL_FALSE, CR_RENDER_WINCMD_ID);
-                if (bRc)
-                {
-                    XSelectInput(render_spu.WinCmdVisual.dpy, render_spu.WinCmdWindow.window, StructureNotifyMask);
-                    render_spu.WinCmdAtom = XInternAtom(render_spu.WinCmdVisual.dpy, "VBoxWinCmd", False);
-                    CRASSERT(render_spu.WinCmdAtom != None);
-                    return VINF_SUCCESS;
-                }
-                else
-                {
-                    crError("renderspuWinInitWithVisual failed");
-                }
-                /* there is no visual destroy impl currently
-                 * @todo: implement */
-            }
-            else
-            {
-                crError("renderspuInitVisual failed");
-            }
-        }
-        else
-        {
-            crError("Render SPU: no display, aborting");
-        }
-        crFreeHashtable(render_spu.pWinToInfoTable, NULL);
-        render_spu.pWinToInfoTable = NULL;
-    }
-    else
-    {
-        crError("crAllocHashtable failed");
-    }
-    return rc;
-}
-
-static void renderspuWinCmdTerm()
-{
-    /* the window is not in the table, this will just ensure the key is freed */
-    crHashtableDelete(render_spu.windowTable, CR_RENDER_WINCMD_ID, NULL);
-    renderspuWinCleanup(&render_spu.WinCmdWindow);
-    crFreeHashtable(render_spu.pWinToInfoTable, NULL);
-    /* we do not have visual destroy functionality 
-     * @todo implement */
-}
-
-
-static bool renderspuWinCmdProcess(CR_RENDER_WINCMD* pWinCmd)
-{
-    bool fExit = false;
-    /* process commands */
-    switch (pWinCmd->enmCmd)
-    {
-        case CR_RENDER_WINCMD_TYPE_WIN_ON_CREATE:
-            crHashtableAdd(render_spu.pWinToInfoTable, pWinCmd->pWindow->window, pWinCmd->pWindow);
-            XSelectInput(render_spu.WinCmdVisual.dpy, pWinCmd->pWindow->window, ExposureMask);
-            pWinCmd->rc = VINF_SUCCESS;
-            break;
-        case CR_RENDER_WINCMD_TYPE_WIN_ON_DESTROY:
-            crHashtableDelete(render_spu.pWinToInfoTable, pWinCmd->pWindow->window, NULL);
-            pWinCmd->rc = VINF_SUCCESS;
-            break;
-        case CR_RENDER_WINCMD_TYPE_NOP:
-            pWinCmd->rc = VINF_SUCCESS;
-            break;
-        case CR_RENDER_WINCMD_TYPE_EXIT:
-            renderspuWinCmdTerm();
-            pWinCmd->rc = VINF_SUCCESS;
-            fExit = true;
-            pWinCmd->rc = VINF_SUCCESS;
-            break;
-        case CR_RENDER_WINCMD_TYPE_WIN_CREATE:
-            pWinCmd->rc = renderspuWinCmdWinCreate(pWinCmd->pWindow);
-            break;  
-        case CR_RENDER_WINCMD_TYPE_WIN_DESTROY:
-            pWinCmd->rc = renderspuWinCmdWinDestroy(pWinCmd->pWindow);
-            break;
-        default:
-            crError("unknown WinCmd command! %d", pWinCmd->enmCmd);
-            pWinCmd->rc = VERR_INVALID_PARAMETER;
-            break;
-    }
-
-    RTSemEventSignal(render_spu.hWinCmdCompleteEvent);
-    return fExit;
-}
-
-static DECLCALLBACK(int) renderspuWinCmdThreadProc(RTTHREAD ThreadSelf, void *pvUser)
-{
-    int rc;
-    bool fExit = false;
-    crDebug("RenderSPU: Window thread started (%x)", crThreadID());
-    
-    rc = renderspuWinCmdInit();
-
-    /* notify the main cmd thread that we have started */
-    RTSemEventSignal(render_spu.hWinCmdCompleteEvent);
-    
-    if (!RT_SUCCESS(rc))
-    {
-        CRASSERT(!render_spu.pWinToInfoTable);
-        return rc;
-    }
-
-    do
-    {
-    	XEvent event;
-    	XNextEvent(render_spu.WinCmdVisual.dpy, &event);
-        
-    	switch (event.type)
-    	{
-            case ClientMessage:
-            {
-                CRASSERT(event.xclient.window == render_spu.WinCmdWindow.window);
-                if (event.xclient.window == render_spu.WinCmdWindow.window)
-                {
-                    if (render_spu.WinCmdAtom == event.xclient.message_type)
-                    {
-                        CR_RENDER_WINCMD *pWinCmd;
-                        memcpy(&pWinCmd, event.xclient.data.b, sizeof (pWinCmd));
-                        fExit = renderspuWinCmdProcess(pWinCmd);
-                    }
-                }
-                
-                break;
-            }
-            case Expose:
-            {
-                if (!event.xexpose.count)
-                {    
-                    WindowInfo *pWindow = (WindowInfo*)crHashtableSearch(render_spu.pWinToInfoTable, event.xexpose.window);
-                    if (pWindow)
-                    {
-                        const struct VBOXVR_SCR_COMPOSITOR * pCompositor;
-
-                        pCompositor = renderspuVBoxCompositorAcquire(pWindow);
-                        if (pCompositor)
-                        {
-                            renderspuVBoxPresentCompositionGeneric(pWindow, pCompositor, NULL, 0, false);
-                            renderspuVBoxCompositorRelease(pWindow);
-                        }
-                    }
-                }
-                break;
-            }
-            default:
-                break;
-    	}
-    } while (!fExit);
-
-    return 0;
-}
-
-static int renderspuWinCmdSubmit(CR_RENDER_WINCMD_TYPE enmCmd, WindowInfo *pWindow)
-{
-    Status status;
-    XEvent event;
-    CR_RENDER_WINCMD WinCmd, *pWinCmd;
-    int rc;
-    
-    pWinCmd = &WinCmd;
-    pWinCmd->enmCmd = enmCmd;
-    pWinCmd->rc = VERR_GENERAL_FAILURE;
-    pWinCmd->pWindow = pWindow;
-    
-    memset(&event, 0, sizeof (event));
-    event.type = ClientMessage;
-    event.xclient.window = render_spu.WinCmdWindow.window;
-    event.xclient.message_type = render_spu.WinCmdAtom;
-    event.xclient.format = 8;
-    memcpy(event.xclient.data.b, &pWinCmd, sizeof (pWinCmd));
-    
-    status = XSendEvent(render_spu.pCommunicationDisplay, render_spu.WinCmdWindow.window, False, StructureNotifyMask, &event);
-    if (!status)
-    {
-        Assert(0);
-        crWarning("XSendEvent returned null");
-        return VERR_GENERAL_FAILURE;
-    }
-    
-    XFlush(render_spu.pCommunicationDisplay);
-    rc = RTSemEventWaitNoResume(render_spu.hWinCmdCompleteEvent, RT_INDEFINITE_WAIT);
-    if (!RT_SUCCESS(rc))
-    {
-        crWarning("RTSemEventWaitNoResume failed rc %d", rc);
-	return rc;
-    }
-    return pWinCmd->rc;
-}
-
-int renderspu_SystemInit()
-{
-    const char * dpyName;
-    int rc = VERR_GENERAL_FAILURE;
-    
-    if (!render_spu.use_glxchoosevisual) {
-        /* sometimes want to set this option with ATI drivers */
-        render_spu.ws.glXChooseVisual = NULL;
-    }
-
-    /* setup communication display connection */
-    dpyName = renderspuGetDisplayName();
-    if (!dpyName)
-    {
-        crWarning("no display name, aborting");
-        return VERR_GENERAL_FAILURE;
-    }
-    
-    render_spu.pCommunicationDisplay = XOpenDisplay(dpyName);
-    if (!render_spu.pCommunicationDisplay)
-    {
-        crWarning( "Couldn't open X display named '%s'", dpyName );
-        return VERR_GENERAL_FAILURE;
-    }
-
-    if ( !render_spu.ws.glXQueryExtension( render_spu.pCommunicationDisplay, NULL, NULL ) )
-    {
-        crWarning( "Render SPU: Display %s doesn't support GLX", dpyName );
-        return VERR_GENERAL_FAILURE;
-    }
-
-    rc = RTSemEventCreate(&render_spu.hWinCmdCompleteEvent);
-    if (RT_SUCCESS(rc))
-    {
-        rc = RTThreadCreate(&render_spu.hWinCmdThread, renderspuWinCmdThreadProc, NULL, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "VBoxCrWinCmd");
-	if (RT_SUCCESS(rc))
-	{
-	    rc = RTSemEventWait(render_spu.hWinCmdCompleteEvent, RT_INDEFINITE_WAIT);
-	    if (RT_SUCCESS(rc))
-	    {
-	        return VINF_SUCCESS;
-	    }
-	    else
-	    {
-            crWarning("RTSemEventWait failed rc %d", rc);
-        }
-
-        RTThreadWait(render_spu.hWinCmdThread, RT_INDEFINITE_WAIT, NULL);
-        }
-        else
-        {
-            crWarning("RTThreadCreate failed rc %d", rc);
-        }
-	    RTSemEventDestroy(render_spu.hWinCmdCompleteEvent);
-    }
-    else
-    {
-        crWarning("RTSemEventCreate failed rc %d", rc);
-    }
-    
-    return rc;
-}
-
-int renderspu_SystemTerm()
-{
-	int rc = renderspuWinCmdSubmit(CR_RENDER_WINCMD_TYPE_EXIT, NULL);
-	if (!RT_SUCCESS(rc))
-	{
-	    crWarning("renderspuWinCmdSubmit EXIT failed rc %d", rc);
-	    return rc;
-	}
-
-	RTThreadWait(render_spu.hWinCmdThread, RT_INDEFINITE_WAIT, NULL);
-	RTSemEventDestroy(render_spu.hWinCmdCompleteEvent);
-	return VINF_SUCCESS;
-}
 
 GLboolean
 renderspu_SystemInitVisual( VisualInfo *visual )
@@ -728,15 +418,20 @@ renderspu_SystemInitVisual( VisualInfo *visual )
     }
 #endif
     
-    dpyName = renderspuGetDisplayName();
+    if (render_spu.display_string[0])
+        dpyName = render_spu.display_string;
+    else if (visual->displayName[0])
+        dpyName = visual->displayName;
+    else
+        dpyName = NULL;
+
     if (!dpyName)
     {
         crWarning("Render SPU: no display, aborting");
         return GL_FALSE;
     }
 
-
-    crInfo("Render SPU: Opening display %s", dpyName);
+    crDebug("Render SPU: Opening display %s", dpyName);
 
     if (dpyName &&
             (crStrncmp(dpyName, "localhost:11", 12) == 0 ||
@@ -945,15 +640,15 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
 
         window->x = 0;
         window->y = 0;
-        window->BltInfo.width  = xwa.width;
-        window->BltInfo.height = xwa.height;
+        window->width  = xwa.width;
+        window->height = xwa.height;
     }
 
     /* i've changed default window size to be 0,0 but X doesn't like it */
-    /*CRASSERT(window->BltInfo.width >= 1);
-    CRASSERT(window->BltInfo.height >= 1);*/
-    if (window->BltInfo.width < 1) window->BltInfo.width = 1;
-    if (window->BltInfo.height < 1) window->BltInfo.height = 1;
+    /*CRASSERT(window->width >= 1);
+    CRASSERT(window->height >= 1);*/
+    if (window->width < 1) window->width = 1;
+    if (window->height < 1) window->height = 1;
 
     /*
      * Get a colormap.
@@ -1012,7 +707,7 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
         crDebug("Render SPU: VBox parent window_id is: %x", render_spu_parent_window_id);
         window->window = XCreateWindow(dpy, render_spu_parent_window_id,
                                        window->x, window->y,
-                                       window->BltInfo.width, window->BltInfo.height,
+                                       window->width, window->height,
                                        0, visual->visual->depth, InputOutput,
                                        visual->visual->visual, flags, &swa);
     }
@@ -1025,7 +720,7 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
         crDebug("Render SPU: Creating global window, parent: %x", RootWindow(dpy, visual->visual->screen));
         window->window = XCreateWindow(dpy, RootWindow(dpy, visual->visual->screen),
                                        window->x, window->y,
-                                       window->BltInfo.width, window->BltInfo.height,
+                                       window->width, window->height,
                                        0, visual->visual->depth, InputOutput,
                                        visual->visual->visual, flags, &swa);
     }
@@ -1095,8 +790,8 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
     
     hints.x = window->x;
     hints.y = window->y;
-    hints.width = window->BltInfo.width;
-    hints.height = window->BltInfo.height;
+    hints.width = window->width;
+    hints.height = window->height;
     hints.min_width = hints.width;
     hints.min_height = hints.height;
     hints.max_width = hints.width;
@@ -1130,6 +825,7 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
         XIfEvent( dpy, &event, WaitForMapNotify, 
                             (char *) window->window );
     }
+    window->visible = showIt;
 
     if ((window->visual->visAttribs & CR_DOUBLE_BIT) && render_spu.nvSwapGroup) {
         /* NOTE:
@@ -1139,7 +835,7 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
          * app window is in a separate swap group while all the back-end windows
          * which form a mural are in the same swap group.
          */
-        GLuint group = 0; /*render_spu.nvSwapGroup + window->BltInfo.Base.id;*/
+        GLuint group = 0; /*render_spu.nvSwapGroup + window->id;*/
         GLuint barrier = 0;
         JoinSwapGroup(dpy, visual->visual->screen, window->window, group, barrier);
     }
@@ -1148,15 +844,9 @@ createWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
      * End GLX code
      */
     crDebug( "Render SPU: actual window x, y, width, height: %d, %d, %d, %d",
-                     window->x, window->y, window->BltInfo.width, window->BltInfo.height );
+                     window->x, window->y, window->width, window->height );
 
     XSync(dpy, 0);
-    
-    if (window->BltInfo.Base.id != CR_RENDER_WINCMD_ID)
-    {
-        int rc = renderspuWinCmdSubmit(CR_RENDER_WINCMD_TYPE_WIN_ON_CREATE, window);
-        AssertRC(rc);
-    }
 
     return GL_TRUE;
 }
@@ -1170,15 +860,15 @@ createPBuffer( VisualInfo *visual, WindowInfo *window )
     window->y = 0;
     window->nativeWindow = 0;
 
-    CRASSERT(window->BltInfo.width > 0);
-    CRASSERT(window->BltInfo.height > 0);
+    CRASSERT(window->width > 0);
+    CRASSERT(window->height > 0);
 
 #ifdef GLX_VERSION_1_3
     {
         int attribs[100], i = 0, w, h;
         CRASSERT(visual->fbconfig);
-        w = window->BltInfo.width;
-        h = window->BltInfo.height;
+        w = window->width;
+        h = window->height;
         attribs[i++] = GLX_PRESERVED_CONTENTS;
         attribs[i++] = True;
         attribs[i++] = GLX_PBUFFER_WIDTH;
@@ -1206,8 +896,8 @@ GLboolean
 renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, WindowInfo *window )
 {
     if (visual->visAttribs & CR_PBUFFER_BIT) {
-        window->BltInfo.width = render_spu.defaultWidth;
-        window->BltInfo.height = render_spu.defaultHeight;
+        window->width = render_spu.defaultWidth;
+        window->height = render_spu.defaultHeight;
         return createPBuffer(visual, window);
     }
     else {
@@ -1248,11 +938,6 @@ renderspu_SystemDestroyWindow( WindowInfo *window )
              * window.  I know...personal responsibility and all...
              */
             if (!window->nativeWindow) {
-                if (window->BltInfo.Base.id != CR_RENDER_WINCMD_ID)
-                {
-                    int rc = renderspuWinCmdSubmit(CR_RENDER_WINCMD_TYPE_WIN_ON_DESTROY, window);
-                    AssertRC(rc);
-                }
                 XDestroyWindow(window->visual->dpy, window->window);
                 XSync(window->visual->dpy, 0);
             }
@@ -1315,7 +1000,7 @@ renderspu_SystemCreateContext( VisualInfo *visual, ContextInfo *context, Context
     if (visual->visual)
         crDebug("Render SPU: Created %s context (%d) on display %s for visAttribs 0x%x",
                         is_direct ? "DIRECT" : "INDIRECT",
-                        context->BltInfo.Base.id,
+                        context->id,
                         DisplayString(visual->dpy),
                         visual->visAttribs);
 
@@ -1467,18 +1152,18 @@ renderspu_SystemDestroyContext( ContextInfo *context )
 static void
 check_buffer_size( WindowInfo *window )
 {
-    if (window->BltInfo.width != window->in_buffer_width
-        || window->BltInfo.height != window->in_buffer_height
+    if (window->width != window->in_buffer_width
+        || window->height != window->in_buffer_height
         || ! window->buffer) {
         crFree(window->buffer);
 
-        window->buffer = crCalloc(window->BltInfo.width * window->BltInfo.height
+        window->buffer = crCalloc(window->width * window->height 
                                                             * 4 * sizeof (GLubyte));
         
-        window->in_buffer_width = window->BltInfo.width;
-        window->in_buffer_height = window->BltInfo.height;
+        window->in_buffer_width = window->width;
+        window->in_buffer_height = window->height;
 
-        crDebug("Render SPU: dimensions changed to %d x %d", window->BltInfo.width, window->BltInfo.height);
+        crDebug("Render SPU: dimensions changed to %d x %d", window->width, window->height);
     }
 }
 #endif
@@ -1491,6 +1176,7 @@ renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow,
     Bool b;
 
     CRASSERT(render_spu.ws.glXMakeCurrent);
+    window->appWindow = nativeWindow;
 
     /*crDebug("%s nativeWindow=0x%x", __FUNCTION__, (int) nativeWindow);*/
 
@@ -1499,20 +1185,16 @@ renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow,
         check_buffer_size(window);
         render_spu.OSMesaMakeCurrent( (OSMesaContext) context->context, 
                                                                     window->buffer, GL_UNSIGNED_BYTE,
-                                                                    window->BltInfo.width, window->BltInfo.height);
+                                                                    window->width, window->height);
         return;
     }
 #endif
 
-    nativeWindow = 0;
-
     if (window && context) {
-        window->appWindow = nativeWindow;
-
         if (window->visual != context->visual) {
             crDebug("Render SPU: MakeCurrent visual mismatch (win(%d) bits:0x%x != ctx(%d) bits:0x%x); remaking window.",
-                            window->BltInfo.Base.id, window->visual->visAttribs,
-                            context->BltInfo.Base.id, context->visual->visAttribs);
+                            window->id, window->visual->visAttribs,
+                            context->id, context->visual->visAttribs);
             /*
              * XXX have to revisit this issue!!!
              *
@@ -1591,7 +1273,7 @@ renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow,
                 if (vid != (int) context->visual->visual->visualid) {
                     crWarning("Render SPU: Can't bind context %d to CRUT/native window "
                                         "0x%x because of different X visuals (0x%x != 0x%x)!",
-                                        context->BltInfo.Base.id, (int) nativeWindow,
+                                        context->id, (int) nativeWindow,
                                         vid, (int) context->visual->visual->visualid);
                     crWarning("Render SPU: Trying to recreate GLX context to match.");
                     /* Try to recreate the GLX context so that it uses the same
@@ -1645,7 +1327,7 @@ renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow,
                 crWarning("glXMakeCurrent(%p, 0x%x, %p) failed! (winId %d, ctxId %d)",
                                     window->visual->dpy,
                                     (int) window->window, (void *) context->context,
-                                    window->BltInfo.Base.id, context->BltInfo.Base.id );
+                                    window->id, context->id );
             }
             /*CRASSERT(b);*/
         }
@@ -1661,18 +1343,6 @@ renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow,
             }
         }
 #endif
-    }
-    else
-    {
-        GET_CONTEXT(pCurCtx);
-        if (pCurCtx)
-        {
-            b = render_spu.ws.glXMakeCurrent( pCurCtx->currentWindow->visual->dpy, None, NULL);
-            if (!b) {
-                crWarning("glXMakeCurrent(%p, None, NULL) failed!", pCurCtx->currentWindow->visual->dpy);
-            }
-        }
-
     }
 
 #if 0
@@ -1690,8 +1360,8 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
 {
 #ifdef USE_OSMESA
     if (render_spu.use_osmesa) {
-        window->BltInfo.width = w;
-        window->BltInfo.height = h;
+        window->width = w;
+        window->height = h;
         check_buffer_size(window);
         return;
     }
@@ -1724,7 +1394,7 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
             }
         }
 
-        if (window->BltInfo.width != w || window->BltInfo.height != h) {
+        if (window->width != w || window->height != h) {
             /* Only resize if the new dimensions really are different */
 #ifdef CHROMIUM_THREADSAFE
             ContextInfo *currentContext = (ContextInfo *) crGetTSD(&_RenderTSD);
@@ -1733,10 +1403,10 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
 #endif
             /* Can't resize pbuffers, so destroy it and make a new one */
             render_spu.ws.glXDestroyPbuffer(window->visual->dpy, window->window);
-            window->BltInfo.width = w;
-            window->BltInfo.height = h;
+            window->width = w;
+            window->height = h;
             crDebug("Render SPU: Creating new %d x %d PBuffer (id=%d)",
-                            w, h, window->BltInfo.Base.id);
+                            w, h, window->id);
             if (!createPBuffer(window->visual, window)) {
                 crWarning("Render SPU: Unable to create PBuffer (out of VRAM?)!");
             }
@@ -1749,15 +1419,6 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
         }
     }
     else {
-        if (!w || !h)
-        {
-            /* X can not handle zero sizes */
-            if (window->visible)
-            {
-                renderspu_SystemShowWindow( window, GL_FALSE );
-            }
-            return;
-        }
         /* Resize ordinary X window */
         /*
          * This is ugly, but it seems to be the only thing that works.
@@ -1771,16 +1432,6 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
         crDebug("Render SPU: XResizeWindow (%x, %x, %d, %d)", window->visual->dpy, window->window, w, h);
         XResizeWindow(window->visual->dpy, window->window, w, h);
         XSync(window->visual->dpy, 0);
-        
-        if (!window->BltInfo.width || !window->BltInfo.height)
-        {
-            /* we have hidden the window instead of sizing it to (0;0) since X is unable to handle zero sizes */
-            if (window->visible)
-            {
-                renderspu_SystemShowWindow( window, GL_TRUE );
-                return;
-            }
-        }
 #if 0
         for (attempt = 0; attempt < 3; attempt++) { /* try three times max */
             XWindowAttributes attribs;
@@ -1793,6 +1444,10 @@ renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
         }
 #endif
     }
+
+    /* finally, save the new size */
+    window->width = w;
+    window->height = h;
 }
 
 
@@ -1802,8 +1457,8 @@ renderspu_SystemGetWindowGeometry( WindowInfo *window,
 {
 #ifdef USE_OSMESA
     if (render_spu.use_osmesa) {
-        *w = window->BltInfo.width;
-        *h = window->BltInfo.height;
+        *w = window->width;
+        *h = window->height;
         return;
     }
 #endif
@@ -1815,8 +1470,8 @@ renderspu_SystemGetWindowGeometry( WindowInfo *window,
     {
         *x = 0;
         *y = 0;
-        *w = window->BltInfo.width;
-        *h = window->BltInfo.height;
+        *w = window->width;
+        *h = window->height;
     }
     else
     {
@@ -1888,13 +1543,8 @@ renderspu_SystemWindowPosition( WindowInfo *window, GLint x, GLint y )
     }
 }
 
-GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window)
-{
-    return GL_FALSE;
-}
-
 void
-renderspu_SystemWindowVisibleRegion( WindowInfo *window, GLint cRects, const GLint *pRects )
+renderspu_SystemWindowVisibleRegion( WindowInfo *window, GLint cRects, GLint *pRects )
 {
 #ifdef USE_OSMESA
     if (render_spu.use_osmesa)
@@ -1959,65 +1609,18 @@ renderspu_SystemShowWindow( WindowInfo *window, GLboolean showIt )
     {
         if (showIt)
         {
-            if (window->BltInfo.width && window->BltInfo.height)
-            {
-                XMapWindow( window->visual->dpy, window->window );
-                XSync(window->visual->dpy, 0);
-            }
+            XMapWindow( window->visual->dpy, window->window );
+            XSync(window->visual->dpy, 0);
         }
         else
         {
             XUnmapWindow( window->visual->dpy, window->window );
             XSync(window->visual->dpy, 0);
         }
+        window->visible = showIt;
     }
 }
 
-#define CR_RENDER_FORCE_PRESENT_MAIN_THREAD
-
-void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
-{
-    /* the CR_RENDER_FORCE_PRESENT_MAIN_THREAD is actually inherited from cocoa backend impl,
-     * here it forces rendering in WinCmd thread rather than a Main thread.
-     * it is used for debugging only in any way actually.
-     * @todo: change to some more generic macro name */
-#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
-    const struct VBOXVR_SCR_COMPOSITOR *pCompositor;
-    /* we do not want to be blocked with the GUI thread here, so only draw her eif we are really able to do that w/o bllocking */
-    int rc = renderspuVBoxCompositorTryAcquire(window, &pCompositor);
-    if (RT_SUCCESS(rc))
-    {
-        renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0, false);
-        renderspuVBoxCompositorRelease(window);
-    }
-    else if (rc == VERR_SEM_BUSY)
-#endif
-    {
-        Status status;
-        XEvent event;
-        render_spu.self.Flush();
-//        renderspuVBoxPresentBlitterEnsureCreated(window, 0);
-
-        crMemset(&event, 0, sizeof (event));
-        event.type = Expose;
-        event.xexpose.window = window->window;
-        event.xexpose.width = window->BltInfo.width;
-        event.xexpose.height = window->BltInfo.height;
-        status = XSendEvent(render_spu.pCommunicationDisplay, render_spu.WinCmdWindow.window, False, 0, &event);
-        if (!status)
-        {
-            WARN(("XSendEvent returned null"));
-        }
-        XFlush(render_spu.pCommunicationDisplay);
-    }
-#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
-    else
-    {
-        /* this is somewhat we do not expect */
-        WARN(("renderspuVBoxCompositorTryAcquire failed rc %d", rc));
-    }
-#endif
-}
 
 static void
 MarkWindow(WindowInfo *w)
@@ -2029,7 +1632,7 @@ MarkWindow(WindowInfo *w)
         gcValues.function = GXnoop;
         gc = XCreateGC(w->visual->dpy, w->nativeWindow, GCFunction, &gcValues);
     }
-    XDrawLine(w->visual->dpy, w->nativeWindow, gc, 0, 0, w->BltInfo.width, w->BltInfo.height);
+    XDrawLine(w->visual->dpy, w->nativeWindow, gc, 0, 0, w->width, w->height);
 }
 
 
@@ -2079,14 +1682,4 @@ void renderspu_SystemReparentWindow(WindowInfo *window)
 
     XReparentWindow(window->visual->dpy, window->window, parent, window->x, window->y);
     XSync(window->visual->dpy, False);
-}
-
-void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext)
-{
-
-}
-
-uint32_t renderspu_SystemPostprocessFunctions(SPUNamedFunctionTable *aFunctions, uint32_t cFunctions, uint32_t cTable)
-{
-    return cFunctions;
 }

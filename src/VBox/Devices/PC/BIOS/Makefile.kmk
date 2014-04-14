@@ -1,10 +1,10 @@
 # $Id: Makefile.kmk $
 ## @file
-# Sub-Makefile for the New BIOS ROM.
+# PC BIOS Sub-Makefile.
 #
 
 #
-# Copyright (C) 2012 Oracle Corporation
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,93 +16,12 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
-
-ifdef VBOX_WITH_OPEN_WATCOM
-
- #
- # VBoxPcBios - The PC BIOS.
- #
- MISCBINS += VBoxPcBios
- VBoxPcBios_TEMPLATE = VBoxBios
- VBoxPcBios_DEFS = \
- 	VBOX_PC_BIOS \
- 	VBOX_LANBOOT_SEG=0xE200 \
- 	VBOX_WITH_SCSI \
- 	VBOX_WITH_AHCI
- VBoxPcBios_LDFLAGS = \
- 	output raw offset=0xF0000 \
- 	order \
- 	 clname DATA segaddr=0xF000 \
- 	  segment _DATA \
- 	 clname CODE \
- 	  segment _TEXT   segaddr=0xF000 offset=0x1600 \
- 	  segment BIOS32  segaddr=0xF000 offset=0xDA00 \
- 	  segment BIOSSEG segaddr=0xF000 offset=0xE000
- VBoxPcBios_SOURCES = \
- 	bios.c \
- 	print.c \
- 	ata.c \
- 	floppy.c \
- 	floppyt.c \
- 	eltorito.c \
- 	boot.c \
- 	keyboard.c \
- 	disk.c \
- 	serial.c \
- 	system.c \
- 	invop.c \
- 	timepci.c \
- 	ps2mouse.c \
- 	parallel.c \
- 	logo.c \
- 	scsi.c \
- 	ahci.c \
- 	apm.c \
- 	pcibios.c \
- 	pciutil.c \
- 	vds.c \
- 	../../BiosCommonCode/support.asm \
- 	pcibio32.asm \
- 	apm_pm.asm \
- 	$(VBoxPcBios32_1_TARGET) \
- 	orgs.asm
-
- # For 32-bit C code in PC BIOS.
- LIBRARIES += VBoxPcBios32
- VBoxPcBios32_TEMPLATE = VBoxBios32Lib
- VBoxPcBios32_SOURCES = \
-       pci32.c
-
- #
- # Updates the alternative source file.
- #
- update-pcbios-source +| $(PATH_SUB_CURRENT)/VBoxBiosAlternative.asm $(PATH_SUB_CURRENT)/VBoxBiosAlternative.md5sum: \
- 		$$(VBoxPcBios_1_TARGET) \
- 		$(VBOX_MAKE_ALTERNATIVE_SOURCE) \
-		$(VBOX_VBOXCMP)
- if1of ($(KBUILD_TYPE), release)
-	$(VBOX_MAKE_ALTERNATIVE_SOURCE) \
-		--bios-image $< \
-		--bios-map $(basename $<).map \
-		--bios-sym $(basename $<).sym \
-		--bios-type system \
-		--output $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.asm
-	$(QUIET)yasm -f bin -o $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.bin $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.asm
-	$(VBOX_VBOXCMP) $< $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.bin
-	$(CP) --changed -- $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.asm $(PATH_ROOT)/src/VBox/Devices/PC/BIOS/VBoxBiosAlternative.asm
-	$(REDIRECT) -C $(dir $(VBoxPcBios_1_TARGET)) -- \
-		$(MD5SUM_EXT) -bo $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.md5sum $(notdir $(VBoxPcBios_1_TARGET))
-	$(CP) --changed -- $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.md5sum $(PATH_ROOT)/src/VBox/Devices/PC/BIOS/VBoxBiosAlternative.md5sum
-	$(RM) -f -- $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.asm $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.bin $(VBoxPcBios_0_OUTDIR)/VBoxBiosAlternative.md5sum
- else
-	$(QUIET)$(ECHO) "Fatal error: Can only update VBoxBiosAlternative.asm/md5sum with a release build."
-	$(QUIET)exit 1
- endif
-
-endif # VBOX_WITH_OPEN_WATCOM
-
+#
+# Globals
+#
+VBOX_PATH_DEVICES_SRC ?= $(PATH_ROOT)/src/VBox/Devices
 
 #
 # The library containing the PC BIOS image.
@@ -110,38 +29,74 @@ endif # VBOX_WITH_OPEN_WATCOM
 LIBRARIES += PcBiosBin
 PcBiosBin_TEMPLATE  = VBOXR3
 PcBiosBin_DEFS      = IN_VBOXDD2
+PcBiosBin_INCS      = $(VBOX_PATH_DEVICES_SRC)
 PcBiosBin_SOURCES   = $(PcBiosBin_0_OUTDIR)/PcBiosBin.c
-PcBiosBin_CLEAN     = $(PcBiosBin_0_OUTDIR)/PcBiosBin.c
+PcBiosBin_DEPS      = $(PcBiosBin_0_OUTDIR)/pcbios-syms.h
+PcBiosBin_CLEAN     = \
+	$(PcBiosBin_0_OUTDIR)/_rombios_.c \
+	$(PcBiosBin_0_OUTDIR)/rombios0.s \
+	$(PcBiosBin_0_OUTDIR)/rombios1.s \
+	$(PcBiosBin_0_OUTDIR)/pcbios.lst \
+	$(PcBiosBin_0_OUTDIR)/pcbios.tmp \
+	$(PcBiosBin_0_OUTDIR)/pcbios.bin \
+	$(PcBiosBin_0_OUTDIR)/PcBiosBin.c \
+	$(PcBiosBin_0_OUTDIR)/pcbios-syms.h
 
-ifdef VBOX_WITH_OPEN_WATCOM
- $$(PcBiosBin_0_OUTDIR)/PcBiosBin.c: $$(VBoxPcBios_1_TARGET) $(VBOX_BIN2C) | $$(dir $$@)
+#
+# Rule for making the bios.
+#
+$$(PcBiosBin_0_OUTDIR)/PcBiosBin.c: $$(PcBiosBin_0_OUTDIR)/pcbios.bin $(VBOX_BIN2C)
 	$(call MSG_TOOL,bin2c,PcBiosBin,$<,$@)
 	$(QUIET)$(VBOX_BIN2C) -min 64 -max 256 -mask 0xffff -ascii -export PcBiosBinary $< $@
-else
- PcBiosBin_CLEAN    += $(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom
 
- $$(PcBiosBin_0_OUTDIR)/PcBiosBin.c + $$(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom: \
-		$(PATH_SUB_CURRENT)/VBoxBiosAlternative.asm \
-		$(PATH_SUB_CURRENT)/VBoxBiosAlternative.md5sum \
-		$(VBOX_BIN2C) | $$(dir $$@)
-	$(call MSG_TOOL,bin2c,PcBiosBin,$<,$@)
-	$(QUIET)yasm -f bin -o $(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom $<
-	$(QUIET)$(REDIRECT) -C $(PcBiosBin_0_OUTDIR) -- \
-		$(MD5SUM_EXT) -c $(basename $<).md5sum
-	$(QUIET)$(VBOX_BIN2C) -min 64 -max 256 -mask 0xffff -ascii -export PcBiosBinary $(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom $@
-	$(QUIET)$(RM) -f -- $$(PcBiosBin_0_OUTDIR)/VBoxPcBios.rom
-endif
+#
+# Six steps to pcbios.bin and pcbios-syms.h
+#
+
+# 1. precompile rombios.c
+$$(PcBiosBin_0_OUTDIR)/_rombios_.c: $(PATH_SUB_CURRENT)/rombios.c $(PATH_SUB_CURRENT)/logo.c \
+		$(PATH_SUB_CURRENT)/apmbios.S $(if $(VBOX_WITH_SCSI),$(PATH_SUB_CURRENT)/scsi.c) \
+		$(PATH_SUB_CURRENT)/../DevPcBios.h $(PATH_ROOT)/include/VBox/bioslogo.h \
+		$(if $(VBOX_WITH_BIOS_AHCI),$(PATH_SUB_CURRENT)/ahci.c) \
+		$(VBOX_VERSION_STAMP) | $$(dir $$@)
+	$(call MSG_TOOL,cpp,PcBiosBin,$<,$@)
+	$(QUIET)$(TOOL_$(VBOX_GCC_TOOL)_CC) -E \
+		-I$(PcBiosBin_0_OUTDIR) -I$(VBOX_PATH_DEVICES_SRC)/PC -I$(PATH_ROOT)/include -I$(PATH_OUT) \
+		-DBX_SMP_PROCESSORS=1 -DVBOX -DVBOX_PC_BIOS $(addprefix -D,$(DEFS) $(DEFS.$(KBUILD_TYPE))) \
+		$(if $(VBOX_WITH_SCSI),-DVBOX_WITH_SCSI) $(if $(VBOX_WITH_BIOS_AHCI),-DVBOX_WITH_BIOS_AHCI) \
+		-P -o $@ $<
+
+# 2. compile to intermediate asm file.
+# BCC tempfile clashes, order the BCC jobs to make sure they don't interfere with one another.
+$$(PcBiosBin_0_OUTDIR)/rombios0.s: $$(PcBiosBin_0_OUTDIR)/_rombios_.c | $(VBOX_BCC_JOBS)
+	$(call MSG_COMPILE,PcBiosBin,$<,$@,C)
+	$(QUIET)$(VBOX_BCC) -o $@ -C-c -D__i86__ -0 -S $<
+VBOX_BCC_JOBS += $(PcBiosBin_0_OUTDIR)/rombios0.s
+
+# 3. post process intermediate asm file.
+$$(PcBiosBin_0_OUTDIR)/rombios1.s: $$(PcBiosBin_0_OUTDIR)/rombios0.s
+	$(call MSG_TOOL,Adjusting BCC Assembly,PcBiosBin,$<,$@)
+	$(QUIET)$(SED) -e 's/^\.text//' -e 's/^\.data//' --output $@ $^
+
+# 4. assemble the intermediate asm file. (also creates a listing rombios.lst)
+$$(PcBiosBin_0_OUTDIR)/pcbios.tmp + $$(PcBiosBin_0_OUTDIR)/pcbios.lst: $$(PcBiosBin_0_OUTDIR)/rombios1.s
+	$(call MSG_COMPILE,PcBiosBin,$<,$@,AS)
+	$(QUIET)$(REDIRECT) -ri $^ -- $(VBOX_AS86) -b $(PcBiosBin_0_OUTDIR)/pcbios.tmp -u- -w- -g -0 -j -O -l $(PcBiosBin_0_OUTDIR)/pcbios.lst
+
+# 5. calculate checksums for the final BIOS image.
+$$(PcBiosBin_0_OUTDIR)/pcbios.bin: $$(PcBiosBin_0_OUTDIR)/pcbios.tmp $$(VBOX_BIOSSUMS)
+	$(call MSG_TOOL,biossums,PcBiosBin,$<,$@)
+	$(QUIET)$(VBOX_BIOSSUMS) $< $@
+
+# 6. create the symbol table.
+$$(PcBiosBin_0_OUTDIR)/pcbios-syms.h: $$(PcBiosBin_0_OUTDIR)/pcbios.lst $(MAKEFILE_CURRENT)
+	$(call MSG_GENERATE,PcBiosBin,$<,$@)
+	$(QUIET)$(SED) \
+		-e  '/^[0-9][0-9][0-9][0-9][0-9]                       000[0-9A-F]*            [[:space:]]*[a-zA-Z0-9_]*:/!d' \
+		-e 's/^[0-9][0-9][0-9][0-9][0-9]                       \(000[0-9A-F]*\)            [[:space:]]*\([a-zA-Z0-9_]*\):.*$$/    DEFSYM(0x\1, "\2"),/' \
+		--output $@ \
+		$(PcBiosBin_0_OUTDIR)/pcbios.lst
 
 
-ifdef VBOX_WITH_OPEN_WATCOM
- #
- # Install the symbol file for the BIOS.
- #
- INSTALLS += VBoxPcBiosSym
- VBoxPcBiosSym_TEMPLATE = VBoxDbgSyms
- VBoxPcBiosSym_SOURCES = $(basename $(VBoxPcBios_1_TARGET)).sym
-endif
-
-
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

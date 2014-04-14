@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -403,16 +403,10 @@ static DECLCALLBACK(void) drvUDPTunnelDestruct(PPDMDRVINS pDrvIns)
     ASMAtomicXchgSize(&pThis->fLinkDown, true);
 
     if (pThis->pszInstance)
-    {
         RTStrFree(pThis->pszInstance);
-        pThis->pszInstance = NULL;
-    }
 
     if (pThis->pszDestIP)
-    {
         MMR3HeapFree(pThis->pszDestIP);
-        pThis->pszDestIP = NULL;
-    }
 
     if (pThis->pServer)
     {

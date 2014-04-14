@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -129,6 +129,7 @@ RTDECL(int) RTPathAppendEx(char *pszPath, size_t cbPathDst, const char *pszAppen
     /*
      * Balance slashes and check for buffer overflow.
      */
+    bool fAddSlash = false;
     if (!RTPATH_IS_SLASH(pszPathEnd[-1]))
     {
         if (!RTPATH_IS_SLASH(pszAppend[0]))

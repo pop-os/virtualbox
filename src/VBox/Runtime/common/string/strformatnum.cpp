@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@ RTDECL(ssize_t) RTStrFormatU8(char *pszBuf, size_t cbBuf, uint8_t u8Value, unsig
     {
         char szTmp[64];
         cchRet = RTStrFormatNumber(szTmp, u8Value, uiBase, cchWidth, cchPrecision, fFlags);
-        if ((size_t)cchRet < cbBuf)
+        if ((size_t)cchRet <= cbBuf)
             memcpy(pszBuf, szTmp, cchRet + 1);
         else
         {
@@ -155,7 +155,6 @@ RTDECL(ssize_t) RTStrFormatU64(char *pszBuf, size_t cbBuf, uint64_t u64Value, un
 RTDECL(ssize_t) RTStrFormatU128(char *pszBuf, size_t cbBuf, PCRTUINT128U pu128, unsigned int uiBase,
                                 signed int cchWidth, signed int cchPrecision, uint32_t fFlags)
 {
-    NOREF(cchWidth); NOREF(cchPrecision);
     if (uiBase != 16)
         fFlags |= RTSTR_F_SPECIAL;
     fFlags &= ~RTSTR_F_BIT_MASK;
@@ -174,7 +173,6 @@ RTDECL(ssize_t) RTStrFormatU128(char *pszBuf, size_t cbBuf, PCRTUINT128U pu128, 
 RTDECL(ssize_t) RTStrFormatR80u2(char *pszBuf, size_t cbBuf, PCRTFLOAT80U2 pr80Value, signed int cchWidth,
                                  signed int cchPrecision, uint32_t fFlags)
 {
-    NOREF(cchWidth); NOREF(cchPrecision); NOREF(fFlags);
     char szTmp[160];
 
     char *pszTmp = szTmp;

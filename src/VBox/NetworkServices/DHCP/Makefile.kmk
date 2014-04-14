@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -34,35 +34,23 @@ endif
 #
 VBoxNetDHCPHardened_TEMPLATE = VBOXR3HARDENEDEXE
 VBoxNetDHCPHardened_SOURCES = VBoxNetDHCPHardened.cpp
-VBoxNetDHCPHardened_SOURCES.win = $(VBoxNetDHCP_0_OUTDIR)/VBoxNetDHCP-icon.rc
 VBoxNetDHCPHardened_NAME = VBoxNetDHCP
-VBoxNetDHCPHardened_LDFLAGS.win = /SUBSYSTEM:windows
 
 
 #
 # VBoxNetDHCP
 #
-VBoxNetDHCP_TEMPLATE := VBOX$(if-expr defined(VBOX_WITH_HARDENING),MAINDLL,MAINCLIENTEXE)
+VBoxNetDHCP_TEMPLATE =
+VBoxNetDHCP_TEMPLATE := VBOXR3$(if-expr defined(VBOX_WITH_HARDENING),,EXE)
 VBoxNetDHCP_SOURCES = \
 	VBoxNetDHCP.cpp \
-	Config.cpp \
-	NetworkManagerDhcp.cpp \
 	../NetLib/VBoxNetIntIf.cpp \
 	../NetLib/VBoxNetUDP.cpp \
-	../NetLib/VBoxNetARP.cpp \
-	../NetLib/VBoxNetBaseService.cpp \
-	../NetLib/ComHostUtils.cpp
+	../NetLib/VBoxNetARP.cpp
 VBoxNetDHCP_LIBS = \
 	$(LIB_RUNTIME)
 VBoxNetDHCP_LDFLAGS.win = /SUBSYSTEM:windows
 
-# Icon include file.
-VBoxNetDHCP_SOURCES.win += $(VBoxNetDHCP_0_OUTDIR)/VBoxNetDHCP-icon.rc
-VBoxNetDHCP_CLEAN.win   += $(VBoxNetDHCP_0_OUTDIR)/VBoxNetDHCP-icon.rc
-$$(VBoxNetDHCP_0_OUTDIR)/VBoxNetDHCP-icon.rc: $(VBOX_WINDOWS_ICON_FILE) $$(VBoxNetDHCP_DEFPATH)/Makefile.kmk | $$(dir $$@)
-	$(RM) -f $@
-	$(APPEND) $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
 
+include $(KBUILD_PATH)/subfooter.kmk
 
-
-include $(FILE_KBUILD_SUB_FOOTER)

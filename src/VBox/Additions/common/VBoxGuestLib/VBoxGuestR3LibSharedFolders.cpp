@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,7 +117,7 @@ VBGLR3DECL(bool) VbglR3SharedFolderExists(uint32_t u32ClientId, const char *pszS
                 RTStrFree(pszName);
             }
         }
-        VbglR3SharedFolderFreeMappings(paMappings);
+        RTMemFree(paMappings);
     }
     return fFound;
 }
@@ -137,11 +137,7 @@ VBGLR3DECL(bool) VbglR3SharedFolderExists(uint32_t u32ClientId, const char *pszS
 VBGLR3DECL(int) VbglR3SharedFolderGetMappings(uint32_t u32ClientId, bool fAutoMountOnly,
                                               PVBGLR3SHAREDFOLDERMAPPING *ppaMappings, uint32_t *pcMappings)
 {
-    AssertPtrReturn(pcMappings, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(ppaMappings, VERR_INVALID_PARAMETER);
-
-    *pcMappings = 0;
-    *ppaMappings = NULL;
+    AssertPtr(pcMappings);
 
     VBoxSFQueryMappings Msg;
 
@@ -163,9 +159,10 @@ VBGLR3DECL(int) VbglR3SharedFolderGetMappings(uint32_t u32ClientId, bool fAutoMo
     uint32_t cMappings = 8; /* Should be a good default value. */
     uint32_t cbSize = cMappings * sizeof(VBGLR3SHAREDFOLDERMAPPING);
     VBGLR3SHAREDFOLDERMAPPING *ppaMappingsTemp = (PVBGLR3SHAREDFOLDERMAPPING)RTMemAllocZ(cbSize);
-    if (!ppaMappingsTemp)
-        return VERR_NO_MEMORY;
+    if (ppaMappingsTemp == NULL)
+        rc = VERR_NO_MEMORY;
 
+    *pcMappings = 0;
     do
     {
         VbglHGCMParmUInt32Set(&Msg.numberOfMappings, cMappings);
@@ -188,23 +185,14 @@ VBGLR3DECL(int) VbglR3SharedFolderGetMappings(uint32_t u32ClientId, bool fAutoMo
                     AssertPtrBreakStmt(pvNew, rc = VERR_NO_MEMORY);
                     ppaMappingsTemp = (PVBGLR3SHAREDFOLDERMAPPING)pvNew;
                 }
+                else
+                    *ppaMappings = ppaMappingsTemp;
             }
         }
     } while (rc == VINF_BUFFER_OVERFLOW);
 
-    if (   RT_FAILURE(rc)
-        || !*pcMappings)
-    {
+    if (RT_FAILURE(rc) && ppaMappingsTemp)
         RTMemFree(ppaMappingsTemp);
-        ppaMappingsTemp = NULL;
-    }
-
-    /* In this case, just return success with 0 mappings */
-    if (   rc == VERR_INVALID_PARAMETER
-        && fAutoMountOnly)
-        rc = VINF_SUCCESS;
-
-    *ppaMappings = ppaMappingsTemp;
 
     return rc;
 }
@@ -218,8 +206,7 @@ VBGLR3DECL(int) VbglR3SharedFolderGetMappings(uint32_t u32ClientId, bool fAutoMo
  */
 VBGLR3DECL(void) VbglR3SharedFolderFreeMappings(PVBGLR3SHAREDFOLDERMAPPING paMappings)
 {
-    if (paMappings)
-        RTMemFree(paMappings);
+    RTMemFree(paMappings);
 }
 
 

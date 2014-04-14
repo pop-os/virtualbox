@@ -21,7 +21,7 @@
 #if !defined(CONFIG_USER_ONLY)
 
 /* address in the RAM (different from a physical address) */
-typedef uintptr_t ram_addr_t;
+typedef unsigned long ram_addr_t;
 
 /* memory API */
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
+/* Local Includes */
+#include "QIWidgetValidator.h"
+#include "UIIconPool.h"
+#include "UINewHDWizard.h"
+#include "VBoxGlobal.h"
+#include "QIFileDialog.h"
+#include "UIMessageCenter.h"
+#include "UIMachineSettingsStorage.h"
+
+/* Global Includes */
 #include <QHeaderView>
 #include <QItemEditorFactory>
 #include <QMetaProperty>
@@ -26,21 +35,6 @@
 #include <QStylePainter>
 #include <QTimer>
 #include <QCommonStyle>
-
-/* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIIconPool.h"
-#include "UIWizardNewVD.h"
-#include "VBoxGlobal.h"
-#include "QIFileDialog.h"
-#include "UIMessageCenter.h"
-#include "UIMachineSettingsStorage.h"
-#include "UIConverter.h"
-#include "UIMedium.h"
-
-/* COM includes: */
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
 
 QString compressText (const QString &aText)
 {
@@ -113,7 +107,7 @@ PixmapPool::PixmapPool (QObject *aParent)
     mPool [FDAttachmentAddDis]       = QPixmap (":/fd_add_disabled_16px.png");
 
     mPool [ChooseExistingEn]         = QPixmap (":/select_file_16px.png");
-    mPool [ChooseExistingDis]        = QPixmap (":/select_file_disabled_16px.png");
+    mPool [ChooseExistingDis]        = QPixmap (":/select_file_dis_16px.png");
     mPool [HDNewEn]                  = QPixmap (":/hd_new_16px.png");
     mPool [HDNewDis]                 = QPixmap (":/hd_new_disabled_16px.png");
     mPool [CDUnmountEnabled]         = QPixmap (":/cd_unmount_16px.png");
@@ -541,7 +535,7 @@ int ControllerItem::childCount() const
 
 QString ControllerItem::text() const
 {
-    return UIMachineSettingsStorage::tr("Controller: %1").arg(ctrName());
+    return ctrName();
 }
 
 QString ControllerItem::tip() const
@@ -550,8 +544,8 @@ QString ControllerItem::tip() const
                                  "<nobr>Bus:&nbsp;&nbsp;%2</nobr><br>"
                                  "<nobr>Type:&nbsp;&nbsp;%3</nobr>")
                                  .arg (mCtrName)
-                                 .arg (gpConverter->toString (mCtrType->busType()))
-                                 .arg (gpConverter->toString (mCtrType->ctrType()));
+                                 .arg (vboxGlobal().toString (mCtrType->busType()))
+                                 .arg (vboxGlobal().toString (mCtrType->ctrType()));
 }
 
 QPixmap ControllerItem::pixmap (ItemState aState)
@@ -653,7 +647,7 @@ void AttachmentItem::setAttDevice (KDeviceType aAttDeviceType)
 void AttachmentItem::setAttMediumId (const QString &aAttMediumId)
 {
     AssertMsg(!aAttMediumId.isEmpty(), ("Medium ID value can't be null/empty!\n"));
-    mAttMediumId = vboxGlobal().medium(aAttMediumId).id();
+    mAttMediumId = vboxGlobal().findMedium(aAttMediumId).id();
     cache();
 }
 
@@ -704,7 +698,7 @@ QString AttachmentItem::attUsage() const
 
 void AttachmentItem::cache()
 {
-    UIMedium medium = vboxGlobal().medium(mAttMediumId);
+    VBoxMedium medium = vboxGlobal().findMedium (mAttMediumId);
 
     /* Cache medium information */
     mAttName = medium.name (true);
@@ -1699,10 +1693,10 @@ public:
     QString id() const { return m_strId; }
     void setId(const QString &strId) { m_strId = strId; emit sigChanged(); }
 
-    UIMediumType type() const { return m_type; }
-    void setType(UIMediumType type) { m_type = type; }
+    VBoxDefs::MediumType type() const { return m_type; }
+    void setType(VBoxDefs::MediumType type) { m_type = type; }
 
-    bool isNull() const { return m_strId == UIMedium().id(); }
+    bool isNull() const { return m_strId == VBoxMedium().id(); }
 
 signals:
 
@@ -1711,7 +1705,7 @@ signals:
 private:
 
     QString m_strId;
-    UIMediumType m_type;
+    VBoxDefs::MediumType m_type;
 };
 
 /**
@@ -1719,7 +1713,8 @@ private:
  * Used as HD Settings widget.
  */
 UIMachineSettingsStorage::UIMachineSettingsStorage()
-    : mStorageModel(0)
+    : mValidator(0)
+    , mStorageModel(0)
     , mAddCtrAction(0), mDelCtrAction(0)
     , mAddIDECtrAction(0), mAddSATACtrAction(0), mAddSCSICtrAction(0), mAddSASCtrAction(0), mAddFloppyCtrAction(0)
     , mAddAttAction(0), mDelAttAction(0)
@@ -1735,7 +1730,7 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     /* Enumerate Mediums. We need at least the MediaList filled, so this is the
      * lasted point, where we can start. The rest of the media checking is done
      * in a background thread. */
-    vboxGlobal().startMediumEnumeration();
+    vboxGlobal().startEnumeratingMedia();
 
     /* Initialize pixmap pool */
     PixmapPool::pool (this);
@@ -1814,7 +1809,7 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
 #endif /* Q_WS_MAC */
 
     /* Setup choose-medium button: */
-    QMenu *pOpenMediumMenu = new QMenu(mTbOpen);
+    QMenu *pOpenMediumMenu = new QMenu(this);
     mTbOpen->setMenu(pOpenMediumMenu);
 
     /* Controller pane initialization: */
@@ -1830,11 +1825,13 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
     mLbLocationValue->setFullSizeSelection (true);
     mLbUsageValue->setFullSizeSelection (true);
 
-    /* Setup connections: */
-    connect(&vboxGlobal(), SIGNAL(sigMediumEnumerated(const QString&)),
-            this, SLOT(sltHandleMediumEnumerated(const QString&)));
-    connect(&vboxGlobal(), SIGNAL(sigMediumDeleted(const QString&)),
-            this, SLOT(sltHandleMediumDeleted(const QString&)));
+    /* Setup connections */
+    connect (&vboxGlobal(), SIGNAL (mediumEnumerated (const VBoxMedium &)),
+             this, SLOT (mediumUpdated (const VBoxMedium &)));
+    connect (&vboxGlobal(), SIGNAL (mediumUpdated (const VBoxMedium &)),
+             this, SLOT (mediumUpdated (const VBoxMedium &)));
+    connect (&vboxGlobal(), SIGNAL (mediumRemoved (VBoxDefs::MediumType, const QString &)),
+             this, SLOT (mediumRemoved (VBoxDefs::MediumType, const QString &)));
     connect (mAddCtrAction, SIGNAL (triggered (bool)), this, SLOT (addController()));
     connect (mAddIDECtrAction, SIGNAL (triggered (bool)), this, SLOT (addIDEController()));
     connect (mAddSATACtrAction, SIGNAL (triggered (bool)), this, SLOT (addSATAController()));
@@ -1885,19 +1882,11 @@ UIMachineSettingsStorage::UIMachineSettingsStorage()
 
 void UIMachineSettingsStorage::setChipsetType(KChipsetType type)
 {
-    /* Make sure chipset type has changed: */
-    if (mStorageModel->chipsetType() == type)
-        return;
-
-    /* Update chipset type value: */
     mStorageModel->setChipsetType(type);
     updateActionsState();
-
-    /* Revalidate: */
-    revalidate();
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsStorage::loadToCacheFrom(QVariant &data)
 {
@@ -1930,19 +1919,8 @@ void UIMachineSettingsStorage::loadToCacheFrom(QVariant &data)
             storageControllerData.m_uPortCount = controller.GetPortCount();
             storageControllerData.m_fUseHostIOCache = controller.GetUseHostIOCache();
 
-            /* Sort attachments before caching/fetching: */
-            const CMediumAttachmentVector &attachmentVector =
-                    m_machine.GetMediumAttachmentsOfController(storageControllerData.m_strControllerName);
-            QMap<StorageSlot, CMediumAttachment> attachmentMap;
-            foreach (const CMediumAttachment &attachment, attachmentVector)
-            {
-                StorageSlot storageSlot(storageControllerData.m_controllerBus,
-                                        attachment.GetPort(), attachment.GetDevice());
-                attachmentMap.insert(storageSlot, attachment);
-            }
-            const QList<CMediumAttachment> &attachments = attachmentMap.values();
-
             /* For each attachment: */
+            const CMediumAttachmentVector &attachments = m_machine.GetMediumAttachmentsOfController(storageControllerData.m_strControllerName);
             for (int iAttachmentIndex = 0; iAttachmentIndex < attachments.size(); ++iAttachmentIndex)
             {
                 /* Prepare storage attachment data: */
@@ -1959,8 +1937,10 @@ void UIMachineSettingsStorage::loadToCacheFrom(QVariant &data)
                     storageAttachmentData.m_fAttachmentPassthrough = attachment.GetPassthrough();
                     storageAttachmentData.m_fAttachmentTempEject = attachment.GetTemporaryEject();
                     storageAttachmentData.m_fAttachmentNonRotational = attachment.GetNonRotational();
-                    const CMedium cmedium = attachment.GetMedium();
-                    storageAttachmentData.m_strAttachmentMediumId = cmedium.isNull() ? UIMedium::nullID() : cmedium.GetId();
+                    CMedium comMedium(attachment.GetMedium());
+                    VBoxMedium vboxMedium;
+                    vboxGlobal().findMedium(comMedium, vboxMedium);
+                    storageAttachmentData.m_strAttachmentMediumId = vboxMedium.id();
                 }
 
                 /* Cache storage attachment data: */
@@ -2031,8 +2011,9 @@ void UIMachineSettingsStorage::getFromCache()
     /* Polish page finally: */
     polishPage();
 
-    /* Revalidate: */
-    revalidate();
+    /* Revalidate if possible: */
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
@@ -2100,14 +2081,13 @@ void UIMachineSettingsStorage::saveFromCacheTo(QVariant &data)
     UISettingsPageMachine::uploadData(data);
 }
 
-bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
+void UIMachineSettingsStorage::setValidator (QIWidgetValidator *aVal)
 {
-    /* Pass by default: */
-    bool fPass = true;
+    mValidator = aVal;
+}
 
-    /* Prepare message: */
-    UIValidationMessage message;
-
+bool UIMachineSettingsStorage::revalidate (QString &strWarning, QString& /* strTitle */)
+{
     /* Check controllers for name emptiness & coincidence.
      * Check attachments for the hd presence / uniqueness. */
     QModelIndex rootIndex = mStorageModel->root();
@@ -2118,23 +2098,21 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
     {
         QModelIndex ctrIndex = rootIndex.child (i, 0);
         QString ctrName = mStorageModel->data (ctrIndex, StorageModel::R_CtrName).toString();
-
         /* Check for name emptiness: */
         if (ctrName.isEmpty())
         {
-            message.second << tr("No name is currently specified for the controller at position <b>%1</b>.").arg(i + 1);
-            fPass = false;
+            strWarning = tr("no name specified for controller at position <b>%1</b>.").arg(i + 1);
+            return false;
         }
         /* Check for name coincidence: */
         if (names.values().contains(ctrName))
         {
-            message.second << tr("The controller at position <b>%1</b> has the same name as the controller at position <b>%2</b>.")
-                                 .arg(i + 1).arg(names.key(ctrName) + 1);
-            fPass = false;
+            strWarning = tr("controller at position <b>%1</b> uses the name that is "
+                          "already used by controller at position <b>%2</b>.")
+                          .arg(i + 1).arg(names.key(ctrName) + 1);
+            return false;
         }
-        else
-            names.insert(i, ctrName);
-
+        else names.insert(i, ctrName);
         /* For each attachment: */
         for (int j = 0; j < mStorageModel->rowCount (ctrIndex); ++ j)
         {
@@ -2142,22 +2120,21 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
             StorageSlot attSlot = mStorageModel->data (attIndex, StorageModel::R_AttSlot).value <StorageSlot>();
             KDeviceType attDevice = mStorageModel->data (attIndex, StorageModel::R_AttDevice).value <KDeviceType>();
             QString key (mStorageModel->data (attIndex, StorageModel::R_AttMediumId).toString());
-            QString value (QString ("%1 (%2)").arg (ctrName, gpConverter->toString (attSlot)));
-            /* Check for emptiness: */
-            if (vboxGlobal().medium(key).isNull() && attDevice == KDeviceType_HardDisk)
+            QString value (QString ("%1 (%2)").arg (ctrName, vboxGlobal().toString (attSlot)));
+            /* Check for emptiness */
+            if (vboxGlobal().findMedium (key).isNull() && attDevice == KDeviceType_HardDisk)
             {
-                message.second << tr("No hard disk is selected for <i>%1</i>.").arg (value);
-                fPass = false;
+                strWarning = tr ("no hard disk is selected for <i>%1</i>.").arg (value);
+                return false;
             }
-            /* Check for coincidence: */
-            if (!vboxGlobal().medium(key).isNull() && config.contains (key))
+            /* Check for coincidence */
+            if (!vboxGlobal().findMedium (key).isNull() && config.contains (key))
             {
-                message.second << tr("<i>%1</i> is using a disk that is already attached to <i>%2</i>.")
-                                     .arg (value).arg (config [key]);
-                fPass = false;
+                strWarning = tr ("<i>%1</i> uses a medium that is already attached to <i>%2</i>.")
+                              .arg (value).arg (config [key]);
+                return false;
             }
-            else
-                config.insert (key, value);
+            else config.insert (key, value);
         }
     }
 
@@ -2170,7 +2147,7 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
         if (currentType[(KStorageBus)iStorageBusType] > maximumType[(KStorageBus)iStorageBusType])
         {
             QString strExcessiveRecord = QString("%1 (%2)");
-            strExcessiveRecord = strExcessiveRecord.arg(QString("<b>%1</b>").arg(gpConverter->toString((KStorageBus)iStorageBusType)));
+            strExcessiveRecord = strExcessiveRecord.arg(QString("<b>%1</b>").arg(vboxGlobal().toString((KStorageBus)iStorageBusType)));
             strExcessiveRecord = strExcessiveRecord.arg(maximumType[(KStorageBus)iStorageBusType] == 1 ?
                                                         tr("at most one supported", "controller") :
                                                         tr("up to %1 supported", "controllers").arg(maximumType[(KStorageBus)iStorageBusType]));
@@ -2179,20 +2156,15 @@ bool UIMachineSettingsStorage::validate(QList<UIValidationMessage> &messages)
     }
     if (!excessiveList.isEmpty())
     {
-        message.second << tr("The machine currently has more storage controllers assigned than a %1 chipset supports. "
-                             "Please change the chipset type on the System settings page or reduce the number "
-                             "of the following storage controllers on the Storage settings page: %2")
-                             .arg(gpConverter->toString(mStorageModel->chipsetType()))
-                             .arg(excessiveList.join(", "));
-        fPass = false;
+        strWarning = tr("you are currently using more storage controllers than a %1 chipset supports. "
+                        "Please change the chipset type on the System settings page or reduce the number "
+                        "of the following storage controllers on the Storage settings page: %2.")
+                        .arg(vboxGlobal().toString(mStorageModel->chipsetType()))
+                        .arg(excessiveList.join(", "));
+        return false;
     }
 
-    /* Serialize message: */
-    if (!message.second.isEmpty())
-        messages << message;
-
-    /* Return result: */
-    return fPass;
+    return true;
 }
 
 void UIMachineSettingsStorage::retranslateUi()
@@ -2267,46 +2239,39 @@ void UIMachineSettingsStorage::showEvent (QShowEvent *aEvent)
     UISettingsPageMachine::showEvent (aEvent);
 }
 
-void UIMachineSettingsStorage::sltHandleMediumEnumerated(const QString &strMediumID)
+void UIMachineSettingsStorage::mediumUpdated (const VBoxMedium &aMedium)
 {
-    /* Search for corresponding medium: */
-    UIMedium medium = vboxGlobal().medium(strMediumID);
-
     QModelIndex rootIndex = mStorageModel->root();
-    for (int i = 0; i < mStorageModel->rowCount(rootIndex); ++i)
+    for (int i = 0; i < mStorageModel->rowCount (rootIndex); ++ i)
     {
-        QModelIndex ctrIndex = rootIndex.child(i, 0);
-        for (int j = 0; j < mStorageModel->rowCount(ctrIndex); ++j)
+        QModelIndex ctrIndex = rootIndex.child (i, 0);
+        for (int j = 0; j < mStorageModel->rowCount (ctrIndex); ++ j)
         {
-            QModelIndex attIndex = ctrIndex.child(j, 0);
-            QString attMediumId = mStorageModel->data(attIndex, StorageModel::R_AttMediumId).toString();
-            if (attMediumId == medium.id())
+            QModelIndex attIndex = ctrIndex.child (j, 0);
+            QString attMediumId = mStorageModel->data (attIndex, StorageModel::R_AttMediumId).toString();
+            if (attMediumId == aMedium.id())
             {
-                mStorageModel->setData(attIndex, attMediumId, StorageModel::R_AttMediumId);
-
-                /* Revalidate: */
-                revalidate();
+                mStorageModel->setData (attIndex, attMediumId, StorageModel::R_AttMediumId);
+                if (mValidator) mValidator->revalidate();
             }
         }
     }
 }
 
-void UIMachineSettingsStorage::sltHandleMediumDeleted(const QString &strMediumID)
+void UIMachineSettingsStorage::mediumRemoved (VBoxDefs::MediumType /* aType */, const QString &aMediumId)
 {
     QModelIndex rootIndex = mStorageModel->root();
-    for (int i = 0; i < mStorageModel->rowCount(rootIndex); ++i)
+    for (int i = 0; i < mStorageModel->rowCount (rootIndex); ++ i)
     {
-        QModelIndex ctrIndex = rootIndex.child(i, 0);
-        for (int j = 0; j < mStorageModel->rowCount(ctrIndex); ++j)
+        QModelIndex ctrIndex = rootIndex.child (i, 0);
+        for (int j = 0; j < mStorageModel->rowCount (ctrIndex); ++ j)
         {
-            QModelIndex attIndex = ctrIndex.child(j, 0);
-            QString attMediumId = mStorageModel->data(attIndex, StorageModel::R_AttMediumId).toString();
-            if (attMediumId == strMediumID)
+            QModelIndex attIndex = ctrIndex.child (j, 0);
+            QString attMediumId = mStorageModel->data (attIndex, StorageModel::R_AttMediumId).toString();
+            if (attMediumId == aMediumId)
             {
-                mStorageModel->setData(attIndex, UIMedium().id(), StorageModel::R_AttMediumId);
-
-                /* Revalidate: */
-                revalidate();
+                mStorageModel->setData (attIndex, VBoxMedium().id(), StorageModel::R_AttMediumId);
+                if (mValidator) mValidator->revalidate();
             }
         }
     }
@@ -2325,27 +2290,27 @@ void UIMachineSettingsStorage::addController()
 
 void UIMachineSettingsStorage::addIDEController()
 {
-    addControllerWrapper (generateUniqueName ("IDE"), KStorageBus_IDE, KStorageControllerType_PIIX4);
+    addControllerWrapper (generateUniqueName (tr ("IDE Controller")), KStorageBus_IDE, KStorageControllerType_PIIX4);
 }
 
 void UIMachineSettingsStorage::addSATAController()
 {
-    addControllerWrapper (generateUniqueName ("SATA"), KStorageBus_SATA, KStorageControllerType_IntelAhci);
+    addControllerWrapper (generateUniqueName (tr ("SATA Controller")), KStorageBus_SATA, KStorageControllerType_IntelAhci);
 }
 
 void UIMachineSettingsStorage::addSCSIController()
 {
-    addControllerWrapper (generateUniqueName ("SCSI"), KStorageBus_SCSI, KStorageControllerType_LsiLogic);
+    addControllerWrapper (generateUniqueName (tr ("SCSI Controller")), KStorageBus_SCSI, KStorageControllerType_LsiLogic);
 }
 
 void UIMachineSettingsStorage::addFloppyController()
 {
-    addControllerWrapper (generateUniqueName ("Floppy"), KStorageBus_Floppy, KStorageControllerType_I82078);
+    addControllerWrapper (generateUniqueName (tr ("Floppy Controller")), KStorageBus_Floppy, KStorageControllerType_I82078);
 }
 
 void UIMachineSettingsStorage::addSASController()
 {
-    addControllerWrapper (generateUniqueName ("SAS"), KStorageBus_SAS, KStorageControllerType_LsiLogicSas);
+    addControllerWrapper (generateUniqueName (tr ("SAS Controller")), KStorageBus_SAS, KStorageControllerType_LsiLogicSas);
 }
 
 void UIMachineSettingsStorage::delController()
@@ -2355,9 +2320,7 @@ void UIMachineSettingsStorage::delController()
 
     mStorageModel->delController (QUuid (mStorageModel->data (index, StorageModel::R_ItemId).toString()));
     emit storageChanged();
-
-    /* Revalidate: */
-    revalidate();
+    if (mValidator) mValidator->revalidate();
 }
 
 void UIMachineSettingsStorage::addAttachment()
@@ -2423,7 +2386,7 @@ void UIMachineSettingsStorage::delAttachment()
     if (   device == KDeviceType_DVD
         && deviceCount (KDeviceType_DVD) == 1)
     {
-        if (!msgCenter().confirmRemovingOfLastDVDDevice(this))
+        if (msgCenter().confirmRemovingOfLastDVDDevice() != QIMessageBox::Ok)
             return;
     }
 
@@ -2436,9 +2399,7 @@ void UIMachineSettingsStorage::delAttachment()
     mStorageModel->delAttachment (QUuid (mStorageModel->data (parent, StorageModel::R_ItemId).toString()),
                                   QUuid (mStorageModel->data (index, StorageModel::R_ItemId).toString()));
     emit storageChanged();
-
-    /* Revalidate: */
-    revalidate();
+    if (mValidator) mValidator->revalidate();
 }
 
 void UIMachineSettingsStorage::getInformation()
@@ -2464,9 +2425,9 @@ void UIMachineSettingsStorage::getInformation()
                 mCbType->clear();
                 ControllerTypeList controllerTypeList (mStorageModel->data (index, StorageModel::R_CtrTypes).value <ControllerTypeList>());
                 for (int i = 0; i < controllerTypeList.size(); ++ i)
-                    mCbType->insertItem (mCbType->count(), gpConverter->toString (controllerTypeList [i]));
+                    mCbType->insertItem (mCbType->count(), vboxGlobal().toString (controllerTypeList [i]));
                 KStorageControllerType type = mStorageModel->data (index, StorageModel::R_CtrType).value <KStorageControllerType>();
-                int ctrPos = mCbType->findText (gpConverter->toString (type));
+                int ctrPos = mCbType->findText (vboxGlobal().toString (type));
                 mCbType->setCurrentIndex (ctrPos == -1 ? 0 : ctrPos);
 
                 KStorageBus bus = mStorageModel->data (index, StorageModel::R_CtrBusType).value <KStorageBus>();
@@ -2488,9 +2449,9 @@ void UIMachineSettingsStorage::getInformation()
                 mCbSlot->clear();
                 SlotsList slotsList (mStorageModel->data (index, StorageModel::R_AttSlots).value <SlotsList>());
                 for (int i = 0; i < slotsList.size(); ++ i)
-                    mCbSlot->insertItem (mCbSlot->count(), gpConverter->toString (slotsList [i]));
+                    mCbSlot->insertItem (mCbSlot->count(), vboxGlobal().toString (slotsList [i]));
                 StorageSlot slt = mStorageModel->data (index, StorageModel::R_AttSlot).value <StorageSlot>();
-                int attSlotPos = mCbSlot->findText (gpConverter->toString (slt));
+                int attSlotPos = mCbSlot->findText (vboxGlobal().toString (slt));
                 mCbSlot->setCurrentIndex (attSlotPos == -1 ? 0 : attSlotPos);
                 mCbSlot->setToolTip (mCbSlot->itemText (mCbSlot->currentIndex()));
 
@@ -2524,7 +2485,7 @@ void UIMachineSettingsStorage::getInformation()
                     default:
                         break;
                 }
-                m_pMediumIdHolder->setType(mediumTypeToLocal(device));
+                m_pMediumIdHolder->setType(vboxGlobal().mediumTypeToLocal(device));
                 m_pMediumIdHolder->setId(mStorageModel->data(index, StorageModel::R_AttMediumId).toString());
                 mLbMedium->setEnabled(isMachineOffline() || (isMachineOnline() && device != KDeviceType_HardDisk));
                 mTbOpen->setEnabled(isMachineOffline() || (isMachineOnline() && device != KDeviceType_HardDisk));
@@ -2564,8 +2525,7 @@ void UIMachineSettingsStorage::getInformation()
         }
     }
 
-    /* Revalidate: */
-    revalidate();
+    if (mValidator) mValidator->revalidate();
 
     mIsLoadingInProgress = false;
 }
@@ -2585,7 +2545,7 @@ void UIMachineSettingsStorage::setInformation()
                 mStorageModel->setData (index, mLeName->text(), StorageModel::R_CtrName);
             /* Setting Controller Sub-Type */
             else if (sdr == mCbType)
-                mStorageModel->setData (index, QVariant::fromValue (gpConverter->fromString<KStorageControllerType> (mCbType->currentText())),
+                mStorageModel->setData (index, QVariant::fromValue (vboxGlobal().toControllerType (mCbType->currentText())),
                                         StorageModel::R_CtrType);
             else if (sdr == mSbPortCount)
                 mStorageModel->setData (index, mSbPortCount->value(), StorageModel::R_CtrPortCount);
@@ -2599,7 +2559,7 @@ void UIMachineSettingsStorage::setInformation()
             if (sdr == mCbSlot)
             {
                 QModelIndex controllerIndex = mStorageModel->parent(index);
-                StorageSlot attachmentStorageSlot = gpConverter->fromString<StorageSlot>(mCbSlot->currentText());
+                StorageSlot attachmentStorageSlot = vboxGlobal().toStorageSlot(mCbSlot->currentText());
                 mStorageModel->setData(index, QVariant::fromValue(attachmentStorageSlot), StorageModel::R_AttSlot);
                 QModelIndex theSameIndexAtNewPosition = mStorageModel->attachmentBySlot(controllerIndex, attachmentStorageSlot);
                 AssertMsg(theSameIndexAtNewPosition.isValid(), ("Current attachment disappears!\n"));
@@ -2644,7 +2604,7 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
         /* Depending on current medium type: */
         switch (m_pMediumIdHolder->type())
         {
-            case UIMediumType_HardDisk:
+            case VBoxDefs::MediumType_HardDisk:
             {
                 /* Add "Create a new virtual hard disk" action: */
                 QAction *pCreateNewHardDisk = pOpenMediumMenu->addAction(tr("Create a new hard disk..."));
@@ -2657,7 +2617,7 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
                 addRecentMediumActions(pOpenMediumMenu, m_pMediumIdHolder->type());
                 break;
             }
-            case UIMediumType_DVD:
+            case VBoxDefs::MediumType_DVD:
             {
                 /* Add "Choose a virtual CD/DVD disk file" action: */
                 addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual CD/DVD disk file..."));
@@ -2674,7 +2634,7 @@ void UIMachineSettingsStorage::sltPrepareOpenMediumMenu()
                 connect(pEjectCurrentMedium, SIGNAL(triggered(bool)), this, SLOT(sltUnmountDevice()));
                 break;
             }
-            case UIMediumType_Floppy:
+            case VBoxDefs::MediumType_Floppy:
             {
                 /* Add "Choose a virtual floppy disk file" action: */
                 addChooseExistingMediumAction(pOpenMediumMenu, tr("Choose a virtual floppy disk file..."));
@@ -2706,7 +2666,7 @@ void UIMachineSettingsStorage::sltCreateNewHardDisk()
 
 void UIMachineSettingsStorage::sltUnmountDevice()
 {
-    m_pMediumIdHolder->setId(UIMedium().id());
+    m_pMediumIdHolder->setId(VBoxMedium().id());
 }
 
 void UIMachineSettingsStorage::sltChooseExistingMedium()
@@ -2735,7 +2695,7 @@ void UIMachineSettingsStorage::sltChooseRecentMedium()
     {
         /* Get recent medium type & name: */
         QStringList mediumInfoList = pChooseRecentMediumAction->data().toString().split(',');
-        UIMediumType mediumType = (UIMediumType)mediumInfoList[0].toUInt();
+        VBoxDefs::MediumType mediumType = (VBoxDefs::MediumType)mediumInfoList[0].toUInt();
         QString strMediumLocation = mediumInfoList[1];
         QString strMediumId = vboxGlobal().openMedium(mediumType, strMediumLocation, this);
         if (!strMediumId.isNull())
@@ -3068,29 +3028,29 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType deviceType)
     {
         case KDeviceType_HardDisk:
         {
-            int iAnswer = msgCenter().confirmHardDiskAttachmentCreation(strControllerName, this);
-            if (iAnswer == AlertButton_Choice1)
+            int iAnswer = msgCenter().askAboutHardDiskAttachmentCreation(this, strControllerName);
+            if (iAnswer == QIMessageBox::Yes)
                 strMediumId = getWithNewHDWizard();
-            else if (iAnswer == AlertButton_Choice2)
-                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(UIMediumType_HardDisk, this, strMachineFolder);
+            else if (iAnswer == QIMessageBox::No)
+                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(VBoxDefs::MediumType_HardDisk, this, strMachineFolder);
             break;
         }
         case KDeviceType_DVD:
         {
-            int iAnswer = msgCenter().confirmOpticalAttachmentCreation(strControllerName, this);
-            if (iAnswer == AlertButton_Choice1)
-                strMediumId = vboxGlobal().medium(strMediumId).id();
-            else if (iAnswer == AlertButton_Choice2)
-                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(UIMediumType_DVD, this, strMachineFolder);
+            int iAnswer = msgCenter().askAboutOpticalAttachmentCreation(this, strControllerName);
+            if (iAnswer == QIMessageBox::Yes)
+                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(VBoxDefs::MediumType_DVD, this, strMachineFolder);
+            else if (iAnswer == QIMessageBox::No)
+                strMediumId = vboxGlobal().findMedium(strMediumId).id();
             break;
         }
         case KDeviceType_Floppy:
         {
-            int iAnswer = msgCenter().confirmFloppyAttachmentCreation(strControllerName, this);
-            if (iAnswer == AlertButton_Choice1)
-                strMediumId = vboxGlobal().medium(strMediumId).id();
-            else if (iAnswer == AlertButton_Choice2)
-                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(UIMediumType_Floppy, this, strMachineFolder);
+            int iAnswer = msgCenter().askAboutFloppyAttachmentCreation(this, strControllerName);
+            if (iAnswer == QIMessageBox::Yes)
+                strMediumId = vboxGlobal().openMediumWithFileOpenDialog(VBoxDefs::MediumType_Floppy, this, strMachineFolder);
+            else if (iAnswer == QIMessageBox::No)
+                strMediumId = vboxGlobal().findMedium(strMediumId).id();
             break;
         }
     }
@@ -3100,9 +3060,8 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType deviceType)
         mStorageModel->addAttachment(QUuid(mStorageModel->data(index, StorageModel::R_ItemId).toString()), deviceType, strMediumId);
         mStorageModel->sort();
         emit storageChanged();
-
-        /* Revalidate: */
-        revalidate();
+        if (mValidator)
+            mValidator->revalidate();
     }
 }
 
@@ -3111,13 +3070,10 @@ QString UIMachineSettingsStorage::getWithNewHDWizard()
     /* Initialize variables: */
     CGuestOSType guestOSType = vboxGlobal().virtualBox().GetGuestOSType(m_strMachineGuestOSTypeId);
     QFileInfo fileInfo(m_strMachineSettingsFilePath);
-    /* Show New VD wizard: */
-    UISafePointerWizardNewVD pWizard = new UIWizardNewVD(this, QString(), fileInfo.absolutePath(), guestOSType.GetRecommendedHDD());
-    pWizard->prepare();
-    QString strResult = pWizard->exec() == QDialog::Accepted ? pWizard->virtualDisk().GetId() : QString();
-    if (pWizard)
-        delete pWizard;
-    return strResult;
+    /* Run New HD Wizard: */
+    UINewHDWizard dlg(this, QString(), fileInfo.absolutePath(), guestOSType.GetRecommendedHDD());
+
+    return dlg.exec() == QDialog::Accepted ? dlg.hardDisk().GetId() : QString();
 }
 
 void UIMachineSettingsStorage::updateAdditionalObjects (KDeviceType aType)
@@ -3189,9 +3145,11 @@ void UIMachineSettingsStorage::addChooseExistingMediumAction(QMenu *pOpenMediumM
 
 void UIMachineSettingsStorage::addChooseHostDriveActions(QMenu *pOpenMediumMenu)
 {
-    foreach (const QString &strMediumID, vboxGlobal().mediumIDs())
+    const VBoxMediaList &mediums = vboxGlobal().currentMediaList();
+    VBoxMediaList::const_iterator it;
+    for (it = mediums.begin(); it != mediums.end(); ++it)
     {
-        const UIMedium medium = vboxGlobal().medium(strMediumID);
+        const VBoxMedium &medium = *it;
         if (medium.isHostDrive() && m_pMediumIdHolder->type() == medium.type())
         {
             QAction *pHostDriveAction = pOpenMediumMenu->addAction(medium.name());
@@ -3201,20 +3159,20 @@ void UIMachineSettingsStorage::addChooseHostDriveActions(QMenu *pOpenMediumMenu)
     }
 }
 
-void UIMachineSettingsStorage::addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType recentMediumType)
+void UIMachineSettingsStorage::addRecentMediumActions(QMenu *pOpenMediumMenu, VBoxDefs::MediumType recentMediumType)
 {
     /* Compose recent-medium list address: */
     QString strRecentMediumAddress;
     switch (recentMediumType)
     {
-        case UIMediumType_HardDisk:
-            strRecentMediumAddress = GUI_RecentListHD;
+        case VBoxDefs::MediumType_HardDisk:
+            strRecentMediumAddress = VBoxDefs::GUI_RecentListHD;
             break;
-        case UIMediumType_DVD:
-            strRecentMediumAddress = GUI_RecentListCD;
+        case VBoxDefs::MediumType_DVD:
+            strRecentMediumAddress = VBoxDefs::GUI_RecentListCD;
             break;
-        case UIMediumType_Floppy:
-            strRecentMediumAddress = GUI_RecentListFD;
+        case VBoxDefs::MediumType_Floppy:
+            strRecentMediumAddress = VBoxDefs::GUI_RecentListFD;
             break;
         default:
             break;
@@ -3313,10 +3271,25 @@ bool UIMachineSettingsStorage::removeStorageController(const UICacheSettingsMach
         /* If controller exists: */
         if (fSuccess && !controller.isNull())
         {
-            /*remove controller with all the attachments at one shot*/
-            m_machine.RemoveStorageController(strControllerName);
-            /* Check that machine is OK: */
-            fSuccess = m_machine.isOk();
+            /* Remove storage attachments first: */
+            // TODO: Later, it will be possible to remove controller with all the attachments at one shot!
+            /* For each storage attachment: */
+            for (int iAttachmentIndex = 0; fSuccess && iAttachmentIndex < controllerCache.childCount(); ++iAttachmentIndex)
+            {
+                /* Get attachment cache: */
+                const UICacheSettingsMachineStorageAttachment &attachmentCache = controllerCache.child(iAttachmentIndex);
+
+                /* Remove attachment if it was not just 'created': */
+                if (!attachmentCache.wasCreated())
+                    fSuccess = removeStorageAttachment(controllerCache, attachmentCache);
+            }
+            /* Remove storage controller finally: */
+            if (fSuccess)
+            {
+                m_machine.RemoveStorageController(strControllerName);
+                /* Check that machine is OK: */
+                fSuccess = m_machine.isOk();
+            }
         }
     }
     /* Return result: */
@@ -3492,7 +3465,7 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UICacheSettingsMach
         bool fAttachmentTempEject = attachmentData.m_fAttachmentTempEject;
         bool fAttachmentNonRotational = attachmentData.m_fAttachmentNonRotational;
         /* Get GUI medium object: */
-        UIMedium vboxMedium = vboxGlobal().medium(strAttachmentMediumId);
+        VBoxMedium vboxMedium = vboxGlobal().findMedium(strAttachmentMediumId);
         /* Get COM medium object: */
         CMedium comMedium = vboxMedium.medium();
 
@@ -3534,9 +3507,9 @@ bool UIMachineSettingsStorage::createStorageAttachment(const UICacheSettingsMach
             else
             {
                 /* Show error message: */
-                msgCenter().cannotAttachDevice(m_machine, mediumTypeToLocal(attachmentDeviceType),
-                                               vboxMedium.location(),
-                                               StorageSlot(controllerBus, iAttachmentPort, iAttachmentDevice), this);
+                msgCenter().cannotAttachDevice(m_machine, vboxGlobal().mediumTypeToLocal(attachmentDeviceType),
+                                                 vboxMedium.location(),
+                                                 StorageSlot(controllerBus, iAttachmentPort, iAttachmentDevice), this);
             }
         }
     }
@@ -3576,7 +3549,7 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UICacheSettingsMach
         if (fSuccess && !attachment.isNull())
         {
             /* Get GUI medium object: */
-            UIMedium vboxMedium = vboxGlobal().medium(strAttachmentMediumId);
+            VBoxMedium vboxMedium = vboxGlobal().findMedium(strAttachmentMediumId);
             /* Get COM medium object: */
             CMedium comMedium = vboxMedium.medium();
             /* Remount storage attachment: */
@@ -3613,7 +3586,7 @@ bool UIMachineSettingsStorage::updateStorageAttachment(const UICacheSettingsMach
             else
             {
                 /* Show error message: */
-                msgCenter().cannotAttachDevice(m_machine, mediumTypeToLocal(attachmentDeviceType),
+                msgCenter().cannotAttachDevice(m_machine, vboxGlobal().mediumTypeToLocal(attachmentDeviceType),
                                                  vboxMedium.location(),
                                                  StorageSlot(controllerBus, iAttachmentPort, iAttachmentDevice), this);
             }
@@ -3657,9 +3630,9 @@ bool UIMachineSettingsStorage::isAttachmentCouldBeUpdated(const UICacheSettingsM
 
 void UIMachineSettingsStorage::setDialogType(SettingsDialogType settingsDialogType)
 {
-    /* Update model 'settings window type': */
+    /* Update model 'settings dialog type': */
     mStorageModel->setDialogType(settingsDialogType);
-    /* Update 'settings window type' of base class: */
+    /* Update 'settings dialog type' of base class: */
     UISettingsPageMachine::setDialogType(settingsDialogType);
 }
 

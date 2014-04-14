@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,14 +16,14 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 #
 # VBoxClient - clipboard and seamless.
 #
 PROGRAMS += VBoxClient
 
-VBoxClient_TEMPLATE = NewVBoxGuestR3Exe
+VBoxClient_TEMPLATE = VBOXGUESTR3EXE
 VBoxClient_DEFS += VBOX_X11_CLIPBOARD VBOX_WITH_HGCM
 ifdef VBOX_WITH_DBUS
  VBoxClient_DEFS += VBOX_WITH_DBUS
@@ -44,10 +44,12 @@ VBoxClient_LIBS.linux = \
 VBoxClient_LIBS.solaris = \
 	dl
 VBoxClient_LIBS = \
+	$(VBOX_LIB_IPRT_GUEST_R3) \
+	$(VBOX_LIB_VBGL_R3) \
+	$(VBOX_LIB_IPRT_GUEST_R3) \
 	X11 \
 	Xrandr \
 	Xt
-#	Xtst
 # These are static replacements for gcc-specific parts of libstdc++
 VBoxClient_LIBS += \
 	supc++ \
@@ -66,13 +68,6 @@ ifdef VBOX_X11_SEAMLESS_GUEST
 endif
 ifdef VBOX_WITH_GUEST_PROPS
  VBoxClient_DEFS += VBOX_WITH_GUEST_PROPS
-endif
-ifdef VBOX_WITH_DRAG_AND_DROP
- VBoxClient_DEFS += \
-	VBOX_WITH_DRAG_AND_DROP \
-	$(if $(VBOX_WITH_DRAG_AND_DROP_GH),VBOX_WITH_DRAG_AND_DROP_GH,)
- VBoxClient_SOURCES += \
-	draganddrop.cpp
 endif
 
 ifdef VBOX_X11_SEAMLESS_GUEST
@@ -121,5 +116,5 @@ $$(tstSeamlessX11-auto_0_OUTDIR)/tstSeamlessX11-auto.run: \
  endif
 endif
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

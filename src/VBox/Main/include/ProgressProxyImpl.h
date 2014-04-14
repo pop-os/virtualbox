@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
  * attributes to a different IProgress object for a period of time.
  */
 class ATL_NO_VTABLE ProgressProxy :
+    //public com::SupportErrorInfoDerived<Progress, ProgressProxy, IProgress>,
     public Progress
 {
 public:
@@ -91,6 +92,9 @@ public:
                            const char *pcszComponent,
                            const char *aText, ...);
     bool setOtherProgressObject(IProgress *pOtherProgress);
+
+    /** For com::SupportErrorInfoImpl. */
+    static const char *ComponentName() { return "ProgressProxy"; }
 
 protected:
     void clearOtherProgressObjectInternal(bool fEarly);

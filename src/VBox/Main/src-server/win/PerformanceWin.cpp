@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,10 +33,8 @@ extern "C" {
 }
 
 #include <iprt/err.h>
-#include <iprt/ldr.h>
 #include <iprt/mp.h>
 #include <iprt/mem.h>
-#include <iprt/system.h>
 
 #include <map>
 
@@ -63,7 +61,6 @@ public:
 
     virtual int getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_t *idle);
     virtual int getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uint64_t *kernel, uint64_t *total);
-
 private:
     struct VMProcessStats
     {
@@ -75,20 +72,21 @@ private:
 
     typedef std::map<RTPROCESS, VMProcessStats> VMProcessMap;
 
-    VMProcessMap mProcessStats;
+    VMProcessMap       mProcessStats;
 
-    typedef BOOL (WINAPI *PFNGST)(LPFILETIME lpIdleTime,
-                                  LPFILETIME lpKernelTime,
-                                  LPFILETIME lpUserTime);
-    typedef NTSTATUS (WINAPI *PFNNQSI)(SYSTEM_INFORMATION_CLASS SystemInformationClass,
-                                       PVOID SystemInformation,
-                                       ULONG SystemInformationLength,
-                                       PULONG ReturnLength);
+    typedef BOOL (WINAPI *PFNGST)(
+        LPFILETIME lpIdleTime,
+        LPFILETIME lpKernelTime,
+        LPFILETIME lpUserTime);
+    typedef NTSTATUS (WINAPI *PFNNQSI)(
+        SYSTEM_INFORMATION_CLASS SystemInformationClass,
+        PVOID SystemInformation,
+        ULONG SystemInformationLength,
+        PULONG ReturnLength);
 
     PFNGST  mpfnGetSystemTimes;
     PFNNQSI mpfnNtQuerySystemInformation;
-
-    ULONG   totalRAM;
+    HMODULE mhNtDll;
 };
 
 CollectorHAL *createHAL()
@@ -96,29 +94,35 @@ CollectorHAL *createHAL()
     return new CollectorWin();
 }
 
-CollectorWin::CollectorWin() : CollectorHAL(), mpfnNtQuerySystemInformation(NULL)
+CollectorWin::CollectorWin() : CollectorHAL(), mhNtDll(0)
 {
-    /* Note! Both kernel32.dll and ntdll.dll can be assumed to always be present. */
-    mpfnGetSystemTimes = (PFNGST)RTLdrGetSystemSymbol("kernel32.dll", "GetSystemTimes");
+    mpfnGetSystemTimes = (PFNGST)GetProcAddress(
+        GetModuleHandle(TEXT("kernel32.dll")),
+        "GetSystemTimes");
     if (!mpfnGetSystemTimes)
     {
         /* Fall back to deprecated NtQuerySystemInformation */
-        mpfnNtQuerySystemInformation = (PFNNQSI)RTLdrGetSystemSymbol("ntdll.dll", "NtQuerySystemInformation");
-        if (!mpfnNtQuerySystemInformation)
-            LogRel(("Warning! Neither GetSystemTimes() nor NtQuerySystemInformation() is not available.\n"
-                    "         CPU and VM metrics will not be collected! (lasterr %u)\n", GetLastError()));
+        if (!(mhNtDll = LoadLibrary(TEXT("ntdll.dll"))))
+        {
+            LogRel(("Failed to load NTDLL.DLL with error 0x%x. GetSystemTimes() is"
+                    " not available either. CPU and VM metrics will not be collected.\n",
+                    GetLastError()));
+            mpfnNtQuerySystemInformation = 0;
+        }
+        else if (!(mpfnNtQuerySystemInformation = (PFNNQSI)GetProcAddress(mhNtDll,
+            "NtQuerySystemInformation")))
+        {
+            LogRel(("Neither GetSystemTimes() nor NtQuerySystemInformation() is"
+                    " not available. CPU and VM metrics will not be collected.\n"));
+            mpfnNtQuerySystemInformation = 0;
+        }
     }
-
-    uint64_t cb;
-    int rc = RTSystemQueryTotalRam(&cb);
-    if (RT_FAILURE(rc))
-        totalRAM = 0;
-    else
-        totalRAM = (ULONG)(cb / 1024);
 }
 
 CollectorWin::~CollectorWin()
 {
+    if (mhNtDll)
+        FreeLibrary(mhNtDll);
 }
 
 #define FILETTIME_TO_100NS(ft) (((uint64_t)ft.dwHighDateTime << 32) + ft.dwLowDateTime)
@@ -274,7 +278,7 @@ int CollectorWin::getHostCpuMHz(ULONG *mhz)
         return VERR_NO_MEMORY;
 
     LONG ns = CallNtPowerInformation(ProcessorInformation, NULL, 0, ppi,
-                                     nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
+        nProcessors * sizeof(PROCESSOR_POWER_INFORMATION));
     if (ns)
     {
         Log(("CallNtPowerInformation() -> %x\n", ns));
@@ -296,16 +300,19 @@ int CollectorWin::getHostCpuMHz(ULONG *mhz)
 
 int CollectorWin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available)
 {
-    AssertReturn(totalRAM, VERR_INTERNAL_ERROR);
-    uint64_t cb;
-    int rc = RTSystemQueryAvailableRam(&cb);
-    if (RT_SUCCESS(rc))
+    MEMORYSTATUSEX mstat;
+
+    mstat.dwLength = sizeof(mstat);
+    if (GlobalMemoryStatusEx(&mstat))
     {
-        *total = totalRAM;
-        *available = (ULONG)(cb / 1024);
+        *total = (ULONG)( mstat.ullTotalPhys / 1024 );
+        *available = (ULONG)( mstat.ullAvailPhys / 1024 );
         *used = *total - *available;
     }
-    return rc;
+    else
+        return RTErrConvertFromWin32(GetLastError());
+
+    return VINF_SUCCESS;
 }
 
 int CollectorWin::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)

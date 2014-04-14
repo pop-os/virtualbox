@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,19 +55,21 @@
 static RTONCE       g_rtVfsChainElementInitOnce;
 /** Critical section protecting g_rtVfsChainElementProviderList. */
 static RTCRITSECT   g_rtVfsChainElementCritSect;
-/** List of VFS chain element providers (RTVFSCHAINELEMENTREG). */
-static RTLISTANCHOR g_rtVfsChainElementProviderList;
+/** List of VFS chain element providers. */
+static RTLISTNODE   g_rtVfsChainElementProviderList;
 
 
 /**
  * Initializes the globals via RTOnce.
  *
  * @returns IPRT status code
- * @param   pvUser              Unused, ignored.
+ * @param   pvUser1             Unused, ignored.
+ * @param   pvUser2             Unused, ignored.
  */
-static DECLCALLBACK(int) rtVfsChainElementRegisterInit(void *pvUser)
+static DECLCALLBACK(int) rtVfsChainElementRegisterInit(void *pvUser1, void *pvUser2)
 {
-    NOREF(pvUser);
+    NOREF(pvUser1);
+    NOREF(pvUser2);
     return RTCritSectInit(&g_rtVfsChainElementCritSect);
 }
 
@@ -95,7 +97,7 @@ RTDECL(int) RTVfsChainElementRegisterProvider(PRTVFSCHAINELEMENTREG pRegRec, boo
      */
     if (!fFromCtor)
     {
-        rc = RTOnce(&g_rtVfsChainElementInitOnce, rtVfsChainElementRegisterInit, NULL);
+        rc = RTOnce(&g_rtVfsChainElementInitOnce, rtVfsChainElementRegisterInit, NULL, NULL);
         if (RT_FAILURE(rc))
             return rc;
         rc = RTCritSectEnter(&g_rtVfsChainElementCritSect);
@@ -503,12 +505,9 @@ RTDECL(int)     RTVfsChainSpecParse(const char *pszSpec, uint32_t fFlags, RTVFSC
     }
 
     /*
-     * Return the chain on success; Cleanup and set the error indicator on
-     * failure.
+     * Cleanup and set the error indicator on failure.
      */
-    if (RT_SUCCESS(rc))
-        *ppSpec = pSpec;
-    else
+    if (RT_FAILURE(rc))
     {
         if (ppszError)
             *ppszError = pszSrc;
@@ -612,12 +611,11 @@ RTDECL(int) RTVfsChainOpenFile(const char *pszSpec, uint64_t fOpen, PRTVFSFILE p
 
 RTDECL(int) RTVfsChainOpenIoStream(const char *pszSpec, uint64_t fOpen, PRTVFSIOSTREAM phVfsIos, const char **ppszError)
 {
-    if (ppszError)
-        *ppszError = NULL;
-
     AssertPtrReturn(pszSpec, VERR_INVALID_POINTER);
     AssertReturn(*pszSpec != '\0', VERR_INVALID_PARAMETER);
     AssertPtrReturn(phVfsIos, VERR_INVALID_POINTER);
+    if (ppszError)
+        *ppszError = NULL;
 
     /*
      * If it's not a VFS chain spec, treat it as a file.

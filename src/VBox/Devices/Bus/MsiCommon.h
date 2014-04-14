@@ -3,7 +3,7 @@
  * Header for MSI/MSI-X support routines.
  */
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@ int      MsiInit(PPCIDEVICE pDev, PPDMMSIREG pMsiReg);
 bool     MsiIsEnabled(PPCIDEVICE pDev);
 
 /* Device notification (aka interrupt). */
-void     MsiNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel, uint32_t uTagSrc);
+void     MsiNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel);
 
 #ifdef IN_RING3
 /* PCI config space accessors for MSI registers */
@@ -53,7 +53,7 @@ int      MsixInit(PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, PPDMMSIREG pMsiReg);
 bool     MsixIsEnabled(PPCIDEVICE pDev);
 
 /* Device notification (aka interrupt). */
-void     MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel, uint32_t uTagSrc);
+void     MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPCIDEVICE pDev, int iVector, int iLevel);
 
 #ifdef IN_RING3
 /* PCI config space accessors for MSI-X */

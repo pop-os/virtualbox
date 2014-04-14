@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,16 +55,6 @@ typedef struct RTLISTNODE
 typedef RTLISTNODE *PRTLISTNODE;
 /** Pointer to a list node pointer. */
 typedef PRTLISTNODE *PPRTLISTNODE;
-
-/** The anchor (head/tail) of a doubly linked list.
- *
- * @remarks Please use this instead of RTLISTNODE to indicate a list
- *          head/tail.  It makes the code so much easier to read.  Also,
- *          always mention the actual list node type(s) in the comment.  */
-typedef RTLISTNODE RTLISTANCHOR;
-/** Pointer to a doubly linked list anchor. */
-typedef RTLISTANCHOR *PRTLISTANCHOR;
-
 
 /**
  * Initialize a list.
@@ -183,9 +173,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListNodeIsDummy(pList, pNode, Type, Member) \
          ( (pNode) == RT_FROM_MEMBER((pList), Type, Member) )
-/** @copydoc RTListNodeIsDummy */
-#define RTListNodeIsDummyCpp(pList, pNode, Type, Member) \
-         ( (pNode) == RT_FROM_CPP_MEMBER((pList), Type, Member) )
 
 /**
  * Checks if a list is empty.
@@ -208,9 +195,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListNodeGetNext(pCurNode, Type, Member) \
     RT_FROM_MEMBER((pCurNode)->pNext, Type, Member)
-/** @copydoc RTListNodeGetNext */
-#define RTListNodeGetNextCpp(pCurNode, Type, Member) \
-    RT_FROM_CPP_MEMBER((pCurNode)->pNext, Type, Member)
 
 /**
  * Returns the previous node in the list.
@@ -223,9 +207,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListNodeGetPrev(pCurNode, Type, Member) \
     RT_FROM_MEMBER((pCurNode)->pPrev, Type, Member)
-/** @copydoc RTListNodeGetPrev */
-#define RTListNodeGetPrevCpp(pCurNode, Type, Member) \
-    RT_FROM_CPP_MEMBER((pCurNode)->pPrev, Type, Member)
 
 /**
  * Returns the first element in the list (checks for empty list).
@@ -239,9 +220,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListGetFirst(pList, Type, Member) \
     (!RTListIsEmpty(pList) ? RTListNodeGetNext(pList, Type, Member) : NULL)
-/** @copydoc RTListGetFirst */
-#define RTListGetFirstCpp(pList, Type, Member) \
-    (!RTListIsEmpty(pList) ? RTListNodeGetNextCpp(pList, Type, Member) : NULL)
 
 /**
  * Returns the last element in the list (checks for empty list).
@@ -255,9 +233,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListGetLast(pList, Type, Member) \
     (!RTListIsEmpty(pList) ? RTListNodeGetPrev(pList, Type, Member) : NULL)
-/** @copydoc RTListGetLast */
-#define RTListGetLastCpp(pList, Type, Member) \
-    (!RTListIsEmpty(pList) ? RTListNodeGetPrevCpp(pList, Type, Member) : NULL)
 
 /**
  * Returns the next node in the list or NULL if the end has been reached.
@@ -271,9 +246,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListGetNext(pList, pCurNode, Type, Member) \
     ( (pCurNode)->Member.pNext != (pList) ? RT_FROM_MEMBER((pCurNode)->Member.pNext, Type, Member) : NULL )
-/** @copydoc RTListGetNext */
-#define RTListGetNextCpp(pList, pCurNode, Type, Member) \
-    ( (pCurNode)->Member.pNext != (pList) ? RT_FROM_CPP_MEMBER((pCurNode)->Member.pNext, Type, Member) : NULL )
 
 /**
  * Returns the previous node in the list or NULL if the start has been reached.
@@ -287,9 +259,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
  */
 #define RTListGetPrev(pList, pCurNode, Type, Member) \
     ( (pCurNode)->Member.pPrev != (pList) ? RT_FROM_MEMBER((pCurNode)->Member.pPrev, Type, Member) : NULL )
-/** @copydoc RTListGetPrev */
-#define RTListGetPrevCpp(pList, pCurNode, Type, Member) \
-    ( (pCurNode)->Member.pPrev != (pList) ? RT_FROM_CPP_MEMBER((pCurNode)->Member.pPrev, Type, Member) : NULL )
 
 /**
  * Enumerate the list in head to tail order.
@@ -303,11 +272,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
     for (pIterator = RTListNodeGetNext(pList, Type, Member); \
          !RTListNodeIsDummy(pList, pIterator, Type, Member); \
          pIterator = RT_FROM_MEMBER((pIterator)->Member.pNext, Type, Member) )
-/** @copydoc RTListForEach */
-#define RTListForEachCpp(pList, pIterator, Type, Member) \
-    for (pIterator = RTListNodeGetNextCpp(pList, Type, Member); \
-         !RTListNodeIsDummyCpp(pList, pIterator, Type, Member); \
-         pIterator = RT_FROM_CPP_MEMBER((pIterator)->Member.pNext, Type, Member) )
 
 
 /**
@@ -327,13 +291,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
          !RTListNodeIsDummy(pList, pIterator, Type, Member); \
          pIterator = pIterNext, \
          pIterNext = RT_FROM_MEMBER((pIterator)->Member.pNext, Type, Member) )
-/** @copydoc RTListForEachSafe */
-#define RTListForEachSafeCpp(pList, pIterator, pIterNext, Type, Member) \
-    for (pIterator = RTListNodeGetNextCpp(pList, Type, Member), \
-         pIterNext = RT_FROM_CPP_MEMBER((pIterator)->Member.pNext, Type, Member); \
-         !RTListNodeIsDummyCpp(pList, pIterator, Type, Member); \
-         pIterator = pIterNext, \
-         pIterNext = RT_FROM_CPP_MEMBER((pIterator)->Member.pNext, Type, Member) )
 
 
 /**
@@ -348,11 +305,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
     for (pIterator = RTListNodeGetPrev(pList, Type, Member); \
          !RTListNodeIsDummy(pList, pIterator, Type, Member); \
          pIterator = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member) )
-/** @copydoc RTListForEachReverse */
-#define RTListForEachReverseCpp(pList, pIterator, Type, Member) \
-    for (pIterator = RTListNodeGetPrevCpp(pList, Type, Member); \
-         !RTListNodeIsDummyCpp(pList, pIterator, Type, Member); \
-         pIterator = RT_FROM_CPP_MEMBER((pIterator)->Member.pPrev, Type, Member) )
 
 
 /**
@@ -371,13 +323,6 @@ DECLINLINE(void) RTListNodeRemove(PRTLISTNODE pNode)
          !RTListNodeIsDummy(pList, pIterator, Type, Member); \
          pIterator = pIterPrev, \
          pIterPrev = RT_FROM_MEMBER((pIterator)->Member.pPrev, Type, Member) )
-/** @copydoc RTListForEachReverseSafe */
-#define RTListForEachReverseSafeCpp(pList, pIterator, pIterPrev, Type, Member) \
-    for (pIterator = RTListNodeGetPrevCpp(pList, Type, Member), \
-         pIterPrev = RT_FROM_CPP_MEMBER((pIterator)->Member.pPrev, Type, Member); \
-         !RTListNodeIsDummyCpp(pList, pIterator, Type, Member); \
-         pIterator = pIterPrev, \
-         pIterPrev = RT_FROM_CPP_MEMBER((pIterator)->Member.pPrev, Type, Member) )
 
 
 /**
@@ -396,30 +341,6 @@ DECLINLINE(void) RTListMove(PRTLISTNODE pListDst, PRTLISTNODE pListSrc)
         /* Adjust the first and last element links */
         pListDst->pNext->pPrev = pListDst;
         pListDst->pPrev->pNext = pListDst;
-
-        /* Finally remove the elements from the source list */
-        RTListInit(pListSrc);
-    }
-}
-
-/**
- * List concatenation.
- *
- * @returns nothing.
- * @param   pListDst            The destination list.
- * @param   pListSrc            The source list to concatenate.
- */
-DECLINLINE(void) RTListConcatenate(PRTLISTANCHOR pListDst, PRTLISTANCHOR pListSrc)
-{
-    if (!RTListIsEmpty(pListSrc))
-    {
-        PRTLISTNODE pFirst = pListSrc->pNext;
-        PRTLISTNODE pLast = pListSrc->pPrev;
-
-        pListDst->pPrev->pNext = pFirst;
-        pFirst->pPrev          = pListDst->pPrev;
-        pLast->pNext           = pListDst;
-        pListDst->pPrev        = pLast;
 
         /* Finally remove the elements from the source list */
         RTListInit(pListSrc);

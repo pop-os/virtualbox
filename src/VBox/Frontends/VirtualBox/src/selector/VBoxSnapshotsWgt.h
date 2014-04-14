@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,16 +19,13 @@
 #ifndef __VBoxSnapshotsWgt_h__
 #define __VBoxSnapshotsWgt_h__
 
-/* Qt includes: */
+/* Global includes */
 #include <QTimer>
 
-/* GUI includes: */
+/* Local includes */
 #include "VBoxSnapshotsWgt.gen.h"
 #include "VBoxGlobal.h"
 #include "QIWithRetranslateUI.h"
-
-/* COM includes: */
-#include "CMachine.h"
 
 /* Local forwards */
 class SnapshotWgtItem;
@@ -63,11 +60,10 @@ private slots:
     void onCurrentChanged (QTreeWidgetItem *aItem = 0);
     void onContextMenuRequested (const QPoint &aPoint);
     void onItemChanged (QTreeWidgetItem *aItem);
-    void sltItemDoubleClicked(QTreeWidgetItem *pItem);
 
     /* Snapshot functionality slots: */
     void sltTakeSnapshot();
-    void sltRestoreSnapshot(bool fSuppressNonCriticalWarnings = false);
+    void sltRestoreSnapshot();
     void sltDeleteSnapshot();
     void sltShowSnapshotDetails();
     void sltCloneSnapshot();
@@ -109,8 +105,6 @@ private:
     QAction         *mCloneSnapshotAction;
 
     QTimer          mAgeUpdateTimer;
-
-    bool            m_fShapshotOperationsAllowed;
 };
 
 #endif // __VBoxSnapshotsWgt_h__

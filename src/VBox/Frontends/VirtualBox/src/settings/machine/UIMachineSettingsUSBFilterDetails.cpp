@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
 #include "UIMachineSettingsUSBFilterDetails.h"
-#include "UIConverter.h"
+#include "VBoxGlobal.h"
 
-UIMachineSettingsUSBFilterDetails::UIMachineSettingsUSBFilterDetails(QWidget *pParent /* = 0 */)
+UIMachineSettingsUSBFilterDetails::UIMachineSettingsUSBFilterDetails(UISettingsPageType type, QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI2<QIDialog>(pParent, Qt::Sheet)
+    , m_type(type)
 {
     /* Apply UI decorations */
     Ui::UIMachineSettingsUSBFilterDetails::setupUi (this);
@@ -30,6 +30,13 @@ UIMachineSettingsUSBFilterDetails::UIMachineSettingsUSBFilterDetails(QWidget *pP
     mCbRemote->insertItem (UIMachineSettingsUSB::ModeAny, ""); /* Any */
     mCbRemote->insertItem (UIMachineSettingsUSB::ModeOn,  ""); /* Yes */
     mCbRemote->insertItem (UIMachineSettingsUSB::ModeOff, ""); /* No */
+    mLbRemote->setHidden (m_type != UISettingsPageType_Machine);
+    mCbRemote->setHidden (m_type != UISettingsPageType_Machine);
+
+    mCbAction->insertItem (0, ""); /* KUSBDeviceFilterAction_Ignore */
+    mCbAction->insertItem (1, ""); /* KUSBDeviceFilterAction_Hold */
+    mLbAction->setHidden (m_type != UISettingsPageType_Global);
+    mCbAction->setHidden (m_type != UISettingsPageType_Global);
 
     mLeName->setValidator (new QRegExpValidator (QRegExp (".+"), this));
     mLeVendorID->setValidator (new QRegExpValidator (QRegExp ("[0-9a-fA-F]{0,4}"), this));
@@ -52,5 +59,10 @@ void UIMachineSettingsUSBFilterDetails::retranslateUi()
     mCbRemote->setItemText (UIMachineSettingsUSB::ModeAny, tr ("Any", "remote"));
     mCbRemote->setItemText (UIMachineSettingsUSB::ModeOn,  tr ("Yes", "remote"));
     mCbRemote->setItemText (UIMachineSettingsUSB::ModeOff, tr ("No",  "remote"));
+
+    mCbAction->setItemText (0,
+        vboxGlobal().toString (KUSBDeviceFilterAction_Ignore));
+    mCbAction->setItemText (1,
+        vboxGlobal().toString (KUSBDeviceFilterAction_Hold));
 }
 

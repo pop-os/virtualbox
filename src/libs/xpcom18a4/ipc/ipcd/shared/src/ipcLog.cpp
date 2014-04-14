@@ -48,10 +48,10 @@
 #include "plstr.h"
 
 #ifdef VBOX
-# if defined(__OS2__) && defined(PAGE_SIZE)
-#  undef PAGE_SIZE
-# endif
-# include <iprt/initterm.h> // for RTR3InitDll
+#if defined(__OS2__) && defined(PAGE_SIZE)
+#undef PAGE_SIZE
+#endif
+#include <iprt/initterm.h> // for RTR3Init
 #else // !VBOX
 PRBool ipcLogEnabled = PR_FALSE;
 #endif // !VBOX
@@ -65,6 +65,21 @@ char ipcLogPrefix[10] = {0};
 //-----------------------------------------------------------------------------
 #if defined(XP_UNIX) || defined(XP_OS2) || defined(XP_BEOS)
 
+  #if defined(L4ENV)
+#include <l4/sys/types.h>
+#include <l4/sys/syscalls.h>
+
+static inline PRUint32
+WritePrefix(char *buf, PRUint32 bufLen)
+{
+    l4_threadid_t my_id = l4_myself();
+    return PR_snprintf(buf, bufLen, "[%u.%u] %s ",
+                       static_cast<unsigned>(my_id.id.task),
+                       static_cast<unsigned>(my_id.id.lthread),
+                       ipcLogPrefix);
+}
+
+  #else /* Not L4ENV */
 #include <sys/types.h>
 #include <unistd.h>
 
@@ -76,6 +91,7 @@ WritePrefix(char *buf, PRUint32 bufLen)
                        PR_GetCurrentThread(),
                        ipcLogPrefix);
 }
+  #endif /* Not L4ENV */
 #endif
 
 //-----------------------------------------------------------------------------
@@ -105,7 +121,7 @@ IPC_InitLog(const char *prefix)
 {
 #ifdef VBOX
     // initialize VBox Runtime
-    RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+    RTR3Init();
 
     PL_strncpyz(ipcLogPrefix, prefix, sizeof(ipcLogPrefix));
 #else

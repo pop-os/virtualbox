@@ -1,10 +1,10 @@
-/* $Revision: 89635 $ */
+/* $Revision: 67748 $ */
 /** @file
  * VBoxGuestLibR0 - Library initialization.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,6 @@
 
 #include <iprt/string.h>
 #include <iprt/assert.h>
-#include <iprt/semaphore.h>
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -41,7 +40,7 @@
 VBGLDATA g_vbgldata;
 
 /**
- * Used by vbglQueryDriverInfo and VbglInit to try get the host feature mask and
+ * Used by vbglQueryVMMDevPort and VbglInit to try get the host feature mask and
  * version information (g_vbgldata::hostVersion).
  *
  * This was first implemented by the host in 3.1 and we quietly ignore failures
@@ -78,22 +77,13 @@ static void vbglR0QueryHostVersion (void)
  * values and fails if they are unavailable.
  *
  */
-static void vbglQueryDriverInfo (void)
+static void vbglQueryVMMDevPort (void)
 {
     int rc = VINF_SUCCESS;
 
-    rc = RTSemMutexRequest(g_vbgldata.mutexDriverInit, RT_INDEFINITE_WAIT);
+    VBGLDRIVER driver;
 
-    if (RT_FAILURE(rc))
-        return;
-
-    if (g_vbgldata.status == VbglStatusReady)
-    {
-        RTSemMutexRelease(g_vbgldata.mutexDriverInit);
-        return;
-    }
-
-    rc = vbglDriverOpen(&g_vbgldata.driver);
+    rc = vbglDriverOpen (&driver);
 
     if (RT_SUCCESS(rc))
     {
@@ -102,9 +92,7 @@ static void vbglQueryDriverInfo (void)
          */
         VBoxGuestPortInfo port;
 
-        rc = vbglDriverIOCtl (&g_vbgldata.driver,
-                              VBOXGUEST_IOCTL_GETVMMDEVPORT, &port,
-                              sizeof (port));
+        rc = vbglDriverIOCtl (&driver, VBOXGUEST_IOCTL_GETVMMDEVPORT, &port, sizeof (port));
 
         if (RT_SUCCESS (rc))
         {
@@ -117,16 +105,18 @@ static void vbglQueryDriverInfo (void)
 
             vbglR0QueryHostVersion();
         }
+
+        vbglDriverClose (&driver);
     }
-    RTSemMutexRelease(g_vbgldata.mutexDriverInit);
-    dprintf (("vbglQueryDriverInfo rc = %d\n", rc));
+
+    dprintf (("vbglQueryVMMDevPort rc = %d\n", rc));
 }
 #endif /* !VBGL_VBOXGUEST */
 
 /**
  * Checks if VBGL has been initialized.
  *
- * The client library, this will lazily complete the initialization.
+ * The the client library, this will lazily complete the initialization.
  *
  * @return VINF_SUCCESS or VERR_VBGL_NOT_INITIALIZED.
  */
@@ -137,7 +127,7 @@ int vbglR0Enter (void)
 #ifndef VBGL_VBOXGUEST
     if (g_vbgldata.status == VbglStatusInitializing)
     {
-        vbglQueryDriverInfo ();
+        vbglQueryVMMDevPort ();
     }
 #endif
 
@@ -164,10 +154,7 @@ int vbglInitCommon (void)
         ;
     }
     else
-    {
         LogRel(("vbglInitCommon: VbglPhysHeapInit failed. rc=%Rrc\n", rc));
-        g_vbgldata.status = VbglStatusNotInitialized;
-    }
 
     dprintf(("vbglInitCommon: rc = %d\n", rc));
 
@@ -177,7 +164,8 @@ int vbglInitCommon (void)
 DECLVBGL(void) vbglTerminateCommon (void)
 {
     VbglPhysHeapTerminate ();
-    g_vbgldata.status = VbglStatusNotInitialized;
+
+    RT_ZERO(g_vbgldata);
 
     return;
 }
@@ -245,28 +233,17 @@ DECLVBGL(int) VbglInit (void)
 
     if (RT_SUCCESS(rc))
     {
-        rc = RTSemMutexCreate(&g_vbgldata.mutexDriverInit);
-        if (RT_SUCCESS(rc))
-        {
-            /* Try to obtain VMMDev port via IOCTL to VBoxGuest main driver. */
-            vbglQueryDriverInfo ();
+        /* Try to obtain VMMDev port via IOCTL to VBoxGuest main driver. */
+        vbglQueryVMMDevPort ();
 
 # ifdef VBOX_WITH_HGCM
-            rc = vbglR0HGCMInit ();
+        rc = vbglR0HGCMInit ();
 # endif /* VBOX_WITH_HGCM */
-
-            if (RT_FAILURE(rc))
-            {
-                RTSemMutexDestroy(g_vbgldata.mutexDriverInit);
-                g_vbgldata.mutexDriverInit = NIL_RTSEMMUTEX;
-            }
-        }
 
         if (RT_FAILURE(rc))
         {
             vbglTerminateCommon ();
         }
-
     }
 
     return rc;
@@ -278,31 +255,10 @@ DECLVBGL(void) VbglTerminate (void)
     vbglR0HGCMTerminate ();
 # endif
 
-    /* driver open could fail, which does not prevent VbglInit from succeeding,
-     * close the driver only if it is opened */
-    if (vbglDriverIsOpened(&g_vbgldata.driver))
-        vbglDriverClose(&g_vbgldata.driver);
-    RTSemMutexDestroy(g_vbgldata.mutexDriverInit);
-    g_vbgldata.mutexDriverInit = NIL_RTSEMMUTEX;
-
-    /* note: do vbglTerminateCommon as a last step since it zeroez up the g_vbgldata
-     * conceptually, doing vbglTerminateCommon last is correct
-     * since this is the reverse order to how init is done */
     vbglTerminateCommon ();
 
     return;
 }
 
-int vbglGetDriver(VBGLDRIVER **ppDriver)
-{
-    if (g_vbgldata.status != VbglStatusReady)
-    {
-        vbglQueryDriverInfo();
-        if (g_vbgldata.status != VbglStatusReady)
-            return VERR_TRY_AGAIN;
-    }
-    *ppDriver = &g_vbgldata.driver;
-    return VINF_SUCCESS;
-}
-
 #endif /* !VBGL_VBOXGUEST */
+

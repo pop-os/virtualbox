@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -108,11 +108,12 @@ typedef enum DBGCVARTYPE
     DBGCVAR_TYPE_HC_FLAT,
     /** Physical HC pointer. */
     DBGCVAR_TYPE_HC_PHYS,
-    /** Number. */
-    DBGCVAR_TYPE_NUMBER,
     /** String. */
     DBGCVAR_TYPE_STRING,
-    /** Symbol. */
+    /** Number. */
+    DBGCVAR_TYPE_NUMBER,
+    /** Symbol.
+     * @todo drop this   */
     DBGCVAR_TYPE_SYMBOL,
     /** Special type used when querying symbols. */
     DBGCVAR_TYPE_ANY
@@ -320,19 +321,6 @@ typedef const DBGCVAR *PCDBGCVAR;
 
 
 /**
- * Macro for initializing a DBGC variable with a symbol.
- */
-#define DBGCVAR_INIT_SYMBOL(pVar, a_pszSymbol) \
-        do { \
-            DBGCVAR_INIT(pVar); \
-            (pVar)->enmType      = DBGCVAR_TYPE_SYMBOL; \
-            (pVar)->enmRangeType = DBGCVAR_RANGE_BYTES; \
-            (pVar)->u.pszString  = (a_pszSymbol); \
-            (pVar)->u64Range     = strlen(a_pszSymbol); \
-        } while (0)
-
-
-/**
  * Macro for setting the range of a DBGC variable.
  * @param   pVar            The variable.
  * @param   _enmRangeType   The range type.
@@ -376,15 +364,10 @@ typedef const DBGCVAR *PCDBGCVAR;
     } while (0)
 
 
-/** Pointer to a command descriptor. */
+/** Pointer to command descriptor. */
 typedef struct DBGCCMD *PDBGCCMD;
-/** Pointer to a const command descriptor. */
+/** Pointer to const command descriptor. */
 typedef const struct DBGCCMD *PCDBGCCMD;
-
-/** Pointer to a function descriptor. */
-typedef struct DBGCFUNC *PDBGCFUNC;
-/** Pointer to a const function descriptor. */
-typedef const struct DBGCFUNC *PCDBGCFUNC;
 
 /** Pointer to helper functions for commands. */
 typedef struct DBGCCMDHLP *PDBGCCMDHLP;
@@ -404,8 +387,8 @@ typedef struct DBGCCMDHLP
      * @returns VBox status.
      * @param   pCmdHlp     Pointer to the command callback structure.
      * @param   pcb         Where to store the number of bytes written.
-     * @param   pszFormat   The format string.  This may use all IPRT extensions as
-     *                      well as the debugger ones.
+     * @param   pszFormat   The format string.
+     *                      This is using the log formatter, so it's format extensions can be used.
      * @param   ...         Arguments specified in the format string.
      */
     DECLCALLBACKMEMBER(int, pfnPrintf)(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten, const char *pszFormat, ...);
@@ -416,38 +399,11 @@ typedef struct DBGCCMDHLP
      * @returns VBox status.
      * @param   pCmdHlp     Pointer to the command callback structure.
      * @param   pcb         Where to store the number of bytes written.
-     * @param   pszFormat   The format string.  This may use all IPRT extensions as
-     *                      well as the debugger ones.
+     * @param   pszFormat   The format string.
+     *                      This is using the log formatter, so it's format extensions can be used.
      * @param   args        Arguments specified in the format string.
      */
     DECLCALLBACKMEMBER(int, pfnPrintfV)(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten, const char *pszFormat, va_list args);
-
-    /**
-     * Command helper for formatting a string with debugger format specifiers.
-     *
-     * @returns The number of bytes written.
-     * @param   pCmdHlp     Pointer to the command callback structure.
-     * @param   pszBuf      The output buffer.
-     * @param   cbBuf       The size of the output buffer.
-     * @param   pszFormat   The format string.  This may use all IPRT extensions as
-     *                      well as the debugger ones.
-     * @param   ...         Arguments specified in the format string.
-     */
-    DECLCALLBACKMEMBER(size_t, pfnStrPrintf)(PDBGCCMDHLP pCmdHlp, char *pszBuf, size_t cbBuf, const char *pszFormat, ...);
-
-    /**
-     * Command helper for formatting a string with debugger format specifiers.
-     *
-     * @returns The number of bytes written.
-     * @param   pCmdHlp     Pointer to the command callback structure.
-     * @param   pszBuf      The output buffer.
-     * @param   cbBuf       The size of the output buffer.
-     * @param   pszFormat   The format string.  This may use all IPRT extensions as
-     *                      well as the debugger ones.
-     * @param   va          Arguments specified in the format string.
-     */
-    DECLCALLBACKMEMBER(size_t, pfnStrPrintfV)(PDBGCCMDHLP pCmdHlp, char *pszBuf, size_t cbBuf,
-                                              const char *pszFormat, va_list va);
 
     /**
      * Command helper for formatting and error message for a VBox status code.
@@ -477,6 +433,7 @@ typedef struct DBGCCMDHLP
      *
      * @returns VBox status code appropriate to return from a command.
      * @param   pCmdHlp     Pointer to the command callback structure.
+     * @param   pVM         VM handle if GC or physical HC address.
      * @param   pvBuffer    Where to store the read data.
      * @param   cbRead      Number of bytes to read.
      * @param   pVarPointer DBGC variable specifying where to start reading.
@@ -486,13 +443,14 @@ typedef struct DBGCCMDHLP
      *                      If not specified not-present failure or end of a HC physical page
      *                      will cause failure.
      */
-    DECLCALLBACKMEMBER(int, pfnMemRead)(PDBGCCMDHLP pCmdHlp, void *pvBuffer, size_t cbRead, PCDBGCVAR pVarPointer, size_t *pcbRead);
+    DECLCALLBACKMEMBER(int, pfnMemRead)(PDBGCCMDHLP pCmdHlp, PVM pVM, void *pvBuffer, size_t cbRead, PCDBGCVAR pVarPointer, size_t *pcbRead);
 
     /**
      * Command helper for writing memory specified by a DBGC variable.
      *
      * @returns VBox status code appropriate to return from a command.
      * @param   pCmdHlp     Pointer to the command callback structure.
+     * @param   pVM         VM handle if GC or physical HC address.
      * @param   pvBuffer    What to write.
      * @param   cbWrite     Number of bytes to write.
      * @param   pVarPointer DBGC variable specifying where to start reading.
@@ -500,7 +458,7 @@ typedef struct DBGCCMDHLP
      *                      This is optional. If NULL be aware that some of the buffer
      *                      might have been written to the specified address.
      */
-    DECLCALLBACKMEMBER(int, pfnMemWrite)(PDBGCCMDHLP pCmdHlp, const void *pvBuffer, size_t cbWrite, PCDBGCVAR pVarPointer, size_t *pcbWritten);
+    DECLCALLBACKMEMBER(int, pfnMemWrite)(PDBGCCMDHLP pCmdHlp, PVM pVM, const void *pvBuffer, size_t cbWrite, PCDBGCVAR pVarPointer, size_t *pcbWritten);
 
     /**
      * Executes command an expression.
@@ -643,23 +601,6 @@ typedef struct DBGCCMDHLP
      */
     DECLCALLBACKMEMBER(PCDBGFINFOHLP, pfnGetDbgfOutputHlp)(PDBGCCMDHLP pCmdHlp);
 
-    /**
-     * Gets the ID currently selected CPU.
-     *
-     * @returns Current CPU ID.
-     * @param   pCmdHlp     Pointer to the command callback structure.
-     */
-    DECLCALLBACKMEMBER(VMCPUID, pfnGetCurrentCpu)(PDBGCCMDHLP pCmdHlp);
-
-    /**
-     * Gets the mode the currently selected CPU is running in, in the current
-     * context.
-     *
-     * @returns Current CPU mode.
-     * @param   pCmdHlp     Pointer to the command callback structure.
-     */
-    DECLCALLBACKMEMBER(CPUMMODE, pfnGetCpuMode)(PDBGCCMDHLP pCmdHlp);
-
     /** End marker (DBGCCMDHLP_MAGIC). */
     uint32_t                u32EndMarker;
 } DBGCCMDHLP;
@@ -671,7 +612,13 @@ typedef struct DBGCCMDHLP
 #ifdef IN_RING3
 
 /**
- * @copydoc DBGCCMDHLP::pfnPrintf
+ * Command helper for writing formatted text to the debug console.
+ *
+ * @returns VBox status.
+ * @param   pCmdHlp     Pointer to the command callback structure.
+ * @param   pszFormat   The format string.
+ *                      This is using the log formatter, so it's format extensions can be used.
+ * @param   ...         Arguments specified in the format string.
  */
 DECLINLINE(int) DBGCCmdHlpPrintf(PDBGCCMDHLP pCmdHlp, const char *pszFormat, ...)
 {
@@ -683,22 +630,6 @@ DECLINLINE(int) DBGCCmdHlpPrintf(PDBGCCMDHLP pCmdHlp, const char *pszFormat, ...
     va_end(va);
 
     return rc;
-}
-
-
-/**
- * @copydoc DBGCCMDHLP::pfnStrPrintf
- */
-DECLINLINE(size_t) DBGCCmdHlpStrPrintf(PDBGCCMDHLP pCmdHlp, char *pszBuf, size_t cbBuf, const char *pszFormat, ...)
-{
-    va_list va;
-    size_t  cch;
-
-    va_start(va, pszFormat);
-    cch = pCmdHlp->pfnStrPrintfV(pCmdHlp, pszBuf, cbBuf, pszFormat, va);
-    va_end(va);
-
-    return cch;
 }
 
 /**
@@ -718,9 +649,9 @@ DECLINLINE(int) DBGCCmdHlpVBoxError(PDBGCCMDHLP pCmdHlp, int rc, const char *psz
 /**
  * @copydoc FNDBGCHLPMEMREAD
  */
-DECLINLINE(int) DBGCCmdHlpMemRead(PDBGCCMDHLP pCmdHlp, void *pvBuffer, size_t cbRead, PCDBGCVAR pVarPointer, size_t *pcbRead)
+DECLINLINE(int) DBGCCmdHlpMemRead(PDBGCCMDHLP pCmdHlp, PVM pVM, void *pvBuffer, size_t cbRead, PCDBGCVAR pVarPointer, size_t *pcbRead)
 {
-    return pCmdHlp->pfnMemRead(pCmdHlp, pvBuffer, cbRead, pVarPointer, pcbRead);
+    return pCmdHlp->pfnMemRead(pCmdHlp, pVM, pvBuffer, cbRead, pVarPointer, pcbRead);
 }
 
 /**
@@ -815,9 +746,9 @@ DECLINLINE(int) DBGCCmdHlpParserError(PDBGCCMDHLP pCmdHlp, PCDBGCCMD pCmd, int i
 
 /** Assert+return like macro that the VM handle is present.
  * Returns with failure if the VM handle is NIL.  */
-#define DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM) \
+#define DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM) \
     do { \
-        if (!(pUVM)) \
+        if (!(pVM)) \
             return DBGCCmdHlpFail(pCmdHlp, pCmd, "No VM selected"); \
     } while (0)
 
@@ -894,22 +825,6 @@ DECLINLINE(PCDBGFINFOHLP) DBGCCmdHlpGetDbgfOutputHlp(PDBGCCMDHLP pCmdHlp)
     return pCmdHlp->pfnGetDbgfOutputHlp(pCmdHlp);
 }
 
-/**
- * @copydoc DBGCCMDHLP::pfnGetCurrentCpu
- */
-DECLINLINE(VMCPUID) DBGCCmdHlpGetCurrentCpu(PDBGCCMDHLP pCmdHlp)
-{
-    return pCmdHlp->pfnGetCurrentCpu(pCmdHlp);
-}
-
-/**
- * @copydoc DBGCCMDHLP::pfnGetCpuMode
- */
-DECLINLINE(CPUMMODE) DBGCCmdHlpGetCpuMode(PDBGCCMDHLP pCmdHlp)
-{
-    return pCmdHlp->pfnGetCpuMode(pCmdHlp);
-}
-
 #endif /* IN_RING3 */
 
 
@@ -924,16 +839,20 @@ DECLINLINE(CPUMMODE) DBGCCmdHlpGetCpuMode(PDBGCCMDHLP pCmdHlp)
  * @returns VBox status.
  * @param   pCmd        Pointer to the command descriptor (as registered).
  * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pUVM        The user mode VM handle, can in theory be NULL.
+ * @param   pVM         Pointer to the current VM (if any).
  * @param   paArgs      Pointer to (readonly) array of arguments.
  * @param   cArgs       Number of arguments in the array.
  */
-typedef DECLCALLBACK(int) FNDBGCCMD(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs);
+typedef DECLCALLBACK(int) FNDBGCCMD(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs);
 /** Pointer to a FNDBGCCMD() function. */
 typedef FNDBGCCMD *PFNDBGCCMD;
 
 /**
  * DBGC command descriptor.
+ *
+ * If a pResultDesc is specified the command can be called and used
+ * as a function too. If it's a pure function, set fFlags to
+ * DBGCCMD_FLAGS_FUNCTION.
  */
 typedef struct DBGCCMD
 {
@@ -961,52 +880,6 @@ typedef struct DBGCCMD
  * @{
  */
 /** @} */
-
-
-/**
- * Function handler.
- *
- * The console will call the handler for a command once it's finished
- * parsing the user input.  The command handler function is responsible
- * for executing the command itself.
- *
- * @returns VBox status.
- * @param   pCmd        Pointer to the command descriptor (as registered).
- * @param   pCmdHlp     Pointer to command helper functions.
- * @param   pUVM        The user mode VM handle, can in theory be NULL.
- * @param   paArgs      Pointer to (readonly) array of arguments.
- * @param   cArgs       Number of arguments in the array.
- * @param   pResult     Where to return the result.
- */
-typedef DECLCALLBACK(int) FNDBGCFUNC(PCDBGCFUNC pFunc, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs,
-                                     PDBGCVAR pResult);
-/** Pointer to a FNDBGCFUNC() function. */
-typedef FNDBGCFUNC *PFNDBGCFUNC;
-
-/**
- * DBGC function descriptor.
- */
-typedef struct DBGCFUNC
-{
-    /** Command string. */
-    const char     *pszFuncNm;
-    /** Minimum number of arguments. */
-    unsigned        cArgsMin;
-    /** Max number of arguments. */
-    unsigned        cArgsMax;
-    /** Argument descriptors (array). */
-    PCDBGCVARDESC   paArgDescs;
-    /** Number of argument descriptors. */
-    unsigned        cArgDescs;
-    /** flags. (reserved for now) */
-    unsigned        fFlags;
-    /** Handler function. */
-    PFNDBGCFUNC     pfnHandler;
-    /** Function syntax. */
-    const char     *pszSyntax;
-    /** Function description. */
-    const char     *pszDescription;
-} DBGCFUNC;
 
 
 
@@ -1089,11 +962,67 @@ typedef struct DBGCBACK
     PFNDBGCBACKSETREADY pfnSetReady;
 } DBGCBACK;
 
-DBGDECL(int)    DBGCCreate(PUVM pUVM, PDBGCBACK pBack, unsigned fFlags);
+
+/**
+ * Make a console instance.
+ *
+ * This will not return until either an 'exit' command is issued or a error code
+ * indicating connection loss is encountered.
+ *
+ * @returns VINF_SUCCESS if console termination caused by the 'exit' command.
+ * @returns The VBox status code causing the console termination.
+ *
+ * @param   pVM         VM Handle.
+ * @param   pBack       Pointer to the backend structure. This must contain
+ *                      a full set of function pointers to service the console.
+ * @param   fFlags      Reserved, must be zero.
+ * @remark  A forced termination of the console is easiest done by forcing the
+ *          callbacks to return fatal failures.
+ */
+DBGDECL(int)    DBGCCreate(PVM pVM, PDBGCBACK pBack, unsigned fFlags);
+
+
+/**
+ * Register one or more external commands.
+ *
+ * @returns VBox status.
+ * @param   paCommands      Pointer to an array of command descriptors.
+ *                          The commands must be unique. It's not possible
+ *                          to register the same commands more than once.
+ * @param   cCommands       Number of commands.
+ */
 DBGDECL(int)    DBGCRegisterCommands(PCDBGCCMD paCommands, unsigned cCommands);
+
+
+/**
+ * Deregister one or more external commands previously registered by
+ * DBGCRegisterCommands().
+ *
+ * @returns VBox status.
+ * @param   paCommands      Pointer to an array of command descriptors
+ *                          as given to DBGCRegisterCommands().
+ * @param   cCommands       Number of commands.
+ */
 DBGDECL(int)    DBGCDeregisterCommands(PCDBGCCMD paCommands, unsigned cCommands);
-DBGDECL(int)    DBGCTcpCreate(PUVM pUVM, void **ppvUser);
-DBGDECL(int)    DBGCTcpTerminate(PUVM pUVM, void *pvData);
+
+
+/**
+ * Spawns a new thread with a TCP based debugging console service.
+ *
+ * @returns VBox status.
+ * @param   pVM         VM handle.
+ * @param   ppvData     Where to store the pointer to instance data.
+ */
+DBGDECL(int)    DBGCTcpCreate(PVM pVM, void **ppvUser);
+
+/**
+ * Terminates any running TCP base debugger console service.
+ *
+ * @returns VBox status.
+ * @param   pVM         VM handle.
+ * @param   pvData      Instance data set by DBGCTcpCreate().
+ */
+DBGDECL(int)    DBGCTcpTerminate(PVM pVM, void *pvData);
 
 
 /** @defgroup grp_dbgc_plug_in      The DBGC Plug-in Interface
@@ -1131,15 +1060,15 @@ typedef enum DBGCPLUGINOP
  * @returns VBox status code.
  *
  * @param   enmOperation    The operation.
- * @param   pUVM            The user mode VM handle. This may be NULL.
+ * @param   pVM             The VM handle. This may be NULL.
  * @param   uArg            Extra argument.
  */
-typedef DECLCALLBACK(int) FNDBGCPLUGIN(DBGCPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg);
+typedef DECLCALLBACK(int) FNDBGCPLUGIN(DBGCPLUGINOP enmOperation, PVM pVM, uintptr_t uArg);
 /** Pointer to a FNDBGCPLUGIN. */
 typedef FNDBGCPLUGIN *PFNDBGCPLUGIN;
 
 /** @copydoc FNDBGCPLUGIN */
-DECLEXPORT(int) DBGCPlugInEntry(DBGCPLUGINOP enmOperation, PUVM pUVM, uintptr_t uArg);
+DECLEXPORT(int) DBGCPlugInEntry(DBGCPLUGINOP enmOperation, PVM pVM, uintptr_t uArg);
 
 #endif /* IN_RING3 */
 

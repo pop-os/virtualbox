@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,8 +53,8 @@ typedef USBDEVICELIST *PUSBDEVICELIST;
 /**
  * Initialize data members.
  */
-USBProxyServiceSolaris::USBProxyServiceSolaris(Host *aHost)
-    : USBProxyService(aHost), mUSBLibInitialized(false)
+USBProxyServiceSolaris::USBProxyServiceSolaris (Host *aHost)
+    : USBProxyService (aHost), mUSBLibInitialized(false)
 {
     LogFlowThisFunc(("aHost=%p\n", aHost));
 }
@@ -173,7 +173,7 @@ static int solarisWalkDeviceNode(di_node_t Node, void *pvArg)
     char *pszCompatNames = NULL;
     int cCompatNames = di_compatible_names(Node, &pszCompatNames);
     for (int i = 0; i < cCompatNames; i++, pszCompatNames += strlen(pszCompatNames) + 1)
-        if (!strncmp(pszCompatNames, RT_STR_TUPLE("usb")))
+        if (!strncmp(pszCompatNames, "usb", 3))
         {
             fUSBDevice = true;
             break;
@@ -304,7 +304,7 @@ static int solarisWalkDeviceNode(di_node_t Node, void *pvArg)
                 pList->pTail = pList->pHead = pCur;
 
             rc = DI_WALK_CONTINUE;
-        } while (0);
+        } while(0);
 
         di_devfs_path_free(pszDevicePath);
         if (!fValidDevice)
@@ -322,7 +322,7 @@ static USBDEVICESTATE solarisDetermineUSBDeviceState(PUSBDEVICE pDevice, di_node
     if (!pszDriverName)
         return USBDEVICESTATE_UNUSED;
 
-    if (!strncmp(pszDriverName, RT_STR_TUPLE(VBOXUSB_DRIVER_NAME)))
+    if (!strncmp(pszDriverName, VBOXUSB_DRIVER_NAME, sizeof(VBOXUSB_DRIVER_NAME) - 1))
         return USBDEVICESTATE_HELD_BY_PROXY;
 
     NOREF(pDevice);
@@ -336,11 +336,8 @@ int USBProxyServiceSolaris::captureDevice(HostUSBDevice *aDevice)
      * Check preconditions.
      */
     AssertReturn(aDevice, VERR_GENERAL_FAILURE);
-    AssertReturn(!aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
-
-    AutoReadLock devLock(aDevice COMMA_LOCKVAL_SRC_POS);
     LogFlowThisFunc(("aDevice=%s\n", aDevice->getName().c_str()));
-
+    AssertReturn(aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
     Assert(aDevice->getUnistate() == kHostUSBDeviceState_Capturing);
     AssertReturn(aDevice->mUsb, VERR_INVALID_POINTER);
 
@@ -374,7 +371,6 @@ int USBProxyServiceSolaris::captureDevice(HostUSBDevice *aDevice)
 
 void USBProxyServiceSolaris::captureDeviceCompleted(HostUSBDevice *aDevice, bool aSuccess)
 {
-    AssertReturnVoid(aDevice->isWriteLockOnCurrentThread());
     /*
      * Remove the one-shot filter if necessary.
      */
@@ -391,11 +387,8 @@ int USBProxyServiceSolaris::releaseDevice(HostUSBDevice *aDevice)
      * Check preconditions.
      */
     AssertReturn(aDevice, VERR_GENERAL_FAILURE);
-    AssertReturn(!aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
-
-    AutoReadLock devLock(aDevice COMMA_LOCKVAL_SRC_POS);
     LogFlowThisFunc(("aDevice=%s\n", aDevice->getName().c_str()));
-
+    AssertReturn(aDevice->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
     Assert(aDevice->getUnistate() == kHostUSBDeviceState_ReleasingToHost);
     AssertReturn(aDevice->mUsb, VERR_INVALID_POINTER);
 
@@ -429,7 +422,6 @@ int USBProxyServiceSolaris::releaseDevice(HostUSBDevice *aDevice)
 
 void USBProxyServiceSolaris::releaseDeviceCompleted(HostUSBDevice *aDevice, bool aSuccess)
 {
-    AssertReturnVoid(aDevice->isWriteLockOnCurrentThread());
     /*
      * Remove the one-shot filter if necessary.
      */
@@ -442,8 +434,6 @@ void USBProxyServiceSolaris::releaseDeviceCompleted(HostUSBDevice *aDevice, bool
 
 bool USBProxyServiceSolaris::updateDeviceState(HostUSBDevice *aDevice, PUSBDEVICE aUSBDevice, bool *aRunFilters, SessionMachine **aIgnoreMachine)
 {
-    AssertReturn(aDevice, false);
-    AssertReturn(!aDevice->isWriteLockOnCurrentThread(), false);
     return USBProxyService::updateDeviceState(aDevice, aUSBDevice, aRunFilters, aIgnoreMachine);
 }
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,70 +17,44 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
+/* Local includes */
+#include "QISplitter.h"
+
+/* Global includes */
 #include <QApplication>
 #include <QEvent>
 #include <QPainter>
 #include <QPaintEvent>
 
-/* GUI includes: */
-#include "QISplitter.h"
-
-/* A simple shaded line: */
+/* A simple shaded line. */
 class QIShadeSplitterHandle: public QSplitterHandle
 {
     Q_OBJECT;
 
 public:
 
-    QIShadeSplitterHandle(Qt::Orientation orientation, QISplitter *pParent)
-        : QSplitterHandle(orientation, pParent)
-    {
-        QPalette pal = qApp->palette();
-        QColor windowColor = pal.color(QPalette::Active, QPalette::Window);
-        QColor darkColor = pal.color(QPalette::Active, QPalette::Dark);
-        m_color1 = windowColor;
-        m_color2 = windowColor;
-        m_color = darkColor;
-    }
-
-    void configureColors(const QColor &color1, const QColor &color2)
-    {
-        m_color1 = color1;
-        m_color2 = color2;
-        update();
-    }
+    QIShadeSplitterHandle(Qt::Orientation aOrientation, QISplitter *aParent)
+      :QSplitterHandle(aOrientation, aParent)
+    {}
 
 protected:
 
-    void paintEvent(QPaintEvent *pEvent)
+    void paintEvent(QPaintEvent *aEvent)
     {
         QPainter painter(this);
         QLinearGradient gradient;
-        QGradientStop point1(0, m_color1);
-        QGradientStop point2(0.5, m_color);
-        QGradientStop point3(1, m_color2);
-        QGradientStops stops;
-        stops << point1 << point2 << point3;
-        gradient.setStops(stops);
         if (orientation() == Qt::Horizontal)
         {
-            gradient.setStart(rect().left() + 1, 0);
-            gradient.setFinalStop(rect().right(), 0);
+            gradient.setStart(rect().left(), rect().height() / 2);
+            gradient.setFinalStop(rect().right(), rect().height() / 2);
         }
         else
         {
-            gradient.setStart(0, rect().top() + 1);
-            gradient.setFinalStop(0, rect().bottom());
+            gradient.setStart(rect().width() / 2, rect().top());
+            gradient.setFinalStop(rect().width() / 2, rect().bottom());
         }
-        painter.fillRect(pEvent->rect(), gradient);
+        painter.fillRect(aEvent->rect(), QBrush (gradient));
     }
-
-private:
-
-    QColor m_color;
-    QColor m_color1;
-    QColor m_color2;
 };
 
 #ifdef RT_OS_DARWIN
@@ -91,8 +65,8 @@ class QIDarwinSplitterHandle: public QSplitterHandle
 
 public:
 
-    QIDarwinSplitterHandle(Qt::Orientation orientation, QISplitter *pParent)
-        : QSplitterHandle(orientation, pParent)
+    QIDarwinSplitterHandle(Qt::Orientation aOrientation, QISplitter *aParent)
+      :QSplitterHandle(aOrientation, aParent)
     {}
 
     QSize sizeHint() const
@@ -106,7 +80,7 @@ public:
 
 protected:
 
-    void paintEvent(QPaintEvent*)
+    void paintEvent(QPaintEvent * /* aEvent */)
     {
         QPainter painter(this);
 
@@ -126,8 +100,7 @@ protected:
             linearGrad.setColorAt(0, gradientStart);
             linearGrad.setColorAt(1, gradientStop);
             painter.fillRect(QRect(QPoint(0,1), size() - QSize(0, 2)), QBrush(linearGrad));
-        }
-        else
+        }else
         {
             painter.setPen(topColor);
             painter.drawLine(0, 0, 0, height());
@@ -274,14 +247,8 @@ QSplitterHandle* QISplitter::createHandle()
 #else /* RT_OS_DARWIN */
         return new QSplitterHandle(orientation(), this);
 #endif /* RT_OS_DARWIN */
-    }
-    else
-    {
-        QIShadeSplitterHandle *pHandle = new QIShadeSplitterHandle(orientation(), this);
-        if (m_color1.isValid() && m_color2.isValid())
-            pHandle->configureColors(m_color1, m_color2);
-        return pHandle;
-    }
+    }else
+        return new QIShadeSplitterHandle(orientation(), this);
 }
 
 #include "QISplitter.moc"

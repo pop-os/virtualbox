@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@
 #include <iprt/mem.h>
 #include <iprt/dvm.h>
 #include <iprt/string.h>
-#include <iprt/asm.h>
 #include "internal/dvm.h"
 
 /*******************************************************************************
@@ -185,7 +184,7 @@ typedef RTDVMVOLUMEFMTINTERNAL *PRTDVMVOLUMEFMTINTERNAL;
  * Calculates the checksum of the entire bsd disklabel structure.
  *
  * @returns The checksum.
- * @param   pBsdLabel    BSD disklabel to get the checksum for.
+ * @param   pBsdLabel    BSD disklabel to get teh checksum for.
  */
 static uint16_t rtDvmFmtBsdLblDiskLabelChkSum(PBsdLabel pBsdLabel)
 {
@@ -297,7 +296,7 @@ DECLCALLBACK(int) rtDvmFmtBsdLblOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFmt)
     PRTDVMFMTINTERNAL pThis = NULL;
 
     pThis = (PRTDVMFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMFMTINTERNAL));
-    if (pThis)
+    if (VALID_PTR(pThis))
     {
         pThis->pDisk       = pDisk;
         pThis->cPartitions = 0;
@@ -328,7 +327,6 @@ DECLCALLBACK(int) rtDvmFmtBsdLblOpen(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFmt)
 
 DECLCALLBACK(int) rtDvmFmtBsdLblInitialize(PCRTDVMDISK pDisk, PRTDVMFMT phVolMgrFmt)
 {
-    NOREF(pDisk); NOREF(phVolMgrFmt);
     return VERR_NOT_IMPLEMENTED;
 }
 
@@ -340,22 +338,6 @@ DECLCALLBACK(void) rtDvmFmtBsdLblClose(RTDVMFMT hVolMgrFmt)
     pThis->cPartitions = 0;
     memset(&pThis->DiskLabel, 0, sizeof(BsdLabel));
     RTMemFree(pThis);
-}
-
-static DECLCALLBACK(int) rtDvmFmtBsdLblQueryRangeUse(RTDVMFMT hVolMgrFmt,
-                                                     uint64_t off, uint64_t cbRange,
-                                                     bool *pfUsed)
-{
-    PRTDVMFMTINTERNAL pThis = hVolMgrFmt;
-
-    NOREF(cbRange);
-
-    if (off <= RTDVM_BSDLBL_LBA2BYTE(1, pThis->pDisk))
-        *pfUsed = true;
-    else
-        *pfUsed = false;
-
-    return VINF_SUCCESS;
 }
 
 DECLCALLBACK(uint32_t) rtDvmFmtBsdLblGetValidVolumes(RTDVMFMT hVolMgrFmt)
@@ -385,13 +367,13 @@ static int rtDvmFmtBsdLblVolumeCreate(PRTDVMFMTINTERNAL pThis, PBsdLabelPartitio
     int rc = VINF_SUCCESS;
     PRTDVMVOLUMEFMTINTERNAL pVol = (PRTDVMVOLUMEFMTINTERNAL)RTMemAllocZ(sizeof(RTDVMVOLUMEFMTINTERNAL));
 
-    if (pVol)
+    if (VALID_PTR(pVol))
     {
         pVol->pVolMgr            = pThis;
         pVol->idxEntry           = idx;
         pVol->pBsdPartitionEntry = pBsdPartitionEntry;
-        pVol->offStart           = (uint64_t)pBsdPartitionEntry->offSectorStart * pThis->DiskLabel.cbSector;
-        pVol->cbVolume           = (uint64_t)pBsdPartitionEntry->cSectors * pThis->DiskLabel.cbSector;
+        pVol->offStart           = pBsdPartitionEntry->offSectorStart * pThis->DiskLabel.cbSector;
+        pVol->cbVolume           = pBsdPartitionEntry->cSectors * pThis->DiskLabel.cbSector;
 
         *phVolFmt = pVol;
     }
@@ -466,13 +448,12 @@ DECLCALLBACK(uint64_t) rtDvmFmtBsdLblVolumeGetSize(RTDVMVOLUMEFMT hVolFmt)
 
 DECLCALLBACK(int) rtDvmFmtBsdLblVolumeQueryName(RTDVMVOLUMEFMT hVolFmt, char **ppszVolName)
 {
-    NOREF(hVolFmt); NOREF(ppszVolName);
+    NOREF(hVolFmt);
     return VERR_NOT_SUPPORTED;
 }
 
 DECLCALLBACK(RTDVMVOLTYPE) rtDvmFmtBsdLblVolumeGetType(RTDVMVOLUMEFMT hVolFmt)
 {
-    NOREF(hVolFmt);
     return RTDVMVOLTYPE_UNKNOWN;
 }
 
@@ -480,24 +461,6 @@ DECLCALLBACK(uint64_t) rtDvmFmtBsdLblVolumeGetFlags(RTDVMVOLUMEFMT hVolFmt)
 {
     NOREF(hVolFmt);
     return 0;
-}
-
-DECLCALLBACK(bool) rtDvmFmtBsdLblVolumeIsRangeIntersecting(RTDVMVOLUMEFMT hVolFmt,
-                                                           uint64_t offStart, size_t cbRange,
-                                                           uint64_t *poffVol,
-                                                           uint64_t *pcbIntersect)
-{
-    bool fIntersect = false;
-    PRTDVMVOLUMEFMTINTERNAL pVol = hVolFmt;
-
-    if (RTDVM_RANGE_IS_INTERSECTING(pVol->offStart, pVol->cbVolume, offStart))
-    {
-        fIntersect    = true;
-        *poffVol      = offStart - pVol->offStart;
-        *pcbIntersect = RT_MIN(cbRange, pVol->offStart + pVol->cbVolume - offStart);
-    }
-
-    return fIntersect;
 }
 
 DECLCALLBACK(int) rtDvmFmtBsdLblVolumeRead(RTDVMVOLUMEFMT hVolFmt, uint64_t off, void *pvBuf, size_t cbRead)
@@ -528,8 +491,6 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblInitialize,
     /* pfnClose */
     rtDvmFmtBsdLblClose,
-    /* pfnQueryRangeUse */
-    rtDvmFmtBsdLblQueryRangeUse,
     /* pfnGetValidVolumes */
     rtDvmFmtBsdLblGetValidVolumes,
     /* pfnGetMaxVolumes */
@@ -548,8 +509,6 @@ DECLHIDDEN(RTDVMFMTOPS) g_rtDvmFmtBsdLbl =
     rtDvmFmtBsdLblVolumeGetType,
     /* pfnVolumeGetFlags */
     rtDvmFmtBsdLblVolumeGetFlags,
-    /* pfnVolumeIsRangeIntersecting */
-    rtDvmFmtBsdLblVolumeIsRangeIntersecting,
     /* pfnVolumeRead */
     rtDvmFmtBsdLblVolumeRead,
     /* pfnVolumeWrite */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,7 @@
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/assert.h>
-#if defined(IN_RING3) || defined(IN_RING0)
+#ifdef IN_RING3
 # include <iprt/thread.h>
 #endif
 #ifdef RT_LOCK_STRICT_ORDER
@@ -107,12 +107,9 @@ AssertCompileSize(RTCRITSECT, HC_ARCH_BITS == 32 ? 32 : 48);
  * The intended use is avoiding lots of conditional code where some component
  * might or might not require entering a critical section before access. */
 #define RTCRITSECT_FLAGS_NOP            UINT32_C(0x00000008)
-/** Indicates that this is a ring-0 critical section. */
-#define RTCRITSECT_FLAGS_RING0          UINT32_C(0x00000010)
 /** @} */
 
-
-#if defined(IN_RING3) || defined(IN_RING0)
+#ifdef IN_RING3
 
 /**
  * Initialize a critical section.
@@ -123,17 +120,18 @@ RTDECL(int) RTCritSectInit(PRTCRITSECT pCritSect);
  * Initialize a critical section.
  *
  * @returns iprt status code.
- * @param   pCritSect       Pointer to the critical section structure.
- * @param   fFlags          Flags, any combination of the RTCRITSECT_FLAGS
- *                          \#defines.
- * @param   hClass          The class (no reference consumed).  If NIL, no lock
- *                          order validation will be performed on this lock.
- * @param   uSubClass       The sub-class.  This is used to define lock order
- *                          within a class.  RTLOCKVAL_SUB_CLASS_NONE is the
- *                          recommended value here.
- * @param   pszNameFmt      Name format string for the lock validator, optional
- *                          (NULL).  Max length is 32 bytes.
- * @param   ...             Format string arguments.
+ * @param   pCritSect           Pointer to the critical section structure.
+ * @param   fFlags              Flags, any combination of the RTCRITSECT_FLAGS
+ *                              \#defines.
+ * @param   hClass              The class (no reference consumed).  If NIL, no
+ *                              lock order validation will be performed on this
+ *                              lock.
+ * @param   uSubClass           The sub-class.  This is used to define lock
+ *                              order within a class.  RTLOCKVAL_SUB_CLASS_NONE
+ *                              is the recommended value here.
+ * @param   pszNameFmt          Name format string for the lock validator,
+ *                              optional (NULL).  Max length is 32 bytes.
+ * @param   ...                 Format string arguments.
  */
 RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags,
                              RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
@@ -147,8 +145,8 @@ RTDECL(int) RTCritSectInitEx(PRTCRITSECT pCritSect, uint32_t fFlags,
  * @returns The old sub-class.  RTLOCKVAL_SUB_CLASS_INVALID is returns if the
  *          lock validator isn't compiled in or either of the parameters are
  *          invalid.
- * @param   pCritSect       The critical section.
- * @param   uSubClass       The new sub-class value.
+ * @param   pCritSect           The critical section.
+ * @param   uSubClass           The new sub-class value.
  */
 RTDECL(uint32_t) RTCritSectSetSubClass(PRTCRITSECT pCritSect, uint32_t uSubClass);
 
@@ -157,8 +155,7 @@ RTDECL(uint32_t) RTCritSectSetSubClass(PRTCRITSECT pCritSect, uint32_t uSubClass
  *
  * @returns VINF_SUCCESS on success.
  * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  * @param   pCritSect       The critical section.
  */
 RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect);
@@ -166,11 +163,9 @@ RTDECL(int) RTCritSectEnter(PRTCRITSECT pCritSect);
 /**
  * Enter a critical section.
  *
- * @returns IPRT status code.
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @retval  VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  *
  * @param   pCritSect       The critical section.
  * @param   uId             Where we're entering the section.
@@ -186,8 +181,7 @@ RTDECL(int) RTCritSectEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_SEM_BUSY if the critsect was owned.
  * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @retval  VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  *
  * @param   pCritSect   The critical section.
  */
@@ -199,8 +193,7 @@ RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect);
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_SEM_BUSY if the critsect was owned.
  * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @retval  VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  *
  * @param   pCritSect       The critical section.
  * @param   uId             Where we're entering the section.
@@ -210,8 +203,6 @@ RTDECL(int) RTCritSectTryEnter(PRTCRITSECT pCritSect);
  */
 RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_SRC_POS_DECL);
 
-#ifdef IN_RING3 /* Crazy APIs: ring-3 only. */
-
 /**
  * Enter multiple critical sections.
  *
@@ -219,8 +210,7 @@ RTDECL(int) RTCritSectTryEnterDebug(PRTCRITSECT pCritSect, RTHCUINTPTR uId, RT_S
  *
  * @returns VINF_SUCCESS on success.
  * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  * @param   cCritSects      Number of critical sections in the array.
  * @param   papCritSects    Array of critical section pointers.
  *
@@ -237,8 +227,7 @@ RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects
  *
  * @returns VINF_SUCCESS on success.
  * @returns VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
+ * @returns VERR_SEM_DESTROYED if RTCritSectDelete was called while waiting.
  *
  * @param   cCritSects      Number of critical sections in the array.
  * @param   papCritSects    Array of critical section pointers.
@@ -251,13 +240,11 @@ RTDECL(int) RTCritSectEnterMultiple(size_t cCritSects, PRTCRITSECT *papCritSects
  */
 RTDECL(int) RTCritSectEnterMultipleDebug(size_t cCritSects, PRTCRITSECT *papCritSects, RTUINTPTR uId, RT_SRC_POS_DECL);
 
-#endif /* IN_RING3 */
-
 /**
  * Leave a critical section.
  *
  * @returns VINF_SUCCESS.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 RTDECL(int) RTCritSectLeave(PRTCRITSECT pCritSect);
 
@@ -274,7 +261,7 @@ RTDECL(int) RTCritSectLeaveMultiple(size_t cCritSects, PRTCRITSECT *papCritSects
  * Deletes a critical section.
  *
  * @returns VINF_SUCCESS.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 RTDECL(int) RTCritSectDelete(PRTCRITSECT pCritSect);
 
@@ -283,21 +270,21 @@ RTDECL(int) RTCritSectDelete(PRTCRITSECT pCritSect);
  *
  * @returns true if owner.
  * @returns false if not owner.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 DECLINLINE(bool) RTCritSectIsOwner(PCRTCRITSECT pCritSect)
 {
     return pCritSect->NativeThreadOwner == RTThreadNativeSelf();
 }
 
-#endif /* IN_RING3 || IN_RING0 */
+#endif /* IN_RING3 */
 
 /**
  * Checks the section is owned by anyone.
  *
  * @returns true if owned.
  * @returns false if not owned.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 DECLINLINE(bool) RTCritSectIsOwned(PCRTCRITSECT pCritSect)
 {
@@ -309,7 +296,7 @@ DECLINLINE(bool) RTCritSectIsOwned(PCRTCRITSECT pCritSect)
  *
  * @returns Thread id of the owner thread if owned.
  * @returns NIL_RTNATIVETHREAD is not owned.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 DECLINLINE(RTNATIVETHREAD) RTCritSectGetOwner(PCRTCRITSECT pCritSect)
 {
@@ -321,7 +308,7 @@ DECLINLINE(RTNATIVETHREAD) RTCritSectGetOwner(PCRTCRITSECT pCritSect)
  *
  * @returns true if initialized.
  * @returns false if not initialized.
- * @param   pCritSect       The critical section.
+ * @param   pCritSect   The critical section.
  */
 DECLINLINE(bool) RTCritSectIsInitialized(PCRTCRITSECT pCritSect)
 {
@@ -364,383 +351,11 @@ DECLINLINE(int32_t) RTCritSectGetWaiters(PCRTCRITSECT pCritSect)
 #endif
 
 /* Strict lock order: Automatically classify locks by init location. */
-#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3) && !defined(RTCRITSECT_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
+#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3) && !defined(RTCRITSECT_WITHOUT_REMAPPING) &&!defined(RT_WITH_MANGLING)
 # define RTCritSectInit(pCritSect) \
     RTCritSectInitEx((pCritSect), 0 /*fFlags*/, \
                      RTLockValidatorClassForSrcPos(RT_SRC_POS, NULL), \
                      RTLOCKVAL_SUB_CLASS_NONE, NULL)
-#endif
-
-/** @}  */
-
-
-
-/** @defgroup grp_rt_critsectrw     RTCritSectRw - Read/Write Critical Sections
- * @ingroup grp_rt
- * @{
- */
-
-/**
- * Read/write critical section.
- */
-typedef struct RTCRITSECTRW
-{
-    /** Magic used to validate the section state.
-     * RTCRITSECTRW_MAGIC is the value of an initialized & operational section. */
-    volatile uint32_t                   u32Magic;
-
-    /** Indicates whether hEvtRead needs resetting. */
-    bool volatile                       fNeedReset;
-    /** Explicit alignment padding. */
-    bool volatile                       afPadding[1];
-    /** Section flags - the RTCRITSECT_FLAGS_* \#defines. */
-    uint16_t                            fFlags;
-
-    /** The state variable.
-     * All accesses are atomic and it bits are defined like this:
-     *      Bits 0..14  - cReads.
-     *      Bit 15      - Unused.
-     *      Bits 16..31 - cWrites. - doesn't make sense here
-     *      Bit 31      - fDirection; 0=Read, 1=Write.
-     *      Bits 32..46 - cWaitingReads
-     *      Bit 47      - Unused.
-     *      Bits 48..62 - cWaitingWrites
-     *      Bit 63      - Unused.
-     */
-    uint64_t volatile                   u64State;
-    /** The write owner. */
-    RTNATIVETHREAD volatile             hNativeWriter;
-    /** The number of reads made by the current writer. */
-    uint32_t volatile                   cWriterReads;
-    /** The number of recursions made by the current writer. (The initial grabbing
-     *  of the lock counts as the first one.) */
-    uint32_t volatile                   cWriteRecursions;
-
-    /** What the writer threads are blocking on. */
-    RTSEMEVENT                          hEvtWrite;
-    /** What the read threads are blocking on when waiting for the writer to
-     * finish. */
-    RTSEMEVENTMULTI                     hEvtRead;
-
-    /** The validator record for the writer. */
-    R3R0PTRTYPE(PRTLOCKVALRECEXCL)      pValidatorWrite;
-    /** The validator record for the readers. */
-    R3R0PTRTYPE(PRTLOCKVALRECSHRD)      pValidatorRead;
-#if HC_ARCH_BITS == 32
-    /** Size padding.  */
-    RTHCPTR                             HCPtrPadding;
-#endif
-} RTCRITSECTRW;
-AssertCompileSize(RTCRITSECTRW, HC_ARCH_BITS == 32 ? 48 : 64);
-
-/** RTCRITSECTRW::u32Magic value. (Eric Allan Dolphy, Jr.) */
-#define RTCRITSECTRW_MAGIC              UINT32_C(0x19280620)
-/** RTCRITSECTRW::u32Magic dead value. */
-#define RTCRITSECTRW_MAGIC_DEAD         UINT32_C(0x19640629)
-
-/** @name RTCRITSECTRW::u64State values.
- * @note Using RTCSRW instead of RTCRITSECTRW to save space.
- * @{ */
-#define RTCSRW_CNT_BITS            15
-#define RTCSRW_CNT_MASK            UINT64_C(0x00007fff)
-
-#define RTCSRW_CNT_RD_SHIFT        0
-#define RTCSRW_CNT_RD_MASK         (RTCSRW_CNT_MASK << RTCSRW_CNT_RD_SHIFT)
-#define RTCSRW_CNT_WR_SHIFT        16
-#define RTCSRW_CNT_WR_MASK         (RTCSRW_CNT_MASK << RTCSRW_CNT_WR_SHIFT)
-
-#define RTCSRW_DIR_SHIFT           31
-#define RTCSRW_DIR_MASK            RT_BIT_64(RTCSRW_DIR_SHIFT)
-#define RTCSRW_DIR_READ            UINT64_C(0)
-#define RTCSRW_DIR_WRITE           UINT64_C(1)
-
-#define RTCSRW_WAIT_CNT_RD_SHIFT   32
-#define RTCSRW_WAIT_CNT_RD_MASK    (RTCSRW_CNT_MASK << RTCSRW_WAIT_CNT_RD_SHIFT)
-/* #define RTCSRW_WAIT_CNT_WR_SHIFT   48 */
-/* #define RTCSRW_WAIT_CNT_WR_MASK    (RTCSRW_CNT_MASK << RTCSRW_WAIT_CNT_WR_SHIFT) */
-/** @} */
-
-#if defined(IN_RING3) || defined(IN_RING0)
-
-/**
- * Initialize a critical section.
- */
-RTDECL(int) RTCritSectRwInit(PRTCRITSECTRW pThis);
-
-/**
- * Initialize a critical section.
- *
- * @returns IPRT status code.
- * @param   pThis           Pointer to the read/write critical section.
- * @param   fFlags          Flags, any combination of the RTCRITSECT_FLAGS
- *                          \#defines.
- * @param   hClass          The class (no reference consumed).  If NIL, no lock
- *                          order validation will be performed on this lock.
- * @param   uSubClass       The sub-class.  This is used to define lock order
- *                          within a class.  RTLOCKVAL_SUB_CLASS_NONE is the
- *                          recommended value here.
- * @param   pszNameFmt      Name format string for the lock validator, optional
- *                          (NULL).  Max length is 32 bytes.
- * @param   ...             Format string arguments.
- */
-RTDECL(int) RTCritSectRwInitEx(PRTCRITSECTRW pThis, uint32_t fFlags,
-                               RTLOCKVALCLASS hClass, uint32_t uSubClass, const char *pszNameFmt, ...);
-
-/**
- * Changes the lock validator sub-class of the critical section.
- *
- * It is recommended to try make sure that nobody is using this critical section
- * while changing the value.
- *
- * @returns The old sub-class.  RTLOCKVAL_SUB_CLASS_INVALID is returns if the
- *          lock validator isn't compiled in or either of the parameters are
- *          invalid.
- * @param   pThis           Pointer to the read/write critical section.
- * @param   uSubClass       The new sub-class value.
- */
-RTDECL(uint32_t) RTCritSectRwSetSubClass(PRTCRITSECTRW pThis, uint32_t uSubClass);
-
-
-/**
- * Enter a critical section with shared (read) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwEnterShared(PRTCRITSECTRW pThis);
-
-/**
- * Enter a critical section with shared (read) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
- */
-RTDECL(int) RTCritSectRwEnterSharedDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
-
-/**
- * Try enter a critical section with shared (read) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_BUSY if the critsect was owned.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwTryEnterShared(PRTCRITSECTRW pThis);
-
-/**
- * Try enter a critical section with shared (read) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_BUSY if the critsect was owned.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
- */
-RTDECL(int) RTCritSectRwTryEnterSharedDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
-
-/**
- * Leave a critical section held with shared access.
- *
- * @returns IPRT status code.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwLeaveShared(PRTCRITSECTRW pThis);
-
-
-/**
- * Enter a critical section with exclusive (write) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwEnterExcl(PRTCRITSECTRW pThis);
-
-/**
- * Enter a critical section with exclusive (write) access.
- *
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
- */
-RTDECL(int) RTCritSectRwEnterExclDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
-
-/**
- * Try enter a critical section with exclusive (write) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_BUSY if the critsect was owned.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwTryEnterExcl(PRTCRITSECTRW pThis);
-
-/**
- * Try enter a critical section with exclusive (write) access.
- *
- * @returns IPRT status code.
- * @retval  VINF_SUCCESS on success.
- * @retval  VERR_SEM_BUSY if the critsect was owned.
- * @retval  VERR_SEM_NESTED if nested enter on a no nesting section. (Asserted.)
- * @retval  VERR_SEM_DESTROYED if the critical section is delete before or
- *          during the operation.
- *
- * @param   pThis           Pointer to the read/write critical section.
- * @param   uId             Where we're entering the section.
- * @param   pszFile         The source position - file.
- * @param   iLine           The source position - line.
- * @param   pszFunction     The source position - function.
- */
-RTDECL(int) RTCritSectRwTryEnterExclDebug(PRTCRITSECTRW pThis, RTHCUINTPTR uId, RT_SRC_POS_DECL);
-
-/**
- * Leave a critical section held exclusively.
- *
- * @returns IPRT status code; VINF_SUCCESS, VERR_NOT_OWNER, VERR_SEM_DESTROYED,
- *          or VERR_WRONG_ORDER.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwLeaveExcl(PRTCRITSECTRW pThis);
-
-
-/**
- * Deletes a critical section.
- *
- * @returns VINF_SUCCESS.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(int) RTCritSectRwDelete(PRTCRITSECTRW pThis);
-
-/**
- * Checks the caller is the exclusive (write) owner of the critical section.
- *
- * @retval  @c true if owner.
- * @retval  @c false if not owner.
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(bool) RTCritSectRwIsWriteOwner(PRTCRITSECTRW pThis);
-
-/**
- * Checks if the caller is one of the read owners of the critical section.
- *
- * @note    !CAUTION!  This API doesn't work reliably if lock validation isn't
- *          enabled. Meaning, the answer is not trustworhty unless
- *          RT_LOCK_STRICT or RTCRITSECTRW_STRICT was defined at build time.
- *          Also, make sure you do not use RTCRITSECTRW_FLAGS_NO_LOCK_VAL when
- *          creating the semaphore.  And finally, if you used a locking class,
- *          don't disable deadlock detection by setting cMsMinDeadlock to
- *          RT_INDEFINITE_WAIT.
- *
- *          In short, only use this for assertions.
- *
- * @returns @c true if reader, @c false if not.
- * @param   pThis           Pointer to the read/write critical section.
- * @param   fWannaHear      What you'd like to hear when lock validation is not
- *                          available.  (For avoiding asserting all over the
- *                          place.)
- */
-RTDECL(bool) RTCritSectRwIsReadOwner(PRTCRITSECTRW pThis, bool fWannaHear);
-
-/**
- * Gets the write recursion count.
- *
- * @returns The write recursion count (0 if bad critsect).
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(uint32_t) RTCritSectRwGetWriteRecursion(PRTCRITSECTRW pThis);
-
-/**
- * Gets the read recursion count of the current writer.
- *
- * @returns The read recursion count (0 if bad critsect).
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(uint32_t) RTCritSectRwGetWriterReadRecursion(PRTCRITSECTRW pThis);
-
-/**
- * Gets the current number of reads.
- *
- * This includes all read recursions, so it might be higher than the number of
- * read owners.  It does not include reads done by the current writer.
- *
- * @returns The read count (0 if bad critsect).
- * @param   pThis           Pointer to the read/write critical section.
- */
-RTDECL(uint32_t) RTCritSectRwGetReadCount(PRTCRITSECTRW pThis);
-
-#endif /* IN_RING3 || IN_RING0 */
-
-/**
- * Checks if a critical section is initialized or not.
- *
- * @retval  @c true if initialized.
- * @retval  @c false if not initialized.
- * @param   pThis           Pointer to the read/write critical section.
- */
-DECLINLINE(bool) RTCritSectRwIsInitialized(PCRTCRITSECTRW pThis)
-{
-    return pThis->u32Magic == RTCRITSECTRW_MAGIC;
-}
-
-/* Lock strict build: Remap the three enter calls to the debug versions. */
-#if defined(RT_LOCK_STRICT) && !defined(RTCRITSECTRW_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# ifdef ___iprt_asm_h
-#  define RTCritSectRwEnterExcl(pThis)      RTCritSectRwEnterExclDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
-#  define RTCritSectRwTryEnterExcl(pThis)   RTCritSectRwTryEnterExclDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
-#  define RTCritSectRwEnterShared(pThis)    RTCritSectRwEnterSharedDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
-#  define RTCritSectRwTryEnterShared(pThis) RTCritSectRwTryEnterSharedDebug(pThis, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
-# else
-#  define RTCritSectRwEnterExcl(pThis)      RTCritSectRwEnterExclDebug(pThis, 0, RT_SRC_POS)
-#  define RTCritSectRwTryEnterExcl(pThis)   RTCritSectRwTryEnterExclDebug(pThis, 0, RT_SRC_POS)
-#  define RTCritSectRwEnterShared(pThis)    RTCritSectRwEnterSharedDebug(pThis, 0, RT_SRC_POS)
-#  define RTCritSectRwTryEnterShared(pThis) RTCritSectRwTryEnterSharedDebug(pThis, 0, RT_SRC_POS)
-# endif
-#endif
-
-/* Strict lock order: Automatically classify locks by init location. */
-#if defined(RT_LOCK_STRICT_ORDER) && defined(IN_RING3) && !defined(RTCRITSECTRW_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# define RTCritSectRwInit(a_pThis) \
-    RTCritSectRwInitEx((a_pThis), 0 /*fFlags*/, \
-                       RTLockValidatorClassForSrcPos(RT_SRC_POS, NULL), \
-                        RTLOCKVAL_SUB_CLASS_NONE, NULL)
 #endif
 
 /** @} */

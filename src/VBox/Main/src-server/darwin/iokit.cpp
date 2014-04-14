@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,6 @@
 #ifdef VBOX_WITH_USB
 # include <IOKit/usb/IOUSBLib.h>
 # include <IOKit/IOCFPlugIn.h>
-# include <IOKit/storage/IOMedia.h>
 #endif
 
 #include <VBox/log.h>
@@ -275,7 +274,7 @@ static bool darwinDictDupString(CFDictionaryRef DictRef, CFStringRef KeyStrRef, 
     char szBuf[512];
     if (darwinDictGetString(DictRef, KeyStrRef, szBuf, sizeof(szBuf)))
     {
-        *ppsz = RTStrDup(szBuf);
+        *ppsz = RTStrDup(RTStrStrip(szBuf));
         if (*ppsz)
             return true;
     }
@@ -374,7 +373,7 @@ static void darwinDumpDictCallback(const void *pvKey, const void *pvValue, void 
             double rd;
             CFIndex iCF;
         } u;
-        RT_ZERO(u);
+        memset(&u, 0, sizeof(u));
         CFNumberType NumType = CFNumberGetType((CFNumberRef)pvValue);
         if (CFNumberGetValue((CFNumberRef)pvValue, NumType, &u))
         {
@@ -610,7 +609,7 @@ void *DarwinSubscribeUSBNotifications(void)
         if (pNotify->NotifyRLSrc)
         {
             CFRunLoopRef RunLoopRef = CFRunLoopGetCurrent();
-            CFRetain(RunLoopRef); /* Workaround for crash when cleaning up the TLS / runloop((sub)mode). See @bugref{2807}. */
+            CFRetain(RunLoopRef); /* Workaround for crash when cleaning up the TLS / runloop((sub)mode). See #2807. */
             CFRunLoopAddSource(RunLoopRef, pNotify->NotifyRLSrc, CFSTR(VBOX_IOKIT_MODE_STRING));
 
             /*
@@ -737,28 +736,13 @@ static io_object_t darwinFindObjectByClass(io_object_t Object, const char *pszCl
  */
 static bool darwinIsMassStorageInterfaceInUse(io_object_t MSDObj, io_name_t pszNameBuf)
 {
-    io_object_t MediaObj = darwinFindObjectByClass(MSDObj, kIOMediaClass, pszNameBuf);
+    io_object_t MediaObj = darwinFindObjectByClass(MSDObj, "IOMedia", pszNameBuf);
     if (MediaObj)
     {
-        CFMutableDictionaryRef pProperties;
-        kern_return_t krc;
-        bool fInUse = true;
-
-        krc = IORegistryEntryCreateCFProperties(MediaObj, &pProperties, kCFAllocatorDefault, kNilOptions);
-        if (krc == KERN_SUCCESS)
-        {
-            CFBooleanRef pBoolValue = (CFBooleanRef)CFDictionaryGetValue(pProperties, CFSTR(kIOMediaOpenKey));
-            if (pBoolValue)
-                fInUse = CFBooleanGetValue(pBoolValue);
-
-            CFRelease(pProperties);
-        }
-
         /* more checks? */
         IOObjectRelease(MediaObj);
-        return fInUse;
+        return true;
     }
-
     return false;
 }
 
@@ -1275,7 +1259,7 @@ int DarwinReEnumerateUSBDevice(PCUSBDEVICE pCur)
 
 
 /**
- * Enumerate the CD, DVD and BlueRay drives returning a FIFO of device name strings.
+ * Enumerate the DVD drives returning a FIFO of device name strings.
  *
  * @returns Pointer to the head.
  *          The caller is responsible for calling RTMemFree() on each of the nodes.
@@ -1285,13 +1269,15 @@ PDARWINDVD DarwinGetDVDDrives(void)
     AssertReturn(darwinOpenMasterPort(), NULL);
 
     /*
-     * Create a matching dictionary for searching for CD, DVD and BlueRay services in the IOKit.
+     * Create a matching dictionary for searching for DVD services in the IOKit.
      *
-     * The idea is to find all the devices which are of class IOCDBlockStorageDevice.
-     * CD devices are represented by IOCDBlockStorageDevice class itself, while DVD and BlueRay ones
-     * have it as a parent class.
+     * [If I understand this correctly, plain CDROMs doesn't show up as
+     * IODVDServices. Too keep things simple, we will only support DVDs
+     * until somebody complains about it and we get hardware to test it on.
+     * (Unless I'm much mistaken, there aren't any (orignal) intel macs with
+     * plain cdroms.)]
      */
-    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching("IOCDBlockStorageDevice");
+    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching("IODVDServices");
     AssertReturn(RefMatchingDict, NULL);
 
     /*
@@ -1303,7 +1289,7 @@ PDARWINDVD DarwinGetDVDDrives(void)
     RefMatchingDict = NULL; /* the reference is consumed by IOServiceGetMatchingServices. */
 
     /*
-     * Enumerate the matching services.
+     * Enumerate the DVD services.
      * (This enumeration must be identical to the one performed in DrvHostBase.cpp.)
      */
     PDARWINDVD pHead = NULL;
@@ -1368,7 +1354,7 @@ PDARWINDVD DarwinGetDVDDrives(void)
                             if (*pszVendor && *pszProduct)
                                 RTStrPrintf(szName, sizeof(szName), "%s %s (#%u)", pszVendor, pszProduct, i);
                             else
-                                RTStrPrintf(szName, sizeof(szName), "%s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
+                                RTStrPrintf(szName, sizeof(szName), "%s %s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
                             break;
                         }
                     }
@@ -1696,7 +1682,7 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
  */
 int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     if (1)
     {

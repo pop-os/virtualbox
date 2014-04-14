@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
-#include <iprt/cdefs.h>
 #if !defined(IN_RING3)
-# error Pure R3 code
+#error Pure R3 code
 #endif
 
 #define LOG_GROUP LOG_GROUP_DEV_ACPI
@@ -46,26 +41,24 @@
 # include <vboxssdt-cpuhotplug.hex>
 #endif
 
-#include "VBoxDD.h"
-
-
 #ifdef VBOX_WITH_DYNAMIC_DSDT
-
-static int prepareDynamicDsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbDsdt)
+static int prepareDynamicDsdt(PPDMDEVINS pDevIns,
+                              void*      *ppPtr,
+                              size_t     *puDsdtLen)
 {
-  *ppvPtr = NULL;
-  *pcbDsdt = 0;
+  *ppPtr = NULL;
+  *puDsdtLen = 0;
   return 0;
 }
 
-static int cleanupDynamicDsdt(PPDMDEVINS pDevIns, void *pvPtr)
+static int cleanupDynamicDsdt(PPDMDEVINS pDevIns,
+                              void*      pPtr)
 {
     return 0;
 }
 
-#else  /* VBOX_WITH_DYNAMIC_DSDT */
-
-static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
+#else
+static int patchAml(PPDMDEVINS pDevIns, uint8_t* pAml, size_t uAmlLen)
 {
     uint16_t cNumCpus;
     int rc;
@@ -91,7 +84,7 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
      *  AML_NOOP_OP                 (UINT16) 0xa3
      * for VCPU not configured
      */
-    for (uint32_t i = 0; i < cbAml - 7; i++)
+    for (uint32_t i = 0; i < uAmlLen - 7; i++)
     {
         /*
          * AML_PROCESSOR_OP
@@ -103,14 +96,14 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
          * PblkAddr     := DwordData
          * PblkLen      := ByteData
          */
-        if (pabAml[i] == 0x5b && pabAml[i+1] == 0x83)
+        if ((pAml[i] == 0x5b) && (pAml[i+1] == 0x83))
         {
-            if (pabAml[i+3] != 'C' || pabAml[i+4] != 'P')
+            if ((pAml[i+3] != 'C') || (pAml[i+4] != 'P'))
                 /* false alarm, not named starting CP */
                 continue;
 
             /* Processor ID */
-            if (pabAml[i+7] < cNumCpus)
+            if (pAml[i+7] < cNumCpus)
               continue;
 
             /* Will fill unwanted CPU block with NOOPs */
@@ -118,24 +111,24 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
              * See 18.2.4 Package Length Encoding in ACPI spec
              * for full format
              */
-            uint32_t cBytes = pabAml[i + 2];
+            uint32_t cBytes = pAml[i + 2];
             AssertReleaseMsg((cBytes >> 6) == 0,
                              ("So far, we only understand simple package length"));
 
             /* including AML_PROCESSOR_OP itself */
             for (uint32_t j = 0; j < cBytes + 2; j++)
-                pabAml[i+j] = 0xa3;
+                pAml[i+j] = 0xa3;
 
             /* Can increase i by cBytes + 1, but not really worth it */
         }
     }
 
     /* now recompute checksum, whole file byte sum must be 0 */
-    pabAml[9] = 0;
-    uint8_t         bSum = 0;
-    for (uint32_t i = 0; i < cbAml; i++)
-      bSum = bSum + pabAml[i];
-    pabAml[9] = (uint8_t)(0 - bSum);
+    pAml[9] = 0;
+    uint8_t         aSum = 0;
+    for (uint32_t i = 0; i < uAmlLen; i++)
+      aSum = aSum + (uint8_t)pAml[i];
+    pAml[9] = (uint8_t) (0 - aSum);
 
     return 0;
 }
@@ -144,7 +137,7 @@ static int patchAml(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
  * Patch the CPU hot-plug SSDT version to
  * only contain the ACPI containers which may have a CPU
  */
-static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
+static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t* pAml, size_t uAmlLen)
 {
     uint16_t cNumCpus;
     int rc;
@@ -162,7 +155,7 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
      *  AML_NOOP_OP                 (UINT16) 0xa3
      * for VCPU not configured
      */
-    while (idxAml < cbAml - 7)
+    while (idxAml < uAmlLen - 7)
     {
         /*
          * AML_DEVICE_OP
@@ -170,37 +163,37 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
          * DefDevice    := DeviceOp PkgLength NameString ObjectList
          * DeviceOp     := ExtOpPrefix 0x82
          */
-        if (pabAml[idxAml] == 0x5b && pabAml[idxAml+1] == 0x82)
+        if ((pAml[idxAml] == 0x5b) && (pAml[idxAml+1] == 0x82))
         {
             /* Check if the enclosed CPU device is configured. */
-            uint8_t *pabAmlPkgLength = &pabAml[idxAml+2];
+            uint8_t *pbAmlPkgLength = &pAml[idxAml+2];
             uint32_t cBytes = 0;
-            uint32_t cLengthBytesFollow = pabAmlPkgLength[0] >> 6;
+            uint32_t cLengthBytesFollow = pbAmlPkgLength[0] >> 6;
 
             if (cLengthBytesFollow == 0)
             {
                 /* Simple package length */
-                cBytes = pabAmlPkgLength[0];
+                cBytes = pbAmlPkgLength[0];
             }
             else
             {
                 unsigned idxLengthByte = 1;
 
-                cBytes = pabAmlPkgLength[0] & 0xF;
+                cBytes = pbAmlPkgLength[0] & 0xF;
 
                 while (idxLengthByte <= cLengthBytesFollow)
                 {
-                    cBytes |= pabAmlPkgLength[idxLengthByte] << (4*idxLengthByte);
+                    cBytes |= pbAmlPkgLength[idxLengthByte] << (4*idxLengthByte);
                     idxLengthByte++;
                 }
             }
 
-            uint8_t *pabAmlDevName = &pabAmlPkgLength[cLengthBytesFollow+1];
-            uint8_t *pabAmlCpu     = &pabAmlDevName[4];
+            uint8_t *pbAmlDevName = &pbAmlPkgLength[cLengthBytesFollow+1];
+            uint8_t *pbAmlCpu     = &pbAmlDevName[4];
             bool fCpuConfigured = false;
             bool fCpuFound      = false;
 
-            if ((pabAmlDevName[0] != 'S') || (pabAmlDevName[1] != 'C') || (pabAmlDevName[2] != 'K'))
+            if ((pbAmlDevName[0] != 'S') || (pbAmlDevName[1] != 'C') || (pbAmlDevName[2] != 'K'))
             {
                 /* false alarm, not named starting SCK */
                 idxAml++;
@@ -219,24 +212,24 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
                  * PblkAddr     := DwordData
                  * PblkLen      := ByteData
                  */
-                if ((pabAmlCpu[idxAmlCpu] == 0x5b) && (pabAmlCpu[idxAmlCpu+1] == 0x83))
+                if ((pbAmlCpu[idxAmlCpu] == 0x5b) && (pbAmlCpu[idxAmlCpu+1] == 0x83))
                 {
-                    if ((pabAmlCpu[idxAmlCpu+4] != 'C') || (pabAmlCpu[idxAmlCpu+5] != 'P'))
+                    if ((pbAmlCpu[idxAmlCpu+4] != 'C') || (pbAmlCpu[idxAmlCpu+5] != 'P'))
                         /* false alarm, not named starting CP */
                         continue;
 
                     fCpuFound = true;
 
                     /* Processor ID */
-                    if (pabAmlCpu[idxAmlCpu+8] < cNumCpus)
+                    if (pbAmlCpu[idxAmlCpu+8] < cNumCpus)
                     {
-                        LogFlow(("CPU %d is configured\n", pabAmlCpu[idxAmlCpu+8]));
+                        LogFlow(("CPU %d is configured\n", pbAmlCpu[idxAmlCpu+8]));
                         fCpuConfigured = true;
                         break;
                     }
                     else
                     {
-                        LogFlow(("CPU %d is not configured\n", pabAmlCpu[idxAmlCpu+8]));
+                        LogFlow(("CPU %d is not configured\n", pbAmlCpu[idxAmlCpu+8]));
                         fCpuConfigured = false;
                         break;
                     }
@@ -255,7 +248,7 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
 
                 /* including AML_DEVICE_OP itself */
                 for (uint32_t j = 0; j < cBytes + 2; j++)
-                    pabAml[idxAml+j] = 0xa3;
+                    pAml[idxAml+j] = 0xa3;
             }
 
             idxAml++;
@@ -265,16 +258,15 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
     }
 
     /* now recompute checksum, whole file byte sum must be 0 */
-    pabAml[9] = 0;
-    uint8_t         bSum = 0;
-    for (uint32_t i = 0; i < cbAml; i++)
-      bSum = bSum + pabAml[i];
-    pabAml[9] = (uint8_t)(0 - bSum);
+    pAml[9] = 0;
+    uint8_t         aSum = 0;
+    for (uint32_t i = 0; i < uAmlLen; i++)
+      aSum = aSum + (uint8_t)pAml[i];
+    pAml[9] = (uint8_t) (0 - aSum);
 
     return 0;
 }
-
-#endif /* VBOX_WITH_DYNAMIC_DSDT */
+#endif
 
 /**
  * Loads an AML file if present in CFGM
@@ -283,12 +275,12 @@ static int patchAmlCpuHotPlug(PPDMDEVINS pDevIns, uint8_t *pabAml, size_t cbAml)
  * @param   pDevIns        The device instance
  * @param   pcszCfgName    The configuration key holding the file path
  * @param   pcszSignature  The signature to check for
- * @param   ppabAmlCode     Where to store the pointer to the AML code on success.
+ * @param   ppbAmlCode     Where to store the pointer to the AML code on success.
  * @param   pcbAmlCode     Where to store the number of bytes of the AML code on success.
  */
-static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, const char *pcszSignature, uint8_t **ppabAmlCode, size_t *pcbAmlCode)
+static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, const char *pcszSignature, uint8_t **ppbAmlCode, size_t *pcbAmlCode)
 {
-    uint8_t *pabAmlCode = NULL;
+    uint8_t *pbAmlCode = NULL;
     size_t cbAmlCode = 0;
     char *pszAmlFilePath = NULL;
     int rc = CFGMR3QueryStringAlloc(pDevIns->pCfg, pcszCfgName, &pszAmlFilePath);
@@ -314,20 +306,20 @@ static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, cons
             if (   RT_SUCCESS(rc)
                 && ((uint64_t)cbAmlCode == cbAmlFile))
             {
-                pabAmlCode = (uint8_t *)RTMemAllocZ(cbAmlCode);
-                if (pabAmlCode)
+                pbAmlCode = (uint8_t *)RTMemAllocZ(cbAmlCode);
+                if (pbAmlCode)
                 {
-                    rc = RTFileReadAt(FileAml, 0, pabAmlCode, cbAmlCode, NULL);
+                    rc = RTFileReadAt(FileAml, 0, pbAmlCode, cbAmlCode, NULL);
 
                     /*
                      * We fail if reading failed or the identifier at the
                      * beginning is wrong.
                      */
                     if (   RT_FAILURE(rc)
-                        || strncmp((const char *)pabAmlCode, pcszSignature, 4))
+                        || strncmp((const char *)pbAmlCode, pcszSignature, 4))
                     {
-                        RTMemFree(pabAmlCode);
-                        pabAmlCode = NULL;
+                        RTMemFree(pbAmlCode);
+                        pbAmlCode = NULL;
 
                         /* Return error if file header check failed */
                         if (RT_SUCCESS(rc))
@@ -335,7 +327,7 @@ static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, cons
                     }
                     else
                     {
-                        *ppabAmlCode = pabAmlCode;
+                        *ppbAmlCode = pbAmlCode;
                         *pcbAmlCode = cbAmlCode;
                         rc = VINF_SUCCESS;
                     }
@@ -352,16 +344,15 @@ static int acpiAmlLoadExternal(PPDMDEVINS pDevIns, const char *pcszCfgName, cons
     return rc;
 }
 
-
-/** No docs, lazy coder. */
-int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
+/* Two only public functions */
+int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void * *ppPtr, size_t *puDsdtLen)
 {
 #ifdef VBOX_WITH_DYNAMIC_DSDT
-    return prepareDynamicDsdt(pDevIns, ppvPtr, pcbDsdt);
+    return prepareDynamicDsdt(pDevIns, ppPtr, puDsdtLen);
 #else
-    uint8_t *pabAmlCodeDsdt = NULL;
+    uint8_t *pbAmlCodeDsdt = NULL;
     size_t cbAmlCodeDsdt = 0;
-    int rc = acpiAmlLoadExternal(pDevIns, "DsdtFilePath", "DSDT", &pabAmlCodeDsdt, &cbAmlCodeDsdt);
+    int rc = acpiAmlLoadExternal(pDevIns, "DsdtFilePath", "DSDT", &pbAmlCodeDsdt, &cbAmlCodeDsdt);
 
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
@@ -369,9 +360,9 @@ int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
 
         /* Use the compiled in AML code */
         cbAmlCodeDsdt = sizeof(AmlCode);
-        pabAmlCodeDsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeDsdt);
-        if (pabAmlCodeDsdt)
-            memcpy(pabAmlCodeDsdt, AmlCode, cbAmlCodeDsdt);
+        pbAmlCodeDsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeDsdt);
+        if (pbAmlCodeDsdt)
+            memcpy(pbAmlCodeDsdt, AmlCode, cbAmlCodeDsdt);
         else
             rc = VERR_NO_MEMORY;
     }
@@ -381,37 +372,35 @@ int acpiPrepareDsdt(PPDMDEVINS pDevIns,  void **ppvPtr, size_t *pcbDsdt)
 
     if (RT_SUCCESS(rc))
     {
-        patchAml(pDevIns, pabAmlCodeDsdt, cbAmlCodeDsdt);
-        *ppvPtr = pabAmlCodeDsdt;
-        *pcbDsdt = cbAmlCodeDsdt;
+        patchAml(pDevIns, pbAmlCodeDsdt, cbAmlCodeDsdt);
+        *ppPtr = pbAmlCodeDsdt;
+        *puDsdtLen = cbAmlCodeDsdt;
     }
     return rc;
 #endif
 }
 
-/** No docs, lazy coder. */
-int acpiCleanupDsdt(PPDMDEVINS pDevIns,  void *pvPtr)
+int acpiCleanupDsdt(PPDMDEVINS pDevIns,  void * pPtr)
 {
 #ifdef VBOX_WITH_DYNAMIC_DSDT
-    return cleanupDynamicDsdt(pDevIns, pvPtr);
+    return cleanupDynamicDsdt(pDevIns, pPtr);
 #else
-    if (pvPtr)
-        RTMemFree(pvPtr);
+    if (pPtr)
+        RTMemFree(pPtr);
     return VINF_SUCCESS;
 #endif
 }
 
-/** No docs, lazy coder. */
-int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
+int acpiPrepareSsdt(PPDMDEVINS pDevIns, void* *ppPtr, size_t *puSsdtLen)
 {
-    uint8_t *pabAmlCodeSsdt = NULL;
+    uint8_t *pbAmlCodeSsdt = NULL;
     size_t   cbAmlCodeSsdt = 0;
-    int rc = acpiAmlLoadExternal(pDevIns, "SsdtFilePath", "SSDT", &pabAmlCodeSsdt, &cbAmlCodeSsdt);
+    int rc = acpiAmlLoadExternal(pDevIns, "SsdtFilePath", "SSDT", &pbAmlCodeSsdt, &cbAmlCodeSsdt);
 
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
     {
         bool fCpuHotPlug = false;
-        uint8_t *pabAmlCode = NULL;
+        uint8_t *pbAmlCode = NULL;
         rc = CFGMR3QueryBoolDef(pDevIns->pCfg, "CpuHotPlug", &fCpuHotPlug, false);
 
         if (RT_FAILURE(rc))
@@ -419,24 +408,24 @@ int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
 
         if (fCpuHotPlug)
         {
-            pabAmlCode     = AmlCodeSsdtCpuHotPlug;
+            pbAmlCode     = AmlCodeSsdtCpuHotPlug;
             cbAmlCodeSsdt = sizeof(AmlCodeSsdtCpuHotPlug);
         }
         else
         {
-            pabAmlCode     = AmlCodeSsdtStandard;
+            pbAmlCode     = AmlCodeSsdtStandard;
             cbAmlCodeSsdt = sizeof(AmlCodeSsdtStandard);
         }
 
-        pabAmlCodeSsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeSsdt);
-        if (pabAmlCodeSsdt)
+        pbAmlCodeSsdt = (uint8_t *)RTMemAllocZ(cbAmlCodeSsdt);
+        if (pbAmlCodeSsdt)
         {
-            memcpy(pabAmlCodeSsdt, pabAmlCode, cbAmlCodeSsdt);
+            memcpy(pbAmlCodeSsdt, pbAmlCode, cbAmlCodeSsdt);
 
             if (fCpuHotPlug)
-                patchAmlCpuHotPlug(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+                patchAmlCpuHotPlug(pDevIns, pbAmlCodeSsdt, cbAmlCodeSsdt);
             else
-                patchAml(pDevIns, pabAmlCodeSsdt, cbAmlCodeSsdt);
+                patchAml(pDevIns, pbAmlCodeSsdt, cbAmlCodeSsdt);
         }
         else
             rc = VERR_NO_MEMORY;
@@ -447,18 +436,17 @@ int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt)
 
     if (RT_SUCCESS(rc))
     {
-        *ppvPtr = pabAmlCodeSsdt;
-        *pcbSsdt = cbAmlCodeSsdt;
+        *ppPtr = pbAmlCodeSsdt;
+        *puSsdtLen = cbAmlCodeSsdt;
     }
 
     return VINF_SUCCESS;
 }
 
-/** No docs, lazy coder. */
-int acpiCleanupSsdt(PPDMDEVINS pDevIns, void *pvPtr)
+int acpiCleanupSsdt(PPDMDEVINS pDevIns, void* pPtr)
 {
-    if (pvPtr)
-        RTMemFree(pvPtr);
+    if (pPtr)
+        RTMemFree(pPtr);
     return VINF_SUCCESS;
 }
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,31 +19,30 @@
 #ifndef ___UIKeyboardHandler_h___
 #define ___UIKeyboardHandler_h___
 
-/* Qt includes: */
+/* Global includes */
 #include <QObject>
 #include <QMap>
 
-/* GUI includes: */
-#include "UIDefs.h"
+/* Local includes */
+#include "UIMachineDefs.h"
+#include "COMDefs.h"
+
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
-/* COM includes: */
-#include "CKeyboard.h"
-
-/* Forward declarations: */
+/* Global forwards */
 class QWidget;
+
+/* Local forwards */
 class CSession;
 class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIMachineView;
 class VBoxGlobalSettings;
-#if defined(Q_WS_WIN)
-class WinAltGrMonitor;
-#elif defined(Q_WS_X11)
+#ifdef Q_WS_X11
 typedef union  _XEvent XEvent;
 #endif /* Q_WS_X11 */
 
@@ -63,9 +62,6 @@ public:
     void cleanupListener(ulong uIndex);
 
     /* Commands to capture/release keyboard: */
-#ifdef Q_WS_X11
-    bool checkForX11FocusEvents(unsigned long hWindow);
-#endif
     void captureKeyboard(ulong uScreenId);
     void releaseKeyboard();
     void releaseAllPressedKeys(bool aReleaseHostKey = true);
@@ -80,17 +76,9 @@ public:
     bool isKeyboardGrabbed() const { return m_fKeyboardGrabbed; }
 #endif /* Q_WS_MAC */
 
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    /* For the debugger. */
-    void setDebuggerActive(bool aActive = true);
-#endif
-
     /* External event-filters: */
 #if defined(Q_WS_WIN)
     bool winEventFilter(MSG *pMsg, ulong uScreenId);
-    void winSkipKeyboardEvents(bool fSkip);
-    /** Holds the object monitoring key event stream for problematic AltGr events. */
-    WinAltGrMonitor *m_pAltGrMonitor;
 #elif defined(Q_WS_X11)
     bool x11EventFilter(XEvent *pEvent, ulong uScreenId);
 #endif
@@ -179,9 +167,6 @@ protected:
     bool m_bIsHostComboAlone : 1;
     bool m_bIsHostComboProcessed : 1;
     bool m_fPassCAD : 1;
-    /** Whether the debugger is active.
-     * Currently only affects auto capturing. */
-    bool m_fDebuggerActive : 1;
 
 #if defined(Q_WS_WIN)
     /* Currently this is used in winLowKeyboardEvent() only: */
@@ -190,17 +175,13 @@ protected:
     static UIKeyboardHandler *m_spKeyboardHandler;
     HHOOK m_keyboardHook;
     int m_iKeyboardHookViewIndex;
-    /* A flag that used to tell kbd event filter to ignore keyboard events */
-    bool m_fSkipKeyboardEvents;
 #elif defined(Q_WS_MAC)
     /* The current modifier key mask. Used to figure out which modifier
      * key was pressed when we get a kEventRawKeyModifiersChanged event. */
     UInt32 m_darwinKeyModifiers;
     bool m_fKeyboardGrabbed;
     int m_iKeyboardGrabViewIndex;
-#endif /* Q_WS_MAC */
-
-    ULONG m_cMonitors;
+#endif
 };
 
 #endif // !___UIKeyboardHandler_h___

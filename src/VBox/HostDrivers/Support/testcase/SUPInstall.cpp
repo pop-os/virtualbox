@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,29 +31,19 @@
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <iprt/initterm.h>
-#include <iprt/message.h>
+#include <iprt/stream.h>
 
 
 int main(int argc, char **argv)
 {
-    RTR3InitExeNoArguments(0);
-    if (argc != 1)
-        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "This utility takes no arguments");
-    NOREF(argv);
-
+    RTR3Init();
     int rc = SUPR3Install();
     if (RT_SUCCESS(rc))
     {
-        if (rc == VINF_SUCCESS)
-            RTMsgInfo("Installed successfully!");
-        else if (rc == VINF_ALREADY_INITIALIZED)
-            RTMsgInfo("Already loaded.");
-        else if (rc == VWRN_ALREADY_EXISTS)
-            RTMsgInfo("Service already existed; started successfully.");
-        else
-            RTMsgInfo("Unexpected status: %Rrc", rc);
-        return RTEXITCODE_SUCCESS;
+        RTPrintf("installed successfully\n");
+        return 0;
     }
-    return RTMsgErrorExit(RTEXITCODE_FAILURE, "installation failed. rc=%Rrc", rc);
+    RTPrintf("installation failed. rc=%Rrc\n", rc);
+    return 1;
 }
 

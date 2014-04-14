@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,22 +46,13 @@
 /**
  * MD5 hash algorithm context.
  */
-typedef union RTMD5CONTEXT
+typedef struct RTMD5CONTEXT
 {
-    uint64_t            u64BetterAlignment;
-    uint8_t             abPadding[(4 + 6 + 16 + 1) * sizeof(uint32_t)];
-    /** Context used by md5-alt.cpp. */
-    struct
-    {
-        uint32_t        in[16];
-        uint32_t        buf[4];
-        uint32_t        bits[2];
-    } AltPrivate;
-#ifdef RT_MD5_OPENSSL_PRIVATE_CONTEXT
-    /** Context used by md5-openssl.cpp. */
-    MD5_CTX         OsslPrivate;
-#endif
+    uint32_t in[16];
+    uint32_t buf[4];
+    uint32_t bits[2];
 } RTMD5CONTEXT;
+
 /** Pointer to MD5 hash algorithm context. */
 typedef RTMD5CONTEXT *PRTMD5CONTEXT;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2014 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,8 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
+#include <VBox/com/EventQueue.h>
+
 #include <VBox/com/VirtualBox.h>
 
 #include <list>
@@ -301,7 +303,14 @@ int handleImportAppliance(HandlerArg *arg)
         RTStrFree(pszAbsFilePath);
 
         rc = showProgress(progressRead);
-        CHECK_PROGRESS_ERROR_RET(progressRead, ("Appliance read failed"), RTEXITCODE_FAILURE);
+
+        if (FAILED(rc))
+        {
+            com::ProgressErrorInfo info(progressRead);
+            com::GluePrintErrorInfo(info);
+            com::GluePrintErrorContext("ImportAppliance", __FILE__, __LINE__);
+            return 1;
+        }
 
         Bstr path; /* fetch the path, there is stuff like username/password removed if any */
         CHECK_ERROR_BREAK(pAppliance, COMGETTER(Path)(path.asOutParam()));
@@ -374,13 +383,13 @@ int handleImportAppliance(HandlerArg *arg)
                 com::SafeArray<VirtualSystemDescriptionType_T> retTypes;
                 com::SafeArray<BSTR> aRefs;
                 com::SafeArray<BSTR> aOvfValues;
-                com::SafeArray<BSTR> aVBoxValues;
+                com::SafeArray<BSTR> aVboxValues;
                 com::SafeArray<BSTR> aExtraConfigValues;
                 CHECK_ERROR_BREAK(aVirtualSystemDescriptions[i],
                                   GetDescription(ComSafeArrayAsOutParam(retTypes),
                                                  ComSafeArrayAsOutParam(aRefs),
                                                  ComSafeArrayAsOutParam(aOvfValues),
-                                                 ComSafeArrayAsOutParam(aVBoxValues),
+                                                 ComSafeArrayAsOutParam(aVboxValues),
                                                  ComSafeArrayAsOutParam(aExtraConfigValues)));
 
                 RTPrintf("Virtual system %u:\n", i);
@@ -401,7 +410,7 @@ int handleImportAppliance(HandlerArg *arg)
 
                     Utf8Str strOverride;
 
-                    Bstr bstrFinalValue = aVBoxValues[a];
+                    Bstr bstrFinalValue = aVboxValues[a];
 
                     bool fIgnoreThis = mapIgnoresMapsPerVsys[i][a];
 
@@ -437,27 +446,27 @@ int handleImportAppliance(HandlerArg *arg)
 
                         case VirtualSystemDescriptionType_Product:
                             RTPrintf("%2u: Product (ignored): %ls\n",
-                                     a, aVBoxValues[a]);
+                                     a, aVboxValues[a]);
                         break;
 
                         case VirtualSystemDescriptionType_ProductUrl:
                             RTPrintf("%2u: ProductUrl (ignored): %ls\n",
-                                     a, aVBoxValues[a]);
+                                     a, aVboxValues[a]);
                         break;
 
                         case VirtualSystemDescriptionType_Vendor:
                             RTPrintf("%2u: Vendor (ignored): %ls\n",
-                                     a, aVBoxValues[a]);
+                                     a, aVboxValues[a]);
                         break;
 
                         case VirtualSystemDescriptionType_VendorUrl:
                             RTPrintf("%2u: VendorUrl (ignored): %ls\n",
-                                     a, aVBoxValues[a]);
+                                     a, aVboxValues[a]);
                         break;
 
                         case VirtualSystemDescriptionType_Version:
                             RTPrintf("%2u: Version (ignored): %ls\n",
-                                     a, aVBoxValues[a]);
+                                     a, aVboxValues[a]);
                         break;
 
                         case VirtualSystemDescriptionType_Description:
@@ -550,14 +559,14 @@ int handleImportAppliance(HandlerArg *arg)
                             {
                                 RTPrintf("%2u: IDE controller, type %ls -- disabled\n",
                                          a,
-                                         aVBoxValues[a]);
+                                         aVboxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
                                 RTPrintf("%2u: IDE controller, type %ls"
                                          "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
                                          a,
-                                         aVBoxValues[a],
+                                         aVboxValues[a],
                                          i, a);
                         break;
 
@@ -566,14 +575,14 @@ int handleImportAppliance(HandlerArg *arg)
                             {
                                 RTPrintf("%2u: SATA controller, type %ls -- disabled\n",
                                          a,
-                                         aVBoxValues[a]);
+                                         aVboxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
                                 RTPrintf("%2u: SATA controller, type %ls"
                                         "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
                                         a,
-                                        aVBoxValues[a],
+                                        aVboxValues[a],
                                         i, a);
                         break;
 
@@ -582,14 +591,14 @@ int handleImportAppliance(HandlerArg *arg)
                             {
                                 RTPrintf("%2u: SAS controller, type %ls -- disabled\n",
                                          a,
-                                         aVBoxValues[a]);
+                                         aVboxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
                                 RTPrintf("%2u: SAS controller, type %ls"
                                         "\n    (disable with \"--vsys %u --unit %u --ignore\")\n",
                                         a,
-                                        aVBoxValues[a],
+                                        aVboxValues[a],
                                         i, a);
                         break;
 
@@ -598,7 +607,7 @@ int handleImportAppliance(HandlerArg *arg)
                             {
                                 RTPrintf("%2u: SCSI controller, type %ls -- disabled\n",
                                          a,
-                                         aVBoxValues[a]);
+                                         aVboxValues[a]);
                                 aEnabled[a] = false;
                             }
                             else
@@ -617,7 +626,7 @@ int handleImportAppliance(HandlerArg *arg)
                                             "\n    (change with \"--vsys %u --unit %u --scsitype {BusLogic|LsiLogic}\";"
                                             "\n    disable with \"--vsys %u --unit %u --ignore\")\n",
                                             a,
-                                            aVBoxValues[a],
+                                            aVboxValues[a],
                                             i, a, i, a);
                             }
                         break;
@@ -671,7 +680,7 @@ int handleImportAppliance(HandlerArg *arg)
                                     RTPrintf("%2u: Hard disk image: source image=%ls, target path=%ls, %ls\n",
                                             a,
                                             aOvfValues[a],
-                                            aVBoxValues[a],
+                                            aVboxValues[a],
                                             aExtraConfigValues[a]);
                                 }
 #endif
@@ -681,7 +690,7 @@ int handleImportAppliance(HandlerArg *arg)
                                             "\n    disable with \"--vsys %u --unit %u --ignore\")\n",
                                             a,
                                             aOvfValues[a],
-                                            aVBoxValues[a],
+                                            aVboxValues[a],
                                             aExtraConfigValues[a],
                                             i, a, i, a);
                             }
@@ -717,7 +726,7 @@ int handleImportAppliance(HandlerArg *arg)
                             RTPrintf("%2u: Network adapter: orig %ls, config %ls, extra %ls\n",   // @todo implement once we have a plan for the back-end
                                      a,
                                      aOvfValues[a],
-                                     aVBoxValues[a],
+                                     aVboxValues[a],
                                      aExtraConfigValues[a]);
                         break;
 
@@ -737,7 +746,7 @@ int handleImportAppliance(HandlerArg *arg)
                         case VirtualSystemDescriptionType_SoundCard:
                             if (fIgnoreThis)
                             {
-                               RTPrintf("%2u: Sound card \"%ls\" -- disabled\n",
+                                RTPrintf("%2u: Sound card \"%ls\" -- disabled\n",
                                          a,
                                          aOvfValues[a]);
                                 aEnabled[a] = false;
@@ -776,78 +785,37 @@ int handleImportAppliance(HandlerArg *arg)
                                   ImportMachines(ComSafeArrayAsInParam(options), progress.asOutParam()));
 
                 rc = showProgress(progress);
-                CHECK_PROGRESS_ERROR_RET(progress, ("Appliance import failed"), RTEXITCODE_FAILURE);
 
-                if (SUCCEEDED(rc))
+                if (FAILED(rc))
+                {
+                    com::ProgressErrorInfo info(progress);
+                    com::GluePrintErrorInfo(info);
+                    com::GluePrintErrorContext("ImportAppliance", __FILE__, __LINE__);
+                    return 1;
+                }
+                else
                     RTPrintf("Successfully imported the appliance.\n");
             }
         } // end if (aVirtualSystemDescriptions.size() > 0)
     } while (0);
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
-static int parseExportOptions(const char *psz, com::SafeArray<ExportOptions_T> *options)
-{
-    int rc = VINF_SUCCESS;
-    while (psz && *psz && RT_SUCCESS(rc))
-    {
-        size_t len;
-        const char *pszComma = strchr(psz, ',');
-        if (pszComma)
-            len = pszComma - psz;
-        else
-            len = strlen(psz);
-        if (len > 0)
-        {
-            if (!RTStrNICmp(psz, "CreateManifest", len))
-                options->push_back(ExportOptions_CreateManifest);
-            else if (!RTStrNICmp(psz, "manifest", len))
-                options->push_back(ExportOptions_CreateManifest);
-            else if (!RTStrNICmp(psz, "ExportDVDImages", len))
-                options->push_back(ExportOptions_ExportDVDImages);
-            else if (!RTStrNICmp(psz, "iso", len))
-                options->push_back(ExportOptions_ExportDVDImages);
-            else if (!RTStrNICmp(psz, "StripAllMACs", len))
-                options->push_back(ExportOptions_StripAllMACs);
-            else if (!RTStrNICmp(psz, "nomacs", len))
-                options->push_back(ExportOptions_StripAllMACs);
-            else if (!RTStrNICmp(psz, "StripAllNonNATMACs", len))
-                options->push_back(ExportOptions_StripAllNonNATMACs);
-            else if (!RTStrNICmp(psz, "nomacsbutnat", len))
-                options->push_back(ExportOptions_StripAllNonNATMACs);
-            else
-                rc = VERR_PARSE_ERROR;
-        }
-        if (pszComma)
-            psz += len + 1;
-        else
-            psz += len;
-    }
-
-    return rc;
-}
-
-static const RTGETOPTDEF g_aExportOptions[] =
-{
-    { "--output",               'o', RTGETOPT_REQ_STRING },
-    { "--legacy09",             'l', RTGETOPT_REQ_NOTHING },
-    { "--ovf09",                'l', RTGETOPT_REQ_NOTHING },
-    { "--ovf10",                '1', RTGETOPT_REQ_NOTHING },
-    { "--ovf20",                '2', RTGETOPT_REQ_NOTHING },
-    { "--manifest",             'm', RTGETOPT_REQ_NOTHING },    // obsoleted by --options
-    { "--iso",                  'I', RTGETOPT_REQ_NOTHING },    // obsoleted by --options
-    { "--vsys",                 's', RTGETOPT_REQ_UINT32 },
-    { "--product",              'p', RTGETOPT_REQ_STRING },
-    { "--producturl",           'P', RTGETOPT_REQ_STRING },
-    { "--vendor",               'n', RTGETOPT_REQ_STRING },
-    { "--vendorurl",            'N', RTGETOPT_REQ_STRING },
-    { "--version",              'v', RTGETOPT_REQ_STRING },
-    { "--description",          'd', RTGETOPT_REQ_STRING },
-    { "--eula",                 'e', RTGETOPT_REQ_STRING },
-    { "--eulafile",             'E', RTGETOPT_REQ_STRING },
-    { "--options",              'O', RTGETOPT_REQ_STRING },
-};
+static const RTGETOPTDEF g_aExportOptions[]
+    = {
+        { "--output",             'o', RTGETOPT_REQ_STRING },
+        { "--legacy09",           'l', RTGETOPT_REQ_NOTHING },
+        { "--manifest",           'm', RTGETOPT_REQ_NOTHING },
+        { "--vsys",               's', RTGETOPT_REQ_UINT32 },
+        { "--product",            'p', RTGETOPT_REQ_STRING },
+        { "--producturl",         'P', RTGETOPT_REQ_STRING },
+        { "--vendor",             'd', RTGETOPT_REQ_STRING },
+        { "--vendorurl",          'D', RTGETOPT_REQ_STRING },
+        { "--version",            'v', RTGETOPT_REQ_STRING },
+        { "--eula",               'e', RTGETOPT_REQ_STRING },
+        { "--eulafile",           'E', RTGETOPT_REQ_STRING },
+      };
 
 int handleExportAppliance(HandlerArg *a)
 {
@@ -856,8 +824,6 @@ int handleExportAppliance(HandlerArg *a)
     Utf8Str strOutputFile;
     Utf8Str strOvfFormat("ovf-1.0"); // the default export version
     bool fManifest = false; // the default
-    bool fExportISOImages = false; // the default
-    com::SafeArray<ExportOptions_T> options;
     std::list< ComPtr<IMachine> > llMachines;
 
     uint32_t ulCurVsys = (uint32_t)-1;
@@ -883,84 +849,61 @@ int handleExportAppliance(HandlerArg *a)
                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "You can only specify --output once.");
                     else
                         strOutputFile = ValueUnion.psz;
-                    break;
+                break;
 
-                case 'l':   // --legacy09/--ovf09
-                    strOvfFormat = "ovf-0.9";
-                    break;
-
-                case '1':   // --ovf10
-                    strOvfFormat = "ovf-1.0";
-                    break;
-
-                case '2':   // --ovf20
-                    strOvfFormat = "ovf-2.0";
-                    break;
-
-                case 'I':   // --iso
-                    fExportISOImages = true;
-                    break;
+                case 'l':   // --legacy09
+                     strOvfFormat = "ovf-0.9";
+                break;
 
                 case 'm':   // --manifest
-                    fManifest = true;
-                    break;
+                     fManifest = true;
+                break;
 
                 case 's':   // --vsys
-                    ulCurVsys = ValueUnion.u32;
-                    break;
+                     ulCurVsys = ValueUnion.u32;
+                break;
 
                 case 'p':   // --product
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["product"] = ValueUnion.psz;
-                    break;
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["product"] = ValueUnion.psz;
+                break;
 
                 case 'P':   // --producturl
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["producturl"] = ValueUnion.psz;
-                    break;
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["producturl"] = ValueUnion.psz;
+                break;
 
-                case 'n':   // --vendor
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["vendor"] = ValueUnion.psz;
-                    break;
+                case 'd':   // --vendor
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["vendor"] = ValueUnion.psz;
+                break;
 
-                case 'N':   // --vendorurl
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["vendorurl"] = ValueUnion.psz;
-                    break;
+                case 'D':   // --vendorurl
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["vendorurl"] = ValueUnion.psz;
+                break;
 
                 case 'v':   // --version
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["version"] = ValueUnion.psz;
-                    break;
-
-                case 'd':   // --description
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["description"] = ValueUnion.psz;
-                    break;
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["version"] = ValueUnion.psz;
+                break;
 
                 case 'e':   // --eula
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["eula"] = ValueUnion.psz;
-                    break;
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["eula"] = ValueUnion.psz;
+                break;
 
                 case 'E':   // --eulafile
-                    if (ulCurVsys == (uint32_t)-1)
-                        return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
-                    mapArgsMapsPerVsys[ulCurVsys]["eulafile"] = ValueUnion.psz;
-                    break;
-
-                case 'O':   // --options
-                    if (RT_FAILURE(parseExportOptions(ValueUnion.psz, &options)))
-                        return errorArgument("Invalid export options '%s'\n", ValueUnion.psz);
-                    break;
+                     if (ulCurVsys == (uint32_t)-1)
+                         return errorSyntax(USAGE_EXPORTAPPLIANCE, "Option \"%s\" requires preceding --vsys argument.", GetState.pDef->pszLong);
+                     mapArgsMapsPerVsys[ulCurVsys]["eulafile"] = ValueUnion.psz;
+                break;
 
                 case VINF_GETOPT_NOT_OPTION:
                 {
@@ -971,8 +914,8 @@ int handleExportAppliance(HandlerArg *a)
                                                                  machine.asOutParam()));
                     if (machine)
                         llMachines.push_back(machine);
-                    break;
                 }
+                break;
 
                 default:
                     if (c > 0)
@@ -1035,7 +978,7 @@ int handleExportAppliance(HandlerArg *a)
         {
             ComPtr<IMachine> pMachine = *itM;
             ComPtr<IVirtualSystemDescription> pVSD;
-            CHECK_ERROR_BREAK(pMachine, ExportTo(pAppliance, Bstr(pszAbsFilePath).raw(), pVSD.asOutParam()));
+            CHECK_ERROR_BREAK(pMachine, Export(pAppliance, Bstr(pszAbsFilePath).raw(), pVSD.asOutParam()));
             // Add additional info to the virtual system description if the user wants so
             ArgsMap *pmapArgs = NULL;
             ArgsMapsMap::iterator itm = mapArgsMapsPerVsys.find(i);
@@ -1068,10 +1011,6 @@ int handleExportAppliance(HandlerArg *a)
                         pVSD->AddDescription(VirtualSystemDescriptionType_Version,
                                              Bstr(itD->second).raw(),
                                              Bstr(itD->second).raw());
-                    else if (itD->first == "description")
-                        pVSD->AddDescription(VirtualSystemDescriptionType_Description,
-                                             Bstr(itD->second).raw(),
-                                             Bstr(itD->second).raw());
                     else if (itD->first == "eula")
                         pVSD->AddDescription(VirtualSystemDescriptionType_License,
                                              Bstr(itD->second).raw(),
@@ -1084,7 +1023,7 @@ int handleExportAppliance(HandlerArg *a)
                         int irc = RTFileReadAll(itD->second.c_str(), &pvFile, &cbFile);
                         if (RT_SUCCESS(irc))
                         {
-                            Bstr bstrContent((char*)pvFile, cbFile);
+                            Bstr bstrContent((char*)pvFile);
                             pVSD->AddDescription(VirtualSystemDescriptionType_License,
                                                  bstrContent.raw(),
                                                  bstrContent.raw());
@@ -1104,28 +1043,28 @@ int handleExportAppliance(HandlerArg *a)
         if (FAILED(rc))
             break;
 
-        if (fManifest)
-            options.push_back(ExportOptions_CreateManifest);
-
-        if (fExportISOImages)
-            options.push_back(ExportOptions_ExportDVDImages);
-
         ComPtr<IProgress> progress;
         CHECK_ERROR_BREAK(pAppliance, Write(Bstr(strOvfFormat).raw(),
-                                            ComSafeArrayAsInParam(options),
+                                            fManifest,
                                             Bstr(pszAbsFilePath).raw(),
                                             progress.asOutParam()));
         RTStrFree(pszAbsFilePath);
 
         rc = showProgress(progress);
-        CHECK_PROGRESS_ERROR_RET(progress, ("Appliance write failed"), RTEXITCODE_FAILURE);
 
-        if (SUCCEEDED(rc))
+        if (FAILED(rc))
+        {
+            com::ProgressErrorInfo info(progress);
+            com::GluePrintErrorInfo(info);
+            com::GluePrintErrorContext("Write", __FILE__, __LINE__);
+            return 1;
+        }
+        else
             RTPrintf("Successfully exported %d machine(s).\n", llMachines.size());
 
     } while (0);
 
-    return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return SUCCEEDED(rc) ? 0 : 1;
 }
 
 #endif /* !VBOX_ONLY_DOCS */

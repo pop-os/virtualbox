@@ -1,4 +1,4 @@
-/* $Id: kAvlGetWithParent.h 34 2009-11-08 19:38:40Z bird $ */
+/* $Id: kAvlGetWithParent.h 29 2009-07-01 20:30:29Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, Get Node With Parent.
  */
@@ -57,7 +57,7 @@ KAVL_DECL(KAVLNODE *) KAVL_FN(GetWithParent)(KAVLROOT *pRoot, KAVLNODE **ppParen
             pNode = KAVL_GET_POINTER_NULL(&pNode->mpRight);
     }
 
-    KAVL_READ_UNLOCK(pRoot);
+    KAVL_UNLOCK(pRoot);
 
     *ppParent = pParent;
     return pNode;

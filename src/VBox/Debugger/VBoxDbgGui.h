@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,10 +57,9 @@ public:
      * Initializes a VBoxDbgGui object by VM handle.
      *
      * @returns VBox status code.
-     * @param   pUVM        The user mode VM handle. The caller's reference will be
-     *                      consumed on success.
+     * @param   pVM         The VM handle.
      */
-    int init(PUVM pUVM);
+    int init(PVM pVM);
 
     /**
      * Destroys the VBoxDbgGui object.
@@ -129,12 +128,12 @@ public:
     void adjustRelativePos(int x, int y, unsigned cx, unsigned cy);
 
     /**
-     * Gets the user mode VM handle.
-     * @returns The UVM handle.
+     * Gets the VM handle.
+     * @returns The VM handle.
      */
-    PUVM getUvmHandle() const
+    PVM getVMHandle() const
     {
-        return m_pUVM;
+        return m_pVM;
     }
 
 
@@ -162,8 +161,6 @@ protected:
     IMachine *m_pMachine;
     /** The VM instance. */
     PVM m_pVM;
-    /** The user mode VM handle. */
-    PUVM m_pUVM;
 
     /** The parent widget. */
     QWidget *m_pParent;

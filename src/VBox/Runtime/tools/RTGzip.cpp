@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,54 +36,15 @@
 #include <iprt/initterm.h>
 #include <iprt/message.h>
 #include <iprt/param.h>
-#include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/vfs.h>
 #include <iprt/zip.h>
 
 
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
-/**
- * Gzip command options.
- */
-typedef struct RTGZIPCMDOPTS
+static bool isStdHandleATty(int fd)
 {
-    bool            fAscii;
-    bool            fStdOut;
-    bool            fDecompress;
-    bool            fForce;
-    bool            fKeep;
-    bool            fList;
-    bool            fName;
-    bool            fQuiet;
-    bool            fRecursive;
-    const char     *pszSuff;
-    bool            fTest;
-    unsigned        uLevel;
-    /** The current output filename (for deletion). */
-    char            szOutput[RTPATH_MAX];
-    /** The current input filename (for deletion and messages). */
-    const char     *pszInput;
-} RTGZIPCMDOPTS;
-/** Pointer to GZIP options.   */
-typedef RTGZIPCMDOPTS *PRTGZIPCMDOPTS;
-/** Pointer to const GZIP options.   */
-typedef RTGZIPCMDOPTS const *PCRTGZIPCMDOPTS;
-
-
-
-/**
- * Checks if the given standard handle is a TTY.
- *
- * @returns true / false
- * @param   enmStdHandle    The standard handle.
- */
-static bool gzipIsStdHandleATty(RTHANDLESTD enmStdHandle)
-{
-    /** @todo Add isatty() to IPRT. */
+    /** @todo IPRT is missing this */
     return false;
 }
 
@@ -92,76 +53,139 @@ static bool gzipIsStdHandleATty(RTHANDLESTD enmStdHandle)
  * Pushes data from the input to the output I/O streams.
  *
  * @returns RTEXITCODE_SUCCESS or RTEXITCODE_FAILURE.
- * @param   hVfsSrc         The source I/O stream.
- * @param   hVfsDst         The destination I/O stream.
+ * @param   hVfsIn              The input I/O stream.
+ * @param   hVfsOut             The input I/O stream.
  */
-static RTEXITCODE gzipPush(RTVFSIOSTREAM hVfsSrc, RTVFSIOSTREAM hVfsDst)
+static RTEXITCODE gzipPush(RTVFSIOSTREAM hVfsIn, RTVFSIOSTREAM hVfsOut)
 {
     for (;;)
     {
         uint8_t abBuf[_64K];
         size_t  cbRead;
-        int rc = RTVfsIoStrmRead(hVfsSrc, abBuf, sizeof(abBuf), true /*fBlocking*/, &cbRead);
+        int rc = RTVfsIoStrmRead(hVfsIn, abBuf, sizeof(abBuf), true /*fBlocking*/, &cbRead);
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsIoStrmRead failed: %Rrc", rc);
         if (rc == VINF_EOF && cbRead == 0)
             return RTEXITCODE_SUCCESS;
 
-        rc = RTVfsIoStrmWrite(hVfsDst, abBuf, cbRead, true /*fBlocking*/, NULL /*cbWritten*/);
+        rc = RTVfsIoStrmWrite(hVfsOut, abBuf, cbRead, true /*fBlocking*/, NULL /*cbWritten*/);
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsIoStrmWrite failed: %Rrc", rc);
     }
 }
 
+static RTEXITCODE gzipCompress(RTVFSIOSTREAM hVfsIn, RTVFSIOSTREAM hVfsOut)
+{
+    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Compression is not yet implemented, sorry.");
+}
+
+
+static RTEXITCODE gzipCompressFile(const char *pszFile, bool fStdOut, bool fForce, PRTVFSIOSTREAM phVfsStdOut)
+{
+    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Compression is not yet implemented, sorry.");
+}
+
+
+static RTEXITCODE gzipDecompress(RTVFSIOSTREAM hVfsIn, RTVFSIOSTREAM hVfsOut)
+{
+    RTEXITCODE      rcExit;
+    RTVFSIOSTREAM   hVfsGunzip;
+    int rc = RTZipGzipDecompressIoStream(hVfsIn, 0 /*fFlags*/, &hVfsGunzip);
+    if (RT_SUCCESS(rc))
+    {
+        rcExit = gzipPush(hVfsGunzip, hVfsOut);
+        RTVfsIoStrmRelease(hVfsGunzip);
+    }
+    else
+        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipDecompressIoStream failed: %Rrc", rc);
+    return rcExit;
+}
+
 
 /**
- * Pushes the bytes from the input to the output stream, flushes the output
- * stream and closes both of them.
+ * Handles a file on the command line.
  *
- * On failure, we will delete the output file, if it's a file.  The input file
- * may be deleted, if we're not told to keep it (--keep, --to-stdout).
- *
- * @returns RTEXITCODE_SUCCESS or RTEXITCODE_FAILURE.
- * @param   phVfsSrc        The input stream. Set to NIL if closed.
- * @param   pOpts           The options.
- * @param   phVfsDst        The output stream. Set to NIL if closed.
+ * @returns exit code.
+ * @param   pszFile             The file to handle.
+ * @param   fStdOut             Whether to output to standard output or not.
+ * @param   fForce              Whether to output to or input from terminals.
+ * @param   phVfsStdOut         Pointer to the standard out handle.
+ *                              (input/output)
  */
-static RTEXITCODE gzipPushFlushAndClose(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts, PRTVFSIOSTREAM phVfsDst)
+static RTEXITCODE gzipDecompressFile(const char *pszFile, bool fStdOut, bool fForce, PRTVFSIOSTREAM phVfsStdOut)
 {
     /*
-     * Push bytes, flush and close the streams.
+     * Open the specified input file.
      */
-    RTEXITCODE rcExit = gzipPush(*phVfsSrc, *phVfsDst);
-
-    RTVfsIoStrmRelease(*phVfsSrc);
-    *phVfsSrc = NIL_RTVFSIOSTREAM;
-
-    int rc = RTVfsIoStrmFlush(*phVfsDst);
+    const char *pszError;
+    RTVFSIOSTREAM hVfsIn;
+    int rc = RTVfsChainOpenIoStream(pszFile, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE, &hVfsIn, &pszError);
     if (RT_FAILURE(rc))
-        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to flush the output file: %Rrc", rc);
-    RTVfsIoStrmRelease(*phVfsDst);
-    *phVfsDst = NIL_RTVFSIOSTREAM;
+    {
+        if (pszError && *pszError)
+            return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                                  "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
+                                  "    '%s'\n",
+                                  "     %*s^\n",
+                                  rc, pszFile, pszError - pszFile, "");
+        return RTMsgErrorExit(RTEXITCODE_FAILURE,
+                              "RTVfsChainOpenIoStream failed with rc=%Rrc: '%s'",
+                              rc, pszFile);
+    }
 
     /*
-     * Do the cleaning up, if needed.  Remove the input file, if that's the
-     * desire of the user, or remove the output file on failure.
+     * Output the output file.
      */
-    if (!pOpts->fStdOut)
+    RTVFSIOSTREAM hVfsOut;
+    char szFinal[RTPATH_MAX];
+    if (fStdOut)
+    {
+        if (*phVfsStdOut == NIL_RTVFSIOSTREAM)
+        {
+            rc = RTVfsIoStrmFromStdHandle(RTHANDLESTD_OUTPUT, 0 /*fOpen*/, true /*fLeaveOpen*/, phVfsStdOut);
+            if (RT_FAILURE(rc))
+                return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to set up standard out: %Rrc", rc);
+        }
+        hVfsOut = *phVfsStdOut;
+        szFinal[0] = '\0';
+    }
+    else
+    {
+        rc = RTStrCopy(szFinal, sizeof(szFinal), pszFile);
+        /** @todo remove the extension?  Or are we supposed
+         *        to get the org name from the gzip stream? */
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Decompressing to file is not implemented");
+    }
+
+    /*
+     * Do the decompressing, then flush and close the output stream (unless
+     * it is stdout).
+     */
+    RTEXITCODE rcExit = gzipDecompress(hVfsIn, hVfsOut);
+    RTVfsIoStrmRelease(hVfsIn);
+    rc = RTVfsIoStrmFlush(hVfsOut);
+    if (RT_FAILURE(rc))
+        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to flush the output file: %Rrc", rc);
+    RTVfsIoStrmRelease(hVfsOut);
+
+    /*
+     * Remove the input file, if that's the desire of the caller, or
+     * remove the output file on decompression failure.
+     */
+    if (!fStdOut)
     {
         if (rcExit == RTEXITCODE_SUCCESS)
         {
-            if (!pOpts->fKeep)
-            {
-                rc = RTFileDelete(pOpts->pszInput);
-                if (RT_FAILURE(rc))
-                    rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to delete '%s': %Rrc", pOpts->pszInput, rc);
-            }
+            rc = RTFileDelete(pszFile);
+            if (RT_FAILURE(rc))
+                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "RTFileDelete failed with %rc: '%s'", rc, pszFile);
         }
         else
         {
-            rc = RTFileDelete(pOpts->szOutput);
+            /* should we do this? */
+            rc = RTFileDelete(szFinal);
             if (RT_FAILURE(rc))
-                RTMsgError("Failed to delete '%s': %Rrc", pOpts->szOutput, rc);
+                RTMsgError("RTFileDelete failed with %rc: '%s'", rc, pszFile);
         }
     }
 
@@ -169,257 +193,23 @@ static RTEXITCODE gzipPushFlushAndClose(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS
 }
 
 
-/**
- * Compresses one stream to another.
- *
- * @returns Exit code.
- * @param   phVfsSrc        The input stream. Set to NIL if closed.
- * @param   pOpts           The options.
- * @param   phVfsDst        The output stream. Set to NIL if closed.
- */
-static RTEXITCODE gzipCompressFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts, PRTVFSIOSTREAM phVfsDst)
+static RTEXITCODE gzipTestFile(const char *pszFile, bool fForce)
 {
-    /*
-     * Attach the ompressor to the output stream.
-     */
-    RTVFSIOSTREAM hVfsGzip;
-    int rc = RTZipGzipCompressIoStream(*phVfsDst, 0 /*fFlags*/, pOpts->uLevel, &hVfsGzip);
-    if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipCompressIoStream failed: %Rrc", rc);
-
-    uint32_t cRefs = RTVfsIoStrmRelease(*phVfsDst);
-    Assert(cRefs > 0);
-    *phVfsDst = hVfsGzip;
-
-    return gzipPushFlushAndClose(phVfsSrc, pOpts, phVfsDst);
+    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Testiong has not been implemented");
 }
 
 
-/**
- * Attach a decompressor to the given source stream, replacing and releasing the
- * input handle with the decompressor.
- *
- * @returns Exit code.
- * @param   phVfsSrc        The input stream. Replaced on success.
- */
-static RTEXITCODE gzipSetupDecompressor(PRTVFSIOSTREAM phVfsSrc)
-{
-    /*
-     * Attach the decompressor to the input stream.
-     */
-    RTVFSIOSTREAM hVfsGunzip;
-    int rc = RTZipGzipDecompressIoStream(*phVfsSrc, 0 /*fFlags*/, &hVfsGunzip);
-    if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTZipGzipDecompressIoStream failed: %Rrc", rc);
-
-    uint32_t cRefs = RTVfsIoStrmRelease(*phVfsSrc);
-    Assert(cRefs > 0);
-    *phVfsSrc = hVfsGunzip;
-
-    return RTEXITCODE_SUCCESS;
-}
-
-
-/**
- * Decompresses one stream to another.
- *
- * @returns Exit code.
- * @param   phVfsSrc        The input stream. Set to NIL if closed.
- * @param   pOpts           The options.
- * @param   phVfsDst        The output stream. Set to NIL if closed.
- */
-static RTEXITCODE gzipDecompressFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts, PRTVFSIOSTREAM phVfsDst)
-{
-    RTEXITCODE rcExit = gzipSetupDecompressor(phVfsSrc);
-    if (rcExit == RTEXITCODE_SUCCESS)
-        rcExit = gzipPushFlushAndClose(phVfsSrc, pOpts, phVfsDst);
-    return rcExit;
-}
-
-
-/**
- * For testing the archive (todo).
- *
- * @returns Exit code.
- * @param   phVfsSrc        The input stream. Set to NIL if closed.
- * @param   pOpts           The options.
- */
-static RTEXITCODE gzipTestFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts)
-{
-    /*
-     * Read the whole stream.
-     */
-    RTEXITCODE rcExit = gzipSetupDecompressor(phVfsSrc);
-    if (rcExit == RTEXITCODE_SUCCESS)
-    {
-        for (;;)
-        {
-            uint8_t abBuf[_64K];
-            size_t  cbRead;
-            int rc = RTVfsIoStrmRead(*phVfsSrc, abBuf, sizeof(abBuf), true /*fBlocking*/, &cbRead);
-            if (RT_FAILURE(rc))
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsIoStrmRead failed: %Rrc", rc);
-            if (rc == VINF_EOF && cbRead == 0)
-                return RTEXITCODE_SUCCESS;
-        }
-    }
-    return rcExit;
-}
-
-
-static RTEXITCODE gzipListFile(PRTVFSIOSTREAM phVfsSrc, PCRTGZIPCMDOPTS pOpts)
+static RTEXITCODE gzipListFile(const char *pszFile, bool fForce)
 {
     return RTMsgErrorExit(RTEXITCODE_FAILURE, "Listing has not been implemented");
 }
 
 
-/**
- * Opens the output file.
- *
- * @returns Command exit, error messages written using RTMsg*.
- *
- * @param   pszFile             The input filename.
- * @param   pOpts               The options, szOutput will be filled in by this
- *                              function on success.
- * @param   phVfsIos            Where to return the output stream handle.
- *
- * @remarks This is actually not quite the way we need to do things.
- *
- *          First of all, we need a GZIP file system stream for a real GZIP
- *          implementation, since there may be more than one file in the gzipped
- *          file.
- *
- *          Second, we need to open the output files as we encounter files in the input
- *          file system stream. The gzip format contains timestamp and usually a
- *          filename, the default is to use this name (see the --no-name
- *          option).
- */
-static RTEXITCODE gzipOpenOutput(const char *pszFile, PRTGZIPCMDOPTS pOpts, PRTVFSIOSTREAM phVfsIos)
+int main(int argc, char **argv)
 {
-    int rc;
-    if (!strcmp(pszFile, "-") || pOpts->fStdOut)
-    {
-        strcpy(pOpts->szOutput, "-");
-
-        if (   !pOpts->fForce
-            && !pOpts->fDecompress
-            && gzipIsStdHandleATty(RTHANDLESTD_OUTPUT))
-            return RTMsgErrorExit(RTEXITCODE_SYNTAX,
-                                  "Yeah, right. I'm not writing any compressed data to the terminal without --force.\n");
-
-        rc = RTVfsIoStrmFromStdHandle(RTHANDLESTD_OUTPUT,
-                                      RTFILE_O_WRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
-                                      true /*fLeaveOpen*/,
-                                      phVfsIos);
-        if (RT_FAILURE(rc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error opening standard output: %Rrc", rc);
-    }
-    else
-    {
-        Assert(!RTVfsChainIsSpec(pszFile));
-
-        /* Construct an output filename. */
-        rc = RTStrCopy(pOpts->szOutput, sizeof(pOpts->szOutput), pszFile);
-        if (RT_FAILURE(rc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error constructing output filename: %Rrc", rc);
-        if (pOpts->fDecompress)
-        {
-            /** @todo take filename from archive? */
-            size_t cchSuff = strlen(pOpts->pszSuff); Assert(cchSuff > 0);
-            size_t cch = strlen(pOpts->szOutput);
-            if (   cch <= cchSuff
-                || strcmp(&pOpts->szOutput[cch - cchSuff], pOpts->pszSuff))
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "Input file does not end with: '%s'", pOpts->pszSuff);
-            pOpts->szOutput[cch - cchSuff] = '\0';
-            if (!RTPathFilename(pOpts->szOutput))
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error constructing output filename: Input file name is all suffix.");
-        }
-        else
-        {
-            rc = RTStrCat(pOpts->szOutput, sizeof(pOpts->szOutput), pOpts->pszSuff);
-            if (RT_FAILURE(rc))
-                return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error constructing output filename: %Rrc", rc);
-        }
-
-        /* Open the output file. */
-        uint32_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_WRITE;
-        if (pOpts->fForce)
-            fOpen |= RTFILE_O_CREATE_REPLACE;
-        else
-            fOpen |= RTFILE_O_CREATE;
-        rc = RTVfsIoStrmOpenNormal(pOpts->szOutput, fOpen, phVfsIos);
-        if (RT_FAILURE(rc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error opening output file '%s': %Rrc", pOpts->szOutput, rc);
-    }
-
-    return RTEXITCODE_SUCCESS;
-}
-
-
-/**
- * Opens the input file.
- *
- * @returns Command exit, error messages written using RTMsg*.
- *
- * @param   pszFile             The input filename.
- * @param   pOpts               The options, szOutput will be filled in by this
- *                              function on success.
- * @param   phVfsIos            Where to return the input stream handle.
- */
-static RTEXITCODE gzipOpenInput(const char *pszFile, PRTGZIPCMDOPTS pOpts, PRTVFSIOSTREAM phVfsIos)
-{
-    int rc;
-
-    pOpts->pszInput = pszFile;
-    if (!strcmp(pszFile, "-"))
-    {
-        if (   !pOpts->fForce
-            && pOpts->fDecompress
-            && gzipIsStdHandleATty(RTHANDLESTD_OUTPUT))
-            return RTMsgErrorExit(RTEXITCODE_SYNTAX,
-                                  "Yeah, right. I'm not reading any compressed data from the terminal without --force.\n");
-
-        rc = RTVfsIoStrmFromStdHandle(RTHANDLESTD_INPUT,
-                                      RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
-                                      true /*fLeaveOpen*/,
-                                      phVfsIos);
-        if (RT_FAILURE(rc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "Error opening standard input: %Rrc", rc);
-    }
-    else
-    {
-        const char *pszError;
-        rc = RTVfsChainOpenIoStream(pszFile, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE, phVfsIos, &pszError);
-        if (RT_FAILURE(rc))
-        {
-            if (pszError && *pszError)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                      "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                                      "    '%s'\n",
-                                      "     %*s^\n",
-                                      rc, pszFile, pszError - pszFile, "");
-            return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                  "RTVfsChainOpenIoStream failed with rc=%Rrc: '%s'",
-                                  rc, pszFile);
-        }
-    }
-
-    return RTEXITCODE_SUCCESS;
-
-}
-
-
-/**
- * A mini GZIP program.
- *
- * @returns Program exit code.
- *
- * @param   cArgs               The number of arguments.
- * @param   papszArgs           The argument vector.  (Note that this may be
- *                              reordered, so the memory must be writable.)
- */
-RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
-{
+    int rc = RTR3Init();
+    if (RT_FAILURE(rc))
+        return RTMsgInitFailure(rc);
 
     /*
      * Parse the command line.
@@ -432,7 +222,6 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
         { "--decompress",   'd', RTGETOPT_REQ_NOTHING },
         { "--uncompress",   'd', RTGETOPT_REQ_NOTHING },
         { "--force",        'f', RTGETOPT_REQ_NOTHING },
-        { "--keep",         'k', RTGETOPT_REQ_NOTHING },
         { "--list",         'l', RTGETOPT_REQ_NOTHING },
         { "--no-name",      'n', RTGETOPT_REQ_NOTHING },
         { "--name",         'N', RTGETOPT_REQ_NOTHING },
@@ -454,83 +243,73 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
         { "--best",         '9', RTGETOPT_REQ_NOTHING }
     };
 
-    RTGZIPCMDOPTS Opts;
-    Opts.fAscii      = false;
-    Opts.fStdOut     = false;
-    Opts.fDecompress = false;
-    Opts.fForce      = false;
-    Opts.fKeep       = false;
-    Opts.fList       = false;
-    Opts.fName       = true;
-    Opts.fQuiet      = false;
-    Opts.fRecursive  = false;
-    Opts.pszSuff     = ".gz";
-    Opts.fTest       = false;
-    Opts.uLevel      = 6;
+    bool        fAscii      = false;
+    bool        fStdOut     = false;
+    bool        fDecompress = false;
+    bool        fForce      = false;
+    bool        fList       = false;
+    bool        fName       = true;
+    bool        fQuiet      = false;
+    bool        fRecursive  = false;
+    const char *pszSuff     = ".gz";
+    bool        fTest       = false;
+    unsigned    uLevel      = 6;
 
     RTEXITCODE  rcExit      = RTEXITCODE_SUCCESS;
     unsigned    cProcessed  = 0;
     RTVFSIOSTREAM hVfsStdOut= NIL_RTVFSIOSTREAM;
 
     RTGETOPTSTATE GetState;
-    int rc = RTGetOptInit(&GetState, cArgs, papszArgs, s_aOptions, RT_ELEMENTS(s_aOptions), 1,
-                          RTGETOPTINIT_FLAGS_OPTS_FIRST);
-    if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_SYNTAX, "RTGetOptInit: %Rrc", rc);
-
+    rc = RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1,
+                      RTGETOPTINIT_FLAGS_OPTS_FIRST);
     for (;;)
     {
         RTGETOPTUNION ValueUnion;
-        int chOpt = RTGetOpt(&GetState, &ValueUnion);
-        switch (chOpt)
+        rc = RTGetOpt(&GetState, &ValueUnion);
+        switch (rc)
         {
             case 0:
+            {
                 /*
                  * If we've processed any files we're done.  Otherwise take
                  * input from stdin and write the output to stdout.
                  */
                 if (cProcessed > 0)
                     return rcExit;
-                ValueUnion.psz = "-";
-                Opts.fStdOut = true;
-                /* Fall thru. */
+#if 0
+                rc = RTVfsFileFromRTFile(1,
+                                         RTFILE_O_WRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE,
+                                         true /*fLeaveOpen*/,
+                                         &hVfsOut);
+
+
+                if (!fForce && isStdHandleATty(fDecompress ? 0 : 1))
+                    return RTMsgErrorExit(RTEXITCODE_SYNTAX,
+                                          "Yeah, right. I'm not %s any compressed data %s the terminal without --force.\n",
+                                          fDecompress ? "reading" : "writing",
+                                          fDecompress ? "from"    : "to");
+#else
+                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "reading from standard input has not yet been implemented");
+#endif
+                return rcExit;
+            }
+
             case VINF_GETOPT_NOT_OPTION:
             {
-                if (!*Opts.pszSuff && !Opts.fStdOut)
+                if (!*pszSuff && !fStdOut)
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --suffix option specified an empty string");
-                if (!Opts.fStdOut && RTVfsChainIsSpec(ValueUnion.psz))
+                if (!fStdOut && RTVfsChainIsSpec(ValueUnion.psz))
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Must use standard out with VFS chain specifications");
-                if (Opts.fName)
-                    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --name option has not yet been implemented. Use --no-name.");
-                if (Opts.fAscii)
-                    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --ascii option has not yet been implemented.");
-                if (Opts.fRecursive)
-                    return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --recursive option has not yet been implemented.");
 
-                /* Open the input file. */
-                RTVFSIOSTREAM hVfsSrc;
-                RTEXITCODE rcExit2 = gzipOpenInput(ValueUnion.psz, &Opts, &hVfsSrc);
-                if (rcExit2 == RTEXITCODE_SUCCESS)
-                {
-                    if (Opts.fList)
-                        rcExit2 = gzipListFile(&hVfsSrc, &Opts);
-                    else if (Opts.fTest)
-                        rcExit2 = gzipTestFile(&hVfsSrc, &Opts);
-                    else
-                    {
-                        RTVFSIOSTREAM hVfsDst;
-                        rcExit2 = gzipOpenOutput(ValueUnion.psz, &Opts, &hVfsDst);
-                        if (rcExit2 == RTEXITCODE_SUCCESS)
-                        {
-                            if (Opts.fDecompress)
-                                rcExit2 = gzipDecompressFile(&hVfsSrc, &Opts, &hVfsDst);
-                            else
-                                rcExit2 = gzipCompressFile(&hVfsSrc, &Opts, &hVfsDst);
-                            RTVfsIoStrmRelease(hVfsDst);
-                        }
-                    }
-                    RTVfsIoStrmRelease(hVfsSrc);
-                }
+                RTEXITCODE rcExit2;
+                if (fList)
+                    rcExit2 = gzipListFile(ValueUnion.psz, fForce);
+                else if (fTest)
+                    rcExit2 = gzipTestFile(ValueUnion.psz, fForce);
+                else if (fDecompress)
+                    rcExit2 = gzipDecompressFile(ValueUnion.psz, fStdOut, fForce, &hVfsStdOut);
+                else
+                    rcExit2 = gzipCompressFile(ValueUnion.psz, fStdOut, fForce, &hVfsStdOut);
                 if (rcExit2 != RTEXITCODE_SUCCESS)
                     rcExit = rcExit2;
 
@@ -538,31 +317,27 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
                 break;
             }
 
-            case 'a':   Opts.fAscii      = true;  break;
-            case 'c':
-                Opts.fStdOut = true;
-                Opts.fKeep   = true;
-                break;
-            case 'd':   Opts.fDecompress = true;  break;
-            case 'f':   Opts.fForce      = true;  break;
-            case 'k':   Opts.fKeep       = true;  break;
-            case 'l':   Opts.fList       = true;  break;
-            case 'n':   Opts.fName       = false; break;
-            case 'N':   Opts.fName       = true;  break;
-            case 'q':   Opts.fQuiet      = true;  break;
-            case 'r':   Opts.fRecursive  = true;  break;
-            case 'S':   Opts.pszSuff     = ValueUnion.psz; break;
-            case 't':   Opts.fTest       = true;  break;
-            case 'v':   Opts.fQuiet      = false; break;
-            case '1':   Opts.uLevel      = 1;     break;
-            case '2':   Opts.uLevel      = 2;     break;
-            case '3':   Opts.uLevel      = 3;     break;
-            case '4':   Opts.uLevel      = 4;     break;
-            case '5':   Opts.uLevel      = 5;     break;
-            case '6':   Opts.uLevel      = 6;     break;
-            case '7':   Opts.uLevel      = 7;     break;
-            case '8':   Opts.uLevel      = 8;     break;
-            case '9':   Opts.uLevel      = 9;     break;
+            case 'a':   fAscii      = true;  break;
+            case 'c':   fStdOut     = true;  break;
+            case 'd':   fDecompress = true;  break;
+            case 'f':   fForce      = true;  break;
+            case 'l':   fList       = true;  break;
+            case 'n':   fName       = false; break;
+            case 'N':   fName       = true;  break;
+            case 'q':   fQuiet      = true;  break;
+            case 'r':   fRecursive  = true;  break;
+            case 'S':   pszSuff     = ValueUnion.psz; break;
+            case 't':   fTest       = true;  break;
+            case 'v':   fQuiet      = false; break;
+            case '1':   uLevel      = 1;     break;
+            case '2':   uLevel      = 2;     break;
+            case '3':   uLevel      = 3;     break;
+            case '4':   uLevel      = 4;     break;
+            case '5':   uLevel      = 5;     break;
+            case '6':   uLevel      = 6;     break;
+            case '7':   uLevel      = 7;     break;
+            case '8':   uLevel      = 8;     break;
+            case '9':   uLevel      = 9;     break;
 
             case 'h':
                 RTPrintf("Usage: to be written\nOption dump:\n");
@@ -575,17 +350,8 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
                 return RTEXITCODE_SUCCESS;
 
             default:
-                return RTGetOptPrintError(chOpt, &ValueUnion);
+                return RTGetOptPrintError(rc, &ValueUnion);
         }
     }
-}
-
-
-int main(int argc, char **argv)
-{
-    int rc = RTR3InitExe(argc, &argv, 0);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
-    return RTZipGzipCmd(argc, argv);
 }
 

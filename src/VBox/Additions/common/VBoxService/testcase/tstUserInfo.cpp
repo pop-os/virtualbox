@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #ifdef RT_OS_WINDOWS
-# include <Windows.h>
+# include <windows.h>
+# include <tchar.h>
+# include <stdio.h>
 # include <Shlobj.h>
 #endif
 
@@ -38,25 +40,25 @@ int main()
     /*
      * Init globals and such.
      */
-    RTR3InitExeNoArguments(0);
+    RTR3Init();
 
     int rc = VbglR3Init();
     if (RT_FAILURE(rc))
     {
-        RTPrintf("VbglR3Init failed with rc=%Rrc.\n", rc);
+        printf("VbglR3Init failed with rc=%Rrc.\n", rc);
         return -1;
     }
 #ifdef RT_OS_WINDOWS
-    WCHAR   wszPath[MAX_PATH];
-    HRESULT hRes = SHGetFolderPathW(0, CSIDL_APPDATA, 0, 0, wszPath);
+    TCHAR szPath[MAX_PATH];
+    HRESULT hRes = SHGetFolderPath(0, CSIDL_APPDATA, 0, 0, szPath);
 
     if (SUCCEEDED(hRes))
     {
-        RTPrintf("SHGetFolderPathW (CSIDL_APPDATA) = %ls\n", wszPath);
-        hRes = SHGetFolderPathW(0, CSIDL_PERSONAL, 0, 0, wszPath);
+        RTPrintf("SHGetFolderPathW (CSIDL_APPDATA) = %ls\n", szPath);
+        hRes = SHGetFolderPath(0, CSIDL_PERSONAL, 0, 0, szPath);
         if (SUCCEEDED(hRes))
         {
-            RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) = %ls\n", wszPath);
+            RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) = %ls\n", szPath);
         }
         else
             RTPrintf("SHGetFolderPathW (CSIDL_PERSONAL) returned error: 0x%x\n", hRes);
@@ -71,6 +73,6 @@ int main()
     RTPrintf("Environment:\n\n");
     RTPrintf("APPDATA = %s\n", getenv("APPDATA"));
 #endif
-    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
+    return RT_SUCCESS(rc) ? 0 : 1;
 }
 

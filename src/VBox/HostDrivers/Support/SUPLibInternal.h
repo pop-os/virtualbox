@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,9 +88,6 @@
 # define supR3HardenedFatalMsg             supR3HardenedStaticFatalMsg
 # define supR3HardenedErrorV               supR3HardenedStaticErrorV
 # define supR3HardenedError                supR3HardenedStaticError
-# define supR3HardenedOpenLog              supR3HardenedStaticOpenLog
-# define supR3HardenedLogV                 supR3HardenedStaticLogV
-# define supR3HardenedLog                  supR3HardenedStaticLog
 # define supR3HardenedVerifyAll            supR3HardenedStaticVerifyAll
 # define supR3HardenedVerifyFixedDir       supR3HardenedStaticVerifyFixedDir
 # define supR3HardenedVerifyFixedFile      supR3HardenedStaticVerifyFixedFile
@@ -100,52 +97,6 @@
 # define supR3HardenedRecvPreInitData      supR3HardenedStaticRecvPreInitData
 /** @} */
 #endif /* IN_SUP_HARDENED_R3 */
-
-
-/** @name CRT function mappings (not using CRT on Windows).
- * @{
- */
-#if defined(IN_SUP_HARDENED_R3) && defined(RT_OS_WINDOWS)
-# define SUP_HARDENED_NEED_CRT_FUNCTIONS
-DECLHIDDEN(int)    suplibHardenedMemComp(void const *pvDst, const void *pvSrc, size_t cbToComp);
-DECLHIDDEN(void *) suplibHardenedMemCopy(void *pvDst, const void *pvSrc, size_t cbToCopy);
-DECLHIDDEN(void *) suplibHardenedMemSet(void *pvDst, int ch, size_t cbToSet);
-DECLHIDDEN(char *) suplibHardenedStrCopy(char *pszDst, const char *pszSrc);
-DECLHIDDEN(size_t) suplibHardenedStrLen(const char *psz);
-DECLHIDDEN(char *) suplibHardenedStrCat(char *pszDst, const char *pszSrc);
-DECLHIDDEN(int)    suplibHardenedStrCmp(const char *psz1, const char *psz2);
-DECLHIDDEN(int)    suplibHardenedStrNCmp(const char *psz1, const char *psz2, size_t cchMax);
-#else
-# undef SUP_HARDENED_NEED_CRT_FUNCTIONS
-# define suplibHardenedMemComp memcmp
-# define suplibHardenedMemCopy memcpy
-# define suplibHardenedMemSet  memset
-# define suplibHardenedStrCopy strcpy
-# define suplibHardenedStrLen  strlen
-# define suplibHardenedStrCat  strcat
-# define suplibHardenedStrCmp  strcmp
-# define suplibHardenedStrNCmp strncmp
-#endif
-DECLNORETURN(void)  suplibHardenedExit(RTEXITCODE rcExit);
-DECLHIDDEN(void)    suplibHardenedPrintF(const char *pszFormat, ...);
-DECLHIDDEN(void)    suplibHardenedPrintFV(const char *pszFormat, va_list va);
-
-/** @} */
-
-/** Debug output macro. */
-#ifdef IN_SUP_HARDENED_R3
-# if defined(DEBUG_bird) && defined(RT_OS_WINDOWS)
-#  define SUP_DPRINTF(a)    do { supR3HardenedStaticLog a; suplibHardenedPrintF a; } while (0)
-# else
-#  define SUP_DPRINTF(a)    do { supR3HardenedStaticLog a; } while (0)
-# endif
-#else
-# if defined(DEBUG_bird) && defined(RT_OS_WINDOWS)
-#  define SUP_DPRINTF(a)    RTLogPrintf a
-# else
-#  define SUP_DPRINTF(a)    do { } while (0)
-# endif
-#endif
 
 
 /*******************************************************************************
@@ -159,12 +110,9 @@ typedef enum SUPINSTFILETYPE
     kSupIFT_Invalid = 0,
     kSupIFT_Exe,
     kSupIFT_Dll,
-    kSupIFT_Rc,
     kSupIFT_Sys,
     kSupIFT_Script,
     kSupIFT_Data,
-    kSupIFT_TestExe,
-    kSupIFT_TestDll,
     kSupIFT_End
 } SUPINSTFILETYPE;
 
@@ -180,7 +128,6 @@ typedef enum SUPINSTDIR
     kSupID_AppPrivArch,
     kSupID_AppPrivArchComp,
     kSupID_AppPrivNoArch,
-    kSupID_Testcase,
     kSupID_End
 } SUPINSTDIR;
 
@@ -210,10 +157,6 @@ typedef struct SUPVERIFIEDFILE
     intptr_t    hFile;
     /** Whether the file has been validated. */
     bool        fValidated;
-#ifdef RT_OS_WINDOWS
-    /** Whether we've checked the signature of the file. */
-    bool        fCheckedSignature;
-#endif
 } SUPVERIFIEDFILE;
 typedef SUPVERIFIEDFILE *PSUPVERIFIEDFILE;
 typedef SUPVERIFIEDFILE const *PCSUPVERIFIEDFILE;
@@ -246,9 +189,6 @@ typedef struct SUPLIBDATA
 #else
     int                 hDevice;
 #endif
-    /** Indicates whether we have unrestricted (true) or restricted access to the
-     * support device. */
-    bool                fUnrestricted;
 #if   defined(RT_OS_DARWIN)
     /** The connection to the VBoxSupDrv service. */
     uintptr_t           uConnection;
@@ -308,25 +248,6 @@ typedef DECLCALLBACK(int) FNSUPR3PREINIT(PSUPPREINITDATA pPreInitData, uint32_t 
 /** Pointer to supR3PreInit. */
 typedef FNSUPR3PREINIT *PFNSUPR3PREINIT;
 
-/** The current SUPR3HardenedMain state / location. */
-typedef enum SUPR3HARDENEDMAINSTATE
-{
-    SUPR3HARDENEDMAINSTATE_NOT_YET_CALLED = 0,
-    SUPR3HARDENEDMAINSTATE_WIN_EARLY_INIT_CALLED,
-    SUPR3HARDENEDMAINSTATE_WIN_EARLY_IMPORTS_RESOLVED,
-    SUPR3HARDENEDMAINSTATE_WIN_EARLY_DEVICE_OPENED,
-    SUPR3HARDENEDMAINSTATE_WIN_EP_CALLED,
-    SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED,
-    SUPR3HARDENEDMAINSTATE_WIN_VERSION_INITIALIZED,
-    SUPR3HARDENEDMAINSTATE_WIN_VERIFY_TRUST_READY,
-    SUPR3HARDENEDMAINSTATE_HARDENED_MAIN_CALLED,
-    SUPR3HARDENEDMAINSTATE_INIT_RUNTIME,
-    SUPR3HARDENEDMAINSTATE_GET_TRUSTED_MAIN,
-    SUPR3HARDENEDMAINSTATE_CALLED_TRUSTED_MAIN,
-    SUPR3HARDENEDMAINSTATE_END,
-    SUPR3HARDENEDMAINSTATE_32BIT_HACK = 0x7fffffff
-} SUPR3HARDENEDMAINSTATE;
-
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -334,10 +255,6 @@ typedef enum SUPR3HARDENEDMAINSTATE
 extern DECLHIDDEN(uint32_t)     g_u32Cookie;
 extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
 extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
-extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
-#ifdef RT_OS_WINDOWS
-extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;
-#endif
 
 
 /*******************************************************************************
@@ -346,10 +263,8 @@ extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;
 RT_C_DECLS_BEGIN
 int     suplibOsInstall(void);
 int     suplibOsUninstall(void);
-int     suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo);
+int     suplibOsInit(PSUPLIBDATA pThis, bool fPreInited);
 int     suplibOsTerm(PSUPLIBDATA pThis);
-int     suplibOsHardenedVerifyInit(void);
-int     suplibOsHardenedVerifyTerm(void);
 int     suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq);
 int     suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu);
 int     suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages);
@@ -361,7 +276,7 @@ int     suplibOsQueryVTxSupported(void);
  * Performs the pre-initialization of the support library.
  *
  * This is dynamically resolved and invoked by the static library before it
- * calls RTR3InitEx and thereby SUPR3Init.
+ * calls RTR3Init and thereby SUPR3Init.
  *
  * @returns IPRT status code.
  * @param   pPreInitData    The pre init data.
@@ -412,63 +327,14 @@ DECLHIDDEN(int)    supR3HardenedErrorV(int rc, bool fFatal, const char *pszForma
  * Display an error which may or may not be fatal.
  */
 DECLHIDDEN(int)     supR3HardenedError(int rc, bool fFatal, const char *pszFormat, ...);
-
-/**
- * Open any startup log file specified in the argument.
- */
-DECLHIDDEN(void)    supR3HardenedOpenLog(int *pcArgs, char **papszArgs);
-
-/**
- * Write to the startup log file.
- */
-DECLHIDDEN(void)    supR3HardenedLogV(const char *pszFormat, va_list va);
-
-/**
- * Write to the startup log file.
- */
-DECLHIDDEN(void)    supR3HardenedLog(const char *pszFormat, ...);
-
-
-DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName);
+DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, bool fLeaveFilesOpen, const char *pszProgName);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
-DECLHIDDEN(int)     supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile, bool fMaybe3rdParty,
-                                            PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile, PRTERRINFO pErrInfo);
 DECLHIDDEN(void)    supR3HardenedGetPreInitData(PSUPPREINITDATA pPreInitData);
 DECLHIDDEN(int)     supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 
-#ifdef RT_OS_WINDOWS
-DECLHIDDEN(void)    supR3HardenedWinInit(uint32_t fFlags, bool fAvastKludge);
-DECLHIDDEN(void)    supR3HardenedWinInitVersion(void);
-DECLHIDDEN(void)    supR3HardenedWinInitImports(void);
-# ifdef ___iprt_nt_nt_h___
-DECLHIDDEN(void)    supR3HardenedWinGetVeryEarlyImports(uintptr_t uNtDllAddr,
-                                                        PFNNTWAITFORSINGLEOBJECT *ppfnNtWaitForSingleObject,
-                                                        PFNNTSETEVENT *ppfnNtSetEvent);
-# endif
-DECLHIDDEN(void)    supR3HardenedWinInitImportsEarly(uintptr_t uNtDllAddr);
-DECLHIDDEN(void)    supR3HardenedWinInitSyscalls(bool fReportErrors);
-DECLHIDDEN(PFNRT)   supR3HardenedWinGetRealDllSymbol(const char *pszDll, const char *pszProcedure);
-DECLHIDDEN(void)    supR3HardenedWinEnableThreadCreation(void);
-DECLHIDDEN(void)    supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(const char *pszProgName);
-DECLHIDDEN(void)    supR3HardenedWinFlushLoaderCache();
-DECLHIDDEN(bool)    supR3HardenedWinIsReSpawnNeeded(int iWhich, int cArgs, char **papszArgs);
-DECLHIDDEN(int)     supR3HardenedWinReSpawn(int iWhich);
-# ifdef _WINDEF_
-DECLHIDDEN(void)    supR3HardenedWinCreateParentWatcherThread(HMODULE hVBoxRT);
-# endif
-DECLHIDDEN(void *)  supR3HardenedWinLoadLibrary(const char *pszName, bool fSystem32Only);
-extern RTUTF16      g_wszSupLibHardenedExePath[1024];
-# ifdef RTPATH_MAX
-extern char         g_szSupLibHardenedExePath[RTPATH_MAX];
-# endif
-DECLHIDDEN(void)    supR3HardenedWinCompactHeaps(void);
-DECLHIDDEN(void)    supR3HardenedMainOpenDevice(void);
-DECLHIDDEN(char *)  supR3HardenedWinReadErrorInfoDevice(char *pszErrorInfo, size_t cbErrorInfo, const char *pszPrefix);
-DECLHIDDEN(void)    supR3HardenedWinReportErrorToParent(const char *pszWhere, SUPINITOP enmWhat, int rc,
-                                                        const char *pszFormat, va_list va);
-#endif
 
 SUPR3DECL(int)      supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages);
 SUPR3DECL(int)      supR3PageUnlock(void *pvStart);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,17 +32,16 @@
 
 
 VBoxDbgBase::VBoxDbgBase(VBoxDbgGui *a_pDbgGui)
-    : m_pDbgGui(a_pDbgGui), m_pUVM(NULL), m_hGUIThread(RTThreadNativeSelf())
+    : m_pDbgGui(a_pDbgGui), m_pVM(NULL), m_hGUIThread(RTThreadNativeSelf())
 {
     /*
      * Register
      */
-    m_pUVM = a_pDbgGui->getUvmHandle();
-    if (m_pUVM)
+    PVM pVM = a_pDbgGui->getVMHandle();
+    if (pVM)
     {
-        VMR3RetainUVM(m_pUVM);
-
-        int rc = VMR3AtStateRegister(m_pUVM, atStateChange, this);
+        m_pVM = pVM;
+        int rc = VMR3AtStateRegister(pVM, atStateChange, this);
         AssertRC(rc);
     }
 }
@@ -54,13 +53,11 @@ VBoxDbgBase::~VBoxDbgBase()
      * If the VM is still around.
      */
     /** @todo need to do some locking here?  */
-    PUVM pUVM = ASMAtomicXchgPtrT(&m_pUVM, NULL, PUVM);
-    if (pUVM)
+    PVM pVM = ASMAtomicXchgPtrT(&m_pVM, NULL, PVM);
+    if (pVM)
     {
-        int rc = VMR3AtStateDeregister(pUVM, atStateChange, this);
+        int rc = VMR3AtStateDeregister(pVM, atStateChange, this);
         AssertRC(rc);
-
-        VMR3ReleaseUVM(pUVM);
     }
 }
 
@@ -70,10 +67,10 @@ VBoxDbgBase::stamReset(const QString &rPat)
 {
     QByteArray Utf8Array = rPat.toUtf8();
     const char *pszPat = !rPat.isEmpty() ? Utf8Array.constData() : NULL;
-    PUVM pUVM = m_pUVM;
-    if (    pUVM
-        &&  VMR3GetStateU(pUVM) < VMSTATE_DESTROYING)
-        return STAMR3Reset(pUVM, pszPat);
+    PVM pVM = m_pVM;
+    if (    pVM
+        &&  VMR3GetState(pVM) < VMSTATE_DESTROYING)
+        return STAMR3Reset(pVM, pszPat);
     return VERR_INVALID_HANDLE;
 }
 
@@ -83,10 +80,10 @@ VBoxDbgBase::stamEnum(const QString &rPat, PFNSTAMR3ENUM pfnEnum, void *pvUser)
 {
     QByteArray Utf8Array = rPat.toUtf8();
     const char *pszPat = !rPat.isEmpty() ? Utf8Array.constData() : NULL;
-    PUVM pUVM = m_pUVM;
-    if (    pUVM
-        &&  VMR3GetStateU(pUVM) < VMSTATE_DESTROYING)
-        return STAMR3Enum(pUVM, pszPat, pfnEnum, pvUser);
+    PVM pVM = m_pVM;
+    if (    pVM
+        &&  VMR3GetState(pVM) < VMSTATE_DESTROYING)
+        return STAMR3Enum(pVM, pszPat, pfnEnum, pvUser);
     return VERR_INVALID_HANDLE;
 }
 
@@ -94,32 +91,25 @@ VBoxDbgBase::stamEnum(const QString &rPat, PFNSTAMR3ENUM pfnEnum, void *pvUser)
 int
 VBoxDbgBase::dbgcCreate(PDBGCBACK pBack, unsigned fFlags)
 {
-    PUVM pUVM = m_pUVM;
-    if (    pUVM
-        &&  VMR3GetStateU(pUVM) < VMSTATE_DESTROYING)
-        return DBGCCreate(pUVM, pBack, fFlags);
+    PVM pVM = m_pVM;
+    if (    pVM
+        &&  VMR3GetState(pVM) < VMSTATE_DESTROYING)
+        return DBGCCreate(pVM, pBack, fFlags);
     return VERR_INVALID_HANDLE;
 }
 
 
 /*static*/ DECLCALLBACK(void)
-VBoxDbgBase::atStateChange(PUVM pUVM, VMSTATE enmState, VMSTATE /*enmOldState*/, void *pvUser)
+VBoxDbgBase::atStateChange(PVM pVM, VMSTATE enmState, VMSTATE /*enmOldState*/, void *pvUser)
 {
-    VBoxDbgBase *pThis = (VBoxDbgBase *)pvUser; NOREF(pUVM);
+    VBoxDbgBase *pThis = (VBoxDbgBase *)pvUser;
     switch (enmState)
     {
         case VMSTATE_TERMINATED:
-        {
             /** @todo need to do some locking here?  */
-            PUVM pUVM2 = ASMAtomicXchgPtrT(&pThis->m_pUVM, NULL, PUVM);
-            if (pUVM2)
-            {
-                Assert(pUVM2 == pUVM);
+            if (ASMAtomicCmpXchgPtr(&pThis->m_pVM, NULL, pVM))
                 pThis->sigTerminated();
-                VMR3ReleaseUVM(pUVM2);
-            }
             break;
-        }
 
         case VMSTATE_DESTROYING:
             pThis->sigDestroying();
@@ -160,7 +150,12 @@ unsigned VBoxDbgBaseWindow::m_cyBorder = 0;
 
 
 VBoxDbgBaseWindow::VBoxDbgBaseWindow(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent)
-    : QWidget(a_pParent, Qt::Window), VBoxDbgBase(a_pDbgGui), m_fPolished(false),
+    : QWidget(a_pParent, Qt::Window), VBoxDbgBase(a_pDbgGui),
+#ifdef Q_WS_X11
+    m_fPolished(false),
+#else
+    m_fPolished(true),
+#endif
     m_x(INT_MAX), m_y(INT_MAX), m_cx(0), m_cy(0)
 {
 }

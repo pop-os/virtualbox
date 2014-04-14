@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,20 @@ static DECLCALLBACK(void *) drvACPICpuQueryInterface(PPDMIBASE pInterface, const
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     return NULL;
+}
+
+/**
+ * Destruct a driver instance.
+ *
+ * Most VM resources are freed by the VM. This callback is provided so that any non-VM
+ * resources can be freed correctly.
+ *
+ * @param   pDrvIns     The driver instance data.
+ */
+static DECLCALLBACK(void) drvACPICpuDestruct(PPDMDRVINS pDrvIns)
+{
+    LogFlow(("drvACPICpuDestruct\n"));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 }
 
 /**
@@ -96,7 +110,7 @@ const PDMDRVREG g_DrvAcpiCpu =
     /* pfnConstruct */
     drvACPICpuConstruct,
     /* pfnDestruct */
-    NULL,
+    drvACPICpuDestruct,
     /* pfnRelocate */
     NULL,
     /* pfnIOCtl */

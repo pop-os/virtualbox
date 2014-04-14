@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,18 +17,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
+/* Local includes */
 #include "UIConsoleEventHandler.h"
 #include "UIMainEventListener.h"
 #include "VBoxGlobal.h"
 #include "UISession.h"
+
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 #endif /* Q_WS_MAC */
 
-/* COM includes: */
-#include "CConsole.h"
-#include "CEventSource.h"
+/* Global includes */
+//#include <iprt/thread.h>
+//#include <iprt/stream.h>
 
 /* static */
 UIConsoleEventHandler *UIConsoleEventHandler::m_pInstance = 0;
@@ -72,15 +73,13 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
         << KVBoxEventType_OnMediumChanged
         << KVBoxEventType_OnVRDEServerChanged
         << KVBoxEventType_OnVRDEServerInfoChanged
-        << KVBoxEventType_OnVideoCaptureChanged
         << KVBoxEventType_OnUSBControllerChanged
         << KVBoxEventType_OnUSBDeviceStateChanged
         << KVBoxEventType_OnSharedFolderChanged
         << KVBoxEventType_OnRuntimeError
         << KVBoxEventType_OnCanShowWindow
         << KVBoxEventType_OnShowWindow
-        << KVBoxEventType_OnCPUExecutionCapChanged
-        << KVBoxEventType_OnGuestMonitorChanged;
+        << KVBoxEventType_OnCPUExecutionCapChanged;
 
     const CConsole &console = m_pSession->session().GetConsole();
     console.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);
@@ -90,8 +89,8 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
             this, SIGNAL(sigMousePointerShapeChange(bool, bool, QPoint, QSize, QVector<uint8_t>)),
             Qt::QueuedConnection);
 
-    connect(pListener->getWrapped(), SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
-            this, SIGNAL(sigMouseCapabilityChange(bool, bool, bool, bool)),
+    connect(pListener->getWrapped(), SIGNAL(sigMouseCapabilityChange(bool, bool, bool)),
+            this, SIGNAL(sigMouseCapabilityChange(bool, bool, bool)),
             Qt::QueuedConnection);
 
     connect(pListener->getWrapped(), SIGNAL(sigKeyboardLedsChangeEvent(bool, bool, bool)),
@@ -116,10 +115,6 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
 
     connect(pListener->getWrapped(), SIGNAL(sigVRDEChange()),
             this, SIGNAL(sigVRDEChange()),
-            Qt::QueuedConnection);
-
-    connect(pListener->getWrapped(), SIGNAL(sigVideoCaptureChange()),
-            this, SIGNAL(sigVideoCaptureChange()),
             Qt::QueuedConnection);
 
     connect(pListener->getWrapped(), SIGNAL(sigUSBControllerChange()),
@@ -152,10 +147,6 @@ UIConsoleEventHandler::UIConsoleEventHandler(UISession *pSession)
 
     connect(pListener->getWrapped(), SIGNAL(sigCPUExecutionCapChange()),
             this, SIGNAL(sigCPUExecutionCapChange()),
-            Qt::QueuedConnection);
-
-    connect(pListener->getWrapped(), SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
-            this, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
             Qt::QueuedConnection);
 }
 

@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2013 Oracle Corporation
+; Copyright (C) 2006-2011 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -54,22 +54,26 @@ struc VM
     .uCpuExecutionCap       resd 1
     .cbSelf                 resd 1
     .offVMCPU               resd 1
-    .pfnVMMRCToHostAsm      resd 1
-    .pfnVMMRCToHostAsmNoReturn resd 1
+    .u32Reserved            resd 5
+
+    .pfnVMMGCGuestToHostAsmGuestCtx RTRCPTR_RES 1
+    .pfnVMMGCGuestToHostAsmHyperCtx RTRCPTR_RES 1
+    .pfnVMMGCGuestToHostAsm         RTRCPTR_RES 1
+
+    .uPadding1              RTHCPTR_RES 1
+    .uPadding2              RTHCPTR_RES 1
+
     .fRecompileUser         resb 1
     .fRecompileSupervisor   resb 1
-    .fRawRing1Enabled       resb 1
     .fPATMEnabled           resb 1
     .fCSAMEnabled           resb 1
-    .fHMEnabled             resb 1
-    .fHMEnabledFixed        resb 1
-    .fHMNeedRawModeCtx      resb 1
+    .fHWACCMEnabled         resb 1
+    .fHwVirtExtForced       resb 1
     .fFaultTolerantMaster   resb 1
     .fUseLargePages         resb 1
 
-    .uPadding1              resb 2
-
     .hTraceBufRC            RTRCPTR_RES 1
+    .uPadding3              resd 1
     .hTraceBufR3            RTR3PTR_RES 1
     .hTraceBufR0            RTR0PTR_RES 1
 
@@ -97,13 +101,13 @@ struc VM
  %error "Missing HC_ARCH_BITS"
 %endif
 %if HC_ARCH_BITS == 32
-    .abAlignment3           resb 16
+    .abAlignment1           resb 30
 %else
-;    .abAlignment3           resb 16
+;    .abAlignment1           resb 0
 %endif
 
     alignb 64
-    .cpum                   resb 1536
+    .cpum                   resb 1472
     .vmm                    resb 1536
 
 endstruc
@@ -116,35 +120,22 @@ struc VMCPU
     .pUVCpu                 RTR3PTR_RES 1
     .pVMR3                  RTR3PTR_RES 1
     .pVMR0                  RTR0PTR_RES 1
+    .pvR0Padding            RTR0PTR_RES 1
     .pVMRC                  RTRCPTR_RES 1
     .idCpu                  resd 1
 
     .hNativeThread          RTR0PTR_RES 1
     .hNativeThreadR0        RTR0PTR_RES 1
     .idHostCpu              resd 1
-    .fTraceGroups           resd 1
-%if HC_ARCH_BITS == 32
-    .abAlignment1           resb 16+64
-%else
-    .abAlignment1           resb 60
-%endif
     .uAdHoc                 resd 1
     .aStatAdHoc             resb STAMPROFILEADV_size * 8
 
+%if HC_ARCH_BITS == 32
+    .abAlignment1           resd 16+1
+%endif
     alignb 64
 
-    .cpum                   resb 3584
-    .hm                     resb 5568
-    .em                     resb 1472
-    .iem                    resb 3072
-    .trpm                   resb 128
-    .tm                     resb 384
-    .vmm                    resb 704
-    .pdm                    resb 256
-    .iom                    resb 512
-    .dbgf                   resb 64
-    alignb 4096
-    .pgm                    resb 4096
+    .cpum                   resb 4096
 endstruc
 
 

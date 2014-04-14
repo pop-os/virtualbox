@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,16 @@ RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 VMMR3DECL(int) CPUMR3DisasmInstrCPU(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPTR GCPtrPC, PDISCPUSTATE pCpu, const char *pszPrefix);
-#endif
+
+# ifdef DEBUG
+/** @deprecated  Use DBGFR3DisasInstrCurrentLog().  */
+VMMR3DECL(void) CPUMR3DisasmInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTGCPTR pc, const char *pszPrefix);
+# else
+/** @deprecated  Use DBGFR3DisasInstrCurrentLog(). */
+#  define CPUMR3DisasmInstr(pVM, pVCpu, pCtx, pc, pszPrefix)                   do {} while (0)
+# endif
+
+#endif /* IN_RING3 */
 
 /** @} */
 RT_C_DECLS_END

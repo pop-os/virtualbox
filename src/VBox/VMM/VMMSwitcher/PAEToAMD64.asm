@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2012 Oracle Corporation
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 ;*   Defined Constants And Macros                                              *
 ;*******************************************************************************
 %define SWITCHER_TYPE               VMMSWITCHER_PAE_TO_AMD64
-%define SWITCHER_DESCRIPTION        "PAE to/from AMD64 intermediate context"
+%define SWITCHER_DESCRIPTION        "PAE to/from AMD64"
 %define NAME_OVERLOAD(name)         vmmR3SwitcherPAEToAMD64_ %+ name
 %define SWITCHER_FIX_INTER_CR3_HC   FIX_INTER_PAE_CR3
 %define NEED_PAE_ON_HOST  1

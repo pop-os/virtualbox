@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,17 +91,9 @@
 #include <sys/dirent.h>
 #include <sys/fs_subr.h>
 #include <sys/time.h>
-#include <sys/cmn_err.h>
 #include "vboxfs_prov.h"
 #include "vboxfs_vnode.h"
 #include "vboxfs_vfs.h"
-
-/*
- * Solaris 11u1b10 Extended Policy putback CR 7121445 removes secpolicy_vnode_access from sys/policy.h
- */
-#ifdef VBOX_VFS_EXTENDED_POLICY
-int secpolicy_vnode_access(const cred_t *, vnode_t *, uid_t, mode_t);
-#endif
 
 #define VBOXVFS_WITH_MMAP
 
@@ -186,21 +178,16 @@ sfnode_clear_dir_list(sfnode_t *node)
  * same host file in the host in light of the possibility of host side renames.
  */
 static void
-sfnode_open(sfnode_t *node, int flag)
+sfnode_open(sfnode_t *node)
 {
 	int error;
 	sfp_file_t *fp;
 
 	if (node->sf_file != NULL)
 		return;
-	error = sfprov_open(node->sf_sffs->sf_handle, node->sf_path, &fp, flag);
+	error = sfprov_open(node->sf_sffs->sf_handle, node->sf_path, &fp);
 	if (error == 0)
-	{
 		node->sf_file = fp;
-		node->sf_flag = flag;
-	}
-	else
-		node->sf_flag = ~0;
 }
 
 /*
@@ -261,7 +248,6 @@ sfnode_make(
 	node->sf_type = type;
 	node->sf_is_stale = 0;	/* never stale at creation */
 	node->sf_file = fp;
-	node->sf_flag = ~0;
 	node->sf_vnode = NULL;	/* do this before any sfnode_get_vnode() */
 	node->sf_children = 0;
 	node->sf_parent = parent;
@@ -671,14 +657,14 @@ sfnode_access(sfnode_t *node, mode_t mode, cred_t *cr)
 		error = 0;
 	else
 		error = sfnode_update_stat_cache(node);
-	m = (error == 0) ? (node->sf_stat.sf_mode & MODEMASK) : 0;
+	m = (error == 0) ? node->sf_stat.sf_mode : 0;
 
 	/*
 	 * mask off the permissions based on uid/gid
 	 */
-	if (crgetuid(cr) != sffs->sf_handle->sf_uid) {
+	if (crgetuid(cr) != sffs->sf_uid) {
 		shift += 3;
-		if (groupmember(sffs->sf_handle->sf_gid, cr) == 0)
+		if (groupmember(sffs->sf_gid, cr) == 0)
 			shift += 3;
 	}
 	mode &= ~(m << shift);
@@ -686,11 +672,8 @@ sfnode_access(sfnode_t *node, mode_t mode, cred_t *cr)
 	if (mode == 0) {
 		error = 0;
 	} else {
-		/** @todo r=ramshankar: This can probably be optimized by holding static vnode
-		 *  	  templates for dir/file, as it only checks the type rather than
-		 *  	  fetching/allocating the real vnode. */
 		vp = sfnode_get_vnode(node);
-		error = secpolicy_vnode_access(cr, vp, sffs->sf_handle->sf_uid, mode);
+		error = secpolicy_vnode_access(cr, vp, sffs->sf_uid, mode);
 		VN_RELE(vp);
 	}
 	return (error);
@@ -708,7 +691,7 @@ sffs_readdir(
 	cred_t		*cred,
 	int		*eofp,
 	caller_context_t *ct,
-	int		flag)
+	int		flags)
 {
 	sfnode_t *dir = VN2SFN(vp);
 	sfnode_t *node;
@@ -743,7 +726,7 @@ sffs_readdir(
 
 	if (dir->sf_dir_list == NULL) {
 		error = sfprov_readdir(dir->sf_sffs->sf_handle, dir->sf_path,
-		    &dir->sf_dir_list, flag);
+		    &dir->sf_dir_list);
 		if (error != 0)
 			goto done;
 	}
@@ -876,8 +859,8 @@ sffs_getattr(
 
 	mutex_enter(&sffs_lock);
 	vap->va_type = vp->v_type;
-	vap->va_uid = sffs->sf_handle->sf_uid;
-	vap->va_gid = sffs->sf_handle->sf_gid;
+	vap->va_uid = sffs->sf_uid;
+	vap->va_gid = sffs->sf_gid;
 	vap->va_fsid = sffs->sf_vfsp->vfs_dev;
 	vap->va_nodeid = node->sf_ino;
 	vap->va_nlink = 1;
@@ -896,6 +879,35 @@ sffs_getattr(
 
 	mode = node->sf_stat.sf_mode;
 	vap->va_mode = mode & MODEMASK;
+	if (S_ISDIR(mode))
+	{
+		vap->va_type = VDIR;
+		vap->va_mode = sffs->sf_dmode != ~0 ? (sffs->sf_dmode & 0777) : vap->va_mode;
+		vap->va_mode &= ~sffs->sf_dmask;
+		vap->va_mode |= S_IFDIR;
+	}
+	else if (S_ISREG(mode))
+	{
+		vap->va_type = VREG;
+		vap->va_mode = sffs->sf_fmode != ~0 ? (sffs->sf_fmode & 0777) : vap->va_mode;
+		vap->va_mode &= ~sffs->sf_fmask;
+		vap->va_mode |= S_IFREG;
+	}
+	else if (S_ISFIFO(mode))
+		vap->va_type = VFIFO;
+	else if (S_ISCHR(mode))
+		vap->va_type = VCHR;
+	else if (S_ISBLK(mode))
+		vap->va_type = VBLK;
+	else if (S_ISLNK(mode))
+	{
+		vap->va_type = VLNK;
+		vap->va_mode = sffs->sf_fmode != ~0 ? (sffs->sf_fmode & 0777) : vap->va_mode;
+		vap->va_mode &= ~sffs->sf_fmask;
+		vap->va_mode |= S_IFLNK;
+	}
+	else if (S_ISSOCK(mode))
+		vap->va_type = VSOCK;
 
 	vap->va_size = node->sf_stat.sf_size;
 	vap->va_blksize = 512;
@@ -1012,11 +1024,10 @@ sffs_read(
 		return (0);
 
 	mutex_enter(&sffs_lock);
+	sfnode_open(node);
 	if (node->sf_file == NULL) {
-		ASSERT(node->sf_flag != ~0);
-		sfnode_open(node, node->sf_flag);
-		if (node->sf_file == NULL)
-			return (EBADF);
+		mutex_exit(&sffs_lock);
+		return (EINVAL);
 	}
 
 	do {
@@ -1064,11 +1075,10 @@ sffs_write(
 	 * multiple FAPPEND writes from intermixing
 	 */
 	mutex_enter(&sffs_lock);
+	sfnode_open(node);
 	if (node->sf_file == NULL) {
-		ASSERT(node->sf_flag != ~0);
-		sfnode_open(node, node->sf_flag);
-		if (node->sf_file == NULL)
-			return (EBADF);
+		mutex_exit(&sffs_lock);
+		return (EINVAL);
 	}
 
 	sfnode_invalidate_stat_cache(node);
@@ -1287,11 +1297,16 @@ sffs_create(
 		 */
 		if (vp->v_type == VREG && (vap->va_mask & AT_SIZE) &&
 		    vap->va_size == 0) {
-			sfnode_open(node, flag | FTRUNC);
-			if (node->sf_path == NULL) {
+			sfnode_open(node);
+			if (node->sf_path == NULL)
+				error = ENOENT;
+			else
+				error = sfprov_trunc(node->sf_sffs->sf_handle,
+				    node->sf_path);
+			if (error) {
 				mutex_exit(&sffs_lock);
 				VN_RELE(vp);
-				return (ENOENT);
+				return (error);
 			}
 		}
 		mutex_exit(&sffs_lock);
@@ -2196,7 +2211,7 @@ sffs_inactive(vnode_t *vp, cred_t *cr, caller_context_t *ct)
 }
 
 /*
- * All the work for this is really done in sffs_lookup().
+ * All the work for this is really done in lookup.
  */
 /*ARGSUSED*/
 static int
@@ -2208,9 +2223,10 @@ sffs_open(vnode_t **vpp, int flag, cred_t *cr, caller_context_t *ct)
 	mutex_enter(&sffs_lock);
 
 	node = VN2SFN(*vpp);
-	sfnode_open(node, flag);
+	sfnode_open(node);
 	if (node->sf_file == NULL)
 		error = EINVAL;
+
 	mutex_exit(&sffs_lock);
 
 	return (error);

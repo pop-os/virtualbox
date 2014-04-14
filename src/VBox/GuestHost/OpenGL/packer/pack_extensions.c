@@ -6,6 +6,8 @@
 
 #include "packer.h"
 
+#include <GL/glext.h>
+
 int __packTexParameterNumParams( GLenum param )
 {
     switch( param )

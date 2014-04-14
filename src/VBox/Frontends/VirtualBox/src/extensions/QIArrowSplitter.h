@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,8 +53,6 @@ public:
 
     void setName (const QString &aName);
 
-    QSize minimumSizeHint() const;
-
 public slots:
 
     void toggleWidget();
@@ -63,11 +61,12 @@ signals:
 
     void showBackDetails();
     void showNextDetails();
-    void sigSizeChanged();
 
 private:
 
     bool eventFilter (QObject *aObject, QEvent *aEvent);
+
+    void relayout();
 
     QVBoxLayout *mMainLayout;
     QIArrowButtonSwitch *mSwitchButton;

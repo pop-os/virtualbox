@@ -48,6 +48,10 @@
 #include "internal/process.h"
 #include "internal/fs.h"
 
+#ifdef RT_OS_L4
+# include <l4/vboxserver/vboxserver.h>
+#endif
+
 
 RTR3DECL(int) RTPathQueryInfo(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)
 {

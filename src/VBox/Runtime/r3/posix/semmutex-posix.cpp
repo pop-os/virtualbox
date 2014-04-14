@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,43 +64,6 @@ struct RTSEMMUTEXINTERNAL
     RTLOCKVALRECEXCL    ValidatorRec;
 #endif
 };
-
-#ifdef RT_OS_DARWIN
-/**
- * This function emulate pthread_mutex_timedlock on Mac OS X
- */
-static int DarwinPthreadMutexTimedlock(pthread_mutex_t * mutex, const struct timespec * pTsAbsTimeout)
-{
-    int rc = 0;
-    struct timeval tv;
-    timespec ts = {0, 0};
-    do
-    {
-        rc = pthread_mutex_trylock(mutex);
-        if (rc == EBUSY)
-        {
-            gettimeofday(&tv, NULL);
-
-            ts.tv_sec = pTsAbsTimeout->tv_sec - tv.tv_sec;
-            ts.tv_nsec = pTsAbsTimeout->tv_nsec - tv.tv_sec;
-
-            if (ts.tv_nsec < 0)
-            {
-                ts.tv_sec--;
-                ts.tv_nsec += 1000000000;
-            }
-
-            if (   ts.tv_sec > 0
-                && ts.tv_nsec > 0)
-                nanosleep(&ts, &ts);
-        }
-        else
-            break;
-    } while (   rc != 0
-             || ts.tv_sec > 0);
-    return rc;
-}
-#endif
 
 
 #undef RTSemMutexCreate
@@ -278,16 +241,15 @@ DECL_FORCE_INLINE(int) rtSemMutexRequest(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMil
     }
     else
     {
+#ifdef RT_OS_DARWIN
+        AssertMsgFailed(("Not implemented on Darwin yet because of incomplete pthreads API."));
+        return VERR_NOT_IMPLEMENTED;
+#else /* !RT_OS_DARWIN */
+        /*
+         * Get current time and calc end of wait time.
+         */
         struct timespec     ts = {0,0};
-#if defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)
-
-        struct timeval      tv = {0,0};
-        gettimeofday(&tv, NULL);
-        ts.tv_sec = tv.tv_sec;
-        ts.tv_nsec = tv.tv_usec * 1000;
-#else
         clock_gettime(CLOCK_REALTIME, &ts);
-#endif
         if (cMillies != 0)
         {
             ts.tv_nsec += (cMillies % 1000) * 1000000;
@@ -300,17 +262,14 @@ DECL_FORCE_INLINE(int) rtSemMutexRequest(RTSEMMUTEX hMutexSem, RTMSINTERVAL cMil
         }
 
         /* take mutex */
-#ifndef RT_OS_DARWIN
         int rc = pthread_mutex_timedlock(&pThis->Mutex, &ts);
-#else
-        int rc = DarwinPthreadMutexTimedlock(&pThis->Mutex, &ts);
-#endif
         RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_MUTEX);
         if (rc)
         {
             AssertMsg(rc == ETIMEDOUT, ("Failed to lock mutex sem %p, rc=%d.\n", hMutexSem, rc)); NOREF(rc);
             return RTErrConvertFromErrno(rc);
         }
+#endif /* !RT_OS_DARWIN */
     }
 
     /*

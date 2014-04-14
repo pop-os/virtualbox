@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,16 +37,15 @@
  *          VINF_SUCCESS means we completely handled this trap,
  *          other codes are passed execution to host context.
  *
- * @param   pVM             Pointer to the VM.
- * @param   pVCpu           Pointer to the VMCPU.
- * @param   pRegFrame       Pointer to the register frame for the trap.
- * @param   uDr6            The DR6 hypervisor register value.
- * @param   fAltStepping    Alternative stepping indicator.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The virtual CPU handle.
+ * @param   pRegFrame   Pointer to the register frame for the trap.
+ * @param   uDr6        The DR6 register value.
  */
-VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6, bool fAltStepping)
+VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6)
 {
 #ifdef IN_RC
-    const bool fInHyper = !(pRegFrame->ss.Sel & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;
+    const bool fInHyper = !(pRegFrame->ss & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;
 #else
     const bool fInHyper = false;
 #endif
@@ -66,7 +65,7 @@ VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
                 pVCpu->dbgf.s.iActiveBp = pVM->dbgf.s.aHwBreakpoints[iBp].iBp;
                 pVCpu->dbgf.s.fSingleSteppingRaw = false;
                 LogFlow(("DBGFRZTrap03Handler: hit hw breakpoint %d at %04x:%RGv\n",
-                         pVM->dbgf.s.aHwBreakpoints[iBp].iBp, pRegFrame->cs.Sel, pRegFrame->rip));
+                         pVM->dbgf.s.aHwBreakpoints[iBp].iBp, pRegFrame->cs, pRegFrame->rip));
 
                 return fInHyper ? VINF_EM_DBG_HYPER_BREAKPOINT : VINF_EM_DBG_BREAKPOINT;
             }
@@ -78,25 +77,24 @@ VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
      * Are we single stepping or is it the guest?
      */
     if (    (uDr6 & X86_DR6_BS)
-        &&  (fInHyper || pVCpu->dbgf.s.fSingleSteppingRaw || fAltStepping))
+        &&  (fInHyper || pVCpu->dbgf.s.fSingleSteppingRaw))
     {
         pVCpu->dbgf.s.fSingleSteppingRaw = false;
-        LogFlow(("DBGFRZTrap01Handler: single step at %04x:%RGv\n", pRegFrame->cs.Sel, pRegFrame->rip));
+        LogFlow(("DBGFRZTrap01Handler: single step at %04x:%RGv\n", pRegFrame->cs, pRegFrame->rip));
         return fInHyper ? VINF_EM_DBG_HYPER_STEPPED : VINF_EM_DBG_STEPPED;
     }
 
+#ifdef IN_RC
     /*
-     * Either an ICEBP in hypervisor code or a guest related debug exception
-     * of sorts.
+     * Currently we only implement single stepping in the guest,
+     * so we'll bitch if this is not a BS event.
      */
-    if (RT_UNLIKELY(fInHyper))
-    {
-        LogFlow(("DBGFRZTrap01Handler: unabled bp at %04x:%RGv\n", pRegFrame->cs.Sel, pRegFrame->rip));
-        return VERR_DBGF_HYPER_DB_XCPT;
-    }
+    AssertMsg(uDr6 & X86_DR6_BS, ("hey! we're not doing guest BPs yet! dr6=%RTreg %04x:%RGv\n",
+                                  uDr6, pRegFrame->cs, pRegFrame->rip));
+#endif
 
-    LogFlow(("DBGFRZTrap01Handler: guest debug event %#x at %04x:%RGv!\n", (uint32_t)uDr6, pRegFrame->cs.Sel, pRegFrame->rip));
-    return VINF_EM_RAW_GUEST_TRAP;
+    LogFlow(("DBGFRZTrap01Handler: guest debug event %RTreg at %04x:%RGv!\n", uDr6, pRegFrame->cs, pRegFrame->rip));
+    return fInHyper ? VERR_DBGF_HYPER_DB_XCPT : VINF_EM_RAW_GUEST_TRAP;
 }
 
 
@@ -107,14 +105,14 @@ VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
  *          VINF_SUCCESS means we completely handled this trap,
  *          other codes are passed execution to host context.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The virtual CPU handle.
  * @param   pRegFrame   Pointer to the register frame for the trap.
  */
-VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
+VMMRZDECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame)
 {
 #ifdef IN_RC
-    const bool fInHyper = !(pRegFrame->ss.Sel & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;
+    const bool fInHyper = !(pRegFrame->ss & X86_SEL_RPL) && !pRegFrame->eflags.Bits.u1VM;
 #else
     const bool fInHyper = false;
 #endif
@@ -126,11 +124,11 @@ VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
     if (pVM->dbgf.s.cBreakpoints > 0)
     {
         RTGCPTR pPc;
-        int rc = SELMValidateAndConvertCSAddr(pVCpu, pRegFrame->eflags, pRegFrame->ss.Sel, pRegFrame->cs.Sel, &pRegFrame->cs,
+        int rc = SELMValidateAndConvertCSAddr(pVM, pRegFrame->eflags, pRegFrame->ss, pRegFrame->cs, &pRegFrame->csHid,
 #ifdef IN_RC
-                                              pRegFrame->eip - 1,
+                                              (RTGCPTR)((RTGCUINTPTR)pRegFrame->eip - 1),
 #else
-                                              pRegFrame->rip /* no -1 in R0 */,
+                                              (RTGCPTR)pRegFrame->rip /* no -1 in R0 */,
 #endif
                                               &pPc);
         AssertRCReturn(rc, rc);
@@ -144,7 +142,7 @@ VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pReg
                 pVCpu->dbgf.s.iActiveBp = pVM->dbgf.s.aBreakpoints[iBp].iBp;
 
                 LogFlow(("DBGFRZTrap03Handler: hit breakpoint %d at %RGv (%04x:%RGv) cHits=0x%RX64\n",
-                         pVM->dbgf.s.aBreakpoints[iBp].iBp, pPc, pRegFrame->cs.Sel, pRegFrame->rip,
+                         pVM->dbgf.s.aBreakpoints[iBp].iBp, pPc, pRegFrame->cs, pRegFrame->rip,
                          pVM->dbgf.s.aBreakpoints[iBp].cHits));
                 return fInHyper
                      ? VINF_EM_DBG_HYPER_BREAKPOINT

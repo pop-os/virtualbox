@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@
 *******************************************************************************/
 #define CHECKNETWORK(String, rcExpected, ExpectedNetwork, ExpectedNetMask) \
     do { \
-        RTNETADDRIPV4 Network, NetMask; \
+        RTIPV4ADDR Network, NetMask; \
         int rc2 = RTCidrStrToIPv4(String, &Network, &NetMask); \
         if ((rcExpected) && !rc2) \
         { \
@@ -49,11 +49,11 @@
         } \
         else if (   (rcExpected) != rc2 \
                  || (   rc2 == VINF_SUCCESS \
-                     && (   (ExpectedNetwork) != Network.u \
-                         || (ExpectedNetMask) != NetMask.u))) \
+                     && (   (ExpectedNetwork) != Network \
+                         || (ExpectedNetMask) != NetMask))) \
         { \
-            RTTestIFailed("at line %d: '%s': expected %Rrc got %Rrc, expected network %RTnaipv4 got %RTnaipv4, expected netmask %RTnaipv4 got %RTnaipv4\n", \
-                          __LINE__, String, rcExpected, rc2, (ExpectedNetwork), Network.u, (ExpectedNetMask), NetMask.u); \
+            RTTestIFailed("at line %d: '%s': expected %Rrc got %Rrc, expected network %08x got %08x, expected netmask %08x got %08x\n", \
+                          __LINE__, String, rcExpected, rc2, (ExpectedNetwork), Network, (ExpectedNetMask), NetMask); \
         } \
     } while (0)
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2014 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #include <VBox/ExtPack/ExtPack.h>
 #include <iprt/fs.h>
 
-#if !defined(VBOX_COM_INPROC)
 /**
  * An extension pack file.
  */
@@ -55,7 +54,6 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *a_pbstrDescription);
     STDMETHOD(COMGETTER(Version))(BSTR *a_pbstrVersion);
     STDMETHOD(COMGETTER(Revision))(ULONG *a_puRevision);
-    STDMETHOD(COMGETTER(Edition))(BSTR *a_pbstrEdition);
     STDMETHOD(COMGETTER(VRDEModule))(BSTR *a_pbstrVrdeModule);
     STDMETHOD(COMGETTER(PlugIns))(ComSafeArrayOut(IExtPackPlugIn *, a_paPlugIns));
     STDMETHOD(COMGETTER(Usable))(BOOL *a_pfUsable);
@@ -85,7 +83,6 @@ private:
 
     friend class ExtPackManager;
 };
-#endif
 
 
 /**
@@ -120,7 +117,6 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *a_pbstrDescription);
     STDMETHOD(COMGETTER(Version))(BSTR *a_pbstrVersion);
     STDMETHOD(COMGETTER(Revision))(ULONG *a_puRevision);
-    STDMETHOD(COMGETTER(Edition))(BSTR *a_pbstrEdition);
     STDMETHOD(COMGETTER(VRDEModule))(BSTR *a_pbstrVrdeModule);
     STDMETHOD(COMGETTER(PlugIns))(ComSafeArrayOut(IExtPackPlugIn *, a_paPlugIns));
     STDMETHOD(COMGETTER(Usable))(BOOL *a_pfUsable);
@@ -148,7 +144,6 @@ public:
     bool        callVmPowerOffHook(IConsole *a_pConsole, PVM a_pVM, AutoWriteLock *a_pLock);
     HRESULT     checkVrde(void);
     HRESULT     getVrdpLibraryName(Utf8Str *a_pstrVrdeLibrary);
-    HRESULT     getLibraryName(const char *a_pszModuleName, Utf8Str *a_pstrLibrary);
     bool        wantsToBeDefaultVrde(void) const;
     HRESULT     refresh(bool *pfCanDelete);
     /** @}  */
@@ -168,9 +163,6 @@ protected:
                                               VBOXEXTPACKMODKIND enmKind, char *pszFound, size_t cbFound, bool *pfNative);
     static DECLCALLBACK(int)    hlpGetFilePath(PCVBOXEXTPACKHLP pHlp, const char *pszFilename, char *pszPath, size_t cbPath);
     static DECLCALLBACK(VBOXEXTPACKCTX) hlpGetContext(PCVBOXEXTPACKHLP pHlp);
-    static DECLCALLBACK(int)    hlpLoadHGCMService(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IConsole) *pConsole, const char *pszServiceLibrary, const char *pszServiceName);
-    static DECLCALLBACK(int)    hlpLoadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary);
-    static DECLCALLBACK(int)    hlpUnloadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary);
     static DECLCALLBACK(int)    hlpReservedN(PCVBOXEXTPACKHLP pHlp);
     /** @}  */
 
@@ -220,12 +212,10 @@ class ATL_NO_VTABLE ExtPackManager :
 
     /** @name Internal interfaces used by other Main classes.
      * @{ */
-#if !defined(VBOX_COM_INPROC)
     static DECLCALLBACK(int) doInstallThreadProc(RTTHREAD hThread, void *pvJob);
     HRESULT     doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, Utf8Str const *a_pstrDisplayInfo);
     static DECLCALLBACK(int) doUninstallThreadProc(RTTHREAD hThread, void *pvJob);
     HRESULT     doUninstall(const Utf8Str *a_pstrName, bool a_fForcedRemoval, const Utf8Str *a_pstrDisplayInfo);
-#endif
     void        callAllVirtualBoxReadyHooks(void);
     void        callAllConsoleReadyHooks(IConsole *a_pConsole);
     void        callAllVmCreatedHooks(IMachine *a_pMachine);
@@ -234,7 +224,6 @@ class ATL_NO_VTABLE ExtPackManager :
     void        callAllVmPowerOffHooks(IConsole *a_pConsole, PVM a_pVM);
     HRESULT     checkVrdeExtPack(Utf8Str const *a_pstrExtPack);
     int         getVrdeLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrVrdeLibrary);
-    HRESULT     getLibraryPathForExtPack(const char *a_pszModuleName, Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrLibrary);
     HRESULT     getDefaultVrdeExtPack(Utf8Str *a_pstrExtPack);
     bool        isExtPackUsable(const char *a_pszExtPack);
     void        dumpAllToReleaseLog(void);

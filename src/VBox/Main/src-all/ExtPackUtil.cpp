@@ -96,7 +96,7 @@ void VBoxExtPackInitDesc(PVBOXEXTPACKDESC a_pExtPackDesc)
  *
  * @returns NULL on success, pointer to an error message on failure (caller
  *          deletes it).
- * @param   a_pDoc              Pointer to the XML document.
+ * @param   a_pDoc              Pointer to the the XML document.
  * @param   a_pExtPackDesc      Where to store the extension pack descriptor.
  */
 static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACKDESC a_pExtPackDesc)
@@ -322,7 +322,7 @@ RTCString *VBoxExtPackLoadDescFromVfsFile(RTVFSFILE hVfsFile, PVBOXEXTPACKDESC a
     if (RT_SUCCESS(rc))
     {
         xml::XmlMemParser   Parser;
-        RTCString           strFileName = VBOX_EXTPACK_DESCRIPTION_NAME;
+        RTCString    strFileName = VBOX_EXTPACK_DESCRIPTION_NAME;
         try
         {
             Parser.read(pvFile, cbFile, strFileName, Doc);

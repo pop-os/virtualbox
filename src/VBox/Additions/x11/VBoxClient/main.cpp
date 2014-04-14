@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@
 #include <iprt/critsect.h>
 #include <iprt/env.h>
 #include <iprt/initterm.h>
-#include <iprt/message.h>
 #include <iprt/path.h>
 #include <iprt/param.h>
 #include <iprt/stream.h>
@@ -140,25 +139,14 @@ void vboxClientSetSignalHandlers(void)
  */
 void vboxClientUsage(const char *pcszFileName)
 {
-    RTPrintf("Usage: %s --clipboard|"
-#ifdef VBOX_WITH_DRAG_AND_DROP
-             "--draganddrop|"
-#endif
-             "--display|"
-# ifdef VBOX_WITH_GUEST_PROPS
-             "--checkhostversion|"
-#endif
-             "--seamless [-d|--nodaemon]\n", pcszFileName);
+    RTPrintf("Usage: %s --clipboard|--display|--checkhostversion|--seamless [-d|--nodaemon]\n", pcszFileName);
     RTPrintf("Start the VirtualBox X Window System guest services.\n\n");
     RTPrintf("Options:\n");
     RTPrintf("  --clipboard        start the shared clipboard service\n");
-#ifdef VBOX_WITH_DRAG_AND_DROP
-    RTPrintf("  --draganddrop      start the drag and drop service\n");
-#endif
     RTPrintf("  --display          start the display management service\n");
-#ifdef VBOX_WITH_GUEST_PROPS
+# ifdef VBOX_WITH_GUEST_PROPS
     RTPrintf("  --checkhostversion start the host version notifier service\n");
-#endif
+# endif
     RTPrintf("  --seamless         start the seamless windows service\n");
     RTPrintf("  -d, --nodaemon     continue running as a system service\n");
     RTPrintf("\n");
@@ -170,14 +158,7 @@ void vboxClientUsage(const char *pcszFileName)
  */
 int main(int argc, char *argv[])
 {
-    if (!XInitThreads())
-        return 1;
-    /* Initialise our runtime before all else. */
-    int rc = RTR3InitExe(argc, &argv, 0);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
-
-    int rcClipboard;
+    int rcClipboard, rc;
     const char *pszFileName = RTPathFilename(argv[0]);
     bool fDaemonise = true;
     /* Have any fatal errors occurred yet? */
@@ -188,13 +169,22 @@ int main(int argc, char *argv[])
     if (NULL == pszFileName)
         pszFileName = "VBoxClient";
 
+    /* Initialise our runtime before all else. */
+    rc = RTR3Init();
+    if (RT_FAILURE(rc))
+    {
+        /* Of course, this should never happen. */
+        RTPrintf("%s: Failed to initialise the run-time library, rc=%Rrc\n", pszFileName, rc);
+        exit(1);
+    }
+
     /* Initialise our global clean-up critical section */
     rc = RTCritSectInit(&g_critSect);
     if (RT_FAILURE(rc))
     {
         /* Of course, this should never happen. */
         RTPrintf("%s: Failed to initialise the global critical section, rc=%Rrc\n", pszFileName, rc);
-        return 1;
+        exit(1);
     }
 
     /* Parse our option(s) */
@@ -231,31 +221,22 @@ int main(int argc, char *argv[])
             else
                 fSuccess = false;
         }
-#ifdef VBOX_WITH_DRAG_AND_DROP
-        else if (!strcmp(argv[i], "--draganddrop"))
-        {
-            if (g_pService == NULL)
-                g_pService = VBoxClient::GetDragAndDropService();
-            else
-                fSuccess = false;
-        }
-#endif /* VBOX_WITH_DRAG_AND_DROP */
         else if (!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
         {
             vboxClientUsage(pszFileName);
-            return 0;
+            exit(0);
         }
         else
         {
             RTPrintf("%s: unrecognized option `%s'\n", pszFileName, argv[i]);
             RTPrintf("Try `%s --help' for more information\n", pszFileName);
-            return 1;
+            exit(1);
         }
     }
     if (!fSuccess || !g_pService)
     {
         vboxClientUsage(pszFileName);
-        return 1;
+        exit(1);
     }
     /* Get the path for the pidfiles */
     rc = RTPathUserHome(g_szPidFile, sizeof(g_szPidFile));

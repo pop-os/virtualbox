@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,9 +51,9 @@ typedef enum EMSTATE
     /** Raw-mode execution. */
     EMSTATE_RAW,
     /** Hardware accelerated raw-mode execution. */
-    EMSTATE_HM,
-    /** Executing in IEM. */
-    EMSTATE_IEM,
+    EMSTATE_HWACC,
+    /** Value reserved for future use (used to be PARAV). */
+    EMSTATE_RESERVED,
     /** Recompiled mode execution. */
     EMSTATE_REM,
     /** Execution is halted. (waiting for interrupt) */
@@ -67,25 +67,20 @@ typedef enum EMSTATE
     /** Guest debug event from raw-mode is being processed. */
     EMSTATE_DEBUG_GUEST_RAW,
     /** Guest debug event from hardware accelerated mode is being processed. */
-    EMSTATE_DEBUG_GUEST_HM,
-    /** Guest debug event from interpreted execution mode is being processed. */
-    EMSTATE_DEBUG_GUEST_IEM,
+    EMSTATE_DEBUG_GUEST_HWACC,
     /** Guest debug event from recompiled-mode is being processed. */
     EMSTATE_DEBUG_GUEST_REM,
     /** Hypervisor debug event being processed. */
     EMSTATE_DEBUG_HYPER,
     /** The VM has encountered a fatal error. (And everyone is panicing....) */
     EMSTATE_GURU_MEDITATION,
-    /** Executing in IEM, falling back on REM if we cannot switch back to HM or
-     * RAW after a short while. */
-    EMSTATE_IEM_THEN_REM,
     /** Just a hack to ensure that we get a 32-bit integer. */
     EMSTATE_MAKE_32BIT_HACK = 0x7fffffff
 } EMSTATE;
 
 
 /**
- * EMInterpretInstructionCPU execution modes.
+ * EMInterpretInstructionCPUEx execution modes.
  */
 typedef enum
 {
@@ -99,8 +94,8 @@ typedef enum
     EMCODETYPE_32BIT_HACK = 0x7fffffff
 } EMCODETYPE;
 
-VMM_INT_DECL(EMSTATE)           EMGetState(PVMCPU pVCpu);
-VMM_INT_DECL(void)              EMSetState(PVMCPU pVCpu, EMSTATE enmNewState);
+VMMDECL(EMSTATE) EMGetState(PVMCPU pVCpu);
+VMMDECL(void)    EMSetState(PVMCPU pVCpu, EMSTATE enmNewState);
 
 /** @name Callback handlers for instruction emulation functions.
  * These are placed here because IOM wants to use them as well.
@@ -126,7 +121,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  * @returns false if disabled.
  * @param   pVM         The VM to operate on.
  */
-#define EMIsRawRing3Enabled(pVM)            (!(pVM)->fRecompileUser)
+#define EMIsRawRing3Enabled(pVM) (!(pVM)->fRecompileUser)
 
 /**
  * Checks if raw ring-0 execute mode is enabled.
@@ -135,20 +130,7 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  * @returns false if disabled.
  * @param   pVM         The VM to operate on.
  */
-#define EMIsRawRing0Enabled(pVM)            (!(pVM)->fRecompileSupervisor)
-
-#ifdef VBOX_WITH_RAW_RING1
-/**
- * Checks if raw ring-1 execute mode is enabled.
- *
- * @returns true if enabled.
- * @returns false if disabled.
- * @param   pVM         The VM to operate on.
- */
-# define EMIsRawRing1Enabled(pVM)           ((pVM)->fRawRing1Enabled)
-#else
-# define EMIsRawRing1Enabled(pVM)           false
-#endif
+#define EMIsRawRing0Enabled(pVM) (!(pVM)->fRecompileSupervisor)
 
 /**
  * Checks if execution with hardware assisted virtualization is enabled.
@@ -157,11 +139,11 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  * @returns false if disabled.
  * @param   pVM         The VM to operate on.
  */
-#define EMIsHwVirtExecutionEnabled(pVM)     (!(pVM)->fRecompileSupervisor && !(pVM)->fRecompileUser)
+#define EMIsHwVirtExecutionEnabled(pVM) (!(pVM)->fRecompileSupervisor && !(pVM)->fRecompileUser)
 
 /**
- * Checks if execution of supervisor code should be done in the
- * recompiler or not.
+ * Checks if execution of supervisor code should be done in the 
+ * recompiler or not. 
  *
  * @returns true if enabled.
  * @returns false if disabled.
@@ -169,39 +151,31 @@ typedef FNEMULATELOCKPARAM3    *PFNEMULATELOCKPARAM3;
  */
 #define EMIsSupervisorCodeRecompiled(pVM) ((pVM)->fRecompileSupervisor)
 
-VMMDECL(void)                   EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC);
-VMMDECL(RTGCUINTPTR)            EMGetInhibitInterruptsPC(PVMCPU pVCpu);
-VMM_INT_DECL(int)               EMInterpretDisasCurrent(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pCpu, unsigned *pcbInstr);
-VMM_INT_DECL(int)               EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
-                                                      PDISCPUSTATE pDISState, unsigned *pcbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstruction(PVMCPU pVCpu, PCPUMCTXCORE pCoreCtx, RTGCPTR pvFault);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstructionEx(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbWritten);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInstructionDisasState(PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE pCoreCtx,
-                                                                 RTGCPTR pvFault, EMCODETYPE enmCodeType);
-
-#ifdef IN_RC
-VMM_INT_DECL(int)               EMInterpretIretV86ForPatm(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-#endif
-
-VMM_INT_DECL(int)               EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC);
-VMM_INT_DECL(VBOXSTRICTRC)      EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen);
-VMM_INT_DECL(int)               EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx);
-VMM_INT_DECL(int)               EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegCrx, uint32_t SrcRegGen);
-VMM_INT_DECL(int)               EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx);
-VMM_INT_DECL(int)               EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint16_t u16Data);
-VMM_INT_DECL(int)               EMInterpretCLTS(PVM pVM, PVMCPU pVCpu);
-VMM_INT_DECL(int)               EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(int)               EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
-VMM_INT_DECL(bool)              EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
-VMM_INT_DECL(bool)              EMMonitorWaitShouldContinue(PVMCPU pVCpu, PCPUMCTX pCtx);
-VMM_INT_DECL(int)               EMMonitorWaitPrepare(PVMCPU pVCpu, uint64_t rax, uint64_t rcx, uint64_t rdx, RTGCPHYS GCPhys);
-VMM_INT_DECL(int)               EMMonitorWaitPerform(PVMCPU pVCpu, uint64_t rax, uint64_t rcx);
+VMMDECL(void)           EMSetInhibitInterruptsPC(PVMCPU pVCpu, RTGCUINTPTR PC);
+VMMDECL(RTGCUINTPTR)    EMGetInhibitInterruptsPC(PVMCPU pVCpu);
+VMMDECL(int)            EMInterpretDisasOne(PVM pVM, PVMCPU pVCpu, PCCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, unsigned *pcbInstr);
+VMMDECL(int)            EMInterpretDisasOneEx(PVM pVM, PVMCPU pVCpu, RTGCUINTPTR GCPtrInstr, PCCPUMCTXCORE pCtxCore,
+                                              PDISCPUSTATE pDISState, unsigned *pcbInstr);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInstruction(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, uint32_t *pcbSize);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInstructionCPU(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDISState, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, EMCODETYPE enmCodeType, uint32_t *pcbSize);
+VMMDECL(int)            EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretRdtsc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretRdpmc(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretRdtscp(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMDECL(VBOXSTRICTRC)   EMInterpretInvlpg(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCPTR pAddrGC);
+VMMDECL(int)            EMInterpretIret(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(VBOXSTRICTRC)   EMInterpretMWait(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretMonitor(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretDRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegDrx, uint32_t SrcRegGen);
+VMMDECL(int)            EMInterpretDRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegDrx);
+VMMDECL(int)            EMInterpretCRxWrite(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegCrx, uint32_t SrcRegGen);
+VMMDECL(int)            EMInterpretCRxRead(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t DestRegGen, uint32_t SrcRegCrx);
+VMMDECL(int)            EMInterpretLMSW(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint16_t u16Data);
+VMMDECL(int)            EMInterpretCLTS(PVM pVM, PVMCPU pVCpu);
+VMMDECL(VBOXSTRICTRC)   EMInterpretPortIO(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, PDISCPUSTATE pCpu, uint32_t cbOp);
+VMMDECL(int)            EMInterpretRdmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(int)            EMInterpretWrmsr(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMDECL(bool)           EMShouldContinueAfterHalt(PVMCPU pVCpu, PCPUMCTX pCtx);
 
 /** @name Assembly routines
  * @{ */
@@ -231,28 +205,26 @@ VMMDECL(uint32_t)   EMEmulateLockXAdd(void *pvParam1, void *pvParam2, size_t cbO
 
 /** @name REM locking routines
  * @{ */
-VMMDECL(void)                   EMRemUnlock(PVM pVM);
-VMMDECL(void)                   EMRemLock(PVM pVM);
-VMMDECL(bool)                   EMRemIsLockOwner(PVM pVM);
-VMM_INT_DECL(int)               EMRemTryLock(PVM pVM);
+VMMDECL(void)       EMRemUnlock(PVM pVM);
+VMMDECL(void)       EMRemLock(PVM pVM);
+VMMDECL(bool)       EMRemIsLockOwner(PVM pVM);
+VMMDECL(int)        EMRemTryLock(PVM pVM);
 /** @} */
-
-
-/** @name EM_ONE_INS_FLAGS_XXX - flags for EMR3HmSingleInstruction (et al).
- * @{ */
-/** Return when CS:RIP changes or some other important event happens.
- * This means running whole REP and LOOP $ sequences for instance. */
-#define EM_ONE_INS_FLAGS_RIP_CHANGE     RT_BIT_32(0)
-/** Mask of valid flags. */
-#define EM_ONE_INS_FLAGS_MASK           UINT32_C(0x00000001)
-/** @} */
-
 
 #ifdef IN_RING3
 /** @defgroup grp_em_r3     The EM Host Context Ring-3 API
  * @ingroup grp_em
  * @{
  */
+VMMR3DECL(int)      EMR3Init(PVM pVM);
+VMMR3DECL(void)     EMR3Relocate(PVM pVM);
+VMMR3DECL(void)     EMR3ResetCpu(PVMCPU pVCpu);
+VMMR3DECL(void)     EMR3Reset(PVM pVM);
+VMMR3DECL(int)      EMR3Term(PVM pVM);
+VMMR3DECL(DECLNORETURN(void)) EMR3FatalError(PVMCPU pVCpu, int rc);
+VMMR3DECL(int)      EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)      EMR3CheckRawForcedActions(PVM pVM, PVMCPU pVCpu);
+VMMR3DECL(int)      EMR3Interpret(PVM pVM);
 
 /**
  * Command argument for EMR3RawSetMode().
@@ -268,30 +240,25 @@ typedef enum EMEXECPOLICY
     EMEXECPOLICY_RECOMPILE_RING0,
     /** Whether to recompile ring-3 code or execute it in raw/hm. */
     EMEXECPOLICY_RECOMPILE_RING3,
-    /** Whether to only use IEM for execution. */
-    EMEXECPOLICY_IEM_ALL,
     /** End of valid value (not included). */
     EMEXECPOLICY_END,
     /** The customary 32-bit type blowup. */
     EMEXECPOLICY_32BIT_HACK = 0x7fffffff
 } EMEXECPOLICY;
-VMMR3DECL(int)                  EMR3SetExecutionPolicy(PUVM pUVM, EMEXECPOLICY enmPolicy, bool fEnforce);
-VMMR3DECL(int)                  EMR3QueryExecutionPolicy(PUVM pUVM, EMEXECPOLICY enmPolicy, bool *pfEnforced);
 
-VMMR3_INT_DECL(int)             EMR3Init(PVM pVM);
-VMMR3_INT_DECL(void)            EMR3Relocate(PVM pVM);
-VMMR3_INT_DECL(void)            EMR3ResetCpu(PVMCPU pVCpu);
-VMMR3_INT_DECL(void)            EMR3Reset(PVM pVM);
-VMMR3_INT_DECL(int)             EMR3Term(PVM pVM);
-VMMR3DECL(DECLNORETURN(void))   EMR3FatalError(PVMCPU pVCpu, int rc);
-VMMR3_INT_DECL(int)             EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)             EMR3CheckRawForcedActions(PVM pVM, PVMCPU pVCpu);
-VMMR3_INT_DECL(int)             EMR3NotifyResume(PVM pVM);
-VMMR3_INT_DECL(int)             EMR3NotifySuspend(PVM pVM);
-VMMR3_INT_DECL(VBOXSTRICTRC)    EMR3HmSingleInstruction(PVM pVM, PVMCPU pVCpu, uint32_t fFlags);
-
+VMMR3DECL(int)      EMR3SetExecutionPolicy(PVM pVM, EMEXECPOLICY enmPolicy, bool fEnforce);
 /** @} */
 #endif /* IN_RING3 */
+
+
+#ifdef IN_RC
+/** @defgroup grp_em_gc     The EM Guest Context API
+ * @ingroup grp_em
+ * @{
+ */
+VMMRCDECL(int)      EMGCTrap(PVM pVM, unsigned uTrap, PCPUMCTXCORE pRegFrame);
+/** @} */
+#endif /* IN_RC */
 
 /** @} */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,52 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxStubBld_h___
-#define ___VBoxStubBld_h___
+#pragma once
 
 #define VBOXSTUB_MAX_PACKAGES 128
 
-typedef struct VBOXSTUBPKGHEADER
+typedef struct
 {
-    /** Some magic string not defined by this header? Turns out it's a write only
-     *  field... */
-    char    szMagic[9];
-    /* Inbetween szMagic and dwVersion there are 3 bytes of implicit padding. */
-    /** Some version number not defined by this header? Also write only field.
-     *  Should be a uint32_t, not DWORD. */
-    DWORD   dwVersion;
-    /** Number of packages following the header. byte is prefixed 'b', not 'by'!
-     *  Use uint8_t instead of BYTE. */
-    BYTE    byCntPkgs;
-    /* There are 3 bytes of implicit padding here. */
-} VBOXSTUBPKGHEADER;
-typedef VBOXSTUBPKGHEADER *PVBOXSTUBPKGHEADER;
+    char szMagic[9];
+    DWORD dwVersion;
+    BYTE byCntPkgs;
 
-typedef enum VBOXSTUBPKGARCH
+} VBOXSTUBPKGHEADER, *PVBOXSTUBPKGHEADER;
+
+enum VBOXSTUBPKGARCH
 {
     VBOXSTUBPKGARCH_ALL = 0,
-    VBOXSTUBPKGARCH_X86,
-    VBOXSTUBPKGARCH_AMD64
-} VBOXSTUBPKGARCH;
+    VBOXSTUBPKGARCH_X86 = 1,
+    VBOXSTUBPKGARCH_AMD64 = 2
+};
 
-typedef struct VBOXSTUBPKG
+typedef struct
 {
     BYTE byArch;
-    /** Probably the name of the PE resource or something, read the source to
-     *  find out for sure.  Don't use _MAX_PATH, define your own max lengths! */
     char szResourceName[_MAX_PATH];
     char szFileName[_MAX_PATH];
-} VBOXSTUBPKG;
-typedef VBOXSTUBPKG *PVBOXSTUBPKG;
+} VBOXSTUBPKG, *PVBOXSTUBPKG;
 
 /* Only for construction. */
-/* Since it's only used by VBoxStubBld.cpp, why not just keep it there? */
 
-typedef struct VBOXSTUBBUILDPKG
+typedef struct
 {
     char szSourcePath[_MAX_PATH];
     BYTE byArch;
-} VBOXSTUBBUILDPKG;
-typedef VBOXSTUBBUILDPKG *PVBOXSTUBBUILDPKG;
+} VBOXSTUBBUILDPKG, *PVBOXSTUBBUILDPKG;
 
-#endif

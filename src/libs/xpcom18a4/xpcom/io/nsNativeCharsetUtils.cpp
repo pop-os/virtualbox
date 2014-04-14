@@ -642,9 +642,13 @@ nsNativeCharsetConverter::GlobalInit()
     char a = 'a';
     unsigned int w = 0;
 
+#ifndef L4ENV
     int res = mbtowc((wchar_t *) &w, &a, 1);
 
     gWCharIsUnicode = (res != -1 && w == 'a');
+#else
+    gWCharIsUnicode = 0;
+#endif
 
 #ifdef DEBUG
     if (!gWCharIsUnicode)
@@ -659,6 +663,8 @@ nsNativeCharsetConverter::NativeToUnicode(const char **input,
                                           PRUint32    *outputLeft)
 {
     if (gWCharIsUnicode) {
+#ifndef L4ENV
+  /* We don't have any wchar support built into uclibc just now */
         int incr;
 
         // cannot use wchar_t here since it may have been redefined (e.g.,
@@ -683,6 +689,7 @@ nsNativeCharsetConverter::NativeToUnicode(const char **input,
             (*output)++;
             (*outputLeft)--;
         }
+#endif /* not defined L4ENV */
     }
     else {
         // wchar_t isn't unicode, so the best we can do is treat the
@@ -700,6 +707,8 @@ nsNativeCharsetConverter::UnicodeToNative(const PRUnichar **input,
                                           PRUint32         *outputLeft)
 {
     if (gWCharIsUnicode) {
+#ifndef L4ENV
+  /* We don't have any wchar support built into uclibc just now */
         int incr;
 
         while (*inputLeft && *outputLeft >= MB_CUR_MAX) {
@@ -721,6 +730,7 @@ nsNativeCharsetConverter::UnicodeToNative(const PRUnichar **input,
             (*input)++;
             (*inputLeft)--;
         }
+#endif /* not defined L4ENV */
     }
     else {
         // wchar_t isn't unicode, so the best we can do is treat the

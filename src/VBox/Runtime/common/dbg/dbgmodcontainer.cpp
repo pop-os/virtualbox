@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,10 +34,6 @@
 #include <iprt/avl.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
-#define RTDBGMODCNT_WITH_MEM_CACHE
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-# include <iprt/memcache.h>
-#endif
 #include <iprt/string.h>
 #include <iprt/strcache.h>
 #include "internal/dbgmod.h"
@@ -138,12 +134,6 @@ typedef struct RTDBGMODCTN
     uint32_t                    iNextSymbolOrdinal;
     /** The next line number ordinal. */
     uint32_t                    iNextLineOrdinal;
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    /** Line number allocator.
-     * Using a cache is a bit overkill since we normally won't free them, but
-     * it's a construct that exists and does the job relatively efficiently. */
-    RTMEMCACHE                  hLineNumAllocator;
-#endif
 } RTDBGMODCTN;
 /** Pointer to instance data for the debug info container. */
 typedef RTDBGMODCTN *PRTDBGMODCTN;
@@ -260,11 +250,7 @@ static DECLCALLBACK(int) rtDbgModContainer_LineAdd(PRTDBGMODINT pMod, const char
     /*
      * Create a new entry.
      */
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    PRTDBGMODCTNLINE pLine = (PRTDBGMODCTNLINE)RTMemCacheAlloc(pThis->hLineNumAllocator);
-#else
     PRTDBGMODCTNLINE pLine = (PRTDBGMODCTNLINE)RTMemAllocZ(sizeof(*pLine));
-#endif
     if (!pLine)
         return VERR_NO_MEMORY;
     pLine->AddrCore.Key     = off;
@@ -295,17 +281,13 @@ static DECLCALLBACK(int) rtDbgModContainer_LineAdd(PRTDBGMODINT pMod, const char
     }
     else
         rc = VERR_NO_MEMORY;
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    RTMemCacheFree(pThis->hLineNumAllocator, pLine);
-#else
     RTMemFree(pLine);
-#endif
     return rc;
 }
 
 
 /** @copydoc RTDBGMODVTDBG::pfnSymbolByAddr */
-static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, uint32_t fFlags,
+static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off,
                                                         PRTINTPTR poffDisp, PRTDBGSYMBOL pSymInfo)
 {
     PRTDBGMODCTN pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
@@ -329,7 +311,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolByAddr(PRTDBGMODINT pMod, RTDBG
                                                             ? &pThis->AbsAddrTree
                                                             : &pThis->paSegs[iSeg].SymAddrTree,
                                                             off,
-                                                            fFlags == RTDBGSYMADDR_FLAGS_GREATER_OR_EQUAL /*fAbove*/);
+                                                            false /*fAbove*/);
     if (!pAvlCore)
         return VERR_SYMBOL_NOT_FOUND;
     PCRTDBGMODCTNSYMBOL pMySym = RT_FROM_MEMBER(pAvlCore, RTDBGMODCTNSYMBOL const, AddrCore);
@@ -400,17 +382,9 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolAdd(PRTDBGMODINT pMod, const ch
                     ("iSeg=%#x cSegs=%#x\n", pThis->cSegs),
                     VERR_DBG_INVALID_SEGMENT_INDEX);
     AssertMsgReturn(    iSeg >= RTDBGSEGIDX_SPECIAL_FIRST
-                    ||  off <= pThis->paSegs[iSeg].cb,
+                    ||  off + cb <= pThis->paSegs[iSeg].cb,
                     ("off=%RTptr cb=%RTptr cbSeg=%RTptr\n", off, cb, pThis->paSegs[iSeg].cb),
                     VERR_DBG_INVALID_SEGMENT_OFFSET);
-
-    /* Be a little relaxed wrt to the symbol size. */
-    int rc = VINF_SUCCESS;
-    if (iSeg != RTDBGSEGIDX_ABS && off + cb > pThis->paSegs[iSeg].cb)
-    {
-        cb = pThis->paSegs[iSeg].cb - off;
-        rc = VINF_DBG_ADJUSTED_SYM_SIZE;
-    }
 
     /*
      * Create a new entry.
@@ -425,7 +399,8 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolAdd(PRTDBGMODINT pMod, const ch
     pSymbol->iSeg               = iSeg;
     pSymbol->cb                 = cb;
     pSymbol->fFlags             = fFlags;
-    pSymbol->NameCore.pszString = RTStrCacheEnterN(g_hDbgModStrCache, pszSymbol, cchSymbol);
+    pSymbol->NameCore.pszString = RTStrCacheEnter(g_hDbgModStrCache, pszSymbol);
+    int rc;
     if (pSymbol->NameCore.pszString)
     {
         if (RTStrSpaceInsert(&pThis->Names, &pSymbol->NameCore))
@@ -440,7 +415,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SymbolAdd(PRTDBGMODINT pMod, const ch
                     if (piOrdinal)
                         *piOrdinal = pThis->iNextSymbolOrdinal;
                     pThis->iNextSymbolOrdinal++;
-                    return rc;
+                    return VINF_SUCCESS;
                 }
 
                 /* bail out */
@@ -504,17 +479,7 @@ static DECLCALLBACK(int) rtDbgModContainer_SegmentAdd(PRTDBGMODINT pMod, RTUINTP
         RTUINTPTR uCurRva     = pThis->paSegs[iSeg].off;
         RTUINTPTR uCurRvaLast = uCurRva + RT_MAX(pThis->paSegs[iSeg].cb, 1) - 1;
         if (   uRva      <= uCurRvaLast
-            && uRvaLast  >= uCurRva
-            && (   /* HACK ALERT! Allow empty segments to share space (bios/watcom, elf). */
-                   (cb != 0 && pThis->paSegs[iSeg].cb != 0)
-                || (   cb == 0
-                    && uRva != uCurRva
-                    && uRva != uCurRvaLast)
-                || (    pThis->paSegs[iSeg].cb == 0
-                    && uCurRva != uRva
-                    && uCurRva != uRvaLast)
-               )
-           )
+            && uRvaLast  >= uCurRva)
             AssertMsgFailedReturn(("uRva=%RTptr uRvaLast=%RTptr (cb=%RTptr) \"%s\";\n"
                                    "uRva=%RTptr uRvaLast=%RTptr (cb=%RTptr) \"%s\" iSeg=%#x\n",
                                    uRva, uRvaLast, cb, pszName,
@@ -574,9 +539,7 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
     PRTDBGMODCTN          pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
     PCRTDBGMODCTNSEGMENT  paSeg = pThis->paSegs;
     uint32_t const        cSegs = pThis->cSegs;
-#if 0
     if (cSegs <= 7)
-#endif
     {
         /*
          * Linear search.
@@ -592,7 +555,6 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
             }
         }
     }
-#if 0 /** @todo binary search doesn't work if we've got empty segments in the list */
     else
     {
         /*
@@ -602,18 +564,10 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
         uint32_t iLast  = cSegs - 1;
         for (;;)
         {
-            uint32_t    iSeg   = iFirst + (iLast - iFirst) / 2;
+            uint32_t    iSeg   = iFirst + (iFirst - iLast) / 2;
             RTUINTPTR   offSeg = uRva - paSeg[iSeg].off;
             if (offSeg < paSeg[iSeg].cb)
             {
-#if 0 /* Enable if we change the above test. */
-                if (offSeg == 0 && paSeg[iSeg].cb == 0)
-                    while (   iSeg > 0
-                           && paSeg[iSeg - 1].cb  == 0
-                           && paSeg[iSeg - 1].off == uRva)
-                        iSeg--;
-#endif
-
                 if (poffSeg)
                     *poffSeg = offSeg;
                 return iSeg;
@@ -629,33 +583,16 @@ static DECLCALLBACK(RTDBGSEGIDX) rtDbgModContainer_RvaToSegOff(PRTDBGMODINT pMod
             }
             else
             {
-                /* between iSeg and iLast. paSeg[iSeg].cb == 0 ends up here too. */
+                /* between iSeg and iLast. */
                 if (iSeg == iLast)
                     break;
                 iFirst = iSeg + 1;
             }
         }
     }
-#endif
 
     /* Invalid. */
     return NIL_RTDBGSEGIDX;
-}
-
-
-/** Destroy a line number node. */
-static DECLCALLBACK(int)  rtDbgModContainer_DestroyTreeLineNode(PAVLU32NODECORE pNode, void *pvUser)
-{
-    PRTDBGMODCTN     pThis = (PRTDBGMODCTN)pvUser;
-    PRTDBGMODCTNLINE pLine = RT_FROM_MEMBER(pNode, RTDBGMODCTNLINE, OrdinalCore);
-    RTStrCacheRelease(g_hDbgModStrCache, pLine->pszFile);
-    pLine->pszFile = NULL;
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    RTMemCacheFree(pThis->hLineNumAllocator, pLine);
-#else
-    RTMemFree(pLine); NOREF(pThis);
-#endif
-    return 0;
 }
 
 
@@ -666,7 +603,6 @@ static DECLCALLBACK(int)  rtDbgModContainer_DestroyTreeNode(PAVLRUINTPTRNODECORE
     RTStrCacheRelease(g_hDbgModStrCache, pSym->NameCore.pszString);
     pSym->NameCore.pszString = NULL;
     RTMemFree(pSym);
-    NOREF(pvUser);
     return 0;
 }
 
@@ -689,13 +625,6 @@ static DECLCALLBACK(int) rtDbgModContainer_Close(PRTDBGMODINT pMod)
     RTAvlrUIntPtrDestroy(&pThis->AbsAddrTree, rtDbgModContainer_DestroyTreeNode, NULL);
     pThis->Names = NULL;
 
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    RTMemCacheDestroy(pThis->hLineNumAllocator);
-    pThis->hLineNumAllocator = NIL_RTMEMCACHE;
-#else
-    RTAvlU32Destroy(&pThis->LineOrdinalTree, rtDbgModContainer_DestroyTreeLineNode, pThis);
-#endif
-
     RTMemFree(pThis->paSegs);
     pThis->paSegs = NULL;
 
@@ -706,16 +635,15 @@ static DECLCALLBACK(int) rtDbgModContainer_Close(PRTDBGMODINT pMod)
 
 
 /** @copydoc RTDBGMODVTDBG::pfnTryOpen */
-static DECLCALLBACK(int) rtDbgModContainer_TryOpen(PRTDBGMODINT pMod, RTLDRARCH enmArch)
+static DECLCALLBACK(int) rtDbgModContainer_TryOpen(PRTDBGMODINT pMod)
 {
-    NOREF(pMod); NOREF(enmArch);
     return VERR_INTERNAL_ERROR_5;
 }
 
 
 
 /** Virtual function table for the debug info container. */
-DECL_HIDDEN_CONST(RTDBGMODVTDBG) const g_rtDbgModVtDbgContainer =
+static RTDBGMODVTDBG const g_rtDbgModVtDbgContainer =
 {
     /*.u32Magic = */            RTDBGMODVTDBG_MAGIC,
     /*.fSupports = */           0, /* (Don't call my TryOpen, please.) */
@@ -747,80 +675,6 @@ DECL_HIDDEN_CONST(RTDBGMODVTDBG) const g_rtDbgModVtDbgContainer =
 
 
 /**
- * Special container operation for removing all symbols.
- *
- * @returns IPRT status code.
- * @param   pMod        The module instance.
- */
-DECLHIDDEN(int) rtDbgModContainer_SymbolRemoveAll(PRTDBGMODINT pMod)
-{
-    PRTDBGMODCTN pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
-
-    for (uint32_t iSeg = 0; iSeg < pThis->cSegs; iSeg++)
-    {
-        RTAvlrUIntPtrDestroy(&pThis->paSegs[iSeg].SymAddrTree, rtDbgModContainer_DestroyTreeNode, NULL);
-        Assert(pThis->paSegs[iSeg].SymAddrTree == NULL);
-    }
-
-    RTAvlrUIntPtrDestroy(&pThis->AbsAddrTree, rtDbgModContainer_DestroyTreeNode, NULL);
-    Assert(pThis->AbsAddrTree == NULL);
-
-    pThis->Names = NULL;
-    pThis->iNextSymbolOrdinal = 0;
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Special container operation for removing all line numbers.
- *
- * @returns IPRT status code.
- * @param   pMod        The module instance.
- */
-DECLHIDDEN(int) rtDbgModContainer_LineRemoveAll(PRTDBGMODINT pMod)
-{
-    PRTDBGMODCTN pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
-
-    for (uint32_t iSeg = 0; iSeg < pThis->cSegs; iSeg++)
-        pThis->paSegs[iSeg].LineAddrTree = NULL;
-
-    RTAvlU32Destroy(&pThis->LineOrdinalTree, rtDbgModContainer_DestroyTreeLineNode, pThis);
-    Assert(pThis->LineOrdinalTree == NULL);
-
-    pThis->iNextLineOrdinal = 0;
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Special container operation for removing everything.
- *
- * @returns IPRT status code.
- * @param   pMod        The module instance.
- */
-DECLHIDDEN(int) rtDbgModContainer_RemoveAll(PRTDBGMODINT pMod)
-{
-    PRTDBGMODCTN pThis = (PRTDBGMODCTN)pMod->pvDbgPriv;
-
-    rtDbgModContainer_LineRemoveAll(pMod);
-    rtDbgModContainer_SymbolRemoveAll(pMod);
-
-    for (uint32_t iSeg = 0; iSeg < pThis->cSegs; iSeg++)
-    {
-        RTStrCacheRelease(g_hDbgModStrCache, pThis->paSegs[iSeg].pszName);
-        pThis->paSegs[iSeg].pszName = NULL;
-    }
-
-    pThis->cSegs = 0;
-    pThis->cb = 0;
-
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Creates a generic debug info container and associates it with the module.
  *
  * @returns IPRT status code.
@@ -847,30 +701,21 @@ int rtDbgModContainerCreate(PRTDBGMODINT pMod, RTUINTPTR cbSeg)
     pMod->pDbgVt = &g_rtDbgModVtDbgContainer;
     pMod->pvDbgPriv = pThis;
 
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-    int rc = RTMemCacheCreate(&pThis->hLineNumAllocator, sizeof(RTDBGMODCTNLINE), sizeof(void *), UINT32_MAX,
-                              NULL /*pfnCtor*/, NULL /*pfnDtor*/, NULL /*pvUser*/, 0 /*fFlags*/);
-#else
-    int rc = VINF_SUCCESS;
-#endif
-    if (RT_SUCCESS(rc))
+    /*
+     * Add the initial segment.
+     */
+    if (cbSeg)
     {
-        /*
-         * Add the initial segment.
-         */
-        if (cbSeg)
-            rc = rtDbgModContainer_SegmentAdd(pMod, 0, cbSeg, "default", sizeof("default") - 1, 0, NULL);
-        if (RT_SUCCESS(rc))
+        int rc = rtDbgModContainer_SegmentAdd(pMod, 0, cbSeg, "default", sizeof("default") - 1, 0, NULL);
+        if (RT_FAILURE(rc))
+        {
+            RTMemFree(pThis);
+            pMod->pDbgVt = NULL;
+            pMod->pvDbgPriv = NULL;
             return rc;
-
-#ifdef RTDBGMODCNT_WITH_MEM_CACHE
-        RTMemCacheDestroy(pThis->hLineNumAllocator);
-#endif
+        }
     }
 
-    RTMemFree(pThis);
-    pMod->pDbgVt = NULL;
-    pMod->pvDbgPriv = NULL;
-    return rc;
+    return VINF_SUCCESS;
 }
 

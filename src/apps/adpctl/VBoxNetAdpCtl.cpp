@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,19 +26,7 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
-#include <sys/stat.h>
 #include <fcntl.h>
-#ifdef RT_OS_LINUX
-# include <net/if.h>
-# include <linux/types.h>
-/* Older versions of ethtool.h rely on these: */
-typedef unsigned long long u64;
-typedef __uint32_t u32;
-typedef __uint16_t u16;
-typedef __uint8_t u8;
-# include <linux/ethtool.h>
-# include <linux/sockios.h>
-#endif
 #ifdef RT_OS_SOLARIS
 # include <sys/ioccom.h>
 #endif
@@ -47,7 +35,6 @@ typedef __uint8_t u8;
 #define ADPCTLERR_BAD_NAME         2
 #define ADPCTLERR_NO_CTL_DEV       3
 #define ADPCTLERR_IOCTL_FAILED     4
-#define ADPCTLERR_SOCKET_FAILED    5
 
 /** @todo These are duplicates from src/VBox/HostDrivers/VBoxNetAdp/VBoxNetAdpInternal.h */
 #define VBOXNETADP_CTL_DEV_NAME    "/dev/vboxnetctl"
@@ -62,9 +49,8 @@ typedef struct VBoxNetAdpReq
 } VBOXNETADPREQ;
 typedef VBOXNETADPREQ *PVBOXNETADPREQ;
 
-#define VBOXADPCTL_IFCONFIG_PATH1 "/sbin/ifconfig"
-#define VBOXADPCTL_IFCONFIG_PATH2 "/bin/ifconfig"
-static char *g_pszIfConfig;
+
+#define VBOXADPCTL_IFCONFIG_PATH "/sbin/ifconfig"
 
 #if defined(RT_OS_LINUX)
 # define VBOXADPCTL_DEL_CMD "del"
@@ -84,16 +70,6 @@ static void showUsage(void)
     fprintf(stderr, "     | VBoxNetAdpCtl <adapter> remove\n");
 }
 
-static void setPathIfConfig(void)
-{
-    struct stat s;
-    if (   !stat(VBOXADPCTL_IFCONFIG_PATH1, &s)
-        && S_ISREG(s.st_mode))
-        g_pszIfConfig = (char*)VBOXADPCTL_IFCONFIG_PATH1;
-    else
-        g_pszIfConfig = (char*)VBOXADPCTL_IFCONFIG_PATH2;
-}
-
 static int executeIfconfig(const char *pcszAdapterName, const char *pcszArg1,
                            const char *pcszArg2 = NULL,
                            const char *pcszArg3 = NULL,
@@ -102,7 +78,7 @@ static int executeIfconfig(const char *pcszAdapterName, const char *pcszArg1,
 {
     const char * const argv[] =
     {
-        g_pszIfConfig,
+        VBOXADPCTL_IFCONFIG_PATH,
         pcszAdapterName,
         pcszArg1, /* [address family] */
         pcszArg2, /* address */
@@ -121,7 +97,7 @@ static int executeIfconfig(const char *pcszAdapterName, const char *pcszArg1,
             rc = EXIT_FAILURE;
             break;
         case 0: /* Child process. */
-            if (execve(argv[0], (char * const*)argv, envp) == -1)
+            if (execve(VBOXADPCTL_IFCONFIG_PATH, (char * const*)argv, envp) == -1)
                 rc = EXIT_FAILURE;
             break;
         default: /* Parent process. */
@@ -141,7 +117,7 @@ static bool removeAddresses(char *pszAdapterName)
     char aszAddresses[MAX_ADDRESSES][MAX_ADDRLEN];
     int rc;
     int fds[2];
-    char * const argv[] = { g_pszIfConfig, pszAdapterName, NULL };
+    char * const argv[] = { (char*)VBOXADPCTL_IFCONFIG_PATH, pszAdapterName, NULL };
     char * const envp[] = { (char*)"LC_ALL=C", NULL };
 
     memset(aszAddresses, 0, sizeof(aszAddresses));
@@ -161,7 +137,7 @@ static bool removeAddresses(char *pszAdapterName)
         close(STDOUT_FILENO);
         rc = dup2(fds[1], STDOUT_FILENO);
         if (rc >= 0)
-            execve(argv[0], argv, envp);
+            execve(VBOXADPCTL_IFCONFIG_PATH, argv, envp);
         return false;
     }
 
@@ -208,9 +184,8 @@ static int doIOCtl(unsigned long uCmd, VBOXNETADPREQ *pReq)
     int fd = open(VBOXNETADP_CTL_DEV_NAME, O_RDWR);
     if (fd == -1)
     {
-        fprintf(stderr, "VBoxNetAdpCtl: Error while %s %s: ",
-                uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding",
-                pReq->szName[0] ? pReq->szName : "new interface");
+        fprintf(stderr, "VBoxNetAdpCtl: Error while %s '%s': ",
+               uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding", pReq->szName);
         perror("failed to open " VBOXNETADP_CTL_DEV_NAME);
         return ADPCTLERR_NO_CTL_DEV;
     }
@@ -218,9 +193,8 @@ static int doIOCtl(unsigned long uCmd, VBOXNETADPREQ *pReq)
     int rc = ioctl(fd, uCmd, pReq);
     if (rc == -1)
     {
-        fprintf(stderr, "VBoxNetAdpCtl: Error while %s %s: ",
-                uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding",
-                pReq->szName[0] ? pReq->szName : "new interface");
+        fprintf(stderr, "VBoxNetAdpCtl: Error while %s '%s': ",
+               uCmd == VBOXNETADP_CTL_REMOVE ? "removing" : "adding", pReq->szName);
         perror("VBoxNetAdpCtl: ioctl failed for " VBOXNETADP_CTL_DEV_NAME);
         rc = ADPCTLERR_IOCTL_FAILED;
     }
@@ -262,8 +236,6 @@ int main(int argc, char *argv[])
     bool fRemove = false;
     VBOXNETADPREQ Req;
 
-    setPathIfConfig();
-
     switch (argc)
     {
         case 5:
@@ -301,73 +273,6 @@ int main(int argc, char *argv[])
         {
             pszAdapterName = argv[1];
             memset(&Req, '\0', sizeof(Req));
-#ifdef RT_OS_LINUX
-            if (strcmp("speed", argv[2]) == 0)
-            {
-                /*
-                 * This ugly hack is needed for retrieving the link speed on
-                 * pre-2.6.33 kernels (see @bugref{6345}).
-                 */
-                if (strlen(pszAdapterName) >= IFNAMSIZ)
-                {
-                    showUsage();
-                    return -1;
-                }
-                struct ifreq IfReq;
-                struct ethtool_value EthToolVal;
-                struct ethtool_cmd EthToolReq;
-                int fd = socket(AF_INET, SOCK_DGRAM, 0);
-                if (fd < 0)
-                {
-                    fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
-                            "speed for %s: ", pszAdapterName);
-                    perror("VBoxNetAdpCtl: failed to open control socket");
-                    return ADPCTLERR_SOCKET_FAILED;
-                }
-                /* Get link status first. */
-                memset(&EthToolVal, 0, sizeof(EthToolVal));
-                memset(&IfReq, 0, sizeof(IfReq));
-                snprintf(IfReq.ifr_name, sizeof(IfReq.ifr_name), "%s", pszAdapterName);
-
-                EthToolVal.cmd = ETHTOOL_GLINK;
-                IfReq.ifr_data = (caddr_t)&EthToolVal;
-                rc = ioctl(fd, SIOCETHTOOL, &IfReq);
-                if (rc == 0)
-                {
-                    if (EthToolVal.data)
-                    {
-                        memset(&IfReq, 0, sizeof(IfReq));
-                        snprintf(IfReq.ifr_name, sizeof(IfReq.ifr_name), "%s", pszAdapterName);
-                        EthToolReq.cmd = ETHTOOL_GSET;
-                        IfReq.ifr_data = (caddr_t)&EthToolReq;
-                        rc = ioctl(fd, SIOCETHTOOL, &IfReq);
-                        if (rc == 0)
-                        {
-                            printf("%u", EthToolReq.speed);
-                        }
-                        else
-                        {
-                            fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
-                                    "speed for %s: ", pszAdapterName);
-                            perror("VBoxNetAdpCtl: ioctl failed");
-                            rc = ADPCTLERR_IOCTL_FAILED;
-                        }
-                    }
-                    else
-                        printf("0");
-                }
-                else
-                {
-                    fprintf(stderr, "VBoxNetAdpCtl: Error while retrieving link "
-                            "status for %s: ", pszAdapterName);
-                    perror("VBoxNetAdpCtl: ioctl failed");
-                    rc = ADPCTLERR_IOCTL_FAILED;
-                }
-
-                close(fd);
-                return rc;
-            }
-#endif
             rc = checkAdapterName(pszAdapterName, szAdapterName);
             if (rc)
                 return rc;

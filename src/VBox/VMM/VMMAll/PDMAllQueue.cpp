@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,7 @@
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
 #ifndef IN_RC
-# ifdef VBOX_WITH_REM
-#  include <VBox/vmm/rem.h>
-# endif
+# include <VBox/vmm/rem.h>
 # include <VBox/vmm/mm.h>
 #endif
 #include <VBox/vmm/vm.h>
@@ -99,13 +97,11 @@ VMMDECL(void) PDMQueueInsert(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
     if (!pQueue->pTimer)
     {
         PVM pVM = pQueue->CTX_SUFF(pVM);
-        Log2(("PDMQueueInsert: VM_FF_PDM_QUEUES %d -> 1\n", VM_FF_IS_SET(pVM, VM_FF_PDM_QUEUES)));
+        Log2(("PDMQueueInsert: VM_FF_PDM_QUEUES %d -> 1\n", VM_FF_ISSET(pVM, VM_FF_PDM_QUEUES)));
         VM_FF_SET(pVM, VM_FF_PDM_QUEUES);
         ASMAtomicBitSet(&pVM->pdm.s.fQueueFlushing, PDM_QUEUE_FLUSH_FLAG_PENDING_BIT);
 #ifdef IN_RING3
-# ifdef VBOX_WITH_REM
         REMR3NotifyQueuePending(pVM); /** @todo r=bird: we can remove REMR3NotifyQueuePending and let VMR3NotifyFF do the work. */
-# endif
         VMR3NotifyGlobalFFU(pVM->pUVM, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
     }
@@ -127,7 +123,6 @@ VMMDECL(void) PDMQueueInsert(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem)
  */
 VMMDECL(void) PDMQueueInsertEx(PPDMQUEUE pQueue, PPDMQUEUEITEMCORE pItem, uint64_t NanoMaxDelay)
 {
-    NOREF(NanoMaxDelay);
     PDMQueueInsert(pQueue, pItem);
 #ifdef IN_RC
     PVM pVM = pQueue->CTX_SUFF(pVM);

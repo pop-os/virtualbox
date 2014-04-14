@@ -1,10 +1,8 @@
-/* $Id: VBoxGuest-win.h $ */
 /** @file
+ *
  * VBoxGuest - Windows specifics.
- */
-
-/*
- * Copyright (C) 2010-2013 Oracle Corporation
+ *
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,17 +16,14 @@
 #ifndef ___VBoxGuest_win_h
 #define ___VBoxGuest_win_h
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 
 #include <iprt/cdefs.h>
 
 RT_C_DECLS_BEGIN
-#ifdef RT_ARCH_X86
-# define _InterlockedAddLargeStatistic  _InterlockedAddLargeStatistic_StupidDDKVsCompilerCrap
-#endif
 #include <ntddk.h>
-#ifdef RT_ARCH_X86
-# undef _InterlockedAddLargeStatistic
-#endif
 RT_C_DECLS_END
 
 #include <iprt/spinlock.h>
@@ -36,9 +31,14 @@ RT_C_DECLS_END
 
 #include <VBox/VMMDev.h>
 #include <VBox/VBoxGuest.h>
-#include "VBoxGuestInternal.h"
 
 
+/*******************************************************************************
+*   Structures and Typedefs                                                    *
+*******************************************************************************/
+
+/** Pointer to the VBoxGuest per session data. */
+typedef struct VBOXGUESTSESSION *PVBOXGUESTSESSION;
 
 /** Possible device states for our state machine. */
 enum DEVSTATE
@@ -71,8 +71,6 @@ typedef struct VBOXGUESTWINBASEADDRESS
 /** Windows-specific device extension bits. */
 typedef struct VBOXGUESTDEVEXTWIN
 {
-    VBOXGUESTDEVEXT Core;
-
     /** Our functional driver object. */
     PDEVICE_OBJECT pDeviceObject;
     /** Top of the stack. */
@@ -115,70 +113,65 @@ typedef struct VBOXGUESTDEVEXTWIN
     VMMDevEvents *pIrqAckEvents;
 
     /** Pre-allocated kernel session data. This is needed
-     * for handling kernel IOCtls. */
-    struct VBOXGUESTSESSION *pKernelSession;
+      * for handling kernel IOCtls. */
+    PVBOXGUESTSESSION pKernelSession;
 
-    /** Spinlock protecting MouseNotifyCallback. Required since the consumer is
-     *  in a DPC callback and not the ISR. */
+
     KSPIN_LOCK MouseEventAccessLock;
+    PFNVBOXMOUSENOTIFYCB pfnMouseNotify;
+    void *pvMouseNotify;
 } VBOXGUESTDEVEXTWIN, *PVBOXGUESTDEVEXTWIN;
 
-
-/** NT (windows) version identifier. */
-typedef enum VBGDNTVER
-{
-    VBGDNTVER_INVALID = 0,
-    VBGDNTVER_WINNT4,
-    VBGDNTVER_WIN2K,
-    VBGDNTVER_WINXP,
-    VBGDNTVER_WIN2K3,
-    VBGDNTVER_WINVISTA,
-    VBGDNTVER_WIN7,
-    VBGDNTVER_WIN8,
-    VBGDNTVER_WIN81,
-    VBGDNTVER_WIN10
-} VBGDNTVER;
-extern VBGDNTVER g_enmVbgdNtVer;
+#define VBOXGUEST_UPDATE_DEVSTATE(_pDevExt, _newDevState) do {    \
+    (_pDevExt)->win.s.prevDevState =  (_pDevExt)->win.s.devState; \
+    (_pDevExt)->win.s.devState = (_newDevState);                  \
+} while (0)
 
 
-#define VBOXGUEST_UPDATE_DEVSTATE(a_pDevExt, a_newDevState) \
-    do { \
-        (a_pDevExt)->prevDevState = (a_pDevExt)->devState; \
-        (a_pDevExt)->devState     = (a_newDevState); \
-    } while (0)
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
 
 /** CM_RESOURCE_MEMORY_* flags which were used on XP or earlier. */
 #define VBOX_CM_PRE_VISTA_MASK (0x3f)
 
+/** Windows version identifier. */
+typedef enum
+{
+    WINNT4   = 1,
+    WIN2K    = 2,
+    WINXP    = 3,
+    WIN2K3   = 4,
+    WINVISTA = 5,
+    WIN7     = 6,
+    WIN8     = 7
+} winVersion_t;
+extern winVersion_t winVersion;
+
+
+/*******************************************************************************
+*   Declared prototypes for helper routines used in both (PnP and legacy)      *
+*   driver versions.                                                           *
+*******************************************************************************/
+#include "VBoxGuestInternal.h"
 
 RT_C_DECLS_BEGIN
-
 #ifdef TARGET_NT4
-NTSTATUS   vbgdNt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
+NTSTATUS   vboxguestwinnt4CreateDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
+NTSTATUS   vboxguestwinInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
 #else
-NTSTATUS   vbgdNtInit(PDEVICE_OBJECT pDevObj, PIRP pIrp);
-NTSTATUS   vbgdNtPnP(PDEVICE_OBJECT pDevObj, PIRP pIrp);
-NTSTATUS   vbgdNtPower(PDEVICE_OBJECT pDevObj, PIRP pIrp);
+NTSTATUS   vboxguestwinInit(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 #endif
-
-/** @name Common routines used in both (PnP and legacy) driver versions.
- * @{
- */
-#ifdef TARGET_NT4
-NTSTATUS   vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STRING pRegPath);
-#else
-NTSTATUS   vbgdNtInit(PDEVICE_OBJECT pDevObj, PIRP pIrp);
-#endif
-NTSTATUS   vbgdNtCleanup(PDEVICE_OBJECT pDevObj);
-VOID       vbgdNtDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj, PIRP pIrp, PVOID pContext);
-BOOLEAN    vbgdNtIsrHandler(PKINTERRUPT interrupt, PVOID serviceContext);
-NTSTATUS   vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTWIN pDevExt);
-NTSTATUS   vbgdNtMapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt, PHYSICAL_ADDRESS PhysAddr, ULONG cbToMap,
-                                 void **ppvMMIOBase, uint32_t *pcbMMIO);
-void       vbgdNtUnmapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt);
-VBOXOSTYPE vbgdNtVersionToOSType(VBGDNTVER enmNtVer);
-/** @}  */
-
+NTSTATUS   vboxguestwinCleanup(PDEVICE_OBJECT pDevObj);
+NTSTATUS   vboxguestwinPnP(PDEVICE_OBJECT pDevObj, PIRP pIrp);
+VOID       vboxguestwinDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj, PIRP pIrp, PVOID pContext);
+BOOLEAN    vboxguestwinIsrHandler(PKINTERRUPT interrupt, PVOID serviceContext);
+NTSTATUS   vboxguestwinScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXT pDevExt);
+NTSTATUS   vboxguestwinMapVMMDevMemory(PVBOXGUESTDEVEXT pDevExt, PHYSICAL_ADDRESS physicalAdr, ULONG ulLength,
+                                       void **ppvMMIOBase, uint32_t *pcbMMIO);
+void       vboxguestwinUnmapVMMDevMemory(PVBOXGUESTDEVEXT pDevExt);
+VBOXOSTYPE vboxguestwinVersionToOSType(winVersion_t winVer);
+NTSTATUS   vboxguestwinPower(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 RT_C_DECLS_END
 
 #ifdef TARGET_NT4
@@ -186,9 +179,9 @@ RT_C_DECLS_END
  * XP DDK #defines ExFreePool to ExFreePoolWithTag. The latter does not exist
  * on NT4, so... The same for ExAllocatePool.
  */
-# undef ExAllocatePool
-# undef ExFreePool
+#undef ExAllocatePool
+#undef ExFreePool
 #endif
 
-#endif /* !___VBoxGuest_win_h */
+#endif /* ___VBoxGuest_win_h */
 

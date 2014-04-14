@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,13 @@
 *******************************************************************************/
 /** Converts a pointer to MEDIAISO::IMedia to a PRDVMEDIAISO. */
 #define PDMIMEDIA_2_DRVMEDIAISO(pInterface) ( (PDRVMEDIAISO)((uintptr_t)pInterface - RT_OFFSETOF(DRVMEDIAISO, IMedia)) )
+
+/** Converts a pointer to PDMDRVINS::IBase to a PPDMDRVINS. */
+#define PDMIBASE_2_DRVINS(pInterface)   ( (PPDMDRVINS)((uintptr_t)pInterface - RT_OFFSETOF(PDMDRVINS, IBase)) )
+
+/** Converts a pointer to PDMDRVINS::IBase to a PVBOXHDD. */
+#define PDMIBASE_2_DRVMEDIAISO(pInterface)  ( PDMINS_2_DATA(PDMIBASE_2_DRVINS(pInterface), PDRVMEDIAISO) )
+
 
 
 /*******************************************************************************
@@ -173,7 +180,7 @@ static DECLCALLBACK(bool) drvMediaISOIsReadOnly(PPDMIMEDIA pInterface)
  */
 static DECLCALLBACK(void *) drvMediaISOQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PPDMDRVINS pDrvIns = PDMIBASE_2_DRVINS(pInterface);
     PDRVMEDIAISO pThis = PDMINS_2_DATA(pDrvIns, PDRVMEDIAISO);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIA, &pThis->IMedia);
@@ -196,11 +203,8 @@ static DECLCALLBACK(void) drvMediaISODestruct(PPDMDRVINS pDrvIns)
     LogFlow(("drvMediaISODestruct: '%s'\n", pThis->pszFilename));
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
-    if (pThis->hFile != NIL_RTFILE)
-    {
-        RTFileClose(pThis->hFile);
-        pThis->hFile = NIL_RTFILE;
-    }
+    RTFileClose(pThis->hFile);
+    pThis->hFile = NIL_RTFILE;
 
     if (pThis->pszFilename)
     {

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,22 +17,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
+/* Global includes */
 #include <QDir>
 #include <QHeaderView>
 #include <QPainter>
 #include <QTranslator>
 
-/* GUI includes: */
-#include "UIGlobalSettingsLanguage.h"
-#include "VBoxGlobalSettings.h"
-#include "VBoxGlobal.h"
-
-/* Other VBox includes: */
 #include <iprt/err.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <VBox/version.h>
+
+/* Local includes */
+#include "UIGlobalSettingsLanguage.h"
+#include "VBoxGlobalSettings.h"
+#include "VBoxGlobal.h"
 
 extern const char *gVBoxLangSubDir;
 extern const char *gVBoxLangFileBase;
@@ -169,8 +168,7 @@ private:
 
 /* Language page constructor: */
 UIGlobalSettingsLanguage::UIGlobalSettingsLanguage()
-    : m_fPolished(false)
-    , m_fIsLanguageChanged(false)
+    : m_fIsLanguageChanged(false)
 {
     /* Apply UI decorations: */
     Ui::UIGlobalSettingsLanguage::setupUi(this);
@@ -180,9 +178,6 @@ UIGlobalSettingsLanguage::UIGlobalSettingsLanguage()
     m_pLanguageTree->hideColumn(1);
     m_pLanguageTree->hideColumn(2);
     m_pLanguageTree->hideColumn(3);
-    m_pLanguageTree->setMinimumHeight(150);
-    m_pLanguageInfo->setWordWrapMode(QTextOption::WordWrap);
-    m_pLanguageInfo->setMinimumHeight(QFontMetrics(m_pLanguageInfo->font(), m_pLanguageInfo).height() * 5);
 
     /* Setup connections: */
     connect(m_pLanguageTree, SIGNAL(painted(QTreeWidgetItem*, QPainter*)),
@@ -194,7 +189,7 @@ UIGlobalSettingsLanguage::UIGlobalSettingsLanguage()
     retranslateUi();
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsLanguage::loadToCacheFrom(QVariant &data)
 {
@@ -214,6 +209,7 @@ void UIGlobalSettingsLanguage::getFromCache()
 {
     /* Fetch from cache: */
     reload(m_cache.m_strLanguageId);
+    m_pLanguageInfo->setFixedHeight(fontMetrics().height() * 4);
 }
 
 /* Save data from corresponding widgets to cache,
@@ -242,12 +238,13 @@ void UIGlobalSettingsLanguage::saveFromCacheTo(QVariant &data)
     UISettingsPageGlobal::uploadData(data);
 }
 
+/* Navigation stuff: */
 void UIGlobalSettingsLanguage::setOrderAfter(QWidget *pWidget)
 {
-    /* Configure navigation: */
     setTabOrder(pWidget, m_pLanguageTree);
 }
 
+/* Translation stuff: */
 void UIGlobalSettingsLanguage::retranslateUi()
 {
     /* Translate uic generated strings: */
@@ -257,26 +254,7 @@ void UIGlobalSettingsLanguage::retranslateUi()
     reload(VBoxGlobal::languageId());
 }
 
-void UIGlobalSettingsLanguage::showEvent(QShowEvent *pEvent)
-{
-    /* Call to base-class: */
-    UISettingsPageGlobal::showEvent(pEvent);
-
-    /* Polishing border: */
-    if (m_fPolished)
-        return;
-    m_fPolished = true;
-
-    /* Call for polish event: */
-    polishEvent(pEvent);
-}
-
-void UIGlobalSettingsLanguage::polishEvent(QShowEvent*)
-{
-    /* Remember current info-label width: */
-    m_pLanguageInfo->setMinimumTextWidth(m_pLanguageInfo->width());
-}
-
+/* Reload language tree: */
 void UIGlobalSettingsLanguage::reload(const QString &strLangId)
 {
     /* Clear languages tree: */
@@ -317,6 +295,15 @@ void UIGlobalSettingsLanguage::reload(const QString &strLangId)
     }
 
     /* Adjust selector list: */
+#ifdef Q_WS_MAC
+    int width = qMax(static_cast<QAbstractItemView*>(m_pLanguageTree)->sizeHintForColumn(0) +
+                     2 * m_pLanguageTree->frameWidth() + QApplication::style()->pixelMetric(QStyle::PM_ScrollBarExtent),
+                     220);
+    m_pLanguageTree->setFixedWidth(width);
+#else /* Q_WS_MAC */
+    m_pLanguageTree->setMinimumWidth(static_cast<QAbstractItemView*>(m_pLanguageTree)->sizeHintForColumn(0) +
+                                     2 * m_pLanguageTree->frameWidth() + QApplication::style()->pixelMetric(QStyle::PM_ScrollBarExtent));
+#endif /* Q_WS_MAC */
     m_pLanguageTree->resizeColumnToContents(0);
 
     /* Search for necessary language: */
@@ -337,6 +324,7 @@ void UIGlobalSettingsLanguage::reload(const QString &strLangId)
     m_fIsLanguageChanged = false;
 }
 
+/* Routine to paint language items: */
 void UIGlobalSettingsLanguage::sltLanguageItemPainted(QTreeWidgetItem *pItem, QPainter *pPainter)
 {
     if (pItem && pItem->type() == UILanguageItem::UILanguageItemType)
@@ -352,6 +340,7 @@ void UIGlobalSettingsLanguage::sltLanguageItemPainted(QTreeWidgetItem *pItem, QP
     }
 }
 
+/* Slot to handle currently language change fact: */
 void UIGlobalSettingsLanguage::sltCurrentLanguageChanged(QTreeWidgetItem *pItem)
 {
     if (!pItem) return;

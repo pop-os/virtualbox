@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2010 Oracle Corporation
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -41,7 +41,7 @@ BEGINPROC RT_NOCRT(floor)
     movsd   [xSP], xmm0
     fld     qword [xSP]
 %else
-    fld     qword [xBP + xCB*2]
+    fld     qword [xBP + xS*2]
 %endif
 
     ; Make it round down by modifying the fpu control word.

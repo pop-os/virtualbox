@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,7 @@
  *          device supports GC execution. This is why it is a
  *          plain-old-data structure.
  */
-struct EEPROM93C46
-{
+struct EEPROM93C46 {
     /** General definitions */
     enum {
         /** Size of EEPROM in words */

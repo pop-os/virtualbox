@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,8 @@ ip_init(PNATState pData)
 static struct libalias *select_alias(PNATState pData, struct mbuf* m)
 {
     struct libalias *la = pData->proxy_alias;
+    struct udphdr *udp = NULL;
+    struct ip *pip = NULL;
 
     struct m_tag *t;
     if ((t = m_tag_find(m, PACKET_TAG_ALIAS, NULL)) != 0)
@@ -115,15 +117,10 @@ ip_input(PNATState pData, struct mbuf *m)
     ipstat.ips_total++;
     {
         int rc;
-        if (!(m->m_flags & M_SKIP_FIREWALL))
-        {
-            STAM_PROFILE_START(&pData->StatALIAS_input, b);
-            rc = LibAliasIn(select_alias(pData, m), mtod(m, char *), m_length(m, NULL));
-            STAM_PROFILE_STOP(&pData->StatALIAS_input, b);
-            Log2(("NAT: LibAlias return %d\n", rc));
-        }
-        else
-            m->m_flags &= ~M_SKIP_FIREWALL;
+        STAM_PROFILE_START(&pData->StatALIAS_input, b);
+        rc = LibAliasIn(select_alias(pData, m), mtod(m, char *), m_length(m, NULL));
+        STAM_PROFILE_STOP(&pData->StatALIAS_input, b);
+        Log2(("NAT: LibAlias return %d\n", rc));
         if (m->m_len != RT_N2H_U16(ip->ip_len))
             m->m_len = RT_N2H_U16(ip->ip_len);
     }
@@ -191,10 +188,6 @@ ip_input(PNATState pData, struct mbuf *m)
     if (mlen > ip->ip_len)
         m_adj(m, ip->ip_len - m->m_len);
 
-    /* source must be unicast */
-    if ((ip->ip_src.s_addr & RT_N2H_U32_C(0xe0000000)) == RT_N2H_U32_C(0xe0000000))
-        goto free_m;
-
     /* check ip_ttl for a correct ICMP reply */
     if (ip->ip_ttl==0 || ip->ip_ttl == 1)
     {
@@ -203,18 +196,6 @@ ip_input(PNATState pData, struct mbuf *m)
     }
 
     ip->ip_ttl--;
-
-    /*
-     * Drop multicast (class d) and reserved (class e) here.  The rest
-     * of the code is not yet prepared to deal with it.  IGMP is not
-     * implemented either.
-     */
-    if (   (ip->ip_dst.s_addr & RT_N2H_U32_C(0xe0000000)) == RT_N2H_U32_C(0xe0000000)
-        && ip->ip_dst.s_addr != 0xffffffff)
-    {
-        goto free_m;
-    }
-
     /*
      * If offset or IP_MF are set, must reassemble.
      * Otherwise, nothing need be done.
@@ -258,7 +239,6 @@ ip_input(PNATState pData, struct mbuf *m)
 bad_free_m:
     Log2(("NAT: IP datagram to %RTnaipv4 with size(%d) claimed as bad\n",
         ip->ip_dst, ip->ip_len));
-free_m:
     m_freem(pData, m);
 no_free_m:
     STAM_PROFILE_STOP(&pData->StatIP_input, a);
@@ -417,7 +397,7 @@ found:
      * segment.  If it provides all of our data, drop us, otherwise
      * stick new segment in the proper place.
      *
-     * If some of the data is dropped from the preceding
+     * If some of the data is dropped from the the preceding
      * segment, then it's checksum is invalidated.
      */
     if (p)
@@ -647,7 +627,6 @@ ip_stripoptions(struct mbuf *m, struct mbuf *mopt)
     struct ip *ip = mtod(m, struct ip *);
     register caddr_t opts;
     int olen;
-    NOREF(mopt); /* @todo: do we really will need this options buffer? */
 
     olen = (ip->ip_hl<<2) - sizeof(struct ip);
     opts = (caddr_t)(ip + 1);

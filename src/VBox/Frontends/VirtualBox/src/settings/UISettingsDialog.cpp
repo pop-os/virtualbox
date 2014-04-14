@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,16 +26,14 @@
 
 /* Local includes */
 #include "UISettingsDialog.h"
-#include "UIWarningPane.h"
+#include "VBoxWarningPane.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-#include "UIPopupCenter.h"
 #include "QIWidgetValidator.h"
 #include "VBoxSettingsSelector.h"
 #include "UISettingsPage.h"
 #include "UIToolBar.h"
 #include "UIIconPool.h"
-#include "UIConverter.h"
 #ifdef Q_WS_MAC
 # include "VBoxUtils.h"
 # if MAC_LEOPARD_STYLE
@@ -56,14 +54,14 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     /* Loading/saving stuff: */
     , m_fLoaded(false)
     , m_fSaved(false)
-    /* Status-bar stuff: */
-    , m_pStatusBar(0)
-    /* Process-bar stuff: */
-    , m_pProcessBar(0)
-    /* Warning-pane stuff: */
-    , m_pWarningPane(0)
+    /* Status bar stuff: */
+    , m_pStatusBar(new QStackedWidget(this))
+    /* Process bar stuff: */
+    , m_pProcessBar(new QProgressBar(this))
+    /* Error/Warning stuff: */
     , m_fValid(true)
     , m_fSilent(true)
+    , m_pWarningPane(new VBoxWarningPane(this))
     /* Whats-this stuff: */
     , m_pWhatsThisTimer(new QTimer(this))
     , m_pWhatsThisCandidate(0)
@@ -71,17 +69,25 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     /* Apply UI decorations: */
     Ui::UISettingsDialog::setupUi(this);
 
+#ifdef Q_WS_MAC
+    /* No status bar on the mac: */
+    setSizeGripEnabled(false);
+    setStatusBar(0);
+#endif /* Q_WS_MAC */
+
     /* Page-title font is derived from the system font: */
     QFont pageTitleFont = font();
     pageTitleFont.setBold(true);
     pageTitleFont.setPointSize(pageTitleFont.pointSize() + 2);
     m_pLbTitle->setFont(pageTitleFont);
 
-    /* Prepare selector: */
+    /* Get main grid layout: */
     QGridLayout *pMainLayout = static_cast<QGridLayout*>(centralWidget()->layout());
 #ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
     /* No page-title with tool-bar: */
     m_pLbTitle->hide();
+    /* No whats-this with tool-bar: */
+    m_pLbWhatsThis->hide();
     /* Create modern tool-bar selector: */
     m_pSelector = new VBoxSettingsToolBarSelector(this);
     static_cast<UIToolBar*>(m_pSelector->widget())->setMacToolbar();
@@ -92,46 +98,47 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
 #else
     /* Create classical tree-view selector: */
     m_pSelector = new VBoxSettingsTreeViewSelector(this);
-    pMainLayout->addWidget(m_pSelector->widget(), 0, 0, 2, 1);
+    pMainLayout->addWidget(m_pSelector->widget(), 0, 0, 3, 1);
     m_pSelector->widget()->setFocus();
     pMainLayout->setSpacing(10);
 #endif /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
-    connect(m_pSelector, SIGNAL(categoryChanged(int)), this, SLOT(sltCategoryChanged(int)));
 
-    /* Prepare page-stack: */
+    /* Creating stack of pages: */
     m_pStack = new QStackedWidget(m_pWtStackHandler);
-    popupCenter().setPopupStackOrientation(m_pStack, UIPopupStackOrientation_Bottom);
     QVBoxLayout *pStackLayout = new QVBoxLayout(m_pWtStackHandler);
     pStackLayout->setContentsMargins(0, 0, 0, 0);
     pStackLayout->addWidget(m_pStack);
 
-    /* Prepare button-box: */
-    m_pButtonBox->button(QDialogButtonBox::Ok)->setDefault(true);
-    connect(m_pButtonBox, SIGNAL(helpRequested()), &msgCenter(), SLOT(sltShowHelpHelpDialog()));
-
-    /* Prepare process-bar: */
-    m_pProcessBar = new QProgressBar;
-
-    /* Prepare warning-pane: */
-    m_pWarningPane = new UIWarningPane;
-    connect(m_pWarningPane, SIGNAL(sigHoverEnter(UIPageValidator*)), this, SLOT(sltHandleWarningPaneHovered(UIPageValidator*)));
-    connect(m_pWarningPane, SIGNAL(sigHoverLeave(UIPageValidator*)), this, SLOT(sltHandleWarningPaneUnhovered(UIPageValidator*)));
-
-    /* Prepare status-bar: */
-    m_pStatusBar = new QStackedWidget;
-    /* Add empty widget: */
+    /* Status bar: */
     m_pStatusBar->addWidget(new QWidget);
-    /* Add process-bar widget: */
-    m_pStatusBar->addWidget(m_pProcessBar);
-    /* Add warning-pane: */
-    m_pStatusBar->addWidget(m_pWarningPane);
-    /* Add status-bar to button-box: */
     m_pButtonBox->addExtraWidget(m_pStatusBar);
+
+    /* Setup process bar stuff: */
+    m_pStatusBar->addWidget(m_pProcessBar);
+
+    /* Setup error & warning stuff: */
+    m_pStatusBar->addWidget(m_pWarningPane);
+    m_errorIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon, this).pixmap(16, 16);
+    m_warningIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this).pixmap(16, 16);
 
     /* Setup whatsthis stuff: */
     qApp->installEventFilter(this);
     m_pWhatsThisTimer->setSingleShot(true);
     connect(m_pWhatsThisTimer, SIGNAL(timeout()), this, SLOT(sltUpdateWhatsThis()));
+    m_pLbWhatsThis->setAutoFillBackground(true);
+    QPalette whatsThisPalette = m_pLbWhatsThis->palette();
+    whatsThisPalette.setBrush(QPalette::Window, whatsThisPalette.brush(QPalette::Midlight));
+    m_pLbWhatsThis->setPalette(whatsThisPalette);
+    m_pLbWhatsThis->setFixedHeight(m_pLbWhatsThis->frameWidth() * 2 +
+                                   m_pLbWhatsThis->margin() * 2 +
+                                   m_pLbWhatsThis->fontMetrics().lineSpacing() * 4);
+
+    /* Set the default button: */
+    m_pButtonBox->button(QDialogButtonBox::Ok)->setDefault(true);
+
+    /* Setup connections: */
+    connect(m_pSelector, SIGNAL(categoryChanged(int)), this, SLOT(sltCategoryChanged(int)));
+    connect(m_pButtonBox, SIGNAL(helpRequested()), &msgCenter(), SLOT(sltShowHelpHelpDialog()));
 
     /* Translate UI: */
     retranslateUi();
@@ -139,8 +146,6 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
 
 UISettingsDialog::~UISettingsDialog()
 {
-    /* Recall popup-pane if any: */
-    popupCenter().recall(m_pStack, "SettingsDialogWarning");
     /* Delete selector early! */
     delete m_pSelector;
 }
@@ -156,6 +161,32 @@ void UISettingsDialog::execute()
 
     /* Save data: */
     saveData();
+}
+
+void UISettingsDialog::sltRevalidate(QIWidgetValidator *pValidator)
+{
+    /* Get related settings page: */
+    UISettingsPage *pSettingsPage = qobject_cast<UISettingsPage*>(pValidator->widget());
+    AssertMsg(pSettingsPage, ("Validator should corresponds a page!\n"));
+
+    /* Prepare empty warning & title: */
+    QString strWarning;
+    QString strTitle = m_pSelector->itemTextByPage(pSettingsPage);
+
+    /* Recorrelate page with others before revalidation: */
+    recorrelate(pSettingsPage);
+
+    /* Revalidate the page: */
+    bool fValid = pSettingsPage->revalidate(strWarning, strTitle);
+
+    /* Compose a message: */
+    strWarning = strWarning.isEmpty() ? QString() :
+                 tr("On the <b>%1</b> page, %2").arg(strTitle, strWarning);
+    pValidator->setLastWarning(strWarning);
+    fValid ? setWarning(strWarning) : setError(strWarning);
+
+    /* Remember validation status: */
+    pValidator->setOtherValid(fValid);
 }
 
 void UISettingsDialog::sltCategoryChanged(int cId)
@@ -228,31 +259,44 @@ void UISettingsDialog::retranslateUi()
     /* Translate generated stuff: */
     Ui::UISettingsDialog::retranslateUi(this);
 
-    /* Translate warning stuff: */
-    m_strWarningHint = tr("Invalid settings detected");
-    if (!m_fValid || !m_fSilent)
-        m_pWarningPane->setWarningLabel(m_strWarningHint);
+    /* Translate error/warning stuff: */
+    m_strErrorHint = tr("Invalid settings detected");
+    m_strWarningHint = tr("Non-optimal settings detected");
+    if (!m_fValid)
+        m_pWarningPane->setWarningText(m_strErrorHint);
+    else if (!m_fSilent)
+        m_pWarningPane->setWarningText(m_strWarningHint);
 
 #ifndef VBOX_GUI_WITH_TOOLBAR_SETTINGS
     /* Retranslate current page headline: */
     m_pLbTitle->setText(m_pSelector->itemText(m_pSelector->currentId()));
 #endif /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
 
+    /* Get the list of validators: */
+    QList<QIWidgetValidator*> validatorsList = findChildren<QIWidgetValidator*>();
     /* Retranslate all validators: */
-    foreach (UIPageValidator *pValidator, findChildren<UIPageValidator*>())
-        if (!pValidator->lastMessage().isEmpty())
-            revalidate(pValidator);
-    revalidate();
+    for (int i = 0; i < validatorsList.size(); ++i)
+    {
+        QIWidgetValidator *pValidator = validatorsList[i];
+        pValidator->setCaption(m_pSelector->itemTextByPage(qobject_cast<UISettingsPage*>(pValidator->widget())));
+    }
+    /* Revalidate all pages to retranslate the warning messages also: */
+    for (int i = 0; i < validatorsList.size(); ++i)
+    {
+        QIWidgetValidator *pValidator = validatorsList[i];
+        if (!pValidator->isValid())
+            sltRevalidate(pValidator);
+    }
 }
 
 void UISettingsDialog::setDialogType(SettingsDialogType settingsDialogType)
 {
-    /* Remember new dialog-type: */
     m_dialogType = settingsDialogType;
-
-    /* Propagate it to settings-page(s): */
-    foreach (UISettingsPage *pPage, m_pSelector->settingPages())
+    for (int iWidgetNumber = 0; iWidgetNumber < m_pStack->count(); ++iWidgetNumber)
+    {
+        UISettingsPage *pPage = static_cast<UISettingsPage*>(m_pStack->widget(iWidgetNumber));
         pPage->setDialogType(dialogType());
+    }
 }
 
 QString UISettingsDialog::titleExtension() const
@@ -264,6 +308,38 @@ QString UISettingsDialog::titleExtension() const
 #endif
 }
 
+void UISettingsDialog::setError(const QString &strError)
+{
+    m_strErrorString = strError.isEmpty() ? QString() :
+                       QString("<font color=red>%1</font>").arg(strError);
+
+    /* Do not touching QILabel until dialog is polished
+     * otherwise it can change its size to undefined: */
+    if (m_fPolished)
+    {
+        if (!m_strErrorString.isEmpty() && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pLbWhatsThis->setText(m_strErrorString);
+        else
+            sltUpdateWhatsThis(true /* got focus? */);
+    }
+}
+
+void UISettingsDialog::setWarning(const QString &strWarning)
+{
+    m_strWarningString = strWarning.isEmpty() ? QString() :
+                         QString("<font color=#ff5400>%1</font>").arg(strWarning);
+
+    /* Do not touching QILabel until dialog is polished
+     * otherwise it can change its size to undefined: */
+    if (m_fPolished)
+    {
+        if (!m_strWarningString.isEmpty() && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pLbWhatsThis->setText(m_strWarningString);
+        else
+            sltUpdateWhatsThis(true /* got focus? */);
+    }
+}
+
 void UISettingsDialog::addItem(const QString &strBigIcon,
                                const QString &strBigIconDisabled,
                                const QString &strSmallIcon,
@@ -273,149 +349,110 @@ void UISettingsDialog::addItem(const QString &strBigIcon,
                                UISettingsPage *pSettingsPage /* = 0 */,
                                int iParentId /* = -1 */)
 {
-    /* Add new selector item: */
-    if (QWidget *pPage = m_pSelector->addItem(strBigIcon, strBigIconDisabled,
-                                              strSmallIcon, strSmallIconDisabled,
-                                              cId, strLink, pSettingsPage, iParentId))
+    QWidget *pPage = m_pSelector->addItem(strBigIcon, strBigIconDisabled,
+                                          strSmallIcon, strSmallIconDisabled,
+                                          cId, strLink, pSettingsPage, iParentId);
+    if (pPage)
     {
-        /* Add stack-widget page if created: */
+#ifdef Q_WS_MAC
+        /* On OSX we add a stretch to the vertical end to make sure the page is
+         * always top aligned. */
+        QWidget *pW = new QWidget();
+        pW->setContentsMargins(0, 0, 0, 0);
+        QVBoxLayout *pBox = new QVBoxLayout(pW);
+        VBoxGlobal::setLayoutMargin(pBox, 0);
+        pBox->addWidget(pPage);
+        pBox->addStretch(0);
+        m_pages[cId] = m_pStack->addWidget(pW);
+#else /* Q_WS_MAC */
         m_pages[cId] = m_pStack->addWidget(pPage);
-        /* Update process-bar: */
+#endif /* !Q_WS_MAC */
+        /* Update process bar: */
         m_pProcessBar->setMinimum(0);
         m_pProcessBar->setMaximum(m_pStack->count());
     }
-    /* Assign validator if necessary: */
     if (pSettingsPage)
-    {
-        pSettingsPage->setId(cId);
         assignValidator(pSettingsPage);
-    }
 }
 
-void UISettingsDialog::revalidate(UIPageValidator *pValidator)
+void UISettingsDialog::sltHandleValidityChanged(const QIWidgetValidator * /* pValidator */)
 {
-    /* Perform page revalidation: */
-    UISettingsPage *pSettingsPage = pValidator->page();
-    QList<UIValidationMessage> messages;
-    bool fIsValid = pSettingsPage->validate(messages);
+    /* Get validators list: */
+    QList<QIWidgetValidator*> validatorsList(findChildren<QIWidgetValidator*>());
 
-    /* Remember revalidation result: */
-    pValidator->setValid(fIsValid);
-
-    /* Remember warning/error message: */
-    if (messages.isEmpty())
-        pValidator->setLastMessage(QString());
-    else
+    /* Detect ERROR presence: */
     {
-        /* Prepare title prefix: */
-        // Its the only thing preventing us from moving this method to validator.
-        const QString strTitlePrefix(m_pSelector->itemTextByPage(pSettingsPage));
-        /* Prepare text: */
-        QStringList text;
-        foreach (const UIValidationMessage &message, messages)
+        setError(QString());
+        QString strError;
+        bool fNewValid = true;
+        for (int i = 0; i < validatorsList.size(); ++i)
         {
-            /* Prepare title: */
-            const QString strTitle(message.first.isNull() ? tr("<b>%1</b> page:").arg(strTitlePrefix) :
-                                                            tr("<b>%1: %2</b> page:").arg(strTitlePrefix, message.first));
-            /* Prepare paragraph: */
-            QStringList paragraph(message.second);
-            paragraph.prepend(strTitle);
-            /* Format text for iterated message: */
-            text << paragraph.join("<br>");
+            QIWidgetValidator *pValidator = validatorsList[i];
+            fNewValid = pValidator->isValid();
+            if (!fNewValid)
+            {
+                strError = pValidator->warningText();
+                if (strError.isNull())
+                    strError = pValidator->lastWarning();
+                break;
+            }
         }
-        /* Remember text: */
-        pValidator->setLastMessage(text.join("<br><br>"));
-        LogRelFlow(("Settings Dialog:  Page validation FAILED: {%s}\n",
-                    pValidator->lastMessage().toUtf8().constData()));
+
+        /* Try to set the generic error message when invalid
+         * but no specific message is provided: */
+        if (m_strErrorString.isNull() && !strError.isNull())
+            setError(strError);
+
+        m_fValid = fNewValid;
+        m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(m_fValid);
+        m_pWarningPane->setWarningPixmap(m_errorIcon);
+        m_pWarningPane->setWarningText(m_strErrorHint);
+#ifdef Q_WS_MAC
+        m_pWarningPane->setToolTip(m_strErrorString);
+#endif /* Q_WS_MAC */
+        if (m_fValid && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pStatusBar->setCurrentIndex(0);
+        else if (!m_fValid && m_pStatusBar->currentIndex() == 0)
+            m_pStatusBar->setCurrentWidget(m_pWarningPane);
+
+        if (!m_fValid)
+            return;
     }
-}
 
-void UISettingsDialog::revalidate()
-{
-    /* Perform dialog revalidation: */
-    m_fValid = true;
-    m_fSilent = true;
-    m_pWarningPane->setWarningLabel(QString());
-
-    /* Enumerating all the validators we have: */
-    QList<UIPageValidator*> validators(findChildren<UIPageValidator*>());
-    foreach (UIPageValidator *pValidator, validators)
+    /* Detect WARNING presence: */
     {
-        /* Is current validator have something to say? */
-        if (!pValidator->lastMessage().isEmpty())
+        setWarning(QString());
+        QString strWarning;
+        bool fNewSilent = true;
+        for (int i = 0; i < validatorsList.size(); ++i)
         {
-            /* What page is it related to? */
-            UISettingsPage *pFailedSettingsPage = pValidator->page();
-            LogRelFlow(("Settings Dialog:  Dialog validation FAILED: Page *%s*\n",
-                        pFailedSettingsPage->internalName().toUtf8().constData()));
-
-            /* Show error first: */
-            if (!pValidator->isValid())
-                m_fValid = false;
-            /* Show warning if message is not an error: */
-            else
-                m_fSilent = false;
-
-            /* Configure warning-pane label: */
-            m_pWarningPane->setWarningLabel(m_strWarningHint);
-
-            /* Stop dialog revalidation on first error/warning: */
-            break;
+            QIWidgetValidator *pValidator = validatorsList[i];
+            if (!pValidator->warningText().isNull() || !pValidator->lastWarning().isNull())
+            {
+                fNewSilent = false;
+                strWarning = pValidator->warningText();
+                if (strWarning.isNull())
+                    strWarning = pValidator->lastWarning();
+                break;
+            }
         }
+
+        /* Try to set the generic error message when invalid
+         * but no specific message is provided: */
+        if (m_strWarningString.isNull() && !strWarning.isNull())
+            setWarning(strWarning);
+
+        m_fSilent = fNewSilent;
+        m_pWarningPane->setWarningPixmap(m_warningIcon);
+        m_pWarningPane->setWarningText(m_strWarningHint);
+#ifdef Q_WS_MAC
+        m_pWarningPane->setToolTip(m_strWarningString);
+#endif /* Q_WS_MAC */
+        if (m_fSilent && m_pStatusBar->currentWidget() == m_pWarningPane)
+            m_pStatusBar->setCurrentIndex(0);
+        else if (!m_fSilent && m_pStatusBar->currentIndex() == 0)
+            m_pStatusBar->setCurrentWidget(m_pWarningPane);
     }
-
-    /* Make sure warning-pane visible if necessary: */
-    if ((!m_fValid || !m_fSilent) && m_pStatusBar->currentIndex() == 0)
-        m_pStatusBar->setCurrentWidget(m_pWarningPane);
-    /* Make sure empty-pane visible otherwise: */
-    else if (m_fValid && m_fSilent && m_pStatusBar->currentWidget() == m_pWarningPane)
-        m_pStatusBar->setCurrentIndex(0);
-
-    /* Lock/unlock settings-page OK button according global validity status: */
-    m_pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(m_fValid);
-}
-
-void UISettingsDialog::sltHandleValidityChange(UIPageValidator *pValidator)
-{
-    /* Determine which settings-page had called for revalidation: */
-    if (UISettingsPage *pSettingsPage = pValidator->page())
-    {
-        /* Determine settings-page name: */
-        const QString strPageName(pSettingsPage->internalName());
-
-        LogRelFlow(("Settings Dialog: %s Page: Revalidation in progress..\n",
-                    strPageName.toUtf8().constData()));
-
-        /* Perform page revalidation: */
-        revalidate(pValidator);
-        /* Perform inter-page recorrelation: */
-        recorrelate(pSettingsPage);
-        /* Perform dialog revalidation: */
-        revalidate();
-
-        LogRelFlow(("Settings Dialog: %s Page: Revalidation complete.\n",
-                    strPageName.toUtf8().constData()));
-    }
-}
-
-void UISettingsDialog::sltHandleWarningPaneHovered(UIPageValidator *pValidator)
-{
-    LogRelFlow(("Settings Dialog: Warning-icon hovered: %s.\n", pValidator->internalName().toUtf8().constData()));
-
-    /* Show corresponding popup: */
-    if (!m_fValid || !m_fSilent)
-    {
-        popupCenter().popup(m_pStack, "SettingsDialogWarning",
-                            pValidator->lastMessage());
-    }
-}
-
-void UISettingsDialog::sltHandleWarningPaneUnhovered(UIPageValidator *pValidator)
-{
-    LogRelFlow(("Settings Dialog: Warning-icon unhovered: %s.\n", pValidator->internalName().toUtf8().constData()));
-
-    /* Recall corresponding popup: */
-    popupCenter().recall(m_pStack, "SettingsDialogWarning");
 }
 
 void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus /* = false */)
@@ -446,8 +483,21 @@ void UISettingsDialog::sltUpdateWhatsThis(bool fGotFocus /* = false */)
         pWhatsThisWidget = pWhatsThisWidget->parentWidget();
     }
 
+#ifndef Q_WS_MAC
+    if (m_pStatusBar->currentWidget() == m_pWarningPane)
+    {
+        if (strWhatsThisText.isEmpty() && !m_strErrorString.isEmpty())
+            strWhatsThisText = m_strErrorString;
+        else if (strWhatsThisText.isEmpty() && !m_strWarningString.isEmpty())
+            strWhatsThisText = m_strWarningString;
+    }
+    if (strWhatsThisText.isEmpty())
+        strWhatsThisText = whatsThis();
+    m_pLbWhatsThis->setText(strWhatsThisText);
+#else
     if (pWhatsThisWidget && !strWhatsThisText.isEmpty())
         pWhatsThisWidget->setToolTip(QString("<qt>%1</qt>").arg(strWhatsThisText));
+#endif
 }
 
 void UISettingsDialog::reject()
@@ -462,7 +512,7 @@ bool UISettingsDialog::eventFilter(QObject *pObject, QEvent *pEvent)
     if (!pObject->isWidgetType())
         return QIMainDialog::eventFilter(pObject, pEvent);
 
-    /* Ignore widgets which window is NOT settings window: */
+    /* Ignore widgets which window is NOT settings dialog: */
     QWidget *pWidget = static_cast<QWidget*>(pObject);
     if (pWidget->window() != this)
         return QIMainDialog::eventFilter(pObject, pEvent);
@@ -553,16 +603,20 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
 #endif /* Q_WS_MAC */
 }
 
+void UISettingsDialog::closeEvent(QCloseEvent *pEvent)
+{
+    if (m_fLoaded)
+        QIMainDialog::closeEvent(pEvent);
+    else
+        pEvent->ignore();
+}
+
 void UISettingsDialog::assignValidator(UISettingsPage *pPage)
 {
-    /* Assign validator: */
-    UIPageValidator *pValidator = new UIPageValidator(this, pPage);
-    connect(pValidator, SIGNAL(sigValidityChanged(UIPageValidator*)), this, SLOT(sltHandleValidityChange(UIPageValidator*)));
+    QIWidgetValidator *pValidator = new QIWidgetValidator(m_pSelector->itemTextByPage(pPage), pPage, this);
+    connect(pValidator, SIGNAL(validityChanged(const QIWidgetValidator*)), this, SLOT(sltHandleValidityChanged(const QIWidgetValidator*)));
+    connect(pValidator, SIGNAL(isValidRequested(QIWidgetValidator*)), this, SLOT(sltRevalidate(QIWidgetValidator*)));
     pPage->setValidator(pValidator);
-    m_pWarningPane->registerValidator(pValidator);
-
-    // TODO: Why here?
-    /* Configure navigation (tab-order): */
     pPage->setOrderAfter(m_pSelector->widget());
 }
 

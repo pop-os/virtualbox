@@ -89,7 +89,6 @@ void VDMemDiskDestroy(PVDMEMDISK pMemDisk)
     AssertPtrReturnVoid(pMemDisk);
 
     RTAvlrU64Destroy(pMemDisk->pTreeSegments, vdMemDiskDestroy, NULL);
-    RTMemFree(pMemDisk->pTreeSegments);
     RTMemFree(pMemDisk);
 }
 

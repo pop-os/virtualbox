@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,36 +64,28 @@ typedef struct RTSPINLOCKINTERNAL
 {
     /** Spinlock magic value (RTSPINLOCK_MAGIC). */
     uint32_t            u32Magic;
-    /** The spinlock creation flags. */
-    uint32_t            fFlags;
     /** The spinlock. */
     uint32_t volatile   fLocked;
-    /** The saved CPU interrupt. */
-    uint32_t volatile   fIntSaved;
 } RTSPINLOCKINTERNAL, *PRTSPINLOCKINTERNAL;
 
 
-RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char *pszName)
+RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock)
 {
-    PRTSPINLOCKINTERNAL pThis;
-    AssertReturn(fFlags == RTSPINLOCK_FLAGS_INTERRUPT_SAFE || fFlags == RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, VERR_INVALID_PARAMETER);
-
     /*
      * Allocate.
      */
-    pThis = (PRTSPINLOCKINTERNAL)RTMemAlloc(sizeof(*pThis));
-    if (!pThis)
+    PRTSPINLOCKINTERNAL pSpinlockInt;
+    pSpinlockInt = (PRTSPINLOCKINTERNAL)RTMemAlloc(sizeof(*pSpinlockInt));
+    if (!pSpinlockInt)
         return VERR_NO_MEMORY;
 
     /*
      * Initialize and return.
      */
-    pThis->u32Magic  = RTSPINLOCK_MAGIC;
-    pThis->fFlags    = fFlags;
-    pThis->fIntSaved = 0;
-    ASMAtomicWriteU32(&pThis->fLocked, 0);
+    pSpinlockInt->u32Magic = RTSPINLOCK_MAGIC;
+    ASMAtomicXchgU32(&pSpinlockInt->fLocked, 0);
 
-    *pSpinlock = pThis;
+    *pSpinlock = pSpinlockInt;
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTSpinlockCreate);
@@ -104,136 +96,103 @@ RTDECL(int)  RTSpinlockDestroy(RTSPINLOCK Spinlock)
     /*
      * Validate input.
      */
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    if (!pThis)
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    if (!pSpinlockInt)
         return VERR_INVALID_PARAMETER;
-    if (pThis->u32Magic != RTSPINLOCK_MAGIC)
+    if (pSpinlockInt->u32Magic != RTSPINLOCK_MAGIC)
     {
-        AssertMsgFailed(("Invalid spinlock %p magic=%#x\n", pThis, pThis->u32Magic));
+        AssertMsgFailed(("Invalid spinlock %p magic=%#x\n", pSpinlockInt, pSpinlockInt->u32Magic));
         return VERR_INVALID_PARAMETER;
     }
 
-    ASMAtomicIncU32(&pThis->u32Magic);
-    RTMemFree(pThis);
+    ASMAtomicIncU32(&pSpinlockInt->u32Magic);
+    RTMemFree(pSpinlockInt);
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTSpinlockDestroy);
 
 
-RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
+RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
-              ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC,
+              ("pSpinlockInt=%p u32Magic=%08x\n", pSpinlockInt, pSpinlockInt ? (int)pSpinlockInt->u32Magic : 0));
 
-    if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
-    {
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-        uint32_t fIntSaved = ASMGetFlags();
-#endif
-
-#if RT_CFG_SPINLOCK_GENERIC_DO_SLEEP
-        for (;;)
-        {
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-            ASMIntDisable();
-#endif
-            for (int c = RT_CFG_SPINLOCK_GENERIC_DO_SLEEP; c > 0; c--)
-            {
-                if (ASMAtomicCmpXchgU32(&pThis->fLocked, 1, 0))
-                {
-# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-                    pThis->fIntSaved = fIntSaved;
-# endif
-                    return;
-                }
-                ASMNopPause();
-            }
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-            ASMSetFlags(fIntSaved);
-#endif
-            RTThreadYield();
-        }
+    pTmp->uFlags = ASMGetFlags();
 #else
-        for (;;)
-        {
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-            ASMIntDisable();
+    pTmp->uFlags = 0;
 #endif
-            if (ASMAtomicCmpXchgU32(&pThis->fLocked, 1, 0))
-            {
+#if RT_CFG_SPINLOCK_GENERIC_DO_SLEEP
+    for (;;)
+    {
 # if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-                pThis->fIntSaved = fIntSaved;
+        ASMIntDisable();
 # endif
+        for (int c = RT_CFG_SPINLOCK_GENERIC_DO_SLEEP; c > 0; c--)
+            if (ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 1, 0))
                 return;
-            }
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-            ASMSetFlags(fIntSaved);
-#endif
-            ASMNopPause();
-        }
-#endif
+        RTThreadYield();
     }
-    else
-    {
-#if RT_CFG_SPINLOCK_GENERIC_DO_SLEEP
-        for (;;)
-        {
-            for (int c = RT_CFG_SPINLOCK_GENERIC_DO_SLEEP; c > 0; c--)
-            {
-                if (ASMAtomicCmpXchgU32(&pThis->fLocked, 1, 0))
-                    return;
-                ASMNopPause();
-            }
-            RTThreadYield();
-        }
 #else
-        while (!ASMAtomicCmpXchgU32(&pThis->fLocked, 1, 0))
-            ASMNopPause();
+# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    ASMIntDisable();
+# endif
+    while (!ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 1, 0))
+        /*nothing */;
 #endif
+}
+RT_EXPORT_SYMBOL(RTSpinlockAcquireNoInts);
+
+
+RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
+{
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC,
+              ("pSpinlockInt=%p u32Magic=%08x\n", pSpinlockInt, pSpinlockInt ? (int)pSpinlockInt->u32Magic : 0));
+    NOREF(pSpinlockInt);
+
+    if (!ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 0, 1))
+        AssertMsgFailed(("Spinlock %p was not locked!\n", pSpinlockInt));
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    ASMSetFlags(pTmp->uFlags);
+#endif
+}
+RT_EXPORT_SYMBOL(RTSpinlockReleaseNoInts);
+
+
+RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
+{
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC,
+              ("pSpinlockInt=%p u32Magic=%08x\n", pSpinlockInt, pSpinlockInt ? (int)pSpinlockInt->u32Magic : 0));
+    NOREF(pTmp);
+
+#if RT_CFG_SPINLOCK_GENERIC_DO_SLEEP
+    for (;;)
+    {
+        for (int c = RT_CFG_SPINLOCK_GENERIC_DO_SLEEP; c > 0; c--)
+            if (ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 1, 0))
+                return;
+        RTThreadYield();
     }
+#else
+    while (!ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 1, 0))
+        /*nothing */;
+#endif
 }
 RT_EXPORT_SYMBOL(RTSpinlockAcquire);
 
 
-RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
+RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertMsg(pThis && pThis->u32Magic == RTSPINLOCK_MAGIC,
-              ("pThis=%p u32Magic=%08x\n", pThis, pThis ? (int)pThis->u32Magic : 0));
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertMsg(pSpinlockInt && pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC,
+              ("pSpinlockInt=%p u32Magic=%08x\n", pSpinlockInt, pSpinlockInt ? (int)pSpinlockInt->u32Magic : 0));
+    NOREF(pTmp);
 
-    if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
-    {
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-        uint32_t fIntSaved = pThis->fIntSaved;
-        pThis->fIntSaved   = 0;
-#endif
-
-        if (!ASMAtomicCmpXchgU32(&pThis->fLocked, 0, 1))
-            AssertMsgFailed(("Spinlock %p was not locked!\n", pThis));
-
-#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-        ASMSetFlags(fIntSaved);
-#endif
-    }
-    else
-    {
-        if (!ASMAtomicCmpXchgU32(&pThis->fLocked, 0, 1))
-            AssertMsgFailed(("Spinlock %p was not locked!\n", pThis));
-    }
+    if (!ASMAtomicCmpXchgU32(&pSpinlockInt->fLocked, 0, 1))
+        AssertMsgFailed(("Spinlock %p was not locked!\n", pSpinlockInt));
 }
 RT_EXPORT_SYMBOL(RTSpinlockRelease);
-
-
-RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock)
-{
-#if 1
-    if (RT_UNLIKELY(!(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)))
-        RTAssertMsg2("RTSpinlockReleaseNoInts: %p (magic=%#x)\n", Spinlock, Spinlock->u32Magic);
-#else
-    AssertRelease(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE);
-#endif
-    RTSpinlockRelease(Spinlock);
-}
-RT_EXPORT_SYMBOL(RTSpinlockReleaseNoInts);
 

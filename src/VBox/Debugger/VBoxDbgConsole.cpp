@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,18 +82,6 @@ VBoxDbgConsoleOutput::VBoxDbgConsoleOutput(QWidget *pParent/* = NULL*/, const ch
     Pal.setColor(QPalette::All, QPalette::Base, QColor(Qt::black));
     setPalette(Pal);
     setTextColor(QColor(qRgb(0, 0xe0, 0)));
-
-#ifdef DEBUG_ramshankar
-    /* Solaris host (esp. S10) has illegible Courier font (bad aliasing). */
-    Font.setFamily("Monospace [Monotype]");
-    setFont(Font);
-
-    /* White on black while I'm at it. */
-    Pal.setColor(QPalette::All, QPalette::Base, QColor(Qt::white));
-    setPalette(Pal);
-    setTextColor(QColor(qRgb(0, 0, 0)));
-#endif
-
     NOREF(pszName);
 }
 
@@ -105,7 +93,7 @@ VBoxDbgConsoleOutput::~VBoxDbgConsoleOutput()
 
 
 void
-VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
+VBoxDbgConsoleOutput::appendText(const QString &rStr)
 {
     Assert(m_hGUIThread == RTThreadNativeSelf());
 
@@ -114,33 +102,12 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
 
     /*
      * Insert all in one go and make sure it's visible.
-     *
-     * We need to move the cursor and unselect any selected text before
-     * inserting anything, otherwise, text will disappear.
      */
     QTextCursor Cursor = textCursor();
-    if (!fClearSelection && Cursor.hasSelection())
-    {
-        QTextCursor SavedCursor = Cursor;
-        Cursor.clearSelection();
-        Cursor.movePosition(QTextCursor::End);
-
-        Cursor.insertText(rStr);
-
-        setTextCursor(SavedCursor);
-    }
-    else
-    {
-        if (Cursor.hasSelection())
-            Cursor.clearSelection();
-        if (!Cursor.atEnd())
-            Cursor.movePosition(QTextCursor::End);
-
-        Cursor.insertText(rStr);
-
-        setTextCursor(Cursor);
-        ensureCursorVisible();
-    }
+    if (!Cursor.atEnd())
+        moveCursor(QTextCursor::End); /* make sure we append the text */
+    Cursor.insertText(rStr);
+    ensureCursorVisible();
 }
 
 
@@ -157,10 +124,9 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
 
 
 VBoxDbgConsoleInput::VBoxDbgConsoleInput(QWidget *pParent/* = NULL*/, const char *pszName/* = NULL*/)
-    : QComboBox(pParent), m_hGUIThread(RTThreadNativeSelf())
+    : QComboBox(pParent), m_iBlankItem(0), m_hGUIThread(RTThreadNativeSelf())
 {
-    addItem(""); /* invariant: empty command line is the last item */
-
+    insertItem(m_iBlankItem, "");
     setEditable(true);
     setInsertPolicy(NoInsert);
     setAutoCompletion(false);
@@ -193,52 +159,23 @@ void
 VBoxDbgConsoleInput::returnPressed()
 {
     Assert(m_hGUIThread == RTThreadNativeSelf());
-
-    QString strCommand = currentText();
-    /* TODO: trim whitespace? */
-    if (strCommand.isEmpty())
-        return;
-
     /* deal with the current command. */
-    emit commandSubmitted(strCommand);
+    QString Str = currentText();
+    emit commandSubmitted(Str);
 
-
-    /*
-     * Add current command to history.
-     */
-    bool fNeedsAppending = true;
-
-    /* invariant: empty line at the end */
-    int iLastItem = count() - 1;
-    Assert(itemText(iLastItem).isEmpty());
-
-    /* have previous command? check duplicate. */
-    if (iLastItem > 0)
+    /* update the history and clear the entry field */
+    QString PrevStr = m_iBlankItem > 0 ? itemText(m_iBlankItem - 1) : "";
+    if (PrevStr != Str)
     {
-        const QString strPrevCommand(itemText(iLastItem - 1));
-        if (strCommand == strPrevCommand)
-            fNeedsAppending = false;
+        setItemText(m_iBlankItem, Str);
+        if (    m_iBlankItem > 0
+            &&  m_iBlankItem >= maxCount() - 1)
+            removeItem(m_iBlankItem - maxCount() - 1);
+        insertItem(++m_iBlankItem, "");
     }
 
-    if (fNeedsAppending)
-    {
-        /* history full? drop the oldest command. */
-        if (count() == maxCount())
-        {
-            removeItem(0);
-            --iLastItem;
-        }
-
-        /* insert before the empty line. */
-        insertItem(iLastItem, strCommand);
-    }
-
-    /* invariant: empty line at the end */
-    int iNewLastItem = count() - 1;
-    Assert(itemText(iNewLastItem).isEmpty());
-
-    /* select empty line to present "new" command line to the user */
-    setCurrentIndex(iNewLastItem);
+    clearEditText();
+    setCurrentIndex(m_iBlankItem);
 }
 
 
@@ -322,7 +259,6 @@ VBoxDbgConsole::VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent/* = NUL
      * The tab order is from input to output, not the other way around as it is by default.
      */
     setTabOrder(m_pInput, m_pOutput);
-    m_fInputRestoreFocus = true; /* hack */
 
     /*
      * Setup the timer.
@@ -444,7 +380,7 @@ VBoxDbgConsole::commandSubmitted(const QString &rCommand)
     m_cbInputBuf += cb;
     m_pszInputBuf[m_cbInputBuf++] = '\n';
 
-    m_pOutput->appendText(rCommand + "\n", true /*fClearSelection*/);
+    m_pOutput->appendText(rCommand + "\n");
     m_pOutput->ensureCursorVisible();
 
     m_fInputRestoreFocus = m_pInput->hasFocus();    /* dirty focus hack */
@@ -464,7 +400,7 @@ VBoxDbgConsole::updateOutput()
     m_fUpdatePending = false;
     if (m_cbOutputBuf)
     {
-        m_pOutput->appendText(QString::fromUtf8((const char *)m_pszOutputBuf, (int)m_cbOutputBuf), false /*fClearSelection*/);
+        m_pOutput->appendText(QString::fromUtf8((const char *)m_pszOutputBuf, (int)m_cbOutputBuf));
         m_cbOutputBuf = 0;
     }
     unlock();

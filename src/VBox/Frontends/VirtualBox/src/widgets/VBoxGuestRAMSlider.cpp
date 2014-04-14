@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
+/* VBox includes */
 #include "VBoxGuestRAMSlider.h"
 #include "VBoxGlobal.h"
-
-/* COM includes: */
-#include "CSystemProperties.h"
 
 VBoxGuestRAMSlider::VBoxGuestRAMSlider (QWidget *aParent /* = 0 */)
   : QIAdvancedSlider (aParent)

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,11 +26,11 @@
 
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
-#ifneq ($(KBUILD_HOST),solaris)
-#$(error "The Solaris guest additions can only be built on Solaris!")
-#endif
+ifneq ($(KBUILD_HOST),solaris)
+$(error "The Solaris guest additions can only be built on Solaris!")
+endif
 
 #
 # vboxvideo - The Video DRM (Direct Rendering Module) kernel module
@@ -46,13 +46,8 @@ vboxvideo_SOURCES       = \
 vboxvideo_LIBS          = \
 	$(VBOX_LIB_VBGL_R0) \
 	$(VBOX_LIB_IPRT_GUEST_R0)
-ifeq ($(KBUILD_HOST),solaris)
- vboxvideo_LDFLAGS         += -N misc/drm
-else
- vboxvideo_SOURCES         += deps.asm
- vboxvideo_deps.asm_ASFLAGS = -f bin -g null
-endif
+vboxvideo_LDFLAGS      += -N misc/drm
 
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

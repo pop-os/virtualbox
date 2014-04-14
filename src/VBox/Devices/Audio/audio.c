@@ -361,64 +361,41 @@ static audfmt_e audio_string_to_audfmt (const char *s, audfmt_e defval,
     }
 }
 
-static audfmt_e audio_get_conf_fmt (PCFGMNODE pCfgHandle, const char *envname,
+static audfmt_e audio_get_conf_fmt (const char *envname,
                                     audfmt_e defval,
                                     int *defaultp)
 {
-    char *var = NULL;
-    int rc;
-
-    if(pCfgHandle == NULL || envname == NULL) {
-        *defaultp = 1;
-        return defval;
-    }
-
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, envname, &var);
-    if (RT_FAILURE (rc)) {
+    const char *var = getenv (envname);
+    if (!var) {
         *defaultp = 1;
         return defval;
     }
     return audio_string_to_audfmt (var, defval, defaultp);
 }
 
-static int audio_get_conf_int (PCFGMNODE  pCfgHandle, const char *key, int defval, int *defaultp)
+static int audio_get_conf_int (const char *key, int defval, int *defaultp)
 {
-    int rc;
-    uint64_t u64Data = 0;
-    if(pCfgHandle == NULL || key == NULL) {
-        *defaultp = 1;
-        return defval;
-    }
+    int val;
+    char *strval;
 
-    *defaultp = 0;
-    rc = CFGMR3QueryInteger(pCfgHandle, key, &u64Data);
-    if (RT_FAILURE (rc))
-    {
-        *defaultp = 1;
-        return defval;
-
-    }
-    else
-    {
-        LogFlow(("%s, Value = %d\n", key, u64Data));
+    strval = getenv (key);
+    if (strval) {
         *defaultp = 0;
-        return u64Data;
+        val = atoi (strval);
+        return val;
+    }
+    else {
+        *defaultp = 1;
+        return defval;
     }
 }
 
-static const char *audio_get_conf_str (PCFGMNODE  pCfgHandle, const char *key,
+static const char *audio_get_conf_str (const char *key,
                                        const char *defval,
                                        int *defaultp)
 {
-    char *val = NULL;
-    int rc;
-    if(pCfgHandle == NULL || key == NULL) {
-        *defaultp = 1;
-        return defval;
-    }
-
-    rc = CFGMR3QueryStringAlloc(pCfgHandle, key, &val);
-    if (RT_FAILURE (rc)) {
+    const char *val = getenv (key);
+    if (!val) {
         *defaultp = 1;
         return defval;
     }
@@ -450,12 +427,12 @@ void AUD_log (const char *cap, const char *fmt, ...)
     va_end (va);
 }
 
-static void audio_process_options (PCFGMNODE pCfgHandle, const char *prefix,
+static void audio_process_options (const char *prefix,
                                    struct audio_option *opt)
 {
-    int def;
-    PCFGMNODE pCfgChildHandle = NULL;
-    PCFGMNODE pCfgChildChildHandle = NULL;
+    char *optname;
+    const char vbox_prefix[] = "VBOX_";
+    size_t preflen;
 
     if (audio_bug (AUDIO_FUNC, !prefix)) {
         dolog ("prefix = NULL\n");
@@ -467,69 +444,65 @@ static void audio_process_options (PCFGMNODE pCfgHandle, const char *prefix,
         return;
     }
 
-   /* if pCfgHandle is NULL, let NULL be passed to get int and get string functions..
-    * The getter function will return default values.
-    */
-   if(pCfgHandle != NULL) {
-       /* If its audio general setting, need to traverse to one child node.
-        * /Devices/ichac97/0/LUN#0/Config/Audio
-        */
-       if(!strncmp(prefix, "AUDIO", 5)) {
-            pCfgChildHandle = CFGMR3GetFirstChild(pCfgHandle);
-            if(pCfgChildHandle) {
-                pCfgHandle = pCfgChildHandle;
-            }
-        }
-        else
-        {
-            /* If its driver specific configuration , then need to traverse two level deep child
-             * child nodes. for eg. in case of DirectSoundConfiguration item
-             * /Devices/ichac97/0/LUN#0/Config/Audio/DirectSoundConfig
-             */
-            pCfgChildHandle = CFGMR3GetFirstChild(pCfgHandle);
-            if (pCfgChildHandle) {
-                pCfgChildChildHandle = CFGMR3GetFirstChild(pCfgChildHandle);
-                if(pCfgChildChildHandle) {
-                   pCfgHandle = pCfgChildChildHandle;
-                }
-            }
-        }
-   }
-
+    preflen = strlen (prefix);
 
     for (; opt->name; opt++) {
+        size_t len, i;
+        int def;
+
         if (!opt->valp) {
             dolog ("Option value pointer for `%s' is not set\n",
                    opt->name);
             continue;
         }
+
+        len = strlen (opt->name);
+        /* len of opt->name + len of prefix + size of vbox_prefix
+         * (includes trailing zero) + zero + underscore (on behalf of
+         * sizeof) */
+        optname = qemu_malloc (len + preflen + sizeof (vbox_prefix) + 1);
+        if (!optname) {
+            dolog ("Could not allocate memory for option name `%s'\n",
+                   opt->name);
+            continue;
+        }
+
+        strcpy (optname, vbox_prefix);
+
+        /* copy while upcasing, including trailing zero */
+        for (i = 0; i <= preflen; ++i) {
+            optname[i + sizeof (vbox_prefix) - 1] = toupper (prefix[i]);
+        }
+        strcat (optname, "_");
+        strcat (optname, opt->name);
+
         def = 1;
         switch (opt->tag) {
         case AUD_OPT_BOOL:
         case AUD_OPT_INT:
             {
                 int *intp = opt->valp;
-                *intp =   audio_get_conf_int(pCfgHandle, opt->name, *intp, &def);
+                *intp = audio_get_conf_int (optname, *intp, &def);
             }
             break;
 
         case AUD_OPT_FMT:
             {
                 audfmt_e *fmtp = opt->valp;
-                *fmtp = audio_get_conf_fmt (pCfgHandle, opt->name, *fmtp, &def);
+                *fmtp = audio_get_conf_fmt (optname, *fmtp, &def);
             }
             break;
 
         case AUD_OPT_STR:
             {
                 const char **strp = opt->valp;
-                *strp = audio_get_conf_str (pCfgHandle, opt->name, *strp, &def);
+                *strp = audio_get_conf_str (optname, *strp, &def);
             }
             break;
 
         default:
             dolog ("Bad value tag for option `%s' - %d\n",
-                   opt->name, opt->tag);
+                   optname, opt->tag);
             break;
         }
 
@@ -537,6 +510,7 @@ static void audio_process_options (PCFGMNODE pCfgHandle, const char *prefix,
             opt->overridenp = &opt->overriden;
         }
         *opt->overridenp = !def;
+        qemu_free (optname);
     }
 }
 
@@ -1530,39 +1504,39 @@ static void audio_timer (void *opaque)
 
 static struct audio_option audio_options[] = {
     /* DAC */
-    {"DACFixedSettings", AUD_OPT_BOOL, &conf.fixed_out.enabled,
+    {"DAC_FIXED_SETTINGS", AUD_OPT_BOOL, &conf.fixed_out.enabled,
      "Use fixed settings for host DAC", NULL, 0},
 
-    {"DACFixedFreq", AUD_OPT_INT, &conf.fixed_out.settings.freq,
+    {"DAC_FIXED_FREQ", AUD_OPT_INT, &conf.fixed_out.settings.freq,
      "Frequency for fixed host DAC", NULL, 0},
 
-    {"DACFixedFmt", AUD_OPT_FMT, &conf.fixed_out.settings.fmt,
+    {"DAC_FIXED_FMT", AUD_OPT_FMT, &conf.fixed_out.settings.fmt,
      "Format for fixed host DAC", NULL, 0},
 
-    {"DACFixedChannels", AUD_OPT_INT, &conf.fixed_out.settings.nchannels,
+    {"DAC_FIXED_CHANNELS", AUD_OPT_INT, &conf.fixed_out.settings.nchannels,
      "Number of channels for fixed DAC (1 - mono, 2 - stereo)", NULL, 0},
 
-    {"DACVoices", AUD_OPT_INT, &conf.fixed_out.nb_voices,
+    {"DAC_VOICES", AUD_OPT_INT, &conf.fixed_out.nb_voices,
      "Number of voices for DAC", NULL, 0},
 
     /* ADC */
-    {"ADCFixedSettings", AUD_OPT_BOOL, &conf.fixed_in.enabled,
+    {"ADC_FIXED_SETTINGS", AUD_OPT_BOOL, &conf.fixed_in.enabled,
      "Use fixed settings for host ADC", NULL, 0},
 
-    {"ADCFixedFreq", AUD_OPT_INT, &conf.fixed_in.settings.freq,
+    {"ADC_FIXED_FREQ", AUD_OPT_INT, &conf.fixed_in.settings.freq,
      "Frequency for fixed host ADC", NULL, 0},
 
-    {"ADCFixedFmt", AUD_OPT_FMT, &conf.fixed_in.settings.fmt,
+    {"ADC_FIXED_FMT", AUD_OPT_FMT, &conf.fixed_in.settings.fmt,
      "Format for fixed host ADC", NULL, 0},
 
-    {"ADCFixedChannels", AUD_OPT_INT, &conf.fixed_in.settings.nchannels,
+    {"ADC_FIXED_CHANNELS", AUD_OPT_INT, &conf.fixed_in.settings.nchannels,
      "Number of channels for fixed ADC (1 - mono, 2 - stereo)", NULL, 0},
 
-    {"ADCVoices", AUD_OPT_INT, &conf.fixed_in.nb_voices,
+    {"ADC_VOICES", AUD_OPT_INT, &conf.fixed_in.nb_voices,
      "Number of voices for ADC", NULL, 0},
 
     /* Misc */
-    {"TimerFreq", AUD_OPT_INT, &conf.period.hz,
+    {"TIMER_FREQ", AUD_OPT_INT, &conf.period.hz,
      "Timer frequency in Hz (0 - use lowest possible)", NULL, 0},
 
     {"PLIVE", AUD_OPT_BOOL, &conf.plive,
@@ -1571,10 +1545,10 @@ static struct audio_option audio_options[] = {
     {NULL, 0, NULL, NULL, NULL, 0}
 };
 
-static int audio_driver_init (PCFGMNODE pCfgHandle, AudioState *s, struct audio_driver *drv)
+static int audio_driver_init (AudioState *s, struct audio_driver *drv)
 {
     if (drv->options) {
-        audio_process_options (pCfgHandle, drv->name, drv->options);
+        audio_process_options (drv->name, drv->options);
     }
     s->drv_opaque = drv->init ();
 
@@ -1664,7 +1638,7 @@ static DECLCALLBACK(void) audio_timer_helper (PPDMDRVINS pDrvIns, PTMTIMER pTime
     audio_timer (s);
 }
 
-static int AUD_init (PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns, const char *drvname)
+static int AUD_init (PPDMDRVINS pDrvIns, const char *drvname)
 {
     size_t i;
     int done = 0;
@@ -1680,7 +1654,7 @@ static int AUD_init (PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns, const char *drvna
     if (RT_FAILURE (rc))
         return rc;
 
-    audio_process_options (pCfgHandle, "AUDIO", audio_options);
+    audio_process_options ("AUDIO", audio_options);
 
     s->nb_hw_voices_out = conf.fixed_out.nb_voices;
     s->nb_hw_voices_in = conf.fixed_in.nb_voices;
@@ -1704,7 +1678,7 @@ static int AUD_init (PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns, const char *drvna
 
         for (i = 0; i < sizeof (drvtab) / sizeof (drvtab[0]); i++) {
             if (!strcmp (drvname, drvtab[i]->name)) {
-                done = !audio_driver_init (pCfgHandle, s, drvtab[i]);
+                done = !audio_driver_init (s, drvtab[i]);
                 found = 1;
                 break;
             }
@@ -1721,13 +1695,13 @@ static int AUD_init (PCFGMNODE pCfgHandle, PPDMDRVINS pDrvIns, const char *drvna
                 LogRel(("Audio: Initialization of driver '%s' failed, trying '%s'.\n",
                        drvname, drvtab[i]->name));
                 drvname = drvtab[i]->name;
-                done = !audio_driver_init (pCfgHandle, s, drvtab[i]);
+                done = !audio_driver_init (s, drvtab[i]);
             }
         }
     }
 
     if (!done) {
-        done = !audio_driver_init (pCfgHandle, s, &no_audio_driver);
+        done = !audio_driver_init (s, &no_audio_driver);
         if (!done) {
             dolog ("Could not initialize audio subsystem\n");
         }
@@ -1772,7 +1746,7 @@ int AUD_init_null(void)
 #endif
 
     LogRel(("Audio: Using NULL audio driver\n"));
-    return audio_driver_init (NULL, s, &no_audio_driver);
+    return audio_driver_init (s, &no_audio_driver);
 }
 
 CaptureVoiceOut *AUD_add_capture (
@@ -2073,7 +2047,7 @@ static DECLCALLBACK(int) drvAudioConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfgHan
     if (RT_FAILURE (rc))
         audio_streamname = NULL;
 
-    rc = AUD_init (pCfgHandle, pDrvIns, drvname);
+    rc = AUD_init (pDrvIns, drvname);
     if (RT_FAILURE (rc))
         return rc;
 

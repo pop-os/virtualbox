@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,7 +59,7 @@ static int tstMemAllocEfAccess()
 
 int main()
 {
-    RTR3InitExeNoArguments(0);
+    RTR3Init();
     RTPrintf("tstRTMemEf: TESTING...\n");
 
 #define CHECK_EXPR(expr) \

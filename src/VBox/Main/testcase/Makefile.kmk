@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2004-2013 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,7 +18,6 @@
 SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
-
 #
 # Target and globals (small mess)
 #
@@ -27,12 +26,9 @@ ifndef VBOX_ONLY_SDK
   PROGRAMS       += \
 	tstAPI \
 	$(if $(VBOX_OSE),,tstOVF) \
-	$(if $(VBOX_WITH_XPCOM),tstVBoxAPIXPCOM,tstVBoxAPIWin) \
+	$(if $(VBOX_WITH_XPCOM),tstVBoxAPILinux,tstVBoxAPIWin) \
 	$(if $(VBOX_WITH_RESOURCE_USAGE_API),tstCollector,) \
-	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlParseBuffer,) \
-	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlContextID,) \
-	tstMediumLock \
-	tstMouseImpl
+	$(if $(VBOX_WITH_GUEST_CONTROL),tstGuestCtrlParseBuffer,)
   PROGRAMS.linux += \
 	$(if $(VBOX_WITH_USB),tstUSBProxyLinux,)
  endif # !VBOX_WITH_TESTCASES
@@ -50,27 +46,43 @@ endif
 #
 samplesMSCOM_MODE = a+r,u+w
 samplesMSCOM_INST = $(INST_SDK)bindings/mscom/samples/
-samplesMSCOM_SOURCES = tstVBoxAPIWin.cpp makefile.tstVBoxAPIWin=>Makefile
+samplesMSCOM_SOURCES = tstVBoxAPIWin.cpp
 
 samplesXPCOM_MODE = a+r,u+w
 samplesXPCOM_INST = $(INST_SDK)bindings/xpcom/samples/
-samplesXPCOM_SOURCES = tstVBoxAPIXPCOM.cpp makefile.tstVBoxAPIXPCOM=>Makefile
+samplesXPCOM_SOURCES = tstVBoxAPILinux.cpp makefile.tstVBoxAPILinux=>Makefile
 
 
 #
 # tstAPI
 #
-tstAPI_TEMPLATE = VBOXMAINCLIENTTSTEXE
+tstAPI_TEMPLATE = VBOXMAINCLIENTEXE
 #tstAPI_INST = $(INST_SDK)bindings/gluecom/samples/
 tstAPI_SOURCES  = tstAPI.cpp
+ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
+tstAPI_DEPS = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+else
+tstAPI_DEPS = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+endif
+ifdef VBOX_WITH_RESOURCE_USAGE_API
+tstAPI_DEFS += VBOX_WITH_RESOURCE_USAGE_API
+endif
 
 
 #
 # tstOVF
 #
-tstOVF_TEMPLATE = VBOXMAINCLIENTTSTEXE
+tstOVF_TEMPLATE = VBOXMAINCLIENTEXE
 #tstOVF_INST = $(INST_SDK)bindings/gluecom/samples/
 tstOVF_SOURCES  = tstOVF.cpp
+ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
+tstOVF_DEPS = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+else
+tstOVF_DEPS = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+endif
+ifdef VBOX_WITH_RESOURCE_USAGE_API
+tstOVF_DEFS += VBOX_WITH_RESOURCE_USAGE_API
+endif
 
 ifndef VBOX_OSE
 #
@@ -88,58 +100,65 @@ endif
 
 
 #
-# tstVBoxAPIXPCOM
+# tstVBoxAPILinux
 #
 # We only build the testcase here to make sure it builds.
 # It comes with a custom makefile which should be tested as well!
 #
-tstVBoxAPIXPCOM_TEMPLATE = VBOXMAINCLIENTTSTEXE
-tstVBoxAPIXPCOM_SOURCES  = tstVBoxAPIXPCOM.cpp
+tstVBoxAPILinux_TEMPLATE = VBOXR3EXE
+tstVBoxAPILinux_SOURCES  = tstVBoxAPILinux.cpp
+tstVBoxAPILinux_CXXFLAGS = -Wno-non-virtual-dtor -fshort-wchar
+tstVBoxAPILinux_LDFLAGS.solaris += '$(VBOX_GCC_RPATH_OPT)$$(VBOX_ORIGIN)/../../..'
+ifdef VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
+ tstVBoxAPILinux_DEFS += VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
+endif
+tstVBoxAPILinux_INCS     = \
+	$(VBOX_XPCOM_INCS) \
+	$(VBOX_PATH_SDK)/bindings/xpcom/include
+tstVBoxAPILinux_LIBPATH  = $(LIBPATH_XPCOM)
+tstVBoxAPILinux_LIBS     = $(LIB_XPCOM) $(LIB_RUNTIME)
+tstVBoxAPILinux_DEPS     = \
+	$(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
 
 
 #
 # tstVBoxAPIWin
 #
-tstVBoxAPIWin_TEMPLATE = VBOXMAINCLIENTTSTEXE
+tstVBoxAPIWin_TEMPLATE = VBOXMAINCLIENTEXE
 tstVBoxAPIWin_SOURCES  = \
 	tstVBoxAPIWin.cpp \
 	$(VBOX_PATH_SDK)/bindings/mscom/lib/VirtualBox_i.c
+tstVBoxAPIWin_DEPS     = \
+	$(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
 
 
 #
 # tstCollector
 #
-tstCollector_TEMPLATE = VBOXMAINCLIENTTSTEXE
+tstCollector_TEMPLATE = VBOXMAINCLIENTEXE
 tstCollector_SOURCES  = \
 	tstCollector.cpp \
 	../src-server/Performance.cpp
 tstCollector_INCS     = ../include
 tstCollector_DEFS    += VBOX_COLLECTOR_TEST_CASE
 tstCollector_LDFLAGS.darwin  += -lproc
-tstCollector_LDFLAGS.solaris += -lkstat -lnvpair
+tstCollector_LDFLAGS.solaris += -lkstat
 tstCollector_LDFLAGS.win     += psapi.lib powrprof.lib
 
 
 #
 # tstGuestCtrlParseBuffer
 #
-tstGuestCtrlParseBuffer_TEMPLATE = VBOXMAINCLIENTTSTEXE
-tstGuestCtrlParseBuffer_DEFS    += VBOX_WITH_HGCM VBOX_WITH_GUEST_CONTROL VBOX_GUESTCTRL_TEST_CASE
+tstGuestCtrlParseBuffer_TEMPLATE = VBOXMAINCLIENTEXE
 tstGuestCtrlParseBuffer_SOURCES  = \
 	tstGuestCtrlParseBuffer.cpp \
-	../src-client/GuestCtrlPrivate.cpp
+	../src-client/GuestCtrlIO.cpp
 tstGuestCtrlParseBuffer_INCS     = ../include
-
-
-#
-# tstGuestCtrlContextID
-#
-tstGuestCtrlContextID_TEMPLATE = VBOXMAINCLIENTTSTEXE
-tstGuestCtrlContextID_DEFS    += VBOX_WITH_HGCM VBOX_WITH_GUEST_CONTROL VBOX_GUESTCTRL_TEST_CASE
-tstGuestCtrlContextID_SOURCES  = \
-	tstGuestCtrlContextID.cpp \
-	../src-client/GuestCtrlPrivate.cpp
-tstGuestCtrlContextID_INCS     = ../include
+ifeq ($(KBUILD_TARGET),win) ## @todo just add this to the template.
+ tstGuestCtrlParseBuffer_DEPS    = $(VBOX_PATH_SDK)/bindings/mscom/include/VirtualBox.h
+else
+ tstGuestCtrlParseBuffer_DEPS    = $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
+endif
 
 
 #
@@ -164,43 +183,9 @@ tstUSBProxyLinux_DEFS      = \
 tstUSBProxyLinux_DEPS     = \
 	$(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
 tstUSBProxyLinux_LIBS     += \
-	$(PATH_OUT)/lib/USBLib.a \
-	$(PATH_OUT)/lib/VBoxCOM.a
-
-
-#
-# tstMediumLock
-#
-tstMediumLock_TEMPLATE = VBOXMAINCLIENTTSTEXE
-tstMediumLock_SOURCES  = tstMediumLock.cpp
-
-
-#
-# tstMouseImpl
-#
-tstMouseImpl_TEMPLATE = VBOXMAINTSTEXE
-tstMouseImpl_SOURCES  = \
-	tstMouseImpl.cpp \
-	../src-client/MouseImpl.cpp \
-	../src-all/EventImpl.cpp \
-	../src-all/VirtualBoxBase.cpp \
-	../src-all/VirtualBoxErrorInfoImpl.cpp \
-	$(VBOX_AUTOGEN_EVENT_CPP) \
-	$(VBOX_XML_SCHEMADEFS_CPP)
-tstMouseImpl_INCS      = ../include \
-	$(VBOX_PATH_SDK)/bindings/xpcom/include \
-	$(VBOX_PATH_SDK)/bindings/xpcom/include/nsprpub \
-	$(VBOX_PATH_SDK)/bindings/xpcom/include/xpcom \
-	$(dir $(VBOX_XML_SCHEMADEFS_H))
-tstMouseImpl_LIBS      = \
-	$(PATH_STAGE_LIB)/VBoxAPIWrap$(VBOX_SUFF_LIB) \
-	$(LIB_VMM)
-# Super ugly hack to make the code work well enough without having ATL/COM
-# completely initialized, without it there are crashes caused by ComObjPtr
-# and many other pieces of glue code, as the inproc code path is more picky.
-tstMouseImpl_DEFS.win  += VBOX_COM_OUTOFPROC_MODULE
+	$(PATH_OUT)/lib/USBLib.a
 
 
 # generate rules.
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

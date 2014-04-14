@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -311,23 +311,40 @@ static void rtSchedNativeRestore(PSAVEDPRIORITY pSave)
 static int rtSchedRunThread(void *(*pfnThread)(void *pvArg), void *pvArg)
 {
     /*
-     * Create the thread.
+     * Setup thread attributes.
      */
-    pthread_t Thread;
-    int rc = pthread_create(&Thread, NULL, pfnThread, pvArg);
+    pthread_attr_t  ThreadAttr;
+    int rc = pthread_attr_init(&ThreadAttr);
     if (!rc)
     {
-        /*
-         * Wait for the thread to finish.
-         */
-        void *pvRet = (void *)-1;
-        do
+        rc = pthread_attr_setdetachstate(&ThreadAttr, PTHREAD_CREATE_JOINABLE);
+        if (!rc)
         {
-            rc = pthread_join(Thread, &pvRet);
-        } while (errno == EINTR);
-        if (rc)
-            return RTErrConvertFromErrno(rc);
-        return (int)(uintptr_t)pvRet;
+            rc = pthread_attr_setstacksize(&ThreadAttr, 128*1024);
+            if (!rc)
+            {
+                /*
+                 * Create the thread.
+                 */
+                pthread_t Thread;
+                rc = pthread_create(&Thread, &ThreadAttr, pfnThread, pvArg);
+                if (!rc)
+                {
+                    /*
+                     * Wait for the thread to finish.
+                     */
+                    void *pvRet = (void *)-1;
+                    do
+                    {
+                        rc = pthread_join(Thread, &pvRet);
+                    } while (errno == EINTR);
+                    if (rc)
+                        return RTErrConvertFromErrno(rc);
+                    return (int)(uintptr_t)pvRet;
+                }
+            }
+        }
+        pthread_attr_destroy(&ThreadAttr);
     }
     return RTErrConvertFromErrno(rc);
 }
@@ -388,7 +405,6 @@ static void *rtSchedNativeSubProberThread(void *pvUser)
  */
 static void *rtSchedNativeProberThread(void *pvUser)
 {
-    NOREF(pvUser);
     SAVEDPRIORITY SavedPriority;
     rtSchedNativeSave(&SavedPriority);
 

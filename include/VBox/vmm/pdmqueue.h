@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,9 +65,6 @@ typedef struct PDMQUEUEITEMCORE
  *          If false the item will not be removed and the flushing will stop.
  * @param   pDevIns     The device instance.
  * @param   pItem       The item to consume. Upon return this item will be freed.
- * @remarks The device critical section will NOT be entered before calling the
- *          callback.  No locks will be held, but for now it's safe to assume
- *          that only one EMT will do queue callbacks at any one time.
  */
 typedef DECLCALLBACK(bool) FNPDMQUEUEDEV(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem);
 /** Pointer to a FNPDMQUEUEDEV(). */
@@ -80,8 +77,6 @@ typedef FNPDMQUEUEDEV *PFNPDMQUEUEDEV;
  *          If false the item will not be removed and the flushing will stop.
  * @param   pDevIns     The USB device instance.
  * @param   pItem       The item to consume. Upon return this item will be freed.
- * @remarks No locks will be held, but for now it's safe to assume that only one
- *          EMT will do queue callbacks at any one time.
  */
 typedef DECLCALLBACK(bool) FNPDMQUEUEUSB(PPDMUSBINS pUsbIns, PPDMQUEUEITEMCORE pItem);
 /** Pointer to a FNPDMQUEUEUSB(). */
@@ -94,8 +89,6 @@ typedef FNPDMQUEUEUSB *PFNPDMQUEUEUSB;
  *          If false the item will not be removed and the flushing will stop.
  * @param   pDrvIns     The driver instance.
  * @param   pItem       The item to consume. Upon return this item will be freed.
- * @remarks No locks will be held, but for now it's safe to assume that only one
- *          EMT will do queue callbacks at any one time.
  */
 typedef DECLCALLBACK(bool) FNPDMQUEUEDRV(PPDMDRVINS pDrvIns, PPDMQUEUEITEMCORE pItem);
 /** Pointer to a FNPDMQUEUEDRV(). */
@@ -108,8 +101,6 @@ typedef FNPDMQUEUEDRV *PFNPDMQUEUEDRV;
  *          If false the item will not be removed and the flushing will stop.
  * @param   pVM         The VM handle.
  * @param   pItem       The item to consume. Upon return this item will be freed.
- * @remarks No locks will be held, but for now it's safe to assume that only one
- *          EMT will do queue callbacks at any one time.
  */
 typedef DECLCALLBACK(bool) FNPDMQUEUEINT(PVM pVM, PPDMQUEUEITEMCORE pItem);
 /** Pointer to a FNPDMQUEUEINT(). */
@@ -122,8 +113,6 @@ typedef FNPDMQUEUEINT *PFNPDMQUEUEINT;
  *          If false the item will not be removed and the flushing will stop.
  * @param   pvUser      User argument.
  * @param   pItem       The item to consume. Upon return this item will be freed.
- * @remarks No locks will be held, but for now it's safe to assume that only one
- *          EMT will do queue callbacks at any one time.
  */
 typedef DECLCALLBACK(bool) FNPDMQUEUEEXT(void *pvUser, PPDMQUEUEITEMCORE pItem);
 /** Pointer to a FNPDMQUEUEEXT(). */

@@ -1,11 +1,11 @@
 #!/bin/sh
-# $Id: postinstall.sh $
 ## @file
+#
 # VirtualBox postinstall script for Solaris.
 #
 
 #
-# Copyright (C) 2007-2012 Oracle Corporation
+# Copyright (C) 2007-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,7 @@
 rc=0
 currentzone=`zonename`
 if test "$currentzone" = "global"; then
-    DEBUGOPT=`set -o 2>/dev/null | sed -ne 's/^xtrace *on$/--sh-trace/p'` # propagate pkgadd -v
-    ${PKG_INSTALL_ROOT:=/}/opt/VirtualBox/pkginstall.sh --srv4 ${DEBUGOPT}
+    ${PKG_INSTALL_ROOT:=/}/opt/VirtualBox/pkginstall.sh --srv4
     rc=$?
 fi
 

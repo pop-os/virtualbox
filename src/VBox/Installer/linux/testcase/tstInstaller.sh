@@ -15,7 +15,7 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-#include installer-common.sh
+#include installer-utils.sh
 
 echo Testing udev rule generation
 

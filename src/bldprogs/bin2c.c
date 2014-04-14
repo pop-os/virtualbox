@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,10 +56,8 @@ static int usage(const char *argv0)
             "  -mask <n>    check if size of binaryfile is <n>-aligned\n"
             "  -width <n>   number of bytes per line (default: 16)\n"
             "  -break <n>   break every <n> lines    (default: -1)\n"
-            "  -ascii       show ASCII representation of binary as comment\n"
-            "  -export      emit DECLEXPORT\n"
-            "  --append     append to the output file (default: truncate)\n"
-            , argv0);
+            "  -ascii       show ASCII representation of binary as comment\n",
+            argv0);
 
     return 1;
 }
@@ -73,7 +71,6 @@ int main(int argc, char *argv[])
     size_t        cbMax = ~0U;
     size_t        uMask = 0;
     int           fAscii = 0;
-    int           fAppend = 0;
     int           fExport = 0;
     long          iBreakEvery = -1;
     unsigned char abLine[32];
@@ -107,11 +104,13 @@ int main(int argc, char *argv[])
             uMask = strtoul(argv[iArg], NULL, 0);
         }
         else if (!strcmp(argv[iArg], "-ascii"))
+        {
             fAscii = 1;
-        else if (!strcmp(argv[iArg], "--append"))
-            fAppend = 1;
+        }
         else if (!strcmp(argv[iArg], "-export"))
+        {
             fExport = 1;
+        }
         else if (!strcmp(argv[iArg], "-width"))
         {
             if (++iArg >= argc)
@@ -153,7 +152,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    pFileOut = fopen(argv[iArg+2], fAppend ? "a" : "w"); /* no b! */
+    pFileOut = fopen(argv[iArg+2], "wb");
     if (!pFileOut)
     {
         fprintf(stderr, "Error: failed to open output file '%s'!\n", argv[iArg+2]);

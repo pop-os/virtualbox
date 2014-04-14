@@ -321,7 +321,8 @@ void PACKSPU_APIENTRY packspu_ReadPixels( GLint x, GLint y, GLsizei width, GLsiz
         pack_spu.ReadPixels++;
 
         packspuFlush((void *) thread);
-        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+        while (pack_spu.ReadPixels) 
+            crNetRecv();
     }
 }
 
@@ -586,7 +587,8 @@ void PACKSPU_APIENTRY packspu_GetTexImage (GLenum target, GLint level, GLenum fo
 #endif
     {
         packspuFlush( (void *) thread );
-        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+        while (writeback) 
+            crNetRecv();
     }
 }
 
@@ -619,7 +621,8 @@ void PACKSPU_APIENTRY packspu_GetCompressedTexImageARB( GLenum target, GLint lev
 #endif
     {
         packspuFlush( (void *) thread );
-        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+        while (writeback)
+            crNetRecv();
     }
 }
 

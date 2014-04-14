@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,13 +173,8 @@ private:
  * STDMETHODIMP Component::Foo()
  * {
  *     AutoCaller autoCaller(this);
- *     HRESULT hrc = autoCaller.rc();
- *     if (SUCCEEDED(hrc))
- *     {
- *         ...
- *     }
- *     return hrc;
- * }
+ *     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+ *     ...
  * </code>
  *
  * Using this class is equivalent to using the AutoCallerBase template with
@@ -203,12 +198,8 @@ typedef AutoCallerBase<false> AutoCaller;
  * STDMETHODIMP Component::Bar()
  * {
  *     AutoLimitedCaller autoCaller(this);
- *     HRESULT hrc = autoCaller.rc();
- *     if (SUCCEEDED(hrc))
- *     {
- *         ...
- *     }
- *     return hrc;
+ *     if (FAILED(autoCaller.rc())) return autoCaller.rc();
+ *     ...
  * </code>
  *
  * Using this class is equivalent to using the AutoCallerBase template with
@@ -252,8 +243,8 @@ typedef AutoCallerBase<true> AutoLimitedCaller;
  * <code>
  * HRESULT Component::init()
  * {
- *     AutoInitSpan autoInitSpan(this);
- *     AssertReturn(autoInitSpan.isOk(), E_FAIL);
+ *     AutoInitSpan autoInitSpan (this);
+ *     AssertReturn (autoInitSpan.isOk(), E_FAIL);
  *     ...
  *     if (FAILED(rc))
  *         return rc;
@@ -445,9 +436,6 @@ public:
 
     /** |true| when uninit() has already been called (so the object is NotReady) */
     bool uninitDone() { return mUninitDone; }
-
-    /** Immediately complete the span, object is NotReady now */
-    void setSucceeded();
 
 private:
 

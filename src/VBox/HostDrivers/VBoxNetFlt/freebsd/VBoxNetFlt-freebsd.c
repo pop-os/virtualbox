@@ -580,6 +580,7 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     char nam[NG_NODESIZ];
     struct ifnet *ifp;
     node_p node;
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
 
     VBOXCURVNET_SET_FROM_UCRED();
     NOREF(pvContext);
@@ -591,7 +592,7 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     if (ng_make_node_common(&ng_vboxnetflt_typestruct, &node) != 0)
         return VERR_INTERNAL_ERROR;
 
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
 
     ASMAtomicUoWritePtr(&pThis->u.s.ifp, ifp);
     pThis->u.s.node = node;
@@ -608,7 +609,7 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
     mtx_init(&pThis->u.s.outq.ifq_mtx, "vboxnetflt outq", NULL, MTX_SPIN);
     TASK_INIT(&pThis->u.s.tskout, 0, vboxNetFltFreeBSDoutput, pThis);
 
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     NG_NODE_SET_PRIVATE(node, pThis);
 
@@ -650,13 +651,13 @@ bool vboxNetFltOsMaybeRediscovered(PVBOXNETFLTINS pThis)
         ng_rmnode_self(pThis->u.s.node);
         pThis->u.s.node = NULL;
     }
-    VBOXCURVNET_RESTORE();
 
     if (ifp0 != NULL)
     {
         vboxNetFltOsDeleteInstance(pThis);
         vboxNetFltOsInitInstance(pThis, NULL);
     }
+    VBOXCURVNET_RESTORE();
 
     return !ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost);
 }
@@ -670,10 +671,8 @@ void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
     mtx_destroy(&pThis->u.s.inq.ifq_mtx);
     mtx_destroy(&pThis->u.s.outq.ifq_mtx);
 
-    VBOXCURVNET_SET_FROM_UCRED();
     if (pThis->u.s.node != NULL)
         ng_rmnode_self(pThis->u.s.node);
-    VBOXCURVNET_RESTORE();
     pThis->u.s.node = NULL;
 }
 

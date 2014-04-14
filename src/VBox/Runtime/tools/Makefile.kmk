@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2014 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #
 
 SUB_DEPTH = ../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 
 # RTManifest is a tool for creating and verifying manifest files - build version.
@@ -33,69 +33,29 @@ BLDPROGS += bldRTManifest
 bldRTManifest_TEMPLATE = VBoxAdvBldProg
 bldRTManifest_SOURCES  = RTManifest.cpp
 
-# RTSignTool - Signing utility - build version.  Signed on windows so we can get the certificate from it.
-BLDPROGS += bldRTSignTool
-bldRTSignTool_TEMPLATE = VBoxAdvBldProg
-bldRTSignTool_SOURCES = RTSignTool.cpp
-bldRTSignTool_DEFS = IPRT_IN_BUILD_TOOL
-bldRTSignTool_POST_CMDS.win = $(VBOX_SIGN_IMAGE_CMDS)
-
-if !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS) && !defined(VBOX_ONLY_VALIDATIONKIT)
-
- # RTManifest is a tool for creating and verifying manifest files.
- PROGRAMS += RTRm
- RTRm_TEMPLATE = VBoxR3Tool
- RTRm_SOURCES = RTRm.cpp
+ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
 
  # RTManifest is a tool for creating and verifying manifest files.
  PROGRAMS += RTManifest
- RTManifest_TEMPLATE = VBoxR3Tool
+ RTManifest_TEMPLATE = VBOXR3TSTEXE
  RTManifest_SOURCES = RTManifest.cpp
 
  # RTLdrFlt is similar to c++filt, except that it's for VMMR0.r0 stacks.
  PROGRAMS += RTLdrFlt
- RTLdrFlt_TEMPLATE = VBoxR3Tool
+ RTLdrFlt_TEMPLATE = VBOXR3TSTEXE
  RTLdrFlt_SOURCES = RTLdrFlt.cpp
 
  # RTGzip - our gzip clone (for testing the gzip/gunzip streaming code)
  PROGRAMS += RTGzip
- RTGzip_TEMPLATE = VBoxR3Tool
+ RTGzip_TEMPLATE = VBOXR3TSTEXE
  RTGzip_SOURCES = RTGzip.cpp
-
- # RTShutdown - similar (but not identical) to a typical unix shutdown command.
- PROGRAMS += RTShutdown
- RTShutdown_TEMPLATE = VBoxR3Tool
- RTShutdown_SOURCES = RTShutdown.cpp
 
  # RTTar - our tar clone (for testing the tar/gzip/gunzip streaming code)
  PROGRAMS += RTTar
- RTTar_TEMPLATE = VBoxR3Tool
+ RTTar_TEMPLATE = VBOXR3TSTEXE
  RTTar_SOURCES = RTTar.cpp
-
- # RTUnzip - our unzip clone (for testing the unzip streaming code)
- PROGRAMS += RTUnzip
- RTUnzip_TEMPLATE = VBOXR3TSTEXE
- RTUnzip_SOURCES = RTUnzip.cpp
-
- # RTNtDbgHelp - our tar clone (for testing the tar/gzip/gunzip streaming code)
- PROGRAMS.win += RTNtDbgHelp
- RTNtDbgHelp_TEMPLATE = VBoxR3Tool
- RTNtDbgHelp_SOURCES = RTNtDbgHelp.cpp
-
- # RTSignTool - Signing utility.
- PROGRAMS += RTSignTool
- RTSignTool_TEMPLATE = VBoxR3Tool
- RTSignTool_SOURCES = RTSignTool.cpp
- RTSignTool_LIBS = $(PATH_STAGE_LIB)/SUPR3$(VBOX_SUFF_LIB)
-
- if 0 # disabled due to missing backports.
- # RTDbgSymCache - Symbol cache manager.
- PROGRAMS += RTDbgSymCache
- RTDbgSymCache_TEMPLATE = VBoxR3Tool
- RTDbgSymCache_SOURCES = RTDbgSymCache.cpp
- endif
 
 endif # !VBOX_ONLY_EXTPACKS_USE_IMPLIBS
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

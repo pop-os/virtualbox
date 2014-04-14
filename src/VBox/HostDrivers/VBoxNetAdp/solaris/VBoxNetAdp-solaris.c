@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,25 +13,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * The contents of this file may alternatively be used under the terms
- * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
- * CDDL are applicable instead of those of the GPL.
- *
- * You may elect to license modified versions of this file under the
- * terms and conditions of either the GPL or the CDDL or both.
  */
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_ADP_DRV
-#ifdef DEBUG_ramshankar
-# define LOG_ENABLED
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/version.h>
@@ -66,10 +53,15 @@
 #define DEVICE_DESC_DRV          "VirtualBox NetAdp"
 #define VBOXNETADP_MTU           1500
 
+#if defined(DEBUG_ramshankar)
+# undef LogFlowFunc
+# define LogFlowFunc        LogRel
+# undef Log
+# define Log                LogRel
+# undef LogFlow
+# define LogFlow            LogRel
+#endif
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd);
 static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd);
 
@@ -223,7 +215,7 @@ static int vboxNetAdpSolarisGetStats(gld_mac_info_t *pMacInfo, struct gld_stats 
  */
 int _init(void)
 {
-    LogFunc((DEVICE_NAME ":_init\n"));
+    LogFlowFunc((DEVICE_NAME ":_init\n"));
 
     /*
      * Prevent module autounloading.
@@ -256,7 +248,7 @@ int _init(void)
 
 int _fini(void)
 {
-    LogFunc((DEVICE_NAME ":_fini\n"));
+    LogFlowFunc((DEVICE_NAME ":_fini\n"));
 
     /*
      * Undo the work done during start (in reverse order).
@@ -269,11 +261,11 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-    LogFunc((DEVICE_NAME ":_info\n"));
+    LogFlowFunc((DEVICE_NAME ":_info\n"));
 
     int rc = mod_info(&g_VBoxNetAdpSolarisModLinkage, pModInfo);
 
-    Log((DEVICE_NAME ":_info returns %d\n", rc));
+    LogFlow((DEVICE_NAME ":_info returns %d\n", rc));
     return rc;
 }
 
@@ -288,7 +280,7 @@ int _info(struct modinfo *pModInfo)
  */
 static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
 {
-    LogFunc((DEVICE_NAME ":VBoxNetAdpSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
+    LogFlowFunc((DEVICE_NAME ":VBoxNetAdpSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
 
     int rc = -1;
     switch (enmCmd)
@@ -393,7 +385,7 @@ static int VBoxNetAdpSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
  */
 static int VBoxNetAdpSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 {
-    LogFunc((DEVICE_NAME ":VBoxNetAdpSolarisDetach pDip=%p enmCmd=%d\n", pDip, enmCmd));
+    LogFlowFunc((DEVICE_NAME ":VBoxNetAdpSolarisDetach pDip=%p enmCmd=%d\n", pDip, enmCmd));
 
     switch (enmCmd)
     {
@@ -448,7 +440,7 @@ static int vboxNetAdpSolarisGenerateMac(PRTMAC pMac)
     pMac->au8[1] = 0x00;
     pMac->au8[2] = 0x27;
     RTRandBytes(&pMac->au8[3], 3);
-    Log((DEVICE_NAME ":VBoxNetAdpSolarisGenerateMac Generated %.*Rhxs\n", sizeof(RTMAC), &pMac));
+    LogFlow((DEVICE_NAME ":VBoxNetAdpSolarisGenerateMac Generated %.*Rhxs\n", sizeof(RTMAC), &pMac));
     return VINF_SUCCESS;
 }
 
@@ -459,7 +451,7 @@ static int vboxNetAdpSolarisSetMacAddress(gld_mac_info_t *pMacInfo, unsigned cha
     if (pState)
     {
         bcopy(pszMacAddr, &pState->CurrentMac, sizeof(RTMAC));
-        Log((DEVICE_NAME ":vboxNetAdpSolarisSetMacAddress updated MAC %.*Rhxs\n", sizeof(RTMAC), &pState->CurrentMac));
+        LogFlow((DEVICE_NAME ":vboxNetAdpSolarisSetMacAddress updated MAC %.*Rhxs\n", sizeof(RTMAC), &pState->CurrentMac));
         return GLD_SUCCESS;
     }
     else

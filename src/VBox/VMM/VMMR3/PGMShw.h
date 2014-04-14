@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 #undef SHW_PDPT_SHIFT
 #undef SHW_PDPT_MASK
 #undef SHW_PDPE_PG_MASK
+#undef SHW_POOL_ROOT_IDX
 
 #if PGM_SHW_TYPE == PGM_TYPE_32BIT
 # define SHWPT                  X86PT
@@ -53,6 +54,7 @@
 # define SHW_PTE_PG_MASK        X86_PTE_PG_MASK
 # define SHW_PT_SHIFT           X86_PT_SHIFT
 # define SHW_PT_MASK            X86_PT_MASK
+# define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_PD
 
 #elif PGM_SHW_TYPE == PGM_TYPE_EPT
 # define SHWPT                  EPTPT
@@ -73,6 +75,7 @@
 # define SHW_PDPT_MASK          EPT_PDPT_MASK
 # define SHW_PDPE_PG_MASK       EPT_PDPE_PG_MASK
 # define SHW_TOTAL_PD_ENTRIES   (EPT_PG_AMD64_ENTRIES*EPT_PG_AMD64_PDPE_ENTRIES)
+# define SHW_POOL_ROOT_IDX      PGMPOOL_IDX_NESTED_ROOT      /* do not use! exception is real mode & protected mode without paging. */
 
 #else
 # define SHWPT                  PGMSHWPTPAE
@@ -95,12 +98,14 @@
 #  define SHW_PDPT_MASK         X86_PDPT_MASK_AMD64
 #  define SHW_PDPE_PG_MASK      X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES  (X86_PG_AMD64_ENTRIES*X86_PG_AMD64_PDPE_ENTRIES)
+#  define SHW_POOL_ROOT_IDX     PGMPOOL_IDX_AMD64_CR3
 
 # else /* 32 bits PAE mode */
 #  define SHW_PDPT_SHIFT        X86_PDPT_SHIFT
 #  define SHW_PDPT_MASK         X86_PDPT_MASK_PAE
 #  define SHW_PDPE_PG_MASK      X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES  (X86_PG_PAE_ENTRIES*X86_PG_PAE_PDPE_ENTRIES)
+#  define SHW_POOL_ROOT_IDX     PGMPOOL_IDX_PDPT
 # endif
 #endif
 
@@ -125,7 +130,7 @@ RT_C_DECLS_END
  * Initializes the guest bit of the paging mode data.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The VM handle.
  * @param   fResolveGCAndR0 Indicate whether or not GC and Ring-0 symbols can be resolved now.
  *                          This is used early in the init process to avoid trouble with PDM
  *                          not being initialized yet.
@@ -144,16 +149,13 @@ PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
     {
         int rc;
 
-        if (!HMIsEnabled(pVM))
-        {
 #if PGM_SHW_TYPE != PGM_TYPE_AMD64 && PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT /* No AMD64 for traditional virtualization, only VT-x and AMD-V. */
-            /* GC */
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_SHW_NAME_RC_STR(GetPage),    &pModeData->pfnRCShwGetPage);
-            AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_SHW_NAME_RC_STR(GetPage),  rc), rc);
-            rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_SHW_NAME_RC_STR(ModifyPage), &pModeData->pfnRCShwModifyPage);
-            AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_SHW_NAME_RC_STR(ModifyPage), rc), rc);
+        /* GC */
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_SHW_NAME_RC_STR(GetPage),    &pModeData->pfnRCShwGetPage);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_SHW_NAME_RC_STR(GetPage),  rc), rc);
+        rc = PDMR3LdrGetSymbolRC(pVM, NULL,       PGM_SHW_NAME_RC_STR(ModifyPage), &pModeData->pfnRCShwModifyPage);
+        AssertMsgRCReturn(rc, ("%s -> rc=%Rrc\n", PGM_SHW_NAME_RC_STR(ModifyPage), rc), rc);
 #endif /* Not AMD64 shadow paging. */
-        }
 
         /* Ring-0 */
         rc = PDMR3LdrGetSymbolR0(pVM, NULL,       PGM_SHW_NAME_R0_STR(GetPage),    &pModeData->pfnR0ShwGetPage);
@@ -168,7 +170,7 @@ PGM_SHW_DECL(int, InitData)(PVM pVM, PPGMMODEDATA pModeData, bool fResolveGCAndR
  * Enters the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVCpu                   Pointer to the VMCPU.
+ * @param   pVCpu                   The VMCPU to operate on.
  * @param   fIs64BitsPagingMode     New shadow paging mode is for 64 bits? (only relevant for 64 bits guests on a 32 bits AMD-V nested paging host)
  */
 PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
@@ -176,26 +178,27 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED || PGM_SHW_TYPE == PGM_TYPE_EPT
 
 # if PGM_SHW_TYPE == PGM_TYPE_NESTED && HC_ARCH_BITS == 32
-    /* Must distinguish between 32 and 64 bits guest paging modes as we'll use
-       a different shadow paging root/mode in both cases. */
+    /* Must distinguish between 32 and 64 bits guest paging modes as we'll use a different shadow paging root/mode in both cases. */
     RTGCPHYS     GCPhysCR3 = (fIs64BitsPagingMode) ? RT_BIT_64(63) : RT_BIT_64(62);
 # else
-    RTGCPHYS     GCPhysCR3 = RT_BIT_64(63); NOREF(fIs64BitsPagingMode);
+    RTGCPHYS     GCPhysCR3 = RT_BIT_64(63);
 # endif
     PPGMPOOLPAGE pNewShwPageCR3;
     PVM          pVM       = pVCpu->pVMR3;
+    PPGMPOOL     pPool     = pVM->pgm.s.CTX_SUFF(pPool);
 
-    Assert(HMIsNestedPagingActive(pVM) == pVM->pgm.s.fNestedPaging);
+    Assert(HWACCMIsNestedPagingActive(pVM) == pVM->pgm.s.fNestedPaging);
     Assert(pVM->pgm.s.fNestedPaging);
     Assert(!pVCpu->pgm.s.pShwPageCR3R3);
 
     pgmLock(pVM);
 
-    int rc = pgmPoolAlloc(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOLACCESS_DONTCARE, PGM_A20_IS_ENABLED(pVCpu),
-                          NIL_PGMPOOL_IDX, UINT32_MAX, true /*fLockPage*/,
-                          &pNewShwPageCR3);
+    int rc = pgmPoolAllocEx(pVM, GCPhysCR3, PGMPOOLKIND_ROOT_NESTED, PGMPOOLACCESS_DONTCARE, PGMPOOL_IDX_NESTED_ROOT,
+                            GCPhysCR3 >> PAGE_SHIFT, true /*fLockPage*/, &pNewShwPageCR3);
     AssertFatalRC(rc);
 
+    pVCpu->pgm.s.iShwUser      = PGMPOOL_IDX_NESTED_ROOT;
+    pVCpu->pgm.s.iShwUserTable = GCPhysCR3 >> PAGE_SHIFT;
     pVCpu->pgm.s.pShwPageCR3R3 = pNewShwPageCR3;
 
     pVCpu->pgm.s.pShwPageCR3RC = MMHyperCCToRC(pVM, pVCpu->pgm.s.pShwPageCR3R3);
@@ -204,8 +207,6 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
     pgmUnlock(pVM);
 
     Log(("Enter nested shadow paging mode: root %RHv phys %RHp\n", pVCpu->pgm.s.pShwPageCR3R3, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)->Core.Key));
-#else
-    NOREF(pVCpu); NOREF(fIs64BitsPagingMode);
 #endif
     return VINF_SUCCESS;
 }
@@ -215,7 +216,7 @@ PGM_SHW_DECL(int, Enter)(PVMCPU pVCpu, bool fIs64BitsPagingMode)
  * Relocate any GC pointers related to shadow mode paging.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   offDelta    The relocation offset.
  */
 PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
@@ -229,7 +230,7 @@ PGM_SHW_DECL(int, Relocate)(PVMCPU pVCpu, RTGCPTR offDelta)
  * Exits the shadow mode.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  */
 PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
 {
@@ -241,6 +242,8 @@ PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
     {
         PPGMPOOL pPool = pVM->pgm.s.CTX_SUFF(pPool);
 
+        Assert(pVCpu->pgm.s.iShwUser == PGMPOOL_IDX_NESTED_ROOT);
+
         pgmLock(pVM);
 
         /* Do *not* unlock this page as we have two of them floating around in the 32-bit host & 64-bit guest case.
@@ -250,10 +253,12 @@ PGM_SHW_DECL(int, Exit)(PVMCPU pVCpu)
          */
         /* pgmPoolUnlockPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3)); */
 
-        pgmPoolFreeByPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3), NIL_PGMPOOL_IDX, UINT32_MAX);
+        pgmPoolFreeByPage(pPool, pVCpu->pgm.s.CTX_SUFF(pShwPageCR3), pVCpu->pgm.s.iShwUser, pVCpu->pgm.s.iShwUserTable);
         pVCpu->pgm.s.pShwPageCR3R3 = 0;
         pVCpu->pgm.s.pShwPageCR3R0 = 0;
         pVCpu->pgm.s.pShwPageCR3RC = 0;
+        pVCpu->pgm.s.iShwUser      = 0;
+        pVCpu->pgm.s.iShwUserTable = 0;
 
         pgmUnlock(pVM);
 

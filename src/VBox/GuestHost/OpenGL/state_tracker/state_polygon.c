@@ -180,7 +180,8 @@ void STATE_APIENTRY crStatePolygonStipple (const GLubyte *p)
 
     if (!p && !crStateIsBufferBound(GL_PIXEL_UNPACK_BUFFER_ARB))
     {
-        crDebug("Void pointer passed to PolygonStipple");
+        crStateError(__LINE__, __FILE__, GL_NO_ERROR,
+                "Void pointer passed to PolygonStipple");
         return;
     }
 

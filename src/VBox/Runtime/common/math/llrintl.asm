@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2010 Oracle Corporation
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -31,13 +31,13 @@ BEGINCODE
 ;;
 ; Round rd to the nearest integer value, rounding according to the current rounding direction.
 ; @returns 32-bit: edx:eax  64-bit: rax
-; @param    lrd     [rbp + xCB*2]
+; @param    lrd     [rbp + xS*2]
 BEGINPROC RT_NOCRT(llrintl)
     push    xBP
     mov     xBP, xSP
     sub     xSP, 10h
 
-    fld     tword [xBP + xCB*2]
+    fld     tword [xBP + xS*2]
     fistp   qword [xSP]
     fwait
 %ifdef RT_ARCH_AMD64

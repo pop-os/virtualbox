@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,12 +117,25 @@ typedef VMCPUID                    *PVMCPUID;
 typedef struct VMCPUSET
 {
     /** The bitmap data.  */
-    uint32_t    au32Bitmap[8 /*256/32*/];
+    uint32_t    au32Bitmap[256/32];
 } VMCPUSET;
 /** Pointer to a Virtual CPU set. */
 typedef VMCPUSET *PVMCPUSET;
 /** Pointer to a const Virtual CPU set. */
 typedef VMCPUSET const *PCVMCPUSET;
+
+/** Tests if a valid CPU ID is present in the set.. */
+#define VMCPUSET_IS_PRESENT(pSet, idCpu)    ASMBitTest( &(pSet)->au32Bitmap, (idCpu))
+/** Adds a CPU to the set. */
+#define VMCPUSET_ADD(pSet, idCpu)           ASMBitSet(  &(pSet)->au32Bitmap, (idCpu))
+/** Deletes a CPU from the set. */
+#define VMCPUSET_DEL(pSet, idCpu)           ASMBitClear(&(pSet)->au32Bitmap, (idCpu))
+/** Empties the set. */
+#define VMCPUSET_EMPTY(pSet)                memset(&(pSet)->au32Bitmap[0], '\0', sizeof((pSet)->au32Bitmap))
+/** Filles the set. */
+#define VMCPUSET_FILL(pSet)                 memset(&(pSet)->au32Bitmap[0], 0xff, sizeof((pSet)->au32Bitmap))
+/** Filles the set. */
+#define VMCPUSET_IS_EQUAL(pSet1, pSet2)     (memcmp(&(pSet1)->au32Bitmap[0], &(pSet2)->au32Bitmap[0], sizeof((pSet1)->au32Bitmap)) == 0)
 
 
 /**
@@ -348,11 +361,6 @@ typedef union PDMCRITSECT *PPDMCRITSECT;
 /** Pointer to a const PDM critical section. */
 typedef const union PDMCRITSECT *PCPDMCRITSECT;
 
-/** Pointer to a PDM read/write critical section. */
-typedef union PDMCRITSECTRW *PPDMCRITSECTRW;
-/** Pointer to a const PDM read/write critical section. */
-typedef union PDMCRITSECTRW const *PCPDMCRITSECTRW;
-
 /** R3 pointer to a timer. */
 typedef R3PTRTYPE(struct TMTIMER *) PTMTIMERR3;
 /** Pointer to a R3 pointer to a timer. */
@@ -388,17 +396,10 @@ typedef struct CPUMCTXCORE *PCPUMCTXCORE;
 /** Pointer to a const CPU context core. */
 typedef const struct CPUMCTXCORE *PCCPUMCTXCORE;
 
-/** Pointer to a selector register. */
-typedef struct CPUMSELREG *PCPUMSELREG;
-/** Pointer to a const selector register. */
-typedef const struct CPUMSELREG *PCCPUMSELREG;
-
-/** Pointer to selector hidden registers.
- * @deprecated Replaced by PCPUMSELREG  */
-typedef struct CPUMSELREG *PCPUMSELREGHID;
-/** Pointer to const selector hidden registers.
- * @deprecated Replaced by PCCPUMSELREG  */
-typedef const struct CPUMSELREG *PCCPUMSELREGHID;
+/** Pointer to selector hidden registers. */
+typedef struct CPUMSELREGHID *PCPUMSELREGHID;
+/** Pointer to const selector hidden registers. */
+typedef const struct CPUMSELREGHID *PCCPUMSELREGHID;
 
 /** @} */
 
@@ -742,6 +743,17 @@ typedef struct VBOXIDTR
 } VBOXIDTR, *PVBOXIDTR;
 #pragma pack()
 
+#pragma pack(1)
+/** IDTR from version 1.6 */
+typedef struct VBOXIDTR_VER1_6
+{
+    /** Size of the IDT. */
+    uint16_t    cbIdt;
+    /** Address of the IDT. */
+    uint32_t     pIdt;
+} VBOXIDTR_VER1_6, *PVBOXIDTR_VER1_6;
+#pragma pack()
+
 /** @} */
 
 
@@ -772,6 +784,17 @@ typedef struct VBOXGDTR
 #pragma pack()
 /** Pointer to GDTR. */
 typedef VBOXGDTR *PVBOXGDTR;
+
+#pragma pack(1)
+/** GDTR from version 1.6 */
+typedef struct VBOXGDTR_VER1_6
+{
+    /** Size of the GDT. */
+    uint16_t    cbGdt;
+    /** Address of the GDT. */
+    uint32_t    pGdt;
+} VBOXGDTR_VER1_6;
+#pragma pack()
 
 /** @} */
 
@@ -924,7 +947,7 @@ typedef struct PDMNETWORKGSO
     /** The type of segmentation offloading we're performing (PDMNETWORKGSOTYPE). */
     uint8_t             u8Type;
     /** The total header size. */
-    uint8_t             cbHdrsTotal;
+    uint8_t             cbHdrs;
     /** The max segment size (MSS) to apply. */
     uint16_t            cbMaxSeg;
 
@@ -932,10 +955,8 @@ typedef struct PDMNETWORKGSO
     uint8_t             offHdr1;
     /** Offset of the second header (TCP / UDP).  0 if not not needed. */
     uint8_t             offHdr2;
-    /** The header size used for segmentation (equal to offHdr2 in UFO). */
-    uint8_t             cbHdrsSeg;
     /** Unused. */
-    uint8_t             u8Unused;
+    uint8_t             au8Unused[2];
 } PDMNETWORKGSO;
 /** Pointer to a GSO context. */
 typedef PDMNETWORKGSO *PPDMNETWORKGSO;
@@ -956,7 +977,7 @@ typedef enum PGMROMPROT
      * Map the virgin page, use write access handler to ignore writes. */
     PGMROMPROT_READ_ROM_WRITE_IGNORE,
     /** Read from the virgin ROM page, write to the shadow RAM.
-     * Map the virgin page, use write access handler to change the shadow RAM. */
+     * Map the virgin page, use write access handler change the RAM. */
     PGMROMPROT_READ_ROM_WRITE_RAM,
     /** Read from the shadow ROM page, ignore writes.
      * Map the shadow page read-only, use write access handler to ignore writes. */
@@ -1033,28 +1054,10 @@ typedef enum CPUMMODE
 } CPUMMODE;
 
 
-/**
- * CPU mode flags (DISSTATE::mode).
- */
-typedef enum DISCPUMODE
-{
-    DISCPUMODE_INVALID = 0,
-    DISCPUMODE_16BIT,
-    DISCPUMODE_32BIT,
-    DISCPUMODE_64BIT,
-    /** hack forcing the size of the enum to 32-bits. */
-    DISCPUMODE_MAKE_32BIT_HACK = 0x7fffffff
-} DISCPUMODE;
-
-/** Pointer to the disassembler state. */
-typedef struct DISSTATE *PDISSTATE;
-/** Pointer to a const disassembler state. */
-typedef struct DISSTATE const *PCDISSTATE;
-
-/** @deprecated  PDISSTATE and change pCpu and pDisState to pDis. */
-typedef PDISSTATE PDISCPUSTATE;
-/** @deprecated  PCDISSTATE and change pCpu and pDisState to pDis. */
-typedef PCDISSTATE PCDISCPUSTATE;
+/** Pointer to the disassembler CPU state. */
+typedef struct DISCPUSTATE *PDISCPUSTATE;
+/** Pointer to a const disassembler CPU state. */
+typedef struct DISCPUSTATE const *PCDISCPUSTATE;
 
 
 /** @} */

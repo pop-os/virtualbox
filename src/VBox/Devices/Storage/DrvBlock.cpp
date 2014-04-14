@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,25 +147,6 @@ static DECLCALLBACK(int) drvblockRead(PPDMIBLOCK pInterface, uint64_t off, void 
 }
 
 
-/** @copydoc PDMIBLOCK::pfnRead */
-static DECLCALLBACK(int) drvblockReadPcBios(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead)
-{
-    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
-
-    /*
-     * Check the state.
-     */
-    if (!pThis->pDrvMedia)
-    {
-        AssertMsgFailed(("Invalid state! Not mounted!\n"));
-        return VERR_PDM_MEDIA_NOT_MOUNTED;
-    }
-
-    int rc = pThis->pDrvMedia->pfnReadPcBios(pThis->pDrvMedia, off, pvBuf, cbRead);
-    return rc;
-}
-
-
 /** @copydoc PDMIBLOCK::pfnWrite */
 static DECLCALLBACK(int) drvblockWrite(PPDMIBLOCK pInterface, uint64_t off, const void *pvBuf, size_t cbWrite)
 {
@@ -283,23 +264,6 @@ static DECLCALLBACK(uint64_t) drvblockGetSize(PPDMIBLOCK pInterface)
 }
 
 
-/** @copydoc PDMIBLOCK::pfnGetSize */
-static DECLCALLBACK(uint32_t) drvblockGetSectorSize(PPDMIBLOCK pInterface)
-{
-    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
-
-    /*
-     * Check the state.
-     */
-    if (!pThis->pDrvMedia)
-        return 0;
-
-    uint32_t cb = pThis->pDrvMedia->pfnGetSectorSize(pThis->pDrvMedia);
-    LogFlowFunc(("returns %u\n", cb));
-    return cb;
-}
-
-
 /** @copydoc PDMIBLOCK::pfnGetType */
 static DECLCALLBACK(PDMBLOCKTYPE) drvblockGetType(PPDMIBLOCK pInterface)
 {
@@ -319,29 +283,6 @@ static DECLCALLBACK(int) drvblockGetUuid(PPDMIBLOCK pInterface, PRTUUID pUuid)
      */
     *pUuid = pThis->Uuid;
     return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvblockDiscard(PPDMIBLOCK pInterface, PCRTRANGE paRanges, unsigned cRanges)
-{
-    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
-
-    return pThis->pDrvMedia->pfnDiscard(pThis->pDrvMedia, paRanges, cRanges);
-}
-
-/** @copydoc PDMIBLOCK::pfnIoBufAlloc */
-static DECLCALLBACK(int) drvblockIoBufAlloc(PPDMIBLOCK pInterface, size_t cb, void **ppvNew)
-{
-    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
-
-    return pThis->pDrvMedia->pfnIoBufAlloc(pThis->pDrvMedia, cb, ppvNew);
-}
-
-/** @copydoc PDMIBLOCK::pfnIoBufFree */
-static DECLCALLBACK(int) drvblockIoBufFree(PPDMIBLOCK pInterface, void *pv, size_t cb)
-{
-    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
-
-    return pThis->pDrvMedia->pfnIoBufFree(pThis->pDrvMedia, pv, cb);
 }
 
 /* -=-=-=-=- IBlockAsync -=-=-=-=- */
@@ -388,7 +329,7 @@ static DECLCALLBACK(int) drvblockAsyncWriteStart(PPDMIBLOCKASYNC pInterface, uin
 }
 
 
-/** @copydoc PDMIBLOCKASYNC::pfnStartFlush */
+/** @copydoc PDMIBLOCKASYNC::pfnStartFLush */
 static DECLCALLBACK(int) drvblockAsyncFlushStart(PPDMIBLOCKASYNC pInterface, void *pvUser)
 {
     PDRVBLOCK pThis = PDMIBLOCKASYNC_2_DRVBLOCK(pInterface);
@@ -410,24 +351,6 @@ static DECLCALLBACK(int) drvblockAsyncFlushStart(PPDMIBLOCKASYNC pInterface, voi
     int rc = pThis->pDrvMediaAsync->pfnStartFlush(pThis->pDrvMediaAsync, pvUser);
 
     return rc;
-}
-
-
-/** @copydoc PDMIBLOCKASYNC::pfnStartDiscard */
-static DECLCALLBACK(int) drvblockStartDiscard(PPDMIBLOCKASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser)
-{
-    PDRVBLOCK pThis = PDMIBLOCKASYNC_2_DRVBLOCK(pInterface);
-
-    /*
-     * Check the state.
-     */
-    if (!pThis->pDrvMediaAsync)
-    {
-        AssertMsgFailed(("Invalid state! Not mounted!\n"));
-        return VERR_PDM_MEDIA_NOT_MOUNTED;
-    }
-
-    return pThis->pDrvMediaAsync->pfnStartDiscard(pThis->pDrvMediaAsync, paRanges, cRanges, pvUser);
 }
 
 /* -=-=-=-=- IMediaAsyncPort -=-=-=-=- */
@@ -826,7 +749,6 @@ static DECLCALLBACK(void)  drvblockDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
     NOREF(fFlags);
 }
 
-
 /**
  * Reset notification.
  *
@@ -839,34 +761,6 @@ static DECLCALLBACK(void)  drvblockReset(PPDMDRVINS pDrvIns)
 
     pThis->fLocked = false;
 }
-
-
-/**
- * Translates a PDMBLOCKTYPE value into a string.
- *
- * @returns Read only string.
- * @param   enmType             The type value.
- */
-static const char *drvblockGetTypeName(PDMBLOCKTYPE enmType)
-{
-    switch (enmType)
-    {
-        case PDMBLOCKTYPE_ERROR:                return "ERROR";
-        case PDMBLOCKTYPE_FLOPPY_360:           return "FLOPPY_360";
-        case PDMBLOCKTYPE_FLOPPY_720:           return "FLOPPY_720";
-        case PDMBLOCKTYPE_FLOPPY_1_20:          return "FLOPPY_1_20";
-        case PDMBLOCKTYPE_FLOPPY_1_44:          return "FLOPPY_1_44";
-        case PDMBLOCKTYPE_FLOPPY_2_88:          return "FLOPPY_2_88";
-        case PDMBLOCKTYPE_FLOPPY_FAKE_15_6:     return "FLOPPY_FAKE_15_6";
-        case PDMBLOCKTYPE_FLOPPY_FAKE_63_5:     return "FLOPPY_FAKE_63_5";
-        case PDMBLOCKTYPE_CDROM:                return "CDROM";
-        case PDMBLOCKTYPE_DVD:                  return "DVD";
-        case PDMBLOCKTYPE_HARD_DISK:            return "HARD_DISK";
-        default:                                return "Unknown";
-
-    }
-}
-
 
 /**
  * Construct a block driver instance.
@@ -899,17 +793,13 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
 
     /* IBlock. */
     pThis->IBlock.pfnRead                   = drvblockRead;
-    pThis->IBlock.pfnReadPcBios             = drvblockReadPcBios;
     pThis->IBlock.pfnWrite                  = drvblockWrite;
     pThis->IBlock.pfnFlush                  = drvblockFlush;
     pThis->IBlock.pfnMerge                  = drvblockMerge;
     pThis->IBlock.pfnIsReadOnly             = drvblockIsReadOnly;
     pThis->IBlock.pfnGetSize                = drvblockGetSize;
-    pThis->IBlock.pfnGetSectorSize          = drvblockGetSectorSize;
     pThis->IBlock.pfnGetType                = drvblockGetType;
     pThis->IBlock.pfnGetUuid                = drvblockGetUuid;
-    pThis->IBlock.pfnIoBufAlloc             = drvblockIoBufAlloc;
-    pThis->IBlock.pfnIoBufFree              = drvblockIoBufFree;
 
     /* IBlockBios. */
     pThis->IBlockBios.pfnGetPCHSGeometry    = drvblockGetPCHSGeometry;
@@ -974,10 +864,6 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
         pThis->enmType = PDMBLOCKTYPE_FLOPPY_720;
     else if (!strcmp(psz, "Floppy 360"))
         pThis->enmType = PDMBLOCKTYPE_FLOPPY_360;
-    else if (!strcmp(psz, "Floppy 15.6"))
-        pThis->enmType = PDMBLOCKTYPE_FLOPPY_FAKE_15_6;
-    else if (!strcmp(psz, "Floppy 63.5"))
-        pThis->enmType = PDMBLOCKTYPE_FLOPPY_FAKE_63_5;
     else
     {
         PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_BLOCK_UNKNOWN_TYPE, RT_SRC_POS,
@@ -1085,67 +971,10 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
     /* Try to get the optional async interface. */
     pThis->pDrvMediaAsync = PDMIBASE_QUERY_INTERFACE(pBase, PDMIMEDIAASYNC);
 
-    if (pThis->pDrvMedia->pfnDiscard)
-        pThis->IBlock.pfnDiscard = drvblockDiscard;
-
-    if (   pThis->pDrvMediaAsync
-        && pThis->pDrvMediaAsync->pfnStartDiscard)
-        pThis->IBlockAsync.pfnStartDiscard = drvblockStartDiscard;
-
     if (RTUuidIsNull(&pThis->Uuid))
     {
         if (pThis->enmType == PDMBLOCKTYPE_HARD_DISK)
             pThis->pDrvMedia->pfnGetUuid(pThis->pDrvMedia, &pThis->Uuid);
-    }
-
-    /*
-     * Automatically upgrade the floppy drive if the specified one is too
-     * small to represent the whole boot time image. (We cannot do this later
-     * since the BIOS (and others) gets the info via CMOS.)
-     *
-     * This trick should make 2.88 images as well as the fake 15.6 and 63.5 MB
-     * images despite the hardcoded default 1.44 drive.
-     */
-    if (   PDMBLOCKTYPE_IS_FLOPPY(pThis->enmType)
-        && pThis->pDrvMedia)
-    {
-        uint64_t     const cbFloppyImg = pThis->pDrvMedia->pfnGetSize(pThis->pDrvMedia);
-        PDMBLOCKTYPE const enmCfgType  = pThis->enmType;
-        switch (enmCfgType)
-        {
-            default:
-                AssertFailed();
-            case PDMBLOCKTYPE_FLOPPY_360:
-                if (cbFloppyImg > 40 * 2 * 9 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_360;
-                /* fall thru */
-            case PDMBLOCKTYPE_FLOPPY_720:
-                if (cbFloppyImg > 80 * 2 * 14 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_1_20;
-                /* fall thru */
-            case PDMBLOCKTYPE_FLOPPY_1_20:
-                if (cbFloppyImg > 80 * 2 * 20 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_1_44;
-                /* fall thru */
-            case PDMBLOCKTYPE_FLOPPY_1_44:
-                if (cbFloppyImg > 80 * 2 * 24 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_2_88;
-                /* fall thru */
-            case PDMBLOCKTYPE_FLOPPY_2_88:
-                if (cbFloppyImg > 80 * 2 * 48 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_FAKE_15_6;
-                /* fall thru */
-            case PDMBLOCKTYPE_FLOPPY_FAKE_15_6:
-                if (cbFloppyImg > 255 * 2 * 63 * 512)
-                    pThis->enmType = PDMBLOCKTYPE_FLOPPY_FAKE_63_5;
-            case PDMBLOCKTYPE_FLOPPY_FAKE_63_5:
-                if (cbFloppyImg > 255 * 2 * 255 * 512)
-                    LogRel(("Warning: Floppy image is larger that 63.5 MB! (%llu bytes)\n", cbFloppyImg));
-                break;
-        }
-        if (pThis->enmType != enmCfgType)
-            LogRel(("Automatically upgraded floppy drive from %s to %s to better support the %u byte image\n",
-                    drvblockGetTypeName(enmCfgType), drvblockGetTypeName(pThis->enmType), cbFloppyImg));
     }
 
     return VINF_SUCCESS;

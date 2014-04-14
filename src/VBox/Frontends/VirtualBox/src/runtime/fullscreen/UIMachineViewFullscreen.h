@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,36 +40,48 @@ protected:
 
 private slots:
 
-    /* Handler: Console callback stuff: */
+    /* Slot to perform guest resize: */
+    void sltPerformGuestResize(const QSize &aSize = QSize());
+
+    /* Console callback handlers: */
     void sltAdditionsStateChanged();
+
+    /* Watch dog for desktop resizes: */
+    void sltDesktopResized();
 
 private:
 
     /* Event handlers: */
+    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare routines: */
     void prepareCommon();
     void prepareFilters();
+    void prepareConnections();
     void prepareConsoleConnections();
+    void prepareFullscreen();
 
     /* Cleanup routines: */
+    void cleanupFullscreen();
     //void cleanupConsoleConnections() {}
+    //void cleanupConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
     /* Private setters: */
     void setGuestAutoresizeEnabled(bool bEnabled);
 
-    /** Adjusts guest-screen size to correspond current <i>working area</i> size. */
-    void adjustGuestScreenSize();
-
-    /* Helpers: Geometry stuff: */
-    QRect workingArea() const;
-    QSize calculateMaxGuestSize() const;
+    /* Private helpers: */
+    void normalizeGeometry(bool /* fAdjustPosition */) {}
+    QRect workingArea();
+    void calculateDesktopGeometry();
+    void maybeRestrictMinimumSize();
 
     /* Private variables: */
     bool m_bIsGuestAutoresizeEnabled : 1;
+    bool m_fShouldWeDoResize : 1;
+    UIMachineViewBlocker *m_pSyncBlocker;
 
     /* Friend classes: */
     friend class UIMachineView;

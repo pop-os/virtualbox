@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,25 +13,12 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * The contents of this file may alternatively be used under the terms
- * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
- * CDDL are applicable instead of those of the GPL.
- *
- * You may elect to license modified versions of this file under the
- * terms and conditions of either the GPL or the CDDL or both.
  */
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP  LOG_GROUP_USB_DRV
-#ifdef DEBUG_ramshankar
-# define LOG_ENABLED
-# define LOG_INSTANCE       RTLogRelDefaultInstance()
-#endif
 #include "VBoxUSBFilterMgr.h"
 #include <VBox/usblib-solaris.h>
 #include <VBox/version.h>
@@ -68,6 +55,15 @@
 #define DEVICE_NAME              "vboxusbmon"
 /** The module description as seen in 'modinfo'. */
 #define DEVICE_DESC_DRV          "VirtualBox USBMon"
+
+#if defined(DEBUG_ramshankar)
+# undef LogFlowFunc
+# define LogFlowFunc    LogRel
+# undef Log
+# define Log            LogRel
+# undef LogFlow
+# define LogFlow        LogRel
+#endif
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -202,7 +198,7 @@ int _init(void)
 {
     int rc;
 
-    LogFunc((DEVICE_NAME ":_init\n"));
+    LogFlowFunc((DEVICE_NAME ":_init\n"));
 
     g_pDip = NULL;
 
@@ -258,7 +254,7 @@ int _fini(void)
 {
     int rc;
 
-    LogFunc((DEVICE_NAME ":_fini\n"));
+    LogFlowFunc((DEVICE_NAME ":_fini\n"));
 
     rc = mod_remove(&g_VBoxUSBMonSolarisModLinkage);
     if (!rc)
@@ -275,7 +271,7 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-    LogFunc((DEVICE_NAME ":_info\n"));
+    LogFlowFunc((DEVICE_NAME ":_info\n"));
 
     return mod_info(&g_VBoxUSBMonSolarisModLinkage, pModInfo);
 }
@@ -291,7 +287,7 @@ int _info(struct modinfo *pModInfo)
  */
 static int VBoxUSBMonSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisAttach pDip=%p enmCmd=%d\n", pDip, enmCmd));
     switch (enmCmd)
     {
         case DDI_ATTACH:
@@ -338,7 +334,7 @@ static int VBoxUSBMonSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
  */
 static int VBoxUSBMonSolarisDetach(dev_info_t *pDip, ddi_detach_cmd_t enmCmd)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisDetach\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisDetach\n"));
 
     switch (enmCmd)
     {
@@ -388,7 +384,7 @@ static int VBoxUSBMonSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, voi
 {
     int rc = DDI_SUCCESS;
 
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisGetInfo\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisGetInfo\n"));
 
     switch (enmCmd)
     {
@@ -413,16 +409,16 @@ static int VBoxUSBMonSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCre
     vboxusbmon_state_t *pState = NULL;
     unsigned iOpenInstance;
 
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisOpen\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisOpen\n"));
 
     /*
-     * Verify we are being opened as a character device.
+     * Verify we are being opened as a character device
      */
     if (fType != OTYP_CHR)
         return EINVAL;
 
     /*
-     * Verify that we're called after attach.
+     * Verify that we're called after attach
      */
     if (!g_pDip)
     {
@@ -440,7 +436,7 @@ static int VBoxUSBMonSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCre
             LogRel((DEVICE_NAME ":Failed to register driver election callback with USBA rc=%d\n", rc));
             return EINVAL;
         }
-        Log((DEVICE_NAME ":Successfully registered election callback with USBA\n"));
+        LogFlow((DEVICE_NAME ":Successfully registered election callback with USBA\n"));
         mutex_enter(&g_VBoxUSBMonSolarisMtx);
     }
     g_cVBoxUSBMonSolarisClient++;
@@ -478,7 +474,7 @@ static int VBoxUSBMonSolarisClose(dev_t Dev, int fFlag, int fType, cred_t *pCred
 {
     vboxusbmon_state_t *pState = NULL;
 
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisClose\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisClose\n"));
 
     pState = ddi_get_soft_state(g_pVBoxUSBMonSolarisState, getminor(Dev));
     if (!pState)
@@ -495,7 +491,7 @@ static int VBoxUSBMonSolarisClose(dev_t Dev, int fFlag, int fType, cred_t *pCred
         {
             mutex_exit(&g_VBoxUSBMonSolarisMtx);
             usb_unregister_dev_driver(g_pDip);
-            Log((DEVICE_NAME ":Successfully deregistered driver election callback\n"));
+            LogFlow((DEVICE_NAME ":Successfully deregistered driver election callback\n"));
         }
         else
         {
@@ -524,14 +520,14 @@ static int VBoxUSBMonSolarisClose(dev_t Dev, int fFlag, int fType, cred_t *pCred
 
 static int VBoxUSBMonSolarisRead(dev_t Dev, struct uio *pUio, cred_t *pCred)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisRead\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisRead\n"));
     return 0;
 }
 
 
 static int VBoxUSBMonSolarisWrite(dev_t Dev, struct uio *pUio, cred_t *pCred)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisWrite\n"));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisWrite\n"));
     return 0;
 }
 
@@ -546,7 +542,7 @@ static int VBoxUSBMonSolarisWrite(dev_t Dev, struct uio *pUio, cred_t *pCred)
 
 static int VBoxUSBMonSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cred_t *pCred, int *pVal)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisIOCtl Dev=%d Cmd=%d pArg=%p Mode=%d\n", Dev, Cmd, pArg));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisIOCtl Dev=%d Cmd=%d pArg=%p Mode=%d\n", Dev, Cmd, pArg));
 
     /*
      * Get the session from the soft state item.
@@ -612,12 +608,12 @@ static int VBoxUSBMonSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, c
         LogRel((DEVICE_NAME ":VBoxUSBMonSolarisIOCtl: pvBuf invalid pointer %p\n", pvBuf));
         return EINVAL;
     }
-    Log((DEVICE_NAME ":VBoxUSBMonSolarisIOCtl: pid=%d.\n", (int)RTProcSelf()));
+    LogFlow((DEVICE_NAME ":VBoxUSBMonSolarisIOCtl: pid=%d.\n", (int)RTProcSelf()));
 
     /*
      * Process the IOCtl.
      */
-    size_t cbDataReturned = 0;
+    size_t cbDataReturned;
     rc = vboxUSBMonSolarisProcessIOCtl(Cmd, pState, pvBuf, ReqWrap.cbData, &cbDataReturned);
     ReqWrap.rc = rc;
     rc = 0;
@@ -674,7 +670,7 @@ static int VBoxUSBMonSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, c
  */
 static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvData, size_t cbData, size_t *pcbReturnedData)
 {
-    LogFunc((DEVICE_NAME ":solarisUSBProcessIOCtl iFunction=%d pvBuf=%p cbBuf=%zu\n", iFunction, pvData, cbData));
+    LogFlowFunc((DEVICE_NAME ":solarisUSBProcessIOCtl iFunction=%d pvBuf=%p cbBuf=%zu\n", iFunction, pvData, cbData));
 
     AssertPtrReturn(pvState, VERR_INVALID_POINTER);
     vboxusbmon_state_t *pState = (vboxusbmon_state_t *)pvState;
@@ -704,7 +700,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
             VBOXUSBREQ_ADD_FILTER *pReq = (VBOXUSBREQ_ADD_FILTER *)pvData;
             PUSBFILTER pFilter = (PUSBFILTER)&pReq->Filter;
 
-            Log(("vboxUSBMonSolarisProcessIOCtl: idVendor=%#x idProduct=%#x bcdDevice=%#x bDeviceClass=%#x bDeviceSubClass=%#x bDeviceProtocol=%#x bBus=%#x bPort=%#x\n",
+            LogFlow(("vboxUSBMonSolarisProcessIOCtl: idVendor=%#x idProduct=%#x bcdDevice=%#x bDeviceClass=%#x bDeviceSubClass=%#x bDeviceProtocol=%#x bBus=%#x bPort=%#x\n",
                       USBFilterGetNum(pFilter, USBFILTERIDX_VENDOR_ID),
                       USBFilterGetNum(pFilter, USBFILTERIDX_PRODUCT_ID),
                       USBFilterGetNum(pFilter, USBFILTERIDX_DEVICE_REV),
@@ -713,7 +709,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
                       USBFilterGetNum(pFilter, USBFILTERIDX_DEVICE_PROTOCOL),
                       USBFilterGetNum(pFilter, USBFILTERIDX_BUS),
                       USBFilterGetNum(pFilter, USBFILTERIDX_PORT)));
-            Log(("vboxUSBMonSolarisProcessIOCtl: Manufacturer=%s Product=%s Serial=%s\n",
+            LogFlow(("vboxUSBMonSolarisProcessIOCtl: Manufacturer=%s Product=%s Serial=%s\n",
                       USBFilterGetString(pFilter, USBFILTERIDX_MANUFACTURER_STR)  ? USBFilterGetString(pFilter, USBFILTERIDX_MANUFACTURER_STR)  : "<null>",
                       USBFilterGetString(pFilter, USBFILTERIDX_PRODUCT_STR)       ? USBFilterGetString(pFilter, USBFILTERIDX_PRODUCT_STR)       : "<null>",
                       USBFilterGetString(pFilter, USBFILTERIDX_SERIAL_NUMBER_STR) ? USBFilterGetString(pFilter, USBFILTERIDX_SERIAL_NUMBER_STR) : "<null>"));
@@ -722,7 +718,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
 
             rc = VBoxUSBFilterAdd(pFilter, pState->Process, &pReq->uId);
             *pcbReturnedData = cbData;
-            Log((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: ADD_FILTER (Process:%d) returned %d\n", pState->Process, rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: ADD_FILTER (Process:%d) returned %d\n", pState->Process, rc));
             break;
         }
 
@@ -733,7 +729,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
             VBOXUSBREQ_REMOVE_FILTER *pReq = (VBOXUSBREQ_REMOVE_FILTER *)pvData;
             rc = VBoxUSBFilterRemove(pState->Process, (uintptr_t)pReq->uId);
             *pcbReturnedData = 0;
-            Log((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: REMOVE_FILTER (Process:%d) returned %d\n", pState->Process, rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: REMOVE_FILTER (Process:%d) returned %d\n", pState->Process, rc));
             break;
         }
 
@@ -744,7 +740,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
             VBOXUSBREQ_RESET_DEVICE *pReq = (VBOXUSBREQ_RESET_DEVICE *)pvData;
             rc = vboxUSBMonSolarisResetDevice(pReq->szDevicePath, pReq->fReattach);
             *pcbReturnedData = 0;
-            Log((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: RESET_DEVICE (Process:%d) returned %d\n", pState->Process, rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: RESET_DEVICE (Process:%d) returned %d\n", pState->Process, rc));
             break;
         }
 
@@ -755,7 +751,7 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
             VBOXUSBREQ_CLIENT_INFO *pReq = (VBOXUSBREQ_CLIENT_INFO *)pvData;
             rc = vboxUSBMonSolarisClientInfo(pState, pReq);
             *pcbReturnedData = cbData;
-            Log((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: CLIENT_INFO (Process:%d) returned %d\n", pState->Process, rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: CLIENT_INFO (Process:%d) returned %d\n", pState->Process, rc));
             break;
         }
 
@@ -768,14 +764,13 @@ static int vboxUSBMonSolarisProcessIOCtl(int iFunction, void *pvState, void *pvD
             pGetVersionReq->u32Minor = VBOXUSBMON_VERSION_MINOR;
             *pcbReturnedData = sizeof(VBOXUSBREQ_GET_VERSION);
             rc = VINF_SUCCESS;
-            Log((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: GET_VERSION returned %d\n", rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: GET_VERSION returned %d\n", rc));
             break;
         }
 
         default:
         {
             LogRel((DEVICE_NAME ":vboxUSBMonSolarisProcessIOCtl: Unknown request (Process:%d) %#x\n", pState->Process, iFunction));
-            *pcbReturnedData = 0;
             rc = VERR_NOT_SUPPORTED;
             break;
         }
@@ -788,7 +783,7 @@ static int vboxUSBMonSolarisResetDevice(char *pszDevicePath, bool fReattach)
 {
     int rc = VERR_GENERAL_FAILURE;
 
-    LogFunc((DEVICE_NAME ":vboxUSBMonSolarisResetDevice pszDevicePath=%s fReattach=%d\n", pszDevicePath, fReattach));
+    LogFlowFunc((DEVICE_NAME ":vboxUSBMonSolarisResetDevice pszDevicePath=%s fReattach=%d\n", pszDevicePath, fReattach));
 
     /*
      * Try grabbing the dev_info_t.
@@ -821,14 +816,16 @@ static int vboxUSBMonSolarisResetDevice(char *pszDevicePath, bool fReattach)
          * Try re-enumerating the device.
          */
         rc = usb_reset_device(pDeviceInfo, fReattach ? USB_RESET_LVL_REATTACH : USB_RESET_LVL_DEFAULT);
-        Log((DEVICE_NAME ":usb_reset_device for %s level=%s returned %d\n", pszDevicePath, fReattach ? "ReAttach" : "Default", rc));
+        LogFlow((DEVICE_NAME ":usb_reset_device for %s level=%s returned %d\n", pszDevicePath, fReattach ? "ReAttach" : "Default", rc));
         switch (rc)
         {
             case USB_SUCCESS:         rc = VINF_SUCCESS;                break;
             case USB_INVALID_PERM:    rc = VERR_PERMISSION_DENIED;      break;
             case USB_INVALID_ARGS:    rc = VERR_INVALID_PARAMETER;      break;
-            case USB_BUSY:            rc = VERR_RESOURCE_BUSY;          break;
-            case USB_INVALID_CONTEXT: rc = VERR_INVALID_CONTEXT;        break;
+
+            /* @todo find better codes for these (especially USB_BUSY) */
+            case USB_BUSY:
+            case USB_INVALID_CONTEXT:
             case USB_FAILURE:         rc = VERR_GENERAL_FAILURE;        break;
 
             default:                  rc = VERR_UNRESOLVED_ERROR;       break;
@@ -854,7 +851,7 @@ static int vboxUSBMonSolarisResetDevice(char *pszDevicePath, bool fReattach)
  */
 static int vboxUSBMonSolarisClientInfo(vboxusbmon_state_t *pState, PVBOXUSB_CLIENT_INFO pClientInfo)
 {
-    LogFunc((DEVICE_NAME ":vboxUSBMonSolarisClientInfo pState=%p pClientInfo=%p\n", pState, pClientInfo));
+    LogFlowFunc((DEVICE_NAME ":vboxUSBMonSolarisClientInfo pState=%p pClientInfo=%p\n", pState, pClientInfo));
 
     AssertPtrReturn(pState, VERR_INVALID_POINTER);
     AssertPtrReturn(pClientInfo, VERR_INVALID_POINTER);
@@ -884,7 +881,7 @@ static int vboxUSBMonSolarisClientInfo(vboxusbmon_state_t *pState, PVBOXUSB_CLIE
 
             mutex_exit(&g_VBoxUSBMonSolarisMtx);
 
-            Log((DEVICE_NAME ":vboxUSBMonSolarisClientInfo found. %s rc=%d\n", pClientInfo->szDeviceIdent, rc));
+            LogFlow((DEVICE_NAME ":vboxUSBMonSolarisClientInfo found. %s rc=%d\n", pClientInfo->szDeviceIdent, rc));
             return rc;
         }
         pPrev = pCur;
@@ -907,7 +904,7 @@ static int vboxUSBMonSolarisClientInfo(vboxusbmon_state_t *pState, PVBOXUSB_CLIE
  */
 int VBoxUSBMonSolarisRegisterClient(dev_info_t *pClientDip, PVBOXUSB_CLIENT_INFO pClientInfo)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisRegisterClient pClientDip=%p pClientInfo=%p\n", pClientDip, pClientInfo));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisRegisterClient pClientDip=%p pClientInfo=%p\n", pClientDip, pClientInfo));
     AssertPtrReturn(pClientInfo, VERR_INVALID_PARAMETER);
 
     if (RT_LIKELY(g_pDip))
@@ -926,7 +923,7 @@ int VBoxUSBMonSolarisRegisterClient(dev_info_t *pClientDip, PVBOXUSB_CLIENT_INFO
             g_pVBoxUSBMonSolarisClients = pClient;
             mutex_exit(&g_VBoxUSBMonSolarisMtx);
 
-            Log((DEVICE_NAME ":VBoxUSBMonSolarisRegisterClient registered. %d %s %s\n",
+            LogFlow((DEVICE_NAME ":VBoxUSBMonSolarisRegisterClient registered. %d %s %s\n",
                         pClient->Info.Instance, pClient->Info.szClientPath, pClient->Info.szDeviceIdent));
 
             return VINF_SUCCESS;
@@ -948,7 +945,7 @@ int VBoxUSBMonSolarisRegisterClient(dev_info_t *pClientDip, PVBOXUSB_CLIENT_INFO
  */
 int VBoxUSBMonSolarisUnregisterClient(dev_info_t *pClientDip)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisUnregisterClient pClientDip=%p\n", pClientDip));
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisUnregisterClient pClientDip=%p\n", pClientDip));
     AssertReturn(pClientDip, VERR_INVALID_PARAMETER);
 
     if (RT_LIKELY(g_pDip))
@@ -968,7 +965,7 @@ int VBoxUSBMonSolarisUnregisterClient(dev_info_t *pClientDip)
 
                 mutex_exit(&g_VBoxUSBMonSolarisMtx);
 
-                Log((DEVICE_NAME ":VBoxUSBMonSolarisUnregisterClient unregistered. %d %s %s\n",
+                LogFlow((DEVICE_NAME ":VBoxUSBMonSolarisUnregisterClient unregistered. %d %s %s\n",
                             pCur->Info.Instance, pCur->Info.szClientPath, pCur->Info.szDeviceIdent));
                 RTMemFree(pCur);
                 pCur = NULL;
@@ -1003,7 +1000,7 @@ int VBoxUSBMonSolarisUnregisterClient(dev_info_t *pClientDip)
 int VBoxUSBMonSolarisElectDriver(usb_dev_descr_t *pDevDesc, usb_dev_str_t *pDevStrings, char *pszDevicePath, int Bus, int Port,
                                 char **ppszDrv, void *pvReserved)
 {
-    LogFunc((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver pDevDesc=%p pDevStrings=%p pszDevicePath=%s Bus=%d Port=%d\n", pDevDesc,
+    LogFlowFunc((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver pDevDesc=%p pDevStrings=%p pszDevicePath=%s Bus=%d Port=%d\n", pDevDesc,
             pDevStrings, pszDevicePath, Bus, Port));
 
     AssertPtrReturn(pDevDesc, USB_FAILURE);
@@ -1022,14 +1019,14 @@ int VBoxUSBMonSolarisElectDriver(usb_dev_descr_t *pDevDesc, usb_dev_str_t *pDevS
     USBFilterSetNumExact(&Filter, USBFILTERIDX_DEVICE_PROTOCOL, pDevDesc->bDeviceProtocol, true);
     USBFilterSetNumExact(&Filter, USBFILTERIDX_BUS, 0x0 /* Bus */, true); /* Use 0x0 as userland initFilterFromDevice function in Main: see comment on "SetMustBePresent" below */
     USBFilterSetNumExact(&Filter, USBFILTERIDX_PORT, Port, true);
-    USBFilterSetStringExact(&Filter, USBFILTERIDX_MANUFACTURER_STR, pDevStrings->usb_mfg ? pDevStrings->usb_mfg : "", true);
-    USBFilterSetStringExact(&Filter, USBFILTERIDX_PRODUCT_STR, pDevStrings->usb_product ? pDevStrings->usb_product : "", true);
-    USBFilterSetStringExact(&Filter, USBFILTERIDX_SERIAL_NUMBER_STR, pDevStrings->usb_serialno ? pDevStrings->usb_serialno : "", true);
+    USBFilterSetStringExact(&Filter, USBFILTERIDX_MANUFACTURER_STR, pDevStrings->usb_mfg, true);
+    USBFilterSetStringExact(&Filter, USBFILTERIDX_PRODUCT_STR, pDevStrings->usb_product, true);
+    USBFilterSetStringExact(&Filter, USBFILTERIDX_SERIAL_NUMBER_STR, pDevStrings->usb_serialno, true);
 
     /* This doesn't work like it should (USBFilterMatch fails on matching field (6) i.e. Bus despite this. Investigate later. */
     USBFilterSetMustBePresent(&Filter, USBFILTERIDX_BUS, false /* fMustBePresent */);
 
-    Log((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver: idVendor=%#x idProduct=%#x bcdDevice=%#x bDeviceClass=%#x bDeviceSubClass=%#x bDeviceProtocol=%#x bBus=%#x bPort=%#x\n",
+    LogFlow((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver: idVendor=%#x idProduct=%#x bcdDevice=%#x bDeviceClass=%#x bDeviceSubClass=%#x bDeviceProtocol=%#x bBus=%#x bPort=%#x\n",
               USBFilterGetNum(&Filter, USBFILTERIDX_VENDOR_ID),
               USBFilterGetNum(&Filter, USBFILTERIDX_PRODUCT_ID),
               USBFilterGetNum(&Filter, USBFILTERIDX_DEVICE_REV),
@@ -1038,7 +1035,7 @@ int VBoxUSBMonSolarisElectDriver(usb_dev_descr_t *pDevDesc, usb_dev_str_t *pDevS
               USBFilterGetNum(&Filter, USBFILTERIDX_DEVICE_PROTOCOL),
               USBFilterGetNum(&Filter, USBFILTERIDX_BUS),
               USBFilterGetNum(&Filter, USBFILTERIDX_PORT)));
-    Log((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver: Manufacturer=%s Product=%s Serial=%s\n",
+    LogFlow((DEVICE_NAME ":VBoxUSBMonSolarisElectDriver: Manufacturer=%s Product=%s Serial=%s\n",
               USBFilterGetString(&Filter, USBFILTERIDX_MANUFACTURER_STR)  ? USBFilterGetString(&Filter, USBFILTERIDX_MANUFACTURER_STR)  : "<null>",
               USBFilterGetString(&Filter, USBFILTERIDX_PRODUCT_STR)       ? USBFilterGetString(&Filter, USBFILTERIDX_PRODUCT_STR)       : "<null>",
               USBFilterGetString(&Filter, USBFILTERIDX_SERIAL_NUMBER_STR) ? USBFilterGetString(&Filter, USBFILTERIDX_SERIAL_NUMBER_STR) : "<null>"));
@@ -1051,7 +1048,7 @@ int VBoxUSBMonSolarisElectDriver(usb_dev_descr_t *pDevDesc, usb_dev_str_t *pDevS
     USBFilterDelete(&Filter);
     if (Owner == NIL_RTPROCESS)
     {
-        Log((DEVICE_NAME ":No matching filters, device %#x:%#x uninteresting.\n", pDevDesc->idVendor, pDevDesc->idProduct));
+        LogFlow((DEVICE_NAME ":No matching filters, device %#x:%#x uninteresting.\n", pDevDesc->idVendor, pDevDesc->idProduct));
         return USB_FAILURE;
     }
 
@@ -1060,4 +1057,3 @@ int VBoxUSBMonSolarisElectDriver(usb_dev_descr_t *pDevDesc, usb_dev_str_t *pDevS
                     pDevDesc->idVendor, pDevDesc->idProduct, pszDevicePath));
     return USB_SUCCESS;
 }
-

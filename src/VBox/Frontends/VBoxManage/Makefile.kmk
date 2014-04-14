@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -22,10 +22,8 @@ ifdef VBOX_WITH_DOCS
  PROGRAMS += VBoxManageHelp
 endif
 VBoxManageHelp_TEMPLATE   = VBoxAdvBldProg
-VBoxManageHelp_DEFS      += \
-	VBOX_ONLY_DOCS \
-	$(if $(VBOX_WITH_GUEST_CONTROL),VBOX_WITH_GUEST_CONTROL)
-VBoxManageHelp_SOURCES    = \
+VBoxManageHelp_DEFS      += VBOX_ONLY_DOCS
+VBoxManageHelp_SOURCES = \
 	VBoxManage.cpp \
 	VBoxManageHelp.cpp \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
@@ -36,7 +34,7 @@ ifndef VBOX_ONLY_DOCS
 endif
 VBoxManage_TEMPLATE   = VBOXMAINCLIENTEXE
 VBoxManage_DEFS.win   = _WIN32_WINNT=0x0500
-VBoxManage_SOURCES    = \
+VBoxManage_SOURCES = \
 	VBoxManage.cpp \
 	VBoxInternalManage.cpp \
 	VBoxManageAppliance.cpp \
@@ -46,7 +44,6 @@ VBoxManage_SOURCES    = \
 	VBoxManageDHCPServer.cpp \
 	VBoxManageDisk.cpp \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrl.cpp) \
-	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxManageGuestCtrlListener.cpp) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxManageGuestProp.cpp) \
 	VBoxManageHelp.cpp \
 	VBoxManageHostonly.cpp \
@@ -57,9 +54,7 @@ VBoxManage_SOURCES    = \
 	VBoxManageModifyVM.cpp \
 	VBoxManageSnapshot.cpp \
 	VBoxManageStorageController.cpp \
-	VBoxManageUSB.cpp \
-	$(if $(VBOX_WITH_NAT_SERVICE),VBoxManageNATNetwork.cpp,) \
-	$(if $(VBOX_WITH_NAT_SERVICE),../../NetworkServices/NetLib/VBoxNetPortForwardString.cpp,)
+	VBoxManageUSB.cpp
 VBoxManage_LIBS      += $(LIB_DDU)
 
 VBoxManage_DEFS      += \
@@ -80,13 +75,7 @@ VBoxManage_DEFS      += \
 	$(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL) \
 	$(if $(VBOX_WITH_VIRTIO),VBOX_WITH_VIRTIO) \
 	$(if $(VBOX_WITH_USB_CARDREADER),VBOX_WITH_USB_CARDREADER) \
-	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH) \
-	$(if $(VBOX_WITH_VPX),VBOX_WITH_VPX) \
-	$(if $(VBOX_WITH_NAT_SERVICE),VBOX_WITH_NAT_SERVICE) \
-	$(if $(VBOX_WITH_VMSVGA),VBOX_WITH_VMSVGA)
-
-# VBoxNetPortForwardString.h
-VBoxManageNATNetwork.cpp_INCS += ../../NetworkServices/NetLib/
+	$(if $(VBOX_WITH_PCI_PASSTHROUGH),VBOX_WITH_PCI_PASSTHROUGH)
 
 ifneq ($(KBUILD_TARGET),win)
  # Workaround for buggy gcc-4.3 compilers, see
@@ -100,4 +89,4 @@ ifneq ($(KBUILD_TARGET),win)
  VBoxManageHelp_CXXFLAGS.release = $(VBoxManage_CXXFLAGS.release)
 endif
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk

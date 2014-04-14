@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,10 +35,10 @@
  *
  * @returns VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   enmType     Checkpoint type
  */
-VMM_INT_DECL(int) FTMSetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType)
+VMMDECL(int)   FTMSetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType)
 {
     if (!pVM->fFaultTolerantMaster)
         return VINF_SUCCESS;
@@ -56,9 +56,9 @@ VMM_INT_DECL(int) FTMSetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType)
  *
  * @returns true/false
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  */
-VMM_INT_DECL(bool) FTMIsDeltaLoadSaveActive(PVM pVM)
+VMMDECL(bool)  FTMIsDeltaLoadSaveActive(PVM pVM)
 {
     return pVM->ftm.s.fDeltaLoadSaveActive;
 }

@@ -1,6 +1,6 @@
 /* $Id: listeners.h $ */
 /** @file
- * MS COM / XPCOM Abstraction Layer - Listeners helpers.
+ * Listeners helpers.
  */
 
 /*
@@ -169,4 +169,3 @@ public:
 #endif
 
 #endif
-

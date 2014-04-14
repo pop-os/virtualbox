@@ -48,7 +48,6 @@
 #include <net/if_var.h>
 #include <net/route.h>
 #include <net/if_dl.h>
-#include <net/if_media.h>
 #include <net/if_types.h>
 #include <net/ethernet.h>
 #include <net/bpf.h>
@@ -68,22 +67,6 @@
 
 #define VBOXNETADP_OS_SPECFIC 1
 #include "../VBoxNetAdpInternal.h"
-
-#if defined(__FreeBSD_version) && __FreeBSD_version >= 800500
-# include <sys/jail.h>
-# include <net/vnet.h>
-
-# define VBOXCURVNET_SET(arg)           CURVNET_SET_QUIET(arg)
-# define VBOXCURVNET_SET_FROM_UCRED()   VBOXCURVNET_SET(CRED_TO_VNET(curthread->td_ucred))
-# define VBOXCURVNET_RESTORE()          CURVNET_RESTORE()
-
-#else /* !defined(__FreeBSD_version) || __FreeBSD_version < 800500 */
-
-# define VBOXCURVNET_SET(arg)
-# define VBOXCURVNET_SET_FROM_UCRED()
-# define VBOXCURVNET_RESTORE()
-
-#endif /* !defined(__FreeBSD_version) || __FreeBSD_version < 800500 */
 
 static int VBoxNetAdpFreeBSDCtrlioctl(struct cdev *, u_long, caddr_t, int flags,
     struct thread *);
@@ -247,8 +230,6 @@ static void VBoxNetAdpFreeBSDNetstart(struct ifnet *ifp)
  */
 static int VBoxNetAdpFreeBSDNetioctl(struct ifnet *ifp, u_long cmd, caddr_t data)
 {
-    int error = 0;
-
     switch (cmd)
     {
         case SIOCSIFFLAGS:
@@ -263,29 +244,10 @@ static int VBoxNetAdpFreeBSDNetioctl(struct ifnet *ifp, u_long cmd, caddr_t data
                     ifp->if_drv_flags &= ~IFF_DRV_RUNNING;
             }
             break;
-        case SIOCGIFMEDIA:
-        {
-            struct ifmediareq *ifmr;
-            int count;
-
-            ifmr = (struct ifmediareq *)data;
-            count = ifmr->ifm_count;
-            ifmr->ifm_count = 1;
-            ifmr->ifm_status = IFM_AVALID;
-            ifmr->ifm_active = IFM_ETHER;
-            ifmr->ifm_status |= IFM_ACTIVE;
-            ifmr->ifm_current = ifmr->ifm_active;
-            if (count >= 1)
-            {
-                int media = IFM_ETHER;
-                error = copyout(&media, ifmr->ifm_ulist, sizeof(int));
-            }
-            break;
-        }
         default:
             return ether_ioctl(ifp, cmd, data);
     }
-    return error;
+    return 0;
 }
 
 int vboxNetAdpOsInit(PVBOXNETADP pThis)
@@ -298,7 +260,6 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMac)
 {
     struct ifnet *ifp;
 
-    VBOXCURVNET_SET_FROM_UCRED();
     ifp = if_alloc(IFT_ETHER);
     if (ifp == NULL)
         return VERR_NO_MEMORY;
@@ -318,7 +279,6 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMac)
 
     strncpy(pThis->szName, ifp->if_xname, VBOXNETADP_MAX_NAME_LEN);
     pThis->u.s.ifp = ifp;
-    VBOXCURVNET_RESTORE();
     return 0;
 }
 
@@ -327,8 +287,6 @@ void vboxNetAdpOsDestroy(PVBOXNETADP pThis)
     struct ifnet *ifp;
 
     ifp = pThis->u.s.ifp;
-    VBOXCURVNET_SET(ifp->if_vnet);
     ether_ifdetach(ifp);
     if_free(ifp);
-    VBOXCURVNET_RESTORE();
 }

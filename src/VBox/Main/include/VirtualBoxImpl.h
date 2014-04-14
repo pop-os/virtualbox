@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,6 @@
 #define ____H_VIRTUALBOXIMPL
 
 #include "VirtualBoxBase.h"
-#include "objectslist.h"
 
 #ifdef RT_OS_WINDOWS
 # include "win/resource.h"
@@ -33,23 +32,24 @@ namespace com
 
 class SessionMachine;
 class GuestOSType;
+class SharedFolder;
 class Progress;
 class Host;
 class SystemProperties;
 class DHCPServer;
 class PerformanceCollector;
+class VirtualBoxCallbackRegistration; /* see VirtualBoxImpl.cpp */
 #ifdef VBOX_WITH_EXTPACK
 class ExtPackManager;
 #endif
-class AutostartDb;
-class NATNetwork;
 
-
-typedef std::list<ComObjPtr<SessionMachine> > SessionMachinesList;
+typedef std::list< ComObjPtr<SessionMachine> > SessionMachinesList;
 
 #ifdef RT_OS_WINDOWS
 class SVCHlpClient;
 #endif
+
+struct VMClientWatcherData;
 
 namespace settings
 {
@@ -66,8 +66,7 @@ class ATL_NO_VTABLE VirtualBox :
 
 public:
 
-    typedef std::list<ComPtr<IInternalSessionControl> > InternalControlList;
-    typedef ObjectsList<Machine> MachinesOList;
+    typedef std::list< ComPtr<IInternalSessionControl> > InternalControlList;
 
     class CallbackEvent;
     friend class CallbackEvent;
@@ -101,45 +100,40 @@ public:
     void uninit();
 
     /* IVirtualBox properties */
-    STDMETHOD(COMGETTER(Version))(BSTR *aVersion);
-    STDMETHOD(COMGETTER(VersionNormalized))(BSTR *aVersionNormalized);
-    STDMETHOD(COMGETTER(Revision))(ULONG *aRevision);
-    STDMETHOD(COMGETTER(PackageType))(BSTR *aPackageType);
-    STDMETHOD(COMGETTER(APIVersion))(BSTR *aAPIVersion);
-    STDMETHOD(COMGETTER(HomeFolder))(BSTR *aHomeFolder);
-    STDMETHOD(COMGETTER(SettingsFilePath))(BSTR *aSettingsFilePath);
-    STDMETHOD(COMGETTER(Host))(IHost **aHost);
-    STDMETHOD(COMGETTER(SystemProperties))(ISystemProperties **aSystemProperties);
-    STDMETHOD(COMGETTER(Machines))(ComSafeArrayOut(IMachine *, aMachines));
-    STDMETHOD(COMGETTER(MachineGroups))(ComSafeArrayOut(BSTR, aMachineGroups));
-    STDMETHOD(COMGETTER(HardDisks))(ComSafeArrayOut(IMedium *, aHardDisks));
-    STDMETHOD(COMGETTER(DVDImages))(ComSafeArrayOut(IMedium *, aDVDImages));
-    STDMETHOD(COMGETTER(FloppyImages))(ComSafeArrayOut(IMedium *, aFloppyImages));
-    STDMETHOD(COMGETTER(ProgressOperations))(ComSafeArrayOut(IProgress *, aOperations));
-    STDMETHOD(COMGETTER(GuestOSTypes))(ComSafeArrayOut(IGuestOSType *, aGuestOSTypes));
-    STDMETHOD(COMGETTER(SharedFolders))(ComSafeArrayOut(ISharedFolder *, aSharedFolders));
-    STDMETHOD(COMGETTER(PerformanceCollector))(IPerformanceCollector **aPerformanceCollector);
-    STDMETHOD(COMGETTER(DHCPServers))(ComSafeArrayOut(IDHCPServer *, aDHCPServers));
-    STDMETHOD(COMGETTER(NATNetworks))(ComSafeArrayOut(INATNetwork *, aNATNetworks));
-    STDMETHOD(COMGETTER(EventSource))(IEventSource ** aEventSource);
-    STDMETHOD(COMGETTER(ExtensionPackManager))(IExtPackManager **aExtPackManager);
-    STDMETHOD(COMGETTER(InternalNetworks))(ComSafeArrayOut(BSTR, aInternalNetworks));
-    STDMETHOD(COMGETTER(GenericNetworkDrivers))(ComSafeArrayOut(BSTR, aGenericNetworkDrivers));
+    STDMETHOD(COMGETTER(Version))               (BSTR *aVersion);
+    STDMETHOD(COMGETTER(Revision))              (ULONG *aRevision);
+    STDMETHOD(COMGETTER(PackageType))           (BSTR *aPackageType);
+    STDMETHOD(COMGETTER(APIVersion))            (BSTR *aAPIVersion);
+    STDMETHOD(COMGETTER(HomeFolder))            (BSTR *aHomeFolder);
+    STDMETHOD(COMGETTER(SettingsFilePath))      (BSTR *aSettingsFilePath);
+    STDMETHOD(COMGETTER(Host))                  (IHost **aHost);
+    STDMETHOD(COMGETTER(SystemProperties))      (ISystemProperties **aSystemProperties);
+    STDMETHOD(COMGETTER(Machines))              (ComSafeArrayOut(IMachine *, aMachines));
+    STDMETHOD(COMGETTER(HardDisks))             (ComSafeArrayOut(IMedium *, aHardDisks));
+    STDMETHOD(COMGETTER(DVDImages))             (ComSafeArrayOut(IMedium *, aDVDImages));
+    STDMETHOD(COMGETTER(FloppyImages))          (ComSafeArrayOut(IMedium *, aFloppyImages));
+    STDMETHOD(COMGETTER(ProgressOperations))    (ComSafeArrayOut(IProgress *, aOperations));
+    STDMETHOD(COMGETTER(GuestOSTypes))          (ComSafeArrayOut(IGuestOSType *, aGuestOSTypes));
+    STDMETHOD(COMGETTER(SharedFolders))         (ComSafeArrayOut(ISharedFolder *, aSharedFolders));
+    STDMETHOD(COMGETTER(PerformanceCollector))  (IPerformanceCollector **aPerformanceCollector);
+    STDMETHOD(COMGETTER(DHCPServers))           (ComSafeArrayOut(IDHCPServer *, aDHCPServers));
+    STDMETHOD(COMGETTER(EventSource))           (IEventSource ** aEventSource);
+    STDMETHOD(COMGETTER(ExtensionPackManager))  (IExtPackManager **aExtPackManager);
+    STDMETHOD(COMGETTER(InternalNetworks))      (ComSafeArrayOut(BSTR, aInternalNetworks));
+    STDMETHOD(COMGETTER(GenericNetworkDrivers)) (ComSafeArrayOut(BSTR, aGenericNetworkDrivers));
 
     /* IVirtualBox methods */
-    STDMETHOD(ComposeMachineFilename)(IN_BSTR aName, IN_BSTR aGroup, IN_BSTR aCreateFlags, IN_BSTR aBaseFolder, BSTR *aFilename);
-    STDMETHOD(CreateMachine)(IN_BSTR aSettingsFile,
-                             IN_BSTR aName,
-                             ComSafeArrayIn(IN_BSTR, aGroups),
-                             IN_BSTR aOsTypeId,
-                             IN_BSTR aCreateFlags,
-                             IMachine **aMachine);
-    STDMETHOD(OpenMachine)(IN_BSTR aSettingsFile, IMachine **aMachine);
-    STDMETHOD(RegisterMachine)(IMachine *aMachine);
-    STDMETHOD(FindMachine)(IN_BSTR aNameOrId, IMachine **aMachine);
-    STDMETHOD(GetMachinesByGroups)(ComSafeArrayIn(IN_BSTR, aGroups), ComSafeArrayOut(IMachine *, aMachines));
-    STDMETHOD(GetMachineStates)(ComSafeArrayIn(IMachine *, aMachines), ComSafeArrayOut(MachineState_T, aStates));
-    STDMETHOD(CreateAppliance)(IAppliance **anAppliance);
+    STDMETHOD(ComposeMachineFilename) (IN_BSTR aName, IN_BSTR aBaseFolder, BSTR *aFilename);
+    STDMETHOD(CreateMachine) (IN_BSTR aSettingsFile,
+                              IN_BSTR aName,
+                              IN_BSTR aOsTypeId,
+                              IN_BSTR aId,
+                              BOOL forceOverwrite,
+                              IMachine **aMachine);
+    STDMETHOD(OpenMachine) (IN_BSTR aSettingsFile, IMachine **aMachine);
+    STDMETHOD(RegisterMachine) (IMachine *aMachine);
+    STDMETHOD(FindMachine) (IN_BSTR aNameOrId, IMachine **aMachine);
+    STDMETHOD(CreateAppliance) (IAppliance **anAppliance);
 
     STDMETHOD(CreateHardDisk)(IN_BSTR aFormat,
                               IN_BSTR aLocation,
@@ -149,23 +143,20 @@ public:
                           AccessMode_T accessMode,
                           BOOL fForceNewUuid,
                           IMedium **aMedium);
+    STDMETHOD(FindMedium)(IN_BSTR aLocation,
+                          DeviceType_T deviceType,
+                          IMedium **aMedium);
 
-    STDMETHOD(GetGuestOSType)(IN_BSTR aId, IGuestOSType **aType);
-    STDMETHOD(CreateSharedFolder)(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
-    STDMETHOD(RemoveSharedFolder)(IN_BSTR aName);
-    STDMETHOD(GetExtraDataKeys)(ComSafeArrayOut(BSTR, aKeys));
-    STDMETHOD(GetExtraData)(IN_BSTR aKey, BSTR *aValue);
-    STDMETHOD(SetExtraData)(IN_BSTR aKey, IN_BSTR aValue);
-    STDMETHOD(SetSettingsSecret)(IN_BSTR aKey);
+    STDMETHOD(GetGuestOSType) (IN_BSTR aId, IGuestOSType **aType);
+    STDMETHOD(CreateSharedFolder) (IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BOOL aAutoMount);
+    STDMETHOD(RemoveSharedFolder) (IN_BSTR aName);
+    STDMETHOD(GetExtraDataKeys) (ComSafeArrayOut(BSTR, aKeys));
+    STDMETHOD(GetExtraData) (IN_BSTR aKey, BSTR *aValue);
+    STDMETHOD(SetExtraData) (IN_BSTR aKey, IN_BSTR aValue);
 
-    STDMETHOD(CreateDHCPServer)(IN_BSTR aName, IDHCPServer ** aServer);
-    STDMETHOD(FindDHCPServerByNetworkName)(IN_BSTR aName, IDHCPServer ** aServer);
-    STDMETHOD(RemoveDHCPServer)(IDHCPServer * aServer);
-
-    STDMETHOD(CreateNATNetwork)(IN_BSTR aName, INATNetwork ** aNATNetworks);
-    STDMETHOD(FindNATNetworkByName)(IN_BSTR aName, INATNetwork ** aNATNetworks);
-    STDMETHOD(RemoveNATNetwork)(INATNetwork * aNATNetwork);
-
+    STDMETHOD(CreateDHCPServer) (IN_BSTR aName, IDHCPServer ** aServer);
+    STDMETHOD(FindDHCPServerByNetworkName) (IN_BSTR aName, IDHCPServer ** aServer);
+    STDMETHOD(RemoveDHCPServer) (IDHCPServer * aServer);
     STDMETHOD(CheckFirmwarePresent)(FirmwareType_T aFirmwareType, IN_BSTR aVersion,
                                     BSTR * aUrl, BSTR * aFile, BOOL * aResult);
 
@@ -190,18 +181,15 @@ public:
     HRESULT removeProgress(IN_GUID aId);
 
 #ifdef RT_OS_WINDOWS
-    typedef DECLCALLBACKPTR(HRESULT, SVCHelperClientFunc)
+    typedef DECLCALLBACKPTR (HRESULT, SVCHelperClientFunc)
         (SVCHlpClient *aClient, Progress *aProgress, void *aUser, int *aVrc);
     HRESULT startSVCHelperClient(bool aPrivileged,
                                  SVCHelperClientFunc aFunc,
                                  void *aUser, Progress *aProgress);
 #endif
 
-    void addProcessToReap(RTPROCESS pid);
+    void addProcessToReap (RTPROCESS pid);
     void updateClientWatcher();
-
-    int loadVDPlugin(const char *pszPluginLibrary);
-    int unloadVDPlugin(const char *pszPluginLibrary);
 
     void onMachineStateChange(const Guid &aId, MachineState_T aState);
     void onMachineDataChange(const Guid &aId, BOOL aTemporary = FALSE);
@@ -216,39 +204,20 @@ public:
     void onSnapshotChange(const Guid &aMachineId, const Guid &aSnapshotId);
     void onGuestPropertyChange(const Guid &aMachineId, IN_BSTR aName, IN_BSTR aValue,
                                IN_BSTR aFlags);
+    void onMachineUninit(Machine *aMachine);
     void onNatRedirectChange(const Guid &aMachineId, ULONG ulSlot, bool fRemove, IN_BSTR aName,
                                    NATProtocol_T aProto, IN_BSTR aHostIp, uint16_t aHostPort,
                                    IN_BSTR aGuestIp, uint16_t aGuestPort);
-    void onNATNetworkChange(IN_BSTR aNetworkName);
-    void onNATNetworkStartStop(IN_BSTR aNetworkName, BOOL aStart);
-    void onNATNetworkSetting(IN_BSTR aNetworkName, BOOL aEnabled, IN_BSTR aNetwork,
-                             IN_BSTR aGateway, BOOL aAdvertiseDefaultIpv6RouteEnabled,
-                             BOOL fNeedDhcpServer);
-    void onNATNetworkPortForward(IN_BSTR aNetworkName, BOOL create, BOOL fIpv6,
-                                 IN_BSTR aRuleName, NATProtocol_T proto,
-                                 IN_BSTR aHostIp, LONG aHostPort,
-                                 IN_BSTR aGuestIp, LONG aGuestPort);
-    void onHostNameResolutionConfigurationChange();
-
-    int natNetworkRefInc(IN_BSTR aNetworkName);
-    int natNetworkRefDec(IN_BSTR aNetworkName);
 
     ComObjPtr<GuestOSType> getUnknownOSType();
 
     void getOpenedMachines(SessionMachinesList &aMachines,
                            InternalControlList *aControls = NULL);
-    MachinesOList &getMachinesList();
 
     HRESULT findMachine(const Guid &aId,
                         bool fPermitInaccessible,
                         bool aSetError,
-                        ComObjPtr<Machine> *aMachine = NULL);
-    HRESULT findMachineByName(const Utf8Str &aName,
-                              bool aSetError,
-                              ComObjPtr<Machine> *aMachine = NULL);
-
-    HRESULT validateMachineGroup(const Utf8Str &aGroup, bool fPrimary);
-    HRESULT convertMachineGroups(ComSafeArrayIn(IN_BSTR, aMachineGroups), StringsList *pllMachineGroups);
+                        ComObjPtr<Machine> *machine = NULL);
 
     HRESULT findHardDiskById(const Guid &id,
                              bool aSetError,
@@ -270,7 +239,7 @@ public:
     HRESULT findGuestOSType(const Bstr &bstrOSType,
                             GuestOSType*& pGuestOSType);
 
-    const Guid &getGlobalRegistryId() const;
+    const Guid& getGlobalRegistryId() const;
 
     const ComObjPtr<Host>& host() const;
     SystemProperties* getSystemProperties() const;
@@ -290,8 +259,8 @@ public:
     int calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
     void copyPathRelativeToConfig(const Utf8Str &strSource, Utf8Str &strTarget);
 
-    HRESULT registerMedium(const ComObjPtr<Medium> &pMedium, ComObjPtr<Medium> *ppMedium, DeviceType_T argType, AutoWriteLock &mediaTreeLock);
-    HRESULT unregisterMedium(Medium *pMedium);
+    HRESULT registerMedium(const ComObjPtr<Medium> &pMedium, ComObjPtr<Medium> *ppMedium, DeviceType_T argType, GuidList *pllRegistriesThatNeedSaving);
+    HRESULT unregisterMedium(Medium *pMedium, GuidList *pllRegistriesThatNeedSaving);
 
     void pushMediumToListWithChildren(MediaList &llMedia, Medium *pMedium);
     HRESULT unregisterMachineMedia(const Guid &id);
@@ -306,28 +275,18 @@ public:
                            const Utf8Str &strMachineFolder);
     HRESULT saveSettings();
 
-    void markRegistryModified(const Guid &uuid);
-    void saveModifiedRegistries();
-
-    static const Bstr &getVersionNormalized();
+    static void addGuidToListUniquely(GuidList &llRegistriesThatNeedSaving, const Guid &uuid);
+    void saveRegistries(const GuidList &llRegistriesThatNeedSaving);
 
     static HRESULT ensureFilePathExists(const Utf8Str &strFileName, bool fCreate);
 
+    static HRESULT handleUnexpectedExceptions (RT_SRC_POS_DECL);
+
     const Utf8Str& settingsFilePath();
 
-    AutostartDb* getAutostartDb() const;
-
-    RWLockHandle& getMachinesListLockHandle();
     RWLockHandle& getMediaTreeLockHandle();
 
-    int  encryptSetting(const Utf8Str &aPlaintext, Utf8Str *aCiphertext);
-    int  decryptSetting(Utf8Str *aPlaintext, const Utf8Str &aCiphertext);
-    void storeSettingsKey(const Utf8Str &aKey);
-
-    bool isMediaUuidInUse(const Guid &aId, DeviceType_T deviceType);
-
 private:
-    class ClientWatcher;
 
     static HRESULT setErrorStatic(HRESULT aResultCode,
                                   const Utf8Str &aText)
@@ -335,44 +294,32 @@ private:
         return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
     }
 
+    HRESULT checkMediaForConflicts(const Guid &aId,
+                                   const Utf8Str &aLocation,
+                                   Utf8Str &aConflictType,
+                                   ComObjPtr<Medium> *pDupMedium);
+
     HRESULT registerMachine(Machine *aMachine);
 
     HRESULT registerDHCPServer(DHCPServer *aDHCPServer,
                                bool aSaveRegistry = true);
     HRESULT unregisterDHCPServer(DHCPServer *aDHCPServer,
                                  bool aSaveRegistry = true);
-    HRESULT registerNATNetwork(NATNetwork *aNATNetwork,
-                               bool aSaveRegistry = true);
-    HRESULT unregisterNATNetwork(NATNetwork *aNATNetwork,
-                                 bool aSaveRegistry = true);
-    HRESULT checkMediaForConflicts(const Guid &aId,
-                                   const Utf8Str &aLocation,
-                                   Utf8Str &aConflictType,
-                                   ComObjPtr<Medium> *pDupMedium);
-
-    int  decryptSettings();
-    int  decryptMediumSettings(Medium *pMedium);
-    int  decryptSettingBytes(uint8_t *aPlaintext, const uint8_t *aCiphertext,
-                             size_t aCiphertextSize) const;
-    int  encryptSettingBytes(const uint8_t *aPlaintext, uint8_t *aCiphertext,
-                             size_t aPlaintextSize, size_t aCiphertextSize) const;
 
     struct Data;            // opaque data structure, defined in VirtualBoxImpl.cpp
     Data *m;
 
     /* static variables (defined in VirtualBoxImpl.cpp) */
     static Bstr sVersion;
-    static Bstr sVersionNormalized;
     static ULONG sRevision;
     static Bstr sPackageType;
     static Bstr sAPIVersion;
-    static std::map<Bstr, int> sNatNetworkNameToRefCount;
-    static RWLockHandle* spMtxNatNetworkNameToRefCountLock;
 
-    static DECLCALLBACK(int) AsyncEventHandler(RTTHREAD thread, void *pvUser);
+    static DECLCALLBACK(int) ClientWatcher (RTTHREAD thread, void *pvUser);
+    static DECLCALLBACK(int) AsyncEventHandler (RTTHREAD thread, void *pvUser);
 
 #ifdef RT_OS_WINDOWS
-    static DECLCALLBACK(int) SVCHelperClientThread(RTTHREAD aThread, void *aUser);
+    static DECLCALLBACK(int) SVCHelperClientThread (RTTHREAD aThread, void *aUser);
 #endif
 };
 

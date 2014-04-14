@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,38 +58,20 @@ typedef struct DRVMOUSEQUEUE
 
 
 /**
- * Event type for @a DRVMOUSEQUEUEITEM
- */
-enum EVENTTYPE { RELATIVE, ABSOLUTE };
-
-/**
  * Mouse queue item.
  */
 typedef struct DRVMOUSEQUEUEITEM
 {
     /** The core part owned by the queue manager. */
     PDMQUEUEITEMCORE    Core;
-    enum EVENTTYPE      enmType;
-    union
-    {
-        uint32_t padding[5];
-        struct
-        {
-            uint32_t    fButtons;
-            int32_t     dx;
-            int32_t     dy;
-            int32_t     dz;
-            int32_t     dw;
-        } Relative;
-        struct
-        {
-            uint32_t    fButtons;
-            uint32_t    x;
-            uint32_t    y;
-            int32_t     dz;
-            int32_t     dw;
-        } Absolute;
-    } u;
+    uint32_t            fAbs;
+    int32_t             iDeltaX;
+    int32_t             iDeltaY;
+    int32_t             iDeltaZ;
+    int32_t             iDeltaW;
+    uint32_t            fButtonStates;
+    uint32_t            uX;
+    uint32_t            uY;
 } DRVMOUSEQUEUEITEM, *PDRVMOUSEQUEUEITEM;
 
 
@@ -119,10 +101,7 @@ static DECLCALLBACK(void *)  drvMouseQueueQueryInterface(PPDMIBASE pInterface, c
 /**
  * @interface_method_impl{PDMIMOUSEPORT,pfnPutEvent}
  */
-static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface,
-                                               int32_t dx, int32_t dy,
-                                               int32_t dz, int32_t dw,
-                                               uint32_t fButtons)
+static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface, int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates)
 {
     PDRVMOUSEQUEUE pDrv = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
     if (pDrv->fInactive)
@@ -131,13 +110,14 @@ static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface,
     PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
     if (pItem)
     {
-        RT_ZERO(pItem->u.padding);
-        pItem->enmType             = RELATIVE;
-        pItem->u.Relative.dx       = dx;
-        pItem->u.Relative.dy       = dy;
-        pItem->u.Relative.dz       = dz;
-        pItem->u.Relative.dw       = dw;
-        pItem->u.Relative.fButtons = fButtons;
+        pItem->fAbs = 0;
+        pItem->iDeltaX = iDeltaX;
+        pItem->iDeltaY = iDeltaY;
+        pItem->iDeltaZ = iDeltaZ;
+        pItem->iDeltaW = iDeltaW;
+        pItem->fButtonStates = fButtonStates;
+        pItem->uX = 0;
+        pItem->uY = 0;
         PDMQueueInsert(pDrv->pQueue, &pItem->Core);
         return VINF_SUCCESS;
     }
@@ -147,10 +127,7 @@ static DECLCALLBACK(int) drvMouseQueuePutEvent(PPDMIMOUSEPORT pInterface,
 /**
  * @interface_method_impl{PDMIMOUSEPORT,pfnPutEventAbs}
  */
-static DECLCALLBACK(int) drvMouseQueuePutEventAbs(PPDMIMOUSEPORT pInterface,
-                                                  uint32_t x, uint32_t y,
-                                                  int32_t dz, int32_t dw,
-                                                  uint32_t fButtons)
+static DECLCALLBACK(int) drvMouseQueuePutEventAbs(PPDMIMOUSEPORT pInterface, uint32_t uX, uint32_t uY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates)
 {
     PDRVMOUSEQUEUE pDrv = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
     if (pDrv->fInactive)
@@ -159,28 +136,20 @@ static DECLCALLBACK(int) drvMouseQueuePutEventAbs(PPDMIMOUSEPORT pInterface,
     PDRVMOUSEQUEUEITEM pItem = (PDRVMOUSEQUEUEITEM)PDMQueueAlloc(pDrv->pQueue);
     if (pItem)
     {
-        RT_ZERO(pItem->u.padding);
-        pItem->enmType             = ABSOLUTE;
-        pItem->u.Absolute.x        = x;
-        pItem->u.Absolute.y        = y;
-        pItem->u.Absolute.dz       = dz;
-        pItem->u.Absolute.dw       = dw;
-        pItem->u.Absolute.fButtons = fButtons;
+        pItem->fAbs = 1;
+        pItem->iDeltaX = 0;
+        pItem->iDeltaY = 0;
+        pItem->iDeltaZ = iDeltaZ;
+        pItem->iDeltaW = iDeltaW;
+        pItem->fButtonStates = fButtonStates;
+        pItem->uX = uX;
+        pItem->uY = uY;
         PDMQueueInsert(pDrv->pQueue, &pItem->Core);
         return VINF_SUCCESS;
     }
     return VERR_PDM_NO_QUEUE_ITEMS;
 }
 
-
-static DECLCALLBACK(int) drvMouseQueuePutEventMultiTouch(PPDMIMOUSEPORT pInterface,
-                                                         uint8_t cContacts,
-                                                         const uint64_t *pau64Contacts,
-                                                         uint32_t u32ScanTime)
-{
-    PDRVMOUSEQUEUE pThis = IMOUSEPORT_2_DRVMOUSEQUEUE(pInterface);
-    return pThis->pUpPort->pfnPutEventMultiTouch(pThis->pUpPort, cContacts, pau64Contacts, u32ScanTime);
-}
 
 /* -=-=-=-=- IConnector -=-=-=-=- */
 
@@ -192,14 +161,12 @@ static DECLCALLBACK(int) drvMouseQueuePutEventMultiTouch(PPDMIMOUSEPORT pInterfa
  * driver.
  *
  * @param   pInterface  Pointer to the mouse connector interface structure.
- * @param   fRel        Is relative reporting supported?
- * @param   fAbs        Is absolute reporting supported?
- * @param   fMT         Is multi-touch reporting supported?
+ * @param   fAbs        The new absolute mode state.
  */
-static DECLCALLBACK(void) drvMousePassThruReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMT)
+static DECLCALLBACK(void) drvMousePassThruReportModes(PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs)
 {
     PDRVMOUSEQUEUE pDrv = PPDMIMOUSECONNECTOR_2_DRVMOUSEQUEUE(pInterface);
-    pDrv->pDownConnector->pfnReportModes(pDrv->pDownConnector, fRel, fAbs, fMT);
+    pDrv->pDownConnector->pfnReportModes(pDrv->pDownConnector, fRel, fAbs);
 }
 
 
@@ -219,22 +186,10 @@ static DECLCALLBACK(bool) drvMouseQueueConsumer(PPDMDRVINS pDrvIns, PPDMQUEUEITE
     PDRVMOUSEQUEUE        pThis = PDMINS_2_DATA(pDrvIns, PDRVMOUSEQUEUE);
     PDRVMOUSEQUEUEITEM    pItem = (PDRVMOUSEQUEUEITEM)pItemCore;
     int rc;
-    if (pItem->enmType == RELATIVE)
-        rc = pThis->pUpPort->pfnPutEvent(pThis->pUpPort,
-                                         pItem->u.Relative.dx,
-                                         pItem->u.Relative.dy,
-                                         pItem->u.Relative.dz,
-                                         pItem->u.Relative.dw,
-                                         pItem->u.Relative.fButtons);
-    else if (pItem->enmType == ABSOLUTE)
-        rc = pThis->pUpPort->pfnPutEventAbs(pThis->pUpPort,
-                                            pItem->u.Absolute.x,
-                                            pItem->u.Absolute.y,
-                                            pItem->u.Absolute.dz,
-                                            pItem->u.Absolute.dw,
-                                            pItem->u.Absolute.fButtons);
+    if (!pItem->fAbs)
+        rc = pThis->pUpPort->pfnPutEvent(pThis->pUpPort, pItem->iDeltaX, pItem->iDeltaY, pItem->iDeltaZ, pItem->iDeltaW, pItem->fButtonStates);
     else
-        return false;
+        rc = pThis->pUpPort->pfnPutEventAbs(pThis->pUpPort, pItem->uX,   pItem->uY,      pItem->iDeltaZ, pItem->iDeltaW, pItem->fButtonStates);
     return RT_SUCCESS(rc);
 }
 
@@ -333,7 +288,6 @@ static DECLCALLBACK(int) drvMouseQueueConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     /* IMousePort. */
     pDrv->IPort.pfnPutEvent                 = drvMouseQueuePutEvent;
     pDrv->IPort.pfnPutEventAbs              = drvMouseQueuePutEventAbs;
-    pDrv->IPort.pfnPutEventMultiTouch       = drvMouseQueuePutEventMultiTouch;
 
     /*
      * Get the IMousePort interface of the above driver/device.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@
 # include <VBox/com/array.h>
 # include <VBox/com/ErrorInfo.h>
 # include <VBox/com/errorprint.h>
-# include <VBox/com/NativeEventQueue.h>
+# include <VBox/com/EventQueue.h>
 
 # include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
@@ -36,7 +36,6 @@
 
 #include <iprt/asm.h>
 #include <iprt/buildconfig.h>
-#include <iprt/ctype.h>
 #include <iprt/initterm.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
@@ -90,7 +89,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
     ULONG ulLastOperation = (ULONG)-1;
     Bstr bstrOperationDescription;
 
-    NativeEventQueue::getMainEventQueue()->processEventQueue(0);
+    EventQueue::getMainEventQueue()->processEventQueue(0);
 
     ULONG cOperations = 1;
     HRESULT hrc = progress->COMGETTER(OperationCount)(&cOperations);
@@ -100,12 +99,6 @@ HRESULT showProgress(ComPtr<IProgress> progress)
         RTStrmFlush(g_pStdErr);
         return hrc;
     }
-
-    /*
-     * Note: Outputting the progress info to stderr (g_pStdErr) is intentional
-     *       to not get intermixed with other (raw) stdout data which might get
-     *       written in the meanwhile.
-     */
 
     if (!g_fDetailedProgress)
     {
@@ -159,8 +152,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
                 LONG lSecsRem = 0;
                 progress->COMGETTER(TimeRemaining)(&lSecsRem);
 
-                RTStrmPrintf(g_pStdErr, "(%u/%u) %ls %02u%% => %02u%% (%d s remaining)\n", ulOperation + 1, cOperations,
-                             bstrOperationDescription.raw(), ulCurrentOperationPercent, ulCurrentPercent, lSecsRem);
+                RTStrmPrintf(g_pStdErr, "(%u/%u) %ls %02u%% => %02u%% (%d s remaining)\n", ulOperation + 1, cOperations, bstrOperationDescription.raw(), ulCurrentOperationPercent, ulCurrentPercent, lSecsRem);
                 ulLastPercent = ulCurrentPercent;
                 ulLastOperationPercent = ulCurrentOperationPercent;
             }
@@ -198,7 +190,7 @@ HRESULT showProgress(ComPtr<IProgress> progress)
         /* make sure the loop is not too tight */
         progress->WaitForCompletion(100);
 
-        NativeEventQueue::getMainEventQueue()->processEventQueue(0);
+        EventQueue::getMainEventQueue()->processEventQueue(0);
         hrc = progress->COMGETTER(Completed(&fCompleted));
     }
 
@@ -246,69 +238,13 @@ static CComModule _Module;
 #endif /* !VBOX_ONLY_DOCS */
 
 
-#ifndef VBOX_ONLY_DOCS
-RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd)
-{
-    size_t cbFile;
-    char szPasswd[512];
-    int vrc = VINF_SUCCESS;
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
-    bool fStdIn = !strcmp(pszFilename, "stdin");
-    PRTSTREAM pStrm;
-    if (!fStdIn)
-        vrc = RTStrmOpen(pszFilename, "r", &pStrm);
-    else
-        pStrm = g_pStdIn;
-    if (RT_SUCCESS(vrc))
-    {
-        vrc = RTStrmReadEx(pStrm, szPasswd, sizeof(szPasswd)-1, &cbFile);
-        if (RT_SUCCESS(vrc))
-        {
-            if (cbFile >= sizeof(szPasswd)-1)
-                rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Provided password in file '%s' is too long", pszFilename);
-            else
-            {
-                unsigned i;
-                for (i = 0; i < cbFile && !RT_C_IS_CNTRL(szPasswd[i]); i++)
-                    ;
-                szPasswd[i] = '\0';
-                *pPasswd = szPasswd;
-            }
-        }
-        else
-            rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Cannot read password from file '%s': %Rrc", pszFilename, vrc);
-        if (!fStdIn)
-            RTStrmClose(pStrm);
-    }
-    else
-        rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Cannot open password file '%s' (%Rrc)", pszFilename, vrc);
-
-    return rcExit;
-}
-
-static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszFilename)
-{
-    com::Utf8Str passwd;
-    RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
-    if (rcExit == RTEXITCODE_SUCCESS)
-    {
-        int rc;
-        CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
-        if (FAILED(rc))
-            rcExit = RTEXITCODE_FAILURE;
-    }
-
-    return rcExit;
-}
-#endif
-
 int main(int argc, char *argv[])
 {
     /*
      * Before we do anything, init the runtime without loading
      * the support driver.
      */
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Parse the global options
@@ -317,8 +253,6 @@ int main(int argc, char *argv[])
     bool fShowHelp = false;
     int  iCmd      = 1;
     int  iCmdArg;
-    const char *g_pszSettingsPw = NULL;
-    const char *g_pszSettingsPwFile = NULL;
 
     for (int i = 1; i < argc || argc <= iCmd; i++)
     {
@@ -332,7 +266,7 @@ int main(int argc, char *argv[])
             if (i >= argc - 1)
             {
                 showLogo(g_pStdOut);
-                printUsage(USAGE_ALL, ~0U, g_pStdOut);
+                printUsage(USAGE_ALL, g_pStdOut);
                 return 0;
             }
             fShowLogo = true;
@@ -356,7 +290,7 @@ int main(int argc, char *argv[])
         {
             /* Special option to dump really all commands,
              * even the ones not understood on this platform. */
-            printUsage(USAGE_DUMPOPTS, ~0U, g_pStdOut);
+            printUsage(USAGE_DUMPOPTS, g_pStdOut);
             return 0;
         }
 
@@ -375,25 +309,10 @@ int main(int argc, char *argv[])
             g_fDetailedProgress = true;
             iCmd++;
         }
-        else if (!strcmp(argv[i], "--settingspw"))
-        {
-            if (i >= argc-1)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                      "Password expected");
-            /* password for certain settings */
-            g_pszSettingsPw = argv[i+1];
-            iCmd += 2;
-        }
-        else if (!strcmp(argv[i], "--settingspwfile"))
-        {
-            if (i >= argc-1)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                      "No password file specified");
-            g_pszSettingsPwFile = argv[i+1];
-            iCmd += 2;
-        }
         else
+        {
             break;
+        }
     }
 
     iCmdArg = iCmd + 1;
@@ -419,6 +338,24 @@ int main(int argc, char *argv[])
 # endif
     if (FAILED(hrc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize COM!");
+
+    /*
+     * The input is ASSUMED to be in the current process codeset (NT guarantees
+     * ACP, unixy systems doesn't guarantee anything).  This loop converts all
+     * the argv[*] strings to UTF-8, which is a tad ugly but who cares.
+     * (As a rule all strings in VirtualBox are UTF-8.)
+     */
+    for (int i = iCmdArg; i < argc; i++)
+    {
+        char *pszConverted;
+        int rc = RTStrCurrentCPToUtf8(&pszConverted, argv[i]);
+        if (RT_SUCCESS(rc))
+            argv[i] = pszConverted;
+        else
+            /* Conversion was not possible,probably due to invalid characters.
+             * Keep in mind that we do RTStrFree on the whole array below. */
+            argv[i] = RTStrDup(argv[i]);
+    }
 
     RTEXITCODE rcExit = RTEXITCODE_FAILURE;
     do
@@ -515,31 +452,11 @@ int main(int argc, char *argv[])
             { "hostonlyif",       USAGE_HOSTONLYIFS,       handleHostonlyIf },
 #endif
             { "dhcpserver",       USAGE_DHCPSERVER,        handleDHCPServer},
-#ifdef VBOX_WITH_NAT_SERVICE
-            { "natnetwork",       USAGE_NATNETWORK,        handleNATNetwork},
-#endif
             { "extpack",          USAGE_EXTPACK,           handleExtPack},
             { "bandwidthctl",     USAGE_BANDWIDTHCONTROL,  handleBandwidthControl},
             { "debugvm",          USAGE_DEBUGVM,           handleDebugVM},
             { NULL,               0,                       NULL }
         };
-
-        if (g_pszSettingsPw)
-        {
-            int rc;
-            CHECK_ERROR(virtualBox, SetSettingsSecret(Bstr(g_pszSettingsPw).raw()));
-            if (FAILED(rc))
-            {
-                rcExit = RTEXITCODE_FAILURE;
-                break;
-            }
-        }
-        else if (g_pszSettingsPwFile)
-        {
-            rcExit = settingsPasswordFile(virtualBox, g_pszSettingsPwFile);
-            if (rcExit != RTEXITCODE_SUCCESS)
-                break;
-        }
 
         HandlerArg  handlerArg = { 0, NULL, virtualBox, session };
         int         commandIndex;
@@ -554,7 +471,7 @@ int main(int argc, char *argv[])
                     || (   argc - iCmdArg == 0
                         && s_commandHandlers[commandIndex].help))
                 {
-                    printUsage(s_commandHandlers[commandIndex].help, ~0U, g_pStdOut);
+                    printUsage(s_commandHandlers[commandIndex].help, g_pStdOut);
                     rcExit = RTEXITCODE_FAILURE; /* error */
                 }
                 else
@@ -584,13 +501,22 @@ int main(int argc, char *argv[])
          * state file (if the machine was in the Saved state before). */
         session->UnlockMachine();
 
-        NativeEventQueue::getMainEventQueue()->processEventQueue(0);
+        EventQueue::getMainEventQueue()->processEventQueue(0);
 
     // end "all-stuff" scope
     ///////////////////////////////////////////////////////////////////////////
     } while (0);
 
     com::Shutdown();
+
+    /*
+     * Free converted argument vector
+     */
+    for (int i = iCmdArg; i < argc; i++)
+    {
+        RTStrFree(argv[i]);
+        argv[i] = NULL;
+    }
 
     return rcExit;
 #else  /* VBOX_ONLY_DOCS */

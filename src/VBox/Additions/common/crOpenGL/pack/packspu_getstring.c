@@ -28,27 +28,21 @@ static void GetString(GLenum name, GLubyte *pszStr)
         crPackGetString(name, pszStr, &writeback);
     packspuFlush( (void *) thread );
 
-    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+    while (writeback)
+        crNetRecv();
 }
 
 static GLfloat
 GetVersionString(void)
 {
-    static GLboolean fInitialized = GL_FALSE;
-    static GLfloat version = 0.;
+    GLubyte return_value[100];
+    GLfloat version;
 
-    if (!fInitialized)
-    {
-        GLubyte return_value[100];
+    GetString(GL_VERSION, return_value);
+    CRASSERT(crStrlen((char *)return_value) < 100);
 
-        GetString(GL_VERSION, return_value);
-        CRASSERT(crStrlen((char *)return_value) < 100);
-
-        version = crStrToFloat((char *) return_value);
-        version = crStateComputeVersion(version);
-
-        fInitialized = GL_TRUE;
-    }
+    version = crStrToFloat((char *) return_value);
+    version = crStateComputeVersion(version);
 
     return version;
 }
@@ -56,48 +50,44 @@ GetVersionString(void)
 static const GLubyte *
 GetExtensions(void)
 {
-    static GLboolean fInitialized = GL_FALSE;
-    if (!fInitialized)
+    GLubyte return_value[10*1000];
+    const GLubyte *extensions, *ext;
+    GET_THREAD(thread);
+    int writeback = 1;
+
+    if (pack_spu.swap)
     {
-        GLubyte return_value[10*1000];
-        const GLubyte *extensions, *ext;
-        GET_THREAD(thread);
-        int writeback = 1;
+        crPackGetStringSWAP( GL_EXTENSIONS, return_value, &writeback );
+    }
+    else
+    {
+        crPackGetString( GL_EXTENSIONS, return_value, &writeback );
+    }
+    packspuFlush( (void *) thread );
 
-        if (pack_spu.swap)
-        {
-            crPackGetStringSWAP( GL_EXTENSIONS, return_value, &writeback );
-        }
-        else
-        {
-            crPackGetString( GL_EXTENSIONS, return_value, &writeback );
-        }
-        packspuFlush( (void *) thread );
+    while (writeback)
+        crNetRecv();
 
-        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+    CRASSERT(crStrlen((char *)return_value) < 10*1000);
 
-        CRASSERT(crStrlen((char *)return_value) < 10*1000);
-
-        /* OK, we got the result from the server.  Now we have to
-         * intersect is with the set of extensions that Chromium understands
-         * and tack on the Chromium-specific extensions.
-         */
-        extensions = return_value;
-        ext = crStateMergeExtensions(1, &extensions);
+    /* OK, we got the result from the server.  Now we have to
+     * intersect is with the set of extensions that Chromium understands
+     * and tack on the Chromium-specific extensions.
+     */
+    extensions = return_value;
+    ext = crStateMergeExtensions(1, &extensions);
 
 #ifdef Linux
-        /*@todo
-         *That's a hack to allow running Unity, it uses libnux which is calling extension functions
-         *without checking if it's being supported/exported.
-         *glActiveStencilFaceEXT seems to be actually supported but the extension string isn't exported (for ex. on ATI HD4870),
-         *which leads to libglew setting function pointer to NULL and crashing Unity.
-         */
-        sprintf((char*)gpszExtensions, "%s GL_EXT_stencil_two_side", ext);
+    /*@todo 
+     *That's a hack to allow running Unity, it uses libnux which is calling extension functions
+     *without checking if it's being supported/exported.
+     *glActiveStencilFaceEXT seems to be actually supported but the extension string isn't exported (for ex. on ATI HD4870),
+     *which leads to libglew setting function pointer to NULL and crashing Unity.
+     */
+    sprintf((char*)gpszExtensions, "%s GL_EXT_stencil_two_side", ext);
 #else
-        sprintf((char*)gpszExtensions, "%s", ext);
+    sprintf((char*)gpszExtensions, "%s", ext);
 #endif
-        fInitialized = GL_TRUE;
-    }
 
     return gpszExtensions;
 }
@@ -172,15 +162,8 @@ const GLubyte * PACKSPU_APIENTRY packspu_GetString( GLenum name )
 
 #ifdef CR_OPENGL_VERSION_2_0
         case GL_SHADING_LANGUAGE_VERSION:
-        {
-            static GLboolean fInitialized = GL_FALSE;
-            if (!fInitialized)
-            {
-                GetString(GL_SHADING_LANGUAGE_VERSION, gpszShadingVersion);
-                fInitialized = GL_TRUE;
-            }
+            GetString(GL_SHADING_LANGUAGE_VERSION, gpszShadingVersion);
             return gpszShadingVersion;
-        }
 #endif
 #ifdef GL_CR_real_vendor_strings
         case GL_REAL_VENDOR:
@@ -195,17 +178,5 @@ const GLubyte * PACKSPU_APIENTRY packspu_GetString( GLenum name )
 #endif
         default:
             return crStateGetString(name);
-    }
-}
-
-void packspuInitStrings()
-{
-    static GLboolean fInitialized = GL_FALSE;
-
-    if (!fInitialized)
-    {
-        packspu_GetString(GL_EXTENSIONS);
-        packspu_GetString(GL_VERSION);
-        fInitialized = GL_TRUE;
     }
 }

@@ -65,9 +65,6 @@
         DEBUG_MSG_RESULT(result, text); \
     }
 
-static void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window);
-static void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *pRects);
-
 /* In some case (like compiz which doesn't provide us with clipping regions) we
  * have to make sure that *all* open OpenGL windows are clipped to the main
  * application window. This is done here when called from the event handler
@@ -343,7 +340,7 @@ renderspuWindowAttachContext(WindowInfo *wi, WindowRef window,
     if(!context || !wi)
         return render_spu.ws.aglSetCurrentContext( NULL );
 
-/*    DEBUG_MSG_POETZSCH (("WindowAttachContext %d\n", wi->BltInfo.Base.id));*/
+/*    DEBUG_MSG_POETZSCH (("WindowAttachContext %d\n", wi->id));*/
 
     /* Flush old context first */
     if (context->currentWindow->window != window)
@@ -352,7 +349,7 @@ renderspuWindowAttachContext(WindowInfo *wi, WindowRef window,
      * dummy context. */
     if (wi->bufferName == -1)
     {
-        DEBUG_MSG_POETZSCH (("WindowAttachContext: create context %d\n", wi->BltInfo.Base.id));
+        DEBUG_MSG_POETZSCH (("WindowAttachContext: create context %d\n", wi->id));
         /* Use the same visual bits as those in the context structure */
         AGLPixelFormat pix;
         if( !renderspuChoosePixelFormat(context, &pix) )
@@ -522,10 +519,10 @@ renderspu_SystemWindowSize(WindowInfo *window, GLint w, GLint h)
     status = PostEventToQueue(GetMainEventQueue(), evt, kEventPriorityStandard);
     CHECK_CARBON_RC_RETURN_VOID (status, "Render SPU (renderspu_SystemWindowSize): SendEventToEventTarget Failed");
 
-    DEBUG_MSG_POETZSCH (("Size %d visible %d\n", window->BltInfo.Base.id, IsWindowVisible (window->window)));
+    DEBUG_MSG_POETZSCH (("Size %d visible %d\n", window->id, IsWindowVisible (window->window)));
     /* save the new size */
-    window->BltInfo.width = w;
-    window->BltInfo.height = h;
+    window->width = w;
+    window->height = h;
 }
 
 void
@@ -605,11 +602,8 @@ renderspu_SystemShowWindow(WindowInfo *window, GLboolean showIt)
         status = PostEventToQueue(GetMainEventQueue(), evt, kEventPriorityStandard);
         CHECK_CARBON_RC_RETURN_VOID (status, "Render SPU (renderspu_SystemShowWindow): PostEventToQueue Failed");
     }
-}
-
-void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
-{
-    renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0, false);
+    /* Save the new value */
+    window->visible = showIt;
 }
 
 void
@@ -617,12 +611,10 @@ renderspu_SystemMakeCurrent(WindowInfo *window, GLint nativeWindow,
                             ContextInfo *context)
 {
     Boolean result;
-/*    DEBUG_MSG_POETZSCH (("makecurrent %d: \n", window->BltInfo.Base.id));*/
+/*    DEBUG_MSG_POETZSCH (("makecurrent %d: \n", window->id));*/
 
     CRASSERT(render_spu.ws.aglSetCurrentContext);
     //crDebug( "renderspu_SystemMakeCurrent( %x, %i, %x )", window, nativeWindow, context );
-
-    nativeWindow = 0;
 
     if(window && context)
     {
@@ -677,7 +669,7 @@ renderspu_SystemSwapBuffers(WindowInfo *window, GLint flags)
         crError("Render SPU (renderspu_SystemSwapBuffers): SwapBuffers got a null context from the window");
 
     RTSemFastMutexRequest(render_spu.syncMutex);
-//    DEBUG_MSG_POETZSCH (("Swapped %d context %x visible: %d\n", window->BltInfo.Base.id, context->context, IsWindowVisible (window->window)));
+//    DEBUG_MSG_POETZSCH (("Swapped %d context %x visible: %d\n", window->id, context->context, IsWindowVisible (window->window)));
     if (context->visual &&
         context->visual->visAttribs & CR_DOUBLE_BIT)
         render_spu.ws.aglSwapBuffers(context->context);
@@ -703,12 +695,7 @@ renderspu_SystemSwapBuffers(WindowInfo *window, GLint flags)
     }
 }
 
-GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window)
-{
-    return GL_FALSE;
-}
-
-void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const GLint* pRects)
+void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, GLint* pRects)
 {
     CRASSERT(window);
     CRASSERT(window->window);
@@ -743,7 +730,7 @@ void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const
     renderspu_SystemWindowApplyVisibleRegion(window);
 }
 
-static void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *pRects)
+void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *pRects)
 {
     /* Remember the visible region of the root window if there is one */
     if (render_spu.hRootVisibleRegion)
@@ -770,7 +757,7 @@ static void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *pRects)
 }
 
 /*Assumes that all regions are in the guest coordinates system*/
-static void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window)
+void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window)
 {
     ContextInfo *c = renderspuGetWindowContext(window);
     RgnHandle rgn;
@@ -790,8 +777,8 @@ static void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window)
          * currently process. */
         SetRectRgn(rgn,
                    window->x, window->y,
-                   window->x + window->BltInfo.width,
-                   window->y + window->BltInfo.height);
+                   window->x + window->width,
+                   window->y + window->height);
         SectRgn(render_spu.hRootVisibleRegion, rgn, rgn);
         /* Because the clipping is done in the coordinate space of the OpenGL
          * window we have to remove the x/y position from the newly created
@@ -803,7 +790,7 @@ static void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *window)
         /* If there is not root clipping region is available, create a base
          * region with the size of the target window. This covers all
          * needed/possible space. */
-        SetRectRgn(rgn, 0, 0, window->BltInfo.width, window->BltInfo.height);
+        SetRectRgn(rgn, 0, 0, window->width, window->height);
     }
 
     /* Now intersect the window clipping region with a additional region e.g.
@@ -851,8 +838,8 @@ renderspu_SystemVBoxCreateWindow(VisualInfo *visual, GLboolean showIt,
 
     windowRect.left = window->x;
     windowRect.top = window->y;
-    windowRect.right = window->x + window->BltInfo.width;
-    windowRect.bottom = window->y + window->BltInfo.height;
+    windowRect.right = window->x + window->width;
+    windowRect.bottom = window->y + window->height;
 
     status = CreateNewWindow(winClass, winAttr, &windowRect, &window->window);
     CHECK_CARBON_RC_RETURN (status, "Render SPU (renderspu_SystemVBoxCreateWindow): CreateNewWindow Failed", GL_FALSE);
@@ -861,7 +848,7 @@ renderspu_SystemVBoxCreateWindow(VisualInfo *visual, GLboolean showIt,
     CFStringRef title_string;
     title_string = CFStringCreateWithCStringNoCopy(NULL, window->title,
                                                    kCFStringEncodingMacRoman, NULL);
-    SetWindowTitleWithCFString(window->BltInfo.window, title_string);
+    SetWindowTitleWithCFString(window->window, title_string);
     CFRelease(title_string);
 
     /* The parent has to be in its own group */
@@ -886,22 +873,8 @@ renderspu_SystemVBoxCreateWindow(VisualInfo *visual, GLboolean showIt,
         renderspu_SystemShowWindow(window, GL_TRUE);
 
     crDebug("Render SPU (renderspu_SystemVBoxCreateWindow): actual window (x, y, width, height): %d, %d, %d, %d",
-            window->x, window->y, window->BltInfo.width, window->BltInfo.height);
+            window->x, window->y, window->width, window->height);
 
     return GL_TRUE;
 }
 
-int renderspu_SystemInit()
-{
-    return VINF_SUCCESS;
-}
-
-int renderspu_SystemTerm()
-{
-    return VINF_SUCCESS;
-}
-
-void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext)
-{
-
-}

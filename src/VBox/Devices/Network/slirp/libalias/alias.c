@@ -1246,11 +1246,7 @@ LibAliasInLocked(struct libalias *la, char *ptr, int maxpacketsize)
 {
     struct in_addr alias_addr;
     struct ip *pip;
-#ifndef VBOX
     int iresult;
-#else
-    int iresult = PKT_ALIAS_IGNORED;
-#endif
 
     if (la->packetAliasMode & PKT_ALIAS_REVERSE) {
         la->packetAliasMode &= ~PKT_ALIAS_REVERSE;
@@ -1270,9 +1266,7 @@ LibAliasInLocked(struct libalias *la, char *ptr, int maxpacketsize)
         goto getout;
     }
 
-#ifndef VBOX
     iresult = PKT_ALIAS_IGNORED;
-#endif
     if ((ntohs(pip->ip_off) & IP_OFFMASK) == 0) {
         switch (pip->ip_p) {
         case IPPROTO_ICMP:
@@ -1374,11 +1368,7 @@ LibAliasOutLocked(struct libalias *la, char *ptr,   /* valid IP packet */
     int create                  /* Create new entries ? */
 )
 {
-#ifndef VBOX
     int iresult;
-#else
-    int iresult = PKT_ALIAS_IGNORED;
-#endif
     struct in_addr addr_save;
     struct ip *pip;
 
@@ -1419,9 +1409,7 @@ LibAliasOutLocked(struct libalias *la, char *ptr,   /* valid IP packet */
     } else if (la->packetAliasMode & PKT_ALIAS_PROXY_ONLY) {
         SetDefaultAliasAddress(la, pip->ip_src);
     }
-#ifndef VBOX
     iresult = PKT_ALIAS_IGNORED;
-#endif
     if ((ntohs(pip->ip_off) & IP_OFFMASK) == 0) {
         switch (pip->ip_p) {
         case IPPROTO_ICMP:
@@ -1652,9 +1640,7 @@ LibAliasLoadModule(char *path)
     }
 
     LibAliasAttachHandlers(m);
-#else /* !VBOX */
-    NOREF(path);
-#endif /* VBOX */
+#endif /* !VBOX */
     return (0);
 }
 

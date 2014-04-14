@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@ typedef struct VMMSWITCHERDEF *PVMMSWITCHERDEF;
 /**
  * Callback function for relocating the core code belonging to a switcher.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pSwitcher   Pointer to the switcher structure.
  * @param   R0PtrCode   Pointer to the first code byte in the ring-0 mapping.
  * @param   pu8CodeR3   Pointer to the first code byte in the ring-3 mapping.
@@ -97,19 +97,18 @@ typedef struct VMMSWITCHERDEF
     VMMSWITCHER enmType;
     /** Size of the entire code chunk. */
     uint32_t    cbCode;
-    /** vmmR0ToRawMode C entrypoint. */
-    uint32_t    offR0ToRawMode;
-    /** vmmRCToHost C entrypoint. */
-    uint32_t    offRCToHost;
-    /** vmmRCCallTrampoline address. */
-    uint32_t    offRCCallTrampoline;
-    /** vmmRCToHostAsm - Assembly language entry point for switching from raw-mode
-     *  context to host-context.  This saves the RC register context.  */
-    uint32_t    offRCToHostAsm;
-    /** vmmRCToHostNoReturn - Assembly language entry point for switching from
-     *  raw-mode context to host-context.  This does not save any RC register
-     *  context and expects the caller to have done that already. */
-    uint32_t    offRCToHostAsmNoReturn;
+    /** vmmR0HostToGuest C entrypoint. */
+    uint32_t    offR0HostToGuest;
+    /** vmmGCGuestToHost C entrypoint. */
+    uint32_t    offGCGuestToHost;
+    /** vmmGCCallTrampoline address. */
+    uint32_t    offGCCallTrampoline;
+    /** vmmGCGuestToHostAsm assembly entrypoint. */
+    uint32_t    offGCGuestToHostAsm;
+    /** vmmGCGuestToHostAsmHyperCtx assembly entrypoint taking HyperCtx. */
+    uint32_t    offGCGuestToHostAsmHyperCtx;
+    /** vmmGCGuestToHostAsmGuestCtx assembly entrypoint taking GuestCtx. */
+    uint32_t    offGCGuestToHostAsmGuestCtx;
     /** @name Disassembly Regions.
      * @{ */
     uint32_t    offHCCode0;
@@ -127,14 +126,12 @@ typedef struct VMMSWITCHERDEF
 #pragma pack()
 
 RT_C_DECLS_BEGIN
-extern VMMSWITCHERDEF vmmR3SwitcherX86Stub_Def;
 extern VMMSWITCHERDEF vmmR3Switcher32BitTo32Bit_Def;
 extern VMMSWITCHERDEF vmmR3Switcher32BitToPAE_Def;
 extern VMMSWITCHERDEF vmmR3Switcher32BitToAMD64_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherPAETo32Bit_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherPAEToPAE_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherPAEToAMD64_Def;
-extern VMMSWITCHERDEF vmmR3SwitcherAMD64Stub_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherAMD64To32Bit_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherAMD64ToPAE_Def;
 extern VMMSWITCHERDEF vmmR3SwitcherAMD64ToAMD64_Def;

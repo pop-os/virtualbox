@@ -11,13 +11,17 @@
 #define HAVE_GETPAGESIZE 1
 
 /* Define if iconv() is available */
+#ifndef L4ENV
 #define HAVE_ICONV 1
+#endif
 
 /* Define if iconv() supports const input */
 /* #undef HAVE_ICONV_WITH_CONST_INPUT */
 
 /* Define if mbrtowc() is available */
+#ifndef L4ENV
 #define HAVE_MBRTOWC 1
+#endif
 
 /* Define if <sys/mount.h> is present */
 #define HAVE_SYS_MOUNT_H 1
@@ -26,7 +30,9 @@
 #define HAVE_SYS_VFS_H 1
 
 /* Define if wcrtomb() is available */
+#ifndef L4ENV
 #define HAVE_WCRTOMB 1
+#endif
 
 #endif /* _XPCOM_PRIVATE_H_ */
 

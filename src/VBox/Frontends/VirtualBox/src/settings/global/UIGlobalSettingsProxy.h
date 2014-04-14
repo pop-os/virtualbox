@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,13 @@
 /* Global settings / Proxy page / Cache: */
 struct UISettingsCacheGlobalProxy
 {
-    UISettingsCacheGlobalProxy()
-        : m_fProxyEnabled(false)
-    {}
+    UISettingsCacheGlobalProxy() : m_fProxyEnabled(false), m_fAuthEnabled(false) {}
     bool m_fProxyEnabled;
     QString m_strProxyHost;
     QString m_strProxyPort;
+    bool m_fAuthEnabled;
+    QString m_strAuthLogin;
+    QString m_strAuthPassword;
 };
 
 /* Global settings / Proxy page: */
@@ -46,7 +47,7 @@ public:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -60,21 +61,24 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /* Validation stuff: */
+    void setValidator(QIWidgetValidator *pValidator);
 
-    /* Helper: Navigation stuff: */
+    /* Navigation stuff: */
     void setOrderAfter(QWidget *pWidget);
 
-    /* Helper: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
 private slots:
 
-    /* Handler: Proxy-checkbox stuff: */
     void sltProxyToggled();
+    void sltAuthToggled();
 
 private:
+
+    /* Validator: */
+    QIWidgetValidator *m_pValidator;
 
     /* Cache: */
     UISettingsCacheGlobalProxy m_cache;

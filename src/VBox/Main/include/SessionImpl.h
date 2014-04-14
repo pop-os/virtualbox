@@ -1,9 +1,10 @@
 /** @file
+ *
  * VBox Client Session COM Class definition
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +23,14 @@
 
 #ifdef RT_OS_WINDOWS
 # include "win/resource.h"
+#endif
+
+/** @def VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
+ *  Use SYS V IPC for watching a session.
+ *  This is defined in the Makefile since it's also used by MachineImpl.h/cpp.
+ */
+#ifdef DOXYGEN_RUNNING
+# define VBOX_WITH_SYS_V_IPC_SESSION_WATCHER
 #endif
 
 #ifdef RT_OS_WINDOWS
@@ -71,11 +80,7 @@ public:
     // IInternalSessionControl methods
     STDMETHOD(GetPID)(ULONG *aPid);
     STDMETHOD(GetRemoteConsole)(IConsole **aConsole);
-#ifndef VBOX_WITH_GENERIC_SESSION_WATCHER
-    STDMETHOD(AssignMachine)(IMachine *aMachine, LockType_T aLockType, IN_BSTR aTokenId);
-#else /* VBOX_WITH_GENERIC_SESSION_WATCHER */
-    STDMETHOD(AssignMachine)(IMachine *aMachine, LockType_T aLockType, IToken *aToken);
-#endif /* VBOX_WITH_GENERIC_SESSION_WATCHER */
+    STDMETHOD(AssignMachine)(IMachine *aMachine);
     STDMETHOD(AssignRemoteMachine)(IMachine *aMachine, IConsole *aConsole);
     STDMETHOD(UpdateMachineState)(MachineState_T aMachineState);
     STDMETHOD(Uninitialize)();
@@ -87,16 +92,13 @@ public:
     STDMETHOD(OnCPUChange)(ULONG aCPU, BOOL aRemove);
     STDMETHOD(OnCPUExecutionCapChange)(ULONG aExecutionCap);
     STDMETHOD(OnVRDEServerChange)(BOOL aRestart);
-    STDMETHOD(OnVideoCaptureChange)();
     STDMETHOD(OnUSBControllerChange)();
     STDMETHOD(OnSharedFolderChange)(BOOL aGlobal);
-    STDMETHOD(OnClipboardModeChange)(ClipboardMode_T aClipboardMode);
-    STDMETHOD(OnDragAndDropModeChange)(DragAndDropMode_T aDragAndDropMode);
     STDMETHOD(OnUSBDeviceAttach)(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
     STDMETHOD(OnUSBDeviceDetach)(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
     STDMETHOD(OnShowWindow)(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);
     STDMETHOD(OnBandwidthGroupChange)(IBandwidthGroup *aBandwidthGroup);
-    STDMETHOD(OnStorageDeviceChange)(IMediumAttachment *aMediumAttachment, BOOL aRemove, BOOL aSilent);
+    STDMETHOD(OnStorageDeviceChange)(IMediumAttachment *aMediumAttachment, BOOL aRemove);
     STDMETHOD(AccessGuestProperty)(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags,
                                    BOOL aIsSetter, BSTR *aRetValue, LONG64 *aRetTimestamp, BSTR *aRetFlags);
     STDMETHOD(EnumerateGuestProperties)(IN_BSTR aPatterns,
@@ -106,34 +108,43 @@ public:
                                         ComSafeArrayOut(BSTR, aFlags));
     STDMETHOD(OnlineMergeMedium)(IMediumAttachment *aMediumAttachment,
                                  ULONG aSourceIdx, ULONG aTargetIdx,
+                                 IMedium *aSource, IMedium *aTarget,
+                                 BOOL aMergeForward, IMedium *aParentForTarget,
+                                 ComSafeArrayIn(IMedium *, aChildrenToReparent),
                                  IProgress *aProgress);
     STDMETHOD(EnableVMMStatistics)(BOOL aEnable);
-    STDMETHOD(PauseWithReason)(Reason_T aReason);
-    STDMETHOD(ResumeWithReason)(Reason_T aReason);
-    STDMETHOD(SaveStateWithReason)(Reason_T aReason, IProgress **aProgress);
 
 private:
 
-    HRESULT unlockMachine(bool aFinalRelease, bool aFromServer, AutoWriteLock &alock);
+    HRESULT unlockMachine(bool aFinalRelease, bool aFromServer);
+    HRESULT grabIPCSemaphore();
+    void releaseIPCSemaphore();
 
     SessionState_T mState;
     SessionType_T mType;
 
     ComPtr<IInternalMachineControl> mControl;
 
-#ifndef VBOX_COM_INPROC_API_CLIENT
     ComObjPtr<Console> mConsole;
-#endif
 
     ComPtr<IMachine> mRemoteMachine;
     ComPtr<IConsole> mRemoteConsole;
 
     ComPtr<IVirtualBox> mVirtualBox;
 
-    class ClientTokenHolder;
-
-    ClientTokenHolder *mClientTokenHolder;
+    /* interprocess semaphore handle (id) for the opened machine */
+#if defined(RT_OS_WINDOWS)
+    HANDLE mIPCSem;
+    HANDLE mIPCThreadSem;
+#elif defined(RT_OS_OS2)
+    RTTHREAD mIPCThread;
+    RTSEMEVENT mIPCThreadSem;
+#elif defined(VBOX_WITH_SYS_V_IPC_SESSION_WATCHER)
+    int mIPCSem;
+#else
+# error "Port me!"
+#endif
 };
 
-#endif // !____H_SESSIONIMPL
+#endif // ____H_SESSIONIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

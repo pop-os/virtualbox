@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ static int VBoxNetFltUninstall()
             if(hr == S_OK)
             {
                 hr = VBoxNetCfgWinNetFltUninstall(pnc);
-                if(hr != S_OK && hr != S_FALSE)
+                if(hr != S_OK)
                 {
                     wprintf(L"error uninstalling VBoxNetFlt (0x%x)\n", hr);
                     r = 1;

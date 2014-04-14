@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,24 +73,28 @@ static DECLCALLBACK(void *) vboxPciQueryFactoryInterface(PCSUPDRVFACTORY pSupDrv
 
     return NULL;
 }
-DECLINLINE(int) vboxPciDevLock(PVBOXRAWPCIINS pThis)
+DECLINLINE(int) vboxPciDevLock(PVBOXRAWPCIINS pThis,
+                               PRTSPINLOCKTMP pTmp)
 {
 #ifdef VBOX_WITH_SHARED_PCI_INTERRUPTS
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, pTmp);
     return VINF_SUCCESS;
 #else
     int rc = RTSemFastMutexRequest(pThis->hFastMtx);
 
+    NOREF(pTmp);
     AssertRC(rc);
     return rc;
 #endif
 }
 
-DECLINLINE(void) vboxPciDevUnlock(PVBOXRAWPCIINS pThis)
+DECLINLINE(void) vboxPciDevUnlock(PVBOXRAWPCIINS pThis,
+                                  PRTSPINLOCKTMP pTmp)
 {
 #ifdef VBOX_WITH_SHARED_PCI_INTERRUPTS
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, pTmp);
 #else
+    NOREF(pTmp);
     RTSemFastMutexRelease(pThis->hFastMtx);
 #endif
 }
@@ -179,12 +183,13 @@ static DECLCALLBACK(int) vboxPciDevInit(PRAWPCIDEVPORT pPort, uint32_t fFlags)
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int rc;
+    RTSPINLOCKTMP aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevInit(pThis, fFlags);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -196,8 +201,9 @@ static DECLCALLBACK(int) vboxPciDevDeinit(PRAWPCIDEVPORT pPort, uint32_t fFlags)
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     if (pThis->IrqHandler.pfnIrqHandler)
     {
@@ -208,7 +214,7 @@ static DECLCALLBACK(int) vboxPciDevDeinit(PRAWPCIDEVPORT pPort, uint32_t fFlags)
 
     rc = vboxPciOsDevDeinit(pThis, fFlags);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -258,13 +264,14 @@ static DECLCALLBACK(int) vboxPciDevGetRegionInfo(PRAWPCIDEVPORT pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevGetRegionInfo(pThis, iRegion,
                                    pRegionStart, pu64RegionSize,
                                    pfPresent, pfFlags);
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -281,12 +288,13 @@ static DECLCALLBACK(int) vboxPciDevMapRegion(PRAWPCIDEVPORT pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevMapRegion(pThis, iRegion, RegionStart, u64RegionSize, fFlags, pRegionBase);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -302,12 +310,13 @@ static DECLCALLBACK(int) vboxPciDevUnmapRegion(PRAWPCIDEVPORT pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevUnmapRegion(pThis, iRegion, RegionStart, u64RegionSize, RegionBase);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -320,13 +329,14 @@ static DECLCALLBACK(int) vboxPciDevPciCfgRead(PRAWPCIDEVPORT pPort,
                                               PCIRAWMEMLOC   *pValue)
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
+    RTSPINLOCKTMP  aTmp;
     int            rc;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevPciCfgRead(pThis, Register, pValue);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -340,12 +350,13 @@ static DECLCALLBACK(int) vboxPciDevPciCfgWrite(PRAWPCIDEVPORT pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevPciCfgWrite(pThis, Register, pValue);
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -358,11 +369,12 @@ static DECLCALLBACK(int) vboxPciDevRegisterIrqHandler(PRAWPCIDEVPORT  pPort,
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
     int32_t        iHostIrq = 0;
+    RTSPINLOCKTMP  aTmp;
 
     if (pfnHandler == NULL)
         return VERR_INVALID_PARAMETER;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     if (pThis->IrqHandler.pfnIrqHandler)
     {
@@ -380,7 +392,7 @@ static DECLCALLBACK(int) vboxPciDevRegisterIrqHandler(PRAWPCIDEVPORT  pPort,
         }
     }
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -390,11 +402,12 @@ static DECLCALLBACK(int) vboxPciDevUnregisterIrqHandler(PRAWPCIDEVPORT  pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
     if (hIsr != 0xcafe0000)
         return VERR_INVALID_PARAMETER;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevUnregisterIrqHandler(pThis, pThis->IrqHandler.iHostIrq);
     if (RT_SUCCESS(rc))
@@ -403,7 +416,7 @@ static DECLCALLBACK(int) vboxPciDevUnregisterIrqHandler(PRAWPCIDEVPORT  pPort,
         pThis->IrqHandler.pIrqContext   = NULL;
         pThis->IrqHandler.iHostIrq = 0;
     }
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -414,8 +427,9 @@ static DECLCALLBACK(int) vboxPciDevPowerStateChange(PRAWPCIDEVPORT    pPort,
 {
     PVBOXRAWPCIINS pThis = DEVPORT_2_VBOXRAWPCIINS(pPort);
     int            rc;
+    RTSPINLOCKTMP  aTmp;
 
-    vboxPciDevLock(pThis);
+    vboxPciDevLock(pThis, &aTmp);
 
     rc = vboxPciOsDevPowerStateChange(pThis, aState);
 
@@ -433,7 +447,7 @@ static DECLCALLBACK(int) vboxPciDevPowerStateChange(PRAWPCIDEVPORT    pPort,
     }
 
 
-    vboxPciDevUnlock(pThis);
+    vboxPciDevUnlock(pThis, &aTmp);
 
     return rc;
 }
@@ -482,7 +496,8 @@ static int vboxPciNewInstance(PVBOXRAWPCIGLOBALS pGlobals,
     pNew->DevPort.pfnPowerStateChange   = vboxPciDevPowerStateChange;
     pNew->DevPort.u32VersionEnd         = RAWPCIDEVPORT_VERSION;
 
-    rc = RTSpinlockCreate(&pNew->hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxPCI");
+    rc = RTSpinlockCreate(&pNew->hSpinlock);
+
     if (RT_SUCCESS(rc))
     {
         rc = RTSemFastMutexCreate(&pNew->hFastMtx);

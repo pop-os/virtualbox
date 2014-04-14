@@ -233,5 +233,3 @@ for rettype in types:
 	print '\t\t\treturn;'
 	print '\t}'
 	print '}'
-
-from get_components import *

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,9 +30,6 @@
 #include <iprt/message.h>
 #include <iprt/getopt.h>
 #include <iprt/assert.h>
-#include <iprt/dvm.h>
-#include <iprt/filesystem.h>
-#include <iprt/vfs.h>
 
 const char *g_pszProgName = "";
 static void printUsage(PRTSTREAM pStrm)
@@ -55,7 +52,6 @@ static void printUsage(PRTSTREAM pStrm)
                  "   info         --filename <filename>\n"
                  "\n"
                  "   compact      --filename <filename>\n"
-                 "                [--filesystemaware]\n"
                  "\n"
                  "   createcache  --filename <filename>\n"
                  "                --size <cache size>\n"
@@ -63,14 +59,7 @@ static void printUsage(PRTSTREAM pStrm)
                  "   createbase   --filename <filename>\n"
                  "                --size <size in bytes>\n"
                  "                [--format VDI|VMDK|VHD] (default: VDI)\n"
-                 "                [--variant Standard,Fixed,Split2G,Stream,ESX]\n"
-                 "                [--dataalignment <alignment in bytes>]\n"
-                 "\n"
-                 "   repair       --filename <filename>\n"
-                 "                [--dry-run]\n"
-                 "                [--format VDI|VMDK|VHD] (default: autodetect)\n"
-                 "\n"
-                 "   clearcomment --filename <filename>\n",
+                 "                [--variant Standard,Fixed,Split2G,Stream,ESX]\n",
                  g_pszProgName);
 }
 
@@ -263,8 +252,8 @@ int handleSetUUID(HandlerArg *a)
     if (RT_FAILURE(rc))
         return errorRuntime("Cannot create the virtual disk container: %Rrc\n", rc);
 
-    /* Open in info mode to be able to open diff images without their parent. */
-    rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
+
+    rc = VDOpen(pVD, pszFormat, pszFilename, VD_OPEN_FLAGS_NORMAL, NULL);
     if (RT_FAILURE(rc))
         return errorRuntime("Cannot open the virtual disk image \"%s\": %Rrc\n",
                             pszFilename, rc);
@@ -433,22 +422,21 @@ static int convInRead(void *pvUser, void *pStorage, uint64_t uOffset,
     if (pFS->offBuffer == UINT64_MAX)
     {
         /* Repeat reading until buffer is full or EOF. */
-        size_t cbRead;
-        size_t cbSumRead = 0;
-        uint8_t *pbTmp = (uint8_t *)&pFS->abBuffer[0];
+        size_t cbSumRead = 0, cbRead;
+        uint8_t *pTmp = (uint8_t *)&pFS->abBuffer[0];
         size_t cbTmp = sizeof(pFS->abBuffer);
         do
         {
-            rc = RTFileRead(pFS->file, pbTmp, cbTmp, &cbRead);
+            rc = RTFileRead(pFS->file, pTmp, cbTmp, &cbRead);
             if (RT_FAILURE(rc))
                 return rc;
-            pbTmp += cbRead;
+            pTmp += cbRead;
             cbTmp -= cbRead;
             cbSumRead += cbRead;
         } while (cbTmp && cbRead);
 
         pFS->offBuffer = 0;
-        pFS->cbBuffer = (uint32_t)cbSumRead;
+        pFS->cbBuffer = cbSumRead;
         if (!cbSumRead && !pcbRead) /* Caller can't handle partial reads. */
             return VERR_EOF;
     }
@@ -468,26 +456,25 @@ static int convInRead(void *pvUser, void *pStorage, uint64_t uOffset,
             }
 
             /* Repeat reading until buffer is full or EOF. */
-            size_t cbRead;
-            size_t cbSumRead = 0;
-            uint8_t *pbTmp = (uint8_t *)&pFS->abBuffer[0];
+            size_t cbSumRead = 0, cbRead;
+            uint8_t *pTmp = (uint8_t *)&pFS->abBuffer[0];
             size_t cbTmp = sizeof(pFS->abBuffer);
             do
             {
-                rc = RTFileRead(pFS->file, pbTmp, cbTmp, &cbRead);
+                rc = RTFileRead(pFS->file, pTmp, cbTmp, &cbRead);
                 if (RT_FAILURE(rc))
                     return rc;
-                pbTmp += cbRead;
+                pTmp += cbRead;
                 cbTmp -= cbRead;
                 cbSumRead += cbRead;
             } while (cbTmp && cbRead);
 
             pFS->offBuffer += pFS->cbBuffer;
-            pFS->cbBuffer = (uint32_t)cbSumRead;
+            pFS->cbBuffer = cbSumRead;
         }
 
-        uint32_t cbThisRead = (uint32_t)RT_MIN(cbBuffer,
-                                               pFS->cbBuffer - uOffset % sizeof(pFS->abBuffer));
+        uint32_t cbThisRead = RT_MIN(cbBuffer,
+                                     pFS->cbBuffer - uOffset % sizeof(pFS->abBuffer));
         memcpy(pvBuffer, &pFS->abBuffer[uOffset % sizeof(pFS->abBuffer)],
                cbThisRead);
         uOffset += cbThisRead;
@@ -659,8 +646,8 @@ static int convOutWrite(void *pvUser, void *pStorage, uint64_t uOffset,
             pFS->cbBuffer = 0;
         }
 
-        uint32_t cbThisWrite = (uint32_t)RT_MIN(cbBuffer,
-                                                sizeof(pFS->abBuffer) - uOffset % sizeof(pFS->abBuffer));
+        uint32_t cbThisWrite = RT_MIN(cbBuffer,
+                                      sizeof(pFS->abBuffer) - uOffset % sizeof(pFS->abBuffer));
         memcpy(&pFS->abBuffer[uOffset % sizeof(pFS->abBuffer)], pvBuffer,
                cbThisWrite);
         uOffset += cbThisWrite;
@@ -702,8 +689,10 @@ int handleConvert(HandlerArg *a)
     unsigned uImageFlags = VD_IMAGE_FLAGS_NONE;
     PVDINTERFACE pIfsImageInput = NULL;
     PVDINTERFACE pIfsImageOutput = NULL;
-    VDINTERFACEIO IfsInputIO;
-    VDINTERFACEIO IfsOutputIO;
+    VDINTERFACE IfsInputIO;
+    VDINTERFACE IfsOutputIO;
+    VDINTERFACEIO IfsInputIOCb;
+    VDINTERFACEIO IfsOutputIOCb;
     int rc = VINF_SUCCESS;
 
     /* Parse the command line. */
@@ -782,35 +771,39 @@ int handleConvert(HandlerArg *a)
 
     if (fStdIn)
     {
-        IfsInputIO.pfnOpen                = convInOpen;
-        IfsInputIO.pfnClose               = convInClose;
-        IfsInputIO.pfnDelete              = convInDelete;
-        IfsInputIO.pfnMove                = convInMove;
-        IfsInputIO.pfnGetFreeSpace        = convInGetFreeSpace;
-        IfsInputIO.pfnGetModificationTime = convInGetModificationTime;
-        IfsInputIO.pfnGetSize             = convInGetSize;
-        IfsInputIO.pfnSetSize             = convInSetSize;
-        IfsInputIO.pfnReadSync            = convInRead;
-        IfsInputIO.pfnWriteSync           = convInWrite;
-        IfsInputIO.pfnFlushSync           = convInFlush;
-        VDInterfaceAdd(&IfsInputIO.Core, "stdin", VDINTERFACETYPE_IO,
-                       NULL, sizeof(VDINTERFACEIO), &pIfsImageInput);
+        IfsInputIOCb.cbSize                 = sizeof(VDINTERFACEIO);
+        IfsInputIOCb.enmInterface           = VDINTERFACETYPE_IO;
+        IfsInputIOCb.pfnOpen                = convInOpen;
+        IfsInputIOCb.pfnClose               = convInClose;
+        IfsInputIOCb.pfnDelete              = convInDelete;
+        IfsInputIOCb.pfnMove                = convInMove;
+        IfsInputIOCb.pfnGetFreeSpace        = convInGetFreeSpace;
+        IfsInputIOCb.pfnGetModificationTime = convInGetModificationTime;
+        IfsInputIOCb.pfnGetSize             = convInGetSize;
+        IfsInputIOCb.pfnSetSize             = convInSetSize;
+        IfsInputIOCb.pfnReadSync            = convInRead;
+        IfsInputIOCb.pfnWriteSync           = convInWrite;
+        IfsInputIOCb.pfnFlushSync           = convInFlush;
+        VDInterfaceAdd(&IfsInputIO, "stdin", VDINTERFACETYPE_IO,
+                       &IfsInputIOCb, NULL, &pIfsImageInput);
     }
     if (fStdOut)
     {
-        IfsOutputIO.pfnOpen                   = convOutOpen;
-        IfsOutputIO.pfnClose                  = convOutClose;
-        IfsOutputIO.pfnDelete                 = convOutDelete;
-        IfsOutputIO.pfnMove                   = convOutMove;
-        IfsOutputIO.pfnGetFreeSpace           = convOutGetFreeSpace;
-        IfsOutputIO.pfnGetModificationTime    = convOutGetModificationTime;
-        IfsOutputIO.pfnGetSize                = convOutGetSize;
-        IfsOutputIO.pfnSetSize                = convOutSetSize;
-        IfsOutputIO.pfnReadSync               = convOutRead;
-        IfsOutputIO.pfnWriteSync              = convOutWrite;
-        IfsOutputIO.pfnFlushSync              = convOutFlush;
-        VDInterfaceAdd(&IfsOutputIO.Core, "stdout", VDINTERFACETYPE_IO,
-                       NULL, sizeof(VDINTERFACEIO), &pIfsImageOutput);
+        IfsOutputIOCb.cbSize                    = sizeof(VDINTERFACEIO);
+        IfsOutputIOCb.enmInterface              = VDINTERFACETYPE_IO;
+        IfsOutputIOCb.pfnOpen                   = convOutOpen;
+        IfsOutputIOCb.pfnClose                  = convOutClose;
+        IfsOutputIOCb.pfnDelete                 = convOutDelete;
+        IfsOutputIOCb.pfnMove                   = convOutMove;
+        IfsOutputIOCb.pfnGetFreeSpace           = convOutGetFreeSpace;
+        IfsOutputIOCb.pfnGetModificationTime    = convOutGetModificationTime;
+        IfsOutputIOCb.pfnGetSize                = convOutGetSize;
+        IfsOutputIOCb.pfnSetSize                = convOutSetSize;
+        IfsOutputIOCb.pfnReadSync               = convOutRead;
+        IfsOutputIOCb.pfnWriteSync              = convOutWrite;
+        IfsOutputIOCb.pfnFlushSync              = convOutFlush;
+        VDInterfaceAdd(&IfsOutputIO, "stdout", VDINTERFACETYPE_IO,
+                       &IfsOutputIOCb, NULL, &pIfsImageOutput);
     }
 
     /* check the variant parameter */
@@ -959,7 +952,7 @@ int handleInfo(HandlerArg *a)
         return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
 
     /* Open the image */
-    rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_READONLY, NULL);
+    rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
     if (RT_FAILURE(rc))
         return errorRuntime("Error while opening the image: %Rrc\n", rc);
 
@@ -971,113 +964,16 @@ int handleInfo(HandlerArg *a)
 }
 
 
-static DECLCALLBACK(int) vboximgDvmRead(void *pvUser, uint64_t off, void *pvBuf, size_t cbRead)
-{
-    int rc = VINF_SUCCESS;
-    PVBOXHDD pDisk = (PVBOXHDD)pvUser;
-
-    /* Take shortcut if possible. */
-    if (   off % 512 == 0
-        && cbRead % 512 == 0)
-        rc = VDRead(pDisk, off, pvBuf, cbRead);
-    else
-    {
-        uint8_t *pbBuf = (uint8_t *)pvBuf;
-        uint8_t abBuf[512];
-
-        /* Unaligned access, make it aligned. */
-        if (off % 512 != 0)
-        {
-            uint64_t offAligned = off & ~(uint64_t)(512 - 1);
-            size_t cbToCopy = 512 - (off - offAligned);
-            rc = VDRead(pDisk, offAligned, abBuf, 512);
-            if (RT_SUCCESS(rc))
-            {
-                memcpy(pbBuf, &abBuf[off - offAligned], cbToCopy);
-                pbBuf  += cbToCopy;
-                off    += cbToCopy;
-                cbRead -= cbToCopy;
-            }
-        }
-
-        if (   RT_SUCCESS(rc)
-            && (cbRead & ~(uint64_t)(512 - 1)))
-        {
-            size_t cbReadAligned = cbRead & ~(uint64_t)(512 - 1);
-
-            Assert(!(off % 512));
-            rc = VDRead(pDisk, off, pbBuf, cbReadAligned);
-            if (RT_SUCCESS(rc))
-            {
-                pbBuf  += cbReadAligned;
-                off    += cbReadAligned;
-                cbRead -= cbReadAligned;
-            }
-        }
-
-        if (   RT_SUCCESS(rc)
-            && cbRead)
-        {
-            Assert(cbRead < 512);
-            Assert(!(off % 512));
-
-            rc = VDRead(pDisk, off, abBuf, 512);
-            if (RT_SUCCESS(rc))
-                memcpy(pbBuf, abBuf, cbRead);
-        }
-    }
-
-    return rc;
-}
-
-
-static DECLCALLBACK(int) vboximgDvmWrite(void *pvUser, uint64_t off, const void *pvBuf, size_t cbWrite)
-{
-    PVBOXHDD pDisk = (PVBOXHDD)pvUser;
-    return VDWrite(pDisk, off, pvBuf, cbWrite);
-}
-
-
-static DECLCALLBACK(int) vboximgQueryBlockStatus(void *pvUser, uint64_t off,
-                                                 uint64_t cb, bool *pfAllocated)
-{
-    RTVFS hVfs = (RTVFS)pvUser;
-    return RTVfsIsRangeInUse(hVfs, off, cb, pfAllocated);
-}
-
-
-static DECLCALLBACK(int) vboximgQueryRangeUse(void *pvUser, uint64_t off, uint64_t cb,
-                                              bool *pfUsed)
-{
-    RTDVM hVolMgr = (RTDVM)pvUser;
-    return RTDvmMapQueryBlockStatus(hVolMgr, off, cb, pfUsed);
-}
-
-
-typedef struct VBOXIMGVFS
-{
-    /** Pointer to the next VFS handle. */
-    struct VBOXIMGVFS *pNext;
-    /** VFS handle. */
-    RTVFS              hVfs;
-} VBOXIMGVFS, *PVBOXIMGVFS;
-
 int handleCompact(HandlerArg *a)
 {
     int rc = VINF_SUCCESS;
     PVBOXHDD pDisk = NULL;
     const char *pszFilename = NULL;
-    bool fFilesystemAware = false;
-    VDINTERFACEQUERYRANGEUSE VDIfQueryRangeUse;
-    PVDINTERFACE pIfsCompact = NULL;
-    RTDVM hDvm = NIL_RTDVM;
-    PVBOXIMGVFS pVBoxImgVfsHead = NULL;
 
     /* Parse the command line. */
     static const RTGETOPTDEF s_aOptions[] =
     {
-        { "--filename",        'f', RTGETOPT_REQ_STRING },
-        { "--filesystemaware", 'a', RTGETOPT_REQ_NOTHING }
+        { "--filename", 'f', RTGETOPT_REQ_STRING }
     };
     int ch;
     RTGETOPTUNION ValueUnion;
@@ -1089,10 +985,6 @@ int handleCompact(HandlerArg *a)
         {
             case 'f':   // --filename
                 pszFilename = ValueUnion.psz;
-                break;
-
-            case 'a':
-                fFilesystemAware = true;
                 break;
 
             default:
@@ -1122,120 +1014,9 @@ int handleCompact(HandlerArg *a)
     if (RT_FAILURE(rc))
         return errorRuntime("Error while opening the image: %Rrc\n", rc);
 
-    if (   RT_SUCCESS(rc)
-        && fFilesystemAware)
-    {
-        uint64_t cbDisk = 0;
-
-        cbDisk = VDGetSize(pDisk, 0);
-        if (cbDisk > 0)
-        {
-            rc = RTDvmCreate(&hDvm, vboximgDvmRead, vboximgDvmWrite, cbDisk, 512,
-                             0 /* fFlags*/, pDisk);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTDvmMapOpen(hDvm);
-                if (   RT_SUCCESS(rc)
-                    && RTDvmMapGetValidVolumes(hDvm))
-                {
-                    RTDVMVOLUME hVol;
-
-                    /* Get all volumes and set the block query status callback. */
-                    rc = RTDvmMapQueryFirstVolume(hDvm, &hVol);
-                    AssertRC(rc);
-
-                    do
-                    {
-                        RTVFSFILE hVfsFile;
-                        RTVFS hVfs;
-                        RTDVMVOLUME hVolNext;
-
-                        rc = RTDvmVolumeCreateVfsFile(hVol, &hVfsFile);
-                        if (RT_FAILURE(rc))
-                            break;
-
-                        /* Try to detect the filesystem in this volume. */
-                        rc = RTFilesystemVfsFromFile(hVfsFile, &hVfs);
-                        if (rc == VERR_NOT_SUPPORTED)
-                        {
-                            /* Release the file handle and continue.*/
-                            RTVfsFileRelease(hVfsFile);
-                        }
-                        else if RT_FAILURE(rc)
-                            break;
-                        else
-                        {
-                            PVBOXIMGVFS pVBoxImgVfs = (PVBOXIMGVFS)RTMemAllocZ(sizeof(VBOXIMGVFS));
-                            if (!pVBoxImgVfs)
-                                rc = VERR_NO_MEMORY;
-                            else
-                            {
-                                pVBoxImgVfs->hVfs = hVfs;
-                                pVBoxImgVfs->pNext = pVBoxImgVfsHead;
-                                pVBoxImgVfsHead = pVBoxImgVfs;
-                                RTDvmVolumeSetQueryBlockStatusCallback(hVol, vboximgQueryBlockStatus, hVfs);
-                            }
-                        }
-
-                        if (RT_SUCCESS(rc))
-                            rc = RTDvmMapQueryNextVolume(hDvm, hVol, &hVolNext);
-
-                        /*
-                         * Release the volume handle, the file handle has a reference
-                         * to keep it open.
-                         */
-                        RTDvmVolumeRelease(hVol);
-                        hVol = hVolNext;
-                    } while (RT_SUCCESS(rc));
-
-                    if (rc == VERR_DVM_MAP_NO_VOLUME)
-                        rc = VINF_SUCCESS;
-
-                    if (RT_SUCCESS(rc))
-                    {
-                        VDIfQueryRangeUse.pfnQueryRangeUse = vboximgQueryRangeUse;
-                        VDInterfaceAdd(&VDIfQueryRangeUse.Core, "QueryRangeUse", VDINTERFACETYPE_QUERYRANGEUSE,
-                                       hDvm, sizeof(VDINTERFACEQUERYRANGEUSE), &pIfsCompact);
-                    }
-                }
-                else if (RT_SUCCESS(rc))
-                    RTPrintf("There are no partitions in the volume map\n");
-                else if (rc == VERR_NOT_FOUND)
-                {
-                    rc = VINF_SUCCESS;
-                    RTPrintf("No known volume format on disk found\n");
-                }
-                else
-                    errorRuntime("Error while opening the volume manager: %Rrc\n", rc);
-            }
-            else
-                errorRuntime("Error creating the volume manager: %Rrc\n", rc);
-        }
-        else
-        {
-            rc = VERR_INVALID_STATE;
-            errorRuntime("Error while getting the disk size\n");
-        }
-    }
-
-    if (RT_SUCCESS(rc))
-    {
-        rc = VDCompact(pDisk, 0, pIfsCompact);
-        if (RT_FAILURE(rc))
-            errorRuntime("Error while compacting image: %Rrc\n", rc);
-    }
-
-    while (pVBoxImgVfsHead)
-    {
-        PVBOXIMGVFS pVBoxImgVfsFree = pVBoxImgVfsHead;
-
-        pVBoxImgVfsHead = pVBoxImgVfsHead->pNext;
-        RTVfsRelease(pVBoxImgVfsFree->hVfs);
-        RTMemFree(pVBoxImgVfsFree);
-    }
-
-    if (hDvm)
-        RTDvmRelease(hDvm);
+    rc = VDCompact(pDisk, 0, NULL);
+    if (RT_FAILURE(rc))
+        errorRuntime("Error while compacting image: %Rrc\n", rc);
 
     VDDestroy(pDisk);
 
@@ -1301,42 +1082,6 @@ int handleCreateCache(HandlerArg *a)
     return rc;
 }
 
-static DECLCALLBACK(bool) vdIfCfgCreateBaseAreKeysValid(void *pvUser, const char *pszzValid)
-{
-    return VINF_SUCCESS; /** @todo: Implement. */
-}
-
-static DECLCALLBACK(int) vdIfCfgCreateBaseQuerySize(void *pvUser, const char *pszName, size_t *pcbValue)
-{
-    AssertReturn(VALID_PTR(pcbValue), VERR_INVALID_POINTER);
-
-    AssertPtrReturn(pvUser, VERR_GENERAL_FAILURE);
-
-    if (RTStrCmp(pszName, "DataAlignment"))
-        return VERR_CFGM_VALUE_NOT_FOUND;
-
-    *pcbValue = strlen((const char *)pvUser) + 1 /* include terminator */;
-
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) vdIfCfgCreateBaseQuery(void *pvUser, const char *pszName, char *pszValue, size_t cchValue)
-{
-    AssertReturn(VALID_PTR(pszValue), VERR_INVALID_POINTER);
-
-    AssertPtrReturn(pvUser, VERR_GENERAL_FAILURE);
-
-    if (RTStrCmp(pszName, "DataAlignment"))
-        return VERR_CFGM_VALUE_NOT_FOUND;
-
-    if (strlen((const char *)pvUser) >= cchValue)
-        return VERR_CFGM_NOT_ENOUGH_SPACE;
-
-    memcpy(pszValue, pvUser, strlen((const char *)pvUser) + 1);
-
-    return VINF_SUCCESS;
-
-}
 
 int handleCreateBase(HandlerArg *a)
 {
@@ -1347,10 +1092,7 @@ int handleCreateBase(HandlerArg *a)
     const char *pszVariant  = NULL;
     unsigned uImageFlags = VD_IMAGE_FLAGS_NONE;
     uint64_t cbSize = 0;
-    const char *pszDataAlignment = NULL;
     VDGEOMETRY LCHSGeometry, PCHSGeometry;
-    PVDINTERFACE pVDIfsOperation = NULL;
-    VDINTERFACECONFIG vdIfCfg;
 
     memset(&LCHSGeometry, 0, sizeof(VDGEOMETRY));
     memset(&PCHSGeometry, 0, sizeof(VDGEOMETRY));
@@ -1358,11 +1100,10 @@ int handleCreateBase(HandlerArg *a)
     /* Parse the command line. */
     static const RTGETOPTDEF s_aOptions[] =
     {
-        { "--filename",       'f', RTGETOPT_REQ_STRING },
-        { "--size",           's', RTGETOPT_REQ_UINT64 },
-        { "--format",         'b', RTGETOPT_REQ_STRING },
-        { "--variant",        'v', RTGETOPT_REQ_STRING },
-        { "--dataalignment",  'a', RTGETOPT_REQ_STRING }
+        { "--filename", 'f', RTGETOPT_REQ_STRING },
+        { "--size",     's', RTGETOPT_REQ_UINT64 },
+        { "--format",   'b', RTGETOPT_REQ_STRING },
+        { "--variant",  'v', RTGETOPT_REQ_STRING }
     };
     int ch;
     RTGETOPTUNION ValueUnion;
@@ -1388,10 +1129,6 @@ int handleCreateBase(HandlerArg *a)
                 pszVariant = ValueUnion.psz;
                 break;
 
-            case 'a':   // --dataalignment
-                pszDataAlignment = ValueUnion.psz;
-                break;
-
             default:
                 ch = RTGetOptPrintError(ch, &ValueUnion);
                 printUsage(g_pStdErr);
@@ -1413,16 +1150,6 @@ int handleCreateBase(HandlerArg *a)
             return errorSyntax("Invalid variant %s given\n", pszVariant);
     }
 
-    /* Setup the config interface if required. */
-    if (pszDataAlignment)
-    {
-        vdIfCfg.pfnAreKeysValid = vdIfCfgCreateBaseAreKeysValid;
-        vdIfCfg.pfnQuerySize    = vdIfCfgCreateBaseQuerySize;
-        vdIfCfg.pfnQuery        = vdIfCfgCreateBaseQuery;
-        VDInterfaceAdd(&vdIfCfg.Core, "Config", VDINTERFACETYPE_CONFIG, (void *)pszDataAlignment,
-                       sizeof(vdIfCfg), &pVDIfsOperation);
-    }
-
     /* just try it */
     rc = VDCreate(pVDIfs, VDTYPE_HDD, &pDisk);
     if (RT_FAILURE(rc))
@@ -1430,7 +1157,7 @@ int handleCreateBase(HandlerArg *a)
 
     rc = VDCreateBase(pDisk, pszBackend, pszFilename, cbSize, uImageFlags,
                       NULL, &PCHSGeometry, &LCHSGeometry, NULL, VD_OPEN_FLAGS_NORMAL,
-                      NULL, pVDIfsOperation);
+                      NULL, NULL);
     if (RT_FAILURE(rc))
         return errorRuntime("Error while creating the virtual disk: %Rrc\n", rc);
 
@@ -1440,138 +1167,11 @@ int handleCreateBase(HandlerArg *a)
 }
 
 
-int handleRepair(HandlerArg *a)
-{
-    int rc = VINF_SUCCESS;
-    PVBOXHDD pDisk = NULL;
-    const char *pszFilename = NULL;
-    char *pszBackend = NULL;
-    const char *pszFormat  = NULL;
-    bool fDryRun = false;
-    VDTYPE enmType = VDTYPE_HDD;
-
-    /* Parse the command line. */
-    static const RTGETOPTDEF s_aOptions[] =
-    {
-        { "--filename", 'f', RTGETOPT_REQ_STRING  },
-        { "--dry-run",  'd', RTGETOPT_REQ_NOTHING },
-        { "--format",   'b', RTGETOPT_REQ_STRING  }
-    };
-    int ch;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags */);
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        switch (ch)
-        {
-            case 'f':   // --filename
-                pszFilename = ValueUnion.psz;
-                break;
-
-            case 'd':   // --dry-run
-                fDryRun = true;
-                break;
-
-            case 'b':   // --format
-                pszFormat = ValueUnion.psz;
-                break;
-
-            default:
-                ch = RTGetOptPrintError(ch, &ValueUnion);
-                printUsage(g_pStdErr);
-                return ch;
-        }
-    }
-
-    /* Check for mandatory parameters. */
-    if (!pszFilename)
-        return errorSyntax("Mandatory --filename option missing\n");
-
-    /* just try it */
-    if (!pszFormat)
-    {
-        rc = VDGetFormat(NULL, NULL, pszFilename, &pszBackend, &enmType);
-        if (RT_FAILURE(rc))
-            return errorSyntax("Format autodetect failed: %Rrc\n", rc);
-        pszFormat = pszBackend;
-    }
-
-    rc = VDRepair(pVDIfs, NULL, pszFilename, pszFormat, fDryRun ? VD_REPAIR_DRY_RUN : 0);
-    if (RT_FAILURE(rc))
-        rc = errorRuntime("Error while repairing the virtual disk: %Rrc\n", rc);
-
-    if (pszBackend)
-        RTStrFree(pszBackend);
-    return rc;
-}
-
-
-int handleClearComment(HandlerArg *a)
-{
-    int rc = VINF_SUCCESS;
-    PVBOXHDD pDisk = NULL;
-    const char *pszFilename = NULL;
-    bool fDryRun = false;
-
-    /* Parse the command line. */
-    static const RTGETOPTDEF s_aOptions[] =
-    {
-        { "--filename", 'f', RTGETOPT_REQ_STRING  }
-    };
-    int ch;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-    RTGetOptInit(&GetState, a->argc, a->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 0, 0 /* fFlags */);
-    while ((ch = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        switch (ch)
-        {
-            case 'f':   // --filename
-                pszFilename = ValueUnion.psz;
-                break;
-
-            default:
-                ch = RTGetOptPrintError(ch, &ValueUnion);
-                printUsage(g_pStdErr);
-                return ch;
-        }
-    }
-
-    /* Check for mandatory parameters. */
-    if (!pszFilename)
-        return errorSyntax("Mandatory --filename option missing\n");
-
-    /* just try it */
-    char *pszFormat = NULL;
-    VDTYPE enmType = VDTYPE_INVALID;
-    rc = VDGetFormat(NULL, NULL, pszFilename, &pszFormat, &enmType);
-    if (RT_FAILURE(rc))
-        return errorSyntax("Format autodetect failed: %Rrc\n", rc);
-
-    rc = VDCreate(pVDIfs, enmType, &pDisk);
-    if (RT_FAILURE(rc))
-        return errorRuntime("Error while creating the virtual disk container: %Rrc\n", rc);
-
-    /* Open the image */
-    rc = VDOpen(pDisk, pszFormat, pszFilename, VD_OPEN_FLAGS_INFO, NULL);
-    if (RT_FAILURE(rc))
-        return errorRuntime("Error while opening the image: %Rrc\n", rc);
-
-    VDSetComment(pDisk, 0, NULL);
-
-    VDDestroy(pDisk);
-    return rc;
-}
-
-
 int main(int argc, char *argv[])
 {
+    RTR3Init();
+    int rc;
     int exitcode = 0;
-
-    int rc = RTR3InitExe(argc, &argv, 0);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
 
     g_pszProgName = RTPathFilename(argv[0]);
 
@@ -1624,12 +1224,15 @@ int main(int argc, char *argv[])
         showLogo(g_pStdOut);
 
     /* initialize the VD backend with dummy handlers */
-    VDINTERFACEERROR vdInterfaceError;
-    vdInterfaceError.pfnError     = handleVDError;
-    vdInterfaceError.pfnMessage   = handleVDMessage;
+    VDINTERFACE      vdInterfaceError;
+    VDINTERFACEERROR vdInterfaceErrorCallbacks;
+    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
+    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
+    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
+    vdInterfaceErrorCallbacks.pfnMessage   = handleVDMessage;
 
-    rc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
+    rc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                        &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
 
     rc = VDInit();
     if (RT_FAILURE(rc))
@@ -1647,14 +1250,12 @@ int main(int argc, char *argv[])
         int (*handler)(HandlerArg *a);
     } s_commandHandlers[] =
     {
-        { "setuuid",      handleSetUUID      },
-        { "convert",      handleConvert      },
-        { "info",         handleInfo         },
-        { "compact",      handleCompact      },
-        { "createcache",  handleCreateCache  },
-        { "createbase",   handleCreateBase   },
-        { "repair",       handleRepair       },
-        { "clearcomment", handleClearComment },
+        { "setuuid",     handleSetUUID     },
+        { "convert",     handleConvert     },
+        { "info",        handleInfo        },
+        { "compact",     handleCompact     },
+        { "createcache", handleCreateCache },
+        { "createbase",  handleCreateBase  },
         { NULL,                       NULL }
     };
 

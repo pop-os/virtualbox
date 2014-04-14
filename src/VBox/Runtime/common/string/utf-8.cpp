@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -300,8 +300,7 @@ RT_EXPORT_SYMBOL(RTStrValidateEncoding);
 
 RTDECL(int) RTStrValidateEncodingEx(const char *psz, size_t cch, uint32_t fFlags)
 {
-    AssertReturn(!(fFlags & ~(RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED | RTSTR_VALIDATE_ENCODING_EXACT_LENGTH)),
-                 VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED)), VERR_INVALID_PARAMETER);
     AssertPtr(psz);
 
     /*
@@ -312,19 +311,8 @@ RTDECL(int) RTStrValidateEncodingEx(const char *psz, size_t cch, uint32_t fFlags
     int rc = rtUtf8Length(psz, cch, &cCpsIgnored, &cchActual);
     if (RT_SUCCESS(rc))
     {
-        if (fFlags & RTSTR_VALIDATE_ENCODING_EXACT_LENGTH)
-        {
-            if (fFlags & RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED)
-                cchActual++;
-            if (cchActual == cch)
-                rc = VINF_SUCCESS;
-            else if (cchActual < cch)
-                rc = VERR_BUFFER_UNDERFLOW;
-            else
-                rc = VERR_BUFFER_OVERFLOW;
-        }
-        else if (    (fFlags & RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED)
-                 &&  cchActual >= cch)
+        if (    (fFlags & RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED)
+            &&  cchActual >= cch)
             rc = VERR_BUFFER_OVERFLOW;
     }
     return rc;
@@ -361,37 +349,6 @@ RTDECL(size_t) RTStrPurgeEncoding(char *psz)
     return cErrors;
 }
 RT_EXPORT_SYMBOL(RTStrPurgeEncoding);
-
-
-RTDECL(ssize_t) RTStrPurgeComplementSet(char *psz, PCRTUNICP puszValidSet, char chReplacement)
-{
-    size_t cReplacements = 0;
-    AssertReturn(chReplacement && (unsigned)chReplacement < 128, -1);
-    for (;;)
-    {
-        RTUNICP Cp;
-        PCRTUNICP pCp;
-        char *pszOld = psz;
-        if (RT_FAILURE(RTStrGetCpEx((const char **)&psz, &Cp)))
-            return -1;
-        if (!Cp)
-            break;
-        for (pCp = puszValidSet; *pCp; pCp += 2)
-        {
-            AssertReturn(*(pCp + 1), -1);
-            if (*pCp <= Cp && *(pCp + 1) >= Cp) /* No, I won't do * and ++. */
-                break;
-        }
-        if (!*pCp)
-        {
-            for (; pszOld != psz; ++pszOld)
-                *pszOld = chReplacement;
-            ++cReplacements;
-        }
-    }
-    return cReplacements;
-}
-RT_EXPORT_SYMBOL(RTStrPurgeComplementSet);
 
 
 RTDECL(int) RTStrToUni(const char *pszString, PRTUNICP *ppaCps)

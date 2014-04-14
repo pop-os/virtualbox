@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,36 +20,76 @@
 #define __UIDownloaderUserManual_h__
 
 /* Local includes: */
+#include "QIWithRetranslateUI.h"
 #include "UIDownloader.h"
 
-/* UIDownloader extension for background user-manual downloading. */
+class UIMiniProcessWidgetUserManual : public QIWithRetranslateUI<UIMiniProgressWidget>
+{
+    Q_OBJECT;
+
+public:
+
+    UIMiniProcessWidgetUserManual(QWidget *pParent = 0)
+        : QIWithRetranslateUI<UIMiniProgressWidget>(pParent)
+    {
+        retranslateUi();
+    }
+
+private slots:
+
+    void sltSetSource(const QString &strSource)
+    {
+        UIMiniProgressWidget::sltSetSource(strSource);
+        retranslateUi();
+    }
+
+private:
+
+    void retranslateUi()
+    {
+        setCancelButtonToolTip(tr("Cancel the VirtualBox User Manual download"));
+        setProgressBarToolTip(source().isEmpty() ? tr("Downloading the VirtualBox User Manual") :
+                                                   tr("Downloading the VirtualBox User Manual <nobr><b>%1</b>...</nobr>")
+                                                     .arg(source()));
+    }
+};
+
 class UIDownloaderUserManual : public UIDownloader
 {
     Q_OBJECT;
 
-signals:
-
-    /* Notifies listeners about downloading finished: */
-    void sigDownloadFinished(const QString &strFile);
-
 public:
 
-    /* Static stuff: */
     static UIDownloaderUserManual* create();
     static UIDownloaderUserManual* current();
 
+    void setSource(const QString &strSource);
+    void addSource(const QString &strSource);
+
+    void start();
+
+signals:
+
+    void sigSourceChanged(const QString &strSource);
+    void sigDownloadFinished(const QString &strFile);
+
 private:
 
-    /* Constructor/destructor: */
     UIDownloaderUserManual();
     ~UIDownloaderUserManual();
 
-    /* Virtual stuff reimplementations: */
-    bool askForDownloadingConfirmation(UINetworkReply *pReply);
-    void handleDownloadedObject(UINetworkReply *pReply);
+    void handleError(QNetworkReply *pReply);
 
-    /* Variables: */
-    static UIDownloaderUserManual *m_spInstance;
+    UIMiniProgressWidget* createProgressWidgetFor(QWidget *pParent) const;
+    bool askForDownloadingConfirmation(QNetworkReply *pReply);
+    void handleDownloadedObject(QNetworkReply *pReply);
+    void warnAboutNetworkError(const QString &strError);
+
+    /* Private member variables: */
+    static UIDownloaderUserManual *m_pInstance;
+
+    /* List of sources to try to download from: */
+    QList<QString> m_sourcesList;
 };
 
 #endif // __UIDownloaderUserManual_h__

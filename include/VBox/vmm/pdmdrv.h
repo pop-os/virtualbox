@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,9 +33,6 @@
 #include <VBox/vmm/pdmins.h>
 #include <VBox/vmm/pdmcommon.h>
 #include <VBox/vmm/pdmasynccompletion.h>
-#ifdef VBOX_WITH_NETSHAPER
-#include <VBox/vmm/pdmnetshaper.h>
-#endif /* VBOX_WITH_NETSHAPER */
 #include <VBox/vmm/pdmblkcache.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/ssm.h>
@@ -385,15 +382,8 @@ typedef struct PDMDRVINS
     /** The base interface of the driver.
      * The driver constructor initializes this. */
     PDMIBASE                    IBase;
-
-    /** Tracing indicator. */
-    uint32_t                    fTracing;
-    /** The tracing ID of this device.  */
-    uint32_t                    idTracing;
-#if HC_ARCH_BITS == 32
     /** Align the internal data more naturally. */
-    uint32_t                    au32Padding[HC_ARCH_BITS == 32 ? 7 : 0];
-#endif
+    RTR3PTR                     R3PtrPadding;
 
     /** Internal data. */
     union
@@ -410,7 +400,7 @@ typedef struct PDMDRVINS
 } PDMDRVINS;
 
 /** Current DRVREG version number. */
-#define PDM_DRVINS_VERSION                      PDM_VERSION_MAKE(0xf0fe, 2, 0)
+#define PDM_DRVINS_VERSION                      PDM_VERSION_MAKE(0xf0fe, 1, 0)
 
 /** Converts a pointer to the PDMDRVINS::IBase to a pointer to PDMDRVINS. */
 #define PDMIBASE_2_PDMDRV(pInterface)   ( (PPDMDRVINS)((char *)(pInterface) - RT_OFFSETOF(PDMDRVINS, IBase)) )
@@ -1169,29 +1159,6 @@ typedef struct PDMDRVHLPR3
                                                                 PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
                                                                 const char *pszDesc));
 
-#ifdef VBOX_WITH_NETSHAPER
-    /**
-     * Attaches network filter driver to a bandwidth group.
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         The driver instance.
-     * @param   pcszBwGroup     Name of the bandwidth group to attach to.
-     * @param   pFilter         Pointer to the filter we attach.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnNetShaperAttach,(PPDMDRVINS pDrvIns, const char *pszBwGroup,
-                                                  PPDMNSFILTER pFilter));
-
-
-    /**
-     * Detaches network filter driver to a bandwidth group.
-     *
-     * @returns VBox status code.
-     * @param   pDrvIns         The driver instance.
-     * @param   pFilter         Pointer to the filter we attach.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnNetShaperDetach,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter));
-#endif /* VBOX_WITH_NETSHAPER */
-
 
     /**
      * Resolves the symbol for a raw-mode context interface.
@@ -1295,45 +1262,13 @@ typedef struct PDMDRVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnBlkCacheRetain, (PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                                   PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                                   PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
-                                                  PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                                   const char *pcszId));
-    /**
-     * Gets the reason for the most recent VM suspend.
-     *
-     * @returns The suspend reason. VMSUSPENDREASON_INVALID is returned if no
-     *          suspend has been made or if the pDrvIns is invalid.
-     * @param   pDrvIns             The driver instance.
-     */
-    DECLR3CALLBACKMEMBER(VMSUSPENDREASON, pfnVMGetSuspendReason,(PPDMDRVINS pDrvIns));
-
-    /**
-     * Gets the reason for the most recent VM resume.
-     *
-     * @returns The resume reason. VMRESUMEREASON_INVALID is returned if no
-     *          resume has been made or if the pDrvIns is invalid.
-     * @param   pDrvIns             The driver instance.
-     */
-    DECLR3CALLBACKMEMBER(VMRESUMEREASON, pfnVMGetResumeReason,(PPDMDRVINS pDrvIns));
-
-    /** @name Space reserved for minor interface changes.
-     * @{ */
-    DECLR3CALLBACKMEMBER(void, pfnReserved0,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved1,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved2,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved3,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved4,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved5,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved6,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved7,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved8,(PPDMDRVINS pDrvIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved9,(PPDMDRVINS pDrvIns));
-    /** @}  */
 
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMDRVHLPR3;
 /** Current DRVHLP version number. */
-#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 3, 0)
+#define PDM_DRVHLPR3_VERSION                    PDM_VERSION_MAKE(0xf0fb, 2, 0)
 
 #endif /* IN_RING3 */
 
@@ -1762,24 +1697,6 @@ DECLINLINE(int) PDMDrvHlpAsyncCompletionTemplateCreate(PPDMDRVINS pDrvIns, PPPDM
 }
 # endif
 
-# ifdef VBOX_WITH_NETSHAPER
-/**
- * @copydoc PDMDRVHLP::pfnNetShaperAttach
- */
-DECLINLINE(int) PDMDrvHlpNetShaperAttach(PPDMDRVINS pDrvIns, const char *pcszBwGroup, PPDMNSFILTER pFilter)
-{
-    return pDrvIns->pHlpR3->pfnNetShaperAttach(pDrvIns, pcszBwGroup, pFilter);
-}
-
-/**
- * @copydoc PDMDRVHLP::pfnNetShaperDetach
- */
-DECLINLINE(int) PDMDrvHlpNetShaperDetach(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter)
-{
-    return pDrvIns->pHlpR3->pfnNetShaperDetach(pDrvIns, pFilter);
-}
-# endif
-
 /**
  * @copydoc PDMDRVHLP::pfnCritSectInit
  */
@@ -1802,28 +1719,10 @@ DECLINLINE(int) PDMDrvHlpCallR0(PPDMDRVINS pDrvIns, uint32_t uOperation, uint64_
 DECLINLINE(int) PDMDrvHlpBlkCacheRetain(PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                         PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                         PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
-                                        PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                         const char *pcszId)
 {
-    return pDrvIns->pHlpR3->pfnBlkCacheRetain(pDrvIns, ppBlkCache, pfnXferComplete, pfnXferEnqueue, pfnXferEnqueueDiscard, pcszId);
+    return pDrvIns->pHlpR3->pfnBlkCacheRetain(pDrvIns, ppBlkCache, pfnXferComplete, pfnXferEnqueue, pcszId);
 }
-
-/**
- * @copydoc PDMDRVHLP::pfnVMGetSuspendReason
- */
-DECLINLINE(VMSUSPENDREASON) PDMDrvHlpVMGetSuspendReason(PPDMDRVINS pDrvIns)
-{
-    return pDrvIns->pHlpR3->pfnVMGetSuspendReason(pDrvIns);
-}
-
-/**
- * @copydoc PDMDRVHLP::pfnVMGetResumeReason
- */
-DECLINLINE(VMRESUMEREASON) PDMDrvHlpVMGetResumeReason(PPDMDRVINS pDrvIns)
-{
-    return pDrvIns->pHlpR3->pfnVMGetResumeReason(pDrvIns);
-}
-
 
 /** Pointer to callbacks provided to the VBoxDriverRegister() call. */
 typedef struct PDMDRVREGCB *PPDMDRVREGCB;

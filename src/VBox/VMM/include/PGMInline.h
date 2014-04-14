@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/log.h>
 #include <VBox/vmm/gmm.h>
-#include <VBox/vmm/hm.h>
+#include <VBox/vmm/hwaccm.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -51,7 +51,7 @@
  * @returns Pointer to the RAM range on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  */
 DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVM pVM, RTGCPHYS GCPhys)
@@ -71,7 +71,7 @@ DECLINLINE(PPGMRAMRANGE) pgmPhysGetRange(PVM pVM, RTGCPHYS GCPhys)
  * @returns Pointer to the RAM range on success.
  * @returns NULL if the address is located after the last range.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  */
 DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVM pVM, RTGCPHYS GCPhys)
@@ -85,13 +85,14 @@ DECLINLINE(PPGMRAMRANGE) pgmPhysGetRangeAtOrAbove(PVM pVM, RTGCPHYS GCPhys)
 }
 
 
+
 /**
  * Gets the PGMPAGE structure for a guest page.
  *
  * @returns Pointer to the page on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  */
 DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVM pVM, RTGCPHYS GCPhys)
@@ -115,7 +116,7 @@ DECLINLINE(PPGMPAGE) pgmPhysGetPage(PVM pVM, RTGCPHYS GCPhys)
  * @retval  VINF_SUCCESS and a valid *ppPage on success.
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the page pointer on success.
  */
@@ -132,6 +133,8 @@ DECLINLINE(int) pgmPhysGetPageEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
 }
 
 
+
+
 /**
  * Gets the PGMPAGE structure for a guest page.
  *
@@ -141,7 +144,7 @@ DECLINLINE(int) pgmPhysGetPageEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppPage)
  * @retval  VINF_SUCCESS and a valid *ppPage on success.
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if the address isn't valid.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the page pointer on success.
  * @param   ppRamHint   Where to read and store the ram list hint.
@@ -173,7 +176,7 @@ DECLINLINE(int) pgmPhysGetPageWithHintEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppP
  * @returns Pointer to the page on success.
  * @returns NULL on a VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS condition.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   ppPage      Where to store the pointer to the PGMPAGE structure.
  * @param   ppRam       Where to store the pointer to the PGMRAMRANGE structure.
@@ -197,7 +200,7 @@ DECLINLINE(int) pgmPhysGetPageAndRangeEx(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGE ppP
  * Convert GC Phys to HC Phys.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The GC physical address.
  * @param   pHCPhys     Where to store the corresponding HC physical address.
  *
@@ -221,7 +224,7 @@ DECLINLINE(int) pgmRamGCPhys2HCPhys(PVM pVM, RTGCPHYS GCPhys, PRTHCPHYS pHCPhys)
  * that optimizes access to pages already in the set.
  *
  * @returns VINF_SUCCESS. Will bail out to ring-3 on failure.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   HCPhys      The physical address of the page.
  * @param   ppv         Where to store the mapping address.
  */
@@ -259,8 +262,8 @@ DECLINLINE(int) pgmRZDynMapHCPageInlined(PVMCPU pVCpu, RTHCPHYS HCPhys, void **p
  * already in the set.
  *
  * @returns VBox status code, see pgmRZDynMapGCPageCommon for details.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The current CPU.
  * @param   GCPhys      The guest physical address of the page.
  * @param   ppv         Where to store the mapping address.
  */
@@ -320,7 +323,7 @@ DECLINLINE(int) pgmRZDynMapGCPageV2Inlined(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhy
  * access to pages already in the set.
  *
  * @returns VBox status code, see pgmRZDynMapGCPageCommon for details.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPhys      The guest physical address of the page.
  * @param   ppv         Where to store the mapping address.
  */
@@ -335,7 +338,7 @@ DECLINLINE(int) pgmRZDynMapGCPageInlined(PVMCPU pVCpu, RTGCPHYS GCPhys, void **p
  * that optimizes access to pages already in the set.
  *
  * @returns VBox status code, see pgmRZDynMapGCPageCommon for details.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   HCPhys      The physical address of the page.
  * @param   ppv         Where to store the mapping address. The offset is
  *                      preserved.
@@ -413,13 +416,12 @@ DECLINLINE(void *) pgmPoolMapPageInlined(PVM pVM, PPGMPOOLPAGE pPage RTLOG_COMMA
     AssertFatalMsgFailed(("pgmPoolMapPageInlined invalid page index %x\n", pPage->idx));
 }
 
-
 /**
  * Maps the page into current context (RC and maybe R0).
  *
  * @returns pointer to the mapping.
  * @param   pVM         Pointer to the PGM instance data.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   pPage       The page.
  */
 DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE pPage RTLOG_COMMA_SRC_POS_DECL)
@@ -446,7 +448,7 @@ DECLINLINE(void *) pgmPoolMapPageV2Inlined(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE p
  * @retval  VINF_SUCCESS on success
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      The address of the guest page.
  * @param   ppTlbe      Where to store the pointer to the TLB entry.
  */
@@ -474,7 +476,7 @@ DECLINLINE(int) pgmPhysPageQueryTlbe(PVM pVM, RTGCPHYS GCPhys, PPPGMPAGEMAPTLBE 
  * @retval  VINF_SUCCESS on success
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS if it's not a valid physical address.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pPage       Pointer to the PGMPAGE structure corresponding to
  *                      GCPhys.
  * @param   GCPhys      The address of the guest page.
@@ -489,9 +491,7 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS G
         STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->CTX_MID_Z(Stat,PageMapTlbHits));
         rc = VINF_SUCCESS;
         AssertPtr(pTlbe->pv);
-# ifndef VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R0
         Assert(!pTlbe->pMap || RT_VALID_PTR(pTlbe->pMap->pv));
-# endif
     }
     else
         rc = pgmPhysPageLoadIntoTlbWithPage(pVM, pPage, GCPhys);
@@ -501,12 +501,13 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS G
 
 #endif /* !IN_RC */
 
+
 /**
  * Enables write monitoring for an allocated page.
  *
  * The caller is responsible for updating the shadow page tables.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pPage       The page to write monitor.
  * @param   GCPhysPage  The address of the page.
  */
@@ -541,7 +542,7 @@ DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhy
  * can perform consistency checks in debug builds.
  *
  * @returns true if it is, false if it isn't.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECL_FORCE_INLINE(bool) pgmGstIsNoExecuteActive(PVMCPU pVCpu)
 {
@@ -558,7 +559,7 @@ DECL_FORCE_INLINE(bool) pgmGstIsNoExecuteActive(PVMCPU pVCpu)
  * we can perform consistency checks in debug builds.
  *
  * @returns true if it is, false if it isn't.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPU pVCpu)
 {
@@ -574,7 +575,7 @@ DECL_FORCE_INLINE(bool) pgmGst32BitIsPageSizeExtActive(PVMCPU pVCpu)
  * Takes PSE-36 into account.
  *
  * @returns guest physical address
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   Pde         Guest Pde
  */
 DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVM pVM, X86PDE Pde)
@@ -590,7 +591,7 @@ DECLINLINE(RTGCPHYS) pgmGstGet4MBPhysPage(PVM pVM, X86PDE Pde)
  * Gets the address the guest page directory (32-bit paging).
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   ppPd        Where to return the mapping. This is always set.
  */
 DECLINLINE(int) pgmGstGet32bitPDPtrEx(PVMCPU pVCpu, PX86PD *ppPd)
@@ -614,8 +615,8 @@ DECLINLINE(int) pgmGstGet32bitPDPtrEx(PVMCPU pVCpu, PX86PD *ppPd)
 /**
  * Gets the address the guest page directory (32-bit paging).
  *
- * @returns Pointer to the page directory entry in question.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @returns Pointer the page directory entry in question.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PVMCPU pVCpu)
 {
@@ -644,7 +645,7 @@ DECLINLINE(PX86PD) pgmGstGet32bitPDPtr(PVMCPU pVCpu)
  * Gets the guest page directory pointer table.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   ppPdpt      Where to return the mapping.  This is always set.
  */
 DECLINLINE(int) pgmGstGetPaePDPTPtrEx(PVMCPU pVCpu, PX86PDPT *ppPdpt)
@@ -664,19 +665,18 @@ DECLINLINE(int) pgmGstGetPaePDPTPtrEx(PVMCPU pVCpu, PX86PDPT *ppPdpt)
     return VINF_SUCCESS;
 }
 
-
 /**
  * Gets the guest page directory pointer table.
  *
  * @returns Pointer to the page directory in question.
  * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PVMCPU pVCpu)
 {
     PX86PDPT pGuestPdpt;
     int rc = pgmGstGetPaePDPTPtrEx(pVCpu, &pGuestPdpt);
-    AssertMsg(RT_SUCCESS(rc) || rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc)); NOREF(rc);
+    AssertMsg(RT_SUCCESS(rc) || rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc));
     return pGuestPdpt;
 }
 
@@ -686,7 +686,7 @@ DECLINLINE(PX86PDPT) pgmGstGetPaePDPTPtr(PVMCPU pVCpu)
  *
  * @returns Pointer to the page directory in question.
  * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU
  * @param   GCPtr       The address.
  */
 DECLINLINE(PX86PDPE) pgmGstGetPaePDPEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -760,7 +760,7 @@ DECLINLINE(X86PDEPAE) pgmGstGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  *
  * @returns Pointer to the page directory in question.
  * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  * @param   piPD        Receives the index into the returned page directory
  * @param   pPdpe       Receives the page directory pointer entry. Optional.
@@ -810,7 +810,7 @@ DECLINLINE(PX86PDPAE) pgmGstGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr, unsigned *p
  * Gets the page map level-4 pointer for the guest.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   ppPml4      Where to return the mapping.  Always set.
  */
 DECLINLINE(int) pgmGstGetLongModePML4PtrEx(PVMCPU pVCpu, PX86PML4 *ppPml4)
@@ -835,7 +835,7 @@ DECLINLINE(int) pgmGstGetLongModePML4PtrEx(PVMCPU pVCpu, PX86PML4 *ppPml4)
  * Gets the page map level-4 pointer for the guest.
  *
  * @returns Pointer to the PML4 page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PVMCPU pVCpu)
 {
@@ -850,7 +850,7 @@ DECLINLINE(PX86PML4) pgmGstGetLongModePML4Ptr(PVMCPU pVCpu)
  * Gets the pointer to a page map level-4 entry.
  *
  * @returns Pointer to the PML4 entry.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   iPml4       The index.
  * @remarks Only used by AssertCR3.
  */
@@ -877,7 +877,7 @@ DECLINLINE(PX86PML4E) pgmGstGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4
  *
  * @returns The page directory entry in question.
  * @returns A non-present entry if the page directory is not present or on an invalid page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PVMCPU pVCpu, RTGCPTR64 GCPtr)
@@ -923,7 +923,7 @@ DECLINLINE(X86PDEPAE) pgmGstGetLongModePDE(PVMCPU pVCpu, RTGCPTR64 GCPtr)
  *
  * @returns The page directory in question.
  * @returns NULL if the page directory is not present or on an invalid page.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  * @param   ppPml4e     Page Map Level-4 Entry (out)
  * @param   pPdpe       Page directory pointer table entry (out)
@@ -976,7 +976,7 @@ DECLINLINE(PX86PDPAE) pgmGstGetLongModePDPtr(PVMCPU pVCpu, RTGCPTR64 GCPtr, PX86
  * Gets the shadow page directory, 32-bit.
  *
  * @returns Pointer to the shadow 32-bit PD.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PVMCPU pVCpu)
 {
@@ -988,7 +988,7 @@ DECLINLINE(PX86PD) pgmShwGet32BitPDPtr(PVMCPU pVCpu)
  * Gets the shadow page directory entry for the specified address, 32-bit.
  *
  * @returns Shadow 32-bit PDE.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(X86PDE) pgmShwGet32BitPDE(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -1010,7 +1010,7 @@ DECLINLINE(X86PDE) pgmShwGet32BitPDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  * address, 32-bit.
  *
  * @returns Pointer to the shadow 32-bit PDE.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -1027,7 +1027,7 @@ DECLINLINE(PX86PDE) pgmShwGet32BitPDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * Gets the shadow page pointer table, PAE.
  *
  * @returns Pointer to the shadow PAE PDPT.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PVMCPU pVCpu)
 {
@@ -1039,7 +1039,7 @@ DECLINLINE(PX86PDPT) pgmShwGetPaePDPTPtr(PVMCPU pVCpu)
  * Gets the shadow page directory for the specified address, PAE.
  *
  * @returns Pointer to the shadow PD.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -1063,7 +1063,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * Gets the shadow page directory for the specified address, PAE.
  *
  * @returns Pointer to the shadow PD.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, PX86PDPT pPdpt, RTGCPTR GCPtr)
@@ -1086,7 +1086,7 @@ DECLINLINE(PX86PDPAE) pgmShwGetPaePDPtr(PVMCPU pVCpu, PX86PDPT pPdpt, RTGCPTR GC
  * Gets the shadow page directory entry, PAE.
  *
  * @returns PDE.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -1107,7 +1107,7 @@ DECLINLINE(X86PDEPAE) pgmShwGetPaePDE(PVMCPU pVCpu, RTGCPTR GCPtr)
  * Gets the pointer to the shadow page directory entry for an address, PAE.
  *
  * @returns Pointer to the PDE.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  * @remarks Only used by AssertCR3.
  */
@@ -1126,7 +1126,7 @@ DECLINLINE(PX86PDEPAE) pgmShwGetPaePDEPtr(PVMCPU pVCpu, RTGCPTR GCPtr)
  * Gets the shadow page map level-4 pointer.
  *
  * @returns Pointer to the shadow PML4.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  */
 DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PVMCPU pVCpu)
 {
@@ -1138,7 +1138,7 @@ DECLINLINE(PX86PML4) pgmShwGetLongModePML4Ptr(PVMCPU pVCpu)
  * Gets the shadow page map level-4 entry for the specified address.
  *
  * @returns The entry.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   GCPtr       The address.
  */
 DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PVMCPU pVCpu, RTGCPTR GCPtr)
@@ -1159,7 +1159,7 @@ DECLINLINE(X86PML4E) pgmShwGetLongModePML4E(PVMCPU pVCpu, RTGCPTR GCPtr)
  * Gets the pointer to the specified shadow page map level-4 entry.
  *
  * @returns The entry.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The current CPU.
  * @param   iPml4       The PML4 index.
  */
 DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4)
@@ -1172,11 +1172,12 @@ DECLINLINE(PX86PML4E) pgmShwGetLongModePML4EPtr(PVMCPU pVCpu, unsigned int iPml4
 
 #endif /* !IN_RC */
 
+
 /**
  * Cached physical handler lookup.
  *
  * @returns Physical handler covering @a GCPhys.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   GCPhys              The lookup address.
  */
 DECLINLINE(PPGMPHYSHANDLER) pgmHandlerPhysicalLookup(PVM pVM, RTGCPHYS GCPhys)
@@ -1245,7 +1246,7 @@ DECLINLINE(unsigned) pgmHandlerVirtualCalcState(PPGMVIRTHANDLER pCur)
 /**
  * Clears one physical page of a virtual handler.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pCur        Virtual handler structure.
  * @param   iPage       Physical page index.
  *
@@ -1427,11 +1428,10 @@ DECLINLINE(void) pgmPoolCacheUsed(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
     }
 }
 
-
 /**
  * Locks a page to prevent flushing (important for cr3 root pages or shadow pae pd pages).
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pPage       PGM pool page
  */
 DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
@@ -1444,7 +1444,7 @@ DECLINLINE(void) pgmPoolLockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
 /**
  * Unlocks a page to allow flushing again
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   pPage       PGM pool page
  */
 DECLINLINE(void) pgmPoolUnlockPage(PPGMPOOL pPool, PPGMPOOLPAGE pPage)
@@ -1478,17 +1478,16 @@ DECLINLINE(bool) pgmPoolIsPageLocked(PPGMPOOLPAGE pPage)
  * Tells if mappings are to be put into the shadow page table or not.
  *
  * @returns boolean result
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  */
 DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(HMIsEnabled(pVM));
+    Assert(pVM->pgm.s.fMappingsDisabled);
     return false;
 #else
-    Assert(pVM->cCpus == 1 || HMIsEnabled(pVM));
-    return !HMIsEnabled(pVM);
+    return !pVM->pgm.s.fMappingsDisabled;
 #endif
 }
 
@@ -1497,17 +1496,17 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
  * Checks if the mappings are floating and enabled.
  *
  * @returns true / false.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  */
 DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
     /* There are no mappings in VT-x and AMD-V mode. */
-    Assert(HMIsEnabled(pVM));
+    Assert(pVM->pgm.s.fMappingsDisabled);
     return false;
 #else
-    return !pVM->pgm.s.fMappingsFixed
-        && pgmMapAreMappingsEnabled(pVM);
+    return !pVM->pgm.s.fMappingsDisabled
+        && !pVM->pgm.s.fMappingsFixed;
 #endif
 }
 

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,29 +17,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_GUI_USE_QUARTZ2D
+#if defined (VBOX_GUI_USE_QUARTZ2D)
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-/* Qt includes: */
-# include <QApplication>
+/* Global includes */
+#include <QApplication>
 
-/* GUI includes: */
-# include "UIFrameBufferQuartz2D.h"
-# include "VBoxUtils.h"
-# include "UIPopupCenter.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMachineView.h"
+#include <iprt/asm.h>
 
-/* COM includes: */
-# include "COMEnums.h"
+/* Local includes */
+#include "UIFrameBufferQuartz2D.h"
+#include "UIMachineView.h"
+#include "UIMachineLogic.h"
+#include "VBoxUtils.h"
 
-/* Other VBox includes: */
-# include <iprt/asm.h>
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+//#define COMP_WITH_SHADOW
+//#define OVERLAY_CLIPRECTS
 
 /** @class UIFrameBufferQuartz2D
  *
@@ -49,7 +46,7 @@
 
 UIFrameBufferQuartz2D::UIFrameBufferQuartz2D(UIMachineView *pMachineView)
     : UIFrameBuffer(pMachineView)
-    , m_fUsesGuestVRAM(false)
+    , m_pMachineLogic(pMachineView->machineLogic())
     , m_pDataAddress(NULL)
     , m_pBitmapData(NULL)
     , m_uPixelFormat(FramebufferPixelFormat_FOURCC_RGB)
@@ -67,36 +64,26 @@ UIFrameBufferQuartz2D::UIFrameBufferQuartz2D(UIMachineView *pMachineView)
 UIFrameBufferQuartz2D::~UIFrameBufferQuartz2D()
 {
     Log (("Quartz2D: Deleting\n"));
-    clean(false);
+    clean();
 }
 
-STDMETHODIMP UIFrameBufferQuartz2D::SetVisibleRegion(BYTE *pRectangles, ULONG aCount)
+/** @note This method is called on EMT from under this object's lock */
+STDMETHODIMP UIFrameBufferQuartz2D::NotifyUpdate(ULONG aX, ULONG aY,
+                                                 ULONG aW, ULONG aH)
 {
-    LogRel2(("UIFrameBufferQuartz2D::SetVisibleRegion: Rectangle count=%lu\n",
-             (unsigned long)aCount));
+/*    Log (("Quartz2D: NotifyUpdate %d,%d %dx%d\n", aX, aY, aW, aH));*/
 
-    /* Make sure rectangles were passed: */
-    if (!pRectangles)
-    {
-        LogRel2(("UIFrameBufferQuartz2D::SetVisibleRegion: Invalid pRectangles pointer!\n"));
+    QApplication::postEvent(m_pMachineView,
+                            new UIRepaintEvent (aX, aY, aW, aH));
+    return S_OK;
+}
 
+STDMETHODIMP UIFrameBufferQuartz2D::SetVisibleRegion(BYTE *aRectangles, ULONG aCount)
+{
+    PRTRECT rects = (PRTRECT)aRectangles;
+
+    if (!rects)
         return E_POINTER;
-    }
-
-    /* Lock access to frame-buffer: */
-    lock();
-
-    /* Make sure frame-buffer is used: */
-    if (m_fIsMarkedAsUnused)
-    {
-        LogRel2(("UIFrameBufferQuartz2D::SetVisibleRegion: Ignored!\n"));
-
-        /* Unlock access to frame-buffer: */
-        unlock();
-
-        /* Ignore SetVisibleRegion: */
-        return E_FAIL;
-    }
 
     /** @todo r=bird: Is this thread safe? If I remember the code flow correctly, the
      * GUI thread could be happily jogging along paintEvent now on another cpu core.
@@ -116,147 +103,57 @@ STDMETHODIMP UIFrameBufferQuartz2D::SetVisibleRegion(BYTE *pRectangles, ULONG aC
         allocated = RT_MAX (128, allocated);
         rgnRcts = (RegionRects *)RTMemAlloc(RT_OFFSETOF(RegionRects, rcts[allocated]));
         if (!rgnRcts)
-        {
-            /* Unlock access to frame-buffer: */
-            unlock();
-
             return E_OUTOFMEMORY;
-        }
         rgnRcts->allocated = allocated;
     }
     rgnRcts->used = 0;
 
-    /* Compose region: */
     QRegion reg;
-    PRTRECT rects = (PRTRECT)pRectangles;
-    QRect vmScreenRect(0, 0, width(), height());
+//    printf ("Region rects follow...\n");
+    QRect vmScreenRect (0, 0, width(), height());
     for (ULONG ind = 0; ind < aCount; ++ ind)
     {
-        /* Get current rectangle: */
         QRect rect;
         rect.setLeft(rects->xLeft);
         rect.setTop(rects->yTop);
-        /* Which is inclusive: */
+        /* QRect are inclusive */
         rect.setRight(rects->xRight - 1);
         rect.setBottom(rects->yBottom - 1);
 
         /* The rect should intersect with the vm screen. */
         rect = vmScreenRect.intersect(rect);
-        ++rects;
-        /* Make sure only valid rects are distributed: */
+        ++ rects;
+        /* Make sure only valid rects are distributed */
+        /* todo: Test if the other framebuffer implementation have the same
+         * problem with invalid rects (In Linux/Windows) */
         if (rect.isValid() &&
            rect.width() > 0 && rect.height() > 0)
             reg += rect;
         else
             continue;
 
-        /* That is some *magic* added by Knut in r27807: */
         CGRect *cgRct = &rgnRcts->rcts[rgnRcts->used];
         cgRct->origin.x = rect.x();
         cgRct->origin.y = height() - rect.y() - rect.height();
         cgRct->size.width = rect.width();
         cgRct->size.height = rect.height();
+//        printf ("Region rect[%d - %d]: %d %d %d %d\n", rgnRcts->used, aCount, rect.x(), rect.y(), rect.height(), rect.width());
         rgnRcts->used++;
     }
+//    printf ("..................................\n");
 
     RegionRects *pOld = ASMAtomicXchgPtrT(&mRegion, rgnRcts, RegionRects *);
     if (    pOld
         &&  !ASMAtomicCmpXchgPtr(&mRegionUnused, pOld, NULL))
         RTMemFree(pOld);
 
-    /* Send async signal to update asynchronous visible-region: */
-    LogRel2(("UIFrameBufferQuartz2D::SetVisibleRegion: Sending to async-handler...\n"));
-    emit sigSetVisibleRegion(reg);
+    QApplication::postEvent(m_pMachineView, new UISetRegionEvent (reg));
 
-    /* Unlock access to frame-buffer: */
-    unlock();
-
-    /* Confirm SetVisibleRegion: */
     return S_OK;
-}
-
-void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
-{
-#if 0
-    printf ("fmt=%lu, vram=%X, bpp=%lu, bpl=%lu, width=%lu, height=%lu\n",
-           aEvent->pixelFormat(), (unsigned int)aEvent->VRAM(),
-           aEvent->bitsPerPixel(), aEvent->bytesPerLine(),
-           aEvent->width(), aEvent->height());
-#endif
-    /* Clean out old stuff */
-    clean(m_width == aEvent->width()
-            && m_height == aEvent->height());
-
-    m_width = aEvent->width();
-    m_height = aEvent->height();
-
-    bool remind = false;
-
-    /* We need a color space in any case */
-    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
-    /* Check if we support the pixel format/colordepth and can use the guest VRAM directly.
-     * Mac OS X supports 16 bit also but not in the 565 mode. So we could use
-     * 32 bit only. */
-    if (   aEvent->pixelFormat() == FramebufferPixelFormat_FOURCC_RGB
-        && aEvent->bitsPerPixel() == 32)
-    {
-        m_fUsesGuestVRAM = true;
-//        printf ("VRAM\n");
-        /* Create the image copy of the framebuffer */
-        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, aEvent->VRAM(), aEvent->bytesPerLine() * m_height, NULL);
-        m_image = CGImageCreate(m_width, m_height, 8, aEvent->bitsPerPixel(), aEvent->bytesPerLine(), cs,
-                                kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
-                                kCGRenderingIntentDefault);
-        m_pDataAddress = aEvent->VRAM();
-        CGDataProviderRelease (dp);
-    }
-    else
-    {
-        m_fUsesGuestVRAM = false;
-        remind = true;
-//        printf ("No VRAM\n");
-        /* Create the memory we need for our image copy
-         * Read somewhere that an alignment of 16 is
-         * best for optimal performance. So why not. */
-//        int bitmapBytesPerRow = RT_ALIGN (m_width * 4, 16);
-        int bitmapBytesPerRow = m_width * 4;
-        int bitmapByteCount = (bitmapBytesPerRow * m_height);
-        m_pBitmapData = RTMemAllocZ(bitmapByteCount);
-        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, m_pBitmapData, bitmapByteCount, NULL);
-        m_image = CGImageCreate(m_width, m_height, 8, 32, bitmapBytesPerRow, cs,
-                                kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
-                                kCGRenderingIntentDefault);
-        m_pDataAddress = static_cast<uchar*>(m_pBitmapData);
-        CGDataProviderRelease(dp);
-    }
-    CGColorSpaceRelease(cs);
-#ifdef VBOX_WITH_ICHAT_THEATER
-    setImageRef(m_image);
-#endif
-
-    if (remind && m_pMachineView->uisession()->isGuestAdditionsActive())
-        popupCenter().remindAboutWrongColorDepth(m_pMachineView->machineWindow(),
-                                                      aEvent->bitsPerPixel(), 32);
-    else
-        popupCenter().forgetAboutWrongColorDepth(m_pMachineView->machineWindow());
 }
 
 void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
 {
-    /* If the machine is NOT in 'running' state,
-     * the link between framebuffer and video memory
-     * is broken, we should go fallback now... */
-    if (m_fUsesGuestVRAM &&
-        !m_pMachineView->uisession()->isRunning() &&
-        !m_pMachineView->uisession()->isPaused() &&
-        /* Online snapshotting: */
-        m_pMachineView->uisession()->machineState() != KMachineState_Saving)
-    {
-        /* Simulate fallback through fake resize-event: */
-        UIResizeEvent event(FramebufferPixelFormat_Opaque, NULL, 0, 0, 640, 480);
-        resizeEvent(&event);
-    }
-
     /* For debugging /Developer/Applications/Performance Tools/Quartz
      * Debug.app is a nice tool to see which parts of the screen are
      * updated.*/
@@ -275,102 +172,85 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
     CGContextScaleCTM(ctx, 1.0, -1.0);
 
     /* We handle the seamless mode as a special case. */
-    if (m_pMachineView->machineLogic()->visualStateType() == UIVisualStateType_Seamless)
+    if (m_pMachineLogic->visualStateType() == UIVisualStateType_Seamless)
     {
-        /* Determine current visible region: */
-        RegionRects *pRgnRcts = ASMAtomicXchgPtrT(&mRegion, NULL, RegionRects*);
+        /* Here we paint the windows without any wallpaper.
+         * So the background would be set transparently. */
 
-        /* Prepare cleanup-region: */
-        QRegion cleanupRegion(aEvent->rect());
-        /* Filter out visible-rectangles;
-         * That way we erase *only* invisible-rectangles of paint-region: */
-        if (pRgnRcts && pRgnRcts->used > 0)
+        /* Create a subimage of the current view.
+         * Currently this subimage is the whole screen. */
+        CGImageRef subImage;
+        if (!m_pMachineView->pauseShot().isNull())
         {
-            /* Slowly, step-by-step filter our visible-rectangles: */
-            CGRect *pCgVisibleRect = pRgnRcts->rcts;
-            for (ULONG uVisibleRectIndex = 0; uVisibleRectIndex < pRgnRcts->used; ++uVisibleRectIndex)
-            {
-                /* Prepare Qt visible-rectangle, flipping received CG visible-rectangle: */
-                CGRect cgVisibleRectFlippedToQt = ::darwinFlipCGRect(*pCgVisibleRect, viewRect.size.height);
-                QRect visibleRect(cgVisibleRectFlippedToQt.origin.x, cgVisibleRectFlippedToQt.origin.y,
-                                  cgVisibleRectFlippedToQt.size.width, cgVisibleRectFlippedToQt.size.height);
-                /* Filter that rectangle out: */
-                cleanupRegion -= visibleRect;
-                ++pCgVisibleRect;
-            }
+            CGImageRef pauseImg = ::darwinToCGImageRef(&m_pMachineView->pauseShot());
+            subImage = CGImageCreateWithImageInRect(pauseImg, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
+            CGImageRelease(pauseImg);
         }
-        /* Erase cleanup-region: */
-        if (!cleanupRegion.isEmpty())
+        else
         {
-            /* Slowly, step-by-step erase cleanup-rectangles: */
-            foreach (const QRect &cleanupRect, cleanupRegion.rects())
-            {
-                CGRect cgCleanupRect = ::darwinToCGRect(cleanupRect);
-                CGContextClearRect(ctx, ::darwinFlipCGRect(cgCleanupRect, viewRect.size.height));
-            }
+#ifdef RT_ARCH_AMD64
+            /* Not sure who to blame, but it seems on 64bit there goes
+             * something terrible wrong (on a second monitor) when directly
+             * using CGImageCreateWithImageInRect without making a copy. We saw
+             * something like this already with the scale mode. */
+            CGImageRef tmpImage = CGImageCreateWithImageInRect(m_image, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
+            subImage = CGImageCreateCopy(tmpImage);
+            CGImageRelease(tmpImage);
+#else
+            subImage = CGImageCreateWithImageInRect(m_image, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
+#endif
         }
-
-        /* Prepare painting path/clipping: */
-        if (pRgnRcts)
+        Assert(VALID_PTR(subImage));
+        /* Clear the background (Make the rect fully transparent) */
+        CGContextClearRect(ctx, viewRect);
+#ifdef OVERLAY_CLIPRECTS
+        CGContextSetRGBFillColor(ctx, 0.0, 0.0, 5.0, 0.7);
+        CGContextFillRect(ctx, viewRect);
+#endif
+#ifdef COMP_WITH_SHADOW
+        /* Enable shadows */
+        CGContextSetShadow(ctx, CGSizeMake (10, -10), 10);
+        CGContextBeginTransparencyLayer(ctx, NULL);
+#endif
+        /* Grab the current visible region. */
+        RegionRects *rgnRcts = ASMAtomicXchgPtrT(&mRegion, NULL, RegionRects *);
+        if (rgnRcts)
         {
-            /* If visible region is determined: */
-            if (pRgnRcts->used > 0)
+            if (rgnRcts->used > 0)
             {
-                /* Add the clipping rects all at once (they are defined in SetVisibleRegion): */
+                /* Add the clipping rects all at once. They are defined in
+                 * SetVisibleRegion. */
                 CGContextBeginPath(ctx);
-                CGContextAddRects(ctx, pRgnRcts->rcts, pRgnRcts->used);
-                /* Now convert the path to a clipping path: */
+                CGContextAddRects(ctx, rgnRcts->rcts, rgnRcts->used);
+                /* Now convert the path to a clipping path. */
                 CGContextClip(ctx);
             }
-
-            /* Put back the visible region, free if we cannot (2+ SetVisibleRegion calls): */
-            if (   !ASMAtomicCmpXchgPtr(&mRegion, pRgnRcts, NULL)
-                && !ASMAtomicCmpXchgPtr(&mRegionUnused, pRgnRcts, NULL))
-            {
-                RTMemFree(pRgnRcts);
-                pRgnRcts = NULL;
-            }
+            /* Put back the visible region, free if we cannot (2+ SetVisibleRegion calls). */
+            if (    !ASMAtomicCmpXchgPtr(&mRegion, rgnRcts, NULL)
+                &&  !ASMAtomicCmpXchgPtr(&mRegionUnused, rgnRcts, NULL))
+                RTMemFree(rgnRcts);
         }
-
-        /* If visible region is still determined: */
-        if (pRgnRcts && pRgnRcts->used > 0)
+        /* In any case clip the drawing to the view window */
+        CGContextClipToRect(ctx, viewRect);
+        /* At this point draw the real vm image */
+        CGContextDrawImage(ctx, ::darwinFlipCGRect (viewRect, viewRect.size.height), subImage);
+#ifdef COMP_WITH_SHADOW
+        CGContextEndTransparencyLayer(ctx);
+#endif
+        CGImageRelease(subImage);
+#ifdef OVERLAY_CLIPRECTS
+        if (rgnRcts && rgnRcts->used > 0)
         {
-            /* Create a subimage of the current view in the size
-             * of the bounding box of the current paint event: */
-            CGRect cgPaintRect = ::darwinToCGRect(aEvent->rect());
-            CGImageRef subImage;
-            if (!m_pMachineView->pauseShot().isNull())
-            {
-                CGImageRef pauseImg = ::darwinToCGImageRef(&m_pMachineView->pauseShot());
-                subImage = CGImageCreateWithImageInRect(pauseImg, cgPaintRect);
-                CGImageRelease(pauseImg);
-            }
-            else
-            {
-#ifdef RT_ARCH_AMD64
-                /* Not sure who to blame, but it seems on 64bit there goes
-                 * something terrible wrong (on a second monitor) when directly
-                 * using CGImageCreateWithImageInRect without making a copy. We saw
-                 * something like this already with the scale mode. */
-                CGImageRef tmpImage = CGImageCreateWithImageInRect(m_image, cgPaintRect);
-                subImage = CGImageCreateCopy(tmpImage);
-                CGImageRelease(tmpImage);
-#else /* RT_ARCH_AMD64 */
-                subImage = CGImageCreateWithImageInRect(m_image, CGRectMake(m_pMachineView->contentsX(), m_pMachineView->contentsY(), m_pMachineView->visibleWidth(), m_pMachineView->visibleHeight()));
-#endif /* !RT_ARCH_AMD64 */
-            }
-            Assert(VALID_PTR(subImage));
-
-            /* In any case clip the drawing to the view window: */
-            CGContextClipToRect(ctx, viewRect);
-            /* At this point draw the real vm image: */
-            CGContextDrawImage(ctx, ::darwinFlipCGRect(cgPaintRect, viewRect.size.height), subImage);
-
-            /* Release the subimage: */
-            CGImageRelease(subImage);
+            CGContextBeginPath(ctx);
+            CGContextAddRects(ctx, rgnRcts->rcts, rgnRcts->used);
+            CGContextSetRGBStrokeColor(ctx, 1.0, 0.0, 0.0, 0.7);
+            CGContextDrawPath(ctx, kCGPathStroke);
         }
+        CGContextSetRGBStrokeColor(ctx, 0.0, 1.0, 0.0, 0.7);
+        CGContextStrokeRect(ctx, viewRect);
+#endif
     }
-    else if (   m_pMachineView->machineLogic()->visualStateType() == UIVisualStateType_Scale
+    else if (   m_pMachineLogic->visualStateType() == UIVisualStateType_Scale
              && m_scaledSize.isValid())
     {
         /* Here we paint if we didn't care about any masks */
@@ -498,7 +378,68 @@ void UIFrameBufferQuartz2D::paintEvent(QPaintEvent *aEvent)
     }
 }
 
-void UIFrameBufferQuartz2D::clean(bool fPreserveRegions)
+void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
+{
+#if 0
+    printf ("fmt=%lu, vram=%X, bpp=%lu, bpl=%lu, width=%lu, height=%lu\n",
+           aEvent->pixelFormat(), (unsigned int)aEvent->VRAM(),
+           aEvent->bitsPerPixel(), aEvent->bytesPerLine(),
+           aEvent->width(), aEvent->height());
+#endif
+
+    /* Clean out old stuff */
+    clean();
+
+    m_width = aEvent->width();
+    m_height = aEvent->height();
+
+    bool remind = false;
+
+    /* We need a color space in any case */
+    CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+    /* Check if we support the pixel format/colordepth and can use the guest VRAM directly.
+     * Mac OS X supports 16 bit also but not in the 565 mode. So we could use
+     * 32 bit only. */
+    if (   aEvent->pixelFormat() == FramebufferPixelFormat_FOURCC_RGB
+        && aEvent->bitsPerPixel() == 32)
+    {
+//        printf ("VRAM\n");
+        /* Create the image copy of the framebuffer */
+        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, aEvent->VRAM(), aEvent->bytesPerLine() * m_height, NULL);
+        m_image = CGImageCreate(m_width, m_height, 8, aEvent->bitsPerPixel(), aEvent->bytesPerLine(), cs,
+                                kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
+                                kCGRenderingIntentDefault);
+        m_pDataAddress = aEvent->VRAM();
+        CGDataProviderRelease (dp);
+    }
+    else
+    {
+        remind = true;
+//        printf ("No VRAM\n");
+        /* Create the memory we need for our image copy
+         * Read somewhere that an alignment of 16 is
+         * best for optimal performance. So why not. */
+//        int bitmapBytesPerRow = RT_ALIGN (m_width * 4, 16);
+        int bitmapBytesPerRow = m_width * 4;
+        int bitmapByteCount = (bitmapBytesPerRow * m_height);
+        m_pBitmapData = RTMemAllocZ(bitmapByteCount);
+        CGDataProviderRef dp = CGDataProviderCreateWithData(NULL, m_pBitmapData, bitmapByteCount, NULL);
+        m_image = CGImageCreate(m_width, m_height, 8, 32, bitmapBytesPerRow, cs,
+                                kCGImageAlphaNoneSkipFirst | kCGBitmapByteOrder32Little, dp, 0, false,
+                                kCGRenderingIntentDefault);
+        m_pDataAddress = static_cast<uchar*>(m_pBitmapData);
+        CGDataProviderRelease(dp);
+    }
+    CGColorSpaceRelease(cs);
+#ifdef VBOX_WITH_ICHAT_THEATER
+    setImageRef(m_image);
+#endif
+
+//    if (remind)
+//        msgCenter().remindAboutWrongColorDepth(aEvent->bitsPerPixel(), 32);
+}
+
+void UIFrameBufferQuartz2D::clean()
 {
     if (m_image)
     {
@@ -510,17 +451,27 @@ void UIFrameBufferQuartz2D::clean(bool fPreserveRegions)
         RTMemFree(m_pBitmapData);
         m_pBitmapData = NULL;
     }
-    if (!fPreserveRegions && mRegion)
+    if (mRegion)
     {
         RTMemFree((void *)mRegion);
         mRegion = NULL;
     }
-    if (!fPreserveRegions && mRegionUnused)
+    if (mRegionUnused)
     {
         RTMemFree((void *)mRegionUnused);
         mRegionUnused = NULL;
     }
 }
 
-#endif /* VBOX_GUI_USE_QUARTZ2D */
+#ifdef VBOX_WITH_VIDEOHWACCEL
+void UIFrameBufferQuartz2D::setView(UIMachineView *pView)
+{
+    if (pView)
+        m_pMachineLogic = pView->machineLogic();
+
+    UIFrameBuffer::setView(pView);
+}
+#endif
+
+#endif /* defined (VBOX_GUI_USE_QUARTZ2D) */
 

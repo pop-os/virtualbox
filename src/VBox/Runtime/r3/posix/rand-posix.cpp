@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/ioctl.h>
+#include <sys/fcntl.h>
 #include <fcntl.h>
 #ifdef _MSC_VER
 # include <io.h>
@@ -56,10 +57,7 @@ static DECLCALLBACK(void) rtRandAdvPosixGetBytes(PRTRANDINT pThis, uint8_t *pb, 
     ssize_t cbRead = read(pThis->u.File.hFile, pb, cb);
     if ((size_t)cbRead != cb)
     {
-        /* S10 has been observed returning 1040 bytes at the time from /dev/urandom.
-           Which means we need to do than 256 rounds to reach 668171 bytes if
-           that's what demanded by the caller (like tstRTMemWipe.cpp). */
-        ssize_t cTries = RT_MAX(256, cb / 64);
+        ssize_t cTries = RT_MIN(cb, 256);
         do
         {
             if (cbRead > 0)

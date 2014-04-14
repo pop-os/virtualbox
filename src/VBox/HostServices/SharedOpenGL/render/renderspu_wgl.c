@@ -386,6 +386,7 @@ GLboolean renderspu_SystemInitVisual( VisualInfo *visual )
 
     /* In the windows world, we need a window before a context.
      * Use the device_context as a marker to do just that */
+    visual->device_context = 0;
 
     return TRUE;
 }
@@ -412,11 +413,6 @@ void renderspu_SystemDestroyWindow( WindowInfo *window )
 
     window->hWnd = NULL;
     window->visual = NULL;
-    if (window->hRgn)
-    {
-        DeleteObject(window->hRgn);
-        window->hRgn = NULL;
-    }
 }
 
 static LONG WINAPI
@@ -425,49 +421,7 @@ MainWndProc( HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam )
     /* int w,h; */
 
     switch ( uMsg ) {
-        case WM_PAINT:
-        {
-            WindowInfo *pWindow = (WindowInfo *)GetWindowLongPtr(hWnd, GWLP_USERDATA);
-            if (pWindow)
-            {
-                const struct VBOXVR_SCR_COMPOSITOR * pCompositor;
 
-                pCompositor = renderspuVBoxCompositorAcquire(pWindow);
-                if (pCompositor)
-                {
-                    HDC hDC;
-                    PAINTSTRUCT Paint;
-
-                    Assert(pWindow->device_context);
-                    hDC = BeginPaint(pWindow->hWnd, &Paint);
-                    if (hDC)
-                    {
-                        BOOL bRc;
-                        pWindow->redraw_device_context = hDC;
-
-                        renderspuVBoxPresentCompositionGeneric(pWindow, pCompositor, NULL, 1, true);
-
-                        bRc = EndPaint(pWindow->hWnd, &Paint);
-
-                        pWindow->redraw_device_context = NULL;
-
-                        renderspuVBoxCompositorRelease(pWindow);
-
-                        if (!bRc)
-                        {
-                            DWORD winEr = GetLastError();
-                            crWarning("EndPaint failed, winEr %d", winEr);
-                        }
-                    }
-                    else
-                    {
-                        DWORD winEr = GetLastError();
-                        crWarning("BeginPaint failed, winEr %d", winEr);
-                    }
-                }
-            }
-            break;
-        }
         case WM_SIZE:
             /* w = LOWORD( lParam ); 
              * h = HIWORD( lParam ); */
@@ -599,11 +553,7 @@ bSetupPixelFormatEXT( HDC hdc, GLbitfield visAttribs)
 
     crDebug("Render SPU: wglChoosePixelFormatEXT (vis 0x%x, LastError 0x%x, pixelFormat 0x%x", vis, GetLastError(), pixelFormat);
 
-#ifdef VBOX_CR_SERVER_FORCE_WGL
     render_spu.ws.wglSetPixelFormat( hdc, pixelFormat, &ppfd );
-#else
-    SetPixelFormat( hdc, pixelFormat, &ppfd );
-#endif
 
     crDebug("Render SPU: wglSetPixelFormat (Last error 0x%x)", GetLastError());
 
@@ -662,7 +612,6 @@ bSetupPixelFormatNormal( HDC hdc, GLbitfield visAttribs )
      * by our faker library, otherwise we have to call the GDI
      * versions.
      */
-#ifdef VBOX_CR_SERVER_FORCE_WGL
     if (crGetenv( "CR_WGL_DO_NOT_USE_GDI" ) != NULL)
     {
         pixelformat = render_spu.ws.wglChoosePixelFormat( hdc, ppfd );
@@ -680,7 +629,6 @@ bSetupPixelFormatNormal( HDC hdc, GLbitfield visAttribs )
         render_spu.ws.wglDescribePixelFormat( hdc, pixelformat, sizeof(*ppfd), ppfd );
     }
     else
-#endif
     {
         /* Okay, we were loaded manually.  Call the GDI functions. */
         pixelformat = ChoosePixelFormat( hdc, ppfd );
@@ -739,7 +687,6 @@ GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, Wi
     int       window_plus_caption_width;
     int       window_plus_caption_height;
 
-    window->hRgn = NULL;
     window->visual = visual;
     window->nativeWindow = 0;
 
@@ -830,27 +777,27 @@ GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, Wi
         int smCyFixedFrame = GetSystemMetrics( SM_CXFIXEDFRAME ) + 1;
         int smCyCaption = GetSystemMetrics( SM_CYCAPTION );
 
-        window->BltInfo.width = GetSystemMetrics( SM_CXSCREEN ) ;
-        window->BltInfo.height = GetSystemMetrics( SM_CYSCREEN ) ;
+        window->width = GetSystemMetrics( SM_CXSCREEN ) ;
+        window->height = GetSystemMetrics( SM_CYSCREEN ) ;
 
-        crDebug( "Render SPU: Window Dims: %d, %d", window->BltInfo.width, window->BltInfo.height );
+        crDebug( "Render SPU: Window Dims: %d, %d", window->width, window->height );
 
         window->x = render_spu->defaultX - smCxFixedFrame - 1;
         window->y = render_spu->defaultY - smCyFixedFrame - smCyCaption;
 
-        window_plus_caption_width = window->BltInfo.width + 2 * smCxFixedFrame;
-        window_plus_caption_height = window->BltInfo.height + 2 * smCyFixedFrame + smCyCaption;
+        window_plus_caption_width = window->width + 2 * smCxFixedFrame;
+        window_plus_caption_height = window->height + 2 * smCyFixedFrame + smCyCaption;
 
 #else
         /* Since it's undecorated, we don't have to do anything fancy
          * with these parameters. */
 
-        window->BltInfo.width = GetSystemMetrics( SM_CXSCREEN ) ;
-        window->BltInfo.height = GetSystemMetrics( SM_CYSCREEN ) ;
+        window->width = GetSystemMetrics( SM_CXSCREEN ) ;
+        window->height = GetSystemMetrics( SM_CYSCREEN ) ;
         window->x = 0;
         window->y = 0;
-        window_plus_caption_width = window->BltInfo.width;
-        window_plus_caption_height = window->BltInfo.height;
+        window_plus_caption_width = window->width;
+        window_plus_caption_height = window->height;
 
 #endif
     }
@@ -867,8 +814,8 @@ GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, Wi
         smCyCaption = GetSystemMetrics( SM_CYCAPTION );
         crDebug( "Render SPU: Got the Caption " );
 
-        window_plus_caption_width = window->BltInfo.width + 2 * smCxFixedFrame;
-        window_plus_caption_height = window->BltInfo.height + 2 * smCyFixedFrame + smCyCaption;
+        window_plus_caption_width = window->width + 2 * smCxFixedFrame;
+        window_plus_caption_height = window->height + 2 * smCyFixedFrame + smCyCaption;
 
         window->x = render_spu.defaultX - smCxFixedFrame;
         window->y = render_spu.defaultY - smCyFixedFrame - smCyCaption;
@@ -888,29 +835,12 @@ GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, Wi
         return GL_FALSE;
     }
 
-    window->visible = showIt;
-
-    if (!showIt)
-    {
-        renderspu_SystemShowWindow( window, 0 );
-        if (window->BltInfo.height <= 0 || window->BltInfo.width <= 0)
-        {
-            renderspu_SystemWindowSize(window,
-                    window->BltInfo.width > 0 ? window->BltInfo.width : 4,
-                    window->BltInfo.height > 0 ? window->BltInfo.height : 4);
-        }
-    }
-    else
-    {
+    if (showIt) {
+        /* NO ERROR CODE FOR SHOWWINDOW */
         crDebug( "Render SPU: Showing the window" );
         crDebug("renderspu_SystemCreateWindow: showwindow: %x", window->hWnd);
+        ShowWindow( window->hWnd, SW_SHOWNORMAL );
     }
-
-    CRASSERT(!window->visible == !showIt);
-
-    /* Intel drivers require a window to be visible for proper 3D rendering,
-     * so set it visible and handle the visibility with visible regions (see below) */
-    ShowWindow( window->hWnd, SW_SHOWNORMAL );
 
     SetForegroundWindow( window->hWnd );
 
@@ -926,11 +856,6 @@ GLboolean renderspu_SystemCreateWindow( VisualInfo *visual, GLboolean showIt, Wi
         ShowCursor( FALSE );
 
     window->device_context = GetDC( window->hWnd );
-    if (!window->device_context)
-    {
-        DWORD winEr = GetLastError();
-        crWarning("GetDC failed, winEr %d", winEr);
-    }
 
     crDebug( "Render SPU: Got the DC: 0x%x", window->device_context );
 
@@ -954,7 +879,6 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
     int       window_plus_caption_width;
     int       window_plus_caption_height;
 
-    window->hRgn = NULL;
     window->visual = visual;
     window->nativeWindow = 0;
 
@@ -1051,27 +975,27 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         int smCyFixedFrame = GetSystemMetrics( SM_CXFIXEDFRAME ) + 1;
         int smCyCaption = GetSystemMetrics( SM_CYCAPTION );
 
-        window->BltInfo.width = GetSystemMetrics( SM_CXSCREEN ) ;
-        window->BltInfo.height = GetSystemMetrics( SM_CYSCREEN ) ;
+        window->width = GetSystemMetrics( SM_CXSCREEN ) ;
+        window->height = GetSystemMetrics( SM_CYSCREEN ) ;
 
-        crDebug( "Render SPU: Window Dims: %d, %d", window->BltInfo.width, window->BltInfo.height );
+        crDebug( "Render SPU: Window Dims: %d, %d", window->width, window->height );
 
         window->x = render_spu->defaultX - smCxFixedFrame - 1;
         window->y = render_spu->defaultY - smCyFixedFrame - smCyCaption;
 
-        window_plus_caption_width = window->BltInfo.width + 2 * smCxFixedFrame;
-        window_plus_caption_height = window->BltInfo.height + 2 * smCyFixedFrame + smCyCaption;
+        window_plus_caption_width = window->width + 2 * smCxFixedFrame;
+        window_plus_caption_height = window->height + 2 * smCyFixedFrame + smCyCaption;
 
 #else
         /* Since it's undecorated, we don't have to do anything fancy
          * with these parameters. */
 
-        window->BltInfo.width = GetSystemMetrics( SM_CXSCREEN ) ;
-        window->BltInfo.height = GetSystemMetrics( SM_CYSCREEN ) ;
+        window->width = GetSystemMetrics( SM_CXSCREEN ) ;
+        window->height = GetSystemMetrics( SM_CYSCREEN ) ;
         window->x = 0;
         window->y = 0;
-        window_plus_caption_width = window->BltInfo.width;
-        window_plus_caption_height = window->BltInfo.height;
+        window_plus_caption_width = window->width;
+        window_plus_caption_height = window->height;
 
 #endif
     }
@@ -1087,8 +1011,8 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         smCyCaption = GetSystemMetrics( SM_CYCAPTION );
         crDebug( "Render SPU: Got the Caption " );
 
-        window_plus_caption_width = window->BltInfo.width + 2 * smCxFixedFrame;
-        window_plus_caption_height = window->BltInfo.height + 2 * smCyFixedFrame + smCyCaption;
+        window_plus_caption_width = window->width + 2 * smCxFixedFrame;
+        window_plus_caption_height = window->height + 2 * smCyFixedFrame + smCyCaption;
 
         window->x = render_spu.defaultX;
         window->y = render_spu.defaultY;
@@ -1099,13 +1023,13 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
             WINDOW_NAME, WINDOW_NAME,
             window_style,
             window->x, window->y,
-            window->BltInfo.width,
-            window->BltInfo.height,
+            window->width,
+            window->height,
             (void*) render_spu_parent_window_id, NULL, hinstance, &render_spu );*/
     {
         CREATESTRUCT cs;
 
-        cs.lpCreateParams = window;
+        cs.lpCreateParams = &window->hWnd;
 
         cs.dwExStyle    = WS_EX_NOACTIVATE | WS_EX_NOPARENTNOTIFY;
         cs.lpszName     = WINDOW_NAME;
@@ -1113,8 +1037,8 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         cs.style        = window_style;
         cs.x            = window->x;
         cs.y            = window->y;
-        cs.cx           = window->BltInfo.width;
-        cs.cy           = window->BltInfo.height;
+        cs.cx           = window->width;
+        cs.cy           = window->height;
         cs.hwndParent   = (void*) render_spu_parent_window_id;
         cs.hMenu        = NULL;
         cs.hInstance    = hinstance;
@@ -1158,61 +1082,27 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         return GL_FALSE;
     }
 
-    window->visible = 1;
-
-    if (!showIt)
-    {
-        renderspu_SystemShowWindow( window, 0 );
-        if (window->BltInfo.height <= 0 || window->BltInfo.width <= 0)
-        {
-            renderspu_SystemWindowSize(window,
-                    window->BltInfo.width > 0 ? window->BltInfo.width : 4,
-                    window->BltInfo.height > 0 ? window->BltInfo.height : 4);
-        }
-    }
-    else
-    {
-#ifdef DEBUG_misha
-        crWarning( "Render SPU: Showing the window" );
-#else
+    if (showIt) {
+        /* NO ERROR CODE FOR SHOWWINDOW */
         crDebug( "Render SPU: Showing the window" );
-#endif
-        crDebug("renderspu_SystemCreateWindow: showwindow: %x", window->hWnd);
-    }
-
-    CRASSERT(!window->visible == !showIt);
-
-    /* Intel drivers require a window to be visible for proper 3D rendering,
-     * so set it visible and handle the visibility with visible regions (see below) */
-    if (window->BltInfo.Base.id != CR_RENDER_DEFAULT_WINDOW_ID)
-    {
+        crDebug("renderspu_SystemVBoxCreateWindow: showwindow: %x", window->hWnd);
         ShowWindow( window->hWnd, SW_SHOWNORMAL );
-    }
-    else
-    {
-        CRASSERT(!showIt);
-        /* dummy window is always hidden in any way */
     }
 
     //SetForegroundWindow( visual->hWnd );
 
     SetWindowPos( window->hWnd, HWND_TOP, window->x, window->y,
-                  window->BltInfo.width, window->BltInfo.height,
+                  window->width, window->height,
                   ( render_spu.fullscreen ? 
                     (SWP_SHOWWINDOW | SWP_NOSENDCHANGING | SWP_NOREDRAW | SWP_NOACTIVATE ) : SWP_NOACTIVATE 
                   ) );
     crDebug("Render SPU: SetWindowPos (%x, %d, %d, %d, %d)", window->hWnd, 
-            window->x, window->y, window->BltInfo.width, window->BltInfo.height);
+            window->x, window->y, window->width, window->height);
 
     if ( render_spu.fullscreen )
         ShowCursor( FALSE );
 
     window->device_context = GetDC( window->hWnd );
-    if (!window->device_context)
-    {
-        DWORD winEr = GetLastError();
-        crWarning("GetDC failed, winEr %d", winEr);
-    }
 
     crDebug( "Render SPU: Got the DC: 0x%x", window->device_context );
 
@@ -1222,44 +1112,9 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
         return GL_FALSE;
     }
 
-    /* set the window pointer data at the last step to ensure our WM_PAINT callback does not do anything until we are fully initialized */
-    {
-        LONG_PTR oldVal = SetWindowLongPtr(window->hWnd, GWLP_USERDATA, (LONG_PTR)window);
-        DWORD winEr = GetLastError();
-        Assert(!oldVal && winEr == NO_ERROR);
-    }
-
     return GL_TRUE;
 }
 
-static void renderspuWindowRgnApply(WindowInfo *window)
-{
-    HRGN hRgn = window->hRgn;
-    if (hRgn)
-    {
-        /* note: according to the docs, SetWindowRgn owns the regions after it is called,
-         * and the regions will be freed automatically when needed,
-         * i.e. the caller should not do that.
-         * this is why we need to make a copy of the regions to be passed in */
-
-        int result;
-        hRgn = CreateRectRgn(0, 0, 0, 0);
-        if (!hRgn)
-        {
-            WARN(("CreateRectRgn failed"));
-            return;
-        }
-
-        result =  CombineRgn(hRgn, window->hRgn, NULL, RGN_COPY);
-        if (result == ERROR)
-        {
-            WARN(("CombineRgn failed"));
-            return;
-        }
-    }
-
-    SetWindowRgn(window->hWnd, hRgn, true);
-}
 
 /* Either show or hide the render SPU's window. */
 void renderspu_SystemShowWindow( WindowInfo *window, GLboolean showIt )
@@ -1267,50 +1122,13 @@ void renderspu_SystemShowWindow( WindowInfo *window, GLboolean showIt )
     if (showIt)
     {
         crDebug("SHOW renderspu_SystemShowWindow: %x", window->hWnd);
-        renderspuWindowRgnApply(window);
+        ShowWindow( window->hWnd, SW_SHOWNORMAL );
     }
     else
     {
-        HRGN hRgn;
         crDebug("HIDE renderspu_SystemShowWindow: %x", window->hWnd);
-        hRgn = CreateRectRgn(0, 0, 0, 0);
-        SetWindowRgn(window->hWnd, hRgn, true);
-        /* note: according to the docs, SetWindowRgn owns the regions after it is called,
-         * and the regions will be freed automatically when needed,
-         * i.e. the caller should not do that */
+        ShowWindow( window->hWnd, SW_HIDE );
     }
-    window->visible = showIt;
-}
-
-void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
-{
-    /* the CR_RENDER_FORCE_PRESENT_MAIN_THREAD is actually inherited from cocoa backend impl,
-     * here it forces rendering in WinCmd thread rather than a Main thread.
-     * it is used for debugging only in any way actually.
-     * @todo: change to some more generic macro name */
-#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
-    const struct VBOXVR_SCR_COMPOSITOR *pCompositor;
-    /* we do not want to be blocked with the GUI thread here, so only draw her eif we are really able to do that w/o bllocking */
-    int rc = renderspuVBoxCompositorTryAcquire(window, &pCompositor);
-    if (RT_SUCCESS(rc))
-    {
-        renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0, false);
-        renderspuVBoxCompositorRelease(window);
-    }
-    else if (rc == VERR_SEM_BUSY)
-#endif
-    {
-        render_spu.self.Flush();
-        renderspuVBoxPresentBlitterEnsureCreated(window, 0);
-        RedrawWindow(window->hWnd, NULL, NULL, RDW_INTERNALPAINT);
-    }
-#ifndef CR_RENDER_FORCE_PRESENT_MAIN_THREAD
-    else
-    {
-        /* this is somewhat we do not expect */
-        crWarning("renderspuVBoxCompositorTryAcquire failed rc %d", rc);
-    }
-#endif
 }
 
 GLboolean renderspu_SystemCreateContext( VisualInfo *visual, ContextInfo *context, ContextInfo *sharedContext )
@@ -1344,39 +1162,6 @@ void renderspu_SystemDestroyContext( ContextInfo *context )
     context->hRC = NULL;
 }
 
-static GLboolean renderspuChkActivateSharedContext(ContextInfo *sharedContext)
-{
-    WindowInfo *window;
-
-    if (sharedContext->hRC)
-        return GL_TRUE;
-
-    CRASSERT(sharedContext->BltInfo.Base.id);
-
-    if (sharedContext->shared)
-        renderspuChkActivateSharedContext(sharedContext->shared);
-
-    window = renderspuGetDummyWindow(sharedContext->visual->visAttribs);
-    if (!window)
-    {
-        crError("renderspuChkActivateSharedContext: renderspuGetDummyWindow failed!");
-        return GL_FALSE;
-    }
-
-    CRASSERT(window->device_context);
-
-    crDebug( "Render SPU: renderspuChkActivateSharedContext: made the DC: 0x%x", window->device_context );
-
-    sharedContext->hRC = render_spu.ws.wglCreateContext(window->device_context);
-    if (!sharedContext->hRC)
-    {
-        crError( "Render SPU: (renderspuChkActivateSharedContext) Couldn't create the context for the window (error 0x%x)", GetLastError() );
-        return GL_FALSE;
-    }
-
-    return GL_TRUE;
-}
-
 void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, ContextInfo *context )
 {
     CRASSERT(render_spu.ws.wglMakeCurrent);
@@ -1393,12 +1178,12 @@ void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, Contex
             /*@todo Chromium has no correct code to remove window ids and associated info from 
              * various tables. This is hack which just hides the root case.
              */
-            crWarning("Recreating window in renderspu_SystemMakeCurrent\n");
+            crDebug("Recreating window in renderspu_SystemMakeCurrent\n");
             renderspu_SystemDestroyWindow( window );
             renderspu_SystemVBoxCreateWindow( context->visual, window->visible, window );
         }
 
-        if (0/*render_spu.render_to_app_window && nativeWindow*/)
+        if (render_spu.render_to_app_window && nativeWindow)
         {
             /* The render_to_app_window option 
              * is set and we've got a nativeWindow
@@ -1411,12 +1196,6 @@ void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, Contex
              * crappfaker and crserver to be able to share
              * the HDC values between processes.. FIXME!
              */
-            if (context->shared)
-            {
-                /* first make sure we have shared context created */
-                renderspuChkActivateSharedContext(context->shared);
-            }
-
             window->nativeWindow = (HDC) nativeWindow;
             if (context->hRC == 0) {
                 context->hRC = render_spu.ws.wglCreateContext( window->nativeWindow );
@@ -1425,48 +1204,30 @@ void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, Contex
                     crError( "(MakeCurrent) Couldn't create the context for the window (error 0x%x)", GetLastError() );
                 }
             }
-
-            if (context->shared
-                    && context->shared->hRC
-                    && context->hRC)
-            {
-                /* share lists */
-                render_spu.ws.wglShareLists(context->shared->hRC, context->hRC);
-            }
-
             render_spu.ws.wglMakeCurrent( window->nativeWindow, context->hRC );
         }
         else
         {
-            if (!context->hRC) {
-                CRASSERT(!nativeWindow);
-                if (context->shared)
-                {
-                    /* first make sure we have shared context created */
-                    renderspuChkActivateSharedContext(context->shared);
-                }
+            if (!context->visual->device_context) {
+                context->visual->device_context = GetDC( window->hWnd );
 
-                context->hRC = render_spu.ws.wglCreateContext(window->device_context);
+                crDebug( "Render SPU: MakeCurrent made the DC: 0x%x", context->visual->device_context );
+
+                if ( !bSetupPixelFormat( context->visual->device_context, context->visual->visAttribs ) )
+                {
+                    crError( "Render SPU: (MakeCurrent) Couldn't set up the device context!  Yikes!" );
+                }
+            }
+
+            if (!context->hRC) {
+                context->hRC = render_spu.ws.wglCreateContext(context->visual->device_context);
                 if (!context->hRC)
                 {
                     crError( "Render SPU: (MakeCurrent) Couldn't create the context for the window (error 0x%x)", GetLastError() );
                 }
 
-                if (context->shared
-                        && context->shared->hRC
-                        && context->hRC)
-                {
-                    /* share lists */
-                    BOOL bRc = render_spu.ws.wglShareLists(context->shared->hRC, context->hRC);
-                    if (!bRc)
-                    {
-                        DWORD winEr = GetLastError();
-                        crWarning("wglShareLists failed, winEr %d", winEr);
-                    }
-                }
-
                 /*Requery ext function pointers, we skip dummy ctx as it should never be used with ext functions*/
-                if (0 && context->BltInfo.Base.id)
+                if (0 && context->id)
                 {
                     int numFuncs, i;
                     SPUNamedFunctionTable ext_table[1000];
@@ -1491,7 +1252,7 @@ void renderspu_SystemMakeCurrent( WindowInfo *window, GLint nativeWindow, Contex
             }
 
             /*crDebug("MakeCurrent 0x%x, 0x%x", window->device_context, context->hRC);*/
-            if (!render_spu.ws.wglMakeCurrent(!nativeWindow ? window->device_context : window->redraw_device_context, context->hRC))
+            if (!render_spu.ws.wglMakeCurrent(window->device_context, context->hRC))
             {
                 DWORD err = GetLastError();
                 crError("Render SPU: (MakeCurrent) failed to make 0x%x, 0x%x current with 0x%x error.", window->device_context, context->hRC, err);
@@ -1525,8 +1286,8 @@ void renderspu_SystemWindowSize( WindowInfo *window, GLint w, GLint h )
         crDebug("Render SPU: SetWindowSize (%x, %d, %d, %d, %d)", window->hWnd, window->x, window->y, w, h);
     }
     /* save the new size */
-    window->BltInfo.width = w;
-    window->BltInfo.height = h;
+    window->width = w;
+    window->height = h;
 }
 
 
@@ -1568,35 +1329,21 @@ void renderspu_SystemWindowPosition( WindowInfo *window, GLint x, GLint y )
     /*SetWindowRgn(window->visual->hWnd, NULL, false);*/
 
     if (!SetWindowPos( window->hWnd, HWND_TOP, 
-            x, y, window->BltInfo.width, window->BltInfo.height, winprop )) {
-        crWarning("!!!FAILED!!! Render SPU: SetWindowPos (%x, %d, %d, %d, %d)", window->hWnd, x, y, window->BltInfo.width, window->BltInfo.height);
+            x, y, window->width, window->height, winprop )) {
+        crWarning("!!!FAILED!!! Render SPU: SetWindowPos (%x, %d, %d, %d, %d)", window->hWnd, x, y, window->width, window->height);
     } else {
         crDebug("Render SPU: SetWindowPos (%x, %d, %d, %d, %d)", window->hWnd,
-                x, y, window->BltInfo.width, window->BltInfo.height);
+                x, y, window->width, window->height);
     }
-    /* save the new position */
-    window->x = x;
-    window->y = y;
 }
 
-GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window)
-{
-    return GL_FALSE;
-}
-
-void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const GLint* pRects)
+void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, GLint* pRects)
 {
     GLint i;
     HRGN hRgn, hTmpRgn;
 
     CRASSERT(window);
     CRASSERT(window->visual);
-
-    if (window->hRgn)
-    {
-        DeleteObject(window->hRgn);
-        window->hRgn = NULL;
-    }
 
     hRgn = CreateRectRgn(0, 0, 0, 0);
 
@@ -1607,11 +1354,7 @@ void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const
         DeleteObject(hTmpRgn);
     }
 
-    window->hRgn = hRgn;
-
-    if (window->visible)
-        renderspuWindowRgnApply(window);
-
+    SetWindowRgn(window->hWnd, hRgn, true);
     crDebug("Render SPU: SetWindowRgn (%x, cRects=%i)", window->hWnd, cRects);
 }
 
@@ -1632,7 +1375,7 @@ void renderspu_SystemSwapBuffers( WindowInfo *w, GLint flags )
     int return_value;
 
     /* peek at the windows message queue */
-//    renderspuHandleWindowMessages( w->hWnd );
+    renderspuHandleWindowMessages( w->hWnd );
 
     /* render_to_app_window:
      * w->nativeWindow will only be non-zero if the
@@ -1641,18 +1384,14 @@ void renderspu_SystemSwapBuffers( WindowInfo *w, GLint flags )
      * structure.
      */
     if (render_spu.render_to_app_window && w->nativeWindow) {
-#ifdef VBOX_CR_SERVER_FORCE_WGL
         return_value = render_spu.ws.wglSwapBuffers( w->nativeWindow );
-#else
-        return_value = SwapBuffers( w->nativeWindow );
-#endif
     } else {
         /*
         HRGN hRgn1, hRgn2, hRgn3;
         HWND hWndParent;
         LONG ws;
 
-        hRgn1 = CreateRectRgn(0, 0, w->BltInfo.width, w->BltInfo.height);
+        hRgn1 = CreateRectRgn(0, 0, w->width, w->height);
         hRgn2 = CreateRectRgn(50, 50, 100, 100);
         hRgn3 = CreateRectRgn(0, 0, 0, 0);
         CombineRgn(hRgn3, hRgn1, hRgn2, RGN_DIFF);
@@ -1688,11 +1427,7 @@ void renderspu_SystemSwapBuffers( WindowInfo *w, GLint flags )
                 return_value, NULLREGION, SIMPLEREGION, COMPLEXREGION, ERROR);
         crDebug("rcClip(%d, %d, %d, %d)", rcClip.left, rcClip.top, rcClip.right, rcClip.bottom);
         */
-#ifdef VBOX_CR_SERVER_FORCE_WGL
         return_value = render_spu.ws.wglSwapBuffers( w->device_context );
-#else
-        return_value = SwapBuffers( w->device_context );
-#endif
     }
     if (!return_value)
     {
@@ -1707,24 +1442,4 @@ void renderspu_SystemSwapBuffers( WindowInfo *w, GLint flags )
 void renderspu_SystemReparentWindow(WindowInfo *window)
 {
     SetParent(window->hWnd, (HWND)render_spu_parent_window_id);
-}
-
-int renderspu_SystemInit()
-{
-    return VINF_SUCCESS;
-}
-
-int renderspu_SystemTerm()
-{
-    return VINF_SUCCESS;
-}
-
-void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext)
-{
-
-}
-
-uint32_t renderspu_SystemPostprocessFunctions(SPUNamedFunctionTable *aFunctions, uint32_t cFunctions, uint32_t cTable)
-{
-    return cFunctions;
 }

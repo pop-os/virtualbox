@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,142 +19,101 @@
 #ifndef __UIMachineWindow_h__
 #define __UIMachineWindow_h__
 
-/* Qt includes: */
-#include <QMainWindow>
+/* Local includes */
+#include "UIMachineDefs.h"
 
-/* GUI includes: */
-#include "QIWithRetranslateUI.h"
-#include "UIDefs.h"
-
-/* COM includes: */
-#include "COMEnums.h"
-#include "CMachine.h"
-
-/* Forward declarations: */
+/* Global forwards */
+class QWidget;
 class QGridLayout;
 class QSpacerItem;
 class QCloseEvent;
+
+/* Local forwards */
 class CSession;
 class UISession;
 class UIMachineLogic;
 class UIMachineView;
 
-/* Machine-window interface: */
-class UIMachineWindow : public QIWithRetranslateUI2<QMainWindow>
+class UIMachineWindow
 {
-    Q_OBJECT;
-
 public:
 
-    /* Factory functions to create/destroy machine-window: */
-    static UIMachineWindow* create(UIMachineLogic *pMachineLogic, ulong uScreenId = 0);
+    /* Factory function to create required machine window child: */
+    static UIMachineWindow* create(UIMachineLogic *pMachineLogic, UIVisualStateType visualStateType, ulong uScreenId = 0);
     static void destroy(UIMachineWindow *pWhichWindow);
 
-    /* Prepare/cleanup machine-window: */
-    void prepare();
-    void cleanup();
+    /* Abstract slot to close machine window: */
+    virtual void sltTryClose();
 
     /* Public getters: */
-    ulong screenId() const { return m_uScreenId; }
-    UIMachineView* machineView() const { return m_pMachineView; }
-    UIMachineLogic* machineLogic() const { return m_pMachineLogic; }
+    virtual UIMachineLogic* machineLogic() const { return m_pMachineLogic; }
+    virtual QWidget* machineWindow() const { return m_pMachineWindow; }
+    virtual UIMachineView* machineView() const { return m_pMachineView; }
     UISession* uisession() const;
     CSession& session() const;
-    CMachine machine() const;
 
-    /** Adjusts machine-window size to correspond current machine-view size.
-      * @param fAdjustPosition determines whether is it necessary to adjust position too.
-      * @note  Reimplemented in sub-classes. Base implementation does nothing. */
-    virtual void normalizeGeometry(bool fAdjustPosition) { Q_UNUSED(fAdjustPosition); }
-
-    /** Adjusts machine-view size to correspond current machine-window size. */
-    virtual void adjustMachineViewSize();
-
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-    /* Virtual caller for base class setMask: */
+    /* Public members: */
+    virtual void reshow() {}
     virtual void setMask(const QRegion &region);
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
-
-protected slots:
-
-    /* Session event-handlers: */
-    virtual void sltMachineStateChanged();
 
 protected:
 
-    /* Constructor: */
+    /* Machine window constructor/destructor: */
     UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId);
+    virtual ~UIMachineWindow();
 
-    /* Show stuff: */
-    virtual void showInNecessaryMode() = 0;
+    /* Protected getters: */
+    const QString& defaultWindowTitle() const { return m_strWindowTitlePrefix; }
 
-    /* Translate stuff: */
-    void retranslateUi();
+    /* Translate routine: */
+    virtual void retranslateUi();
 
-    /* Event handlers: */
+    /* Common machine window event handlers: */
 #ifdef Q_WS_X11
     bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
+#endif
     void closeEvent(QCloseEvent *pEvent);
 
-#ifdef Q_WS_MAC
-    /** Mac OS X: Handles native notifications.
-      * @param  strNativeNotificationName  Native notification name. */
-    virtual void handleNativeNotification(const QString & /* strNativeNotificationName */) {}
-#endif /* Q_WS_MAC */
-
     /* Prepare helpers: */
-    virtual void prepareSessionConnections();
-    virtual void prepareMainLayout();
-    virtual void prepareMenu() {}
-    virtual void prepareStatusBar() {}
-    virtual void prepareMachineView();
-    virtual void prepareVisualState() {}
+    virtual void prepareWindowIcon();
+    virtual void prepareConsoleConnections();
+    virtual void prepareMachineViewContainer();
+    //virtual void loadWindowSettings() {}
     virtual void prepareHandlers();
-    virtual void loadSettings() {}
 
     /* Cleanup helpers: */
-    virtual void saveSettings() {}
     virtual void cleanupHandlers();
-    virtual void cleanupVisualState() {}
-    virtual void cleanupMachineView();
-    virtual void cleanupStatusBar() {}
-    virtual void cleanupMenu() {}
-    virtual void cleanupMainLayout() {}
-    virtual void cleanupSessionConnections() {}
+    //virtual void saveWindowSettings() {}
+    //virtual void cleanupMachineViewContainer() {}
+    //virtual void cleanupConsoleConnections() {}
+    //virtual void cleanupWindowIcon() {}
 
-    /* Update stuff: */
+    /* Update routines: */
     virtual void updateAppearanceOf(int iElement);
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    void updateDbgWindows();
+    virtual void updateDbgWindows();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-    /* Helpers: */
-    const QString& defaultWindowTitle() const { return m_strWindowTitlePrefix; }
-    static Qt::Alignment viewAlignment(UIVisualStateType visualStateType);
+    /* Protected slots: */
+    virtual void sltMachineStateChanged();
 
-#ifdef Q_WS_MAC
-    /** Mac OS X: Handles native notifications.
-      * @param  strNativeNotificationName  Native notification name.
-      * @param  pWidget                    Widget, notification related to. */
-    static void handleNativeNotification(const QString &strNativeNotificationName, QWidget *pWidget);
-#endif /* Q_WS_MAC */
-
-    /* Variables: */
+    /* Protected variables: */
     UIMachineLogic *m_pMachineLogic;
-    UIMachineView *m_pMachineView;
-    QString m_strWindowTitlePrefix;
+    QWidget *m_pMachineWindow;
+
+    /* Virtual screen number: */
     ulong m_uScreenId;
-    QGridLayout *m_pMainLayout;
+
+    QGridLayout *m_pMachineViewContainer;
     QSpacerItem *m_pTopSpacer;
     QSpacerItem *m_pBottomSpacer;
     QSpacerItem *m_pLeftSpacer;
     QSpacerItem *m_pRightSpacer;
 
-    /* Friend classes: */
+    UIMachineView *m_pMachineView;
+    QString m_strWindowTitlePrefix;
+
     friend class UIMachineLogic;
-    friend class UIMachineLogicFullscreen;
-    friend class UIMachineLogicSeamless;
 };
 
 #endif // __UIMachineWindow_h__

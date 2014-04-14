@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -193,54 +193,6 @@ typedef enum RTSYSDMISTR
  * @param   cbBuf               The buffer size.
  */
 RTDECL(int) RTSystemQueryDmiString(RTSYSDMISTR enmString, char *pszBuf, size_t cbBuf);
-
-/** @name Flags for RTSystemReboot and RTSystemShutdown.
- * @{ */
-/** Reboot the system after shutdown. */
-#define RTSYSTEM_SHUTDOWN_REBOOT            UINT32_C(0)
-/** Reboot the system after shutdown.
- * The call may return VINF_SYS_MAY_POWER_OFF if the OS /
- * hardware combination may power off instead of halting. */
-#define RTSYSTEM_SHUTDOWN_HALT              UINT32_C(1)
-/** Power off the system after shutdown.
- * This may be equvivalent to a RTSYSTEM_SHUTDOWN_HALT on systems where we
- * cannot figure out whether the hardware/OS implements the actual powering
- * off.  If we can figure out that it's not supported, an
- * VERR_SYS_CANNOT_POWER_OFF error is raised. */
-#define RTSYSTEM_SHUTDOWN_POWER_OFF         UINT32_C(2)
-/** Power off the system after shutdown, or halt it if that's not possible. */
-#define RTSYSTEM_SHUTDOWN_POWER_OFF_HALT    UINT32_C(3)
-/** The shutdown action mask. */
-#define RTSYSTEM_SHUTDOWN_ACTION_MASK       UINT32_C(3)
-/** Unplanned shutdown/reboot. */
-#define RTSYSTEM_SHUTDOWN_UNPLANNED         UINT32_C(0)
-/** Planned shutdown/reboot. */
-#define RTSYSTEM_SHUTDOWN_PLANNED           RT_BIT_32(2)
-/** Force the system to shutdown/reboot regardless of objecting application
- *  or other stuff.  This flag might not be realized on all systems. */
-#define RTSYSTEM_SHUTDOWN_FORCE             RT_BIT_32(3)
-/** Parameter validation mask. */
-#define RTSYSTEM_SHUTDOWN_VALID_MASK        UINT32_C(0x0000000f)
-/** @} */
-
-/**
- * Shuts down the system.
- *
- * @returns IPRT status code on failure, on success it may or may not return
- *          depending on the OS.
- * @retval  VINF_SUCCESS
- * @retval  VINF_SYS_MAY_POWER_OFF
- * @retval  VERR_SYS_SHUTDOWN_FAILED
- * @retval  VERR_SYS_CANNOT_POWER_OFF
- *
- * @param   cMsDelay            The delay before the actual reboot.  If this is
- *                              not supported by the OS, an immediate reboot
- *                              will be performed.
- * @param   fFlags              Shutdown flags, see RTSYSTEM_SHUTDOWN_XXX.
- * @param   pszLogMsg           Message for the log and users about why we're
- *                              shutting down.
- */
-RTDECL(int) RTSystemShutdown(RTMSINTERVAL cMsDelay, uint32_t fFlags, const char *pszLogMsg);
 
 /** @} */
 

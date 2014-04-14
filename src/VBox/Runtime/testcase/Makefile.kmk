@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 #
 
 SUB_DEPTH = ../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 ifdef VBOX_WITH_TESTCASES
 
@@ -48,28 +48,20 @@ PROGRAMS += \
 	tstRTAvl \
 	tstRTBase64 \
 	tstRTBitOperations \
-	tstRTBigNum \
 	tstRTCidr \
 	tstRTCritSect \
-	tstRTCritSectRw \
-	tstRTCType \
 	tstRTDigest \
-	tstRTDigest-2 \
 	tstDir \
 	tstDir-2 \
 	tstDir-3 \
 	tstRTDvm \
 	tstEnv \
-	tstRTErrUnique \
+	tstErrUnique \
 	tstFile \
 	tstRTFileAio \
 	tstRTFileAppend-1 \
-	tstRTFileGetSize-1 \
-	tstRTFileModeStringToFlags \
 	tstFileLock \
 	tstFork \
-	tstRTFsQueries \
-	tstRTFilesystem \
 	tstRTGetOpt \
 	tstRTGetOptArgv \
 	tstHandleTable \
@@ -80,7 +72,6 @@ PROGRAMS += \
 	tstIprtMiniString \
 	tstLdr \
 	tstLdrLoad \
-	tstRTLdrVerifyPeImage \
 	tstRTList \
 	tstRTLockValidator \
 	tstLog \
@@ -88,21 +79,17 @@ PROGRAMS += \
 	tstRTMemEf \
 	tstRTMemCache \
 	tstRTMemPool \
-	tstRTMemWipe \
-	tstRTMemSafer \
 	tstMove \
-	tstRTMp-1 \
+	tstMp-1 \
 	tstOnce \
 	tstRTPath \
 	tstRTPipe \
 	tstRTPoll \
 	tstRTPrfIO \
 	tstRTProcCreateEx \
-	tstRTProcCreatePrf \
-	tstRTProcQueryUsername \
 	tstPrfRT \
 	tstRand \
-	tstRTReqPool \
+	tstRTFsQueries \
 	tstRTSemEventMulti \
 	tstSemMutex \
 	tstSemPingPong \
@@ -126,7 +113,7 @@ PROGRAMS += \
 	tstThread-1 \
 	tstRTThreadPoke \
 	tstRTThreadExecutionTime \
-	tstRTTime \
+	tstTime \
 	tstTime-2 \
 	tstTime-3 \
 	tstTime-4 \
@@ -137,13 +124,11 @@ PROGRAMS += \
 	tstRTUuid \
 	tstRTCircBuf \
 	tstRTManifest \
-	tstRTUri \
 	tstVector
 
 PROGRAMS.win += \
-	tstRTCritSectW32 \
-	tstRTLocalIpc \
 	tstRTProcWait \
+	tstRTCritSectW32 \
 	tstFileAppendWin-1 \
 	ntGetTimerResolution
 PROGRAMS.linux += \
@@ -154,12 +139,13 @@ PROGRAMS.linux += \
 	tstRTInlineAsmPIC3
 PROGRAMS.solaris += \
 	tstRTCoreDump
+PROGRAMS.l4 += \
+	tstIoCtl
 PROGRAMS.darwin += \
 	tstDarwinSched \
 	tstRTDarwinMachKernel
 ifdef VBOX_WITH_LIBCURL
  PROGRAMS += \
-	tstRTHttp \
 	tstRTS3
 endif
 if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
@@ -168,25 +154,11 @@ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
  	tstLdr-3 \
  	tstLdr-4 \
  	tstNoCrt-1 \
+	tstRTR0MemUserKernelDriver \
+	tstRTR0SemMutexDriver \
+	tstRTR0TimerDriver \
+	tstR0ThreadPreemptionDriver \
 	tstTSC
- if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
-  PROGRAMS += \
-  	tstRTR0MemUserKernelDriverHardened \
-  	tstRTR0SemMutexDriverHardened \
-  	tstRTR0TimerDriverHardened \
-  	tstR0ThreadPreemptionDriverHardened
-  DLLS     += \
-    	tstRTR0MemUserKernelDriver \
-  	tstRTR0SemMutexDriver \
-  	tstRTR0TimerDriver \
-  	tstR0ThreadPreemptionDriver
- else
-  PROGRAMS += \
-    	tstRTR0MemUserKernelDriver \
-  	tstRTR0SemMutexDriver \
-  	tstRTR0TimerDriver \
-  	tstR0ThreadPreemptionDriver
- endif
  SYSMODS += \
  	tstLdrObjR0 \
  	tstRTR0MemUserKernel \
@@ -195,10 +167,6 @@ if1of ($(KBUILD_TARGET_ARCH), amd64 x86)
  	tstR0ThreadPreemption
  ifdef VBOX_WITH_RAW_MODE
   SYSMODS += tstLdrObj
- endif
- if1of ($(KBUILD_TARGET), solaris darwin)
-  PROGRAMS += tstRTR0DbgKrnlInfoDriver
-  SYSMODS += tstRTR0DbgKrnlInfo
  endif
 endif
 if1of ($(VBOX_LDR_FMT)), lx pe)
@@ -212,7 +180,7 @@ endif
 #
 
 tstRTAssertCompile_TEMPLATE = VBOXR3TSTEXE
-tstRTAssertCompile_INSTTYPE = none
+tstRTAssertCompile_NOINST = true
 tstRTAssertCompile_SOURCES = tstRTAssertCompile.cpp
 
 tstRTAvl_TEMPLATE = VBOXR3TSTEXE
@@ -220,10 +188,6 @@ tstRTAvl_SOURCES = tstRTAvl.cpp
 
 tstRTBase64_TEMPLATE = VBOXR3TSTEXE
 tstRTBase64_SOURCES = tstRTBase64.cpp
-
-tstRTBigNum_TEMPLATE = VBOXR3TSTEXE
-tstRTBigNum_SOURCES = tstRTBigNum.cpp
-tstRTBigNum_SDKS = VBOX_OPENSSL
 
 tstRTBitOperations_TEMPLATE = VBOXR3TSTEXE
 tstRTBitOperations_SOURCES = tstRTBitOperations.cpp
@@ -239,51 +203,27 @@ tstRTCidr_SOURCES = tstRTCidr.cpp
 tstRTCritSect_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSect_SOURCES = tstRTCritSect.cpp
 
-tstRTCritSectRw_TEMPLATE = VBOXR3TSTEXE
-tstRTCritSectRw_SOURCES = tstRTCritSectRw.cpp
-
 tstRTCritSectW32_TEMPLATE = VBOXR3TSTEXE
 tstRTCritSectW32_SOURCES = tstRTCritSect.cpp
 tstRTCritSectW32_DEFS = TRY_WIN32_CRIT
 
-tstRTCType_TEMPLATE = VBOXR3TSTEXE
-tstRTCType_SOURCES = tstRTCType.cpp
-
-tstRTDigest_TEMPLATE = VBOXR3TSTEXE
 tstRTDigest_SOURCES = tstRTDigest.cpp
 
-tstRTDigest-2_TEMPLATE = VBOXR3TSTEXE
-ifndef VBOX_WITH_ALT_HASH_CODE
- tstRTDigest-2_DEFS = IPRT_WITHOUT_SHA512T224 IPRT_WITHOUT_SHA512T256
-endif
-tstRTDigest-2_SOURCES = tstRTDigest-2.cpp
-
-ifdef VBOX_WITH_LIBCURL
-tstRTHttp_TEMPLATE = VBOXR3TSTEXE
-tstRTHttp_SOURCES = tstRTHttp.cpp
-tstRTHttp_SDKS = VBOX_LIBCURL
-endif
-
-tstDir_TEMPLATE = VBOXR3TSTEXE
 tstDir_SOURCES = tstDir.cpp
 
-tstDir-2_TEMPLATE = VBOXR3TSTEXE
 tstDir-2_SOURCES = tstDir-2.cpp
 
-tstDir-3_TEMPLATE = VBOXR3TSTEXE
 tstDir-3_SOURCES = tstDir-3.cpp
 
-tstRTDvm_TEMPLATE = VBOXR3TSTEXE
 tstRTDvm_SOURCES = tstRTDvm.cpp
 
-tstEnv_TEMPLATE = VBOXR3TSTEXE
 tstEnv_SOURCES = tstEnv.cpp
 
-tstRTErrUnique_SOURCES = tstRTErrUnique.cpp
-tstRTErrUnique_INCS = $(IPRT_OUT_DIR)/
-tstRTErrUnique.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h # generate by ../Makefile.kmk
+# Note: tstErrUnique.cpp depends on a header generated by the makefile above us.
+tstErrUnique_SOURCES = tstErrUnique.cpp
+tstErrUnique_INCS = $(IPRT_OUT_DIR)/
+tstErrUnique.cpp_DEPS = $(IPRT_OUT_DIR)/errmsgdata.h
 
-tstFile_TEMPLATE = VBOXR3TSTEXE
 tstFile_SOURCES = tstFile.cpp
 
 tstRTFileAio_SOURCES = VBOXR3TSTEXE
@@ -292,26 +232,11 @@ tstRTFileAio_SOURCES = tstRTFileAio.cpp
 tstRTFileAppend-1_TEMPLATE = VBOXR3TSTEXE
 tstRTFileAppend-1_SOURCES = tstRTFileAppend-1.cpp
 
-tstRTFileGetSize-1_TEMPLATE = VBOXR3TSTEXE
-tstRTFileGetSize-1_SOURCES = tstRTFileGetSize-1.cpp
-
-tstRTFileModeStringToFlags_TEMPLATE = VBOXR3TSTEXE
-tstRTFileModeStringToFlags_SOURCES = tstRTFileModeStringToFlags.cpp
-
-tstFileAppendWin-1_TEMPLATE = VBOXR3TSTEXE
 tstFileAppendWin-1_SOURCES = tstFileAppendWin-1.cpp
 
-tstFileLock_TEMPLATE = VBOXR3TSTEXE
 tstFileLock_SOURCES = tstFileLock.cpp
 
-tstFork_TEMPLATE = VBOXR3TSTEXE
 tstFork_SOURCES = tstFork.cpp
-
-tstRTFsQueries_TEMPLATE = VBOXR3TSTEXE
-tstRTFsQueries_SOURCES = tstRTFsQueries.cpp
-
-tstRTFilesystem_TEMPLATE = VBOXR3TSTEXE
-tstRTFilesystem_SOURCES = tstRTFilesystem.cpp
 
 tstRTGetOpt_TEMPLATE = VBOXR3TSTEXE
 tstRTGetOpt_SOURCES = tstRTGetOpt.cpp
@@ -326,6 +251,8 @@ tstRTHeapOffset_SOURCES = tstRTHeapOffset.cpp
 
 tstRTHeapSimple_TEMPLATE = VBOXR3TSTEXE
 tstRTHeapSimple_SOURCES = tstRTHeapSimple.cpp
+
+tstIoCtl_SOURCES = tstIoCtl.cpp
 
 tstRTInlineAsm_TEMPLATE = VBOXR3TSTEXE
 tstRTInlineAsm_SOURCES = tstRTInlineAsm.cpp
@@ -346,10 +273,8 @@ tstIprtList_SOURCES = tstIprtList.cpp
 tstIprtMiniString_TEMPLATE = VBOXR3TSTEXE
 tstIprtMiniString_SOURCES = tstIprtMiniString.cpp
 
-tstLdr_TEMPLATE = VBOXR3TSTEXE
 tstLdr_SOURCES = tstLdr.cpp
 
-tstLdr-2_TEMPLATE = VBOXR3TSTEXE
 tstLdr-2_SOURCES = tstLdr-2.cpp
 tstLdr-2_DEFS = IN_DIS
 tstLdr-2_LIBS = \
@@ -380,7 +305,6 @@ ifdef VBOX_WITH_RAW_MODE
  endif
 endif # VBOX_WITH_RAW_MODE
 
-tstLdr-3_TEMPLATE = VBOXR3TSTEXE
 tstLdr-3_SOURCES = tstLdr-3.cpp
 tstLdr-3_DEFS = IN_DIS
 tstLdr-3_LIBS = \
@@ -421,31 +345,21 @@ ifeq ($(VBOX_LDR_FMT),lx)
 	$(TARGET_tstLdr-4Imp)
 endif
 
-tstLdr-4_TEMPLATE = VBOXR3TSTEXE
 tstLdr-4_SOURCES = tstLdr-4.cpp tstLdrDisasmTest.cpp
 tstLdr-4_DEFS = IN_DIS
 tstLdr-4_LIBS = \
 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB)
 
-tstLdrLoad_TEMPLATE = VBOXR3TSTEXE
 tstLdrLoad_SOURCES = tstLdrLoad.cpp
-
-tstRTLdrVerifyPeImage_TEMPLATE = VBOXR3TSTEXE
-tstRTLdrVerifyPeImage_SOURCES = tstRTLdrVerifyPeImage.cpp
 
 tstRTList_TEMPLATE = VBOXR3TSTEXE
 tstRTList_SOURCES = tstRTList.cpp
 
-tstRTLocalIpc_TEMPLATE = VBOXR3TSTEXE
-tstRTLocalIpc_SOURCES = tstRTLocalIpc.cpp
-
 tstRTLockValidator_TEMPLATE = VBOXR3TSTEXE
 tstRTLockValidator_SOURCES = tstRTLockValidator.cpp
 
-tstLog_TEMPLATE = VBOXR3TSTEXE
 tstLog_SOURCES = tstLog.cpp
 
-tstMemAutoPtr_TEMPLATE = VBOXR3TSTEXE
 tstMemAutoPtr_SOURCES = tstMemAutoPtr.cpp
 
 tstRTMemEf_TEMPLATE = VBOXR3TSTEXE
@@ -457,19 +371,10 @@ tstRTMemCache_SOURCES = tstRTMemCache.cpp
 tstRTMemPool_TEMPLATE = VBOXR3TSTEXE
 tstRTMemPool_SOURCES = tstRTMemPool.cpp
 
-tstRTMemWipe_TEMPLATE = VBOXR3TSTEXE
-tstRTMemWipe_SOURCES = tstRTMemWipe.cpp
-
-tstRTMemSafer_TEMPLATE = VBOXR3TSTEXE
-tstRTMemSafer_SOURCES = tstRTMemSafer.cpp
-
-tstMove_TEMPLATE = VBOXR3TSTEXE
 tstMove_SOURCES = tstMove.cpp
 
-tstRTMp-1_TEMPLATE = VBOXR3TSTEXE
-tstRTMp-1_SOURCES = tstRTMp-1.cpp
+tstMp-1_SOURCES = tstMp-1.cpp
 
-tstNoCrt-1_TEMPLATE = VBOXR3TSTEXE
 tstNoCrt-1_DEFS = RT_WITHOUT_NOCRT_WRAPPER_ALIASES
 tstNoCrt-1_SOURCES = \
 	tstNoCrt-1.cpp \
@@ -484,7 +389,6 @@ tstNoCrt-1_SOURCES = \
 	../common/string/strcpy.asm \
 	../common/string/strlen.asm
 
-tstOnce_TEMPLATE = VBOXR3TSTEXE
 tstOnce_SOURCES = tstOnce.cpp
 
 tstRTPath_TEMPLATE = VBOXR3TSTEXE
@@ -496,8 +400,11 @@ tstRTPipe_SOURCES = tstRTPipe.cpp
 tstRTPoll_TEMPLATE = VBOXR3TSTEXE
 tstRTPoll_SOURCES  = tstRTPoll.cpp
 
-tstPrfRT_TEMPLATE = VBOXR3TSTEXE
 tstPrfRT_SOURCES = tstPrfRT.cpp
+
+tstRand_SOURCES = tstRand.cpp
+
+tstRTFsQueries_SOURCES = tstRTFsQueries.cpp
 
 tstRTPrfIO_TEMPLATE = VBOXR3TSTEXE
 tstRTPrfIO_SOURCES = tstRTPrfIO.cpp
@@ -505,28 +412,12 @@ tstRTPrfIO_SOURCES = tstRTPrfIO.cpp
 tstRTProcCreateEx_TEMPLATE = VBOXR3TSTEXE
 tstRTProcCreateEx_SOURCES = tstRTProcCreateEx.cpp
 
-tstRTProcCreatePrf_TEMPLATE = VBOXR3TSTEXE
-tstRTProcCreatePrf_SOURCES = tstRTProcCreatePrf.cpp
-
-tstRTProcQueryUsername_TEMPLATE = VBOXR3TSTEXE
-tstRTProcQueryUsername_SOURCES = tstRTProcQueryUsername.cpp
-
-tstRTProcWait_TEMPLATE = VBOXR3TSTEXE
 tstRTProcWait_SOURCES = tstRTProcWait.cpp
 
-tstRTProcIsRunningByName_TEMPLATE = VBOXR3TSTEXE
 tstRTProcIsRunningByName_SOURCES = tstRTProcIsRunningByName.cpp
 
-tstRand_TEMPLATE = VBOXR3TSTEXE
-tstRand_SOURCES = tstRand.cpp
-
-tstRTReqPool_TEMPLATE = VBOXR3TSTEXE
-tstRTReqPool_SOURCES = tstRTReqPool.cpp
-
-tstRTS3_TEMPLATE = VBOXR3TSTEXE
 tstRTS3_SOURCES = tstRTS3.cpp
 
-tstSemMutex_TEMPLATE = VBOXR3TSTEXE
 tstSemMutex_SOURCES = tstSemMutex.cpp
 
 tstRTSemEventMulti_TEMPLATE = VBOXR3TSTEXE
@@ -535,7 +426,6 @@ tstRTSemEventMulti_SOURCES = tstRTSemEventMulti.cpp
 tstRTSemRW_TEMPLATE = VBOXR3TSTEXE
 tstRTSemRW_SOURCES = tstRTSemRW.cpp
 
-tstSemPingPong_TEMPLATE = VBOXR3TSTEXE
 tstSemPingPong_SOURCES = tstSemPingPong.cpp
 
 tstRTSemXRoads_TEMPLATE = VBOXR3TSTEXE
@@ -556,10 +446,8 @@ tstRTStrCatCopy_SOURCES = tstRTStrCatCopy.cpp
 tstRTStrFormat_TEMPLATE = VBOXR3TSTEXE
 tstRTStrFormat_SOURCES = tstRTStrFormat.cpp
 
-tstStrSimplePattern_TEMPLATE = VBOXR3TSTEXE
 tstStrSimplePattern_SOURCES = tstStrSimplePattern.cpp
 
-tstStrToNum_TEMPLATE = VBOXR3TSTEXE
 tstStrToNum_SOURCES = tstStrToNum.cpp
 
 tstRTStrVersion_TEMPLATE = VBOXR3TSTEXE
@@ -583,10 +471,8 @@ tstRTTemp_SOURCES = tstRTTemp.cpp
 tstRTDirCreateUniqueNumbered_TEMPLATE = VBOXR3TSTEXE
 tstRTDirCreateUniqueNumbered_SOURCES = tstRTDirCreateUniqueNumbered.cpp
 
-tstTermCallbacks_TEMPLATE = VBOXR3TSTEXE
 tstTermCallbacks_SOURCES = tstTermCallbacks.cpp
 
-tstThread-1_TEMPLATE = VBOXR3TSTEXE
 tstThread-1_SOURCES = tstThread-1.cpp
 
 tstRTThreadPoke_TEMPLATE = VBOXR3TSTEXE
@@ -595,22 +481,16 @@ tstRTThreadPoke_SOURCES = tstRTThreadPoke.cpp
 tstRTThreadExecutionTime_TEMPLATE = VBOXR3TSTEXE
 tstRTThreadExecutionTime_SOURCES = tstRTThreadExecutionTime.cpp
 
-tstRTTime_TEMPLATE = VBOXR3TSTEXE
-tstRTTime_SOURCES = tstRTTime.cpp
+tstTime_SOURCES = tstTime.cpp
 
-tstTime-2_TEMPLATE = VBOXR3TSTEXE
 tstTime-2_SOURCES = tstTime-2.cpp
 
-tstTime-3_TEMPLATE = VBOXR3TSTEXE
 tstTime-3_SOURCES = tstTime-3.cpp
 
-tstTime-4_TEMPLATE = VBOXR3TSTEXE
 tstTime-4_SOURCES = tstTime-4.cpp
 
-tstTimer_TEMPLATE = VBOXR3TSTEXE
 tstTimer_SOURCES = tstTimer.cpp
 
-tstTimerLR_TEMPLATE = VBOXR3TSTEXE
 tstTimerLR_SOURCES = tstTimerLR.cpp
 
 tstRTTimeSpec_TEMPLATE = VBOXR3TSTEXE
@@ -622,7 +502,6 @@ tstTSC_CXXFLAGS.linux += -O3
 tstRTUuid_TEMPLATE = VBOXR3TSTEXE
 tstRTUuid_SOURCES = tstRTUuid.cpp
 
-tstUtf8_TEMPLATE = VBOXR3TSTEXE
 tstUtf8_SOURCES = tstUtf8.cpp
 
 tstRTCircBuf_TEMPLATE = VBOXR3TSTEXE
@@ -630,9 +509,6 @@ tstRTCircBuf_SOURCES = tstRTCircBuf.cpp
 
 tstRTManifest_TEMPLATE = VBOXR3TSTEXE
 tstRTManifest_SOURCES = tstRTManifest.cpp
-
-tstRTUri_TEMPLATE = VBOXR3TSTEXE
-tstRTUri_SOURCES = tstRTUri.cpp
 
 tstRTCoreDump_TEMPLACE = VBOXR3TSTEXE
 tstRTCoreDump_SOURCES = tstRTCoreDump.cpp
@@ -646,28 +522,6 @@ tstVector_SOURCES = tstVector.cpp
 #
 
 ## @todo create a template for compiling the ring-0 part.
-tstRTR0DbgKrnlInfo_TEMPLATE = VBoxR0
-tstRTR0DbgKrnlInfo_INST = $(INST_TESTCASE)
-tstRTR0DbgKrnlInfo_DEFS = IN_RT_R0
-tstRTR0DbgKrnlInfo_SYSSUFF = .r0
-tstRTR0DbgKrnlInfo_SOURCES = tstRTR0DbgKrnlInfo.cpp
-tstRTR0DbgKrnlInfo_LIBS = $(PATH_STAGE_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
-if1of ($(VBOX_LDR_FMT), pe lx)
- tstRTR0DbgKrnlInfo_LIBS += $(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
-endif
-if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
- tstRTR0DbgKrnlInfoDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
- tstRTR0DbgKrnlInfoDriverHardened_NAME = tstRTR0DbgKrnlInfoDriver
- tstRTR0DbgKrnlInfoDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0DbgKrnlInfoDriver\"
- tstRTR0DbgKrnlInfoDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstRTR0DbgKrnlInfoDriver_TEMPLATE = VBoxR3TstDll
-else
- tstRTR0DbgKrnlInfoDriver_TEMPLATE = VBOXR3TSTEXE
-endif
-tstRTR0DbgKrnlInfoDriver_TEMPLATE = VBOXR3TSTEXE
-tstRTR0DbgKrnlInfoDriver_SOURCES = tstRTR0DbgKrnlInfoDriver.cpp
-
-
 tstRTR0MemUserKernel_TEMPLATE = VBoxR0
 tstRTR0MemUserKernel_INST = $(INST_TESTCASE)
 tstRTR0MemUserKernel_DEFS = IN_RT_R0
@@ -677,15 +531,7 @@ tstRTR0MemUserKernel_LIBS = $(PATH_STAGE_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
 if1of ($(VBOX_LDR_FMT), pe lx)
  tstRTR0MemUserKernel_LIBS += $(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
 endif
-if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
- tstRTR0MemUserKernelDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
- tstRTR0MemUserKernelDriverHardened_NAME = tstRTR0MemUserKernelDriver
- tstRTR0MemUserKernelDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0MemUserKernelDriver\"
- tstRTR0MemUserKernelDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstRTR0MemUserKernelDriver_TEMPLATE = VBoxR3TstDll
-else
- tstRTR0MemUserKernelDriver_TEMPLATE = VBOXR3TSTEXE
-endif
+tstRTR0MemUserKernelDriver_TEMPLATE = VBOXR3TSTEXE
 tstRTR0MemUserKernelDriver_SOURCES = tstRTR0MemUserKernelDriver.cpp
 
 
@@ -698,15 +544,7 @@ tstRTR0SemMutex_LIBS = $(PATH_STAGE_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
 if1of ($(VBOX_LDR_FMT), pe lx)
  tstRTR0SemMutex_LIBS += $(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
 endif
-if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
- tstRTR0SemMutexDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
- tstRTR0SemMutexDriverHardened_NAME = tstRTR0SemMutexDriver
- tstRTR0SemMutexDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0SemMutexDriver\"
- tstRTR0SemMutexDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstRTR0SemMutexDriver_TEMPLATE = VBoxR3TstDll
-else
- tstRTR0SemMutexDriver_TEMPLATE = VBOXR3TSTEXE
-endif
+tstRTR0SemMutexDriver_TEMPLATE = VBOXR3TSTEXE
 tstRTR0SemMutexDriver_SOURCES = tstRTR0SemMutexDriver.cpp
 
 
@@ -719,15 +557,7 @@ tstRTR0Timer_LIBS = $(PATH_STAGE_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
 if1of ($(VBOX_LDR_FMT), pe lx)
  tstRTR0Timer_LIBS += $(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
 endif
-if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
- tstRTR0TimerDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
- tstRTR0TimerDriverHardened_NAME = tstRTR0TimerDriver
- tstRTR0TimerDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstRTR0TimerDriver\"
- tstRTR0TimerDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstRTR0TimerDriver_TEMPLATE = VBoxR3TstDll
-else
- tstRTR0TimerDriver_TEMPLATE = VBOXR3TSTEXE
-endif
+tstRTR0TimerDriver_TEMPLATE = VBOXR3TSTEXE
 tstRTR0TimerDriver_SOURCES = tstRTR0TimerDriver.cpp
 
 
@@ -740,15 +570,7 @@ tstR0ThreadPreemption_LIBS = $(PATH_STAGE_LIB)/RuntimeR0$(VBOX_SUFF_LIB)
 if1of ($(VBOX_LDR_FMT), pe lx)
  tstR0ThreadPreemption_LIBS += $(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
 endif
-if defined(VBOX_WITH_HARDENING) && "$(KBUILD_TARGET)" == "win"
- tstR0ThreadPreemptionDriverHardened_TEMPLATE = VBoxR3HardenedTstExe
- tstR0ThreadPreemptionDriverHardened_NAME = tstR0ThreadPreemptionDriver
- tstR0ThreadPreemptionDriverHardened_DEFS = PROGRAM_NAME_STR=\"tstR0ThreadPreemptionDriver\"
- tstR0ThreadPreemptionDriverHardened_SOURCES = ../../HostDrivers/Support/SUPR3HardenedMainTemplate.cpp
- tstR0ThreadPreemptionDriver_TEMPLATE = VBoxR3TstDll
-else
- tstR0ThreadPreemptionDriver_TEMPLATE = VBOXR3TSTEXE
-endif
+tstR0ThreadPreemptionDriver_TEMPLATE = VBOXR3TSTEXE
 tstR0ThreadPreemptionDriver_SOURCES = tstR0ThreadPreemptionDriver.cpp
 
 
@@ -756,19 +578,18 @@ tstR0ThreadPreemptionDriver_SOURCES = tstR0ThreadPreemptionDriver.cpp
 # Odds and ends.
 #
 
-tstDarwinSched_TEMPLATE = VBOXR3TSTEXE
 tstDarwinSched_SOURCES = tstDarwinSched.cpp
 
 tstRTDarwinMachKernel_TEMPLATE = VBOXR3TSTEXE
 tstRTDarwinMachKernel_INCS     = ../include
 tstRTDarwinMachKernel_SOURCES  = \
 	tstRTDarwinMachKernel.cpp \
-	../r0drv/darwin/dbgkrnlinfo-r0drv-darwin.cpp
+	../r0drv/darwin/mach_kernel-r0drv-darwin.cpp
 
 ntGetTimerResolution_SOURCES = ntGetTimerResolution.cpp
-ntGetTimerResolution_SDKS.win = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK) VBOX_NTDLL
+ntGetTimerResolution_SDKS.win = WINPSDK W2K3DDK VBOX_NTDLL
 
 endif # VBOX_WITH_TESTCASES
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

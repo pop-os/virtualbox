@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,9 +47,9 @@ static DECLCALLBACK(int) tstThread1ReturnImmediately(RTTHREAD Thread, void *pvUs
 
 
 
-int main(int argc, char **argv)
+int main(int argc, const char * const *argv)
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * A simple testcase for the termination race we used to have.

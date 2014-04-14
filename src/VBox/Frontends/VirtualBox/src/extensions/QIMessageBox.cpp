@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,128 +17,460 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QClipboard>
-#include <QLabel>
-#include <QTextEdit>
-#include <QCheckBox>
-#include <QPushButton>
-
-/* GUI includes: */
-#include "QIMessageBox.h"
-#include "UIIconPool.h"
-#include "QILabel.h"
+/* VBox includes */
+#include "VBoxDefs.h"
+#include "VBoxGlobal.h"
 #include "QIArrowSplitter.h"
+#include "QIMessageBox.h"
+#include "QILabel.h"
 #include "QIDialogButtonBox.h"
+#include "UIIconPool.h"
+#ifdef Q_WS_MAC
+# include "VBoxSelectorWnd.h"
+#endif /* Q_WS_MAC */
 
-/* Other VBox includes: */
-#include <VBox/sup.h>
+/* Qt includes */
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPushButton>
+#include <QStyleOptionFocusRect>
+#include <QStylePainter>
+#include <QToolButton>
+#include <QKeyEvent>
+#include <QClipboard>
 
-QIMessageBox::QIMessageBox(const QString &strCaption, const QString &strMessage, AlertIconType iconType,
-                           int iButton1 /* = 0*/, int iButton2 /* = 0*/, int iButton3 /* = 0*/, QWidget *pParent /* = 0*/)
-    : QIDialog(pParent)
-    , m_iButton1(iButton1)
-    , m_iButton2(iButton2)
-    , m_iButton3(iButton3)
-    , m_iButtonEsc(0)
-    , m_iconType(iconType)
-    , m_strMessage(strMessage)
-    , m_iDetailsIndex(-1)
-    , m_fDone(false)
+#ifdef Q_WS_MAC
+# include "UIMachineWindowFullscreen.h"
+# include "UIMachineWindowSeamless.h"
+#endif /* Q_WS_MAC */
+
+/** @class QIMessageBox
+ *
+ *  The QIMessageBox class is a message box similar to QMessageBox.
+ *  It partly implements the QMessageBox interface and adds some enhanced
+ *  functionality.
+ */
+
+/**
+ *  See QMessageBox for details.
+ */
+QIMessageBox::QIMessageBox (const QString &aCaption, const QString &aText,
+                            Icon aIcon, int aButton0, int aButton1, int aButton2,
+                            QWidget *aParent, const char *aName, bool aModal)
+    : QIDialog (aParent)
+    , mText (aText)
+    , mDetailsIndex (-1)
+    , mWasDone (false)
+    , mWasPolished (false)
 {
-    /* Set caption: */
-    setWindowTitle(strCaption);
+#ifdef Q_WS_MAC
+    /* No sheets in another mode than normal for now. Firstly it looks ugly and
+     * secondly in some cases it is broken. */
+    if (vboxGlobal().isSheetWindowsAllowed(aParent))
+        setWindowFlags(Qt::Sheet);
+#endif /* Q_WS_MAC */
 
-    /* Prepare content: */
-    prepareContent();
-}
+    setWindowTitle (aCaption);
+    /* Necessary to later find some of the message boxes */
+    setObjectName (aName);
+    setModal (aModal);
 
-QString QIMessageBox::detailsText() const
-{
-    /* Return in html format: */
-    return m_pDetailsTextView->toHtml();
-}
+    mButton0 = aButton0;
+    mButton1 = aButton1;
+    mButton2 = aButton2;
 
-void QIMessageBox::setDetailsText(const QString &strText)
-{
-    /* Split details into paragraphs: */
-    AssertMsg(!strText.isEmpty(), ("Details text should NOT be empty!"));
-    QStringList paragraphs(strText.split("<!--EOP-->", QString::SkipEmptyParts));
-    AssertMsg(paragraphs.size() != 0, ("There should be at least one paragraph."));
-    /* Populate details list: */
-    foreach (const QString &strParagraph, paragraphs)
+    QVBoxLayout *layout = new QVBoxLayout (this);
+#ifdef Q_WS_MAC
+    layout->setContentsMargins (40, 11, 40, 11);
+#else /* !Q_WS_MAC */
+    VBoxGlobal::setLayoutMargin (layout, 11);
+#endif /* !Q_WS_MAC */
+    layout->setSpacing (10);
+    layout->setSizeConstraint (QLayout::SetMinimumSize);
+
+    QWidget *main = new QWidget();
+
+    QHBoxLayout *hLayout = new QHBoxLayout (main);
+    VBoxGlobal::setLayoutMargin (hLayout, 0);
+    hLayout->setSpacing (10);
+    layout->addWidget (main);
+
+    mIconLabel = new QLabel();
+    mIconLabel->setPixmap (standardPixmap (aIcon));
+    mIconLabel->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Minimum);
+    mIconLabel->setAlignment (Qt::AlignHCenter | Qt::AlignTop);
+    hLayout->addWidget (mIconLabel);
+
+    QVBoxLayout* messageVBoxLayout = new QVBoxLayout();
+    VBoxGlobal::setLayoutMargin (messageVBoxLayout, 0);
+    messageVBoxLayout->setSpacing (10);
+    hLayout->addLayout (messageVBoxLayout);
+
+    mTextLabel = new QILabel (aText);
+    mTextLabel->setAlignment (Qt::AlignLeft | Qt::AlignTop);
+    mTextLabel->setWordWrap (true);
+    QSizePolicy sp (QSizePolicy::Minimum, QSizePolicy::Minimum);
+    sp.setHeightForWidth (true);
+    mTextLabel->setSizePolicy (sp);
+    messageVBoxLayout->addWidget (mTextLabel);
+
+    mFlagCB_Main = new QCheckBox();
+    mFlagCB_Main->hide();
+    messageVBoxLayout->addWidget (mFlagCB_Main);
+
+    mDetailsVBox = new QWidget();
+    layout->addWidget (mDetailsVBox);
+
+    QVBoxLayout* detailsVBoxLayout = new QVBoxLayout (mDetailsVBox);
+    VBoxGlobal::setLayoutMargin (detailsVBoxLayout, 0);
+    detailsVBoxLayout->setSpacing (10);
+
+    mDetailsText = new QTextEdit();
     {
-        QStringList parts(strParagraph.split("<!--EOM-->", QString::KeepEmptyParts));
-        AssertMsg(parts.size() == 2, ("Each paragraph should consist of 2 parts."));
-        m_details << QPair<QString, QString>(parts[0], parts[1]);
+        /* Calculate the minimum size dynamically, approx.
+         * for 40 chars, 4 lines & 2 <table> margins */
+        QFontMetrics fm = mDetailsText->fontMetrics();
+        mDetailsText->setMinimumSize (fm.width ('m') * 40,
+                                      fm.lineSpacing() * 4 + 4 * 2);
     }
-    /* Update details container: */
-    updateDetailsContainer();
-}
+    mDetailsText->setReadOnly (true);
+    mDetailsText->setSizePolicy (QSizePolicy::Expanding,
+                                 QSizePolicy::MinimumExpanding);
+    mDetailsSplitter = new QIArrowSplitter (mDetailsText);
+    connect (mDetailsSplitter, SIGNAL (showBackDetails()), this, SLOT (detailsBack()));
+    connect (mDetailsSplitter, SIGNAL (showNextDetails()), this, SLOT (detailsNext()));
+    detailsVBoxLayout->addWidget (mDetailsSplitter);
 
-bool QIMessageBox::flagChecked() const
-{
-    return m_pFlagCheckBox->isChecked();
-}
+    mFlagCB_Details = new QCheckBox();
+    mFlagCB_Details->hide();
+    detailsVBoxLayout->addWidget (mFlagCB_Details);
 
-void QIMessageBox::setFlagChecked(bool fChecked)
-{
-    m_pFlagCheckBox->setChecked(fChecked);
-}
+    mSpacer = new QSpacerItem (0, 0);
+    layout->addItem (mSpacer);
 
-QString QIMessageBox::flagText() const
-{
-    return m_pFlagCheckBox->text();
-}
+    mButtonBox = new QIDialogButtonBox;
+    mButtonBox->setCenterButtons (true);
+    layout->addWidget (mButtonBox);
 
-void QIMessageBox::setFlagText(const QString &strText)
-{
-    /* Set check-box text: */
-    m_pFlagCheckBox->setText(strText);
-    /* And update check-box finally: */
-    updateCheckBox();
-}
+    mButtonEsc = 0;
 
-QString QIMessageBox::buttonText(int iButton) const
-{
-    switch (iButton)
+    mButton0PB = createButton (aButton0);
+    if (mButton0PB)
+        connect (mButton0PB, SIGNAL (clicked()), SLOT (done0()));
+    mButton1PB = createButton (aButton1);
+    if (mButton1PB)
+        connect (mButton1PB, SIGNAL (clicked()), SLOT (done1()));
+    mButton2PB = createButton (aButton2);
+    if (mButton2PB)
+        connect (mButton2PB, SIGNAL (clicked()), SLOT (done2()));
+
+    /* If this is an error message add an "Copy to clipboard" button for easier
+     * bug reports. */
+    if (aIcon == QIMessageBox::Critical)
     {
-        case 0: if (m_pButton1) return m_pButton1->text(); break;
-        case 1: if (m_pButton2) return m_pButton2->text(); break;
-        case 2: if (m_pButton3) return m_pButton3->text(); break;
+        QPushButton *pCopyButton = createButton(Copy);
+        pCopyButton->setToolTip(tr("Copy all errors to the clipboard"));
+        connect(pCopyButton, SIGNAL(clicked()), SLOT(copy()));
+    }
+
+    /* this call is a must -- it initializes mFlagCB and mSpacer */
+    setDetailsShown (false);
+}
+
+/**
+ *  Returns the text of the given message box button.
+ *  See QMessageBox::buttonText() for details.
+ *
+ *  @param aButton Button index (0, 1 or 2).
+ */
+QString QIMessageBox::buttonText (int aButton) const
+{
+    switch (aButton)
+    {
+        case 0: if (mButton0PB) return mButton0PB->text(); break;
+        case 1: if (mButton1PB) return mButton1PB->text(); break;
+        case 2: if (mButton2PB) return mButton2PB->text(); break;
         default: break;
     }
-    return QString();
+
+    return QString::null;
 }
 
-void QIMessageBox::setButtonText(int iButton, const QString &strText)
+/**
+ *  Sets the text of the given message box button.
+ *  See QMessageBox::setButtonText() for details.
+ *
+ *  @param aButton  Button index (0, 1 or 2).
+ *  @param aText    New button text.
+ */
+void QIMessageBox::setButtonText (int aButton, const QString &aText)
 {
-    switch (iButton)
+    switch (aButton)
     {
-        case 0: if (m_pButton1) m_pButton1->setText(strText); break;
-        case 1: if (m_pButton2) m_pButton2->setText(strText); break;
-        case 2: if (m_pButton3) m_pButton3->setText(strText); break;
+        case 0: if (mButton0PB) mButton0PB->setText (aText); break;
+        case 1: if (mButton1PB) mButton1PB->setText (aText); break;
+        case 2: if (mButton2PB) mButton2PB->setText (aText); break;
         default: break;
+    }
+}
+
+/** @fn QIMessageBox::flagText() const
+ *
+ *  Returns the text of the optional message box flag. If the flag is hidden
+ *  (by default) a null string is returned.
+ *
+ *  @see #setFlagText()
+ */
+
+/**
+ *  Sets the text for the optional message box flag (check box) that is
+ *  displayed under the message text. Passing the null string as the argument
+ *  will hide the flag. By default, the flag is hidden.
+ */
+void QIMessageBox::setFlagText (const QString &aText)
+{
+    if (aText.isNull())
+    {
+        mFlagCB->hide();
+    }
+    else
+    {
+        mFlagCB->setText (aText);
+        mFlagCB->show();
+        mFlagCB->setFocus();
+    }
+}
+
+/** @fn QIMessageBox::isFlagChecked() const
+ *
+ *  Returns true if the optional message box flag is checked and false
+ *  otherwise. By default, the flag is not checked.
+ *
+ *  @see #setFlagChecked()
+ *  @see #setFlagText()
+ */
+
+/** @fn QIMessageBox::setFlagChecked (bool)
+ *
+ *  Sets the state of the optional message box flag to a value of the argument.
+ *
+ *  @see #isFlagChecked()
+ *  @see #setFlagText()
+ */
+
+QPushButton *QIMessageBox::createButton (int aButton)
+{
+    if (aButton == 0)
+        return 0;
+
+    QString text;
+    QDialogButtonBox::ButtonRole role;
+    switch (aButton & ButtonMask)
+    {
+        case Ok:     text = tr("OK");     role = QDialogButtonBox::AcceptRole; break;
+        case Yes:    text = tr("Yes");    role = QDialogButtonBox::YesRole; break;
+        case No:     text = tr("No");     role = QDialogButtonBox::NoRole; break;
+        case Cancel: text = tr("Cancel"); role = QDialogButtonBox::RejectRole; break;
+        case Ignore: text = tr("Ignore"); role = QDialogButtonBox::AcceptRole; break;
+        case Copy:   text = tr("Copy");   role = QDialogButtonBox::ActionRole; break;
+        default:
+            AssertMsgFailed(("Type %d is not implemented", aButton));
+            return NULL;
+    }
+
+    QPushButton *b = mButtonBox->addButton (text, role);
+
+    if (aButton & Default)
+    {
+        b->setDefault (true);
+        b->setFocus();
+    }
+
+    if (aButton & Escape)
+        mButtonEsc = aButton & ButtonMask;
+
+    return b;
+}
+
+/** @fn QIMessageBox::detailsText() const
+ *
+ *  Returns the text of the optional details box. The details box is empty
+ *  by default, so QString::null will be returned.
+ *
+ *  @see #setDetailsText()
+ */
+
+/**
+ *  Sets the text for the optional details box. Note that the details box
+ *  is hidden by default, call #setDetailsShown(true) to make it visible.
+ *
+ *  @see #detailsText()
+ *  @see #setDetailsShown()
+ */
+void QIMessageBox::setDetailsText (const QString &aText)
+{
+    AssertMsg (!aText.isEmpty(), ("Details text should NOT be empty."));
+
+    QStringList paragraphs (aText.split ("<!--EOP-->", QString::SkipEmptyParts));
+    AssertMsg (paragraphs.size() != 0, ("There should be at least one paragraph."));
+
+    foreach (QString paragraph, paragraphs)
+    {
+        QStringList parts (paragraph.split ("<!--EOM-->", QString::KeepEmptyParts));
+        AssertMsg (parts.size() == 2, ("Each paragraph should consist of 2 parts."));
+        mDetailsList << QPair <QString, QString> (parts [0], parts [1]);
+    }
+
+    mDetailsSplitter->setMultiPaging (mDetailsList.size() > 1);
+    mDetailsIndex = 0;
+    refreshDetails();
+}
+
+QPixmap QIMessageBox::standardPixmap (QIMessageBox::Icon aIcon)
+{
+    QIcon icon;
+    switch (aIcon)
+    {
+        case QIMessageBox::Information:
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxInformationIcon, this);
+            break;
+        case QMessageBox::Warning:
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, this);
+            break;
+        case QIMessageBox::Critical:
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon, this);
+            break;
+        case QIMessageBox::Question:
+            icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxQuestionIcon, this);
+            break;
+        case QIMessageBox::GuruMeditation:
+            icon = QIcon(":/meditation_32px.png");
+            break;
+        default:
+            break;
+    }
+    if (!icon.isNull())
+    {
+        int size = style()->pixelMetric (QStyle::PM_MessageBoxIconSize, 0, this);
+        return icon.pixmap (size, size);
+    }else
+        return QPixmap();
+}
+
+void QIMessageBox::closeEvent (QCloseEvent *e)
+{
+    if (mWasDone)
+        e->accept();
+    else
+        e->ignore();
+}
+
+void QIMessageBox::showEvent (QShowEvent *e)
+{
+    if (!mWasPolished)
+    {
+        /* Polishing sub-widgets */
+        resize (minimumSizeHint());
+        qApp->processEvents();
+        mTextLabel->useSizeHintForWidth (mTextLabel->width());
+        mTextLabel->updateGeometry();
+        qApp->processEvents();
+        setFixedWidth (width());
+        mDetailsSplitter->toggleWidget();
+        mWasPolished = true;
+    }
+
+    QIDialog::showEvent (e);
+}
+
+void QIMessageBox::refreshDetails()
+{
+    /* Update message text iteself */
+    mTextLabel->setText (mText + mDetailsList [mDetailsIndex].first);
+    /* Update details table */
+    mDetailsText->setText (mDetailsList [mDetailsIndex].second);
+    setDetailsShown (!mDetailsText->toPlainText().isEmpty());
+
+    /* Update multi-paging system */
+    if (mDetailsList.size() > 1)
+    {
+        mDetailsSplitter->setButtonEnabled (true, mDetailsIndex < mDetailsList.size() - 1);
+        mDetailsSplitter->setButtonEnabled (false, mDetailsIndex > 0);
+    }
+
+    /* Update details label */
+    mDetailsSplitter->setName (mDetailsList.size() == 1 ? tr ("&Details") :
+        tr ("&Details (%1 of %2)").arg (mDetailsIndex + 1).arg (mDetailsList.size()));
+}
+
+/**
+ *  Sets the visibility state of the optional details box
+ *  to a value of the argument.
+ *
+ *  @see #isDetailsShown()
+ *  @see #setDetailsText()
+ */
+void QIMessageBox::setDetailsShown (bool aShown)
+{
+    if (aShown)
+    {
+        mFlagCB_Details->setVisible (mFlagCB_Main->isVisible());
+        mFlagCB_Details->setChecked (mFlagCB_Main->isChecked());
+        mFlagCB_Details->setText (mFlagCB_Main->text());
+        if (mFlagCB_Main->hasFocus())
+            mFlagCB_Details->setFocus();
+        mFlagCB_Main->setVisible (false);
+        mFlagCB = mFlagCB_Details;
+        mSpacer->changeSize (0, 0, QSizePolicy::Minimum, QSizePolicy::Minimum);
+    }
+
+    mDetailsVBox->setVisible (aShown);
+
+    if (!aShown)
+    {
+        mFlagCB_Main->setVisible (mFlagCB_Details->isVisible());
+        mFlagCB_Main->setChecked (mFlagCB_Details->isChecked());
+        mFlagCB_Main->setText (mFlagCB_Details->text());
+        if (mFlagCB_Details->hasFocus())
+            mFlagCB_Main->setFocus();
+        mFlagCB = mFlagCB_Main;
+        mSpacer->changeSize (0, 0, QSizePolicy::Minimum, QSizePolicy::Expanding);
+    }
+}
+
+void QIMessageBox::detailsBack()
+{
+    if (mDetailsIndex > 0)
+    {
+        -- mDetailsIndex;
+        refreshDetails();
+    }
+}
+
+void QIMessageBox::detailsNext()
+{
+    if (mDetailsIndex < mDetailsList.size() - 1)
+    {
+        ++ mDetailsIndex;
+        refreshDetails();
     }
 }
 
 void QIMessageBox::reject()
 {
-    if (m_iButtonEsc)
+    if (mButtonEsc)
     {
         QDialog::reject();
-        setResult(m_iButtonEsc & AlertButtonMask);
+        setResult (mButtonEsc & ButtonMask);
     }
 }
 
 void QIMessageBox::copy() const
 {
     /* Create the error string with all errors. First the html version. */
-    QString strError = "<html><body><p>" + m_strMessage + "</p>";
-    for (int i = 0; i < m_details.size(); ++i)
-        strError += m_details.at(i).first + m_details.at(i).second + "<br>";
+    QString strError = "<html><body><p>" + mText + "</p>";
+    for (int i = 0; i < mDetailsList.size(); ++i)
+        strError += mDetailsList.at(i).first + mDetailsList.at(i).second + "<br>";
     strError += "</body></html>";
     strError.remove(QRegExp("</+qt>"));
     strError = strError.replace(QRegExp("&nbsp;"), " ");
@@ -153,276 +485,5 @@ void QIMessageBox::copy() const
     /* Add the mime data to the global clipboard. */
     QClipboard *pClipboard = QApplication::clipboard();
     pClipboard->setMimeData(pMd);
-}
-
-void QIMessageBox::detailsBack()
-{
-    /* Make sure details-page index feats the bounds: */
-    if (m_iDetailsIndex <= 0)
-        return;
-
-    /* Advance the page index: */
-    --m_iDetailsIndex;
-    /* Update details-page: */
-    updateDetailsPage();
-}
-
-void QIMessageBox::detailsNext()
-{
-    /* Make sure details-page index feats the bounds: */
-    if (m_iDetailsIndex >= m_details.size() - 1)
-        return;
-
-    /* Advance the page index: */
-    ++m_iDetailsIndex;
-    /* Update details-page: */
-    updateDetailsPage();
-}
-
-void QIMessageBox::sltUpdateSize()
-{
-    /* Reactivate all the layouts: */
-    QList<QLayout*> layouts = findChildren<QLayout*>();
-    foreach (QLayout *pLayout, layouts)
-    {
-        pLayout->update();
-        pLayout->activate();
-    }
-    QCoreApplication::sendPostedEvents(0, QEvent::LayoutRequest);
-    /* And fix the size to the minimum possible: */
-    setFixedSize(minimumSizeHint());
-}
-
-void QIMessageBox::prepareContent()
-{
-    /* Create main-layout: */
-    QVBoxLayout *pMainLayout = new QVBoxLayout(this);
-    {
-        /* Configure layout: */
-#ifdef Q_WS_MAC
-        pMainLayout->setContentsMargins(40, 11, 40, 11);
-        pMainLayout->setSpacing(15);
-#else /* !Q_WS_MAC */
-        pMainLayout->setContentsMargins(11, 11, 11, 11);
-        pMainLayout->setSpacing(10);
-#endif /* !Q_WS_MAC */
-        /* Create top-layout: */
-        QHBoxLayout *pTopLayout = new QHBoxLayout;
-        {
-            /* Insert into parent layout: */
-            pMainLayout->addLayout(pTopLayout);
-            /* Configure layout: */
-            pTopLayout->setContentsMargins(0, 0, 0, 0);
-            pTopLayout->setSpacing(10);
-            /* Create icon-label: */
-            m_pIconLabel = new QLabel;
-            {
-                /* Insert into parent layout: */
-                pTopLayout->addWidget(m_pIconLabel);
-                /* Configure label: */
-                m_pIconLabel->setPixmap(standardPixmap(m_iconType, this));
-                m_pIconLabel->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-                m_pIconLabel->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
-            }
-            /* Create text-label: */
-            m_pTextLabel = new QILabel(m_strMessage);
-            {
-                /* Insert into parent layout: */
-                pTopLayout->addWidget(m_pTextLabel);
-                /* Configure label: */
-                m_pTextLabel->setWordWrap(true);
-                m_pTextLabel->setAlignment(Qt::AlignLeft | Qt::AlignTop);
-                QSizePolicy sizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
-                sizePolicy.setHeightForWidth(true);
-                m_pTextLabel->setSizePolicy(sizePolicy);
-            }
-        }
-        /* Create details text-view: */
-        m_pDetailsTextView = new QTextEdit;
-        {
-            /* Configure text-view: */
-            m_pDetailsTextView->setReadOnly(true);
-            m_pDetailsTextView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
-            /* Calculate the minimum size dynamically, approx. for 40 chars, 4 lines & 2 <table> margins: */
-            QFontMetrics fm = m_pDetailsTextView->fontMetrics();
-            m_pDetailsTextView->setMinimumSize(fm.width ('m') * 40, fm.lineSpacing() * 4 + 4 * 2);
-        }
-        /* Create details-container: */
-        m_pDetailsContainer = new QIArrowSplitter(m_pDetailsTextView);
-        {
-            /* Insert into parent layout: */
-            pMainLayout->addWidget(m_pDetailsContainer);
-            /* Configure container: */
-            connect(m_pDetailsContainer, SIGNAL(showBackDetails()), this, SLOT(detailsBack()));
-            connect(m_pDetailsContainer, SIGNAL(showNextDetails()), this, SLOT(detailsNext()));
-            connect(m_pDetailsContainer, SIGNAL(sigSizeChanged()), this, SLOT(sltUpdateSize()));
-            /* And update container finally: */
-            updateDetailsContainer();
-        }
-        /* Create details check-box: */
-        m_pFlagCheckBox = new QCheckBox;
-        {
-            /* Insert into parent layout: */
-            pMainLayout->addWidget(m_pFlagCheckBox, 0, Qt::AlignHCenter | Qt::AlignVCenter);
-            /* Configure check-box: */
-            m_pFlagCheckBox->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
-            /* And update check-box finally: */
-            updateCheckBox();
-        }
-        /* Create button-box: */
-        m_pButtonBox = new QIDialogButtonBox;
-        {
-            /* Insert into parent layout: */
-            pMainLayout->addWidget(m_pButtonBox);
-            /* Configure button-box: */
-            m_pButtonBox->setCenterButtons(true);
-            m_pButton1 = createButton(m_iButton1);
-            if (m_pButton1)
-                connect(m_pButton1, SIGNAL(clicked()), SLOT(done1()));
-            m_pButton2 = createButton(m_iButton2);
-            if (m_pButton2)
-                connect(m_pButton2, SIGNAL(clicked()), SLOT(done2()));
-            m_pButton3 = createButton(m_iButton3);
-            if (m_pButton3)
-                connect(m_pButton3, SIGNAL(clicked()), SLOT(done3()));
-            /* If this is a critical message add a "Copy to clipboard" button: */
-            if (m_iconType == AlertIconType_Critical)
-            {
-                QPushButton *pCopyButton = createButton(AlertButton_Copy);
-                pCopyButton->setToolTip(tr("Copy all errors to the clipboard"));
-                connect(pCopyButton, SIGNAL(clicked()), SLOT(copy()));
-            }
-        }
-    }
-}
-
-QPushButton* QIMessageBox::createButton(int iButton)
-{
-    /* Not for AlertButton_NoButton: */
-    if (iButton == 0)
-        return 0;
-
-    /* Prepare button text & role: */
-    QString strText;
-    QDialogButtonBox::ButtonRole role;
-    switch (iButton & AlertButtonMask)
-    {
-        case AlertButton_Ok:      strText = tr("OK");     role = QDialogButtonBox::AcceptRole; break;
-        case AlertButton_Cancel:  strText = tr("Cancel"); role = QDialogButtonBox::RejectRole; break;
-        case AlertButton_Choice1: strText = tr("Yes");    role = QDialogButtonBox::YesRole; break;
-        case AlertButton_Choice2: strText = tr("No");     role = QDialogButtonBox::NoRole; break;
-        case AlertButton_Copy:    strText = tr("Copy");   role = QDialogButtonBox::ActionRole; break;
-        default:
-            AssertMsgFailed(("Type %d is not supported!", iButton));
-            return 0;
-    }
-
-    /* Create push-button: */
-    QPushButton *pButton = m_pButtonBox->addButton(strText, role);
-
-    /* Configure <default> button: */
-    if (iButton & AlertButtonOption_Default)
-    {
-        pButton->setDefault(true);
-        pButton->setFocus();
-    }
-    /* Configure <escape> button: */
-    if (iButton & AlertButtonOption_Escape)
-        m_iButtonEsc = iButton & AlertButtonMask;
-
-    /* Return button: */
-    return pButton;
-}
-
-void QIMessageBox::polishEvent(QShowEvent *pPolishEvent)
-{
-    /* Tune our size: */
-    m_pTextLabel->useSizeHintForWidth(m_pTextLabel->width());
-    m_pTextLabel->updateGeometry();
-
-    /* Call to base-class: */
-    QIDialog::polishEvent(pPolishEvent);
-
-    /* Make the size fixed: */
-    setFixedSize(size());
-}
-
-void QIMessageBox::closeEvent(QCloseEvent *pCloseEvent)
-{
-    if (m_fDone)
-        pCloseEvent->accept();
-    else
-        pCloseEvent->ignore();
-}
-
-void QIMessageBox::updateDetailsContainer()
-{
-    /* Do we have details to show? */
-    m_pDetailsContainer->setVisible(!m_details.isEmpty());
-
-    /* Reset the details page index: */
-    m_iDetailsIndex = m_details.isEmpty() ? -1 : 0;
-
-    /* Do we have any details? */
-    if (m_details.isEmpty())
-        m_pDetailsContainer->setName(QString());
-    else if (m_details.size() == 1)
-        m_pDetailsContainer->setName(tr("&Details"));
-    else
-        m_pDetailsContainer->setMultiPaging(true);
-
-    /* Do we have any details? */
-    if (!m_details.isEmpty())
-        updateDetailsPage();
-}
-
-void QIMessageBox::updateDetailsPage()
-{
-    /* Make sure details-page index feats the bounds: */
-    if (m_iDetailsIndex < 0 || m_iDetailsIndex >= m_details.size())
-        return;
-
-    /* Update message text-label: */
-    m_pTextLabel->setText(m_strMessage + m_details[m_iDetailsIndex].first);
-
-    /* Update details text-view: */
-    m_pDetailsTextView->setText(m_details[m_iDetailsIndex].second);
-
-    /* Update details-container: */
-    if (m_details.size() > 1)
-    {
-        m_pDetailsContainer->setName(tr("&Details (%1 of %2)").arg(m_iDetailsIndex + 1).arg(m_details.size()));
-        m_pDetailsContainer->setButtonEnabled(true, m_iDetailsIndex < m_details.size() - 1);
-        m_pDetailsContainer->setButtonEnabled(false, m_iDetailsIndex > 0);
-    }
-}
-
-void QIMessageBox::updateCheckBox()
-{
-    /* Flag check-box with text is always visible: */
-    m_pFlagCheckBox->setVisible(!m_pFlagCheckBox->text().isEmpty());
-}
-
-/* static */
-QPixmap QIMessageBox::standardPixmap(AlertIconType iconType, QWidget *pWidget /* = 0*/)
-{
-    /* Prepare standard icon: */
-    QIcon icon;
-    switch (iconType)
-    {
-        case AlertIconType_Information:    icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxInformationIcon, pWidget); break;
-        case AlertIconType_Warning:        icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon, pWidget); break;
-        case AlertIconType_Critical:       icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon, pWidget); break;
-        case AlertIconType_Question:       icon = UIIconPool::defaultIcon(UIIconPool::MessageBoxQuestionIcon, pWidget); break;
-        case AlertIconType_GuruMeditation: icon = UIIconPool::iconSet(":/meditation_32px.png"); break;
-        default: break;
-    }
-    /* Return empty pixmap if nothing found: */
-    if (icon.isNull())
-        return QPixmap();
-    /* Return pixmap of standard size if possible: */
-    QStyle *pStyle = pWidget ? pWidget->style() : QApplication::style();
-    int iSize = pStyle->pixelMetric(QStyle::PM_MessageBoxIconSize, 0, pWidget);
-    return icon.pixmap(iSize, iSize);
 }
 

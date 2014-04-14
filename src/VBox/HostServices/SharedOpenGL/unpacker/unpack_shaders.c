@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,8 +39,8 @@ void crUnpackExtendShaderSource(void)
     GLsizei count = READ_DATA(12, GLsizei);
     GLint hasNonLocalLen = READ_DATA(16, GLsizei);
     GLint *pLocalLength = DATA_POINTER(20, GLint);
-    char **ppStrings = NULL;
-    GLsizei i, j, jUpTo;
+    const char **ppStrings = NULL;
+    GLsizei i;
     int pos=20+count*sizeof(*pLocalLength);
 
     if (hasNonLocalLen>0)
@@ -60,24 +60,9 @@ void crUnpackExtendShaderSource(void)
         {
             pLocalLength[i] -= 1;
         }
-
-        Assert(pLocalLength[i] > 0);
-        jUpTo = i == count -1 ? pLocalLength[i] - 1 : pLocalLength[i];
-        for (j = 0; j < jUpTo; ++j)
-        {
-            char *pString = ppStrings[i];
-
-            if (pString[j] == '\0')
-            {
-                Assert(j == jUpTo - 1);
-                pString[j] = '\n';
-            }
-        }
     }
 
-//    cr_unpackDispatch.ShaderSource(shader, count, ppStrings, length ? length : pLocalLength);
-    cr_unpackDispatch.ShaderSource(shader, 1, (const char**)ppStrings, 0);
-
+    cr_unpackDispatch.ShaderSource(shader, count, ppStrings, length ? length : pLocalLength);
     crFree(ppStrings);
 }
 
@@ -264,7 +249,7 @@ void crUnpackExtendGetAttachedShaders(void)
 
 void crUnpackExtendGetAttachedObjectsARB(void)
 {
-	VBoxGLhandleARB containerObj = READ_DATA(8, VBoxGLhandleARB);
+	GLhandleARB containerObj = READ_DATA(8, GLhandleARB);
 	GLsizei maxCount = READ_DATA(12, GLsizei);
 	SET_RETURN_PTR(16);
 	SET_WRITEBACK_PTR(24);
@@ -273,7 +258,7 @@ void crUnpackExtendGetAttachedObjectsARB(void)
 
 void crUnpackExtendGetInfoLogARB(void)
 {
-	VBoxGLhandleARB obj = READ_DATA(8, VBoxGLhandleARB);
+	GLhandleARB obj = READ_DATA(8, GLhandleARB);
 	GLsizei maxLength = READ_DATA(12, GLsizei);
 	SET_RETURN_PTR(16);
 	SET_WRITEBACK_PTR(24);
@@ -334,13 +319,4 @@ void crUnpackExtendGetUniformsLocations(void)
 	SET_RETURN_PTR(16);
 	SET_WRITEBACK_PTR(24);
 	cr_unpackDispatch.GetUniformsLocations(program, maxcbData, NULL, NULL);
-}
-
-void crUnpackExtendGetAttribsLocations(void)
-{
-    GLuint program = READ_DATA(8, GLuint);
-    GLsizei maxcbData = READ_DATA(12, GLsizei);
-    SET_RETURN_PTR(16);
-    SET_WRITEBACK_PTR(24);
-    cr_unpackDispatch.GetAttribsLocations(program, maxcbData, NULL, NULL);
 }

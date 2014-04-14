@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -220,7 +220,7 @@ HGCMThread::HGCMThread ()
     m_pFreeTail (NULL),
     m_handle (0)
 {
-    RT_ZERO(m_critsect);
+    memset (&m_critsect, 0, sizeof (m_critsect));
 }
 
 HGCMThread::~HGCMThread ()
@@ -306,7 +306,7 @@ int HGCMThread::Initialize (HGCMTHREADHANDLE handle, const char *pszThreadName, 
             else
             {
                 Log(("hgcmThreadCreate: FAILURE: Can't init a critical section for a hgcm worker thread.\n"));
-                RT_ZERO(m_critsect);
+                memset (&m_critsect, 0, sizeof (m_critsect));
             }
         }
         else

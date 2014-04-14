@@ -1,10 +1,10 @@
-/* $Id: SUPDrvInternal.h $ */
+/* $Revision: 71971 $ */
 /** @file
  * VirtualBox Support Driver - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,10 +33,8 @@
 *******************************************************************************/
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/sup.h>
-
 #include <iprt/assert.h>
-#include <iprt/list.h>
+#include <VBox/sup.h>
 #include <iprt/memobj.h>
 #include <iprt/time.h>
 #include <iprt/timer.h>
@@ -58,7 +56,7 @@
 #       define _interlockedbittestandset64    _interlockedbittestandset64_StupidDDKVsCompilerCrap
 #       define _interlockedbittestandreset64  _interlockedbittestandreset64_StupidDDKVsCompilerCrap
 #       pragma warning(disable : 4163)
-#       include <iprt/nt/nt.h>
+#       include <ntddk.h>
 #       pragma warning(default : 4163)
 #       undef  _InterlockedExchange
 #       undef  _InterlockedExchangeAdd
@@ -69,14 +67,16 @@
 #       undef  _interlockedbittestandset64
 #       undef  _interlockedbittestandreset64
 #   else
-#       include <iprt/nt/nt.h>
+#       include <ntddk.h>
 #   endif
 #   include <memory.h>
+#   define memcmp(a,b,c) mymemcmp(a,b,c)
+    int VBOXCALL mymemcmp(const void *, const void *, size_t);
     RT_C_DECLS_END
 
 #elif defined(RT_OS_LINUX)
 #   include <linux/version.h>
-#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+#   if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 #    include <generated/autoconf.h>
 #   else
 #    ifndef AUTOCONF_INCLUDED
@@ -175,13 +175,6 @@
  */
 #define OSDBGPRINT(a) SUPR0Printf a
 
-/** Debug printf macro shared with the ring-3 part. */
-#ifdef DEBUG_bird
-# define SUP_DPRINTF(a) SUPR0Printf a
-#else
-# define SUP_DPRINTF(a) do { } while (0)
-#endif
-
 
 /** @name Context values for the per-session handle tables.
  * The context value is used to distinguish between the different kinds of
@@ -203,16 +196,6 @@
 #define SUP_IS_SESSION_VALID(pSession)  \
     (   VALID_PTR(pSession) \
      && pSession->u32Cookie == BIRD_INV)
-
-/**
- * Validates a device extension pointer.
- *
- * @returns true/false accordingly.
- * @param   pDevExt     The device extension.
- */
-#define SUP_IS_DEVEXT_VALID(pDevExt) \
-    (   VALID_PTR(pDevExt)\
-     && pDevExt->u32Cookie == BIRD)
 
 
 /*******************************************************************************
@@ -309,8 +292,6 @@ typedef struct SUPDRVLDRIMAGE
     uint32_t                        uState;
     /** Usage count. */
     uint32_t volatile               cUsage;
-    /** Pointer to the device extension. */
-    struct SUPDRVDEVEXT            *pDevExt;
 #ifdef RT_OS_WINDOWS
     /** The section object for the loaded image (fNative=true). */
     void                           *pvNtSectionObj;
@@ -393,9 +374,9 @@ typedef struct SUPDRVOBJ
 } SUPDRVOBJ, *PSUPDRVOBJ;
 
 /** Magic number for SUPDRVOBJ::u32Magic. (Dame Agatha Mary Clarissa Christie). */
-#define SUPDRVOBJ_MAGIC             UINT32_C(0x18900915)
+#define SUPDRVOBJ_MAGIC             0x18900915
 /** Dead number magic for SUPDRVOBJ::u32Magic. */
-#define SUPDRVOBJ_MAGIC_DEAD        UINT32_C(0x19760112)
+#define SUPDRVOBJ_MAGIC_DEAD        0x19760112
 
 /**
  * The per-session object usage record.
@@ -421,38 +402,16 @@ typedef struct SUPDRVSESSION
     PSUPDRVDEVEXT                   pDevExt;
     /** Session Cookie. */
     uint32_t                        u32Cookie;
-    /** Set if is an unrestricted session, clear if restricted. */
-    bool                            fUnrestricted;
-
-    /** Set if we're in the hash table, clear if not.  Protected by the hash
-     * table spinlock. */
-    bool                            fInHashTable;
-    /** Reference counter. */
-    uint32_t volatile               cRefs;
-    /** Pointer to the next session with the same hash (common hash table).
-     *  Protected by the hash table spinlock. */
-    PSUPDRVSESSION                  pCommonNextHash;
-    /** Pointer to the OS specific session pointer, if available and in use.
-     * This is atomically set and cleared as the session is inserted and removed
-     * from the hash table (protected by the session hash table spinlock). */
-    PSUPDRVSESSION                 *ppOsSessionPtr;
-    /** The process (id) of the session. */
-    RTPROCESS                       Process;
-    /** Which process this session is associated with.
-     * This is NIL_RTR0PROCESS for kernel sessions and valid for user ones. */
-    RTR0PROCESS                     R0Process;
 
     /** The VM associated with the session. */
     PVM                             pVM;
     /** Handle table for IPRT semaphore wrapper APIs.
-     * This takes care of its own locking in an IRQ safe manner. */
+     * Programmable from R0 and R3. */
     RTHANDLETABLE                   hHandleTable;
     /** Load usage records. (protected by SUPDRVDEVEXT::mtxLdr) */
     PSUPDRVLDRUSAGE volatile        pLdrUsage;
 
-    /** Spinlock protecting the bundles, the GIP members and the
-     * fProcessCleanupDone flag.  It continues to be valid until the last
-     * reference to the session is released. */
+    /** Spinlock protecting the bundles and the GIP members. */
     RTSPINLOCK                      Spinlock;
     /** The ring-3 mapping of the GIP (readonly). */
     RTR0MEMOBJ                      GipMapObjR3;
@@ -467,22 +426,11 @@ typedef struct SUPDRVSESSION
     RTUID                           Uid;
     /** The group id of the session. (Set by the OS part.) */
     RTGID                           Gid;
-    /** Per session tracer specfic data. */
-    uintptr_t                       uTracerData;
-    /** The thread currently actively talking to the tracer. (One at the time!) */
-    RTNATIVETHREAD                  hTracerCaller;
-    /** List of tracepoint providers associated with the session
-     * (SUPDRVTPPROVIDER). */
-    RTLISTANCHOR                    TpProviders;
-    /** The number of providers in TpProviders. */
-    uint32_t                        cTpProviders;
-    /** The number of threads active in supdrvIOCtl_TracerUmodProbeFire or
-     *  SUPR0TracerUmodProbeFire. */
-    uint32_t volatile               cTpProbesFiring;
-    /** User tracepoint modules (PSUPDRVTRACKERUMOD). */
-    RTLISTANCHOR                    TpUmods;
-    /** The user tracepoint module lookup table. */
-    struct SUPDRVTRACERUMOD        *apTpLookupTable[32];
+    /** The process (id) of the session. */
+    RTPROCESS                       Process;
+    /** Which process this session is associated with.
+     * This is NIL_RTR0PROCESS for kernel sessions and valid for user ones. */
+    RTR0PROCESS                     R0Process;
 #ifndef SUPDRV_AGNOSTIC
 # if defined(RT_OS_DARWIN)
     /** Pointer to the associated org_virtualbox_SupDrvClient object. */
@@ -499,10 +447,6 @@ typedef struct SUPDRVSESSION
     /** Pointer to the next session with the same hash. */
     PSUPDRVSESSION                  pNextHash;
 # endif
-# if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_HARDENING)
-    /** Pointer to the process protection structure for this session. */
-    struct SUPDRVNTPROTECT         *pNtProtect;
-# endif
 #endif /* !SUPDRV_AGNOSTIC */
 } SUPDRVSESSION;
 
@@ -512,21 +456,18 @@ typedef struct SUPDRVSESSION
  */
 typedef struct SUPDRVDEVEXT
 {
-    /** Global cookie. */
-    uint32_t                        u32Cookie;
-    /** The actual size of SUPDRVSESSION. (SUPDRV_AGNOSTIC) */
-    uint32_t                        cbSession;
-
-    /** Spinlock to serialize the initialization, usage counting and objects.
-     * This is IRQ safe because we want to be able signal semaphores from the
-     * special HM context (and later maybe interrupt handlers), so we must be able
-     * to reference and dereference handles when IRQs are disabled. */
+    /** Spinlock to serialize the initialization, usage counting and objects. */
     RTSPINLOCK                      Spinlock;
 
     /** List of registered objects. Protected by the spinlock. */
     PSUPDRVOBJ volatile             pObjs;
     /** List of free object usage records. */
     PSUPDRVUSAGE volatile           pUsageFree;
+
+    /** Global cookie. */
+    uint32_t                        u32Cookie;
+    /** The actual size of SUPDRVSESSION. (SUPDRV_AGNOSTIC) */
+    uint32_t                        cbSession;
 
     /** Loader mutex.
      * This protects pvVMMR0, pvVMMR0Entry, pImages and SUPDRVSESSION::pLdrUsage. */
@@ -549,17 +490,6 @@ typedef struct SUPDRVDEVEXT
     /** Linked list of loaded code. */
     PSUPDRVLDRIMAGE volatile        pLdrImages;
 
-    /** @name These members for detecting whether an API caller is in ModuleInit.
-     * Certain APIs are only permitted from ModuleInit, like for instance tracepoint
-     * registration.
-     * @{ */
-    /** The image currently executing its ModuleInit. */
-    PSUPDRVLDRIMAGE volatile        pLdrInitImage;
-    /** The thread currently executing a ModuleInit function. */
-    RTNATIVETHREAD volatile         hLdrInitThread;
-    /** @} */
-
-
     /** GIP mutex.
      * Any changes to any of the GIP members requires ownership of this mutex,
      * except on driver init and termination. */
@@ -568,10 +498,6 @@ typedef struct SUPDRVDEVEXT
 #else
     RTSEMFASTMUTEX                  mtxGip;
 #endif
-    /** GIP spinlock protecting GIP members during Mp events.
-     * This is IRQ safe since be may get MP callbacks in contexts where IRQs are
-     * disabled (on some platforms). */
-    RTSPINLOCK                      hGipSpinlock;
     /** Pointer to the Global Info Page (GIP). */
     PSUPGLOBALINFOPAGE              pGip;
     /** The physical address of the GIP. */
@@ -595,57 +521,15 @@ typedef struct SUPDRVDEVEXT
     /** The head of the list of registered component factories. */
     PSUPDRVFACTORYREG               pComponentFactoryHead;
 
-    /** Lock protecting The tracer members. */
-    RTSEMFASTMUTEX                  mtxTracer;
-    /** List of tracer providers (SUPDRVTPPROVIDER). */
-    RTLISTANCHOR                    TracerProviderList;
-    /** List of zombie tracer providers (SUPDRVTPPROVIDER). */
-    RTLISTANCHOR                    TracerProviderZombieList;
-    /** Pointer to the tracer registration record. */
-    PCSUPDRVTRACERREG               pTracerOps;
-    /** The ring-0 session of a native tracer provider. */
-    PSUPDRVSESSION                  pTracerSession;
-    /** The image containing the tracer. */
-    PSUPDRVLDRIMAGE                 pTracerImage;
-    /** The tracer helpers. */
-    SUPDRVTRACERHLP                 TracerHlp;
-    /** The number of session having opened the tracer currently. */
-    uint32_t                        cTracerOpens;
-    /** The number of threads currently calling into the tracer. */
-    uint32_t volatile               cTracerCallers;
-    /** Set if the tracer is being unloaded. */
-    bool                            fTracerUnloading;
-    /** Hash table for user tracer modules (SUPDRVVTGCOPY). */
-    RTLISTANCHOR                    aTrackerUmodHash[128];
-
-    /** @name Session Handle Table.
-     * @{ */
-    /** Spinlock protecting apSessionHashTab, cSessions,
-     * SUPDRVSESSION::ppOsSessionPtr, SUPDRVSESSION::pCommonNextHash, and possibly
-     * others depending on the OS. */
-    RTSPINLOCK                      hSessionHashTabSpinlock;
-    /** Session hash table hash table.  The size of this table must make sense in
-     * comparison to GVMM_MAX_HANDLES. */
-    PSUPDRVSESSION                  apSessionHashTab[HC_ARCH_BITS == 64 ? 8191 : 127];
-    /** The number of open sessions. */
-    int32_t                         cSessions;
-    /** @} */
-
-    /*
-     * Note! The non-agnostic bits must be at the very end of the structure!
-     */
 #ifndef SUPDRV_AGNOSTIC
 # ifdef RT_OS_WINDOWS
-    /** Callback object returned by ExCreateCallback. */
+    /* Callback object returned by ExCreateCallback. */
     PCALLBACK_OBJECT                pObjPowerCallback;
-    /** Callback handle returned by ExRegisterCallback. */
+    /* Callback handle returned by ExRegisterCallback. */
     PVOID                           hPowerCallback;
 # endif
 #endif
 } SUPDRVDEVEXT;
-
-/** Calculates the index into g_apSessionHashTab.*/
-#define SUPDRV_SESSION_HASH(a_pid)     ( (a_pid) % RT_ELEMENTS(((SUPDRVDEVEXT *)NULL)->apSessionHashTab) )
 
 
 RT_C_DECLS_BEGIN
@@ -653,40 +537,10 @@ RT_C_DECLS_BEGIN
 /*******************************************************************************
 *   OS Specific Functions                                                      *
 *******************************************************************************/
-/**
- * Called to clean up the session structure before it's freed.
- *
- * @param   pDevExt             The device globals.
- * @param   pSession            The session that's being cleaned up.
- */
-void VBOXCALL   supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
-
-/**
- * Called to let the OS specfic code perform additional insertion work while
- * still under the protection of the hash table spinlock.
- *
- * @param   pDevExt             The device globals.
- * @param   pSession            The session that was inserted.
- * @param   pvUser              User context specified to the insert call.
- */
-void VBOXCALL   supdrvOSSessionHashTabInserted(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser);
-
-/**
- * Called to let the OS specfic code perform additional removal work while still
- * under the protection of the hash table spinlock.
- *
- * @param   pDevExt             The device globals.
- * @param   pSession            The session that was removed.
- * @param   pvUser              User context specified to the remove call.
- */
-void VBOXCALL   supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser);
-
 void VBOXCALL   supdrvOSObjInitCreator(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession);
 bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, const char *pszObjName, int *prc);
 bool VBOXCALL   supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt);
 int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
-bool VBOXCALL   supdrvOSSuspendVTxOnCpu(void);
-void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended);
 
 /**
  * Try open the image using the native loader.
@@ -702,16 +556,6 @@ void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended);
  *                              slashes on non-UNIX systems.
  */
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename);
-
-/**
- * Notification call indicating that a image is being opened for the first time.
- *
- * Can be used to log the load address of the image.
- *
- * @param   pDevExt             The device globals.
- * @param   pImage              The image handle.
- */
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 /**
  * Validates an entry point address.
@@ -750,47 +594,18 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 
-#if defined(RT_OS_DARWIN)
-int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
-#endif
-
-
 /*******************************************************************************
 *   Shared Functions                                                           *
 *******************************************************************************/
 /* SUPDrv.c */
-int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr, size_t cbReq);
+int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr);
 int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
-int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, bool fUnrestricted,  PSUPDRVSESSION *ppSession);
-int  VBOXCALL   supdrvSessionHashTabInsert(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVSESSION *ppOsSessionPtr, void *pvUser);
-int  VBOXCALL   supdrvSessionHashTabRemove(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser);
-PSUPDRVSESSION VBOXCALL supdrvSessionHashTabLookup(PSUPDRVDEVEXT pDevExt, RTPROCESS Process, RTR0PROCESS R0Process,
-                                                   PSUPDRVSESSION *ppOsSessionPtr);
-uint32_t VBOXCALL supdrvSessionRetain(PSUPDRVSESSION pSession);
-uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
-
-int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);
-void VBOXCALL   supdrvTracerTerm(PSUPDRVDEVEXT pDevExt);
-void VBOXCALL   supdrvTracerModuleUnloading(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
-void VBOXCALL   supdrvTracerCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
-int  VBOXCALL   supdrvIOCtl_TracerUmodRegister(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession,
-                                               RTR3PTR R3PtrVtgHdr, RTUINTPTR uVtgHdrAddr,
-                                               RTR3PTR R3PtrStrTab, uint32_t cbStrTab,
-                                               const char *pszModName, uint32_t fFlags);
-int  VBOXCALL   supdrvIOCtl_TracerUmodDeregister(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, RTR3PTR R3PtrVtgHdr);
-void  VBOXCALL  supdrvIOCtl_TracerUmodProbeFire(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVTRACERUSRCTX pCtx);
-int  VBOXCALL   supdrvIOCtl_TracerOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, uint32_t uCookie, uintptr_t uArg);
-int  VBOXCALL   supdrvIOCtl_TracerClose(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
-int  VBOXCALL   supdrvIOCtl_TracerIOCtl(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal);
-extern PFNRT    g_pfnSupdrvProbeFireKernel;
-DECLASM(void)   supdrvTracerProbeFireStub(void);
-
-#ifdef VBOX_WITH_NATIVE_DTRACE
-const SUPDRVTRACERREG * VBOXCALL supdrvDTraceInit(void);
-#endif
+int  VBOXCALL   supdrvCreateSession(PSUPDRVDEVEXT pDevExt, bool fUser, PSUPDRVSESSION *ppSession);
+void VBOXCALL   supdrvCloseSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+void VBOXCALL   supdrvCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 
 RT_C_DECLS_END
 

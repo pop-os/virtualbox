@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,7 +102,7 @@ typedef struct RTTIMER
  * Timer callback function for the non-omni timers.
  *
  * @returns HRTIMER_NORESTART or HRTIMER_RESTART depending on whether it's a one-shot or interval timer.
- * @param   pDpc                Pointer to the DPC.
+ * @param   pDpc                Pointer to the the DPC.
  * @param   pvUser              Pointer to our internal timer structure.
  * @param   SystemArgument1     Some system argument.
  * @param   SystemArgument2     Some system argument.
@@ -121,11 +121,7 @@ static void _stdcall rtTimerNtSimpleCallback(IN PKDPC pDpc, IN PVOID pvUser, IN 
      */
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
-    {
-        if (!pTimer->u64NanoInterval)
-            ASMAtomicWriteBool(&pTimer->fSuspended, true);
         pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pTimer->aSubTimers[0].iTick);
-    }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
 }
@@ -158,11 +154,7 @@ static void _stdcall rtTimerNtOmniSlaveCallback(IN PKDPC pDpc, IN PVOID pvUser, 
      */
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
-    {
-        if (!pTimer->u64NanoInterval)
-            ASMAtomicWriteBool(&pTimer->fSuspended, true);
         pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
-    }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
 }
@@ -207,8 +199,6 @@ static void _stdcall rtTimerNtOmniMasterCallback(IN PKDPC pDpc, IN PVOID pvUser,
                 &&  iCpuSelf != iCpu)
                 KeInsertQueueDpc(&pTimer->aSubTimers[iCpu].NtDpc, 0, 0);
 
-        if (!pTimer->u64NanoInterval)
-            ASMAtomicWriteBool(&pTimer->fSuspended, true);
         pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
     }
 
@@ -247,12 +237,9 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
 
     LARGE_INTEGER DueTime;
     DueTime.QuadPart = -(int64_t)(u64First / 100); /* Relative, NT time. */
-    if (!DueTime.QuadPart)
+    if (DueTime.QuadPart)
         DueTime.QuadPart = -1;
 
-    unsigned cSubTimers = pTimer->fOmniTimer ? pTimer->cSubTimers : 1;
-    for (unsigned iCpu = 0; iCpu < cSubTimers; iCpu++)
-        pTimer->aSubTimers[iCpu].iTick = 0;
     ASMAtomicWriteBool(&pTimer->fSuspended, false);
     KeSetTimerEx(&pTimer->NtTimer, DueTime, ulInterval, pMasterDpc);
     return VINF_SUCCESS;

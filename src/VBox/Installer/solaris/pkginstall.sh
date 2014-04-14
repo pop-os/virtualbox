@@ -1,5 +1,4 @@
 #!/bin/sh
-# $Id: pkginstall.sh $
 ## @file
 #
 # VirtualBox postinstall script for Solaris.
@@ -9,7 +8,7 @@
 #
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -30,18 +29,12 @@ else
     ISIPS=""
 fi
 
-# pkgadd -v
-if test "$1" = "--sh-trace" || test "$2" = "--sh-trace" || test "$3" = "--sh-trace"; then
-    set -x
-fi
-DEBUGOPT=`set -o 2>/dev/null | sed -ne 's/^xtrace *on$/--sh-trace/p'` # propagate pkgadd -v
-
 # If PKG_INSTALL_ROOT is undefined or NULL, redefine to '/' and carry on.
-${PKG_INSTALL_ROOT:=/}/opt/VirtualBox/vboxconfig.sh --preremove --fatal ${ISIPS} ${DEBUGOPT}
+${PKG_INSTALL_ROOT:=/}/opt/VirtualBox/vboxconfig.sh --preremove --fatal "$ISIPS"
 
 if test "$?" -eq 0; then
     echo "Installing new ones..."
-    $PKG_INSTALL_ROOT/opt/VirtualBox/vboxconfig.sh --postinstall ${DEBUGOPT}
+    $PKG_INSTALL_ROOT/opt/VirtualBox/vboxconfig.sh --postinstall
     rc=$?
     if test "$rc" -ne 0; then
         echo 1>&2 "## Completed but with errors."

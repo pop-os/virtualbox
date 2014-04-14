@@ -1,9 +1,10 @@
 Description: Disable notifications about outdated guest additions.
-Author: Felix Geyer <fgeyer@debian.org>
+Author: Felix Geyer <debfx-pkg@fobos.de>
 
+diff --git a/src/VBox/Additions/x11/VBoxClient/hostversion.cpp b/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
 --- a/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
 +++ b/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
-@@ -43,6 +43,8 @@ public:
+@@ -40,6 +40,8 @@ public:
  
      virtual int showNotify(const char *pcHeader, const char *pcBody)
      {

@@ -1,11 +1,11 @@
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
- * UIDownloaderExtensionPack class declaration
+ * UIDownloader for extension pack
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,23 +20,41 @@
 #define __UIDownloaderExtensionPack_h__
 
 /* Local includes: */
+#include "QIWithRetranslateUI.h"
 #include "UIDownloader.h"
 
-/* UIDownloader extension for background extension-pack downloading. */
+/* UIMiniProgressWidget reimplementation for the VirtualBox extension pack downloading: */
+class UIMiniProgressWidgetExtension : public QIWithRetranslateUI<UIMiniProgressWidget>
+{
+    Q_OBJECT;
+
+public:
+
+    /* Constructor: */
+    UIMiniProgressWidgetExtension(const QString &strSource, QWidget *pParent = 0);
+
+private:
+
+    /* Translating stuff: */
+    void retranslateUi();
+};
+
+/* UIDownloader reimplementation for the VirtualBox Extension Pack updating: */
 class UIDownloaderExtensionPack : public UIDownloader
 {
     Q_OBJECT;
 
-signals:
-
-    /* Notifies listeners about downloading finished: */
-    void sigDownloadFinished(const QString &strSource, const QString &strTarget, QString strHash);
-
 public:
 
-    /* Static stuff: */
-    static UIDownloaderExtensionPack* create();
-    static UIDownloaderExtensionPack* current();
+    /* Returns updater if exists: */
+    static UIDownloaderExtensionPack* current() { return m_pInstance; }
+    /* Start downloading: */
+    static void download(QObject *pListener);
+
+signals:
+
+    /* Notify listeners about extension pack downloaded: */
+    void sigNotifyAboutExtensionPackDownloaded(const QString &strSource, const QString &strTarget, QString strHash);
 
 private:
 
@@ -44,13 +62,14 @@ private:
     UIDownloaderExtensionPack();
     ~UIDownloaderExtensionPack();
 
-    /* Virtual stuff reimplementations: */
-    bool askForDownloadingConfirmation(UINetworkReply *pReply);
-    void handleDownloadedObject(UINetworkReply *pReply);
+    /* Virtual methods reimplementations: */
+    UIMiniProgressWidget* createProgressWidgetFor(QWidget *pParent) const;
+    bool askForDownloadingConfirmation(QNetworkReply *pReply);
+    void handleDownloadedObject(QNetworkReply *pReply);
+    void warnAboutNetworkError(const QString &strError);
 
     /* Variables: */
-    static UIDownloaderExtensionPack *m_spInstance;
+    static UIDownloaderExtensionPack *m_pInstance;
 };
 
 #endif // __UIDownloaderExtensionPack_h__
-

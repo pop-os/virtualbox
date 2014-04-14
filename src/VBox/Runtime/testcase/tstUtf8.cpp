@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,16 +29,15 @@
 *******************************************************************************/
 #include <iprt/string.h>
 
-#include <iprt/alloc.h>
-#include <iprt/assert.h>
-#include <iprt/env.h>
-#include <iprt/err.h>
-#include <iprt/rand.h>
-#include <iprt/stream.h>
-#include <iprt/test.h>
-#include <iprt/time.h>
 #include <iprt/uni.h>
 #include <iprt/uuid.h>
+#include <iprt/time.h>
+#include <iprt/stream.h>
+#include <iprt/alloc.h>
+#include <iprt/assert.h>
+#include <iprt/err.h>
+#include <iprt/rand.h>
+#include <iprt/test.h>
 
 
 
@@ -50,7 +49,7 @@ static RTUTF16 GetRandUtf16(void)
     RTUTF16 wc;
     do
     {
-        wc = (RTUTF16)RTRandU32Ex(1, 0xfffd);
+        wc = (RTUTF16)RTRandU32Ex(1, 0xffff);
     } while (wc >= 0xd800 && wc <= 0xdfff);
     return wc;
 }
@@ -104,8 +103,6 @@ static void test1(RTTEST hTest)
         }
         else if (rc == VERR_NO_TRANSLATION)
             RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VERR_NO_TRANSLATION.  This is probably as it should be.\n");
-        else if (rc == VWRN_NO_TRANSLATION)
-            RTTestPassed(hTest, "The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 returned VWRN_NO_TRANSLATION.  This is probably as it should be.\n");
         else
             RTTestFailed(hTest, "%d: The second part of random UTF-16 -> UTF-8 -> Current -> UTF-8 failed with return value %Rrc.",
                          __LINE__, rc);
@@ -785,7 +782,7 @@ void TstRTStrXCmp(RTTEST hTest)
 
 
 /**
- * Check UTF-8 encoding purging.
+ * Check case insensitivity.
  */
 void TstRTStrPurgeEncoding(RTTEST hTest)
 {
@@ -838,117 +835,6 @@ void TstRTStrPurgeEncoding(RTTEST hTest)
     }
 
     RTTestSubDone(hTest);
-}
-
-
-/**
- * Check string sanitising.
- */
-void TstRTStrPurgeComplementSet(RTTEST hTest)
-{
-    RTTestSub(hTest, "RTStrPurgeComplementSet");
-    RTUNICP aCpSet[]    = { '1', '5', 'w', 'w', 'r', 'r', 'e', 'f', 't', 't',
-                            '\0' };
-    RTUNICP aCpBadSet[] = { '1', '5', 'w', 'w', 'r', 'r', 'e', 'f', 't', 't',
-                            '7', '\0' };  /* Contains an incomplete pair. */
-    struct
-    {
-        const char *pcszIn;
-        const char *pcszOut;
-        PCRTUNICP   pcCpSet;
-        char        chReplacement;
-        ssize_t     cExpected;
-    }
-    aTests[] =
-    {
-        { "1234werttrew4321", "1234werttrew4321", aCpSet, '_', 0 },
-        { "123654wert\xc2\xa2trew\xe2\x82\xac""4321",
-          "123_54wert__trew___4321", aCpSet, '_', 3 },
-        { "hjhj8766", "????????", aCpSet, '?', 8 },
-        { "123\xf0\xa4\xad\xa2""4", "123____4", aCpSet, '_', 1 },
-        { "\xff", "\xff", aCpSet, '_', -1 },
-        { "____", "____", aCpBadSet, '_', -1 }
-    };
-    enum { MAX_IN_STRING = 256 };
-
-    for (unsigned i = 0; i < RT_ELEMENTS(aTests); ++i)
-    {
-        char szCopy[MAX_IN_STRING];
-        ssize_t cReplacements;
-        AssertRC(RTStrCopy(szCopy, RT_ELEMENTS(szCopy), aTests[i].pcszIn));
-        cReplacements = RTStrPurgeComplementSet(szCopy, aTests[i].pcCpSet,
-                                                aTests[i].chReplacement);
-        if (cReplacements != aTests[i].cExpected)
-            RTTestFailed(hTest, "#%u: expected %lld, actual %lld\n", i,
-                         (long long) aTests[i].cExpected,
-                         (long long) cReplacements);
-        if (strcmp(aTests[i].pcszOut, szCopy))
-            RTTestFailed(hTest, "#%u: expected %s, actual %s\n", i,
-                         aTests[i].pcszOut, szCopy);
-    }
-}
-
-
-/**
- * Check string sanitising.
- */
-void TstRTUtf16PurgeComplementSet(RTTEST hTest)
-{
-    RTTestSub(hTest, "RTUtf16PurgeComplementSet");
-    RTUNICP aCpSet[]    = { '1', '5', 'w', 'w', 'r', 'r', 'e', 'f', 't', 't',
-                            '\0' };
-    RTUNICP aCpBadSet[] = { '1', '5', 'w', 'w', 'r', 'r', 'e', 'f', 't', 't',
-                            '7', '\0' };  /* Contains an incomplete pair. */
-    struct
-    {
-        const char *pcszIn;
-        const char *pcszOut;
-        size_t      cwc;  /* Zero means the strings are Utf-8. */
-        PCRTUNICP   pcCpSet;
-        char        chReplacement;
-        ssize_t     cExpected;
-    }
-    aTests[] =
-    {
-        { "1234werttrew4321", "1234werttrew4321", 0, aCpSet, '_', 0 },
-        { "123654wert\xc2\xa2trew\xe2\x82\xac""4321",
-          "123_54wert_trew_4321", 0, aCpSet, '_', 3 },
-        { "hjhj8766", "????????", 0, aCpSet, '?', 8 },
-        { "123\xf0\xa4\xad\xa2""4", "123__4", 0, aCpSet, '_', 1 },
-        { "\xff\xff\0", "\xff\xff\0", 2, aCpSet, '_', -1 },
-        { "\xff\xff\0", "\xff\xff\0", 2, aCpSet, '_', -1 },
-        { "____", "____", 0, aCpBadSet, '_', -1 }
-    };
-    enum { MAX_IN_STRING = 256 };
-
-    for (unsigned i = 0; i < RT_ELEMENTS(aTests); ++i)
-    {
-        RTUTF16 wszInCopy[MAX_IN_STRING],  *pwszInCopy  = wszInCopy;
-        RTUTF16 wszOutCopy[MAX_IN_STRING], *pwszOutCopy = wszOutCopy;
-        ssize_t cReplacements;
-        if (!aTests[i].cwc)
-        {
-            AssertRC(RTStrToUtf16Ex(aTests[i].pcszIn, RTSTR_MAX, &pwszInCopy,
-                                    RT_ELEMENTS(wszInCopy), NULL));
-            AssertRC(RTStrToUtf16Ex(aTests[i].pcszOut, RTSTR_MAX, &pwszOutCopy,
-                                    RT_ELEMENTS(wszOutCopy), NULL));
-        }
-        else
-        {
-            Assert(aTests[i].cwc <= RT_ELEMENTS(wszInCopy));
-            memcpy(wszInCopy, aTests[i].pcszIn, aTests[i].cwc * 2);
-            memcpy(wszOutCopy, aTests[i].pcszOut, aTests[i].cwc * 2);
-        }
-        cReplacements = RTUtf16PurgeComplementSet(wszInCopy, aTests[i].pcCpSet,
-                                                  aTests[i].chReplacement);
-        if (cReplacements != aTests[i].cExpected)
-            RTTestFailed(hTest, "#%u: expected %lld, actual %lld\n", i,
-                         (long long) aTests[i].cExpected,
-                         (long long) cReplacements);
-        if (RTUtf16Cmp(wszInCopy, wszOutCopy))
-            RTTestFailed(hTest, "#%u: expected %ls, actual %ls\n", i,
-                         wszOutCopy, wszInCopy);
-    }
 }
 
 
@@ -1398,15 +1284,14 @@ static void testNoTransation(RTTEST hTest)
     RTTestSub(hTest, "VERR_NO_TRANSLATION/RTStrUtf8ToCurrentCP");
     char *pszOut;
     rc = RTStrUtf8ToCurrentCP(&pszOut, pszTest1);
-    if (rc == VINF_SUCCESS)
+    if (RT_SUCCESS(rc))
     {
         RTTESTI_CHECK(!strcmp(pszOut, pszTest1));
-        RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar (LC_ALL=%s LANG=%s LC_CTYPE=%s)\n",
-                      RTEnvGet("LC_ALL"), RTEnvGet("LANG"), RTEnvGet("LC_CTYPE"));
+        RTTestIPrintf(RTTESTLVL_ALWAYS, "CurrentCP is UTF-8 or similar\n");
         RTStrFree(pszOut);
     }
     else
-        RTTESTI_CHECK_MSG(rc == VWRN_NO_TRANSLATION || rc == VERR_NO_TRANSLATION, ("rc=%Rrc\n", rc));
+        RTTESTI_CHECK_RC(rc, VERR_NO_TRANSLATION);
 
     RTTestSub(hTest, "VERR_NO_TRANSLATION/RTUtf16ToLatin1");
     rc = RTUtf16ToLatin1(s_swzTest1, &pszOut);
@@ -1517,14 +1402,6 @@ int main()
     test3(hTest);
     TstRTStrXCmp(hTest);
     TstRTStrPurgeEncoding(hTest);
-    /* TstRT*PurgeComplementSet test conditions which assert. */
-    bool fAreQuiet = RTAssertAreQuiet(), fMayPanic = RTAssertMayPanic();
-    RTAssertSetQuiet(true);
-    RTAssertSetMayPanic(false);
-    TstRTStrPurgeComplementSet(hTest);
-    TstRTUtf16PurgeComplementSet(hTest);
-    RTAssertSetQuiet(fAreQuiet);
-    RTAssertSetMayPanic(fMayPanic);
     testStrEnd(hTest);
     testStrStr(hTest);
     testUtf8Latin1(hTest);

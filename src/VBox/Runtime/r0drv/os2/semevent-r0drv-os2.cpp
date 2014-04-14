@@ -33,14 +33,12 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include "the-os2-kernel.h"
-#include "internal/iprt.h"
 
 #include <iprt/semaphore.h>
+#include <iprt/alloc.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
-#include <iprt/mem.h>
-#include <iprt/lockvalidator.h>
 
 #include "internal/magics.h"
 
@@ -156,35 +154,12 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT hEventSem)
 }
 
 
-/**
- * Worker for RTSemEventWaitEx and RTSemEventWaitExDebug.
- *
- * @returns VBox status code.
- * @param   pThis           The event semaphore.
- * @param   fFlags          See RTSemEventWaitEx.
- * @param   uTimeout        See RTSemEventWaitEx.
- * @param   pSrcPos         The source code position of the wait.
- */
-static int rtR0SemEventOs2Wait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint64_t uTimeout,
-                               PCRTLOCKVALSRCPOS pSrcPos)
+static int rtSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies, bool fInterruptible)
 {
-    /*
-     * Validate and convert input.
-     */
-    if (!pThis)
-        return VERR_INVALID_HANDLE;
+    PRTSEMEVENTINTERNAL pThis = (PRTSEMEVENTINTERNAL)hEventSem;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENT_MAGIC, ("u32Magic=%RX32 pThis=%p\n", pThis->u32Magic, pThis), VERR_INVALID_HANDLE);
-    AssertReturn(RTSEMWAIT_FLAGS_ARE_VALID(fFlags), VERR_INVALID_PARAMETER);
 
-    ULONG cMsTimeout = rtR0SemWaitOs2ConvertTimeout(fFlags, uTimeout);
-    ULONG fBlock     = BLOCK_SPINLOCK;
-    if (!(fFlags & RTSEMWAIT_FLAGS_INTERRUPTIBLE))
-        fBlock |= BLOCK_UNINTERRUPTABLE;
-
-    /*
-     * Do the job.
-     */
     KernAcquireSpinLock(&pThis->Spinlock);
 
     int rc;
@@ -199,7 +174,9 @@ static int rtR0SemEventOs2Wait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint6
         ASMAtomicIncU32(&pThis->cWaiters);
 
         ULONG ulData = (ULONG)VERR_INTERNAL_ERROR;
-        rc = KernBlock((ULONG)pThis, cMsTimeout, fBlock,
+        rc = KernBlock((ULONG)pThis,
+                       cMillies == RT_INDEFINITE_WAIT ? SEM_INDEFINITE_WAIT : cMillies,
+                       BLOCK_SPINLOCK | (!fInterruptible ? BLOCK_UNINTERRUPTABLE : 0),
                        &pThis->Spinlock,
                        &ulData);
         switch (rc)
@@ -221,13 +198,13 @@ static int rtR0SemEventOs2Wait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint6
                 break;
 
             case ERROR_TIMEOUT:
-                Assert(cMsTimeout != SEM_INDEFINITE_WAIT);
+                Assert(cMillies != RT_INDEFINITE_WAIT);
                 ASMAtomicDecU32(&pThis->cWaiters);
                 rc = VERR_TIMEOUT;
                 break;
 
             case ERROR_INTERRUPT:
-                Assert(fFlags & RTSEMWAIT_FLAGS_INTERRUPTIBLE);
+                Assert(fInterruptible);
                 ASMAtomicDecU32(&pThis->cWaiters);
                 rc = VERR_INTERRUPTED;
                 break;
@@ -244,22 +221,15 @@ static int rtR0SemEventOs2Wait(PRTSEMEVENTINTERNAL pThis, uint32_t fFlags, uint6
 }
 
 
-RTDECL(int)  RTSemEventWaitEx(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout)
+RTDECL(int)  RTSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies)
 {
-#ifndef RTSEMEVENT_STRICT
-    return rtR0SemEventOs2Wait(hEventSem, fFlags, uTimeout, NULL);
-#else
-    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_NORMAL_API();
-    return rtR0SemEventOs2Wait(hEventSem, fFlags, uTimeout, &SrcPos);
-#endif
+    return rtSemEventWait(hEventSem, cMillies, false /* not interruptible */);
 }
 
 
-RTDECL(int)  RTSemEventWaitExDebug(RTSEMEVENT hEventSem, uint32_t fFlags, uint64_t uTimeout,
-                                   RTHCUINTPTR uId, RT_SRC_POS_DECL)
+RTDECL(int)  RTSemEventWaitNoResume(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies)
 {
-    RTLOCKVALSRCPOS SrcPos = RTLOCKVALSRCPOS_INIT_DEBUG_API();
-    return rtR0SemEventOs2Wait(hEventSem, fFlags, uTimeout, &SrcPos);
+    return rtSemEventWait(hEventSem, cMillies, true /* interruptible */);
 }
 
 

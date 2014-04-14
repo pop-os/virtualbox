@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,6 @@
 #include <iprt/mem.h>
 #include <iprt/err.h>
 #include <iprt/assert.h>
-#include <iprt/x86.h>
 
 #ifdef RT_OS_WINDOWS
 # include <Windows.h>
@@ -66,13 +65,6 @@ RT_C_DECLS_END
 *   Internal Functions                                                         *
 *******************************************************************************/
 DECLASM(int32_t) x861_Test1(void);
-DECLASM(int32_t) x861_Test2(void);
-DECLASM(int32_t) x861_Test3(void);
-DECLASM(int32_t) x861_Test4(void);
-DECLASM(int32_t) x861_Test5(void);
-DECLASM(int32_t) x861_Test6(void);
-DECLASM(int32_t) x861_Test7(void);
-DECLASM(int32_t) x861_TestFPUInstr1(void);
 
 
 
@@ -103,58 +95,44 @@ static void sigHandler(int iSig, siginfo_t *pSigInfo, void *pvSigCtx)
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext->__ss.__rsp;
     uintptr_t   uTrapNo = pCtx->uc_mcontext->__es.__trapno;
     uintptr_t   uErr    = pCtx->uc_mcontext->__es.__err;
-    uintptr_t   uCr2    = pCtx->uc_mcontext->__es.__faultvaddr;
 
 # elif defined(RT_ARCH_AMD64) && defined(RT_OS_FREEBSD)
     uintptr_t  *puPC    = (uintptr_t *)&pCtx->uc_mcontext.mc_rip;
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext.mc_rsp;
     uintptr_t   uTrapNo = ~(uintptr_t)0;
     uintptr_t   uErr    = ~(uintptr_t)0;
-    uintptr_t   uCr2    = ~(uintptr_t)0;
 
 # elif defined(RT_ARCH_AMD64)
     uintptr_t  *puPC    = (uintptr_t *)&pCtx->uc_mcontext.gregs[REG_RIP];
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext.gregs[REG_RSP];
     uintptr_t   uTrapNo = pCtx->uc_mcontext.gregs[REG_TRAPNO];
     uintptr_t   uErr    = pCtx->uc_mcontext.gregs[REG_ERR];
-    uintptr_t   uCr2    = pCtx->uc_mcontext.gregs[REG_CR2];
 
 # elif defined(RT_ARCH_X86) && defined(RT_OS_DARWIN)
     uintptr_t  *puPC    = (uintptr_t *)&pCtx->uc_mcontext->__ss.__eip;
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext->__ss.__esp;
     uintptr_t   uTrapNo = pCtx->uc_mcontext->__es.__trapno;
     uintptr_t   uErr    = pCtx->uc_mcontext->__es.__err;
-    uintptr_t   uCr2    = pCtx->uc_mcontext->__es.__faultvaddr;
 
 # elif defined(RT_ARCH_X86) && defined(RT_OS_FREEBSD)
     uintptr_t  *puPC    = (uintptr_t *)&pCtx->uc_mcontext.mc_eip;
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext.mc_esp;
     uintptr_t   uTrapNo = ~(uintptr_t)0;
     uintptr_t   uErr    = ~(uintptr_t)0;
-    uintptr_t   uCr2    = ~(uintptr_t)0;
 
 # elif defined(RT_ARCH_X86)
     uintptr_t  *puPC    = (uintptr_t *)&pCtx->uc_mcontext.gregs[REG_EIP];
     uintptr_t  *puSP    = (uintptr_t *)&pCtx->uc_mcontext.gregs[REG_ESP];
     uintptr_t   uTrapNo = pCtx->uc_mcontext.gregs[REG_TRAPNO];
     uintptr_t   uErr    = pCtx->uc_mcontext.gregs[REG_ERR];
-#  ifdef REG_CR2 /** @todo ... */
-    uintptr_t   uCr2    = pCtx->uc_mcontext.gregs[REG_CR2];
-#  else
-    uintptr_t   uCr2    = ~(uintptr_t)0;
-#  endif
 
 # else
     uintptr_t  *puPC    = NULL;
     uintptr_t  *puSP    = NULL;
     uintptr_t   uTrapNo = ~(uintptr_t)0;
     uintptr_t   uErr    = ~(uintptr_t)0;
-    uintptr_t   uCr2    = ~(uintptr_t)0;
 # endif
-    if (uTrapNo == X86_XCPT_PF)
-        RTAssertMsg2("tstX86-1: Trap #%#04x err=%#06x at %p / %p\n", uTrapNo, uErr, *puPC, uCr2);
-    else
-        RTAssertMsg2("tstX86-1: Trap #%#04x err=%#06x at %p\n", uTrapNo, uErr, *puPC);
+    RTAssertMsg2("tstX86-1: Trap #%#04x err=%#06x at %p\n", uTrapNo, uErr, *puPC);
 
     PCTRAPINFO pTrapInfo = findTrapInfo(*puPC, *puSP);
     if (pTrapInfo)
@@ -178,8 +156,6 @@ static void sigHandler(int iSig, siginfo_t *pSigInfo, void *pvSigCtx)
 #else
 
 #endif
-
-
 
 int main()
 {
@@ -220,49 +196,10 @@ int main()
         /*
          * Do the testing.
          */
-        int32_t rc;
-#if 0
-        RTTestSub(hTest, "Misc 1");
-        rc = x861_Test1();
+        RTTestSub(hTest, "part 1");
+        int32_t rc = x861_Test1();
         if (rc != 0)
             RTTestFailed(hTest, "x861_Test1 -> %d", rc);
-
-        RTTestSub(hTest, "Prefixes and groups");
-        rc = x861_Test2();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test2 -> %d", rc);
-
-        RTTestSub(hTest, "fxsave / fxrstor and #PFs");
-        rc = x861_Test3();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test3 -> %d", rc);
-
-        RTTestSub(hTest, "Multibyte NOPs");
-        rc = x861_Test4();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test4 -> %d", rc);
-//#endif
-
-        RTTestSub(hTest, "Odd encodings and odd ends");
-        rc = x861_Test5();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test5 -> %d", rc);
-
-//#if 0
-        RTTestSub(hTest, "Odd floating point encodings");
-        rc = x861_Test6();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test5 -> %d", rc);
-
-        RTTestSub(hTest, "Floating point exceptions ++");
-        rc = x861_Test7();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_Test6 -> %d", rc);
-#endif
-
-        rc = x861_TestFPUInstr1();
-        if (rc != 0)
-            RTTestFailed(hTest, "x861_TestFPUInstr1 -> %d", rc);
     }
 
     return RTTestSummaryAndDestroy(hTest);

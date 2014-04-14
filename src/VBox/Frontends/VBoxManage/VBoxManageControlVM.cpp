@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,8 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
+#include <VBox/com/EventQueue.h>
+
 #include <VBox/com/VirtualBox.h>
 
 #include <iprt/ctype.h>
@@ -64,7 +66,7 @@ static unsigned parseNum(const char *psz, unsigned cMaxNum, const char *name)
 
 unsigned int getMaxNics(IVirtualBox* vbox, IMachine* mach)
 {
-    ComPtr<ISystemProperties> info;
+    ComPtr <ISystemProperties> info;
     ChipsetType_T aChipset;
     ULONG NetworkAdapterCount = 0;
     HRESULT rc;
@@ -90,7 +92,7 @@ int handleControlVM(HandlerArg *a)
         return errorSyntax(USAGE_CONTROLVM, "Not enough parameters");
 
     /* try to find the given machine */
-    ComPtr<IMachine> machine;
+    ComPtr <IMachine> machine;
     CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
                                            machine.asOutParam()));
     if (FAILED(rc))
@@ -160,69 +162,20 @@ int handleControlVM(HandlerArg *a)
 
             CHECK_ERROR_BREAK(sessionMachine, COMSETTER(CPUExecutionCap)(n));
         }
-        else if (!strcmp(a->argv[1], "clipboard"))
-        {
-            if (a->argc <= 1 + 1)
-            {
-                errorArgument("Missing argument to '%s'. Expected clipboard mode.", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-
-            ClipboardMode_T mode;
-            if (!strcmp(a->argv[2], "disabled"))
-                mode = ClipboardMode_Disabled;
-            else if (!strcmp(a->argv[2], "hosttoguest"))
-                mode = ClipboardMode_HostToGuest;
-            else if (!strcmp(a->argv[2], "guesttohost"))
-                mode = ClipboardMode_GuestToHost;
-            else if (!strcmp(a->argv[2], "bidirectional"))
-                mode = ClipboardMode_Bidirectional;
-            else
-            {
-                errorArgument("Invalid '%s' argument '%s'.", a->argv[1], a->argv[2]);
-                rc = E_FAIL;
-            }
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR_BREAK(sessionMachine, COMSETTER(ClipboardMode)(mode));
-            }
-        }
-        else if (!strcmp(a->argv[1], "draganddrop"))
-        {
-            if (a->argc <= 1 + 1)
-            {
-                errorArgument("Missing argument to '%s'. Expected drag'n'drop mode.", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-
-            DragAndDropMode_T mode;
-            if (!strcmp(a->argv[2], "disabled"))
-                mode = DragAndDropMode_Disabled;
-            else if (!strcmp(a->argv[2], "hosttoguest"))
-                mode = DragAndDropMode_HostToGuest;
-            else if (!strcmp(a->argv[2], "guesttohost"))
-                mode = DragAndDropMode_GuestToHost;
-            else if (!strcmp(a->argv[2], "bidirectional"))
-                mode = DragAndDropMode_Bidirectional;
-            else
-            {
-                errorArgument("Invalid '%s' argument '%s'.", a->argv[1], a->argv[2]);
-                rc = E_FAIL;
-            }
-            if (SUCCEEDED(rc))
-            {
-                CHECK_ERROR_BREAK(sessionMachine, COMSETTER(DragAndDropMode)(mode));
-            }
-        }
         else if (!strcmp(a->argv[1], "poweroff"))
         {
             ComPtr<IProgress> progress;
             CHECK_ERROR_BREAK(console, PowerDown(progress.asOutParam()));
 
             rc = showProgress(progress);
-            CHECK_PROGRESS_ERROR(progress, ("Failed to power off machine"));
+            if (FAILED(rc))
+            {
+                com::ProgressErrorInfo info(progress);
+                if (info.isBasicAvailable())
+                    RTMsgError("Failed to power off machine. Error message: %lS", info.getText().raw());
+                else
+                    RTMsgError("Failed to power off machine. No error message available!");
+            }
         }
         else if (!strcmp(a->argv[1], "savestate"))
         {
@@ -264,9 +217,13 @@ int handleControlVM(HandlerArg *a)
             }
 
             rc = showProgress(progress);
-            CHECK_PROGRESS_ERROR(progress, ("Failed to save machine state"));
             if (FAILED(rc))
             {
+                com::ProgressErrorInfo info(progress);
+                if (info.isBasicAvailable())
+                    RTMsgError("Failed to save machine state. Error message: %lS", info.getText().raw());
+                else
+                    RTMsgError("Failed to save machine state. No error message available!");
                 if (!fPaused)
                     console->Resume();
             }
@@ -281,14 +238,8 @@ int handleControlVM(HandlerArg *a)
         }
         else if (!strcmp(a->argv[1], "keyboardputscancode"))
         {
-            ComPtr<IKeyboard> pKeyboard;
-            CHECK_ERROR_BREAK(console, COMGETTER(Keyboard)(pKeyboard.asOutParam()));
-            if (!pKeyboard)
-            {
-                RTMsgError("Guest not running");
-                rc = E_FAIL;
-                break;
-            }
+            ComPtr<IKeyboard> keyboard;
+            CHECK_ERROR_BREAK(console, COMGETTER(Keyboard)(keyboard.asOutParam()));
 
             if (a->argc <= 1 + 1)
             {
@@ -332,7 +283,7 @@ int handleControlVM(HandlerArg *a)
             /* Send scancodes to the VM. */
             com::SafeArray<LONG> saScancodes(llScancodes);
             ULONG codesStored = 0;
-            CHECK_ERROR_BREAK(pKeyboard, PutScancodes(ComSafeArrayAsInParam(saScancodes),
+            CHECK_ERROR_BREAK(keyboard, PutScancodes(ComSafeArrayAsInParam(saScancodes),
                                                      &codesStored));
             if (codesStored < saScancodes.size())
             {
@@ -498,7 +449,7 @@ int handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
                 break;
             }
-            CHECK_ERROR(adapter, COMGETTER(NATEngine)(engine.asOutParam()));
+            CHECK_ERROR(adapter, COMGETTER(NatDriver)(engine.asOutParam()));
             if (!engine)
             {
                 rc = E_FAIL;
@@ -624,53 +575,6 @@ int handleControlVM(HandlerArg *a)
                     RTMsgError("The NIC %d is currently disabled and thus its properties can't be changed", n);
             }
         }
-        else if (!strncmp(a->argv[1], "nicpromisc", 10))
-        {
-            /* Get the number of network adapters */
-            ULONG NetworkAdapterCount = getMaxNics(a->virtualBox,sessionMachine) ;
-            unsigned n = parseNum(&a->argv[1][10], NetworkAdapterCount, "NIC");
-            if (!n)
-            {
-                rc = E_FAIL;
-                break;
-            }
-            if (a->argc <= 2)
-            {
-                errorArgument("Missing argument to '%s'", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-
-            /* get the corresponding network adapter */
-            ComPtr<INetworkAdapter> adapter;
-            CHECK_ERROR_BREAK(sessionMachine, GetNetworkAdapter(n - 1, adapter.asOutParam()));
-            if (adapter)
-            {
-                BOOL fEnabled;
-                adapter->COMGETTER(Enabled)(&fEnabled);
-                if (fEnabled)
-                {
-                    NetworkAdapterPromiscModePolicy_T enmPromiscModePolicy;
-                    if (!strcmp(a->argv[2], "deny"))
-                        enmPromiscModePolicy = NetworkAdapterPromiscModePolicy_Deny;
-                    else if (  !strcmp(a->argv[2], "allow-vms")
-                            || !strcmp(a->argv[2], "allow-network"))
-                        enmPromiscModePolicy = NetworkAdapterPromiscModePolicy_AllowNetwork;
-                    else if (!strcmp(a->argv[2], "allow-all"))
-                        enmPromiscModePolicy = NetworkAdapterPromiscModePolicy_AllowAll;
-                    else
-                    {
-                        errorArgument("Unknown promiscuous mode policy '%s'", a->argv[2]);
-                        rc = E_INVALIDARG;
-                        break;
-                    }
-
-                    CHECK_ERROR(adapter, COMSETTER(PromiscModePolicy)(enmPromiscModePolicy));
-                }
-                else
-                    RTMsgError("The NIC %d is currently disabled and thus its promiscuous mode can't be changed", n);
-            }
-        }
         else if (!strncmp(a->argv[1], "nic", 3))
         {
             /* Get the number of network adapters */
@@ -759,18 +663,6 @@ int handleControlVM(HandlerArg *a)
                         CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
                         CHECK_ERROR_RET(adapter, COMSETTER(GenericDriver)(Bstr(a->argv[3]).raw()), 1);
                         CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_Generic), 1);
-                    }
-                    else if (!strcmp(a->argv[2], "natnetwork"))
-                    {
-                        if (a->argc <= 3)
-                        {
-                            errorArgument("Missing argument to '%s'", a->argv[2]);
-                            rc = E_FAIL;
-                            break;
-                        }
-                        CHECK_ERROR_RET(adapter, COMSETTER(Enabled)(TRUE), 1);
-                        CHECK_ERROR_RET(adapter, COMSETTER(NATNetwork)(Bstr(a->argv[3]).raw()), 1);
-                        CHECK_ERROR_RET(adapter, COMSETTER(AttachmentType)(NetworkAttachmentType_NATNetwork), 1);
                     }
                     /** @todo obsolete, remove eventually */
                     else if (!strcmp(a->argv[2], "vde"))
@@ -936,18 +828,16 @@ int handleControlVM(HandlerArg *a)
             bool attach = !strcmp(a->argv[1], "usbattach");
 
             Bstr usbId = a->argv[2];
-
-            Guid guid(usbId);
-            if (!guid.isValid())
+            if (Guid(usbId).isEmpty())
             {
                 // assume address
                 if (attach)
                 {
-                    ComPtr<IHost> host;
+                    ComPtr <IHost> host;
                     CHECK_ERROR_BREAK(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
                     SafeIfaceArray <IHostUSBDevice> coll;
                     CHECK_ERROR_BREAK(host, COMGETTER(USBDevices)(ComSafeArrayAsOutParam(coll)));
-                    ComPtr<IHostUSBDevice> dev;
+                    ComPtr <IHostUSBDevice> dev;
                     CHECK_ERROR_BREAK(host, FindUSBDeviceByAddress(Bstr(a->argv[2]).raw(),
                                                                    dev.asOutParam()));
                     CHECK_ERROR_BREAK(dev, COMGETTER(Id)(usbId.asOutParam()));
@@ -956,132 +846,69 @@ int handleControlVM(HandlerArg *a)
                 {
                     SafeIfaceArray <IUSBDevice> coll;
                     CHECK_ERROR_BREAK(console, COMGETTER(USBDevices)(ComSafeArrayAsOutParam(coll)));
-                    ComPtr<IUSBDevice> dev;
+                    ComPtr <IUSBDevice> dev;
                     CHECK_ERROR_BREAK(console, FindUSBDeviceByAddress(Bstr(a->argv[2]).raw(),
                                                                       dev.asOutParam()));
                     CHECK_ERROR_BREAK(dev, COMGETTER(Id)(usbId.asOutParam()));
                 }
-            }
-            else if (guid.isZero())
-            {
-                errorArgument("Zero UUID argument '%s'", a->argv[2]);
-                rc = E_FAIL;
-                break;
             }
 
             if (attach)
                 CHECK_ERROR_BREAK(console, AttachUSBDevice(usbId.raw()));
             else
             {
-                ComPtr<IUSBDevice> dev;
+                ComPtr <IUSBDevice> dev;
                 CHECK_ERROR_BREAK(console, DetachUSBDevice(usbId.raw(),
                                                            dev.asOutParam()));
             }
         }
         else if (!strcmp(a->argv[1], "setvideomodehint"))
         {
-            if (a->argc != 5 && a->argc != 6 && a->argc != 7 && a->argc != 9)
+            if (a->argc != 5 && a->argc != 6)
             {
                 errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
                 rc = E_FAIL;
                 break;
             }
-            bool fEnabled = true;
-            uint32_t uXRes = RTStrToUInt32(a->argv[2]);
-            uint32_t uYRes = RTStrToUInt32(a->argv[3]);
-            uint32_t uBpp  = RTStrToUInt32(a->argv[4]);
-            uint32_t uDisplayIdx = 0;
-            bool fChangeOrigin = false;
-            int32_t iOriginX = 0;
-            int32_t iOriginY = 0;
-            if (a->argc >= 6)
-                uDisplayIdx = RTStrToUInt32(a->argv[5]);
-            if (a->argc >= 7)
-            {
-                int vrc = parseBool(a->argv[6], &fEnabled);
-                if (RT_FAILURE(vrc))
-                {
-                    errorSyntax(USAGE_CONTROLVM, "Either \"yes\" or \"no\" is expected");
-                    rc = E_FAIL;
-                    break;
-                }
-                fEnabled = !RTStrICmp(a->argv[6], "yes");
-            }
-            if (a->argc == 9)
-            {
-                iOriginX = RTStrToInt32(a->argv[7]);
-                iOriginY = RTStrToInt32(a->argv[8]);
-                fChangeOrigin = true;
-            }
+            uint32_t xres = RTStrToUInt32(a->argv[2]);
+            uint32_t yres = RTStrToUInt32(a->argv[3]);
+            uint32_t bpp  = RTStrToUInt32(a->argv[4]);
+            uint32_t displayIdx = 0;
+            if (a->argc == 6)
+                displayIdx = RTStrToUInt32(a->argv[5]);
 
-            ComPtr<IDisplay> pDisplay;
-            CHECK_ERROR_BREAK(console, COMGETTER(Display)(pDisplay.asOutParam()));
-            if (!pDisplay)
-            {
-                RTMsgError("Guest not running");
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(pDisplay, SetVideoModeHint(uDisplayIdx, fEnabled,
-                                                         fChangeOrigin, iOriginX, iOriginY,
-                                                         uXRes, uYRes, uBpp));
+            ComPtr<IDisplay> display;
+            CHECK_ERROR_BREAK(console, COMGETTER(Display)(display.asOutParam()));
+            CHECK_ERROR_BREAK(display, SetVideoModeHint(xres, yres, bpp, displayIdx));
         }
         else if (!strcmp(a->argv[1], "setcredentials"))
         {
             bool fAllowLocalLogon = true;
-            if (   a->argc == 7
-                || (   a->argc == 8
-                    && (   !strcmp(a->argv[3], "-p")
-                        || !strcmp(a->argv[3], "--passwordfile"))))
+            if (a->argc == 7)
             {
-                if (   strcmp(a->argv[5 + (a->argc - 7)], "--allowlocallogon")
-                    && strcmp(a->argv[5 + (a->argc - 7)], "-allowlocallogon"))
+                if (   strcmp(a->argv[5], "--allowlocallogon")
+                    && strcmp(a->argv[5], "-allowlocallogon"))
                 {
                     errorArgument("Invalid parameter '%s'", a->argv[5]);
                     rc = E_FAIL;
                     break;
                 }
-                if (!strcmp(a->argv[6 + (a->argc - 7)], "no"))
+                if (!strcmp(a->argv[6], "no"))
                     fAllowLocalLogon = false;
             }
-            else if (   a->argc != 5
-                     && (   a->argc != 6
-                         || (   strcmp(a->argv[3], "-p")
-                             && strcmp(a->argv[3], "--passwordfile"))))
+            else if (a->argc != 5)
             {
                 errorSyntax(USAGE_CONTROLVM, "Incorrect number of parameters");
                 rc = E_FAIL;
                 break;
             }
-            Utf8Str passwd, domain;
-            if (a->argc == 5 || a->argc == 7)
-            {
-                passwd = a->argv[3];
-                domain = a->argv[4];
-            }
-            else
-            {
-                RTEXITCODE rcExit = readPasswordFile(a->argv[4], &passwd);
-                if (rcExit != RTEXITCODE_SUCCESS)
-                {
-                    rc = E_FAIL;
-                    break;
-                }
-                domain = a->argv[5];
-            }
 
-            ComPtr<IGuest> pGuest;
-            CHECK_ERROR_BREAK(console, COMGETTER(Guest)(pGuest.asOutParam()));
-            if (!pGuest)
-            {
-                RTMsgError("Guest not running");
-                rc = E_FAIL;
-                break;
-            }
-            CHECK_ERROR_BREAK(pGuest, SetCredentials(Bstr(a->argv[2]).raw(),
-                                                     Bstr(passwd).raw(),
-                                                     Bstr(domain).raw(),
-                                                     fAllowLocalLogon));
+            ComPtr<IGuest> guest;
+            CHECK_ERROR_BREAK(console, COMGETTER(Guest)(guest.asOutParam()));
+            CHECK_ERROR_BREAK(guest, SetCredentials(Bstr(a->argv[2]).raw(),
+                                                    Bstr(a->argv[3]).raw(),
+                                                    Bstr(a->argv[4]).raw(),
+                                                    fAllowLocalLogon));
         }
 #if 0 /* TODO: review & remove */
         else if (!strcmp(a->argv[1], "dvdattach"))
@@ -1223,18 +1050,10 @@ int handleControlVM(HandlerArg *a)
                 break;
             }
             /* guest is running; update IGuest */
-            ComPtr<IGuest> pGuest;
-            rc = console->COMGETTER(Guest)(pGuest.asOutParam());
+            ComPtr <IGuest> guest;
+            rc = console->COMGETTER(Guest)(guest.asOutParam());
             if (SUCCEEDED(rc))
-            {
-                if (!pGuest)
-                {
-                    RTMsgError("Guest not running");
-                    rc = E_FAIL;
-                    break;
-                }
-                CHECK_ERROR(pGuest, COMSETTER(MemoryBalloonSize)(uVal));
-            }
+                CHECK_ERROR(guest, COMSETTER(MemoryBalloonSize)(uVal));
         }
         else if (!strcmp(a->argv[1], "teleport"))
         {
@@ -1242,15 +1061,14 @@ int handleControlVM(HandlerArg *a)
             uint32_t    uMaxDowntime = 250 /*ms*/;
             uint32_t    uPort        = UINT32_MAX;
             uint32_t    cMsTimeout   = 0;
-            Utf8Str     strPassword;
+            Bstr        bstrPassword("");
             static const RTGETOPTDEF s_aTeleportOptions[] =
             {
                 { "--host",              'h', RTGETOPT_REQ_STRING }, /** @todo RTGETOPT_FLAG_MANDATORY */
                 { "--hostname",          'h', RTGETOPT_REQ_STRING }, /** @todo remove this */
                 { "--maxdowntime",       'd', RTGETOPT_REQ_UINT32 },
-                { "--port",              'P', RTGETOPT_REQ_UINT32 }, /** @todo RTGETOPT_FLAG_MANDATORY */
-                { "--passwordfile",      'p', RTGETOPT_REQ_STRING },
-                { "--password",          'W', RTGETOPT_REQ_STRING },
+                { "--port",              'p', RTGETOPT_REQ_UINT32 }, /** @todo RTGETOPT_FLAG_MANDATORY */
+                { "--password",          'P', RTGETOPT_REQ_STRING },
                 { "--timeout",           't', RTGETOPT_REQ_UINT32 },
                 { "--detailed-progress", 'D', RTGETOPT_REQ_NOTHING }
             };
@@ -1266,15 +1084,8 @@ int handleControlVM(HandlerArg *a)
                     case 'h': bstrHostname  = Value.psz; break;
                     case 'd': uMaxDowntime  = Value.u32; break;
                     case 'D': g_fDetailedProgress = true; break;
-                    case 'P': uPort         = Value.u32; break;
-                    case 'p':
-                    {
-                        RTEXITCODE rcExit = readPasswordFile(Value.psz, &strPassword);
-                        if (rcExit != RTEXITCODE_SUCCESS)
-                            rc = E_FAIL;
-                        break;
-                    }
-                    case 'W': strPassword   = Value.psz; break;
+                    case 'p': uPort         = Value.u32; break;
+                    case 'P': bstrPassword  = Value.psz; break;
                     case 't': cMsTimeout    = Value.u32; break;
                     default:
                         errorGetOpt(USAGE_CONTROLVM, ch, &Value);
@@ -1287,7 +1098,7 @@ int handleControlVM(HandlerArg *a)
 
             ComPtr<IProgress> progress;
             CHECK_ERROR_BREAK(console, Teleport(bstrHostname.raw(), uPort,
-                                                Bstr(strPassword).raw(),
+                                                bstrPassword.raw(),
                                                 uMaxDowntime,
                                                 progress.asOutParam()));
 
@@ -1299,7 +1110,14 @@ int handleControlVM(HandlerArg *a)
             }
 
             rc = showProgress(progress);
-            CHECK_PROGRESS_ERROR(progress, ("Teleportation failed"));
+            if (FAILED(rc))
+            {
+                com::ProgressErrorInfo info(progress);
+                if (info.isBasicAvailable())
+                    RTMsgError("Teleportation failed. Error message: %lS", info.getText().raw());
+                else
+                    RTMsgError("Teleportation failed. No error message available!");
+            }
         }
         else if (!strcmp(a->argv[1], "screenshotpng"))
         {
@@ -1310,10 +1128,10 @@ int handleControlVM(HandlerArg *a)
                 break;
             }
             int vrc;
-            uint32_t iScreen = 0;
+            uint32_t displayIdx = 0;
             if (a->argc == 4)
             {
-                vrc = RTStrToUInt32Ex(a->argv[3], NULL, 0, &iScreen);
+                vrc = RTStrToUInt32Ex(a->argv[3], NULL, 0, &displayIdx);
                 if (vrc != VINF_SUCCESS)
                 {
                     errorArgument("Error parsing display number '%s'", a->argv[3]);
@@ -1323,19 +1141,12 @@ int handleControlVM(HandlerArg *a)
             }
             ComPtr<IDisplay> pDisplay;
             CHECK_ERROR_BREAK(console, COMGETTER(Display)(pDisplay.asOutParam()));
-            if (!pDisplay)
-            {
-                RTMsgError("Guest not running");
-                rc = E_FAIL;
-                break;
-            }
             ULONG width, height, bpp;
-            LONG xOrigin, yOrigin;
-            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(iScreen, &width, &height, &bpp, &xOrigin, &yOrigin));
+            CHECK_ERROR_BREAK(pDisplay, GetScreenResolution(displayIdx, &width, &height, &bpp));
             com::SafeArray<BYTE> saScreenshot;
-            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotPNGToArray(iScreen, width, height, ComSafeArrayAsOutParam(saScreenshot)));
+            CHECK_ERROR_BREAK(pDisplay, TakeScreenShotPNGToArray(displayIdx, width, height, ComSafeArrayAsOutParam(saScreenshot)));
             RTFILE pngFile = NIL_RTFILE;
-            vrc = RTFileOpen(&pngFile, a->argv[2], RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_TRUNCATE | RTFILE_O_DENY_ALL);
+            vrc = RTFileOpen(&pngFile, a->argv[2], RTFILE_O_OPEN_CREATE | RTFILE_O_WRITE | RTFILE_O_TRUNCATE);
             if (RT_FAILURE(vrc))
             {
                 RTMsgError("Failed to create file '%s'. rc=%Rrc", a->argv[2], vrc);
@@ -1349,127 +1160,6 @@ int handleControlVM(HandlerArg *a)
                 rc = E_FAIL;
             }
             RTFileClose(pngFile);
-        }
-        else if (   !strcmp(a->argv[1], "vcpenabled"))
-        {
-            if (a->argc != 3)
-            {
-                errorArgument("Missing argument to '%s'", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-            if (!strcmp(a->argv[2], "on"))
-            {
-                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(TRUE), 1);
-            }
-            else if (!strcmp(a->argv[2], "off"))
-            {
-                CHECK_ERROR_RET(sessionMachine, COMSETTER(VideoCaptureEnabled)(FALSE), 1);
-            }
-            else
-            {
-                errorArgument("Invalid state '%s'", Utf8Str(a->argv[2]).c_str());
-                rc = E_FAIL;
-                break;
-            }
-        }
-        else if (   !strcmp(a->argv[1], "videocapturescreens"))
-        {
-            ULONG cMonitors = 64;
-            CHECK_ERROR_BREAK(machine, COMGETTER(MonitorCount)(&cMonitors));
-            com::SafeArray<BOOL> saScreens(cMonitors);
-            if (   a->argc == 3
-                && !strcmp(a->argv[2], "all"))
-            {
-                /* enable all screens */
-                for (unsigned i = 0; i < cMonitors; i++)
-                    saScreens[i] = true;
-            }
-            else if (   a->argc == 3
-                     && !strcmp(a->argv[2], "none"))
-            {
-                /* disable all screens */
-                for (unsigned i = 0; i < cMonitors; i++)
-                    saScreens[i] = false;
-            }
-            else
-            {
-                /* enable selected screens */
-                for (unsigned i = 0; i < cMonitors; i++)
-                    saScreens[i] = false;
-                for (int i = 2; SUCCEEDED(rc) && i < a->argc; i++)
-                {
-                    uint32_t iScreen;
-                    int vrc = RTStrToUInt32Ex(a->argv[i], NULL, 0, &iScreen);
-                    if (vrc != VINF_SUCCESS)
-                    {
-                        errorArgument("Error parsing display number '%s'", a->argv[i]);
-                        rc = E_FAIL;
-                        break;
-                    }
-                    if (iScreen >= cMonitors)
-                    {
-                        errorArgument("Invalid screen ID specified '%u'", iScreen);
-                        rc = E_FAIL;
-                        break;
-                    }
-                    saScreens[iScreen] = true;
-                }
-            }
-
-            CHECK_ERROR_BREAK(sessionMachine, COMSETTER(VideoCaptureScreens)(ComSafeArrayAsInParam(saScreens)));
-        }
-        else if (!strcmp(a->argv[1], "webcam"))
-        {
-            if (a->argc < 3)
-            {
-                errorArgument("Missing argument to '%s'", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-
-            ComPtr<IEmulatedUSB> pEmulatedUSB;
-            CHECK_ERROR_BREAK(console, COMGETTER(EmulatedUSB)(pEmulatedUSB.asOutParam()));
-            if (!pEmulatedUSB)
-            {
-                RTMsgError("Guest not running");
-                rc = E_FAIL;
-                break;
-            }
-
-            if (!strcmp(a->argv[2], "attach"))
-            {
-                Bstr path("");
-                if (a->argc >= 4)
-                    path = a->argv[3];
-                Bstr settings("");
-                if (a->argc >= 5)
-                    settings = a->argv[4];
-                CHECK_ERROR_BREAK(pEmulatedUSB, WebcamAttach(path.raw(), settings.raw()));
-            }
-            else if (!strcmp(a->argv[2], "detach"))
-            {
-                Bstr path("");
-                if (a->argc >= 4)
-                    path = a->argv[3];
-                CHECK_ERROR_BREAK(pEmulatedUSB, WebcamDetach(path.raw()));
-            }
-            else if (!strcmp(a->argv[2], "list"))
-            {
-                com::SafeArray <BSTR> webcams;
-                CHECK_ERROR_BREAK(pEmulatedUSB, COMGETTER(Webcams)(ComSafeArrayAsOutParam(webcams)));
-                for (size_t i = 0; i < webcams.size(); ++i)
-                {
-                    RTPrintf("%ls\n", webcams[i][0]? webcams[i]: Bstr("default").raw());
-                }
-            }
-            else
-            {
-                errorArgument("Invalid argument to '%s'", a->argv[1]);
-                rc = E_FAIL;
-                break;
-            }
-
         }
         else
         {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,6 @@
 #include <iprt/string.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
-#include <iprt/critsect.h>
 #include "VUSBInternal.h"
 
 
@@ -40,9 +39,9 @@
 *******************************************************************************/
 
 /**
- * VUSB Readahead instance data.
+ * Argument package of vusbDevReadAheadThread().
  */
-typedef struct VUSBREADAHEADINT
+typedef struct vusb_read_ahead_args
 {
     /** Pointer to the device which the thread is for. */
     PVUSBDEV            pDev;
@@ -51,22 +50,8 @@ typedef struct VUSBREADAHEADINT
     /** A flag indicating a high-speed (vs. low/full-speed) endpoint. */
     bool                fHighSpeed;
     /** A flag telling the thread to terminate. */
-    volatile bool       fTerminate;
-    /** Maximum number of URBs to submit. */
-    uint32_t            cUrbsMax;
-    /** The periodic read-ahead buffer thread. */
-    RTTHREAD            hReadAheadThread;
-    /** Pointer to the first buffered URB. */
-    PVUSBURB            pBuffUrbHead;
-    /** Pointer to the last buffered URB. */
-    PVUSBURB            pBuffUrbTail;
-    /** Count of URBs in read-ahead buffer. */
-    uint32_t            cBuffered;
-    /** Count of URBs submitted for read-ahead but not yet reaped. */
-    uint32_t            cSubmitted;
-    /** Critical section to serialize access the buffered URB list. */
-    RTCRITSECT          CritSectBuffUrbList;
-} VUSBREADAHEADINT, *PVUSBREADAHEADINT;
+    bool                fTerminate;
+} VUSBREADAHEADARGS, *PVUSBREADAHEADARGS;
 
 
 /*******************************************************************************
@@ -170,25 +155,34 @@ static PVUSBURB vusbDevNewIsocUrb(PVUSBDEV pDev, unsigned uEndPt, unsigned uInte
  */
 static DECLCALLBACK(int) vusbDevReadAheadThread(RTTHREAD Thread, void *pvUser)
 {
-    PVUSBREADAHEADINT       pThis = (PVUSBREADAHEADINT)pvUser;
     PVUSBPIPE               pPipe;
+    PVUSBREADAHEADARGS      pArgs = (PVUSBREADAHEADARGS)pvUser;
     PCVUSBDESCENDPOINT      pDesc;
     PVUSBURB                pUrb;
     int                     rc = VINF_SUCCESS;
     unsigned                max_pkt_size, mult, interval;
 
     LogFlow(("vusb: periodic read-ahead buffer thread started\n"));
-    Assert(pThis);
-    Assert(pThis->pPipe && pThis->pDev);
+    Assert(pArgs);
+    Assert(pArgs->pPipe && pArgs->pDev);
 
-    pPipe = pThis->pPipe;
+    pPipe = pArgs->pPipe;
     pDesc = &pPipe->in->Core;
     Assert(pDesc);
 
-    Assert(!pThis->cSubmitted && !pThis->cBuffered);
+    /* The previous read-ahead thread could be still running (vusbReadAheadStop sets only
+     * fTerminate to true and returns immediately). Therefore we have to wait until the
+     * previous thread is done and all submitted URBs are completed. */
+    while (pPipe->cSubmitted > 0)
+    {
+        Log2(("vusbDevReadAheadThread: still %u packets submitted, waiting before starting...\n", pPipe->cSubmitted));
+        RTThreadSleep(1);
+    }
+    pPipe->pvReadAheadArgs = pArgs;
+    pPipe->cBuffered = 0;
 
     /* Figure out the maximum bandwidth we might need */
-    if (pThis->fHighSpeed)
+    if (pArgs->fHighSpeed)
     {
         /* High-speed endpoint */
         Assert((pDesc->wMaxPacketSize & 0x1fff) == pDesc->wMaxPacketSize);
@@ -211,15 +205,15 @@ static DECLCALLBACK(int) vusbDevReadAheadThread(RTTHREAD Thread, void *pvUser)
      * Submit new URBs in a loop unless the buffer is too full (paused VM etc.). Note that we only
      * queue the URBs here, they are reaped on a different thread.
      */
-    while (!pThis->fTerminate)
+    while (pArgs->fTerminate == false)
     {
-        while (pThis->cSubmitted < pThis->cUrbsMax && pThis->cBuffered < pThis->cUrbsMax)
+        while (pPipe->cSubmitted < 120 && pPipe->cBuffered < 120)
         {
-            pUrb = vusbDevNewIsocUrb(pThis->pDev, pDesc->bEndpointAddress & 0xF, interval, max_pkt_size * mult);
+            pUrb = vusbDevNewIsocUrb(pArgs->pDev, pDesc->bEndpointAddress & 0xF, interval, max_pkt_size * mult);
             if (!pUrb) {
                 /* Happens if device was unplugged. */
                 Log(("vusb: read-ahead thread failed to allocate new URB; exiting\n"));
-                vusbReadAheadStop(pThis);
+                vusbReadAheadStop(pvUser);
                 break;
             }
 
@@ -234,42 +228,24 @@ static DECLCALLBACK(int) vusbDevReadAheadThread(RTTHREAD Thread, void *pvUser)
             {
                 /* Happens if device was unplugged. */
                 Log(("vusb: read-ahead thread failed to queue URB with %Rrc; exiting\n", rc));
-                pThis->cUrbsMax = pThis->cSubmitted;
-                pUrb->VUsb.pfnFree(pUrb);
+                vusbReadAheadStop(pvUser);
                 break;
             }
-            else
-                ASMAtomicIncU32(&pThis->cSubmitted);
+            ++pPipe->cSubmitted;
         }
         RTThreadSleep(1);
     }
     LogFlow(("vusb: periodic read-ahead buffer thread exiting\n"));
+    pPipe->pvReadAheadArgs = NULL;
 
     /* wait until there are no more submitted packets */
-    while (pThis->cSubmitted > 0)
+    while (pPipe->cSubmitted > 0)
     {
-        Log2(("vusbDevReadAheadThread: still %u packets submitted, waiting before terminating...\n", pThis->cSubmitted));
+        Log2(("vusbDevReadAheadThread: still %u packets submitted, waiting before terminating...\n", pPipe->cSubmitted));
         RTThreadSleep(1);
     }
 
-    RTCritSectEnter(&pThis->CritSectBuffUrbList);
-    /*
-     * Free all still buffered URBs because another endpoint with a different packet size
-     * and complete different data formats might be served later.
-     */
-    int cFree = 0;
-    while (pThis->pBuffUrbHead)
-    {
-        PVUSBURB pBufferedUrb = pThis->pBuffUrbHead;
-
-        pThis->pBuffUrbHead = pBufferedUrb->Hci.pNext;
-        pBufferedUrb->VUsb.pfnFree(pBufferedUrb);
-        cFree++;
-    }
-
-    RTCritSectLeave(&pThis->CritSectBuffUrbList);
-    RTCritSectDelete(&pThis->CritSectBuffUrbList);
-    RTMemTmpFree(pThis);
+    RTMemTmpFree(pArgs);
 
     return rc;
 }
@@ -283,28 +259,26 @@ void vusbUrbCompletionReadAhead(PVUSBURB pUrb)
 {
     Assert(pUrb);
     Assert(pUrb->Hci.pNext);
-    PVUSBREADAHEADINT pThis = (PVUSBREADAHEADINT)pUrb->Hci.pNext;
-    PVUSBPIPE         pPipe = pThis->pPipe;
+    PVUSBREADAHEADARGS      pArgs = (PVUSBREADAHEADARGS)pUrb->Hci.pNext;
+    PVUSBPIPE               pPipe = pArgs->pPipe;
     Assert(pPipe);
 
-    RTCritSectEnter(&pThis->CritSectBuffUrbList);
     pUrb->Hci.pNext = NULL; // @todo: use a more suitable field
-    if (pThis->pBuffUrbHead == NULL)
+    if (pPipe->pBuffUrbHead == NULL)
     {
         // The queue is empty, this is easy
-        Assert(!pThis->pBuffUrbTail);
-        pThis->pBuffUrbTail = pThis->pBuffUrbHead = pUrb;
+        Assert(!pPipe->pBuffUrbTail);
+        pPipe->pBuffUrbTail = pPipe->pBuffUrbHead = pUrb;
     }
     else
     {
         // Some URBs are queued already
-        Assert(pThis->pBuffUrbTail);
-        Assert(!pThis->pBuffUrbTail->Hci.pNext);
-        pThis->pBuffUrbTail = pThis->pBuffUrbTail->Hci.pNext = pUrb;
+        Assert(pPipe->pBuffUrbTail);
+        Assert(!pPipe->pBuffUrbTail->Hci.pNext);
+        pPipe->pBuffUrbTail = pPipe->pBuffUrbTail->Hci.pNext = pUrb;
     }
-    ASMAtomicDecU32(&pThis->cSubmitted);
-    ++pThis->cBuffered;
-    RTCritSectLeave(&pThis->CritSectBuffUrbList);
+    --pPipe->cSubmitted;
+    ++pPipe->cBuffered;
 }
 
 /**
@@ -313,29 +287,26 @@ void vusbUrbCompletionReadAhead(PVUSBURB pUrb)
  * read-ahead buffer, immediately complete the input URB and free the buffered URB.
  *
  * @param pUrb      The URB submitted by HC
- * @param hReadAhead The read-ahead buffering instance
+ * @param pPipe     The pipe with read-ahead buffering
  *
  * @return int      Status code
  */
-int vusbUrbSubmitBufferedRead(PVUSBURB pUrb, VUSBREADAHEAD hReadAhead)
+int vusbUrbSubmitBufferedRead(PVUSBURB pUrb, PVUSBPIPE pPipe)
 {
-    PVUSBREADAHEADINT pThis = hReadAhead;
-    PVUSBURB pBufferedUrb;
-    Assert(pUrb && pThis);
+    PVUSBURB    pBufferedUrb;
+    Assert(pUrb && pPipe);
 
-    RTCritSectEnter(&pThis->CritSectBuffUrbList);
-    pBufferedUrb = pThis->pBuffUrbHead;
+    pBufferedUrb = pPipe->pBuffUrbHead;
     if (pBufferedUrb)
     {
         unsigned    cbTotal;
 
         // There's a URB available in the read-ahead buffer; use it
-        pThis->pBuffUrbHead = pBufferedUrb->Hci.pNext;
-        if (pThis->pBuffUrbHead == NULL)
-            pThis->pBuffUrbTail = NULL;
+        pPipe->pBuffUrbHead = pBufferedUrb->Hci.pNext;
+        if (pPipe->pBuffUrbHead == NULL)
+            pPipe->pBuffUrbTail = NULL;
 
-        --pThis->cBuffered;
-        RTCritSectLeave(&pThis->CritSectBuffUrbList);
+        --pPipe->cBuffered;
 
         // Make sure the buffered URB is what we expect
         Assert(pUrb->enmType == pBufferedUrb->enmType);
@@ -371,7 +342,6 @@ int vusbUrbSubmitBufferedRead(PVUSBURB pUrb, VUSBREADAHEAD hReadAhead)
     }
     else
     {
-        RTCritSectLeave(&pThis->CritSectBuffUrbList);
         // No URB on hand. Either we exhausted the buffer (shouldn't happen!) or the guest simply
         // asked for data too soon. Pretend that the device didn't deliver any data.
         pUrb->enmState  = VUSBURBSTATE_REAPED;
@@ -384,61 +354,47 @@ int vusbUrbSubmitBufferedRead(PVUSBURB pUrb, VUSBREADAHEAD hReadAhead)
         vusbUrbCompletionRh(pUrb);
         // This assertion is wrong as the URB could be re-allocated in the meantime by the EMT (race)
         // Assert(pUrb->enmState == VUSBURBSTATE_FREE);
-        LogFlow(("vusbUrbSubmitBufferedRead: No buffered URB available!\n"));
+        LogFlow(("%s: vusbUrbSubmitBufferedRead: No buffered URB available!\n", pBufferedUrb->pszDesc));
     }
     return VINF_SUCCESS;
 }
 
 /* Read-ahead start/stop functions, used primarily to keep the PVUSBREADAHEADARGS struct private to this module. */
 
-VUSBREADAHEAD vusbReadAheadStart(PVUSBDEV pDev, PVUSBPIPE pPipe)
+void vusbReadAheadStart(PVUSBDEV pDev, PVUSBPIPE pPipe)
 {
     int rc;
-    PVUSBREADAHEADINT pThis = (PVUSBREADAHEADINT)RTMemTmpAlloc(sizeof(VUSBREADAHEADINT));
+    PVUSBREADAHEADARGS pArgs = (PVUSBREADAHEADARGS)RTMemTmpAlloc(sizeof(*pArgs));
 
-    if (pThis)
+    if (pArgs)
     {
-        PVUSBROOTHUB pRh = vusbDevGetRh(pDev);
-        pThis->pDev         = pDev;
-        pThis->pPipe        = pPipe;
-        pThis->fTerminate   = false;
-        pThis->fHighSpeed   = pRh && ((pRh->fHcVersions & VUSB_STDVER_20) != 0);
-        pThis->cUrbsMax     = 120;
-        pThis->pBuffUrbHead = NULL;
-        pThis->pBuffUrbTail = NULL;
-        pThis->cBuffered    = 0;
-        pThis->cSubmitted   = 0;
-        rc = RTCritSectInit(&pThis->CritSectBuffUrbList);
+        pArgs->pDev  = pDev;
+        pArgs->pPipe = pPipe;
+        pArgs->fTerminate = false;
+        pArgs->fHighSpeed = ((vusbDevGetRh(pDev)->fHcVersions & VUSB_STDVER_20) != 0);
+        if (pArgs->fHighSpeed)
+            rc = RTThreadCreate(&pPipe->ReadAheadThread, vusbDevReadAheadThread, pArgs, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "USBISOC");
+        else
+            rc = VERR_VUSB_DEVICE_NOT_ATTACHED; // No buffering for low/full-speed devices at the moment, needs testing.
         if (RT_SUCCESS(rc))
         {
-            if (pThis->fHighSpeed)
-                rc = RTThreadCreate(&pThis->hReadAheadThread, vusbDevReadAheadThread, pThis, 0, RTTHREADTYPE_IO, 0 /* fFlags */, "USBISOC");
-            else
-                rc = VERR_VUSB_DEVICE_NOT_ATTACHED; // No buffering for low/full-speed devices at the moment, needs testing.
-            if (RT_SUCCESS(rc))
-            {
-                Log(("vusb: created isochronous read-ahead thread\n"));
-                return pThis;
-            }
-            else
-                Log(("vusb: isochronous read-ahead thread creation failed, rc=%d\n", rc));
-
-            rc = RTCritSectDelete(&pThis->CritSectBuffUrbList);
-            AssertRC(rc);
+            Log(("vusb: created isochronous read-ahead thread\n"));
         }
-
-        RTMemTmpFree(pThis);
+        else
+        {
+            Log(("vusb: isochronous read-ahead thread creation failed, rc=%d\n", rc));
+            pPipe->ReadAheadThread = NIL_RTTHREAD;
+            RTMemTmpFree(pArgs);
+        }
     }
-
     /* If thread creation failed for any reason, simply fall back to standard processing. */
-    return NULL;
 }
 
-void vusbReadAheadStop(VUSBREADAHEAD hReadAhead)
+void vusbReadAheadStop(void *pvReadAheadArgs)
 {
-    PVUSBREADAHEADINT pThis = hReadAhead;
+    PVUSBREADAHEADARGS  pArgs = (PVUSBREADAHEADARGS)pvReadAheadArgs;
     Log(("vusb: terminating read-ahead thread for endpoint\n"));
-    ASMAtomicXchgBool(&pThis->fTerminate, true);
+    pArgs->fTerminate = true;
 }
 
 /*

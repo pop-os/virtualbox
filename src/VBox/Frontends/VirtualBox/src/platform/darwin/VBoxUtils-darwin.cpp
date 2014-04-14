@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,10 @@
 #include <QContextMenuEvent>
 
 #include <Carbon/Carbon.h>
+
+#if QT_VERSION < 0x040400
+extern void qt_mac_set_menubar_icons(bool b);
+#endif /* QT_VERSION < 0x040400 */
 
 NativeNSViewRef darwinToNativeView(QWidget *pWidget)
 {
@@ -138,31 +142,6 @@ void darwinMinaturizeWindow(QWidget *pWidget)
     return ::darwinMinaturizeWindow(::darwinToNativeWindow(pWidget));
 }
 
-void darwinEnableFullscreenSupport(QWidget *pWidget)
-{
-    return ::darwinEnableFullscreenSupport(::darwinToNativeWindow(pWidget));
-}
-
-void darwinEnableTransienceSupport(QWidget *pWidget)
-{
-    return ::darwinEnableTransienceSupport(::darwinToNativeWindow(pWidget));
-}
-
-void darwinToggleFullscreenMode(QWidget *pWidget)
-{
-    return ::darwinToggleFullscreenMode(::darwinToNativeWindow(pWidget));
-}
-
-bool darwinIsInFullscreenMode(QWidget *pWidget)
-{
-    return ::darwinIsInFullscreenMode(::darwinToNativeWindow(pWidget));
-}
-
-bool darwinIsOnActiveSpace(QWidget *pWidget)
-{
-    return ::darwinIsOnActiveSpace(::darwinToNativeWindow(pWidget));
-}
-
 void darwinInstallResizeDelegate(QWidget *pWidget)
 {
     ::darwinInstallResizeDelegate(::darwinToNativeWindow(pWidget));
@@ -176,11 +155,6 @@ void darwinUninstallResizeDelegate(QWidget *pWidget)
 bool darwinOpenFile(const QString& strFile)
 {
     return ::darwinOpenFile(darwinToNativeString(strFile.toUtf8().constData()));
-}
-
-double darwinBackingScaleFactor(QWidget *pWidget)
-{
-    return ::darwinBackingScaleFactor(::darwinToNativeWindow(pWidget));
 }
 
 QString darwinSystemLanguage(void)
@@ -208,7 +182,12 @@ QString darwinSystemLanguage(void)
 void darwinDisableIconsInMenus(void)
 {
     /* No icons in the menu of a mac application. */
+#if QT_VERSION < 0x040400
+    qt_mac_set_menubar_icons(false);
+#else /* QT_VERSION < 0x040400 */
+    /* Available since Qt 4.4 only */
     QApplication::instance()->setAttribute(Qt::AA_DontShowIconsInMenus, true);
+#endif /* QT_VERSION >= 0x040400 */
 }
 
 int darwinWindowToolBarHeight(QWidget *pWidget)
@@ -551,8 +530,7 @@ QString darwinResolveAlias(const QString &strFile)
             if ((err = FSRefMakePath(&fileRef, (UInt8*)pszPath, 1024)) != noErr)
                 break;
             strTarget = QString::fromUtf8(pszPath);
-        }
-        else
+        }else
             strTarget = strFile;
     }while(0);
 

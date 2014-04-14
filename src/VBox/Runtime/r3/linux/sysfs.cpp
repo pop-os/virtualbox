@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +53,8 @@
  * Constructs the path of a sysfs file from the format parameters passed,
  * prepending a prefix if the path is relative.
  *
- * @returns The number of characters returned, or an iprt error code on failure.
+ * @returns The number of characters returned, or -1 and errno set to ERANGE on
+ *          failure.
  *
  * @param   pszPrefix  The prefix to prepend if the path is relative.  Must end
  *                     in '/'.
@@ -69,8 +70,8 @@ static ssize_t rtLinuxConstructPathV(char *pszBuf, size_t cchBuf,
                                      const char *pszFormat, va_list va)
 {
     size_t cchPrefix = strlen(pszPrefix);
-    AssertReturn(pszPrefix[cchPrefix - 1] == '/', VERR_INVALID_PARAMETER);
-    AssertReturn(cchBuf > cchPrefix + 1, VERR_INVALID_PARAMETER);
+    AssertReturnStmt(pszPrefix[cchPrefix - 1] == '/', errno = ERANGE, -1);
+    AssertReturnStmt(cchBuf > cchPrefix + 1, errno = ERANGE, -1);
 
     /** @todo While RTStrPrintfV prevents overflows, it doesn't make it easy to
      *        check for truncations. RTPath should provide some formatters and
@@ -79,7 +80,7 @@ static ssize_t rtLinuxConstructPathV(char *pszBuf, size_t cchBuf,
     size_t cch = RTStrPrintfV(pszBuf, cchBuf, pszFormat, va);
     if (*pszBuf != '/')
     {
-        AssertReturn(cchBuf >= cch + cchPrefix + 1, VERR_BUFFER_OVERFLOW);
+        AssertReturnStmt(cchBuf >= cch + cchPrefix + 1, errno = ERANGE, -1);
         memmove(pszBuf + cchPrefix, pszBuf, cch + 1);
         memcpy(pszBuf, pszPrefix, cchPrefix);
         cch += cchPrefix;
@@ -92,8 +93,8 @@ static ssize_t rtLinuxConstructPathV(char *pszBuf, size_t cchBuf,
  * Constructs the path of a sysfs file from the format parameters passed,
  * prepending a prefix if the path is relative.
  *
- * @returns The number of characters returned, or an iprt error code on failure.
- * @note  Unused.
+ * @returns The number of characters returned, or -1 and errno set to ERANGE on
+ *        failure.
  *
  * @param   pszPrefix  The prefix to prepend if the path is relative.  Must end
  *                     in '/'.
@@ -130,11 +131,7 @@ static ssize_t rtLinuxConstructPath(char *pszBuf, size_t cchBuf,
  */
 static ssize_t rtLinuxSysFsConstructPath(char *pszBuf, size_t cchBuf, const char *pszFormat, va_list va)
 {
-    ssize_t rc = rtLinuxConstructPathV(pszBuf, cchBuf, "/sys/", pszFormat, va);
-    if (rc >= 0)
-        return rc;
-    errno = ERANGE;
-    return -1;
+    return rtLinuxConstructPathV(pszBuf, cchBuf, "/sys/", pszFormat, va);
 }
 
 
@@ -412,118 +409,125 @@ RTDECL(ssize_t) RTLinuxSysFsGetLinkDest(char *pszBuf, size_t cchBuf, const char 
 }
 
 
-/** Search for a device node with the number @a DevNum and the type (character
- * or block) @a fMode below the path @a pszPath.  @a pszPath MUST point to a
- * buffer of size at least RTPATH_MAX which will be modified during the function
- * execution.  On successful return it will contain the path to the device node
- * found. */
-/** @note This function previously used a local stack buffer of size RTPATH_MAX
- *    to construct the path passed to the next recursive call, which used up 4K
- *    of stack space per iteration and caused a stack overflow on a path with
- *    too many components. */
-static int rtLinuxFindDevicePathRecursive(dev_t DevNum, RTFMODE fMode,
-                                          char *pszPath)
+static ssize_t rtLinuxFindDevicePathRecursive(dev_t DevNum, RTFMODE fMode, const char *pszBasePath,
+                                              char *pszBuf, size_t cchBuf)
 {
-    int rc;
-    PRTDIR  pDir;
-    size_t const cchPath = strlen(pszPath);
-
     /*
      * Check assumptions made by the code below.
      */
-    AssertReturn(cchPath < RTPATH_MAX - 10U, VERR_BUFFER_OVERFLOW);
-    rc = RTDirOpen(&pDir, pszPath);
+    size_t const cchBasePath = strlen(pszBasePath);
+    AssertReturnStmt(cchBasePath < RTPATH_MAX - 10U, errno = ENAMETOOLONG, -1);
+
+    ssize_t rcRet;
+    PRTDIR  pDir;
+    int rc = RTDirOpen(&pDir, pszBasePath);
     if (RT_SUCCESS(rc))
     {
+        char szPath[RTPATH_MAX]; /** @todo 4K per recursion - can easily be optimized away by passing it along pszBasePath
+                                           and only remember the length. */
+        memcpy(szPath, pszBasePath, cchBasePath + 1);
+
         for (;;)
         {
             RTDIRENTRYEX Entry;
-            rc = RTDirReadEx(pDir, &Entry, NULL, RTFSOBJATTRADD_UNIX,
-                             RTPATH_F_ON_LINK);
+            rc = RTDirReadEx(pDir, &Entry, NULL, RTFSOBJATTRADD_UNIX, RTPATH_F_ON_LINK);
             if (RT_FAILURE(rc))
+            {
+                errno = rc == VERR_NO_MORE_FILES
+                      ? ENOENT
+                      : rc == VERR_BUFFER_OVERFLOW
+                      ? EOVERFLOW
+                      : EIO;
+                rcRet = -1;
                 break;
+            }
             if (RTFS_IS_SYMLINK(Entry.Info.Attr.fMode))
                 continue;
-            pszPath[cchPath] = '\0';
-            rc = RTPathAppend(pszPath, RTPATH_MAX, Entry.szName);
-            if (RT_FAILURE(rc))
-                break;
+
             /* Do the matching. */
             if (   Entry.Info.Attr.u.Unix.Device == DevNum
                 && (Entry.Info.Attr.fMode & RTFS_TYPE_MASK) == fMode)
+            {
+                rcRet = rtLinuxConstructPath(pszBuf, cchBuf, pszBasePath, "%s", Entry.szName);
                 break;
+            }
+
             /* Recurse into subdirectories. */
             if (!RTFS_IS_DIRECTORY(Entry.Info.Attr.fMode))
                 continue;
             if (Entry.szName[0] == '.')
                 continue;
-            rc = rtLinuxFindDevicePathRecursive(DevNum, fMode, pszPath);
-            if (RT_SUCCESS(rc) || rc != VERR_NO_MORE_FILES)
+
+            szPath[cchBasePath] = '\0';
+            rc = RTPathAppend(szPath, sizeof(szPath) - 1, Entry.szName); /* -1: for slash */
+            if (RT_FAILURE(rc))
+            {
+                errno = ENAMETOOLONG;
+                rcRet = -1;
+                break;
+            }
+            strcat(&szPath[cchBasePath], "/");
+            rcRet = rtLinuxFindDevicePathRecursive(DevNum, fMode, szPath, pszBuf, cchBuf);
+            if (rcRet >= 0 || errno != ENOENT)
                 break;
         }
         RTDirClose(pDir);
     }
-    return rc;
+    else
+    {
+        rcRet = -1;
+        errno = RTErrConvertToErrno(rc);
+    }
+    return rcRet;
 }
 
 
-RTDECL(ssize_t) RTLinuxFindDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf,
-                                       size_t cchBuf, const char *pszSuggestion,
-                                       va_list va)
+RTDECL(ssize_t) RTLinuxFindDevicePathV(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
+                                       const char *pszSuggestion, va_list va)
 {
-    char szFilename[RTPATH_MAX];
-    int rc = VINF_TRY_AGAIN;
+    AssertReturnStmt(cchBuf >= 2, errno = EINVAL, -1);
+    AssertReturnStmt(   fMode == RTFS_TYPE_DEV_CHAR
+                     || fMode == RTFS_TYPE_DEV_BLOCK,
+                     errno = EINVAL, -1);
 
-    AssertReturn(cchBuf >= 2, VERR_INVALID_PARAMETER);
-    AssertReturn(   fMode == RTFS_TYPE_DEV_CHAR
-                 || fMode == RTFS_TYPE_DEV_BLOCK,
-                 VERR_INVALID_PARAMETER);
     if (pszSuggestion)
     {
         /*
          * Construct the filename and read the link.
          */
-        rc = rtLinuxConstructPathV(szFilename, sizeof(szFilename), "/dev/",
-                                   pszSuggestion, va);
-        if (rc > 0)
+        char szFilename[RTPATH_MAX];
+        int rc = rtLinuxConstructPathV(szFilename, sizeof(szFilename), "/dev/", pszSuggestion, va);
+        if (rc == -1)
+            return -1;
+
+        /*
+         * Check whether the caller's suggestion was right.
+         */
+        RTFSOBJINFO Info;
+        rc = RTPathQueryInfo(szFilename, &Info, RTFSOBJATTRADD_UNIX);
+        if (   RT_SUCCESS(rc)
+            && Info.Attr.u.Unix.Device == DevNum
+            && (Info.Attr.fMode & RTFS_TYPE_MASK) == fMode)
         {
-            /*
-             * Check whether the caller's suggestion was right.
-             */
-            RTFSOBJINFO Info;
-            rc = RTPathQueryInfo(szFilename, &Info, RTFSOBJATTRADD_UNIX);
-            if (   rc == VERR_PATH_NOT_FOUND 
-                || rc == VERR_FILE_NOT_FOUND
-                || (   RT_SUCCESS(rc)
-                    && (   Info.Attr.u.Unix.Device != DevNum
-                        || (Info.Attr.fMode & RTFS_TYPE_MASK) != fMode)))
-            /* The suggestion was wrong, fall back on the brute force attack. */
-                rc = VINF_TRY_AGAIN;
+            size_t cchPath = strlen(szFilename);
+            if (cchPath >= cchBuf)
+            {
+                errno = EOVERFLOW;
+                return -1;
+            }
+            memcpy(pszBuf, szFilename, cchPath + 1);
+            return cchPath;
         }
+
+        /* The suggestion was wrong, fall back on the brute force attack. */
     }
 
-    if (rc == VINF_TRY_AGAIN)
-    {
-        RTStrCopy(szFilename, sizeof(szFilename), "/dev/");
-        rc = rtLinuxFindDevicePathRecursive(DevNum, fMode, szFilename);
-    }
-    if (RT_SUCCESS(rc))
-    {
-        size_t cchPath = strlen(szFilename);
-        if (cchPath >= cchBuf)
-            return VERR_BUFFER_OVERFLOW;
-        memcpy(pszBuf, szFilename, cchPath + 1);
-        return cchPath;
-    }
-    return rc;
+    return rtLinuxFindDevicePathRecursive(DevNum, fMode, "/dev/", pszBuf, cchBuf);
 }
 
 
-/** @todo Do we really need to return the string length?  If the caller is
- * interested (the current ones aren't) they can check themselves. */
-RTDECL(ssize_t) RTLinuxFindDevicePath(dev_t DevNum, RTFMODE fMode, char *pszBuf,
-                                      size_t cchBuf, const char *pszSuggestion,
-                                      ...)
+RTDECL(ssize_t) RTLinuxFindDevicePath(dev_t DevNum, RTFMODE fMode, char *pszBuf, size_t cchBuf,
+                                      const char *pszSuggestion, ...)
 {
     va_list va;
     va_start(va, pszSuggestion);

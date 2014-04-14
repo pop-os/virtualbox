@@ -3,13 +3,6 @@
 /ASM-INC/basm-inc
 /ASM-NOINC/basm-noinc
 
-# Newline escapes.
-:check-newline-escape
-/\\$/!bno-more-newline-escapes
-N
-b check-newline-escape
-:no-more-newline-escapes
-
 # Strip comments and trailing space.
 s/[[:space:]][[:space:]]*\/\*.*$//g
 s/[[:space:]][[:space:]]*\/\/.*$//g

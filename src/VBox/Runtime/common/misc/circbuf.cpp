@@ -206,7 +206,7 @@ RTDECL(void) RTCircBufAcquireWriteBlock(PRTCIRCBUF pBuf, size_t cbReqSize, void 
     size_t cbFree = pBuf->cbBuf - ASMAtomicReadZ(&pBuf->cbUsed);
     if (cbFree > 0)
     {
-        /* Get the size out of the requested size, then write block till the end
+        /* Get the size out of the requested size, the write block till the end
          * of the buffer & the currently free size. */
         size_t cbSize = RT_MIN(cbReqSize, RT_MIN(pBuf->cbBuf - pBuf->offWrite, cbFree));
         if (cbSize > 0)
@@ -230,6 +230,7 @@ RTDECL(void) RTCircBufReleaseWriteBlock(PRTCIRCBUF pBuf, size_t cbSize)
     /* Split at the end of the buffer. */
     pBuf->offWrite = (pBuf->offWrite + cbSize) % pBuf->cbBuf;
 
+    size_t cbOldIgnored = 0;
     ASMAtomicAddZ(&pBuf->cbUsed, cbSize);
     ASMAtomicWriteBool(&pBuf->fWriting, false);
 }

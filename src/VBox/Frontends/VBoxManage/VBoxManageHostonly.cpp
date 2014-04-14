@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,8 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
+#include <VBox/com/EventQueue.h>
+
 #include <VBox/com/VirtualBox.h>
 #endif /* !VBOX_ONLY_DOCS */
 
@@ -63,19 +65,27 @@ static int handleCreate(HandlerArg *a, int iStart, int *pcProcessed)
 
     rc = showProgress(progress);
     *pcProcessed = index - iStart;
-    CHECK_PROGRESS_ERROR_RET(progress, ("Failed to create the host-only adapter"), 1);
+    if (FAILED(rc))
+    {
+        com::ProgressErrorInfo info(progress);
+        if (info.isBasicAvailable())
+            RTMsgError("Failed to create the host-only adapter. Error message: %lS", info.getText().raw());
+        else
+            RTMsgError("Failed to create the host-only adapter. No error message available, code: %Rhrc", rc);
+
+        return 1;
+    }
 
     Bstr name;
     CHECK_ERROR(hif, COMGETTER(Name) (name.asOutParam()));
 
-    RTPrintf("Interface '%ls' was successfully created\n", name.raw());
+    RTPrintf("Interface '%lS' was successfully created\n", name.raw());
 
     return 0;
 }
 
 static int handleRemove(HandlerArg *a, int iStart, int *pcProcessed)
 {
-    *pcProcessed = 0;
     if (a->argc - iStart < 1)
         return errorSyntax(USAGE_HOSTONLYIFS, "Not enough parameters");
 
@@ -99,7 +109,16 @@ static int handleRemove(HandlerArg *a, int iStart, int *pcProcessed)
 
     rc = showProgress(progress);
     *pcProcessed = index - iStart;
-    CHECK_PROGRESS_ERROR_RET(progress, ("Failed to remove the host-only adapter"), 1);
+    if (FAILED(rc))
+    {
+        com::ProgressErrorInfo info(progress);
+        if (info.isBasicAvailable())
+            RTMsgError("Failed to remove the host-only adapter. Error message: %lS", info.getText().raw());
+        else
+            RTMsgError("Failed to remove the host-only adapter. No error message available, code: %Rhrc", rc);
+
+        return 1;
+    }
 
     return 0;
 }
@@ -222,14 +241,14 @@ static int handleIpconfig(HandlerArg *a, int iStart, int *pcProcessed)
 
     if (bDhcp)
     {
-        CHECK_ERROR(hif, EnableDynamicIPConfig ());
+        CHECK_ERROR(hif, EnableDynamicIpConfig ());
     }
     else if (pIp)
     {
         if (!pNetmask)
             pNetmask = "255.255.255.0"; /* ?? */
 
-        CHECK_ERROR(hif, EnableStaticIPConfig(Bstr(pIp).raw(),
+        CHECK_ERROR(hif, EnableStaticIpConfig(Bstr(pIp).raw(),
                                               Bstr(pNetmask).raw()));
     }
     else if (pIpv6)
@@ -247,7 +266,7 @@ static int handleIpconfig(HandlerArg *a, int iStart, int *pcProcessed)
 
 
         Bstr ipv6str(pIpv6);
-        CHECK_ERROR(hif, EnableStaticIPConfigV6(ipv6str.raw(),
+        CHECK_ERROR(hif, EnableStaticIpConfigV6(ipv6str.raw(),
                                                 (ULONG)uNetmasklengthv6));
     }
     else

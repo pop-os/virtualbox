@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,6 @@
 
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
-#include <iprt/list.h>
 #include <iprt/mem.h>
 #include <iprt/once.h>
 #include <iprt/string.h>
@@ -166,13 +165,6 @@ typedef struct USBPROXYPIPEOSX
     uint64_t                u64NextFrameNo;
 } USBPROXYPIPEOSX, *PUSBPROXYPIPEOSX, **PPUSBPROXYPIPEOSX;
 
-typedef struct RUNLOOPREFLIST
-{
-    RTLISTNODE   List;
-    CFRunLoopRef RunLoopRef;
-} RUNLOOPREFLIST, *PRUNLOOPREFLIST;
-typedef RUNLOOPREFLIST **PPRUNLOOPREFLIST;
-
 /**
  * Per-interface data for the Darwin usb proxy backend.
  */
@@ -199,7 +191,6 @@ typedef struct USBPROXYIFOSX
     CFRunLoopSourceRef      RunLoopSrcRef;
     /** List of isochronous buffer collections.
      * These are allocated on demand by the URB queuing routine and then recycled until the interface is destroyed. */
-    RTLISTANCHOR HeadOfRunLoopLst;
     PUSBPROXYISOCBUFCOL     pIsocBufCols;
 } USBPROXYIFOSX, *PUSBPROXYIFOSX, **PPUSBPROXYIFOSX;
 /** Pointer to a pointer to an darwin interface. */
@@ -217,9 +208,9 @@ typedef struct USBPROXYDEVOSX
     /** The run loop source for the async operations on the device level
      * (i.e. the default control pipe stuff). */
     CFRunLoopSourceRef      RunLoopSrcRef;
-    /** we want to add and remove RunLoopSourceRefs to run loop's of
-     * every EMT thread participated in USB processing. */
-    RTLISTANCHOR            HeadOfRunLoopLst;
+    /** The run loop this device and its interfaces send their events to. */
+    CFRunLoopRef            RunLoopRef;
+
     /** Pointer to the proxy device instance. */
     PUSBPROXYDEV            pProxyDev;
 
@@ -232,21 +223,14 @@ typedef struct USBPROXYDEVOSX
     RTCRITSECT              CritSect;
     /** The list of free Darwin URBs. Singly linked. */
     PUSBPROXYURBOSX         pFreeHead;
+    /** The list of active Darwin URBs. Doubly linked.
+     * Only the split head will appear in this list. */
+    PUSBPROXYURBOSX         pInFlightHead;
     /** The list of landed Darwin URBs. Doubly linked.
      * Only the split head will appear in this list. */
     PUSBPROXYURBOSX         pTaxingHead;
     /** The tail of the landed Darwin URBs. */
     PUSBPROXYURBOSX         pTaxingTail;
-    /** Last reaper runloop reference, there can be only one runloop at a time. */
-    CFRunLoopRef            hRunLoopReapingLast;
-    /** Runloop source for waking up the reaper thread. */
-    CFRunLoopSourceRef      hRunLoopSrcWakeRef;
-    /** List of threads used for reaping which can be woken up. */
-    RTLISTANCHOR            HeadOfRunLoopWakeLst;
-    /** Runloop reference of the thread reaping. */
-    volatile CFRunLoopRef   hRunLoopReaping;
-    /** Flag whether the reaping thread is about the be waked. */
-    volatile bool           fReapingThreadWake;
 } USBPROXYDEVOSX, *PUSBPROXYDEVOSX;
 
 
@@ -271,7 +255,7 @@ static mach_port_t  g_MasterPort = NULL;
  * @param   pvUser1     NULL, ignored.
  * @param   pvUser2     NULL, ignored.
  */
-static DECLCALLBACK(int32_t) usbProxyDarwinInitOnce(void *pvUser1)
+static DECLCALLBACK(int32_t) usbProxyDarwinInitOnce(void *pvUser1, void *pvUser2)
 {
     int rc;
     kern_return_t krc = IOMasterPort(MACH_PORT_NULL, &g_MasterPort);
@@ -285,83 +269,6 @@ static DECLCALLBACK(int32_t) usbProxyDarwinInitOnce(void *pvUser1)
     else
         rc = RTErrConvertFromDarwin(krc);
     return rc;
-}
-
-/**
- * Kicks the reaper thread if it sleeps currently to respond to state changes
- * or to pick up completed URBs.
- *
- * @returns nothing.
- * @param   pDevOsX    The darwin device instance data.
- */
-static void usbProxyDarwinReaperKick(PUSBPROXYDEVOSX pDevOsX)
-{
-    CFRunLoopRef hRunLoopWake = (CFRunLoopRef)ASMAtomicReadPtr((void * volatile *)&pDevOsX->hRunLoopReaping);
-    if (hRunLoopWake)
-    {
-        LogFlowFunc(("Waking runloop %p\n", hRunLoopWake));
-        CFRunLoopSourceSignal(pDevOsX->hRunLoopSrcWakeRef);
-        CFRunLoopWakeUp(hRunLoopWake);
-    }
-}
-
-/**
- * Adds Source ref to current run loop and adds it the list of runloops.
- */
-static int usbProxyDarwinAddRunLoopRef(PRTLISTANCHOR pListHead,
-                                       CFRunLoopSourceRef SourceRef)
-{
-    AssertPtrReturn(pListHead, VERR_INVALID_PARAMETER);
-    AssertReturn(CFRunLoopSourceIsValid(SourceRef), VERR_INVALID_PARAMETER);
-
-    if (CFRunLoopContainsSource(CFRunLoopGetCurrent(), SourceRef, g_pRunLoopMode))
-        return VINF_SUCCESS;
-
-    /* Add to the list */
-    PRUNLOOPREFLIST pListNode = (PRUNLOOPREFLIST)RTMemAllocZ(sizeof(RUNLOOPREFLIST));
-    if (!pListNode)
-        return VERR_NO_MEMORY;
-
-    pListNode->RunLoopRef = CFRunLoopGetCurrent();
-
-    CFRetain(pListNode->RunLoopRef);
-    CFRetain(SourceRef); /* We want to be aware of releasing */
-
-    CFRunLoopAddSource(pListNode->RunLoopRef, SourceRef, g_pRunLoopMode);
-
-    RTListInit(&pListNode->List);
-
-    RTListAppend((PRTLISTNODE)pListHead, &pListNode->List);
-
-    return VINF_SUCCESS;
-}
-
-
-/*
- * Removes all source reference from mode of run loop's we've registered them.
- *
- */
-static int usbProxyDarwinRemoveSourceRefFromAllRunLoops(PRTLISTANCHOR pHead,
-                                                        CFRunLoopSourceRef SourceRef)
-{
-    AssertPtrReturn(pHead, VERR_INVALID_PARAMETER);
-
-    while (!RTListIsEmpty(pHead))
-    {
-        PRUNLOOPREFLIST pNode = RTListGetFirst(pHead, RUNLOOPREFLIST, List);
-        /* XXX: Should Release Reference? */
-        Assert(CFGetRetainCount(pNode->RunLoopRef));
-
-        CFRunLoopRemoveSource(pNode->RunLoopRef, SourceRef, g_pRunLoopMode);
-        CFRelease(SourceRef);
-        CFRelease(pNode->RunLoopRef);
-
-        RTListNodeRemove(&pNode->List);
-
-        RTMemFree(pNode);
-    }
-
-    return VINF_SUCCESS;
 }
 
 
@@ -384,21 +291,29 @@ static PUSBPROXYURBOSX  usbProxyDarwinUrbAlloc(PUSBPROXYDEVOSX pDevOsX)
      */
     pUrbOsX = pDevOsX->pFreeHead;
     if (pUrbOsX)
-    {
         pDevOsX->pFreeHead = pUrbOsX->pNext;
-        RTCritSectLeave(&pDevOsX->CritSect);
-    }
     else
     {
         RTCritSectLeave(&pDevOsX->CritSect);
         pUrbOsX = (PUSBPROXYURBOSX)RTMemAlloc(sizeof(*pUrbOsX));
         if (!pUrbOsX)
             return NULL;
+        RTCritSectEnter(&pDevOsX->CritSect);
     }
     pUrbOsX->pVUsbUrb = NULL;
     pUrbOsX->pDevOsX = pDevOsX;
     pUrbOsX->enmType = VUSBXFERTYPE_INVALID;
 
+    /*
+     * Link it into the active list
+     */
+    pUrbOsX->pPrev = NULL;
+    pUrbOsX->pNext = pDevOsX->pInFlightHead;
+    if (pUrbOsX->pNext)
+        pUrbOsX->pNext->pPrev = pUrbOsX;
+    pDevOsX->pInFlightHead = pUrbOsX;
+
+    RTCritSectLeave(&pDevOsX->CritSect);
     return pUrbOsX;
 }
 
@@ -509,6 +424,23 @@ static void usbProxyDarwinUrbFree(PUSBPROXYDEVOSX pDevOsX, PUSBPROXYURBOSX pUrbO
 {
     RTCritSectEnter(&pDevOsX->CritSect);
 
+    /*
+     * Remove from the active or taxing list.
+     */
+    if (pUrbOsX->pNext)
+        pUrbOsX->pNext->pPrev   = pUrbOsX->pPrev;
+    else if (pDevOsX->pTaxingTail == pUrbOsX)
+        pDevOsX->pTaxingTail    = pUrbOsX->pPrev;
+
+    if (pUrbOsX->pPrev)
+        pUrbOsX->pPrev->pNext   = pUrbOsX->pNext;
+    else if (pDevOsX->pTaxingHead == pUrbOsX)
+        pDevOsX->pTaxingHead    = pUrbOsX->pNext;
+    else if (pDevOsX->pInFlightHead == pUrbOsX)
+        pDevOsX->pInFlightHead  = pUrbOsX->pNext;
+    else
+        AssertFailed();
+
 #ifdef USE_LOW_LATENCY_API
     /*
      * Free low latency stuff.
@@ -587,6 +519,8 @@ static void usbProxyDarwinUrbAsyncComplete(void *pvUrbOsX, IOReturn irc, void *S
     PUSBPROXYDEVOSX pDevOsX = pUrbOsX->pDevOsX;
     const uint32_t cb = (uintptr_t)Size;
 
+    RTCritSectEnter(&pDevOsX->CritSect);
+
     /*
      * Do status updates.
      */
@@ -635,7 +569,18 @@ static void usbProxyDarwinUrbAsyncComplete(void *pvUrbOsX, IOReturn irc, void *S
         }
     }
 
-    RTCritSectEnter(&pDevOsX->CritSect);
+    /*
+     * Remove from the active list.
+     */
+    if (pUrbOsX->pNext)
+        pUrbOsX->pNext->pPrev = pUrbOsX->pPrev;
+    if (pUrbOsX->pPrev)
+        pUrbOsX->pPrev->pNext = pUrbOsX->pNext;
+    else
+    {
+        Assert(pDevOsX->pInFlightHead == pUrbOsX);
+        pDevOsX->pInFlightHead = pUrbOsX->pNext;
+    }
 
     /*
      * Link it into the taxing list.
@@ -661,11 +606,6 @@ static void usbProxyDarwinUrbAsyncComplete(void *pvUrbOsX, IOReturn irc, void *S
  */
 static void usbProxyDarwinReleaseAllInterfaces(PUSBPROXYDEVOSX pDevOsX)
 {
-    RTCritSectEnter(&pDevOsX->CritSect);
-
-    /* Kick the reaper thread out of sleep. */
-    usbProxyDarwinReaperKick(pDevOsX);
-
     PUSBPROXYIFOSX pIf = pDevOsX->pIfHead;
     pDevOsX->pIfHead = pDevOsX->pIfTail = NULL;
 
@@ -676,12 +616,9 @@ static void usbProxyDarwinReleaseAllInterfaces(PUSBPROXYDEVOSX pDevOsX)
 
         if (pIf->RunLoopSrcRef)
         {
-            int rc = usbProxyDarwinRemoveSourceRefFromAllRunLoops((PRTLISTANCHOR)&pIf->HeadOfRunLoopLst, pIf->RunLoopSrcRef);
-            AssertRC(rc);
-
+            CFRunLoopRemoveSource(pDevOsX->RunLoopRef, pIf->RunLoopSrcRef, g_pRunLoopMode);
             CFRelease(pIf->RunLoopSrcRef);
             pIf->RunLoopSrcRef = NULL;
-            RTListInit((PRTLISTNODE)&pIf->HeadOfRunLoopLst);
         }
 
         while (pIf->pIsocBufCols)
@@ -711,7 +648,6 @@ static void usbProxyDarwinReleaseAllInterfaces(PUSBPROXYDEVOSX pDevOsX)
 
         pIf = pNext;
     }
-    RTCritSectLeave(&pDevOsX->CritSect);
 }
 
 
@@ -792,8 +728,6 @@ static int usbProxyDarwinGetPipeProperties(PUSBPROXYDEVOSX pDevOsX, PUSBPROXYIFO
 static int usbProxyDarwinSeizeAllInterfaces(PUSBPROXYDEVOSX pDevOsX, bool fMakeTheBestOfIt)
 {
     PUSBPROXYDEV pProxyDev = pDevOsX->pProxyDev;
-
-    RTCritSectEnter(&pDevOsX->CritSect);
 
     /*
      * Create a interface enumerator for all the interface (current config).
@@ -889,9 +823,7 @@ static int usbProxyDarwinSeizeAllInterfaces(PUSBPROXYDEVOSX pDevOsX, bool fMakeT
                                     irc = (*ppIfI)->CreateInterfaceAsyncEventSource(ppIfI, &pIf->RunLoopSrcRef);
                                     if (irc == kIOReturnSuccess)
                                     {
-                                        RTListInit((PRTLISTNODE)&pIf->HeadOfRunLoopLst);
-                                        usbProxyDarwinAddRunLoopRef(&pIf->HeadOfRunLoopLst,
-                                                                    pIf->RunLoopSrcRef);
+                                        CFRunLoopAddSource(pDevOsX->RunLoopRef, pIf->RunLoopSrcRef, g_pRunLoopMode);
 
                                         /*
                                          * Just link the interface into the list and we're good.
@@ -954,8 +886,6 @@ static int usbProxyDarwinSeizeAllInterfaces(PUSBPROXYDEVOSX pDevOsX, bool fMakeT
         AssertMsgFailed(("%#x\n", irc));
         rc = VERR_GENERAL_FAILURE;
     }
-
-    RTCritSectLeave(&pDevOsX->CritSect);
     return rc;
 }
 
@@ -1058,12 +988,6 @@ static bool usbProxyDarwinDictGetU64(CFMutableDictionaryRef DictRef, CFStringRef
 }
 
 
-static DECLCALLBACK(void) usbProxyDarwinPerformWakeup(void *pInfo)
-{
-    return;
-}
-
-
 /* -=-=-=-=-=- The exported methods -=-=-=-=-=- */
 
 
@@ -1077,7 +1001,7 @@ static DECLCALLBACK(void) usbProxyDarwinPerformWakeup(void *pInfo)
  *                          it's sequences of "[l|s]=<value>" separated by ";".
  * @param   pvBackend       Backend specific pointer, unused for the Darwin backend.
  */
-static DECLCALLBACK(int) usbProxyDarwinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static int usbProxyDarwinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
 {
     int vrc;
     LogFlow(("usbProxyDarwinOpen: pProxyDev=%p pszAddress=%s\n", pProxyDev, pszAddress));
@@ -1085,10 +1009,8 @@ static DECLCALLBACK(int) usbProxyDarwinOpen(PUSBPROXYDEV pProxyDev, const char *
     /*
      * Init globals once.
      */
-    vrc = RTOnce(&g_usbProxyDarwinOnce, usbProxyDarwinInitOnce, NULL);
+    vrc = RTOnce(&g_usbProxyDarwinOnce, usbProxyDarwinInitOnce, NULL, NULL);
     AssertRCReturn(vrc, vrc);
-
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
 
     /*
      * The idea here was to create a matching directory with the sessionID
@@ -1223,81 +1145,69 @@ static DECLCALLBACK(int) usbProxyDarwinOpen(PUSBPROXYDEV pProxyDev, const char *
             if (irc == kIOReturnSuccess)
             {
                 /*
-                 * Init a proxy device instance.
+                 * Create a proxy device instance.
                  */
-                RTListInit((PRTLISTNODE)&pDevOsX->HeadOfRunLoopLst);
-                vrc = RTCritSectInit(&pDevOsX->CritSect);
-                if (RT_SUCCESS(vrc))
+                vrc = VERR_NO_MEMORY;
+                PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)RTMemAllocZ(sizeof(*pDevOsX));
+                if (pDevOsX)
                 {
-                    pDevOsX->USBDevice           = USBDevice;
-                    pDevOsX->ppDevI              = ppDevI;
-                    pDevOsX->pProxyDev           = pProxyDev;
-                    pDevOsX->pTaxingHead         = NULL;
-                    pDevOsX->pTaxingTail         = NULL;
-                    pDevOsX->hRunLoopReapingLast = NULL;
-
-                    /*
-                     * Try seize all the interface.
-                     */
-                    char *pszDummyName = pProxyDev->pUsbIns->pszName;
-                    pProxyDev->pUsbIns->pszName = (char *)pszAddress;
-                    vrc = usbProxyDarwinSeizeAllInterfaces(pDevOsX, false /* give up on failure */);
-                    pProxyDev->pUsbIns->pszName = pszDummyName;
+                    vrc = RTCritSectInit(&pDevOsX->CritSect);
                     if (RT_SUCCESS(vrc))
                     {
+                        pDevOsX->USBDevice = USBDevice;
+                        pDevOsX->ppDevI = ppDevI;
+                        pDevOsX->pProxyDev = pProxyDev;
+                        pDevOsX->RunLoopRef = CFRunLoopGetCurrent();
+                        CFRetain(pDevOsX->RunLoopRef); /* paranoia */
+
                         /*
-                         * Create the async event source and add it to the run loop.
+                         * Try seize all the interface.
                          */
-                        irc = (*ppDevI)->CreateDeviceAsyncEventSource(ppDevI, &pDevOsX->RunLoopSrcRef);
-                        if (irc == kIOReturnSuccess)
+                        char *pszDummyName = pProxyDev->pUsbIns->pszName;
+                        pProxyDev->pUsbIns->pszName = (char *)pszAddress;
+                        vrc = usbProxyDarwinSeizeAllInterfaces(pDevOsX, false /* give up on failure */);
+                        pProxyDev->pUsbIns->pszName = pszDummyName;
+                        if (RT_SUCCESS(vrc))
                         {
                             /*
-                             * Determine the active configuration.
-                             * Can cause hangs, so drop it for now.
+                             * Create the async event source and add it to the run loop.
                              */
-                            /** @todo test Palm. */
-                            //uint8_t u8Cfg;
-                            //irc = (*ppDevI)->GetConfiguration(ppDevI, &u8Cfg);
-                            if (irc != kIOReturnNoDevice)
+                            irc = (*ppDevI)->CreateDeviceAsyncEventSource(ppDevI, &pDevOsX->RunLoopSrcRef);
+                            if (irc == kIOReturnSuccess)
                             {
-                                CFRunLoopSourceContext CtxRunLoopSource;
-                                CtxRunLoopSource.version = 0;
-                                CtxRunLoopSource.info = NULL;
-                                CtxRunLoopSource.retain = NULL;
-                                CtxRunLoopSource.release = NULL;
-                                CtxRunLoopSource.copyDescription = NULL;
-                                CtxRunLoopSource.equal = NULL;
-                                CtxRunLoopSource.hash = NULL;
-                                CtxRunLoopSource.schedule = NULL;
-                                CtxRunLoopSource.cancel = NULL;
-                                CtxRunLoopSource.perform = usbProxyDarwinPerformWakeup;
-                                pDevOsX->hRunLoopSrcWakeRef = CFRunLoopSourceCreate(NULL, 0, &CtxRunLoopSource);
-                                if (CFRunLoopSourceIsValid(pDevOsX->hRunLoopSrcWakeRef))
+                                CFRunLoopAddSource(pDevOsX->RunLoopRef, pDevOsX->RunLoopSrcRef, g_pRunLoopMode);
+
+                                /*
+                                 * Determine the active configuration.
+                                 * Can cause hangs, so drop it for now.
+                                 */
+                                /** @todo test Palm. */
+                                //uint8_t u8Cfg;
+                                //irc = (*ppDevI)->GetConfiguration(ppDevI, &u8Cfg);
+                                if (irc != kIOReturnNoDevice)
                                 {
                                     //pProxyDev->iActiveCfg = irc == kIOReturnSuccess ? u8Cfg : -1;
-                                    RTListInit(&pDevOsX->HeadOfRunLoopWakeLst);
                                     pProxyDev->iActiveCfg = -1;
                                     pProxyDev->cIgnoreSetConfigs = 1;
 
-                                    usbProxyDarwinAddRunLoopRef(&pDevOsX->HeadOfRunLoopLst, pDevOsX->RunLoopSrcRef);
+                                    pProxyDev->Backend.pv = pDevOsX;
                                     return VINF_SUCCESS;        /* return */
                                 }
-                                else
-                                {
-                                    LogRel(("USB: Device '%s' out of memory allocating runloop source\n", pszAddress));
-                                    vrc = VERR_NO_MEMORY;
-                                }
+                                vrc = VERR_VUSB_DEVICE_NOT_ATTACHED;
+
+                                CFRunLoopRemoveSource(pDevOsX->RunLoopRef, pDevOsX->RunLoopSrcRef, g_pRunLoopMode);
                             }
-                            vrc = VERR_VUSB_DEVICE_NOT_ATTACHED;
+                            else
+                                vrc = RTErrConvertFromDarwin(irc);
+
+                            usbProxyDarwinReleaseAllInterfaces(pDevOsX);
                         }
-                        else
-                            vrc = RTErrConvertFromDarwin(irc);
+                        /* else: already bitched */
 
-                        usbProxyDarwinReleaseAllInterfaces(pDevOsX);
+                        RTCritSectDelete(&pDevOsX->CritSect);
                     }
-                    /* else: already bitched */
 
-                    RTCritSectDelete(&pDevOsX->CritSect);
+                    RTMemFree(pDevOsX);
                 }
 
                 irc = (*ppDevI)->USBDeviceClose(ppDevI);
@@ -1338,11 +1248,13 @@ static DECLCALLBACK(int) usbProxyDarwinOpen(PUSBPROXYDEV pProxyDev, const char *
 /**
  * Closes the proxy device.
  */
-static DECLCALLBACK(void) usbProxyDarwinClose(PUSBPROXYDEV pProxyDev)
+static void usbProxyDarwinClose(PUSBPROXYDEV pProxyDev)
 {
     LogFlow(("usbProxyDarwinClose: pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
-    AssertPtrReturnVoid(pDevOsX);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
+    Assert(pDevOsX);
+    if (!pDevOsX)
+        return;
 
     /*
      * Release interfaces we've laid claim to, then reset the device
@@ -1356,24 +1268,9 @@ static DECLCALLBACK(void) usbProxyDarwinClose(PUSBPROXYDEV pProxyDev)
 
     if (pDevOsX->RunLoopSrcRef)
     {
-        int rc = usbProxyDarwinRemoveSourceRefFromAllRunLoops(&pDevOsX->HeadOfRunLoopLst, pDevOsX->RunLoopSrcRef);
-        AssertRC(rc);
-
-        RTListInit((PRTLISTNODE)&pDevOsX->HeadOfRunLoopLst);
-
+        CFRunLoopRemoveSource(pDevOsX->RunLoopRef, pDevOsX->RunLoopSrcRef, g_pRunLoopMode);
         CFRelease(pDevOsX->RunLoopSrcRef);
         pDevOsX->RunLoopSrcRef = NULL;
-    }
-
-    if (pDevOsX->hRunLoopSrcWakeRef)
-    {
-        int rc = usbProxyDarwinRemoveSourceRefFromAllRunLoops(&pDevOsX->HeadOfRunLoopWakeLst, pDevOsX->hRunLoopSrcWakeRef);
-        AssertRC(rc);
-
-        RTListInit((PRTLISTNODE)&pDevOsX->HeadOfRunLoopWakeLst);
-
-        CFRelease(pDevOsX->hRunLoopSrcWakeRef);
-        pDevOsX->hRunLoopSrcWakeRef = NULL;
     }
 
     IOReturn irc = (*pDevOsX->ppDevI)->ResetDevice(pDevOsX->ppDevI);
@@ -1400,12 +1297,27 @@ static DECLCALLBACK(void) usbProxyDarwinClose(PUSBPROXYDEV pProxyDev)
      */
     RTCritSectDelete(&pDevOsX->CritSect);
 
+    if (pDevOsX->RunLoopRef)
+    {
+        CFRelease(pDevOsX->RunLoopRef);
+        pDevOsX->RunLoopRef = NULL;
+    }
+
     PUSBPROXYURBOSX pUrbOsX;
+    while ((pUrbOsX = pDevOsX->pInFlightHead) != NULL)
+    {
+        pDevOsX->pInFlightHead = pUrbOsX->pNext;
+        //RTMemFree(pUrbOsX); - leak these for now, fix later.
+    }
+
     while ((pUrbOsX = pDevOsX->pFreeHead) != NULL)
     {
         pDevOsX->pFreeHead = pUrbOsX->pNext;
         RTMemFree(pUrbOsX);
     }
+
+    RTMemFree(pDevOsX);
+    pProxyDev->Backend.pv = NULL;
 
 #ifdef VBOX_WITH_NEW_USB_CODE_ON_DARWIN
     USBLibTerm();
@@ -1420,9 +1332,9 @@ static DECLCALLBACK(void) usbProxyDarwinClose(PUSBPROXYDEV pProxyDev)
  * @returns VBox status code.
  * @param   pDev    The device to reset.
  */
-static DECLCALLBACK(int) usbProxyDarwinReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
+static int usbProxyDarwinReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
     LogFlow(("usbProxyDarwinReset: pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
 
     IOReturn irc = (*pDevOsX->ppDevI)->ResetDevice(pDevOsX->ppDevI);
@@ -1458,9 +1370,9 @@ static DECLCALLBACK(int) usbProxyDarwinReset(PUSBPROXYDEV pProxyDev, bool fReset
  * @param   pProxyDev       The device instance data.
  * @param   iCfg            The configuration to set.
  */
-static DECLCALLBACK(int) usbProxyDarwinSetConfig(PUSBPROXYDEV pProxyDev, int iCfg)
+static int usbProxyDarwinSetConfig(PUSBPROXYDEV pProxyDev, int iCfg)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
     LogFlow(("usbProxyDarwinSetConfig: pProxyDev=%s cfg=%#x\n",
              pProxyDev->pUsbIns->pszName, iCfg));
 
@@ -1468,12 +1380,12 @@ static DECLCALLBACK(int) usbProxyDarwinSetConfig(PUSBPROXYDEV pProxyDev, int iCf
     if (irc != kIOReturnSuccess)
     {
         Log(("usbProxyDarwinSetConfig: Set configuration -> %#x\n", irc));
-        return RTErrConvertFromDarwin(irc);
+        return false;
     }
 
     usbProxyDarwinReleaseAllInterfaces(pDevOsX);
     usbProxyDarwinSeizeAllInterfaces(pDevOsX, true /* make the best out of it */);
-    return VINF_SUCCESS;
+    return true;
 }
 
 
@@ -1483,11 +1395,11 @@ static DECLCALLBACK(int) usbProxyDarwinSetConfig(PUSBPROXYDEV pProxyDev, int iCf
  * This is a stub on Darwin since we release/claim all interfaces at
  * open/reset/setconfig time.
  *
- * @returns success indicator (always VINF_SUCCESS).
+ * @returns success indicator (always true).
  */
-static DECLCALLBACK(int) usbProxyDarwinClaimInterface(PUSBPROXYDEV pProxyDev, int iIf)
+static int usbProxyDarwinClaimInterface(PUSBPROXYDEV pProxyDev, int iIf)
 {
-    return VINF_SUCCESS;
+    return true;
 }
 
 
@@ -1499,9 +1411,9 @@ static DECLCALLBACK(int) usbProxyDarwinClaimInterface(PUSBPROXYDEV pProxyDev, in
  *
  * @returns success indicator.
  */
-static DECLCALLBACK(int) usbProxyDarwinReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
+static int usbProxyDarwinReleaseInterface(PUSBPROXYDEV pProxyDev, int iIf)
 {
-    return VINF_SUCCESS;
+    return true;
 }
 
 
@@ -1510,9 +1422,9 @@ static DECLCALLBACK(int) usbProxyDarwinReleaseInterface(PUSBPROXYDEV pProxyDev, 
  *
  * @returns success indicator.
  */
-static DECLCALLBACK(int) usbProxyDarwinSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int iAlt)
+static int usbProxyDarwinSetInterface(PUSBPROXYDEV pProxyDev, int iIf, int iAlt)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
     IOReturn irc = kIOReturnSuccess;
     PUSBPROXYIFOSX pIf = usbProxyDarwinGetInterface(pDevOsX, iIf);
     LogFlow(("usbProxyDarwinSetInterface: pProxyDev=%s iIf=%#x iAlt=%#x iCurAlt=%#x\n",
@@ -1526,7 +1438,7 @@ static DECLCALLBACK(int) usbProxyDarwinSetInterface(PUSBPROXYDEV pProxyDev, int 
             if (irc == kIOReturnSuccess)
             {
                 usbProxyDarwinGetPipeProperties(pDevOsX, pIf);
-                return VINF_SUCCESS;
+                return true;
             }
         }
         else
@@ -1544,22 +1456,22 @@ static DECLCALLBACK(int) usbProxyDarwinSetInterface(PUSBPROXYDEV pProxyDev, int 
             Req.pData = NULL;
             irc = (*pDevOsX->ppDevI)->DeviceRequest(pDevOsX->ppDevI, &Req);
             Log(("usbProxyDarwinSetInterface: SET_INTERFACE(%d,%d) -> irc=%#x\n", iIf, iAlt, irc));
-            return VINF_SUCCESS;
+            return true;
         }
     }
 
     LogFlow(("usbProxyDarwinSetInterface: pProxyDev=%s eiIf=%#x iAlt=%#x - failure - pIf=%p irc=%#x\n",
              pProxyDev->pUsbIns->pszName, iIf, iAlt, pIf, irc));
-    return RTErrConvertFromDarwin(irc);
+    return false;
 }
 
 
 /**
  * Clears the halted endpoint 'EndPt'.
  */
-static DECLCALLBACK(int) usbProxyDarwinClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int EndPt)
+static bool usbProxyDarwinClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int EndPt)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
     LogFlow(("usbProxyDarwinClearHaltedEp: pProxyDev=%s EndPt=%#x\n", pProxyDev->pUsbIns->pszName, EndPt));
 
     /*
@@ -1567,7 +1479,7 @@ static DECLCALLBACK(int) usbProxyDarwinClearHaltedEp(PUSBPROXYDEV pProxyDev, uns
      * supported by the API. Just ignore it.
      */
     if (EndPt == 0)
-        return VINF_SUCCESS;
+        return true;
 
     /*
      * Find the interface/pipe combination and invoke the ClearPipeStallBothEnds
@@ -1581,22 +1493,23 @@ static DECLCALLBACK(int) usbProxyDarwinClearHaltedEp(PUSBPROXYDEV pProxyDev, uns
     {
         irc = (*pIf->ppIfI)->ClearPipeStallBothEnds(pIf->ppIfI, u8PipeRef);
         if (irc == kIOReturnSuccess)
-            return VINF_SUCCESS;
+            return true;
         AssertMsg(irc == kIOReturnNoDevice || irc == kIOReturnNotResponding, ("irc=#x (control pipe?)\n", irc));
     }
 
     LogFlow(("usbProxyDarwinClearHaltedEp: pProxyDev=%s EndPt=%#x - failure - pIf=%p irc=%#x\n",
              pProxyDev->pUsbIns->pszName, EndPt, pIf, irc));
-    return RTErrConvertFromDarwin(irc);
+    return false;
 }
 
 
 /**
  * @copydoc USBPROXYBACK::pfnUrbQueue
  */
-static DECLCALLBACK(int) usbProxyDarwinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static int usbProxyDarwinUrbQueue(PVUSBURB pUrb)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEV    pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
     LogFlow(("%s: usbProxyDarwinUrbQueue: pProxyDev=%s pUrb=%p EndPt=%d cbData=%d\n",
              pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb, pUrb->EndPt, pUrb->cbData));
 
@@ -1608,14 +1521,13 @@ static DECLCALLBACK(int) usbProxyDarwinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB
     PUSBPROXYPIPEOSX pPipe = NULL;
     if (pUrb->EndPt)
     {
-        /* Make sure the interface is there. */
         const uint8_t EndPt = pUrb->EndPt | (pUrb->enmDir == VUSBDIRECTION_IN ? 0x80 : 0);
         pIf = usbProxyDarwinGetInterfaceForEndpoint(pDevOsX, EndPt, &u8PipeRef, &pPipe);
         if (!pIf)
         {
             LogFlow(("%s: usbProxyDarwinUrbQueue: pProxyDev=%s EndPt=%d cbData=%d - can't find interface / pipe!!!\n",
                      pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb->EndPt, pUrb->cbData));
-            return VERR_NOT_FOUND;
+            return false;
         }
     }
     /* else: pIf == NULL -> default control pipe.*/
@@ -1625,7 +1537,7 @@ static DECLCALLBACK(int) usbProxyDarwinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB
      */
     PUSBPROXYURBOSX pUrbOsX = usbProxyDarwinUrbAlloc(pDevOsX);
     if (!pUrbOsX)
-        return VERR_NO_MEMORY;
+        return false;
 
     pUrbOsX->u64SubmitTS = RTTimeMilliTS();
     pUrbOsX->pVUsbUrb = pUrb;
@@ -1772,26 +1684,21 @@ static DECLCALLBACK(int) usbProxyDarwinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB
      * Success?
      */
     if (RT_LIKELY(irc == kIOReturnSuccess))
-    {
-        Log(("%s: usbProxyDarwinUrbQueue: success\n", pUrb->pszDesc));
-        return VINF_SUCCESS;
-    }
+        return true;
     switch (irc)
     {
         case kIOUSBPipeStalled:
         {
-            /* Increment in flight counter because the completion handler will decrease it always. */
             usbProxyDarwinUrbAsyncComplete(pUrbOsX, kIOUSBPipeStalled, 0);
             Log(("%s: usbProxyDarwinUrbQueue: pProxyDev=%s EndPt=%d cbData=%d - failed irc=%#x! (stall)\n",
                  pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb->EndPt, pUrb->cbData, irc));
-            return VINF_SUCCESS;
+            return true;
         }
     }
 
-    usbProxyDarwinUrbFree(pDevOsX, pUrbOsX);
     Log(("%s: usbProxyDarwinUrbQueue: pProxyDev=%s EndPt=%d cbData=%d - failed irc=%#x!\n",
          pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb->EndPt, pUrb->cbData, irc));
-    return RTErrConvertFromDarwin(irc);
+    return false;
 }
 
 
@@ -1803,63 +1710,21 @@ static DECLCALLBACK(int) usbProxyDarwinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB
  * @param   pProxyDev   The device.
  * @param   cMillies    Number of milliseconds to wait. Use 0 to not wait at all.
  */
-static DECLCALLBACK(PVUSBURB) usbProxyDarwinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
+static PVUSBURB usbProxyDarwinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
 {
     PVUSBURB pUrb = NULL;
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
-    CFRunLoopRef hRunLoopRef = CFRunLoopGetCurrent();
-
-    Assert(!pDevOsX->hRunLoopReaping);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
 
     /*
-     * If the last seen runloop for reaping differs we have to check whether the
-     * the runloop sources are in the new runloop.
+     * If we've got any in-flight URBs, excercise the runloop.
      */
-    if (pDevOsX->hRunLoopReapingLast != hRunLoopRef)
-    {
-        RTCritSectEnter(&pDevOsX->CritSect);
+    if (pDevOsX->pInFlightHead)
+        CFRunLoopRunInMode(g_pRunLoopMode, 0.0, false);
 
-        /* Every pipe. */
-        if (!pDevOsX->pIfHead)
-            usbProxyDarwinSeizeAllInterfaces(pDevOsX, true /* make the best out of it */);
-
-        PUSBPROXYIFOSX pIf;
-        for (pIf = pDevOsX->pIfHead; pIf; pIf = pIf->pNext)
-        {
-            if (!CFRunLoopContainsSource(hRunLoopRef, pIf->RunLoopSrcRef, g_pRunLoopMode))
-                usbProxyDarwinAddRunLoopRef(&pIf->HeadOfRunLoopLst, pIf->RunLoopSrcRef);
-        }
-
-        /* Default control pipe. */
-        if (!CFRunLoopContainsSource(hRunLoopRef, pDevOsX->RunLoopSrcRef, g_pRunLoopMode))
-            usbProxyDarwinAddRunLoopRef(&pDevOsX->HeadOfRunLoopLst, pDevOsX->RunLoopSrcRef);
-
-        /* Runloop wakeup source. */
-        if (!CFRunLoopContainsSource(hRunLoopRef, pDevOsX->hRunLoopSrcWakeRef, g_pRunLoopMode))
-            usbProxyDarwinAddRunLoopRef(&pDevOsX->HeadOfRunLoopWakeLst, pDevOsX->hRunLoopSrcWakeRef);
-        RTCritSectLeave(&pDevOsX->CritSect);
-
-        pDevOsX->hRunLoopReapingLast = hRunLoopRef;
-    }
-
-    ASMAtomicXchgPtr((void * volatile *)&pDevOsX->hRunLoopReaping, hRunLoopRef);
-
-    if (ASMAtomicXchgBool(&pDevOsX->fReapingThreadWake, false))
-    {
-        /* Return immediately. */
-        ASMAtomicXchgPtr((void * volatile *)&pDevOsX->hRunLoopReaping, NULL);
-        return NULL;
-    }
-
-    /*
-     * Excercise the runloop until we get an URB or we time out.
-     */
     if (    !pDevOsX->pTaxingHead
-        &&  cMillies)
+        &&  cMillies
+        &&  pDevOsX->pInFlightHead)
         CFRunLoopRunInMode(g_pRunLoopMode, cMillies / 1000.0, true);
-
-    ASMAtomicXchgPtr((void * volatile *)&pDevOsX->hRunLoopReaping, NULL);
-    ASMAtomicXchgBool(&pDevOsX->fReapingThreadWake, false);
 
     /*
      * Any URBs pending delivery?
@@ -1872,21 +1737,6 @@ static DECLCALLBACK(PVUSBURB) usbProxyDarwinUrbReap(PUSBPROXYDEV pProxyDev, RTMS
         PUSBPROXYURBOSX pUrbOsX = pDevOsX->pTaxingHead;
         if (pUrbOsX)
         {
-            /*
-             * Remove from the taxing list.
-             */
-            if (pUrbOsX->pNext)
-                pUrbOsX->pNext->pPrev   = pUrbOsX->pPrev;
-            else if (pDevOsX->pTaxingTail == pUrbOsX)
-                pDevOsX->pTaxingTail    = pUrbOsX->pPrev;
-
-            if (pUrbOsX->pPrev)
-                pUrbOsX->pPrev->pNext   = pUrbOsX->pNext;
-            else if (pDevOsX->pTaxingHead == pUrbOsX)
-                pDevOsX->pTaxingHead    = pUrbOsX->pNext;
-            else
-                AssertFailed();
-
             pUrb = pUrbOsX->pVUsbUrb;
             if (pUrb)
             {
@@ -1898,10 +1748,7 @@ static DECLCALLBACK(PVUSBURB) usbProxyDarwinUrbReap(PUSBPROXYDEV pProxyDev, RTMS
     }
 
     if (pUrb)
-        LogFlowFunc(("LEAVE: %s: pProxyDev=%s returns %p\n", pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb));
-    else
-        LogFlowFunc(("LEAVE: NULL pProxyDev=%s returns NULL\n", pProxyDev->pUsbIns->pszName));
-
+        LogFlow(("%s: usbProxyDarwinUrbReap: pProxyDev=%s returns %p\n", pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb));
     return pUrb;
 }
 
@@ -1917,9 +1764,11 @@ static DECLCALLBACK(PVUSBURB) usbProxyDarwinUrbReap(PUSBPROXYDEV pProxyDev, RTMS
  *          the card does the URB cancelling before submitting new
  *          requests, we should probably be fine...
  */
-static DECLCALLBACK(int) usbProxyDarwinUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static void usbProxyDarwinUrbCancel(PVUSBURB pUrb)
 {
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
+    PUSBPROXYDEV pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PUSBPROXYDEVOSX pDevOsX = (PUSBPROXYDEVOSX)pProxyDev->Backend.pv;
+    //PUSBPROXYURBOSX pUrbOsX = (PUSBPROXYURBOSX)pUrb->Dev.pvProxyUrb;
     LogFlow(("%s: usbProxyDarwinUrbCancel: pProxyDev=%s EndPt=%d\n",
              pUrb->pszDesc, pProxyDev->pUsbIns->pszName, pUrb->EndPt));
 
@@ -1940,28 +1789,9 @@ static DECLCALLBACK(int) usbProxyDarwinUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBUR
             Log(("usbProxyDarwinUrbCancel: pProxyDev=%s pUrb=%p EndPt=%d - cannot find the interface / pipe!\n",
                  pProxyDev->pUsbIns->pszName, pUrb, pUrb->EndPt));
     }
-
-    int rc = VINF_SUCCESS;
     if (irc != kIOReturnSuccess)
-    {
         Log(("usbProxyDarwinUrbCancel: pProxyDev=%s pUrb=%p EndPt=%d -> %#x!\n",
              pProxyDev->pUsbIns->pszName, pUrb, pUrb->EndPt, irc));
-        rc = RTErrConvertFromDarwin(irc);
-    }
-
-    return rc;
-}
-
-
-static DECLCALLBACK(int) usbProxyDarwinWakeup(PUSBPROXYDEV pProxyDev)
-{
-    PUSBPROXYDEVOSX pDevOsX = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVOSX);
-
-    LogFlow(("usbProxyDarwinWakeup: pProxyDev=%p\n", pProxyDev));
-
-    ASMAtomicXchgBool(&pDevOsX->fReapingThreadWake, true);
-    usbProxyDarwinReaperKick(pDevOsX);
-    return VINF_SUCCESS;
 }
 
 
@@ -1970,10 +1800,7 @@ static DECLCALLBACK(int) usbProxyDarwinWakeup(PUSBPROXYDEV pProxyDev)
  */
 extern const USBPROXYBACK g_USBProxyDeviceHost =
 {
-    /* pszName */
     "host",
-    /* cbBackend */
-    sizeof(USBPROXYDEVOSX),
     usbProxyDarwinOpen,
     NULL,
     usbProxyDarwinClose,
@@ -1986,7 +1813,6 @@ extern const USBPROXYBACK g_USBProxyDeviceHost =
     usbProxyDarwinUrbQueue,
     usbProxyDarwinUrbCancel,
     usbProxyDarwinUrbReap,
-    usbProxyDarwinWakeup,
     0
 };
 

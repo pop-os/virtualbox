@@ -1,12 +1,10 @@
 /* $Id: VMMDevTesting.cpp $ */
 /** @file
  * VMMDev - Testing Extensions.
- *
- * To enable: VBoxManage setextradata vmname VBoxInternal/Devices/VMMDev/0/Config/TestingEnabled  1
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +21,6 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VMM
 #include <VBox/VMMDev.h>
-#include <VBox/vmm/vmapi.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 
@@ -31,20 +28,15 @@
 #include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
-#include <iprt/test.h>
+#ifdef IN_RING3
+# include <iprt/stream.h>
+#endif
 
 #include "VMMDevState.h"
 #include "VMMDevTesting.h"
 
 
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
-
-#define VMMDEV_TESTING_OUTPUT(a) \
-    do \
-    { \
-        LogAlways(a);\
-        LogRel(a);\
-    } while (0)
 
 /**
  * @callback_method_impl{FNIOMMMIOWRITE}
@@ -110,59 +102,6 @@ PDMBOTHCBDECL(int) vmmdevTestingMmioRead(PPDMDEVINS pDevIns, void *pvUser, RTGCP
     return VINF_IOM_MMIO_UNUSED_FF;
 }
 
-#ifdef IN_RING3
-
-/**
- * Executes the VMMDEV_TESTING_CMD_VALUE_REG command when the data is ready.
- *
- * @param   pDevIns             The PDM device instance.
- * @param   pThis               The instance VMMDev data.
- */
-static void vmmdevTestingCmdExec_ValueReg(PPDMDEVINS pDevIns, VMMDevState *pThis)
-{
-    char *pszRegNm = strchr(pThis->TestingData.String.sz, ':');
-    if (pszRegNm)
-    {
-        *pszRegNm++ = '\0';
-        pszRegNm = RTStrStrip(pszRegNm);
-    }
-    char        *pszValueNm = RTStrStrip(pThis->TestingData.String.sz);
-    size_t const cchValueNm = strlen(pszValueNm);
-    if (cchValueNm && pszRegNm && *pszRegNm)
-    {
-        PUVM        pUVM  = PDMDevHlpGetUVM(pDevIns);
-        PVM         pVM   = PDMDevHlpGetVM(pDevIns);
-        VMCPUID     idCpu = VMMGetCpuId(pVM);
-        uint64_t    u64Value;
-        int rc2 = DBGFR3RegNmQueryU64(pUVM, idCpu, pszRegNm, &u64Value);
-        if (RT_SUCCESS(rc2))
-        {
-            const char *pszWarn = rc2 == VINF_DBGF_TRUNCATED_REGISTER ? " truncated" : "";
-#if 1 /*!RTTestValue format*/
-            char szFormat[128], szValue[128];
-            RTStrPrintf(szFormat, sizeof(szFormat), "%%VR{%s}", pszRegNm);
-            rc2 = DBGFR3RegPrintf(pUVM, idCpu, szValue, sizeof(szValue), szFormat);
-            if (RT_SUCCESS(rc2))
-                VMMDEV_TESTING_OUTPUT(("testing: VALUE '%s'%*s: %16s {reg=%s}%s\n",
-                                       pszValueNm,
-                                       (ssize_t)cchValueNm - 12 > 48 ? 0 : 48 - ((ssize_t)cchValueNm - 12), "",
-                                       szValue, pszRegNm, pszWarn));
-            else
-#endif
-                VMMDEV_TESTING_OUTPUT(("testing: VALUE '%s'%*s: %'9llu (%#llx) [0] {reg=%s}%s\n",
-                                       pszValueNm,
-                                       (ssize_t)cchValueNm - 12 > 48 ? 0 : 48 - ((ssize_t)cchValueNm - 12), "",
-                                       u64Value, u64Value, pszRegNm, pszWarn));
-        }
-        else
-            VMMDEV_TESTING_OUTPUT(("testing: error querying register '%s' for value '%s': %Rrc\n",
-                                   pszRegNm, pszValueNm, rc2));
-    }
-    else
-        VMMDEV_TESTING_OUTPUT(("testing: malformed register value '%s'/'%s'\n", pszValueNm, pszRegNm));
-}
-
-#endif /* IN_RING3 */
 
 /**
  * @callback_method_impl{FNIOMIOPORTOUT}
@@ -173,9 +112,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 
     switch (Port)
     {
-        /*
-         * The NOP I/O ports are used for performance measurements.
-         */
         case VMMDEV_TESTING_IOPORT_NOP:
             switch (cb)
             {
@@ -189,14 +125,12 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
             }
             return VINF_SUCCESS;
 
-        /* The timestamp I/O ports are read-only. */
         case VMMDEV_TESTING_IOPORT_TS_LOW:
+            break;
+
         case VMMDEV_TESTING_IOPORT_TS_HIGH:
             break;
 
-        /*
-         * The command port (DWORD write only).
-         */
         case VMMDEV_TESTING_IOPORT_CMD:
             if (cb == 4)
             {
@@ -207,9 +141,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
             }
             break;
 
-        /*
-         * The data port.  Used of providing data for a command.
-         */
         case VMMDEV_TESTING_IOPORT_DATA:
         {
             uint32_t uCmd = pThis->u32TestingCmd;
@@ -219,7 +150,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                 case VMMDEV_TESTING_CMD_INIT:
                 case VMMDEV_TESTING_CMD_SUB_NEW:
                 case VMMDEV_TESTING_CMD_FAILED:
-                case VMMDEV_TESTING_CMD_SKIPPED:
                     if (   off < sizeof(pThis->TestingData.String.sz) - 1
                         && cb == 1)
                     {
@@ -231,40 +161,20 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                         else
                         {
 #ifdef IN_RING3
-                            pThis->TestingData.String.sz[off] = '\0';
                             switch (uCmd)
                             {
                                 case VMMDEV_TESTING_CMD_INIT:
-                                    VMMDEV_TESTING_OUTPUT(("testing: INIT '%s'\n", pThis->TestingData.String.sz));
-                                    if (pThis->hTestingTest != NIL_RTTEST)
-                                    {
-                                        RTTestChangeName(pThis->hTestingTest, pThis->TestingData.String.sz);
-                                        RTTestBanner(pThis->hTestingTest);
-                                    }
+                                    RTPrintf("testing: INIT '%.*s'\n", sizeof(pThis->TestingData.String.sz) - 1, pThis->TestingData.String.sz);
                                     break;
                                 case VMMDEV_TESTING_CMD_SUB_NEW:
-                                    VMMDEV_TESTING_OUTPUT(("testing: SUB_NEW  '%s'\n", pThis->TestingData.String.sz));
-                                    if (pThis->hTestingTest != NIL_RTTEST)
-                                        RTTestSub(pThis->hTestingTest, pThis->TestingData.String.sz);
+                                    RTPrintf("testing: SUB_NEW  '%.*s'\n", sizeof(pThis->TestingData.String.sz) - 1, pThis->TestingData.String.sz);
                                     break;
                                 case VMMDEV_TESTING_CMD_FAILED:
-                                    if (pThis->hTestingTest != NIL_RTTEST)
-                                        RTTestFailed(pThis->hTestingTest, "%s", pThis->TestingData.String.sz);
-                                    VMMDEV_TESTING_OUTPUT(("testing: FAILED '%s'\n", pThis->TestingData.String.sz));
-                                    break;
-                                case VMMDEV_TESTING_CMD_SKIPPED:
-                                    if (pThis->hTestingTest != NIL_RTTEST)
-                                    {
-                                        if (off)
-                                            RTTestSkipped(pThis->hTestingTest, "%s", pThis->TestingData.String.sz);
-                                        else
-                                            RTTestSkipped(pThis->hTestingTest, NULL);
-                                    }
-                                    VMMDEV_TESTING_OUTPUT(("testing: SKIPPED '%s'\n", pThis->TestingData.String.sz));
+                                    RTPrintf("testing: FAILED '%.*s'\n", sizeof(pThis->TestingData.String.sz) - 1, pThis->TestingData.String.sz);
                                     break;
                             }
 #else
-                            return VINF_IOM_R3_IOPORT_WRITE;
+                            return VINF_IOM_HC_IOPORT_WRITE;
 #endif
                         }
                         return VINF_SUCCESS;
@@ -279,30 +189,12 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
 #ifdef IN_RING3
                         pThis->TestingData.Error.c = u32;
                         if (uCmd == VMMDEV_TESTING_CMD_TERM)
-                        {
-                            if (pThis->hTestingTest != NIL_RTTEST)
-                            {
-                                while (RTTestErrorCount(pThis->hTestingTest) < u32)
-                                    RTTestErrorInc(pThis->hTestingTest); /* A bit stupid, but does the trick. */
-                                RTTestSubDone(pThis->hTestingTest);
-                                RTTestSummaryAndDestroy(pThis->hTestingTest);
-                                pThis->hTestingTest = NIL_RTTEST;
-                            }
-                            VMMDEV_TESTING_OUTPUT(("testing: TERM - %u errors\n", u32));
-                        }
+                            RTPrintf("testing: TERM - %u errors\n", u32);
                         else
-                        {
-                            if (pThis->hTestingTest != NIL_RTTEST)
-                            {
-                                while (RTTestSubErrorCount(pThis->hTestingTest) < u32)
-                                    RTTestErrorInc(pThis->hTestingTest); /* A bit stupid, but does the trick. */
-                                RTTestSubDone(pThis->hTestingTest);
-                            }
-                            VMMDEV_TESTING_OUTPUT(("testing: SUB_DONE - %u errors\n", u32));
-                        }
+                            RTPrintf("testing: SUB_DONE - %u errors\n", u32);
                         return VINF_SUCCESS;
 #else
-                        return VINF_IOM_R3_IOPORT_WRITE;
+                        return VINF_IOM_HC_IOPORT_WRITE;
 #endif
                     }
                     break;
@@ -323,7 +215,7 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                     }
                     if (   off >= 12
                         && cb  == 1
-                        && off - 12 < sizeof(pThis->TestingData.Value.szName) - 1)
+                        && off < sizeof(pThis->TestingData.Value.szName) - 1 - 12)
                     {
                         if (u32)
                         {
@@ -333,54 +225,29 @@ PDMBOTHCBDECL(int) vmmdevTestingIoWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
                         else
                         {
 #ifdef IN_RING3
-                            pThis->TestingData.Value.szName[off - 12] = '\0';
-
-                            RTTESTUNIT enmUnit = (RTTESTUNIT)pThis->TestingData.Value.u32Unit;
-                            if (enmUnit <= RTTESTUNIT_INVALID || enmUnit >= RTTESTUNIT_END)
-                            {
-                                VMMDEV_TESTING_OUTPUT(("Invalid log value unit %#x\n", pThis->TestingData.Value.u32Unit));
-                                enmUnit = RTTESTUNIT_NONE;
-                            }
-                            if (pThis->hTestingTest != NIL_RTTEST)
-                                RTTestValue(pThis->hTestingTest, pThis->TestingData.Value.szName,
-                                            pThis->TestingData.Value.u64Value.u, enmUnit);
-
-                            VMMDEV_TESTING_OUTPUT(("testing: VALUE '%s'%*s: %'9llu (%#llx) [%u]\n",
-                                                   pThis->TestingData.Value.szName,
-                                                   off - 12 > 48 ? 0 : 48 - (off - 12), "",
-                                                   pThis->TestingData.Value.u64Value.u, pThis->TestingData.Value.u64Value.u,
-                                                   pThis->TestingData.Value.u32Unit));
+                            RTPrintf("testing: VALUE '%.*s'%*s: %'9llu (%#llx) [%u]\n",
+                                     sizeof(pThis->TestingData.Value.szName) - 1, pThis->TestingData.Value.szName,
+                                     off - 12 > 48 ? 0 : 48 - (off - 12), "",
+                                     pThis->TestingData.Value.u64Value.u, pThis->TestingData.Value.u64Value.u,
+                                     pThis->TestingData.Value.u32Unit);
 #else
-                            return VINF_IOM_R3_IOPORT_WRITE;
+                            return VINF_IOM_HC_IOPORT_WRITE;
 #endif
                         }
                         return VINF_SUCCESS;
-                    }
-                    break;
 
-
-                /*
-                 * RTTestValue with the return from DBGFR3RegNmQuery.
-                 */
-                case VMMDEV_TESTING_CMD_VALUE_REG:
-                {
-                    if (   off < sizeof(pThis->TestingData.String.sz) - 1
-                        && cb == 1)
-                    {
-                        pThis->TestingData.String.sz[off] = u32;
-                        if (u32)
-                            pThis->offTestingData = off + 1;
-                        else
 #ifdef IN_RING3
-                            vmmdevTestingCmdExec_ValueReg(pDevIns, pThis);
-#else
-                            return VINF_IOM_R3_IOPORT_WRITE;
-#endif
+                        pThis->TestingData.Error.c = u32;
+                        if (uCmd == VMMDEV_TESTING_CMD_TERM)
+                            RTPrintf("testing: TERM - %u errors\n", u32);
+                        else
+                            RTPrintf("testing: SUB_DONE - %u errors\n", u32);
                         return VINF_SUCCESS;
+#else
+                        return VINF_IOM_HC_IOPORT_WRITE;
+#endif
                     }
                     break;
-
-                }
 
                 default:
                     break;
@@ -406,9 +273,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 
     switch (Port)
     {
-        /*
-         * The NOP I/O ports are used for performance measurements.
-         */
         case VMMDEV_TESTING_IOPORT_NOP:
             switch (cb)
             {
@@ -423,13 +287,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
             *pu32 = VMMDEV_TESTING_NOP_RET;
             return VINF_SUCCESS;
 
-        /*
-         * The timestamp I/O ports are obviously used for getting a good fix
-         * on the current time (as seen by the host?).
-         *
-         * The high word is latched when reading the low, so reading low + high
-         * gives you a 64-bit timestamp value.
-         */
         case VMMDEV_TESTING_IOPORT_TS_LOW:
             if (cb == 4)
             {
@@ -448,9 +305,6 @@ PDMBOTHCBDECL(int) vmmdevTestingIoRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
             }
             break;
 
-        /*
-         * The command and data registers are write-only.
-         */
         case VMMDEV_TESTING_IOPORT_CMD:
         case VMMDEV_TESTING_IOPORT_DATA:
             break;
@@ -471,54 +325,28 @@ PDMBOTHCBDECL(int) vmmdevTestingIoRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
  * @returns VBox status code.
  * @param   pDevIns             The VMMDev device instance.
  */
-void vmmdevTestingTerminate(PPDMDEVINS pDevIns)
-{
-    VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
-    if (!pThis->fTestingEnabled)
-        return;
-
-    if (pThis->hTestingTest != NIL_RTTEST)
-    {
-        RTTestFailed(pThis->hTestingTest, "Still open at vmmdev destruction.");
-        RTTestSummaryAndDestroy(pThis->hTestingTest);
-        pThis->hTestingTest = NIL_RTTEST;
-    }
-}
-
-
-/**
- * Initializes the testing part of the VMMDev if enabled.
- *
- * @returns VBox status code.
- * @param   pDevIns             The VMMDev device instance.
- */
 int vmmdevTestingInitialize(PPDMDEVINS pDevIns)
 {
     VMMDevState *pThis = PDMINS_2_DATA(pDevIns, VMMDevState *);
-    int          rc;
-
     if (!pThis->fTestingEnabled)
         return VINF_SUCCESS;
 
-    if (pThis->fTestingMMIO)
-    {
-        /*
-         * Register a chunk of MMIO memory that we'll use for various
-         * tests interfaces.  Optional, needs to be explicitly enabled.
-         */
-        rc = PDMDevHlpMMIORegister(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NULL /*pvUser*/,
+    /*
+     * Register a chunk of MMIO memory that we'll use for various
+     * tests interfaces.
+     */
+    int rc = PDMDevHlpMMIORegister(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NULL /*pvUser*/,
                                    IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
                                    vmmdevTestingMmioWrite, vmmdevTestingMmioRead, "VMMDev Testing");
+    AssertRCReturn(rc, rc);
+    if (pThis->fRZEnabled)
+    {
+        rc = PDMDevHlpMMIORegisterR0(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTR0PTR /*pvUser*/,
+                                     "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
         AssertRCReturn(rc, rc);
-        if (pThis->fRZEnabled)
-        {
-            rc = PDMDevHlpMMIORegisterR0(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTR0PTR /*pvUser*/,
-                                         "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
-            AssertRCReturn(rc, rc);
-            rc = PDMDevHlpMMIORegisterRC(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTRCPTR /*pvUser*/,
-                                         "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
-            AssertRCReturn(rc, rc);
-        }
+        rc = PDMDevHlpMMIORegisterRC(pDevIns, VMMDEV_TESTING_MMIO_BASE, VMMDEV_TESTING_MMIO_SIZE, NIL_RTRCPTR /*pvUser*/,
+                                     "vmmdevTestingMmioWrite", "vmmdevTestingMmioRead");
+        AssertRCReturn(rc, rc);
     }
 
 
@@ -549,14 +377,6 @@ int vmmdevTestingInitialize(PPDMDEVINS pDevIns)
                                        "VMMDev Testing");
         AssertRCReturn(rc, rc);
     }
-
-    /*
-     * Open the XML output file(/pipe/whatever) if specfied.
-     */
-    rc = RTTestCreateEx("VMMDevTesting", RTTEST_C_USE_ENV | RTTEST_C_NO_TLS | RTTEST_C_XML_DELAY_TOP_TEST,
-                        RTTESTLVL_INVALID, -1 /*iNativeTestPipe*/, pThis->pszTestingXmlOutput, &pThis->hTestingTest);
-    if (RT_FAILURE(rc))
-        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS, "Error creating testing instance");
 
     return VINF_SUCCESS;
 }

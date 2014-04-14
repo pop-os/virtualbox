@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,19 +22,13 @@
 #include "CPUMInternal.h"
 #include <VBox/vmm/trpm.h>
 #include "TRPMInternal.h"
-#include "HMInternal.h"
+#include "HWACCMInternal.h"
 #include "VMMSwitcher.h"
 #include "VMMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/hm_vmx.h>
 
 #include "tstHelp.h"
 #include <stdio.h>
-
-
-/* For sup.mac simplifications. */
-#define SUPDRVTRACERUSRCTX32    SUPDRVTRACERUSRCTX
-#define SUPDRVTRACERUSRCTX64    SUPDRVTRACERUSRCTX
 
 
 int main()

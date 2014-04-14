@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1072,7 +1072,7 @@ RTDECL(int) RTLockValidatorClassCreateExV(PRTLOCKVALCLASS phClass, PCRTLOCKVALSR
     pThis->cMsMinOrder          = cMsMinOrder;
     for (unsigned i = 0; i < RT_ELEMENTS(pThis->au32Reserved); i++)
         pThis->au32Reserved[i]  = 0;
-    for (unsigned i = 0; i < RT_ELEMENTS(pThis->PriorLocks.aRefs); i++)
+    for (unsigned i = 0; i < RT_ELEMENTS(pThis->au32Reserved); i++)
     {
         pThis->PriorLocks.aRefs[i].hClass           = NIL_RTLOCKVALCLASS;
         pThis->PriorLocks.aRefs[i].cLookups         = 0;
@@ -1391,7 +1391,6 @@ DECL_FORCE_INLINE(bool) rtLockValidatorClassIsPriorClass(RTLOCKVALCLASSINT *pCla
 static int rtLockValidatorClassAddPriorClass(RTLOCKVALCLASSINT *pClass, RTLOCKVALCLASSINT *pPriorClass,
                                              bool fAutodidacticism, PCRTLOCKVALSRCPOS pSrcPos)
 {
-    NOREF(pSrcPos);
     if (!RTCritSectIsInitialized(&g_LockValClassTeachCS))
         rtLockValidatorLazyInit();
     int rcLock = RTCritSectEnter(&g_LockValClassTeachCS);
@@ -1846,7 +1845,6 @@ static uint32_t rtLockValidatorStackDepth(PRTTHREADINT pThread)
 }
 
 
-#ifdef RT_STRICT
 /**
  * Checks if the stack contains @a pRec.
  *
@@ -1885,7 +1883,6 @@ static bool rtLockValidatorStackContainsRec(PRTTHREADINT pThreadSelf, PRTLOCKVAL
     }
     return false;
 }
-#endif /* RT_STRICT */
 
 
 /**
@@ -3438,31 +3435,6 @@ RTDECL(void) RTLockValidatorRecSharedInit(PRTLOCKVALRECSHRD pRec, RTLOCKVALCLASS
 }
 
 
-RTDECL(int)  RTLockValidatorRecSharedCreateV(PRTLOCKVALRECSHRD *ppRec, RTLOCKVALCLASS hClass,
-                                             uint32_t uSubClass, void *pvLock, bool fSignaller, bool fEnabled,
-                                             const char *pszNameFmt, va_list va)
-{
-    PRTLOCKVALRECSHRD pRec;
-    *ppRec = pRec = (PRTLOCKVALRECSHRD)RTMemAlloc(sizeof(*pRec));
-    if (!pRec)
-        return VERR_NO_MEMORY;
-    RTLockValidatorRecSharedInitV(pRec, hClass, uSubClass, pvLock, fSignaller, fEnabled, pszNameFmt, va);
-    return VINF_SUCCESS;
-}
-
-
-RTDECL(int)  RTLockValidatorRecSharedCreate(PRTLOCKVALRECSHRD *ppRec, RTLOCKVALCLASS hClass,
-                                            uint32_t uSubClass, void *pvLock, bool fSignaller, bool fEnabled,
-                                            const char *pszNameFmt, ...)
-{
-    va_list va;
-    va_start(va, pszNameFmt);
-    int rc = RTLockValidatorRecSharedCreateV(ppRec, hClass, uSubClass, pvLock, fSignaller, fEnabled, pszNameFmt, va);
-    va_end(va);
-    return rc;
-}
-
-
 RTDECL(void) RTLockValidatorRecSharedDelete(PRTLOCKVALRECSHRD pRec)
 {
     Assert(pRec->Core.u32Magic == RTLOCKVALRECSHRD_MAGIC);
@@ -3490,7 +3462,7 @@ RTDECL(void) RTLockValidatorRecSharedDelete(PRTLOCKVALRECSHRD pRec)
         ASMAtomicUoWriteNullPtr(&pRec->papOwners);
         ASMAtomicUoWriteU32(&pRec->cAllocated, 0);
 
-        RTMemFree((void *)papOwners);
+        RTMemFree((void *)pRec->papOwners);
     }
     if (pRec->pSibling)
         rtLockValidatorUnlinkAllSiblings(&pRec->Core);
@@ -3500,18 +3472,6 @@ RTDECL(void) RTLockValidatorRecSharedDelete(PRTLOCKVALRECSHRD pRec)
 
     if (hClass != NIL_RTLOCKVALCLASS)
         RTLockValidatorClassRelease(hClass);
-}
-
-
-RTDECL(void) RTLockValidatorRecSharedDestroy(PRTLOCKVALRECSHRD *ppRec)
-{
-    PRTLOCKVALRECSHRD pRec = *ppRec;
-    *ppRec = NULL;
-    if (pRec)
-    {
-        RTLockValidatorRecSharedDelete(pRec);
-        RTMemFree(pRec);
-    }
 }
 
 

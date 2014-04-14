@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,24 +33,23 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
     return VERR_NOT_IMPLEMENTED;
 }
 
-int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULONG ip, ULONG mask)
+int NetIfEnableStaticIpConfig(VirtualBox *pVbox, HostNetworkInterface * pIf, ULONG ip, ULONG mask)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
-int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
+int NetIfEnableStaticIpConfigV6(VirtualBox *pVbox, HostNetworkInterface * pIf, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
-int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf)
+int NetIfEnableDynamicIpConfig(VirtualBox *pVbox, HostNetworkInterface * pIf)
 {
     return VERR_NOT_IMPLEMENTED;
 }
 
 
-int NetIfDhcpRediscover(VirtualBox *pVBox, HostNetworkInterface * pIf)
+int NetIfDhcpRediscover(VirtualBox *pVbox, HostNetworkInterface * pIf)
 {
     return VERR_NOT_IMPLEMENTED;
 }
-

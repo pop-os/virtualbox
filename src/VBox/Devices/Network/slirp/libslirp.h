@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,7 @@ int inet_aton(const char *cp, struct in_addr *ia);
 #endif
 
 #include <VBox/types.h>
+#include <VBox/vmm/dbgf.h>
 
 typedef struct NATState *PNATState;
 struct mbuf;
@@ -92,29 +93,9 @@ void slirp_set_tcp_sndspace(PNATState pData, int kilobytes);
 
 int  slirp_set_binding_address(PNATState, char *addr);
 void slirp_set_mtu(PNATState, int);
-void slirp_info(PNATState pData, const void *pvArg, const char *pszArgs);
+void slirp_info(PNATState pData, PCDBGFINFOHLP pHlp, const char *pszArgs);
 void slirp_set_somaxconn(PNATState pData, int iSoMaxConn);
 
-/**
- * This method help DrvNAT to select strategy: about VMRESUMEREASON_HOST_RESUME:
- * - proceed with link termination (we let guest track host DNS settings)
- *    VBOX_NAT_HNCE_EXPOSED_NAME_RESOLVING_INFO
- * - enforce internal DNS update (we are using dnsproxy and track but don't export DNS host settings)
- *    VBOX_NAT_HNCE_DNSPROXY
- * - flap link and trigger guest to request new DHCP configuration (means that NAT was temporary in
- *   host resolver mode due to temporary DNS data outage)
- *    VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY
- * - ignore (NAT configured to use hostresolver - we aren't track any host DNS changes)
- *    VBOX_NAT_HNCE_HOSTRESOLVER
- * @note: It's safe to call this method from any thread, because settings we're checking 
- * are immutable at runtime.
- */
-#define VBOX_NAT_HNCE_EXSPOSED_NAME_RESOLUTION_INFO 0
-#define VBOX_NAT_HNCE_DNSPROXY 1
-#define VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY 2
-#define VBOX_NAT_HNCE_HOSTRESOLVER 3
-
-int slirp_host_network_configuration_change_strategy_selector(const PNATState);
 #if defined(RT_OS_WINDOWS)
 
 
@@ -145,6 +126,11 @@ int slirp_host_network_configuration_change_strategy_selector(const PNATState);
 HANDLE *slirp_get_events(PNATState pData);
 void slirp_register_external_event(PNATState pData, HANDLE hEvent, int index);
 #endif /* RT_OS_WINDOWS */
+
+#ifdef VBOX_WITH_SLIRP_MT
+void slirp_process_queue(PNATState pData);
+void *slirp_get_queue(PNATState pData);
+#endif
 
 struct mbuf *slirp_ext_m_get(PNATState pData, size_t cbMin, void **ppvBuf, size_t *pcbBuf);
 void slirp_ext_m_free(PNATState pData, struct mbuf *, uint8_t *pu8Buf);

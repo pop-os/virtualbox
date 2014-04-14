@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,13 +36,9 @@
 #define SIB_BASE(a)     (a&0x7)
 
 
-/** @defgroup grp_dis_opcodes Opcodes (DISOPCODE::uOpCode)
- * @ingroup grp_dis
+/** Full Intel X86 opcode list
  * @{
  */
-
-/** @name  Full Intel X86 opcode list
- * @{ */
 #define OP_INVALID      0
 #define OP_OPSIZE       1
 #define OP_ADDRSIZE     2
@@ -292,7 +288,7 @@
 #define OP_PSRLQ        244
 #define OP_PADDQ        245
 #define OP_PMULLW       246
-#define OP_PMOVMSKB     247
+#define OP_PMOVSKB      247
 #define OP_PSUBUSB      248
 #define OP_PSUBUSW      249
 #define OP_PMINUB       250
@@ -442,7 +438,7 @@
 #define OP_CVTDQ2PD     412
 /** @} */
 
-/** @name Floating point ops
+/** Floating point ops
  * @{
  */
 #define OP_FADD         413
@@ -531,7 +527,7 @@
 #define OP_FUCOMIP      507
 /** @} */
 
-/** @name 3DNow!
+/** 3DNow!
  * @{
  */
 #define OP_PI2FW        508
@@ -604,8 +600,7 @@
 
 #define OP_SWAPGS       610
 
-/** @name VT-x instructions
- * @{ */
+/* VT-x instructions */
 #define OP_VMREAD       650
 #define OP_VMWRITE      651
 #define OP_VMCALL       652
@@ -618,22 +613,16 @@
 #define OP_VMPTRST      659
 #define OP_INVEPT       660
 #define OP_INVVPID      661
-/** @}  */
 
-/** @name 64 bits instruction
- * @{ */
+/* 64 bits instruction */
 #define OP_MOVSXD       700
-/** @}  */
 
 /** @} */
 
 
-/** @defgroup grp_dis_opparam Opcode parameters (DISOPCODE::fParam1,
- *            DISOPCODE::fParam2, DISOPCODE::fParam3)
- * @ingroup grp_dis
+/** Opcode parameters
  * @{
  */
-
 /* NOTE: Register order is important for translations!! */
 #define OP_PARM_NONE            0
 #define OP_PARM_REG_EAX         1
@@ -734,8 +723,8 @@
 #define OP_PARM_REG_GEN64_END   OP_PARM_REG_R15
 
 
-#define OP_PARM_VTYPE(a)        ((unsigned)a & 0xFE0)
-#define OP_PARM_VSUBTYPE(a)     ((unsigned)a & 0x01F)
+#define OP_PARM_VTYPE(a)        ((int)a & 0xFE0)
+#define OP_PARM_VSUBTYPE(a)     ((int)a & 0x01F)
 
 #define OP_PARM_A               0x100
 #define OP_PARM_VARIABLE        OP_PARM_A
@@ -746,9 +735,10 @@
 #define OP_PARM_J               0x1A0
 #define OP_PARM_M               0x1C0
 #define OP_PARM_O               0x1E0
-#define OP_PARM_R               0x200
-#define OP_PARM_X               0x220
-#define OP_PARM_Y               0x240
+#define OP_PARM_Q               0x200
+#define OP_PARM_R               0x220
+#define OP_PARM_X               0x240
+#define OP_PARM_Y               0x260
 
 /* Grouped rare parameters for optimization purposes */
 #define IS_OP_PARM_RARE(a)      ((a & 0xF00) == 0x300)
@@ -756,10 +746,9 @@
 #define OP_PARM_D               0x320       /* debug register */
 #define OP_PARM_S               0x340       /* segment register */
 #define OP_PARM_T               0x360       /* test register */
-#define OP_PARM_Q               0x380
-#define OP_PARM_P               0x3A0       /* mmx register */
-#define OP_PARM_W               0x3C0       /* xmm register */
-#define OP_PARM_V               0x3E0
+#define OP_PARM_P               0x380       /* mmx register */
+#define OP_PARM_W               0x3A0       /* xmm register */
+#define OP_PARM_V               0x3C0
 
 #define OP_PARM_NONE            0
 #define OP_PARM_a               0x1

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
     /*
      * Initialize the runtime.
      */
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitAndSUPLib();
 
 #ifndef AUTO_TEST_ARGS
     if (argc < 2)
@@ -66,8 +66,7 @@ int main(int argc, char* argv[])
      */
     RTPrintf(TESTCASE ": Initializing...\n");
     PVM pVM;
-    PUVM pUVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -132,33 +131,32 @@ int main(int argc, char* argv[])
             {
                 RTPrintf(TESTCASE ": fork() returned fine.\n");
                 RTPrintf(TESTCASE ": testing VM after fork.\n");
-                VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)VMMDoTest, 1, pVM);
+                VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMMDoTest, 1, pVM);
 
-                STAMR3Dump(pUVM, "*");
+                STAMR3Dump(pVM, "*");
             }
         }
 
         if (rcErrors > 0)
-            RTPrintf(TESTCASE ": error: %d error(s) during fork(). Cannot proceed to test the VM.\n", rcErrors);
+            RTPrintf(TESTCASE ": error: %d error(s) during fork(). Cannot proceed to test the VM.\n");
         else
             RTPrintf(TESTCASE ": fork() and VM test, SUCCESS.\n");
 
         /*
          * Cleanup.
          */
-        rc = VMR3PowerOff(pUVM);
+        rc = VMR3PowerOff(pVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to power off vm! rc=%Rrc\n", rc);
             rcErrors++;
         }
-        rc = VMR3Destroy(pUVM);
+        rc = VMR3Destroy(pVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to destroy vm! rc=%Rrc\n", rc);
             rcErrors++;
         }
-        VMR3ReleaseUVM(pUVM);
     }
     else
     {

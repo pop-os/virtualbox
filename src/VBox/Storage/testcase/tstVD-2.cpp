@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -75,6 +75,15 @@ static int tstQuery(void *pvUser, const char *pszName, char *pszValue, size_t cc
     memcpy(pszValue, pszTmp, cchTmp);
     return VINF_SUCCESS;
 }
+
+
+VDINTERFACECONFIG icc = {
+    sizeof(VDINTERFACECONFIG),
+    VDINTERFACETYPE_CONFIG,
+    tstAreKeysValid,
+    tstQuerySize,
+    tstQuery
+};
 
 static const char *tstVDDeviceType(VDTYPE enmType)
 {
@@ -184,19 +193,12 @@ static int tstVDBackendInfo(void)
             RTPrintf("<NONE>");
         RTPrintf("\n");
 
-        PVDINTERFACE pVDIfs = NULL;
-        VDINTERFACECONFIG ic;
-
-        ic.pfnAreKeysValid = tstAreKeysValid;
-        ic.pfnQuerySize    = tstQuerySize;
-        ic.pfnQuery        = tstQuery;
-
-        rc = VDInterfaceAdd(&ic.Core, "tstVD-2_Config", VDINTERFACETYPE_CONFIG,
-                            NULL, sizeof(VDINTERFACECONFIG), &pVDIfs);
-        AssertRC(rc);
-
+        VDINTERFACE ic;
+        ic.cbSize = sizeof(ic);
+        ic.enmInterface = VDINTERFACETYPE_CONFIG;
+        ic.pCallbacks = &icc;
         char *pszLocation, *pszName;
-        rc = aVDInfo[i].pfnComposeLocation(pVDIfs, &pszLocation);
+        rc = aVDInfo[i].pfnComposeLocation(&ic, &pszLocation);
         CHECK("pfnComposeLocation()");
         if (pszLocation)
         {
@@ -207,7 +209,7 @@ static int tstVDBackendInfo(void)
                 return VERR_INTERNAL_ERROR;
             }
         }
-        rc = aVDInfo[i].pfnComposeName(pVDIfs, &pszName);
+        rc = aVDInfo[i].pfnComposeName(&ic, &pszName);
         CHECK("pfnComposeName()");
         if (pszName)
         {
@@ -229,7 +231,7 @@ int main(int argc, char *argv[])
 {
     int rc;
 
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
     RTPrintf("tstVD-2: TESTING...\n");
 
     rc = tstVDBackendInfo();

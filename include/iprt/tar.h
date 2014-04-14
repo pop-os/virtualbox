@@ -51,10 +51,6 @@ typedef RTTARFILE                               *PRTTARFILE;
 /** Nil RTTARFILE interface handle. */
 #define NIL_RTTARFILE                            ((RTTARFILE)0)
 
-/** Maximum length of a tar filename, excluding the terminating '\0'. More
- * does not fit into a tar record. */
-#define RTTAR_NAME_MAX                           99
-
 /**
  * Opens a Tar archive.
  *

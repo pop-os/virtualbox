@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,6 @@
 #include <iprt/time.h>
 #include <iprt/thread.h>
 #include <iprt/initterm.h>
-#include <iprt/message.h>
 #include <iprt/stream.h>
 #include <iprt/err.h>
 #include <iprt/string.h>
@@ -76,9 +75,12 @@ int main()
      * Init runtime
      */
     unsigned cErrors = 0;
-    int rc = RTR3InitExeNoArguments(0);
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
+    {
+        RTPrintf("tstTimer: RTR3Init() -> %d\n", rc);
+        return 1;
+    }
 
     /*
      * Check that the clock is reliable.

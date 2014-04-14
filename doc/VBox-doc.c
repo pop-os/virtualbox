@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,22 +28,15 @@
  *      - @ref pg_cpum
  *      - CSAM - Guest OS Code Scanning and Analyis Manager.
  *      - @ref pg_dbgf
- *          - @ref pg_dbgf_addr_space
- *          - @ref pg_dbgf_vmcore
- *          - @ref pg_dbgf_module
- *          - @ref pg_dbgc
+ *          - DBGC - Debugger Console.
  *          - VBoxDbg - Debugger GUI (Qt).
  *      - DIS - Disassembler.
  *      - @ref pg_em
  *      - HWACCM - Intel/AMD VM Hardware Support Manager.
  *      - REM - Recompiled Execution Monitor.
- *          - @ref pg_vboxrem_amd64
- *      - @ref pg_iem
  *      - @ref pg_gmm
  *          - @ref pg_mm
  *          - @ref pg_pgm
- *              - @ref pg_pgm_phys
- *              - @ref pg_pgm_pool
  *          - @ref pg_selm
  *      - @ref pg_iom
  *      - PATM - Dynamic Guest OS Patching Manager.
@@ -54,14 +47,10 @@
  *          - Critical Section API.
  *          - Queue API.
  *          - Thread API.
- *          - @ref pg_pdm_block_cache
  *      - @ref pg_ssm
  *      - @ref pg_stam
  *      - @ref pg_tm
  *      - @ref pg_trpm
- *      - VMM docs:
- *          - @ref pg_vmm_guideline
- *          - @ref pg_raw
  *  - Pluggable Components (via PDM).
  *      - DevPCArch - PC Architecture Device (chipset, legacy ++).
  *      - DevPCBios - Basic Input Output System.
@@ -85,7 +74,7 @@
  *          - DrvTAP - Host Interface Networking Driver.
  *      - Storage:
  *          - DevATA - ATA ((E)IDE) Device Emulation.
- *          - @ref pg_dev_ahci
+ *          - DevAHCI - Serial ATA / AHCI Device Emulation.
  *          - DevFDC - Floppy Controller Device Emulation.
  *          - DrvBlock - Intermediate block driver.
  *          - DrvHostBase - Common code for the host drivers.
@@ -97,89 +86,16 @@
  *          - DrvVD - Intermediate Virtual Drive (Media) driver.
  *          - DrvVDI - VirtualBox Drive Image Container Driver.
  *          - DrvVmdk - VMDK Drive Image Container Driver.
- *      - USB:
- *          - @ref pg_dev_ohci
- *          - @ref pg_dev_ehci
- *          - @ref pg_dev_vusb
- *          - @ref pg_dev_vusb_old
  *  - Host Drivers.
  *      - SUPDRV - The Support driver (aka VBoxDrv).
- *          - @ref pg_sup
- *      - @ref pg_netflt
- *      - @ref pg_netadp
  *      - VBoxUSB - The USB support driver.
+ *      - VBoxTAP - The Host Interface Networking driver.
  *      - @ref pg_netflt
- *      - @ref pg_rawpci
  *  - Host Services.
- *      - @ref pg_hostclip Shared Clipboard.
- *      - Shared Folders.
- *      - Shared OpenGL. See PDF. (TODO: translate PDF to doxygen)
- *          - @ref pg_opengl_cocoa
- *      - @ref pg_svc_guest_properties
- *      - @ref pg_svc_guest_control
- *  - Guest Additions.
- *      - VBoxGuest.
- *          - @ref pg_guest_lib
- *      - VBoxService.
- *          - @ref pg_vboxervice_timesync
- *          - ...
- *      - VBoxControl.
- *      - VBoxVideo.
- *      - crOpenGL.
- *      - VBoxClient / VBoxTray.
- *      - pam.
- *      - ...
- *  - Network Services:
- *      - @ref pg_net_dhcp
- *      - @ref pg_net_nat
- *  - @ref pg_main
- *      - @ref pg_main_events
- *      - @ref pg_vrdb_usb
- *  - Frontends:
- *      - VirtualBox - The default Qt4 based GUI.
- *      - VBoxHeadless - The headless frontend.
- *      - VBoxManage - The CLI.
- *      - VBoxShell - An interactive shell written in python.
- *      - VBoxSDL - A very simple GUI.
- *      - VBoxBFE - A bare metal edition which does not use COM/XPCOM (barely
- *        maintained atm).
- *  - IPRT - Runtime Library for hiding host OS differences.
- *  - Testsuite:
- *      - @ref pg_testsuite_guideline
+ *      - Shared Clipboard.
+ *      - 3D
+ *  - Main API.
  *
  * @todo Make links to the components.
- *
- *
- *
- * @section Execution Contexts
- *
- * VirtualBox defines a number of different execution context, this can be
- * confusing at first.  So, to start with take a look at this diagram:
- *
- * @image html VMMContexts.png
- *
- * Context definitions:
- *      - Host context (HC) - This is the context where the host OS runs and
- *        runs VirtualBox within it.  The absense of IN_RC and IN_GUEST
- *        indicates that we're in HC.  IN_RING0 indicates ring-0 (kernel) and
- *        IN_RING3 indicates ring-3.
- *      - Raw-mode Context (RC) - This is the special VMM context where we
- *        execute the guest code directly on the CPU.  Kernel code is patched
- *        and execute in ring-1 instead of ring-0 (ring compression).  Ring-3
- *        code execute unmodified.  Only VMMs use ring-1, so we don't need to
- *        worry about that (it's guarded against in the scheduler (EM)).  We can
- *        in theory run ring-2 there, but since practially only only OS/2 uses
- *        ring-2, it is of little importance.  The macro IN_RC indicates that
- *        we're compiling something for RC.
- *        Note! This used to be called GC (see below) earlier, so a bunch of RC
- *        things are using GC markers.
- *      - Guest Context (GC) - This is where the guest code is executed.  When
- *        compiling, IN_GUEST indicates that it's for GC.  IN_RING0 and
- *        IN_RING3 are also set when applicable, these are accompanied by
- *        IN_GUEST_R0 and IN_GUEST_R3 respecitively.
- *      - Intermediate context - This is a special memory context used within
- *        the world switchers (HC -> RC and back), it features some identity
- *        mapped code pages so we can switch to real mode if necessary.
- *
  */
 

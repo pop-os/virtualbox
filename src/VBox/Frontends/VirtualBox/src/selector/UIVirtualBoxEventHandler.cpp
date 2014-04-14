@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,13 +17,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
+/* Local includes */
 #include "UIVirtualBoxEventHandler.h"
 #include "UIMainEventListener.h"
 #include "VBoxGlobal.h"
 
-/* COM includes: */
-#include "CEventSource.h"
+/* Global includes */
+//#include <iprt/thread.h>
+//#include <iprt/stream.h>
 
 /* static */
 UIVirtualBoxEventHandler *UIVirtualBoxEventHandler::m_pInstance = 0;
@@ -60,8 +61,6 @@ UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
         << KVBoxEventType_OnMachineDataChanged
         << KVBoxEventType_OnMachineRegistered
         << KVBoxEventType_OnSessionStateChanged
-        << KVBoxEventType_OnSnapshotTaken
-        << KVBoxEventType_OnSnapshotDeleted
         << KVBoxEventType_OnSnapshotChanged;
 
     vbox.GetEventSource().RegisterListener(m_mainEventListener, events, TRUE);
@@ -81,14 +80,6 @@ UIVirtualBoxEventHandler::UIVirtualBoxEventHandler()
 
     connect(pListener->getWrapped(), SIGNAL(sigSessionStateChange(QString, KSessionState)),
             this, SIGNAL(sigSessionStateChange(QString, KSessionState)),
-            Qt::QueuedConnection);
-
-    connect(pListener->getWrapped(), SIGNAL(sigSnapshotTake(QString, QString)),
-            this, SIGNAL(sigSnapshotTake(QString, QString)),
-            Qt::QueuedConnection);
-
-    connect(pListener->getWrapped(), SIGNAL(sigSnapshotDelete(QString, QString)),
-            this, SIGNAL(sigSnapshotDelete(QString, QString)),
             Qt::QueuedConnection);
 
     connect(pListener->getWrapped(), SIGNAL(sigSnapshotChange(QString, QString)),

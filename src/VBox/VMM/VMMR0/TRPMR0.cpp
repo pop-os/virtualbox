@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 /**
  * Dispatches an interrupt that arrived while we were in the guest context.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  * @remark  Must be called with interrupts disabled.
  */
 VMMR0DECL(void) TRPMR0DispatchHostInterrupt(PVM pVM)
@@ -43,7 +43,7 @@ VMMR0DECL(void) TRPMR0DispatchHostInterrupt(PVM pVM)
      */
     PVMCPU pVCpu = VMMGetCpu0(pVM);
     RTUINT uActiveVector = pVCpu->trpm.s.uActiveVector;
-    pVCpu->trpm.s.uActiveVector = UINT32_MAX;
+    pVCpu->trpm.s.uActiveVector = ~0;
     AssertMsgReturnVoid(uActiveVector < 256, ("uActiveVector=%#x is invalid! (More assertions to come, please enjoy!)\n", uActiveVector));
 
 #if HC_ARCH_BITS == 64 && defined(RT_OS_DARWIN)
@@ -61,7 +61,7 @@ VMMR0DECL(void) TRPMR0DispatchHostInterrupt(PVM pVM)
     /*
      * Check if we're in long mode or not.
      */
-    if (    (ASMCpuId_EDX(0x80000001) & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
+    if (    (ASMCpuId_EDX(0x80000001) & X86_CPUID_AMD_FEATURE_EDX_LONG_MODE)
         &&  (ASMRdMsr(MSR_K6_EFER) & MSR_K6_EFER_LMA))
     {
         trpmR0DispatchHostInterruptSimple(uActiveVector);

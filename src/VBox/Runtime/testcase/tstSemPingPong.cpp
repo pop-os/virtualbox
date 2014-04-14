@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,7 +85,7 @@ static DECLCALLBACK(int) tstSemPingPongThread(RTTHREAD hThread, void *pvPP)
 
 int main()
 {
-    RTR3InitExeNoArguments(0);
+    RTR3Init();
 
     /*
      * Create a ping pong and kick off a second thread which we'll

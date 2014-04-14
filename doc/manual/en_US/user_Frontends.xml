@@ -4,11 +4,11 @@
 <chapter>
   <title>Remote virtual machines</title>
 
-  <sect1 id="vrde">
-    <title>Remote display (VRDP support)</title>
+  <sect1>
+    <title id="vrde">Remote display (VRDP support)</title>
 
     <para>VirtualBox can display virtual machines remotely, meaning that a
-    virtual machine can execute on one computer even though the machine will be
+    virtual machine can execute on one machine even though the machine will be
     displayed on a second computer, and the machine will be controlled from
     there as well, as if the virtual machine was running on that second
     computer.</para>
@@ -28,8 +28,10 @@
     VirtualBox before 4.0 did.</para>
 
     <para>VRDP is a backwards-compatible extension to Microsoft's Remote
-    Desktop Protocol (RDP). As a result, you can use any standard RDP client
-    to control the remote VM.</para>
+    Desktop Protocol (RDP). Typically graphics updates and audio are sent from
+    the remote machine to the client, while keyboard and mouse events are sent
+    back. As a result, you can use any standard RDP client to control the
+    remote VM.</para>
 
     <para>Even when the extension is installed, the VRDP server is disabled by
     default. It can easily be enabled on a per-VM basis either in the
@@ -41,35 +43,6 @@
     further below), VRDP support will be automatically enabled since
     VBoxHeadless has no other means of output.</para>
 
-    <para>By default, the VRDP server uses TCP port
-    <computeroutput>3389</computeroutput>. You will need to change the
-    default port if you run more than one VRDP server, since the port can
-    only be used by one server at a time; you might also need to change it
-    on Windows hosts since the default port might already be used by the RDP
-    server that is built into Windows itself. Ports 5000 through 5050 are
-    typically not used and might be a good choice.</para>
-
-    <para>The port can be changed either in the "Display" settings of the
-    graphical user interface or with
-    <computeroutput>--vrdeport</computeroutput> option of the
-    <computeroutput>VBoxManage modifyvm</computeroutput> command. You can
-    specify a comma-separated list of ports or ranges of ports. Use a dash
-    between two port numbers to specify a range. The VRDP server will bind
-    to <emphasis role="bold">one</emphasis> of available ports from the
-    specified list. For example, <computeroutput>VBoxManage modifyvm "VM
-    name" --vrdeport 5000,5010-5012</computeroutput> will configure the
-    server to bind to one of the ports 5000, 5010, 5011 or 5012. See <xref
-    linkend="vboxmanage-modifyvm-vrde" /> for details.</para>
-
-    <para>The actual port used by a running VM can be either queried with
-    <computeroutput>VBoxManage showvminfo</computeroutput> command or seen
-    in the GUI on the "Runtime" tab of the "Session Information Dialog",
-    which is accessible via the "Machine" menu of the VM window.</para>
-
-    <para>Support for IPv6 has been implemented in VirtualBox 4.3.
-    If the host OS supports IPv6 the VRDP server will automatically
-    listen for IPv6 connections in addition to IPv4.</para>
-
     <sect2 id="rdp-viewers">
       <title>Common third-party RDP viewers</title>
 
@@ -79,7 +52,32 @@
       <emphasis role="bold">IP address</emphasis> of your
       <emphasis>host</emphasis> system (not of the virtual machine!) as the
       server address to connect to, as well as the <emphasis role="bold">port
-      number</emphasis> that the VRDP server is using.</para>
+      number</emphasis> that the RDP server is using.</para>
+
+      <para>By default, VRDP uses TCP port
+      <computeroutput>3389</computeroutput>. You will need to change the
+      default port if you run more than one VRDP server, since the port can
+      only be used by one server at a time; you might also need to change it
+      on Windows hosts since the default port might already be used by the RDP
+      server that is built into Windows itself. Ports 5000 through 5050 are
+      typically not used and might be a good choice.</para>
+
+      <para>The port can be changed either in the "Display" settings of the
+      graphical user interface or with
+      <computeroutput>--vrdeport</computeroutput> option of the
+      <computeroutput>VBoxManage modifyvm</computeroutput> command. You can
+      specify a comma-separated list of ports or ranges of ports. Use a dash
+      between two port numbers to specify a range. The VRDP server will bind
+      to <emphasis role="bold">one</emphasis> of available ports from the
+      specified list. For example, <computeroutput>VBoxManage modifyvm "VM
+      name" --vrdeport 5000,5010-5012</computeroutput> will configure the
+      server to bind to one of the ports 5000, 5010, 5011 or 5012. See <xref
+      linkend="vboxmanage-modifyvm" /> for details.</para>
+
+      <para>The actual port used by a running VM can be either queried with
+      <computeroutput>VBoxManage showvminfo</computeroutput> command or seen
+      in the GUI on the "Runtime" tab of the "Session Information Dialog",
+      which is accessible via the "Machine" menu of the VM window.</para>
 
       <para>Here follow examples for the most common RDP viewers:<itemizedlist>
           <listitem>
@@ -89,15 +87,10 @@
             (press the Windows key and "R") and typing "mstsc". You can also
             find it under "Start" -&gt; "All Programs" -&gt; "Accessories"
             -&gt; "Remote Desktop Connection". If you use the "Run" dialog,
-            you can type in options directly:<screen>mstsc 1.2.3.4:3389</screen></para>
+            you can type in options directly:<screen>mstsc 1.2.3.4[:3389]</screen></para>
 
-            <para>Replace <computeroutput>1.2.3.4</computeroutput> with the host IP address,
-            and <computeroutput>3389</computeroutput> with a different port if necessary.</para>
-
-            <note>
-              <para>IPv6 address must be enclosed in square brackets to specify a port.
-              For example: <computeroutput>mstsc [fe80::1:2:3:4]:3389</computeroutput></para>
-            </note>
+            <para>Replace "1.2.3.4" with the host IP address, and 3389 with a
+            different port if necessary.</para>
 
             <note>
               <para>When connecting to localhost in order to test the
@@ -120,8 +113,8 @@
             <para>With rdesktop, use a command line such as the
             following:<screen>rdesktop -a 16 -N 1.2.3.4:3389</screen></para>
 
-            <para>As said for the Microsoft viewer above, replace <computeroutput>1.2.3.4</computeroutput>
-            with the host IP address, and <computeroutput>3389</computeroutput> with a different port if
+            <para>As said for the Microsoft viewer above, replace "1.2.3.4"
+            with the host IP address, and 3389 with a different port if
             necessary. The <computeroutput>-a 16</computeroutput> option
             requests a color depth of 16 bits per pixel, which we recommend.
             (For best performance, after installation of the guest operating
@@ -133,11 +126,11 @@
           <listitem>
             <para>If you run the KDE desktop, you might prefer
             <computeroutput>krdc</computeroutput>, the KDE RDP viewer. The
-            command line would look like this:<screen>krdc rdp://1.2.3.4:3389</screen></para>
+            command line would look like this:<screen>krdc --window --high-quality rdp:/1.2.3.4[:3389]</screen></para>
 
-            <para>Again, replace <computeroutput>1.2.3.4</computeroutput> with the host IP address,
-            and <computeroutput>3389</computeroutput> with a different port if necessary.
-            The "rdp://" bit is required with krdc to switch it into RDP mode.</para>
+            <para>Again, replace "1.2.3.4" with the host IP address, and 3389
+            with a different port if necessary. The "rdp:/" bit is required
+            with krdc to switch it into RDP mode.</para>
           </listitem>
 
           <listitem>
@@ -175,7 +168,7 @@
         </footnote></para>
 
       <para>To start a virtual machine with
-      <computeroutput>VBoxHeadless</computeroutput>, you have three
+      <computeroutput>VBoxHeadless</computeroutput>, you have two
       options:</para>
 
       <itemizedlist>
@@ -188,26 +181,16 @@
         </listitem>
 
         <listitem>
-          <para>One alternative is to use
+          <para>The alternative is to use
           <computeroutput>VBoxHeadless</computeroutput> directly, as
           follows:<screen>VBoxHeadless --startvm &lt;uuid|name&gt;</screen></para>
 
-          <para>This way of starting the VM helps troubleshooting problems
-          reported by <computeroutput>VBoxManage startvm ...</computeroutput>
-          because you can see sometimes more detailed error messages,
-          especially for early failures before the VM execution is started.
-          In normal situations <computeroutput>VBoxManage startvm</computeroutput>
-          is preferred since it runs the VM directly as a background process
-          which has to be done explicitly when directly starting
-          <computeroutput>VBoxHeadless</computeroutput>.</para>
-        </listitem>
-
-        <listitem>
-          <para>The other alternative is to start
-          <computeroutput>VBoxHeadless</computeroutput> from the VirtualBox
-          Manager GUI, by holding the Shift key when starting a virtual
-          machine.
-          </para>
+          <para>This way of starting the VM is preferred because you can see
+          more detailed error messages, especially for early failures before
+          the VM execution is started. If you have trouble with
+          <computeroutput>VBoxManage startvm</computeroutput>, it can help
+          greatly to start <computeroutput>VBoxHeadless</computeroutput>
+          directly to diagnose the problem cause.</para>
         </listitem>
       </itemizedlist>
 
@@ -218,12 +201,9 @@
       enabled the VRDP server in the VM's settings. If this is undesirable
       (for example because you want to access the VM via
       <computeroutput>ssh</computeroutput> only), start the VM like
-      this:<screen>VBoxHeadless --startvm &lt;uuid|name&gt; --vrde off</screen>To
+      this:<screen>VBoxHeadless --startvm &lt;uuid|name&gt; --vrde=off</screen>To
       have the VRDP server enabled depending on the VM configuration, as the
-      other front-ends would, use this:<screen>VBoxHeadless --startvm &lt;uuid|name&gt; --vrde config</screen></para>
-
-      <para>If you start the VM with <computeroutput>VBoxManage startvm ...</computeroutput>
-      then the configuration settings of the VM are always used.</para>
+      other front-ends would, use this:<screen>VBoxHeadless --startvm &lt;uuid|name&gt; --vrde=config</screen></para>
     </sect2>
 
     <sect2>
@@ -361,10 +341,11 @@
 
       <para>To make a remote USB device available to a VM,
       <computeroutput>rdesktop-vrdp</computeroutput> should be started as
-      follows:<screen>rdesktop-vrdp -r usb -a 16 -N my.host.address</screen>
+      follows:<screen>rdesktop-vrdp -r usb -a 16 -N my.host.address</screen>Note
+      that <computeroutput>rdesktop-vrdp</computeroutput> can access USB
+      devices only through <computeroutput>/proc/bus/usb</computeroutput>.
       Please refer to <xref linkend="ts_usb-linux" /> for further details on how
-      to properly set up the permissions for USB devices. Furthermore it is
-      advisable to
+      to properly set up the permissions. Furthermore it is advisable to
       disable automatic loading of any host driver on the remote host which
       might work on USB devices to ensure that the devices are accessible by
       the RDP client. If the setup was properly done on the remote host,
@@ -448,7 +429,7 @@
 
                       <listitem>
                         <para>To enable the library for a particular VM, you
-                        must then switch authentication to external:<screen>VBoxManage modifyvm "VM name" --vrdeauthtype external</screen></para>
+                        must then switch authentication to external:<screen>VBoxManage modifyvm &lt;vm&gt; --vrdeauthtype external</screen></para>
 
                         <para>Replace
                         <computeroutput>&lt;vm&gt;</computeroutput> with the
@@ -462,7 +443,7 @@
                         whose "extradata" section the password needs to be
                         written, is a plain text file, VirtualBox uses hashes
                         to encrypt passwords. The following command must be
-                        used:<screen>VBoxManage setextradata "VM name" "VBoxAuthSimple/users/&lt;user&gt;" &lt;hash&gt;</screen></para>
+                        used:<screen>VBoxManage setextradata &lt;vm&gt; "VBoxAuthSimple/users/&lt;user&gt;" &lt;hash&gt;</screen></para>
 
                         <para>Replace
                         <computeroutput>&lt;vm&gt;</computeroutput> with the
@@ -538,36 +519,32 @@
             <para>RDP5.2 authentication uses the Enhanced RDP Security, which
             means that an external security protocol is used to secure the
             connection. RDP4 and RDP5.1 use Standard RDP Security.
-            The VRDP server supports Enhanced RDP Security with TLS protocol and,
+            VRDP server supports Enhanced RDP Security with TLS protocol and,
             as a part of TLS handshake, sends the server certificate to the
             client.</para>
 
             <para>The <computeroutput>Security/Method</computeroutput> VRDE
             property sets the desired security method, which is used for a
             connection. Valid values are:<itemizedlist>
-              <listitem>
-                <para>
+                <listitem>
                   <computeroutput>Negotiate</computeroutput> - both Enhanced (TLS)
                   and Standard RDP Security connections are allowed. The security
                   method is negotiated with the client. This is the default setting.
-                </para>
-              </listitem>
+                </listitem>
 
-              <listitem>
-                <para>
+                <listitem>
                   <computeroutput>RDP</computeroutput> - only Standard RDP Security
-                  is accepted.</para>
-              </listitem>
+                  is accepted.
+                </listitem>
 
-              <listitem>
-                <para>
+                <listitem>
                   <computeroutput>TLS</computeroutput> - only Enhanced RDP Security
-                  is accepted. The client must support TLS.</para>
+                  is accepted. The client must support TLS.
                 </listitem>
             </itemizedlist>
             For example the following command allows a client to use either Standard
             or Enhanced RDP Security connection:
-            <screen>vboxmanage modifyvm "VM name" --vrdeproperty "Security/Method=negotiate"</screen>
+            <screen>vboxmanage modifyvm NAME --vrdeproperty "Security/Method=negotiate"</screen>
             </para>
 
             <para>If the <computeroutput>Security/Method</computeroutput> property is
@@ -579,8 +556,7 @@
             generate a server certificate.<orderedlist>
                 <listitem>
                 Create a CA self signed certificate:
-                <screen>openssl req -new -x509 -days 365 -extensions v3_ca \
-  -keyout ca_key_private.pem -out ca_cert.pem</screen>
+                <screen>openssl req -new -x509 -days 365 -extensions v3_ca -keyout ca_key_private.pem -out ca_cert.pem</screen>
                 </listitem>
 
                 <listitem>
@@ -591,17 +567,13 @@ openssl req -new -key server_key_private.pem -out server_req.pem</screen>
 
                 <listitem>
                 Generate the server certificate:
-                <screen>openssl x509 -req -days 365 -in server_req.pem \
-  -CA ca_cert.pem -CAkey ca_key_private.pem -set_serial 01 -out server_cert.pem</screen>
+                <screen>openssl x509 -req -days 365 -in server_req.pem -CA ca_cert.pem -CAkey ca_key_private.pem -set_serial 01 -out server_cert.pem</screen>
                 </listitem>
             </orderedlist>
             The server must be configured to access the required files:
-            <screen>vboxmanage modifyvm "VM name" \
-  --vrdeproperty "Security/CACertificate=path/ca_cert.pem"</screen>
-            <screen>vboxmanage modifyvm "VM name" \
-  --vrdeproperty "Security/ServerCertificate=path/server_cert.pem"</screen>
-            <screen>vboxmanage modifyvm "VM name" \
-  --vrdeproperty "Security/ServerPrivateKey=path/server_key_private.pem"</screen>
+            <screen>vboxmanage modifyvm NAME --vrdeproperty "Security/CACertificate=path/ca_cert.pem"</screen>
+            <screen>vboxmanage modifyvm NAME --vrdeproperty "Security/ServerCertificate=path/server_cert.pem"</screen>
+            <screen>vboxmanage modifyvm NAME --vrdeproperty "Security/ServerPrivateKey=path/server_key_private.pem"</screen>
             </para>
           </listitem>
         </orderedlist></para>

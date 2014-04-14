@@ -2,7 +2,7 @@
 #
 # Oracle VM VirtualBox startup script, Solaris hosts.
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -37,11 +37,11 @@ case "$APP" in
     VBoxBalloonCtrl|vboxballoonctrl)
         exec "$INSTALL_DIR/VBoxBalloonCtrl" "$@"
         ;;
-    VBoxAutostart|vboxautostart)
-        exec "$INSTALL_DIR/VBoxAutostart" "$@"
-        ;;
     vboxwebsrv)
         exec "$INSTALL_DIR/vboxwebsrv" "$@"
+        ;;
+    VBoxBFE|vboxbfe)
+        exec "$INSTALL_DIR/VBoxBFE" "$@"
         ;;
     VBoxQtconfig)
         exec "$INSTALL_DIR/VBoxQtconfig" "$@"

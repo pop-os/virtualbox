@@ -8,7 +8,6 @@
 #include "cr_packfunctions.h"
 #include "cr_glstate.h"
 #include "packspu_proto.h"
-#include "cr_mem.h"
 
 void PACKSPU_APIENTRY packspu_FogCoordPointerEXT( GLenum type, GLsizei stride, const GLvoid *pointer )
 {
@@ -173,168 +172,6 @@ void PACKSPU_APIENTRY packspu_InterleavedArrays( GLenum format, GLsizei stride, 
     crStateInterleavedArrays( format, stride, pointer );
 }
 
-#ifdef DEBUG_misha
-/* debugging */
-//# define CR_FORCE_ZVA_SERVER_ARRAY
-#endif
-# define CR_FORCE_ZVA_EXPAND
-
-
-GLboolean packspuZvaCreate(ContextInfo *pCtx, const GLfloat *pValue, GLuint cValues)
-{
-    ZvaBufferInfo *pInfo = &pCtx->zvaBufferInfo;
-    GLuint cbValue = 4 * sizeof (*pValue);
-    GLuint cbValues = cValues * cbValue;
-    GLfloat *pBuffer;
-    uint8_t *pu8Buf;
-    GLuint i;
-
-    /* quickly sort out if we can use the current value */
-    if (pInfo->idBuffer
-            && pInfo->cValues >= cValues
-            && !crMemcmp(pValue, &pInfo->Value, cbValue))
-        return GL_FALSE;
-
-    pBuffer = (GLfloat*)crAlloc(cbValues);
-    if (!pBuffer)
-    {
-        WARN(("crAlloc for pBuffer failed"));
-        return GL_FALSE;
-    }
-
-    pu8Buf = (uint8_t *)pBuffer;
-    for (i = 0; i < cValues; ++i)
-    {
-        crMemcpy(pu8Buf, pValue, cbValue);
-        pu8Buf += cbValue;
-    }
-
-    /* */
-    if (!pInfo->idBuffer)
-    {
-        pack_spu.self.GenBuffersARB(1, &pInfo->idBuffer);
-        Assert(pInfo->idBuffer);
-    }
-
-    pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, pInfo->idBuffer);
-
-    if (pInfo->cbBuffer < cbValues)
-    {
-        pack_spu.self.BufferDataARB(GL_ARRAY_BUFFER_ARB, cbValues, pBuffer, GL_DYNAMIC_DRAW_ARB);
-        pInfo->cbBuffer = cbValues;
-    }
-    else
-    {
-        pack_spu.self.BufferSubDataARB(GL_ARRAY_BUFFER_ARB, 0, cbValues, pBuffer);
-    }
-
-    pInfo->cValues = cValues;
-    crMemcpy(&pInfo->Value, pValue, cbValue);
-
-    crFree(pBuffer);
-
-    return GL_TRUE;
-}
-
-typedef struct
-{
-    ContextInfo *pCtx;
-    GLuint idBuffer;
-    CRClientPointer cp;
-} CR_ZVA_RESTORE_CTX;
-
-void packspuZvaEnable(ContextInfo *pCtx, const GLfloat *pValue, GLuint cValues, CR_ZVA_RESTORE_CTX *pRestoreCtx)
-{
-    CRContext *g = pCtx->clientState;
-
-    Assert(0);
-
-#ifdef DEBUG
-    {
-        CRContext *pCurState = crStateGetCurrent();
-
-        Assert(g == pCurState);
-    }
-#endif
-
-    pRestoreCtx->pCtx = pCtx;
-    pRestoreCtx->idBuffer = g->bufferobject.arrayBuffer ? g->bufferobject.arrayBuffer->id : 0;
-    pRestoreCtx->cp = g->client.array.a[0];
-
-    Assert(!pRestoreCtx->cp.enabled);
-
-    /* buffer ref count mechanism does not work actually atm,
-     * still ensure the buffer does not get destroyed if we fix it in the future */
-    if (pRestoreCtx->cp.buffer)
-        pRestoreCtx->cp.buffer->refCount++;
-
-    packspuZvaCreate(pCtx, pValue, cValues);
-
-    pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, pCtx->zvaBufferInfo.idBuffer);
-
-    pack_spu.self.VertexAttribPointerARB(0, 4, GL_FLOAT,
-            GL_FALSE, /*normalized*/
-            0, /*stride*/
-            NULL /*addr*/);
-
-    pack_spu.self.EnableVertexAttribArrayARB(0);
-}
-
-void packspuZvaDisable(CR_ZVA_RESTORE_CTX *pRestoreCtx)
-{
-    if (pRestoreCtx->cp.buffer)
-        pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, pRestoreCtx->cp.buffer->id);
-    else
-        pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
-
-    pack_spu.self.VertexAttribPointerARB(0, pRestoreCtx->cp.size, pRestoreCtx->cp.type,
-            pRestoreCtx->cp.normalized, /*normalized*/
-            pRestoreCtx->cp.stride, /*stride*/
-            pRestoreCtx->cp.p);
-
-    if (pRestoreCtx->cp.enabled)
-        pack_spu.self.EnableVertexAttribArrayARB(0);
-    else
-        pack_spu.self.DisableVertexAttribArrayARB(0);
-
-    if (pRestoreCtx->cp.buffer)
-    {
-        if (pRestoreCtx->cp.buffer->id != pRestoreCtx->idBuffer)
-            pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, pRestoreCtx->idBuffer);
-
-        /* we have increased the refcount above, decrease it back */
-        pRestoreCtx->cp.buffer->refCount--;
-    }
-    else
-    {
-        if (pRestoreCtx->idBuffer)
-            pack_spu.self.BindBufferARB(GL_ARRAY_BUFFER_ARB, pRestoreCtx->idBuffer);
-    }
-
-#ifdef DEBUG
-    {
-        CRContext *g = pRestoreCtx->pCtx->clientState;
-        CRContext *pCurState = crStateGetCurrent();
-
-        Assert(g == pCurState);
-
-        Assert(pRestoreCtx->cp.p == g->client.array.a[0].p);
-        Assert(pRestoreCtx->cp.size == g->client.array.a[0].size);
-        Assert(pRestoreCtx->cp.type == g->client.array.a[0].type);
-        Assert(pRestoreCtx->cp.stride == g->client.array.a[0].stride);
-        Assert(pRestoreCtx->cp.enabled == g->client.array.a[0].enabled);
-        Assert(pRestoreCtx->cp.normalized == g->client.array.a[0].normalized);
-        Assert(pRestoreCtx->cp.bytesPerIndex == g->client.array.a[0].bytesPerIndex);
-# ifdef CR_ARB_vertex_buffer_object
-        Assert(pRestoreCtx->cp.buffer == g->client.array.a[0].buffer);
-# endif
-# ifdef CR_EXT_compiled_vertex_array
-        Assert(pRestoreCtx->cp.locked == g->client.array.a[0].locked);
-# endif
-        Assert(pRestoreCtx->idBuffer == (g->bufferobject.arrayBuffer ? g->bufferobject.arrayBuffer->id : 0));
-    }
-#endif
-}
 
 void PACKSPU_APIENTRY
 packspu_ArrayElement( GLint index )
@@ -342,30 +179,17 @@ packspu_ArrayElement( GLint index )
 /*@todo cash guest/host pointers calculation and use appropriate path here without crStateUseServerArrays call*/
 #if 1
     GLboolean serverArrays = GL_FALSE;
-    GLuint cZvaValues = 0;
-    GLfloat aAttrib[4];
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
     /*crDebug("packspu_ArrayElement index:%i", index);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
-    {
         serverArrays = crStateUseServerArrays();
-        if (ctx->fCheckZerroVertAttr)
-            cZvaValues = crStateNeedDummyZeroVertexArray(thread->currentContext->clientState, &thread->packer->current, aAttrib);
-    }
 #endif
 
-    if (serverArrays
-#ifdef CR_FORCE_ZVA_EXPAND
-            && !cZvaValues
-#endif
-            ) {
-        CR_ZVA_RESTORE_CTX RestoreCtx;
+    if (serverArrays) {
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-        Assert(cZvaValues < UINT32_MAX/2);
 
         /* LockArraysEXT can not be executed between glBegin/glEnd pair, it also
          * leads to vertexpointers being adjusted on the host side between glBegin/glEnd calls which
@@ -373,58 +197,34 @@ packspu_ArrayElement( GLint index )
          */
         CRASSERT(!clientState->array.locked || clientState->array.synced);
 
-        if (cZvaValues)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
-
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackArrayElementSWAP( index );
         else
             crPackArrayElement( index );
-
-        if (cZvaValues)
-            packspuZvaDisable(&RestoreCtx);
     }
     else {
         /* evaluate locally */
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        CR_ZVA_RESTORE_CTX RestoreCtx;
-
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
-#endif
-
         if (pack_spu.swap)
-            crPackExpandArrayElementSWAP( index, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandArrayElementSWAP( index, clientState );
         else
-            crPackExpandArrayElement( index, clientState, cZvaValues ? aAttrib : NULL );
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaDisable(&RestoreCtx);
-#endif
+            crPackExpandArrayElement( index, clientState );
     }
 #else
     GET_CONTEXT(ctx);
     CRClientState *clientState = &(ctx->clientState->client);
-    crPackExpandArrayElement(index, clientState, NULL);
+    crPackExpandArrayElement(index, clientState);
 #endif
 }
 
 /*#define CR_USE_LOCKARRAYS*/
-#ifdef CR_USE_LOCKARRAYS
-# error "check Zero Vertex Attrib hack is supported properly!"
-#endif
 
 void PACKSPU_APIENTRY
 packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *indices )
 {
     GLboolean serverArrays = GL_FALSE;
-    GLuint cZvaValues = 0;
-    GLfloat aAttrib[4];
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
@@ -432,11 +232,7 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
     CRBufferObject *elementsBuffer = crStateGetCurrent()->bufferobject.elementsBuffer;
     /*crDebug("DrawElements count=%d, indices=%p", count, indices);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
-    {
         serverArrays = crStateUseServerArrays();
-        if (ctx->fCheckZerroVertAttr)
-            cZvaValues = crStateNeedDummyZeroVertexArray(thread->currentContext->clientState, &thread->packer->current, aAttrib);
-    }
 
 # ifdef CR_USE_LOCKARRAYS
     if (!serverArrays && !ctx->clientState->client.array.locked && (count>3)
@@ -501,19 +297,9 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
 # endif
 #endif
 
-    if (serverArrays
-#ifdef CR_FORCE_ZVA_EXPAND
-            && !cZvaValues
-#endif
-            ) {
-        CR_ZVA_RESTORE_CTX RestoreCtx;
+    if (serverArrays) {
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-        Assert(cZvaValues < UINT32_MAX/2);
-
-        if (cZvaValues)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
 
         /*Note the comment in packspu_LockArraysEXT*/
         if (clientState->array.locked && !clientState->array.synced)
@@ -521,41 +307,24 @@ packspu_DrawElements( GLenum mode, GLsizei count, GLenum type, const GLvoid *ind
             crPackLockArraysEXT(clientState->array.lockFirst, clientState->array.lockCount);
             clientState->array.synced = GL_TRUE;
         }
-
         /* Send the DrawArrays command over the wire */
         if (pack_spu.swap)
             crPackDrawElementsSWAP( mode, count, type, indices );
         else
             crPackDrawElements( mode, count, type, indices );
-
-        if (cZvaValues)
-            packspuZvaDisable(&RestoreCtx);
     }
     else {
         /* evaluate locally */
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        CR_ZVA_RESTORE_CTX RestoreCtx;
-
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
-#endif
-
         if (pack_spu.swap)
-            crPackExpandDrawElementsSWAP( mode, count, type, indices, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandDrawElementsSWAP( mode, count, type, indices, clientState );
         else
         {
             //packspu_Begin(mode);
-            crPackExpandDrawElements( mode, count, type, indices, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandDrawElements( mode, count, type, indices, clientState );
             //packspu_End();
         }
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaDisable(&RestoreCtx);
-#endif
     }
 
 #if CR_ARB_vertex_buffer_object
@@ -571,33 +340,17 @@ void PACKSPU_APIENTRY
 packspu_DrawRangeElements( GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices )
 {
     GLboolean serverArrays = GL_FALSE;
-    GLuint cZvaValues = 0;
-    GLfloat aAttrib[4];
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
     /*crDebug("DrawRangeElements count=%d", count);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
-    {
          serverArrays = crStateUseServerArrays();
-         if (ctx->fCheckZerroVertAttr)
-             cZvaValues = crStateNeedDummyZeroVertexArray(thread->currentContext->clientState, &thread->packer->current, aAttrib);
-    }
 #endif
 
-    if (serverArrays
-#ifdef CR_FORCE_ZVA_EXPAND
-            && !cZvaValues
-#endif
-            ) {
-        CR_ZVA_RESTORE_CTX RestoreCtx;
+    if (serverArrays) {
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-        Assert(cZvaValues < UINT32_MAX/2);
-
-        if (cZvaValues)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
 
         /*Note the comment in packspu_LockArraysEXT*/
         if (clientState->array.locked && !clientState->array.synced)
@@ -611,32 +364,17 @@ packspu_DrawRangeElements( GLenum mode, GLuint start, GLuint end, GLsizei count,
             crPackDrawRangeElementsSWAP( mode, start, end, count, type, indices );
         else
             crPackDrawRangeElements( mode, start, end, count, type, indices );
-
-        if (cZvaValues)
-            packspuZvaDisable(&RestoreCtx);
     }
     else {
         /* evaluate locally */
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        CR_ZVA_RESTORE_CTX RestoreCtx;
-
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
-#endif
-
         if (pack_spu.swap)
-            crPackExpandDrawRangeElementsSWAP( mode, start, end, count, type, indices, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandDrawRangeElementsSWAP( mode, start, end, count, type, indices, clientState );
         else
         {
-            crPackExpandDrawRangeElements( mode, start, end, count, type, indices, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandDrawRangeElements( mode, start, end, count, type, indices, clientState );
         }
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaDisable(&RestoreCtx);
-#endif
     }
 }
 
@@ -645,19 +383,13 @@ void PACKSPU_APIENTRY
 packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
 {
     GLboolean serverArrays = GL_FALSE;
-    GLuint cZvaValues = 0;
-    GLfloat aAttrib[4];
 
 #if CR_ARB_vertex_buffer_object
     GET_CONTEXT(ctx);
     GLboolean lockedArrays = GL_FALSE;
     /*crDebug("DrawArrays count=%d", count);*/
     if (ctx->clientState->extensions.ARB_vertex_buffer_object)
-    {
          serverArrays = crStateUseServerArrays();
-         if (ctx->fCheckZerroVertAttr)
-             cZvaValues = crStateNeedDummyZeroVertexArray(thread->currentContext->clientState, &thread->packer->current, aAttrib);
-    }
 
 # ifdef CR_USE_LOCKARRAYS
     if (!serverArrays && !ctx->clientState->client.array.locked && (count>3))
@@ -676,20 +408,10 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
 # endif
 #endif
 
-    if (serverArrays
-#ifdef CR_FORCE_ZVA_EXPAND
-            && !cZvaValues
-#endif
-            )
+    if (serverArrays)
     {
-        CR_ZVA_RESTORE_CTX RestoreCtx;
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-
-        Assert(cZvaValues < UINT32_MAX/2);
-
-        if (cZvaValues)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
 
         /*Note the comment in packspu_LockArraysEXT*/
         if (clientState->array.locked && !clientState->array.synced)
@@ -703,32 +425,16 @@ packspu_DrawArrays( GLenum mode, GLint first, GLsizei count )
             crPackDrawArraysSWAP( mode, first, count );
         else
             crPackDrawArrays( mode, first, count );
-
-        if (cZvaValues)
-            packspuZvaDisable(&RestoreCtx);
     }
     else
     {
         /* evaluate locally */
         GET_CONTEXT(ctx);
         CRClientState *clientState = &(ctx->clientState->client);
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        CR_ZVA_RESTORE_CTX RestoreCtx;
-
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaEnable(ctx, aAttrib, cZvaValues, &RestoreCtx);
-#endif
-
         if (pack_spu.swap)
-            crPackExpandDrawArraysSWAP( mode, first, count, clientState, cZvaValues ? aAttrib : NULL );
+            crPackExpandDrawArraysSWAP( mode, first, count, clientState );
         else
-            crPackExpandDrawArrays( mode, first, count, clientState, cZvaValues ? aAttrib : NULL );
-
-#ifdef CR_FORCE_ZVA_SERVER_ARRAY
-        if (cZvaValues && cZvaValues < UINT32_MAX/2)
-            packspuZvaDisable(&RestoreCtx);
-#endif
-
+            crPackExpandDrawArrays( mode, first, count, clientState );
     }
 
 #if CR_ARB_vertex_buffer_object
@@ -853,7 +559,8 @@ GLboolean PACKSPU_APIENTRY packspu_IsEnabled(GLenum cap)
 	    GLboolean return_val = (GLboolean) 0;
         crPackIsEnabled(cap, &return_val, &writeback);
 	    packspuFlush( (void *) thread );
-	    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+	    while (writeback)
+		  crNetRecv();
         CRASSERT(return_val==res);
     }
 #endif

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,22 +50,14 @@ RT_C_DECLS_BEGIN
  */
 RTDECL(bool) RTDirExists(const char *pszPath);
 
-/** @name RTDirCreate  flags.
- * @{ */
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTDIRCREATE_FLAGS_NO_SYMLINKS  RT_BIT(0)
-/** @} */
-
 /**
  * Creates a directory.
  *
  * @returns iprt status code.
  * @param   pszPath     Path to the directory to create.
  * @param   fMode       The mode of the new directory.
- * @param   fCreate     Create flags, RTDIRCREATE_FLAGS_*.
  */
-RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate);
+RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode);
 
 /**
  * Creates a directory including all parent directories in the path
@@ -90,35 +82,13 @@ RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode);
  * the following string only the last bunch of X'es will be modified:
  *          "/tmp/myprog-XXX-XXX.tmp"
  *
+ * The directory is created with mode 0700.
+ *
  * @returns iprt status code.
  * @param   pszTemplate     The directory name template on input. The actual
  *                          directory name on success. Empty string on failure.
- * @param   fMode           The mode to create the directory with.  Use 0700
- *                          unless you have reason not to.
  */
-RTDECL(int) RTDirCreateTemp(char *pszTemplate, RTFMODE fMode);
-
-/**
- * Secure version of @a RTDirCreateTemp with a fixed mode of 0700.
- *
- * This function behaves in the same way as @a RTDirCreateTemp with two
- * additional points.  Firstly the mode is fixed to 0700.  Secondly it will
- * fail if it is not possible to perform the operation securely.  Possible
- * reasons include that the directory could be removed by another unprivileged
- * user before it is used (e.g. if is created in a non-sticky /tmp directory)
- * or that the path contains symbolic links which another unprivileged user
- * could manipulate; however the exact criteria will be specified on a
- * platform-by-platform basis as platform support is added.
- * @see RTPathIsSecure for the current list of criteria.
- * @returns iprt status code.
- * @returns VERR_NOT_SUPPORTED if the interface can not be supported on the
- *                             current platform at this time.
- * @returns VERR_INSECURE      if the directory could not be created securely.
- * @param   pszTemplate        The directory name template on input. The
- *                             actual directory name on success. Empty string
- *                             on failure.
- */
-RTDECL(int) RTDirCreateTempSecure(char *pszTemplate);
+RTDECL(int) RTDirCreateTemp(char *pszTemplate);
 
 /**
  * Creates a new directory with a unique name by appending a number.
@@ -272,8 +242,8 @@ typedef struct RTDIRENTRY
      * RTDIRENTRYTYPE_UNKNOWN is a common return value here since not all file
      * systems (or Unixes) stores the type of a directory entry and instead
      * expects the user to use stat() to get it.  So, when you see this you
-     * should use RTDirQueryUnknownType or RTDirQueryUnknownTypeEx to get the type,
-     * or if if you're lazy, use RTDirReadEx. */
+     * should use RTPathQueryInfo to get the type, or if if you're lazy, use
+     * RTDirReadEx. */
     RTDIRENTRYTYPE  enmType;
     /** The length of the filename, excluding the terminating nul character. */
     uint16_t        cbName;
@@ -284,8 +254,6 @@ typedef struct RTDIRENTRY
 #pragma pack()
 /** Pointer to a directory entry. */
 typedef RTDIRENTRY *PRTDIRENTRY;
-/** Pointer to a const directory entry. */
-typedef RTDIRENTRY const *PCRTDIRENTRY;
 
 
 /**
@@ -315,8 +283,6 @@ typedef struct RTDIRENTRYEX
 #pragma pack()
 /** Pointer to a directory entry. */
 typedef RTDIRENTRYEX *PRTDIRENTRYEX;
-/** Pointer to a const directory entry. */
-typedef RTDIRENTRYEX const *PCRTDIRENTRYEX;
 
 
 /**
@@ -328,13 +294,6 @@ typedef RTDIRENTRYEX const *PCRTDIRENTRYEX;
  */
 RTDECL(int) RTDirOpen(PRTDIR *ppDir, const char *pszPath);
 
-/** @name RTDirOpenFiltered  flags.
- * @{ */
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTDIROPEN_FLAGS_NO_SYMLINKS  RT_BIT(0)
-/** @} */
-
 /**
  * Opens a directory filtering the entries using dos style wildcards.
  *
@@ -343,9 +302,8 @@ RTDECL(int) RTDirOpen(PRTDIR *ppDir, const char *pszPath);
  * @param   pszPath     Path to the directory to search, this must include wildcards.
  * @param   enmFilter   The kind of filter to apply. Setting this to RTDIRFILTER_NONE makes
  *                      this function behave like RTDirOpen.
- * @param   fOpen       Open flags, RTDIROPENFILTERED_FLAGS_*.
  */
-RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter, uint32_t fOpen);
+RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter);
 
 /**
  * Closes a directory.
@@ -413,55 +371,6 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry);
  */
 RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags);
 
-/**
- * Resolves RTDIRENTRYTYPE_UNKNOWN values returned by RTDirRead.
- *
- * @returns IPRT status code (see RTPathQueryInfo).
- * @param   pszComposedName The path to the directory entry. The caller must
- *                          compose this, it's NOT sufficient to pass
- *                          RTDIRENTRY::szName!
- * @param   fFollowSymlinks Whether to follow symbolic links or not.
- * @param   penmType        Pointer to the RTDIRENTRY::enmType member.  If this
- *                          is not RTDIRENTRYTYPE_UNKNOWN and, if
- *                          @a fFollowSymlinks is false, not
- *                          RTDIRENTRYTYPE_SYMLINK, the function will return
- *                          immediately without doing anything.  Otherwise it
- *                          will use RTPathQueryInfo to try figure out the
- *                          correct value.  On failure, this will be unchanged.
- */
-RTDECL(int) RTDirQueryUnknownType(const char *pszComposedName, bool fFollowSymlinks, RTDIRENTRYTYPE *penmType);
-
-/**
- * Resolves RTDIRENTRYTYPE_UNKNOWN values returned by RTDirRead, extended
- * version.
- *
- * @returns IPRT status code (see RTPathQueryInfo).
- * @param   pszComposedName The path to the directory entry. The caller must
- *                          compose this, it's NOT sufficient to pass
- *                          RTDIRENTRY::szName!
- * @param   fFollowSymlinks Whether to follow symbolic links or not.
- * @param   penmType        Pointer to the RTDIRENTRY::enmType member or
- *                          similar.  Will NOT be checked on input.
- * @param   pObjInfo        The object info buffer to use with RTPathQueryInfo.
- */
-RTDECL(int) RTDirQueryUnknownTypeEx(const char *pszComposedName, bool fFollowSymlinks, RTDIRENTRYTYPE *penmType, PRTFSOBJINFO pObjInfo);
-
-/**
- * Checks if the directory entry returned by RTDirRead is '.', '..' or similar.
- *
- * @returns true / false.
- * @param   pDirEntry       The directory entry to check.
- */
-RTDECL(bool) RTDirEntryIsStdDotLink(PRTDIRENTRY pDirEntry);
-
-/**
- * Checks if the directory entry returned by RTDirReadEx is '.', '..' or
- * similar.
- *
- * @returns true / false.
- * @param   pDirEntryEx     The extended directory entry to check.
- */
-RTDECL(bool) RTDirEntryExIsStdDotLink(PCRTDIRENTRYEX pDirEntryEx);
 
 /**
  * Renames a file.

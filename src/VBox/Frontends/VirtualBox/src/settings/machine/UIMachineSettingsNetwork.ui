@@ -2,15 +2,15 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
- Copyright (C) 2008-2012 Oracle Corporation
+     Copyright (C) 2008-2011 Oracle Corporation
 
- This file is part of VirtualBox Open Source Edition (OSE), as
- available from http://www.virtualbox.org. This file is free software;
- you can redistribute it and/or modify it under the terms of the GNU
- General Public License (GPL) as published by the Free Software
- Foundation, in version 2 as it comes in the "COPYING" file of the
- VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+     This file is part of VirtualBox Open Source Edition (OSE), as
+     available from http://www.virtualbox.org. This file is free software;
+     you can redistribute it and/or modify it under the terms of the GNU
+     General Public License (GPL) as published by the Free Software
+     Foundation, in version 2 as it comes in the "COPYING" file of the
+     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  </comment>
  <class>UIMachineSettingsNetwork</class>
  <widget class="QWidget" name="UIMachineSettingsNetwork">
@@ -189,7 +189,7 @@
       <item row="5" column="0">
        <widget class="QLabel" name="m_pMACLabel">
         <property name="text">
-         <string>&amp;MAC Address:</string>
+         <string>&amp;Mac Address:</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -208,7 +208,7 @@
          </sizepolicy>
         </property>
         <property name="whatsThis">
-         <string>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</string>
+         <string>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</string>
         </property>
        </widget>
       </item>
@@ -249,14 +249,14 @@
          <string>Indicates whether the virtual network cable is plugged in on machine startup or not.</string>
         </property>
         <property name="text">
-         <string>&amp;Cable Connected</string>
+         <string>&amp;Cable connected</string>
         </property>
        </widget>
       </item>
       <item row="8" column="1">
        <widget class="QPushButton" name="m_pPortForwardingButton">
         <property name="whatsThis">
-         <string>Opens a window to manage port forwarding rules.</string>
+         <string>Opens dialog to manage port forwarding rules.</string>
         </property>
         <property name="text">
          <string>&amp;Port Forwarding</string>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -125,22 +125,9 @@ static char* rtS3HostHeader(const char* pszBucket, const char* pszBaseUrl)
 static char* rtS3DateHeader()
 {
     /* Date header entry */
-    RTTIMESPEC TimeSpec;
-    RTTIME Time;
-    RTTimeExplode(&Time, RTTimeNow(&TimeSpec));
-
-    static const char s_apszDayNms[7][4] = { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
-    static const char s_apszMonthNms[1+12][4] =
-    { "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
-    char *pszDate;
-    RTStrAPrintf(&pszDate, "Date: %s, %02u %s %04d %02u:%02u:%02u UTC",
-                 s_apszDayNms[Time.u8WeekDay],
-                 Time.u8MonthDay,
-                 s_apszMonthNms[Time.u8Month],
-                 Time.i32Year,
-                 Time.u8Hour,
-                 Time.u8Minute,
-                 Time.u8Second);
+    time_t tt = time(NULL);
+    char* pszDate = (char*)RTMemAlloc(128);
+    strftime(pszDate, 128, "Date: %a, %d %b %Y %H:%M:%S UTC", gmtime(&tt));
 
     return pszDate;
 }
@@ -257,8 +244,7 @@ static int rtS3Perform(PRTS3INTERNAL pS3Int)
             case 403: rc = VERR_S3_ACCESS_DENIED; break; /* Access denied */
             case 404: rc = VERR_S3_NOT_FOUND; break; /* Site not found */
         }
-    }
-    else
+    }else
     {
         switch(code)
         {
@@ -281,10 +267,9 @@ static int rtS3Perform(PRTS3INTERNAL pS3Int)
     return rc;
 }
 
-static size_t rtS3WriteNothingCallback(void *pvBuf, size_t cbItem, size_t cItems, void *pvUser)
+static size_t rtS3WriteNothingCallback(void *pvBuf, size_t cSize, size_t cBSize, void *pvUser)
 {
-    NOREF(pvBuf); NOREF(pvUser);
-    return cbItem * cItems;
+    return cSize*cBSize;
 }
 
 static size_t rtS3WriteMemoryCallback(void *pvBuf, size_t cSize, size_t cBSize, void *pvUser)
@@ -996,7 +981,6 @@ RTR3DECL(int) RTS3PutKey(RTS3 hS3, const char *pszBucketName, const char *pszKey
     /* Set the callback which send the content */
     curl_easy_setopt(pS3Int->pCurl, CURLOPT_READFUNCTION, rtS3ReadFileCallback);
     curl_easy_setopt(pS3Int->pCurl, CURLOPT_READDATA, &hFile);
-    curl_easy_setopt(pS3Int->pCurl, CURLOPT_SSLVERSION, (long)CURL_SSLVERSION_TLSv1);
 
     /* Start the request */
     rc = rtS3Perform(pS3Int);

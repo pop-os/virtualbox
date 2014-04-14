@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,8 +39,31 @@
 #include <iprt/string.h>
 #include <iprt/alloc.h>
 #include <iprt/time.h>
-#include <iprt/path.h>
 
+
+/**
+ * Makes a path to a file in the executable directory.
+ */
+static char *ExeDirFile(char *pszFile, const char *pszArgv0, const char *pszFilename)
+{
+    char   *psz;
+    char   *psz2;
+
+    strcpy(pszFile, pszArgv0);
+    psz = strrchr(pszFile, '/');
+    psz2 = strrchr(pszFile, '\\');
+    if (psz < psz2)
+        psz = psz2;
+    if (!psz)
+        psz = strrchr(pszFile, ':');
+    if (!psz)
+    {
+        strcpy(pszFile, "./");
+        psz = &pszFile[1];
+    }
+    strcpy(psz + 1, "VMMR0.r0");
+    return pszFile;
+}
 
 int main(int argc, char **argv)
 {
@@ -54,29 +77,19 @@ int main(int argc, char **argv)
     /*
      * Init.
      */
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
     PSUPDRVSESSION pSession;
     rc = SUPR3Init(&pSession);
     rcRet += rc != 0;
     RTPrintf("tstInt: SUPR3Init -> rc=%Rrc\n", rc);
-    char szFile[RTPATH_MAX];
     if (!rc)
-    {
-        rc = RTPathExecDir(szFile, sizeof(szFile) - sizeof("/VMMR0.r0"));
-    }
-    char szAbsFile[RTPATH_MAX];
-    if (RT_SUCCESS(rc))
-    {
-        strcat(szFile, "/VMMR0.r0");
-        rc = RTPathAbs(szFile, szAbsFile, sizeof(szAbsFile));
-    }
-    if (RT_SUCCESS(rc))
     {
         /*
          * Load VMM code.
          */
-        rc = SUPR3LoadVMM(szAbsFile);
-        if (RT_SUCCESS(rc))
+        char    szFile[RTPATH_MAX];
+        rc = SUPR3LoadVMM(ExeDirFile(szFile, argv[0], "VMMR0.r0"));
+        if (!rc)
         {
             /*
              * Create a fake 'VM'.

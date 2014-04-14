@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,19 +87,19 @@
  * This will declare a temporary variable and expands to two statements!
  */
 # define PGMRZDYNMAP_SPINLOCK_ACQUIRE(pThis) \
-    RTSpinlockAcquire((pThis)->hSpinlock)
-
+    RTSPINLOCKTMP   MySpinlockTmp = RTSPINLOCKTMP_INITIALIZER; \
+    RTSpinlockAcquire((pThis)->hSpinlock, &MySpinlockTmp)
 /**
  * Releases the spinlock.
  */
 # define PGMRZDYNMAP_SPINLOCK_RELEASE(pThis) \
-    RTSpinlockRelease((pThis)->hSpinlock)
+    RTSpinlockRelease((pThis)->hSpinlock, &MySpinlockTmp)
 
 /**
  * Re-acquires the spinlock.
  */
 # define PGMRZDYNMAP_SPINLOCK_REACQUIRE(pThis) \
-    RTSpinlockAcquire((pThis)->hSpinlock)
+    RTSpinlockAcquire((pThis)->hSpinlock, &MySpinlockTmp)
 #else
 # define PGMRZDYNMAP_SPINLOCK_ACQUIRE(pThis)   do { } while (0)
 # define PGMRZDYNMAP_SPINLOCK_RELEASE(pThis)   do { } while (0)
@@ -303,7 +303,7 @@ typedef CTX_MID(PGM,DYNMAPENTRY) PGMRZDYNMAPENTRY;
  * @sa PGMR0DYNMAPENTRY, PGMRCDYNMAPENTRY  */
 typedef PGMRZDYNMAPENTRY *PPGMRZDYNMAPENTRY;
 
-/** Pointer to the mapping cache instance for the current context.
+/** Pointer the mapping cache instance for the current context.
  * @sa PGMR0DYNMAP, PGMRCDYNMAP  */
 typedef CTX_MID(PGM,DYNMAP) *PPGMRZDYNMAP;
 
@@ -338,7 +338,7 @@ static int  pgmR0DynMapTest(PVM pVM);
  * Initializes the auto mapping sets for a VM.
  *
  * @returns VINF_SUCCESS on success, VERR_PGM_DYNMAP_IPE on failure.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM in question.
  */
 static int pgmRZDynMapInitAutoSetsForVM(PVM pVM)
 {
@@ -407,7 +407,7 @@ VMMR0DECL(int) PGMR0DynMapInit(void)
         rc = RTSemFastMutexCreate(&pThis->hInitLock);
         if (RT_SUCCESS(rc))
         {
-            rc = RTSpinlockCreate(&pThis->hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "PGMR0DynMap");
+            rc = RTSpinlockCreate(&pThis->hSpinlock);
             if (RT_SUCCESS(rc))
             {
                 pThis->u32Magic = PGMRZDYNMAP_MAGIC;
@@ -465,7 +465,7 @@ VMMR0DECL(void) PGMR0DynMapTerm(void)
  * Initializes the dynamic mapping cache for a new VM.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  */
 VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
 {
@@ -481,7 +481,7 @@ VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
     /*
      * Do we need the cache? Skip the last bit if we don't.
      */
-    if (!HMIsEnabled(pVM))
+    if (!VMMIsHwVirtExtForced(pVM))
         return VINF_SUCCESS;
 
     /*
@@ -520,7 +520,7 @@ VMMR0DECL(int) PGMR0DynMapInitVM(PVM pVM)
 /**
  * Terminates the dynamic mapping cache usage for a VM.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  */
 VMMR0DECL(void) PGMR0DynMapTermVM(PVM pVM)
 {
@@ -1061,8 +1061,6 @@ static int pgmR0DynMapAddSeg(PPGMRZDYNMAP pThis, uint32_t cPages)
         AssertRC(rc2);
         pSeg->hMemObj = NIL_RTR0MEMOBJ;
     }
-    else if (rc == VERR_NO_PAGE_MEMORY || rc == VERR_NO_PHYS_MEMORY)
-        rc = VERR_NO_MEMORY;
     RTMemFree(pSeg);
 
     /* Don't bother resizing the arrays, but free them if we're the only user. */
@@ -1252,7 +1250,7 @@ static void pgmR0DynMapTearDown(PPGMRZDYNMAP pThis)
  * Initializes the dynamic mapping cache in raw-mode context.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  */
 VMMRCDECL(int) PGMRCDynMapInit(PVM pVM)
 {
@@ -1529,8 +1527,6 @@ DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMRZDYNMAP pThis, RTHCPHYS HCPhys, int32_
     bool fInvalidateIt = RTCpuSetIsMemberByIndex(&paPages[iPage].PendingSet, iRealCpu);
     if (RT_UNLIKELY(fInvalidateIt))
         RTCpuSetDelByIndex(&paPages[iPage].PendingSet, iRealCpu);
-#else
-    NOREF(iRealCpu);
 #endif
 
     PGMRZDYNMAP_SPINLOCK_RELEASE(pThis);
@@ -1554,7 +1550,7 @@ DECLINLINE(uint32_t) pgmR0DynMapPage(PPGMRZDYNMAP pThis, RTHCPHYS HCPhys, int32_
 
 
 /**
- * Assert the integrity of the pool.
+ * Assert the the integrity of the pool.
  *
  * @returns VBox status code.
  */
@@ -1570,6 +1566,8 @@ static int pgmRZDynMapAssertIntegrity(PPGMRZDYNMAP pThis)
     if (!pThis->cUsers)
         return VERR_INVALID_PARAMETER;
 
+
+    int                 rc          = VINF_SUCCESS;
     PGMRZDYNMAP_SPINLOCK_ACQUIRE(pThis);
 
 #define CHECK_RET(expr, a) \
@@ -1686,7 +1684,7 @@ static int pgmRZDynMapAssertIntegrity(PPGMRZDYNMAP pThis)
 
 #ifdef IN_RING0
 /**
- * Assert the integrity of the pool.
+ * Assert the the integrity of the pool.
  *
  * @returns VBox status code.
  */
@@ -1698,7 +1696,7 @@ VMMR0DECL(int) PGMR0DynMapAssertIntegrity(void)
 
 #ifdef IN_RC
 /**
- * Assert the integrity of the pool.
+ * Assert the the integrity of the pool.
  *
  * @returns VBox status code.
  */
@@ -1841,7 +1839,7 @@ VMMDECL(void) PGMRZDynMapStartAutoSet(PVMCPU pVCpu)
 /**
  * Starts or migrates the autoset of a virtual CPU.
  *
- * This is used by HMR0Enter.  When we've longjumped out of the HM
+ * This is used by HWACCMR0Enter.  When we've longjumped out of the HWACCM
  * execution loop with the set open, we'll migrate it when re-entering.  While
  * under normal circumstances, we'll start it so VMXR0LoadGuestState can access
  * guest memory.

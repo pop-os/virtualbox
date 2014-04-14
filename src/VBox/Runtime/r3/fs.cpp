@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -102,8 +102,6 @@ RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName)
  */
 RTFMODE rtFsModeFromUnix(RTFMODE fMode, const char *pszName, size_t cbName)
 {
-    NOREF(cbName);
-
     fMode &= RTFS_UNIX_MASK;
 
     if (!(fMode & (RTFS_UNIX_IWUSR | RTFS_UNIX_IWGRP | RTFS_UNIX_IWOTH)))
@@ -204,8 +202,6 @@ RTDECL(const char *) RTFsTypeName(RTFSTYPE enmType)
         case RTFSTYPE_TMPFS:        return "tmpfs";
         case RTFSTYPE_SYSFS:        return "sysfs";
         case RTFSTYPE_PROC:         return "proc";
-        case RTFSTYPE_OCFS2:        return "ocfs2";
-        case RTFSTYPE_BTRFS:        return "btrfs";
 
         case RTFSTYPE_NTFS:         return "ntfs";
         case RTFSTYPE_FAT:          return "fat";

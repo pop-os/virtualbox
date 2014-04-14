@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,6 @@
 #include <iprt/string.h>
 
 #include "internal/magics.h"
-#include "tar.h"
 
 
 /******************************************************************************
@@ -86,9 +85,18 @@ typedef union RTTARRECORD
 } RTTARRECORD;
 AssertCompileSize(RTTARRECORD, 512);
 AssertCompileMemberOffset(RTTARRECORD, h.size, 100+8*3);
-AssertCompileMemberSize(RTTARRECORD, h.name, RTTAR_NAME_MAX+1);
 /** Pointer to a tar file header. */
 typedef RTTARRECORD *PRTTARRECORD;
+
+
+#if 0 /* not currently used */
+typedef struct RTTARFILELIST
+{
+    char *pszFilename;
+    RTTARFILELIST *pNext;
+} RTTARFILELIST;
+typedef RTTARFILELIST *PRTTARFILELIST;
+#endif
 
 /** Pointer to a tar file handle. */
 typedef struct RTTARFILEINTERNAL *PRTTARFILEINTERNAL;
@@ -136,21 +144,9 @@ typedef struct RTTARFILEINTERNAL
     uint64_t        offCurrent;
     /** The open mode. */
     uint32_t        fOpenMode;
-    /** The link flag. */
-    char            linkflag;
 } RTTARFILEINTERNAL;
 /** Pointer to the internal data of a tar file.  */
 typedef RTTARFILEINTERNAL *PRTTARFILEINTERNAL;
-
-#if 0 /* not currently used */
-typedef struct RTTARFILELIST
-{
-    char *pszFilename;
-    RTTARFILELIST *pNext;
-} RTTARFILELIST;
-typedef RTTARFILELIST *PRTTARFILELIST;
-#endif
-
 
 
 /******************************************************************************
@@ -269,59 +265,29 @@ DECLINLINE(uint64_t) rtTarRecToSize(PRTTARRECORD pRecord)
     return (uint64_t)cbSize;
 }
 
-/**
- * Calculates the TAR header checksums and detects if it's all zeros.
- *
- * @returns true if all zeros, false if not.
- * @param   pHdr                The header to checksum.
- * @param   pi32Unsigned        Where to store the checksum calculated using
- *                              unsigned chars.   This is the one POSIX
- *                              specifies.
- * @param   pi32Signed          Where to store the checksum calculated using
- *                              signed chars.
- *
- * @remarks The reason why we calculate the checksum as both signed and unsigned
- *          has to do with various the char C type being signed on some hosts
- *          and unsigned on others.
- *
- * @remarks Borrowed from tarvfs.cpp.
- */
-static bool rtZipTarCalcChkSum(PCRTZIPTARHDR pHdr, int32_t *pi32Unsigned, int32_t *pi32Signed)
+DECLINLINE(int) rtTarCalcChkSum(PRTTARRECORD pRecord, uint32_t *pChkSum)
 {
-    int32_t i32Unsigned = 0;
-    int32_t i32Signed   = 0;
-
-    /*
-     * Sum up the entire header.
-     */
-    const char *pch    = (const char *)pHdr;
-    const char *pchEnd = pch + sizeof(*pHdr);
-    do
+    uint32_t check = 0;
+    uint32_t zero = 0;
+    for (size_t i = 0; i < sizeof(RTTARRECORD); ++i)
     {
-        i32Unsigned += *(unsigned char *)pch;
-        i32Signed   += *(signed   char *)pch;
-    } while (++pch != pchEnd);
+        /* Calculate the sum of every byte from the header. The checksum field
+         * itself is counted as all blanks. */
+        if (   i <  RT_UOFFSETOF(RTTARRECORD, h.chksum)
+            || i >= RT_UOFFSETOF(RTTARRECORD, h.linkflag))
+            check += pRecord->d[i];
+        else
+            check += ' ';
+        /* Additional check if all fields are zero, which indicate EOF. */
+        zero += pRecord->d[i];
+    }
 
-    /*
-     * Check if it's all zeros and replace the chksum field with spaces.
-     */
-    bool const fZeroHdr = i32Unsigned == 0;
+    /* EOF? */
+    if (!zero)
+        return VERR_TAR_END_OF_FILE;
 
-    pch    = pHdr->Common.chksum;
-    pchEnd = pch + sizeof(pHdr->Common.chksum);
-    do
-    {
-        i32Unsigned -= *(unsigned char *)pch;
-        i32Signed   -= *(signed   char *)pch;
-    } while (++pch != pchEnd);
-
-    i32Unsigned += (unsigned char)' ' * sizeof(pHdr->Common.chksum);
-    i32Signed   += (signed   char)' ' * sizeof(pHdr->Common.chksum);
-
-    *pi32Unsigned = i32Unsigned;
-    if (pi32Signed)
-        *pi32Signed = i32Signed;
-    return fZeroHdr;
+    *pChkSum = check;
+    return VINF_SUCCESS;
 }
 
 DECLINLINE(int) rtTarReadHeaderRecord(RTFILE hFile, PRTTARRECORD pRecord)
@@ -336,16 +302,16 @@ DECLINLINE(int) rtTarReadHeaderRecord(RTFILE hFile, PRTTARRECORD pRecord)
         return rc;
 
     /* Check for data integrity & an EOF record */
-    int32_t iUnsignedChksum, iSignedChksum;
-    if (rtZipTarCalcChkSum((PCRTZIPTARHDR)pRecord, &iUnsignedChksum, &iSignedChksum))
-        return VERR_TAR_END_OF_FILE;
+    uint32_t check = 0;
+    rc = rtTarCalcChkSum(pRecord, &check);
+    /* EOF? */
+    if (RT_FAILURE(rc))
+        return rc;
 
     /* Verify the checksum */
     uint32_t sum;
     rc = RTStrToUInt32Full(pRecord->h.chksum, 8, &sum);
-    if (   RT_SUCCESS(rc)
-        && (   sum == (uint32_t)iSignedChksum
-            || sum == (uint32_t)iUnsignedChksum) )
+    if (RT_SUCCESS(rc) && sum == check)
     {
         /* Make sure the strings are zero terminated. */
         pRecord->h.name[sizeof(pRecord->h.name) - 1]         = 0;
@@ -366,27 +332,24 @@ DECLINLINE(int) rtTarCreateHeaderRecord(PRTTARRECORD pRecord, const char *pszSrc
     /** @todo check for field overflows. */
     /* Fill the header record */
 //    RT_ZERO(pRecord); - done by the caller.
-    /** @todo use RTStrCopy */
-    size_t cb = RTStrPrintf(pRecord->h.name,  sizeof(pRecord->h.name),  "%s", pszSrcName);
-    if (cb < strlen(pszSrcName))
-        return VERR_BUFFER_OVERFLOW;
-    RTStrPrintf(pRecord->h.mode,  sizeof(pRecord->h.mode),  "%0.7o", fmode);
-    RTStrPrintf(pRecord->h.uid,   sizeof(pRecord->h.uid),   "%0.7o", uid);
-    RTStrPrintf(pRecord->h.gid,   sizeof(pRecord->h.gid),   "%0.7o", gid);
+    RTStrPrintf(pRecord->h.name,  sizeof(pRecord->h.name),  "%s",       pszSrcName);
+    RTStrPrintf(pRecord->h.mode,  sizeof(pRecord->h.mode),  "%0.7o",    fmode);
+    RTStrPrintf(pRecord->h.uid,   sizeof(pRecord->h.uid),   "%0.7o",    uid);
+    RTStrPrintf(pRecord->h.gid,   sizeof(pRecord->h.gid),   "%0.7o",    gid);
     rtTarSizeToRec(pRecord, cbSize);
-    RTStrPrintf(pRecord->h.mtime, sizeof(pRecord->h.mtime), "%0.11llo", mtime);
+    RTStrPrintf(pRecord->h.mtime, sizeof(pRecord->h.mtime), "%0.11o",   mtime);
     RTStrPrintf(pRecord->h.magic, sizeof(pRecord->h.magic), "ustar  ");
     RTStrPrintf(pRecord->h.uname, sizeof(pRecord->h.uname), "someone");
     RTStrPrintf(pRecord->h.gname, sizeof(pRecord->h.gname), "someone");
     pRecord->h.linkflag = LF_NORMAL;
 
     /* Create the checksum out of the new header */
-    int32_t iUnsignedChksum, iSignedChksum;
-    if (rtZipTarCalcChkSum((PCRTZIPTARHDR)pRecord, &iUnsignedChksum, &iSignedChksum))
-        return VERR_TAR_END_OF_FILE;
-
+    uint32_t uChkSum = 0;
+    int rc = rtTarCalcChkSum(pRecord, &uChkSum);
+    if (RT_FAILURE(rc))
+        return rc;
     /* Format the checksum */
-    RTStrPrintf(pRecord->h.chksum, sizeof(pRecord->h.chksum), "%0.7o", iUnsignedChksum);
+    RTStrPrintf(pRecord->h.chksum, sizeof(pRecord->h.chksum), "%0.7o", uChkSum);
 
     return VINF_SUCCESS;
 }
@@ -635,6 +598,7 @@ static int rtTarAppendFileFromFile(RTTAR hTar, const char *pszSrcName, const uin
          * size aligned. */
         uint64_t cbAllWritten = 0; /* Already copied */
         uint64_t cbRead       = 0; /* Actually read in the last step */
+        uint64_t cbWrite      = 0; /* Actually write in the last step */
         for (;;)
         {
             if (pfnProgressCallback)
@@ -726,7 +690,6 @@ static int rtTarFindFile(RTFILE hFile, const char *pszFile, uint64_t *poff, uint
     return rc;
 }
 
-#ifdef SOME_UNUSED_FUNCTION
 static int rtTarGetFilesOverallSize(RTFILE hFile, const char * const *papszFiles, size_t cFiles, uint64_t *pcbOverallSize)
 {
     int rc = VINF_SUCCESS;
@@ -770,7 +733,6 @@ static int rtTarGetFilesOverallSize(RTFILE hFile, const char * const *papszFiles
         rc = RTFileSeek(hFile, 0, RTFILE_SEEK_BEGIN, 0);
     return rc;
 }
-#endif /* SOME_UNUSED_FUNCTION */
 
 /******************************************************************************
  *   Public Functions                                                         *
@@ -1031,11 +993,8 @@ RTR3DECL(int) RTTarFileSeek(RTTARFILE hFile, uint64_t offSeek, unsigned uMethod,
             pFileInt->offCurrent = pFileInt->cbSize - offSeek;
             break;
         }
-        default: AssertFailedReturn(VERR_INVALID_PARAMETER);
+        default: AssertFailedReturn(VERR_INVALID_PARAMETER); break;
     }
-
-    if (poffActual)
-        *poffActual = pFileInt->offCurrent;
 
     return VINF_SUCCESS;
 }
@@ -1215,7 +1174,7 @@ RTR3DECL(int) RTTarFileSetTime(RTTARFILE hFile, PRTTIMESPEC pTime)
 
     /* Convert the time to an string. */
     char szModTime[RT_SIZEOFMEMB(RTTARRECORD, h.mtime)];
-    RTStrPrintf(szModTime, sizeof(szModTime), "%0.11llo", RTTimeSpecGetSeconds(pTime));
+    RTStrPrintf(szModTime, sizeof(szModTime), "%0.11o", RTTimeSpecGetSeconds(pTime));
 
     /* Write it directly into the header */
     return RTFileWriteAt(pFileInt->pTar->hTarFile,
@@ -1654,23 +1613,14 @@ RTR3DECL(int) RTTarSeekNextFile(RTTAR hTar)
      * If not we are somehow busted. */
     uint64_t offCur = RTFileTell(pInt->hTarFile);
     if (!(   pInt->pFileCache->offStart <= offCur
-          && offCur <= pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize))
+          && offCur < pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize))
         return VERR_INVALID_STATE;
 
     /* Seek to the next file header. */
     uint64_t offNext = RT_ALIGN(pInt->pFileCache->offStart + sizeof(RTTARRECORD) + pInt->pFileCache->cbSize, sizeof(RTTARRECORD));
-    if (pInt->pFileCache->cbSize != 0)
-    {
-        rc = RTFileSeek(pInt->hTarFile, offNext - offCur, RTFILE_SEEK_CURRENT, NULL);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
-    else
-    {
-        /* Else delete the last open file cache. Might be recreated below. */
-        rtDeleteTarFileInternal(pInt->pFileCache);
-        pInt->pFileCache = NULL;
-    }
+    rc = RTFileSeek(pInt->hTarFile, offNext - offCur, RTFILE_SEEK_CURRENT, NULL);
+    if (RT_FAILURE(rc))
+        return rc;
 
     /* Again check the current filename to fill the cache with the new value. */
     return RTTarCurrentFile(hTar, NULL);
@@ -1694,24 +1644,20 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
     /* Is there some cached entry? */
     if (pInt->pFileCache)
     {
-        if (pInt->pFileCache->offStart + sizeof(RTTARRECORD) < RTFileTell(pInt->hTarFile))
-        {
-            /* Else delete the last open file cache. Might be recreated below. */
-            rtDeleteTarFileInternal(pInt->pFileCache);
-            pInt->pFileCache = NULL;
-        }
-        else/* Are we still directly behind that header? */
+        /* Are we still direct behind that header? */
+        if (pInt->pFileCache->offStart + sizeof(RTTARRECORD) == RTFileTell(pInt->hTarFile))
         {
             /* Yes, so the streaming can start. Just return the cached file
              * structure to the caller. */
             *phFile = rtCopyTarFileInternal(pInt->pFileCache);
             if (ppszFilename)
                 *ppszFilename = RTStrDup(pInt->pFileCache->pszFilename);
-            if (pInt->pFileCache->linkflag == LF_DIR)
-                return VINF_TAR_DIR_PATH;
             return VINF_SUCCESS;
         }
 
+        /* Else delete the last open file cache. Might be recreated below. */
+        rtDeleteTarFileInternal(pInt->pFileCache);
+        pInt->pFileCache = NULL;
     }
 
     PRTTARFILEINTERNAL pFileInt = NULL;
@@ -1729,8 +1675,7 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
 
         /* We support normal files only */
         if (   record.h.linkflag == LF_OLDNORMAL
-            || record.h.linkflag == LF_NORMAL
-            || record.h.linkflag == LF_DIR)
+            || record.h.linkflag == LF_NORMAL)
         {
             pFileInt = rtCreateTarFileInternal(pInt, record.h.name, fOpen);
             if (!pFileInt)
@@ -1743,16 +1688,11 @@ RTR3DECL(int) RTTarFileOpenCurrentFile(RTTAR hTar, PRTTARFILE phFile, char **pps
             pFileInt->cbSize = rtTarRecToSize(&record);
             /* The start is -512 from here. */
             pFileInt->offStart = RTFileTell(pInt->hTarFile) - sizeof(RTTARRECORD);
-            /* remember the type of a file */
-            pFileInt->linkflag = record.h.linkflag;
 
             /* Copy the new file structure to our cache. */
             pInt->pFileCache = rtCopyTarFileInternal(pFileInt);
             if (ppszFilename)
                 *ppszFilename = RTStrDup(pFileInt->pszFilename);
-
-            if (pFileInt->linkflag == LF_DIR)
-                rc = VINF_TAR_DIR_PATH;
         }
     } while (0);
 

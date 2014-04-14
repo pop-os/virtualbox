@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,14 +60,12 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** System device name. */
-#define DEVICE_NAME_SYS "/dev/vboxdrv"
-/** User device name. */
-#define DEVICE_NAME_USR "/dev/vboxdrvu"
+/** FreeBSD base device name. */
+#define DEVICE_NAME     "/dev/vboxdrv"
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 {
     /*
      * Nothing to do if pre-inited.
@@ -78,7 +76,16 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     /*
      * Try open the BSD device.
      */
-    int hDevice = open(fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, O_RDWR, 0);
+    int hDevice = -1;
+    char szDevice[sizeof(DEVICE_NAME) + 16];
+    for (unsigned iUnit = 0; iUnit < 1024; iUnit++)
+    {
+        errno = 0;
+        snprintf(szDevice, sizeof(szDevice), DEVICE_NAME "%d", iUnit);
+        hDevice = open(szDevice, O_RDWR, 0);
+        if (hDevice >= 0 || errno != EBUSY)
+            break;
+    }
     if (hDevice < 0)
     {
         int rc;
@@ -90,7 +97,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
             case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
             default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
         }
-        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR, errno, rc));
+        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", szDevice, errno, rc));
         return rc;
     }
 
@@ -113,8 +120,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     /*
      * We're done.
      */
-    pThis->hDevice       = hDevice;
-    pThis->fUnrestricted = fUnrestricted;
+    pThis->hDevice = hDevice;
     return VINF_SUCCESS;
 }
 

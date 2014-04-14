@@ -267,9 +267,24 @@ void STATE_APIENTRY crStateGenProgramsNV(GLsizei n, GLuint *ids)
 {
     CRContext *g = GetCurrentContext();
     CRProgramState *p = &(g->program);
+    GLint start, i;
 
-    crStateGenNames(g, p->programHash, n, ids);
+    if (g->current.inBeginEnd) {
+        crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+                                 "glGenProgramsNV called in Begin/End");
+        return;
+    }
+
+    if (n < 0) {
+        crStateError(__LINE__, __FILE__, GL_INVALID_VALUE, "glGenProgramsNV(n)");
+        return;
+    }
+
+    start = crHashtableAllocKeys(p->programHash , n);
+    for (i = 0; i < n; i++)
+        ids[i] = (GLuint) (start + i);
 }
+
 
 void STATE_APIENTRY crStateGenProgramsARB(GLsizei n, GLuint *ids)
 {

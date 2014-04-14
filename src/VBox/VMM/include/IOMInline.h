@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,12 +29,12 @@
  * @returns Pointer to I/O port range.
  * @returns NULL if no port registered.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  * @param   Port    The I/O port lookup.
  */
 DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PVM pVM, RTIOPORT Port)
 {
-    Assert(IOM_IS_SHARED_LOCK_OWNER(pVM));
+    Assert(PDMCritSectIsOwner(&pVM->iom.s.CritSect));
     return (CTX_SUFF(PIOMIOPORTRANGE))RTAvlroIOPortRangeGet(&pVM->iom.s.CTX_SUFF(pTrees)->CTX_SUFF(IOPortTree), Port);
 }
 
@@ -45,12 +45,12 @@ DECLINLINE(CTX_SUFF(PIOMIOPORTRANGE)) iomIOPortGetRange(PVM pVM, RTIOPORT Port)
  * @returns Pointer to I/O port range.
  * @returns NULL if no port registered.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  * @param   Port    The I/O port to lookup.
  */
 DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PVM pVM, RTIOPORT Port)
 {
-    Assert(IOM_IS_SHARED_LOCK_OWNER(pVM));
+    Assert(PDMCritSectIsOwner(&pVM->iom.s.CritSect));
     return (PIOMIOPORTRANGER3)RTAvlroIOPortRangeGet(&pVM->iom.s.CTX_SUFF(pTrees)->IOPortTreeR3, Port);
 }
 
@@ -61,17 +61,16 @@ DECLINLINE(PIOMIOPORTRANGER3) iomIOPortGetRangeR3(PVM pVM, RTIOPORT Port)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The VM handle.
  * @param   GCPhys  Physical address to lookup.
  */
-DECLINLINE(PIOMMMIORANGE) iomMmioGetRange(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
+DECLINLINE(PIOMMMIORANGE) iomMmioGetRange(PVM pVM, RTGCPHYS GCPhys)
 {
-    Assert(IOM_IS_SHARED_LOCK_OWNER(pVM));
-    PIOMMMIORANGE pRange = pVCpu->iom.s.CTX_SUFF(pMMIORangeLast);
+    Assert(PDMCritSectIsOwner(&pVM->iom.s.CritSect));
+    PIOMMMIORANGE pRange = pVM->iom.s.CTX_SUFF(pMMIORangeLast);
     if (    !pRange
         ||  GCPhys - pRange->GCPhys >= pRange->cb)
-        pVCpu->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
+        pVM->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
             = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pVM->iom.s.CTX_SUFF(pTrees)->MMIOTree, GCPhys);
     return pRange;
 }
@@ -86,7 +85,6 @@ DECLINLINE(void) iomMmioRetainRange(PIOMMMIORANGE pRange)
     uint32_t cRefs = ASMAtomicIncU32(&pRange->cRefs);
     Assert(cRefs > 1);
     Assert(cRefs < _1M);
-    NOREF(cRefs);
 }
 
 
@@ -97,24 +95,23 @@ DECLINLINE(void) iomMmioRetainRange(PIOMMMIORANGE pRange)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The VM handle.
  * @param   GCPhys  Physical address to lookup.
  */
-DECLINLINE(PIOMMMIORANGE) iomMmioGetRangeWithRef(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
+DECLINLINE(PIOMMMIORANGE) iomMmioGetRangeWithRef(PVM pVM, RTGCPHYS GCPhys)
 {
-    int rc = IOM_LOCK_SHARED_EX(pVM, VINF_SUCCESS);
+    int rc = PDMCritSectEnter(&pVM->iom.s.CritSect, VINF_SUCCESS);
     AssertRCReturn(rc, NULL);
 
-    PIOMMMIORANGE pRange = pVCpu->iom.s.CTX_SUFF(pMMIORangeLast);
+    PIOMMMIORANGE pRange = pVM->iom.s.CTX_SUFF(pMMIORangeLast);
     if (   !pRange
         || GCPhys - pRange->GCPhys >= pRange->cb)
-        pVCpu->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
+        pVM->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
             = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pVM->iom.s.CTX_SUFF(pTrees)->MMIOTree, GCPhys);
     if (pRange)
         iomMmioRetainRange(pRange);
 
-    IOM_UNLOCK_SHARED(pVM);
+    PDMCritSectLeave(&pVM->iom.s.CritSect);
     return pRange;
 }
 
@@ -122,7 +119,7 @@ DECLINLINE(PIOMMMIORANGE) iomMmioGetRangeWithRef(PVM pVM, PVMCPU pVCpu, RTGCPHYS
 /**
  * Releases a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  * @param   pRange  The range to release.
  */
 DECLINLINE(void) iomMmioReleaseRange(PVM pVM, PIOMMMIORANGE pRange)
@@ -140,16 +137,15 @@ DECLINLINE(void) iomMmioReleaseRange(PVM pVM, PIOMMMIORANGE pRange)
  * @returns Pointer to MMIO range.
  * @returns NULL if address not in a MMIO range.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the virtual CPU structure of the caller.
+ * @param   pVM     The VM handle.
  * @param   GCPhys  Physical address to lookup.
  */
-DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys)
+DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PVM pVM, RTGCPHYS GCPhys)
 {
-    PIOMMMIORANGE pRange = pVCpu->iom.s.CTX_SUFF(pMMIORangeLast);
+    PIOMMMIORANGE pRange = pVM->iom.s.CTX_SUFF(pMMIORangeLast);
     if (    !pRange
         ||  GCPhys - pRange->GCPhys >= pRange->cb)
-        pVCpu->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
+        pVM->iom.s.CTX_SUFF(pMMIORangeLast) = pRange
             = (PIOMMMIORANGE)RTAvlroGCPhysRangeGet(&pVM->iom.s.CTX_SUFF(pTrees)->MMIOTree, GCPhys);
     return pRange;
 }
@@ -166,40 +162,30 @@ DECLINLINE(PIOMMMIORANGE) iomMMIOGetRangeUnsafe(PVM pVM, PVMCPU pVCpu, RTGCPHYS 
  * @returns Pointer to MMIO stats.
  * @returns NULL if not found (R0/GC), or out of memory (R3).
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the virtual CPU structure of the caller.
+ * @param   pVM         The VM handle.
  * @param   GCPhys      Physical address to lookup.
  * @param   pRange      The MMIO range.
- *
- * @remarks The caller holds the IOM critical section with shared access prior
- *          to calling this method.  Upon return, the lock has been released!
- *          This is ugly, but it's a necessary evil since we cannot upgrade read
- *          locks to write locks and the whole purpose here is calling
- *          iomR3MMIOStatsCreate.
  */
-DECLINLINE(PIOMMMIOSTATS) iomMmioGetStats(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, PIOMMMIORANGE pRange)
+DECLINLINE(PIOMMMIOSTATS) iomMmioGetStats(PVM pVM, RTGCPHYS GCPhys, PIOMMMIORANGE pRange)
 {
-    Assert(IOM_IS_SHARED_LOCK_OWNER(pVM));
+    PDMCritSectEnter(&pVM->iom.s.CritSect, VINF_SUCCESS);
 
     /* For large ranges, we'll put everything on the first byte. */
     if (pRange->cb > PAGE_SIZE)
         GCPhys = pRange->GCPhys;
 
-    PIOMMMIOSTATS pStats = pVCpu->iom.s.CTX_SUFF(pMMIOStatsLast);
+    PIOMMMIOSTATS pStats = pVM->iom.s.CTX_SUFF(pMMIOStatsLast);
     if (    !pStats
         ||  pStats->Core.Key != GCPhys)
     {
         pStats = (PIOMMMIOSTATS)RTAvloGCPhysGet(&pVM->iom.s.CTX_SUFF(pTrees)->MmioStatTree, GCPhys);
 # ifdef IN_RING3
         if (!pStats)
-        {
-            IOM_UNLOCK_SHARED(pVM);
-            return iomR3MMIOStatsCreate(pVM, GCPhys, pRange->pszDesc);
-        }
+            pStats = iomR3MMIOStatsCreate(pVM, GCPhys, pRange->pszDesc);
 # endif
     }
 
-    IOM_UNLOCK_SHARED(pVM);
+    PDMCritSectLeave(&pVM->iom.s.CritSect);
     return pStats;
 }
 #endif /* VBOX_WITH_STATISTICS */

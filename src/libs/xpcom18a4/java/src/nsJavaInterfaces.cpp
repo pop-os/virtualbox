@@ -146,9 +146,9 @@ nsresult
 InitXPCOMVBox_Impl(JNIEnv* env, jobject aVBoxBinDirectory)
 {
 #if defined(VBOX_PATH_APP_PRIVATE_ARCH) && defined(VBOX_PATH_SHARED_LIBS)
-    rv = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+    rv = RTR3Init();
 #else
-    const char *pszHome  = nsnull;
+    const char *home  = nsnull;
     const char *jhome = nsnull;
     jstring path = nsnull;
 
@@ -163,20 +163,20 @@ InitXPCOMVBox_Impl(JNIEnv* env, jobject aVBoxBinDirectory)
         )
     {
         path = (jstring)env->CallObjectMethod(aVBoxBinDirectory, getPathMID);
-        pszHome = jhome = env->GetStringUTFChars(path, nsnull);
+        home = jhome = env->GetStringUTFChars(path, nsnull);
     }
 
-    if (pszHome == nsnull)
-        pszHome = getenv("VBOX_PROGRAM_PATH");
+    if (home == nsnull)
+        home = getenv("VBOX_PROGRAM_PATH");
 
-    if (pszHome) {
-      size_t cchHome = strlen(pszHome);
-      char *pszExePath = (char *)alloca(cchHome + 32);
-      memcpy(pszExePath, pszHome, cchHome);
-      memcpy(pszExePath + cchHome, "/javafake", sizeof("/javafake"));
-      rv = RTR3InitEx(RTR3INIT_VER_CUR, RTR3INIT_FLAGS_DLL | RTR3INIT_FLAGS_UNOBTRUSIVE, 0, NULL, pszExePath);
+    if (home) {
+      size_t len = strlen(home);
+      char *exepath = (char *)alloca(len + 32);
+      memcpy(exepath, home, len);
+      memcpy(exepath + len, "/javafake", sizeof("/javafake"));
+      rv = RTR3InitWithProgramPath(exepath);
     } else {
-      rv = RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+      rv = RTR3Init();
     }
 
     if (jhome)
@@ -354,13 +354,13 @@ XPCOM_NATIVE(getComponentRegistrar) (JNIEnv *env, jobject)
 }
 
 #ifdef VBOX
-#  include <VBox/com/NativeEventQueue.h>
+#  include <VBox/com/EventQueue.h>
 #  include <iprt/err.h>
 
 extern "C" NS_EXPORT jint JNICALL
 XPCOM_NATIVE2(waitForEvents) (JNIEnv *env, jobject, jlong aTimeout)
 {
-    com::NativeEventQueue* aEventQ = com::NativeEventQueue::getMainEventQueue();
+    com::EventQueue* aEventQ = com::EventQueue::getMainEventQueue();
     NS_WARN_IF_FALSE(aEventQ != nsnull, "Null main event queue");
     if (!aEventQ)
         return -1;
@@ -379,11 +379,7 @@ XPCOM_NATIVE2(waitForEvents) (JNIEnv *env, jobject, jlong aTimeout)
 #endif
 
 extern "C" NS_EXPORT jobject JNICALL
-#ifdef VBOX
-XPCOM_NATIVE2(getServiceManager) (JNIEnv *env, jobject)
-#else
 XPCOM_NATIVE(getServiceManager) (JNIEnv *env, jobject)
-#endif
 {
   // Call XPCOM method
   nsCOMPtr<nsIServiceManager> sm;

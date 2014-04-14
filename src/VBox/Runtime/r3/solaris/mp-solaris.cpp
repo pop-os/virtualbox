@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,77 +57,19 @@ static kstat_ctl_t *g_pKsCtl;
 static kstat_t    **g_papCpuInfo;
 /** The number of entries in g_papCpuInfo */
 static RTCPUID      g_capCpuInfo;
-/** Array of core ids.  */
-static uint64_t    *g_pu64CoreIds;
-/** Number of entries in g_pu64CoreIds. */
-static size_t       g_cu64CoreIds;
-/** Number of cores in the system. */
-static size_t       g_cCores;
-
-
-/**
- * Helper for getting the core ID for a given CPU/strand/hyperthread.
- *
- * @returns The core ID.
- * @param   idCpu       The CPU ID instance.
- */
-static inline uint64_t rtMpSolarisGetCoreId(RTCPUID idCpu)
-{
-    kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(g_papCpuInfo[idCpu], (char *)"core_id");
-    Assert(pStat->data_type == KSTAT_DATA_LONG);
-    Assert(pStat->value.l >= 0);
-    AssertCompile(sizeof(uint64_t) >= sizeof(long));    /* Paranoia. */
-    return (uint64_t)pStat->value.l;
-}
-
-
-/**
- * Populates 'g_pu64CoreIds' array with unique core identifiers in the system.
- *
- * @returns VBox status code.
- */
-static int rtMpSolarisGetCoreIds(void)
-{
-    for (RTCPUID idCpu = 0; idCpu < g_capCpuInfo; idCpu++)
-    {
-        if (kstat_read(g_pKsCtl, g_papCpuInfo[idCpu], 0) != -1)
-        {
-            /* Strands/Hyperthreads share the same core ID. */
-            uint64_t u64CoreId  = rtMpSolarisGetCoreId(idCpu);
-            bool     fAddedCore = false;
-            for (RTCPUID i = 0; i < g_cCores; i++)
-            {
-                if (g_pu64CoreIds[i] == u64CoreId)
-                {
-                    fAddedCore = true;
-                    break;
-                }
-            }
-
-            if (!fAddedCore)
-            {
-                g_pu64CoreIds[g_cCores] = u64CoreId;
-                ++g_cCores;
-            }
-        }
-        else
-            return VERR_INTERNAL_ERROR_2;
-    }
-
-    return VINF_SUCCESS;
-}
 
 
 /**
  * Run once function that initializes the kstats we need here.
  *
  * @returns IPRT status code.
- * @param   pvUser      Unused.
+ * @param   pvUser1     Unused.
+ * @param   pvUser2     Unused.
  */
-static DECLCALLBACK(int) rtMpSolarisOnce(void *pvUser)
+static DECLCALLBACK(int) rtMpSolarisOnce(void *pvUser1, void *pvUser2)
 {
     int rc = VINF_SUCCESS;
-    NOREF(pvUser);
+    NOREF(pvUser1); NOREF(pvUser2);
 
     /*
      * Open kstat and find the cpu_info entries for each of the CPUs.
@@ -139,40 +81,25 @@ static DECLCALLBACK(int) rtMpSolarisOnce(void *pvUser)
         g_papCpuInfo = (kstat_t **)RTMemAllocZ(g_capCpuInfo * sizeof(kstat_t *));
         if (g_papCpuInfo)
         {
-            g_cu64CoreIds = g_capCpuInfo;
-            g_pu64CoreIds = (uint64_t *)RTMemAllocZ(g_cu64CoreIds * sizeof(uint64_t));
-            if (g_pu64CoreIds)
+            rc = RTCritSectInit(&g_MpSolarisCritSect);
+            if (RT_SUCCESS(rc))
             {
-                rc = RTCritSectInit(&g_MpSolarisCritSect);
-                if (RT_SUCCESS(rc))
+                RTCPUID i = 0;
+                for (kstat_t *pKsp = g_pKsCtl->kc_chain; pKsp != NULL; pKsp = pKsp->ks_next)
                 {
-                    RTCPUID i = 0;
-                    for (kstat_t *pKsp = g_pKsCtl->kc_chain; pKsp != NULL; pKsp = pKsp->ks_next)
+                    if (!strcmp(pKsp->ks_module, "cpu_info"))
                     {
-                        if (!RTStrCmp(pKsp->ks_module, "cpu_info"))
-                        {
-                            AssertBreak(i < g_capCpuInfo);
-                            g_papCpuInfo[i++] = pKsp;
-                            /** @todo ks_instance == cpu_id (/usr/src/uts/common/os/cpu.c)? Check this and fix it ASAP. */
-                        }
+                        AssertBreak(i < g_capCpuInfo);
+                        g_papCpuInfo[i++] = pKsp;
+                        /** @todo ks_instance == cpu_id (/usr/src/uts/common/os/cpu.c)? Check this and fix it ASAP. */
                     }
-
-                    rc = rtMpSolarisGetCoreIds();
-                    if (RT_SUCCESS(rc))
-                        return VINF_SUCCESS;
-                    else
-                        Log(("rtMpSolarisGetCoreIds failed. rc=%Rrc\n", rc));
                 }
 
-                RTMemFree(g_pu64CoreIds);
-                g_pu64CoreIds = NULL;
+                return VINF_SUCCESS;
             }
-            else
-                rc = VERR_NO_MEMORY;
 
             /* bail out, we failed. */
             RTMemFree(g_papCpuInfo);
-            g_papCpuInfo = NULL;
         }
         else
             rc = VERR_NO_MEMORY;
@@ -192,21 +119,6 @@ static DECLCALLBACK(int) rtMpSolarisOnce(void *pvUser)
 
 
 /**
- * RTOnceEx() cleanup function.
- *
- * @param   pvUser              Unused.
- * @param   fLazyCleanUpOk      Whether lazy cleanup is okay or not.
- */
-static DECLCALLBACK(void) rtMpSolarisCleanUp(void *pvUser, bool fLazyCleanUpOk)
-{
-    if (g_pKsCtl)
-        kstat_close(g_pKsCtl);
-    RTMemFree(g_pu64CoreIds);
-    RTMemFree(g_papCpuInfo);
-}
-
-
-/**
  * Worker for RTMpGetCurFrequency and RTMpGetMaxFrequency.
  *
  * @returns The desired frequency on success, 0 on failure.
@@ -214,10 +126,10 @@ static DECLCALLBACK(void) rtMpSolarisCleanUp(void *pvUser, bool fLazyCleanUpOk)
  * @param   idCpu           The CPU ID.
  * @param   pszStatName     The cpu_info stat name.
  */
-static uint64_t rtMpSolarisGetFrequency(RTCPUID idCpu, const char *pszStatName)
+static uint64_t rtMpSolarisGetFrequency(RTCPUID idCpu, char *pszStatName)
 {
     uint64_t u64 = 0;
-    int rc = RTOnceEx(&g_MpSolarisOnce, rtMpSolarisOnce, rtMpSolarisCleanUp, NULL /* pvUser */);
+    int rc = RTOnce(&g_MpSolarisOnce, rtMpSolarisOnce, NULL, NULL);
     if (RT_SUCCESS(rc))
     {
         if (    idCpu < g_capCpuInfo
@@ -229,8 +141,7 @@ static uint64_t rtMpSolarisGetFrequency(RTCPUID idCpu, const char *pszStatName)
             {
                 if (kstat_read(g_pKsCtl, g_papCpuInfo[idCpu], 0) != -1)
                 {
-                    /* Solaris really need to fix their APIs. Explicitly cast for now. */
-                    kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(g_papCpuInfo[idCpu], (char*)pszStatName);
+                    kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(g_papCpuInfo[idCpu], pszStatName);
                     if (pStat)
                     {
                         Assert(pStat->data_type == KSTAT_DATA_UINT64 || pStat->data_type == KSTAT_DATA_LONG);
@@ -369,7 +280,7 @@ RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet)
 RTDECL(PRTCPUSET) RTMpGetPresentSet(PRTCPUSET pSet)
 {
 #ifdef RT_STRICT
-    RTCPUID cCpusPresent = 0;
+    long cCpusPresent = 0;
 #endif
     RTCpuSetEmpty(pSet);
     RTCPUID cCpus = RTMpGetCount();
@@ -392,62 +303,5 @@ RTDECL(RTCPUID) RTMpGetPresentCount(void)
      * Solaris has sysconf.
      */
     return sysconf(_SC_NPROCESSORS_CONF);
-}
-
-
-RTDECL(RTCPUID) RTMpGetPresentCoreCount(void)
-{
-    return RTMpGetCoreCount();
-}
-
-
-RTDECL(RTCPUID) RTMpGetCoreCount(void)
-{
-    int rc = RTOnceEx(&g_MpSolarisOnce, rtMpSolarisOnce, rtMpSolarisCleanUp, NULL /* pvUser */);
-    if (RT_SUCCESS(rc))
-        return g_cCores;
-
-    return 0;
-}
-
-
-RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void)
-{
-    RTCPUID uOnlineCores = 0;
-    int rc = RTOnceEx(&g_MpSolarisOnce, rtMpSolarisOnce, rtMpSolarisCleanUp, NULL /* pvUser */);
-    if (RT_SUCCESS(rc))
-    {
-        rc = RTCritSectEnter(&g_MpSolarisCritSect);
-        AssertRC(rc);
-
-        /*
-         * For each core in the system, count how many are currently online.
-         */
-        for (RTCPUID j = 0; j < g_cCores; j++)
-        {
-            uint64_t u64CoreId = g_pu64CoreIds[j];
-            for (RTCPUID idCpu = 0; idCpu < g_capCpuInfo; idCpu++)
-            {
-                rc = kstat_read(g_pKsCtl, g_papCpuInfo[idCpu], 0);
-                AssertReturn(rc != -1, 0 /* rc */);
-                uint64_t u64ThreadCoreId = rtMpSolarisGetCoreId(idCpu);
-                if (u64ThreadCoreId == u64CoreId)
-                {
-                    kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(g_papCpuInfo[idCpu], (char *)"state");
-                    Assert(pStat->data_type == KSTAT_DATA_CHAR);
-                    if(   !RTStrNCmp(pStat->value.c, PS_ONLINE, sizeof(PS_ONLINE) - 1)
-                       || !RTStrNCmp(pStat->value.c, PS_NOINTR, sizeof(PS_NOINTR) - 1))
-                    {
-                        uOnlineCores++;
-                        break;      /* Move to the next core. We have at least 1 hyperthread online in the current core. */
-                    }
-                }
-            }
-        }
-
-        RTCritSectLeave(&g_MpSolarisCritSect);
-    }
-
-    return uOnlineCores;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,6 @@
 #define LOG_GROUP LOG_GROUP_SUP
 #ifdef IN_SUP_HARDENED_R3
 # undef DEBUG /* Warning: disables RT_STRICT */
-# undef LOG_DISABLED
 # define LOG_DISABLED
   /** @todo RTLOGREL_DISABLED */
 # include <iprt/log.h>
@@ -38,8 +37,7 @@
 # define LogRelIt(pvInst, fFlags, iGroup, fmtargs) do { } while (0)
 #endif
 
-#define USE_NT_DEVICE_IO_CONTROL_FILE
-#include <iprt/nt/nt-and-windows.h>
+#include <Windows.h>
 
 #include <VBox/sup.h>
 #include <VBox/types.h>
@@ -51,9 +49,6 @@
 #include <iprt/string.h>
 #include "../SUPLibInternal.h"
 #include "../SUPDrvIOC.h"
-#ifdef VBOX_WITH_HARDENING
-# include "win/SUPHardenedVerify-win.h"
-#endif
 
 
 /*******************************************************************************
@@ -61,205 +56,90 @@
 *******************************************************************************/
 /** The support service name. */
 #define SERVICE_NAME    "VBoxDrv"
+/** Win32 Device name. */
+#define DEVICE_NAME     "\\\\.\\VBoxDrv"
+/** NT Device name. */
+#define DEVICE_NAME_NT   L"\\Device\\VBoxDrv"
+/** Win32 Symlink name. */
+#define DEVICE_NAME_DOS  L"\\DosDevices\\VBoxDrv"
 
 
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
-#ifndef IN_SUP_HARDENED_R3
 static int suplibOsCreateService(void);
 //unused: static int suplibOsUpdateService(void);
 static int suplibOsDeleteService(void);
 static int suplibOsStartService(void);
 static int suplibOsStopService(void);
-#endif
-#ifdef USE_NT_DEVICE_IO_CONTROL_FILE
-static int suplibConvertNtStatus(NTSTATUS rcNt);
-#else
 static int suplibConvertWin32Err(int);
-#endif
-
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-static bool g_fHardenedVerifyInited = false;
 
 
-int suplibOsHardenedVerifyInit(void)
-{
-    if (!g_fHardenedVerifyInited)
-    {
-#if defined(VBOX_WITH_HARDENING) && !defined(IN_SUP_HARDENED_R3) && !defined(IN_SUP_R3_STATIC)
-        supR3HardenedWinInitVersion();
-        int rc = supHardenedWinInitImageVerifier(NULL);
-        if (RT_FAILURE(rc))
-            return rc;
-        supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(NULL);
-#endif
-        g_fHardenedVerifyInited = true;
-    }
-    return VINF_SUCCESS;
-}
 
 
-int suplibOsHardenedVerifyTerm(void)
-{
-    /** @todo free resources...  */
-    return VINF_SUCCESS;
-}
-
-
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 {
     /*
-     * Make sure the image verifier is fully initialized.
-     */
-    int rc = suplibOsHardenedVerifyInit();
-    if (RT_FAILURE(rc))
-        return RTErrInfoSetF(pErrInfo, rc, "suplibOsHardenedVerifyInit failed: %Rrc", rc);
-
-    /*
-     * Done if of pre-inited.
+     * Nothing to do if pre-inited.
      */
     if (fPreInited)
-    {
-#if defined(VBOX_WITH_HARDENING) && !defined(IN_SUP_HARDENED_R3)
-# ifdef IN_SUP_R3_STATIC
-        return VERR_NOT_SUPPORTED;
-# else
         return VINF_SUCCESS;
-# endif
-#else
-        return VINF_SUCCESS;
-#endif
-    }
 
     /*
      * Try open the device.
      */
-#ifndef IN_SUP_HARDENED_R3
-    uint32_t cTry = 0;
-#endif
-    HANDLE hDevice;
-    for (;;)
+    HANDLE hDevice = CreateFile(DEVICE_NAME,
+                                GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                NULL,
+                                OPEN_EXISTING,
+                                FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+                                NULL);
+    if (hDevice == INVALID_HANDLE_VALUE)
     {
-        IO_STATUS_BLOCK     Ios   = RTNT_IO_STATUS_BLOCK_INITIALIZER;
-
-        static const WCHAR  s_wszName[] = L"\\Device\\VBoxDrvU";
-        UNICODE_STRING      NtName;
-        NtName.Buffer        = (PWSTR)s_wszName;
-        NtName.Length        = sizeof(s_wszName) - sizeof(WCHAR) * (fUnrestricted ? 2 : 1);
-        NtName.MaximumLength = NtName.Length;
-
-        OBJECT_ATTRIBUTES   ObjAttr;
-        InitializeObjectAttributes(&ObjAttr, &NtName, OBJ_CASE_INSENSITIVE, NULL /*hRootDir*/, NULL /*pSecDesc*/);
-
-        hDevice = RTNT_INVALID_HANDLE_VALUE;
-
-        NTSTATUS rcNt = NtCreateFile(&hDevice,
-                                     GENERIC_READ | GENERIC_WRITE, /* No SYNCHRONIZE. */
-                                     &ObjAttr,
-                                     &Ios,
-                                     NULL /* Allocation Size*/,
-                                     FILE_ATTRIBUTE_NORMAL,
-                                     FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                     FILE_OPEN,
-                                     FILE_NON_DIRECTORY_FILE, /* No FILE_SYNCHRONOUS_IO_NONALERT! */
-                                     NULL /*EaBuffer*/,
-                                     0 /*EaLength*/);
-        if (NT_SUCCESS(rcNt))
-            rcNt = Ios.Status;
-        if (NT_SUCCESS(rcNt))
-        {
-            /*
-             * We're good.
-             */
-            pThis->hDevice       = hDevice;
-            pThis->fUnrestricted = fUnrestricted;
-            return VINF_SUCCESS;
-        }
-
 #ifndef IN_SUP_HARDENED_R3
         /*
-         * Failed to open, try starting the service and reopen the device
-         * exactly once.
+         * Try start the service and retry opening it.
          */
-        if (cTry == 0 && !NT_SUCCESS(rcNt))
-        {
-            cTry++;
-            suplibOsStartService();
-            continue;
-        }
-#endif
+        suplibOsStartService();
 
-        /*
-         * Translate the error code.
-         */
-        switch (rcNt)
+        hDevice = CreateFile(DEVICE_NAME,
+                             GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE,
+                             NULL,
+                             OPEN_EXISTING,
+                             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+                             NULL);
+        if (hDevice == INVALID_HANDLE_VALUE)
+#endif /* !IN_SUP_HARDENED_R3 */
         {
-            /** @todo someone must test what is actually returned. */
-            case STATUS_DEVICE_DOES_NOT_EXIST:
-            case STATUS_DEVICE_NOT_CONNECTED:
-            //case ERROR_BAD_DEVICE:
-            case STATUS_DEVICE_REMOVED:
-            //case ERROR_DEVICE_NOT_AVAILABLE:
-                rc = VERR_VM_DRIVER_LOAD_ERROR;
-                break;
-            case STATUS_OBJECT_PATH_NOT_FOUND:
-            case STATUS_NO_SUCH_DEVICE:
-            case STATUS_NO_SUCH_FILE:
-            case STATUS_OBJECT_NAME_NOT_FOUND:
-                rc = VERR_VM_DRIVER_NOT_INSTALLED;
-                break;
-            case STATUS_ACCESS_DENIED:
-            case STATUS_SHARING_VIOLATION:
-                rc = VERR_VM_DRIVER_NOT_ACCESSIBLE;
-                break;
-            case STATUS_UNSUCCESSFUL:
-                rc = VERR_SUPLIB_NT_PROCESS_UNTRUSTED_0;
-                break;
-            case STATUS_TRUST_FAILURE:
-                rc = VERR_SUPLIB_NT_PROCESS_UNTRUSTED_1;
-                break;
-            case STATUS_TOO_LATE:
-                rc = VERR_SUPDRV_HARDENING_EVIL_HANDLE;
-                break;
-            default:
-                if (SUP_NT_STATUS_IS_VBOX(rcNt)) /* See VBoxDrvNtErr2NtStatus. */
-                    rc = SUP_NT_STATUS_TO_VBOX(rcNt);
-                else
-                    rc = VERR_VM_DRIVER_OPEN_ERROR;
-                break;
-        }
-
-#ifdef IN_SUP_HARDENED_R3
-        /*
-         * Get more details from VBoxDrvErrorInfo if present.
-         */
-        if (pErrInfo && pErrInfo->cbMsg > 32)
-        {
-            /* Prefix. */
-            size_t      cchPrefix;
-            const char *pszDefine = RTErrGetDefine(rc);
-            if (strncmp(pszDefine, RT_STR_TUPLE("Unknown")))
-                cchPrefix = RTStrPrintf(pErrInfo->pszMsg, pErrInfo->cbMsg / 2, "Integrity error (%#x/%s): ", rcNt, pszDefine);
-            else
-                cchPrefix = RTStrPrintf(pErrInfo->pszMsg, pErrInfo->cbMsg / 2, "Integrity error (%#x/%d): ", rcNt, rc);
-
-            /* Get error info. */
-            supR3HardenedWinReadErrorInfoDevice(pErrInfo->pszMsg + cchPrefix, pErrInfo->cbMsg - cchPrefix, "");
-            if (pErrInfo->pszMsg[cchPrefix] != '\0')
+            int rc = GetLastError();
+            switch (rc)
             {
-                pErrInfo->fFlags |= RTERRINFO_FLAGS_SET;
-                pErrInfo->rc      = rc;
-                *penmWhat = kSupInitOp_Integrity;
+                /** @todo someone must test what is actually returned. */
+                case ERROR_DEV_NOT_EXIST:
+                case ERROR_DEVICE_NOT_CONNECTED:
+                case ERROR_BAD_DEVICE:
+                case ERROR_DEVICE_REMOVED:
+                case ERROR_DEVICE_NOT_AVAILABLE:
+                    return VERR_VM_DRIVER_LOAD_ERROR;
+                case ERROR_PATH_NOT_FOUND:
+                case ERROR_FILE_NOT_FOUND:
+                    return VERR_VM_DRIVER_NOT_INSTALLED;
+                case ERROR_ACCESS_DENIED:
+                case ERROR_SHARING_VIOLATION:
+                    return VERR_VM_DRIVER_NOT_ACCESSIBLE;
+                default:
+                    return VERR_VM_DRIVER_OPEN_ERROR;
             }
-            else
-                pErrInfo->pszMsg[0] = '\0';
+
+            return -1 /** @todo define proper error codes for suplibOsInit failure. */;
         }
-#endif
-        return rc;
     }
+
+    /*
+     * We're done.
+     */
+    pThis->hDevice = hDevice;
+    return VINF_SUCCESS;
 }
 
 
@@ -267,21 +147,14 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
 
 int suplibOsInstall(void)
 {
-    int rc = suplibOsCreateService();
-    if (RT_SUCCESS(rc))
-    {
-        int rc2 = suplibOsStartService();
-        if (rc2 != VINF_SUCCESS)
-            rc = rc2;
-    }
-    return rc;
+    return suplibOsCreateService();
 }
 
 
 int suplibOsUninstall(void)
 {
     int rc = suplibOsStopService();
-    if (RT_SUCCESS(rc))
+    if (!rc)
         rc = suplibOsDeleteService();
     return rc;
 }
@@ -290,22 +163,21 @@ int suplibOsUninstall(void)
 /**
  * Creates the service.
  *
- * @returns VBox status code.
- * @retval  VWRN_ALREADY_EXISTS if it already exists.
+ * @returns 0 on success.
+ * @returns -1 on failure.
  */
 static int suplibOsCreateService(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
      */
-    int        rc;
-    SC_HANDLE hSMgrCreate = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
-    DWORD     dwErr = GetLastError();
-    AssertMsg(hSMgrCreate, ("OpenSCManager(,,create) failed dwErr=%d\n", dwErr));
-    if (hSMgrCreate != NULL)
+    SC_HANDLE   hSMgrCreate = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
+    DWORD LastError = GetLastError(); NOREF(LastError);
+    AssertMsg(hSMgrCreate, ("OpenSCManager(,,create) failed rc=%d\n", LastError));
+    if (hSMgrCreate)
     {
         char szDriver[RTPATH_MAX];
-        rc = RTPathExecDir(szDriver, sizeof(szDriver) - sizeof("\\VBoxDrv.sys"));
+        int rc = RTPathExecDir(szDriver, sizeof(szDriver) - sizeof("\\VBoxDrv.sys"));
         if (RT_SUCCESS(rc))
         {
             strcat(szDriver, "\\VBoxDrv.sys");
@@ -318,42 +190,34 @@ static int suplibOsCreateService(void)
                                                SERVICE_ERROR_NORMAL,
                                                szDriver,
                                                NULL, NULL, NULL, NULL, NULL);
-            dwErr = GetLastError();
-            if (hService)
-            {
-                CloseServiceHandle(hService);
-                rc = VINF_SUCCESS;
-            }
-            else if (dwErr == ERROR_SERVICE_EXISTS)
-                rc = VWRN_ALREADY_EXISTS;
-            else
-            {
-                AssertMsgFailed(("CreateService failed! dwErr=%Rwa szDriver=%s\n", dwErr, szDriver));
-                rc = RTErrConvertFromWin32(dwErr);
-            }
+            DWORD LastError = GetLastError(); NOREF(LastError);
+            AssertMsg(hService, ("CreateService failed! LastError=%Rwa szDriver=%s\n", LastError, szDriver));
+            CloseServiceHandle(hService);
+            CloseServiceHandle(hSMgrCreate);
+            return hService ? 0 : -1;
         }
         CloseServiceHandle(hSMgrCreate);
+        return rc;
     }
-    else
-        rc = RTErrConvertFromWin32(GetLastError());
-    return rc;
+    return -1;
 }
 
 
 /**
  * Stops a possibly running service.
  *
- * @returns VBox status code.
+ * @returns 0 on success.
+ * @returns -1 on failure.
  */
 static int suplibOsStopService(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
      */
-    int         rc;
+    int rc = -1;
     SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_STOP | SERVICE_QUERY_STATUS);
-    DWORD       dwErr = GetLastError();
-    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed dwErr=%d\n", dwErr));
+    DWORD LastError = GetLastError(); NOREF(LastError);
+    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", LastError));
     if (hSMgr)
     {
         SC_HANDLE hService = OpenService(hSMgr, SERVICE_NAME, SERVICE_STOP | SERVICE_QUERY_STATUS);
@@ -365,7 +229,7 @@ static int suplibOsStopService(void)
             SERVICE_STATUS  Status;
             QueryServiceStatus(hService, &Status);
             if (Status.dwCurrentState == SERVICE_STOPPED)
-                rc = VINF_SUCCESS;
+                rc = 0;
             else if (ControlService(hService, SERVICE_CONTROL_STOP, &Status))
             {
                 int iWait = 100;
@@ -375,36 +239,26 @@ static int suplibOsStopService(void)
                     QueryServiceStatus(hService, &Status);
                 }
                 if (Status.dwCurrentState == SERVICE_STOPPED)
-                    rc = VINF_SUCCESS;
+                    rc = 0;
                 else
-                {
-                    AssertMsgFailed(("Failed to stop service. status=%d\n", Status.dwCurrentState));
-                    rc = VERR_GENERAL_FAILURE;
-                }
+                   AssertMsgFailed(("Failed to stop service. status=%d\n", Status.dwCurrentState));
             }
             else
             {
-                dwErr = GetLastError();
-                AssertMsgFailed(("ControlService failed with dwErr=%Rwa. status=%d\n", dwErr, Status.dwCurrentState));
-                rc = RTErrConvertFromWin32(dwErr);
+                DWORD LastError = GetLastError(); NOREF(LastError);
+                AssertMsgFailed(("ControlService failed with LastError=%Rwa. status=%d\n", LastError, Status.dwCurrentState));
             }
             CloseServiceHandle(hService);
         }
+        else if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
+            rc = 0;
         else
         {
-            dwErr = GetLastError();
-            if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
-                rc = VINF_SUCCESS;
-            else
-            {
-                AssertMsgFailed(("OpenService failed dwErr=%Rwa\n", dwErr));
-                rc = RTErrConvertFromWin32(dwErr);
-            }
+            DWORD LastError = GetLastError(); NOREF(LastError);
+            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", LastError));
         }
         CloseServiceHandle(hSMgr);
     }
-    else
-        rc = RTErrConvertFromWin32(dwErr);
     return rc;
 }
 
@@ -412,17 +266,18 @@ static int suplibOsStopService(void)
 /**
  * Deletes the service.
  *
- * @returns VBox status code.
+ * @returns 0 on success.
+ * @returns -1 on failure.
  */
 int suplibOsDeleteService(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
      */
-    int         rc;
+    int rc = -1;
     SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
-    DWORD       dwErr = GetLastError();
-    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", dwErr));
+    DWORD LastError = GetLastError(); NOREF(LastError);
+    AssertMsg(hSMgr, ("OpenSCManager(,,delete) failed rc=%d\n", LastError));
     if (hSMgr)
     {
         SC_HANDLE hService = OpenService(hSMgr, SERVICE_NAME, DELETE);
@@ -432,25 +287,20 @@ int suplibOsDeleteService(void)
              * Delete the service.
              */
             if (DeleteService(hService))
-                rc = VINF_SUCCESS;
+                rc = 0;
             else
             {
-                dwErr = GetLastError();
-                AssertMsgFailed(("DeleteService failed dwErr=%Rwa\n", dwErr));
-                rc = RTErrConvertFromWin32(dwErr);
+                DWORD LastError = GetLastError(); NOREF(LastError);
+                AssertMsgFailed(("DeleteService failed LastError=%Rwa\n", LastError));
             }
             CloseServiceHandle(hService);
         }
+        else if (GetLastError() == ERROR_SERVICE_DOES_NOT_EXIST)
+            rc = 0;
         else
         {
-            dwErr = GetLastError();
-            if (dwErr == ERROR_SERVICE_DOES_NOT_EXIST)
-                rc = VINF_SUCCESS;
-            else
-            {
-                AssertMsgFailed(("OpenService failed dwErr=%Rwa\n", dwErr));
-                rc = RTErrConvertFromWin32(dwErr);
-            }
+            DWORD LastError = GetLastError(); NOREF(LastError);
+            AssertMsgFailed(("OpenService failed LastError=%Rwa\n", LastError));
         }
         CloseServiceHandle(hSMgr);
     }
@@ -521,7 +371,9 @@ static int suplibOsUpdateService(void)
 /**
  * Attempts to start the service, creating it if necessary.
  *
- * @returns VBox status code.
+ * @returns 0 on success.
+ * @returns -1 on failure.
+ * @param   fRetry  Indicates retry call.
  */
 static int suplibOsStartService(void)
 {
@@ -531,9 +383,8 @@ static int suplibOsStartService(void)
     SC_HANDLE hSMgr = OpenSCManager(NULL, NULL, SERVICE_QUERY_STATUS | SERVICE_START);
     if (hSMgr == NULL)
     {
-        DWORD dwErr = GetLastError();
-        AssertMsgFailed(("couldn't open service manager in SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS mode! (dwErr=%d)\n", dwErr));
-        return RTErrConvertFromWin32(dwErr);
+        AssertMsgFailed(("couldn't open service manager in SERVICE_QUERY_CONFIG | SERVICE_QUERY_STATUS mode!\n"));
+        return -1;
     }
 
     /*
@@ -546,7 +397,7 @@ static int suplibOsStartService(void)
          * Create the service.
          */
         int rc = suplibOsCreateService();
-        if (RT_FAILURE(rc))
+        if (rc)
             return rc;
 
         /*
@@ -558,60 +409,48 @@ static int suplibOsStartService(void)
     /*
      * Check if open and on demand create succeeded.
      */
-    int rc;
+    int rc = -1;
     if (hService)
     {
 
         /*
          * Query service status to see if we need to start it or not.
          */
-        SERVICE_STATUS Status;
+        SERVICE_STATUS  Status;
         BOOL fRc = QueryServiceStatus(hService, &Status);
         Assert(fRc);
-        if (Status.dwCurrentState == SERVICE_RUNNING)
-            rc = VINF_ALREADY_INITIALIZED;
-        else
+        if (    Status.dwCurrentState != SERVICE_RUNNING
+            &&  Status.dwCurrentState != SERVICE_START_PENDING)
         {
-            if (Status.dwCurrentState == SERVICE_START_PENDING)
-                rc = VINF_SUCCESS;
-            else
-            {
-                /*
-                 * Start it.
-                 */
-                if (StartService(hService, 0, NULL))
-                    rc = VINF_SUCCESS;
-                else
-                {
-                    DWORD dwErr = GetLastError();
-                    AssertMsg(fRc, ("StartService failed with dwErr=%Rwa\n", dwErr));
-                    rc = RTErrConvertFromWin32(dwErr);
-                }
-            }
-
             /*
-             * Wait for the service to finish starting.
-             * We'll wait for 10 seconds then we'll give up.
+             * Start it.
              */
-            QueryServiceStatus(hService, &Status);
-            if (Status.dwCurrentState == SERVICE_START_PENDING)
-            {
-                int iWait;
-                for (iWait = 100; iWait > 0 && Status.dwCurrentState == SERVICE_START_PENDING; iWait--)
-                {
-                    Sleep(100);
-                    QueryServiceStatus(hService, &Status);
-                }
-                DWORD dwErr = GetLastError(); NOREF(dwErr);
-                AssertMsg(Status.dwCurrentState != SERVICE_RUNNING,
-                          ("Failed to start. dwErr=%Rwa iWait=%d status=%d\n", dwErr, iWait, Status.dwCurrentState));
-            }
-
-            if (Status.dwCurrentState == SERVICE_RUNNING)
-                rc = VINF_SUCCESS;
-            else if (RT_SUCCESS_NP(rc))
-                rc = VERR_GENERAL_FAILURE;
+            fRc = StartService(hService, 0, NULL);
+            DWORD LastError = GetLastError(); NOREF(LastError);
+            AssertMsg(fRc, ("StartService failed with LastError=%Rwa\n", LastError));
         }
+
+        /*
+         * Wait for the service to finish starting.
+         * We'll wait for 10 seconds then we'll give up.
+         */
+        QueryServiceStatus(hService, &Status);
+        if (Status.dwCurrentState == SERVICE_START_PENDING)
+        {
+            int iWait;
+            for (iWait = 100; iWait > 0 && Status.dwCurrentState == SERVICE_START_PENDING; iWait--)
+            {
+                Sleep(100);
+                QueryServiceStatus(hService, &Status);
+            }
+            DWORD LastError = GetLastError(); NOREF(LastError);
+            AssertMsg(Status.dwCurrentState != SERVICE_RUNNING,
+                      ("Failed to start. LastError=%Rwa iWait=%d status=%d\n",
+                       LastError, iWait, Status.dwCurrentState));
+        }
+
+        if (Status.dwCurrentState == SERVICE_RUNNING)
+            rc = 0;
 
         /*
          * Close open handles.
@@ -620,9 +459,8 @@ static int suplibOsStartService(void)
     }
     else
     {
-        DWORD dwErr = GetLastError();
-        AssertMsgFailed(("OpenService failed! LastError=%Rwa\n", dwErr));
-        rc = RTErrConvertFromWin32(dwErr);
+        DWORD LastError = GetLastError(); NOREF(LastError);
+        AssertMsgFailed(("OpenService failed! LastError=%Rwa\n", LastError));
     }
     if (!CloseServiceHandle(hSMgr))
         AssertFailed();
@@ -654,28 +492,10 @@ int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cb
      */
     PSUPREQHDR pHdr = (PSUPREQHDR)pvReq;
     Assert(cbReq == RT_MAX(pHdr->cbIn, pHdr->cbOut));
-# ifdef USE_NT_DEVICE_IO_CONTROL_FILE
-    IO_STATUS_BLOCK Ios;
-    Ios.Status = -1;
-    Ios.Information = 0;
-    NTSTATUS rcNt = NtDeviceIoControlFile((HANDLE)pThis->hDevice, NULL /*hEvent*/, NULL /*pfnApc*/, NULL /*pvApcCtx*/, &Ios,
-                                          (ULONG)uFunction,
-                                          pvReq /*pvInput */, pHdr->cbIn /* cbInput */,
-                                          pvReq /*pvOutput*/, pHdr->cbOut /* cbOutput */);
-    if (NT_SUCCESS(rcNt))
-    {
-        if (NT_SUCCESS(Ios.Status))
-            return VINF_SUCCESS;
-        rcNt = Ios.Status;
-    }
-    return suplibConvertNtStatus(rcNt);
-
-# else
     DWORD cbReturned = (ULONG)pHdr->cbOut;
     if (DeviceIoControl((HANDLE)pThis->hDevice, uFunction, pvReq, pHdr->cbIn, pvReq, cbReturned, &cbReturned, NULL))
         return 0;
     return suplibConvertWin32Err(GetLastError());
-# endif
 }
 
 
@@ -684,27 +504,10 @@ int suplibOsIOCtlFast(PSUPLIBDATA pThis, uintptr_t uFunction, uintptr_t idCpu)
     /*
      * Issue device I/O control.
      */
-# ifdef USE_NT_DEVICE_IO_CONTROL_FILE
-    IO_STATUS_BLOCK Ios;
-    Ios.Status = -1;
-    Ios.Information = 0;
-    NTSTATUS rcNt = NtDeviceIoControlFile((HANDLE)pThis->hDevice, NULL /*hEvent*/, NULL /*pfnApc*/, NULL /*pvApcCtx*/, &Ios,
-                                          (ULONG)uFunction,
-                                          NULL /*pvInput */, 0 /* cbInput */,
-                                          (PVOID)idCpu /*pvOutput*/, 0 /* cbOutput */);
-    if (NT_SUCCESS(rcNt))
-    {
-        if (NT_SUCCESS(Ios.Status))
-            return VINF_SUCCESS;
-        rcNt = Ios.Status;
-    }
-    return suplibConvertNtStatus(rcNt);
-# else
     DWORD cbReturned = 0;
     if (DeviceIoControl((HANDLE)pThis->hDevice, uFunction, NULL, 0, (LPVOID)idCpu, 0, &cbReturned, NULL))
         return VINF_SUCCESS;
     return suplibConvertWin32Err(GetLastError());
-# endif
 }
 
 
@@ -714,7 +517,7 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
     *ppvPages = VirtualAlloc(NULL, (size_t)cPages << PAGE_SHIFT, MEM_COMMIT, PAGE_EXECUTE_READWRITE);
     if (*ppvPages)
         return VINF_SUCCESS;
-    return RTErrConvertFromWin32(GetLastError());
+    return suplibConvertWin32Err(GetLastError());
 }
 
 
@@ -723,11 +526,10 @@ int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t /* cPages */)
     NOREF(pThis);
     if (VirtualFree(pvPages, 0, MEM_RELEASE))
         return VINF_SUCCESS;
-    return RTErrConvertFromWin32(GetLastError());
+    return suplibConvertWin32Err(GetLastError());
 }
 
 
-# ifndef USE_NT_DEVICE_IO_CONTROL_FILE
 /**
  * Converts a supdrv win32 error code to an IPRT status code.
  *
@@ -779,36 +581,6 @@ static int suplibConvertWin32Err(int rc)
     /* fall back on the default conversion. */
     return RTErrConvertFromWin32(rc);
 }
-# else
-/**
- * Reverse of VBoxDrvNtErr2NtStatus
- * returns VBox status code.
- * @param   rcNt    NT status code.
- */
-static int suplibConvertNtStatus(NTSTATUS rcNt)
-{
-    switch (rcNt)
-    {
-        case STATUS_SUCCESS:                    return VINF_SUCCESS;
-        case STATUS_NOT_SUPPORTED:              return VERR_GENERAL_FAILURE;
-        case STATUS_INVALID_PARAMETER:          return VERR_INVALID_PARAMETER;
-        case STATUS_UNKNOWN_REVISION:           return VERR_INVALID_MAGIC;
-        case STATUS_INVALID_HANDLE:             return VERR_INVALID_HANDLE;
-        case STATUS_INVALID_ADDRESS:            return VERR_INVALID_POINTER;
-        case STATUS_NOT_LOCKED:                 return VERR_LOCK_FAILED;
-        case STATUS_IMAGE_ALREADY_LOADED:       return VERR_ALREADY_LOADED;
-        case STATUS_ACCESS_DENIED:              return VERR_PERMISSION_DENIED;
-        case STATUS_REVISION_MISMATCH:          return VERR_VERSION_MISMATCH;
-    }
-
-    /* See VBoxDrvNtErr2NtStatus. */
-    if (SUP_NT_STATUS_IS_VBOX(rcNt))
-        return SUP_NT_STATUS_TO_VBOX(rcNt);
-
-    /* Fall back on IPRT for the rest. */
-    return RTErrConvertFromNtStatus(rcNt);
-}
-# endif
 
 #endif /* !IN_SUP_HARDENED_R3 */
 

@@ -49,14 +49,33 @@ b end
 ##
 # Convert descriptive comments. /** desc */
 :description
-
-# Read all the lines belonging to the comment into the buffer.
-:look-for-end-of-comment
-/\*\//bend-of-comment
-N
-blook-for-end-of-comment
-:end-of-comment
-
+# arg! how to do N until end of comment?
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
+/\*\//!N
 # anything with @{ and @} is skipped
 /@[\{\}]/d
 

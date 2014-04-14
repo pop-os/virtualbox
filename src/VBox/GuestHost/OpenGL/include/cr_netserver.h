@@ -21,16 +21,8 @@ typedef struct {
 	CRConnection *conn;
 } CRNetServer;
 
-DECLEXPORT(void) crNetServerConnect( CRNetServer *ns
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-                , struct VBOXUHGSMI *pHgsmi
-#endif
-                );
-DECLEXPORT(void) crNetNewClient( CRNetServer *ns
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-                , struct VBOXUHGSMI *pHgsmi
-#endif
-);
+DECLEXPORT(void) crNetServerConnect( CRNetServer *ns );
+DECLEXPORT(void) crNetNewClient( CRConnection *conn, CRNetServer *ns );
 
 #ifdef __cplusplus
 }

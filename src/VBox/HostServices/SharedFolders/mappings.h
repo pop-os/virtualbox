@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,6 @@ typedef struct
     bool        fWritable;            /**< folder is writable for the guest */
     bool        fAutoMount;           /**< folder will be auto-mounted by the guest */
     bool        fSymlinksCreate;      /**< guest is able to create symlinks */
-    bool        fMissing;             /**< mapping not invalid but host path does not exist.
-                                           Any guest operation on such a folder fails! */
 } MAPPING;
 /** Pointer to a MAPPING structure. */
 typedef MAPPING *PMAPPING;
@@ -42,7 +40,7 @@ void vbsfMappingInit(void);
 bool vbsfMappingQuery(uint32_t iMapping, PMAPPING *pMapping);
 
 int vbsfMappingsAdd(PSHFLSTRING pFolderName, PSHFLSTRING pMapName,
-                    bool fWritable, bool fAutoMount, bool fCreateSymlinks, bool fMissing);
+                    bool fWritable, bool fAutoMount, bool fCreateSymlinks);
 int vbsfMappingsRemove(PSHFLSTRING pMapName);
 
 int vbsfMappingsQuery(PSHFLCLIENTDATA pClient, PSHFLMAPPING pMappings, uint32_t *pcMappings);

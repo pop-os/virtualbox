@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,15 +13,6 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * The contents of this file may alternatively be used under the terms
- * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
- * CDDL are applicable instead of those of the GPL.
- *
- * You may elect to license modified versions of this file under the
- * terms and conditions of either the GPL or the CDDL or both.
  */
 
 #ifndef ___VBoxGuestInternal_h
@@ -107,6 +98,7 @@ typedef struct VBOXGUESTMEMBALLOON
 /** Pointer to a memory balloon. */
 typedef VBOXGUESTMEMBALLOON *PVBOXGUESTMEMBALLOON;
 
+
 /**
  * VBox guest device (data) extension.
  */
@@ -120,6 +112,7 @@ typedef struct VBOXGUESTDEVEXT
     uint32_t                    fFixedEvents;
     /** The memory object reserving space for the guest mappings. */
     RTR0MEMOBJ                  hGuestMappings;
+
     /** Spinlock protecting the signaling and resetting of the wait-for-event
      * semaphores as well as the event acking in the ISR. */
     RTSPINLOCK                  EventSpinlock;
@@ -127,28 +120,22 @@ typedef struct VBOXGUESTDEVEXT
     VMMDevEvents               *pIrqAckEvents;
     /** The physical address of pIrqAckEvents. */
     RTCCPHYS                    PhysIrqAckEvents;
-    /** Wait-for-event list for threads waiting for multiple events
-     * (VBOXGUESTWAIT). */
-    RTLISTANCHOR                WaitList;
+    /** Wait-for-event list for threads waiting for multiple events. */
+    RTLISTNODE                  WaitList;
 #ifdef VBOX_WITH_HGCM
-    /** Wait-for-event list for threads waiting on HGCM async completion
-     * (VBOXGUESTWAIT).
-     *
+    /** Wait-for-event list for threads waiting on HGCM async completion.
      * The entire list is evaluated upon the arrival of an HGCM event, unlike
-     * the other lists which are only evaluated till the first thread has
-     * been woken up. */
-    RTLISTANCHOR                HGCMWaitList;
+     * the other lists which are only evaluated till the first thread has been woken up. */
+    RTLISTNODE                  HGCMWaitList;
 #endif
 #ifdef VBOXGUEST_USE_DEFERRED_WAKE_UP
-    /** List of wait-for-event entries that needs waking up
-     * (VBOXGUESTWAIT). */
-    RTLISTANCHOR                WakeUpList;
+    /** List of wait-for-event entries that needs waking up. */
+    RTLISTNODE                  WakeUpList;
 #endif
-    /** List of wait-for-event entries that has been woken up
-     * (VBOXGUESTWAIT). */
-    RTLISTANCHOR                WokenUpList;
-    /** List of free wait-for-event entries (VBOXGUESTWAIT). */
-    RTLISTANCHOR                FreeList;
+    /** List of wait-for-event entries that has been woken up. */
+    RTLISTNODE                  WokenUpList;
+    /** List of free wait-for-event entries. */
+    RTLISTNODE                  FreeList;
     /** Mask of pending events. */
     uint32_t volatile           f32PendingEvents;
     /** Current VMMDEV_EVENT_MOUSE_POSITION_CHANGED sequence number.
@@ -157,6 +144,9 @@ typedef struct VBOXGUESTDEVEXT
 
     /** Spinlock various items in the VBOXGUESTSESSION. */
     RTSPINLOCK                  SessionSpinlock;
+#ifdef VBOX_WITH_VRDP_SESSION_HANDLING
+    BOOL                        fVRDPEnabled;
+#endif
     /** Flag indicating whether logging to the release log
      *  is enabled. */
     bool                        fLoggingEnabled;
@@ -167,21 +157,19 @@ typedef struct VBOXGUESTDEVEXT
      * requested it. */
     /** @todo can we programmatically determine the size of the array and
      * still get the following alignment right? */
-    uint32_t volatile           acMouseFeatureUsage[32];
+    uint32_t volatile           cMouseFeatureUsage[32];
     /** The mouse feature status matching the counts above.  These are updated
      * together inside the session spinlock. */
     uint32_t volatile           fMouseStatus;
-    /** Counter of number of active ISRs.  Currently used for safely removing
-     * the mouse handler callback. */
-    uint32_t volatile           cISR;
-    /** Callback and user data for a kernel mouse handler. */
-    VBoxGuestMouseSetNotifyCallback MouseNotifyCallback;
-    /* list of caps used in acquire mode */
-    uint32_t                    u32AcquireModeGuestCaps;
-    /* list of caps used in set mode */
-    uint32_t                    u32SetModeGuestCaps;
-    /* currently acquired (and reported) guest caps */
-    uint32_t                    u32GuestCaps;
+
+    /** Windows part. */
+    union
+    {
+#ifdef ___VBoxGuest_win_h
+        VBOXGUESTDEVEXTWIN          s;
+#endif
+    } win;
+
 } VBOXGUESTDEVEXT;
 /** Pointer to the VBoxGuest driver data. */
 typedef VBOXGUESTDEVEXT *PVBOXGUESTDEVEXT;
@@ -196,7 +184,7 @@ typedef VBOXGUESTDEVEXT *PVBOXGUESTDEVEXT;
  */
 typedef struct VBOXGUESTSESSION
 {
-#if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_OS2) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_OS2) || defined(RT_OS_FREEBSD) || defined(RT_OS_SOLARIS)
     /** Pointer to the next session with the same hash. */
     PVBOXGUESTSESSION           pNextHash;
 #endif
@@ -225,14 +213,7 @@ typedef struct VBOXGUESTSESSION
     /** Mouse features supported.  A feature enabled in any guest session will
      * be enabled for the host. */
     uint32_t volatile           fMouseStatus;
-#ifdef RT_OS_DARWIN
-    /** Pointer to the associated org_virtualbox_VBoxGuestClient object. */
-    void                       *pvVBoxGuestClient;
-    /** Whether this session has been opened or not. */
-    bool                        fOpened;
-#endif
-    /* Guest Caps Acquired & Reported by this session */
-    uint32_t                    u32AquiredGuestCaps;
+
 } VBOXGUESTSESSION;
 
 RT_C_DECLS_BEGIN
@@ -271,11 +252,6 @@ DECLVBGL(int)    VBoxGuestNativeServiceCall(void *pvOpaque, unsigned int iCmd, v
  * @param   pDevExt     The device extension.
  */
 void VBoxGuestNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt);
-
-
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-int VbgdNtIOCtl_DpcLatencyChecker(void);
-#endif
 
 RT_C_DECLS_END
 

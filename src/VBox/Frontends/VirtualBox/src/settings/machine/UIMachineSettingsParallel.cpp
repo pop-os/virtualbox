@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,22 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QDir>
-
-/* GUI includes: */
 #include "UIMachineSettingsParallel.h"
 #include "QIWidgetValidator.h"
 #include "VBoxGlobal.h"
 #include "QITabWidget.h"
 
-/* COM includes: */
-#include "CParallelPort.h"
+#include <QDir>
 
 /* UIMachineSettingsParallel stuff */
 UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPage *pParent)
     : QIWithRetranslateUI<QWidget> (0)
     , m_pParent(pParent)
+    , mValidator(0)
     , m_iSlot(-1)
 {
     /* Apply UI decorations */
@@ -57,9 +53,6 @@ UIMachineSettingsParallel::UIMachineSettingsParallel(UIMachineSettingsParallelPa
              this, SLOT (mGbParallelToggled (bool)));
     connect (mCbNumber, SIGNAL (activated (const QString &)),
              this, SLOT (mCbNumberActivated (const QString &)));
-
-    /* Prepare validation: */
-    prepareValidation();
 
     /* Applying language settings */
     retranslateUi();
@@ -115,6 +108,19 @@ void UIMachineSettingsParallel::uploadPortData(UICacheSettingsMachineParallelPor
     portCache.cacheCurrentData(portData);
 }
 
+void UIMachineSettingsParallel::setValidator (QIWidgetValidator *aVal)
+{
+    Assert (aVal);
+    mValidator = aVal;
+    connect (mLeIRQ, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    connect (mLeIOPort, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    connect (mLePath, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    mValidator->revalidate();
+}
+
 QWidget* UIMachineSettingsParallel::setOrderAfter (QWidget *aAfter)
 {
     setTabOrder (aAfter, mGbParallel);
@@ -148,9 +154,8 @@ void UIMachineSettingsParallel::mGbParallelToggled (bool aOn)
 {
     if (aOn)
         mCbNumberActivated (mCbNumber->currentText());
-
-    /* Revalidate: */
-    m_pParent->revalidate();
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 void UIMachineSettingsParallel::mCbNumberActivated (const QString &aText)
@@ -165,23 +170,13 @@ void UIMachineSettingsParallel::mCbNumberActivated (const QString &aText)
         mLeIRQ->setText (QString::number (IRQ));
         mLeIOPort->setText ("0x" + QString::number (IOBase, 16).toUpper());
     }
-
-    /* Revalidate: */
-    m_pParent->revalidate();
-}
-
-void UIMachineSettingsParallel::prepareValidation()
-{
-    /* Prepare validation: */
-    connect(mLeIRQ, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
-    connect(mLeIOPort, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
-    connect(mLePath, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
 }
 
 
 /* UIMachineSettingsParallelPage stuff */
 UIMachineSettingsParallelPage::UIMachineSettingsParallelPage()
-    : mTabWidget(0)
+    : mValidator(0)
+    , mTabWidget(0)
 {
     /* TabWidget creation */
     mTabWidget = new QITabWidget (this);
@@ -200,7 +195,7 @@ UIMachineSettingsParallelPage::UIMachineSettingsParallelPage()
     }
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsParallelPage::loadToCacheFrom(QVariant &data)
 {
@@ -254,6 +249,9 @@ void UIMachineSettingsParallelPage::getFromCache()
         /* Load port data to page: */
         pPage->fetchPortData(m_cache.child(iPort));
 
+        /* Setup page validation: */
+        pPage->setValidator(mValidator);
+
         /* Setup tab order: */
         pLastFocusWidget = pPage->setOrderAfter(pLastFocusWidget);
     }
@@ -264,8 +262,9 @@ void UIMachineSettingsParallelPage::getFromCache()
     /* Polish page finally: */
     polishPage();
 
-    /* Revalidate: */
-    revalidate();
+    /* Revalidate if possible: */
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
@@ -324,70 +323,58 @@ void UIMachineSettingsParallelPage::saveFromCacheTo(QVariant &data)
     UISettingsPageMachine::uploadData(data);
 }
 
-bool UIMachineSettingsParallelPage::validate(QList<UIValidationMessage> &messages)
+void UIMachineSettingsParallelPage::setValidator (QIWidgetValidator *aVal)
 {
-    /* Pass by default: */
-    bool fPass = true;
+    mValidator = aVal;
+}
 
-    /* Validation stuff: */
-    QList<QPair<QString, QString> > ports;
+bool UIMachineSettingsParallelPage::revalidate (QString &aWarning, QString &aTitle)
+{
+    bool valid = true;
+    QStringList ports;
     QStringList paths;
 
-    /* Validate all the ports: */
-    for (int iIndex = 0; iIndex < mTabWidget->count(); ++iIndex)
+    int index = 0;
+    for (; index < mTabWidget->count(); ++ index)
     {
-        /* Get current tab/page: */
-        QWidget *pTab = mTabWidget->widget(iIndex);
-        UIMachineSettingsParallel *pPage = static_cast<UIMachineSettingsParallel*> (pTab);
-        if (!pPage->mGbParallel->isChecked())
-            continue;
+        QWidget *tab = mTabWidget->widget (index);
+        UIMachineSettingsParallel *page =
+            static_cast<UIMachineSettingsParallel*> (tab);
 
-        /* Prepare message: */
-        UIValidationMessage message;
-        message.first = vboxGlobal().removeAccelMark(mTabWidget->tabText(mTabWidget->indexOf(pTab)));
-
-        /* Check the port attribute emptiness & uniqueness: */
-        const QString strIRQ(pPage->mLeIRQ->text());
-        const QString strIOPort(pPage->mLeIOPort->text());
-        const QString strPath(pPage->mLePath->text());
-        QPair<QString, QString> pair(strIRQ, strIOPort);
-
-        if (strIRQ.isEmpty())
+        /* Check the predefined port number unicity */
+        if (page->mGbParallel->isChecked() && !page->isUserDefined())
         {
-            message.second << tr("No IRQ is currently specified.");
-            fPass = false;
-        }
-        if (strIOPort.isEmpty())
-        {
-            message.second << tr("No I/O port is currently specified.");
-            fPass = false;
-        }
-        if (ports.contains(pair))
-        {
-            message.second << tr("Two or more ports have the same settings.");
-            fPass = false;
-        }
-        if (strPath.isEmpty())
-        {
-            message.second << tr("No port path is currently specified.");
-            fPass = false;
-        }
-        if (paths.contains(strPath))
-        {
-            message.second << tr("There are currently duplicate port paths specified.");
-            fPass = false;
+            QString port = page->mCbNumber->currentText();
+            valid = !ports.contains (port);
+            if (!valid)
+            {
+                aWarning = tr ("Duplicate port number selected ");
+                aTitle += ": " +
+                    vboxGlobal().removeAccelMark (mTabWidget->tabText (mTabWidget->indexOf (tab)));
+                break;
+            }
+            ports << port;
         }
 
-        ports << pair;
-        paths << strPath;
-
-        /* Serialize message: */
-        if (!message.second.isEmpty())
-            messages << message;
+        /* Check the port path emptiness & unicity */
+        if (page->mGbParallel->isChecked())
+        {
+            QString path = page->mLePath->text();
+            valid = !path.isEmpty() && !paths.contains (path);
+            if (!valid)
+            {
+                aWarning = path.isEmpty() ?
+                    tr ("Port path not specified ") :
+                    tr ("Duplicate port path entered ");
+                aTitle += ": " +
+                    vboxGlobal().removeAccelMark (mTabWidget->tabText (mTabWidget->indexOf (tab)));
+                break;
+            }
+            paths << path;
+        }
     }
 
-    /* Return result: */
-    return fPass;
+    return valid;
 }
 
 void UIMachineSettingsParallelPage::retranslateUi()

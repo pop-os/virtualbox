@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,6 @@
 
 #include <iprt/err.h>
 #include <iprt/ctype.h>
-#include <iprt/mem.h>
-#include <iprt/path.h>
 #include <list>
 
 #include "Logging.h"
@@ -48,78 +46,8 @@
 #include <net/if_arp.h>
 #include <net/if.h>
 #include <sys/types.h>
-#include <kstat.h>
 
 #include "DynLoadLibSolaris.h"
-
-static uint32_t getInstance(const char *pszIfaceName, char *pszDevName)
-{
-    /*
-     * Get the instance number from the interface name, then clip it off.
-     */
-    int cbInstance = 0;
-    int cbIface = strlen(pszIfaceName);
-    const char *pszEnd = pszIfaceName + cbIface - 1;
-    for (int i = 0; i < cbIface - 1; i++)
-    {
-        if (!RT_C_IS_DIGIT(*pszEnd))
-            break;
-        cbInstance++;
-        pszEnd--;
-    }
-
-    uint32_t uInstance = RTStrToUInt32(pszEnd + 1);
-    strncpy(pszDevName, pszIfaceName, cbIface - cbInstance);
-    pszDevName[cbIface - cbInstance] = '\0';
-    return uInstance;
-}
-
-static uint32_t kstatGet(const char *name)
-{
-    kstat_ctl_t *kc;
-    uint32_t uSpeed = 0;
-
-    if ((kc = kstat_open()) == 0)
-    {
-        LogRel(("kstat_open() -> %d\n", errno));
-        return 0;
-    }
-
-    kstat_t *ksAdapter = kstat_lookup(kc, (char *)"link", -1, (char *)name);
-    if (ksAdapter == 0)
-    {
-        char szModule[KSTAT_STRLEN];
-        uint32_t uInstance = getInstance(name, szModule);
-        ksAdapter = kstat_lookup(kc, szModule, uInstance, (char *)"phys");
-        if (ksAdapter == 0)
-            ksAdapter = kstat_lookup(kc, szModule, uInstance, (char*)name);
-    }
-    if (ksAdapter == 0)
-        LogRel(("Failed to get network statistics for %s\n", name));
-    else if (kstat_read(kc, ksAdapter, 0) == -1)
-        LogRel(("kstat_read(%s) -> %d\n", name, errno));
-    else
-    {
-        kstat_named_t *kn;
-        if ((kn = (kstat_named_t *)kstat_data_lookup(ksAdapter, (char *)"ifspeed")) == 0)
-            LogRel(("kstat_data_lookup(ifspeed) -> %d, name=%s\n", errno, name));
-        else
-            uSpeed = kn->value.ul / 1000000; /* bits -> Mbits */
-    }
-    kstat_close(kc);
-    LogFlow(("kstatGet(%s) -> %u Mbit/s\n", name, uSpeed));
-    return uSpeed;
-}
-
-static void queryIfaceSpeed(PNETIFINFO pInfo)
-{
-    /* Don't query interface speed for inactive interfaces (see @bugref{6345}). */
-    if (pInfo->enmStatus == NETIF_S_UP)
-        pInfo->uSpeedMbits =  kstatGet(pInfo->szShortName);
-    else
-        pInfo->uSpeedMbits = 0;
-    LogFlow(("queryIfaceSpeed(%s) -> %u\n", pInfo->szShortName, pInfo->uSpeedMbits));
-}
 
 static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNetworkInterfaceList)
 {
@@ -153,14 +81,10 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
         SolarisNICMap.insert(NICPair("igb", "Intel 82575 PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ipge", "PCI-E Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("iprb", "Intel 82557/58/59 Ethernet"));
-        SolarisNICMap.insert(NICPair("ixgb", "Intel 82597ex 10 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("ixgbe", "Intel 10 Gigabit PCI-E Ethernet"));
-        SolarisNICMap.insert(NICPair("mcxe", "Mellanox ConnectX-2 10 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("mxfe", "Macronix 98715 Fast Ethernet"));
         SolarisNICMap.insert(NICPair("nfo", "Nvidia Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("nge", "Nvidia Gigabit Ethernet"));
-        SolarisNICMap.insert(NICPair("ntxn", "NetXen 10/1 Gigabit Ethernet"));
-        SolarisNICMap.insert(NICPair("nxge", "Sun 10/1 Gigabit Ethernet"));
         SolarisNICMap.insert(NICPair("pcelx", "3COM EtherLink III PCMCIA Ethernet"));
         SolarisNICMap.insert(NICPair("pcn", "AMD PCnet Ethernet"));
         SolarisNICMap.insert(NICPair("qfe", "SUNW,qfe Quad Fast-Ethernet"));
@@ -199,12 +123,12 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
      * Try to get IP V4 address and netmask as well as Ethernet address.
      */
     NETIFINFO Info;
-    RT_ZERO(Info);
+    memset(&Info, 0, sizeof(Info));
     int Sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
     if (Sock > 0)
     {
         struct lifreq IfReq;
-        RTStrCopy(IfReq.lifr_name, sizeof(IfReq.lifr_name), szNICInstance);
+        strcpy(IfReq.lifr_name, szNICInstance);
         if (ioctl(Sock, SIOCGLIFADDR, &IfReq) >= 0)
         {
             memcpy(Info.IPAddress.au8, &((struct sockaddr_in *)&IfReq.lifr_addr)->sin_addr.s_addr,
@@ -243,7 +167,7 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
     if (Sock > 0)
     {
         struct lifreq IfReq;
-        RTStrCopy(IfReq.lifr_name, sizeof(IfReq.lifr_name), szNICInstance);
+        strcpy(IfReq.lifr_name, szNICInstance);
         if (ioctl(Sock, SIOCGLIFADDR, &IfReq) >= 0)
         {
             memcpy(Info.IPv6Address.au8, ((struct sockaddr_in6 *)&IfReq.lifr_addr)->sin6_addr.s6_addr,
@@ -273,14 +197,12 @@ static void vboxSolarisAddHostIface(char *pszIface, int Instance, void *pvHostNe
     Uuid.Gen.au8Node[5] = Info.MACAddress.au8[5];
     Info.Uuid = Uuid;
     Info.enmMediumType = NETIF_T_ETHERNET;
-    strncpy(Info.szShortName, szNICInstance, sizeof(Info.szShortName) - 1);
 
     HostNetworkInterfaceType_T enmType;
-    if (strncmp(szNICInstance, RT_STR_TUPLE("vboxnet")))
+    if (strncmp("vboxnet", szNICInstance, 7))
         enmType = HostNetworkInterfaceType_Bridged;
     else
         enmType = HostNetworkInterfaceType_HostOnly;
-    queryIfaceSpeed(&Info);
     ComObjPtr<HostNetworkInterface> IfObj;
     IfObj.createObject();
     if (SUCCEEDED(IfObj->init(Bstr(szNICDesc), enmType, &Info)))
@@ -292,15 +214,15 @@ static boolean_t vboxSolarisAddLinkHostIface(const char *pszIface, void *pvHostN
     /*
      * Skip IPSEC interfaces. It's at IP level.
      */
-    if (!strncmp(pszIface, RT_STR_TUPLE("ip.tun")))
+    if (!strncmp(pszIface, "ip.tun", 6))
         return _B_FALSE;
 
     /*
      * Skip our own dynamic VNICs but don't skip VNIC templates.
      * These names originate from VBoxNetFltBow-solaris.c, hardcoded here for now.
      */
-    if (    strncmp(pszIface, RT_STR_TUPLE("vboxvnic_template"))
-        && !strncmp(pszIface, RT_STR_TUPLE("vboxvnic")))
+    if (    strncmp(pszIface, "vboxvnic_template", 17)
+        && !strncmp(pszIface, "vboxvnic", 8))
         return _B_FALSE;
 
     /*
@@ -413,65 +335,59 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
     if (Sock > 0)
     {
         struct lifnum IfNum;
-        RT_ZERO(IfNum);
+        memset(&IfNum, 0, sizeof(IfNum));
         IfNum.lifn_family = AF_INET;
         int rc = ioctl(Sock, SIOCGLIFNUM, &IfNum);
         if (!rc)
         {
-            int cIfaces = RT_MIN(1024, IfNum.lifn_count); /* sane limit */
-            int cbIfaces = cIfaces * sizeof(struct lifreq);
-            struct lifreq *Ifaces = (struct lifreq *)RTMemTmpAlloc(cbIfaces);
-            if (Ifaces)
+            struct lifreq Ifaces[24];
+            struct lifconf IfConfig;
+            memset(&IfConfig, 0, sizeof(IfConfig));
+            IfConfig.lifc_family = AF_INET;
+            IfConfig.lifc_len = sizeof(Ifaces);
+            IfConfig.lifc_buf = (caddr_t)&(Ifaces[0]);
+            rc = ioctl(Sock, SIOCGLIFCONF, &IfConfig);
+            if (!rc)
             {
-                struct lifconf IfConfig;
-                RT_ZERO(IfConfig);
-                IfConfig.lifc_family = AF_INET;
-                IfConfig.lifc_len = cbIfaces;
-                IfConfig.lifc_buf = (caddr_t)Ifaces;
-                rc = ioctl(Sock, SIOCGLIFCONF, &IfConfig);
-                if (!rc)
+                for (int i = 0; i < IfNum.lifn_count; i++)
                 {
-                    for (int i = 0; i < cIfaces; i++)
-                    {
-                        /*
-                         * Skip loopback interfaces.
-                         */
-                        if (!strncmp(Ifaces[i].lifr_name, RT_STR_TUPLE("lo")))
-                            continue;
+                    /*
+                     * Skip loopback interfaces.
+                     */
+                    if (!strncmp(Ifaces[i].lifr_name, "lo", 2))
+                        continue;
 
 #if 0
-                        rc = ioctl(Sock, SIOCGLIFADDR, &(Ifaces[i]));
+                    rc = ioctl(Sock, SIOCGLIFADDR, &(Ifaces[i]));
+                    if (rc >= 0)
+                    {
+                        memcpy(Info.IPAddress.au8, ((struct sockaddr *)&Ifaces[i].lifr_addr)->sa_data,
+                               sizeof(Info.IPAddress.au8));
+                        // SIOCGLIFNETMASK
+                        struct arpreq ArpReq;
+                        memcpy(&ArpReq.arp_pa, &Ifaces[i].lifr_addr, sizeof(struct sockaddr_in));
+
+                        /*
+                         * We might fail if the interface has not been assigned an IP address.
+                         * That doesn't matter; as long as it's plumbed we can pick it up.
+                         * But, if it has not acquired an IP address we cannot obtain it's MAC
+                         * address this way, so we just use all zeros there.
+                         */
+                        rc = ioctl(Sock, SIOCGARP, &ArpReq);
                         if (rc >= 0)
-                        {
-                            memcpy(Info.IPAddress.au8, ((struct sockaddr *)&Ifaces[i].lifr_addr)->sa_data,
-                                   sizeof(Info.IPAddress.au8));
-                            // SIOCGLIFNETMASK
-                            struct arpreq ArpReq;
-                            memcpy(&ArpReq.arp_pa, &Ifaces[i].lifr_addr, sizeof(struct sockaddr_in));
+                            memcpy(&Info.MACAddress, ArpReq.arp_ha.sa_data, sizeof(Info.MACAddress));
 
-                            /*
-                             * We might fail if the interface has not been assigned an IP address.
-                             * That doesn't matter; as long as it's plumbed we can pick it up.
-                             * But, if it has not acquired an IP address we cannot obtain it's MAC
-                             * address this way, so we just use all zeros there.
-                             */
-                            rc = ioctl(Sock, SIOCGARP, &ArpReq);
-                            if (rc >= 0)
-                                memcpy(&Info.MACAddress, ArpReq.arp_ha.sa_data, sizeof(Info.MACAddress));
-
-                            char szNICDesc[LIFNAMSIZ + 256];
-                            char *pszIface = Ifaces[i].lifr_name;
-                            strcpy(szNICDesc, pszIface);
-
-                            vboxSolarisAddLinkHostIface(pszIface, &list);
-                        }
-#endif
-
+                        char szNICDesc[LIFNAMSIZ + 256];
                         char *pszIface = Ifaces[i].lifr_name;
+                        strcpy(szNICDesc, pszIface);
+
                         vboxSolarisAddLinkHostIface(pszIface, &list);
                     }
+#endif
+
+                    char *pszIface = Ifaces[i].lifr_name;
+                    vboxSolarisAddLinkHostIface(pszIface, &list);
                 }
-                RTMemTmpFree(Ifaces);
             }
         }
         close(Sock);
@@ -499,17 +415,3 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
     return VERR_NOT_IMPLEMENTED;
 }
 
-/**
- * Retrieve the physical link speed in megabits per second. If the interface is
- * not up or otherwise unavailable the zero speed is returned.
- *
- * @returns VBox status code.
- *
- * @param   pcszIfName  Interface name.
- * @param   puMbits     Where to store the link speed.
- */
-int NetIfGetLinkSpeed(const char *pcszIfName, uint32_t *puMbits)
-{
-    *puMbits =  kstatGet(pcszIfName);
-    return VINF_SUCCESS;
-}

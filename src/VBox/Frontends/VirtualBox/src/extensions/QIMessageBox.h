@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,139 +19,119 @@
 #ifndef __QIMessageBox_h__
 #define __QIMessageBox_h__
 
-/* Qt includes: */
-#include <QMessageBox>
-
-/* GUI includes: */
+/* VBox includes */
 #include "QIDialog.h"
+#include "QIArrowSplitter.h"
 
-/* Forward declarations: */
-class QShowEvent;
-class QCloseEvent;
-class QLabel;
-class QTextEdit;
-class QCheckBox;
-class QPushButton;
-class QILabel;
+/* Qt includes */
+#include <QCheckBox>
+#include <QMessageBox>
+#include <QTextEdit>
+
+/* VBox forwards */
 class QIArrowSplitter;
 class QIDialogButtonBox;
+class QILabel;
 
-/* Button type enumerator: */
-enum AlertButton
-{
-    AlertButton_NoButton      =  0x0,  /* 00000000 00000000 */
-    AlertButton_Ok            =  0x1,  /* 00000000 00000001 */
-    AlertButton_Cancel        =  0x2,  /* 00000000 00000010 */
-    AlertButton_Choice1       =  0x4,  /* 00000000 00000100 */
-    AlertButton_Choice2       =  0x8,  /* 00000000 00001000 */
-    AlertButton_Copy          = 0x10,  /* 00000000 00010000 */
-    AlertButtonMask           = 0xFF   /* 00000000 11111111 */
-};
+/* Qt forwards */
+class QCloseEvent;
+class QLabel;
+class QPushButton;
+class QSpacerItem;
 
-/* Button option enumerator: */
-enum AlertButtonOption
-{
-    AlertButtonOption_Default = 0x100, /* 00000001 00000000 */
-    AlertButtonOption_Escape  = 0x200, /* 00000010 00000000 */
-    AlertButtonOptionMask     = 0x300  /* 00000011 00000000 */
-};
-
-/* Alert option enumerator: */
-enum AlertOption
-{
-    AlertOption_AutoConfirmed = 0x400, /* 00000100 00000000 */
-    AlertOption_CheckBox      = 0x800, /* 00001000 00000000 */
-    AlertOptionMask           = 0xFC00 /* 11111100 00000000 */
-};
-
-/* Icon type enumerator: */
-enum AlertIconType
-{
-    AlertIconType_NoIcon = QMessageBox::NoIcon,
-    AlertIconType_Information = QMessageBox::Information,
-    AlertIconType_Warning = QMessageBox::Warning,
-    AlertIconType_Critical = QMessageBox::Critical,
-    AlertIconType_Question = QMessageBox::Question,
-    AlertIconType_GuruMeditation
-};
-
-/* QIDialog extension representing GUI alerts: */
+/** @class QIMessageBox
+ *
+ *  The QIMessageBox class is a message box similar to QMessageBox.
+ *  It partly implements the QMessageBox interface and adds some enhanced
+ *  functionality.
+ */
 class QIMessageBox : public QIDialog
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
-    QIMessageBox(const QString &strCaption, const QString &strMessage, AlertIconType iconType,
-                 int iButton1 = 0, int iButton2 = 0, int iButton3 = 0, QWidget *pParent = 0);
+    // for compatibility with QMessageBox
+    enum Icon
+    {
+        NoIcon = QMessageBox::NoIcon,
+        Information = QMessageBox::Information,
+        Warning = QMessageBox::Warning,
+        Critical = QMessageBox::Critical,
+        Question = QMessageBox::Question,
+        GuruMeditation,
+    };
 
-    /* API: Details stuff: */
-    QString detailsText() const;
-    void setDetailsText(const QString &strText);
+    enum
+    {
+        NoButton = 0, Ok = 1, Cancel = 2, Yes = 3, No = 4, Abort = 5,
+        Retry = 6, Ignore = 7, YesAll = 8, NoAll = 9, Copy = 10,
+        ButtonMask = 0xFF,
 
-    /* API: Flag stuff: */
-    bool flagChecked() const;
-    void setFlagChecked(bool fChecked);
-    QString flagText() const;
-    void setFlagText(const QString &strText);
+        Default = 0x100, Escape = 0x200,
+        FlagMask = 0x300,
 
-    /* API: Button stuff: */
-    QString buttonText(int iButton) const;
-    void setButtonText(int iButton, const QString &strText);
+        OptionChosen = 0x400
+    };
 
-private slots:
+    QIMessageBox (const QString &aCaption, const QString &aText,
+                  Icon aIcon, int aButton0, int aButton1 = 0, int aButton2 = 0,
+                  QWidget *aParent = 0, const char *aName = 0, bool aModal = TRUE);
 
-    /* Handler: Reject slot reimplementation: */
-    void reject();
+    QString buttonText (int aButton) const;
+    void setButtonText (int aButton, const QString &aText);
 
-    /* Handlers: Done slot variants for up to three buttons: */
-    void done1() { m_fDone = true; done(m_iButton1 & AlertButtonMask); }
-    void done2() { m_fDone = true; done(m_iButton2 & AlertButtonMask); }
-    void done3() { m_fDone = true; done(m_iButton3 & AlertButtonMask); }
+    QString flagText() const { return mFlagCB->isVisible() ? mFlagCB->text() : QString::null; }
+    void setFlagText (const QString &aText);
 
-    /* Handler: Copy button stuff: */
-    void copy() const;
+    bool isFlagChecked() const { return mFlagCB->isChecked(); }
+    void setFlagChecked (bool aChecked) { mFlagCB->setChecked (aChecked); }
 
-    /* Handlers: Details navigation stuff: */
-    void detailsBack();
-    void detailsNext();
+    QString detailsText () const { return mDetailsText->toHtml(); }
+    void setDetailsText (const QString &aText);
 
-    /* Handler: Update stuff: */
-    void sltUpdateSize();
+    QPixmap standardPixmap (QIMessageBox::Icon aIcon);
 
 private:
 
-    /* Helpers: Prepare stuff: */
-    void prepareContent();
-    QPushButton* createButton(int iButton);
+    QPushButton *createButton (int aButton);
 
-    /* Handler: Event-processing stuff: */
-    void polishEvent(QShowEvent *pPolishEvent);
-    void closeEvent(QCloseEvent *pCloseEvent);
+    void closeEvent (QCloseEvent *e);
+    void showEvent (QShowEvent *e);
 
-    /* Helpers: Update stuff: */
-    void updateDetailsContainer();
-    void updateDetailsPage();
-    void updateCheckBox();
+    void refreshDetails();
+    void setDetailsShown (bool aShown);
 
-    /* Static helper: Standard pixmap stuff: */
-    static QPixmap standardPixmap(AlertIconType iconType, QWidget *pWidget = 0);
+private slots:
 
-    /* Variables: */
-    int m_iButton1, m_iButton2, m_iButton3, m_iButtonEsc;
-    AlertIconType m_iconType;
-    QLabel *m_pIconLabel;
-    QILabel *m_pTextLabel;
-    QPushButton *m_pButton1, *m_pButton2, *m_pButton3;
-    QCheckBox *m_pFlagCheckBox;
-    QIArrowSplitter *m_pDetailsContainer;
-    QTextEdit *m_pDetailsTextView;
-    QIDialogButtonBox *m_pButtonBox;
-    QString m_strMessage;
-    QList<QPair<QString, QString> > m_details;
-    int m_iDetailsIndex;
-    bool m_fDone : 1;
+    void detailsBack();
+    void detailsNext();
+
+    void done0() { mWasDone = true; done (mButton0 & ButtonMask); }
+    void done1() { mWasDone = true; done (mButton1 & ButtonMask); }
+    void done2() { mWasDone = true; done (mButton2 & ButtonMask); }
+
+    void reject();
+
+    void copy() const;
+
+private:
+
+    int mButton0, mButton1, mButton2, mButtonEsc;
+    QLabel *mIconLabel;
+    QILabel *mTextLabel;
+    QPushButton *mButton0PB, *mButton1PB, *mButton2PB;
+    QCheckBox *mFlagCB, *mFlagCB_Main, *mFlagCB_Details;
+    QWidget *mDetailsVBox;
+    QIArrowSplitter *mDetailsSplitter;
+    QTextEdit *mDetailsText;
+    QSpacerItem *mSpacer;
+    QIDialogButtonBox *mButtonBox;
+    QString mText;
+    QList < QPair <QString, QString> > mDetailsList;
+    int mDetailsIndex;
+    bool mWasDone : 1;
+    bool mWasPolished : 1;
 };
 
 #endif

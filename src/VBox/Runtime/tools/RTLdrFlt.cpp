@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,6 @@
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/message.h>
-#include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 
@@ -116,7 +115,7 @@ static bool TryParseAddress(const char *psz, size_t *pcchAddress, uint64_t *pu64
 
 int main(int argc, char **argv)
 {
-    int rc = RTR3InitExe(argc, &argv, 0);
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 
@@ -124,44 +123,19 @@ int main(int argc, char **argv)
      * Create an empty address space that we can load modules and stuff into
      * as we parse the parameters.
      */
-    RTDBGAS hDbgAs;
-    rc = RTDbgAsCreate(&hDbgAs, 0, RTUINTPTR_MAX, "");
+    RTDBGAS hAs;
+    rc = RTDbgAsCreate(&hAs, 0, RTUINTPTR_MAX, "");
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDBgAsCreate -> %Rrc", rc);
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDBgAsCreate -> %Rrc\n", rc);
 
-    /*
-     * Create a debugging configuration instance to work with so that we can
-     * make use of (i.e. test) path searching and such.
-     */
-    RTDBGCFG hDbgCfg;
-    rc = RTDbgCfgCreate(&hDbgCfg, "IPRT", true /*fNativePaths*/);
-    if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgCfgCreate -> %Rrc", rc);
 
     /*
      * Parse arguments.
      */
     static const RTGETOPTDEF s_aOptions[] =
     {
-        { "--input",        'i', RTGETOPT_REQ_STRING },
-        { "--local-file",   'l', RTGETOPT_REQ_NOTHING },
-        { "--cache-file",   'c', RTGETOPT_REQ_NOTHING },
-        { "--pe-image",     'p', RTGETOPT_REQ_NOTHING },
-        { "--verbose",      'v', RTGETOPT_REQ_NOTHING },
-        { "--x86",          '8', RTGETOPT_REQ_NOTHING },
-        { "--amd64",        '6', RTGETOPT_REQ_NOTHING },
-        { "--whatever",     '*', RTGETOPT_REQ_NOTHING },
+        { "--later", 'l', RTGETOPT_REQ_STRING },
     };
-
-    PRTSTREAM       pInput          = g_pStdIn;
-    PRTSTREAM       pOutput         = g_pStdOut;
-    unsigned        cVerbosityLevel = 0;
-    enum {
-        kOpenMethod_FromImage,
-        kOpenMethod_FromPeImage
-    }               enmOpenMethod   = kOpenMethod_FromImage;
-    bool            fCacheFile      = false;
-    RTLDRARCH       enmArch         = RTLDRARCH_WHATEVER;
 
     RTGETOPTUNION   ValueUnion;
     RTGETOPTSTATE   GetState;
@@ -170,99 +144,35 @@ int main(int argc, char **argv)
     {
         switch (rc)
         {
-            case 'i':
-                rc = RTStrmOpen(ValueUnion.psz, "r", &pInput);
-                if (RT_FAILURE(rc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to open '%s' for reading: %Rrc", ValueUnion.psz, rc);
-                break;
-
-            case 'c':
-                fCacheFile = true;
-                break;
-
-            case 'l':
-                fCacheFile = false;
-                break;
-
-            case 'p':
-                enmOpenMethod = kOpenMethod_FromPeImage;
-                break;
-
-            case 'v':
-                cVerbosityLevel++;
-                break;
-
-            case '8':
-                enmArch = RTLDRARCH_X86_32;
-                break;
-
-            case '6':
-                enmArch = RTLDRARCH_AMD64;
-                break;
-
-            case '*':
-                enmArch = RTLDRARCH_WHATEVER;
-                break;
-
             case 'h':
-                RTPrintf("Usage: %s [options] <module> <address> [<module> <address> [..]]\n"
-                         "\n"
-                         "Options:\n"
-                         "  -i,--input=file\n"
-                         "      Specify a input file instead of standard input.\n"
-                         "  --pe-image\n"
-                         "      Use RTDbgModCreateFromPeImage to open the file."
-                         "  -v, --verbose\n"
-                         "      Display the address space before doing the filtering.\n"
-                         "  --amd64,--x86,--whatever\n"
-                         "      Selects the desired architecture.\n"
-                         "  -h, -?, --help\n"
-                         "      Display this help text and exit successfully.\n"
-                         "  -V, --version\n"
-                         "      Display the revision and exit successfully.\n"
-                         , RTPathFilename(argv[0]));
-                return RTEXITCODE_SUCCESS;
+                RTPrintf("help: todo\n");
+                break;
 
             case 'V':
-                RTPrintf("$Revision: 87101 $\n");
+                RTPrintf("$Revision: 68240 $");
                 return RTEXITCODE_SUCCESS;
 
             case VINF_GETOPT_NOT_OPTION:
             {
-                /* <module> <address> */
-                const char *pszModule = ValueUnion.psz;
-
+                /* <address> <module> */
                 rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_UINT64 | RTGETOPT_FLAG_HEX);
                 if (RT_FAILURE(rc))
                     return RTGetOptPrintError(rc, &ValueUnion);
                 uint64_t u64Address = ValueUnion.u64;
 
-                uint32_t cbImage    = 0;
-                uint32_t uTimestamp = 0;
-                if (fCacheFile)
-                {
-                    rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
-                    if (RT_FAILURE(rc))
-                        return RTGetOptPrintError(rc, &ValueUnion);
-                    cbImage = ValueUnion.u32;
-
-                    rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
-                    if (RT_FAILURE(rc))
-                        return RTGetOptPrintError(rc, &ValueUnion);
-                    uTimestamp = ValueUnion.u32;
-                }
+                rc = RTGetOptFetchValue(&GetState, &ValueUnion, RTGETOPT_REQ_STRING);
+                if (RT_FAILURE(rc))
+                    return RTGetOptPrintError(rc, &ValueUnion);
+                const char *pszModule = ValueUnion.psz;
 
                 RTDBGMOD hMod;
-                if (enmOpenMethod == kOpenMethod_FromImage)
-                    rc = RTDbgModCreateFromImage(&hMod, pszModule, NULL, enmArch, hDbgCfg);
-                else
-                    rc = RTDbgModCreateFromPeImage(&hMod, pszModule, NULL, NIL_RTLDRMOD, cbImage, uTimestamp, hDbgCfg);
+                rc = RTDbgModCreateFromImage(&hMod, pszModule, NULL, 0 /*fFlags*/);
                 if (RT_FAILURE(rc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgModCreateFromImage(,%s,,) -> %Rrc", pszModule, rc);
+                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgModCreateFromImage(,%s,,) -> %Rrc\n", pszModule, rc);
 
-                rc = RTDbgAsModuleLink(hDbgAs, hMod, u64Address, 0 /* fFlags */);
+                rc = RTDbgAsModuleLink(hAs, hMod, u64Address, 0 /* fFlags */);
                 if (RT_FAILURE(rc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgAsModuleLink(,%s,%llx,) -> %Rrc", pszModule, u64Address, rc);
+                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDbgAsModuleLink(,%s,%llx,) -> %Rrc\n", pszModule, u64Address, rc);
                 break;
             }
 
@@ -272,74 +182,13 @@ int main(int argc, char **argv)
     }
 
     /*
-     * Display the address space.
-     */
-    if (cVerbosityLevel)
-    {
-        RTPrintf("*** Address Space Dump ***\n");
-        uint32_t cModules = RTDbgAsModuleCount(hDbgAs);
-        for (uint32_t iModule = 0; iModule < cModules; iModule++)
-        {
-            RTDBGMOD        hDbgMod = RTDbgAsModuleByIndex(hDbgAs, iModule);
-            RTPrintf("Module #%u: %s\n", iModule, RTDbgModName(hDbgMod));
-
-            RTDBGASMAPINFO  aMappings[128];
-            uint32_t        cMappings = RT_ELEMENTS(aMappings);
-            rc = RTDbgAsModuleQueryMapByIndex(hDbgAs, iModule, &aMappings[0], &cMappings, 0 /*fFlags*/);
-            if (RT_SUCCESS(rc))
-            {
-                for (uint32_t iMapping = 0; iMapping < cMappings; iMapping++)
-                {
-                    if (aMappings[iMapping].iSeg == NIL_RTDBGSEGIDX)
-                        RTPrintf("  mapping #%u: %RTptr-%RTptr\n",
-                                 iMapping,
-                                 aMappings[iMapping].Address,
-                                 aMappings[iMapping].Address + RTDbgModImageSize(hDbgMod) - 1);
-                    else
-                    {
-                        RTDBGSEGMENT SegInfo;
-                        rc = RTDbgModSegmentByIndex(hDbgMod, aMappings[iMapping].iSeg, &SegInfo);
-                        if (RT_SUCCESS(rc))
-                            RTPrintf("  mapping #%u: %RTptr-%RTptr (segment #%u - '%s')",
-                                     iMapping,
-                                     aMappings[iMapping].Address,
-                                     aMappings[iMapping].Address + SegInfo.cb,
-                                     SegInfo.iSeg, SegInfo.szName);
-                        else
-                            RTPrintf("  mapping #%u: %RTptr-???????? (segment #%u)", iMapping, aMappings[iMapping].Address);
-                    }
-
-                    if (cVerbosityLevel > 1)
-                    {
-                        uint32_t cSymbols = RTDbgModSymbolCount(hDbgMod);
-                        RTPrintf("    %u symbols\n", cSymbols);
-                        for (uint32_t iSymbol = 0; iSymbol < cSymbols; iSymbol++)
-                        {
-                            RTDBGSYMBOL SymInfo;
-                            rc = RTDbgModSymbolByOrdinal(hDbgMod, iSymbol, &SymInfo);
-                            if (RT_SUCCESS(rc))
-                                RTPrintf("    #%04u at %08x:%RTptr %05llx %s\n",
-                                         SymInfo.iOrdinal, SymInfo.iSeg, SymInfo.offSeg,
-                                         (uint64_t)SymInfo.cb, SymInfo.szName);
-                        }
-                    }
-                }
-            }
-            else
-                RTMsgError("RTDbgAsModuleQueryMapByIndex failed: %Rrc", rc);
-            RTDbgModRelease(hDbgMod);
-        }
-        RTPrintf("*** End of Address Space Dump ***\n");
-    }
-
-    /*
      * Read text from standard input and see if there is anything we can translate.
      */
     for (;;)
     {
         /* Get a line. */
         char szLine[_64K];
-        rc = RTStrmGetLine(pInput, szLine, sizeof(szLine));
+        rc = RTStrmGetLine(g_pStdIn, szLine, sizeof(szLine));
         if (rc == VERR_EOF)
             break;
         if (RT_FAILURE(rc))
@@ -364,62 +213,34 @@ int main(int argc, char **argv)
                     && TryParseAddress(psz, &cchAddress, &u64Address))
                )
             {
-                /* Print. */
-                psz += cchAddress;
                 if (pszStart != psz)
-                    RTStrmWrite(pOutput, pszStart, psz - pszStart);
+                    RTStrmWrite(g_pStdOut, pszStart, psz - pszStart);
                 pszStart = psz;
 
-                /* Try get the module. */
-                RTUINTPTR   uAddr;
-                RTDBGSEGIDX iSeg;
-                RTDBGMOD    hDbgMod;
-                rc = RTDbgAsModuleByAddr(hDbgAs, u64Address, &hDbgMod, &uAddr, &iSeg);
+                RTDBGSYMBOL Symbol;
+                RTINTPTR    off;
+                rc = RTDbgAsSymbolByAddr(hAs, u64Address, &off, &Symbol, NULL);
                 if (RT_SUCCESS(rc))
                 {
-                    if (iSeg != UINT32_MAX)
-                        RTStrmPrintf(pOutput, "=[%s:%u", RTDbgModName(hDbgMod), iSeg);
+                    if (!off)
+                        RTStrmPrintf(g_pStdOut, "%.*s=[%s]", cchAddress, psz, Symbol.szName);
+                    else if (off > 0)
+                        RTStrmPrintf(g_pStdOut, "%.*s=[%s+%#llx]", cchAddress, psz, Symbol.szName, off);
                     else
-                        RTStrmPrintf(pOutput, "=[%s", RTDbgModName(hDbgMod), iSeg);
-
-                    /*
-                     * Do we have symbols?
-                     */
-                    RTDBGSYMBOL Symbol;
-                    RTINTPTR    offSym;
-                    rc = RTDbgAsSymbolByAddr(hDbgAs, u64Address, RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &offSym, &Symbol, NULL);
-                    if (RT_SUCCESS(rc))
-                    {
-                        if (!offSym)
-                            RTStrmPrintf(pOutput, "!%s", Symbol.szName);
-                        else if (offSym > 0)
-                            RTStrmPrintf(pOutput, "!%s+%#llx", Symbol.szName, offSym);
-                        else
-                            RTStrmPrintf(pOutput, "!%s-%#llx", Symbol.szName, -offSym);
-                    }
-                    else
-                        RTStrmPrintf(pOutput, "+%#llx", u64Address - uAddr);
-
-                    /*
-                     * Do we have line numbers?
-                     */
-                    RTDBGLINE   Line;
-                    RTINTPTR    offLine;
-                    rc = RTDbgAsLineByAddr(hDbgAs, u64Address, &offLine, &Line, NULL);
-                    if (RT_SUCCESS(rc))
-                        RTStrmPrintf(pOutput, " %Rbn(%u)", Line.szFilename, Line.uLineNo);
-
-                    RTStrmPrintf(pOutput, "]");
-                    RTDbgModRelease(hDbgMod);
+                        RTStrmPrintf(g_pStdOut, "%.*s=[%s-%#llx]", cchAddress, psz, Symbol.szName, -off);
+                    psz += cchAddress;
+                    pszStart = psz;
                 }
+                else
+                    psz += cchAddress;
             }
             else
                 psz++;
         }
 
         if (pszStart != psz)
-            RTStrmWrite(pOutput, pszStart, psz - pszStart);
-        RTStrmPutCh(pOutput, '\n');
+            RTStrmWrite(g_pStdOut, pszStart, psz - pszStart);
+        RTStrmPutCh(g_pStdOut, '\n');
 
     }
 

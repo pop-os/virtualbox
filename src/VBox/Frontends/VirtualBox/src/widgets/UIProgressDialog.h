@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,16 +19,16 @@
 #ifndef __UIProgressDialog_h__
 #define __UIProgressDialog_h__
 
-/* GUI includes: */
+/* Qt includes */
 #include "QIDialog.h"
-#include "QIWithRetranslateUI.h"
 
-/* Forward declarations: */
-class QProgressBar;
-class QLabel;
+/* VBox forward declarations */
+class CProgress;
 class QILabel;
 class UIMiniCancelButton;
-class CProgress;
+
+/* Qt forward declarations */
+class QProgressBar;
 
 /**
  * A QProgressDialog enhancement that allows to:
@@ -43,52 +43,44 @@ class CProgress;
  *       not be destroyed before the created UIProgressDialog instance is
  *       destroyed.
  */
-class UIProgressDialog: public QIWithRetranslateUI2<QIDialog>
+class UIProgressDialog: protected QIDialog
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor/destructor: */
     UIProgressDialog(CProgress &progress, const QString &strTitle,
-                     QPixmap *pImage = 0, int cMinDuration = 2000, QWidget *pParent = 0);
+                     QPixmap *pImage = 0, bool fSheetOnDarwin = false,
+                     int cMinDuration = 2000, QWidget *pParent = 0);
 
-    /* API: Run stuff: */
     int run(int aRefreshInterval);
-
-public slots:
-
-    /* Handler: Show stuff: */
-    void show();
+    bool cancelEnabled() const { return m_fCancelEnabled; }
 
 protected:
 
-    /* Helper: Translate stuff: */
-    void retranslateUi();
+    virtual void retranslateUi();
 
-    /* Helper: Cancel stuff: */
-    void reject();
+    virtual void reject();
 
-    /* Handlers: Event processing stuff: */
     virtual void timerEvent(QTimerEvent *pEvent);
     virtual void closeEvent(QCloseEvent *pEvent);
 
 private slots:
 
-    /* Handler: Cancel stuff: */
-    void sltCancelOperation();
+    void showDialog();
+    void cancelOperation();
 
 private:
 
-    /* Variables: */
+    /* Private member vars */
     CProgress &m_progress;
-    QLabel *m_pImageLbl;
+    QILabel *m_pImageLbl;
     QILabel *m_pDescriptionLbl;
-    QProgressBar *m_pProgressBar;
-    UIMiniCancelButton *m_pCancelBtn;
     QILabel *m_pEtaLbl;
-    bool m_fCancelEnabled;
     QString m_strCancel;
+    QProgressBar *m_progressBar;
+    UIMiniCancelButton *m_pCancelBtn;
+    bool m_fCancelEnabled;
     const ulong m_cOperations;
     ulong m_iCurrentOperation;
     bool m_fEnded;

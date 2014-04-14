@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -179,20 +179,20 @@ UIMachineSettingsSF::UIMachineSettingsSF()
     mEdtAction->setShortcut (QKeySequence ("Ctrl+Space"));
     mDelAction->setShortcut (QKeySequence ("Del"));
 
-    mNewAction->setIcon(UIIconPool::iconSet(":/sf_add_16px.png",
-                                            ":/sf_add_disabled_16px.png"));
-    mEdtAction->setIcon(UIIconPool::iconSet(":/sf_edit_16px.png",
-                                            ":/sf_edit_disabled_16px.png"));
-    mDelAction->setIcon(UIIconPool::iconSet(":/sf_remove_16px.png",
-                                            ":/sf_remove_disabled_16px.png"));
+    mNewAction->setIcon(UIIconPool::iconSet(":/add_shared_folder_16px.png",
+                                            ":/add_shared_folder_disabled_16px.png"));
+    mEdtAction->setIcon(UIIconPool::iconSet(":/edit_shared_folder_16px.png",
+                                            ":/edit_shared_folder_disabled_16px.png"));
+    mDelAction->setIcon(UIIconPool::iconSet(":/remove_shared_folder_16px.png",
+                                            ":/remove_shared_folder_disabled_16px.png"));
 
-    /* Prepare tool-bar: */
-    m_pFoldersToolBar->setUsesTextLabel(false);
-    m_pFoldersToolBar->setIconSize(QSize(16, 16));
-    m_pFoldersToolBar->setOrientation(Qt::Vertical);
-    m_pFoldersToolBar->addAction(mNewAction);
-    m_pFoldersToolBar->addAction(mEdtAction);
-    m_pFoldersToolBar->addAction(mDelAction);
+    /* Prepare toolbar */
+    mTbFolders->setUsesTextLabel (false);
+    mTbFolders->setIconSize (QSize (16, 16));
+    mTbFolders->setOrientation (Qt::Vertical);
+    mTbFolders->addAction (mNewAction);
+    mTbFolders->addAction (mEdtAction);
+    mTbFolders->addAction (mDelAction);
 
     /* Setup connections */
     mTwFolders->header()->setMovable (false);
@@ -215,7 +215,7 @@ void UIMachineSettingsSF::resizeEvent (QResizeEvent *aEvent)
     adjustList();
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsSF::loadToCacheFrom(QVariant &data)
 {
@@ -426,16 +426,7 @@ void UIMachineSettingsSF::addTriggered()
 {
     /* Invoke Add-Box Dialog */
     UIMachineSettingsSFDetails dlg (UIMachineSettingsSFDetails::AddType, isSharedFolderTypeSupported(ConsoleType), usedList (true), this);
-#ifdef Q_WS_MAC
-    /* !!! WORKAROUND !!!
-     * Actually this one dialog should be a window-modal 'Mac Sheet' (not an application-modal 'Window')
-     * but in that one case we have a strange Qt bug under MacOS X host.
-     * Its probably linked somehow with using Mac Sheets and leads to appearing of some strange
-     * empty modal-window (after closing this dialog) which prevents further applicaiton interactions. */
-    if (dlg.exec(true /* show-instantly */, true /* application-modal */) == QDialog::Accepted)
-#else /* Q_WS_MAC */
     if (dlg.exec() == QDialog::Accepted)
-#endif /* !Q_WS_MAC */
     {
         QString name = dlg.name();
         QString path = dlg.path();
@@ -708,8 +699,8 @@ void UIMachineSettingsSF::polishPage()
 {
     /* Update widgets availability: */
     mNameSeparator->setEnabled(isMachineInValidMode());
-    m_pFoldersToolBar->setEnabled(isMachineInValidMode());
-    m_pFoldersToolBar->setEnabled(isMachineInValidMode());
+    mTwFolders->setEnabled(isMachineInValidMode());
+    mTbFolders->setEnabled(isMachineInValidMode());
 
     /* Update root items visibility: */
     updateRootItemsVisibility();
@@ -769,7 +760,7 @@ bool UIMachineSettingsSF::removeSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    msgCenter().cannotRemoveSharedFolder(m_machine, strName, strPath, this);
+                    msgCenter().cannotRemoveSharedFolder(m_machine, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -783,7 +774,7 @@ bool UIMachineSettingsSF::removeSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    msgCenter().cannotRemoveSharedFolder(m_console, strName, strPath, this);
+                    msgCenter().cannotRemoveSharedFolder(m_console, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -826,7 +817,7 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    msgCenter().cannotCreateSharedFolder(m_machine, strName, strPath, this);
+                    msgCenter().cannotCreateSharedFolder(m_machine, strName, strPath);
                     /* Finish early: */
                     return false;
                 }
@@ -841,7 +832,7 @@ bool UIMachineSettingsSF::createSharedFolder(const UICacheSettingsSharedFolder &
                     /* Mark the page as failed: */
                     setFailed(true);
                     /* Show error message: */
-                    msgCenter().cannotCreateSharedFolder(m_console, strName, strPath, this);
+                    msgCenter().cannotCreateSharedFolder(m_console, strName, strPath);
                     /* Finish early: */
                     return false;
                 }

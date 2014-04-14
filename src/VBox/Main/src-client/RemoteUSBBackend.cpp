@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_USB_REMOTE
+#define LOG_GROUP LOG_GROUP_DEV_USB
 #include "ConsoleImpl.h"
 #include "ConsoleVRDPServer.h"
 #include "RemoteUSBBackend.h"
@@ -115,7 +115,6 @@ typedef struct _REMOTEUSBDEVICE
     volatile uint32_t hURB;            /* Source for URB's handles. */
     bool              fFailed;         /* True if an operation has failed for the device. */
     RTCRITSECT        critsect;        /* Protects the queued urb list. */
-    volatile bool     fWokenUp;        /* Flag whther the reaper was woken up. */
 } REMOTEUSBDEVICE;
 
 
@@ -277,7 +276,6 @@ static DECLCALLBACK(int) iface_Open (PREMOTEUSBBACKEND pInstance, const char *ps
         {
             /* Initialize the device structure. */
             pDevice->pOwner = pThis;
-            pDevice->fWokenUp = false;
 
             rc = RTCritSectInit(&pDevice->critsect);
             AssertRC(rc);
@@ -692,9 +690,6 @@ static DECLCALLBACK(int) iface_ReapURB (PREMOTEUSBDEVICE pDevice, uint32_t u32Mi
     {
         uint32_t u32ClientId;
 
-        if (ASMAtomicXchgBool(&pDevice->fWokenUp, false))
-            break;
-
         /* Scan queued URBs, look for completed. */
         requestDevice (pDevice);
 
@@ -786,12 +781,6 @@ static DECLCALLBACK(int) iface_ReapURB (PREMOTEUSBDEVICE pDevice, uint32_t u32Mi
     }
 
     return rc;
-}
-
-static DECLCALLBACK(int) iface_Wakeup (PREMOTEUSBDEVICE pDevice)
-{
-    ASMAtomicXchgBool(&pDevice->fWokenUp, true);
-    return VINF_SUCCESS;
 }
 
 void RemoteUSBBackend::AddRef (void)
@@ -911,7 +900,7 @@ bool RemoteUSBBackend::addUUID (const Guid *pUuid)
     unsigned i;
     for (i = 0; i < RT_ELEMENTS(aGuids); i++)
     {
-        if (aGuids[i].isZero())
+        if (aGuids[i].isEmpty ())
         {
             aGuids[i] = *pUuid;
             return true;
@@ -972,7 +961,7 @@ RemoteUSBBackend::RemoteUSBBackend(Console *console, ConsoleVRDPServer *server, 
     if (RT_FAILURE(rc))
     {
         AssertFailed ();
-        RT_ZERO(mCritsect);
+        memset (&mCritsect, 0, sizeof (mCritsect));
     }
 
     mCallback.pInstance           = (PREMOTEUSBBACKEND)this;
@@ -987,7 +976,6 @@ RemoteUSBBackend::RemoteUSBBackend(Console *console, ConsoleVRDPServer *server, 
     mCallback.pfnReapURB          = iface_ReapURB;
     mCallback.pfnClearHaltedEP    = iface_ClearHaltedEP;
     mCallback.pfnCancelURB        = iface_CancelURB;
-    mCallback.pfnWakeup           = iface_Wakeup;
 }
 
 RemoteUSBBackend::~RemoteUSBBackend()
@@ -1332,7 +1320,7 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
                     /* And insert it to its new place. */
                     if (pDevice->pHeadQURBs->fCompleted)
                     {
-                        /* At least one other completed URB; insert after the
+                        /* At least one other completed URB; insert after the 
                          * last completed URB.
                          */
                         REMOTEUSBQURB *prev_qurb = pDevice->pHeadQURBs;
@@ -1353,7 +1341,7 @@ int RemoteUSBBackend::reapURB (const void *pvBody, uint32_t cbBody)
                         /* No other completed URBs; insert at head. */
                         qurb->next = pDevice->pHeadQURBs;
                         qurb->prev = NULL;
-
+    
                         pDevice->pHeadQURBs->prev = qurb;
                         pDevice->pHeadQURBs = qurb;
                     }

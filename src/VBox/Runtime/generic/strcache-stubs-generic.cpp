@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,27 +77,6 @@ RTDECL(const char *) RTStrCacheEnter(RTSTRCACHE hStrCache, const char *psz)
 RT_EXPORT_SYMBOL(RTStrCacheEnter);
 
 
-RTDECL(const char *) RTStrCacheEnterLowerN(RTSTRCACHE hStrCache, const char *pchString, size_t cchString)
-{
-    AssertPtr(pchString);
-    AssertReturn(cchString < _1G, NULL);
-    Assert(!RTStrEnd(pchString, cchString));
-
-    char *pszRet = (char *)RTMemPoolDupEx((RTMEMPOOL)hStrCache, pchString, cchString, 1);
-    if (pszRet)
-        RTStrToLower(pszRet);
-    return pszRet;
-}
-RT_EXPORT_SYMBOL(RTStrCacheEnterLowerN);
-
-
-RTDECL(const char *) RTStrCacheEnterLower(RTSTRCACHE hStrCache, const char *psz)
-{
-    return RTStrCacheEnterLowerN(hStrCache, psz, strlen(psz));
-}
-RT_EXPORT_SYMBOL(RTStrCacheEnterLower);
-
-
 RTDECL(uint32_t) RTStrCacheRetain(const char *psz)
 {
     AssertPtr(psz);
@@ -122,20 +101,4 @@ RTDECL(size_t) RTStrCacheLength(const char *psz)
     return strlen(psz);
 }
 RT_EXPORT_SYMBOL(RTStrCacheLength);
-
-
-RTDECL(bool) RTStrCacheIsRealImpl(void)
-{
-    return false;
-}
-RT_EXPORT_SYMBOL(RTStrCacheIsRealImpl);
-
-
-RTDECL(uint32_t) RTStrCacheGetStats(RTSTRCACHE hStrCache, size_t *pcbStrings, size_t *pcbChunks, size_t *pcbBigEntries,
-                                    uint32_t *pcHashCollisions, uint32_t *pcHashCollisions2, uint32_t *pcHashInserts,
-                                    uint32_t *pcRehashes)
-{
-    return UINT32_MAX;
-}
-RT_EXPORT_SYMBOL(RTStrCacheGetStats);
 

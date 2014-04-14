@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@ class ATL_NO_VTABLE VFSExplorer :
     STDMETHOD(Cd)(IN_BSTR aDir, IProgress **aProgress);
     STDMETHOD(CdUp)(IProgress **aProgress);
 
-    STDMETHOD(EntryList)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes), ComSafeArrayOut(LONG64, aSizes), ComSafeArrayOut(ULONG, aModes));
+    STDMETHOD(EntryList)(ComSafeArrayOut(BSTR, aNames), ComSafeArrayOut(VFSFileType_T, aTypes), ComSafeArrayOut(ULONG, aSizes), ComSafeArrayOut(ULONG, aModes));
 
     STDMETHOD(Exists)(ComSafeArrayIn(IN_BSTR, aNames), ComSafeArrayOut(BSTR, aExists));
 

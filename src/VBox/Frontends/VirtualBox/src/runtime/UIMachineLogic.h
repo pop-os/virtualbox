@@ -1,9 +1,11 @@
 /** @file
- * VBox Qt GUI - UIMachineLogic class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineLogic class declaration
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,77 +16,63 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineLogic_h___
-#define ___UIMachineLogic_h___
+#ifndef __UIMachineLogic_h__
+#define __UIMachineLogic_h__
 
-/* GUI includes: */
-#include "UIDefs.h"
+/* Local includes */
+#include "UIMachineDefs.h"
 #include <QIWithRetranslateUI.h>
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # include <VBox/dbggui.h>
-#endif /* VBOX_WITH_DEBUGGER_GUI */
+#endif
 
-/* COM includes: */
-#include "COMEnums.h"
-
-/* Forward declarations: */
+/* Global forwards */
 class QAction;
 class QActionGroup;
+
+/* Local forwards */
+class CSession;
+class CMachine;
+class CSnapshot;
+class CUSBDevice;
+class CVirtualBoxErrorInfo;
 class UISession;
 class UIKeyboardHandler;
 class UIMouseHandler;
 class UIMachineWindow;
 class UIMachineView;
 class UIDockIconPreview;
-class CSession;
-class CMachine;
-class CSnapshot;
-class CUSBDevice;
-class CVirtualBoxErrorInfo;
-#ifdef Q_WS_MAC
-class QMenuBar;
-#endif /* Q_WS_MAC */
 
-/* Machine logic interface: */
 class UIMachineLogic : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 public:
 
-    /* Factory functions to create/destroy required logic sub-child: */
-    static UIMachineLogic* create(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType);
-    static void destroy(UIMachineLogic *pWhichLogic);
+    /* Factory function to create required logic sub-child: */
+    static UIMachineLogic* create(QObject *pParent,
+                                  UISession *pSession,
+                                  UIVisualStateType visualStateType);
 
-    /* Check if this logic is available: */
-    virtual bool checkAvailability() = 0;
+    /* Check if this mode is available: */
+    virtual bool checkAvailability();
 
-    /** Returns machine-window flags for current machine-logic and passed @a uScreenId. */
-    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const = 0;
-
-    /* Prepare/cleanup the logic: */
-    virtual void prepare();
-    virtual void cleanup();
+    /* Do the real initialization of the object: */
+    virtual void initialize() = 0;
 
     /* Main getters/setters: */
     UISession* uisession() const { return m_pSession; }
-    CSession& session() const;
+    CSession& session();
     UIVisualStateType visualStateType() const { return m_visualStateType; }
     const QList<UIMachineWindow*>& machineWindows() const { return m_machineWindowsList; }
     UIKeyboardHandler* keyboardHandler() const { return m_pKeyboardHandler; }
     UIMouseHandler* mouseHandler() const { return m_pMouseHandler; }
     UIMachineWindow* mainMachineWindow() const;
-    UIMachineWindow* activeMachineWindow() const;
+    UIMachineWindow* defaultMachineWindow() const;
 
     /* Maintenance getters/setters: */
     bool isPreventAutoClose() const { return m_fIsPreventAutoClose; }
     void setPreventAutoClose(bool fIsPreventAutoClose) { m_fIsPreventAutoClose = fIsPreventAutoClose; }
-
-    /** Adjusts machine-window(s) geometry if necessary. */
-    virtual void adjustMachineWindowsGeometry();
-
-    /* Wrapper to open Machine settings / Network page: */
-    void openNetworkAdaptersDialog() { sltOpenNetworkAdaptersDialog(); }
 
 #ifdef Q_WS_MAC
     void updateDockIcon();
@@ -92,59 +80,22 @@ public:
     UIMachineView* dockPreviewView() const;
 #endif /* Q_WS_MAC */
 
-    /* API: Close actions: */
-    void saveState();
-    void shutdown();
-    void powerOff(bool fDiscardingState);
+signals:
 
-    /* API: 3D overlay visibility stuff: */
-    virtual void notifyAbout3DOverlayVisibilityChange(bool fVisible);
-
-    /** Performs HID LEDs sync. */
-    bool isHidLedsSyncEnabled() { return m_isHidLedsSyncEnabled; };
-
-protected slots:
-
-    /** Checks if some visual-state type was requested. */
-    virtual void sltCheckForRequestedVisualStateType() {}
-
-    /** Requests visual-state change to 'normal' (window). */
-    virtual void sltChangeVisualStateToNormal();
-    /** Requests visual-state change to 'fullscreen'. */
-    virtual void sltChangeVisualStateToFullscreen();
-    /** Requests visual-state change to 'seamless'. */
-    virtual void sltChangeVisualStateToSeamless();
-    /** Requests visual-state change to 'scale'. */
-    virtual void sltChangeVisualStateToScale();
-
-    /* Console callback handlers: */
-    virtual void sltMachineStateChanged();
-    virtual void sltAdditionsStateChanged();
-    virtual void sltMouseCapabilityChanged();
-    virtual void sltKeyboardLedsChanged();
-    virtual void sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error);
-    virtual void sltRuntimeError(bool fIsFatal, const QString &strErrorId, const QString &strMessage);
-#ifdef RT_OS_DARWIN
-    virtual void sltShowWindows();
-#endif /* RT_OS_DARWIN */
-    /** Handles guest-screen count change. */
-    virtual void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
-
-    /** Handles host-screen count change. */
-    virtual void sltHostScreenCountChange();
-    /** Handles host-screen geometry change. */
-    virtual void sltHostScreenGeometryChange();
-    /** Handles host-screen available-area change. */
-    virtual void sltHostScreenAvailableAreaChange();
+    /* Signal to notify listeners about additions downloader created: */
+    void sigDownloaderAdditionsCreated();
 
 protected:
 
-    /* Constructor: */
-    UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType);
+    /* Machine logic constructor/destructor: */
+    UIMachineLogic(QObject *pParent,
+                   UISession *pSession,
+                   UIVisualStateType visualStateType);
+    virtual ~UIMachineLogic();
 
     /* Protected getters/setters: */
     bool isMachineWindowsCreated() const { return m_fIsWindowsCreated; }
-    void setMachineWindowsCreated(bool fIsWindowsCreated);
+    void setMachineWindowsCreated(bool fIsWindowsCreated) { m_fIsWindowsCreated = fIsWindowsCreated; }
 
     /* Protected members: */
     void setKeyboardHandler(UIKeyboardHandler *pKeyboardHandler);
@@ -158,90 +109,78 @@ protected:
 #endif /* Q_WS_MAC */
 
     /* Prepare helpers: */
-    virtual void prepareRequiredFeatures();
     virtual void prepareSessionConnections();
-    virtual void prepareActionGroups();
     virtual void prepareActionConnections();
-    virtual void prepareOtherConnections() {}
+    virtual void prepareActionGroups();
     virtual void prepareHandlers();
-    virtual void prepareMachineWindows() = 0;
-    virtual void prepareMenu();
 #ifdef Q_WS_MAC
     virtual void prepareDock();
 #endif /* Q_WS_MAC */
+    virtual void prepareRequiredFeatures();
 #ifdef VBOX_WITH_DEBUGGER_GUI
     virtual void prepareDebugger();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
     /* Cleanup helpers: */
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    virtual void cleanupDebugger();
-#endif /* VBOX_WITH_DEBUGGER_GUI */
+    //virtual void cleanupRequiredFeatures() {}
 #ifdef Q_WS_MAC
     virtual void cleanupDock();
 #endif /* Q_WS_MAC */
-    virtual void cleanupMenu();
-    virtual void cleanupMachineWindows() = 0;
     virtual void cleanupHandlers();
-    //virtual void cleanupOtherConnections() {}
-    virtual void cleanupActionConnections() {}
-    virtual void cleanupActionGroups();
+    //virtual void cleanupActionGroups() {}
+    //virtual void cleanupActionConnections() {}
     //virtual void cleanupSessionConnections() {}
-    //virtual void cleanupRequiredFeatures() {}
 
-    /* Handler: Event-filter stuff: */
-    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+protected slots:
+
+    /* Console callback handlers: */
+    virtual void sltMachineStateChanged();
+    virtual void sltAdditionsStateChanged();
+    virtual void sltMouseCapabilityChanged();
+    virtual void sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsAttached, const CVirtualBoxErrorInfo &error);
+    virtual void sltRuntimeError(bool fIsFatal, const QString &strErrorId, const QString &strMessage);
+#ifdef RT_OS_DARWIN
+    virtual void sltShowWindows();
+#endif /* RT_OS_DARWIN */
+
+    /* Mode request watch dog: */
+    void sltCheckRequestedModes();
 
 private slots:
 
-    /* "Machine" menu functionality: */
+    /* "Machine" menu functionality */
     void sltToggleGuestAutoresize(bool fEnabled);
     void sltAdjustWindow();
     void sltToggleMouseIntegration(bool fDisabled);
     void sltTypeCAD();
 #ifdef Q_WS_X11
     void sltTypeCABS();
-#endif /* Q_WS_X11 */
+#endif
     void sltTakeSnapshot();
-    void sltTakeScreenshot();
     void sltShowInformationDialog();
     void sltReset();
     void sltPause(bool fOn);
-    void sltSaveState();
-    void sltShutdown();
-    void sltPowerOff();
+    void sltACPIShutdown();
     void sltClose();
 
-    /* "Device" menu functionality: */
-    void sltOpenVMSettingsDialog(const QString &strCategory = QString(), const QString &strControl = QString());
+    /* "Device" menu functionality */
+    void sltOpenVMSettingsDialog(const QString &strCategory = QString());
     void sltOpenNetworkAdaptersDialog();
     void sltOpenSharedFoldersDialog();
     void sltPrepareStorageMenu();
     void sltMountStorageMedium();
     void sltMountRecentStorageMedium();
     void sltPrepareUSBMenu();
-    void sltPrepareWebCamMenu();
     void sltAttachUSBDevice();
-    void sltAttachWebCamDevice();
-    void sltPrepareSharedClipboardMenu();
-    void sltChangeSharedClipboardType(QAction *pAction);
-    void sltPrepareDragAndDropMenu();
-    void sltPrepareNetworkMenu();
-    void sltToggleNetworkAdapterConnection();
-    void sltChangeDragAndDropType(QAction *pAction);
-    void sltToggleVRDE(bool fEnabled);
-    void sltToggleVideoCapture(bool fEnabled);
-    void sltOpenVideoCaptureOptions();
+    void sltSwitchVrde(bool fOn);
     void sltInstallGuestAdditions();
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    /* "Debug" menu functionality: */
     void sltPrepareDebugMenu();
     void sltShowDebugStatistics();
     void sltShowDebugCommandLine();
     void sltLoggingToggled(bool);
-    void sltShowLogDialog();
-#endif /* VBOX_WITH_DEBUGGER_GUI */
+#endif
 
 #ifdef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
     void sltDockPreviewModeChanged(QAction *pAction);
@@ -249,16 +188,12 @@ private slots:
     void sltChangeDockIconUpdate(bool fEnabled);
 #endif /* RT_OS_DARWIN */
 
-    /* Handlers: Keyboard LEDs sync logic: */
-    void sltHidLedsSyncStateChanged(bool fEnabled);
-    void sltSwitchKeyboardLedsToGuestLeds();
-    void sltSwitchKeyboardLedsToPreviousLeds();
-
 private:
 
-    /* Helpers: */
-    static int searchMaxSnapshotIndex(const CMachine &machine, const CSnapshot &snapshot, const QString &strNameTemplate);
-    void takeScreenshot(const QString &strFile, const QString &strFormat /* = "png" */) const;
+    /* Utility functions: */
+    static int searchMaxSnapshotIndex(const CMachine &machine,
+                                      const CSnapshot &snapshot,
+                                      const QString &strNameTemplate);
 
     /* Private variables: */
     UISession *m_pSession;
@@ -269,9 +204,6 @@ private:
 
     QActionGroup *m_pRunningActions;
     QActionGroup *m_pRunningOrPausedActions;
-    QActionGroup *m_pRunningOrPausedOrStackedActions;
-    QActionGroup *m_pSharedClipboardActions;
-    QActionGroup *m_pDragAndDropActions;
 
     bool m_fIsWindowsCreated : 1;
     bool m_fIsPreventAutoClose : 1;
@@ -285,22 +217,18 @@ private:
     PDBGGUI m_pDbgGui;
     /* The virtual method table for the debugger GUI: */
     PCDBGGUIVT m_pDbgGuiVT;
-#endif /* VBOX_WITH_DEBUGGER_GUI */
+#endif
 
 #ifdef Q_WS_MAC
-    QMenuBar *m_pMenuBar;
     bool m_fIsDockIconEnabled;
     UIDockIconPreview *m_pDockIconPreview;
     QActionGroup *m_pDockPreviewSelectMonitorGroup;
     int m_DockIconPreviewMonitor;
 #endif /* Q_WS_MAC */
 
-    void *m_pHostLedsState;
-    bool m_isHidLedsSyncEnabled;
-
     /* Friend classes: */
     friend class UIMachineWindow;
 };
 
-#endif /* !___UIMachineLogic_h___ */
+#endif // __UIMachineLogic_h__
 

@@ -1,14 +1,8 @@
-; $Id: LegacyandAMD64.mac $
-;; @file
-; VMM - World Switchers, 32-bit to AMD64 intermediate context.
-;
-; This is used for running 64-bit guest on 32-bit hosts, not
-; normal raw-mode.  All the code involved is contained in this
-; file.
+; VMM - World Switchers, 32Bit to AMD64.
 ;
 
 ;
-; Copyright (C) 2006-2013 Oracle Corporation
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -19,99 +13,24 @@
 ; hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 ;
 
+;%define DEBUG_STUFF 1
+;%define STRICT_IF 1
 
 ;*******************************************************************************
 ;*  Defined Constants And Macros                                               *
 ;*******************************************************************************
-;; @note These values are from the HM64ON32OP enum in hm.h.
-%define HM64ON32OP_VMXRCStartVM64       1
-%define HM64ON32OP_SVMRCVMRun64         2
-%define HM64ON32OP_HMRCSaveGuestFPU64   3
-%define HM64ON32OP_HMRCSaveGuestDebug64 4
-%define HM64ON32OP_HMRCTestSwitcher64   5
-
-;;
-; This macro is used for storing a debug code in a CMOS location.
-;
-; If we tripple fault or something, the debug code can be retrieved and we
-; might have a clue as to where the problem occurred.  The code is currently
-; using CMOS register 3 in the 2nd bank as this _seems_ to be unused on my
-; Extreme4 X79 asrock mainboard.
-;
-; @param %1     The debug code (byte)
-; @note Trashes AL.
-;
-%macro DEBUG_CMOS_TRASH_AL 1
-%ifdef VBOX_WITH_64ON32_CMOS_DEBUG
-    mov     al, 3
-    out     72h, al
-    mov     al, %1
-    out     73h, al
-    in      al, 73h
-%endif
-%endmacro
-
-;;
-; Version of DEBUG_CMOS_TRASH_AL that saves AL on the stack and therefore
-; doesn't trash any registers.
-;
-%macro DEBUG_CMOS_STACK64 1
-%ifdef VBOX_WITH_64ON32_CMOS_DEBUG
-    push    rax
-    DEBUG_CMOS_TRASH_AL %1
-    pop     rax
-%endif
-%endmacro
-
-;;
-; Version of DEBUG_CMOS_TRASH_AL that saves AL on the stack and therefore
-; doesn't trash any registers.
-;
-%macro DEBUG_CMOS_STACK32 1
-%ifdef VBOX_WITH_64ON32_CMOS_DEBUG
-    push    eax
-    DEBUG_CMOS_TRASH_AL %1
-    pop     eax
-%endif
-%endmacro
-
-
-;; Stubs for making OS/2 compile (though, not work).
-%ifdef RT_OS_OS2 ;; @todo fix OMF support in yasm and kick nasm out completely.
- %macro vmwrite 2,
-    int3
- %endmacro
- %define vmlaunch int3
- %define vmresume int3
- %define vmsave int3
- %define vmload int3
- %define vmrun int3
- %define clgi int3
- %define stgi int3
- %macro invlpga 2,
-    int3
- %endmacro
-%endif
-
-;; Debug options
-;%define DEBUG_STUFF 1
-;%define STRICT_IF 1
 
 
 ;*******************************************************************************
 ;* Header Files                                                                *
 ;*******************************************************************************
 %include "VBox/asmdefs.mac"
-%include "iprt/x86.mac"
-%include "VBox/err.mac"
 %include "VBox/apic.mac"
-
+%include "iprt/x86.mac"
 %include "VBox/vmm/cpum.mac"
 %include "VBox/vmm/stam.mac"
 %include "VBox/vmm/vm.mac"
-%include "VBox/vmm/hm_vmx.mac"
 %include "CPUMInternal.mac"
-%include "HMInternal.mac"
 %include "VMMSwitcher.mac"
 
 
@@ -134,10 +53,9 @@ BITS 32
 ;;
 ; The C interface.
 ; @param    [esp + 04h]  Param 1 - VM handle
-; @param    [esp + 08h]  Param 2 - Offset from VM::CPUM to the CPUMCPU
-;                                  structure for the calling EMT.
+; @param    [esp + 08h]  Param 2 - VMCPU offset
 ;
-BEGINPROC vmmR0ToRawMode
+BEGINPROC vmmR0HostToGuest
 %ifdef DEBUG_STUFF
     COM32_S_NEWLINE
     COM32_S_CHAR '^'
@@ -153,12 +71,11 @@ BEGINPROC vmmR0ToRawMode
 %endif
 
     push    ebp
-    mov     ebp, [esp + 12]             ; CPUMCPU offset
+    mov     ebp, [esp + 12]             ; VMCPU offset
 
     ; turn off interrupts
     pushf
     cli
-    ;DEBUG_CMOS_STACK32 10h
 
     ;
     ; Call worker.
@@ -166,18 +83,13 @@ BEGINPROC vmmR0ToRawMode
     FIXUP FIX_HC_CPUM_OFF, 1, 0
     mov     edx, 0ffffffffh
     push    cs                          ; allow for far return and restore cs correctly.
-    call    NAME(vmmR0ToRawModeAsm)
+    call    NAME(vmmR0HostToGuestAsm)
 
 %ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
+    CPUM_FROM_CPUMCPU(edx)
     ; Restore blocked Local APIC NMI vectors
-    ; Do this here to ensure the host CS is already restored
-    mov     ecx, [edx + CPUMCPU.fApicDisVectors]
-    test    ecx, ecx
-    jz      gth_apic_done
-    cmp     byte [edx + CPUMCPU.fX2Apic], 1
-    je      gth_x2apic
-
-    mov     edx, [edx + CPUMCPU.pvApicBase]
+    mov     ecx, [edx + CPUM.fApicDisVectors]
+    mov     edx, [edx + CPUM.pvApicBase]
     shr     ecx, 1
     jnc     gth_nolint0
     and     dword [edx + APIC_REG_LVT_LINT0], ~APIC_REG_LVT_MASKED
@@ -194,51 +106,9 @@ gth_nopc:
     jnc     gth_notherm
     and     dword [edx + APIC_REG_LVT_THMR], ~APIC_REG_LVT_MASKED
 gth_notherm:
-    jmp     gth_apic_done
-
-gth_x2apic:
-    ;DEBUG_CMOS_STACK32 7ch
-    push    eax                         ; save eax
-    push    ebx                         ; save it for fApicDisVectors
-    push    edx                         ; save edx just in case.
-    mov     ebx, ecx                    ; ebx = fApicDisVectors, ecx free for MSR use
-    shr     ebx, 1
-    jnc     gth_x2_nolint0
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_LINT0 >> 4)
-    rdmsr
-    and     eax, ~APIC_REG_LVT_MASKED
-    wrmsr
-gth_x2_nolint0:
-    shr     ebx, 1
-    jnc     gth_x2_nolint1
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_LINT1 >> 4)
-    rdmsr
-    and     eax, ~APIC_REG_LVT_MASKED
-    wrmsr
-gth_x2_nolint1:
-    shr     ebx, 1
-    jnc     gth_x2_nopc
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_PC >> 4)
-    rdmsr
-    and     eax, ~APIC_REG_LVT_MASKED
-    wrmsr
-gth_x2_nopc:
-    shr     ebx, 1
-    jnc     gth_x2_notherm
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_THMR >> 4)
-    rdmsr
-    and     eax, ~APIC_REG_LVT_MASKED
-    wrmsr
-gth_x2_notherm:
-    pop     edx
-    pop     ebx
-    pop     eax
-
-gth_apic_done:
 %endif
 
     ; restore original flags
-    ;DEBUG_CMOS_STACK32 7eh
     popf
     pop     ebp
 
@@ -251,19 +121,18 @@ gth_apic_done:
     STAM_PROFILE_ADV_STOP edx
 %endif
 
-    ;DEBUG_CMOS_STACK32 7fh
     ret
 
-ENDPROC vmmR0ToRawMode
+ENDPROC vmmR0HostToGuest
 
 ; *****************************************************************************
-; vmmR0ToRawModeAsm
+; vmmR0HostToGuestAsm
 ;
 ; Phase one of the switch from host to guest context (host MMU context)
 ;
 ; INPUT:
 ;       - edx       virtual address of CPUM structure (valid in host context)
-;       - ebp       offset of the CPUMCPU structure relative to CPUM.
+;       - ebp       offset of the CPUMCPU structure
 ;
 ; USES/DESTROYS:
 ;       - eax, ecx, edx, esi
@@ -273,7 +142,7 @@ ENDPROC vmmR0ToRawMode
 ;
 ; *****************************************************************************
 ALIGNCODE(16)
-BEGINPROC vmmR0ToRawModeAsm
+BEGINPROC vmmR0HostToGuestAsm
     ;;
     ;; Save CPU host context
     ;;      Skip eax, edx and ecx as these are not preserved over calls.
@@ -292,7 +161,7 @@ BEGINPROC vmmR0ToRawModeAsm
     mov     [edx + CPUMCPU.Host.edi], edi
     mov     [edx + CPUMCPU.Host.esi], esi
     mov     [edx + CPUMCPU.Host.esp], esp
-    mov     [edx + CPUMCPU.Host.ebp], ebp ; offCpumCpu!
+    mov     [edx + CPUMCPU.Host.ebp], ebp
     ; selectors.
     mov     [edx + CPUMCPU.Host.ds], ds
     mov     [edx + CPUMCPU.Host.es], es
@@ -300,8 +169,6 @@ BEGINPROC vmmR0ToRawModeAsm
     mov     [edx + CPUMCPU.Host.gs], gs
     mov     [edx + CPUMCPU.Host.ss], ss
     ; special registers.
-    DEBUG32_S_CHAR('s')
-    DEBUG32_S_CHAR(';')
     sldt    [edx + CPUMCPU.Host.ldtr]
     sidt    [edx + CPUMCPU.Host.idtr]
     sgdt    [edx + CPUMCPU.Host.gdtr]
@@ -312,14 +179,10 @@ BEGINPROC vmmR0ToRawModeAsm
 %endif
 
 %ifdef VBOX_WITH_VMMR0_DISABLE_LAPIC_NMI
-    DEBUG32_S_CHAR('f')
-    DEBUG32_S_CHAR(';')
-    cmp     byte [edx + CPUMCPU.pvApicBase], 1
-    je      htg_x2apic
-
-    mov     ebx, [edx + CPUMCPU.pvApicBase]
+    CPUM_FROM_CPUMCPU_WITH_OFFSET edx, ebp
+    mov     ebx, [edx + CPUM.pvApicBase]
     or      ebx, ebx
-    jz      htg_apic_done
+    jz      htg_noapic
     mov     eax, [ebx + APIC_REG_LVT_LINT0]
     mov     ecx, eax
     and     ecx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
@@ -364,62 +227,9 @@ htg_nopc:
     mov     [ebx + APIC_REG_LVT_THMR], eax
     mov     eax, [ebx + APIC_REG_LVT_THMR] ; write completion
 htg_notherm:
-    mov     [edx + CPUMCPU.fApicDisVectors], edi
-    jmp     htg_apic_done
-
-htg_x2apic:
-    mov     esi, edx                    ; Save edx.
-    xor     edi, edi                    ; fApicDisVectors
-
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_LINT0 >> 4)
-    rdmsr
-    mov     ebx, eax
-    and     ebx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
-    cmp     ebx, APIC_REG_LVT_MODE_NMI
-    jne     htg_x2_nolint0
-    or      edi, 0x01
-    or      eax, APIC_REG_LVT_MASKED
-    wrmsr
-htg_x2_nolint0:
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_LINT1 >> 4)
-    rdmsr
-    mov     ebx, eax
-    and     ebx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
-    cmp     ebx, APIC_REG_LVT_MODE_NMI
-    jne     htg_x2_nolint1
-    or      edi, 0x02
-    or      eax, APIC_REG_LVT_MASKED
-    wrmsr
-htg_x2_nolint1:
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_PC >> 4)
-    rdmsr
-    mov     ebx, eax
-    and     ebx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
-    cmp     ebx, APIC_REG_LVT_MODE_NMI
-    jne     htg_x2_nopc
-    or      edi, 0x04
-    or      eax, APIC_REG_LVT_MASKED
-    wrmsr
-htg_x2_nopc:
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_VERSION >> 4)
-    rdmsr
-    shr     eax, 16
-    cmp     al, 5
-    jb      htg_x2_notherm
-    mov     ecx, MSR_IA32_X2APIC_START + (APIC_REG_LVT_THMR >> 4)
-    rdmsr
-    mov     ebx, eax
-    and     ebx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
-    cmp     ebx, APIC_REG_LVT_MODE_NMI
-    jne     htg_x2_notherm
-    or      edi, 0x08
-    or      eax, APIC_REG_LVT_MASKED
-    wrmsr
-htg_x2_notherm:
-    mov     edx, esi                    ; Restore edx.
-    mov     [edx + CPUMCPU.fApicDisVectors], edi
-
-htg_apic_done:
+    mov     [edx + CPUM.fApicDisVectors], edi
+htg_noapic:
+    CPUMCPU_FROM_CPUM_WITH_OFFSET edx, ebp
 %endif
 
     ; control registers.
@@ -428,11 +238,8 @@ htg_apic_done:
     ;Skip cr2; assume host os don't stuff things in cr2. (safe)
     mov     eax, cr3
     mov     [edx + CPUMCPU.Host.cr3], eax
-    mov     esi, cr4                      ; esi = cr4, we'll modify it further down.
-    mov     [edx + CPUMCPU.Host.cr4], esi
-
-    DEBUG32_S_CHAR('c')
-    DEBUG32_S_CHAR(';')
+    mov     eax, cr4
+    mov     [edx + CPUMCPU.Host.cr4], eax
 
     ; save the host EFER msr
     mov     ebx, edx
@@ -441,30 +248,17 @@ htg_apic_done:
     mov     [ebx + CPUMCPU.Host.efer], eax
     mov     [ebx + CPUMCPU.Host.efer + 4], edx
     mov     edx, ebx
-    DEBUG32_S_CHAR('e')
-    DEBUG32_S_CHAR(';')
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [edx + CPUMCPU.Guest.dr + 4*8], 3
 %endif
 
     ; Load new gdt so we can do a far jump after going into 64 bits mode
-    ;DEBUG_CMOS_STACK32 16h
     lgdt    [edx + CPUMCPU.Hyper.gdtr]
 
-    DEBUG32_S_CHAR('g')
-    DEBUG32_S_CHAR('!')
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [edx + CPUMCPU.Guest.dr + 4*8], 4
 %endif
-
-    ;;
-    ;; Clean up CR4.  X86_CR4_PGE, X86_CR4_PCE, X86_CR4_PCIDE (not really
-    ;; relevant for 32-bit, but whatever) and X86_CR4_VMXE must be cleared.
-    ;;
-    and     esi, X86_CR4_VME | X86_CR4_PVI | X86_CR4_TSD | X86_CR4_DE | X86_CR4_PSE | X86_CR4_PAE \
-               | X86_CR4_MCE | X86_CR4_OSFSXR | X86_CR4_OSXMMEEXCPT | X86_CR4_SMXE | X86_CR4_OSXSAVE
-    mov     cr4, esi
 
     ;;
     ;; Load Intermediate memory context.
@@ -472,10 +266,7 @@ htg_apic_done:
     FIXUP SWITCHER_FIX_INTER_CR3_HC, 1
     mov     eax, 0ffffffffh
     mov     cr3, eax
-    DEBUG32_CHAR('?')
-%ifdef VBOX_WITH_64ON32_CMOS_DEBUG
-    DEBUG_CMOS_TRASH_AL 17h
-%endif
+    DEBUG_CHAR('?')
 
     ;;
     ;; Jump to identity mapped location
@@ -487,15 +278,13 @@ htg_apic_done:
     ; We're now on identity mapped pages!
 ALIGNCODE(16)
 GLOBALNAME IDEnterTarget
-    DEBUG32_CHAR('1')
-    DEBUG_CMOS_TRASH_AL 19h
+    DEBUG_CHAR('2')
 
     ; 1. Disable paging.
     mov     ebx, cr0
     and     ebx, ~X86_CR0_PG
     mov     cr0, ebx
-    DEBUG32_CHAR('2')
-    DEBUG_CMOS_TRASH_AL 1ah
+    DEBUG_CHAR('2')
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov     eax, cr2
@@ -506,14 +295,12 @@ GLOBALNAME IDEnterTarget
     mov     ecx, cr4
     or      ecx, X86_CR4_PAE
     mov     cr4, ecx
-    DEBUG_CMOS_TRASH_AL 1bh
 
     ; 3. Load long mode intermediate CR3.
     FIXUP FIX_INTER_AMD64_CR3, 1
     mov     ecx, 0ffffffffh
     mov     cr3, ecx
-    DEBUG32_CHAR('3')
-    DEBUG_CMOS_TRASH_AL 1ch
+    DEBUG_CHAR('3')
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov     eax, cr2
@@ -529,8 +316,7 @@ GLOBALNAME IDEnterTarget
     and     eax, ~(MSR_K6_EFER_FFXSR) ; turn off fast fxsave/fxrstor (skipping xmm regs)
     wrmsr
     mov     edx, esi
-    DEBUG32_CHAR('4')
-    DEBUG_CMOS_TRASH_AL 1dh
+    DEBUG_CHAR('4')
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov     eax, cr2
@@ -542,7 +328,7 @@ GLOBALNAME IDEnterTarget
     ; Disable ring 0 write protection too
     and     ebx, ~X86_CR0_WRITE_PROTECT
     mov     cr0, ebx
-    DEBUG32_CHAR('5')
+    DEBUG_CHAR('5')
 
     ; Jump from compatibility mode to 64-bit mode.
     FIXUP FIX_ID_FAR32_TO_64BIT_MODE, 1, NAME(IDEnter64Mode) - NAME(Start)
@@ -553,8 +339,7 @@ GLOBALNAME IDEnterTarget
 BITS 64
 ALIGNCODE(16)
 NAME(IDEnter64Mode):
-    DEBUG64_CHAR('6')
-    DEBUG_CMOS_TRASH_AL 1eh
+    DEBUG_CHAR('6')
     jmp     [NAME(pICEnterTarget) wrt rip]
 
 ; 64-bit jump target
@@ -577,7 +362,6 @@ db 'Switch_marker'
     ;
 ALIGNCODE(16)
 GLOBALNAME ICEnterTarget
-    ;DEBUG_CMOS_TRASH_AL 1fh
     ; Load CPUM pointer into rdx
     mov     rdx, [NAME(pCpumIC) wrt rip]
     CPUMCPU_FROM_CPUM_WITH_OFFSET edx, ebp
@@ -595,30 +379,25 @@ GLOBALNAME ICEnterTarget
     mov dword [rdx + CPUMCPU.Guest.dr + 4*8], 5
 %endif
 
-    ; Setup stack.
-    DEBUG64_CHAR('7')
+    ; Setup stack; use the lss_esp, ss pair for lss
+    DEBUG_CHAR('7')
     mov     rsp, 0
-    mov     eax, [rdx + CPUMCPU.Hyper.ss.Sel]
-    mov     ss, ax
-    mov     esp, [rdx + CPUMCPU.Hyper.esp]
+    mov     eax, [rdx + CPUMCPU.Hyper.esp]
+    mov     [rdx + CPUMCPU.Hyper.lss_esp], eax
+    lss     esp, [rdx + CPUMCPU.Hyper.lss_esp]
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [rdx + CPUMCPU.Guest.dr + 4*8], 6
 %endif
 
-%ifdef VBOX_WITH_64ON32_IDT
-    ; Set up emergency trap handlers.
-    lidt    [rdx + CPUMCPU.Hyper.idtr]
-%endif
 
     ; load the hypervisor function address
     mov     r9, [rdx + CPUMCPU.Hyper.eip]
-    DEBUG64_S_CHAR('8')
 
     ; Check if we need to restore the guest FPU state
     mov     esi, [rdx + CPUMCPU.fUseFlags] ; esi == use flags.
     test    esi, CPUM_SYNC_FPU_STATE
-    jz      near htg_fpu_no
+    jz      near gth_fpu_no
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [rdx + CPUMCPU.Guest.dr + 4*8], 7
@@ -628,24 +407,20 @@ GLOBALNAME ICEnterTarget
     mov     rcx, rax                    ; save old CR0
     and     rax, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, rax
-    ; Use explicit REX prefix. See @bugref{6398}.
-    o64 fxrstor [rdx + CPUMCPU.Guest.fpu]
+    fxrstor [rdx + CPUMCPU.Guest.fpu]
     mov     cr0, rcx                    ; and restore old CR0 again
 
     and     dword [rdx + CPUMCPU.fUseFlags], ~CPUM_SYNC_FPU_STATE
 
-htg_fpu_no:
+gth_fpu_no:
     ; Check if we need to restore the guest debug state
-    test    esi, CPUM_SYNC_DEBUG_REGS_GUEST | CPUM_SYNC_DEBUG_REGS_HYPER
-    jz      htg_debug_done
+    test    esi, CPUM_SYNC_DEBUG_STATE
+    jz      near gth_debug_no
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [rdx + CPUMCPU.Guest.dr + 4*8], 8
 %endif
-    test    esi, CPUM_SYNC_DEBUG_REGS_HYPER
-    jnz     htg_debug_hyper
 
-    ; Guest values in DRx, letting the guest access them directly.
     mov     rax, qword [rdx + CPUMCPU.Guest.dr + 0*8]
     mov     dr0, rax
     mov     rax, qword [rdx + CPUMCPU.Guest.dr + 1*8]
@@ -657,55 +432,17 @@ htg_fpu_no:
     mov     rax, qword [rdx + CPUMCPU.Guest.dr + 6*8]
     mov     dr6, rax    ; not required for AMD-V
 
-    and     dword [rdx + CPUMCPU.fUseFlags], ~CPUM_SYNC_DEBUG_REGS_GUEST
-    or      dword [rdx + CPUMCPU.fUseFlags], CPUM_USED_DEBUG_REGS_GUEST
-    jmp     htg_debug_done
+    and     dword [rdx + CPUMCPU.fUseFlags], ~CPUM_SYNC_DEBUG_STATE
 
-htg_debug_hyper:
-    ; Combined values in DRx, intercepting all accesses.
-    mov     rax, qword [rdx + CPUMCPU.Hyper.dr + 0*8]
-    mov     dr0, rax
-    mov     rax, qword [rdx + CPUMCPU.Hyper.dr + 1*8]
-    mov     dr1, rax
-    mov     rax, qword [rdx + CPUMCPU.Hyper.dr + 2*8]
-    mov     dr2, rax
-    mov     rax, qword [rdx + CPUMCPU.Hyper.dr + 3*8]
-    mov     dr3, rax
-    mov     rax, qword [rdx + CPUMCPU.Hyper.dr + 6*8]
-    mov     dr6, rax    ; not required for AMD-V
-
-    and     dword [rdx + CPUMCPU.fUseFlags], ~CPUM_SYNC_DEBUG_REGS_HYPER
-    or      dword [rdx + CPUMCPU.fUseFlags], CPUM_USED_DEBUG_REGS_HYPER
-
-htg_debug_done:
+gth_debug_no:
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov dword [rdx + CPUMCPU.Guest.dr + 4*8], 9
 %endif
 
-    ;
-    ; "Call" the specified helper function.
-    ;
-
     ; parameter for all helper functions (pCtx)
-    DEBUG64_CHAR('9')
     lea     rsi, [rdx + CPUMCPU.Guest.fpu]
-    lea     rax, [htg_return wrt rip]
-    push    rax                         ; return address
-
-    cmp     r9d, HM64ON32OP_VMXRCStartVM64
-    jz      NAME(VMXRCStartVM64)
-    cmp     r9d, HM64ON32OP_SVMRCVMRun64
-    jz      NAME(SVMRCVMRun64)
-    cmp     r9d, HM64ON32OP_HMRCSaveGuestFPU64
-    jz      NAME(HMRCSaveGuestFPU64)
-    cmp     r9d, HM64ON32OP_HMRCSaveGuestDebug64
-    jz      NAME(HMRCSaveGuestDebug64)
-    cmp     r9d, HM64ON32OP_HMRCTestSwitcher64
-    jz      NAME(HMRCTestSwitcher64)
-    mov     eax, VERR_HM_INVALID_HM64ON32OP
-htg_return:
-    DEBUG64_CHAR('r')
+    call    r9
 
     ; Load CPUM pointer into rdx
     mov     rdx, [NAME(pCpumIC) wrt rip]
@@ -719,918 +456,9 @@ htg_return:
     mov     dword [rdx + CPUMCPU.u32RetCode], eax
 
     ; now let's switch back
-    jmp     NAME(vmmRCToHostAsm)   ; rax = returncode.
+    jmp     NAME(VMMGCGuestToHostAsm)   ; rax = returncode.
 
-ENDPROC vmmR0ToRawModeAsm
-
-
-
-
-;
-;
-; HM code (used to be HMRCA.asm at one point).
-; HM code (used to be HMRCA.asm at one point).
-; HM code (used to be HMRCA.asm at one point).
-;
-;
-
-
-
-; Load the corresponding guest MSR (trashes rdx & rcx)
-%macro LOADGUESTMSR 2
-    mov     rcx, %1
-    mov     edx, dword [rsi + %2 + 4]
-    mov     eax, dword [rsi + %2]
-    wrmsr
-%endmacro
-
-; Save a guest MSR (trashes rdx & rcx)
-; Only really useful for gs kernel base as that one can be changed behind our back (swapgs)
-%macro SAVEGUESTMSR 2
-    mov     rcx, %1
-    rdmsr
-    mov     dword [rsi + %2], eax
-    mov     dword [rsi + %2 + 4], edx
-%endmacro
-
-;; @def MYPUSHSEGS
-; Macro saving all segment registers on the stack.
-; @param 1  full width register name
-%macro MYPUSHSEGS 1
-    mov     %1, es
-    push    %1
-    mov     %1, ds
-    push    %1
-%endmacro
-
-;; @def MYPOPSEGS
-; Macro restoring all segment registers on the stack
-; @param 1  full width register name
-%macro MYPOPSEGS 1
-    pop     %1
-    mov     ds, %1
-    pop     %1
-    mov     es, %1
-%endmacro
-
-
-;/**
-; * Prepares for and executes VMLAUNCH/VMRESUME (64 bits guest mode)
-; *
-; * @returns VBox status code
-; * @param   HCPhysCpuPage  VMXON physical address  [rsp+8]
-; * @param   HCPhysVmcs     VMCS physical address   [rsp+16]
-; * @param   pCache         VMCS cache              [rsp+24]
-; * @param   pCtx           Guest context (rsi)
-; */
-BEGINPROC VMXRCStartVM64
-    push    rbp
-    mov     rbp, rsp
-    DEBUG_CMOS_STACK64 20h
-
-    ; Make sure VT-x instructions are allowed.
-    mov     rax, cr4
-    or      rax, X86_CR4_VMXE
-    mov     cr4, rax
-
-    ; Enter VMX Root Mode.
-    vmxon   [rbp + 8 + 8]
-    jnc     .vmxon_success
-    mov     rax, VERR_VMX_INVALID_VMXON_PTR
-    jmp     .vmstart64_vmxon_failed
-
-.vmxon_success:
-    jnz     .vmxon_success2
-    mov     rax, VERR_VMX_VMXON_FAILED
-    jmp     .vmstart64_vmxon_failed
-
-.vmxon_success2:
-    ; Activate the VMCS pointer
-    vmptrld [rbp + 16 + 8]
-    jnc     .vmptrld_success
-    mov     rax, VERR_VMX_INVALID_VMCS_PTR
-    jmp     .vmstart64_vmxoff_end
-
-.vmptrld_success:
-    jnz     .vmptrld_success2
-    mov     rax, VERR_VMX_VMPTRLD_FAILED
-    jmp     .vmstart64_vmxoff_end
-
-.vmptrld_success2:
-
-    ; Save the VMCS pointer on the stack
-    push    qword [rbp + 16 + 8];
-
-    ; Save segment registers.
-    MYPUSHSEGS rax
-
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
-    ; Flush the VMCS write cache first (before any other vmreads/vmwrites!).
-    mov     rbx, [rbp + 24 + 8]                             ; pCache
-
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     qword [rbx + VMCSCACHE.uPos], 2
- %endif
-
- %ifdef DEBUG
-    mov     rax, [rbp + 8 + 8]                              ; HCPhysCpuPage
-    mov     [rbx + VMCSCACHE.TestIn.HCPhysCpuPage], rax
-    mov     rax, [rbp + 16 + 8]                             ; HCPhysVmcs
-    mov     [rbx + VMCSCACHE.TestIn.HCPhysVmcs], rax
-    mov     [rbx + VMCSCACHE.TestIn.pCache], rbx
-    mov     [rbx + VMCSCACHE.TestIn.pCtx], rsi
- %endif
-
-    mov     ecx, [rbx + VMCSCACHE.Write.cValidEntries]
-    cmp     ecx, 0
-    je      .no_cached_writes
-    mov     rdx, rcx
-    mov     rcx, 0
-    jmp     .cached_write
-
-ALIGN(16)
-.cached_write:
-    mov     eax, [rbx + VMCSCACHE.Write.aField + rcx*4]
-    vmwrite rax, qword [rbx + VMCSCACHE.Write.aFieldVal + rcx*8]
-    inc     rcx
-    cmp     rcx, rdx
-    jl     .cached_write
-
-    mov     dword [rbx + VMCSCACHE.Write.cValidEntries], 0
-.no_cached_writes:
-
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     qword [rbx + VMCSCACHE.uPos], 3
- %endif
-    ; Save the pCache pointer.
-    push    rbx
-%endif
-
-    ; Save the host state that's relevant in the temporary 64-bit mode.
-    mov     rdx, cr0
-    mov     eax, VMX_VMCS_HOST_CR0
-    vmwrite rax, rdx
-
-    mov     rdx, cr3
-    mov     eax, VMX_VMCS_HOST_CR3
-    vmwrite rax, rdx
-
-    mov     rdx, cr4
-    mov     eax, VMX_VMCS_HOST_CR4
-    vmwrite rax, rdx
-
-    mov     rdx, cs
-    mov     eax, VMX_VMCS_HOST_FIELD_CS
-    vmwrite rax, rdx
-
-    mov     rdx, ss
-    mov     eax, VMX_VMCS_HOST_FIELD_SS
-    vmwrite rax, rdx
-
-%if 0 ; Another experiment regarding tripple faults... Seems not to be necessary.
-    sub     rsp, 16
-    str     [rsp]
-    movsx   rdx, word [rsp]
-    mov     eax, VMX_VMCS_HOST_FIELD_TR
-    vmwrite rax, rdx
-    add     rsp, 16
-%endif
-
-    sub     rsp, 16
-    sgdt    [rsp + 6]                   ; (The 64-bit base should be aligned, not the word.)
-    mov     eax, VMX_VMCS_HOST_GDTR_BASE
-    vmwrite rax, [rsp + 6 + 2]
-    add     rsp, 16
-
-%ifdef VBOX_WITH_64ON32_IDT
-    sub     rsp, 16
-    sidt    [rsp + 6]
-    mov     eax, VMX_VMCS_HOST_IDTR_BASE
-    vmwrite rax, [rsp + 6 + 2] ; [rsi + CPUMCPU.Hyper.idtr + 2] - why doesn't this work?
-    add     rsp, 16
-    ;call NAME(vmm64On32PrintIdtr)
-%endif
-
-%ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     qword [rbx + VMCSCACHE.uPos], 4
-%endif
-
-    ; Hopefully we can ignore TR (we restore it anyway on the way back to 32-bit mode).
-
-    ; First we have to save some final CPU context registers.
-    lea     rdx, [.vmlaunch64_done wrt rip]
-    mov     rax, VMX_VMCS_HOST_RIP  ; Return address (too difficult to continue after VMLAUNCH?).
-    vmwrite rax, rdx
-    ; Note: assumes success!
-
-    ; Manual save and restore:
-    ;  - General purpose registers except RIP, RSP
-    ;
-    ; Trashed:
-    ;  - CR2 (we don't care)
-    ;  - LDTR (reset to 0)
-    ;  - DRx (presumably not changed at all)
-    ;  - DR7 (reset to 0x400)
-    ;  - EFLAGS (reset to RT_BIT(1); not relevant)
-
-%ifndef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
-    ; Load the guest LSTAR, CSTAR, SFMASK & KERNEL_GSBASE MSRs.
-    LOADGUESTMSR MSR_K8_LSTAR,          CPUMCTX.msrLSTAR
-    LOADGUESTMSR MSR_K6_STAR,           CPUMCTX.msrSTAR
-    LOADGUESTMSR MSR_K8_SF_MASK,        CPUMCTX.msrSFMASK
-    LOADGUESTMSR MSR_K8_KERNEL_GS_BASE, CPUMCTX.msrKERNELGSBASE
-%endif
-
-%ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     qword [rbx + VMCSCACHE.uPos], 5
-%endif
-
-    ; Save the pCtx pointer
-    push    rsi
-
-    ; Load CR2 if necessary (may be expensive as writing CR2 is a synchronizing instruction).
-    mov     rbx, qword [rsi + CPUMCTX.cr2]
-    mov     rdx, cr2
-    cmp     rdx, rbx
-    je      .skipcr2write64
-    mov     cr2, rbx
-
-.skipcr2write64:
-    mov     eax, VMX_VMCS_HOST_RSP
-    vmwrite rax, rsp
-    ; Note: assumes success!
-    ; Don't mess with ESP anymore!!!
-
-    ; Save Guest's general purpose registers.
-    mov     rax, qword [rsi + CPUMCTX.eax]
-    mov     rbx, qword [rsi + CPUMCTX.ebx]
-    mov     rcx, qword [rsi + CPUMCTX.ecx]
-    mov     rdx, qword [rsi + CPUMCTX.edx]
-    mov     rbp, qword [rsi + CPUMCTX.ebp]
-    mov     r8,  qword [rsi + CPUMCTX.r8]
-    mov     r9,  qword [rsi + CPUMCTX.r9]
-    mov     r10, qword [rsi + CPUMCTX.r10]
-    mov     r11, qword [rsi + CPUMCTX.r11]
-    mov     r12, qword [rsi + CPUMCTX.r12]
-    mov     r13, qword [rsi + CPUMCTX.r13]
-    mov     r14, qword [rsi + CPUMCTX.r14]
-    mov     r15, qword [rsi + CPUMCTX.r15]
-
-    ; Save rdi & rsi.
-    mov     rdi, qword [rsi + CPUMCTX.edi]
-    mov     rsi, qword [rsi + CPUMCTX.esi]
-
-    vmlaunch
-    jmp     .vmlaunch64_done;      ; Here if vmlaunch detected a failure.
-
-ALIGNCODE(16)
-.vmlaunch64_done:
-%if 0 ;fixme later - def VBOX_WITH_64ON32_IDT
-    push    rdx
-    mov     rdx, [rsp + 8]         ; pCtx
-    lidt    [rdx + CPUMCPU.Hyper.idtr]
-    pop     rdx
-%endif
-    jc      near .vmstart64_invalid_vmcs_ptr
-    jz      near .vmstart64_start_failed
-
-    push    rdi
-    mov     rdi, [rsp + 8]         ; pCtx
-
-    mov     qword [rdi + CPUMCTX.eax], rax
-    mov     qword [rdi + CPUMCTX.ebx], rbx
-    mov     qword [rdi + CPUMCTX.ecx], rcx
-    mov     qword [rdi + CPUMCTX.edx], rdx
-    mov     qword [rdi + CPUMCTX.esi], rsi
-    mov     qword [rdi + CPUMCTX.ebp], rbp
-    mov     qword [rdi + CPUMCTX.r8],  r8
-    mov     qword [rdi + CPUMCTX.r9],  r9
-    mov     qword [rdi + CPUMCTX.r10], r10
-    mov     qword [rdi + CPUMCTX.r11], r11
-    mov     qword [rdi + CPUMCTX.r12], r12
-    mov     qword [rdi + CPUMCTX.r13], r13
-    mov     qword [rdi + CPUMCTX.r14], r14
-    mov     qword [rdi + CPUMCTX.r15], r15
-    mov     rax, cr2
-    mov     qword [rdi + CPUMCTX.cr2], rax
-
-    pop     rax         ; The guest edi we pushed above
-    mov     qword [rdi + CPUMCTX.edi], rax
-
-    pop     rsi         ; pCtx (needed in rsi by the macros below)
-
-%ifndef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
-    SAVEGUESTMSR MSR_K8_KERNEL_GS_BASE, CPUMCTX.msrKERNELGSBASE
-    SAVEGUESTMSR MSR_K8_SF_MASK,        CPUMCTX.msrSFMASK
-    SAVEGUESTMSR MSR_K6_STAR,           CPUMCTX.msrSTAR
-    SAVEGUESTMSR MSR_K8_LSTAR,          CPUMCTX.msrLSTAR
-%endif
-
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
-    pop     rdi         ; Saved pCache
-
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 7
- %endif
- %ifdef DEBUG
-    mov     [rdi + VMCSCACHE.TestOut.pCache], rdi
-    mov     [rdi + VMCSCACHE.TestOut.pCtx], rsi
-    mov     rax, cr8
-    mov     [rdi + VMCSCACHE.TestOut.cr8], rax
- %endif
-
-    mov     ecx, [rdi + VMCSCACHE.Read.cValidEntries]
-    cmp     ecx, 0  ; Can't happen
-    je      .no_cached_reads
-    jmp     .cached_read
-
-ALIGN(16)
-.cached_read:
-    dec     rcx
-    mov     eax, [rdi + VMCSCACHE.Read.aField + rcx*4]
-    vmread  qword [rdi + VMCSCACHE.Read.aFieldVal + rcx*8], rax
-    cmp     rcx, 0
-    jnz     .cached_read
-.no_cached_reads:
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 8
- %endif
-%endif
-
-    ; Restore segment registers.
-    MYPOPSEGS rax
-
-    mov     eax, VINF_SUCCESS
-
-%ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 9
-%endif
-.vmstart64_end:
-
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
- %ifdef DEBUG
-    mov     rdx, [rsp]                             ; HCPhysVmcs
-    mov     [rdi + VMCSCACHE.TestOut.HCPhysVmcs], rdx
- %endif
-%endif
-
-    ; Write back the data and disable the VMCS.
-    vmclear qword [rsp]  ; Pushed pVMCS
-    add     rsp, 8
-
-.vmstart64_vmxoff_end:
-    ; Disable VMX root mode.
-    vmxoff
-.vmstart64_vmxon_failed:
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
- %ifdef DEBUG
-    cmp     eax, VINF_SUCCESS
-    jne     .skip_flags_save
-
-    pushf
-    pop     rdx
-    mov     [rdi + VMCSCACHE.TestOut.eflags], rdx
-  %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 12
-  %endif
-.skip_flags_save:
- %endif
-%endif
-    pop     rbp
-    ret
-
-
-.vmstart64_invalid_vmcs_ptr:
-    pop     rsi         ; pCtx (needed in rsi by the macros below)
-
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
-    pop     rdi         ; pCache
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 10
- %endif
-
- %ifdef DEBUG
-    mov     [rdi + VMCSCACHE.TestOut.pCache], rdi
-    mov     [rdi + VMCSCACHE.TestOut.pCtx], rsi
- %endif
-%endif
-
-    ; Restore segment registers.
-    MYPOPSEGS rax
-
-    ; Restore all general purpose host registers.
-    mov     eax, VERR_VMX_INVALID_VMCS_PTR_TO_START_VM
-    jmp     .vmstart64_end
-
-.vmstart64_start_failed:
-    pop     rsi         ; pCtx (needed in rsi by the macros below)
-
-%ifdef VMX_USE_CACHED_VMCS_ACCESSES
-    pop     rdi         ; pCache
-
- %ifdef DEBUG
-    mov     [rdi + VMCSCACHE.TestOut.pCache], rdi
-    mov     [rdi + VMCSCACHE.TestOut.pCtx], rsi
- %endif
- %ifdef VBOX_WITH_CRASHDUMP_MAGIC
-    mov     dword [rdi + VMCSCACHE.uPos], 11
- %endif
-%endif
-
-    ; Restore segment registers.
-    MYPOPSEGS rax
-
-    ; Restore all general purpose host registers.
-    mov     eax, VERR_VMX_UNABLE_TO_START_VM
-    jmp     .vmstart64_end
-ENDPROC VMXRCStartVM64
-
-
-;/**
-; * Prepares for and executes VMRUN (64 bits guests)
-; *
-; * @returns VBox status code
-; * @param   HCPhysVMCB     Physical address of host VMCB       (rsp+8)
-; * @param   HCPhysVMCB     Physical address of guest VMCB      (rsp+16)
-; * @param   pCtx           Guest context                       (rsi)
-; */
-BEGINPROC SVMRCVMRun64
-    push    rbp
-    mov     rbp, rsp
-    pushf
-    DEBUG_CMOS_STACK64 30h
-
-    ; Manual save and restore:
-    ;  - General purpose registers except RIP, RSP, RAX
-    ;
-    ; Trashed:
-    ;  - CR2 (we don't care)
-    ;  - LDTR (reset to 0)
-    ;  - DRx (presumably not changed at all)
-    ;  - DR7 (reset to 0x400)
-
-    ; Save the Guest CPU context pointer.
-    push    rsi                             ; Push for saving the state at the end
-
-    ; Save host fs, gs, sysenter msr etc
-    mov     rax, [rbp + 8 + 8]              ; pVMCBHostPhys (64 bits physical address)
-    push    rax                             ; Save for the vmload after vmrun
-    vmsave
-
-    ; Setup eax for VMLOAD
-    mov     rax, [rbp + 8 + 8 + RTHCPHYS_CB]   ; pVMCBPhys (64 bits physical address)
-
-    ; Restore Guest's general purpose registers.
-    ; rax is loaded from the VMCB by VMRUN.
-    mov     rbx, qword [rsi + CPUMCTX.ebx]
-    mov     rcx, qword [rsi + CPUMCTX.ecx]
-    mov     rdx, qword [rsi + CPUMCTX.edx]
-    mov     rdi, qword [rsi + CPUMCTX.edi]
-    mov     rbp, qword [rsi + CPUMCTX.ebp]
-    mov     r8,  qword [rsi + CPUMCTX.r8]
-    mov     r9,  qword [rsi + CPUMCTX.r9]
-    mov     r10, qword [rsi + CPUMCTX.r10]
-    mov     r11, qword [rsi + CPUMCTX.r11]
-    mov     r12, qword [rsi + CPUMCTX.r12]
-    mov     r13, qword [rsi + CPUMCTX.r13]
-    mov     r14, qword [rsi + CPUMCTX.r14]
-    mov     r15, qword [rsi + CPUMCTX.r15]
-    mov     rsi, qword [rsi + CPUMCTX.esi]
-
-    ; Clear the global interrupt flag & execute sti to make sure external interrupts cause a world switch.
-    clgi
-    sti
-
-    ; Load guest fs, gs, sysenter msr etc
-    vmload
-    ; Run the VM
-    vmrun
-
-    ; rax is in the VMCB already; we can use it here.
-
-    ; Save guest fs, gs, sysenter msr etc.
-    vmsave
-
-    ; Load host fs, gs, sysenter msr etc.
-    pop     rax                     ; Pushed above
-    vmload
-
-    ; Set the global interrupt flag again, but execute cli to make sure IF=0.
-    cli
-    stgi
-
-    pop     rax                     ; pCtx
-
-    mov     qword [rax + CPUMCTX.ebx], rbx
-    mov     qword [rax + CPUMCTX.ecx], rcx
-    mov     qword [rax + CPUMCTX.edx], rdx
-    mov     qword [rax + CPUMCTX.esi], rsi
-    mov     qword [rax + CPUMCTX.edi], rdi
-    mov     qword [rax + CPUMCTX.ebp], rbp
-    mov     qword [rax + CPUMCTX.r8],  r8
-    mov     qword [rax + CPUMCTX.r9],  r9
-    mov     qword [rax + CPUMCTX.r10], r10
-    mov     qword [rax + CPUMCTX.r11], r11
-    mov     qword [rax + CPUMCTX.r12], r12
-    mov     qword [rax + CPUMCTX.r13], r13
-    mov     qword [rax + CPUMCTX.r14], r14
-    mov     qword [rax + CPUMCTX.r15], r15
-
-    mov     eax, VINF_SUCCESS
-
-    popf
-    pop     rbp
-    ret
-ENDPROC SVMRCVMRun64
-
-;/**
-; * Saves the guest FPU context
-; *
-; * @returns VBox status code
-; * @param   pCtx       Guest context [rsi]
-; */
-BEGINPROC HMRCSaveGuestFPU64
-    DEBUG_CMOS_STACK64 40h
-    mov     rax, cr0
-    mov     rcx, rax                    ; save old CR0
-    and     rax, ~(X86_CR0_TS | X86_CR0_EM)
-    mov     cr0, rax
-
-    ; Use explicit REX prefix. See @bugref{6398}.
-    o64 fxsave  [rsi + CPUMCTX.fpu]
-
-    mov     cr0, rcx                    ; and restore old CR0 again
-
-    mov     eax, VINF_SUCCESS
-    ret
-ENDPROC HMRCSaveGuestFPU64
-
-;/**
-; * Saves the guest debug context (DR0-3, DR6)
-; *
-; * @returns VBox status code
-; * @param   pCtx       Guest context [rsi]
-; */
-BEGINPROC HMRCSaveGuestDebug64
-    DEBUG_CMOS_STACK64 41h
-    mov rax, dr0
-    mov qword [rsi + CPUMCTX.dr + 0*8], rax
-    mov rax, dr1
-    mov qword [rsi + CPUMCTX.dr + 1*8], rax
-    mov rax, dr2
-    mov qword [rsi + CPUMCTX.dr + 2*8], rax
-    mov rax, dr3
-    mov qword [rsi + CPUMCTX.dr + 3*8], rax
-    mov rax, dr6
-    mov qword [rsi + CPUMCTX.dr + 6*8], rax
-    mov eax, VINF_SUCCESS
-    ret
-ENDPROC HMRCSaveGuestDebug64
-
-;/**
-; * Dummy callback handler
-; *
-; * @returns VBox status code
-; * @param   param1     Parameter 1 [rsp+8]
-; * @param   param2     Parameter 2 [rsp+12]
-; * @param   param3     Parameter 3 [rsp+16]
-; * @param   param4     Parameter 4 [rsp+20]
-; * @param   param5     Parameter 5 [rsp+24]
-; * @param   pCtx       Guest context [rsi]
-; */
-BEGINPROC HMRCTestSwitcher64
-    DEBUG_CMOS_STACK64 42h
-    mov eax, [rsp+8]
-    ret
-ENDPROC HMRCTestSwitcher64
-
-
-%ifdef VBOX_WITH_64ON32_IDT
-;
-; Trap handling.
-;
-
-;; Here follows an array of trap handler entry points, 8 byte in size.
-BEGINPROC vmm64On32TrapHandlers
-%macro vmm64On32TrapEntry 1
-GLOBALNAME vmm64On32Trap %+ i
-    db 06ah, i                          ; push imm8 - note that this is a signextended value.
-    jmp   NAME(%1)
-    ALIGNCODE(8)
-%assign i i+1
-%endmacro
-%assign i 0                                 ; start counter.
-    vmm64On32TrapEntry vmm64On32Trap        ; 0
-    vmm64On32TrapEntry vmm64On32Trap        ; 1
-    vmm64On32TrapEntry vmm64On32Trap        ; 2
-    vmm64On32TrapEntry vmm64On32Trap        ; 3
-    vmm64On32TrapEntry vmm64On32Trap        ; 4
-    vmm64On32TrapEntry vmm64On32Trap        ; 5
-    vmm64On32TrapEntry vmm64On32Trap        ; 6
-    vmm64On32TrapEntry vmm64On32Trap        ; 7
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; 8
-    vmm64On32TrapEntry vmm64On32Trap        ; 9
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; a
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; b
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; c
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; d
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; e
-    vmm64On32TrapEntry vmm64On32Trap        ; f  (reserved)
-    vmm64On32TrapEntry vmm64On32Trap        ; 10
-    vmm64On32TrapEntry vmm64On32TrapErrCode ; 11
-    vmm64On32TrapEntry vmm64On32Trap        ; 12
-    vmm64On32TrapEntry vmm64On32Trap        ; 13
-%rep (0x100 - 0x14)
-    vmm64On32TrapEntry vmm64On32Trap
-%endrep
-ENDPROC vmm64On32TrapHandlers
-
-;; Fake an error code and jump to the real thing.
-BEGINPROC vmm64On32Trap
-    push    qword [rsp]
-    jmp     NAME(vmm64On32TrapErrCode)
-ENDPROC vmm64On32Trap
-
-
-;;
-; Trap frame:
-;   [rbp + 38h] = ss
-;   [rbp + 30h] = rsp
-;   [rbp + 28h] = eflags
-;   [rbp + 20h] = cs
-;   [rbp + 18h] = rip
-;   [rbp + 10h] = error code (or trap number)
-;   [rbp + 08h] = trap number
-;   [rbp + 00h] = rbp
-;   [rbp - 08h] = rax
-;   [rbp - 10h] = rbx
-;   [rbp - 18h] = ds
-;
-BEGINPROC vmm64On32TrapErrCode
-    push    rbp
-    mov     rbp, rsp
-    push    rax
-    push    rbx
-    mov     ax, ds
-    push    rax
-    sub     rsp, 20h
-
-    mov     ax, cs
-    mov     ds, ax
-
-%if 1
-    COM64_S_NEWLINE
-    COM64_S_CHAR '!'
-    COM64_S_CHAR 't'
-    COM64_S_CHAR 'r'
-    COM64_S_CHAR 'a'
-    COM64_S_CHAR 'p'
-    movzx   eax, byte [rbp + 08h]
-    COM64_S_DWORD_REG eax
-    COM64_S_CHAR '!'
-%endif
-
-%if 0 ;; @todo Figure the offset of the CPUMCPU relative to CPUM
-    sidt    [rsp]
-    movsx   eax, word [rsp]
-    shr     eax, 12                     ; div by  16 * 256 (0x1000).
-%else
-    ; hardcoded VCPU(0) for now...
-    mov     rbx, [NAME(pCpumIC) wrt rip]
-    mov     eax, [rbx + CPUM.offCPUMCPU0]
-%endif
-    push    rax                         ; Save the offset for rbp later.
-
-    add     rbx, rax                    ; rbx = CPUMCPU
-
-    ;
-    ; Deal with recursive traps due to vmxoff (lazy bird).
-    ;
-    lea     rax, [.vmxoff_trap_location wrt rip]
-    cmp     rax, [rbp + 18h]
-    je      .not_vmx_root
-
-    ;
-    ; Save the context.
-    ;
-    mov     rax, [rbp - 8]
-    mov     [rbx + CPUMCPU.Hyper.eax], rax
-    mov     [rbx + CPUMCPU.Hyper.ecx], rcx
-    mov     [rbx + CPUMCPU.Hyper.edx], rdx
-    mov     rax, [rbp - 10h]
-    mov     [rbx + CPUMCPU.Hyper.ebx], rax
-    mov     rax, [rbp]
-    mov     [rbx + CPUMCPU.Hyper.ebp], rax
-    mov     rax, [rbp + 30h]
-    mov     [rbx + CPUMCPU.Hyper.esp], rax
-    mov     [rbx + CPUMCPU.Hyper.edi], rdi
-    mov     [rbx + CPUMCPU.Hyper.esi], rsi
-    mov     [rbx + CPUMCPU.Hyper.r8], r8
-    mov     [rbx + CPUMCPU.Hyper.r9], r9
-    mov     [rbx + CPUMCPU.Hyper.r10], r10
-    mov     [rbx + CPUMCPU.Hyper.r11], r11
-    mov     [rbx + CPUMCPU.Hyper.r12], r12
-    mov     [rbx + CPUMCPU.Hyper.r13], r13
-    mov     [rbx + CPUMCPU.Hyper.r14], r14
-    mov     [rbx + CPUMCPU.Hyper.r15], r15
-
-    mov     rax, [rbp + 18h]
-    mov     [rbx + CPUMCPU.Hyper.eip], rax
-    movzx   ax, [rbp + 20h]
-    mov     [rbx + CPUMCPU.Hyper.cs.Sel], ax
-    mov     ax, [rbp + 38h]
-    mov     [rbx + CPUMCPU.Hyper.ss.Sel], ax
-    mov     ax, [rbp - 18h]
-    mov     [rbx + CPUMCPU.Hyper.ds.Sel], ax
-
-    mov     rax, [rbp + 28h]
-    mov     [rbx + CPUMCPU.Hyper.eflags], rax
-
-    mov     rax, cr2
-    mov     [rbx + CPUMCPU.Hyper.cr2], rax
-
-    mov     rax, [rbp + 10h]
-    mov     [rbx + CPUMCPU.Hyper.r14], rax ; r14 = error code
-    movzx   eax, byte [rbp + 08h]
-    mov     [rbx + CPUMCPU.Hyper.r15], rax ; r15 = trap number
-
-    ;
-    ; Finally, leave VMX root operation before trying to return to the host.
-    ;
-    mov     rax, cr4
-    test    rax, X86_CR4_VMXE
-    jz      .not_vmx_root
-.vmxoff_trap_location:
-    vmxoff
-.not_vmx_root:
-
-    ;
-    ; Go back to the host.
-    ;
-    pop     rbp
-    mov     dword [rbx + CPUMCPU.u32RetCode], VERR_TRPM_DONT_PANIC
-    jmp     NAME(vmmRCToHostAsm)
-ENDPROC vmm64On32TrapErrCode
-
-;; We allocate the IDT here to avoid having to allocate memory separately somewhere.
-ALIGNCODE(16)
-GLOBALNAME vmm64On32Idt
-%assign i 0
-%rep 256
-    dq NAME(vmm64On32Trap %+ i) - NAME(Start) ; Relative trap handler offsets.
-    dq 0
-%assign i (i + 1)
-%endrep
-
-
- %if 0
-;; For debugging purposes.
-BEGINPROC vmm64On32PrintIdtr
-    push    rax
-    push    rsi                         ; paranoia
-    push    rdi                         ; ditto
-    sub rsp, 16
-
-    COM64_S_CHAR ';'
-    COM64_S_CHAR 'i'
-    COM64_S_CHAR 'd'
-    COM64_S_CHAR 't'
-    COM64_S_CHAR 'r'
-    COM64_S_CHAR '='
-    sidt [rsp + 6]
-    mov eax, [rsp + 8 + 4]
-    COM64_S_DWORD_REG eax
-    mov eax, [rsp + 8]
-    COM64_S_DWORD_REG eax
-    COM64_S_CHAR ':'
-    movzx eax, word [rsp + 6]
-    COM64_S_DWORD_REG eax
-    COM64_S_CHAR '!'
-
-    add rsp, 16
-    pop     rdi
-    pop     rsi
-    pop     rax
-    ret
-ENDPROC   vmm64On32PrintIdtr
- %endif
-
- %if 1
-;; For debugging purposes.
-BEGINPROC vmm64On32DumpCmos
-    push    rax
-    push    rdx
-    push    rcx
-    push    rsi                         ; paranoia
-    push    rdi                         ; ditto
-    sub rsp, 16
-
-%if 0
-    mov     al, 3
-    out     72h, al
-    mov     al, 68h
-    out     73h, al
-%endif
-
-    COM64_S_NEWLINE
-    COM64_S_CHAR 'c'
-    COM64_S_CHAR 'm'
-    COM64_S_CHAR 'o'
-    COM64_S_CHAR 's'
-    COM64_S_CHAR '0'
-    COM64_S_CHAR ':'
-
-    xor     ecx, ecx
-.loop1:
-    mov     al, cl
-    out     70h, al
-    in      al, 71h
-    COM64_S_BYTE_REG eax
-    COM64_S_CHAR ' '
-    inc     ecx
-    cmp     ecx, 128
-    jb      .loop1
-
-    COM64_S_NEWLINE
-    COM64_S_CHAR 'c'
-    COM64_S_CHAR 'm'
-    COM64_S_CHAR 'o'
-    COM64_S_CHAR 's'
-    COM64_S_CHAR '1'
-    COM64_S_CHAR ':'
-    xor     ecx, ecx
-.loop2:
-    mov     al, cl
-    out     72h, al
-    in      al, 73h
-    COM64_S_BYTE_REG eax
-    COM64_S_CHAR ' '
-    inc     ecx
-    cmp     ecx, 128
-    jb      .loop2
-
-%if 0
-    COM64_S_NEWLINE
-    COM64_S_CHAR 'c'
-    COM64_S_CHAR 'm'
-    COM64_S_CHAR 'o'
-    COM64_S_CHAR 's'
-    COM64_S_CHAR '2'
-    COM64_S_CHAR ':'
-    xor     ecx, ecx
-.loop3:
-    mov     al, cl
-    out     74h, al
-    in      al, 75h
-    COM64_S_BYTE_REG eax
-    COM64_S_CHAR ' '
-    inc     ecx
-    cmp     ecx, 128
-    jb      .loop3
-
-    COM64_S_NEWLINE
-    COM64_S_CHAR 'c'
-    COM64_S_CHAR 'm'
-    COM64_S_CHAR 'o'
-    COM64_S_CHAR 's'
-    COM64_S_CHAR '3'
-    COM64_S_CHAR ':'
-    xor     ecx, ecx
-.loop4:
-    mov     al, cl
-    out     72h, al
-    in      al, 73h
-    COM64_S_BYTE_REG eax
-    COM64_S_CHAR ' '
-    inc     ecx
-    cmp     ecx, 128
-    jb      .loop4
-
-    COM64_S_NEWLINE
-%endif
-
-    add rsp, 16
-    pop     rdi
-    pop     rsi
-    pop     rcx
-    pop     rdx
-    pop     rax
-    ret
-ENDPROC   vmm64On32DumpCmos
- %endif
-
-%endif ; VBOX_WITH_64ON32_IDT
-
-
-
-;
-;
-; Back to switcher code.
-; Back to switcher code.
-; Back to switcher code.
-;
-;
-
+ENDPROC vmmR0HostToGuestAsm
 
 
 ;;
@@ -1644,14 +472,14 @@ ENDPROC   vmm64On32DumpCmos
 ;
 BITS 64
 ALIGNCODE(16)
-BEGINPROC vmmRCCallTrampoline
+BEGINPROC vmmGCCallTrampoline
 %ifdef DEBUG_STUFF
     COM64_S_CHAR 'c'
     COM64_S_CHAR 't'
     COM64_S_CHAR '!'
 %endif
     int3
-ENDPROC vmmRCCallTrampoline
+ENDPROC vmmGCCallTrampoline
 
 
 ;;
@@ -1659,35 +487,34 @@ ENDPROC vmmRCCallTrampoline
 ;
 BITS 64
 ALIGNCODE(16)
-BEGINPROC vmmRCToHost
+BEGINPROC vmmGCGuestToHost
 %ifdef DEBUG_STUFF
     push    rsi
     COM_NEWLINE
-    COM_CHAR 'b'
-    COM_CHAR 'a'
-    COM_CHAR 'c'
-    COM_CHAR 'k'
-    COM_CHAR '!'
+    DEBUG_CHAR('b')
+    DEBUG_CHAR('a')
+    DEBUG_CHAR('c')
+    DEBUG_CHAR('k')
+    DEBUG_CHAR('!')
     COM_NEWLINE
     pop     rsi
 %endif
     int3
-ENDPROC vmmRCToHost
+ENDPROC vmmGCGuestToHost
 
 ;;
-; vmmRCToHostAsm
+; VMMGCGuestToHostAsm
 ;
 ; This is an alternative entry point which we'll be using
 ; when the we have saved the guest state already or we haven't
 ; been messing with the guest at all.
 ;
-; @param    rbp     The virtual cpu number.
-; @param
+; @param    eax     Return code.
+; @uses     eax, edx, ecx (or it may use them in the future)
 ;
 BITS 64
 ALIGNCODE(16)
-BEGINPROC vmmRCToHostAsm
-NAME(vmmRCToHostAsmNoReturn):
+BEGINPROC VMMGCGuestToHostAsm
     ;; We're still in the intermediate memory context!
 
     ;;
@@ -1706,34 +533,34 @@ dd  0
 ALIGNCODE(16)
 GLOBALNAME IDExitTarget
 BITS 32
-    DEBUG32_CHAR('1')
+    DEBUG_CHAR('1')
 
     ; 1. Deactivate long mode by turning off paging.
     mov     ebx, cr0
     and     ebx, ~X86_CR0_PG
     mov     cr0, ebx
-    DEBUG32_CHAR('2')
+    DEBUG_CHAR('2')
 
     ; 2. Load intermediate page table.
     FIXUP SWITCHER_FIX_INTER_CR3_HC, 1
     mov     edx, 0ffffffffh
     mov     cr3, edx
-    DEBUG32_CHAR('3')
+    DEBUG_CHAR('3')
 
     ; 3. Disable long mode.
     mov     ecx, MSR_K6_EFER
     rdmsr
-    DEBUG32_CHAR('5')
+    DEBUG_CHAR('5')
     and     eax, ~(MSR_K6_EFER_LME)
     wrmsr
-    DEBUG32_CHAR('6')
+    DEBUG_CHAR('6')
 
 %ifndef NEED_PAE_ON_HOST
     ; 3b. Disable PAE.
     mov     eax, cr4
     and     eax, ~X86_CR4_PAE
     mov     cr4, eax
-    DEBUG32_CHAR('7')
+    DEBUG_CHAR('7')
 %endif
 
     ; 4. Enable paging.
@@ -1741,7 +568,7 @@ BITS 32
     mov     cr0, ebx
     jmp short just_a_jump
 just_a_jump:
-    DEBUG32_CHAR('8')
+    DEBUG_CHAR('8')
 
     ;;
     ;; 5. Jump to guest code mapping of the code and load the Hypervisor CS.
@@ -1750,52 +577,44 @@ just_a_jump:
     jmp near NAME(ICExitTarget)
 
     ;;
-    ;; When we arrive at this label we're at the host mapping of the
-    ;; switcher code, but with intermediate page tables.
+    ;; When we arrive at this label we're at the
+    ;; intermediate mapping of the switching code.
     ;;
 BITS 32
 ALIGNCODE(16)
 GLOBALNAME ICExitTarget
-    DEBUG32_CHAR('9')
-    ;DEBUG_CMOS_TRASH_AL 70h
+    DEBUG_CHAR('8')
 
     ; load the hypervisor data selector into ds & es
     FIXUP FIX_HYPER_DS, 1
     mov     eax, 0ffffh
     mov     ds, eax
     mov     es, eax
-    DEBUG32_CHAR('a')
 
     FIXUP FIX_GC_CPUM_OFF, 1, 0
     mov     edx, 0ffffffffh
     CPUMCPU_FROM_CPUM_WITH_OFFSET edx, ebp
-
-    DEBUG32_CHAR('b')
     mov     esi, [edx + CPUMCPU.Host.cr3]
     mov     cr3, esi
-    DEBUG32_CHAR('c')
 
     ;; now we're in host memory context, let's restore regs
     FIXUP FIX_HC_CPUM_OFF, 1, 0
     mov     edx, 0ffffffffh
     CPUMCPU_FROM_CPUM_WITH_OFFSET edx, ebp
-    DEBUG32_CHAR('e')
 
     ; restore the host EFER
     mov     ebx, edx
     mov     ecx, MSR_K6_EFER
     mov     eax, [ebx + CPUMCPU.Host.efer]
     mov     edx, [ebx + CPUMCPU.Host.efer + 4]
-    DEBUG32_CHAR('f')
     wrmsr
     mov     edx, ebx
-    DEBUG32_CHAR('g')
 
     ; activate host gdt and idt
     lgdt    [edx + CPUMCPU.Host.gdtr]
-    DEBUG32_CHAR('0')
+    DEBUG_CHAR('0')
     lidt    [edx + CPUMCPU.Host.idtr]
-    DEBUG32_CHAR('1')
+    DEBUG_CHAR('1')
 
     ; Restore TSS selector; must mark it as not busy before using ltr (!)
     ; ASSUME that this is supposed to be 'BUSY'. (saves 20-30 ticks on the T42p)
@@ -1806,7 +625,7 @@ GLOBALNAME ICExitTarget
     ltr     word [edx + CPUMCPU.Host.tr]
 
     ; activate ldt
-    DEBUG32_CHAR('2')
+    DEBUG_CHAR('2')
     lldt    [edx + CPUMCPU.Host.ldtr]
 
     ; Restore segment registers
@@ -1836,11 +655,41 @@ GLOBALNAME ICExitTarget
     mov     ebp, [edx + CPUMCPU.Host.ebp]
 
     ; store the return code in eax
-    DEBUG_CMOS_TRASH_AL 79h
     mov     eax, [edx + CPUMCPU.u32RetCode]
     retf
-ENDPROC vmmRCToHostAsm
+ENDPROC VMMGCGuestToHostAsm
 
+;;
+; VMMGCGuestToHostAsmHyperCtx
+;
+; This is an alternative entry point which we'll be using
+; when the we have the hypervisor context and need to save
+; that before going to the host.
+;
+; This is typically useful when abandoning the hypervisor
+; because of a trap and want the trap state to be saved.
+;
+; @param    eax     Return code.
+; @param    ecx     Points to CPUMCTXCORE.
+; @uses     eax,edx,ecx
+ALIGNCODE(16)
+BEGINPROC VMMGCGuestToHostAsmHyperCtx
+     int3
+
+;;
+; VMMGCGuestToHostAsmGuestCtx
+;
+; Switches from Guest Context to Host Context.
+; Of course it's only called from within the GC.
+;
+; @param    eax     Return code.
+; @param    esp + 4 Pointer to CPUMCTXCORE.
+;
+; @remark   ASSUMES interrupts disabled.
+;
+ALIGNCODE(16)
+BEGINPROC VMMGCGuestToHostAsmGuestCtx
+      int3
 
 GLOBALNAME End
 ;
@@ -1870,11 +719,12 @@ GLOBALNAME Def
         at VMMSWITCHERDEF.pfnRelocate,                  RTCCPTR_DEF NAME(Relocate)
         at VMMSWITCHERDEF.enmType,                      dd SWITCHER_TYPE
         at VMMSWITCHERDEF.cbCode,                       dd NAME(End)                        - NAME(Start)
-        at VMMSWITCHERDEF.offR0ToRawMode,               dd NAME(vmmR0ToRawMode)             - NAME(Start)
-        at VMMSWITCHERDEF.offRCToHost,                  dd NAME(vmmRCToHost)                - NAME(Start)
-        at VMMSWITCHERDEF.offRCCallTrampoline,          dd NAME(vmmRCCallTrampoline)        - NAME(Start)
-        at VMMSWITCHERDEF.offRCToHostAsm,               dd NAME(vmmRCToHostAsm)             - NAME(Start)
-        at VMMSWITCHERDEF.offRCToHostAsmNoReturn,       dd NAME(vmmRCToHostAsmNoReturn)     - NAME(Start)
+        at VMMSWITCHERDEF.offR0HostToGuest,             dd NAME(vmmR0HostToGuest)           - NAME(Start)
+        at VMMSWITCHERDEF.offGCGuestToHost,             dd NAME(vmmGCGuestToHost)           - NAME(Start)
+        at VMMSWITCHERDEF.offGCCallTrampoline,          dd NAME(vmmGCCallTrampoline)        - NAME(Start)
+        at VMMSWITCHERDEF.offGCGuestToHostAsm,          dd NAME(VMMGCGuestToHostAsm)        - NAME(Start)
+        at VMMSWITCHERDEF.offGCGuestToHostAsmHyperCtx,  dd NAME(VMMGCGuestToHostAsmHyperCtx)- NAME(Start)
+        at VMMSWITCHERDEF.offGCGuestToHostAsmGuestCtx,  dd NAME(VMMGCGuestToHostAsmGuestCtx)- NAME(Start)
         ; disasm help
         at VMMSWITCHERDEF.offHCCode0,                   dd 0
         at VMMSWITCHERDEF.cbHCCode0,                    dd NAME(IDEnterTarget)              - NAME(Start)
@@ -1884,11 +734,7 @@ GLOBALNAME Def
         at VMMSWITCHERDEF.cbIDCode0,                    dd NAME(ICEnterTarget)              - NAME(IDEnterTarget)
         at VMMSWITCHERDEF.offIDCode1,                   dd NAME(IDExitTarget)               - NAME(Start)
         at VMMSWITCHERDEF.cbIDCode1,                    dd NAME(ICExitTarget)               - NAME(Start)
-%ifdef VBOX_WITH_64ON32_IDT ; Hack! Use offGCCode to find the IDT.
-        at VMMSWITCHERDEF.offGCCode,                    dd NAME(vmm64On32Idt)               - NAME(Start)
-%else
         at VMMSWITCHERDEF.offGCCode,                    dd 0
-%endif
         at VMMSWITCHERDEF.cbGCCode,                     dd 0
 
     iend

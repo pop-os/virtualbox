@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,14 +17,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_ENABLED
-#define LOG_GROUP LOG_GROUP_MAIN
-#define LOG_INSTANCE NULL
-#include <VBox/log.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "../include/GuestCtrlImplPrivate.h"
 
 using namespace com;
+
+#define LOG_ENABLED
+#define LOG_GROUP LOG_GROUP_MAIN
+#define LOG_INSTANCE NULL
+#include <VBox/log.h>
 
 #include <iprt/env.h>
 #include <iprt/test.h>
@@ -204,12 +207,12 @@ int main()
             iResult = stream.ParseBlock(curBlock);
             if (iResult != aTestBlock[iTest].iResult)
             {
-                RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc\n",
+                RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc",
                              iResult, aTestBlock[iTest].iResult);
             }
             else if (stream.GetOffset() != aTestBlock[iTest].uOffsetAfter)
             {
-                RTTestFailed(hTest, "\tOffset %u wrong, expected %u\n",
+                RTTestFailed(hTest, "\tOffset %u wrong, expected %u",
                              stream.GetOffset(), aTestBlock[iTest].uOffsetAfter);
             }
             else if (iResult == VERR_MORE_DATA)
@@ -222,7 +225,7 @@ int main()
             {
                 if (curBlock.GetCount() != aTestBlock[iTest].uMapElements)
                 {
-                    RTTestFailed(hTest, "\tMap has %u elements, expected %u\n",
+                    RTTestFailed(hTest, "\tMap has %u elements, expected %u",
                                  curBlock.GetCount(), aTestBlock[iTest].uMapElements);
                 }
             }
@@ -274,7 +277,7 @@ int main()
 
             if (iResult != aTestStream[iTest].iResult)
             {
-                RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc\n",
+                RTTestFailed(hTest, "\tReturned %Rrc, expected %Rrc",
                              iResult, aTestStream[iTest].iResult);
             }
             else if (uNumBlocks != aTestStream[iTest].uNumBlocks)

@@ -2,15 +2,15 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
- Copyright (C) 2009-2012 Oracle Corporation
+     Copyright (C) 2009 Oracle Corporation
 
- This file is part of VirtualBox Open Source Edition (OSE), as
- available from http://www.virtualbox.org. This file is free software;
- you can redistribute it and/or modify it under the terms of the GNU
- General Public License (GPL) as published by the Free Software
- Foundation, in version 2 as it comes in the "COPYING" file of the
- VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+     This file is part of VirtualBox Open Source Edition (OSE), as
+     available from http://www.virtualbox.org. This file is free software;
+     you can redistribute it and/or modify it under the terms of the GNU
+     General Public License (GPL) as published by the Free Software
+     Foundation, in version 2 as it comes in the "COPYING" file of the
+     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  </comment>
  <class>UIMachineSettingsStorage</class>
  <widget class="QWidget" name="UIMachineSettingsStorage" >
@@ -240,7 +240,7 @@
            <string>Allows to use host I/O caching capabilities.</string>
           </property>
           <property name="text" >
-           <string>Use Host I/O Cache</string>
+           <string>Use host I/O cache</string>
           </property>
          </widget>
         </item>
@@ -376,7 +376,7 @@
            <string>When checked the guest system will see the virtual disk as a solid state device.</string>
           </property>
           <property name="text" >
-           <string>&amp;Solid-state Drive</string>
+           <string>&amp;Solid-state drive</string>
           </property>
          </widget>
         </item>
@@ -530,7 +530,7 @@
         <item row="11" column="1" >
          <widget class="QLabel" name="mLbUsage" >
           <property name="text" >
-           <string>Attached to:</string>
+           <string>Attached To:</string>
           </property>
           <property name="alignment" >
            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>

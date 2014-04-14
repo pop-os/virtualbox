@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,9 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/selm.h>
-#include <VBox/vmm/hm.h>
+#include <VBox/vmm/hwaccm.h>
 #include "DBGFInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/uvm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/vmm/mm.h>
@@ -37,7 +36,7 @@
  * Scan guest memory for an exact byte string.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         The VM handle.
  * @param   idCpu       The ID of the CPU context to search in.
  * @param   pAddress    Where to store the mixed address.
  * @param   puAlign     The alignment restriction imposed on the search result.
@@ -47,18 +46,16 @@
  * @param   cbNeedle    Size of the search byte string.
  * @param   pHitAddress Where to put the address of the first hit.
  */
-static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, PCRTGCUINTPTR pcbRange,
-                                       RTGCUINTPTR *puAlign, const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
+static DECLCALLBACK(int) dbgfR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, PCRTGCUINTPTR pcbRange, RTGCUINTPTR *puAlign,
+                                       const uint8_t *pabNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
 {
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     Assert(idCpu == VMMGetCpuId(pVM));
 
     /*
      * Validate the input we use, PGM does the rest.
      */
     RTGCUINTPTR cbRange = *pcbRange;
-    if (!DBGFR3AddrIsValid(pUVM, pAddress))
+    if (!DBGFR3AddrIsValid(pVM, pAddress))
         return VERR_INVALID_POINTER;
     if (!VALID_PTR(pHitAddress))
         return VERR_INVALID_POINTER;
@@ -82,7 +79,7 @@ static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
         RTGCPHYS PhysHit;
         rc = PGMR3DbgScanPhysical(pVM, pAddress->FlatPtr, cbRange, GCPhysAlign, pabNeedle, cbNeedle, &PhysHit);
         if (RT_SUCCESS(rc))
-            DBGFR3AddrFromPhys(pUVM, pHitAddress, PhysHit);
+            DBGFR3AddrFromPhys(pVM, pHitAddress, PhysHit);
     }
     else
     {
@@ -96,7 +93,7 @@ static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
         RTGCUINTPTR GCPtrHit;
         rc = PGMR3DbgScanVirtual(pVM, pVCpu, pAddress->FlatPtr, cbRange, *puAlign, pabNeedle, cbNeedle, &GCPtrHit);
         if (RT_SUCCESS(rc))
-            DBGFR3AddrFromFlat(pUVM, pHitAddress, GCPtrHit);
+            DBGFR3AddrFromFlat(pVM, pHitAddress, GCPtrHit);
     }
 
     return rc;
@@ -112,7 +109,7 @@ static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         The VM handle.
  * @param   idCpu       The ID of the CPU context to search in.
  * @param   pAddress    Where to store the mixed address.
  * @param   cbRange     The number of bytes to scan.
@@ -124,13 +121,13 @@ static DECLCALLBACK(int) dbgfR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
  *
  * @thread  Any thread.
  */
-VMMR3DECL(int) DBGFR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
+VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
                              const void *pvNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3MemScan, 8,
-                                    pUVM, idCpu, pAddress, &cbRange, &uAlign, pvNeedle, cbNeedle, pHitAddress);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3MemScan, 8,
+                                   pVM, idCpu, pAddress, &cbRange, &uAlign, pvNeedle, cbNeedle, pHitAddress);
 
 }
 
@@ -139,21 +136,19 @@ VMMR3DECL(int) DBGFR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, R
  * Read guest memory.
  *
  * @returns VBox status code.
- * @param   pUVM        The user mode VM handle.
- * @param   pAddress    Where to start reading.
- * @param   pvBuf       Where to store the data we've read.
- * @param   cbRead      The number of bytes to read.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pAddress        Where to start reading.
+ * @param   pvBuf           Where to store the data we've read.
+ * @param   cbRead          The number of bytes to read.
  */
-static DECLCALLBACK(int) dbgfR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead)
+static DECLCALLBACK(int) dbgfR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead)
 {
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     Assert(idCpu == VMMGetCpuId(pVM));
 
     /*
      * Validate the input we use, PGM does the rest.
      */
-    if (!DBGFR3AddrIsValid(pUVM, pAddress))
+    if (!DBGFR3AddrIsValid(pVM, pAddress))
         return VERR_INVALID_POINTER;
     if (!VALID_PTR(pvBuf))
         return VERR_INVALID_POINTER;
@@ -201,24 +196,22 @@ static DECLCALLBACK(int) dbgfR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
  *
  * @returns VBox status code.
  *
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The ID of the source CPU context (for the address).
- * @param   pAddress    Where to start reading.
- * @param   pvBuf       Where to store the data we've read.
- * @param   cbRead      The number of bytes to read.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   idCpu           The ID of the source CPU context (for the address).
+ * @param   pAddress        Where to start reading.
+ * @param   pvBuf           Where to store the data we've read.
+ * @param   cbRead          The number of bytes to read.
  */
-VMMR3DECL(int) DBGFR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead)
+VMMR3DECL(int) DBGFR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
-
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
     if ((pAddress->fFlags & DBGFADDRESS_FLAGS_TYPE_MASK) == DBGFADDRESS_FLAGS_RING0)
     {
         AssertCompile(sizeof(RTHCUINTPTR) <= sizeof(pAddress->FlatPtr));
-        VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
-        return VMMR3ReadR0Stack(pUVM->pVM, idCpu, (RTHCUINTPTR)pAddress->FlatPtr, pvBuf, cbRead);
+        return VMMR3ReadR0Stack(pVM, idCpu, (RTHCUINTPTR)pAddress->FlatPtr, pvBuf, cbRead);
     }
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3MemRead, 5, pUVM, idCpu, pAddress, pvBuf, cbRead);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3MemRead, 5, pVM, idCpu, pAddress, pvBuf, cbRead);
 }
 
 
@@ -227,18 +220,18 @@ VMMR3DECL(int) DBGFR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, v
  *
  * @returns VBox status code.
  *
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The ID of the source CPU context (for the address).
- * @param   pAddress    Where to start reading.
- * @param   pszBuf      Where to store the string.
- * @param   cchBuf      The size of the buffer.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   idCpu           The ID of the source CPU context (for the address).
+ * @param   pAddress        Where to start reading.
+ * @param   pszBuf          Where to store the string.
+ * @param   cchBuf          The size of the buffer.
  */
-static DECLCALLBACK(int) dbgfR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cchBuf)
+static DECLCALLBACK(int) dbgfR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cchBuf)
 {
     /*
      * Validate the input we use, PGM does the rest.
      */
-    if (!DBGFR3AddrIsValid(pUVM, pAddress))
+    if (!DBGFR3AddrIsValid(pVM, pAddress))
         return VERR_INVALID_POINTER;
     if (!VALID_PTR(pszBuf))
         return VERR_INVALID_POINTER;
@@ -246,7 +239,7 @@ static DECLCALLBACK(int) dbgfR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADD
     /*
      * Let dbgfR3MemRead do the job.
      */
-    int rc = dbgfR3MemRead(pUVM, idCpu, pAddress, pszBuf, cchBuf);
+    int rc = dbgfR3MemRead(pVM, idCpu, pAddress, pszBuf, cchBuf);
 
     /*
      * Make sure the result is terminated and that overflow is signaled.
@@ -275,13 +268,13 @@ static DECLCALLBACK(int) dbgfR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADD
  *
  * @returns VBox status code.
  *
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The ID of the source CPU context (for the address).
- * @param   pAddress    Where to start reading.
- * @param   pszBuf      Where to store the string.
- * @param   cchBuf      The size of the buffer.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   idCpu           The ID of the source CPU context (for the address).
+ * @param   pAddress        Where to start reading.
+ * @param   pszBuf          Where to store the string.
+ * @param   cchBuf          The size of the buffer.
  */
-VMMR3DECL(int) DBGFR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cchBuf)
+VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cchBuf)
 {
     /*
      * Validate and zero output.
@@ -291,13 +284,13 @@ VMMR3DECL(int) DBGFR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddr
     if (cchBuf <= 0)
         return VERR_INVALID_PARAMETER;
     memset(pszBuf, 0, cchBuf);
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
     /*
      * Pass it on to the EMT.
      */
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3MemReadString, 5, pUVM, idCpu, pAddress, pszBuf, cchBuf);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3MemReadString, 5, pVM, idCpu, pAddress, pszBuf, cchBuf);
 }
 
 
@@ -306,23 +299,21 @@ VMMR3DECL(int) DBGFR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddr
  *
  * @returns VBox status code.
  *
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The ID of the target CPU context (for the address).
- * @param   pAddress    Where to start writing.
- * @param   pvBuf       The data to write.
- * @param   cbWrite     The number of bytes to write.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   idCpu           The ID of the target CPU context (for the address).
+ * @param   pAddress        Where to start writing.
+ * @param   pvBuf           The data to write.
+ * @param   cbWrite         The number of bytes to write.
  */
-static DECLCALLBACK(int) dbgfR3MemWrite(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
+static DECLCALLBACK(int) dbgfR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
 {
     /*
      * Validate the input we use, PGM does the rest.
      */
-    if (!DBGFR3AddrIsValid(pUVM, pAddress))
+    if (!DBGFR3AddrIsValid(pVM, pAddress))
         return VERR_INVALID_POINTER;
     if (!VALID_PTR(pvBuf))
         return VERR_INVALID_POINTER;
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * HMA is always special.
@@ -365,28 +356,25 @@ static DECLCALLBACK(int) dbgfR3MemWrite(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS 
  *
  * @returns VBox status code.
  *
- * @param   pUVM        The user mode VM handle.
- * @param   idCpu       The ID of the target CPU context (for the address).
- * @param   pAddress    Where to start writing.
- * @param   pvBuf       The data to write.
- * @param   cbRead      The number of bytes to write.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   idCpu           The ID of the target CPU context (for the address).
+ * @param   pAddress        Where to start writing.
+ * @param   pvBuf           The data to write.
+ * @param   cbRead          The number of bytes to write.
  */
-VMMR3DECL(int) DBGFR3MemWrite(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
+VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbWrite)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3MemWrite, 5, pUVM, idCpu, pAddress, pvBuf, cbWrite);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3MemWrite, 5, pVM, idCpu, pAddress, pvBuf, cbWrite);
 }
 
 
 /**
  * Worker for DBGFR3SelQueryInfo that calls into SELM.
  */
-static DECLCALLBACK(int) dbgfR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
+static DECLCALLBACK(int) dbgfR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
 {
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
-
     /*
      * Make the query.
      */
@@ -410,13 +398,13 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel,
                                          | DBGFSELINFO_FLAGS_INVALID   | DBGFSELINFO_FLAGS_NOT_PRESENT))
                      == DBGFSELINFO_FLAGS_LONG_MODE
                 &&  pSelInfo->cbLimit != ~(RTGCPTR)0
-                &&  CPUMIsGuestIn64BitCode(pVCpu) )
+                &&  CPUMIsGuestIn64BitCode(pVCpu, CPUMGetGuestCtxCore(pVCpu)) )
             {
                 pSelInfo->GCPtrBase = 0;
                 pSelInfo->cbLimit   = ~(RTGCPTR)0;
             }
             else if (   Sel == 0
-                     && CPUMIsGuestIn64BitCode(pVCpu))
+                     && CPUMIsGuestIn64BitCode(pVCpu, CPUMGetGuestCtxCore(pVCpu)))
             {
                 pSelInfo->GCPtrBase = 0;
                 pSelInfo->cbLimit   = ~(RTGCPTR)0;
@@ -432,7 +420,7 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel,
     }
     else
     {
-        if (HMIsEnabled(pVM))
+        if (HWACCMIsEnabled(pVM))
             rc = VERR_INVALID_STATE;
         else
             rc = SELMR3GetShadowSelectorInfo(pVM, Sel, pSelInfo);
@@ -457,7 +445,7 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel,
  * @retval  VERR_PAGE_TABLE_NOT_PRESENT or VERR_PAGE_NOT_PRESENT if the
  *          pagetable or page backing the selector table wasn't present.
  *
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         VM handle.
  * @param   idCpu       The ID of the virtual CPU context.
  * @param   Sel         The selector to get info about.
  * @param   fFlags      Flags, see DBGFQSEL_FLAGS_*.
@@ -467,10 +455,10 @@ static DECLCALLBACK(int) dbgfR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel,
  * @remarks This is a wrapper around SELMR3GetSelectorInfo and
  *          SELMR3GetShadowSelectorInfo.
  */
-VMMR3DECL(int) DBGFR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
+VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo)
 {
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
     AssertReturn(!(fFlags & ~(DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE)), VERR_INVALID_PARAMETER);
     AssertReturn(    (fFlags & (DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE))
                   !=           (DBGFSELQI_FLAGS_DT_SHADOW | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE), VERR_INVALID_PARAMETER);
@@ -481,7 +469,7 @@ VMMR3DECL(int) DBGFR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t 
     /*
      * Dispatch the request to a worker running on the target CPU.
      */
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3SelQueryInfo, 5, pUVM, idCpu, Sel, fFlags, pSelInfo);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3SelQueryInfo, 5, pVM, idCpu, Sel, fFlags, pSelInfo);
 }
 
 
@@ -556,7 +544,7 @@ static uint32_t dbgfR3PagingDumpModeToFlags(PGMMODE enmMode)
  * EMT worker for DBGFR3PagingDumpEx.
  *
  * @returns VBox status code.
- * @param   pUVM            The shared VM handle.
+ * @param   pVM             The VM handle.
  * @param   idCpu           The current CPU ID.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.  Valid.
  * @param   pcr3            The CR3 to use (unless we're getting the current
@@ -566,7 +554,7 @@ static uint32_t dbgfR3PagingDumpModeToFlags(PGMMODE enmMode)
  * @param   cMaxDepth       The depth.
  * @param   pHlp            The output callbacks.
  */
-static DECLCALLBACK(int) dbgfR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t fFlags, uint64_t *pcr3,
+static DECLCALLBACK(int) dbgfR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_t *pcr3,
                                             uint64_t *pu64FirstAddr, uint64_t *pu64LastAddr,
                                             uint32_t cMaxDepth, PCDBGFINFOHLP pHlp)
 {
@@ -575,15 +563,12 @@ static DECLCALLBACK(int) dbgfR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t f
      */
     if ((fFlags & (DBGFPGDMP_FLAGS_GUEST | DBGFPGDMP_FLAGS_SHADOW)) == (DBGFPGDMP_FLAGS_GUEST | DBGFPGDMP_FLAGS_SHADOW))
     {
-        int rc1 = dbgfR3PagingDumpEx(pUVM, idCpu, fFlags & ~DBGFPGDMP_FLAGS_GUEST,
+        int rc1 = dbgfR3PagingDumpEx(pVM, idCpu, fFlags & ~DBGFPGDMP_FLAGS_GUEST,
                                      pcr3, pu64FirstAddr, pu64LastAddr, cMaxDepth, pHlp);
-        int rc2 = dbgfR3PagingDumpEx(pUVM, idCpu, fFlags & ~DBGFPGDMP_FLAGS_SHADOW,
+        int rc2 = dbgfR3PagingDumpEx(pVM, idCpu, fFlags & ~DBGFPGDMP_FLAGS_SHADOW,
                                      pcr3, pu64FirstAddr, pu64LastAddr, cMaxDepth, pHlp);
         return RT_FAILURE(rc1) ? rc1 : rc2;
     }
-
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     /*
      * Get the current CR3/mode if required.
@@ -640,7 +625,7 @@ static DECLCALLBACK(int) dbgfR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t f
  * This API can be used to dump both guest and shadow structures.
  *
  * @returns VBox status code.
- * @param   pUVM            The user mode VM handle.
+ * @param   pVM             The VM handle.
  * @param   idCpu           The current CPU ID.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   cr3             The CR3 to use (unless we're getting the current
@@ -651,14 +636,14 @@ static DECLCALLBACK(int) dbgfR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t f
  * @param   pHlp            The output callbacks.  Defaults to the debug log if
  *                          NULL.
  */
-VMMDECL(int) DBGFR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t fFlags, uint64_t cr3, uint64_t u64FirstAddr,
+VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_t cr3, uint64_t u64FirstAddr,
                                 uint64_t u64LastAddr, uint32_t cMaxDepth, PCDBGFINFOHLP pHlp)
 {
     /*
      * Input validation.
      */
-    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
-    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_CPU_ID);
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
     AssertReturn(!(fFlags & ~DBGFPGDMP_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
     AssertReturn(fFlags & (DBGFPGDMP_FLAGS_SHADOW | DBGFPGDMP_FLAGS_GUEST), VERR_INVALID_PARAMETER);
     AssertReturn((fFlags & DBGFPGDMP_FLAGS_CURRENT_MODE) || !(fFlags & DBGFPGDMP_FLAGS_MODE_MASK), VERR_INVALID_PARAMETER);
@@ -671,7 +656,7 @@ VMMDECL(int) DBGFR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t fFlags, uint6
     /*
      * Forward the request to the target CPU.
      */
-    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3PagingDumpEx, 8,
-                                    pUVM, idCpu, fFlags, &cr3, &u64FirstAddr, &u64LastAddr, cMaxDepth, pHlp);
+    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3PagingDumpEx, 8,
+                                   pVM, idCpu, fFlags, &cr3, &u64FirstAddr, &u64LastAddr, cMaxDepth, pHlp);
 }
 

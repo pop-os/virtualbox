@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,14 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_DIR
+#ifdef RT_OS_WINDOWS /* PORTME: Assumes everyone else is using dir-posix.cpp */
+# include <Windows.h>
+#else
+# include <dirent.h>
+# include <unistd.h>
+# include <limits.h>
+#endif
+
 #include <iprt/dir.h>
 #include "internal/iprt.h"
 
@@ -41,7 +49,6 @@
 #include <iprt/path.h>
 #include <iprt/string.h>
 #include <iprt/uni.h>
-#define RTDIR_AGNOSTIC
 #include "internal/dir.h"
 #include "internal/path.h"
 
@@ -96,7 +103,7 @@ RTDECL(int) RTDirCreateFullPath(const char *pszPath, RTFMODE fMode)
          * ASSUME that RTDirCreate will return VERR_ALREADY_EXISTS and not VERR_ACCESS_DENIED in those cases
          * where the directory exists but we don't have write access to the parent directory.
          */
-        rc = RTDirCreate(szAbsPath, fMode, 0);
+        rc = RTDirCreate(szAbsPath, fMode);
         if (rc == VERR_ALREADY_EXISTS)
             rc = VINF_SUCCESS;
         if (!psz)
@@ -526,7 +533,7 @@ static int rtDirOpenCommon(PRTDIR *ppDir, const char *pszPath, const char *pszFi
     if (!pszFilter)
     {
         cbFilter = cucFilter0 = 0;
-        rc = RTPathAbs(pszPath, szRealPath, sizeof(szRealPath) - 1);
+        rc = RTPathReal(pszPath, szRealPath, sizeof(szRealPath) - 1);
     }
     else
     {
@@ -540,7 +547,7 @@ static int rtDirOpenCommon(PRTDIR *ppDir, const char *pszPath, const char *pszFi
             if (!pszTmp)
                 return VERR_NO_MEMORY;
             pszTmp[pszFilter - pszPath] = '\0';
-            rc = RTPathAbs(pszTmp, szRealPath, sizeof(szRealPath) - 1);
+            rc = RTPathReal(pszTmp, szRealPath, sizeof(szRealPath) - 1);
             RTStrFree(pszTmp);
         }
         else
@@ -563,19 +570,34 @@ static int rtDirOpenCommon(PRTDIR *ppDir, const char *pszPath, const char *pszFi
      * The posix definition of Data.d_name allows it to be < NAME_MAX + 1,
      * thus the horrible ugliness here. Solaris uses d_name[1] for instance.
      */
-    size_t cbDir = rtDirNativeGetStructSize(szRealPath);
+#ifndef RT_OS_WINDOWS
+    long cbNameMax = pathconf(szRealPath, _PC_NAME_MAX);
+# ifdef NAME_MAX
+    if (cbNameMax < NAME_MAX)           /* This is plain paranoia, but it doesn't hurt. */
+        cbNameMax = NAME_MAX;
+# endif
+# ifdef _XOPEN_NAME_MAX
+    if (cbNameMax < _XOPEN_NAME_MAX)    /* Ditto. */
+        cbNameMax = _XOPEN_NAME_MAX;
+# endif
+    size_t cbDir = RT_OFFSETOF(RTDIR, Data.d_name[cbNameMax + 1]);
+    if (cbDir < sizeof(RTDIR))          /* Ditto. */
+        cbDir = sizeof(RTDIR);
+    cbDir = RT_ALIGN_Z(cbDir, 8);
+#else
+    size_t cbDir = sizeof(RTDIR);
+#endif
     size_t const cbAllocated = cbDir
                              + cucFilter0 * sizeof(RTUNICP)
                              + cbFilter
                              + cchRealPath + 1 + 4;
-    PRTDIR pDir = (PRTDIR)RTMemAllocZ(cbAllocated);
+    PRTDIR pDir = (PRTDIR)RTMemAlloc(cbAllocated);
     if (!pDir)
         return VERR_NO_MEMORY;
     uint8_t *pb = (uint8_t *)pDir + cbDir;
 
     /* initialize it */
     pDir->u32Magic = RTDIR_MAGIC;
-    pDir->cbSelf   = cbDir;
     if (cbFilter)
     {
         pDir->puszFilter = (PRTUNICP)pb;
@@ -616,6 +638,9 @@ static int rtDirOpenCommon(PRTDIR *ppDir, const char *pszPath, const char *pszFi
     pDir->fDataUnread = false;
     pDir->pszName = NULL;
     pDir->cchName = 0;
+#ifndef RT_OS_WINDOWS
+    pDir->cbMaxName = cbDir - RT_OFFSETOF(RTDIR, Data.d_name);
+#endif
 
     /*
      * Hand it over to the native part.
@@ -648,7 +673,7 @@ RTDECL(int) RTDirOpen(PRTDIR *ppDir, const char *pszPath)
 }
 
 
-RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter, uint32_t fOpen)
+RTDECL(int) RTDirOpenFiltered(PRTDIR *ppDir, const char *pszPath, RTDIRFILTER enmFilter)
 {
     /*
      * Validate input.
@@ -703,72 +728,5 @@ RTDECL(int) RTDirFlushParent(const char *pszChild)
         rc = RTDirFlush(szPath);
     }
     return rc;
-}
-
-
-RTDECL(int) RTDirQueryUnknownTypeEx(const char *pszComposedName, bool fFollowSymlinks,
-                                    RTDIRENTRYTYPE *penmType, PRTFSOBJINFO pObjInfo)
-{
-    int rc = RTPathQueryInfoEx(pszComposedName, pObjInfo, RTFSOBJATTRADD_NOTHING,
-                               fFollowSymlinks ? RTPATH_F_FOLLOW_LINK : RTPATH_F_ON_LINK);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    if (RTFS_IS_DIRECTORY(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_DIRECTORY;
-    else if (RTFS_IS_FILE(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_FILE;
-    else if (RTFS_IS_SYMLINK(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_SYMLINK;
-    else if (RTFS_IS_FIFO(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_FIFO;
-    else if (RTFS_IS_DEV_CHAR(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_DEV_CHAR;
-    else if (RTFS_IS_DEV_BLOCK(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_DEV_BLOCK;
-    else if (RTFS_IS_SOCKET(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_SOCKET;
-    else if (RTFS_IS_WHITEOUT(pObjInfo->Attr.fMode))
-        *penmType = RTDIRENTRYTYPE_WHITEOUT;
-    else
-        *penmType = RTDIRENTRYTYPE_UNKNOWN;
-
-    return VINF_SUCCESS;
-}
-
-
-RTDECL(int) RTDirQueryUnknownType(const char *pszComposedName, bool fFollowSymlinks, RTDIRENTRYTYPE *penmType)
-{
-    if (   *penmType != RTDIRENTRYTYPE_UNKNOWN
-        && (   !fFollowSymlinks
-            || *penmType != RTDIRENTRYTYPE_SYMLINK))
-        return VINF_SUCCESS;
-
-    RTFSOBJINFO ObjInfo;
-    return RTDirQueryUnknownTypeEx(pszComposedName, fFollowSymlinks, penmType, &ObjInfo);
-}
-
-
-RTDECL(bool) RTDirEntryIsStdDotLink(PRTDIRENTRY pDirEntry)
-{
-    if (pDirEntry->szName[0] != '.')
-        return false;
-    if (pDirEntry->cbName == 1)
-        return true;
-    if (pDirEntry->cbName != 2)
-        return false;
-    return pDirEntry->szName[1] == '.';
-}
-
-
-RTDECL(bool) RTDirEntryExIsStdDotLink(PCRTDIRENTRYEX pDirEntryEx)
-{
-    if (pDirEntryEx->szName[0] != '.')
-        return false;
-    if (pDirEntryEx->cbName == 1)
-        return true;
-    if (pDirEntryEx->cbName != 2)
-        return false;
-    return pDirEntryEx->szName[1] == '.';
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,8 +72,6 @@ typedef struct RTFILEAIOCTXINTERNAL
     volatile bool     fWokenUp;
     /** Flag whether the thread is currently waiting. */
     volatile bool     fWaiting;
-    /** Flags given during creation. */
-    uint32_t          fFlags;
     /** Magic value (RTFILEAIOCTX_MAGIC). */
     uint32_t          u32Magic;
 } RTFILEAIOCTXINTERNAL;
@@ -268,12 +266,10 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered)
     return rc;
 }
 
-RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
-                               uint32_t fFlags)
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax)
 {
     PRTFILEAIOCTXINTERNAL pCtxInt;
     AssertPtrReturn(phAioCtx, VERR_INVALID_POINTER);
-    AssertReturn(!(fFlags & ~RTFILEAIOCTX_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
 
     pCtxInt = (PRTFILEAIOCTXINTERNAL)RTMemAllocZ(sizeof(RTFILEAIOCTXINTERNAL));
     if (RT_UNLIKELY(!pCtxInt))
@@ -289,8 +285,7 @@ RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
         return VERR_NO_MEMORY;
     }
 
-    pCtxInt->fFlags   = fFlags;
-    pCtxInt->u32Magic = RTFILEAIOCTX_MAGIC;
+     pCtxInt->u32Magic     = RTFILEAIOCTX_MAGIC;
 
     *phAioCtx = (RTFILEAIOCTX)pCtxInt;
 
@@ -366,10 +361,7 @@ RTDECL(int) RTFileAioCtxSubmit(RTFILEAIOCTX hAioCtx, PRTFILEAIOREQ pahReqs, size
                                    &pReqInt->Overlapped);
         }
         else
-        {
-            fSucceeded = false;
             AssertMsgFailed(("Invalid transfer direction\n"));
-        }
 
         if (RT_UNLIKELY(!fSucceeded && GetLastError() != ERROR_IO_PENDING))
         {
@@ -403,8 +395,7 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
     /*
      * Can't wait if there are no requests around.
      */
-    if (   RT_UNLIKELY(ASMAtomicUoReadS32(&pCtxInt->cRequests) == 0)
-        && !(pCtxInt->fFlags & RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS))
+    if (RT_UNLIKELY(ASMAtomicUoReadS32(&pCtxInt->cRequests) == 0))
         return VERR_FILE_AIO_NO_REQUEST;
 
     /* Wait for at least one. */

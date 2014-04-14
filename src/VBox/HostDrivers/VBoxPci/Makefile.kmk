@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2011-2012 Oracle Corporation
+# Copyright (C) 2011 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@ if1of ($(KBUILD_TARGET), linux)
   VBoxPci_TEMPLATE       = VBOXR0DRV
   VBoxPci_INST           = $(INST_VBOXPCI)$(if $(eq $(KBUILD_TARGET),darwin),Contents/MacOS/)
   VBoxPci_NAME.linux     = vboxpci
+  VBoxPci_NOINST.linux   = true
   VBoxPci_DEFS           = IN_RT_R0 VBOX_SVN_REV=$(VBOX_SVN_REV) IN_SUP_STATIC
   VBoxPci_DEFS.linux     = KBUILD_MODNAME=KBUILD_STR\(vboxpci\) KBUILD_BASENAME=KBUILD_STR\(vboxpci\) MODULE
   VBoxPci_INCS.linux    := \
@@ -52,10 +53,12 @@ if1of ($(KBUILD_TARGET), linux)
 	$(subst $(DQUOTE),,$(VBOX_VBOXPCI_SOURCES)) \
  	$(VBoxPci-src_0_OUTDIR)/Makefile
  VBoxPci-src_EXEC_SOURCES = \
+ 	$(VBoxPci-src_0_OUTDIR)/build_in_tmp \
  	$(PATH_ROOT)/src/VBox/HostDrivers/linux/do_Module.symvers
  VBoxPci-src_CLEAN      = \
  	$(VBoxPci-src_0_OUTDIR)/Makefile \
  	$(PATH_TARGET)/VBoxPciSrc-src-1.dep \
+ 	$(VBoxPci-src_0_OUTDIR)/build_in_tmp
 
  # Generate the scripts needed for building the kernel module.
 
@@ -72,6 +75,15 @@ $$(VBoxPci-src_0_OUTDIR)/Makefile: \
  endif
 	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/VBoxPci-src-1.dep' 'VBoxPci/linux/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
 
+$$(VBoxPci-src_0_OUTDIR)/build_in_tmp: \
+		$(PATH_ROOT)/src/VBox/HostDrivers/linux/build_in_tmp \
+		$(VBOX_VERSION_STAMP) \
+		| $$(dir $$@)
+	$(call MSG_TOOL,Creating,,$@)
+	$(QUIET)$(RM) -f -- $@
+	$(QUIET)$(SED) -e "s;_VERSION_;${VBOX_VERSION_STRING};g; s;_MODULE_;vboxpci;g; s;_BUILDTYPE_;${KBUILD_TYPE};g" --output $@ $<
+	$(QUIET)$(CHMOD) 0755 $@
+
 endif # Supported platform.
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

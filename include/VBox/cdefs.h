@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,17 +203,9 @@
  * @param   type    The return type of the function declaration.
  */
 #ifdef IN_SUP_R3
-# ifdef IN_SUP_STATIC
-#  define SUPR3DECL(type)   DECLHIDDEN(type) VBOXCALL
-# else
-#  define SUPR3DECL(type)   DECLEXPORT(type) VBOXCALL
-# endif
+# define SUPR3DECL(type)    DECLEXPORT(type) VBOXCALL
 #else
-# ifdef IN_SUP_STATIC
-#  define SUPR3DECL(type)   DECLHIDDEN(type) VBOXCALL
-# else
-#  define SUPR3DECL(type)   DECLIMPORT(type) VBOXCALL
-# endif
+# define SUPR3DECL(type)    DECLIMPORT(type) VBOXCALL
 #endif
 
 /** @def IN_SUP_R0
@@ -417,7 +409,7 @@
  * VMM internal function, ring-0 + raw-mode context.
  * @param   type    The return type of the function declaration.
  */
-#if defined(IN_VMM_RC) || defined(IN_VMM_R0)
+#ifdef IN_VMM_RZ
 # define VMMRZ_INT_DECL(type)       DECLHIDDEN(type) VBOXCALL
 #else
 # define VMMRZ_INT_DECL(type)       DECL_INVALID(type)

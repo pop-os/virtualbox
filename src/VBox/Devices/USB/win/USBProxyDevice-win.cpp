@@ -1,10 +1,14 @@
 /* $Id: USBProxyDevice-win.cpp $ */
 /** @file
  * USBPROXY - USB proxy, Win32 backend
+ *
+ * NOTE: This code assumes only one thread will use it at a time!!
+ * bird: usbProxyWinReset() will be called in a separate thread because it
+ *       will usually take >=10ms. So, the assumption is broken.
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,12 +68,18 @@ typedef struct
     PQUEUED_URB    *paQueuedUrbs;
     /** Array of handles, this is parallel to paQueuedUrbs. */
     PHANDLE         paHandles;
-    /* Event sempahore to wakeup the reaper thead. */
-    HANDLE          hEventWakeup;
-    /** Number of queued URBs waiting to get into the handle list. */
+    /** The number of pending URBs. */
     unsigned        cPendingUrbs;
-    /** Array of pending URBs. */
+    /** Array of pointers to the pending URB structures. */
     PQUEUED_URB     aPendingUrbs[64];
+    /* Thread handle for async io handling. */
+    RTTHREAD        hThreadAsyncIo;
+    /* Event semaphore for signalling the arrival of a new URB */
+    HANDLE          hEventAsyncIo;
+    /* Event semaphore for signalling thread termination */
+    HANDLE          hEventAsyncTerm;
+    /* Set when the async io thread is started. */
+    bool            fThreadAsyncIoActive;
 } PRIV_USBW32, *PPRIV_USBW32;
 
 /* All functions are returning 1 on success, 0 on error */
@@ -78,37 +88,25 @@ typedef struct
 *   Internal Functions                                                         *
 *******************************************************************************/
 static int usbProxyWinSetInterface(PUSBPROXYDEV p, int ifnum, int setting);
-
-/**
- * Converts the given Windows error code to VBox handling unplugged devices.
- *
- * @returns VBox status code.
- * @param   pProxDev    The USB proxy device instance.
- * @param   dwErr       Windows error code.
- */
-static int usbProxyWinHandleUnpluggedDevice(PUSBPROXYDEV pProxyDev, DWORD dwErr)
-{
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
-
-    if (   dwErr == ERROR_INVALID_HANDLE_STATE
-        || dwErr == ERROR_BAD_COMMAND)
-    {
-        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
-        pProxyDev->fDetached = true;
-    }
-    else
-        AssertMsgFailed(("lasterr=%d\n", dwErr));
-    return RTErrConvertFromWin32(dwErr);
-}
+static DECLCALLBACK(int) usbProxyWinAsyncIoThread(RTTHREAD ThreadSelf, void *lpParameter);
 
 /**
  * Open a USB device and create a backend instance for it.
  *
  * @returns VBox status code.
  */
-static DECLCALLBACK(int) usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static int usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    /* Here you just need to use pProxyDev->priv to store whatever per-device
+     * data is needed
+     */
+    /*
+     * Allocate private device instance data and use USBPROXYDEV::Backend::pv to point to it.
+     */
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)RTMemAllocZ(sizeof(PRIV_USBW32));
+    if (!pPriv)
+        return VERR_NO_MEMORY;
+    pProxyDev->Backend.pv = pPriv;
 
     int rc = VINF_SUCCESS;
     pPriv->cAllocatedUrbs = 32;
@@ -157,10 +155,12 @@ static DECLCALLBACK(int) usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *psz
 
                             rc = RTCritSectInit(&pPriv->CritSect);
                             AssertRC(rc);
-                            pPriv->hEventWakeup     = CreateEvent(NULL, FALSE, FALSE, NULL);
-                            Assert(pPriv->hEventWakeup);
-
-                            pPriv->paHandles[0] = pPriv->hEventWakeup;
+                            pPriv->hEventAsyncIo    = CreateEvent(NULL, FALSE, FALSE, NULL);
+                            Assert(pPriv->hEventAsyncIo);
+                            pPriv->hEventAsyncTerm  = CreateEvent(NULL, FALSE, FALSE, NULL);
+                            Assert(pPriv->hEventAsyncTerm);
+                            rc = RTThreadCreate(&pPriv->hThreadAsyncIo, usbProxyWinAsyncIoThread, pPriv, 128 * _1K, RTTHREADTYPE_IO, 0, "USBAsyncIo");
+                            Assert(pPriv->hThreadAsyncIo);
 
                             return VINF_SUCCESS;
                         }
@@ -199,19 +199,21 @@ static DECLCALLBACK(int) usbProxyWinOpen(PUSBPROXYDEV pProxyDev, const char *psz
 
     RTMemFree(pPriv->paQueuedUrbs);
     RTMemFree(pPriv->paHandles);
+    RTMemFree(pPriv);
+    pProxyDev->Backend.pv = NULL;
     return rc;
 }
 
 /**
  * Copy the device and free resources associated with the backend.
  */
-static DECLCALLBACK(void) usbProxyWinClose(PUSBPROXYDEV pProxyDev)
+static void usbProxyWinClose(PUSBPROXYDEV pProxyDev)
 {
     /* Here we just close the device and free up p->priv
      * there is no need to do anything like cancel outstanding requests
      * that will have been done already
      */
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     Assert(pPriv);
     if (!pPriv)
         return;
@@ -233,17 +235,21 @@ static DECLCALLBACK(void) usbProxyWinClose(PUSBPROXYDEV pProxyDev)
         pPriv->hDev = INVALID_HANDLE_VALUE;
     }
 
-    CloseHandle(pPriv->hEventWakeup);
+    /* Terminate async thread (which will clean up hEventAsyncTerm) */
+    SetEvent(pPriv->hEventAsyncTerm);
+    CloseHandle(pPriv->hEventAsyncIo);
     RTCritSectDelete(&pPriv->CritSect);
 
     RTMemFree(pPriv->paQueuedUrbs);
     RTMemFree(pPriv->paHandles);
+    RTMemFree(pPriv);
+    pProxyDev->Backend.pv = NULL;
 }
 
 
-static DECLCALLBACK(int) usbProxyWinReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
+static int usbProxyWinReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     DWORD cbReturned;
     int  rc;
 
@@ -274,7 +280,7 @@ static DECLCALLBACK(int) usbProxyWinReset(PUSBPROXYDEV pProxyDev, bool fResetOnL
     return RTErrConvertFromWin32(rc);
 }
 
-static DECLCALLBACK(int) usbProxyWinSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
+static int usbProxyWinSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
 {
     /* Send a SET_CONFIGURATION command to the device. We don't do this
      * as a normal control message, because the OS might not want to
@@ -283,7 +289,7 @@ static DECLCALLBACK(int) usbProxyWinSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
      * It would be OK to send a SET_CONFIGURATION control URB at this
      * point but it has to be synchronous.
     */
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     USBSUP_SET_CONFIG in;
     DWORD cbReturned;
 
@@ -295,42 +301,51 @@ static DECLCALLBACK(int) usbProxyWinSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
     /* Here we just need to assert reset signalling on the USB device */
     cbReturned = 0;
     if (DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_USB_SET_CONFIG, &in, sizeof(in), NULL, 0, &cbReturned, NULL))
-        return VINF_SUCCESS;
+        return 1;
 
-    return usbProxyWinHandleUnpluggedDevice(pProxyDev, GetLastError());
+    if (   GetLastError() == ERROR_INVALID_HANDLE_STATE
+        || GetLastError() == ERROR_BAD_COMMAND)
+    {
+        Log(("usbproxy: device %p unplugged!!\n", pPriv->hDev));
+        pProxyDev->fDetached = true;
+    }
+    else
+        AssertMsgFailed(("lasterr=%u\n", GetLastError()));
+
+    return 0;
 }
 
-static DECLCALLBACK(int) usbProxyWinClaimInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+static int usbProxyWinClaimInterface(PUSBPROXYDEV p, int ifnum)
 {
     /* Called just before we use an interface. Needed on Linux to claim
      * the interface from the OS, since even when proxying the host OS
      * might want to allow other programs to use the unused interfaces.
      * Not relevant for Windows.
      */
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)p->Backend.pv;
 
     pPriv->bInterfaceNumber = ifnum;
 
     Assert(pPriv);
-    return VINF_SUCCESS;
+    return true;
 }
 
-static DECLCALLBACK(int) usbProxyWinReleaseInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+static int usbProxyWinReleaseInterface(PUSBPROXYDEV p, int ifnum)
 {
     /* The opposite of claim_interface. */
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)p->Backend.pv;
 
     Assert(pPriv);
-    return VINF_SUCCESS;
+    return true;
 }
 
-static DECLCALLBACK(int) usbProxyWinSetInterface(PUSBPROXYDEV pProxyDev, int ifnum, int setting)
+static int usbProxyWinSetInterface(PUSBPROXYDEV pProxyDev, int ifnum, int setting)
 {
     /* Select an alternate setting for an interface, the same applies
      * here as for set_config, you may convert this in to a control
      * message if you want but it must be synchronous
      */
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     USBSUP_SELECT_INTERFACE in;
     DWORD cbReturned;
 
@@ -343,17 +358,25 @@ static DECLCALLBACK(int) usbProxyWinSetInterface(PUSBPROXYDEV pProxyDev, int ifn
     /* Here we just need to assert reset signalling on the USB device */
     cbReturned = 0;
     if (DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_USB_SELECT_INTERFACE, &in, sizeof(in), NULL, 0, &cbReturned, NULL))
-        return VINF_SUCCESS;
+        return true;
 
-    return usbProxyWinHandleUnpluggedDevice(pProxyDev, GetLastError());
+    if (    GetLastError() == ERROR_INVALID_HANDLE_STATE
+        ||  GetLastError() == ERROR_BAD_COMMAND)
+    {
+        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
+        pProxyDev->fDetached = true;
+    }
+    else
+        AssertMsgFailed(("lasterr=%d\n", GetLastError()));
+    return 0;
 }
 
 /**
  * Clears the halted endpoint 'ep'.
  */
-static DECLCALLBACK(int) usbProxyWinClearHaltedEndPt(PUSBPROXYDEV pProxyDev, unsigned int ep)
+static bool usbProxyWinClearHaltedEndPt(PUSBPROXYDEV pProxyDev, unsigned int ep)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     USBSUP_CLEAR_ENDPOINT in;
     DWORD cbReturned;
 
@@ -364,9 +387,17 @@ static DECLCALLBACK(int) usbProxyWinClearHaltedEndPt(PUSBPROXYDEV pProxyDev, uns
 
     cbReturned = 0;
     if (DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_USB_CLEAR_ENDPOINT, &in, sizeof(in), NULL, 0, &cbReturned, NULL))
-        return VINF_SUCCESS;
+        return true;
 
-    return usbProxyWinHandleUnpluggedDevice(pProxyDev, GetLastError());
+    if (    GetLastError() == ERROR_INVALID_HANDLE_STATE
+        ||  GetLastError() == ERROR_BAD_COMMAND)
+    {
+        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
+        pProxyDev->fDetached = true;
+    }
+    else
+        AssertMsgFailed(("lasterr=%d\n", GetLastError()));
+    return 0;
 }
 
 /**
@@ -374,7 +405,7 @@ static DECLCALLBACK(int) usbProxyWinClearHaltedEndPt(PUSBPROXYDEV pProxyDev, uns
  */
 static int usbProxyWinAbortEndPt(PUSBPROXYDEV pProxyDev, unsigned int ep)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32 pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     USBSUP_CLEAR_ENDPOINT in;
     DWORD cbReturned;
     int  rc;
@@ -388,15 +419,25 @@ static int usbProxyWinAbortEndPt(PUSBPROXYDEV pProxyDev, unsigned int ep)
     if (DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_USB_ABORT_ENDPOINT, &in, sizeof(in), NULL, 0, &cbReturned, NULL))
         return VINF_SUCCESS;
 
-    return usbProxyWinHandleUnpluggedDevice(pProxyDev, GetLastError());
+    rc = GetLastError();
+    if (    rc == ERROR_INVALID_HANDLE_STATE
+        ||  rc == ERROR_BAD_COMMAND)
+    {
+        Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
+        pProxyDev->fDetached = true;
+    }
+    else
+        AssertMsgFailed(("lasterr=%d\n", rc));
+    return RTErrConvertFromWin32(rc);
 }
 
 /**
  * @copydoc USBPROXYBACK::pfnUrbQueue
  */
-static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static int usbProxyWinUrbQueue(PVUSBURB pUrb)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PUSBPROXYDEV    pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PPRIV_USBW32    pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     Assert(pPriv);
 
     /*
@@ -405,7 +446,7 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
     /** @todo pool these */
     PQUEUED_URB pQUrbWin = (PQUEUED_URB)RTMemAllocZ(sizeof(QUEUED_URB));
     if (!pQUrbWin)
-        return VERR_NO_MEMORY;
+        return false;
 
     switch (pUrb->enmType)
     {
@@ -424,7 +465,7 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
         case VUSBXFERTYPE_MSG:  pQUrbWin->urbwin.type = USBSUP_TRANSFER_TYPE_MSG; break;
         default:
             AssertMsgFailed(("Invalid type %d\n", pUrb->enmType));
-            return VERR_INVALID_PARAMETER;
+            return false;
     }
 
     switch (pUrb->enmDir)
@@ -441,7 +482,7 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
             break;
         default:
             AssertMsgFailed(("Invalid direction %d\n", pUrb->enmDir));
-            return VERR_INVALID_PARAMETER;
+            return false;
     }
 
     Log(("usbproxy: Queue URB %p ep=%d cbData=%d abData=%p cIsocPkts=%d\n", pUrb, pUrb->EndPt, pUrb->cbData, pUrb->abData, pUrb->cIsocPkts));
@@ -455,54 +496,60 @@ static DECLCALLBACK(int) usbProxyWinUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pU
     if (pUrb->enmDir == VUSBDIRECTION_IN && !pUrb->fShortNotOk)
         pQUrbWin->urbwin.flags = USBSUP_FLAG_SHORT_OK;
 
-    int rc = VINF_SUCCESS;
     pQUrbWin->overlapped.hEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (pQUrbWin->overlapped.hEvent != INVALID_HANDLE_VALUE)
+    if (    pQUrbWin->overlapped.hEvent != INVALID_HANDLE_VALUE
+        &&  pPriv->cPendingUrbs < RT_ELEMENTS(pPriv->aPendingUrbs))
     {
-        pUrb->Dev.pvPrivate = pQUrbWin;
+        while (!pPriv->fThreadAsyncIoActive)
+            RTThreadSleep(1);
 
-        if (   DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_SEND_URB,
-                               &pQUrbWin->urbwin, sizeof(pQUrbWin->urbwin),
-                               &pQUrbWin->urbwin, sizeof(pQUrbWin->urbwin),
-                               &pQUrbWin->cbReturned, &pQUrbWin->overlapped)
-            || GetLastError() == ERROR_IO_PENDING)
+        RTCritSectEnter(&pPriv->CritSect);
+        do
         {
-            /* insert into the queue */
-            RTCritSectEnter(&pPriv->CritSect);
-            unsigned j = pPriv->cPendingUrbs;
-            pPriv->aPendingUrbs[j] = pQUrbWin;
+            /* Ensure we've got sufficient space in the arrays.
+             * Do it inside the lock to ensure we do not concur
+             * with the usbProxyWinAsyncIoThread */
+            if (pPriv->cQueuedUrbs + 1 > pPriv->cAllocatedUrbs)
+            {
+                unsigned cNewMax = pPriv->cAllocatedUrbs + 32;
+                void *pv = RTMemRealloc(pPriv->paHandles, sizeof(pPriv->paHandles[0]) * cNewMax);
+                if (!pv)
+                {
+                    AssertMsgFailed(("RTMemRealloc failed for paHandles[%d]", cNewMax));
+                    break;
+                }
+                pPriv->paHandles = (PHANDLE)pv;
+
+                pv = RTMemRealloc(pPriv->paQueuedUrbs, sizeof(pPriv->paQueuedUrbs[0]) * cNewMax);
+                if (!pv)
+                {
+                    AssertMsgFailed(("RTMemRealloc failed for paQueuedUrbs[%d]", cNewMax));
+                    break;
+                }
+                pPriv->paQueuedUrbs = (PQUEUED_URB *)pv;
+                pPriv->cAllocatedUrbs = cNewMax;
+            }
+
+            pUrb->Dev.pvPrivate = pQUrbWin;
+            pPriv->aPendingUrbs[pPriv->cPendingUrbs] = pQUrbWin;
             pPriv->cPendingUrbs++;
             RTCritSectLeave(&pPriv->CritSect);
-            SetEvent(pPriv->hEventWakeup);
-            return VINF_SUCCESS;
-        }
-        else
-        {
-            DWORD dwErr = GetLastError();
-            if (   dwErr == ERROR_INVALID_HANDLE_STATE
-                || dwErr == ERROR_BAD_COMMAND)
-            {
-                Log(("usbproxy: device %p unplugged!!\n", pPriv->hDev));
-                pProxyDev->fDetached = true;
-            }
-            else
-                AssertMsgFailed(("dwErr=%X urbwin.error=%d (submit urb)\n", dwErr, pQUrbWin->urbwin.error));
-            rc = RTErrConvertFromWin32(dwErr);
-            CloseHandle(pQUrbWin->overlapped.hEvent);
-            pQUrbWin->overlapped.hEvent = INVALID_HANDLE_VALUE;
-        }
+            SetEvent(pPriv->hEventAsyncIo);
+            return true;
+        } while (0);
+
+        RTCritSectLeave(&pPriv->CritSect);
     }
 #ifdef DEBUG_misha
     else
     {
-        AssertMsgFailed(("FAILED!!, hEvent(0x%p)\n", pQUrbWin->overlapped.hEvent));
-        rc = VERR_NO_MEMORY;
+        AssertMsgFailed(("FAILED!!, hEvent(0x%p), cPendingUrbs(%d)\n", pQUrbWin->overlapped.hEvent, pPriv->cPendingUrbs));
     }
 #endif
 
     Assert(pQUrbWin->overlapped.hEvent == INVALID_HANDLE_VALUE);
     RTMemFree(pQUrbWin);
-    return rc;
+    return false;
 }
 
 /**
@@ -541,69 +588,27 @@ static VUSBSTATUS usbProxyWinStatusToVUsbStatus(USBSUP_ERROR win_status)
  * @param   cMillies    Number of milliseconds to wait. Use 0 to not
  *                      wait at all.
  */
-static DECLCALLBACK(PVUSBURB) usbProxyWinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
+static PVUSBURB usbProxyWinUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
 {
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PPRIV_USBW32      pPriv = (PPRIV_USBW32)pProxyDev->Backend.pv;
     AssertReturn(pPriv, NULL);
 
     /*
      * There are some unnecessary calls, just return immediately or
      * WaitForMultipleObjects will fail.
      */
-    if (   pPriv->cQueuedUrbs <= 0
-        && pPriv->cPendingUrbs == 0)
+    if (pPriv->cQueuedUrbs <= 0)
     {
-        if (   cMillies != 0
-            && pPriv->cPendingUrbs == 0)
+        if (cMillies != 0)
         {
-            /* Wait for the wakeup call. */
-            DWORD cMilliesWait = cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies;
-            DWORD rc = WaitForMultipleObjects(1, &pPriv->hEventWakeup, FALSE, cMilliesWait);
+            /* Wait for the URBs to be queued if there are some pending */
+            while (pPriv->cPendingUrbs)
+                RTThreadSleep(1);
+            if (pPriv->cQueuedUrbs <= 0)
+                return NULL;
         }
-
-        return NULL;
-    }
-
-again:
-    /* Check for pending URBs. */
-    if (pPriv->cPendingUrbs)
-    {
-        RTCritSectEnter(&pPriv->CritSect);
-
-        /* Ensure we've got sufficient space in the arrays. */
-        if (pPriv->cQueuedUrbs + pPriv->cPendingUrbs + 1 > pPriv->cAllocatedUrbs)
-        {
-            unsigned cNewMax = pPriv->cAllocatedUrbs + pPriv->cPendingUrbs + 1;
-            void *pv = RTMemRealloc(pPriv->paHandles, sizeof(pPriv->paHandles[0]) * (cNewMax + 1)); /* One extra for the wakeup event. */
-            if (!pv)
-            {
-                AssertMsgFailed(("RTMemRealloc failed for paHandles[%d]", cNewMax));
-                //break;
-            }
-            pPriv->paHandles = (PHANDLE)pv;
-
-            pv = RTMemRealloc(pPriv->paQueuedUrbs, sizeof(pPriv->paQueuedUrbs[0]) * cNewMax);
-            if (!pv)
-            {
-                AssertMsgFailed(("RTMemRealloc failed for paQueuedUrbs[%d]", cNewMax));
-                //break;
-            }
-            pPriv->paQueuedUrbs = (PQUEUED_URB *)pv;
-            pPriv->cAllocatedUrbs = cNewMax;
-        }
-
-        /* Copy the pending URBs over. */
-        for (unsigned i = 0; i < pPriv->cPendingUrbs; i++)
-        {
-            pPriv->paHandles[pPriv->cQueuedUrbs + i] = pPriv->aPendingUrbs[i]->overlapped.hEvent;
-            pPriv->paQueuedUrbs[pPriv->cQueuedUrbs + i] = pPriv->aPendingUrbs[i];
-        }
-        pPriv->cQueuedUrbs += pPriv->cPendingUrbs;
-        pPriv->cPendingUrbs = 0;
-        pPriv->paHandles[pPriv->cQueuedUrbs] = pPriv->hEventWakeup;
-        pPriv->paHandles[pPriv->cQueuedUrbs + 1] = INVALID_HANDLE_VALUE;
-
-        RTCritSectLeave(&pPriv->CritSect);
+        else
+            return NULL;
     }
 
     /*
@@ -617,18 +622,8 @@ again:
      *      access/realloc.
      */
     unsigned cQueuedUrbs = ASMAtomicReadU32((volatile uint32_t *)&pPriv->cQueuedUrbs);
-    DWORD cMilliesWait = cMillies == RT_INDEFINITE_WAIT ? INFINITE : cMillies;
     PVUSBURB pUrb = NULL;
-    DWORD rc = WaitForMultipleObjects(cQueuedUrbs + 1, pPriv->paHandles, FALSE, cMilliesWait);
-
-    /* If the wakeup event fired return immediately. */
-    if (rc == WAIT_OBJECT_0 + cQueuedUrbs)
-    {
-        if (pPriv->cPendingUrbs)
-            goto again;
-        return NULL;
-    }
-
+    DWORD rc = WaitForMultipleObjects(cQueuedUrbs, pPriv->paHandles, FALSE, cMillies);
     if (rc >= WAIT_OBJECT_0 && rc < WAIT_OBJECT_0 + cQueuedUrbs)
     {
         RTCritSectEnter(&pPriv->CritSect);
@@ -649,8 +644,7 @@ again:
                 pPriv->paQueuedUrbs[i] = pPriv->paQueuedUrbs[i+1];
             }
         }
-        pPriv->paHandles[cQueuedUrbs] = pPriv->hEventWakeup;
-        pPriv->paHandles[cQueuedUrbs + 1] = INVALID_HANDLE_VALUE;
+        pPriv->paHandles[cQueuedUrbs] = INVALID_HANDLE_VALUE;
         pPriv->paQueuedUrbs[cQueuedUrbs] = NULL;
         RTCritSectLeave(&pPriv->CritSect);
         Assert(cQueuedUrbs == pPriv->cQueuedUrbs);
@@ -689,6 +683,86 @@ again:
     return pUrb;
 }
 
+/* Thread to handle async URB queueing. */
+static DECLCALLBACK(int) usbProxyWinAsyncIoThread(RTTHREAD ThreadSelf, void *lpParameter)
+{
+    PPRIV_USBW32    pPriv = (PPRIV_USBW32)lpParameter;
+    HANDLE          hEventWait[2];
+
+    hEventWait[0] = pPriv->hEventAsyncIo;
+    hEventWait[1] = pPriv->hEventAsyncTerm;
+
+    Log(("usbProxyWinAsyncIoThread: start\n"));
+    pPriv->fThreadAsyncIoActive = true;
+
+    while (true)
+    {
+        DWORD ret = WaitForMultipleObjects(2, hEventWait, FALSE /* wait for any */, INFINITE);
+
+        if (ret == WAIT_OBJECT_0)
+        {
+            /*
+             * Submit pending URBs.
+             */
+            RTCritSectEnter(&pPriv->CritSect);
+
+            for (unsigned i = 0; i < pPriv->cPendingUrbs; i++)
+            {
+                PQUEUED_URB pQUrbWin = pPriv->aPendingUrbs[i];
+
+                Assert(pQUrbWin);
+                if (pQUrbWin)
+                {
+                    if (   DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_SEND_URB,
+                                           &pQUrbWin->urbwin, sizeof(pQUrbWin->urbwin),
+                                           &pQUrbWin->urbwin, sizeof(pQUrbWin->urbwin),
+                                           &pQUrbWin->cbReturned, &pQUrbWin->overlapped)
+                        || GetLastError() == ERROR_IO_PENDING)
+                    {
+                        /* insert into the queue */
+                        unsigned j = pPriv->cQueuedUrbs;
+                        pPriv->paQueuedUrbs[j] = pQUrbWin;
+                        pPriv->paHandles[j] = pQUrbWin->overlapped.hEvent;
+                        /* do an atomic increment to allow usbProxyWinUrbReap thread get it outside a lock,
+                         * being sure that pPriv->paHandles contains cQueuedUrbs valid handles */
+                        ASMAtomicIncU32((uint32_t volatile *)&pPriv->cQueuedUrbs);
+                    }
+                    else
+                    {
+                        DWORD dwErr = GetLastError();
+                        if (   dwErr == ERROR_INVALID_HANDLE_STATE
+                            || dwErr == ERROR_BAD_COMMAND)
+                        {
+                            PUSBPROXYDEV pProxyDev = PDMINS_2_DATA(pQUrbWin->urb->pUsbIns, PUSBPROXYDEV);
+                            Log(("usbproxy: device %p unplugged!!\n", pPriv->hDev));
+                            pProxyDev->fDetached = true;
+                        }
+                        else
+                            AssertMsgFailed(("dwErr=%X urbwin.error=%d (submit urb)\n", dwErr, pQUrbWin->urbwin.error));
+                        CloseHandle(pQUrbWin->overlapped.hEvent);
+                        pQUrbWin->overlapped.hEvent = INVALID_HANDLE_VALUE;
+                    }
+                }
+                pPriv->aPendingUrbs[i] = 0;
+            }
+            pPriv->cPendingUrbs = 0;
+            RTCritSectLeave(&pPriv->CritSect);
+        }
+        else
+        if (ret == WAIT_OBJECT_0 + 1)
+        {
+            Log(("usbProxyWinAsyncIoThread: terminating\n"));
+            CloseHandle(hEventWait[1]);
+            break;
+        }
+        else
+        {
+            Log(("usbProxyWinAsyncIoThread: unexpected return code %x\n", ret));
+            break;
+        }
+    }
+    return 0;
+}
 
 /**
  * Cancels an in-flight URB.
@@ -700,52 +774,41 @@ again:
  *          all URBs pending on an endpoint. Luckily that is usually
  *          exactly what the guest wants to do.
  */
-static DECLCALLBACK(int) usbProxyWinUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static void usbProxyWinUrbCancel(PVUSBURB pUrb)
 {
-    PPRIV_USBW32      pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
+    PUSBPROXYDEV      pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PPRIV_USBW32      pPriv     = (PPRIV_USBW32)pProxyDev->Backend.pv;
     PQUEUED_URB       pQUrbWin  = (PQUEUED_URB)pUrb->Dev.pvPrivate;
+    int                     rc;
     USBSUP_CLEAR_ENDPOINT   in;
     DWORD                   cbReturned;
-
-    AssertPtrReturn(pQUrbWin, VERR_INVALID_PARAMETER);
+    Assert(pQUrbWin);
 
     in.bEndpoint = pUrb->EndPt | (pUrb->enmDir == VUSBDIRECTION_IN ? 0x80 : 0);
     Log(("Cancel urb %p, endpoint %x\n", pUrb, in.bEndpoint));
 
     cbReturned = 0;
     if (DeviceIoControl(pPriv->hDev, SUPUSB_IOCTL_USB_ABORT_ENDPOINT, &in, sizeof(in), NULL, 0, &cbReturned, NULL))
-        return VINF_SUCCESS;
+        return;
 
-    DWORD dwErr = GetLastError();
-    if (   dwErr == ERROR_INVALID_HANDLE_STATE
-        || dwErr == ERROR_BAD_COMMAND)
+    rc = GetLastError();
+    if (    rc == ERROR_INVALID_HANDLE_STATE
+        ||  rc == ERROR_BAD_COMMAND)
     {
         Log(("usbproxy: device %x unplugged!!\n", pPriv->hDev));
         pProxyDev->fDetached = true;
-        return VINF_SUCCESS; /* Fake success and deal with the unplugged device elsewhere. */
     }
-
-    AssertMsgFailed(("lastErr=%ld\n", dwErr));
-    return RTErrConvertFromWin32(dwErr);
+    else
+        AssertMsgFailed(("lasterr=%d\n", rc));
 }
 
-static DECLCALLBACK(int) usbProxyWinWakeup(PUSBPROXYDEV pProxyDev)
-{
-    PPRIV_USBW32 pPriv = USBPROXYDEV_2_DATA(pProxyDev, PPRIV_USBW32);
-
-    SetEvent(pPriv->hEventWakeup);
-    return VINF_SUCCESS;
-}
 
 /**
  * The Win32 USB Proxy Backend.
  */
 extern const USBPROXYBACK g_USBProxyDeviceHost =
 {
-    /* pszName */
     "host",
-    /* cbBackend */
-    sizeof(PRIV_USBW32),
     usbProxyWinOpen,
     NULL,
     usbProxyWinClose,
@@ -758,7 +821,6 @@ extern const USBPROXYBACK g_USBProxyDeviceHost =
     usbProxyWinUrbQueue,
     usbProxyWinUrbCancel,
     usbProxyWinUrbReap,
-    usbProxyWinWakeup,
     0
 };
 

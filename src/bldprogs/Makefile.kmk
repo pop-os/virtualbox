@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -18,54 +18,27 @@
 SUB_DEPTH = ../..
 include $(KBUILD_PATH)/subheader.kmk
 
-BLDPROGS += bin2c biossums filesplitter VBoxCmp
+BLDPROGS += bin2c biossums filesplitter
 
-bin2c_TEMPLATE = VBoxBldProg
+bin2c_TEMPLATE = VBOXBLDPROG
 bin2c_SOURCES = bin2c.c
 
-biossums_TEMPLATE = VBoxBldProg
+biossums_TEMPLATE = VBOXBLDPROG
 biossums_SOURCES = biossums.c
 
-filesplitter_TEMPLATE = VBoxBldProg
+filesplitter_TEMPLATE = VBOXBLDPROG
 filesplitter_SOURCES = filesplitter.cpp
 
-VBoxCmp_TEMPLATE = VBoxBldProg
-VBoxCmp_SOURCES = VBoxCmp.cpp
-
-ifndef VBOX_ONLY_BUILD
- BLDPROGS += scm
- scm_TEMPLATE = VBoxAdvBldProg
- scm_SOURCES = \
- 	scm.cpp \
- 	scmdiff.cpp \
- 	scmrw.cpp \
- 	scmstream.cpp \
- 	scmsubversion.cpp
-
- BLDPROGS += VBoxCPP
- VBoxCPP_TEMPLATE = VBoxAdvBldProg
- VBoxCPP_SOURCES = \
- 	VBoxCPP.cpp \
- 	scmstream.cpp
+if  !defined(VBOX_ONLY_ADDITIONS) \
+ && !defined(VBOX_ONLY_DOCS) \
+ && !defined(VBOX_ONLY_EXTPACKS) \
+ && !defined(VBOX_ONLY_SDK)
+ PROGRAMS += scm
+ scm_TEMPLATE = VBOXR3EXE
+ scm_SOURCES = scm.cpp
+ scm_LIBS = \
+ 	$(LIB_RUNTIME)
 endif
 
-if !defined(VBOX_ONLY_BUILD) || defined(VBOX_ONLY_EXTPACKS)
- BLDPROGS += VBoxTpG
- VBoxTpG_TEMPLATE = VBoxAdvBldProg
- VBoxTpG_SOURCES = \
- 	VBoxTpG.cpp \
- 	scmstream.cpp
-endif
-
-BLDPROGS.win += VBoxPeSetVersion
-VBoxPeSetVersion_TEMPLATE = VBoxBldProg
-VBoxPeSetVersion_SOURCES  = VBoxPeSetVersion.cpp
-
-
-BLDPROGS += VBoxDef2LazyLoad
-VBoxDef2LazyLoad_TEMPLATE = VBoxBldProg
-VBoxDef2LazyLoad_SOURCES  = VBoxDef2LazyLoad.cpp
-
-
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

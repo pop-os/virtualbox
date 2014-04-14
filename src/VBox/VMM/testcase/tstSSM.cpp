@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -98,13 +98,12 @@ void initBigMem(void)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-DECLCALLBACK(int) Item01Save(PVM pVM, PSSMHANDLE pSSM)
+DECLCALLBACK(int) Item01Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     uint64_t u64Start = RTTimeNanoTS();
-    NOREF(pVM);
 
     /*
      * Test writing some memory block.
@@ -181,14 +180,13 @@ DECLCALLBACK(int) Item01Save(PVM pVM, PSSMHANDLE pSSM)
  * Prepare state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        The data layout version.
  * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item01Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+DECLCALLBACK(int) Item01Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    NOREF(pVM); NOREF(uPass);
     if (uVersion != 0)
     {
         RTPrintf("Item01: uVersion=%#x, expected 0\n", uVersion);
@@ -277,12 +275,11 @@ DECLCALLBACK(int) Item01Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-DECLCALLBACK(int) Item02Save(PVM pVM, PSSMHANDLE pSSM)
+DECLCALLBACK(int) Item02Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    NOREF(pVM);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -339,14 +336,13 @@ DECLCALLBACK(int) Item02Save(PVM pVM, PSSMHANDLE pSSM)
  * Prepare state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        The data layout version.
  * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item02Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+DECLCALLBACK(int) Item02Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    NOREF(pVM); NOREF(uPass);
     if (uVersion != 0)
     {
         RTPrintf("Item02: uVersion=%#x, expected 0\n", uVersion);
@@ -407,12 +403,11 @@ DECLCALLBACK(int) Item02Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-DECLCALLBACK(int) Item03Save(PVM pVM, PSSMHANDLE pSSM)
+DECLCALLBACK(int) Item03Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    NOREF(pVM);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -455,14 +450,13 @@ DECLCALLBACK(int) Item03Save(PVM pVM, PSSMHANDLE pSSM)
  * Prepare state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        The data layout version.
  * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item03Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+DECLCALLBACK(int) Item03Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    NOREF(pVM); NOREF(uPass);
     if (uVersion != 123)
     {
         RTPrintf("Item03: uVersion=%#x, expected 123\n", uVersion);
@@ -519,12 +513,11 @@ DECLCALLBACK(int) Item03Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  */
-DECLCALLBACK(int) Item04Save(PVM pVM, PSSMHANDLE pSSM)
+DECLCALLBACK(int) Item04Save(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    NOREF(pVM);
     uint64_t u64Start = RTTimeNanoTS();
 
     /*
@@ -563,14 +556,13 @@ DECLCALLBACK(int) Item04Save(PVM pVM, PSSMHANDLE pSSM)
  * Prepare state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             The cross context VM handle.
+ * @param   pDevIns         Device instance of the device which registered the data unit.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        The data layout version.
  * @param   uPass           The data pass.
  */
-DECLCALLBACK(int) Item04Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+DECLCALLBACK(int) Item04Load(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    NOREF(pVM); NOREF(uPass);
     if (uVersion != 42)
     {
         RTPrintf("Item04: uVersion=%#x, expected 42\n", uVersion);
@@ -623,7 +615,7 @@ DECLCALLBACK(int) Item04Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Creates a mockup VM structure for testing SSM.
  *
  * @returns 0 on success, 1 on failure.
- * @param   ppVM    Where to store Pointer to the VM.
+ * @param   ppVM    Where to store the VM handle.
  *
  * @todo    Move this to VMM/VM since it's stuff done by several testcases.
  */
@@ -683,15 +675,12 @@ static int createFakeVM(PVM *ppVM)
 }
 
 
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
     /*
      * Init runtime and static data.
      */
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitAndSUPLib();
     RTPrintf("tstSSM: TESTING...\n");
     initBigMem();
     const char *pszFilename = "SSMTestSave#1";
@@ -712,40 +701,40 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Register a few callbacks.
      */
-    rc = SSMR3RegisterInternal(pVM, "SSM Testcase Data Item no.1 (all types)", 1, 0, 256,
-                               NULL, NULL, NULL,
-                               NULL, Item01Save, NULL,
-                               NULL, Item01Load, NULL);
+    rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.1 (all types)", 1, 0, 256, NULL,
+                             NULL, NULL, NULL,
+                             NULL, Item01Save, NULL,
+                             NULL, Item01Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #1 -> %Rrc\n", rc);
         return 1;
     }
 
-    rc = SSMR3RegisterInternal(pVM, "SSM Testcase Data Item no.2 (rand mem)", 2, 0, _1M * 8,
-                               NULL, NULL, NULL,
-                               NULL, Item02Save, NULL,
-                               NULL, Item02Load, NULL);
+    rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.2 (rand mem)", 2, 0, _1M * 8, NULL,
+                             NULL, NULL, NULL,
+                             NULL, Item02Save, NULL,
+                             NULL, Item02Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #2 -> %Rrc\n", rc);
         return 1;
     }
 
-    rc = SSMR3RegisterInternal(pVM, "SSM Testcase Data Item no.3 (big mem)", 0, 123, 512*_1M,
-                               NULL, NULL, NULL,
-                               NULL, Item03Save, NULL,
-                               NULL, Item03Load, NULL);
+    rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.3 (big mem)", 0, 123, 512*_1M, NULL,
+                             NULL, NULL, NULL,
+                             NULL, Item03Save, NULL,
+                             NULL, Item03Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #3 -> %Rrc\n", rc);
         return 1;
     }
 
-    rc = SSMR3RegisterInternal(pVM, "SSM Testcase Data Item no.4 (big zero mem)", 0, 42, 512*_1M,
-                               NULL, NULL, NULL,
-                               NULL, Item04Save, NULL,
-                               NULL, Item04Load, NULL);
+    rc = SSMR3RegisterDevice(pVM, NULL, "SSM Testcase Data Item no.4 (big zero mem)", 0, 42, 512*_1M, NULL,
+                             NULL, NULL, NULL,
+                             NULL, Item04Save, NULL,
+                             NULL, Item04Load, NULL);
     if (RT_FAILURE(rc))
     {
         RTPrintf("SSMR3Register #4 -> %Rrc\n", rc);
@@ -918,15 +907,4 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     RTPrintf("tstSSM: SUCCESS\n");
     return 0;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
 

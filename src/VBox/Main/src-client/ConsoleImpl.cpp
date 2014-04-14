@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2014 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,19 +56,23 @@
 #include "RemoteUSBDeviceImpl.h"
 #include "SharedFolderImpl.h"
 #include "AudioSnifferInterface.h"
-#include "Nvram.h"
+#ifdef VBOX_WITH_USB_VIDEO
+# include "UsbWebcamInterface.h"
+#endif
 #ifdef VBOX_WITH_USB_CARDREADER
 # include "UsbCardReader.h"
 #endif
-#include "ProgressImpl.h"
+#include "ProgressCombinedImpl.h"
 #include "ConsoleVRDPServer.h"
 #include "VMMDev.h"
+#include "package-generated.h"
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
 #include "BusAssignmentManager.h"
-#include "EmulatedUSBImpl.h"
 
+// generated header
+#include "SchemaDefs.h"
 #include "VBoxEvents.h"
 #include "AutoCaller.h"
 #include "Logging.h"
@@ -87,8 +91,6 @@
 #include <iprt/process.h>
 #include <iprt/string.h>
 #include <iprt/system.h>
-#include <iprt/base64.h>
-#include <iprt/memsafer.h>
 
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/vmm.h>
@@ -98,20 +100,17 @@
 #ifdef VBOX_WITH_USB
 # include <VBox/vmm/pdmusb.h>
 #endif
-#ifdef VBOX_WITH_NETSHAPER
-# include <VBox/vmm/pdmnetshaper.h>
-#endif /* VBOX_WITH_NETSHAPER */
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ftm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/vusb.h>
+#include <VBox/version.h>
 
 #include <VBox/VMMDev.h>
 
 #include <VBox/HostServices/VBoxClipboardSvc.h>
-#include <VBox/HostServices/DragAndDropSvc.h>
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
 # include <VBox/com/array.h>
@@ -121,6 +120,7 @@
 #include <algorithm>
 #include <memory> // for auto_ptr
 #include <vector>
+#include <typeinfo>
 
 
 // VMTask and friends
@@ -155,7 +155,7 @@ struct VMTask
           mConsoleCaller(aConsole),
           mProgress(aProgress),
           mServerProgress(aServerProgress),
-          mpUVM(NULL),
+          mpVM(NULL),
           mRC(E_FAIL),
           mpSafeVMPtr(NULL)
     {
@@ -167,7 +167,7 @@ struct VMTask
         {
             mpSafeVMPtr = new Console::SafeVMPtr(aConsole);
             if (mpSafeVMPtr->isOk())
-                mpUVM = mpSafeVMPtr->rawUVM();
+                mpVM = mpSafeVMPtr->raw();
             else
                 mRC = mpSafeVMPtr->rc();
         }
@@ -196,7 +196,7 @@ struct VMTask
     const ComObjPtr<Progress>   mProgress;
     Utf8Str                     mErrorMsg;
     const ComPtr<IProgress>     mServerProgress;
-    PUVM                        mpUVM;
+    PVM                         mpVM;
 
 private:
     HRESULT                     mRC;
@@ -262,20 +262,16 @@ struct VMSaveTask : public VMTask
     VMSaveTask(Console *aConsole,
                const ComPtr<IProgress> &aServerProgress,
                const Utf8Str &aSavedStateFile,
-               MachineState_T aMachineStateBefore,
-               Reason_T aReason)
+               MachineState_T aMachineStateBefore)
         : VMTask(aConsole, NULL /* aProgress */, aServerProgress,
                  true /* aUsesVMPtr */),
           mSavedStateFile(aSavedStateFile),
-          mMachineStateBefore(aMachineStateBefore),
-          mReason(aReason)
+          mMachineStateBefore(aMachineStateBefore)
     {}
 
     Utf8Str mSavedStateFile;
     /* The local machine state we had before. Required if something fails */
     MachineState_T mMachineStateBefore;
-    /* The reason for saving state */
-    Reason_T mReason;
 };
 
 // Handler for global events
@@ -329,9 +325,9 @@ public:
                 bool fUdp = (proto == NATProtocol_UDP);
                 Bstr hostIp, guestIp;
                 LONG hostPort, guestPort;
-                pNREv->COMGETTER(HostIP)(hostIp.asOutParam());
+                pNREv->COMGETTER(HostIp)(hostIp.asOutParam());
                 pNREv->COMGETTER(HostPort)(&hostPort);
-                pNREv->COMGETTER(GuestIP)(guestIp.asOutParam());
+                pNREv->COMGETTER(GuestIp)(guestIp.asOutParam());
                 pNREv->COMGETTER(GuestPort)(&guestPort);
                 ULONG ulSlot;
                 rc = pNREv->COMGETTER(Slot)(&ulSlot);
@@ -342,30 +338,9 @@ public:
             }
             break;
 
-            case VBoxEventType_OnHostPCIDevicePlug:
+            case VBoxEventType_OnHostPciDevicePlug:
             {
                 // handle if needed
-                break;
-            }
-
-            case VBoxEventType_OnExtraDataChanged:
-            {
-                ComPtr<IExtraDataChangedEvent> pEDCEv = aEvent;
-                Bstr strMachineId;
-                Bstr strKey;
-                Bstr strVal;
-                HRESULT hrc = S_OK;
-
-                hrc = pEDCEv->COMGETTER(MachineId)(strMachineId.asOutParam());
-                if (FAILED(hrc)) break;
-
-                hrc = pEDCEv->COMGETTER(Key)(strKey.asOutParam());
-                if (FAILED(hrc)) break;
-
-                hrc = pEDCEv->COMGETTER(Value)(strVal.asOutParam());
-                if (FAILED(hrc)) break;
-
-                mConsole->onExtraDataChange(strMachineId.raw(), strKey.raw(), strVal.raw());
                 break;
             }
 
@@ -375,7 +350,7 @@ public:
         return S_OK;
     }
 private:
-    ComObjPtr<Console>    mConsole;
+    Console *mConsole;
 };
 
 typedef ListenerImpl<VmEventListener, Console*> VmEventListenerImpl;
@@ -390,8 +365,6 @@ VBOX_LISTENER_DECLARE(VmEventListenerImpl)
 Console::Console()
     : mSavedStateDataLoaded(false)
     , mConsoleVRDPServer(NULL)
-    , mfVRDEChangeInProcess(false)
-    , mfVRDEChangePending(false)
     , mpUVM(NULL)
     , mVMCallers(0)
     , mVMZeroCallersSem(NIL_RTSEMEVENT)
@@ -401,21 +374,22 @@ Console::Console()
     , mfSnapshotFolderSizeWarningShown(false)
     , mfSnapshotFolderExt4WarningShown(false)
     , mfSnapshotFolderDiskTypeShown(false)
-    , mfVMHasUsbController(false)
-    , mfPowerOffCausedByReset(false)
     , mpVmm2UserMethods(NULL)
     , m_pVMMDev(NULL)
     , mAudioSniffer(NULL)
-    , mNvram(NULL)
+#ifdef VBOX_WITH_USB_VIDEO
+    , mUsbWebcamInterface(NULL)
+#endif
 #ifdef VBOX_WITH_USB_CARDREADER
     , mUsbCardReader(NULL)
 #endif
     , mBusMgr(NULL)
-    , mpIfSecKey(NULL)
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
     , mMachineState(MachineState_PoweredOff)
 {
+    for (ULONG slot = 0; slot < SchemaDefs::NetworkAdapterCount; ++slot)
+        meAttachmentType[slot] = NetworkAttachmentType_Null;
 }
 
 Console::~Console()
@@ -425,12 +399,12 @@ HRESULT Console::FinalConstruct()
 {
     LogFlowThisFunc(("\n"));
 
-    RT_ZERO(mapStorageLeds);
-    RT_ZERO(mapNetworkLeds);
-    RT_ZERO(mapUSBLed);
-    RT_ZERO(mapSharedFolderLed);
+    memset(mapStorageLeds, 0, sizeof(mapStorageLeds));
+    memset(mapNetworkLeds, 0, sizeof(mapNetworkLeds));
+    memset(&mapUSBLed, 0, sizeof(mapUSBLed));
+    memset(&mapSharedFolderLed, 0, sizeof(mapSharedFolderLed));
 
-    for (unsigned i = 0; i < RT_ELEMENTS(maStorageDevType); ++i)
+    for (unsigned i = 0; i < RT_ELEMENTS(maStorageDevType); ++ i)
         maStorageDevType[i] = DeviceType_Null;
 
     MYVMM2USERMETHODS *pVmm2UserMethods = (MYVMM2USERMETHODS *)RTMemAllocZ(sizeof(*mpVmm2UserMethods) + sizeof(Console *));
@@ -443,18 +417,9 @@ HRESULT Console::FinalConstruct()
     pVmm2UserMethods->pfnNotifyEmtTerm  = Console::vmm2User_NotifyEmtTerm;
     pVmm2UserMethods->pfnNotifyPdmtInit = Console::vmm2User_NotifyPdmtInit;
     pVmm2UserMethods->pfnNotifyPdmtTerm = Console::vmm2User_NotifyPdmtTerm;
-    pVmm2UserMethods->pfnNotifyResetTurnedIntoPowerOff = Console::vmm2User_NotifyResetTurnedIntoPowerOff;
     pVmm2UserMethods->u32EndMagic       = VMM2USERMETHODS_MAGIC;
     pVmm2UserMethods->pConsole          = this;
     mpVmm2UserMethods = pVmm2UserMethods;
-
-    MYPDMISECKEY *pIfSecKey = (MYPDMISECKEY *)RTMemAllocZ(sizeof(*mpIfSecKey) + sizeof(Console *));
-    if (!pIfSecKey)
-        return E_OUTOFMEMORY;
-    pIfSecKey->pfnKeyRetain             = Console::i_pdmIfSecKey_KeyRetain;
-    pIfSecKey->pfnKeyRelease            = Console::i_pdmIfSecKey_KeyRelease;
-    pIfSecKey->pConsole                 = this;
-    mpIfSecKey = pIfSecKey;
 
     return BaseFinalConstruct();
 }
@@ -471,7 +436,7 @@ void Console::FinalRelease()
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, LockType_T aLockType)
+HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl)
 {
     AssertReturn(aMachine && aControl, E_INVALIDARG);
 
@@ -487,129 +452,103 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
     unconst(mMachine) = aMachine;
     unconst(mControl) = aControl;
 
-    /* Cache essential properties and objects, and create child objects */
+    /* Cache essential properties and objects */
 
     rc = mMachine->COMGETTER(State)(&mMachineState);
+    AssertComRCReturnRC(rc);
+
+    rc = mMachine->COMGETTER(VRDEServer)(unconst(mVRDEServer).asOutParam());
+    AssertComRCReturnRC(rc);
+
+    /* Create associated child COM objects */
+
+    // Event source may be needed by other children
+    unconst(mEventSource).createObject();
+    rc = mEventSource->init(static_cast<IConsole*>(this));
+    AssertComRCReturnRC(rc);
+
+    unconst(mGuest).createObject();
+    rc = mGuest->init(this);
+    AssertComRCReturnRC(rc);
+
+    unconst(mKeyboard).createObject();
+    rc = mKeyboard->init(this);
+    AssertComRCReturnRC(rc);
+
+    unconst(mMouse).createObject();
+    rc = mMouse->init(this);
+    AssertComRCReturnRC(rc);
+
+    unconst(mDisplay).createObject();
+    rc = mDisplay->init(this);
+    AssertComRCReturnRC(rc);
+
+    unconst(mVRDEServerInfo).createObject();
+    rc = mVRDEServerInfo->init(this);
     AssertComRCReturnRC(rc);
 
 #ifdef VBOX_WITH_EXTPACK
     unconst(mptrExtPackManager).createObject();
     rc = mptrExtPackManager->initExtPackManager(NULL, VBOXEXTPACKCTX_VM_PROCESS);
-        AssertComRCReturnRC(rc);
+    AssertComRCReturnRC(rc);
 #endif
 
-    // Event source may be needed by other children
-    unconst(mEventSource).createObject();
-    rc = mEventSource->init();
+    /* Grab global and machine shared folder lists */
+
+    rc = fetchSharedFolders(true /* aGlobal */);
     AssertComRCReturnRC(rc);
+    rc = fetchSharedFolders(false /* aGlobal */);
+    AssertComRCReturnRC(rc);
+
+    /* Create other child objects */
+
+    unconst(mConsoleVRDPServer) = new ConsoleVRDPServer(this);
+    AssertReturn(mConsoleVRDPServer, E_FAIL);
 
     mcAudioRefs = 0;
     mcVRDPClients = 0;
     mu32SingleRDPClientId = 0;
     mcGuestCredentialsProvided = false;
 
-    /* Now the VM specific parts */
-    if (aLockType == LockType_VM)
+    // VirtualBox 4.0: We no longer initialize the VMMDev instance here,
+    // which starts the HGCM thread. Instead, this is now done in the
+    // power-up thread when a VM is actually being powered up to avoid
+    // having HGCM threads all over the place every time a session is
+    // opened, even if that session will not run a VM.
+    //     unconst(m_pVMMDev) = new VMMDev(this);
+    //     AssertReturn(mVMMDev, E_FAIL);
+
+    unconst(mAudioSniffer) = new AudioSniffer(this);
+    AssertReturn(mAudioSniffer, E_FAIL);
+#ifdef VBOX_WITH_USB_VIDEO
+    unconst(mUsbWebcamInterface) = new UsbWebcamInterface(this);
+    AssertReturn(mUsbWebcamInterface, E_FAIL);
+#endif
+#ifdef VBOX_WITH_USB_CARDREADER
+    unconst(mUsbCardReader) = new UsbCardReader(this);
+    AssertReturn(mUsbCardReader, E_FAIL);
+#endif
+
+    /* VirtualBox events registration. */
     {
-        rc = mMachine->COMGETTER(VRDEServer)(unconst(mVRDEServer).asOutParam());
-        AssertComRCReturnRC(rc);
-
-        unconst(mGuest).createObject();
-        rc = mGuest->init(this);
-        AssertComRCReturnRC(rc);
-
-        unconst(mKeyboard).createObject();
-        rc = mKeyboard->init(this);
-        AssertComRCReturnRC(rc);
-
-        unconst(mMouse).createObject();
-        rc = mMouse->init(this);
-        AssertComRCReturnRC(rc);
-
-        unconst(mDisplay).createObject();
-        rc = mDisplay->init(this);
-        AssertComRCReturnRC(rc);
-
-        unconst(mVRDEServerInfo).createObject();
-        rc = mVRDEServerInfo->init(this);
-        AssertComRCReturnRC(rc);
-
-        unconst(mEmulatedUSB).createObject();
-        rc = mEmulatedUSB->init(this);
-        AssertComRCReturnRC(rc);
-
-        /* Grab global and machine shared folder lists */
-
-        rc = fetchSharedFolders(true /* aGlobal */);
-        AssertComRCReturnRC(rc);
-        rc = fetchSharedFolders(false /* aGlobal */);
-        AssertComRCReturnRC(rc);
-
-        /* Create other child objects */
-
-        unconst(mConsoleVRDPServer) = new ConsoleVRDPServer(this);
-        AssertReturn(mConsoleVRDPServer, E_FAIL);
-
-        /* Figure out size of meAttachmentType vector */
         ComPtr<IVirtualBox> pVirtualBox;
         rc = aMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
         AssertComRC(rc);
-        ComPtr<ISystemProperties> pSystemProperties;
-        if (pVirtualBox)
-            pVirtualBox->COMGETTER(SystemProperties)(pSystemProperties.asOutParam());
-        ChipsetType_T chipsetType = ChipsetType_PIIX3;
-        aMachine->COMGETTER(ChipsetType)(&chipsetType);
-        ULONG maxNetworkAdapters = 0;
-        if (pSystemProperties)
-            pSystemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);
-        meAttachmentType.resize(maxNetworkAdapters);
-        for (ULONG slot = 0; slot < maxNetworkAdapters; ++slot)
-            meAttachmentType[slot] = NetworkAttachmentType_Null;
 
-        // VirtualBox 4.0: We no longer initialize the VMMDev instance here,
-        // which starts the HGCM thread. Instead, this is now done in the
-        // power-up thread when a VM is actually being powered up to avoid
-        // having HGCM threads all over the place every time a session is
-        // opened, even if that session will not run a VM.
-        //     unconst(m_pVMMDev) = new VMMDev(this);
-        //     AssertReturn(mVMMDev, E_FAIL);
-
-        unconst(mAudioSniffer) = new AudioSniffer(this);
-        AssertReturn(mAudioSniffer, E_FAIL);
-
-        FirmwareType_T enmFirmwareType;
-        mMachine->COMGETTER(FirmwareType)(&enmFirmwareType);
-        if (   enmFirmwareType == FirmwareType_EFI
-            || enmFirmwareType == FirmwareType_EFI32
-            || enmFirmwareType == FirmwareType_EFI64
-            || enmFirmwareType == FirmwareType_EFIDUAL)
-        {
-            unconst(mNvram) = new Nvram(this);
-            AssertReturn(mNvram, E_FAIL);
-        }
-
-#ifdef VBOX_WITH_USB_CARDREADER
-        unconst(mUsbCardReader) = new UsbCardReader(this);
-        AssertReturn(mUsbCardReader, E_FAIL);
-#endif
-
-        /* VirtualBox events registration. */
-        {
-            ComPtr<IEventSource> pES;
-            rc = pVirtualBox->COMGETTER(EventSource)(pES.asOutParam());
-            AssertComRC(rc);
-            ComObjPtr<VmEventListenerImpl> aVmListener;
-            aVmListener.createObject();
-            aVmListener->init(new VmEventListener(), this);
-            mVmListener = aVmListener;
-            com::SafeArray<VBoxEventType_T> eventTypes;
-            eventTypes.push_back(VBoxEventType_OnNATRedirect);
-            eventTypes.push_back(VBoxEventType_OnHostPCIDevicePlug);
-            eventTypes.push_back(VBoxEventType_OnExtraDataChanged);
-            rc = pES->RegisterListener(aVmListener, ComSafeArrayAsInParam(eventTypes), true);
-            AssertComRC(rc);
-        }
+        ComPtr<IEventSource> pES;
+        rc = pVirtualBox->COMGETTER(EventSource)(pES.asOutParam());
+        AssertComRC(rc);
+        ComObjPtr<VmEventListenerImpl> aVmListener;
+        aVmListener.createObject();
+        aVmListener->init(new VmEventListener(), this);
+        mVmListener = aVmListener;
+        com::SafeArray<VBoxEventType_T> eventTypes;
+        eventTypes.push_back(VBoxEventType_OnNATRedirect);
+        eventTypes.push_back(VBoxEventType_OnHostPciDevicePlug);
+        rc = pES->RegisterListener(aVmListener, ComSafeArrayAsInParam(eventTypes), true);
+        AssertComRC(rc);
     }
+
 
     /* Confirm a successful initialization when it's the case */
     autoInitSpan.setSucceeded();
@@ -680,17 +619,13 @@ void Console::uninit()
         mpVmm2UserMethods = NULL;
     }
 
-    if (mpIfSecKey)
+#ifdef VBOX_WITH_USB_VIDEO
+    if (mUsbWebcamInterface)
     {
-        RTMemFree((void *)mpIfSecKey);
-        mpIfSecKey = NULL;
+        delete mUsbWebcamInterface;
+        unconst(mUsbWebcamInterface) = NULL;
     }
-
-    if (mNvram)
-    {
-        delete mNvram;
-        unconst(mNvram) = NULL;
-    }
+#endif
 
 #ifdef VBOX_WITH_USB_CARDREADER
     if (mUsbCardReader)
@@ -726,22 +661,10 @@ void Console::uninit()
     mRemoteUSBDevices.clear();
     mUSBDevices.clear();
 
-    for (SecretKeyMap::iterator it = m_mapSecretKeys.begin();
-         it != m_mapSecretKeys.end();
-         it++)
-        delete it->second;
-    m_mapSecretKeys.clear();
-
     if (mVRDEServerInfo)
     {
         mVRDEServerInfo->uninit();
-        unconst(mVRDEServerInfo).setNull();
-    }
-
-    if (mEmulatedUSB)
-    {
-        mEmulatedUSB->uninit();
-        unconst(mEmulatedUSB).setNull();
+        unconst(mVRDEServerInfo).setNull();;
     }
 
     if (mDebugger)
@@ -765,13 +688,13 @@ void Console::uninit()
     if (mKeyboard)
     {
         mKeyboard->uninit();
-        unconst(mKeyboard).setNull();
+        unconst(mKeyboard).setNull();;
     }
 
     if (mGuest)
     {
         mGuest->uninit();
-        unconst(mGuest).setNull();
+        unconst(mGuest).setNull();;
     }
 
     if (mConsoleVRDPServer)
@@ -788,9 +711,7 @@ void Console::uninit()
     // we don't perform uninit() as it's possible that some pending event refers to this source
     unconst(mEventSource).setNull();
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
     mCallbackData.clear();
-#endif
 
     LogFlowThisFuncLeave();
 }
@@ -825,7 +746,8 @@ void Console::guestPropertiesHandleVMReset(void)
             /* Delete all properties which have the flag "TRANSRESET". */
             if (Utf8Str(arrFlags[i]).contains("TRANSRESET", Utf8Str::CaseInsensitive))
             {
-                hrc = mMachine->DeleteGuestProperty(arrNames[i]);
+                hrc = mMachine->SetGuestProperty(arrNames[i], Bstr("").raw() /* Value */,
+                                                 Bstr("").raw() /* Flags */);
                 if (FAILED(hrc))
                     LogRel(("RESET: Could not delete transient property \"%ls\", rc=%Rhrc\n",
                             arrNames[i], hrc));
@@ -922,63 +844,6 @@ void Console::guestPropertiesVRDPUpdateNameChange(uint32_t u32ClientId, const ch
 
 }
 
-void Console::guestPropertiesVRDPUpdateIPAddrChange(uint32_t u32ClientId, const char *pszIPAddr)
-{
-    if (!guestPropertiesVRDPEnabled())
-        return;
-
-    LogFlowFunc(("\n"));
-
-    char szPropNm[256];
-    Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
-
-    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/IPAddr", u32ClientId);
-    Bstr clientIPAddr(pszIPAddr);
-
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(),
-                               clientIPAddr.raw(),
-                               bstrReadOnlyGuest.raw());
-
-}
-
-void Console::guestPropertiesVRDPUpdateLocationChange(uint32_t u32ClientId, const char *pszLocation)
-{
-    if (!guestPropertiesVRDPEnabled())
-        return;
-
-    LogFlowFunc(("\n"));
-
-    char szPropNm[256];
-    Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
-
-    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/Location", u32ClientId);
-    Bstr clientLocation(pszLocation);
-
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(),
-                               clientLocation.raw(),
-                               bstrReadOnlyGuest.raw());
-
-}
-
-void Console::guestPropertiesVRDPUpdateOtherInfoChange(uint32_t u32ClientId, const char *pszOtherInfo)
-{
-    if (!guestPropertiesVRDPEnabled())
-        return;
-
-    LogFlowFunc(("\n"));
-
-    char szPropNm[256];
-    Bstr bstrReadOnlyGuest(L"RDONLYGUEST");
-
-    RTStrPrintf(szPropNm, sizeof(szPropNm), "/VirtualBox/HostInfo/VRDP/Client/%u/OtherInfo", u32ClientId);
-    Bstr clientOtherInfo(pszOtherInfo);
-
-    mMachine->SetGuestProperty(Bstr(szPropNm).raw(),
-                               clientOtherInfo.raw(),
-                               bstrReadOnlyGuest.raw());
-
-}
-
 void Console::guestPropertiesVRDPUpdateClientAttach(uint32_t u32ClientId, bool fAttached)
 {
     if (!guestPropertiesVRDPEnabled())
@@ -1034,17 +899,6 @@ void Console::guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId)
 }
 
 #endif /* VBOX_WITH_GUEST_PROPS */
-
-bool Console::isResetTurnedIntoPowerOff(void)
-{
-    Bstr value;
-    HRESULT hrc = mMachine->GetExtraData(Bstr("VBoxInternal2/TurnResetIntoPowerOff").raw(),
-                                         value.asOutParam());
-    if (   hrc   == S_OK
-        && value == "1")
-        return true;
-    return false;
-}
 
 #ifdef VBOX_WITH_EXTPACK
 /**
@@ -1286,13 +1140,9 @@ int Console::VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const ch
     {
         uint32_t u32GuestFlags = VMMDEV_SETCREDENTIALS_GUESTLOGON;
 
-        PPDMIVMMDEVPORT pDevPort = m_pVMMDev->getVMMDevPort();
-        if (pDevPort)
-        {
-            int rc = pDevPort->pfnSetCredentials(m_pVMMDev->getVMMDevPort(),
-                                                 pszUser, pszPassword, pszDomain, u32GuestFlags);
-            AssertRC(rc);
-        }
+        int rc = m_pVMMDev->getVMMDevPort()->pfnSetCredentials(m_pVMMDev->getVMMDevPort(),
+                     pszUser, pszPassword, pszDomain, u32GuestFlags);
+        AssertRC(rc);
     }
 
     return VINF_SUCCESS;
@@ -1320,18 +1170,6 @@ void Console::VRDPClientStatusChange(uint32_t u32ClientId, const char *pszStatus
     else if (RTStrNICmp(pszStatus, "NAME=", strlen("NAME=")) == 0)
     {
         guestPropertiesVRDPUpdateNameChange(u32ClientId, pszStatus + strlen("NAME="));
-    }
-    else if (RTStrNICmp(pszStatus, "CIPA=", strlen("CIPA=")) == 0)
-    {
-        guestPropertiesVRDPUpdateIPAddrChange(u32ClientId, pszStatus + strlen("CIPA="));
-    }
-    else if (RTStrNICmp(pszStatus, "CLOCATION=", strlen("CLOCATION=")) == 0)
-    {
-        guestPropertiesVRDPUpdateLocationChange(u32ClientId, pszStatus + strlen("CLOCATION="));
-    }
-    else if (RTStrNICmp(pszStatus, "COINFO=", strlen("COINFO=")) == 0)
-    {
-        guestPropertiesVRDPUpdateOtherInfoChange(u32ClientId, pszStatus + strlen("COINFO="));
     }
 #endif
 
@@ -1611,7 +1449,7 @@ Console::saveStateFileExec(PSSMHANDLE pSSM, void *pvUser)
 
     for (SharedFolderMap::const_iterator it = that->m_mapSharedFolders.begin();
          it != that->m_mapSharedFolders.end();
-         ++it)
+         ++ it)
     {
         SharedFolder *pSF = (*it).second;
         AutoCaller sfCaller(pSF);
@@ -1691,7 +1529,7 @@ Console::loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version)
     int vrc = SSMR3GetU32(pSSM, &size);
     AssertRCReturn(vrc, vrc);
 
-    for (uint32_t i = 0; i < size; ++i)
+    for (uint32_t i = 0; i < size; ++ i)
     {
         Utf8Str strName;
         Utf8Str strHostPath;
@@ -1758,8 +1596,8 @@ DECLCALLBACK(int) Console::doGuestPropNotification(void *pvExtension,
     PHOSTCALLBACKDATA   pCBData = reinterpret_cast<PHOSTCALLBACKDATA>(pvParms);
     AssertReturn(sizeof(HOSTCALLBACKDATA) == cbParms, VERR_INVALID_PARAMETER);
     AssertReturn(HOSTCALLBACKMAGIC == pCBData->u32Magic, VERR_INVALID_PARAMETER);
-    LogFlow(("Console::doGuestPropNotification: pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
-             pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
+    Log5(("Console::doGuestPropNotification: pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
+          pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
 
     int  rc;
     Bstr name(pCBData->pcszName);
@@ -1774,7 +1612,7 @@ DECLCALLBACK(int) Console::doGuestPropNotification(void *pvExtension,
         rc = VINF_SUCCESS;
     else
     {
-        LogFlow(("Console::doGuestPropNotification: hrc=%Rhrc pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
+        LogFunc(("Console::doGuestPropNotification: hrc=%Rhrc pCBData={.pcszName=%s, .pcszValue=%s, .pcszFlags=%s}\n",
                  hrc, pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
         rc = Global::vboxStatusCodeFromCOM(hrc);
     }
@@ -2029,21 +1867,8 @@ STDMETHODIMP Console::COMGETTER(VRDEServerInfo)(IVRDEServerInfo **aVRDEServerInf
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* mVRDEServerInfo is constant during life time, no need to lock */
+    /* mDisplay is constant during life time, no need to lock */
     mVRDEServerInfo.queryInterfaceTo(aVRDEServerInfo);
-
-    return S_OK;
-}
-
-STDMETHODIMP Console::COMGETTER(EmulatedUSB)(IEmulatedUSB **aEmulatedUSB)
-{
-    CheckComArgOutPointerValid(aEmulatedUSB);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* mEmulatedUSB is constant during life time, no need to lock */
-    mEmulatedUSB.queryInterfaceTo(aEmulatedUSB);
 
     return S_OK;
 }
@@ -2075,17 +1900,15 @@ STDMETHODIMP Console::COMGETTER(EventSource)(IEventSource ** aEventSource)
     CheckComArgOutPointerValid(aEventSource);
 
     AutoCaller autoCaller(this);
-    HRESULT hrc = autoCaller.rc();
-    if (SUCCEEDED(hrc))
-    {
-        // no need to lock - lifetime constant
-        mEventSource.queryInterfaceTo(aEventSource);
-    }
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    return hrc;
+    // no need to lock - lifetime constant
+    mEventSource.queryInterfaceTo(aEventSource);
+
+    return S_OK;
 }
 
-STDMETHODIMP Console::COMGETTER(AttachedPCIDevices)(ComSafeArrayOut(IPCIDeviceAttachment *, aAttachments))
+STDMETHODIMP Console::COMGETTER(AttachedPciDevices)(ComSafeArrayOut(IPciDeviceAttachment *, aAttachments))
 {
     CheckComArgOutSafeArrayPointerValid(aAttachments);
 
@@ -2095,10 +1918,10 @@ STDMETHODIMP Console::COMGETTER(AttachedPCIDevices)(ComSafeArrayOut(IPCIDeviceAt
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mBusMgr)
-        mBusMgr->listAttachedPCIDevices(ComSafeArrayOutArg(aAttachments));
+        mBusMgr->listAttachedPciDevices(ComSafeArrayOutArg(aAttachments));
     else
     {
-        com::SafeIfaceArray<IPCIDeviceAttachment> result((size_t)0);
+        com::SafeIfaceArray<IPciDeviceAttachment> result((size_t)0);
         result.detachTo(ComSafeArrayOutArg(aAttachments));
     }
 
@@ -2148,6 +1971,7 @@ STDMETHODIMP Console::PowerUpPaused(IProgress **aProgress)
 STDMETHODIMP Console::PowerDown(IProgress **aProgress)
 {
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     CheckComArgOutPointerValid(aProgress);
 
@@ -2156,7 +1980,6 @@ STDMETHODIMP Console::PowerDown(IProgress **aProgress)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
     switch (mMachineState)
     {
         case MachineState_Running:
@@ -2218,20 +2041,6 @@ STDMETHODIMP Console::PowerDown(IProgress **aProgress)
     {
         ComPtr<IProgress> pProgress;
 
-#ifdef VBOX_WITH_GUEST_PROPS
-        alock.release();
-
-        if (isResetTurnedIntoPowerOff())
-        {
-            mMachine->DeleteGuestProperty(Bstr("/VirtualBox/HostInfo/VMPowerOffReason").raw());
-            mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VMPowerOffReason").raw(),
-                                       Bstr("PowerOff").raw(), Bstr("RDONLYGUEST").raw());
-            mMachine->SaveSettings();
-        }
-
-        alock.acquire();
-#endif
-
         /*
          * request a progress object from the server
          * (this will set the machine state to Stopping on the server to block
@@ -2253,7 +2062,7 @@ STDMETHODIMP Console::PowerDown(IProgress **aProgress)
         int vrc = RTThreadCreate(NULL, Console::powerDownThread,
                                  (void *) task.get(), 0,
                                  RTTHREADTYPE_MAIN_WORKER, 0,
-                                 "VMPwrDwn");
+                                 "VMPowerDown");
         if (RT_FAILURE(vrc))
         {
             rc = setError(E_FAIL, "Could not create VMPowerDown thread (%Rrc)", vrc);
@@ -2294,13 +2103,13 @@ STDMETHODIMP Console::PowerDown(IProgress **aProgress)
 STDMETHODIMP Console::Reset()
 {
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
     if (   mMachineState != MachineState_Running
         && mMachineState != MachineState_Teleporting
         && mMachineState != MachineState_LiveSnapshotting
@@ -2313,10 +2122,10 @@ STDMETHODIMP Console::Reset()
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
-    alock.release();
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
+    alock.leave();
 
-    int vrc = VMR3Reset(ptrVM.rawUVM());
+    int vrc = VMR3Reset(ptrVM);
 
     HRESULT rc = RT_SUCCESS(vrc) ? S_OK :
         setError(VBOX_E_VM_ERROR,
@@ -2328,30 +2137,30 @@ STDMETHODIMP Console::Reset()
     return rc;
 }
 
-/*static*/ DECLCALLBACK(int) Console::unplugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu)
+/*static*/ DECLCALLBACK(int) Console::unplugCpu(Console *pThis, PVM pVM, unsigned uCpu)
 {
-    LogFlowFunc(("pThis=%p pVM=%p idCpu=%u\n", pThis, pUVM, idCpu));
+    LogFlowFunc(("pThis=%p pVM=%p uCpu=%u\n", pThis, pVM, uCpu));
 
     AssertReturn(pThis, VERR_INVALID_PARAMETER);
 
-    int vrc = PDMR3DeviceDetach(pUVM, "acpi", 0, idCpu, 0);
+    int vrc = PDMR3DeviceDetach(pVM, "acpi", 0, uCpu, 0);
     Log(("UnplugCpu: rc=%Rrc\n", vrc));
 
     return vrc;
 }
 
-HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
+HRESULT Console::doCPURemove(ULONG aCpu, PVM pVM)
 {
     HRESULT rc = S_OK;
 
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
     AssertReturn(m_pVMMDev, E_FAIL);
     PPDMIVMMDEVPORT pVmmDevPort = m_pVMMDev->getVMMDevPort();
     AssertReturn(pVmmDevPort, E_FAIL);
@@ -2376,7 +2185,7 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
 
     /* Check if the CPU is unlocked */
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun(pUVM, "acpi", 0, aCpu, &pBase);
+    int vrc = PDMR3QueryDeviceLun(pVM, "acpi", 0, aCpu, &pBase);
     if (RT_SUCCESS(vrc))
     {
         Assert(pBase);
@@ -2384,7 +2193,7 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
 
         /* Notify the guest if possible. */
         uint32_t idCpuCore, idCpuPackage;
-        vrc = VMR3GetCpuCoreAndPackageIdFromCpuId(pUVM, aCpu, &idCpuCore, &idCpuPackage); AssertRC(vrc);
+        vrc = VMR3GetCpuCoreAndPackageIdFromCpuId(pVM, aCpu, &idCpuCore, &idCpuPackage); AssertRC(vrc);
         if (RT_SUCCESS(vrc))
             vrc = pVmmDevPort->pfnCpuHotUnplug(pVmmDevPort, idCpuCore, idCpuPackage);
         if (RT_SUCCESS(vrc))
@@ -2416,9 +2225,9 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
          * using VMR3ReqCall.
          */
         PVMREQ pReq;
-        vrc = VMR3ReqCallU(pUVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)unplugCpu, 3,
-                           this, pUVM, (VMCPUID)aCpu);
+        vrc = VMR3ReqCall(pVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::unplugCpu, 3,
+                          this, pVM, aCpu);
         if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
         {
             vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
@@ -2431,7 +2240,7 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
         if (RT_SUCCESS(vrc))
         {
             /* Detach it from the VM  */
-            vrc = VMR3HotUnplugCpu(pUVM, aCpu);
+            vrc = VMR3HotUnplugCpu(pVM, aCpu);
             AssertRC(vrc);
         }
         else
@@ -2447,25 +2256,25 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
     return rc;
 }
 
-/*static*/ DECLCALLBACK(int) Console::plugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu)
+/*static*/ DECLCALLBACK(int) Console::plugCpu(Console *pThis, PVM pVM, unsigned uCpu)
 {
-    LogFlowFunc(("pThis=%p uCpu=%u\n", pThis, idCpu));
+    LogFlowFunc(("pThis=%p uCpu=%u\n", pThis, uCpu));
 
     AssertReturn(pThis, VERR_INVALID_PARAMETER);
 
-    int rc = VMR3HotPlugCpu(pUVM, idCpu);
+    int rc = VMR3HotPlugCpu(pVM, uCpu);
     AssertRC(rc);
 
-    PCFGMNODE pInst = CFGMR3GetChild(CFGMR3GetRootU(pUVM), "Devices/acpi/0/");
+    PCFGMNODE pInst = CFGMR3GetChild(CFGMR3GetRoot(pVM), "Devices/acpi/0/");
     AssertRelease(pInst);
     /* nuke anything which might have been left behind. */
-    CFGMR3RemoveNode(CFGMR3GetChildF(pInst, "LUN#%u", idCpu));
+    CFGMR3RemoveNode(CFGMR3GetChildF(pInst, "LUN#%d", uCpu));
 
 #define RC_CHECK() do { if (RT_FAILURE(rc)) { AssertReleaseRC(rc); break; } } while (0)
 
     PCFGMNODE pLunL0;
     PCFGMNODE pCfg;
-    rc = CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%u", idCpu);     RC_CHECK();
+    rc = CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%d", uCpu);     RC_CHECK();
     rc = CFGMR3InsertString(pLunL0, "Driver",       "ACPICpu"); RC_CHECK();
     rc = CFGMR3InsertNode(pLunL0,   "Config",       &pCfg);     RC_CHECK();
 
@@ -2473,7 +2282,7 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
      * Attach the driver.
      */
     PPDMIBASE pBase;
-    rc = PDMR3DeviceAttach(pUVM, "acpi", 0, idCpu, 0, &pBase); RC_CHECK();
+    rc = PDMR3DeviceAttach(pVM, "acpi", 0, uCpu, 0, &pBase); RC_CHECK();
 
     Log(("PlugCpu: rc=%Rrc\n", rc));
 
@@ -2484,18 +2293,18 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
     return VINF_SUCCESS;
 }
 
-HRESULT Console::doCPUAdd(ULONG aCpu, PUVM pUVM)
+HRESULT Console::doCPUAdd(ULONG aCpu, PVM pVM)
 {
     HRESULT rc = S_OK;
 
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
     if (   mMachineState != MachineState_Running
         && mMachineState != MachineState_Teleporting
         && mMachineState != MachineState_LiveSnapshotting
@@ -2522,11 +2331,11 @@ HRESULT Console::doCPUAdd(ULONG aCpu, PUVM pUVM)
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)plugCpu, 3,
-                           this, pUVM, aCpu);
+    int vrc = VMR3ReqCall(pVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::plugCpu, 3,
+                          this, pVM, aCpu);
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
     alock.release();
 
     if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
@@ -2547,7 +2356,7 @@ HRESULT Console::doCPUAdd(ULONG aCpu, PUVM pUVM)
     {
         /* Notify the guest if possible. */
         uint32_t idCpuCore, idCpuPackage;
-        vrc = VMR3GetCpuCoreAndPackageIdFromCpuId(pUVM, aCpu, &idCpuCore, &idCpuPackage); AssertRC(vrc);
+        vrc = VMR3GetCpuCoreAndPackageIdFromCpuId(pVM, aCpu, &idCpuCore, &idCpuPackage); AssertRC(vrc);
         if (RT_SUCCESS(vrc))
             vrc = pDevPort->pfnCpuHotPlug(pDevPort, idCpuCore, idCpuPackage);
         /** @todo warning if the guest doesn't support it */
@@ -2562,18 +2371,89 @@ STDMETHODIMP Console::Pause()
 {
     LogFlowThisFuncEnter();
 
-    HRESULT rc = pause(Reason_Unspecified);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    LogFlowThisFunc(("rc=%Rhrc\n", rc));
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    switch (mMachineState)
+    {
+        case MachineState_Running:
+        case MachineState_Teleporting:
+        case MachineState_LiveSnapshotting:
+            break;
+
+        case MachineState_Paused:
+        case MachineState_TeleportingPausedVM:
+        case MachineState_Saving:
+            return setError(VBOX_E_INVALID_VM_STATE, tr("Already paused"));
+
+        default:
+            return setInvalidMachineStateError();
+    }
+
+    /* get the VM handle. */
+    SafeVMPtr ptrVM(this);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+
+    LogFlowThisFunc(("Sending PAUSE request...\n"));
+
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
+    alock.leave();
+
+    int vrc = VMR3Suspend(ptrVM);
+
+    HRESULT hrc = S_OK;
+    if (RT_FAILURE(vrc))
+        hrc = setError(VBOX_E_VM_ERROR, tr("Could not suspend the machine execution (%Rrc)"), vrc);
+
+    LogFlowThisFunc(("hrc=%Rhrc\n", hrc));
     LogFlowThisFuncLeave();
-    return rc;
+    return hrc;
 }
 
 STDMETHODIMP Console::Resume()
 {
     LogFlowThisFuncEnter();
 
-    HRESULT rc = resume(Reason_Unspecified);
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mMachineState != MachineState_Paused)
+        return setError(VBOX_E_INVALID_VM_STATE,
+                        tr("Cannot resume the machine as it is not paused (machine state: %s)"),
+                        Global::stringifyMachineState(mMachineState));
+
+    /* get the VM handle. */
+    SafeVMPtr ptrVM(this);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+
+    LogFlowThisFunc(("Sending RESUME request...\n"));
+
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
+    alock.leave();
+
+#ifdef VBOX_WITH_EXTPACK
+    int vrc = mptrExtPackManager->callAllVmPowerOnHooks(this, ptrVM); /** @todo called a few times too many... */
+#else
+    int vrc = VINF_SUCCESS;
+#endif
+    if (RT_SUCCESS(vrc))
+    {
+        if (VMR3GetState(ptrVM) == VMSTATE_CREATED)
+            vrc = VMR3PowerOn(ptrVM); /* (PowerUpPaused) */
+        else
+            vrc = VMR3Resume(ptrVM);
+    }
+
+    HRESULT rc = RT_SUCCESS(vrc) ? S_OK :
+        setError(VBOX_E_VM_ERROR,
+                 tr("Could not resume the machine execution (%Rrc)"),
+                 vrc);
 
     LogFlowThisFunc(("rc=%Rhrc\n", rc));
     LogFlowThisFuncLeave();
@@ -2599,12 +2479,11 @@ STDMETHODIMP Console::PowerButton()
     SafeVMPtr ptrVM(this);
     if (!ptrVM.isOk())
         return ptrVM.rc();
-
-    // no need to release lock, as there are no cross-thread callbacks
+/** @todo leave the console lock? */
 
     /* get the acpi device interface and press the button. */
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun(ptrVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS(vrc))
     {
         Assert(pBase);
@@ -2647,12 +2526,11 @@ STDMETHODIMP Console::GetPowerButtonHandled(BOOL *aHandled)
     SafeVMPtr ptrVM(this);
     if (!ptrVM.isOk())
         return ptrVM.rc();
-
-    // no need to release lock, as there are no cross-thread callbacks
+/** @todo leave the console lock? */
 
     /* get the acpi device interface and check if the button press was handled. */
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun(ptrVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS(vrc))
     {
         Assert(pBase);
@@ -2703,11 +2581,11 @@ STDMETHODIMP Console::GetGuestEnteredACPIMode(BOOL *aEntered)
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    // no need to release lock, as there are no cross-thread callbacks
+/** @todo leave the console lock? */
 
     /* get the acpi device interface and query the information. */
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun(ptrVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS(vrc))
     {
         Assert(pBase);
@@ -2736,9 +2614,7 @@ STDMETHODIMP Console::SleepButton()
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    if (   mMachineState != MachineState_Running
-        && mMachineState != MachineState_Teleporting
-        && mMachineState != MachineState_LiveSnapshotting)
+    if (mMachineState != MachineState_Running) /** @todo Live Migration: ??? */
         return setInvalidMachineStateError();
 
     /* get the VM handle. */
@@ -2746,11 +2622,11 @@ STDMETHODIMP Console::SleepButton()
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    // no need to release lock, as there are no cross-thread callbacks
+/** @todo leave the console lock? */
 
     /* get the acpi device interface and press the sleep button. */
     PPDMIBASE pBase;
-    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), "acpi", 0, 0, &pBase);
+    int vrc = PDMR3QueryDeviceLun(ptrVM, "acpi", 0, 0, &pBase);
     if (RT_SUCCESS(vrc))
     {
         Assert(pBase);
@@ -2774,8 +2650,132 @@ STDMETHODIMP Console::SleepButton()
 STDMETHODIMP Console::SaveState(IProgress **aProgress)
 {
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
-    HRESULT rc = saveState(Reason_Unspecified, aProgress);
+    CheckComArgOutPointerValid(aProgress);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (   mMachineState != MachineState_Running
+        && mMachineState != MachineState_Paused)
+    {
+        return setError(VBOX_E_INVALID_VM_STATE,
+            tr("Cannot save the execution state as the machine is not running or paused (machine state: %s)"),
+            Global::stringifyMachineState(mMachineState));
+    }
+
+    /* memorize the current machine state */
+    MachineState_T lastMachineState = mMachineState;
+
+    if (mMachineState == MachineState_Running)
+    {
+        HRESULT rc = Pause();
+        if (FAILED(rc))
+            return rc;
+    }
+
+    HRESULT rc = S_OK;
+    bool fBeganSavingState = false;
+    bool fTaskCreationFailed = false;
+
+    do
+    {
+        ComPtr<IProgress> pProgress;
+        Bstr stateFilePath;
+
+        /*
+         * request a saved state file path from the server
+         * (this will set the machine state to Saving on the server to block
+         * others from accessing this machine)
+         */
+        rc = mControl->BeginSavingState(pProgress.asOutParam(),
+                                        stateFilePath.asOutParam());
+        if (FAILED(rc))
+            break;
+
+        fBeganSavingState = true;
+
+        /* sync the state with the server */
+        setMachineStateLocally(MachineState_Saving);
+
+        /* ensure the directory for the saved state file exists */
+        {
+            Utf8Str dir = stateFilePath;
+            dir.stripFilename();
+            if (!RTDirExists(dir.c_str()))
+            {
+                int vrc = RTDirCreateFullPath(dir.c_str(), 0700);
+                if (RT_FAILURE(vrc))
+                {
+                    rc = setError(VBOX_E_FILE_ERROR,
+                        tr("Could not create a directory '%s' to save the state to (%Rrc)"),
+                        dir.c_str(), vrc);
+                    break;
+                }
+            }
+        }
+
+        /* create a task object early to ensure mpVM protection is successful */
+        std::auto_ptr<VMSaveTask> task(new VMSaveTask(this, pProgress,
+                                                      stateFilePath,
+                                                      lastMachineState));
+        rc = task->rc();
+        /*
+         * If we fail here it means a PowerDown() call happened on another
+         * thread while we were doing Pause() (which leaves the Console lock).
+         * We assign PowerDown() a higher precedence than SaveState(),
+         * therefore just return the error to the caller.
+         */
+        if (FAILED(rc))
+        {
+            fTaskCreationFailed = true;
+            break;
+        }
+
+        /* create a thread to wait until the VM state is saved */
+        int vrc = RTThreadCreate(NULL, Console::saveStateThread, (void *)task.get(),
+                                 0, RTTHREADTYPE_MAIN_WORKER, 0, "VMSave");
+        if (RT_FAILURE(vrc))
+        {
+            rc = setError(E_FAIL, "Could not create VMSave thread (%Rrc)", vrc);
+            break;
+        }
+
+        /* task is now owned by saveStateThread(), so release it */
+        task.release();
+
+        /* return the progress to the caller */
+        pProgress.queryInterfaceTo(aProgress);
+    } while (0);
+
+    if (FAILED(rc) && !fTaskCreationFailed)
+    {
+        /* preserve existing error info */
+        ErrorInfoKeeper eik;
+
+        if (fBeganSavingState)
+        {
+            /*
+             * cancel the requested save state procedure.
+             * This will reset the machine state to the state it had right
+             * before calling mControl->BeginSavingState().
+             */
+            mControl->EndSavingState(eik.getResultCode(), eik.getText().raw());
+        }
+
+        if (lastMachineState == MachineState_Running)
+        {
+            /* restore the paused state if appropriate */
+            setMachineStateLocally(MachineState_Paused);
+            /* restore the running state if appropriate */
+            Resume();
+        }
+        else
+            setMachineStateLocally(lastMachineState);
+    }
 
     LogFlowThisFunc(("rc=%Rhrc\n", rc));
     LogFlowThisFuncLeave();
@@ -2826,7 +2826,7 @@ STDMETHODIMP Console::DiscardSavedState(BOOL aRemoveFile)
     return rc;
 }
 
-/** read the value of a LED. */
+/** read the value of a LEd. */
 inline uint32_t readAndClearLed(PPDMLED pLed)
 {
     if (!pLed)
@@ -2926,14 +2926,16 @@ STDMETHODIMP Console::AttachUSBDevice(IN_BSTR aId)
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    /* Don't proceed unless we have a USB controller. */
-    if (!mfVMHasUsbController)
+    /* Don't proceed unless we've found the usb controller. */
+    PPDMIBASE pBase = NULL;
+    int vrc = PDMR3QueryLun(ptrVM, "usb-ohci", 0, 0, &pBase);
+    if (RT_FAILURE(vrc))
         return setError(VBOX_E_PDM_ERROR,
             tr("The virtual machine does not have a USB controller"));
 
-    /* release the lock because the USB Proxy service may call us back
+    /* leave the lock because the USB Proxy service may call us back
      * (via onUSBDeviceAttach()) */
-    alock.release();
+    alock.leave();
 
     /* Request the device capture */
     return mControl->CaptureUSBDevice(aId);
@@ -2965,7 +2967,7 @@ STDMETHODIMP Console::DetachUSBDevice(IN_BSTR aId, IUSBDevice **aDevice)
             pUSBDevice = *it;
             break;
         }
-        ++it;
+        ++ it;
     }
 
     if (!pUSBDevice)
@@ -2973,35 +2975,27 @@ STDMETHODIMP Console::DetachUSBDevice(IN_BSTR aId, IUSBDevice **aDevice)
             tr("USB device with UUID {%RTuuid} is not attached to this machine"),
             Guid(aId).raw());
 
-    /* Remove the device from the collection, it is re-added below for failures */
-    mUSBDevices.erase(it);
-
     /*
      * Inform the USB device and USB proxy about what's cooking.
      */
-    alock.release();
-    HRESULT rc = mControl->DetachUSBDevice(aId, false /* aDone */);
-    if (FAILED(rc))
-    {
-        /* Re-add the device to the collection */
-        alock.acquire();
-        mUSBDevices.push_back(pUSBDevice);
-        return rc;
-    }
+    alock.leave();
+    HRESULT rc2 = mControl->DetachUSBDevice(aId, false /* aDone */);
+    if (FAILED(rc2))
+        return rc2;
+    alock.enter();
 
     /* Request the PDM to detach the USB device. */
-    rc = detachUSBDevice(pUSBDevice);
+    HRESULT rc = detachUSBDevice(it);
+
     if (SUCCEEDED(rc))
     {
+        /* leave the lock since we don't need it any more (note though that
+         * the USB Proxy service must not call us back here) */
+        alock.leave();
+
         /* Request the device release. Even if it fails, the device will
          * remain as held by proxy, which is OK for us (the VM process). */
         rc = mControl->DetachUSBDevice(aId, true /* aDone */);
-    }
-    else
-    {
-        /* Re-add the device to the collection */
-        alock.acquire();
-        mUSBDevices.push_back(pUSBDevice);
     }
 
     return rc;
@@ -3051,7 +3045,7 @@ STDMETHODIMP Console::FindUSBDeviceByAddress(IN_BSTR aAddress, IUSBDevice **aDev
 STDMETHODIMP Console::FindUSBDeviceById(IN_BSTR aId, IUSBDevice **aDevice)
 {
 #ifdef VBOX_WITH_USB
-    CheckComArgExpr(aId, Guid(aId).isValid());
+    CheckComArgExpr(aId, Guid(aId).isEmpty() == false);
     CheckComArgOutPointerValid(aDevice);
 
     *aDevice = NULL;
@@ -3154,8 +3148,7 @@ Console::CreateSharedFolder(IN_BSTR aName, IN_BSTR aHostPath, BOOL aWritable, BO
 
     m_mapSharedFolders.insert(std::make_pair(aName, pSharedFolder));
 
-    /* Notify console callbacks after the folder is added to the list. */
-    alock.release();
+    /* notify console callbacks after the folder is added to the list */
     fireSharedFolderChangedEvent(mEventSource, Scope_Session);
 
     LogFlowThisFunc(("Leaving for '%ls' -> '%ls'\n", aName, aHostPath));
@@ -3220,8 +3213,7 @@ STDMETHODIMP Console::RemoveSharedFolder(IN_BSTR aName)
 
     m_mapSharedFolders.erase(strName);
 
-    /* Notify console callbacks after the folder is removed from the list. */
-    alock.release();
+    /* notify console callbacks after the folder is removed to the list */
     fireSharedFolderChangedEvent(mEventSource, Scope_Session);
 
     LogFlowThisFunc(("Leaving for '%ls'\n", aName));
@@ -3234,6 +3226,7 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
                                    IProgress **aProgress)
 {
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("aName='%ls' mMachineState=%d\n", aName, mMachineState));
 
     CheckComArgStrNotEmptyOrNull(aName);
     CheckComArgOutPointerValid(aProgress);
@@ -3242,7 +3235,6 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    LogFlowThisFunc(("aName='%ls' mMachineState=%d\n", aName, mMachineState));
 
     if (Global::IsTransient(mMachineState))
         return setError(VBOX_E_INVALID_VM_STATE,
@@ -3298,10 +3290,9 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
     // finally, create the progress object
     ComObjPtr<Progress> pProgress;
     pProgress.createObject();
-    rc = pProgress->init(static_cast<IConsole *>(this),
+    rc = pProgress->init(static_cast<IConsole*>(this),
                          Bstr(tr("Taking a snapshot of the virtual machine")).raw(),
-                            (mMachineState >= MachineState_FirstOnline)
-                         && (mMachineState <= MachineState_LastOnline) /* aCancelable */,
+                         mMachineState == MachineState_Running /* aCancelable */,
                          cOperations,
                          ulTotalOperationsWeight,
                          Bstr(tr("Setting up snapshot operation")).raw(),      // first sub-op description
@@ -3322,7 +3313,7 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
 
         /*
          * If we fail here it means a PowerDown() call happened on another
-         * thread while we were doing Pause() (which releases the Console lock).
+         * thread while we were doing Pause() (which leaves the Console lock).
          * We assign PowerDown() a higher precedence than TakeSnapshot(),
          * therefore just return the error to the caller.
          */
@@ -3341,7 +3332,7 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
                                  0,
                                  RTTHREADTYPE_MAIN_WORKER,
                                  0,
-                                 "TakeSnap");
+                                 "ConsoleTakeSnap");
         if (FAILED(vrc))
             throw setError(E_FAIL,
                            tr("Could not create VMTakeSnap thread (%Rrc)"),
@@ -3363,7 +3354,7 @@ STDMETHODIMP Console::TakeSnapshot(IN_BSTR aName,
 
 STDMETHODIMP Console::DeleteSnapshot(IN_BSTR aId, IProgress **aProgress)
 {
-    CheckComArgExpr(aId, Guid(aId).isValid());
+    CheckComArgExpr(aId, Guid(aId).isEmpty() == false);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
@@ -3386,7 +3377,7 @@ STDMETHODIMP Console::DeleteSnapshot(IN_BSTR aId, IProgress **aProgress)
 
 STDMETHODIMP Console::DeleteSnapshotAndAllChildren(IN_BSTR aId, IProgress **aProgress)
 {
-    CheckComArgExpr(aId, Guid(aId).isValid());
+    CheckComArgExpr(aId, Guid(aId).isEmpty() == false);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
@@ -3409,8 +3400,8 @@ STDMETHODIMP Console::DeleteSnapshotAndAllChildren(IN_BSTR aId, IProgress **aPro
 
 STDMETHODIMP Console::DeleteSnapshotRange(IN_BSTR aStartId, IN_BSTR aEndId, IProgress **aProgress)
 {
-    CheckComArgExpr(aStartId, Guid(aStartId).isValid());
-    CheckComArgExpr(aEndId, Guid(aEndId).isValid());
+    CheckComArgExpr(aStartId, Guid(aStartId).isEmpty() == false);
+    CheckComArgExpr(aEndId, Guid(aEndId).isEmpty() == false);
     CheckComArgOutPointerValid(aProgress);
 
     AutoCaller autoCaller(this);
@@ -3477,6 +3468,36 @@ HRESULT Console::setInvalidMachineStateError()
 }
 
 
+/**
+ * @copydoc VirtualBox::handleUnexpectedExceptions
+ */
+/* static */
+HRESULT Console::handleUnexpectedExceptions(RT_SRC_POS_DECL)
+{
+    try
+    {
+        /* re-throw the current exception */
+        throw;
+    }
+    catch (const std::exception &err)
+    {
+        return setErrorStatic(E_FAIL,
+                              tr("Unexpected exception: %s [%s]\n%s[%d] (%s)"),
+                              err.what(), typeid(err).name(),
+                              pszFile, iLine, pszFunction);
+    }
+    catch (...)
+    {
+        return setErrorStatic(E_FAIL,
+                              tr("Unknown exception\n%s[%d] (%s)"),
+                              pszFile, iLine, pszFunction);
+    }
+
+    /* should not get here */
+    AssertFailed();
+    return E_FAIL;
+}
+
 /* static */
 const char *Console::convertControllerTypeToDev(StorageControllerType_T enmCtrlType)
 {
@@ -3528,94 +3549,17 @@ HRESULT Console::convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG 
 
 // private methods
 /////////////////////////////////////////////////////////////////////////////
-    
-/**
- * Suspend the VM before we do any medium or network attachment change.
- *
- * @param pUVM              Safe VM handle.
- * @param pAlock            The automatic lock instance. This is for when we have
- *                          to leave it in order to avoid deadlocks.
- * @param pfSuspend         where to store the information if we need to resume
- *                          afterwards.
- */
-HRESULT Console::suspendBeforeConfigChange(PUVM pUVM, AutoWriteLock *pAlock, bool *pfResume)
-{
-    *pfResume = false;
-    VMSTATE enmVMState = VMR3GetStateU(pUVM);
-    switch (enmVMState)
-    {
-        case VMSTATE_RESETTING:
-        case VMSTATE_RUNNING:
-        {
-            LogFlowFunc(("Suspending the VM...\n"));
-            /* disable the callback to prevent Console-level state change */
-            mVMStateChangeCallbackDisabled = true;
-            if (pAlock)
-                pAlock->release();
-            int rc = VMR3Suspend(pUVM, VMSUSPENDREASON_RECONFIG);
-            if (pAlock)
-                pAlock->acquire();
-            mVMStateChangeCallbackDisabled = false;
-            if (RT_FAILURE(rc))
-                return setErrorInternal(VBOX_E_INVALID_VM_STATE,
-                                        COM_IIDOF(IConsole),
-                                        getStaticComponentName(),
-                                        Utf8StrFmt("Couldn't suspend VM for medium change (%Rrc)", rc),
-                                        false /*aWarning*/,
-                                        true /*aLogIt*/);
-            *pfResume = true;
-            break;
-        }
-        case VMSTATE_SUSPENDED:
-            break;
-        default:
-            return setErrorInternal(VBOX_E_INVALID_VM_STATE,
-                                    COM_IIDOF(IConsole),
-                                    getStaticComponentName(),
-                                    Utf8StrFmt("Invalid VM state '%s' for changing medium",
-                                        VMR3GetStateName(enmVMState)),
-                                    false /*aWarning*/,
-                                    true /*aLogIt*/);
-    }
-
-    return S_OK;
-}
-
-/**
- * Resume the VM after we did any medium or network attachment change.
- * This is the counterpart to Console::suspendBeforeConfigChange().
- *
- * @param pUVM              Safe VM handle.
- */
-void Console::resumeAfterConfigChange(PUVM pUVM)
-{
-    LogFlowFunc(("Resuming the VM...\n"));
-    /* disable the callback to prevent Console-level state change */
-    mVMStateChangeCallbackDisabled = true;
-    int rc = VMR3Resume(pUVM, VMRESUMEREASON_RECONFIG);
-    mVMStateChangeCallbackDisabled = false;
-    AssertRC(rc);
-    if (RT_FAILURE(rc))
-    {
-        VMSTATE enmVMState = VMR3GetStateU(pUVM);
-        if (enmVMState == VMSTATE_SUSPENDED)
-        {
-            /* too bad, we failed. try to sync the console state with the VMM state */
-            vmstateChangeCallback(pUVM, VMSTATE_SUSPENDED, enmVMState, this);
-        }
-    }
-}
 
 /**
  * Process a medium change.
  *
  * @param aMediumAttachment The medium attachment with the new medium state.
  * @param fForce            Force medium chance, if it is locked or not.
- * @param pUVM              Safe VM handle.
+ * @param pVM               Safe VM handle.
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForce, PUVM pUVM)
+HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForce, PVM pVM)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -3674,26 +3618,29 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
     AssertComRC(rc);
 
     /*
-     * Suspend the VM first. The VM must not be running since it might have
-     * pending I/O to the drive which is being changed.
-     */
-    bool fResume = false;
-    rc = suspendBeforeConfigChange(pUVM, &alock, &fResume);
-    if (FAILED(rc))
-        return rc;
-
-    /*
      * Call worker in EMT, that's faster and safer than doing everything
      * using VMR3ReqCall. Note that we separate VMR3ReqCall from VMR3ReqWait
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)changeRemovableMedium, 8,
-                           this, pUVM, pszDevice, uInstance, enmBus, fUseHostIOCache, aMediumAttachment, fForce);
+    int vrc = VMR3ReqCall(pVM,
+                          VMCPUID_ANY,
+                          &pReq,
+                          0 /* no wait! */,
+                          VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::changeRemovableMedium,
+                          8,
+                          this,
+                          pVM,
+                          pszDevice,
+                          uInstance,
+                          enmBus,
+                          fUseHostIOCache,
+                          aMediumAttachment,
+                          fForce);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
-    alock.release();
+    /* leave the lock before waiting for a result (EMT will call us back!) */
+    alock.leave();
 
     if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
     {
@@ -3703,9 +3650,6 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
             vrc = pReq->iStatus;
     }
     VMR3ReqFree(pReq);
-
-    if (fResume)
-        resumeAfterConfigChange(pUVM);
 
     if (RT_SUCCESS(vrc))
     {
@@ -3729,7 +3673,7 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
  * @returns VBox status code.
  *
  * @param   pThis           Pointer to the Console object.
- * @param   pUVM            The VM handle.
+ * @param   pVM             The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
  * @param   uLun            The PDM LUN number of the drive.
@@ -3742,10 +3686,9 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
  * @param   fPassthrough    Enables using passthrough mode of the host DVD drive if applicable.
  *
  * @thread  EMT
- * @note The VM must not be running since it might have pending I/O to the drive which is being changed.
  */
-DECLCALLBACK(int) Console::changeRemovableMedium(Console *pThis,
-                                                 PUVM pUVM,
+DECLCALLBACK(int) Console::changeRemovableMedium(Console *pConsole,
+                                                 PVM pVM,
                                                  const char *pcszDevice,
                                                  unsigned uInstance,
                                                  StorageBus_T enmBus,
@@ -3753,49 +3696,112 @@ DECLCALLBACK(int) Console::changeRemovableMedium(Console *pThis,
                                                  IMediumAttachment *aMediumAtt,
                                                  bool fForce)
 {
-    LogFlowFunc(("pThis=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, aMediumAtt=%p, fForce=%d\n",
-                 pThis, uInstance, pcszDevice, pcszDevice, enmBus, aMediumAtt, fForce));
+    LogFlowFunc(("pConsole=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, aMediumAtt=%p, fForce=%d\n",
+                 pConsole, uInstance, pcszDevice, pcszDevice, enmBus, aMediumAtt, fForce));
 
-    AssertReturn(pThis, VERR_INVALID_PARAMETER);
+    AssertReturn(pConsole, VERR_INVALID_PARAMETER);
 
-    AutoCaller autoCaller(pThis);
+    AutoCaller autoCaller(pConsole);
     AssertComRCReturn(autoCaller.rc(), VERR_ACCESS_DENIED);
 
     /*
-     * Check the VM for correct state.
+     * Suspend the VM first.
+     *
+     * The VM must not be running since it might have pending I/O to
+     * the drive which is being changed.
      */
-    VMSTATE enmVMState = VMR3GetStateU(pUVM);
-    AssertReturn(enmVMState == VMSTATE_SUSPENDED, VERR_INVALID_STATE);
+    bool fResume;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    switch (enmVMState)
+    {
+        case VMSTATE_RESETTING:
+        case VMSTATE_RUNNING:
+        {
+            LogFlowFunc(("Suspending the VM...\n"));
+            /* disable the callback to prevent Console-level state change */
+            pConsole->mVMStateChangeCallbackDisabled = true;
+            int rc = VMR3Suspend(pVM);
+            pConsole->mVMStateChangeCallbackDisabled = false;
+            AssertRCReturn(rc, rc);
+            fResume = true;
+            break;
+        }
+
+        case VMSTATE_SUSPENDED:
+        case VMSTATE_CREATED:
+        case VMSTATE_OFF:
+            fResume = false;
+            break;
+
+        case VMSTATE_RUNNING_LS:
+        case VMSTATE_RUNNING_FT:
+            return setErrorInternal(VBOX_E_INVALID_VM_STATE,
+                                    COM_IIDOF(IConsole),
+                                    getStaticComponentName(),
+                                    (enmVMState == VMSTATE_RUNNING_LS) ? Utf8Str(tr("Cannot change drive during live migration")) : Utf8Str(tr("Cannot change drive during fault tolerant syncing")),
+                                    false /*aWarning*/,
+                                    true /*aLogIt*/);
+
+        default:
+            AssertMsgFailedReturn(("enmVMState=%d\n", enmVMState), VERR_ACCESS_DENIED);
+    }
 
     /* Determine the base path for the device instance. */
     PCFGMNODE pCtlInst;
-    pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "Devices/%s/%u/", pcszDevice, uInstance);
+    pCtlInst = CFGMR3GetChildF(CFGMR3GetRoot(pVM), "Devices/%s/%u/", pcszDevice, uInstance);
     AssertReturn(pCtlInst, VERR_INTERNAL_ERROR);
 
-    PCFGMNODE pLunL0 = NULL;
-    int rc = pThis->configMediumAttachment(pCtlInst,
-                                           pcszDevice,
-                                           uInstance,
-                                           enmBus,
-                                           fUseHostIOCache,
-                                           false /* fSetupMerge */,
-                                           false /* fBuiltinIOCache */,
-                                           0 /* uMergeSource */,
-                                           0 /* uMergeTarget */,
-                                           aMediumAtt,
-                                           pThis->mMachineState,
-                                           NULL /* phrc */,
-                                           true /* fAttachDetach */,
-                                           fForce /* fForceUnmount */,
-                                           false  /* fHotplug */,
-                                           pUVM,
-                                           NULL /* paLedDevType */,
-                                           &pLunL0);
-    /* Dump the changed LUN if possible, dump the complete device otherwise */
-    CFGMR3Dump(pLunL0 ? pLunL0 : pCtlInst);
+    int rc = VINF_SUCCESS;
+    int rcRet = VINF_SUCCESS;
 
-    LogFlowFunc(("Returning %Rrc\n", rc));
-    return rc;
+    rcRet = pConsole->configMediumAttachment(pCtlInst,
+                                             pcszDevice,
+                                             uInstance,
+                                             enmBus,
+                                             fUseHostIOCache,
+                                             false /* fSetupMerge */,
+                                             false /* fBuiltinIoCache */,
+                                             0 /* uMergeSource */,
+                                             0 /* uMergeTarget */,
+                                             aMediumAtt,
+                                             pConsole->mMachineState,
+                                             NULL /* phrc */,
+                                             true /* fAttachDetach */,
+                                             fForce /* fForceUnmount */,
+                                             false  /* fHotplug */,
+                                             pVM,
+                                             NULL /* paLedDevType */);
+    /** @todo this dumps everything attached to this device instance, which
+     * is more than necessary. Dumping the changed LUN would be enough. */
+    CFGMR3Dump(pCtlInst);
+
+    /*
+     * Resume the VM if necessary.
+     */
+    if (fResume)
+    {
+        LogFlowFunc(("Resuming the VM...\n"));
+        /* disable the callback to prevent Console-level state change */
+        pConsole->mVMStateChangeCallbackDisabled = true;
+        rc = VMR3Resume(pVM);
+        pConsole->mVMStateChangeCallbackDisabled = false;
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+        {
+            /* too bad, we failed. try to sync the console state with the VMM state */
+            vmstateChangeCallback(pVM, VMSTATE_SUSPENDED, enmVMState, pConsole);
+        }
+        /// @todo (r=dmik) if we failed with drive mount, then the VMR3Resume
+        // error (if any) will be hidden from the caller. For proper reporting
+        // of such multiple errors to the caller we need to enhance the
+        // IVirtualBoxError interface. For now, give the first error the higher
+        // priority.
+        if (RT_SUCCESS(rcRet))
+            rcRet = rc;
+    }
+
+    LogFlowFunc(("Returning %Rrc\n", rcRet));
+    return rcRet;
 }
 
 
@@ -3803,12 +3809,11 @@ DECLCALLBACK(int) Console::changeRemovableMedium(Console *pThis,
  * Attach a new storage device to the VM.
  *
  * @param aMediumAttachment The medium attachment which is added.
- * @param pUVM              Safe VM handle.
- * @param fSilent           Flag whether to notify the guest about the attached device.
+ * @param pVM               Safe VM handle.
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent)
+HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM pVM)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -3867,26 +3872,28 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUV
     AssertComRC(rc);
 
     /*
-     * Suspend the VM first. The VM must not be running since it might have
-     * pending I/O to the drive which is being changed.
-     */
-    bool fResume = false;
-    rc = suspendBeforeConfigChange(pUVM, &alock, &fResume);
-    if (FAILED(rc))
-        return rc;
-
-    /*
      * Call worker in EMT, that's faster and safer than doing everything
      * using VMR3ReqCall. Note that we separate VMR3ReqCall from VMR3ReqWait
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)attachStorageDevice, 8,
-                           this, pUVM, pszDevice, uInstance, enmBus, fUseHostIOCache, aMediumAttachment, fSilent);
+    int vrc = VMR3ReqCall(pVM,
+                          VMCPUID_ANY,
+                          &pReq,
+                          0 /* no wait! */,
+                          VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::attachStorageDevice,
+                          7,
+                          this,
+                          pVM,
+                          pszDevice,
+                          uInstance,
+                          enmBus,
+                          fUseHostIOCache,
+                          aMediumAttachment);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
-    alock.release();
+    /* leave the lock before waiting for a result (EMT will call us back!) */
+    alock.leave();
 
     if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
     {
@@ -3896,9 +3903,6 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUV
             vrc = pReq->iStatus;
     }
     VMR3ReqFree(pReq);
-
-    if (fResume)
-        resumeAfterConfigChange(pUVM);
 
     if (RT_SUCCESS(vrc))
     {
@@ -3923,78 +3927,138 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUV
  * @returns VBox status code.
  *
  * @param   pThis           Pointer to the Console object.
- * @param   pUVM            The VM handle.
+ * @param   pVM             The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
- * @param   fSilent         Flag whether to inform the guest about the attached device.
  *
  * @thread  EMT
- * @note The VM must not be running since it might have pending I/O to the drive which is being changed.
  */
-DECLCALLBACK(int) Console::attachStorageDevice(Console *pThis,
-                                               PUVM pUVM,
+DECLCALLBACK(int) Console::attachStorageDevice(Console *pConsole,
+                                               PVM pVM,
                                                const char *pcszDevice,
                                                unsigned uInstance,
                                                StorageBus_T enmBus,
                                                bool fUseHostIOCache,
-                                               IMediumAttachment *aMediumAtt,
-                                               bool fSilent)
+                                               IMediumAttachment *aMediumAtt)
 {
-    LogFlowFunc(("pThis=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, aMediumAtt=%p\n",
-                 pThis, uInstance, pcszDevice, pcszDevice, enmBus, aMediumAtt));
+    LogFlowFunc(("pConsole=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, aMediumAtt=%p\n",
+                 pConsole, uInstance, pcszDevice, pcszDevice, enmBus, aMediumAtt));
 
-    AssertReturn(pThis, VERR_INVALID_PARAMETER);
+    AssertReturn(pConsole, VERR_INVALID_PARAMETER);
 
-    AutoCaller autoCaller(pThis);
+    AutoCaller autoCaller(pConsole);
     AssertComRCReturn(autoCaller.rc(), VERR_ACCESS_DENIED);
 
     /*
-     * Check the VM for correct state.
+     * Suspend the VM first.
+     *
+     * The VM must not be running since it might have pending I/O to
+     * the drive which is being changed.
      */
-    VMSTATE enmVMState = VMR3GetStateU(pUVM);
-    AssertReturn(enmVMState == VMSTATE_SUSPENDED, VERR_INVALID_STATE);
+    bool fResume;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    switch (enmVMState)
+    {
+        case VMSTATE_RESETTING:
+        case VMSTATE_RUNNING:
+        {
+            LogFlowFunc(("Suspending the VM...\n"));
+            /* disable the callback to prevent Console-level state change */
+            pConsole->mVMStateChangeCallbackDisabled = true;
+            int rc = VMR3Suspend(pVM);
+            pConsole->mVMStateChangeCallbackDisabled = false;
+            AssertRCReturn(rc, rc);
+            fResume = true;
+            break;
+        }
+
+        case VMSTATE_SUSPENDED:
+        case VMSTATE_CREATED:
+        case VMSTATE_OFF:
+            fResume = false;
+            break;
+
+        case VMSTATE_RUNNING_LS:
+        case VMSTATE_RUNNING_FT:
+            return setErrorInternal(VBOX_E_INVALID_VM_STATE,
+                                    COM_IIDOF(IConsole),
+                                    getStaticComponentName(),
+                                    (enmVMState == VMSTATE_RUNNING_LS) ? Utf8Str(tr("Cannot change drive during live migration")) : Utf8Str(tr("Cannot change drive during fault tolerant syncing")),
+                                    false /*aWarning*/,
+                                    true /*aLogIt*/);
+
+        default:
+            AssertMsgFailedReturn(("enmVMState=%d\n", enmVMState), VERR_ACCESS_DENIED);
+    }
 
     /* Determine the base path for the device instance. */
     PCFGMNODE pCtlInst;
-    pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "Devices/%s/%u/", pcszDevice, uInstance);
+    pCtlInst = CFGMR3GetChildF(CFGMR3GetRoot(pVM), "Devices/%s/%u/", pcszDevice, uInstance);
     AssertReturn(pCtlInst, VERR_INTERNAL_ERROR);
 
-    PCFGMNODE pLunL0 = NULL;
-    int rc = pThis->configMediumAttachment(pCtlInst,
-                                           pcszDevice,
-                                           uInstance,
-                                           enmBus,
-                                           fUseHostIOCache,
-                                           false /* fSetupMerge */,
-                                           false /* fBuiltinIOCache */,
-                                           0 /* uMergeSource */,
-                                           0 /* uMergeTarget */,
-                                           aMediumAtt,
-                                           pThis->mMachineState,
-                                           NULL /* phrc */,
-                                           true /* fAttachDetach */,
-                                           false /* fForceUnmount */,
-                                           !fSilent /* fHotplug */,
-                                           pUVM,
-                                           NULL /* paLedDevType */,
-                                           &pLunL0);
-    /* Dump the changed LUN if possible, dump the complete device otherwise */
-    CFGMR3Dump(pLunL0 ? pLunL0 : pCtlInst);
+    int rc = VINF_SUCCESS;
+    int rcRet = VINF_SUCCESS;
 
-    LogFlowFunc(("Returning %Rrc\n", rc));
-    return rc;
+    rcRet = pConsole->configMediumAttachment(pCtlInst,
+                                             pcszDevice,
+                                             uInstance,
+                                             enmBus,
+                                             fUseHostIOCache,
+                                             false /* fSetupMerge */,
+                                             false /* fBuiltinIoCache */,
+                                             0 /* uMergeSource */,
+                                             0 /* uMergeTarget */,
+                                             aMediumAtt,
+                                             pConsole->mMachineState,
+                                             NULL /* phrc */,
+                                             true /* fAttachDetach */,
+                                             false /* fForceUnmount */,
+                                             true   /* fHotplug */,
+                                             pVM,
+                                             NULL /* paLedDevType */);
+    /** @todo this dumps everything attached to this device instance, which
+     * is more than necessary. Dumping the changed LUN would be enough. */
+    CFGMR3Dump(pCtlInst);
+
+    /*
+     * Resume the VM if necessary.
+     */
+    if (fResume)
+    {
+        LogFlowFunc(("Resuming the VM...\n"));
+        /* disable the callback to prevent Console-level state change */
+        pConsole->mVMStateChangeCallbackDisabled = true;
+        rc = VMR3Resume(pVM);
+        pConsole->mVMStateChangeCallbackDisabled = false;
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+        {
+            /* too bad, we failed. try to sync the console state with the VMM state */
+            vmstateChangeCallback(pVM, VMSTATE_SUSPENDED, enmVMState, pConsole);
+        }
+        /** @todo: if we failed with drive mount, then the VMR3Resume
+         * error (if any) will be hidden from the caller. For proper reporting
+         * of such multiple errors to the caller we need to enhance the
+         * IVirtualBoxError interface. For now, give the first error the higher
+         * priority.
+         */
+        if (RT_SUCCESS(rcRet))
+            rcRet = rc;
+    }
+
+    LogFlowFunc(("Returning %Rrc\n", rcRet));
+    return rcRet;
 }
 
 /**
  * Attach a new storage device to the VM.
  *
  * @param aMediumAttachment The medium attachment which is added.
- * @param pUVM              Safe VM handle.
- * @param fSilent           Flag whether to notify the guest about the detached device.
+ * @param pVM               Safe VM handle.
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent)
+HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM pVM)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
@@ -4050,26 +4114,27 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUV
     AssertComRC(rc);
 
     /*
-     * Suspend the VM first. The VM must not be running since it might have
-     * pending I/O to the drive which is being changed.
-     */
-    bool fResume = false;
-    rc = suspendBeforeConfigChange(pUVM, &alock, &fResume);
-    if (FAILED(rc))
-        return rc;
-
-    /*
      * Call worker in EMT, that's faster and safer than doing everything
      * using VMR3ReqCall. Note that we separate VMR3ReqCall from VMR3ReqWait
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, VMCPUID_ANY, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)detachStorageDevice, 7,
-                           this, pUVM, pszDevice, uInstance, enmBus, aMediumAttachment, fSilent);
+    int vrc = VMR3ReqCall(pVM,
+                          VMCPUID_ANY,
+                          &pReq,
+                          0 /* no wait! */,
+                          VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT)Console::detachStorageDevice,
+                          6,
+                          this,
+                          pVM,
+                          pszDevice,
+                          uInstance,
+                          enmBus,
+                          aMediumAttachment);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
-    alock.release();
+    /* leave the lock before waiting for a result (EMT will call us back!) */
+    alock.leave();
 
     if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
     {
@@ -4079,9 +4144,6 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUV
             vrc = pReq->iStatus;
     }
     VMR3ReqFree(pReq);
-
-    if (fResume)
-        resumeAfterConfigChange(pUVM);
 
     if (RT_SUCCESS(vrc))
     {
@@ -4105,39 +4167,72 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUV
  * @returns VBox status code.
  *
  * @param   pThis           Pointer to the Console object.
- * @param   pUVM            The VM handle.
+ * @param   pVM             The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
- * @param   fSilent         Flag whether to notify the guest about the detached device.
  *
  * @thread  EMT
- * @note The VM must not be running since it might have pending I/O to the drive which is being changed.
  */
-DECLCALLBACK(int) Console::detachStorageDevice(Console *pThis,
-                                               PUVM pUVM,
+DECLCALLBACK(int) Console::detachStorageDevice(Console *pConsole,
+                                               PVM pVM,
                                                const char *pcszDevice,
                                                unsigned uInstance,
                                                StorageBus_T enmBus,
-                                               IMediumAttachment *pMediumAtt,
-                                               bool fSilent)
+                                               IMediumAttachment *pMediumAtt)
 {
-    LogFlowFunc(("pThis=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, pMediumAtt=%p\n",
-                 pThis, uInstance, pcszDevice, pcszDevice, enmBus, pMediumAtt));
+    LogFlowFunc(("pConsole=%p uInstance=%u pszDevice=%p:{%s} enmBus=%u, pMediumAtt=%p\n",
+                 pConsole, uInstance, pcszDevice, pcszDevice, enmBus, pMediumAtt));
 
-    AssertReturn(pThis, VERR_INVALID_PARAMETER);
+    AssertReturn(pConsole, VERR_INVALID_PARAMETER);
 
-    AutoCaller autoCaller(pThis);
+    AutoCaller autoCaller(pConsole);
     AssertComRCReturn(autoCaller.rc(), VERR_ACCESS_DENIED);
 
     /*
-     * Check the VM for correct state.
+     * Suspend the VM first.
+     *
+     * The VM must not be running since it might have pending I/O to
+     * the drive which is being changed.
      */
-    VMSTATE enmVMState = VMR3GetStateU(pUVM);
-    AssertReturn(enmVMState == VMSTATE_SUSPENDED, VERR_INVALID_STATE);
+    bool fResume;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    switch (enmVMState)
+    {
+        case VMSTATE_RESETTING:
+        case VMSTATE_RUNNING:
+        {
+            LogFlowFunc(("Suspending the VM...\n"));
+            /* disable the callback to prevent Console-level state change */
+            pConsole->mVMStateChangeCallbackDisabled = true;
+            int rc = VMR3Suspend(pVM);
+            pConsole->mVMStateChangeCallbackDisabled = false;
+            AssertRCReturn(rc, rc);
+            fResume = true;
+            break;
+        }
+
+        case VMSTATE_SUSPENDED:
+        case VMSTATE_CREATED:
+        case VMSTATE_OFF:
+            fResume = false;
+            break;
+
+        case VMSTATE_RUNNING_LS:
+        case VMSTATE_RUNNING_FT:
+            return setErrorInternal(VBOX_E_INVALID_VM_STATE,
+                                    COM_IIDOF(IConsole),
+                                    getStaticComponentName(),
+                                    (enmVMState == VMSTATE_RUNNING_LS) ? Utf8Str(tr("Cannot change drive during live migration")) : Utf8Str(tr("Cannot change drive during fault tolerant syncing")),
+                                    false /*aWarning*/,
+                                    true /*aLogIt*/);
+
+        default:
+            AssertMsgFailedReturn(("enmVMState=%d\n", enmVMState), VERR_ACCESS_DENIED);
+    }
 
     /* Determine the base path for the device instance. */
     PCFGMNODE pCtlInst;
-    pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "Devices/%s/%u/", pcszDevice, uInstance);
+    pCtlInst = CFGMR3GetChildF(CFGMR3GetRoot(pVM), "Devices/%s/%u/", pcszDevice, uInstance);
     AssertReturn(pCtlInst, VERR_INTERNAL_ERROR);
 
 #define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
@@ -4163,25 +4258,46 @@ DECLCALLBACK(int) Console::detachStorageDevice(Console *pThis,
     pLunL0 = CFGMR3GetChildF(pCtlInst, "LUN#%u", uLUN);
     if (pLunL0)
     {
-        uint32_t fFlags = 0;
-
-        if (fSilent)
-            fFlags |= PDM_TACH_FLAGS_NOT_HOT_PLUG;
-
-        rc = PDMR3DeviceDetach(pUVM, pcszDevice, uInstance, uLUN, fFlags);
+        rc = PDMR3DeviceDetach(pVM, pcszDevice, uInstance, uLUN, 0);
         if (rc == VERR_PDM_NO_DRIVER_ATTACHED_TO_LUN)
             rc = VINF_SUCCESS;
         AssertRCReturn(rc, rc);
         CFGMR3RemoveNode(pLunL0);
 
         Utf8Str devicePath = Utf8StrFmt("%s/%u/LUN#%u", pcszDevice, uInstance, uLUN);
-        pThis->mapMediumAttachments.erase(devicePath);
+        pConsole->mapMediumAttachments.erase(devicePath);
 
     }
     else
         AssertFailedReturn(VERR_INTERNAL_ERROR);
 
     CFGMR3Dump(pCtlInst);
+
+    /*
+     * Resume the VM if necessary.
+     */
+    if (fResume)
+    {
+        LogFlowFunc(("Resuming the VM...\n"));
+        /* disable the callback to prevent Console-level state change */
+        pConsole->mVMStateChangeCallbackDisabled = true;
+        rc = VMR3Resume(pVM);
+        pConsole->mVMStateChangeCallbackDisabled = false;
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+        {
+            /* too bad, we failed. try to sync the console state with the VMM state */
+            vmstateChangeCallback(pVM, VMSTATE_SUSPENDED, enmVMState, pConsole);
+        }
+        /** @todo: if we failed with drive mount, then the VMR3Resume
+         * error (if any) will be hidden from the caller. For proper reporting
+         * of such multiple errors to the caller we need to enhance the
+         * IVirtualBoxError interface. For now, give the first error the higher
+         * priority.
+         */
+        if (RT_SUCCESS(rcRet))
+            rcRet = rc;
+    }
 
     LogFlowFunc(("Returning %Rrc\n", rcRet));
     return rcRet;
@@ -4203,7 +4319,7 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
 
     HRESULT rc = S_OK;
 
-    /* don't trigger network changes if the VM isn't running */
+    /* don't trigger network change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4231,12 +4347,8 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
                 rc = aNetworkAdapter->COMGETTER(AdapterType)(&adapterType);
                 AssertComRC(rc);
                 const char *pszAdapterName = networkAdapterTypeToName(adapterType);
-
-                // prevent cross-thread deadlocks, don't need the lock any more
-                alock.release();
-
                 PPDMIBASE pBase;
-                int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+                int vrc = PDMR3QueryDeviceLun(ptrVM, pszAdapterName, ulInstance, 0, &pBase);
                 if (RT_SUCCESS(vrc))
                 {
                     Assert(pBase);
@@ -4253,7 +4365,7 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
                     }
                     if (RT_SUCCESS(vrc) && changeAdapter)
                     {
-                        VMSTATE enmVMState = VMR3GetStateU(ptrVM.rawUVM());
+                        VMSTATE enmVMState = VMR3GetState(ptrVM);
                         if (    enmVMState == VMSTATE_RUNNING    /** @todo LiveMigration: Forbid or deal correctly with the _LS variants */
                             ||  enmVMState == VMSTATE_SUSPENDED)
                         {
@@ -4263,7 +4375,7 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
                                 ComAssertRC(vrc);
                             }
 
-                            rc = doNetworkAdapterChange(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, aNetworkAdapter);
+                            rc = doNetworkAdapterChange(ptrVM, pszAdapterName, ulInstance, 0, aNetworkAdapter);
 
                             if (fTraceEnabled && fCableConnected && pINetCfg)
                             {
@@ -4281,15 +4393,10 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
 
                 if (RT_FAILURE(vrc))
                     rc = E_FAIL;
-
-                alock.acquire();
             }
         }
         ptrVM.release();
     }
-
-    // definitely don't need the lock any more
-    alock.release();
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
@@ -4305,7 +4412,7 @@ HRESULT Console::onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL c
  * @note Locks this object for writing.
  */
 HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
-                                         NATProtocol_T aProto, IN_BSTR aHostIP, LONG aHostPort, IN_BSTR aGuestIP, LONG aGuestPort)
+                                         NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort)
 {
     LogFlowThisFunc(("\n"));
 
@@ -4316,7 +4423,7 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
 
     HRESULT rc = S_OK;
 
-    /* don't trigger NAT engine changes if the VM isn't running */
+    /* don't trigger nat engine change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -4343,7 +4450,7 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
 
             const char *pszAdapterName = networkAdapterTypeToName(adapterType);
             PPDMIBASE pBase;
-            int vrc = PDMR3QueryLun(ptrVM.rawUVM(), pszAdapterName, ulInstance, 0, &pBase);
+            int vrc = PDMR3QueryLun(ptrVM, pszAdapterName, ulInstance, 0, &pBase);
             if (RT_FAILURE(vrc))
             {
                 ComAssertRC(vrc);
@@ -4376,8 +4483,8 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
 
             bool fUdp = aProto == NATProtocol_UDP;
             vrc = pNetNatCfg->pfnRedirectRuleCommand(pNetNatCfg, !!aNatRuleRemove, fUdp,
-                                                     Utf8Str(aHostIP).c_str(), (uint16_t)aHostPort, Utf8Str(aGuestIP).c_str(),
-                                                     (uint16_t)aGuestPort);
+                                                     Utf8Str(aHostIp).c_str(), aHostPort, Utf8Str(aGuestIp).c_str(),
+                                                     aGuestPort);
             if (RT_FAILURE(vrc))
                 rc = E_FAIL;
         } while (0); /* break loop */
@@ -4388,415 +4495,21 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
     return rc;
 }
 
-VMMDevMouseInterface *Console::getVMMDevMouseInterface()
-{
-    return m_pVMMDev;
-}
-
-DisplayMouseInterface *Console::getDisplayMouseInterface()
-{
-    return mDisplay;
-}
-
-/**
- * Parses one key value pair.
- *
- * @returns VBox status code.
- * @param   psz     Configuration string.
- * @param   ppszEnd Where to store the pointer to the string following the key value pair.
- * @param   ppszKey Where to store the key on success.
- * @param   ppszVal Where to store the value on success.
- */
-int Console::consoleParseKeyValue(const char *psz, const char **ppszEnd,
-                                  char **ppszKey, char **ppszVal)
-{
-    int rc = VINF_SUCCESS;
-    const char *pszKeyStart = psz;
-    const char *pszValStart = NULL;
-    size_t cchKey = 0;
-    size_t cchVal = 0;
-
-    while (   *psz != '='
-           && *psz)
-        psz++;
-
-    /* End of string at this point is invalid. */
-    if (*psz == '\0')
-        return VERR_INVALID_PARAMETER;
-
-    cchKey = psz - pszKeyStart;
-    psz++; /* Skip = character */
-    pszValStart = psz;
-
-    while (   *psz != ','
-           && *psz != '\n'
-           && *psz != '\r'
-           && *psz)
-        psz++;
-
-    cchVal = psz - pszValStart;
-
-    if (cchKey && cchVal)
-    {
-        *ppszKey = RTStrDupN(pszKeyStart, cchKey);
-        if (*ppszKey)
-        {
-            *ppszVal = RTStrDupN(pszValStart, cchVal);
-            if (!*ppszVal)
-            {
-                RTStrFree(*ppszKey);
-                rc = VERR_NO_MEMORY;
-            }
-        }
-        else
-            rc = VERR_NO_MEMORY;
-    }
-    else
-        rc = VERR_INVALID_PARAMETER;
-
-    if (RT_SUCCESS(rc))
-        *ppszEnd = psz;
-
-    return rc;
-}
-
-/**
- * Removes the key interfaces from all disk attachments, useful when
- * changing the key store or dropping it.
- */
-HRESULT Console::clearDiskEncryptionKeysOnAllAttachments(void)
-{
-    HRESULT hrc = S_OK;
-    SafeIfaceArray<IMediumAttachment> sfaAttachments;
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    /* Get the VM - must be done before the read-locking. */
-    SafeVMPtr ptrVM(this);
-    if (!ptrVM.isOk())
-        return ptrVM.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    hrc = mMachine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
-    AssertComRCReturnRC(hrc);
-
-    /* Find the correct attachment. */
-    for (unsigned i = 0; i < sfaAttachments.size(); i++)
-    {
-        const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[i];
-
-        /*
-         * Query storage controller, port and device
-         * to identify the correct driver.
-         */
-        ComPtr<IStorageController> pStorageCtrl;
-        Bstr storageCtrlName;
-        LONG lPort, lDev;
-        ULONG ulStorageCtrlInst;
-
-        hrc = pAtt->COMGETTER(Controller)(storageCtrlName.asOutParam());
-        AssertComRC(hrc);
-
-        hrc = pAtt->COMGETTER(Port)(&lPort);
-        AssertComRC(hrc);
-
-        hrc = pAtt->COMGETTER(Device)(&lDev);
-        AssertComRC(hrc);
-
-        hrc = mMachine->GetStorageControllerByName(storageCtrlName.raw(), pStorageCtrl.asOutParam());
-        AssertComRC(hrc);
-
-        hrc = pStorageCtrl->COMGETTER(Instance)(&ulStorageCtrlInst);
-        AssertComRC(hrc);
-
-        StorageControllerType_T enmCtrlType;
-        hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
-        AssertComRC(hrc);
-        const char *pcszDevice = convertControllerTypeToDev(enmCtrlType);
-
-        StorageBus_T enmBus;
-        hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
-        AssertComRC(hrc);
-
-        unsigned uLUN;
-        hrc = Console::convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
-        AssertComRC(hrc);
-
-        PPDMIBASE pIBase = NULL;
-        PPDMIMEDIA pIMedium = NULL;
-        int rc = PDMR3QueryDriverOnLun(ptrVM.rawUVM(), pcszDevice, ulStorageCtrlInst, uLUN, "VD", &pIBase);
-        if (RT_SUCCESS(rc))
-        {
-            if (pIBase)
-            {
-                pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
-                if (pIMedium)
-                {
-                    rc = pIMedium->pfnSetSecKeyIf(pIMedium, NULL);
-                    Assert(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED);
-                }
-            }
-        }
-    }
-
-    return hrc;
-}
-
-/**
- * Configures the encryption support for the disk identified by the gien UUID with
- * the given key.
- *
- * @returns COM status code.
- * @param   pszUuid   The UUID of the disk to configure encryption for.
- */
-HRESULT Console::configureEncryptionForDisk(const char *pszUuid)
-{
-    HRESULT hrc = S_OK;
-    SafeIfaceArray<IMediumAttachment> sfaAttachments;
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    /* Get the VM - must be done before the read-locking. */
-    SafeVMPtr ptrVM(this);
-    if (!ptrVM.isOk())
-        return ptrVM.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    hrc = mMachine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
-    if (FAILED(hrc))
-        return hrc;
-
-    /* Find the correct attachment. */
-    for (unsigned i = 0; i < sfaAttachments.size(); i++)
-    {
-        const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[i];
-        ComPtr<IMedium> pMedium;
-        ComPtr<IMedium> pBase;
-        Bstr uuid;
-
-        hrc = pAtt->COMGETTER(Medium)(pMedium.asOutParam());
-        if (FAILED(hrc))
-            break;
-
-        /* Skip non hard disk attachments. */
-        if (pMedium.isNull())
-            continue;
-
-        /* Get the UUID of the base medium and compare. */
-        hrc = pMedium->COMGETTER(Base)(pBase.asOutParam());
-        if (FAILED(hrc))
-            break;
-
-        hrc = pBase->COMGETTER(Id)(uuid.asOutParam());
-        if (FAILED(hrc))
-            break;
-
-        if (!RTUuidCompare2Strs(Utf8Str(uuid).c_str(), pszUuid))
-        {
-            /*
-             * Found the matching medium, query storage controller, port and device
-             * to identify the correct driver.
-             */
-            ComPtr<IStorageController> pStorageCtrl;
-            Bstr storageCtrlName;
-            LONG lPort, lDev;
-            ULONG ulStorageCtrlInst;
-
-            hrc = pAtt->COMGETTER(Controller)(storageCtrlName.asOutParam());
-            if (FAILED(hrc))
-                break;
-
-            hrc = pAtt->COMGETTER(Port)(&lPort);
-            if (FAILED(hrc))
-                break;
-
-            hrc = pAtt->COMGETTER(Device)(&lDev);
-            if (FAILED(hrc))
-                break;
-
-            hrc = mMachine->GetStorageControllerByName(storageCtrlName.raw(), pStorageCtrl.asOutParam());
-            if (FAILED(hrc))
-                break;
-
-            hrc = pStorageCtrl->COMGETTER(Instance)(&ulStorageCtrlInst);
-            if (FAILED(hrc))
-                break;
-
-            StorageControllerType_T enmCtrlType;
-            hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
-            AssertComRC(hrc);
-            const char *pcszDevice = convertControllerTypeToDev(enmCtrlType);
-
-            StorageBus_T enmBus;
-            hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
-            AssertComRC(hrc);
-
-            unsigned uLUN;
-            hrc = Console::convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
-            AssertComRCReturnRC(hrc);
-
-            PPDMIBASE pIBase = NULL;
-            PPDMIMEDIA pIMedium = NULL;
-            int rc = PDMR3QueryDriverOnLun(ptrVM.rawUVM(), pcszDevice, ulStorageCtrlInst, uLUN, "VD", &pIBase);
-            if (RT_SUCCESS(rc))
-            {
-                if (pIBase)
-                {
-                    pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
-                    if (!pIMedium)
-                        return setError(E_FAIL, tr("could not query medium interface of controller"));
-                    else
-                    {
-                        rc = pIMedium->pfnSetSecKeyIf(pIMedium, mpIfSecKey);
-                        if (RT_FAILURE(rc))
-                            return setError(E_FAIL, tr("Failed to set the encryption key (%Rrc)"), rc);
-                    }
-                }
-                else
-                    return setError(E_FAIL, tr("could not query base interface of controller"));
-            }
-        }
-    }
-
-    return hrc;
-}
-
-/**
- * Parses the encryption configuration for one disk.
- *
- * @returns Pointer to the string following encryption configuration.
- * @param   psz    Pointer to the configuration for the encryption of one disk.
- */
-HRESULT Console::consoleParseDiskEncryption(const char *psz, const char **ppszEnd)
-{
-    char *pszUuid = NULL;
-    char *pszKeyEnc = NULL;
-    int rc = VINF_SUCCESS;
-    HRESULT hrc = S_OK;
-
-    while (   *psz
-           && RT_SUCCESS(rc))
-    {
-        char *pszKey = NULL;
-        char *pszVal = NULL;
-        const char *pszEnd = NULL;
-
-        rc = consoleParseKeyValue(psz, &pszEnd, &pszKey, &pszVal);
-        if (RT_SUCCESS(rc))
-        {
-            if (!RTStrCmp(pszKey, "uuid"))
-                pszUuid = pszVal;
-            else if (!RTStrCmp(pszKey, "dek"))
-                pszKeyEnc = pszVal;
-            else
-                rc = VERR_INVALID_PARAMETER;
-
-            RTStrFree(pszKey);
-
-            if (*pszEnd == ',')
-                psz = pszEnd + 1;
-            else
-            {
-                /*
-                 * End of the configuration for the current disk, skip linefeed and
-                 * carriage returns.
-                 */
-                while (   *pszEnd == '\n'
-                       || *pszEnd == '\r')
-                    pszEnd++;
-
-                psz = pszEnd;
-                break; /* Stop parsing */
-            }
-
-        }
-    }
-
-    if (   RT_SUCCESS(rc)
-        && pszUuid
-        && pszKeyEnc)
-    {
-        ssize_t cbKey = 0;
-
-        /* Decode the key. */
-        cbKey = RTBase64DecodedSize(pszKeyEnc, NULL);
-        if (cbKey != -1)
-        {
-            void *pvKey = NULL;
-            rc = RTMemSaferAllocZEx(&pvKey, cbKey, RTMEMSAFER_F_REQUIRE_NOT_PAGABLE);
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTBase64Decode(pszKeyEnc, pvKey, cbKey, NULL, NULL);
-                if (RT_SUCCESS(rc))
-                {
-                    SecretKey *pKey = new SecretKey(pvKey, cbKey);
-                    /* Add the key to the map */
-                    m_mapSecretKeys.insert(std::make_pair(Utf8Str(pszUuid), pKey));
-                    hrc = configureEncryptionForDisk(pszUuid);
-                }
-                else
-                    hrc = setError(E_FAIL,
-                                   tr("Failed to decode the key (%Rrc)"),
-                                   rc);
-            }
-            else
-                hrc = setError(E_FAIL,
-                               tr("Failed to allocate secure memory for the key (%Rrc)"), rc);
-        }
-        else
-            hrc = setError(E_FAIL,
-                           tr("The base64 encoding of the passed key is incorrect"));
-    }
-    else if (RT_SUCCESS(rc))
-        hrc = setError(E_FAIL,
-                       tr("The encryption configuration is incomplete"));
-
-    if (pszUuid)
-        RTStrFree(pszUuid);
-    if (pszKeyEnc)
-    {
-        RTMemWipeThoroughly(pszKeyEnc, strlen(pszKeyEnc), 10 /* cMinPasses */);
-        RTStrFree(pszKeyEnc);
-    }
-
-    if (ppszEnd)
-        *ppszEnd = psz;
-
-    return hrc;
-}
-
-HRESULT Console::setDiskEncryptionKeys(const Utf8Str &strCfg)
-{
-    HRESULT hrc = S_OK;
-    const char *pszCfg = strCfg.c_str();
-
-    while (   *pszCfg
-           && SUCCEEDED(hrc))
-    {
-        const char *pszNext = NULL;
-        hrc = consoleParseDiskEncryption(pszCfg, &pszNext);
-        pszCfg = pszNext;
-    }
-
-    return hrc;
-}
 
 /**
  * Process a network adaptor change.
  *
  * @returns COM status code.
  *
- * @parma   pUVM                The VM handle (caller hold this safely).
+ * @parma   pVM                 The VM handle (caller hold this safely).
  * @param   pszDevice           The PDM device name.
  * @param   uInstance           The PDM device instance.
  * @param   uLun                The PDM LUN number of the drive.
  * @param   aNetworkAdapter     The network adapter whose attachment needs to be changed
+ *
+ * @note Locks this object for writing.
  */
-HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
+HRESULT Console::doNetworkAdapterChange(PVM pVM,
                                         const char *pszDevice,
                                         unsigned uInstance,
                                         unsigned uLun,
@@ -4808,13 +4521,13 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    /*
-     * Suspend the VM first.
-     */
-    bool fResume = false;
-    int rc = suspendBeforeConfigChange(pUVM, NULL, &fResume);
-    if (FAILED(rc))
-        return rc;
+    /* We will need to release the write lock before calling EMT */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    /* Get the VM handle. */
+    SafeVMPtr ptrVM(this);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
 
     /*
      * Call worker in EMT, that's faster and safer than doing everything
@@ -4822,9 +4535,12 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, 0 /*idDstCpu*/, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)changeNetworkAttachment, 6,
-                           this, pUVM, pszDevice, uInstance, uLun, aNetworkAdapter);
+    int vrc = VMR3ReqCall(pVM, 0 /*idDstCpu*/, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
+                          (PFNRT) Console::changeNetworkAttachment, 6,
+                          this, ptrVM.raw(), pszDevice, uInstance, uLun, aNetworkAdapter);
+
+    /* leave the lock before waiting for a result (EMT will call us back!) */
+    alock.leave();
 
     if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
     {
@@ -4834,9 +4550,6 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
             vrc = pReq->iStatus;
     }
     VMR3ReqFree(pReq);
-
-    if (fResume)
-        resumeAfterConfigChange(pUVM);
 
     if (RT_SUCCESS(vrc))
     {
@@ -4856,7 +4569,7 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
  * @returns VBox status code.
  *
  * @param   pThis               Pointer to the Console object.
- * @param   pUVM                The VM handle.
+ * @param   pVM                 The VM handle.
  * @param   pszDevice           The PDM device name.
  * @param   uInstance           The PDM device instance.
  * @param   uLun                The PDM LUN number of the drive.
@@ -4864,10 +4577,9 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
  *
  * @thread  EMT
  * @note Locks the Console object for writing.
- * @note The VM must not be running.
  */
 DECLCALLBACK(int) Console::changeNetworkAttachment(Console *pThis,
-                                                   PUVM pUVM,
+                                                   PVM pVM,
                                                    const char *pszDevice,
                                                    unsigned uInstance,
                                                    unsigned uLun,
@@ -4878,48 +4590,95 @@ DECLCALLBACK(int) Console::changeNetworkAttachment(Console *pThis,
 
     AssertReturn(pThis, VERR_INVALID_PARAMETER);
 
-    AutoCaller autoCaller(pThis);
-    AssertComRCReturn(autoCaller.rc(), VERR_ACCESS_DENIED);
-
-    ComPtr<IVirtualBox> pVirtualBox;
-    pThis->mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
-    ComPtr<ISystemProperties> pSystemProperties;
-    if (pVirtualBox)
-        pVirtualBox->COMGETTER(SystemProperties)(pSystemProperties.asOutParam());
-    ChipsetType_T chipsetType = ChipsetType_PIIX3;
-    pThis->mMachine->COMGETTER(ChipsetType)(&chipsetType);
-    ULONG maxNetworkAdapters = 0;
-    if (pSystemProperties)
-        pSystemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);
     AssertMsg(   (   !strcmp(pszDevice, "pcnet")
                   || !strcmp(pszDevice, "e1000")
                   || !strcmp(pszDevice, "virtio-net"))
               && uLun == 0
-              && uInstance < maxNetworkAdapters,
+              && uInstance < SchemaDefs::NetworkAdapterCount,
               ("pszDevice=%s uLun=%d uInstance=%d\n", pszDevice, uLun, uInstance));
     Log(("pszDevice=%s uLun=%d uInstance=%d\n", pszDevice, uLun, uInstance));
 
+    AutoCaller autoCaller(pThis);
+    AssertComRCReturn(autoCaller.rc(), VERR_ACCESS_DENIED);
+
     /*
-     * Check the VM for correct state.
+     * Suspend the VM first.
+     *
+     * The VM must not be running since it might have pending I/O to
+     * the drive which is being changed.
      */
-    VMSTATE enmVMState = VMR3GetStateU(pUVM);
-    AssertReturn(enmVMState == VMSTATE_SUSPENDED, VERR_INVALID_STATE);
+    bool fResume;
+    VMSTATE enmVMState = VMR3GetState(pVM);
+    switch (enmVMState)
+    {
+        case VMSTATE_RESETTING:
+        case VMSTATE_RUNNING:
+        {
+            LogFlowFunc(("Suspending the VM...\n"));
+            /* disable the callback to prevent Console-level state change */
+            pThis->mVMStateChangeCallbackDisabled = true;
+            int rc = VMR3Suspend(pVM);
+            pThis->mVMStateChangeCallbackDisabled = false;
+            AssertRCReturn(rc, rc);
+            fResume = true;
+            break;
+        }
+
+        case VMSTATE_SUSPENDED:
+        case VMSTATE_CREATED:
+        case VMSTATE_OFF:
+            fResume = false;
+            break;
+
+        default:
+            AssertLogRelMsgFailedReturn(("enmVMState=%d\n", enmVMState), VERR_ACCESS_DENIED);
+    }
+
+    int rc = VINF_SUCCESS;
+    int rcRet = VINF_SUCCESS;
 
     PCFGMNODE pCfg = NULL;          /* /Devices/Dev/.../Config/ */
     PCFGMNODE pLunL0 = NULL;        /* /Devices/Dev/0/LUN#0/ */
-    PCFGMNODE pInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "Devices/%s/%d/", pszDevice, uInstance);
+    PCFGMNODE pInst = CFGMR3GetChildF(CFGMR3GetRoot(pVM), "Devices/%s/%d/", pszDevice, uInstance);
     AssertRelease(pInst);
 
-    int rc = pThis->configNetwork(pszDevice, uInstance, uLun, aNetworkAdapter, pCfg, pLunL0, pInst,
-                                  true /*fAttachDetach*/, false /*fIgnoreConnectFailure*/);
+    rcRet = pThis->configNetwork(pszDevice, uInstance, uLun, aNetworkAdapter, pCfg, pLunL0, pInst,
+                                 true /*fAttachDetach*/, false /*fIgnoreConnectFailure*/);
 
-    LogFlowFunc(("Returning %Rrc\n", rc));
-    return rc;
+    /*
+     * Resume the VM if necessary.
+     */
+    if (fResume)
+    {
+        LogFlowFunc(("Resuming the VM...\n"));
+        /* disable the callback to prevent Console-level state change */
+        pThis->mVMStateChangeCallbackDisabled = true;
+        rc = VMR3Resume(pVM);
+        pThis->mVMStateChangeCallbackDisabled = false;
+        AssertRC(rc);
+        if (RT_FAILURE(rc))
+        {
+            /* too bad, we failed. try to sync the console state with the VMM state */
+            vmstateChangeCallback(pVM, VMSTATE_SUSPENDED, enmVMState, pThis);
+        }
+        /// @todo (r=dmik) if we failed with drive mount, then the VMR3Resume
+        // error (if any) will be hidden from the caller. For proper reporting
+        // of such multiple errors to the caller we need to enhance the
+        // IVirtualBoxError interface. For now, give the first error the higher
+        // priority.
+        if (RT_SUCCESS(rcRet))
+            rcRet = rc;
+    }
+
+    LogFlowFunc(("Returning %Rrc\n", rcRet));
+    return rcRet;
 }
 
 
 /**
  * Called by IInternalSessionControl::OnSerialPortChange().
+ *
+ * @note Locks this object for writing.
  */
 HRESULT Console::onSerialPortChange(ISerialPort *aSerialPort)
 {
@@ -4928,14 +4687,30 @@ HRESULT Console::onSerialPortChange(ISerialPort *aSerialPort)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    fireSerialPortChangedEvent(mEventSource, aSerialPort);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("Leaving rc=%#x\n", S_OK));
-    return S_OK;
+    HRESULT rc = S_OK;
+
+    /* don't trigger serial port change if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
+    {
+        /* nothing to do so far */
+        ptrVM.release();
+    }
+
+    /* notify console callbacks on success */
+    if (SUCCEEDED(rc))
+        fireSerialPortChangedEvent(mEventSource, aSerialPort);
+
+    LogFlowThisFunc(("Leaving rc=%#x\n", rc));
+    return rc;
 }
 
 /**
  * Called by IInternalSessionControl::OnParallelPortChange().
+ *
+ * @note Locks this object for writing.
  */
 HRESULT Console::onParallelPortChange(IParallelPort *aParallelPort)
 {
@@ -4944,14 +4719,30 @@ HRESULT Console::onParallelPortChange(IParallelPort *aParallelPort)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    fireParallelPortChangedEvent(mEventSource, aParallelPort);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("Leaving rc=%#x\n", S_OK));
-    return S_OK;
+    HRESULT rc = S_OK;
+
+    /* don't trigger parallel port change if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
+    {
+        /* nothing to do so far */
+        ptrVM.release();
+    }
+
+    /* notify console callbacks on success */
+    if (SUCCEEDED(rc))
+        fireParallelPortChangedEvent(mEventSource, aParallelPort);
+
+    LogFlowThisFunc(("Leaving rc=%#x\n", rc));
+    return rc;
 }
 
 /**
  * Called by IInternalSessionControl::OnStorageControllerChange().
+ *
+ * @note Locks this object for writing.
  */
 HRESULT Console::onStorageControllerChange()
 {
@@ -4960,14 +4751,30 @@ HRESULT Console::onStorageControllerChange()
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    fireStorageControllerChangedEvent(mEventSource);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("Leaving rc=%#x\n", S_OK));
-    return S_OK;
+    HRESULT rc = S_OK;
+
+    /* don't trigger storage controller change if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
+    {
+        /* nothing to do so far */
+        ptrVM.release();
+    }
+
+    /* notify console callbacks on success */
+    if (SUCCEEDED(rc))
+        fireStorageControllerChangedEvent(mEventSource);
+
+    LogFlowThisFunc(("Leaving rc=%#x\n", rc));
+    return rc;
 }
 
 /**
  * Called by IInternalSessionControl::OnMediumChange().
+ *
+ * @note Locks this object for writing.
  */
 HRESULT Console::onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce)
 {
@@ -4976,13 +4783,15 @@ HRESULT Console::onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForc
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     HRESULT rc = S_OK;
 
-    /* don't trigger medium changes if the VM isn't running */
+    /* don't trigger medium change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
-        rc = doMediumChange(aMediumAttachment, !!aForce, ptrVM.rawUVM());
+        rc = doMediumChange(aMediumAttachment, !!aForce, ptrVM);
         ptrVM.release();
     }
 
@@ -5008,14 +4817,14 @@ HRESULT Console::onCPUChange(ULONG aCPU, BOOL aRemove)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger CPU changes if the VM isn't running */
+    /* don't trigger CPU change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
         if (aRemove)
-            rc = doCPURemove(aCPU, ptrVM.rawUVM());
+            rc = doCPURemove(aCPU, ptrVM);
         else
-            rc = doCPUAdd(aCPU, ptrVM.rawUVM());
+            rc = doCPUAdd(aCPU, ptrVM);
         ptrVM.release();
     }
 
@@ -5053,7 +4862,7 @@ HRESULT Console::onCPUExecutionCapChange(ULONG aExecutionCap)
             )
         {
             /* No need to call in the EMT thread. */
-            rc = VMR3SetCpuExecutionCap(ptrVM.rawUVM(), aExecutionCap);
+            rc = VMR3SetCpuExecutionCap(ptrVM, aExecutionCap);
         }
         else
             rc = setInvalidMachineStateError();
@@ -5062,90 +4871,7 @@ HRESULT Console::onCPUExecutionCapChange(ULONG aExecutionCap)
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
-    {
-        alock.release();
         fireCPUExecutionCapChangedEvent(mEventSource, aExecutionCap);
-    }
-
-    LogFlowThisFunc(("Leaving rc=%#x\n", rc));
-    return rc;
-}
-
-/**
- * Called by IInternalSessionControl::OnClipboardModeChange().
- *
- * @note Locks this object for writing.
- */
-HRESULT Console::onClipboardModeChange(ClipboardMode_T aClipboardMode)
-{
-    LogFlowThisFunc(("\n"));
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = S_OK;
-
-    /* don't trigger the clipboard mode change if the VM isn't running */
-    SafeVMPtrQuiet ptrVM(this);
-    if (ptrVM.isOk())
-    {
-        if (   mMachineState == MachineState_Running
-            || mMachineState == MachineState_Teleporting
-            || mMachineState == MachineState_LiveSnapshotting)
-            changeClipboardMode(aClipboardMode);
-        else
-            rc = setInvalidMachineStateError();
-        ptrVM.release();
-    }
-
-    /* notify console callbacks on success */
-    if (SUCCEEDED(rc))
-    {
-        alock.release();
-        fireClipboardModeChangedEvent(mEventSource, aClipboardMode);
-    }
-
-    LogFlowThisFunc(("Leaving rc=%#x\n", rc));
-    return rc;
-}
-
-/**
- * Called by IInternalSessionControl::OnDragAndDropModeChange().
- *
- * @note Locks this object for writing.
- */
-HRESULT Console::onDragAndDropModeChange(DragAndDropMode_T aDragAndDropMode)
-{
-    LogFlowThisFunc(("\n"));
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = S_OK;
-
-    /* don't trigger the drag'n'drop mode change if the VM isn't running */
-    SafeVMPtrQuiet ptrVM(this);
-    if (ptrVM.isOk())
-    {
-        if (   mMachineState == MachineState_Running
-            || mMachineState == MachineState_Teleporting
-            || mMachineState == MachineState_LiveSnapshotting)
-            changeDragAndDropMode(aDragAndDropMode);
-        else
-            rc = setInvalidMachineStateError();
-        ptrVM.release();
-    }
-
-    /* notify console callbacks on success */
-    if (SUCCEEDED(rc))
-    {
-        alock.release();
-        fireDragAndDropModeChangedEvent(mEventSource, aDragAndDropMode);
-    }
 
     LogFlowThisFunc(("Leaving rc=%#x\n", rc));
     return rc;
@@ -5165,135 +4891,69 @@ HRESULT Console::onVRDEServerChange(BOOL aRestart)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger VRDE server changes if the VM isn't running */
-    SafeVMPtrQuiet ptrVM(this);
-    if (ptrVM.isOk())
+    if (    mVRDEServer
+        &&  (   mMachineState == MachineState_Running
+             || mMachineState == MachineState_Teleporting
+             || mMachineState == MachineState_LiveSnapshotting
+            )
+       )
     {
-        /* Serialize. */
-        if (mfVRDEChangeInProcess)
-            mfVRDEChangePending = true;
-        else
+        BOOL vrdpEnabled = FALSE;
+
+        rc = mVRDEServer->COMGETTER(Enabled)(&vrdpEnabled);
+        ComAssertComRCRetRC(rc);
+
+        if (aRestart)
         {
-            do {
-                mfVRDEChangeInProcess = true;
-                mfVRDEChangePending = false;
+            /* VRDP server may call this Console object back from other threads (VRDP INPUT or OUTPUT). */
+            alock.leave();
 
-                if (    mVRDEServer
-                    &&  (   mMachineState == MachineState_Running
-                         || mMachineState == MachineState_Teleporting
-                         || mMachineState == MachineState_LiveSnapshotting
-                         || mMachineState == MachineState_Paused
-                         )
-                   )
-                {
-                    BOOL vrdpEnabled = FALSE;
-
-                    rc = mVRDEServer->COMGETTER(Enabled)(&vrdpEnabled);
-                    ComAssertComRCRetRC(rc);
-
-                    if (aRestart)
-                    {
-                        /* VRDP server may call this Console object back from other threads (VRDP INPUT or OUTPUT). */
-                        alock.release();
-
-                        if (vrdpEnabled)
-                        {
-                            // If there was no VRDP server started the 'stop' will do nothing.
-                            // However if a server was started and this notification was called,
-                            // we have to restart the server.
-                            mConsoleVRDPServer->Stop();
-
-                            if (RT_FAILURE(mConsoleVRDPServer->Launch()))
-                                rc = E_FAIL;
-                            else
-                                mConsoleVRDPServer->EnableConnections();
-                        }
-                        else
-                            mConsoleVRDPServer->Stop();
-
-                        alock.acquire();
-                    }
-                }
-                else
-                    rc = setInvalidMachineStateError();
-
-                mfVRDEChangeInProcess = false;
-            } while (mfVRDEChangePending && SUCCEEDED(rc));
-        }
-
-        ptrVM.release();
-    }
-
-    /* notify console callbacks on success */
-    if (SUCCEEDED(rc))
-    {
-        alock.release();
-        fireVRDEServerChangedEvent(mEventSource);
-    }
-
-    return rc;
-}
-
-void Console::onVRDEServerInfoChange()
-{
-    AutoCaller autoCaller(this);
-    AssertComRCReturnVoid(autoCaller.rc());
-
-    fireVRDEServerInfoChangedEvent(mEventSource);
-}
-
-HRESULT Console::onVideoCaptureChange()
-{
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = S_OK;
-
-    /* don't trigger video capture changes if the VM isn't running */
-    SafeVMPtrQuiet ptrVM(this);
-    if (ptrVM.isOk())
-    {
-        BOOL fEnabled;
-        rc = mMachine->COMGETTER(VideoCaptureEnabled)(&fEnabled);
-        SafeArray<BOOL> screens;
-        if (SUCCEEDED(rc))
-            rc = mMachine->COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(screens));
-        if (mDisplay)
-        {
-            int vrc = VINF_SUCCESS;
-            if (SUCCEEDED(rc))
-                vrc = mDisplay->VideoCaptureEnableScreens(ComSafeArrayAsInParam(screens));
-            if (RT_SUCCESS(vrc))
+            if (vrdpEnabled)
             {
-                if (fEnabled)
-                {
-                    vrc = mDisplay->VideoCaptureStart();
-                    if (RT_FAILURE(vrc))
-                        rc = setError(E_FAIL, tr("Unable to start video capturing (%Rrc)"), vrc);
-                }
+                // If there was no VRDP server started the 'stop' will do nothing.
+                // However if a server was started and this notification was called,
+                // we have to restart the server.
+                mConsoleVRDPServer->Stop();
+
+                if (RT_FAILURE(mConsoleVRDPServer->Launch()))
+                    rc = E_FAIL;
                 else
-                    mDisplay->VideoCaptureStop();
+                    mConsoleVRDPServer->EnableConnections();
             }
             else
-                rc = setError(E_FAIL, tr("Unable to set screens for capturing (%Rrc)"), vrc);
+            {
+                mConsoleVRDPServer->Stop();
+            }
+
+            alock.enter();
         }
-        ptrVM.release();
     }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
-    {
-        alock.release();
-        fireVideoCaptureChangedEvent(mEventSource);
-    }
+        fireVRDEServerChangedEvent(mEventSource);
 
     return rc;
 }
 
 /**
+ * @note Locks this object for reading.
+ */
+void Console::onVRDEServerInfoChange()
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturnVoid(autoCaller.rc());
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    fireVRDEServerInfoChangedEvent(mEventSource);
+}
+
+
+/**
  * Called by IInternalSessionControl::OnUSBControllerChange().
+ *
+ * @note Locks this object for writing.
  */
 HRESULT Console::onUSBControllerChange()
 {
@@ -5302,9 +4962,30 @@ HRESULT Console::onUSBControllerChange()
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    fireUSBControllerChangedEvent(mEventSource);
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    return S_OK;
+    HRESULT rc = S_OK;
+
+    /* don't trigger USB controller change if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
+    {
+        /// @todo implement one day.
+        // Anyway, if we want to query the machine's USB Controller we need
+        // to cache it to mUSBController in #init() (similar to mDVDDrive).
+        //
+        // bird: While the VM supports hot-plugging, I doubt any guest can
+        // handle it at this time... :-)
+
+        /* nothing to do so far */
+        ptrVM.release();
+    }
+
+    /* notify console callbacks on success */
+    if (SUCCEEDED(rc))
+        fireUSBControllerChangedEvent(mEventSource);
+
+    return rc;
 }
 
 /**
@@ -5326,7 +5007,6 @@ HRESULT Console::onSharedFolderChange(BOOL aGlobal)
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
     {
-        alock.release();
         fireSharedFolderChangedEvent(mEventSource, aGlobal ? (Scope_T)Scope_Global : (Scope_T)Scope_Machine);
     }
 
@@ -5373,19 +5053,17 @@ HRESULT Console::onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aE
     if (aError != NULL)
     {
         /* notify callbacks about the error */
-        alock.release();
         onUSBDeviceStateChange(aDevice, true /* aAttached */, aError);
         return S_OK;
     }
 
     /* Don't proceed unless there's at least one USB hub. */
-    if (!PDMR3UsbHasHub(ptrVM.rawUVM()))
+    if (!PDMR3USBHasHub(ptrVM))
     {
         LogFlowThisFunc(("Attach request ignored (no USB controller).\n"));
         return E_FAIL;
     }
 
-    alock.release();
     HRESULT rc = attachUSBDevice(aDevice, aMaskedIfs);
     if (FAILED(rc))
     {
@@ -5437,7 +5115,7 @@ HRESULT Console::onUSBDeviceDetach(IN_BSTR aId,
             pUSBDevice = *it;
             break;
         }
-        ++it;
+        ++ it;
     }
 
 
@@ -5465,22 +5143,14 @@ HRESULT Console::onUSBDeviceDetach(IN_BSTR aId,
     if (aError != NULL)
     {
         /* notify callback about an error */
-        alock.release();
         onUSBDeviceStateChange(pUSBDevice, false /* aAttached */, aError);
         return S_OK;
     }
 
-    /* Remove the device from the collection, it is re-added below for failures */
-    mUSBDevices.erase(it);
+    HRESULT rc = detachUSBDevice(it);
 
-    alock.release();
-    HRESULT rc = detachUSBDevice(pUSBDevice);
     if (FAILED(rc))
     {
-        /* Re-add the device to the collection */
-        alock.acquire();
-        mUSBDevices.push_back(pUSBDevice);
-        alock.release();
         /* take the current error info */
         com::ErrorInfoKeeper eik;
         /* the error must be a VirtualBoxErrorInfo instance */
@@ -5516,7 +5186,7 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
 
     HRESULT rc = S_OK;
 
-    /* don't trigger bandwidth group changes if the VM isn't running */
+    /* don't trigger the CPU priority change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
@@ -5526,26 +5196,17 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
             )
         {
             /* No need to call in the EMT thread. */
-            LONG64 cMax;
+            ULONG cMax;
             Bstr strName;
-            BandwidthGroupType_T enmType;
             rc = aBandwidthGroup->COMGETTER(Name)(strName.asOutParam());
             if (SUCCEEDED(rc))
-                rc = aBandwidthGroup->COMGETTER(MaxBytesPerSec)(&cMax);
-            if (SUCCEEDED(rc))
-                rc = aBandwidthGroup->COMGETTER(Type)(&enmType);
+                rc = aBandwidthGroup->COMGETTER(MaxMbPerSec)(&cMax);
 
             if (SUCCEEDED(rc))
             {
-                int vrc = VINF_SUCCESS;
-                if (enmType == BandwidthGroupType_Disk)
-                    vrc = PDMR3AsyncCompletionBwMgrSetMaxForFile(ptrVM.rawUVM(), Utf8Str(strName).c_str(), (uint32_t)cMax);
-#ifdef VBOX_WITH_NETSHAPER
-                else if (enmType == BandwidthGroupType_Network)
-                    vrc = PDMR3NsBwGroupSetLimit(ptrVM.rawUVM(), Utf8Str(strName).c_str(), cMax);
-                else
-                    rc = E_NOTIMPL;
-#endif /* VBOX_WITH_NETSHAPER */
+                int vrc;
+                vrc = PDMR3AsyncCompletionBwMgrSetMaxForFile(ptrVM, Utf8Str(strName).c_str(),
+                                                             cMax * _1M);
                 AssertRC(vrc);
             }
         }
@@ -5556,10 +5217,7 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
-    {
-        alock.release();
         fireBandwidthGroupChangedEvent(mEventSource, aBandwidthGroup);
-    }
 
     LogFlowThisFunc(("Leaving rc=%#x\n", rc));
     return rc;
@@ -5570,74 +5228,34 @@ HRESULT Console::onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup)
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove, BOOL aSilent)
+HRESULT Console::onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove)
 {
     LogFlowThisFunc(("\n"));
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     HRESULT rc = S_OK;
 
-    /* don't trigger medium changes if the VM isn't running */
+    /* don't trigger medium change if the VM isn't running */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
         if (aRemove)
-            rc = doStorageDeviceDetach(aMediumAttachment, ptrVM.rawUVM(), RT_BOOL(aSilent));
+            rc = doStorageDeviceDetach(aMediumAttachment, ptrVM);
         else
-            rc = doStorageDeviceAttach(aMediumAttachment, ptrVM.rawUVM(), RT_BOOL(aSilent));
+            rc = doStorageDeviceAttach(aMediumAttachment, ptrVM);
         ptrVM.release();
     }
 
     /* notify console callbacks on success */
     if (SUCCEEDED(rc))
-        fireStorageDeviceChangedEvent(mEventSource, aMediumAttachment, aRemove, aSilent);
+        fireStorageDeviceChangedEvent(mEventSource, aMediumAttachment, aRemove);
 
     LogFlowThisFunc(("Leaving rc=%#x\n", rc));
     return rc;
-}
-
-HRESULT Console::onExtraDataChange(IN_BSTR aMachineId, IN_BSTR aKey, IN_BSTR aVal)
-{
-    LogFlowThisFunc(("\n"));
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    if (!aMachineId)
-        return S_OK;
-
-    HRESULT hrc = S_OK;
-    Bstr idMachine(aMachineId);
-    Bstr idSelf;
-    hrc = mMachine->COMGETTER(Id)(idSelf.asOutParam());
-    if (   FAILED(hrc)
-        || idMachine != idSelf)
-        return hrc;
-
-    /* don't do anything if the VM isn't running */
-    SafeVMPtrQuiet ptrVM(this);
-    if (ptrVM.isOk())
-    {
-        Bstr strKey(aKey);
-        Bstr strVal(aVal);
-
-        if (strKey == "VBoxInternal2/TurnResetIntoPowerOff")
-        {
-            int vrc = VMR3SetPowerOffInsteadOfReset(ptrVM.rawUVM(), strVal == "1");
-            AssertRC(vrc);
-        }
-
-        ptrVM.release();
-    }
-
-    /* notify console callbacks on success */
-    if (SUCCEEDED(hrc))
-        fireExtraDataChangedEvent(mEventSource, aMachineId, aKey, aVal);
-
-    LogFlowThisFunc(("Leaving hrc=%#x\n", hrc));
-    return hrc;
 }
 
 /**
@@ -5661,13 +5279,12 @@ HRESULT Console::getGuestProperty(IN_BSTR aName, BSTR *aValue,
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    /* protect mpUVM (if not NULL) */
-    SafeVMPtrQuiet ptrVM(this);
-    if (FAILED(ptrVM.rc()))
-        return ptrVM.rc();
+    /* protect mpVM (if not NULL) */
+    AutoVMCallerWeak autoVMCaller(this);
+    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
     /* Note: validity of mVMMDev which is bound to uninit() is guaranteed by
-     * ptrVM, so there is no need to hold a lock of this */
+     * autoVMCaller, so there is no need to hold a lock of this */
 
     HRESULT rc = E_UNEXPECTED;
     using namespace guestProp;
@@ -5731,56 +5348,51 @@ HRESULT Console::setGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags)
 #ifndef VBOX_WITH_GUEST_PROPS
     ReturnComNotImplemented();
 #else /* VBOX_WITH_GUEST_PROPS */
-    if (!RT_VALID_PTR(aName))
-        return setError(E_INVALIDARG, tr("Name cannot be NULL or an invalid pointer"));
-    if (aValue != NULL && !RT_VALID_PTR(aValue))
-        return setError(E_INVALIDARG, tr("Invalid value pointer"));
-    if (aFlags != NULL && !RT_VALID_PTR(aFlags))
-        return setError(E_INVALIDARG, tr("Invalid flags pointer"));
+    if (!VALID_PTR(aName))
+        return E_INVALIDARG;
+    if ((aValue != NULL) && !VALID_PTR(aValue))
+        return E_INVALIDARG;
+    if ((aFlags != NULL) && !VALID_PTR(aFlags))
+        return E_INVALIDARG;
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    /* protect mpUVM (if not NULL) */
-    SafeVMPtrQuiet ptrVM(this);
-    if (FAILED(ptrVM.rc()))
-        return ptrVM.rc();
+    /* protect mpVM (if not NULL) */
+    AutoVMCallerWeak autoVMCaller(this);
+    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
     /* Note: validity of mVMMDev which is bound to uninit() is guaranteed by
-     * ptrVM, so there is no need to hold a lock of this */
+     * autoVMCaller, so there is no need to hold a lock of this */
 
+    HRESULT rc = E_UNEXPECTED;
     using namespace guestProp;
 
     VBOXHGCMSVCPARM parm[3];
-
     Utf8Str Utf8Name = aName;
+    int vrc = VINF_SUCCESS;
+
     parm[0].type = VBOX_HGCM_SVC_PARM_PTR;
     parm[0].u.pointer.addr = (void*)Utf8Name.c_str();
     /* The + 1 is the null terminator */
     parm[0].u.pointer.size = (uint32_t)Utf8Name.length() + 1;
-
-    Utf8Str Utf8Value;
+    Utf8Str Utf8Value = aValue;
     if (aValue != NULL)
     {
-        Utf8Value = aValue;
         parm[1].type = VBOX_HGCM_SVC_PARM_PTR;
-        parm[1].u.pointer.addr = (void *)Utf8Value.c_str();
+        parm[1].u.pointer.addr = (void*)Utf8Value.c_str();
         /* The + 1 is the null terminator */
         parm[1].u.pointer.size = (uint32_t)Utf8Value.length() + 1;
     }
-
-    Utf8Str Utf8Flags;
+    Utf8Str Utf8Flags = aFlags;
     if (aFlags != NULL)
     {
-        Utf8Flags = aFlags;
         parm[2].type = VBOX_HGCM_SVC_PARM_PTR;
         parm[2].u.pointer.addr = (void*)Utf8Flags.c_str();
         /* The + 1 is the null terminator */
         parm[2].u.pointer.size = (uint32_t)Utf8Flags.length() + 1;
     }
-
-    int vrc;
-    if (aValue != NULL && aFlags != NULL)
+    if ((aValue != NULL) && (aFlags != NULL))
         vrc = m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", SET_PROP_HOST,
                                       3, &parm[0]);
     else if (aValue != NULL)
@@ -5789,12 +5401,13 @@ HRESULT Console::setGuestProperty(IN_BSTR aName, IN_BSTR aValue, IN_BSTR aFlags)
     else
         vrc = m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", DEL_PROP_HOST,
                                     1, &parm[0]);
-    HRESULT hrc;
     if (RT_SUCCESS(vrc))
-        hrc = S_OK;
+        rc = S_OK;
     else
-        hrc = setError(E_UNEXPECTED, tr("The service call failed with the error %Rrc"), vrc);
-    return hrc;
+        rc = setError(E_UNEXPECTED,
+            tr("The service call failed with the error %Rrc"),
+            vrc);
+    return rc;
 #endif /* VBOX_WITH_GUEST_PROPS */
 }
 
@@ -5825,10 +5438,9 @@ HRESULT Console::enumerateGuestProperties(IN_BSTR aPatterns,
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
-    /* protect mpUVM (if not NULL) */
+    /* protect mpVM (if not NULL) */
     AutoVMCallerWeak autoVMCaller(this);
-    if (FAILED(autoVMCaller.rc()))
-        return autoVMCaller.rc();
+    if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
 
     /* Note: validity of mVMMDev which is bound to uninit() is guaranteed by
      * autoVMCaller, so there is no need to hold a lock of this */
@@ -5858,6 +5470,10 @@ static int onlineMergeMediumProgress(void *pvUser, unsigned uPercentage)
  */
 HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                                    ULONG aSourceIdx, ULONG aTargetIdx,
+                                   IMedium *aSource, IMedium *aTarget,
+                                   BOOL aMergeForward,
+                                   IMedium *aParentForTarget,
+                                   ComSafeArrayIn(IMedium *, aChildrenToReparent),
                                    IProgress *aProgress)
 {
     AutoCaller autoCaller(this);
@@ -5887,8 +5503,8 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
 
     /** @todo AssertComRC -> AssertComRCReturn! Could potentially end up
      *        using uninitialized variables here. */
-    BOOL fBuiltinIOCache;
-    rc = mMachine->COMGETTER(IOCacheEnabled)(&fBuiltinIOCache);
+    BOOL fBuiltinIoCache;
+    rc = mMachine->COMGETTER(IoCacheEnabled)(&fBuiltinIoCache);
     AssertComRC(rc);
     SafeIfaceArray<IStorageController> ctrls;
     rc = mMachine->COMGETTER(StorageControllers)(ComSafeArrayAsOutParam(ctrls));
@@ -5951,22 +5567,34 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     alock.release();
 
     /* Pause the VM, as it might have pending IO on this drive */
-    VMSTATE enmVMState = VMR3GetStateU(ptrVM.rawUVM());
+    VMSTATE enmVMState = VMR3GetState(ptrVM);
     if (mMachineState == MachineState_DeletingSnapshotOnline)
     {
         LogFlowFunc(("Suspending the VM...\n"));
         /* disable the callback to prevent Console-level state change */
         mVMStateChangeCallbackDisabled = true;
-        int vrc2 = VMR3Suspend(ptrVM.rawUVM(), VMSUSPENDREASON_RECONFIG);
+        int vrc2 = VMR3Suspend(ptrVM);
         mVMStateChangeCallbackDisabled = false;
         AssertRCReturn(vrc2, E_FAIL);
     }
 
-    vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                           (PFNRT)reconfigureMediumAttachment, 13,
-                           this, ptrVM.rawUVM(), pcszDevice, uInstance, enmBus, fUseHostIOCache,
-                           fBuiltinIOCache, true /* fSetupMerge */, aSourceIdx, aTargetIdx,
-                           aMediumAttachment, mMachineState, &rc);
+    vrc = VMR3ReqCallWait(ptrVM,
+                          VMCPUID_ANY,
+                          (PFNRT)reconfigureMediumAttachment,
+                          13,
+                          this,
+                          ptrVM.raw(),
+                          pcszDevice,
+                          uInstance,
+                          enmBus,
+                          fUseHostIOCache,
+                          fBuiltinIoCache,
+                          true /* fSetupMerge */,
+                          aSourceIdx,
+                          aTargetIdx,
+                          aMediumAttachment,
+                          mMachineState,
+                          &rc);
     /* error handling is after resuming the VM */
 
     if (mMachineState == MachineState_DeletingSnapshotOnline)
@@ -5974,13 +5602,13 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
         LogFlowFunc(("Resuming the VM...\n"));
         /* disable the callback to prevent Console-level state change */
         mVMStateChangeCallbackDisabled = true;
-        int vrc2 = VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_RECONFIG);
+        int vrc2 = VMR3Resume(ptrVM);
         mVMStateChangeCallbackDisabled = false;
         if (RT_FAILURE(vrc2))
         {
             /* too bad, we failed. try to sync the console state with the VMM state */
             AssertLogRelRC(vrc2);
-            vmstateChangeCallback(ptrVM.rawUVM(), VMSTATE_SUSPENDED, enmVMState, this);
+            vmstateChangeCallback(ptrVM, VMSTATE_SUSPENDED, enmVMState, this);
         }
     }
 
@@ -5991,7 +5619,7 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
 
     PPDMIBASE pIBase = NULL;
     PPDMIMEDIA pIMedium = NULL;
-    vrc = PDMR3QueryDriverOnLun(ptrVM.rawUVM(), pcszDevice, uInstance, uLUN, "VD", &pIBase);
+    vrc = PDMR3QueryDriverOnLun(ptrVM, pcszDevice, uInstance, uLUN, "VD", &pIBase);
     if (RT_SUCCESS(vrc))
     {
         if (pIBase)
@@ -6010,25 +5638,39 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
         return setError(E_FAIL, tr("Failed to perform an online medium merge (%Rrc)"), vrc);
 
     /* Pause the VM, as it might have pending IO on this drive */
-    enmVMState = VMR3GetStateU(ptrVM.rawUVM());
+    enmVMState = VMR3GetState(ptrVM);
     if (mMachineState == MachineState_DeletingSnapshotOnline)
     {
         LogFlowFunc(("Suspending the VM...\n"));
         /* disable the callback to prevent Console-level state change */
         mVMStateChangeCallbackDisabled = true;
-        int vrc2 = VMR3Suspend(ptrVM.rawUVM(), VMSUSPENDREASON_RECONFIG);
+        int vrc2 = VMR3Suspend(ptrVM);
         mVMStateChangeCallbackDisabled = false;
         AssertRCReturn(vrc2, E_FAIL);
     }
 
     /* Update medium chain and state now, so that the VM can continue. */
-    rc = mControl->FinishOnlineMergeMedium();
+    rc = mControl->FinishOnlineMergeMedium(aMediumAttachment, aSource, aTarget,
+                                           aMergeForward, aParentForTarget,
+                                           ComSafeArrayInArg(aChildrenToReparent));
 
-    vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                           (PFNRT)reconfigureMediumAttachment, 13,
-                           this, ptrVM.rawUVM(), pcszDevice, uInstance, enmBus, fUseHostIOCache,
-                           fBuiltinIOCache, false /* fSetupMerge */, 0 /* uMergeSource */,
-                           0 /* uMergeTarget */, aMediumAttachment, mMachineState, &rc);
+    vrc = VMR3ReqCallWait(ptrVM,
+                          VMCPUID_ANY,
+                          (PFNRT)reconfigureMediumAttachment,
+                          13,
+                          this,
+                          ptrVM.raw(),
+                          pcszDevice,
+                          uInstance,
+                          enmBus,
+                          fUseHostIOCache,
+                          fBuiltinIoCache,
+                          false /* fSetupMerge */,
+                          0 /* uMergeSource */,
+                          0 /* uMergeTarget */,
+                          aMediumAttachment,
+                          mMachineState,
+                          &rc);
     /* error handling is after resuming the VM */
 
     if (mMachineState == MachineState_DeletingSnapshotOnline)
@@ -6036,13 +5678,13 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
         LogFlowFunc(("Resuming the VM...\n"));
         /* disable the callback to prevent Console-level state change */
         mVMStateChangeCallbackDisabled = true;
-        int vrc2 = VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_RECONFIG);
+        int vrc2 = VMR3Resume(ptrVM);
         mVMStateChangeCallbackDisabled = false;
         AssertRC(vrc2);
         if (RT_FAILURE(vrc2))
         {
             /* too bad, we failed. try to sync the console state with the VMM state */
-            vmstateChangeCallback(ptrVM.rawUVM(), VMSTATE_SUSPENDED, enmVMState, this);
+            vmstateChangeCallback(ptrVM, VMSTATE_SUSPENDED, enmVMState, this);
         }
     }
 
@@ -6056,330 +5698,12 @@ HRESULT Console::onlineMergeMedium(IMediumAttachment *aMediumAttachment,
 
 
 /**
- * Load an HGCM service.
- *
- * Main purpose of this method is to allow extension packs to load HGCM
- * service modules, which they can't, because the HGCM functionality lives
- * in module VBoxC (and ConsoleImpl.cpp is part of it and thus can call it).
- * Extension modules must not link directly against VBoxC, (XP)COM is
- * handling this.
- */
-int Console::hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName)
-{
-    /* Everyone seems to delegate all HGCM calls to VMMDev, so stick to this
-     * convention. Adds one level of indirection for no obvious reason. */
-    AssertPtrReturn(m_pVMMDev, VERR_INVALID_STATE);
-    return m_pVMMDev->hgcmLoadService(pszServiceLibrary, pszServiceName);
-}
-
-/**
  * Merely passes the call to Guest::enableVMMStatistics().
  */
 void Console::enableVMMStatistics(BOOL aEnable)
 {
     if (mGuest)
         mGuest->enableVMMStatistics(aEnable);
-}
-
-/**
- * Worker for Console::Pause and internal entry point for pausing a VM for
- * a specific reason.
- */
-HRESULT Console::pause(Reason_T aReason)
-{
-    LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    switch (mMachineState)
-    {
-        case MachineState_Running:
-        case MachineState_Teleporting:
-        case MachineState_LiveSnapshotting:
-            break;
-
-        case MachineState_Paused:
-        case MachineState_TeleportingPausedVM:
-        case MachineState_Saving:
-            return setError(VBOX_E_INVALID_VM_STATE, tr("Already paused"));
-
-        default:
-            return setInvalidMachineStateError();
-    }
-
-    /* get the VM handle. */
-    SafeVMPtr ptrVM(this);
-    if (!ptrVM.isOk())
-        return ptrVM.rc();
-
-    /* release the lock before a VMR3* call (EMT will call us back)! */
-    alock.release();
-
-    LogFlowThisFunc(("Sending PAUSE request...\n"));
-    if (aReason != Reason_Unspecified)
-        LogRel(("Pausing VM execution, reason \"%s\"\n", Global::stringifyReason(aReason)));
-
-    /** @todo r=klaus make use of aReason */
-    VMSUSPENDREASON enmReason = VMSUSPENDREASON_USER;
-    if (aReason == Reason_HostSuspend)
-        enmReason = VMSUSPENDREASON_HOST_SUSPEND;
-    else if (aReason == Reason_HostBatteryLow)
-        enmReason = VMSUSPENDREASON_HOST_BATTERY_LOW;
-    int vrc = VMR3Suspend(ptrVM.rawUVM(), enmReason);
-
-    HRESULT hrc = S_OK;
-    if (RT_FAILURE(vrc))
-        hrc = setError(VBOX_E_VM_ERROR, tr("Could not suspend the machine execution (%Rrc)"), vrc);
-    else
-    {
-        /* Unconfigure disk encryption from all attachments. */
-        clearDiskEncryptionKeysOnAllAttachments();
-
-        /* Clear any keys we have stored. */
-        for (SecretKeyMap::iterator it = m_mapSecretKeys.begin();
-            it != m_mapSecretKeys.end();
-            it++)
-            delete it->second;
-        m_mapSecretKeys.clear();
-    }
-
-    LogFlowThisFunc(("hrc=%Rhrc\n", hrc));
-    LogFlowThisFuncLeave();
-    return hrc;
-}
-
-/**
- * Worker for Console::Resume and internal entry point for resuming a VM for
- * a specific reason.
- */
-HRESULT Console::resume(Reason_T aReason)
-{
-    LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mMachineState != MachineState_Paused)
-        return setError(VBOX_E_INVALID_VM_STATE,
-                        tr("Cannot resume the machine as it is not paused (machine state: %s)"),
-                        Global::stringifyMachineState(mMachineState));
-
-    /* get the VM handle. */
-    SafeVMPtr ptrVM(this);
-    if (!ptrVM.isOk())
-        return ptrVM.rc();
-
-    /* release the lock before a VMR3* call (EMT will call us back)! */
-    alock.release();
-
-    LogFlowThisFunc(("Sending RESUME request...\n"));
-    if (aReason != Reason_Unspecified)
-        LogRel(("Resuming VM execution, reason \"%s\"\n", Global::stringifyReason(aReason)));
-
-    int vrc;
-    if (VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_CREATED)
-    {
-#ifdef VBOX_WITH_EXTPACK
-        vrc = mptrExtPackManager->callAllVmPowerOnHooks(this, VMR3GetVM(ptrVM.rawUVM()));
-#else
-        vrc = VINF_SUCCESS;
-#endif
-        if (RT_SUCCESS(vrc))
-            vrc = VMR3PowerOn(ptrVM.rawUVM()); /* (PowerUpPaused) */
-    }
-    else
-    {
-        VMRESUMEREASON enmReason = VMRESUMEREASON_USER;
-        if (aReason == Reason_HostResume)
-            enmReason = VMRESUMEREASON_HOST_RESUME;
-        vrc = VMR3Resume(ptrVM.rawUVM(), enmReason);
-    }
-
-    HRESULT rc = RT_SUCCESS(vrc) ? S_OK :
-        setError(VBOX_E_VM_ERROR,
-                 tr("Could not resume the machine execution (%Rrc)"),
-                 vrc);
-
-    LogFlowThisFunc(("rc=%Rhrc\n", rc));
-    LogFlowThisFuncLeave();
-    return rc;
-}
-
-/**
- * Worker for Console::SaveState and internal entry point for saving state of
- * a VM for a specific reason.
- */
-HRESULT Console::saveState(Reason_T aReason, IProgress **aProgress)
-{
-    LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aProgress);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
-    if (   mMachineState != MachineState_Running
-        && mMachineState != MachineState_Paused)
-    {
-        return setError(VBOX_E_INVALID_VM_STATE,
-            tr("Cannot save the execution state as the machine is not running or paused (machine state: %s)"),
-            Global::stringifyMachineState(mMachineState));
-    }
-
-    Bstr strDisableSaveState;
-    mMachine->GetExtraData(Bstr("VBoxInternal2/DisableSaveState").raw(), strDisableSaveState.asOutParam());
-    if (strDisableSaveState == "1")
-        return setError(VBOX_E_VM_ERROR,
-                        tr("Saving the execution state is disabled for this VM"));
-
-    if (aReason != Reason_Unspecified)
-        LogRel(("Saving state of VM, reason \"%s\"\n", Global::stringifyReason(aReason)));
-
-    /* memorize the current machine state */
-    MachineState_T lastMachineState = mMachineState;
-
-    if (mMachineState == MachineState_Running)
-    {
-        /* get the VM handle. */
-        SafeVMPtr ptrVM(this);
-        if (!ptrVM.isOk())
-            return ptrVM.rc();
-
-        /* release the lock before a VMR3* call (EMT will call us back)! */
-        alock.release();
-        VMSUSPENDREASON enmReason = VMSUSPENDREASON_USER;
-        if (aReason == Reason_HostSuspend)
-            enmReason = VMSUSPENDREASON_HOST_SUSPEND;
-        else if (aReason == Reason_HostBatteryLow)
-            enmReason = VMSUSPENDREASON_HOST_BATTERY_LOW;
-        int vrc = VMR3Suspend(ptrVM.rawUVM(), enmReason);
-        alock.acquire();
-
-        HRESULT hrc = S_OK;
-        if (RT_FAILURE(vrc))
-            hrc = setError(VBOX_E_VM_ERROR, tr("Could not suspend the machine execution (%Rrc)"), vrc);
-        if (FAILED(hrc))
-            return hrc;
-    }
-
-    HRESULT rc = S_OK;
-    bool fBeganSavingState = false;
-    bool fTaskCreationFailed = false;
-
-    do
-    {
-        ComPtr<IProgress> pProgress;
-        Bstr stateFilePath;
-
-        /*
-         * request a saved state file path from the server
-         * (this will set the machine state to Saving on the server to block
-         * others from accessing this machine)
-         */
-        rc = mControl->BeginSavingState(pProgress.asOutParam(),
-                                        stateFilePath.asOutParam());
-        if (FAILED(rc))
-            break;
-
-        fBeganSavingState = true;
-
-        /* sync the state with the server */
-        setMachineStateLocally(MachineState_Saving);
-
-        /* ensure the directory for the saved state file exists */
-        {
-            Utf8Str dir = stateFilePath;
-            dir.stripFilename();
-            if (!RTDirExists(dir.c_str()))
-            {
-                int vrc = RTDirCreateFullPath(dir.c_str(), 0700);
-                if (RT_FAILURE(vrc))
-                {
-                    rc = setError(VBOX_E_FILE_ERROR,
-                        tr("Could not create a directory '%s' to save the state to (%Rrc)"),
-                        dir.c_str(), vrc);
-                    break;
-                }
-            }
-        }
-
-        /* Create a task object early to ensure mpUVM protection is successful. */
-        std::auto_ptr<VMSaveTask> task(new VMSaveTask(this, pProgress,
-                                                      stateFilePath,
-                                                      lastMachineState,
-                                                      aReason));
-        rc = task->rc();
-        /*
-         * If we fail here it means a PowerDown() call happened on another
-         * thread while we were doing Pause() (which releases the Console lock).
-         * We assign PowerDown() a higher precedence than SaveState(),
-         * therefore just return the error to the caller.
-         */
-        if (FAILED(rc))
-        {
-            fTaskCreationFailed = true;
-            break;
-        }
-
-        /* create a thread to wait until the VM state is saved */
-        int vrc = RTThreadCreate(NULL, Console::saveStateThread, (void *)task.get(),
-                                 0, RTTHREADTYPE_MAIN_WORKER, 0, "VMSave");
-        if (RT_FAILURE(vrc))
-        {
-            rc = setError(E_FAIL, "Could not create VMSave thread (%Rrc)", vrc);
-            break;
-        }
-
-        /* task is now owned by saveStateThread(), so release it */
-        task.release();
-
-        /* return the progress to the caller */
-        pProgress.queryInterfaceTo(aProgress);
-    } while (0);
-
-    if (FAILED(rc) && !fTaskCreationFailed)
-    {
-        /* preserve existing error info */
-        ErrorInfoKeeper eik;
-
-        if (fBeganSavingState)
-        {
-            /*
-             * cancel the requested save state procedure.
-             * This will reset the machine state to the state it had right
-             * before calling mControl->BeginSavingState().
-             */
-            mControl->EndSavingState(eik.getResultCode(), eik.getText().raw());
-        }
-
-        if (lastMachineState == MachineState_Running)
-        {
-            /* restore the paused state if appropriate */
-            setMachineStateLocally(MachineState_Paused);
-            /* restore the running state if appropriate */
-            SafeVMPtr ptrVM(this);
-            if (ptrVM.isOk())
-            {
-                alock.release();
-                VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_STATE_RESTORED);
-                alock.acquire();
-            }
-        }
-        else
-            setMachineStateLocally(lastMachineState);
-    }
-
-    LogFlowThisFunc(("rc=%Rhrc\n", rc));
-    LogFlowThisFuncLeave();
-    return rc;
 }
 
 /**
@@ -6408,11 +5732,9 @@ HRESULT Console::updateMachineState(MachineState_T aMachineState)
     return setMachineStateLocally(aMachineState);
 }
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
 /**
  * @note Locks this object for writing.
  */
-#endif
 void Console::onMousePointerShapeChange(bool fVisible, bool fAlpha,
                                         uint32_t xHot, uint32_t yHot,
                                         uint32_t width, uint32_t height,
@@ -6427,31 +5749,27 @@ void Console::onMousePointerShapeChange(bool fVisible, bool fAlpha,
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
-    {
-        /* We need a write lock because we alter the cached callback data */
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* We need a write lock because we alter the cached callback data */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        /* Save the callback arguments */
-        mCallbackData.mpsc.visible = fVisible;
-        mCallbackData.mpsc.alpha = fAlpha;
-        mCallbackData.mpsc.xHot = xHot;
-        mCallbackData.mpsc.yHot = yHot;
-        mCallbackData.mpsc.width = width;
-        mCallbackData.mpsc.height = height;
+    /* Save the callback arguments */
+    mCallbackData.mpsc.visible = fVisible;
+    mCallbackData.mpsc.alpha = fAlpha;
+    mCallbackData.mpsc.xHot = xHot;
+    mCallbackData.mpsc.yHot = yHot;
+    mCallbackData.mpsc.width = width;
+    mCallbackData.mpsc.height = height;
 
-        /* start with not valid */
-        bool wasValid = mCallbackData.mpsc.valid;
-        mCallbackData.mpsc.valid = false;
+    /* start with not valid */
+    bool wasValid = mCallbackData.mpsc.valid;
+    mCallbackData.mpsc.valid = false;
 
-        com::SafeArray<BYTE> aShape(ComSafeArrayInArg(pShape));
-        if (aShape.size() != 0)
-            mCallbackData.mpsc.shape.initFrom(aShape);
-        else
-            mCallbackData.mpsc.shape.resize(0);
-        mCallbackData.mpsc.valid = true;
-    }
-#endif
+    com::SafeArray<BYTE> aShape(ComSafeArrayInArg(pShape));
+    if (aShape.size() != 0)
+        mCallbackData.mpsc.shape.initFrom(aShape);
+    else
+        mCallbackData.mpsc.shape.resize(0);
+    mCallbackData.mpsc.valid = true;
 
     fireMousePointerShapeChangedEvent(mEventSource, fVisible, fAlpha, xHot, yHot, width, height, ComSafeArrayInArg(pShape));
 
@@ -6460,13 +5778,10 @@ void Console::onMousePointerShapeChange(bool fVisible, bool fAlpha,
 #endif
 }
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
 /**
  * @note Locks this object for writing.
  */
-#endif
-void Console::onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative,
-                                      BOOL supportsMT, BOOL needsHostCursor)
+void Console::onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor)
 {
     LogFlowThisFunc(("supportsAbsolute=%d supportsRelative=%d needsHostCursor=%d\n",
                       supportsAbsolute, supportsRelative, needsHostCursor));
@@ -6474,95 +5789,106 @@ void Console::onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelati
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
-    {
-        /* We need a write lock because we alter the cached callback data */
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* We need a write lock because we alter the cached callback data */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        /* save the callback arguments */
-        mCallbackData.mcc.supportsAbsolute = supportsAbsolute;
-        mCallbackData.mcc.supportsRelative = supportsRelative;
-        mCallbackData.mcc.needsHostCursor = needsHostCursor;
-        mCallbackData.mcc.valid = true;
-    }
-#endif
+    /* save the callback arguments */
+    mCallbackData.mcc.supportsAbsolute = supportsAbsolute;
+    mCallbackData.mcc.supportsRelative = supportsRelative;
+    mCallbackData.mcc.needsHostCursor = needsHostCursor;
+    mCallbackData.mcc.valid = true;
 
-    fireMouseCapabilityChangedEvent(mEventSource, supportsAbsolute, supportsRelative, supportsMT, needsHostCursor);
+    fireMouseCapabilityChangedEvent(mEventSource, supportsAbsolute, supportsRelative, needsHostCursor);
 }
 
+/**
+ * @note Locks this object for reading.
+ */
 void Console::onStateChange(MachineState_T machineState)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     fireStateChangedEvent(mEventSource, machineState);
 }
 
+/**
+ * @note Locks this object for reading.
+ */
 void Console::onAdditionsStateChange()
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     fireAdditionsStateChangedEvent(mEventSource);
 }
 
 /**
- * @remarks This notification only is for reporting an incompatible
- *          Guest Additions interface, *not* the Guest Additions version!
+ * @note Locks this object for reading.
+ *       This notification only is for reporting an incompatible
+ *       Guest Additions interface, *not* the Guest Additions version!
  *
- *          The user will be notified inside the guest if new Guest
- *          Additions are available (via VBoxTray/VBoxClient).
+ *       The user will be notified inside the guest if new Guest
+ *       Additions are available (via VBoxTray/VBoxClient).
  */
 void Console::onAdditionsOutdated()
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
-    /** @todo implement this */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 }
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
 /**
  * @note Locks this object for writing.
  */
-#endif
 void Console::onKeyboardLedsChange(bool fNumLock, bool fCapsLock, bool fScrollLock)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
-    {
-        /* We need a write lock because we alter the cached callback data */
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    /* We need a write lock because we alter the cached callback data */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-        /* save the callback arguments */
-        mCallbackData.klc.numLock = fNumLock;
-        mCallbackData.klc.capsLock = fCapsLock;
-        mCallbackData.klc.scrollLock = fScrollLock;
-        mCallbackData.klc.valid = true;
-    }
-#endif
+    /* save the callback arguments */
+    mCallbackData.klc.numLock = fNumLock;
+    mCallbackData.klc.capsLock = fCapsLock;
+    mCallbackData.klc.scrollLock = fScrollLock;
+    mCallbackData.klc.valid = true;
 
     fireKeyboardLedsChangedEvent(mEventSource, fNumLock, fCapsLock, fScrollLock);
 }
 
+/**
+ * @note Locks this object for reading.
+ */
 void Console::onUSBDeviceStateChange(IUSBDevice *aDevice, bool aAttached,
                                      IVirtualBoxErrorInfo *aError)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     fireUSBDeviceStateChangedEvent(mEventSource, aDevice, aAttached, aError);
 }
 
+/**
+ * @note Locks this object for reading.
+ */
 void Console::onRuntimeError(BOOL aFatal, IN_BSTR aErrorID, IN_BSTR aMessage)
 {
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
 
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     fireRuntimeErrorEvent(mEventSource, aFatal, aErrorID, aMessage);
 }
 
+/**
+ * @note Locks this object for reading.
+ */
 HRESULT Console::onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
 {
     AssertReturn(aCanShow, E_POINTER);
@@ -6574,7 +5900,9 @@ HRESULT Console::onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
 
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     VBoxEventDesc evDesc;
+
     if (aCheck)
     {
         evDesc.init(mEventSource, VBoxEventType_OnCanShowWindow);
@@ -6594,7 +5922,7 @@ HRESULT Console::onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
             }
             else
             {
-                AssertFailed();
+                Assert(FALSE);
                 *aCanShow = TRUE;
             }
         }
@@ -6611,15 +5939,15 @@ HRESULT Console::onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
             ComPtr<IEvent> pEvent;
             evDesc.getEvent(pEvent.asOutParam());
             ComPtr<IShowWindowEvent> pShowEvent = pEvent;
+            LONG64 aEvWinId = 0;
             if (pShowEvent)
             {
-                LONG64 iEvWinId = 0;
-                pShowEvent->COMGETTER(WinId)(&iEvWinId);
-                if (iEvWinId != 0 && *aWinId == 0)
-                    *aWinId = iEvWinId;
+                pShowEvent->COMGETTER(WinId)(&aEvWinId);
+                if ((aEvWinId != 0) && (*aWinId == 0))
+                    *aWinId = aEvWinId;
             }
             else
-                AssertFailed();
+                Assert(FALSE);
         }
     }
 
@@ -6630,27 +5958,25 @@ HRESULT Console::onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
 ////////////////////////////////////////////////////////////////////////////////
 
 /**
- * Increases the usage counter of the mpUVM pointer.
+ * Increases the usage counter of the mpVM pointer. Guarantees that
+ * VMR3Destroy() will not be called on it at least until releaseVMCaller()
+ * is called.
  *
- * Guarantees that VMR3Destroy() will not be called on it at least until
- * releaseVMCaller() is called.
- *
- * If this method returns a failure, the caller is not allowed to use mpUVM and
- * may return the failed result code to the upper level. This method sets the
- * extended error info on failure if \a aQuiet is false.
+ * If this method returns a failure, the caller is not allowed to use mpVM
+ * and may return the failed result code to the upper level. This method sets
+ * the extended error info on failure if \a aQuiet is false.
  *
  * Setting \a aQuiet to true is useful for methods that don't want to return
  * the failed result code to the caller when this method fails (e.g. need to
- * silently check for the mpUVM availability).
+ * silently check for the mpVM availability).
  *
- * When mpUVM is NULL but \a aAllowNullVM is true, a corresponding error will be
+ * When mpVM is NULL but \a aAllowNullVM is true, a corresponding error will be
  * returned instead of asserting. Having it false is intended as a sanity check
- * for methods that have checked mMachineState and expect mpUVM *NOT* to be
- * NULL.
+ * for methods that have checked mMachineState and expect mpVM *NOT* to be NULL.
  *
  * @param aQuiet       true to suppress setting error info
- * @param aAllowNullVM true to accept mpUVM being NULL and return a failure
- *                     (otherwise this method will assert if mpUVM is NULL)
+ * @param aAllowNullVM true to accept mpVM being NULL and return a failure
+ *                     (otherwise this method will assert if mpVM is NULL)
  *
  * @note Locks this object for writing.
  */
@@ -6658,10 +5984,7 @@ HRESULT Console::addVMCaller(bool aQuiet /* = false */,
                              bool aAllowNullVM /* = false */)
 {
     AutoCaller autoCaller(this);
-    /** @todo Fix race during console/VM reference destruction, refer @bugref{6318}
-     *        comment 25. */
-    if (FAILED(autoCaller.rc()))
-        return autoCaller.rc();
+    AssertComRCReturnRC(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -6687,10 +6010,8 @@ HRESULT Console::addVMCaller(bool aQuiet /* = false */,
 }
 
 /**
- * Decreases the usage counter of the mpUVM pointer.
- *
- * Must always complete the addVMCaller() call after the mpUVM pointer is no
- * more necessary.
+ * Decreases the usage counter of the mpVM pointer. Must always complete
+ * the addVMCaller() call after the mpVM pointer is no more necessary.
  *
  * @note Locks this object for writing.
  */
@@ -6714,8 +6035,9 @@ void Console::releaseVMCaller()
 }
 
 
-HRESULT Console::safeVMPtrRetainer(PUVM *a_ppUVM, bool a_Quiet)
+HRESULT Console::safeVMPtrRetainer(PVM *a_ppVM, PUVM *a_ppUVM, bool a_Quiet)
 {
+    *a_ppVM  = NULL;
     *a_ppUVM = NULL;
 
     AutoCaller autoCaller(this);
@@ -6727,13 +6049,13 @@ HRESULT Console::safeVMPtrRetainer(PUVM *a_ppUVM, bool a_Quiet)
      */
     if (mVMDestroying) /* powerDown() is waiting for all callers to finish */
         return a_Quiet
-             ? E_ACCESSDENIED
-             : setError(E_ACCESSDENIED, tr("The virtual machine is being powered down"));
+            ? E_ACCESSDENIED
+            : setError(E_ACCESSDENIED, tr("The virtual machine is being powered down"));
     PUVM pUVM = mpUVM;
     if (!pUVM)
         return a_Quiet
-             ? E_ACCESSDENIED
-             : setError(E_ACCESSDENIED, tr("The virtual machine is powered off"));
+            ? E_ACCESSDENIED
+            : setError(E_ACCESSDENIED, tr("The virtual machine is was powered off"));
 
     /*
      * Retain a reference to the user mode VM handle and get the global handle.
@@ -6742,17 +6064,28 @@ HRESULT Console::safeVMPtrRetainer(PUVM *a_ppUVM, bool a_Quiet)
     if (cRefs == UINT32_MAX)
         return a_Quiet
             ? E_ACCESSDENIED
-            : setError(E_ACCESSDENIED, tr("The virtual machine is powered off"));
+            : setError(E_ACCESSDENIED, tr("The virtual machine is was powered off"));
+
+    PVM pVM = VMR3GetVM(pUVM);
+    if (!pVM)
+    {
+        VMR3ReleaseUVM(pUVM);
+        return a_Quiet
+            ? E_ACCESSDENIED
+            : setError(E_ACCESSDENIED, tr("The virtual machine is was powered off"));
+    }
 
     /* done */
+    *a_ppVM  = pVM;
     *a_ppUVM = pUVM;
     return S_OK;
 }
 
-void Console::safeVMPtrReleaser(PUVM *a_ppUVM)
+void Console::safeVMPtrReleaser(PVM *a_ppVM, PUVM *a_ppUVM)
 {
-    if (*a_ppUVM)
+    if (*a_ppVM && *a_ppUVM)
         VMR3ReleaseUVM(*a_ppUVM);
+    *a_ppVM  = NULL;
     *a_ppUVM = NULL;
 }
 
@@ -6769,8 +6102,7 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
 
     Bstr logFolder;
     hrc = aMachine->COMGETTER(LogFolder)(logFolder.asOutParam());
-    if (FAILED(hrc))
-        return hrc;
+    if (FAILED(hrc)) return hrc;
 
     Utf8Str logDir = logFolder;
 
@@ -6802,7 +6134,7 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
             Utf8Str *files[] = { &logFile, &pngFile };
             Utf8Str oldName, newName;
 
-            for (unsigned int j = 0; j < RT_ELEMENTS(files); ++j)
+            for (unsigned int j = 0; j < RT_ELEMENTS(files); ++ j)
             {
                 if (i > 0)
                     oldName = Utf8StrFmt("%s.%d", files[j]->c_str(), i);
@@ -6819,17 +6151,88 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
         }
     }
 
-    char szError[RTPATH_MAX + 128];
-    int vrc = com::VBoxLogRelCreate("VM", logFile.c_str(),
-                                    RTLOGFLAGS_PREFIX_TIME_PROG | RTLOGFLAGS_RESTRICT_GROUPS,
-                                    "all all.restrict -default.restrict",
-                                    "VBOX_RELEASE_LOG", RTLOGDEST_FILE,
-                                    32768 /* cMaxEntriesPerGroup */,
-                                    0 /* cHistory */, 0 /* uHistoryFileTime */,
-                                    0 /* uHistoryFileSize */, szError, sizeof(szError));
-    if (RT_FAILURE(vrc))
-        hrc = setError(E_FAIL, tr("Failed to open release log (%s, %Rrc)"),
-                       szError, vrc);
+    static const char * const   s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+    char                        szError[RTPATH_MAX + 128] = "";
+    PRTLOGGER                   pReleaseLogger;
+    uint32_t                    fFlags = RTLOGFLAGS_PREFIX_TIME_PROG | RTLOGFLAGS_RESTRICT_GROUPS;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+    fFlags |= RTLOGFLAGS_USECRLF;
+#endif
+    int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, "all all.restrict default.unrestricted",
+                            "VBOX_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups, RTLOGDEST_FILE,
+                            NULL /* pfnBeginEnd */, 0 /* cHistory */, 0 /* cbHistoryFileMax */, 0 /* uHistoryTimeMax */,
+                            szError, sizeof(szError), logFile.c_str());
+    if (RT_SUCCESS(vrc))
+    {
+        RTLogSetGroupLimit(pReleaseLogger, 32768);
+
+        /* some introductory information */
+        RTTIMESPEC timeSpec;
+        char szTmp[256];
+        RTTimeSpecToString(RTTimeNow(&timeSpec), szTmp, sizeof(szTmp));
+        RTLogRelLogger(pReleaseLogger, 0, ~0U,
+                       "VirtualBox %s r%u %s (%s %s) release log\n"
+#ifdef VBOX_BLEEDING_EDGE
+                       "EXPERIMENTAL build " VBOX_BLEEDING_EDGE "\n"
+#endif
+                       "Log opened %s\n",
+                       VBOX_VERSION_STRING, RTBldCfgRevision(), VBOX_BUILD_TARGET,
+                       __DATE__, __TIME__, szTmp);
+
+        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "OS Product: %s\n", szTmp);
+        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "OS Release: %s\n", szTmp);
+        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "OS Version: %s\n", szTmp);
+        vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "OS Service Pack: %s\n", szTmp);
+        vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_NAME, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "DMI Product Name: %s\n", szTmp);
+        vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_VERSION, szTmp, sizeof(szTmp));
+        if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+            RTLogRelLogger(pReleaseLogger, 0, ~0U, "DMI Product Version: %s\n", szTmp);
+
+        ComPtr<IHost> pHost;
+        pVirtualBox->COMGETTER(Host)(pHost.asOutParam());
+        ULONG cMbHostRam = 0;
+        ULONG cMbHostRamAvail = 0;
+        pHost->COMGETTER(MemorySize)(&cMbHostRam);
+        pHost->COMGETTER(MemoryAvailable)(&cMbHostRamAvail);
+        RTLogRelLogger(pReleaseLogger, 0, ~0U, "Host RAM: %uMB RAM, available: %uMB\n",
+                       cMbHostRam, cMbHostRamAvail);
+
+        /* the package type is interesting for Linux distributions */
+        char szExecName[RTPATH_MAX];
+        char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
+        RTLogRelLogger(pReleaseLogger, 0, ~0U,
+                       "Executable: %s\n"
+                       "Process ID: %u\n"
+                       "Package type: %s"
+#ifdef VBOX_OSE
+                       " (OSE)"
+#endif
+                       "\n",
+                       pszExecName ? pszExecName : "unknown",
+                       RTProcSelf(),
+                       VBOX_PACKAGE_STRING);
+
+        /* register this logger as the release logger */
+        RTLogRelSetDefaultInstance(pReleaseLogger);
+        hrc = S_OK;
+
+        /* Explicitly flush the log in case of VBOX_RELEASE_LOG=buffered. */
+        RTLogFlush(pReleaseLogger);
+    }
+    else
+        hrc = setError(E_FAIL,
+            tr("Failed to open release log (%s, %Rrc)"),
+            szError, vrc);
 
     /* If we've made any directory changes, flush the directory to increase
        the likelihood that the log file will be usable after a system panic.
@@ -6852,8 +6255,8 @@ HRESULT Console::consoleInitReleaseLog(const ComPtr<IMachine> aMachine)
  */
 HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
 {
-
     LogFlowThisFuncEnter();
+    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
 
     CheckComArgOutPointerValid(aProgress);
 
@@ -6862,34 +6265,22 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("mMachineState=%d\n", mMachineState));
     HRESULT rc = S_OK;
     ComObjPtr<Progress> pPowerupProgress;
     bool fBeganPoweringUp = false;
 
-    LONG cOperations = 1;
-    LONG ulTotalOperationsWeight = 1;
-
     try
     {
-
         if (Global::IsOnlineOrTransient(mMachineState))
             throw setError(VBOX_E_INVALID_VM_STATE,
                 tr("The virtual machine is already running or busy (machine state: %s)"),
                 Global::stringifyMachineState(mMachineState));
-
-        /* Set up release logging as early as possible after the check if
-         * there is already a running VM which we shouldn't disturb. */
-        rc = consoleInitReleaseLog(mMachine);
-        if (FAILED(rc))
-            throw rc;
 
         /* test and clear the TeleporterEnabled property  */
         BOOL fTeleporterEnabled;
         rc = mMachine->COMGETTER(TeleporterEnabled)(&fTeleporterEnabled);
         if (FAILED(rc))
             throw rc;
-
 #if 0 /** @todo we should save it afterwards, but that isn't necessarily a good idea. Find a better place for this (VBoxSVC).  */
         if (fTeleporterEnabled)
         {
@@ -6920,28 +6311,101 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
             progressDesc = tr("Fault Tolerance syncing of remote virtual machine");
         else
             progressDesc = tr("Starting virtual machine");
+        if (    mMachineState == MachineState_Saved
+            ||  (!fTeleporterEnabled && !fFaultToleranceSyncEnabled))
+            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
+                                        progressDesc.raw(),
+                                        FALSE /* aCancelable */);
+        else
+        if (fTeleporterEnabled)
+            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
+                                        progressDesc.raw(),
+                                        TRUE /* aCancelable */,
+                                        3    /* cOperations */,
+                                        10   /* ulTotalOperationsWeight */,
+                                        Bstr(tr("Teleporting virtual machine")).raw(),
+                                        1    /* ulFirstOperationWeight */,
+                                        NULL);
+        else
+        if (fFaultToleranceSyncEnabled)
+            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
+                                        progressDesc.raw(),
+                                        TRUE /* aCancelable */,
+                                        3    /* cOperations */,
+                                        10   /* ulTotalOperationsWeight */,
+                                        Bstr(tr("Fault Tolerance syncing of remote virtual machine")).raw(),
+                                        1    /* ulFirstOperationWeight */,
+                                        NULL);
 
-        Bstr savedStateFile;
+        if (FAILED(rc))
+            throw rc;
 
-        /*
-         * Saved VMs will have to prove that their saved states seem kosher.
-         */
-        if (mMachineState == MachineState_Saved)
+        /* Tell VBoxSVC and Machine about the progress object so they can
+           combine/proxy it to any openRemoteSession caller. */
+        LogFlowThisFunc(("Calling BeginPowerUp...\n"));
+        rc = mControl->BeginPowerUp(pPowerupProgress);
+        if (FAILED(rc))
         {
-            rc = mMachine->COMGETTER(StateFilePath)(savedStateFile.asOutParam());
-            if (FAILED(rc))
-                throw rc;
-            ComAssertRet(!savedStateFile.isEmpty(), E_FAIL);
-            int vrc = SSMR3ValidateFile(Utf8Str(savedStateFile).c_str(), false /* fChecksumIt */);
-            if (RT_FAILURE(vrc))
-                throw setError(VBOX_E_FILE_ERROR,
-                               tr("VM cannot start because the saved state file '%ls' is invalid (%Rrc). Delete the saved state prior to starting the VM"),
-                               savedStateFile.raw(), vrc);
+            LogFlowThisFunc(("BeginPowerUp failed\n"));
+            throw rc;
         }
+        fBeganPoweringUp = true;
 
-        /* Read console data, including console shared folders, stored in the
-         * saved state file (if not yet done).
-         */
+        /** @todo this code prevents starting a VM with unavailable bridged
+         * networking interface. The only benefit is a slightly better error
+         * message, which should be moved to the driver code. This is the
+         * only reason why I left the code in for now. The driver allows
+         * unavailable bridged networking interfaces in certain circumstances,
+         * and this is sabotaged by this check. The VM will initially have no
+         * network connectivity, but the user can fix this at runtime. */
+#if 0
+        /* the network cards will undergo a quick consistency check */
+        for (ULONG slot = 0;
+             slot < SchemaDefs::NetworkAdapterCount;
+             ++slot)
+        {
+            ComPtr<INetworkAdapter> pNetworkAdapter;
+            mMachine->GetNetworkAdapter(slot, pNetworkAdapter.asOutParam());
+            BOOL enabled = FALSE;
+            pNetworkAdapter->COMGETTER(Enabled)(&enabled);
+            if (!enabled)
+                continue;
+
+            NetworkAttachmentType_T netattach;
+            pNetworkAdapter->COMGETTER(AttachmentType)(&netattach);
+            switch (netattach)
+            {
+                case NetworkAttachmentType_Bridged:
+                {
+                    /* a valid host interface must have been set */
+                    Bstr hostif;
+                    pNetworkAdapter->COMGETTER(HostInterface)(hostif.asOutParam());
+                    if (hostif.isEmpty())
+                    {
+                        throw setError(VBOX_E_HOST_ERROR,
+                            tr("VM cannot start because host interface networking requires a host interface name to be set"));
+                    }
+                    ComPtr<IVirtualBox> pVirtualBox;
+                    mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
+                    ComPtr<IHost> pHost;
+                    pVirtualBox->COMGETTER(Host)(pHost.asOutParam());
+                    ComPtr<IHostNetworkInterface> pHostInterface;
+                    if (!SUCCEEDED(pHost->FindHostNetworkInterfaceByName(hostif.raw(),
+                                                                         pHostInterface.asOutParam())))
+                    {
+                        throw setError(VBOX_E_HOST_ERROR,
+                            tr("VM cannot start because the host interface '%ls' does not exist"),
+                            hostif.raw());
+                    }
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
+#endif // 0
+
+        /* Read console data stored in the saved state file (if not yet done) */
         rc = loadDataFromSavedState();
         if (FAILED(rc))
             throw rc;
@@ -6981,8 +6445,39 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
             }
         }
 
-        /* Setup task object and thread to carry out the operaton
-         * Asycnhronously */
+        Bstr savedStateFile;
+
+        /*
+         * Saved VMs will have to prove that their saved states seem kosher.
+         */
+        if (mMachineState == MachineState_Saved)
+        {
+            rc = mMachine->COMGETTER(StateFilePath)(savedStateFile.asOutParam());
+            if (FAILED(rc))
+                throw rc;
+            ComAssertRet(!savedStateFile.isEmpty(), E_FAIL);
+            int vrc = SSMR3ValidateFile(Utf8Str(savedStateFile).c_str(), false /* fChecksumIt */);
+            if (RT_FAILURE(vrc))
+                throw setError(VBOX_E_FILE_ERROR,
+                                tr("VM cannot start because the saved state file '%ls' is invalid (%Rrc). Delete the saved state prior to starting the VM"),
+                                savedStateFile.raw(), vrc);
+        }
+
+        LogFlowThisFunc(("Checking if canceled...\n"));
+        BOOL fCanceled;
+        rc = pPowerupProgress->COMGETTER(Canceled)(&fCanceled);
+        if (FAILED(rc))
+            throw rc;
+        if (fCanceled)
+        {
+            LogFlowThisFunc(("Canceled in BeginPowerUp\n"));
+            throw setError(E_FAIL, tr("Powerup was canceled"));
+        }
+        LogFlowThisFunc(("Not canceled yet.\n"));
+
+        /* setup task object and thread to carry out the operation
+         * asynchronously */
+
         std::auto_ptr<VMPowerUpTask> task(new VMPowerUpTask(this, pPowerupProgress));
         ComAssertComRCRetRC(task->rc());
 
@@ -7060,9 +6555,9 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
         else
             LogFlowThisFunc(("Machine has a current snapshot which is online, skipping immutable images reset\n"));
 
-        /* setup task object and thread to carry out the operation
-         * asynchronously */
-
+        rc = consoleInitReleaseLog(mMachine);
+        if (FAILED(rc))
+            throw rc;
 #ifdef VBOX_WITH_EXTPACK
         mptrExtPackManager->dumpAllToReleaseLog();
 #endif
@@ -7081,11 +6576,15 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
             uint32_t fCoreFlags = 0;
             if (   coreDumpReplaceSys.isEmpty() == false
                 && Utf8Str(coreDumpReplaceSys).toUInt32() == 1)
+            {
                 fCoreFlags |= RTCOREDUMPER_FLAGS_REPLACE_SYSTEM_DUMP;
+            }
 
             if (   coreDumpLive.isEmpty() == false
                 && Utf8Str(coreDumpLive).toUInt32() == 1)
+            {
                 fCoreFlags |= RTCOREDUMPER_FLAGS_LIVE_CORE;
+            }
 
             Utf8Str strDumpDir(coreDumpDir);
             const char *pszDumpDir = strDumpDir.c_str();
@@ -7113,147 +6612,33 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
         }
 #endif
 
-
-        // If there is immutable drive the process that.
-        VMPowerUpTask::ProgressList progresses(task->hardDiskProgresses);
-        if (aProgress && progresses.size() > 0){
-
-            for (VMPowerUpTask::ProgressList::const_iterator it = progresses.begin(); it !=  progresses.end(); ++it)
+        /* pass the progress object to the caller if requested */
+        if (aProgress)
+        {
+            if (task->hardDiskProgresses.size() == 0)
             {
-                ++cOperations;
-                ulTotalOperationsWeight += 1;
+                /* there are no other operations to track, return the powerup
+                 * progress only */
+                pPowerupProgress.queryInterfaceTo(aProgress);
             }
-            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
-                                        progressDesc.raw(),
-                                        TRUE, // Cancelable
-                                        cOperations,
-                                        ulTotalOperationsWeight,
-                                        Bstr(tr("Starting Hard Disk operations")).raw(),
-                                        1,
-                                        NULL);
-            AssertComRCReturnRC(rc);
-        }
-        else if (    mMachineState == MachineState_Saved
-            ||  (!fTeleporterEnabled && !fFaultToleranceSyncEnabled))
-        {
-            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
-                                        progressDesc.raw(),
-                                        FALSE /* aCancelable */);
-        }
-        else if (fTeleporterEnabled)
-        {
-            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
-                                        progressDesc.raw(),
-                                        TRUE /* aCancelable */,
-                                        3    /* cOperations */,
-                                        10   /* ulTotalOperationsWeight */,
-                                        Bstr(tr("Teleporting virtual machine")).raw(),
-                                        1    /* ulFirstOperationWeight */,
-                                        NULL);
-        }
-        else if (fFaultToleranceSyncEnabled)
-        {
-            rc = pPowerupProgress->init(static_cast<IConsole *>(this),
-                                        progressDesc.raw(),
-                                        TRUE /* aCancelable */,
-                                        3    /* cOperations */,
-                                        10   /* ulTotalOperationsWeight */,
-                                        Bstr(tr("Fault Tolerance syncing of remote virtual machine")).raw(),
-                                        1    /* ulFirstOperationWeight */,
-                                        NULL);
-        }
-
-        if (FAILED(rc))
-            throw rc;
-
-        /* Tell VBoxSVC and Machine about the progress object so they can
-           combine/proxy it to any openRemoteSession caller. */
-        LogFlowThisFunc(("Calling BeginPowerUp...\n"));
-        rc = mControl->BeginPowerUp(pPowerupProgress);
-        if (FAILED(rc))
-        {
-            LogFlowThisFunc(("BeginPowerUp failed\n"));
-            throw rc;
-        }
-        fBeganPoweringUp = true;
-
-        LogFlowThisFunc(("Checking if canceled...\n"));
-        BOOL fCanceled;
-        rc = pPowerupProgress->COMGETTER(Canceled)(&fCanceled);
-        if (FAILED(rc))
-            throw rc;
-
-        if (fCanceled)
-        {
-            LogFlowThisFunc(("Canceled in BeginPowerUp\n"));
-            throw setError(E_FAIL, tr("Powerup was canceled"));
-        }
-        LogFlowThisFunc(("Not canceled yet.\n"));
-
-        /** @todo this code prevents starting a VM with unavailable bridged
-         * networking interface. The only benefit is a slightly better error
-         * message, which should be moved to the driver code. This is the
-         * only reason why I left the code in for now. The driver allows
-         * unavailable bridged networking interfaces in certain circumstances,
-         * and this is sabotaged by this check. The VM will initially have no
-         * network connectivity, but the user can fix this at runtime. */
-#if 0
-        /* the network cards will undergo a quick consistency check */
-        for (ULONG slot = 0;
-             slot < maxNetworkAdapters;
-             ++slot)
-        {
-            ComPtr<INetworkAdapter> pNetworkAdapter;
-            mMachine->GetNetworkAdapter(slot, pNetworkAdapter.asOutParam());
-            BOOL enabled = FALSE;
-            pNetworkAdapter->COMGETTER(Enabled)(&enabled);
-            if (!enabled)
-                continue;
-
-            NetworkAttachmentType_T netattach;
-            pNetworkAdapter->COMGETTER(AttachmentType)(&netattach);
-            switch (netattach)
+            else
             {
-                case NetworkAttachmentType_Bridged:
-                {
-                    /* a valid host interface must have been set */
-                    Bstr hostif;
-                    pNetworkAdapter->COMGETTER(HostInterface)(hostif.asOutParam());
-                    if (hostif.isEmpty())
-                    {
-                        throw setError(VBOX_E_HOST_ERROR,
-                            tr("VM cannot start because host interface networking requires a host interface name to be set"));
-                    }
-                    ComPtr<IVirtualBox> pVirtualBox;
-                    mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
-                    ComPtr<IHost> pHost;
-                    pVirtualBox->COMGETTER(Host)(pHost.asOutParam());
-                    ComPtr<IHostNetworkInterface> pHostInterface;
-                    if (!SUCCEEDED(pHost->FindHostNetworkInterfaceByName(hostif.raw(),
-                                                                         pHostInterface.asOutParam())))
-                    {
-                        throw setError(VBOX_E_HOST_ERROR,
-                            tr("VM cannot start because the host interface '%ls' does not exist"),
-                            hostif.raw());
-                    }
-                    break;
-                }
-                default:
-                    break;
-            }
-        }
-#endif // 0
-
-        /* setup task object and thread to carry out the operation
-         * asynchronously */
-        if (aProgress){
-                rc = pPowerupProgress.queryInterfaceTo(aProgress);
+                /* create a combined progress object */
+                ComObjPtr<CombinedProgress> pProgress;
+                pProgress.createObject();
+                VMPowerUpTask::ProgressList progresses(task->hardDiskProgresses);
+                progresses.push_back(ComPtr<IProgress> (pPowerupProgress));
+                rc = pProgress->init(static_cast<IConsole *>(this),
+                                     progressDesc.raw(), progresses.begin(),
+                                     progresses.end());
                 AssertComRCReturnRC(rc);
+                pProgress.queryInterfaceTo(aProgress);
+            }
         }
 
         int vrc = RTThreadCreate(NULL, Console::powerUpThread,
                                  (void *)task.get(), 0,
-                                 RTTHREADTYPE_MAIN_WORKER, 0, "VMPwrUp");
+                                 RTTHREADTYPE_MAIN_WORKER, 0, "VMPowerUp");
         if (RT_FAILURE(vrc))
             throw setError(E_FAIL, "Could not create VMPowerUp thread (%Rrc)", vrc);
 
@@ -7266,7 +6651,7 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
         if (mMachineState == MachineState_Saved)
             setMachineState(MachineState_Restoring);
         else if (fTeleporterEnabled)
-           setMachineState(MachineState_TeleportingIn);
+            setMachineState(MachineState_TeleportingIn);
         else if (enmFaultToleranceState == FaultToleranceState_Standby)
             setMachineState(MachineState_FaultTolerantSyncing);
         else
@@ -7313,7 +6698,7 @@ HRESULT Console::powerUp(IProgress **aProgress, bool aPaused)
  *
  * Calling it in situations other than the above will cause unexpected behavior.
  *
- * Note that this method should be the only one that destroys mpUVM and sets it
+ * Note that this method should be the only one that destroys mpVM and sets it
  * to NULL.
  *
  * @param aProgress Progress object to run (may be NULL).
@@ -7396,7 +6781,7 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
 
     /* ----------------------------------------------------------------------
      * DONE with necessary state changes, perform the power down actions (it's
-     * safe to release the object lock now if needed)
+     * safe to leave the object lock now if needed)
      * ---------------------------------------------------------------------- */
 
     /* Stop the VRDP server to prevent new clients connection while VM is being
@@ -7407,21 +6792,21 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
 
         /* Leave the lock since EMT will call us back as addVMCaller()
          * in updateDisplayData(). */
-        alock.release();
+        alock.leave();
 
         mConsoleVRDPServer->Stop();
 
-        alock.acquire();
+        alock.enter();
     }
 
     /* advance percent count */
     if (aProgress)
-        aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount );
+        aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
 
 
     /* ----------------------------------------------------------------------
-     * Now, wait for all mpUVM callers to finish their work if there are still
-     * some on other threads. NO methods that need mpUVM (or initiate other calls
+     * Now, wait for all mpVM callers to finish their work if there are still
+     * some on other threads. NO methods that need mpVM (or initiate other calls
      * that need it) may be called after this point
      * ---------------------------------------------------------------------- */
 
@@ -7434,18 +6819,19 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
         if (mVMZeroCallersSem == NIL_RTSEMEVENT)
             RTSemEventCreate(&mVMZeroCallersSem);
 
-        LogFlowThisFunc(("Waiting for mpUVM callers (%d) to drop to zero...\n", mVMCallers));
+        LogFlowThisFunc(("Waiting for mpVM callers (%d) to drop to zero...\n",
+                          mVMCallers));
 
-        alock.release();
+        alock.leave();
 
         RTSemEventWait(mVMZeroCallersSem, RT_INDEFINITE_WAIT);
 
-        alock.acquire();
+        alock.enter();
     }
 
     /* advance percent count */
     if (aProgress)
-        aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount );
+        aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
 
     vrc = VINF_SUCCESS;
 
@@ -7460,17 +6846,17 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
     if (!mVMPoweredOff)
     {
         LogFlowThisFunc(("Powering off the VM...\n"));
-        alock.release();
-        vrc = VMR3PowerOff(pUVM);
+        alock.leave();
+        vrc = VMR3PowerOff(VMR3GetVM(pUVM));
 #ifdef VBOX_WITH_EXTPACK
         mptrExtPackManager->callAllVmPowerOffHooks(this, VMR3GetVM(pUVM));
 #endif
-        alock.acquire();
+        alock.enter();
     }
 
     /* advance percent count */
     if (aProgress)
-        aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount );
+        aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
 
 #ifdef VBOX_WITH_HGCM
     /* Shutdown HGCM services before destroying the VM. */
@@ -7479,16 +6865,16 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
         LogFlowThisFunc(("Shutdown HGCM...\n"));
 
         /* Leave the lock since EMT will call us back as addVMCaller() */
-        alock.release();
+        alock.leave();
 
         m_pVMMDev->hgcmShutdown();
 
-        alock.acquire();
+        alock.enter();
     }
 
     /* advance percent count */
     if (aProgress)
-        aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount);
+        aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
 
 #endif /* VBOX_WITH_HGCM */
 
@@ -7498,20 +6884,24 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
      * on failure (this will most likely fail too, but what to do?..) */
     if (RT_SUCCESS(vrc) || autoCaller.state() == InUninit)
     {
-        /* If the machine has a USB controller, release all USB devices
+        /* If the machine has an USB controller, release all USB devices
          * (symmetric to the code in captureUSBDevices()) */
-        if (mfVMHasUsbController)
+        bool fHasUSBController = false;
         {
-            alock.release();
-            detachAllUSBDevices(false /* aDone */);
-            alock.acquire();
+            PPDMIBASE pBase;
+            vrc = PDMR3QueryLun(VMR3GetVM(pUVM), "usb-ohci", 0, 0, &pBase);
+            if (RT_SUCCESS(vrc))
+            {
+                fHasUSBController = true;
+                detachAllUSBDevices(false /* aDone */);
+            }
         }
 
-        /* Now we've got to destroy the VM as well. (mpUVM is not valid beyond
-         * this point). We release the lock before calling VMR3Destroy() because
+        /* Now we've got to destroy the VM as well. (mpVM is not valid beyond
+         * this point). We leave the lock before calling VMR3Destroy() because
          * it will result into calling destructors of drivers associated with
          * Console children which may in turn try to lock Console (e.g. by
-         * instantiating SafeVMPtr to access mpUVM). It's safe here because
+         * instantiating SafeVMPtr to access mpVM). It's safe here because
          * mVMDestroying is set which should prevent any activity. */
 
         /* Set mpUVM to NULL early just in case if some old code is not using
@@ -7521,21 +6911,21 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
 
         LogFlowThisFunc(("Destroying the VM...\n"));
 
-        alock.release();
+        alock.leave();
 
-        vrc = VMR3Destroy(pUVM);
+        vrc = VMR3Destroy(VMR3GetVM(pUVM));
 
         /* take the lock again */
-        alock.acquire();
+        alock.enter();
 
         /* advance percent count */
         if (aProgress)
-            aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount);
+            aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
 
         if (RT_SUCCESS(vrc))
         {
             LogFlowThisFunc(("Machine has been destroyed (mMachineState=%d)\n",
-                             mMachineState));
+                              mMachineState));
             /* Note: the Console-level machine state change happens on the
              * VMSTATE_TERMINATE state change in vmstateChangeCallback(). If
              * powerDown() is called from EMT (i.e. from vmstateChangeCallback()
@@ -7555,16 +6945,12 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
         }
 
         /* Complete the detaching of the USB devices. */
-        if (mfVMHasUsbController)
-        {
-            alock.release();
+        if (fHasUSBController)
             detachAllUSBDevices(true /* aDone */);
-            alock.acquire();
-        }
 
         /* advance percent count */
         if (aProgress)
-            aProgress->SetCurrentOperationProgress(99 * (++step) / StepCount);
+            aProgress->SetCurrentOperationProgress(99 * (++ step) / StepCount );
     }
     else
     {
@@ -7581,15 +6967,13 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
      * something like Stopping, so most Console methods will return an error
      * to the caller.
      */
-    if (pUVM != NULL)
+    if (mpUVM != NULL)
         VMR3ReleaseUVM(pUVM);
     else
         mVMDestroying = false;
 
-#ifdef CONSOLE_WITH_EVENT_CACHE
     if (SUCCEEDED(rc))
         mCallbackData.clear();
-#endif
 
     LogFlowThisFuncLeave();
     return rc;
@@ -7637,7 +7021,7 @@ HRESULT Console::setMachineState(MachineState_T aMachineState,
              * Cross-lock conditions should be carefully watched out: calling
              * UpdateState we will require Machine and SessionMachine locks
              * (remember that here we're holding the Console lock here, and also
-             * all locks that have been acquire by the thread before calling
+             * all locks that have been entered by the thread before calling
              * this method).
              */
             LogFlowThisFunc(("Doing mControl->UpdateState()...\n"));
@@ -7791,7 +7175,7 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
             if (online)
             {
                 for (SharedFolderDataMap::const_iterator it = oldFolders.begin();
-                     it != oldFolders.end(); ++it)
+                     it != oldFolders.end(); ++ it)
                 {
                     if (m_mapSharedFolders.find(it->first) != m_mapSharedFolders.end())
                         ; /* the console folder exists, nothing to do */
@@ -7816,9 +7200,8 @@ HRESULT Console::fetchSharedFolders(BOOL aGlobal)
     }
     catch (HRESULT rc2)
     {
-        rc = rc2;
         if (online)
-            setVMRuntimeErrorCallbackF(0, "BrokenSharedFolder",
+            setVMRuntimeErrorCallbackF(ptrVM, this, 0, "BrokenSharedFolder",
                                        N_("Broken shared folder!"));
     }
 
@@ -7862,7 +7245,7 @@ bool Console::findOtherSharedFolder(const Utf8Str &strName,
  * @param aName        Shared folder name.
  * @param aHostPath    Shared folder path.
  *
- * @note Must be called from under AutoVMCaller and when mpUVM != NULL!
+ * @note Must be called from under AutoVMCaller and when mpVM != NULL!
  * @note Doesn't lock anything.
  */
 HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderData &aData)
@@ -7892,15 +7275,14 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
                           aData.m_strHostPath.c_str(),
                           hostPathFull,
                           sizeof(hostPathFull));
-
-    bool fMissing = false;
     if (RT_FAILURE(vrc))
         return setError(E_INVALIDARG,
                         tr("Invalid shared folder path: '%s' (%Rrc)"),
                         aData.m_strHostPath.c_str(), vrc);
     if (!RTPathExists(hostPathFull))
-        fMissing = true;
-
+        return setError(E_INVALIDARG,
+                        tr("Shared folder path '%s' does not exist on the host"),
+                        aData.m_strHostPath.c_str());
     /* Check whether the path is full (absolute) */
     if (RTPathCompare(aData.m_strHostPath.c_str(), hostPathFull) != 0)
         return setError(E_INVALIDARG,
@@ -7946,9 +7328,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
     parms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
     parms[2].u.uint32 = (aData.m_fWritable ? SHFL_ADD_MAPPING_F_WRITABLE : 0)
                       | (aData.m_fAutoMount ? SHFL_ADD_MAPPING_F_AUTOMOUNT : 0)
-                      | (fSymlinksCreate ? SHFL_ADD_MAPPING_F_CREATE_SYMLINKS : 0)
-                      | (fMissing ? SHFL_ADD_MAPPING_F_MISSING : 0)
-                      ;
+                      | (fSymlinksCreate ? SHFL_ADD_MAPPING_F_CREATE_SYMLINKS : 0);
 
     vrc = m_pVMMDev->hgcmHostCall("VBoxSharedFolders",
                                   SHFL_FN_ADD_MAPPING,
@@ -7961,11 +7341,6 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
             tr("Could not create a shared folder '%s' mapped to '%s' (%Rrc)"),
             strName.c_str(), aData.m_strHostPath.c_str(), vrc);
 
-    if (fMissing)
-        return setError(E_INVALIDARG,
-                        tr("Shared folder path '%s' does not exist on the host"),
-                        aData.m_strHostPath.c_str());
-
     return S_OK;
 }
 
@@ -7974,7 +7349,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
  *
  * @param aName        Shared folder name.
  *
- * @note Must be called from under AutoVMCaller and when mpUVM != NULL!
+ * @note Must be called from under AutoVMCaller and when mpVM != NULL!
  * @note Doesn't lock anything.
  */
 HRESULT Console::removeSharedFolder(const Utf8Str &strName)
@@ -8018,18 +7393,31 @@ HRESULT Console::removeSharedFolder(const Utf8Str &strName)
     return S_OK;
 }
 
-/** @callback_method_impl{FNVMATSTATE}
+/**
+ * VM state callback function. Called by the VMM
+ * using its state machine states.
  *
- * @note    Locks the Console object for writing.
- * @remarks The @a pUVM parameter can be NULL in one case where powerUpThread()
- *          calls after the VM was destroyed.
+ * Primarily used to handle VM initiated power off, suspend and state saving,
+ * but also for doing termination completed work (VMSTATE_TERMINATE).
+ *
+ * In general this function is called in the context of the EMT.
+ *
+ * @param   aVM         The VM handle.
+ * @param   aState      The new state.
+ * @param   aOldState   The old state.
+ * @param   aUser       The user argument (pointer to the Console object).
+ *
+ * @note Locks the Console object for writing.
  */
-DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser)
+DECLCALLBACK(void) Console::vmstateChangeCallback(PVM aVM,
+                                                  VMSTATE aState,
+                                                  VMSTATE aOldState,
+                                                  void *aUser)
 {
-    LogFlowFunc(("Changing state from %s to %s (pUVM=%p)\n",
-                 VMR3GetStateName(enmOldState), VMR3GetStateName(enmState),     pUVM));
+    LogFlowFunc(("Changing state from %s to %s (aVM=%p)\n",
+                 VMR3GetStateName(aOldState), VMR3GetStateName(aState), aVM));
 
-    Console *that = static_cast<Console *>(pvUser);
+    Console *that = static_cast<Console *>(aUser);
     AssertReturnVoid(that);
 
     AutoCaller autoCaller(that);
@@ -8041,34 +7429,17 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
     AssertReturnVoid(   autoCaller.isOk()
                      || autoCaller.state() == InUninit);
 
-    switch (enmState)
+    switch (aState)
     {
         /*
          * The VM has terminated
          */
         case VMSTATE_OFF:
         {
-#ifdef VBOX_WITH_GUEST_PROPS
-            if (that->isResetTurnedIntoPowerOff())
-            {
-                Bstr strPowerOffReason;
-
-                if (that->mfPowerOffCausedByReset)
-                    strPowerOffReason = Bstr("Reset");
-                else
-                    strPowerOffReason = Bstr("PowerOff");
-
-                that->mMachine->DeleteGuestProperty(Bstr("/VirtualBox/HostInfo/VMPowerOffReason").raw());
-                that->mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/VMPowerOffReason").raw(),
-                                                 strPowerOffReason.raw(), Bstr("RDONLYGUEST").raw());
-                that->mMachine->SaveSettings();
-            }
-#endif
-
             AutoWriteLock alock(that COMMA_LOCKVAL_SRC_POS);
 
             if (that->mVMStateChangeCallbackDisabled)
-                return;
+                break;
 
             /* Do we still think that it is running? It may happen if this is a
              * VM-(guest-)initiated shutdown/poweroff.
@@ -8084,11 +7455,7 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
             {
                 LogFlowFunc(("VM has powered itself off but Console still thinks it is running. Notifying.\n"));
 
-                /*
-                 * Prevent powerDown() from calling VMR3PowerOff() again if this was called from
-                 * the power off state change.
-                 * When called from the Reset state make sure to call VMR3PowerOff() first.
-                 */
+                /* prevent powerDown() from calling VMR3PowerOff() again */
                 Assert(that->mVMPoweredOff == false);
                 that->mVMPoweredOff = true;
 
@@ -8106,10 +7473,11 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
 
                 /* Setup task object and thread to carry out the operation
                  * asynchronously (if we call powerDown() right here but there
-                 * is one or more mpUVM callers (added with addVMCaller()) we'll
+                 * is one or more mpVM callers (added with addVMCaller()) we'll
                  * deadlock).
                  */
-                std::auto_ptr<VMPowerDownTask> task(new VMPowerDownTask(that, pProgress));
+                std::auto_ptr<VMPowerDownTask> task(new VMPowerDownTask(that,
+                                                                        pProgress));
 
                  /* If creating a task failed, this can currently mean one of
                   * two: either Console::uninit() has been called just a ms
@@ -8120,14 +7488,14 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
                 if (!task->isOk())
                 {
                     LogFlowFunc(("Console is already being uninitialized.\n"));
-                    return;
+                    break;
                 }
 
                 int vrc = RTThreadCreate(NULL, Console::powerDownThread,
-                                         (void *)task.get(), 0,
+                                         (void *) task.get(), 0,
                                          RTTHREADTYPE_MAIN_WORKER, 0,
-                                         "VMPwrDwn");
-                AssertMsgRCReturnVoid(vrc, ("Could not create VMPowerDown thread (%Rrc)\n", vrc));
+                                         "VMPowerDown");
+                AssertMsgRCBreak(vrc, ("Could not create VMPowerDown thread (%Rrc)\n", vrc));
 
                 /* task is now owned by powerDownThread(), so release it */
                 task.release();
@@ -8149,12 +7517,12 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
             if (that->mVMStateChangeCallbackDisabled)
                 break;
 
-            /* Terminate host interface networking. If pUVM is NULL, we've been
+            /* Terminate host interface networking. If aVM is NULL, we've been
              * manually called from powerUpThread() either before calling
              * VMR3Create() or after VMR3Create() failed, so no need to touch
              * networking.
              */
-            if (pUVM)
+            if (aVM)
                 that->powerDownHostInterfaces();
 
             /* From now on the machine is officially powered down or remains in
@@ -8269,7 +7637,7 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
                     break;
 
                 default:
-                    AssertMsgFailed(("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(enmOldState),  VMR3GetStateName(enmState) ));
+                    AssertMsgFailed(("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(aOldState),  VMR3GetStateName(aState) ));
                     that->setMachineState(MachineState_Paused);
                     break;
             }
@@ -8278,9 +7646,9 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
 
         case VMSTATE_RUNNING:
         {
-            if (   enmOldState == VMSTATE_POWERING_ON
-                || enmOldState == VMSTATE_RESUMING
-                || enmOldState == VMSTATE_RUNNING_FT)
+            if (   aOldState == VMSTATE_POWERING_ON
+                || aOldState == VMSTATE_RESUMING
+                || aOldState == VMSTATE_RUNNING_FT)
             {
                 AutoWriteLock alock(that COMMA_LOCKVAL_SRC_POS);
 
@@ -8289,15 +7657,15 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
 
                 Assert(   (   (   that->mMachineState == MachineState_Starting
                                || that->mMachineState == MachineState_Paused)
-                           && enmOldState == VMSTATE_POWERING_ON)
+                           && aOldState == VMSTATE_POWERING_ON)
                        || (   (   that->mMachineState == MachineState_Restoring
                                || that->mMachineState == MachineState_TeleportingIn
                                || that->mMachineState == MachineState_Paused
                                || that->mMachineState == MachineState_Saving
                               )
-                           && enmOldState == VMSTATE_RESUMING)
+                           && aOldState == VMSTATE_RESUMING)
                        || (   that->mMachineState == MachineState_FaultTolerantSyncing
-                           && enmOldState == VMSTATE_RUNNING_FT));
+                           && aOldState == VMSTATE_RUNNING_FT));
 
                 that->setMachineState(MachineState_Running);
             }
@@ -8308,12 +7676,12 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
         case VMSTATE_RUNNING_LS:
             AssertMsg(   that->mMachineState == MachineState_LiveSnapshotting
                       || that->mMachineState == MachineState_Teleporting,
-                      ("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(enmOldState),  VMR3GetStateName(enmState) ));
+                      ("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(aOldState),  VMR3GetStateName(aState) ));
             break;
 
         case VMSTATE_RUNNING_FT:
             AssertMsg(that->mMachineState == MachineState_FaultTolerantSyncing,
-                      ("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(enmOldState),  VMR3GetStateName(enmState) ));
+                      ("%s/%s -> %s\n", Global::stringifyMachineState(that->mMachineState), VMR3GetStateName(aOldState),  VMR3GetStateName(aState) ));
             break;
 
         case VMSTATE_FATAL_ERROR:
@@ -8353,80 +7721,6 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
     }
 }
 
-/**
- * Changes the clipboard mode.
- *
- * @param aClipboardMode  new clipboard mode.
- */
-void Console::changeClipboardMode(ClipboardMode_T aClipboardMode)
-{
-    VMMDev *pVMMDev = m_pVMMDev;
-    Assert(pVMMDev);
-
-    VBOXHGCMSVCPARM parm;
-    parm.type = VBOX_HGCM_SVC_PARM_32BIT;
-
-    switch (aClipboardMode)
-    {
-        default:
-        case ClipboardMode_Disabled:
-            LogRel(("Shared clipboard mode: Off\n"));
-            parm.u.uint32 = VBOX_SHARED_CLIPBOARD_MODE_OFF;
-            break;
-        case ClipboardMode_GuestToHost:
-            LogRel(("Shared clipboard mode: Guest to Host\n"));
-            parm.u.uint32 = VBOX_SHARED_CLIPBOARD_MODE_GUEST_TO_HOST;
-            break;
-        case ClipboardMode_HostToGuest:
-            LogRel(("Shared clipboard mode: Host to Guest\n"));
-            parm.u.uint32 = VBOX_SHARED_CLIPBOARD_MODE_HOST_TO_GUEST;
-            break;
-        case ClipboardMode_Bidirectional:
-            LogRel(("Shared clipboard mode: Bidirectional\n"));
-            parm.u.uint32 = VBOX_SHARED_CLIPBOARD_MODE_BIDIRECTIONAL;
-            break;
-    }
-
-    pVMMDev->hgcmHostCall("VBoxSharedClipboard", VBOX_SHARED_CLIPBOARD_HOST_FN_SET_MODE, 1, &parm);
-}
-
-/**
- * Changes the drag'n_drop mode.
- *
- * @param aDragAndDropMode  new drag'n'drop mode.
- */
-void Console::changeDragAndDropMode(DragAndDropMode_T aDragAndDropMode)
-{
-    VMMDev *pVMMDev = m_pVMMDev;
-    Assert(pVMMDev);
-
-    VBOXHGCMSVCPARM parm;
-    parm.type = VBOX_HGCM_SVC_PARM_32BIT;
-
-    switch (aDragAndDropMode)
-    {
-        default:
-        case DragAndDropMode_Disabled:
-            LogRel(("Drag'n'drop mode: Off\n"));
-            parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_OFF;
-            break;
-        case DragAndDropMode_GuestToHost:
-            LogRel(("Drag'n'drop mode: Guest to Host\n"));
-            parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_GUEST_TO_HOST;
-            break;
-        case DragAndDropMode_HostToGuest:
-            LogRel(("Drag'n'drop mode: Host to Guest\n"));
-            parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_HOST_TO_GUEST;
-            break;
-        case DragAndDropMode_Bidirectional:
-            LogRel(("Drag'n'drop mode: Bidirectional\n"));
-            parm.u.uint32 = VBOX_DRAG_AND_DROP_MODE_BIDIRECTIONAL;
-            break;
-    }
-
-    pVMMDev->hgcmHostCall("VBoxDragAndDropSvc", DragAndDropSvc::HOST_DND_SET_MODE, 1, &parm);
-}
-
 #ifdef VBOX_WITH_USB
 /**
  * Sends a request to VMM to attach the given host device.
@@ -8436,11 +7730,15 @@ void Console::changeDragAndDropMode(DragAndDropMode_T aDragAndDropMode)
  * @param aHostDevice  device to attach
  *
  * @note Synchronously calls EMT.
+ * @note Must be called from under this object's lock.
  */
 HRESULT Console::attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs)
 {
     AssertReturn(aHostDevice, E_FAIL);
-    AssertReturn(!isWriteLockOnCurrentThread(), E_FAIL);
+    AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
+
+    /* still want a lock object because we need to leave it */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT hrc;
 
@@ -8471,41 +7769,20 @@ HRESULT Console::attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs)
     LogFlowThisFunc(("Proxying USB device '%s' {%RTuuid}...\n",
                       Address.c_str(), uuid.raw()));
 
-    void *pvRemoteBackend = NULL;
-    if (fRemote)
-    {
-        RemoteUSBDevice *pRemoteUSBDevice = static_cast<RemoteUSBDevice *>(aHostDevice);
-        pvRemoteBackend = consoleVRDPServer()->USBBackendRequestPointer(pRemoteUSBDevice->clientId(), &uuid);
-        if (!pvRemoteBackend)
-            return E_INVALIDARG; /* The clientId is invalid then. */
-    }
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
+    alock.leave();
 
-    USHORT portVersion = 1;
-    hrc = aHostDevice->COMGETTER(PortVersion)(&portVersion);
-    AssertComRCReturnRC(hrc);
-    Assert(portVersion == 1 || portVersion == 2);
+/** @todo just do everything here and only wrap the PDMR3Usb call. That'll offload some notification stuff from the EMT thread. */
+    int vrc = VMR3ReqCallWait(ptrVM, VMCPUID_ANY,
+                              (PFNRT)usbAttachCallback, 7,
+                              this, ptrVM.raw(), aHostDevice, uuid.raw(), fRemote, Address.c_str(), aMaskedIfs);
 
-    int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), 0 /* idDstCpu (saved state, see #6232) */,
-                               (PFNRT)usbAttachCallback, 9,
-                               this, ptrVM.rawUVM(), aHostDevice, uuid.raw(), fRemote,
-                               Address.c_str(), pvRemoteBackend, portVersion, aMaskedIfs);
-    if (RT_SUCCESS(vrc))
-    {
-        /* Create a OUSBDevice and add it to the device list */
-        ComObjPtr<OUSBDevice> pUSBDevice;
-        pUSBDevice.createObject();
-        hrc = pUSBDevice->init(aHostDevice);
-        AssertComRC(hrc);
+    /* restore the lock */
+    alock.enter();
 
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-        mUSBDevices.push_back(pUSBDevice);
-        LogFlowFunc(("Attached device {%RTuuid}\n", pUSBDevice->id().raw()));
+    /* hrc is S_OK here */
 
-        /* notify callbacks */
-        alock.release();
-        onUSBDeviceStateChange(pUSBDevice, true /* aAttached */, NULL);
-    }
-    else
+    if (RT_FAILURE(vrc))
     {
         LogWarningThisFunc(("Failed to create proxy device for '%s' {%RTuuid} (%Rrc)\n",
                             Address.c_str(), uuid.raw(), vrc));
@@ -8513,13 +7790,17 @@ HRESULT Console::attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs)
         switch (vrc)
         {
             case VERR_VUSB_NO_PORTS:
-                hrc = setError(E_FAIL, tr("Failed to attach the USB device. (No available ports on the USB controller)."));
+                hrc = setError(E_FAIL,
+                    tr("Failed to attach the USB device. (No available ports on the USB controller)."));
                 break;
             case VERR_VUSB_USBFS_PERMISSION:
-                hrc = setError(E_FAIL, tr("Not permitted to open the USB device, check usbfs options"));
+                hrc = setError(E_FAIL,
+                    tr("Not permitted to open the USB device, check usbfs options"));
                 break;
             default:
-                hrc = setError(E_FAIL, tr("Failed to create a proxy device for the USB device. (Error: %Rrc)"), vrc);
+                hrc = setError(E_FAIL,
+                    tr("Failed to create a proxy device for the USB device. (Error: %Rrc)"),
+                    vrc);
                 break;
         }
     }
@@ -8538,17 +7819,47 @@ HRESULT Console::attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs)
  */
 //static
 DECLCALLBACK(int)
-Console::usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid, bool aRemote,
-                           const char *aAddress, void *pvRemoteBackend, USHORT aPortVersion, ULONG aMaskedIfs)
+Console::usbAttachCallback(Console *that, PVM pVM, IUSBDevice *aHostDevice, PCRTUUID aUuid, bool aRemote, const char *aAddress, ULONG aMaskedIfs)
 {
     LogFlowFuncEnter();
-    LogFlowFunc(("that={%p} aUuid={%RTuuid}\n", that, aUuid));
+    LogFlowFunc(("that={%p}\n", that));
 
     AssertReturn(that && aUuid, VERR_INVALID_PARAMETER);
-    AssertReturn(!that->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
 
-    int vrc = PDMR3UsbCreateProxyDevice(pUVM, aUuid, aRemote, aAddress, pvRemoteBackend,
-                                        aPortVersion == 1 ? VUSB_STDVER_11 : VUSB_STDVER_20, aMaskedIfs);
+    void *pvRemoteBackend = NULL;
+    if (aRemote)
+    {
+        RemoteUSBDevice *pRemoteUSBDevice = static_cast<RemoteUSBDevice *>(aHostDevice);
+        Guid guid(*aUuid);
+
+        pvRemoteBackend = that->consoleVRDPServer()->USBBackendRequestPointer(pRemoteUSBDevice->clientId(), &guid);
+        if (!pvRemoteBackend)
+            return VERR_INVALID_PARAMETER; /* The clientId is invalid then. */
+    }
+
+    USHORT portVersion = 1;
+    HRESULT hrc = aHostDevice->COMGETTER(PortVersion)(&portVersion);
+    AssertComRCReturn(hrc, VERR_GENERAL_FAILURE);
+    Assert(portVersion == 1 || portVersion == 2);
+
+    int vrc = PDMR3USBCreateProxyDevice(pVM, aUuid, aRemote, aAddress, pvRemoteBackend,
+                                        portVersion == 1 ? VUSB_STDVER_11 : VUSB_STDVER_20, aMaskedIfs);
+    if (RT_SUCCESS(vrc))
+    {
+        /* Create a OUSBDevice and add it to the device list */
+        ComObjPtr<OUSBDevice> pUSBDevice;
+        pUSBDevice.createObject();
+        hrc = pUSBDevice->init(aHostDevice);
+        AssertComRC(hrc);
+
+        AutoWriteLock alock(that COMMA_LOCKVAL_SRC_POS);
+        that->mUSBDevices.push_back(pUSBDevice);
+        LogFlowFunc(("Attached device {%RTuuid}\n", pUSBDevice->id().raw()));
+
+        /* notify callbacks */
+        that->onUSBDeviceStateChange(pUSBDevice, true /* aAttached */, NULL);
+    }
+
     LogFlowFunc(("vrc=%Rrc\n", vrc));
     LogFlowFuncLeave();
     return vrc;
@@ -8559,13 +7870,17 @@ Console::usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PC
  * succeeds, the detached device will disappear from the mUSBDevices
  * collection.
  *
- * @param aHostDevice  device to attach
+ * @param aIt  Iterator pointing to the device to detach.
  *
  * @note Synchronously calls EMT.
+ * @note Must be called from under this object's lock.
  */
-HRESULT Console::detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice)
+HRESULT Console::detachUSBDevice(USBDeviceList::iterator &aIt)
 {
-    AssertReturn(!isWriteLockOnCurrentThread(), E_FAIL);
+    AssertReturn(isWriteLockOnCurrentThread(), E_FAIL);
+
+    /* still want a lock object because we need to leave it */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Get the VM handle. */
     SafeVMPtr ptrVM(this);
@@ -8573,41 +7888,18 @@ HRESULT Console::detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice)
         return ptrVM.rc();
 
     /* if the device is attached, then there must at least one USB hub. */
-    AssertReturn(PDMR3UsbHasHub(ptrVM.rawUVM()), E_FAIL);
+    AssertReturn(PDMR3USBHasHub(ptrVM), E_FAIL);
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     LogFlowThisFunc(("Detaching USB proxy device {%RTuuid}...\n",
-                     aHostDevice->id().raw()));
+                     (*aIt)->id().raw()));
 
-    /*
-     * If this was a remote device, release the backend pointer.
-     * The pointer was requested in usbAttachCallback.
-     */
-    BOOL fRemote = FALSE;
+    /* leave the lock before a VMR3* call (EMT will call us back)! */
+    alock.leave();
 
-    HRESULT hrc2 = aHostDevice->COMGETTER(Remote)(&fRemote);
-    if (FAILED(hrc2))
-        setErrorStatic(hrc2, "GetRemote() failed");
-
-    PCRTUUID pUuid = aHostDevice->id().raw();
-    if (fRemote)
-    {
-        Guid guid(*pUuid);
-        consoleVRDPServer()->USBBackendReleasePointer(&guid);
-    }
-
-    alock.release();
-    int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), 0 /* idDstCpu (saved state, see #6232) */,
-                               (PFNRT)usbDetachCallback, 5,
-                               this, ptrVM.rawUVM(), pUuid);
-    if (RT_SUCCESS(vrc))
-    {
-        LogFlowFunc(("Detached device {%RTuuid}\n", pUuid));
-
-        /* notify callbacks */
-        onUSBDeviceStateChange(aHostDevice, false /* aAttached */, NULL);
-    }
-
+/** @todo just do everything here and only wrap the PDMR3Usb call. That'll offload some notification stuff from the EMT thread. */
+    int vrc = VMR3ReqCallWait(ptrVM, VMCPUID_ANY,
+                              (PFNRT)usbDetachCallback, 5,
+                              this, ptrVM.raw(), &aIt, (*aIt)->id().raw());
     ComAssertRCRet(vrc, E_FAIL);
 
     return S_OK;
@@ -8615,24 +7907,52 @@ HRESULT Console::detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice)
 
 /**
  * USB device detach callback used by DetachUSBDevice().
- *
  * Note that DetachUSBDevice() doesn't return until this callback is executed,
  * so we don't use AutoCaller and don't care about reference counters of
  * interface pointers passed in.
  *
  * @thread EMT
+ * @note Locks the console object for writing.
  */
 //static
 DECLCALLBACK(int)
-Console::usbDetachCallback(Console *that, PUVM pUVM, PCRTUUID aUuid)
+Console::usbDetachCallback(Console *that, PVM pVM, USBDeviceList::iterator *aIt, PCRTUUID aUuid)
 {
     LogFlowFuncEnter();
-    LogFlowFunc(("that={%p} aUuid={%RTuuid}\n", that, aUuid));
+    LogFlowFunc(("that={%p}\n", that));
 
     AssertReturn(that && aUuid, VERR_INVALID_PARAMETER);
-    AssertReturn(!that->isWriteLockOnCurrentThread(), VERR_GENERAL_FAILURE);
+    ComObjPtr<OUSBDevice> pUSBDevice = **aIt;
 
-    int vrc = PDMR3UsbDetachDevice(pUVM, aUuid);
+    /*
+     * If that was a remote device, release the backend pointer.
+     * The pointer was requested in usbAttachCallback.
+     */
+    BOOL fRemote = FALSE;
+
+    HRESULT hrc2 = (**aIt)->COMGETTER(Remote)(&fRemote);
+    if (FAILED(hrc2))
+        setErrorStatic(hrc2, "GetRemote() failed");
+
+    if (fRemote)
+    {
+        Guid guid(*aUuid);
+        that->consoleVRDPServer()->USBBackendReleasePointer(&guid);
+    }
+
+    int vrc = PDMR3USBDetachDevice(pVM, aUuid);
+
+    if (RT_SUCCESS(vrc))
+    {
+        AutoWriteLock alock(that COMMA_LOCKVAL_SRC_POS);
+
+        /* Remove the device from the collection */
+        that->mUSBDevices.erase(*aIt);
+        LogFlowFunc(("Detached device {%RTuuid}\n", pUSBDevice->id().raw()));
+
+        /* notify callbacks */
+        that->onUSBDeviceStateChange(pUSBDevice, false /* aAttached */, NULL);
+    }
 
     LogFlowFunc(("vrc=%Rrc\n", vrc));
     LogFlowFuncLeave();
@@ -8683,7 +8003,7 @@ HRESULT Console::attachToTapInterface(INetworkAdapter *networkAdapter)
          * Set/obtain the tap interface.
          */
         struct ifreq IfReq;
-        RT_ZERO(IfReq);
+        memset(&IfReq, 0, sizeof(IfReq));
         /* The name of the TAP interface we are using */
         Bstr tapDeviceName;
         rc = networkAdapter->COMGETTER(BridgedInterface)(tapDeviceName.asOutParam());
@@ -8699,7 +8019,10 @@ HRESULT Console::attachToTapInterface(INetworkAdapter *networkAdapter)
         {
             /* If we are using a static TAP device then try to open it. */
             Utf8Str str(tapDeviceName);
-            RTStrCopy(IfReq.ifr_name, sizeof(IfReq.ifr_name), str.c_str()); /** @todo bitch about names which are too long... */
+            if (str.length() <= sizeof(IfReq.ifr_name))
+                strcpy(IfReq.ifr_name, str.c_str());
+            else
+                memcpy(IfReq.ifr_name, str.c_str(), sizeof(IfReq.ifr_name) - 1); /** @todo bitch about names which are too long... */
             IfReq.ifr_flags = IFF_TAP | IFF_NO_PI;
             rcVBox = ioctl(maTapFD[slot], TUNSETIFF, &IfReq);
             if (rcVBox != 0)
@@ -8890,19 +8213,8 @@ HRESULT Console::powerDownHostInterfaces()
     /*
      * host interface termination handling
      */
-    HRESULT rc = S_OK;
-    ComPtr<IVirtualBox> pVirtualBox;
-    mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
-    ComPtr<ISystemProperties> pSystemProperties;
-    if (pVirtualBox)
-        pVirtualBox->COMGETTER(SystemProperties)(pSystemProperties.asOutParam());
-    ChipsetType_T chipsetType = ChipsetType_PIIX3;
-    mMachine->COMGETTER(ChipsetType)(&chipsetType);
-    ULONG maxNetworkAdapters = 0;
-    if (pSystemProperties)
-        pSystemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);
-
-    for (ULONG slot = 0; slot < maxNetworkAdapters; slot++)
+    HRESULT rc;
+    for (ULONG slot = 0; slot < SchemaDefs::NetworkAdapterCount; slot ++)
     {
         ComPtr<INetworkAdapter> pNetworkAdapter;
         rc = mMachine->GetNetworkAdapter(slot, pNetworkAdapter.asOutParam());
@@ -8933,13 +8245,13 @@ HRESULT Console::powerDownHostInterfaces()
  * Process callback handler for VMR3LoadFromFile, VMR3LoadFromStream, VMR3Save
  * and VMR3Teleport.
  *
- * @param   pUVM        The user mode VM handle.
+ * @param   pVM         The VM handle.
  * @param   uPercent    Completion percentage (0-100).
  * @param   pvUser      Pointer to an IProgress instance.
  * @return  VINF_SUCCESS.
  */
 /*static*/
-DECLCALLBACK(int) Console::stateProgressCallback(PUVM pUVM, unsigned uPercent, void *pvUser)
+DECLCALLBACK(int) Console::stateProgressCallback(PVM pVM, unsigned uPercent, void *pvUser)
 {
     IProgress *pProgress = static_cast<IProgress *>(pvUser);
 
@@ -8947,7 +8259,6 @@ DECLCALLBACK(int) Console::stateProgressCallback(PUVM pUVM, unsigned uPercent, v
     if (pProgress)
         pProgress->SetCurrentOperationProgress(uPercent);
 
-    NOREF(pUVM);
     return VINF_SUCCESS;
 }
 
@@ -8958,7 +8269,7 @@ DECLCALLBACK(int) Console::stateProgressCallback(PUVM pUVM, unsigned uPercent, v
  *          object here...
  */
 /*static*/ DECLCALLBACK(void)
-Console::genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+Console::genericVMSetErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
                                    const char *pszErrorFmt, va_list va)
 {
     Utf8Str *pErrorText = (Utf8Str *)pvUser;
@@ -8976,17 +8287,14 @@ Console::genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_D
         *pErrorText = Utf8StrFmt("%N (%Rrc)", pszErrorFmt, &va2, rc, rc);
 
     va_end(va2);
-
-    NOREF(pUVM);
 }
 
 /**
  * VM runtime error callback function.
  * See VMSetRuntimeError for the detailed description of parameters.
  *
- * @param   pUVM            The user mode VM handle.  Ignored, so passing NULL
- *                          is fine.
- * @param   pvUser          The user argument, pointer to the Console instance.
+ * @param   pVM             The VM handle.
+ * @param   pvUser          The user argument.
  * @param   fFlags          The action flags. See VMSETRTERR_FLAGS_*.
  * @param   pszErrorId      Error ID string.
  * @param   pszFormat       Error message format string.
@@ -8994,7 +8302,7 @@ Console::genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_D
  * @thread EMT.
  */
 /* static */ DECLCALLBACK(void)
-Console::setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
+Console::setVMRuntimeErrorCallback(PVM pVM, void *pvUser, uint32_t fFlags,
                                    const char *pszErrorId,
                                    const char *pszFormat, va_list va)
 {
@@ -9007,72 +8315,74 @@ Console::setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
     Utf8Str message(pszFormat, va);
 
     LogRel(("Console: VM runtime error: fatal=%RTbool, errorID=%s message=\"%s\"\n",
-            fFatal, pszErrorId, message.c_str()));
+             fFatal, pszErrorId, message.c_str()));
 
-    /* Set guest property if the reason of the error is a missing DEK for a disk. */
-    if (!RTStrCmp(pszErrorId, "DrvVD_DEKMISSING"))
-    {
-        that->mMachine->DeleteGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw());
-        that->mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw(),
-                                         Bstr("1").raw(), Bstr("RDONLYGUEST").raw());
-        that->mMachine->SaveSettings();
-    }
+    that->onRuntimeError(BOOL(fFatal), Bstr(pszErrorId).raw(),
+                         Bstr(message).raw());
 
-
-    that->onRuntimeError(BOOL(fFatal), Bstr(pszErrorId).raw(), Bstr(message).raw());
-
-    LogFlowFuncLeave(); NOREF(pUVM);
+    LogFlowFuncLeave();
 }
 
 /**
  * Captures USB devices that match filters of the VM.
  * Called at VM startup.
  *
- * @param   pUVM    The VM handle.
+ * @param   pVM     The VM handle.
+ *
+ * @note The caller must lock this object for writing.
  */
-HRESULT Console::captureUSBDevices(PUVM pUVM)
+HRESULT Console::captureUSBDevices(PVM pVM)
 {
     LogFlowThisFunc(("\n"));
 
     /* sanity check */
-    AssertReturn(!isWriteLockOnCurrentThread(), E_FAIL);
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    ComAssertRet(isWriteLockOnCurrentThread(), E_FAIL);
 
-    /* If the machine has a USB controller, ask the USB proxy service to
+    /* If the machine has an USB controller, ask the USB proxy service to
      * capture devices */
-    if (mfVMHasUsbController)
+    PPDMIBASE pBase;
+    int vrc = PDMR3QueryLun(pVM, "usb-ohci", 0, 0, &pBase);
+    if (RT_SUCCESS(vrc))
     {
-        /* release the lock before calling Host in VBoxSVC since Host may call
+        /* leave the lock before calling Host in VBoxSVC since Host may call
          * us back from under its lock (e.g. onUSBDeviceAttach()) which would
          * produce an inter-process dead-lock otherwise. */
-        alock.release();
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        alock.leave();
 
         HRESULT hrc = mControl->AutoCaptureUSBDevices();
         ComAssertComRCRetRC(hrc);
     }
+    else if (   vrc == VERR_PDM_DEVICE_NOT_FOUND
+             || vrc == VERR_PDM_DEVICE_INSTANCE_NOT_FOUND)
+        vrc = VINF_SUCCESS;
+    else
+        AssertRC(vrc);
 
-    return S_OK;
+    return RT_SUCCESS(vrc) ? S_OK : E_FAIL;
 }
 
 
 /**
  * Detach all USB device which are attached to the VM for the
  * purpose of clean up and such like.
+ *
+ * @note The caller must lock this object for writing.
  */
 void Console::detachAllUSBDevices(bool aDone)
 {
     LogFlowThisFunc(("aDone=%RTbool\n", aDone));
 
     /* sanity check */
-    AssertReturnVoid(!isWriteLockOnCurrentThread());
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AssertReturnVoid(isWriteLockOnCurrentThread());
 
     mUSBDevices.clear();
 
-    /* release the lock before calling Host in VBoxSVC since Host may call
+    /* leave the lock before calling Host in VBoxSVC since Host may call
      * us back from under its lock (e.g. onUSBDeviceAttach()) which would
      * produce an inter-process dead-lock otherwise. */
-    alock.release();
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    alock.leave();
 
     mControl->DetachAllUSBDevices(aDone);
 }
@@ -9170,9 +8480,7 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
 
             if (fMatched)
             {
-                alock.release();
                 hrc = onUSBDeviceAttach(pUSBDevice, NULL, fMaskedIfs);
-                alock.acquire();
 
                 /// @todo (r=dmik) warning reporting subsystem
 
@@ -9212,7 +8520,7 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
                 break;
             }
 
-            ++it;
+            ++ it;
         }
 
         if (!pUSBDevice)
@@ -9237,9 +8545,7 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
         {
             Bstr uuid;
             pUSBDevice->COMGETTER(Id)(uuid.asOutParam());
-            alock.release();
             onUSBDeviceDetach(uuid.raw(), NULL);
-            alock.acquire();
         }
 
         /* And remove it from the list. */
@@ -9254,10 +8560,10 @@ void Console::processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *p
  */
 static void faultToleranceProgressCancelCallback(void *pvUser)
 {
-    PUVM pUVM = (PUVM)pvUser;
+    PVM pVM = (PVM)pvUser;
 
-    if (pUVM)
-        FTMR3CancelStandby(pUVM);
+    if (pVM)
+        FTMR3CancelStandby(pVM);
 }
 
 /**
@@ -9290,7 +8596,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
      * exact build was used to produce the core. */
     static char saBuildID[40];
     RTStrPrintf(saBuildID, sizeof(saBuildID), "%s%s%s%s VirtualBox %s r%u %s%s%s%s",
-                "BU", "IL", "DI", "D", RTBldCfgVersion(), RTBldCfgRevision(), "BU", "IL", "DI", "D");
+                "BU", "IL", "DI", "D", VBOX_VERSION_STRING, RTBldCfgRevision(), "BU", "IL", "DI", "D");
 
     ComObjPtr<Console> pConsole = task->mConsole;
 
@@ -9319,13 +8625,10 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
          * the attached hard disks by calling LockMedia() below */
         for (VMPowerUpTask::ProgressList::const_iterator
              it = task->hardDiskProgresses.begin();
-             it != task->hardDiskProgresses.end(); ++it)
+             it != task->hardDiskProgresses.end(); ++ it)
         {
             HRESULT rc2 = (*it)->WaitForCompletion(-1);
             AssertComRC(rc2);
-
-            rc = task->mProgress->SetNextOperation(BstrFmt(tr("Disk Image Reset Operation - Immutable Image")).raw(), 1);
-            AssertComRCReturnRC(rc);
         }
 
         /*
@@ -9350,11 +8653,11 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
         Assert(server);
 
         /* Does VRDP server call Console from the other thread?
-         * Not sure (and can change), so release the lock just in case.
+         * Not sure (and can change), so leave the lock just in case.
          */
-        alock.release();
+        alock.leave();
         vrc = server->Launch();
-        alock.acquire();
+        alock.enter();
 
         if (vrc == VERR_NET_ADDRESS_IN_USE)
         {
@@ -9399,22 +8702,23 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
 
         /*
          * Create the VM
-         *
-         * Note! Release the lock since EMT will call Console. It's safe because
-         *       mMachineState is either Starting or Restoring state here.
          */
-        alock.release();
-
         PVM pVM;
+        /*
+         * leave the lock since EMT will call Console. It's safe because
+         * mMachineState is either Starting or Restoring state here.
+         */
+        alock.leave();
+
         vrc = VMR3Create(cCpus,
                          pConsole->mpVmm2UserMethods,
                          Console::genericVMSetErrorCallback,
                          &task->mErrorMsg,
                          task->mConfigConstructor,
                          static_cast<Console *>(pConsole),
-                         &pVM, NULL);
+                         &pVM);
 
-        alock.acquire();
+        alock.enter();
 
         /* Enable client connections to the server. */
         pConsole->consoleVRDPServer()->EnableConnections();
@@ -9426,14 +8730,14 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                 /*
                  * Register our load/save state file handlers
                  */
-                vrc = SSMR3RegisterExternal(pConsole->mpUVM, sSSMConsoleUnit, 0 /*iInstance*/, sSSMConsoleVer, 0 /* cbGuess */,
+                vrc = SSMR3RegisterExternal(pVM, sSSMConsoleUnit, 0 /*iInstance*/, sSSMConsoleVer, 0 /* cbGuess */,
                                             NULL, NULL, NULL,
                                             NULL, saveStateFileExec, NULL,
                                             NULL, loadStateFileExec, NULL,
                                             static_cast<Console *>(pConsole));
                 AssertRCBreak(vrc);
 
-                vrc = static_cast<Console *>(pConsole)->getDisplay()->registerSSM(pConsole->mpUVM);
+                vrc = static_cast<Console *>(pConsole)->getDisplay()->registerSSM(pVM);
                 AssertRC(vrc);
                 if (RT_FAILURE(vrc))
                     break;
@@ -9451,8 +8755,8 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                 if (pConsole->m_pVMMDev->isShFlActive())
                 {
                     /* Does the code below call Console from the other thread?
-                     * Not sure, so release the lock just in case. */
-                    alock.release();
+                     * Not sure, so leave the lock just in case. */
+                    alock.leave();
 
                     for (SharedFolderDataMap::const_iterator it = task->mSharedFolders.begin();
                          it != task->mSharedFolders.end();
@@ -9463,29 +8767,27 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                         if (FAILED(rc))
                         {
                             ErrorInfoKeeper eik;
-                            pConsole->setVMRuntimeErrorCallbackF(0, "BrokenSharedFolder",
-                                    N_("The shared folder '%s' could not be set up: %ls.\n"
-                                       "The shared folder setup will not be complete. It is recommended to power down the virtual "
-                                       "machine and fix the shared folder settings while the machine is not running"),
-                                    it->first.c_str(), eik.getText().raw());
+                            setVMRuntimeErrorCallbackF(pVM, pConsole, 0, "BrokenSharedFolder",
+                                                       N_("The shared folder '%s' could not be set up: %ls.\n"
+                                                          "The shared folder setup will not be complete. It is recommended to power down the virtual machine and fix the shared folder settings while the machine is not running"),
+                                                       it->first.c_str(), eik.getText().raw());
                         }
                     }
                     if (FAILED(rc))
                         rc = S_OK;          // do not fail with broken shared folders
 
-                    /* acquire the lock again */
-                    alock.acquire();
+                    /* enter the lock again */
+                    alock.enter();
                 }
-
-                /* release the lock before a lengthy operation */
-                alock.release();
 
                 /*
                  * Capture USB devices.
                  */
-                rc = pConsole->captureUSBDevices(pConsole->mpUVM);
-                if (FAILED(rc))
-                    break;
+                rc = pConsole->captureUSBDevices(pVM);
+                if (FAILED(rc)) break;
+
+                /* leave the lock before a lengthy operation */
+                alock.leave();
 
                 /* Load saved state? */
                 if (task->mSavedStateFile.length())
@@ -9493,7 +8795,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                     LogFlowFunc(("Restoring saved state from '%s'...\n",
                                  task->mSavedStateFile.c_str()));
 
-                    vrc = VMR3LoadFromFile(pConsole->mpUVM,
+                    vrc = VMR3LoadFromFile(pVM,
                                            task->mSavedStateFile.c_str(),
                                            Console::stateProgressCallback,
                                            static_cast<IProgress *>(task->mProgress));
@@ -9510,7 +8812,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                             vrc = pConsole->mptrExtPackManager->callAllVmPowerOnHooks(pConsole, pVM);
 #endif
                             if (RT_SUCCESS(vrc))
-                                vrc = VMR3Resume(pConsole->mpUVM, VMRESUMEREASON_STATE_RESTORED);
+                                vrc = VMR3Resume(pVM);
                             AssertLogRelRC(vrc);
                         }
                     }
@@ -9518,7 +8820,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                     /* Power off in case we failed loading or resuming the VM */
                     if (RT_FAILURE(vrc))
                     {
-                        int vrc2 = VMR3PowerOff(pConsole->mpUVM); AssertLogRelRC(vrc2);
+                        int vrc2 = VMR3PowerOff(pVM); AssertLogRelRC(vrc2);
 #ifdef VBOX_WITH_EXTPACK
                         pConsole->mptrExtPackManager->callAllVmPowerOffHooks(pConsole, pVM);
 #endif
@@ -9528,12 +8830,12 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                 {
                     /* -> ConsoleImplTeleporter.cpp */
                     bool fPowerOffOnFailure;
-                    rc = pConsole->teleporterTrg(pConsole->mpUVM, pMachine, &task->mErrorMsg, task->mStartPaused,
+                    rc = pConsole->teleporterTrg(VMR3GetUVM(pVM), pMachine, &task->mErrorMsg, task->mStartPaused,
                                                  task->mProgress, &fPowerOffOnFailure);
                     if (FAILED(rc) && fPowerOffOnFailure)
                     {
                         ErrorInfoKeeper eik;
-                        int vrc2 = VMR3PowerOff(pConsole->mpUVM); AssertLogRelRC(vrc2);
+                        int vrc2 = VMR3PowerOff(pVM); AssertLogRelRC(vrc2);
 #ifdef VBOX_WITH_EXTPACK
                         pConsole->mptrExtPackManager->callAllVmPowerOffHooks(pConsole, pVM);
 #endif
@@ -9557,7 +8859,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                         if (SUCCEEDED(rc))
                             rc = pMachine->COMGETTER(FaultTolerancePassword)(bstrPassword.asOutParam());
                     }
-                    if (task->mProgress->setCancelCallback(faultToleranceProgressCancelCallback, pConsole->mpUVM))
+                    if (task->mProgress->setCancelCallback(faultToleranceProgressCancelCallback, pVM))
                     {
                         if (SUCCEEDED(rc))
                         {
@@ -9571,7 +8873,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                             vrc = pConsole->mptrExtPackManager->callAllVmPowerOnHooks(pConsole, pVM);
 #endif
                             if (RT_SUCCESS(vrc))
-                                vrc = FTMR3PowerOn(pConsole->mpUVM,
+                                vrc = FTMR3PowerOn(pVM,
                                                    task->mEnmFaultToleranceState == FaultToleranceState_Master /* fMaster */,
                                                    uInterval,
                                                    pszAddress,
@@ -9594,12 +8896,12 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                     vrc = pConsole->mptrExtPackManager->callAllVmPowerOnHooks(pConsole, pVM);
 #endif
                     if (RT_SUCCESS(vrc))
-                        vrc = VMR3PowerOn(pConsole->mpUVM);
+                        vrc = VMR3PowerOn(pVM);
                     AssertLogRelRC(vrc);
                 }
 
-                /* acquire the lock again */
-                alock.acquire();
+                /* enter the lock again */
+                alock.enter();
             }
             while (0);
 
@@ -9611,9 +8913,7 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
 
                 /* powerDown() will call VMR3Destroy() and do all necessary
                  * cleanup (VRDP, USB devices) */
-                alock.release();
                 HRESULT rc2 = pConsole->powerDown();
-                alock.acquire();
                 AssertComRC(rc2);
             }
             else
@@ -9623,10 +8923,10 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
                  * pfnVMAtError() function passed to VMR3Create() is supposed to
                  * be sticky but our error callback isn't.
                  */
-                alock.release();
-                VMR3AtErrorDeregister(pConsole->mpUVM, Console::genericVMSetErrorCallback, &task->mErrorMsg);
+                alock.leave();
+                VMR3AtErrorDeregister(pVM, Console::genericVMSetErrorCallback, &task->mErrorMsg);
                 /** @todo register another VMSetError callback? */
-                alock.acquire();
+                alock.enter();
             }
         }
         else
@@ -9683,7 +8983,8 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
         ErrorInfoKeeper eik;
 
         Assert(pConsole->mpUVM == NULL);
-        vmstateChangeCallback(NULL, VMSTATE_TERMINATED, VMSTATE_CREATING, pConsole);
+        vmstateChangeCallback(NULL, VMSTATE_TERMINATED, VMSTATE_CREATING,
+                              pConsole);
     }
 
     /*
@@ -9691,8 +8992,8 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
      * is already set by vmstateChangeCallback() in all cases.
      */
 
-    /* release the lock, don't need it any more */
-    alock.release();
+    /* leave the lock, don't need it any more */
+    alock.leave();
 
     if (SUCCEEDED(rc))
     {
@@ -9723,8 +9024,8 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
 /**
  * Reconfigures a medium attachment (part of taking or deleting an online snapshot).
  *
- * @param   pThis         Reference to the console object.
- * @param   pUVM          The VM handle.
+ * @param   pConsole      Reference to the console object.
+ * @param   pVM           The VM handle.
  * @param   lInstance     The instance of the controller.
  * @param   pcszDevice    The name of the controller type.
  * @param   enmBus        The storage bus type of the controller.
@@ -9737,13 +9038,13 @@ DECLCALLBACK(int) Console::powerUpThread(RTTHREAD Thread, void *pvUser)
  * @return  VBox status code.
  */
 /* static */
-DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pThis,
-                                                       PUVM pUVM,
+DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pConsole,
+                                                       PVM pVM,
                                                        const char *pcszDevice,
                                                        unsigned uInstance,
                                                        StorageBus_T enmBus,
                                                        bool fUseHostIOCache,
-                                                       bool fBuiltinIOCache,
+                                                       bool fBuiltinIoCache,
                                                        bool fSetupMerge,
                                                        unsigned uMergeSource,
                                                        unsigned uMergeTarget,
@@ -9751,11 +9052,13 @@ DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pThis,
                                                        MachineState_T aMachineState,
                                                        HRESULT *phrc)
 {
-    LogFlowFunc(("pUVM=%p aMediumAtt=%p phrc=%p\n", pUVM, aMediumAtt, phrc));
+    LogFlowFunc(("pVM=%p aMediumAtt=%p phrc=%p\n", pVM, aMediumAtt, phrc));
 
+    int             rc;
     HRESULT         hrc;
     Bstr            bstr;
     *phrc = S_OK;
+#define RC_CHECK() do { if (RT_FAILURE(rc)) { AssertMsgFailed(("rc=%Rrc\n", rc)); return rc; } } while (0)
 #define H() do { if (FAILED(hrc)) { AssertMsgFailed(("hrc=%Rhrc (%#x)\n", hrc, hrc)); *phrc = hrc; return VERR_GENERAL_FAILURE; } } while (0)
 
     /* Ignore attachments other than hard disks, since at the moment they are
@@ -9767,37 +9070,33 @@ DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pThis,
 
     /* Determine the base path for the device instance. */
     PCFGMNODE pCtlInst;
-    pCtlInst = CFGMR3GetChildF(CFGMR3GetRootU(pUVM), "Devices/%s/%u/", pcszDevice, uInstance);
+    pCtlInst = CFGMR3GetChildF(CFGMR3GetRoot(pVM), "Devices/%s/%u/", pcszDevice, uInstance);
     AssertReturn(pCtlInst, VERR_INTERNAL_ERROR);
 
     /* Update the device instance configuration. */
-    PCFGMNODE pLunL0 = NULL;
-    int rc = pThis->configMediumAttachment(pCtlInst,
-                                           pcszDevice,
-                                           uInstance,
-                                           enmBus,
-                                           fUseHostIOCache,
-                                           fBuiltinIOCache,
-                                           fSetupMerge,
-                                           uMergeSource,
-                                           uMergeTarget,
-                                           aMediumAtt,
-                                           aMachineState,
-                                           phrc,
-                                           true /* fAttachDetach */,
-                                           false /* fForceUnmount */,
-                                           false /* fHotplug */,
-                                           pUVM,
-                                           NULL /* paLedDevType */,
-                                           &pLunL0);
-    /* Dump the changed LUN if possible, dump the complete device otherwise */
-    CFGMR3Dump(pLunL0 ? pLunL0 : pCtlInst);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("rc=%Rrc\n", rc));
-        return rc;
-    }
+    rc = pConsole->configMediumAttachment(pCtlInst,
+                                          pcszDevice,
+                                          uInstance,
+                                          enmBus,
+                                          fUseHostIOCache,
+                                          fBuiltinIoCache,
+                                          fSetupMerge,
+                                          uMergeSource,
+                                          uMergeTarget,
+                                          aMediumAtt,
+                                          aMachineState,
+                                          phrc,
+                                          true /* fAttachDetach */,
+                                          false /* fForceUnmount */,
+                                          false /* fHotplug */,
+                                          pVM,
+                                          NULL /* paLedDevType */);
+    /** @todo this dumps everything attached to this device instance, which
+     * is more than necessary. Dumping the changed LUN would be enough. */
+    CFGMR3Dump(pCtlInst);
+    RC_CHECK();
 
+#undef RC_CHECK
 #undef H
 
     LogFlowFunc(("Returns success\n"));
@@ -9810,7 +9109,7 @@ DECLCALLBACK(int) Console::reconfigureMediumAttachment(Console *pThis,
 static void takesnapshotProgressCancelCallback(void *pvUser)
 {
     PUVM pUVM = (PUVM)pvUser;
-    SSMR3Cancel(pUVM);
+    SSMR3Cancel(VMR3GetVM(pUVM));
 }
 
 /**
@@ -9865,13 +9164,13 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
 
         fBeganTakingSnapshot = true;
 
-        /* Check sanity: for offline snapshots there must not be a saved state
-         * file name. All other combinations are valid (even though online
-         * snapshots without saved state file seems inconsistent - there are
-         * some exotic use cases, which need to be explicitly enabled, see the
-         * code of SessionMachine::BeginTakingSnapshot. */
-        if (   !pTask->fTakingSnapshotOnline
-            && !pTask->bstrSavedStateFile.isEmpty())
+        /*
+         * state file is non-null only when the VM is paused
+         * (i.e. creating a snapshot online)
+         */
+        bool f =     (!pTask->bstrSavedStateFile.isEmpty() &&  pTask->fTakingSnapshotOnline)
+                  || ( pTask->bstrSavedStateFile.isEmpty() && !pTask->fTakingSnapshotOnline);
+        if (!f)
             throw setErrorStatic(E_FAIL, "Invalid state of saved state file");
 
         /* sync the state with the server */
@@ -9883,38 +9182,31 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
         // STEP 3: save the VM state (if online)
         if (pTask->fTakingSnapshotOnline)
         {
-            int vrc;
+            Utf8Str strSavedStateFile(pTask->bstrSavedStateFile);
+
             SafeVMPtr ptrVM(that);
             if (!ptrVM.isOk())
                 throw ptrVM.rc();
 
             pTask->mProgress->SetNextOperation(Bstr(tr("Saving the machine state")).raw(),
                                                pTask->ulMemSize);       // operation weight, same as computed when setting up progress object
-            if (!pTask->bstrSavedStateFile.isEmpty())
-            {
-                Utf8Str strSavedStateFile(pTask->bstrSavedStateFile);
+            pTask->mProgress->setCancelCallback(takesnapshotProgressCancelCallback, ptrVM.rawUVM());
 
-                pTask->mProgress->setCancelCallback(takesnapshotProgressCancelCallback, ptrVM.rawUVM());
-
-                alock.release();
-                LogFlowFunc(("VMR3Save...\n"));
-                vrc = VMR3Save(ptrVM.rawUVM(),
+            alock.leave();
+            LogFlowFunc(("VMR3Save...\n"));
+            int vrc = VMR3Save(ptrVM,
                                strSavedStateFile.c_str(),
                                true /*fContinueAfterwards*/,
                                Console::stateProgressCallback,
                                static_cast<IProgress *>(pTask->mProgress),
                                &fSuspenededBySave);
-                alock.acquire();
-                if (RT_FAILURE(vrc))
-                    throw setErrorStatic(E_FAIL,
-                                         tr("Failed to save the machine state to '%s' (%Rrc)"),
-                                         strSavedStateFile.c_str(), vrc);
+            alock.enter();
+            if (RT_FAILURE(vrc))
+                throw setErrorStatic(E_FAIL,
+                                     tr("Failed to save the machine state to '%s' (%Rrc)"),
+                                     strSavedStateFile.c_str(), vrc);
 
-                pTask->mProgress->setCancelCallback(NULL, NULL);
-            }
-            else
-                LogRel(("Console: skipped saving state as part of online snapshot\n"));
-
+            pTask->mProgress->setCancelCallback(NULL, NULL);
             if (!pTask->mProgress->notifyPointOfNoReturn())
                 throw setErrorStatic(E_FAIL, tr("Canceled"));
             that->mptrCancelableProgress.setNull();
@@ -9970,20 +9262,32 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
 
                 const char *pcszDevice = Console::convertControllerTypeToDev(enmController);
 
-                BOOL fBuiltinIOCache;
-                rc = that->mMachine->COMGETTER(IOCacheEnabled)(&fBuiltinIOCache);
+                BOOL fBuiltinIoCache;
+                rc = that->mMachine->COMGETTER(IoCacheEnabled)(&fBuiltinIoCache);
                 if (FAILED(rc))
                     throw rc;
 
                 /*
-                 * don't release the lock since reconfigureMediumAttachment
+                 * don't leave the lock since reconfigureMediumAttachment
                  * isn't going to need the Console lock.
                  */
-                vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                                       (PFNRT)reconfigureMediumAttachment, 13,
-                                       that, ptrVM.rawUVM(), pcszDevice, lInstance, enmBus, fUseHostIOCache,
-                                       fBuiltinIOCache, false /* fSetupMerge */, 0 /* uMergeSource */,
-                                       0 /* uMergeTarget */, atts[i], that->mMachineState, &rc);
+                vrc = VMR3ReqCallWait(ptrVM,
+                                      VMCPUID_ANY,
+                                      (PFNRT)reconfigureMediumAttachment,
+                                      13,
+                                      that,
+                                      ptrVM.raw(),
+                                      pcszDevice,
+                                      lInstance,
+                                      enmBus,
+                                      fUseHostIOCache,
+                                      fBuiltinIoCache,
+                                      false /* fSetupMerge */,
+                                      0 /* uMergeSource */,
+                                      0 /* uMergeTarget */,
+                                      atts[i],
+                                      that->mMachineState,
+                                      &rc);
                 if (RT_FAILURE(vrc))
                     throw setErrorStatic(E_FAIL, Console::tr("%Rrc"), vrc);
                 if (FAILED(rc))
@@ -10039,9 +9343,9 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
             {
                 LogFlowFunc(("VMR3Resume...\n"));
                 SafeVMPtr ptrVM(that);
-                alock.release();
-                int vrc = VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_STATE_SAVED);
-                alock.acquire();
+                alock.leave();
+                int vrc = VMR3Resume(ptrVM);
+                alock.enter();
                 if (RT_FAILURE(vrc))
                 {
                     rc = setErrorStatic(VBOX_E_VM_ERROR, tr("Could not resume the machine execution (%Rrc)"), vrc);
@@ -10097,9 +9401,9 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                         Assert(pTask->lastMachineState == MachineState_Running);
                         LogFlowFunc(("VMR3Resume (on failure)...\n"));
                         SafeVMPtr ptrVM(that);
-                        alock.release();
-                        int vrc = VMR3Resume(ptrVM.rawUVM(), VMRESUMEREASON_STATE_SAVED); AssertLogRelRC(vrc);
-                        alock.acquire();
+                        alock.leave();
+                        int vrc = VMR3Resume(ptrVM); AssertLogRelRC(vrc);
+                        alock.enter();
                         if (RT_FAILURE(vrc))
                             that->setMachineState(MachineState_Paused);
                     }
@@ -10158,7 +9462,7 @@ DECLCALLBACK(int) Console::saveStateThread(RTTHREAD Thread, void *pvUser)
     LogFlowFunc(("Saving the state to '%s'...\n", task->mSavedStateFile.c_str()));
 
     bool fSuspenededBySave;
-    int vrc = VMR3Save(task->mpUVM,
+    int vrc = VMR3Save(task->mpVM,
                        task->mSavedStateFile.c_str(),
                        false, /*fContinueAfterwards*/
                        Console::stateProgressCallback,
@@ -10185,9 +9489,7 @@ DECLCALLBACK(int) Console::saveStateThread(RTTHREAD Thread, void *pvUser)
          * deadlock.
          */
         task->releaseVMCaller();
-        thatLock.release();
         rc = that->powerDown();
-        thatLock.acquire();
     }
 
     /*
@@ -10240,8 +9542,6 @@ DECLCALLBACK(int) Console::powerDownThread(RTTHREAD Thread, void *pvUser)
 
     /* release VM caller to avoid the powerDown() deadlock */
     task->releaseVMCaller();
-
-    thatLock.release();
 
     that->powerDown(task->mServerProgress);
 
@@ -10310,62 +9610,6 @@ Console::vmm2User_NotifyPdmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM)
     VirtualBoxBase::uninitializeComForThread();
 }
 
-/**
- * @interface_method_impl{VMM2USERMETHODS,pfnNotifyResetTurnedIntoPowerOff}
- */
-/*static*/ DECLCALLBACK(void)
-Console::vmm2User_NotifyResetTurnedIntoPowerOff(PCVMM2USERMETHODS pThis, PUVM pUVM)
-{
-    Console *pConsole = ((MYVMM2USERMETHODS *)pThis)->pConsole;
-    NOREF(pUVM);
-
-    pConsole->mfPowerOffCausedByReset = true;
-}
-
-
-
-
-/**
- * @interface_method_impl{PDMISECKEY,pfnKeyRetain}
- */
-/*static*/ DECLCALLBACK(int)
-Console::i_pdmIfSecKey_KeyRetain(PPDMISECKEY pInterface, const char *pszId, const uint8_t **ppbKey,
-                                 size_t *pcbKey)
-{
-    Console *pConsole = ((MYPDMISECKEY *)pInterface)->pConsole;
-
-    SecretKeyMap::const_iterator it = pConsole->m_mapSecretKeys.find(Utf8Str(pszId));
-    if (it != pConsole->m_mapSecretKeys.end())
-    {
-        SecretKey *pKey = (*it).second;
-
-        ASMAtomicIncU32(&pKey->m_cRefs);
-        *ppbKey = (const uint8_t *)pKey->m_pvKey;
-        *pcbKey = pKey->m_cbKey;
-        return VINF_SUCCESS;
-    }
-
-    return VERR_NOT_FOUND;
-}
-
-/**
- * @interface_method_impl{PDMISECKEY,pfnKeyRelease}
- */
-/*static*/ DECLCALLBACK(int)
-Console::i_pdmIfSecKey_KeyRelease(PPDMISECKEY pInterface, const char *pszId)
-{
-    Console *pConsole = ((MYPDMISECKEY *)pInterface)->pConsole;
-    SecretKeyMap::const_iterator it = pConsole->m_mapSecretKeys.find(Utf8Str(pszId));
-    if (it != pConsole->m_mapSecretKeys.end())
-    {
-        SecretKey *pKey = (*it).second;
-        ASMAtomicDecU32(&pKey->m_cRefs);
-        return VINF_SUCCESS;
-    }
-
-    return VERR_NOT_FOUND;
-}
-
 
 
 
@@ -10410,14 +9654,14 @@ typedef struct DRVMAINSTATUS
  */
 DECLCALLBACK(void) Console::drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN)
 {
-    PDRVMAINSTATUS pThis = (PDRVMAINSTATUS)((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINSTATUS, ILedConnectors));
-    if (iLUN >= pThis->iFirstLUN && iLUN <= pThis->iLastLUN)
+    PDRVMAINSTATUS pData = (PDRVMAINSTATUS)((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINSTATUS, ILedConnectors));
+    if (iLUN >= pData->iFirstLUN && iLUN <= pData->iLastLUN)
     {
         PPDMLED pLed;
-        int rc = pThis->pLedPorts->pfnQueryStatusLed(pThis->pLedPorts, iLUN, &pLed);
+        int rc = pData->pLedPorts->pfnQueryStatusLed(pData->pLedPorts, iLUN, &pLed);
         if (RT_FAILURE(rc))
             pLed = NULL;
-        ASMAtomicWritePtr(&pThis->papLeds[iLUN - pThis->iFirstLUN], pLed);
+        ASMAtomicWritePtr(&pData->papLeds[iLUN - pData->iFirstLUN], pLed);
         Log(("drvStatus_UnitChanged: iLUN=%d pLed=%p\n", iLUN, pLed));
     }
 }
@@ -10432,17 +9676,17 @@ DECLCALLBACK(void) Console::drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface,
  */
 DECLCALLBACK(int) Console::drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, unsigned uLUN)
 {
-    PDRVMAINSTATUS pThis = (PDRVMAINSTATUS)((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINSTATUS, IMediaNotify));
-    PPDMDRVINS pDrvIns = pThis->pDrvIns;
+    PDRVMAINSTATUS pData = (PDRVMAINSTATUS)((uintptr_t)pInterface - RT_OFFSETOF(DRVMAINSTATUS, IMediaNotify));
+    PPDMDRVINS pDrvIns = pData->pDrvIns;
     LogFunc(("uLUN=%d\n", uLUN));
-    if (pThis->pmapMediumAttachments)
+    if (pData->pmapMediumAttachments)
     {
-        AutoWriteLock alock(pThis->pConsole COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock alock(pData->pConsole COMMA_LOCKVAL_SRC_POS);
 
         ComPtr<IMediumAttachment> pMediumAtt;
-        Utf8Str devicePath = Utf8StrFmt("%s/LUN#%u", pThis->pszDeviceInstance, uLUN);
-        Console::MediumAttachmentMap::const_iterator end = pThis->pmapMediumAttachments->end();
-        Console::MediumAttachmentMap::const_iterator it = pThis->pmapMediumAttachments->find(devicePath);
+        Utf8Str devicePath = Utf8StrFmt("%s/LUN#%u", pData->pszDeviceInstance, uLUN);
+        Console::MediumAttachmentMap::const_iterator end = pData->pmapMediumAttachments->end();
+        Console::MediumAttachmentMap::const_iterator it = pData->pmapMediumAttachments->find(devicePath);
         if (it != end)
             pMediumAtt = it->second;
         Assert(!pMediumAtt.isNull());
@@ -10461,15 +9705,15 @@ DECLCALLBACK(int) Console::drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, 
                     alock.release();
 
                     ComPtr<IMediumAttachment> pNewMediumAtt;
-                    rc = pThis->pConsole->mControl->EjectMedium(pMediumAtt, pNewMediumAtt.asOutParam());
+                    rc = pData->pConsole->mControl->EjectMedium(pMediumAtt, pNewMediumAtt.asOutParam());
                     if (SUCCEEDED(rc))
-                        fireMediumChangedEvent(pThis->pConsole->mEventSource, pNewMediumAtt);
+                        fireMediumChangedEvent(pData->pConsole->mEventSource, pNewMediumAtt);
 
                     alock.acquire();
                     if (pNewMediumAtt != pMediumAtt)
                     {
-                        pThis->pmapMediumAttachments->erase(devicePath);
-                        pThis->pmapMediumAttachments->insert(std::make_pair(devicePath, pNewMediumAtt));
+                        pData->pmapMediumAttachments->erase(devicePath);
+                        pData->pmapMediumAttachments->insert(std::make_pair(devicePath, pNewMediumAtt));
                     }
                 }
             }
@@ -10501,15 +9745,15 @@ DECLCALLBACK(void *)  Console::drvStatus_QueryInterface(PPDMIBASE pInterface, co
  */
 DECLCALLBACK(void) Console::drvStatus_Destruct(PPDMDRVINS pDrvIns)
 {
-    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
-    PDRVMAINSTATUS pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
+    PDRVMAINSTATUS pData = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
     LogFlowFunc(("iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
-    if (pThis->papLeds)
+    if (pData->papLeds)
     {
-        unsigned iLed = pThis->iLastLUN - pThis->iFirstLUN + 1;
+        unsigned iLed = pData->iLastLUN - pData->iFirstLUN + 1;
         while (iLed-- > 0)
-            ASMAtomicWriteNullPtr(&pThis->papLeds[iLed]);
+            ASMAtomicWriteNullPtr(&pData->papLeds[iLed]);
     }
 }
 
@@ -10521,9 +9765,9 @@ DECLCALLBACK(void) Console::drvStatus_Destruct(PPDMDRVINS pDrvIns)
  */
 DECLCALLBACK(int) Console::drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
-    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
-    PDRVMAINSTATUS pThis = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
+    PDRVMAINSTATUS pData = PDMINS_2_DATA(pDrvIns, PDRVMAINSTATUS);
     LogFlowFunc(("iInstance=%d\n", pDrvIns->iInstance));
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
 
     /*
      * Validate configuration.
@@ -10538,36 +9782,36 @@ DECLCALLBACK(int) Console::drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
      * Data.
      */
     pDrvIns->IBase.pfnQueryInterface        = Console::drvStatus_QueryInterface;
-    pThis->ILedConnectors.pfnUnitChanged    = Console::drvStatus_UnitChanged;
-    pThis->IMediaNotify.pfnEjected          = Console::drvStatus_MediumEjected;
-    pThis->pDrvIns                          = pDrvIns;
-    pThis->pszDeviceInstance                = NULL;
+    pData->ILedConnectors.pfnUnitChanged    = Console::drvStatus_UnitChanged;
+    pData->IMediaNotify.pfnEjected          = Console::drvStatus_MediumEjected;
+    pData->pDrvIns                          = pDrvIns;
+    pData->pszDeviceInstance                = NULL;
 
     /*
      * Read config.
      */
-    int rc = CFGMR3QueryPtr(pCfg, "papLeds", (void **)&pThis->papLeds);
+    int rc = CFGMR3QueryPtr(pCfg, "papLeds", (void **)&pData->papLeds);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Failed to query the \"papLeds\" value! rc=%Rrc\n", rc));
         return rc;
     }
 
-    rc = CFGMR3QueryPtrDef(pCfg, "pmapMediumAttachments", (void **)&pThis->pmapMediumAttachments, NULL);
+    rc = CFGMR3QueryPtrDef(pCfg, "pmapMediumAttachments", (void **)&pData->pmapMediumAttachments, NULL);
     if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Failed to query the \"pmapMediumAttachments\" value! rc=%Rrc\n", rc));
         return rc;
     }
-    if (pThis->pmapMediumAttachments)
+    if (pData->pmapMediumAttachments)
     {
-        rc = CFGMR3QueryStringAlloc(pCfg, "DeviceInstance", &pThis->pszDeviceInstance);
+        rc = CFGMR3QueryStringAlloc(pCfg, "DeviceInstance", &pData->pszDeviceInstance);
         if (RT_FAILURE(rc))
         {
             AssertMsgFailed(("Configuration error: Failed to query the \"DeviceInstance\" value! rc=%Rrc\n", rc));
             return rc;
         }
-        rc = CFGMR3QueryPtr(pCfg, "pConsole", (void **)&pThis->pConsole);
+        rc = CFGMR3QueryPtr(pCfg, "pConsole", (void **)&pData->pConsole);
         if (RT_FAILURE(rc))
         {
             AssertMsgFailed(("Configuration error: Failed to query the \"pConsole\" value! rc=%Rrc\n", rc));
@@ -10575,26 +9819,26 @@ DECLCALLBACK(int) Console::drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
         }
     }
 
-    rc = CFGMR3QueryU32(pCfg, "First", &pThis->iFirstLUN);
+    rc = CFGMR3QueryU32(pCfg, "First", &pData->iFirstLUN);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pThis->iFirstLUN = 0;
+        pData->iFirstLUN = 0;
     else if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Failed to query the \"First\" value! rc=%Rrc\n", rc));
         return rc;
     }
 
-    rc = CFGMR3QueryU32(pCfg, "Last", &pThis->iLastLUN);
+    rc = CFGMR3QueryU32(pCfg, "Last", &pData->iLastLUN);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND)
-        pThis->iLastLUN = 0;
+        pData->iLastLUN = 0;
     else if (RT_FAILURE(rc))
     {
         AssertMsgFailed(("Configuration error: Failed to query the \"Last\" value! rc=%Rrc\n", rc));
         return rc;
     }
-    if (pThis->iFirstLUN > pThis->iLastLUN)
+    if (pData->iFirstLUN > pData->iLastLUN)
     {
-        AssertMsgFailed(("Configuration error: Invalid unit range %u-%u\n", pThis->iFirstLUN, pThis->iLastLUN));
+        AssertMsgFailed(("Configuration error: Invalid unit range %u-%u\n", pData->iFirstLUN, pData->iLastLUN));
         return VERR_GENERAL_FAILURE;
     }
 
@@ -10602,12 +9846,12 @@ DECLCALLBACK(int) Console::drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCf
      * Get the ILedPorts interface of the above driver/device and
      * query the LEDs we want.
      */
-    pThis->pLedPorts = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
-    AssertMsgReturn(pThis->pLedPorts, ("Configuration error: No led ports interface above!\n"),
+    pData->pLedPorts = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMILEDPORTS);
+    AssertMsgReturn(pData->pLedPorts, ("Configuration error: No led ports interface above!\n"),
                     VERR_PDM_MISSING_INTERFACE_ABOVE);
 
-    for (unsigned i = pThis->iFirstLUN; i <= pThis->iLastLUN; ++i)
-        Console::drvStatus_UnitChanged(&pThis->ILedConnectors, i);
+    for (unsigned i = pData->iFirstLUN; i <= pData->iLastLUN; ++i)
+        Console::drvStatus_UnitChanged(&pData->ILedConnectors, i);
 
     return VINF_SUCCESS;
 }

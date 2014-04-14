@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -462,12 +462,12 @@ PDMBOTHCBDECL(int) drvIntNetUp_FreeBuf(PPDMINETWORKUP pInterface, PPDMSCATTERGAT
 #endif
     Assert(pSgBuf->fFlags == (PDMSCATTERGATHER_FLAGS_MAGIC | PDMSCATTERGATHER_FLAGS_OWNER_1));
     Assert(pSgBuf->cbUsed <= pSgBuf->cbAvailable);
-    Assert(   pHdr->u8Type == INTNETHDR_TYPE_FRAME
-           || pHdr->u8Type == INTNETHDR_TYPE_GSO);
+    Assert(   pHdr->u16Type == INTNETHDR_TYPE_FRAME
+           || pHdr->u16Type == INTNETHDR_TYPE_GSO);
     Assert(PDMCritSectIsOwner(&pThis->XmitLock));
 
     /** @todo LATER: try unalloc the frame. */
-    pHdr->u8Type = INTNETHDR_TYPE_PADDING;
+    pHdr->u16Type = INTNETHDR_TYPE_PADDING;
     IntNetRingCommitFrame(&pThis->CTX_SUFF(pBuf)->Send, pHdr);
 
 #ifdef IN_RING3
@@ -702,9 +702,9 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
             }
 
             Log2(("pHdr=%p offRead=%#x: %.8Rhxs\n", pHdr, pRingBuf->offReadX, pHdr));
-            uint8_t u8Type = pHdr->u8Type;
-            if (    (   u8Type == INTNETHDR_TYPE_FRAME
-                     || u8Type == INTNETHDR_TYPE_GSO)
+            uint16_t u16Type = pHdr->u16Type;
+            if (    (   u16Type == INTNETHDR_TYPE_FRAME
+                     || u16Type == INTNETHDR_TYPE_GSO)
                 &&  !pThis->fLinkDown)
             {
                 /*
@@ -714,7 +714,7 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                 int rc = pThis->pIAboveNet->pfnWaitReceiveAvail(pThis->pIAboveNet, 0);
                 if (rc == VINF_SUCCESS)
                 {
-                    if (u8Type == INTNETHDR_TYPE_FRAME)
+                    if (u16Type == INTNETHDR_TYPE_FRAME)
                     {
                         /*
                          * Normal frame.
@@ -768,9 +768,9 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                                     LogFlow(("drvR3IntNetRecvRun: %-4d bytes at %llu ns  deltas: r=%llu t=%llu; GSO - %u segs\n",
                                              cbFrame, u64Now, u64Now - pThis->u64LastReceiveTS, u64Now - pThis->u64LastTransferTS, cSegs));
                                     pThis->u64LastReceiveTS = u64Now;
-                                    Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrsTotal=%#x cbHdrsSeg=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
+                                    Log2(("drvR3IntNetRecvRun: cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n"
                                           "%.*Rhxd\n",
-                                          cbFrame, pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
+                                          cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg,
                                           cbFrame - sizeof(*pGso), pGso + 1));
                                 }
 #endif
@@ -792,8 +792,8 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                         }
                         else
                         {
-                            AssertMsgFailed(("cbFrame=%#x type=%d cbHdrsTotal=%#x cbHdrsSeg=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n",
-                                             cbFrame, pGso->u8Type, pGso->cbHdrsTotal, pGso->cbHdrsSeg, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg));
+                            AssertMsgFailed(("cbFrame=%#x type=%d cbHdrs=%#x Hdr1=%#x Hdr2=%#x MMS=%#x\n",
+                                             cbFrame, pGso->u8Type, pGso->cbHdrs, pGso->offHdr1, pGso->offHdr2, pGso->cbMaxSeg));
                             STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
                         }
 
@@ -813,7 +813,7 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                             /*
                              * NIC is going down, likely because the VM is being reset. Skip the frame.
                              */
-                            AssertMsg(IntNetIsValidFrameType(pHdr->u8Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u8Type, pRingBuf->offReadX));
+                            AssertMsg(IntNetIsValidFrameType(pHdr->u16Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u16Type, pRingBuf->offReadX));
                             IntNetRingSkipFrame(pRingBuf);
                         }
                         else
@@ -830,7 +830,7 @@ static int drvR3IntNetRecvRun(PDRVINTNET pThis)
                 /*
                  * Link down or unknown frame - skip to the next frame.
                  */
-                AssertMsg(IntNetIsValidFrameType(pHdr->u8Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u8Type, pRingBuf->offReadX));
+                AssertMsg(IntNetIsValidFrameType(pHdr->u16Type), ("Unknown frame type %RX16! offRead=%#x\n", pHdr->u16Type, pRingBuf->offReadX));
                 IntNetRingSkipFrame(pRingBuf);
                 STAM_REL_COUNTER_INC(&pBuf->cStatBadFrames);
             }
@@ -1034,8 +1034,6 @@ static DECLCALLBACK(void) drvR3IntNetResume(PPDMDRVINS pDrvIns)
 {
     LogFlow(("drvR3IntNetPowerResume\n"));
     PDRVINTNET pThis = PDMINS_2_DATA(pDrvIns, PDRVINTNET);
-    VMRESUMEREASON enmReason = PDMDrvHlpVMGetResumeReason(pDrvIns);
-
     if (!pThis->fActivateEarlyDeactivateLate)
     {
         ASMAtomicXchgSize(&pThis->enmRecvState, RECVSTATE_RUNNING);
@@ -1043,64 +1041,32 @@ static DECLCALLBACK(void) drvR3IntNetResume(PPDMDRVINS pDrvIns)
         drvR3IntNetUpdateMacAddress(pThis); /* (could be a state restore) */
         drvR3IntNetSetActive(pThis, true /* fActive */);
     }
-
-    switch (enmReason)
+    if (   PDMDrvHlpVMTeleportedAndNotFullyResumedYet(pDrvIns)
+        && pThis->pIAboveConfigR3)
     {
-        case VMRESUMEREASON_HOST_RESUME:
+        /*
+         * We've just been teleported and need to drop a hint to the switch
+         * since we're likely to have changed to a different port.  We just
+         * push out some ethernet frame that doesn't mean anything to anyone.
+         * For this purpose ethertype 0x801e was chosen since it was registered
+         * to Sun (dunno what it is/was used for though).
+         */
+        union
         {
-            uint32_t u32TrunkType;
-            int rc = CFGMR3QueryU32(pDrvIns->pCfg, "TrunkType", &u32TrunkType);
-            AssertRC(rc);
-
-            /*
-             * Only do the disconnect for bridged networking. Host-only and
-             * internal networks are not affected by a host resume.
-             */
-            if (   RT_SUCCESS(rc)
-                && u32TrunkType == kIntNetTrunkType_NetFlt)
-            {
-                rc = pThis->pIAboveConfigR3->pfnSetLinkState(pThis->pIAboveConfigR3,
-                                                             PDMNETWORKLINKSTATE_DOWN_RESUME);
-                AssertRC(rc);
-            }
-            break;
-        }
-        case VMRESUMEREASON_TELEPORTED:
-        case VMRESUMEREASON_TELEPORT_FAILED:
-        {
-            if (   PDMDrvHlpVMTeleportedAndNotFullyResumedYet(pDrvIns)
-                   && pThis->pIAboveConfigR3)
-            {
-                /*
-                 * We've just been teleported and need to drop a hint to the switch
-                 * since we're likely to have changed to a different port.  We just
-                 * push out some ethernet frame that doesn't mean anything to anyone.
-                 * For this purpose ethertype 0x801e was chosen since it was registered
-                 * to Sun (dunno what it is/was used for though).
-                 */
-                union
-                {
-                    RTNETETHERHDR   Hdr;
-                    uint8_t         ab[128];
-                } Frame;
-                RT_ZERO(Frame);
-                Frame.Hdr.DstMac.au16[0] = 0xffff;
-                Frame.Hdr.DstMac.au16[1] = 0xffff;
-                Frame.Hdr.DstMac.au16[2] = 0xffff;
-                Frame.Hdr.EtherType      = RT_H2BE_U16_C(0x801e);
-                int rc = pThis->pIAboveConfigR3->pfnGetMac(pThis->pIAboveConfigR3,
-                                                           &Frame.Hdr.SrcMac);
-                if (RT_SUCCESS(rc))
-                    rc = drvR3IntNetResumeSend(pThis, &Frame, sizeof(Frame));
-                if (RT_FAILURE(rc))
-                    LogRel(("IntNet#%u: Sending dummy frame failed: %Rrc\n",
-                            pDrvIns->iInstance, rc));
-            }
-            break;
-        }
-        default: /* ignore every other resume reason else */
-            break;
-    } /* end of switch(enmReason) */
+            RTNETETHERHDR   Hdr;
+            uint8_t         ab[128];
+        } Frame;
+        RT_ZERO(Frame);
+        Frame.Hdr.DstMac.au16[0] = 0xffff;
+        Frame.Hdr.DstMac.au16[1] = 0xffff;
+        Frame.Hdr.DstMac.au16[2] = 0xffff;
+        Frame.Hdr.EtherType      = RT_H2BE_U16_C(0x801e);
+        int rc = pThis->pIAboveConfigR3->pfnGetMac(pThis->pIAboveConfigR3, &Frame.Hdr.SrcMac);
+        if (RT_SUCCESS(rc))
+            rc = drvR3IntNetResumeSend(pThis, &Frame, sizeof(Frame));
+        if (RT_FAILURE(rc))
+            LogRel(("IntNet#%u: Sending dummy frame failed: %Rrc\n", pDrvIns->iInstance, rc));
+    }
 }
 
 
@@ -1488,30 +1454,6 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
         return PDMDRV_SET_ERROR(pDrvIns, rc,
                                 N_("Configuration error: Failed to get the \"RestrictAccess\" value"));
 
-    /** @cfgm{RequireExactPolicyMatch, boolean, false}
-     * Whether to require that the current security and promiscuous policies of
-     * the network is exactly as the ones specified in this open network
-     * request.  Use this with RequireAsRestrictivePolicy to prevent
-     * restrictions from being lifted.  If no further policy changes are
-     * desired, apply the relevant fixed flags. */
-    rc = CFGMR3QueryBoolDef(pCfg, "RequireExactPolicyMatch", &f, false);
-    if (RT_FAILURE(rc))
-        return PDMDRV_SET_ERROR(pDrvIns, rc,
-                                N_("Configuration error: Failed to get the \"RequireExactPolicyMatch\" value"));
-    if (f)
-        OpenReq.fFlags |= INTNET_OPEN_FLAGS_REQUIRE_EXACT;
-
-    /** @cfgm{RequireAsRestrictivePolicy, boolean, false}
-     * Whether to require that the security and promiscuous policies of the
-     * network is at least as restrictive as specified this request specifies
-     * and prevent them  being lifted later on.
-     */
-    rc = CFGMR3QueryBoolDef(pCfg, "RequireAsRestrictivePolicy", &f, false);
-    if (RT_FAILURE(rc))
-        return PDMDRV_SET_ERROR(pDrvIns, rc,
-                                N_("Configuration error: Failed to get the \"RequireAsRestrictivePolicy\" value"));
-    if (f)
-        OpenReq.fFlags |= INTNET_OPEN_FLAGS_REQUIRE_AS_RESTRICTIVE_POLICIES;
 
     /** @cfgm{AccessPolicy, string, "none"}
      * The access policy of the network:
@@ -1694,7 +1636,7 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* Temporary hack: attach to a network with the name 'if=en0' and you're hitting the wire. */
     if (    !OpenReq.szTrunk[0]
         &&   OpenReq.enmTrunkType == kIntNetTrunkType_None
-        &&  !strncmp(pThis->szNetwork, RT_STR_TUPLE("if=en"))
+        &&  !strncmp(pThis->szNetwork, "if=en", sizeof("if=en") - 1)
         &&  RT_C_IS_DIGIT(pThis->szNetwork[sizeof("if=en") - 1])
         &&  !pThis->szNetwork[sizeof("if=en")])
     {
@@ -1704,7 +1646,7 @@ static DECLCALLBACK(int) drvR3IntNetConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* Temporary hack: attach to a network with the name 'wif=en0' and you're on the air. */
     if (    !OpenReq.szTrunk[0]
         &&   OpenReq.enmTrunkType == kIntNetTrunkType_None
-        &&  !strncmp(pThis->szNetwork, RT_STR_TUPLE("wif=en"))
+        &&  !strncmp(pThis->szNetwork, "wif=en", sizeof("wif=en") - 1)
         &&  RT_C_IS_DIGIT(pThis->szNetwork[sizeof("wif=en") - 1])
         &&  !pThis->szNetwork[sizeof("wif=en")])
     {

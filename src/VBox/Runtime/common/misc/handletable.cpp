@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,8 +57,6 @@ RTDECL(int) RTHandleTableCreateEx(PRTHANDLETABLE phHandleTable, uint32_t fFlags,
     *phHandleTable = NIL_RTHANDLETABLE;
     AssertPtrNullReturn(pfnRetain, VERR_INVALID_POINTER);
     AssertReturn(!(fFlags & ~RTHANDLETABLE_FLAGS_MASK), VERR_INVALID_PARAMETER);
-    AssertReturn(RT_BOOL(fFlags & RTHANDLETABLE_FLAGS_LOCKED) + RT_BOOL(fFlags & RTHANDLETABLE_FLAGS_LOCKED_IRQ_SAFE) < 2,
-                 VERR_INVALID_PARAMETER);
     AssertReturn(cMax > 0, VERR_INVALID_PARAMETER);
     AssertReturn(UINT32_MAX - cMax >= uBase, VERR_INVALID_PARAMETER);
 
@@ -102,13 +100,9 @@ RTDECL(int) RTHandleTableCreateEx(PRTHANDLETABLE phHandleTable, uint32_t fFlags,
     pThis->cLevel1 = cLevel1 < RTHT_LEVEL1_DYN_ALLOC_THRESHOLD ? cLevel1 : 0;
     pThis->iFreeHead = NIL_RTHT_INDEX;
     pThis->iFreeTail = NIL_RTHT_INDEX;
-    if (fFlags & (RTHANDLETABLE_FLAGS_LOCKED | RTHANDLETABLE_FLAGS_LOCKED_IRQ_SAFE))
+    if (fFlags & RTHANDLETABLE_FLAGS_LOCKED)
     {
-        int rc;
-        if (fFlags & RTHANDLETABLE_FLAGS_LOCKED_IRQ_SAFE)
-            rc = RTSpinlockCreate(&pThis->hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "RTHandleTableCreateEx");
-        else
-            rc = RTSpinlockCreate(&pThis->hSpinlock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "RTHandleTableCreateEx");
+        int rc = RTSpinlockCreate(&pThis->hSpinlock);
         if (RT_FAILURE(rc))
         {
             RTMemFree(pThis);
@@ -132,6 +126,7 @@ RT_EXPORT_SYMBOL(RTHandleTableCreate);
 RTDECL(int) RTHandleTableDestroy(RTHANDLETABLE hHandleTable, PFNRTHANDLETABLEDELETE pfnDelete, void *pvUser)
 {
     PRTHANDLETABLEINT   pThis;
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint32_t            i1;
     uint32_t            i;
 
@@ -149,14 +144,14 @@ RTDECL(int) RTHandleTableDestroy(RTHANDLETABLE hHandleTable, PFNRTHANDLETABLEDEL
      * Mark the thing as invalid / deleted.
      * Then kill the lock.
      */
-    rtHandleTableLock(pThis);
+    rtHandleTableLock(pThis, &Tmp);
     ASMAtomicWriteU32(&pThis->u32Magic, ~RTHANDLETABLE_MAGIC);
-    rtHandleTableUnlock(pThis);
+    rtHandleTableUnlock(pThis, &Tmp);
 
     if (pThis->hSpinlock != NIL_RTSPINLOCK)
     {
-        rtHandleTableLock(pThis);
-        rtHandleTableUnlock(pThis);
+        rtHandleTableLock(pThis, &Tmp);
+        rtHandleTableUnlock(pThis, &Tmp);
 
         RTSpinlockDestroy(pThis->hSpinlock);
         pThis->hSpinlock = NIL_RTSPINLOCK;

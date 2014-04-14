@@ -1,10 +1,11 @@
-/* $Id: regops.c $ */
 /** @file
- * vboxsf - VBox Linux Shared Folders, Regular file inode and file operations.
+ *
+ * vboxsf -- VirtualBox Guest Additions for Linux:
+ * Regular file inode and file operations
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +22,7 @@
 
 #include "vfsmod.h"
 
-static void *alloc_bounce_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
+static void *alloc_bounch_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
                                  xfer_size, const char *caller)
 {
     size_t tmp_size;
@@ -49,7 +50,7 @@ static void *alloc_bounce_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
     return tmp;
 }
 
-static void free_bounce_buffer(void *tmp)
+static void free_bounch_buffer(void *tmp)
 {
     kfree (tmp);
 }
@@ -125,7 +126,7 @@ static ssize_t sf_reg_read(struct file *file, char *buf, size_t size, loff_t *of
     if (!size)
         return 0;
 
-    tmp = alloc_bounce_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+    tmp = alloc_bounch_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
     if (!tmp)
         return -ENOMEM;
 
@@ -158,11 +159,11 @@ static ssize_t sf_reg_read(struct file *file, char *buf, size_t size, loff_t *of
     }
 
     *off += total_bytes_read;
-    free_bounce_buffer(tmp);
+    free_bounch_buffer(tmp);
     return total_bytes_read;
 
 fail:
-    free_bounce_buffer(tmp);
+    free_bounch_buffer(tmp);
     return err;
 }
 
@@ -212,7 +213,7 @@ static ssize_t sf_reg_write(struct file *file, const char *buf, size_t size, lof
     if (!size)
         return 0;
 
-    tmp = alloc_bounce_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+    tmp = alloc_bounch_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
     if (!tmp)
         return -ENOMEM;
 
@@ -258,11 +259,11 @@ static ssize_t sf_reg_write(struct file *file, const char *buf, size_t size, lof
         inode->i_size = *off;
 
     sf_i->force_restat = 1;
-    free_bounce_buffer(tmp);
+    free_bounch_buffer(tmp);
     return total_bytes_written;
 
 fail:
-    free_bounce_buffer(tmp);
+    free_bounch_buffer(tmp);
     return err;
 }
 
@@ -574,13 +575,8 @@ struct file_operations sf_reg_fops =
 # else
     .sendfile    = generic_file_sendfile,
 # endif
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
-    .read_iter   = generic_file_read_iter,
-    .write_iter  = generic_file_write_iter,
-# else
     .aio_read    = generic_file_aio_read,
     .aio_write   = generic_file_aio_write,
-# endif
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
     .fsync       = noop_fsync,
 # else

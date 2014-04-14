@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,8 +47,6 @@ extern "C" DECLIMPORT(RTLOGGERRC)   g_RelLogger;
 static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg);
 static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame);
 static DECLCALLBACK(int) vmmGCTestTmpPFHandlerCorruptFS(PVM pVM, PCPUMCTXCORE pRegFrame);
-DECLASM(bool)   vmmRCSafeMsrRead(uint32_t uMsr, uint64_t *pu64Value);
-DECLASM(bool)   vmmRCSafeMsrWrite(uint32_t uMsr, uint64_t u64Value);
 
 
 
@@ -56,7 +54,7 @@ DECLASM(bool)   vmmRCSafeMsrWrite(uint32_t uMsr, uint64_t u64Value);
  * The GC entry point.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   uOperation  Which operation to execute (VMMGCOPERATION).
  * @param   uArg        Argument to that operation.
  */
@@ -71,23 +69,18 @@ VMMRCDECL(int) VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...)
         case VMMGC_DO_VMMGC_INIT:
         {
             /*
-             * Validate the svn revision (uArg) and build type (ellipsis).
+             * Validate the svn revision (uArg).
              */
             if (uArg != VMMGetSvnRev())
                 return VERR_VMM_RC_VERSION_MISMATCH;
 
-            va_list va;
-            va_start(va, uArg);
-
-            uint32_t uBuildType = va_arg(va, uint32_t);
-            if (uBuildType != vmmGetBuildType())
-                return VERR_VMM_RC_VERSION_MISMATCH;
-
             /*
              * Initialize the runtime.
+             * (The program timestamp is found in the elipsis.)
              */
+            va_list va;
+            va_start(va, uArg);
             uint64_t u64TS = va_arg(va, uint64_t);
-
             va_end(va);
 
             int rc = RTRCInit(u64TS);
@@ -126,7 +119,7 @@ VMMRCDECL(int) VMMGCEntry(PVM pVM, unsigned uOperation, unsigned uArg, ...)
         /*
          * Testcase executes a privileged instruction to force a world switch. (in both SVM & VMX)
          */
-        case VMMGC_DO_TESTCASE_HM_NOP:
+        case VMMGC_DO_TESTCASE_HWACCM_NOP:
             ASMRdMsr_Low(MSR_IA32_SYSENTER_CS);
             return 0;
 
@@ -189,7 +182,7 @@ VMMRCDECL(int) vmmGCLoggerFlush(PRTLOGGERRC pLogger)
 /**
  * Flush logger if almost full.
  *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The VM handle.
  */
 VMMRCDECL(void) VMMGCLogFlushIfFull(PVM pVM)
 {
@@ -206,25 +199,13 @@ VMMRCDECL(void) VMMGCLogFlushIfFull(PVM pVM)
 /**
  * Switches from guest context to host context.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   rc          The status code.
  */
 VMMRCDECL(void) VMMGCGuestToHost(PVM pVM, int rc)
 {
-    pVM->vmm.s.pfnRCToHost(rc);
+    pVM->vmm.s.pfnGuestToHostRC(rc);
 }
-
-
-/**
- * Calls the ring-0 host code.
- *
- * @param   pVM             Pointer to the VM.
- */
-DECLASM(void) vmmRCProbeFireHelper(PVM pVM)
-{
-    pVM->vmm.s.pfnRCToHost(VINF_VMM_CALL_TRACER);
-}
-
 
 
 /**
@@ -238,7 +219,7 @@ DECLASM(void) vmmRCProbeFireHelper(PVM pVM)
  * @returns VERR_NOT_IMPLEMENTED if the testcase wasn't implemented.
  * @returns VERR_GENERAL_FAILURE if the testcase continued when it shouldn't.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   uOperation  The testcase.
  * @param   uArg        The variation. See function description for odd / even details.
  *
@@ -345,88 +326,12 @@ static int vmmGCTest(PVM pVM, unsigned uOperation, unsigned uArg)
 }
 
 
-
-/**
- * Reads a range of MSRs.
- *
- * This is called directly via VMMR3CallRC.
- *
- * @returns VBox status code.
- * @param   pVM             The VM handle.
- * @param   uMsr            The MSR to start at.
- * @param   cMsrs           The number of MSRs to read.
- * @param   paResults       Where to store the results.  This must be large
- *                          enough to hold at least @a cMsrs result values.
- */
-extern "C" VMMRCDECL(int)
-VMMRCTestReadMsrs(PVM pVM, uint32_t uMsr, uint32_t cMsrs, PVMMTESTMSRENTRY paResults)
-{
-    AssertReturn(cMsrs <= 16384, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(paResults, VERR_INVALID_POINTER);
-    ASMIntEnable(); /* Run with interrupts enabled, so we can query more MSRs in one block. */
-
-    for (uint32_t i = 0; i < cMsrs; i++, uMsr++)
-    {
-        if (vmmRCSafeMsrRead(uMsr, &paResults[i].uValue))
-            paResults[i].uMsr = uMsr;
-        else
-            paResults[i].uMsr = UINT64_MAX;
-    }
-
-    ASMIntDisable();
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Tries to write the given value to an MSR, returns the effect and restors the
- * original value.
- *
- * This is called directly via VMMR3CallRC.
- *
- * @returns VBox status code.
- * @param   pVM             The VM handle.
- * @param   uMsr            The MSR to start at.
- * @param   u32ValueLow     The low part of the value to write.
- * @param   u32ValueHi      The high part of the value to write.
- * @param   puValueBefore   The value before writing.
- * @param   puValueAfter    The value read back after writing.
- */
-extern "C" VMMRCDECL(int)
-VMMRCTestTestWriteMsr(PVM pVM, uint32_t uMsr, uint32_t u32ValueLow, uint32_t u32ValueHi,
-                      uint64_t *puValueBefore, uint64_t *puValueAfter)
-{
-    AssertPtrReturn(puValueBefore, VERR_INVALID_POINTER);
-    AssertPtrReturn(puValueAfter, VERR_INVALID_POINTER);
-    ASMIntDisable();
-
-    int      rc           = VINF_SUCCESS;
-    uint64_t uValueBefore = UINT64_MAX;
-    uint64_t uValueAfter  = UINT64_MAX;
-    if (vmmRCSafeMsrRead(uMsr, &uValueBefore))
-    {
-        if (!vmmRCSafeMsrWrite(uMsr, RT_MAKE_U64(u32ValueLow, u32ValueHi)))
-            rc = VERR_WRITE_PROTECT;
-        if (!vmmRCSafeMsrRead(uMsr, &uValueAfter) && RT_SUCCESS(rc))
-            rc = VERR_READ_ERROR;
-        vmmRCSafeMsrWrite(uMsr, uValueBefore);
-    }
-    else
-        rc = VERR_ACCESS_DENIED;
-
-    *puValueBefore = uValueBefore;
-    *puValueAfter  = uValueAfter;
-    return rc;
-}
-
-
-
 /**
  * Temporary \#PF trap handler for the \#PF test case.
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pRegFrame   Trap register frame.
  */
 static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
@@ -436,7 +341,6 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
         pRegFrame->eip = (uintptr_t)vmmGCTestTrap0e_ResumeEIP;
         return VINF_SUCCESS;
     }
-    NOREF(pVM);
     return VERR_INTERNAL_ERROR;
 }
 
@@ -447,13 +351,13 @@ static DECLCALLBACK(int) vmmGCTestTmpPFHandler(PVM pVM, PCPUMCTXCORE pRegFrame)
  *
  * @returns VBox status code (appropriate for GC return).
  *          In this context RT_SUCCESS means to restart the instruction.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pRegFrame   Trap register frame.
  */
 static DECLCALLBACK(int) vmmGCTestTmpPFHandlerCorruptFS(PVM pVM, PCPUMCTXCORE pRegFrame)
 {
     int rc = vmmGCTestTmpPFHandler(pVM, pRegFrame);
-    pRegFrame->fs.Sel = 0x30;
+    pRegFrame->fs = 0x30;
     return rc;
 }
 

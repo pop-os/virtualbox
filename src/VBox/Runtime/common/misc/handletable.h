@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -218,11 +218,16 @@ DECLINLINE(PRTHTENTRYCTX) rtHandleTableLookupWithCtx(PRTHANDLETABLEINT pThis, ui
  * Locks the handle table.
  *
  * @param   pThis           The handle table structure.
+ * @param   pTmp            The spinlock temp variable.
  */
-DECLINLINE(void) rtHandleTableLock(PRTHANDLETABLEINT pThis)
+DECLINLINE(void) rtHandleTableLock(PRTHANDLETABLEINT pThis, PRTSPINLOCKTMP pTmp)
 {
     if (pThis->hSpinlock != NIL_RTSPINLOCK)
-        RTSpinlockAcquire(pThis->hSpinlock);
+    {
+        RTSPINLOCKTMP const Tmp = RTSPINLOCKTMP_INITIALIZER;
+        *pTmp = Tmp;
+        RTSpinlockAcquire(pThis->hSpinlock, pTmp);
+    }
 }
 
 
@@ -230,10 +235,11 @@ DECLINLINE(void) rtHandleTableLock(PRTHANDLETABLEINT pThis)
  * Locks the handle table.
  *
  * @param   pThis           The handle table structure.
+ * @param   pTmp            The spinlock temp variable.
  */
-DECLINLINE(void) rtHandleTableUnlock(PRTHANDLETABLEINT pThis)
+DECLINLINE(void) rtHandleTableUnlock(PRTHANDLETABLEINT pThis, PRTSPINLOCKTMP pTmp)
 {
     if (pThis->hSpinlock != NIL_RTSPINLOCK)
-        RTSpinlockRelease(pThis->hSpinlock);
+        RTSpinlockRelease(pThis->hSpinlock, pTmp);
 }
 

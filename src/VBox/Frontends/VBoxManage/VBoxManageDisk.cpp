@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,7 @@ using namespace com;
 
 static DECLCALLBACK(void) handleVDError(void *pvUser, int rc, RT_SRC_POS_DECL, const char *pszFormat, va_list va)
 {
-    RTMsgErrorV(pszFormat, va);
+    RTMsgError(pszFormat, va);
     RTMsgError("Error code %Rrc at %s(%u) in function %s", rc, RT_SRC_POS_ARGS);
 }
 
@@ -121,7 +121,7 @@ int parseDiskType(const char *psz, MediumType_T *pDiskType)
 }
 
 /** @todo move this into getopt, as getting bool values is generic */
-int parseBool(const char *psz, bool *pb)
+static int parseBool(const char *psz, bool *pb)
 {
     int rc = VINF_SUCCESS;
     if (    !RTStrICmp(psz, "on")
@@ -148,17 +148,16 @@ int parseBool(const char *psz, bool *pb)
     return rc;
 }
 
-HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
-                   DeviceType_T enmDevType, AccessMode_T enmAccessMode,
-                   ComPtr<IMedium> &pMedium, bool fForceNewUuidOnOpen,
-                   bool fSilent)
+HRESULT findMedium(HandlerArg *a, const char *pszFilenameOrUuid,
+                   DeviceType_T enmDevType, bool fSilent,
+                   ComPtr<IMedium> &pMedium)
 {
     HRESULT rc;
     Guid id(pszFilenameOrUuid);
     char szFilenameAbs[RTPATH_MAX] = "";
 
     /* If it is no UUID, convert the filename to an absolute one. */
-    if (!id.isValid())
+    if (id.isEmpty())
     {
         int irc = RTPathAbs(pszFilenameOrUuid, szFilenameAbs, sizeof(szFilenameAbs));
         if (RT_FAILURE(irc))
@@ -171,18 +170,49 @@ HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
     }
 
     if (!fSilent)
+        CHECK_ERROR(a->virtualBox, FindMedium(Bstr(pszFilenameOrUuid).raw(),
+                                              enmDevType, pMedium.asOutParam()));
+    else
+        rc = a->virtualBox->FindMedium(Bstr(pszFilenameOrUuid).raw(),
+                                       enmDevType, pMedium.asOutParam());
+    return rc;
+}
+
+HRESULT findOrOpenMedium(HandlerArg *a, const char *pszFilenameOrUuid,
+                         DeviceType_T enmDevType, ComPtr<IMedium> &pMedium,
+                         bool fForceNewUuidOnOpen, bool *pfWasUnknown)
+{
+    HRESULT rc;
+    bool fWasUnknown = false;
+    Guid id(pszFilenameOrUuid);
+    char szFilenameAbs[RTPATH_MAX] = "";
+
+    /* If it is no UUID, convert the filename to an absolute one. */
+    if (id.isEmpty())
+    {
+        int irc = RTPathAbs(pszFilenameOrUuid, szFilenameAbs, sizeof(szFilenameAbs));
+        if (RT_FAILURE(irc))
+        {
+            RTMsgError("Cannot convert filename \"%s\" to absolute path", pszFilenameOrUuid);
+            return E_FAIL;
+        }
+        pszFilenameOrUuid = szFilenameAbs;
+    }
+
+    rc = a->virtualBox->FindMedium(Bstr(pszFilenameOrUuid).raw(), enmDevType,
+                                   pMedium.asOutParam());
+    /* If the medium is unknown try to open it. */
+    if (!pMedium)
+    {
         CHECK_ERROR(a->virtualBox, OpenMedium(Bstr(pszFilenameOrUuid).raw(),
-                                              enmDevType,
-                                              enmAccessMode,
+                                              enmDevType, AccessMode_ReadWrite,
                                               fForceNewUuidOnOpen,
                                               pMedium.asOutParam()));
-    else
-        rc = a->virtualBox->OpenMedium(Bstr(pszFilenameOrUuid).raw(),
-                                       enmDevType,
-                                       enmAccessMode,
-                                       fForceNewUuidOnOpen,
-                                       pMedium.asOutParam());
-
+        if (SUCCEEDED(rc))
+            fWasUnknown = true;
+    }
+    if (RT_VALID_PTR(pfWasUnknown))
+        *pfWasUnknown = fWasUnknown;
     return rc;
 }
 
@@ -214,7 +244,6 @@ static const RTGETOPTDEF g_aCreateHardDiskOptions[] =
 {
     { "--filename",     'f', RTGETOPT_REQ_STRING },
     { "-filename",      'f', RTGETOPT_REQ_STRING },     // deprecated
-    { "--diffparent",   'd', RTGETOPT_REQ_STRING },
     { "--size",         's', RTGETOPT_REQ_UINT64 },
     { "-size",          's', RTGETOPT_REQ_UINT64 },     // deprecated
     { "--sizebyte",     'S', RTGETOPT_REQ_UINT64 },
@@ -231,10 +260,8 @@ int handleCreateHardDisk(HandlerArg *a)
     HRESULT rc;
     int vrc;
     const char *filename = NULL;
-    const char *diffparent = NULL;
     uint64_t size = 0;
-    const char *format = NULL;
-    bool fBase = true;
+    const char *format = "VDI";
     MediumVariant_T DiskVariant = MediumVariant_Standard;
 
     int c;
@@ -249,11 +276,6 @@ int handleCreateHardDisk(HandlerArg *a)
         {
             case 'f':   // --filename
                 filename = ValueUnion.psz;
-                break;
-
-            case 'd':   // --diffparent
-                diffparent = ValueUnion.psz;
-                fBase = false;
                 break;
 
             case 's':   // --size
@@ -303,55 +325,11 @@ int handleCreateHardDisk(HandlerArg *a)
     }
 
     /* check the outcome */
-    ComPtr<IMedium> parentHardDisk;
-    if (fBase)
-    {
-        if (   !filename
-            || !*filename
-            || size == 0)
-            return errorSyntax(USAGE_CREATEHD, "Parameters --filename and --size are required");
-        if (!format || !*format)
-            format = "VDI";
-    }
-    else
-    {
-        if (   !filename
-            || !*filename)
-            return errorSyntax(USAGE_CREATEHD, "Parameters --filename is required");
-        size = 0;
-        DiskVariant = MediumVariant_Diff;
-        if (!format || !*format)
-        {
-            const char *pszExt = RTPathExt(filename);
-            /* Skip over . if there is an extension. */
-            if (pszExt)
-                pszExt++;
-            if (!pszExt || !*pszExt)
-                format = "VDI";
-            else
-                format = pszExt;
-        }
-        rc = openMedium(a, diffparent, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, parentHardDisk,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
-        if (FAILED(rc))
-            return 1;
-        if (parentHardDisk.isNull())
-        {
-            RTMsgError("Invalid parent hard disk reference, avoiding crash");
-            return 1;
-        }
-        MediumState_T state;
-        CHECK_ERROR(parentHardDisk, COMGETTER(State)(&state));
-        if (FAILED(rc))
-            return 1;
-        if (state == MediumState_Inaccessible)
-        {
-            CHECK_ERROR(parentHardDisk, RefreshState(&state));
-            if (FAILED(rc))
-                return 1;
-        }
-    }
+    if (   !filename
+        || !*filename
+        || size == 0)
+        return errorSyntax(USAGE_CREATEHD, "Parameters --filename and --size are required");
+
     /* check for filename extension */
     /** @todo use IMediumFormat to cover all extensions generically */
     Utf8Str strName(filename);
@@ -372,31 +350,25 @@ int handleCreateHardDisk(HandlerArg *a)
     if (SUCCEEDED(rc) && hardDisk)
     {
         ComPtr<IProgress> progress;
-        com::SafeArray<MediumVariant_T> l_variants(sizeof(MediumVariant_T)*8);
-
-        for (ULONG i = 0; i < l_variants.size(); ++i)
-        {
-            ULONG temp = DiskVariant;
-            temp &= 1<<i;
-            l_variants [i] = (MediumVariant_T)temp;
-        }
-
-        if (fBase)
-            CHECK_ERROR(hardDisk, CreateBaseStorage(size, ComSafeArrayAsInParam(l_variants), progress.asOutParam()));
-        else
-            CHECK_ERROR(parentHardDisk, CreateDiffStorage(hardDisk, ComSafeArrayAsInParam(l_variants), progress.asOutParam()));
+        CHECK_ERROR(hardDisk, CreateBaseStorage(size, DiskVariant, progress.asOutParam()));
         if (SUCCEEDED(rc) && progress)
         {
             rc = showProgress(progress);
-            CHECK_PROGRESS_ERROR(progress, ("Failed to create hard disk"));
-            if (SUCCEEDED(rc))
+            if (FAILED(rc))
+            {
+                com::ProgressErrorInfo info(progress);
+                if (info.isBasicAvailable())
+                    RTMsgError("Failed to create hard disk. Error message: %lS", info.getText().raw());
+                else
+                    RTMsgError("Failed to create hard disk. No error message available!");
+            }
+            else
             {
                 Bstr uuid;
                 CHECK_ERROR(hardDisk, COMGETTER(Id)(uuid.asOutParam()));
                 RTPrintf("Disk image created. UUID: %s\n", Utf8Str(uuid).c_str());
             }
         }
-
         CHECK_ERROR(hardDisk, Close());
     }
     return SUCCEEDED(rc) ? 0 : 1;
@@ -410,7 +382,6 @@ static const RTGETOPTDEF g_aModifyHardDiskOptions[] =
     { "--autoreset",    'z', RTGETOPT_REQ_STRING },
     { "-autoreset",     'z', RTGETOPT_REQ_STRING },     // deprecated
     { "autoreset",      'z', RTGETOPT_REQ_STRING },     // deprecated
-    { "--property",     'p', RTGETOPT_REQ_STRING },
     { "--compact",      'c', RTGETOPT_REQ_NOTHING },
     { "-compact",       'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "compact",        'c', RTGETOPT_REQ_NOTHING },    // deprecated
@@ -425,15 +396,11 @@ int handleModifyHardDisk(HandlerArg *a)
     ComPtr<IMedium> hardDisk;
     MediumType_T DiskType;
     bool AutoReset = false;
-    SafeArray<BSTR> mediumPropNames;
-    SafeArray<BSTR> mediumPropValues;
-    bool fModifyDiskType = false;
-    bool fModifyAutoReset = false;
-    bool fModifyProperties = false;
-    bool fModifyCompact = false;
+    bool fModifyDiskType = false, fModifyAutoReset = false, fModifyCompact = false;
     bool fModifyResize = false;
     uint64_t cbResize = 0;
     const char *FilenameOrUuid = NULL;
+    bool unknown = false;
 
     int c;
     RTGETOPTUNION ValueUnion;
@@ -458,38 +425,6 @@ int handleModifyHardDisk(HandlerArg *a)
                     return errorArgument("Invalid autoreset parameter '%s'", ValueUnion.psz);
                 fModifyAutoReset = true;
                 break;
-
-            case 'p':   // --property
-            {
-                /* Parse 'name=value' */
-                char *pszProperty = RTStrDup(ValueUnion.psz);
-                if (pszProperty)
-                {
-                    char *pDelimiter = strchr(pszProperty, '=');
-                    if (pDelimiter)
-                    {
-                        *pDelimiter = '\0';
-
-                        Bstr bstrName(pszProperty);
-                        Bstr bstrValue(&pDelimiter[1]);
-                        bstrName.detachTo(mediumPropNames.appendedRaw());
-                        bstrValue.detachTo(mediumPropValues.appendedRaw());
-                        fModifyProperties = true;
-                    }
-                    else
-                    {
-                        errorArgument("Invalid --property argument '%s'", ValueUnion.psz);
-                        rc = E_FAIL;
-                    }
-                    RTStrFree(pszProperty);
-                }
-                else
-                {
-                    RTStrmPrintf(g_pStdErr, "Error: Failed to allocate memory for medium property '%s'\n", ValueUnion.psz);
-                    rc = E_FAIL;
-                }
-                break;
-            }
 
             case 'c':   // --compact
                 fModifyCompact = true;
@@ -532,13 +467,16 @@ int handleModifyHardDisk(HandlerArg *a)
     if (!FilenameOrUuid)
         return errorSyntax(USAGE_MODIFYHD, "Disk name or UUID required");
 
-    if (!fModifyDiskType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize)
+    if (!fModifyDiskType && !fModifyAutoReset && !fModifyCompact && !fModifyResize)
         return errorSyntax(USAGE_MODIFYHD, "No operation specified");
 
-    /* Always open the medium if necessary, there is no other way. */
-    rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
-                    AccessMode_ReadWrite, hardDisk,
-                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
+    /* Depending on the operation the medium must be in the registry or
+     * may be opened on demand. */
+    if (fModifyDiskType || fModifyAutoReset)
+        rc = findMedium(a, FilenameOrUuid, DeviceType_HardDisk, false /* fSilent */, hardDisk);
+    else
+        rc = findOrOpenMedium(a, FilenameOrUuid, DeviceType_HardDisk,
+                              hardDisk, false /* fForceNewUuidOnOpen */, &unknown);
     if (FAILED(rc))
         return 1;
     if (hardDisk.isNull())
@@ -561,11 +499,6 @@ int handleModifyHardDisk(HandlerArg *a)
         CHECK_ERROR(hardDisk, COMSETTER(AutoReset)(AutoReset));
     }
 
-    if (fModifyProperties)
-    {
-        CHECK_ERROR(hardDisk, SetProperties(ComSafeArrayAsInParam(mediumPropNames), ComSafeArrayAsInParam(mediumPropValues)));
-    }
-
     if (fModifyCompact)
     {
         ComPtr<IProgress> progress;
@@ -578,10 +511,8 @@ int handleModifyHardDisk(HandlerArg *a)
                 RTMsgError("Compact hard disk operation is not implemented!");
             else if (rc == VBOX_E_NOT_SUPPORTED)
                 RTMsgError("Compact hard disk operation for this format is not implemented yet!");
-            else if (!progress.isNull())
-                CHECK_PROGRESS_ERROR(progress, ("Failed to compact hard disk"));
             else
-                RTMsgError("Failed to compact hard disk!");
+                com::GluePrintRCMessage(rc);
         }
     }
 
@@ -598,9 +529,12 @@ int handleModifyHardDisk(HandlerArg *a)
             else if (rc == VBOX_E_NOT_SUPPORTED)
                 RTMsgError("Resize hard disk operation for this format is not implemented yet!");
             else
-                CHECK_PROGRESS_ERROR(progress, ("Failed to resize hard disk"));
+                com::GluePrintRCMessage(rc);
         }
     }
+
+    if (unknown)
+        hardDisk->Close();
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
@@ -693,10 +627,11 @@ int handleCloneHardDisk(HandlerArg *a)
 
     ComPtr<IMedium> srcDisk;
     ComPtr<IMedium> dstDisk;
+    bool fSrcUnknown = false;
+    bool fDstUnknown = false;
 
-    rc = openMedium(a, pszSrc, DeviceType_HardDisk, AccessMode_ReadOnly,
-                    srcDisk, false /* fForceNewUuidOnOpen */,
-                    false /* fSilent */);
+    rc = findOrOpenMedium(a, pszSrc, DeviceType_HardDisk, srcDisk,
+                          false /* fForceNewUuidOnOpen */, &fSrcUnknown);
     if (FAILED(rc))
         return 1;
 
@@ -705,10 +640,8 @@ int handleCloneHardDisk(HandlerArg *a)
         /* open/create destination hard disk */
         if (fExisting)
         {
-            rc = openMedium(a, pszDst, DeviceType_HardDisk,
-                            AccessMode_ReadWrite, dstDisk,
-                            false /* fForceNewUuidOnOpen */,
-                            false /* fSilent */);
+            rc = findOrOpenMedium(a, pszDst, DeviceType_HardDisk, dstDisk,
+                                  false /* fForceNewUuidOnOpen */, &fDstUnknown);
             if (FAILED(rc))
                 break;
 
@@ -725,22 +658,22 @@ int handleCloneHardDisk(HandlerArg *a)
             rc = createHardDisk(a, Utf8Str(format).c_str(), pszDst, dstDisk);
             if (FAILED(rc))
                 break;
+            fDstUnknown = true;
         }
 
         ComPtr<IProgress> progress;
-        com::SafeArray<MediumVariant_T> l_variants(sizeof(MediumVariant_T)*8);
-
-        for (ULONG i = 0; i < l_variants.size(); ++i)
-        {
-            ULONG temp = DiskVariant;
-            temp &= 1<<i;
-            l_variants [i] = (MediumVariant_T)temp;
-        }
-
-        CHECK_ERROR_BREAK(srcDisk, CloneTo(dstDisk, ComSafeArrayAsInParam(l_variants), NULL, progress.asOutParam()));
+        CHECK_ERROR_BREAK(srcDisk, CloneTo(dstDisk, DiskVariant, NULL, progress.asOutParam()));
 
         rc = showProgress(progress);
-        CHECK_PROGRESS_ERROR_BREAK(progress, ("Failed to clone hard disk"));
+        if (FAILED(rc))
+        {
+            com::ProgressErrorInfo info(progress);
+            if (info.isBasicAvailable())
+                RTMsgError("Failed to clone hard disk. Error message: %lS", info.getText().raw());
+            else
+                RTMsgError("Failed to clone hard disk. No error message available!");
+            break;
+        }
 
         Bstr uuid;
         CHECK_ERROR_BREAK(dstDisk, COMGETTER(Id)(uuid.asOutParam()));
@@ -749,6 +682,17 @@ int handleCloneHardDisk(HandlerArg *a)
                  format.raw(), Utf8Str(uuid).c_str());
     }
     while (0);
+
+    if (fDstUnknown && !dstDisk.isNull())
+    {
+        /* forget the created clone */
+        dstDisk->Close();
+    }
+    if (fSrcUnknown)
+    {
+        /* close the unknown hard disk to forget it again */
+        srcDisk->Close();
+    }
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
@@ -797,20 +741,22 @@ RTEXITCODE handleConvertFromRaw(int argc, char *argv[])
                 break;
 
             case 'm':   // --variant
-            {
-                MediumVariant_T DiskVariant = MediumVariant_Standard;
+                MediumVariant_T DiskVariant;
                 rc = parseDiskVariant(ValueUnion.psz, &DiskVariant);
                 if (RT_FAILURE(rc))
                     return errorArgument("Invalid hard disk variant '%s'", ValueUnion.psz);
                 /// @todo cleaner solution than assuming 1:1 mapping?
                 uImageFlags = (unsigned)DiskVariant;
                 break;
-            }
+
             case VINF_GETOPT_NOT_OPTION:
                 if (!srcfilename)
                 {
                     srcfilename = ValueUnion.psz;
+// If you change the OS list here don't forget to update VBoxManageHelp.cpp.
+#ifndef RT_OS_WINDOWS
                     fReadFromStdIn = !strcmp(srcfilename, "stdin");
+#endif
                 }
                 else if (!dstfilename)
                     dstfilename = ValueUnion.psz;
@@ -833,18 +779,21 @@ RTEXITCODE handleConvertFromRaw(int argc, char *argv[])
     PVBOXHDD pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACEERROR vdInterfaceError;
-    vdInterfaceError.pfnError     = handleVDError;
-    vdInterfaceError.pfnMessage   = NULL;
+    VDINTERFACE      vdInterfaceError;
+    VDINTERFACEERROR vdInterfaceErrorCallbacks;
+    vdInterfaceErrorCallbacks.cbSize       = sizeof(VDINTERFACEERROR);
+    vdInterfaceErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
+    vdInterfaceErrorCallbacks.pfnError     = handleVDError;
+    vdInterfaceErrorCallbacks.pfnMessage   = NULL;
 
-    rc = VDInterfaceAdd(&vdInterfaceError.Core, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
-                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
+    rc = VDInterfaceAdd(&vdInterfaceError, "VBoxManage_IError", VDINTERFACETYPE_ERROR,
+                        &vdInterfaceErrorCallbacks, NULL, &pVDIfs);
     AssertRC(rc);
 
     /* open raw image file. */
     RTFILE File;
     if (fReadFromStdIn)
-        rc = RTFileFromNative(&File, RTFILE_NATIVE_STDIN);
+        File = 0;
     else
         rc = RTFileOpen(&File, srcfilename, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE);
     if (RT_FAILURE(rc))
@@ -936,235 +885,6 @@ out:
     return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
 }
 
-HRESULT showMediumInfo(const ComPtr<IVirtualBox> &pVirtualBox,
-                       const ComPtr<IMedium> &pMedium,
-                       const char *pszParentUUID,
-                       bool fOptLong)
-{
-    HRESULT rc = S_OK;
-    do
-    {
-        Bstr uuid;
-        pMedium->COMGETTER(Id)(uuid.asOutParam());
-        RTPrintf("UUID:           %ls\n", uuid.raw());
-        if (pszParentUUID)
-            RTPrintf("Parent UUID:    %s\n", pszParentUUID);
-
-        /* check for accessibility */
-        MediumState_T enmState;
-        CHECK_ERROR_BREAK(pMedium, RefreshState(&enmState));
-        pMedium->RefreshState(&enmState);
-        const char *pszState = "unknown";
-        switch (enmState)
-        {
-            case MediumState_NotCreated:
-                pszState = "not created";
-                break;
-            case MediumState_Created:
-                pszState = "created";
-                break;
-            case MediumState_LockedRead:
-                pszState = "locked read";
-                break;
-            case MediumState_LockedWrite:
-                pszState = "locked write";
-                break;
-            case MediumState_Inaccessible:
-                pszState = "inaccessible";
-                break;
-            case MediumState_Creating:
-                pszState = "creating";
-                break;
-            case MediumState_Deleting:
-                pszState = "deleting";
-                break;
-        }
-        RTPrintf("State:          %s\n", pszState);
-
-        if (fOptLong && enmState == MediumState_Inaccessible)
-        {
-            Bstr err;
-            CHECK_ERROR_BREAK(pMedium, COMGETTER(LastAccessError)(err.asOutParam()));
-            RTPrintf("Access Error:   %ls\n", err.raw());
-        }
-
-        if (fOptLong)
-        {
-            Bstr description;
-            pMedium->COMGETTER(Description)(description.asOutParam());
-            if (!description.isEmpty())
-                RTPrintf("Description:    %ls\n", description.raw());
-        }
-
-        MediumType_T type;
-        pMedium->COMGETTER(Type)(&type);
-        const char *typeStr = "unknown";
-        switch (type)
-        {
-            case MediumType_Normal:
-                if (pszParentUUID && Guid(pszParentUUID).isValid())
-                    typeStr = "normal (differencing)";
-                else
-                    typeStr = "normal (base)";
-                break;
-            case MediumType_Immutable:
-                typeStr = "immutable";
-                break;
-            case MediumType_Writethrough:
-                typeStr = "writethrough";
-                break;
-            case MediumType_Shareable:
-                typeStr = "shareable";
-                break;
-            case MediumType_Readonly:
-                typeStr = "readonly";
-                break;
-            case MediumType_MultiAttach:
-                typeStr = "multiattach";
-                break;
-        }
-        RTPrintf("Type:           %s\n", typeStr);
-
-        /* print out information specific for differencing hard disks */
-        if (fOptLong && pszParentUUID && Guid(pszParentUUID).isValid())
-        {
-            BOOL autoReset = FALSE;
-            pMedium->COMGETTER(AutoReset)(&autoReset);
-            RTPrintf("Auto-Reset:     %s\n", autoReset ? "on" : "off");
-        }
-
-        Bstr loc;
-        pMedium->COMGETTER(Location)(loc.asOutParam());
-        RTPrintf("Location:       %ls\n", loc.raw());
-
-        Bstr format;
-        pMedium->COMGETTER(Format)(format.asOutParam());
-        RTPrintf("Storage format: %ls\n", format.raw());
-
-        if (fOptLong)
-        {
-            com::SafeArray<MediumVariant_T> safeArray_variant;
-
-            pMedium->COMGETTER(Variant)(ComSafeArrayAsOutParam(safeArray_variant));
-            ULONG variant=0;
-            for (size_t i = 0; i < safeArray_variant.size(); i++)
-                variant |= safeArray_variant[i];
-
-            const char *variantStr = "unknown";
-            switch (variant & ~(MediumVariant_Fixed | MediumVariant_Diff))
-            {
-                case MediumVariant_VmdkSplit2G:
-                    variantStr = "split2G";
-                    break;
-                case MediumVariant_VmdkStreamOptimized:
-                    variantStr = "streamOptimized";
-                    break;
-                case MediumVariant_VmdkESX:
-                    variantStr = "ESX";
-                    break;
-                case MediumVariant_Standard:
-                    variantStr = "default";
-                    break;
-            }
-            const char *variantTypeStr = "dynamic";
-            if (variant & MediumVariant_Fixed)
-                variantTypeStr = "fixed";
-            else if (variant & MediumVariant_Diff)
-                variantTypeStr = "differencing";
-            RTPrintf("Format variant: %s %s\n", variantTypeStr, variantStr);
-        }
-
-        LONG64 logicalSize;
-        pMedium->COMGETTER(LogicalSize)(&logicalSize);
-        RTPrintf("Capacity:       %lld MBytes\n", logicalSize >> 20);
-        if (fOptLong)
-        {
-            LONG64 actualSize;
-            pMedium->COMGETTER(Size)(&actualSize);
-            RTPrintf("Size on disk:   %lld MBytes\n", actualSize >> 20);
-        }
-
-        if (fOptLong)
-        {
-            com::SafeArray<BSTR> names;
-            com::SafeArray<BSTR> values;
-            pMedium->GetProperties(Bstr().raw(), ComSafeArrayAsOutParam(names), ComSafeArrayAsOutParam(values));
-            size_t cNames = names.size();
-            size_t cValues = values.size();
-            bool fFirst = true;
-            for (size_t i = 0; i < cNames; i++)
-            {
-                Bstr value;
-                if (i < cValues)
-                    value = values[i];
-                RTPrintf("%s%ls=%ls\n",
-                         fFirst ? "Property:       " : "                ",
-                         names[i], value.raw());
-            }
-        }
-
-        if (fOptLong)
-        {
-            bool fFirst = true;
-            com::SafeArray<BSTR> machineIds;
-            pMedium->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
-            for (size_t i = 0; i < machineIds.size(); i++)
-            {
-                ComPtr<IMachine> machine;
-                CHECK_ERROR(pVirtualBox, FindMachine(machineIds[i], machine.asOutParam()));
-                if (machine)
-                {
-                    Bstr name;
-                    machine->COMGETTER(Name)(name.asOutParam());
-                    machine->COMGETTER(Id)(uuid.asOutParam());
-                    RTPrintf("%s%ls (UUID: %ls)",
-                             fFirst ? "In use by VMs:  " : "                ",
-                             name.raw(), machineIds[i]);
-                    fFirst = false;
-                    com::SafeArray<BSTR> snapshotIds;
-                    pMedium->GetSnapshotIds(machineIds[i],
-                                            ComSafeArrayAsOutParam(snapshotIds));
-                    for (size_t j = 0; j < snapshotIds.size(); j++)
-                    {
-                        ComPtr<ISnapshot> snapshot;
-                        machine->FindSnapshot(snapshotIds[j], snapshot.asOutParam());
-                        if (snapshot)
-                        {
-                            Bstr snapshotName;
-                            snapshot->COMGETTER(Name)(snapshotName.asOutParam());
-                            RTPrintf(" [%ls (UUID: %ls)]", snapshotName.raw(), snapshotIds[j]);
-                        }
-                    }
-                    RTPrintf("\n");
-                }
-            }
-        }
-
-        if (fOptLong)
-        {
-            com::SafeIfaceArray<IMedium> children;
-            pMedium->COMGETTER(Children)(ComSafeArrayAsOutParam(children));
-            bool fFirst = true;
-            for (size_t i = 0; i < children.size(); i++)
-            {
-                ComPtr<IMedium> pChild(children[i]);
-                if (pChild)
-                {
-                    Bstr childUUID;
-                    pChild->COMGETTER(Id)(childUUID.asOutParam());
-                    RTPrintf("%s%ls\n",
-                             fFirst ? "Child UUIDs:    " : "                ",
-                             childUUID.raw());
-                    fFirst = false;
-                }
-            }
-        }
-    }
-    while (0);
-
-    return rc;
-}
-
 static const RTGETOPTDEF g_aShowHardDiskInfoOptions[] =
 {
     { "--dummy",    256, RTGETOPT_REQ_NOTHING },   // placeholder for C++
@@ -1214,23 +934,148 @@ int handleShowHardDiskInfo(HandlerArg *a)
         return errorSyntax(USAGE_SHOWHDINFO, "Disk name or UUID required");
 
     ComPtr<IMedium> hardDisk;
-    rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
-                    AccessMode_ReadOnly, hardDisk,
-                    false /* fForceNewUuidOnOpen */, false /* fSilent */);
+    bool unknown = false;
+
+    rc = findOrOpenMedium(a, FilenameOrUuid, DeviceType_HardDisk, hardDisk,
+                          false /* fForceNewUuidOnOpen */, &unknown);
     if (FAILED(rc))
         return 1;
 
-    Utf8Str strParentUUID("base");
-    ComPtr<IMedium> parent;
-    hardDisk->COMGETTER(Parent)(parent.asOutParam());
-    if (!parent.isNull())
+    do
     {
-        Bstr bstrParentUUID;
-        parent->COMGETTER(Id)(bstrParentUUID.asOutParam());
-        strParentUUID = bstrParentUUID;
-    }
+        Bstr uuid;
+        hardDisk->COMGETTER(Id)(uuid.asOutParam());
+        RTPrintf("UUID:                 %s\n", Utf8Str(uuid).c_str());
 
-    rc = showMediumInfo(a->virtualBox, hardDisk, strParentUUID.c_str(), true);
+        /* check for accessibility */
+        /// @todo NEWMEDIA check accessibility of all parents
+        /// @todo NEWMEDIA print the full state value
+        MediumState_T state;
+        CHECK_ERROR_BREAK(hardDisk, RefreshState(&state));
+        RTPrintf("Accessible:           %s\n", state != MediumState_Inaccessible ? "yes" : "no");
+
+        if (state == MediumState_Inaccessible)
+        {
+            Bstr err;
+            CHECK_ERROR_BREAK(hardDisk, COMGETTER(LastAccessError)(err.asOutParam()));
+            RTPrintf("Access Error:         %lS\n", err.raw());
+        }
+
+        Bstr description;
+        hardDisk->COMGETTER(Description)(description.asOutParam());
+        if (!description.isEmpty())
+        {
+            RTPrintf("Description:          %lS\n", description.raw());
+        }
+
+        LONG64 logicalSize;
+        hardDisk->COMGETTER(LogicalSize)(&logicalSize);
+        RTPrintf("Logical size:         %lld MBytes\n", logicalSize >> 20);
+        LONG64 actualSize;
+        hardDisk->COMGETTER(Size)(&actualSize);
+        RTPrintf("Current size on disk: %lld MBytes\n", actualSize >> 20);
+
+        ComPtr <IMedium> parent;
+        hardDisk->COMGETTER(Parent)(parent.asOutParam());
+
+        MediumType_T type;
+        hardDisk->COMGETTER(Type)(&type);
+        const char *typeStr = "unknown";
+        switch (type)
+        {
+            case MediumType_Normal:
+                if (!parent.isNull())
+                    typeStr = "normal (differencing)";
+                else
+                    typeStr = "normal (base)";
+                break;
+            case MediumType_Immutable:
+                typeStr = "immutable";
+                break;
+            case MediumType_Writethrough:
+                typeStr = "writethrough";
+                break;
+            case MediumType_Shareable:
+                typeStr = "shareable";
+                break;
+            case MediumType_Readonly:
+                typeStr = "readonly";
+                break;
+            case MediumType_MultiAttach:
+                typeStr = "multiattach";
+                break;
+        }
+        RTPrintf("Type:                 %s\n", typeStr);
+
+        Bstr format;
+        hardDisk->COMGETTER(Format)(format.asOutParam());
+        RTPrintf("Storage format:       %lS\n", format.raw());
+        ULONG variant;
+        hardDisk->COMGETTER(Variant)(&variant);
+        const char *variantStr = "unknown";
+        switch (variant & ~(MediumVariant_Fixed | MediumVariant_Diff))
+        {
+            case MediumVariant_VmdkSplit2G:
+                variantStr = "split2G";
+                break;
+            case MediumVariant_VmdkStreamOptimized:
+                variantStr = "streamOptimized";
+                break;
+            case MediumVariant_VmdkESX:
+                variantStr = "ESX";
+                break;
+            case MediumVariant_Standard:
+                variantStr = "default";
+                break;
+        }
+        const char *variantTypeStr = "dynamic";
+        if (variant & MediumVariant_Fixed)
+            variantTypeStr = "fixed";
+        else if (variant & MediumVariant_Diff)
+            variantTypeStr = "differencing";
+        RTPrintf("Format variant:       %s %s\n", variantTypeStr, variantStr);
+
+        /// @todo also dump config parameters (iSCSI)
+
+        if (!unknown)
+        {
+            com::SafeArray<BSTR> machineIds;
+            hardDisk->COMGETTER(MachineIds)(ComSafeArrayAsOutParam(machineIds));
+            for (size_t j = 0; j < machineIds.size(); ++ j)
+            {
+                ComPtr<IMachine> machine;
+                CHECK_ERROR(a->virtualBox, FindMachine(machineIds[j], machine.asOutParam()));
+                ASSERT(machine);
+                Bstr name;
+                machine->COMGETTER(Name)(name.asOutParam());
+                machine->COMGETTER(Id)(uuid.asOutParam());
+                RTPrintf("%s%lS (UUID: %lS)\n",
+                         j == 0 ? "In use by VMs:        " : "                      ",
+                         name.raw(), machineIds[j]);
+            }
+            /// @todo NEWMEDIA check usage in snapshots too
+            /// @todo NEWMEDIA also list children
+        }
+
+        Bstr loc;
+        hardDisk->COMGETTER(Location)(loc.asOutParam());
+        RTPrintf("Location:             %lS\n", loc.raw());
+
+        /* print out information specific for differencing hard disks */
+        if (!parent.isNull())
+        {
+            BOOL autoReset = FALSE;
+            hardDisk->COMGETTER(AutoReset)(&autoReset);
+            RTPrintf("Auto-Reset:           %s\n", autoReset ? "on" : "off");
+        }
+    }
+    while (0);
+
+    if (unknown)
+    {
+        /* close the unknown hard disk to forget it again */
+        hardDisk->Close();
+    }
 
     return SUCCEEDED(rc) ? 0 : 1;
 }
@@ -1320,17 +1165,11 @@ int handleCloseMedium(HandlerArg *a)
     ComPtr<IMedium> medium;
 
     if (cmd == CMD_DISK)
-        rc = openMedium(a, FilenameOrUuid, DeviceType_HardDisk,
-                        AccessMode_ReadWrite, medium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
+        rc = findMedium(a, FilenameOrUuid, DeviceType_HardDisk, false /* fSilent */, medium);
     else if (cmd == CMD_DVD)
-        rc = openMedium(a, FilenameOrUuid, DeviceType_DVD,
-                        AccessMode_ReadOnly, medium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
+        rc = findMedium(a, FilenameOrUuid, DeviceType_DVD, false /* fSilent */, medium);
     else if (cmd == CMD_FLOPPY)
-        rc = openMedium(a, FilenameOrUuid, DeviceType_Floppy,
-                        AccessMode_ReadWrite, medium,
-                        false /* fForceNewUuidOnOpen */, false /* fSilent */);
+        rc = findMedium(a, FilenameOrUuid, DeviceType_Floppy, false /* fSilent */, medium);
 
     if (SUCCEEDED(rc) && medium)
     {
@@ -1341,7 +1180,14 @@ int handleCloseMedium(HandlerArg *a)
             if (SUCCEEDED(rc))
             {
                 rc = showProgress(progress);
-                CHECK_PROGRESS_ERROR(progress, ("Failed to delete medium"));
+                if (FAILED(rc))
+                {
+                    com::ProgressErrorInfo info(progress);
+                    if (info.isBasicAvailable())
+                        RTMsgError("Failed to delete medium. Error message: %lS", info.getText().raw());
+                    else
+                        RTMsgError("Failed to delete medium. No error message available!");
+                }
             }
             else
                 RTMsgError("Failed to delete medium. Error code %Rrc", rc);

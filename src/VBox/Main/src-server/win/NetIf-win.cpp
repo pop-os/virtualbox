@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -316,7 +316,7 @@ static HRESULT netIfNetworkInterfaceHelperClient(SVCHlpClient *aClient,
 
                         /* initialize the object returned to the caller by
                          * CreateHostOnlyNetworkInterface() */
-                        rc = d->iface->init(Bstr(name), Bstr(name), guid, HostNetworkInterfaceType_HostOnly);
+                        rc = d->iface->init(Bstr(name), guid, HostNetworkInterfaceType_HostOnly);
                         if (SUCCEEDED(rc))
                         {
                             rc = d->iface->setVirtualBox(d->vBox);
@@ -954,7 +954,7 @@ static int vboxNetWinAddComponent(std::list<ComObjPtr<HostNetworkInterface> > * 
         if (hr == S_OK)
         {
             NETIFINFO Info;
-            RT_ZERO(Info);
+            memset(&Info, 0, sizeof(Info));
             Info.Uuid = *(Guid(IfGuid).raw());
             rc = collectNetIfInfo(name, Guid(IfGuid), &Info, iDefaultInterface);
             if (RT_FAILURE(rc))
@@ -1078,33 +1078,6 @@ int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *pInfo)
 }
 
 int NetIfGetConfigByName(PNETIFINFO)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-/**
- * Obtain the current state of the interface.
- *
- * @returns VBox status code.
- *
- * @param   pcszIfName  Interface name.
- * @param   penmState   Where to store the retrieved state.
- */
-int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-/**
- * Retrieve the physical link speed in megabits per second. If the interface is
- * not up or otherwise unavailable the zero speed is returned.
- *
- * @returns VBox status code.
- *
- * @param   pcszIfName  Interface name.
- * @param   puMbits     Where to store the link speed.
- */
-int NetIfGetLinkSpeed(const char * /*pcszIfName*/, uint32_t * /*puMbits*/)
 {
     return VERR_NOT_IMPLEMENTED;
 }
@@ -1512,7 +1485,7 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
                             {
                                 hr = pBp->EnumBindingInterfaces(&pEnumBi);
                                 Assert(hr == S_OK);
-                                if (hr == S_OK)
+                                if ( hr == S_OK )
                                 {
                                     hr = pEnumBi->Reset();
                                     Assert(hr == S_OK);
@@ -1520,7 +1493,7 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
                                     {
                                         while ((hr = pEnumBi->Next(1, &pBi, NULL)) == S_OK)
                                         {
-                                            hr = pBi->GetLowerComponent(&pMpNcc);
+                                            hr = pBi->GetLowerComponent( &pMpNcc );
                                             Assert(hr == S_OK);
                                             if (hr == S_OK)
                                             {
@@ -1554,7 +1527,7 @@ int NetIfList(std::list<ComObjPtr<HostNetworkInterface> > &list)
         }
         else
         {
-            LogRel(("failed to get the sun_VBoxNetFlt component, error (0x%x)\n", hr));
+            LogRel(("failed to get the sun_VBoxNetFlt component, error (0x%x)", hr));
         }
 
         VBoxNetCfgWinReleaseINetCfg(pNc, FALSE);

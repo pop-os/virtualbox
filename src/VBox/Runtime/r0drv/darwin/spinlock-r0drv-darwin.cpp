@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,47 +54,37 @@ typedef struct RTSPINLOCKINTERNAL
 {
     /** Spinlock magic value (RTSPINLOCK_MAGIC). */
     uint32_t volatile   u32Magic;
-    /** Saved interrupt flag. */
-    uint32_t volatile   fIntSaved;
-    /** Creation flags. */
-    uint32_t            fFlags;
     /** The Darwin spinlock structure. */
     lck_spin_t         *pSpinLock;
-    /** The spinlock name. */
-    const char         *pszName;
 } RTSPINLOCKINTERNAL, *PRTSPINLOCKINTERNAL;
 
 
 
-RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char *pszName)
+RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock)
 {
     RT_ASSERT_PREEMPTIBLE();
-    AssertReturn(fFlags == RTSPINLOCK_FLAGS_INTERRUPT_SAFE || fFlags == RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, VERR_INVALID_PARAMETER);
 
     /*
      * Allocate.
      */
     AssertCompile(sizeof(RTSPINLOCKINTERNAL) > sizeof(void *));
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)RTMemAlloc(sizeof(*pThis));
-    if (!pThis)
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)RTMemAlloc(sizeof(*pSpinlockInt));
+    if (!pSpinlockInt)
         return VERR_NO_MEMORY;
 
     /*
      * Initialize & return.
      */
-    pThis->u32Magic  = RTSPINLOCK_MAGIC;
-    pThis->fIntSaved = 0;
-    pThis->fFlags    = fFlags;
-    pThis->pszName   = pszName;
+    pSpinlockInt->u32Magic = RTSPINLOCK_MAGIC;
     Assert(g_pDarwinLockGroup);
-    pThis->pSpinLock = lck_spin_alloc_init(g_pDarwinLockGroup, LCK_ATTR_NULL);
-    if (!pThis->pSpinLock)
+    pSpinlockInt->pSpinLock = lck_spin_alloc_init(g_pDarwinLockGroup, LCK_ATTR_NULL);
+    if (!pSpinlockInt->pSpinLock)
     {
-        RTMemFree(pThis);
+        RTMemFree(pSpinlockInt);
         return VERR_NO_MEMORY;
     }
 
-    *pSpinlock = pThis;
+    *pSpinlock = pSpinlockInt;
     return VINF_SUCCESS;
 }
 
@@ -104,71 +94,67 @@ RTDECL(int)  RTSpinlockDestroy(RTSPINLOCK Spinlock)
     /*
      * Validate input.
      */
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    if (!pThis)
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    if (!pSpinlockInt)
         return VERR_INVALID_PARAMETER;
-    AssertMsgReturn(pThis->u32Magic == RTSPINLOCK_MAGIC,
-                    ("Invalid spinlock %p magic=%#x\n", pThis, pThis->u32Magic),
+    AssertMsgReturn(pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC,
+                    ("Invalid spinlock %p magic=%#x\n", pSpinlockInt, pSpinlockInt->u32Magic),
                     VERR_INVALID_PARAMETER);
 
     /*
      * Make the lock invalid and release the memory.
      */
-    ASMAtomicIncU32(&pThis->u32Magic);
+    ASMAtomicIncU32(&pSpinlockInt->u32Magic);
 
     Assert(g_pDarwinLockGroup);
-    lck_spin_destroy(pThis->pSpinLock, g_pDarwinLockGroup);
-    pThis->pSpinLock = NULL;
+    lck_spin_destroy(pSpinlockInt->pSpinLock, g_pDarwinLockGroup);
+    pSpinlockInt->pSpinLock = NULL;
 
-    RTMemFree(pThis);
+    RTMemFree(pSpinlockInt);
     return VINF_SUCCESS;
 }
 
 
-RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock)
+RTDECL(void) RTSpinlockAcquireNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertPtr(pThis);
-    Assert(pThis->u32Magic == RTSPINLOCK_MAGIC);
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertPtr(pSpinlockInt);
+    Assert(pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
 
-    if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
-    {
-        uint32_t fIntSaved = ASMGetFlags();
-        ASMIntDisable();
-        lck_spin_lock(pThis->pSpinLock);
-        pThis->fIntSaved = fIntSaved;
-    }
-    else
-        lck_spin_lock(pThis->pSpinLock);
+    lck_spin_lock(pSpinlockInt->pSpinLock);
+
+    pTmp->uFlags = ASMGetFlags();
+    ASMIntDisable();
 }
 
 
-RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock)
+RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
-    PRTSPINLOCKINTERNAL pThis = (PRTSPINLOCKINTERNAL)Spinlock;
-    AssertPtr(pThis);
-    Assert(pThis->u32Magic == RTSPINLOCK_MAGIC);
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertPtr(pSpinlockInt);
+    Assert(pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
 
-    if (pThis->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)
-    {
-        uint32_t fIntSaved = pThis->fIntSaved;
-        pThis->fIntSaved = 0;
-        lck_spin_unlock(pThis->pSpinLock);
-        ASMSetFlags(fIntSaved);
-    }
-    else
-        lck_spin_unlock(pThis->pSpinLock);
+    ASMSetFlags(pTmp->uFlags);
+    lck_spin_unlock(pSpinlockInt->pSpinLock);
 }
 
 
-RTDECL(void) RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock)
+RTDECL(void) RTSpinlockAcquire(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
 {
-#if 1
-    if (RT_UNLIKELY(!(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE)))
-        RTAssertMsg2("RTSpinlockReleaseNoInts: %p (%s)\n", Spinlock, Spinlock->pszName);
-#else
-    AssertRelease(Spinlock->fFlags & RTSPINLOCK_FLAGS_INTERRUPT_SAFE);
-#endif
-    RTSpinlockRelease(Spinlock);
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertPtr(pSpinlockInt);
+    Assert(pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+
+    lck_spin_lock(pSpinlockInt->pSpinLock);
+}
+
+
+RTDECL(void) RTSpinlockRelease(RTSPINLOCK Spinlock, PRTSPINLOCKTMP pTmp)
+{
+    PRTSPINLOCKINTERNAL pSpinlockInt = (PRTSPINLOCKINTERNAL)Spinlock;
+    AssertPtr(pSpinlockInt);
+    Assert(pSpinlockInt->u32Magic == RTSPINLOCK_MAGIC);
+
+    lck_spin_unlock(pSpinlockInt->pSpinLock);
 }
 

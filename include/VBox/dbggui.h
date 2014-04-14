@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -97,14 +97,14 @@ typedef FNDBGGUICREATE *PFNDBGGUICREATE;
  * Creates the debugger GUI given a VM handle.
  *
  * @returns VBox status code.
- * @param   pUVM        The VM handle.
+ * @param   pVM         The VM handle.
  * @param   ppGui       Where to store the pointer to the debugger instance.
  * @param   ppGuiVT     Where to store the virtual method table pointer.
  *                      Optional.
  */
-DBGDECL(int) DBGGuiCreateForVM(PUVM pUVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
+DBGDECL(int) DBGGuiCreateForVM(PVM pVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
 /** @copydoc DBGGuiCreateForVM. */
-typedef DECLCALLBACK(int) FNDBGGUICREATEFORVM(PUVM pUVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
+typedef DECLCALLBACK(int) FNDBGGUICREATEFORVM(PVM pVM, PDBGGUI *ppGui, PCDBGGUIVT *ppGuiVT);
 /** Pointer to DBGGuiCreateForVM. */
 typedef FNDBGGUICREATEFORVM *PFNDBGGUICREATEFORVM;
 

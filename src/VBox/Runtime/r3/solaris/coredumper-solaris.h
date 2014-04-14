@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@ typedef struct RTSOLCOREMAPINFO
 {
     prmap_t                         pMap;                       /**< Proc description of this mapping */
     int                             fError;                     /**< Any error reading this mapping (errno) */
-    struct RTSOLCOREMAPINFO        *pNext;                      /**< Pointer to the next mapping */
+    struct RTSOLCOREMAPINFO            *pNext;                      /**< Pointer to the next mapping */
 } RTSOLCOREMAPINFO;
 /** Pointer to a solaris memory mapping descriptor. */
 typedef RTSOLCOREMAPINFO *PRTSOLCOREMAPINFO;

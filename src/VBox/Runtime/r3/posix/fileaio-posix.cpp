@@ -122,8 +122,6 @@ typedef struct RTFILEAIOCTXINTERNAL
     volatile bool         fWokenUp;
     /** Flag whether the thread is currently waiting in the syscall. */
     volatile bool         fWaiting;
-    /** Flags given during creation. */
-    uint32_t              fFlags;
     /** Magic value (RTFILEAIOCTX_MAGIC). */
     uint32_t              u32Magic;
     /** Flag whether the thread was woken up due to a internal event. */
@@ -524,14 +522,12 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered)
 }
 
 
-RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
-                               uint32_t fFlags)
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax)
 {
     PRTFILEAIOCTXINTERNAL pCtxInt;
     unsigned cReqsWaitMax;
 
     AssertPtrReturn(phAioCtx, VERR_INVALID_POINTER);
-    AssertReturn(!(fFlags & ~RTFILEAIOCTX_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
 
     if (cAioReqsMax == RTFILEAIO_UNLIMITED_REQS)
         return VERR_OUT_OF_RANGE;
@@ -554,7 +550,6 @@ RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
     pCtxInt->u32Magic     = RTFILEAIOCTX_MAGIC;
     pCtxInt->cMaxRequests = cAioReqsMax;
     pCtxInt->cReqsWaitMax = cReqsWaitMax;
-    pCtxInt->fFlags       = fFlags;
     *phAioCtx = (RTFILEAIOCTX)pCtxInt;
 
     return VINF_SUCCESS;
@@ -583,12 +578,12 @@ RTDECL(uint32_t) RTFileAioCtxGetMaxReqCount(RTFILEAIOCTX hAioCtx)
 
     if (hAioCtx == NIL_RTFILEAIOCTX)
         return RTFILEAIO_UNLIMITED_REQS;
-    return pCtxInt->cMaxRequests;
+    else
+        return pCtxInt->cMaxRequests;
 }
 
 RTDECL(int) RTFileAioCtxAssociateWithFile(RTFILEAIOCTX hAioCtx, RTFILE hFile)
 {
-    NOREF(hAioCtx); NOREF(hFile);
     return VINF_SUCCESS;
 }
 
@@ -876,8 +871,7 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
 
     int32_t cRequestsWaiting = ASMAtomicReadS32(&pCtxInt->cRequests);
 
-    if (   RT_UNLIKELY(cRequestsWaiting <= 0)
-        && !(pCtxInt->fFlags & RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS))
+    if (RT_UNLIKELY(cRequestsWaiting <= 0))
         return VERR_FILE_AIO_NO_REQUEST;
 
     if (RT_UNLIKELY(cMinReqs > (uint32_t)cRequestsWaiting))

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -84,5 +84,5 @@ private:
     Data *m;
 };
 
-#endif // ____H_PARALLELPORTIMPL
+#endif // ____H_FLOPPYDRIVEIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

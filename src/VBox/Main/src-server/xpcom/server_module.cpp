@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,8 +53,9 @@
 #include <iprt/path.h>
 #include <iprt/process.h>
 #include <iprt/env.h>
-#include <iprt/string.h>
 #include <iprt/thread.h>
+
+#include <string.h>
 
 #if defined(RT_OS_SOLARIS)
 # include <sys/systeminfo.h>
@@ -91,8 +92,8 @@ static bool IsVBoxSVCPathSet = false;
  *  in sync with macros used for VirtualBox in server.cpp for the same purpose.
  */
 
-NS_DECL_CLASSINFO(VirtualBox)
-NS_IMPL_CI_INTERFACE_GETTER1(VirtualBox, IVirtualBox)
+NS_DECL_CLASSINFO (VirtualBox)
+NS_IMPL_CI_INTERFACE_GETTER1 (VirtualBox, IVirtualBox)
 
 static nsresult vboxsvcSpawnDaemon(void)
 {
@@ -136,7 +137,7 @@ static nsresult vboxsvcSpawnDaemon(void)
     writable = nsnull;
 
     char msg[10];
-    RT_ZERO(msg);
+    memset(msg, '\0', sizeof(msg));
     if (   PR_Read(readable, msg, sizeof(msg)-1) != 5
         || strcmp(msg, "READY"))
     {
@@ -167,8 +168,8 @@ end:
  *  VirtualBox component defined on the server.
  */
 static NS_IMETHODIMP
-VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
-                      void **aResult)
+VirtualBoxConstructor (nsISupports *aOuter, REFNSIID aIID,
+                       void **aResult)
 {
     LogFlowFuncEnter();
 
@@ -188,25 +189,25 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
         {
             /* Get the directory containing XPCOM components -- the VBoxSVC
              * executable is expected in the parent directory. */
-            nsCOMPtr<nsIProperties> dirServ = do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID, &rc);
+            nsCOMPtr <nsIProperties> dirServ = do_GetService (NS_DIRECTORY_SERVICE_CONTRACTID, &rc);
             if (NS_SUCCEEDED(rc))
             {
-                nsCOMPtr<nsIFile> componentDir;
-                rc = dirServ->Get(NS_XPCOM_COMPONENT_DIR,
-                                  NS_GET_IID(nsIFile), getter_AddRefs(componentDir));
+                nsCOMPtr <nsIFile> componentDir;
+                rc = dirServ->Get (NS_XPCOM_COMPONENT_DIR,
+                                   NS_GET_IID (nsIFile), getter_AddRefs (componentDir));
 
                 if (NS_SUCCEEDED(rc))
                 {
                     nsCAutoString path;
-                    componentDir->GetNativePath(path);
+                    componentDir->GetNativePath (path);
 
-                    LogFlowFunc(("component directory = \"%s\"\n", path.get()));
-                    AssertBreakStmt(path.Length() + strlen(VBoxSVC_exe) < RTPATH_MAX,
-                                    rc = NS_ERROR_FAILURE);
+                    LogFlowFunc (("component directory = \"%s\"\n", path.get()));
+                    AssertBreakStmt (path.Length() + strlen (VBoxSVC_exe) < RTPATH_MAX,
+                                     rc = NS_ERROR_FAILURE);
 
 #if defined(RT_OS_SOLARIS) && defined(VBOX_WITH_HARDENING)
                     char achKernArch[128];
-                    int cbKernArch = sysinfo(SI_ARCHITECTURE_K, achKernArch, sizeof(achKernArch));
+                    int cbKernArch = sysinfo (SI_ARCHITECTURE_K, achKernArch, sizeof(achKernArch));
                     if (cbKernArch > 0)
                     {
                         sprintf(VBoxSVCPath, "/opt/VirtualBox/%s%s", achKernArch, VBoxSVC_exe);
@@ -215,9 +216,9 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
                     else
                         rc = NS_ERROR_UNEXPECTED;
 #else
-                    strcpy(VBoxSVCPath, path.get());
-                    RTPathStripFilename(VBoxSVCPath);
-                    strcat(VBoxSVCPath, VBoxSVC_exe);
+                    strcpy (VBoxSVCPath, path.get());
+                    RTPathStripFilename (VBoxSVCPath);
+                    strcat (VBoxSVCPath, VBoxSVC_exe);
 
                     IsVBoxSVCPathSet = true;
 #endif
@@ -227,7 +228,7 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
                 break;
         }
 
-        nsCOMPtr<ipcIService> ipcServ = do_GetService(IPC_SERVICE_CONTRACTID, &rc);
+        nsCOMPtr <ipcIService> ipcServ = do_GetService (IPC_SERVICE_CONTRACTID, &rc);
         if (NS_FAILED(rc))
             break;
 
@@ -238,13 +239,13 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
 
         do
         {
-            LogFlowFunc(("Resolving server name \"%s\"...\n", VBOXSVC_IPC_NAME));
+            LogFlowFunc (("Resolving server name \"%s\"...\n", VBOXSVC_IPC_NAME));
 
             PRUint32 serverID = 0;
-            rc = ipcServ->ResolveClientName(VBOXSVC_IPC_NAME, &serverID);
+            rc = ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
             if (NS_FAILED(rc))
             {
-                LogFlowFunc(("Starting server \"%s\"...\n", VBoxSVCPath));
+                LogFlowFunc (("Starting server \"%s\"...\n", VBoxSVCPath));
 
                 startedOnce = true;
 
@@ -255,8 +256,8 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
                 /* wait for the server process to establish a connection */
                 do
                 {
-                    RTThreadSleep(VBoxSVC_WaitSlice);
-                    rc = ipcServ->ResolveClientName(VBOXSVC_IPC_NAME, &serverID);
+                    RTThreadSleep (VBoxSVC_WaitSlice);
+                    rc = ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
                     if (NS_SUCCEEDED(rc))
                         break;
                     if (timeLeft <= VBoxSVC_WaitSlice)
@@ -275,20 +276,20 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
                 }
             }
 
-            LogFlowFunc(("Connecting to server (ID=%d)...\n", serverID));
+            LogFlowFunc (("Connecting to server (ID=%d)...\n", serverID));
 
-            nsCOMPtr<ipcIDConnectService> dconServ =
-                do_GetService(IPC_DCONNECTSERVICE_CONTRACTID, &rc);
+            nsCOMPtr <ipcIDConnectService> dconServ =
+                do_GetService (IPC_DCONNECTSERVICE_CONTRACTID, &rc);
             if (NS_FAILED(rc))
                 break;
 
-            rc = dconServ->CreateInstance(serverID,
-                                          CLSID_VirtualBox,
-                                          aIID, aResult);
+            rc = dconServ->CreateInstance (serverID,
+                                           CLSID_VirtualBox,
+                                           aIID, aResult);
             if (NS_SUCCEEDED(rc))
                 break;
 
-            LogFlowFunc(("Failed to connect (rc=%Rhrc (%#08x))\n", rc, rc));
+            LogFlowFunc (("Failed to connect (rc=%Rhrc (%#08x))\n", rc, rc));
 
             /* It's possible that the server gets shut down after we
              * successfully resolve the server name but before it
@@ -297,11 +298,12 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
             if (!startedOnce)
             {
                 nsresult rc2 =
-                    ipcServ->ResolveClientName(VBOXSVC_IPC_NAME, &serverID);
+                    ipcServ->ResolveClientName (VBOXSVC_IPC_NAME, &serverID);
                 if (NS_SUCCEEDED(rc2))
                     break;
 
-                LogFlowFunc(("Server seems to have terminated before receiving our request. Will try again.\n"));
+                LogFlowFunc (("Server seems to have terminated before "
+                              "receiving our request. Will try again.\n"));
             }
             else
                 break;
@@ -310,7 +312,7 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
     }
     while (0);
 
-    LogFlowFunc(("rc=%Rhrc (%#08x), vrc=%Rrc\n", rc, rc, vrc));
+    LogFlowFunc (("rc=%Rhrc (%#08x), vrc=%Rrc\n", rc, rc, vrc));
     LogFlowFuncLeave();
 
     return rc;
@@ -329,19 +331,19 @@ VirtualBoxConstructor(nsISupports *aOuter, REFNSIID aIID,
  * @return
  */
 static NS_IMETHODIMP
-VirtualBoxRegistration(nsIComponentManager *aCompMgr,
-                       nsIFile *aPath,
-                       const char *aLoaderStr,
-                       const char *aType,
-                       const nsModuleComponentInfo *aInfo)
+VirtualBoxRegistration (nsIComponentManager *aCompMgr,
+                        nsIFile *aPath,
+                        const char *aLoaderStr,
+                        const char *aType,
+                        const nsModuleComponentInfo *aInfo)
 {
     nsCAutoString modulePath;
-    aPath->GetNativePath(modulePath);
+    aPath->GetNativePath (modulePath);
     nsCAutoString moduleTarget;
-    aPath->GetNativeTarget(moduleTarget);
+    aPath->GetNativeTarget (moduleTarget);
 
-    LogFlowFunc(("aPath=%s, aTarget=%s, aLoaderStr=%s, aType=%s\n",
-                 modulePath.get(), moduleTarget.get(), aLoaderStr, aType));
+    LogFlowFunc (("aPath=%s, aTarget=%s, aLoaderStr=%s, aType=%s\n",
+                  modulePath.get(), moduleTarget.get(), aLoaderStr, aType));
 
     nsresult rc = NS_OK;
 
@@ -370,4 +372,4 @@ static const nsModuleComponentInfo components[] =
     }
 };
 
-NS_IMPL_NSGETMODULE(VirtualBox_Server_Module, components)
+NS_IMPL_NSGETMODULE (VirtualBox_Server_Module, components)

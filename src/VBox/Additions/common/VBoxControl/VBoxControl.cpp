@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,11 +36,6 @@
 #ifdef VBOX_WITH_GUEST_PROPS
 # include <VBox/HostServices/GuestPropertySvc.h>
 #endif
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-# include <VBox/VBoxGuest.h>
-# include "../VBoxGuestLib/VBGLR3Internal.h" /* HACK ALERT! Using vbglR3DoIOCtl directly!! */
-#endif
-
 
 /*******************************************************************************
 *   Global Variables                                                           *
@@ -75,7 +70,6 @@ enum VBoxControlUsage
 #ifdef RT_OS_WINDOWS
     GET_VIDEO_ACCEL,
     SET_VIDEO_ACCEL,
-    VIDEO_FLAGS,
     LIST_CUST_MODES,
     ADD_CUST_MODE,
     REMOVE_CUST_MODE,
@@ -102,42 +96,39 @@ enum VBoxControlUsage
 static void usage(enum VBoxControlUsage eWhich = USAGE_ALL)
 {
     RTPrintf("Usage:\n\n");
-    doUsage("print version number and exit", g_pszProgName, "[-v|--version]");
-    doUsage("suppress the logo", g_pszProgName, "--nologo ...");
+    doUsage("print version number and exit", g_pszProgName, "[-v|-version]");
+    doUsage("suppress the logo", g_pszProgName, "-nologo ...");
     RTPrintf("\n");
 
-    /* Exclude the Windows bits from the test version.  Anyone who needs to
-       test them can fix this. */
+/* Exclude the Windows bits from the test version.  Anyone who needs to test
+ * them can fix this. */
 #if defined(RT_OS_WINDOWS) && !defined(VBOX_CONTROL_TEST)
-    if (eWhich  == GET_VIDEO_ACCEL || eWhich == USAGE_ALL)
+    if (GET_VIDEO_ACCEL == eWhich || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "getvideoacceleration");
-    if (eWhich  == SET_VIDEO_ACCEL || eWhich == USAGE_ALL)
+    if (SET_VIDEO_ACCEL == eWhich || eWhich == USAGE_ALL)
         doUsage("<on|off>", g_pszProgName, "setvideoacceleration");
-    if (eWhich  == VIDEO_FLAGS || eWhich == USAGE_ALL)
-        doUsage("<get|set|clear|delete> [hex mask]", g_pszProgName, "videoflags");
-    if (eWhich  == LIST_CUST_MODES || eWhich == USAGE_ALL)
+    if (LIST_CUST_MODES == eWhich || eWhich == USAGE_ALL)
         doUsage("", g_pszProgName, "listcustommodes");
-    if (eWhich  == ADD_CUST_MODE || eWhich == USAGE_ALL)
+    if (ADD_CUST_MODE == eWhich || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp>", g_pszProgName, "addcustommode");
-    if (eWhich  == REMOVE_CUST_MODE || eWhich == USAGE_ALL)
+    if (REMOVE_CUST_MODE == eWhich || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp>", g_pszProgName, "removecustommode");
-    if (eWhich  == SET_VIDEO_MODE || eWhich == USAGE_ALL)
+    if (SET_VIDEO_MODE == eWhich || eWhich == USAGE_ALL)
         doUsage("<width> <height> <bpp> <screen>", g_pszProgName, "setvideomode");
 #endif
 #ifdef VBOX_WITH_GUEST_PROPS
-    if (eWhich == GUEST_PROP || eWhich == USAGE_ALL)
+    if (GUEST_PROP == eWhich || eWhich == USAGE_ALL)
     {
-        doUsage("get <property> [--verbose]", g_pszProgName, "guestproperty");
-        doUsage("set <property> [<value> [--flags <flags>]]", g_pszProgName, "guestproperty");
-        doUsage("delete|unset <property>", g_pszProgName, "guestproperty");
-        doUsage("enumerate [--patterns <patterns>]", g_pszProgName, "guestproperty");
+        doUsage("get <property> [-verbose]", g_pszProgName, "guestproperty");
+        doUsage("set <property> [<value> [-flags <flags>]]", g_pszProgName, "guestproperty");
+        doUsage("enumerate [-patterns <patterns>]", g_pszProgName, "guestproperty");
         doUsage("wait <patterns>", g_pszProgName, "guestproperty");
-        doUsage("[--timestamp <last timestamp>]");
-        doUsage("[--timeout <timeout in ms>");
+        doUsage("[-timestamp <last timestamp>]");
+        doUsage("[-timeout <timeout in ms>");
     }
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
-    if (eWhich  == GUEST_SHAREDFOLDERS || eWhich == USAGE_ALL)
+    if (GUEST_SHAREDFOLDERS == eWhich || eWhich == USAGE_ALL)
     {
         doUsage("list [-automount]", g_pszProgName, "sharedfolder");
     }
@@ -584,7 +575,7 @@ static RTEXITCODE handleSetVideoMode(int argc, char *argv[])
         scr = atoi(argv[3]);
     }
 
-    HMODULE hUser = GetModuleHandle("user32.dll");
+    HMODULE hUser = GetModuleHandle("USER32");
 
     if (hUser)
     {
@@ -612,120 +603,38 @@ static RTEXITCODE handleSetVideoMode(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-static int checkVBoxVideoKey(HKEY hkeyVideo)
-{
-    char szValue[128];
-    DWORD len = sizeof(szValue);
-    DWORD dwKeyType;
-    LONG status = RegQueryValueExA(hkeyVideo, "Device Description", NULL, &dwKeyType,
-                                   (LPBYTE)szValue, &len);
-
-    if (status == ERROR_SUCCESS)
-    {
-        /* WDDM has additional chars after "Adapter" */
-        static char sszDeviceDescription[] = "VirtualBox Graphics Adapter";
-        if (_strnicmp(szValue, sszDeviceDescription, sizeof(sszDeviceDescription) - sizeof(char)) == 0)
-        {
-            return VINF_SUCCESS;
-        }
-    }
-
-    return VERR_NOT_FOUND;
-}
-
-static HKEY getVideoKey(bool writable)
+HKEY getVideoKey(bool writable)
 {
     HKEY hkeyDeviceMap = 0;
-    LONG status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\VIDEO", 0, KEY_READ, &hkeyDeviceMap);
-    if (status != ERROR_SUCCESS || !hkeyDeviceMap)
+    HKEY hkeyVideo = 0;
+    LONG status;
+
+    status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\VIDEO", 0, KEY_READ, &hkeyDeviceMap);
+    if ((status != ERROR_SUCCESS) || !hkeyDeviceMap)
     {
         VBoxControlError("Error opening video device map registry key!\n");
         return 0;
     }
-
-    HKEY hkeyVideo = 0;
-    ULONG iDevice;
+    char szVideoLocation[256];
     DWORD dwKeyType;
-
+    szVideoLocation[0] = 0;
+    DWORD len = sizeof(szVideoLocation);
+    status = RegQueryValueExA(hkeyDeviceMap, "\\Device\\Video0", NULL, &dwKeyType, (LPBYTE)szVideoLocation, &len);
     /*
-     * Scan all '\Device\VideoX' REG_SZ keys to find VBox video driver entry.
-     * 'ObjectNumberList' REG_BINARY is an array of 32 bit device indexes (X).
+     * This value will start with a weird value: \REGISTRY\Machine
+     * Make sure this is true.
      */
-
-    /* Get the 'ObjectNumberList' */
-    ULONG numDevices = 0;
-    DWORD adwObjectNumberList[256];
-    DWORD len = sizeof(adwObjectNumberList);
-    status = RegQueryValueExA(hkeyDeviceMap, "ObjectNumberList", NULL, &dwKeyType, (LPBYTE)&adwObjectNumberList[0], &len);
-
-    if (   status == ERROR_SUCCESS
-        && dwKeyType == REG_BINARY)
+    if (   (status == ERROR_SUCCESS)
+        && (dwKeyType == REG_SZ)
+        && (_strnicmp(szVideoLocation, "\\REGISTRY\\Machine", 17) == 0))
     {
-        numDevices = len / sizeof(DWORD);
+        /* open that branch */
+        status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, &szVideoLocation[18], 0, KEY_READ | (writable ? KEY_WRITE : 0), &hkeyVideo);
     }
     else
     {
-       /* The list might not exists. Use 'MaxObjectNumber' REG_DWORD and build a list. */
-       DWORD dwMaxObjectNumber = 0;
-       len = sizeof(dwMaxObjectNumber);
-       status = RegQueryValueExA(hkeyDeviceMap, "MaxObjectNumber", NULL, &dwKeyType, (LPBYTE)&dwMaxObjectNumber, &len);
-
-       if (   status == ERROR_SUCCESS
-           && dwKeyType == REG_DWORD)
-       {
-           /* 'MaxObjectNumber' is inclusive. */
-           numDevices = RT_MIN(dwMaxObjectNumber + 1, RT_ELEMENTS(adwObjectNumberList));
-           for (iDevice = 0; iDevice < numDevices; iDevice++)
-           {
-               adwObjectNumberList[iDevice] = iDevice;
-           }
-       }
+        VBoxControlError("Error opening registry key '%s'\n", &szVideoLocation[18]);
     }
-
-    if (numDevices == 0)
-    {
-        /* Always try '\Device\Video0' as the old code did. Enum can be used in this case in principle. */
-        adwObjectNumberList[0] = 0;
-        numDevices = 1;
-    }
-
-    /* Scan device entries */
-    for (iDevice = 0; iDevice < numDevices; iDevice++)
-    {
-        char szValueName[64];
-        RTStrPrintf(szValueName, sizeof(szValueName), "\\Device\\Video%u", adwObjectNumberList[iDevice]);
-
-        char szVideoLocation[256];
-        len = sizeof(szVideoLocation);
-        status = RegQueryValueExA(hkeyDeviceMap, szValueName, NULL, &dwKeyType, (LPBYTE)&szVideoLocation[0], &len);
-
-        /* This value starts with '\REGISTRY\Machine' */
-        if (   status == ERROR_SUCCESS
-            && dwKeyType == REG_SZ
-            && _strnicmp(szVideoLocation, "\\REGISTRY\\Machine", 17) == 0)
-        {
-            status = RegOpenKeyExA(HKEY_LOCAL_MACHINE, &szVideoLocation[18], 0,
-                                   KEY_READ | (writable ? KEY_WRITE : 0), &hkeyVideo);
-            if (status == ERROR_SUCCESS)
-            {
-                int rc = checkVBoxVideoKey(hkeyVideo);
-                if (RT_SUCCESS(rc))
-                {
-                    /* Found, return hkeyVideo to the caller. */
-                    break;
-                }
-
-                RegCloseKey(hkeyVideo);
-                hkeyVideo = 0;
-            }
-        }
-    }
-
-    if (hkeyVideo == 0)
-    {
-        VBoxControlError("Error opening video registry key!\n");
-    }
-
     RegCloseKey(hkeyDeviceMap);
     return hkeyVideo;
 }
@@ -781,135 +690,6 @@ static RTEXITCODE handleSetVideoAcceleration(int argc, char *argv[])
         RegCloseKey(hkeyVideo);
     }
     return RTEXITCODE_SUCCESS;
-}
-
-static RTEXITCODE videoFlagsGet(void)
-{
-    HKEY hkeyVideo = getVideoKey(false);
-
-    if (hkeyVideo)
-    {
-        DWORD dwFlags = 0;
-        DWORD len = sizeof(dwFlags);
-        DWORD dwKeyType;
-        ULONG status = RegQueryValueExA(hkeyVideo, "VBoxVideoFlags", NULL, &dwKeyType, (LPBYTE)&dwFlags, &len);
-        if (status != ERROR_SUCCESS)
-            RTPrintf("Video flags: default\n");
-        else
-            RTPrintf("Video flags: 0x%08X\n", dwFlags);
-        RegCloseKey(hkeyVideo);
-        return RTEXITCODE_SUCCESS;
-    }
-
-    return RTEXITCODE_FAILURE;
-}
-
-static RTEXITCODE videoFlagsDelete(void)
-{
-    HKEY hkeyVideo = getVideoKey(true);
-
-    if (hkeyVideo)
-    {
-        ULONG status = RegDeleteValueA(hkeyVideo, "VBoxVideoFlags");
-        if (status != ERROR_SUCCESS)
-            VBoxControlError("Error %d deleting video flags.\n", status);
-        RegCloseKey(hkeyVideo);
-        return RTEXITCODE_SUCCESS;
-    }
-
-    return RTEXITCODE_FAILURE;
-}
-
-static RTEXITCODE videoFlagsModify(bool fSet, int argc, char *argv[])
-{
-    if (argc != 1)
-    {
-        VBoxControlError("Mask required.\n");
-        return RTEXITCODE_FAILURE;
-    }
-
-    uint32_t u32Mask = 0;
-    int rc = RTStrToUInt32Full(argv[0], 16, &u32Mask);
-    if (RT_FAILURE(rc))
-    {
-        VBoxControlError("Invalid video flags mask.\n");
-        return RTEXITCODE_FAILURE;
-    }
-
-    RTEXITCODE exitCode = RTEXITCODE_SUCCESS;
-
-    HKEY hkeyVideo = getVideoKey(true);
-    if (hkeyVideo)
-    {
-        DWORD dwFlags = 0;
-        DWORD len = sizeof(dwFlags);
-        DWORD dwKeyType;
-        ULONG status = RegQueryValueExA(hkeyVideo, "VBoxVideoFlags", NULL, &dwKeyType, (LPBYTE)&dwFlags, &len);
-        if (status != ERROR_SUCCESS)
-        {
-            dwFlags = 0;
-        }
-
-        dwFlags = fSet? (dwFlags | u32Mask):
-                        (dwFlags & ~u32Mask);
-
-        status = RegSetValueExA(hkeyVideo, "VBoxVideoFlags", 0, REG_DWORD, (LPBYTE)&dwFlags, sizeof(dwFlags));
-        if (status != ERROR_SUCCESS)
-        {
-            VBoxControlError("Error %d writing video flags.\n", status);
-            exitCode = RTEXITCODE_FAILURE;
-        }
-
-        RegCloseKey(hkeyVideo);
-    }
-    else
-    {
-        exitCode = RTEXITCODE_FAILURE;
-    }
-
-    return exitCode;
-}
-
-static RTEXITCODE handleVideoFlags(int argc, char *argv[])
-{
-    /* Must have a keyword and optional value (32 bit hex string). */
-    if (argc != 1 && argc != 2)
-    {
-        VBoxControlError("Invalid number of arguments.\n");
-        usage(VIDEO_FLAGS);
-        return RTEXITCODE_FAILURE;
-    }
-
-    RTEXITCODE exitCode = RTEXITCODE_SUCCESS;
-
-    if (RTStrICmp(argv[0], "get") == 0)
-    {
-        exitCode = videoFlagsGet();
-    }
-    else if (RTStrICmp(argv[0], "delete") == 0)
-    {
-        exitCode = videoFlagsDelete();
-    }
-    else if (RTStrICmp(argv[0], "set") == 0)
-    {
-        exitCode = videoFlagsModify(true, argc - 1, &argv[1]);
-    }
-    else if (RTStrICmp(argv[0], "clear") == 0)
-    {
-        exitCode = videoFlagsModify(false, argc - 1, &argv[1]);
-    }
-    else
-    {
-        VBoxControlError("Invalid command.\n");
-        exitCode = RTEXITCODE_FAILURE;
-    }
-
-    if (exitCode != RTEXITCODE_SUCCESS)
-    {
-        usage(VIDEO_FLAGS);
-    }
-
-    return exitCode;
 }
 
 #define MAX_CUSTOM_MODES 128
@@ -1231,11 +1011,11 @@ static RTEXITCODE getGuestProperty(int argc, char **argv)
         RTPrintf("No value set!\n");
     else if (RT_SUCCESS(rc))
     {
-        RTPrintf("Value: %s\n", pszValue);
+        RTPrintf("Value: %S\n", pszValue);
         if (fVerbose)
         {
             RTPrintf("Timestamp: %lld ns\n", u64Timestamp);
-            RTPrintf("Flags: %s\n", pszFlags);
+            RTPrintf("Flags: %S\n", pszFlags);
         }
     }
 
@@ -1303,51 +1083,6 @@ static RTEXITCODE setGuestProperty(int argc, char *argv[])
             rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, pszValue);
         if (!RT_SUCCESS(rc))
             VBoxControlError("Failed to store the property value, error %Rrc\n", rc);
-    }
-
-    if (u32ClientId != 0)
-        VbglR3GuestPropDisconnect(u32ClientId);
-    return RT_SUCCESS(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
-}
-
-
-/**
- * Deletes a guest property from the guest property store.
- * This is accessed through the "VBoxGuestPropSvc" HGCM service.
- *
- * @returns Command exit code.
- * @note see the command line API description for parameters
- */
-static RTEXITCODE deleteGuestProperty(int argc, char *argv[])
-{
-    /*
-     * Check the syntax.  We can deduce the correct syntax from the number of
-     * arguments.
-     */
-    bool usageOK = true;
-    const char *pszName = NULL;
-    if (argc < 1)
-        usageOK = false;
-    if (!usageOK)
-    {
-        usage(GUEST_PROP);
-        return RTEXITCODE_FAILURE;
-    }
-    /* This is always needed. */
-    pszName = argv[0];
-
-    /*
-     * Do the actual setting.
-     */
-    uint32_t u32ClientId = 0;
-    int rc = VbglR3GuestPropConnect(&u32ClientId);
-    if (!RT_SUCCESS(rc))
-        VBoxControlError("Failed to connect to the guest property service, error %Rrc\n", rc);
-    if (RT_SUCCESS(rc))
-    {
-        rc = VbglR3GuestPropDelete(u32ClientId, pszName);
-        if (!RT_SUCCESS(rc))
-            VBoxControlError("Failed to delete the property value, error %Rrc\n", rc);
     }
 
     if (u32ClientId != 0)
@@ -1576,8 +1311,6 @@ static RTEXITCODE handleGuestProperty(int argc, char *argv[])
         return getGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "set"))
         return setGuestProperty(argc - 1, argv + 1);
-    else if (!strcmp(argv[0], "delete") || !strcmp(argv[0], "unset"))
-        return deleteGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "enumerate"))
         return enumGuestProperty(argc - 1, argv + 1);
     else if (!strcmp(argv[0], "wait"))
@@ -1643,7 +1376,7 @@ static RTEXITCODE listSharedFolders(int argc, char **argv)
                     VBoxControlError("Error while getting the shared folder name for root node = %u, rc = %Rrc\n",
                                      paMappings[i].u32Root, rc);
             }
-            if (!cMappings)
+            if (cMappings == 0)
                 RTPrintf("No Shared Folders available.\n");
             VbglR3SharedFolderFreeMappings(paMappings);
         }
@@ -1695,32 +1428,6 @@ static RTEXITCODE handleWriteCoreDump(int argc, char *argv[])
     }
 }
 #endif
-
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-/**
- * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: help}
- */
-static RTEXITCODE handleDpc(int argc, char *argv[])
-{
-# ifndef VBOX_CONTROL_TEST
-    int rc;
-    for (int i = 0; i < 30; i++)
-    {
-        rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_DPC_LATENCY_CHECKER, NULL, 0);
-        if (RT_FAILURE(rc))
-            break;
-        RTPrintf("%d\n", i);
-    }
-# else
-    int rc = VERR_NOT_IMPLEMENTED;
-# endif
-    if (RT_FAILURE(rc))
-        return VBoxControlError("Error. rc=%Rrc\n", rc);
-    RTPrintf("Samples collection completed.\n");
-    return RTEXITCODE_SUCCESS;
-}
-#endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
-
 
 /**
  * @callback_method_impl{FNVBOXCTRLCMDHANDLER, Command: takesnapshot}
@@ -1779,7 +1486,6 @@ static RTEXITCODE handleHelp(int argc, char *argv[])
     return RTEXITCODE_SUCCESS;
 }
 
-
 /** command handler type */
 typedef DECLCALLBACK(RTEXITCODE) FNVBOXCTRLCMDHANDLER(int argc, char *argv[]);
 typedef FNVBOXCTRLCMDHANDLER *PFNVBOXCTRLCMDHANDLER;
@@ -1794,7 +1500,6 @@ struct COMMANDHANDLER
 #if defined(RT_OS_WINDOWS) && !defined(VBOX_CONTROL_TEST)
     { "getvideoacceleration",   handleGetVideoAcceleration },
     { "setvideoacceleration",   handleSetVideoAcceleration },
-    { "videoflags",             handleVideoFlags },
     { "listcustommodes",        handleListCustomModes },
     { "addcustommode",          handleAddCustomMode },
     { "removecustommode",       handleRemoveCustomMode },
@@ -1808,9 +1513,6 @@ struct COMMANDHANDLER
 #endif
 #if !defined(VBOX_CONTROL_TEST)
     { "writecoredump",          handleWriteCoreDump },
-#endif
-#ifdef VBOX_WITH_DPC_LATENCY_CHECKER
-    { "dpc",                    handleDpc },
 #endif
     { "takesnapshot",           handleTakeSnapshot },
     { "savestate",              handleSaveState },
@@ -1839,7 +1541,7 @@ int main(int argc, char **argv)
     /** Will we be executing a command or just printing information? */
     bool fOnlyInfo = false;
 
-    rrc = RTR3InitExe(argc, &argv, 0);
+    rrc = RTR3Init();
     if (RT_FAILURE(rrc))
         return RTMsgInitFailure(rrc);
 
@@ -1914,6 +1616,20 @@ int main(int argc, char **argv)
 
     if (!fOnlyInfo && rcExit == RTEXITCODE_SUCCESS)
     {
+        /*
+         * The input is in the guest OS'es codepage (NT guarantees ACP).
+         * For VBox we use UTF-8.  For simplicity, just convert the argv[] array
+         * here.
+         */
+        /** @todo this must be done before we start checking for --help and
+         *        stuff above. */
+        for (int i = iArg; i < argc; i++)
+        {
+            char *pszConverted;
+            RTStrCurrentCPToUtf8(&pszConverted, argv[i]);
+            argv[i] = pszConverted;
+        }
+
         if (argc > iArg)
         {
             /*
@@ -1938,6 +1654,12 @@ int main(int argc, char **argv)
             rcExit = RTEXITCODE_FAILURE;
             usage();
         }
+
+        /*
+         * Free converted argument vector
+         */
+        for (int i = iArg; i < argc; i++)
+            RTStrFree(argv[i]);
     }
 
     /*

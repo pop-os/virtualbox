@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,27 +40,24 @@ RT_C_DECLS_BEGIN
  */
 typedef enum FTMCHECKPOINTTYPE
 {
-    FTMCHECKPOINTTYPE_INVALID = 0,
     FTMCHECKPOINTTYPE_NETWORK,
     FTMCHECKPOINTTYPE_STORAGE,
-    FTMCHECKPOINTTYPE_END,
     FTMCHECKPOINTTYPE_32BIT_HACK = 0x7fffffff
 } FTMCHECKPOINTTYPE;
 
-VMM_INT_DECL(bool)  FTMIsDeltaLoadSaveActive(PVM pVM);
-VMM_INT_DECL(int)   FTMSetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType);
+VMMDECL(bool)  FTMIsDeltaLoadSaveActive(PVM pVM);
+VMMDECL(int)   FTMSetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType);
 
 #ifdef IN_RING3
 /** @defgroup grp_ftm_r3     The FTM Host Context Ring-3 API
  * @ingroup grp_ftm
  * @{
  */
-VMMR3DECL(int)      FTMR3PowerOn(PUVM pUVM, bool fMaster, unsigned uInterval, const char *pszAddress, unsigned uPort, const char *pszPassword);
-VMMR3DECL(int)      FTMR3CancelStandby(PUVM pUVM);
-
-VMMR3_INT_DECL(int) FTMR3Init(PVM pVM);
-VMMR3_INT_DECL(int) FTMR3Term(PVM pVM);
-VMMR3_INT_DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType);
+VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const char *pszAddress, unsigned uPort, const char *pszPassword);
+VMMR3DECL(int) FTMR3Init(PVM pVM);
+VMMR3DECL(int) FTMR3Term(PVM pVM);
+VMMR3DECL(int) FTMR3CancelStandby(PVM pVM);
+VMMR3DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmType);
 
 #endif /* IN_RING3 */
 

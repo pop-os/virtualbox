@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,12 +38,9 @@ static int Usage(void)
 }
 
 
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Parse args, building the request as we do so.
@@ -72,7 +69,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     }
     if (cch >= sizeof(Req.szName))
     {
-        RTPrintf("syntax error: the name '%s' is too long. (max %zu chars)\n", argv[1], sizeof(Req.szName) - 1);
+        RTPrintf("syntax error: the name is too long. (max %zu chars)\n", argv[1], sizeof(Req.szName) - 1);
         return 1;
     }
     memcpy(&Req.szName[0], argv[1], cch + 1);
@@ -123,15 +120,3 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     return RT_FAILURE(rc) ? 1 : 0;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
-

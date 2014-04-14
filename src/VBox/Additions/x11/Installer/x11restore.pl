@@ -1,9 +1,9 @@
 #!/usr/bin/perl -w
-# $Revision: 83575 $
+# $Revision: 65744 $
 #
 # Restore xorg.conf while removing Guest Additions.
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@ my $CFG;
 my $BAK;
 
 my $config_count = 0;
-my $vboxpresent = "vboxvideo";
+my $vboxpresent = "vboxmouse";
 
 foreach $cfg (@cfg_files)
 {

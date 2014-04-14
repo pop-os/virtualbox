@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,7 @@
 # endif
 #endif
 
-#include <VBox/vd.h>
+#include <VBox/VBoxHDD.h>
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <iprt/critsect.h>
@@ -519,8 +519,7 @@ static int vboxfuseFlatImageCreate(const char *pszPath, const char *pszImage, PV
      * Try open the image file (without holding any locks).
      */
     char *pszFormat;
-    VDTYPE enmType;
-    rc = VDGetFormat(NULL /* pVDIIfsDisk */, NULL /* pVDIIfsImage*/, pszImage, &pszFormat, &enmType);
+    rc = VDGetFormat(NULL /* pVDIIfsDisk */, pszImage, &pszFormat);
     if (RT_FAILURE(rc))
     {
         LogRel(("VDGetFormat(%s,) failed, rc=%Rrc\n", pszImage, rc));
@@ -528,7 +527,7 @@ static int vboxfuseFlatImageCreate(const char *pszPath, const char *pszImage, PV
     }
 
     PVBOXHDD pDisk = NULL;
-    rc = VDCreate(NULL /* pVDIIfsDisk */, enmType, &pDisk);
+    rc = VDCreate(NULL /* pVDIIfsDisk */, &pDisk);
     if (RT_SUCCESS(rc))
     {
         rc = VDOpen(pDisk, pszFormat, pszImage, 0, NULL /* pVDIfsImage */);
@@ -1421,10 +1420,10 @@ int main(int argc, char **argv)
     /*
      * Initialize the runtime and VD.
      */
-    int rc = RTR3InitExe(argc, &argv, 0);
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
     {
-        RTStrmPrintf(g_pStdErr, "VBoxFUSE: RTR3InitExe failed, rc=%Rrc\n", rc);
+        RTStrmPrintf(g_pStdErr, "VBoxFUSE: RTR3Init failed, rc=%Rrc\n", rc);
         return 1;
     }
     RTPrintf("VBoxFUSE: Hello...\n");

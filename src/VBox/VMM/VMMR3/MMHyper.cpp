@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #define LOG_GROUP LOG_GROUP_MM_HYPER
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/hm.h>
 #include <VBox/vmm/dbgf.h>
 #include "MMInternal.h"
 #include <VBox/vmm/vm.h>
@@ -49,13 +48,16 @@ static DECLCALLBACK(void) mmR3HyperInfoHma(PVM pVM, PCDBGFINFOHLP pHlp, const ch
  * Determin the default heap size.
  *
  * @returns The heap size in bytes.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  */
 static uint32_t mmR3ComputeHyperHeapSize(PVM pVM)
 {
     /*
      * Gather parameters.
      */
+    bool const  fHwVirtExtForced = VMMIsHwVirtExtForced(pVM)
+                                || pVM->cCpus > 1;
+
     bool        fCanUseLargerHeap;
     int rc = CFGMR3QueryBoolDef(CFGMR3GetChild(CFGMR3GetRoot(pVM), "MM"), "CanUseLargerHeap", &fCanUseLargerHeap, false);
     AssertStmt(RT_SUCCESS(rc), fCanUseLargerHeap = false);
@@ -69,7 +71,7 @@ static uint32_t mmR3ComputeHyperHeapSize(PVM pVM)
      * so lets filter out that case first.
      */
     if (   !fCanUseLargerHeap
-        && !HMIsEnabled(pVM)
+        && !fHwVirtExtForced
         && cbRam < 16*_1G64)
         return 1280 * _1K;
 
@@ -313,8 +315,8 @@ VMMR3DECL(int) MMR3HyperInitFinalize(PVM pVM)
 
 
 /**
- * Callback function which will be called when PGM is trying to find a new
- * location for the mapping.
+ * Callback function which will be called when PGM is trying to find
+ * a new location for the mapping.
  *
  * The callback is called in two modes, 1) the check mode and 2) the relocate mode.
  * In 1) the callback should say if it objects to a suggested new location. If it
@@ -323,7 +325,7 @@ VMMR3DECL(int) MMR3HyperInitFinalize(PVM pVM)
  *
  * @returns true if the location is ok.
  * @returns false if another location should be found.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   GCPtrOld    The old virtual address.
  * @param   GCPtrNew    The new virtual address.
  * @param   enmMode     Used to indicate the callback mode.
@@ -331,10 +333,8 @@ VMMR3DECL(int) MMR3HyperInitFinalize(PVM pVM)
  * @remark  The return value is no a failure indicator, it's an acceptance
  *          indicator. Relocation can not fail!
  */
-static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew,
-                                                    PGMRELOCATECALL enmMode, void *pvUser)
+static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, RTGCPTR GCPtrNew, PGMRELOCATECALL enmMode, void *pvUser)
 {
-    NOREF(pvUser);
     switch (enmMode)
     {
         /*
@@ -386,7 +386,7 @@ static DECLCALLBACK(bool) mmR3HyperRelocateCallback(PVM pVM, RTGCPTR GCPtrOld, R
  * Service a VMMCALLRING3_MMHYPER_LOCK call.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  */
 VMMR3DECL(int) MMR3LockCall(PVM pVM)
 {
@@ -402,7 +402,7 @@ VMMR3DECL(int) MMR3LockCall(PVM pVM)
  *
  * @return VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pvR3        Ring-3 address of the memory. Must be page aligned!
  * @param   pvR0        Optional ring-0 address of the memory.
  * @param   HCPhys      Host context physical address of the memory to be
@@ -455,7 +455,7 @@ VMMR3DECL(int) MMR3HyperMapHCPhys(PVM pVM, void *pvR3, RTR0PTR pvR0, RTHCPHYS HC
  *
  * @return VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   GCPhys      Guest context physical address of the memory to be mapped. Must be page aligned!
  * @param   cb          Size of the memory. Will be rounded up to nearest page.
  * @param   pszDesc     Mapping description.
@@ -524,7 +524,7 @@ VMMR3DECL(int) MMR3HyperMapGCPhys(PVM pVM, RTGCPHYS GCPhys, size_t cb, const cha
  *
  * @return VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         Pointer to the shared VM structure.
  * @param   pDevIns     The device owning the MMIO2 memory.
  * @param   iRegion     The region.
  * @param   off         The offset into the region. Will be rounded down to closest page boundary.
@@ -605,7 +605,7 @@ VMMR3DECL(int) MMR3HyperMapMMIO2(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
  *
  * @return VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pvR3        The ring-3 address of the memory, must be page aligned.
  * @param   pvR0        The ring-0 address of the memory, must be page aligned. (optional)
  * @param   cPages      The number of pages.
@@ -684,7 +684,7 @@ VMMR3DECL(int) MMR3HyperMapPages(PVM pVM, void *pvR3, RTR0PTR pvR0, size_t cPage
  *
  * @return VBox status code.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   cb          Size of the memory. Will be rounded up to nearest page.
  * @param   pszDesc     Mapping description.
  * @param   pGCPtr      Where to store the assigned GC address. Optional.
@@ -725,7 +725,7 @@ VMMR3DECL(int) MMR3HyperReserve(PVM pVM, unsigned cb, const char *pszDesc, PRTGC
  * Adds memory to the hypervisor memory arena.
  *
  * @return VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   cb          Size of the memory. Will be rounded up to nearest page.
  * @param   pszDesc     The description of the memory.
  * @param   pGCPtr      Where to store the GC address.
@@ -785,7 +785,7 @@ static int mmR3HyperMap(PVM pVM, const size_t cb, const char *pszDesc, PRTGCPTR 
  * Allocates a new heap.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   cb          The size of the new heap.
  * @param   ppHeap      Where to store the heap pointer on successful return.
  * @param   pR0PtrHeap  Where to store the ring-0 address of the heap on
@@ -808,14 +808,17 @@ static int mmR3HyperHeapCreate(PVM pVM, const size_t cb, PMMHYPERHEAP *ppHeap, P
                               0 /*fFlags*/,
                               &pv,
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-                              &pvR0,
+                              VMMIsHwVirtExtForced(pVM) ? &pvR0 : NULL,
 #else
                               NULL,
 #endif
                               paPages);
     if (RT_SUCCESS(rc))
     {
-#ifndef VBOX_WITH_2X_4GB_ADDR_SPACE
+#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+        if (!VMMIsHwVirtExtForced(pVM))
+            pvR0 = NIL_RTR0PTR;
+#else
         pvR0 = (uintptr_t)pv;
 #endif
         memset(pv, 0, cbAligned);
@@ -899,7 +902,7 @@ static int mmR3HyperHeapMap(PVM pVM, PMMHYPERHEAP pHeap, PRTGCPTR ppHeapGC)
  * The returned memory is of course zeroed.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   cb          Number of bytes to allocate.
  * @param   uAlignment  Required memory alignment in bytes.
  *                      Values are 0,8,16,32 and PAGE_SIZE.
@@ -926,7 +929,7 @@ VMMR3DECL(int) MMR3HyperAllocOnceNoRel(PVM pVM, size_t cb, unsigned uAlignment, 
  * The returned memory is of course zeroed.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   cb          Number of bytes to allocate.
  * @param   uAlignment  Required memory alignment in bytes.
  *                      Values are 0,8,16,32 and PAGE_SIZE.
@@ -969,7 +972,7 @@ VMMR3DECL(int) MMR3HyperAllocOnceNoRelEx(PVM pVM, size_t cb, unsigned uAlignment
     /*
      * Set MMHYPER_AONR_FLAGS_KERNEL_MAPPING if we're in going to execute in ring-0.
      */
-    if (HMIsEnabled(pVM))
+    if (VMMIsHwVirtExtForced(pVM))
         fFlags |= MMHYPER_AONR_FLAGS_KERNEL_MAPPING;
 #endif
 
@@ -1064,7 +1067,7 @@ VMMR3DECL(int) MMR3HyperAllocOnceNoRelEx(PVM pVM, size_t cb, unsigned uAlignment
  * Lookus up a ring-3 pointer to HMA.
  *
  * @returns The lookup record on success, NULL on failure.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   pvR3                The ring-3 address to look up.
  */
 DECLINLINE(PMMLOOKUPHYPER) mmR3HyperLookupR3(PVM pVM, void *pvR3)
@@ -1113,7 +1116,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmR3HyperLookupR3(PVM pVM, void *pvR3)
  * Set / unset guard status on one or more hyper heap pages.
  *
  * @returns VBox status code (first failure).
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   pvStart             The hyper heap page address. Must be page
  *                              aligned.
  * @param   cb                  The number of bytes. Must be page aligned.
@@ -1160,7 +1163,7 @@ VMMR3DECL(int) MMR3HyperSetGuard(PVM pVM, void *pvStart, size_t cb, bool fSet)
  * Convert hypervisor HC virtual address to HC physical address.
  *
  * @returns HC physical address.
- * @param   pVM         Pointer to the VM
+ * @param   pVM         VM Handle
  * @param   pvR3        Host context virtual address.
  */
 VMMR3DECL(RTHCPHYS) MMR3HyperHCVirt2HCPhys(PVM pVM, void *pvR3)
@@ -1209,10 +1212,10 @@ VMMR3DECL(RTHCPHYS) MMR3HyperHCVirt2HCPhys(PVM pVM, void *pvR3)
 
 
 /**
- * Implements the hcphys-not-found return case of MMR3HyperQueryInfoFromHCPhys.
+ * Implements the return case of MMR3HyperQueryInfoFromHCPhys.
  *
  * @returns VINF_SUCCESS, VINF_BUFFER_OVERFLOW.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   HCPhys              The host physical address to look for.
  * @param   pLookup             The HMA lookup entry corresponding to HCPhys.
  * @param   pszWhat             Where to return the description.
@@ -1222,7 +1225,6 @@ VMMR3DECL(RTHCPHYS) MMR3HyperHCVirt2HCPhys(PVM pVM, void *pvR3)
 static int mmR3HyperQueryInfoFromHCPhysFound(PVM pVM, RTHCPHYS HCPhys, PMMLOOKUPHYPER pLookup,
                                              char *pszWhat, size_t cbWhat, uint32_t *pcbAlloc)
 {
-    NOREF(pVM); NOREF(HCPhys);
     *pcbAlloc = pLookup->cb;
     int rc = RTStrCopy(pszWhat, cbWhat, pLookup->pszDesc);
     return rc == VERR_BUFFER_OVERFLOW ? VINF_BUFFER_OVERFLOW : rc;
@@ -1233,7 +1235,7 @@ static int mmR3HyperQueryInfoFromHCPhysFound(PVM pVM, RTHCPHYS HCPhys, PMMLOOKUP
  * Scans the HMA for the physical page and reports back a description if found.
  *
  * @returns VINF_SUCCESS, VINF_BUFFER_OVERFLOW, VERR_NOT_FOUND.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   HCPhys              The host physical address to look for.
  * @param   pszWhat             Where to return the description.
  * @param   cbWhat              Size of the return buffer.
@@ -1298,7 +1300,7 @@ VMMR3_INT_DECL(int) MMR3HyperQueryInfoFromHCPhys(PVM pVM, RTHCPHYS HCPhys, char 
  * Convert hypervisor HC physical address to HC virtual address.
  *
  * @returns HC virtual address.
- * @param   pVM         Pointer to the VM
+ * @param   pVM         VM Handle
  * @param   HCPhys      Host context physical address.
  */
 VMMR3DECL(void *) MMR3HyperHCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys)
@@ -1316,7 +1318,7 @@ VMMR3DECL(void *) MMR3HyperHCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys)
  * Convert hypervisor HC physical address to HC virtual address.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM
+ * @param   pVM         VM Handle
  * @param   HCPhys      Host context physical address.
  * @param   ppv         Where to store the HC virtual address.
  */
@@ -1335,7 +1337,7 @@ VMMR3DECL(int)   MMR3HyperHCPhys2HCVirtEx(PVM pVM, RTHCPHYS HCPhys, void **ppv)
  * Read hypervisor memory from GC virtual address.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   pvDst       Destination address (HC of course).
  * @param   GCPtr       GC virtual address.
  * @param   cb          Number of bytes to read.
@@ -1353,14 +1355,12 @@ VMMR3DECL(int) MMR3HyperReadGCVirt(PVM pVM, void *pvDst, RTGCPTR GCPtr, size_t c
 /**
  * Info handler for 'hma', it dumps the list of lookup records for the hypervisor memory area.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pHlp        Callback functions for doing output.
  * @param   pszArgs     Argument string. Optional and specific to the handler.
  */
 static DECLCALLBACK(void) mmR3HyperInfoHma(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
-    NOREF(pszArgs);
-
     pHlp->pfnPrintf(pHlp, "Hypervisor Memory Area (HMA) Layout: Base %RGv, 0x%08x bytes\n",
                     pVM->mm.s.pvHyperAreaGC, pVM->mm.s.cbHyperArea);
 

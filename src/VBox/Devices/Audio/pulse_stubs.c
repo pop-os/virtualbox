@@ -30,8 +30,7 @@
 #define PROXY_STUB(function, rettype, signature, shortsig) \
     static rettype (*g_pfn_ ## function) signature; \
     \
-    rettype VBox_##function signature; \
-    rettype VBox_##function signature \
+    rettype function signature \
     { \
         return g_pfn_ ## function shortsig; \
     }
@@ -39,8 +38,7 @@
 #define PROXY_STUB_VOID(function, signature, shortsig) \
     static void (*g_pfn_ ## function) signature; \
     \
-    void VBox_##function signature; \
-    void VBox_##function signature \
+    void function signature \
     { \
         g_pfn_ ## function shortsig; \
     }

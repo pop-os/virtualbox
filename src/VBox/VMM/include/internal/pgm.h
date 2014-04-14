@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,11 +45,6 @@ typedef enum PGMPAGETYPE
     /** MMIO2 page aliased over an MMIO page. (RWX)
      * See PGMHandlerPhysicalPageAlias(). */
     PGMPAGETYPE_MMIO2_ALIAS_MMIO,
-    /** Special page aliased over an MMIO page. (RWX)
-     * See PGMHandlerPhysicalPageAliasHC(), but this is generally only used for
-     * VT-x's APIC access page at the moment.  Treated as MMIO by everyone except
-     * the shadow paging code. */
-    PGMPAGETYPE_SPECIAL_ALIAS_MMIO,
     /** Shadowed ROM. (RWX) */
     PGMPAGETYPE_ROM_SHADOW,
     /** ROM page. (R-X) */
@@ -59,7 +54,7 @@ typedef enum PGMPAGETYPE
     /** End of valid entries. */
     PGMPAGETYPE_END
 } PGMPAGETYPE;
-AssertCompile(PGMPAGETYPE_END == 8);
+AssertCompile(PGMPAGETYPE_END <= 7);
 
 VMMDECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys);
 

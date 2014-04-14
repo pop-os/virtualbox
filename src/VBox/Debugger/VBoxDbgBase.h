@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,7 +59,7 @@ public:
      */
     bool isVMOk() const
     {
-        return m_pUVM != NULL;
+        return m_pVM != NULL;
     }
 
     /**
@@ -103,14 +103,24 @@ protected:
 
 
 private:
-    /** @callback_method_impl{FNVMATSTATE}  */
-    static DECLCALLBACK(void) atStateChange(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
+    /**
+     * VM state callback function.
+     *
+     * You are not allowed to call any function which changes the VM state from a
+     * state callback, except VMR3Destroy().
+     *
+     * @param   pVM         The VM handle.
+     * @param   enmState    The new state.
+     * @param   enmOldState The old state.
+     * @param   pvUser      The user argument.
+     */
+    static DECLCALLBACK(void) atStateChange(PVM pVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
 
 private:
     /** Pointer to the debugger GUI object. */
     VBoxDbgGui *m_pDbgGui;
-    /** The user mode VM handle. */
-    PUVM volatile m_pUVM;
+    /** The VM handle. */
+    PVM volatile m_pVM;
     /** The handle of the GUI thread. */
     RTNATIVETHREAD m_hGUIThread;
 };

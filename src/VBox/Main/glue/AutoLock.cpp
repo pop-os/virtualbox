@@ -1,10 +1,10 @@
-/* $Id: AutoLock.cpp $ */
 /** @file
- * Automatic locks, implementation.
+ *
+ * Automatic locks, implementation
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-#define GLUE_USE_CRITSECTRW
-
-
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
 #include <iprt/cdefs.h>
 #include <iprt/critsect.h>
 #include <iprt/thread.h>
@@ -47,7 +37,6 @@
 #include <vector>
 #include <list>
 #include <map>
-
 
 namespace util
 {
@@ -76,15 +65,15 @@ void InitAutoLockSystem()
         const char          *pcszDescription;
     } aClasses[] =
     {
-        { LOCKCLASS_VIRTUALBOXOBJECT,   "2-VIRTUALBOXOBJECT" },
+        { LOCKCLASS_VIRTUALBOXOBJECT,   "1-VIRTUALBOXOBJECT" },
         { LOCKCLASS_HOSTOBJECT,         "3-HOSTOBJECT" },
         { LOCKCLASS_LISTOFMACHINES,     "4-LISTOFMACHINES" },
         { LOCKCLASS_MACHINEOBJECT,      "5-MACHINEOBJECT" },
         { LOCKCLASS_SNAPSHOTOBJECT,     "6-SNAPSHOTOBJECT" },
-        { LOCKCLASS_MEDIUMQUERY,        "7-MEDIUMQUERY" },
-        { LOCKCLASS_LISTOFMEDIA,        "8-LISTOFMEDIA" },
-        { LOCKCLASS_LISTOFOTHEROBJECTS, "9-LISTOFOTHEROBJECTS" },
-        { LOCKCLASS_OTHEROBJECT,        "10-OTHEROBJECT" },
+        { LOCKCLASS_LISTOFMEDIA,        "7-LISTOFMEDIA" },
+        { LOCKCLASS_LISTOFOTHEROBJECTS, "8-LISTOFOTHEROBJECTS" },
+        { LOCKCLASS_OTHEROBJECT,        "9-OTHEROBJECT" },
+        { LOCKCLASS_USBLIST,            "10-USBLIST" },
         { LOCKCLASS_PROGRESSLIST,       "11-PROGRESSLIST" },
         { LOCKCLASS_OBJECTSTATE,        "12-OBJECTSTATE" }
     };
@@ -144,15 +133,11 @@ struct RWLockHandle::Data
     Data()
     { }
 
-#ifdef GLUE_USE_CRITSECTRW
-    mutable RTCRITSECTRW    CritSect;
-#else
-    RTSEMRW                 sem;
-#endif
-    VBoxLockingClass        lockClass;
+    RTSEMRW                     sem;
+    VBoxLockingClass   lockClass;
 
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    com::Utf8Str            strDescription;
+    com::Utf8Str                strDescription;
 #endif
 };
 
@@ -161,110 +146,64 @@ RWLockHandle::RWLockHandle(VBoxLockingClass lockClass)
     m = new Data();
 
     m->lockClass = lockClass;
+
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
     m->strDescription = com::Utf8StrFmt("r/w %RCv", this);
-#endif
-
-#ifdef GLUE_USE_CRITSECTRW
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, NULL);
-# else
-    int vrc = RTCritSectRwInitEx(&m->CritSect, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, NULL);
-# endif
-#else
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
     int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, g_mapLockValidationClasses[lockClass], RTLOCKVAL_SUB_CLASS_ANY, NULL);
-# else
+#else
     int vrc = RTSemRWCreateEx(&m->sem, 0 /*fFlags*/, NIL_RTLOCKVALCLASS, RTLOCKVAL_SUB_CLASS_ANY, NULL);
-# endif
 #endif
     AssertRC(vrc);
 }
 
 /*virtual*/ RWLockHandle::~RWLockHandle()
 {
-#ifdef GLUE_USE_CRITSECTRW
-    RTCritSectRwDelete(&m->CritSect);
-#else
     RTSemRWDestroy(m->sem);
-#endif
     delete m;
 }
 
 /*virtual*/ bool RWLockHandle::isWriteLockOnCurrentThread() const
 {
-#ifdef GLUE_USE_CRITSECTRW
-    return RTCritSectRwIsWriteOwner(&m->CritSect);
-#else
     return RTSemRWIsWriteOwner(m->sem);
-#endif
 }
 
 /*virtual*/ void RWLockHandle::lockWrite(LOCKVAL_SRC_POS_DECL)
 {
-#ifdef GLUE_USE_CRITSECTRW
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    int vrc = RTCritSectRwEnterExclDebug(&m->CritSect, (uintptr_t)ASMReturnAddress(), RT_SRC_POS_ARGS);
-# else
-    int vrc = RTCritSectRwEnterExcl(&m->CritSect);
-# endif
-#else
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
+#ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
     int vrc = RTSemRWRequestWriteDebug(m->sem, RT_INDEFINITE_WAIT, (uintptr_t)ASMReturnAddress(), RT_SRC_POS_ARGS);
-# else
+#else
     int vrc = RTSemRWRequestWrite(m->sem, RT_INDEFINITE_WAIT);
-# endif
 #endif
     AssertRC(vrc);
 }
 
 /*virtual*/ void RWLockHandle::unlockWrite()
 {
-#ifdef GLUE_USE_CRITSECTRW
-    int vrc = RTCritSectRwLeaveExcl(&m->CritSect);
-#else
     int vrc = RTSemRWReleaseWrite(m->sem);
-#endif
     AssertRC(vrc);
 
 }
 
 /*virtual*/ void RWLockHandle::lockRead(LOCKVAL_SRC_POS_DECL)
 {
-#ifdef GLUE_USE_CRITSECTRW
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
-    int vrc = RTCritSectRwEnterSharedDebug(&m->CritSect, (uintptr_t)ASMReturnAddress(), RT_SRC_POS_ARGS);
-# else
-    int vrc = RTCritSectRwEnterShared(&m->CritSect);
-# endif
-#else
-# ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
+#ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
     int vrc = RTSemRWRequestReadDebug(m->sem, RT_INDEFINITE_WAIT, (uintptr_t)ASMReturnAddress(), RT_SRC_POS_ARGS);
-# else
+#else
     int vrc = RTSemRWRequestRead(m->sem, RT_INDEFINITE_WAIT);
-# endif
 #endif
     AssertRC(vrc);
 }
 
 /*virtual*/ void RWLockHandle::unlockRead()
 {
-#ifdef GLUE_USE_CRITSECTRW
-    int vrc = RTCritSectRwLeaveShared(&m->CritSect);
-#else
     int vrc = RTSemRWReleaseRead(m->sem);
-#endif
     AssertRC(vrc);
 }
 
 /*virtual*/ uint32_t RWLockHandle::writeLockLevel() const
 {
     /* Note! This does not include read recursions done by the writer! */
-#ifdef GLUE_USE_CRITSECTRW
-    return RTCritSectRwGetWriteRecursion(&m->CritSect);
-#else
     return RTSemRWGetWriteRecursion(m->sem);
-#endif
 }
 
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
@@ -362,6 +301,7 @@ WriteLockHandle::~WriteLockHandle()
 ////////////////////////////////////////////////////////////////////////////////
 
 typedef std::vector<LockHandle*> HandlesVector;
+typedef std::vector<uint32_t> CountsVector;
 
 struct AutoLockBase::Data
 {
@@ -373,7 +313,8 @@ struct AutoLockBase::Data
 #endif
         )
         : fIsLocked(false),
-          aHandles(cHandles)        // size of array
+          aHandles(cHandles),       // size of array
+          acUnlockedInLeave(cHandles)
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
           , pcszFile(pcszFile_),
           uLine(uLine_),
@@ -381,7 +322,10 @@ struct AutoLockBase::Data
 #endif
     {
         for (uint32_t i = 0; i < cHandles; ++i)
+        {
+            acUnlockedInLeave[i] = 0;
             aHandles[i] = NULL;
+        }
     }
 
     bool            fIsLocked;          // if true, then all items in aHandles are locked by this AutoLock and
@@ -389,6 +333,7 @@ struct AutoLockBase::Data
     HandlesVector   aHandles;           // array (vector) of LockHandle instances; in the case of AutoWriteLock
                                         // and AutoReadLock, there will only be one item on the list; with the
                                         // AutoMulti* derivatives, there will be multiple
+    CountsVector    acUnlockedInLeave;  // for each lock handle, how many times the handle was unlocked in leave(); otherwise 0
 
 #ifdef VBOX_WITH_MAIN_LOCK_VALIDATION
     // information about where the lock occurred (passed down from the AutoLock classes)
@@ -468,11 +413,38 @@ void AutoLockBase::callUnlockOnAllHandles()
 /**
  * Destructor implementation that can also be called explicitly, if required.
  * Restores the exact state before the AutoLock was created; that is, unlocks
- * all contained semaphores.
+ * all contained semaphores and might actually lock them again if leave()
+ * was called during the AutoLock's lifetime.
  */
 void AutoLockBase::cleanup()
 {
-    if (m->fIsLocked)
+    bool fAnyUnlockedInLeave = false;
+
+    uint32_t i = 0;
+    for (HandlesVector::iterator it = m->aHandles.begin();
+         it != m->aHandles.end();
+         ++it)
+    {
+        LockHandle *pHandle = *it;
+        if (pHandle)
+        {
+            if (m->acUnlockedInLeave[i])
+            {
+                // there was a leave() before the destruction: then restore the
+                // lock level that might have been set by locks other than our own
+                if (m->fIsLocked)
+                {
+                    --m->acUnlockedInLeave[i];
+                    fAnyUnlockedInLeave = true;
+                }
+                for (; m->acUnlockedInLeave[i]; --m->acUnlockedInLeave[i])
+                    callLockImpl(*pHandle);
+            }
+        }
+        ++i;
+    }
+
+    if (m->fIsLocked && !fAnyUnlockedInLeave)
         callUnlockOnAllHandles();
 }
 
@@ -482,7 +454,7 @@ void AutoLockBase::cleanup()
  */
 void AutoLockBase::acquire()
 {
-    AssertMsgReturnVoid(!m->fIsLocked, ("m->fIsLocked is true, attempting to lock twice!"));
+    AssertMsg(!m->fIsLocked, ("m->fIsLocked is true, attempting to lock twice!"));
     callLockOnAllHandles();
     m->fIsLocked = true;
 }
@@ -492,7 +464,7 @@ void AutoLockBase::acquire()
  */
 void AutoLockBase::release()
 {
-    AssertMsgReturnVoid(m->fIsLocked, ("m->fIsLocked is false, cannot release!"));
+    AssertMsg(m->fIsLocked, ("m->fIsLocked is false, cannot release!"));
     callUnlockOnAllHandles();
     m->fIsLocked = false;
 }
@@ -581,28 +553,85 @@ void AutoLockBase::release()
     l.unlockWrite();
 }
 
+/**
+ * Causes the current thread to completely release the write lock to make
+ * the managed semaphore immediately available for locking by other threads.
+ *
+ * This implies that all nested write locks on the semaphore will be
+ * released, even those that were acquired through the calls to #lock()
+ * methods of all other AutoWriteLock/AutoReadLock instances managing the
+ * <b>same</b> read/write semaphore.
+ *
+ * After calling this method, the only method you are allowed to call is
+ * #enter(). It will acquire the write lock again and restore the same
+ * level of nesting as it had before calling #leave().
+ *
+ * If this instance is destroyed without calling #enter(), the destructor
+ * will try to restore the write lock level that existed when #leave() was
+ * called minus the number of nested #lock() calls made on this instance
+ * itself. This is done to preserve lock levels of other
+ * AutoWriteLock/AutoReadLock instances managing the same semaphore (if
+ * any). Tiis also means that the destructor may indefinitely block if a
+ * write or a read lock is owned by some other thread by that time.
+ */
+void AutoWriteLockBase::leave()
+{
+    AssertMsg(m->fIsLocked, ("m->fIsLocked is false, cannot leave()!"));
+
+    // unlock in reverse order!
+    uint32_t i = m->aHandles.size();
+    for (HandlesVector::reverse_iterator it = m->aHandles.rbegin();
+         it != m->aHandles.rend();
+         ++it)
+    {
+        --i;            // array index is zero based, decrement with every loop since we iterate backwards
+        LockHandle *pHandle = *it;
+        if (pHandle)
+        {
+            AssertMsg(m->acUnlockedInLeave[i] == 0, ("m->cUnlockedInLeave[%d] is %d, must be 0! Called leave() twice?", i, m->acUnlockedInLeave[i]));
+            m->acUnlockedInLeave[i] = pHandle->writeLockLevel();
+            AssertMsg(m->acUnlockedInLeave[i] >= 1, ("m->cUnlockedInLeave[%d] is %d, must be >=1!", i, m->acUnlockedInLeave[i]));
+
+            for (uint32_t left = m->acUnlockedInLeave[i];
+                 left;
+                 --left)
+                callUnlockImpl(*pHandle);
+        }
+    }
+}
+
+/**
+ * Causes the current thread to restore the write lock level after the
+ * #leave() call. This call will indefinitely block if another thread has
+ * successfully acquired a write or a read lock on the same semaphore in
+ * between.
+ */
+void AutoWriteLockBase::enter()
+{
+    AssertMsg(m->fIsLocked, ("m->fIsLocked is false, cannot enter()!"));
+
+    uint32_t i = 0;
+    for (HandlesVector::iterator it = m->aHandles.begin();
+         it != m->aHandles.end();
+         ++it)
+    {
+        LockHandle *pHandle = *it;
+        if (pHandle)
+        {
+            AssertMsg(m->acUnlockedInLeave[i] != 0, ("m->cUnlockedInLeave[%d] is 0! enter() without leave()?", i));
+
+            for (; m->acUnlockedInLeave[i]; --m->acUnlockedInLeave[i])
+                callLockImpl(*pHandle);
+        }
+        ++i;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 //
 // AutoWriteLock
 //
 ////////////////////////////////////////////////////////////////////////////////
-
-AutoWriteLock::AutoWriteLock(uint32_t cHandles,
-                             LockHandle** pHandles
-                             COMMA_LOCKVAL_SRC_POS_DECL)
-  : AutoWriteLockBase(cHandles
-                      COMMA_LOCKVAL_SRC_POS_ARGS)
-{
-    Assert(cHandles);
-    Assert(pHandles);
-
-    for (uint32_t i = 0; i < cHandles; ++i)
-        m->aHandles[i] = pHandles[i];
-
-    acquire();
-}
-
-
 
 /**
  * Attaches another handle to this auto lock instance.
@@ -718,40 +747,6 @@ AutoMultiWriteLock3::AutoMultiWriteLock3(LockHandle *pl1,
     m->aHandles[0] = pl1;
     m->aHandles[1] = pl2;
     m->aHandles[2] = pl3;
-    acquire();
-}
-
-AutoMultiWriteLock4::AutoMultiWriteLock4(Lockable *pl1,
-                                         Lockable *pl2,
-                                         Lockable *pl3,
-                                         Lockable *pl4
-                                         COMMA_LOCKVAL_SRC_POS_DECL)
-    : AutoWriteLockBase(4
-                        COMMA_LOCKVAL_SRC_POS_ARGS)
-{
-    if (pl1)
-        m->aHandles[0] = pl1->lockHandle();
-    if (pl2)
-        m->aHandles[1] = pl2->lockHandle();
-    if (pl3)
-        m->aHandles[2] = pl3->lockHandle();
-    if (pl4)
-        m->aHandles[3] = pl4->lockHandle();
-    acquire();
-}
-
-AutoMultiWriteLock4::AutoMultiWriteLock4(LockHandle *pl1,
-                                         LockHandle *pl2,
-                                         LockHandle *pl3,
-                                         LockHandle *pl4
-                                         COMMA_LOCKVAL_SRC_POS_DECL)
-    : AutoWriteLockBase(4
-                        COMMA_LOCKVAL_SRC_POS_ARGS)
-{
-    m->aHandles[0] = pl1;
-    m->aHandles[1] = pl2;
-    m->aHandles[2] = pl3;
-    m->aHandles[3] = pl4;
     acquire();
 }
 

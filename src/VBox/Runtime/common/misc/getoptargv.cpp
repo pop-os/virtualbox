@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -318,10 +318,6 @@ RTDECL(void) RTGetOptArgvFree(char **papszArgv)
 {
     if (papszArgv)
     {
-        /*
-         * We've really only _two_ allocations here. Check the code in
-         * RTGetOptArgvFromString for the particulars.
-         */
         RTMemFree(papszArgv[0]);
         RTMemFree(papszArgv);
     }

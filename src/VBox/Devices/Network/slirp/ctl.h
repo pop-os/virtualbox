@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,5 +24,4 @@
 #define CTL_GUEST       15
 #define CTL_BROADCAST   255
 
-#define CTL_CHECK(x, ctl) (   ((RT_N2H_U32((x)) & ~pData->netmask) == (ctl)) \
-                           && (((x) & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr))
+#define CTL_CHECK(x, ctl) (((x) & ~pData->netmask) == (ctl))

@@ -555,7 +555,7 @@ na
         <translation>Zawiera polecenia zarządzające oknem</translation>
     </message>
     <message>
-        <source>Holds the name of the window and contains controls to manipulate it</source>
+        <source>Displays the name of the window and contains controls to manipulate it</source>
         <translation>Wyświetla nazwę okna i zawiera elementy do zarządzania nim</translation>
     </message>
     <message>

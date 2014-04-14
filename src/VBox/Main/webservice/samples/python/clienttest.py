@@ -37,7 +37,6 @@ def enumToString(constants, enum, elem):
 def main(argv):
 
     from vboxapi import VirtualBoxManager
-    # This is a VirtualBox COM/XPCOM API client, no data needed.
     wrapper = VirtualBoxManager(None, None)
 
     # Get the VirtualBox manager
@@ -51,27 +50,12 @@ def main(argv):
     vboxConstants = wrapper.constants
 
     # Enumerate all defined machines
-    for mach in wrapper.getArray(vbox, 'machines'):
+    for mach in vbox.machines:
 
         try:
-            # Be prepared for failures - the VM can be inaccessible
-            vmname = '<inaccessible>'
-            try:
-                vmname = mach.name
-            except Exception, e:
-                None
-            vmid = '';
-            try:
-                vmid = mach.id
-            except Exception, e:
-                None
 
-            # Print some basic VM information even if there were errors
-            print "Machine name: %s [%s]" %(vmname,vmid)
-            if vmname == '<inaccessible>' or vmid == '':
-                continue
-
-            # Print some basic VM information
+            # Print some basic information
+            print "Machine name: %s [%s]" %(mach.name,mach.id)
             print "    State:           %s" %(enumToString(vboxConstants, "MachineState", mach.state))
             print "    Session state:   %s" %(enumToString(vboxConstants, "SessionState", mach.sessionState))
 
@@ -98,10 +82,10 @@ def main(argv):
                 # Get the VM's display object
                 display = console.display
 
-                # Get the VM's current display resolution + bit depth + position
+                # Get the VM's current display resolution + bit depth
                 screenNum = 0 # From first screen
-                (screenW, screenH, screenBPP, screenX, screenY) = display.getScreenResolution(screenNum)
-                print "    Display (%d):     %dx%d, %d BPP at %d,%d"  %(screenNum, screenW, screenH, screenBPP, screenX, screenY)
+                (screenX, screenY, screenBPP) = display.getScreenResolution(screenNum)
+                print "    Display (%d):     %dx%d, %d BPP"  %(screenNum, screenX, screenY, screenBPP)
 
                 # We're done -- don't forget to unlock the machine!
                 session.unlockMachine()

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIUpdateDefs_h___
-#define ___UIUpdateDefs_h___
+#ifndef __UIUpdateDefs_h__
+#define __UIUpdateDefs_h__
 
 /* Global includes: */
 #include <QDate>
@@ -101,5 +101,4 @@ private:
     VBoxVersion m_version;
 };
 
-#endif // !___UIUpdateDefs_h___
-
+#endif // __UIUpdateDefs_h__

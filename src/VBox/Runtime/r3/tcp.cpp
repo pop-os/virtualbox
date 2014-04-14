@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,6 @@
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/err.h>
-#include <iprt/log.h>
 #include <iprt/mempool.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
@@ -148,6 +147,7 @@ typedef struct RTTCPSERVER
 static DECLCALLBACK(int)  rtTcpServerThread(RTTHREAD ThreadSelf, void *pvServer);
 static int  rtTcpServerListen(PRTTCPSERVER pServer);
 static int  rtTcpServerListenCleanup(PRTTCPSERVER pServer);
+static int  rtTcpServerDestroySocket(RTSOCKET volatile *pSockClient, const char *pszMsg);
 static int  rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdown);
 
 
@@ -303,19 +303,47 @@ static DECLCALLBACK(int)  rtTcpServerThread(RTTHREAD ThreadSelf, void *pvServer)
  */
 RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTCPSERVER ppServer)
 {
+    int rc;
+
     /*
      * Validate input.
      */
     AssertReturn(uPort > 0, VERR_INVALID_PARAMETER);
     AssertPtrReturn(ppServer, VERR_INVALID_PARAMETER);
 
+#ifdef RT_OS_WINDOWS
     /*
-     * Resolve the address.
+     * Initialize WinSock and check version.
      */
-    RTNETADDR LocalAddr;
-    int rc = RTSocketParseInetAddress(pszAddress, uPort, &LocalAddr);
-    if (RT_FAILURE(rc))
-        return rc;
+    WORD    wVersionRequested = MAKEWORD(1, 1);
+    WSADATA wsaData;
+    rc = WSAStartup(wVersionRequested, &wsaData);
+    if (wsaData.wVersion != wVersionRequested)
+    {
+        AssertMsgFailed(("Wrong winsock version\n"));
+        return VERR_NOT_SUPPORTED;
+    }
+#endif
+
+    /*
+     * Get host listening address.
+     */
+    struct hostent *pHostEnt = NULL;
+    if (pszAddress != NULL && *pszAddress)
+    {
+        pHostEnt = gethostbyname(pszAddress);
+        if (!pHostEnt)
+        {
+            struct in_addr InAddr;
+            InAddr.s_addr = inet_addr(pszAddress);
+            pHostEnt = gethostbyaddr((char *)&InAddr, 4, AF_INET);
+            if (!pHostEnt)
+            {
+                rc = rtSocketResolverError();
+                return rc;
+            }
+        }
+    }
 
     /*
      * Setting up socket.
@@ -332,11 +360,23 @@ RTR3DECL(int) RTTcpServerCreateEx(const char *pszAddress, uint32_t uPort, PPRTTC
         int fFlag = 1;
         if (!rtSocketSetOpt(WaitSock, SOL_SOCKET, SO_REUSEADDR, &fFlag, sizeof(fFlag)))
         {
+            /*
+             * Set socket family, address and port.
+             */
+            struct sockaddr_in LocalAddr;
+            RT_ZERO(LocalAddr);
+            LocalAddr.sin_family = AF_INET;
+            LocalAddr.sin_port = htons(uPort);
+            /* if address not specified, use INADDR_ANY. */
+            if (!pHostEnt)
+                LocalAddr.sin_addr.s_addr = INADDR_ANY;
+            else
+                LocalAddr.sin_addr = *((struct in_addr *)pHostEnt->h_addr);
 
             /*
              * Bind a name to a socket and set it listening for connections.
              */
-            rc = rtSocketBind(WaitSock, &LocalAddr);
+            rc = rtSocketBind(WaitSock, (struct sockaddr *)&LocalAddr, sizeof(LocalAddr));
             if (RT_SUCCESS(rc))
                 rc = rtSocketListen(WaitSock, RTTCP_SERVER_BACKLOG);
             if (RT_SUCCESS(rc))
@@ -805,27 +845,45 @@ RTR3DECL(int) RTTcpServerDestroy(PRTTCPSERVER pServer)
 
 RTR3DECL(int) RTTcpClientConnect(const char *pszAddress, uint32_t uPort, PRTSOCKET pSock)
 {
-    return RTTcpClientConnectEx(pszAddress, uPort, pSock, NULL);
-}
+    int rc;
 
-
-RTR3DECL(int) RTTcpClientConnectEx(const char *pszAddress, uint32_t uPort, PRTSOCKET pSock,
-                                   PRTTCPCLIENTCONNECTCANCEL volatile *ppCancelCookie)
-{
     /*
      * Validate input.
      */
     AssertReturn(uPort > 0, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszAddress, VERR_INVALID_POINTER);
-    AssertPtrNullReturn(ppCancelCookie, VERR_INVALID_POINTER);
+
+#ifdef RT_OS_WINDOWS
+    /*
+     * Initialize WinSock and check version.
+     */
+    WORD    wVersionRequested = MAKEWORD(1, 1);
+    WSADATA wsaData;
+    rc = WSAStartup(wVersionRequested, &wsaData);
+    if (wsaData.wVersion != wVersionRequested)
+    {
+        AssertMsgFailed(("Wrong winsock version\n"));
+        return VERR_NOT_SUPPORTED;
+    }
+#endif
 
     /*
      * Resolve the address.
      */
-    RTNETADDR Addr;
-    int rc = RTSocketParseInetAddress(pszAddress, uPort, &Addr);
-    if (RT_FAILURE(rc))
-        return rc;
+    struct hostent *pHostEnt = NULL;
+    pHostEnt = gethostbyname(pszAddress);
+    if (!pHostEnt)
+    {
+        struct in_addr InAddr;
+        InAddr.s_addr = inet_addr(pszAddress);
+        pHostEnt = gethostbyaddr((char *)&InAddr, 4, AF_INET);
+        if (!pHostEnt)
+        {
+            rc = rtSocketResolverError();
+            AssertMsgFailed(("Could not resolve '%s', rc=%Rrc\n", pszAddress, rc));
+            return rc;
+        }
+    }
 
     /*
      * Create the socket and connect.
@@ -836,25 +894,12 @@ RTR3DECL(int) RTTcpClientConnectEx(const char *pszAddress, uint32_t uPort, PRTSO
     {
         RTSocketSetInheritance(Sock, false /*fInheritable*/);
 
-        if (!ppCancelCookie)
-            rc = rtSocketConnect(Sock, &Addr);
-        else
-        {
-            RTSocketRetain(Sock);
-            if (ASMAtomicCmpXchgPtr(ppCancelCookie, (PRTTCPCLIENTCONNECTCANCEL)Sock, NULL))
-            {
-                rc = rtSocketConnect(Sock, &Addr);
-                if (ASMAtomicCmpXchgPtr(ppCancelCookie, NULL, (PRTTCPCLIENTCONNECTCANCEL)Sock))
-                    RTSocketRelease(Sock);
-                else
-                    rc = VERR_CANCELLED;
-            }
-            else
-            {
-                RTSocketRelease(Sock);
-                rc = VERR_CANCELLED;
-            }
-        }
+        struct sockaddr_in InAddr;
+        RT_ZERO(InAddr);
+        InAddr.sin_family = AF_INET;
+        InAddr.sin_port = htons(uPort);
+        InAddr.sin_addr = *((struct in_addr *)pHostEnt->h_addr);
+        rc = rtSocketConnect(Sock, (struct sockaddr *)&InAddr, sizeof(InAddr));
         if (RT_SUCCESS(rc))
         {
             *pSock = Sock;
@@ -863,25 +908,7 @@ RTR3DECL(int) RTTcpClientConnectEx(const char *pszAddress, uint32_t uPort, PRTSO
 
         rtTcpClose(Sock, "RTTcpClientConnect", false /*fTryGracefulShutdown*/);
     }
-    if (ppCancelCookie)
-        *ppCancelCookie = NULL;
     return rc;
-}
-
-
-RTR3DECL(int) RTTcpClientCancelConnect(PRTTCPCLIENTCONNECTCANCEL volatile *ppCancelCookie)
-{
-    AssertPtrReturn(ppCancelCookie, VERR_INVALID_POINTER);
-
-    AssertCompile(NIL_RTSOCKET == NULL);
-    RTSOCKET hSock = (RTSOCKET)ASMAtomicXchgPtr((void * volatile *)ppCancelCookie, (void *)(uintptr_t)0xdead9999);
-    if (hSock != NIL_RTSOCKET)
-    {
-        int rc = rtTcpClose(hSock, "RTTcpClientCancelConnect", false /*fTryGracefulShutdown*/);
-        AssertRCReturn(rc, rc);
-    }
-
-    return VINF_SUCCESS;
 }
 
 
@@ -936,7 +963,7 @@ static int rtTcpSetBlockingMode(RTHCUINTPTR hSocket, bool fBlocking)
  */
 static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdown)
 {
-    NOREF(pszMsg); /** @todo drop this parameter? */
+    int rc;
 
     /* ignore nil handles. */
     if (Sock == NIL_RTSOCKET)
@@ -945,7 +972,6 @@ static int rtTcpClose(RTSOCKET Sock, const char *pszMsg, bool fTryGracefulShutdo
     /*
      * Try to gracefully shut it down.
      */
-    int rc;
     if (fTryGracefulShutdown)
     {
         rc = RTSocketShutdown(Sock, false /*fRead*/, true /*fWrite*/);

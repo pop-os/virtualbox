@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +19,10 @@
 #ifndef __UIMainEventListener_h__
 #define __UIMainEventListener_h__
 
-/* COM includes: */
-#include "COMEnums.h"
-#include "CVirtualBoxErrorInfo.h"
-#include "CMediumAttachment.h"
-#include "CNetworkAdapter.h"
-#include "CUSBDevice.h"
+/* Local includes */
+#include "COMDefs.h"
 
-/* Other VBox includes: */
+/* VBox includes */
 #include <VBox/com/listeners.h>
 
 /* Note: On a first look this may seems a little bit complicated.
@@ -62,19 +58,16 @@ signals:
     void sigExtraDataChange(QString strId, QString strKey, QString strValue);
     void sigMachineRegistered(QString strId, bool fRegistered);
     void sigSessionStateChange(QString strId, KSessionState state);
-    void sigSnapshotTake(QString strId, QString strSnapshotId);
-    void sigSnapshotDelete(QString strId, QString strSnapshotId);
     void sigSnapshotChange(QString strId, QString strSnapshotId);
     /* All Console Signals */
     void sigMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint hotCorner, QSize size, QVector<uint8_t> shape);
-    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor);
+    void sigMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fNeedsHostCursor);
     void sigKeyboardLedsChangeEvent(bool fNumLock, bool fCapsLock, bool fScrollLock);
     void sigStateChange(KMachineState state);
     void sigAdditionsChange();
     void sigNetworkAdapterChange(CNetworkAdapter adapter);
     void sigMediumChange(CMediumAttachment attachment);
     void sigVRDEChange();
-    void sigVideoCaptureChange();
     void sigUSBControllerChange();
     void sigUSBDeviceStateChange(CUSBDevice device, bool fAttached, CVirtualBoxErrorInfo error);
     void sigSharedFolderChange();
@@ -82,7 +75,6 @@ signals:
     void sigCanShowWindow(bool &fVeto, QString &strReason); /* use Qt::DirectConnection */
     void sigShowWindow(LONG64 &winId); /* use Qt::DirectConnection */
     void sigCPUExecutionCapChange();
-    void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 };
 
 /* Wrap the IListener interface around our implementation class. */

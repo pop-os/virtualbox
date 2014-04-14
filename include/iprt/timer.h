@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -149,7 +149,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
 RTDECL(int) RTTimerDestroy(PRTTIMER pTimer);
 
 /**
- * Starts a suspended timer.
+ * Stops an active timer.
  *
  * @returns IPRT status code.
  * @retval  VERR_INVALID_HANDLE if pTimer isn't valid.
@@ -269,7 +269,7 @@ RTDECL(bool) RTTimerCanDoHighResolution(void);
 /**
  * Timer callback function for low res timers.
  *
- * This is identical to FNRTTIMER except for the first parameter, so
+ * This is identfical to FNRTTIMER except for the first parameter, so
  * see FNRTTIMER for details.
  *
  * @param   hTimerLR    The low resolution timer handle.

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1200,17 +1200,38 @@ VMMR3DECL(int)  STAMR3RegisterCallback(PVM pVM, void *pvSample, STAMVISIBILITY e
 VMMR3DECL(int)  STAMR3RegisterCallbackV(PVM pVM, void *pvSample, STAMVISIBILITY enmVisibility, STAMUNIT enmUnit,
                                         PFNSTAMR3CALLBACKRESET pfnReset, PFNSTAMR3CALLBACKPRINT pfnPrint,
                                         const char *pszDesc, const char *pszName, va_list args);
-VMMR3DECL(int)  STAMR3Deregister(PUVM pUVM, const char *pszPat);
-VMMR3DECL(int)  STAMR3DeregisterF(PUVM pUVM, const char *pszPatFmt, ...);
-VMMR3DECL(int)  STAMR3DeregisterV(PUVM pUVM, const char *pszPatFmt, va_list va);
-VMMR3DECL(int)  STAMR3DeregisterByAddr(PUVM pUVM, void *pvSample);
+VMMR3DECL(int)  STAMR3DeregisterU(PUVM pUVM, void *pvSample);
+VMMR3DECL(int)  STAMR3Deregister(PVM pVM, void *pvSample);
 
-VMMR3DECL(int)  STAMR3Reset(PUVM pUVM, const char *pszPat);
-VMMR3DECL(int)  STAMR3Snapshot(PUVM pUVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc);
-VMMR3DECL(int)  STAMR3SnapshotFree(PUVM pUVM, char *pszSnapshot);
-VMMR3DECL(int)  STAMR3Dump(PUVM pUVM, const char *pszPat);
-VMMR3DECL(int)  STAMR3DumpToReleaseLog(PUVM pUVM, const char *pszPat);
-VMMR3DECL(int)  STAMR3Print(PUVM pUVM, const char *pszPat);
+/** @def STAM_REL_DEREG
+ * Deregisters a statistics sample if statistics are enabled.
+ *
+ * @param   pVM         VM Handle.
+ * @param   pvSample    Pointer to the sample.
+ */
+#define STAM_REL_DEREG(pVM, pvSample) \
+    STAM_REL_STATS({ int rcStam = STAMR3Deregister(pVM, pvSample); AssertRC(rcStam); })
+/** @def STAM_DEREG
+ * Deregisters a statistics sample if statistics are enabled.
+ *
+ * @param   pVM         VM Handle.
+ * @param   pvSample    Pointer to the sample.
+ */
+#define STAM_DEREG(pVM, pvSample) \
+    STAM_STATS({ STAM_REL_DEREG(pVM, pvSample); })
+
+VMMR3DECL(int)  STAMR3ResetU(PUVM pUVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3Reset(PVM pVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3SnapshotU(PUVM pUVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc);
+VMMR3DECL(int)  STAMR3Snapshot(PVM pVM, const char *pszPat, char **ppszSnapshot, size_t *pcchSnapshot, bool fWithDesc);
+VMMR3DECL(int)  STAMR3SnapshotFreeU(PUVM pUVM, char *pszSnapshot);
+VMMR3DECL(int)  STAMR3SnapshotFree(PVM pVM, char *pszSnapshot);
+VMMR3DECL(int)  STAMR3DumpU(PUVM pUVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3Dump(PVM pVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3DumpToReleaseLogU(PUVM pUVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3DumpToReleaseLog(PVM pVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3PrintU(PUVM pUVM, const char *pszPat);
+VMMR3DECL(int)  STAMR3Print(PVM pVM, const char *pszPat);
 
 /**
  * Callback function for STAMR3Enum().
@@ -1230,7 +1251,8 @@ typedef DECLCALLBACK(int) FNSTAMR3ENUM(const char *pszName, STAMTYPE enmType, vo
 /** Pointer to a FNSTAMR3ENUM(). */
 typedef FNSTAMR3ENUM *PFNSTAMR3ENUM;
 
-VMMR3DECL(int)  STAMR3Enum(PUVM pUVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser);
+VMMR3DECL(int)  STAMR3EnumU(PUVM pUVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser);
+VMMR3DECL(int)  STAMR3Enum(PVM pVM, const char *pszPat, PFNSTAMR3ENUM pfnEnum, void *pvUser);
 VMMR3DECL(const char *) STAMR3GetUnit(STAMUNIT enmUnit);
 
 /** @} */

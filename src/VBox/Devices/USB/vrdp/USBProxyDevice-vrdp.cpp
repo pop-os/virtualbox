@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,11 +42,10 @@ typedef struct USBPROXYDEVVRDP
  * The USB proxy device functions.
  */
 
-static DECLCALLBACK(int) usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
+static int usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend)
 {
     LogFlow(("usbProxyVrdpOpen: pProxyDev=%p pszAddress=%s, pvBackend=%p\n", pProxyDev, pszAddress, pvBackend));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
     int rc = VINF_SUCCESS;
 
     if (strncmp (pszAddress, REMOTE_USB_BACKEND_PREFIX_S, REMOTE_USB_BACKEND_PREFIX_LEN) == 0)
@@ -58,11 +57,19 @@ static DECLCALLBACK(int) usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *ps
 
         if (RT_SUCCESS (rc))
         {
-            pDevVrdp->pCallback = pCallback;
-            pDevVrdp->pDevice = pDevice;
-            pProxyDev->iActiveCfg = 1; /** @todo that may not be always true. */
-            pProxyDev->cIgnoreSetConfigs = 1;
-            return VINF_SUCCESS;
+            PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)RTMemAlloc (sizeof(*pDevVrdp));
+            if (pDevVrdp)
+            {
+                pDevVrdp->pCallback = pCallback;
+                pDevVrdp->pDevice = pDevice;
+                pProxyDev->Backend.pv = pDevVrdp;
+                pProxyDev->iActiveCfg = 1; /** @todo that may not be always true. */
+                pProxyDev->cIgnoreSetConfigs = 1;
+                return VINF_SUCCESS;
+            }
+
+            pCallback->pfnClose (pDevice);
+            rc = VERR_NO_MEMORY;
         }
     }
     else
@@ -74,20 +81,20 @@ static DECLCALLBACK(int) usbProxyVrdpOpen(PUSBPROXYDEV pProxyDev, const char *ps
     return rc;
 }
 
-static DECLCALLBACK(void) usbProxyVrdpClose(PUSBPROXYDEV pProxyDev)
+static void usbProxyVrdpClose(PUSBPROXYDEV pProxyDev)
 {
     LogFlow(("usbProxyVrdpClose: pProxyDev = %p\n", pProxyDev));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     pDevVrdp->pCallback->pfnClose (pDevVrdp->pDevice);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
+static int usbProxyVrdpReset(PUSBPROXYDEV pProxyDev, bool fResetOnLinux)
 {
     LogFlow(("usbProxyVrdpReset: pProxyDev = %p\n", pProxyDev));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnReset (pDevVrdp->pDevice);
 
@@ -103,11 +110,11 @@ static DECLCALLBACK(int) usbProxyVrdpReset(PUSBPROXYDEV pProxyDev, bool fResetOn
     return rc;
 }
 
-static DECLCALLBACK(int) usbProxyVrdpSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
+static int usbProxyVrdpSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
 {
     LogFlow(("usbProxyVrdpSetConfig: pProxyDev=%s cfg=%#x\n", pProxyDev->pUsbIns->pszName, cfg));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnSetConfig (pDevVrdp->pDevice, (uint8_t)cfg);
 
@@ -117,14 +124,14 @@ static DECLCALLBACK(int) usbProxyVrdpSetConfig(PUSBPROXYDEV pProxyDev, int cfg)
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpClaimInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+static int usbProxyVrdpClaimInterface(PUSBPROXYDEV pProxyDev, int ifnum)
 {
     LogFlow(("usbProxyVrdpClaimInterface: pProxyDev=%s ifnum=%#x\n", pProxyDev->pUsbIns->pszName, ifnum));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnClaimInterface (pDevVrdp->pDevice, (uint8_t)ifnum);
 
@@ -134,14 +141,14 @@ static DECLCALLBACK(int) usbProxyVrdpClaimInterface(PUSBPROXYDEV pProxyDev, int 
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpReleaseInterface(PUSBPROXYDEV pProxyDev, int ifnum)
+static int usbProxyVrdpReleaseInterface(PUSBPROXYDEV pProxyDev, int ifnum)
 {
     LogFlow(("usbProxyVrdpReleaseInterface: pProxyDev=%s ifnum=%#x\n", pProxyDev->pUsbIns->pszName, ifnum));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnReleaseInterface (pDevVrdp->pDevice, (uint8_t)ifnum);
 
@@ -151,14 +158,14 @@ static DECLCALLBACK(int) usbProxyVrdpReleaseInterface(PUSBPROXYDEV pProxyDev, in
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpSetInterface(PUSBPROXYDEV pProxyDev, int ifnum, int setting)
+static int usbProxyVrdpSetInterface(PUSBPROXYDEV pProxyDev, int ifnum, int setting)
 {
     LogFlow(("usbProxyVrdpSetInterface: pProxyDev=%p ifnum=%#x setting=%#x\n", pProxyDev, ifnum, setting));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnInterfaceSetting (pDevVrdp->pDevice, (uint8_t)ifnum, (uint8_t)setting);
 
@@ -168,14 +175,14 @@ static DECLCALLBACK(int) usbProxyVrdpSetInterface(PUSBPROXYDEV pProxyDev, int if
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int ep)
+static bool usbProxyVrdpClearHaltedEp(PUSBPROXYDEV pProxyDev, unsigned int ep)
 {
     LogFlow(("usbProxyVrdpClearHaltedEp: pProxyDev=%s ep=%u\n", pProxyDev->pUsbIns->pszName, ep));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     int rc = pDevVrdp->pCallback->pfnClearHaltedEP (pDevVrdp->pDevice, (uint8_t)ep);
 
@@ -185,10 +192,10 @@ static DECLCALLBACK(int) usbProxyVrdpClearHaltedEp(PUSBPROXYDEV pProxyDev, unsig
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(int) usbProxyVrdpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static int usbProxyVrdpUrbQueue(PVUSBURB pUrb)
 {
     LogFlow(("usbProxyVrdpUrbQueue: pUrb=%p\n", pUrb));
 
@@ -196,10 +203,12 @@ static DECLCALLBACK(int) usbProxyVrdpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB p
     if (pUrb->enmType == VUSBXFERTYPE_ISOC)
     {
         Log(("usbproxy: isochronous transfers aren't implemented yet.\n"));
-        return VERR_NOT_IMPLEMENTED;
+        return false;
     }
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEV pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
+
     int rc = pDevVrdp->pCallback->pfnQueueURB (pDevVrdp->pDevice, pUrb->enmType, pUrb->EndPt, pUrb->enmDir, pUrb->cbData,
                                                pUrb->abData, pUrb, (PREMOTEUSBQURB *)&pUrb->Dev.pvPrivate);
 
@@ -209,14 +218,14 @@ static DECLCALLBACK(int) usbProxyVrdpUrbQueue(PUSBPROXYDEV pProxyDev, PVUSBURB p
         pProxyDev->fDetached = true;
     }
 
-    return rc;
+    return RT_SUCCESS(rc);
 }
 
-static DECLCALLBACK(PVUSBURB) usbProxyVrdpUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
+static PVUSBURB usbProxyVrdpUrbReap(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies)
 {
     LogFlow(("usbProxyVrdpUrbReap: pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
 
     PVUSBURB pUrb = NULL;
     uint32_t cbData = 0;
@@ -242,21 +251,14 @@ static DECLCALLBACK(PVUSBURB) usbProxyVrdpUrbReap(PUSBPROXYDEV pProxyDev, RTMSIN
     return pUrb;
 }
 
-static DECLCALLBACK(int) usbProxyVrdpUrbCancel(PUSBPROXYDEV pProxyDev, PVUSBURB pUrb)
+static void usbProxyVrdpUrbCancel(PVUSBURB pUrb)
 {
     LogFlow(("usbProxyVrdpUrbCancel: pUrb=%p\n", pUrb));
 
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
+    PUSBPROXYDEV pProxyDev = PDMINS_2_DATA(pUrb->pUsbIns, PUSBPROXYDEV);
+    PUSBPROXYDEVVRDP pDevVrdp = (PUSBPROXYDEVVRDP)pProxyDev->Backend.pv;
+
     pDevVrdp->pCallback->pfnCancelURB (pDevVrdp->pDevice, (PREMOTEUSBQURB)pUrb->Dev.pvPrivate);
-    return VINF_SUCCESS; /** @todo: Enhance remote interface to pass a status code. */
-}
-
-static DECLCALLBACK(int) usbProxyVrdpWakeup(PUSBPROXYDEV pProxyDev)
-{
-    LogFlow(("usbProxyVrdpWakeup: pProxyDev=%s\n", pProxyDev->pUsbIns->pszName));
-
-    PUSBPROXYDEVVRDP pDevVrdp = USBPROXYDEV_2_DATA(pProxyDev, PUSBPROXYDEVVRDP);
-    return pDevVrdp->pCallback->pfnWakeup (pDevVrdp->pDevice);
 }
 
 /**
@@ -264,10 +266,7 @@ static DECLCALLBACK(int) usbProxyVrdpWakeup(PUSBPROXYDEV pProxyDev)
  */
 extern const USBPROXYBACK g_USBProxyDeviceVRDP =
 {
-    /* pszName */
     "vrdp",
-    /* cbBackend */
-    sizeof(USBPROXYDEVVRDP),
     usbProxyVrdpOpen,
     NULL,
     usbProxyVrdpClose,
@@ -280,7 +279,6 @@ extern const USBPROXYBACK g_USBProxyDeviceVRDP =
     usbProxyVrdpUrbQueue,
     usbProxyVrdpUrbCancel,
     usbProxyVrdpUrbReap,
-    usbProxyVrdpWakeup,
     0
 };
 

@@ -91,8 +91,8 @@ typedef struct RTMEMTRACKERUSER
     PRTMEMTRACKERINT    pTracker;
     /** Critical section protecting the memory list. */
     RTCRITSECT          CritSect;
-    /** The list of memory allocated by this user (RTMEMTRACKERHDR). */
-    RTLISTANCHOR        MemoryList;
+    /** The list of memory allocated by this user. */
+    RTLISTNODE          MemoryList;
     /** Positive numbers indicates recursion.
      * Negative numbers are used for the global user since that is shared by
      * more than one thread. */
@@ -141,7 +141,7 @@ typedef struct RTMEMTRACKERINT
     /** Critical section protecting the user list and tag database. */
     RTCRITSECT          CritSect;
     /** List of RTMEMTRACKERUSER records. */
-    RTLISTANCHOR        UserList;
+    RTLISTNODE          UserList;
     /** The next user identifier number.  */
     uint32_t            idUserNext;
     /** The TLS index used for the per thread user records. */
@@ -154,7 +154,7 @@ typedef struct RTMEMTRACKERINT
     /** The root of the tag lookup database. */
     AVLU32TREE          TagDbRoot;
     /** List of RTMEMTRACKERTAG records. */
-    RTLISTANCHOR        TagList;
+    RTLISTNODE          TagList;
 #if ARCH_BITS == 32
     /** Alignment padding. */
     uint32_t            u32Alignment;
@@ -634,7 +634,6 @@ static void *rtMemTrackerHdrFreeCommon(PRTMEMTRACKERINT pTracker, void *pvUser, 
         /** @todo we're currently ignoring pszTag, consider how to correctly
          *        attribute the free operation if the tags differ - it
          *        makes sense at all... */
-        NOREF(pszTag);
         if (pHdr->pTag)
             rtMemTrackerStateRecordFree(&pHdr->pTag->Stats, pHdr->cbUser, enmMethod);
 
@@ -931,7 +930,6 @@ static void rtMemTrackerDumpStatsWorker(PRTMEMTRACKERINT pTracker, PRTMEMTRACKER
  */
 static DECLCALLBACK(void) rtMemTrackerDumpLogOutput(PRTMEMTRACKEROUTPUT pThis, const char *pszFormat, ...)
 {
-    NOREF(pThis);
     va_list va;
     va_start(va, pszFormat);
     RTLogPrintfV(pszFormat, va);
@@ -973,7 +971,6 @@ static void rtMemTrackerDumpStatsToLogEx(PRTMEMTRACKERINT pTracker, bool fVerbos
  */
 static DECLCALLBACK(void) rtMemTrackerDumpLogRelOutput(PRTMEMTRACKEROUTPUT pThis, const char *pszFormat, ...)
 {
-    NOREF(pThis);
     va_list va;
     va_start(va, pszFormat);
     RTLogRelPrintfV(pszFormat, va);

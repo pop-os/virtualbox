@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2014 Oracle Corporation
+# Copyright (C) 2006-2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,14 +25,13 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 PROGRAMS += \
 	SUPInstall \
 	SUPUninstall \
 	SUPLoggerCtl
 ifdef VBOX_WITH_TESTCASES
- if !defined(VBOX_WITH_HARDENING) || "$(KBUILD_TARGET)" != "win"
 PROGRAMS += \
 	tstPage \
 	tstContiguous \
@@ -45,9 +44,6 @@ PROGRAMS += \
 	tstSupLoadModule \
 	tstSupSem \
 	tstSupSem-Zombie
- endif
-PROGRAMS.win += \
-	tstNtQueryStuff
 endif # VBOX_WITH_TESTCASES
 
 SUPInstall_TEMPLATE   = VBOXR3EXE
@@ -75,10 +71,6 @@ tstInit_SOURCES       = tstInit.cpp
 tstLow_TEMPLATE       = VBOXR3TSTEXE
 tstLow_SOURCES        = tstLow.cpp
 
-tstNtQueryStuff_TEMPLATE = VBOXR3TSTEXE
-tstNtQueryStuff_SDKS     = VBOX_NTDLL
-tstNtQueryStuff_SOURCES  = tstNtQueryStuff.cpp
-
 tstPin_TEMPLATE       = VBOXR3TSTEXE
 tstPin_SOURCES        = tstPin.cpp
 
@@ -100,5 +92,5 @@ tstSupSem_SOURCES     = tstSupSem.cpp
 tstSupSem-Zombie_TEMPLATE = VBOXR3TSTEXE
 tstSupSem-Zombie_SOURCES  = tstSupSem-Zombie.cpp
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

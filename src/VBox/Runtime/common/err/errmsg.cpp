@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,11 +45,7 @@
  */
 static const RTSTATUSMSG  g_aStatusMsgs[] =
 {
-#ifndef IPRT_NO_ERROR_DATA
-# include "errmsgdata.h"
-#else
-    { "Success.", "Success.", "VINF_SUCCESS", 0 },
-#endif
+#include "errmsgdata.h"
     { NULL, NULL, NULL, 0 }
 };
 
@@ -80,7 +76,7 @@ RTDECL(PCRTSTATUSMSG) RTErrGet(int rc)
 {
     unsigned iFound = ~0;
     unsigned i;
-    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs) - 1; i++)
+    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs); i++)
     {
         if (g_aStatusMsgs[i].iCode == rc)
         {
@@ -89,14 +85,8 @@ RTDECL(PCRTSTATUSMSG) RTErrGet(int rc)
              * Since this isn't a unique key, we must check that it's not
              * one of those start/end #defines before we return.
              */
-#define STR_ENDS_WITH(a_psz, a_cch, a_sz) \
-    ( (a_cch) >= sizeof(a_sz) && !strncmp((a_psz) + (a_cch) - sizeof(a_sz) + 1, RT_STR_TUPLE(a_sz)) )
-            size_t const cchDefine = strlen(g_aStatusMsgs[i].pszDefine);
-            if (   !STR_ENDS_WITH(g_aStatusMsgs[i].pszDefine, cchDefine, "_FIRST")
-                && !STR_ENDS_WITH(g_aStatusMsgs[i].pszDefine, cchDefine, "_LAST")
-                && !STR_ENDS_WITH(g_aStatusMsgs[i].pszDefine, cchDefine, "_LOWEST")
-                && !STR_ENDS_WITH(g_aStatusMsgs[i].pszDefine, cchDefine, "_HIGHEST")
-               )
+            if (    !strstr(g_aStatusMsgs[i].pszDefine, "FIRST")
+                &&  !strstr(g_aStatusMsgs[i].pszDefine, "LAST"))
                 return &g_aStatusMsgs[i];
             iFound = i;
         }
@@ -108,7 +98,7 @@ RTDECL(PCRTSTATUSMSG) RTErrGet(int rc)
      * Need to use the temporary stuff.
      */
     int iMsg = ASMAtomicXchgU32(&g_iUnknownMsgs, (g_iUnknownMsgs + 1) % RT_ELEMENTS(g_aUnknownMsgs));
-    RTStrPrintf(&g_aszUnknownStr[iMsg][0], sizeof(g_aszUnknownStr[iMsg]), "Unknown Status %d (%#x)", rc, rc);
+    RTStrPrintf(&g_aszUnknownStr[iMsg][0], sizeof(g_aszUnknownStr[iMsg]), "Unknown Status 0x%X", rc);
     return &g_aUnknownMsgs[iMsg];
 }
 RT_EXPORT_SYMBOL(RTErrGet);

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,6 @@
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
 #include <iprt/fs.h>
-#include <iprt/sg.h>
 
 RT_C_DECLS_BEGIN
 
@@ -54,7 +53,7 @@ RT_C_DECLS_BEGIN
 # define RTFILE_NATIVE_STDIN 0
 #endif
 
-/** Platform specific native standard out "handle". */
+/** Platform specific native standard outt "handle". */
 #ifdef RT_OS_WINDOWS
 # define RTFILE_NATIVE_STDOUT ((uint32_t)-11)
 #else
@@ -148,7 +147,7 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
 #define RTFILE_O_NOT_CONTENT_INDEXED    UINT32_C(0x00000800)
 /** Truncate the file.
  * @remarks This will not truncate files opened for read-only.
- * @remarks The truncation doesn't have to be atomically, so anyone else opening
+ * @remarks The trunction doesn't have to be atomically, so anyone else opening
  *          the file may be racing us. The caller is responsible for not causing
  *          this race. */
 #define RTFILE_O_TRUNCATE               UINT32_C(0x00001000)
@@ -213,10 +212,6 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
  */
 #define RTFILE_O_NO_CACHE               UINT32_C(0x00080000)
 
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTFILE_O_NO_SYMLINKS            UINT32_C(0x20000000)
-
 /** Unix file mode mask for use when creating files. */
 #define RTFILE_O_CREATE_MODE_MASK       UINT32_C(0x1ff00000)
 /** The number of bits to shift to get the file mode mask.
@@ -224,13 +219,14 @@ RTDECL(int) RTFileQuerySize(const char *pszPath, uint64_t *pcbFile);
  */
 #define RTFILE_O_CREATE_MODE_SHIFT      20
 
-                                      /* UINT32_C(0x40000000)
-                                     and UINT32_C(0x80000000) are unused atm. */
+                                      /*UINT32_C(0x20000000),
+                                        UINT32_C(0x40000000)
+                                    and UINT32_C(0x80000000) are unused atm. */
 
 /** Mask of all valid flags.
  * @remark  This doesn't validate the access mode properly.
  */
-#define RTFILE_O_VALID_MASK             UINT32_C(0x3ffffff7)
+#define RTFILE_O_VALID_MASK             UINT32_C(0x1ffffff7)
 
 /** @} */
 
@@ -382,20 +378,6 @@ RTDECL(int)  RTFileRead(RTFILE File, void *pvBuf, size_t cbToRead, size_t *pcbRe
 RTDECL(int)  RTFileReadAt(RTFILE File, RTFOFF off, void *pvBuf, size_t cbToRead, size_t *pcbRead);
 
 /**
- * Read bytes from a file at a given offset into a S/G buffer.
- * This function may modify the file position.
- *
- * @returns iprt status code.
- * @param   hFile       Handle to the file.
- * @param   off         Where to read.
- * @param   pSgBuf      Pointer to the S/G buffer to read into.
- * @param   cbToRead    How much to read.
- * @param   *pcbRead    How much we actually read .
- *                      If NULL an error will be returned for a partial read.
- */
-RTDECL(int)  RTFileSgReadAt(RTFILE hFile, RTFOFF off, PRTSGBUF pSgBuf, size_t cbToRead, size_t *pcbRead);
-
-/**
  * Write bytes to a file.
  *
  * @returns iprt status code.
@@ -420,20 +402,6 @@ RTDECL(int)  RTFileWrite(RTFILE File, const void *pvBuf, size_t cbToWrite, size_
  *                      If NULL an error will be returned for a partial write.
  */
 RTDECL(int)  RTFileWriteAt(RTFILE File, RTFOFF off, const void *pvBuf, size_t cbToWrite, size_t *pcbWritten);
-
-/**
- * Write bytes from a S/G buffer to a file at a given offset.
- * This function may modify the file position.
- *
- * @returns iprt status code.
- * @param   hFile       Handle to the file.
- * @param   off         Where to write.
- * @param   pSgBuf      What to write.
- * @param   cbToWrite   How much to write.
- * @param   *pcbWritten How much we actually wrote.
- *                      If NULL an error will be returned for a partial write.
- */
-RTDECL(int)  RTFileSgWriteAt(RTFILE hFile, RTFOFF off, PRTSGBUF pSgBuf, size_t cbToWrite, size_t *pcbWritten);
 
 /**
  * Flushes the buffers for the specified file.
@@ -593,59 +561,8 @@ RTDECL(int) RTFileRename(const char *pszSrc, const char *pszDst, unsigned fRenam
 /** @name RTFileMove flags (bit masks).
  * @{ */
 /** Replace destination file if present. */
-#define RTFILEMOVE_FLAGS_REPLACE      0x1
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTFILEMOVE_FLAGS_NO_SYMLINKS  0x2
+#define RTFILEMOVE_FLAGS_REPLACE    0x1
 /** @} */
-
-/**
- * Converts file opening modes (used by fopen, for example) to IPRT
- * compatible flags, which then can be used with RTFileOpen* APIs.
- *
- * Note: Handling sharing modes is not supported yet, so RTFILE_O_DENY_NONE
- *       will be used by default.
- *
- * @return  IPRT status code.
- * @param   pszMode                 Mode string to convert.
- * @param   puMode                  Where to store the converted mode flags
- *                                  on success.
- */
-RTDECL(int) RTFileModeToFlags(const char *pszMode, uint64_t *puMode);
-
-/**
- * Converts file opening modes along with a separate disposition command
- * to IPRT compatible flags, which then can be used with RTFileOpen* APIs.
- *
- * Access modes:
- *      "r"  - Opens a file for reading.
- *      "r+" - Opens a file for reading and writing.
- *      "w"  - Opens a file for writing.
- *      "w+" - Opens a file for writing and reading.
- *
- * Disposition modes:
- *      "ca" - Creates a new file, always. Overwrites an existing file.
- *      "ce" - Creates a new file if it does not exist. Fail if exist.
- *      "oa" - Opens an existing file and places the file pointer at
- *             the end of the file, if opened with write access.
- *             Create the file if it does not exist.
- *      "oc" - Opens an existing file or create it if it does not exist.
- *      "oe" - Opens an existing file or fail if it does not exist.
- *      "ot" - Opens and truncate an existing file or fail if it does not exist.
- *
- * Sharing modes:
- *      Not implemented yet. RTFILE_O_DENY_NONE will be
- *      used by default.
- *
- * @return  IPRT status code.
- * @param   pszAccess               Access mode string to convert.
- * @param   pszDisposition          Disposition mode string to convert.
- * @param   pszSharing              Sharing mode string to convert. Not
- *                                  implemented yet.
- * @param   puMode                  Where to store the converted mode flags
- *                                  on success.
- */
-RTDECL(int) RTFileModeToFlagsEx(const char *pszAccess, const char *pszDisposition, const char *pszSharing, uint64_t *puMode);
 
 /**
  * Moves a file.
@@ -661,50 +578,6 @@ RTDECL(int) RTFileModeToFlagsEx(const char *pszAccess, const char *pszDispositio
  * @param   fMove       A combination of the RTFILEMOVE_* flags.
  */
 RTDECL(int) RTFileMove(const char *pszSrc, const char *pszDst, unsigned fMove);
-
-
-/**
- * Creates a new file with a unique name using the given template.
- *
- * One or more trailing X'es in the template will be replaced by random alpha
- * numeric characters until a RTFileOpen with RTFILE_O_CREATE succeeds or we
- * run out of patience.
- * For instance:
- *          "/tmp/myprog-XXXXXX"
- *
- * As an alternative to trailing X'es, it is possible to put 3 or more X'es
- * somewhere inside the file name. In the following string only the last
- * bunch of X'es will be modified:
- *          "/tmp/myprog-XXX-XXX.tmp"
- *
- * @returns iprt status code.
- * @param   pszTemplate     The file name template on input. The actual file
- *                          name on success. Empty string on failure.
- * @param   fMode           The mode to create the file with.  Use 0600 unless
- *                          you have reason not to.
- */
-RTDECL(int) RTFileCreateTemp(char *pszTemplate, RTFMODE fMode);
-
-/**
- * Secure version of @a RTFileCreateTemp with a fixed mode of 0600.
- *
- * This function behaves in the same way as @a RTFileCreateTemp with two
- * additional points.  Firstly the mode is fixed to 0600.  Secondly it will
- * fail if it is not possible to perform the operation securely.  Possible
- * reasons include that the file could be removed by another unprivileged
- * user before it is used (e.g. if is created in a non-sticky /tmp directory)
- * or that the path contains symbolic links which another unprivileged user
- * could manipulate; however the exact criteria will be specified on a
- * platform-by-platform basis as platform support is added.
- * @see RTPathIsSecure for the current list of criteria.
- * @returns iprt status code.
- * @returns VERR_NOT_SUPPORTED if the interface can not be supported on the
- *                             current platform at this time.
- * @returns VERR_INSECURE      if the file could not be created securely.
- * @param   pszTemplate        The file name template on input. The actual
- *                             file name on success. Empty string on failure.
- */
-RTDECL(int) RTFileCreateTempSecure(char *pszTemplate);
 
 
 /** @page   pg_rt_filelock      RT File locking API description
@@ -1292,21 +1165,12 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransferred);
  *                          to handle. Pass RTFILEAIO_UNLIMITED_REQS if the
  *                          context should support an unlimited number of
  *                          requests.
- * @param   fFlags          Combination of RTFILEAIOCTX_FLAGS_*.
  */
-RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
-                               uint32_t fFlags);
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax);
 
 /** Unlimited number of requests.
  * Used with RTFileAioCtxCreate and RTFileAioCtxGetMaxReqCount. */
 #define RTFILEAIO_UNLIMITED_REQS    UINT32_MAX
-
-/** When set RTFileAioCtxWait() will always wait for completing requests,
- * even when there is none waiting currently, instead of returning
- * VERR_FILE_AIO_NO_REQUEST. */
-#define RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS RT_BIT_32(0)
-/** mask of valid flags. */
-#define RTFILEAIOCTX_FLAGS_VALID_MASK (RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS)
 
 /**
  * Destroys an async I/O context.

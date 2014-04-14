@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,6 @@
 #define LOG_GROUP LOG_GROUP_SUP
 #ifdef IN_SUP_HARDENED_R3
 # undef DEBUG /* Warning: disables RT_STRICT */
-# undef RT_STRICT
 # define LOG_DISABLED
   /** @todo RTLOGREL_DISABLED */
 # include <iprt/log.h>
@@ -62,10 +61,8 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** System device name. */
-#define DEVICE_NAME_SYS     "/dev/vboxdrv"
-/** User device name. */
-#define DEVICE_NAME_USR     "/dev/vboxdrvu"
+/** Unix Device name. */
+#define DEVICE_NAME     "/dev/vboxdrv"
 
 /* define MADV_DONTFORK if it's missing from the system headers. */
 #ifndef MADV_DONTFORK
@@ -74,7 +71,7 @@
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
 {
     /*
      * Nothing to do if pre-inited.
@@ -95,14 +92,13 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     /*
      * Try open the device.
      */
-    const char *pszDeviceNm = fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR;
-    int hDevice = open(pszDeviceNm, O_RDWR, 0);
+    int hDevice = open(DEVICE_NAME, O_RDWR, 0);
     if (hDevice < 0)
     {
         /*
          * Try load the device.
          */
-        hDevice = open(pszDeviceNm, O_RDWR, 0);
+        hDevice = open(DEVICE_NAME, O_RDWR, 0);
         if (hDevice < 0)
         {
             int rc;
@@ -115,7 +111,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
                 case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
                 default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
             }
-            LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", pszDeviceNm, errno, rc));
+            LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", DEVICE_NAME, errno, rc));
             return rc;
         }
     }
@@ -136,8 +132,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINIT
     /*
      * We're done.
      */
-    pThis->hDevice       = hDevice;
-    pThis->fUnrestricted = fUnrestricted;
+    pThis->hDevice = hDevice;
     return VINF_SUCCESS;
 }
 
@@ -177,7 +172,6 @@ int suplibOsUninstall(void)
 int suplibOsIOCtl(PSUPLIBDATA pThis, uintptr_t uFunction, void *pvReq, size_t cbReq)
 {
     AssertMsg(pThis->hDevice != (intptr_t)NIL_RTFILE, ("SUPLIB not initiated successfully!\n"));
-    NOREF(cbReq);
 
     /*
      * Issue device iocontrol.
@@ -250,7 +244,6 @@ int suplibOsPageAlloc(PSUPLIBDATA pThis, size_t cPages, void **ppvPages)
 
 int suplibOsPageFree(PSUPLIBDATA pThis, void *pvPages, size_t cPages)
 {
-    NOREF(pThis);
     munmap(pvPages, cPages << PAGE_SHIFT);
     return VINF_SUCCESS;
 }

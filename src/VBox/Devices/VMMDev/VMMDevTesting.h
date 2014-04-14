@@ -24,8 +24,7 @@
 
 RT_C_DECLS_BEGIN
 
-int  vmmdevTestingInitialize(PPDMDEVINS pDevIns);
-void vmmdevTestingTerminate(PPDMDEVINS pDevIns);
+int vmmdevTestingInitialize(PPDMDEVINS pDevIns);
 
 RT_C_DECLS_END
 

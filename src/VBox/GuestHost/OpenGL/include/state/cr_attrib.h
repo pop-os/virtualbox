@@ -245,18 +245,6 @@ typedef struct {
 	GLenum		passDepthPass;
 	GLint		clearValue;
 	GLint		writeMask;
-} CRStencilBufferStack_v_33;
-
-typedef struct {
-    /* true if stencil test is enabled */
-    GLboolean   stencilTest;
-    /* true if GL_EXT_stencil_two_side is enabled (glEnable(GL_STENCIL_TEST_TWO_SIDE_EXT)) */
-    GLboolean   stencilTwoSideEXT;
-    /* GL_FRONT or GL_BACK */
-    GLenum      activeStencilFace;
-    GLint       clearValue;
-    GLint       writeMask;
-    CRStencilBufferState buffers[CRSTATE_STENCIL_BUFFER_COUNT];
 } CRStencilBufferStack;
 
 typedef struct {
@@ -268,28 +256,28 @@ typedef struct {
 	GLboolean	enabled1D[CR_MAX_TEXTURE_UNITS];
 	GLboolean	enabled2D[CR_MAX_TEXTURE_UNITS];
 	GLboolean	enabled3D[CR_MAX_TEXTURE_UNITS];
-# ifdef CR_ARB_texture_cube_map
+#ifdef CR_ARB_texture_cube_map
 	GLboolean	enabledCubeMap[CR_MAX_TEXTURE_UNITS];
-# endif
+#endif
 	CRTextureObj *current1D[CR_MAX_TEXTURE_UNITS];
 	CRTextureObj *current2D[CR_MAX_TEXTURE_UNITS];
 	CRTextureObj *current3D[CR_MAX_TEXTURE_UNITS];
-# ifdef CR_ARB_texture_cube_map
+#ifdef CR_ARB_texture_cube_map
 	CRTextureObj *currentCubeMap[CR_MAX_TEXTURE_UNITS];
-# endif
+#endif
 	GLcolorf borderColor[4];  /* 4 = 1D, 2D, 3D and cube map textures */
 	GLenum minFilter[4];
 	GLenum magFilter[4];
 	GLenum wrapS[4];
 	GLenum wrapT[4];
-# ifdef CR_OPENGL_VERSION_1_2
+#ifdef CR_OPENGL_VERSION_1_2
 	GLenum wrapR[4];
 	GLfloat priority[4];
 	GLfloat minLod[4];
 	GLfloat maxLod[4];
 	GLint baseLevel[4];
 	GLint maxLevel[4];
-# endif
+#endif
 
 	GLuint		curTextureUnit;
 	GLenum		envMode[CR_MAX_TEXTURE_UNITS];

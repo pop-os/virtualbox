@@ -2,7 +2,7 @@
 #
 # Guest Additions X11 config update script
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -14,7 +14,7 @@
 #
 
 auto_mouse=""
-auto_keyboard=""
+new_mouse=""
 no_bak=""
 old_mouse_dev="/dev/psaux"
 
@@ -55,7 +55,6 @@ reconfigure()
               grep -i "$OPT_XKB"`"
     kbd_drv="`cat "$cfg" | sed -n -e "/$KBD_SECTION/,/$END_SECTION/p" |
              sed -n -e "0,/$DRIVER_KBD/s/$DRIVER_KBD/\\1/p"`"
-    test -z "${kbd_drv}" && test -z "${auto_keyboard}" && kbd_drv=keyboard
     cat > "$tmp" << EOF
 # VirtualBox generated configuration file
 # based on $cfg.
@@ -70,16 +69,40 @@ $xkb_opts
   Option       "CoreKeyboard"
 EndSection
 EOF
-    kbd_line=""
-    test -n "$kbd_drv" && kbd_line='  InputDevice  "Keyboard[0]" "CoreKeyboard"'
-    test -z "$auto_mouse" &&
+    kbd_layout=""
+    test -n "$kbd_drv" && kbd_layout='  InputDevice  "Keyboard[0]" "CoreKeyboard"'
+    test -z "$auto_mouse" -a -z "$new_mouse" && cat >> $tmp << EOF
+
+Section "InputDevice"
+  Identifier  "Mouse[1]"
+  Driver      "vboxmouse"
+  Option      "Buttons" "9"
+  Option      "Device" "$old_mouse_dev"
+  Option      "Name" "VirtualBox Mouse"
+  Option      "Protocol" "explorerps/2"
+  Option      "Vendor" "Oracle Corporation"
+  Option      "ZAxisMapping" "4 5"
+  Option      "CorePointer"
+EndSection
+
+Section "ServerLayout"
+  Identifier   "Layout[all]"
+$kbd_layout
+  InputDevice  "Mouse[1]" "CorePointer"
+  Option       "Clone" "off"
+  Option       "Xinerama" "off"
+  Screen       "Screen[0]"
+EndSection
+EOF
+
+    test -z "$auto_mouse" -a -n "$new_mouse" &&
         cat >> "$tmp" << EOF
 
 Section "InputDevice"
   Driver       "mouse"
   Identifier   "Mouse[1]"
   Option       "Buttons" "9"
-  Option       "Device" "$old_mouse_dev"
+  Option       "Device" "/dev/input/mice"
   Option       "Name" "VirtualBox Mouse Buttons"
   Option       "Protocol" "explorerps/2"
   Option       "Vendor" "Oracle Corporation"
@@ -98,7 +121,7 @@ EndSection
 
 Section "ServerLayout"
   Identifier   "Layout[all]"
-${kbd_line}
+  InputDevice  "Keyboard[0]" "CoreKeyboard"
   InputDevice  "Mouse[1]" "CorePointer"
   InputDevice  "Mouse[2]" "SendCoreEvents"
   Option       "Clone" "off"
@@ -142,8 +165,8 @@ do
     case "$1" in
         --autoMouse)
             auto_mouse=1 ;;
-        --autoKeyboard)
-            auto_keyboard=1 ;;
+        --newMouse)
+            new_mouse=1 ;;
         --noBak)
             no_bak=1 ;;
         --nopsaux)

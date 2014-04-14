@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -204,14 +204,14 @@ DECLINLINE(PSHFLSTRING) ShflStringInitBuffer(void *pvBuffer, uint32_t u32Size)
 }
 
 /**
- * Validates a HGCM string output parameter.
+ * Validates a HGCM string parameter.
  *
  * @returns true if valid, false if not.
  *
  * @param   pString     The string buffer pointer.
  * @param   cbBuf       The buffer size from the parameter.
  */
-DECLINLINE(bool) ShflStringIsValidOut(PCSHFLSTRING pString, uint32_t cbBuf)
+DECLINLINE(bool) ShflStringIsValid(PCSHFLSTRING pString, uint32_t cbBuf)
 {
     if (RT_UNLIKELY(cbBuf <= RT_UOFFSETOF(SHFLSTRING, String)))
         return false;
@@ -223,57 +223,17 @@ DECLINLINE(bool) ShflStringIsValidOut(PCSHFLSTRING pString, uint32_t cbBuf)
 }
 
 /**
- * Validates a HGCM string input parameter.
- *
- * @returns true if valid, false if not.
- *
- * @param   pString     The string buffer pointer.
- * @param   cbBuf       The buffer size from the parameter.
- * @param   fUtf8Not16  Set if UTF-8 encoding, clear if UTF-16 encoding.
- */
-DECLINLINE(bool) ShflStringIsValidIn(PCSHFLSTRING pString, uint32_t cbBuf, bool fUtf8Not16)
-{
-    int rc;
-    if (RT_UNLIKELY(cbBuf <= RT_UOFFSETOF(SHFLSTRING, String)))
-        return false;
-    if (RT_UNLIKELY((uint32_t)pString->u16Size + RT_UOFFSETOF(SHFLSTRING, String) > cbBuf))
-        return false;
-    if (fUtf8Not16)
-    {
-        /* UTF-8: */
-        if (RT_UNLIKELY(pString->u16Length >= pString->u16Size))
-            return false;
-        rc = RTStrValidateEncodingEx((const char *)&pString->String.utf8[0], pString->u16Length + 1,
-                                     RTSTR_VALIDATE_ENCODING_EXACT_LENGTH | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
-    }
-    else
-    {
-        /* UTF-16: */
-        if (RT_UNLIKELY(pString->u16Length & 1))
-            return false;
-        if (RT_UNLIKELY((uint32_t)sizeof(RTUTF16) + pString->u16Length > pString->u16Size))
-            return false;
-        rc = RTUtf16ValidateEncodingEx(&pString->String.ucs2[0], pString->u16Length / 2 + 1,
-                                       RTSTR_VALIDATE_ENCODING_EXACT_LENGTH | RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED);
-    }
-    if (RT_FAILURE(rc))
-        return false;
-    return true;
-}
-
-/**
- * Validates an optional HGCM string input parameter.
+ * Validates an optional HGCM string parameter.
  *
  * @returns true if valid, false if not.
  *
  * @param   pString     The string buffer pointer. Can be NULL.
  * @param   cbBuf       The buffer size from the parameter.
- * @param   fUtf8Not16  Set if UTF-8 encoding, clear if UTF-16 encoding.
  */
-DECLINLINE(bool) ShflStringIsValidOrNullIn(PCSHFLSTRING pString, uint32_t cbBuf, bool fUtf8Not16)
+DECLINLINE(bool) ShflStringIsValidOrNull(PCSHFLSTRING pString, uint32_t cbBuf)
 {
     if (pString)
-        return ShflStringIsValidIn(pString, cbBuf, fUtf8Not16);
+        return ShflStringIsValid(pString, cbBuf);
     if (RT_UNLIKELY(cbBuf > 0))
         return false;
     return true;
@@ -1378,14 +1338,9 @@ typedef struct _VBoxSFSymlink
  * Host call, no guest structure is used.
  */
 
-/** mapping is writable */
 #define SHFL_ADD_MAPPING_F_WRITABLE         (RT_BIT_32(0))
-/** mapping is automounted by the guest */
 #define SHFL_ADD_MAPPING_F_AUTOMOUNT        (RT_BIT_32(1))
-/** allow the guest to create symlinks */
 #define SHFL_ADD_MAPPING_F_CREATE_SYMLINKS  (RT_BIT_32(2))
-/** mapping is actually missing on the host */
-#define SHFL_ADD_MAPPING_F_MISSING          (RT_BIT_32(3))
 
 #define SHFL_CPARMS_ADD_MAPPING  (3)
 

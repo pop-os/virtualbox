@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -640,10 +640,10 @@ STDMETHODIMP StorageController::COMGETTER(Bootable) (BOOL *fBootable)
     return S_OK;
 }
 
-// public methods only for internal purposes
+// IStorageController methods
 /////////////////////////////////////////////////////////////////////////////
 
-HRESULT StorageController::getIDEEmulationPort(LONG DevicePosition, LONG *aPortNumber)
+STDMETHODIMP StorageController::GetIDEEmulationPort(LONG DevicePosition, LONG *aPortNumber)
 {
     CheckComArgOutPointerValid(aPortNumber);
 
@@ -677,7 +677,7 @@ HRESULT StorageController::getIDEEmulationPort(LONG DevicePosition, LONG *aPortN
     return S_OK;
 }
 
-HRESULT StorageController::setIDEEmulationPort(LONG DevicePosition, LONG aPortNumber)
+STDMETHODIMP StorageController::SetIDEEmulationPort(LONG DevicePosition, LONG aPortNumber)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -716,6 +716,10 @@ HRESULT StorageController::setIDEEmulationPort(LONG DevicePosition, LONG aPortNu
 
     return S_OK;
 }
+
+// public methods only for internal purposes
+/////////////////////////////////////////////////////////////////////////////
+
 
 const Utf8Str& StorageController::getName() const
 {

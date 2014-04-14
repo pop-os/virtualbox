@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -147,8 +147,7 @@ static unsigned _strnlenUni(PCRTUNICP pusz, unsigned cchMax)
  * @param     cchPrecision   Precision.
  * @param     fFlags         Flags (NTFS_*).
  */
-RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase, signed int cchWidth, signed int cchPrecision,
-                              unsigned int fFlags)
+RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase, signed int cchWidth, signed int cchPrecision, unsigned int fFlags)
 {
     return rtStrFormatNumber(psz, *(KSIZE64 *)(void *)&u64Value, uiBase, cchWidth, cchPrecision, fFlags);
 }
@@ -167,12 +166,10 @@ RT_EXPORT_SYMBOL(RTStrFormatNumber);
  * @param     cchPrecision   Precision.
  * @param     fFlags         Flags (NTFS_*).
  */
-static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, signed int cchWidth, signed int cchPrecision,
-                             unsigned int fFlags)
+static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, signed int cchWidth, signed int cchPrecision, unsigned int fFlags)
 {
     const char     *pachDigits = "0123456789abcdef";
     char           *pszStart = psz;
-    int             cchMax;
     int             cchValue;
     unsigned long   ul;
     int             i;
@@ -181,7 +178,7 @@ static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, s
     /*
      * Validate and adjust input...
      */
-    Assert(uiBase >= 2 && uiBase <= 16);
+    Assert(uiBase >= 2 || uiBase <= 16);
     if (fFlags & RTSTR_F_CAPITAL)
         pachDigits = "0123456789ABCDEF";
     if (fFlags & RTSTR_F_LEFT)
@@ -253,35 +250,29 @@ static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, s
     /*
      * width - only if ZEROPAD
      */
-    cchMax    = 64 - (cchValue + i + 1);   /* HACK! 64 bytes seems to be the usual buffer size... */
     cchWidth -= i + cchValue;
     if (fFlags & RTSTR_F_ZEROPAD)
-        while (--cchWidth >= 0 && i < cchMax)
+        while (--cchWidth >= 0)
         {
-            AssertBreak(i < cchMax);
             psz[i++] = '0';
             cchPrecision--;
         }
     else if (!(fFlags & RTSTR_F_LEFT) && cchWidth > 0)
     {
-        AssertStmt(cchWidth < cchMax, cchWidth = cchMax - 1);
-        for (j = i - 1; j >= 0; j--)
+        for (j = i-1; j >= 0; j--)
             psz[cchWidth + j] = psz[j];
         for (j = 0; j < cchWidth; j++)
             psz[j] = ' ';
         i += cchWidth;
     }
+    psz += i;
+
 
     /*
      * precision
      */
     while (--cchPrecision >= cchValue)
-    {
-        AssertBreak(i < cchMax);
-        psz[i++] = '0';
-    }
-
-    psz += i;
+        *psz++ = '0';
 
     /*
      * write number - not good enough but it works
@@ -450,65 +441,23 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                     fFlags |= RTSTR_F_PRECISION;
                 }
 
-                /*
-                 * Argument size.
-                 */
+                /* argsize */
                 chArgSize = *pszFormat;
-                switch (chArgSize)
+                if (chArgSize != 'l' && chArgSize != 'L' && chArgSize != 'h' && chArgSize != 'j' && chArgSize != 'z' && chArgSize != 't')
+                    chArgSize = 0;
+                else
                 {
-                    default:
-                        chArgSize = 0;
-                        break;
-
-                    case 'z':
-                    case 'L':
-                    case 'j':
-                    case 't':
-                        pszFormat++;
-                        break;
-
-                    case 'l':
-                        pszFormat++;
-                        if (*pszFormat == 'l')
-                        {
-                            chArgSize = 'L';
-                            pszFormat++;
-                        }
-                        break;
-
-                    case 'h':
-                        pszFormat++;
-                        if (*pszFormat == 'h')
-                        {
-                            chArgSize = 'H';
-                            pszFormat++;
-                        }
-                        break;
-
-                    case 'I': /* Used by Win32/64 compilers. */
-                        if (   pszFormat[1] == '6'
-                            && pszFormat[2] == '4')
-                        {
-                            pszFormat += 3;
-                            chArgSize = 'L';
-                        }
-                        else if (   pszFormat[1] == '3'
-                                 && pszFormat[2] == '2')
-                        {
-                            pszFormat += 3;
-                            chArgSize = 0;
-                        }
-                        else
-                        {
-                            pszFormat += 1;
-                            chArgSize = 'j';
-                        }
-                        break;
-
-                    case 'q': /* Used on BSD platforms. */
-                        pszFormat++;
+                    pszFormat++;
+                    if (*pszFormat == 'l' && chArgSize == 'l')
+                    {
                         chArgSize = 'L';
-                        break;
+                        pszFormat++;
+                    }
+                    else if (*pszFormat == 'h' && chArgSize == 'h')
+                    {
+                        chArgSize = 'H';
+                        pszFormat++;
+                    }
                 }
 
                 /*
@@ -533,8 +482,12 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                         break;
                     }
 
-                    case 'S':   /* Legacy, conversion done by streams now. */
-                    case 's':
+#ifndef IN_RING3
+                    case 'S':   /* Unicode string as current code page -> Unicode as UTF-8 in GC/R0. */
+                        chArgSize = 'l'; /** @todo this is nonsensical, isn't it? */
+                        /* fall thru */
+#endif
+                    case 's':   /* Unicode string as utf8 */
                     {
                         if (chArgSize == 'l')
                         {
@@ -554,7 +507,6 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                             cchWidth -= cchStr;
                             while (cchStr-- > 0)
                             {
-/**@todo #ifndef IN_RC*/
 #ifdef IN_RING3
                                 RTUNICP Cp;
                                 RTUtf16GetCpEx(&pwszStr, &Cp);
@@ -588,7 +540,6 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                             cchWidth -= cchStr;
                             while (cchStr-- > 0)
                             {
-/**@todo #ifndef IN_RC*/
 #ifdef IN_RING3
                                 char szUtf8[8]; /* Cp=0x7fffffff -> 6 bytes. */
                                 char *pszEnd = RTStrPutCp(szUtf8, *puszStr++);
@@ -620,6 +571,100 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                         }
                         break;
                     }
+
+#ifdef IN_RING3
+                    case 'S':   /* Unicode string as current code page. */
+                    {
+                        if (chArgSize == 'l')
+                        {
+                            /* UTF-16 */
+                            int       cchStr;
+                            PCRTUTF16 pwsz2Str = va_arg(args, PRTUTF16);
+                            if (!VALID_PTR(pwsz2Str))
+                            {
+                                static RTUTF16  s_wsz2Null[] = {'<', 'N', 'U', 'L', 'L', '>', '\0' };
+                                pwsz2Str = s_wsz2Null;
+                            }
+
+                            cchStr = _strnlenUtf16(pwsz2Str, (unsigned)cchPrecision);
+                            if (!(fFlags & RTSTR_F_LEFT))
+                                while (--cchWidth >= cchStr)
+                                    cch += pfnOutput(pvArgOutput, " ", 1);
+
+                            if (cchStr)
+                            {
+                                /* allocate temporary buffer. */
+                                PRTUTF16 pwsz2Tmp = (PRTUTF16)RTMemTmpAlloc((cchStr + 1) * sizeof(RTUTF16));
+                                memcpy(pwsz2Tmp, pwsz2Str, cchStr * sizeof(RTUTF16));
+                                pwsz2Tmp[cchStr] = '\0';
+
+                                char *pszUtf8;
+                                int rc = RTUtf16ToUtf8(pwsz2Tmp, &pszUtf8);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    char *pszCurCp;
+                                    rc = RTStrUtf8ToCurrentCP(&pszCurCp, pszUtf8);
+                                    if (RT_SUCCESS(rc))
+                                    {
+                                        cch += pfnOutput(pvArgOutput, pszCurCp, strlen(pszCurCp));
+                                        RTStrFree(pszCurCp);
+                                    }
+                                    RTStrFree(pszUtf8);
+                                }
+                                if (RT_FAILURE(rc))
+                                    while (cchStr-- > 0)
+                                        cch += pfnOutput(pvArgOutput, "\x7f", 1);
+                                RTMemTmpFree(pwsz2Tmp);
+                            }
+
+                            while (--cchWidth >= cchStr)
+                                cch += pfnOutput(pvArgOutput, " ", 1);
+                        }
+                        else if (chArgSize == 'L')
+                        {
+                            /* UCS-32 */
+                            AssertMsgFailed(("Not implemented yet\n"));
+                        }
+                        else
+                        {
+                            /* UTF-8 */
+                            int   cchStr;
+                            const char *pszStr = va_arg(args, char *);
+
+                            if (!VALID_PTR(pszStr))
+                                pszStr = "<NULL>";
+                            cchStr = _strnlen(pszStr, (unsigned)cchPrecision);
+                            if (!(fFlags & RTSTR_F_LEFT))
+                                while (--cchWidth >= cchStr)
+                                    cch += pfnOutput(pvArgOutput, " ", 1);
+
+                            if (cchStr)
+                            {
+                                /* allocate temporary buffer. */
+                                char *pszTmp = (char *)RTMemTmpAlloc(cchStr + 1);
+                                memcpy(pszTmp, pszStr, cchStr);
+                                pszTmp[cchStr] = '\0';
+
+                                char *pszCurCp;
+                                int rc = RTStrUtf8ToCurrentCP(&pszCurCp, pszTmp);
+                                if (RT_SUCCESS(rc))
+                                {
+                                    cch += pfnOutput(pvArgOutput, pszCurCp, strlen(pszCurCp));
+                                    RTStrFree(pszCurCp);
+                                }
+                                else
+                                    while (cchStr-- > 0)
+                                        cch += pfnOutput(pvArgOutput, "\x7f", 1);
+                                RTMemTmpFree(pszTmp);
+                            }
+
+                            while (--cchWidth >= cchStr)
+                                cch += pfnOutput(pvArgOutput, " ", 1);
+                        }
+                        break;
+                    }
+#endif
+
 
                     /*-----------------*/
                     /* integer/pointer */

@@ -22,25 +22,13 @@ static CRBufferObject *AllocBufferObject(GLuint name)
         b->usage = GL_STATIC_DRAW_ARB;
         b->access = GL_READ_WRITE_ARB;
         b->bResyncOnRead = GL_FALSE;
-        CR_STATE_SHAREDOBJ_USAGE_INIT(b);
     }
     return b;
 }
 
-void STATE_APIENTRY crStateGenBuffersARB(GLsizei n, GLuint *buffers)
+GLboolean crStateIsBufferBound(GLenum target)
 {
     CRContext *g = GetCurrentContext();
-    crStateGenNames(g, g->shared->buffersTable, n, buffers);
-}
-
-void crStateRegBuffers(GLsizei n, GLuint *buffers)
-{
-    CRContext *g = GetCurrentContext();
-    crStateRegNames(g, g->shared->buffersTable, n, buffers);
-}
-
-GLboolean crStateIsBufferBoundForCtx(CRContext *g, GLenum target)
-{
     CRBufferObjectState *b = &(g->bufferobject);
 
     switch (target)
@@ -60,12 +48,6 @@ GLboolean crStateIsBufferBoundForCtx(CRContext *g, GLenum target)
     }
 }
 
-GLboolean crStateIsBufferBound(GLenum target)
-{
-    CRContext *g = GetCurrentContext();
-    return crStateIsBufferBoundForCtx(g, target);
-}
-
 CRBufferObject *crStateGetBoundBufferObject(GLenum target, CRBufferObjectState *b)
 {
     switch (target)
@@ -83,21 +65,6 @@ CRBufferObject *crStateGetBoundBufferObject(GLenum target, CRBufferObjectState *
         default:
             return NULL;
     }
-}
-
-DECLEXPORT(GLboolean) STATE_APIENTRY crStateIsBufferARB( GLuint buffer )
-{
-    CRContext *g = GetCurrentContext();
-
-    FLUSH();
-
-    if (g->current.inBeginEnd) {
-        crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
-                                 "glIsBufferARB called in begin/end");
-        return GL_FALSE;
-    }
-
-    return buffer ? crHashtableIsKeyUsed(g->shared->buffersTable, buffer) : GL_FALSE;
 }
 
 void crStateBufferObjectInit (CRContext *ctx)
@@ -123,7 +90,7 @@ void crStateBufferObjectInit (CRContext *ctx)
     b->nullBuffer = AllocBufferObject(0);
     b->arrayBuffer = b->nullBuffer;
     b->elementsBuffer = b->nullBuffer;
-    b->nullBuffer->refCount += 2;
+    b->nullBuffer->refCount = 3;
 #ifdef CR_ARB_pixel_buffer_object
     b->packBuffer = b->nullBuffer;
     b->unpackBuffer = b->nullBuffer;
@@ -214,22 +181,13 @@ crStateBindBufferARB (GLenum target, GLuint buffer)
     else {
         newObj = (CRBufferObject *) crHashtableSearch(g->shared->buffersTable, buffer);
         if (!newObj) {
-            CRSTATE_CHECKERR(!crHashtableIsKeyUsed(g->shared->buffersTable, buffer), GL_INVALID_OPERATION, "name is not a buffer object");
             newObj = AllocBufferObject(buffer);
-            CRSTATE_CHECKERR(!newObj, GL_OUT_OF_MEMORY, "glBindBuffer");
-#ifndef IN_GUEST
-            diff_api.GenBuffersARB(1, &newObj->hwid);
-            if (!newObj->hwid)
-            {
-                crWarning("GenBuffersARB failed!");
-                crFree(newObj);
+            if (!newObj) {
+                crStateError(__LINE__, __FILE__, GL_OUT_OF_MEMORY, "glBindBuffer");
                 return;
             }
-#endif
             crHashtableAdd( g->shared->buffersTable, buffer, newObj );
         }
-
-        CR_STATE_SHAREDOBJ_USAGE_SET(newObj, g);
     }
 
     newObj->refCount++;
@@ -278,77 +236,13 @@ crStateBindBufferARB (GLenum target, GLuint buffer)
 #endif
 }
 
-static void ctStateBuffersRefsCleanup(CRContext *ctx, CRBufferObject *obj, CRbitvalue *neg_bitid)
-{
-    CRBufferObjectState *b = &(ctx->bufferobject);
-    CRStateBits *sb = GetCurrentBits();
-    CRBufferObjectBits *bb = &(sb->bufferobject);
-    int j, k;
-
-    if (obj == b->arrayBuffer)
-    {
-        b->arrayBuffer = b->nullBuffer;
-        b->arrayBuffer->refCount++;
-        DIRTY(bb->dirty, neg_bitid);
-        DIRTY(bb->arrayBinding, neg_bitid);
-    }
-    if (obj == b->elementsBuffer)
-    {
-        b->elementsBuffer = b->nullBuffer;
-        b->elementsBuffer->refCount++;
-        DIRTY(bb->dirty, neg_bitid);
-        DIRTY(bb->elementsBinding, neg_bitid);
-    }
-#ifdef CR_ARB_pixel_buffer_object
-    if (obj == b->packBuffer)
-    {
-        b->packBuffer = b->nullBuffer;
-        b->packBuffer->refCount++;
-        DIRTY(bb->dirty, neg_bitid);
-        DIRTY(bb->packBinding, neg_bitid);
-    }
-    if (obj == b->unpackBuffer)
-    {
-        b->unpackBuffer = b->nullBuffer;
-        b->unpackBuffer->refCount++;
-        DIRTY(bb->dirty, neg_bitid);
-        DIRTY(bb->unpackBinding, neg_bitid);
-    }
-#endif
-
-#ifdef CR_ARB_vertex_buffer_object
-    for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-    {
-        CRClientPointer *cp = crStateGetClientPointerByIndex(j, &ctx->client.array);
-        if (obj == cp->buffer)
-        {
-            cp->buffer = b->nullBuffer;
-            ++b->nullBuffer->refCount;
-        }
-    }
-
-    for (k=0; k<ctx->client.vertexArrayStackDepth; ++k)
-    {
-        CRVertexArrays *pArray = &ctx->client.vertexArrayStack[k];
-        for (j=0; j<CRSTATECLIENT_MAX_VERTEXARRAYS; ++j)
-        {
-            CRClientPointer *cp = crStateGetClientPointerByIndex(j, pArray);
-            if (obj == cp->buffer)
-            {
-                cp->buffer = b->nullBuffer;
-                ++b->nullBuffer->refCount;
-            }
-        }
-    }
-#endif
-
-    CR_STATE_SHAREDOBJ_USAGE_CLEAR(obj, ctx);
-}
-
 void STATE_APIENTRY
 crStateDeleteBuffersARB(GLsizei n, const GLuint *buffers)
 {
     CRContext *g = GetCurrentContext();
+    CRBufferObjectState *b = &(g->bufferobject);
+    CRStateBits *sb = GetCurrentBits();
+    CRBufferObjectBits *bb = &(sb->bufferobject);
     int i;
 
     FLUSH();
@@ -370,31 +264,98 @@ crStateDeleteBuffersARB(GLsizei n, const GLuint *buffers)
             CRBufferObject *obj = (CRBufferObject *)
                 crHashtableSearch(g->shared->buffersTable, buffers[i]);
             if (obj) {
-                int j;
-
-                ctStateBuffersRefsCleanup(g, obj, g->neg_bitid);
-
-                CR_STATE_SHAREDOBJ_USAGE_FOREACH_USED_IDX(obj, j)
+                if (obj == b->arrayBuffer) 
                 {
-                    /* saved state version <= SHCROGL_SSM_VERSION_BEFORE_CTXUSAGE_BITS does not have usage bits info,
-                     * so on restore, we set mark bits as used.
-                     * This is why g_pAvailableContexts[j] could be NULL
-                     * also g_pAvailableContexts[0] will hold default context, which we should discard */
-                    CRContext *ctx = g_pAvailableContexts[j];
-                    if (j && ctx)
-                    {
-                        ctStateBuffersRefsCleanup(ctx, obj, g->neg_bitid); /* <- yes, use g->neg_bitid, i.e. neg_bitid of the current context to ensure others bits get dirtified,
-                                                                            * but not the current context ones*/
-                    }
-                    else
-                        CR_STATE_SHAREDOBJ_USAGE_CLEAR_IDX(obj, j);
+                    b->arrayBuffer = b->nullBuffer;
+                    b->arrayBuffer->refCount++;
+                    DIRTY(bb->dirty, g->neg_bitid);
+                    DIRTY(bb->arrayBinding, g->neg_bitid);
+                } 
+                else if (obj == b->elementsBuffer) 
+                {
+                    b->elementsBuffer = b->nullBuffer;
+                    b->elementsBuffer->refCount++;
+                    DIRTY(bb->dirty, g->neg_bitid);
+                    DIRTY(bb->elementsBinding, g->neg_bitid);
                 }
+#ifdef CR_ARB_pixel_buffer_object
+                else if (obj == b->packBuffer) 
+                {
+                    b->packBuffer = b->nullBuffer;
+                    b->packBuffer->refCount++;
+                    DIRTY(bb->dirty, g->neg_bitid);
+                    DIRTY(bb->packBinding, g->neg_bitid);
+                }
+                else if (obj == b->unpackBuffer) 
+                {
+                    b->unpackBuffer = b->nullBuffer;
+                    b->unpackBuffer->refCount++;
+                    DIRTY(bb->dirty, g->neg_bitid);
+                    DIRTY(bb->unpackBinding, g->neg_bitid);
+                }
+#endif
+                /* @todo check bindings with the vertex arrays */
 
                 crHashtableDelete(g->shared->buffersTable, buffers[i], crStateFreeBufferObject);
             }
         }
     }
 }
+
+
+void STATE_APIENTRY
+crStateGenBuffersARB(GLsizei n, GLuint * buffers)
+{
+    CRContext *g = GetCurrentContext();
+    CRBufferObjectState *b = &(g->bufferobject);
+    GLint start;
+
+    FLUSH();
+
+    if (g->current.inBeginEnd) {
+        crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+                                 "glGenBuffersARB called in Begin/End");
+        return;
+    }
+
+    if (n < 0) {
+        crStateError(__LINE__, __FILE__, GL_INVALID_VALUE,
+                                 "glGenBuffersARB(n < 0)");
+        return;
+    }
+
+    start = crHashtableAllocKeys(g->shared->buffersTable, n);
+    if (start) {
+        GLint i;
+        for (i = 0; i < n; i++)
+            buffers[i] = (GLuint) (start + i);
+    }
+    else {
+        crStateError(__LINE__, __FILE__, GL_OUT_OF_MEMORY, "glGenBuffersARB");
+    }
+}
+
+
+GLboolean STATE_APIENTRY
+crStateIsBufferARB(GLuint buffer)
+{
+    CRContext *g = GetCurrentContext();
+    CRBufferObjectState *b = &g->bufferobject;
+
+    FLUSH();
+
+    if (g->current.inBeginEnd) {
+        crStateError(__LINE__, __FILE__, GL_INVALID_OPERATION,
+                                 "glIsBufferARB called in begin/end");
+        return GL_FALSE;
+    }
+
+    if (buffer && crHashtableSearch(g->shared->buffersTable, buffer))
+        return GL_TRUE;
+    else
+        return GL_FALSE;
+}
+
 
 void STATE_APIENTRY
 crStateBufferDataARB(GLenum target, GLsizeiptrARB size, const GLvoid * data, GLenum usage)

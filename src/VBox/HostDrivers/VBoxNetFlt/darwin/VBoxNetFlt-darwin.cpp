@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,9 +43,6 @@
 #include <iprt/alloca.h>
 #include <iprt/time.h>
 #include <iprt/net.h>
-#include <iprt/thread.h>
-
-#include "../../darwin/VBoxNetSend.h"
 
 #include <mach/kmod.h>
 #include <sys/conf.h>
@@ -138,88 +135,11 @@ static VBOXNETFLTGLOBALS g_VBoxNetFltGlobals;
  * It is used for tagging mbufs. */
 static mbuf_tag_id_t g_idTag;
 
-/** The offset of the struct ifnet::if_pcount variable.
- * @remarks Initial value is valid for Lion and earlier. We adjust it on attach
- *          for later releases.  */
+/** the offset of the struct ifnet::if_pcount variable. */
 static unsigned g_offIfNetPCount = sizeof(void *) * (1 /*if_softc*/ + 1 /*if_name*/ + 2 /*if_link*/ + 2 /*if_addrhead*/ + 1 /*if_check_multi*/)
                                  + sizeof(u_long) /*if_refcnt*/;
 /** Macro for accessing ifnet::if_pcount. */
 #define VBOX_GET_PCOUNT(pIfNet) ( *(int *)((uintptr_t)pIfNet + g_offIfNetPCount) )
-/** The size of area of ifnet structure we try to locate if_pcount in. */
-#define VBOXNETFLT_DARWIN_IFNET_SIZE 256
-/** Indicates whether g_offIfNetPCount has been adjusted already (no point in
- * doing it more than once). */
-static bool g_fNetPCountFound  = false;
-
-
-/**
- * Change the promiscuous setting and try spot the changed in @a pIfNet.
- *
- * @returns Offset of potential p_count field.
- * @param   pIfNet      The interface we're attaching to.
- * @param   iPromisc    Whether to enable (1) or disable (0) promiscuous mode.
- *
- * @note    This implementation relies on if_pcount to be aligned on sizeof(int).
- */
-static unsigned vboxNetFltDarwinSetAndDiff(ifnet_t pIfNet, int iPromisc)
-{
-    int aiSavedState[VBOXNETFLT_DARWIN_IFNET_SIZE / sizeof(int)];
-    memcpy(aiSavedState, pIfNet, sizeof(aiSavedState));
-
-    ifnet_set_promiscuous(pIfNet, iPromisc);
-
-    int const iDiff = iPromisc ? 1 : -1;
-
-    /*
-     * We assume that ifnet structure will never have less members in front of if_pcount
-     * than it used to have in Lion. If this turns out to be false assumption we will
-     * have to start from zero offset.
-     */
-    for (unsigned i = g_offIfNetPCount / sizeof(int); i < RT_ELEMENTS(aiSavedState); i++)
-        if (((int*)pIfNet)[i] - aiSavedState[i] == iDiff)
-            return i * sizeof(int);
-
-    return 0;
-}
-
-
-/**
- * Detect and adjust the offset of ifnet::if_pcount.
- *
- * @param   pIfNet      The interface we're attaching to.
- */
-static void vboxNetFltDarwinDetectPCountOffset(ifnet_t pIfNet)
-{
-    if (g_fNetPCountFound)
-        return;
-
-    /*
-     * It would be nice to use locking at this point, but it is not available via KPI.
-     * This is why we try several times. At each attempt we modify if_pcount four times
-     * to rule out false detections.
-     */
-    unsigned offTry1, offTry2, offTry3, offTry4;
-    for (int iAttempt = 0; iAttempt < 3; iAttempt++)
-    {
-        offTry1 = vboxNetFltDarwinSetAndDiff(pIfNet, 1);
-        offTry2 = vboxNetFltDarwinSetAndDiff(pIfNet, 1);
-        offTry3 = vboxNetFltDarwinSetAndDiff(pIfNet, 0);
-        offTry4 = vboxNetFltDarwinSetAndDiff(pIfNet, 0);
-        if (offTry1 == offTry2 && offTry2 == offTry3 && offTry3 == offTry4)
-        {
-            if (g_offIfNetPCount != offTry1)
-            {
-                Log(("VBoxNetFltDarwinDetectPCountOffset: Adjusted if_pcount offset to %x from %x.\n", offTry1, g_offIfNetPCount));
-                g_offIfNetPCount = offTry1;
-                g_fNetPCountFound = true;
-            }
-            break;
-        }
-    }
-
-    if (g_offIfNetPCount != offTry1)
-        LogRel(("VBoxNetFlt: Failed to detect promiscuous count, all traffic may reach wire (%x != %x).\n", g_offIfNetPCount, offTry1));
-}
 
 
 /**
@@ -306,19 +226,20 @@ static kern_return_t VBoxNetFltDarwinStop(struct kmod_info *pKModInfo, void *pvD
  */
 DECLINLINE(ifnet_t) vboxNetFltDarwinRetainIfNet(PVBOXNETFLTINS pThis)
 {
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     ifnet_t pIfNet = NULL;
 
     /*
      * Be careful here to avoid problems racing the detached callback.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     if (!ASMAtomicUoReadBool(&pThis->fDisconnectedFromHost))
     {
         pIfNet = ASMAtomicUoReadPtrT(&pThis->u.s.pIfNet, ifnet_t);
         if (pIfNet)
             ifnet_reference(pIfNet);
     }
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     return pIfNet;
 }
@@ -717,6 +638,7 @@ static bool vboxNetFltDarwinIsPromiscuous(PVBOXNETFLTINS pThis)
 static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
 {
     PVBOXNETFLTINS pThis = (PVBOXNETFLTINS)pvThis;
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     uint64_t NanoTS = RTTimeSystemNanoTS();
     LogFlow(("vboxNetFltDarwinIffDetached: pThis=%p NanoTS=%RU64 (%d)\n",
              pThis, NanoTS, VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) :  -1));
@@ -735,7 +657,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
      * We carefully take the spinlock and increase the interface reference
      * behind it in order to avoid problematic races with the detached callback.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
 
     pIfNet = ASMAtomicUoReadPtrT(&pThis->u.s.pIfNet, ifnet_t);
     int cPromisc = VALID_PTR(pIfNet) ? VBOX_GET_PCOUNT(pIfNet) : - 1;
@@ -748,7 +670,7 @@ static void vboxNetFltDarwinIffDetached(void *pvThis, ifnet_t pIfNet)
     ASMAtomicUoWriteBool(&pThis->fRediscoveryPending, false);
     ASMAtomicWriteBool(&pThis->fDisconnectedFromHost, true);
 
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     if (pIfNet)
         ifnet_release(pIfNet);
@@ -962,41 +884,6 @@ static errno_t vboxNetFltDarwinIffInput(void *pvThis, ifnet_t pIfNet, protocol_f
 }
 
 
-/** A worker thread for vboxNetFltSendDummy(). */
-static DECLCALLBACK(int) vboxNetFltSendDummyWorker(RTTHREAD hThreadSelf, void *pvUser)
-{
-    Assert(pvUser);
-    ifnet_t pIfNet = (ifnet_t)pvUser;
-    return VBoxNetSendDummy(pIfNet);
-}
-
-
-/**
- * Prevent GUI icon freeze issue when VirtualBoxVM process terminates.
- *
- * This function is a workaround for stuck-in-dock issue.  The idea here is to
- * send a dummy packet to an interface from the context of a kernel thread.
- * Therefore, an XNU's receive thread (which is created as a result if we are
- * the first who is communicating with the interface) will be associated with
- * the kernel thread instead of VirtualBoxVM process.
- *
- * @param pIfNet    Interface to be used to send data.
- */
-static void vboxNetFltSendDummy(ifnet_t pIfNet)
-{
-    RTTHREAD hThread;
-    int rc = RTThreadCreate(&hThread, vboxNetFltSendDummyWorker, (void *)pIfNet, 0,
-                            RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "DummyThread");
-    if (RT_SUCCESS(rc))
-    {
-        RTThreadWait(hThread, RT_INDEFINITE_WAIT, NULL);
-        LogFlow(("vboxNetFltSendDummy: a dummy packet has been successfully sent in order to prevent stuck-in-dock issue\n"));
-    }
-    else
-        LogFlow(("vboxNetFltSendDummy: unable to send dummy packet in order to prevent stuck-in-dock issue\n"));
-}
-
-
 /**
  * Internal worker for vboxNetFltOsInitInstance and vboxNetFltOsMaybeRediscovered.
  *
@@ -1028,15 +915,10 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
         return VERR_INTNET_FLT_IF_NOT_FOUND;
     }
 
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     ASMAtomicUoWritePtr(&pThis->u.s.pIfNet, pIfNet);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
-
-    /* Adjust g_offIfNetPCount as it varies for different versions of xnu. */
-    vboxNetFltDarwinDetectPCountOffset(pIfNet);
-
-    /* Prevent stuck-in-dock issue by associating interface receive thread with kernel thread. */
-    vboxNetFltSendDummy(pIfNet);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     /*
      * Get the mac address while we still have a valid ifnet reference.
@@ -1060,7 +942,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
         err = iflt_attach(pIfNet, &RegRec, &pIfFilter);
         Assert(err || pIfFilter);
 
-        RTSpinlockAcquire(pThis->hSpinlock);
+        RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
         pIfNet = ASMAtomicUoReadPtrT(&pThis->u.s.pIfNet, ifnet_t);
         if (pIfNet && !err)
         {
@@ -1068,7 +950,7 @@ static int vboxNetFltDarwinAttachToInterface(PVBOXNETFLTINS pThis, bool fRedisco
             ASMAtomicUoWritePtr(&pThis->u.s.pIfFilter, pIfFilter);
             pIfNet = NULL; /* don't dereference it */
         }
-        RTSpinlockReleaseNoInts(pThis->hSpinlock);
+        RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
         /* Report capabilities. */
         if (   !pIfNet
@@ -1113,10 +995,11 @@ int  vboxNetFltPortOsXmit(PVBOXNETFLTINS pThis, void *pvIfData, PINTNETSG pSG, u
     {
         /*
          * Create a mbuf for the gather list and push it onto the wire.
-         *
-         * Note! If the interface is in the promiscuous mode we need to send the
-         *       packet down the stack so it reaches the driver and Berkeley
-         *       Packet Filter (see @bugref{5817}).
+         */
+        /*
+         * If the interface is in the promiscuous mode we need to send
+         * the packet down the stack so it reaches the driver and Berkeley
+         * Packet Filter (see #5817).
          */
         if ((fDst & INTNETTRUNKDIR_WIRE) || vboxNetFltDarwinIsPromiscuous(pThis))
         {
@@ -1280,16 +1163,17 @@ int  vboxNetFltOsConnectIt(PVBOXNETFLTINS pThis)
 
 void vboxNetFltOsDeleteInstance(PVBOXNETFLTINS pThis)
 {
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
     interface_filter_t pIfFilter;
 
     /*
      * Carefully obtain the interface filter reference and detach it.
      */
-    RTSpinlockAcquire(pThis->hSpinlock);
+    RTSpinlockAcquireNoInts(pThis->hSpinlock, &Tmp);
     pIfFilter = ASMAtomicUoReadPtrT(&pThis->u.s.pIfFilter, interface_filter_t);
     if (pIfFilter)
         ASMAtomicUoWriteNullPtr(&pThis->u.s.pIfFilter);
-    RTSpinlockReleaseNoInts(pThis->hSpinlock);
+    RTSpinlockReleaseNoInts(pThis->hSpinlock, &Tmp);
 
     if (pIfFilter)
         iflt_detach(pIfFilter);

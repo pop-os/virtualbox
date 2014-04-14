@@ -1,10 +1,9 @@
-/* $Id: vboxutils.c $ */
 /** @file
  * VirtualBox X11 Additions graphics driver utility functions
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,11 +28,6 @@
 #include "compiler.h"
 
 #include "vboxvideo.h"
-
-#ifdef XORG_7X
-# include <stdio.h>
-# include <stdlib.h>
-#endif
 
 /**************************************************************************
 * Main functions                                                          *
@@ -167,12 +161,10 @@ Bool
 vboxRetrieveVideoMode(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits)
 {
     VBOXPtr pVBox = pScrn->driverPrivate;
-    int rc;
     TRACE_ENTRY();
     if (!pVBox->useDevice)
-        rc = VERR_NOT_AVAILABLE;
-    else
-        rc = VbglR3RetrieveVideoMode("SavedMode", pcx, pcy, pcBits);
+        return FALSE;
+    int rc = VbglR3RetrieveVideoMode("SavedMode", pcx, pcy, pcBits);
     if (RT_SUCCESS(rc))
         TRACE_LOG("Retrieved a video mode of %dx%dx%d\n", *pcx, *pcy, *pcBits);
     else
@@ -208,7 +200,7 @@ static void vboxFillDisplayMode(ScrnInfoPtr pScrn, DisplayModePtr m,
     if (pszName)
     {
         if (m->name)
-            free((void*)m->name);
+            free(m->name);
         m->name      = xnfstrdup(pszName);
     }
 }
@@ -254,12 +246,10 @@ unsigned vboxNextStandardMode(ScrnInfoPtr pScrn, unsigned cIndex,
                               uint32_t *pcx, uint32_t *pcy,
                               uint32_t *pcBits)
 {
-    unsigned i;
-
     XF86ASSERT(cIndex < vboxNumStdModes,
                ("cIndex = %d, vboxNumStdModes = %d\n", cIndex,
                 vboxNumStdModes));
-    for (i = cIndex; i < vboxNumStdModes - 1; ++i)
+    for (unsigned i = cIndex; i < vboxNumStdModes - 1; ++i)
     {
         uint32_t cBits = pScrn->bitsPerPixel;
         uint32_t cx = vboxStandardModes[i].cx;
@@ -464,7 +454,6 @@ static DisplayModePtr vboxAddEmptyScreenMode(ScrnInfoPtr pScrn)
 void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit, uint32_t cyInit)
 {
     unsigned cx = 0, cy = 0, cIndex = 0;
-    unsigned i;
     /* For reasons related to the way RandR 1.1 is implemented, we need to
      * make sure that the initial mode (more precisely, a mode equal to the
      * initial virtual resolution) is always present in the mode list.  RandR
@@ -493,7 +482,8 @@ void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit, uint32_t cyInit)
     }
     /* And finally any modes specified by the user.  We assume here that
      * the mode names reflect the mode sizes. */
-    for (i = 0; pScrn->display->modes && pScrn->display->modes[i]; i++)
+    for (unsigned i = 0;    pScrn->display->modes != NULL
+                         && pScrn->display->modes[i] != NULL; i++)
     {
         if (sscanf(pScrn->display->modes[i], "%ux%u", &cx, &cy) == 2)
         {

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,40 @@
 #include "internal/ldr.h"
 
 
+/**
+ * Checks if a library is loadable or not.
+ *
+ * This may attempt load and unload the library.
+ *
+ * @returns true/false accordingly.
+ * @param   pszFilename     Image filename.
+ */
+RTDECL(bool) RTLdrIsLoadable(const char *pszFilename)
+{
+    /*
+     * Try to load the library.
+     */
+    RTLDRMOD hLib;
+    int rc = RTLdrLoad(pszFilename, &hLib);
+    if (RT_SUCCESS(rc))
+    {
+        RTLdrClose(hLib);
+        return true;
+    }
+    return false;
+}
+RT_EXPORT_SYMBOL(RTLdrIsLoadable);
+
+
+/**
+ * Gets the address of a named exported symbol.
+ *
+ * @returns iprt status code.
+ * @param   hLdrMod         The loader module handle.
+ * @param   pszSymbol       Symbol name.
+ * @param   ppvValue        Where to store the symbol value. Note that this is restricted to the
+ *                          pointer size used on the host!
+ */
 RTDECL(int) RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvValue)
 {
     LogFlow(("RTLdrGetSymbol: hLdrMod=%RTldrm pszSymbol=%p:{%s} ppvValue=%p\n",
@@ -62,7 +96,7 @@ RTDECL(int) RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvVa
     else
     {
         RTUINTPTR Value = 0;
-        rc = pMod->pOps->pfnGetSymbolEx(pMod, NULL, 0, UINT32_MAX, pszSymbol, &Value);
+        rc = pMod->pOps->pfnGetSymbolEx(pMod, NULL, 0, pszSymbol, &Value);
         if (RT_SUCCESS(rc))
         {
             *ppvValue = (void *)(uintptr_t)Value;
@@ -76,53 +110,15 @@ RTDECL(int) RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvVa
 RT_EXPORT_SYMBOL(RTLdrGetSymbol);
 
 
-RTDECL(PFNRT) RTLdrGetFunction(RTLDRMOD hLdrMod, const char *pszSymbol)
-{
-    PFNRT pfn;
-    int rc = RTLdrGetSymbol(hLdrMod, pszSymbol, (void **)&pfn);
-    if (RT_SUCCESS(rc))
-        return pfn;
-    return NULL;
-}
-RT_EXPORT_SYMBOL(RTLdrGetFunction);
-
-
-RTDECL(RTLDRFMT) RTLdrGetFormat(RTLDRMOD hLdrMod)
-{
-    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), RTLDRFMT_INVALID);
-    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
-    return pMod->enmFormat;
-}
-RT_EXPORT_SYMBOL(RTLdrGetFormat);
-
-
-RTDECL(RTLDRTYPE) RTLdrGetType(RTLDRMOD hLdrMod)
-{
-    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), RTLDRTYPE_INVALID);
-    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
-    return pMod->enmType;
-}
-RT_EXPORT_SYMBOL(RTLdrGetType);
-
-
-RTDECL(RTLDRENDIAN) RTLdrGetEndian(RTLDRMOD hLdrMod)
-{
-    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), RTLDRENDIAN_INVALID);
-    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
-    return pMod->enmEndian;
-}
-RT_EXPORT_SYMBOL(RTLdrGetEndian);
-
-
-RTDECL(RTLDRARCH) RTLdrGetArch(RTLDRMOD hLdrMod)
-{
-    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), RTLDRARCH_INVALID);
-    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
-    return pMod->enmArch;
-}
-RT_EXPORT_SYMBOL(RTLdrGetArch);
-
-
+/**
+ * Closes a loader module handle.
+ *
+ * The handle can be obtained using any of the RTLdrLoad(), RTLdrOpen()
+ * and RTLdrOpenBits() functions.
+ *
+ * @returns iprt status code.
+ * @param   hLdrMod         The loader module handle.
+ */
 RTDECL(int) RTLdrClose(RTLDRMOD hLdrMod)
 {
     LogFlow(("RTLdrClose: hLdrMod=%RTldrm\n", hLdrMod));
@@ -130,8 +126,6 @@ RTDECL(int) RTLdrClose(RTLDRMOD hLdrMod)
     /*
      * Validate input.
      */
-    if (hLdrMod == NIL_RTLDRMOD)
-        return VINF_SUCCESS;
     AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), VERR_INVALID_HANDLE);
     PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
     //AssertMsgReturn(pMod->eState == LDR_STATE_OPENED, ("eState=%d\n", pMod->eState), VERR_WRONG_ORDER);
@@ -143,12 +137,6 @@ RTDECL(int) RTLdrClose(RTLDRMOD hLdrMod)
     AssertRC(rc);
     pMod->eState = LDR_STATE_INVALID;
     pMod->u32Magic++;
-    if (pMod->pReader)
-    {
-        rc = pMod->pReader->pfnDestroy(pMod->pReader);
-        AssertRC(rc);
-        pMod->pReader = NULL;
-    }
     RTMemFree(pMod);
 
     LogFlow(("RTLdrClose: returns VINF_SUCCESS\n"));

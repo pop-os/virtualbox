@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,27 +39,27 @@ CollectorHAL *createHAL()
 
 int CollectorOS2::getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorOS2::getHostCpuMHz(ULONG *mhz)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorOS2::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorOS2::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorOS2::getProcessMemoryUsage(RTPROCESS process, ULONG *used)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 }

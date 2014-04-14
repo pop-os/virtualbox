@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,8 +21,6 @@
 #define ____H_MACHINEDEBUGGER
 
 #include "VirtualBoxBase.h"
-#include <iprt/log.h>
-#include <VBox/vmm/em.h>
 
 class Console;
 
@@ -52,36 +50,30 @@ public:
     void uninit();
 
     // IMachineDebugger properties
-    STDMETHOD(COMGETTER(SingleStep))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(SingleStep))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(RecompileUser))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(RecompileUser))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(RecompileSupervisor))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(RecompileSupervisor))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(ExecuteAllInIEM))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(ExecuteAllInIEM))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(PATMEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(PATMEnabled))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(CSAMEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(CSAMEnabled))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(LogEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMSETTER(LogEnabled))(BOOL a_fEnable);
-    STDMETHOD(COMGETTER(LogDbgFlags))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(LogDbgGroups))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(LogDbgDestinations))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(LogRelFlags))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(LogRelGroups))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(LogRelDestinations))(BSTR *a_pbstrSettings);
-    STDMETHOD(COMGETTER(HWVirtExEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMGETTER(HWVirtExNestedPagingEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMGETTER(HWVirtExVPIDEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMGETTER(HWVirtExUXEnabled))(BOOL *a_pfEnabled);
-    STDMETHOD(COMGETTER(PAEEnabled))(BOOL *a_pfEnabled);
+    STDMETHOD(COMGETTER(Singlestep)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(Singlestep)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(RecompileUser)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(RecompileUser)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(RecompileSupervisor)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(RecompileSupervisor)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(PATMEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(PATMEnabled)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(CSAMEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(CSAMEnabled)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(LogEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMSETTER(LogEnabled)) (BOOL aEnable);
+    STDMETHOD(COMGETTER(LogFlags)) (BSTR *a_pbstrSettings);
+    STDMETHOD(COMGETTER(LogGroups)) (BSTR *a_pbstrSettings);
+    STDMETHOD(COMGETTER(LogDestinations)) (BSTR *a_pbstrSettings);
+    STDMETHOD(COMGETTER(HWVirtExEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMGETTER(HWVirtExNestedPagingEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMGETTER(HWVirtExVPIDEnabled)) (BOOL *aEnabled);
+    STDMETHOD(COMGETTER(PAEEnabled)) (BOOL *aEnabled);
     STDMETHOD(COMGETTER(OSName))(BSTR *a_pbstrName);
     STDMETHOD(COMGETTER(OSVersion))(BSTR *a_pbstrVersion);
-    STDMETHOD(COMGETTER(VirtualTimeRate))(ULONG *a_puPct);
-    STDMETHOD(COMSETTER(VirtualTimeRate))(ULONG a_uPct);
-    STDMETHOD(COMGETTER(VM))(LONG64 *a_u64Vm);
+    STDMETHOD(COMGETTER(VirtualTimeRate)) (ULONG *aPct);
+    STDMETHOD(COMSETTER(VirtualTimeRate)) (ULONG aPct);
+    STDMETHOD(COMGETTER(VM)) (LONG64 *aVm);
 
     // IMachineDebugger methods
     STDMETHOD(DumpGuestCore)(IN_BSTR a_bstrFilename, IN_BSTR a_bstrCompression);
@@ -112,21 +104,11 @@ public:
 private:
     // private methods
     bool queueSettings() const;
-    HRESULT getEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL *pfEnforced);
-    HRESULT setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL fEnforce);
-
-    /** RTLogGetFlags, RTLogGetGroupSettings and RTLogGetDestinations function. */
-    typedef DECLCALLBACK(int) FNLOGGETSTR(PRTLOGGER, char *, size_t);
-    /** Function pointer.  */
-    typedef FNLOGGETSTR *PFNLOGGETSTR;
-    HRESULT logStringProps(PRTLOGGER pLogger, PFNLOGGETSTR pfnLogGetStr, const char *pszLogGetStr, BSTR *a_bstrSettings);
 
     Console * const mParent;
-    /** @name Flags whether settings have been queued because they could not be sent
-     *        to the VM (not up yet, etc.)
-     * @{ */
-    uint8_t maiQueuedEmExecPolicyParams[EMEXECPOLICY_END];
-    int mSingleStepQueued;
+    // flags whether settings have been queued because
+    // they could not be sent to the VM (not up yet, etc.)
+    int mSinglestepQueued;
     int mRecompileUserQueued;
     int mRecompileSupervisorQueued;
     int mPatmEnabledQueued;
@@ -134,7 +116,6 @@ private:
     int mLogEnabledQueued;
     uint32_t mVirtualTimeRateQueued;
     bool mFlushMode;
-    /** @}  */
 };
 
 #endif /* !____H_MACHINEDEBUGGER */

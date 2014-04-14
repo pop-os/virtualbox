@@ -63,4 +63,3 @@ MakeCurrent
 DestroyContext
 VBoxAttachThread
 VBoxDetachThread
-VBoxCreateContext

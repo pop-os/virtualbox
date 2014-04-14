@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,10 +30,10 @@
 #include <iprt/initterm.h>
 #include <iprt/err.h>
 
-int main(int argc, char **argv)
+int main(int argc, const char * const *argv)
 {
     int rcRet = 0;
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * If no args, display usage.

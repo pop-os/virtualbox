@@ -1,19 +1,22 @@
 /** @file
- * MS COM / XPCOM Abstraction Layer - VirtualBox COM Library definitions.
+ * MS COM / XPCOM Abstraction Layer:
+ * VirtualBox COM Library definitions.
  *
- * @note This is the main header file that COM/XPCOM clients include; however,
- *       it is only a wrapper around another platform-dependent include file
- *       that contains the real COM/XPCOM interface declarations.  That other
- *       include file is generated automatically at build time from
- *       /src/VBox/Main/idl/VirtualBox.xidl, which contains all the VirtualBox
- *       interfaces; the include file is called VirtualBox.h on Windows hosts
- *       and VirtualBox_XPCOM.h on Linux hosts.  The build process places it in
- *       out/<platform>/bin/sdk/include, from where it gets
- *       included by the rest of the VirtualBox code.
+ * Note: This is the main header file that COM/XPCOM clients
+ * include; however, it is only a wrapper around another
+ * platform-dependent include file that contains the real
+ * COM/XPCOM interface declarations. That other include file
+ * is generated automatically at build time from
+ * /src/VBox/Main/idl/VirtualBox.xidl, which contains all
+ * the VirtualBox interfaces; the include file is called
+ * VirtualBox.h on Windows hosts and VirtualBox_XPCOM.h
+ * on Linux hosts. The build process places it in
+ * out/<platform>/bin/sdk/include, from where it gets
+ * included by the rest of the VirtualBox code.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,4 +53,3 @@
 #include "VBox/com/ptr.h"
 
 #endif
-

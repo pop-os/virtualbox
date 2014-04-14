@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,9 @@
 
 #ifndef ____H_GLOBAL
 #define ____H_GLOBAL
+
+/* generated header */
+#include "SchemaDefs.h"
 
 /* interface definitions */
 #include "VBox/com/VirtualBox.h"
@@ -35,10 +38,6 @@
 #define VBOXOSHINT_HPET                 RT_BIT(6)
 #define VBOXOSHINT_USBTABLET            RT_BIT(7)
 #define VBOXOSHINT_RTCUTC               RT_BIT(8)
-#define VBOXOSHINT_ACCEL2D              RT_BIT(9)
-#define VBOXOSHINT_ACCEL3D              RT_BIT(10)
-#define VBOXOSHINT_FLOPPY               RT_BIT(11)
-#define VBOXOSHINT_NOUSB                RT_BIT(12)
 
 /** The VBoxVRDP kludge extension pack name.
  *
@@ -60,7 +59,7 @@ public:
     {
         const char                    *familyId;          /* utf-8 */
         const char                    *familyDescription; /* utf-8 */
-        const char                    *id;          /* utf-8, VM config file value */
+        const char                    *id;          /* utf-8 */
         const char                    *description; /* utf-8 */
         const VBOXOSTYPE               osType;
         const uint32_t                 osHint;
@@ -77,18 +76,9 @@ public:
         const AudioControllerType_T    audioControllerType;
     };
 
-    static const OSType sOSTypes[];
-    static uint32_t cOSTypes;
+    static const OSType sOSTypes[SchemaDefs::OSTypeId_COUNT];
 
-    /**
-     * Maps VBOXOSTYPE to the OS type which is used in VM configs.
-     */
     static const char *OSTypeId(VBOXOSTYPE aOSType);
-
-    /**
-     * Get the network adapter limit for each chipset type.
-     */
-    static uint32_t getMaxNetworkAdapters(ChipsetType_T aChipsetType);
 
     /**
      * Returns @c true if the given machine state is an online state. This is a
@@ -191,14 +181,6 @@ public:
      * @param   aType       The device type.
      */
     static const char *stringifyDeviceType(DeviceType_T aType);
-
-    /**
-     * Stringify a reason.
-     *
-     * @returns Pointer to a read only string.
-     * @param   aReason     The reason code.
-     */
-    static const char *stringifyReason(Reason_T aReason);
 
     /**
      * Try convert a COM status code to a VirtualBox status code (VBox/err.h).

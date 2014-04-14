@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,19 +32,14 @@
 typedef struct VBOXUHGSMI *PVBOXUHGSMI;
 
 typedef struct VBOXUHGSMI_BUFFER *PVBOXUHGSMI_BUFFER;
+typedef void* HVBOXUHGSMI_SYNCHOBJECT;
 
-typedef struct VBOXUHGSMI_BUFFER_TYPE_FLAGS
+typedef enum
 {
-    union
-    {
-        struct
-        {
-            uint32_t fCommand    : 1;
-            uint32_t Reserved    : 31;
-        };
-        uint32_t Value;
-    };
-} VBOXUHGSMI_BUFFER_TYPE_FLAGS;
+    VBOXUHGSMI_SYNCHOBJECT_TYPE_NONE = 0,
+    VBOXUHGSMI_SYNCHOBJECT_TYPE_EVENT,
+    VBOXUHGSMI_SYNCHOBJECT_TYPE_SEMAPHORE
+} VBOXUHGSMI_SYNCHOBJECT_TYPE;
 
 typedef struct VBOXUHGSMI_BUFFER_LOCK_FLAGS
 {
@@ -71,9 +66,10 @@ typedef struct VBOXUHGSMI_BUFFER_SUBMIT_FLAGS
         {
             uint32_t bHostReadOnly          : 1;
             uint32_t bHostWriteOnly         : 1;
-            uint32_t bDoNotRetire           : 1; /**< the buffer will be used in a subsequent command */
+            uint32_t bDoNotRetire           : 1; /**< the buffer will be uset in a subsequent command */
+            uint32_t bDoNotSignalCompletion : 1; /**< do not signal notification object on completion for this alloc */
             uint32_t bEntireBuffer          : 1;
-            uint32_t Reserved               : 28;
+            uint32_t Reserved               : 27;
         };
         uint32_t Value;
     };
@@ -81,7 +77,9 @@ typedef struct VBOXUHGSMI_BUFFER_SUBMIT_FLAGS
 
 /* the caller can specify NULL as a hSynch and specify a valid enmSynchType to make UHGSMI create a proper object itself,
  *  */
-typedef DECLCALLBACK(int) FNVBOXUHGSMI_BUFFER_CREATE(PVBOXUHGSMI pHgsmi, uint32_t cbBuf, VBOXUHGSMI_BUFFER_TYPE_FLAGS fType, PVBOXUHGSMI_BUFFER* ppBuf);
+typedef DECLCALLBACK(int) FNVBOXUHGSMI_BUFFER_CREATE(PVBOXUHGSMI pHgsmi, uint32_t cbBuf,
+        VBOXUHGSMI_SYNCHOBJECT_TYPE enmSynchType, HVBOXUHGSMI_SYNCHOBJECT hSynch,
+        PVBOXUHGSMI_BUFFER* ppBuf);
 typedef FNVBOXUHGSMI_BUFFER_CREATE *PFNVBOXUHGSMI_BUFFER_CREATE;
 
 typedef struct VBOXUHGSMI_BUFFER_SUBMIT
@@ -92,8 +90,8 @@ typedef struct VBOXUHGSMI_BUFFER_SUBMIT
     VBOXUHGSMI_BUFFER_SUBMIT_FLAGS fFlags;
 } VBOXUHGSMI_BUFFER_SUBMIT, *PVBOXUHGSMI_BUFFER_SUBMIT;
 
-typedef DECLCALLBACK(int) FNVBOXUHGSMI_BUFFER_SUBMIT(PVBOXUHGSMI pHgsmi, PVBOXUHGSMI_BUFFER_SUBMIT aBuffers, uint32_t cBuffers);
-typedef FNVBOXUHGSMI_BUFFER_SUBMIT *PFNVBOXUHGSMI_BUFFER_SUBMIT;
+typedef DECLCALLBACK(int) FNVBOXUHGSMI_BUFFER_SUBMIT_ASYNCH(PVBOXUHGSMI pHgsmi, PVBOXUHGSMI_BUFFER_SUBMIT aBuffers, uint32_t cBuffers);
+typedef FNVBOXUHGSMI_BUFFER_SUBMIT_ASYNCH *PFNVBOXUHGSMI_BUFFER_SUBMIT_ASYNCH;
 
 typedef DECLCALLBACK(int) FNVBOXUHGSMI_BUFFER_DESTROY(PVBOXUHGSMI_BUFFER pBuf);
 typedef FNVBOXUHGSMI_BUFFER_DESTROY *PFNVBOXUHGSMI_BUFFER_DESTROY;
@@ -107,7 +105,7 @@ typedef FNVBOXUHGSMI_BUFFER_UNLOCK *PFNVBOXUHGSMI_BUFFER_UNLOCK;
 typedef struct VBOXUHGSMI
 {
     PFNVBOXUHGSMI_BUFFER_CREATE pfnBufferCreate;
-    PFNVBOXUHGSMI_BUFFER_SUBMIT pfnBufferSubmit;
+    PFNVBOXUHGSMI_BUFFER_SUBMIT_ASYNCH pfnBufferSubmitAsynch;
     /** User custom data. */
     void *pvUserData;
 } VBOXUHGSMI;
@@ -120,18 +118,13 @@ typedef struct VBOXUHGSMI_BUFFER
 
     /* r/o data added for ease of access and simplicity
      * modifying it leads to unpredictable behavior */
-    VBOXUHGSMI_BUFFER_TYPE_FLAGS fType;
+    HVBOXUHGSMI_SYNCHOBJECT hSynch;
+    VBOXUHGSMI_SYNCHOBJECT_TYPE enmSynchType;
     uint32_t cbBuffer;
+    bool bSynchCreated;
     /** User custom data. */
     void *pvUserData;
 } VBOXUHGSMI_BUFFER;
-
-#define VBoxUhgsmiBufferCreate(_pUhgsmi, _cbBuf, _fType, _ppBuf) ((_pUhgsmi)->pfnBufferCreate(_pUhgsmi, _cbBuf, _fType, _ppBuf))
-#define VBoxUhgsmiBufferSubmit(_pUhgsmi, _aBuffers, _cBuffers) ((_pUhgsmi)->pfnBufferSubmit(_pUhgsmi, _aBuffers, _cBuffers))
-
-#define VBoxUhgsmiBufferLock(_pBuf, _offLock, _cbLock, _fFlags, _pvLock) ((_pBuf)->pfnLock(_pBuf, _offLock, _cbLock, _fFlags, _pvLock))
-#define VBoxUhgsmiBufferUnlock(_pBuf) ((_pBuf)->pfnUnlock(_pBuf))
-#define VBoxUhgsmiBufferDestroy(_pBuf) ((_pBuf)->pfnDestroy(_pBuf))
 
 #endif
 

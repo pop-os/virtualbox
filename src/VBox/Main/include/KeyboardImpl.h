@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,7 @@
 #define ____H_KEYBOARDIMPL
 
 #include "VirtualBoxBase.h"
+#include "ConsoleEvents.h"
 #include "EventImpl.h"
 
 #include <VBox/vmm/pdmdrv.h>
@@ -38,6 +39,9 @@ public:
     }
     int scan;
 };
+// template instantiation
+typedef ConsoleEventBuffer<KeyboardEvent> KeyboardEventBuffer;
+
 class Console;
 
 class ATL_NO_VTABLE Keyboard :
@@ -81,9 +85,8 @@ public:
 
 private:
 
-    static DECLCALLBACK(void)   keyboardLedStatusChange(PPDMIKEYBOARDCONNECTOR pInterface, PDMKEYBLEDS enmLeds);
-    static DECLCALLBACK(void)   keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
     static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
+    static DECLCALLBACK(void)   keyboardSetActive(PPDMIKEYBOARDCONNECTOR pInterface, bool fActive);
     static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
 

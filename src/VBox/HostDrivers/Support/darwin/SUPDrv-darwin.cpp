@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,6 @@
 #include "../SUPDrvInternal.h"
 #include <VBox/version.h>
 #include <iprt/asm.h>
-#include <iprt/asm-amd64-x86.h>
 #include <iprt/initterm.h>
 #include <iprt/assert.h>
 #include <iprt/spinlock.h>
@@ -50,7 +49,6 @@
 #include <iprt/process.h>
 #include <iprt/alloc.h>
 #include <iprt/power.h>
-#include <iprt/dbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
@@ -65,13 +63,8 @@
 #include <IOKit/IOService.h>
 #include <IOKit/IOUserClient.h>
 #include <IOKit/pwr_mgt/RootDomain.h>
-#include <IOKit/IODeviceTreeSupport.h>
-#include <IOKit/usb/IOUSBHIDDriver.h>
-#include <IOKit/bluetooth/IOBluetoothHIDDriver.h>
-#include <IOKit/bluetooth/IOBluetoothHIDDriverTypes.h>
 
 #ifdef VBOX_WITH_HOST_VMX
-# include <libkern/version.h>
 RT_C_DECLS_BEGIN
 # include <i386/vmx.h>
 RT_C_DECLS_END
@@ -82,10 +75,8 @@ RT_C_DECLS_END
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 
-/** The system device node name. */
-#define DEVICE_NAME_SYS     "vboxdrv"
-/** The user device node name. */
-#define DEVICE_NAME_USR     "vboxdrvu"
+/** The module name. */
+#define DEVICE_NAME    "vboxdrv"
 
 
 
@@ -105,8 +96,6 @@ static int              VBoxDrvDarwinErr2DarwinErr(int rc);
 
 static IOReturn         VBoxDrvDarwinSleepHandler(void *pvTarget, void *pvRefCon, UInt32 uMessageType, IOService *pProvider, void *pvMessageArgument, vm_size_t argSize);
 RT_C_DECLS_END
-
-static void             vboxdrvDarwinResolveSymbols(void);
 
 
 /*******************************************************************************
@@ -207,10 +196,8 @@ static struct cdevsw    g_DevCW =
 
 /** Major device number. */
 static int              g_iMajorDeviceNo = -1;
-/** Registered devfs device handle for the system device. */
-static void            *g_hDevFsDeviceSys = NULL;
-/** Registered devfs device handle for the user device. */
-static void            *g_hDevFsDeviceUsr = NULL;
+/** Registered devfs device handle. */
+static void            *g_hDevFsDevice = NULL;
 
 /** Spinlock protecting g_apSessionHashTab. */
 static RTSPINLOCK       g_Spinlock = NIL_RTSPINLOCK;
@@ -221,14 +208,8 @@ static PSUPDRVSESSION   g_apSessionHashTab[19];
 /** The number of open sessions. */
 static int32_t volatile g_cSessions = 0;
 /** The notifier handle for the sleep callback handler. */
-static IONotifier      *g_pSleepNotifier = NULL;
+static IONotifier *g_pSleepNotifier = NULL;
 
-/** Pointer to vmx_suspend(). */
-static PFNRT            g_pfnVmxSuspend = NULL;
-/** Pointer to vmx_resume(). */
-static PFNRT            g_pfnVmxResume = NULL;
-/** Pointer to vmx_use_count. */
-static int volatile    *g_pVmxUseCount = NULL;
 
 
 /**
@@ -257,7 +238,7 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
              * Initialize the session hash table.
              */
             memset(g_apSessionHashTab, 0, sizeof(g_apSessionHashTab)); /* paranoia */
-            rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxDrvDarwin");
+            rc = RTSpinlockCreate(&g_Spinlock);
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -267,38 +248,26 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
                 if (g_iMajorDeviceNo >= 0)
                 {
 #ifdef VBOX_WITH_HARDENING
-                    g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
-                                                        UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME_SYS);
+                    g_hDevFsDevice = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
+                                                     UID_ROOT, GID_WHEEL, 0600, DEVICE_NAME);
 #else
-                    g_hDevFsDeviceSys = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
-                                                        UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_SYS);
+                    g_hDevFsDevice = devfs_make_node(makedev(g_iMajorDeviceNo, 0), DEVFS_CHAR,
+                                                     UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME);
 #endif
-                    if (g_hDevFsDeviceSys)
+                    if (g_hDevFsDevice)
                     {
-                        g_hDevFsDeviceUsr = devfs_make_node(makedev(g_iMajorDeviceNo, 1), DEVFS_CHAR,
-                                                            UID_ROOT, GID_WHEEL, 0666, DEVICE_NAME_USR);
-                        if (g_hDevFsDeviceUsr)
-                        {
-                            LogRel(("VBoxDrv: version " VBOX_VERSION_STRING " r%d; IOCtl version %#x; IDC version %#x; dev major=%d\n",
-                                    VBOX_SVN_REV, SUPDRV_IOC_VERSION, SUPDRV_IDC_VERSION, g_iMajorDeviceNo));
+                        LogRel(("VBoxDrv: version " VBOX_VERSION_STRING " r%d; IOCtl version %#x; IDC version %#x; dev major=%d\n",
+                                VBOX_SVN_REV, SUPDRV_IOC_VERSION, SUPDRV_IDC_VERSION, g_iMajorDeviceNo));
 
-                            /* Register a sleep/wakeup notification callback */
-                            g_pSleepNotifier = registerPrioritySleepWakeInterest(&VBoxDrvDarwinSleepHandler, &g_DevExt, NULL);
-                            if (g_pSleepNotifier == NULL)
-                                LogRel(("VBoxDrv: register for sleep/wakeup events failed\n"));
+                        /* Register a sleep/wakeup notification callback */
+                        g_pSleepNotifier = registerPrioritySleepWakeInterest(&VBoxDrvDarwinSleepHandler, &g_DevExt, NULL);
+                        if (g_pSleepNotifier == NULL)
+                            LogRel(("VBoxDrv: register for sleep/wakeup events failed\n"));
 
-                            /* Find kernel symbols that are kind of optional. */
-                            vboxdrvDarwinResolveSymbols();
-                            return KMOD_RETURN_SUCCESS;
-                        }
-
-                        LogRel(("VBoxDrv: devfs_make_node(makedev(%d,1),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_USR));
-                        devfs_remove(g_hDevFsDeviceSys);
-                        g_hDevFsDeviceSys = NULL;
+                        return KMOD_RETURN_SUCCESS;
                     }
-                    else
-                        LogRel(("VBoxDrv: devfs_make_node(makedev(%d,0),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME_SYS));
 
+                    LogRel(("VBoxDrv: devfs_make_node(makedev(%d,0),,,,%s) failed\n", g_iMajorDeviceNo, DEVICE_NAME));
                     cdevsw_remove(g_iMajorDeviceNo, &g_DevCW);
                     g_iMajorDeviceNo = -1;
                 }
@@ -324,39 +293,6 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
 
 
 /**
- * Resolves kernel symbols we want (but may do without).
- */
-static void vboxdrvDarwinResolveSymbols(void)
-{
-    RTDBGKRNLINFO hKrnlInfo;
-    int rc = RTR0DbgKrnlInfoOpen(&hKrnlInfo, 0);
-    if (RT_SUCCESS(rc))
-    {
-        /* The VMX stuff. */
-        int rc1 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_resume", (void **)&g_pfnVmxResume);
-        int rc2 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_suspend", (void **)&g_pfnVmxSuspend);
-        int rc3 = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "vmx_use_count", (void **)&g_pVmxUseCount);
-        if (RT_SUCCESS(rc1) && RT_SUCCESS(rc2) && RT_SUCCESS(rc3))
-        {
-            LogRel(("VBoxDrv: vmx_resume=%p vmx_suspend=%p vmx_use_count=%p (%d) cr4=%#x\n",
-                    g_pfnVmxResume, g_pfnVmxSuspend, g_pVmxUseCount, *g_pVmxUseCount, ASMGetCR4() ));
-        }
-        else
-        {
-            LogRel(("VBoxDrv: failed to resolve vmx stuff: vmx_resume=%Rrc vmx_suspend=%Rrc vmx_use_count=%Rrc", rc1, rc2, rc3));
-            g_pfnVmxResume  = NULL;
-            g_pfnVmxSuspend = NULL;
-            g_pVmxUseCount  = NULL;
-        }
-
-        RTR0DbgKrnlInfoRelease(hKrnlInfo);
-    }
-    else
-        LogRel(("VBoxDrv: Failed to open kernel symbols, rc=%Rrc\n", rc));
-}
-
-
-/**
  * Stop the kernel module.
  */
 static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvData)
@@ -376,11 +312,8 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
         g_pSleepNotifier = NULL;
     }
 
-    devfs_remove(g_hDevFsDeviceUsr);
-    g_hDevFsDeviceUsr = NULL;
-
-    devfs_remove(g_hDevFsDeviceSys);
-    g_hDevFsDeviceSys = NULL;
+    devfs_remove(g_hDevFsDevice);
+    g_hDevFsDevice = NULL;
 
     rc = cdevsw_remove(g_iMajorDeviceNo, &g_DevCW);
     Assert(rc == g_iMajorDeviceNo);
@@ -405,10 +338,8 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
 /**
  * Device open. Called on open /dev/vboxdrv
  *
- * @param   Dev         The device number.
- * @param   fFlags      ???.
- * @param   fDevType    ???.
- * @param   pProcess    The process issuing this request.
+ * @param   pInode      Pointer to inode info structure.
+ * @param   pFilp       Associated file pointer.
  */
 static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess)
 {
@@ -420,24 +351,10 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
 #endif
 
     /*
-     * Only two minor devices numbers are allowed.
-     */
-    if (minor(Dev) != 0 && minor(Dev) != 1)
-        return EACCES;
-
-    /*
-     * The process issuing the request must be the current process.
-     */
-    RTPROCESS Process = RTProcSelf();
-    if (Process != proc_pid(pProcess))
-        return EIO;
-
-    /*
      * Find the session created by org_virtualbox_SupDrvClient, fail
      * if no such session, and mark it as opened. We set the uid & gid
      * here too, since that is more straight forward at this point.
      */
-    const bool      fUnrestricted = minor(Dev) == 0;
     int             rc = VINF_SUCCESS;
     PSUPDRVSESSION  pSession = NULL;
     kauth_cred_t    pCred = kauth_cred_proc_ref(pProcess);
@@ -450,18 +367,22 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
         RTUID           Uid = pCred->cr_ruid;
         RTGID           Gid = pCred->cr_rgid;
 #endif
+        RTPROCESS       Process = RTProcSelf();
         unsigned        iHash = SESSION_HASH(Process);
-        RTSpinlockAcquire(g_Spinlock);
+        RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
 
         pSession = g_apSessionHashTab[iHash];
-        while (pSession && pSession->Process != Process)
-            pSession = pSession->pNextHash;
+        if (pSession && pSession->Process != Process)
+        {
+            do pSession = pSession->pNextHash;
+            while (pSession && pSession->Process != Process);
+        }
         if (pSession)
         {
             if (!pSession->fOpened)
             {
                 pSession->fOpened = true;
-                pSession->fUnrestricted = fUnrestricted;
                 pSession->Uid = Uid;
                 pSession->Gid = Gid;
             }
@@ -471,7 +392,7 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
         else
             rc = VERR_GENERAL_FAILURE;
 
-        RTSpinlockReleaseNoInts(g_Spinlock);
+        RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
         kauth_cred_unref(&pCred);
 #else  /* 10.4 */
@@ -520,7 +441,7 @@ static int VBoxDrvDarwinClose(dev_t Dev, int fFlags, int fDevType, struct proc *
  */
 static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags, struct proc *pProcess)
 {
-    const bool          fUnrestricted = minor(Dev) == 0;
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = proc_pid(pProcess);
     const unsigned      iHash = SESSION_HASH(Process);
     PSUPDRVSESSION      pSession;
@@ -528,17 +449,15 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
     /*
      * Find the session.
      */
-    RTSpinlockAcquire(g_Spinlock);
-
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     pSession = g_apSessionHashTab[iHash];
-    while (pSession && (pSession->Process != Process || pSession->fUnrestricted != fUnrestricted || !pSession->fOpened))
-        pSession = pSession->pNextHash;
-
-    if (RT_LIKELY(pSession))
-        supdrvSessionRetain(pSession);
-
-    RTSpinlockReleaseNoInts(g_Spinlock);
-    if (RT_UNLIKELY(!pSession))
+    if (pSession && pSession->Process != Process)
+    {
+        do pSession = pSession->pNextHash;
+        while (pSession && pSession->Process != Process);
+    }
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
+    if (!pSession)
     {
         OSDBGPRINT(("VBoxDrvDarwinIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#lx\n",
                     (int)Process, iCmd));
@@ -549,17 +468,11 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
      * Deal with the two high-speed IOCtl that takes it's arguments from
      * the session and iCmd, and only returns a VBox status code.
      */
-    int rc;
-    if (   (    iCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-            ||  iCmd == SUP_IOCTL_FAST_DO_HM_RUN
-            ||  iCmd == SUP_IOCTL_FAST_DO_NOP)
-        && fUnrestricted)
-        rc = supdrvIOCtlFast(iCmd, *(uint32_t *)pData, &g_DevExt, pSession);
-    else
-        rc = VBoxDrvDarwinIOCtlSlow(pSession, iCmd, pData, pProcess);
-
-    supdrvSessionRelease(pSession);
-    return rc;
+    if (    iCmd == SUP_IOCTL_FAST_DO_RAW_RUN
+        ||  iCmd == SUP_IOCTL_FAST_DO_HWACC_RUN
+        ||  iCmd == SUP_IOCTL_FAST_DO_NOP)
+        return supdrvIOCtlFast(iCmd, *(uint32_t *)pData, &g_DevExt, pSession);
+    return VBoxDrvDarwinIOCtlSlow(pSession, iCmd, pData, pProcess);
 }
 
 
@@ -655,8 +568,6 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                 RTMemTmpFree(pHdr);
             return rc;
         }
-        if (Hdr.cbIn < cbReq)
-            RT_BZERO((uint8_t *)pHdr + Hdr.cbIn, cbReq - Hdr.cbIn);
     }
     else
     {
@@ -667,7 +578,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
     /*
      * Process the IOCtl.
      */
-    int rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr, cbReq);
+    int rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr);
     if (RT_LIKELY(!rc))
     {
         /*
@@ -722,7 +633,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
  * @param   iReq        The request code.
  * @param   pReq        The request.
  */
-DECLEXPORT(int) VBOXCALL SUPDrvDarwinIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
+int VBOXCALL SUPDrvDarwinIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
 {
     PSUPDRVSESSION  pSession;
 
@@ -747,25 +658,6 @@ DECLEXPORT(int) VBOXCALL SUPDrvDarwinIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
      * Do the job.
      */
     return supdrvIDC(uReq, &g_DevExt, pSession, pReq);
-}
-
-
-void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
-{
-    NOREF(pDevExt);
-    NOREF(pSession);
-}
-
-
-void VBOXCALL supdrvOSSessionHashTabInserted(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
-{
-    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
-}
-
-
-void VBOXCALL supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
-{
-    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
 }
 
 
@@ -818,45 +710,42 @@ IOReturn VBoxDrvDarwinSleepHandler(void * /* pvTarget */, void *pvRefCon, UInt32
 
 
 /**
- * @copydoc SUPR0EnableVTx
+ * Enables or disables VT-x using kernel functions.
+ *
+ * @returns VBox status code. VERR_NOT_SUPPORTED has a special meaning.
+ * @param   fEnable     Whether to enable or disable.
  */
 int VBOXCALL supdrvOSEnableVTx(bool fEnable)
 {
-#ifdef VBOX_WITH_HOST_VMX
+/* Zarking amateurish Apple engineering!
+   host_vmxon is actually buggy and may panic multicore machines. Reason, it
+   uses a simple lock which will disable preemption of the cpu/thread trying
+   to acquire it.  Then it allocate wired memory in the kernel map for each
+   of the cpus in the system. If anyone else tries to mess around in the
+   kernel map on another CPU while this is going on, there is a fair chance
+   that it might cause the host_vmxon thread to block and hence panic since
+   preemption is disabled. Argh! */
+#if 0 /*def VBOX_WITH_HOST_VMX*/
     int rc;
-    if (   version_major >= 10 /* 10 = 10.6.x = Snow Leopard */
-        && g_pfnVmxSuspend
-        && g_pfnVmxResume
-        && g_pVmxUseCount)
+    if (fEnable)
     {
-        if (fEnable)
-        {
-            rc = host_vmxon(false /* exclusive */);
-            if (rc == VMX_OK)
-                rc = VINF_SUCCESS;
-            else if (rc == VMX_UNSUPPORTED)
-                rc = VERR_VMX_NO_VMX;
-            else if (rc == VMX_INUSE)
-                rc = VERR_VMX_IN_VMX_ROOT_MODE;
-            else /* shouldn't happen, but just in case. */
-            {
-                LogRel(("host_vmxon returned %d\n", rc));
-                rc = VERR_UNRESOLVED_ERROR;
-            }
-            LogRel(("VBoxDrv: host_vmxon  -> vmx_use_count=%d rc=%Rrc\n", *g_pVmxUseCount, rc));
-        }
-        else
-        {
-            host_vmxoff();
+        rc = host_vmxon(false /* exclusive */);
+        if (rc == 0 /* all ok */)
             rc = VINF_SUCCESS;
-            LogRel(("VBoxDrv: host_vmxoff -> vmx_use_count=%d\n", *g_pVmxUseCount));
+        else if (rc == 1 /* unsupported */)
+            rc = VERR_VMX_NO_VMX;
+        else if (rc == 2 /* exclusive user */)
+            rc = VERR_VMX_IN_VMX_ROOT_MODE;
+        else /* shouldn't happen, but just in case. */
+        {
+            LogRel(("host_vmxon returned %d\n", rc));
+            rc = VERR_UNRESOLVED_ERROR;
         }
     }
     else
     {
-        /* In 10.5.x the host_vmxon is severely broken!  Don't use it, it will
-           frequnetly panic the host. */
-        rc = VERR_NOT_SUPPORTED;
+        host_vmxoff();
+        rc = VINF_SUCCESS;
     }
     return rc;
 #else
@@ -865,85 +754,10 @@ int VBOXCALL supdrvOSEnableVTx(bool fEnable)
 }
 
 
-/**
- * @copydoc SUPR0SuspendVTxOnCpu
- */
-bool VBOXCALL supdrvOSSuspendVTxOnCpu(void)
-{
-#ifdef VBOX_WITH_HOST_VMX
-    /*
-     * Consult the VMX usage counter, don't try suspend if not enabled.
-     *
-     * Note!  The host_vmxon/off code is still race prone since, but this is
-     *        currently the best we can do without always enable VMX when
-     *        loading the driver.
-     */
-    if (   g_pVmxUseCount
-        && *g_pVmxUseCount > 0)
-    {
-        g_pfnVmxSuspend();
-        return true;
-    }
-    return false;
-#else
-    return false;
-#endif
-}
-
-
-/**
- * @copydoc SUPR0ResumeVTxOnCpu
- */
-void VBOXCALL   supdrvOSResumeVTxOnCpu(bool fSuspended)
-{
-#ifdef VBOX_WITH_HOST_VMX
-    /*
-     * Don't consult the counter here, the state knows better.
-     * We're executing with interrupts disabled and anyone racing us with
-     * disabling VT-x will be waiting in the rendezvous code.
-     */
-    if (   fSuspended
-        && g_pfnVmxResume)
-        g_pfnVmxResume();
-    else
-        Assert(!fSuspended);
-#else
-    Assert(!fSuspended);
-#endif
-}
-
-
 bool VBOXCALL supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 {
     NOREF(pDevExt);
     return false;
-}
-
-
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-#if 1
-    NOREF(pDevExt); NOREF(pImage);
-#else
-    /*
-     * Try store the image load address in NVRAM so we can retrived it on panic.
-     * Note! This only works if you're root! - Acutally, it doesn't work at all at the moment. FIXME!
-     */
-    IORegistryEntry *pEntry = IORegistryEntry::fromPath("/options", gIODTPlane);
-    if (pEntry)
-    {
-        char szVar[80];
-        RTStrPrintf(szVar, sizeof(szVar), "vboximage"/*-%s*/, pImage->szName);
-        char szValue[48];
-        RTStrPrintf(szValue, sizeof(szValue), "%#llx,%#llx", (uint64_t)(uintptr_t)pImage->pvImage,
-                    (uint64_t)(uintptr_t)pImage->pvImage + pImage->cbImageBits - 1);
-        bool fRc = pEntry->setProperty(szVar, szValue); NOREF(fRc);
-        pEntry->release();
-        SUPR0Printf("fRc=%d '%s'='%s'\n", fRc, szVar, szValue);
-    }
-    /*else
-        SUPR0Printf("failed to find /options in gIODTPlane\n");*/
-#endif
 }
 
 
@@ -971,72 +785,6 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
-}
-
-
-/**
- * Resume Bluetooth keyboard.
- * If there is no Bluetooth keyboard device connected to the system we just ignore this.
- */
-static void supdrvDarwinResumeBluetoothKbd(void)
-{
-    OSDictionary *pDictionary = IOService::serviceMatching("AppleBluetoothHIDKeyboard");
-    if (pDictionary)
-    {
-        OSIterator     *pIter;
-        IOBluetoothHIDDriver *pDriver;
-
-        pIter = IOService::getMatchingServices(pDictionary);
-        if (pIter)
-        {
-            while ((pDriver = (IOBluetoothHIDDriver *)pIter->getNextObject()))
-                if (pDriver->isKeyboard())
-                    (void)pDriver->hidControl(IOBTHID_CONTROL_EXIT_SUSPEND);
-
-            pIter->release();
-        }
-        pDictionary->release();
-    }
-}
-
-/**
- * Resume built-in keyboard on MacBook Air and Pro hosts.
- * If there is no built-in keyboard device attached to the system we just ignore this.
- */
-static void supdrvDarwinResumeBuiltinKbd(void)
-{
-    /*
-     * AppleUSBTCKeyboard KEXT is responsible for built-in keyboard management.
-     * We resume keyboard by accessing to its IOService. */
-    OSDictionary *pDictionary = IOService::serviceMatching("AppleUSBTCKeyboard");
-    if (pDictionary)
-    {
-        OSIterator     *pIter;
-        IOUSBHIDDriver *pDriver;
-
-        pIter = IOService::getMatchingServices(pDictionary);
-        if (pIter)
-        {
-            while ((pDriver = (IOUSBHIDDriver *)pIter->getNextObject()))
-                if (pDriver->IsPortSuspended())
-                    pDriver->SuspendPort(false, 0);
-
-            pIter->release();
-        }
-        pDictionary->release();
-    }
-}
-
-
-/**
- * Resume suspended keyboard devices (if any).
- */
-int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void)
-{
-    supdrvDarwinResumeBuiltinKbd();
-    supdrvDarwinResumeBluetoothKbd();
-
-    return 0;
 }
 
 
@@ -1077,15 +825,6 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printf("%s", szMsg);
-    return 0;
-}
-
-
-/**
- * Returns configuration flags of the host kernel.
- */
-SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
-{
     return 0;
 }
 
@@ -1231,22 +970,26 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
             /*
              * Create a new session.
              */
-            int rc = supdrvCreateSession(&g_DevExt, true /* fUser */, false /*fUnrestricted*/, &m_pSession);
+            int rc = supdrvCreateSession(&g_DevExt, true /* fUser */, &m_pSession);
             if (RT_SUCCESS(rc))
             {
                 m_pSession->fOpened = false;
-                /* The Uid, Gid and fUnrestricted fields are set on open. */
+                /* The Uid and Gid fields are set on open. */
 
                 /*
                  * Insert it into the hash table, checking that there isn't
-                 * already one for this process first. (One session per proc!)
+                 * already one for this process first.
                  */
                 unsigned iHash = SESSION_HASH(m_pSession->Process);
-                RTSpinlockAcquire(g_Spinlock);
+                RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+                RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
 
                 PSUPDRVSESSION pCur = g_apSessionHashTab[iHash];
-                while (pCur && pCur->Process != m_pSession->Process)
-                    pCur = pCur->pNextHash;
+                if (pCur && pCur->Process != m_pSession->Process)
+                {
+                    do pCur = pCur->pNextHash;
+                    while (pCur && pCur->Process != m_pSession->Process);
+                }
                 if (!pCur)
                 {
                     m_pSession->pNextHash = g_apSessionHashTab[iHash];
@@ -1258,7 +1001,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
                 else
                     rc = VERR_ALREADY_LOADED;
 
-                RTSpinlockReleaseNoInts(g_Spinlock);
+                RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
                 if (RT_SUCCESS(rc))
                 {
                     Log(("org_virtualbox_SupDrvClient::start: created session %p for pid %d\n", m_pSession, (int)RTProcSelf()));
@@ -1266,7 +1009,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
                 }
 
                 LogFlow(("org_virtualbox_SupDrvClient::start: already got a session for this process (%p)\n", pCur));
-                supdrvSessionRelease(m_pSession);
+                supdrvCloseSession(&g_DevExt, m_pSession);
             }
 
             m_pSession = NULL;
@@ -1281,17 +1024,17 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
 
 /**
  * Common worker for clientClose and VBoxDrvDarwinClose.
+ *
+ * It will
  */
 /* static */ void org_virtualbox_SupDrvClient::sessionClose(RTPROCESS Process)
 {
     /*
-     * Find the session and remove it from the hash table.
-     *
-     * Note! Only one session per process. (Both start() and
-     * VBoxDrvDarwinOpen makes sure this is so.)
+     * Look for the session.
      */
     const unsigned  iHash = SESSION_HASH(Process);
-    RTSpinlockAcquire(g_Spinlock);
+    RTSPINLOCKTMP   Tmp = RTSPINLOCKTMP_INITIALIZER;
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     PSUPDRVSESSION  pSession = g_apSessionHashTab[iHash];
     if (pSession)
     {
@@ -1321,7 +1064,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
             }
         }
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
         Log(("SupDrvClient::sessionClose: pSession == NULL, pid=%d; freed already?\n", (int)Process));
@@ -1342,7 +1085,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
     /*
      * Close the session.
      */
-    supdrvSessionRelease(pSession);
+    supdrvCloseSession(&g_DevExt, pSession);
 }
 
 

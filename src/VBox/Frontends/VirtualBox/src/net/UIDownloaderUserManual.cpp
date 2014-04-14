@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,103 +18,134 @@
  */
 
 /* Global includes: */
+#include <QAction>
 #include <QDir>
 #include <QFile>
+#include <QNetworkReply>
 
 /* Local includes: */
 #include "UIDownloaderUserManual.h"
-#include "UINetworkReply.h"
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-#include "UIModalWindowManager.h"
 
-/* static */
-UIDownloaderUserManual* UIDownloaderUserManual::m_spInstance = 0;
+UIDownloaderUserManual *UIDownloaderUserManual::m_pInstance = 0;
 
-/* static */
-UIDownloaderUserManual* UIDownloaderUserManual::create()
+UIDownloaderUserManual *UIDownloaderUserManual::create()
 {
-    if (!m_spInstance)
-        m_spInstance = new UIDownloaderUserManual;
-    return m_spInstance;
+    if (!m_pInstance)
+        m_pInstance = new UIDownloaderUserManual;
+    return m_pInstance;
 }
 
-/* static */
-UIDownloaderUserManual* UIDownloaderUserManual::current()
+UIDownloaderUserManual *UIDownloaderUserManual::current()
 {
-    return m_spInstance;
+    return m_pInstance;
+}
+
+void UIDownloaderUserManual::setSource(const QString &strSource)
+{
+    /* Erase the list first: */
+    m_sourcesList.clear();
+    /* And add there passed value: */
+    addSource(strSource);
+}
+
+void UIDownloaderUserManual::addSource(const QString &strSource)
+{
+    /* Append passed value: */
+    m_sourcesList << strSource;
+}
+
+void UIDownloaderUserManual::start()
+{
+    /* If at least one source to try left: */
+    if (!m_sourcesList.isEmpty())
+    {
+        /* Set the first of left sources as current one: */
+        UIDownloader::setSource(m_sourcesList.takeFirst());
+        /* Warn process-bar(s) about source was changed: */
+        emit sigSourceChanged(source());
+        /* Try to download: */
+        startDelayedAcknowledging();
+    }
 }
 
 UIDownloaderUserManual::UIDownloaderUserManual()
+    : UIDownloader()
 {
-    /* Prepare instance: */
-    if (!m_spInstance)
-        m_spInstance = this;
-
-    /* Set description: */
-    setDescription(tr("VirtualBox User Manual"));
-
-    /* Compose User Manual filename: */
-    QString strUserManualFullFileName = vboxGlobal().helpFile();
-    QString strUserManualShortFileName = QFileInfo(strUserManualFullFileName).fileName();
-
-    /* Add sources: */
-    addSource(QString("http://download.virtualbox.org/virtualbox/%1/").arg(vboxGlobal().vboxVersionStringNormalized()) + strUserManualShortFileName);
-    addSource(QString("http://download.virtualbox.org/virtualbox/") + strUserManualShortFileName);
-
-    /* Set target: */
-    QString strUserManualDestination = QDir(vboxGlobal().virtualBox().GetHomeFolder()).absoluteFilePath(strUserManualShortFileName);
-    setTarget(strUserManualDestination);
 }
 
 UIDownloaderUserManual::~UIDownloaderUserManual()
 {
-    /* Cleanup instance: */
-    if (m_spInstance == this)
-        m_spInstance = 0;
+    if (m_pInstance == this)
+        m_pInstance = 0;
 }
 
-bool UIDownloaderUserManual::askForDownloadingConfirmation(UINetworkReply *pReply)
+void UIDownloaderUserManual::handleError(QNetworkReply *pReply)
 {
-    return msgCenter().confirmDownloadUserManual(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    /* Check if other sources present: */
+    if (!m_sourcesList.isEmpty())
+    {
+        /* Restart acknowledging: */
+        start();
+    }
+    else
+    {
+        /* Call for base-class: */
+        UIDownloader::handleError(pReply);
+    }
 }
 
-void UIDownloaderUserManual::handleDownloadedObject(UINetworkReply *pReply)
+UIMiniProgressWidget* UIDownloaderUserManual::createProgressWidgetFor(QWidget *pParent) const
 {
-    /* Read received data into the buffer: */
+    return new UIMiniProcessWidgetUserManual(pParent);
+}
+
+bool UIDownloaderUserManual::askForDownloadingConfirmation(QNetworkReply *pReply)
+{
+    return msgCenter().confirmUserManualDownload(source(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+}
+
+void UIDownloaderUserManual::handleDownloadedObject(QNetworkReply *pReply)
+{
+    /* Read received data: */
     QByteArray receivedData(pReply->readAll());
-    /* Serialize that buffer into the file: */
+    /* Serialize the incoming buffer into the User Manual file: */
     while (true)
     {
-        /* Try to open file for writing: */
+        /* Try to open file to save document: */
         QFile file(target());
         if (file.open(QIODevice::WriteOnly))
         {
-            /* Write buffer into the file: */
+            /* Write received data into file: */
             file.write(receivedData);
             file.close();
-
-            /* Warn the user about user-manual loaded and saved: */
-            msgCenter().warnAboutUserManualDownloaded(source().toString(), QDir::toNativeSeparators(target()));
-            /* Warn the listener about user-manual was downloaded: */
+            /* Warn user about User Manual document loaded and saved: */
+            msgCenter().warnAboutUserManualDownloaded(source(), QDir::toNativeSeparators(target()));
+            /* Warn listener about User Manual was downloaded: */
             emit sigDownloadFinished(target());
             break;
         }
+        else
+        {
+            /* Warn user about User Manual document loaded but was not saved: */
+            msgCenter().warnAboutUserManualCantBeSaved(source(), QDir::toNativeSeparators(target()));
+        }
 
-        /* Warn user about user-manual was downloaded but was NOT saved: */
-        msgCenter().cannotSaveUserManual(source().toString(), QDir::toNativeSeparators(target()));
-
-        /* Ask the user for another location for the user-manual file: */
-        QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(),
-                                                               windowManager().networkManagerOrMainWindowShown(),
+        /* Ask the user about User Manual file save location: */
+        QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(), parentWidget(),
                                                                tr("Select folder to save User Manual to"), true);
 
-        /* Check if user had really set a new target: */
+        /* Check if user set new target: */
         if (!strTarget.isNull())
             setTarget(QDir(strTarget).absoluteFilePath(QFileInfo(target()).fileName()));
         else
             break;
     }
+}
+
+void UIDownloaderUserManual::warnAboutNetworkError(const QString &strError)
+{
+    return msgCenter().warnAboutUserManualCantBeDownloaded(source(), strError);
 }
 

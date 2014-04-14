@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,6 +157,7 @@ class UIMiniCancelButton: public QIWithRetranslateUI<QIToolButton>
 
 public:
     UIMiniCancelButton(QWidget *pParent = 0);
+    void removeBorder();
 
 protected:
     void retranslateUi() {};

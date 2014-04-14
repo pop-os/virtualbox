@@ -11,7 +11,6 @@
 #include "cr_spu.h"
 #include "cr_protocol.h"
 #include "cr_mem.h"
-#include "cr_opcodes.h"
 
 #include <iprt/types.h>
 
@@ -28,16 +27,6 @@ DECLEXPORT(void) crUnpackSetWritebackPointer( CRNetworkPointer *ptr );
 DECLEXPORT(void) crUnpack( const void *data, const void *opcodes, unsigned int num_opcodes, SPUDispatchTable *table );
 DECLEXPORT(void) crUnpackPush(void);
 DECLEXPORT(void) crUnpackPop(void);
-
-typedef enum
-{
-    CR_UNPACK_BUFFER_TYPE_GENERIC = 0,
-    CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN,
-    CR_UNPACK_BUFFER_TYPE_CMDBLOCK_FLUSH,
-    CR_UNPACK_BUFFER_TYPE_CMDBLOCK_END
-} CR_UNPACK_BUFFER_TYPE;
-
-DECLEXPORT(CR_UNPACK_BUFFER_TYPE) crUnpackGetBufferType(const void *opcodes, unsigned int num_opcodes);
 
 extern CRNetworkPointer * return_ptr;
 extern CRNetworkPointer * writeback_ptr;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,8 +67,6 @@ typedef enum VSCSIIOREQTXDIR
     VSCSIIOREQTXDIR_WRITE,
     /** Flush */
     VSCSIIOREQTXDIR_FLUSH,
-    /** Unmap */
-    VSCSIIOREQTXDIR_UNMAP,
     /** 32bit hack */
     VSCSIIOREQTXDIR_32BIT_HACK = 0x7fffffff
 } VSCSIIOREQTXDIR;
@@ -94,13 +92,6 @@ typedef enum VSCSILUNTYPE
 /** Pointer to a SCSI LUN type */
 typedef VSCSILUNTYPE *PVSCSILUNTYPE;
 
-/** The LUN can handle the UNMAP command. */
-#define VSCSI_LUN_FEATURE_UNMAP          RT_BIT(0)
-/** The LUN has a non rotational medium. */
-#define VSCSI_LUN_FEATURE_NON_ROTATIONAL RT_BIT(1)
-/** The medium of the LUN is readonly. */
-#define VSCSI_LUN_FEATURE_READONLY       RT_BIT(2)
-
 /**
  * Virtual SCSI LUN I/O Callback table.
  */
@@ -121,32 +112,6 @@ typedef struct VSCSILUNIOCALLBACKS
                                                          uint64_t *pcbSize));
 
     /**
-     * Retrieve the sector size of the underlying medium.
-     *
-     * @returns VBox status status code.
-     * @param   hVScsiLun        Virtual SCSI LUN handle.
-     * @param   pvScsiLunUser    Opaque user data which may
-     *                           be used to identify the medium.
-     * @param   pcbSectorSize    Where to store the sector size of the
-     *                           medium.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnVScsiLunMediumGetSectorSize, (VSCSILUN hVScsiLun,
-                                                              void *pvScsiLunUser,
-                                                              uint32_t *pcbSectorSize));
-
-    /**
-     * Set the lock state of the underlying medium.
-     *
-     * @returns VBox status status code.
-     * @param   hVScsiLun        Virtual SCSI LUN handle.
-     * @param   pvScsiLunUser    Opaque user data which may
-     *                           be used to identify the medium.
-     * @param   fLocked          New lock state (locked/unlocked).
-     */
-    DECLR3CALLBACKMEMBER(int, pfnVScsiLunMediumSetLock, (VSCSILUN hVScsiLun,
-                                                         void *pvScsiLunUser,
-                                                         bool fLocked));
-    /**
      * Enqueue a read or write request from the medium.
      *
      * @returns VBox status status code.
@@ -158,20 +123,6 @@ typedef struct VSCSILUNIOCALLBACKS
     DECLR3CALLBACKMEMBER(int, pfnVScsiLunReqTransferEnqueue, (VSCSILUN hVScsiLun,
                                                               void *pvScsiLunUser,
                                                               VSCSIIOREQ hVScsiIoReq));
-
-    /**
-     * Returns flags of supported features.
-     *
-     * @returns VBox status status code.
-     * @param   hVScsiLun             Virtual SCSI LUN handle.
-     * @param   pvScsiLunUser         Opaque user data which may
-     *                                be used to identify the medium.
-     * @param   hVScsiIoReq           Virtual SCSI I/O request handle.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnVScsiLunGetFeatureFlags, (VSCSILUN hVScsiLun,
-                                                           void *pvScsiLunUser,
-                                                           uint64_t *pfFeatures));
-
 
 } VSCSILUNIOCALLBACKS;
 /** Pointer to a virtual SCSI LUN I/O callback table. */
@@ -296,22 +247,6 @@ VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
 VBOXDDU_DECL(int) VSCSILunDestroy(VSCSILUN hVScsiLun);
 
 /**
- * Notify virtual SCSI LUN of medium being mounted.
- *
- * @returns VBox status code.
- * @param   hVScsiLun               The virtual SCSI LUN handle to destroy.
- */
-VBOXDDU_DECL(int) VSCSILunMountNotify(VSCSILUN hVScsiLun);
-
-/**
- * Notify virtual SCSI LUN of medium being unmounted.
- *
- * @returns VBox status code.
- * @param   hVScsiLun               The virtual SCSI LUN handle to destroy.
- */
-VBOXDDU_DECL(int) VSCSILunUnmountNotify(VSCSILUN hVScsiLun);
-
-/**
  * Notify a that a I/O request completed.
  *
  * @returns VBox status code.
@@ -347,17 +282,6 @@ VBOXDDU_DECL(VSCSIIOREQTXDIR) VSCSIIoReqTxDirGet(VSCSIIOREQ hVScsiIoReq);
 VBOXDDU_DECL(int) VSCSIIoReqParamsGet(VSCSIIOREQ hVScsiIoReq, uint64_t *puOffset,
                                       size_t *pcbTransfer, unsigned *pcSeg,
                                       size_t *pcbSeg, PCRTSGSEG *ppaSeg);
-
-/**
- * Query unmap parameters.
- *
- * @returns VBox status code.
- * @param   hVScsiIoReq    The SCSI I/O request handle.
- * @param   ppaRanges      Where to store the pointer to the range array on success.
- * @param   pcRanges       Where to store the number of ranges on success.
- */
-VBOXDDU_DECL(int) VSCSIIoReqUnmapParamsGet(VSCSIIOREQ hVScsiIoReq, PCRTRANGE *ppaRanges,
-                                           unsigned *pcRanges);
 
 RT_C_DECLS_END
 

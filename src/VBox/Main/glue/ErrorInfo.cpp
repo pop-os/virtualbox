@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,23 +43,12 @@ namespace com
 //
 ////////////////////////////////////////////////////////////////////////////////
 
-HRESULT ErrorInfo::getVirtualBoxErrorInfo(ComPtr<IVirtualBoxErrorInfo> &pVirtualBoxErrorInfo)
-{
-    HRESULT rc = S_OK;
-    if (mErrorInfo)
-        rc = mErrorInfo.queryInterfaceTo(pVirtualBoxErrorInfo.asOutParam());
-    else
-        pVirtualBoxErrorInfo.setNull();
-    return rc;
-}
-
 void ErrorInfo::copyFrom(const ErrorInfo &x)
 {
     mIsBasicAvailable = x.mIsBasicAvailable;
     mIsFullAvailable = x.mIsFullAvailable;
 
     mResultCode = x.mResultCode;
-    mResultDetail = x.mResultDetail;
     mInterfaceID = x.mInterfaceID;
     mComponent = x.mComponent;
     mText = x.mText;
@@ -88,7 +77,6 @@ void ErrorInfo::cleanup()
     }
 
     mResultCode = S_OK;
-    mResultDetail = 0;
     mInterfaceID.clear();
     mComponent.setNull();
     mText.setNull();
@@ -236,13 +224,9 @@ void ErrorInfo::init(IVirtualBoxErrorInfo *info)
     HRESULT rc = E_FAIL;
     bool gotSomething = false;
     bool gotAll = true;
-    LONG lrc, lrd;
+    LONG lrc;
 
     rc = info->COMGETTER(ResultCode)(&lrc); mResultCode = lrc;
-    gotSomething |= SUCCEEDED(rc);
-    gotAll &= SUCCEEDED(rc);
-
-    rc = info->COMGETTER(ResultDetail)(&lrd); mResultDetail = lrd;
     gotSomething |= SUCCEEDED(rc);
     gotAll &= SUCCEEDED(rc);
 
@@ -270,7 +254,7 @@ void ErrorInfo::init(IVirtualBoxErrorInfo *info)
     rc = info->COMGETTER(Next)(next.asOutParam());
     if (SUCCEEDED(rc) && !next.isNull())
     {
-        m_pNext = new ErrorInfo(next);
+        m_pNext = new ErrorInfo(false /* aDummy */);
         Assert(m_pNext != NULL);
         if (!m_pNext)
             rc = E_OUTOFMEMORY;
@@ -281,8 +265,6 @@ void ErrorInfo::init(IVirtualBoxErrorInfo *info)
 
     mIsBasicAvailable = gotSomething;
     mIsFullAvailable = gotAll;
-
-    mErrorInfo = info;
 
     AssertMsg(gotSomething, ("Nothing to fetch!\n"));
 }

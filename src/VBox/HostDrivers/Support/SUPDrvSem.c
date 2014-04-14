@@ -1,10 +1,10 @@
-/* $Revision: 83575 $ */
+/* $Revision: 66703 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Common OS agnostic.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;

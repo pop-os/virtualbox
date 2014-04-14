@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -122,8 +122,6 @@ typedef struct RTMEMCACHEINT
     bool                        fUseFreeList;
     /** Head of the page list. */
     PRTMEMCACHEPAGE             pPageHead;
-    /** Poiner to the insertion point in the page list. */
-    PRTMEMCACHEPAGE volatile   *ppPageNext;
     /** Constructor callback. */
     PFNMEMCACHECTOR             pfnCtor;
     /** Destructor callback. */
@@ -143,8 +141,8 @@ typedef struct RTMEMCACHEINT
      * These are marked as used in the allocation bitmaps.
      *
      * @todo This doesn't scale well when several threads are beating on the
-     *       cache.  Also, it totally doesn't work when the objects are too
-     *       small. */
+     *       cache.  Also, it totally doesn't work when we've got a
+     *       constructor/destructor around or the objects are too small. */
     PRTMEMCACHEFREEOBJ volatile pFreeTop;
 } RTMEMCACHEINT;
 
@@ -211,7 +209,6 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
                            && !pfnCtor
                            && !pfnDtor;
     pThis->pPageHead        = NULL;
-    pThis->ppPageNext       = &pThis->pPageHead;
     pThis->pfnCtor          = pfnCtor;
     pThis->pfnDtor          = pfnDtor;
     pThis->pvUser           = pvUser;
@@ -228,8 +225,8 @@ RTDECL(int) RTMemCacheCreate(PRTMEMCACHE phMemCache, size_t cbObject, size_t cbA
      * tried optimizing the code with the ASMAtomicCmpXchgExPtr function to
      * avoid some reads - no change. Inserting pause instructions did nothing
      * (as expected).  The only thing which seems to make a difference is
-     * reading the pFreeTop pointer twice in the free code... This is weird or I'm
-     * overlooking something..
+     * reading the pFreeTop pointer twice in the the free code... This is weird
+     * or I'm overlooking something..
      *
      * No time to figure it out, so I'm disabling the broken code paths for
      * now. */
@@ -247,8 +244,7 @@ RTDECL(int) RTMemCacheDestroy(RTMEMCACHE hMemCache)
         return VINF_SUCCESS;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTMEMCACHE_MAGIC, VERR_INVALID_HANDLE);
-
-#if 0 /*def RT_STRICT - don't require eveything to be freed. Caches are very convenient for lazy cleanup. */
+#ifdef RT_STRICT
     uint32_t cFree = pThis->cFree;
     for (PRTMEMCACHEFREEOBJ pFree = pThis->pFreeTop; pFree && cFree < pThis->cTotal + 5; pFree = pFree->pNext)
         cFree++;
@@ -336,9 +332,16 @@ static int rtMemCacheGrow(RTMEMCACHEINT *pThis)
             /* Make it the hint. */
             ASMAtomicWritePtr(&pThis->pPageHint, pPage);
 
-            /* Link the page in at the end of the list. */
-            ASMAtomicWritePtr(pThis->ppPageNext, pPage);
-            pThis->ppPageNext = &pPage->pNext;
+            /* Link the page. */
+            PRTMEMCACHEPAGE pPrevPage = pThis->pPageHead;
+            if (!pPrevPage)
+                ASMAtomicWritePtr(&pThis->pPageHead, pPage);
+            else
+            {
+                while (pPrevPage->pNext)
+                    pPrevPage = pPrevPage->pNext;
+                ASMAtomicWritePtr(&pPrevPage->pNext, pPage);
+            }
 
             /* Add it to the page counts. */
             ASMAtomicAddS32(&pThis->cFree, cObjects);
@@ -544,7 +547,8 @@ RTDECL(void) RTMemCacheFree(RTMEMCACHE hMemCache, void *pvObj)
     }
     else
     {
-        /* Note: Do *NOT* attempt to poison the object! */
+        /* Note: Do *NOT* attempt to poison the object if we have a constructor
+                 or/and destructor! */
 
         /*
          * Find the cache page.  The page structure is at the start of the page.

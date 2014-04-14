@@ -9,25 +9,20 @@
 #include "cr_mem.h"
 #include "cr_error.h"
 
-#include <iprt/list.h>
-
 #define CR_MAXUINT             ((GLuint) 0xFFFFFFFF)
-#define CR_HASH_ID_MIN ((GLuint)1)
-#define CR_HASH_ID_MAX CR_MAXUINT
 
 #define CR_NUM_BUCKETS 1047
 
 typedef struct FreeElemRec {
-    RTLISTNODE Node;
     GLuint min;
     GLuint max;
+    struct FreeElemRec *next;
+    struct FreeElemRec *prev;
 } FreeElem;
 
-struct CRHashIdPool {
-    RTLISTNODE freeList;
-    GLuint min;
-    GLuint max;
-};
+typedef struct CRHashIdPoolRec {
+    FreeElem *freeList;
+} CRHashIdPool;
 
 typedef struct CRHashNode {
         unsigned long key;
@@ -45,124 +40,86 @@ struct CRHashTable {
 };
 
 
-CRHashIdPool *crAllocHashIdPoolEx( GLuint min, GLuint max )
+static CRHashIdPool *crAllocHashIdPool( void )
 {
-    CRHashIdPool *pool;
-    FreeElem *elem;
-    if (min < CR_HASH_ID_MIN || max > CR_HASH_ID_MAX || min >= max)
-    {
-        crWarning("invalid min man vals");
-        return NULL;
-    }
-    pool = (CRHashIdPool *) crCalloc(sizeof(CRHashIdPool));
-    elem = (FreeElem *) crCalloc(sizeof(FreeElem));
-    RTListInit(&pool->freeList);
-    elem->min = min;
-    elem->max = max;
-    RTListAppend(&pool->freeList, &elem->Node);
-    pool->min = min;
-    pool->max = max;
+    CRHashIdPool *pool = (CRHashIdPool *) crCalloc(sizeof(CRHashIdPool));
+    pool->freeList = (FreeElem *) crCalloc(sizeof(FreeElem));
+    pool->freeList->min = 1;
+    pool->freeList->max = CR_MAXUINT;
+    pool->freeList->next = NULL;
+    pool->freeList->prev = NULL;
     return pool;
 }
 
-CRHashIdPool *crAllocHashIdPool( void )
-{
-    return crAllocHashIdPoolEx( CR_HASH_ID_MIN, CR_HASH_ID_MAX );
-}
-
-void crFreeHashIdPool( CRHashIdPool *pool )
+static void crFreeHashIdPool( CRHashIdPool *pool )
 {
     FreeElem *i, *next;
-    RTListForEachSafe(&pool->freeList, i, next, FreeElem, Node)
+    for (i = pool->freeList; i; i = next)
     {
+        next = i->next;
         crFree(i);
     }
-
     crFree(pool);
 }
-
-#ifdef DEBUG_misha
-static void crHashIdPoolDbgCheckConsistency(CRHashIdPool *pool)
-{
-    FreeElem *i;
-    GLuint min = 0;
-
-    /* null is a special case, it is always treated as allocated */
-    Assert(!crHashIdPoolIsIdFree(pool, 0));
-
-    /* first ensure entries have correct values */
-    RTListForEach(&pool->freeList, i, FreeElem, Node)
-    {
-        Assert(i->min >= pool->min);
-        Assert(i->max <= pool->max);
-        Assert(i->min < i->max);
-    }
-
-    /* now ensure entries do not intersect */
-    /* and that they are sorted */
-    RTListForEach(&pool->freeList, i, FreeElem, Node)
-    {
-        Assert(min < i->min);
-        min = i->max;
-    }
-}
-
-static void crHashIdPoolDbgCheckUsed( const CRHashIdPool *pool, GLuint start, GLuint count, GLboolean fUsed )
-{
-    GLuint i;
-    CRASSERT(count);
-    CRASSERT(start >= pool->min);
-    CRASSERT(start + count <= pool->max);
-    CRASSERT(start + count >  start);
-    for (i = 0; i < count; ++i)
-    {
-        Assert(!fUsed == !!crHashIdPoolIsIdFree( pool, start + i ));
-    }
-}
-
-# define CR_HASH_IDPOOL_DBG_CHECK_USED(_p, _start, _count, _used) do { \
-        crHashIdPoolDbgCheckConsistency((_p)); \
-        crHashIdPoolDbgCheckUsed( (_p), (_start), (_count), (_used) ); \
-    } while (0)
-
-# define CR_HASH_IDPOOL_DBG_CHECK_CONSISTENCY(_p) do { crHashIdPoolDbgCheckConsistency((_p)); } while (0)
-#else
-# define CR_HASH_IDPOOL_DBG_CHECK_USED(_p, _start, _count, _used) do { } while (0)
-# define CR_HASH_IDPOOL_DBG_CHECK_CONSISTENCY(_p) do { } while (0)
-#endif
 
 /*
  * Allocate a block of <count> IDs.  Return index of first one.
  * Return 0 if we fail.
  */
-GLuint crHashIdPoolAllocBlock( CRHashIdPool *pool, GLuint count )
+static GLuint crHashIdPoolAllocBlock( CRHashIdPool *pool, GLuint count )
 {
-    FreeElem *f, *next;
+    FreeElem *f;
     GLuint ret;
 
     CRASSERT(count > 0);
-    RTListForEachSafe(&pool->freeList, f, next, FreeElem, Node)
+
+    f = pool->freeList;
+    while (f)
     {
-        Assert(f->max > f->min);
-        if (f->max - f->min >= (GLuint) count)
+        if (f->max - f->min + 1 >= (GLuint) count)
         {
             /* found a sufficiently large enough block */
             ret = f->min;
             f->min += count;
+
             if (f->min == f->max)
             {
-                RTListNodeRemove(&f->Node);
+                /* remove this block from linked list */
+                if (f == pool->freeList) 
+                {
+                    /* remove from head */
+                    pool->freeList = pool->freeList->next;
+                    pool->freeList->prev = NULL;
+                }
+                else 
+                {
+                    /* remove from elsewhere */
+                    f->prev->next = f->next;
+                    f->next->prev = f->prev;
+                }
                 crFree(f);
             }
 
-            CR_HASH_IDPOOL_DBG_CHECK_USED(pool, ret, count, GL_TRUE);
+#ifdef DEBUG
+            /* make sure the IDs really are allocated */
+            {
+                GLuint i;
+                for (i = 0; i < count; i++)
+                {
+                    //CRASSERT(crHashIdPoolIsIdUsed(pool, ret + i));
+                }
+            }
+#endif
+
             return ret;
+        }
+        else {
+            f = f->next;
         }
     }
 
     /* failed to find free block */
-    crWarning("crHashIdPoolAllocBlock failed");
-    CR_HASH_IDPOOL_DBG_CHECK_CONSISTENCY(pool);
+    crDebug("crHashIdPoolAllocBlock failed");
     return 0;
 }
 
@@ -170,91 +127,107 @@ GLuint crHashIdPoolAllocBlock( CRHashIdPool *pool, GLuint count )
 /*
  * Free a block of <count> IDs starting at <first>.
  */
-void crHashIdPoolFreeBlock( CRHashIdPool *pool, GLuint first, GLuint count )
+static void crHashIdPoolFreeBlock( CRHashIdPool *pool, GLuint first, GLuint count )
 {
-    FreeElem *f;
-    GLuint last;
-    GLuint newMax;
-    FreeElem *cur, *curNext;
+    FreeElem *i;
+    FreeElem *newelem;
 
-    /* null is a special case, it is always treated as allocated */
-    if (!first)
+    /*********************************/
+    /* Add the name to the freeList  */
+    /* Find the bracketing sequences */
+
+    for (i = pool->freeList; i && i->next && i->next->min < first; i = i->next)
     {
-        Assert(!crHashIdPoolIsIdFree(pool, 0));
-        ++first;
-        --count;
-        if (!count)
-            return;
+        /* EMPTY BODY */
     }
 
-    last = first + count;
-    CRASSERT(count > 0);
-    CRASSERT(last > first);
-    CRASSERT(first >= pool->min);
-    CRASSERT(last <= pool->max);
-
-    /* the id list is sorted, first find a place to insert */
-    RTListForEach(&pool->freeList, f, FreeElem, Node)
-    {
-        Assert(f->max > f->min);
-
-        if (f->max < first)
-            continue;
-
-        if (f->min > last)
-        {
-            /* we are here because first is > than prevEntry->max
-             * otherwise the previous loop iterations should handle that */
-            FreeElem *elem = (FreeElem *) crCalloc(sizeof(FreeElem));
-            elem->min = first;
-            elem->max = last;
-            RTListNodeInsertBefore(&f->Node, &elem->Node);
-            CR_HASH_IDPOOL_DBG_CHECK_USED(pool, first, count, GL_FALSE);
-            return;
-        }
-
-        /* now we have f->min <= last and f->max >= first,
-         * so we have either intersection */
-
-        if (f->min > first)
-            f->min = first; /* first is guaranteed not to touch any prev regions */
-
-        newMax = last;
-
-        if (f->max >= last)
-        {
-            CR_HASH_IDPOOL_DBG_CHECK_USED(pool, first, count, GL_FALSE);
-            return;
-        }
-
-        for (cur = RTListNodeGetNext(&f->Node, FreeElem, Node),
-                curNext = RT_FROM_MEMBER(cur->Node.pNext, FreeElem, Node);
-             !RTListNodeIsDummy(&pool->freeList, cur, FreeElem, Node);
-             cur = curNext,
-                     curNext = RT_FROM_MEMBER((cur)->Node.pNext, FreeElem, Node) )
-        {
-            if (cur->min > last)
-                break;
-
-            newMax = cur->max;
-            RTListNodeRemove(&cur->Node);
-            crFree(cur);
-
-            if (newMax >= last)
-                break;
-        }
-
-        f->max = newMax;
-        CR_HASH_IDPOOL_DBG_CHECK_USED(pool, first, count, GL_FALSE);
+    /* j will always be valid */
+    if (!i) {
+        return;
+    }
+    if (!i->next && i->max == first) {
         return;
     }
 
-    /* we are here because either the list is empty or because all list rande elements have smaller values */
-    f = (FreeElem *) crCalloc(sizeof(FreeElem));
-    f->min = first;
-    f->max = last;
-    RTListAppend(&pool->freeList, &f->Node);
-    CR_HASH_IDPOOL_DBG_CHECK_USED(pool, first, count, GL_FALSE);
+    /* Case:  j:(~,first-1) */
+    if (i->max + 1 == first) 
+    {
+        i->max += count;
+        if (i->next && i->max+1 >= i->next->min) 
+        {
+            /* Collapse */
+            i->next->min = i->min;
+            i->next->prev = i->prev;
+            if (i->prev)
+            {
+                i->prev->next = i->next;
+            }
+            if (i == pool->freeList)
+            {
+                pool->freeList = i->next;
+            }
+            crFree(i);
+        }
+        return;
+    }
+
+    /* Case: j->next: (first+1, ~) */
+    if (i->next && i->next->min - count == first) 
+    {
+        i->next->min -= count;
+        if (i->max + 1 >= i->next->min) 
+        {
+            /* Collapse */
+            i->next->min = i->min;
+            i->next->prev = i->prev;
+            if (i->prev)
+            {
+                i->prev->next = i->next;
+            }
+            if (i == pool->freeList) 
+            {
+                pool->freeList = i->next;
+            }
+            crFree(i);
+        }
+        return;
+    }
+
+    /* Case: j: (first+1, ~) j->next: null */
+    if (!i->next && i->min - count == first) 
+    {
+        i->min -= count;
+        return;
+    }
+
+    /* allocate a new FreeElem node */
+    newelem = (FreeElem *) crCalloc(sizeof(FreeElem));
+    newelem->min = first;
+    newelem->max = first + count - 1;
+
+    /* Case: j: (~,first-(2+))  j->next: (first+(2+), ~) or null */
+    if (first > i->max) 
+    {
+        newelem->prev = i;
+        newelem->next = i->next;
+        if (i->next)
+        {
+            i->next->prev = newelem;
+        }
+        i->next = newelem;
+        return;
+    }
+
+    /* Case: j: (first+(2+), ~) */
+    /* Can only happen if j = t->freeList! */
+    if (i == pool->freeList && i->min > first) 
+    {
+        newelem->next = i;
+        newelem->prev = i->prev;
+        i->prev = newelem;
+        pool->freeList = newelem;
+        return;
+    }
 }
 
 
@@ -262,116 +235,68 @@ void crHashIdPoolFreeBlock( CRHashIdPool *pool, GLuint first, GLuint count )
 /*
  * Mark the given Id as being allocated.
  */
-GLboolean crHashIdPoolAllocId( CRHashIdPool *pool, GLuint id )
+static void crHashIdPoolAllocId( CRHashIdPool *pool, GLuint id )
 {
-    FreeElem *f, *next;
+    FreeElem *f;
 
-    if (!id)
+    f = pool->freeList;
+    while (f)
     {
-        /* null is a special case, it is always treated as allocated */
-        Assert(!crHashIdPoolIsIdFree(pool, 0));
-        return GL_FALSE;
-    }
-
-//    Assert(id != 2);
-
-    RTListForEachSafe(&pool->freeList, f, next, FreeElem, Node)
-    {
-        if (f->max <= id)
-            continue;
-        if (f->min > id)
+        if (id >= f->min && id <= f->max)
         {
-            CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
-            return GL_FALSE;
-        }
-
-        /* f->min <= id && f->max > id */
-        if (id > f->min)
-        {
-            if (id + 1 < f->max)
+            /* found the block */
+            if (id == f->min)
             {
-                FreeElem *elem = (FreeElem *) crCalloc(sizeof(FreeElem));
-                elem->min = id + 1;
-                elem->max = f->max;
-                RTListNodeInsertAfter(&f->Node, &elem->Node);
+                f->min++;
             }
-            f->max = id;
-
-            CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
-        }
-        else
-        {
-            Assert(id == f->min);
-            if (id + 1 < f->max)
+            else if (id == f->max)
             {
-                f->min = id + 1;
-                CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
+                f->max--;
             }
             else
             {
-                RTListNodeRemove(&f->Node);
-                crFree(f);
-                CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
+                /* somewhere in the middle - split the block */
+                FreeElem *newelem = (FreeElem *) crCalloc(sizeof(FreeElem));
+                newelem->min = id + 1;
+                newelem->max = f->max;
+                f->max = id - 1;
+                newelem->next = f->next;
+                if (f->next)
+                   f->next->prev = newelem;
+                newelem->prev = f;
+                f->next = newelem;
             }
+            return;
         }
-
-        CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
-        return GL_TRUE;
+        f = f->next;
     }
 
     /* if we get here, the ID was already allocated - that's OK */
-    CR_HASH_IDPOOL_DBG_CHECK_USED(pool, id, 1, GL_TRUE);
-    return GL_FALSE;
 }
 
 
 /*
  * Determine if the given id is free.  Return GL_TRUE if so.
  */
-GLboolean crHashIdPoolIsIdFree( const CRHashIdPool *pool, GLuint id )
+static GLboolean crHashIdPoolIsIdFree( const CRHashIdPool *pool, GLuint id )
 {
-    FreeElem *f;
-    CRASSERT(id <= pool->max);
+    FreeElem *i;
 
-    RTListForEach(&pool->freeList, f, FreeElem, Node)
+    /* First find which region it fits in */
+    for (i = pool->freeList; i && !(i->min <= id && id <= i->max); i=i->next)
     {
-        if (f->max <= id)
-            continue;
-        if (f->min > id)
-            return GL_FALSE;
+        /* EMPTY BODY */
+    }
+
+    if (i)
         return GL_TRUE;
-    }
-    return GL_FALSE;
+    else
+        return GL_FALSE;
 }
 
-void crHashIdWalkKeys( CRHashIdPool *pool, CRHashIdWalkKeys walkFunc , void *data)
-{
-    FreeElem *prev = NULL, *f;
 
-    RTListForEach(&pool->freeList, f, FreeElem, Node)
-    {
-        if (prev)
-        {
-            Assert(prev->max < f->min);
-            walkFunc(prev->max+1, f->min - prev->max, data);
-        }
-        else if (f->min > pool->min)
-        {
-            walkFunc(pool->min, f->min - pool->min, data);
-        }
 
-        prev = f;
-    }
-
-    Assert(prev->max <= pool->max);
-
-    if (prev->max < pool->max)
-    {
-        walkFunc(prev->max+1, pool->max - prev->max, data);
-    }
-}
-
-CRHashTable *crAllocHashtableEx( GLuint min, GLuint max )
+CRHashTable *crAllocHashtable( void )
 {
     int i;
     CRHashTable *hash = (CRHashTable *) crCalloc( sizeof( CRHashTable )) ;
@@ -380,16 +305,11 @@ CRHashTable *crAllocHashtableEx( GLuint min, GLuint max )
     {
         hash->buckets[i] = NULL;
     }
-    hash->idPool = crAllocHashIdPoolEx( min, max );
+    hash->idPool = crAllocHashIdPool();
 #ifdef CHROMIUM_THREADSAFE
     crInitMutex(&hash->mutex);
 #endif
     return hash;
-}
-
-CRHashTable *crAllocHashtable( void )
-{
-    return crAllocHashtableEx(CR_HASH_ID_MIN, CR_HASH_ID_MAX);
 }
 
 void crFreeHashtable( CRHashTable *hash, CRHashtableCallback deleteFunc )
@@ -446,11 +366,17 @@ void crHashtableUnlock(CRHashTable *h)
 #endif
 }
 
-void crHashtableWalkUnlocked( CRHashTable *hash, CRHashtableWalkCallback walkFunc , void *dataPtr2)
+void crHashtableWalk( CRHashTable *hash, CRHashtableWalkCallback walkFunc , void *dataPtr2)
 {
     int i;
     CRHashNode *entry, *next;
 
+    if (!hash)
+        return;
+
+#ifdef CHROMIUM_THREADSAFE
+    crLockMutex(&hash->mutex);
+#endif
     for (i = 0; i < CR_NUM_BUCKETS; i++)
     {
         entry = hash->buckets[i];
@@ -464,17 +390,6 @@ void crHashtableWalkUnlocked( CRHashTable *hash, CRHashtableWalkCallback walkFun
             entry = next;
         }
     }
-}
-
-void crHashtableWalk( CRHashTable *hash, CRHashtableWalkCallback walkFunc , void *dataPtr2)
-{
-    if (!hash)
-        return;
-
-#ifdef CHROMIUM_THREADSAFE
-    crLockMutex(&hash->mutex);
-#endif
-    crHashtableWalkUnlocked(hash, walkFunc , dataPtr2);
 #ifdef CHROMIUM_THREADSAFE
     crUnlockMutex(&hash->mutex);
 #endif
@@ -502,30 +417,6 @@ void crHashtableAdd( CRHashTable *h, unsigned long key, void *data )
 #endif
 }
 
-GLboolean crHashtableAllocRegisterKey( CRHashTable *h,  GLuint key)
-{
-    GLboolean fAllocated;
-#ifdef CHROMIUM_THREADSAFE
-    crLockMutex(&h->mutex);
-#endif
-    fAllocated = crHashIdPoolAllocId (h->idPool, key);
-#ifdef CHROMIUM_THREADSAFE
-    crUnlockMutex(&h->mutex);
-#endif
-    return fAllocated;
-}
-
-void crHashtableWalkKeys( CRHashTable *h, CRHashIdWalkKeys walkFunc , void *data)
-{
-#ifdef CHROMIUM_THREADSAFE
-    crLockMutex(&h->mutex);
-#endif
-    crHashIdWalkKeys(h->idPool, walkFunc , data);
-#ifdef CHROMIUM_THREADSAFE
-    crUnlockMutex(&h->mutex);
-#endif
-}
-
 GLuint crHashtableAllocKeys( CRHashTable *h,  GLsizei range)
 {
     GLuint res;
@@ -535,14 +426,6 @@ GLuint crHashtableAllocKeys( CRHashTable *h,  GLsizei range)
     crLockMutex(&h->mutex);
 #endif
     res = crHashIdPoolAllocBlock (h->idPool, range);
-#ifdef DEBUG_misha
-    Assert(res);
-    for (i = 0; i < range; ++i)
-    {
-        void *search = crHashtableSearch( h, res+i );
-        Assert(!search);
-    }
-#endif
 #ifdef CHROMIUM_THREADSAFE
     crUnlockMutex(&h->mutex);
 #endif
@@ -563,20 +446,23 @@ void crHashtableDelete( CRHashTable *h, unsigned long key, CRHashtableCallback d
             break;
         beftemp = temp;
     }
-    if ( temp ) 
-    {
-        if ( beftemp )
-            beftemp->next = temp->next;
-        else
-            h->buckets[index] = temp->next;
-        h->num_elements--;
-        if (temp->data && deleteFunc) {
-            (*deleteFunc)( temp->data );
-        }
-
-        crFree( temp );
+    if ( !temp ) {
+#ifdef CHROMIUM_THREADSAFE
+        crUnlockMutex(&h->mutex);
+#endif
+        return; /* not an error */
     }
-    
+    if ( beftemp )
+        beftemp->next = temp->next;
+    else
+        h->buckets[index] = temp->next;
+    h->num_elements--;
+    if (temp->data && deleteFunc) {
+        (*deleteFunc)( temp->data );
+    }
+
+    crFree( temp );
+
     crHashIdPoolFreeBlock( h->idPool, key, 1 );
 #ifdef CHROMIUM_THREADSAFE
     crUnlockMutex(&h->mutex);

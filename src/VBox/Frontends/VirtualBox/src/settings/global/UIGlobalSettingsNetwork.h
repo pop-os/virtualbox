@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,48 +19,14 @@
 #ifndef __UIGlobalSettingsNetwork_h__
 #define __UIGlobalSettingsNetwork_h__
 
-/* GUI includes: */
+/* Local includes */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsNetwork.gen.h"
-#include "UIPortForwardingTable.h"
-
-/* Forward declarations: */
-class UIItemNetworkNAT;
-class UIItemNetworkHost;
-
-
-/* Global settings / Network page / NAT network data: */
-struct UIDataNetworkNAT
-{
-    /* NAT Network: */
-    bool m_fEnabled;
-    QString m_strName;
-    QString m_strNewName;
-    QString m_strCIDR;
-    bool m_fSupportsDHCP;
-    bool m_fSupportsIPv6;
-    bool m_fAdvertiseDefaultIPv6Route;
-    UIPortForwardingDataList m_ipv4rules;
-    UIPortForwardingDataList m_ipv6rules;
-    bool operator==(const UIDataNetworkNAT &other) const
-    {
-        return m_fEnabled == other.m_fEnabled &&
-               m_strName == other.m_strName &&
-               m_strNewName == other.m_strNewName &&
-               m_strCIDR == other.m_strCIDR &&
-               m_fSupportsDHCP == other.m_fSupportsDHCP &&
-               m_fSupportsIPv6 == other.m_fSupportsIPv6 &&
-               m_fAdvertiseDefaultIPv6Route == other.m_fAdvertiseDefaultIPv6Route &&
-               m_ipv4rules == other.m_ipv4rules &&
-               m_ipv6rules == other.m_ipv6rules;
-    }
-};
-
 
 /* Global settings / Network page / Host interface data: */
-struct UIDataNetworkHostInterface
+struct UIHostInterfaceData
 {
-    /* Host Interface: */
+    /* Host-only Interface: */
     QString m_strName;
     bool m_fDhcpClientEnabled;
     QString m_strInterfaceAddress;
@@ -68,7 +34,7 @@ struct UIDataNetworkHostInterface
     bool m_fIpv6Supported;
     QString m_strInterfaceAddress6;
     QString m_strInterfaceMaskLength6;
-    bool operator==(const UIDataNetworkHostInterface &other) const
+    bool operator==(const UIHostInterfaceData &other) const
     {
         return m_strName == other.m_strName &&
                m_fDhcpClientEnabled == other.m_fDhcpClientEnabled &&
@@ -80,16 +46,16 @@ struct UIDataNetworkHostInterface
     }
 };
 
-/* Global settings / Network page / Host DHCP server data: */
-struct UIDataNetworkDHCPServer
+/* Global settings / Network page / DHCP server data: */
+struct UIDHCPServerData
 {
-    /* DHCP Server: */
+    /* DHCP Server */
     bool m_fDhcpServerEnabled;
     QString m_strDhcpServerAddress;
     QString m_strDhcpServerMask;
     QString m_strDhcpLowerAddress;
     QString m_strDhcpUpperAddress;
-    bool operator==(const UIDataNetworkDHCPServer &other) const
+    bool operator==(const UIDHCPServerData &other) const
     {
         return m_fDhcpServerEnabled == other.m_fDhcpServerEnabled &&
                m_strDhcpServerAddress == other.m_strDhcpServerAddress &&
@@ -99,26 +65,76 @@ struct UIDataNetworkDHCPServer
     }
 };
 
-/* Global settings / Network page / Host network data: */
-struct UIDataNetworkHost
+/* Global settings / Network page / Full network data: */
+struct UIHostNetworkData
 {
-    UIDataNetworkHostInterface m_interface;
-    UIDataNetworkDHCPServer m_dhcpserver;
-    bool operator==(const UIDataNetworkHost &other) const
+    UIHostInterfaceData m_interface;
+    UIDHCPServerData m_dhcpserver;
+    bool operator==(const UIHostNetworkData &other) const
     {
         return m_interface == other.m_interface &&
                m_dhcpserver == other.m_dhcpserver;
     }
 };
 
-
-/* Global settings / Network page / Global network cache: */
+/* Global settings / Network page / Cache: */
 struct UISettingsCacheGlobalNetwork
 {
-    QList<UIDataNetworkNAT> m_networksNAT;
-    QList<UIDataNetworkHost> m_networksHost;
+    QList<UIHostNetworkData> m_items;
 };
 
+/* Global settings / Network page / Host interface item: */
+class UIHostInterfaceItem : public QTreeWidgetItem
+{
+public:
+
+    /* Constructor: */
+    UIHostInterfaceItem();
+
+    /* Get/return data to/form items: */
+    void fetchNetworkData(const UIHostNetworkData &data);
+    void uploadNetworkData(UIHostNetworkData &data);
+
+    /* Validation stuff: */
+    bool revalidate(QString &strWarning, QString &strTitle);
+
+    /* Helpers: */
+    QString updateInfo();
+
+    /* Network item getters: */
+    QString name() const { return m_data.m_interface.m_strName; }
+    bool isDhcpClientEnabled() const { return m_data.m_interface.m_fDhcpClientEnabled; }
+    QString interfaceAddress() const { return m_data.m_interface.m_strInterfaceAddress; }
+    QString interfaceMask() const { return m_data.m_interface.m_strInterfaceMask; }
+    bool isIpv6Supported() const { return m_data.m_interface.m_fIpv6Supported; }
+    QString interfaceAddress6() const { return m_data.m_interface.m_strInterfaceAddress6; }
+    QString interfaceMaskLength6() const { return m_data.m_interface.m_strInterfaceMaskLength6; }
+
+    bool isDhcpServerEnabled() const { return m_data.m_dhcpserver.m_fDhcpServerEnabled; }
+    QString dhcpServerAddress() const { return m_data.m_dhcpserver.m_strDhcpServerAddress; }
+    QString dhcpServerMask() const { return m_data.m_dhcpserver.m_strDhcpServerMask; }
+    QString dhcpLowerAddress() const { return m_data.m_dhcpserver.m_strDhcpLowerAddress; }
+    QString dhcpUpperAddress() const { return m_data.m_dhcpserver.m_strDhcpUpperAddress; }
+
+    /* Network item setters */
+    void setDhcpClientEnabled(bool fEnabled) { m_data.m_interface.m_fDhcpClientEnabled = fEnabled; }
+    void setInterfaceAddress (const QString &strValue) { m_data.m_interface.m_strInterfaceAddress = strValue; }
+    void setInterfaceMask (const QString &strValue) { m_data.m_interface.m_strInterfaceMask = strValue; }
+    void setIp6Supported (bool fSupported) { m_data.m_interface.m_fIpv6Supported = fSupported; }
+    void setInterfaceAddress6 (const QString &strValue) { m_data.m_interface.m_strInterfaceAddress6 = strValue; }
+    void setInterfaceMaskLength6 (const QString &strValue) { m_data.m_interface.m_strInterfaceMaskLength6 = strValue; }
+
+    void setDhcpServerEnabled (bool fEnabled) { m_data.m_dhcpserver.m_fDhcpServerEnabled = fEnabled; }
+    void setDhcpServerAddress (const QString &sttValue) { m_data.m_dhcpserver.m_strDhcpServerAddress = sttValue; }
+    void setDhcpServerMask (const QString &strValue) { m_data.m_dhcpserver.m_strDhcpServerMask = strValue; }
+    void setDhcpLowerAddress (const QString &strValue) { m_data.m_dhcpserver.m_strDhcpLowerAddress = strValue; }
+    void setDhcpUpperAddress (const QString &strValue) { m_data.m_dhcpserver.m_strDhcpUpperAddress = strValue; }
+
+private:
+
+    /* Network data: */
+    UIHostNetworkData m_data;
+};
 
 /* Global settings / Network page: */
 class UIGlobalSettingsNetwork : public UISettingsPageGlobal, public Ui::UIGlobalSettingsNetwork
@@ -132,83 +148,61 @@ public:
 
 protected:
 
-    /* API:
-     * Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
-    /* API:
-     * Load data to corresponding widgets from cache,
+    /* Load data to corresponding widgets from cache,
      * this task SHOULD be performed in GUI thread only: */
     void getFromCache();
 
-    /* API:
-     * Save data from corresponding widgets to cache,
+    /* Save data from corresponding widgets to cache,
      * this task SHOULD be performed in GUI thread only: */
     void putToCache();
-    /* API:
-     * Save data from cache to corresponding external object(s),
+    /* Save data from cache to corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /* Validation stuff: */
+    void setValidator(QIWidgetValidator *pValidator);
+    bool revalidate(QString &strWarning, QString &strTitle);
 
-    /* API: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
+    /* Navigation stuff: */
+    void setOrderAfter (QWidget *aWidget);
 
-    /* API: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
 private slots:
 
-    /* Handlers: NAT network stuff: */
-    void sltAddNetworkNAT();
-    void sltDelNetworkNAT();
-    void sltEditNetworkNAT();
-    void sltHandleItemChangeNetworkNAT(QTreeWidgetItem *pChangedItem);
-    void sltHandleCurrentItemChangeNetworkNAT();
-    void sltShowContextMenuNetworkNAT(const QPoint &pos);
-
-    /* Handlers: Host network stuff: */
-    void sltAddNetworkHost();
-    void sltDelNetworkHost();
-    void sltEditNetworkHost();
-    void sltHandleCurrentItemChangeNetworkHost();
-    void sltShowContextMenuNetworkHost(const QPoint &pos);
+    /* Helper slots: */
+    void sltAddInterface();
+    void sltDelInterface();
+    void sltEditInterface();
+    void sltUpdateCurrentItem();
+    void sltChowContextMenu(const QPoint &pos);
 
 private:
 
-    /* Helpers: NAT network cache stuff: */
-    UIDataNetworkNAT generateDataNetworkNAT(const CNATNetwork &network);
-    void saveCacheItemNetworkNAT(const UIDataNetworkNAT &data);
+    /* Helper members: */
+    void appendCacheItem(const CHostNetworkInterface &iface);
+    void removeCacheItem(const QString &strInterfaceName);
+    void appendListItem(const UIHostNetworkData &data, bool fChooseItem = false);
+    void removeListItem(UIHostInterfaceItem *pItem);
 
-    /* Helpers: NAT network tree stuff: */
-    void createTreeItemNetworkNAT(const UIDataNetworkNAT &data, bool fChooseItem = false);
-    void removeTreeItemNetworkNAT(UIItemNetworkNAT *pItem);
+    /* Validator: */
+    QIWidgetValidator *m_pValidator;
 
-    /* Helpers: Host network cache stuff: */
-    UIDataNetworkHost generateDataNetworkHost(const CHostNetworkInterface &iface);
-    void saveCacheItemNetworkHost(const UIDataNetworkHost &data);
+    /* Helper actions: */
+    QAction *m_pAddAction;
+    QAction *m_pDelAction;
+    QAction *m_pEditAction;
 
-    /* Helpers: Host network tree stuff: */
-    void createTreeItemNetworkHost(const UIDataNetworkHost &data, bool fChooseItem = false);
-    void removeTreeItemNetworkHost(UIItemNetworkHost *pItem);
-
-    /* Variables: NAT network actions: */
-    QAction *m_pActionAddNetworkNAT;
-    QAction *m_pActionDelNetworkNAT;
-    QAction *m_pActionEditNetworkNAT;
-
-    /* Variables: Host network actions: */
-    QAction *m_pActionAddNetworkHost;
-    QAction *m_pActionDelNetworkHost;
-    QAction *m_pActionEditNetworkHost;
-
-    /* Variable: Editness flag: */
+    /* Editness flag: */
     bool m_fChanged;
 
-    /* Variable: Cache: */
+    /* Cache: */
     UISettingsCacheGlobalNetwork m_cache;
 };
 
 #endif // __UIGlobalSettingsNetwork_h__
+

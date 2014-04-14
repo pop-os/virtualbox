@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2009 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -145,7 +145,6 @@ SRCS += \
 	semevent-r0drv-freebsd.c \
 	semeventmulti-r0drv-freebsd.c \
 	semfastmutex-r0drv-freebsd.c \
-	semmutex-r0drv-freebsd.c \
 	spinlock-r0drv-freebsd.c \
 	thread-r0drv-freebsd.c \
 	thread2-r0drv-freebsd.c \

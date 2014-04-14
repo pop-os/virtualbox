@@ -25,7 +25,7 @@ crServerAddNewClient(void)
                                                                                  cr_server.tcpip_port,
                                                                                  cr_server.mtu, 1 );
 
-        newClient->currentCtxInfo = &cr_server.MainContextInfo;
+        newClient->currentCtx = cr_server.DummyContext;
 
         /* add to array */
         cr_server.clients[cr_server.numClients++] = newClient;
@@ -84,7 +84,7 @@ void crServerAddToRunQueue( CRClient *client )
 
     /* give this client a unique number if needed */
     if (!client->number) {
-        client->number = client->conn->u32ClientID;
+        client->number = crServerGenerateID(&cr_server.idsPool.freeClientID);
     }
 
     crDebug("Adding client %p to the run queue", client);
@@ -281,28 +281,6 @@ crServerDeleteClient( CRClient *client )
         pNode->next = cr_server.pCleanupClient;
         cr_server.pCleanupClient = pNode;
     }
-
-    if (!cr_server.numClients)
-    {
-        /* if no clients, the guest driver may be unloaded,
-         * and thus the visible regions situation might not be under control anymore,
-         * so cleanup the 3D framebuffer data here
-         * @todo: what really should happen is that guest driver on unload
-         * posts some request to host that would copy the current framebuffer 3D data to the 2D buffer
-         * (i.e. to the memory used by the standard IFramebuffer API) */
-        HCR_FRAMEBUFFER hFb;
-        for (hFb = CrPMgrFbGetFirstEnabled(); hFb; hFb = CrPMgrFbGetNextEnabled(hFb))
-        {
-            int rc = CrFbUpdateBegin(hFb);
-            if (RT_SUCCESS(rc))
-            {
-                CrFbRegionsClear(hFb);
-                CrFbUpdateEnd(hFb);
-            }
-            else
-                WARN(("CrFbUpdateBegin failed %d", rc));
-        }
-    }
 }
 
 /**
@@ -314,11 +292,10 @@ crServerDeleteClient( CRClient *client )
 GLboolean
 crServerClientInBeginEnd(const CRClient *client)
 {
-    if (client->currentCtxInfo
-            && client->currentCtxInfo->pContext
-            && (client->currentCtxInfo->pContext->lists.currentIndex != 0 ||
-             client->currentCtxInfo->pContext->current.inBeginEnd ||
-             client->currentCtxInfo->pContext->occlusion.currentQueryObject)) {
+    if (client->currentCtx &&
+            (client->currentCtx->lists.currentIndex != 0 ||
+             client->currentCtx->current.inBeginEnd ||
+             client->currentCtx->occlusion.currentQueryObject)) {
         return GL_TRUE;
     }
     else {
@@ -415,177 +392,13 @@ getNextClient(GLboolean block)
     /* return NULL; */
 }
 
-typedef struct CR_SERVER_PENDING_MSG
-{
-    RTLISTNODE Node;
-    uint32_t cbMsg;
-    CRMessage Msg;
-} CR_SERVER_PENDING_MSG;
-
-static int crServerPendMsg(CRConnection *conn, const CRMessage *msg, int cbMsg)
-{
-    CR_SERVER_PENDING_MSG *pMsg;
-
-    if (!cbMsg)
-    {
-        WARN(("cbMsg is null!"));
-        return VERR_INVALID_PARAMETER;
-    }
-
-    pMsg = (CR_SERVER_PENDING_MSG*)RTMemAlloc(cbMsg + RT_OFFSETOF(CR_SERVER_PENDING_MSG, Msg));
-    if (!pMsg)
-    {
-        WARN(("RTMemAlloc failed"));
-        return VERR_NO_MEMORY;
-    }
-
-    pMsg->cbMsg = cbMsg;
-
-    memcpy(&pMsg->Msg, msg, cbMsg);
-
-    RTListAppend(&conn->PendingMsgList, &pMsg->Node);
-
-    return VINF_SUCCESS;
-}
-
-int crServerPendSaveState(PSSMHANDLE pSSM)
-{
-    int i, rc;
-
-    for (i = 0; i < cr_server.numClients; i++)
-    {
-        CR_SERVER_PENDING_MSG *pIter;
-        CRClient *pClient = cr_server.clients[i];
-        CRConnection *pConn;
-        if (!pClient || !pClient->conn)
-        {
-            WARN(("invalid client state"));
-            continue;
-        }
-
-        pConn = pClient->conn;
-
-        if (RTListIsEmpty(&pConn->PendingMsgList))
-            continue;
-
-        CRASSERT(pConn->u32ClientID);
-
-        rc = SSMR3PutU32(pSSM, pConn->u32ClientID);
-        AssertRCReturn(rc, rc);
-
-        RTListForEach(&pConn->PendingMsgList, pIter, CR_SERVER_PENDING_MSG, Node)
-        {
-            CRASSERT(pIter->cbMsg);
-
-            rc = SSMR3PutU32(pSSM, pIter->cbMsg);
-            AssertRCReturn(rc, rc);
-
-            rc = SSMR3PutMem(pSSM, &pIter->Msg, pIter->cbMsg);
-            AssertRCReturn(rc, rc);
-        }
-
-        rc = SSMR3PutU32(pSSM, 0);
-        AssertRCReturn(rc, rc);
-    }
-
-    rc = SSMR3PutU32(pSSM, 0);
-    AssertRCReturn(rc, rc);
-
-    return VINF_SUCCESS;
-}
-
-int crServerPendLoadState(PSSMHANDLE pSSM, uint32_t u32Version)
-{
-    int rc;
-    uint32_t u32;
-    CRClient *pClient;
-
-    if (u32Version < SHCROGL_SSM_VERSION_WITH_PEND_CMD_INFO)
-        return VINF_SUCCESS;
-
-    rc = SSMR3GetU32(pSSM, &u32);
-    AssertRCReturn(rc, rc);
-
-    if (!u32)
-        return VINF_SUCCESS;
-
-    do {
-        rc = crVBoxServerClientGet(u32, &pClient);
-        AssertRCReturn(rc, rc);
-
-        for(;;)
-        {
-            CR_SERVER_PENDING_MSG *pMsg;
-
-            rc = SSMR3GetU32(pSSM, &u32);
-            AssertRCReturn(rc, rc);
-
-            if (!u32)
-                break;
-
-            pMsg = (CR_SERVER_PENDING_MSG*)RTMemAlloc(u32 + RT_OFFSETOF(CR_SERVER_PENDING_MSG, Msg));
-            if (!pMsg)
-            {
-                WARN(("RTMemAlloc failed"));
-                return VERR_NO_MEMORY;
-            }
-
-            pMsg->cbMsg = u32;
-            rc = SSMR3GetMem(pSSM, &pMsg->Msg, u32);
-            AssertRCReturn(rc, rc);
-
-            RTListAppend(&pClient->conn->PendingMsgList, &pMsg->Node);
-        }
-
-        rc = SSMR3GetU32(pSSM, &u32);
-        AssertRCReturn(rc, rc);
-    } while (u32);
-
-    rc = SSMR3GetU32(pSSM, &u32);
-    AssertRCReturn(rc, rc);
-
-    return VINF_SUCCESS;
-}
-
-static void crServerPendProcess(CRConnection *conn)
-{
-    CR_SERVER_PENDING_MSG *pIter, *pNext;
-
-    cr_server.fProcessingPendedCommands = GL_TRUE;
-
-    RTListForEachSafe(&conn->PendingMsgList, pIter, pNext, CR_SERVER_PENDING_MSG, Node)
-    {
-        CRMessage *msg = &pIter->Msg;
-        const CRMessageOpcodes *msg_opcodes;
-        int opcodeBytes;
-        const char *data_ptr;
-
-        RTListNodeRemove(&pIter->Node);
-
-        CRASSERT(msg->header.type == CR_MESSAGE_OPCODES);
-
-        msg_opcodes = (const CRMessageOpcodes *) msg;
-        opcodeBytes = (msg_opcodes->numOpcodes + 3) & ~0x03;
-
-        data_ptr = (const char *) msg_opcodes + sizeof (CRMessageOpcodes) + opcodeBytes;
-
-        crUnpack(data_ptr,                 /* first command's operands */
-                 data_ptr - 1,             /* first command's opcode */
-                 msg_opcodes->numOpcodes,  /* how many opcodes */
-                 &(cr_server.dispatch));   /* the CR dispatch table */
-
-        RTMemFree(pIter);
-    }
-
-    cr_server.fProcessingPendedCommands = GL_FALSE;
-}
 
 /**
  * This function takes the given message (which should be a buffer of
  * rendering commands) and executes it.
  */
 static void
-crServerDispatchMessage(CRConnection *conn, CRMessage *msg, int cbMsg)
+crServerDispatchMessage(CRConnection *conn, CRMessage *msg)
 {
     const CRMessageOpcodes *msg_opcodes;
     int opcodeBytes;
@@ -593,8 +406,6 @@ crServerDispatchMessage(CRConnection *conn, CRMessage *msg, int cbMsg)
 #ifdef VBOX_WITH_CRHGSMI
     PCRVBOXHGSMI_CMDDATA pCmdData = NULL;
 #endif
-    CR_UNPACK_BUFFER_TYPE enmType;
-    bool fUnpack = true;
 
     if (msg->header.type == CR_MESSAGE_REDIR_PTR)
     {
@@ -615,71 +426,10 @@ crServerDispatchMessage(CRConnection *conn, CRMessage *msg, int cbMsg)
 #endif
 
     data_ptr = (const char *) msg_opcodes + sizeof(CRMessageOpcodes) + opcodeBytes;
-
-    enmType = crUnpackGetBufferType(data_ptr - 1,             /* first command's opcode */
-                msg_opcodes->numOpcodes  /* how many opcodes */);
-    switch (enmType)
-    {
-        case CR_UNPACK_BUFFER_TYPE_GENERIC:
-        {
-            if (RTListIsEmpty(&conn->PendingMsgList))
-                break;
-
-            if (RT_SUCCESS(crServerPendMsg(conn, msg, cbMsg)))
-            {
-                fUnpack = false;
-                break;
-            }
-
-            WARN(("crServerPendMsg failed"));
-            crServerPendProcess(conn);
-            break;
-        }
-        case CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN:
-        {
-            if (RTListIsEmpty(&conn->PendingMsgList))
-            {
-                if (RT_SUCCESS(crServerPendMsg(conn, msg, cbMsg)))
-                {
-                    Assert(!RTListIsEmpty(&conn->PendingMsgList));
-                    fUnpack = false;
-                    break;
-                }
-                else
-                    WARN(("crServerPendMsg failed"));
-            }
-            else
-                WARN(("Pend List is NOT empty, drain the current list, and ignore this command"));
-
-            crServerPendProcess(conn);
-            break;
-        }
-        case CR_UNPACK_BUFFER_TYPE_CMDBLOCK_FLUSH: /* just flush for now */
-        {
-            CrPMgrClearRegionsGlobal(); /* clear regions to ensure we don't do MakeCurrent and friends */
-            crServerPendProcess(conn);
-            Assert(RTListIsEmpty(&conn->PendingMsgList));
-            break;
-        }
-        case CR_UNPACK_BUFFER_TYPE_CMDBLOCK_END:
-        {
-//            CRASSERT(!RTListIsEmpty(&conn->PendingMsgList));
-            crServerPendProcess(conn);
-            Assert(RTListIsEmpty(&conn->PendingMsgList));
-            break;
-        }
-        default:
-            WARN(("unsupported buffer type"));
-            break;
-    }
-
-    if (fUnpack)
-    {
-        crUnpack(data_ptr,                 /* first command's operands */
-                 data_ptr - 1,             /* first command's opcode */
-                 msg_opcodes->numOpcodes,  /* how many opcodes */
-                 &(cr_server.dispatch));   /* the CR dispatch table */
-    }
+    crUnpack(data_ptr,                 /* first command's operands */
+             data_ptr - 1,             /* first command's opcode */
+             msg_opcodes->numOpcodes,  /* how many opcodes */
+             &(cr_server.dispatch));   /* the CR dispatch table */
 
 #ifdef VBOX_WITH_CRHGSMI
     if (pCmdData)
@@ -689,8 +439,8 @@ crServerDispatchMessage(CRConnection *conn, CRMessage *msg, int cbMsg)
         if (CRVBOXHGSMI_CMDDATA_IS_SETWB(pCmdData))
         {
             uint32_t cbWriteback = pCmdData->cbWriteback;
-            rc = crVBoxServerInternalClientRead(conn->pClient, (uint8_t*)pCmdData->pWriteback, &cbWriteback);
-            Assert(rc == VINF_SUCCESS || rc == VERR_BUFFER_OVERFLOW);
+            rc = crVBoxServerInternalClientRead(conn->pClient, pCmdData->pWriteback, &cbWriteback);
+            CRASSERT(rc == VINF_SUCCESS || rc == VERR_BUFFER_OVERFLOW);
             *pCmdData->pcbWriteback = cbWriteback;
         }
         VBOXCRHGSMI_CMD_CHECK_COMPLETE(pCmdData, rc);
@@ -792,16 +542,15 @@ crServerServiceClient(const RunQueue *qEntry)
         if (cr_server.curClient) {
              int clientWindow = cr_server.curClient->currentWindow;
              int clientContext = cr_server.curClient->currentContextNumber;
-             CRContextInfo *clientCtxInfo = cr_server.curClient->currentCtxInfo;
-             if (clientCtxInfo != cr_server.currentCtxInfo
-                     || clientWindow != cr_server.currentWindow
-                     || cr_server.bForceMakeCurrentOnClientSwitch) {
+             if (clientWindow && clientWindow != cr_server.currentWindow) {
                  crServerDispatchMakeCurrent(clientWindow, 0, clientContext);
                  /*
                  CRASSERT(cr_server.currentWindow == clientWindow);
                  */
              }
         }
+
+        crStateMakeCurrent( cr_server.curClient->currentCtx );
 #endif
 
         /* Force scissor, viewport and projection matrix update in
@@ -810,7 +559,7 @@ crServerServiceClient(const RunQueue *qEntry)
         cr_server.currentSerialNo = 0;
 
         /* Commands get dispatched here */
-        crServerDispatchMessage( conn, msg, len );
+        crServerDispatchMessage( conn, msg );
 
         crNetFree( conn, msg );
 

@@ -2,7 +2,7 @@
 #
 # VirtualBox Solaris Guest Additions package creation script.
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -30,11 +30,6 @@ if test -z "$3"; then
     echo "Usage: $0 installdir packagename svnrev"
     exit 1
 fi
-ostype=`uname -s`
-if test "$ostype" != "Linux" && test "$ostype" != "SunOS" ; then
-  echo "Linux/Solaris not detected."
-  exit 1
-fi
 
 VBOX_BASEPKG_DIR=$1
 VBOX_INSTALLED_DIR="$VBOX_BASEPKG_DIR"/opt/VirtualBoxAdditions
@@ -43,16 +38,7 @@ VBOX_SVN_REV=$3
 
 VBOX_PKGNAME=SUNWvboxguest
 VBOX_AWK=/usr/bin/awk
-case "$ostype" in
-"SunOS")
-  VBOX_GGREP=/usr/sfw/bin/ggrep
-  VBOX_SOL_PKG_DEV=/var/spool/pkg
-  ;;
-*)
-  VBOX_GGREP=`which grep`
-  VBOX_SOL_PKG_DEV=$4
-  ;;
-esac
+VBOX_GGREP=/usr/sfw/bin/ggrep
 VBOX_AWK=/usr/bin/awk
 
 # check for GNU grep we use which might not ship with all Solaris
@@ -83,7 +69,6 @@ cd "$VBOX_INSTALLED_DIR"
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxService
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxClient
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxControl
-ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/vboxmslnk
 
 # prepare file list
 cd "$VBOX_BASEPKG_DIR"
@@ -115,15 +100,10 @@ filelist_fixup prototype '$3 == "opt/VirtualBoxAdditions/amd64/VBoxService"'    
 
 # Manifest class action scripts
 filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/vboxservice.xml"'                   '$2 = "manifest";$6 = "sys"'
-filelist_fixup prototype '$3 == "var/svc/manifest/application/virtualbox/vboxmslnk.xml"'                     '$2 = "manifest";$6 = "sys"'
 
 # vboxguest
 filelist_fixup prototype '$3 == "usr/kernel/drv/vboxguest"'                                                  '$6="sys"'
 filelist_fixup prototype '$3 == "usr/kernel/drv/amd64/vboxguest"'                                            '$6="sys"'
-
-# vboxms
-filelist_fixup prototype '$3 == "usr/kernel/drv/vboxms"'                                                     '$6="sys"'
-filelist_fixup prototype '$3 == "usr/kernel/drv/amd64/vboxms"'                                               '$6="sys"'
 
 # Use 'root' as group so as to match attributes with the previous installation and prevent a conflict. Otherwise pkgadd bails out thinking
 # we're violating directory attributes of another (non existing) package
@@ -137,11 +117,11 @@ echo " --- end of prototype --- "
 VBOXPKG_TIMESTAMP=vboxguest`date '+%Y%m%d%H%M%S'`_r$VBOX_SVN_REV
 
 # create the package instance
-pkgmk -d $VBOX_SOL_PKG_DEV -p $VBOXPKG_TIMESTAMP -o -r .
+pkgmk -p $VBOXPKG_TIMESTAMP -o -r .
 
 # translate into package datastream
-pkgtrans -s -o "$VBOX_SOL_PKG_DEV" `pwd`/$VBOX_PKGFILENAME "$VBOX_PKGNAME"
+pkgtrans -s -o /var/spool/pkg `pwd`/$VBOX_PKGFILENAME "$VBOX_PKGNAME"
 
-rm -rf "$VBOX_SOL_PKG_DEV/$VBOX_PKGNAME"
+rm -rf "/var/spool/pkg/$VBOX_PKGNAME"
 exit $?
 

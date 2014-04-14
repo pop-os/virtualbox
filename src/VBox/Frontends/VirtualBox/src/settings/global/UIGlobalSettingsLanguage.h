@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #ifndef __UIGlobalSettingsLanguage_h__
 #define __UIGlobalSettingsLanguage_h__
 
-/* GUI includes: */
+/* Local includes */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsLanguage.gen.h"
 
@@ -41,7 +41,7 @@ public:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -55,31 +55,26 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Helper: Navigation stuff: */
+    /* Navigation stuff: */
     void setOrderAfter(QWidget *pWidget);
 
-    /* Helper: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
-    /* Handlers: Event stuff: */
-    void showEvent(QShowEvent *pEvent);
-    void polishEvent(QShowEvent *pEvent);
+    /* Reload language tree: */
+    void reload(const QString &strLangId);
 
 private slots:
 
-    /* Handler: List-painting stuff: */
+    /* Routine to paint language items: */
     void sltLanguageItemPainted(QTreeWidgetItem *pItem, QPainter *pPainter);
 
-    /* Handler: Current-changed stuff: */
+    /* Slot to handle current language change signal: */
     void sltCurrentLanguageChanged(QTreeWidgetItem *pItem);
 
 private:
 
-    /* Helper: List-loading stuff: */
-    void reload(const QString &strLangId);
-
-    /* Variables: */
-    bool m_fPolished;
+    /* Edited flag: */
     bool m_fIsLanguageChanged;
 
     /* Cache: */
@@ -87,3 +82,4 @@ private:
 };
 
 #endif // __UIGlobalSettingsLanguage_h__
+

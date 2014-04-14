@@ -43,13 +43,9 @@
  */
 static const RTWINERRMSG  g_aStatusMsgs[] =
 {
-#ifndef IPRT_NO_ERROR_DATA
-# include "errmsgcomdata.h"
-# if defined(VBOX) && !defined(IN_GUEST)
-#  include "errmsgvboxcomdata.h"
-# endif
-#else
-    { "Success.", "ERROR_SUCCESS", 0 },
+#include "errmsgcomdata.h"
+#if defined(VBOX) && !defined(IN_GUEST)
+# include "errmsgvboxcomdata.h"
 #endif
     { NULL, NULL, 0 }
 };
@@ -80,7 +76,7 @@ static volatile uint32_t    g_iUnknownMsgs;
 RTDECL(PCRTWINERRMSG) RTErrWinGet(long rc)
 {
     unsigned i;
-    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs) - 1U; i++)
+    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs); i++)
         if (g_aStatusMsgs[i].iCode == rc)
             return &g_aStatusMsgs[i];
 
@@ -89,7 +85,7 @@ RTDECL(PCRTWINERRMSG) RTErrWinGet(long rc)
      * was no exact match. Try to find a non-exact match, and include the
      * actual value in case we pick the wrong entry. Better than always using
      * the "Unknown Status" case. */
-    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs) - 1U; i++)
+    for (i = 0; i < RT_ELEMENTS(g_aStatusMsgs); i++)
         if (g_aStatusMsgs[i].iCode == HRESULT_CODE(rc))
         {
             int32_t iMsg = (ASMAtomicIncU32(&g_iUnknownMsgs) - 1) % RT_ELEMENTS(g_aUnknownMsgs);

@@ -1,10 +1,10 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 92745 $)
+# Linux Additions X11 setup init script ($Revision: 77057 $)
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -38,25 +38,22 @@ cpu=`uname -m`;
 case "$cpu" in
   i[3456789]86|x86)
     cpu="x86"
-    lib_candidates="/usr/lib/i386-linux-gnu /usr/lib /lib"
+    LIB="/usr/lib"
     ;;
   x86_64|amd64)
     cpu="amd64"
-    lib_candidates="/usr/lib/x86_64-linux-gnu /usr/lib64 /usr/lib /lib64 /lib"
+    if test -d "/usr/lib64"; then
+      LIB="/usr/lib64"
+    else
+      LIB="/usr/lib"
+    fi
     ;;
 esac
-for i in $lib_candidates; do
-  if test -d "$i/VBoxGuestAdditions"; then
-    LIB=$i
-    break
-  fi
-done
 
 # Find the version of X installed
 # The last of the three is for the X.org 6.7 included in Fedora Core 2
 xver=`X -version 2>&1`
 x_version=`echo "$xver" | sed -n 's/^X Window System Version \([0-9.]\+\)/\1/p'``echo "$xver" | sed -n 's/^XFree86 Version \([0-9.]\+\)/\1/p'``echo "$xver" | sed -n 's/^X Protocol Version 11, Revision 0, Release \([0-9.]\+\)/\1/p'``echo "$xver" | sed -n 's/^X.Org X Server \([0-9.]\+\)/\1/p'`
-x_version_short=`echo "${x_version}" | sed 's/\([0-9]*\.[0-9]*\)\..*/\1/'`
 # Version of Redhat or Fedora installed.  Needed for setting up selinux policy.
 redhat_release=`cat /etc/redhat-release 2> /dev/null`
 # All the different possible locations for XFree86/X.Org configuration files
@@ -286,26 +283,21 @@ setup()
     dox11config="true"
     # By default, we want to run our xorg.conf setup script
     setupxorgconf="true"
-    # All but the oldest supported X servers can automatically set up the
-    # keyboard driver.
-    autokeyboard="--autoKeyboard"
+    # On all but the oldest X servers we want to use our new mouse
+    # driver.
+    newmouse="--newMouse"
     # On more recent servers our kernel mouse driver will be used
     # automatically
     automouse="--autoMouse"
     # We need to tell our xorg.conf hacking script whether /dev/psaux exists
     nopsaux="--nopsaux"
-    case "`uname -r`" in 2.4.*)
-        test -c /dev/psaux && nopsaux="";;
-    esac
+    test -c /dev/psaux && nopsaux=""
     # The video driver to install for X.Org 6.9+
     vboxvideo_src=
     # The mouse driver to install for X.Org 6.9+
     vboxmouse_src=
     # The driver extension
     driver_ext=".so"
-    # The configuration file we generate if no original was found but we need
-    # one.
-    main_cfg="/etc/X11/xorg.conf"
 
     modules_dir=`X -showDefaultModulePath 2>&1` || modules_dir=
     if [ -z "$modules_dir" ]; then
@@ -318,11 +310,7 @@ setup()
     fi
 
     test -z "$x_version" -o -z "$modules_dir" &&
-        {
-            echo
-            echo "Could not find the X.Org or XFree86 Window System, skipping."
-            exit 0
-        }
+        fail "Could not find the X.Org or XFree86 Window System."
 
     echo
     # openSUSE 10.3 shipped X.Org 7.2 with X.Org Server 1.3, but didn't
@@ -338,21 +326,28 @@ setup()
             echo "installing the X.Org drivers."
             dox11config=""
             ;;
+        1.12.* )
+            xserver_version="X.Org Server 1.12"
+            vboxvideo_src=vboxvideo_drv_112.so
+            test "$system" = "redhat" || setupxorgconf=""
+            ;;
         1.11.* )
             xserver_version="X.Org Server 1.11"
             vboxvideo_src=vboxvideo_drv_111.so
-            test "$system" = "redhat" || setupxorgconf=""
+            # Does Fedora still ship without vboxvideo detection?
+            # test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.10.* )
             xserver_version="X.Org Server 1.10"
             vboxvideo_src=vboxvideo_drv_110.so
-            test "$system" = "redhat" || setupxorgconf=""
+            # Does Fedora still ship without vboxvideo detection?
+            # test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.9.* )
             xserver_version="X.Org Server 1.9"
             vboxvideo_src=vboxvideo_drv_19.so
-            # Fedora 14 to 16 patched out vboxvideo detection
-            test "$system" = "redhat" || setupxorgconf=""
+            # Fedora 14 looks likely to ship without vboxvideo detection
+            # test "$system" = "redhat" || setupxorgconf=""
             ;;
         1.8.* )
             xserver_version="X.Org Server 1.8"
@@ -404,47 +399,31 @@ setup()
             vboxvideo_src=vboxvideo_drv_71.so
             vboxmouse_src=vboxmouse_drv_71.so
             automouse=""
+            newmouse=""
             ;;
         6.9.* | 7.0.* )
             xserver_version="X.Org 6.9/7.0"
             vboxvideo_src=vboxvideo_drv_70.so
             vboxmouse_src=vboxmouse_drv_70.so
             automouse=""
+            newmouse=""
             ;;
         6.7* | 6.8.* | 4.2.* | 4.3.* )
-            # As the module binaries are the same we use one text for these
-            # four server versions.
+            # Assume X.Org post-fork or XFree86
             xserver_version="XFree86 4.2/4.3 and X.Org 6.7/6.8"
             driver_ext=.o
             vboxvideo_src=vboxvideo_drv.o
             vboxmouse_src=vboxmouse_drv.o
             automouse=""
-            autokeyboard=""
-            case $x_version in
-                6.8.* )
-                    autokeyboard="true"
-                    ;;
-                4.2.* | 4.3.* )
-                    main_cfg="/etc/X11/XF86Config"
-                    ;;
-            esac
+            newmouse=""
             ;;
         * )
-            # Anything else, including all X server versions as of 1.12.
-            xserver_version="X.Org Server ${x_version_short}"
-            vboxvideo_src=vboxvideo_drv_`echo ${x_version_short} | sed 's/\.//'`.so
-            setupxorgconf=""
-            test -f "${lib_dir}/${vboxvideo_src}" ||
-            {
-                echo "Warning: unknown version of the X Window System installed.  Not installing"
-                echo "X Window System drivers."
-                dox11config=""
-                vboxvideo_src=""
-            }
+            echo "Warning: unknown version of the X Window System installed.  Not installing"
+            echo "X Window System drivers."
+            dox11config=""
             ;;
     esac
-    test -n "${dox11config}" &&
-        begin "Installing $xserver_version modules"
+    begin "Installing $xserver_version modules"
     rm "$modules_dir/drivers/vboxvideo_drv$driver_ext" 2>/dev/null
     rm "$modules_dir/input/vboxmouse_drv$driver_ext" 2>/dev/null
     case "$vboxvideo_src" in ?*)
@@ -477,7 +456,7 @@ setup()
                     if grep -q "VirtualBox generated" "$i"; then
                         generated="$generated  `printf "$i\n"`"
                     else
-                        "$lib_dir/x11config.sh" $autokeyboard $automouse $nopsaux "$i"
+                        "$lib_dir/x11config.sh" $newmouse $automouse $nopsaux "$i"
                     fi
                     configured="true"
                 fi
@@ -487,11 +466,12 @@ setup()
             done
             # X.Org Server 1.5 and 1.6 can detect hardware they know, but they
             # need a configuration file for VBoxVideo.
-            nobak_cfg="`expr "${main_cfg}" : '\([^.]*\)'`.vbox.nobak"
+            main_cfg="/etc/X11/xorg.conf"
+            nobak="/etc/X11/xorg.vbox.nobak"
             if test -z "$configured"; then
                 touch "$main_cfg"
-                "$lib_dir/x11config.sh" $autokeyboard $automouse $nopsaux --noBak "$main_cfg"
-                touch "${nobak_cfg}"
+                "$lib_dir/x11config.sh" $newmouse $automouse $nopsaux --noBak "$main_cfg"
+                touch "$nobak"
             fi
         fi
         succ_msg
@@ -558,30 +538,24 @@ EOF
 cleanup()
 {
     # Restore xorg.conf files as far as possible
-    # List of generated files which have been changed since we generated them
+    ## List of generated files which have been changed since we generated them
     newer=""
-    # Are we dealing with a legacy information which didn't support
+    ## Are we dealing with a legacy information which didn't support
     # uninstallation?
     legacy=""
-    # Do any of the restored configuration files still reference our drivers?
+    ## Do any of the restored configuration files still reference our drivers?
     failed=""
-    # Have we encountered a "nobak" configuration file which means that there
-    # is no original file to restore?
-    nobak=""
     test -r "$CONFIG_DIR/$CONFIG" || legacy="true"
-    for main_cfg in "/etc/X11/xorg.conf" "/etc/X11/XF86Config"; do
-        nobak_cfg="`expr "${main_cfg}" : '\([^.]*\)'`.vbox.nobak"
-        if test -r "${nobak_cfg}"; then
-            test -r "${main_cfg}" &&
-            if test -n "${legacy}" -o ! "${nobak_cfg}" -ot "${main_cfg}"; then
-                rm -f "${nobak_cfg}" "${main_cfg}"
+    main_cfg="/etc/X11/xorg.conf"
+    nobak="/etc/X11/xorg.vbox.nobak"
+    if test -r "$nobak"; then
+        test -r "$main_cfg" &&
+            if test -n "$legacy" -o ! "$nobak" -ot "$main_cfg"; then
+                rm -f "$nobak" "$main_cfg"
             else
-                newer="${newer}`printf "  ${main_cfg} (no original)\n"`"
+                newer="$newer`printf "  $main_cfg (no original)\n"`"
             fi
-            nobak="true"
-        fi
-    done
-    if test -n "${nobak}"; then
+    else
         for i in $x11conf_files; do
             if test -r "$i.vbox"; then
                 if test ! "$i" -nt "$i.vbox" -o -n "$legacy"; then

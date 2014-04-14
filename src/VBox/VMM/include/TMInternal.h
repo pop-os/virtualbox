@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -353,17 +353,10 @@ typedef struct TM
     bool                        afAlignment0[2]; /**< alignment padding */
     /** The ID of the virtual CPU that normally runs the timers. */
     VMCPUID                     idTimerCpu;
-
     /** The number of CPU clock ticks per second (TMCLOCK_TSC).
      * Config variable: TSCTicksPerSecond (64-bit unsigned int)
      * The config variable implies fTSCVirtualized = true and fTSCUseRealTSC = false. */
     uint64_t                    cTSCTicksPerSecond;
-    /** The TSC difference introduced by pausing the VM. */
-    uint64_t                    offTSCPause;
-    /** The TSC value when the last TSC was paused. */
-    uint64_t                    u64LastPausedTSC;
-    /** CPU TSCs ticking indicator (one for each VCPU). */
-    uint32_t volatile           cTSCsTicking;
 
     /** Virtual time ticking enabled indicator (counter for each VCPU). (TMCLOCK_VIRTUAL) */
     uint32_t volatile           cVirtualTicking;
@@ -373,7 +366,7 @@ typedef struct TM
     bool volatile               fVirtualSyncTicking;
     /** Virtual timer synchronous time catch-up active. */
     bool volatile               fVirtualSyncCatchUp;
-    bool                        afAlignment1[1]; /**< alignment padding */
+    bool                        afAlignment1[5]; /**< alignment padding */
     /** WarpDrive percentage.
      * 100% is normal (fVirtualSyncNormal == true). When other than 100% we apply
      * this percentage to the raw time source for the period it's been valid in,
@@ -637,10 +630,6 @@ typedef struct TM
     /** Calls to TMCpuTickSet. */
     STAMCOUNTER                 StatTSCSet;
 
-    /** TSC starts and stops. */
-    STAMCOUNTER                 StatTSCPause;
-    STAMCOUNTER                 StatTSCResume;
-
     /** @name Reasons for refusing TSC offsetting in TMCpuTickCanUseRealTSC.
      * @{ */
     STAMCOUNTER                 StatTSCNotFixed;
@@ -738,10 +727,8 @@ void                    tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue);
 void                    tmTimerQueuesSanityChecks(PVM pVM, const char *pszWhere);
 #endif
 
-int                     tmCpuTickPause(PVMCPU pVCpu);
-int                     tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu);
+int                     tmCpuTickPause(PVM pVM, PVMCPU pVCpu);
 int                     tmCpuTickResume(PVM pVM, PVMCPU pVCpu);
-int                     tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu);
 
 int                     tmVirtualPauseLocked(PVM pVM);
 int                     tmVirtualResumeLocked(PVM pVM);
@@ -755,7 +742,7 @@ DECLEXPORT(uint64_t)    tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
  * @retval  VINF_SUCCESS on success (always in ring-3).
  * @retval  VERR_SEM_BUSY in RC and R0 if the semaphore is busy.
  *
- * @param   a_pVM       Pointer to the VM.
+ * @param   a_pVM       The VM handle.
  *
  * @remarks The virtual sync timer queue requires the virtual sync lock.
  */
@@ -767,7 +754,7 @@ DECLEXPORT(uint64_t)    tmVirtualNanoTSRediscover(PRTTIMENANOTSDATA pData);
  * @retval  VINF_SUCCESS on success.
  * @retval  VERR_SEM_BUSY if busy.
  *
- * @param   a_pVM       Pointer to the VM.
+ * @param   a_pVM       The VM handle.
  *
  * @remarks The virtual sync timer queue requires the virtual sync lock.
  */

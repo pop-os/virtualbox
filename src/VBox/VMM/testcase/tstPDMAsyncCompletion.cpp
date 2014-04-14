@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,15 +72,13 @@ void pfnAsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rc)
     }
 }
 
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char *argv[])
 {
     int rcRet = 0; /* error count */
+    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINT pEndpointSrc, pEndpointDst;
 
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitAndSUPLib();
 
     if (argc != 3)
     {
@@ -89,10 +87,11 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     }
 
     PVM pVM;
-    PUVM pUVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
+    rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
     if (RT_SUCCESS(rc))
     {
+        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
+
         /*
          * Little hack to avoid the VM_ASSERT_EMT assertion.
          */
@@ -103,7 +102,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         /*
          * Create the template.
          */
-        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
         rc = PDMR3AsyncCompletionTemplateCreateInternal(pVM, &pTemplate, pfnAsyncTaskCompleted, NULL, "Test");
         if (RT_FAILURE(rc))
         {
@@ -238,9 +236,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             PDMR3AsyncCompletionEpClose(pEndpointSrc);
         }
 
-        rc = VMR3Destroy(pUVM);
+        rc = VMR3Destroy(pVM);
         AssertMsg(rc == VINF_SUCCESS, ("%s: Destroying VM failed rc=%Rrc!!\n", __FUNCTION__, rc));
-        VMR3ReleaseUVM(pUVM);
 
         /*
          * Clean up.
@@ -258,15 +255,4 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     return rcRet;
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
 

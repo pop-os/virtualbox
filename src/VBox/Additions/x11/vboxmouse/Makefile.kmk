@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,14 +16,8 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
-vboxmouse_xorg_INCS = \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
 
 #
 # vboxmouse_drv
@@ -56,13 +50,9 @@ if1of ($(KBUILD_TARGET), linux)
 	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/include \
 	$(PATH_SUB_CURRENT)
  vboxmouse_drv_SOURCES = \
-	vboxmouse.c
- # Any global symbols in the driver object files will be added to XFree86's
- # symbol table, which can cause problems if we e.g. define a symbol in two
- # modules.
- vboxmouse_drv_POST_CMDS = \
-	objcopy --keep-global-symbol vboxmouseModuleData $(out) $(out)-objcopy$$(NLTAB) \
-	$(MV) -f $(out)-objcopy $(out)
+	mouse.c \
+	pnp.c \
+	VBoxUtils_68.c
 endif
 
 
@@ -72,14 +62,19 @@ endif
 DLLS += vboxmouse_drv_70
 vboxmouse_drv_70_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_70_DEFS = \
-	XFree86Server IN_MODULE XFree86Module XFree86LOADER XINPUT XORG_7X IN_XF86_MODULE DONT_DEFINE_WRAPPERS NO_ANSIC
+	XFree86Server IN_MODULE XFree86Module XFree86LOADER XINPUT XORG_7X IN_XF86_MODULE
+ifeq ($(KBUILD_TARGET),solaris) # don't use .solaris or anything here.
+ vboxmouse_drv_70_DEFS += _XPG6 __EXTENSIONS__
+endif
 vboxmouse_drv_70_INCS := \
 	$(VBOX_PATH_X11_XORG_7_0) \
 	$(VBOX_PATH_X11_XORG_7_0)/X11 \
 	$(VBOX_PATH_X11_XORG_7_0)/xorg \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_70_SOURCES = \
-	vboxmouse.c
+	xorg70/mouse.c \
+	xorg70/pnp.c \
+	VBoxUtils.c
 
 
 #
@@ -87,14 +82,16 @@ vboxmouse_drv_70_SOURCES = \
 #
 DLLS += vboxmouse_drv_71
 vboxmouse_drv_71_TEMPLATE = VBOXGUESTR3XORGMOD
-vboxmouse_drv_71_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
+vboxmouse_drv_71_DEFS := $(vboxmouse_drv_70_DEFS)
 vboxmouse_drv_71_INCS := \
 	$(VBOX_PATH_X11_XORG_7_1) \
 	$(VBOX_PATH_X11_XORG_7_1)/X11 \
 	$(VBOX_PATH_X11_XORG_7_1)/xorg \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_71_SOURCES = \
-	vboxmouse.c
+	xorg71/mouse.c \
+	xorg71/pnp.c \
+	VBoxUtils.c
 
 
 #
@@ -104,11 +101,12 @@ DLLS += vboxmouse_drv_13
 vboxmouse_drv_13_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_13_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 vboxmouse_drv_13_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_XORG_1_3) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.4.4 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.3.0.0 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_13_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -118,11 +116,11 @@ DLLS += vboxmouse_drv_14
 vboxmouse_drv_14_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_14_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 vboxmouse_drv_14_INCS := \
-	$(vboxmouse_xorg_INCS) \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.4.2 \
+	$(VBOX_PATH_X11_XORG_1_4) \
+	$(VBOX_PATH_X11_XORG_1_4)/xorg \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_14_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -132,11 +130,12 @@ DLLS += vboxmouse_drv_15
 vboxmouse_drv_15_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_15_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 vboxmouse_drv_15_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_XORG_1_5) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.4.4 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.5.3 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_15_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -146,11 +145,13 @@ DLLS += vboxmouse_drv_16
 vboxmouse_drv_16_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_16_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 vboxmouse_drv_16_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_XORG_1_6) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.4.4 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_16_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 ifneq ($(KBUILD_TARGET), linux)
@@ -163,11 +164,16 @@ vboxmouse_drv_17_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_17_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_17_INCS := \
-	$(vboxmouse_xorg_INCS) \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.7.7 \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.99-20090831 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_17_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -178,11 +184,16 @@ vboxmouse_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_18_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_18_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.8.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_18_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -193,11 +204,16 @@ vboxmouse_drv_19_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_19_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_19_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.9.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_19_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 
 #
@@ -208,52 +224,56 @@ vboxmouse_drv_110_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_110_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_110_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.10.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_110_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 DLLS += vboxmouse_drv_111
 vboxmouse_drv_111_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_111_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_111_INCS := \
-	$(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.11.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_111_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 DLLS += vboxmouse_drv_112
 vboxmouse_drv_112_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxmouse_drv_112_DEFS := $(vboxmouse_drv_70_DEFS) NO_ANSIC
 ## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
 vboxmouse_drv_112_INCS := \
-    $(vboxmouse_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.12.0 \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18 \
 	$(PATH_SUB_CURRENT)
 vboxmouse_drv_112_SOURCES = \
-	vboxmouse.c
+	vboxmouse_15.c
 
 endif # neq ($(KBUILD_TARGET),linux)
 
-
-ifdef VBOX_USE_SYSTEM_XORG_HEADERS
- # As vboxmouse_drv is not needed at all for X.Org Server 1.7 and later do not
- # build it in this case.
- DLLS    := $(filter-out vboxmouse_drv_%,$(DLLS))
- SYSMODS := $(filter-out vboxmouse_drv%,$(SYSMODS))
-endif
-
-
 # Check the undefined symbols in the X.Org modules against lists of allowed
 # symbols.  Not very elegant, but it will catch problems early.
-
 ifdef VBOX_WITH_TESTCASES
 # ifndef VBOX_ONLY_ADDITIONS
- ifndef VBOX_USE_SYSTEM_XORG_HEADERS
-  ifeq ($(KBUILD_TARGET),linux)
+  if1of ($(KBUILD_TARGET),linux solaris)
    ifeq ($(KBUILD_HOST_ARCH),$(KBUILD_TARGET_ARCH))
     ifndef VBOX_ONLY_SDK
      VBOXMOUSE_SRC_PATH := $(PATH_SUB_CURRENT)
@@ -263,37 +283,116 @@ ifdef VBOX_WITH_TESTCASES
       OTHERS += $(vboxmouse_drv_0_OUTDIR)/tstvboxmouse68.run
 $$(vboxmouse_drv_0_OUTDIR)/tstvboxmouse68.run: $$(vboxmouse_drv_1_STAGE_TARGET)
 	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_HOST) \
-	    "$(vboxmouse_drv_1_STAGE_TARGET)" --static "$(VBOXMOUSE_SRC_PATH)/../undefined_xfree86" "$(VBOXMOUSE_SRC_PATH)/../undefined_xfree86_modules"
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET) \
+	    "$(vboxmouse_drv_1_STAGE_TARGET)" "$(VBOXMOUSE_SRC_PATH)/undefined_68" --static
 	$(QUIET)$(APPEND) -t "$@" "done"
      endif
 
-##
-# Using the extra expansion to replace $(ver) before eval, thus everything
-# else needs escaped dollars.
-     define def_vboxmouse_test
-      TESTING += $$(vboxmouse_drv$(ver)_0_OUTDIR)/tstvboxmouse$(ver).run
-      OTHERS  += $$(vboxmouse_drv$(ver)_0_OUTDIR)/tstvboxmouse$(ver).run
-      $$$$(vboxmouse_drv$(ver)_0_OUTDIR)/tstvboxmouse$(ver).run: $$$$(vboxmouse_drv$(ver)_1_STAGE_TARGET)
-	$$(QUIET)$$(call MSG_L1,Checking for unresolved symbols in $$<)
-	$$(QUIET)$$(ASH) $$(PATH_ROOT)/src/bldprogs/checkUndefined.sh $$(KBUILD_HOST)  \
-	        $$(vboxmouse_drv$(ver)_1_STAGE_TARGET) $$(VBOXMOUSE_SRC_PATH)/../undefined_xfree86 $(VBOXMOUSE_SRC_PATH)/../undefined_xfree86_modules $$(VBOXMOUSE_SRC_PATH)/../undefined_xorg
-	$$(QUIET)$$(APPEND) -t "$$@" "done"
-    endef
+     TESTING += $(vboxmouse_drv_70_0_OUTDIR)/tstvboxmouse70.run
+     OTHERS += $(vboxmouse_drv_70_0_OUTDIR)/tstvboxmouse70.run
+$$(vboxmouse_drv_70_0_OUTDIR)/tstvboxmouse70.run: $$(vboxmouse_drv_70_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh  $(KBUILD_TARGET) \
+	    $(vboxmouse_drv_70_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_70
+	$(QUIET)$(APPEND) -t "$@" "done"
 
-     $(foreach ver, _70 _71 _13 _14 _15 _16, $(eval $(def_vboxmouse_test)))
+     TESTING += $(vboxmouse_drv_71_0_OUTDIR)/tstvboxmouse71.run
+     OTHERS += $(vboxmouse_drv_71_0_OUTDIR)/tstvboxmouse71.run
+$$(vboxmouse_drv_71_0_OUTDIR)/tstvboxmouse71.run: $$(vboxmouse_drv_71_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_71_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_71
+	$(QUIET)$(APPEND) -t "$@" "done"
 
-     ifneq ($(KBUILD_TARGET), linux)
-      $(foreach ver, _17 _18 _19 _110 _111 _112 _113, $(eval $(def_vboxmouse_test)))
+     TESTING += $(vboxmouse_drv_13_0_OUTDIR)/tstvboxmouse13.run
+     OTHERS += $(vboxmouse_drv_13_0_OUTDIR)/tstvboxmouse13.run
+$$(vboxmouse_drv_13_0_OUTDIR)/tstvboxmouse13.run: $$(vboxmouse_drv_13_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET) \
+	    $(vboxmouse_drv_13_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
 
-     endif # neq ($(KBUILD_TARGET),linux)
+     TESTING += $(vboxmouse_drv_14_0_OUTDIR)/tstvboxmouse14.run
+     OTHERS += $(vboxmouse_drv_14_0_OUTDIR)/tstvboxmouse14.run
+$$(vboxmouse_drv_14_0_OUTDIR)/tstvboxmouse14.run: $$(vboxmouse_drv_14_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET) \
+	    $(vboxmouse_drv_14_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_15_0_OUTDIR)/tstvboxmouse15.run
+     OTHERS += $(vboxmouse_drv_15_0_OUTDIR)/tstvboxmouse15.run
+$$(vboxmouse_drv_15_0_OUTDIR)/tstvboxmouse15.run: $$(vboxmouse_drv_15_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_15_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_16_0_OUTDIR)/tstvboxmouse16.run
+     OTHERS += $(vboxmouse_drv_16_0_OUTDIR)/tstvboxmouse16.run
+$$(vboxmouse_drv_16_0_OUTDIR)/tstvboxmouse16.run: $$(vboxmouse_drv_16_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_16_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+ifneq ($(KBUILD_TARGET), linux)
+
+     TESTING += $(vboxmouse_drv_17_0_OUTDIR)/tstvboxmouse17.run
+     OTHERS += $(vboxmouse_drv_17_0_OUTDIR)/tstvboxmouse17.run
+$$(vboxmouse_drv_17_0_OUTDIR)/tstvboxmouse17.run: $$(vboxmouse_drv_17_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_17_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_18_0_OUTDIR)/tstvboxmouse18.run
+     OTHERS += $(vboxmouse_drv_18_0_OUTDIR)/tstvboxmouse18.run
+$$(vboxmouse_drv_18_0_OUTDIR)/tstvboxmouse18.run: $$(vboxmouse_drv_18_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_18_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_19_0_OUTDIR)/tstvboxmouse19.run
+     OTHERS += $(vboxmouse_drv_19_0_OUTDIR)/tstvboxmouse19.run
+$$(vboxmouse_drv_19_0_OUTDIR)/tstvboxmouse19.run: $$(vboxmouse_drv_19_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_19_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_110_0_OUTDIR)/tstvboxmouse110.run
+     OTHERS += $(vboxmouse_drv_110_0_OUTDIR)/tstvboxmouse110.run
+$$(vboxmouse_drv_110_0_OUTDIR)/tstvboxmouse110.run: $$(vboxmouse_drv_110_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_110_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_111_0_OUTDIR)/tstvboxmouse111.run
+     OTHERS += $(vboxmouse_drv_111_0_OUTDIR)/tstvboxmouse111.run
+$$(vboxmouse_drv_111_0_OUTDIR)/tstvboxmouse111.run: $$(vboxmouse_drv_111_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_111_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+     TESTING += $(vboxmouse_drv_112_0_OUTDIR)/tstvboxmouse112.run
+     OTHERS += $(vboxmouse_drv_112_0_OUTDIR)/tstvboxmouse112.run
+$$(vboxmouse_drv_112_0_OUTDIR)/tstvboxmouse112.run: $$(vboxmouse_drv_112_1_STAGE_TARGET)
+	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
+	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
+	    $(vboxmouse_drv_112_1_STAGE_TARGET) $(VBOXMOUSE_SRC_PATH)/undefined_15
+	$(QUIET)$(APPEND) -t "$@" "done"
+
+endif # neq ($(KBUILD_TARGET),linux)
 
     endif # ! VBOX_ONLY_SDK
    endif # eq ($(KBUILD_HOST_ARCH),$(KBUILD_TARGET_ARCH))
-  endif # eq ($(KBUILD_TARGET),linux)
- endif # ! VBOX_USE_SYSTEM_XORG_HEADERS
+  endif # 1of ($(KBUILD_TARGET),linux solaris)
 # endif # ! VBOX_ONLY_ADDITIONS
 endif # VBOX_WITH_TESTCASES
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

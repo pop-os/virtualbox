@@ -114,11 +114,6 @@ struct context_info_t
     GLint visBits;
     WindowInfo *currentDrawable;
 
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-    GLint spuConnection;
-    struct VBOXUHGSMI *pHgsmi;
-#endif
-
 #ifdef CHROMIUM_THREADSAFE
     VBOXTLSREFDATA
 #endif
@@ -146,7 +141,8 @@ struct context_info_t
     Bool direct;
     GLXContext glxContext;
     CRHashTable *pGLXPixmapsHash;
-    Bool     damageQueryFailed;
+    Bool     damageInitFailed;
+    Display *damageDpy; /* second display connection to read xdamage extension data */
     int      damageEventsBase;
 #endif
 };
@@ -221,6 +217,7 @@ typedef struct {
     int trackWindowVisibleRgn;
     char *spu_dir;
     int force_pbuffers;
+    int viewportHack;
 
     /* thread safety stuff */
     GLboolean threadSafe;
@@ -283,12 +280,7 @@ typedef struct {
  * */
 extern CRtsd g_stubCurrentContextTSD;
 
-DECLINLINE(ContextInfo*) stubGetCurrentContext()
-{
-    ContextInfo* ctx;
-    VBoxTlsRefGetCurrentFunctional(ctx, ContextInfo, &g_stubCurrentContextTSD);
-    return ctx;
-}
+# define stubGetCurrentContext() VBoxTlsRefGetCurrent(ContextInfo, &g_stubCurrentContextTSD)
 # define stubSetCurrentContext(_ctx) VBoxTlsRefSetCurrent(ContextInfo, &g_stubCurrentContextTSD, _ctx)
 #else
 # define stubGetCurrentContext() (stub.currentContext)
@@ -336,35 +328,18 @@ extern void stubCheckXExtensions(WindowInfo *pWindow);
 #endif
 
 
-extern ContextInfo *stubNewContext( const char *dpyName, GLint visBits, ContextType type, unsigned long shareCtx
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-        , struct VBOXUHGSMI *pHgsmi
-#endif
-        );
-extern void stubConChromiumParameteriCR(GLint con, GLenum param, GLint value);
-extern void stubConChromiumParametervCR(GLint con, GLenum target, GLenum type, GLsizei count, const GLvoid *values);
-extern GLboolean stubCtxCreate(ContextInfo *context);
-extern GLboolean stubCtxCheckCreate(ContextInfo *context);
+extern ContextInfo *stubNewContext( const char *dpyName, GLint visBits, ContextType type, unsigned long shareCtx );
 extern void stubDestroyContext( unsigned long contextId );
 extern GLboolean stubMakeCurrent( WindowInfo *window, ContextInfo *context );
 extern GLint stubNewWindow( const char *dpyName, GLint visBits );
-extern void stubDestroyWindow( GLint con, GLint window );
 extern void stubSwapBuffers(WindowInfo *window, GLint flags);
 extern void stubGetWindowGeometry(WindowInfo *win, int *x, int *y, unsigned int *w, unsigned int *h);
 extern GLboolean stubUpdateWindowGeometry(WindowInfo *pWindow, GLboolean bForceUpdate);
 extern GLboolean stubIsWindowVisible(WindowInfo *win);
 extern bool stubInit(void);
 
-extern void stubForcedFlush(GLint con);
-extern void stubConFlush(GLint con);
 extern void APIENTRY stub_GetChromiumParametervCR( GLenum target, GLuint index, GLenum type, GLsizei count, GLvoid *values );
 
 extern void APIENTRY glBoundsInfoCR(const CRrecti *, const GLbyte *, GLint, GLint);
-
-#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-# define CR_CTX_CON(_pCtx) ((_pCtx)->spuConnection)
-#else
-# define CR_CTX_CON(_pCtx) (0)
-#endif
 
 #endif /* CR_STUB_H */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@
  * To uninstall the temporary handler, call this function with pfnHandler set to NULL.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   iTrap       Trap number to install handler [0..255].
  * @param   pfnHandler  Pointer to the handler. Use NULL for uninstalling the handler.
  */
@@ -75,7 +75,7 @@ VMMRCDECL(int) TRPMGCSetTempHandler(PVM pVM, unsigned iTrap, PFNTRPMGCTRAPHANDLE
  * This function will *never* return.
  * It will also reset any traps that are pending.
  *
- * @param   pVM     Pointer to the VM.
+ * @param   pVM     The VM handle.
  * @param   rc      The return code for host context.
  */
 VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
@@ -84,6 +84,7 @@ VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
 
     LogFlow(("TRPMGCHyperReturnToHost: rc=%Rrc\n", rc));
     TRPMResetTrap(pVCpu);
+    CPUMHyperSetCtxCore(pVCpu, NULL);
     VMMGCGuestToHost(pVM, rc);
     AssertReleaseFailed();
 }
@@ -93,7 +94,7 @@ VMMRCDECL(void) TRPMGCHyperReturnToHost(PVM pVM, int rc)
  * \#PF Virtual Handler callback for Guest write access to the Guest's own current IDT.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
@@ -113,7 +114,6 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
 
     AssertMsg(offRange < (uint32_t)cbIDT+1, ("pvFault=%RGv GCPtrIDT=%RGv-%RGv pvRange=%RGv\n", pvFault, GCPtrIDT, GCPtrIDTEnd, pvRange));
     Assert((RTGCPTR)(RTRCUINTPTR)pvRange == GCPtrIDT);
-    NOREF(uErrorCode);
 
 #if 0
     /* Note! this causes problems in Windows XP as instructions following the update can be dangerous (str eax has been seen) */
@@ -123,7 +123,7 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
         &&  !ASMBitTest(&pVM->trpm.s.au32IdtPatched[0], iGate)) /* Passthru gates need special attention too. */
     {
         uint32_t cb;
-        int rc = EMInterpretInstructionEx(pVM, pVCpu, pRegFrame, pvFault, &cb);
+        int rc = EMInterpretInstruction(pVM, pVCpu, pRegFrame, pvFault, &cb);
         if (RT_SUCCESS(rc) && cb)
         {
             uint32_t iGate1 = (offRange + cb - 1)/sizeof(VBOXIDTE);
@@ -156,7 +156,7 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
  * \#PF Virtual Handler callback for Guest write access to the VBox shadow IDT.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM Handle.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
@@ -167,27 +167,26 @@ VMMRCDECL(int) trpmRCGuestIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTX
 VMMRCDECL(int) trpmRCShadowIDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange)
 {
     PVMCPU pVCpu = VMMGetCpu0(pVM);
-    LogRel(("FATAL ERROR: trpmRCShadowIDTWriteHandler: eip=%08X pvFault=%RGv pvRange=%08RGv\r\n", pRegFrame->eip, pvFault, pvRange));
-    NOREF(uErrorCode); NOREF(offRange);
+    LogRel(("FATAL ERROR: trpmRCShadowIDTWriteHandler: eip=%08X pvFault=%RGv pvRange=%08X\r\n", pRegFrame->eip, pvFault, pvRange));
 
-    /*
-     * If we ever get here, then the guest has *probably* executed an SIDT
-     * instruction that we failed to patch.  In theory this could be very bad,
-     * but there are nasty applications out there that install device drivers
-     * that mess with the guest's IDT.  In those cases, it's quite ok to simply
-     * ignore the writes and pretend success.
-     *
-     * Another posibility is that the guest is touching some page memory and
-     * it having nothing to do with our IDT or anything like that, just a
-     * potential conflict that we didn't discover in time.
+    /* If we ever get here, then the guest has executed an sidt instruction that we failed to patch. In theory this could be very bad, but
+     * there are nasty applications out there that install device drivers that mess with the guest's IDT. In those cases, it's quite ok
+     * to simply ignore the writes and pretend success.
      */
-    DISSTATE Dis;
-    int rc = EMInterpretDisasCurrent(pVM, pVCpu, &Dis, NULL);
+    RTGCPTR PC;
+    int rc = SELMValidateAndConvertCSAddr(pVM, pRegFrame->eflags, pRegFrame->ss, pRegFrame->cs, &pRegFrame->csHid,
+                                          (RTGCPTR)pRegFrame->eip, &PC);
     if (rc == VINF_SUCCESS)
     {
-        /* Just ignore the write. */
-        pRegFrame->eip += Dis.cbInstr;
-        return VINF_SUCCESS;
+        DISCPUSTATE Cpu;
+        uint32_t    cbOp;
+        rc = EMInterpretDisasOneEx(pVM, pVCpu, (RTGCUINTPTR)PC, pRegFrame, &Cpu, &cbOp);
+        if (rc == VINF_SUCCESS)
+        {
+            /* Just ignore the write. */
+            pRegFrame->eip += Cpu.opsize;
+            return VINF_SUCCESS;
+        }
     }
 
     return VERR_TRPM_SHADOW_IDT_WRITE;

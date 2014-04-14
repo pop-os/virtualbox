@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,11 @@ struct UISettingsCacheGlobalGeneral
 {
     QString m_strDefaultMachineFolder;
     QString m_strVRDEAuthLibrary;
+    bool m_fTrayIconEnabled;
 #ifdef Q_WS_MAC
     bool m_fPresentationModeEnabled;
 #endif /* Q_WS_MAC */
-    bool m_fHostScreenSaverDisabled;
+    bool m_fHostScreenSaverDisables;
 };
 
 /* Global settings / General page: */
@@ -46,7 +47,7 @@ public:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -60,10 +61,10 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Helper: Navigation stuff: */
+    /* Navigation stuff: */
     void setOrderAfter(QWidget *pWidget);
 
-    /* Helper: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
 private:
@@ -73,3 +74,4 @@ private:
 };
 
 #endif // __UIGlobalSettingsGeneral_h__
+

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,175 +17,114 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
+/* Global includes */
 #include <QCloseEvent>
 #include <QTimer>
-#include <QProcess>
 
-/* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIKeyboardHandler.h"
-#include "UIMachineWindow.h"
-#include "UIMachineLogic.h"
-#include "UIMachineView.h"
-#include "UIMachineWindowNormal.h"
-#include "UIMachineWindowFullscreen.h"
-#include "UIMachineWindowSeamless.h"
-#include "UIMachineWindowScale.h"
-#include "UIMouseHandler.h"
-#include "UISession.h"
-#include "UIVMCloseDialog.h"
-#include "UIConverter.h"
-#include "UIModalWindowManager.h"
-
-/* COM includes: */
-#include "CConsole.h"
-#include "CSnapshot.h"
-
-/* Other VBox includes: */
 #include <VBox/version.h>
 #ifdef VBOX_BLEEDING_EDGE
 # include <iprt/buildconfig.h>
 #endif /* VBOX_BLEEDING_EDGE */
 
-/* External includes: */
+/* Local includes */
+#include "COMDefs.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+
+#include "UIKeyboardHandler.h"
+#include "UIMachineLogic.h"
+#include "UIMachineView.h"
+#include "UIMachineWindow.h"
+#include "UIMachineWindowFullscreen.h"
+#include "UIMachineWindowNormal.h"
+#include "UIMachineWindowScale.h"
+#include "UIMachineWindowSeamless.h"
+#include "UIMouseHandler.h"
+#include "UISession.h"
+#include "UIVMCloseDialog.h"
+
 #ifdef Q_WS_X11
 # include <X11/Xlib.h>
-#endif /* Q_WS_X11 */
+#endif
 
-/* static */
-UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, ulong uScreenId)
+UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, UIVisualStateType visualStateType, ulong uScreenId)
 {
-    /* Create machine-window: */
-    UIMachineWindow *pMachineWindow = 0;
-    switch (pMachineLogic->visualStateType())
+    UIMachineWindow *window = 0;
+    switch (visualStateType)
     {
         case UIVisualStateType_Normal:
-            pMachineWindow = new UIMachineWindowNormal(pMachineLogic, uScreenId);
+            window = new UIMachineWindowNormal(pMachineLogic, uScreenId);
             break;
         case UIVisualStateType_Fullscreen:
-            pMachineWindow = new UIMachineWindowFullscreen(pMachineLogic, uScreenId);
+            window = new UIMachineWindowFullscreen(pMachineLogic, uScreenId);
             break;
         case UIVisualStateType_Seamless:
-            pMachineWindow = new UIMachineWindowSeamless(pMachineLogic, uScreenId);
+            window = new UIMachineWindowSeamless(pMachineLogic, uScreenId);
             break;
         case UIVisualStateType_Scale:
-            pMachineWindow = new UIMachineWindowScale(pMachineLogic, uScreenId);
-            break;
-        default:
-            AssertMsgFailed(("Incorrect visual state!"));
+            window = new UIMachineWindowScale(pMachineLogic, uScreenId);
             break;
     }
-    /* Prepare machine-window: */
-    pMachineWindow->prepare();
-    /* Return machine-window: */
-    return pMachineWindow;
+    return window;
 }
 
-/* static */
 void UIMachineWindow::destroy(UIMachineWindow *pWhichWindow)
 {
-    /* Cleanup machine-window: */
-    pWhichWindow->cleanup();
-    /* Delete machine-window: */
     delete pWhichWindow;
 }
 
-void UIMachineWindow::prepare()
+void UIMachineWindow::sltTryClose()
 {
-    /* Prepare session-connections: */
-    prepareSessionConnections();
+    /* Do not try to close if restricted: */
+    if (machineLogic()->isPreventAutoClose())
+        return;
 
-    /* Prepare main-layout: */
-    prepareMainLayout();
-
-    /* Prepare menu: */
-    prepareMenu();
-
-    /* Prepare status-bar: */
-    prepareStatusBar();
-
-    /* Prepare machine-view: */
-    prepareMachineView();
-
-    /* Prepare visual-state: */
-    prepareVisualState();
-
-    /* Prepare handlers: */
-    prepareHandlers();
-
-    /* Load settings: */
-    loadSettings();
-
-    /* Retranslate window: */
-    retranslateUi();
-
-    /* Update all the elements: */
-    updateAppearanceOf(UIVisualElement_AllStuff);
-
-    /* Show: */
-    showInNecessaryMode();
-}
-
-void UIMachineWindow::cleanup()
-{
-    /* Save window settings: */
-    saveSettings();
-
-    /* Cleanup handlers: */
-    cleanupHandlers();
-
-    /* Cleanup visual-state: */
-    cleanupVisualState();
-
-    /* Cleanup machine-view: */
-    cleanupMachineView();
-
-    /* Cleanup status-bar: */
-    cleanupStatusBar();
-
-    /* Cleanup menu: */
-    cleanupMenu();
-
-    /* Cleanup main layout: */
-    cleanupMainLayout();
-
-    /* Cleanup session connections: */
-    cleanupSessionConnections();
-}
-
-void UIMachineWindow::sltMachineStateChanged()
-{
-    /* Update window-title: */
-    updateAppearanceOf(UIVisualElement_WindowTitle);
+    /* First close any open modal & popup widgets.
+     * Use a single shot with timeout 0 to allow the widgets to cleanly close and test then again.
+     * If all open widgets are closed destroy ourself: */
+    QWidget *widget = QApplication::activeModalWidget() ?
+                      QApplication::activeModalWidget() :
+                      QApplication::activePopupWidget() ?
+                      QApplication::activePopupWidget() : 0;
+    if (widget)
+    {
+        widget->close();
+        QTimer::singleShot(0, machineWindow(), SLOT(sltTryClose()));
+    }
+    else
+        machineWindow()->close();
 }
 
 UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
-    : QIWithRetranslateUI2<QMainWindow>(0, pMachineLogic->windowFlags(uScreenId))
-    , m_pMachineLogic(pMachineLogic)
-    , m_pMachineView(0)
+    : m_pMachineLogic(pMachineLogic)
+    , m_pMachineWindow(0)
     , m_uScreenId(uScreenId)
-    , m_pMainLayout(0)
+    , m_pMachineViewContainer(0)
     , m_pTopSpacer(0)
     , m_pBottomSpacer(0)
     , m_pLeftSpacer(0)
     , m_pRightSpacer(0)
+    , m_pMachineView(0)
 {
-#ifndef Q_WS_MAC
-    /* On Mac OS X window icon referenced in info.plist is used. */
+}
 
-    /* Set default window icon (will be changed to VM-specific icon little bit later): */
-    setWindowIcon(QIcon(":/VirtualBox_48px.png"));
-
-    /* Set redefined machine-window icon if any: */
-    QIcon *pMachineWidnowIcon = uisession()->machineWindowIcon();
-    if (pMachineWidnowIcon)
-        setWindowIcon(*pMachineWidnowIcon);
-    /* Or set default machine-window icon: */
-    else
-        setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId()));
-#endif /* !Q_WS_MAC */
+UIMachineWindow::~UIMachineWindow()
+{
+    /* Close any opened modal & popup widgets: */
+    while (QWidget *pWidget = QApplication::activeModalWidget() ? QApplication::activeModalWidget() :
+                              QApplication::activePopupWidget() ? QApplication::activePopupWidget() : 0)
+    {
+        /* Set modal/popup window's parent to null early,
+         * because deleteLater() is synchronous
+         * and will be called later than this destructor: */
+        pWidget->setParent(0);
+        /* Close modal/popup window early to hide it
+         * because deleteLater() is synchronous
+         * and will be called later than this destructor: */
+        pWidget->close();
+        /* Delete modal/popup window synchronously (safe): */
+        pWidget->deleteLater();
+    }
 }
 
 UISession* UIMachineWindow::uisession() const
@@ -198,44 +137,27 @@ CSession& UIMachineWindow::session() const
     return uisession()->session();
 }
 
-CMachine UIMachineWindow::machine() const
-{
-    return session().GetMachine();
-}
-
-void UIMachineWindow::adjustMachineViewSize()
-{
-    /* By default, the only thing we need is to
-     * adjust guest-screen size if necessary: */
-    machineView()->adjustGuestScreenSize();
-}
-
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
 void UIMachineWindow::setMask(const QRegion &region)
 {
-    /* Call to base-class: */
-    QMainWindow::setMask(region);
+    machineWindow()->setMask(region);
 }
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
 void UIMachineWindow::retranslateUi()
 {
-    /* Compose window-title prefix: */
     m_strWindowTitlePrefix = VBOX_PRODUCT;
 #ifdef VBOX_BLEEDING_EDGE
-    m_strWindowTitlePrefix += UIMachineWindow::tr(" EXPERIMENTAL build %1r%2 - %3")
+    m_strWindowTitlePrefix += UIMachineLogic::tr(" EXPERIMENTAL build %1r%2 - %3")
                               .arg(RTBldCfgVersion())
                               .arg(RTBldCfgRevisionStr())
                               .arg(VBOX_BLEEDING_EDGE);
-#endif /* VBOX_BLEEDING_EDGE */
-    /* Update appearance of the window-title: */
-    updateAppearanceOf(UIVisualElement_WindowTitle);
+#endif
+    updateAppearanceOf(UIVisualElement_WindowCaption);
 }
 
 #ifdef Q_WS_X11
 bool UIMachineWindow::x11Event(XEvent *pEvent)
 {
-    // TODO: Is that really needed?
+    // TODO: Check if that is still required!
     /* Qt bug: when the machine-view grabs the keyboard,
      * FocusIn, FocusOut, WindowActivate and WindowDeactivate Qt events are
      * not properly sent on top level window deactivation.
@@ -253,179 +175,299 @@ bool UIMachineWindow::x11Event(XEvent *pEvent)
     }
     return false;
 }
-#endif /* Q_WS_X11 */
+#endif
 
 void UIMachineWindow::closeEvent(QCloseEvent *pEvent)
 {
-    /* Always ignore close-event first: */
+    /* Always ignore close event: */
     pEvent->ignore();
 
-    /* Make sure machine is in one of the allowed states: */
-    if (!uisession()->isRunning() && !uisession()->isPaused() && !uisession()->isStuck())
-        return;
+    /* Should we close application? */
+    bool fCloseApplication = false;
 
-    /* Get machine: */
-    CMachine m = machine();
-
-    /* If there is a close hook script defined: */
-    QString strScript = m.GetExtraData(GUI_CloseActionHook);
-    if (!strScript.isEmpty())
+    switch (uisession()->machineState())
     {
-        /* Execute asynchronously and leave: */
-        QProcess::startDetached(strScript, QStringList() << m.GetId());
-        return;
-    }
-
-    /* Choose the close action: */
-    MachineCloseAction closeAction = MachineCloseAction_Invalid;
-
-    /* If default close-action defined and not restricted: */
-    MachineCloseAction defaultCloseAction = uisession()->defaultCloseAction();
-    MachineCloseAction restrictedCloseActions = uisession()->restrictedCloseActions();
-    if ((defaultCloseAction != MachineCloseAction_Invalid) &&
-        !(restrictedCloseActions & defaultCloseAction))
-    {
-        switch (defaultCloseAction)
+        case KMachineState_Running:
+        case KMachineState_Paused:
+        case KMachineState_Stuck:
+        case KMachineState_LiveSnapshotting:
+        case KMachineState_Teleporting: // TODO: Test this!
+        case KMachineState_TeleportingPausedVM: // TODO: Test this!
         {
-            /* If VM is stuck, and the default close-action is 'save-state' or 'shutdown',
-             * we should ask the user about what to do: */
-            case MachineCloseAction_SaveState:
-            case MachineCloseAction_Shutdown:
-                closeAction = uisession()->isStuck() ? MachineCloseAction_Invalid : defaultCloseAction;
-                break;
-            /* Otherwise we just use what we have: */
-            default:
-                closeAction = defaultCloseAction;
-                break;
-        }
-    }
+            /* Get the machine: */
+            CMachine machine = session().GetMachine();
 
-    /* If the close-action still undefined: */
-    if (closeAction == MachineCloseAction_Invalid)
-    {
-        /* Prepare close-dialog: */
-        QWidget *pParentDlg = windowManager().realParentWindow(this);
-        QPointer<UIVMCloseDialog> pCloseDlg = new UIVMCloseDialog(pParentDlg, m,
-                                                                  session().GetConsole().GetGuestEnteredACPIMode(),
-                                                                  restrictedCloseActions);
-
-        /* Make sure close-dialog is valid: */
-        if (pCloseDlg->isValid())
-        {
-            /* If VM is not paused and not stuck, we should pause it first: */
-            bool fWasPaused = uisession()->isPaused() || uisession()->isStuck();
-            if (fWasPaused || uisession()->pause())
+            /* Check if there is a close hock script defined. */
+            const QString& strScript = machine.GetExtraData(VBoxDefs::GUI_CloseActionHook);
+            if (!strScript.isEmpty())
             {
-                /* Show close-dialog to let the user make the choice: */
-                windowManager().registerNewParent(pCloseDlg, pParentDlg);
-                closeAction = static_cast<MachineCloseAction>(pCloseDlg->exec());
-
-                /* Make sure the dialog still valid: */
-                if (!pCloseDlg)
-                    return;
-
-                /* If VM was not paused before but paused now,
-                 * we should resume it if user canceled dialog or chosen shutdown: */
-                if (!fWasPaused && uisession()->isPaused() &&
-                    (closeAction == MachineCloseAction_Invalid ||
-                     closeAction == MachineCloseAction_Shutdown))
-                {
-                    /* If we unable to resume VM, cancel closing: */
-                    if (!uisession()->unpause())
-                        closeAction = MachineCloseAction_Invalid;
-                }
+                QProcess::startDetached(strScript, QStringList() << machine.GetId());
+                return;
             }
-        }
-        else
-        {
-            /* Else user misconfigured .vbox file, we will reject closing UI: */
-            closeAction = MachineCloseAction_Invalid;
+            /* Prepare close dialog: */
+            UIVMCloseDialog dlg(machineWindow());
+
+            /* Assign close-dialog pixmap: */
+            dlg.pmIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(machine.GetOSTypeId()));
+
+            /* Check which close actions are disallowed: */
+            QStringList restictedActionsList = machine.GetExtraData(VBoxDefs::GUI_RestrictedCloseActions).split(',');
+            bool fIsStateSavingAllowed = !restictedActionsList.contains("SaveState", Qt::CaseInsensitive);
+            bool fIsACPIShutdownAllowed = !restictedActionsList.contains("Shutdown", Qt::CaseInsensitive);
+            bool fIsPowerOffAllowed = !restictedActionsList.contains("PowerOff", Qt::CaseInsensitive);
+            bool fIsPowerOffAndRestoreAllowed = fIsPowerOffAllowed && !restictedActionsList.contains("Restore", Qt::CaseInsensitive);
+
+            /* Make Save State button visible/hidden depending on restriction: */
+            dlg.mRbSave->setVisible(fIsStateSavingAllowed);
+            dlg.mTxSave->setVisible(fIsStateSavingAllowed);
+            /* Make Save State button enabled/disabled depending on machine state: */
+            dlg.mRbSave->setEnabled(uisession()->machineState() != KMachineState_Stuck);
+
+            /* Make ACPI shutdown button visible/hidden depending on restriction: */
+            dlg.mRbShutdown->setVisible(fIsACPIShutdownAllowed);
+            dlg.mTxShutdown->setVisible(fIsACPIShutdownAllowed);
+            /* Make ACPI shutdown button enabled/disabled depending on ACPI state & machine state: */
+            bool isACPIEnabled = session().GetConsole().GetGuestEnteredACPIMode();
+            dlg.mRbShutdown->setEnabled(isACPIEnabled && uisession()->machineState() != KMachineState_Stuck);
+
+            /* Make Power Off button visible/hidden depending on restriction: */
+            dlg.mRbPowerOff->setVisible(fIsPowerOffAllowed);
+            dlg.mTxPowerOff->setVisible(fIsPowerOffAllowed);
+
+            /* Make the Restore Snapshot checkbox visible/hidden depending on snapshots count & restrictions: */
+            dlg.mCbDiscardCurState->setVisible(fIsPowerOffAndRestoreAllowed && machine.GetSnapshotCount() > 0);
+            if (!machine.GetCurrentSnapshot().isNull())
+                dlg.mCbDiscardCurState->setText(dlg.mCbDiscardCurState->text().arg(machine.GetCurrentSnapshot().GetName()));
+
+            /* Choice string tags for close-dialog: */
+            QString strSave("save");
+            QString strShutdown("shutdown");
+            QString strPowerOff("powerOff");
+            QString strDiscardCurState("discardCurState");
+
+            /* Read the last user's choice for the given VM: */
+            QStringList lastAction = machine.GetExtraData(VBoxDefs::GUI_LastCloseAction).split(',');
+
+            /* Check which button should be initially chosen: */
+            QRadioButton *pRadioButton = 0;
+
+            /* If choosing 'last choice' is possible: */
+            if (lastAction[0] == strSave && fIsStateSavingAllowed)
+            {
+                pRadioButton = dlg.mRbSave;
+            }
+            else if (lastAction[0] == strShutdown && fIsACPIShutdownAllowed && isACPIEnabled)
+            {
+                pRadioButton = dlg.mRbShutdown;
+            }
+            else if (lastAction[0] == strPowerOff && fIsPowerOffAllowed)
+            {
+                pRadioButton = dlg.mRbPowerOff;
+                if (fIsPowerOffAndRestoreAllowed)
+                    dlg.mCbDiscardCurState->setChecked(lastAction.count() > 1 && lastAction[1] == strDiscardCurState);
+            }
+            /* Else 'default choice' will be used: */
+            else
+            {
+                if (fIsACPIShutdownAllowed && isACPIEnabled)
+                    pRadioButton = dlg.mRbShutdown;
+                else if (fIsPowerOffAllowed)
+                    pRadioButton = dlg.mRbPowerOff;
+                else if (fIsStateSavingAllowed)
+                    pRadioButton = dlg.mRbSave;
+            }
+
+            /* If some radio button was chosen: */
+            if (pRadioButton)
+            {
+                /* Check and focus it: */
+                pRadioButton->setChecked(true);
+                pRadioButton->setFocus();
+            }
+            /* If no one of radio buttons was chosen: */
+            else
+            {
+                /* Just break and leave: */
+                break;
+            }
+
+            /* This flag will keep the status of every further logical operation: */
+            bool success = true;
+
+            /* Pause before showing dialog if necessary: */
+            bool fWasPaused = uisession()->isPaused() || uisession()->machineState() == KMachineState_Stuck;
+            if (!fWasPaused)
+                success = uisession()->pause();
+
+            if (success)
+            {
+                /* Preventing auto-closure: */
+                machineLogic()->setPreventAutoClose(true);
+
+                /* If close dialog accepted: */
+                if (dlg.exec() == QDialog::Accepted)
+                {
+                    /* Get current console: */
+                    CConsole console = session().GetConsole();
+
+                    success = false;
+
+                    if (dlg.mRbSave->isChecked())
+                    {
+                        CProgress progress = console.SaveState();
+
+                        if (!console.isOk())
+                            msgCenter().cannotSaveMachineState(console);
+                        else
+                        {
+                            /* Show the "VM saving" progress dialog: */
+                            msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_state_save_90px.png", 0, true);
+                            if (progress.GetResultCode() != 0)
+                                msgCenter().cannotSaveMachineState(progress);
+                            else
+                                success = true;
+                        }
+
+                        if (success)
+                            fCloseApplication = true;
+                    }
+                    else if (dlg.mRbShutdown->isChecked())
+                    {
+                        /* Unpause the VM to let it grab the ACPI shutdown event: */
+                        uisession()->unpause();
+                        /* Prevent the subsequent unpause request: */
+                        fWasPaused = true;
+                        /* Signal ACPI shutdown (if there is no ACPI device, the operation will fail): */
+                        console.PowerButton();
+                        if (!console.isOk())
+                            msgCenter().cannotACPIShutdownMachine(console);
+                        else
+                            success = true;
+                    }
+                    else if (dlg.mRbPowerOff->isChecked())
+                    {
+                        CProgress progress = console.PowerDown();
+
+                        if (!console.isOk())
+                            msgCenter().cannotStopMachine(console);
+                        else
+                        {
+                            /* Show the power down progress dialog: */
+                            msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_poweroff_90px.png", 0, true);
+                            if (progress.GetResultCode() != 0)
+                                msgCenter().cannotStopMachine(progress);
+                            else
+                                success = true;
+                        }
+
+                        if (success)
+                        {
+                            /* Discard the current state if requested: */
+                            if (dlg.mCbDiscardCurState->isChecked() && dlg.mCbDiscardCurState->isVisibleTo(&dlg))
+                            {
+                                CSnapshot snapshot = machine.GetCurrentSnapshot();
+                                CProgress progress = console.RestoreSnapshot(snapshot);
+                                if (!console.isOk())
+                                    msgCenter().cannotRestoreSnapshot(console, snapshot.GetName());
+                                else
+                                {
+                                    /* Show the progress dialog: */
+                                    msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_discard_90px.png", 0, true);
+                                    if (progress.GetResultCode() != 0)
+                                        msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName());
+                                }
+                            }
+                        }
+
+                        if (success)
+                            fCloseApplication = true;
+                    }
+
+                    if (success)
+                    {
+                        /* Read the last user's choice for the given VM: */
+                        QStringList prevAction = machine.GetExtraData(VBoxDefs::GUI_LastCloseAction).split(',');
+                        /* Memorize the last user's choice for the given VM: */
+                        QString lastAction = strPowerOff;
+                        if (dlg.mRbSave->isChecked())
+                            lastAction = strSave;
+                        else if ((dlg.mRbShutdown->isChecked()) ||
+                                 (dlg.mRbPowerOff->isChecked() && prevAction[0] == strShutdown && !isACPIEnabled))
+                            lastAction = strShutdown;
+                        else if (dlg.mRbPowerOff->isChecked())
+                            lastAction = strPowerOff;
+                        else
+                            AssertFailed();
+                        if (dlg.mCbDiscardCurState->isChecked())
+                            (lastAction += ",") += strDiscardCurState;
+                        machine.SetExtraData(VBoxDefs::GUI_LastCloseAction, lastAction);
+                    }
+                }
+
+                /* Restore the running state if needed: */
+                if (success && !fCloseApplication && !fWasPaused && uisession()->machineState() == KMachineState_Paused)
+                    uisession()->unpause();
+
+                /* Allowing auto-closure: */
+                machineLogic()->setPreventAutoClose(false);
+            }
+
+            break;
         }
 
-        /* Cleanup close-dialog: */
-        delete pCloseDlg;
-    }
-
-    /* Depending on chosen result: */
-    switch (closeAction)
-    {
-        case MachineCloseAction_SaveState:
-        {
-            /* Save VM state: */
-            machineLogic()->saveState();
-            break;
-        }
-        case MachineCloseAction_Shutdown:
-        {
-            /* Shutdown VM: */
-            machineLogic()->shutdown();
-            break;
-        }
-        case MachineCloseAction_PowerOff:
-        case MachineCloseAction_PowerOff_RestoringSnapshot:
-        {
-            /* Power VM off: */
-            machineLogic()->powerOff(closeAction == MachineCloseAction_PowerOff_RestoringSnapshot);
-            break;
-        }
         default:
             break;
     }
+
+    if (fCloseApplication)
+    {
+        /* VM has been powered off or saved. We must *safely* close the VM window(s): */
+        QTimer::singleShot(0, uisession(), SLOT(sltCloseVirtualSession()));
+    }
 }
 
-void UIMachineWindow::prepareSessionConnections()
+void UIMachineWindow::prepareWindowIcon()
+{
+#if !(defined (Q_WS_WIN) || defined (Q_WS_MAC))
+    /* The default application icon (will be changed to VM-specific icon little bit later):
+     * 1. On Win32, it's built-in to the executable;
+     * 2. On Mac OS X the icon referenced in info.plist is used. */
+    machineWindow()->setWindowIcon(QIcon(":/VirtualBox_48px.png"));
+#endif
+
+#ifndef Q_WS_MAC
+    /* Set the VM-specific application icon except Mac OS X: */
+    machineWindow()->setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(session().GetMachine().GetOSTypeId()));
+#endif
+}
+
+void UIMachineWindow::prepareConsoleConnections()
 {
     /* Machine state-change updater: */
-    connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
+    QObject::connect(uisession(), SIGNAL(sigMachineStateChange()), machineWindow(), SLOT(sltMachineStateChanged()));
 }
 
-void UIMachineWindow::prepareMainLayout()
+void UIMachineWindow::prepareMachineViewContainer()
 {
-    /* Create central-widget: */
-    setCentralWidget(new QWidget);
+    /* Create view container.
+     * After it will be passed to parent widget of some mode,
+     * there will be no need to delete it, so no need to cleanup: */
+    m_pMachineViewContainer = new QGridLayout();
+    m_pMachineViewContainer->setMargin(0);
+    m_pMachineViewContainer->setSpacing(0);
 
-    /* Create main-layout: */
-    m_pMainLayout = new QGridLayout(centralWidget());
-    m_pMainLayout->setMargin(0);
-    m_pMainLayout->setSpacing(0);
-
-    /* Create shifting-spacers: */
+    /* Create and add shifting spacers.
+     * After they will be inserted into layout, it will get the parentness
+     * of those spacers, so there will be no need to cleanup them. */
     m_pTopSpacer = new QSpacerItem(0, 0, QSizePolicy::Fixed, QSizePolicy::Expanding);
     m_pBottomSpacer = new QSpacerItem(0, 0, QSizePolicy::Fixed, QSizePolicy::Expanding);
     m_pLeftSpacer = new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Fixed);
     m_pRightSpacer = new QSpacerItem(0, 0, QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    /* Add shifting-spacers into main-layout: */
-    m_pMainLayout->addItem(m_pTopSpacer, 0, 1);
-    m_pMainLayout->addItem(m_pBottomSpacer, 2, 1);
-    m_pMainLayout->addItem(m_pLeftSpacer, 1, 0);
-    m_pMainLayout->addItem(m_pRightSpacer, 1, 2);
-}
-
-void UIMachineWindow::prepareMachineView()
-{
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* Need to force the QGL framebuffer in case 2D Video Acceleration is supported & enabled: */
-    bool bAccelerate2DVideo = machine().GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable();
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
-    /* Get visual-state type: */
-    UIVisualStateType visualStateType = machineLogic()->visualStateType();
-
-    /* Create machine-view: */
-    m_pMachineView = UIMachineView::create(  this
-                                           , m_uScreenId
-                                           , visualStateType
-#ifdef VBOX_WITH_VIDEOHWACCEL
-                                           , bAccelerate2DVideo
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-                                           );
-
-    /* Add machine-view into main-layout: */
-    m_pMainLayout->addWidget(m_pMachineView, 1, 1, viewAlignment(visualStateType));
-
-    /* Install focus-proxy: */
-    setFocusProxy(m_pMachineView);
+    m_pMachineViewContainer->addItem(m_pTopSpacer, 0, 1);
+    m_pMachineViewContainer->addItem(m_pBottomSpacer, 2, 1);
+    m_pMachineViewContainer->addItem(m_pLeftSpacer, 1, 0);
+    m_pMachineViewContainer->addItem(m_pRightSpacer, 1, 2);
 }
 
 void UIMachineWindow::prepareHandlers()
@@ -446,40 +488,31 @@ void UIMachineWindow::cleanupHandlers()
     machineLogic()->keyboardHandler()->cleanupListener(m_uScreenId);
 }
 
-void UIMachineWindow::cleanupMachineView()
-{
-    /* Destroy machine-view: */
-    UIMachineView::destroy(m_pMachineView);
-    m_pMachineView = 0;
-}
-
 void UIMachineWindow::updateAppearanceOf(int iElement)
 {
-    /* Update window title: */
-    if (iElement & UIVisualElement_WindowTitle)
+    CMachine machine = session().GetMachine();
+
+    if (iElement & UIVisualElement_WindowCaption)
     {
-        /* Get machine: */
-        const CMachine &m = machine();
         /* Get machine state: */
         KMachineState state = uisession()->machineState();
         /* Prepare full name: */
         QString strSnapshotName;
-        if (m.GetSnapshotCount() > 0)
+        if (machine.GetSnapshotCount() > 0)
         {
-            CSnapshot snapshot = m.GetCurrentSnapshot();
+            CSnapshot snapshot = machine.GetCurrentSnapshot();
             strSnapshotName = " (" + snapshot.GetName() + ")";
         }
-        QString strMachineName = m.GetName() + strSnapshotName;
+        QString strMachineName = machine.GetName() + strSnapshotName;
         if (state != KMachineState_Null)
-            strMachineName += " [" + gpConverter->toString(state) + "]";
+            strMachineName += " [" + vboxGlobal().toString(state) + "]";
         /* Unusual on the Mac. */
 #ifndef Q_WS_MAC
-        const QString strUserProductName = uisession()->machineWindowNamePostfix();
-        strMachineName += " - " + (strUserProductName.isEmpty() ? defaultWindowTitle() : strUserProductName);
-#endif /* !Q_WS_MAC */
-        if (m.GetMonitorCount() > 1)
+        strMachineName += " - " + m_strWindowTitlePrefix;
+#endif /* Q_WS_MAC */
+        if (machine.GetMonitorCount() > 1)
             strMachineName += QString(" : %1").arg(m_uScreenId + 1);
-        setWindowTitle(strMachineName);
+        machineWindow()->setWindowTitle(strMachineName);
     }
 }
 
@@ -492,33 +525,8 @@ void UIMachineWindow::updateDbgWindows()
 }
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-/* static */
-Qt::Alignment UIMachineWindow::viewAlignment(UIVisualStateType visualStateType)
+void UIMachineWindow::sltMachineStateChanged()
 {
-    switch (visualStateType)
-    {
-        case UIVisualStateType_Normal: return 0;
-        case UIVisualStateType_Fullscreen: return Qt::AlignVCenter | Qt::AlignHCenter;
-        case UIVisualStateType_Seamless: return 0;
-        case UIVisualStateType_Scale: return 0;
-    }
-    AssertMsgFailed(("Incorrect visual state!"));
-    return 0;
+    updateAppearanceOf(UIVisualElement_WindowCaption);
 }
-
-#ifdef Q_WS_MAC
-void UIMachineWindow::handleNativeNotification(const QString &strNativeNotificationName, QWidget *pWidget)
-{
-    /* Handle arrived notification: */
-    LogRel(("UIMachineWindow::handleNativeNotification: Notification '%s' received.\n",
-            strNativeNotificationName.toAscii().constData()));
-    if (UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(pWidget))
-    {
-        /* Redirect arrived notification: */
-        LogRel(("UIMachineWindow::handleNativeNotification: Redirecting '%s' notification to corresponding machine-window...\n",
-                strNativeNotificationName.toAscii().constData()));
-        pMachineWindow->handleNativeNotification(strNativeNotificationName);
-    }
-}
-#endif /* Q_WS_MAC */
 

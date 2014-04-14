@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,23 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QDir>
-
-/* GUI includes: */
 #include "UIMachineSettingsSerial.h"
 #include "QIWidgetValidator.h"
 #include "VBoxGlobal.h"
 #include "QITabWidget.h"
-#include "UIConverter.h"
 
-/* COM includes: */
-#include "CSerialPort.h"
+#include <QDir>
 
 /* UIMachineSettingsSerial stuff */
 UIMachineSettingsSerial::UIMachineSettingsSerial(UIMachineSettingsSerialPage *pParent)
     : QIWithRetranslateUI<QWidget> (0)
     , m_pParent(pParent)
+    , mValidator(0)
     , m_iSlot(-1)
 {
     /* Apply UI decorations */
@@ -66,9 +61,6 @@ UIMachineSettingsSerial::UIMachineSettingsSerial(UIMachineSettingsSerialPage *pP
     connect (mCbMode, SIGNAL (activated (const QString &)),
              this, SLOT (mCbModeActivated (const QString &)));
 
-    /* Prepare validation: */
-    prepareValidation();
-
     /* Applying language settings */
     retranslateUi();
 }
@@ -77,7 +69,7 @@ void UIMachineSettingsSerial::polishTab()
 {
     ulong uIRQ, uIOBase;
     bool fStd = vboxGlobal().toCOMPortNumbers(mCbNumber->currentText(), uIRQ, uIOBase);
-    KPortMode mode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
+    KPortMode mode = vboxGlobal().toPortMode(mCbMode->currentText());
 
     mGbSerial->setEnabled(m_pParent->isMachineOffline());
     mLbNumber->setEnabled(m_pParent->isMachineOffline());
@@ -106,7 +98,7 @@ void UIMachineSettingsSerial::fetchPortData(const UICacheSettingsMachineSerialPo
     mCbNumber->setCurrentIndex(mCbNumber->findText(vboxGlobal().toCOMPortName(portData.m_uIRQ, portData.m_uIOBase)));
     mLeIRQ->setText(QString::number(portData.m_uIRQ));
     mLeIOPort->setText("0x" + QString::number(portData.m_uIOBase, 16).toUpper());
-    mCbMode->setCurrentIndex(mCbMode->findText(gpConverter->toString(portData.m_hostMode)));
+    mCbMode->setCurrentIndex(mCbMode->findText(vboxGlobal().toString(portData.m_hostMode)));
     mCbPipe->setChecked(portData.m_fServer);
     mLePath->setText(portData.m_strPath);
 
@@ -124,11 +116,24 @@ void UIMachineSettingsSerial::uploadPortData(UICacheSettingsMachineSerialPort &p
     portData.m_uIRQ = mLeIRQ->text().toULong(NULL, 0);
     portData.m_uIOBase = mLeIOPort->text().toULong (NULL, 0);
     portData.m_fServer = mCbPipe->isChecked();
-    portData.m_hostMode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
+    portData.m_hostMode = vboxGlobal().toPortMode(mCbMode->currentText());
     portData.m_strPath = QDir::toNativeSeparators(mLePath->text());
 
     /* Cache port data to port cache: */
     portCache.cacheCurrentData(portData);
+}
+
+void UIMachineSettingsSerial::setValidator (QIWidgetValidator *aVal)
+{
+    Assert (aVal);
+    mValidator = aVal;
+    connect (mLeIRQ, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    connect (mLeIOPort, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    connect (mLePath, SIGNAL (textChanged (const QString &)),
+             mValidator, SLOT (revalidate()));
+    mValidator->revalidate();
 }
 
 QWidget* UIMachineSettingsSerial::setOrderAfter (QWidget *aAfter)
@@ -161,10 +166,10 @@ void UIMachineSettingsSerial::retranslateUi()
 
     mCbNumber->setItemText (mCbNumber->count() - 1, vboxGlobal().toCOMPortName (0, 0));
 
-    mCbMode->setItemText (3, gpConverter->toString (KPortMode_RawFile));
-    mCbMode->setItemText (2, gpConverter->toString (KPortMode_HostDevice));
-    mCbMode->setItemText (1, gpConverter->toString (KPortMode_HostPipe));
-    mCbMode->setItemText (0, gpConverter->toString (KPortMode_Disconnected));
+    mCbMode->setItemText (3, vboxGlobal().toString (KPortMode_RawFile));
+    mCbMode->setItemText (2, vboxGlobal().toString (KPortMode_HostDevice));
+    mCbMode->setItemText (1, vboxGlobal().toString (KPortMode_HostPipe));
+    mCbMode->setItemText (0, vboxGlobal().toString (KPortMode_Disconnected));
 }
 
 void UIMachineSettingsSerial::mGbSerialToggled (bool aOn)
@@ -174,9 +179,8 @@ void UIMachineSettingsSerial::mGbSerialToggled (bool aOn)
         mCbNumberActivated (mCbNumber->currentText());
         mCbModeActivated (mCbMode->currentText());
     }
-
-    /* Revalidate: */
-    m_pParent->revalidate();
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 void UIMachineSettingsSerial::mCbNumberActivated (const QString &aText)
@@ -191,33 +195,22 @@ void UIMachineSettingsSerial::mCbNumberActivated (const QString &aText)
         mLeIRQ->setText (QString::number (IRQ));
         mLeIOPort->setText ("0x" + QString::number (IOBase, 16).toUpper());
     }
-
-    /* Revalidate: */
-    m_pParent->revalidate();
 }
 
 void UIMachineSettingsSerial::mCbModeActivated (const QString &aText)
 {
-    KPortMode mode = gpConverter->fromString<KPortMode> (aText);
+    KPortMode mode = vboxGlobal().toPortMode (aText);
     mCbPipe->setEnabled (mode == KPortMode_HostPipe);
     mLePath->setEnabled (mode != KPortMode_Disconnected);
-
-    /* Revalidate: */
-    m_pParent->revalidate();
-}
-
-void UIMachineSettingsSerial::prepareValidation()
-{
-    /* Prepare validation: */
-    connect(mLeIRQ, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
-    connect(mLeIOPort, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
-    connect(mLePath, SIGNAL(textChanged(const QString&)), m_pParent, SLOT(revalidate()));
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 
 /* UIMachineSettingsSerialPage stuff */
 UIMachineSettingsSerialPage::UIMachineSettingsSerialPage()
-    : mTabWidget(0)
+    : mValidator(0)
+    , mTabWidget(0)
 {
     /* TabWidget creation */
     mTabWidget = new QITabWidget (this);
@@ -236,7 +229,7 @@ UIMachineSettingsSerialPage::UIMachineSettingsSerialPage()
     }
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsSerialPage::loadToCacheFrom(QVariant &data)
 {
@@ -292,6 +285,9 @@ void UIMachineSettingsSerialPage::getFromCache()
         /* Load port data to page: */
         pPage->fetchPortData(m_cache.child(iPort));
 
+        /* Setup page validation: */
+        pPage->setValidator(mValidator);
+
         /* Setup tab order: */
         pLastFocusWidget = pPage->setOrderAfter(pLastFocusWidget);
     }
@@ -302,8 +298,9 @@ void UIMachineSettingsSerialPage::getFromCache()
     /* Polish page finally: */
     polishPage();
 
-    /* Revalidate: */
-    revalidate();
+    /* Revalidate if possible: */
+    if (mValidator)
+        mValidator->revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
@@ -367,77 +364,68 @@ void UIMachineSettingsSerialPage::saveFromCacheTo(QVariant &data)
     UISettingsPageMachine::uploadData(data);
 }
 
-bool UIMachineSettingsSerialPage::validate(QList<UIValidationMessage> &messages)
+void UIMachineSettingsSerialPage::setValidator (QIWidgetValidator * aVal)
 {
-    /* Pass by default: */
-    bool fPass = true;
+    mValidator = aVal;
+}
 
-    /* Validation stuff: */
-    QList<QPair<QString, QString> > ports;
+bool UIMachineSettingsSerialPage::revalidate (QString &aWarning, QString &aTitle)
+{
+    bool valid = true;
+    QStringList ports;
     QStringList paths;
 
-    /* Validate all the ports: */
-    for (int iIndex = 0; iIndex < mTabWidget->count(); ++iIndex)
+    int index = 0;
+    for (; index < mTabWidget->count(); ++ index)
     {
-        /* Get current tab/page: */
-        QWidget *pTab = mTabWidget->widget(iIndex);
-        UIMachineSettingsSerial *page = static_cast<UIMachineSettingsSerial*>(pTab);
+        QWidget *tab = mTabWidget->widget (index);
+        UIMachineSettingsSerial *page =
+            static_cast<UIMachineSettingsSerial*> (tab);
+
         if (!page->mGbSerial->isChecked())
             continue;
 
-        /* Prepare message: */
-        UIValidationMessage message;
-        message.first = vboxGlobal().removeAccelMark(mTabWidget->tabText(mTabWidget->indexOf(pTab)));
-
-        /* Check the port attribute emptiness & uniqueness: */
-        const QString strIRQ(page->mLeIRQ->text());
-        const QString strIOPort(page->mLeIOPort->text());
-        QPair<QString, QString> pair(strIRQ, strIOPort);
-
-        if (strIRQ.isEmpty())
+        /* Check the predefined port number unicity */
+        if (!page->isUserDefined())
         {
-            message.second << tr("No IRQ is currently specified.");
-            fPass = false;
-        }
-        if (strIOPort.isEmpty())
-        {
-            message.second << tr("No I/O port is currently specified.");
-            fPass = false;
-        }
-        if (ports.contains(pair))
-        {
-            message.second << tr("Two or more ports have the same settings.");
-            fPass = false;
+            QString port = page->mCbNumber->currentText();
+            valid = !ports.contains (port);
+            if (!valid)
+            {
+                aWarning = tr ("Duplicate port number selected ");
+                aTitle += ": " +
+                    vboxGlobal().removeAccelMark (mTabWidget->tabText (mTabWidget->indexOf (tab)));
+                break;
+            }
+            ports << port;
         }
 
-        ports << pair;
-
-        KPortMode mode = gpConverter->fromString<KPortMode>(page->mCbMode->currentText());
+        /* Check the port path emptiness & unicity */
+        KPortMode mode =
+            vboxGlobal().toPortMode (page->mCbMode->currentText());
         if (mode != KPortMode_Disconnected)
         {
-            const QString strPath(page->mLePath->text());
-
-            if (strPath.isEmpty())
+            QString path = page->mLePath->text();
+            valid = !path.isEmpty() && !paths.contains (path);
+            if (!valid)
             {
-                message.second << tr("No port path is currently specified.");
-                fPass = false;
+                if (!page->mGbSerial->isChecked())
+                    page->mCbMode->setCurrentIndex (KPortMode_Disconnected);
+                else
+                {
+                    aWarning = path.isEmpty() ?
+                        tr ("Port path not specified ") :
+                        tr ("Duplicate port path entered ");
+                    aTitle += ": " +
+                        vboxGlobal().removeAccelMark (mTabWidget->tabText (mTabWidget->indexOf (tab)));
+                    break;
+                }
             }
-            if (paths.contains(strPath))
-            {
-                message.second << tr("There are currently duplicate port paths specified.");
-                fPass = false;
-            }
-
-            paths << strPath;
+            paths << path;
         }
-
-        /* Serialize message: */
-        if (!message.second.isEmpty())
-            messages << message;
     }
 
-    /* Return result: */
-    return fPass;
+    return valid;
 }
 
 void UIMachineSettingsSerialPage::retranslateUi()

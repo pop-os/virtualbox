@@ -7,7 +7,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2013 Oracle Corporation
+; Copyright (C) 2006-2007 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,11 @@ BITS 64
 %endif
 
 %include "CPUMInternal.mac"
-%include "HMInternal.mac"
+%include "HWACCMInternal.mac"
 %include "TRPMInternal.mac"
 %include "VMMInternal.mac"
 %include "VBox/vmm/cpum.mac"
 %include "VBox/vmm/vm.mac"
-%include "VBox/vmm/hm_vmx.mac"
 %include "VBox/sup.mac"
 %include "VMMSwitcher.mac"
 %ifdef DO_GLOBALS

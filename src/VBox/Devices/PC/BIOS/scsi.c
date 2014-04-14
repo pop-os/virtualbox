@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2012 Oracle Corporation
+ * Copyright (C) 2004-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,37 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include <stdint.h>
-#include <string.h>
-#include "biosint.h"
-#include "inlines.h"
-#include "ebda.h"
-
-
-#if DEBUG_SCSI
-# define DBG_SCSI(...)  BX_INFO(__VA_ARGS__)
-#else
-# define DBG_SCSI(...)
-#endif
-
-#define VBSCSI_BUSY     (1 << 0)
-#define VBSCSI_ERROR    (1 << 1)
-
 /* The I/O port of the BusLogic SCSI adapter. */
-#define BUSLOGIC_BIOS_IO_PORT       0x430
+#define BUSLOGIC_ISA_IO_PORT 0x330
 /* The I/O port of the LsiLogic SCSI adapter. */
-#define LSILOGIC_BIOS_IO_PORT       0x434
+#define LSILOGIC_ISA_IO_PORT 0x340
 /* The I/O port of the LsiLogic SAS adapter. */
-#define LSILOGIC_SAS_BIOS_IO_PORT   0x438
+#define LSILOGIC_SAS_ISA_IO_PORT 0x350
 
-#define VBSCSI_REGISTER_STATUS   0
-#define VBSCSI_REGISTER_COMMAND  0
-#define VBSCSI_REGISTER_DATA_IN  1
-#define VBSCSI_REGISTER_IDENTIFY 2
-#define VBSCSI_REGISTER_RESET    3
-#define VBSCSI_REGISTER_DEVSTAT  3
+#define VBOXSCSI_REGISTER_STATUS   0
+#define VBOXSCSI_REGISTER_COMMAND  0
+#define VBOXSCSI_REGISTER_DATA_IN  1
+#define VBOXSCSI_REGISTER_IDENTIFY 2
+#define VBOXSCSI_REGISTER_RESET    3
 
-#define VBSCSI_MAX_DEVICES 16 /* Maximum number of devices a SCSI device can have. */
+#define VBOXSCSI_MAX_DEVICES 16 /* Maximum number of devices a SCSI device can have. */
 
 /* Command opcodes. */
 #define SCSI_INQUIRY       0x12
@@ -57,313 +40,256 @@
 #define SCSI_TXDIR_FROM_DEVICE 0
 #define SCSI_TXDIR_TO_DEVICE   1
 
-#pragma pack(1)
+#define VBOXSCSI_BUSY (1 << 0)
 
-/* READ_10/WRITE_10 CDB layout. */
-typedef struct {
-    uint16_t    command;    /* Command. */
-    uint32_t    lba;        /* LBA, MSB first! */
-    uint8_t     pad1;       /* Unused. */
-    uint16_t    nsect;      /* Sector count, MSB first! */
-    uint8_t     pad2;       /* Unused. */
-} cdb_rw10;
+//#define VBOX_SCSI_DEBUG 1 /* temporary */
 
-#pragma pack()
+#ifdef VBOX_SCSI_DEBUG
+# define VBOXSCSI_DEBUG(a...) BX_INFO(a)
+#else
+# define VBOXSCSI_DEBUG(a...)
+#endif
 
-ct_assert(sizeof(cdb_rw10) == 10);
-
-
-void insb_discard(unsigned nbytes, unsigned port);
-#pragma aux insb_discard =  \
-    ".286"                  \
-    "again:"                \
-    "in al,dx"              \
-    "loop again"            \
-    parm [cx] [dx] modify exact [cx ax] nomemory;
-
-
-int scsi_cmd_data_in(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
-                     uint8_t cbCDB, uint8_t __far *buffer, uint32_t length)
+int scsi_cmd_data_in(io_base, device_id, cdb_segment, aCDB, cbCDB, segment, offset, cbBuffer)
+    Bit16u io_base, aCDB, offset, cbBuffer, segment, cdb_segment;
+    Bit8u  device_id, cbCDB;
 {
     /* Check that the adapter is ready. */
-    uint8_t     status, sizes;
-    uint16_t    i;
+    Bit8u status;
+    Bit16u i;
 
     do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
+    {
+        status = inb(io_base+VBOXSCSI_REGISTER_STATUS);
+    } while (status & VBOXSCSI_BUSY);
 
-
-    sizes = ((length >> 12) & 0xF0) | cbCDB;
-    outb(io_base + VBSCSI_REGISTER_COMMAND, target_id);                 /* Write the target ID. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, SCSI_TXDIR_FROM_DEVICE);    /* Write the transfer direction. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, sizes);                     /* Write CDB size and top bufsize bits. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, length);                    /* Write the buffer size. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, (length >> 8));
-    for (i = 0; i < cbCDB; i++)                                         /* Write the CDB. */
-        outb(io_base + VBSCSI_REGISTER_COMMAND, aCDB[i]);
+    /* Write target ID. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, device_id);
+    /* Write transfer direction. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, SCSI_TXDIR_FROM_DEVICE);
+    /* Write the CDB size. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, cbCDB);
+    /* Write buffer size. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, cbBuffer);
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, (cbBuffer >> 8));
+    /* Write the CDB. */
+    for (i = 0; i < cbCDB; i++)
+        outb(io_base+VBOXSCSI_REGISTER_COMMAND, read_byte(cdb_segment, aCDB + i));
 
     /* Now wait for the command to complete. */
     do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
+    {
+        status = inb(io_base+VBOXSCSI_REGISTER_STATUS);
+    } while (status & VBOXSCSI_BUSY);
 
-    /* Read in the data. The transfer length may be exactly 64K or more,
-     * which needs a bit of care when we're using 16-bit 'rep ins'.
-     */
-    while (length > 32768) {
-        DBG_SCSI("%s: reading 32K to %X:%X\n", __func__, FP_SEG(buffer), FP_OFF(buffer));
-        rep_insb(buffer, 32768, io_base + VBSCSI_REGISTER_DATA_IN);
-        length -= 32768;
-        buffer = (FP_SEG(buffer) + (32768 >> 4)) :> FP_OFF(buffer);
+#if 0
+    /* Get the read data. */
+    for (i = 0; i < cbBuffer; i++)
+    {
+        Bit8u data;
+
+        data = inb(io_base+VBOXSCSI_REGISTER_DATA_IN);
+        write_byte(segment, offset+i, data);
+
+        VBOXSCSI_DEBUG("buffer[%d]=%x\n", i, data);
     }
+#else
+    io_base = io_base + VBOXSCSI_REGISTER_DATA_IN;
 
-    DBG_SCSI("%s: reading %ld bytes to %X:%X\n", __func__, length, FP_SEG(buffer), FP_OFF(buffer));
-    rep_insb(buffer, length, io_base + VBSCSI_REGISTER_DATA_IN);
+ASM_START
+        push bp
+        mov  bp, sp
+        mov  di, _scsi_cmd_data_in.offset + 2[bp]
+        mov  ax, _scsi_cmd_data_in.segment + 2[bp]
+        mov  cx, _scsi_cmd_data_in.cbBuffer + 2[bp]
+
+        mov   es, ax      ;; segment in es
+        mov   dx, _scsi_cmd_data_in.io_base + 2[bp] ;; SCSI data read port
+
+        rep
+          insb ;; CX dwords transferred from port(DX) to ES:[DI]
+
+        pop  bp
+ASM_END
+#endif
 
     return 0;
 }
 
-int scsi_cmd_data_out(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
-                      uint8_t cbCDB, uint8_t __far *buffer, uint32_t length)
+int scsi_cmd_data_out(io_base, device_id, cdb_segment, aCDB, cbCDB, segment, offset, cbBuffer)
+    Bit16u io_base, aCDB, offset, cbBuffer, segment, cdb_segment;
+    Bit8u  device_id, cbCDB;
 {
     /* Check that the adapter is ready. */
-    uint8_t     status, sizes;
-    uint16_t    i;
+    Bit8u status;
+    Bit16u i;
 
     do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
+    {
+        status = inb(io_base+VBOXSCSI_REGISTER_STATUS);
+    } while (status & VBOXSCSI_BUSY);
 
+    /* Write target ID. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, device_id);
+    /* Write transfer direction. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, SCSI_TXDIR_TO_DEVICE);
+    /* Write the CDB size. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, cbCDB);
+    /* Write buffer size. */
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, cbBuffer);
+    outb(io_base+VBOXSCSI_REGISTER_COMMAND, (cbBuffer >> 8));
+    /* Write the CDB. */
+    for (i = 0; i < cbCDB; i++)
+        outb(io_base+VBOXSCSI_REGISTER_COMMAND, read_byte(cdb_segment, aCDB + i));
 
-    sizes = ((length >> 12) & 0xF0) | cbCDB;
-    outb(io_base + VBSCSI_REGISTER_COMMAND, target_id);                 /* Write the target ID. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, SCSI_TXDIR_TO_DEVICE);      /* Write the transfer direction. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, sizes);                     /* Write CDB size and top bufsize bits. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, length);                    /* Write the buffer size. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, (length >> 8));
-    for (i = 0; i < cbCDB; i++)                                         /* Write the CDB. */
-        outb(io_base + VBSCSI_REGISTER_COMMAND, aCDB[i]);
+#if 0
+    /* Write data to I/O port. */
+    for (i = 0; i < cbBuffer; i++)
+    {
+        Bit8u data;
 
-    /* Write out the data. The transfer length may be exactly 64K or more,
-     * which needs a bit of care when we're using 16-bit 'rep outs'.
-     */
-    while (length > 32768) {
-        DBG_SCSI("%s: writing 32K from %X:%X\n", __func__, FP_SEG(buffer), FP_OFF(buffer));
-        rep_outsb(buffer, 32768, io_base + VBSCSI_REGISTER_DATA_IN);
-        length -= 32768;
-        buffer = (FP_SEG(buffer) + (32768 >> 4)) :> FP_OFF(buffer);
+        data = read_byte(segment, offset+i);
+        outb(io_base+VBOXSCSI_REGISTER_DATA_IN, data);
+
+        VBOXSCSI_DEBUG("buffer[%d]=%x\n", i, data);
     }
+#else
+ASM_START
+        push bp
+        mov  bp, sp
+        mov  si, _scsi_cmd_data_out.offset + 2[bp]
+        mov  ax, _scsi_cmd_data_out.segment + 2[bp]
+        mov  cx, _scsi_cmd_data_out.cbBuffer + 2[bp]
 
-    DBG_SCSI("%s: writing %ld bytes from %X:%X\n", __func__, length, FP_SEG(buffer), FP_OFF(buffer));
-    rep_outsb(buffer, length, io_base + VBSCSI_REGISTER_DATA_IN);
+        mov   dx, _scsi_cmd_data_out.io_base + 2[bp] ;; SCSI data write port
+        add   dx, #VBOXSCSI_REGISTER_DATA_IN
+        push  ds
+        mov   ds, ax      ;; segment in ds
+
+        rep
+          outsb ;; CX bytes transferred from DS:[SI] to port(DX)
+
+        pop  ds
+        pop  bp
+ASM_END
+#endif
 
     /* Now wait for the command to complete. */
     do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
+    {
+        status = inb(io_base+VBOXSCSI_REGISTER_STATUS);
+    } while (status & VBOXSCSI_BUSY);
 
     return 0;
 }
+
 
 /**
- * Read sectors from an attached SCSI device.
+ * Read sectors from an attached scsi device.
  *
  * @returns status code.
- * @param   bios_dsk    Pointer to disk request packet (in the
- *                      EBDA).
+ * @param   device_id   Id of the SCSI device to read from.
+ * @param   count       The number of sectors to read.
+ * @param   lba         The start sector to read from.
+ * @param   segment     The segment the buffer is in.
+ * @param   offset      The offset of the buffer.
  */
-int scsi_read_sectors(bio_dsk_t __far *bios_dsk)
+int scsi_read_sectors(device_id, count, lba, segment, offset)
+    Bit8u device_id;
+    Bit16u count, segment, offset;
+    Bit32u lba;
 {
-    uint8_t             rc;
-    cdb_rw10            cdb;
-    uint16_t            count;
-    uint16_t            io_base;
-    uint8_t             target_id;
-    uint8_t             device_id;
+    Bit8u rc;
+    Bit8u aCDB[10];
+    Bit16u io_base, ebda_seg;
+    Bit8u  target_id;
 
-    device_id = VBOX_GET_SCSI_DEVICE(bios_dsk->drqp.dev_id);
     if (device_id > BX_MAX_SCSI_DEVICES)
         BX_PANIC("scsi_read_sectors: device_id out of range %d\n", device_id);
 
-    count    = bios_dsk->drqp.nsect;
+    ebda_seg = read_word(0x0040, 0x000E);
+    // Reset count of transferred data
+    write_word(ebda_seg, &EbdaData->ata.trsfsectors,0);
+    write_dword(ebda_seg, &EbdaData->ata.trsfbytes,0L);
 
-    /* Prepare a CDB. */
-    cdb.command = SCSI_READ_10;
-    cdb.lba     = swap_32(bios_dsk->drqp.lba);
-    cdb.pad1    = 0;
-    cdb.nsect   = swap_16(count);
-    cdb.pad2    = 0;
+    /* Prepare CDB */
+    write_byte(get_SS(), aCDB + 0, SCSI_READ_10);
+    write_byte(get_SS(), aCDB + 1, 0);
+    write_byte(get_SS(), aCDB + 2, (uint8_t)(lba >> 24));
+    write_byte(get_SS(), aCDB + 3, (uint8_t)(lba >> 16));
+    write_byte(get_SS(), aCDB + 4, (uint8_t)(lba >>  8));
+    write_byte(get_SS(), aCDB + 5, (uint8_t)(lba));
+    write_byte(get_SS(), aCDB + 6, 0);
+    write_byte(get_SS(), aCDB + 7, (uint8_t)(count >> 8));
+    write_byte(get_SS(), aCDB + 8, (uint8_t)(count));
+    write_byte(get_SS(), aCDB + 9, 0);
 
+    io_base = read_word(ebda_seg, &EbdaData->scsi.devices[device_id].io_base);
+    target_id = read_byte(ebda_seg, &EbdaData->scsi.devices[device_id].target_id);
 
-    io_base   = bios_dsk->scsidev[device_id].io_base;
-    target_id = bios_dsk->scsidev[device_id].target_id;
-
-    DBG_SCSI("%s: reading %u sectors, device %d, target %d\n", __func__,
-             count, device_id, bios_dsk->scsidev[device_id].target_id);
-
-    rc = scsi_cmd_data_in(io_base, target_id, (void __far *)&cdb, 10,
-                          bios_dsk->drqp.buffer, (count * 512L));
+    rc = scsi_cmd_data_in(io_base, target_id, get_SS(), aCDB, 10, segment, offset, (count * 512));
 
     if (!rc)
     {
-        bios_dsk->drqp.trsfsectors = count;
-        bios_dsk->drqp.trsfbytes   = count * 512L;
+        write_word(ebda_seg, &EbdaData->ata.trsfsectors, count);
+        write_dword(ebda_seg, &EbdaData->ata.trsfbytes, (count * 512));
     }
-    DBG_SCSI("%s: transferred %u sectors\n", __func__, bios_dsk->drqp.nsect);
 
     return rc;
 }
 
 /**
- * Write sectors to an attached SCSI device.
+ * Write sectors to an attached scsi device.
  *
  * @returns status code.
- * @param   bios_dsk    Pointer to disk request packet (in the
- *                      EBDA).
+ * @param   device_id   Id of the SCSI device to write to.
+ * @param   count       The number of sectors to write.
+ * @param   lba         The start sector to write to.
+ * @param   segment     The segment the buffer is in.
+ * @param   offset      The offset of the buffer.
  */
-int scsi_write_sectors(bio_dsk_t __far *bios_dsk)
+int scsi_write_sectors(device_id, count, lba, segment, offset)
+    Bit8u device_id;
+    Bit16u count, segment, offset;
+    Bit32u lba;
 {
-    uint8_t             rc;
-    cdb_rw10            cdb;
-    uint16_t            count;
-    uint16_t            io_base;
-    uint8_t             target_id;
-    uint8_t             device_id;
+    Bit8u rc;
+    Bit8u aCDB[10];
+    Bit16u io_base, ebda_seg;
+    Bit8u  target_id;
 
-    device_id = VBOX_GET_SCSI_DEVICE(bios_dsk->drqp.dev_id);
     if (device_id > BX_MAX_SCSI_DEVICES)
         BX_PANIC("scsi_write_sectors: device_id out of range %d\n", device_id);
 
-    count    = bios_dsk->drqp.nsect;
+    ebda_seg = read_word(0x0040, 0x000E);
+    // Reset count of transferred data
+    write_word(ebda_seg, &EbdaData->ata.trsfsectors,0);
+    write_dword(ebda_seg, &EbdaData->ata.trsfbytes,0L);
 
-    /* Prepare a CDB. */
-    cdb.command = SCSI_WRITE_10;
-    cdb.lba     = swap_32(bios_dsk->drqp.lba);
-    cdb.pad1    = 0;
-    cdb.nsect   = swap_16(count);
-    cdb.pad2    = 0;
+    /* Prepare CDB */
+    write_byte(get_SS(), aCDB + 0, SCSI_WRITE_10);
+    write_byte(get_SS(), aCDB + 1, 0);
+    write_byte(get_SS(), aCDB + 2, (uint8_t)(lba >> 24));
+    write_byte(get_SS(), aCDB + 3, (uint8_t)(lba >> 16));
+    write_byte(get_SS(), aCDB + 4, (uint8_t)(lba >>  8));
+    write_byte(get_SS(), aCDB + 5, (uint8_t)(lba));
+    write_byte(get_SS(), aCDB + 6, 0);
+    write_byte(get_SS(), aCDB + 7, (uint8_t)(count >> 8));
+    write_byte(get_SS(), aCDB + 8, (uint8_t)(count));
+    write_byte(get_SS(), aCDB + 9, 0);
 
-    io_base   = bios_dsk->scsidev[device_id].io_base;
-    target_id = bios_dsk->scsidev[device_id].target_id;
+    io_base = read_word(ebda_seg, &EbdaData->scsi.devices[device_id].io_base);
+    target_id = read_byte(ebda_seg, &EbdaData->scsi.devices[device_id].target_id);
 
-    DBG_SCSI("%s: writing %u sectors, device %d, target %d\n", __func__,
-             count, device_id, bios_dsk->scsidev[device_id].target_id);
-
-    rc = scsi_cmd_data_out(io_base, target_id, (void __far *)&cdb, 10,
-                           bios_dsk->drqp.buffer, (count * 512L));
+    rc = scsi_cmd_data_out(io_base, target_id, get_SS(), aCDB, 10, segment, offset, (count * 512));
 
     if (!rc)
     {
-        bios_dsk->drqp.trsfsectors = count;
-        bios_dsk->drqp.trsfbytes   = (count * 512L);
+        write_word(ebda_seg, &EbdaData->ata.trsfsectors, count);
+        write_dword(ebda_seg, &EbdaData->ata.trsfbytes, (count * 512));
     }
-    DBG_SCSI("%s: transferred %u sectors\n", __func__, bios_dsk->drqp.nsect);
 
     return rc;
-}
-
-
-//@todo: move
-#define ATA_DATA_NO      0x00
-#define ATA_DATA_IN      0x01
-#define ATA_DATA_OUT     0x02
-
-/**
- * Perform a "packet style" read with supplied CDB.
- *
- * @returns status code.
- * @param   bios_dsk    Pointer to disk request packet (in the
- *                      EBDA).
- */
-uint16_t scsi_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
-                         uint16_t before, uint32_t length, uint8_t inout, char __far *buffer)
-{
-    bio_dsk_t __far *bios_dsk = read_word(0x0040, 0x000E) :> &EbdaData->bdisk;
-    uint32_t        read_len;
-    uint8_t         status, sizes;
-    uint16_t        i;
-    uint16_t        io_base;
-    uint8_t         target_id;
-
-    /* Data out is currently not supported. */
-    if (inout == ATA_DATA_OUT) {
-        BX_INFO("%s: DATA_OUT not supported yet\n", __func__);
-        return 1;
-    }
-
-    /* Convert to SCSI specific device number. */
-    device_id = VBOX_GET_SCSI_DEVICE(device_id);
-
-    DBG_SCSI("%s: reading %lu bytes, skip %u/%u, device %d, target %d\n", __func__,
-             length, bios_dsk->drqp.skip_b, bios_dsk->drqp.skip_a,
-             device_id, bios_dsk->scsidev[device_id].target_id);
-    DBG_SCSI("%s: reading %u %u-byte sectors\n", __func__,
-             bios_dsk->drqp.nsect, bios_dsk->drqp.sect_sz);
-
-    cmdlen -= 2; /* ATAPI uses 12-byte command packets for a READ 10. */
-
-    io_base   = bios_dsk->scsidev[device_id].io_base;
-    target_id = bios_dsk->scsidev[device_id].target_id;
-
-    /* Wait until the adapter is ready. */
-    do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
-
-    /* On the SCSI level, we have to transfer whole sectors. */
-    /* NB: With proper residual length support, this should not be necessary; we should
-     * be able to avoid transferring the 'after' part of the sector.
-     */
-    read_len = length + before + bios_dsk->drqp.skip_a;
-
-    sizes = (((read_len) >> 12) & 0xF0) | cmdlen;
-    outb(io_base + VBSCSI_REGISTER_COMMAND, target_id);                 /* Write the target ID. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, SCSI_TXDIR_FROM_DEVICE);    /* Write the transfer direction. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, sizes);                     /* Write the CDB size. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, read_len);                  /* Write the buffer size. */
-    outb(io_base + VBSCSI_REGISTER_COMMAND, (read_len) >> 8);
-    for (i = 0; i < cmdlen; i++)                                        /* Write the CDB. */
-        outb(io_base + VBSCSI_REGISTER_COMMAND, cmdbuf[i]);
-
-    /* Now wait for the command to complete. */
-    do
-        status = inb(io_base + VBSCSI_REGISTER_STATUS);
-    while (status & VBSCSI_BUSY);
-
-    /* If any error occurred, inform the caller and don't bother reading the data. */
-    if (status & VBSCSI_ERROR) {
-        outb(io_base + VBSCSI_REGISTER_RESET, 0);
-
-        status = inb(io_base + VBSCSI_REGISTER_DEVSTAT);
-        DBG_SCSI("%s: read failed, device status %02X\n", __func__, status);
-        return 3;
-    }
-
-    /* Transfer the data read from the device. */
-
-    if (before)     /* If necessary, throw away data which needs to be skipped. */
-        insb_discard(before, io_base + VBSCSI_REGISTER_DATA_IN);
-
-    bios_dsk->drqp.trsfbytes = length;
-
-    /* The requested length may be exactly 64K or more, which needs
-     * a bit of care when we're using 16-bit 'rep ins'.
-     */
-    while (length > 32768) {
-        DBG_SCSI("%s: reading 32K to %X:%X\n", __func__, FP_SEG(buffer), FP_OFF(buffer));
-        rep_insb(buffer, 32768, io_base + VBSCSI_REGISTER_DATA_IN);
-        length -= 32768;
-        buffer = (FP_SEG(buffer) + (32768 >> 4)) :> FP_OFF(buffer);
-    }
-
-    DBG_SCSI("%s: reading %ld bytes to %X:%X\n", __func__, length, FP_SEG(buffer), FP_OFF(buffer));
-    rep_insb(buffer, length, io_base + VBSCSI_REGISTER_DATA_IN);
-
-    if (bios_dsk->drqp.skip_a)  /* If necessary, throw away more data. */
-        insb_discard(bios_dsk->drqp.skip_a, io_base + VBSCSI_REGISTER_DATA_IN);
-
-    return 0;
 }
 
 /**
@@ -372,65 +298,64 @@ uint16_t scsi_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
  * @returns nothing.
  * @param   io_base    The I/O base port of the controller.
  */
-void scsi_enumerate_attached_devices(uint16_t io_base)
+void scsi_enumerate_attached_devices(io_base)
+    Bit16u io_base;
 {
-    int                 i;
-    uint8_t             buffer[0x0200];
-    bio_dsk_t __far     *bios_dsk;
+    Bit16u ebda_seg;
+    Bit8u i;
+    Bit8u buffer[0x0200];
 
-    bios_dsk = read_word(0x0040, 0x000E) :> &EbdaData->bdisk;
+    ebda_seg = read_word(0x0040, 0x000E);
 
     /* Go through target devices. */
-    for (i = 0; i < VBSCSI_MAX_DEVICES; i++)
+    for (i = 0; i < VBOXSCSI_MAX_DEVICES; i++)
     {
-        uint8_t     rc;
-        uint8_t     aCDB[10];
-        uint8_t     hd_index, devcount_scsi;
+        Bit8u rc;
+        Bit8u z;
+        Bit8u aCDB[10];
 
-        aCDB[0] = SCSI_INQUIRY;
-        aCDB[1] = 0;
-        aCDB[2] = 0;
-        aCDB[3] = 0;
-        aCDB[4] = 5; /* Allocation length. */
-        aCDB[5] = 0;
+        write_byte(get_SS(), aCDB + 0, SCSI_INQUIRY);
+        write_byte(get_SS(), aCDB + 1, 0);
+        write_byte(get_SS(), aCDB + 2, 0);
+        write_byte(get_SS(), aCDB + 3, 0);
+        write_byte(get_SS(), aCDB + 4, 5); /* Allocation length. */
+        write_byte(get_SS(), aCDB + 5, 0);
 
-        rc = scsi_cmd_data_in(io_base, i, aCDB, 6, buffer, 5);
+        rc = scsi_cmd_data_in(io_base, i, get_SS(), aCDB, 6, get_SS(), buffer, 5);
         if (rc != 0)
-            BX_PANIC("%s: SCSI_INQUIRY failed\n", __func__);
+            BX_PANIC("scsi_enumerate_attached_devices: SCSI_INQUIRY failed\n");
 
-        /* Check the attached device. */
+        /* Check if there is a disk attached. */
         if (   ((buffer[0] & 0xe0) == 0)
             && ((buffer[0] & 0x1f) == 0x00))
         {
-            DBG_SCSI("%s: Disk detected at %d\n", __func__, i);
+            VBOXSCSI_DEBUG("scsi_enumerate_attached_devices: Disk detected at %d\n", i);
 
             /* We add the disk only if the maximum is not reached yet. */
-            if (bios_dsk->scsi_devcount < BX_MAX_SCSI_DEVICES)
+            if (read_byte(ebda_seg, &EbdaData->scsi.hdcount) < BX_MAX_SCSI_DEVICES)
             {
-                uint32_t    sectors, sector_size, cylinders;
-                uint16_t    heads, sectors_per_track;
-                uint8_t     hdcount;
-                uint8_t     cmos_base;
+                Bit32u sectors, sector_size, cylinders;
+                Bit16u heads, sectors_per_track;
+                Bit8u  hdcount, hdcount_scsi;
 
                 /* Issue a read capacity command now. */
-                _fmemset(aCDB, 0, sizeof(aCDB));
-                aCDB[0] = SCSI_READ_CAPACITY;
+                write_byte(get_SS(), aCDB + 0, SCSI_READ_CAPACITY);
+                memsetb(get_SS(), aCDB + 1, 0, 9);
 
-                rc = scsi_cmd_data_in(io_base, i, aCDB, 10, buffer, 8);
+                rc = scsi_cmd_data_in(io_base, i, get_SS(), aCDB, 10, get_SS(), buffer, 8);
                 if (rc != 0)
-                    BX_PANIC("%s: SCSI_READ_CAPACITY failed\n", __func__);
+                    BX_PANIC("scsi_enumerate_attached_devices: SCSI_READ_CAPACITY failed\n");
 
                 /* Build sector number and size from the buffer. */
-                //@todo: byte swapping for dword sized items should be farmed out...
-                sectors =   ((uint32_t)buffer[0] << 24)
-                          | ((uint32_t)buffer[1] << 16)
-                          | ((uint32_t)buffer[2] << 8)
-                          | ((uint32_t)buffer[3]);
+                sectors =   ((uint32_t)read_byte(get_SS(), buffer + 0) << 24)
+                          | ((uint32_t)read_byte(get_SS(), buffer + 1) << 16)
+                          | ((uint32_t)read_byte(get_SS(), buffer + 2) << 8)
+                          | ((uint32_t)read_byte(get_SS(), buffer + 3));
 
-                sector_size =   ((uint32_t)buffer[4] << 24)
-                              | ((uint32_t)buffer[5] << 16)
-                              | ((uint32_t)buffer[6] << 8)
-                              | ((uint32_t)buffer[7]);
+                sector_size =   ((uint32_t)read_byte(get_SS(), buffer + 4) << 24)
+                              | ((uint32_t)read_byte(get_SS(), buffer + 5) << 16)
+                              | ((uint32_t)read_byte(get_SS(), buffer + 6) << 8)
+                              | ((uint32_t)read_byte(get_SS(), buffer + 7));
 
                 /* We only support the disk if sector size is 512 bytes. */
                 if (sector_size != 512)
@@ -440,45 +365,16 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                     continue;
                 }
 
-                devcount_scsi = bios_dsk->scsi_devcount;
-
-                /* Get logical CHS geometry. */
-                switch (devcount_scsi)
+                /* We need to calculate the geometry for the disk. */
+                if (io_base == BUSLOGIC_ISA_IO_PORT)
                 {
-                    case 0:
-                        cmos_base = 0x90;
-                        break;
-                    case 1:
-                        cmos_base = 0x98;
-                        break;
-                    case 2:
-                        cmos_base = 0xA0;
-                        break;
-                    case 3:
-                        cmos_base = 0xA8;
-                        break;
-                    default:
-                        cmos_base = 0;
-                }
-
-                if (cmos_base && inb_cmos(cmos_base + 7))
-                {
-                    /* If provided, grab the logical geometry from CMOS. */
-                    cylinders         = inb_cmos(cmos_base + 0) + (inb_cmos(cmos_base + 1) << 8);
-                    heads             = inb_cmos(cmos_base + 2);
-                    sectors_per_track = inb_cmos(cmos_base + 7);
-                }
-                else
-                {
-                    /* Calculate default logical geometry. NB: Very different
-                     * from default ATA/SATA logical geometry!
-                     */
-                    if (sectors >= (uint32_t)4 * 1024 * 1024)
+                    /* This is from the BusLogic driver in the Linux kernel. */
+                    if (sectors >= 4 * 1024 * 1024)
                     {
                         heads = 255;
                         sectors_per_track = 63;
                     }
-                    else if (sectors >= (uint32_t)2 * 1024 * 1024)
+                    else if (sectors >= 2 * 1024 * 1024)
                     {
                         heads = 128;
                         sectors_per_track = 32;
@@ -490,53 +386,69 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                     }
                     cylinders = (uint32_t)(sectors / (heads * sectors_per_track));
                 }
+                else if (io_base == LSILOGIC_ISA_IO_PORT || io_base == LSILOGIC_SAS_ISA_IO_PORT)
+                {
+                    /* This is from the BusLogic driver in the Linux kernel. */
+                    if (sectors >= 4 * 1024 * 1024)
+                    {
+                        heads = 255;
+                        sectors_per_track = 63;
+                    }
+                    else if (sectors >= 2 * 1024 * 1024)
+                    {
+                        heads = 128;
+                        sectors_per_track = 32;
+                    }
+                    else
+                    {
+                        heads = 64;
+                        sectors_per_track = 32;
+                    }
+                    cylinders = (uint32_t)(sectors / (heads * sectors_per_track));
+                }
+                hdcount_scsi = read_byte(ebda_seg, &EbdaData->scsi.hdcount);
 
-                /* Calculate index into the generic disk table. */
-                hd_index = devcount_scsi + BX_MAX_ATA_DEVICES;
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].io_base, io_base);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].target_id, i);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.type, ATA_TYPE_SCSI);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.device, ATA_DEVICE_HD);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.removable, 0);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.lock, 0);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.mode, ATA_MODE_PIO16);
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.blksize, sector_size);
+                write_byte(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.translation, ATA_TRANSLATION_LBA);
 
-                bios_dsk->scsidev[devcount_scsi].io_base   = io_base;
-                bios_dsk->scsidev[devcount_scsi].target_id = i;
-                bios_dsk->devices[hd_index].type        = DSK_TYPE_SCSI;
-                bios_dsk->devices[hd_index].device      = DSK_DEVICE_HD;
-                bios_dsk->devices[hd_index].removable   = 0;
-                bios_dsk->devices[hd_index].lock        = 0;
-                bios_dsk->devices[hd_index].blksize     = sector_size;
-                bios_dsk->devices[hd_index].translation = GEO_TRANSLATION_LBA;
-
-                /* Write LCHS values. */
-                bios_dsk->devices[hd_index].lchs.heads = heads;
-                bios_dsk->devices[hd_index].lchs.spt   = sectors_per_track;
+                /* Write lchs values. */
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.lchs.heads, heads);
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.lchs.spt, sectors_per_track);
                 if (cylinders > 1024)
-                    bios_dsk->devices[hd_index].lchs.cylinders = 1024;
+                    write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.lchs.cylinders, 1024);
                 else
-                    bios_dsk->devices[hd_index].lchs.cylinders = (uint16_t)cylinders;
+                    write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.lchs.cylinders, (Bit16u)cylinders);
 
-                BX_INFO("SCSI %d-ID#%d: LCHS=%u/%u/%u %lu sectors\n", devcount_scsi,
-                        i, (uint16_t)cylinders, heads, sectors_per_track, sectors);
-
-                /* Write PCHS values. */
-                bios_dsk->devices[hd_index].pchs.heads = heads;
-                bios_dsk->devices[hd_index].pchs.spt   = sectors_per_track;
+                /* Write pchs values. */
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.pchs.heads, heads);
+                write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.pchs.spt, sectors_per_track);
                 if (cylinders > 1024)
-                    bios_dsk->devices[hd_index].pchs.cylinders = 1024;
+                    write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.pchs.cylinders, 1024);
                 else
-                    bios_dsk->devices[hd_index].pchs.cylinders = (uint16_t)cylinders;
+                    write_word(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.pchs.cylinders, (Bit16u)cylinders);
 
-                bios_dsk->devices[hd_index].sectors = sectors;
+                write_dword(ebda_seg, &EbdaData->scsi.devices[hdcount_scsi].device_info.sectors, sectors);
 
                 /* Store the id of the disk in the ata hdidmap. */
-                hdcount = bios_dsk->hdcount;
-                bios_dsk->hdidmap[hdcount] = devcount_scsi + BX_MAX_ATA_DEVICES;
+                hdcount = read_byte(ebda_seg, &EbdaData->ata.hdcount);
+                write_byte(ebda_seg, &EbdaData->ata.hdidmap[hdcount], hdcount_scsi + BX_MAX_ATA_DEVICES);
                 hdcount++;
-                bios_dsk->hdcount = hdcount;
+                write_byte(ebda_seg, &EbdaData->ata.hdcount, hdcount);
 
                 /* Update hdcount in the BDA. */
                 hdcount = read_byte(0x40, 0x75);
                 hdcount++;
                 write_byte(0x40, 0x75, hdcount);
 
-                devcount_scsi++;
-                bios_dsk->scsi_devcount = devcount_scsi;
+                hdcount_scsi++;
+                write_byte(ebda_seg, &EbdaData->scsi.hdcount, hdcount_scsi);
             }
             else
             {
@@ -544,99 +456,71 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                 break;
             }
         }
-        else if (   ((buffer[0] & 0xe0) == 0)
-                 && ((buffer[0] & 0x1f) == 0x05))
-        {
-            uint8_t     cdcount;
-            uint8_t     removable;
-
-            BX_INFO("SCSI %d-ID#%d: CD/DVD-ROM\n", devcount_scsi, i);
-
-            /* Calculate index into the generic device table. */
-            hd_index = devcount_scsi + BX_MAX_ATA_DEVICES;
-
-            removable = buffer[1] & 0x80 ? 1 : 0;
-
-            bios_dsk->scsidev[devcount_scsi].io_base   = io_base;
-            bios_dsk->scsidev[devcount_scsi].target_id = i;
-            bios_dsk->devices[hd_index].type      = DSK_TYPE_SCSI;
-            bios_dsk->devices[hd_index].device    = DSK_DEVICE_CDROM;
-            bios_dsk->devices[hd_index].removable = removable;
-            bios_dsk->devices[hd_index].blksize   = 2048;
-
-            /* Store the ID of the device in the BIOS cdidmap. */
-            cdcount = bios_dsk->cdcount;
-            bios_dsk->cdidmap[cdcount] = devcount_scsi + BX_MAX_ATA_DEVICES;
-            cdcount++;
-            bios_dsk->cdcount = cdcount;
-
-            devcount_scsi++;
-            bios_dsk->scsi_devcount = devcount_scsi;
-        }
         else
-            DBG_SCSI("%s: No supported device detected at %d\n", __func__, i);
+            VBOXSCSI_DEBUG("scsi_enumerate_attached_devices: No disk detected at %d\n", i);
     }
 }
 
 /**
  * Init the SCSI driver and detect attached disks.
  */
-void BIOSCALL scsi_init(void)
+void scsi_init( )
 {
-    uint8_t             identifier;
-    bio_dsk_t __far     *bios_dsk;
+    Bit8u identifier;
+    Bit16u ebda_seg;
 
-    bios_dsk = read_word(0x0040, 0x000E) :> &EbdaData->bdisk;
 
-    bios_dsk->scsi_devcount = 0;
+    ebda_seg = read_word(0x0040, 0x000E);
+    write_byte(ebda_seg, &EbdaData->scsi.hdcount, 0);
 
     identifier = 0;
 
-    /* Detect the BusLogic adapter. */
-    outb(BUSLOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY, 0x55);
-    identifier = inb(BUSLOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY);
+    /* Detect BusLogic adapter. */
+    outb(BUSLOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY, 0x55);
+    identifier = inb(BUSLOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY);
 
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: BusLogic SCSI adapter detected\n");
-        outb(BUSLOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
-        scsi_enumerate_attached_devices(BUSLOGIC_BIOS_IO_PORT);
+        VBOXSCSI_DEBUG("scsi_init: BusLogic SCSI adapter detected\n");
+        outb(BUSLOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_RESET, 0);
+        scsi_enumerate_attached_devices(BUSLOGIC_ISA_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: BusLogic SCSI adapter not detected\n");
+        VBOXSCSI_DEBUG("scsi_init: BusLogic SCSI adapter not detected\n");
     }
 
-    /* Detect the LSI Logic parallel SCSI adapter. */
-    outb(LSILOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY, 0x55);
-    identifier = inb(LSILOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY);
+    /* Detect LsiLogic adapter. */
+    outb(LSILOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY, 0x55);
+    identifier = inb(LSILOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY);
 
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: LSI Logic SCSI adapter detected\n");
-        outb(LSILOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
-        scsi_enumerate_attached_devices(LSILOGIC_BIOS_IO_PORT);
+        VBOXSCSI_DEBUG("scsi_init: LsiLogic SCSI adapter detected\n");
+        outb(LSILOGIC_ISA_IO_PORT+VBOXSCSI_REGISTER_RESET, 0);
+        scsi_enumerate_attached_devices(LSILOGIC_ISA_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: LSI Logic SCSI adapter not detected\n");
+        VBOXSCSI_DEBUG("scsi_init: LsiLogic SCSI adapter not detected\n");
     }
 
-    /* Detect the LSI Logic SAS adapter. */
-    outb(LSILOGIC_SAS_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY, 0x55);
-    identifier = inb(LSILOGIC_SAS_BIOS_IO_PORT+VBSCSI_REGISTER_IDENTIFY);
+    /* Detect LsiLogic SAS adapter. */
+    outb(LSILOGIC_SAS_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY, 0x55);
+    identifier = inb(LSILOGIC_SAS_ISA_IO_PORT+VBOXSCSI_REGISTER_IDENTIFY);
 
     if (identifier == 0x55)
     {
         /* Detected - Enumerate attached devices. */
-        DBG_SCSI("scsi_init: LSI Logic SAS adapter detected\n");
-        outb(LSILOGIC_SAS_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
-        scsi_enumerate_attached_devices(LSILOGIC_SAS_BIOS_IO_PORT);
+        VBOXSCSI_DEBUG("scsi_init: LsiLogic SAS adapter detected\n");
+        outb(LSILOGIC_SAS_ISA_IO_PORT+VBOXSCSI_REGISTER_RESET, 0);
+        scsi_enumerate_attached_devices(LSILOGIC_SAS_ISA_IO_PORT);
     }
     else
     {
-        DBG_SCSI("scsi_init: LSI Logic SAS adapter not detected\n");
+        VBOXSCSI_DEBUG("scsi_init: LsiLogic SAS adapter not detected\n");
     }
 }
+

@@ -43,13 +43,11 @@
 
  {"U.S. English", &main_key_us},
  {"U.S. English, International (with dead keys)", &main_key_us_intl},
- {"U.S. English, International, alternative 102nd key", &main_key_us_intl_alt102},
  {"U.S. English, Dvorak", &main_key_us_dvorak},
  {"U.S. English, Left handed Dvorak", &main_key_us_dvorak_l},
  {"U.S. English, Right handed Dvorak", &main_key_us_dvorak_r},
  {"U.S. English, Classic Dvorak", &main_key_us_dvorak_classic},
  {"U.S. English, Russian phonetic", &main_key_us_rus},
- {"U.S. English, Colemak", &main_key_us_col},
  {"Afghanistan", &main_key_af},
  {"Afghanistan, Pashto", &main_key_af_ps},
  {"Afghanistan, Southern Uzbek", &main_key_af_uz},

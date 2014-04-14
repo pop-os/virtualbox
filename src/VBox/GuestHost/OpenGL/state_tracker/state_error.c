@@ -18,14 +18,9 @@ void crStateError( int line, const char *file, GLenum error, const char *format,
 	char errstr[8096];
 	va_list args;
 
-	CRASSERT(error != GL_NO_ERROR);
+	g->error = error;
 
-	if (g->error == GL_NO_ERROR)
-	    g->error = error;
-
-#ifndef DEBUG_misha
 	if (crGetenv("CR_DEBUG"))
-#endif
 	{
 		char *glerr;
 		va_start( args, format );

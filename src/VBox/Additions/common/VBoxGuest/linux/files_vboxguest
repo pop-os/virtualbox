@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2012 Oracle Corporation
+# Copyright (C) 2007-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/include/iprt/cpuset.h=>include/iprt/cpuset.h \
     ${PATH_ROOT}/include/iprt/ctype.h=>include/iprt/ctype.h \
     ${PATH_ROOT}/include/iprt/err.h=>include/iprt/err.h \
-    ${PATH_ROOT}/include/iprt/errno.h=>include/iprt/errno.h \
     ${PATH_ROOT}/include/iprt/heap.h=>include/iprt/heap.h \
     ${PATH_ROOT}/include/iprt/initterm.h=>include/iprt/initterm.h \
     ${PATH_ROOT}/include/iprt/list.h=>include/iprt/list.h \
@@ -163,7 +162,6 @@ FILES_VBOXGUEST_NOBIN=" \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/semevent-r0drv-linux.c=>r0drv/linux/semevent-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/semeventmulti-r0drv-linux.c=>r0drv/linux/semeventmulti-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/semfastmutex-r0drv-linux.c=>r0drv/linux/semfastmutex-r0drv-linux.c \
-    ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/semmutex-r0drv-linux.c=>r0drv/linux/semmutex-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/spinlock-r0drv-linux.c=>r0drv/linux/spinlock-r0drv-linux.c \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/string.h=>r0drv/linux/string.h \
     ${PATH_ROOT}/src/VBox/Runtime/r0drv/linux/the-linux-kernel.h=>r0drv/linux/the-linux-kernel.h \

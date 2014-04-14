@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,7 @@ extern DECLIMPORT(const unsigned)       g_cbNetBiosBinary;
 #endif /* !IN_VBOXDD2 */
 extern const PDMDEVREG g_DeviceAPIC;
 extern const PDMDEVREG g_DeviceIOAPIC;
+extern const PDMDEVREG g_DeviceSMC;
 extern const PDMDEVREG g_DeviceLPC;
 
 RT_C_DECLS_END

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,7 @@
 /* we've excluded stdio.h */
 #define FILE void
 
-int debug_init (PNATState);
+int debug_init (void);
 void ipstats (PNATState);
 void tcpstats (PNATState);
 void udpstats (PNATState);
@@ -49,21 +49,5 @@ do {                                                                            
 } while(0)
 #else
 # define TCP_STATE_SWITCH_TO(tp, new_tcp_state) (tp)->t_state = (new_tcp_state)
-#endif
-
-/* TCP CB state validity macro definitions
- * we need to be sure that TCP is in right state.
- * TCP_ACCEPTABLE_STATEX(tp, (X-states here))
- */
-#ifdef DEBUG_vvl
-# define TCP_ACCEPTABLE_STATE1(tp, tcp_state1) Assert(((tp)->t_state == (tcp_state)))
-# define TCP_ACCEPTABLE_STATE2(tp, tcp_state1, tcp_state2)                          \
-do {                                                                                \
-    Assert((   ((tp)->t_state == (tcp_state1))                                      \
-            || ((tp)->t_state == (tcp_state2))));                                   \
-} while(0)
-#else
-# define TCP_ACCEPTABLE_STATE1(tp, tcp_state1) do { } while(0)
-# define TCP_ACCEPTABLE_STATE2(tp, tcp_state1, tcp_state2) do { } while(0)
 #endif
 #endif

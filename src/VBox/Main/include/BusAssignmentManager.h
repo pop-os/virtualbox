@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,37 +32,37 @@ private:
     BusAssignmentManager();
     virtual ~BusAssignmentManager();
 
-    HRESULT assignPCIDeviceImpl(const char* pszDevName, PCFGMNODE pCfg, PCIBusAddress& GuestAddress, PCIBusAddress HostAddress, bool fGuestAddressRequired = false);
+    HRESULT assignPciDeviceImpl(const char* pszDevName, PCFGMNODE pCfg, PciBusAddress& GuestAddress, PciBusAddress HostAddress, bool fGuestAddressRequired = false);
 
 public:
     static BusAssignmentManager* createInstance(ChipsetType_T chipsetType);
     virtual void AddRef();
     virtual void Release();
 
-    virtual HRESULT assignHostPCIDevice(const char* pszDevName, PCFGMNODE pCfg, PCIBusAddress HostAddress, PCIBusAddress& GuestAddress, bool fAddressRequired = false)
+    virtual HRESULT assignHostPciDevice(const char* pszDevName, PCFGMNODE pCfg, PciBusAddress HostAddress, PciBusAddress& GuestAddress, bool fAddressRequired = false)
     {
-        return assignPCIDeviceImpl(pszDevName, pCfg, GuestAddress, HostAddress, fAddressRequired);
+        return assignPciDeviceImpl(pszDevName, pCfg, GuestAddress, HostAddress, fAddressRequired);
     }
 
-    virtual HRESULT assignPCIDevice(const char* pszDevName, PCFGMNODE pCfg, PCIBusAddress& Address, bool fAddressRequired = false)
+    virtual HRESULT assignPciDevice(const char* pszDevName, PCFGMNODE pCfg, PciBusAddress& Address, bool fAddressRequired = false)
     {
-        PCIBusAddress HostAddress;
-        return assignPCIDeviceImpl(pszDevName, pCfg, Address, HostAddress, fAddressRequired);
+        PciBusAddress HostAddress;
+        return assignPciDeviceImpl(pszDevName, pCfg, Address, HostAddress, fAddressRequired);
     }
 
-    virtual HRESULT assignPCIDevice(const char* pszDevName, PCFGMNODE pCfg)
+    virtual HRESULT assignPciDevice(const char* pszDevName, PCFGMNODE pCfg)
     {
-        PCIBusAddress GuestAddress;
-        PCIBusAddress HostAddress;
-        return assignPCIDeviceImpl(pszDevName, pCfg, GuestAddress, HostAddress, false);
+        PciBusAddress GuestAddress;
+        PciBusAddress HostAddress;
+        return assignPciDeviceImpl(pszDevName, pCfg, GuestAddress, HostAddress, false);
     }
-    virtual bool findPCIAddress(const char* pszDevName, int iInstance, PCIBusAddress& Address);
-    virtual bool hasPCIDevice(const char* pszDevName, int iInstance)
+    virtual bool findPciAddress(const char* pszDevName, int iInstance, PciBusAddress& Address);
+    virtual bool hasPciDevice(const char* pszDevName, int iInstance)
     {
-        PCIBusAddress Address;
-        return findPCIAddress(pszDevName, iInstance, Address);
+        PciBusAddress Address;
+        return findPciAddress(pszDevName, iInstance, Address);
     }
-    virtual void listAttachedPCIDevices(ComSafeArrayOut(IPCIDeviceAttachment*, aAttached));
+    virtual void listAttachedPciDevices(ComSafeArrayOut(IPciDeviceAttachment*, aAttached));
 };
 
 #endif //  __BusAssignmentManager_h

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,20 +21,16 @@
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
-#include <QFileInfo>
-#include <QIcon>
-
-/* GUI includes: */
+/* Local includes */
 #include "UIVMItem.h"
-#include "VBoxGlobal.h"
-#include "UIConverter.h"
+
+/* Qt includes */
+#include <QFileInfo>
+
 #ifdef Q_WS_MAC
+//# include "VBoxUtils.h"
 # include <ApplicationServices/ApplicationServices.h>
 #endif /* Q_WS_MAC */
-
-/* COM includes: */
-#include "CSnapshot.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -152,27 +148,15 @@ UIVMItem::~UIVMItem()
 // public members
 ////////////////////////////////////////////////////////////////////////////////
 
-QIcon UIVMItem::osIcon() const
-{
-    return m_fAccessible ? vboxGlobal().vmGuestOSTypeIcon(m_strOSTypeId) :
-                           QPixmap(":/os_other.png");
-}
-
 QString UIVMItem::machineStateName() const
 {
-    return m_fAccessible ? gpConverter->toString(m_machineState) :
+    return m_fAccessible ? vboxGlobal().toString(m_machineState) :
            QApplication::translate("UIVMListView", "Inaccessible");
-}
-
-QIcon UIVMItem::machineStateIcon() const
-{
-    return m_fAccessible ? gpConverter->toPixmap(m_machineState) :
-                           QPixmap(":/state_aborted_16px.png");
 }
 
 QString UIVMItem::sessionStateName() const
 {
-    return m_fAccessible ? gpConverter->toString(m_sessionState) :
+    return m_fAccessible ? vboxGlobal().toString(m_sessionState) :
            QApplication::translate("UIVMListView", "Inaccessible");
 }
 
@@ -195,9 +179,9 @@ QString UIVMItem::toolTipText() const
             "<nobr>Session %4</nobr>",
             "VM tooltip (name, last state change, session state)")
             .arg(toolTip)
-            .arg(gpConverter->toString(m_machineState))
+            .arg(vboxGlobal().toString(m_machineState))
             .arg(dateTime)
-            .arg(gpConverter->toString(m_sessionState).toLower());
+            .arg(vboxGlobal().toString(m_sessionState));
     }
     else
     {
@@ -249,19 +233,12 @@ bool UIVMItem::recache()
         }
         else
         {
-            m_pid = m_machine.GetSessionPID();
+            m_pid = m_machine.GetSessionPid();
     /// @todo Remove. See @c todo in #switchTo() below.
 #if 0
             mWinId = FindWindowIdFromPid(m_pid);
 #endif
         }
-
-        /* Should we allow reconfiguration for this item? */
-        m_fReconfigurable = m_machineState != KMachineState_Stuck &&
-                            VBoxGlobal::shouldWeAllowMachineReconfiguration(m_machine);
-
-        /* Should we show details for this item? */
-        m_fHasDetails = VBoxGlobal::shouldWeShowDetails(m_machine);
     }
     else
     {
@@ -270,7 +247,7 @@ bool UIVMItem::recache()
         /* this should be in sync with
          * UIMessageCenter::confirm_machineDeletion() */
         QFileInfo fi(m_strSettingsFile);
-        QString name = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxFileExts) ?
+        QString name = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxDefs::VBoxFileExts) ?
                        fi.completeBaseName() : fi.fileName();
         needsResort = name != m_strName;
         m_strName = name;
@@ -285,12 +262,6 @@ bool UIVMItem::recache()
 #if 0
         mWinId = (WId) ~0;
 #endif
-
-        /* Should we allow reconfiguration for this item? */
-        m_fReconfigurable = false;
-
-        /* Should we show details for this item? */
-        m_fHasDetails = true;
     }
 
     return needsResort;
@@ -425,71 +396,6 @@ bool UIVMItem::switchTo()
 #endif
 
 #endif
-}
-
-/* static */
-bool UIVMItem::isItemEditable(UIVMItem *pItem)
-{
-    return pItem->accessible() &&
-           pItem->sessionState() == KSessionState_Unlocked;
-}
-
-/* static */
-bool UIVMItem::isItemSaved(UIVMItem *pItem)
-{
-    if (pItem->accessible() &&
-        pItem->machineState() == KMachineState_Saved)
-        return true;
-    return false;
-}
-
-/* static */
-bool UIVMItem::isItemPoweredOff(UIVMItem *pItem)
-{
-    if (pItem->accessible() &&
-        (pItem->machineState() == KMachineState_PoweredOff ||
-         pItem->machineState() == KMachineState_Saved ||
-         pItem->machineState() == KMachineState_Teleported ||
-         pItem->machineState() == KMachineState_Aborted))
-        return true;
-    return false;
-}
-
-/* static */
-bool UIVMItem::isItemStarted(UIVMItem *pItem)
-{
-    return isItemRunning(pItem) || isItemPaused(pItem);
-}
-
-/* static */
-bool UIVMItem::isItemRunning(UIVMItem *pItem)
-{
-    if (pItem->accessible() &&
-        (pItem->machineState() == KMachineState_Running ||
-         pItem->machineState() == KMachineState_Teleporting ||
-         pItem->machineState() == KMachineState_LiveSnapshotting))
-        return true;
-    return false;
-}
-
-/* static */
-bool UIVMItem::isItemPaused(UIVMItem *pItem)
-{
-    if (pItem->accessible() &&
-        (pItem->machineState() == KMachineState_Paused ||
-         pItem->machineState() == KMachineState_TeleportingPausedVM))
-        return true;
-    return false;
-
-}
-
-/* static */
-bool UIVMItem::isItemStuck(UIVMItem *pItem)
-{
-    if (pItem->accessible() &&
-        pItem->machineState() == KMachineState_Stuck)
-        return true;
-    return false;
 }
 
 QString UIVMItemMimeData::m_type = "application/org.virtualbox.gui.vmselector.uivmitem";

@@ -1,10 +1,10 @@
 /* $Id: semrw-lockless-generic.cpp $ */
 /** @file
- * IPRT - Read-Write Semaphore, Generic, lockless variant.
+ * IPRT Testcase - RTSemXRoads, generic implementation.
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,10 +51,8 @@ typedef struct RTSEMRWINTERNAL
 {
     /** Magic value (RTSEMRW_MAGIC).  */
     uint32_t volatile       u32Magic;
-    /** Indicates whether hEvtRead needs resetting. */
-    bool volatile           fNeedReset;
-
-    /** The state variable.
+    uint32_t                u32Padding; /**< alignment padding.*/
+    /* The state variable.
      * All accesses are atomic and it bits are defined like this:
      *      Bits 0..14  - cReads.
      *      Bit 15      - Unused.
@@ -70,8 +68,7 @@ typedef struct RTSEMRWINTERNAL
     RTNATIVETHREAD volatile hNativeWriter;
     /** The number of reads made by the current writer. */
     uint32_t volatile       cWriterReads;
-    /** The number of recursions made by the current writer. (The initial grabbing
-     *  of the lock counts as the first one.) */
+    /** The number of reads made by the current writer. */
     uint32_t volatile       cWriteRecursions;
 
     /** What the writer threads are blocking on. */
@@ -79,6 +76,8 @@ typedef struct RTSEMRWINTERNAL
     /** What the read threads are blocking on when waiting for the writer to
      * finish. */
     RTSEMEVENTMULTI         hEvtRead;
+    /** Indicates whether hEvtRead needs resetting. */
+    bool volatile           fNeedReset;
 
 #ifdef RTSEMRW_STRICT
     /** The validator record for the writer. */
@@ -495,7 +494,7 @@ RTDECL(int) RTSemRWReleaseRead(RTSEMRW hRWSem)
             c--;
 
             if (   c > 0
-                || (u64State & RTSEMRW_CNT_WD_MASK) == 0)
+                || (u64State & RTSEMRW_CNT_RD_MASK) == 0)
             {
                 /* Don't change the direction. */
                 u64State &= ~RTSEMRW_CNT_RD_MASK;
@@ -889,7 +888,7 @@ RTDECL(bool)  RTSemRWIsReadOwner(RTSEMRW hRWSem, bool fWannaHear)
          */
         RTNATIVETHREAD hNativeSelf = RTThreadNativeSelf();
         RTNATIVETHREAD hWriter;
-        ASMAtomicUoReadHandle(&pThis->hNativeWriter, &hWriter);
+        ASMAtomicUoReadHandle(&pThis->hWriter, &hWriter);
         return hWriter == hNativeSelf;
     }
 

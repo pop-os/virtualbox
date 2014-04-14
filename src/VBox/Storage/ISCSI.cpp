@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,6 @@
 #include <iprt/time.h>
 #include <VBox/scsi.h>
 
-#include "VDBackends.h"
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -257,7 +256,7 @@ typedef enum ISCSISTATE
 } ISCSISTATE;
 
 /**
- * iSCSI PDU send/receive flags (and maybe more in the future). */
+ * iSCSI PDU send flags (and maybe more in the future). */
 typedef enum ISCSIPDUFLAGS
 {
     /** No special flags */
@@ -336,8 +335,6 @@ typedef struct ISCSIIMAGE *PISCSIIMAGE;
  */
 typedef struct SCSIREQ
 {
-    /** I/O context associated with this request. */
-    PVDIOCTX        pIoCtx;
     /** Transfer direction. */
     SCSIXFER        enmXfer;
     /** Length of command block. */
@@ -351,12 +348,10 @@ typedef struct SCSIREQ
     size_t          cbSense;
     /** Completion status of the command. */
     uint8_t         status;
-    /** The CDB. */
-    uint8_t         abCDB[16];
-    /** The sense buffer. */
-    uint8_t         abSense[96];
-    /** Status code to return if we got sense data. */
-    int             rcSense;
+    /** Pointer to command block. */
+    void           *pvCDB;
+    /** Pointer to sense buffer. */
+    void           *pvSense;
     /** Pointer to the Initiator2Target S/G list. */
     PRTSGSEG        paI2TSegs;
     /** Number of entries in the I2T S/G list. */
@@ -367,16 +362,38 @@ typedef struct SCSIREQ
     unsigned        cT2ISegs;
     /** S/G buffer for the target to initiator bits. */
     RTSGBUF         SgBufT2I;
+} SCSIREQ, *PSCSIREQ;
+
+/**
+ * Async request structure holding all necessary data for
+ * request processing.
+ */
+typedef struct SCSIREQASYNC
+{
+    /** I/O context associated with this request. */
+    PVDIOCTX        pIoCtx;
+    /** Pointer to the SCSI request structure. */
+    PSCSIREQ        pScsiReq;
+    /** The CDB. */
+    uint8_t         abCDB[16];
+    /** The sense buffer. */
+    uint8_t         abSense[96];
+    /** Status code to return if we got sense data. */
+    int             rcSense;
     /** Number of retries if the command completes with sense
      * data before we return with an error.
      */
     unsigned        cSenseRetries;
+    /** The number of entries in the I2T S/G list. */
+    unsigned        cI2TSegs;
+    /** The number of entries in the T2I S/G list. */
+    unsigned        cT2ISegs;
     /** The S/G list - variable in size.
      * This array holds both the I2T and T2I segments.
      * The I2T segments are first and the T2I are second.
      */
     RTSGSEG         aSegs[1];
-} SCSIREQ, *PSCSIREQ;
+} SCSIREQASYNC, *PSCSIREQASYNC;
 
 typedef enum ISCSICMDTYPE
 {
@@ -434,15 +451,15 @@ typedef struct ISCSICMD
         struct
         {
             /** The SCSI request to process. */
-            PSCSIREQ      pScsiReq;
+            PSCSIREQ              pScsiReq;
         } ScsiReq;
         /** Call a function in the I/O thread. */
         struct
         {
             /** The method to execute. */
-            PFNISCSIEXEC  pfnExec;
+            PFNISCSIEXEC          pfnExec;
             /** User data. */
-            void         *pvUser;
+            void                 *pvUser;
         } Exec;
     } CmdType;
 } ISCSICMD, *PISCSICMD;
@@ -506,16 +523,24 @@ typedef struct ISCSIIMAGE
     uint64_t            LUN;
     /** Pointer to the per-disk VD interface list. */
     PVDINTERFACE        pVDIfsDisk;
+    /** Error interface. */
+    PVDINTERFACE        pInterfaceError;
+    /** Error interface callback table. */
+    PVDINTERFACEERROR   pInterfaceErrorCallbacks;
     /** Pointer to the per-image VD interface list. */
     PVDINTERFACE        pVDIfsImage;
-    /** Error interface. */
-    PVDINTERFACEERROR   pIfError;
     /** Config interface. */
-    PVDINTERFACECONFIG  pIfConfig;
+    PVDINTERFACE        pInterfaceConfig;
+    /** Config interface callback table. */
+    PVDINTERFACECONFIG  pInterfaceConfigCallbacks;
     /** I/O interface. */
-    PVDINTERFACEIOINT   pIfIo;
+    PVDINTERFACE        pInterfaceIo;
+    /** I/O interface callback table. */
+    PVDINTERFACEIOINT   pInterfaceIoCallbacks;
     /** TCP network stack interface. */
-    PVDINTERFACETCPNET  pIfNet;
+    PVDINTERFACE        pInterfaceNet;
+    /** TCP network stack interface callback table. */
+    PVDINTERFACETCPNET  pInterfaceNetCallbacks;
     /** Image open flags. */
     unsigned            uOpenFlags;
     /** Number of re-login retries when a connection fails. */
@@ -654,7 +679,7 @@ static const VDCONFIGINFO s_iscsiConfigInfo[] =
 /* iSCSI low-level functions (only to be used from the iSCSI high-level functions). */
 static uint32_t iscsiNewITT(PISCSIIMAGE pImage);
 static int iscsiSendPDU(PISCSIIMAGE pImage, PISCSIREQ paReq, uint32_t cnReq, uint32_t uFlags);
-static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint32_t cnRes, uint32_t fFlags);
+static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint32_t cnRes);
 static int iscsiRecvPDUAsync(PISCSIIMAGE pImage);
 static int iscsiSendPDUAsync(PISCSIIMAGE pImage);
 static int iscsiValidatePDU(PISCSIRES paRes, uint32_t cnRes);
@@ -693,10 +718,46 @@ DECLINLINE(void) iscsiLogRel(PISCSIIMAGE pImage, const char *pcszFormat, ...)
     }
 }
 
+/**
+ * Internal: signal an error to the frontend.
+ */
+DECLINLINE(int) iscsiError(PISCSIIMAGE pImage, int rc, RT_SRC_POS_DECL,
+                           const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    if (pImage->pInterfaceError)
+        pImage->pInterfaceErrorCallbacks->pfnError(pImage->pInterfaceError->pvUser, rc, RT_SRC_POS_ARGS,
+                                                   pszFormat, va);
+    va_end(va);
+
+#ifdef LOG_ENABLED
+    va_start(va, pszFormat);
+    Log(("iscsiError(%d/%s): %N\n", iLine, pszFunction, pszFormat, &va));
+    va_end(va);
+#endif
+    return rc;
+}
+
+/**
+ * Internal: signal an informational message to the frontend.
+ */
+DECLINLINE(int) iscsiMessage(PISCSIIMAGE pImage, const char *pszFormat, ...)
+{
+    int rc = VINF_SUCCESS;
+    va_list va;
+    va_start(va, pszFormat);
+    if (pImage->pInterfaceError)
+        rc = pImage->pInterfaceErrorCallbacks->pfnMessage(pImage->pInterfaceError->pvUser,
+                                                          pszFormat, va);
+    va_end(va);
+    return rc;
+}
+
 DECLINLINE(bool) iscsiIsClientConnected(PISCSIIMAGE pImage)
 {
     return    pImage->Socket != NIL_VDSOCKET
-           && pImage->pIfNet->pfnIsClientConnected(pImage->Socket);
+           && pImage->pInterfaceNetCallbacks->pfnIsClientConnected(pImage->Socket);
 }
 
 /**
@@ -771,7 +832,7 @@ static PISCSICMD iscsiCmdRemove(PISCSIIMAGE pImage, uint32_t Itt)
  * Removes all commands from the table and returns the
  * list head
  *
- * @returns Pointer to the head of the command list.
+ * @returns Pointer to the head of teh command list.
  * @param   pImage    iSCSI connection to use.
  */
 static PISCSICMD iscsiCmdRemoveAll(PISCSIIMAGE pImage)
@@ -809,7 +870,7 @@ static int iscsiTransportConnect(PISCSIIMAGE pImage)
     if (!pImage->pszHostname)
         return VERR_NET_DEST_ADDRESS_REQUIRED;
 
-    rc = pImage->pIfNet->pfnClientConnect(pImage->Socket, pImage->pszHostname, pImage->uPort);
+    rc = pImage->pInterfaceNetCallbacks->pfnClientConnect(pImage->Socket, pImage->pszHostname, pImage->uPort);
     if (RT_FAILURE(rc))
     {
         if (   rc == VERR_NET_CONNECTION_REFUSED
@@ -825,11 +886,12 @@ static int iscsiTransportConnect(PISCSIIMAGE pImage)
     }
 
     /* Disable Nagle algorithm, we want things to be sent immediately. */
-    pImage->pIfNet->pfnSetSendCoalescing(pImage->Socket, false);
+    pImage->pInterfaceNetCallbacks->pfnSetSendCoalescing(pImage->Socket, false);
 
     /* Make initiator name and ISID unique on this host. */
     RTNETADDR LocalAddr;
-    rc = pImage->pIfNet->pfnGetLocalAddress(pImage->Socket, &LocalAddr);
+    rc = pImage->pInterfaceNetCallbacks->pfnGetLocalAddress(pImage->Socket,
+                                                            &LocalAddr);
     if (RT_FAILURE(rc))
         return rc;
     if (   LocalAddr.uPort == RTNETADDR_PORT_NA
@@ -861,7 +923,7 @@ static int iscsiTransportClose(PISCSIIMAGE pImage)
     if (iscsiIsClientConnected(pImage))
     {
         LogRel(("iSCSI: disconnect from initiator %s with source port %u\n", pImage->pszInitiatorName, pImage->ISID & 65535));
-        rc = pImage->pIfNet->pfnClientClose(pImage->Socket);
+        rc = pImage->pInterfaceNetCallbacks->pfnClientClose(pImage->Socket);
     }
     else
         rc = VINF_SUCCESS;
@@ -901,10 +963,13 @@ static int iscsiTransportRead(PISCSIIMAGE pImage, PISCSIRES paResponse, unsigned
                 break;
             }
             Assert(cMilliesRemaining < 1000000);
-            rc = pImage->pIfNet->pfnSelectOne(pImage->Socket, cMilliesRemaining);
+            rc = pImage->pInterfaceNetCallbacks->pfnSelectOne(pImage->Socket,
+                                                              cMilliesRemaining);
             if (RT_FAILURE(rc))
                 break;
-            rc = pImage->pIfNet->pfnRead(pImage->Socket, pDst, residual, &cbActuallyRead);
+            rc = pImage->pInterfaceNetCallbacks->pfnRead(pImage->Socket,
+                                                         pDst, residual,
+                                                         &cbActuallyRead);
             if (RT_FAILURE(rc))
                 break;
             if (cbActuallyRead == 0)
@@ -1039,7 +1104,7 @@ static int iscsiTransportWrite(PISCSIIMAGE pImage, PISCSIREQ paRequest, unsigned
         }
         /* Send out the request, the socket is set to send data immediately,
          * avoiding unnecessary delays. */
-        rc = pImage->pIfNet->pfnSgWrite(pImage->Socket, &buf);
+        rc = pImage->pInterfaceNetCallbacks->pfnSgWrite(pImage->Socket, &buf);
 
     }
 
@@ -1121,10 +1186,7 @@ static int iscsiTransportOpen(PISCSIIMAGE pImage)
             rc = VERR_NO_MEMORY;
         else
         {
-            if (pImage->pszTargetAddress[0] == '[')
-                memcpy(pImage->pszHostname, pImage->pszTargetAddress + 1, cbHostname);
-            else
-                memcpy(pImage->pszHostname, pImage->pszTargetAddress, cbHostname);
+            memcpy(pImage->pszHostname, pImage->pszTargetAddress, cbHostname);
             pImage->pszHostname[cbHostname] = '\0';
             if (pcszPort != NULL)
             {
@@ -1190,7 +1252,6 @@ static int iscsiAttach(void *pvUser)
     uint32_t cnISCSIRes;
     ISCSIRES aISCSIRes[2];
     uint32_t aResBHS[12];
-    unsigned cRetries = 5;
     char *pszNext;
     PISCSIIMAGE pImage = (PISCSIIMAGE)pvUser;
 
@@ -1227,20 +1288,6 @@ static int iscsiAttach(void *pvUser)
     iscsiTransportClose(pImage);
 
 restart:
-    if (!cRetries)
-    {
-        /*
-         * Prevent the iSCSI initiator to go into normal state if we are here,
-         * even if there is no error code set.
-         */
-        if (RT_SUCCESS(rc))
-        {
-            AssertMsgFailed(("Success status code set while out of retries\n"));
-            rc = VERR_IPE_UNEXPECTED_STATUS;
-        }
-        goto out;
-    }
-
     if (!iscsiIsClientConnected(pImage))
     {
         rc = iscsiTransportOpen(pImage);
@@ -1380,17 +1427,8 @@ restart:
             aISCSIRes[cnISCSIRes].cbSeg = sizeof(bBuf);
             cnISCSIRes++;
 
-            rc = iscsiRecvPDU(pImage, itt, aISCSIRes, cnISCSIRes, ISCSIPDU_NO_REATTACH);
-            if (rc == VERR_BROKEN_PIPE || rc == VERR_NET_CONNECTION_REFUSED)
-            {
-                /*
-                 * We lost connection to the target while receiving the answer,
-                 * start from the beginning.
-                 */
-                cRetries--;
-                goto restart;
-            }
-            else if (RT_FAILURE(rc))
+            rc = iscsiRecvPDU(pImage, itt, aISCSIRes, cnISCSIRes);
+            if (RT_FAILURE(rc))
                 break;
             /** @todo collect partial login responses with Continue bit set. */
             Assert(aISCSIRes[0].pvSeg == aResBHS);
@@ -1575,55 +1613,9 @@ restart:
                         rc = iscsiTransportOpen(pImage);
                         goto restart;
                     case ISCSI_LOGIN_STATUS_CLASS_INITIATOR_ERROR:
-                    {
-                        const char *pszDetail = NULL;
-
-                        switch ((RT_N2H_U32(aResBHS[9]) >> 16) & 0xff)
-                        {
-                            case 0x00:
-                                pszDetail = "Miscelleanous iSCSI intiaitor error";
-                                break;
-                            case 0x01:
-                                pszDetail = "Authentication failure";
-                                break;
-                            case 0x02:
-                                pszDetail = "Authorization failure";
-                                break;
-                            case 0x03:
-                                pszDetail = "Not found";
-                                break;
-                            case 0x04:
-                                pszDetail = "Target removed";
-                                break;
-                            case 0x05:
-                                pszDetail = "Unsupported version";
-                                break;
-                            case 0x06:
-                                pszDetail = "Too many connections";
-                                break;
-                            case 0x07:
-                                pszDetail = "Missing parameter";
-                                break;
-                            case 0x08:
-                                pszDetail = "Can't include in session";
-                                break;
-                            case 0x09:
-                                pszDetail = "Session type not supported";
-                                break;
-                            case 0x0a:
-                                pszDetail = "Session does not exist";
-                                break;
-                            case 0x0b:
-                                pszDetail = "Invalid request type during login";
-                                break;
-                            default:
-                                pszDetail = "Unknown status detail";
-                        }
-                        LogRel(("iSCSI: login to target failed with: %s\n", pszDetail));
                         iscsiTransportClose(pImage);
                         rc = VERR_IO_GEN_FAILURE;
                         goto out;
-                    }
                     case ISCSI_LOGIN_STATUS_CLASS_TARGET_ERROR:
                         iscsiTransportClose(pImage);
                         rc = VINF_EOF;
@@ -1726,7 +1718,7 @@ static int iscsiDetach(void *pvUser)
 
             aISCSIRes.pvSeg = aResBHS;
             aISCSIRes.cbSeg = sizeof(aResBHS);
-            rc = iscsiRecvPDU(pImage, itt, &aISCSIRes, 1, ISCSIPDU_NO_REATTACH);
+            rc = iscsiRecvPDU(pImage, itt, &aISCSIRes, 1);
             if (RT_SUCCESS(rc))
             {
                 if (RT_N2H_U32(aResBHS[0]) != (ISCSI_FINAL_BIT | ISCSIOP_LOGOUT_RES))
@@ -1828,7 +1820,7 @@ static int iscsiCommand(PISCSIIMAGE pImage, PSCSIREQ pRequest)
     aReqBHS[5] = RT_H2N_U32(cbData);
     aReqBHS[6] = RT_H2N_U32(pImage->CmdSN);
     aReqBHS[7] = RT_H2N_U32(pImage->ExpStatSN);
-    memcpy(aReqBHS + 8, pRequest->abCDB, pRequest->cbCDB);
+    memcpy(aReqBHS + 8, pRequest->pvCDB, pRequest->cbCDB);
     pImage->CmdSN++;
 
     aISCSIReq[cnISCSIReq].pcvSeg = aReqBHS;
@@ -1887,7 +1879,7 @@ static int iscsiCommand(PISCSIIMAGE pImage, PSCSIREQ pRequest)
         aISCSIRes[cnISCSIRes].cbSeg = sizeof(aStatus);
         cnISCSIRes++;
 
-        rc = iscsiRecvPDU(pImage, itt, aISCSIRes, cnISCSIRes, ISCSIPDU_DEFAULT);
+        rc = iscsiRecvPDU(pImage, itt, aISCSIRes, cnISCSIRes);
         if (RT_FAILURE(rc))
             break;
 
@@ -1920,13 +1912,13 @@ static int iscsiCommand(PISCSIIMAGE pImage, PSCSIREQ pRequest)
                 }
                 /* Truncate sense data if it doesn't fit into the buffer. */
                 pRequest->cbSense = RT_MIN(cbStat, pRequest->cbSense);
-                memcpy(pRequest->abSense,
+                memcpy(pRequest->pvSense,
                        ((const char *)aISCSIRes[1].pvSeg) + 2,
                        RT_MIN(aISCSIRes[1].cbSeg - 2, pRequest->cbSense));
                 if (   cnISCSIRes > 2 && aISCSIRes[2].cbSeg
                     && (ssize_t)pRequest->cbSense - aISCSIRes[1].cbSeg + 2 > 0)
                 {
-                    memcpy((char *)pRequest->abSense + aISCSIRes[1].cbSeg - 2,
+                    memcpy((char *)pRequest->pvSense + aISCSIRes[1].cbSeg - 2,
                            aISCSIRes[2].pvSeg,
                            pRequest->cbSense - aISCSIRes[1].cbSeg + 2);
                 }
@@ -2066,10 +2058,8 @@ static int iscsiSendPDU(PISCSIIMAGE pImage, PISCSIREQ paReq, uint32_t cnReq,
  * @param   pImage      The iSCSI connection state to be used.
  * @param   paRes       Pointer to array of iSCSI response sections.
  * @param   cnRes       Number of valid iSCSI response sections in the array.
- * @param   fRecvFlags  PDU receive flags.
  */
-static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint32_t cnRes,
-                        uint32_t fRecvFlags)
+static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint32_t cnRes)
 {
     int rc = VINF_SUCCESS;
     ISCSIRES aResBuf;
@@ -2090,21 +2080,19 @@ static int iscsiRecvPDU(PISCSIIMAGE pImage, uint32_t itt, PISCSIRES paRes, uint3
                  * try to restart by re-sending the original request (if any).
                  * This also handles the connection reestablishment (login etc.). */
                 RTThreadSleep(500);
-                if (   pImage->state != ISCSISTATE_IN_LOGIN
-                    && !(fRecvFlags & ISCSIPDU_NO_REATTACH))
+                if (pImage->state != ISCSISTATE_IN_LOGIN)
                 {
                     /* Attempt to re-login when a connection fails, but only when not
                      * currently logging in. */
                     rc = iscsiAttach(pImage);
                     if (RT_FAILURE(rc))
                         break;
-
-                    if (pImage->paCurrReq != NULL)
-                    {
-                        rc = iscsiSendPDU(pImage, pImage->paCurrReq, pImage->cnCurrReq, ISCSIPDU_DEFAULT);
-                        if (RT_FAILURE(rc))
-                            break;
-                    }
+                }
+                if (pImage->paCurrReq != NULL)
+                {
+                    rc = iscsiSendPDU(pImage, pImage->paCurrReq, pImage->cnCurrReq, ISCSIPDU_DEFAULT);
+                    if (RT_FAILURE(rc))
+                        break;
                 }
             }
             else
@@ -2295,7 +2283,7 @@ static int iscsiRecvPDUAsync(PISCSIIMAGE pImage)
         LogFlow(("Receiving new PDU\n"));
     }
 
-    rc = pImage->pIfNet->pfnReadNB(pImage->Socket, pImage->pbRecvPDUBufCur,
+    rc = pImage->pInterfaceNetCallbacks->pfnReadNB(pImage->Socket, pImage->pbRecvPDUBufCur,
                                                    pImage->cbRecvPDUResidual, &cbActuallyRead);
     if (RT_SUCCESS(rc) && cbActuallyRead == 0)
         rc = VERR_BROKEN_PIPE;
@@ -2365,7 +2353,7 @@ static int iscsiSendPDUAsync(PISCSIIMAGE pImage)
         }
 
         /* Send as much as we can. */
-        rc = pImage->pIfNet->pfnSgWriteNB(pImage->Socket, &pImage->pIScsiPDUTxCur->SgBuf, &cbSent);
+        rc = pImage->pInterfaceNetCallbacks->pfnSgWriteNB(pImage->Socket, &pImage->pIScsiPDUTxCur->SgBuf, &cbSent);
         LogFlow(("SgWriteNB returned rc=%Rrc cbSent=%zu\n", rc, cbSent));
         if (RT_SUCCESS(rc))
         {
@@ -2582,8 +2570,6 @@ static int iscsiValidatePDU(PISCSIRES paRes, uint32_t cnRes)
                      &&  (hw0 & (  ISCSI_BI_READ_RESIDUAL_OVFL_BIT | ISCSI_BI_READ_RESIDUAL_UNFL_BIT
                                  | ISCSI_RESIDUAL_OVFL_BIT))))
                 return VERR_PARSE_ERROR;
-            else
-                LogFlowFunc(("good SCSI response, first word %#08x\n", RT_N2H_U32(pcrgResBHS[0])));
             break;
         case ISCSIOP_LOGIN_RES:
             /* Login responses must not contain contradicting transit and continue bits. */
@@ -2683,10 +2669,10 @@ static int iscsiPDUTxPrepare(PISCSIIMAGE pImage, PISCSICMD pIScsiCmd)
     paReqBHS[2] = RT_H2N_U32(pImage->LUN >> 32);
     paReqBHS[3] = RT_H2N_U32(pImage->LUN & 0xffffffff);
     paReqBHS[4] = pIScsiCmd->Itt;
-    paReqBHS[5] = RT_H2N_U32((uint32_t)cbData); Assert((uint32_t)cbData == cbData);
+    paReqBHS[5] = RT_H2N_U32(cbData);
     paReqBHS[6] = RT_H2N_U32(pImage->CmdSN);
     paReqBHS[7] = RT_H2N_U32(pImage->ExpStatSN);
-    memcpy(paReqBHS + 8, pScsiReq->abCDB, pScsiReq->cbCDB);
+    memcpy(paReqBHS + 8, pScsiReq->pvCDB, pScsiReq->cbCDB);
 
     pIScsiPDU->CmdSN = pImage->CmdSN;
     pImage->CmdSN++;
@@ -2799,7 +2785,7 @@ static int iscsiRecvPDUUpdateRequest(PISCSIIMAGE pImage, PISCSIRES paRes, uint32
                     {
                         /* Truncate sense data if it doesn't fit into the buffer. */
                         pScsiReq->cbSense = RT_MIN(cbStat, pScsiReq->cbSense);
-                        memcpy(pScsiReq->abSense, (uint8_t *)pvSense + 2,
+                        memcpy(pScsiReq->pvSense, (uint8_t *)pvSense + 2,
                                RT_MIN(paRes[0].cbSeg - ISCSI_BHS_SIZE - 2, pScsiReq->cbSense));
                     }
                 }
@@ -3144,7 +3130,7 @@ static void chap_md5_compute_response(uint8_t *pbResponse, uint8_t id, const uin
  */
 DECLINLINE(int) iscsiIoThreadWait(PISCSIIMAGE pImage, RTMSINTERVAL cMillies, uint32_t fEvents, uint32_t *pfEvents)
 {
-    return pImage->pIfNet->pfnSelectOneEx(pImage->Socket, fEvents, pfEvents, cMillies);
+    return pImage->pInterfaceNetCallbacks->pfnSelectOneEx(pImage->Socket, fEvents, pfEvents, cMillies);
 }
 
 /**
@@ -3152,7 +3138,7 @@ DECLINLINE(int) iscsiIoThreadWait(PISCSIIMAGE pImage, RTMSINTERVAL cMillies, uin
  */
 DECLINLINE(int) iscsiIoThreadPoke(PISCSIIMAGE pImage)
 {
-    return pImage->pIfNet->pfnPoke(pImage->Socket);
+    return pImage->pInterfaceNetCallbacks->pfnPoke(pImage->Socket);
 }
 
 /**
@@ -3629,24 +3615,25 @@ static void iscsiCommandAsyncComplete(PISCSIIMAGE pImage, int rcReq, void *pvUse
 {
     bool fComplete = true;
     size_t cbTransfered = 0;
-    PSCSIREQ pScsiReq = (PSCSIREQ)pvUser;
+    PSCSIREQASYNC pReqAsync = (PSCSIREQASYNC)pvUser;
+    PSCSIREQ pScsiReq = pReqAsync->pScsiReq;
 
     if (   RT_SUCCESS(rcReq)
         && pScsiReq->cbSense > 0)
     {
         /* Try again if possible. */
-        if (pScsiReq->cSenseRetries > 0)
+        if (pReqAsync->cSenseRetries > 0)
         {
-            pScsiReq->cSenseRetries--;
-            pScsiReq->cbSense = sizeof(pScsiReq->abSense);
-            int rc = iscsiCommandAsync(pImage, pScsiReq, iscsiCommandAsyncComplete, pScsiReq);
+            pReqAsync->cSenseRetries--;
+            pScsiReq->cbSense = sizeof(pReqAsync->abSense);
+            int rc = iscsiCommandAsync(pImage, pScsiReq, iscsiCommandAsyncComplete, pReqAsync);
             if (RT_SUCCESS(rc))
                 fComplete = false;
             else
-                rcReq = pScsiReq->rcSense;
+                rcReq = pReqAsync->rcSense;
         }
         else
-            rcReq = pScsiReq->rcSense;
+            rcReq = pReqAsync->rcSense;
     }
 
     if (fComplete)
@@ -3659,11 +3646,12 @@ static void iscsiCommandAsyncComplete(PISCSIIMAGE pImage, int rcReq, void *pvUse
             AssertMsg(pScsiReq->enmXfer == SCSIXFER_NONE, ("To/From transfers are not supported yet\n"));
 
         /* Continue I/O context. */
-        pImage->pIfIo->pfnIoCtxCompleted(pImage->pIfIo->Core.pvUser,
-                                         pScsiReq->pIoCtx, rcReq,
-                                         cbTransfered);
+        pImage->pInterfaceIoCallbacks->pfnIoCtxCompleted(pImage->pInterfaceIo->pvUser,
+                                                         pReqAsync->pIoCtx, rcReq,
+                                                         cbTransfered);
 
         RTMemFree(pScsiReq);
+        RTMemFree(pReqAsync);
     }
 }
 
@@ -3702,7 +3690,7 @@ static int iscsiFreeImage(PISCSIIMAGE pImage, bool fDelete)
         /* Destroy the socket. */
         if (pImage->Socket != NIL_VDSOCKET)
         {
-            pImage->pIfNet->pfnSocketDestroy(pImage->Socket);
+            pImage->pInterfaceNetCallbacks->pfnSocketDestroy(pImage->Socket);
         }
         if (pImage->MutexReqQueue != NIL_RTSEMMUTEX)
         {
@@ -3778,32 +3766,40 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     pImage->uOpenFlags      = uOpenFlags;
 
     /* Get error signalling interface. */
-    pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
+    pImage->pInterfaceError = VDInterfaceGet(pImage->pVDIfsDisk, VDINTERFACETYPE_ERROR);
+    if (pImage->pInterfaceError)
+        pImage->pInterfaceErrorCallbacks = VDGetInterfaceError(pImage->pInterfaceError);
 
     /* Get TCP network stack interface. */
-    pImage->pIfNet = VDIfTcpNetGet(pImage->pVDIfsImage);
-    if (!pImage->pIfNet)
+    pImage->pInterfaceNet = VDInterfaceGet(pImage->pVDIfsImage, VDINTERFACETYPE_TCPNET);
+    if (pImage->pInterfaceNet)
+        pImage->pInterfaceNetCallbacks = VDGetInterfaceTcpNet(pImage->pInterfaceNet);
+    else
     {
-        rc = vdIfError(pImage->pIfError, VERR_VD_UNKNOWN_INTERFACE,
-                       RT_SRC_POS, N_("iSCSI: TCP network stack interface missing"));
+        rc = iscsiError(pImage, VERR_VD_ISCSI_UNKNOWN_INTERFACE,
+                        RT_SRC_POS, N_("iSCSI: TCP network stack interface missing"));
         goto out;
     }
 
     /* Get configuration interface. */
-    pImage->pIfConfig = VDIfConfigGet(pImage->pVDIfsImage);
-    if (!pImage->pIfConfig)
+    pImage->pInterfaceConfig = VDInterfaceGet(pImage->pVDIfsImage, VDINTERFACETYPE_CONFIG);
+    if (pImage->pInterfaceConfig)
+        pImage->pInterfaceConfigCallbacks = VDGetInterfaceConfig(pImage->pInterfaceConfig);
+    else
     {
-        rc = vdIfError(pImage->pIfError, VERR_VD_UNKNOWN_INTERFACE,
-                       RT_SRC_POS, N_("iSCSI: configuration interface missing"));
+        rc = iscsiError(pImage, VERR_VD_ISCSI_UNKNOWN_INTERFACE,
+                        RT_SRC_POS, N_("iSCSI: configuration interface missing"));
         goto out;
     }
 
     /* Get I/O interface. */
-    pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
-    if (!pImage->pIfIo)
+    pImage->pInterfaceIo = VDInterfaceGet(pImage->pVDIfsImage, VDINTERFACETYPE_IOINT);
+    if (pImage->pInterfaceIo)
+        pImage->pInterfaceIoCallbacks = VDGetInterfaceIOInt(pImage->pInterfaceIo);
+    else
     {
-        rc = vdIfError(pImage->pIfError, VERR_VD_UNKNOWN_INTERFACE,
-                       RT_SRC_POS, N_("iSCSI: I/O interface missing"));
+        rc = iscsiError(pImage, VERR_VD_ISCSI_UNKNOWN_INTERFACE,
+                        RT_SRC_POS, N_("iSCSI: I/O interface missing"));
         goto out;
     }
 
@@ -3829,33 +3825,25 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
         goto out;
 
     /* Validate configuration, detect unknown keys. */
-    if (!VDCFGAreKeysValid(pImage->pIfConfig,
-                           "TargetName\0"
-                           "InitiatorName\0"
-                           "LUN\0"
-                           "TargetAddress\0"
-                           "InitiatorUsername\0"
-                           "InitiatorSecret\0"
-                           "InitiatorSecretEncrypted\0"
-                           "TargetUsername\0"
-                           "TargetSecret\0"
-                           "WriteSplit\0"
-                           "Timeout\0"
-                           "HostIPStack\0"))
+    if (!VDCFGAreKeysValid(pImage->pInterfaceConfigCallbacks,
+                           pImage->pInterfaceConfig->pvUser,
+                           "TargetName\0InitiatorName\0LUN\0TargetAddress\0InitiatorUsername\0InitiatorSecret\0TargetUsername\0TargetSecret\0WriteSplit\0Timeout\0HostIPStack\0"))
     {
-        rc = vdIfError(pImage->pIfError, VERR_VD_UNKNOWN_CFG_VALUES, RT_SRC_POS, N_("iSCSI: configuration error: unknown configuration keys present"));
+        rc = iscsiError(pImage, VERR_VD_ISCSI_UNKNOWN_CFG_VALUES, RT_SRC_POS, N_("iSCSI: configuration error: unknown configuration keys present"));
         goto out;
     }
 
     /* Query the iSCSI upper level configuration. */
-    rc = VDCFGQueryStringAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryStringAlloc(pImage->pInterfaceConfigCallbacks,
+                               pImage->pInterfaceConfig->pvUser,
                                "TargetName", &pImage->pszTargetName);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetName as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetName as string"));
         goto out;
     }
-    rc = VDCFGQueryStringAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryStringAlloc(pImage->pInterfaceConfigCallbacks,
+                               pImage->pInterfaceConfig->pvUser,
                                "InitiatorName", &pImage->pszInitiatorName);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
     {
@@ -3864,14 +3852,15 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     }
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorName as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorName as string"));
         goto out;
     }
-    rc = VDCFGQueryStringAllocDef(pImage->pIfConfig,
+    rc = VDCFGQueryStringAllocDef(pImage->pInterfaceConfigCallbacks,
+                                  pImage->pInterfaceConfig->pvUser,
                                   "LUN", &pszLUN, s_iscsiConfigDefaultLUN);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read LUN as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read LUN as string"));
         goto out;
     }
     pszLUNInitial = pszLUN;
@@ -3883,7 +3872,7 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     rc = RTStrToUInt64Full(pszLUN, 0, &pImage->LUN);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to convert LUN to integer"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to convert LUN to integer"));
         goto out;
     }
     if (!fLunEncoded)
@@ -3899,31 +3888,34 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
         else
         {
             rc = VERR_OUT_OF_RANGE;
-            rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: LUN number out of range (0-16383)"));
+            rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: LUN number out of range (0-16383)"));
             goto out;
         }
     }
-    rc = VDCFGQueryStringAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryStringAlloc(pImage->pInterfaceConfigCallbacks,
+                               pImage->pInterfaceConfig->pvUser,
                                "TargetAddress", &pImage->pszTargetAddress);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetAddress as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetAddress as string"));
         goto out;
     }
     pImage->pszInitiatorUsername = NULL;
-    rc = VDCFGQueryStringAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryStringAlloc(pImage->pInterfaceConfigCallbacks,
+                               pImage->pInterfaceConfig->pvUser,
                                "InitiatorUsername",
                                &pImage->pszInitiatorUsername);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
         rc = VINF_SUCCESS;
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorUsername as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorUsername as string"));
         goto out;
     }
     pImage->pbInitiatorSecret = NULL;
     pImage->cbInitiatorSecret = 0;
-    rc = VDCFGQueryBytesAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryBytesAlloc(pImage->pInterfaceConfigCallbacks,
+                              pImage->pInterfaceConfig->pvUser,
                               "InitiatorSecret",
                               (void **)&pImage->pbInitiatorSecret,
                               &pImage->cbInitiatorSecret);
@@ -3931,54 +3923,41 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
         rc = VINF_SUCCESS;
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorSecret as byte string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read InitiatorSecret as byte string"));
         goto out;
     }
-    void *pvInitiatorSecretEncrypted;
-    size_t cbInitiatorSecretEncrypted;
-    rc = VDCFGQueryBytesAlloc(pImage->pIfConfig,
-                              "InitiatorSecretEncrypted",
-                              &pvInitiatorSecretEncrypted,
-                              &cbInitiatorSecretEncrypted);
-    if (RT_SUCCESS(rc))
-    {
-        RTMemFree(pvInitiatorSecretEncrypted);
-        if (!pImage->pbInitiatorSecret)
-        {
-            /* we have an encrypted initiator secret but not an unencrypted one */
-            rc = vdIfError(pImage->pIfError, VERR_VD_ISCSI_SECRET_ENCRYPTED, RT_SRC_POS, N_("iSCSI: initiator secret not decrypted"));
-            goto out;
-        }
-    }
     pImage->pszTargetUsername = NULL;
-    rc = VDCFGQueryStringAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryStringAlloc(pImage->pInterfaceConfigCallbacks,
+                               pImage->pInterfaceConfig->pvUser,
                                "TargetUsername",
                                &pImage->pszTargetUsername);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
         rc = VINF_SUCCESS;
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetUsername as string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetUsername as string"));
         goto out;
     }
     pImage->pbTargetSecret = NULL;
     pImage->cbTargetSecret = 0;
-    rc = VDCFGQueryBytesAlloc(pImage->pIfConfig,
+    rc = VDCFGQueryBytesAlloc(pImage->pInterfaceConfigCallbacks,
+                              pImage->pInterfaceConfig->pvUser,
                               "TargetSecret", (void **)&pImage->pbTargetSecret,
                               &pImage->cbTargetSecret);
     if (rc == VERR_CFGM_VALUE_NOT_FOUND || rc == VERR_CFGM_NO_PARENT)
         rc = VINF_SUCCESS;
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetSecret as byte string"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read TargetSecret as byte string"));
         goto out;
     }
-    rc = VDCFGQueryU32Def(pImage->pIfConfig,
+    rc = VDCFGQueryU32Def(pImage->pInterfaceConfigCallbacks,
+                          pImage->pInterfaceConfig->pvUser,
                           "WriteSplit", &pImage->cbWriteSplit,
                           uWriteSplitDef);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read WriteSplit as U32"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read WriteSplit as U32"));
         goto out;
     }
 
@@ -3986,20 +3965,22 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     pImage->uPort          = 0;
     pImage->Socket         = NIL_VDSOCKET;
     /* Query the iSCSI lower level configuration. */
-    rc = VDCFGQueryU32Def(pImage->pIfConfig,
+    rc = VDCFGQueryU32Def(pImage->pInterfaceConfigCallbacks,
+                          pImage->pInterfaceConfig->pvUser,
                           "Timeout", &pImage->uReadTimeout,
                           uTimeoutDef);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read Timeout as U32"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read Timeout as U32"));
         goto out;
     }
-    rc = VDCFGQueryBoolDef(pImage->pIfConfig,
+    rc = VDCFGQueryBoolDef(pImage->pInterfaceConfigCallbacks,
+                           pImage->pInterfaceConfig->pvUser,
                            "HostIPStack", &pImage->fHostIP,
                            fHostIPDef);
     if (RT_FAILURE(rc))
     {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read HostIPStack as boolean"));
+        rc = iscsiError(pImage, rc, RT_SRC_POS, N_("iSCSI: configuration error: failed to read HostIPStack as boolean"));
         goto out;
     }
 
@@ -4017,8 +3998,8 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     pImage->cbRecvPDUResidual = 0;
 
     /* Create the socket structure. */
-    rc = pImage->pIfNet->pfnSocketCreate(VD_INTERFACETCPNET_CONNECT_EXTENDED_SELECT,
-                                         &pImage->Socket);
+    rc = pImage->pInterfaceNetCallbacks->pfnSocketCreate(VD_INTERFACETCPNET_CONNECT_EXTENDED_SELECT,
+                                                         &pImage->Socket);
     if (RT_SUCCESS(rc))
     {
         pImage->fExtendedSelectSupported = true;
@@ -4042,7 +4023,7 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
         else
         {
             pImage->fExtendedSelectSupported = false;
-            rc = pImage->pIfNet->pfnSocketCreate(0, &pImage->Socket);
+            rc = pImage->pInterfaceNetCallbacks->pfnSocketCreate(0, &pImage->Socket);
             if (RT_FAILURE(rc))
             {
                 LogFunc(("Creating socket failed -> %Rrc\n", rc));
@@ -4070,39 +4051,43 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
 
     SCSIREQ sr;
     RTSGSEG DataSeg;
+    uint8_t sense[96];
     uint8_t data8[8];
     uint8_t data12[12];
 
     /*
      * Inquire available LUNs - purely dummy request.
      */
+    uint8_t CDB_rlun[12];
     uint8_t rlundata[16];
-    RT_ZERO(sr.abCDB);
-    sr.abCDB[0] = SCSI_REPORT_LUNS;
-    sr.abCDB[1] = 0;        /* reserved */
-    sr.abCDB[2] = 0;        /* reserved */
-    sr.abCDB[3] = 0;        /* reserved */
-    sr.abCDB[4] = 0;        /* reserved */
-    sr.abCDB[5] = 0;        /* reserved */
-    sr.abCDB[6] = sizeof(rlundata) >> 24;
-    sr.abCDB[7] = (sizeof(rlundata) >> 16) & 0xff;
-    sr.abCDB[8] = (sizeof(rlundata) >> 8) & 0xff;
-    sr.abCDB[9] = sizeof(rlundata) & 0xff;
-    sr.abCDB[10] = 0;       /* reserved */
-    sr.abCDB[11] = 0;       /* control */
+    CDB_rlun[0] = SCSI_REPORT_LUNS;
+    CDB_rlun[1] = 0;        /* reserved */
+    CDB_rlun[2] = 0;        /* reserved */
+    CDB_rlun[3] = 0;        /* reserved */
+    CDB_rlun[4] = 0;        /* reserved */
+    CDB_rlun[5] = 0;        /* reserved */
+    CDB_rlun[6] = sizeof(rlundata) >> 24;
+    CDB_rlun[7] = (sizeof(rlundata) >> 16) & 0xff;
+    CDB_rlun[8] = (sizeof(rlundata) >> 8) & 0xff;
+    CDB_rlun[9] = sizeof(rlundata) & 0xff;
+    CDB_rlun[10] = 0;       /* reserved */
+    CDB_rlun[11] = 0;       /* control */
 
     DataSeg.pvSeg = rlundata;
     DataSeg.cbSeg = sizeof(rlundata);
 
-    sr.enmXfer   = SCSIXFER_FROM_TARGET;
-    sr.cbCDB     = 12;
+    sr.enmXfer = SCSIXFER_FROM_TARGET;
+    sr.cbCDB = sizeof(CDB_rlun);
+    sr.pvCDB = CDB_rlun;
     sr.cbI2TData = 0;
     sr.paI2TSegs = NULL;
     sr.cI2TSegs  = 0;
     sr.cbT2IData = DataSeg.cbSeg;
     sr.paT2ISegs = &DataSeg;
     sr.cT2ISegs  = 1;
-    sr.cbSense   = sizeof(sr.abSense);
+    sr.cbSense   = sizeof(sense);
+    sr.pvSense   = sense;
+
     rc = iscsiCommandSync(pImage, &sr, false, VERR_INVALID_STATE);
     if (RT_FAILURE(rc))
     {
@@ -4113,33 +4098,36 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     /*
      * Inquire device characteristics - no tapes, scanners etc., please.
      */
-    RT_ZERO(sr.abCDB);
-    sr.abCDB[0] = SCSI_INQUIRY;
-    sr.abCDB[1] = 0;         /* reserved */
-    sr.abCDB[2] = 0;         /* reserved */
-    sr.abCDB[3] = 0;         /* reserved */
-    sr.abCDB[4] = sizeof(data8);
-    sr.abCDB[5] = 0;         /* control */
+    uint8_t CDB_inq[6];
+    CDB_inq[0] = SCSI_INQUIRY;
+    CDB_inq[1] = 0;         /* reserved */
+    CDB_inq[2] = 0;         /* reserved */
+    CDB_inq[3] = 0;         /* reserved */
+    CDB_inq[4] = sizeof(data8);
+    CDB_inq[5] = 0;         /* control */
 
     DataSeg.pvSeg = data8;
     DataSeg.cbSeg = sizeof(data8);
 
-    sr.enmXfer   = SCSIXFER_FROM_TARGET;
-    sr.cbCDB     = 6;
+    sr.enmXfer = SCSIXFER_FROM_TARGET;
+    sr.cbCDB = sizeof(CDB_inq);
+    sr.pvCDB = CDB_inq;
     sr.cbI2TData = 0;
     sr.paI2TSegs = NULL;
     sr.cI2TSegs  = 0;
     sr.cbT2IData = DataSeg.cbSeg;
     sr.paT2ISegs = &DataSeg;
     sr.cT2ISegs  = 1;
-    sr.cbSense   = sizeof(sr.abSense);
+    sr.cbSense = sizeof(sense);
+    sr.pvSense = sense;
+
     rc = iscsiCommandSync(pImage, &sr, true /* fRetry */, VERR_INVALID_STATE);
     if (RT_SUCCESS(rc))
     {
         uint8_t devType = (sr.cbT2IData > 0) ? data8[0] & SCSI_DEVTYPE_MASK : 255;
         if (devType != SCSI_DEVTYPE_DISK)
         {
-            rc = vdIfError(pImage->pIfError, VERR_VD_ISCSI_INVALID_TYPE,
+            rc = iscsiError(pImage, VERR_VD_ISCSI_INVALID_TYPE,
                             RT_SRC_POS, N_("iSCSI: target address %s, target name %s, SCSI LUN %lld reports device type=%u"),
                             pImage->pszTargetAddress, pImage->pszTargetName,
                             pImage->LUN, devType);
@@ -4169,27 +4157,31 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
      * Query write disable bit in the device specific parameter entry in the
      * mode parameter header. Refuse read/write opening of read only disks.
      */
+
+    uint8_t CDB_ms[6];
     uint8_t data4[4];
-    RT_ZERO(sr.abCDB);
-    sr.abCDB[0] = SCSI_MODE_SENSE_6;
-    sr.abCDB[1] = 0;             /* dbd=0/reserved */
-    sr.abCDB[2] = 0x3f;          /* pc=0/page code=0x3f, ask for all pages */
-    sr.abCDB[3] = 0;             /* subpage code=0, return everything in page_0 format */
-    sr.abCDB[4] = sizeof(data4); /* allocation length=4 */
-    sr.abCDB[5] = 0;             /* control */
+    CDB_ms[0] = SCSI_MODE_SENSE_6;
+    CDB_ms[1] = 0;          /* dbd=0/reserved */
+    CDB_ms[2] = 0x3f;       /* pc=0/page code=0x3f, ask for all pages */
+    CDB_ms[3] = 0;          /* subpage code=0, return everything in page_0 format */
+    CDB_ms[4] = sizeof(data4); /* allocation length=4 */
+    CDB_ms[5] = 0;          /* control */
 
     DataSeg.pvSeg = data4;
     DataSeg.cbSeg = sizeof(data4);
 
-    sr.enmXfer   = SCSIXFER_FROM_TARGET;
-    sr.cbCDB     = 6;
+    sr.enmXfer = SCSIXFER_FROM_TARGET;
+    sr.cbCDB = sizeof(CDB_ms);
+    sr.pvCDB = CDB_ms;
     sr.cbI2TData = 0;
     sr.paI2TSegs = NULL;
     sr.cI2TSegs  = 0;
     sr.cbT2IData = DataSeg.cbSeg;
     sr.paT2ISegs = &DataSeg;
     sr.cT2ISegs  = 1;
-    sr.cbSense   = sizeof(sr.abSense);
+    sr.cbSense = sizeof(sense);
+    sr.pvSense = sense;
+
     rc = iscsiCommandSync(pImage, &sr, true /* fRetry */, VERR_INVALID_STATE);
     if (RT_SUCCESS(rc))
     {
@@ -4208,165 +4200,90 @@ static int iscsiOpenImage(PISCSIIMAGE pImage, unsigned uOpenFlags)
     /*
      * Determine sector size and capacity of the volume immediately.
      */
+    uint8_t CDB_cap[16];
+
     RT_ZERO(data12);
-    RT_ZERO(sr.abCDB);
-    sr.abCDB[0] = SCSI_SERVICE_ACTION_IN_16;
-    sr.abCDB[1] = SCSI_SVC_ACTION_IN_READ_CAPACITY_16;   /* subcommand */
-    sr.abCDB[10+3] = sizeof(data12);                     /* allocation length (dword) */
+    RT_ZERO(CDB_cap);
+    CDB_cap[0] = SCSI_SERVICE_ACTION_IN_16;
+    CDB_cap[1] = SCSI_SVC_ACTION_IN_READ_CAPACITY_16;   /* subcommand */
+    CDB_cap[10+3] = sizeof(data12);                     /* allocation length (dword) */
 
     DataSeg.pvSeg = data12;
     DataSeg.cbSeg = sizeof(data12);
 
-    sr.enmXfer   = SCSIXFER_FROM_TARGET;
-    sr.cbCDB     = 16;
+    sr.enmXfer = SCSIXFER_FROM_TARGET;
+    sr.cbCDB = sizeof(CDB_cap);
+    sr.pvCDB = CDB_cap;
     sr.cbI2TData = 0;
     sr.paI2TSegs = NULL;
     sr.cI2TSegs  = 0;
     sr.cbT2IData = DataSeg.cbSeg;
     sr.paT2ISegs = &DataSeg;
     sr.cT2ISegs  = 1;
-    sr.cbSense   = sizeof(sr.abSense);
+    sr.cbSense = sizeof(sense);
+    sr.pvSense = sense;
 
     rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
-    if (RT_SUCCESS(rc))
+    if (   RT_SUCCESS(rc)
+        && sr.status == SCSI_STATUS_OK)
     {
-        bool fEnd = false;
-        uint8_t cMaxRetries = 10;
-        do
+        pImage->cVolume = RT_BE2H_U64(*(uint64_t *)&data12[0]);
+        pImage->cVolume++;
+        pImage->cbSector = RT_BE2H_U32(*(uint32_t *)&data12[8]);
+        pImage->cbSize = pImage->cVolume * pImage->cbSector;
+        if (pImage->cVolume == 0 || pImage->cbSector != 512 || pImage->cbSize < pImage->cVolume)
         {
-            switch (sr.status)
-            {
-                case SCSI_STATUS_OK:
-                {
-                    pImage->cVolume = RT_BE2H_U64(*(uint64_t *)&data12[0]);
-                    pImage->cVolume++;
-                    pImage->cbSector = RT_BE2H_U32(*(uint32_t *)&data12[8]);
-                    pImage->cbSize = pImage->cVolume * pImage->cbSector;
-                    if (pImage->cVolume == 0 || pImage->cbSize < pImage->cVolume)
-                    {
-                        rc = vdIfError(pImage->pIfError, VERR_VD_ISCSI_INVALID_TYPE,
-                                       RT_SRC_POS, N_("iSCSI: target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
-                                       pImage->pszTargetAddress, pImage->pszTargetName,
-                                       pImage->LUN, pImage->cVolume, pImage->cbSector);
-                    }
-                    fEnd = true;
-                    break;
-                }
-                case SCSI_STATUS_CHECK_CONDITION:
-                {
-                    if((sr.abSense[2] & 0x0f) == SCSI_SENSE_UNIT_ATTENTION)
-                    {
-                        if(   sr.abSense[12] == SCSI_ASC_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED
-                           && sr.abSense[13] == SCSI_ASCQ_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED)
-                        {
-/** @todo for future: prepare and send command "REQUEST SENSE" which will
-return the status of target and will clear any unit attention condition that it reports */
-                            rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
-                            if (RT_FAILURE(rc))
-                                fEnd = true;
-                            cMaxRetries--;
-                            break;
-
-                        }
-                    }
-                    break;
-                }
-                default:
-                {
-                    rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
-                    if (RT_FAILURE(rc))
-                        fEnd = true;
-                    cMaxRetries--;
-                    break;
-                }
-            }
-            if (!cMaxRetries)
-                fEnd = true;
-        } while(!fEnd);
+            rc = iscsiError(pImage, VERR_VD_ISCSI_INVALID_TYPE,
+                            RT_SRC_POS, N_("iSCSI: target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
+                            pImage->pszTargetAddress, pImage->pszTargetName,
+                            pImage->LUN, pImage->cVolume, pImage->cbSector);
+        }
     }
     else
     {
+        uint8_t CDB_capfb[10];
+
         RT_ZERO(data8);
-        sr.abCDB[0] = SCSI_READ_CAPACITY;
-        sr.abCDB[1] = 0;   /* reserved */
-        sr.abCDB[2] = 0;   /* reserved */
-        sr.abCDB[3] = 0;   /* reserved */
-        sr.abCDB[4] = 0;   /* reserved */
-        sr.abCDB[5] = 0;   /* reserved */
-        sr.abCDB[6] = 0;   /* reserved */
-        sr.abCDB[7] = 0;   /* reserved */
-        sr.abCDB[8] = 0;   /* reserved */
-        sr.abCDB[9] = 0;   /* control */
+        CDB_capfb[0] = SCSI_READ_CAPACITY;
+        CDB_capfb[1] = 0;   /* reserved */
+        CDB_capfb[2] = 0;   /* reserved */
+        CDB_capfb[3] = 0;   /* reserved */
+        CDB_capfb[4] = 0;   /* reserved */
+        CDB_capfb[5] = 0;   /* reserved */
+        CDB_capfb[6] = 0;   /* reserved */
+        CDB_capfb[7] = 0;   /* reserved */
+        CDB_capfb[8] = 0;   /* reserved */
+        CDB_capfb[9] = 0;   /* control */
 
         DataSeg.pvSeg = data8;
         DataSeg.cbSeg = sizeof(data8);
 
-        sr.enmXfer   = SCSIXFER_FROM_TARGET;
-        sr.cbCDB     = 10;
+        sr.enmXfer = SCSIXFER_FROM_TARGET;
+        sr.cbCDB = sizeof(CDB_capfb);
+        sr.pvCDB = CDB_capfb;
         sr.cbI2TData = 0;
         sr.paI2TSegs = NULL;
         sr.cI2TSegs  = 0;
         sr.cbT2IData = DataSeg.cbSeg;
         sr.paT2ISegs = &DataSeg;
         sr.cT2ISegs  = 1;
-        sr.cbSense   = sizeof(sr.abSense);
+        sr.cbSense = sizeof(sense);
+        sr.pvSense = sense;
+
         rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
         if (RT_SUCCESS(rc))
         {
-            bool fEnd = false;
-            uint8_t cMaxRetries = 10;
-            do
+            pImage->cVolume = (data8[0] << 24) | (data8[1] << 16) | (data8[2] << 8) | data8[3];
+            pImage->cVolume++;
+            pImage->cbSector = (data8[4] << 24) | (data8[5] << 16) | (data8[6] << 8) | data8[7];
+            pImage->cbSize = pImage->cVolume * pImage->cbSector;
+            if (pImage->cVolume == 0 || pImage->cbSector != 512)
             {
-                switch (sr.status)
-                {
-                    case SCSI_STATUS_OK:
-                    {
-                        pImage->cVolume = (data8[0] << 24) | (data8[1] << 16) | (data8[2] << 8) | data8[3];
-                        pImage->cVolume++;
-                        pImage->cbSector = (data8[4] << 24) | (data8[5] << 16) | (data8[6] << 8) | data8[7];
-                        pImage->cbSize = pImage->cVolume * pImage->cbSector;
-                        if (pImage->cVolume == 0)
-                        {
-                            rc = vdIfError(pImage->pIfError, VERR_VD_ISCSI_INVALID_TYPE,
-                                           RT_SRC_POS, N_("iSCSI: fallback capacity detection for target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
-                                           pImage->pszTargetAddress, pImage->pszTargetName,
-                                           pImage->LUN, pImage->cVolume, pImage->cbSector);
-                        }
-
-                        fEnd = true;
-                        break;
-                    }
-                    case SCSI_STATUS_CHECK_CONDITION:
-                    {
-                        if((sr.abSense[2] & 0x0f) == SCSI_SENSE_UNIT_ATTENTION)
-                        {
-                            if(   sr.abSense[12] == SCSI_ASC_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED
-                               && sr.abSense[13] == SCSI_ASCQ_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED)
-                            {
-    /** @todo for future: prepare and send command "REQUEST SENSE" which will
-    return the status of target and will clear any unit attention condition that it reports */
-                                rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
-                                if (RT_FAILURE(rc))
-                                    fEnd = true;
-                                cMaxRetries--;
-                                break;
-
-                            }
-                        }
-                        break;
-                    }
-                    default:
-                    {
-                        rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
-                        if (RT_FAILURE(rc))
-                            fEnd = true;
-                        cMaxRetries--;
-                        break;
-                    }
-                }
-                if (!cMaxRetries)
-                    fEnd = true;
-            } while(!fEnd);
+                rc = iscsiError(pImage, VERR_VD_ISCSI_INVALID_TYPE,
+                                RT_SRC_POS, N_("iSCSI: fallback capacity detectio for target address %s, target name %s, SCSI LUN %lld reports media sector count=%llu sector size=%u"),
+                                pImage->pszTargetAddress, pImage->pszTargetName,
+                                pImage->LUN, pImage->cVolume, pImage->cbSector);
+            }
         }
         else
         {
@@ -4383,27 +4300,30 @@ return the status of target and will clear any unit attention condition that it 
      * to do it again.
      */
     uint8_t aCachingModePage[32];
+    uint8_t aCDBModeSense6[6];
 
     memset(aCachingModePage, '\0', sizeof(aCachingModePage));
-    sr.abCDB[0] = SCSI_MODE_SENSE_6;
-    sr.abCDB[1] = 0;
-    sr.abCDB[2] = (0x00 << 6) | (0x08 & 0x3f); /* Current values and caching mode page */
-    sr.abCDB[3] = 0; /* Sub page code. */
-    sr.abCDB[4] = sizeof(aCachingModePage) & 0xff;
-    sr.abCDB[5] = 0;
+    aCDBModeSense6[0] = SCSI_MODE_SENSE_6;
+    aCDBModeSense6[1] = 0;
+    aCDBModeSense6[2] = (0x00 << 6) | (0x08 & 0x3f); /* Current values and caching mode page */
+    aCDBModeSense6[3] = 0; /* Sub page code. */
+    aCDBModeSense6[4] = sizeof(aCachingModePage) & 0xff;
+    aCDBModeSense6[5] = 0;
 
     DataSeg.pvSeg = aCachingModePage;
     DataSeg.cbSeg = sizeof(aCachingModePage);
 
-    sr.enmXfer   = SCSIXFER_FROM_TARGET;
-    sr.cbCDB     = 6;
+    sr.enmXfer = SCSIXFER_FROM_TARGET;
+    sr.cbCDB = sizeof(aCDBModeSense6);
+    sr.pvCDB = aCDBModeSense6;
     sr.cbI2TData = 0;
     sr.paI2TSegs = NULL;
     sr.cI2TSegs  = 0;
     sr.cbT2IData = DataSeg.cbSeg;
     sr.paT2ISegs = &DataSeg;
     sr.cT2ISegs  = 1;
-    sr.cbSense = sizeof(sr.abSense);
+    sr.cbSense = sizeof(sense);
+    sr.pvSense = sense;
     rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
     if (   RT_SUCCESS(rc)
         && (sr.status == SCSI_STATUS_OK)
@@ -4427,26 +4347,29 @@ return the status of target and will clear any unit attention condition that it 
             ASMBitSet(&aCachingModePage[Offset + 2], 2);
             ASMBitClear(&aCachingModePage[Offset + 2], 0);
 
-            sr.abCDB[0] = SCSI_MODE_SELECT_6;
-            sr.abCDB[1] = 0; /* Don't write the page into NV RAM. */
-            sr.abCDB[2] = 0;
-            sr.abCDB[3] = 0;
-            sr.abCDB[4] = sizeof(aCachingModePage) & 0xff;
-            sr.abCDB[5] = 0;
+            uint8_t aCDBCaching[6];
+            aCDBCaching[0] = SCSI_MODE_SELECT_6;
+            aCDBCaching[1] = 0; /* Don't write the page into NV RAM. */
+            aCDBCaching[2] = 0;
+            aCDBCaching[3] = 0;
+            aCDBCaching[4] = sizeof(aCachingModePage) & 0xff;
+            aCDBCaching[5] = 0;
 
             DataSeg.pvSeg = aCachingModePage;
             DataSeg.cbSeg = sizeof(aCachingModePage);
 
-            sr.enmXfer   = SCSIXFER_TO_TARGET;
-            sr.cbCDB     = 6;
+            sr.enmXfer = SCSIXFER_TO_TARGET;
+            sr.cbCDB = sizeof(aCDBCaching);
+            sr.pvCDB = aCDBCaching;
             sr.cbI2TData = DataSeg.cbSeg;
             sr.paI2TSegs = &DataSeg;
             sr.cI2TSegs  = 1;
             sr.cbT2IData = 0;
             sr.paT2ISegs = NULL;
             sr.cT2ISegs  = 0;
-            sr.cbSense   = sizeof(sr.abSense);
-            sr.status    = 0;
+            sr.cbSense = sizeof(sense);
+            sr.pvSense = sense;
+            sr.status  = 0;
             rc = iscsiCommandSync(pImage, &sr, false /* fRetry */, VINF_SUCCESS);
             if (   RT_SUCCESS(rc)
                 && (sr.status == SCSI_STATUS_OK))
@@ -4458,7 +4381,7 @@ return the status of target and will clear any unit attention condition that it 
                 /* Log failures but continue. */
                 LogRel(("iSCSI: Could not enable read and write cache of target %s, rc=%Rrc status=%#x\n",
                         pImage->pszTargetName, rc, sr.status));
-                LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sr.abSense));
+                LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sense));
                 rc = VINF_SUCCESS;
             }
         }
@@ -4466,8 +4389,8 @@ return the status of target and will clear any unit attention condition that it 
     else
     {
         /* Log errors but continue. */
-        LogRel(("iSCSI: Could not check write cache of target %s, rc=%Rrc, got mode page %#x\n", pImage->pszTargetName, rc, aCachingModePage[0] & 0x3f));
-        LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sr.abSense));
+        LogRel(("iSCSI: Could not check write cache of target %s, rc=%Rrc, got mode page %#x\n", pImage->pszTargetName, rc,aCachingModePage[0] & 0x3f));
+        LogRel(("iSCSI: Sense:\n%.*Rhxd\n", sr.cbSense, sense));
         rc = VINF_SUCCESS;
     }
 
@@ -4587,312 +4510,251 @@ static int iscsiClose(void *pBackendData, bool fDelete)
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnRead */
-static int iscsiRead(void *pBackendData, uint64_t uOffset, size_t cbToRead,
-                     PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
+static int iscsiRead(void *pBackendData, uint64_t uOffset, void *pvBuf,
+                     size_t cbToRead, size_t *pcbActuallyRead)
 {
+    /** @todo reinstate logging of the target everywhere - dropped temporarily */
+    LogFlowFunc(("pBackendData=%#p uOffset=%llu pvBuf=%#p cbToRead=%zu pcbActuallyRead=%#p\n", pBackendData, uOffset, pvBuf, cbToRead, pcbActuallyRead));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
-    int rc = VINF_SUCCESS;
+    uint64_t lba;
+    uint16_t tls;
+    int rc;
 
-    LogFlowFunc(("pBackendData=%p uOffset=%#llx pIoCtx=%#p cbToRead=%u pcbActuallyRead=%p\n",
-                 pBackendData, uOffset, pIoCtx, cbToRead, pcbActuallyRead));
+    Assert(pImage);
+    Assert(uOffset % 512 == 0);
+    Assert(cbToRead % 512 == 0);
+
+    Assert(pImage->cbSector);
+    AssertPtr(pvBuf);
 
     if (   uOffset + cbToRead > pImage->cbSize
         || cbToRead == 0)
-        return VERR_INVALID_PARAMETER;
+    {
+        rc = VERR_INVALID_PARAMETER;
+        goto out;
+    }
 
     /*
      * Clip read size to a value which is supported by the target.
      */
     cbToRead = RT_MIN(cbToRead, pImage->cbRecvDataLength);
 
-    unsigned cT2ISegs = 0;
-    size_t   cbSegs = 0;
+    lba = uOffset / pImage->cbSector;
+    tls = (uint16_t)(cbToRead / pImage->cbSector);
+    SCSIREQ sr;
+    RTSGSEG T2ISeg;
+    size_t cbCDB;
+    uint8_t abCDB[16];
+    uint8_t sense[96];
 
-    /* Get the number of segments. */
-    cbSegs = pImage->pIfIo->pfnIoCtxSegArrayCreate(pImage->pIfIo->Core.pvUser, pIoCtx,
-                                                   NULL, &cT2ISegs, cbToRead);
-    Assert(cbSegs == cbToRead);
-
-    PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(RT_OFFSETOF(SCSIREQ, aSegs[cT2ISegs]));
-    if (RT_LIKELY(pReq))
+    if (pImage->cVolume < _4G)
     {
-        uint64_t lba;
-        uint16_t tls;
-        uint8_t *pbCDB = &pReq->abCDB[0];
-        size_t cbCDB;
-
-        lba = uOffset / pImage->cbSector;
-        tls = (uint16_t)(cbToRead / pImage->cbSector);
-
-        cbSegs = pImage->pIfIo->pfnIoCtxSegArrayCreate(pImage->pIfIo->Core.pvUser, pIoCtx,
-                                                       &pReq->aSegs[0],
-                                                       &cT2ISegs, cbToRead);
-        Assert(cbSegs == cbToRead);
-
-        if (pImage->cVolume < _4G)
-        {
-            cbCDB = 10;
-            pbCDB[0] = SCSI_READ_10;
-            pbCDB[1] = 0;       /* reserved */
-            pbCDB[2] = (lba >> 24) & 0xff;
-            pbCDB[3] = (lba >> 16) & 0xff;
-            pbCDB[4] = (lba >> 8) & 0xff;
-            pbCDB[5] = lba & 0xff;
-            pbCDB[6] = 0;       /* reserved */
-            pbCDB[7] = (tls >> 8) & 0xff;
-            pbCDB[8] = tls & 0xff;
-            pbCDB[9] = 0;       /* control */
-        }
-        else
-        {
-            cbCDB = 16;
-            pbCDB[0] = SCSI_READ_16;
-            pbCDB[1] = 0;       /* reserved */
-            pbCDB[2] = (lba >> 56) & 0xff;
-            pbCDB[3] = (lba >> 48) & 0xff;
-            pbCDB[4] = (lba >> 40) & 0xff;
-            pbCDB[5] = (lba >> 32) & 0xff;
-            pbCDB[6] = (lba >> 24) & 0xff;
-            pbCDB[7] = (lba >> 16) & 0xff;
-            pbCDB[8] = (lba >> 8) & 0xff;
-            pbCDB[9] = lba & 0xff;
-            pbCDB[10] = 0;      /* tls unused */
-            pbCDB[11] = 0;      /* tls unused */
-            pbCDB[12] = (tls >> 8) & 0xff;
-            pbCDB[13] = tls & 0xff;
-            pbCDB[14] = 0;      /* reserved */
-            pbCDB[15] = 0;      /* reserved */
-        }
-
-        pReq->enmXfer       = SCSIXFER_FROM_TARGET;
-        pReq->cbCDB         = cbCDB;
-        pReq->cbI2TData     = 0;
-        pReq->paI2TSegs     = NULL;
-        pReq->cI2TSegs      = 0;
-        pReq->cbT2IData     = cbToRead;
-        pReq->paT2ISegs     = &pReq->aSegs[pReq->cI2TSegs];
-        pReq->cT2ISegs      = pReq->cT2ISegs;
-        pReq->cbSense       = sizeof(pReq->abSense);
-        pReq->cT2ISegs      = cT2ISegs;
-        pReq->pIoCtx        = pIoCtx;
-        pReq->cSenseRetries = 10;
-        pReq->rcSense       = VERR_READ_ERROR;
-
-        if (vdIfIoIntIoCtxIsSynchronous(pImage->pIfIo, pIoCtx))
-        {
-            rc = iscsiCommandSync(pImage, pReq, true, VERR_READ_ERROR);
-            if (RT_FAILURE(rc))
-            {
-                LogFlow(("iscsiCommandSync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
-                *pcbActuallyRead = 0;
-            }
-            else
-                *pcbActuallyRead = pReq->cbT2IData;
-        }
-        else
-        {
-            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReq);
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("iscsiCommandAsync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
-            else
-            {
-                *pcbActuallyRead = cbToRead;
-                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
-            }
-        }
-
-        RTMemFree(pReq);
+        cbCDB = 10;
+        abCDB[0] = SCSI_READ_10;
+        abCDB[1] = 0;       /* reserved */
+        abCDB[2] = (lba >> 24) & 0xff;
+        abCDB[3] = (lba >> 16) & 0xff;
+        abCDB[4] = (lba >> 8) & 0xff;
+        abCDB[5] = lba & 0xff;
+        abCDB[6] = 0;       /* reserved */
+        abCDB[7] = (tls >> 8) & 0xff;
+        abCDB[8] = tls & 0xff;
+        abCDB[9] = 0;       /* control */
     }
     else
-        rc = VERR_NO_MEMORY;
+    {
+        cbCDB = 16;
+        abCDB[0] = SCSI_READ_16;
+        abCDB[1] = 0;       /* reserved */
+        abCDB[2] = (lba >> 56) & 0xff;
+        abCDB[3] = (lba >> 48) & 0xff;
+        abCDB[4] = (lba >> 40) & 0xff;
+        abCDB[5] = (lba >> 32) & 0xff;
+        abCDB[6] = (lba >> 24) & 0xff;
+        abCDB[7] = (lba >> 16) & 0xff;
+        abCDB[8] = (lba >> 8) & 0xff;
+        abCDB[9] = lba & 0xff;
+        abCDB[10] = 0;      /* tls unused */
+        abCDB[11] = 0;      /* tls unused */
+        abCDB[12] = (tls >> 8) & 0xff;
+        abCDB[13] = tls & 0xff;
+        abCDB[14] = 0;      /* reserved */
+        abCDB[15] = 0;      /* reserved */
+    }
 
-    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    T2ISeg.pvSeg = pvBuf;
+    T2ISeg.cbSeg = cbToRead;
+
+    sr.enmXfer   = SCSIXFER_FROM_TARGET;
+    sr.cbCDB     = cbCDB;
+    sr.pvCDB     = abCDB;
+    sr.cbI2TData = 0;
+    sr.paI2TSegs = NULL;
+    sr.cI2TSegs  = 0;
+    sr.cbT2IData = cbToRead;
+    sr.paT2ISegs = &T2ISeg;
+    sr.cT2ISegs  = 1;
+    sr.cbSense   = sizeof(sense);
+    sr.pvSense   = sense;
+
+    rc = iscsiCommandSync(pImage, &sr, true, VERR_READ_ERROR);
+    if (RT_FAILURE(rc))
+    {
+        LogFlow(("iscsiCommandSync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
+        *pcbActuallyRead = 0;
+    }
+    else
+        *pcbActuallyRead = sr.cbT2IData;
+
+out:
+    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnWrite */
-static int iscsiWrite(void *pBackendData, uint64_t uOffset, size_t cbToWrite,
-                      PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
-                      size_t *pcbPostRead, unsigned fWrite)
+static int iscsiWrite(void *pBackendData, uint64_t uOffset, const void *pvBuf,
+                     size_t cbToWrite, size_t *pcbWriteProcess,
+                     size_t *pcbPreRead, size_t *pcbPostRead, unsigned fWrite)
 {
-    LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbToWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
-                 pBackendData, uOffset, pIoCtx, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
+     LogFlowFunc(("pBackendData=%#p uOffset=%llu pvBuf=%#p cbToWrite=%zu pcbWriteProcess=%#p pcbPreRead=%#p pcbPostRead=%#p\n", pBackendData, uOffset, pvBuf, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
-    int rc = VINF_SUCCESS;
+    uint64_t lba;
+    uint16_t tls;
+    int rc;
 
-    AssertPtr(pImage);
+    Assert(pImage);
     Assert(uOffset % 512 == 0);
     Assert(cbToWrite % 512 == 0);
 
-    if (uOffset + cbToWrite > pImage->cbSize)
-        return VERR_INVALID_PARAMETER;
+    Assert(pImage->cbSector);
+    Assert(pvBuf);
+
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+    {
+        rc = VERR_VD_IMAGE_READ_ONLY;
+        goto out;
+    }
+
+    *pcbPreRead = 0;
+    *pcbPostRead = 0;
 
     /*
-     * Clip read size to a value which is supported by the target.
+     * Clip write size to a value which is supported by the target.
      */
     cbToWrite = RT_MIN(cbToWrite, pImage->cbSendDataLength);
 
-    unsigned cI2TSegs = 0;
-    size_t   cbSegs = 0;
+    lba = uOffset / pImage->cbSector;
+    tls = (uint16_t)(cbToWrite / pImage->cbSector);
+    SCSIREQ sr;
+    RTSGSEG I2TSeg;
+    size_t cbCDB;
+    uint8_t abCDB[16];
+    uint8_t sense[96];
 
-    /* Get the number of segments. */
-    cbSegs = pImage->pIfIo->pfnIoCtxSegArrayCreate(pImage->pIfIo->Core.pvUser, pIoCtx,
-                                                   NULL, &cI2TSegs, cbToWrite);
-    Assert(cbSegs == cbToWrite);
-
-    PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(RT_OFFSETOF(SCSIREQ, aSegs[cI2TSegs]));
-    if (RT_LIKELY(pReq))
+    if (pImage->cVolume < _4G)
     {
-        uint64_t lba;
-        uint16_t tls;
-        uint8_t *pbCDB = &pReq->abCDB[0];
-        size_t cbCDB;
-
-        lba = uOffset / pImage->cbSector;
-        tls = (uint16_t)(cbToWrite / pImage->cbSector);
-
-        cbSegs = pImage->pIfIo->pfnIoCtxSegArrayCreate(pImage->pIfIo->Core.pvUser, pIoCtx,
-                                                       &pReq->aSegs[0],
-                                                       &cI2TSegs, cbToWrite);
-        Assert(cbSegs == cbToWrite);
-
-        if (pImage->cVolume < _4G)
-        {
-            cbCDB = 10;
-            pbCDB[0] = SCSI_WRITE_10;
-            pbCDB[1] = 0;       /* reserved */
-            pbCDB[2] = (lba >> 24) & 0xff;
-            pbCDB[3] = (lba >> 16) & 0xff;
-            pbCDB[4] = (lba >> 8) & 0xff;
-            pbCDB[5] = lba & 0xff;
-            pbCDB[6] = 0;       /* reserved */
-            pbCDB[7] = (tls >> 8) & 0xff;
-            pbCDB[8] = tls & 0xff;
-            pbCDB[9] = 0;       /* control */
-        }
-        else
-        {
-            cbCDB = 16;
-            pbCDB[0] = SCSI_WRITE_16;
-            pbCDB[1] = 0;       /* reserved */
-            pbCDB[2] = (lba >> 56) & 0xff;
-            pbCDB[3] = (lba >> 48) & 0xff;
-            pbCDB[4] = (lba >> 40) & 0xff;
-            pbCDB[5] = (lba >> 32) & 0xff;
-            pbCDB[6] = (lba >> 24) & 0xff;
-            pbCDB[7] = (lba >> 16) & 0xff;
-            pbCDB[8] = (lba >> 8) & 0xff;
-            pbCDB[9] = lba & 0xff;
-            pbCDB[10] = 0;      /* tls unused */
-            pbCDB[11] = 0;      /* tls unused */
-            pbCDB[12] = (tls >> 8) & 0xff;
-            pbCDB[13] = tls & 0xff;
-            pbCDB[14] = 0;      /* reserved */
-            pbCDB[15] = 0;      /* reserved */
-        }
-
-        pReq->enmXfer       = SCSIXFER_TO_TARGET;
-        pReq->cbCDB         = cbCDB;
-        pReq->cbI2TData     = cbToWrite;
-        pReq->paI2TSegs     = &pReq->aSegs[0];
-        pReq->cI2TSegs      = cI2TSegs;
-        pReq->cbT2IData     = 0;
-        pReq->paT2ISegs     = NULL;
-        pReq->cT2ISegs      = 0;
-        pReq->cbSense       = sizeof(pReq->abSense);
-        pReq->pIoCtx        = pIoCtx;
-        pReq->cSenseRetries = 10;
-        pReq->rcSense       = VERR_WRITE_ERROR;
-
-        if (vdIfIoIntIoCtxIsSynchronous(pImage->pIfIo, pIoCtx))
-        {
-            rc = iscsiCommandSync(pImage, pReq, true, VERR_WRITE_ERROR);
-            if (RT_FAILURE(rc))
-            {
-                LogFlow(("iscsiCommandSync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
-                *pcbWriteProcess = 0;
-            }
-            else
-                *pcbWriteProcess = cbToWrite;
-        }
-        else
-        {
-            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReq);
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("iscsiCommandAsync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
-            else
-            {
-                *pcbWriteProcess = cbToWrite;
-                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
-            }
-        }
-
-        RTMemFree(pReq);
+        cbCDB = 10;
+        abCDB[0] = SCSI_WRITE_10;
+        abCDB[1] = 0;       /* reserved */
+        abCDB[2] = (lba >> 24) & 0xff;
+        abCDB[3] = (lba >> 16) & 0xff;
+        abCDB[4] = (lba >> 8) & 0xff;
+        abCDB[5] = lba & 0xff;
+        abCDB[6] = 0;       /* reserved */
+        abCDB[7] = (tls >> 8) & 0xff;
+        abCDB[8] = tls & 0xff;
+        abCDB[9] = 0;       /* control */
     }
     else
-        rc = VERR_NO_MEMORY;
+    {
+        cbCDB = 16;
+        abCDB[0] = SCSI_WRITE_16;
+        abCDB[1] = 0;       /* reserved */
+        abCDB[2] = (lba >> 56) & 0xff;
+        abCDB[3] = (lba >> 48) & 0xff;
+        abCDB[4] = (lba >> 40) & 0xff;
+        abCDB[5] = (lba >> 32) & 0xff;
+        abCDB[6] = (lba >> 24) & 0xff;
+        abCDB[7] = (lba >> 16) & 0xff;
+        abCDB[8] = (lba >> 8) & 0xff;
+        abCDB[9] = lba & 0xff;
+        abCDB[10] = 0;      /* tls unused */
+        abCDB[11] = 0;      /* tls unused */
+        abCDB[12] = (tls >> 8) & 0xff;
+        abCDB[13] = tls & 0xff;
+        abCDB[14] = 0;      /* reserved */
+        abCDB[15] = 0;      /* reserved */
+    }
 
-    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    I2TSeg.pvSeg = (void *)pvBuf;
+    I2TSeg.cbSeg = cbToWrite;
+
+    sr.enmXfer              = SCSIXFER_TO_TARGET;
+    sr.cbCDB                = cbCDB;
+    sr.pvCDB                = abCDB;
+    sr.cbI2TData            = cbToWrite;
+    sr.paI2TSegs            = &I2TSeg;
+    sr.cI2TSegs             = 1;
+    sr.cbT2IData            = 0;
+    sr.paT2ISegs            = NULL;
+    sr.cT2ISegs             = 0;
+    sr.cbSense              = sizeof(sense);
+    sr.pvSense              = sense;
+
+    rc = iscsiCommandSync(pImage, &sr, true, VERR_WRITE_ERROR);
+    if (RT_FAILURE(rc))
+    {
+        LogFlow(("iscsiCommandSync(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
+        *pcbWriteProcess = 0;
+    }
+    else
+        *pcbWriteProcess = cbToWrite;
+
+out:
+    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnFlush */
-static int iscsiFlush(void *pBackendData, PVDIOCTX pIoCtx)
+static int iscsiFlush(void *pBackendData)
 {
-    LogFlowFunc(("pBackendData=%p pIoCtx=%#p\n", pBackendData, pIoCtx));
+    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
-    int rc = VINF_SUCCESS;
+    int rc;
 
-    PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(sizeof(SCSIREQ));
-    if (RT_LIKELY(pReq))
-    {
-        uint8_t *pbCDB = &pReq->abCDB[0];
+    Assert(pImage);
 
-        pbCDB[0] = SCSI_SYNCHRONIZE_CACHE;
-        pbCDB[1] = 0;         /* reserved */
-        pbCDB[2] = 0;         /* reserved */
-        pbCDB[3] = 0;         /* reserved */
-        pbCDB[4] = 0;         /* reserved */
-        pbCDB[5] = 0;         /* reserved */
-        pbCDB[6] = 0;         /* reserved */
-        pbCDB[7] = 0;         /* reserved */
-        pbCDB[8] = 0;         /* reserved */
-        pbCDB[9] = 0;         /* control */
+    SCSIREQ sr;
+    uint8_t abCDB[10];
+    uint8_t sense[96];
 
-        pReq->enmXfer       = SCSIXFER_NONE;
-        pReq->cbCDB         = 10;
-        pReq->cbI2TData     = 0;
-        pReq->paI2TSegs     = NULL;
-        pReq->cI2TSegs      = 0;
-        pReq->cbT2IData     = 0;
-        pReq->paT2ISegs     = NULL;
-        pReq->cT2ISegs      = 0;
-        pReq->cbSense       = sizeof(pReq->abSense);
-        pReq->pIoCtx        = pIoCtx;
-        pReq->cSenseRetries = 0;
-        pReq->rcSense       = VINF_SUCCESS;
+    abCDB[0] = SCSI_SYNCHRONIZE_CACHE;
+    abCDB[1] = 0;       /* reserved */
+    abCDB[2] = 0;       /* LBA 0 */
+    abCDB[3] = 0;       /* LBA 0 */
+    abCDB[4] = 0;       /* LBA 0 */
+    abCDB[5] = 0;       /* LBA 0 */
+    abCDB[6] = 0;       /* reserved */
+    abCDB[7] = 0;       /* transfer everything to disk */
+    abCDB[8] = 0;       /* transfer everything to disk */
+    abCDB[9] = 0;       /* control */
 
-        if (vdIfIoIntIoCtxIsSynchronous(pImage->pIfIo, pIoCtx))
-        {
-            rc = iscsiCommandSync(pImage, pReq, false, VINF_SUCCESS);
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("iscsiCommand(%s) -> %Rrc\n", pImage->pszTargetName, rc));
-        }
-        else
-        {
-            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReq);
-            if (RT_FAILURE(rc))
-                AssertMsgFailed(("iscsiCommand(%s) -> %Rrc\n", pImage->pszTargetName, rc));
-            else
-                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
-        }
+    sr.enmXfer   = SCSIXFER_NONE;
+    sr.cbCDB     = sizeof(abCDB);
+    sr.pvCDB     = abCDB;
+    sr.cbI2TData = 0;
+    sr.paI2TSegs = NULL;
+    sr.cI2TSegs  = 0;
+    sr.cbT2IData = 0;
+    sr.paT2ISegs = NULL;
+    sr.cT2ISegs  = 0;
+    sr.cbSense   = sizeof(sense);
+    sr.pvSense   = sense;
 
-        RTMemFree(pReq);
-    }
-    else
-        rc = VERR_NO_MEMORY;
-
-    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    rc = iscsiCommandSync(pImage, &sr, false, VINF_SUCCESS);
+    if (RT_FAILURE(rc))
+        AssertMsgFailed(("iscsiCommand(%s) -> %Rrc\n", pImage->pszTargetName, rc));
+    LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
@@ -4906,20 +4768,6 @@ static unsigned iscsiGetVersion(void *pBackendData)
     NOREF(pImage);
 
     return 0;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetSectorSize */
-static uint32_t iscsiGetSectorSize(void *pBackendData)
-{
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
-    PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
-
-    Assert(pImage);
-
-    if (pImage)
-        return pImage->cbSector;
-    else
-        return 0;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnGetSize */
@@ -5081,9 +4929,7 @@ static int iscsiSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
     int rc;
 
     /* Image must be opened and the new flags must be valid. */
-    if (!pImage || (uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
-                                   | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
-                                   | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
+    if (!pImage || (uOpenFlags & ~(VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE | VD_OPEN_FLAGS_SEQUENTIAL)))
     {
         rc = VERR_INVALID_PARAMETER;
         goto out;
@@ -5329,8 +5175,315 @@ static void iscsiDump(void *pBackendData)
     if (pImage)
     {
         /** @todo put something useful here */
-        vdIfErrorMessage(pImage->pIfError, "Header: cVolume=%u\n", pImage->cVolume);
+        iscsiMessage(pImage, "Header: cVolume=%u\n", pImage->cVolume);
     }
+}
+
+/** @copydoc VBOXHDDBACKEND::pfnAsyncRead */
+static int iscsiAsyncRead(void *pBackendData, uint64_t uOffset, size_t cbToRead,
+                          PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
+{
+    LogFlowFunc(("pBackendData=%p uOffset=%#llx pIoCtx=%#p cbToRead=%u pcbActuallyRead=%p\n",
+                 pBackendData, uOffset, pIoCtx, cbToRead, pcbActuallyRead));
+    PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
+    int rc = VINF_SUCCESS;
+
+    if (uOffset + cbToRead > pImage->cbSize)
+        return VERR_INVALID_PARAMETER;
+
+    /*
+     * Clip read size to a value which is supported by the target.
+     */
+    cbToRead = RT_MIN(cbToRead, pImage->cbRecvDataLength);
+
+    unsigned cT2ISegs = 0;
+    size_t   cbSegs = 0;
+
+    /* Get the number of segments. */
+    cbSegs = pImage->pInterfaceIoCallbacks->pfnIoCtxSegArrayCreate(pImage->pInterfaceIo->pvUser, pIoCtx,
+                                                                   NULL, &cT2ISegs, cbToRead);
+    Assert(cbSegs == cbToRead);
+
+    PSCSIREQASYNC pReqAsync = (PSCSIREQASYNC)RTMemAllocZ(RT_OFFSETOF(SCSIREQASYNC, aSegs[cT2ISegs]));
+    if (RT_LIKELY(pReqAsync))
+    {
+        PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(sizeof(SCSIREQ));
+        if (pReq)
+        {
+            uint64_t lba;
+            uint16_t tls;
+            uint8_t *pbCDB = &pReqAsync->abCDB[0];
+            size_t cbCDB;
+
+            lba = uOffset / pImage->cbSector;
+            tls = (uint16_t)(cbToRead / pImage->cbSector);
+
+            cbSegs = pImage->pInterfaceIoCallbacks->pfnIoCtxSegArrayCreate(pImage->pInterfaceIo->pvUser, pIoCtx,
+                                                                           &pReqAsync->aSegs[0],
+                                                                           &cT2ISegs, cbToRead);
+            Assert(cbSegs == cbToRead);
+            pReqAsync->cT2ISegs = cT2ISegs;
+            pReqAsync->pIoCtx = pIoCtx;
+            pReqAsync->pScsiReq = pReq;
+            pReqAsync->cSenseRetries = 10;
+            pReqAsync->rcSense       = VERR_READ_ERROR;
+
+            if (pImage->cVolume < _4G)
+            {
+                cbCDB = 10;
+                pbCDB[0] = SCSI_READ_10;
+                pbCDB[1] = 0;       /* reserved */
+                pbCDB[2] = (lba >> 24) & 0xff;
+                pbCDB[3] = (lba >> 16) & 0xff;
+                pbCDB[4] = (lba >> 8) & 0xff;
+                pbCDB[5] = lba & 0xff;
+                pbCDB[6] = 0;       /* reserved */
+                pbCDB[7] = (tls >> 8) & 0xff;
+                pbCDB[8] = tls & 0xff;
+                pbCDB[9] = 0;       /* control */
+            }
+            else
+            {
+                cbCDB = 16;
+                pbCDB[0] = SCSI_READ_16;
+                pbCDB[1] = 0;       /* reserved */
+                pbCDB[2] = (lba >> 56) & 0xff;
+                pbCDB[3] = (lba >> 48) & 0xff;
+                pbCDB[4] = (lba >> 40) & 0xff;
+                pbCDB[5] = (lba >> 32) & 0xff;
+                pbCDB[6] = (lba >> 24) & 0xff;
+                pbCDB[7] = (lba >> 16) & 0xff;
+                pbCDB[8] = (lba >> 8) & 0xff;
+                pbCDB[9] = lba & 0xff;
+                pbCDB[10] = 0;      /* tls unused */
+                pbCDB[11] = 0;      /* tls unused */
+                pbCDB[12] = (tls >> 8) & 0xff;
+                pbCDB[13] = tls & 0xff;
+                pbCDB[14] = 0;      /* reserved */
+                pbCDB[15] = 0;      /* reserved */
+            }
+
+            pReq->enmXfer = SCSIXFER_FROM_TARGET;
+            pReq->cbCDB   = cbCDB;
+            pReq->pvCDB   = pReqAsync->abCDB;
+            pReq->cbI2TData = 0;
+            pReq->paI2TSegs = NULL;
+            pReq->cI2TSegs  = 0;
+            pReq->cbT2IData = cbToRead;
+            pReq->paT2ISegs = &pReqAsync->aSegs[pReqAsync->cI2TSegs];
+            pReq->cT2ISegs  = pReqAsync->cT2ISegs;
+            pReq->cbSense = sizeof(pReqAsync->abSense);
+            pReq->pvSense = pReqAsync->abSense;
+
+            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReqAsync);
+            if (RT_FAILURE(rc))
+                AssertMsgFailed(("iscsiCommand(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
+            else
+            {
+                *pcbActuallyRead = cbToRead;
+                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
+            }
+
+            RTMemFree(pReq);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+
+        RTMemFree(pReqAsync);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    return rc;
+}
+
+/** @copydoc VBOXHDDBACKEND::pfnAsyncWrite */
+static int iscsiAsyncWrite(void *pBackendData, uint64_t uOffset, size_t cbToWrite,
+                           PVDIOCTX pIoCtx,
+                           size_t *pcbWriteProcess, size_t *pcbPreRead,
+                           size_t *pcbPostRead, unsigned fWrite)
+{
+    LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbToWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
+                 pBackendData, uOffset, pIoCtx, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
+    PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pImage);
+    Assert(uOffset % 512 == 0);
+    Assert(cbToWrite % 512 == 0);
+
+    if (uOffset + cbToWrite > pImage->cbSize)
+        return VERR_INVALID_PARAMETER;
+
+    /*
+     * Clip read size to a value which is supported by the target.
+     */
+    cbToWrite = RT_MIN(cbToWrite, pImage->cbSendDataLength);
+
+    unsigned cI2TSegs = 0;
+    size_t   cbSegs = 0;
+
+    /* Get the number of segments. */
+    cbSegs = pImage->pInterfaceIoCallbacks->pfnIoCtxSegArrayCreate(pImage->pInterfaceIo->pvUser, pIoCtx,
+                                                                   NULL, &cI2TSegs, cbToWrite);
+    Assert(cbSegs == cbToWrite);
+
+    PSCSIREQASYNC pReqAsync = (PSCSIREQASYNC)RTMemAllocZ(RT_OFFSETOF(SCSIREQASYNC, aSegs[cI2TSegs]));
+    if (RT_LIKELY(pReqAsync))
+    {
+        PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(sizeof(SCSIREQ));
+        if (pReq)
+        {
+            uint64_t lba;
+            uint16_t tls;
+            uint8_t *pbCDB = &pReqAsync->abCDB[0];
+            size_t cbCDB;
+
+            lba = uOffset / pImage->cbSector;
+            tls = (uint16_t)(cbToWrite / pImage->cbSector);
+
+            cbSegs = pImage->pInterfaceIoCallbacks->pfnIoCtxSegArrayCreate(pImage->pInterfaceIo->pvUser, pIoCtx,
+                                                                           &pReqAsync->aSegs[0],
+                                                                           &cI2TSegs, cbToWrite);
+            Assert(cbSegs == cbToWrite);
+            pReqAsync->cI2TSegs = cI2TSegs;
+            pReqAsync->pIoCtx = pIoCtx;
+            pReqAsync->pScsiReq = pReq;
+            pReqAsync->cSenseRetries = 10;
+            pReqAsync->rcSense       = VERR_WRITE_ERROR;
+
+            if (pImage->cVolume < _4G)
+            {
+                cbCDB = 10;
+                pbCDB[0] = SCSI_WRITE_10;
+                pbCDB[1] = 0;       /* reserved */
+                pbCDB[2] = (lba >> 24) & 0xff;
+                pbCDB[3] = (lba >> 16) & 0xff;
+                pbCDB[4] = (lba >> 8) & 0xff;
+                pbCDB[5] = lba & 0xff;
+                pbCDB[6] = 0;       /* reserved */
+                pbCDB[7] = (tls >> 8) & 0xff;
+                pbCDB[8] = tls & 0xff;
+                pbCDB[9] = 0;       /* control */
+            }
+            else
+            {
+                cbCDB = 16;
+                pbCDB[0] = SCSI_WRITE_16;
+                pbCDB[1] = 0;       /* reserved */
+                pbCDB[2] = (lba >> 56) & 0xff;
+                pbCDB[3] = (lba >> 48) & 0xff;
+                pbCDB[4] = (lba >> 40) & 0xff;
+                pbCDB[5] = (lba >> 32) & 0xff;
+                pbCDB[6] = (lba >> 24) & 0xff;
+                pbCDB[7] = (lba >> 16) & 0xff;
+                pbCDB[8] = (lba >> 8) & 0xff;
+                pbCDB[9] = lba & 0xff;
+                pbCDB[10] = 0;      /* tls unused */
+                pbCDB[11] = 0;      /* tls unused */
+                pbCDB[12] = (tls >> 8) & 0xff;
+                pbCDB[13] = tls & 0xff;
+                pbCDB[14] = 0;      /* reserved */
+                pbCDB[15] = 0;      /* reserved */
+            }
+
+            pReq->enmXfer = SCSIXFER_TO_TARGET;
+            pReq->cbCDB   = cbCDB;
+            pReq->pvCDB   = pReqAsync->abCDB;
+            pReq->cbI2TData = cbToWrite;
+            pReq->paI2TSegs = &pReqAsync->aSegs[0];
+            pReq->cI2TSegs  = pReqAsync->cI2TSegs;
+            pReq->cbT2IData = 0;
+            pReq->paT2ISegs = NULL;
+            pReq->cT2ISegs  = 0;
+            pReq->cbSense = sizeof(pReqAsync->abSense);
+            pReq->pvSense = pReqAsync->abSense;
+
+            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReqAsync);
+            if (RT_FAILURE(rc))
+                AssertMsgFailed(("iscsiCommand(%s, %#llx) -> %Rrc\n", pImage->pszTargetName, uOffset, rc));
+            else
+            {
+                *pcbWriteProcess = cbToWrite;
+                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
+            }
+
+            RTMemFree(pReq);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+
+        RTMemFree(pReqAsync);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    return rc;
+}
+
+/** @copydoc VBOXHDDBACKEND::pfnAsyncFlush */
+static int iscsiAsyncFlush(void *pBackendData, PVDIOCTX pIoCtx)
+{
+    LogFlowFunc(("pBackendData=%p pIoCtx=%#p\n", pBackendData, pIoCtx));
+    PISCSIIMAGE pImage = (PISCSIIMAGE)pBackendData;
+    int rc = VINF_SUCCESS;
+
+    PSCSIREQASYNC pReqAsync = (PSCSIREQASYNC)RTMemAllocZ(sizeof(SCSIREQASYNC));
+    if (RT_LIKELY(pReqAsync))
+    {
+        PSCSIREQ pReq = (PSCSIREQ)RTMemAllocZ(sizeof(SCSIREQ));
+        if (pReq)
+        {
+            uint8_t *pbCDB = &pReqAsync->abCDB[0];
+
+            pReqAsync->pIoCtx        = pIoCtx;
+            pReqAsync->pScsiReq      = pReq;
+            pReqAsync->cSenseRetries = 0;
+            pReqAsync->rcSense       = VINF_SUCCESS;
+
+            pbCDB[0] = SCSI_SYNCHRONIZE_CACHE;
+            pbCDB[1] = 0;         /* reserved */
+            pbCDB[2] = 0;         /* reserved */
+            pbCDB[3] = 0;         /* reserved */
+            pbCDB[4] = 0;         /* reserved */
+            pbCDB[5] = 0;         /* reserved */
+            pbCDB[6] = 0;         /* reserved */
+            pbCDB[7] = 0;         /* reserved */
+            pbCDB[8] = 0;         /* reserved */
+            pbCDB[9] = 0;         /* control */
+
+            pReq->enmXfer = SCSIXFER_NONE;
+            pReq->cbCDB   = 10;
+            pReq->pvCDB   = pReqAsync->abCDB;
+            pReq->cbI2TData = 0;
+            pReq->paI2TSegs = NULL;
+            pReq->cI2TSegs  = 0;
+            pReq->cbT2IData = 0;
+            pReq->paT2ISegs = NULL;
+            pReq->cT2ISegs  = 0;
+            pReq->cbSense = sizeof(pReqAsync->abSense);
+            pReq->pvSense = pReqAsync->abSense;
+
+            rc = iscsiCommandAsync(pImage, pReq, iscsiCommandAsyncComplete, pReqAsync);
+            if (RT_FAILURE(rc))
+                AssertMsgFailed(("iscsiCommand(%s) -> %Rrc\n", pImage->pszTargetName, rc));
+            else
+                return VERR_VD_IOCTX_HALT; /* Halt the I/O context until further notification from the I/O thread. */
+
+            RTMemFree(pReq);
+        }
+        else
+            rc = VERR_NO_MEMORY;
+
+        RTMemFree(pReqAsync);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    LogFlowFunc(("returns rc=%Rrc\n", rc));
+    return rc;
 }
 
 /** @copydoc VBOXHDDBACKEND::pfnComposeLocation */
@@ -5339,13 +5492,13 @@ static int iscsiComposeLocation(PVDINTERFACE pConfig, char **pszLocation)
     char *pszTarget  = NULL;
     char *pszLUN     = NULL;
     char *pszAddress = NULL;
-    int rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "TargetName", &pszTarget);
+    int rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "TargetName", &pszTarget);
     if (RT_SUCCESS(rc))
     {
-        rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "LUN", &pszLUN);
+        rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "LUN", &pszLUN);
         if (RT_SUCCESS(rc))
         {
-            rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "TargetAddress", &pszAddress);
+            rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "TargetAddress", &pszAddress);
             if (RT_SUCCESS(rc))
             {
                 if (RTStrAPrintf(pszLocation, "iscsi://%s/%s/%s",
@@ -5366,13 +5519,13 @@ static int iscsiComposeName(PVDINTERFACE pConfig, char **pszName)
     char *pszTarget  = NULL;
     char *pszLUN     = NULL;
     char *pszAddress = NULL;
-    int rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "TargetName", &pszTarget);
+    int rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "TargetName", &pszTarget);
     if (RT_SUCCESS(rc))
     {
-        rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "LUN", &pszLUN);
+        rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "LUN", &pszLUN);
         if (RT_SUCCESS(rc))
         {
-            rc = VDCFGQueryStringAlloc(VDIfConfigGet(pConfig), "TargetAddress", &pszAddress);
+            rc = VDCFGQueryStringAlloc(VDGetInterfaceConfig(pConfig), pConfig->pvUser, "TargetAddress", &pszAddress);
             if (RT_SUCCESS(rc))
             {
                 /** @todo think about a nicer looking location scheme for iSCSI */
@@ -5390,7 +5543,7 @@ static int iscsiComposeName(PVDINTERFACE pConfig, char **pszName)
 }
 
 
-const VBOXHDDBACKEND g_ISCSIBackend =
+VBOXHDDBACKEND g_ISCSIBackend =
 {
     /* pszBackendName */
     "iSCSI",
@@ -5402,6 +5555,8 @@ const VBOXHDDBACKEND g_ISCSIBackend =
     NULL,
     /* paConfigInfo */
     s_iscsiConfigInfo,
+    /* hPlugin */
+    NIL_RTLDRMOD,
     /* pfnCheckIfValid */
     iscsiCheckIfValid,
     /* pfnOpen */
@@ -5418,12 +5573,8 @@ const VBOXHDDBACKEND g_ISCSIBackend =
     iscsiWrite,
     /* pfnFlush */
     iscsiFlush,
-    /* pfnDiscard */
-    NULL,
     /* pfnGetVersion */
     iscsiGetVersion,
-    /* pfnGetSectorSize */
-    iscsiGetSectorSize,
     /* pfnGetSize */
     iscsiGetSize,
     /* pfnGetFileSize */
@@ -5474,6 +5625,12 @@ const VBOXHDDBACKEND g_ISCSIBackend =
     NULL,
     /* pfnSetParentFilename */
     NULL,
+    /* pfnAsyncRead */
+    iscsiAsyncRead,
+    /* pfnAsyncWrite */
+    iscsiAsyncWrite,
+    /* pfnAsyncFlush */
+    iscsiAsyncFlush,
     /* pfnComposeLocation */
     iscsiComposeLocation,
     /* pfnComposeName */
@@ -5481,9 +5638,5 @@ const VBOXHDDBACKEND g_ISCSIBackend =
     /* pfnCompact */
     NULL,
     /* pfnResize */
-    NULL,
-    /* pfnRepair */
-    NULL,
-    /* pfnTraverseMetadata */
     NULL
 };

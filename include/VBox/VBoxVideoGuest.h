@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,8 +38,6 @@ RT_C_DECLS_BEGIN
 # include "ntddvdeo.h"
 # include <Video.h>
 RT_C_DECLS_END
-#elif defined VBOX_GUESTR3XORGMOD
-# include <compiler.h>
 #else
 # include <iprt/asm-amd64-x86.h>
 #endif
@@ -125,8 +123,6 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUchar(RTIOPORT Port, uint8_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUchar((PUCHAR)Port, Value);
-#elif defined VBOX_GUESTR3XORGMOD
-    outb(Port, Value);
 #else  /** @todo make these explicit */
     ASMOutU8(Port, Value);
 #endif
@@ -137,8 +133,6 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUshort(RTIOPORT Port, uint16_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUshort((PUSHORT)Port,Value);
-#elif defined VBOX_GUESTR3XORGMOD
-    outw(Port, Value);
 #else
     ASMOutU16(Port, Value);
 #endif
@@ -149,8 +143,6 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUlong(RTIOPORT Port, uint32_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUlong((PULONG)Port,Value);
-#elif defined VBOX_GUESTR3XORGMOD
-    outl(Port, Value);
 #else
     ASMOutU32(Port, Value);
 #endif
@@ -161,8 +153,6 @@ DECLINLINE(uint8_t) VBoxVideoCmnPortReadUchar(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUchar((PUCHAR)Port);
-#elif defined VBOX_GUESTR3XORGMOD
-    return inb(Port);
 #else
     return ASMInU8(Port);
 #endif
@@ -173,8 +163,6 @@ DECLINLINE(uint16_t) VBoxVideoCmnPortReadUshort(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUshort((PUSHORT)Port);
-#elif defined VBOX_GUESTR3XORGMOD
-    return inw(Port);
 #else
     return ASMInU16(Port);
 #endif
@@ -185,8 +173,6 @@ DECLINLINE(uint32_t) VBoxVideoCmnPortReadUlong(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUlong((PULONG)Port);
-#elif defined VBOX_GUESTR3XORGMOD
-    return inl(Port);
 #else
     return ASMInU32(Port);
 #endif

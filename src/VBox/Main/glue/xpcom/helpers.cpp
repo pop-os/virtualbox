@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -139,8 +139,6 @@ int SysReAllocString(BSTR *pbstr, const OLECHAR *psz)
     return 1;
 }
 
-#if 0
-/* Does not work -- we ignore newBuffer! */
 /**
  * Changes the length of a previous created BSTR
  * @param pbstr string to change the length of
@@ -169,7 +167,6 @@ int SysReAllocStringLen(BSTR *pbstr, const OLECHAR *psz, unsigned int cch)
     }
     return 1;
 }
-#endif
 
 /**
   * Returns the string length in bytes without the terminator

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,7 @@ void PACK_APIENTRY crPackShaderSource(GLuint shader, GLsizei count, const char *
 
     for (i=0; i<count; ++i)
     {
-        pLocalLength[i] = ((length && (length[i]>=0)) ? length[i] : crStrlen(string[i]))+1;
+        pLocalLength[i] = (length && (length[i]>=0)) ? length[i] : crStrlen(string[i])+1;
         packet_length += pLocalLength[i];
     }
     
@@ -80,17 +80,7 @@ void PACK_APIENTRY crPackShaderSource(GLuint shader, GLsizei count, const char *
     {
         if (string[i])
         {
-            if (length && (length[i]>=0))
-            {
-                /* include \0 in the string to make intel drivers happy */
-                crMemcpy(data_ptr, string[i], pLocalLength[i] - 1);
-                data_ptr[pLocalLength[i] - 1] = '\0';
-            }
-            else
-            {
-                /* the \0 s already in the string */
-                crMemcpy(data_ptr, string[i], pLocalLength[i]);
-            }
+            crMemcpy(data_ptr, string[i], pLocalLength[i]);
         }
         else
         {
@@ -428,7 +418,6 @@ void PACK_APIENTRY crPackGetActiveAttrib(GLuint program, GLuint index, GLsizei b
     WRITE_NETWORK_POINTER(20, (void *) length);
     WRITE_NETWORK_POINTER(28, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -449,7 +438,6 @@ void PACK_APIENTRY crPackGetActiveUniform(GLuint program, GLuint index, GLsizei 
     WRITE_NETWORK_POINTER(20, (void *) length);
     WRITE_NETWORK_POINTER(28, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -467,11 +455,10 @@ void PACK_APIENTRY crPackGetAttachedShaders(GLuint program, GLsizei maxCount, GL
     WRITE_NETWORK_POINTER(16, (void *) count);
     WRITE_NETWORK_POINTER(24, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
-void PACK_APIENTRY crPackGetAttachedObjectsARB(VBoxGLhandleARB containerObj, GLsizei maxCount, GLsizei * count, VBoxGLhandleARB * obj, int * writeback)
+void PACK_APIENTRY crPackGetAttachedObjectsARB(GLhandleARB containerObj, GLsizei maxCount, GLsizei * count, GLhandleARB * obj, int * writeback)
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	unsigned char *data_ptr;
@@ -479,16 +466,15 @@ void PACK_APIENTRY crPackGetAttachedObjectsARB(VBoxGLhandleARB containerObj, GLs
 	CR_GET_BUFFERED_POINTER(pc, 32);
 	WRITE_DATA(0, GLint, 32);
 	WRITE_DATA(4, GLenum, CR_GETATTACHEDOBJECTSARB_EXTEND_OPCODE);
-	WRITE_DATA(8, VBoxGLhandleARB, containerObj);
+	WRITE_DATA(8, GLhandleARB, containerObj);
 	WRITE_DATA(12, GLsizei, maxCount);
 	WRITE_NETWORK_POINTER(16, (void *) count);
 	WRITE_NETWORK_POINTER(24, (void *) writeback);
 	WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-	CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
-void PACK_APIENTRY crPackGetInfoLogARB(VBoxGLhandleARB obj, GLsizei maxLength, GLsizei * length, GLcharARB * infoLog, int * writeback)
+void PACK_APIENTRY crPackGetInfoLogARB(GLhandleARB obj, GLsizei maxLength, GLsizei * length, GLcharARB * infoLog, int * writeback)
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	unsigned char *data_ptr;
@@ -496,12 +482,11 @@ void PACK_APIENTRY crPackGetInfoLogARB(VBoxGLhandleARB obj, GLsizei maxLength, G
 	CR_GET_BUFFERED_POINTER(pc, 32);
 	WRITE_DATA(0, GLint, 32);
 	WRITE_DATA(4, GLenum, CR_GETINFOLOGARB_EXTEND_OPCODE);
-	WRITE_DATA(8, VBoxGLhandleARB, obj);
+	WRITE_DATA(8, GLhandleARB, obj);
 	WRITE_DATA(12, GLsizei, maxLength);
 	WRITE_NETWORK_POINTER(16, (void *) length);
 	WRITE_NETWORK_POINTER(24, (void *) writeback);
 	WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-	CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -519,7 +504,6 @@ void PACK_APIENTRY crPackGetProgramInfoLog(GLuint program, GLsizei bufSize, GLsi
     WRITE_NETWORK_POINTER(16, (void *) length);
     WRITE_NETWORK_POINTER(24, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -537,7 +521,6 @@ void PACK_APIENTRY crPackGetShaderInfoLog(GLuint shader, GLsizei bufSize, GLsize
     WRITE_NETWORK_POINTER(16, (void *) length);
     WRITE_NETWORK_POINTER(24, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -555,7 +538,6 @@ void PACK_APIENTRY crPackGetShaderSource(GLuint shader, GLsizei bufSize, GLsizei
     WRITE_NETWORK_POINTER(16, (void *) length);
     WRITE_NETWORK_POINTER(24, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -572,24 +554,6 @@ void PACK_APIENTRY crPackGetUniformsLocations(GLuint program, GLsizei maxcbData,
     WRITE_NETWORK_POINTER(16, (void *) cbData);
     WRITE_NETWORK_POINTER(24, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
-    CR_UNLOCK_PACKER_CONTEXT(pc);
-}
-
-void PACK_APIENTRY crPackGetAttribsLocations(GLuint program, GLsizei maxcbData, GLsizei * cbData, GLvoid * pData, int * writeback)
-{
-    CR_GET_PACKER_CONTEXT(pc);
-    unsigned char *data_ptr;
-    (void) pData;
-    CR_GET_BUFFERED_POINTER(pc, 32);
-    WRITE_DATA(0, GLint, 32);
-    WRITE_DATA(4, GLenum, CR_GETATTRIBSLOCATIONS_EXTEND_OPCODE);
-    WRITE_DATA(8, GLuint, program);
-    WRITE_DATA(12, GLsizei, maxcbData);
-    WRITE_NETWORK_POINTER(16, (void *) cbData);
-    WRITE_NETWORK_POINTER(24, (void *) writeback);
-    WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -609,7 +573,6 @@ void PACK_APIENTRY crPackGetAttribLocation(GLuint program, const char * name, GL
     WRITE_NETWORK_POINTER(0, (void *) return_value);
     WRITE_NETWORK_POINTER(8, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -629,7 +592,6 @@ void PACK_APIENTRY crPackGetUniformLocation(GLuint program, const char * name, G
     WRITE_NETWORK_POINTER(0, (void *) return_value);
     WRITE_NETWORK_POINTER(8, (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
-    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 

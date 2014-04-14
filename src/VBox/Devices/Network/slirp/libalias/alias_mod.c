@@ -112,14 +112,16 @@ _handler_chain_destroy(void)
         LIBALIAS_RWLOCK_DESTROY();
 }
 
-#else /* VBOX */
-# define LIBALIAS_WLOCK_ASSERT() ;
-# define LIBALIAS_RLOCK() ;
-# define LIBALIAS_RUNLOCK() ;
-# define LIBALIAS_WLOCK() ;
-# define LIBALIAS_WUNLOCK() ;
-# define _handler_chain_init() ;
-# define _handler_chain_destroy() ;
+#else
+#define LIBALIAS_RWLOCK_INIT() ;
+#define LIBALIAS_RWLOCK_DESTROY()   ;
+#define LIBALIAS_WLOCK_ASSERT() ;
+#define LIBALIAS_RLOCK() ;
+#define LIBALIAS_RUNLOCK() ;
+#define LIBALIAS_WLOCK() ;
+#define LIBALIAS_WUNLOCK() ;
+#define _handler_chain_init() ;
+#define _handler_chain_destroy() ;
 #endif
 
 void
@@ -141,7 +143,7 @@ _attach_handler(PNATState pData, struct proto_handler *p)
 _attach_handler(struct proto_handler *p)
 #endif
 {
-    struct proto_handler *b = NULL, *handler_chain_tail = NULL;
+    struct proto_handler *b = NULL;
 
     LIBALIAS_WLOCK_ASSERT();
     LIST_FOREACH(b, &handler_chain, entries) {
@@ -153,14 +155,10 @@ _attach_handler(struct proto_handler *p)
             LIST_INSERT_BEFORE(b, p, entries);
             return (0);
         }
-
-        /* If the conditions above do not work, we should keep the last
-         * element of the list in order to insert *p right after it. */
-        handler_chain_tail = b;
     }
     /* End of list or found right position, inserts here. */
-    if (handler_chain_tail)
-        LIST_INSERT_AFTER(handler_chain_tail, p, entries);
+    if (b)
+        LIST_INSERT_AFTER(b, p, entries);
     else
         LIST_INSERT_HEAD(&handler_chain, p, entries);
     return (0);

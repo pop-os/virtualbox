@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,14 +60,6 @@ static DECLCALLBACK(int) testGetImport(RTLDRMOD hLdrMod, const char *pszModule, 
         *pValue = (uintptr_t)RTAssertMsg1Weak;
     else if (!strcmp(pszSymbol, "RTAssertMsg2Weak")     || !strcmp(pszSymbol, "_RTAssertMsg2Weak"))
         *pValue = (uintptr_t)RTAssertMsg1Weak;
-    else if (!strcmp(pszSymbol, "RTAssertMsg1")         || !strcmp(pszSymbol, "_RTAssertMsg1"))
-        *pValue = (uintptr_t)RTAssertMsg1;
-    else if (!strcmp(pszSymbol, "RTAssertMsg2")         || !strcmp(pszSymbol, "_RTAssertMsg2"))
-        *pValue = (uintptr_t)RTAssertMsg2;
-    else if (!strcmp(pszSymbol, "RTAssertMsg2V")        || !strcmp(pszSymbol, "_RTAssertMsg2V"))
-        *pValue = (uintptr_t)RTAssertMsg2V;
-    else if (!strcmp(pszSymbol, "RTAssertMayPanic")     || !strcmp(pszSymbol, "_RTAssertMayPanic"))
-        *pValue = (uintptr_t)RTAssertMayPanic;
     else if (!strcmp(pszSymbol, "RTLogDefaultInstance") || !strcmp(pszSymbol, "_RTLogDefaultInstance"))
         *pValue = (uintptr_t)RTLogDefaultInstance;
     else if (!strcmp(pszSymbol, "RTLogLoggerExV")       || !strcmp(pszSymbol, "_RTLogLoggerExV"))
@@ -125,7 +117,7 @@ static int testLdrOne(const char *pszFilename)
      */
     for (i = 0; i < RT_ELEMENTS(aLoads); i++)
     {
-        if (!strncmp(aLoads[i].pszName, RT_STR_TUPLE("kLdr-")))
+        if (!strncmp(aLoads[i].pszName, "kLdr-", sizeof("kLdr-") - 1))
             rc = RTLdrOpenkLdr(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
         else
             rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
@@ -175,11 +167,9 @@ static int testLdrOne(const char *pszFilename)
         {
             /* get the pointer. */
             RTUINTPTR Value;
-            rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, (uintptr_t)aLoads[i].pvBits,
-                                  UINT32_MAX, "DisasmTest1", &Value);
+            rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, (uintptr_t)aLoads[i].pvBits, "DisasmTest1", &Value);
             if (rc == VERR_SYMBOL_NOT_FOUND)
-                rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, (uintptr_t)aLoads[i].pvBits,
-                                      UINT32_MAX, "_DisasmTest1", &Value);
+                rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, (uintptr_t)aLoads[i].pvBits, "_DisasmTest1", &Value);
             if (RT_FAILURE(rc))
             {
                 RTPrintf("tstLdr-4: Failed to get symbol \"DisasmTest1\" from load #%d: %Rrc\n", i, rc);
@@ -226,7 +216,7 @@ static int testLdrOne(const char *pszFilename)
 int main(int argc, char **argv)
 {
     int cErrors = 0;
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Sanity check.

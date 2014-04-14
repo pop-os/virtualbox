@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +19,12 @@
 #ifndef __UIBootTable_h__
 #define __UIBootTable_h__
 
-/* Qt includes: */
-#include <QListWidget>
-
-/* GUI includes: */
+/* Local includes */
+#include <COMDefs.h>
 #include "QIWithRetranslateUI.h"
 
-/* COM includes: */
-#include "COMEnums.h"
+/* Global includes */
+#include <QListWidget>
 
 class UIBootTableItem : public QListWidgetItem
 {

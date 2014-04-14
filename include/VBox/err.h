@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,8 +41,7 @@
  */
 /** Failed to allocate VM memory. */
 #define VERR_NO_VM_MEMORY                   (-1000)
-/** RC is toasted and the VMM should be terminated at once, but no need to
- * panic about it :-) */
+/** GC is toasted and the VMM should be terminated at once, but no need to panic about it :-) */
 #define VERR_DONT_PANIC                     (-1001)
 /** Unsupported CPU. */
 #define VERR_UNSUPPORTED_CPU                (-1002)
@@ -84,8 +83,6 @@
  * Returned by pfnInit in VBoxService to indicated a non-fatal error that
  * should results in the particular service being disabled. */
 #define VERR_SERVICE_DISABLED               (-1020)
-/** The requested feature is not supported in raw-mode. */
-#define VERR_NOT_SUP_IN_RAW_MODE            (-1021)
 /** @} */
 
 
@@ -158,7 +155,7 @@
 #define VINF_EM_RESCHEDULE_REM              1115
 /** Indicating that a rescheduling to vmx-mode execution.
  * Typically caused by REM detecting that hardware-accelerated raw-mode execution is possible. */
-#define VINF_EM_RESCHEDULE_HM            1116
+#define VINF_EM_RESCHEDULE_HWACC            1116
 /** Indicating that a rescheduling to raw-mode execution.
  * Typically caused by REM detecting that raw-mode execution is possible.
  * @remarks Important to have a higher priority (lower number) than VINF_EM_RESCHEDULE. */
@@ -173,60 +170,60 @@
 /** Last scheduling related status code. (inclusive) */
 #define VINF_EM_LAST                        1120
 
-/** Reason for leaving RC: Guest trap which couldn't be handled in RC.
+/** Reason for leaving GC: Guest trap which couldn't be handled in GC.
  * The trap is generally forwarded to the REM and executed there. */
 #define VINF_EM_RAW_GUEST_TRAP              1121
-/** Reason for leaving RC: Interrupted by external interrupt.
+/** Reason for leaving GC: Interrupted by external interrupt.
  * The interrupt needed to be handled by the host OS. */
 #define VINF_EM_RAW_INTERRUPT               1122
-/** Reason for leaving RC: Interrupted by external interrupt while in hypervisor
- * code. The interrupt needed to be handled by the host OS and hypervisor
- * execution must be resumed. VM state is not complete at this point. */
+/** Reason for leaving GC: Interrupted by external interrupt while in hypervisor code.
+ * The interrupt needed to be handled by the host OS and hypervisor execution must be
+ * resumed. VM state is not complete at this point. */
 #define VINF_EM_RAW_INTERRUPT_HYPER         1123
-/** Reason for leaving RC: A Ring switch was attempted.
+/** Reason for leaving GC: A Ring switch was attempted.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_RING_SWITCH             1124
-/** Reason for leaving RC: A Ring switch was attempted using software interrupt.
+/** Reason for leaving GC: A Ring switch was attempted using software interrupt.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_RING_SWITCH_INT         1125
-/** Reason for leaving RC: A privileged instruction was attempted executed.
+/** Reason for leaving GC: A privileged instruction was attempted executed.
  * Normal cause of action is to execute this in REM. */
 #define VINF_EM_RAW_EXCEPTION_PRIVILEGED    1126
 
-/** Reason for leaving RZ: Emulate instruction. */
+/** Reason for leaving GC: Emulate instruction. */
 #define VINF_EM_RAW_EMULATE_INSTR           1127
-/** Reason for leaving RC: Unhandled TSS write.
+/** Reason for leaving GC: Unhandled TSS write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT 1128
-/** Reason for leaving RC: Unhandled LDT write.
+/** Reason for leaving GC: Unhandled LDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT 1129
-/** Reason for leaving RC: Unhandled IDT write.
+/** Reason for leaving GC: Unhandled IDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_IDT_FAULT 1130
-/** Reason for leaving RC: Unhandled GDT write.
+/** Reason for leaving GC: Unhandled GDT write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT 1131
-/** Reason for leaving RC: Unhandled Page Directory write.
+/** Reason for leaving GC: Unhandled Page Directory write.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_PD_FAULT  1132
-/** Reason for leaving RC: jump inside generated patch jump.
+/** Reason for leaving GC: jump inside generated patch jump.
  * Fatal error. */
 #define VERR_EM_RAW_PATCH_CONFLICT          (-1133)
-/** Reason for leaving RC: Hlt instruction.
+/** Reason for leaving GC: Hlt instruction.
  * Recompiler gets control. */
 #define VINF_EM_RAW_EMULATE_INSTR_HLT       1134
-/** Reason for leaving RZ: Ring-3 operation pending. */
+/** Reason for leaving GC: Ring-3 operation pending. */
 #define VINF_EM_RAW_TO_R3                   1135
-/** Reason for leaving RZ: Timer pending. */
+/** Reason for leaving GC: Timer pending. */
 #define VINF_EM_RAW_TIMER_PENDING           1136
-/** Reason for leaving RC: Interrupt pending (guest). */
+/** Reason for leaving GC: Interrupt pending (guest). */
 #define VINF_EM_RAW_INTERRUPT_PENDING       1137
-/** Reason for leaving RC: Encountered a stale selector. */
+/** Reason for leaving GC: Encountered a stale selector. */
 #define VINF_EM_RAW_STALE_SELECTOR          1138
-/** Reason for leaving RC: The IRET resuming guest code trapped. */
+/** Reason for leaving GC: The IRET resuming guest code trapped. */
 #define VINF_EM_RAW_IRET_TRAP               1139
-/** Reason for leaving RC: Emulate (MM)IO intensive code in the recompiler. */
+/** Reason for leaving GC: Emulate (MM)IO intensive code in the recompiler. */
 #define VINF_EM_RAW_EMULATE_IO_BLOCK        1140
 /** The interpreter was unable to deal with the instruction at hand. */
 #define VERR_EM_INTERPRETER                 (-1148)
@@ -237,15 +234,12 @@
 /** Start instruction stepping (debug only). */
 #define VINF_EM_RAW_EMULATE_DBG_STEP        1151
 /** Patch TPR access instruction. */
-#define VINF_EM_HM_PATCH_TPR_INSTR          1152
+#define VINF_EM_HWACCM_PATCH_TPR_INSTR      1152
+/** The EMInterpretDisasOne / EMInterpretDisasOneEx methods failed to
+ * disassemble the instruction. */
+#define VERR_EM_INTERNAL_DISAS_ERROR        (-1153)
 /** Unexpected guest mapping conflict detected. */
 #define VERR_EM_UNEXPECTED_MAPPING_CONFLICT (-1154)
-/** Reason for leaving RC: A triple-fault condition. Currently, causes
- *  a guru meditation. */
-#define VINF_EM_TRIPLE_FAULT                1155
-/** The specified execution engine cannot execute guest code in the current
- *  state. */
-#define VERR_EM_CANNOT_EXEC_GUEST           (-1156)
 /** @} */
 
 
@@ -301,8 +295,6 @@
 #define VERR_DBGF_STACK_IPE_1               (-1218)
 /** Internal processing error \#2 in the DBGF stack code. */
 #define VERR_DBGF_STACK_IPE_2               (-1219)
-/** No trace buffer available, please change the VM config. */
-#define VERR_DBGF_NO_TRACE_BUFFER           (-1220)
 /** @} */
 
 
@@ -330,28 +322,28 @@
 /** Patch was removed. */
 #define VWRN_PATCH_REMOVED                  1407
 
-/** Reason for leaving RC: \#GP with EIP pointing to patch code. */
+/** Reason for leaving GC: \#GP with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_TRAP_GP             1408
-/** First leave RC code. */
-#define VINF_PATM_LEAVE_RC_FIRST             VINF_PATM_PATCH_TRAP_GP
-/** Reason for leaving RC: \#PF with EIP pointing to patch code. */
+/** First leave GC code. */
+#define VINF_PATM_LEAVEGC_FIRST             VINF_PATM_PATCH_TRAP_GP
+/** Reason for leaving GC: \#PF with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_TRAP_PF             1409
-/** Reason for leaving RC: int3 with EIP pointing to patch code. */
+/** Reason for leaving GC: int3 with EIP pointing to patch code. */
 #define VINF_PATM_PATCH_INT3                1410
-/** Reason for leaving RC: \#PF for monitored patch page. */
+/** Reason for leaving GC: \#PF for monitored patch page. */
 #define VINF_PATM_CHECK_PATCH_PAGE          1411
-/** Reason for leaving RC: duplicate instruction called at current eip. */
+/** Reason for leaving GC: duplicate instruction called at current eip. */
 #define VINF_PATM_DUPLICATE_FUNCTION        1412
 /** Execute one instruction with the recompiler */
 #define VINF_PATCH_EMULATE_INSTR            1413
-/** Reason for leaving RC: attempt to patch MMIO write. */
+/** Reason for leaving GC: attempt to patch MMIO write. */
 #define VINF_PATM_HC_MMIO_PATCH_WRITE       1414
-/** Reason for leaving RC: attempt to patch MMIO read. */
+/** Reason for leaving GC: attempt to patch MMIO read. */
 #define VINF_PATM_HC_MMIO_PATCH_READ        1415
-/** Reason for leaving RC: pending irq after iret that sets IF. */
+/** Reason for leaving GC: pending irq after iret that sets IF. */
 #define VINF_PATM_PENDING_IRQ_AFTER_IRET    1416
-/** Last leave RC code. */
-#define VINF_PATM_LEAVE_RC_LAST              VINF_PATM_PENDING_IRQ_AFTER_IRET
+/** Last leave GC code. */
+#define VINF_PATM_LEAVEGC_LAST              VINF_PATM_PENDING_IRQ_AFTER_IRET
 
 /** No conflicts to resolve */
 #define VERR_PATCH_NO_CONFLICT              (-1425)
@@ -365,8 +357,6 @@
 #define VINF_PATM_SPINLOCK_FAILED           (1429)
 /** Continue execution after patch trap. */
 #define VINF_PATCH_CONTINUE                 (1430)
-/** The patch manager is not used because we're using HM and VT-x/AMD-V. */
-#define VERR_PATM_HM_IPE                    (-1431)
 
 /** @} */
 
@@ -380,10 +370,8 @@
 #define VWRN_CSAM_INSTRUCTION_PATCHED       1501
 /** Page record not found */
 #define VWRN_CSAM_PAGE_NOT_FOUND            1502
-/** Reason for leaving RC: CSAM wants perform a task in ring-3. */
+/** Reason for leaving GC: CSAM wants perform a task in ring-3. */
 #define VINF_CSAM_PENDING_ACTION            1503
-/** The CSAM is not used because we're using HM and VT-x/AMD-V. */
-#define VERR_CSAM_HM_IPE                    (-1504)
 /** @} */
 
 
@@ -423,20 +411,19 @@
 #define VERR_PGM_MAPPINGS_FIX_REJECTED      (-1611)
 /** Failed to fix mappings because the proposed memory area was to small. */
 #define VERR_PGM_MAPPINGS_FIX_TOO_SMALL     (-1612)
-/** Reason for leaving RZ: The urge to syncing CR3. */
+/** Reason for leaving GC: The urge to syncing CR3. */
 #define VINF_PGM_SYNC_CR3                   1613
 /** Page not marked for dirty bit tracking */
 #define VINF_PGM_NO_DIRTY_BIT_TRACKING      1614
 /** Page fault caused by dirty bit tracking; corrected */
 #define VINF_PGM_HANDLED_DIRTY_BIT_FAULT    1615
 /** Go ahead with the default Read/Write operation.
- * This is returned by a R3 physical or virtual handler when it wants the
- * PGMPhys[Read|Write] routine do the reading/writing. */
+ * This is returned by a HC physical or virtual handler when it wants the PGMPhys[Read|Write]
+ * routine do the reading/writing. */
 #define VINF_PGM_HANDLER_DO_DEFAULT         1616
 /** The paging mode of the host is not supported yet. */
 #define VERR_PGM_UNSUPPORTED_HOST_PAGING_MODE (-1617)
-/** The physical guest page is a reserved/MMIO page and does not have any HC
- *  address. */
+/** The physical guest page is a reserved/mmio page and does not have any HC address. */
 #define VERR_PGM_PHYS_PAGE_RESERVED         (-1618)
 /** No page directory available for the hypervisor. */
 #define VERR_PGM_NO_HYPERVISOR_ADDRESS      (-1619)
@@ -454,9 +441,10 @@
  * when the shadow PTs could be updated because the guest page
  * aliased or/and mapped by multiple PTs. */
 #define VINF_PGM_GCPHYS_ALIASED             1623
-/** Reason for leaving RC: Paging mode changed.
- * PGMChangeMode() uses this to force a switch to R3 so it can safely deal with
- * a mode switch. */
+/** Reason for leaving GC: Paging mode changed.
+ * PGMChangeMode() uses this to force a switch to HC so it can safely
+ * deal with a mode switch.
+ */
 #define VINF_PGM_CHANGE_MODE                1624
 /** SyncPage modified the PDE.
  * This is an internal status code used to communicate back to the \#PF handler
@@ -487,8 +475,6 @@
 #define VERR_PGM_PHYS_TLB_CATCH_ALL             (-1634)
 /** Catch write access and route it thru PGM. */
 #define VINF_PGM_PHYS_TLB_CATCH_WRITE           1635
-/** Catch write access and route it thru PGM. */
-#define VERR_PGM_PHYS_TLB_CATCH_WRITE           (-1635)
 /** No CR3 root shadow page table.. */
 #define VERR_PGM_NO_CR3_SHADOW_ROOT             (-1636)
 /** Trying to free a page with an invalid Page ID. */
@@ -579,11 +565,6 @@
 #define VERR_PGM_PHYS_NULL_PAGE_PARAM           (-1681)
 /** PCI passthru is not supported by this build. */
 #define VERR_PGM_PCI_PASSTHRU_MISCONFIG         (-1682)
-/** Too many MMIO2 ranges. */
-#define VERR_PGM_TOO_MANY_MMIO2_RANGES          (-1683)
-/** Internal processing error in the PGM physial page mapping code dealing
- * with MMIO2 pages. */
-#define VERR_PGM_PHYS_PAGE_MAP_MMIO2_IPE        (-1684)
 /** @} */
 
 
@@ -607,19 +588,6 @@
 #define VERR_CPUM_RAISE_GP_0                    (-1750)
 /** Incompatible CPUM configuration. */
 #define VERR_CPUM_INCOMPATIBLE_CONFIG           (-1751)
-/** CPUMR3DisasmInstrCPU unexpectedly failed to determin the hidden
- * parts of the CS register. */
-#define VERR_CPUM_HIDDEN_CS_LOAD_ERROR          (-1752)
-/** Couldn't find the end of CPUID sub-leaves. */
-#define VERR_CPUM_TOO_MANY_CPUID_SUBLEAVES      (-1753)
-/** CPUM internal processing error \#1. */
-#define VERR_CPUM_IPE_1                         (-1754)
-/** CPUM internal processing error \#2. */
-#define VERR_CPUM_IPE_2                         (-1755)
-/** The specified CPU cannot be found in the CPU database. */
-#define VERR_CPUM_DB_CPU_NOT_FOUND              (-1756)
-/** Invalid CPUMCPU offset in MSR range. */
-#define VERR_CPUM_MSR_BAD_CPUMCPU_OFFSET        (-1757)
 /** @} */
 
 
@@ -773,9 +741,7 @@
 #define VERR_SSM_IPE_2                          (-1877)
 /** Internal processing error \#3 in SSM code.  */
 #define VERR_SSM_IPE_3                          (-1878)
-/** A field contained an transformation that should only be used when loading
- * old states. */
-#define VERR_SSM_FIELD_LOAD_ONLY_TRANSFORMATION (-1879)
+
 /** @} */
 
 
@@ -974,45 +940,43 @@
 #define VERR_TRPM_NO_ACTIVE_TRAP            (-2400)
 /** Active trap. Cannot assert a new trap when when one is already active. */
 #define VERR_TRPM_ACTIVE_TRAP               (-2401)
-/** Reason for leaving RC: Guest tried to write to our IDT - fatal.
+/** Reason for leaving GC: Guest tried to write to our IDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the idtr register. */
 #define VERR_TRPM_SHADOW_IDT_WRITE          (-2402)
-/** Reason for leaving RC: Fatal trap in hypervisor. */
+/** Reason for leaving GC: Fatal trap in hypervisor. */
 #define VERR_TRPM_DONT_PANIC                (-2403)
-/** Reason for leaving RC: Double Fault. */
+/** Reason for leaving GC: Double Fault. */
 #define VERR_TRPM_PANIC                     (-2404)
 /** The exception was dispatched for raw-mode execution. */
 #define VINF_TRPM_XCPT_DISPATCHED           2405
 /** Bad TRPM_TRAP_IN_OP. */
 #define VERR_TRPM_BAD_TRAP_IN_OP            (-2406)
 /** Internal processing error \#1 in TRPM. */
-#define VERR_TRPM_IPE_1                     (-2407)
+#define VERR_TRPM_IPE_1                     (-2507)
 /** Internal processing error \#2 in TRPM. */
-#define VERR_TRPM_IPE_2                     (-2408)
+#define VERR_TRPM_IPE_2                     (-2508)
 /** Internal processing error \#3 in TRPM. */
-#define VERR_TRPM_IPE_3                     (-2409)
-/** Got into a part of TRPM that is not used when HM (VT-x/AMD-V) is enabled. */
-#define VERR_TRPM_HM_IPE                    (-2410)
+#define VERR_TRPM_IPE_3                     (-2509)
 /** @} */
 
 
 /** @name Selector Manager / Monitor (SELM) Status Code
  * @{
  */
-/** Reason for leaving RC: Guest tried to write to our GDT - fatal.
+/** Reason for leaving GC: Guest tried to write to our GDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the gdtr register. */
 #define VERR_SELM_SHADOW_GDT_WRITE          (-2500)
-/** Reason for leaving RC: Guest tried to write to our LDT - fatal.
+/** Reason for leaving GC: Guest tried to write to our LDT - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the ldtr register. */
 #define VERR_SELM_SHADOW_LDT_WRITE          (-2501)
-/** Reason for leaving RC: Guest tried to write to our TSS - fatal.
+/** Reason for leaving GC: Guest tried to write to our TSS - fatal.
  * The VM will be terminated assuming the worst, i.e. that the
  * guest has read the ltr register. */
 #define VERR_SELM_SHADOW_TSS_WRITE          (-2502)
-/** Reason for leaving RC: Sync the GDT table to solve a conflict. */
+/** Reason for leaving GC: Sync the GDT table to solve a conflict. */
 #define VINF_SELM_SYNC_GDT                  2503
 /** No valid TSS present. */
 #define VERR_SELM_NO_TSS                    (-2504)
@@ -1020,13 +984,6 @@
 #define VERR_SELM_INVALID_LDT               (-2505)
 /** The guest LDT selector is out of bounds. */
 #define VERR_SELM_LDT_OUT_OF_BOUNDS         (-2506)
-/** Unknown error while reading the guest GDT during shadow table updating. */
-#define VERR_SELM_GDT_READ_ERROR            (-2507)
-/** The guest GDT so full that we cannot find free space for our own
- * selectors. */
-#define VERR_SELM_GDT_TOO_FULL              (-2508)
-/** Got into a part of SELM that is not used when HM (VT-x/AMD-V) is enabled. */
-#define VERR_SELM_HM_IPE                    (-2509)
 /** @} */
 
 
@@ -1036,9 +993,9 @@
 /** The specified I/O port range was invalid.
  * It was either empty or it was out of bounds. */
 #define VERR_IOM_INVALID_IOPORT_RANGE       (-2600)
-/** The specified R0 or RC I/O port range didn't have a corresponding R3 range.
- * IOMR3IOPortRegisterR3() must be called first. */
-#define VERR_IOM_NO_R3_IOPORT_RANGE         (-2601)
+/** The specified GC I/O port range didn't have a corresponding HC range.
+ * IOMIOPortRegisterHC() must be called before IOMIOPortRegisterGC(). */
+#define VERR_IOM_NO_HC_IOPORT_RANGE         (-2601)
 /** The specified I/O port range intruded on an existing range. There is
  * a I/O port conflict between two device, or a device tried to register
  * the same range twice. */
@@ -1046,17 +1003,17 @@
 /** The I/O port range specified for removal wasn't found or it wasn't contiguous. */
 #define VERR_IOM_IOPORT_RANGE_NOT_FOUND     (-2603)
 /** The specified I/O port range was owned by some other device(s). Both registration
- * and deregistration, but in the first case only RC and R0 ranges. */
+ * and deregistration, but in the first case only GC ranges. */
 #define VERR_IOM_NOT_IOPORT_RANGE_OWNER     (-2604)
 
 /** The specified MMIO range was invalid.
  * It was either empty or it was out of bounds. */
 #define VERR_IOM_INVALID_MMIO_RANGE         (-2605)
-/** The specified R0 or RC MMIO range didn't have a corresponding R3 range.
- * IOMR3MMIORegisterR3() must be called first. */
-#define VERR_IOM_NO_R3_MMIO_RANGE           (-2606)
+/** The specified GC MMIO range didn't have a corresponding HC range.
+ * IOMMMIORegisterHC() must be called before IOMMMIORegisterGC(). */
+#define VERR_IOM_NO_HC_MMIO_RANGE           (-2606)
 /** The specified MMIO range was owned by some other device(s). Both registration
- * and deregistration, but in the first case only RC and R0 ranges. */
+ * and deregistration, but in the first case only GC ranges. */
 #define VERR_IOM_NOT_MMIO_RANGE_OWNER       (-2607)
 /** The specified MMIO range intruded on an existing range. There is
  * a MMIO conflict between two device, or a device tried to register
@@ -1081,16 +1038,16 @@
 /** Unused MMIO register read, fill with FF. */
 #define VINF_IOM_MMIO_UNUSED_FF             2616
 
-/** Reason for leaving RZ: I/O port read. */
-#define VINF_IOM_R3_IOPORT_READ             2620
-/** Reason for leaving RZ: I/O port write. */
-#define VINF_IOM_R3_IOPORT_WRITE            2621
-/** Reason for leaving RZ: MMIO write. */
-#define VINF_IOM_R3_MMIO_READ               2623
-/** Reason for leaving RZ: MMIO read. */
-#define VINF_IOM_R3_MMIO_WRITE              2624
-/** Reason for leaving RZ: MMIO read/write. */
-#define VINF_IOM_R3_MMIO_READ_WRITE         2625
+/** Reason for leaving GC: I/O port read. */
+#define VINF_IOM_HC_IOPORT_READ             2620
+/** Reason for leaving GC: I/O port write. */
+#define VINF_IOM_HC_IOPORT_WRITE            2621
+/** Reason for leaving GC: MMIO write. */
+#define VINF_IOM_HC_MMIO_READ               2623
+/** Reason for leaving GC: MMIO read. */
+#define VINF_IOM_HC_MMIO_WRITE              2624
+/** Reason for leaving GC: MMIO read/write. */
+#define VINF_IOM_HC_MMIO_READ_WRITE         2625
 
 /** IOMGCIOPortHandler was given an unexpected opcode. */
 #define VERR_IOM_IOPORT_UNKNOWN_OPCODE      (-2630)
@@ -1106,8 +1063,6 @@
 #define VERR_IOM_MMIO_IPE_2                 (-2635)
 /** Internal processing error \#3 in the MMIO code. */
 #define VERR_IOM_MMIO_IPE_3                 (-2636)
-/** Got into a part of IOM that is not used when HM (VT-x/AMD-V) is enabled. */
-#define VERR_IOM_HM_IPE                     (-2637)
 /** @} */
 
 
@@ -1143,16 +1098,6 @@
 #define VERR_VMM_UNKNOWN_RING3_CALL         (-2710)
 /** The ring-3 call didn't set an RC. */
 #define VERR_VMM_RING3_CALL_NO_RC           (-2711)
-/** Reason for leaving RC: Caller the tracer in ring-0. */
-#define VINF_VMM_CALL_TRACER                (2712)
-/** Internal processing error \#1 in the switcher code. */
-#define VERR_VMM_SWITCHER_IPE_1             (-2713)
-/** Reason for leaving RZ: Unknown call to ring-3. */
-#define VINF_VMM_UNKNOWN_RING3_CALL         (2714)
-/** Attempted to use stub switcher. */
-#define VERR_VMM_SWITCHER_STUB              (-2715)
-/** HM returned in the wrong state. */
-#define VERR_VMM_WRONG_HM_VMCPU_STATE       (-2716)
 /** @} */
 
 
@@ -1430,11 +1375,6 @@
 /** The driver is already removed, not more transformations possible (at
  *  present). */
 #define VERR_PDM_CANNOT_TRANSFORM_REMOVED_DRIVER    (-2890)
-/** The PCI device isn't configured as a busmaster, physical memory access
- * rejected. */
-#define VERR_PDM_NOT_PCI_BUS_MASTER                 (-2891)
-/** Got into a part of PDM that is not used when HM (VT-x/AMD-V) is enabled. */
-#define VERR_PDM_HM_IPE                             (-2892)
 /** @} */
 
 
@@ -1522,12 +1462,6 @@
 #define VERR_VD_ASYNC_IO_IN_PROGRESS                (-3210)
 /** The image is too small or too large for this format. */
 #define VERR_VD_INVALID_SIZE                        (-3211)
-/** Configuration value is unknown. This indicates misconfiguration. */
-#define VERR_VD_UNKNOWN_CFG_VALUES                  (-3212)
-/** Interface is unknown. This indicates misconfiguration. */
-#define VERR_VD_UNKNOWN_INTERFACE                   (-3213)
-/** The DEK for disk encryption is missing. */
-#define VERR_VD_DEK_MISSING                         (-3214)
 /** Generic: Invalid image file header. Use this for plugins. */
 #define VERR_VD_GEN_INVALID_HEADER                  (-3220)
 /** VDI: Invalid image file header. */
@@ -1552,12 +1486,14 @@
 #define VERR_VD_VMDK_INVALID_WRITE                  (-3245)
 /** iSCSI: Invalid header, i.e. dummy for validity check. */
 #define VERR_VD_ISCSI_INVALID_HEADER                (-3250)
+/** iSCSI: Configuration value is unknown. This indicates misconfiguration. */
+#define VERR_VD_ISCSI_UNKNOWN_CFG_VALUES            (-3251)
+/** iSCSI: Interface is unknown. This indicates misconfiguration. */
+#define VERR_VD_ISCSI_UNKNOWN_INTERFACE             (-3252)
 /** iSCSI: Operation can't be done in current image state. */
-#define VERR_VD_ISCSI_INVALID_STATE                 (-3251)
+#define VERR_VD_ISCSI_INVALID_STATE                 (-3253)
 /** iSCSI: Invalid device type (not a disk). */
-#define VERR_VD_ISCSI_INVALID_TYPE                  (-3252)
-/** iSCSI: Initiator secret not decrypted */
-#define VERR_VD_ISCSI_SECRET_ENCRYPTED              (-3253)
+#define VERR_VD_ISCSI_INVALID_TYPE                  (-3254)
 /** VHD: Invalid image file header. */
 #define VERR_VD_VHD_INVALID_HEADER                  (-3260)
 /** Parallels HDD: Invalid image file header. */
@@ -1578,25 +1514,6 @@
 #define VERR_VD_CACHE_NOT_FOUND                     (-3275)
 /** The cache is not up to date with the image. */
 #define VERR_VD_CACHE_NOT_UP_TO_DATE                (-3276)
-/** The given range does not meet the required alignment. */
-#define VERR_VD_DISCARD_ALIGNMENT_NOT_MET           (-3277)
-/** The discard operation is not supported for this image. */
-#define VERR_VD_DISCARD_NOT_SUPPORTED               (-3278)
-/** The image is the correct format but is corrupted. */
-#define VERR_VD_IMAGE_CORRUPTED                     (-3279)
-/** Repairing the image is not supported. */
-#define VERR_VD_IMAGE_REPAIR_NOT_SUPPORTED          (-3280)
-/** Repairing the image is not possible because the corruption is to severe. */
-#define VERR_VD_IMAGE_REPAIR_IMPOSSIBLE             (-3281)
-/** Reading from the image was not possible because the offset is out of the image range.
- * This usually indicates that there is a minor corruption in the image meta data. */
-#define VERR_VD_READ_OUT_OF_RANGE                   (-3282)
-/** Block read was marked as free in the image and returned as a zero block. */
-#define VINF_VD_NEW_ZEROED_BLOCK                    3283
-/** Unable to parse the XML in DMG file. */
-#define VERR_VD_DMG_XML_PARSE_ERROR                 (-3284)
-/** Unable to locate a usable DMG file within the XAR archive. */
-#define VERR_VD_DMG_NOT_FOUND_INSIDE_XAR            (-3285)
 /** @} */
 
 
@@ -1683,87 +1600,6 @@
 #define VERR_SUPDRV_SERVICE_NOT_FOUND               (-3702)
 /** The host kernel is too old. */
 #define VERR_SUPDRV_KERNEL_TOO_OLD_FOR_VTX          (-3703)
-/** Bad VTG magic value.  */
-#define VERR_SUPDRV_VTG_MAGIC                       (-3704)
-/** Bad VTG bit count value.  */
-#define VERR_SUPDRV_VTG_BITS                        (-3705)
-/** Bad VTG header - misc.  */
-#define VERR_SUPDRV_VTG_BAD_HDR_MISC                (-3706)
-/** Bad VTG header - offset.  */
-#define VERR_SUPDRV_VTG_BAD_HDR_OFF                 (-3707)
-/** Bad VTG header - offset.  */
-#define VERR_SUPDRV_VTG_BAD_HDR_PTR                 (-3708)
-/** Bad VTG header - to low value.  */
-#define VERR_SUPDRV_VTG_BAD_HDR_TOO_FEW             (-3709)
-/** Bad VTG header - to high value.  */
-#define VERR_SUPDRV_VTG_BAD_HDR_TOO_MUCH            (-3710)
-/** Bad VTG header - size value is not a multiple of the structure size. */
-#define VERR_SUPDRV_VTG_BAD_HDR_NOT_MULTIPLE        (-3711)
-/** Bad VTG string table offset. */
-#define VERR_SUPDRV_VTG_STRTAB_OFF                  (-3712)
-/** Bad VTG string. */
-#define VERR_SUPDRV_VTG_BAD_STRING                  (-3713)
-/** VTG string is too long. */
-#define VERR_SUPDRV_VTG_STRING_TOO_LONG             (-3714)
-/** Bad VTG attribute value. */
-#define VERR_SUPDRV_VTG_BAD_ATTR                    (-3715)
-/** Bad VTG provider descriptor. */
-#define VERR_SUPDRV_VTG_BAD_PROVIDER                (-3716)
-/** Bad VTG probe descriptor. */
-#define VERR_SUPDRV_VTG_BAD_PROBE                   (-3717)
-/** Bad VTG argument list descriptor. */
-#define VERR_SUPDRV_VTG_BAD_ARGLIST                 (-3718)
-/** Bad VTG probe enabled data. */
-#define VERR_SUPDRV_VTG_BAD_PROBE_ENABLED           (-3719)
-/** Bad VTG probe location record. */
-#define VERR_SUPDRV_VTG_BAD_PROBE_LOC               (-3720)
-/** The VTG object for the session or image has already been registered. */
-#define VERR_SUPDRV_VTG_ALREADY_REGISTERED          (-3721)
-/** A driver may only register one VTG object per session. */
-#define VERR_SUPDRV_VTG_ONLY_ONCE_PER_SESSION       (-3722)
-/** A tracer has already been registered. */
-#define VERR_SUPDRV_TRACER_ALREADY_REGISTERED       (-3723)
-/** The session has no tracer associated with it. */
-#define VERR_SUPDRV_TRACER_NOT_REGISTERED           (-3724)
-/** The tracer has already been opened in this sesssion. */
-#define VERR_SUPDRV_TRACER_ALREADY_OPENED           (-3725)
-/** The tracer has not been opened. */
-#define VERR_SUPDRV_TRACER_NOT_OPENED               (-3726)
-/** There is no tracer present. */
-#define VERR_SUPDRV_TRACER_NOT_PRESENT              (-3727)
-/** The tracer is unloading. */
-#define VERR_SUPDRV_TRACER_UNLOADING                (-3728)
-/** Another thread in the session is talking to the tracer.  */
-#define VERR_SUPDRV_TRACER_SESSION_BUSY             (-3729)
-/** The tracer cannot open it self in the same session. */
-#define VERR_SUPDRV_TRACER_CANNOT_OPEN_SELF         (-3730)
-/** Bad argument flags. */
-#define VERR_SUPDRV_TRACER_BAD_ARG_FLAGS            (-3731)
-/** The session has reached the max number of (user mode) providers. */
-#define VERR_SUPDRV_TRACER_TOO_MANY_PROVIDERS       (-3732)
-/** The tracepoint provider object is too large. */
-#define VERR_SUPDRV_TRACER_TOO_LARGE                (-3733)
-/** The probe location array isn't adjacent to the probe enable array. */
-#define VERR_SUPDRV_TRACER_UMOD_NOT_ADJACENT        (-3734)
-/** The user mode tracepoint provider has too many probe locations and
- * probes. */
-#define VERR_SUPDRV_TRACER_UMOD_TOO_MANY_PROBES     (-3735)
-/** The user mode tracepoint provider string table is too large. */
-#define VERR_SUPDRV_TRACER_UMOD_STRTAB_TOO_BIG      (-3736)
-/** The user mode tracepoint provider string table offset is bad. */
-#define VERR_SUPDRV_TRACER_UMOD_STRTAB_OFF_BAD      (-3737)
-/** The VM process was denied access to vboxdrv because someone have managed to
- * open the process or its main thread with too broad access rights. */
-#define VERR_SUPDRV_HARDENING_EVIL_HANDLE           (-3738)
-/** Error opening the ApiPort LPC object. */
-#define VERR_SUPDRV_APIPORT_OPEN_ERROR              (-3739)
-/** Error enumerating all processes in the session. */
-#define VERR_SUPDRV_SESSION_PROCESS_ENUM_ERROR      (-3740)
-/** The CSRSS instance associated with the client process could not be
- * located. */
-#define VERR_SUPDRV_CSRSS_NOT_FOUND                 (-3741)
-/** Type error opening the ApiPort LPC object. */
-#define VERR_SUPDRV_APIPORT_OPEN_ERROR_TYPE         (-3742)
 /** @} */
 
 
@@ -1811,18 +1647,6 @@
 #define VERR_SUPLIB_INVALID_ARGV0_INTERNAL          (-3768)
 /** The internal application does not reside in the correct place (hardening). */
 #define VERR_SUPLIB_INVALID_INTERNAL_APP_DIR        (-3769)
-/** Unable to establish trusted of VM process (0). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_0          (-3770)
-/** Unable to establish trusted of VM process (1). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_1          (-3771)
-/** Unable to establish trusted of VM process (2). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_2          (-3772)
-/** Unable to establish trusted of VM process (3). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_3          (-3773)
-/** Unable to establish trusted of VM process (4). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_4          (-3774)
-/** Unable to establish trusted of VM process (5). */
-#define VERR_SUPLIB_NT_PROCESS_UNTRUSTED_5          (-3775)
 /** @} */
 
 
@@ -1918,64 +1742,44 @@
 /** @name VBox VMX Status Codes
  * @{
  */
-/** VMXON failed; possibly because it was already run before. */
-#define VERR_VMX_VMXON_FAILED                       (-4000)
-/** Invalid VMCS pointer.
- * (Can be OR'ed with VERR_VMX_INVALID_VMCS_FIELD.) */
-#define VERR_VMX_INVALID_VMCS_PTR                   (-4001)
 /** Invalid VMCS index or write to read-only element. */
-#define VERR_VMX_INVALID_VMCS_FIELD                 (-4002)
-/** Reserved for future status code that we wish to OR with
- *  VERR_VMX_INVALID_VMCS_PTR and VERR_VMX_INVALID_VMCS_FIELD. */
-#define VERR_VMX_RESERVED                           (-4003)
+#define VERR_VMX_INVALID_VMCS_FIELD                 (-4000)
+/** Invalid VMCS pointer. */
+#define VERR_VMX_INVALID_VMCS_PTR                   (-4001)
 /** Invalid VMXON pointer. */
-#define VERR_VMX_INVALID_VMXON_PTR                  (-4004)
+#define VERR_VMX_INVALID_VMXON_PTR                  (-4002)
+/** Generic VMX failure. */
+#define VERR_VMX_GENERIC                            (-4003)
+/** Invalid CPU mode for VMX execution. */
+#define VERR_VMX_UNSUPPORTED_MODE                   (-4004)
 /** Unable to start VM execution. */
 #define VERR_VMX_UNABLE_TO_START_VM                 (-4005)
+/** Unable to resume VM execution. */
+#define VERR_VMX_UNABLE_TO_RESUME_VM                (-4006)
 /** Unable to switch due to invalid host state. */
-#define VERR_VMX_INVALID_HOST_STATE                 (-4006)
+#define VERR_VMX_INVALID_HOST_STATE                 (-4007)
 /** IA32_FEATURE_CONTROL MSR not setup correcty (turn on VMX in the host system BIOS) */
-#define VERR_VMX_ILLEGAL_FEATURE_CONTROL_MSR        (-4007)
-/** Invalid CPU mode for VMX execution. */
-#define VERR_VMX_UNSUPPORTED_MODE                   (-4008)
+#define VERR_VMX_ILLEGAL_FEATURE_CONTROL_MSR        (-4008)
 /** VMX CPU extension not available */
 #define VERR_VMX_NO_VMX                             (-4009)
+/** VMXON failed; possibly because it was already run before */
+#define VERR_VMX_VMXON_FAILED                       (-4010)
 /** CPU was incorrectly left in VMX root mode; incompatible with VirtualBox */
 #define VERR_VMX_IN_VMX_ROOT_MODE                   (-4011)
 /** Somebody cleared X86_CR4_VMXE in the CR4 register. */
 #define VERR_VMX_X86_CR4_VMXE_CLEARED               (-4012)
-/** Failed to enable and lock VT-x features. */
-#define VERR_VMX_MSR_LOCKING_FAILED                 (-4013)
+/** VT-x features locked or unavailable in MSR. */
+#define VERR_VMX_MSR_LOCKED_OR_DISABLED             (-4013)
 /** Unable to switch due to invalid guest state. */
 #define VERR_VMX_INVALID_GUEST_STATE                (-4014)
-/** Unexpected VM exit. */
-#define VERR_VMX_UNEXPECTED_EXIT                    (-4015)
-/** Unexpected VM exception. */
+/** Unexpected VM exit code. */
+#define VERR_VMX_UNEXPECTED_EXIT_CODE               (-4015)
+/** Unexpected VM exception code. */
 #define VERR_VMX_UNEXPECTED_EXCEPTION               (-4016)
-/** Unexpected interruption exit type. */
-#define VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE  (-4017)
-/** CPU is not in VMX root mode; unexpected when leaving VMX root mode. */
+/** Unexpected interruption exit code. */
+#define VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_CODE  (-4017)
+/** CPU is not in VMX root mode; unexpected when leaving VMX root mode */
 #define VERR_VMX_NOT_IN_VMX_ROOT_MODE               (-4018)
-/** Undefined VM exit code. */
-#define VERR_VMX_UNDEFINED_EXIT_CODE                (-4019)
-/** VMPTRLD failed; possibly because of invalid VMCS launch-state. */
-#define VERR_VMX_VMPTRLD_FAILED                     (-4021)
-/** Invalid VMCS pointer passed to VMLAUNCH/VMRESUME. */
-#define VERR_VMX_INVALID_VMCS_PTR_TO_START_VM       (-4022)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_1                            (-4023)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_2                            (-4024)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_3                            (-4025)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_4                            (-4026)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_5                            (-4027)
-/** VT-x features for SMX operation disabled by the BIOS. */
-#define VERR_VMX_MSR_SMX_VMXON_DISABLED             (-4028)
-/** VT-x features disabled by the BIOS. */
-#define VERR_VMX_MSR_VMXON_DISABLED                 (-4029)
 /** @} */
 
 
@@ -1992,60 +1796,44 @@
 #define VERR_SVM_DISABLED                           (-4053)
 /** AMD-V CPU extension in-use. */
 #define VERR_SVM_IN_USE                             (-4054)
-/** Invalid pVMCB. */
-#define VERR_SVM_INVALID_PVMCB                      (-4055)
-/** Unexpected SVM exit. */
-#define VERR_SVM_UNEXPECTED_EXIT                    (-4056)
-/** Unexpected SVM exception exit. */
-#define VERR_SVM_UNEXPECTED_XCPT_EXIT               (-4057)
-/** Unexpected SVM patch type. */
-#define VERR_SVM_UNEXPECTED_PATCH_TYPE              (-4058)
-/** Unable to start VM execution due to an invalid guest state. */
-#define VERR_SVM_INVALID_GUEST_STATE                (-4059)
-/** Unknown or unrecognized SVM exit.  */
-#define VERR_SVM_UNKNOWN_EXIT                       (-4060)
 /** @} */
 
 
-/** @name VBox HM Status Codes
+/** @name VBox HWACCM Status Codes
  * @{
  */
 /** Unable to start VM execution. */
-#define VERR_HM_UNKNOWN_CPU                         (-4100)
+#define VERR_HWACCM_UNKNOWN_CPU                     (-4100)
 /** No CPUID support. */
-#define VERR_HM_NO_CPUID                            (-4101)
+#define VERR_HWACCM_NO_CPUID                        (-4101)
 /** Host is about to go into suspend mode. */
-#define VERR_HM_SUSPEND_PENDING                     (-4102)
+#define VERR_HWACCM_SUSPEND_PENDING                 (-4102)
 /** Conflicting CFGM values. */
-#define VERR_HM_CONFIG_MISMATCH                     (-4103)
+#define VERR_HWACCM_CONFIG_MISMATCH                 (-4103)
 /** Internal processing error in the HM init code. */
 #define VERR_HM_ALREADY_ENABLED_IPE                 (-4104)
 /** Unexpected MSR in the load / restore list.  */
 #define VERR_HM_UNEXPECTED_LD_ST_MSR                (-4105)
 /** No 32-bit to 64-bit switcher in place. */
 #define VERR_HM_NO_32_TO_64_SWITCHER                (-4106)
-/** HMR0Leave was called on the wrong CPU. */
-#define VERR_HM_WRONG_CPU_1                         (-4107)
+/** Invalid pVMCB. */
+#define VERR_HMSVM_INVALID_PVMCB                    (-4107)
+/** Unexpected SVM exit. */
+#define VERR_HMSVM_UNEXPECTED_EXIT                  (-4108)
+/** Unexpected SVM exception exit. */
+#define VERR_HMSVM_UNEXPECTED_XCPT_EXIT             (-4109)
+/** Unexpected SVM patch type. */
+#define VERR_HMSVM_UNEXPECTED_PATCH_TYPE            (-4110)
+/** HWACCMR0Leave was called on the wrong CPU. */
+#define VERR_HM_WRONG_CPU_1                         (-4111)
 /** Internal processing error \#1 in the HM code.  */
-#define VERR_HM_IPE_1                               (-4108)
+#define VERR_HM_IPE_1                               (-4112)
 /** Internal processing error \#2 in the HM code.  */
-#define VERR_HM_IPE_2                               (-4109)
+#define VERR_HM_IPE_2                               (-4113)
 /** Wrong 32/64-bit switcher. */
-#define VERR_HM_WRONG_SWITCHER                      (-4110)
+#define VERR_HM_WRONG_SWITCHER                      (-4114)
 /** Unknown I/O instruction. */
-#define VERR_HM_UNKNOWN_IO_INSTRUCTION              (-4111)
-/** Unsupported CPU feature combination. */
-#define VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO       (-4112)
-/** Internal processing error \#3 in the HM code.  */
-#define VERR_HM_IPE_3                               (-4113)
-/** Internal processing error \#3 in the HM code.  */
-#define VERR_HM_IPE_4                               (-4114)
-/** Internal processing error \#3 in the HM code.  */
-#define VERR_HM_IPE_5                               (-4115)
-/** Invalid HM64ON32OP value.  */
-#define VERR_HM_INVALID_HM64ON32OP                  (-4116)
-/** Resume guest execution after injecting a double-fault. */
-#define VINF_HM_DOUBLE_FAULT                        4117
+#define VERR_HM_UNKNOWN_IO_INSTRUCTION              (-4115)
 /** @} */
 
 
@@ -2056,14 +1844,6 @@
 #define VERR_DIS_INVALID_OPCODE                     (-4200)
 /** Generic failure during disassembly. */
 #define VERR_DIS_GEN_FAILURE                        (-4201)
-/** No read callback. */
-#define VERR_DIS_NO_READ_CALLBACK                   (-4202)
-/** Invalid Mod/RM. */
-#define VERR_DIS_INVALID_MODRM                      (-4203)
-/** Invalid parameter index. */
-#define VERR_DIS_INVALID_PARAMETER                  (-4204)
-/** The instruction is too long. */
-#define VERR_DIS_TOO_LONG_INSTR                     (-4206)
 /** @} */
 
 
@@ -2191,7 +1971,7 @@
 #define VERR_PCI_PASSTHROUGH_NO_RAM_PREALLOC        (-5100)
 /** VT-x/AMD-V not active.
  * PCI passthrough currently works only if VT-x/AMD-V is active. */
-#define VERR_PCI_PASSTHROUGH_NO_HM              (-5101)
+#define VERR_PCI_PASSTHROUGH_NO_HWACCM              (-5101)
 /** Nested paging not active.
  * PCI passthrough currently works only if nested paging is active. */
 #define VERR_PCI_PASSTHROUGH_NO_NESTED_PAGING       (-5102)
@@ -2214,312 +1994,6 @@
 /** @} */
 
 
-/** @name IEM Status Codes
- * @{ */
-/** The instruction is not yet implemented by IEM. */
-#define VERR_IEM_INSTR_NOT_IMPLEMENTED              (-5300)
-/** Invalid operand size passed to an IEM function. */
-#define VERR_IEM_INVALID_OPERAND_SIZE               (-5301)
-/** Invalid address mode passed to an IEM function. */
-#define VERR_IEM_INVALID_ADDRESS_MODE               (-5302)
-/** Invalid effective segment register number passed to an IEM function. */
-#define VERR_IEM_INVALID_EFF_SEG                    (-5303)
-/** Invalid instruction length passed to an IEM function. */
-#define VERR_IEM_INVALID_INSTR_LENGTH               (-5304)
-/** Internal status code for indicating that a selector isn't valid (LAR, LSL,
- *  VERR, VERW).  This is not used outside the instruction implementations. */
-#define VINF_IEM_SELECTOR_NOT_OK                    (5305)
-/** This particular aspect of the instruction is not yet implemented by IEM. */
-#define VERR_IEM_ASPECT_NOT_IMPLEMENTED             (-5391)
-/** Internal processing error \#1 in the IEM code.. */
-#define VERR_IEM_IPE_1                              (-5392)
-/** Internal processing error \#2 in the IEM code.. */
-#define VERR_IEM_IPE_2                              (-5393)
-/** Internal processing error \#3 in the IEM code.. */
-#define VERR_IEM_IPE_3                              (-5394)
-/** Restart the current instruction. For testing only. */
-#define VERR_IEM_RESTART_INSTRUCTION                (-5395)
-/** @} */
-
-
-/** @name DBGC Status Codes
- *  @{ */
-/** Status that causes DBGC to quit. */
-#define VERR_DBGC_QUIT                              (-5400)
-/** Async command pending. */
-#define VWRN_DBGC_CMD_PENDING                       5401
-/** The command has already been registered. */
-#define VWRN_DBGC_ALREADY_REGISTERED                5402
-/** The command cannot be deregistered because has not been registered.  */
-#define VERR_DBGC_COMMANDS_NOT_REGISTERED           (-5403)
-/** Unknown breakpoint.  */
-#define VERR_DBGC_BP_NOT_FOUND                      (-5404)
-/** The breakpoint already exists. */
-#define VERR_DBGC_BP_EXISTS                         (-5405)
-/** The breakpoint has no command. */
-#define VINF_DBGC_BP_NO_COMMAND                     5406
-/** Generic debugger command failure. */
-#define VERR_DBGC_COMMAND_FAILED                    (-5407)
-/** Logic bug in the DBGC code.. */
-#define VERR_DBGC_IPE                               (-5408)
-
-/** The lowest parse status code.   */
-#define VERR_DBGC_PARSE_LOWEST                      (-5499)
-/** Syntax error - too few arguments. */
-#define VERR_DBGC_PARSE_TOO_FEW_ARGUMENTS           (VERR_DBGC_PARSE_LOWEST + 0)
-/** Syntax error - too many arguments. */
-#define VERR_DBGC_PARSE_TOO_MANY_ARGUMENTS          (VERR_DBGC_PARSE_LOWEST + 1)
-/** Syntax error - too many arguments for static storage. */
-#define VERR_DBGC_PARSE_ARGUMENT_OVERFLOW           (VERR_DBGC_PARSE_LOWEST + 2)
-/** Syntax error - expected binary operator. */
-#define VERR_DBGC_PARSE_EXPECTED_BINARY_OP          (VERR_DBGC_PARSE_LOWEST + 3)
-
-/** Syntax error - the argument does not allow a range to be specified. */
-#define VERR_DBGC_PARSE_NO_RANGE_ALLOWED            (VERR_DBGC_PARSE_LOWEST + 5)
-/** Syntax error - unbalanced quotes. */
-#define VERR_DBGC_PARSE_UNBALANCED_QUOTE            (VERR_DBGC_PARSE_LOWEST + 6)
-/** Syntax error - unbalanced parenthesis. */
-#define VERR_DBGC_PARSE_UNBALANCED_PARENTHESIS      (VERR_DBGC_PARSE_LOWEST + 7)
-/** Syntax error - an argument or subargument contains nothing useful. */
-#define VERR_DBGC_PARSE_EMPTY_ARGUMENT              (VERR_DBGC_PARSE_LOWEST + 8)
-/** Syntax error - invalid operator usage. */
-#define VERR_DBGC_PARSE_UNEXPECTED_OPERATOR         (VERR_DBGC_PARSE_LOWEST + 9)
-/** Syntax error - invalid numeric value. */
-#define VERR_DBGC_PARSE_INVALID_NUMBER              (VERR_DBGC_PARSE_LOWEST + 10)
-/** Syntax error - numeric overflow. */
-#define VERR_DBGC_PARSE_NUMBER_TOO_BIG              (VERR_DBGC_PARSE_LOWEST + 11)
-/** Syntax error - invalid operation attempted. */
-#define VERR_DBGC_PARSE_INVALID_OPERATION           (VERR_DBGC_PARSE_LOWEST + 12)
-/** Syntax error - function not found. */
-#define VERR_DBGC_PARSE_FUNCTION_NOT_FOUND          (VERR_DBGC_PARSE_LOWEST + 13)
-/** Syntax error - the specified function is not a function. */
-#define VERR_DBGC_PARSE_NOT_A_FUNCTION              (VERR_DBGC_PARSE_LOWEST + 14)
-/** Syntax error - out of scratch memory. */
-#define VERR_DBGC_PARSE_NO_SCRATCH                  (VERR_DBGC_PARSE_LOWEST + 15)
-/** Syntax error - out of regular heap memory. */
-#define VERR_DBGC_PARSE_NO_MEMORY                   (VERR_DBGC_PARSE_LOWEST + 16)
-/** Syntax error - incorrect argument type. */
-#define VERR_DBGC_PARSE_INCORRECT_ARG_TYPE          (VERR_DBGC_PARSE_LOWEST + 17)
-/** Syntax error - an undefined variable was referenced. */
-#define VERR_DBGC_PARSE_VARIABLE_NOT_FOUND          (VERR_DBGC_PARSE_LOWEST + 18)
-/** Syntax error - a type conversion failed. */
-#define VERR_DBGC_PARSE_CONVERSION_FAILED           (VERR_DBGC_PARSE_LOWEST + 19)
-/** Syntax error - you hit a debugger feature which isn't implemented yet.
- * (Feel free to help implement it.) */
-#define VERR_DBGC_PARSE_NOT_IMPLEMENTED             (VERR_DBGC_PARSE_LOWEST + 20)
-/** Syntax error - Couldn't staisfy a request for a sepcific result type. */
-#define VERR_DBGC_PARSE_BAD_RESULT_TYPE             (VERR_DBGC_PARSE_LOWEST + 21)
-/** Syntax error - Cannot read symbol value, it is a set-only symbol. */
-#define VERR_DBGC_PARSE_WRITEONLY_SYMBOL            (VERR_DBGC_PARSE_LOWEST + 22)
-/** Syntax error - Invalid command name. */
-#define VERR_DBGC_PARSE_INVALD_COMMAND_NAME         (VERR_DBGC_PARSE_LOWEST + 23)
-/** Syntax error - Command not found. */
-#define VERR_DBGC_PARSE_COMMAND_NOT_FOUND           (VERR_DBGC_PARSE_LOWEST + 24)
-/** Syntax error - buggy parser. */
-#define VERR_DBGC_PARSE_BUG                         (VERR_DBGC_PARSE_LOWEST + 25)
-
-
-/** @} */
-
-/** @name Support driver/library shared verfication status codes.
- * @{  */
-/** Process Verficiation Failure: The memory content does not match the image
- *  file. */
-#define VERR_SUP_VP_MEMORY_VS_FILE_MISMATCH          (-5600)
-/** Process Verficiation Failure: The memory protection of a image file section
- *  does not match what the section header prescribes. */
-#define VERR_SUP_VP_SECTION_PROTECTION_MISMATCH      (-5601)
-/** Process Verficiation Failure: One of the section in the image file is not
- *  mapped into memory. */
-#define VERR_SUP_VP_SECTION_NOT_MAPPED               (-5602)
-/** Process Verficiation Failure: One of the section in the image file is not
- *  fully mapped into memory. */
-#define VERR_SUP_VP_SECTION_NOT_FULLY_MAPPED         (-5603)
-/** Process Verficiation Failure: Bad file alignment value in image header. */
-#define VERR_SUP_VP_BAD_FILE_ALIGNMENT_VALUE         (-5604)
-/** Process Verficiation Failure: Bad image base in header. */
-#define VERR_SUP_VP_BAD_IMAGE_BASE                   (-5605)
-/** Process Verficiation Failure: Bad image signature. */
-#define VERR_SUP_VP_BAD_IMAGE_SIGNATURE              (-5606)
-/** Process Verficiation Failure: Bad image size. */
-#define VERR_SUP_VP_BAD_IMAGE_SIZE                   (-5607)
-/** Process Verficiation Failure: Bad new-header offset in the MZ header. */
-#define VERR_SUP_VP_BAD_MZ_OFFSET                    (-5608)
-/** Process Verficiation Failure: Bad optional header field. */
-#define VERR_SUP_VP_BAD_OPTIONAL_HEADER              (-5609)
-/** Process Verficiation Failure: Bad section alignment value in image
- *  header. */
-#define VERR_SUP_VP_BAD_SECTION_ALIGNMENT_VALUE      (-5610)
-/** Process Verficiation Failure: Bad section raw data size. */
-#define VERR_SUP_VP_BAD_SECTION_FILE_SIZE            (-5611)
-/** Process Verficiation Failure: Bad virtual section address. */
-#define VERR_SUP_VP_BAD_SECTION_RVA                  (-5612)
-/** Process Verficiation Failure: Bad virtual section size. */
-#define VERR_SUP_VP_BAD_SECTION_VIRTUAL_SIZE         (-5613)
-/** Process Verficiation Failure: Bad size of image header. */
-#define VERR_SUP_VP_BAD_SIZE_OF_HEADERS              (-5614)
-/** Process Verficiation Failure: The process is being debugged. */
-#define VERR_SUP_VP_DEBUGGED                         (-5615)
-/** Process Verficiation Failure: A DLL was found more than once. */
-#define VERR_SUP_VP_DUPLICATE_DLL_MAPPING            (-5616)
-/** Process Verficiation Failure: Image section region is too large. */
-#define VERR_SUP_VP_EMPTY_REGION_TOO_LARGE           (-5617)
-/** Process Verficiation Failure: Exectuable file name and process image name
- *  does not match up. */
-#define VERR_SUP_VP_EXE_VS_PROC_NAME_MISMATCH        (-5618)
-/** Process Verficiation Failure: Found executable memory allocated in the
- *  process.  There is only supposed be executable memory associated with
- *  image file mappings (DLLs & EXE). */
-#define VERR_SUP_VP_FOUND_EXEC_MEMORY                (-5619)
-/** Process Verficiation Failure: There is more than one known executable mapped
- *  into the process. */
-#define VERR_SUP_VP_FOUND_MORE_THAN_ONE_EXE_MAPPING  (-5620)
-/** Process Verficiation Failure: Error closing image file handle. */
-#define VERR_SUP_VP_IMAGE_FILE_CLOSE_ERROR           (-5621)
-/** Process Verficiation Failure: Error opening image file. */
-#define VERR_SUP_VP_IMAGE_FILE_OPEN_ERROR            (-5622)
-/** Process Verficiation Failure: Error reading image file header. */
-#define VERR_SUP_VP_IMAGE_HDR_READ_ERROR             (-5623)
-/** Process Verficiation Failure: Image mapping is bogus as the first region
- *  has different AllocationBase and BaseAddress values, indicating that a
- *  section was unmapped or otherwise tampered with. */
-#define VERR_SUP_VP_IMAGE_MAPPING_BASE_ERROR         (-5624)
-/** Process Verficiation Failure: Error reading process memory for comparing
- *  with disk data. */
-#define VERR_SUP_VP_MEMORY_READ_ERROR                (-5625)
-/** Process Verficiation Failure: Found no executable mapped into the process
- *  address space. */
-#define VERR_SUP_VP_NO_FOUND_NO_EXE_MAPPING          (-5626)
-/** Process Verficiation Failure: An image mapping failed to report a name. */
-#define VERR_SUP_VP_NO_IMAGE_MAPPING_NAME            (-5627)
-/** Process Verficiation Failure: No KERNE32.DLL mapping found.  This is
- *  impossible. */
-#define VERR_SUP_VP_NO_KERNEL32_MAPPING              (-5628)
-/** Process Verficiation Failure: Error allocating memory. */
-#define VERR_SUP_VP_NO_MEMORY                        (-5629)
-/** Process Verficiation Failure: Erorr allocating state memory or querying
- *  the system32 path. */
-#define VERR_SUP_VP_NO_MEMORY_STATE                  (-5630)
-/** Process Verficiation Failure: No NTDLL.DLL mapping found.  This is
- *  impossible. */
-#define VERR_SUP_VP_NO_NTDLL_MAPPING                 (-5631)
-/** Process Verficiation Failure: A DLL residing outside System32 was found
- *  in the process. */
-#define VERR_SUP_VP_NON_SYSTEM32_DLL                 (-5632)
-/** Process Verficiation Failure: An unknown and unwanted DLL was found loaded
- *  into the process. */
-#define VERR_SUP_VP_NOT_KNOWN_DLL_OR_EXE             (-5633)
-/** Process Verficiation Failure: The name of an image file changes between
- *  mapping regions. */
-#define VERR_SUP_VP_NT_MAPPING_NAME_CHANGED          (-5634)
-/** Process Verficiation Failure: Error querying process name. */
-#define VERR_SUP_VP_NT_QI_PROCESS_NM_ERROR           (-5635)
-/** Process Verficiation Failure: Error querying thread information. */
-#define VERR_SUP_VP_NT_QI_THREAD_ERROR               (-5636)
-/** Process Verficiation Failure: Error query virtual memory information. */
-#define VERR_SUP_VP_NT_QI_VIRTUAL_MEMORY_ERROR       (-5637)
-/** Process Verficiation Failure: Error query virtual memory mapping name. */
-#define VERR_SUP_VP_NT_QI_VIRTUAL_MEMORY_NM_ERROR    (-5638)
-/** Process Verficiation Failure: Error determining the full path of
- *  System32. */
-#define VERR_SUP_VP_SYSTEM32_PATH                    (-5639)
-/** Process Verficiation Failure: The process has more than one thread. */
-#define VERR_SUP_VP_THREAD_NOT_ALONE                 (-5640)
-/** Process Verficiation Failure: The image mapping is too large (>= 2GB). */
-#define VERR_SUP_VP_TOO_HIGH_REGION_RVA              (-5641)
-/** Process Verficiation Failure: The memory region is too large (>= 2GB). */
-#define VERR_SUP_VP_TOO_LARGE_REGION                 (-5642)
-/** Process Verficiation Failure: There are too many DLLs loaded. */
-#define VERR_SUP_VP_TOO_MANY_DLLS_LOADED             (-5643)
-/** Process Verficiation Failure: An image has too many regions. */
-#define VERR_SUP_VP_TOO_MANY_IMAGE_REGIONS           (-5644)
-/** Process Verficiation Failure: The process has too many virtual memory
- *  regions. */
-#define VERR_SUP_VP_TOO_MANY_MEMORY_REGIONS          (-5645)
-/** Process Verficiation Failure: An image has too many sections. */
-#define VERR_SUP_VP_TOO_MANY_SECTIONS                (-5646)
-/** Process Verficiation Failure: An image is targetting an unexpected
- *  machine/CPU. */
-#define VERR_SUP_VP_UNEXPECTED_IMAGE_MACHINE         (-5647)
-/** Process Verficiation Failure: Unexpected section protection flag
- *  combination. */
-#define VERR_SUP_VP_UNEXPECTED_SECTION_FLAGS         (-5648)
-/** Process Verficiation Failure: Expected the process and exe to have forced
- * integrity checking enabled (verifying signatures). */
-#define VERR_SUP_VP_EXE_MISSING_FORCE_INTEGRITY     (-5649)
-/** Process Verficiation Failure: Expected the process and exe to have dynamic
- * base enabled. */
-#define VERR_SUP_VP_EXE_MISSING_DYNAMIC_BASE        (-5650)
-/** Process Verficiation Failure: Expected the process and exe to advertise
- * NX compatibility. */
-#define VERR_SUP_VP_EXE_MISSING_NX_COMPAT           (-5651)
-/** Process Verficiation Failure: The DllCharacteristics of the process
- * does not match the value in the optional header in the exe file. */
-#define VERR_SUP_VP_DLL_CHARECTERISTICS_MISMATCH    (-5652)
-/** Process Verficiation Failure: The ImageCharacteristics of the process
- * does not match the value in the file header in the exe file. */
-#define VERR_SUP_VP_IMAGE_CHARECTERISTICS_MISMATCH  (-5653)
-/** Process Verficiation Failure: Error querying image information. */
-#define VERR_SUP_VP_NT_QI_PROCESS_IMG_INFO_ERROR    (-5654)
-/** Process Verficiation Failure: Error querying debug port. */
-#define VERR_SUP_VP_NT_QI_PROCESS_DBG_PORT_ERROR    (-5655)
-/** WinVerifyTrust failed with an unexpected status code when using the
- * catalog-file approach. */
-#define VERR_SUP_VP_WINTRUST_CAT_FAILURE            (-5656)
-/** The image is required to be signed with the same certificate as the rest
- * of VirtualBox. */
-#define VERR_SUP_VP_NOT_SIGNED_WITH_BUILD_CERT      (-5657)
-/** Internal processing error: Not build certificate. */
-#define VERR_SUP_VP_NOT_BUILD_CERT_IPE              (-5658)
-/** The image requires to be signed using the kernel-code signing process. */
-#define VERR_SUP_VP_NOT_VALID_KERNEL_CODE_SIGNATURE (-5659)
-/** Unexpected number of valid paths. */
-#define VERR_SUP_VP_UNEXPECTED_VALID_PATH_COUNT     (-5660)
-/** The image is required to force integrity checks. */
-#define VERR_SUP_VP_SIGNATURE_CHECKS_NOT_ENFORCED   (-5661)
-/** Process Verficiation Failure: Symantec Endpoint Protection must be
- * disabled for the VirtualBox VM processes.
- * http://www.symantec.com/connect/articles/creating-application-control-exclusions-symantec-endpoint-protection-121 */
-#define VERR_SUP_VP_SYSFER_DLL                      (-5662)
-/** Process Purification Failure: KERNE32.DLL already mapped into the initial
- *  process (suspended). */
-#define VERR_SUP_VP_KERNEL32_ALREADY_MAPPED         (-5663)
-/** Process Purification Failure: NtFreeVirtualMemory failed on a chunk of
- *  executable memory which shouldn't be present in the process. */
-#define VERR_SUP_VP_FREE_VIRTUAL_MEMORY_FAILED      (-5664)
-/** Process Purification Failure: Both NtUnmapViewOfSetion and
- *  NtProtectVirtualMemory failed to get rid of or passify an non-image
- *  exectuable mapping. */
-#define VERR_SUP_VP_UNMAP_AND_PROTECT_FAILED        (-5665)
-/** Process Purification Failure: Unknown memory type of executable memory.   */
-#define VERR_SUP_VP_UNKOWN_MEM_TYPE                 (-5666)
-/** The image file is not owned by TrustedInstaller is it should be. */
-#define VERR_SUP_VP_NOT_OWNED_BY_TRUSTED_INSTALLER  (-5667)
-/** The image is outside the expected range. */
-#define VERR_SUP_VP_IMAGE_TOO_BIG                   (-5668)
-/** Stub process not found so it cannot be revalidated when vboxdrv is opened
- * by the VM process. */
-#define VERR_SUP_VP_STUB_NOT_FOUND                  (-5669)
-/** Error openeing the stub process for revalidation when vboxdrv is opened by
- *  the VM process. */
-#define VERR_SUP_VP_STUB_OPEN_ERROR                 (-5670)
-/** Stub process thread not found during revalidation upon vboxdrv opening by
- * the VM process. */
-#define VERR_SUP_VP_STUB_THREAD_NOT_FOUND           (-5671)
-/** Error opening the stub process thread for revalidation when vboxdrv is
- * opened by the VM process. */
-#define VERR_SUP_VP_STUB_THREAD_OPEN_ERROR          (-5672)
-/** Process Purification Failure: NtAllocateVirtualMemory failed to get us
- * suitable replacement memory for a chunk of executable memory that
- * shouldn't be present in our process.  (You will only see this message if you
- * got potentially fatally buggy anti-virus software installed.) */
-#define VERR_SUP_VP_REPLACE_VIRTUAL_MEMORY_FAILED   (-5673)
-/** Error getting the file mode. */
-#define VERR_SUP_VP_FILE_MODE_ERROR                 (-5674)
-/** Error creating an event semaphore for used with asynchronous reads. */
-#define VERR_SUP_VP_CREATE_READ_EVT_SEM_FAILED      (-5675)
-
-/** @} */
 
 /** @name VBox Extension Pack Status Codes
  * @{
@@ -2535,27 +2009,6 @@
 #define VERR_EXTPACK_VBOX_VERSION_MISMATCH          (-6001)
 /** @} */
 
-
-/** @name VBox Guest Control Status Codes
- * @{
- */
-/** Guest side reported an error. */
-#define VERR_GSTCTL_GUEST_ERROR                     (-6200)
-/** A guest control object has changed its overall status. */
-#define VWRN_GSTCTL_OBJECTSTATE_CHANGED             6220
-/** @} */
-
-
-/** @name Main API Status Codes
- * @{
- */
-/** The configuration constructor in main failed due to a COM error.  Check
- * the release log of the VM for further details. */
-#define VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR      (-6400)
-/** The configuration constructor in main failed due to an internal consistency
- *  error. Consult the release log of the VM for further details. */
-#define VERR_MAIN_CONFIG_CONSTRUCTOR_IPE            (-6401)
-/** @} */
 
 /* SED-END */
 

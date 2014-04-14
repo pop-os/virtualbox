@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,7 +91,7 @@ RTDECL(bool) RTSymlinkIsDangling(const char *pszSymlink)
 }
 
 
-RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType, uint32_t fCreate)
+RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType)
 {
     /*
      * Validate the input.
@@ -124,12 +124,12 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYM
         rtPathFreeNative(pszNativeSymlink, pszSymlink);
     }
 
-    LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d, %#x): returns %Rrc\n", pszSymlink, pszSymlink, pszTarget, pszTarget, enmType, fCreate, rc));
+    LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d): returns %Rrc\n", pszSymlink, pszSymlink, pszTarget, pszTarget, enmType, rc));
     return rc;
 }
 
 
-RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
+RTDECL(int) RTSymlinkDelete(const char *pszSymlink)
 {
     char const *pszNativeSymlink;
     int rc = rtPathToNative(&pszNativeSymlink, pszSymlink, NULL);
@@ -153,12 +153,12 @@ RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
         rtPathFreeNative(pszNativeSymlink, pszSymlink);
     }
 
-    LogFlow(("RTSymlinkDelete(%p={%s}, #%x): returns %Rrc\n", pszSymlink, pszSymlink, fDelete, rc));
+    LogFlow(("RTSymlinkDelete(%p={%s}): returns %Rrc\n", pszSymlink, pszSymlink, rc));
     return rc;
 }
 
 
-RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead)
+RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget)
 {
     char *pszMyTarget;
     int rc = RTSymlinkReadA(pszSymlink, &pszMyTarget);

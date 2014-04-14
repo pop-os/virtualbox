@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2014 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@
 #
 
 SUB_DEPTH = ../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
 
 #
@@ -101,7 +101,6 @@ VBoxOGLcrserverlib_INCS  = \
 VBoxOGLcrserverlib_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h \
-        $(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h
 VBoxOGLcrserverlib_SOURCES := \
@@ -132,10 +131,8 @@ VBoxOGLcrserverlib_SOURCES := \
 	crserverlib/server_getshaders.c \
 	crserverlib/server_framebuffer.c \
 	crserverlib/server_glsl.c \
-	crserverlib/server_muralfbo.cpp \
+	crserverlib/server_muralfbo.c \
 	crserverlib/server_texture.c \
-	crserverlib/server_presenter.cpp \
-	crserverlib/server_rpw.cpp \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_retval.c \
 	$(VBOX_PATH_CROGL_GENFILES)/server_get.c \
@@ -151,14 +148,7 @@ VBoxOGLcrserverlib_DEFS += VBOXCR_LOGFPS
 endif
 ifdef VBOX_WITH_CRHGSMI
 VBoxOGLcrserverlib_DEFS += ifdef VBOX_WITH_CRHGSMI
-endif
-ifdef VBOX_WITH_CRDUMPER
-VBoxOGLcrserverlib_DEFS        += VBOX_WITH_CRDUMPER
-endif
-ifdef VBOX_WITH_CRSERVER_DUMPER
-VBoxOGLcrserverlib_DEFS        += VBOX_WITH_CRSERVER_DUMPER
-endif
-
+endif 
 
 #
 # Generate files for VBoxOGLcrserverlib
@@ -175,7 +165,7 @@ $(VBOX_PATH_CROGL_GENFILES)/server_retval.c: $(addprefix $(PATH_SUB_CURRENT)/crs
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
-$(VBOX_PATH_CROGL_GENFILES)/server_get.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_get.py server_special) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
+$(VBOX_PATH_CROGL_GENFILES)/server_get.c: $(addprefix $(PATH_SUB_CURRENT)/crserverlib/, server_get.py server_special get_components.py) $(VBOX_CROGL_API_FILES) | $$(dir $$@)
 	$(call MSG_GENERATE,python,$@,$<)
 	$(QUIET)$(call VBOX_CROGL_PYTHON_ENV,$(VBOX_PATH_CROGL_PYTHON_INCLUDE),$@) $(VBOX_BLD_PYTHON) $< $(VBOX_PATH_CROGL_GLAPI) $(<D)
 
@@ -261,18 +251,15 @@ VBoxOGLrenderspu_SOURCES.win     = render/renderspu_wgl.c render/render.def
 VBoxOGLrenderspu_SOURCES.linux   = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.solaris = render/renderspu_glx.c
 VBoxOGLrenderspu_SOURCES.freebsd = render/renderspu_glx.c
-VBoxOGLrenderspu_OBJCFLAGS.darwin = -Wno-shadow
-VBoxOGLrenderspu_SOURCES.darwin  = \
-	OpenGLTest/OpenGLTestDarwin.cpp \
-	render/renderspu_cocoa.c \
-	render/renderspu_cocoa_helper.m
-ifdef VBOX_WITH_CRHGSMI
-VBoxOGLrenderspu_DEFS += VBOX_WITH_CRHGSMI
+ifdef VBOX_WITH_COCOA_QT
+ VBoxOGLrenderspu_OBJCFLAGS.darwin = -Wno-shadow
+ VBoxOGLrenderspu_SOURCES.darwin = \
+    render/renderspu_cocoa.c \
+    render/renderspu_cocoa_helper.m
+else
+ VBoxOGLrenderspu_SOURCES.darwin = render/renderspu_agl.c
 endif
-ifdef VBOX_WITH_VDMA
-VBoxOGLrenderspu_DEFS += VBOX_WITH_VDMA
-endif
-VBoxOGLrenderspu_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLrenderspu.dylib -framework IOKit
+VBoxOGLrenderspu_LDFLAGS.darwin += -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxOGLrenderspu.dylib
 VBoxOGLrenderspu_LIBS = \
 	$(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
 	$(VBOX_LIB_OGL_HOSTCRUTIL) \
@@ -308,20 +295,20 @@ if (   defined(VBOX_WITH_QTGUI) \
   VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQT4GUI,VBOXQT4GUIEXE),VBOXMAINEXE)
   VBoxTestOGL_SOURCES = OpenGLTest/OpenGLTestApp.cpp
   VBoxTestOGL_LIBS = \
-  	$(if $(VBOX_WITH_CROGL), \
-  	    $(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
-  	    $(VBOX_LIB_OGL_HOSTCRUTIL),) \
-  	$(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_STAGE_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
-  	$(LIB_RUNTIME)
+    $(if $(VBOX_WITH_CROGL), \
+      $(PATH_STAGE_LIB)/VBoxOGLhostspuload$(VBOX_SUFF_LIB) \
+      $(VBOX_LIB_OGL_HOSTCRUTIL),) \
+    $(if $(VBOX_WITH_VIDEOHWACCEL), $(PATH_STAGE_LIB)/VBoxOGL2D$(VBOX_SUFF_LIB),) \
+    $(LIB_RUNTIME)
   VBoxTestOGL_DEFS += \
-    VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
     $(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
     $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
+    VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
     $(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
   ifdef VBOX_WITH_VIDEOHWACCEL
-   VBoxTestOGL_QT_MODULES     += Core Gui OpenGL
+   VBoxTestOGL_QT_MODULES += Core Gui OpenGL
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
-   VBoxTestOGL_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+   VBoxTestOGL_LIBS.win += $(PATH_SDK_WINPSDK_LIB)/Opengl32.lib
    if1of ($(KBUILD_TARGET), solaris linux freebsd)
     # must come after VBoxOGL2D, therefore don't set the arch-specific LIBS variable here!
     VBoxTestOGL_LIBS += GL
@@ -331,5 +318,5 @@ if (   defined(VBOX_WITH_QTGUI) \
  endif
 endif
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

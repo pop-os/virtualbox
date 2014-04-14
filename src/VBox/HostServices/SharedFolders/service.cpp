@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -112,7 +112,6 @@ static DECLCALLBACK(int) svcDisconnect (void *, uint32_t u32ClientID, void *pvCl
  */
 static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
 {
-#ifndef UNITTEST  /* Read this as not yet tested */
     SHFLCLIENTDATA *pClient = (SHFLCLIENTDATA *)pvClient;
 
     Log(("SharedFolders host service: saving state, u32ClientID = %u\n", u32ClientID));
@@ -146,7 +145,7 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
         {
             uint32_t len;
 
-            len = (uint32_t)strlen(pFolderMapping->pszFolderName);
+            len = strlen(pFolderMapping->pszFolderName);
             rc = SSMR3PutU32(pSSM, len);
             AssertRCReturn(rc, rc);
 
@@ -168,13 +167,11 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
         }
     }
 
-#endif
     return VINF_SUCCESS;
 }
 
 static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
 {
-#ifndef UNITTEST  /* Read this as not yet tested */
     uint32_t        nrMappings;
     SHFLCLIENTDATA *pClient = (SHFLCLIENTDATA *)pvClient;
     uint32_t        len, version;
@@ -272,11 +269,6 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
 
             /* 'i' is the root handle of the saved mapping. */
             rc = vbsfMappingLoaded (&mapping, i);
-            if (RT_FAILURE(rc))
-            {
-                LogRel(("SharedFolders: %Rrc loading %d [%ls] -> [%s]\n",
-                        rc, i, pMapName->String.ucs2, pszFolderName));
-            }
 
             RTMemFree(pMapName);
             RTStrFree(pszFolderName);
@@ -285,7 +277,6 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
         }
     }
     Log(("SharedFolders host service: successfully loaded state\n"));
-#endif
     return VINF_SUCCESS;
 }
 
@@ -389,7 +380,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 SHFLSTRING *pString    = (SHFLSTRING *)paParms[1].u.pointer.addr;
 
                 /* Verify parameters values. */
-                if (!ShflStringIsValidOut(pString, paParms[1].u.pointer.size))
+                if (!ShflStringIsValid(pString, paParms[1].u.pointer.size))
                 {
                     rc = VERR_INVALID_PARAMETER;
                 }
@@ -435,7 +426,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 uint32_t cbParms        = paParms[2].u.pointer.size;
 
                 /* Verify parameters values. */
-                if (   !ShflStringIsValidIn(pPath, cbPath, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
+                if (   !ShflStringIsValid(pPath, cbPath)
                     || (cbParms != sizeof (SHFLCREATEPARMS))
                    )
                 {
@@ -446,6 +437,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 else
                 {
                     /* Execute the function. */
+
                     rc = vbsfCreate (pClient, root, pPath, cbPath, pParms);
 
                     if (RT_SUCCESS(rc))
@@ -493,6 +485,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 else
                 {
                     /* Execute the function. */
+
                     rc = vbsfClose (pClient, root, Handle);
 
                     if (RT_SUCCESS(rc))
@@ -764,7 +757,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 /* Verify parameters values. */
                 if (   (length < sizeof (SHFLDIRINFO))
                     ||  length > paParms[5].u.pointer.size
-                    ||  !ShflStringIsValidOrNullIn(pPath, paParms[4].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
+                    ||  !ShflStringIsValidOrNull(pPath, paParms[4].u.pointer.size)
                    )
                 {
                     rc = VERR_INVALID_PARAMETER;
@@ -832,7 +825,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 uint32_t  cbBuffer = paParms[2].u.pointer.size;
 
                 /* Verify parameters values. */
-                if (!ShflStringIsValidOrNullIn(pPath, paParms[1].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)))
+                if (!ShflStringIsValidOrNull(pPath, paParms[1].u.pointer.size))
                 {
                     rc = VERR_INVALID_PARAMETER;
                 }
@@ -877,7 +870,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 RTUTF16     delimiter  = (RTUTF16)paParms[2].u.uint32;
 
                 /* Verify parameters values. */
-                if (!ShflStringIsValidIn(pszMapName, paParms[0].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)))
+                if (!ShflStringIsValid(pszMapName, paParms[0].u.pointer.size))
                 {
                     rc = VERR_INVALID_PARAMETER;
                 }
@@ -900,10 +893,10 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
         {
             Log(("SharedFolders host service: svcCall: SHFL_FN_MAP_FOLDER\n"));
             if (BIT_FLAG(pClient->fu32Flags, SHFL_CF_UTF8))
-                Log(("SharedFolders host service: request to map folder '%s'\n",
+                Log(("SharedFolders host service: request to map folder '%S'\n",
                      ((PSHFLSTRING)paParms[0].u.pointer.addr)->String.utf8));
             else
-                Log(("SharedFolders host service: request to map folder '%ls'\n",
+                Log(("SharedFolders host service: request to map folder '%lS'\n",
                      ((PSHFLSTRING)paParms[0].u.pointer.addr)->String.ucs2));
 
             /* Verify parameter count and types. */
@@ -928,36 +921,21 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 bool        fCaseSensitive = !!paParms[3].u.uint32;
 
                 /* Verify parameters values. */
-                if (ShflStringIsValidIn(pszMapName, paParms[0].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)))
+                if (!ShflStringIsValid(pszMapName, paParms[0].u.pointer.size))
                 {
-                    rc = VINF_SUCCESS;
+                    rc = VERR_INVALID_PARAMETER;
                 }
                 else
                 {
-                    rc = VERR_INVALID_PARAMETER;
 
-                    /* Fudge for windows GAs getting the length wrong by one char. */
-                    if (   !(pClient->fu32Flags & SHFL_CF_UTF8)
-                        && paParms[0].u.pointer.size >= sizeof(SHFLSTRING)
-                        && pszMapName->u16Length >= 2
-                        && pszMapName->String.ucs2[pszMapName->u16Length / 2 - 1] == 0x0000)
-                    {
-                        pszMapName->u16Length -= 2;
-                        if (ShflStringIsValidIn(pszMapName, paParms[0].u.pointer.size, false /*fUtf8Not16*/))
-                            rc = VINF_SUCCESS;
-                        else
-                            pszMapName->u16Length += 2;
-                    }
-                }
-
-                /* Execute the function. */
-                if (RT_SUCCESS(rc))
+                    /* Execute the function. */
                     rc = vbsfMapFolder (pClient, pszMapName, delimiter, fCaseSensitive, &root);
 
-                if (RT_SUCCESS(rc))
-                {
-                    /* Update parameters.*/
-                    paParms[1].u.uint32 = root;
+                    if (RT_SUCCESS(rc))
+                    {
+                        /* Update parameters.*/
+                        paParms[1].u.uint32 = root;
+                    }
                 }
             }
             Log(("SharedFolders host service: map operation result %Rrc\n", rc));
@@ -1082,7 +1060,7 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 uint32_t flags          = paParms[2].u.uint32;
 
                 /* Verify parameters values. */
-                if (!ShflStringIsValidIn(pPath, cbPath, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8)))
+                if (!ShflStringIsValid(pPath, cbPath))
                 {
                     rc = VERR_INVALID_PARAMETER;
                 }
@@ -1126,8 +1104,8 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 uint32_t    flags       = paParms[3].u.uint32;
 
                 /* Verify parameters values. */
-                if (    !ShflStringIsValidIn(pSrc, paParms[1].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
-                    ||  !ShflStringIsValidIn(pDest, paParms[2].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
+                if (    !ShflStringIsValid(pSrc, paParms[1].u.pointer.size)
+                    ||  !ShflStringIsValid(pDest, paParms[2].u.pointer.size)
                    )
                 {
                     rc = VERR_INVALID_PARAMETER;
@@ -1226,8 +1204,8 @@ static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32
                 uint32_t     cbInfo   = paParms[3].u.pointer.size;
 
                 /* Verify parameters values. */
-                if (    !ShflStringIsValidIn(pNewPath, paParms[1].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
-                    ||  !ShflStringIsValidIn(pOldPath, paParms[2].u.pointer.size, RT_BOOL(pClient->fu32Flags & SHFL_CF_UTF8))
+                if (    !ShflStringIsValid(pNewPath, paParms[1].u.pointer.size)
+                    ||  !ShflStringIsValid(pOldPath, paParms[2].u.pointer.size)
                     ||  (cbInfo != sizeof(SHFLFSOBJINFO))
                    )
                 {
@@ -1323,28 +1301,26 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
             uint32_t fFlags         = paParms[2].u.uint32;
 
             /* Verify parameters values. */
-            if (    !ShflStringIsValidIn(pFolderName, paParms[0].u.pointer.size, false /*fUtf8Not16*/)
-                ||  !ShflStringIsValidIn(pMapName, paParms[1].u.pointer.size, false /*fUtf8Not16*/)
+            if (    !ShflStringIsValid(pFolderName, paParms[0].u.pointer.size)
+                ||  !ShflStringIsValid(pMapName, paParms[1].u.pointer.size)
                )
             {
                 rc = VERR_INVALID_PARAMETER;
             }
             else
             {
-                LogRel(("    Host path '%ls', map name '%ls', %s, automount=%s, create_symlinks=%s, missing=%s\n",
+                LogRel(("    Host path '%ls', map name '%ls', %s, automount=%s, create_symlinks=%s\n",
                         ((SHFLSTRING *)paParms[0].u.pointer.addr)->String.ucs2,
                         ((SHFLSTRING *)paParms[1].u.pointer.addr)->String.ucs2,
                         RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_WRITABLE) ? "writable" : "read-only",
                         RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_AUTOMOUNT) ? "true" : "false",
-                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS) ? "true" : "false",
-                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_MISSING) ? "true" : "false"));
+                        RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS) ? "true" : "false"));
 
                 /* Execute the function. */
                 rc = vbsfMappingsAdd(pFolderName, pMapName,
                                      RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_WRITABLE),
                                      RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_AUTOMOUNT),
-                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS),
-                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_MISSING));
+                                     RT_BOOL(fFlags & SHFL_ADD_MAPPING_F_CREATE_SYMLINKS));
                 if (RT_SUCCESS(rc))
                 {
                     /* Update parameters.*/
@@ -1360,7 +1336,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
     case SHFL_FN_REMOVE_MAPPING:
     {
         Log(("SharedFolders host service: svcCall: SHFL_FN_REMOVE_MAPPING\n"));
-        LogRel(("SharedFolders host service: removing host mapping '%ls'\n",
+        LogRel(("SharedFolders host service: removing host mapping '%lS'\n",
                 ((SHFLSTRING *)paParms[0].u.pointer.addr)->String.ucs2));
 
         /* Verify parameter count and types. */
@@ -1379,7 +1355,7 @@ static DECLCALLBACK(int) svcHostCall (void *, uint32_t u32Function, uint32_t cPa
             SHFLSTRING *pString = (SHFLSTRING *)paParms[0].u.pointer.addr;
 
             /* Verify parameters values. */
-            if (!ShflStringIsValidIn(pString, paParms[0].u.pointer.size, false /*fUtf8Not16*/))
+            if (!ShflStringIsValid(pString, paParms[0].u.pointer.size))
             {
                 rc = VERR_INVALID_PARAMETER;
             }

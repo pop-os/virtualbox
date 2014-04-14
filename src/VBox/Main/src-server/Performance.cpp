@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,8 @@
 #ifndef VBOX_COLLECTOR_TEST_CASE
 #include "VirtualBoxImpl.h"
 #include "MachineImpl.h"
-#include "MediumImpl.h"
-#include "AutoCaller.h"
 #endif
 #include "Performance.h"
-#include "HostNetworkInterfaceImpl.h"
-#include "netif.h"
 
 #include <VBox/com/array.h>
 #include <VBox/com/ptr.h>
@@ -49,57 +45,32 @@ using namespace pm;
 
 int CollectorHAL::getHostCpuLoad(ULONG * /* user */, ULONG * /* kernel */, ULONG * /* idle */)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorHAL::getProcessCpuLoad(RTPROCESS  /* process */, ULONG * /* user */, ULONG * /* kernel */)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorHAL::getRawHostCpuLoad(uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* idle */)
 {
-    return VERR_NOT_IMPLEMENTED;
-}
-
-int CollectorHAL::getRawHostNetworkLoad(const char * /* name */, uint64_t * /* rx */, uint64_t * /* tx */)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-int CollectorHAL::getRawHostDiskLoad(const char * /* name */, uint64_t * /* disk_ms */, uint64_t * /* total_ms */)
-{
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorHAL::getRawProcessCpuLoad(RTPROCESS  /* process */, uint64_t * /* user */, uint64_t * /* kernel */, uint64_t * /* total */)
 {
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorHAL::getHostMemoryUsage(ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
 {
-    return VERR_NOT_IMPLEMENTED;
-}
-
-int CollectorHAL::getHostFilesystemUsage(const char * /* name */, ULONG * /* total */, ULONG * /* used */, ULONG * /* available */)
-{
-    return VERR_NOT_IMPLEMENTED;
-}
-
-int CollectorHAL::getHostDiskSize(const char * /* name */, uint64_t * /* size */)
-{
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 int CollectorHAL::getProcessMemoryUsage(RTPROCESS /* process */, ULONG * /* used */)
 {
-    return VERR_NOT_IMPLEMENTED;
-}
-
-int CollectorHAL::getDiskListByFs(const char * /* name */, DiskList& /* listUsage */, DiskList& /* listLoad */)
-{
-    return VERR_NOT_IMPLEMENTED;
+    return E_NOTIMPL;
 }
 
 /* Generic implementations */
@@ -183,7 +154,7 @@ CollectorGuestRequest* CollectorGuestQueue::pop()
     return NULL;
 }
 
-HRESULT CGRQEnable::execute()
+int CGRQEnable::execute()
 {
     Assert(mCGuest);
     return mCGuest->enableInternal(mMask);
@@ -198,7 +169,7 @@ void CGRQEnable::debugPrint(void *aObject, const char *aFunction, const char *aT
                 aObject, aFunction, mMask, aText));
 }
 
-HRESULT CGRQDisable::execute()
+int CGRQDisable::execute()
 {
     Assert(mCGuest);
     return mCGuest->disableInternal(mMask);
@@ -213,7 +184,7 @@ void CGRQDisable::debugPrint(void *aObject, const char *aFunction, const char *a
                 aObject, aFunction, mMask, aText));
 }
 
-HRESULT CGRQAbort::execute()
+int CGRQAbort::execute()
 {
     return E_ABORT;
 }
@@ -231,7 +202,7 @@ CollectorGuest::CollectorGuest(Machine *machine, RTPROCESS process) :
     mUnregistered(false), mEnabled(false), mValid(false), mMachine(machine), mProcess(process),
     mCpuUser(0), mCpuKernel(0), mCpuIdle(0),
     mMemTotal(0), mMemFree(0), mMemBalloon(0), mMemShared(0), mMemCache(0), mPageTotal(0),
-    mAllocVMM(0), mFreeVMM(0), mBalloonedVMM(0), mSharedVMM(0), mVmNetRx(0), mVmNetTx(0)
+    mAllocVMM(0), mFreeVMM(0), mBalloonedVMM(0), mSharedVMM(0)
 {
     Assert(mMachine);
     /* cannot use ComObjPtr<Machine> in Performance.h, do it manually */
@@ -281,7 +252,7 @@ int CollectorGuest::disable(ULONG mask)
     return enqueueRequest(new CGRQDisable(mask));
 }
 
-HRESULT CollectorGuest::enableInternal(ULONG mask)
+int CollectorGuest::enableInternal(ULONG mask)
 {
     HRESULT ret = S_OK;
 
@@ -320,7 +291,7 @@ HRESULT CollectorGuest::enableInternal(ULONG mask)
                         this, __PRETTY_FUNCTION__, SUCCEEDED(ret)?"success":"failed"));
         }
     }
-    if ((mask & VMSTATS_VMM_RAM) == VMSTATS_VMM_RAM)
+    if ((mask & GUESTSTATS_VMMRAM) == GUESTSTATS_VMMRAM)
         enableVMMStats(true);
     mEnabled |= mask;
 
@@ -332,7 +303,7 @@ int CollectorGuest::disableInternal(ULONG mask)
     if (!(mEnabled & mask))
         return E_UNEXPECTED;
 
-    if ((mask & VMSTATS_VMM_RAM) == VMSTATS_VMM_RAM)
+    if ((mask & GUESTSTATS_VMMRAM) == GUESTSTATS_VMMRAM)
         enableVMMStats(false);
     mEnabled &= ~mask;
     if (!mEnabled)
@@ -342,7 +313,7 @@ int CollectorGuest::disableInternal(ULONG mask)
         NOREF(ret);
         LogAleksey(("{%p} " LOG_FN_FMT ": Set guest statistics update interval to 0 sec (%s)\n",
                     this, __PRETTY_FUNCTION__, SUCCEEDED(ret)?"success":"failed"));
-        invalidate(VMSTATS_ALL);
+        invalidate(GUESTSTATS_ALL);
     }
 
     return S_OK;
@@ -367,16 +338,15 @@ void CollectorGuest::updateStats(ULONG aValidStats, ULONG aCpuUser,
                                  ULONG aMemBalloon, ULONG aMemShared,
                                  ULONG aMemCache, ULONG aPageTotal,
                                  ULONG aAllocVMM, ULONG aFreeVMM,
-                                 ULONG aBalloonedVMM, ULONG aSharedVMM,
-                                 ULONG aVmNetRx, ULONG aVmNetTx)
+                                 ULONG aBalloonedVMM, ULONG aSharedVMM)
 {
-    if ((aValidStats & VMSTATS_GUEST_CPULOAD) == VMSTATS_GUEST_CPULOAD)
+    if ((aValidStats & GUESTSTATS_CPULOAD) == GUESTSTATS_CPULOAD)
     {
         mCpuUser   = aCpuUser;
         mCpuKernel = aCpuKernel,
         mCpuIdle   = aCpuIdle;
     }
-    if ((aValidStats & VMSTATS_GUEST_RAMUSAGE) == VMSTATS_GUEST_RAMUSAGE)
+    if ((aValidStats & GUESTSTATS_RAMUSAGE) == GUESTSTATS_RAMUSAGE)
     {
         mMemTotal   = aMemTotal;
         mMemFree    = aMemFree;
@@ -385,17 +355,12 @@ void CollectorGuest::updateStats(ULONG aValidStats, ULONG aCpuUser,
         mMemCache   = aMemCache;
         mPageTotal  = aPageTotal;
     }
-    if ((aValidStats & VMSTATS_VMM_RAM) == VMSTATS_VMM_RAM)
+    if ((aValidStats & GUESTSTATS_VMMRAM) == GUESTSTATS_VMMRAM)
     {
         mAllocVMM     = aAllocVMM;
         mFreeVMM      = aFreeVMM;
         mBalloonedVMM = aBalloonedVMM;
         mSharedVMM    = aSharedVMM;
-    }
-    if ((aValidStats & VMSTATS_NET_RATE) == VMSTATS_NET_RATE)
-    {
-        mVmNetRx = aVmNetRx;
-        mVmNetTx = aVmNetTx;
     }
     mValid = aValidStats;
 }
@@ -466,7 +431,7 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
             {
                 /* Found the guest already collecting stats, elect it */
                 mVMMStatsProvider = *it;
-                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
+                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(GUESTSTATS_VMMRAM));
                 if (FAILED(rc))
                 {
                     /* This is not a good candidate -- try to find another */
@@ -486,8 +451,8 @@ void CollectorGuestManager::unregisterGuest(CollectorGuest* pGuest)
                     continue;
 
                 mVMMStatsProvider = *it;
-                //mVMMStatsProvider->enable(VMSTATS_VMM_RAM);
-                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(VMSTATS_VMM_RAM));
+                //mVMMStatsProvider->enable(GUESTSTATS_VMMRAM);
+                rc = mVMMStatsProvider->enqueueRequest(new CGRQEnable(GUESTSTATS_VMMRAM));
                 if (SUCCEEDED(rc))
                     break;
                 /* This was not a good candidate -- try to find another */
@@ -528,7 +493,7 @@ int CollectorGuestManager::enqueueRequest(CollectorGuestRequest *aRequest)
      */
     if (aRequest->getGuest() && aRequest->getGuest() == mGuestBeingCalled)
     {
-        /*
+        /* 
          * Before we can declare a guest blocked we need to wait for a while
          * and then check again as it may never had a chance to process
          * the previous request. Half a second is an eternity for processes
@@ -588,32 +553,13 @@ bool BaseMetric::collectorBeat(uint64_t nowAt)
 {
     if (isEnabled())
     {
-        if (mLastSampleTaken == 0)
+        if (nowAt - mLastSampleTaken >= mPeriod * 1000)
         {
             mLastSampleTaken = nowAt;
             Log4(("{%p} " LOG_FN_FMT ": Collecting %s for obj(%p)...\n",
                         this, __PRETTY_FUNCTION__, getName(), (void *)mObject));
             return true;
         }
-        /*
-         * We use low resolution timers which may fire just a little bit early.
-         * We compensate for that by jumping into the future by several
-         * milliseconds (see @bugref{6345}).
-         */
-        if (nowAt - mLastSampleTaken + PM_SAMPLER_PRECISION_MS >= mPeriod * 1000)
-        {
-            /*
-             * We don't want the beat to drift. This is why the timestamp of
-             * the last taken sample is not the actual time but the time we
-             * should have taken the measurement at.
-             */
-            mLastSampleTaken += mPeriod * 1000;
-            Log4(("{%p} " LOG_FN_FMT ": Collecting %s for obj(%p)...\n",
-                        this, __PRETTY_FUNCTION__, getName(), (void *)mObject));
-            return true;
-        }
-        Log4(("{%p} " LOG_FN_FMT ": Enabled but too early to collect %s for obj(%p)\n",
-              this, __PRETTY_FUNCTION__, getName(), (void *)mObject));
     }
     return false;
 }
@@ -637,12 +583,6 @@ void HostCpuLoad::collect()
         mKernel->put(kernel);
         mIdle->put(idle);
     }
-}
-
-void HostCpuLoadRaw::init(ULONG period, ULONG length)
-{
-    HostCpuLoad::init(period, length);
-    mHAL->getRawHostCpuLoad(&mUserPrev, &mKernelPrev, &mIdlePrev);
 }
 
 void HostCpuLoadRaw::preCollect(CollectorHints& hints, uint64_t /* iTick */)
@@ -685,160 +625,6 @@ void HostCpuLoadRaw::collect()
     }
 }
 
-#ifndef VBOX_COLLECTOR_TEST_CASE
-static bool getLinkSpeed(const char *szShortName, uint32_t *pSpeed)
-{
-    NETIFSTATUS enmState = NETIF_S_UNKNOWN;
-    int rc = NetIfGetState(szShortName, &enmState);
-    if (RT_FAILURE(rc))
-        return false;
-    if (enmState != NETIF_S_UP)
-        *pSpeed = 0;
-    else
-    {
-        rc = NetIfGetLinkSpeed(szShortName, pSpeed);
-        if (RT_FAILURE(rc))
-            return false;
-    }
-    return true;
-}
-
-void HostNetworkSpeed::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mLinkSpeed->init(length);
-    /*
-     * Retrieve the link speed now as it may be wrong if the metric was
-     * registered at boot (see @bugref{6613}).
-     */
-    getLinkSpeed(mShortName.c_str(), &mSpeed);
-}
-
-void HostNetworkLoadRaw::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mRx->init(mLength);
-    mTx->init(mLength);
-    /*
-     * Retrieve the link speed now as it may be wrong if the metric was
-     * registered at boot (see @bugref{6613}).
-     */
-    uint32_t uSpeedMbit = 65535;
-    if (getLinkSpeed(mShortName.c_str(), &uSpeedMbit))
-        mSpeed = (uint64_t)uSpeedMbit * (1000000/8); /* Convert to bytes/sec */
-    /*int rc =*/ mHAL->getRawHostNetworkLoad(mShortName.c_str(), &mRxPrev, &mTxPrev);
-    //AssertRC(rc);
-}
-
-void HostNetworkLoadRaw::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */)
-{
-    if (RT_FAILURE(mRc))
-    {
-        ComPtr<IHostNetworkInterface> networkInterface;
-        ComPtr<IHost> host = getObject();
-        HRESULT hrc = host->FindHostNetworkInterfaceByName(com::Bstr(mInterfaceName).raw(), networkInterface.asOutParam());
-        if (SUCCEEDED(hrc))
-        {
-            LogRel(("Failed to collect network metrics for %s: %Rrc (%d).\n", mInterfaceName.c_str(), mRc, mRc));
-            mRc = VINF_SUCCESS;
-        }
-    }
-}
-
-void HostNetworkLoadRaw::collect()
-{
-    uint64_t rx = mRxPrev;
-    uint64_t tx = mTxPrev;
-
-    if (RT_UNLIKELY(mSpeed * getPeriod() == 0))
-    {
-        LogFlowThisFunc(("Check cable for %s! speed=%llu period=%d.\n", mShortName.c_str(), mSpeed, getPeriod()));
-        /* We do not collect host network metrics for unplugged interfaces! */
-        return;
-    }
-    mRc = mHAL->getRawHostNetworkLoad(mShortName.c_str(), &rx, &tx);
-    if (RT_SUCCESS(mRc))
-    {
-        uint64_t rxDiff = rx - mRxPrev;
-        uint64_t txDiff = tx - mTxPrev;
-
-        mRx->put((ULONG)(PM_NETWORK_LOAD_MULTIPLIER * rxDiff / (mSpeed * getPeriod())));
-        mTx->put((ULONG)(PM_NETWORK_LOAD_MULTIPLIER * txDiff / (mSpeed * getPeriod())));
-
-        mRxPrev = rx;
-        mTxPrev = tx;
-    }
-    else
-        LogFlowThisFunc(("Failed to collect data: %Rrc (%d)."
-                         " Will update the list of interfaces...\n", mRc,mRc));
-}
-#endif /* !VBOX_COLLECTOR_TEST_CASE */
-
-void HostDiskLoadRaw::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mUtil->init(mLength);
-    int rc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &mDiskPrev, &mTotalPrev);
-    AssertRC(rc);
-}
-
-void HostDiskLoadRaw::preCollect(CollectorHints& hints, uint64_t /* iTick */)
-{
-    hints.collectHostCpuLoad();
-}
-
-void HostDiskLoadRaw::collect()
-{
-    uint64_t disk, total;
-
-    int rc = mHAL->getRawHostDiskLoad(mDiskName.c_str(), &disk, &total);
-    if (RT_SUCCESS(rc))
-    {
-        uint64_t diskDiff = disk - mDiskPrev;
-        uint64_t totalDiff = total - mTotalPrev;
-
-        if (RT_UNLIKELY(totalDiff == 0))
-        {
-            Assert(totalDiff);
-            LogFlowThisFunc(("Improbable! Less than millisecond passed! Disk=%s\n", mDiskName.c_str()));
-            mUtil->put(0);
-        }
-        else if (diskDiff > totalDiff)
-        {
-            /*
-             * It is possible that the disk spent more time than CPU because
-             * CPU measurements are taken during the pre-collect phase. We try
-             * to compensate for than by adding the extra to the next round of
-             * measurements.
-             */
-            mUtil->put(PM_NETWORK_LOAD_MULTIPLIER);
-            Assert((diskDiff - totalDiff) < mPeriod * 1000);
-            if ((diskDiff - totalDiff) > mPeriod * 1000)
-            {
-                LogRel(("Disk utilization time exceeds CPU time by more"
-                        " than the collection period (%llu ms)\n", diskDiff - totalDiff));
-            }
-            else
-            {
-                disk = mDiskPrev + totalDiff;
-                LogFlowThisFunc(("Moved %u milliseconds to the next period.\n", (unsigned)(diskDiff - totalDiff)));
-            }
-        }
-        else
-        {
-            mUtil->put((ULONG)(PM_NETWORK_LOAD_MULTIPLIER * diskDiff / totalDiff));
-        }
-
-        mDiskPrev = disk;
-        mTotalPrev = total;
-    }
-    else
-        LogFlowThisFunc(("Failed to collect data: %Rrc (%d).\n", rc));
-}
-
 void HostCpuMhz::init(ULONG period, ULONG length)
 {
     mPeriod = period;
@@ -877,51 +663,8 @@ void HostRamUsage::collect()
         mTotal->put(total);
         mUsed->put(used);
         mAvailable->put(available);
+
     }
-}
-
-void HostFilesystemUsage::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mTotal->init(mLength);
-    mUsed->init(mLength);
-    mAvailable->init(mLength);
-}
-
-void HostFilesystemUsage::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */)
-{
-}
-
-void HostFilesystemUsage::collect()
-{
-    ULONG total, used, available;
-    int rc = mHAL->getHostFilesystemUsage(mFsName.c_str(), &total, &used, &available);
-    if (RT_SUCCESS(rc))
-    {
-        mTotal->put(total);
-        mUsed->put(used);
-        mAvailable->put(available);
-    }
-}
-
-void HostDiskUsage::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mTotal->init(mLength);
-}
-
-void HostDiskUsage::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */)
-{
-}
-
-void HostDiskUsage::collect()
-{
-    uint64_t total;
-    int rc = mHAL->getHostDiskSize(mDiskName.c_str(), &total);
-    if (RT_SUCCESS(rc))
-        mTotal->put((ULONG)(total / _1M));
 }
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
@@ -940,7 +683,7 @@ int HostRamVmm::enable()
     int rc = S_OK;
     CollectorGuest *provider = mCollectorGuestManager->getVMMStatsProvider();
     if (provider)
-        rc = provider->enable(VMSTATS_VMM_RAM);
+        rc = provider->enable(GUESTSTATS_VMMRAM);
     BaseMetric::enable();
     return rc;
 }
@@ -951,7 +694,7 @@ int HostRamVmm::disable()
     BaseMetric::disable();
     CollectorGuest *provider = mCollectorGuestManager->getVMMStatsProvider();
     if (provider)
-        rc = provider->disable(VMSTATS_VMM_RAM);
+        rc = provider->disable(GUESTSTATS_VMMRAM);
     return rc;
 }
 
@@ -967,15 +710,15 @@ void HostRamVmm::collect()
     {
         LogAleksey(("{%p} " LOG_FN_FMT ": provider=%p enabled=%s valid=%s...\n",
                     this, __PRETTY_FUNCTION__, provider, provider->isEnabled()?"y":"n",
-                    provider->isValid(VMSTATS_VMM_RAM)?"y":"n"));
-        if (provider->isValid(VMSTATS_VMM_RAM))
+                    provider->isValid(GUESTSTATS_VMMRAM)?"y":"n"));
+        if (provider->isValid(GUESTSTATS_VMMRAM))
         {
             /* Provider is ready, get updated stats */
             mAllocCurrent     = provider->getAllocVMM();
             mFreeCurrent      = provider->getFreeVMM();
             mBalloonedCurrent = provider->getBalloonedVMM();
             mSharedCurrent    = provider->getSharedVMM();
-            provider->invalidate(VMSTATS_VMM_RAM);
+            provider->invalidate(GUESTSTATS_VMMRAM);
         }
         /*
          * Note that if there are no new values from the provider we will use
@@ -1073,76 +816,6 @@ void MachineRamUsage::collect()
 
 
 #ifndef VBOX_COLLECTOR_TEST_CASE
-void MachineDiskUsage::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-    mUsed->init(mLength);
-}
-
-void MachineDiskUsage::preCollect(CollectorHints& /* hints */, uint64_t /* iTick */)
-{
-}
-
-void MachineDiskUsage::collect()
-{
-    ULONG used = 0;
-
-    for (MediaList::iterator it = mDisks.begin(); it != mDisks.end(); ++it)
-    {
-        ComObjPtr<Medium> pMedium = *it;
-
-        /* just in case */
-        AssertStmt(!pMedium.isNull(), continue);
-
-        AutoCaller localAutoCaller(pMedium);
-        if (FAILED(localAutoCaller.rc())) continue;
-
-        AutoReadLock local_alock(pMedium COMMA_LOCKVAL_SRC_POS);
-
-        used += (ULONG)(pMedium->getSize() / _1M);
-    }
-
-    mUsed->put(used);
-}
-
-void MachineNetRate::init(ULONG period, ULONG length)
-{
-    mPeriod = period;
-    mLength = length;
-
-    mRx->init(mLength);
-    mTx->init(mLength);
-}
-
-void MachineNetRate::collect()
-{
-    if (mCGuest->isValid(VMSTATS_NET_RATE))
-    {
-        mRx->put(mCGuest->getVmNetRx());
-        mTx->put(mCGuest->getVmNetTx());
-        mCGuest->invalidate(VMSTATS_NET_RATE);
-    }
-}
-
-int MachineNetRate::enable()
-{
-    int rc = mCGuest->enable(VMSTATS_NET_RATE);
-    BaseMetric::enable();
-    return rc;
-}
-
-int MachineNetRate::disable()
-{
-    BaseMetric::disable();
-    return mCGuest->disable(VMSTATS_NET_RATE);
-}
-
-void MachineNetRate::preCollect(CollectorHints& hints,  uint64_t /* iTick */)
-{
-    hints.collectGuestStats(mCGuest->getProcess());
-}
-
 void GuestCpuLoad::init(ULONG period, ULONG length)
 {
     mPeriod = period;
@@ -1160,18 +833,18 @@ void GuestCpuLoad::preCollect(CollectorHints& hints, uint64_t /* iTick */)
 
 void GuestCpuLoad::collect()
 {
-    if (mCGuest->isValid(VMSTATS_GUEST_CPULOAD))
+    if (mCGuest->isValid(GUESTSTATS_CPULOAD))
     {
         mUser->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * mCGuest->getCpuUser()) / 100);
         mKernel->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * mCGuest->getCpuKernel()) / 100);
         mIdle->put((ULONG)(PM_CPU_LOAD_MULTIPLIER * mCGuest->getCpuIdle()) / 100);
-        mCGuest->invalidate(VMSTATS_GUEST_CPULOAD);
+        mCGuest->invalidate(GUESTSTATS_CPULOAD);
     }
 }
 
 int GuestCpuLoad::enable()
 {
-    int rc = mCGuest->enable(VMSTATS_GUEST_CPULOAD);
+    int rc = mCGuest->enable(GUESTSTATS_CPULOAD);
     BaseMetric::enable();
     return rc;
 }
@@ -1179,7 +852,7 @@ int GuestCpuLoad::enable()
 int GuestCpuLoad::disable()
 {
     BaseMetric::disable();
-    return mCGuest->disable(VMSTATS_GUEST_CPULOAD);
+    return mCGuest->disable(GUESTSTATS_CPULOAD);
 }
 
 void GuestRamUsage::init(ULONG period, ULONG length)
@@ -1197,7 +870,7 @@ void GuestRamUsage::init(ULONG period, ULONG length)
 
 void GuestRamUsage::collect()
 {
-    if (mCGuest->isValid(VMSTATS_GUEST_RAMUSAGE))
+    if (mCGuest->isValid(GUESTSTATS_RAMUSAGE))
     {
         mTotal->put(mCGuest->getMemTotal());
         mFree->put(mCGuest->getMemFree());
@@ -1205,13 +878,13 @@ void GuestRamUsage::collect()
         mShared->put(mCGuest->getMemShared());
         mCache->put(mCGuest->getMemCache());
         mPagedTotal->put(mCGuest->getPageTotal());
-        mCGuest->invalidate(VMSTATS_GUEST_RAMUSAGE);
+        mCGuest->invalidate(GUESTSTATS_RAMUSAGE);
     }
 }
 
 int GuestRamUsage::enable()
 {
-    int rc = mCGuest->enable(VMSTATS_GUEST_RAMUSAGE);
+    int rc = mCGuest->enable(GUESTSTATS_RAMUSAGE);
     BaseMetric::enable();
     return rc;
 }
@@ -1219,7 +892,7 @@ int GuestRamUsage::enable()
 int GuestRamUsage::disable()
 {
     BaseMetric::disable();
-    return mCGuest->disable(VMSTATS_GUEST_RAMUSAGE);
+    return mCGuest->disable(GUESTSTATS_RAMUSAGE);
 }
 
 void GuestRamUsage::preCollect(CollectorHints& hints,  uint64_t /* iTick */)
@@ -1399,11 +1072,6 @@ Filter::Filter(ComSafeArrayIn(IN_BSTR, metricNames),
     }
 }
 
-Filter::Filter(const com::Utf8Str name, const ComPtr<IUnknown> &aObject)
-{
-    processMetricList(name, aObject);
-}
-
 void Filter::init(ComSafeArrayIn(IN_BSTR, metricNames),
                   ComSafeArrayIn(IUnknown *, objects))
 {
@@ -1538,7 +1206,7 @@ bool Filter::match(const ComPtr<IUnknown> object, const RTCString &name) const
             // Objects match, compare names
             if (patternMatch((*it).second.c_str(), name.c_str()))
             {
-                //LogFlowThisFunc(("...found!\n"));
+                LogFlowThisFunc(("...found!\n"));
                 return true;
             }
         }

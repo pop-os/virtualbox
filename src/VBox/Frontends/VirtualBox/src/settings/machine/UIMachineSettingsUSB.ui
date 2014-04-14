@@ -2,15 +2,15 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
- Copyright (C) 2008-2012 Oracle Corporation
+     Copyright (C) 2008 Oracle Corporation
 
- This file is part of VirtualBox Open Source Edition (OSE), as
- available from http://www.virtualbox.org. This file is free software;
- you can redistribute it and/or modify it under the terms of the GNU
- General Public License (GPL) as published by the Free Software
- Foundation, in version 2 as it comes in the "COPYING" file of the
- VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+     This file is part of VirtualBox Open Source Edition (OSE), as
+     available from http://www.virtualbox.org. This file is free software;
+     you can redistribute it and/or modify it under the terms of the GNU
+     General Public License (GPL) as published by the Free Software
+     Foundation, in version 2 as it comes in the "COPYING" file of the
+     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  </comment>
  <class>UIMachineSettingsUSB</class>
  <widget class="QWidget" name="UIMachineSettingsUSB" >
@@ -107,12 +107,6 @@
          </property>
          <item>
           <widget class="QTreeWidget" name="mTwFilters" >
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="MinimumExpanding" vsizetype="MinimumExpanding">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
            <property name="contextMenuPolicy" >
             <enum>Qt::CustomContextMenu</enum>
            </property>
@@ -129,9 +123,6 @@
            </column>
           </widget>
          </item>
-         <item>
-          <widget class="UIToolBar" native="1" name="m_pFiltersToolBar"/>
-         </item>
         </layout>
        </widget>
       </item>
@@ -145,12 +136,6 @@
    <class>QILabelSeparator</class>
    <extends>QLabel</extends>
    <header>QILabelSeparator.h</header>
-  </customwidget>
-  <customwidget>
-   <class>UIToolBar</class>
-   <extends>QWidget</extends>
-   <header>UIToolBar.h</header>
-   <container>1</container>
   </customwidget>
  </customwidgets>
  <resources/>

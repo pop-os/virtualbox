@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,20 @@
 #include <iprt/uuid.h>
 
 #include "VBoxDD.h"
+
+
+/*******************************************************************************
+*   Defined Constants And Macros                                               *
+*******************************************************************************/
+/** Converts a pointer to RAWIMAGE::IMedia to a PRDVRAWIMAGE. */
+#define PDMIMEDIA_2_DRVRAWIMAGE(pInterface) ( (PDRVRAWIMAGE)((uintptr_t)pInterface - RT_OFFSETOF(DRVRAWIMAGE, IMedia)) )
+
+/** Converts a pointer to PDMDRVINS::IBase to a PPDMDRVINS. */
+#define PDMIBASE_2_DRVINS(pInterface)   ( (PPDMDRVINS)((uintptr_t)pInterface - RT_OFFSETOF(PDMDRVINS, IBase)) )
+
+/** Converts a pointer to PDMDRVINS::IBase to a PVBOXHDD. */
+#define PDMIBASE_2_DRVRAWIMAGE(pInterface)  ( PDMINS_2_DATA(PDMIBASE_2_DRVINS(pInterface), PDRVRAWIMAGE) )
+
 
 
 /*******************************************************************************
@@ -58,7 +72,7 @@ typedef struct DRVRAWIMAGE
 /** @copydoc PDMIMEDIA::pfnGetSize */
 static DECLCALLBACK(uint64_t) drvRawImageGetSize(PPDMIMEDIA pInterface)
 {
-    PDRVRAWIMAGE pThis = RT_FROM_MEMBER(pInterface, DRVRAWIMAGE, IMedia);
+    PDRVRAWIMAGE pThis = PDMIMEDIA_2_DRVRAWIMAGE(pInterface);
     LogFlow(("drvRawImageGetSize: '%s'\n", pThis->pszFilename));
 
     uint64_t cbFile;
@@ -109,7 +123,7 @@ static DECLCALLBACK(int) drvRawImageBiosSetLCHSGeometry(PPDMIMEDIA pInterface, P
  */
 static DECLCALLBACK(int) drvRawImageRead(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead)
 {
-    PDRVRAWIMAGE pThis = RT_FROM_MEMBER(pInterface, DRVRAWIMAGE, IMedia);
+    PDRVRAWIMAGE pThis = PDMIMEDIA_2_DRVRAWIMAGE(pInterface);
     LogFlow(("drvRawImageRead: off=%#llx pvBuf=%p cbRead=%#x (%s)\n", off, pvBuf, cbRead, pThis->pszFilename));
 
     Assert(pThis->hFile != NIL_RTFILE);
@@ -143,7 +157,7 @@ static DECLCALLBACK(int) drvRawImageRead(PPDMIMEDIA pInterface, uint64_t off, vo
 /** @copydoc PDMIMEDIA::pfnWrite */
 static DECLCALLBACK(int) drvRawImageWrite(PPDMIMEDIA pInterface, uint64_t off, const void *pvBuf, size_t cbWrite)
 {
-    PDRVRAWIMAGE pThis = RT_FROM_MEMBER(pInterface, DRVRAWIMAGE, IMedia);
+    PDRVRAWIMAGE pThis = PDMIMEDIA_2_DRVRAWIMAGE(pInterface);
     LogFlow(("drvRawImageWrite: off=%#llx pvBuf=%p cbWrite=%#x (%s)\n", off, pvBuf, cbWrite, pThis->pszFilename));
 
     Assert(pThis->hFile != NIL_RTFILE);
@@ -177,7 +191,7 @@ static DECLCALLBACK(int) drvRawImageWrite(PPDMIMEDIA pInterface, uint64_t off, c
 /** @copydoc PDMIMEDIA::pfnFlush */
 static DECLCALLBACK(int) drvRawImageFlush(PPDMIMEDIA pInterface)
 {
-    PDRVRAWIMAGE pThis = RT_FROM_MEMBER(pInterface, DRVRAWIMAGE, IMedia);
+    PDRVRAWIMAGE pThis = PDMIMEDIA_2_DRVRAWIMAGE(pInterface);
     LogFlow(("drvRawImageFlush: (%s)\n", pThis->pszFilename));
 
     Assert(pThis->hFile != NIL_RTFILE);
@@ -198,7 +212,7 @@ static DECLCALLBACK(int) drvRawImageGetUuid(PPDMIMEDIA pInterface, PRTUUID pUuid
 /** @copydoc PDMIMEDIA::pfnIsReadOnly */
 static DECLCALLBACK(bool) drvRawImageIsReadOnly(PPDMIMEDIA pInterface)
 {
-    PDRVRAWIMAGE pThis = RT_FROM_MEMBER(pInterface, DRVRAWIMAGE, IMedia);
+    PDRVRAWIMAGE pThis = PDMIMEDIA_2_DRVRAWIMAGE(pInterface);
     return pThis->fReadOnly;
 }
 
@@ -210,7 +224,7 @@ static DECLCALLBACK(bool) drvRawImageIsReadOnly(PPDMIMEDIA pInterface)
  */
 static DECLCALLBACK(void *) drvRawImageQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PPDMDRVINS      pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
+    PPDMDRVINS      pDrvIns = PDMIBASE_2_DRVINS(pInterface);
     PDRVRAWIMAGE    pThis   = PDMINS_2_DATA(pDrvIns, PDRVRAWIMAGE);
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
@@ -234,11 +248,8 @@ static DECLCALLBACK(void) drvRawImageDestruct(PPDMDRVINS pDrvIns)
     LogFlow(("drvRawImageDestruct: '%s'\n", pThis->pszFilename));
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
-    if (pThis->hFile != NIL_RTFILE)
-    {
-        RTFileClose(pThis->hFile);
-        pThis->hFile = NIL_RTFILE;
-    }
+    RTFileClose(pThis->hFile);
+    pThis->hFile = NIL_RTFILE;
 
     if (pThis->pszFilename)
     {

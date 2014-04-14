@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #ifndef __UIMachineSettingsStorage_h__
 #define __UIMachineSettingsStorage_h__
 
-/* Qt includes: */
+/* Global includes */
 #include <QtGlobal> /* for Q_WS_MAC */
 #ifdef Q_WS_MAC
 /* Somewhere Carbon.h includes AssertMacros.h which defines the macro "check".
@@ -30,11 +30,12 @@
 #include <QItemDelegate>
 #include <QPointer>
 
-/* GUI includes: */
+/* Local includes */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsStorage.gen.h"
+#include "COMDefs.h"
 
-/* Forward declarations: */
+/* Local forwards */
 class AttachmentItem;
 class ControllerItem;
 class UIMediumIDHolder;
@@ -655,7 +656,7 @@ signals:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -672,8 +673,8 @@ protected:
     /* Page changed: */
     bool changed() const { return m_cache.wasChanged(); }
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    void setValidator (QIWidgetValidator *aVal);
+    bool revalidate (QString &aWarning, QString &aTitle);
 
     void retranslateUi();
 
@@ -681,9 +682,8 @@ protected:
 
 private slots:
 
-    /* Handlers: Medium-processing stuff: */
-    void sltHandleMediumEnumerated(const QString &strMediumID);
-    void sltHandleMediumDeleted(const QString &strMediumID);
+    void mediumUpdated (const VBoxMedium &aMedium);
+    void mediumRemoved (VBoxDefs::MediumType aType, const QString &aMediumId);
 
     void addController();
     void addIDEController();
@@ -738,7 +738,7 @@ private:
 
     void addChooseExistingMediumAction(QMenu *pOpenMediumMenu, const QString &strActionName);
     void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
-    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType recentMediumType);
+    void addRecentMediumActions(QMenu *pOpenMediumMenu, VBoxDefs::MediumType recentMediumType);
 
     bool updateStorageData();
     bool removeStorageController(const UICacheSettingsMachineStorageController &controllerCache);
@@ -755,6 +755,8 @@ private:
 
     void setDialogType(SettingsDialogType settingsDialogType);
     void polishPage();
+
+    QIWidgetValidator *mValidator;
 
     QString m_strMachineId;
     QString m_strMachineSettingsFilePath;

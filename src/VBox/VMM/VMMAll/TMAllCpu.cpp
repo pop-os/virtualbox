@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,8 +53,8 @@ DECLINLINE(uint64_t) tmCpuTickGetRawVirtual(PVM pVM, bool fCheckTimers)
  * Resumes the CPU timestamp counter ticking.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @internal
  */
 int tmCpuTickResume(PVM pVM, PVMCPU pVCpu)
@@ -80,58 +80,14 @@ int tmCpuTickResume(PVM pVM, PVMCPU pVCpu)
 
 
 /**
- * Resumes the CPU timestamp counter ticking.
- *
- * @returns VINF_SUCCESS or VERR_TM_VIRTUAL_TICKING_IPE (asserted).
- * @param   pVM     Pointer to the VM. 
- * @param   pVCpu   Pointer to the VCPU. 
- */
-int tmCpuTickResumeLocked(PVM pVM, PVMCPU pVCpu)
-{
-    if (!pVCpu->tm.s.fTSCTicking)
-    {
-        /* TSC must be ticking before calling tmCpuTickGetRawVirtual()! */
-        pVCpu->tm.s.fTSCTicking = true;
-        if (pVM->tm.s.fTSCVirtualized)
-        {
-            uint32_t c = ASMAtomicIncU32(&pVM->tm.s.cTSCsTicking);
-            AssertMsgReturn(c <= pVM->cCpus, ("%u vs %u\n", c, pVM->cCpus), VERR_TM_VIRTUAL_TICKING_IPE);
-            if (c == 1)
-            {
-                /* The first VCPU to resume. */
-                uint64_t    offTSCRawSrcOld = pVCpu->tm.s.offTSCRawSrc;
-
-                STAM_COUNTER_INC(&pVM->tm.s.StatTSCResume);
-
-                /* When resuming, use the TSC value of the last stopped VCPU to avoid the TSC going back. */
-                if (pVM->tm.s.fTSCUseRealTSC)
-                    pVCpu->tm.s.offTSCRawSrc = ASMReadTSC() - pVM->tm.s.u64LastPausedTSC;
-                else
-                    pVCpu->tm.s.offTSCRawSrc = tmCpuTickGetRawVirtual(pVM, false /* don't check for pending timers */)
-                                             - pVM->tm.s.u64LastPausedTSC;
-
-                /* Calculate the offset for other VCPUs to use. */
-                pVM->tm.s.offTSCPause = pVCpu->tm.s.offTSCRawSrc - offTSCRawSrcOld;
-            }
-            else
-            {
-                /* All other VCPUs (if any). */
-                pVCpu->tm.s.offTSCRawSrc += pVM->tm.s.offTSCPause;
-            }
-        }
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
  * Pauses the CPU timestamp counter ticking.
  *
  * @returns VBox status code.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM to operate on.
+ * @param   pVCpu       The VMCPU to operate on.
  * @internal
  */
-int tmCpuTickPause(PVMCPU pVCpu)
+int tmCpuTickPause(PVM pVM, PVMCPU pVCpu)
 {
     if (pVCpu->tm.s.fTSCTicking)
     {
@@ -142,44 +98,13 @@ int tmCpuTickPause(PVMCPU pVCpu)
     AssertFailed();
     return VERR_TM_TSC_ALREADY_PAUSED;
 }
-
-
-/**
- * Pauses the CPU timestamp counter ticking.
- *
- * @returns VBox status code.
- * @param   pVM         Pointer to the VM. 
- * @param   pVCpu       Pointer to the VMCPU.
- * @internal
- */
-int tmCpuTickPauseLocked(PVM pVM, PVMCPU pVCpu)
-{
-    if (pVCpu->tm.s.fTSCTicking)
-    {
-        pVCpu->tm.s.u64TSC = TMCpuTickGetNoCheck(pVCpu);
-        pVCpu->tm.s.fTSCTicking = false;
-
-        uint32_t c = ASMAtomicDecU32(&pVM->tm.s.cTSCsTicking);
-        AssertMsgReturn(c < pVM->cCpus, ("%u vs %u\n", c, pVM->cCpus), VERR_TM_VIRTUAL_TICKING_IPE);
-        if (c == 0)
-        {
-            /* When the last TSC stops, remember the value. */
-            STAM_COUNTER_INC(&pVM->tm.s.StatTSCPause);
-            pVM->tm.s.u64LastPausedTSC = pVCpu->tm.s.u64TSC;
-        }
-        return VINF_SUCCESS;
-    }
-    AssertFailed();
-    return VERR_TM_TSC_ALREADY_PAUSED;
-}
-
 
 /**
  * Record why we refused to use offsetted TSC.
  *
  * Used by TMCpuTickCanUseRealTSC and TMCpuTickGetDeadlineAndTscOffset.
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pVCpu       The current CPU.
  */
 DECLINLINE(void) tmCpuTickRecordOffsettedTscRefusal(PVM pVM, PVMCPU pVCpu)
@@ -215,7 +140,7 @@ DECLINLINE(void) tmCpuTickRecordOffsettedTscRefusal(PVM pVM, PVMCPU pVCpu)
  * Checks if AMD-V / VT-x can use an offsetted hardware TSC or not.
  *
  * @returns true/false accordingly.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  * @param   poffRealTSC     The offset against the TSC of the current CPU.
  *                          Can be NULL.
  * @thread EMT.
@@ -376,7 +301,7 @@ VMM_INT_DECL(uint64_t) TMCpuTickGetDeadlineAndTscOffset(PVMCPU pVCpu, bool *pfOf
  * Read the current CPU timestamp counter.
  *
  * @returns Gets the CPU tsc.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  */
 DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
 {
@@ -396,10 +321,8 @@ DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
         else
             u64 = ASMReadTSC();
 
-        /* Always return a value higher than what the guest has already seen. */
-        if (RT_LIKELY(u64 > pVCpu->tm.s.u64TSCLastSeen))
-            pVCpu->tm.s.u64TSCLastSeen = u64;
-        else
+        /* Never return a value lower than what the guest has already seen. */
+        if (u64 < pVCpu->tm.s.u64TSCLastSeen)
         {
             STAM_COUNTER_INC(&pVM->tm.s.StatTSCUnderflow);
             pVCpu->tm.s.u64TSCLastSeen += 64;   /* @todo choose a good increment here */
@@ -416,7 +339,7 @@ DECLINLINE(uint64_t) tmCpuTickGetInternal(PVMCPU pVCpu, bool fCheckTimers)
  * Read the current CPU timestamp counter.
  *
  * @returns Gets the CPU tsc.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  */
 VMMDECL(uint64_t) TMCpuTickGet(PVMCPU pVCpu)
 {
@@ -428,7 +351,7 @@ VMMDECL(uint64_t) TMCpuTickGet(PVMCPU pVCpu)
  * Read the current CPU timestamp counter, don't check for expired timers.
  *
  * @returns Gets the CPU tsc.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVCpu       The VMCPU to operate on.
  */
 VMM_INT_DECL(uint64_t) TMCpuTickGetNoCheck(PVMCPU pVCpu)
 {
@@ -440,8 +363,8 @@ VMM_INT_DECL(uint64_t) TMCpuTickGetNoCheck(PVMCPU pVCpu)
  * Sets the current CPU timestamp counter.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The virtual CPU to operate on.
  * @param   u64Tick     The new timestamp value.
  *
  * @thread  EMT which TSC is to be set.
@@ -471,7 +394,7 @@ VMM_INT_DECL(int) TMCpuTickSet(PVM pVM, PVMCPU pVCpu, uint64_t u64Tick)
  * Sets the last seen CPU timestamp counter.
  *
  * @returns VBox status code.
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The virtual CPU to operate on.
  * @param   u64LastSeenTick     The last seen timestamp value.
  *
  * @thread  EMT which TSC is to be set.
@@ -490,7 +413,7 @@ VMM_INT_DECL(int) TMCpuTickSetLastSeen(PVMCPU pVCpu, uint64_t u64LastSeenTick)
  * Gets the last seen CPU timestamp counter.
  *
  * @returns last seen TSC
- * @param   pVCpu               Pointer to the VMCPU.
+ * @param   pVCpu               The virtual CPU to operate on.
  *
  * @thread  EMT which TSC is to be set.
  */

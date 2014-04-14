@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,15 +17,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include "QIListView.h"
+#include "VBoxDefs.h"
+
 #if MAC_LEOPARD_STYLE
-/* Qt includes: */
+/* Qt includes */
 # include <QPainter>
 # include <QApplication>
 # include <qmacstyle_mac.h>
 #endif /* MAC_LEOPARD_STYLE */
 
-/* GUI includes: */
-#include "QIListView.h"
+
+/* QIListView class */
 
 QIListView::QIListView (QWidget *aParent /* = 0 */)
     :QListView (aParent)
@@ -98,8 +101,7 @@ void QIItemDelegate::drawBackground (QPainter *aPainter, const QStyleOptionViewI
         aPainter->setPen (topLineColor);
         aPainter->drawLine (r.left(), r.top() - 1, r.right(), r.top() - 1);
         aPainter->fillRect (r, linearGrad);
-    }
-    else
+    }else
     {
         /* Color for items and no focus on the application at all */
         QColor bgColor (212, 221, 229);

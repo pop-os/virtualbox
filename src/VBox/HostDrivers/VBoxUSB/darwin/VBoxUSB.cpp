@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -598,7 +598,7 @@ org_virtualbox_VBoxUSBClient::free()
 {
     uint32_t cInstances = ASMAtomicDecU32(&g_cInstances); NOREF(cInstances);
     Log(("VBoxUSBClient::free([%p]) new g_cInstances=%d\n", this, cInstances));
-    IOUserClient::free();
+    IOService::free();
 }
 
 

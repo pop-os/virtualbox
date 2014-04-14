@@ -1006,7 +1006,7 @@ FinalizeParams(JNIEnv *env, const nsXPTParamInfo &aParamInfo, PRUint8 aType,
                                                      aVariant.val.u8;
         if (aParamInfo.IsRetval() && !aIsArrayElement) {
           *aParam = env->NewObject(shortClass, shortInitMID, value);
-        } else if ((aParamInfo.IsOut() || aIsArrayElement) && *aParam) {
+        } else if ((aParamInfo.IsOut() || aIsArrayElement) && aParam) {
           env->SetShortArrayRegion((jshortArray) *aParam, aIndex, 1, &value);
         }
       }
@@ -1495,7 +1495,7 @@ static void makeErrorMessage(nsresult r, char* msg, size_t msgSize)
             if (NS_SUCCEEDED (rc))
             {
                 nsCOMPtr <nsIException> ex;
-                rc = em->GetCurrentException(getter_AddRefs (ex));
+                rc = em->GetExceptionFromProvider(r, NULL, getter_AddRefs (ex));
                 if  (NS_SUCCEEDED (rc) && ex)
                 {
                     nsXPIDLCString emsg;
@@ -1753,9 +1753,8 @@ JAVAPROXY_NATIVE(callXPCOMMethod) (JNIEnv *env, jclass that, jobject aJavaProxy,
     }
 
     jobject* javaElement;
-    jobject element = nsnull;
     if (!paramInfo.IsRetval()) {
-      element = env->GetObjectArrayElement(aParams, i);
+      jobject element = env->GetObjectArrayElement(aParams, i);
       javaElement = &element;
     } else {
       javaElement = &result;

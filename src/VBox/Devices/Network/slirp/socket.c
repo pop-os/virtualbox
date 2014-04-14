@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
  * terms and conditions of the copyright.
  */
 
+#define WANT_SYS_IOCTL_H
 #include <slirp.h>
 #include "ip_icmp.h"
 #include "main.h"
@@ -36,98 +37,8 @@
 #include <icmpapi.h>
 #endif
 
-#if defined(DECLARE_IOVEC) && defined(RT_OS_WINDOWS)
-AssertCompileMembersSameSizeAndOffset(struct iovec, iov_base, WSABUF, buf);
-AssertCompileMembersSameSizeAndOffset(struct iovec, iov_len,  WSABUF, len);
-#endif
 
-#ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
-/**
- *
- */
-struct socket * soCloneUDPSocketWithForegnAddr(PNATState pData, bool fBindSocket, struct socket *pSo, uint32_t u32ForeignAddr)
-{
-    struct socket *pNewSocket = NULL;
-    LogFlowFunc(("Enter: fBindSocket:%RTbool, so:%R[natsock], u32ForeignAddr:%RTnaipv4\n", fBindSocket, pSo, u32ForeignAddr));
-    pNewSocket = socreate();
-    if (!pNewSocket)
-    {
-        LogFunc(("Can't create socket\n"));
-        LogFlowFunc(("Leave: NULL\n"));
-        return NULL;
-    }
-    if (fBindSocket)
-    {
-        if (udp_attach(pData, pNewSocket, 0) <= 0)
-        {
-            sofree(pData, pNewSocket);
-            LogFunc(("Can't attach fresh created socket\n"));
-            return NULL;
-        }
-    }
-    else
-    {
-        pNewSocket->so_cloneOf = (struct socket *)pSo;
-        pNewSocket->s = pSo->s;
-        insque(pData, pNewSocket, &udb);
-    }
-    pNewSocket->so_laddr = pSo->so_laddr;
-    pNewSocket->so_lport = pSo->so_lport;
-    pNewSocket->so_faddr.s_addr = u32ForeignAddr;
-    pNewSocket->so_fport = pSo->so_fport;
-    pSo->so_cCloneCounter++;
-    LogFlowFunc(("Leave: %R[natsock]\n", pNewSocket));
-    return pNewSocket;
-}
-
-struct socket *soLookUpClonedUDPSocket(PNATState pData, const struct socket *pcSo, uint32_t u32ForeignAddress)
-{
-    struct socket *pSoClone = NULL;
-    LogFlowFunc(("Enter: pcSo:%R[natsock], u32ForeignAddress:%RTnaipv4\n", pcSo, u32ForeignAddress));
-    for (pSoClone = udb.so_next; pSoClone != &udb; pSoClone = pSoClone->so_next)
-    {
-        if (   pSoClone->so_cloneOf
-            && pSoClone->so_cloneOf == pcSo
-            && pSoClone->so_lport == pcSo->so_lport
-            && pSoClone->so_fport == pcSo->so_fport
-            && pSoClone->so_laddr.s_addr == pcSo->so_laddr.s_addr
-            && pSoClone->so_faddr.s_addr == u32ForeignAddress)
-            goto done;
-    }
-    pSoClone = NULL;
-done:
-    LogFlowFunc(("Leave: pSoClone: %R[natsock]\n", pSoClone));
-    return pSoClone;
-}
-#endif
-
-#ifdef VBOX_WITH_NAT_SEND2HOME
-DECLINLINE(bool) slirpSend2Home(PNATState pData, struct socket *pSo, const void *pvBuf, uint32_t cbBuf, int iFlags)
-{
-    int idxAddr;
-    int ret = 0;
-    bool fSendDone = false;
-    LogFlowFunc(("Enter pSo:%R[natsock] pvBuf: %p, cbBuf: %d, iFlags: %d\n", pSo, pvBuf, cbBuf, iFlags));
-    for (idxAddr = 0; idxAddr < pData->cInHomeAddressSize; ++idxAddr)
-    {
-
-        struct socket *pNewSocket = soCloneUDPSocketWithForegnAddr(pData, pSo, pData->pInSockAddrHomeAddress[idxAddr].sin_addr);
-        AssertReturn((pNewSocket, false));
-        pData->pInSockAddrHomeAddress[idxAddr].sin_port = pSo->so_fport;
-        /* @todo: more verbose on errors,
-         * @note: we shouldn't care if this send fail or not (we're in broadcast).
-         */
-        LogFunc(("send %d bytes to %RTnaipv4 from %R[natsock]\n", cbBuf, pData->pInSockAddrHomeAddress[idxAddr].sin_addr.s_addr, pNewSocket));
-        ret = sendto(pNewSocket->s, pvBuf, cbBuf, iFlags, (struct sockaddr *)&pData->pInSockAddrHomeAddress[idxAddr], sizeof(struct sockaddr_in));
-        if (ret < 0)
-            LogFunc(("Failed to send %d bytes to %RTnaipv4\n", cbBuf, pData->pInSockAddrHomeAddress[idxAddr].sin_addr.s_addr));
-        fSendDone |= ret > 0;
-    }
-    LogFlowFunc(("Leave %RTbool\n", fSendDone));
-    return fSendDone;
-}
-#endif /* !VBOX_WITH_NAT_SEND2HOME */
-static void send_icmp_to_guest(PNATState, char *, size_t, const struct sockaddr_in *);
+static void send_icmp_to_guest(PNATState, char *, size_t, struct socket *, const struct sockaddr_in *);
 #ifdef RT_OS_WINDOWS
 static void sorecvfrom_icmp_win(PNATState, struct socket *);
 #else /* RT_OS_WINDOWS */
@@ -181,6 +92,8 @@ socreate()
 
 /*
  * remque and free a socket, clobber cache
+ * VBOX_WITH_SLIRP_MT: before sofree queue should be locked, because
+ *      in sofree we don't know from which queue item beeing removed.
  */
 void
 sofree(PNATState pData, struct socket *so)
@@ -196,24 +109,16 @@ sofree(PNATState pData, struct socket *so)
         LogFlowFunc(("LEAVE:%R[natsock] postponed deletion\n", so));
         return;
     }
-    /**
-     * Check that we don't freeng socket with tcbcb
-     */
-    Assert(!sototcpcb(so));
-    /* udp checks */
-    Assert(!so->so_timeout);
-    Assert(!so->so_timeout_arg);
     if (so == tcp_last_so)
         tcp_last_so = &tcb;
     else if (so == udp_last_so)
         udp_last_so = &udb;
 
-#if 0 /* XXX: !defined(NO_USE_SOCKETS) */
+#ifndef VBOX_WITH_SLIRP_MT
+
     /* libalias notification */
     if (so->so_pvLnk)
         slirpDeleteLinkSocket(so->so_pvLnk);
-#endif
-
     /* check if mbuf haven't been already freed  */
     if (so->so_m != NULL)
     {
@@ -228,8 +133,19 @@ sofree(PNATState pData, struct socket *so)
     }
 
     RTMemFree(so);
+#else
+    so->so_deleted = 1;
+#endif
     LogFlowFuncLeave();
 }
+
+#ifdef VBOX_WITH_SLIRP_MT
+void
+soread_queue(PNATState pData, struct socket *so, int *ret)
+{
+    *ret = soread(pData, so);
+}
+#endif
 
 /*
  * Read from so's socket into sb_snd, updating all relevant sbuf fields
@@ -345,7 +261,9 @@ soread(PNATState pData, struct socket *so)
             return 0;
         }
         if (   nn < 0
-            && soIgnorableErrorCode(errno))
+            && (   errno == EINTR
+                || errno == EAGAIN
+                || errno == EWOULDBLOCK))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
@@ -353,18 +271,11 @@ soread(PNATState pData, struct socket *so)
         }
         else
         {
-            int fUninitiolizedTemplate = 0;
-            fUninitiolizedTemplate = RT_BOOL((   sototcpcb(so)
-                                              && (  sototcpcb(so)->t_template.ti_src.s_addr == INADDR_ANY
-                                                 || sototcpcb(so)->t_template.ti_dst.s_addr == INADDR_ANY)));
             /* nn == 0 means peer has performed an orderly shutdown */
             Log2(("%s: disconnected, nn = %d, errno = %d (%s)\n",
                   __PRETTY_FUNCTION__, nn, errno, strerror(errno)));
             sofcantrcvmore(so);
-            if (!fUninitiolizedTemplate)
-                tcp_sockclosed(pData, sototcpcb(so));
-            else
-                tcp_drop(pData, sototcpcb(so), errno);
+            tcp_sockclosed(pData, sototcpcb(so));
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
             return -1;
@@ -476,7 +387,9 @@ soread(PNATState pData, struct socket *so)
             return 0;
         }
         if (   n < 0
-            && soIgnorableErrorCode(errno))
+            && (   errno == EINTR
+                || errno == EAGAIN
+                || errno == EWOULDBLOCK))
         {
             SOCKET_UNLOCK(so);
             STAM_PROFILE_STOP(&pData->StatIOread, a);
@@ -526,13 +439,10 @@ sorecvoob(PNATState pData, struct socket *so)
      * urgent data.
      */
     ret = soread(pData, so);
-    if (RT_LIKELY(ret > 0))
-    {
-        tp->snd_up = tp->snd_una + SBUF_LEN(&so->so_snd);
-        tp->t_force = 1;
-        tcp_output(pData, tp);
-        tp->t_force = 0;
-    }
+    tp->snd_up = tp->snd_una + SBUF_LEN(&so->so_snd);
+    tp->t_force = 1;
+    tcp_output(pData, tp);
+    tp->t_force = 0;
 }
 #ifndef VBOX_WITH_SLIRP_BSD_SBUF
 /*
@@ -693,7 +603,9 @@ sowrite(PNATState pData, struct socket *so)
     Log2(("%s: wrote(1) nn = %d bytes\n", __PRETTY_FUNCTION__, nn));
     /* This should never happen, but people tell me it does *shrug* */
     if (   nn < 0
-        && soIgnorableErrorCode(errno))
+        && (   errno == EAGAIN
+            || errno == EINTR
+            || errno == EWOULDBLOCK))
     {
         SOCKET_UNLOCK(so);
         STAM_PROFILE_STOP(&pData->StatIOwrite, a);
@@ -809,6 +721,10 @@ sowrite(PNATState pData, struct socket *so)
 void
 sorecvfrom(PNATState pData, struct socket *so)
 {
+    ssize_t ret = 0;
+    struct sockaddr_in addr;
+    socklen_t addrlen = sizeof(struct sockaddr_in);
+
     LogFlowFunc(("sorecvfrom: so = %lx\n", (long)so));
 
     if (so->so_type == IPPROTO_ICMP)
@@ -823,75 +739,116 @@ sorecvfrom(PNATState pData, struct socket *so)
     }
     else
     {
-        static uint8_t au8Buf[64 * 1024];
-
         /* A "normal" UDP packet */
-        struct sockaddr_in addr;
-        socklen_t addrlen = sizeof(struct sockaddr_in);
-        struct iovec iov[2];
-        ssize_t nread;
         struct mbuf *m;
+        ssize_t len;
+        u_long n = 0;
+        int size;
+        int rc = 0;
+        static int signalled = 0;
+        char *pchBuffer = NULL;
+        bool fWithTemporalBuffer = false;
 
         QSOCKET_LOCK(udb);
         SOCKET_LOCK(so);
         QSOCKET_UNLOCK(udb);
 
-        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, slirp_size(pData));
-        if (m == NULL)
+        /*How many data has been received ?*/
+        /*
+        * 1. calculate how much we can read
+        * 2. read as much as possible
+        * 3. attach buffer to allocated header mbuf
+        */
+        rc = ioctlsocket(so->s, FIONREAD, &n);
+        if (rc == -1)
         {
-            SOCKET_UNLOCK(so);
+            if (  errno == EAGAIN
+               || errno == EWOULDBLOCK
+               || errno == EINPROGRESS
+               || errno == ENOTCONN)
+                return;
+            else if (signalled == 0)
+            {
+                LogRel(("NAT: can't fetch amount of bytes on socket %R[natsock], so message will be truncated.\n", so));
+                signalled = 1;
+            }
             return;
         }
 
+        len = sizeof(struct udpiphdr);
+        m = m_getjcl(pData, M_NOWAIT, MT_HEADER, M_PKTHDR, slirp_size(pData));
+        if (m == NULL)
+            return;
+
+        len += n;
         m->m_data += ETH_HLEN;
         m->m_pkthdr.header = mtod(m, void *);
-
         m->m_data += sizeof(struct udpiphdr);
 
-        /* small packets will fit without copying */
-        iov[0].iov_base = mtod(m, char *);
-        iov[0].iov_len = M_TRAILINGSPACE(m);
-
-        /* large packets will spill into a temp buffer */
-        iov[1].iov_base = au8Buf;
-        iov[1].iov_len = sizeof(au8Buf);
-
-#if !defined(RT_OS_WINDOWS)
+        pchBuffer = mtod(m, char *);
+        fWithTemporalBuffer = false;
+        /*
+         * Even if amounts of bytes on socket is greater than MTU value
+         * Slirp will able fragment it, but we won't create temporal location
+         * here.
+         */
+        if (n > (slirp_size(pData) - sizeof(struct udpiphdr)))
         {
-            struct msghdr mh;
-            memset(&mh, 0, sizeof(mh));
-
-            mh.msg_iov = iov;
-            mh.msg_iovlen = 2;
-            mh.msg_name = &addr;
-            mh.msg_namelen = addrlen;
-
-            nread = recvmsg(so->s, &mh, 0);
-        }
-#else  /* RT_OS_WINDOWS */
-        {
-            DWORD nbytes; /* NB: can't use nread b/c of different size */
-            DWORD flags;
-            int status;
-
-            flags = 0;
-            status = WSARecvFrom(so->s, iov, 2, &nbytes, &flags,
-                                 (struct sockaddr *)&addr, &addrlen,
-                                 NULL, NULL);
-            nread = (status != SOCKET_ERROR) ? nbytes : -1;
-        }
-#endif
-        if (nread >= 0)
-        {
-            if (nread <= iov[0].iov_len)
-                m->m_len = nread;
-            else
+            pchBuffer = RTMemAlloc((n) * sizeof(char));
+            if (!pchBuffer)
             {
-                m->m_len = iov[0].iov_len;
-                m_append(pData, m, nread - iov[0].iov_len, iov[1].iov_base);
+                m_freem(pData, m);
+                return;
             }
-            Assert((m_length(m, NULL) == nread));
+            fWithTemporalBuffer = true;
+        }
+        ret = recvfrom(so->s, pchBuffer, n, 0,
+                       (struct sockaddr *)&addr, &addrlen);
+        if (fWithTemporalBuffer)
+        {
+            if (ret > 0)
+            {
+                m_copyback(pData, m, 0, ret, pchBuffer);
+                /*
+                 * If we've met comporison below our size prediction was failed
+                 * it's not fatal just we've allocated for nothing. (@todo add counter here
+                 * to calculate how rare we here)
+                 */
+                if(ret < slirp_size(pData) && !m->m_next)
+                    Log(("NAT:udp: Expected size(%d) lesser than real(%d) and less minimal mbuf size(%d)\n",
+                         n, ret, slirp_size(pData)));
+            }
+            /* we're freeing buffer anyway */
+            RTMemFree(pchBuffer);
+        }
+        else
+            m->m_len = ret;
 
+        if (ret < 0)
+        {
+            u_char code = ICMP_UNREACH_PORT;
+
+            if (errno == EHOSTUNREACH)
+                code = ICMP_UNREACH_HOST;
+            else if (errno == ENETUNREACH)
+                code = ICMP_UNREACH_NET;
+
+            m_freem(pData, m);
+            if (   errno == EAGAIN
+                || errno == EWOULDBLOCK
+                || errno == EINPROGRESS
+                || errno == ENOTCONN)
+            {
+                return;
+            }
+
+            Log2((" rx error, tx icmp ICMP_UNREACH:%i\n", code));
+            icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
+            so->so_m = NULL;
+        }
+        else
+        {
+            Assert((m_length(m,NULL) == ret));
             /*
              * Hack: domain name lookup will be used the most for UDP,
              * and since they'll only be used once there's no need
@@ -903,7 +860,6 @@ sorecvfrom(PNATState pData, struct socket *so)
                 if (so->so_fport != RT_H2N_U16_C(53))
                     so->so_expire = curtime + SO_EXPIRE;
             }
-
             /*
              *  last argument should be changed if Slirp will inject IP attributes
              *  Note: Here we can't check if dnsproxy's sent initial request
@@ -912,38 +868,22 @@ sorecvfrom(PNATState pData, struct socket *so)
                 && so->so_fport == RT_H2N_U16_C(53))
                 dnsproxy_answer(pData, so, m);
 
-            /* packets definetly will be fragmented, could confuse receiver peer. */
-            if (nread > if_mtu)
-                m->m_flags |= M_SKIP_FIREWALL;
+#if 0
+            if (m->m_len == len)
+            {
+                m_inc(m, MINCSIZE);
+                m->m_len = 0;
+            }
+#endif
 
             /*
              * If this packet was destined for CTL_ADDR,
              * make it look like that's where it came from, done by udp_output
              */
             udp_output(pData, so, m, &addr);
-        }
-        else
-        {
-            m_freem(pData, m);
-            so->so_m = NULL;
-
-            if (!soIgnorableErrorCode(errno))
-            {
-                u_char code;
-                if (errno == EHOSTUNREACH)
-                    code = ICMP_UNREACH_HOST;
-                else if (errno == ENETUNREACH)
-                    code = ICMP_UNREACH_NET;
-                else
-                    code = ICMP_UNREACH_PORT;
-
-                Log2((" rx error, tx icmp ICMP_UNREACH:%i\n", code));
-                icmp_error(pData, so->so_m, ICMP_UNREACH, code, 0, strerror(errno));
-            }
-        }
-
-        SOCKET_UNLOCK(so);
-    }
+            SOCKET_UNLOCK(so);
+        } /* rx error */
+    } /* if ping packet */
 }
 
 /*
@@ -1025,12 +965,6 @@ sosendto(PNATState pData, struct socket *so, struct mbuf *m)
     }
     ret = sendto(so->s, buf, mlen, 0,
                  (struct sockaddr *)&addr, sizeof (struct sockaddr));
-#ifdef VBOX_WITH_NAT_SEND2HOME
-    if (slirpIsWideCasting(pData, so->so_faddr.s_addr))
-    {
-        slirpSend2Home(pData, so, buf, mlen, 0);
-    }
-#endif
     if (buf)
         RTMemFree(buf);
     if (ret < 0)
@@ -1122,10 +1056,9 @@ solisten(PNATState pData, u_int32_t bind_addr, u_int port, u_int32_t laddr, u_in
 #else
         int tmperrno = errno; /* Don't clobber the real reason we failed */
         close(s);
-        if (sototcpcb(so))
-            tcp_close(pData, sototcpcb(so));
-        else
-            sofree(pData, so);
+        QSOCKET_LOCK(tcb);
+        sofree(pData, so);
+        QSOCKET_UNLOCK(tcb);
         /* Restore the real errno */
         errno = tmperrno;
 #endif
@@ -1166,12 +1099,10 @@ no_sockopt:
  * Data is available in so_rcv
  * Just write() the data to the socket
  * XXX not yet...
- * @todo do we really need this function, what it's intended to do?
  */
 void
 sorwakeup(struct socket *so)
 {
-    NOREF(so);
 #if 0
     sowrite(so);
     FD_CLR(so->s,&writefds);
@@ -1186,7 +1117,6 @@ sorwakeup(struct socket *so)
 void
 sowwakeup(struct socket *so)
 {
-    NOREF(so);
 }
 
 /*
@@ -1206,10 +1136,8 @@ soisfconnecting(struct socket *so)
 void
 soisfconnected(struct socket *so)
 {
-    LogFlowFunc(("ENTER: so:%R[natsock]\n", so));
     so->so_state &= ~(SS_ISFCONNECTING|SS_FWDRAIN|SS_NOFDREF);
     so->so_state |= SS_ISFCONNECTED; /* Clobber other states */
-    LogFlowFunc(("LEAVE: so:%R[natsock]\n", so));
 }
 
 void
@@ -1247,7 +1175,6 @@ sofcantsendmore(struct socket *so)
 void
 soisfdisconnected(struct socket *so)
 {
-    NOREF(so);
 #if 0
     so->so_state &= ~(SS_ISFCONNECTING|SS_ISFCONNECTED);
     close(so->s);
@@ -1272,7 +1199,7 @@ sofwdrain(struct socket *so)
 }
 
 static void
-send_icmp_to_guest(PNATState pData, char *buff, size_t len, const struct sockaddr_in *addr)
+send_icmp_to_guest(PNATState pData, char *buff, size_t len, struct socket *so, const struct sockaddr_in *addr)
 {
     struct ip *ip;
     uint32_t dst, src;
@@ -1460,7 +1387,7 @@ sorecvfrom_icmp_win(PNATState pData, struct socket *so)
     int out_len;
     int size;
 
-    len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->cbIcmpBuffer);
+    len = pData->pfIcmpParseReplies(pData->pvIcmpBuffer, pData->szIcmpBuffer);
     if (len < 0)
     {
         LogRel(("NAT: Error (%d) occurred on ICMP receiving\n", GetLastError()));
@@ -1602,7 +1529,9 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     len = recvfrom(so->s, &ip, sizeof(struct ip), MSG_PEEK,
                    (struct sockaddr *)&addr, &addrlen);
     if (   len < 0
-        && (   soIgnorableErrorCode(errno)
+        && (   errno == EAGAIN
+            || errno == EWOULDBLOCK
+            || errno == EINPROGRESS
             || errno == ENOTCONN))
     {
         Log(("sorecvfrom_icmp_unix: 1 - step can't read IP datagramm (would block)\n"));
@@ -1659,7 +1588,9 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
     len = recvfrom(so->s, buff, len, 0,
                    (struct sockaddr *)&addr, &addrlen);
     if (   len < 0
-        && (   soIgnorableErrorCode(errno)
+        && (   errno == EAGAIN
+            || errno == EWOULDBLOCK
+            || errno == EINPROGRESS
             || errno == ENOTCONN))
     {
         Log(("sorecvfrom_icmp_unix: 2 - step can't read IP body (would block expected:%d)\n",
@@ -1676,7 +1607,7 @@ static void sorecvfrom_icmp_unix(PNATState pData, struct socket *so)
         return;
     }
     /* len is modified in 2nd read, when the rest of the datagramm was read */
-    send_icmp_to_guest(pData, buff, len, &addr);
+    send_icmp_to_guest(pData, buff, len, so, &addr);
     RTMemFree(buff);
 }
 #endif /* !RT_OS_WINDOWS */

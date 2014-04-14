@@ -3,7 +3,7 @@
 //
 // VirtualBox ACPI
 //
-// Copyright (C) 2006-2011 Oracle Corporation
+// Copyright (C) 2006-2007 Oracle Corporation
 //
 // This file is part of VirtualBox Open Source Edition (OSE), as
 // available from http://www.virtualbox.org. This file is free software;
@@ -919,7 +919,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                         "layout-id",                                                                                                                               
                         Buffer (0x04)                                                                                                                              
                         {                                                                                                                                          
-                            /* 04 */    0x04, 0x00, 0x00, 0x00                                                                                                   
+                            /* 0000 */    0x07, 0x00, 0x00, 0x00                                                                                                   
                         },                                                                                                                                         
                                                                                                                                                                    
                         "PinConfigurations",                                                                                                                       

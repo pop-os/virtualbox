@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,7 @@
 #define ____H_HOSTPOWER
 
 #include "VirtualBoxBase.h"
+#include "MachineImpl.h"
 
 #include <vector>
 
@@ -27,16 +28,27 @@
 # include <Carbon/Carbon.h>
 #endif /* RT_OS_DARWIN */
 
+typedef enum
+{
+    HostPowerEvent_Suspend,
+    HostPowerEvent_Resume,
+    HostPowerEvent_BatteryLow
+} HostPowerEvent;
+
 class HostPowerService
 {
-  public:
-    HostPowerService(VirtualBox *aVirtualBox);
-    virtual ~HostPowerService();
-    void notify(Reason_T aReason);
+public:
 
-  protected:
-    VirtualBox *mVirtualBox;
-    std::vector<ComPtr<IInternalSessionControl> > mSessionControls;
+    HostPowerService (VirtualBox *aVirtualBox);
+    virtual ~HostPowerService();
+
+    void    notify (HostPowerEvent aEvent);
+
+protected:
+
+    VirtualBox              *mVirtualBox;
+
+    std::vector< ComPtr<IConsole> > mConsoles;
 };
 
 # ifdef RT_OS_WINDOWS
@@ -52,7 +64,7 @@ public:
 
 private:
 
-    static DECLCALLBACK(int) NotificationThread(RTTHREAD ThreadSelf, void *pInstance);
+    static DECLCALLBACK(int) NotificationThread (RTTHREAD ThreadSelf, void *pInstance);
     static LRESULT CALLBACK  WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
     HWND        mHwnd;
@@ -66,16 +78,16 @@ class HostPowerServiceDarwin : public HostPowerService
 {
 public:
 
-    HostPowerServiceDarwin(VirtualBox *aVirtualBox);
+    HostPowerServiceDarwin (VirtualBox *aVirtualBox);
     virtual ~HostPowerServiceDarwin();
 
 private:
 
-    static DECLCALLBACK(int) powerChangeNotificationThread(RTTHREAD ThreadSelf, void *pInstance);
-    static void powerChangeNotificationHandler(void *pvData, io_service_t service, natural_t messageType, void *pMessageArgument);
-    static void lowPowerHandler(void *pvData);
+    static DECLCALLBACK(int) powerChangeNotificationThread (RTTHREAD ThreadSelf, void *pInstance);
+    static void powerChangeNotificationHandler (void *pvData, io_service_t service, natural_t messageType, void *pMessageArgument);
+    static void lowPowerHandler (void *pvData);
 
-    void checkBatteryCriticalLevel(bool *pfCriticalChanged = NULL);
+    void checkBatteryCriticalLevel (bool *pfCriticalChanged = NULL);
 
     /* Private member vars */
     RTTHREAD mThread; /* Our message thread. */

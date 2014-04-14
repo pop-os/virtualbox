@@ -297,17 +297,14 @@ static void Test4(unsigned cThreads, unsigned cSeconds, unsigned uWritePercent, 
 
     }
 
-    //RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS,
-    //             "Threads: %u  Total: %llu  Per Sec: %llu  Avg: %llu ns  Max dev: %llu%%\n",
-    //             cThreads,
-    //             cItrTotal,
-    //             cItrTotal / cSeconds,
-    //             ElapsedNS / cItrTotal,
-    //             cItrMaxDeviation * 100 / cItrNormal
-    //             );
-    //
-    RTTestValue(g_hTest, "Thruput", cItrTotal * UINT32_C(1000000000) / ElapsedNS, RTTESTUNIT_CALLS_PER_SEC);
-    RTTestValue(g_hTest, "Max diviation", cItrMaxDeviation * 100 / cItrNormal, RTTESTUNIT_PCT);
+    RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS,
+                 "Threads: %u  Total: %llu  Per Sec: %llu  Avg: %llu ns  Max dev: %llu%%\n",
+                 cThreads,
+                 cItrTotal,
+                 cItrTotal / cSeconds,
+                 ElapsedNS / cItrTotal,
+                 cItrMaxDeviation * 100 / cItrNormal
+                 );
 }
 
 

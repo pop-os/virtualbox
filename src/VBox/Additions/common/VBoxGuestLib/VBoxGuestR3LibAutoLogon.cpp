@@ -1,7 +1,7 @@
-/* $Id: VBoxGuestR3LibAutoLogon.cpp $ */
+/* $Id */
 /** @file
  * VBoxGuestR3LibAutoLogon - Ring-3 utility functions for auto-logon modules
- *                           (VBoxGINA / VBoxCredProv / pam_vbox).
+ * (VBoxGINA / VBoxCredProv / pam_vbox).
  */
 
 /*
@@ -29,9 +29,11 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifdef RT_OS_WINDOWS
-# include <Windows.h>
-#endif
+#include <iprt/asm.h>
+#include <iprt/mem.h>
+#include <iprt/rand.h>
+#include <iprt/string.h>
+#include <VBox/log.h>
 
 #include "VBGLR3Internal.h"
 
@@ -66,29 +68,57 @@ VBGLR3DECL(int) VbglR3AutoLogonReportStatus(VBoxGuestFacilityStatus enmStatus)
             rc = VbglR3GuestPropConnect(&u32ClientId);
             if (RT_SUCCESS(rc))
             {
-                const char *pszStatus;
+                /** @todo Move VBoxGuestStatusCurrent -> const char* to an own function. */
+                char szStatus[RTPATH_MAX];
+                size_t cbRet = 0;
                 switch (enmStatus)
                 {
-                    case VBoxGuestFacilityStatus_Inactive:      pszStatus = "Inactive"; break;
-                    case VBoxGuestFacilityStatus_Paused:        pszStatus = "Disabled"; break;
-                    case VBoxGuestFacilityStatus_PreInit:       pszStatus = "PreInit"; break;
-                    case VBoxGuestFacilityStatus_Init:          pszStatus = "Init"; break;
-                    case VBoxGuestFacilityStatus_Active:        pszStatus = "Active"; break;
-                    case VBoxGuestFacilityStatus_Terminating:   pszStatus = "Terminating"; break;
-                    case VBoxGuestFacilityStatus_Terminated:    pszStatus = "Terminated"; break;
-                    case VBoxGuestFacilityStatus_Failed:        pszStatus = "Failed"; break;
-                    default:                                    pszStatus = NULL;
+                    case VBoxGuestFacilityStatus_Inactive:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Inactive");
+                        break;
+                    case VBoxGuestFacilityStatus_Paused:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Disabled");
+                        break;
+                    case VBoxGuestFacilityStatus_PreInit:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "PreInit");
+                        break;
+                    case VBoxGuestFacilityStatus_Init:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Init");
+                        break;
+                    case VBoxGuestFacilityStatus_Active:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Active");
+                        break;
+                    case VBoxGuestFacilityStatus_Terminating:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Terminating");
+                        break;
+                    case VBoxGuestFacilityStatus_Terminated:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Terminated");
+                        break;
+                    case VBoxGuestFacilityStatus_Failed:
+                        cbRet = RTStrPrintf(szStatus, sizeof(szStatus), "Failed");
+                        break;
+                    default:
+                        /* cbRet will be 0. */
+                        break;
                 }
-                if (pszStatus)
+
+                if (cbRet)
                 {
+                    const char szPath[] = "/VirtualBox/GuestInfo/OS/AutoLogonStatus";
+
                     /*
-                     * Use TRANSRESET when possible, fall back to TRANSIENT
-                     * (generally sufficient unless the guest misbehaves).
+                     * Because a value can be temporary we have to make sure it also
+                     * gets deleted when the property cache did not have the chance to
+                     * gracefully clean it up (due to a hard VM reset etc), so set this
+                     * guest property using the TRANSRESET flag..
                      */
-                    static const char s_szPath[] = "/VirtualBox/GuestInfo/OS/AutoLogonStatus";
-                    rc = VbglR3GuestPropWrite(u32ClientId, s_szPath, pszStatus, "TRANSRESET");
+                    rc = VbglR3GuestPropWrite(u32ClientId, szPath, szStatus, "TRANSRESET");
                     if (rc == VERR_PARSE_ERROR)
-                        rc = VbglR3GuestPropWrite(u32ClientId, s_szPath, pszStatus, "TRANSIENT");
+                    {
+                        /* Host does not support the "TRANSRESET" flag, so only
+                         * use the "TRANSIENT" flag -- better than nothing :-). */
+                        rc = VbglR3GuestPropWrite(u32ClientId, szPath, szStatus, "TRANSIENT");
+                    }
                 }
                 else
                     rc = VERR_INVALID_PARAMETER;
@@ -112,9 +142,10 @@ VBGLR3DECL(int) VbglR3AutoLogonReportStatus(VBoxGuestFacilityStatus enmStatus)
 VBGLR3DECL(bool) VbglR3AutoLogonIsRemoteSession(void)
 {
 #ifdef RT_OS_WINDOWS
-    return GetSystemMetrics(SM_REMOTESESSION) != 0 ? true : false;
+    return (0 != GetSystemMetrics(SM_REMOTESESSION)) ? true : false;
 #else
     return false; /* Not implemented. */
 #endif
 }
+
 

@@ -13,15 +13,15 @@
         rather trivial container classes for their read-only attributes.
         Further extension to other interfaces is possible and anticipated.
 
-    Copyright (C) 2010-2013 Oracle Corporation
+     Copyright (C) 2010 Oracle Corporation
 
-    This file is part of VirtualBox Open Source Edition (OSE), as
-    available from http://www.virtualbox.org. This file is free software;
-    you can redistribute it and/or modify it under the terms of the GNU
-    General Public License (GPL) as published by the Free Software
-    Foundation, in version 2 as it comes in the "COPYING" file of the
-    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+     This file is part of VirtualBox Open Source Edition (OSE), as
+     available from http://www.virtualbox.org. This file is free software;
+     you can redistribute it and/or modify it under the terms of the GNU
+     General Public License (GPL) as published by the Free Software
+     Foundation, in version 2 as it comes in the "COPYING" file of the
+     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 -->
 
 <xsl:output
@@ -30,31 +30,31 @@
   encoding="utf-8"
   indent="no"/>
 
-<xsl:include href="typemap-shared.inc.xsl" />
+<xsl:include href="../webservice/websrv-shared.inc.xsl" />
 
 <!-- $G_kind contains what kind of COM class implementation we generate -->
 <xsl:variable name="G_xsltFilename" select="'autogen.xsl'" />
 
 <xsl:template name="fileheader">
   <xsl:param name="name" />
-  <xsl:text>/** @file </xsl:text>
-  <xsl:value-of select="$name"/>
-  <xsl:text>
+  <xsl:text>/**
+ *  Copyright (C) 2010 Oracle Corporation
+ *
+ *  This file is part of VirtualBox Open Source Edition (OSE), as
+ *  available from http://www.virtualbox.org. This file is free software;
+ *  you can redistribute it and/or modify it under the terms of the GNU
+ *  General Public License (GPL) as published by the Free Software
+ *  Foundation, in version 2 as it comes in the "COPYING" file of the
+ *  VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ *  hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *
+</xsl:text>
+  <xsl:value-of select="concat(' * ',$name)"/>
+<xsl:text>
+ *
  * DO NOT EDIT! This is a generated file.
  * Generated from: src/VBox/Main/idl/VirtualBox.xidl (VirtualBox's interface definitions in XML)
- * Generator: src/VBox/Main/idl/comimpl.xsl
- */
-
-/*
- * Copyright (C) 2010-2013 Oracle Corporation
- *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Generator: src/VBox/Main/idl/autogen.xsl
  */
 
 </xsl:text>
@@ -149,12 +149,6 @@
          <xsl:when test="$type='octet'">
           <xsl:value-of select="'BYTE'" />
         </xsl:when>
-        <xsl:when test="$type='unsigned short'">
-          <xsl:value-of select="'USHORT'" />
-        </xsl:when>
-        <xsl:when test="$type='short'">
-          <xsl:value-of select="'SHORT'" />
-        </xsl:when>
         <xsl:when test="$type='unsigned long'">
           <xsl:value-of select="'ULONG'" />
         </xsl:when>
@@ -195,7 +189,7 @@
     <xsl:when test="$safearray='yes'">
       <xsl:variable name="elemtype">
         <xsl:call-template name="typeIdl2Back">
-          <xsl:with-param name="type" select="$type" />
+          <xsl:with-param name="type" select="@type" />
           <xsl:with-param name="safearray" select="''" />
           <xsl:with-param name="dir" select="'in'" />
         </xsl:call-template>
@@ -218,7 +212,7 @@
     <xsl:when test="$safearray='yes'">
       <xsl:variable name="elemtype">
         <xsl:call-template name="typeIdl2Back">
-             <xsl:with-param name="type" select="$type" />
+             <xsl:with-param name="type" select="@type" />
              <xsl:with-param name="safearray" select="''" />
              <xsl:with-param name="dir" select="'in'" />
         </xsl:call-template>
@@ -299,14 +293,14 @@
            </xsl:call-template>
          </xsl:variable>
          <xsl:value-of select="       '#ifdef RT_OS_WINDOWS&#10;'"/>
-         <xsl:value-of select="concat('              SAFEARRAY *aPtr_', @name, ' = va_arg(args, SAFEARRAY *);&#10;')"/>
-         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aPtr_', @name, ');&#10;')"/>
+         <xsl:value-of select="       '              SAFEARRAY *    aPtr = va_arg(args, SAFEARRAY *);&#10;'"/>
+         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr(aPtr);&#10;')"/>
          <xsl:value-of select="       '#else&#10;'"/>
-         <xsl:value-of select="concat('              PRUint32 aArrSize_', @name, ' = va_arg(args, PRUint32);&#10;')"/>
-         <xsl:value-of select="concat('              void*    aPtr_', @name, ' = va_arg(args, void*);&#10;')"/>
-         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr_', @name, '(aArrSize_', @name, ', (', $elemtype,'*)aPtr_', @name, ');&#10;')"/>
+         <xsl:value-of select="       '              PRUint32 aArrSize = va_arg(args, PRUint32);&#10;'"/>
+         <xsl:value-of select="       '              void*    aPtr = va_arg(args, void*);&#10;'"/>
+         <xsl:value-of select="concat('              com::SafeArray&lt;', $elemtype,'&gt;   aArr(aArrSize, (', $elemtype,'*)aPtr);&#10;')"/>
          <xsl:value-of select="       '#endif&#10;'"/>
-         <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(ComSafeArrayAsInParam(aArr_', @name, '));&#10;')"/>
+         <xsl:value-of select="concat('              ',$obj, '->set_', @name, '(ComSafeArrayAsInParam(aArr));&#10;')"/>
       </xsl:when>
       <xsl:otherwise>
         <xsl:value-of select="concat('              ',$aTypeName, ' = va_arg(args, ',$aType,');&#10;')"/>
@@ -327,10 +321,10 @@
   </xsl:variable>
 
   <xsl:choose>
-    <xsl:when test="$name='IEvent'">
+    <xsl:when test="$extends='IEvent'">
       <xsl:value-of select="       '#ifdef VBOX_WITH_XPCOM&#10;'" />
       <xsl:value-of select="concat('NS_DECL_CLASSINFO(', $impl, ')&#10;')" />
-      <xsl:value-of select="concat('NS_IMPL_THREADSAFE_ISUPPORTS',$depth,'_CI(', $impl, $parents, ', IEvent)&#10;')" />
+      <xsl:value-of select="concat('NS_IMPL_THREADSAFE_ISUPPORTS',$depth,'_CI(', $impl, ', ', $name, $parents, ', IEvent)&#10;')" />
       <xsl:value-of select="       '#endif&#10;&#10;'"/>
     </xsl:when>
     <xsl:when test="//interface[@name=$extends]">
@@ -338,7 +332,7 @@
         <xsl:with-param name="impl" select="$impl" />
         <xsl:with-param name="name" select="$extends" />
         <xsl:with-param name="depth" select="$depth+1" />
-        <xsl:with-param name="parents" select="concat($parents, ', ', $name)" />
+        <xsl:with-param name="parents" select="concat($parents, ', ', @name)" />
       </xsl:call-template>
     </xsl:when>
     <xsl:otherwise>
@@ -591,7 +585,7 @@ private:
   <xsl:call-template name="genImplList">
     <xsl:with-param name="impl" select="$implName" />
     <xsl:with-param name="name" select="@name" />
-    <xsl:with-param name="depth" select="'1'" />
+    <xsl:with-param name="depth" select="'2'" />
     <xsl:with-param name="parents" select="''" />
   </xsl:call-template>
 
@@ -748,7 +742,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
   <xsl:variable name="extends">
     <xsl:value-of select="//interface[@name=$name]/@extends" />
   </xsl:variable>
-
+  
   <xsl:choose>
     <xsl:when test="$extends='IEvent'">
     </xsl:when>
@@ -776,7 +770,7 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
         <xsl:with-param name="dir" select="'in'" />
         <xsl:with-param name="mod" select="@mod" />
       </xsl:call-template>
-    </xsl:variable>
+    </xsl:variable>      
     <xsl:value-of select="concat(', ',$aTypeName)"/>
   </xsl:for-each>
 </xsl:template>
@@ -846,13 +840,13 @@ HRESULT VBoxEventDesc::reinit(VBoxEventType_T aType, ...)
     </xsl:call-template>
     <xsl:value-of select="       ')&#10;{&#10;'"/>
 
-    <xsl:value-of select="       '    VBoxEventDesc evDesc;&#10;'"/>
-    <xsl:value-of select="concat('    evDesc.init(aSource, VBoxEventType_',$evid)"/>
+    <xsl:value-of select="       '   VBoxEventDesc evDesc;&#10;'"/>
+    <xsl:value-of select="concat('   evDesc.init(aSource, VBoxEventType_',$evid)"/>
     <xsl:call-template name="genFactParams">
       <xsl:with-param name="name" select="$ifname" />
     </xsl:call-template>
     <xsl:value-of select="');&#10;'"/>
-    <xsl:value-of select="       '    evDesc.fire(/* do not wait for delivery */ 0);&#10;'"/>
+    <xsl:value-of select="       '   evDesc.fire(/* do not wait for delivery */ 0);&#10;'"/>
     <xsl:value-of select="       '}&#10;'"/>
   </xsl:for-each>
 </xsl:template>

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,55 +29,20 @@
 *******************************************************************************/
 #include <iprt/initterm.h>
 
-#include <iprt/asm.h>
-#include <iprt/cpuset.h>
 #include <iprt/err.h>
 #include <iprt/path.h>
 #include <iprt/param.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
-#include <iprt/time.h>
 #include <iprt/thread.h>
 #ifdef VBOX
 # include <VBox/sup.h>
 # include "tstR0ThreadPreemption.h"
 #endif
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
-static bool volatile g_fTerminate = false;
 
-
-/**
- * Try make sure all online CPUs will be engaged.
- */
-static DECLCALLBACK(int) MyThreadProc(RTTHREAD hSelf, void *pvCpuIdx)
-{
-    RTCPUSET Affinity;
-    RTCpuSetEmpty(&Affinity);
-    RTCpuSetAddByIndex(&Affinity, (intptr_t)pvCpuIdx);
-    RTThreadSetAffinity(&Affinity); /* ignore return code as it's not supported on all hosts. */
-
-    while (!g_fTerminate)
-    {
-        uint64_t tsStart = RTTimeMilliTS();
-        do
-        {
-            ASMNopPause();
-        } while (RTTimeMilliTS() - tsStart < 8);
-        RTThreadSleep(4);
-    }
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- *  Entry point.
- */
-extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
+int main(int argc, char **argv)
 {
 #ifndef VBOX
     RTPrintf("tstSup: SKIPPED\n");
@@ -149,8 +114,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                                              TSTR0THREADPREMEPTION_SANITY_FAILURE, 0, &Req.Hdr), VINF_SUCCESS);
     if (RT_FAILURE(rc))
         return RTTestSummaryAndDestroy(hTest);
-    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")), ("%s", Req.szMsg));
-    if (strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")))
+    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1), ("%s", Req.szMsg));
+    if (strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1))
         return RTTestSummaryAndDestroy(hTest);
 
     /*
@@ -173,39 +138,10 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%s", Req.szMsg);
 
     /*
-     * Is it trusty.
-     */
-    RTTestSub(hTest, "RTThreadPreemptIsPendingTrusty");
-    Req.Hdr.u32Magic = SUPR0SERVICEREQHDR_MAGIC;
-    Req.Hdr.cbReq = sizeof(Req);
-    Req.szMsg[0] = '\0';
-    RTTESTI_CHECK_RC(rc = SUPR3CallR0Service("tstR0ThreadPreemption", sizeof("tstR0ThreadPreemption") - 1,
-                                             TSTR0THREADPREMEPTION_IS_TRUSTY, 0, &Req.Hdr), VINF_SUCCESS);
-    if (RT_FAILURE(rc))
-        return RTTestSummaryAndDestroy(hTest);
-    if (Req.szMsg[0] == '!')
-        RTTestIFailed("%s", &Req.szMsg[1]);
-    else if (Req.szMsg[0])
-        RTTestIPrintf(RTTESTLVL_ALWAYS, "%s", Req.szMsg);
-
-    /*
      * Stay in ring-0 until preemption is pending.
      */
-    RTTHREAD ahThreads[RTCPUSET_MAX_CPUS];
-    uint32_t cThreads = RTMpGetCount();
-    RTCPUSET OnlineSet;
-    RTMpGetOnlineSet(&OnlineSet);
-    for (uint32_t i = 0; i < RT_ELEMENTS(ahThreads); i++)
-    {
-        ahThreads[i] = NIL_RTTHREAD;
-        if (RTCpuSetIsMemberByIndex(&OnlineSet, i))
-            RTThreadCreateF(&ahThreads[i], MyThreadProc, (void *)(uintptr_t)i, 0, RTTHREADTYPE_DEFAULT,
-                            RTTHREADFLAGS_WAITABLE, "cpu=%u", i);
-    }
-
-
+RTThreadSleep(250); /** @todo fix GIP initialization? */
     RTTestSub(hTest, "Pending Preemption");
-    RTThreadSleep(250); /** @todo fix GIP initialization? */
     for (int i = 0; ; i++)
     {
         Req.Hdr.u32Magic = SUPR0SERVICEREQHDR_MAGIC;
@@ -213,7 +149,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         Req.szMsg[0] = '\0';
         RTTESTI_CHECK_RC(rc = SUPR3CallR0Service("tstR0ThreadPreemption", sizeof("tstR0ThreadPreemption") - 1,
                                                  TSTR0THREADPREMEPTION_IS_PENDING, 0, &Req.Hdr), VINF_SUCCESS);
-        if (    strcmp(Req.szMsg, "!cLoops=1\n")
+        if (    strcmp(Req.szMsg, "cLoops=1\n")
             ||  i >= 64)
         {
             if (Req.szMsg[0] == '!')
@@ -224,14 +160,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
         if ((i % 3) == 0)
             RTThreadYield();
-        else if ((i % 16) == 0)
-            RTThreadSleep(8);
     }
-
-    ASMAtomicWriteBool(&g_fTerminate, true);
-    for (uint32_t i = 0; i < RT_ELEMENTS(ahThreads); i++)
-        if (ahThreads[i] != NIL_RTTHREAD)
-            RTThreadWait(ahThreads[i], 5000, NULL);
 
     /*
      * Test nested RTThreadPreemptDisable calls.
@@ -247,55 +176,10 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     else if (Req.szMsg[0])
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%s", Req.szMsg);
 
-
-    /*
-     * Test thread-context hooks.
-     */
-    RTTestSub(hTest, "RTThreadCtxHooks");
-    uint64_t u64StartTS = RTTimeMilliTS();
-    uint64_t cMsMax     = 60000;        /* ca. 1 minute timeout. */
-    uint64_t cMsElapsed;
-    for (unsigned i = 0; i < 50; i++)
-    {
-        Req.Hdr.u32Magic = SUPR0SERVICEREQHDR_MAGIC;
-        Req.Hdr.cbReq = sizeof(Req);
-        Req.szMsg[0] = '\0';
-        RTTESTI_CHECK_RC(rc = SUPR3CallR0Service("tstR0ThreadPreemption", sizeof("tstR0ThreadPreemption") - 1,
-                                                 TSTR0THREADPREEMPTION_CTXHOOKS, 0, &Req.Hdr), VINF_SUCCESS);
-        if (RT_FAILURE(rc))
-            return RTTestSummaryAndDestroy(hTest);
-        if (Req.szMsg[0] == '!')
-            RTTestIFailed("%s", &Req.szMsg[1]);
-        else if (Req.szMsg[0])
-            RTTestIPrintf(RTTESTLVL_ALWAYS, "%s", Req.szMsg);
-        if (!(i % 10))
-            RTTestIPrintf(RTTESTLVL_ALWAYS, "RTThreadCtxHooks passed %u iteration(s)\n", i);
-
-        /* Check timeout and bail. */
-        cMsElapsed = RTTimeMilliTS() - u64StartTS;
-        if (cMsElapsed > cMsMax)
-        {
-            RTTestIPrintf(RTTESTLVL_INFO, "RTThreadCtxHooks Stopping iterations. %RU64 ms. for %u iterations.\n",
-                          cMsElapsed, i);
-            break;
-        }
-    }
-
     /*
      * Done.
      */
     return RTTestSummaryAndDestroy(hTest);
 #endif
 }
-
-
-#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
-/**
- * Main entry point.
- */
-int main(int argc, char **argv, char **envp)
-{
-    return TrustedMain(argc, argv, envp);
-}
-#endif
 

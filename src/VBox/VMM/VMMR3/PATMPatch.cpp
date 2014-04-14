@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,25 +22,28 @@
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
+#include <VBox/vmm/stam.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/mm.h>
-#include <VBox/vmm/em.h>
 #include <VBox/vmm/trpm.h>
-#include <VBox/vmm/csam.h>
+#include <VBox/param.h>
+#include <iprt/avl.h>
 #include "PATMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/param.h>
+#include <VBox/vmm/csam.h>
 
+#include <VBox/dbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <VBox/dis.h>
-#include <VBox/disopcode.h>
-
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
+#include <VBox/dis.h>
+#include <VBox/disopcode.h>
 
+#include <stdlib.h>
+#include <stdio.h>
 #include "PATMA.h"
 #include "PATMPatch.h"
 
@@ -370,7 +373,7 @@ static uint32_t patmPatchGenCode(PVM pVM, PPATCHINFO pPatch, uint8_t *pPB, PPATC
 
         /* Add lookup record for patch to guest address translation */
         Assert(pPB[pAsmRecord->offJump - 1] == 0xE9);
-        patmR3AddP2GLookupRecord(pVM, pPatch, &pPB[pAsmRecord->offJump - 1], pReturnAddrGC, PATM_LOOKUP_PATCH2GUEST);
+        patmr3AddP2GLookupRecord(pVM, pPatch, &pPB[pAsmRecord->offJump - 1], pReturnAddrGC, PATM_LOOKUP_PATCH2GUEST);
 
         *(uint32_t *)&pPB[pAsmRecord->offJump] = displ;
         patmPatchAddReloc32(pVM, pPatch, &pPB[pAsmRecord->offJump], FIXUP_REL_JMPTOGUEST,
@@ -417,10 +420,9 @@ int patmPatchGenDuplicate(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTY
     int rc = VINF_SUCCESS;
     PATCHGEN_PROLOG(pVM, pPatch);
 
-    uint32_t const cbInstrShutUpGcc = pCpu->cbInstr;
-    rc = patmPatchReadBytes(pVM, pPB, pCurInstrGC, cbInstrShutUpGcc);
+    rc = patmPatchReadBytes(pVM, pPB, pCurInstrGC, pCpu->opsize);
     AssertRC(rc);
-    PATCHGEN_EPILOG(pPatch, cbInstrShutUpGcc);
+    PATCHGEN_EPILOG(pPatch, pCpu->opsize);
     return rc;
 }
 
@@ -432,12 +434,10 @@ int patmPatchGenIret(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, bool fSize
     PATCHGEN_PROLOG(pVM, pPatch);
 
     AssertMsg(fSizeOverride == false, ("operand size override!!\n"));
+
     callInfo.pCurInstrGC = pCurInstrGC;
 
-    if (EMIsRawRing1Enabled(pVM))
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretRing1Record, 0, false, &callInfo);
-    else
-        size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretRecord, 0, false, &callInfo);
+    size = patmPatchGenCode(pVM, pPatch, pPB, &PATMIretRecord, 0, false, &callInfo);
 
     PATCHGEN_EPILOG(pPatch, size);
     return VINF_SUCCESS;
@@ -635,7 +635,7 @@ int patmPatchGenRelJump(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pTarget
     case OP_JMP:
         /* If interrupted here, then jump to the target instruction. Used by PATM.cpp for jumping to known instructions. */
         /* Add lookup record for patch to guest address translation */
-        patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pTargetGC, PATM_LOOKUP_PATCH2GUEST);
+        patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pTargetGC, PATM_LOOKUP_PATCH2GUEST);
 
         pPB[0] = 0xE9;
         break;
@@ -692,38 +692,38 @@ int patmPatchGenCall(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     if (fIndirect)
     {
         Log(("patmPatchGenIndirectCall\n"));
-        Assert(pCpu->Param1.cb == 4);
-        Assert(OP_PARM_VTYPE(pCpu->pCurInstr->fParam1) != OP_PARM_J);
+        Assert(pCpu->param1.size == 4);
+        Assert(OP_PARM_VTYPE(pCpu->pCurInstr->param1) != OP_PARM_J);
 
         /* We push it onto the stack here, so the guest's context isn't ruined when this happens to cause
          * a page fault. The assembly code restores the stack afterwards.
          */
         offset = 0;
         /* include prefix byte to make sure we don't use the incorrect selector register. */
-        if (pCpu->fPrefix & DISPREFIX_SEG)
+        if (pCpu->prefix & PREFIX_SEG)
             pPB[offset++] = DISQuerySegPrefixByte(pCpu);
         pPB[offset++] = 0xFF;              // push r/m32
         pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, 6 /* group 5 */, pCpu->ModRM.Bits.Rm);
         i = 2;  /* standard offset of modrm bytes */
-        if (pCpu->fPrefix & DISPREFIX_OPSIZE)
+        if (pCpu->prefix & PREFIX_OPSIZE)
             i++;    //skip operand prefix
-        if (pCpu->fPrefix & DISPREFIX_SEG)
+        if (pCpu->prefix & PREFIX_SEG)
             i++;    //skip segment prefix
 
-        rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->cbInstr - i);
+        rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->opsize - i);
         AssertRCReturn(rc, rc);
-        offset += (pCpu->cbInstr - i);
+        offset += (pCpu->opsize - i);
     }
     else
     {
         AssertMsg(PATMIsPatchGCAddr(pVM, pTargetGC) == false, ("Target is already a patch address (%RRv)?!?\n", pTargetGC));
         Assert(pTargetGC);
-        Assert(OP_PARM_VTYPE(pCpu->pCurInstr->fParam1) == OP_PARM_J);
+        Assert(OP_PARM_VTYPE(pCpu->pCurInstr->param1) == OP_PARM_J);
 
         /** @todo wasting memory as the complex search is overkill and we need only one lookup slot... */
 
         /* Relative call to patch code (patch to patch -> no fixup). */
-        Log(("PatchGenCall from %RRv (next=%RRv) to %RRv\n", pCurInstrGC, pCurInstrGC + pCpu->cbInstr, pTargetGC));
+        Log(("PatchGenCall from %RRv (next=%RRv) to %RRv\n", pCurInstrGC, pCurInstrGC + pCpu->opsize, pTargetGC));
 
         /* We push it onto the stack here, so the guest's context isn't ruined when this happens to cause
          * a page fault. The assembly code restores the stack afterwards.
@@ -747,7 +747,7 @@ int patmPatchGenCall(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
 
     /* 3: Generate code to lookup address in our local cache; call hypervisor PATM code if it can't be located. */
     PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    callInfo.pReturnGC      = pCurInstrGC + pCpu->cbInstr;
+    callInfo.pReturnGC      = pCurInstrGC + pCpu->opsize;
     callInfo.pTargetGC      = (fIndirect) ? 0xDEADBEEF : pTargetGC;
     size = patmPatchGenCode(pVM, pPatch, pPB, (fIndirect) ? &PATMCallIndirectRecord : &PATMCallRecord, 0, false, &callInfo);
     PATCHGEN_EPILOG(pPatch, size);
@@ -766,7 +766,7 @@ int patmPatchGenCall(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
  * Generate indirect jump to unknown destination
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pCpu        Disassembly state
  * @param   pCurInstrGC Current instruction address
@@ -788,28 +788,28 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     /* 2: We must push the target address onto the stack before appending the indirect call code. */
 
     Log(("patmPatchGenIndirectJump\n"));
-    Assert(pCpu->Param1.cb == 4);
-    Assert(OP_PARM_VTYPE(pCpu->pCurInstr->fParam1) != OP_PARM_J);
+    Assert(pCpu->param1.size == 4);
+    Assert(OP_PARM_VTYPE(pCpu->pCurInstr->param1) != OP_PARM_J);
 
     /* We push it onto the stack here, so the guest's context isn't ruined when this happens to cause
      * a page fault. The assembly code restores the stack afterwards.
      */
     offset = 0;
     /* include prefix byte to make sure we don't use the incorrect selector register. */
-    if (pCpu->fPrefix & DISPREFIX_SEG)
+    if (pCpu->prefix & PREFIX_SEG)
         pPB[offset++] = DISQuerySegPrefixByte(pCpu);
 
     pPB[offset++] = 0xFF;              // push r/m32
     pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, 6 /* group 5 */, pCpu->ModRM.Bits.Rm);
     i = 2;  /* standard offset of modrm bytes */
-    if (pCpu->fPrefix & DISPREFIX_OPSIZE)
+    if (pCpu->prefix & PREFIX_OPSIZE)
         i++;    //skip operand prefix
-    if (pCpu->fPrefix & DISPREFIX_SEG)
+    if (pCpu->prefix & PREFIX_SEG)
         i++;    //skip segment prefix
 
-    rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->cbInstr - i);
+    rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->opsize - i);
     AssertRCReturn(rc, rc);
-    offset += (pCpu->cbInstr - i);
+    offset += (pCpu->opsize - i);
 
     /* align this block properly to make sure the jump table will not be misaligned. */
     size = (RTHCUINTPTR)&pPB[offset] & 3;
@@ -824,7 +824,7 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
 
     /* 3: Generate code to lookup address in our local cache; call hypervisor PATM code if it can't be located. */
     PATCHGEN_PROLOG_NODEF(pVM, pPatch);
-    callInfo.pReturnGC      = pCurInstrGC + pCpu->cbInstr;
+    callInfo.pReturnGC      = pCurInstrGC + pCpu->opsize;
     callInfo.pTargetGC      = 0xDEADBEEF;
     size = patmPatchGenCode(pVM, pPatch, pPB, &PATMJumpIndirectRecord, 0, false, &callInfo);
     PATCHGEN_EPILOG(pPatch, size);
@@ -837,7 +837,7 @@ int patmPatchGenJump(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
  * Generate return instruction
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  * @param   pCpu        Disassembly struct
  * @param   pCurInstrGC Current instruction pointer
@@ -855,16 +855,16 @@ int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uin
 
     /** @note optimization: multiple identical ret instruction in a single patch can share a single patched ret. */
     if (    pPatch->pTempInfo->pPatchRetInstrGC
-        &&  pPatch->pTempInfo->uPatchRetParam1 == (uint32_t)pCpu->Param1.uValue) /* nr of bytes popped off the stack should be identical of course! */
+        &&  pPatch->pTempInfo->uPatchRetParam1 == (uint32_t)pCpu->param1.parval) /* nr of bytes popped off the stack should be identical of course! */
     {
-        Assert(pCpu->pCurInstr->uOpcode == OP_RETN);
+        Assert(pCpu->pCurInstr->opcode == OP_RETN);
         STAM_COUNTER_INC(&pVM->patm.s.StatGenRetReused);
 
         return patmPatchGenPatchJump(pVM, pPatch, pCurInstrGC, pPatch->pTempInfo->pPatchRetInstrGC);
     }
 
     /* Jump back to the original instruction if IF is set again. */
-    Assert(!patmFindActivePatchByEntrypoint(pVM, pCurInstrGC));
+    Assert(!PATMFindActivePatchByEntrypoint(pVM, pCurInstrGC));
     rc = patmPatchGenCheckIF(pVM, pPatch, pCurInstrGC);
     AssertRCReturn(rc, rc);
 
@@ -889,7 +889,7 @@ int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uin
     if (rc == VINF_SUCCESS)
     {
         pPatch->pTempInfo->pPatchRetInstrGC = pPatchRetInstrGC;
-        pPatch->pTempInfo->uPatchRetParam1  = pCpu->Param1.uValue;
+        pPatch->pTempInfo->uPatchRetParam1  = pCpu->param1.parval;
     }
     return rc;
 }
@@ -898,7 +898,7 @@ int patmPatchGenRet(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RCPTRTYPE(uin
  * Generate all global patm functions
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  *
  */
@@ -947,7 +947,7 @@ int patmPatchGenGlobalFunctions(PVM pVM, PPATCHINFO pPatch)
  * Generate illegal instruction (int 3)
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  *
  */
@@ -965,7 +965,7 @@ int patmPatchGenIllegalInstr(PVM pVM, PPATCHINFO pPatch)
  * Check virtual IF flag and jump back to original guest code if set
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  * @param   pCurInstrGC Guest context pointer to the current instruction
  *
@@ -977,7 +977,7 @@ int patmPatchGenCheckIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pCurInstrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pCurInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate code to check for IF=1 before executing the call to the duplicated function. */
     size = patmPatchGenCode(pVM, pPatch, pPB, &PATMCheckIFRecord, pCurInstrGC, true);
@@ -990,7 +990,7 @@ int patmPatchGenCheckIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
  * Set PATM interrupt flag
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  * @param   pInstrGC    Corresponding guest instruction
  *
@@ -1000,7 +1000,7 @@ int patmPatchGenSetPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     int size = patmPatchGenCode(pVM, pPatch, pPB, &PATMSetPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
@@ -1011,7 +1011,7 @@ int patmPatchGenSetPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
  * Clear PATM interrupt flag
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch structure
  * @param   pInstrGC    Corresponding guest instruction
  *
@@ -1021,7 +1021,7 @@ int patmPatchGenClearPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     int size = patmPatchGenCode(pVM, pPatch, pPB, &PATMClearPIFRecord, 0, false);
     PATCHGEN_EPILOG(pPatch, size);
@@ -1033,7 +1033,7 @@ int patmPatchGenClearPIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
  * Clear PATM inhibit irq flag
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The VM to operate on.
  * @param   pPatch          Patch structure
  * @param   pNextInstrGC    Next guest instruction
  */
@@ -1047,7 +1047,7 @@ int patmPatchGenClearInhibitIRQ(PVM pVM, PPATCHINFO pPatch, RTRCPTR pNextInstrGC
     Assert((pPatch->flags & (PATMFL_GENERATE_JUMPTOGUEST|PATMFL_DUPLICATE_FUNCTION)) != (PATMFL_GENERATE_JUMPTOGUEST|PATMFL_DUPLICATE_FUNCTION));
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pNextInstrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pNextInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     callInfo.pNextInstrGC = pNextInstrGC;
 
@@ -1064,7 +1064,7 @@ int patmPatchGenClearInhibitIRQ(PVM pVM, PPATCHINFO pPatch, RTRCPTR pNextInstrGC
  * Generate an interrupt handler entrypoint
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pIntHandlerGC IDT handler address
  *
@@ -1072,25 +1072,20 @@ int patmPatchGenClearInhibitIRQ(PVM pVM, PPATCHINFO pPatch, RTRCPTR pNextInstrGC
  */
 int patmPatchGenIntEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pIntHandlerGC)
 {
+    uint32_t size;
     int rc = VINF_SUCCESS;
 
-    if (!EMIsRawRing1Enabled(pVM))    /* direct passthru of interrupts is not allowed in the ring-1 support case as we can't
-                                         deal with the ring-1/2 ambiguity in the patm asm code and we don't need it either as
-                                         TRPMForwardTrap takes care of the details. */
-    {
-        uint32_t size;
-        PATCHGEN_PROLOG(pVM, pPatch);
+    PATCHGEN_PROLOG(pVM, pPatch);
 
-        /* Add lookup record for patch to guest address translation */
-        patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pIntHandlerGC, PATM_LOOKUP_PATCH2GUEST);
+    /* Add lookup record for patch to guest address translation */
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pIntHandlerGC, PATM_LOOKUP_PATCH2GUEST);
 
-        /* Generate entrypoint for the interrupt handler (correcting CS in the interrupt stack frame) */
-        size = patmPatchGenCode(pVM, pPatch, pPB,
-                                (pPatch->flags & PATMFL_INTHANDLER_WITH_ERRORCODE) ? &PATMIntEntryRecordErrorCode : &PATMIntEntryRecord,
-                                0, false);
+    /* Generate entrypoint for the interrupt handler (correcting CS in the interrupt stack frame) */
+    size = patmPatchGenCode(pVM, pPatch, pPB,
+                            (pPatch->flags & PATMFL_INTHANDLER_WITH_ERRORCODE) ? &PATMIntEntryRecordErrorCode : &PATMIntEntryRecord,
+                            0, false);
 
-        PATCHGEN_EPILOG(pPatch, size);
-    }
+    PATCHGEN_EPILOG(pPatch, size);
 
     // Interrupt gates set IF to 0
     rc = patmPatchGenCli(pVM, pPatch);
@@ -1103,7 +1098,7 @@ int patmPatchGenIntEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pIntHandlerGC)
  * Generate a trap handler entrypoint
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pTrapHandlerGC  IDT handler address
  */
@@ -1111,12 +1106,10 @@ int patmPatchGenTrapEntry(PVM pVM, PPATCHINFO pPatch, RTRCPTR pTrapHandlerGC)
 {
     uint32_t size;
 
-    Assert(!EMIsRawRing1Enabled(pVM));
-
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pTrapHandlerGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pTrapHandlerGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate entrypoint for the trap handler (correcting CS in the interrupt stack frame) */
     size = patmPatchGenCode(pVM, pPatch, pPB,
@@ -1135,7 +1128,7 @@ int patmPatchGenStats(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for stats code -> guest handler. */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pInstrGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate code to keep calling statistics for this patch */
     size = patmPatchGenCode(pVM, pPatch, pPB, &PATMStatsRecord, pInstrGC, false);
@@ -1156,39 +1149,39 @@ int patmPatchGenStats(PVM pVM, PPATCHINFO pPatch, RTRCPTR pInstrGC)
 int patmPatchGenMovDebug(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
 {
     int rc = VINF_SUCCESS;
-    unsigned reg, mod, rm, dbgreg;
+    int reg, mod, rm, dbgreg;
     uint32_t offset;
 
     PATCHGEN_PROLOG(pVM, pPatch);
 
     mod = 0;            //effective address (only)
     rm  = 5;            //disp32
-    if (pCpu->pCurInstr->fParam1 == OP_PARM_Dd)
+    if (pCpu->pCurInstr->param1 == OP_PARM_Dd)
     {
         Assert(0);  // You not come here. Illegal!
 
         // mov DRx, GPR
         pPB[0] = 0x89;      //mov disp32, GPR
-        Assert(pCpu->Param1.fUse & DISUSE_REG_DBG);
-        Assert(pCpu->Param2.fUse & DISUSE_REG_GEN32);
+        Assert(pCpu->param1.flags & USE_REG_DBG);
+        Assert(pCpu->param2.flags & USE_REG_GEN32);
 
-        dbgreg = pCpu->Param1.Base.idxDbgReg;
-        reg    = pCpu->Param2.Base.idxGenReg;
+        dbgreg = pCpu->param1.base.reg_dbg;
+        reg    = pCpu->param2.base.reg_gen;
     }
     else
     {
         // mov GPR, DRx
-        Assert(pCpu->Param1.fUse & DISUSE_REG_GEN32);
-        Assert(pCpu->Param2.fUse & DISUSE_REG_DBG);
+        Assert(pCpu->param1.flags & USE_REG_GEN32);
+        Assert(pCpu->param2.flags & USE_REG_DBG);
 
         pPB[0] = 0x8B;      // mov GPR, disp32
-        reg    = pCpu->Param1.Base.idxGenReg;
-        dbgreg = pCpu->Param2.Base.idxDbgReg;
+        reg    = pCpu->param1.base.reg_gen;
+        dbgreg = pCpu->param2.base.reg_dbg;
     }
 
     pPB[1] = MAKE_MODRM(mod, reg, rm);
 
-    AssertReturn(dbgreg <= DISDREG_DR7, VERR_INVALID_PARAMETER);
+    AssertReturn(dbgreg <= USE_REG_DR7, VERR_INVALID_PARAMETER);
     offset = RT_OFFSETOF(CPUMCTX, dr[dbgreg]);
 
     *(RTRCPTR *)&pPB[2] = pVM->patm.s.pCPUMCtxGC + offset;
@@ -1213,26 +1206,26 @@ int patmPatchGenMovControl(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
 
     mod = 0;            //effective address (only)
     rm  = 5;            //disp32
-    if (pCpu->pCurInstr->fParam1 == OP_PARM_Cd)
+    if (pCpu->pCurInstr->param1 == OP_PARM_Cd)
     {
         Assert(0);  // You not come here. Illegal!
 
         // mov CRx, GPR
         pPB[0] = 0x89;      //mov disp32, GPR
-        ctrlreg = pCpu->Param1.Base.idxCtrlReg;
-        reg     = pCpu->Param2.Base.idxGenReg;
-        Assert(pCpu->Param1.fUse & DISUSE_REG_CR);
-        Assert(pCpu->Param2.fUse & DISUSE_REG_GEN32);
+        ctrlreg = pCpu->param1.base.reg_ctrl;
+        reg     = pCpu->param2.base.reg_gen;
+        Assert(pCpu->param1.flags & USE_REG_CR);
+        Assert(pCpu->param2.flags & USE_REG_GEN32);
     }
     else
     {
-        // mov GPR, CRx
-        Assert(pCpu->Param1.fUse & DISUSE_REG_GEN32);
-        Assert(pCpu->Param2.fUse & DISUSE_REG_CR);
+        // mov GPR, DRx
+        Assert(pCpu->param1.flags & USE_REG_GEN32);
+        Assert(pCpu->param2.flags & USE_REG_CR);
 
         pPB[0]  = 0x8B;      // mov GPR, disp32
-        reg     = pCpu->Param1.Base.idxGenReg;
-        ctrlreg = pCpu->Param2.Base.idxCtrlReg;
+        reg     = pCpu->param1.base.reg_gen;
+        ctrlreg = pCpu->param2.base.reg_ctrl;
     }
 
     pPB[1] = MAKE_MODRM(mod, reg, rm);
@@ -1240,16 +1233,16 @@ int patmPatchGenMovControl(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu)
     /// @todo: make this an array in the context structure
     switch (ctrlreg)
     {
-    case DISCREG_CR0:
+    case USE_REG_CR0:
         offset = RT_OFFSETOF(CPUMCTX, cr0);
         break;
-    case DISCREG_CR2:
+    case USE_REG_CR2:
         offset = RT_OFFSETOF(CPUMCTX, cr2);
         break;
-    case DISCREG_CR3:
+    case USE_REG_CR3:
         offset = RT_OFFSETOF(CPUMCTX, cr3);
         break;
-    case DISCREG_CR4:
+    case USE_REG_CR4:
         offset = RT_OFFSETOF(CPUMCTX, cr4);
         break;
     default: /* Shut up compiler warning. */
@@ -1282,7 +1275,7 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
     /* push ss */
     PATCHGEN_PROLOG_NODEF(pVM, pPatch);
     offset = 0;
-    if (pCpu->fPrefix & DISPREFIX_OPSIZE)
+    if (pCpu->prefix & PREFIX_OPSIZE)
         pPB[offset++] = 0x66;       /* size override -> 16 bits push */
     pPB[offset++] = 0x16;
     PATCHGEN_EPILOG(pPatch, offset);
@@ -1295,9 +1288,9 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
     /* pop general purpose register */
     PATCHGEN_PROLOG_NODEF(pVM, pPatch);
     offset = 0;
-    if (pCpu->fPrefix & DISPREFIX_OPSIZE)
+    if (pCpu->prefix & PREFIX_OPSIZE)
         pPB[offset++] = 0x66; /* size override -> 16 bits pop */
-    pPB[offset++] = 0x58 + pCpu->Param1.Base.idxGenReg;
+    pPB[offset++] = 0x58 + pCpu->param1.base.reg_gen;
     PATCHGEN_EPILOG(pPatch, offset);
 
 
@@ -1313,7 +1306,7 @@ int patmPatchGenMovFromSS(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR
  * Generate an sldt or str patch instruction
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pCpu        Disassembly state
  * @param   pCurInstrGC Guest instruction address
@@ -1326,22 +1319,22 @@ int patmPatchGenSldtStr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR p
     uint32_t i;
 
     /** @todo segment prefix (untested) */
-    Assert(pCpu->fPrefix == DISPREFIX_NONE || pCpu->fPrefix == DISPREFIX_OPSIZE);
+    Assert(pCpu->prefix == PREFIX_NONE || pCpu->prefix == PREFIX_OPSIZE);
 
     PATCHGEN_PROLOG(pVM, pPatch);
 
-    if (pCpu->Param1.fUse == DISUSE_REG_GEN32 || pCpu->Param1.fUse == DISUSE_REG_GEN16)
+    if (pCpu->param1.flags == USE_REG_GEN32 || pCpu->param1.flags == USE_REG_GEN16)
     {
         /* Register operand */
         // 8B 15 [32 bits addr]   mov edx, CPUMCTX.tr/ldtr
 
-        if (pCpu->fPrefix == DISPREFIX_OPSIZE)
+        if (pCpu->prefix == PREFIX_OPSIZE)
             pPB[offset++] = 0x66;
 
         pPB[offset++] = 0x8B;              // mov       destreg, CPUMCTX.tr/ldtr
         /* Modify REG part according to destination of original instruction */
-        pPB[offset++] = MAKE_MODRM(0, pCpu->Param1.Base.idxGenReg, 5);
-        if (pCpu->pCurInstr->uOpcode == OP_STR)
+        pPB[offset++] = MAKE_MODRM(0, pCpu->param1.base.reg_gen, 5);
+        if (pCpu->pCurInstr->opcode == OP_STR)
         {
             *(RTRCPTR *)&pPB[offset] = pVM->patm.s.pCPUMCtxGC + RT_OFFSETOF(CPUMCTX, tr);
         }
@@ -1366,27 +1359,27 @@ int patmPatchGenSldtStr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR p
         pPB[offset++] = 0x50;              // push      eax
         pPB[offset++] = 0x52;              // push      edx
 
-        if (pCpu->fPrefix == DISPREFIX_SEG)
+        if (pCpu->prefix == PREFIX_SEG)
         {
             pPB[offset++] = DISQuerySegPrefixByte(pCpu);
         }
         pPB[offset++] = 0x8D;              // lea       edx, dword ptr [dest]
         // duplicate and modify modrm byte and additional bytes if present (e.g. direct address)
-        pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, DISGREG_EDX , pCpu->ModRM.Bits.Rm);
+        pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, USE_REG_EDX, pCpu->ModRM.Bits.Rm);
 
         i = 3;  /* standard offset of modrm bytes */
-        if (pCpu->fPrefix == DISPREFIX_OPSIZE)
+        if (pCpu->prefix == PREFIX_OPSIZE)
             i++;    //skip operand prefix
-        if (pCpu->fPrefix == DISPREFIX_SEG)
+        if (pCpu->prefix == PREFIX_SEG)
             i++;    //skip segment prefix
 
-        rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->cbInstr - i);
+        rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->opsize - i);
         AssertRCReturn(rc, rc);
-        offset += (pCpu->cbInstr - i);
+        offset += (pCpu->opsize - i);
 
         pPB[offset++] = 0x66;              // mov       ax, CPUMCTX.tr/ldtr
         pPB[offset++] = 0xA1;
-        if (pCpu->pCurInstr->uOpcode == OP_STR)
+        if (pCpu->pCurInstr->opcode == OP_STR)
         {
             *(RTRCPTR *)&pPB[offset] = pVM->patm.s.pCPUMCtxGC + RT_OFFSETOF(CPUMCTX, tr);
         }
@@ -1414,7 +1407,7 @@ int patmPatchGenSldtStr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR p
  * Generate an sgdt or sidt patch instruction
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pCpu        Disassembly state
  * @param   pCurInstrGC Guest instruction address
@@ -1426,12 +1419,12 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     uint32_t i;
 
     /* @todo segment prefix (untested) */
-    Assert(pCpu->fPrefix == DISPREFIX_NONE);
+    Assert(pCpu->prefix == PREFIX_NONE);
 
     // sgdt %Ms
     // sidt %Ms
 
-    switch (pCpu->pCurInstr->uOpcode)
+    switch (pCpu->pCurInstr->opcode)
     {
     case OP_SGDT:
         offset_base  = RT_OFFSETOF(CPUMCTX, gdtr.pGdt);
@@ -1461,22 +1454,22 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
     pPB[offset++] = 0x50;              // push      eax
     pPB[offset++] = 0x52;              // push      edx
 
-    if (pCpu->fPrefix == DISPREFIX_SEG)
+    if (pCpu->prefix == PREFIX_SEG)
     {
         pPB[offset++] = DISQuerySegPrefixByte(pCpu);
     }
     pPB[offset++] = 0x8D;              // lea       edx, dword ptr [dest]
     // duplicate and modify modrm byte and additional bytes if present (e.g. direct address)
-    pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, DISGREG_EDX , pCpu->ModRM.Bits.Rm);
+    pPB[offset++] = MAKE_MODRM(pCpu->ModRM.Bits.Mod, USE_REG_EDX, pCpu->ModRM.Bits.Rm);
 
     i = 3;  /* standard offset of modrm bytes */
-    if (pCpu->fPrefix == DISPREFIX_OPSIZE)
+    if (pCpu->prefix == PREFIX_OPSIZE)
         i++;    //skip operand prefix
-    if (pCpu->fPrefix == DISPREFIX_SEG)
+    if (pCpu->prefix == PREFIX_SEG)
         i++;    //skip segment prefix
-    rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->cbInstr - i);
+    rc = patmPatchReadBytes(pVM, &pPB[offset], (RTRCPTR)((RTGCUINTPTR32)pCurInstrGC + i), pCpu->opsize - i);
     AssertRCReturn(rc, rc);
-    offset += (pCpu->cbInstr - i);
+    offset += (pCpu->opsize - i);
 
     pPB[offset++] = 0x66;              // mov       ax, CPUMCTX.gdtr.limit
     pPB[offset++] = 0xA1;
@@ -1509,7 +1502,7 @@ int patmPatchGenSxDT(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR pCur
  * Generate a cpuid patch instruction
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pCurInstrGC Guest instruction address
  */
@@ -1521,7 +1514,6 @@ int patmPatchGenCpuid(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
     size = patmPatchGenCode(pVM, pPatch, pPB, &PATMCpuidRecord, 0, false);
 
     PATCHGEN_EPILOG(pPatch, size);
-    NOREF(pCurInstrGC);
     return VINF_SUCCESS;
 }
 
@@ -1529,7 +1521,7 @@ int patmPatchGenCpuid(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC)
  * Generate the jump from guest to patch code
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @param   pPatch      Patch record
  * @param   pTargetGC   Guest target jump
  * @param   fClearInhibitIRQs   Clear inhibit irq flag
@@ -1550,7 +1542,7 @@ int patmPatchGenJumpToGuest(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pRe
     PATCHGEN_PROLOG(pVM, pPatch);
 
     /* Add lookup record for patch to guest address translation */
-    patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pReturnAddrGC, PATM_LOOKUP_PATCH2GUEST);
+    patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pReturnAddrGC, PATM_LOOKUP_PATCH2GUEST);
 
     /* Generate code to jump to guest code if IF=1, else fault. */
     size = patmPatchGenCode(pVM, pPatch, pPB, &PATMJumpToGuest_IF1Record, pReturnAddrGC, true);
@@ -1573,7 +1565,7 @@ int patmPatchGenPatchJump(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC, RCPTR
     if (fAddLookupRecord)
     {
         /* Add lookup record for patch to guest address translation */
-        patmR3AddP2GLookupRecord(pVM, pPatch, pPB, pCurInstrGC, PATM_LOOKUP_PATCH2GUEST);
+        patmr3AddP2GLookupRecord(pVM, pPatch, pPB, pCurInstrGC, PATM_LOOKUP_PATCH2GUEST);
     }
 
     pPB[0] = 0xE9;  //JMP

@@ -45,22 +45,10 @@ void test3()
     for (unsigned i = 0; i < 100 && cStartErrors == RTTestErrorCount(g_hTest); i++)
     {
         PRTTCPSERVER pServer;
-        int rc = RTTcpServerCreate("localhost", 9999, RTTHREADTYPE_DEFAULT, "server-2", test3Server, NULL, &pServer);
-#ifdef RT_OS_SOLARIS
-        /** @todo testboxsh1 occationally hits this for some stupid reason. i=21 in
-         *        one occurrence. Fudge a bit for now and see if it helps. */
-        if (rc == VERR_NET_ADDRESS_IN_USE)
-        {
-            RTThreadSleep(500);
-            rc = RTTcpServerCreate("localhost", 9999, RTTHREADTYPE_DEFAULT, "server-2", test3Server, NULL, &pServer);
-        }
-#endif
-        if (rc != VINF_SUCCESS)
-        {
-            RTTestIFailed("RTTcpServerCreate -> %Rrc, i=%d", rc, i);
-            return;
-        }
+        RTTESTI_CHECK_RC_RETV(RTTcpServerCreate("localhost", 9999, RTTHREADTYPE_DEFAULT, "server-2",
+                                                test3Server, NULL, &pServer), VINF_SUCCESS);
 
+        int rc;
         RTSOCKET hSocket;
         RTTESTI_CHECK_RC(rc = RTTcpClientConnect("localhost", 9999, &hSocket), VINF_SUCCESS);
         if (RT_SUCCESS(rc))

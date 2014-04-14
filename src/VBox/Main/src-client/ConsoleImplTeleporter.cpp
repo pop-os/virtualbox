@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,6 @@
 
 #include "AutoCaller.h"
 #include "Logging.h"
-#include "HashedPw.h"
 
 #include <iprt/asm.h>
 #include <iprt/err.h>
@@ -239,7 +238,7 @@ Console::teleporterSrcReadACK(TeleporterStateSrc *pState, const char *pszWhich,
     if (!strcmp(szMsg, "ACK"))
         return S_OK;
 
-    if (!strncmp(szMsg, RT_STR_TUPLE("NACK=")))
+    if (!strncmp(szMsg, "NACK=", sizeof("NACK=") - 1))
     {
         char *pszMsgText = strchr(szMsg, ';');
         if (pszMsgText)
@@ -573,7 +572,7 @@ static SSMSTRMOPS const g_teleporterTcpOps =
 static void teleporterProgressCancelCallback(void *pvUser)
 {
     TeleporterState *pState = (TeleporterState *)pvUser;
-    SSMR3Cancel(pState->mpUVM);
+    SSMR3Cancel(VMR3GetVM(pState->mpUVM));
     if (!pState->mfIsSource)
     {
         TeleporterStateTrg *pStateTrg = (TeleporterStateTrg *)pState;
@@ -584,7 +583,7 @@ static void teleporterProgressCancelCallback(void *pvUser)
 /**
  * @copydoc PFNVMPROGRESS
  */
-static DECLCALLBACK(int) teleporterProgressCallback(PUVM pUVM, unsigned uPercent, void *pvUser)
+static DECLCALLBACK(int) teleporterProgressCallback(PVM pVM, unsigned uPercent, void *pvUser)
 {
     TeleporterState *pState = (TeleporterState *)pvUser;
     if (pState->mptrProgress)
@@ -597,13 +596,12 @@ static DECLCALLBACK(int) teleporterProgressCallback(PUVM pUVM, unsigned uPercent
             hrc = pState->mptrProgress->COMGETTER(Canceled)(&fCanceled);
             if (SUCCEEDED(hrc) && fCanceled)
             {
-                SSMR3Cancel(pState->mpUVM);
+                SSMR3Cancel(VMR3GetVM(pState->mpUVM));
                 return VERR_SSM_CANCELLED;
             }
         }
     }
 
-    NOREF(pUVM);
     return VINF_SUCCESS;
 }
 
@@ -686,7 +684,7 @@ Console::teleporterSrc(TeleporterStateSrc *pState)
 
     RTSocketRetain(pState->mhSocket);
     void *pvUser = static_cast<void *>(static_cast<TeleporterState *>(pState));
-    vrc = VMR3Teleport(pState->mpUVM,
+    vrc = VMR3Teleport(VMR3GetVM(pState->mpUVM),
                        pState->mcMsMaxDowntime,
                        &g_teleporterTcpOps,         pvUser,
                        teleporterProgressCallback,  pvUser,
@@ -811,11 +809,7 @@ Console::teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
         ptrVM.release();
 
         pState->mptrConsole->mVMIsAlreadyPoweringOff = true; /* (Make sure we stick in the TeleportingPausedVM state.) */
-        autoLock.release();
-
         hrc = pState->mptrConsole->powerDown();
-
-        autoLock.acquire();
         pState->mptrConsole->mVMIsAlreadyPoweringOff = false;
 
         pState->mptrProgress->notifyComplete(hrc);
@@ -890,10 +884,10 @@ Console::teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
                         pState->mptrConsole->setMachineState(MachineState_Paused);
                         if (pState->mfSuspendedByUs)
                         {
-                            autoLock.release();
-                            int rc = VMR3Resume(pState->mpUVM, VMRESUMEREASON_TELEPORT_FAILED);
+                            autoLock.leave();
+                            int rc = VMR3Resume(VMR3GetVM(pState->mpUVM));
                             AssertLogRelMsgRC(rc, ("VMR3Resume -> %Rrc\n", rc));
-                            autoLock.acquire();
+                            autoLock.enter();
                         }
                     }
                     else
@@ -905,7 +899,7 @@ Console::teleporterSrcThreadWrapper(RTTHREAD hThread, void *pvUser)
             }
         }
     }
-    autoLock.release();
+    autoLock.leave();
 
     /*
      * Cleanup.
@@ -937,17 +931,9 @@ Console::Teleport(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxD
      */
     CheckComArgOutPointerValid(aProgress);
     CheckComArgStrNotEmptyOrNull(aHostname);
-    CheckComArgNotNull(aPassword);
+    CheckComArgStrNotEmptyOrNull(aHostname);
     CheckComArgExprMsg(aPort, aPort > 0 && aPort <= 65535, ("is %u", aPort));
     CheckComArgExprMsg(aMaxDowntime, aMaxDowntime > 0, ("is %u", aMaxDowntime));
-
-    Utf8Str strPassword(aPassword);
-    if (!strPassword.isEmpty())
-    {
-        if (VBoxIsPasswordHashed(&strPassword))
-            return setError(E_INVALIDARG, tr("The specified password resembles a hashed password, expected plain text"));
-        VBoxHashPassword(&strPassword);
-    }
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -984,7 +970,7 @@ Console::Teleport(IN_BSTR aHostname, ULONG aPort, IN_BSTR aPassword, ULONG aMaxD
         return hrc;
 
     TeleporterStateSrc *pState = new TeleporterStateSrc(this, mpUVM, ptrProgress, mMachineState);
-    pState->mstrPassword    = strPassword;
+    pState->mstrPassword    = aPassword;
     pState->mstrHostname    = aHostname;
     pState->muPort          = aPort;
     pState->mcMsMaxDowntime = aMaxDowntime;
@@ -1342,18 +1328,18 @@ Console::teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser)
             if (RT_FAILURE(vrc))
                 break;
 
-            int vrc2 = VMR3AtErrorRegister(pState->mpUVM,
-                                           Console::genericVMSetErrorCallback, &pState->mErrorText); AssertRC(vrc2);
+            int vrc2 = VMR3AtErrorRegisterU(pState->mpUVM,
+                                            Console::genericVMSetErrorCallback, &pState->mErrorText); AssertRC(vrc2);
             RTSocketRetain(pState->mhSocket); /* For concurrent access by I/O thread and EMT. */
             pState->moffStream = 0;
 
             void *pvUser2 = static_cast<void *>(static_cast<TeleporterState *>(pState));
-            vrc = VMR3LoadFromStream(pState->mpUVM,
+            vrc = VMR3LoadFromStream(VMR3GetVM(pState->mpUVM),
                                      &g_teleporterTcpOps, pvUser2,
                                      teleporterProgressCallback, pvUser2);
 
             RTSocketRelease(pState->mhSocket);
-            vrc2 = VMR3AtErrorDeregister(pState->mpUVM, Console::genericVMSetErrorCallback, &pState->mErrorText); AssertRC(vrc2);
+            vrc2 = VMR3AtErrorDeregister(VMR3GetVM(pState->mpUVM), Console::genericVMSetErrorCallback, &pState->mErrorText); AssertRC(vrc2);
 
             if (RT_FAILURE(vrc))
             {
@@ -1416,7 +1402,7 @@ Console::teleporterTrgServeConnection(RTSOCKET Sock, void *pvUser)
                 if (RT_SUCCESS(vrc))
                 {
                     if (!strcmp(szCmd, "hand-over-resume"))
-                        vrc = VMR3Resume(pState->mpUVM, VMRESUMEREASON_TELEPORTED);
+                        vrc = VMR3Resume(VMR3GetVM(pState->mpUVM));
                     else
                         pState->mptrConsole->setMachineState(MachineState_Paused);
                     fDone = true;

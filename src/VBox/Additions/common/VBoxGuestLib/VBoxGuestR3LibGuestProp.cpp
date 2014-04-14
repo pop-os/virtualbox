@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,15 +24,12 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#if defined(VBOX_VBGLR3_XFREE86) || defined(VBOX_VBGLR3_XORG)
-# define VBOX_VBGLR3_XSERVER
-#endif
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
-#ifndef VBOX_VBGLR3_XSERVER
+#ifndef VBOX_VBGLR3_XFREE86
 # include <iprt/cpp/mem.h>
 #endif
 #include <iprt/assert.h>
@@ -54,10 +51,6 @@ extern "C" void* xf86memchr(const void*,int,xf86size_t);
 extern "C" void* xf86memset(const void*,int,xf86size_t);
 # undef memset
 # define memset xf86memset
-
-#endif /* VBOX_VBGLR3_XFREE86 */
-
-#ifdef VBOX_VBGLR3_XSERVER
 
 # undef RTSTrEnd
 # define RTStrEnd xf86RTStrEnd
@@ -92,7 +85,7 @@ DECLINLINE(char *) RTStrEnd(char *pszString, size_t cchMax)
     return (char *)memchr(pszString, '\0', cchMax);
 }
 
-#endif /* VBOX_VBGLR3_XSERVER */
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -255,7 +248,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValue(uint32_t u32ClientId, const char *pszN
     return rc;
 }
 
-#ifndef VBOX_VBGLR3_XSERVER
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Write a property value where the value is formatted in RTStrPrintfV fashion.
  *
@@ -300,7 +293,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValueF(uint32_t u32ClientId, const char *psz
     va_end(va);
     return rc;
 }
-#endif /* VBOX_VBGLR3_XSERVER */
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /**
  * Retrieve a property.
@@ -397,7 +390,7 @@ VBGLR3DECL(int) VbglR3GuestPropRead(uint32_t u32ClientId, const char *pszName,
     return VINF_SUCCESS;
 }
 
-#ifndef VBOX_VBGLR3_XSERVER
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Retrieve a property value, allocating space for it.
  *
@@ -477,7 +470,7 @@ VBGLR3DECL(void) VbglR3GuestPropReadValueFree(char *pszValue)
 {
     RTMemFree(pszValue);
 }
-#endif /* VBOX_VBGLR3_XSERVER */
+#endif /* VBOX_VBGLR3_XFREE86 */
 
 /**
  * Retrieve a property value, using a user-provided buffer to store it.
@@ -512,7 +505,7 @@ VBGLR3DECL(int) VbglR3GuestPropReadValue(uint32_t u32ClientId, const char *pszNa
 }
 
 
-#ifndef VBOX_VBGLR3_XSERVER
+#ifndef VBOX_VBGLR3_XFREE86
 /**
  * Raw API for enumerating guest properties which match a given pattern.
  *
@@ -790,32 +783,6 @@ VBGLR3DECL(void) VbglR3GuestPropEnumFree(PVBGLR3GUESTPROPENUM pHandle)
 
 
 /**
- * Deletes a guest property.
- *
- * @returns VBox status code.
- * @param   u32ClientId     The client id returned by VbglR3InvsSvcConnect().
- * @param   pszName         The property to delete.  Utf8
- */
-VBGLR3DECL(int) VbglR3GuestPropDelete(uint32_t u32ClientId, const char *pszName)
-{
-    AssertPtrReturn(pszName,  VERR_INVALID_POINTER);
-
-    DelProperty Msg;
-
-    Msg.hdr.result = VERR_WRONG_ORDER;
-    Msg.hdr.u32ClientID = u32ClientId;
-    Msg.hdr.u32Function = DEL_PROP;
-    Msg.hdr.cParms = 1;
-    VbglHGCMParmPtrSetString(&Msg.name, pszName);
-    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL(sizeof(Msg)), &Msg, sizeof(Msg));
-    if (RT_SUCCESS(rc))
-        rc = Msg.hdr.result;
-
-    return rc;
-}
-
-
-/**
  * Deletes a set of keys.
  *
  * The set is specified in the same way as for VbglR3GuestPropEnum.
@@ -979,4 +946,4 @@ VBGLR3DECL(int) VbglR3GuestPropWait(uint32_t u32ClientId,
 
     return VINF_SUCCESS;
 }
-#endif /* VBOX_VBGLR3_XSERVER */
+#endif /* VBOX_VBGLR3_XFREE86 */

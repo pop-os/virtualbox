@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,19 +36,13 @@
 # define INCL_ERRORS
 # include <os2.h>
 
-#elif defined(RT_OS_DARWIN) \
-   || defined(RT_OS_FREEBSD) \
-   || defined(RT_OS_HAIKU) \
+#elif defined(RT_OS_FREEBSD) \
    || defined(RT_OS_LINUX) \
    || defined(RT_OS_SOLARIS)
 # include <sys/types.h>
 # include <sys/stat.h>
-# if defined(RT_OS_DARWIN) || defined(RT_OS_LINUX) /** @todo check this on solaris+freebsd as well. */
+# if defined(RT_OS_LINUX) /** @todo check this on solaris+freebsd as well. */
 #  include <sys/ioctl.h>
-# endif
-# if defined(RT_OS_DARWIN)
-#  include <mach/mach_port.h>
-#  include <IOKit/IOKitLib.h>
 # endif
 # include <errno.h>
 # include <unistd.h>
@@ -71,17 +65,6 @@ typedef void *pointer;
 extern "C" int xf86open(const char *, int, ...);
 extern "C" int xf86close(int);
 extern "C" int xf86ioctl(int, unsigned long, pointer);
-# define VBOX_VBGLR3_XSERVER
-#elif defined(VBOX_VBGLR3_XORG)
-# include <sys/stat.h>
-# include <fcntl.h>
-# include <unistd.h>
-# include <sys/ioctl.h>
-# define xf86open open
-# define xf86close close
-# define xf86ioctl ioctl
-# define XF86_O_RDWR O_RDWR
-# define VBOX_VBGLR3_XSERVER
 #endif
 
 
@@ -89,7 +72,7 @@ extern "C" int xf86ioctl(int, unsigned long, pointer);
 *   Global Variables                                                           *
 *******************************************************************************/
 /** The VBoxGuest device handle. */
-#ifdef VBOX_VBGLR3_XSERVER
+#ifdef VBOX_VBGLR3_XFREE86
 static int g_File = -1;
 #elif defined(RT_OS_WINDOWS)
 static HANDLE g_hFile = INVALID_HANDLE_VALUE;
@@ -102,10 +85,6 @@ static RTFILE g_File = NIL_RTFILE;
  * inside a single process space.
  */
 static uint32_t volatile g_cInits = 0;
-#ifdef RT_OS_DARWIN
-/** I/O Kit connection handle. */
-static io_connect_t g_uConnection = 0;
-#endif
 
 
 
@@ -125,7 +104,7 @@ static int vbglR3Init(const char *pszDeviceName)
          */
 #ifdef RT_OS_WINDOWS
         if (g_hFile == INVALID_HANDLE_VALUE)
-#elif !defined (VBOX_VBGLR3_XSERVER)
+#elif !defined (VBOX_VBGLR3_XFREE86)
         if (g_File == NIL_RTFILE)
 #else
         if (g_File == -1)
@@ -135,7 +114,7 @@ static int vbglR3Init(const char *pszDeviceName)
     }
 #if defined(RT_OS_WINDOWS)
     if (g_hFile != INVALID_HANDLE_VALUE)
-#elif !defined(VBOX_VBGLR3_XSERVER)
+#elif !defined(VBOX_VBGLR3_XFREE86)
     if (g_File != NIL_RTFILE)
 #else
     if (g_File != -1)
@@ -210,41 +189,7 @@ static int vbglR3Init(const char *pszDeviceName)
     }
     g_File = (RTFILE)hf;
 
-#elif defined(RT_OS_DARWIN)
-    /*
-     * Darwin is kind of special we need to engage the device via I/O first
-     * before we open it via the BSD device node.
-     */
-    mach_port_t MasterPort;
-    kern_return_t kr = IOMasterPort(MACH_PORT_NULL, &MasterPort);
-    if (kr != kIOReturnSuccess)
-        return VERR_GENERAL_FAILURE;
-
-    CFDictionaryRef ClassToMatch = IOServiceMatching("org_virtualbox_VBoxGuest");
-    if (!ClassToMatch)
-        return VERR_GENERAL_FAILURE;
-
-    io_service_t ServiceObject = IOServiceGetMatchingService(kIOMasterPortDefault, ClassToMatch);
-    if (!ServiceObject)
-        return VERR_NOT_FOUND;
-
-    io_connect_t uConnection;
-    kr = IOServiceOpen(ServiceObject, mach_task_self(), 0, &uConnection);
-    IOObjectRelease(ServiceObject);
-    if (kr != kIOReturnSuccess)
-        return VERR_OPEN_FAILED;
-
-    RTFILE hFile;
-    int rc = RTFileOpen(&hFile, pszDeviceName, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
-    if (RT_FAILURE(rc))
-    {
-        IOServiceClose(uConnection);
-        return rc;
-    }
-    g_File = hFile;
-    g_uConnection = uConnection;
-
-#elif defined(VBOX_VBGLR3_XSERVER)
+#elif defined(VBOX_VBGLR3_XFREE86)
     int File = xf86open(pszDeviceName, XF86_O_RDWR);
     if (File == -1)
         return VERR_OPEN_FAILED;
@@ -252,7 +197,7 @@ static int vbglR3Init(const char *pszDeviceName)
 
 #else
 
-    /* The default implementation. (linux, solaris, freebsd, haiku) */
+    /* The default implementation. (linux, solaris, freebsd) */
     RTFILE File;
     int rc = RTFileOpen(&File, pszDeviceName, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
@@ -261,7 +206,7 @@ static int vbglR3Init(const char *pszDeviceName)
 
 #endif
 
-#ifndef VBOX_VBGLR3_XSERVER
+#ifndef VBOX_VBGLR3_XFREE86
     /*
      * Create release logger
      */
@@ -306,7 +251,7 @@ VBGLR3DECL(void) VbglR3Term(void)
     uint32_t cInits = ASMAtomicDecU32(&g_cInits);
     if (cInits > 0)
         return;
-#if !defined(VBOX_VBGLR3_XSERVER)
+#if !defined(VBOX_VBGLR3_XFREE86)
     AssertReturnVoid(!cInits);
 
 # if defined(RT_OS_WINDOWS)
@@ -317,21 +262,12 @@ VBGLR3DECL(void) VbglR3Term(void)
     Assert(fRc); NOREF(fRc);
 
 # elif defined(RT_OS_OS2)
+
     RTFILE File = g_File;
     g_File = NIL_RTFILE;
     AssertReturnVoid(File != NIL_RTFILE);
     APIRET rc = DosClose((uintptr_t)File);
     AssertMsg(!rc, ("%ld\n", rc));
-
-#elif defined(RT_OS_DARWIN)
-    io_connect_t    uConnection = g_uConnection;
-    RTFILE          hFile       = g_File;
-    g_uConnection = 0;
-    g_File        = NIL_RTFILE;
-    kern_return_t kr = IOServiceClose(uConnection);
-    AssertMsg(kr == kIOReturnSuccess, ("%#x (%d)\n", kr, kr));
-    int rc = RTFileClose(hFile);
-    AssertRC(rc);
 
 # else /* The IPRT case. */
     RTFILE File = g_File;
@@ -341,13 +277,13 @@ VBGLR3DECL(void) VbglR3Term(void)
     AssertRC(rc);
 # endif
 
-#else  /* VBOX_VBGLR3_XSERVER */
+#else  /* VBOX_VBGLR3_XFREE86 */
     int File = g_File;
     g_File = -1;
     if (File == -1)
         return;
     xf86close(File);
-#endif /* VBOX_VBGLR3_XSERVER */
+#endif /* VBOX_VBGLR3_XFREE86 */
 }
 
 
@@ -393,40 +329,39 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
         return vrc;
     return RTErrConvertFromOS2(rc);
 
-#else
-# if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+#elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     VBGLBIGREQ Hdr;
     Hdr.u32Magic = VBGLBIGREQ_MAGIC;
     Hdr.cbData = cbData;
     Hdr.pvDataR3 = pvData;
-#  if HC_ARCH_BITS == 32
+# if HC_ARCH_BITS == 32
     Hdr.u32Padding = 0;
-#  endif
-    pvData = &Hdr;
+# endif
 
 /** @todo test status code passing! Check that the kernel doesn't do any
  *        error checks using specific errno values, and just pass an VBox
  *        error instead of an errno.h one. Alternatively, extend/redefine the
  *        header with an error code return field (much better alternative
  *        actually). */
-# elif defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
-    NOREF(cbData);
-# endif
+#ifdef VBOX_VBGLR3_XFREE86
+    int rc = xf86ioctl(g_File, iFunction, &Hdr);
+#else
+    int rc = ioctl(RTFileToNative(g_File), iFunction, &Hdr);
+#endif
+    if (rc == -1)
+    {
+        rc = errno;
+        return RTErrConvertFromErrno(rc);
+    }
+    return VINF_SUCCESS;
 
-# if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD) || defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
-#  ifdef VBOX_VBGLR3_XSERVER
+#elif defined(RT_OS_LINUX)
+# ifdef VBOX_VBGLR3_XFREE86
     int rc = xf86ioctl((int)g_File, iFunction, pvData);
-#  else
+# else
     if (g_File == NIL_RTFILE)
         return VERR_INVALID_HANDLE;
     int rc = ioctl(RTFileToNative(g_File), iFunction, pvData);
-#  endif
-# elif defined(RT_OS_HAIKU)
-    /* The ioctl hook in Haiku does take the len parameter when specified,
-     * so just use it. */
-    int rc = ioctl((int)g_File, iFunction, pvData, cbData);
-# else
-#  error Port me!
 # endif
     if (RT_LIKELY(rc == 0))
         return VINF_SUCCESS;
@@ -435,13 +370,30 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
     if (rc > 0)
         rc = -rc;
     else
-# ifdef VBOX_VBGLR3_XSERVER
+# ifdef VBOX_VBGLR3_XFREE86
         rc = VERR_FILE_IO_ERROR;
 #  else
         rc = RTErrConvertFromErrno(errno);
 # endif
+    NOREF(cbData);
     return rc;
 
+#elif defined(VBOX_VBGLR3_XFREE86)
+    /* PORTME - This is preferred over the RTFileIOCtl variant below, just be careful with the (int). */
+/** @todo test status code passing! */
+    int rc = xf86ioctl(g_File, iFunction, pvData);
+    if (rc == -1)
+        return VERR_FILE_IO_ERROR;  /* This is purely legacy stuff, it has to work and no more. */
+    return VINF_SUCCESS;
+
+#else
+    /* Default implementation - PORTME: Do not use this without testings that passing errors works! */
+/** @todo test status code passing! */
+    int rc2 = VERR_INTERNAL_ERROR;
+    int rc = RTFileIoCtl(g_File, (int)iFunction, pvData, cbData, &rc2);
+    if (RT_SUCCESS(rc))
+        rc = rc2;
+    return rc;
 #endif
 }
 

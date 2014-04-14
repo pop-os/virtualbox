@@ -103,10 +103,9 @@ def UpdateCurrentPointer( func_name ):
         name = 'vertexAttrib'
         type = m.group(3) + m.group(2)
         # Add 12 to skip the packet length, opcode and index fields
-        print "\tpc->current.c.%s.%s[index] = data_ptr + 4;" % (name,type)
+        print "\tpc->current.c.%s.%s[index] = data_ptr + 12;" % (name,type)
         if m.group(4) == "ARB" or m.group(4) == "NV":
             print "\tpc->current.attribsUsedMask |= (1 << index);"
-            print "\tpc->current.changedVertexAttrib |= (1 << index);"
         return
 
 
@@ -114,9 +113,9 @@ def UpdateCurrentPointer( func_name ):
 def PrintFunc( func_name, params, is_swapped, can_have_pointers ):
     """Emit a packer function."""
     if is_swapped:
-        print 'void PACK_APIENTRY crPack%sSWAP( %s )' % (func_name, apiutil.MakeDeclarationStringWithContext('CR_PACKER_CONTEXT', params))
+        print 'void PACK_APIENTRY crPack%sSWAP( %s )' % (func_name, apiutil.MakeDeclarationString(params))
     else:
-        print 'void PACK_APIENTRY crPack%s( %s )' % (func_name, apiutil.MakeDeclarationStringWithContext('CR_PACKER_CONTEXT', params))
+        print 'void PACK_APIENTRY crPack%s( %s )' % (func_name, apiutil.MakeDeclarationString(params))
     print '{'
     print '\tCR_GET_PACKER_CONTEXT(pc);'
 
@@ -210,14 +209,10 @@ def PrintFunc( func_name, params, is_swapped, can_have_pointers ):
     else:
         print "\tWRITE_OPCODE( pc, %s );" % apiutil.OpcodeName( func_name )
 
-    if "get" in apiutil.Properties(func_name):
-        print '\tCR_CMDBLOCK_CHECK_FLUSH(pc);'
-
     print '\tCR_UNLOCK_PACKER_CONTEXT(pc);'
     print '}\n'
 
 
-r0_funcs = [ 'ChromiumParameteriCR', 'WindowSize', 'WindowShow', 'WindowPosition' ]
 
 
 apiutil.CopyrightC()
@@ -262,12 +257,5 @@ for func_name in keys:
     if func_name == 'Writeback':
         pointers_ok = 1
 
-    if not func_name in r0_funcs:
-        print '#ifndef IN_RING0'
-        
     PrintFunc( func_name, params, 0, pointers_ok )
     PrintFunc( func_name, params, 1, pointers_ok )
-    
-    if not func_name in r0_funcs:
-        print '#endif'
-    

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,7 @@ public:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -68,19 +68,19 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Helper: Navigation stuff: */
+    /* Navigation stuff: */
     void setOrderAfter(QWidget *pWidget);
 
-    /* Helper: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
 private slots:
 
-    /* Handlers: Tree-widget stuff: */
+    /* Tree-widget slots: */
     void sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem);
     void sltShowContextMenu(const QPoint &position);
 
-    /* Handlers: Package stuff: */
+    /* Package add/remove procedures: */
     void sltInstallPackage();
     void sltRemovePackage();
 
@@ -89,7 +89,7 @@ private:
     /* Prepare UISettingsCacheGlobalExtensionItem basing on CExtPack: */
     UISettingsCacheGlobalExtensionItem fetchData(const CExtPack &package) const;
 
-    /* Variables: Actions: */
+    /* Actions: */
     QAction *m_pActionAdd;
     QAction *m_pActionRemove;
 

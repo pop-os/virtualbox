@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #ifndef __UIGlobalSettingsUpdate_h__
 #define __UIGlobalSettingsUpdate_h__
 
-/* GUI includes: */
+/* Local includes */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsUpdate.gen.h"
 #include "UIUpdateDefs.h"
@@ -45,7 +45,7 @@ public:
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -59,15 +59,15 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Helper: Navigation stuff: */
+    /* Navigation stuff: */
     void setOrderAfter(QWidget *pWidget);
 
-    /* Helper: Translation stuff: */
+    /* Translation stuff: */
     void retranslateUi();
 
 private slots:
 
-    /* Handlers: */
+    /* Various helper slots: */
     void sltUpdaterToggled(bool fEnabled);
     void sltPeriodActivated();
     void sltBranchToggled();
@@ -78,8 +78,10 @@ private:
     VBoxUpdateData::PeriodType periodType() const;
     VBoxUpdateData::BranchType branchType() const;
 
-    /* Variables: */
+    /* Last chosen radio-button: */
     QRadioButton *m_pLastChosenRadio;
+
+    /* Editnes flag: */
     bool m_fChanged;
 
     /* Cache: */
@@ -87,3 +89,4 @@ private:
 };
 
 #endif // __UIGlobalSettingsUpdate_h__
+

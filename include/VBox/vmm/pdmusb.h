@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -113,11 +113,6 @@ typedef PDMUSBDESCCACHE *PPDMUSBDESCCACHE;
 typedef const PDMUSBDESCCACHE *PCPDMUSBDESCCACHE;
 
 
-/** PDM Device Flags.
- * @{ */
-/** A high-speed capable USB 2.0 device (also required to support full-speed). */
-#define PDM_USBREG_HIGHSPEED_CAPABLE        RT_BIT(0)
-/** @} */
 
 /** PDM USB Device Registration Structure,
  *
@@ -169,7 +164,7 @@ typedef struct PDMUSBREG
      * Most VM resources are freed by the VM. This callback is provided so that any non-VM
      * resources can be freed correctly.
      *
-     * This method will be called regardless of the pfnConstruct result to avoid
+     * This method will be called regardless of the pfnConstruc result to avoid
      * complicated failure paths.
      *
      * @param   pUsbIns     The USB device instance data.
@@ -407,13 +402,6 @@ typedef struct PDMUSBREG
      */
     DECLR3CALLBACKMEMBER(PVUSBURB, pfnUrbReap,(PPDMUSBINS pUsbIns, RTMSINTERVAL cMillies));
 
-    /**
-     * Wakes a thread waiting in pfnUrbReap.
-     *
-     * @returns VBox status code.
-     * @param   pUsbIns             The USB device instance.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnWakeup,(PPDMUSBINS pUsbIns));
 
     /** Just some init precaution. Must be set to PDM_USBREG_VERSION. */
     uint32_t            u32TheEnd;
@@ -684,38 +672,6 @@ typedef struct PDMUSBHLP
      */
     DECLR3CALLBACKMEMBER(void, pfnAsyncNotificationCompleted, (PPDMUSBINS pUsbIns));
 
-    /**
-     * Gets the reason for the most recent VM suspend.
-     *
-     * @returns The suspend reason. VMSUSPENDREASON_INVALID is returned if no
-     *          suspend has been made or if the pUsbIns is invalid.
-     * @param   pUsbIns             The driver instance.
-     */
-    DECLR3CALLBACKMEMBER(VMSUSPENDREASON, pfnVMGetSuspendReason,(PPDMUSBINS pUsbIns));
-
-    /**
-     * Gets the reason for the most recent VM resume.
-     *
-     * @returns The resume reason. VMRESUMEREASON_INVALID is returned if no
-     *          resume has been made or if the pUsbIns is invalid.
-     * @param   pUsbIns             The driver instance.
-     */
-    DECLR3CALLBACKMEMBER(VMRESUMEREASON, pfnVMGetResumeReason,(PPDMUSBINS pUsbIns));
-
-    /** @name Space reserved for minor interface changes.
-     * @{ */
-    DECLR3CALLBACKMEMBER(void, pfnReserved0,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved1,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved2,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved3,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved4,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved5,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved6,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved7,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved8,(PPDMUSBINS pUsbIns));
-    DECLR3CALLBACKMEMBER(void, pfnReserved9,(PPDMUSBINS pUsbIns));
-    /** @}  */
-
     /** Just a safety precaution. */
     uint32_t                        u32TheEnd;
 } PDMUSBHLP;
@@ -725,7 +681,7 @@ typedef PDMUSBHLP *PPDMUSBHLP;
 typedef const PDMUSBHLP *PCPDMUSBHLP;
 
 /** Current USBHLP version number. */
-#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 3, 0)
+#define PDM_USBHLP_VERSION                      PDM_VERSION_MAKE(0xeefe, 2, 0)
 
 #endif /* IN_RING3 */
 
@@ -737,7 +693,7 @@ typedef struct PDMUSBINS
     /** Structure version. PDM_USBINS_VERSION defines the current version. */
     uint32_t                    u32Version;
     /** USB device instance number. */
-    uint32_t                    iInstance;
+    RTUINT                      iInstance;
     /** The base interface of the device.
      * The device constructor initializes this if it has any device level
      * interfaces to export. To obtain this interface call PDMR3QueryUSBDevice(). */
@@ -772,24 +728,15 @@ typedef struct PDMUSBINS
     /** Device name for using when logging.
      * The constructor sets this and the destructor frees it. */
     R3PTRTYPE(char *)           pszName;
-    /** Tracing indicator. */
-    uint32_t                    fTracing;
-    /** The tracing ID of this device.  */
-    uint32_t                    idTracing;
-    /** The USB version of the hub this device is attached to. Used to
-     * determine whether the device communicates at high-speed or full-/low-speed. */
-    uint32_t                    iUsbHubVersion;
-
     /** Padding to make achInstanceData aligned at 32 byte boundary. */
-    uint32_t                    au32Padding[HC_ARCH_BITS == 32 ? 2 : 3];
-
+    uint32_t                    au32Padding[HC_ARCH_BITS == 32 ? 5 : 2];
     /** Device instance data. The size of this area is defined
      * in the PDMUSBREG::cbInstanceData field. */
     char                        achInstanceData[8];
 } PDMUSBINS;
 
 /** Current USBINS version number. */
-#define PDM_USBINS_VERSION                      PDM_VERSION_MAKE(0xeefd, 2, 0)
+#define PDM_USBINS_VERSION                      PDM_VERSION_MAKE(0xeefd, 1, 0)
 
 /**
  * Checks the structure versions of the USB device instance and USB device
@@ -1038,11 +985,10 @@ typedef struct PDMUSBREGCB
  */
 typedef DECLCALLBACK(int) FNPDMVBOXUSBREGISTER(PCPDMUSBREGCB pCallbacks, uint32_t u32Version);
 
-VMMR3DECL(int)  PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName, PCFGMNODE pDeviceNode, PCRTUUID pUuid);
-VMMR3DECL(int)  PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, bool fRemote, const char *pszAddress, void *pvBackend,
+VMMR3DECL(int)  PDMR3USBCreateProxyDevice(PVM pVM, PCRTUUID pUuid, bool fRemote, const char *pszAddress, void *pvBackend,
                                           uint32_t iUsbVersion, uint32_t fMaskedIfs);
-VMMR3DECL(int)  PDMR3UsbDetachDevice(PUVM pUVM, PCRTUUID pUuid);
-VMMR3DECL(bool) PDMR3UsbHasHub(PUVM pUVM);
+VMMR3DECL(int)  PDMR3USBDetachDevice(PVM pVM, PCRTUUID pUuid);
+VMMR3DECL(bool) PDMR3USBHasHub(PVM pVM);
 
 
 /** @} */

@@ -326,12 +326,12 @@ struct alias_link {     /* Main data structure */
 #define LINK_UNKNOWN_DEST_ADDR     0x02
 #define LINK_PERMANENT             0x04
 #define LINK_PARTIALLY_SPECIFIED   0x03 /* logical-or of first two bits */
-#ifndef VBOX
-# define LINK_UNFIREWALLED          0x08 /* This macro definition isn't used in this revision of libalias */
+#define LINK_UNFIREWALLED          0x08
 
+#ifndef VBOX
     int     timestamp;  /* Time link was last accessed         */
     int     expire_time;    /* Expire time for link                */
-#else /* VBOX */
+#else
     unsigned int timestamp;  /* Time link was last accessed         */
     unsigned int expire_time;    /* Expire time for link                */
 #endif
@@ -509,7 +509,6 @@ AliasLog(FILE *stream, const char *format, ...)
 
     va_list args;
     char buffer[1024];
-    NOREF(stream);
     memset(buffer, 0, 1024);
     va_start(args, format);
     RTStrPrintfV(buffer, 1024, format, args);
@@ -821,7 +820,9 @@ GetSocket(struct libalias *la, u_short port_net, struct alias_link *pLnk, int li
             sin.sin_port = so->so_fport;
             ret = connect(so->s, (struct sockaddr *)&sin, sizeof(sin));
             if (   ret < 0
-                && !soIgnorableErrorCode(errno))
+                && errno == EINPROGRESS
+                && errno == EAGAIN
+                && errno == EWOULDBLOCK)
             {
                 closesocket(so->s);
                 RTMemFree(so);
@@ -832,20 +833,11 @@ GetSocket(struct libalias *la, u_short port_net, struct alias_link *pLnk, int li
             /* tcp_{snd,rcv}space -> pData->tcp_{snd,rcv}space */
             sbreserve(la->pData, &so->so_snd, la->tcp_sndspace);
             sbreserve(la->pData, &so->so_rcv, la->tcp_rcvspace);
-        }
+	}
         else if (link_type == LINK_UDP)
-        {
-            so->so_type = IPPROTO_UDP;
             insque(la->pData, so, &la->udb);
-        }
         else
-        {
-            /* socket wasn't added to queue */
-            closesocket(so->s);
-            RTMemFree(so);
             Assert(!"Shouldn't be here");
-            return 0;
-        }
         LogFunc(("bind called for socket: %R[natsock]\n", so));
         pLnk->pSo = so;
         so->so_pvLnk = pLnk;
@@ -1003,8 +995,7 @@ IncrementalCleanup(struct libalias *la)
         la->cleanupIndex = 0;
 }
 
-#if defined(VBOX) && !defined(NO_USE_SOCKETS)
-
+#ifdef VBOX
 /**
  * when slirp delete the link we need inform libalias about it.
  */
@@ -1016,22 +1007,16 @@ void slirpDeleteLinkSocket(void *pvLnk)
     {
         struct libalias *la = lnk->la;
         la->sockCount--;
-        lnk->pSo->fShouldBeRemoved = 1;
-        lnk->pSo->so_pvLnk = NULL; /* forget me, please ! */
         lnk->pSo = NULL;
     }
 }
-#endif /* VBOX && !NO_USE_SOCKETS */
+#endif /* !VBOX */
 
 static void
 DeleteLink(struct alias_link *lnk)
 {
     struct libalias *la = lnk->la;
-#ifndef NO_USE_SOCKETS
     LogFlowFunc(("ENTER: lnk->pSo:%R[natsock]\n", lnk->pSo));
-#else
-    LogFlowFuncEnter();
-#endif
 
     LIBALIAS_LOCK_ASSERT(la);
 /* Don't do anything if the link is marked permanent */
@@ -1065,7 +1050,7 @@ DeleteLink(struct alias_link *lnk)
         la->sockCount--;
         close(lnk->sockfd);
     }
-# else /* VBOX */
+# else
     if (lnk->pSo)
     {
         /* libalias's sockCount decremented in slirpDeleteLinkSocket,
@@ -1075,11 +1060,8 @@ DeleteLink(struct alias_link *lnk)
         /* should we be more smart, or it's enough to be
          * narrow-minded and just do sofree here
          */
-#if 0
         sofree(la->pData, lnk->pSo);
-#else
-	slirpDeleteLinkSocket(lnk);
-#endif
+        lnk->pSo = NULL;
     }
 # endif
 #endif
@@ -3113,11 +3095,6 @@ void
 LibAliasSetFWBase(struct libalias *la, unsigned int base, unsigned int num)
 {
 
-#ifdef VBOX
-    NOREF(la);
-    NOREF(base);
-    NOREF(num);
-#endif
     LIBALIAS_LOCK(la);
 #ifndef NO_FW_PUNCH
     la->fireWallBaseNum = base;

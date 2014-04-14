@@ -236,19 +236,8 @@ static RTEXITCODE CommonUninstallWorker(const char *pszExtPackDir)
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to construct temporary extension pack path: %Rrc", rc);
 
     rc = RTDirRename(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
-    if (rc == VERR_ALREADY_EXISTS)
-    {
-        /* Automatic cleanup and try again.  It's in theory possible that we're
-           racing another cleanup operation here, so just ignore errors and try
-           again. (There is no installation race due to the exclusive temporary
-           installation directory.) */
-        RemoveExtPackDir(szExtPackUnInstDir, false /*fTemporary*/);
-        rc = RTDirRename(pszExtPackDir, szExtPackUnInstDir, RTPATHRENAME_FLAGS_NO_REPLACE);
-    }
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                              "Failed to rename the extension pack directory: %Rrc\n"
-                              "If the problem persists, try running the command: VBoxManage extpack cleanup", rc);
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to rename the extension pack directory: %Rrc", rc);
 
     /* Recursively delete the directory content. */
     return RemoveExtPackDir(szExtPackUnInstDir, false /*fTemporary*/);
@@ -367,7 +356,7 @@ static RTEXITCODE UnpackExtPackDir(const char *pszDstDirName, RTVFSOBJ hVfsObj)
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTVfsObjQueryInfo failed on '%s': %Rrc", pszDstDirName, rc);
     ObjInfo.Attr.fMode &= ~(RTFS_UNIX_IWOTH | RTFS_UNIX_IWGRP);
 
-    rc = RTDirCreate(pszDstDirName, ObjInfo.Attr.fMode, 0);
+    rc = RTDirCreate(pszDstDirName, ObjInfo.Attr.fMode);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create directory '%s': %Rrc", pszDstDirName, rc);
 
@@ -577,7 +566,7 @@ static RTEXITCODE UnpackExtPack(RTFILE hTarballFile, const char *pszDirDst, RTMA
             rc = RTManifestEqualsEx(hUnpackManifest, hValidManifest, NULL /*papszIgnoreEntries*/, NULL /*papszIgnoreAttr*/,
                                     0 /*fFlags*/, szError, sizeof(szError));
             if (RT_SUCCESS(rc))
-                rcExit = RTEXITCODE_SUCCESS;
+                rc = RTEXITCODE_SUCCESS;
             else if (rc == VERR_NOT_EQUAL && szError[0])
                 rcExit = RTMsgErrorExit(RTEXITCODE_FAILURE, "Manifest mismatch: %s", szError);
             else
@@ -718,7 +707,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
      * Create the temporary directory and prepare the extension pack within it.
      * If all checks out correctly, rename it to the final directory.
      */
-    RTDirCreate(pszBaseDir, 0755, 0);
+    RTDirCreate(pszBaseDir, 0755);
 #ifndef RT_OS_WINDOWS
     /*
      * Because of umask, we have to apply the mode again.
@@ -729,7 +718,7 @@ static RTEXITCODE DoInstall2(const char *pszBaseDir, const char *pszCertDir, con
 #else
     /** @todo Ownership tricks on windows? */
 #endif
-    rc = RTDirCreate(szTmpPath, 0700, 0);
+    rc = RTDirCreate(szTmpPath, 0700);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create temporary directory: %Rrc ('%s')", rc, szTmpPath);
 
@@ -1098,7 +1087,7 @@ static RTEXITCODE DoCleanup(int argc, char **argv)
             char *pszMarker = strstr(Entry.szName, "-_-");
             if (   pszMarker
                 && (   !strcmp(pszMarker, "-_-uninst")
-                    || !strncmp(pszMarker, RT_STR_TUPLE("-_-inst"))))
+                    || !strncmp(pszMarker, "-_-inst", sizeof("-_-inst") - 1)))
                 fCandidate = VBoxExtPackIsValidMangledName(Entry.szName, pszMarker - &Entry.szName[0]);
             if (fCandidate)
             {
@@ -1580,7 +1569,7 @@ static RTEXITCODE RelaunchElevated(int argc, char **argv, int iCmd, const char *
     rc = RTPathAppend(szTempDir, sizeof(szTempDir), "VBoxExtPackHelper-XXXXXX");
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTPathAppend failed: %Rrc", rc);
-    rc = RTDirCreateTemp(szTempDir, 0700);
+    rc = RTDirCreateTemp(szTempDir);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTDirCreateTemp failed: %Rrc", rc);
 
@@ -1778,15 +1767,10 @@ int main(int argc, char **argv)
     /*
      * Initialize IPRT and check that we're correctly installed.
      */
-#ifdef RT_OS_WINDOWS
-    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_UTF8_ARGV); /* WinMain gives us UTF-8, see below. */
-#else
-    int rc = RTR3InitExe(argc, &argv, 0);
-#endif
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 
-    SUPR3HardenedVerifyInit();
     RTERRINFOSTATIC ErrInfo;
     RTErrInfoInitStatic(&ErrInfo);
     rc = SUPR3HardenedVerifySelf(argv[0], true /*fInternal*/, &ErrInfo.Core);
@@ -1922,7 +1906,7 @@ extern "C" int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPST
     g_hInstance = hInstance;
     NOREF(hPrevInstance); NOREF(nShowCmd); NOREF(lpCmdLine);
 
-    int rc = RTR3InitExeNoArguments(0);
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
 

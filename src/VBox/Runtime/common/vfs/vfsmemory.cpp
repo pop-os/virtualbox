@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -104,7 +104,7 @@ typedef struct RTVFSMEMFILE
     /** Pointer to the current file extent. */
     PRTVFSMEMEXTENT     pCurExt;
     /** Linked list of file extents - RTVFSMEMEXTENT. */
-    RTLISTANCHOR        ExtentHead;
+    RTLISTNODE          ExtentHead;
     /** The current extent size.
      * This is slowly grown to RTVFSMEM_MAX_EXTENT_SIZE as the file grows.  */
     uint32_t            cbExtent;
@@ -171,22 +171,12 @@ static PRTVFSMEMEXTENT rtVfsMemFile_LocateExtentSlow(PRTVFSMEMFILE pThis, uint64
     PRTVFSMEMEXTENT pExtent = pThis->pCurExt;
     if (!pExtent || pExtent->off < off)
     {
-        /* Consider the last entry first (for writes). */
-        pExtent = RTListGetLast(&pThis->ExtentHead, RTVFSMEMEXTENT, Entry);
+        pExtent = RTListGetFirst(&pThis->ExtentHead, RTVFSMEMEXTENT, Entry);
         if (!pExtent)
         {
             *pfHit = false;
             return NULL;
         }
-        if (off - pExtent->off < pExtent->cb)
-        {
-            *pfHit = true;
-            pThis->pCurExt = pExtent;
-            return pExtent;
-        }
-
-        /* Otherwise, start from the head. */
-        pExtent = RTListGetFirst(&pThis->ExtentHead, RTVFSMEMEXTENT, Entry);
     }
 
     while (off - pExtent->off >= pExtent->cb)
@@ -197,7 +187,7 @@ static PRTVFSMEMEXTENT rtVfsMemFile_LocateExtentSlow(PRTVFSMEMFILE pThis, uint64
             || pNext->off > off)
         {
             *pfHit = false;
-            return pNext;
+            return pExtent;
         }
 
         pExtent = pNext;
@@ -210,7 +200,7 @@ static PRTVFSMEMEXTENT rtVfsMemFile_LocateExtentSlow(PRTVFSMEMFILE pThis, uint64
 
 
 /**
- * Locates the extent covering the specified offset, or the one after it.
+ * Locates the extent covering the specified offset, or then one before it.
  *
  * @returns The closest extent.  NULL if off is 0 and there are no extent
  *          covering byte 0 yet.
@@ -294,15 +284,15 @@ static DECLCALLBACK(int) rtVfsMemFile_Read(void *pvThis, RTFOFF off, PCRTSGBUF p
         PRTVFSMEMEXTENT pExtent = rtVfsMemFile_LocateExtent(pThis, offUnsigned, &fHit);
         for (;;)
         {
-            size_t      cbThisRead;
+            PRTVFSMEMEXTENT pNext;
+            size_t          cbThisRead;
+            Assert(!pExtent || pExtent->off <= offUnsigned);
 
             /*
-             * Do we hit an extent covering the current file surface?
+             * Do we hit an extent covering the the current file surface?
              */
             if (fHit)
             {
-                /* Yes, copy the data. */
-                Assert(offUnsigned - pExtent->off < pExtent->cb);
                 size_t const offExtent = (size_t)(offUnsigned - pExtent->off);
                 cbThisRead = pExtent->cb - offExtent;
                 if (cbThisRead >= cbLeftToRead)
@@ -316,30 +306,30 @@ static DECLCALLBACK(int) rtVfsMemFile_Read(void *pvThis, RTFOFF off, PCRTSGBUF p
                     break;
                 pbDst        += cbThisRead;
 
-                /* Advance, looping immediately if not sparse. */
-                PRTVFSMEMEXTENT pNext = RTListGetNext(&pThis->ExtentHead, pExtent, RTVFSMEMEXTENT, Entry);
+                pNext = RTListGetNext(&pThis->ExtentHead, pExtent, RTVFSMEMEXTENT, Entry);
                 if (   pNext
                     && pNext->off == pExtent->off + pExtent->cb)
                 {
                     pExtent = pNext;
                     continue;
                 }
-
-                Assert(!pNext || pNext->off > pExtent->off);
-                pExtent = pNext;
                 fHit = false;
             }
-            else
-                Assert(!pExtent || pExtent->off > offUnsigned);
 
             /*
-             * No extent of this portion (sparse file) - Read zeros.
+             * No extent of this portion (sparse file).
              */
-            if (   !pExtent
-                || offUnsigned + cbLeftToRead <= pExtent->off)
+            else if (pExtent)
+                pNext = RTListGetNext(&pThis->ExtentHead, pExtent, RTVFSMEMEXTENT, Entry);
+            else
+                pNext = NULL;
+            Assert(!pNext || pNext->off > pExtent->off);
+
+            if (   !pNext
+                || offUnsigned + cbLeftToRead <= pNext->off)
                 cbThisRead = cbLeftToRead;
             else
-                cbThisRead = (size_t)(pExtent->off - offUnsigned);
+                cbThisRead = (size_t)(pNext->off - offUnsigned);
 
             RT_BZERO(pbDst, cbThisRead);
 
@@ -350,7 +340,8 @@ static DECLCALLBACK(int) rtVfsMemFile_Read(void *pvThis, RTFOFF off, PCRTSGBUF p
             pbDst        += cbThisRead;
 
             /* Go on and read content from the next extent. */
-            fHit = true;
+            fHit     = true;
+            pExtent  = pNext;
         }
     }
 
@@ -367,12 +358,11 @@ static DECLCALLBACK(int) rtVfsMemFile_Read(void *pvThis, RTFOFF off, PCRTSGBUF p
  * @param   offUnsigned         The location to allocate the extent at.
  * @param   cbToWrite           The number of bytes we're interested in writing
  *                              starting at @a offUnsigned.
- * @param   pNext               The extention after @a offUnsigned.  NULL if
- *                              none, i.e. we're allocating space at the end of
- *                              the file.
+ * @param   pPrev               The extention before @a offUnsigned.  NULL if
+ *                              none.
  */
 static PRTVFSMEMEXTENT rtVfsMemFile_AllocExtent(PRTVFSMEMFILE pThis, uint64_t offUnsigned, size_t cbToWrite,
-                                                PRTVFSMEMEXTENT pNext)
+                                                PRTVFSMEMEXTENT pPrev)
 {
     /*
      * Adjust the extent size if we haven't reached the max size yet.
@@ -404,13 +394,13 @@ static PRTVFSMEMEXTENT rtVfsMemFile_AllocExtent(PRTVFSMEMFILE pThis, uint64_t of
     uint64_t        offExtent = offUnsigned & ~(uint64_t)(pThis->cbExtent - 1);
     uint32_t        cbExtent  = pThis->cbExtent;
 
-    PRTVFSMEMEXTENT pPrev     = pNext
-                              ? RTListGetPrev(&pThis->ExtentHead, pNext, RTVFSMEMEXTENT, Entry)
-                              : RTListGetLast(&pThis->ExtentHead, RTVFSMEMEXTENT, Entry);
     uint64_t const  offPrev   = pPrev ? pPrev->off + pPrev->cb : 0;
     if (offExtent < offPrev)
         offExtent = offPrev;
 
+    PRTVFSMEMEXTENT pNext     = pPrev
+                              ? RTListGetNext(&pThis->ExtentHead, pPrev, RTVFSMEMEXTENT, Entry)
+                              : RTListGetFirst(&pThis->ExtentHead, RTVFSMEMEXTENT, Entry);
     if (pNext)
     {
         uint64_t cbMaxExtent = pNext->off - offExtent;
@@ -471,27 +461,24 @@ static DECLCALLBACK(int) rtVfsMemFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF 
          */
         if (!fHit)
         {
-            Assert(!pExtent || pExtent->off > offUnsigned);
+            Assert(!pExtent || (pExtent->off < offUnsigned && pExtent->off + pExtent->cb <= offUnsigned));
 
             /* Skip leading zeros if there is a whole bunch of them. */
             uint8_t const *pbSrcNZ = (uint8_t const *)ASMMemIsAll8(pbSrc, cbLeftToWrite, 0);
-            size_t         cbZeros = pbSrcNZ ? pbSrcNZ - pbSrc            : cbLeftToWrite;
-            if (cbZeros)
+            if (!pbSrcNZ)
             {
-                uint64_t const cbToNext = pExtent ? pExtent->off - offUnsigned : UINT64_MAX;
-                if (cbZeros > cbToNext)
-                    cbZeros = (size_t)cbToNext;
+                offUnsigned  += cbLeftToWrite;
+                cbLeftToWrite = 0;
+                break;
+            }
+            size_t const cbZeros = pbSrcNZ - pbSrc;
+            if (cbZeros >= RT_MIN(pThis->cbExtent, _64K))
+            {
                 offUnsigned   += cbZeros;
                 cbLeftToWrite -= cbZeros;
-                if (!cbLeftToWrite)
-                    break;
-
-                Assert(!pExtent || offUnsigned <= pExtent->off);
-                if (pExtent && pExtent->off == offUnsigned)
-                {
-                    fHit = true;
-                    continue;
-                }
+                pbSrc          = pbSrcNZ;
+                pExtent = rtVfsMemFile_LocateExtent(pThis, offUnsigned, &fHit);
+                break;
             }
 
             fHit    = true;
@@ -502,7 +489,6 @@ static DECLCALLBACK(int) rtVfsMemFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF 
                 break;
             }
         }
-        Assert(offUnsigned - pExtent->off < pExtent->cb);
 
         /*
          * Copy the source data into the current extent.
@@ -521,10 +507,14 @@ static DECLCALLBACK(int) rtVfsMemFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF 
         Assert(offUnsigned == pExtent->off + pExtent->cb);
 
         /*
-         * Advance to the next extent (emulate the lookup).
+         * Advance to the next extent.
          */
-        pExtent = RTListGetNext(&pThis->ExtentHead, pExtent, RTVFSMEMEXTENT, Entry);
-        fHit = pExtent && (offUnsigned - pExtent->off < pExtent->cb);
+        PRTVFSMEMEXTENT pNext = RTListGetNext(&pThis->ExtentHead, pExtent, RTVFSMEMEXTENT, Entry);
+        Assert(!pNext || pNext->off >= offUnsigned);
+        if (pNext && pNext->off == offUnsigned)
+            pExtent = pNext;
+        else
+            fHit = false;
     }
 
     /*
@@ -557,8 +547,9 @@ static DECLCALLBACK(int) rtVfsMemFile_Flush(void *pvThis)
 static DECLCALLBACK(int) rtVfsMemFile_PollOne(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
                                               uint32_t *pfRetEvents)
 {
-    NOREF(pvThis);
-    int rc;
+    PRTVFSMEMFILE pThis = (PRTVFSMEMFILE)pvThis;
+    int           rc;
+
     if (fEvents != RTPOLL_EVT_ERROR)
     {
         *pfRetEvents = fEvents & ~RTPOLL_EVT_ERROR;

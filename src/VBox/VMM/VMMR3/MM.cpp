@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -226,7 +226,7 @@ VMMR3DECL(int) MMR3InitUVM(PUVM pUVM)
  * it will choose a default starting location, currently 0xa0000000.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  */
 VMMR3DECL(int) MMR3Init(PVM pVM)
 {
@@ -290,7 +290,7 @@ VMMR3DECL(int) MMR3Init(PVM pVM)
  * Initializes the MM parts which depends on PGM being initialized.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  * @remark  No cleanup necessary since MMR3Term() will be called on failure.
  */
 VMMR3DECL(int) MMR3InitPaging(PVM pVM)
@@ -445,7 +445,7 @@ VMMR3DECL(int) MMR3InitPaging(PVM pVM)
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM to operate on.
  */
 VMMR3DECL(int) MMR3Term(PVM pVM)
 {
@@ -502,10 +502,21 @@ VMMR3DECL(void) MMR3TermUVM(PUVM pUVM)
 
 
 /**
+ * Reset notification.
+ *
+ * @param   pVM             The VM handle.
+ */
+VMMR3DECL(void) MMR3Reset(PVM pVM)
+{
+    /* nothing to do anylonger. */
+}
+
+
+/**
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) mmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -522,7 +533,7 @@ static DECLCALLBACK(int) mmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             VM Handle.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion       Data layout version.
  * @param   uPass           The data pass.
@@ -706,7 +717,7 @@ VMMR3DECL(int) MMR3UpdateShadowReservation(PVM pVM, uint32_t cShadowPages)
  * Convert HC Physical address to HC Virtual address.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   HCPhys      The host context virtual address.
  * @param   ppv         Where to store the resulting address.
  * @thread  The Emulation Thread.
@@ -781,7 +792,7 @@ VMMR3DECL(int) MMR3HCPhys2HCVirt(PVM pVM, RTHCPHYS HCPhys, void **ppv)
  * This usually means the size of the first contiguous block of physical memory.
  *
  * @returns The guest base RAM size.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @thread  Any.
  *
  * @deprecated

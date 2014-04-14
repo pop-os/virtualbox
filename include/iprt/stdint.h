@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,12 +87,12 @@
 # undef IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES
 # ifdef __IBMCPP__
 #  if __IBMCPP__ < 350 && (defined(__WINDOWS__) || defined(_AIX) || defined(__OS2__))
-#   define IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES
+#   defined IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES
 #  endif
 # endif
 # ifdef __IBMC__
 #  if __IBMC__   < 350 && (defined(__WINDOWS__) || defined(_AIX) || defined(__OS2__))
-#   define IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES
+#   defined IPRT_STDINT_USE_STRUCT_FOR_64_BIT_TYPES
 #  endif
 # endif
 

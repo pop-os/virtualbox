@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,8 @@
 #ifdef RT_OS_WINDOWS
 # include <Windows.h>
 
+#elif defined RT_OS_L4
+
 #else /* posix */
 # include <sys/time.h>
 #endif
@@ -49,6 +51,10 @@ DECLINLINE(uint64_t) OSNanoTS(void)
     GetSystemTimeAsFileTime((LPFILETIME)&u64);
     return u64 * 100;
 
+#elif defined RT_OS_L4
+    /** @todo fix a different timesource on l4. */
+    return RTTimeNanoTS();
+
 #else /* posix */
 
     struct timeval tv;
@@ -62,7 +68,7 @@ DECLINLINE(uint64_t) OSNanoTS(void)
 
 int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
+    RTR3InitAndSUPLib();
 
     if (argc <= 1)
     {

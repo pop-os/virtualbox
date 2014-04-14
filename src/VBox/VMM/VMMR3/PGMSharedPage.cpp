@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #define LOG_GROUP LOG_GROUP_PGM_SHARED
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/stam.h>
-#include <VBox/vmm/uvm.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/sup.h>
@@ -53,7 +52,7 @@ static unsigned                     g_cSharedModules = 0;
  * Registers a new shared module for the VM
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 VM handle.
  * @param   enmGuestOS          Guest OS type.
  * @param   pszModuleName       Module name.
  * @param   pszVersion          Module version.
@@ -99,7 +98,6 @@ VMMR3DECL(int) PGMR3SharedModuleRegister(PVM pVM, VBOXOSFAMILY enmGuestOS, char 
             /*
              * Issue the request.  In strict builds, do some local tracking.
              */
-            pgmR3PhysAssertSharedPageChecksums(pVM);
             rc = GMMR3RegisterSharedModule(pVM, pReq);
             if (RT_SUCCESS(rc))
                 rc = pReq->rc;
@@ -136,7 +134,7 @@ VMMR3DECL(int) PGMR3SharedModuleRegister(PVM pVM, VBOXOSFAMILY enmGuestOS, char 
  * Unregisters a shared module for the VM
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 VM handle.
  * @param   pszModuleName       Module name.
  * @param   pszVersion          Module version.
  * @param   GCBaseAddr          Module base address.
@@ -166,9 +164,7 @@ VMMR3DECL(int) PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *p
         rc = RTStrCopy(pReq->szVersion, sizeof(pReq->szVersion), pszVersion);
         if (RT_SUCCESS(rc))
         {
-            pgmR3PhysAssertSharedPageChecksums(pVM);
             rc = GMMR3UnregisterSharedModule(pVM, pReq);
-            pgmR3PhysAssertSharedPageChecksums(pVM);
 
 # ifdef VBOX_STRICT
             /*
@@ -199,8 +195,8 @@ VMMR3DECL(int) PGMR3SharedModuleUnregister(PVM pVM, char *pszModuleName, char *p
  * Rendezvous callback that will be called once.
  *
  * @returns VBox strict status code.
- * @param   pVM                 Pointer to the VM.
- * @param   pVCpu               Pointer to the VMCPU of the calling EMT.
+ * @param   pVM                 VM handle.
+ * @param   pVCpu               The VMCPU handle for the calling EMT.
  * @param   pvUser              Pointer to a VMCPUID with the requester's ID.
  */
 static DECLCALLBACK(VBOXSTRICTRC) pgmR3SharedModuleRegRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
@@ -214,31 +210,23 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3SharedModuleRegRendezvous(PVM pVM, PVMCPU
         return VINF_SUCCESS;
     }
 
-
     /* Flush all pending handy page operations before changing any shared page assignments. */
     int rc = PGMR3PhysAllocateHandyPages(pVM);
     AssertRC(rc);
 
-    /*
-     * Lock it here as we can't deal with busy locks in this ring-0 path.
-     */
-    LogFlow(("pgmR3SharedModuleRegRendezvous: start (%d)\n", pVM->pgm.s.cSharedPages));
-
+    /* Lock it here as we can't deal with busy locks in this ring-0 path. */
     pgmLock(pVM);
-    pgmR3PhysAssertSharedPageChecksums(pVM);
     rc = GMMR3CheckSharedModules(pVM);
-    pgmR3PhysAssertSharedPageChecksums(pVM);
     pgmUnlock(pVM);
     AssertLogRelRC(rc);
 
-    LogFlow(("pgmR3SharedModuleRegRendezvous: done (%d)\n", pVM->pgm.s.cSharedPages));
     return rc;
 }
 
 /**
  * Shared module check helper (called on the way out).
  *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   VMCPUID     VCPU id
  */
 static DECLCALLBACK(void) pgmR3CheckSharedModulesHelper(PVM pVM, VMCPUID idCpu)
@@ -246,7 +234,7 @@ static DECLCALLBACK(void) pgmR3CheckSharedModulesHelper(PVM pVM, VMCPUID idCpu)
     /* We must stall other VCPUs as we'd otherwise have to send IPI flush commands for every single change we make. */
     STAM_REL_PROFILE_START(&pVM->pgm.s.StatShModCheck, a);
     int rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ALL_AT_ONCE, pgmR3SharedModuleRegRendezvous, &idCpu);
-    AssertRCSuccess(rc);
+    Assert(rc == VINF_SUCCESS);
     STAM_REL_PROFILE_STOP(&pVM->pgm.s.StatShModCheck, a);
 }
 
@@ -255,7 +243,7 @@ static DECLCALLBACK(void) pgmR3CheckSharedModulesHelper(PVM pVM, VMCPUID idCpu)
  * Check all registered modules for changes.
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM
+ * @param   pVM                 VM handle
  */
 VMMR3DECL(int) PGMR3SharedModuleCheckAll(PVM pVM)
 {
@@ -269,7 +257,7 @@ VMMR3DECL(int) PGMR3SharedModuleCheckAll(PVM pVM)
  * Query the state of a page in a shared module
  *
  * @returns VBox status code.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 VM handle.
  * @param   GCPtrPage           Page address.
  * @param   pfShared            Shared status (out).
  * @param   pfPageFlags         Page flags (out).
@@ -319,20 +307,24 @@ VMMR3DECL(int) PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, bool *p
 # ifdef VBOX_STRICT
 
 /**
- * @callback_method_impl{FNDBGCCMD, The '.pgmcheckduppages' command.}
+ * The '.pgmcheckduppages' command.
+ *
+ * @returns VBox status.
+ * @param   pCmd        Pointer to the command descriptor (as registered).
+ * @param   pCmdHlp     Pointer to command helper functions.
+ * @param   pVM         Pointer to the current VM (if any).
+ * @param   paArgs      Pointer to (readonly) array of arguments.
+ * @param   cArgs       Number of arguments in the array.
  */
-DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+DECLCALLBACK(int)  pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     unsigned cBallooned = 0;
-    unsigned cShared    = 0;
-    unsigned cZero      = 0;
-    unsigned cUnique    = 0;
+    unsigned cShared = 0;
+    unsigned cZero = 0;
+    unsigned cUnique = 0;
     unsigned cDuplicate = 0;
     unsigned cAllocZero = 0;
-    unsigned cPages     = 0;
-    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
-    PVM      pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    unsigned cPages = 0;
 
     pgmLock(pVM);
 
@@ -404,18 +396,22 @@ DECLCALLBACK(int) pgmR3CmdCheckDuplicatePages(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHl
     return VINF_SUCCESS;
 }
 
-
 /**
- * @callback_method_impl{FNDBGCCMD, The '.pgmsharedmodules' command.}
+ * The '.pgmsharedmodules' command.
+ *
+ * @returns VBox status.
+ * @param   pCmd        Pointer to the command descriptor (as registered).
+ * @param   pCmdHlp     Pointer to command helper functions.
+ * @param   pVM         Pointer to the current VM (if any).
+ * @param   paArgs      Pointer to (readonly) array of arguments.
+ * @param   cArgs       Number of arguments in the array.
  */
-DECLCALLBACK(int) pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+DECLCALLBACK(int)  pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
-    NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
-    PVM pVM = pUVM->pVM;
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    unsigned i = 0;
 
     pgmLock(pVM);
-    for (unsigned i = 0; i < RT_ELEMENTS(g_apSharedModules); i++)
+    do
     {
         if (g_apSharedModules[i])
         {
@@ -423,7 +419,8 @@ DECLCALLBACK(int) pgmR3CmdShowSharedModules(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
             for (unsigned j = 0; j < g_apSharedModules[i]->cRegions; j++)
                 pCmdHlp->pfnPrintf(pCmdHlp, NULL, "--- Region %d: base %RGv size %x\n", j, g_apSharedModules[i]->aRegions[j].GCRegionAddr, g_apSharedModules[i]->aRegions[j].cbRegion);
         }
-    }
+        i++;
+    } while (i < RT_ELEMENTS(g_apSharedModules));
     pgmUnlock(pVM);
 
     return VINF_SUCCESS;

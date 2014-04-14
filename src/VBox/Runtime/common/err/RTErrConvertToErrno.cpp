@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,16 @@
 
 #include <iprt/assert.h>
 #include <iprt/err.h>
-#include <iprt/errno.h>
+
+#if defined(RT_OS_DARWIN) && defined(KERNEL)
+# include <sys/errno.h>
+#elif defined(RT_OS_LINUX) && defined(__KERNEL__)
+# include <linux/errno.h>
+#elif defined(RT_OS_FREEBSD) && defined(_KERNEL)
+# include <sys/errno.h>
+#else
+# include <errno.h>
+#endif
 
 
 RTDECL(int) RTErrConvertToErrno(int iErr)

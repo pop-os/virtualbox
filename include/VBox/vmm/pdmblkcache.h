@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,10 +56,8 @@ typedef enum PDMBLKCACHEXFERDIR
     PDMBLKCACHEXFERDIR_READ = 0,
     /** Write */
     PDMBLKCACHEXFERDIR_WRITE,
-    /** Flush */
-    PDMBLKCACHEXFERDIR_FLUSH,
-    /** Discard */
-    PDMBLKCACHEXFERDIR_DISCARD
+    /** FLush */
+    PDMBLKCACHEXFERDIR_FLUSH
 } PDMBLKCACHEXFERDIR;
 
 /**
@@ -88,23 +86,9 @@ typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDRV(PPDMDRVINS pDrvIns,
 typedef FNPDMBLKCACHEXFERENQUEUEDRV *PFNPDMBLKCACHEXFERENQUEUEDRV;
 
 /**
- * Discard enqueue callback for drivers.
- *
- * @param   pDrvIns        The driver instance.
- * @param   paRanges       Ranges to discard.
- * @param   cRanges        Number of range entries.
- * @param   hIoXfer        I/O handle to return on completion.
- */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDDRV(PPDMDRVINS pDrvIns,
-                                                             PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
-/** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDDRV(). */
-typedef FNPDMBLKCACHEXFERENQUEUEDISCARDDRV *PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV;
-
-/**
  * Completion callback for devices.
  *
- * @param   pDrvIns        The device instance.
+ * @param   pDrvIns        The driver instance.
  * @param   pvUser         User argument given during request initiation.
  * @param   rc             The status code of the completed request.
  */
@@ -115,7 +99,7 @@ typedef FNPDMBLKCACHEXFERCOMPLETEDEV *PFNPDMBLKCACHEXFERCOMPLETEDEV;
 /**
  * I/O enqueue callback for devices.
  *
- * @param   pDevIns        The device instance.
+ * @param   pDrvIns        The driver instance.
  * @param   pvUser         User argument given during request initiation.
  * @param   rc             The status code of the completed request.
  */
@@ -125,20 +109,6 @@ typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDEV(PPDMDEVINS pDevIns,
                                                       PCRTSGBUF pcSgBuf, PPDMBLKCACHEIOXFER hIoXfer);
 /** Pointer to a FNPDMBLKCACHEXFERENQUEUEDEV(). */
 typedef FNPDMBLKCACHEXFERENQUEUEDEV *PFNPDMBLKCACHEXFERENQUEUEDEV;
-
-/**
- * Discard enqueue callback for devices.
- *
- * @param   pDrvIns        The driver instance.
- * @param   paRanges       Ranges to discard.
- * @param   cRanges        Number of range entries.
- * @param   hIoXfer        I/O handle to return on completion.
- */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDDEV(PPDMDEVINS pDevIns,
-                                                             PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
-/** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDDEV(). */
-typedef FNPDMBLKCACHEXFERENQUEUEDISCARDDEV *PFNPDMBLKCACHEXFERENQUEUEDISCARDDEV;
 
 /**
  * Completion callback for drivers.
@@ -166,20 +136,6 @@ typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEINT(void *pvUser,
 typedef FNPDMBLKCACHEXFERENQUEUEINT *PFNPDMBLKCACHEXFERENQUEUEINT;
 
 /**
- * Discard enqueue callback for VMM internal users.
- *
- * @param   pDrvIns        The driver instance.
- * @param   paRanges       Ranges to discard.
- * @param   cRanges        Number of range entries.
- * @param   hIoXfer        I/O handle to return on completion.
- */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDINT(void *pvUser,
-                                                             PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
-/** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDINT(). */
-typedef FNPDMBLKCACHEXFERENQUEUEDISCARDINT *PFNPDMBLKCACHEXFERENQUEUEDISCARDINT;
-
-/**
  * Completion callback for USB.
  *
  * @param   pDrvIns        The driver instance.
@@ -205,89 +161,67 @@ typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEUSB(PPDMUSBINS pUsbIns,
 typedef FNPDMBLKCACHEXFERENQUEUEUSB *PFNPDMBLKCACHEXFERENQUEUEUSB;
 
 /**
- * Discard enqueue callback for USB devices.
- *
- * @param   pUsbIns        The USB device instance.
- * @param   paRanges       Ranges to discard.
- * @param   cRanges        Number of range entries.
- * @param   hIoXfer        I/O handle to return on completion.
- */
-typedef DECLCALLBACK(int) FNPDMBLKCACHEXFERENQUEUEDISCARDUSB(PPDMUSBINS pUsbIns,
-                                                             PCRTRANGE paRanges, unsigned cRanges,
-                                                             PPDMBLKCACHEIOXFER hIoXfer);
-/** Pointer to a FNPDMBLKCACHEXFERENQUEUEDISCARDUSB(). */
-typedef FNPDMBLKCACHEXFERENQUEUEDISCARDUSB *PFNPDMBLKCACHEXFERENQUEUEDISCARDUSB;
-
-/**
  * Create a block cache user for a driver instance.
  *
  * @returns VBox status code.
- * @param   pVM                      Pointer to the shared VM structure.
- * @param   pDrvIns                  The driver instance.
- * @param   ppBlkCache               Where to store the handle to the block cache.
- * @param   pfnXferComplete          The I/O transfer complete callback.
- * @param   pfnXferEnqueue           The I/O request enqueue callback.
- * @param   pfnXferEnqueueDiscard    The discard request enqueue callback.
- * @param   pcszId                   Unique ID used to identify the user.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pDrvIns         The driver instance.
+ * @param   ppBlkCache      Where to store the handle to the block cache.
+ * @param   pfnXferComplete The I/O transfer complete callback.
+ * @param   pfnXferEnqueue  The I/O request enqueue callback.
+ * @param   pcszId          Unique ID used to identify the user.
  */
 VMMR3DECL(int) PDMR3BlkCacheRetainDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                          PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                          PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
-                                         PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                          const char *pcszId);
 
 /**
  * Create a block cache user for a device instance.
  *
  * @returns VBox status code.
- * @param   pVM                      Pointer to the shared VM structure.
- * @param   pDevIns                  The device instance.
- * @param   ppBlkCache               Where to store the handle to the block cache.
- * @param   pfnXferComplete          The I/O transfer complete callback.
- * @param   pfnXferEnqueue           The I/O request enqueue callback.
- * @param   pfnXferEnqueueDiscard    The discard request enqueue callback.
- * @param   pcszId                   Unique ID used to identify the user.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pDevIns         The device instance.
+ * @param   ppBlkCache      Where to store the handle to the block cache.
+ * @param   pfnXferComplete The I/O transfer complete callback.
+ * @param   pfnXferEnqueue  The I/O request enqueue callback.
+ * @param   pcszId          Unique ID used to identify the user.
  */
 VMMR3DECL(int) PDMR3BlkCacheRetainDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMBLKCACHE ppBlkCache,
                                          PFNPDMBLKCACHEXFERCOMPLETEDEV pfnXferComplete,
                                          PFNPDMBLKCACHEXFERENQUEUEDEV pfnXferEnqueue,
-                                         PFNPDMBLKCACHEXFERENQUEUEDISCARDDEV pfnXferEnqueueDiscard,
                                          const char *pcszId);
 
 /**
  * Create a block cache user for a USB instance.
  *
  * @returns VBox status code.
- * @param   pVM                      Pointer to the shared VM structure.
- * @param   pUsbIns                  The USB device instance.
- * @param   ppBlkCache               Where to store the handle to the block cache.
- * @param   pfnXferComplete          The I/O transfer complete callback.
- * @param   pfnXferEnqueue           The I/O request enqueue callback.
- * @param   pfnXferEnqueueDiscard    The discard request enqueue callback.
- * @param   pcszId                   Unique ID used to identify the user.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pUsbIns         The USB device instance.
+ * @param   ppBlkCache      Where to store the handle to the block cache.
+ * @param   pfnXferComplete The I/O transfer complete callback.
+ * @param   pfnXferEnqueue  The I/O request enqueue callback.
+ * @param   pcszId          Unique ID used to identify the user.
  */
 VMMR3DECL(int) PDMR3BlkCacheRetainUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMBLKCACHE ppBlkCache,
                                       PFNPDMBLKCACHEXFERCOMPLETEUSB pfnXferComplete,
                                       PFNPDMBLKCACHEXFERENQUEUEUSB pfnXferEnqueue,
-                                      PFNPDMBLKCACHEXFERENQUEUEDISCARDUSB pfnXferEnqueueDiscard,
                                       const char *pcszId);
 
 /**
  * Create a block cache user for internal use by VMM.
  *
  * @returns VBox status code.
- * @param   pVM                      Pointer to the shared VM structure.
- * @param   pvUser                   Opaque user data.
- * @param   ppBlkCache               Where to store the handle to the block cache.
- * @param   pfnXferComplete          The I/O transfer complete callback.
- * @param   pfnXferEnqueue           The I/O request enqueue callback.
- * @param   pfnXferEnqueueDiscard    The discard request enqueue callback.
- * @param   pcszId                   Unique ID used to identify the user.
+ * @param   pVM             Pointer to the shared VM structure.
+ * @param   pvUser          Opaque user data.
+ * @param   ppBlkCache      Where to store the handle to the block cache.
+ * @param   pfnXferComplete The I/O transfer complete callback.
+ * @param   pfnXferEnqueue  The I/O request enqueue callback.
+ * @param   pcszId          Unique ID used to identify the user.
  */
 VMMR3DECL(int) PDMR3BlkCacheRetainInt(PVM pVM, void *pvUser, PPPDMBLKCACHE ppBlkCache,
                                       PFNPDMBLKCACHEXFERCOMPLETEINT pfnXferComplete,
                                       PFNPDMBLKCACHEXFERENQUEUEINT pfnXferEnqueue,
-                                      PFNPDMBLKCACHEXFERENQUEUEDISCARDINT pfnXferEnqueueDiscard,
                                       const char *pcszId);
 
 /**
@@ -362,20 +296,9 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
  * @param   pEndpoint       The file endpoint to flush.
  * @param   pvUser          Opaque user data returned in the completion callback
  *                          upon completion of the task.
+ * @param   ppTask          Where to store the task handle on success.
  */
 VMMR3DECL(int) PDMR3BlkCacheFlush(PPDMBLKCACHE pBlkCache, void *pvUser);
-
-/**
- * Discards the given ranges from the cache.
- *
- * @returns VBox status code.
- * @param   pEndpoint       The file endpoint to flush.
- * @param   paRanges        Array of ranges to discard.
- * @param   cRanges         Number of ranges in the array.
- * @param   pvUser          Opaque user data returned in the completion callback
- *                          upon completion of the task.
- */
-VMMR3DECL(int) PDMR3BlkCacheDiscard(PPDMBLKCACHE pBlkCache, PCRTRANGE paRanges, unsigned cRanges, void *pvUser);
 
 /**
  * Notify the cache of a complete I/O transfer.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -272,7 +272,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocLow(PPRTR0MEMOBJINTERNAL ppMem, size_t cb, 
         while (iPage-- > 0)
             if (rtR0MemObjNativeGetPagePhysAddr(*ppMem, iPage) >= _4G)
             {
-                rc = VERR_NO_LOW_MEMORY;
+                rc = VERR_NO_MEMORY;
                 break;
             }
         if (RT_SUCCESS(rc))
@@ -496,7 +496,7 @@ DECLHIDDEN(int) rtR0MemObjNativeAllocPhysNC(PPRTR0MEMOBJINTERNAL ppMem, size_t c
 
 DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS Phys, size_t cb, uint32_t uCachePolicy)
 {
-    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE || uCachePolicy == RTMEM_CACHE_POLICY_MMIO, VERR_NOT_SUPPORTED);
+    AssertReturn(uCachePolicy == RTMEM_CACHE_POLICY_DONT_CARE, VERR_NOT_SUPPORTED);
 
     /*
      * Validate the address range and create a descriptor for it.
@@ -779,8 +779,7 @@ static int rtR0MemObjNtMap(PPRTR0MEMOBJINTERNAL ppMem, RTR0MEMOBJ pMemToMap, voi
         /** @todo How to set the protection on the pages? */
         PHYSICAL_ADDRESS Phys;
         Phys.QuadPart = pMemNtToMap->Core.u.Phys.PhysBase;
-        void *pv = MmMapIoSpace(Phys, pMemNtToMap->Core.cb,
-                                pMemNtToMap->Core.u.Phys.uCachePolicy == RTMEM_CACHE_POLICY_MMIO ? MmNonCached : MmCached);
+        void *pv = MmMapIoSpace(Phys, pMemNtToMap->Core.cb, MmCached); /** @todo add cache type to fProt. */
         if (pv)
         {
             PRTR0MEMOBJNT pMemNt = (PRTR0MEMOBJNT)rtR0MemObjNew(sizeof(*pMemNt), RTR0MEMOBJTYPE_MAPPING, pv,

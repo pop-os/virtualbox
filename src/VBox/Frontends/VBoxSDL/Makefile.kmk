@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2007 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,6 @@ PROGRAMS += tstSDL
 #
 VBoxSDLHardened_TEMPLATE = VBOXR3HARDENEDEXE
 VBoxSDLHardened_SOURCES = VBoxSDLHardened.cpp
-VBoxSDLHardened_SOURCES.win = $(VBoxSDL_0_OUTDIR)/VBoxSDL-icon.rc
 VBoxSDLHardened_NAME = VBoxSDL
 
 
@@ -157,5 +156,5 @@ tstSDL_CXXFLAGS.linux = -O -Wall -Wno-non-virtual-dtor -Wno-long-long -fshort-wc
 
 
 endif # !VBOX_WITH_HARDENING || "$(KBUILD_TARGET)" != "darwin"
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

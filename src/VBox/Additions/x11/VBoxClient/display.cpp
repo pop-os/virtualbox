@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,7 +157,6 @@ static int runDisplay(Display *pDisplay)
     Cursor hClockCursor = XCreateFontCursor(pDisplay, XC_watch);
     Cursor hArrowCursor = XCreateFontCursor(pDisplay, XC_left_ptr);
     int RRMaj, RRMin;
-    bool fExtDispReqSupport = true;
     if (!XRRQueryVersion(pDisplay, &RRMaj, &RRMin))
         RRMin = 0;
     const char *pcszXrandr = "xrandr";
@@ -169,13 +168,10 @@ static int runDisplay(Display *pDisplay)
         return rc;
     while (true)
     {
-        uint32_t fEvents = 0, cx = 0, cy = 0, cBits = 0, iDisplay = 0, cxOrg = 0, cyOrg = 0;
-        bool fEnabled = false;
+        uint32_t fEvents = 0, cx = 0, cy = 0, cBits = 0, iDisplay = 0;
         rc = VbglR3WaitEvent(  VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST
                              | VMMDEV_EVENT_MOUSE_CAPABILITIES_CHANGED,
                              RT_INDEFINITE_WAIT, &fEvents);
-        if (RT_FAILURE(rc) && rc != VERR_INTERRUPTED)  /* VERR_NO_MEMORY? */
-            return rc;
         /* Jiggle the mouse pointer to wake up the driver. */
         XGrabPointer(pDisplay,
                      DefaultRootWindow(pDisplay), true, 0, GrabModeAsync,
@@ -191,20 +187,8 @@ static int runDisplay(Display *pDisplay)
          * driver has had a chance to update its list. */
         if (RT_SUCCESS(rc) && (fEvents & VMMDEV_EVENT_DISPLAY_CHANGE_REQUEST))
         {
-            int rc2 = VbglR3GetDisplayChangeRequestEx(&cx, &cy, &cBits,
-                                                      &iDisplay, &cxOrg, &cyOrg, &fEnabled, true);
-            /* Extended display version not supported on host */
-            if (RT_FAILURE(rc2))
-            {
-                LogRel(("GetDisplayChangeReq Extended Version not supported.  "
-                        "Trying for Normal Mode with cx=%d & cy=%d\n", cx, cy));
-                fExtDispReqSupport = false;
-                rc2 = VbglR3GetDisplayChangeRequest(&cx, &cy, &cBits, &iDisplay, true);
-            }
-            else
-                LogRelFlowFunc(("Got Extended Param from Host cx=%d, cy=%d, bpp=%d, iDisp=%d, "
-                                "OrgX=%d, OrgY=%d Enb=%d\n", cx, cy, cBits, iDisplay,
-                                cxOrg, cyOrg, fEnabled));
+            int rc2 = VbglR3GetDisplayChangeRequest(&cx, &cy, &cBits,
+                                                    &iDisplay, true);
             /* If we are not stopping, sleep for a bit to avoid using up
                 too much CPU while retrying. */
             if (RT_FAILURE(rc2))
@@ -215,56 +199,18 @@ static int runDisplay(Display *pDisplay)
                 else
                 {
                     char szCommand[256];
-                    if (fExtDispReqSupport)
-                    {
-                        if (fEnabled)
-                        {
-                            if (cx != 0 && cy != 0)
-                            {
-                                RTStrPrintf(szCommand, sizeof(szCommand),
-                                            "%s --output VBOX%u --set VBOX_MODE %dx%d",
-                                            pcszXrandr, iDisplay, cx, cy);
-                                system(szCommand);
-                            }
-                            /* Extended Display support possible . Secondary monitor position supported */
-                            if (cxOrg != 0 || cyOrg != 0)
-                            {
-                                RTStrPrintf(szCommand, sizeof(szCommand),
-                                            "%s --output VBOX%u --auto --pos %dx%d",
-                                            pcszXrandr, iDisplay, cxOrg, cyOrg);
-                                system(szCommand);
-                            }
-                            RTStrPrintf(szCommand, sizeof(szCommand),
-                                        "%s --output VBOX%u --preferred",
-                                        pcszXrandr, iDisplay);
-                            system(szCommand);
-                        }
-                        else /* disable the virtual monitor */
-                        {
-                            RTStrPrintf(szCommand, sizeof(szCommand),
-                                        "%s --output VBOX%u --off",
-                                         pcszXrandr, iDisplay);
-                            system(szCommand);
-                        }
-                    }
-                    else /* Extended display support not possible */
-                    {
-                        if (cx != 0 && cy != 0)
-                        {
-                            RTStrPrintf(szCommand, sizeof(szCommand),
-                                        "%s --output VBOX%u --set VBOX_MODE %dx%d",
-                                        pcszXrandr, iDisplay, cx, cy);
-                            system(szCommand);
-                            RTStrPrintf(szCommand, sizeof(szCommand),
-                                        "%s --output VBOX%u --preferred",
-                                        pcszXrandr, iDisplay);
-                            system(szCommand);
-                        }
-                    }
-
+                    RTStrPrintf(szCommand, sizeof(szCommand),
+                                "%s --output VBOX%u --set VBOX_MODE %dx%d",
+                                pcszXrandr, iDisplay, cx, cy);
+                    system(szCommand);
+                    RTStrPrintf(szCommand, sizeof(szCommand),
+                                "%s --output VBOX%u --preferred",
+                                pcszXrandr, iDisplay);
+                    system(szCommand);
                 }
         }
     }
+    LogRelFlowFunc(("returning VINF_SUCCESS\n"));
     return VINF_SUCCESS;
 }
 

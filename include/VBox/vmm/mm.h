@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,8 +58,6 @@ typedef enum MMTAG
     MM_TAG_CSAM_PATCH,
 
     MM_TAG_CPUM_CTX,
-    MM_TAG_CPUM_CPUID,
-    MM_TAG_CPUM_MSRS,
 
     MM_TAG_DBGF,
     MM_TAG_DBGF_AS,
@@ -102,9 +100,6 @@ typedef enum MMTAG
     MM_TAG_PDM_USB_DESC,
     MM_TAG_PDM_USB_USER,
     MM_TAG_PDM_LUN,
-#ifdef VBOX_WITH_NETSHAPER
-    MM_TAG_PDM_NET_SHAPER,
-#endif /* VBOX_WITH_NETSHAPER */
     MM_TAG_PDM_QUEUE,
     MM_TAG_PDM_THREAD,
 
@@ -132,7 +127,7 @@ typedef enum MMTAG
 
     MM_TAG_VMM,
 
-    MM_TAG_HM,
+    MM_TAG_HWACCM,
 
     MM_TAG_32BIT_HACK = 0x7fffffff
 } MMTAG;
@@ -207,7 +202,6 @@ DECLINLINE(RTRCPTR) MMHyperCCToRC(PVM pVM, void *pv)
 
 
 VMMDECL(int)        MMHyperAlloc(PVM pVM, size_t cb, uint32_t uAlignment, MMTAG enmTag, void **ppv);
-VMMDECL(int)        MMHyperDupMem(PVM pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv);
 VMMDECL(int)        MMHyperFree(PVM pVM, void *pv);
 VMMDECL(void)       MMHyperHeapCheck(PVM pVM);
 VMMDECL(int)        MMR3LockCall(PVM pVM);
@@ -252,6 +246,7 @@ VMMR3DECL(int)      MMR3InitPaging(PVM pVM);
 VMMR3DECL(int)      MMR3HyperInitFinalize(PVM pVM);
 VMMR3DECL(int)      MMR3Term(PVM pVM);
 VMMR3DECL(void)     MMR3TermUVM(PUVM pUVM);
+VMMR3DECL(void)     MMR3Reset(PVM pVM);
 VMMR3DECL(int)      MMR3ReserveHandyPages(PVM pVM, uint32_t cHandyPages);
 VMMR3DECL(int)      MMR3IncreaseBaseReservation(PVM pVM, uint64_t cAddBasePages);
 VMMR3DECL(int)      MMR3AdjustFixedReservation(PVM pVM, int32_t cDeltaFixedPages, const char *pszDesc);

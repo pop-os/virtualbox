@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* GUI includes: */
+/* Local includes */
 #include "UIGlobalSettingsUpdate.h"
 #include "VBoxGlobal.h"
 
+/* Update page constructor: */
 UIGlobalSettingsUpdate::UIGlobalSettingsUpdate()
     : m_pLastChosenRadio(0)
     , m_fChanged(false)
@@ -29,17 +30,17 @@ UIGlobalSettingsUpdate::UIGlobalSettingsUpdate()
     Ui::UIGlobalSettingsUpdate::setupUi(this);
 
     /* Setup connections: */
-    connect(m_pCheckBoxUpdate, SIGNAL(toggled(bool)), this, SLOT(sltUpdaterToggled(bool)));
-    connect(m_pComboBoxUpdatePeriod, SIGNAL(activated(int)), this, SLOT(sltPeriodActivated()));
-    connect(m_pRadioUpdateFilterStable, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
-    connect(m_pRadioUpdateFilterEvery, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
-    connect(m_pRadioUpdateFilterBetas, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
+    connect(m_pEnableUpdateCheckbox, SIGNAL(toggled(bool)), this, SLOT(sltUpdaterToggled(bool)));
+    connect(m_pUpdatePeriodCombo, SIGNAL(activated(int)), this, SLOT(sltPeriodActivated()));
+    connect(m_pUpdateFilterStableRadio, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
+    connect(m_pUpdateFilterEveryRadio, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
+    connect(m_pUpdateFilterBetasRadio, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
 
     /* Apply language settings: */
     retranslateUi();
 }
 
-/* Load data to cache from corresponding external object(s),
+/* Load data to cashe from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsUpdate::loadToCacheFrom(QVariant &data)
 {
@@ -47,7 +48,7 @@ void UIGlobalSettingsUpdate::loadToCacheFrom(QVariant &data)
     UISettingsPageGlobal::fetchData(data);
 
     /* Fill internal variables with corresponding values: */
-    VBoxUpdateData updateData(vboxGlobal().virtualBox().GetExtraData(GUI_UpdateDate));
+    VBoxUpdateData updateData(vboxGlobal().virtualBox().GetExtraData(VBoxDefs::GUI_UpdateDate));
     m_cache.m_fCheckEnabled = !updateData.isNoNeedToCheck();
     m_cache.m_periodIndex = updateData.periodIndex();
     m_cache.m_branchIndex = updateData.branchIndex();
@@ -62,21 +63,20 @@ void UIGlobalSettingsUpdate::loadToCacheFrom(QVariant &data)
 void UIGlobalSettingsUpdate::getFromCache()
 {
     /* Apply internal variables data to QWidget(s): */
-    m_pCheckBoxUpdate->setChecked(m_cache.m_fCheckEnabled);
-    if (m_pCheckBoxUpdate->isChecked())
+    m_pEnableUpdateCheckbox->setChecked(m_cache.m_fCheckEnabled);
+    if (m_pEnableUpdateCheckbox->isChecked())
     {
-        m_pComboBoxUpdatePeriod->setCurrentIndex(m_cache.m_periodIndex);
+        m_pUpdatePeriodCombo->setCurrentIndex(m_cache.m_periodIndex);
         if (m_cache.m_branchIndex == VBoxUpdateData::BranchWithBetas)
-            m_pRadioUpdateFilterBetas->setChecked(true);
+            m_pUpdateFilterBetasRadio->setChecked(true);
         else if (m_cache.m_branchIndex == VBoxUpdateData::BranchAllRelease)
-            m_pRadioUpdateFilterEvery->setChecked(true);
+            m_pUpdateFilterEveryRadio->setChecked(true);
         else
-            m_pRadioUpdateFilterStable->setChecked(true);
+            m_pUpdateFilterStableRadio->setChecked(true);
     }
     m_pUpdateDateText->setText(m_cache.m_strDate);
-    sltUpdaterToggled(m_cache.m_fCheckEnabled);
 
-    /* Mark page as *not changed*: */
+    /* Reset settings altering flag: */
     m_fChanged = false;
 }
 
@@ -102,7 +102,7 @@ void UIGlobalSettingsUpdate::saveFromCacheTo(QVariant &data)
 
     /* Gather corresponding values from internal variables: */
     VBoxUpdateData newData(m_cache.m_periodIndex, m_cache.m_branchIndex);
-    vboxGlobal().virtualBox().SetExtraData(GUI_UpdateDate, newData.data());
+    vboxGlobal().virtualBox().SetExtraData(VBoxDefs::GUI_UpdateDate, newData.data());
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);
@@ -110,12 +110,11 @@ void UIGlobalSettingsUpdate::saveFromCacheTo(QVariant &data)
 
 void UIGlobalSettingsUpdate::setOrderAfter(QWidget *pWidget)
 {
-    /* Configure navigation: */
-    setTabOrder(pWidget, m_pCheckBoxUpdate);
-    setTabOrder(m_pCheckBoxUpdate, m_pComboBoxUpdatePeriod);
-    setTabOrder(m_pComboBoxUpdatePeriod, m_pRadioUpdateFilterStable);
-    setTabOrder(m_pRadioUpdateFilterStable, m_pRadioUpdateFilterEvery);
-    setTabOrder(m_pRadioUpdateFilterEvery, m_pRadioUpdateFilterBetas);
+    setTabOrder(pWidget, m_pEnableUpdateCheckbox);
+    setTabOrder(m_pEnableUpdateCheckbox, m_pUpdatePeriodCombo);
+    setTabOrder(m_pUpdatePeriodCombo, m_pUpdateFilterStableRadio);
+    setTabOrder(m_pUpdateFilterStableRadio, m_pUpdateFilterEveryRadio);
+    setTabOrder(m_pUpdateFilterEveryRadio, m_pUpdateFilterBetasRadio);
 }
 
 void UIGlobalSettingsUpdate::retranslateUi()
@@ -123,18 +122,28 @@ void UIGlobalSettingsUpdate::retranslateUi()
     /* Translate uic generated strings: */
     Ui::UIGlobalSettingsUpdate::retranslateUi(this);
 
-    /* Retranslate m_pComboBoxUpdatePeriod combobox: */
-    int iCurrenIndex = m_pComboBoxUpdatePeriod->currentIndex();
-    m_pComboBoxUpdatePeriod->clear();
+    /* Retranslate m_pUpdatePeriodCombo combobox: */
+    int iCurrenIndex = m_pUpdatePeriodCombo->currentIndex();
+    m_pUpdatePeriodCombo->clear();
     VBoxUpdateData::populate();
-    m_pComboBoxUpdatePeriod->insertItems(0, VBoxUpdateData::list());
-    m_pComboBoxUpdatePeriod->setCurrentIndex(iCurrenIndex == -1 ? 0 : iCurrenIndex);
+    m_pUpdatePeriodCombo->insertItems (0, VBoxUpdateData::list());
+    m_pUpdatePeriodCombo->setCurrentIndex(iCurrenIndex == -1 ? 0 : iCurrenIndex);
 }
 
 void UIGlobalSettingsUpdate::sltUpdaterToggled(bool fEnabled)
 {
-    /* Update activity status: */
-    m_pContainerUpdate->setEnabled(fEnabled);
+    /* Enable/disable the sub-widgets depending on activity status: */
+    m_pUpdatePeriodLabel->setEnabled(fEnabled);
+    m_pUpdatePeriodCombo->setEnabled(fEnabled);
+    m_pUpdateDateLabel->setEnabled(fEnabled);
+    m_pUpdateDateText->setEnabled(fEnabled);
+    m_pUpdateFilterLabel->setEnabled(fEnabled);
+    m_pUpdateFilterStableRadio->setEnabled(fEnabled);
+    m_pUpdateFilterEveryRadio->setEnabled(fEnabled);
+    m_pUpdateFilterBetasRadio->setEnabled(fEnabled);
+    m_pUpdateFilterStableRadio->setAutoExclusive(fEnabled);
+    m_pUpdateFilterEveryRadio->setAutoExclusive(fEnabled);
+    m_pUpdateFilterBetasRadio->setAutoExclusive(fEnabled);
 
     /* Update time of next check: */
     sltPeriodActivated();
@@ -142,8 +151,8 @@ void UIGlobalSettingsUpdate::sltUpdaterToggled(bool fEnabled)
     /* Temporary remember branch type if was switched off: */
     if (!fEnabled)
     {
-        m_pLastChosenRadio = m_pRadioUpdateFilterBetas->isChecked() ? m_pRadioUpdateFilterBetas :
-                             m_pRadioUpdateFilterEvery->isChecked() ? m_pRadioUpdateFilterEvery : m_pRadioUpdateFilterStable;
+        m_pLastChosenRadio = m_pUpdateFilterBetasRadio->isChecked() ? m_pUpdateFilterBetasRadio :
+                             m_pUpdateFilterEveryRadio->isChecked() ? m_pUpdateFilterEveryRadio : m_pUpdateFilterStableRadio;
     }
 
     /* Check/uncheck last selected radio depending on activity status: */
@@ -165,16 +174,16 @@ void UIGlobalSettingsUpdate::sltBranchToggled()
 
 VBoxUpdateData::PeriodType UIGlobalSettingsUpdate::periodType() const
 {
-    VBoxUpdateData::PeriodType result = m_pCheckBoxUpdate->isChecked() ?
-        (VBoxUpdateData::PeriodType)m_pComboBoxUpdatePeriod->currentIndex() : VBoxUpdateData::PeriodNever;
+    VBoxUpdateData::PeriodType result = m_pEnableUpdateCheckbox->isChecked() ?
+        (VBoxUpdateData::PeriodType)m_pUpdatePeriodCombo->currentIndex() : VBoxUpdateData::PeriodNever;
     return result == VBoxUpdateData::PeriodUndefined ? VBoxUpdateData::Period1Day : result;
 }
 
 VBoxUpdateData::BranchType UIGlobalSettingsUpdate::branchType() const
 {
-    if (m_pRadioUpdateFilterBetas->isChecked())
+    if (m_pUpdateFilterBetasRadio->isChecked())
         return VBoxUpdateData::BranchWithBetas;
-    else if (m_pRadioUpdateFilterEvery->isChecked())
+    else if (m_pUpdateFilterEveryRadio->isChecked())
         return VBoxUpdateData::BranchAllRelease;
     else
         return VBoxUpdateData::BranchStable;

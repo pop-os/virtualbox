@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,11 +19,10 @@
 #ifndef __UIMachineSettingsUSB_h__
 #define __UIMachineSettingsUSB_h__
 
-/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsUSB.gen.h"
+#include "COMDefs.h"
 
-/* Forward declarations: */
 class VBoxUSBMenu;
 class UIToolBar;
 
@@ -104,8 +103,8 @@ struct UIDataSettingsMachineUSB
 typedef UISettingsCachePool<UIDataSettingsMachineUSB, UICacheSettingsMachineUSBFilter> UICacheSettingsMachineUSB;
 
 /* Common settings / USB page: */
-class UIMachineSettingsUSB : public UISettingsPageMachine,
-                             public Ui::UIMachineSettingsUSB
+class UIMachineSettingsUSB : public UISettingsPage,
+                          public Ui::UIMachineSettingsUSB
 {
     Q_OBJECT;
 
@@ -118,13 +117,13 @@ public:
         ModeOff
     };
 
-    UIMachineSettingsUSB();
+    UIMachineSettingsUSB(UISettingsPageType type);
 
     bool isOHCIEnabled() const;
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
+    /* Load data to cashe from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -141,8 +140,8 @@ protected:
     /* Page changed: */
     bool changed() const { return m_cache.wasChanged(); }
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    void setValidator (QIWidgetValidator *aVal);
+    bool revalidate(QString &strWarningText, QString &strTitle);
 
     void setOrderAfter (QWidget *aWidget);
 
@@ -165,17 +164,29 @@ private slots:
 
 private:
 
-    /* Helper: Prepare stuff: */
-    void prepareValidation();
-
     void addUSBFilter(const UIDataSettingsMachineUSBFilter &usbFilterData, bool fIsNew);
+
+    /* Fetch data to m_properties, m_settings or m_machine: */
+    void fetchData(const QVariant &data);
+
+    /* Upload m_properties, m_settings or m_machine to data: */
+    void uploadData(QVariant &data) const;
 
     /* Returns the multi-line description of the given USB filter: */
     static QString toolTipFor(const UIDataSettingsMachineUSBFilter &data);
 
     void polishPage();
 
+    /* Global data source: */
+    CSystemProperties m_properties;
+    VBoxGlobalSettings m_settings;
+
+    /* Machine data source: */
+    CMachine m_machine;
+    CConsole m_console;
+
     /* Other variables: */
+    QIWidgetValidator *mValidator;
     UIToolBar *m_pToolBar;
     QAction *mNewAction;
     QAction *mAddAction;

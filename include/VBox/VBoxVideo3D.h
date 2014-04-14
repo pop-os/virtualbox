@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,8 +95,6 @@ struct VBOXTLSREFDATA_DUMMY
         VBoxTlsRefAssertImpl(cRefs > 1 || (_p)->enmTlsRefState == VBOXTLSREFDATA_STATE_DESTROYING); \
     } while (0)
 
-#define VBoxTlsRefCountGet(_p) (ASMAtomicReadS32(&(_p)->cTlsRefs))
-
 #define VBoxTlsRefRelease(_p) do { \
         int cRefs = ASMAtomicDecS32(&(_p)->cTlsRefs); \
         VBoxTlsRefAssertImpl(cRefs >= 0); \
@@ -112,16 +110,6 @@ struct VBOXTLSREFDATA_DUMMY
 
 #define VBoxTlsRefGetCurrent(_t, _Tsd) ((_t*) VBoxTlsRefGetImpl((_Tsd)))
 
-#define VBoxTlsRefGetCurrentFunctional(_val, _t, _Tsd) do { \
-       _t * cur = VBoxTlsRefGetCurrent(_t, _Tsd); \
-       if (!cur || VBoxTlsRefIsFunctional(cur)) { \
-           (_val) = cur; \
-       } else { \
-           VBoxTlsRefSetCurrent(_t, _Tsd, NULL); \
-           (_val) = NULL; \
-       } \
-   } while (0)
-
 #define VBoxTlsRefSetCurrent(_t, _Tsd, _p) do { \
         _t * oldCur = VBoxTlsRefGetCurrent(_t, _Tsd); \
         if (oldCur != (_p)) { \
@@ -134,11 +122,5 @@ struct VBOXTLSREFDATA_DUMMY
             } \
         } \
     } while (0)
-
-
-/* host 3D->Fe[/Qt] notification mechanism defines */
-#define VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA  2
-#define VBOX3D_NOTIFY_EVENT_TYPE_TEST_FUNCTIONAL 3
-
 
 #endif /* #ifndef ___VBox_VBoxVideo3D_h */

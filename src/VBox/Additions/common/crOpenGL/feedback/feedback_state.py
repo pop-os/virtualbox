@@ -15,7 +15,7 @@ print """
 #include "feedbackspu.h"
 #include "feedbackspu_proto.h"
 """
-custom = ["CreateContext", "VBoxCreateContext", "MakeCurrent", "DestroyContext"]
+custom = ["CreateContext", "MakeCurrent", "DestroyContext"]
 
 keys = apiutil.GetDispatchedFunctions(sys.argv[1]+"/APIspec.txt")
 

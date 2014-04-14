@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,19 +59,15 @@ typedef struct _SHFLFILEHANDLE
 } SHFLFILEHANDLE;
 
 
-SHFLHANDLE      vbsfAllocDirHandle(PSHFLCLIENTDATA pClient);
-SHFLHANDLE      vbsfAllocFileHandle(PSHFLCLIENTDATA pClient);
-void            vbsfFreeFileHandle (PSHFLCLIENTDATA pClient, SHFLHANDLE hHandle);
+SHFLHANDLE      vbsfAllocDirHandle (void);
+SHFLHANDLE      vbsfAllocFileHandle (void);
+void            vbsfFreeFileHandle (SHFLHANDLE hHandle);
 
 
 int         vbsfInitHandleTable();
 int         vbsfFreeHandleTable();
-SHFLHANDLE  vbsfAllocHandle(PSHFLCLIENTDATA pClient, uint32_t uType,
-                            uintptr_t pvUserData);
-SHFLFILEHANDLE *vbsfQueryFileHandle(PSHFLCLIENTDATA pClient,
-                                    SHFLHANDLE handle);
-SHFLFILEHANDLE *vbsfQueryDirHandle(PSHFLCLIENTDATA pClient, SHFLHANDLE handle);
-uint32_t        vbsfQueryHandleType(PSHFLCLIENTDATA pClient,
-                                    SHFLHANDLE handle);
+SHFLHANDLE  vbsfAllocHandle(uint32_t uType, uintptr_t pvUserData);
+uintptr_t   vbsfQueryHandle(SHFLHANDLE handle, uint32_t uType);
+int         vbsfFreeHandle(SHFLHANDLE handle);
 
 #endif /* __SHFLHANDLE__H */

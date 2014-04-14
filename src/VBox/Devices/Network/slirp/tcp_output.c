@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -233,9 +233,9 @@ again:
          * taking into account that we are limited by
          * TCP_MAXWIN << tp->rcv_scale.
          */
-        long adv = min(win, (long)TCP_MAXWIN << tp->rcv_scale);
-        if (SEQ_GT(tp->rcv_adv, tp->rcv_nxt))
-            adv -= tp->rcv_adv - tp->rcv_nxt;
+        long adv = min(win,
+                       (long)TCP_MAXWIN << tp->rcv_scale) -
+                       (tp->rcv_adv - tp->rcv_nxt);
 
         if (adv >= (long) (2 * tp->t_maxseg))
             goto send;
@@ -447,7 +447,6 @@ send:
     }
     else
     {
-        bool fUninitiolizedTemplate = false;
         if (tp->t_flags & TF_ACKNOW)
             tcpstat.tcps_sndacks++;
         else if (flags & (TH_SYN|TH_FIN|TH_RST))
@@ -487,26 +486,6 @@ send:
         m->m_data += if_maxlinkhdr;
         m->m_pkthdr.header = mtod(m, void *);
         m->m_len = hdrlen;
-        /*
-         * Uninitialized TCP template looks very suspicious at this processing state, thus why we have
-         * to workaround the problem till right fix. Warning appears once at release log.
-         */
-        fUninitiolizedTemplate = RT_BOOL((   tp->t_template.ti_src.s_addr == INADDR_ANY
-                                          || tp->t_template.ti_dst.s_addr == INADDR_ANY));
-#ifndef DEBUG_vvl
-        if (fUninitiolizedTemplate)
-        {
-            static bool fWarn;
-            tcp_template(tp);
-            if(!fWarn)
-            {
-                LogRel(("NAT:TCP: TCP template was created forcely from socket information\n"));
-                fWarn = true;
-            }
-        }
-#else
-        Assert((!fUninitiolizedTemplate));
-#endif
     }
 
     ti = mtod(m, struct tcpiphdr *);
@@ -554,8 +533,8 @@ send:
         win = 0;
     if (win > (long)TCP_MAXWIN << tp->rcv_scale)
         win = (long)TCP_MAXWIN << tp->rcv_scale;
-    if (win < (long)(int32_t)(tp->rcv_adv - tp->rcv_nxt))
-        win = (long)(int32_t)(tp->rcv_adv - tp->rcv_nxt);
+    if (win < (long)(tp->rcv_adv - tp->rcv_nxt))
+        win = (long)(tp->rcv_adv - tp->rcv_nxt);
     ti->ti_win = RT_H2N_U16((u_int16_t) (win>>tp->rcv_scale));
 
 #if 0

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 
-#include <VBox/com/NativeEventQueue.h>
+#include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 
 using namespace com;
@@ -62,12 +62,10 @@ using namespace com;
 #include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/ctype.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
 #include <iprt/ldr.h>
 #include <iprt/initterm.h>
-#include <iprt/message.h>
 #include <iprt/path.h>
 #include <iprt/process.h>
 #include <iprt/semaphore.h>
@@ -157,9 +155,6 @@ static Uint32  ResizeTimer(Uint32 interval, void *param);
 static Uint32  QuitTimer(Uint32 interval, void *param);
 static int     WaitSDLEvent(SDL_Event *event);
 static void    SetFullscreen(bool enable);
-static RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd);
-static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszFilename);
-
 #ifdef VBOX_WITH_SDL13
 static VBoxSDLFB * getFbFromWinId(SDL_WindowID id);
 #endif
@@ -510,7 +505,7 @@ public:
                 Bstr bstrId, bstrMessage;
                 pRTEEv->COMGETTER(Id)(bstrId.asOutParam());
                 pRTEEv->COMGETTER(Message)(bstrMessage.asOutParam());
-                RTPrintf("\n%s: ** %ls **\n%ls\n%s\n", pszType, bstrId.raw(), bstrMessage.raw(),
+                RTPrintf("\n%s: ** %lS **\n%lS\n%s\n", pszType, bstrId.raw(), bstrMessage.raw(),
                          fPaused ? "The VM was paused. Continue with HostKey + P after you solved the problem.\n" : "");
                 break;
             }
@@ -620,8 +615,6 @@ static void show_usage()
              "  --termacpi               Send an ACPI power button event when closing the window\n"
              "  --vrdp <ports>           Listen for VRDP connections on one of specified ports (default if not specified)\n"
              "  --discardstate           Discard saved state (if present) and revert to last snapshot (if present)\n"
-             "  --settingspw <pw>        Specify the settings password\n"
-             "  --settingspwfile <file>  Specify a file containing the settings password\n"
 #ifdef VBOX_SECURELABEL
              "  --securelabel            Display a secure VM label at the top of the screen\n"
              "  --seclabelfnt            TrueType (.ttf) font file for secure session label\n"
@@ -670,7 +663,7 @@ static void PrintError(const char *pszName, CBSTR pwszDescr, CBSTR pwszComponent
     char  pszBuffer[1024];
     com::ErrorInfo info;
 
-    RTStrPrintf(pszBuffer, sizeof(pszBuffer), "%ls", pwszDescr);
+    RTStrPrintf(pszBuffer, sizeof(pszBuffer), "%lS", pwszDescr);
 
     RTPrintf("\n%s! Error info:\n", pszName);
     if (   (pszFile = strstr(pszBuffer, "At '"))
@@ -685,7 +678,7 @@ static void PrintError(const char *pszName, CBSTR pwszDescr, CBSTR pwszComponent
         RTPrintf("%s\n", pszBuffer);
 
     if (pwszComponent)
-        RTPrintf("(component %ls).\n", pwszComponent);
+        RTPrintf("(component %lS).\n", pwszComponent);
 
     RTPrintf("\n");
 }
@@ -732,10 +725,6 @@ static CComModule _Module;
 extern "C"
 DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
-#ifdef Q_WS_X11
-    if (!XInitThreads())
-        return 1;
-#endif
 #ifdef VBOXSDL_WITH_X11
     /*
      * Lock keys on SDL behave different from normal keys: A KeyPress event is generated
@@ -743,23 +732,13 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * gets inactive, that is KeyPress and KeyRelease are sent when pressing the lock key
      * to change the mode. The current lock mode is reflected in SDL_GetModState().
      *
-     * Debian patched libSDL to make the lock keys behave like normal keys
-     * generating a KeyPress/KeyRelease event if the lock key was
-     * pressed/released.  With the new behaviour, the lock status is not
-     * reflected in the mod status anymore, but the user can request the old
-     * behaviour by setting an environment variable.  To confuse matters further
-     * version 1.2.14 (fortunately including the Debian packaged versions)
-     * adopted the Debian behaviour officially, but inverted the meaning of the
-     * environment variable to select the new behaviour, keeping the old as the
-     * default.  We disable the new behaviour to ensure a defined environment
-     * and work around the missing KeyPress/KeyRelease events in ProcessKeys().
+     * Debian patched libSDL to make the lock keys behave like normal keys generating a
+     * KeyPress/KeyRelease event if the lock key was pressed/released. But the lock status
+     * is not reflected in the mod status anymore. We disable the Debian-specific extension
+     * to ensure a defined environment and work around the missing KeyPress/KeyRelease
+     * events in ProcessKeys().
      */
-    {
-        const SDL_version *pVersion = SDL_Linked_Version();
-        if (  SDL_VERSIONNUM(pVersion->major, pVersion->minor, pVersion->patch)
-            < SDL_VERSIONNUM(1, 2, 14))
-            RTEnvSet("SDL_DISABLE_LOCK_KEYS", "1");
-    }
+    RTEnvSet("SDL_DISABLE_LOCK_KEYS", "1");
 #endif
 
     /*
@@ -834,13 +813,11 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 #ifdef USE_XPCOM_QUEUE_THREAD
     bool fXPCOMEventThreadSignaled = false;
 #endif
-    const char *pcszHdaFile   = NULL;
-    const char *pcszCdromFile = NULL;
-    const char *pcszFdaFile   = NULL;
+    char *hdaFile   = NULL;
+    char *cdromFile = NULL;
+    char *fdaFile   = NULL;
     const char *pszPortVRDP = NULL;
     bool fDiscardState = false;
-    const char *pcszSettingsPw = NULL;
-    const char *pcszSettingsPwFile = NULL;
 #ifdef VBOX_SECURELABEL
     BOOL fSecureLabel = false;
     uint32_t secureLabelPointSize = 12;
@@ -963,16 +940,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             // first check if a UUID was supplied
             uuidVM = argv[curArg];
-
-            if (!uuidVM.isValid())
+            if (uuidVM.isEmpty())
             {
                 LogFlow(("invalid UUID format, assuming it's a VM name\n"));
                 vmName = argv[curArg];
-            }
-            else if (uuidVM.isZero())
-            {
-                RTPrintf("Error: UUID argument is zero!\n");
-                return 1;
             }
         }
         else if (   !strcmp(argv[curArg], "--comment")
@@ -1145,8 +1116,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
-                pcszHdaFile = RTPathRealDup(argv[curArg]);
-            if (!pcszHdaFile)
+                hdaFile = RTPathRealDup(argv[curArg]);
+            if (!hdaFile)
             {
                 RTPrintf("Error: The path to the specified harddisk, '%s', could not be resolved.\n", argv[curArg]);
                 return 1;
@@ -1162,8 +1133,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
-                pcszFdaFile = RTPathRealDup(argv[curArg]);
-            if (!pcszFdaFile)
+                fdaFile = RTPathRealDup(argv[curArg]);
+            if (!fdaFile)
             {
                 RTPrintf("Error: The path to the specified floppy disk, '%s', could not be resolved.\n", argv[curArg]);
                 return 1;
@@ -1179,8 +1150,8 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             }
             /* resolve it. */
             if (RTPathExists(argv[curArg]))
-                pcszCdromFile = RTPathRealDup(argv[curArg]);
-            if (!pcszCdromFile)
+                cdromFile = RTPathRealDup(argv[curArg]);
+            if (!cdromFile)
             {
                 RTPrintf("Error: The path to the specified cdrom, '%s', could not be resolved.\n", argv[curArg]);
                 return 1;
@@ -1204,24 +1175,6 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                  || !strcmp(argv[curArg], "-discardstate"))
         {
             fDiscardState = true;
-        }
-        else if (!strcmp(argv[curArg], "--settingspw"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing password");
-                return 1;
-            }
-            pcszSettingsPw = argv[curArg];
-        }
-        else if (!strcmp(argv[curArg], "--settingspwfile"))
-        {
-            if (++curArg >= argc)
-            {
-                RTPrintf("Error: missing password file\n");
-                return 1;
-            }
-            pcszSettingsPwFile = argv[curArg];
         }
 #ifdef VBOX_SECURELABEL
         else if (   !strcmp(argv[curArg], "--securelabel")
@@ -1391,7 +1344,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     ComPtr<IVirtualBox> pVirtualBox;
     ComPtr<ISession> pSession;
     bool sessionOpened = false;
-    NativeEventQueue* eventQ = com::NativeEventQueue::getMainEventQueue();
+    EventQueue* eventQ = com::EventQueue::getMainEventQueue();
 
     ComPtr<IMachine> pMachine;
 
@@ -1420,23 +1373,10 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         goto leave;
     }
 
-    if (pcszSettingsPw)
-    {
-        CHECK_ERROR(pVirtualBox, SetSettingsSecret(Bstr(pcszSettingsPw).raw()));
-        if (FAILED(rc))
-            goto leave;
-    }
-    else if (pcszSettingsPwFile)
-    {
-        int rcExit = settingsPasswordFile(pVirtualBox, pcszSettingsPwFile);
-        if (rcExit != RTEXITCODE_SUCCESS)
-            goto leave;
-    }
-
     /*
      * Do we have a UUID?
      */
-    if (uuidVM.isValid())
+    if (!uuidVM.isEmpty())
     {
         rc = pVirtualBox->FindMachine(uuidVM.toUtf16().raw(), pMachine.asOutParam());
         if (FAILED(rc) || !pMachine)
@@ -1459,29 +1399,21 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
         else
         {
-            RTPrintf("Error: machine with the given name not found!\n");
-            RTPrintf("Check if this VM has been corrupted and is now inaccessible.");
+            RTPrintf("Error: machine with the given ID not found!\n");
             goto leave;
         }
+    }
+    else if (uuidVM.isEmpty())
+    {
+        RTPrintf("Error: no machine specified!\n");
+        goto leave;
     }
 
     /* create SDL event semaphore */
     vrc = RTSemEventCreate(&g_EventSemSDLEvents);
     AssertReleaseRC(vrc);
 
-    rc = pVirtualBoxClient->CheckMachineError(pMachine);
-    if (FAILED(rc))
-    {
-        com::ErrorInfo info;
-        if (info.isFullAvailable())
-            PrintError("The VM has errors",
-                       info.getText().raw(), info.getComponent().raw());
-        else
-            RTPrintf("Failed to check for VM errors! No error information available (rc=%Rhrc).\n", rc);
-        goto leave;
-    }
-
-    rc = pMachine->LockMachine(pSession, LockType_VM);
+    rc = pMachine->LockMachine(pSession, LockType_Write);
     if (FAILED(rc))
     {
         com::ErrorInfo info;
@@ -1519,7 +1451,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Are we supposed to use a different hard disk file?
      */
-    if (pcszHdaFile)
+    if (hdaFile)
     {
         ComPtr<IMedium> pMedium;
 
@@ -1527,14 +1459,13 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
          * Strategy: if any registered hard disk points to the same file,
          * assign it. If not, register a new image and assign it to the VM.
          */
-        Bstr bstrHdaFile(pcszHdaFile);
-        pVirtualBox->OpenMedium(bstrHdaFile.raw(), DeviceType_HardDisk,
-                                AccessMode_ReadWrite, FALSE /* fForceNewUuid */,
+        Bstr bstrHdaFile(hdaFile);
+        pVirtualBox->FindMedium(bstrHdaFile.raw(), DeviceType_HardDisk,
                                 pMedium.asOutParam());
         if (!pMedium)
         {
             /* we've not found the image */
-            RTPrintf("Adding hard disk '%s'...\n", pcszHdaFile);
+            RTPrintf("Adding hard disk '%s'...\n", hdaFile);
             pVirtualBox->OpenMedium(bstrHdaFile.raw(), DeviceType_HardDisk,
                                     AccessMode_ReadWrite, FALSE /* fForceNewUuid */,
                                     pMedium.asOutParam());
@@ -1590,19 +1521,19 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Mount a floppy if requested.
      */
-    if (pcszFdaFile)
+    if (fdaFile)
     do
     {
         ComPtr<IMedium> pMedium;
 
         /* unmount? */
-        if (!strcmp(pcszFdaFile, "none"))
+        if (!strcmp(fdaFile, "none"))
         {
             /* nothing to do, NULL object will cause unmount */
         }
         else
         {
-            Bstr bstrFdaFile(pcszFdaFile);
+            Bstr bstrFdaFile(fdaFile);
 
             /* Assume it's a host drive name */
             ComPtr<IHost> pHost;
@@ -1612,15 +1543,12 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (FAILED(rc))
             {
                 /* try to find an existing one */
-                rc = pVirtualBox->OpenMedium(bstrFdaFile.raw(),
-                                             DeviceType_Floppy,
-                                             AccessMode_ReadWrite,
-                                             FALSE /* fForceNewUuid */,
+                rc = pVirtualBox->FindMedium(bstrFdaFile.raw(), DeviceType_Floppy,
                                              pMedium.asOutParam());
                 if (FAILED(rc))
                 {
                     /* try to add to the list */
-                    RTPrintf("Adding floppy image '%s'...\n", pcszFdaFile);
+                    RTPrintf("Adding floppy image '%s'...\n", fdaFile);
                     CHECK_ERROR_BREAK(pVirtualBox,
                                       OpenMedium(bstrFdaFile.raw(),
                                                  DeviceType_Floppy,
@@ -1675,19 +1603,19 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     /*
      * Mount a CD-ROM if requested.
      */
-    if (pcszCdromFile)
+    if (cdromFile)
     do
     {
         ComPtr<IMedium> pMedium;
 
         /* unmount? */
-        if (!strcmp(pcszCdromFile, "none"))
+        if (!strcmp(cdromFile, "none"))
         {
             /* nothing to do, NULL object will cause unmount */
         }
         else
         {
-            Bstr bstrCdromFile(pcszCdromFile);
+            Bstr bstrCdromFile(cdromFile);
 
             /* Assume it's a host drive name */
             ComPtr<IHost> pHost;
@@ -1696,15 +1624,12 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             if (FAILED(rc))
             {
                 /* try to find an existing one */
-                rc = pVirtualBox->OpenMedium(bstrCdromFile.raw(),
-                                            DeviceType_DVD,
-                                            AccessMode_ReadWrite,
-                                            FALSE /* fForceNewUuid */,
-                                            pMedium.asOutParam());
+                rc = pVirtualBox->FindMedium(bstrCdromFile.raw(), DeviceType_DVD,
+                                             pMedium.asOutParam());
                 if (FAILED(rc))
                 {
                     /* try to add to the list */
-                    RTPrintf("Adding ISO image '%s'...\n", pcszCdromFile);
+                    RTPrintf("Adding ISO image '%s'...\n", cdromFile);
                     CHECK_ERROR_BREAK(pVirtualBox,
                                       OpenMedium(bstrCdromFile.raw(),
                                                  DeviceType_DVD,
@@ -2689,9 +2614,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                  *       when the mouse button was released.
                  */
                 /* communicate the resize event to the guest */
-                gpDisplay->SetVideoModeHint(0 /*=display*/, true /*=enabled*/, false /*=changeOrigin*/,
-                                            0 /*=originX*/, 0 /*=originY*/,
-                                            uResizeWidth, uResizeHeight, 0 /*=don't change bpp*/);
+                gpDisplay->SetVideoModeHint(uResizeWidth, uResizeHeight, 0, 0);
                 break;
 
             }
@@ -2987,68 +2910,6 @@ leave:
     return FAILED(rc) ? 1 : 0;
 }
 
-static RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd)
-{
-    size_t cbFile;
-    char szPasswd[512];
-    int vrc = VINF_SUCCESS;
-    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
-    bool fStdIn = !strcmp(pszFilename, "stdin");
-    PRTSTREAM pStrm;
-    if (!fStdIn)
-        vrc = RTStrmOpen(pszFilename, "r", &pStrm);
-    else
-        pStrm = g_pStdIn;
-    if (RT_SUCCESS(vrc))
-    {
-        vrc = RTStrmReadEx(pStrm, szPasswd, sizeof(szPasswd)-1, &cbFile);
-        if (RT_SUCCESS(vrc))
-        {
-            if (cbFile >= sizeof(szPasswd)-1)
-            {
-                RTPrintf("Provided password in file '%s' is too long\n", pszFilename);
-                rcExit = RTEXITCODE_FAILURE;
-            }
-            else
-            {
-                unsigned i;
-                for (i = 0; i < cbFile && !RT_C_IS_CNTRL(szPasswd[i]); i++)
-                    ;
-                szPasswd[i] = '\0';
-                *pPasswd = szPasswd;
-            }
-        }
-        else
-        {
-            RTPrintf("Cannot read password from file '%s': %Rrc\n", pszFilename, vrc);
-            rcExit = RTEXITCODE_FAILURE;
-        }
-        if (!fStdIn)
-            RTStrmClose(pStrm);
-    }
-    else
-    {
-        RTPrintf("Cannot open password file '%s' (%Rrc)\n", pszFilename, vrc);
-        rcExit = RTEXITCODE_FAILURE;
-    }
-
-    return rcExit;
-}
-
-static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszFilename)
-{
-    com::Utf8Str passwd;
-    RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
-    if (rcExit == RTEXITCODE_SUCCESS)
-    {
-        int rc;
-        CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
-        if (FAILED(rc))
-            rcExit = RTEXITCODE_FAILURE;
-    }
-
-    return rcExit;
-}
 
 #ifndef VBOX_WITH_HARDENING
 /**
@@ -3056,16 +2917,15 @@ static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const cha
  */
 int main(int argc, char **argv)
 {
-#ifdef Q_WS_X11
-    if (!XInitThreads())
-        return 1;
-#endif
     /*
      * Before we do *anything*, we initialize the runtime.
      */
-    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
-    if (RT_FAILURE(rc))
-        return RTMsgInitFailure(rc);
+    int rcRT = RTR3InitAndSUPLib();
+    if (RT_FAILURE(rcRT))
+    {
+        RTPrintf("Error: RTR3Init failed rcRC=%d\n", rcRT);
+        return 1;
+    }
     return TrustedMain(argc, argv, NULL);
 }
 #endif /* !VBOX_WITH_HARDENING */
@@ -3659,8 +3519,8 @@ static void ProcessKey(SDL_KeyboardEvent *ev)
                 case SDLK_F8:
                     {
                         BOOL singlestepEnabled;
-                        gpMachineDebugger->COMGETTER(SingleStep)(&singlestepEnabled);
-                        gpMachineDebugger->COMSETTER(SingleStep)(!singlestepEnabled);
+                        gpMachineDebugger->COMGETTER(Singlestep)(&singlestepEnabled);
+                        gpMachineDebugger->COMSETTER(Singlestep)(!singlestepEnabled);
                         break;
                     }
                 default:
@@ -4261,7 +4121,7 @@ static void UpdateTitlebar(TitlebarMode mode, uint32_t u32User)
                 gpMachineDebugger->COMGETTER(PATMEnabled)(&patmEnabled);
                 gpMachineDebugger->COMGETTER(CSAMEnabled)(&csamEnabled);
                 gpMachineDebugger->COMGETTER(LogEnabled)(&logEnabled);
-                gpMachineDebugger->COMGETTER(SingleStep)(&singlestepEnabled);
+                gpMachineDebugger->COMGETTER(Singlestep)(&singlestepEnabled);
                 gpMachineDebugger->COMGETTER(HWVirtExEnabled)(&hwVirtEnabled);
                 gpMachineDebugger->COMGETTER(VirtualTimeRate)(&virtualTimeRate);
                 RTStrPrintf(szTitle + strlen(szTitle), sizeof(szTitle) - strlen(szTitle),
@@ -5080,9 +4940,7 @@ static void SetFullscreen(bool enable)
         {
             gpFramebuffer[0]->setFullscreen(enable);
             gfIgnoreNextResize = TRUE;
-            gpDisplay->SetVideoModeHint(0 /*=display*/, true /*=enabled*/,
-                                        false /*=changeOrigin*/, 0 /*=originX*/, 0 /*=originY*/,
-                                        NewWidth, NewHeight, 0 /*don't change bpp*/);
+            gpDisplay->SetVideoModeHint(NewWidth, NewHeight, 0, 0);
         }
     }
 }

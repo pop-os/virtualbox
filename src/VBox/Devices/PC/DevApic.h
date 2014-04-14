@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,12 +66,12 @@
 #define APIC_TRIGGER_EDGE  0
 #define APIC_TRIGGER_LEVEL 1
 
-#define APIC_LVT_TIMER_PERIODIC         (1 << 17)
-#define APIC_LVT_MASKED                 (1 << 16)
-#define APIC_LVT_LEVEL_TRIGGER          (1 << 15)
-#define APIC_LVT_REMOTE_IRR             (1 << 14)
-#define APIC_INPUT_POLARITY             (1 << 13)
-#define APIC_SEND_PENDING               (1 << 12)
+#define APIC_LVT_TIMER_PERIODIC         (1<<17)
+#define APIC_LVT_MASKED                 (1<<16)
+#define APIC_LVT_LEVEL_TRIGGER          (1<<15)
+#define APIC_LVT_REMOTE_IRR             (1<<14)
+#define APIC_INPUT_POLARITY             (1<<13)
+#define APIC_SEND_PENDING               (1<<12)
 
-#endif /* !___PC_DevApic_h */
+#endif
 

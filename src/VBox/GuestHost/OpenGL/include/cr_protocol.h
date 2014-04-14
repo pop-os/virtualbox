@@ -7,7 +7,6 @@
 #ifndef CR_PROTOCOL_H
 #define CR_PROTOCOL_H
 
-#include <iprt/types.h>
 #include <iprt/cdefs.h>
 #ifdef DEBUG_misha
 #include "cr_error.h"
@@ -17,55 +16,10 @@
 extern "C" {
 #endif
 
-#define CR_CMDVBVA_VERSION              1
-
-#pragma pack(1)
-typedef struct CR_CAPS_INFO
-{
-    uint32_t u32Caps;
-    uint32_t u32CmdVbvaVersion;
-} CR_CAPS_INFO;
-#pragma pack()
-
-
 /*For now guest is allowed to connect host opengl service if protocol version matches exactly*/
 /*Note: that after any change to this file, or glapi_parser\apispec.txt version should be changed*/
 #define CR_PROTOCOL_VERSION_MAJOR 9
 #define CR_PROTOCOL_VERSION_MINOR 1
-
-/* new TexPresent mechanism is available */
-#define CR_VBOX_CAP_TEX_PRESENT         0x00000001
-/* vbva command submission mechanism supported */
-#define CR_VBOX_CAP_CMDVBVA             0x00000002
-/* host supports Command Blocks, i.e. CR_CMDBLOCKBEGIN_OPCODE and CR_CMDBLOCKEND_OPCODE opcodes.
- * Command Block can be used by guest to prevent clients from blocking each other.
- * The Command Block allows multiple command buffers to be processed with one run.
- * Command Block commands have to obey to the following rules:
- * CR_CMDBLOCKBEGIN_OPCODE - must be the first command in the command buffer, specifying the command block start
- * CR_CMDBLOCKEND_OPCODE - must be the last command in the command buffer, specifying the command block end
- * If not placed accordingly, CR_CMDBLOCK** commands are ignored.
- * Server copies the command block buffer commands to its internal storage
- * and processes them with one run when the command block end is signalled
- */
-#define CR_VBOX_CAP_CMDBLOCKS            0x00000004
-/* GetAttribsLocations support */
-#define CR_VBOX_CAP_GETATTRIBSLOCATIONS  0x00000008
-/* flush command blocks for execution  */
-#define CR_VBOX_CAP_CMDBLOCKS_FLUSH      0x00000010
-
-#define CR_VBOX_CAPS_ALL                 0x0000001f
-
-
-#define CR_PRESENT_SCREEN_MASK 0xffff
-#define CR_PRESENT_FLAGS_OFFSET 16
-#define CR_PRESENT_FLAGS_MASK 0xffff0000
-#define CR_PRESENT_DEFINE_FLAG(_f) (1 << (CR_PRESENT_FLAGS_OFFSET + _f))
-
-#define CR_PRESENT_FLAG_CLEAR_RECTS            CR_PRESENT_DEFINE_FLAG(0)
-#define CR_PRESENT_FLAG_TEX_NONINVERT_YCOORD   CR_PRESENT_DEFINE_FLAG(1)
-
-#define CR_PRESENT_GET_SCREEN(_cfg) ((_cfg) & CR_PRESENT_SCREEN_MASK)
-#define CR_PRESENT_GET_FLAGS(_cfg) ((_cfg) & CR_PRESENT_FLAGS_MASK)
 
 typedef enum {
     /* first message types is 'wGL\001', so we can immediately
@@ -97,7 +51,7 @@ typedef union {
     /* unsigned int  junk[512]; */
 } CRNetworkPointer;
 
-#if 0 //def DEBUG_misha
+#ifdef DEBUG_misha
 #define CRDBGPTR_SETZ(_p) crMemset((_p), 0, sizeof (CRNetworkPointer))
 #define CRDBGPTR_CHECKZ(_p) do { \
         CRNetworkPointer _ptr = {0}; \
@@ -126,32 +80,26 @@ typedef union {
 
 #ifdef VBOX_WITH_CRHGSMI
 typedef struct CRVBOXHGSMI_CMDDATA {
-    union
-    {
-        struct VBOXVDMACMD_CHROMIUM_CMD *pHgsmiCmd;
-        struct VBOXCMDVBVA_CRCMD_CMD *pVbvaCmd;
-        const void *pvCmd;
-    };
+    struct VBOXVDMACMD_CHROMIUM_CMD *pCmd;
     int          *pCmdRc;
     char         *pWriteback;
     unsigned int *pcbWriteback;
     unsigned int cbWriteback;
-    bool fHgsmiCmd;
 } CRVBOXHGSMI_CMDDATA, *PCRVBOXHGSMI_CMDDATA;
 
 #ifdef DEBUG
 # define CRVBOXHGSMI_CMDDATA_ASSERT_CONSISTENT(_pData)  do { \
-        CRASSERT(!(_pData)->pvCmd == !(_pData)->pCmdRc); \
+        CRASSERT(!(_pData)->pCmd == !(_pData)->pCmdRc); \
         CRASSERT(!(_pData)->pWriteback == !(_pData)->pcbWriteback); \
         CRASSERT(!(_pData)->pWriteback == !(_pData)->cbWriteback); \
         if ((_pData)->pWriteback) \
         { \
-            CRASSERT((_pData)->pvCmd); \
+            CRASSERT((_pData)->pCmd); \
         } \
     } while (0)
 
 # define CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(_pData)  do { \
-        CRASSERT(!(_pData)->pvCmd); \
+        CRASSERT(!(_pData)->pCmd); \
         CRASSERT(!(_pData)->pCmdRc); \
         CRASSERT(!(_pData)->pWriteback); \
         CRASSERT(!(_pData)->pcbWriteback); \
@@ -174,8 +122,7 @@ typedef struct CRVBOXHGSMI_CMDDATA {
 # define CRVBOXHGSMI_CMDDATA_ASSERT_ISSETWB(_pData)  do { } while (0)
 #endif
 
-#define CRVBOXHGSMI_CMDDATA_IS_HGSMICMD(_pData) (!!(_pData)->fHgsmiCmd)
-#define CRVBOXHGSMI_CMDDATA_IS_SET(_pData) (!!(_pData)->pvCmd)
+#define CRVBOXHGSMI_CMDDATA_IS_SET(_pData) (!!(_pData)->pCmd)
 #define CRVBOXHGSMI_CMDDATA_IS_SETWB(_pData) (!!(_pData)->pWriteback)
 
 #define CRVBOXHGSMI_CMDDATA_CLEANUP(_pData) do { \
@@ -184,16 +131,15 @@ typedef struct CRVBOXHGSMI_CMDDATA {
         CRVBOXHGSMI_CMDDATA_ASSERT_CONSISTENT(_pData); \
     } while (0)
 
-#define CRVBOXHGSMI_CMDDATA_SET(_pData, _pCmd, _pHdr, _fHgsmiCmd) do { \
+#define CRVBOXHGSMI_CMDDATA_SET(_pData, _pCmd, _pHdr) do { \
         CRVBOXHGSMI_CMDDATA_ASSERT_CLEANED(_pData); \
-        (_pData)->pvCmd = (_pCmd); \
+        (_pData)->pCmd = (_pCmd); \
         (_pData)->pCmdRc = &(_pHdr)->result; \
-        (_pData)->fHgsmiCmd = (_fHgsmiCmd); \
         CRVBOXHGSMI_CMDDATA_ASSERT_CONSISTENT(_pData); \
     } while (0)
 
-#define CRVBOXHGSMI_CMDDATA_SETWB(_pData, _pCmd, _pHdr, _pWb, _cbWb, _pcbWb, _fHgsmiCmd) do { \
-        CRVBOXHGSMI_CMDDATA_SET(_pData, _pCmd, _pHdr, _fHgsmiCmd); \
+#define CRVBOXHGSMI_CMDDATA_SETWB(_pData, _pCmd, _pHdr, _pWb, _cbWb, _pcbWb) do { \
+        CRVBOXHGSMI_CMDDATA_SET(_pData, _pCmd, _pHdr); \
         (_pData)->pWriteback = (_pWb); \
         (_pData)->pcbWriteback = (_pcbWb); \
         (_pData)->cbWriteback = (_cbWb); \

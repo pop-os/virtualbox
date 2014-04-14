@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,8 +78,6 @@ static int
 fingerprint(struct libalias *la, struct ip *pIp, struct alias_data *ah)
 {
 
-    NOREF(la);
-    NOREF(pIp);
     if (!ah->dport || !ah->sport || !ah->lnk)
         return -1;
 
@@ -142,7 +140,7 @@ static void doanswer(union dnsmsg_header *pHdr, struct dns_meta_data *pReqMeta, 
         off |= (0x3 << 14);
 
         /* add aliases */
-        for (cstr = pHostent->h_aliases; cstr && *cstr; cstr++)
+        for (cstr = pHostent->h_aliases; *cstr; cstr++)
         {
             uint16_t len;
             struct dnsmsg_answer *ans = (struct dnsmsg_answer *)answers;
@@ -189,7 +187,6 @@ static void doanswer(union dnsmsg_header *pHdr, struct dns_meta_data *pReqMeta, 
         pIp->ip_len = htons(packet_len);
     }
 }
-
 static int
 protohandler(struct libalias *la, struct ip *pIp, struct alias_data *ah)
 {
@@ -203,8 +200,6 @@ protohandler(struct libalias *la, struct ip *pIp, struct alias_data *ah)
 
     struct udphdr *udp = NULL;
     union dnsmsg_header *pHdr = NULL;
-    NOREF(la);
-    NOREF(ah);
     udp = (struct udphdr *)ip_next(pIp);
     pHdr = (union dnsmsg_header *)udp_next(udp);
 
@@ -420,9 +415,6 @@ static void alterHostentWithDataFromDNSMap(PNATState pData, struct hostent *pHos
                     return;
                 }
                 LIST_INSERT_HEAD(&pData->DNSMapHead, pDnsMapping, MapList);
-                LogRel(("NAT: user-defined mapping %s: %RTnaipv4 is registered\n",
-                        pDnsMapping->pszCName ? pDnsMapping->pszCName : pDnsMapping->pszPattern,
-                        pDnsMapping->u32IpAddress));
             }
         }
         if (fMatch)

@@ -91,18 +91,9 @@ DECLVBGL(int) vboxCrCtlConConnect(HVBOXCRCTL hCtl, uint32_t *pu32ClientID)
     RTStrCopy(info.Loc.u.host.achName, sizeof (info.Loc.u.host.achName), "VBoxSharedCrOpenGL");
     rc = vbglDriverIOCtl (&hCtl->driver, VBOXGUEST_IOCTL_HGCM_CONNECT, &info, sizeof (info));
     if (RT_SUCCESS(rc))
-    {
-        rc = info.result;
-        if (RT_SUCCESS(rc))
-        {
-            Assert(info.u32ClientID);
-            *pu32ClientID = info.u32ClientID;
-            return rc;
-        }
-    }
-
-    Assert(RT_FAILURE(rc));
-    *pu32ClientID = 0;
+        *pu32ClientID = info.u32ClientID;
+    else
+        *pu32ClientID = 0;
     return rc;
 }
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -117,17 +117,6 @@ RTDECL(uint32_t)    RTVfsGetAttachmentCount(RTVFS hVfs);
 RTDECL(int)         RTVfsGetAttachment(RTVFS hVfs, uint32_t iOrdinal, PRTVFS *phVfsAttached, uint32_t *pfFlags,
                                        char *pszMountPoint, size_t cbMountPoint);
 
-/**
- * Checks whether a given range is in use by the virtual filesystem.
- *
- * @returns IPRT status code.
- * @param   hVfs        VFS handle.
- * @param   off         Start offset to check.
- * @param   cb          Number of bytes to check.
- * @param   pfUsed      Where to store the result.
- */
-RTDECL(int)         RTVfsIsRangeInUse(RTVFS hVfs, uint64_t off, size_t cb,
-                                      bool *pfUsed);
 
 /** @defgroup grp_vfs_dir           VFS Base Object API
  * @{
@@ -332,7 +321,7 @@ RTDECL(uint32_t)    RTVfsDirRelease(RTVFSDIR hVfsDir);
 /** @}  */
 
 
-/** @defgroup grp_vfs_symlink       VFS Symbolic Link API
+/** @defgroup grp_vfs_iostream      VFS Symbolic Link API
  *
  * @remarks The TAR VFS and filesystem stream uses symbolic links for
  *          describing hard links as well.  The users must use RTFS_IS_SYMLINK
@@ -452,17 +441,6 @@ RTDECL(int)         RTVfsSymlinkRead(RTVFSSYMLINK hVfsSym, char *pszTarget, size
 RTDECL(int)         RTVfsIoStrmFromRTFile(RTFILE hFile, uint64_t fOpen, bool fLeaveOpen, PRTVFSIOSTREAM phVfsIos);
 
 /**
- * Convenience function combining RTFileOpen with RTVfsIoStrmFromRTFile.
- *
- * @returns IPRT status code.
- * @param   pszFilename     The path to the file in the normal file system.
- * @param   fOpen           The flags to pass to RTFileOpen when opening the
- *                          file, i.e. RTFILE_O_XXX.
- * @param   phVfsIos        Where to return the VFS I/O stream handle.
- */
-RTDECL(int)         RTVfsIoStrmOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVFSIOSTREAM phVfsIos);
-
-/**
  * Create a VFS I/O stream handle from one of the standard handles.
  *
  * @returns IPRT status code.
@@ -542,7 +520,6 @@ RTDECL(int)         RTVfsIoStrmQueryInfo(RTVFSIOSTREAM hVfsIos, PRTFSOBJINFO pOb
  *          RTSocketRead
  */
 RTDECL(int)         RTVfsIoStrmRead(RTVFSIOSTREAM hVfsIos, void *pvBuf, size_t cbToRead, bool fBlocking, size_t *pcbRead);
-RTDECL(int)         RTVfsIoStrmReadAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, void *pvBuf, size_t cbToRead, bool fBlocking, size_t *pcbRead);
 
 /**
  * Write bytes to the I/O stream.
@@ -561,7 +538,6 @@ RTDECL(int)         RTVfsIoStrmReadAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, void *p
  *          RTSocketWrite
  */
 RTDECL(int)         RTVfsIoStrmWrite(RTVFSIOSTREAM hVfsIos, const void *pvBuf, size_t cbToWrite, bool fBlocking, size_t *pcbWritten);
-RTDECL(int)         RTVfsIoStrmWriteAt(RTVFSIOSTREAM hVfsIos, RTFOFF off, const void *pvBuf, size_t cbToWrite, bool fBlocking, size_t *pcbWritten);
 
 /**
  * Reads bytes from the I/O stream into a scatter buffer.
@@ -605,7 +581,7 @@ RTDECL(int)         RTVfsIoStrmSgRead(RTVFSIOSTREAM hVfsIos, PCRTSGBUF pSgBuf, b
  *                          attemted written.
  * @param   fBlocking       Whether the call is blocking (@c true) or not.  If
  *                          not, the @a pcbWritten parameter must not be NULL.
- * @param   pcbWritten      Where to always store the number of bytes actually
+ * @param   pcbRead         Where to always store the number of bytes actually
  *                          written.  This can be NULL if @a fBlocking is true.
  * @sa      RTFileSgWrite, RTSocketSgWrite
  */
@@ -714,17 +690,6 @@ RTDECL(int)         RTVfsFileOpen(RTVFS hVfs, const char *pszFilename, uint64_t 
  */
 RTDECL(int)         RTVfsFileFromRTFile(RTFILE hFile, uint64_t fOpen, bool fLeaveOpen, PRTVFSFILE phVfsFile);
 RTDECL(RTHCUINTPTR) RTVfsFileToNative(RTFILE hVfsFile);
-
-/**
- * Convenience function combining RTFileOpen with RTVfsFileFromRTFile.
- *
- * @returns IPRT status code.
- * @param   pszFilename     The path to the file in the normal file system.
- * @param   fOpen           The flags to pass to RTFileOpen when opening the
- *                          file, i.e. RTFILE_O_XXX.
- * @param   phVfsFile       Where to return the VFS file handle.
- */
-RTDECL(int)         RTVfsFileOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVFSFILE phVfsFile);
 
 /**
  * Convert the VFS file handle to a VFS I/O stream handle.

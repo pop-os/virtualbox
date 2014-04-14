@@ -3,11 +3,6 @@ Mon, 15 Jan 2007 14:33:00 +0100.
 
 It was downloaded from <http://www.virtualbox.org/>.
 
-This package is not part of the Debian operating system.
-It is in the "contrib" area of the Debian archive because it requires a
-non-free compiler (Open Watcom) to build the BIOS.
-Upstream provides pre-built BIOS images which is used instead.
-
 Upstream Author: Oracle Corporation
 
 Copyright:
@@ -102,7 +97,7 @@ Copyright:
     VirtualBox may contain x86 SIMD extension for IJG JPEG library which is governed by the
     license in the section called "x86 SIMD extension for IJG JPEG library license" and
     Copyright 2009 Pierre Ossman <ossman@cendio.se> for Cendio AB;
-    Copyright 2010 D. R. Commander; Copyright (C) 1999-2006, MIYASAKA Masaru.
+    Copyright 2010 D. R. Commander; Copyright (C) 1999-2006, MIYASAKA Masaru. 
 
 
 License:
@@ -1567,13 +1562,7 @@ misrepresented as being the original software.
 3. This notice may not be removed or altered from any source distribution.
 
 
-The Debian packaging is copyright 2007-2014,
- Patrick Winnertz <patrick.winnertz@skolelinux.org>,
- Daniel Baumann <daniel@debian.org>,
- Philipp Hug <debian@hug.cx>,
- Michael Meskes <meskes@debian.org>,
- Felix Geyer <fgeyer@debian.org>,
- Ritesh Raj Sarraf <rrs@debian.org>,
- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>
- and is licensed under the GPL-2+,
+The Debian packaging is copyright 2007-2001, Patrick Winnertz <patrick.winnertz@skolelinux.org>,
+Daniel Baumann <daniel@debian.org>, Philipp Hug <debian@hug.cx>, Michael Meskes <meskes@debian.org>,
+Felix Geyer <debfx-pkg@fobos.de> and is licensed under the GPL-2+,
 see `/usr/share/common-licenses/GPL-2'.

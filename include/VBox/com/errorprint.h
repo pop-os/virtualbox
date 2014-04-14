@@ -1,13 +1,11 @@
 /** @file
- * MS COM / XPCOM Abstraction Layer - Error Reporting.
- *
+ * MS COM / XPCOM Abstraction Layer:
  * Error printing macros using shared functions defined in shared glue code.
- * Use these CHECK_* macros for efficient error checking around calling COM
- * methods.
+ * Use these CHECK_* macros for efficient error checking around calling COM methods.
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,19 +35,10 @@ namespace com
 
 // shared prototypes; these are defined in shared glue code and are
 // compiled only once for all front-ends
-void GluePrintErrorInfo(const com::ErrorInfo &info);
+void GluePrintErrorInfo(com::ErrorInfo &info);
 void GluePrintErrorContext(const char *pcszContext, const char *pcszSourceFile, uint32_t ulLine);
 void GluePrintRCMessage(HRESULT rc);
-void GlueHandleComError(ComPtr<IUnknown> iface,
-                        const char *pcszContext,
-                        HRESULT rc,
-                        const char *pcszSourceFile,
-                        uint32_t ulLine);
-void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
-                                const char *pcszContext,
-                                HRESULT rc,
-                                const char *pcszSourceFile,
-                                uint32_t ulLine);
+void GlueHandleComError(ComPtr<IUnknown> iface, const char *pcszContext, HRESULT rc, const char *pcszSourceFile, uint32_t ulLine);
 
 /**
  *  Calls the given method of the given interface and then checks if the return
@@ -163,74 +152,6 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
         } \
     } while (0)
 
-
-/**
- * Check the progress object for an error and if there is one print out the
- * extended error information.
- */
-#define CHECK_PROGRESS_ERROR(progress, msg) \
-    do { \
-        LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(iRc)) \
-        { \
-            rc = iRc; \
-            RTMsgError msg; \
-            com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
-        } \
-    } while (0)
-
-/**
- *  Does the same as CHECK_PROGRESS_ERROR(), but executes the |break| statement
- *  on failure.
- */
-#ifdef __GNUC__
-# define CHECK_PROGRESS_ERROR_BREAK(progress, msg) \
-    __extension__ \
-    ({ \
-        LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(iRc)) \
-        { \
-            rc = iRc; \
-            RTMsgError msg; \
-            com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
-            break; \
-        } \
-    })
-#else
-# define CHECK_PROGRESS_ERROR_BREAK(progress, msg) \
-    if (1) \
-    { \
-        LONG iRc; \
-        rc = progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(iRc)) \
-        { \
-            rc = iRc; \
-            RTMsgError msg; \
-            com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
-            break; \
-        } \
-    } \
-    else do {} while (0)
-#endif
-
-/**
- *  Does the same as CHECK_PROGRESS_ERROR(), but executes the |return ret|
- *  statement on failure.
- */
-#define CHECK_PROGRESS_ERROR_RET(progress, msg, ret) \
-    do { \
-        LONG iRc; \
-        progress->COMGETTER(ResultCode)(&iRc); \
-        if (FAILED(iRc)) \
-        { \
-            RTMsgError msg; \
-            com::GlueHandleComErrorProgress(progress, __PRETTY_FUNCTION__, iRc, __FILE__, __LINE__); \
-            return (ret); \
-        } \
-    } while (0)
-
 /**
  *  Asserts the given expression is true. When the expression is false, prints
  *  a line containing the failed function/line/file; otherwise does nothing.
@@ -261,4 +182,3 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress,
     if (1) { ASSERT(expr); if (!(expr)) break; } else do {} while (0)
 
 } /* namespace com */
-

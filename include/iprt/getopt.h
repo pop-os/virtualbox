@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,20 +69,12 @@ RT_C_DECLS_BEGIN
 /** The value must be a valid IPv4 address.
  * (Not a name, but 4 values in the 0..255 range with dots separating them). */
 #define RTGETOPT_REQ_IPV4ADDR                   10
+#if 0
 /** The value must be a valid IPv4 CIDR.
  * As with RTGETOPT_REQ_IPV4ADDR, no name.
- */
+ * @todo Mix CIDR with types.h or/and net.h first and find a way to make the
+ *       mask optional like with ifconfig. See RTCidrStrToIPv4. */
 #define RTGETOPT_REQ_IPV4CIDR                   11
-#if 0
-/* take placers */
-/** The value must be a valid IPv6 addr
- * @todo: Add types and parsing routines in (iprt/net.h)
- */
-#define RTGETOPT_REQ_IPV6ADDR                   12
-/** The value must be a valid IPv6 CIDR
- * @todo: Add types and parsing routines in (iprt/net.h)
- */
-#define RTGETOPT_REQ_IPV6CIDR                   13
 #endif
 /** The value must be a valid ethernet MAC address. */
 #define RTGETOPT_REQ_MACADDR                    14
@@ -90,9 +82,6 @@ RT_C_DECLS_BEGIN
 #define RTGETOPT_REQ_UUID                       15
 /** The value must be a string with value as "on" or "off". */
 #define RTGETOPT_REQ_BOOL_ONOFF                 16
-/** Boolean option accepting a wide range of typical ways of
- * expression true and false. */
-#define RTGETOPT_REQ_BOOL                       17
 /** The mask of the valid required types. */
 #define RTGETOPT_REQ_MASK                       31
 /** Treat the value as hexadecimal - only applicable with the RTGETOPT_REQ_*INT*. */
@@ -171,12 +160,6 @@ typedef union RTGETOPTUNION
 #ifdef ___iprt_net_h
     /** A RTGETOPT_REQ_IPV4ADDR option argument. */
     RTNETADDRIPV4   IPv4Addr;
-    /** A RTGETOPT_REQ_IPV4CIDR option argument. */
-    struct
-    {
-        RTNETADDRIPV4 IPv4Network;
-        RTNETADDRIPV4 IPv4Netmask;
-    } CidrIPv4;
 #endif
     /** A RTGETOPT_REQ_MACADDR option argument. */
     RTMAC           MacAddr;
@@ -350,12 +333,10 @@ int main(int argc, char **argv)
 RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
 
 /**
- * Fetch a value.
+ * Fetch an additional value.
  *
- * Used to retrive a value argument in a manner similar to what RTGetOpt does
- * (@a fFlags -> @a pValueUnion).  This can be used when handling
- * VINF_GETOPT_NOT_OPTION, but is equally useful for decoding options that
- * takes more than one value.
+ * This is used for special cases where an option have more than one value.
+ *
  *
  * @returns VINF_SUCCESS on success.
  * @returns IPRT error status on parse error.
@@ -363,8 +344,8 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
  * @returns VERR_GETOPT_UNKNOWN_OPTION when pState->pDef is null.
  * @returns VERR_GETOPT_REQUIRED_ARGUMENT_MISSING if there are no more
  *          available arguments. pValueUnion->pDef is NULL.
- * @returns VERR_GETOPT_INVALID_ARGUMENT_FORMAT and pValueUnion->pDef is
- *          unchanged if value conversion failed.
+ * @returns VERR_GETOPT_INVALID_ARGUMENT_FORMAT and pValueUnion->pDef if
+ *          value conversion failed.
  *
  * @param   pState      The state previously initialized with RTGetOptInit.
  * @param   pValueUnion Union with value; in the event of an error, psz member
@@ -393,7 +374,7 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
  * This is useful for converting a response file or similar to an argument
  * vector that can be used with RTGetOptInit().
  *
- * This function aims at following the bourne shell string quoting rules.
+ * This function aims at following the bourn shell string quoting rules.
  *
  * @returns IPRT status code.
  *

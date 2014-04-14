@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,7 +35,6 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
-#include <iprt/poll.h>
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include "internal/magics.h"
@@ -54,8 +53,6 @@
 #ifdef RT_OS_SOLARIS
 # include <sys/filio.h>
 #endif
-
-#include "internal/pipe.h"
 
 
 /*******************************************************************************
@@ -638,7 +635,7 @@ RTDECL(int) RTPipeSelectOne(RTPIPE hPipe, RTMSINTERVAL cMillies)
     else
         timeout = cMillies;
 
-    int rc = poll(&PollFd, 1, timeout);
+    int rc = poll(&PollFd, 1, 0);
     if (rc == -1)
         return RTErrConvertFromErrno(errno);
     return rc > 0 ? VINF_SUCCESS : VERR_TIMEOUT;
@@ -668,19 +665,5 @@ RTDECL(int) RTPipeQueryReadable(RTPIPE hPipe, size_t *pcbReadable)
     else
         rc = RTErrConvertFromErrno(rc);
     return rc;
-}
-
-
-int rtPipePollGetHandle(RTPIPE hPipe, uint32_t fEvents, PRTHCINTPTR phNative)
-{
-    RTPIPEINTERNAL *pThis = hPipe;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertReturn(pThis->u32Magic == RTPIPE_MAGIC, VERR_INVALID_HANDLE);
-
-    AssertReturn(!(fEvents & RTPOLL_EVT_READ)  || pThis->fRead,  VERR_INVALID_PARAMETER);
-    AssertReturn(!(fEvents & RTPOLL_EVT_WRITE) || !pThis->fRead, VERR_INVALID_PARAMETER);
-
-    *phNative = pThis->fd;
-    return VINF_SUCCESS;
 }
 

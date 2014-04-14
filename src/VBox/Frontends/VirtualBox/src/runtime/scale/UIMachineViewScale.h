@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,27 +48,31 @@ private slots:
     /* Slot to perform guest resize: */
     void sltPerformGuestScale();
 
-    /* Handler: Frame-buffer NotifyUpdate stuff: */
-    void sltHandleNotifyUpdate(int iX, int iY, int iW, int iH);
+    /* Watch dog for desktop resizes: */
+    void sltDesktopResized();
 
 private:
 
     /* Event handlers: */
+    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
-    //void loadMachineViewSettings() {}
+    void prepareFrameBuffer();
+    void prepareConnections();
+    //void loadMachineViewSettings();
 
     /* Cleanup helpers: */
     void saveMachineViewSettings();
-
-    /** Resends guest size-hint if necessary. */
-    void maybeResendSizeHint();
+    //void cleanupConnections() {}
+    //void cleanupFrameBuffer() {}
 
     /* Private helpers: */
     QSize sizeHint() const;
-    QRect workingArea() const;
-    QSize calculateMaxGuestSize() const;
+    void normalizeGeometry(bool /* fAdjustPosition */) {}
+    QRect workingArea();
+    void calculateDesktopGeometry();
+    void maybeRestrictMinimumSize() {}
     void updateSliders();
 
     /* Private members: */

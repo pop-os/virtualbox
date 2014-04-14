@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,7 +64,7 @@ typedef struct PDMBLKCACHEENTRY
     /** Reference counter. Prevents eviction of the entry if > 0. */
     volatile uint32_t               cRefs;
     /** Size of the entry. */
-    uint32_t                        cbData;
+    size_t                          cbData;
     /** Pointer to the memory containing the data. */
     uint8_t                        *pbData;
     /** Head of list of tasks waiting for this one to finish. */
@@ -134,7 +134,7 @@ typedef struct PDMBLKCACHEGLOBAL
     /** Number of endpoints using the cache. */
     uint32_t            cRefs;
     /** List of all users of this cache. */
-    RTLISTANCHOR        ListUsers;
+    RTLISTNODE          ListUsers;
 #ifdef VBOX_WITH_STATISTICS
     /** Hit counter. */
     STAMCOUNTER         cHits;
@@ -191,7 +191,7 @@ typedef struct PDMBLKCACHE
     /** Lock protecting the dirty entries list. */
     RTSPINLOCK                    LockList;
     /** List of dirty but not committed entries for this endpoint. */
-    RTLISTANCHOR                  ListDirtyNotCommitted;
+    RTLISTNODE                    ListDirtyNotCommitted;
     /** Node of the cache user list. */
     RTLISTNODE                    NodeCacheUser;
     /** Block cache type. */
@@ -203,61 +203,48 @@ typedef struct PDMBLKCACHE
         struct
         {
             /** Pointer to the device instance owning the block cache. */
-            R3PTRTYPE(PPDMDEVINS)                            pDevIns;
+            R3PTRTYPE(PPDMDEVINS)                     pDevIns;
             /** Complete callback to the user. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEDEV)         pfnXferComplete;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEDEV)  pfnXferComplete;
             /** I/O enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDEV)          pfnXferEnqueue;
-            /** Discard enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDISCARDDEV)   pfnXferEnqueueDiscard;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDEV)   pfnXferEnqueue;
         } Dev;
         /** PDMASYNCCOMPLETIONTEMPLATETYPE_DRV */
         struct
         {
             /** Pointer to the driver instance owning the block cache. */
-            R3PTRTYPE(PPDMDRVINS)                            pDrvIns;
+            R3PTRTYPE(PPDMDRVINS)                     pDrvIns;
             /** Complete callback to the user. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEDRV)         pfnXferComplete;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEDRV)  pfnXferComplete;
             /** I/O enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDRV)          pfnXferEnqueue;
-            /** Discard enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV)   pfnXferEnqueueDiscard;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDRV)   pfnXferEnqueue;
         } Drv;
         /** PDMASYNCCOMPLETIONTEMPLATETYPE_INTERNAL */
         struct
         {
             /** Pointer to user data. */
-            R3PTRTYPE(void *)                                pvUser;
+            R3PTRTYPE(void *)                         pvUser;
             /** Complete callback to the user. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEINT)         pfnXferComplete;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEINT)  pfnXferComplete;
             /** I/O enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEINT)          pfnXferEnqueue;
-            /** Discard enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDISCARDINT)   pfnXferEnqueueDiscard;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEINT)   pfnXferEnqueue;
         } Int;
         /** PDMASYNCCOMPLETIONTEMPLATETYPE_USB */
         struct
         {
             /** Pointer to the usb instance owning the template. */
-            R3PTRTYPE(PPDMUSBINS)                            pUsbIns;
+            R3PTRTYPE(PPDMUSBINS)                     pUsbIns;
             /** Complete callback to the user. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEUSB)         pfnXferComplete;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERCOMPLETEUSB)  pfnXferComplete;
             /** I/O enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEUSB)          pfnXferEnqueue;
-            /** Discard enqueue callback. */
-            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEDISCARDUSB)   pfnXferEnqueueDiscard;
+            R3PTRTYPE(PFNPDMBLKCACHEXFERENQUEUEUSB)   pfnXferEnqueue;
         } Usb;
     } u;
 
 #ifdef VBOX_WITH_STATISTICS
-
-#if HC_ARCH_BITS == 64
-    uint32_t                      u32Alignment;
-#endif
+    uint32_t    u32Alignment;
     /** Number of times a write was deferred because the cache entry was still in progress */
-    STAMCOUNTER                   StatWriteDeferred;
-    /** Number appended cache entries. */
-    STAMCOUNTER                   StatAppendedWrites;
+    STAMCOUNTER StatWriteDeferred;
 #endif
 
     /** Flag whether the cache was suspended. */
@@ -286,22 +273,22 @@ typedef struct PDMBLKCACHEREQ
  */
 typedef struct PDMBLKCACHEIOXFER
 {
-    /** Flag whether the I/O xfer updates a cache entry or updates the request directly. */
-    bool                  fIoCache;
+    /** Flag whether the I/O xfer updates a cache entry or updates the request directl. */
+    bool fIoCache;
     /** Type dependent data. */
     union
     {
         /** Pointer to the entry the transfer updates. */
         PPDMBLKCACHEENTRY pEntry;
-        /** Pointer to the request the transfer updates. */
+        /** Pointer to the request the ztransfer updates. */
         PPDMBLKCACHEREQ   pReq;
     };
-    /** Transfer direction. */
-    PDMBLKCACHEXFERDIR    enmXferDir;
     /** Segment used if a cache entry is updated. */
-    RTSGSEG               SgSeg;
+    RTSGSEG SgSeg;
     /** S/G buffer. */
-    RTSGBUF               SgBuf;
+    RTSGBUF SgBuf;
+    /** Transfer direction. */
+    PDMBLKCACHEXFERDIR enmXferDir;
 } PDMBLKCACHEIOXFER;
 
 /**

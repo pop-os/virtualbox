@@ -107,7 +107,7 @@ DECLASM(int) VBoxDrvInit(const char *pszArgs)
             /*
              * Initialize the session hash table.
              */
-            rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxDrvOS2");
+            rc = RTSpinlockCreate(&g_Spinlock);
             if (RT_SUCCESS(rc))
             {
                 /*
@@ -150,7 +150,7 @@ DECLASM(int) VBoxDrvOpen(uint16_t sfn)
     /*
      * Create a new session.
      */
-    rc = supdrvCreateSession(&g_DevExt, true /* fUser */, true /*fUnrestricted*/, &pSession);
+    rc = supdrvCreateSession(&g_DevExt, true /* fUser */, &pSession);
     if (RT_SUCCESS(rc))
     {
         pSession->sfn = sfn;
@@ -159,10 +159,11 @@ DECLASM(int) VBoxDrvOpen(uint16_t sfn)
          * Insert it into the hash table.
          */
         unsigned iHash = SESSION_HASH(sfn);
-        RTSpinlockAcquire(g_Spinlock);
+        RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+        RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
         pSession->pNextHash = g_apSessionHashTab[iHash];
         g_apSessionHashTab[iHash] = pSession;
-        RTSpinlockReleaseNoInts(g_Spinlock);
+        RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     }
 
     Log(("VBoxDrvOpen: g_DevExt=%p pSession=%p rc=%d pid=%d\n", &g_DevExt, pSession, rc, (int)RTProcSelf()));
@@ -180,7 +181,8 @@ DECLASM(int) VBoxDrvClose(uint16_t sfn)
     PSUPDRVSESSION  pSession;
     const RTPROCESS Process = RTProcSelf();
     const unsigned  iHash = SESSION_HASH(sfn);
-    RTSpinlockAcquire(g_Spinlock);
+    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER;
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
 
     pSession = g_apSessionHashTab[iHash];
     if (pSession)
@@ -211,7 +213,7 @@ DECLASM(int) VBoxDrvClose(uint16_t sfn)
             }
         }
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d sfn=%d\n", (int)Process, sfn));
@@ -221,7 +223,7 @@ DECLASM(int) VBoxDrvClose(uint16_t sfn)
     /*
      * Close the session.
      */
-    supdrvSessionRelease(pSession);
+    supdrvCloseSession(&g_DevExt, pSession);
     return 0;
 }
 
@@ -231,11 +233,12 @@ DECLASM(int) VBoxDrvIOCtlFast(uint16_t sfn, uint8_t iFunction)
     /*
      * Find the session.
      */
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(sfn);
     PSUPDRVSESSION      pSession;
 
-    RTSpinlockAcquire(g_Spinlock);
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     pSession = g_apSessionHashTab[iHash];
     if (pSession && pSession->Process != Process)
     {
@@ -243,11 +246,8 @@ DECLASM(int) VBoxDrvIOCtlFast(uint16_t sfn, uint8_t iFunction)
         while (     pSession
                &&   (   pSession->sfn != sfn
                      || pSession->Process != Process));
-
-        if (RT_LIKELY(pSession))
-            supdrvSessionRetain(pSession);
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (RT_UNLIKELY(!pSession))
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));
@@ -258,7 +258,6 @@ DECLASM(int) VBoxDrvIOCtlFast(uint16_t sfn, uint8_t iFunction)
      * Dispatch the fast IOCtl.
      */
     supdrvIOCtlFast(iFunction, 0, &g_DevExt, pSession);
-    supdrvSessionRelease(pSession);
     return 0;
 }
 
@@ -268,11 +267,12 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
     /*
      * Find the session.
      */
+    RTSPINLOCKTMP       Tmp = RTSPINLOCKTMP_INITIALIZER;
     const RTPROCESS     Process = RTProcSelf();
     const unsigned      iHash = SESSION_HASH(sfn);
     PSUPDRVSESSION      pSession;
 
-    RTSpinlockAcquire(g_Spinlock);
+    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp);
     pSession = g_apSessionHashTab[iHash];
     if (pSession && pSession->Process != Process)
     {
@@ -280,11 +280,8 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
         while (     pSession
                &&   (   pSession->sfn != sfn
                      || pSession->Process != Process));
-
-        if (RT_LIKELY(pSession))
-            supdrvSessionRetain(pSession);
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp);
     if (!pSession)
     {
         OSDBGPRINT(("VBoxDrvIoctl: WHUT?!? pSession == NULL! This must be a mistake... pid=%d\n", (int)Process));
@@ -334,7 +331,7 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
                 /*
                  * Process the IOCtl.
                  */
-                rc = supdrvIOCtl(iFunction, &g_DevExt, pSession, pHdr, cbReq);
+                rc = supdrvIOCtl(iFunction, &g_DevExt, pSession, pHdr);
             }
             else
             {
@@ -352,33 +349,12 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
          * Unlock and return.
          */
         int rc2 = KernVMUnlock(&Lock);
-        AssertMsg(!rc2, ("rc2=%d\n", rc2)); NOREF(rc2);s
+        AssertMsg(!rc2, ("rc2=%d\n", rc2)); NOREF(rc2);
+
+        Log2(("VBoxDrvIOCtl: returns %d\n", rc));
+        return rc;
     }
-    else
-        rc = VERR_NOT_SUPPORTED;
-
-    supdrvSessionRelease(pSession);
-    Log2(("VBoxDrvIOCtl: returns %d\n", rc));
-    return rc;
-}
-
-
-void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
-{
-    NOREF(pDevExt);
-    NOREF(pSession);
-}
-
-
-void VBOXCALL supdrvOSSessionHashTabInserted(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
-{
-    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
-}
-
-
-void VBOXCALL supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
-{
-    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
+    return VERR_NOT_SUPPORTED;
 }
 
 
@@ -410,12 +386,6 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
     return VERR_NOT_SUPPORTED;
-}
-
-
-void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
-{
-    NOREF(pDevExt); NOREF(pImage);
 }
 
 
@@ -480,13 +450,3 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
 
     return cch;
 }
-
-
-/**
- * Returns configuration flags of the host kernel.
- */
-SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
-{
-    return 0;
-}
-

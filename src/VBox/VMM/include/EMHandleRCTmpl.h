@@ -1,10 +1,10 @@
 /* $Id: EMHandleRCTmpl.h $ */
 /** @file
- * EM - emR3[Raw|Hm]HandleRC template.
+ * EM - emR3[Raw|Hwaccm]HandleRC template.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,13 +18,8 @@
 #ifndef ___EMHandleRCTmpl_h
 #define ___EMHandleRCTmpl_h
 
-#if defined(EMHANDLERC_WITH_PATM) && defined(EMHANDLERC_WITH_HM)
-# error "Only one define"
-#endif
-
-
 /**
- * Process a subset of the raw-mode and hm return codes.
+ * Process a subset of the raw-mode return code.
  *
  * Since we have to share this with raw-mode single stepping, this inline
  * function has been created to avoid code duplication.
@@ -32,15 +27,15 @@
  * @returns VINF_SUCCESS if it's ok to continue raw mode.
  * @returns VBox status code to return to the EM main loop.
  *
- * @param   pVM     Pointer to the VM.
- * @param   pVCpu   Pointer to the VMCPU.
+ * @param   pVM     The VM handle
+ * @param   pVCpu   The VMCPU handle
  * @param   rc      The return code.
- * @param   pCtx    Pointer to the guest CPU context.
+ * @param   pCtx    The guest cpu context.
  */
 #ifdef EMHANDLERC_WITH_PATM
 int emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
-#elif defined(EMHANDLERC_WITH_HM)
-int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
+#elif defined(EMHANDLERC_WITH_HWACCM)
+int emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
 #endif
 {
     switch (rc)
@@ -51,7 +46,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VINF_SUCCESS:
             break;
         case VINF_EM_RESCHEDULE_RAW:
-        case VINF_EM_RESCHEDULE_HM:
+        case VINF_EM_RESCHEDULE_HWACC:
         case VINF_EM_RAW_INTERRUPT:
         case VINF_EM_RAW_TO_R3:
         case VINF_EM_RAW_TIMER_PENDING:
@@ -86,7 +81,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          */
         case VINF_PATM_PATCH_TRAP_PF:
         case VINF_PATM_PATCH_INT3:
-            rc = emR3RawPatchTrap(pVM, pVCpu, pCtx, rc);
+            rc = emR3PatchTrap(pVM, pVCpu, pCtx, rc);
             break;
 
         case VINF_PATM_DUPLICATE_FUNCTION:
@@ -115,9 +110,8 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * Memory mapped I/O access - attempt to patch the instruction
          */
         case VINF_PATM_HC_MMIO_PATCH_READ:
-            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DISSELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
-                                      PATMFL_MMIO_ACCESS
-                                    | (CPUMGetGuestCodeBits(pVCpu) == 32 ? PATMFL_CODE32 : 0));
+            rc = PATMR3InstallPatch(pVM, SELMToFlat(pVM, DIS_SELREG_CS, CPUMCTX2CORE(pCtx), pCtx->eip),
+                                    PATMFL_MMIO_ACCESS | ((SELMGetCpuModeFromSelector(pVM, pCtx->eflags, pCtx->cs, &pCtx->csHid) == CPUMODE_32BIT) ? PATMFL_CODE32 : 0));
             if (RT_FAILURE(rc))
                 rc = emR3ExecuteInstruction(pVM, pVCpu, "MMIO");
             break;
@@ -135,7 +129,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * do here is to execute the pending forced actions.
          */
         case VINF_PGM_SYNC_CR3:
-            AssertMsg(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL),
+            AssertMsg(VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL),
                       ("VINF_PGM_SYNC_CR3 and no VMCPU_FF_PGM_SYNC_CR3*!\n"));
             rc = VINF_SUCCESS;
             break;
@@ -150,7 +144,7 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
          * bird: Since the clearing is global and done via a rendezvous any CPU can do
          *       it. They would have to choose who to call VMMR3EmtRendezvous and send
          *       the rest to VMMR3EmtRendezvousFF ... Hmm ... that's not going to work
-         *       all that well since the latter will race the setup done by the
+         *       all that well since the the latter will race the setup done by the
          *       first.  Guess that means we need some new magic in that area for
          *       handling this case. :/
          */
@@ -209,30 +203,30 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         /*
          * I/O Port access - emulate the instruction.
          */
-        case VINF_IOM_R3_IOPORT_READ:
-        case VINF_IOM_R3_IOPORT_WRITE:
+        case VINF_IOM_HC_IOPORT_READ:
+        case VINF_IOM_HC_IOPORT_WRITE:
             rc = emR3ExecuteIOInstruction(pVM, pVCpu);
             break;
 
         /*
          * Memory mapped I/O access - emulate the instruction.
          */
-        case VINF_IOM_R3_MMIO_READ:
-        case VINF_IOM_R3_MMIO_WRITE:
-        case VINF_IOM_R3_MMIO_READ_WRITE:
+        case VINF_IOM_HC_MMIO_READ:
+        case VINF_IOM_HC_MMIO_WRITE:
+        case VINF_IOM_HC_MMIO_READ_WRITE:
             rc = emR3ExecuteInstruction(pVM, pVCpu, "MMIO");
             break;
 
-#ifdef EMHANDLERC_WITH_HM
+#ifdef EMHANDLERC_WITH_HWACCM
         /*
          * (MM)IO intensive code block detected; fall back to the recompiler for better performance
          */
         case VINF_EM_RAW_EMULATE_IO_BLOCK:
-            rc = HMR3EmulateIoBlock(pVM, pCtx);
+            rc = HWACCMR3EmulateIoBlock(pVM, pCtx);
             break;
 
-        case VINF_EM_HM_PATCH_TPR_INSTR:
-            rc = HMR3PatchTprInstr(pVM, pVCpu, pCtx);
+        case VINF_EM_HWACCM_PATCH_TPR_INSTR:
+            rc = HWACCMR3PatchTprInstr(pVM, pVCpu, pCtx);
             break;
 #endif
 
@@ -288,15 +282,6 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
             LogFlow(("emR3RawHandleRC: %Rrc -> %Rrc\n", rc, VINF_EM_RESCHEDULE_REM));
             rc = VINF_EM_RESCHEDULE_REM;
             break;
-
-        /*
-         * Conflict in GDT, resync and continue.
-         */
-        case VINF_SELM_SYNC_GDT:
-            AssertMsg(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_SELM_SYNC_TSS),
-                      ("VINF_SELM_SYNC_GDT without VMCPU_FF_SELM_SYNC_GDT/LDT/TSS!\n"));
-            rc = VINF_SUCCESS;
-            break;
 #endif
 
         /*
@@ -332,30 +317,24 @@ int emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc)
         case VERR_TRPM_DONT_PANIC:
         case VERR_TRPM_PANIC:
         case VERR_VMM_RING0_ASSERTION:
-        case VINF_EM_TRIPLE_FAULT:
         case VERR_VMM_HYPER_CR3_MISMATCH:
         case VERR_VMM_RING3_CALL_DISABLED:
-        case VERR_IEM_INSTR_NOT_IMPLEMENTED:
-        case VERR_IEM_ASPECT_NOT_IMPLEMENTED:
             break;
 
-#ifdef EMHANDLERC_WITH_HM
+#ifdef EMHANDLERC_WITH_HWACCM
         /*
-         * Up a level, after Hm have done some release logging.
+         * Up a level, after HwAccM have done some release logging.
          */
         case VERR_VMX_INVALID_VMCS_FIELD:
         case VERR_VMX_INVALID_VMCS_PTR:
         case VERR_VMX_INVALID_VMXON_PTR:
-        case VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_TYPE:
+        case VERR_VMX_UNEXPECTED_INTERRUPTION_EXIT_CODE:
         case VERR_VMX_UNEXPECTED_EXCEPTION:
-        case VERR_VMX_UNEXPECTED_EXIT:
+        case VERR_VMX_UNEXPECTED_EXIT_CODE:
         case VERR_VMX_INVALID_GUEST_STATE:
         case VERR_VMX_UNABLE_TO_START_VM:
-        case VERR_SVM_UNKNOWN_EXIT:
-        case VERR_SVM_UNEXPECTED_EXIT:
-        case VERR_SVM_UNEXPECTED_PATCH_TYPE:
-        case VERR_SVM_UNEXPECTED_XCPT_EXIT:
-            HMR3CheckError(pVM, rc);
+        case VERR_VMX_UNABLE_TO_RESUME_VM:
+            HWACCMR3CheckError(pVM, rc);
             break;
 
         /* Up a level; fatal */

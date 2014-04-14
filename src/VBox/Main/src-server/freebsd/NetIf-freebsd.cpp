@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2012 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,6 @@
 #include <net/if_dl.h>
 #include <netinet/in.h>
 
-#include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <errno.h>
@@ -269,10 +268,10 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
             pNext += pIfAddrMsg->ifam_msglen;
         }
 
-        if (pSdl->sdl_type == IFT_ETHER || pSdl->sdl_type == IFT_L2VLAN)
+        if (pSdl->sdl_type == IFT_ETHER)
         {
             struct ifreq IfReq;
-            RTStrCopy(IfReq.ifr_name, sizeof(IfReq.ifr_name), pNew->szShortName);
+            strcpy(IfReq.ifr_name, pNew->szShortName);
             if (ioctl(sock, SIOCGIFFLAGS, &IfReq) < 0)
             {
                 Log(("NetIfList: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
@@ -282,7 +281,7 @@ int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list)
                 pNew->enmStatus = (IfReq.ifr_flags & IFF_UP) ? NETIF_S_UP : NETIF_S_DOWN;
 
             HostNetworkInterfaceType_T enmType;
-            if (strncmp(pNew->szName, RT_STR_TUPLE("vboxnet")))
+            if (strncmp("vboxnet", pNew->szName, 7))
                 enmType = HostNetworkInterfaceType_Bridged;
             else
                 enmType = HostNetworkInterfaceType_HostOnly;
@@ -374,7 +373,7 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
             pNext += pIfAddrMsg->ifam_msglen;
         }
 
-        if (!fSkip && (pSdl->sdl_type == IFT_ETHER || pSdl->sdl_type == IFT_L2VLAN))
+        if (!fSkip && pSdl->sdl_type == IFT_ETHER)
         {
             size_t cbNameLen = pSdl->sdl_nlen + 1;
             memcpy(pInfo->MACAddress.au8, LLADDR(pSdl), sizeof(pInfo->MACAddress.au8));
@@ -389,7 +388,7 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
             pInfo->Uuid = uuid;
 
             struct ifreq IfReq;
-            RTStrCopy(IfReq.ifr_name, sizeof(IfReq.ifr_name), pInfo->szShortName);
+            strcpy(IfReq.ifr_name, pInfo->szShortName);
             if (ioctl(sock, SIOCGIFFLAGS, &IfReq) < 0)
             {
                 Log(("NetIfList: ioctl(SIOCGIFFLAGS) -> %d\n", errno));
@@ -406,16 +405,3 @@ int NetIfGetConfigByName(PNETIFINFO pInfo)
     return rc;
 }
 
-/**
- * Retrieve the physical link speed in megabits per second. If the interface is
- * not up or otherwise unavailable the zero speed is returned.
- *
- * @returns VBox status code.
- *
- * @param   pcszIfName  Interface name.
- * @param   puMbits     Where to store the link speed.
- */
-int NetIfGetLinkSpeed(const char * /*pcszIfName*/, uint32_t * /*puMbits*/)
-{
-    return VERR_NOT_IMPLEMENTED;
-}

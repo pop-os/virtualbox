@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,8 +20,9 @@
 
 #include <iprt/ctype.h>
 
+#define VIRTIO_RELOCATE(p, o) *(RTHCUINTPTR *)&p += o
 
-/** @name Saved state versions.
+/*
  * The saved state version is changed if either common or any of specific
  * parts are changed. That is, it is perfectly possible that the version
  * of saved vnet state will increase as a result of change in vblk structure
@@ -29,7 +30,6 @@
  */
 #define VIRTIO_SAVEDSTATE_VERSION_3_1_BETA1 1
 #define VIRTIO_SAVEDSTATE_VERSION           2
-/** @} */
 
 #define DEVICE_PCI_VENDOR_ID                0x1AF4
 #define DEVICE_PCI_DEVICE_ID                0x1000
@@ -62,88 +62,90 @@
 #define VRINGDESC_F_NEXT                    0x01
 #define VRINGDESC_F_WRITE                   0x02
 
-typedef struct VRingDesc
+struct VRingDesc
 {
     uint64_t u64Addr;
     uint32_t uLen;
     uint16_t u16Flags;
     uint16_t u16Next;
-} VRINGDESC;
+};
+typedef struct VRingDesc VRINGDESC;
 typedef VRINGDESC *PVRINGDESC;
 
 #define VRINGAVAIL_F_NO_INTERRUPT 0x01
 
-typedef struct VRingAvail
+struct VRingAvail
 {
     uint16_t uFlags;
     uint16_t uNextFreeIndex;
     uint16_t auRing[1];
-} VRINGAVAIL;
+};
+typedef struct VRingAvail VRINGAVAIL;
 
-typedef struct VRingUsedElem
+struct VRingUsedElem
 {
     uint32_t uId;
     uint32_t uLen;
-} VRINGUSEDELEM;
+};
+typedef struct VRingUsedElem VRINGUSEDELEM;
 
 #define VRINGUSED_F_NO_NOTIFY 0x01
 
-typedef struct VRingUsed
+struct VRingUsed
 {
     uint16_t      uFlags;
     uint16_t      uIndex;
     VRINGUSEDELEM aRing[1];
-} VRINGUSED;
+};
+typedef struct VRingUsed VRINGUSED;
 typedef VRINGUSED *PVRINGUSED;
 
 #define VRING_MAX_SIZE 1024
 
-typedef struct VRing
+struct VRing
 {
     uint16_t   uSize;
     uint16_t   padding[3];
     RTGCPHYS   addrDescriptors;
     RTGCPHYS   addrAvail;
     RTGCPHYS   addrUsed;
-} VRING;
+};
+typedef struct VRing VRING;
 typedef VRING *PVRING;
 
-/**
- * Queue callback (consumer?).
- *
- * @param   pvState         Pointer to the VirtIO PCI core state, VPCISTATE.
- * @param   pQueue          Pointer to the queue structure.
- */
-typedef DECLCALLBACK(void) FNVPCIQUEUECALLBACK(void *pvState, struct VQueue *pQueue);
-/** Pointer to a VQUEUE callback function. */
-typedef FNVPCIQUEUECALLBACK *PFNVPCIQUEUECALLBACK;
-
-typedef struct VQueue
+struct VQueue
 {
     VRING    VRing;
     uint16_t uNextAvailIndex;
     uint16_t uNextUsedIndex;
     uint32_t uPageNumber;
-    R3PTRTYPE(PFNVPCIQUEUECALLBACK) pfnCallback;
-    R3PTRTYPE(const char *)         pcszName;
-} VQUEUE;
+#ifdef IN_RING3
+    void   (*pfnCallback)(void *pvState, struct VQueue *pQueue);
+#else
+    RTR3UINTPTR pfnCallback;
+#endif
+    R3PTRTYPE(const char *) pcszName;
+};
+typedef struct VQueue VQUEUE;
 typedef VQUEUE *PVQUEUE;
 
-typedef struct VQueueElemSeg
+struct VQueueElemSeg
 {
     RTGCPHYS addr;
     void    *pv;
     uint32_t cb;
-} VQUEUESEG;
+};
+typedef struct VQueueElemSeg VQUEUESEG;
 
-typedef struct VQueueElem
+struct VQueueElem
 {
     uint32_t  uIndex;
     uint32_t  nIn;
     uint32_t  nOut;
     VQUEUESEG aSegsIn[VRING_MAX_SIZE];
     VQUEUESEG aSegsOut[VRING_MAX_SIZE];
-} VQUEUEELEM;
+};
+typedef struct VQueueElem VQUEUEELEM;
 typedef VQUEUEELEM *PVQUEUEELEM;
 
 
@@ -156,11 +158,11 @@ enum VirtioDeviceType
 
 
 /**
- * The core (/common) state of the VirtIO PCI device
+ * The state of the VirtIO PCI device
  *
  * @implements  PDMILEDPORTS
  */
-typedef struct VPCIState_st
+struct VPCIState_st
 {
     PDMCRITSECT            cs;      /**< Critical section - what is it protecting? */
     /* Read-only part, never changes after initialization. */
@@ -188,7 +190,7 @@ typedef struct VPCIState_st
     /** TODO */
     PCIDEVICE              pciDevice;
     /** Base port of I/O space region. */
-    RTIOPORT               IOPortBase;
+    RTIOPORT               addrIOPort;
 
     /* Read/write part, protected with critical section. */
     /** Status LED. */
@@ -216,28 +218,19 @@ typedef struct VPCIState_st
     STAMPROFILE            StatCsGC;
     STAMPROFILE            StatCsHC;
 #endif /* VBOX_WITH_STATISTICS */
-} VPCISTATE;
-/** Pointer to the core (/common) state of a VirtIO PCI device. */
+};
+typedef struct VPCIState_st VPCISTATE;
 typedef VPCISTATE *PVPCISTATE;
 
-typedef DECLCALLBACK(uint32_t) FNGETHOSTFEATURES(void *pvState);
-typedef FNGETHOSTFEATURES *PFNGETHOSTFEATURES;
-
-/** @name VirtIO port I/O callbacks.
- * @{ */
-typedef struct VPCIIOCALLBACKS
-{
-     DECLCALLBACKMEMBER(uint32_t, pfnGetHostFeatures)(void *pvState);
-     DECLCALLBACKMEMBER(uint32_t, pfnGetHostMinimalFeatures)(void *pvState);
-     DECLCALLBACKMEMBER(void,     pfnSetHostFeatures)(void *pvState, uint32_t fFeatures);
-     DECLCALLBACKMEMBER(int,      pfnGetConfig)(void *pvState, uint32_t offCfg, uint32_t cb, void *pvData);
-     DECLCALLBACKMEMBER(int,      pfnSetConfig)(void *pvState, uint32_t offCfg, uint32_t cb, void *pvData);
-     DECLCALLBACKMEMBER(int,      pfnReset)(void *pvState);
-     DECLCALLBACKMEMBER(void,     pfnReady)(void *pvState);
-} VPCIIOCALLBACKS;
-/** Pointer to a const VirtIO port I/O callback structure. */
-typedef const VPCIIOCALLBACKS *PCVPCIIOCALLBACKS;
-/** @} */
+/* Callbacks *****************************************************************/
+typedef uint32_t (*PFNGETHOSTFEATURES)(void *pState);
+typedef uint32_t (*PFNGETHOSTMINIMALFEATURES)(void *pState);
+typedef void     (*PFNSETHOSTFEATURES)(void *pState, uint32_t uFeatures);
+typedef int      (*PFNGETCONFIG)(void *pState, uint32_t port, uint32_t cb, void *data);
+typedef int      (*PFNSETCONFIG)(void *pState, uint32_t port, uint32_t cb, void *data);
+typedef int      (*PFNRESET)(void *pState);
+typedef void     (*PFNREADY)(void *pState);
+/*****************************************************************************/
 
 int vpciRaiseInterrupt(VPCISTATE *pState, int rcBusy, uint8_t u8IntCause);
 int vpciIOPortIn(PPDMDEVINS         pDevIns,
@@ -245,33 +238,45 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
                  RTIOPORT           port,
                  uint32_t          *pu32,
                  unsigned           cb,
-                 PCVPCIIOCALLBACKS  pCallbacks);
+                 PFNGETHOSTFEATURES pfnGetHostFeatures,
+                 PFNGETCONFIG       pfnGetConfig);
 
 int vpciIOPortOut(PPDMDEVINS                pDevIns,
                   void                     *pvUser,
                   RTIOPORT                  port,
                   uint32_t                  u32,
                   unsigned                  cb,
-                  PCVPCIIOCALLBACKS         pCallbacks);
+                  PFNGETHOSTMINIMALFEATURES pfnGetHostMinimalFeatures,
+                  PFNGETHOSTFEATURES        pfnGetHostFeatures,
+                  PFNSETHOSTFEATURES        pfnSetHostFeatures,
+                  PFNRESET                  pfnReset,
+                  PFNREADY                  pfnReady,
+                  PFNSETCONFIG              pfnSetConfig);
 
 void  vpciSetWriteLed(PVPCISTATE pState, bool fOn);
 void  vpciSetReadLed(PVPCISTATE pState, bool fOn);
 int   vpciSaveExec(PVPCISTATE pState, PSSMHANDLE pSSM);
-int   vpciLoadExec(PVPCISTATE pState, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass, uint32_t nQueues);
-int   vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState, int iInstance, const char *pcszNameFmt,
-                    uint16_t uSubsystemId, uint16_t uClass, uint32_t nQueues);
+int   vpciLoadExec(PVPCISTATE pState, PSSMHANDLE pSSM,
+                   uint32_t uVersion, uint32_t uPass,
+                   uint32_t nQueues);
+int   vpciConstruct(PPDMDEVINS pDevIns, VPCISTATE *pState,
+                    int iInstance, const char *pcszNameFmt,
+                    uint16_t uSubsystemId, uint16_t uClass,
+                    uint32_t nQueues);
 int   vpciDestruct(VPCISTATE* pState);
 void  vpciRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta);
 void  vpciReset(PVPCISTATE pState);
 void *vpciQueryInterface(struct PDMIBASE *pInterface, const char *pszIID);
-PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize, PFNVPCIQUEUECALLBACK pfnCallback, const char *pcszName);
+PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize,
+                     void (*pfnCallback)(void *pvState, PVQUEUE pQueue),
+                     const char *pcszName);
 
 #define VPCI_CS
-DECLINLINE(int) vpciCsEnter(VPCISTATE *pState, int rcBusy)
+DECLINLINE(int) vpciCsEnter(VPCISTATE *pState, int iBusyRc)
 {
 #ifdef VPCI_CS
     STAM_PROFILE_START(&pState->CTXSUFF(StatCs), a);
-    int rc = PDMCritSectEnter(&pState->cs, rcBusy);
+    int rc = PDMCritSectEnter(&pState->cs, iBusyRc);
     STAM_PROFILE_STOP(&pState->CTXSUFF(StatCs), a);
     return rc;
 #else
@@ -298,20 +303,14 @@ DECLINLINE(uint16_t) vringReadAvailIndex(PVPCISTATE pState, PVRING pVRing)
     return tmp;
 }
 
-bool vqueueSkip(PVPCISTATE pState, PVQUEUE pQueue);
-bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, bool fRemove = true);
+bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem);
 void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uLen, uint32_t uReserved = 0);
 void vqueueNotify(PVPCISTATE pState, PVQUEUE pQueue);
 void vqueueSync(PVPCISTATE pState, PVQUEUE pQueue);
 
-DECLINLINE(bool) vqueuePeek(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem)
-{
-    return vqueueGet(pState, pQueue, pElem, /* fRemove */ false);
-}
 
 DECLINLINE(bool) vqueueIsReady(PVPCISTATE pState, PVQUEUE pQueue)
 {
-    NOREF(pState);
     return !!pQueue->VRing.addrAvail;
 }
 
@@ -320,4 +319,4 @@ DECLINLINE(bool) vqueueIsEmpty(PVPCISTATE pState, PVQUEUE pQueue)
     return (vringReadAvailIndex(pState, &pQueue->VRing) == pQueue->uNextAvailIndex);
 }
 
-#endif /* !___VBox_Virtio_h */
+#endif /* ___VBox_Virtio_h */

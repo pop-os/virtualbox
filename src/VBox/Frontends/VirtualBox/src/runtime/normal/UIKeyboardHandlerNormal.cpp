@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 /* Local includes */
 #include "UIKeyboardHandlerNormal.h"
 #include "UIMachineWindow.h"
-#include "UIShortcutPool.h"
+#include "UIMachineShortcuts.h"
 
 /* Fullscreen keyboard-handler constructor: */
 UIKeyboardHandlerNormal::UIKeyboardHandlerNormal(UIMachineLogic* pMachineLogic)
@@ -58,10 +58,10 @@ bool UIKeyboardHandlerNormal::eventFilter(QObject *pWatchedObject, QEvent *pEven
                 /* Get key-event: */
                 QKeyEvent *pKeyEvent = static_cast<QKeyEvent*>(pEvent);
                 /* Process Host+Home as menu-bar activator: */
-                if (isHostKeyPressed() && pKeyEvent->key() == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
+                if (isHostKeyPressed() && pKeyEvent->key() == gMS->keySequence(UIMachineShortcuts::PopupMenuShortcut))
                 {
                     /* Trying to get menu-bar: */
-                    QMenuBar *pMenuBar = qobject_cast<QMainWindow*>(m_windows[uScreenId])->menuBar();
+                    QMenuBar *pMenuBar = qobject_cast<QMainWindow*>(m_windows[uScreenId]->machineWindow())->menuBar();
                     /* If menu-bar is present and have actions: */
                     if (pMenuBar && !pMenuBar->actions().isEmpty())
                     {

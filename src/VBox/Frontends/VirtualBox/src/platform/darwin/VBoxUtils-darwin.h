@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,6 @@ RT_C_DECLS_BEGIN
 NativeNSWindowRef darwinToNativeWindowImpl(NativeNSViewRef pView);
 NativeNSViewRef darwinToNativeViewImpl(NativeNSWindowRef pWindow);
 NativeNSStringRef darwinToNativeString(const char* pcszString);
-QString darwinFromNativeString(NativeNSStringRef pString);
 
 /********************************************************************************
  *
@@ -78,16 +77,8 @@ int  darwinWindowToolBarHeight(NativeNSWindowRef pWindow);
 bool darwinIsToolbarVisible(NativeNSWindowRef pWindow);
 bool darwinIsWindowMaximized(NativeNSWindowRef pWindow);
 void darwinMinaturizeWindow(NativeNSWindowRef pWindow);
-void darwinEnableFullscreenSupport(NativeNSWindowRef pWindow);
-void darwinEnableTransienceSupport(NativeNSWindowRef pWindow);
-void darwinToggleFullscreenMode(NativeNSWindowRef pWindow);
-bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow);
-bool darwinIsOnActiveSpace(NativeNSWindowRef pWindow);
-bool darwinScreensHaveSeparateSpaces();
 
 bool darwinOpenFile(NativeNSStringRef pstrFile);
-
-double darwinBackingScaleFactor(NativeNSWindowRef pWindow);
 
 float darwinSmallFontSize();
 bool darwinSetFrontMostProcess();
@@ -247,14 +238,7 @@ int  darwinWindowToolBarHeight(QWidget *pWidget);
 bool darwinIsToolbarVisible(QToolBar *pToolBar);
 bool darwinIsWindowMaximized(QWidget *pWidget);
 void darwinMinaturizeWindow(QWidget *pWidget);
-void darwinEnableFullscreenSupport(QWidget *pWidget);
-void darwinEnableTransienceSupport(QWidget *pWidget);
-void darwinToggleFullscreenMode(QWidget *pWidget);
-bool darwinIsInFullscreenMode(QWidget *pWidget);
-bool darwinIsOnActiveSpace(QWidget *pWidget);
 bool darwinOpenFile(const QString &strFile);
-
-double darwinBackingScaleFactor(QWidget *pWidget);
 
 QString darwinSystemLanguage(void);
 QPixmap darwinCreateDragPixmap(const QPixmap& aPixmap, const QString &aText);

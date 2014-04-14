@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,10 +34,10 @@
 # include <stdio.h>
 # include <stdlib.h>
 # include <dlfcn.h>
-# include <unistd.h>
 
 #elif RT_OS_WINDOWS
-# include <iprt/nt/nt-and-windows.h>
+# include <Windows.h>
+# include <stdio.h>
 
 #else /* UNIXes */
 # include <iprt/types.h> /* stdint fun on darwin. */
@@ -50,6 +50,7 @@
 # include <unistd.h>
 # include <sys/stat.h>
 # include <sys/time.h>
+# include <stdio.h>
 # include <sys/types.h>
 # if defined(RT_OS_LINUX)
 #  undef USE_LIB_PCAP /* don't depend on libcap as we had to depend on either
@@ -77,12 +78,7 @@
 
 #include <VBox/sup.h>
 #include <VBox/err.h>
-#ifdef RT_OS_WINDOWS
-# include <VBox/version.h>
-#endif
-#include <iprt/ctype.h>
 #include <iprt/string.h>
-#include <iprt/initterm.h>
 #include <iprt/param.h>
 
 #include "SUPLibInternal.h"
@@ -114,60 +110,31 @@
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /** @see RTR3InitEx */
-typedef DECLCALLBACK(int) FNRTR3INITEX(uint32_t iVersion, uint32_t fFlags, int cArgs,
-                                       char **papszArgs, const char *pszProgramPath);
+typedef DECLCALLBACK(int) FNRTR3INITEX(uint32_t iVersion, const char *pszProgramPath, bool fInitSUPLib);
 typedef FNRTR3INITEX *PFNRTR3INITEX;
-
-/** @see RTLogRelPrintf */
-typedef DECLCALLBACK(void) FNRTLOGRELPRINTF(const char *pszFormat, ...);
-typedef FNRTLOGRELPRINTF *PFNRTLOGRELPRINTF;
 
 
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
 /** The pre-init data we pass on to SUPR3 (residing in VBoxRT). */
-static SUPPREINITDATA   g_SupPreInitData;
+static SUPPREINITDATA g_SupPreInitData;
 /** The program executable path. */
-#ifndef RT_OS_WINDOWS
-static
-#endif
-char                    g_szSupLibHardenedExePath[RTPATH_MAX];
+static char g_szSupLibHardenedExePath[RTPATH_MAX];
 /** The program directory path. */
-static char             g_szSupLibHardenedDirPath[RTPATH_MAX];
+static char g_szSupLibHardenedDirPath[RTPATH_MAX];
 
 /** The program name. */
-static const char      *g_pszSupLibHardenedProgName;
-/** The flags passed to SUPR3HardenedMain. */
-static uint32_t         g_fSupHardenedMain;
+static const char *g_pszSupLibHardenedProgName;
 
 #ifdef SUP_HARDENED_SUID
 /** The real UID at startup. */
-static uid_t            g_uid;
+static uid_t g_uid;
 /** The real GID at startup. */
-static gid_t            g_gid;
+static gid_t g_gid;
 # ifdef RT_OS_LINUX
-static uint32_t         g_uCaps;
+static uint32_t g_uCaps;
 # endif
-#endif
-
-/** The startup log file. */
-#ifdef RT_OS_WINDOWS
-static HANDLE           g_hStartupLog = NULL;
-#else
-static int              g_hStartupLog = -1;
-#endif
-/** The number of bytes we've written to the startup log. */
-static uint32_t volatile g_cbStartupLog = 0;
-
-/** The current SUPR3HardenedMain state / location. */
-SUPR3HARDENEDMAINSTATE  g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_NOT_YET_CALLED;
-AssertCompileSize(g_enmSupR3HardenedMainState, sizeof(uint32_t));
-
-#ifdef RT_OS_WINDOWS
-/** Pointer to VBoxRT's RTLogRelPrintf function so we can write errors to the
- * release log at runtime. */
-static PFNRTLOGRELPRINTF g_pfnRTLogRelPrintf = NULL;
 #endif
 
 
@@ -178,517 +145,6 @@ static PFNRTLOGRELPRINTF g_pfnRTLogRelPrintf = NULL;
 static void supR3HardenedMainDropPrivileges(void);
 #endif
 static PFNSUPTRUSTEDERROR supR3HardenedMainGetTrustedError(const char *pszProgName);
-
-
-/**
- * Safely copy one or more strings into the given buffer.
- *
- * @returns VINF_SUCCESS or VERR_BUFFER_OVERFLOW.
- * @param   pszDst              The destionation buffer.
- * @param   cbDst               The size of the destination buffer.
- * @param   ...                 One or more zero terminated strings, ending with
- *                              a NULL.
- */
-static int suplibHardenedStrCopyEx(char *pszDst, size_t cbDst, ...)
-{
-    int rc = VINF_SUCCESS;
-
-    if (cbDst == 0)
-        return VERR_BUFFER_OVERFLOW;
-
-    va_list va;
-    va_start(va, cbDst);
-    for (;;)
-    {
-        const char *pszSrc = va_arg(va, const char *);
-        if (!pszSrc)
-            break;
-
-        size_t cchSrc = suplibHardenedStrLen(pszSrc);
-        if (cchSrc < cbDst)
-        {
-            suplibHardenedMemCopy(pszDst, pszSrc, cchSrc);
-            pszDst += cchSrc;
-            cbDst  -= cchSrc;
-        }
-        else
-        {
-            rc = VERR_BUFFER_OVERFLOW;
-            if (cbDst > 1)
-            {
-                suplibHardenedMemCopy(pszDst, pszSrc, cbDst - 1);
-                pszDst += cbDst - 1;
-                cbDst   = 1;
-            }
-        }
-        *pszDst = '\0';
-    }
-    va_end(va);
-
-    return rc;
-}
-
-
-/**
- * Exit current process in the quickest possible fashion.
- *
- * @param   rcExit      The exit code.
- */
-DECLNORETURN(void) suplibHardenedExit(RTEXITCODE rcExit)
-{
-    for (;;)
-    {
-#ifdef RT_OS_WINDOWS
-        if (g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED)
-            ExitProcess(rcExit);
-        if (RtlExitUserProcess != NULL)
-            RtlExitUserProcess(rcExit);
-        NtTerminateProcess(NtCurrentProcess(), rcExit);
-#else
-        _Exit(rcExit);
-#endif
-    }
-}
-
-
-/**
- * Writes a substring to standard error.
- *
- * @param   pch                 The start of the substring.
- * @param   cch                 The length of the substring.
- */
-static void suplibHardenedPrintStrN(const char *pch, size_t cch)
-{
-#ifdef RT_OS_WINDOWS
-    HANDLE hStdOut = NtCurrentPeb()->ProcessParameters->StandardOutput;
-    if (hStdOut != NULL)
-    {
-        if (g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED)
-        {
-            DWORD cbWritten;
-            WriteFile(hStdOut, pch, (DWORD)cch, &cbWritten, NULL);
-        }
-        /* Windows 7 and earlier uses fake handles, with the last two bits set ((hStdOut & 3) == 3). */
-        else if (NtWriteFile != NULL && ((uintptr_t)hStdOut & 3) == 0)
-        {
-            IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
-            NtWriteFile(hStdOut, NULL /*Event*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/,
-                        &Ios, (PVOID)pch, (ULONG)cch, NULL /*ByteOffset*/, NULL /*Key*/);
-        }
-    }
-#else
-    (void)write(2, pch, cch);
-#endif
-}
-
-
-/**
- * Writes a string to standard error.
- *
- * @param   psz                 The string.
- */
-static void suplibHardenedPrintStr(const char *psz)
-{
-    suplibHardenedPrintStrN(psz, suplibHardenedStrLen(psz));
-}
-
-
-/**
- * Writes a char to standard error.
- *
- * @param   ch                  The character value to write.
- */
-static void suplibHardenedPrintChr(char ch)
-{
-    suplibHardenedPrintStrN(&ch, 1);
-}
-
-
-/**
- * Writes a decimal number to stdard error.
- *
- * @param   uValue              The value.
- */
-static void suplibHardenedPrintDecimal(uint64_t uValue)
-{
-    char    szBuf[64];
-    char   *pszEnd = &szBuf[sizeof(szBuf) - 1];
-    char   *psz    = pszEnd;
-
-    *psz-- = '\0';
-
-    do
-    {
-        *psz-- = '0' + (uValue % 10);
-        uValue /= 10;
-    } while (uValue > 0);
-
-    psz++;
-    suplibHardenedPrintStrN(psz, pszEnd - psz);
-}
-
-
-/**
- * Writes a hexadecimal or octal number to standard error.
- *
- * @param   uValue              The value.
- * @param   uBase               The base (16 or 8).
- * @param   fFlags              Format flags.
- */
-static void suplibHardenedPrintHexOctal(uint64_t uValue, unsigned uBase, uint32_t fFlags)
-{
-    static char const   s_achDigitsLower[17] = "0123456789abcdef";
-    static char const   s_achDigitsUpper[17] = "0123456789ABCDEF";
-    const char         *pchDigits   = !(fFlags & RTSTR_F_CAPITAL) ? s_achDigitsLower : s_achDigitsUpper;
-    unsigned            cShift      = uBase == 16 ?   4 : 3;
-    unsigned            fDigitMask  = uBase == 16 ? 0xf : 7;
-    char                szBuf[64];
-    char               *pszEnd = &szBuf[sizeof(szBuf) - 1];
-    char               *psz    = pszEnd;
-
-    *psz-- = '\0';
-
-    do
-    {
-        *psz-- = pchDigits[uValue & fDigitMask];
-        uValue >>= cShift;
-    } while (uValue > 0);
-
-    if ((fFlags & RTSTR_F_SPECIAL) && uBase == 16)
-    {
-        *psz-- = !(fFlags & RTSTR_F_CAPITAL) ? 'x' : 'X';
-        *psz-- = '0';
-    }
-
-    psz++;
-    suplibHardenedPrintStrN(psz, pszEnd - psz);
-}
-
-
-/**
- * Writes a wide character string to standard error.
- *
- * @param   pwsz                The string.
- */
-static void suplibHardenedPrintWideStr(PCRTUTF16 pwsz)
-{
-    for (;;)
-    {
-        RTUTF16 wc = *pwsz++;
-        if (!wc)
-            return;
-        if (   (wc < 0x7f && wc >= 0x20)
-            || wc == '\n'
-            || wc == '\r')
-            suplibHardenedPrintChr((char)wc);
-        else
-        {
-            suplibHardenedPrintStrN(RT_STR_TUPLE("\\x"));
-            suplibHardenedPrintHexOctal(wc, 16, 0);
-        }
-    }
-}
-
-#ifdef IPRT_NO_CRT
-
-/** Buffer structure used by suplibHardenedOutput. */
-struct SUPLIBHARDENEDOUTPUTBUF
-{
-    size_t off;
-    char   szBuf[2048];
-};
-
-/** Callback for RTStrFormatV, see FNRTSTROUTPUT. */
-static DECLCALLBACK(size_t) suplibHardenedOutput(void *pvArg, const char *pachChars, size_t cbChars)
-{
-    SUPLIBHARDENEDOUTPUTBUF *pBuf = (SUPLIBHARDENEDOUTPUTBUF *)pvArg;
-    size_t cbTodo = cbChars;
-    for (;;)
-    {
-        size_t cbSpace = sizeof(pBuf->szBuf) - pBuf->off - 1;
-
-        /* Flush the buffer? */
-        if (   cbSpace == 0
-            || (cbTodo == 0 && pBuf->off))
-        {
-            suplibHardenedPrintStrN(pBuf->szBuf, pBuf->off);
-# ifdef RT_OS_WINDOWS
-            if (g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED)
-                OutputDebugString(pBuf->szBuf);
-# endif
-            pBuf->off = 0;
-            cbSpace = sizeof(pBuf->szBuf) - 1;
-        }
-
-        /* Copy the string into the buffer. */
-        if (cbTodo == 1)
-        {
-            pBuf->szBuf[pBuf->off++] = *pachChars;
-            break;
-        }
-        if (cbSpace >= cbTodo)
-        {
-            memcpy(&pBuf->szBuf[pBuf->off], pachChars, cbTodo);
-            pBuf->off += cbTodo;
-            break;
-        }
-        memcpy(&pBuf->szBuf[pBuf->off], pachChars, cbSpace);
-        pBuf->off += cbSpace;
-        cbTodo -= cbSpace;
-    }
-    pBuf->szBuf[pBuf->off] = '\0';
-
-    return cbChars;
-}
-
-#endif /* IPRT_NO_CRT */
-
-/**
- * Simple printf to standard error.
- *
- * @param   pszFormat   The format string.
- * @param   va          Arguments to format.
- */
-DECLHIDDEN(void) suplibHardenedPrintFV(const char *pszFormat, va_list va)
-{
-#ifdef IPRT_NO_CRT
-    /*
-     * Use buffered output here to avoid character mixing on the windows
-     * console and to enable us to use OutputDebugString.
-     */
-    SUPLIBHARDENEDOUTPUTBUF Buf;
-    Buf.off = 0;
-    Buf.szBuf[0] = '\0';
-    RTStrFormatV(suplibHardenedOutput, &Buf, NULL, NULL, pszFormat, va);
-
-#else /* !IPRT_NO_CRT */
-    /*
-     * Format loop.
-     */
-    char ch;
-    const char *pszLast = pszFormat;
-    for (;;)
-    {
-        ch = *pszFormat;
-        if (!ch)
-            break;
-        pszFormat++;
-
-        if (ch == '%')
-        {
-            /*
-             * Format argument.
-             */
-
-            /* Flush unwritten bits. */
-            if (pszLast != pszFormat - 1)
-                suplibHardenedPrintStrN(pszLast, pszFormat - pszLast - 1);
-            pszLast = pszFormat;
-            ch = *pszFormat++;
-
-            /* flags. */
-            uint32_t fFlags = 0;
-            for (;;)
-            {
-                if (ch == '#')          fFlags |= RTSTR_F_SPECIAL;
-                else if (ch == '-')     fFlags |= RTSTR_F_LEFT;
-                else if (ch == '+')     fFlags |= RTSTR_F_PLUS;
-                else if (ch == ' ')     fFlags |= RTSTR_F_BLANK;
-                else if (ch == '0')     fFlags |= RTSTR_F_ZEROPAD;
-                else if (ch == '\'')    fFlags |= RTSTR_F_THOUSAND_SEP;
-                else                    break;
-                ch = *pszFormat++;
-            }
-
-            /* Width and precision - ignored. */
-            while (RT_C_IS_DIGIT(ch))
-                ch = *pszFormat++;
-            if (ch == '*')
-                va_arg(va, int);
-            if (ch == '.')
-            {
-                do ch = *pszFormat++;
-                while (RT_C_IS_DIGIT(ch));
-                if (ch == '*')
-                    va_arg(va, int);
-            }
-
-            /* Size. */
-            char chArgSize = 0;
-            switch (ch)
-            {
-                case 'z':
-                case 'L':
-                case 'j':
-                case 't':
-                    chArgSize = ch;
-                    ch = *pszFormat++;
-                    break;
-
-                case 'l':
-                    chArgSize = ch;
-                    ch = *pszFormat++;
-                    if (ch == 'l')
-                    {
-                        chArgSize = 'L';
-                        ch = *pszFormat++;
-                    }
-                    break;
-
-                case 'h':
-                    chArgSize = ch;
-                    ch = *pszFormat++;
-                    if (ch == 'h')
-                    {
-                        chArgSize = 'H';
-                        ch = *pszFormat++;
-                    }
-                    break;
-            }
-
-            /*
-             * Do type specific formatting.
-             */
-            switch (ch)
-            {
-                case 'c':
-                    ch = (char)va_arg(va, int);
-                    suplibHardenedPrintChr(ch);
-                    break;
-
-                case 's':
-                    if (chArgSize == 'l')
-                    {
-                        PCRTUTF16 pwszStr = va_arg(va, PCRTUTF16 );
-                        if (RT_VALID_PTR(pwszStr))
-                            suplibHardenedPrintWideStr(pwszStr);
-                        else
-                            suplibHardenedPrintStr("<NULL>");
-                    }
-                    else
-                    {
-                        const char *pszStr = va_arg(va, const char *);
-                        if (!RT_VALID_PTR(pszStr))
-                            pszStr = "<NULL>";
-                        suplibHardenedPrintStr(pszStr);
-                    }
-                    break;
-
-                case 'd':
-                case 'i':
-                {
-                    int64_t iValue;
-                    if (chArgSize == 'L' || chArgSize == 'j')
-                        iValue = va_arg(va, int64_t);
-                    else if (chArgSize == 'l')
-                        iValue = va_arg(va, signed long);
-                    else if (chArgSize == 'z' || chArgSize == 't')
-                        iValue = va_arg(va, intptr_t);
-                    else
-                        iValue = va_arg(va, signed int);
-                    if (iValue < 0)
-                    {
-                        suplibHardenedPrintChr('-');
-                        iValue = -iValue;
-                    }
-                    suplibHardenedPrintDecimal(iValue);
-                    break;
-                }
-
-                case 'p':
-                case 'x':
-                case 'X':
-                case 'u':
-                case 'o':
-                {
-                    unsigned uBase = 10;
-                    uint64_t uValue;
-
-                    switch (ch)
-                    {
-                        case 'p':
-                            fFlags |= RTSTR_F_ZEROPAD; /* Note not standard behaviour (but I like it this way!) */
-                            uBase = 16;
-                            break;
-                        case 'X':
-                            fFlags |= RTSTR_F_CAPITAL;
-                        case 'x':
-                            uBase = 16;
-                            break;
-                        case 'u':
-                            uBase = 10;
-                            break;
-                        case 'o':
-                            uBase = 8;
-                            break;
-                    }
-
-                    if (ch == 'p' || chArgSize == 'z' || chArgSize == 't')
-                        uValue = va_arg(va, uintptr_t);
-                    else if (chArgSize == 'L' || chArgSize == 'j')
-                        uValue = va_arg(va, uint64_t);
-                    else if (chArgSize == 'l')
-                        uValue = va_arg(va, unsigned long);
-                    else
-                        uValue = va_arg(va, unsigned int);
-
-                    if (uBase == 10)
-                        suplibHardenedPrintDecimal(uValue);
-                    else
-                        suplibHardenedPrintHexOctal(uValue, uBase, fFlags);
-                    break;
-                }
-
-                case 'R':
-                    if (pszFormat[0] == 'r' && pszFormat[1] == 'c')
-                    {
-                        int iValue = va_arg(va, int);
-                        if (iValue < 0)
-                        {
-                            suplibHardenedPrintChr('-');
-                            iValue = -iValue;
-                        }
-                        suplibHardenedPrintDecimal(iValue);
-                        pszFormat += 2;
-                        break;
-                    }
-                    /* fall thru */
-
-                /*
-                 * Custom format.
-                 */
-                default:
-                    suplibHardenedPrintStr("[bad format: ");
-                    suplibHardenedPrintStrN(pszLast, pszFormat - pszLast);
-                    suplibHardenedPrintChr(']');
-                    break;
-            }
-
-            /* continue */
-            pszLast = pszFormat;
-        }
-    }
-
-    /* Flush the last bits of the string. */
-    if (pszLast != pszFormat)
-        suplibHardenedPrintStrN(pszLast, pszFormat - pszLast);
-#endif /* !IPRT_NO_CRT */
-}
-
-
-/**
- * Prints to standard error.
- *
- * @param   pszFormat   The format string.
- * @param   ...         Arguments to format.
- */
-DECLHIDDEN(void) suplibHardenedPrintF(const char *pszFormat, ...)
-{
-    va_list va;
-    va_start(va, pszFormat);
-    suplibHardenedPrintFV(pszFormat, va);
-    va_end(va);
-}
 
 
 /**
@@ -771,10 +227,11 @@ DECLHIDDEN(int) supR3HardenedPathAppPrivateNoArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE)
     const char *pszSrcPath = RTPATH_APP_PRIVATE;
-    size_t cchPathPrivateNoArch = suplibHardenedStrLen(pszSrcPath);
+    size_t cchPathPrivateNoArch = strlen(pszSrcPath);
     if (cchPathPrivateNoArch >= cchPath)
-        supR3HardenedFatal("supR3HardenedPathAppPrivateNoArch: Buffer overflow, %zu >= %zu\n", cchPathPrivateNoArch, cchPath);
-    suplibHardenedMemCopy(pszPath, pszSrcPath, cchPathPrivateNoArch + 1);
+        supR3HardenedFatal("supR3HardenedPathAppPrivateNoArch: Buffer overflow, %lu >= %lu\n",
+                            (unsigned long)cchPathPrivateNoArch, (unsigned long)cchPath);
+    memcpy(pszPath, pszSrcPath, cchPathPrivateNoArch + 1);
     return VINF_SUCCESS;
 
 #else
@@ -790,10 +247,11 @@ DECLHIDDEN(int) supR3HardenedPathAppPrivateArch(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_PRIVATE_ARCH)
     const char *pszSrcPath = RTPATH_APP_PRIVATE_ARCH;
-    size_t cchPathPrivateArch = suplibHardenedStrLen(pszSrcPath);
+    size_t cchPathPrivateArch = strlen(pszSrcPath);
     if (cchPathPrivateArch >= cchPath)
-        supR3HardenedFatal("supR3HardenedPathAppPrivateArch: Buffer overflow, %zu >= %zu\n", cchPathPrivateArch, cchPath);
-    suplibHardenedMemCopy(pszPath, pszSrcPath, cchPathPrivateArch + 1);
+        supR3HardenedFatal("supR3HardenedPathAppPrivateArch: Buffer overflow, %lu >= %lu\n",
+                            (unsigned long)cchPathPrivateArch, (unsigned long)cchPath);
+    memcpy(pszPath, pszSrcPath, cchPathPrivateArch + 1);
     return VINF_SUCCESS;
 
 #else
@@ -809,10 +267,11 @@ DECLHIDDEN(int) supR3HardenedPathSharedLibs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_SHARED_LIBS)
     const char *pszSrcPath = RTPATH_SHARED_LIBS;
-    size_t cchPathSharedLibs = suplibHardenedStrLen(pszSrcPath);
+    size_t cchPathSharedLibs = strlen(pszSrcPath);
     if (cchPathSharedLibs >= cchPath)
-        supR3HardenedFatal("supR3HardenedPathSharedLibs: Buffer overflow, %zu >= %zu\n", cchPathSharedLibs, cchPath);
-    suplibHardenedMemCopy(pszPath, pszSrcPath, cchPathSharedLibs + 1);
+        supR3HardenedFatal("supR3HardenedPathSharedLibs: Buffer overflow, %lu >= %lu\n",
+                            (unsigned long)cchPathSharedLibs, (unsigned long)cchPath);
+    memcpy(pszPath, pszSrcPath, cchPathSharedLibs + 1);
     return VINF_SUCCESS;
 
 #else
@@ -828,10 +287,11 @@ DECLHIDDEN(int) supR3HardenedPathAppDocs(char *pszPath, size_t cchPath)
 {
 #if !defined(RT_OS_WINDOWS) && defined(RTPATH_APP_DOCS)
     const char *pszSrcPath = RTPATH_APP_DOCS;
-    size_t cchPathAppDocs = suplibHardenedStrLen(pszSrcPath);
+    size_t cchPathAppDocs = strlen(pszSrcPath);
     if (cchPathAppDocs >= cchPath)
-        supR3HardenedFatal("supR3HardenedPathAppDocs: Buffer overflow, %zu >= %zu\n", cchPathAppDocs, cchPath);
-    suplibHardenedMemCopy(pszPath, pszSrcPath, cchPathAppDocs + 1);
+        supR3HardenedFatal("supR3HardenedPathAppDocs: Buffer overflow, %lu >= %lu\n",
+                            (unsigned long)cchPathAppDocs, (unsigned long)cchPath);
+    memcpy(pszPath, pszSrcPath, cchPathAppDocs + 1);
     return VINF_SUCCESS;
 
 #else
@@ -878,7 +338,7 @@ static void supR3HardenedGetFullExePath(void)
     if (sysctl(aiName, RT_ELEMENTS(aiName), g_szSupLibHardenedExePath, &cbPath, NULL, 0) < 0)
         supR3HardenedFatal("supR3HardenedExecDir: sysctl failed\n");
     g_szSupLibHardenedExePath[sizeof(g_szSupLibHardenedExePath) - 1] = '\0';
-    int cchLink = suplibHardenedStrLen(g_szSupLibHardenedExePath); /* paranoid? can't we use cbPath? */
+    int cchLink = strlen(g_szSupLibHardenedExePath); /* paranoid? can't we use cbPath? */
 
 # endif
     if (cchLink < 0 || cchLink == sizeof(g_szSupLibHardenedExePath) - 1)
@@ -893,16 +353,15 @@ static void supR3HardenedGetFullExePath(void)
     const char *pszImageName = _dyld_get_image_name(0);
     if (!pszImageName)
         supR3HardenedFatal("supR3HardenedExecDir: _dyld_get_image_name(0) failed\n");
-    size_t cchImageName = suplibHardenedStrLen(pszImageName);
+    size_t cchImageName = strlen(pszImageName);
     if (!cchImageName || cchImageName >= sizeof(g_szSupLibHardenedExePath))
         supR3HardenedFatal("supR3HardenedExecDir: _dyld_get_image_name(0) failed, cchImageName=%d\n", cchImageName);
-    suplibHardenedMemCopy(g_szSupLibHardenedExePath, pszImageName, cchImageName + 1);
+    memcpy(g_szSupLibHardenedExePath, pszImageName, cchImageName + 1);
 
 #elif defined(RT_OS_WINDOWS)
-    char *pszDst = g_szSupLibHardenedExePath;
-    int rc = RTUtf16ToUtf8Ex(g_wszSupLibHardenedExePath, RTSTR_MAX, &pszDst, sizeof(g_szSupLibHardenedExePath), NULL);
-    if (RT_FAILURE(rc))
-        supR3HardenedFatal("supR3HardenedExecDir: RTUtf16ToUtf8Ex failed, rc=%Rrc\n", rc);
+    HMODULE hExe = GetModuleHandle(NULL);
+    if (!GetModuleFileName(hExe, &g_szSupLibHardenedExePath[0], sizeof(g_szSupLibHardenedExePath)))
+        supR3HardenedFatal("supR3HardenedExecDir: GetModuleFileName failed, rc=%d\n", GetLastError());
 #else
 # error needs porting.
 #endif
@@ -910,7 +369,7 @@ static void supR3HardenedGetFullExePath(void)
     /*
      * Strip off the filename part (RTPathStripFilename()).
      */
-    suplibHardenedStrCopy(g_szSupLibHardenedDirPath, g_szSupLibHardenedExePath);
+    strcpy(g_szSupLibHardenedDirPath, g_szSupLibHardenedExePath);
     suplibHardenedPathStripFilename(g_szSupLibHardenedDirPath);
 }
 
@@ -948,10 +407,10 @@ DECLHIDDEN(int) supR3HardenedPathExecDir(char *pszPath, size_t cchPath)
     /*
      * Calc the length and check if there is space before copying.
      */
-    size_t cch = suplibHardenedStrLen(g_szSupLibHardenedDirPath) + 1;
+    size_t cch = strlen(g_szSupLibHardenedDirPath) + 1;
     if (cch <= cchPath)
     {
-        suplibHardenedMemCopy(pszPath, g_szSupLibHardenedDirPath, cch + 1);
+        memcpy(pszPath, g_szSupLibHardenedDirPath, cch + 1);
         return VINF_SUCCESS;
     }
 
@@ -960,161 +419,35 @@ DECLHIDDEN(int) supR3HardenedPathExecDir(char *pszPath, size_t cchPath)
 }
 
 
-#ifdef RT_OS_WINDOWS
-extern "C" uint32_t g_uNtVerCombined;
-#endif
-
-DECLHIDDEN(void) supR3HardenedOpenLog(int *pcArgs, char **papszArgs)
-{
-    static const char s_szLogOption[] = "--sup-startup-log=";
-
-    /*
-     * Scan the argument vector.
-     */
-    int cArgs = *pcArgs;
-    for (int iArg = 1; iArg < cArgs; iArg++)
-        if (strncmp(papszArgs[iArg], s_szLogOption, sizeof(s_szLogOption) - 1) == 0)
-        {
-            const char *pszLogFile = &papszArgs[iArg][sizeof(s_szLogOption) - 1];
-
-            /*
-             * Drop the argument from the vector (has trailing NULL entry).
-             */
-            memmove(&papszArgs[iArg], &papszArgs[iArg + 1], (cArgs - iArg) * sizeof(papszArgs[0]));
-            *pcArgs -= 1;
-            cArgs   -= 1;
-
-            /*
-             * Open the log file, unless we've already opened one.
-             * First argument takes precedence
-             */
-#ifdef RT_OS_WINDOWS
-            if (g_hStartupLog == NULL)
-            {
-                int rc = RTNtPathOpen(pszLogFile,
-                                      GENERIC_WRITE | SYNCHRONIZE,
-                                      FILE_ATTRIBUTE_NORMAL,
-                                      FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                      FILE_OPEN_IF,
-                                      FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_NONALERT,
-                                      OBJ_CASE_INSENSITIVE,
-                                      &g_hStartupLog,
-                                      NULL);
-                if (RT_SUCCESS(rc))
-                    SUP_DPRINTF(("Log file opened: " VBOX_VERSION_STRING "r%u g_hStartupLog=%p g_uNtVerCombined=%#x\n",
-                                 VBOX_SVN_REV, g_hStartupLog, g_uNtVerCombined));
-                else
-                    g_hStartupLog = NULL;
-            }
-#else
-            //g_hStartupLog = open()
-#endif
-        }
-}
-
-
-DECLHIDDEN(void) supR3HardenedLogV(const char *pszFormat, va_list va)
-{
-#ifdef RT_OS_WINDOWS
-    if (   g_hStartupLog != NULL
-        && g_cbStartupLog < 16*_1M)
-    {
-        char szBuf[5120];
-        PCLIENT_ID pSelfId = &((PTEB)NtCurrentTeb())->ClientId;
-        size_t cchPrefix = RTStrPrintf(szBuf, sizeof(szBuf), "%x.%x: ", pSelfId->UniqueProcess, pSelfId->UniqueThread);
-        size_t cch = RTStrPrintfV(&szBuf[cchPrefix], sizeof(szBuf) - cchPrefix, pszFormat, va) + cchPrefix;
-
-        if ((size_t)cch >= sizeof(szBuf))
-            cch = sizeof(szBuf) - 1;
-
-        if (!cch || szBuf[cch - 1] != '\n')
-            szBuf[cch++] = '\n';
-
-        ASMAtomicAddU32(&g_cbStartupLog, (uint32_t)cch);
-
-        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
-        LARGE_INTEGER   Offset;
-        Offset.QuadPart = -1; /* Write to end of file. */
-        NtWriteFile(g_hStartupLog, NULL /*Event*/, NULL /*ApcRoutine*/, NULL /*ApcContext*/,
-                    &Ios, szBuf, (ULONG)cch, &Offset, NULL /*Key*/);
-    }
-#else
-    /* later */
-#endif
-}
-
-
-DECLHIDDEN(void) supR3HardenedLog(const char *pszFormat,  ...)
-{
-    va_list va;
-    va_start(va, pszFormat);
-    supR3HardenedLogV(pszFormat, va);
-    va_end(va);
-}
-
-
-/**
- * Prints the message prefix.
- */
-static void suplibHardenedPrintPrefix(void)
-{
-    if (g_pszSupLibHardenedProgName)
-        suplibHardenedPrintStr(g_pszSupLibHardenedProgName);
-    suplibHardenedPrintStr(": ");
-}
-
-
 DECLHIDDEN(void)   supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWhat, int rc, const char *pszMsgFmt, va_list va)
 {
     /*
-     * First to the log.
+     * To the console first, like supR3HardenedFatalV.
      */
-    supR3HardenedLog("Error %d in %s! (enmWhat=%d)\n", rc, pszWhere, enmWhat);
+    fprintf(stderr, "%s: Error %d in %s!\n", g_pszSupLibHardenedProgName, rc, pszWhere);
+    fprintf(stderr, "%s: ", g_pszSupLibHardenedProgName);
     va_list vaCopy;
     va_copy(vaCopy, va);
-    supR3HardenedLogV(pszMsgFmt, vaCopy);
+    vfprintf(stderr, pszMsgFmt, vaCopy);
     va_end(vaCopy);
-
-#ifdef RT_OS_WINDOWS
-    /*
-     * The release log.
-     */
-    if (g_pfnRTLogRelPrintf)
-    {
-        va_copy(vaCopy, va);
-        g_pfnRTLogRelPrintf("supR3HardenedFatalMsgV: %s enmWhat=%d rc=%Rrc (%#x)\n", pszWhere, enmWhat, rc);
-        g_pfnRTLogRelPrintf("supR3HardenedFatalMsgV: %N\n", pszMsgFmt, &vaCopy);
-        va_end(vaCopy);
-    }
-#endif
-
-    /*
-     * Then to the console.
-     */
-    suplibHardenedPrintPrefix();
-    suplibHardenedPrintF("Error %d in %s!\n", rc, pszWhere);
-
-    suplibHardenedPrintPrefix();
-    va_copy(vaCopy, va);
-    suplibHardenedPrintFV(pszMsgFmt, vaCopy);
-    va_end(vaCopy);
-    suplibHardenedPrintChr('\n');
+    fprintf(stderr, "\n");
 
     switch (enmWhat)
     {
         case kSupInitOp_Driver:
-            suplibHardenedPrintChr('\n');
-            suplibHardenedPrintPrefix();
-            suplibHardenedPrintStr("Tip! Make sure the kernel module is loaded. It may also help to reinstall VirtualBox.\n");
+            fprintf(stderr,
+                    "\n"
+                    "%s: Tip! Make sure the kernel module is loaded. It may also help to reinstall VirtualBox.\n",
+                    g_pszSupLibHardenedProgName);
             break;
 
-        case kSupInitOp_Misc:
         case kSupInitOp_IPRT:
         case kSupInitOp_Integrity:
         case kSupInitOp_RootCheck:
-            suplibHardenedPrintChr('\n');
-            suplibHardenedPrintPrefix();
-            suplibHardenedPrintStr("Tip! It may help to reinstall VirtualBox.\n");
+            fprintf(stderr,
+                    "\n"
+                    "%s: Tip! It may help to reinstall VirtualBox.\n",
+                    g_pszSupLibHardenedProgName);
             break;
 
         default:
@@ -1122,56 +455,39 @@ DECLHIDDEN(void)   supR3HardenedFatalMsgV(const char *pszWhere, SUPINITOP enmWha
             break;
     }
 
-    /*
-     * Finally, TrustedError if appropriate.
-     */
-    if (g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED)
-    {
 #ifdef SUP_HARDENED_SUID
-        /*
-         * Drop any root privileges we might be holding, this won't return
-         * if it fails but end up calling supR3HardenedFatal[V].
-         */
-        supR3HardenedMainDropPrivileges();
-#endif
-
-        /*
-         * Now try resolve and call the TrustedError entry point if we can
-         * find it.  We'll fork before we attempt this because that way the
-         * session management in main will see us exiting immediately (if
-         * it's involved with us).
-         */
-#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
-        int pid = fork();
-        if (pid <= 0)
-#endif
-        {
-            static volatile bool s_fRecursive = false; /* Loader hooks may cause recursion. */
-            if (!s_fRecursive)
-            {
-                s_fRecursive = true;
-
-                PFNSUPTRUSTEDERROR pfnTrustedError = supR3HardenedMainGetTrustedError(g_pszSupLibHardenedProgName);
-                if (pfnTrustedError)
-                    pfnTrustedError(pszWhere, enmWhat, rc, pszMsgFmt, va);
-
-                s_fRecursive = false;
-            }
-        }
-    }
-#if defined(RT_OS_WINDOWS)
     /*
-     * Report the error to the parent if this happens during early VM init.
+     * Drop any root privileges we might be holding, this won't return
+     * if it fails but end up calling supR3HardenedFatal[V].
      */
-    else if (   g_enmSupR3HardenedMainState < SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED
-             && g_enmSupR3HardenedMainState != SUPR3HARDENEDMAINSTATE_NOT_YET_CALLED)
-        supR3HardenedWinReportErrorToParent(pszWhere, enmWhat, rc, pszMsgFmt, va);
+    supR3HardenedMainDropPrivileges();
+#endif /* SUP_HARDENED_SUID */
+
+    /*
+     * Now try resolve and call the TrustedError entry point if we can
+     * find it.  We'll fork before we attempt this because that way the
+     * session management in main will see us exiting immediately (if
+     * it's involved with us).
+     */
+#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_OS2)
+    int pid = fork();
+    if (pid <= 0)
 #endif
+    {
+        PFNSUPTRUSTEDERROR pfnTrustedError = supR3HardenedMainGetTrustedError(g_pszSupLibHardenedProgName);
+        if (pfnTrustedError)
+            pfnTrustedError(pszWhere, enmWhat, rc, pszMsgFmt, va);
+    }
 
     /*
      * Quit
      */
-    suplibHardenedExit(RTEXITCODE_FAILURE);
+    for (;;)
+#ifdef _MSC_VER
+        exit(1);
+#else
+        _Exit(1);
+#endif
 }
 
 
@@ -1186,36 +502,14 @@ DECLHIDDEN(void)   supR3HardenedFatalMsg(const char *pszWhere, SUPINITOP enmWhat
 
 DECLHIDDEN(void) supR3HardenedFatalV(const char *pszFormat, va_list va)
 {
-    supR3HardenedLog("Fatal error:\n");
-    va_list vaCopy;
-    va_copy(vaCopy, va);
-    supR3HardenedLogV(pszFormat, vaCopy);
-    va_end(vaCopy);
-
-#if defined(RT_OS_WINDOWS)
-    /*
-     * Report the error to the parent if this happens during early VM init.
-     */
-    if (   g_enmSupR3HardenedMainState < SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED
-        && g_enmSupR3HardenedMainState != SUPR3HARDENEDMAINSTATE_NOT_YET_CALLED)
-        supR3HardenedWinReportErrorToParent(NULL, kSupInitOp_Invalid, VERR_INTERNAL_ERROR, pszFormat, va);
-    else
+    fprintf(stderr, "%s: ", g_pszSupLibHardenedProgName);
+    vfprintf(stderr, pszFormat, va);
+    for (;;)
+#ifdef _MSC_VER
+        exit(1);
+#else
+        _Exit(1);
 #endif
-    {
-#ifdef RT_OS_WINDOWS
-        if (g_pfnRTLogRelPrintf)
-        {
-            va_copy(vaCopy, va);
-            g_pfnRTLogRelPrintf("supR3HardenedFatalV: %N", pszFormat, &vaCopy);
-            va_end(vaCopy);
-        }
-#endif
-
-        suplibHardenedPrintPrefix();
-        suplibHardenedPrintFV(pszFormat, va);
-    }
-
-    suplibHardenedExit(RTEXITCODE_FAILURE);
 }
 
 
@@ -1233,24 +527,8 @@ DECLHIDDEN(int) supR3HardenedErrorV(int rc, bool fFatal, const char *pszFormat, 
     if (fFatal)
         supR3HardenedFatalV(pszFormat, va);
 
-    supR3HardenedLog("Error (rc=%d):\n", rc);
-    va_list vaCopy;
-    va_copy(vaCopy, va);
-    supR3HardenedLogV(pszFormat, vaCopy);
-    va_end(vaCopy);
-
-#ifdef RT_OS_WINDOWS
-    if (g_pfnRTLogRelPrintf)
-    {
-        va_copy(vaCopy, va);
-        g_pfnRTLogRelPrintf("supR3HardenedErrorV: %N", pszFormat, &vaCopy);
-        va_end(vaCopy);
-    }
-#endif
-
-    suplibHardenedPrintPrefix();
-    suplibHardenedPrintFV(pszFormat, va);
-
+    fprintf(stderr, "%s: ", g_pszSupLibHardenedProgName);
+    vfprintf(stderr, pszFormat, va);
     return rc;
 }
 
@@ -1265,51 +543,69 @@ DECLHIDDEN(int) supR3HardenedError(int rc, bool fFatal, const char *pszFormat, .
 }
 
 
+/**
+ * Wrapper around snprintf which will throw a fatal error on buffer overflow.
+ *
+ * @returns Number of chars in the result string.
+ * @param   pszDst          The destination buffer.
+ * @param   cchDst          The size of the buffer.
+ * @param   pszFormat       The format string.
+ * @param   ...             Format arguments.
+ */
+static size_t supR3HardenedStrPrintf(char *pszDst, size_t cchDst, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+#ifdef _MSC_VER
+    int cch = _vsnprintf(pszDst, cchDst, pszFormat, va);
+#else
+    int cch = vsnprintf(pszDst, cchDst, pszFormat, va);
+#endif
+    va_end(va);
+    if ((unsigned)cch >= cchDst || cch < 0)
+        supR3HardenedFatal("supR3HardenedStrPrintf: buffer overflow, %d >= %lu\n", cch, (long)cchDst);
+    return cch;
+}
+
 
 /**
  * Attempts to open /dev/vboxdrv (or equvivalent).
  *
  * @remarks This function will not return on failure.
  */
-DECLHIDDEN(void) supR3HardenedMainOpenDevice(void)
+static void supR3HardenedMainOpenDevice(void)
 {
-    RTERRINFOSTATIC ErrInfo;
-    SUPINITOP       enmWhat = kSupInitOp_Driver;
-    int rc = suplibOsInit(&g_SupPreInitData.Data, false /*fPreInit*/, true /*fUnrestricted*/,
-                          &enmWhat, RTErrInfoInitStatic(&ErrInfo));
+    int rc = suplibOsInit(&g_SupPreInitData.Data, false);
     if (RT_SUCCESS(rc))
         return;
-
-    if (RTErrInfoIsSet(&ErrInfo.Core))
-        supR3HardenedFatalMsg("suplibOsInit", enmWhat, rc, "%s", ErrInfo.szMsg);
 
     switch (rc)
     {
         /** @todo better messages! */
         case VERR_VM_DRIVER_NOT_INSTALLED:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "Kernel driver not installed");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Kernel driver not installed");
         case VERR_VM_DRIVER_NOT_ACCESSIBLE:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "Kernel driver not accessible");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Kernel driver not accessible");
         case VERR_VM_DRIVER_LOAD_ERROR:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "VERR_VM_DRIVER_LOAD_ERROR");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "VERR_VM_DRIVER_LOAD_ERROR");
         case VERR_VM_DRIVER_OPEN_ERROR:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "VERR_VM_DRIVER_OPEN_ERROR");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "VERR_VM_DRIVER_OPEN_ERROR");
         case VERR_VM_DRIVER_VERSION_MISMATCH:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "Kernel driver version mismatch");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Kernel driver version mismatch");
         case VERR_ACCESS_DENIED:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "VERR_ACCESS_DENIED");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "VERR_ACCESS_DENIED");
         case VERR_NO_MEMORY:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "Kernel memory allocation/mapping failed");
-        case VERR_SUPDRV_HARDENING_EVIL_HANDLE:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Integrity, rc, "VERR_SUPDRV_HARDENING_EVIL_HANDLE");
-        case VERR_SUPLIB_NT_PROCESS_UNTRUSTED_0:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Integrity, rc, "VERR_SUPLIB_NT_PROCESS_UNTRUSTED_0");
-        case VERR_SUPLIB_NT_PROCESS_UNTRUSTED_1:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Integrity, rc, "VERR_SUPLIB_NT_PROCESS_UNTRUSTED_1");
-        case VERR_SUPLIB_NT_PROCESS_UNTRUSTED_2:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Integrity, rc, "VERR_SUPLIB_NT_PROCESS_UNTRUSTED_2");
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Kernel memory allocation/mapping failed");
         default:
-            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc, "Unknown rc=%d (%Rrc)", rc, rc);
+            supR3HardenedFatalMsg("suplibOsInit", kSupInitOp_Driver, rc,
+                                  "Unknown rc=%d", rc);
     }
 }
 
@@ -1530,7 +826,7 @@ static void supR3HardenedMainDropPrivileges(void)
 
 /**
  * Loads the VBoxRT DLL/SO/DYLIB, hands it the open driver,
- * and calls RTR3InitEx.
+ * and calls RTR3Init.
  *
  * @param   fFlags      The SUPR3HardenedMain fFlags argument, passed to supR3PreInit.
  *
@@ -1544,31 +840,29 @@ static void supR3HardenedMainInitRuntime(uint32_t fFlags)
      */
     char szPath[RTPATH_MAX];
     supR3HardenedPathSharedLibs(szPath, sizeof(szPath) - sizeof("/VBoxRT" SUPLIB_DLL_SUFF));
-    suplibHardenedStrCat(szPath, "/VBoxRT" SUPLIB_DLL_SUFF);
+    strcat(szPath, "/VBoxRT" SUPLIB_DLL_SUFF);
 
     /*
      * Open it and resolve the symbols.
      */
 #if defined(RT_OS_WINDOWS)
-    HMODULE hMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, false /*fSystem32Only*/);
+    /** @todo consider using LOAD_WITH_ALTERED_SEARCH_PATH here! */
+    HMODULE hMod = LoadLibraryEx(szPath, NULL /*hFile*/, 0 /* dwFlags */);
     if (!hMod)
         supR3HardenedFatalMsg("supR3HardenedMainInitRuntime", kSupInitOp_IPRT, VERR_MODULE_NOT_FOUND,
-                              "LoadLibrary \"%s\" failed (rc=%d)",
-                              szPath, RtlGetLastWin32Error());
+                              "LoadLibraryEx(\"%s\",,) failed (rc=%d)",
+                              szPath, GetLastError());
     PFNRTR3INITEX pfnRTInitEx = (PFNRTR3INITEX)GetProcAddress(hMod, SUP_HARDENED_SYM("RTR3InitEx"));
     if (!pfnRTInitEx)
         supR3HardenedFatalMsg("supR3HardenedMainInitRuntime", kSupInitOp_IPRT, VERR_SYMBOL_NOT_FOUND,
                               "Entrypoint \"RTR3InitEx\" not found in \"%s\" (rc=%d)",
-                              szPath, RtlGetLastWin32Error());
+                              szPath, GetLastError());
 
     PFNSUPR3PREINIT pfnSUPPreInit = (PFNSUPR3PREINIT)GetProcAddress(hMod, SUP_HARDENED_SYM("supR3PreInit"));
     if (!pfnSUPPreInit)
         supR3HardenedFatalMsg("supR3HardenedMainInitRuntime", kSupInitOp_IPRT, VERR_SYMBOL_NOT_FOUND,
                               "Entrypoint \"supR3PreInit\" not found in \"%s\" (rc=%d)",
-                              szPath, RtlGetLastWin32Error());
-
-    g_pfnRTLogRelPrintf = (PFNRTLOGRELPRINTF)GetProcAddress(hMod, SUP_HARDENED_SYM("RTLogRelPrintf"));
-    Assert(g_pfnRTLogRelPrintf);  /* Not fatal in non-strict builds. */
+                              szPath, GetLastError());
 
 #else
     /* the dlopen crowd */
@@ -1602,21 +896,10 @@ static void supR3HardenedMainInitRuntime(uint32_t fFlags)
     if (!supR3HardenedMainIsProcSelfExeAccssible())
         pszExePath = g_szSupLibHardenedExePath;
 #endif
-    rc = pfnRTInitEx(RTR3INIT_VER_1,
-                     fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV ? 0 : RTR3INIT_FLAGS_SUPLIB,
-                     0 /*cArgs*/, NULL /*papszArgs*/, pszExePath);
+    rc = pfnRTInitEx(0, pszExePath, !(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV));
     if (RT_FAILURE(rc))
         supR3HardenedFatalMsg("supR3HardenedMainInitRuntime", kSupInitOp_IPRT, rc,
-                              "RTR3InitEx failed with rc=%d", rc);
-
-#if defined(RT_OS_WINDOWS)
-    /*
-     * Windows: Create thread that terminates the process when the parent stub
-     *          process terminates (VBoxNetDHCP, Ctrl-C, etc).
-     */
-    if (!(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV))
-        supR3HardenedWinCreateParentWatcherThread(hMod);
-#endif
+                              "RTR3Init failed with rc=%d", rc);
 }
 
 
@@ -1633,27 +916,19 @@ static void supR3HardenedMainInitRuntime(uint32_t fFlags)
 static PFNSUPTRUSTEDERROR supR3HardenedMainGetTrustedError(const char *pszProgName)
 {
     /*
-     * Don't bother if the main() function didn't advertise any TrustedError
-     * export.  It's both a waste of time and may trigger additional problems,
-     * confusing or obscuring the original issue.
-     */
-    if (!(g_fSupHardenedMain & SUPSECMAIN_FLAGS_TRUSTED_ERROR))
-        return NULL;
-
-    /*
      * Construct the name.
      */
     char szPath[RTPATH_MAX];
     supR3HardenedPathAppPrivateArch(szPath, sizeof(szPath) - 10);
-    size_t cch = suplibHardenedStrLen(szPath);
-    suplibHardenedStrCopyEx(&szPath[cch], sizeof(szPath) - cch, "/", pszProgName, SUPLIB_DLL_SUFF, NULL);
+    size_t cch = strlen(szPath);
+    supR3HardenedStrPrintf(&szPath[cch], sizeof(szPath) - cch, "/%s%s", pszProgName, SUPLIB_DLL_SUFF);
 
     /*
      * Open it and resolve the symbol.
      */
 #if defined(RT_OS_WINDOWS)
-    supR3HardenedWinEnableThreadCreation();
-    HMODULE hMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, false /*fSystem32Only*/);
+    /** @todo consider using LOAD_WITH_ALTERED_SEARCH_PATH here! */
+    HMODULE hMod = LoadLibraryEx(szPath, NULL /*hFile*/, 0 /* dwFlags */);
     if (!hMod)
         return NULL;
     FARPROC pfn = GetProcAddress(hMod, SUP_HARDENED_SYM("TrustedError"));
@@ -1689,21 +964,22 @@ static PFNSUPTRUSTEDMAIN supR3HardenedMainGetTrustedMain(const char *pszProgName
      */
     char szPath[RTPATH_MAX];
     supR3HardenedPathAppPrivateArch(szPath, sizeof(szPath) - 10);
-    size_t cch = suplibHardenedStrLen(szPath);
-    suplibHardenedStrCopyEx(&szPath[cch], sizeof(szPath) - cch, "/", pszProgName, SUPLIB_DLL_SUFF, NULL);
+    size_t cch = strlen(szPath);
+    supR3HardenedStrPrintf(&szPath[cch], sizeof(szPath) - cch, "/%s%s", pszProgName, SUPLIB_DLL_SUFF);
 
     /*
      * Open it and resolve the symbol.
      */
 #if defined(RT_OS_WINDOWS)
-    HMODULE hMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, false /*fSystem32Only*/);
+    /** @todo consider using LOAD_WITH_ALTERED_SEARCH_PATH here! */
+    HMODULE hMod = LoadLibraryEx(szPath, NULL /*hFile*/, 0 /* dwFlags */);
     if (!hMod)
-        supR3HardenedFatal("supR3HardenedMainGetTrustedMain: LoadLibrary \"%s\" failed, rc=%d\n",
-                            szPath, RtlGetLastWin32Error());
+        supR3HardenedFatal("supR3HardenedMainGetTrustedMain: LoadLibraryEx(\"%s\",,) failed, rc=%d\n",
+                            szPath, GetLastError());
     FARPROC pfn = GetProcAddress(hMod, SUP_HARDENED_SYM("TrustedMain"));
     if (!pfn)
         supR3HardenedFatal("supR3HardenedMainGetTrustedMain: Entrypoint \"TrustedMain\" not found in \"%s\" (rc=%d)\n",
-                            szPath, RtlGetLastWin32Error());
+                            szPath, GetLastError());
     return (PFNSUPTRUSTEDMAIN)pfn;
 
 #else
@@ -1743,21 +1019,14 @@ static PFNSUPTRUSTEDMAIN supR3HardenedMainGetTrustedMain(const char *pszProgName
  */
 DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int argc, char **argv, char **envp)
 {
-    SUP_DPRINTF(("SUPR3HardenedMain: pszProgName=%s fFlags=%#x\n", pszProgName, fFlags));
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_HARDENED_MAIN_CALLED;
-
     /*
      * Note! At this point there is no IPRT, so we will have to stick
      * to basic CRT functions that everyone agree upon.
      */
-    g_pszSupLibHardenedProgName   = pszProgName;
-    g_fSupHardenedMain            = fFlags;
+    g_pszSupLibHardenedProgName = pszProgName;
     g_SupPreInitData.u32Magic     = SUPPREINITDATA_MAGIC;
+    g_SupPreInitData.Data.hDevice = SUP_HDEVICE_NIL;
     g_SupPreInitData.u32EndMagic  = SUPPREINITDATA_MAGIC;
-#ifdef RT_OS_WINDOWS
-    if (!g_fSupEarlyProcessInit)
-#endif
-        g_SupPreInitData.Data.hDevice = SUP_HDEVICE_NIL;
 
 #ifdef SUP_HARDENED_SUID
 # ifdef RT_OS_LINUX
@@ -1766,6 +1035,7 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
      * *might* not be able to access /proc/self/exe after the seteuid call.
      */
     supR3HardenedGetFullExePath();
+
 # endif
 
     /*
@@ -1782,82 +1052,24 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
         supR3HardenedFatalMsg("SUPR3HardenedMain", kSupInitOp_RootCheck, VERR_PERMISSION_DENIED,
                               "Effective UID is not root (euid=%d egid=%d uid=%d gid=%d)",
                               geteuid(), getegid(), g_uid, g_gid);
-#endif /* SUP_HARDENED_SUID */
-
-#ifdef RT_OS_WINDOWS
-    /*
-     * Windows: First respawn. On Windows we will respawn the process twice to establish
-     * something we can put some kind of reliable trust in.  The first respawning aims
-     * at dropping compatibility layers and process "security" solutions.
-     */
-    if (   !g_fSupEarlyProcessInit
-        && !(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV)
-        && supR3HardenedWinIsReSpawnNeeded(1 /*iWhich*/, argc, argv))
-    {
-        SUP_DPRINTF(("SUPR3HardenedMain: Respawn #1\n"));
-        supR3HardenedWinInit(SUPSECMAIN_FLAGS_DONT_OPEN_DEV, false /*fAvastKludge*/);
-        supR3HardenedVerifyAll(true /* fFatal */, pszProgName);
-        return supR3HardenedWinReSpawn(1 /*iWhich*/);
-    }
-
-    /*
-     * Windows: Initialize the image verification global data so we can verify the
-     * signature of the process image and hook the core of the DLL loader API so we
-     * can check the signature of all DLLs mapped into the process.  (Already done
-     * by early VM process init.)
-     */
-    if (!g_fSupEarlyProcessInit)
-        supR3HardenedWinInit(fFlags, true /*fAvastKludge*/);
-#endif /* RT_OS_WINDOWS */
+#endif
 
     /*
      * Validate the installation.
      */
-    supR3HardenedVerifyAll(true /* fFatal */, pszProgName);
+    supR3HardenedVerifyAll(true /* fFatal */, false /* fLeaveFilesOpen */, pszProgName);
 
     /*
-     * The next steps are only taken if we actually need to access the support
-     * driver.  (Already done by early process init.)
+     * Open the vboxdrv device.
      */
     if (!(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_DEV))
-    {
-#ifdef RT_OS_WINDOWS
-        /*
-         * Windows: Must have done early process init if we get here.
-         */
-        if (!g_fSupEarlyProcessInit)
-            supR3HardenedFatalMsg("SUPR3HardenedMain", kSupInitOp_Integrity, VERR_WRONG_ORDER,
-                                  "Early process init was somehow skipped.");
-
-        /*
-         * Windows: The second respawn.  This time we make a special arrangement
-         * with vboxdrv to monitor access to the new process from its inception.
-         */
-        if (supR3HardenedWinIsReSpawnNeeded(2 /* iWhich*/, argc, argv))
-        {
-            SUP_DPRINTF(("SUPR3HardenedMain: Respawn #2\n"));
-            return supR3HardenedWinReSpawn(2 /* iWhich*/);
-        }
-        SUP_DPRINTF(("SUPR3HardenedMain: Final process, opening VBoxDrv...\n"));
-        supR3HardenedWinFlushLoaderCache();
-
-#else
-        /*
-         * Open the vboxdrv device.
-         */
         supR3HardenedMainOpenDevice();
-#endif /* !RT_OS_WINDOWS */
-    }
 
-#ifdef RT_OS_WINDOWS
     /*
-     * Windows: Enable the use of windows APIs to verify images at load time.
+     * Open the root service connection.
      */
-    supR3HardenedWinEnableThreadCreation();
-    supR3HardenedWinFlushLoaderCache();
-    supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(g_pszSupLibHardenedProgName);
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_WIN_VERIFY_TRUST_READY;
-#endif
+    //if (!(fFlags & SUPSECMAIN_FLAGS_DONT_OPEN_SVC))
+        //supR3HardenedMainOpenService(&g_SupPreInitData, true /* fFatal */);
 
 #ifdef SUP_HARDENED_SUID
     /*
@@ -1873,22 +1085,15 @@ DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int 
 
     /*
      * Load the IPRT, hand the SUPLib part the open driver and
-     * call RTR3InitEx.
+     * call RTR3Init.
      */
-    SUP_DPRINTF(("SUPR3HardenedMain: Load Runtime...\n"));
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_INIT_RUNTIME;
     supR3HardenedMainInitRuntime(fFlags);
 
     /*
      * Load the DLL/SO/DYLIB containing the actual program
      * and pass control to it.
      */
-    SUP_DPRINTF(("SUPR3HardenedMain: Load TrustedMain...\n"));
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_GET_TRUSTED_MAIN;
     PFNSUPTRUSTEDMAIN pfnTrustedMain = supR3HardenedMainGetTrustedMain(pszProgName);
-
-    SUP_DPRINTF(("SUPR3HardenedMain: Calling TrustedMain (%p)...\n", pfnTrustedMain));
-    g_enmSupR3HardenedMainState = SUPR3HARDENEDMAINSTATE_CALLED_TRUSTED_MAIN;
     return pfnTrustedMain(argc, argv, envp);
 }
 

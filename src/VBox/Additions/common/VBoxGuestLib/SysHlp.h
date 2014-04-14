@@ -1,10 +1,10 @@
-/* $Revision: 83575 $ */
+/* $Revision: 76576 $ */
 /** @file
  * VBoxGuestLibR0 - System dependent helpers internal header.
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,6 @@
 
 #ifndef __VBoxGuestLib_SysHlp_h
 #define __VBoxGuestLib_SysHlp_h
-
-#include <iprt/types.h>
 
 #ifdef RT_OS_WINDOWS
 # undef PAGE_SIZE
@@ -85,15 +83,6 @@ void vbglUnlockLinear (void *pvCtx, void *pv, uint32_t u32Size);
  * @return VBox error code
  */
 int vbglDriverOpen (VBGLDRIVER *pDriver);
-
-/**
- * Answers whether the VBoxGuest driver is opened
- *
- * @param pDriver      Pointer to the driver structure.
- *
- * @return true - if opened, false - otherwise
- */
-bool vbglDriverIsOpened (VBGLDRIVER *pDriver);
 
 /**
  * Call VBoxGuest driver.

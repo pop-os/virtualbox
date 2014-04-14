@@ -3,7 +3,7 @@
 #
 # (For 2.6.x this file must be 'Makefile'!)
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,16 +27,10 @@ ifneq ($(wildcard $(KBUILD_EXTMOD)/vboxvideo),)
 else
  MANGLING := $(KBUILD_EXTMOD)/include/VBox/VBoxGuestMangling.h
 endif
-MOD_CFLAGS = -Wno-declaration-after-statement -fshort-wchar -include $(MANGLING)
+MOD_CFLAGS = -fshort-wchar -include $(MANGLING)
 MOD_INCL   = $(addprefix -I$(KBUILD_EXTMOD),/ /include /r0drv/linux)
 # What on earth is this?
 MOD_INCL  += $(addprefix -I$(KBUILD_EXTMOD)/vboxvideo,/ /include /r0drv/linux)
-# Enterprise Linux 6.5 does not include the drm user API headers with the kernel
-# headers.
-MOD_INCL += $(foreach inc,$(KERN_INCL) include,\
-              $(if $(wildcard $(inc)/linux/utsrelease.h),\
-                $(if $(shell grep '"2.6.32.*el6.*"' $(inc)/linux/utsrelease.h),\
-		      -I/usr/include,),))
 MOD_DEFS  := -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
 	     -DIN_SUP_R0 -DVBOX -DVBOX_WITH_HGCM -DLOG_TO_BACKDOOR -DIN_MODULE \
 	     -DIN_GUEST_R0

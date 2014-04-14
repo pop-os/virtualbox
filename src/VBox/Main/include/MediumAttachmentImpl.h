@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,8 +50,6 @@ public:
                  bool fPassthrough,
                  bool fTempEject,
                  bool fNonRotational,
-                 bool fDiscard,
-                 bool fHotPluggable,
                  const Utf8Str &strBandwidthGroup);
     HRESULT initCopy(Machine *aParent, MediumAttachment *aThat);
     void uninit();
@@ -69,9 +67,7 @@ public:
     STDMETHOD(COMGETTER(TemporaryEject))(BOOL *aTemporaryEject);
     STDMETHOD(COMGETTER(IsEjected))(BOOL *aIsEjected);
     STDMETHOD(COMGETTER(NonRotational))(BOOL *aNonRotational);
-    STDMETHOD(COMGETTER(Discard))(BOOL *aDiscard);
     STDMETHOD(COMGETTER(BandwidthGroup))(IBandwidthGroup **aBwGroup);
-    STDMETHOD(COMGETTER(HotPluggable))(BOOL *aHotPluggable);
 
     // public internal methods
     void rollback();
@@ -90,9 +86,7 @@ public:
     bool getPassthrough() const;
     bool getTempEject() const;
     bool getNonRotational() const;
-    bool getDiscard() const;
     const Utf8Str& getBandwidthGroup() const;
-    bool getHotPluggable() const;
 
     bool matches(CBSTR aControllerName, LONG aPort, LONG aDevice);
 
@@ -109,18 +103,12 @@ public:
     void updateNonRotational(bool aNonRotational);
 
     /** Must be called from under this object's write lock. */
-    void updateDiscard(bool aDiscard);
-
-    /** Must be called from under this object's write lock. */
     void updateEjected();
 
     /** Must be called from under this object's write lock. */
     void updateBandwidthGroup(const Utf8Str &aBandwidthGroup);
 
     void updateParentMachine(Machine * const pMachine);
-
-    /** Must be called from under this object's write lock. */
-    void updateHotPluggable(bool aHotPluggable);
 
     /** Get a unique and somewhat descriptive name for logging. */
     const char* getLogName(void) const { return mLogName.c_str(); }

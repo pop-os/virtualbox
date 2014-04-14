@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,7 +126,6 @@ typedef struct
     VUSBXFERTYPE            enmType;            /* Xfer type */
     VUSBDIRECTION           enmDir;             /* Xfer direction */
     VUSBSTATUS              enmStatus;          /* URB status */
-    bool                    fShortOk;           /* Whether receiving less data than requested is acceptable. */
     size_t                  cbData;             /* Size of the data */
     void                   *pvData;             /* Pointer to the data */
     uint32_t                cIsocPkts;          /* Number of Isoc packets */
@@ -154,11 +153,8 @@ typedef struct
 
 typedef enum
 {
-    /** Close device not a reset. */
-    VBOXUSB_RESET_LEVEL_CLOSE     = 0,
-    /** Hard reset resulting in device replug behaviour. */
+    VBOXUSB_RESET_LEVEL_NONE      = 0,
     VBOXUSB_RESET_LEVEL_REATTACH  = 2,
-    /** Device-level reset. */
     VBOXUSB_RESET_LEVEL_SOFT      = 4
 } VBOXUSB_RESET_LEVEL;
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -210,7 +210,7 @@ int main(int argc, char **argv)
 {
     int rc = 0;
 
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     if(argc < 2)
     {

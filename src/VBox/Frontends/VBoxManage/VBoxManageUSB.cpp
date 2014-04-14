@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,11 +21,24 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
+#include <VBox/com/EventQueue.h>
+
 #include <VBox/com/VirtualBox.h>
 
 #include "VBoxManage.h"
 
 #include <iprt/asm.h>
+
+/* missing XPCOM <-> COM wrappers */
+#ifndef STDMETHOD_
+# define STDMETHOD_(ret, meth) NS_IMETHOD_(ret) meth
+#endif
+#ifndef NS_GET_IID
+# define NS_GET_IID(I) IID_##I
+#endif
+#ifndef RT_OS_WINDOWS
+#define IUnknown nsISupports
+#endif
 
 using namespace com;
 
@@ -59,13 +72,13 @@ public:
     STDMETHOD(QueryInterface)(const IID &iid, void **ppvObject)
     {
         Guid guid(iid);
-        if (guid == Guid(COM_IIDOF(IUnknown)))
+        if (guid == Guid(NS_GET_IID(IUnknown)))
             *ppvObject = (IUnknown *)this;
 #ifdef RT_OS_WINDOWS
-        else if (guid == Guid(COM_IIDOF(IDispatch)))
+        else if (guid == Guid(NS_GET_IID(IDispatch)))
             *ppvObject = (IDispatch *)this;
 #endif
-        else if (guid == Guid(COM_IIDOF(IUSBDevice)))
+        else if (guid == Guid(NS_GET_IID(IUSBDevice)))
             *ppvObject = (IUSBDevice *)this;
         else
             return E_NOINTERFACE;
@@ -387,18 +400,18 @@ int handleUSBFilter(HandlerArg *a)
 
     USBFilterCmd::USBFilter &f = cmd.mFilter;
 
-    ComPtr<IHost> host;
-    ComPtr<IUSBDeviceFilters> flts;
+    ComPtr <IHost> host;
+    ComPtr <IUSBController> ctl;
     if (cmd.mGlobal)
         CHECK_ERROR_RET(a->virtualBox, COMGETTER(Host)(host.asOutParam()), 1);
     else
     {
         /* open a session for the VM */
-        CHECK_ERROR_RET(cmd.mMachine, LockMachine(a->session, LockType_Shared), 1);
+        CHECK_ERROR_RET(cmd.mMachine, LockMachine(a->session, LockType_Write), 1);
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(cmd.mMachine.asOutParam());
-        /* and get the USB device filters */
-        CHECK_ERROR_RET(cmd.mMachine, COMGETTER(USBDeviceFilters)(flts.asOutParam()), 1);
+        /* and get the USB controller */
+        CHECK_ERROR_RET(cmd.mMachine, COMGETTER(USBController)(ctl.asOutParam()), 1);
     }
 
     switch (cmd.mAction)
@@ -407,7 +420,7 @@ int handleUSBFilter(HandlerArg *a)
         {
             if (cmd.mGlobal)
             {
-                ComPtr<IHostUSBDeviceFilter> flt;
+                ComPtr <IHostUSBDeviceFilter> flt;
                 CHECK_ERROR_BREAK(host, CreateUSBDeviceFilter(f.mName.raw(),
                                                               flt.asOutParam()));
 
@@ -433,8 +446,8 @@ int handleUSBFilter(HandlerArg *a)
             }
             else
             {
-                ComPtr<IUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK(flts, CreateDeviceFilter(f.mName.raw(),
+                ComPtr <IUSBDeviceFilter> flt;
+                CHECK_ERROR_BREAK(ctl, CreateDeviceFilter(f.mName.raw(),
                                                           flt.asOutParam()));
 
                 if (!f.mActive.isNull())
@@ -454,7 +467,7 @@ int handleUSBFilter(HandlerArg *a)
                 if (!f.mMaskedInterfaces.isNull())
                     CHECK_ERROR_BREAK(flt, COMSETTER(MaskedInterfaces)(f.mMaskedInterfaces));
 
-                CHECK_ERROR_BREAK(flts, InsertDeviceFilter(cmd.mIndex, flt));
+                CHECK_ERROR_BREAK(ctl, InsertDeviceFilter(cmd.mIndex, flt));
             }
             break;
         }
@@ -465,7 +478,7 @@ int handleUSBFilter(HandlerArg *a)
                 SafeIfaceArray <IHostUSBDeviceFilter> coll;
                 CHECK_ERROR_BREAK(host, COMGETTER(USBDeviceFilters)(ComSafeArrayAsOutParam(coll)));
 
-                ComPtr<IHostUSBDeviceFilter> flt = coll[cmd.mIndex];
+                ComPtr <IHostUSBDeviceFilter> flt = coll[cmd.mIndex];
 
                 if (!f.mName.isEmpty())
                     CHECK_ERROR_BREAK(flt, COMSETTER(Name)(f.mName.raw()));
@@ -490,9 +503,9 @@ int handleUSBFilter(HandlerArg *a)
             else
             {
                 SafeIfaceArray <IUSBDeviceFilter> coll;
-                CHECK_ERROR_BREAK(flts, COMGETTER(DeviceFilters)(ComSafeArrayAsOutParam(coll)));
+                CHECK_ERROR_BREAK(ctl, COMGETTER(DeviceFilters)(ComSafeArrayAsOutParam(coll)));
 
-                ComPtr<IUSBDeviceFilter> flt = coll[cmd.mIndex];
+                ComPtr <IUSBDeviceFilter> flt = coll[cmd.mIndex];
 
                 if (!f.mName.isEmpty())
                     CHECK_ERROR_BREAK(flt, COMSETTER(Name)(f.mName.raw()));
@@ -519,13 +532,13 @@ int handleUSBFilter(HandlerArg *a)
         {
             if (cmd.mGlobal)
             {
-                ComPtr<IHostUSBDeviceFilter> flt;
+                ComPtr <IHostUSBDeviceFilter> flt;
                 CHECK_ERROR_BREAK(host, RemoveUSBDeviceFilter(cmd.mIndex));
             }
             else
             {
-                ComPtr<IUSBDeviceFilter> flt;
-                CHECK_ERROR_BREAK(flts, RemoveDeviceFilter(cmd.mIndex, flt.asOutParam()));
+                ComPtr <IUSBDeviceFilter> flt;
+                CHECK_ERROR_BREAK(ctl, RemoveDeviceFilter(cmd.mIndex, flt.asOutParam()));
             }
             break;
         }

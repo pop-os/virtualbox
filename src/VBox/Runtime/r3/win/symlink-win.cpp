@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,10 +29,8 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_SYMLINK
-#include <Windows.h>
 
 #include <iprt/symlink.h>
-#include "internal-r3-win.h"
 
 #include <iprt/assert.h>
 #include <iprt/err.h>
@@ -42,6 +40,7 @@
 #include <iprt/string.h>
 #include "internal/path.h"
 
+#include <Windows.h>
 
 
 /*******************************************************************************
@@ -117,7 +116,7 @@ RTDECL(bool) RTSymlinkIsDangling(const char *pszSymlink)
 }
 
 
-RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType, uint32_t fCreate)
+RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType)
 {
     /*
      * Validate the input.
@@ -134,15 +133,19 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYM
     static bool                     s_fTried = FALSE;
     if (!s_fTried)
     {
-        PFNCREATESYMBOLICLINKW pfn = (PFNCREATESYMBOLICLINKW)GetProcAddress(g_hModKernel32, "CreateSymbolicLinkW");
-        if (pfn)
-            s_pfnCreateSymbolicLinkW = pfn;
+        HMODULE hmod = LoadLibrary("KERNEL32.DLL");
+        if (hmod)
+        {
+            PFNCREATESYMBOLICLINKW pfn = (PFNCREATESYMBOLICLINKW)GetProcAddress(hmod, "CreateSymbolicLinkW");
+            if (pfn)
+                s_pfnCreateSymbolicLinkW = pfn;
+        }
         s_fTried = true;
     }
     if (!s_pfnCreateSymbolicLinkW)
     {
-        LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d, %#x): returns VERR_NOT_SUPPORTED - Windows API not found\n",
-                 pszSymlink, pszSymlink, pszTarget, pszTarget, enmType, fCreate));
+        LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d): returns VERR_NOT_SUPPORTED - Windows API not found\n",
+                 pszSymlink, pszSymlink, pszTarget, pszTarget, enmType));
         return VERR_NOT_SUPPORTED;
     }
 
@@ -212,12 +215,12 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYM
         RTUtf16Free(pwszNativeSymlink);
     }
 
-    LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d, %#x): returns %Rrc\n", pszSymlink, pszSymlink, pszTarget, pszTarget, enmType, fCreate, rc));
+    LogFlow(("RTSymlinkCreate(%p={%s}, %p={%s}, %d): returns %Rrc\n", pszSymlink, pszSymlink, pszTarget, pszTarget, enmType, rc));
     return rc;
 }
 
 
-RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
+RTDECL(int) RTSymlinkDelete(const char *pszSymlink)
 {
     /*
      * Convert the path.
@@ -255,12 +258,12 @@ RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete)
         RTUtf16Free(pwszNativeSymlink);
     }
 
-    LogFlow(("RTSymlinkDelete(%p={%s}, %#x): returns %Rrc\n", pszSymlink, pszSymlink, fDelete, rc));
+    LogFlow(("RTSymlinkDelete(%p={%s}): returns %Rrc\n", pszSymlink, pszSymlink, rc));
     return rc;
 }
 
 
-RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead)
+RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget)
 {
     char *pszMyTarget;
     int rc = RTSymlinkReadA(pszSymlink, &pszMyTarget);

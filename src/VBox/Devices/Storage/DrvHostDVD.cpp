@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,9 @@
 # include <IOKit/storage/IOStorageDeviceCharacteristics.h>
 # include <mach/mach_error.h>
 # define USE_MEDIA_POLLING
+
+#elif defined(RT_OS_L4)
+/* nothing (yet). */
 
 #elif defined RT_OS_LINUX
 # include <sys/ioctl.h>
@@ -112,9 +115,8 @@
 #include "DrvHostBase.h"
 
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
+/* Forward declarations. */
+
 static DECLCALLBACK(int) drvHostDvdDoLock(PDRVHOSTBASE pThis, bool fLock);
 #ifdef VBOX_WITH_SUID_WRAPPER
 static int solarisCheckUserAuth();
@@ -434,6 +436,10 @@ static int drvHostDvdSendCmd(PPDMIBLOCK pInterface, const uint8_t *pbCmd,
         /* sense information set */
         rc = VERR_DEV_IO_ERROR;
 
+#elif defined(RT_OS_L4)
+    /* Not really ported to L4 yet. */
+    rc = VERR_INTERNAL_ERROR;
+
 #elif defined(RT_OS_LINUX)
     int direction;
     struct cdrom_generic_command cgc;
@@ -751,64 +757,62 @@ static DECLCALLBACK(int) drvHostDvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg,
     LogFlow(("drvHostDvdConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
     /*
+     * Validate configuration.
+     */
+    if (!CFGMR3AreValuesValid(pCfg, "Path\0Interval\0Locked\0BIOSVisible\0AttachFailError\0Passthrough\0"))
+        return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
+
+
+    /*
      * Init instance data.
      */
     int rc = DRVHostBaseInitData(pDrvIns, pCfg, PDMBLOCKTYPE_DVD);
     if (RT_SUCCESS(rc))
     {
         /*
-         * Validate configuration.
+         * Override stuff.
          */
-        if (CFGMR3AreValuesValid(pCfg, "Path\0Interval\0Locked\0BIOSVisible\0AttachFailError\0Passthrough\0"))
-        {
-            /*
-             * Override stuff.
-             */
 #ifdef RT_OS_LINUX
-            pThis->pbDoubleBuffer = (uint8_t *)RTMemAlloc(SCSI_MAX_BUFFER_SIZE);
-            if (!pThis->pbDoubleBuffer)
-                return VERR_NO_MEMORY;
+        pThis->pbDoubleBuffer = (uint8_t *)RTMemAlloc(SCSI_MAX_BUFFER_SIZE);
+        if (!pThis->pbDoubleBuffer)
+            return VERR_NO_MEMORY;
 #endif
 
-            bool fPassthrough;
-            rc = CFGMR3QueryBool(pCfg, "Passthrough", &fPassthrough);
-            if (RT_SUCCESS(rc) && fPassthrough)
+#ifndef RT_OS_L4 /* Passthrough is not supported on L4 yet */
+        bool fPassthrough;
+        rc = CFGMR3QueryBool(pCfg, "Passthrough", &fPassthrough);
+        if (RT_SUCCESS(rc) && fPassthrough)
+        {
+            pThis->IBlock.pfnSendCmd = drvHostDvdSendCmd;
+            /* Passthrough requires opening the device in R/W mode. */
+            pThis->fReadOnlyConfig = false;
+# ifdef VBOX_WITH_SUID_WRAPPER  /* Solaris setuid for Passthrough mode. */
+            rc = solarisCheckUserAuth();
+            if (RT_FAILURE(rc))
             {
-                pThis->IBlock.pfnSendCmd = drvHostDvdSendCmd;
-                /* Passthrough requires opening the device in R/W mode. */
-                pThis->fReadOnlyConfig = false;
-#ifdef VBOX_WITH_SUID_WRAPPER  /* Solaris setuid for Passthrough mode. */
-                rc = solarisCheckUserAuth();
-                if (RT_FAILURE(rc))
-                {
-                    Log(("DVD: solarisCheckUserAuth failed. Permission denied!\n"));
-                    return rc;
-                }
-#endif /* VBOX_WITH_SUID_WRAPPER */
+                Log(("DVD: solarisCheckUserAuth failed. Permission denied!\n"));
+                return rc;
             }
+# endif /* VBOX_WITH_SUID_WRAPPER */
+        }
+#endif /* !RT_OS_L4 */
 
-            pThis->IMount.pfnUnmount = drvHostDvdUnmount;
-            pThis->pfnDoLock         = drvHostDvdDoLock;
+        pThis->IMount.pfnUnmount = drvHostDvdUnmount;
+        pThis->pfnDoLock         = drvHostDvdDoLock;
 #ifdef USE_MEDIA_POLLING
-            if (!fPassthrough)
-                pThis->pfnPoll       = drvHostDvdPoll;
-            else
-                pThis->pfnPoll       = NULL;
+        if (!fPassthrough)
+            pThis->pfnPoll       = drvHostDvdPoll;
+        else
+            pThis->pfnPoll       = NULL;
 #endif
 #ifdef RT_OS_LINUX
-            pThis->pfnGetMediaSize   = drvHostDvdGetMediaSize;
+        pThis->pfnGetMediaSize   = drvHostDvdGetMediaSize;
 #endif
 
-            /*
-             * 2nd init part.
-             */
-            rc = DRVHostBaseInitFinish(pThis);
-        }
-        else
-        {
-            pThis->fAttachFailError = true;
-            rc = VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-        }
+        /*
+         * 2nd init part.
+         */
+        rc = DRVHostBaseInitFinish(pThis);
     }
     if (RT_FAILURE(rc))
     {

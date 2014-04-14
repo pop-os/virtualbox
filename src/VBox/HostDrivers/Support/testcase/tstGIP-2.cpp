@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,7 @@
 
 int main(int argc, char **argv)
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Parse args
@@ -52,18 +52,13 @@ int main(int argc, char **argv)
         { "--iterations",       'i', RTGETOPT_REQ_INT32 },
         { "--hex",              'h', RTGETOPT_REQ_NOTHING },
         { "--decimal",          'd', RTGETOPT_REQ_NOTHING },
-        { "--spin",             's', RTGETOPT_REQ_NOTHING },
-        { "--reference",        'r', RTGETOPT_REQ_UINT64 },  /* reference value of CpuHz, display the
-                                                              * difference in a separate column. */
+        { "--spin",             's', RTGETOPT_REQ_NOTHING }
     };
 
     uint32_t cIterations = 40;
     bool fHex = true;
     bool fSpin = false;
     int ch;
-    uint64_t uCpuHzRef = 0;
-    uint64_t uCpuHzOverallDeviation = 0;
-    uint32_t cCpuHzOverallDevCnt = 0;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, g_aOptions, RT_ELEMENTS(g_aOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
@@ -87,10 +82,6 @@ int main(int argc, char **argv)
                 fSpin = true;
                 break;
 
-            case 'r':
-                uCpuHzRef = ValueUnion.u64;
-                break;
-
             default:
                 return RTGetOptPrintError(ch, &ValueUnion);
         }
@@ -105,60 +96,36 @@ int main(int argc, char **argv)
     {
         if (g_pSUPGlobalInfoPage)
         {
-            RTPrintf("tstGIP-2: cCpus=%d  u32UpdateHz=%RU32  u32UpdateIntervalNS=%RU32  u64NanoTSLastUpdateHz=%RX64  uCpuHzRef=%RU64  u32Mode=%d (%s) u32Version=%#x\n",
-                     g_pSUPGlobalInfoPage->cCpus,
+            RTPrintf("tstGIP-2: u32UpdateHz=%RU32  u32UpdateIntervalNS=%RU32  u64NanoTSLastUpdateHz=%RX64  u32Mode=%d (%s) u32Version=%#x\n",
                      g_pSUPGlobalInfoPage->u32UpdateHz,
                      g_pSUPGlobalInfoPage->u32UpdateIntervalNS,
                      g_pSUPGlobalInfoPage->u64NanoTSLastUpdateHz,
-                     uCpuHzRef,
                      g_pSUPGlobalInfoPage->u32Mode,
                      g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_SYNC_TSC       ? "sync"
                      : g_pSUPGlobalInfoPage->u32Mode == SUPGIPMODE_ASYNC_TSC    ? "async"
                      :                                                            "???",
                      g_pSUPGlobalInfoPage->u32Version);
             RTPrintf(fHex
-                     ? "tstGIP-2:     it: u64NanoTS        delta     u64TSC           UpIntTSC H  TransId           CpuHz %sTSC Interval History...\n"
-                     : "tstGIP-2:     it: u64NanoTS        delta     u64TSC             UpIntTSC H    TransId           CpuHz %sTSC Interval History...\n",
-                     uCpuHzRef ? "  CpuHz deviation  " : "");
-            static SUPGIPCPU s_aaCPUs[2][256];
+                     ? "tstGIP-2:     it: u64NanoTS        delta     u64TSC           UpIntTSC H  TransId           CpuHz TSC Interval History...\n"
+                     : "tstGIP-2:     it: u64NanoTS        delta     u64TSC             UpIntTSC H    TransId           CpuHz TSC Interval History...\n");
+            static SUPGIPCPU s_aaCPUs[2][RT_ELEMENTS(g_pSUPGlobalInfoPage->aCPUs)];
             for (uint32_t i = 0; i < cIterations; i++)
             {
                 /* copy the data */
-                memcpy(&s_aaCPUs[i & 1][0], &g_pSUPGlobalInfoPage->aCPUs[0], g_pSUPGlobalInfoPage->cCpus * sizeof(g_pSUPGlobalInfoPage->aCPUs[0]));
+                memcpy(&s_aaCPUs[i & 1][0], &g_pSUPGlobalInfoPage->aCPUs[0], sizeof(g_pSUPGlobalInfoPage->aCPUs));
 
                 /* display it & find something to spin on. */
                 uint32_t u32TransactionId = 0;
                 uint32_t volatile *pu32TransactionId = NULL;
-                for (unsigned iCpu = 0; iCpu < g_pSUPGlobalInfoPage->cCpus; iCpu++)
+                for (unsigned iCpu = 0; iCpu < RT_ELEMENTS(g_pSUPGlobalInfoPage->aCPUs); iCpu++)
                     if (    g_pSUPGlobalInfoPage->aCPUs[iCpu].u64CpuHz > 0
                         &&  g_pSUPGlobalInfoPage->aCPUs[iCpu].u64CpuHz != _4G + 1)
                     {
-                        char szCpuHzDeviation[32];
                         PSUPGIPCPU pPrevCpu = &s_aaCPUs[!(i & 1)][iCpu];
                         PSUPGIPCPU pCpu = &s_aaCPUs[i & 1][iCpu];
-                        if (uCpuHzRef)
-                        {
-                            int64_t iCpuHzDeviation = pCpu->u64CpuHz - uCpuHzRef;
-                            uint64_t uCpuHzDeviation = RT_ABS(iCpuHzDeviation);
-                            if (uCpuHzDeviation > 999999999)
-                                RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%17s  ", "?");
-                            else
-                            {
-                                if (pCpu->u32TransactionId > 7)
-                                {
-                                    uCpuHzOverallDeviation += uCpuHzDeviation;
-                                    cCpuHzOverallDevCnt++;
-                                }
-                                uint32_t uPct = (uint32_t)(uCpuHzDeviation * 100000 / uCpuHzRef + 5);
-                                RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%10RI64%3d.%02d%%  ",
-                                            iCpuHzDeviation, uPct / 1000, (uPct % 1000) / 10);
-                            }
-                        }
-                        else
-                            szCpuHzDeviation[0] = '\0';
                         RTPrintf(fHex
-                                 ? "tstGIP-2: %4d/%d: %016llx %09llx %016llx %08x %d %08x %15llu %s%08x %08x %08x %08x %08x %08x %08x %08x (%d)\n"
-                                 : "tstGIP-2: %4d/%d: %016llu %09llu %016llu %010u %d %010u %15llu %s%08x %08x %08x %08x %08x %08x %08x %08x (%d)\n",
+                                 ? "tstGIP-2: %4d/%d: %016llx %09llx %016llx %08x %d %08x %15llu %08x %08x %08x %08x %08x %08x %08x %08x (%d)\n"
+                                 : "tstGIP-2: %4d/%d: %016llu %09llu %016llu %010u %d %010u %15llu %08x %08x %08x %08x %08x %08x %08x %08x (%d)\n",
                                  i, iCpu,
                                  pCpu->u64NanoTS,
                                  i ? pCpu->u64NanoTS - pPrevCpu->u64NanoTS : 0,
@@ -167,7 +134,6 @@ int main(int argc, char **argv)
                                  pCpu->iTSCHistoryHead,
                                  pCpu->u32TransactionId,
                                  pCpu->u64CpuHz,
-                                 szCpuHzDeviation,
                                  pCpu->au32TSCHistory[0],
                                  pCpu->au32TSCHistory[1],
                                  pCpu->au32TSCHistory[2],
@@ -188,20 +154,8 @@ int main(int argc, char **argv)
                 if (!fSpin)
                     RTThreadSleep(9);
                 else
-                {
-                    if (pu32TransactionId)
-                    {
-                        while (u32TransactionId == *pu32TransactionId)
-                            ASMNopPause();
-                    }
-                    else
-                        RTThreadSleep(1);
-                }
-            }
-            if (uCpuHzRef)
-            {
-                uint32_t uPct = (uint32_t)(uCpuHzOverallDeviation * 100000 / cCpuHzOverallDevCnt / uCpuHzRef + 5);
-                RTPrintf("Overall CpuHz deviation: %d.%02d%%\n", uPct / 1000, (uPct % 1000) / 10);
+                    while (u32TransactionId == *pu32TransactionId)
+                        /* nop */;
             }
         }
         else

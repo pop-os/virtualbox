@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@ class BandwidthGroup;
 
 namespace settings
 {
-    struct IOSettings;
+    struct IoSettings;
 }
 
 class ATL_NO_VTABLE BandwidthControl :
@@ -51,7 +51,7 @@ public:
     HRESULT initCopy(Machine *aParent, BandwidthControl *aThat);
     void uninit();
 
-    STDMETHOD(CreateBandwidthGroup) (IN_BSTR aName, BandwidthGroupType_T aType, LONG64 aMaxBytesPerSec);
+    STDMETHOD(CreateBandwidthGroup) (IN_BSTR aName, BandwidthGroupType_T aType, ULONG aMaxMbPerSec);
     STDMETHOD(DeleteBandwidthGroup) (IN_BSTR aName);
     STDMETHOD(COMGETTER(NumGroups)) (ULONG *aGroups);
     STDMETHOD(GetBandwidthGroup) (IN_BSTR aName, IBandwidthGroup **aBandwidthGroup);
@@ -62,8 +62,8 @@ public:
 
     // public internal methods
 
-    HRESULT loadSettings(const settings::IOSettings &data);
-    HRESULT saveSettings(settings::IOSettings &data);
+    HRESULT loadSettings(const settings::IoSettings &data);
+    HRESULT saveSettings(settings::IoSettings &data);
 
     void rollback();
     void commit();

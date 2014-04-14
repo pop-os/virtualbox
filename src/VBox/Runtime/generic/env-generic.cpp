@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,26 +56,10 @@ RT_C_DECLS_END
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** The allocation granularity of the RTENVINTERNAL::papszEnv memory. */
-#define RTENV_GROW_SIZE     16
-
 /** Macro that unlocks the specified environment block. */
 #define RTENV_LOCK(pEnvInt)     do { } while (0)
 /** Macro that unlocks the specified environment block. */
 #define RTENV_UNLOCK(pEnvInt)   do { } while (0)
-
-/** @def RTENV_HAVE_WENVIRON
- * Indicates that we have a _wenviron variable with UTF-16 strings that we
- * better use instead of the current-cp strings in environ. */
-#if defined(RT_OS_WINDOWS) || defined(DOXYGEN_RUNNING)
-# define RTENV_HAVE_WENVIRON 1
-#endif
-
-/** @def RTENV_IMPLEMENTS_UTF8_DEFAULT_ENV_API
- * Indicates the RTEnv*Utf8 APIs are implemented. */
-#if defined(RT_OS_WINDOWS) || defined(DOXYGEN_RUNNING)
-# define RTENV_IMPLEMENTS_UTF8_DEFAULT_ENV_API 1
-#endif
 
 
 /*******************************************************************************
@@ -100,10 +84,10 @@ typedef struct RTENVINTERNAL
     /** Array of environment variables in the process CP.
      * This get (re-)constructed when RTEnvGetExecEnvP method is called. */
     char      **papszEnvOtherCP;
-
-    /** The compare function we're using. */
-    DECLCALLBACKMEMBER(int, pfnCompare)(const char *psz1, const char *psz2, size_t cchMax);
 } RTENVINTERNAL, *PRTENVINTERNAL;
+
+/** The allocation granularity of the RTENVINTERNAL::papszEnv memory. */
+#define RTENV_GROW_SIZE     16
 
 
 /**
@@ -117,6 +101,9 @@ static const char * const *rtEnvDefault(void)
 {
 #ifdef RT_OS_DARWIN
     return *(_NSGetEnviron());
+#elif defined(RT_OS_L4)
+    /* So far, our L4 libraries do not include environment support. */
+    return NULL;
 #else
     return environ;
 #endif
@@ -127,12 +114,10 @@ static const char * const *rtEnvDefault(void)
  * Internal worker that creates an environment handle with a specified capacity.
  *
  * @returns IPRT status code.
- * @param   ppIntEnv        Where to store the result.
- * @param   cAllocated      The initial array size.
- * @param   fCaseSensitive  Whether the environment block is case sensitive or
- *                          not.
+ * @param   ppIntEnv    Where to store the result.
+ * @param   cAllocated  The initial array size.
  */
-static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSensitive)
+static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated)
 {
     /*
      * Allocate environment handle.
@@ -144,7 +129,6 @@ static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSe
          * Pre-allocate the variable array.
          */
         pIntEnv->u32Magic = RTENV_MAGIC;
-        pIntEnv->pfnCompare = fCaseSensitive ? RTStrNCmp : RTStrNICmp;
         pIntEnv->papszEnvOtherCP = NULL;
         pIntEnv->cVars = 0;
         pIntEnv->cAllocated = RT_ALIGN_Z(RT_MAX(cAllocated, RTENV_GROW_SIZE), RTENV_GROW_SIZE);
@@ -165,7 +149,7 @@ static int rtEnvCreate(PRTENVINTERNAL *ppIntEnv, size_t cAllocated, bool fCaseSe
 RTDECL(int) RTEnvCreate(PRTENV pEnv)
 {
     AssertPtrReturn(pEnv, VERR_INVALID_POINTER);
-    return rtEnvCreate(pEnv, RTENV_GROW_SIZE, false /*fCaseSensitive*/);
+    return rtEnvCreate(pEnv, RTENV_GROW_SIZE);
 }
 RT_EXPORT_SYMBOL(RTEnvCreate);
 
@@ -219,41 +203,18 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
     /*
      * Validate input and figure out how many variable to clone and where to get them.
      */
-    bool fCaseSensitive = true;
     size_t cVars;
     const char * const *papszEnv;
-#ifdef RTENV_HAVE_WENVIRON
-    PCRTUTF16 const * papwszEnv;
-#endif
     PRTENVINTERNAL pIntEnvToClone;
     AssertPtrReturn(pEnv, VERR_INVALID_POINTER);
     if (EnvToClone == RTENV_DEFAULT)
     {
-        cVars = 0;
         pIntEnvToClone = NULL;
-#ifdef RTENV_HAVE_WENVIRON
-        papszEnv  = NULL;
-        papwszEnv = (PCRTUTF16 * const )_wenviron;
-        if (!papwszEnv)
-        {
-            _wgetenv(L"Path"); /* Force the CRT to initalize it. */
-            papwszEnv = (PCRTUTF16 * const)_wenviron;
-        }
-        if (papwszEnv)
-            while (papwszEnv[cVars])
-                cVars++;
-#else
         papszEnv = rtEnvDefault();
+        cVars = 0;
         if (papszEnv)
             while (papszEnv[cVars])
                 cVars++;
-#endif
-
-#if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
-        /* DOS systems was case insensitive.  A prime example is the 'Path'
-           variable on windows which turns into the 'PATH' variable. */
-        fCaseSensitive = false;
-#endif
     }
     else
     {
@@ -270,7 +231,7 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
      * Create the duplicate.
      */
     PRTENVINTERNAL pIntEnv;
-    int rc = rtEnvCreate(&pIntEnv, cVars + 1 /* NULL */, fCaseSensitive);
+    int rc = rtEnvCreate(&pIntEnv, cVars + 1 /* NULL */);
     if (RT_SUCCESS(rc))
     {
         pIntEnv->cVars = cVars;
@@ -278,26 +239,16 @@ RTDECL(int) RTEnvClone(PRTENV pEnv, RTENV EnvToClone)
         if (EnvToClone == RTENV_DEFAULT)
         {
             /* ASSUMES the default environment is in the current codepage. */
-            size_t  iDst = 0;
-            for (size_t iSrc = 0; iSrc < cVars; iSrc++)
+            for (size_t iVar = 0; iVar < cVars; iVar++)
             {
-#ifdef RTENV_HAVE_WENVIRON
-                int rc2 = RTUtf16ToUtf8(papwszEnv[iSrc], &pIntEnv->papszEnv[iDst]);
-#else
-                int rc2 = RTStrCurrentCPToUtf8(&pIntEnv->papszEnv[iDst], papszEnv[iSrc]);
-#endif
-                if (RT_SUCCESS(rc2))
-                    iDst++;
-                else if (rc2 == VERR_NO_TRANSLATION)
-                    rc = VWRN_ENV_NOT_FULLY_TRANSLATED;
-                else
+                int rc2 = RTStrCurrentCPToUtf8(&pIntEnv->papszEnv[iVar], papszEnv[iVar]);
+                if (RT_FAILURE(rc2))
                 {
-                    pIntEnv->cVars = iDst;
+                    pIntEnv->cVars = iVar;
                     RTEnvDestroy(pIntEnv);
                     return rc2;
                 }
             }
-            pIntEnv->cVars = iDst;
         }
         else
         {
@@ -364,9 +315,6 @@ RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
     int rc;
     if (Env == RTENV_DEFAULT)
     {
-#ifdef RT_OS_WINDOWS
-        rc = RTEnvSetUtf8(pszVar, pszValue);
-#else
         /*
          * Since RTEnvPut isn't UTF-8 clean and actually expects the strings
          * to be in the current code page (codeset), we'll do the necessary
@@ -385,7 +333,6 @@ RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
             }
             RTStrFree(pszVarOtherCP);
         }
-#endif
     }
     else
     {
@@ -413,7 +360,7 @@ RTDECL(int) RTEnvSetEx(RTENV Env, const char *pszVar, const char *pszValue)
             rc = VINF_SUCCESS;
             size_t iVar;
             for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
-                if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+                if (    !strncmp(pIntEnv->papszEnv[iVar], pszVar, cchVar)
                     &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
                     break;
             if (iVar < pIntEnv->cVars)
@@ -473,9 +420,6 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar)
     int rc;
     if (Env == RTENV_DEFAULT)
     {
-#ifdef RTENV_IMPLEMENTS_UTF8_DEFAULT_ENV_API
-        rc = RTEnvUnsetUtf8(pszVar);
-#else
         /*
          * Since RTEnvUnset isn't UTF-8 clean and actually expects the strings
          * to be in the current code page (codeset), we'll do the necessary
@@ -488,7 +432,6 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar)
             rc = RTEnvUnset(pszVarOtherCP);
             RTStrFree(pszVarOtherCP);
         }
-#endif
     }
     else
     {
@@ -505,7 +448,7 @@ RTDECL(int) RTEnvUnsetEx(RTENV Env, const char *pszVar)
         const size_t cchVar = strlen(pszVar);
         size_t iVar;
         for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
-            if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+            if (    !strncmp(pIntEnv->papszEnv[iVar], pszVar, cchVar)
                 &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
                 RTMemFree(pIntEnv->papszEnv[iVar]);
@@ -537,9 +480,6 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
     int rc;
     if (Env == RTENV_DEFAULT)
     {
-#ifdef RTENV_IMPLEMENTS_UTF8_DEFAULT_ENV_API
-        rc = RTEnvGetUtf8(pszVar, pszValue, cbValue, pcchActual);
-#else
         /*
          * Since RTEnvGet isn't UTF-8 clean and actually expects the strings
          * to be in the current code page (codeset), we'll do the necessary
@@ -574,7 +514,6 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
             else
                 rc = VERR_ENV_VAR_NOT_FOUND;
         }
-#endif
     }
     else
     {
@@ -591,7 +530,7 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
         const size_t cchVar = strlen(pszVar);
         size_t iVar;
         for (iVar = 0; iVar < pIntEnv->cVars; iVar++)
-            if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+            if (    !strncmp(pIntEnv->papszEnv[iVar], pszVar, cchVar)
                 &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
                 rc = VINF_SUCCESS;
@@ -612,6 +551,7 @@ RTDECL(int) RTEnvGetEx(RTENV Env, const char *pszVar, char *pszValue, size_t cbV
         RTENV_UNLOCK(pIntEnv);
     }
     return rc;
+
 }
 RT_EXPORT_SYMBOL(RTEnvGetEx);
 
@@ -620,12 +560,9 @@ RTDECL(bool) RTEnvExistEx(RTENV Env, const char *pszVar)
 {
     AssertPtrReturn(pszVar, false);
 
-    bool fExists = false;
+    bool fExist = false;
     if (Env == RTENV_DEFAULT)
     {
-#ifdef RTENV_IMPLEMENTS_UTF8_DEFAULT_ENV_API
-        fExists = RTEnvExistsUtf8(pszVar);
-#else
         /*
          * Since RTEnvExist isn't UTF-8 clean and actually expects the strings
          * to be in the current code page (codeset), we'll do the necessary
@@ -635,10 +572,9 @@ RTDECL(bool) RTEnvExistEx(RTENV Env, const char *pszVar)
         int rc = RTStrUtf8ToCurrentCP(&pszVarOtherCP, pszVar);
         if (RT_SUCCESS(rc))
         {
-            fExists = RTEnvExist(pszVarOtherCP);
+            fExist = RTEnvExist(pszVarOtherCP);
             RTStrFree(pszVarOtherCP);
         }
-#endif
     }
     else
     {
@@ -653,16 +589,16 @@ RTDECL(bool) RTEnvExistEx(RTENV Env, const char *pszVar)
          */
         const size_t cchVar = strlen(pszVar);
         for (size_t iVar = 0; iVar < pIntEnv->cVars; iVar++)
-            if (    !pIntEnv->pfnCompare(pIntEnv->papszEnv[iVar], pszVar, cchVar)
+            if (    !strncmp(pIntEnv->papszEnv[iVar], pszVar, cchVar)
                 &&  pIntEnv->papszEnv[iVar][cchVar] == '=')
             {
-                fExists = true;
+                fExist = true;
                 break;
             }
 
         RTENV_UNLOCK(pIntEnv);
     }
-    return fExists;
+    return fExist;
 }
 RT_EXPORT_SYMBOL(RTEnvExistEx);
 
@@ -672,7 +608,6 @@ RTDECL(char const * const *) RTEnvGetExecEnvP(RTENV Env)
     const char * const *papszRet;
     if (Env == RTENV_DEFAULT)
     {
-        /** @todo fix this API it's fundamentally wrong! */
         papszRet = rtEnvDefault();
         if (!papszRet)
         {

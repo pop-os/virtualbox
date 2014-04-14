@@ -125,12 +125,10 @@ typedef struct {
 
 extern const CRPixelPackState crStateNativePixelPacking;
 
-struct CRContext;
-
 DECLEXPORT(void) crStateClientInitBits(CRClientBits *c);
 DECLEXPORT(void) crStateClientDestroyBits(CRClientBits *c);
-DECLEXPORT(void) crStateClientInit(struct CRContext *g);
-DECLEXPORT(void) crStateClientDestroy(struct CRContext *g);
+DECLEXPORT(void) crStateClientInit(CRClientState *c);
+DECLEXPORT(void) crStateClientDestroy(CRClientState *c);
 
 DECLEXPORT(GLboolean) crStateUseServerArrays(void);
 DECLEXPORT(GLboolean) crStateUseServerArrayElements(void);

@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2009-2012 Oracle Corporation
+# Copyright (C) 2009-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -140,14 +140,6 @@ if test ! -z "$servicefound"; then
     # /usr/sbin/svccfg delete svc:/application/virtualbox/webservice
 fi
 
-# Check if the autostart service is running, if so stop & remove it
-servicefound=`svcs -H "svc:/application/virtualbox/autostart" 2> /dev/null | grep '^online'`
-if test ! -z "$servicefound"; then
-    infoprint "VirtualBox autostart service appears to still be running."
-    infoprint "Halting & removing autostart service..."
-    /usr/sbin/svcadm disable -s svc:/application/virtualbox/autostart
-fi
-
 # Check if VBoxSVC is currently running
 VBOXSVC_PID=`ps -eo pid,fname | grep VBoxSVC | grep -v grep | awk '{ print $1 }'`
 if test ! -z "$VBOXSVC_PID" && test "$VBOXSVC_PID" -ge 0; then
@@ -159,13 +151,6 @@ fi
 VBOXNETDHCP_PID=`ps -eo pid,fname | grep VBoxNetDHCP | grep -v grep | awk '{ print $1 }'`
 if test ! -z "$VBOXNETDHCP_PID" && test "$VBOXNETDHCP_PID" -ge 0; then
     errorprint "VirtualBox's VBoxNetDHCP (pid $VBOXNETDHCP_PID) still appears to be running."
-    abort_error
-fi
-
-# Check if VBoxNetNAT is currently running
-VBOXNETNAT_PID=`ps -eo pid,fname | grep VBoxNetNAT | grep -v grep | awk '{ print $1 }'`
-if test ! -z "$VBOXNETNAT_PID" && test "$VBOXNETNAT_PID" -ge 0; then
-    errorprint "VirtualBox's VBoxNetNAT (pid $VBOXNETNAT_PID) still appears to be running."
     abort_error
 fi
 
@@ -192,23 +177,6 @@ if test -x "$BIN_IFCONFIG"; then
             abort_error
         fi
     fi
-fi
-
-# If we are using SVR4 packages then make sure that SMF has finished
-# disabling any services left over from a previous installation which
-# may interfere with installing new ones.  Should only be relevant on
-# Solaris 11.
-if test -x "$BIN_PKGINFO"; then
-    for i in 1 2 3 4 5 6 7 8 9 10; do
-        svcs -a | grep virtualbox >/dev/null || break
-        if test "${i}" = "1"; then
-            printf "Waiting for services from previous installation to be removed."
-        else
-            printf "."
-        fi
-        sleep 1
-    done
-    test "${i}" = "1" || printf "\n"
 fi
 
 exit 0

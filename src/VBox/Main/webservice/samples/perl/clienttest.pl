@@ -5,7 +5,7 @@
 # webservice and calls various methods on it. Please refer to the SDK
 # programming reference (SDKRef.pdf) for how to use this sample.
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # The following license applies to this file only:
 #
@@ -50,9 +50,7 @@ while (my $this = shift(@ARGV))
               "with <mode> being one of 'version', 'list', 'start'; default is 'list'.\n".
               "    $cmd version: print version of VirtualBox web service.\n".
               "    $cmd list: list installed virtual machines.\n".
-              "    $cmd startvm <vm>: start the virtual machine named <vm>.\n".
-              "    $cmd acpipowerbutton <vm>: shutdown of the irtual machine named <vm>.\n";
-              "    $cmd openhd <disk>: open disk image <disk>.\n";
+              "    $cmd startvm <vm>: start the virtual machine named <vm>.\n";
         exit 0;
     }
     elsif (    ($this eq 'version')
@@ -61,9 +59,7 @@ while (my $this = shift(@ARGV))
     {
         $optMode = $this;
     }
-    elsif (    ($this eq 'startvm')
-            || ($this eq 'acpipowerbutton')
-          )
+    elsif ($this eq 'startvm')
     {
         $optMode = $this;
 
@@ -89,50 +85,6 @@ while (my $this = shift(@ARGV))
 
 $optMode = "list"
     if (!$optMode);
-
-# SOAP::Lite hacking to make it serialize the enum types we use correctly.
-# In the long run, this needs to be done either by stubmaker.pl or something
-# else, because the WSDL clearly says they're restricted strings. Quite silly
-# that the default behavior is to ignore the parameter and just let the server
-# use the default value for the type.
-
-sub SOAP::Serializer::as_LockType
-{
-    my ($self, $value, $name, $type, $attr) = @_;
-    die "String value expected instead of @{[ref $value]} reference\n"
-        if ref $value;
-    return [
-        $name,
-        {'xsi:type' => 'vbox:LockType', %$attr},
-        SOAP::Utils::encode_data($value)
-    ];
-}
-
-sub SOAP::Serializer::as_DeviceType
-{
-    my ($self, $value, $name, $type, $attr) = @_;
-    die "String value expected instead of @{[ref $value]} reference\n"
-        if ref $value;
-    return [
-        $name,
-        {'xsi:type' => 'vbox:DeviceType', %$attr},
-        SOAP::Utils::encode_data($value)
-    ];
-}
-
-sub SOAP::Serializer::as_AccessMode
-{
-    my ($self, $value, $name, $type, $attr) = @_;
-    die "String value expected instead of @{[ref $value]} reference\n"
-        if ref $value;
-    return [
-        $name,
-        {'xsi:type' => 'vbox:AccessMode', %$attr},
-        SOAP::Utils::encode_data($value)
-    ];
-}
-
-## @todo needs much more error handling, e.g. openhd never complains
 
 my $vbox = vboxService->IWebsessionManager_logon("test", "test");
 
@@ -160,7 +112,13 @@ elsif ($optMode eq "list")
 }
 elsif ($optMode eq "startvm")
 {
-    my $machine = vboxService->IVirtualBox_findMachine($vbox, $vmname);
+    # assume it's a UUID
+    my $machine = vboxService->IVirtualBox_getMachine($vbox, $vmname);
+    if (!$machine)
+    {
+        # no: then try a name
+        $machine = vboxService->IVirtualBox_findMachine($vbox, $vmname);
+    }
 
     die "[$cmd] Cannot find VM \"$vmname\"; stopped"
         if (!$machine);
@@ -175,14 +133,15 @@ elsif ($optMode eq "startvm")
 
     print "[$cmd] UUID: $uuid\n";
 
-    my $progress = vboxService->IMachine_launchVMProcess($machine,
-                                                         $session,
-                                                         "headless",
-                                                         "");
-    die "[$cmd] Cannot launch VM; stopped"
+    my $progress = vboxService->IVirtualBox_openRemoteSession($vbox,
+                                                              $session,
+                                                              $uuid,
+                                                              "vrdp",
+                                                              "");
+    die "[$cmd] Cannot open remote session; stopped"
         if (!$progress);
 
-    print("[$cmd] Waiting for the VM to start...\n");
+    print("[$cmd] Waiting for the remote session to open...\n");
     vboxService->IProgress_waitForCompletion($progress, -1);
 
     my $fCompleted;
@@ -194,35 +153,11 @@ elsif ($optMode eq "startvm")
 
     print("[$cmd] Result: $resultCode\n");
 
-    vboxService->ISession_unlockMachine($session);
-
-    vboxService->IWebsessionManager_logoff($vbox);
-}
-elsif ($optMode eq "acpipowerbutton")
-{
-    my $machine = vboxService->IVirtualBox_findMachine($vbox, $vmname);
-
-    die "[$cmd] Cannot find VM \"$vmname\"; stopped"
-        if (!$machine);
-
-    my $session = vboxService->IWebsessionManager_getSessionObject($vbox);
-    die "[$cmd] Cannot get session object; stopped"
-        if (!$session);
-
-    vboxService->IMachine_lockMachine($machine, $session, 'Shared');
-
-    my $console = vboxService->ISession_getConsole($session);
-
-    vboxService->IConsole_powerButton($console);
-
-    vboxService->ISession_unlockMachine($session);
+    vboxService->ISession_close($session);
 
     vboxService->IWebsessionManager_logoff($vbox);
 }
 elsif ($optMode eq "openhd")
 {
-    my $medium = vboxService->IVirtualBox_openMedium($vbox, $disk,
-                                                     'HardDisk',
-                                                     'ReadWrite',
-                                                     0);
+    my $harddisk = vboxService->IVirtualBox_openHardDisk($vbox, $disk, 1, 0, "", 0, "");
 }

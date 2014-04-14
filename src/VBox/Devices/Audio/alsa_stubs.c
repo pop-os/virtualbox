@@ -30,8 +30,7 @@
 #define PROXY_STUB(function, rettype, signature, shortsig) \
     static rettype (*pfn_ ## function) signature; \
     \
-    rettype VBox_##function signature; \
-    rettype VBox_##function signature \
+    rettype function signature \
     { \
         return pfn_ ## function shortsig; \
     }

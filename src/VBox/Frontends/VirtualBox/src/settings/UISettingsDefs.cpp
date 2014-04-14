@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 using namespace UISettingsDefs;
 
 /* Machine state => Settings dialog type converter: */
-SettingsDialogType UISettingsDefs::determineSettingsDialogType(KSessionState sessionState, KMachineState machineState)
+SettingsDialogType UISettingsDefs::machineStateToSettingsDialogType(KMachineState machineState)
 {
     SettingsDialogType result = SettingsDialogType_Wrong;
     switch (machineState)
@@ -32,8 +32,7 @@ SettingsDialogType UISettingsDefs::determineSettingsDialogType(KSessionState ses
         case KMachineState_PoweredOff:
         case KMachineState_Teleported:
         case KMachineState_Aborted:
-            result = sessionState == KSessionState_Unlocked ? SettingsDialogType_Offline :
-                                                              SettingsDialogType_Online;
+            result = SettingsDialogType_Offline;
             break;
         case KMachineState_Saved:
             result = SettingsDialogType_Saved;

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,11 +20,10 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
+/* Global includes */
 #include <QPushButton>
 
-/* GUI includes: */
+/* Local includes */
 #include "VBoxTakeSnapshotDlg.h"
 #include "UIMessageCenter.h"
 #include "VBoxUtils.h"
@@ -33,17 +32,19 @@
 # include "VBoxSnapshotsWgt.h"
 #endif /* Q_WS_MAC */
 
-/* COM includes: */
-#include "COMEnums.h"
-#include "CMachine.h"
-#include "CMedium.h"
-#include "CMediumAttachment.h"
-
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxTakeSnapshotDlg::VBoxTakeSnapshotDlg(QWidget *pParent, const CMachine &machine)
     : QIWithRetranslateUI<QIDialog>(pParent)
 {
+#ifdef Q_WS_MAC
+    /* No sheets in another mode than normal for now. Firstly it looks ugly and
+     * secondly in some cases it is broken. */
+    if (   vboxGlobal().isSheetWindowsAllowed(pParent)
+        || qobject_cast<VBoxSnapshotsWgt*>(pParent))
+        setWindowFlags(Qt::Sheet);
+#endif /* Q_WS_MAC */
+
     /* Apply UI decorations */
     Ui::VBoxTakeSnapshotDlg::setupUi(this);
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -47,7 +47,6 @@ Debugger_SOURCES   = \
 	DBGCCmdHlp.cpp \
 	DBGCCmdWorkers.cpp \
 	DBGCCommands.cpp \
-	DBGCFunctions.cpp \
 	DBGCEmulateCodeView.cpp \
 	DBGCOps.cpp \
 	DBGCGdbRemoteStub.cpp \
@@ -60,15 +59,13 @@ DLLS += DBGCPlugInDiggers
 DBGCPlugInDiggers_TEMPLATE = VBOXR3
 DBGCPlugInDiggers_SOURCES = \
 	DBGPlugInDiggers.cpp \
-	DBGPlugInDarwin.cpp \
 	DBGPlugInLinux.cpp \
 	DBGPlugInSolaris.cpp \
 	DBGPlugInWinNt.cpp \
-	DBGPlugInOS2.cpp \
 	DBGPlugInCommonELF.cpp
 DBGCPlugInDiggers_LIBS = \
-	$(if-expr "$(LIB_VMM)" == "$(VBOX_LIB_VMM_LAZY)",$(LIB_REM),) \
-	$(VBOX_LIB_VMM_LAZY) \
+	$(LIB_VMM) \
+	$(LIB_REM) \
 	$(LIB_RUNTIME)
 
 
@@ -78,7 +75,6 @@ DBGCPlugInDiggers_LIBS = \
 #
 tstDBGCParser_TEMPLATE = VBOXR3TSTEXE
 tstDBGCParser_DEFS = IN_VMM_R3
-tstDBGCParser_CXXFLAGS = $(VBOX_C_CXX_FLAGS_NO_UNUSED_PARAMETERS)
 tstDBGCParser_SOURCES = \
 	testcase/tstDBGCParser.cpp \
 	testcase/tstDBGCStubs.cpp
@@ -108,7 +104,7 @@ VBoxDbg_SOURCES = \
 	VBoxDbgConsole.cpp \
 	VBoxDbgStatsQt4.cpp
 VBoxDbg_LIBS = \
-	$(VBOX_LIB_VMM_LAZY)
+	$(LIB_VMM)
 VBoxDbg_LDFLAGS.darwin = \
 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDbg.dylib
 
@@ -144,5 +140,5 @@ dbghelp_SOURCES.x86 = win32/dbghelp.dll
 dbghelp_SOURCES.amd64 = win64/dbghelp.dll
 
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include $(KBUILD_PATH)/subfooter.kmk
 

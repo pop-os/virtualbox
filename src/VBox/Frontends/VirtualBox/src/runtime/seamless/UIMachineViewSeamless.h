@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,11 @@ class UIMachineViewSeamless : public UIMachineView
 {
     Q_OBJECT;
 
+public:
+
+    /* Public getters: */
+    QRegion lastVisibleRegion() const { return m_lastVisibleRegion; }
+
 protected:
 
     /* Seamless machine-view constructor: */
@@ -40,35 +45,45 @@ protected:
 
 private slots:
 
-    /* Handler: Console callback stuff: */
+    /* Slot to perform guest resize: */
+    void sltPerformGuestResize(const QSize &aSize = QSize());
+
+    /* Console callback handlers: */
     void sltAdditionsStateChanged();
 
-    /* Handler: Frame-buffer SetVisibleRegion stuff: */
-    virtual void sltHandleSetVisibleRegion(QRegion region);
+    /* Watch dog for desktop resizes: */
+    void sltDesktopResized();
 
 private:
 
     /* Event handlers: */
+    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
     void prepareCommon();
     void prepareFilters();
+    void prepareConnections();
     void prepareConsoleConnections();
     void prepareSeamless();
 
     /* Cleanup helpers: */
     void cleanupSeamless();
     //void cleanupConsoleConnections() {}
+    //void prepareConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
-    /** Adjusts guest-screen size to correspond current <i>working area</i> size. */
-    void adjustGuestScreenSize();
+    /* Private helpers: */
+    void normalizeGeometry(bool /* fAdjustPosition */) {}
+    QRect workingArea();
+    void calculateDesktopGeometry();
+    void maybeRestrictMinimumSize() {}
 
-    /* Helpers: Geometry stuff: */
-    QRect workingArea() const;
-    QSize calculateMaxGuestSize() const;
+    /* Private variables: */
+    bool m_fShouldWeDoResize : 1;
+    QRegion m_lastVisibleRegion;
+    UIMachineViewBlocker *m_pSyncBlocker;
 
     /* Friend classes: */
     friend class UIMachineView;

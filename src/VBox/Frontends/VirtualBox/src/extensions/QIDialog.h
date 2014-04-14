@@ -1,11 +1,11 @@
 /** @file
  *
  * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QIDialog class declaration
+ * VirtualBox Qt extensions: QIDialog class implementation
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,48 +19,31 @@
 #ifndef __QIDialog_h__
 #define __QIDialog_h__
 
-/* Qt includes: */
+/* Qt includes */
 #include <QDialog>
-#include <QPointer>
 
-/* Forward declarations: */
+/* Qt forwards declarations */
 class QEventLoop;
 
-/* Qt dialog extension: */
 class QIDialog: public QDialog
 {
     Q_OBJECT;
 
 public:
-
-    /* Constructor/destructor: */
-    QIDialog(QWidget *pParent = 0, Qt::WindowFlags flags = 0);
-    ~QIDialog();
-
-    /* API: Visibility stuff: */
-    void setVisible(bool fVisible);
+    QIDialog (QWidget *aParent = 0, Qt::WindowFlags aFlags = 0);
+    void setVisible (bool aVisible);
 
 public slots:
-
-    /* API: Exec stuff: */
-    int exec(bool fShow = true, bool fApplicationModal = false);
+    int exec (bool aShow = true);
 
 protected:
-
-    /* Handler: Show-event stuff: */
-    void showEvent(QShowEvent *pEvent);
-
-    /* Handler: Polish-event stuff: */
-    virtual void polishEvent(QShowEvent *pEvent);
+    void showEvent (QShowEvent *aEvent);
 
 private:
-
-    /* Variables: */
-    bool m_fPolished;
-    QPointer<QEventLoop> m_pEventLoop;
+    /* Private member vars */
+    bool mPolished;
+    QEventLoop *mEventLoop;
 };
-
-typedef QPointer<QIDialog> UISafePointerDialog;
 
 #endif /* __QIDialog_h__ */
 

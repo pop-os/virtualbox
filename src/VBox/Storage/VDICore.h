@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <VBox/vd.h>
+#ifndef VBOX_VDICORE_VD
+# include <VBox/vmm/pdm.h>
+#endif
 #include <VBox/err.h>
 
 #include <VBox/log.h>
@@ -236,9 +239,9 @@ typedef struct VDIHEADER
 /**
  * File alignment boundary for both the block array and data area. Should be
  * at least the size of a physical sector on disk for performance reasons.
- * Bumped to 1MB because SSDs tend to have 8kb per page so we don't have to worry
- * about proper alignment in the near future again. */
-#define VDI_DATA_ALIGN _1M
+ * With the growing market share of disks with 4K sectors this needs to be
+ * bumped, and maybe again later. */
+#define VDI_DATA_ALIGN _4K
 
 /** Block 'pointer'. */
 typedef uint32_t    VDIIMAGEBLOCKPOINTER;
@@ -267,6 +270,7 @@ typedef VDIIMAGEBLOCKPOINTER *PVDIIMAGEBLOCKPOINTER;
 #define GET_MAJOR_HEADER_VERSION(ph) (VDI_GET_VERSION_MAJOR((ph)->uVersion))
 #define GET_MINOR_HEADER_VERSION(ph) (VDI_GET_VERSION_MINOR((ph)->uVersion))
 
+#ifdef VBOX_VDICORE_VD
 /** @name VDI image types
  * @{ */
 typedef enum VDIIMAGETYPE
@@ -288,6 +292,7 @@ typedef enum VDIIMAGETYPE
 /** Pointer to VDI image type. */
 typedef VDIIMAGETYPE *PVDIIMAGETYPE;
 /** @} */
+#endif /* VBOX_VDICORE_VD */
 
 /*******************************************************************************
 *   Internal Functions for header access                                       *
@@ -303,6 +308,7 @@ DECLINLINE(VDIIMAGETYPE) getImageType(PVDIHEADER ph)
     return (VDIIMAGETYPE)0;
 }
 
+#ifdef VBOX_VDICORE_VD
 DECLINLINE(unsigned) getImageFlags(PVDIHEADER ph)
 {
     switch (GET_MAJOR_HEADER_VERSION(ph))
@@ -317,6 +323,18 @@ DECLINLINE(unsigned) getImageFlags(PVDIHEADER ph)
     AssertFailed();
     return 0;
 }
+#else /* !VBOX_VDICORE_VD */
+DECLINLINE(unsigned) getImageFlags(PVDIHEADER ph)
+{
+    switch (GET_MAJOR_HEADER_VERSION(ph))
+    {
+        case 0: return ph->u.v0.fFlags;
+        case 1: return ph->u.v1.fFlags;
+    }
+    AssertFailed();
+    return 0;
+}
+#endif /* !VBOX_VDICORE_VD */
 
 DECLINLINE(char *) getImageComment(PVDIHEADER ph)
 {
@@ -510,25 +528,59 @@ DECLINLINE(PRTUUID) getImageParentModificationUUID(PVDIHEADER ph)
     return NULL;
 }
 
+#ifndef VBOX_VDICORE_VD
+/**
+ * Default image block size, may be changed by setBlockSize/getBlockSize.
+ *
+ * Note: for speed reasons block size should be a power of 2 !
+ */
+#define VDI_IMAGE_DEFAULT_BLOCK_SIZE            _1M
+#endif /* !VBOX_VDICORE_VD */
+
+#ifndef VBOX_VDICORE_VD
+/**
+ * fModified bit flags.
+ */
+#define VDI_IMAGE_MODIFIED_FLAG                 RT_BIT(0)
+#define VDI_IMAGE_MODIFIED_FIRST                RT_BIT(1)
+#define VDI_IMAGE_MODIFIED_DISABLE_UUID_UPDATE  RT_BIT(2)
+#endif /* !VBOX_VDICORE_VD */
+
 /**
  * Image structure
  */
 typedef struct VDIIMAGEDESC
 {
+#ifndef VBOX_VDICORE_VD
+    /** Link to parent image descriptor, if any. */
+    struct VDIIMAGEDESC    *pPrev;
+    /** Link to child image descriptor, if any. */
+    struct VDIIMAGEDESC    *pNext;
+#endif /* !VBOX_VDICORE_VD */
     /** Opaque storage handle. */
     PVDIOSTORAGE            pStorage;
+#ifndef VBOX_VDICORE_VD
+    /** True if the image is operating in readonly mode. */
+    bool                    fReadOnly;
+    /** Image open flags, VDI_OPEN_FLAGS_*. */
+    unsigned                fOpen;
+#else /* VBOX_VDICORE_VD */
     /** Image open flags, VD_OPEN_FLAGS_*. */
     unsigned                uOpenFlags;
+#endif /* VBOX_VDICORE_VD */
     /** Image pre-header. */
     VDIPREHEADER            PreHeader;
     /** Image header. */
     VDIHEADER               Header;
     /** Pointer to a block array. */
     PVDIIMAGEBLOCKPOINTER   paBlocks;
-    /** Pointer to the block array for back resolving (used if discarding is enabled). */
-    unsigned               *paBlocksRev;
+#ifndef VBOX_VDICORE_VD
+    /** fFlags copy from image header, for speed optimization. */
+    unsigned                fFlags;
+#else /* VBOX_VDICORE_VD */
     /** fFlags copy from image header, for speed optimization. */
     unsigned                uImageFlags;
+#endif /* VBOX_VDICORE_VD */
     /** Start offset of block array in image file, here for speed optimization. */
     unsigned                offStartBlocks;
     /** Start offset of data in image file, here for speed optimization. */
@@ -537,8 +589,19 @@ typedef struct VDIIMAGEDESC
     unsigned                uBlockMask;
     /** Block shift value for converting byte hdd offset into paBlock index. */
     unsigned                uShiftOffset2Index;
+#ifndef VBOX_VDICORE_VD
+    /** Block shift value for converting block index into offset in image. */
+    unsigned                uShiftIndex2Offset;
+#endif /* !VBOX_VDICORE_VD */
     /** Offset of data from the beginning of block. */
     unsigned                offStartBlockData;
+#ifndef VBOX_VDICORE_VD
+    /** Image is modified flags (VDI_IMAGE_MODIFIED*). */
+    unsigned                fModified;
+    /** Container filename. (UTF-8)
+     * @todo Make this variable length to save a bunch of bytes. (low prio) */
+    char                    szFilename[RTPATH_MAX];
+#else /* VBOX_VDICORE_VD */
     /** Total size of image block (including the extra data). */
     unsigned                cbTotalBlockData;
     /** Container filename. (UTF-8) */
@@ -550,70 +613,81 @@ typedef struct VDIIMAGEDESC
     /** Pointer to the per-image VD interface list. */
     PVDINTERFACE            pVDIfsImage;
     /** Error interface. */
-    PVDINTERFACEERROR       pIfError;
+    PVDINTERFACE            pInterfaceError;
+    /** Error interface callback table. */
+    PVDINTERFACEERROR       pInterfaceErrorCallbacks;
     /** I/O interface. */
-    PVDINTERFACEIOINT       pIfIo;
-    /** Current size of the image (used for range validation when reading). */
-    uint64_t                cbImage;
+    PVDINTERFACE            pInterfaceIO;
+    /** I/O interface callbacks. */
+    PVDINTERFACEIOINT       pInterfaceIOCallbacks;
+#endif /* VBOX_VDICORE_VD */
 } VDIIMAGEDESC, *PVDIIMAGEDESC;
 
+#ifndef VBOX_VDICORE_VD
 /**
- * Async block discard states.
+ * Default work buffer size, may be changed by setBufferSize() method.
+ *
+ * For best speed performance it must be equal to image block size.
  */
-typedef enum VDIBLOCKDISCARDSTATE
-{
-    /** Invalid. */
-    VDIBLOCKDISCARDSTATE_INVALID = 0,
-    /** Read the last block. */
-    VDIBLOCKDISCARDSTATE_READ_BLOCK,
-    /** Write block into the hole. */
-    VDIBLOCKDISCARDSTATE_WRITE_BLOCK,
-    /** Update metadata. */
-    VDIBLOCKDISCARDSTATE_UPDATE_METADATA,
-    /** 32bit hack. */
-    VDIBLOCKDISCARDSTATE_32BIT_HACK = 0x7fffffff
-} VDIBLOCKDISCARDSTATE;
+#define VDIDISK_DEFAULT_BUFFER_SIZE   (VDI_IMAGE_DEFAULT_BLOCK_SIZE)
+#endif /* !VBOX_VDICORE_VD */
+
+/** VDIDISK Signature. */
+#define VDIDISK_SIGNATURE (0xbedafeda)
 
 /**
- * Async block discard structure.
+ * VBox HDD Container main structure, private part.
  */
-typedef struct VDIBLOCKDISCARDASYNC
+struct VDIDISK
 {
-    /** State of the block discard. */
-    VDIBLOCKDISCARDSTATE    enmState;
-    /** Pointer to the block data. */
-    void                   *pvBlock;
-    /** Block index in the block table. */
-    unsigned                uBlock;
-    /** Block pointer to the block to discard. */
-    VDIIMAGEBLOCKPOINTER    ptrBlockDiscard;
-    /** Index of the last block in the reverse block table. */
-    unsigned                idxLastBlock;
-    /** Index of the last block in the block table (gathered from the reverse block table). */
-    unsigned                uBlockLast;
-} VDIBLOCKDISCARDASYNC, *PVDIBLOCKDISCARDASYNC;
+    /** Structure signature (VDIDISK_SIGNATURE). */
+    uint32_t        u32Signature;
 
-/**
- * Async image expansion state.
- */
-typedef struct VDIASYNCBLOCKALLOC
-{
-    /** Number of blocks allocated. */
-    unsigned                cBlocksAllocated;
-    /** Block index to allocate. */
-    unsigned                uBlock;
-} VDIASYNCBLOCKALLOC, *PVDIASYNCBLOCKALLOC;
+    /** Number of opened images. */
+    unsigned        cImages;
 
-/**
- * Endianess conversion direction.
- */
-typedef enum VDIECONV
-{
-    /** Host to file endianess. */
-    VDIECONV_H2F = 0,
-    /** File to host endianess. */
-    VDIECONV_F2H
-} VDIECONV;
+    /** Base image. */
+    PVDIIMAGEDESC   pBase;
+
+    /** Last opened image in the chain.
+     * The same as pBase if only one image is used or the last opened diff image. */
+    PVDIIMAGEDESC   pLast;
+
+    /** Default block size for newly created images. */
+    unsigned        cbBlock;
+
+    /** Working buffer size, allocated only while committing data,
+     * copying block from primary image to secondary and saving previously
+     * zero block. Buffer deallocated after operation complete.
+     * @remark  For best performance buffer size must be equal to image's
+     *          block size, however it may be decreased for memory saving.
+     */
+    unsigned        cbBuf;
+
+    /** Flag whether zero writes should be handled normally or optimized
+     * away if possible. */
+    bool            fHonorZeroWrites;
+
+#ifndef VBOX_VDICORE_VD
+    /** The media interface. */
+    PDMIMEDIA       IMedia;
+    /** Pointer to the driver instance. */
+    PPDMDRVINS      pDrvIns;
+#endif /* !VBOX_VDICORE_VD */
+};
+
+
+/*******************************************************************************
+*   Internal Functions                                                         *
+*******************************************************************************/
+RT_C_DECLS_BEGIN
+
+#ifndef VBOX_VDICORE_VD
+VBOXDDU_DECL(void) vdiInitVDIDisk(PVDIDISK pDisk);
+VBOXDDU_DECL(void) VDIFlushImage(PVDIIMAGEDESC pImage);
+VBOXDDU_DECL(int)  vdiChangeImageMode(PVDIIMAGEDESC pImage, bool fReadOnly);
+#endif /* !VBOX_VDICORE_VD */
+
+RT_C_DECLS_END
 
 #endif
-

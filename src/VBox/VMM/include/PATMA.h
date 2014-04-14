@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,7 +145,6 @@ extern PATCHASMRECORD PATMPopf32Record_NoExit;
 extern PATCHASMRECORD PATMPushf32Record;
 extern PATCHASMRECORD PATMPushf16Record;
 extern PATCHASMRECORD PATMIretRecord;
-extern PATCHASMRECORD PATMIretRing1Record;
 extern PATCHASMRECORD PATMCpuidRecord;
 extern PATCHASMRECORD PATMLoopRecord;
 extern PATCHASMRECORD PATMLoopZRecord;

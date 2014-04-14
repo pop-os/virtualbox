@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 int main(int argc, char **argv)
 {
     int rcRet = 0;
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     /*
      * Iterate arguments.
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     {
         /* open */
         PRTDIR pDir;
-        int rc = RTDirOpenFiltered(&pDir, argv[i], RTDIRFILTER_WINNT, 0);
+        int rc = RTDirOpenFiltered(&pDir, argv[i], RTDIRFILTER_WINNT);
         if (RT_SUCCESS(rc))
         {
             for (;;)

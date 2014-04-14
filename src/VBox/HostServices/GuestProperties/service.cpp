@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,6 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
-#include <VBox/vmm/dbgf.h>
 
 #include <memory>  /* for auto_ptr */
 #include <string>
@@ -133,25 +132,22 @@ typedef std::list <Property> PropertyList;
  */
 struct GuestCall
 {
-    uint32_t u32ClientId;
     /** The call handle */
     VBOXHGCMCALLHANDLE mHandle;
     /** The function that was requested */
     uint32_t mFunction;
-    /** Number of call parameters. */
-    uint32_t mParmsCnt;
     /** The call parameters */
     VBOXHGCMSVCPARM *mParms;
     /** The default return value, used for passing warnings */
     int mRc;
 
     /** The standard constructor */
-    GuestCall(void) : u32ClientId(0), mFunction(0), mParmsCnt(0) {}
+    GuestCall() : mFunction(0) {}
     /** The normal constructor */
-    GuestCall(uint32_t aClientId, VBOXHGCMCALLHANDLE aHandle, uint32_t aFunction,
-              uint32_t aParmsCnt, VBOXHGCMSVCPARM aParms[], int aRc)
-              : u32ClientId(aClientId), mHandle(aHandle), mFunction(aFunction),
-                mParmsCnt(aParmsCnt), mParms(aParms), mRc(aRc) {}
+    GuestCall(VBOXHGCMCALLHANDLE aHandle, uint32_t aFunction,
+              VBOXHGCMSVCPARM aParms[], int aRc)
+              : mHandle(aHandle), mFunction(aFunction), mParms(aParms),
+                mRc(aRc) {}
 };
 /** The guest call list type */
 typedef std::list <GuestCall> CallList;
@@ -172,8 +168,7 @@ private:
     RTSTRSPACE mhProperties;
     /** The number of properties. */
     unsigned mcProperties;
-    /** The list of property changes for guest notifications;
-     *  only used for timestamp tracking in notifications at the moment */
+    /** The list of property changes for guest notifications */
     PropertyList mGuestNotifications;
     /** The list of outstanding guest notification calls */
     CallList mGuestWaiters;
@@ -363,7 +358,6 @@ public:
         pSelf->mpvHostData = pvExtension;
         return VINF_SUCCESS;
     }
-
 private:
     static DECLCALLBACK(int) reqThreadFn(RTTHREAD ThreadSelf, void *pvUser);
     uint64_t getCurrentTimestamp(void);
@@ -374,12 +368,12 @@ private:
     int setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGuest);
     int enumProps(uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
-    int getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
+    int getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
                         VBOXHGCMSVCPARM paParms[]);
     int getOldNotificationInternal(const char *pszPattern,
                                    uint64_t u64Timestamp, Property *pProp);
-    int getNotificationWriteOut(uint32_t cParms, VBOXHGCMSVCPARM paParms[], Property prop);
-    int doNotifications(const char *pszProperty, uint64_t u64Timestamp);
+    int getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop);
+    void doNotifications(const char *pszProperty, uint64_t u64Timestamp);
     int notifyHost(const char *pszName, const char *pszValue,
                    uint64_t u64Timestamp, const char *pszFlags);
 
@@ -388,8 +382,6 @@ private:
               VBOXHGCMSVCPARM paParms[]);
     int hostCall(uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paParms[]);
     int uninit();
-    void dbgInfoShow(PCDBGFINFOHLP pHlp);
-    static DECLCALLBACK(void) dbgInfo(void *pvUser, PCDBGFINFOHLP pHlp, const char *pszArgs);
 };
 
 
@@ -704,41 +696,35 @@ int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
         }
         else if (mcProperties < MAX_PROPS)
         {
-            try
+            /* Create a new string space record. */
+            pProp = new Property(pcszName, pcszValue, u64TimeNano, fFlags);
+            if (pProp)
             {
-                /* Create a new string space record. */
-                pProp = new Property(pcszName, pcszValue, u64TimeNano, fFlags);
-                AssertPtr(pProp);
-
                 if (RTStrSpaceInsert(&mhProperties, &pProp->mStrCore))
                     mcProperties++;
                 else
                 {
                     AssertFailed();
                     delete pProp;
-
-                    rc = VERR_ALREADY_EXISTS;
+                    rc = VERR_INTERNAL_ERROR_3;
                 }
             }
-            catch (std::bad_alloc)
-            {
+            else
                 rc = VERR_NO_MEMORY;
-            }
         }
         else
             rc = VERR_TOO_MUCH_DATA;
 
         /*
-         * Send a notification to the guest and host and return.
+         * Send a notification to the host and return.
          */
         // if (isGuest)  /* Notify the host even for properties that the host
         //                * changed.  Less efficient, but ensures consistency. */
-        int rc2 = doNotifications(pcszName, u64TimeNano);
-        if (RT_SUCCESS(rc))
-            rc = rc2;
+            doNotifications(pcszName, u64TimeNano);
+        Log2(("Set string %s, rc=%Rrc, value=%s\n", pcszName, rc, pcszValue));
     }
 
-    LogFlowThisFunc(("%s=%s, rc=%Rrc\n", pcszName, pcszValue, rc));
+    LogFlowThisFunc(("rc = %Rrc (%s = %s)\n", rc, pcszName, pcszValue));
     return rc;
 }
 
@@ -772,7 +758,7 @@ int Service::delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
         rc = VERR_INVALID_PARAMETER;
     if (RT_FAILURE(rc))
     {
-        LogFlowThisFunc(("rc=%Rrc\n", rc));
+        LogFlowThisFunc(("rc = %Rrc\n", rc));
         return rc;
     }
 
@@ -796,12 +782,10 @@ int Service::delProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
         delete pProp;
         // if (isGuest)  /* Notify the host even for properties that the host
         //                * changed.  Less efficient, but ensures consistency. */
-        int rc2 = doNotifications(pcszName, u64Timestamp);
-        if (RT_SUCCESS(rc))
-            rc = rc2;
+            doNotifications(pcszName, u64Timestamp);
     }
 
-    LogFlowThisFunc(("%s: rc=%Rrc\n", pcszName, rc));
+    LogFlowThisFunc(("rc = %Rrc (%s)\n", rc, pcszName));
     return rc;
 }
 
@@ -978,17 +962,15 @@ int Service::getOldNotificationInternal(const char *pszPatterns,
 
 
 /** Helper query used by getNotification */
-int Service::getNotificationWriteOut(uint32_t cParms, VBOXHGCMSVCPARM paParms[], Property prop)
+int Service::getNotificationWriteOut(VBOXHGCMSVCPARM paParms[], Property prop)
 {
-    AssertReturn(cParms == 4, VERR_INVALID_PARAMETER); /* Basic sanity checking. */
-
+    int rc = VINF_SUCCESS;
     /* Format the data to write to the buffer. */
     std::string buffer;
     uint64_t u64Timestamp;
     char *pchBuf;
     uint32_t cbBuf;
-
-    int rc = paParms[2].getBuffer((void **)&pchBuf, &cbBuf);
+    rc = paParms[2].getBuffer((void **)&pchBuf, &cbBuf);
     if (RT_SUCCESS(rc))
     {
         char szFlags[MAX_FLAGS_LEN];
@@ -1027,8 +1009,8 @@ int Service::getNotificationWriteOut(uint32_t cParms, VBOXHGCMSVCPARM paParms[],
  * @thread  HGCM
  * @throws  can throw std::bad_alloc
  */
-int Service::getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle,
-                             uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+int Service::getNotification(VBOXHGCMCALLHANDLE callHandle, uint32_t cParms,
+                             VBOXHGCMSVCPARM paParms[])
 {
     int rc = VINF_SUCCESS;
     char *pszPatterns = NULL;           /* shut up gcc */
@@ -1047,9 +1029,9 @@ int Service::getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle
         || RT_FAILURE(paParms[2].getBuffer((void **)&pchBuf, &cbBuf))  /* return buffer */
        )
         rc = VERR_INVALID_PARAMETER;
-
     if (RT_SUCCESS(rc))
-        LogFlow(("pszPatterns=%s, u64Timestamp=%llu\n", pszPatterns, u64Timestamp));
+        LogFlow(("    pszPatterns=%s, u64Timestamp=%llu\n", pszPatterns,
+                 u64Timestamp));
 
     /*
      * If no timestamp was supplied or no notification was found in the queue
@@ -1058,50 +1040,21 @@ int Service::getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle
     Property prop;
     if (RT_SUCCESS(rc) && u64Timestamp != 0)
         rc = getOldNotification(pszPatterns, u64Timestamp, &prop);
-    if (RT_SUCCESS(rc))
+    if (RT_SUCCESS(rc) && prop.isNull())
     {
-        if (prop.isNull())
-        {
-            /*
-             * Check if the client already had the same request.
-             * Complete the old request with an error in this case.
-             * Protection against clients, which cancel and resubmits requests.
-             */
-            CallList::iterator it = mGuestWaiters.begin();
-            while (it != mGuestWaiters.end())
-            {
-                const char *pszPatternsExisting;
-                uint32_t cchPatternsExisting;
-                int rc3 = it->mParms[0].getString(&pszPatternsExisting, &cchPatternsExisting);
-
-                if (   RT_SUCCESS(rc3)
-                    && u32ClientId == it->u32ClientId
-                    && RTStrCmp(pszPatterns, pszPatternsExisting) == 0)
-                {
-                    /* Complete the old request. */
-                    mpHelpers->pfnCallComplete(it->mHandle, VERR_INTERRUPTED);
-                    it = mGuestWaiters.erase(it);
-                }
-                else
-                    ++it;
-            }
-
-            mGuestWaiters.push_back(GuestCall(u32ClientId, callHandle, GET_NOTIFICATION,
-                                              cParms, paParms, rc));
-            rc = VINF_HGCM_ASYNC_EXECUTE;
-        }
-        /*
-         * Otherwise reply at once with the enqueued notification we found.
-         */
-        else
-        {
-            int rc2 = getNotificationWriteOut(cParms, paParms, prop);
-            if (RT_FAILURE(rc2))
-                rc = rc2;
-        }
+        mGuestWaiters.push_back(GuestCall(callHandle, GET_NOTIFICATION,
+                                          paParms, rc));
+        rc = VINF_HGCM_ASYNC_EXECUTE;
     }
-
-    LogFlowThisFunc(("returning rc=%Rrc\n", rc));
+    /*
+     * Otherwise reply at once with the enqueued notification we found.
+     */
+    else
+    {
+        int rc2 = getNotificationWriteOut(paParms, prop);
+        if (RT_FAILURE(rc2))
+            rc = rc2;
+    }
     return rc;
 }
 
@@ -1114,10 +1067,10 @@ int Service::getNotification(uint32_t u32ClientId, VBOXHGCMCALLHANDLE callHandle
  *
  * @thread  HGCM service
  */
-int Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
+void Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
 {
-    AssertPtrReturn(pszProperty, VERR_INVALID_POINTER);
-    LogFlowThisFunc(("pszProperty=%s, u64Timestamp=%llu\n", pszProperty, u64Timestamp));
+    AssertPtrReturnVoid(pszProperty);
+    LogFlowThisFunc (("pszProperty=%s, u64Timestamp=%llu\n", pszProperty, u64Timestamp));
     /* Ensure that our timestamp is different to the last one. */
     if (   !mGuestNotifications.empty()
         && u64Timestamp == mGuestNotifications.back().mTimestamp)
@@ -1139,8 +1092,8 @@ int Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
         prop.mFlags = pProp->mFlags;
     }
 
-    /* Release guest waiters if applicable and add the event
-     * to the queue for guest notifications */
+    /* Release waiters if applicable and add the event to the queue for
+     * guest notifications */
     int rc = VINF_SUCCESS;
     try
     {
@@ -1153,7 +1106,7 @@ int Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
             if (prop.Matches(pszPatterns))
             {
                 GuestCall curCall = *it;
-                int rc2 = getNotificationWriteOut(curCall.mParmsCnt, curCall.mParms, prop);
+                int rc2 = getNotificationWriteOut(curCall.mParms, prop);
                 if (RT_SUCCESS(rc2))
                     rc2 = curCall.mRc;
                 mpHelpers->pfnCallComplete(curCall.mHandle, rc2);
@@ -1162,48 +1115,41 @@ int Service::doNotifications(const char *pszProperty, uint64_t u64Timestamp)
             else
                 ++it;
         }
-
         mGuestNotifications.push_back(prop);
-
-        /** @todo r=andy This list does not have a purpose but for tracking
-          *              the timestamps ... */
-        if (mGuestNotifications.size() > MAX_GUEST_NOTIFICATIONS)
-            mGuestNotifications.pop_front();
     }
     catch (std::bad_alloc)
     {
         rc = VERR_NO_MEMORY;
     }
+    if (mGuestNotifications.size() > MAX_GUEST_NOTIFICATIONS)
+        mGuestNotifications.pop_front();
 
-    if (   RT_SUCCESS(rc)
-        && mpfnHostCallback)
+    /*
+     * Host notifications - first case: if the property exists then send its
+     * current value
+     */
+    if (pProp && mpfnHostCallback != NULL)
     {
-        /*
-         * Host notifications - first case: if the property exists then send its
-         * current value
-         */
-        if (pProp)
-        {
-            char szFlags[MAX_FLAGS_LEN];
-            /* Send out a host notification */
-            const char *pszValue = prop.mValue.c_str();
+        char szFlags[MAX_FLAGS_LEN];
+        /* Send out a host notification */
+        const char *pszValue = prop.mValue.c_str();
+        if (RT_SUCCESS(rc))
             rc = writeFlags(prop.mFlags, szFlags);
-            if (RT_SUCCESS(rc))
-                rc = notifyHost(pszProperty, pszValue, u64Timestamp, szFlags);
-        }
-        /*
-         * Host notifications - second case: if the property does not exist then
-         * send the host an empty value
-         */
-        else
-        {
-            /* Send out a host notification */
-            rc = notifyHost(pszProperty, "", u64Timestamp, "");
-        }
+        if (RT_SUCCESS(rc))
+            rc = notifyHost(pszProperty, pszValue, u64Timestamp, szFlags);
     }
 
-    LogFlowThisFunc(("returning rc=%Rrc\n", rc));
-    return rc;
+    /*
+     * Host notifications - second case: if the property does not exist then
+     * send the host an empty value
+     */
+    if (!pProp && mpfnHostCallback != NULL)
+    {
+        /* Send out a host notification */
+        if (RT_SUCCESS(rc))
+            rc = notifyHost(pszProperty, "", u64Timestamp, "");
+    }
+    LogFlowThisFunc(("returning\n"));
 }
 
 /**
@@ -1225,10 +1171,10 @@ int Service::notifyHost(const char *pszName, const char *pszValue,
     HostCallbackData.pcszValue    = pszValue;
     HostCallbackData.u64Timestamp = u64Timestamp;
     HostCallbackData.pcszFlags    = pszFlags;
-    int rc = mpfnHostCallback(mpvHostData, 0 /*u32Function*/,
-                              (void *)(&HostCallbackData),
-                              sizeof(HostCallbackData));
-    LogFlowFunc(("returning rc=%Rrc\n", rc));
+    int rc = mpfnHostCallback (mpvHostData, 0 /*u32Function*/,
+                           (void *)(&HostCallbackData),
+                           sizeof(HostCallbackData));
+    LogFlowFunc (("returning %Rrc\n", rc));
     return rc;
 }
 
@@ -1287,7 +1233,7 @@ void Service::call (VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
             /* The guest wishes to get the next property notification */
             case GET_NOTIFICATION:
                 LogFlowFunc(("GET_NOTIFICATION\n"));
-                rc = getNotification(u32ClientID, callHandle, cParms, paParms);
+                rc = getNotification(callHandle, cParms, paParms);
                 break;
 
             default:
@@ -1303,51 +1249,6 @@ void Service::call (VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID,
     {
         mpHelpers->pfnCallComplete (callHandle, rc);
     }
-}
-
-/**
- * Enumeration data shared between dbgInfoCallback and Service::dbgInfoShow.
- */
-typedef struct ENUMDBGINFO
-{
-    PCDBGFINFOHLP pHlp;
-} ENUMDBGINFO;
-
-static DECLCALLBACK(int) dbgInfoCallback(PRTSTRSPACECORE pStr, void *pvUser)
-{
-    Property *pProp = (Property *)pStr;
-    PCDBGFINFOHLP pHlp = ((ENUMDBGINFO*)pvUser)->pHlp;
-
-    char szFlags[MAX_FLAGS_LEN];
-    int rc = writeFlags(pProp->mFlags, szFlags);
-    if (RT_FAILURE(rc))
-        RTStrPrintf(szFlags, sizeof(szFlags), "???");
-
-    pHlp->pfnPrintf(pHlp, "%s: '%s', %RU64",
-                    pProp->mName.c_str(), pProp->mValue.c_str(), pProp->mTimestamp);
-    if (strlen(szFlags))
-        pHlp->pfnPrintf(pHlp, " (%s)", szFlags);
-    pHlp->pfnPrintf(pHlp, "\n");
-    return 0;
-}
-
-void Service::dbgInfoShow(PCDBGFINFOHLP pHlp)
-{
-    ENUMDBGINFO EnumData = { pHlp };
-    RTStrSpaceEnumerate(&mhProperties, dbgInfoCallback, &EnumData);
-}
-
-/**
- * Handler for debug info.
- *
- * @param   pvUser      user pointer.
- * @param   pHlp        The info helper functions.
- * @param   pszArgs     Arguments, ignored.
- */
-void Service::dbgInfo(void *pvUser, PCDBGFINFOHLP pHlp, const char *pszArgs)
-{
-    SELF *pSelf = reinterpret_cast<SELF *>(pvUser);
-    pSelf->dbgInfoShow(pHlp);
 }
 
 
@@ -1415,13 +1316,6 @@ int Service::hostCall (uint32_t eFunction, uint32_t cParms, VBOXHGCMSVCPARM paPa
                 }
                 else
                     rc = VERR_INVALID_PARAMETER;
-                break;
-
-            case GET_DBGF_INFO_FN:
-                if (cParms != 2)
-                    return VERR_INVALID_PARAMETER;
-                paParms[0].u.pointer.addr = (void*)(uintptr_t)dbgInfo;
-                paParms[1].u.pointer.addr = (void*)this;
                 break;
 
             default:

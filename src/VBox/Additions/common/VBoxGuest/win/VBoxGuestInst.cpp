@@ -1,10 +1,8 @@
-/* $Id: VBoxGuestInst.cpp $ */
 /** @file
- * Small tool to (un)install the VBoxGuest device driver.
- */
-
-/*
- * Copyright (C) 2006-2010 Oracle Corporation
+ *
+ * Small tool to (un)install the VBoxGuest device driver
+ *
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +30,7 @@
 
 
 
-static int installDriver(void)
+int installDriver(void)
 {
     /*
      * Assume it didn't exist, so we'll create the service.
@@ -59,14 +57,17 @@ static int installDriver(void)
                                        "System",
                                        NULL, NULL, NULL, NULL);
     if (!hService)
+    {
         printf("CreateService failed! lasterr=%d\n", GetLastError());
-    else
+    } else
+    {
         CloseServiceHandle(hService);
+    }
     CloseServiceHandle(hSMgrCreate);
     return hService ? 0 : -1;
 }
 
-static int uninstallDriver(void)
+int uninstallDriver(void)
 {
     int rc = -1;
     SC_HANDLE   hSMgr = OpenSCManager(NULL, NULL, SERVICE_CHANGE_CONFIG);
@@ -95,9 +96,8 @@ static int uninstallDriver(void)
     return rc;
 }
 
-#ifdef TESTMODE
 
-static HANDLE openDriver(void)
+HANDLE openDriver(void)
 {
     HANDLE hDevice;
 
@@ -115,32 +115,43 @@ static HANDLE openDriver(void)
     return hDevice;
 }
 
-static int closeDriver(HANDLE hDevice)
+int closeDriver(HANDLE hDevice)
 {
     CloseHandle(hDevice);
     return 0;
 }
 
-static int performTest(void)
+#ifdef TESTMODE
+typedef struct TESTFOO
+{
+    int values[16];
+} TESTFOO, *PTESTFOO;
+
+int performTest(void)
 {
     int rc = 0;
 
     HANDLE hDevice = openDriver();
 
     if (hDevice != INVALID_HANDLE_VALUE)
+    {
+        DWORD cbReturned;
+
         closeDriver(hDevice);
-    else
+    } else
+    {
         printf("openDriver failed!\n");
+    }
+
 
     return rc;
 }
+#endif
 
-#endif /* TESTMODE */
-
-static int usage(char *programName)
+void displayHelpAndExit(char *programName)
 {
     printf("error, syntax: %s [install|uninstall]\n", programName);
-    return 1;
+    exit(1);
 }
 
 int main(int argc, char **argv)
@@ -151,36 +162,50 @@ int main(int argc, char **argv)
 #endif
 
     if (argc != 2)
-        return usage(argv[0]);
-
+    {
+        displayHelpAndExit(argv[0]);
+    }
     if (strcmp(argv[1], "install") == 0)
+    {
         installMode = true;
-    else if (strcmp(argv[1], "uninstall") == 0)
+    } else
+    if (strcmp(argv[1], "uninstall") == 0)
+    {
         installMode = false;
+    } else
 #ifdef TESTMODE
-    else if (strcmp(argv[1], "test") == 0)
+    if (strcmp(argv[1], "test") == 0)
+    {
         testMode = true;
+    } else
 #endif
-    else
-        return usage(argv[0]);
-
+    {
+        displayHelpAndExit(argv[0]);
+    }
 
     int rc;
+
 #ifdef TESTMODE
     if (testMode)
+    {
         rc = performTest();
-    else
+    } else
 #endif
     if (installMode)
+    {
         rc = installDriver();
-    else
+    } else
+    {
         rc = uninstallDriver();
+    }
 
     if (rc == 0)
+    {
         printf("operation completed successfully!\n");
-    else
+    } else
+    {
         printf("error: operation failed with status code %d\n", rc);
+    }
 
     return rc;
 }
-

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
 {
     int rc;
 
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
 
     if (argc != 3)
     {
@@ -63,7 +63,8 @@ int main(int argc, char *argv[])
     PVBOXHDD         pVD1 = NULL;
     PVBOXHDD         pVD2 = NULL;
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACEERROR VDIfError;
+    VDINTERFACE      VDIError;
+    VDINTERFACEERROR VDIErrorCallbacks;
     char *pszVD1 = NULL;
     char *pszVD2 = NULL;
     char *pbBuf1 = NULL;
@@ -89,10 +90,12 @@ int main(int argc, char *argv[])
     pbBuf2 = (char *)RTMemAllocZ(VD_MERGE_BUFFER_SIZE);
 
     /* Create error interface. */
-    VDIfError.pfnError = tstVDError;
+    VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
+    VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
+    VDIErrorCallbacks.pfnError = tstVDError;
 
-    rc = VDInterfaceAdd(&VDIfError.Core, "tstVD_Error", VDINTERFACETYPE_ERROR,
-                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
+    rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
+                        NULL, &pVDIfs);
     AssertRC(rc);
 
     rc = VDGetFormat(NULL /* pVDIfsDisk */, NULL /* pVDIfsImage */,
@@ -103,10 +106,10 @@ int main(int argc, char *argv[])
                      argv[2], &pszVD2, &enmTypeVD2);
     CHECK("VDGetFormat() hdd2");
 
-    rc = VDCreate(pVDIfs, VDTYPE_HDD, &pVD1);
+    rc = VDCreate(&VDIError, VDTYPE_HDD, &pVD1);
     CHECK("VDCreate() hdd1");
 
-    rc = VDCreate(pVDIfs, VDTYPE_HDD, &pVD2);
+    rc = VDCreate(&VDIError, VDTYPE_HDD, &pVD2);
     CHECK("VDCreate() hdd1");
 
     rc = VDOpen(pVD1, pszVD1, argv[1], VD_OPEN_FLAGS_NORMAL, NULL);

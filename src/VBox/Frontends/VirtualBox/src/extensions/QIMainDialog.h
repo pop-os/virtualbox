@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,6 @@ protected:
     virtual bool event (QEvent *aEvent);
     virtual void showEvent (QShowEvent *aEvent);
     virtual void resizeEvent (QResizeEvent *aEvent);
-    virtual void keyPressEvent(QKeyEvent *pEvent);
     virtual bool eventFilter (QObject *aObject, QEvent *aEvent);
 
     QPushButton* searchDefaultButton() const;

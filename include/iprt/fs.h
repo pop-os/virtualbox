@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,11 +92,6 @@ RT_C_DECLS_BEGIN
 #define RTFS_UNIX_IWOTH             0000002U
 /** Other executable (S_IXOTH). */
 #define RTFS_UNIX_IXOTH             0000001U
-
-/** All UNIX access permission bits (0777). */
-#define RTFS_UNIX_ALL_ACCESS_PERMS  0000777U
-/** All UNIX permission bits, including set id and sticky bits.  */
-#define RTFS_UNIX_ALL_PERMS         0007777U
 
 /** Named pipe (fifo) (S_IFIFO). */
 #define RTFS_TYPE_FIFO              0010000U
@@ -220,8 +215,6 @@ typedef enum RTFSTYPE
     RTFSTYPE_TMPFS,
     RTFSTYPE_SYSFS,
     RTFSTYPE_PROC,
-    RTFSTYPE_OCFS2,
-    RTFSTYPE_BTRFS,
 
     /* Windows: */
     /** New Technology File System. */

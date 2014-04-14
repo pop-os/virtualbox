@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,8 @@
 #ifndef ___IEMInternal_h
 #define ___IEMInternal_h
 
-#include <VBox/vmm/cpum.h>
-#include <VBox/vmm/iem.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/cpum.h>
 #include <VBox/param.h>
 
 
@@ -33,23 +32,17 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
-/** @def IEM_VERIFICATION_MODE_FULL
- * Shorthand for:
- *    defined(IEM_VERIFICATION_MODE) && !defined(IEM_VERIFICATION_MODE_MINIMAL)
+
+/**
+ * Operand or addressing mode.
  */
-#if defined(IEM_VERIFICATION_MODE) && !defined(IEM_VERIFICATION_MODE_MINIMAL) && !defined(IEM_VERIFICATION_MODE_FULL)
-# define IEM_VERIFICATION_MODE_FULL
-#endif
-
-
-/** Finish and move to types.h */
-typedef union
+typedef enum IEMMODE
 {
-    uint32_t u32;
-} RTFLOAT32U;
-typedef RTFLOAT32U *PRTFLOAT32U;
-typedef RTFLOAT32U const *PCRTFLOAT32U;
-
+    IEMMODE_16BIT = 0,
+    IEMMODE_32BIT,
+    IEMMODE_64BIT
+} IEMMODE;
+AssertCompileSize(IEMMODE, 4);
 
 /**
  * Extended operand mode that includes a representation of 8-bit.
@@ -67,58 +60,7 @@ typedef enum IEMMODEX
 AssertCompileSize(IEMMODEX, 4);
 
 
-/**
- * Branch types.
- */
-typedef enum IEMBRANCH
-{
-    IEMBRANCH_JUMP = 1,
-    IEMBRANCH_CALL,
-    IEMBRANCH_TRAP,
-    IEMBRANCH_SOFTWARE_INT,
-    IEMBRANCH_HARDWARE_INT
-} IEMBRANCH;
-AssertCompileSize(IEMBRANCH, 4);
-
-
-/**
- * A FPU result.
- */
-typedef struct IEMFPURESULT
-{
-    /** The output value. */
-    RTFLOAT80U      r80Result;
-    /** The output status. */
-    uint16_t        FSW;
-} IEMFPURESULT;
-AssertCompileMemberOffset(IEMFPURESULT, FSW, 10);
-/** Pointer to a FPU result. */
-typedef IEMFPURESULT *PIEMFPURESULT;
-/** Pointer to a const FPU result. */
-typedef IEMFPURESULT const *PCIEMFPURESULT;
-
-
-/**
- * A FPU result consisting of two output values and FSW.
- */
-typedef struct IEMFPURESULTTWO
-{
-    /** The first output value. */
-    RTFLOAT80U      r80Result1;
-    /** The output status. */
-    uint16_t        FSW;
-    /** The second output value. */
-    RTFLOAT80U      r80Result2;
-} IEMFPURESULTTWO;
-AssertCompileMemberOffset(IEMFPURESULTTWO, FSW, 10);
-AssertCompileMemberOffset(IEMFPURESULTTWO, r80Result2, 12);
-/** Pointer to a FPU result consisting of two output values and FSW. */
-typedef IEMFPURESULTTWO *PIEMFPURESULTTWO;
-/** Pointer to a const FPU result consisting of two output values and FSW. */
-typedef IEMFPURESULTTWO const *PCIEMFPURESULTTWO;
-
-
-#ifdef IEM_VERIFICATION_MODE_FULL
+#ifdef IEM_VERIFICATION_MODE
 
 /**
  * Verification event type.
@@ -174,14 +116,14 @@ typedef struct IEMVERIFYEVTREC
         {
             RTGCPHYS    GCPhys;
             uint32_t    cb;
-            uint8_t     ab[512];
+            uint8_t     ab[32];
         } RamWrite;
     } u;
 } IEMVERIFYEVTREC;
 /** Pointer to an IEM event verification records. */
 typedef IEMVERIFYEVTREC *PIEMVERIFYEVTREC;
 
-#endif /* IEM_VERIFICATION_MODE_FULL */
+#endif /* IEM_VERIFICATION_MODE */
 
 
 /**
@@ -202,11 +144,9 @@ typedef struct IEMCPU
     int32_t                 offVM;
 
     /** Whether to bypass access handlers or not. */
-    bool                    fBypassHandlers;
-    /** Indicates that we're interpreting patch code - RC only! */
-    bool                    fInPatchCode;
+    bool                    fByPassHandlers;
     /** Explicit alignment padding. */
-    bool                    afAlignment0[2];
+    bool                    afAlignment0[3];
 
     /** The flags of the current exception / interrupt. */
     uint32_t                fCurXcpt;
@@ -215,17 +155,11 @@ typedef struct IEMCPU
     /** Exception / interrupt recursion depth. */
     int8_t                  cXcptRecursions;
     /** Explicit alignment padding. */
-    bool                    afAlignment1[1];
+    bool                    afAlignment1[5];
     /** The CPL. */
     uint8_t                 uCpl;
     /** The current CPU execution mode (CS). */
     IEMMODE                 enmCpuMode;
-    /** Info status code that needs to be propagated to the IEM caller.
-     * This cannot be passed internally, as it would complicate all success
-     * checks within the interpreter making the code larger and almost impossible
-     * to get right.  Instead, we'll store status codes to pass on here.  Each
-     * source of these codes will perform appropriate sanity checks. */
-    int32_t                 rcPassUp;
 
     /** @name Statistics
      * @{  */
@@ -233,20 +167,7 @@ typedef struct IEMCPU
     uint32_t                cInstructions;
     /** The number of potential exits. */
     uint32_t                cPotentialExits;
-    /** The number of bytes data or stack written (mostly for IEMExecOneEx).
-     * This may contain uncommitted writes.  */
-    uint32_t                cbWritten;
-    /** Counts the VERR_IEM_INSTR_NOT_IMPLEMENTED returns. */
-    uint32_t                cRetInstrNotImplemented;
-    /** Counts the VERR_IEM_ASPECT_NOT_IMPLEMENTED returns. */
-    uint32_t                cRetAspectNotImplemented;
-    /** Counts informational statuses returned (other than VINF_SUCCESS). */
-    uint32_t                cRetInfStatuses;
-    /** Counts other error statuses returned. */
-    uint32_t                cRetErrStatuses;
-    /** Number of times rcPassUp has been used. */
-    uint32_t                cRetPassUpStatus;
-#ifdef IEM_VERIFICATION_MODE_FULL
+#ifdef IEM_VERIFICATION_MODE
     /** The Number of I/O port reads that has been performed. */
     uint32_t                cIOReads;
     /** The Number of I/O port writes that has been performed. */
@@ -257,22 +178,10 @@ typedef struct IEMCPU
     /** Indicates that RAX and RDX differences should be ignored since RDTSC
      *  and RDTSCP are timing sensitive.  */
     bool                    fIgnoreRaxRdx;
-    /** Indicates that a MOVS instruction with overlapping source and destination
-     *  was executed, causing the memory write records to be incorrrect. */
-    bool                    fOverlappingMovs;
-    /** Set if there are problematic memory accesses (MMIO, write monitored, ++). */
-    bool                    fProblematicMemory;
-    /** This is used to communicate a CPL changed caused by IEMInjectTrap that
-     * CPUM doesn't yet reflect. */
-    uint8_t                 uInjectCpl;
-    bool                    afAlignment2[3];
+    bool                    afAlignment2[2];
     /** Mask of undefined eflags.
      * The verifier will any difference in these flags. */
     uint32_t                fUndefinedEFlags;
-    /** The CS of the instruction being interpreted. */
-    RTSEL                   uOldCs;
-    /** The RIP of the instruction being interpreted. */
-    uint64_t                uOldRip;
     /** The physical address corresponding to abOpcodes[0]. */
     RTGCPHYS                GCPhysOpcodes;
 #endif
@@ -308,15 +217,11 @@ typedef struct IEMCPU
     uint8_t                 cbOpcode;
     /** The opcode bytes. */
     uint8_t                 abOpcode[15];
-    /** Offset into abOpcodes where the FPU instruction starts.
-     * Only set by the FPU escape opcodes (0xd8-0xdf) and used later on when the
-     * instruction result is committed. */
-    uint8_t                 offFpuOpcode;
 
     /** @}*/
 
     /** Alignment padding for aMemMappings. */
-    uint8_t                 abAlignment2[4];
+    uint8_t                 abAlignment2[5];
 
     /** The number of active guest memory mappings. */
     uint8_t                 cActiveMappings;
@@ -337,13 +242,6 @@ typedef struct IEMCPU
         uint32_t            u32Alignment4; /**< Alignment padding. */
 #endif
     } aMemMappings[3];
-
-    /** Locking records for the mapped memory. */
-    union
-    {
-        PGMPAGEMAPLOCK      Lock;
-        uint64_t            au64Padding[2];
-    } aMemMappingLocks[3];
 
     /** Bounce buffer info.
      * This runs in parallel to aMemMappings. */
@@ -367,32 +265,10 @@ typedef struct IEMCPU
      * This runs in parallel to aMemMappings and aMemBbMappings. */
     struct
     {
-        uint8_t             ab[512];
+        uint8_t             ab[64];
     } aBounceBuffers[3];
 
-    /** @name Target CPU information.
-     * @{ */
-    /** EDX value of CPUID(1).
-     * @remarks Some bits are subject to change and must be queried dynamically. */
-    uint32_t                fCpuIdStdFeaturesEdx;
-    /** ECX value of CPUID(1).
-     * @remarks Some bits are subject to change and must be queried dynamically. */
-    uint32_t                fCpuIdStdFeaturesEcx;
-    /** The CPU vendor. */
-    CPUMCPUVENDOR           enmCpuVendor;
-    /** @} */
-
-    /** @name Host CPU information.
-     * @{ */
-    /** EDX value of CPUID(1). */
-    uint32_t                fHostCpuIdStdFeaturesEdx;
-    /** ECX value of CPUID(1). */
-    uint32_t                fHostCpuIdStdFeaturesEcx;
-    /** The CPU vendor. */
-    CPUMCPUVENDOR           enmHostCpuVendor;
-    /** @} */
-
-#ifdef IEM_VERIFICATION_MODE_FULL
+#ifdef IEM_VERIFICATION_MODE
     /** The event verification records for what IEM did (LIFO). */
     R3PTRTYPE(PIEMVERIFYEVTREC)     pIemEvtRecHead;
     /** Insertion point for pIemEvtRecHead. */
@@ -407,8 +283,6 @@ typedef struct IEMCPU
 } IEMCPU;
 /** Pointer to the per-CPU IEM state. */
 typedef IEMCPU *PIEMCPU;
-/** Pointer to the const per-CPU IEM state. */
-typedef IEMCPU const *PCIEMCPU;
 
 /** Converts a IEMCPU pointer to a VMCPU pointer.
  * @returns VMCPU pointer.
@@ -434,11 +308,8 @@ typedef IEMCPU const *PCIEMCPU;
 #define IEM_ACCESS_WHAT_STACK           UINT32_C(0x00000030)
 #define IEM_ACCESS_WHAT_SYS             UINT32_C(0x00000040)
 #define IEM_ACCESS_WHAT_MASK            UINT32_C(0x00000070)
-/** The writes are partial, so if initialize the bounce buffer with the
- * orignal RAM content. */
-#define IEM_ACCESS_PARTIAL_WRITE        UINT32_C(0x00000100)
 /** Used in aMemMappings to indicate that the entry is bounce buffered. */
-#define IEM_ACCESS_BOUNCE_BUFFERED      UINT32_C(0x00000200)
+#define IEM_ACCESS_BOUNCE_BUFFERED      UINT32_C(0x00000100)
 /** Read+write data alias. */
 #define IEM_ACCESS_DATA_RW              (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_TYPE_WRITE | IEM_ACCESS_WHAT_DATA)
 /** Write data alias. */
@@ -453,72 +324,30 @@ typedef IEMCPU const *PCIEMCPU;
 #define IEM_ACCESS_STACK_R              (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_WHAT_STACK)
 /** Stack read+write alias. */
 #define IEM_ACCESS_STACK_RW             (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_TYPE_WRITE | IEM_ACCESS_WHAT_STACK)
-/** Read system table alias. */
-#define IEM_ACCESS_SYS_R                (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_WHAT_SYS)
-/** Read+write system table alias. */
-#define IEM_ACCESS_SYS_RW               (IEM_ACCESS_TYPE_READ  | IEM_ACCESS_TYPE_WRITE | IEM_ACCESS_WHAT_SYS)
 /** @} */
 
 /** @name Prefix constants (IEMCPU::fPrefixes)
  * @{ */
-#define IEM_OP_PRF_SEG_CS               RT_BIT_32(0)  /**< CS segment prefix (0x2e). */
-#define IEM_OP_PRF_SEG_SS               RT_BIT_32(1)  /**< SS segment prefix (0x36). */
-#define IEM_OP_PRF_SEG_DS               RT_BIT_32(2)  /**< DS segment prefix (0x3e). */
-#define IEM_OP_PRF_SEG_ES               RT_BIT_32(3)  /**< ES segment prefix (0x26). */
-#define IEM_OP_PRF_SEG_FS               RT_BIT_32(4)  /**< FS segment prefix (0x64). */
-#define IEM_OP_PRF_SEG_GS               RT_BIT_32(5)  /**< GS segment prefix (0x65). */
+#define IEM_OP_PRF_SEG_CS               RT_BIT_32(0)
+#define IEM_OP_PRF_SEG_SS               RT_BIT_32(1)
+#define IEM_OP_PRF_SEG_DS               RT_BIT_32(2)
+#define IEM_OP_PRF_SEG_ES               RT_BIT_32(3)
+#define IEM_OP_PRF_SEG_FS               RT_BIT_32(4)
+#define IEM_OP_PRF_SEG_GS               RT_BIT_32(5)
 #define IEM_OP_PRF_SEG_MASK             UINT32_C(0x3f)
 
-#define IEM_OP_PRF_SIZE_OP              RT_BIT_32(8)  /**< Operand size prefix (0x66). */
-#define IEM_OP_PRF_SIZE_REX_W           RT_BIT_32(9)  /**< REX.W prefix (0x48-0x4f). */
-#define IEM_OP_PRF_SIZE_ADDR            RT_BIT_32(10) /**< Address size prefix (0x67). */
+#define IEM_OP_PRF_SIZE_OP              RT_BIT_32(8)
+#define IEM_OP_PRF_SIZE_REX_W           RT_BIT_32(9)
+#define IEM_OP_PRF_SIZE_ADDR            RT_BIT_32(10)
 
-#define IEM_OP_PRF_LOCK                 RT_BIT_32(16) /**< Lock prefix (0xf0). */
-#define IEM_OP_PRF_REPNZ                RT_BIT_32(17) /**< Repeat-not-zero prefix (0xf2). */
-#define IEM_OP_PRF_REPZ                 RT_BIT_32(18) /**< Repeat-if-zero prefix (0xf3). */
+#define IEM_OP_PRF_LOCK                 RT_BIT_32(16)
+#define IEM_OP_PRF_REPNZ                RT_BIT_32(17)
+#define IEM_OP_PRF_REPZ                 RT_BIT_32(18)
 
-#define IEM_OP_PRF_REX                  RT_BIT_32(24) /**< Any REX prefix (0x40-0x4f). */
-#define IEM_OP_PRF_REX_R                RT_BIT_32(25) /**< REX.R prefix (0x44,0x45,0x46,0x47,0x4c,0x4d,0x4e,0x4f). */
-#define IEM_OP_PRF_REX_B                RT_BIT_32(26) /**< REX.B prefix (0x41,0x43,0x45,0x47,0x49,0x4b,0x4d,0x4f). */
-#define IEM_OP_PRF_REX_X                RT_BIT_32(27) /**< REX.X prefix (0x42,0x43,0x46,0x47,0x4a,0x4b,0x4e,0x4f). */
-/** Mask with all the REX prefix flags.
- * This is generally for use when needing to undo the REX prefixes when they
- * are followed legacy prefixes and therefore does not immediately preceed
- * the first opcode byte.
- * For testing whether any REX prefix is present, use  IEM_OP_PRF_REX instead. */
-#define IEM_OP_PRF_REX_MASK  (IEM_OP_PRF_REX | IEM_OP_PRF_REX_R | IEM_OP_PRF_REX_B | IEM_OP_PRF_REX_X | IEM_OP_PRF_SIZE_REX_W )
-/** @} */
-
-/** @name Opcode forms
- * @{ */
-/** ModR/M: reg, r/m */
-#define IEMOPFORM_RM            0
-/** ModR/M: reg, r/m (register) */
-#define IEMOPFORM_RM_REG        (IEMOPFORM_RM | IEMOPFORM_MOD3)
-/** ModR/M: reg, r/m (memory)   */
-#define IEMOPFORM_RM_MEM        (IEMOPFORM_RM | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m, reg */
-#define IEMOPFORM_MR            1
-/** ModR/M: r/m (register), reg */
-#define IEMOPFORM_MR_REG        (IEMOPFORM_MR | IEMOPFORM_MOD3)
-/** ModR/M: r/m (memory), reg */
-#define IEMOPFORM_MR_MEM        (IEMOPFORM_MR | IEMOPFORM_NOT_MOD3)
-/** ModR/M: r/m only */
-#define IEMOPFORM_M             2
-/** ModR/M: r/m only (register). */
-#define IEMOPFORM_M_REG         (IEMOPFORM_M | IEMOPFORM_MOD3)
-/** ModR/M: r/m only (memory). */
-#define IEMOPFORM_M_MEM         (IEMOPFORM_M | IEMOPFORM_NOT_MOD3)
-/** ModR/M: reg only */
-#define IEMOPFORM_R             3
-
-/** Fixed register instruction, no R/M. */
-#define IEMOPFORM_FIXED         4
-
-/** The r/m is a register. */
-#define IEMOPFORM_MOD3          RT_BIT_32(8)
-/** The r/m is a memory access. */
-#define IEMOPFORM_NOT_MOD3      RT_BIT_32(9)
+#define IEM_OP_PRF_REX                  RT_BIT_32(24)
+#define IEM_OP_PRF_REX_R                RT_BIT_32(25)
+#define IEM_OP_PRF_REX_B                RT_BIT_32(26)
+#define IEM_OP_PRF_REX_X                RT_BIT_32(27)
 /** @} */
 
 /**
@@ -527,47 +356,10 @@ typedef IEMCPU const *PCIEMCPU;
  * This expands to @c false when IEM_VERIFICATION_MODE is not defined and
  * should therefore cause the compiler to eliminate the verification branch
  * of an if statement.  */
-#ifdef IEM_VERIFICATION_MODE_FULL
+#ifdef IEM_VERIFICATION_MODE
 # define IEM_VERIFICATION_ENABLED(a_pIemCpu)    (!(a_pIemCpu)->fNoRem)
-#elif defined(IEM_VERIFICATION_MODE_MINIMAL)
-# define IEM_VERIFICATION_ENABLED(a_pIemCpu)    (true)
 #else
 # define IEM_VERIFICATION_ENABLED(a_pIemCpu)    (false)
-#endif
-
-/**
- * Tests if full verification mode is enabled.
- *
- * This expands to @c false when IEM_VERIFICATION_MODE_FULL is not defined and
- * should therefore cause the compiler to eliminate the verification branch
- * of an if statement.  */
-#ifdef IEM_VERIFICATION_MODE_FULL
-# define IEM_FULL_VERIFICATION_ENABLED(a_pIemCpu) (!(a_pIemCpu)->fNoRem)
-#else
-# define IEM_FULL_VERIFICATION_ENABLED(a_pIemCpu) (false)
-#endif
-
-/**
- * Tests if full verification mode is enabled again REM.
- *
- * This expands to @c false when IEM_VERIFICATION_MODE_FULL is not defined and
- * should therefore cause the compiler to eliminate the verification branch
- * of an if statement.  */
-#ifdef IEM_VERIFICATION_MODE_FULL
-# ifdef IEM_VERIFICATION_MODE_FULL_HM
-#  define IEM_FULL_VERIFICATION_REM_ENABLED(a_pIemCpu) (!(a_pIemCpu)->fNoRem && !HMIsEnabled(IEMCPU_TO_VM(a_pIemCpu)))
-# else
-#  define IEM_FULL_VERIFICATION_REM_ENABLED(a_pIemCpu) (!(a_pIemCpu)->fNoRem)
-# endif
-#else
-# define IEM_FULL_VERIFICATION_REM_ENABLED(a_pIemCpu) (false)
-#endif
-
-/** @def IEM_VERIFICATION_MODE
- * Indicates that one of the verfication modes are enabled.
- */
-#if (defined(IEM_VERIFICATION_MODE_FULL) || defined(IEM_VERIFICATION_MODE_MINIMAL)) && !defined(IEM_VERIFICATION_MODE)
-# define IEM_VERIFICATION_MODE
 #endif
 
 /**
@@ -577,7 +369,7 @@ typedef IEMCPU const *PCIEMCPU;
  *
  * This is a NOOP if the verifier isn't compiled in.
  */
-#ifdef IEM_VERIFICATION_MODE_FULL
+#ifdef IEM_VERIFICATION_MODE
 # define IEMOP_VERIFICATION_UNDEFINED_EFLAGS(a_fEfl) do { pIemCpu->fUndefinedEFlags |= (a_fEfl); } while (0)
 #else
 # define IEMOP_VERIFICATION_UNDEFINED_EFLAGS(a_fEfl) do { } while (0)
@@ -723,41 +515,6 @@ IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u16_locked,(uint16_t *pu16Dst, uint16_t *p
 IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u32_locked,(uint32_t *pu32Dst, uint32_t *pu32Reg, uint32_t *pEFlags));
 IEM_DECL_IMPL_DEF(void, iemAImpl_xadd_u64_locked,(uint64_t *pu64Dst, uint64_t *pu64Reg, uint32_t *pEFlags));
 /** @}  */
-
-/** @name Compare and exchange.
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u8,        (uint8_t  *pu8Dst,  uint8_t  *puAl,  uint8_t  uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u8_locked, (uint8_t  *pu8Dst,  uint8_t  *puAl,  uint8_t  uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u16,       (uint16_t *pu16Dst, uint16_t *puAx,  uint16_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u16_locked,(uint16_t *pu16Dst, uint16_t *puAx,  uint16_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u32,       (uint32_t *pu32Dst, uint32_t *puEax, uint32_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u32_locked,(uint32_t *pu32Dst, uint32_t *puEax, uint32_t uSrcReg, uint32_t *pEFlags));
-#ifdef RT_ARCH_X86
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64,       (uint64_t *pu64Dst, uint64_t *puRax, uint64_t *puSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64_locked,(uint64_t *pu64Dst, uint64_t *puRax, uint64_t *puSrcReg, uint32_t *pEFlags));
-#else
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64,       (uint64_t *pu64Dst, uint64_t *puRax, uint64_t uSrcReg, uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg_u64_locked,(uint64_t *pu64Dst, uint64_t *puRax, uint64_t uSrcReg, uint32_t *pEFlags));
-#endif
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg8b,(uint64_t *pu64Dst, PRTUINT64U pu64EaxEdx, PRTUINT64U pu64EbxEcx,
-                                            uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg8b_locked,(uint64_t *pu64Dst, PRTUINT64U pu64EaxEdx, PRTUINT64U pu64EbxEcx,
-                                                   uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg16b,(PRTUINT128U *pu128Dst, PRTUINT128U pu64RaxRdx, PRTUINT128U pu64RbxRcx,
-                                             uint32_t *pEFlags));
-IEM_DECL_IMPL_DEF(void, iemAImpl_cmpxchg16b_locked,(PRTUINT128U *pu128Dst, PRTUINT128U pu64RaxRdx, PRTUINT128U pu64RbxRcx,
-                                                    uint32_t *pEFlags));
-/** @} */
-
-/** @name Memory ordering
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEMFENCE,(void));
-typedef FNIEMAIMPLMEMFENCE *PFNIEMAIMPLMEMFENCE;
-IEM_DECL_IMPL_DEF(void, iemAImpl_mfence,(void));
-IEM_DECL_IMPL_DEF(void, iemAImpl_sfence,(void));
-IEM_DECL_IMPL_DEF(void, iemAImpl_lfence,(void));
-IEM_DECL_IMPL_DEF(void, iemAImpl_alt_mem_fence,(void));
-/** @} */
 
 /** @name Double precision shifts
  * @{ */
@@ -909,255 +666,6 @@ FNIEMAIMPLMULDIVU64 iemAImpl_mul_u64, iemAImpl_imul_u64;
 FNIEMAIMPLMULDIVU64 iemAImpl_div_u64, iemAImpl_idiv_u64;
 /** @} */
 
-/** @name Byte Swap.
- * @{  */
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u16,(uint32_t *pu32Dst)); /* Yes, 32-bit register access. */
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u32,(uint32_t *pu32Dst));
-IEM_DECL_IMPL_TYPE(void, iemAImpl_bswap_u64,(uint64_t *pu64Dst));
-/** @}  */
-
-/** @name Misc.
- * @{ */
-FNIEMAIMPLBINU16 iemAImpl_arpl;
-/** @} */
-
-
-/** @name FPU operations taking a 32-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR32FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, PCRTFLOAT32U pr32Val2));
-typedef FNIEMAIMPLFPUR32FSW *PFNIEMAIMPLFPUR32FSW;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT32U pr32Val2));
-typedef FNIEMAIMPLFPUR32    *PFNIEMAIMPLFPUR32;
-
-FNIEMAIMPLFPUR32FSW iemAImpl_fcom_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fadd_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fmul_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fsub_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fsubr_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fdiv_r80_by_r32;
-FNIEMAIMPLFPUR32    iemAImpl_fdivr_r80_by_r32;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r32_to_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT32U pr32Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r32,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT32U pr32Val, PCRTFLOAT80U pr80Val));
-/** @} */
-
-/** @name FPU operations taking a 64-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR64,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT64U pr64Val2));
-typedef FNIEMAIMPLFPUR64   *PFNIEMAIMPLFPUR64;
-
-FNIEMAIMPLFPUR64  iemAImpl_fadd_r80_by_r64;
-FNIEMAIMPLFPUR64  iemAImpl_fmul_r80_by_r64;
-FNIEMAIMPLFPUR64  iemAImpl_fsub_r80_by_r64;
-FNIEMAIMPLFPUR64  iemAImpl_fsubr_r80_by_r64;
-FNIEMAIMPLFPUR64  iemAImpl_fdiv_r80_by_r64;
-FNIEMAIMPLFPUR64  iemAImpl_fdivr_r80_by_r64;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fcom_r80_by_r64,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                  PCRTFLOAT80U pr80Val1, PCRTFLOAT64U pr64Val2));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r64_to_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT64U pr64Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r64,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT64U pr32Val, PCRTFLOAT80U pr80Val));
-/** @} */
-
-/** @name FPU operations taking a 80-bit float argument
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80    *PFNIEMAIMPLFPUR80;
-FNIEMAIMPLFPUR80            iemAImpl_fadd_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fmul_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fsub_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fsubr_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fdiv_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fdivr_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fprem_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fprem1_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fscale_r80_by_r80;
-
-FNIEMAIMPLFPUR80            iemAImpl_fpatan_r80_by_r80;
-FNIEMAIMPLFPUR80            iemAImpl_fyl2xp1_r80_by_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80FSW,(PCX86FXSTATE pFpuState, uint16_t *pFSW,
-                                                      PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80FSW *PFNIEMAIMPLFPUR80FSW;
-FNIEMAIMPLFPUR80FSW         iemAImpl_fcom_r80_by_r80;
-FNIEMAIMPLFPUR80FSW         iemAImpl_fucom_r80_by_r80;
-
-typedef IEM_DECL_IMPL_TYPE(uint32_t, FNIEMAIMPLFPUR80EFL,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw,
-                                                          PCRTFLOAT80U pr80Val1, PCRTFLOAT80U pr80Val2));
-typedef FNIEMAIMPLFPUR80EFL *PFNIEMAIMPLFPUR80EFL;
-FNIEMAIMPLFPUR80EFL         iemAImpl_fcomi_r80_by_r80;
-FNIEMAIMPLFPUR80EFL         iemAImpl_fucomi_r80_by_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARY,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARY *PFNIEMAIMPLFPUR80UNARY;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fabs_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fchs_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_f2xm1_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fyl2x_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fsqrt_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_frndint_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fsin_r80;
-FNIEMAIMPLFPUR80UNARY       iemAImpl_fcos_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARYFSW,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw, PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARYFSW *PFNIEMAIMPLFPUR80UNARYFSW;
-FNIEMAIMPLFPUR80UNARYFSW    iemAImpl_ftst_r80;
-FNIEMAIMPLFPUR80UNARYFSW    iemAImpl_fxam_r80;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80LDCONST,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes));
-typedef FNIEMAIMPLFPUR80LDCONST *PFNIEMAIMPLFPUR80LDCONST;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fld1;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldl2t;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldl2e;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldpi;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldlg2;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldln2;
-FNIEMAIMPLFPUR80LDCONST     iemAImpl_fldz;
-
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUR80UNARYTWO,(PCX86FXSTATE pFpuState, PIEMFPURESULTTWO pFpuResTwo,
-                                                           PCRTFLOAT80U pr80Val));
-typedef FNIEMAIMPLFPUR80UNARYTWO *PFNIEMAIMPLFPUR80UNARYTWO;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fptan_r80_r80;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fxtract_r80_r80;
-FNIEMAIMPLFPUR80UNARYTWO    iemAImpl_fsincos_r80_r80;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fld_r80_from_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, PCRTFLOAT80U pr80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fst_r80_to_r80,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                 PRTFLOAT80U pr80Dst, PCRTFLOAT80U pr80Src));
-
-/** @} */
-
-/** @name FPU operations taking a 16-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI16,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, int16_t const *pi16Val2));
-typedef FNIEMAIMPLFPUI16    *PFNIEMAIMPLFPUI16;
-
-FNIEMAIMPLFPUI16    iemAImpl_fiadd_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fimul_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fisub_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fisubr_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fidiv_r80_by_i16;
-FNIEMAIMPLFPUI16    iemAImpl_fidivr_r80_by_i16;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_ficom_r80_by_i16,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw,
-                                                   PCRTFLOAT80U pr80Val1, int16_t const *pi16Val2));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_i16_to_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int16_t const *pi16Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fist_r80_to_i16,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                  int16_t *pi16Val, PCRTFLOAT80U pr80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fistt_r80_to_i16,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                   int16_t *pi16Val, PCRTFLOAT80U pr80Val));
-/** @}  */
-
-/** @name FPU operations taking a 32-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI32,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, int32_t const *pi32Val2));
-typedef FNIEMAIMPLFPUI32    *PFNIEMAIMPLFPUI32;
-
-FNIEMAIMPLFPUI32    iemAImpl_fiadd_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fimul_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fisub_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fisubr_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fidiv_r80_by_i32;
-FNIEMAIMPLFPUI32    iemAImpl_fidivr_r80_by_i32;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_ficom_r80_by_i32,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw,
-                                                   PCRTFLOAT80U pr80Val1, int32_t const *pi32Val2));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_i32_to_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int32_t const *pi32Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fist_r80_to_i32,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                  int32_t *pi32Val, PCRTFLOAT80U pr80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fistt_r80_to_i32,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                   int32_t *pi32Val, PCRTFLOAT80U pr80Val));
-/** @}  */
-
-/** @name FPU operations taking a 64-bit signed integer argument
- * @{  */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLFPUI64,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes,
-                                                   PCRTFLOAT80U pr80Val1, int64_t const *pi64Val2));
-typedef FNIEMAIMPLFPUI64    *PFNIEMAIMPLFPUI64;
-
-FNIEMAIMPLFPUI64    iemAImpl_fiadd_r80_by_i64;
-FNIEMAIMPLFPUI64    iemAImpl_fimul_r80_by_i64;
-FNIEMAIMPLFPUI64    iemAImpl_fisub_r80_by_i64;
-FNIEMAIMPLFPUI64    iemAImpl_fisubr_r80_by_i64;
-FNIEMAIMPLFPUI64    iemAImpl_fidiv_r80_by_i64;
-FNIEMAIMPLFPUI64    iemAImpl_fidivr_r80_by_i64;
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_ficom_r80_by_i64,(PCX86FXSTATE pFpuState, uint16_t *pu16Fsw,
-                                                   PCRTFLOAT80U pr80Val1, int64_t const *pi64Val2));
-
-IEM_DECL_IMPL_DEF(void, iemAImpl_fild_i64_to_r80,(PCX86FXSTATE pFpuState, PIEMFPURESULT pFpuRes, int64_t const *pi64Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fist_r80_to_i64,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                  int64_t *pi64Val, PCRTFLOAT80U pr80Val));
-IEM_DECL_IMPL_DEF(void, iemAImpl_fistt_r80_to_i64,(PCX86FXSTATE pFpuState, uint16_t *pu16FSW,
-                                                   int64_t *pi32Val, PCRTFLOAT80U pr80Val));
-/** @} */
-
-
-/** Temporary type representing a 256-bit vector register. */
-typedef struct {uint64_t au64[4]; } IEMVMM256;
-/** Temporary type pointing to a 256-bit vector register. */
-typedef IEMVMM256 *PIEMVMM256;
-/** Temporary type pointing to a const 256-bit vector register. */
-typedef IEMVMM256 *PCIEMVMM256;
-
-
-/** @name Media (SSE/MMX/AVX) operations: full1 + full2 -> full1.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF2U64,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint64_t const *pu64Src));
-typedef FNIEMAIMPLMEDIAF2U64   *PFNIEMAIMPLMEDIAF2U64;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF2U128,(PCX86FXSTATE pFpuState, uint128_t *pu128Dst, uint128_t const *pu128Src));
-typedef FNIEMAIMPLMEDIAF2U128  *PFNIEMAIMPLMEDIAF2U128;
-FNIEMAIMPLMEDIAF2U64  iemAImpl_pxor_u64,  iemAImpl_pcmpeqb_u64,  iemAImpl_pcmpeqw_u64,  iemAImpl_pcmpeqd_u64;
-FNIEMAIMPLMEDIAF2U128 iemAImpl_pxor_u128, iemAImpl_pcmpeqb_u128, iemAImpl_pcmpeqw_u128, iemAImpl_pcmpeqd_u128;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operations: lowhalf1 + lowhalf1 -> full1.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF1L1U64,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint32_t const *pu32Src));
-typedef FNIEMAIMPLMEDIAF1L1U64   *PFNIEMAIMPLMEDIAF1L1U64;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF1L1U128,(PCX86FXSTATE pFpuState, uint128_t *pu128Dst, uint64_t const *pu64Src));
-typedef FNIEMAIMPLMEDIAF1L1U128  *PFNIEMAIMPLMEDIAF1L1U128;
-FNIEMAIMPLMEDIAF1L1U64  iemAImpl_punpcklbw_u64,  iemAImpl_punpcklwd_u64,  iemAImpl_punpckldq_u64;
-FNIEMAIMPLMEDIAF1L1U128 iemAImpl_punpcklbw_u128, iemAImpl_punpcklwd_u128, iemAImpl_punpckldq_u128, iemAImpl_punpcklqdq_u128;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operations: hihalf1 + hihalf2 -> full1.
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF1H1U64,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint64_t const *pu64Src));
-typedef FNIEMAIMPLMEDIAF2U64   *PFNIEMAIMPLMEDIAF1H1U64;
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAF1H1U128,(PCX86FXSTATE pFpuState, uint128_t *pu128Dst, uint128_t const *pu128Src));
-typedef FNIEMAIMPLMEDIAF2U128  *PFNIEMAIMPLMEDIAF1H1U128;
-FNIEMAIMPLMEDIAF1H1U64  iemAImpl_punpckhbw_u64,  iemAImpl_punpckhwd_u64,  iemAImpl_punpckhdq_u64;
-FNIEMAIMPLMEDIAF1H1U128 iemAImpl_punpckhbw_u128, iemAImpl_punpckhwd_u128, iemAImpl_punpckhdq_u128, iemAImpl_punpckhqdq_u128;
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operation: Packed Shuffle Stuff (evil)
- * @{ */
-typedef IEM_DECL_IMPL_TYPE(void, FNIEMAIMPLMEDIAPSHUF,(PCX86FXSTATE pFpuState, uint128_t *pu128Dst,
-                                                       uint128_t const *pu128Src, uint8_t bEvil));
-typedef FNIEMAIMPLMEDIAPSHUF *PFNIEMAIMPLMEDIAPSHUF;
-FNIEMAIMPLMEDIAPSHUF iemAImpl_pshufhw, iemAImpl_pshuflw, iemAImpl_pshufd;
-IEM_DECL_IMPL_DEF(void, iemAImpl_pshufw,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint64_t const *pu64Src, uint8_t bEvil));
-/** @} */
-
-/** @name Media (SSE/MMX/AVX) operation: Move Byte Mask
- * @{ */
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovmskb_u64,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint64_t const *pu64Src));
-IEM_DECL_IMPL_DEF(void, iemAImpl_pmovmskb_u128,(PCX86FXSTATE pFpuState, uint64_t *pu64Dst, uint128_t const *pu128Src));
-/** @} */
-
-
 
 /** @name Function tables.
  * @{
@@ -1234,43 +742,6 @@ typedef struct IEMOPSHIFTDBLSIZES
 } IEMOPSHIFTDBLSIZES;
 /** Pointer to a double precision shift function table. */
 typedef IEMOPSHIFTDBLSIZES const *PCIEMOPSHIFTDBLSIZES;
-
-
-/**
- * Function table for media instruction taking two full sized media registers,
- * optionally the 2nd being a memory reference (only modifying the first op.)
- */
-typedef struct IEMOPMEDIAF2
-{
-    PFNIEMAIMPLMEDIAF2U64  pfnU64;
-    PFNIEMAIMPLMEDIAF2U128 pfnU128;
-} IEMOPMEDIAF2;
-/** Pointer to a media operation function table for full sized ops. */
-typedef IEMOPMEDIAF2 const *PCIEMOPMEDIAF2;
-
-/**
- * Function table for media instruction taking taking one full and one lower
- * half media register.
- */
-typedef struct IEMOPMEDIAF1L1
-{
-    PFNIEMAIMPLMEDIAF1L1U64  pfnU64;
-    PFNIEMAIMPLMEDIAF1L1U128 pfnU128;
-} IEMOPMEDIAF1L1;
-/** Pointer to a media operation function table for lowhalf+lowhalf -> full. */
-typedef IEMOPMEDIAF1L1 const *PCIEMOPMEDIAF1L1;
-
-/**
- * Function table for media instruction taking taking one full and one high half
- * media register.
- */
-typedef struct IEMOPMEDIAF1H1
-{
-    PFNIEMAIMPLMEDIAF1H1U64  pfnU64;
-    PFNIEMAIMPLMEDIAF1H1U128 pfnU128;
-} IEMOPMEDIAF1H1;
-/** Pointer to a media operation function table for hihalf+hihalf -> full. */
-typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
 
 
 /** @} */
@@ -1448,9 +919,8 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
  * @param   a_Type3             The type of the 4th argument.
  * @param   a_Arg3              The name of the 4th argument.
  */
-# define IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, a_Arg3) \
-    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PIEMCPU pIemCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, \
-                                             a_Type2 a_Arg2, a_Type3 a_Arg3))
+# define IEM_CIMPL_DEF_4(a_Name, a_Type0, a_Arg0, a_Type1, a_Arg1, a_Type2, a_Arg2, a_Type3, aArg3) \
+    IEM_DECL_IMPL_DEF(VBOXSTRICTRC, a_Name, (PIEMCPU pIemCpu, uint8_t cbInstr, a_Type0 a_Arg0, a_Type1 a_Arg1, a_Type2 a_Arg2, a_Type3 a_Arg3))
 /**
  * For calling a C instruction implementation function taking four extra
  * arguments.

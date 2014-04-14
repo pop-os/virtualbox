@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@
  && !defined(RT_NO_EXPORT_SYMBOL)
 # define bool linux_bool /* see r0drv/linux/the-linux-kernel.h */
 # include <linux/version.h>
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,33)
 #  include <generated/autoconf.h>
 # else
 #  ifndef AUTOCONF_INCLUDED
@@ -190,15 +190,6 @@
 #else
 # define RT_ASSERT_PREEMPTIBLE()        do { } while (0)
 #endif
-
-
-RT_C_DECLS_BEGIN
-
-#ifdef RT_OS_OS2
-uint32_t rtR0SemWaitOs2ConvertTimeout(uint32_t fFlags, uint64_t uTimeout);
-#endif
-
-RT_C_DECLS_END
 
 #endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,14 +24,15 @@
 #include "DisplayImpl.h"
 #include "VMMDev.h"
 #include "AudioSnifferInterface.h"
-#include "Nvram.h"
-#include "UsbWebcamInterface.h"
+#ifdef VBOX_WITH_USB_VIDEO
+# include "UsbWebcamInterface.h"
+#endif
 #ifdef VBOX_WITH_USB_CARDREADER
 # include "UsbCardReader.h"
 #endif
 #include "ConsoleImpl.h"
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
-# include "PCIRawDevImpl.h"
+# include "PciRawDevImpl.h"
 #endif
 
 #include "Logging.h"
@@ -71,13 +72,11 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = pCallbacks->pfnRegister(pCallbacks, &Nvram::DrvReg);
+#ifdef VBOX_WITH_USB_VIDEO
+    rc = pCallbacks->pfnRegister(pCallbacks, &UsbWebcamInterface::DrvReg);
     if (RT_FAILURE(rc))
         return rc;
-
-    rc = pCallbacks->pfnRegister(pCallbacks, &EmWebcam::DrvReg);
-    if (RT_FAILURE(rc))
-        return rc;
+#endif
 
 #ifdef VBOX_WITH_USB_CARDREADER
     rc = pCallbacks->pfnRegister(pCallbacks, &UsbCardReader::DrvReg);
@@ -90,7 +89,7 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
         return rc;
 
 #ifdef VBOX_WITH_PCI_PASSTHROUGH
-    rc = pCallbacks->pfnRegister(pCallbacks, &PCIRawDev::DrvReg);
+    rc = pCallbacks->pfnRegister(pCallbacks, &PciRawDev::DrvReg);
     if (RT_FAILURE(rc))
         return rc;
 #endif

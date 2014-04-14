@@ -1,9 +1,6 @@
 /* $Id: RTSha1Digest.cpp $ */
 /** @file
  * IPRT - SHA1 digest creation
- *
- * @todo Replace this with generic RTCrDigest based implementation. Too much
- *       stupid code duplication.
  */
 
 /*
@@ -40,6 +37,8 @@
 #include <iprt/string.h>
 #include <iprt/file.h>
 
+#include <openssl/sha.h>
+
 
 RTR3DECL(int) RTSha1Digest(void* pvBuf, size_t cbBuf, char **ppszDigest, PFNRTPROGRESS pfnProgressCallback, void *pvUser)
 {
@@ -51,22 +50,28 @@ RTR3DECL(int) RTSha1Digest(void* pvBuf, size_t cbBuf, char **ppszDigest, PFNRTPR
     int rc = VINF_SUCCESS;
     *ppszDigest = NULL;
 
-    /* Initialize the hash context. */
-    RTSHA1CONTEXT Ctx;
-    RTSha1Init(&Ctx);
+    /* Initialize OpenSSL. */
+    SHA_CTX ctx;
+    if (!SHA1_Init(&ctx))
+        return VERR_INTERNAL_ERROR;
 
     /* Buffer size for progress callback */
-    double rdMulti = 100.0 / (cbBuf ? cbBuf : 1);
+    double rdMulti = 100.0 / cbBuf;
 
     /* Working buffer */
     char *pvTmp = (char*)pvBuf;
 
     /* Process the memory in blocks */
+    size_t cbRead;
     size_t cbReadTotal = 0;
     for (;;)
     {
-        size_t cbRead = RT_MIN(cbBuf - cbReadTotal, _1M);
-        RTSha1Update(&Ctx, pvTmp, cbRead);
+        cbRead = RT_MIN(cbBuf - cbReadTotal, _1M);
+        if(!SHA1_Update(&ctx, pvTmp, cbRead))
+        {
+            rc = VERR_INTERNAL_ERROR;
+            break;
+        }
         cbReadTotal += cbRead;
         pvTmp += cbRead;
 
@@ -84,14 +89,15 @@ RTR3DECL(int) RTSha1Digest(void* pvBuf, size_t cbBuf, char **ppszDigest, PFNRTPR
     if (RT_SUCCESS(rc))
     {
         /* Finally calculate & format the SHA1 sum */
-        uint8_t abHash[RTSHA1_HASH_SIZE];
-        RTSha1Final(&Ctx, abHash);
+        unsigned char auchDig[RTSHA1_HASH_SIZE];
+        if (!SHA1_Final(auchDig, &ctx))
+            return VERR_INTERNAL_ERROR;
 
         char *pszDigest;
         rc = RTStrAllocEx(&pszDigest, RTSHA1_DIGEST_LEN + 1);
         if (RT_SUCCESS(rc))
         {
-            rc = RTSha1ToString(abHash, pszDigest, RTSHA1_DIGEST_LEN + 1);
+            rc = RTSha1ToString(auchDig, pszDigest, RTSHA1_DIGEST_LEN + 1);
             if (RT_SUCCESS(rc))
                 *ppszDigest = pszDigest;
             else
@@ -111,6 +117,11 @@ RTR3DECL(int) RTSha1DigestFromFile(const char *pszFile, char **ppszDigest, PFNRT
 
     *ppszDigest = NULL;
 
+    /* Initialize OpenSSL. */
+    SHA_CTX ctx;
+    if (!SHA1_Init(&ctx))
+        return VERR_INTERNAL_ERROR;
+
     /* Open the file to calculate a SHA1 sum of */
     RTFILE hFile;
     int rc = RTFileOpen(&hFile, pszFile, RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE);
@@ -128,7 +139,7 @@ RTR3DECL(int) RTSha1DigestFromFile(const char *pszFile, char **ppszDigest, PFNRT
             RTFileClose(hFile);
             return rc;
         }
-        rdMulti = 100.0 / (cbFile ? cbFile : 1);
+        rdMulti = 100.0 / cbFile;
     }
 
     /* Allocate a reasonably large buffer, fall back on a tiny one. */
@@ -141,19 +152,19 @@ RTR3DECL(int) RTSha1DigestFromFile(const char *pszFile, char **ppszDigest, PFNRT
         pvBuf = alloca(cbBuf);
     }
 
-    /* Initialize the hash context. */
-    RTSHA1CONTEXT Ctx;
-    RTSha1Init(&Ctx);
-
     /* Read that file in blocks */
+    size_t cbRead;
     size_t cbReadTotal = 0;
     for (;;)
     {
-        size_t cbRead;
         rc = RTFileRead(hFile, pvBuf, cbBuf, &cbRead);
         if (RT_FAILURE(rc) || !cbRead)
             break;
-        RTSha1Update(&Ctx, pvBuf, cbRead);
+        if(!SHA1_Update(&ctx, pvBuf, cbRead))
+        {
+            rc = VERR_INTERNAL_ERROR;
+            break;
+        }
         cbReadTotal += cbRead;
 
         /* Call the progress callback if one is defined */
@@ -171,14 +182,15 @@ RTR3DECL(int) RTSha1DigestFromFile(const char *pszFile, char **ppszDigest, PFNRT
         return rc;
 
     /* Finally calculate & format the SHA1 sum */
-    uint8_t abHash[RTSHA1_HASH_SIZE];
-    RTSha1Final(&Ctx, abHash);
+    unsigned char auchDig[RTSHA1_HASH_SIZE];
+    if (!SHA1_Final(auchDig, &ctx))
+        return VERR_INTERNAL_ERROR;
 
     char *pszDigest;
     rc = RTStrAllocEx(&pszDigest, RTSHA1_DIGEST_LEN + 1);
     if (RT_SUCCESS(rc))
     {
-        rc = RTSha1ToString(abHash, pszDigest, RTSHA1_DIGEST_LEN + 1);
+        rc = RTSha1ToString(auchDig, pszDigest, RTSHA1_DIGEST_LEN + 1);
         if (RT_SUCCESS(rc))
             *ppszDigest = pszDigest;
         else

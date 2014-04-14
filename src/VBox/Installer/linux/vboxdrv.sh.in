@@ -3,7 +3,7 @@
 # Linux kernel module init script
 
 #
-# Copyright (C) 2006-2013 Oracle Corporation
+# Copyright (C) 2006-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -29,32 +29,36 @@
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:$PATH
 DEVICE=/dev/vboxdrv
 LOG="/var/log/vbox-install.log"
-VERSION=%VERSION%
+NOLSB=%NOLSB%
+DEBIAN=%DEBIAN%
 MODPROBE=/sbin/modprobe
 
 if $MODPROBE -c | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
 fi
 
-[ -f /etc/debian_release -a -f /lib/lsb/init-functions ] || NOLSB=yes
+[ -f /lib/lsb/init-functions ] || NOLSB=yes
 [ -f /etc/vbox/vbox.cfg ] && . /etc/vbox/vbox.cfg
-export BUILD_TYPE
-export USERNAME
-export USER=$USERNAME
 
 if [ -n "$INSTALL_DIR" ]; then
     VBOXMANAGE="$INSTALL_DIR/VBoxManage"
-    MODULE_SRC="$INSTALL_DIR/src/vboxhost"
+    DODKMS="$INSTALL_DIR/src/vboxhost/do_dkms"
+    BUILDVBOXDRV="$INSTALL_DIR/src/vboxhost/vboxdrv/build_in_tmp"
+    BUILDVBOXNETFLT="$INSTALL_DIR/src/vboxhost/vboxnetflt/build_in_tmp"
+    BUILDVBOXNETADP="$INSTALL_DIR/src/vboxhost/vboxnetadp/build_in_tmp"
+    BUILDVBOXPCI="$INSTALL_DIR/src/vboxhost/vboxpci/build_in_tmp"
 else
-    VBOXMANAGE="/usr/lib/virtualbox/VBoxManage"
-    MODULE_SRC="/usr/share/virtualbox/src/vboxhost"
+    VBOXMANAGE="/usr/lib/%PACKAGE%/VBoxManage"
+    DODKMS="/usr/share/%PACKAGE%/src/vboxhost/do_dkms"
+    BUILDVBOXDRV="/usr/share/%PACKAGE%/src/vboxhost/vboxdrv/build_in_tmp"
+    BUILDVBOXNETFLT="/usr/share/%PACKAGE%/src/vboxhost/vboxnetflt/build_in_tmp"
+    BUILDVBOXNETADP="/usr/share/%PACKAGE%/src/vboxhost/vboxnetadp/build_in_tmp"
+    BUILDVBOXPCI="/usr/share/%PACKAGE%/src/vboxhost/vboxpci/build_in_tmp"
 fi
-BUILDINTMP="$MODULE_SRC/build_in_tmp"
-DODKMS="$MODULE_SRC/do_dkms"
 
 # silently exit if the package was uninstalled but not purged,
-# applies to Debian packages only (but shouldn't hurt elsewhere)
-[ ! -f /etc/debian_release -o -x $VBOXMANAGE -a -x $BUILDINTMP ] || exit 0
+# applies to Debian packages only
+[ -z "$DEBIAN" -o -x $VBOXMANAGE -a -x $BUILDVBOXDRV ] || exit 0
 
 if [ -n "$NOLSB" ]; then
     if [ -f /etc/redhat-release ]; then
@@ -66,7 +70,7 @@ if [ -n "$NOLSB" ]; then
     fi
 fi
 
-[ -r /etc/default/virtualbox ] && . /etc/default/virtualbox
+[ -r /etc/default/%PACKAGE% ] && . /etc/default/%PACKAGE%
 
 if [ -z "$NOLSB" ]; then
     . /lib/lsb/init-functions
@@ -245,7 +249,7 @@ stop()
     succ_msg
 }
 
-# enter the following variables in /etc/default/virtualbox:
+# enter the following variables in /etc/default/%PACKAGE%:
 #   SHUTDOWN_USERS="foo bar"  
 #     check for running VMs of user foo and user bar
 #   SHUTDOWN=poweroff
@@ -296,12 +300,9 @@ stop_vms()
 setup()
 {
     stop
-    DKMS=`which dkms 2>/dev/null`
-    if [ -n "$DKMS" ]; then
-      begin_msg "Uninstalling old VirtualBox DKMS kernel modules"
-      $DODKMS uninstall vboxhost vboxdrv vboxnetflt vboxnetadp > $LOG
-      succ_msg
-    fi
+    begin_msg "Uninstalling old VirtualBox DKMS kernel modules"
+    $DODKMS uninstall > $LOG
+    succ_msg
     if find /lib/modules/`uname -r` -name "vboxpci\.*" 2>/dev/null|grep -q vboxpci; then
         begin_msg "Removing old VirtualBox pci kernel module"
         find /lib/modules/`uname -r` -name "vboxpci\.*" 2>/dev/null|xargs rm -f 2>/dev/null
@@ -322,36 +323,27 @@ setup()
         find /lib/modules/`uname -r` -name "vboxdrv\.*" 2>/dev/null|xargs rm -f 2>/dev/null
         succ_msg
     fi
-    if [ -n "$DKMS" ]; then
-      begin_msg "Trying to register the VirtualBox kernel modules using DKMS"
-      if ! $DODKMS install vboxhost $VERSION >> $LOG; then
-        fail_msg "Failed, trying without DKMS"
-        DKMS=""
-      fi
-    fi
-    if [ -z "$DKMS" ]; then
+    begin_msg "Trying to register the VirtualBox kernel modules using DKMS"
+    if ! $DODKMS install >> $LOG; then
+      fail_msg "Failed, trying without DKMS"
       begin_msg "Recompiling VirtualBox kernel modules"
-      if ! $BUILDINTMP \
+      if ! $BUILDVBOXDRV \
           --save-module-symvers /tmp/vboxdrv-Module.symvers \
-          --module-source "$MODULE_SRC/vboxdrv" \
           --no-print-directory install >> $LOG 2>&1; then
           failure "Look at $LOG to find out what went wrong"
       fi
-      if ! $BUILDINTMP \
+      if ! $BUILDVBOXNETFLT \
           --use-module-symvers /tmp/vboxdrv-Module.symvers \
-          --module-source "$MODULE_SRC/vboxnetflt" \
           --no-print-directory install >> $LOG 2>&1; then
           failure "Look at $LOG to find out what went wrong"
       fi
-      if ! $BUILDINTMP \
+      if ! $BUILDVBOXNETADP \
           --use-module-symvers /tmp/vboxdrv-Module.symvers \
-          --module-source "$MODULE_SRC/vboxnetadp" \
           --no-print-directory install >> $LOG 2>&1; then
           failure "Look at $LOG to find out what went wrong"
       fi
-      if ! $BUILDINTMP \
+      if ! $BUILDVBOXPCI \
           --use-module-symvers /tmp/vboxdrv-Module.symvers \
-          --module-source "$MODULE_SRC/vboxpci" \
           --no-print-directory install >> $LOG 2>&1; then
           failure "Look at $LOG to find out what went wrong"
       fi

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,13 +85,6 @@ typedef enum RTSYMLINKTYPE
     RTSYMLINKTYPE_32BIT_HACK = 0x7fffffff
 } RTSYMLINKTYPE;
 
-/** @name RTSymlinkCreate flags.
- * @{ */
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTSYMLINKCREATE_FLAGS_NO_SYMLINKS  RT_BIT(0)
-/** @} */
-
 /**
  * Creates a symbolic link (@a pszSymlink) targeting @a pszTarget.
  *
@@ -99,23 +92,14 @@ typedef enum RTSYMLINKTYPE
  *
  * @param   pszSymlink      The name of the symbolic link.
  * @param   pszTarget       The path to the symbolic link target.  This is
- *                          relative to @a pszSymlink or an absolute path.
+ *                          relative to @a pszSymlink.
  * @param   enmType         The symbolic link type.  For Windows compatability
  *                          it is very important to set this correctly.  When
  *                          RTSYMLINKTYPE_UNKNOWN is used, the API will try
  *                          make a guess and may attempt query information
  *                          about @a pszTarget in the process.
- * @param   fCreate         Create flags, RTSYMLINKCREATE_FLAGS_*.
  */
-RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget,
-                            RTSYMLINKTYPE enmType, uint32_t fCreate);
-
-/** @name RTSymlinkDelete flags.
- * @{ */
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTSYMLINKDELETE_FLAGS_NO_SYMLINKS  RT_BIT(0)
-/** @} */
+RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget, RTSYMLINKTYPE enmType);
 
 /**
  * Deletes the specified symbolic link.
@@ -127,16 +111,8 @@ RTDECL(int) RTSymlinkCreate(const char *pszSymlink, const char *pszTarget,
  * @retval  VERR_NOT_SYMLINK if @a pszSymlink does not specify a symbolic link.
  *
  * @param   pszSymlink      The symbolic link that should be removed.
- * @param   fDelete         Delete flags, RTSYMLINKDELETE_FLAGS_*.
  */
-RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete);
-
-/** @name RTSymlinkRead  flags.
- * @{ */
-/** Don't allow symbolic links as part of the path.
- * @remarks this flag is currently not implemented and will be ignored. */
-#define RTSYMLINKREAD_FLAGS_NO_SYMLINKS  RT_BIT(0)
-/** @} */
+RTDECL(int) RTSymlinkDelete(const char *pszSymlink);
 
 /**
  * Read the symlink target.
@@ -150,9 +126,8 @@ RTDECL(int) RTSymlinkDelete(const char *pszSymlink, uint32_t fDelete);
  * @param   pszSymlink      The symbolic link that should be read.
  * @param   pszTarget       The target buffer.
  * @param   cbTarget        The size of the target buffer.
- * @param   fRead           Read flags, RTSYMLINKREAD_FLAGS_*.
  */
-RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead);
+RTDECL(int) RTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget);
 
 /**
  * Read the symlink target into an API allocated buffer.

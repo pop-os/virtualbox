@@ -208,19 +208,16 @@ typedef struct VRDEIMAGEINTERFACE
 
 /*
  * Notifications.
- * u32Id parameter of VRDEIMAGECALLBACKS::VRDEImageCbNotify.
+ * u32Id paramater of VRDEIMAGECALLBACKS::VRDEImageCbNotify.
  */
-#define VRDE_IMAGE_NOTIFY_HANDLE_CREATE 1 /* Async result of VRDEImageHandleCreate.
-                                           * pvData: uint32_t = 0 if stream was not created,
-                                           * a non zero value otherwise.
-                                           */
+#define VRDE_IMAGE_NOTIFY_HANDLE_CREATE 1 /* Result of an image handle create request. */
 
 typedef struct VRDEIMAGECALLBACKS
 {
     /** The header. */
     VRDEINTERFACEHDR header;
 
-    /** Generic notification callback.
+    /** Generic notification callback. Reserved for future use.
      *
      * @param hServer   The server instance handle.
      * @param pvContext The callbacks context specified in VRDEGetInterface.

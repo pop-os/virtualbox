@@ -84,7 +84,10 @@ void PACKSPU_APIENTRY packspu_SwapBuffers( GLint window, GLint flags )
         case 1:
             /* Make sure writeback from previous frame has been received.
              */
-            CRPACKSPU_WRITEBACK_WAIT(thread, thread->writeback);
+            while (thread->writeback)
+            {
+                crNetRecv();
+            }
             break;
         }
     }

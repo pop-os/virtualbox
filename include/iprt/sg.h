@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -103,21 +103,6 @@ RTDECL(void) RTSgBufReset(PRTSGBUF pSgBuf);
 RTDECL(void) RTSgBufClone(PRTSGBUF pSgBufNew, PCRTSGBUF pSgBufOld);
 
 /**
- * Returns the next segment in the S/G buffer or NULL if no segment is left.
- *
- * @returns Pointer to the next segment in the S/G buffer.
- * @param   pSgBuf       The S/G buffer.
- * @param   pcbSeg       Where to store the size of the returned segment.
- *                       Holds the number of bytes requested initially or 0 to
- *                       indicate that the size doesn't matter.
- *                       This may contain fewer bytes on success if the current segment
- *                       is smaller than the amount of bytes requested.
- *
- * @note This operation advances the internal buffer pointer of both S/G buffers.
- */
-RTDECL(void *) RTSgBufGetNextSegment(PRTSGBUF pSgBuf, size_t *pcbSeg);
-
-/**
  * Copy data between two S/G buffers.
  *
  * @returns The number of bytes copied.
@@ -187,12 +172,12 @@ RTDECL(size_t) RTSgBufCopyToBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy);
  *
  * @returns Number of bytes copied.
  * @param   pSgBuf       The S/G buffer to copy to.
- * @param   pvBuf        Buffer to copy the data from.
+ * @param   pvBuf        Buffer to copy the data into.
  * @param   cbCopy       How many bytes to copy.
  *
  * @note This operation advances the internal buffer pointer of the S/G buffer.
  */
-RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, const void *pvBuf, size_t cbCopy);
+RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy);
 
 /**
  * Advances the internal buffer pointer.
@@ -219,17 +204,6 @@ RTDECL(size_t) RTSgBufAdvance(PRTSGBUF pSgBuf, size_t cbAdvance);
  * @note This operation advances the internal buffer pointer of the S/G buffer if paSeg is not NULL.
  */
 RTDECL(size_t) RTSgBufSegArrayCreate(PRTSGBUF pSgBuf, PRTSGSEG paSeg, unsigned *pcSeg, size_t cbData);
-
-/**
- * Returns whether the given S/G buffer is zeroed out from the current position
- * upto the number of bytes to check.
- *
- * @returns true if the buffer has only zeros
- *          false otherwise.
- * @param   pSgBuf      The S/G buffer.
- * @param   cbCheck     Number of bytes to check.
- */
-RTDECL(bool) RTSgBufIsZero(PRTSGBUF pSgBuf, size_t cbCheck);
 
 /**
  * Maps the given S/G buffer to a segment array of another type (for example to

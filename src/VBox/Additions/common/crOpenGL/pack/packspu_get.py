@@ -48,6 +48,7 @@ GLboolean crPackIsPixelStoreParm(GLenum pname)
 """
 
 from get_sizes import *
+from get_components import *
 
 easy_swaps = { 
     'GenTextures': '(unsigned int) n',
@@ -57,8 +58,6 @@ easy_swaps = {
     
 simple_funcs = [ 'GetIntegerv', 'GetFloatv', 'GetDoublev', 'GetBooleanv' ]
 simple_swaps = [ 'SWAP32', 'SWAPFLOAT', 'SWAPDOUBLE', '(GLboolean) SWAP32' ]
-
-vertattr_get_funcs = [ 'GetVertexAttribdv' 'GetVertexAttribfv' 'GetVertexAttribiv' ]
 
 hard_funcs = {
     'GetLightfv': 'SWAPFLOAT',
@@ -93,7 +92,7 @@ for func_name in keys:
             params.append( ("&return_val", "foo", 0) )
         if (func_name in easy_swaps.keys() and easy_swaps[func_name] != '0') or func_name in simple_funcs or func_name in hard_funcs.keys():
             print '\tunsigned int i;'
-        print '\tif (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))'
+        print '\tif (!(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))'
         print '\t{'
         print '\t\tcrError( "packspu_%s doesn\'t work when there\'s no actual network involved!\\nTry using the simplequery SPU in your chain!" );' % func_name
         print '\t}'
@@ -118,15 +117,6 @@ for func_name in keys:
 #ifdef CR_ARB_vertex_program
         || pname == GL_MAX_VERTEX_ATTRIBS_ARB
 #endif
-#ifdef GL_EXT_framebuffer_object
-        || pname == GL_FRAMEBUFFER_BINDING_EXT
-        || pname == GL_READ_FRAMEBUFFER_BINDING_EXT
-        || pname == GL_DRAW_FRAMEBUFFER_BINDING_EXT 
-#endif
-        || pname == GL_ARRAY_BUFFER_BINDING
-        || pname == GL_ELEMENT_ARRAY_BUFFER_BINDING
-        || pname == GL_PIXEL_PACK_BUFFER_BINDING
-        || pname == GL_PIXEL_UNPACK_BUFFER_BINDING
         )
         {
 #ifdef DEBUG
@@ -141,7 +131,8 @@ for func_name in keys:
                 crState%s(pname, localparams);
                 crPack%s(%s, &writeback);
                 packspuFlush( (void *) thread );
-                CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+                while (writeback)
+                    crNetRecv();
                 for (i=0; i<__numValues(pname); ++i)
                 {
                     if (localparams[i] != params[i])
@@ -162,34 +153,6 @@ for func_name in keys:
             
         }
             """ % (params[-1][1], params[-1][1], func_name, func_name, apiutil.MakeCallString(params), func_name, func_name)
-            
-        if func_name in vertattr_get_funcs:
-            print """
-    if (pname != GL_CURRENT_VERTEX_ATTRIB_ARB)
-    {
-#ifdef DEBUG
-        %s localparams;
-        localparams = (%s) crAlloc(__numValues(pname) * sizeof(*localparams));
-        crState%s(index, pname, localparams);
-        crPack%s(index, %s, &writeback);
-        packspuFlush( (void *) thread );
-        CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
-        for (i=0; i<crStateHlpComponentsCount(pname); ++i)
-        {
-            if (localparams[i] != params[i])
-            {
-                crWarning("Incorrect local state in %s for %%x param %%i", pname, i);
-                crWarning("Expected %%i but got %%i", (int)localparams[i], (int)params[i]);
-            }
-        }
-        crFree(localparams);
-#else
-        crState%s(pname, params);
-#endif
-        return;
-    } 
-            """ % (params[-1][1], params[-1][1], func_name, func_name, apiutil.MakeCallString(params), func_name, func_name)
-
         params.append( ("&writeback", "foo", 0) )
         print '\tif (pack_spu.swap)'
         print '\t{'
@@ -200,7 +163,8 @@ for func_name in keys:
         print '\t\tcrPack%s( %s );' % (func_name, apiutil.MakeCallString( params ) )
         print '\t}'
         print '\tpackspuFlush( (void *) thread );'
-        print '\tCRPACKSPU_WRITEBACK_WAIT(thread, writeback);'
+        print '\twhile (writeback)'
+        print '\t\tcrNetRecv();'
 
 
 
@@ -238,7 +202,7 @@ for func_name in keys:
         if func_name in hard_funcs.keys():
             print '\tif (pack_spu.swap)'
             print '\t{'
-            print '\t\tfor (i = 0 ; i < crStateHlpComponentsCount(pname) ; i++)'
+            print '\t\tfor (i = 0 ; i < lookupComponents(pname) ; i++)'
             print '\t\t{'
             if hard_funcs[func_name] == 'SWAPDOUBLE':
                 print '\t\t\t%s[i] = %s(%s[i]);' % (lastParamName, hard_funcs[func_name], lastParamName)

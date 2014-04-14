@@ -52,6 +52,9 @@ public:
     void setTickInterval(int val);
     int tickInterval() const;
 
+    void setTickPosition(QSlider::TickPosition fPos);
+    QSlider::TickPosition tickPosition() const;
+
     Qt::Orientation orientation() const;
 
     void setSnappingEnabled(bool fOn);

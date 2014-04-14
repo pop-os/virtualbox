@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -388,18 +388,16 @@ static char* caCFStringToCString(const CFStringRef pCFString)
     /* First try to get the pointer directly. */
     pszTmp = CFStringGetCStringPtr(pCFString, kCFStringEncodingUTF8);
     if (pszTmp)
-    {
         /* On success make a copy */
         pszResult = RTStrDup(pszTmp);
-    }
     else
     {
         /* If the pointer isn't available directly, we have to make a copy. */
         cLen = CFStringGetLength(pCFString) + 1;
-        pszResult = RTMemAllocZTag(cLen * sizeof(char), RTSTR_TAG);
+        pszResult = RTMemAlloc(cLen * sizeof(char));
         if (!CFStringGetCString(pCFString, pszResult, cLen, kCFStringEncodingUTF8))
         {
-            RTStrFree(pszResult);
+            RTMemFree(pszResult);
             pszResult = NULL;
         }
     }
@@ -663,8 +661,8 @@ static int caInitOutput(HWVoiceOut *hw)
     UInt32 uSize = 0; /* temporary size of properties */
     UInt32 uFlag = 0; /* for setting flags */
     CFStringRef name; /* for the temporary device name fetching */
-    char *pszName = NULL;
-    char *pszUID = NULL;
+    char *pszName;
+    char *pszUID;
     ComponentDescription cd; /* description for an audio component */
     Component cp; /* an audio component */
     AURenderCallbackStruct cb; /* holds the callback structure */
@@ -2139,9 +2137,9 @@ static void coreaudio_audio_fini(void *opaque)
 
 static struct audio_option coreaudio_options[] =
 {
-    {"OutputDeviceUID", AUD_OPT_STR, &conf.pszOutputDeviceUID,
+    {"OUTPUT_DEVICE_UID", AUD_OPT_STR, &conf.pszOutputDeviceUID,
      "UID of the output device to use", NULL, 0},
-    {"InputDeviceUID", AUD_OPT_STR, &conf.pszInputDeviceUID,
+    {"INPUT_DEVICE_UID", AUD_OPT_STR, &conf.pszInputDeviceUID,
      "UID of the input device to use", NULL, 0},
     {NULL, 0, NULL, NULL, NULL, 0}
 };

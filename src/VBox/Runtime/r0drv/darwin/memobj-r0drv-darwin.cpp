@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 
 #include <iprt/asm.h>
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-# include <iprt/x86.h>
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
@@ -221,7 +220,7 @@ static void rtR0MemObjDarwinReadPhys(RTHCPHYS HCPhys, size_t cb, void *pvDst)
 {
     memset(pvDst, '\0', cb);
 
-    IOAddressRange      aRanges[1]  = { { (mach_vm_address_t)HCPhys, RT_ALIGN_Z(cb, PAGE_SIZE) } };
+    IOAddressRange      aRanges[1]  = { { (mach_vm_address_t)HCPhys, RT_ALIGN(cb, PAGE_SIZE) } };
     IOMemoryDescriptor *pMemDesc    = IOMemoryDescriptor::withAddressRanges(&aRanges[0], RT_ELEMENTS(aRanges),
                                                                             kIODirectionIn, NULL /*task*/);
     if (pMemDesc)
@@ -260,14 +259,14 @@ static uint64_t rtR0MemObjDarwinGetPTE(void *pvPage)
     RTCCUINTREG cr4 = ASMGetCR4();
     bool        fPAE = false;
     bool        fLMA = false;
-    if (cr4 & X86_CR4_PAE)
+    if (cr4 & RT_BIT(5) /*X86_CR4_PAE*/)
     {
         fPAE = true;
-        uint32_t fExtFeatures = ASMCpuId_EDX(0x80000001);
-        if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
+        uint32_t fAmdFeatures = ASMCpuId_EDX(0x80000001);
+        if (fAmdFeatures & RT_BIT(29) /*X86_CPUID_AMD_FEATURE_EDX_LONG_MODE*/)
         {
-            uint64_t efer = ASMRdMsr(MSR_K6_EFER);
-            if (efer & MSR_K6_EFER_LMA)
+            uint64_t efer = ASMRdMsr(0xc0000080 /*MSR_K6_EFER*/);
+            if (efer & RT_BIT(10) /*MSR_K6_EFER_LMA*/)
                 fLMA = true;
         }
     }
@@ -275,36 +274,36 @@ static uint64_t rtR0MemObjDarwinGetPTE(void *pvPage)
     if (fLMA)
     {
         /* PML4 */
-        rtR0MemObjDarwinReadPhys((cr3 & ~(RTCCUINTREG)PAGE_OFFSET_MASK) | (((uint64_t)(uintptr_t)pvPage >> X86_PML4_SHIFT) & X86_PML4_MASK) * 8, 8, &u64);
-        if (!(u64.u & X86_PML4E_P))
+        rtR0MemObjDarwinReadPhys((cr3 & ~(RTCCUINTREG)PAGE_OFFSET_MASK) | (((uint64_t)(uintptr_t)pvPage >> 39) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
         {
             printf("rtR0MemObjDarwinGetPTE: %p -> PML4E !p\n", pvPage);
             return 0;
         }
 
         /* PDPTR */
-        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64) * 8, 8, &u64);
-        if (!(u64.u & X86_PDPE_P))
+        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 30) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
         {
             printf("rtR0MemObjDarwinGetPTE: %p -> PDPTE !p\n", pvPage);
             return 0;
         }
-        if (u64.u & X86_PDPE_LM_PS)
+        if (u64.u & RT_BIT(7) /* big */)
             return (u64.u & ~(uint64_t)(_1G -1)) | ((uintptr_t)pvPage & (_1G -1));
 
         /* PD */
-        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK) * 8, 8, &u64);
-        if (!(u64.u & X86_PDE_P))
+        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 21) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
         {
             printf("rtR0MemObjDarwinGetPTE: %p -> PDE !p\n", pvPage);
             return 0;
         }
-        if (u64.u & X86_PDE_PS)
+        if (u64.u & RT_BIT(7) /* big */)
             return (u64.u & ~(uint64_t)(_2M -1)) | ((uintptr_t)pvPage & (_2M -1));
 
-        /* PT */
-        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK) * 8, 8, &u64);
-        if (!(u64.u &  X86_PTE_P))
+        /* PD */
+        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 12) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
         {
             printf("rtR0MemObjDarwinGetPTE: %p -> PTE !p\n", pvPage);
             return 0;
@@ -315,34 +314,34 @@ static uint64_t rtR0MemObjDarwinGetPTE(void *pvPage)
     if (fPAE)
     {
         /* PDPTR */
-        rtR0MemObjDarwinReadPhys((u64.u & X86_CR3_PAE_PAGE_MASK) | (((uintptr_t)pvPage >> X86_PDPT_SHIFT) & X86_PDPT_MASK_PAE) * 8, 8, &u64);
-        if (!(u64.u & X86_PDE_P))
+        rtR0MemObjDarwinReadPhys((u64.u & 0xffffffe0 /*X86_CR3_PAE_PAGE_MASK*/) | (((uintptr_t)pvPage >> 30) & 0x3) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
             return 0;
 
         /* PD */
-        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK) * 8, 8, &u64);
-        if (!(u64.u & X86_PDE_P))
+        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 21) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
             return 0;
-        if (u64.u & X86_PDE_PS)
+        if (u64.u & RT_BIT(7) /* big */)
             return (u64.u & ~(uint64_t)(_2M -1)) | ((uintptr_t)pvPage & (_2M -1));
 
-        /* PT */
-        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK) * 8, 8, &u64);
-        if (!(u64.u & X86_PTE_P))
+        /* PD */
+        rtR0MemObjDarwinReadPhys((u64.u & ~(uint64_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 12) & 0x1ff) * 8, 8, &u64);
+        if (!(u64.u & RT_BIT(0) /* present */))
             return 0;
         return u64.u;
     }
 
     /* PD */
-    rtR0MemObjDarwinReadPhys((u64.au32[0] & ~(uint32_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PD_SHIFT) & X86_PD_MASK) * 4, 4, &u64);
-    if (!(u64.au32[0] & X86_PDE_P))
+    rtR0MemObjDarwinReadPhys((u64.au32[0] & ~(uint32_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 22) & 0x3ff) * 4, 4, &u64);
+    if (!(u64.au32[0] & RT_BIT(0) /* present */))
         return 0;
-    if (u64.au32[0] & X86_PDE_PS)
+    if (u64.au32[0] & RT_BIT(7) /* big */)
         return (u64.u & ~(uint64_t)(_2M -1)) | ((uintptr_t)pvPage & (_2M -1));
 
-    /* PT */
-    rtR0MemObjDarwinReadPhys((u64.au32[0] & ~(uint32_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> X86_PT_SHIFT) & X86_PT_MASK) * 4, 4, &u64);
-    if (!(u64.au32[0] & X86_PTE_P))
+    /* PD */
+    rtR0MemObjDarwinReadPhys((u64.au32[0] & ~(uint32_t)PAGE_OFFSET_MASK) | (((uintptr_t)pvPage >> 12) & 0x3ff) * 4, 4, &u64);
+    if (!(u64.au32[0] & RT_BIT(0) /* present */))
         return 0;
     return u64.au32[0];
 
@@ -360,7 +359,8 @@ DECLHIDDEN(int) rtR0MemObjNativeFree(RTR0MEMOBJ pMem)
      */
     if (pMemDarwin->pMemDesc)
     {
-        pMemDarwin->pMemDesc->complete();
+        if (pMemDarwin->Core.enmType == RTR0MEMOBJTYPE_LOCK)
+            pMemDarwin->pMemDesc->complete(); /* paranoia */
         pMemDarwin->pMemDesc->release();
         pMemDarwin->pMemDesc = NULL;
     }
@@ -451,37 +451,20 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
      * we'll use rtR0MemObjNativeAllocCont as a fallback for dealing with that.
      *
      * The kIOMemoryKernelUserShared flag just forces the result to be page aligned.
-     *
-     * The kIOMemoryMapperNone flag is required since 10.8.2 (IOMMU changes?).
      */
-    int rc;
-    size_t cbFudged = cb;
-    if (1) /** @todo Figure out why this is broken. Is it only on snow leopard? Seen allocating memory for the VM structure, last page corrupted or inaccessible. */
-         cbFudged += PAGE_SIZE;
-#if 1
-    IOOptionBits fOptions = kIOMemoryKernelUserShared | kIODirectionInOut;
-    if (fContiguous)
-        fOptions |= kIOMemoryPhysicallyContiguous;
-    if (version_major >= 12 /* 12 = 10.8.x = Mountain Kitten */)
-        fOptions |= kIOMemoryMapperNone;
-    IOBufferMemoryDescriptor *pMemDesc = IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task, fOptions,
-                                                                                          cbFudged, PhysMask);
-#else /* Requires 10.7 SDK, but allows alignment to be specified: */
-    uint64_t     uAlignment = PAGE_SIZE;
-    IOOptionBits fOptions   = kIODirectionInOut | kIOMemoryMapperNone;
-    if (fContiguous || MaxPhysAddr < UINT64_MAX)
-    {
-        fOptions  |= kIOMemoryPhysicallyContiguous;
-        uAlignment = 1;                 /* PhysMask isn't respected if higher. */
-    }
-
-    IOBufferMemoryDescriptor *pMemDesc = new IOBufferMemoryDescriptor;
-    if (pMemDesc && !pMemDesc->initWithPhysicalMask(kernel_task, fOptions, cbFudged, uAlignment, PhysMask))
-    {
-        pMemDesc->release();
-        pMemDesc = NULL;
-    }
+#if 1 /** @todo Figure out why this is broken. Is it only on snow leopard? Seen allocating memory for the VM structure, last page corrupted or inaccessible. */
+    size_t const cbFudged = cb + PAGE_SIZE;
+#else
+    size_t const cbFudged = cb;
 #endif
+    int rc;
+    IOBufferMemoryDescriptor *pMemDesc =
+        IOBufferMemoryDescriptor::inTaskWithPhysicalMask(kernel_task,
+                                                           kIOMemoryKernelUserShared
+                                                         | kIODirectionInOut
+                                                         | (fContiguous ? kIOMemoryPhysicallyContiguous : 0),
+                                                         cbFudged,
+                                                         PhysMask);
     if (pMemDesc)
     {
         IOReturn IORet = pMemDesc->prepare(kIODirectionInOut);
@@ -497,8 +480,8 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                 MaxPhysAddr &= ~(uint64_t)PAGE_OFFSET_MASK;
                 for (IOByteCount off = 0; off < cb; off += PAGE_SIZE)
                 {
-#ifdef __LP64__
-                    addr64_t Addr = pMemDesc->getPhysicalSegment(off, NULL, kIOMemoryMapperNone);
+#ifdef __LP64__ /* Grumble! */
+                    addr64_t Addr = pMemDesc->getPhysicalSegment(off, NULL);
 #else
                     addr64_t Addr = pMemDesc->getPhysicalSegment64(off, NULL);
 #endif
@@ -510,11 +493,10 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                              && Addr == AddrPrev + PAGE_SIZE))
                     {
                         /* Buggy API, try allocate the memory another way. */
-                        pMemDesc->complete();
                         pMemDesc->release();
                         if (PhysMask)
-                            LogRel(("rtR0MemObjNativeAllocWorker: off=%x Addr=%llx AddrPrev=%llx MaxPhysAddr=%llx PhysMas=%llx fContiguous=%RTbool fOptions=%#x - buggy API!\n",
-                                    off, Addr, AddrPrev, MaxPhysAddr, PhysMask, fContiguous, fOptions));
+                            LogAlways(("rtR0MemObjNativeAllocWorker: off=%x Addr=%llx AddrPrev=%llx MaxPhysAddr=%llx PhysMas=%llx - buggy API!\n",
+                                       off, Addr, AddrPrev, MaxPhysAddr, PhysMask));
                         return VERR_ADDRESS_TOO_BIG;
                     }
                     AddrPrev = Addr;
@@ -538,8 +520,8 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                 {
                     if (fContiguous)
                     {
-#ifdef __LP64__
-                        addr64_t PhysBase64 = pMemDesc->getPhysicalSegment(0, NULL, kIOMemoryMapperNone);
+#ifdef __LP64__ /* Grumble! */
+                        addr64_t PhysBase64 = pMemDesc->getPhysicalSegment(0, NULL);
 #else
                         addr64_t PhysBase64 = pMemDesc->getPhysicalSegment64(0, NULL);
 #endif
@@ -563,11 +545,6 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                         rtR0MemObjDarwinTouchPages(pv, cb);
                         RTThreadPreemptRestore(&State);
 # endif
-
-                        /* Bug 6226: Ignore KERN_PROTECTION_FAILURE on Leopard and older. */
-                        if (   rc == VERR_PERMISSION_DENIED
-                            && version_major <= 10 /* 10 = 10.6.x = Snow Leopard. */)
-                            rc = VINF_SUCCESS;
                     }
                     else
 #endif
@@ -582,19 +559,10 @@ static int rtR0MemObjNativeAllocWorker(PPRTR0MEMOBJINTERNAL ppMem, size_t cb,
                     rtR0MemObjDelete(&pMemDarwin->Core);
                 }
 
-                if (enmType == RTR0MEMOBJTYPE_PHYS_NC)
-                    rc = VERR_NO_PHYS_MEMORY;
-                else if (enmType == RTR0MEMOBJTYPE_LOW)
-                    rc = VERR_NO_LOW_MEMORY;
-                else if (enmType == RTR0MEMOBJTYPE_CONT)
-                    rc = VERR_NO_CONT_MEMORY;
-                else
-                    rc = VERR_NO_MEMORY;
+                rc = VERR_NO_MEMORY;
             }
             else
                 rc = VERR_MEMOBJ_INIT_FAILED;
-
-            pMemDesc->complete();
         }
         else
             rc = RTErrConvertFromDarwinIO(IORet);
@@ -707,10 +675,10 @@ DECLHIDDEN(int) rtR0MemObjNativeEnterPhys(PPRTR0MEMOBJINTERNAL ppMem, RTHCPHYS P
                                                                              kIODirectionInOut, NULL /*task*/);
         if (pMemDesc)
         {
-#ifdef __LP64__
-            Assert(Phys == pMemDesc->getPhysicalSegment(0, NULL, kIOMemoryMapperNone));
+#ifdef __LP64__ /* Grumble! */
+            Assert(Phys == pMemDesc->getPhysicalSegment(0, 0));
 #else
-            Assert(Phys == pMemDesc->getPhysicalSegment64(0, NULL));
+            Assert(Phys == pMemDesc->getPhysicalSegment64(0, 0));
 #endif
 
             /*
@@ -1057,27 +1025,7 @@ DECLHIDDEN(int) rtR0MemObjNativeProtect(PRTR0MEMOBJINTERNAL pMem, size_t offSub,
                                    false,
                                    fMachProt);
     if (krc != KERN_SUCCESS)
-    {
-        static int s_cComplaints = 0;
-        if (s_cComplaints < 10)
-        {
-            s_cComplaints++;
-            printf("rtR0MemObjNativeProtect: vm_protect(%p,%p,%p,false,%#x) -> %d\n",
-                   pVmMap, (void *)Start, (void *)cbSub, fMachProt, krc);
-
-            kern_return_t               krc2;
-            vm_offset_t                 pvReal = Start;
-            vm_size_t                   cbReal = 0;
-            mach_msg_type_number_t      cInfo  = VM_REGION_BASIC_INFO_COUNT;
-            struct vm_region_basic_info Info;
-            RT_ZERO(Info);
-            krc2 = vm_region(pVmMap, &pvReal, &cbReal, VM_REGION_BASIC_INFO, (vm_region_info_t)&Info, &cInfo, NULL);
-            printf("rtR0MemObjNativeProtect: basic info - krc2=%d pv=%p cb=%p prot=%#x max=%#x inh=%#x shr=%d rvd=%d off=%#x behavior=%#x wired=%#x\n",
-                   krc2, (void *)pvReal, (void *)cbReal, Info.protection, Info.max_protection,  Info.inheritance,
-                   Info.shared, Info.reserved, Info.offset, Info.behavior, Info.user_wired_count);
-        }
         return RTErrConvertFromDarwinKern(krc);
-    }
 
     /*
      * Touch the pages if they should be writable afterwards and accessible
@@ -1167,8 +1115,8 @@ DECLHIDDEN(RTHCPHYS) rtR0MemObjNativeGetPagePhysAddr(PRTR0MEMOBJINTERNAL pMem, s
         /*
          * If we've got a memory descriptor, use getPhysicalSegment64().
          */
-#ifdef __LP64__
-        addr64_t Addr = pMemDesc->getPhysicalSegment(iPage * PAGE_SIZE, NULL, kIOMemoryMapperNone);
+#ifdef __LP64__ /* Grumble! */
+        addr64_t Addr = pMemDesc->getPhysicalSegment(iPage * PAGE_SIZE, NULL);
 #else
         addr64_t Addr = pMemDesc->getPhysicalSegment64(iPage * PAGE_SIZE, NULL);
 #endif

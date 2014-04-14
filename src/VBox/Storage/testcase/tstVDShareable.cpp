@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,8 @@ static int tstVDCreateShareDelete(const char *pszBackend, const char *pszFilenam
     VDGEOMETRY       PCHS = { 0, 0, 0 };
     VDGEOMETRY       LCHS = { 0, 0, 0 };
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACEERROR VDIfError;
+    VDINTERFACE      VDIError;
+    VDINTERFACEERROR VDIErrorCallbacks;
 
 #define CHECK(str) \
     do \
@@ -81,16 +82,18 @@ static int tstVDCreateShareDelete(const char *pszBackend, const char *pszFilenam
     } while (0)
 
     /* Create error interface. */
-    VDIfError.pfnError = tstVDError;
-    VDIfError.pfnMessage = tstVDMessage;
+    VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
+    VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
+    VDIErrorCallbacks.pfnError = tstVDError;
+    VDIErrorCallbacks.pfnMessage = tstVDMessage;
 
-    rc = VDInterfaceAdd(&VDIfError.Core, "tstVD_Error", VDINTERFACETYPE_ERROR,
-                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
+    rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
+                        NULL, &pVDIfs);
     AssertRC(rc);
 
-    rc = VDCreate(pVDIfs, VDTYPE_HDD, &pVD);
+    rc = VDCreate(&VDIError, VDTYPE_HDD, &pVD);
     CHECK("VDCreate()");
-    rc = VDCreate(pVDIfs, VDTYPE_HDD, &pVD2);
+    rc = VDCreate(&VDIError, VDTYPE_HDD, &pVD2);
     CHECK("VDCreate() #2");
 
     rc = VDCreateBase(pVD, pszBackend, pszFilename, cbSize,
@@ -118,7 +121,7 @@ static int tstVDCreateShareDelete(const char *pszBackend, const char *pszFilenam
 
 int main(int argc, char *argv[])
 {
-    RTR3InitExe(argc, &argv, 0);
+    RTR3Init();
     int rc;
 
     RTPrintf("tstVD: TESTING...\n");
@@ -130,7 +133,7 @@ int main(int argc, char *argv[])
 
     if (!RTDirExists("tmp"))
     {
-        rc = RTDirCreate("tmp", RTFS_UNIX_IRWXU, 0);
+        rc = RTDirCreate("tmp", RTFS_UNIX_IRWXU);
         if (RT_FAILURE(rc))
         {
             RTPrintf("tstVD: Failed to create 'tmp' directory! rc=%Rrc\n", rc);

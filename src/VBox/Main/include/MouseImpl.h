@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,11 @@
 #define ____H_MOUSEIMPL
 
 #include "VirtualBoxBase.h"
+#include "ConsoleEvents.h"
 #include "ConsoleImpl.h"
+#ifndef VBOXBFE_WITHOUT_COM
 #include "EventImpl.h"
+#endif
 #include <VBox/vmm/pdmdrv.h>
 
 /** Maximum number of devices supported */
@@ -30,7 +33,9 @@ typedef struct DRVMAINMOUSE DRVMAINMOUSE, *PDRVMAINMOUSE;
 
 class ATL_NO_VTABLE Mouse :
     public VirtualBoxBase
+#ifndef VBOXBFE_WITHOUT_COM
     , VBOX_SCRIPTABLE_IMPL(IMouse)
+#endif
 {
 public:
 
@@ -50,13 +55,12 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(ConsoleMouseInterface *parent);
+    HRESULT init(Console *parent);
     void uninit();
 
     // IMouse properties
     STDMETHOD(COMGETTER(AbsoluteSupported)) (BOOL *absoluteSupported);
     STDMETHOD(COMGETTER(RelativeSupported)) (BOOL *relativeSupported);
-    STDMETHOD(COMGETTER(MultiTouchSupported)) (BOOL *multiTouchSupported);
     STDMETHOD(COMGETTER(NeedsHostCursor)) (BOOL *needsHostCursor);
 
     // IMouse methods
@@ -64,13 +68,13 @@ public:
                              LONG buttonState);
     STDMETHOD(PutMouseEventAbsolute)(LONG x, LONG y, LONG dz, LONG dw,
                                      LONG buttonState);
-    STDMETHOD(PutEventMultiTouch)(LONG aCount, ComSafeArrayIn(LONG64, aContacts), ULONG aScanTime);
-    STDMETHOD(PutEventMultiTouchString)(LONG aCount, IN_BSTR aContacts, ULONG aScanTime);
+#ifndef VBOXBFE_WITHOUT_COM
     STDMETHOD(COMGETTER(EventSource)) (IEventSource ** aEventSource);
+#endif
 
     static const PDMDRVREG  DrvReg;
 
-    ConsoleMouseInterface *getParent() const
+    Console *getParent() const
     {
         return mParent;
     }
@@ -85,53 +89,68 @@ public:
 private:
 
     static DECLCALLBACK(void *) drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
-    static DECLCALLBACK(void)   mouseReportModes (PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs, bool fMT);
+    static DECLCALLBACK(void)   mouseReportModes (PPDMIMOUSECONNECTOR pInterface, bool fRel, bool fAbs);
     static DECLCALLBACK(int)    drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)   drvDestruct(PPDMDRVINS pDrvIns);
 
     HRESULT updateVMMDevMouseCaps(uint32_t fCapsAdded, uint32_t fCapsRemoved);
     HRESULT reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
                                  int32_t dw, uint32_t fButtons);
-    HRESULT reportAbsEventToMouseDev(int32_t x, int32_t y, int32_t dz,
-                                     int32_t dw, uint32_t fButtons);
-    HRESULT reportMTEventToMouseDev(int32_t x, int32_t z, uint32_t cContact,
-                                    uint32_t fContact);
-    HRESULT reportMultiTouchEventToDevice(uint8_t cContacts, const uint64_t *pau64Contacts, uint32_t u32ScanTime);
-    HRESULT reportAbsEventToVMMDev(int32_t x, int32_t y);
-    HRESULT reportAbsEvent(int32_t x, int32_t y, int32_t dz, int32_t dw,
-                           uint32_t fButtons, bool fUsesVMMDevEvent);
-    HRESULT convertDisplayRes(LONG x, LONG y, int32_t *pxAdj, int32_t *pyAdj,
+    HRESULT reportAbsEventToMouseDev(int32_t mouseXAbs, int32_t mouseYAbs,
+                                 int32_t dz, int32_t dw, uint32_t fButtons);
+    HRESULT reportAbsEventToVMMDev(int32_t mouseXAbs, int32_t mouseYAbs);
+    HRESULT reportAbsEvent(int32_t mouseXAbs, int32_t mouseYAbs,
+                           int32_t dz, int32_t dw, uint32_t fButtons,
+                           bool fUsesVMMDevEvent);
+    HRESULT convertDisplayRes(LONG x, LONG y, int32_t *pcX, int32_t *pcY,
                               bool *pfValid);
-    HRESULT putEventMultiTouch(LONG aCount, LONG64 *paContacts, ULONG aScanTime);
 
-    void getDeviceCaps(bool *pfAbs, bool *pfRel, bool *fMT);
+    void getDeviceCaps(bool *pfAbs, bool *pfRel);
     void sendMouseCapsNotifications(void);
     bool guestNeedsHostCursor(void);
     bool vmmdevCanAbs(void);
     bool deviceCanAbs(void);
     bool supportsAbs(void);
     bool supportsRel(void);
-    bool supportsMT(void);
 
-    ConsoleMouseInterface * const         mParent;
+#ifdef VBOXBFE_WITHOUT_COM
+    Console *mParent;
+#else
+    Console * const         mParent;
+#endif
     /** Pointer to the associated mouse driver. */
     struct DRVMAINMOUSE    *mpDrv[MOUSE_MAX_DEVICES];
 
     uint32_t mfVMMDevGuestCaps;  /** We cache this to avoid access races */
-    int32_t mcLastX;
-    int32_t mcLastY;
+    int32_t mcLastAbsX;
+    int32_t mcLastAbsY;
     uint32_t mfLastButtons;
 
+#ifndef VBOXBFE_WITHOUT_COM
     const ComObjPtr<EventSource> mEventSource;
     VBoxEventDesc                mMouseEvent;
 
-    void fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw,
-                        LONG fButtons);
-
-    void fireMultiTouchEvent(uint8_t cContacts,
-                             const LONG64 *paContacts,
-                             uint32_t u32ScanTime);
+    void fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw, LONG Buttons);
+#else
+    void fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw, LONG Buttons)
+    {}
+#endif
 };
+
+#ifdef VBOXBFE_WITHOUT_COM
+/** @todo make this a member of Console */
+extern Mouse *gMouse;
+
+/** @todo can we get these from the API somehow? */
+enum
+{
+    MouseButtonState_LeftButton = 1,
+    MouseButtonState_RightButton = 2,
+    MouseButtonState_MiddleButton = 4,
+    MouseButtonState_XButton1 = 8,
+    MouseButtonState_XButton2 = 16
+};
+#endif
 
 #endif // !____H_MOUSEIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

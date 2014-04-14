@@ -1,9 +1,11 @@
 /** @file
- * VBox Qt GUI - UIMachineMenuBar class declaration.
+ *
+ * VBox frontends: Qt GUI ("VirtualBox"):
+ * UIMachineMenuBar class declaration
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,56 +16,40 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineMenuBar_h___
-#define ___UIMachineMenuBar_h___
+#ifndef __UIMachineMenuBar_h__
+#define __UIMachineMenuBar_h__
 
-/* Qt includes: */
+/* Local includes */
+#include "UIMachineDefs.h"
+
+/* Global includes */
 #include <QList>
 
-/* GUI includes: */
-#include "UIDefs.h"
-
-/* Forward declarations: */
+/* Global forwards */
 class QMenu;
 class QMenuBar;
-class UISession;
 
-/**
- * Menubar factory for virtual machine (Runtime UI).
- * Provides client with the new menu/menubar whenever it necessary.
- */
 class UIMachineMenuBar
 {
 public:
+    UIMachineMenuBar();
 
-    /** Constructor. Stores UI session pointer for further needs. */
-    UIMachineMenuBar(UISession *pSession);
+    QMenu* createMenu(UIMainMenuType fOptions = UIMainMenuType_All);
+    QMenuBar* createMenuBar(UIMainMenuType fOptions = UIMainMenuType_All);
 
-    /** Provides client with new menu. */
-    QMenu* createMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
-    /** Provides client with new menubar. */
-    QMenuBar* createMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
+protected:
 
-private:
-
-    /** Populates all the sub-menus client need. */
-    QList<QMenu*> prepareSubMenus(RuntimeMenuType fOptions = RuntimeMenuType_All);
-    /** Populates <b>Machine</b> sub-menu. */
+    QList<QMenu*> prepareSubMenus(UIMainMenuType fOptions = UIMainMenuType_All);
     void prepareMenuMachine(QMenu *pMenu);
-    /** Populates <b>View</b> sub-menu. */
     void prepareMenuView(QMenu *pMenu);
-    /** Populates <b>Devices</b> sub-menu. */
     void prepareMenuDevices(QMenu *pMenu);
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    /** Populates <b>Debug</b> sub-menu. */
     void prepareMenuDebug(QMenu *pMenu);
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-    /** Populates <b>Help</b> sub-menu. */
+#endif
     void prepareMenuHelp(QMenu *pMenu);
 
-    /** Contains pointer to parent UI session. */
-    UISession *m_pSession;
+    bool m_fIsFirstTime;
 };
 
-#endif /* !___UIMachineMenuBar_h___ */
+#endif /* __UIMachineMenuBar_h__ */
 

@@ -1,4 +1,4 @@
-/* $Rev: 84795 $ */
+/* $Rev: 74164 $ */
 /** @file
  * VBoxGuest - Inter Driver Communication, unix implementation.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,15 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- *
- * The contents of this file may alternatively be used under the terms
- * of the Common Development and Distribution License Version 1.0
- * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
- * VirtualBox OSE distribution, in which case the provisions of the
- * CDDL are applicable instead of those of the GPL.
- *
- * You may elect to license modified versions of this file under the
- * terms and conditions of either the GPL or the CDDL or both.
+ * Some lines of code to disable the local APIC on x86_64 machines taken
+ * from a Mandriva patch by Gwenole Beauchesne <gbeauchesne@mandriva.com>.
  */
 
 
 /** @todo Use some header that we have in common with VBoxGuestLib.h... */
-/** @todo fix DECLVBGL usage. */
-RT_C_DECLS_BEGIN
-DECLEXPORT(void *) VBOXCALL VBoxGuestIDCOpen(uint32_t *pu32Version);
-DECLEXPORT(int) VBOXCALL VBoxGuestIDCClose(void *pvSession);
-DECLEXPORT(int) VBOXCALL VBoxGuestIDCCall(void *pvSession, unsigned iCmd, void *pvData, size_t cbData, size_t *pcbDataReturned);
-RT_C_DECLS_END
+DECLVBGL(void *) VBoxGuestIDCOpen(uint32_t *pu32Version);
+DECLVBGL(int) VBoxGuestIDCClose(void *pvSession);
+DECLVBGL(int) VBoxGuestIDCCall(void *pvSession, unsigned iCmd, void *pvData, size_t cbData, size_t *pcbDataReturned);
 
 
 /**
@@ -42,7 +32,7 @@ RT_C_DECLS_END
  * @returns Opaque pointer to session object.
  * @param   pu32Version         Where to store VMMDev version.
  */
-DECLEXPORT(void *) VBOXCALL VBoxGuestIDCOpen(uint32_t *pu32Version)
+DECLVBGL(void *) VBoxGuestIDCOpen(uint32_t *pu32Version)
 {
     PVBOXGUESTSESSION   pSession;
     int                 rc;
@@ -99,7 +89,7 @@ DECLEXPORT(void *) VBOXCALL VBoxGuestIDCOpen(uint32_t *pu32Version)
  * @returns VBox error code.
  * @param   pvState             Opaque pointer to the session object.
  */
-DECLEXPORT(int) VBOXCALL VBoxGuestIDCClose(void *pvSession)
+DECLVBGL(int) VBoxGuestIDCClose(void *pvSession)
 {
     PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pvSession;
     LogFlow(("VBoxGuestIDCClose:\n"));
@@ -134,7 +124,7 @@ DECLEXPORT(int) VBOXCALL VBoxGuestIDCClose(void *pvSession)
  * @param   cbData              Size of the data buffer.
  * @param   pcbDataReturned     Where to store the amount of returned data.
  */
-DECLEXPORT(int) VBOXCALL VBoxGuestIDCCall(void *pvSession, unsigned iCmd, void *pvData, size_t cbData, size_t *pcbDataReturned)
+DECLVBGL(int) VBoxGuestIDCCall(void *pvSession, unsigned iCmd, void *pvData, size_t cbData, size_t *pcbDataReturned)
 {
     PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pvSession;
     LogFlow(("VBoxGuestIDCCall: %pvSession=%p Cmd=%u pvData=%p cbData=%d\n", pvSession, iCmd, pvData, cbData));

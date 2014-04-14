@@ -1,11 +1,8 @@
 #!/bin/sh
-# $Id: preremove.sh $
-## @file
-# VirtualBox preremove script for Solaris Guest Additions.
 #
-
+# VirtualBox pre-remove script for Solaris Guest Additions.
 #
-# Copyright (C) 2008-2013 Oracle Corporation
+# Copyright (C) 2008-2010 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -55,9 +52,6 @@ mv -f /etc/devlink.vbox /etc/devlink.tab
 # remove the link
 if test -h "/dev/vboxguest" || test -f "/dev/vboxguest"; then
     rm -f /dev/vboxdrv
-fi
-if test -h "/dev/vboxms" || test -f "/dev/vboxms"; then
-    rm -f /dev/vboxms
 fi
 
 # Try and restore xorg.conf!

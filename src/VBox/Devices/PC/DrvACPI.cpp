@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -924,11 +924,8 @@ static DECLCALLBACK(void) drvACPIDestruct(PPDMDRVINS pDrvIns)
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
 #ifdef RT_OS_LINUX
-    if (pThis->hPollerSleepEvent != NIL_RTSEMEVENT)
-    {
-        RTSemEventDestroy(pThis->hPollerSleepEvent);
-        pThis->hPollerSleepEvent = NIL_RTSEMEVENT;
-    }
+    RTSemEventDestroy(pThis->hPollerSleepEvent);
+    pThis->hPollerSleepEvent = NIL_RTSEMEVENT;
     RTCritSectDelete(&pThis->CritSect);
 #endif
 }
@@ -948,9 +945,6 @@ static DECLCALLBACK(int) drvACPIConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
      * Init the static parts.
      */
     pThis->pDrvIns                              = pDrvIns;
-#ifdef RT_OS_LINUX
-    pThis->hPollerSleepEvent                    = NIL_RTSEMEVENT;
-#endif
     /* IBase */
     pDrvIns->IBase.pfnQueryInterface            = drvACPIQueryInterface;
     /* IACPIConnector */

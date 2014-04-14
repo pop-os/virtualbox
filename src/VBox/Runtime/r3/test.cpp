@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2013 Oracle Corporation
+ * Copyright (C) 2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,8 +91,6 @@ typedef struct RTTESTINT
     uint32_t            cbGuard;
     /** The verbosity level. */
     RTTESTLVL           enmMaxLevel;
-    /** The creation flags. */
-    uint32_t            fFlags;
 
 
     /** Critical section serializing output. */
@@ -113,8 +111,6 @@ typedef struct RTTESTINT
     const char         *pszSubTest;
     /** The length of the sub-test name. */
     size_t              cchSubTest;
-    /** Whether the current subtest should figure as 'SKIPPED'. */
-    bool                fSubTestSkipped;
     /** Whether we've reported the sub-test result or not. */
     bool                fSubTestReported;
     /** The start error count of the current subtest. */
@@ -127,10 +123,6 @@ typedef struct RTTESTINT
 
     /** Set if XML output is enabled. */
     bool                fXmlEnabled;
-    /** Set if we omit the top level test in the XML report. */
-    bool                fXmlOmitTopTest;
-    /** Set if we've reported the top test (for RTTEST_C_XML_DELAY_TOP_TEST). */
-    bool                fXmlTopTestDone;
     enum {
         kXmlPos_ValueStart,
         kXmlPos_Value,
@@ -193,6 +185,8 @@ static void rtTestXmlElemV(PRTTESTINT pTest, const char *pszTag, const char *psz
 static void rtTestXmlElem(PRTTESTINT pTest, const char *pszTag, const char *pszAttrFmt, ...);
 static void rtTestXmlElemStartV(PRTTESTINT pTest, const char *pszTag, const char *pszAttrFmt, va_list va);
 static void rtTestXmlElemStart(PRTTESTINT pTest, const char *pszTag, const char *pszAttrFmt, ...);
+static void rtTestXmlElemValueV(PRTTESTINT pTest, const char *pszFormat, va_list va);
+static void rtTestXmlElemValue(PRTTESTINT pTest, const char *pszFormat, ...);
 static void rtTestXmlElemEnd(PRTTESTINT pTest, const char *pszTag);
 static void rtTestXmlEnd(PRTTESTINT pTest);
 
@@ -211,28 +205,31 @@ static RTTLS    g_iTestTls = NIL_RTTLS;
  * Init TLS index once.
  *
  * @returns IPRT status code.
- * @param   pvUser      Ignored.
+ * @param   pvUser1     Ignored.
+ * @param   pvUser2     Ignored.
  */
-static DECLCALLBACK(int32_t) rtTestInitOnce(void *pvUser)
+static DECLCALLBACK(int32_t) rtTestInitOnce(void *pvUser1, void *pvUser2)
 {
-    NOREF(pvUser);
+    NOREF(pvUser1);
+    NOREF(pvUser2);
     return RTTlsAllocEx(&g_iTestTls, NULL);
 }
 
 
-RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enmMaxLevel,
-                             RTHCINTPTR iNativeTestPipe, const char *pszXmlFile, PRTTEST phTest)
-{
-    AssertReturn(!(fFlags & ~RTTEST_C_VALID_MASK), VERR_INVALID_PARAMETER);
-    AssertPtrNull(phTest);
-    AssertPtrNull(pszXmlFile);
-    /* RTTESTLVL_INVALID is valid! */
-    AssertReturn(enmMaxLevel >= RTTESTLVL_INVALID && enmMaxLevel < RTTESTLVL_END, VERR_INVALID_PARAMETER);
 
+/**
+ * Creates a test instance.
+ *
+ * @returns IPRT status code.
+ * @param   pszTest     The test name.
+ * @param   phTest      Where to store the test instance handle.
+ */
+RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
+{
     /*
      * Global init.
      */
-    int rc = RTOnce(&g_TestInitOnce, rtTestInitOnce, NULL);
+    int rc = RTOnce(&g_TestInitOnce, rtTestInitOnce, NULL, NULL);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -246,8 +243,7 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
     pTest->pszTest          = RTStrDup(pszTest);
     pTest->cchTest          = strlen(pszTest);
     pTest->cbGuard          = PAGE_SIZE * 7;
-    pTest->enmMaxLevel      = enmMaxLevel == RTTESTLVL_INVALID ? RTTESTLVL_INFO : enmMaxLevel;
-    pTest->fFlags           = fFlags;
+    pTest->enmMaxLevel      = RTTESTLVL_SUB_TEST;
 
     pTest->pOutStrm         = g_pStdOut;
     pTest->fNewLine         = true;
@@ -256,14 +252,12 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
 
     pTest->pszSubTest       = NULL;
     pTest->cchSubTest       = 0;
-    pTest->fSubTestSkipped  = false;
     pTest->fSubTestReported = true;
     pTest->cSubTestAtErrors = 0;
     pTest->cSubTests        = 0;
     pTest->cSubTestsFailed  = 0;
 
     pTest->fXmlEnabled      = false;
-    pTest->fXmlTopTestDone  = false;
     pTest->eXmlState        = RTTESTINT::kXmlPos_ElementEnd;
     pTest->hXmlPipe         = NIL_RTPIPE;
     pTest->hXmlFile         = NIL_RTFILE;
@@ -279,109 +273,82 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
              * Associate it with our TLS entry unless there is already
              * an instance there.
              */
-            if (   !(fFlags & RTTEST_C_NO_TLS)
-                && !RTTlsGet(g_iTestTls))
+            if (!RTTlsGet(g_iTestTls))
                 rc = RTTlsSet(g_iTestTls, pTest);
             if (RT_SUCCESS(rc))
             {
                 /*
-                 * Output level override?
+                 * Pick up overrides from the environment.
                  */
                 char szEnvVal[RTPATH_MAX];
-                if ((fFlags & RTTEST_C_USE_ENV) && enmMaxLevel == RTTESTLVL_INVALID)
+                rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_MAX_LEVEL", szEnvVal, sizeof(szEnvVal), NULL);
+                if (RT_SUCCESS(rc))
                 {
-                    rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_MAX_LEVEL", szEnvVal, sizeof(szEnvVal), NULL);
-                    if (RT_SUCCESS(rc))
-                    {
-                        char *pszMaxLevel = RTStrStrip(szEnvVal);
-                        if (!strcmp(pszMaxLevel, "all"))
-                            pTest->enmMaxLevel = RTTESTLVL_DEBUG;
-                        if (!strcmp(pszMaxLevel, "quiet"))
-                            pTest->enmMaxLevel = RTTESTLVL_FAILURE;
-                        else if (!strcmp(pszMaxLevel, "debug"))
-                            pTest->enmMaxLevel = RTTESTLVL_DEBUG;
-                        else if (!strcmp(pszMaxLevel, "info"))
-                            pTest->enmMaxLevel = RTTESTLVL_INFO;
-                        else if (!strcmp(pszMaxLevel, "sub_test"))
-                            pTest->enmMaxLevel = RTTESTLVL_SUB_TEST;
-                        else if (!strcmp(pszMaxLevel, "failure"))
-                            pTest->enmMaxLevel = RTTESTLVL_FAILURE;
-                    }
-                    else if (rc != VERR_ENV_VAR_NOT_FOUND)
-                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_MAX_LEVEL) -> %Rrc\n", pszTest, rc);
+                    char *pszMaxLevel = RTStrStrip(szEnvVal);
+                    if (!strcmp(pszMaxLevel, "all"))
+                        pTest->enmMaxLevel = RTTESTLVL_DEBUG;
+                    if (!strcmp(pszMaxLevel, "quiet"))
+                        pTest->enmMaxLevel = RTTESTLVL_FAILURE;
+                    else if (!strcmp(pszMaxLevel, "debug"))
+                        pTest->enmMaxLevel = RTTESTLVL_DEBUG;
+                    else if (!strcmp(pszMaxLevel, "info"))
+                        pTest->enmMaxLevel = RTTESTLVL_INFO;
+                    else if (!strcmp(pszMaxLevel, "sub_test"))
+                        pTest->enmMaxLevel = RTTESTLVL_SUB_TEST;
+                    else if (!strcmp(pszMaxLevel, "failure"))
+                        pTest->enmMaxLevel = RTTESTLVL_FAILURE;
                 }
 
                 /*
                  * Any test driver we are connected or should connect to?
                  */
-                if ((fFlags & RTTEST_C_USE_ENV) && iNativeTestPipe == -1)
+                rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_PIPE", szEnvVal, sizeof(szEnvVal), NULL);
+                if (RT_SUCCESS(rc))
                 {
-                    rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_PIPE", szEnvVal, sizeof(szEnvVal), NULL);
+                    RTHCINTPTR  hNative = -1;
+#if ARCH_BITS == 64
+                    rc =  RTStrToInt64Full(szEnvVal, 0, &hNative);
+#else
+                    rc =  RTStrToInt32Full(szEnvVal, 0, &hNative);
+#endif
                     if (RT_SUCCESS(rc))
                     {
-#if ARCH_BITS == 64
-                        rc = RTStrToInt64Full(szEnvVal, 0, &iNativeTestPipe);
-#else
-                        rc = RTStrToInt32Full(szEnvVal, 0, &iNativeTestPipe);
-#endif
-                        if (RT_FAILURE(rc))
+                        rc = RTPipeFromNative(&pTest->hXmlPipe, hNative, RTPIPE_N_WRITE);
+                        if (RT_SUCCESS(rc))
+                            pTest->fXmlEnabled = true;
+                        else
                         {
-                            RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTStrToInt32Full(\"%s\") -> %Rrc\n",
-                                         pszTest, szEnvVal, rc);
-                            iNativeTestPipe = -1;
+                            RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTPipeFromNative(,\"%s\",WRITE) -> %Rrc\n", pszTest, szEnvVal, rc);
+                            pTest->hXmlPipe = NIL_RTPIPE;
                         }
                     }
-                    else if (rc != VERR_ENV_VAR_NOT_FOUND)
-                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_PIPE) -> %Rrc\n", pszTest, rc);
-                }
-                if (iNativeTestPipe != -1)
-                {
-                    rc = RTPipeFromNative(&pTest->hXmlPipe, iNativeTestPipe, RTPIPE_N_WRITE);
-                    if (RT_SUCCESS(rc))
-                        pTest->fXmlEnabled = true;
                     else
-                    {
-                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTPipeFromNative(,%p,WRITE) -> %Rrc\n",
-                                     pszTest, iNativeTestPipe, rc);
-                        pTest->hXmlPipe = NIL_RTPIPE;
-                    }
+                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTStrToInt32Full(\"%s\") -> %Rrc\n", pszTest, szEnvVal, rc);
                 }
+                else if (rc != VERR_ENV_VAR_NOT_FOUND)
+                    RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_PIPE) -> %Rrc\n", pszTest, rc);
 
                 /*
                  * Any test file we should write the test report to?
                  */
-                if ((fFlags & RTTEST_C_USE_ENV) && pszXmlFile == NULL)
+                rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_FILE", szEnvVal, sizeof(szEnvVal), NULL);
+                if (RT_SUCCESS(rc))
                 {
-                    rc = RTEnvGetEx(RTENV_DEFAULT, "IPRT_TEST_FILE", szEnvVal, sizeof(szEnvVal), NULL);
-                    if (RT_SUCCESS(rc))
-                        pszXmlFile = szEnvVal;
-                    else if (rc != VERR_ENV_VAR_NOT_FOUND)
-                        RTStrmPrintf(g_pStdErr, "%s: test pipe error: RTEnvGetEx(IPRT_TEST_MAX_LEVEL) -> %Rrc\n", pszTest, rc);
-                }
-                if (pszXmlFile && *pszXmlFile)
-                {
-                    rc = RTFileOpen(&pTest->hXmlFile, pszXmlFile,
-                                    RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_OPEN_CREATE | RTFILE_O_TRUNCATE);
+                    rc = RTFileOpen(&pTest->hXmlFile, szEnvVal, RTFILE_O_WRITE | RTFILE_O_DENY_WRITE | RTFILE_O_CREATE_REPLACE);
                     if (RT_SUCCESS(rc))
                         pTest->fXmlEnabled = true;
                     else
                     {
-                        RTStrmPrintf(g_pStdErr, "%s: test file error: RTFileOpen(,\"%s\",) -> %Rrc\n", pszTest, pszXmlFile, rc);
+                        RTStrmPrintf(g_pStdErr, "%s: test file error: RTFileOpen(,\"%s\",) -> %Rrc\n", pszTest, szEnvVal, rc);
                         pTest->hXmlFile = NIL_RTFILE;
                     }
                 }
                 else if (rc != VERR_ENV_VAR_NOT_FOUND)
                     RTStrmPrintf(g_pStdErr, "%s: test file error: RTEnvGetEx(IPRT_TEST_FILE) -> %Rrc\n", pszTest, rc);
 
-                /*
-                 * What do we report in the XML stream/file.?
-                 */
-                pTest->fXmlOmitTopTest = (fFlags & RTTEST_C_XML_OMIT_TOP_TEST)
-                                      || (   (fFlags & RTTEST_C_USE_ENV)
-                                          && RTEnvExistEx(RTENV_DEFAULT, "IPRT_TEST_OMIT_TOP_TEST"));
 
                 /*
-                 * Tell the test driver that we're up to.
+                 * Tell the test driver that we're up.
                  */
                 rtTestXmlStart(pTest, pszTest);
 
@@ -401,44 +368,14 @@ RTR3DECL(int) RTTestCreateEx(const char *pszTest, uint32_t fFlags, RTTESTLVL enm
 }
 
 
-RTR3DECL(int) RTTestCreate(const char *pszTest, PRTTEST phTest)
-{
-    return RTTestCreateEx(pszTest, RTTEST_C_USE_ENV, RTTESTLVL_INVALID, -1 /*iNativeTestPipe*/, NULL /*pszXmlFile*/, phTest);
-}
-
-
 RTR3DECL(RTEXITCODE) RTTestInitAndCreate(const char *pszTest, PRTTEST phTest)
 {
-    int rc = RTR3InitExeNoArguments(0);
+    int rc = RTR3Init();
     if (RT_FAILURE(rc))
     {
-        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3InitExeNoArguments failed with rc=%Rrc\n", pszTest, rc);
+        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3Init failed with rc=%Rrc\n", pszTest, rc);
         return RTEXITCODE_INIT;
     }
-
-    rc = RTTestCreate(pszTest, phTest);
-    if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTTestCreate failed with rc=%Rrc\n", pszTest, rc);
-        return RTEXITCODE_INIT;
-    }
-    return RTEXITCODE_SUCCESS;
-}
-
-
-RTR3DECL(RTEXITCODE) RTTestInitExAndCreate(int cArgs, char ***papszArgs, uint32_t fRtInit, const char *pszTest, PRTTEST phTest)
-{
-    int rc;
-    if (cArgs <= 0 && papszArgs == NULL)
-        rc = RTR3InitExeNoArguments(fRtInit);
-    else
-        rc = RTR3InitExe(cArgs, papszArgs, fRtInit);
-    if (RT_FAILURE(rc))
-    {
-        RTStrmPrintf(g_pStdErr, "%s: fatal error: RTR3InitExe(,,%#x) failed with rc=%Rrc\n", pszTest, fRtInit, rc);
-        return RTEXITCODE_INIT;
-    }
-
     rc = RTTestCreate(pszTest, phTest);
     if (RT_FAILURE(rc))
     {
@@ -514,34 +451,6 @@ RTR3DECL(int) RTTestSetDefault(RTTEST hNewDefaultTest, PRTTEST phOldTest)
     if (phOldTest)
         *phOldTest = (RTTEST)RTTlsGet(g_iTestTls);
     return RTTlsSet(g_iTestTls, hNewDefaultTest);
-}
-
-
-RTR3DECL(int) RTTestChangeName(RTTEST hTest, const char *pszName)
-{
-    PRTTESTINT pTest = hTest;
-    RTTEST_GET_VALID_RETURN(pTest);
-    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    AssertReturn(*pszName, VERR_INVALID_PARAMETER);
-
-    size_t cchName = strlen(pszName);
-    AssertReturn(cchName < 128, VERR_INVALID_PARAMETER);
-    char *pszDupName = RTStrDup(pszName);
-    if (!pszDupName)
-        return VERR_NO_STR_MEMORY;
-
-    RTCritSectEnter(&pTest->Lock);
-    RTCritSectEnter(&pTest->OutputLock);
-
-    char *pszOldName = (char *)pTest->pszTest;
-    pTest->pszTest = pszDupName;
-    pTest->cchTest = cchName;
-
-    RTCritSectLeave(&pTest->OutputLock);
-    RTCritSectLeave(&pTest->Lock);
-
-    RTStrFree(pszOldName);
-    return VINF_SUCCESS;
 }
 
 
@@ -716,7 +625,7 @@ RTR3DECL(int) RTTestGuardedFree(RTTEST hTest, void *pv)
     }
     RTCritSectLeave(&pTest->Lock);
 
-    return rc;
+    return VINF_SUCCESS;
 }
 
 
@@ -774,9 +683,7 @@ static void rtTestXmlStart(PRTTESTINT pTest, const char *pszTest)
     {
         rtTestXmlOutput(pTest, "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n");
         pTest->eXmlState = RTTESTINT::kXmlPos_ElementEnd;
-        pTest->fXmlTopTestDone = !(pTest->fFlags & RTTEST_C_XML_DELAY_TOP_TEST) || pTest->fXmlOmitTopTest;
-        if (pTest->fXmlTopTestDone && !pTest->fXmlOmitTopTest)
-            rtTestXmlElemStart(pTest, "Test", "name=%RMas", pszTest);
+        rtTestXmlElemStart(pTest, "Test", "name=%RMas", pszTest);
     }
 }
 
@@ -888,6 +795,43 @@ static void rtTestXmlElemStart(PRTTESTINT pTest, const char *pszTag, const char 
 
 
 /**
+ * Writes an element value, or a part of one, taking care of all the escaping.
+ *
+ * The caller must own the instance lock.
+ *
+ * @param   pTest               The test instance.
+ * @param   pszFormat           The value format string.
+ * @param   va                  The format arguments.
+ */
+static void rtTestXmlElemValueV(PRTTESTINT pTest, const char *pszFormat, va_list va)
+{
+    if (pTest->fXmlEnabled)
+    {
+        char *pszValue;
+        RTStrAPrintfV(&pszValue, pszFormat, va);
+        if (pszValue)
+        {
+            rtTestXmlOutput(pTest, "%RMes", pszValue);
+            RTStrFree(pszValue);
+        }
+        pTest->eXmlState = RTTESTINT::kXmlPos_Value;
+    }
+}
+
+
+/**
+ * Wrapper around rtTestXmlElemValueV.
+ */
+static void rtTestXmlElemValue(PRTTESTINT pTest, const char *pszFormat, ...)
+{
+    va_list va;
+    va_start(va, pszFormat);
+    rtTestXmlElemValueV(pTest, pszFormat, va);
+    va_end(va);
+}
+
+
+/**
  * Ends the current element.
  *
  * The caller must own the instance lock.
@@ -935,7 +879,7 @@ static void rtTestXmlEnd(PRTTESTINT pTest)
          * final timestamp and some certainty that the XML is valid.
          */
         size_t i = pTest->cXmlElements;
-        AssertReturnVoid(i > 0 || pTest->fXmlOmitTopTest || !pTest->fXmlTopTestDone);
+        AssertReturnVoid(i > 0);
         while (i-- > 1)
         {
             const char *pszTag = pTest->apszXmlElements[pTest->cXmlElements];
@@ -947,13 +891,9 @@ static void rtTestXmlEnd(PRTTESTINT pTest)
                 rtTestXmlOutput(pTest, "</%s>\n", pszTag);
             pTest->eXmlState = RTTESTINT::kXmlPos_ElementEnd;
         }
-
-        if (!pTest->fXmlOmitTopTest && pTest->fXmlTopTestDone)
-        {
-            rtTestXmlElem(pTest, "End", "SubTests=\"%u\" SubTestsFailed=\"%u\" errors=\"%u\"",
-                          pTest->cSubTests, pTest->cSubTestsFailed, pTest->cErrors);
-            rtTestXmlOutput(pTest, "</Test>\n");
-        }
+        rtTestXmlElem(pTest, "End", "SubTests=\"%u\" SubTestsFailed=\"%u\" errors=\"%u\"",
+                      pTest->cSubTests, pTest->cSubTestsFailed, pTest->cErrors);
+        rtTestXmlOutput(pTest, "</Test>\n");
 
         /*
          * Close the XML outputs.
@@ -1190,24 +1130,15 @@ static int rtTestSubTestReport(PRTTESTINT pTest)
         uint32_t cErrors = ASMAtomicUoReadU32(&pTest->cErrors) - pTest->cSubTestAtErrors;
         if (!cErrors)
         {
-            if (!pTest->fSubTestSkipped)
-            {
-                rtTestXmlElem(pTest, "Passed", NULL);
-                rtTestXmlElemEnd(pTest, "Test");
-                cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: PASSED\n", pTest->pszSubTest);
-            }
-            else
-            {
-                rtTestXmlElem(pTest, "Skipped", NULL);
-                rtTestXmlElemEnd(pTest, "Test");
-                cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: SKIPPED\n", pTest->pszSubTest);
-            }
+            rtTestXmlElem(pTest, "Passed", NULL);
+            rtTestXmlElemEnd(pTest, "SubTest");
+            cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: PASSED\n", pTest->pszSubTest);
         }
         else
         {
             pTest->cSubTestsFailed++;
             rtTestXmlElem(pTest, "Failed", "errors=\"%u\"", cErrors);
-            rtTestXmlElemEnd(pTest, "Test");
+            rtTestXmlElemEnd(pTest, "SubTest");
             cch += RTTestPrintfNl(pTest, RTTESTLVL_SUB_TEST, "%-50s: FAILED (%u errors)\n",
                                   pTest->pszSubTest, cErrors);
         }
@@ -1336,20 +1267,13 @@ RTR3DECL(int) RTTestSub(RTTEST hTest, const char *pszSubTest)
     pTest->cSubTestAtErrors = ASMAtomicUoReadU32(&pTest->cErrors);
     pTest->pszSubTest = RTStrDup(pszSubTest);
     pTest->cchSubTest = strlen(pszSubTest);
-    pTest->fSubTestSkipped  = false;
     pTest->fSubTestReported = false;
 
     int cch = 0;
     if (pTest->enmMaxLevel >= RTTESTLVL_DEBUG)
         cch = RTTestPrintfNl(hTest, RTTESTLVL_DEBUG, "debug: Starting sub-test '%s'\n", pszSubTest);
 
-    if (!pTest->fXmlTopTestDone)
-    {
-        pTest->fXmlTopTestDone = true;
-        rtTestXmlElemStart(pTest, "Test", "name=%RMas", pTest->pszTest);
-    }
-
-    rtTestXmlElemStart(pTest, "Test", "name=%RMas", pszSubTest);
+    rtTestXmlElemStart(pTest, "SubTest", "name=%RMas", pszSubTest);
 
     RTCritSectLeave(&pTest->Lock);
 
@@ -1413,7 +1337,7 @@ RTR3DECL(int) RTTestSubV(RTTEST hTest, const char *pszSubTestFmt, va_list va)
 RTR3DECL(int) RTTestSubDone(RTTEST hTest)
 {
     PRTTESTINT pTest = hTest;
-    RTTEST_GET_VALID_RETURN_RC(pTest, VERR_INVALID_HANDLE);
+    RTTEST_GET_VALID_RETURN_RC(pTest, -1);
 
     RTCritSectEnter(&pTest->Lock);
     int cch = rtTestSubCleanup(pTest);
@@ -1437,8 +1361,7 @@ RTR3DECL(int) RTTestSubDone(RTTEST hTest)
 RTR3DECL(int) RTTestPassedV(RTTEST hTest, const char *pszFormat, va_list va)
 {
     PRTTESTINT pTest = hTest;
-    AssertPtr(pszFormat);
-    RTTEST_GET_VALID_RETURN_RC(pTest, VERR_INVALID_HANDLE);
+    RTTEST_GET_VALID_RETURN_RC(pTest, -1);
 
     int cch = 0;
     if (pTest->enmMaxLevel >= RTTESTLVL_INFO)
@@ -1481,44 +1404,6 @@ RTR3DECL(int) RTTestPassed(RTTEST hTest, const char *pszFormat, ...)
 }
 
 
-RTR3DECL(int) RTTestSkippedV(RTTEST hTest, const char *pszFormat, va_list va)
-{
-    PRTTESTINT pTest = hTest;
-    AssertPtrNull(pszFormat);
-    RTTEST_GET_VALID_RETURN_RC(pTest, VERR_INVALID_HANDLE);
-
-    pTest->fSubTestSkipped = true;
-
-    int cch = 0;
-    if (pszFormat && *pszFormat && pTest->enmMaxLevel >= RTTESTLVL_INFO)
-    {
-        va_list va2;
-        va_copy(va2, va);
-
-        RTCritSectEnter(&pTest->OutputLock);
-        cch += rtTestPrintf(pTest, "%N\n", pszFormat, &va2);
-        RTCritSectLeave(&pTest->OutputLock);
-
-        va_end(va2);
-    }
-
-    return cch;
-}
-
-
-RTR3DECL(int) RTTestSkipped(RTTEST hTest, const char *pszFormat, ...)
-{
-    va_list va;
-
-    va_start(va, pszFormat);
-    int cch = RTTestSkippedV(hTest, pszFormat, va);
-    va_end(va);
-
-    return cch;
-}
-
-
-
 /**
  * Gets the unit name.
  *
@@ -1553,13 +1438,6 @@ static const char *rtTestUnitName(RTTESTUNIT enmUnit)
         case RTTESTUNIT_NS_PER_OCCURRENCE:      return "ns/occurrences";
         case RTTESTUNIT_NS_PER_PACKET:          return "ns/packet";
         case RTTESTUNIT_NS_PER_ROUND_TRIP:      return "ns/roundtrips";
-        case RTTESTUNIT_INSTRS:                 return "ins";
-        case RTTESTUNIT_INSTRS_PER_SEC:         return "ins/sec";
-        case RTTESTUNIT_NONE:                   return "";
-        case RTTESTUNIT_PP1K:                   return "pp1k";
-        case RTTESTUNIT_PP10K:                  return "pp10k";
-        case RTTESTUNIT_PPM:                    return "ppm";
-        case RTTESTUNIT_PPB:                    return "ppb";
 
         /* No default so gcc helps us keep this up to date. */
         case RTTESTUNIT_INVALID:
@@ -1579,7 +1457,9 @@ RTR3DECL(int) RTTestValue(RTTEST hTest, const char *pszName, uint64_t u64Value, 
     const char *pszUnit = rtTestUnitName(enmUnit);
 
     RTCritSectEnter(&pTest->Lock);
-    rtTestXmlElem(pTest, "Value", "name=%RMas unit=%RMas value=\"%llu\"", pszName, pszUnit, u64Value);
+    rtTestXmlElemStart(pTest, "Value", "name=%RMas unit=%RMas", pszName, pszUnit);
+    rtTestXmlElemValue(pTest, "%llu", u64Value);
+    rtTestXmlElemEnd(pTest, "Value");
     RTCritSectLeave(&pTest->Lock);
 
     RTCritSectEnter(&pTest->OutputLock);
@@ -1630,7 +1510,6 @@ RTR3DECL(int) RTTestErrorInc(RTTEST hTest)
 }
 
 
-
 /**
  * Get the current error count.
  *
@@ -1647,15 +1526,6 @@ RTR3DECL(uint32_t) RTTestErrorCount(RTTEST hTest)
 }
 
 
-RTR3DECL(uint32_t) RTTestSubErrorCount(RTTEST hTest)
-{
-    PRTTESTINT pTest = hTest;
-    RTTEST_GET_VALID_RETURN_RC(pTest, UINT32_MAX);
-
-    return ASMAtomicReadU32(&pTest->cErrors) - pTest->cSubTestAtErrors;
-}
-
-
 /**
  * Increments the error counter and prints a failure message.
  *
@@ -1668,7 +1538,7 @@ RTR3DECL(uint32_t) RTTestSubErrorCount(RTTEST hTest)
 RTR3DECL(int) RTTestFailedV(RTTEST hTest, const char *pszFormat, va_list va)
 {
     PRTTESTINT pTest = hTest;
-    RTTEST_GET_VALID_RETURN_RC(pTest, VERR_INVALID_HANDLE);
+    RTTEST_GET_VALID_RETURN_RC(pTest, -1);
 
     RTTestErrorInc(pTest);
 

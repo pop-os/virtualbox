@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,99 +18,104 @@
  */
 
 /* Global includes: */
+#include <QAction>
 #include <QDir>
 #include <QFile>
+#include <QNetworkReply>
 
 /* Local includes: */
 #include "UIDownloaderAdditions.h"
-#include "UINetworkReply.h"
 #include "QIFileDialog.h"
-#include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-#include "UIModalWindowManager.h"
 
-/* static */
-UIDownloaderAdditions* UIDownloaderAdditions::m_spInstance = 0;
+UIDownloaderAdditions *UIDownloaderAdditions::m_pInstance = 0;
 
-/* static */
-UIDownloaderAdditions* UIDownloaderAdditions::create()
+UIDownloaderAdditions *UIDownloaderAdditions::create()
 {
-    if (!m_spInstance)
-        m_spInstance = new UIDownloaderAdditions;
-    return m_spInstance;
+    if (!m_pInstance)
+        m_pInstance = new UIDownloaderAdditions;
+    return m_pInstance;
 }
 
-/* static */
-UIDownloaderAdditions* UIDownloaderAdditions::current()
+UIDownloaderAdditions *UIDownloaderAdditions::current()
 {
-    return m_spInstance;
+    return m_pInstance;
+}
+
+void UIDownloaderAdditions::setAction(QAction *pAction)
+{
+    m_pAction = pAction;
+    if (m_pAction)
+        m_pAction->setEnabled(false);
+}
+
+QAction *UIDownloaderAdditions::action() const
+{
+    return m_pAction;
 }
 
 UIDownloaderAdditions::UIDownloaderAdditions()
+    : UIDownloader()
 {
-    /* Prepare instance: */
-    if (!m_spInstance)
-        m_spInstance = this;
-
-    /* Set description: */
-    setDescription(tr("VirtualBox Guest Additions"));
-
-    /* Prepare source/target: */
-    const QString &strName = QString("VBoxGuestAdditions_%1.iso").arg(vboxGlobal().vboxVersionStringNormalized());
-    const QString &strSource = QString("http://download.virtualbox.org/virtualbox/%1/").arg(vboxGlobal().vboxVersionStringNormalized()) + strName;
-    const QString &strTarget = QDir(vboxGlobal().virtualBox().GetHomeFolder()).absoluteFilePath(strName);
-
-    /* Set source/target: */
-    setSource(strSource);
-    setTarget(strTarget);
 }
 
 UIDownloaderAdditions::~UIDownloaderAdditions()
 {
-    /* Cleanup instance: */
-    if (m_spInstance == this)
-        m_spInstance = 0;
+    if (m_pAction)
+        m_pAction->setEnabled(true);
+    if (m_pInstance == this)
+        m_pInstance = 0;
 }
 
-bool UIDownloaderAdditions::askForDownloadingConfirmation(UINetworkReply *pReply)
+UIMiniProgressWidget* UIDownloaderAdditions::createProgressWidgetFor(QWidget *pParent) const
 {
-    return msgCenter().confirmDownloadGuestAdditions(source().toString(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+    return new UIMiniProgressWidgetAdditions(source(), pParent);
 }
 
-void UIDownloaderAdditions::handleDownloadedObject(UINetworkReply *pReply)
+bool UIDownloaderAdditions::askForDownloadingConfirmation(QNetworkReply *pReply)
 {
-    /* Read received data into the buffer: */
+    return msgCenter().confirmDownloadAdditions(source(), pReply->header(QNetworkRequest::ContentLengthHeader).toInt());
+}
+
+void UIDownloaderAdditions::handleDownloadedObject(QNetworkReply *pReply)
+{
+    /* Read received data: */
     QByteArray receivedData(pReply->readAll());
-    /* Serialize that buffer into the file: */
+    /* Serialize the incoming buffer into the .iso image: */
     while (true)
     {
-        /* Try to open file for writing: */
+        /* Try to open file to save image: */
         QFile file(target());
         if (file.open(QIODevice::WriteOnly))
         {
-            /* Write buffer into the file: */
+            /* Write received data into the file: */
             file.write(receivedData);
             file.close();
-
-            /* Warn the user about additions-image loaded and saved, propose to mount it: */
-            if (msgCenter().proposeMountGuestAdditions(source().toString(), QDir::toNativeSeparators(target())))
+            /* Warn user about additions image loaded and saved, propose to mount it: */
+            if (msgCenter().confirmMountAdditions(source(), QDir::toNativeSeparators(target())))
                 emit sigDownloadFinished(target());
             break;
         }
+        else
+        {
+            /* Warn user about additions image loaded but was not saved: */
+            msgCenter().warnAboutAdditionsCantBeSaved(target());
+        }
 
-        /* Warn the user about additions-image was downloaded but was NOT saved: */
-        msgCenter().cannotSaveGuestAdditions(source().toString(), QDir::toNativeSeparators(target()));
-
-        /* Ask the user for another location for the additions-image file: */
-        QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(),
-                                                               windowManager().networkManagerOrMainWindowShown(),
+        /* Ask the user about additions image file save location: */
+        QString strTarget = QIFileDialog::getExistingDirectory(QFileInfo(target()).absolutePath(), parentWidget(),
                                                                tr("Select folder to save Guest Additions image to"), true);
 
-        /* Check if user had really set a new target: */
+        /* Check if user set new target: */
         if (!strTarget.isNull())
             setTarget(QDir(strTarget).absoluteFilePath(QFileInfo(target()).fileName()));
         else
             break;
     }
+}
+
+void UIDownloaderAdditions::warnAboutNetworkError(const QString &strError)
+{
+    return msgCenter().cannotDownloadGuestAdditions(source(), strError);
 }
 

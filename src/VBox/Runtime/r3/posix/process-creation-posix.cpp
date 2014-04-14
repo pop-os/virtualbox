@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,8 +29,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP RTLOGGROUP_PROCESS
-#include <iprt/cdefs.h>
-
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -39,28 +37,20 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <signal.h>
-#include <grp.h>
 #if defined(RT_OS_LINUX) || defined(RT_OS_SOLARIS)
 # include <crypt.h>
 # include <pwd.h>
 # include <shadow.h>
 #endif
-
 #if defined(RT_OS_LINUX) || defined(RT_OS_OS2)
 /* While Solaris has posix_spawn() of course we don't want to use it as
  * we need to have the child in a different process contract, no matter
  * whether it is started detached or not. */
 # define HAVE_POSIX_SPAWN 1
 #endif
-#if defined(RT_OS_DARWIN) && defined(MAC_OS_X_VERSION_MIN_REQUIRED)
-# if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
-#  define HAVE_POSIX_SPAWN 1
-# endif
-#endif
 #ifdef HAVE_POSIX_SPAWN
 # include <spawn.h>
 #endif
-
 #ifdef RT_OS_DARWIN
 # include <mach-o/dyld.h>
 #endif
@@ -78,7 +68,6 @@
 #include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
-#include <iprt/path.h>
 #include <iprt/pipe.h>
 #include <iprt/socket.h>
 #include <iprt/string.h>
@@ -95,7 +84,7 @@
  * @param    uid         where to store the UID of the user
  * @returns IPRT status code
  */
-static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *pGid, uid_t *pUid)
+static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t *gid, uid_t *uid)
 {
 #if defined(RT_OS_LINUX)
     struct passwd *pw;
@@ -113,23 +102,16 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
     if (spwd)
         pw->pw_passwd = spwd->sp_pwdp;
 
-    /* Default fCorrect=true if no password specified. In that case, pw->pw_passwd
-     * must be NULL (no password set for this user). Fail if a password is specified
-     * but the user does not have one assigned. */
-    int fCorrect = !pszPasswd || !*pszPasswd;
-    if (pw->pw_passwd && *pw->pw_passwd)
-    {
-        struct crypt_data *data = (struct crypt_data*)RTMemTmpAllocZ(sizeof(*data));
-        /* be reentrant */
-        char *pszEncPasswd = crypt_r(pszPasswd, pw->pw_passwd, data);
-        fCorrect = pszEncPasswd && !strcmp(pszEncPasswd, pw->pw_passwd);
-        RTMemTmpFree(data);
-    }
+    /* be reentrant */
+    struct crypt_data *data = (struct crypt_data*)RTMemTmpAllocZ(sizeof(*data));
+    char *pszEncPasswd = crypt_r(pszPasswd, pw->pw_passwd, data);
+    int fCorrect = !strcmp(pszEncPasswd, pw->pw_passwd);
+    RTMemTmpFree(data);
     if (!fCorrect)
         return VERR_PERMISSION_DENIED;
 
-    *pGid = pw->pw_gid;
-    *pUid = pw->pw_uid;
+    *gid = pw->pw_gid;
+    *uid = pw->pw_uid;
     return VINF_SUCCESS;
 
 #elif defined(RT_OS_SOLARIS)
@@ -152,12 +134,11 @@ static int rtCheckCredentials(const char *pszUser, const char *pszPasswd, gid_t 
     if (strcmp(pszEncPasswd, ppw->pw_passwd))
         return VERR_PERMISSION_DENIED;
 
-    *pGid = ppw->pw_gid;
-    *pUid = ppw->pw_uid;
+    *gid = ppw->pw_gid;
+    *uid = ppw->pw_uid;
     return VINF_SUCCESS;
 
 #else
-    NOREF(pszUser); NOREF(pszPasswd); NOREF(pGid); NOREF(pUid);
     return VERR_PERMISSION_DENIED;
 #endif
 }
@@ -273,25 +254,6 @@ RTR3DECL(int)   RTProcCreate(const char *pszExec, const char * const *papszArgs,
 }
 
 
-/**
- * RTPathTraverseList callback used by RTProcCreateEx to locate the executable.
- */
-static DECLCALLBACK(int) rtPathFindExec(char const *pchPath, size_t cchPath, void *pvUser1, void *pvUser2)
-{
-    const char *pszExec     = (const char *)pvUser1;
-    char       *pszRealExec = (char *)pvUser2;
-    int rc = RTPathJoinEx(pszRealExec, RTPATH_MAX, pchPath, cchPath, pszExec, RTSTR_MAX);
-    if (RT_FAILURE(rc))
-        return rc;
-    if (!access(pszRealExec, X_OK))
-        return VINF_SUCCESS;
-    if (   errno == EACCES
-        || errno == EPERM)
-        return RTErrConvertFromErrno(errno);
-    return VERR_TRY_AGAIN;
-}
-
-
 RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArgs, RTENV hEnv, uint32_t fFlags,
                                PCRTHANDLE phStdIn, PCRTHANDLE phStdOut, PCRTHANDLE phStdErr, const char *pszAsUser,
                                const char *pszPassword, PRTPROCESS phProcess)
@@ -303,7 +265,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
      */
     AssertPtrReturn(pszExec, VERR_INVALID_POINTER);
     AssertReturn(*pszExec, VERR_INVALID_PARAMETER);
-    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_SAME_CONTRACT | RTPROC_FLAGS_NO_PROFILE | RTPROC_FLAGS_SEARCH_PATH)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~(RTPROC_FLAGS_DETACHED | RTPROC_FLAGS_HIDDEN | RTPROC_FLAGS_SERVICE | RTPROC_FLAGS_SAME_CONTRACT | RTPROC_FLAGS_NO_PROFILE)), VERR_INVALID_PARAMETER);
     AssertReturn(!(fFlags & RTPROC_FLAGS_DETACHED) || !phProcess, VERR_INVALID_PARAMETER);
     AssertReturn(hEnv != NIL_RTENV, VERR_INVALID_PARAMETER);
     const char * const *papszEnv = RTEnvGetExecEnvP(hEnv);
@@ -314,10 +276,6 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     AssertReturn(!pszAsUser || *pszAsUser, VERR_INVALID_PARAMETER);
     AssertReturn(!pszPassword || pszAsUser, VERR_INVALID_PARAMETER);
     AssertPtrNullReturn(pszPassword, VERR_INVALID_POINTER);
-#if defined(RT_OS_OS2)
-    if (fFlags & RTPROC_FLAGS_DETACHED)
-        return VERR_PROC_DETACH_NOT_SUPPORTED;
-#endif
 
     /*
      * Get the file descriptors for the handles we've been passed.
@@ -380,22 +338,8 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
     /*
      * Check for execute access to the file.
      */
-    char szRealExec[RTPATH_MAX];
     if (access(pszExec, X_OK))
-    {
-        if (   !(fFlags & RTPROC_FLAGS_SEARCH_PATH)
-            || errno != ENOENT
-            || RTPathHavePath(pszExec) )
-            return RTErrConvertFromErrno(errno);
-
-        /* search */
-        char *pszPath = RTEnvDupEx(hEnv, "PATH");
-        rc = RTPathTraverseList(pszPath, ':', rtPathFindExec, (void *)pszExec, &szRealExec[0]);
-        RTStrFree(pszPath);
-        if (RT_FAILURE(rc))
-            return rc == VERR_END_OF_STRING ? VERR_FILE_NOT_FOUND : rc;
-        pszExec = szRealExec;
-    }
+        return RTErrConvertFromErrno(errno);
 
     pid_t pid = -1;
 
@@ -483,30 +427,20 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
         rc = posix_spawnattr_init(&Attr);
         if (!rc)
         {
-            /* Indicate that process group and signal mask are to be changed,
-               and that the child should use default signal actions. */
-            rc = posix_spawnattr_setflags(&Attr, POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF);
+# ifndef RT_OS_OS2 /* We don't need this on OS/2 and I don't recall if it's actually implemented. */
+            rc = posix_spawnattr_setflags(&Attr, POSIX_SPAWN_SETPGROUP);
             Assert(rc == 0);
-
-            /* The child starts in its own process group. */
             if (!rc)
             {
                 rc = posix_spawnattr_setpgroup(&Attr, 0 /* pg == child pid */);
                 Assert(rc == 0);
             }
-
-            /* Unmask all signals. */
-            if (!rc)
-            {
-                sigset_t SigMask;
-                sigemptyset(&SigMask);
-                rc = posix_spawnattr_setsigmask(&Attr, &SigMask); Assert(rc == 0);
-            }
+# endif
 
             /* File changes. */
             posix_spawn_file_actions_t  FileActions;
             posix_spawn_file_actions_t *pFileActions = NULL;
-            if ((aStdFds[0] != -1 || aStdFds[1] != -1 || aStdFds[2] != -1) && !rc)
+            if (aStdFds[0] != -1 || aStdFds[1] != -1 || aStdFds[2] != -1)
             {
                 rc = posix_spawn_file_actions_init(&FileActions);
                 if (!rc)
@@ -556,7 +490,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                 /* For a detached process this happens in the temp process, so
                  * it's not worth doing anything as this process must exit. */
                 if (fFlags & RTPROC_FLAGS_DETACHED)
-                    _Exit(0);
+                _Exit(0);
                 if (phProcess)
                     *phProcess = pid;
                 return VINF_SUCCESS;
@@ -571,20 +505,15 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
 #endif
     {
 #ifdef RT_OS_SOLARIS
-        int templateFd = -1;
-        if (!(fFlags & RTPROC_FLAGS_SAME_CONTRACT))
-        {
-            templateFd = rtSolarisContractPreFork();
-            if (templateFd == -1)
-                return VERR_OPEN_FAILED;
-        }
+        int templateFd = rtSolarisContractPreFork();
+        if (templateFd == -1)
+            return VERR_OPEN_FAILED;
 #endif /* RT_OS_SOLARIS */
         pid = fork();
         if (!pid)
         {
 #ifdef RT_OS_SOLARIS
-            if (!(fFlags & RTPROC_FLAGS_SAME_CONTRACT))
-                rtSolarisContractPostForkChild(templateFd);
+            rtSolarisContractPostForkChild(templateFd);
 #endif /* RT_OS_SOLARIS */
             if (!(fFlags & RTPROC_FLAGS_DETACHED))
                 setpgid(0, 0); /* see comment above */
@@ -593,17 +522,6 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
              * Change group and user if requested.
              */
 #if 1 /** @todo This needs more work, see suplib/hardening. */
-            if (pszAsUser)
-            {
-                int ret = initgroups(pszAsUser, gid);
-                if (ret)
-                {
-                    if (fFlags & RTPROC_FLAGS_DETACHED)
-                        _Exit(126);
-                    else
-                        exit(126);
-                }
-            }
             if (gid != ~(gid_t)0)
             {
                 if (setgid(gid))
@@ -626,14 +544,6 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                 }
             }
 #endif
-
-            /*
-             * Unset the signal mask.
-             */
-            sigset_t SigMask;
-            sigemptyset(&SigMask);
-            rc = sigprocmask(SIG_SETMASK, &SigMask, NULL);
-            Assert(rc == 0);
 
             /*
              * Apply changes to the standard file descriptor and stuff.
@@ -682,8 +592,7 @@ RTR3DECL(int)   RTProcCreateEx(const char *pszExec, const char * const *papszArg
                 exit(127);
         }
 #ifdef RT_OS_SOLARIS
-        if (!(fFlags & RTPROC_FLAGS_SAME_CONTRACT))
-            rtSolarisContractPostForkParent(templateFd, pid);
+        rtSolarisContractPostForkParent(templateFd, pid);
 #endif /* RT_OS_SOLARIS */
         if (pid > 0)
         {
@@ -744,11 +653,7 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
     /* First fork, to become independent process. */
     pid_t pid = fork();
     if (pid == -1)
-    {
-        if (fdPidfile != -1)
-            close(fdPidfile);
         return RTErrConvertFromErrno(errno);
-    }
     if (pid != 0)
     {
         /* Parent exits, no longer necessary. The child gets reparented
@@ -766,11 +671,7 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
     if (rcSigAct != -1)
         sigaction(SIGHUP, &OldSigAct, NULL);
     if (newpgid == -1)
-    {
-        if (fdPidfile != -1)
-            close(fdPidfile);
         return RTErrConvertFromErrno(SavedErrno);
-    }
 
     if (!fNoClose)
     {
@@ -795,18 +696,13 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
 
     if (!fNoChDir)
     {
-        int rcIgnored = chdir("/");
-        NOREF(rcIgnored);
+        int rcChdir = chdir("/");
     }
 
     /* Second fork to lose session leader status. */
     pid = fork();
     if (pid == -1)
-    {
-        if (fdPidfile != -1)
-            close(fdPidfile);
         return RTErrConvertFromErrno(errno);
-    }
 
     if (pid != 0)
     {
@@ -815,14 +711,11 @@ RTR3DECL(int)   RTProcDaemonizeUsingFork(bool fNoChDir, bool fNoClose, const cha
         {
             char szBuf[256];
             size_t cbPid = RTStrPrintf(szBuf, sizeof(szBuf), "%d\n", pid);
-            ssize_t cbIgnored = write(fdPidfile, szBuf, cbPid); NOREF(cbIgnored);
+            int rcWrite = write(fdPidfile, szBuf, cbPid);
             close(fdPidfile);
         }
         exit(0);
     }
-
-    if (fdPidfile != -1)
-        close(fdPidfile);
 
     return VINF_SUCCESS;
 }

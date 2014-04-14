@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -398,7 +398,6 @@ static void glue(vga_draw_line15_, DEPTH)(VGAState *s1, uint8_t *d,
         d += BPP;
     } while (--w != 0);
 #endif
-    NOREF(s1);
 }
 
 /*
@@ -424,7 +423,6 @@ static void glue(vga_draw_line16_, DEPTH)(VGAState *s1, uint8_t *d,
         d += BPP;
     } while (--w != 0);
 #endif
-    NOREF(s1);
 }
 
 /*
@@ -435,7 +433,6 @@ static void glue(vga_draw_line24_, DEPTH)(VGAState *s1, uint8_t *d,
 {
     int w;
     uint32_t r, g, b;
-    NOREF(s1);
 
     w = width;
     do {
@@ -482,7 +479,6 @@ static void glue(vga_draw_line32_, DEPTH)(VGAState *s1, uint8_t *d,
         d += BPP;
     } while (--w != 0);
 #endif
-    NOREF(s1);
 }
 
 #if DEPTH != 15

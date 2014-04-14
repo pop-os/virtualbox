@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,25 +43,13 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 }
 
 
-static int rtR0ThreadDarwinSleepCommon(RTMSINTERVAL cMillies)
+RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
 {
     RT_ASSERT_PREEMPTIBLE();
     uint64_t u64Deadline;
     clock_interval_to_deadline(cMillies, kMillisecondScale, &u64Deadline);
     clock_delay_until(u64Deadline);
     return VINF_SUCCESS;
-}
-
-
-RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
-{
-    return rtR0ThreadDarwinSleepCommon(cMillies);
-}
-
-
-RTDECL(int) RTThreadSleepNoLog(RTMSINTERVAL cMillies)
-{
-    return rtR0ThreadDarwinSleepCommon(cMillies);
 }
 
 

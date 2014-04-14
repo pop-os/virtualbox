@@ -195,7 +195,7 @@ PRBool test_distance()
     size_t d = Distance(begin, end);
     PRBool r = (d == sizeof(text)-1);
     if (!r)
-      printf("d=%zu\n", d);
+      printf("d=%u\n", d);
     return r;
   }
 
@@ -206,7 +206,7 @@ PRBool test_length()
     size_t d = s.Length();
     PRBool r = (d == sizeof(text)-1);
     if (!r)
-      printf("d=%zu\n", d);
+      printf("d=%u\n", d);
     return r;
   }
 

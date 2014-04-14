@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2012 Oracle Corporation
+# Copyright (C) 2008 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -25,11 +25,11 @@
 #
 
 SUB_DEPTH = ../../../../..
-include $(KBUILD_PATH)/subheader.kmk
+include	$(KBUILD_PATH)/subheader.kmk
 
-#ifneq ($(KBUILD_HOST),solaris)
-#$(error "The Solaris guest additions can only be built on Solaris!")
-#endif
+ifneq ($(KBUILD_HOST),solaris)
+$(error "The Solaris guest additions can only be built on Solaris!")
+endif
 
 #
 # vboxfs - The Shared Folder Driver
@@ -46,17 +46,7 @@ vboxfs_SOURCES       = \
 	vboxfs_prov.c
 vboxfs_LIBS          = \
 	$(VBOX_LIB_VBGL_R0)
-ifeq ($(KBUILD_HOST),solaris)
- vboxfs_LDFLAGS.solaris   += -N drv/vboxguest -N misc/ctf
-else
- vboxfs_SOURCES           += deps.asm
- vboxfs_deps.asm_ASFLAGS   = -f bin -g null
-endif
-if $(VBOX_SOLARIS_11_VERSION) >= 175
- && $(VBOX_SOLARIS_11_UPDATE_VERSION) >= 1
- && $(VBOX_SOLARIS_11_BUILD_VERSION) >= 10
-vboxfs_DEFS         += VBOX_VFS_EXTENDED_POLICY
-endif
+vboxfs_LDFLAGS      += -N drv/vboxguest -N misc/ctf
 
 
 ifndef VBOX_OSE
@@ -77,12 +67,7 @@ vboxfs_s10_SOURCES       = \
 vboxfs_s10_LIBS          = \
 	$(VBOX_LIB_VBGL_R0) \
 	$(VBOX_LIB_IPRT_GUEST_R0)
-ifeq ($(KBUILD_HOST),solaris)
- vboxfs_s10_LDFLAGS         += -N drv/vboxguest -N misc/ctf
-else
- vboxfs_s10_SOURCES         += deps.asm
- vboxfs_s10_deps.asm_ASFLAGS = -f bin -g null
-endif
+vboxfs_s10_LDFLAGS      += -N drv/vboxguest -N misc/ctf
 endif # VBOX_OSE
 
 
@@ -90,8 +75,8 @@ endif # VBOX_OSE
 # mount - Userland mount wrapper for vboxfs
 #
 PROGRAMS                += vboxfsmount
-vboxfsmount_TEMPLATE    = NewVBoxGuestR3Exe
+vboxfsmount_TEMPLATE    = VBOXGUESTR3EXE
 vboxfsmount_SOURCES     = vboxfs_mount.c
 
-include $(FILE_KBUILD_SUB_FOOTER)
+include	$(KBUILD_PATH)/subfooter.kmk
 

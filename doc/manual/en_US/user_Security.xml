@@ -211,7 +211,7 @@
           See <xref linkend="vbox-auth" /> for details.</para>
       </sect3>
 
-      <sect3 id="security_clipboard">
+      <sect3>
         <title>Clipboard</title>
         <para>
           The shared clipboard allows users to share data between the host and
@@ -219,23 +219,8 @@
           the guest to read and write the host clipboard. The "Host to guest"
           mode and the "Guest to host" mode limit the access to one
           direction. If the guest is able to access the host clipboard it
-          can also potentially access sensitive data from the host which is
-          shared over the clipboard.
-        </para>
-        <para>
-          If the guest is able to read from and/or write to the host clipboard
-          then a remote user connecting to the guest over the network will also
-          gain this ability, which may not be desirable. As a consequence, the
-          shared clipboard is disabled for new machines.
-        </para>
-      </sect3>
-
-      <sect3>
-        <title>Shared folders</title>
-        <para>If any host folder is shared with the guest then a remote
-          user connected to the guest over the network can access
-          these files too as the folder sharing mechanism cannot be
-          selectively disabled for remote users.
+          could also access sensitive data from the host which is shared over
+          the clipboard.
         </para>
       </sect3>
 
@@ -275,14 +260,22 @@
         authentication:<itemizedlist>
 
         <listitem>
+          <para>When using teleporting, passwords can optionally be used to
+          protect a machine waiting to be teleported from unauthorized access.
+          Note however that these passwords are stored <emphasis
+          role="bold">unencrypted</emphasis> in the machine configuration XML
+          and therefore potentially readable on the host. See <xref
+          linkend="teleporting" /> and <xref
+          linkend="vboxmanage-modifyvm-teleport" />.</para>
+        </listitem>
+
+        <listitem>
           <para>When using remote iSCSI storage and the storage server
-          requires authentication, an initiator secret can optionally be supplied
-          with the <computeroutput>VBoxManage storageattach</computeroutput>
-          command. As long as no settings password is provided (command line
-          option <screen>--settingspwfile</screen>, this secret is
-          stored <emphasis role="bold">unencrypted</emphasis> in the machine
-          configuration and is therefore potentially readable on the host.
-          See <xref
+          requires authentication, a password can optionally be supplied with
+          the <computeroutput>VBoxManage storageattach</computeroutput>
+          command. Note however that this is stored <emphasis
+          role="bold">unencrypted</emphasis> in the machine configuration and
+          is therefore potentially readable on the host. See <xref
           linkend="storage-iscsi" /> and <xref
           linkend="vboxmanage-storageattach" />.</para>
         </listitem>
@@ -342,7 +335,7 @@
           <para>The web services are not started by default. Please refer to
           <xref linkend="vboxwebsrv-daemon"/> to find out how to start this
           service and how to enable SSL/TLS support. It has to be started as
-          a regular user and only the VMs of that user can be controlled. By
+          a regular user and only the VMs of that user can be controled. By
           default, the service binds to localhost preventing any remote connection.</para>
         </listitem>
         
@@ -352,13 +345,6 @@
           IPsec), or use encrypted protocols in the guest network (such as
           SSH). The security properties are similar to bridged Ethernet.</para>
         </listitem>
-
-        <listitem>
-          <para>Because of shortcomings in older Windows versions, using
-          VirtualBox on Windows versions older than Vista with Service Pack 1
-          is not recommended.</para>
-        </listitem>
-
       </itemizedlist></para>
     </sect2>
 

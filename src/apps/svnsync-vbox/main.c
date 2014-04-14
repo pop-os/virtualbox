@@ -1286,18 +1286,10 @@ copy_file(const char *src_path,
   void *window_handler_baton;
   apr_hash_t *fileprops;
   apr_hash_index_t *hi;
-  svn_error_t *e = NULL;
 
-  e = eb->wrapped_editor->add_file(dst_path, wrapped_parent_node_baton,
-                                   NULL, SVN_IGNORED_REVNUM, pool,
-                                   &fb->wrapped_node_baton);
-  if (e)
-  {
-    svn_error_clear(e);
-    SVN_ERR(eb->wrapped_editor->open_file(dst_path, wrapped_parent_node_baton,
-                                          SVN_IGNORED_REVNUM, pool,
-                                          &fb->wrapped_node_baton));
-  }
+  SVN_ERR(eb->wrapped_editor->add_file(dst_path, wrapped_parent_node_baton,
+                                       NULL, SVN_IGNORED_REVNUM, pool,
+                                       &fb->wrapped_node_baton));
 
   subpool = svn_pool_create(pool);
   /* Copy over contents from src revision in source repository. */
@@ -1667,7 +1659,7 @@ open_directory(const char *path,
 #ifdef VBOX
   node_baton_t *db = apr_pcalloc(pool, sizeof(*db));
   svn_boolean_t dir_added_this_changeset = FALSE;
-  svn_boolean_t dir_present_in_target = FALSE;
+  svn_boolean_t dir_present_in_target = TRUE;
 
   DX(fprintf(stderr, "open_directory %s\n", path);)
   db->ignore_everything_rec = pb->ignore_everything_rec;
@@ -1679,7 +1671,8 @@ open_directory(const char *path,
      * repository. Can happen to be not there if the rename and
      * a change to some file in the directory is in one changeset. */
     SVN_ERR(svn_ra_check_path(eb->from_session_prop, STRIP_LEADING_SLASH(path),
-                              eb->current-1, &nodekind, pool));
+                              eb->current-1,
+                              &nodekind, pool));
     dir_added_this_changeset = (nodekind != svn_node_dir);
     if (!dir_added_this_changeset)
     {
@@ -1697,10 +1690,6 @@ open_directory(const char *path,
                                   dst_rev, &nodekind, pool));
         dir_present_in_target = (nodekind == svn_node_dir);
       }
-    }
-    else
-    {
-      dir_present_in_target = TRUE;
     }
     SVN_ERR(get_props_sync(eb->from_session_prop, eb->default_process,
                            pb->process_default, pb->process_recursive, path,

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,7 +48,7 @@
 # define pthread_yield() pthread_yield_np()
 #endif
 
-#if defined(RT_OS_SOLARIS) || defined(RT_OS_HAIKU)
+#ifdef RT_OS_SOLARIS
 # include <sched.h>
 # define pthread_yield() sched_yield()
 #endif
@@ -310,9 +310,7 @@ RTDECL(int)  RTSemEventSignal(RTSEMEVENT hEventSem)
 
 DECL_FORCE_INLINE(int) rtSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillies, bool fAutoResume)
 {
-#ifdef RTSEMEVENT_STRICT
     PCRTLOCKVALSRCPOS  pSrcPos = NULL;
-#endif
 
     /*
      * Validate input.
@@ -397,7 +395,7 @@ DECL_FORCE_INLINE(int) rtSemEventWait(RTSEMEVENT hEventSem, RTMSINTERVAL cMillie
          * Get current time and calc end of wait time.
          */
         struct timespec     ts = {0,0};
-#if defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)
+#ifdef RT_OS_DARWIN
         struct timeval      tv = {0,0};
         gettimeofday(&tv, NULL);
         ts.tv_sec = tv.tv_sec;

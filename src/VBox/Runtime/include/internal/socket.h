@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,7 +29,6 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
-#include <iprt/net.h>
 /* Currently requires a bunch of socket headers. */
 
 
@@ -54,16 +53,18 @@ RT_C_DECLS_BEGIN
 int rtSocketResolverError(void);
 int rtSocketCreateForNative(RTSOCKETINT **ppSocket, RTSOCKETNATIVE hNative);
 int rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol);
-int rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr);
+int rtSocketBind(RTSOCKET hSocket, const struct sockaddr *pAddr, int cbAddr);
 int rtSocketListen(RTSOCKET hSocket, int cMaxPending);
 int rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sockaddr *pAddr, size_t *pcbAddr);
-int rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr);
+int rtSocketConnect(RTSOCKET hSocket, const struct sockaddr *pAddr, int cbAddr);
 int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValue, int cbValue);
 #endif /* IPRT_INTERNAL_SOCKET_POLLING_ONLY */
 
-int         rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PRTHCINTPTR phNative);
+#ifdef RT_OS_WINDOWS
+int         rtSocketPollGetHandle(RTSOCKET hSocket, uint32_t fEvents, PHANDLE ph);
 uint32_t    rtSocketPollStart(RTSOCKET hSocket, RTPOLLSET hPollSet, uint32_t fEvents, bool fFinalEntry, bool fNoWait);
 uint32_t    rtSocketPollDone(RTSOCKET hSocket, uint32_t fEvents, bool fFinalEntry, bool fHarvestEvents);
+#endif /* RT_OS_WINDOWS */
 
 RT_C_DECLS_END
 

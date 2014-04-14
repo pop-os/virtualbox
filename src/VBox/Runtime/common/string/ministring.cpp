@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2007-2012 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -201,16 +201,13 @@ RTCString &RTCString::appendCodePoint(RTUNICP uc)
 
 size_t RTCString::find(const char *pcszFind, size_t pos /*= 0*/) const
 {
-    if (pos < length())
-    {
-        const char *pszThis = c_str();
-        if (pszThis)
-        {
-            const char *pszHit = strstr(pszThis + pos, pcszFind);
-            if (pszHit)
-                return pszHit - pszThis;
-        }
-    }
+    const char *pszThis, *p;
+
+    if (    ((pszThis = c_str()))
+         && (pos < length())
+         && ((p = strstr(pszThis + pos, pcszFind)))
+       )
+        return p - pszThis;
 
     return npos;
 }
@@ -234,13 +231,10 @@ size_t RTCString::count(char ch) const
 
     size_t      c   = 0;
     const char *psz = m_psz;
-    if (psz)
-    {
-        char    chCur;
-        while ((chCur = *psz++) != '\0')
-            if (chCur == ch)
-                c++;
-    }
+    char        chCur;
+    while ((chCur = *psz++) != '\0')
+        if (chCur == ch)
+            c++;
     return c;
 }
 
@@ -360,7 +354,7 @@ int RTCString::toInt(uint32_t &i) const
 }
 
 RTCList<RTCString, RTCString *>
-RTCString::split(const RTCString &a_rstrSep, SplitMode mode /* = RemoveEmptyParts */) const
+RTCString::split(const RTCString &a_rstrSep, SplitMode mode /* = RemoveEmptyParts */)
 {
     RTCList<RTCString> strRet;
     if (!m_psz)

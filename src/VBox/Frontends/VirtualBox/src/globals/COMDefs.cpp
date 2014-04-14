@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2008 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,27 +17,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QObject>
-#include <QSocketNotifier>
-
-/* COM includes: */
 #include "COMDefs.h"
-#include "UIDefs.h"
-#include "CVirtualBoxErrorInfo.h"
 
 #if !defined (VBOX_WITH_XPCOM)
 
+
 #else /* !defined (VBOX_WITH_XPCOM) */
 
-/* Other VBox includes: */
-#include <iprt/env.h>
-#include <iprt/err.h>
-#include <iprt/path.h>
-#include <iprt/param.h>
+/* Qt includes */
+#include <QObject>
+#include <QSocketNotifier>
+
 #include <nsEventQueueUtils.h>
 #include <nsIEventQueue.h>
+
+// for exception fetching
 #include <nsIExceptionService.h>
+
+#include <iprt/env.h>
+#include <iprt/path.h>
+#include <iprt/param.h>
+#include <iprt/err.h>
 
 /* Mac OS X (Carbon mode) and OS/2 will notify the native queue
    internally in plevent.c. Because moc doesn't seems to respect

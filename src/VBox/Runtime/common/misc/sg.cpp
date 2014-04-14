@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,6 @@
 #include <iprt/sg.h>
 #include <iprt/string.h>
 #include <iprt/assert.h>
-#include <iprt/asm.h>
 
 
 static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
@@ -47,14 +46,12 @@ static void *sgBufGet(PRTSGBUF pSgBuf, size_t *pcbData)
         return NULL;
     }
 
-#ifndef RDESKTOP
-    AssertReleaseMsg(      pSgBuf->cbSegLeft <= 32 * _1M
+    AssertReleaseMsg(      pSgBuf->cbSegLeft <= 5 * _1M
                      &&    (uintptr_t)pSgBuf->pvSegCur                     >= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg
                      &&    (uintptr_t)pSgBuf->pvSegCur + pSgBuf->cbSegLeft <= (uintptr_t)pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg + pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg,
                      ("pSgBuf->idxSeg=%d pSgBuf->cSegs=%d pSgBuf->pvSegCur=%p pSgBuf->cbSegLeft=%zd pSgBuf->paSegs[%d].pvSeg=%p pSgBuf->paSegs[%d].cbSeg=%zd\n",
                       pSgBuf->idxSeg, pSgBuf->cSegs, pSgBuf->pvSegCur, pSgBuf->cbSegLeft,
                       pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].pvSeg, pSgBuf->idxSeg, pSgBuf->paSegs[pSgBuf->idxSeg].cbSeg));
-#endif
 
     cbData = RT_MIN(*pcbData, pSgBuf->cbSegLeft);
     pvBuf  = pSgBuf->pvSegCur;
@@ -115,18 +112,6 @@ RTDECL(void) RTSgBufClone(PRTSGBUF pSgBufTo, PCRTSGBUF pSgBufFrom)
     pSgBufTo->idxSeg    = pSgBufFrom->idxSeg;
     pSgBufTo->pvSegCur  = pSgBufFrom->pvSegCur;
     pSgBufTo->cbSegLeft = pSgBufFrom->cbSegLeft;
-}
-
-
-RTDECL(void *) RTSgBufGetNextSegment(PRTSGBUF pSgBuf, size_t *pcbSeg)
-{
-    AssertPtrReturn(pSgBuf, NULL);
-    AssertPtrReturn(pcbSeg, NULL);
-
-    if (!*pcbSeg)
-        *pcbSeg = pSgBuf->cbSegLeft;
-
-    return sgBufGet(pSgBuf, pcbSeg);
 }
 
 
@@ -317,7 +302,7 @@ RTDECL(size_t) RTSgBufCopyToBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy)
 }
 
 
-RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, const void *pvBuf, size_t cbCopy)
+RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, void *pvBuf, size_t cbCopy)
 {
     AssertPtrReturn(pSgBuf, 0);
     AssertPtrReturn(pvBuf, 0);
@@ -335,7 +320,7 @@ RTDECL(size_t) RTSgBufCopyFromBuf(PRTSGBUF pSgBuf, const void *pvBuf, size_t cbC
         memcpy(pvDst, pvBuf, cbThisCopy);
 
         cbLeft -= cbThisCopy;
-        pvBuf = (const void *)((uintptr_t)pvBuf + cbThisCopy);
+        pvBuf = (void *)((uintptr_t)pvBuf + cbThisCopy);
     }
 
     return cbCopy - cbLeft;
@@ -422,54 +407,5 @@ RTDECL(size_t) RTSgBufSegArrayCreate(PRTSGBUF pSgBuf, PRTSGSEG paSeg, unsigned *
     *pcSeg = cSeg;
 
     return cb;
-}
-
-RTDECL(bool) RTSgBufIsZero(PRTSGBUF pSgBuf, size_t cbCheck)
-{
-    bool fIsZero = true;
-    size_t cbLeft = cbCheck;
-    RTSGBUF SgBufTmp;
-
-    RTSgBufClone(&SgBufTmp, pSgBuf);
-
-    while (cbLeft)
-    {
-        size_t cbThisCheck = cbLeft;
-        void *pvBuf = sgBufGet(&SgBufTmp, &cbThisCheck);
-
-        if (!cbThisCheck)
-            break;
-
-        /* Use optimized inline assembler if possible. */
-        if (   !(cbThisCheck % 4)
-            && (cbThisCheck * 8 <= UINT32_MAX))
-        {
-            if (ASMBitFirstSet((volatile void *)pvBuf, (uint32_t)cbThisCheck * 8) != -1)
-            {
-                fIsZero = false;
-                break;
-            }
-        }
-        else
-        {
-            for (unsigned i = 0; i < cbThisCheck; i++)
-            {
-                char *pbBuf = (char *)pvBuf;
-                if (*pbBuf)
-                {
-                    fIsZero = false;
-                    break;
-                }
-                pvBuf = pbBuf + 1;
-            }
-
-            if (!fIsZero)
-                break;
-        }
-
-        cbLeft -= cbThisCheck;
-    }
-
-    return fIsZero;
 }
 

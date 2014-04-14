@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2007 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,7 +116,7 @@ VMMDECL(int) PGMMap(PVM pVM, RTGCUINTPTR GCPtr, RTHCPHYS HCPhys, uint32_t cbPage
  * Sets (replaces) the page flags for a range of pages in a mapping.
  *
  * @returns VBox status.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   GCPtr       Virtual address of the first page in the range.
  * @param   cb          Size (in bytes) of the range to apply the modification to.
  * @param   fFlags      Page flags X86_PTE_*, excluding the page mask of course.
@@ -133,7 +133,7 @@ VMMDECL(int) PGMMapSetPage(PVM pVM, RTGCPTR GCPtr, uint64_t cb, uint64_t fFlags)
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         VM handle.
  * @param   GCPtr       Virtual address of the first page in the range.
  * @param   cb          Size (in bytes) of the range to apply the modification to.
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -216,7 +216,7 @@ VMMDECL(int)  PGMMapModifyPage(PVM pVM, RTGCPTR GCPtr, size_t cb, uint64_t fFlag
  * the page table to calculate the flags.
  *
  * @returns VINF_SUCCESS, VERR_PAGE_NOT_PRESENT or VERR_NOT_FOUND.
- * @param   pVM                 Pointer to the VM.
+ * @param   pVM                 The VM handle.
  * @param   GCPtr               The page address.
  * @param   pfFlags             Where to return the flags.  Optional.
  * @param   pHCPhys             Where to return the address.  Optional.
@@ -258,14 +258,13 @@ VMMDECL(int) PGMMapGetPage(PVM pVM, RTGCPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS 
     return VERR_NOT_FOUND;
 }
 
-#ifndef PGM_WITHOUT_MAPPINGS
 
+
+#ifndef IN_RING0
 /**
  * Sets all PDEs involved with the mapping in the shadow page table.
  *
- * Ignored if mappings are disabled (i.e. if HM is enabled).
- *
- * @param   pVM         Pointer to the VM.
+ * @param   pVM         The VM handle.
  * @param   pMap        Pointer to the mapping in question.
  * @param   iNewPDE     The index of the 32-bit PDE corresponding to the base of the mapping.
  */
@@ -273,7 +272,8 @@ void pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
 {
     Log4(("pgmMapSetShadowPDEs new pde %x (mappings enabled %d)\n", iNewPDE, pgmMapAreMappingsEnabled(pVM)));
 
-    if (!pgmMapAreMappingsEnabled(pVM))
+    if (    !pgmMapAreMappingsEnabled(pVM)
+        ||  pVM->cCpus > 1)
         return;
 
     /* This only applies to raw mode where we only support 1 VCPU. */
@@ -356,7 +356,7 @@ void pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
                 AssertFatal(pPoolPagePd);
                 if (!pgmPoolIsPageLocked(pPoolPagePd))
                     pgmPoolLockPage(pPool, pPoolPagePd);
-# ifdef VBOX_STRICT
+#ifdef VBOX_STRICT
                 else if (pShwPaePd->a[iPaePde].u & PGM_PDFLAGS_MAPPING)
                 {
                     Assert(PGMGetGuestMode(pVCpu) >= PGMMODE_PAE); /** @todo We may hit this during reset, will fix later. */
@@ -368,7 +368,7 @@ void pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
                                    || !PGMMODE_WITH_PAGING(PGMGetGuestMode(pVCpu)),
                                    ("%RX64 vs %RX64\n", pShwPaePd->a[iPaePde+1].u & X86_PDE_PAE_PG_MASK, pMap->aPTs[i].HCPhysPaePT1));
                 }
-# endif
+#endif
 
                 /*
                  * Insert our first PT, freeing anything we might be replacing unless it's a mapping (i.e. us).
@@ -416,9 +416,7 @@ void pgmMapSetShadowPDEs(PVM pVM, PPGMMAPPING pMap, unsigned iNewPDE)
 /**
  * Clears all PDEs involved with the mapping in the shadow page table.
  *
- * Ignored if mappings are disabled (i.e. if HM is enabled).
- *
- * @param   pVM             Pointer to the VM.
+ * @param   pVM             The VM handle.
  * @param   pShwPageCR3     CR3 root page
  * @param   pMap            Pointer to the mapping in question.
  * @param   iOldPDE         The index of the 32-bit PDE corresponding to the base of the mapping.
@@ -429,9 +427,10 @@ void pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, 
     Log(("pgmMapClearShadowPDEs: old pde %x (cPTs=%x) (mappings enabled %d) fDeactivateCR3=%RTbool\n", iOldPDE, pMap->cPTs, pgmMapAreMappingsEnabled(pVM), fDeactivateCR3));
 
     /*
-     * Skip this if it doesn't apply.
+     * Skip this if disabled or if it doesn't apply.
      */
-    if (!pgmMapAreMappingsEnabled(pVM))
+    if (    !pgmMapAreMappingsEnabled(pVM)
+        ||  pVM->cCpus > 1)
         return;
 
     Assert(pShwPageCR3);
@@ -541,15 +540,14 @@ void pgmMapClearShadowPDEs(PVM pVM, PPGMPOOLPAGE pShwPageCR3, PPGMMAPPING pMap, 
 
     PGM_DYNMAP_UNUSED_HINT_VM(pVM, pCurrentShwPdpt);
 }
+#endif /* !IN_RING0 */
 
-#endif /* PGM_WITHOUT_MAPPINGS */
 #if defined(VBOX_STRICT) && !defined(IN_RING0)
-
 /**
  * Clears all PDEs involved with the mapping in the shadow page table.
  *
- * @param   pVM         Pointer to the VM.
- * @param   pVCpu       Pointer to the VMCPU.
+ * @param   pVM         The VM handle.
+ * @param   pVCpu       The VMCPU handle.
  * @param   pShwPageCR3 CR3 root page
  * @param   pMap        Pointer to the mapping in question.
  * @param   iPDE        The index of the 32-bit PDE corresponding to the base of the mapping.
@@ -625,8 +623,6 @@ static void pgmMapCheckShadowPDEs(PVM pVM, PVMCPU pVCpu, PPGMPOOLPAGE pShwPageCR
 /**
  * Check the hypervisor mappings in the active CR3.
  *
- * Ignored if mappings are disabled (i.e. if HM is enabled).
- *
  * @param   pVM         The virtual machine.
  */
 VMMDECL(void) PGMMapCheck(PVM pVM)
@@ -653,14 +649,12 @@ VMMDECL(void) PGMMapCheck(PVM pVM)
     }
     pgmUnlock(pVM);
 }
-
 #endif /* defined(VBOX_STRICT) && !defined(IN_RING0) */
-#ifndef PGM_WITHOUT_MAPPINGS
+
+#ifndef IN_RING0
 
 /**
  * Apply the hypervisor mappings to the active CR3.
- *
- * Ignored if mappings are disabled (i.e. if HM is enabled).
  *
  * @returns VBox status.
  * @param   pVM         The virtual machine.
@@ -669,9 +663,10 @@ VMMDECL(void) PGMMapCheck(PVM pVM)
 int pgmMapActivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
 {
     /*
-     * Skip this if it doesn't apply.
+     * Skip this if disabled or if it doesn't apply.
      */
-    if (!pgmMapAreMappingsEnabled(pVM))
+    if (    !pgmMapAreMappingsEnabled(pVM)
+        ||  pVM->cCpus > 1)
         return VINF_SUCCESS;
 
     /* Note! This might not be logged successfully in RC because we usually
@@ -698,8 +693,6 @@ int pgmMapActivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
 /**
  * Remove the hypervisor mappings from the specified CR3
  *
- * Ignored if mappings are disabled (i.e. if HM is enabled).
- *
  * @returns VBox status.
  * @param   pVM         The virtual machine.
  * @param   pShwPageCR3 CR3 root page
@@ -707,9 +700,10 @@ int pgmMapActivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
 int pgmMapDeactivateCR3(PVM pVM, PPGMPOOLPAGE pShwPageCR3)
 {
     /*
-     * Skip this if it doesn't apply.
+     * Skip this if disabled or if it doesn't apply.
      */
-    if (!pgmMapAreMappingsEnabled(pVM))
+    if (    !pgmMapAreMappingsEnabled(pVM)
+        ||  pVM->cCpus > 1)
         return VINF_SUCCESS;
 
     Assert(pShwPageCR3);
@@ -741,7 +735,8 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
      */
     if (!pgmMapAreMappingsFloating(pVM))
         return false;
-    AssertReturn(pgmMapAreMappingsEnabled(pVM), false);
+
+    Assert(pVM->cCpus == 1);
 
     /* This only applies to raw mode where we only support 1 VCPU. */
     PVMCPU pVCpu = &pVM->aCpus[0];
@@ -770,17 +765,17 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
 
-# ifdef IN_RING3
+#ifdef IN_RING3
                     Log(("PGMHasMappingConflicts: Conflict was detected at %08RX32 for mapping %s (32 bits)\n"
                          "                        iPDE=%#x iPT=%#x PDE=%RGp.\n",
                         (iPT + iPDE) << X86_PD_SHIFT, pCur->pszDesc,
                         iPDE, iPT, pPD->a[iPDE + iPT].au32[0]));
-# else
+#else
                     Log(("PGMHasMappingConflicts: Conflict was detected at %08RX32 for mapping (32 bits)\n"
                          "                        iPDE=%#x iPT=%#x PDE=%RGp.\n",
                         (iPT + iPDE) << X86_PD_SHIFT,
                         iPDE, iPT, pPD->a[iPDE + iPT].au32[0]));
-# endif
+#endif
                     return true;
                 }
         }
@@ -801,15 +796,15 @@ VMMDECL(bool) PGMMapHasConflicts(PVM pVM)
                     && (EMIsRawRing0Enabled(pVM) || Pde.n.u1User))
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
-# ifdef IN_RING3
+#ifdef IN_RING3
                     Log(("PGMHasMappingConflicts: Conflict was detected at %RGv for mapping %s (PAE)\n"
                          "                        PDE=%016RX64.\n",
                         GCPtr, pCur->pszDesc, Pde.u));
-# else
+#else
                     Log(("PGMHasMappingConflicts: Conflict was detected at %RGv for mapping (PAE)\n"
                          "                        PDE=%016RX64.\n",
                         GCPtr, Pde.u));
-# endif
+#endif
                     return true;
                 }
                 GCPtr += (1 << X86_PD_PAE_SHIFT);
@@ -833,7 +828,7 @@ int pgmMapResolveConflicts(PVM pVM)
 {
     /* The caller is expected to check these two conditions. */
     Assert(!pVM->pgm.s.fMappingsFixed);
-    Assert(pgmMapAreMappingsEnabled(pVM));
+    Assert(!pVM->pgm.s.fMappingsDisabled);
 
     /* This only applies to raw mode where we only support 1 VCPU. */
     Assert(pVM->cCpus == 1);
@@ -865,7 +860,7 @@ int pgmMapResolveConflicts(PVM pVM)
                 {
                     STAM_COUNTER_INC(&pVM->pgm.s.CTX_SUFF(pStats)->StatR3DetectedConflicts);
 
-# ifdef IN_RING3
+#ifdef IN_RING3
                     Log(("PGMHasMappingConflicts: Conflict was detected at %08RX32 for mapping %s (32 bits)\n"
                          "                        iPDE=%#x iPT=%#x PDE=%RGp.\n",
                          (iPT + iPDE) << X86_PD_SHIFT, pCur->pszDesc,
@@ -873,13 +868,13 @@ int pgmMapResolveConflicts(PVM pVM)
                     int rc = pgmR3SyncPTResolveConflict(pVM, pCur, pPD, iPDE << X86_PD_SHIFT);
                     AssertRCReturn(rc, rc);
                     break;
-# else
+#else
                     Log(("PGMHasMappingConflicts: Conflict was detected at %08RX32 for mapping (32 bits)\n"
                          "                        iPDE=%#x iPT=%#x PDE=%RGp.\n",
                          (iPT + iPDE) << X86_PD_SHIFT,
                          iPDE, iPT, pPD->a[iPDE + iPT].au32[0]));
                     return VINF_PGM_SYNC_CR3;
-# endif
+#endif
                 }
             }
             pCur = pNext;
@@ -930,5 +925,5 @@ int pgmMapResolveConflicts(PVM pVM)
     return VINF_SUCCESS;
 }
 
-#endif /* PGM_WITHOUT_MAPPINGS */
+#endif /* IN_RING0 */
 

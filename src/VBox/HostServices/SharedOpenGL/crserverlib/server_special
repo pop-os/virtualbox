@@ -160,7 +160,6 @@ ProgramParameter4fNV
 ProgramParameter4dNV
 GetCompressedTexImageARB
 GenBuffersARB
-DeleteBuffersARB
 GetBufferSubDataARB
 GetBufferPointervARB
 MapBufferARB
@@ -220,7 +219,6 @@ ValidateProgram
 BindAttribLocation
 DeleteObjectARB
 GetUniformsLocations
-GetAttribsLocations
 GetPolygonStipple
 Flush
 Finish
@@ -248,19 +246,3 @@ GetObjectParameterivARB
 GetObjectParameterfvARB
 BlitFramebufferEXT
 EndList
-DrawBuffer
-ReadBuffer
-VBoxTexPresent
-GetError
-GetProgramiv
-GetShaderiv
-Begin
-DrawArrays
-DrawElements
-End
-TexEnvf
-TexEnvfv
-TexEnvi
-TexEnviv
-GetTexEnvfv
-GetTexEnviv

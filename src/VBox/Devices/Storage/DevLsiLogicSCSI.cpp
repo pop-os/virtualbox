@@ -1,10 +1,10 @@
 /* $Id: DevLsiLogicSCSI.cpp $ */
 /** @file
- * DevLsiLogicSCSI - LsiLogic LSI53c1030 SCSI controller.
+ * VBox storage devices: LsiLogic LSI53c1030 SCSI controller.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2009 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
+//#define DEBUG
 #define LOG_GROUP LOG_GROUP_DEV_LSILOGICSCSI
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmqueue.h>
-#include <VBox/vmm/pdmthread.h>
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/scsi.h>
-#include <VBox/sup.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/string.h>
-#include <iprt/list.h>
 #ifdef IN_RING3
 # include <iprt/memcache.h>
 # include <iprt/mem.h>
@@ -42,53 +37,16 @@
 
 #include "VBoxDD.h"
 
-
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
 /** The current saved state version. */
-#define LSILOGIC_SAVED_STATE_VERSION                5
-/** The saved state version used by VirtualBox before the diagnostic
- * memory access was implemented. */
-#define LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM   4
-/** The saved state version used by VirtualBox before the doorbell status flag
- * was changed from bool to a 32bit enum. */
-#define LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL  3
+#define LSILOGIC_SAVED_STATE_VERSION          3
 /** The saved state version used by VirtualBox before SAS support was added. */
-#define LSILOGIC_SAVED_STATE_VERSION_PRE_SAS        2
+#define LSILOGIC_SAVED_STATE_VERSION_PRE_SAS  2
 /** The saved state version used by VirtualBox 3.0 and earlier.  It does not
  * include the device config part. */
-#define LSILOGIC_SAVED_STATE_VERSION_VBOX_30        1
+#define LSILOGIC_SAVED_STATE_VERSION_VBOX_30  1
 
 /** Maximum number of entries in the release log. */
 #define MAX_REL_LOG_ERRORS 1024
-
-#define LSILOGIC_RTGCPHYS_FROM_U32(Hi, Lo)         ( (RTGCPHYS)RT_MAKE_U64(Lo, Hi) )
-
-/** Upper number a buffer is freed if it was too big before. */
-#define LSILOGIC_MAX_ALLOC_TOO_MUCH 20
-
-/** Maximum size of the memory regions (prevents teh guest from DOSing the host by
- * allocating loadds of memory). */
-#define LSILOGIC_MEMORY_REGIONS_MAX (_1M)
-
-/*******************************************************************************
-*   Structures and Typedefs                                                    *
-*******************************************************************************/
-
-/**
- * I/O buffer copy worker.
- *
- * @returns nothing.
- * @param   pDevIns     Device instance data.
- * @param   GCPhysIoBuf Guest physical address of the I/O buffer.
- * @param   pvBuf       R3 buffer pointer.
- * @param   cbCopy      How much to copy.
- */
-typedef DECLCALLBACK(void) FNLSILOGICIOBUFCOPY(PPDMDEVINS pDevIns, RTGCPHYS GCPhysIoBuf,
-                                               void *pvBuf, size_t cbCopy);
-/** Pointer to a I/O buffer copy worker. */
-typedef FNLSILOGICIOBUFCOPY *PFNLSILOGICIOBUFCOPY;
 
 /**
  * Reply data.
@@ -103,26 +61,7 @@ typedef struct LSILOGICSCSIREPLY
     uint32_t      cbReply;
     /** Different views to the reply depending on the request type. */
     MptReplyUnion Reply;
-} LSILOGICSCSIREPLY;
-/** Pointer to reply data. */
-typedef LSILOGICSCSIREPLY *PLSILOGICSCSIREPLY;
-
-/**
- * Memory region of the IOC.
- */
-typedef struct LSILOGICMEMREGN
-{
-    /** List node. */
-    RTLISTNODE    NodeList;
-    /** 32bit address the region starts to describe. */
-    uint32_t      u32AddrStart;
-    /** 32bit address the region ends (inclusive). */
-    uint32_t      u32AddrEnd;
-    /** Data for this region - variable. */
-    uint32_t      au32Data[1];
-} LSILOGICMEMREGN;
-/** Pointer to a memory region. */
-typedef LSILOGICMEMREGN *PLSILOGICMEMREGN;
+} LSILOGICSCSIREPLY, *PLSILOGICSCSIREPLY;
 
 /**
  * State of a device attached to the buslogic host adapter.
@@ -137,7 +76,7 @@ typedef struct LSILOGICDEVICE
     R3PTRTYPE(struct LSILOGICSCSI *)  pLsiLogicR3;
 
     /** LUN of the device. */
-    uint32_t                      iLUN;
+    RTUINT                        iLUN;
     /** Number of outstanding tasks on the port. */
     volatile uint32_t             cOutstandingRequests;
 
@@ -158,15 +97,14 @@ typedef struct LSILOGICDEVICE
     /** The status LED state for this device. */
     PDMLED                        Led;
 
-} LSILOGICDEVICE;
-/** Pointer to a device state. */
-typedef LSILOGICDEVICE *PLSILOGICDEVICE;
+} LSILOGICDEVICE, *PLSILOGICDEVICE;
 
 /** Pointer to a task state. */
-typedef struct LSILOGICREQ *PLSILOGICREQ;
+typedef struct LSILOGICTASKSTATE *PLSILOGICTASKSTATE;
 
 /**
- * Device instance data for the emulated SCSI controller.
+ * Device instance data for the emulated
+ * SCSI controller.
  */
 typedef struct LSILOGICSCSI
 {
@@ -189,15 +127,19 @@ typedef struct LSILOGICSCSI
     /** Who needs to init the driver to get into operational state. */
     LSILOGICWHOINIT      enmWhoInit;
     /** Flag whether we are in doorbell function. */
-    LSILOGICDOORBELLSTATE enmDoorbellState;
+    bool                 fDoorbellInProgress;
     /** Flag whether diagnostic access is enabled. */
     bool                 fDiagnosticEnabled;
+
     /** Flag whether a notification was send to R3. */
-    bool                 fNotificationSent;
+    bool                 fNotificationSend;
+
     /** Flag whether the guest enabled event notification from the IOC. */
     bool                 fEventNotificationEnabled;
-    /** Flag whether the diagnostic address and RW registers are enabled. */
-    bool                 fDiagRegsEnabled;
+
+#if HC_ARCH_BITS == 64
+    uint32_t             Alignment0;
+#endif
 
     /** Queue to send tasks to R3. - R3 ptr */
     R3PTRTYPE(PPDMQUEUE) pNotificationQueueR3;
@@ -206,30 +148,40 @@ typedef struct LSILOGICSCSI
     /** Queue to send tasks to R3. - RC ptr */
     RCPTRTYPE(PPDMQUEUE) pNotificationQueueRC;
 
+#if HC_ARCH_BITS == 64
+    uint32_t             Alignment1;
+#endif
+
     /** Number of device states allocated. */
-    uint32_t             cDeviceStates;
+    uint32_t                   cDeviceStates;
+
+#if HC_ARCH_BITS == 64
+    uint32_t             Alignment2;
+#endif
 
     /** States for attached devices. */
     R3PTRTYPE(PLSILOGICDEVICE) paDeviceStates;
-#if HC_ARCH_BITS == 32
-    RTR3PTR                 R3PtrPadding0;
-#endif
+
+    /** MMIO address the device is mapped to. */
+    RTGCPHYS              GCPhysMMIOBase;
+    /** I/O port address the device is mapped to. */
+    RTIOPORT              IOPortBase;
 
     /** Interrupt mask. */
     volatile uint32_t     uInterruptMask;
     /** Interrupt status register. */
     volatile uint32_t     uInterruptStatus;
 
-    /** Buffer for messages which are passed through the doorbell using the
+    /** Buffer for messages which are passed
+     * through the doorbell using the
      * handshake method. */
-    uint32_t              aMessage[sizeof(MptConfigurationRequest)]; /** @todo r=bird: Looks like 4 tims the required size? Please explain in comment if this correct... */
+    uint32_t              aMessage[sizeof(MptConfigurationRequest)];
     /** Actual position in the buffer. */
     uint32_t              iMessage;
     /** Size of the message which is given in the doorbell message in dwords. */
     uint32_t              cMessage;
 
-    /** Reply buffer.
-     * @note 60 bytes  */
+    /** Reply buffer. */
     MptReplyUnion         ReplyBuffer;
     /** Next entry to read. */
     uint32_t              uNextReplyEntryRead;
@@ -238,11 +190,6 @@ typedef struct LSILOGICSCSI
 
     /** The fault code of the I/O controller if we are in the fault state. */
     uint16_t              u16IOCFaultCode;
-
-    /** I/O port address the device is mapped to. */
-    RTIOPORT              IOPortBase;
-    /** MMIO address the device is mapped to. */
-    RTGCPHYS              GCPhysMMIOBase;
 
     /** Upper 32 bits of the message frame address to locate requests in guest memory. */
     uint32_t              u32HostMFAHighAddr;
@@ -264,6 +211,7 @@ typedef struct LSILOGICSCSI
     /** Number entries allocated for the outstanding request queue. */
     uint32_t              cRequestQueueEntries;
 
+    uint32_t              Alignment3;
 
     /** Critical section protecting the reply post queue. */
     PDMCRITSECT           ReplyPostQueueCritSect;
@@ -290,8 +238,6 @@ typedef struct LSILOGICSCSI
     RCPTRTYPE(volatile uint32_t *) pReplyPostQueueBaseRC;
     /** Pointer to the start of the request queue - RC. */
     RCPTRTYPE(volatile uint32_t *) pRequestQueueBaseRC;
-    /** End these RC pointers on a 64-bit boundrary. */
-    RTRCPTR                        RCPtrPadding1;
 
     /** Next free entry in the reply queue the guest can write a address to. */
     volatile uint32_t              uReplyFreeQueueNextEntryFreeWrite;
@@ -313,12 +259,18 @@ typedef struct LSILOGICSCSI
     /** Handle counter */
     uint16_t                       u16NextHandle;
 
+    uint16_t                       u16Alignment4;
+    uint32_t                       u32Alignment5;
+
     /** Number of ports this controller has. */
     uint8_t                        cPorts;
 
+#if HC_ARCH_BITS == 64
+    uint32_t                       Alignment6;
+#endif
+
     /** BIOS emulation. */
     VBOXSCSI                       VBoxSCSI;
-
     /** Cache for allocated tasks. */
     R3PTRTYPE(RTMEMCACHE)          hTaskCache;
     /** Status LUN: The base interface. */
@@ -330,53 +282,54 @@ typedef struct LSILOGICSCSI
     /** Pointer to the configuration page area. */
     R3PTRTYPE(PMptConfigurationPagesSupported) pConfigurationPages;
 
-    /** Indicates that PDMDevHlpAsyncNotificationCompleted should be called when
-     * a port is entering the idle state. */
-    bool volatile                    fSignalIdle;
-    /** Flag whether we have tasks which need to be processed again- */
-    bool volatile                    fRedo;
-    /** Flag whether the worker thread is sleeping. */
-    volatile bool                    fWrkThreadSleeping;
-    /** Alignment padding. */
-    bool                             afPadding2[HC_ARCH_BITS == 32 ? 1 : 5];
-    /** List of tasks which can be redone. */
-    R3PTRTYPE(volatile PLSILOGICREQ) pTasksRedoHead;
-
-    /** Current address to read from or write to in the diagnostic memory region. */
-    uint32_t                         u32DiagMemAddr;
-    /** Current size of the memory regions. */
-    uint32_t                         cbMemRegns;
-
-#if HC_ARCH_BITS ==32
-    uint32_t                         u32Padding3;
+#if HC_ARCH_BITS == 64
+    uint32_t                       Alignment7;
 #endif
 
+    /** Indicates that PDMDevHlpAsyncNotificationCompleted should be called when
+     * a port is entering the idle state. */
+    bool volatile                  fSignalIdle;
+    /** Flag whether we have tasks which need to be processed again- */
+    bool volatile                  fRedo;
+    /** List of tasks which can be redone. */
+    R3PTRTYPE(volatile PLSILOGICTASKSTATE) pTasksRedoHead;
+
+} LSILOGISCSI, *PLSILOGICSCSI;
+
+/**
+ * Scatter gather list entry data.
+ */
+typedef struct LSILOGICTASKSTATESGENTRY
+{
+    /** Flag whether the buffer in the list is from the guest or an
+     *  allocated temporary buffer because the segments in the guest
+     *  are not sector aligned.
+     */
+    bool     fGuestMemory;
+    /** Flag whether the buffer contains data or is the destination for the transfer. */
+    bool     fBufferContainsData;
+    /** Pointer to the start of the buffer. */
+    void    *pvBuf;
+    /** Size of the buffer. */
+    uint32_t cbBuf;
+    /** Flag dependent data. */
     union
     {
-        /** List of memory regions - PLSILOGICMEMREGN. */
-        RTLISTANCHOR                 ListMemRegns;
-        uint8_t                      u8Padding[2 * sizeof(RTUINTPTR)];
-    };
-
-    /** The support driver session handle. */
-    R3R0PTRTYPE(PSUPDRVSESSION)      pSupDrvSession;
-    /** Worker thread. */
-    R3PTRTYPE(PPDMTHREAD)            pThreadWrk;
-    /** The event semaphore the processing thread waits on. */
-    SUPSEMEVENT                      hEvtProcess;
-
-} LSILOGISCSI;
-/** Pointer to the device instance data of the LsiLogic emulation. */
-typedef LSILOGICSCSI *PLSILOGICSCSI;
+        /** Data to handle direct mappings of guest buffers. */
+        PGMPAGEMAPLOCK  PageLock;
+        /** The segment in the guest which is not sector aligned. */
+        RTGCPHYS        GCPhysAddrBufferUnaligned;
+    } u;
+} LSILOGICTASKSTATESGENTRY, *PLSILOGICTASKSTATESGENTRY;
 
 /**
  * Task state object which holds all necessary data while
  * processing the request from the guest.
  */
-typedef struct LSILOGICREQ
+typedef struct LSILOGICTASKSTATE
 {
     /** Next in the redo list. */
-    PLSILOGICREQ               pRedoNext;
+    PLSILOGICTASKSTATE         pRedoNext;
     /** Target device. */
     PLSILOGICDEVICE            pTargetDevice;
     /** The message request from the guest. */
@@ -388,43 +341,50 @@ typedef struct LSILOGICREQ
     /** Address of the message request frame in guests memory.
      *  Used to read the S/G entries in the second step. */
     RTGCPHYS                   GCPhysMessageFrameAddr;
-    /** Physical start address of the S/G list. */
-    RTGCPHYS                   GCPhysSgStart;
-    /** Chain offset */
-    uint32_t                   cChainOffset;
-    /** Segment describing the I/O buffer. */
-    RTSGSEG                    SegIoBuf;
-    /** Additional memory allocation for this task. */
-    void                      *pvAlloc;
-    /** Siize of the allocation. */
-    size_t                     cbAlloc;
-    /** Number of times we had too much memory allocated for the request. */
-    unsigned                   cAllocTooMuch;
+    /** Number of scatter gather list entries. */
+    uint32_t                   cSGListEntries;
+    /** How many entries would fit into the sg list. */
+    uint32_t                   cSGListSize;
+    /** How many times the list was too big. */
+    uint32_t                   cSGListTooBig;
+    /** Pointer to the first entry of the scatter gather list. */
+    PRTSGSEG                   pSGListHead;
+    /** How many entries would fit into the sg info list. */
+    uint32_t                   cSGInfoSize;
+    /** Number of entries for the information entries. */
+    uint32_t                   cSGInfoEntries;
+    /** How many times the list was too big. */
+    uint32_t                   cSGInfoTooBig;
+    /** Pointer to the first mapping information entry. */
+    PLSILOGICTASKSTATESGENTRY  paSGEntries;
+    /** Size of the temporary buffer for unaligned guest segments. */
+    uint32_t                   cbBufferUnaligned;
+    /** Pointer to the temporary buffer. */
+    void                      *pvBufferUnaligned;
     /** Pointer to the sense buffer. */
     uint8_t                    abSenseBuffer[18];
     /** Flag whether the request was issued from the BIOS. */
     bool                       fBIOS;
-} LSILOGICREQ;
-
+} LSILOGICTASKSTATE;
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
-/*******************************************************************************
-*   Internal Functions                                                         *
-*******************************************************************************/
 RT_C_DECLS_BEGIN
 #ifdef IN_RING3
-static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis);
-static void lsilogicR3ConfigurationPagesFree(PLSILOGICSCSI pThis);
-static int  lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfigurationRequest pConfigurationReq,
-                                                  PMptConfigurationReply pReply);
+static void lsilogicInitializeConfigurationPages(PLSILOGICSCSI pLsiLogic);
+static void lsilogicConfigurationPagesFree(PLSILOGICSCSI pThis);
+static int lsilogicProcessConfigurationRequest(PLSILOGICSCSI pLsiLogic, PMptConfigurationRequest pConfigurationReq,
+                                               PMptConfigurationReply pReply);
 #endif
 RT_C_DECLS_END
 
+#define PDMIBASE_2_PLSILOGICDEVICE(pInterface)     ( (PLSILOGICDEVICE)((uintptr_t)(pInterface) - RT_OFFSETOF(LSILOGICDEVICE, IBase)) )
+#define PDMISCSIPORT_2_PLSILOGICDEVICE(pInterface) ( (PLSILOGICDEVICE)((uintptr_t)(pInterface) - RT_OFFSETOF(LSILOGICDEVICE, ISCSIPort)) )
+#define PDMILEDPORTS_2_PLSILOGICDEVICE(pInterface) ( (PLSILOGICDEVICE)((uintptr_t)(pInterface) - RT_OFFSETOF(LSILOGICDEVICE, ILed)) )
+#define LSILOGIC_RTGCPHYS_FROM_U32(Hi, Lo)         ( (RTGCPHYS)RT_MAKE_U64(Lo, Hi) )
+#define PDMIBASE_2_PLSILOGICSCSI(pInterface)       ( (PLSILOGICSCSI)((uintptr_t)(pInterface) - RT_OFFSETOF(LSILOGICSCSI, IBase)) )
+#define PDMILEDPORTS_2_PLSILOGICSCSI(pInterface)   ( (PLSILOGICSCSI)((uintptr_t)(pInterface) - RT_OFFSETOF(LSILOGICSCSI, ILeds)) )
 
-/*******************************************************************************
-*   Global Variables                                                           *
-*******************************************************************************/
 /** Key sequence the guest has to write to enable access
  * to diagnostic memory. */
 static const uint8_t g_lsilogicDiagnosticAccess[] = {0x04, 0x0b, 0x02, 0x07, 0x0d};
@@ -433,7 +393,7 @@ static const uint8_t g_lsilogicDiagnosticAccess[] = {0x04, 0x0b, 0x02, 0x07, 0x0
  * Updates the status of the interrupt pin of the device.
  *
  * @returns nothing.
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis    Pointer to the device instance data.
  */
 static void lsilogicUpdateInterrupt(PLSILOGICSCSI pThis)
 {
@@ -463,13 +423,13 @@ static void lsilogicUpdateInterrupt(PLSILOGICSCSI pThis)
  * updates the interrupt status.
  *
  * @returns nothing.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   uStatus     The status bit to set.
+ * @param   pLsiLogic    Pointer to the device instance.
+ * @param   uStatus      The status bit to set.
  */
-DECLINLINE(void) lsilogicSetInterrupt(PLSILOGICSCSI pThis, uint32_t uStatus)
+DECLINLINE(void) lsilogicSetInterrupt(PLSILOGICSCSI pLsiLogic, uint32_t uStatus)
 {
-    ASMAtomicOrU32(&pThis->uInterruptStatus, uStatus);
-    lsilogicUpdateInterrupt(pThis);
+    ASMAtomicOrU32(&pLsiLogic->uInterruptStatus, uStatus);
+    lsilogicUpdateInterrupt(pLsiLogic);
 }
 
 /**
@@ -477,86 +437,50 @@ DECLINLINE(void) lsilogicSetInterrupt(PLSILOGICSCSI pThis, uint32_t uStatus)
  * updates the interrupt status.
  *
  * @returns nothing.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   uStatus     The status bit to set.
+ * @param   pLsiLogic    Pointer to the device instance.
+ * @param   uStatus      The status bit to set.
  */
-DECLINLINE(void) lsilogicClearInterrupt(PLSILOGICSCSI pThis, uint32_t uStatus)
+DECLINLINE(void) lsilogicClearInterrupt(PLSILOGICSCSI pLsiLogic, uint32_t uStatus)
 {
-    ASMAtomicAndU32(&pThis->uInterruptStatus, ~uStatus);
-    lsilogicUpdateInterrupt(pThis);
+    ASMAtomicAndU32(&pLsiLogic->uInterruptStatus, ~uStatus);
+    lsilogicUpdateInterrupt(pLsiLogic);
 }
 
 /**
  * Sets the I/O controller into fault state and sets the fault code.
  *
  * @returns nothing
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   uIOCFaultCode   Fault code to set.
+ * @param   pLsiLogic        Pointer to the controller device instance.
+ * @param   uIOCFaultCode    Fault code to set.
  */
-DECLINLINE(void) lsilogicSetIOCFaultCode(PLSILOGICSCSI pThis, uint16_t uIOCFaultCode)
+DECLINLINE(void) lsilogicSetIOCFaultCode(PLSILOGICSCSI pLsiLogic, uint16_t uIOCFaultCode)
 {
-    if (pThis->enmState != LSILOGICSTATE_FAULT)
+    if (pLsiLogic->enmState != LSILOGICSTATE_FAULT)
     {
         Log(("%s: Setting I/O controller into FAULT state: uIOCFaultCode=%u\n", __FUNCTION__, uIOCFaultCode));
-        pThis->enmState        = LSILOGICSTATE_FAULT;
-        pThis->u16IOCFaultCode = uIOCFaultCode;
+        pLsiLogic->enmState        = LSILOGICSTATE_FAULT;
+        pLsiLogic->u16IOCFaultCode = uIOCFaultCode;
     }
     else
+    {
         Log(("%s: We are already in FAULT state\n"));
-}
-
-/**
- * Returns the number of frames in the reply free queue.
- *
- * @returns Number of frames in the reply free queue.
- * @param   pThis    Pointer to the LsiLogic device state.
- */
-DECLINLINE(uint32_t) lsilogicReplyFreeQueueGetFrameCount(PLSILOGICSCSI pThis)
-{
-    uint32_t cReplyFrames = 0;
-
-    if (pThis->uReplyFreeQueueNextAddressRead <= pThis->uReplyFreeQueueNextEntryFreeWrite)
-        cReplyFrames = pThis->uReplyFreeQueueNextEntryFreeWrite - pThis->uReplyFreeQueueNextAddressRead;
-    else
-        cReplyFrames = pThis->cReplyQueueEntries - pThis->uReplyFreeQueueNextAddressRead + pThis->uReplyFreeQueueNextEntryFreeWrite;
-
-    return cReplyFrames;
-}
-
-/**
- * Returns the number of free entries in the reply post queue.
- *
- * @returns Number of frames in the reply free queue.
- * @param   pThis    Pointer to the LsiLogic device state.
- */
-DECLINLINE(uint32_t) lsilogicReplyPostQueueGetFrameCount(PLSILOGICSCSI pThis)
-{
-    uint32_t cReplyFrames = 0;
-
-    if (pThis->uReplyPostQueueNextAddressRead <= pThis->uReplyPostQueueNextEntryFreeWrite)
-        cReplyFrames = pThis->cReplyQueueEntries - pThis->uReplyPostQueueNextEntryFreeWrite + pThis->uReplyPostQueueNextAddressRead;
-    else
-        cReplyFrames = pThis->uReplyPostQueueNextEntryFreeWrite - pThis->uReplyPostQueueNextAddressRead;
-
-    return cReplyFrames;
+    }
 }
 
 #ifdef IN_RING3
-
 /**
  * Performs a hard reset on the controller.
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis    Pointer to the device instance to initialize.
  */
-static int lsilogicR3HardReset(PLSILOGICSCSI pThis)
+static int lsilogicHardReset(PLSILOGICSCSI pThis)
 {
     pThis->enmState = LSILOGICSTATE_RESET;
-    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_NOT_IN_USE;
 
     /* The interrupts are masked out. */
-    pThis->uInterruptMask |= LSILOGIC_REG_HOST_INTR_MASK_DOORBELL
-                           | LSILOGIC_REG_HOST_INTR_MASK_REPLY;
+    pThis->uInterruptMask |= LSILOGIC_REG_HOST_INTR_MASK_DOORBELL |
+                             LSILOGIC_REG_HOST_INTR_MASK_REPLY;
     /* Reset interrupt states. */
     pThis->uInterruptStatus = 0;
     lsilogicUpdateInterrupt(pThis);
@@ -570,19 +494,17 @@ static int lsilogicR3HardReset(PLSILOGICSCSI pThis)
     pThis->uRequestQueueNextAddressRead      = 0;
 
     /* Disable diagnostic access. */
-    pThis->iDiagnosticAccess  = 0;
-    pThis->fDiagnosticEnabled = false;
-    pThis->fDiagRegsEnabled   = false;
+    pThis->iDiagnosticAccess = 0;
 
     /* Set default values. */
-    pThis->cMaxDevices    = pThis->cDeviceStates;
-    pThis->cMaxBuses      = 1;
-    pThis->cbReplyFrame   = 128; /* @todo Figure out where it is needed. */
-    pThis->u16NextHandle  = 1;
-    pThis->u32DiagMemAddr = 0;
+    pThis->cMaxDevices   = pThis->cDeviceStates;
+    pThis->cMaxBuses     = 1;
+    pThis->cbReplyFrame  = 128; /* @todo Figure out where it is needed. */
+    pThis->u16NextHandle = 1;
+    /** @todo: Put stuff to reset here. */
 
-    lsilogicR3ConfigurationPagesFree(pThis);
-    lsilogicR3InitializeConfigurationPages(pThis);
+    lsilogicConfigurationPagesFree(pThis);
+    lsilogicInitializeConfigurationPages(pThis);
 
     /* Mark that we finished performing the reset. */
     pThis->enmState = LSILOGICSTATE_READY;
@@ -595,7 +517,7 @@ static int lsilogicR3HardReset(PLSILOGICSCSI pThis)
  * @returns nothing.
  * @param pThis    The LsiLogic controller instance
  */
-static void lsilogicR3ConfigurationPagesFree(PLSILOGICSCSI pThis)
+static void lsilogicConfigurationPagesFree(PLSILOGICSCSI pThis)
 {
 
     if (pThis->pConfigurationPages)
@@ -631,39 +553,69 @@ static void lsilogicR3ConfigurationPagesFree(PLSILOGICSCSI pThis)
  * Finishes a context reply.
  *
  * @returns nothing
- * @param   pThis               Pointer to the LsiLogic device state.
- * @param   u32MessageContext   The message context ID to post.
+ * @param   pLsiLogic            Pointer to the device instance
+ * @param   u32MessageContext    The message context ID to post.
  */
-static void lsilogicR3FinishContextReply(PLSILOGICSCSI pThis, uint32_t u32MessageContext)
+static void lsilogicFinishContextReply(PLSILOGICSCSI pLsiLogic, uint32_t u32MessageContext)
 {
     int rc;
 
-    LogFlowFunc(("pThis=%#p u32MessageContext=%#x\n", pThis, u32MessageContext));
+    LogFlowFunc(("pLsiLogic=%#p u32MessageContext=%#x\n", pLsiLogic, u32MessageContext));
 
-    AssertMsg(pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_NOT_IN_USE, ("We are in a doorbell function\n"));
+    AssertMsg(!pLsiLogic->fDoorbellInProgress, ("We are in a doorbell function\n"));
 
     /* Write message context ID into reply post queue. */
-    rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_SUCCESS);
+    rc = PDMCritSectEnter(&pLsiLogic->ReplyPostQueueCritSect, VINF_SUCCESS);
     AssertRC(rc);
 
+#if 0
     /* Check for a entry in the queue. */
-    if (!lsilogicReplyPostQueueGetFrameCount(pThis))
+    if (RT_UNLIKELY(pLsiLogic->uReplyPostQueueNextAddressRead != pLsiLogic->uReplyPostQueueNextEntryFreeWrite))
     {
         /* Set error code. */
-        lsilogicSetIOCFaultCode(pThis, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
-        PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
+        lsilogicSetIOCFaultCode(pLsiLogic, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
+        PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
         return;
     }
+#endif
 
     /* We have a context reply. */
-    ASMAtomicWriteU32(&pThis->CTX_SUFF(pReplyPostQueueBase)[pThis->uReplyPostQueueNextEntryFreeWrite], u32MessageContext);
-    ASMAtomicIncU32(&pThis->uReplyPostQueueNextEntryFreeWrite);
-    pThis->uReplyPostQueueNextEntryFreeWrite %= pThis->cReplyQueueEntries;
+    ASMAtomicWriteU32(&pLsiLogic->CTX_SUFF(pReplyPostQueueBase)[pLsiLogic->uReplyPostQueueNextEntryFreeWrite], u32MessageContext);
+    ASMAtomicIncU32(&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
+    pLsiLogic->uReplyPostQueueNextEntryFreeWrite %= pLsiLogic->cReplyQueueEntries;
 
     /* Set interrupt. */
-    lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
+    lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
 
-    PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
+    PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
+}
+
+static void lsilogicTaskStateClear(PLSILOGICTASKSTATE pTaskState)
+{
+    RTMemFree(pTaskState->pSGListHead);
+    RTMemFree(pTaskState->paSGEntries);
+    if (pTaskState->pvBufferUnaligned)
+        RTMemPageFree(pTaskState->pvBufferUnaligned, pTaskState->cbBufferUnaligned);
+    pTaskState->cSGListSize = 0;
+    pTaskState->cSGInfoSize = 0;
+    pTaskState->cSGInfoEntries = 0;
+    pTaskState->cSGListTooBig  = 0;
+    pTaskState->pSGListHead = NULL;
+    pTaskState->paSGEntries = NULL;
+    pTaskState->pvBufferUnaligned = NULL;
+    pTaskState->cbBufferUnaligned = 0;
+}
+
+static int lsilogicTaskStateCtor(RTMEMCACHE hMemCache, void *pvObj, void *pvUser)
+{
+    memset(pvObj, 0, sizeof(LSILOGICTASKSTATE));
+    return VINF_SUCCESS;
+}
+
+static void lsilogicTaskStateDtor(RTMEMCACHE hMemCache, void *pvObj, void *pvUser)
+{
+    PLSILOGICTASKSTATE pTaskState = (PLSILOGICTASKSTATE)pvObj;
+    lsilogicTaskStateClear(pTaskState);
 }
 
 #endif /* IN_RING3 */
@@ -672,24 +624,24 @@ static void lsilogicR3FinishContextReply(PLSILOGICSCSI pThis, uint32_t u32Messag
  * Takes necessary steps to finish a reply frame.
  *
  * @returns nothing
- * @param   pThis           Pointer to the LsiLogic device state.
+ * @param   pLsiLogic       Pointer to the device instance
  * @param   pReply          Pointer to the reply message.
  * @param   fForceReplyFifo Flag whether the use of the reply post fifo is forced.
  */
-static void lsilogicFinishAddressReply(PLSILOGICSCSI pThis, PMptReplyUnion pReply, bool fForceReplyFifo)
+static void lsilogicFinishAddressReply(PLSILOGICSCSI pLsiLogic, PMptReplyUnion pReply, bool fForceReplyFifo)
 {
     /*
      * If we are in a doorbell function we set the reply size now and
      * set the system doorbell status interrupt to notify the guest that
      * we are ready to send the reply.
      */
-    if (pThis->enmDoorbellState != LSILOGICDOORBELLSTATE_NOT_IN_USE && !fForceReplyFifo)
+    if (pLsiLogic->fDoorbellInProgress && !fForceReplyFifo)
     {
         /* Set size of the reply in 16bit words. The size in the reply is in 32bit dwords. */
-        pThis->cReplySize = pReply->Header.u8MessageLength * 2;
-        Log(("%s: cReplySize=%u\n", __FUNCTION__, pThis->cReplySize));
-        pThis->uNextReplyEntryRead = 0;
-        lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
+        pLsiLogic->cReplySize = pReply->Header.u8MessageLength * 2;
+        Log(("%s: cReplySize=%u\n", __FUNCTION__, pLsiLogic->cReplySize));
+        pLsiLogic->uNextReplyEntryRead = 0;
+        lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
     }
     else
     {
@@ -701,61 +653,65 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pThis, PMptReplyUnion pRepl
 #ifdef IN_RING3
         int rc;
         /* Grab a free reply message from the queue. */
-        rc = PDMCritSectEnter(&pThis->ReplyFreeQueueCritSect, VINF_SUCCESS);
+        rc = PDMCritSectEnter(&pLsiLogic->ReplyFreeQueueCritSect, VINF_SUCCESS);
         AssertRC(rc);
 
+#if 0
         /* Check for a free reply frame. */
-        if (!lsilogicReplyFreeQueueGetFrameCount(pThis))
+        if (RT_UNLIKELY(pLsiLogic->uReplyFreeQueueNextAddressRead != pLsiLogic->uReplyFreeQueueNextEntryFreeWrite))
         {
             /* Set error code. */
-            lsilogicSetIOCFaultCode(pThis, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
-            PDMCritSectLeave(&pThis->ReplyFreeQueueCritSect);
+            lsilogicSetIOCFaultCode(pLsiLogic, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
+            PDMCritSectLeave(&pLsiLogic->ReplyFreeQueueCritSect);
             return;
         }
+#endif
 
-        uint32_t u32ReplyFrameAddressLow = pThis->CTX_SUFF(pReplyFreeQueueBase)[pThis->uReplyFreeQueueNextAddressRead];
+        uint32_t u32ReplyFrameAddressLow = pLsiLogic->CTX_SUFF(pReplyFreeQueueBase)[pLsiLogic->uReplyFreeQueueNextAddressRead];
 
-        pThis->uReplyFreeQueueNextAddressRead++;
-        pThis->uReplyFreeQueueNextAddressRead %= pThis->cReplyQueueEntries;
+        pLsiLogic->uReplyFreeQueueNextAddressRead++;
+        pLsiLogic->uReplyFreeQueueNextAddressRead %= pLsiLogic->cReplyQueueEntries;
 
-        PDMCritSectLeave(&pThis->ReplyFreeQueueCritSect);
+        PDMCritSectLeave(&pLsiLogic->ReplyFreeQueueCritSect);
 
         /* Build 64bit physical address. */
-        RTGCPHYS GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
-        size_t cbReplyCopied = (pThis->cbReplyFrame < sizeof(MptReplyUnion)) ? pThis->cbReplyFrame : sizeof(MptReplyUnion);
+        RTGCPHYS GCPhysReplyMessage = LSILOGIC_RTGCPHYS_FROM_U32(pLsiLogic->u32HostMFAHighAddr, u32ReplyFrameAddressLow);
+        size_t cbReplyCopied = (pLsiLogic->cbReplyFrame < sizeof(MptReplyUnion)) ? pLsiLogic->cbReplyFrame : sizeof(MptReplyUnion);
 
         /* Write reply to guest memory. */
-        PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhysReplyMessage, pReply, cbReplyCopied);
+        PDMDevHlpPhysWrite(pLsiLogic->CTX_SUFF(pDevIns), GCPhysReplyMessage, pReply, cbReplyCopied);
 
         /* Write low 32bits of reply frame into post reply queue. */
-        rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_SUCCESS);
+        rc = PDMCritSectEnter(&pLsiLogic->ReplyPostQueueCritSect, VINF_SUCCESS);
         AssertRC(rc);
 
+#if 0
         /* Check for a entry in the queue. */
-        if (!lsilogicReplyPostQueueGetFrameCount(pThis))
+        if (RT_UNLIKELY(pLsiLogic->uReplyPostQueueNextAddressRead != pLsiLogic->uReplyPostQueueNextEntryFreeWrite))
         {
             /* Set error code. */
-            lsilogicSetIOCFaultCode(pThis, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
-            PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
+            lsilogicSetIOCFaultCode(pLsiLogic, LSILOGIC_IOCSTATUS_INSUFFICIENT_RESOURCES);
+            PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
             return;
         }
+#endif
 
         /* We have a address reply. Set the 31th bit to indicate that. */
-        ASMAtomicWriteU32(&pThis->CTX_SUFF(pReplyPostQueueBase)[pThis->uReplyPostQueueNextEntryFreeWrite],
+        ASMAtomicWriteU32(&pLsiLogic->CTX_SUFF(pReplyPostQueueBase)[pLsiLogic->uReplyPostQueueNextEntryFreeWrite],
                           RT_BIT(31) | (u32ReplyFrameAddressLow >> 1));
-        ASMAtomicIncU32(&pThis->uReplyPostQueueNextEntryFreeWrite);
-        pThis->uReplyPostQueueNextEntryFreeWrite %= pThis->cReplyQueueEntries;
+        ASMAtomicIncU32(&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
+        pLsiLogic->uReplyPostQueueNextEntryFreeWrite %= pLsiLogic->cReplyQueueEntries;
 
         if (fForceReplyFifo)
         {
-            pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_NOT_IN_USE;
-            lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
+            pLsiLogic->fDoorbellInProgress = false;
+            lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
         }
 
         /* Set interrupt. */
-        lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
+        lsilogicSetInterrupt(pLsiLogic, LSILOGIC_REG_HOST_INTR_STATUS_REPLY_INTR);
 
-        PDMCritSectLeave(&pThis->ReplyPostQueueCritSect);
+        PDMCritSectLeave(&pLsiLogic->ReplyPostQueueCritSect);
 #else
         AssertMsgFailed(("This is not allowed to happen.\n"));
 #endif
@@ -763,256 +719,25 @@ static void lsilogicFinishAddressReply(PLSILOGICSCSI pThis, PMptReplyUnion pRepl
 }
 
 #ifdef IN_RING3
-
-/**
- * Tries to find a memory region which covers the given address.
- *
- * @returns Pointer to memory region or NULL if not found.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   u32Addr         The 32bit address to search for.
- */
-static PLSILOGICMEMREGN lsilogicR3MemRegionFindByAddr(PLSILOGICSCSI pThis, uint32_t u32Addr)
-{
-    PLSILOGICMEMREGN pIt;
-    PLSILOGICMEMREGN pRegion = NULL;
-
-    RTListForEach(&pThis->ListMemRegns, pIt, LSILOGICMEMREGN, NodeList)
-    {
-        if (   u32Addr >= pIt->u32AddrStart
-            && u32Addr <= pIt->u32AddrEnd)
-        {
-            pRegion = pIt;
-            break;
-        }
-    }
-
-    return pRegion;
-}
-
-/**
- * Frees all allocated memory regions.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- */
-static void lsilogicR3MemRegionsFree(PLSILOGICSCSI pThis)
-{
-    PLSILOGICMEMREGN pIt;
-    PLSILOGICMEMREGN pItNext;
-
-    RTListForEachSafe(&pThis->ListMemRegns, pIt, pItNext, LSILOGICMEMREGN, NodeList)
-    {
-        RTListNodeRemove(&pIt->NodeList);
-        RTMemFree(pIt);
-    }
-    pThis->cbMemRegns = 0;
-}
-
-/**
- * Inserts a given memory region into the list.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   pRegion         The region to insert.
- */
-static void lsilogicR3MemRegionInsert(PLSILOGICSCSI pThis, PLSILOGICMEMREGN pRegion)
-{
-    PLSILOGICMEMREGN pIt;
-    bool fInserted = false;
-
-    /* Insert at the right position. */
-    RTListForEach(&pThis->ListMemRegns, pIt, LSILOGICMEMREGN, NodeList)
-    {
-        if (pRegion->u32AddrEnd < pIt->u32AddrStart)
-        {
-            RTListNodeInsertBefore(&pIt->NodeList, &pRegion->NodeList);
-            fInserted = true;
-            break;
-        }
-    }
-    if (!fInserted)
-        RTListAppend(&pThis->ListMemRegns, &pRegion->NodeList);
-}
-
-/**
- * Count number of memory regions.
- *
- * @returns Number of memory regions.
- * @param   pThis           Pointer to the LsiLogic device state.
- */
-static uint32_t lsilogicR3MemRegionsCount(PLSILOGICSCSI pThis)
-{
-    uint32_t cRegions = 0;
-    PLSILOGICMEMREGN pIt;
-
-    RTListForEach(&pThis->ListMemRegns, pIt, LSILOGICMEMREGN, NodeList)
-    {
-        cRegions++;
-    }
-
-    return cRegions;
-}
-
-/**
- * Handles a write to the diagnostic data register.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   u32Data         Data to write.
- */
-static void lsilogicR3DiagRegDataWrite(PLSILOGICSCSI pThis, uint32_t u32Data)
-{
-    PLSILOGICMEMREGN pRegion = lsilogicR3MemRegionFindByAddr(pThis, pThis->u32DiagMemAddr);
-
-    if (pRegion)
-    {
-        uint32_t offRegion = pThis->u32DiagMemAddr - pRegion->u32AddrStart;
-
-        AssertMsg(   offRegion % 4 == 0
-                  && pThis->u32DiagMemAddr <= pRegion->u32AddrEnd,
-                  ("Region offset not on a word boundary or crosses memory region\n"));
-
-        offRegion /= 4;
-        pRegion->au32Data[offRegion] = u32Data;
-    }
-    else
-    {
-        PLSILOGICMEMREGN pIt;
-
-        pRegion = NULL;
-
-        /* Create new region, first check whether we can extend another region. */
-        RTListForEach(&pThis->ListMemRegns, pIt, LSILOGICMEMREGN, NodeList)
-        {
-            if (pThis->u32DiagMemAddr == pIt->u32AddrEnd + sizeof(uint32_t))
-            {
-                pRegion = pIt;
-                break;
-            }
-        }
-
-        if (pRegion)
-        {
-            /* Reallocate. */
-            RTListNodeRemove(&pRegion->NodeList);
-
-            uint32_t cRegionSizeOld = (pRegion->u32AddrEnd - pRegion->u32AddrStart) / 4 + 1;
-            uint32_t cRegionSizeNew = cRegionSizeOld + 512;
-
-            if (pThis->cbMemRegns + 512 * sizeof(uint32_t) < LSILOGIC_MEMORY_REGIONS_MAX)
-            {
-                PLSILOGICMEMREGN pRegionNew = (PLSILOGICMEMREGN)RTMemRealloc(pRegion, RT_OFFSETOF(LSILOGICMEMREGN, au32Data[cRegionSizeNew]));
-
-                if (pRegionNew)
-                {
-                    pRegion = pRegionNew;
-                    memset(&pRegion->au32Data[cRegionSizeOld], 0, 512 * sizeof(uint32_t));
-                    pRegion->au32Data[cRegionSizeOld] = u32Data;
-                    pRegion->u32AddrEnd = pRegion->u32AddrStart + (cRegionSizeNew - 1) * sizeof(uint32_t);
-                    pThis->cbMemRegns += 512 * sizeof(uint32_t);
-                }
-                /* else: Silently fail, there is nothing we can do here and the guest might work nevertheless. */
-
-                lsilogicR3MemRegionInsert(pThis, pRegion);
-            }
-        }
-        else
-        {
-            if (pThis->cbMemRegns + 512 * sizeof(uint32_t) < LSILOGIC_MEMORY_REGIONS_MAX)
-            {
-                /* Create completely new. */
-                pRegion = (PLSILOGICMEMREGN)RTMemAllocZ(RT_OFFSETOF(LSILOGICMEMREGN, au32Data[512]));
-                if (pRegion)
-                {
-                    pRegion->u32AddrStart = pThis->u32DiagMemAddr;
-                    pRegion->u32AddrEnd   = pRegion->u32AddrStart + (512 - 1) * sizeof(uint32_t);
-                    pRegion->au32Data[0]  = u32Data;
-                    pThis->cbMemRegns += 512 * sizeof(uint32_t);
-
-                    lsilogicR3MemRegionInsert(pThis, pRegion);
-                }
-                /* else: Silently fail, there is nothing we can do here and the guest might work nevertheless. */
-            }
-        }
-
-    }
-
-    /* Memory access is always 32bit big. */
-    pThis->u32DiagMemAddr += sizeof(uint32_t);
-}
-
-/**
- * Handles a read from the diagnostic data register.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   pu32Data        Where to store the data.
- */
-static void lsilogicR3DiagRegDataRead(PLSILOGICSCSI pThis, uint32_t *pu32Data)
-{
-    PLSILOGICMEMREGN pRegion = lsilogicR3MemRegionFindByAddr(pThis, pThis->u32DiagMemAddr);
-
-    if (pRegion)
-    {
-        uint32_t offRegion = pThis->u32DiagMemAddr - pRegion->u32AddrStart;
-
-        AssertMsg(   offRegion % 4 == 0
-                  && pThis->u32DiagMemAddr <= pRegion->u32AddrEnd,
-                  ("Region offset not on a word boundary or crosses memory region\n"));
-
-        offRegion /= 4;
-        *pu32Data = pRegion->au32Data[offRegion];
-    }
-    else /* No region, default value 0. */
-        *pu32Data = 0;
-
-    /* Memory access is always 32bit big. */
-    pThis->u32DiagMemAddr += sizeof(uint32_t);
-}
-
-/**
- * Handles a write to the diagnostic memory address register.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   u32Addr         Address to write.
- */
-static void lsilogicR3DiagRegAddressWrite(PLSILOGICSCSI pThis, uint32_t u32Addr)
-{
-    pThis->u32DiagMemAddr = u32Addr & ~UINT32_C(0x3); /* 32bit alignment. */
-}
-
-/**
- * Handles a read from the diagnostic memory address register.
- *
- * @returns nothing.
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   pu32Addr        Where to store the current address.
- */
-static void lsilogicR3DiagRegAddressRead(PLSILOGICSCSI pThis, uint32_t *pu32Addr)
-{
-    *pu32Addr = pThis->u32DiagMemAddr;
-}
-
 /**
  * Processes a given Request from the guest
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   pMessageHdr Pointer to the message header of the request.
- * @param   pReply      Pointer to the reply.
+ * @param   pLsiLogic    Pointer to the device instance.
+ * @param   pMessageHdr  Pointer to the message header of the request.
+ * @param   pReply       Pointer to the reply.
  */
-static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr pMessageHdr, PMptReplyUnion pReply)
+static int lsilogicProcessMessageRequest(PLSILOGICSCSI pLsiLogic, PMptMessageHdr pMessageHdr, PMptReplyUnion pReply)
 {
     int rc = VINF_SUCCESS;
     bool fForceReplyPostFifo = false;
 
-# ifdef LOG_ENABLED
+#ifdef DEBUG
     if (pMessageHdr->u8Function < RT_ELEMENTS(g_apszMPTFunctionNames))
         Log(("Message request function: %s\n", g_apszMPTFunctionNames[pMessageHdr->u8Function]));
     else
         Log(("Message request function: <unknown>\n"));
-# endif
+#endif
 
     memset(pReply, 0, sizeof(MptReplyUnion));
 
@@ -1040,87 +765,61 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             PMptIOCInitRequest pIOCInitReq = (PMptIOCInitRequest)pMessageHdr;
 
             /* Update configuration values. */
-            pThis->enmWhoInit             = (LSILOGICWHOINIT)pIOCInitReq->u8WhoInit;
-            pThis->cbReplyFrame           = pIOCInitReq->u16ReplyFrameSize;
-            pThis->cMaxBuses              = pIOCInitReq->u8MaxBuses;
-            pThis->cMaxDevices            = pIOCInitReq->u8MaxDevices;
-            pThis->u32HostMFAHighAddr     = pIOCInitReq->u32HostMfaHighAddr;
-            pThis->u32SenseBufferHighAddr = pIOCInitReq->u32SenseBufferHighAddr;
+            pLsiLogic->enmWhoInit             = (LSILOGICWHOINIT)pIOCInitReq->u8WhoInit;
+            pLsiLogic->cbReplyFrame           = pIOCInitReq->u16ReplyFrameSize;
+            pLsiLogic->cMaxBuses              = pIOCInitReq->u8MaxBuses;
+            pLsiLogic->cMaxDevices            = pIOCInitReq->u8MaxDevices;
+            pLsiLogic->u32HostMFAHighAddr     = pIOCInitReq->u32HostMfaHighAddr;
+            pLsiLogic->u32SenseBufferHighAddr = pIOCInitReq->u32SenseBufferHighAddr;
 
-            if (pThis->enmState == LSILOGICSTATE_READY)
+            if (pLsiLogic->enmState == LSILOGICSTATE_READY)
             {
-                pThis->enmState = LSILOGICSTATE_OPERATIONAL;
+                pLsiLogic->enmState = LSILOGICSTATE_OPERATIONAL;
             }
 
             /* Return reply. */
             pReply->IOCInit.u8MessageLength = 5;
-            pReply->IOCInit.u8WhoInit       = pThis->enmWhoInit;
-            pReply->IOCInit.u8MaxDevices    = pThis->cMaxDevices;
-            pReply->IOCInit.u8MaxBuses      = pThis->cMaxBuses;
+            pReply->IOCInit.u8WhoInit       = pLsiLogic->enmWhoInit;
+            pReply->IOCInit.u8MaxDevices    = pLsiLogic->cMaxDevices;
+            pReply->IOCInit.u8MaxBuses      = pLsiLogic->cMaxBuses;
             break;
         }
         case MPT_MESSAGE_HDR_FUNCTION_IOC_FACTS:
         {
             pReply->IOCFacts.u8MessageLength      = 15;     /* 15 32bit dwords. */
 
-            if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+            if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
             {
                 pReply->IOCFacts.u16MessageVersion    = 0x0102; /* Version from the specification. */
-                pReply->IOCFacts.u8NumberOfPorts      = pThis->cPorts;
+                pReply->IOCFacts.u8NumberOfPorts      = pLsiLogic->cPorts;
             }
-            else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+            else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
             {
                 pReply->IOCFacts.u16MessageVersion    = 0x0105; /* Version from the specification. */
-                pReply->IOCFacts.u8NumberOfPorts      = pThis->cPorts;
+                pReply->IOCFacts.u8NumberOfPorts      = pLsiLogic->cPorts;
             }
             else
-                AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
+                AssertMsgFailed(("Invalid controller type %d\n", pLsiLogic->enmCtrlType));
 
             pReply->IOCFacts.u8IOCNumber          = 0;      /* PCI function number. */
             pReply->IOCFacts.u16IOCExceptions     = 0;
             pReply->IOCFacts.u8MaxChainDepth      = LSILOGICSCSI_MAXIMUM_CHAIN_DEPTH;
-            pReply->IOCFacts.u8WhoInit            = pThis->enmWhoInit;
+            pReply->IOCFacts.u8WhoInit            = pLsiLogic->enmWhoInit;
             pReply->IOCFacts.u8BlockSize          = 12;     /* Block size in 32bit dwords. This is the largest request we can get (SCSI I/O). */
             pReply->IOCFacts.u8Flags              = 0;      /* Bit 0 is set if the guest must upload the FW prior to using the controller. Obviously not needed here. */
-            pReply->IOCFacts.u16ReplyQueueDepth   = pThis->cReplyQueueEntries - 1; /* One entry is always free. */
+            pReply->IOCFacts.u16ReplyQueueDepth   = pLsiLogic->cReplyQueueEntries - 1; /* One entry is always free. */
             pReply->IOCFacts.u16RequestFrameSize  = 128;    /* @todo Figure out where it is needed. */
-            pReply->IOCFacts.u32CurrentHostMFAHighAddr = pThis->u32HostMFAHighAddr;
-            pReply->IOCFacts.u16GlobalCredits     = pThis->cRequestQueueEntries - 1; /* One entry is always free. */
+            pReply->IOCFacts.u16ProductID         = 0xcafe; /* Our own product ID :) */
+            pReply->IOCFacts.u32CurrentHostMFAHighAddr = pLsiLogic->u32HostMFAHighAddr;
+            pReply->IOCFacts.u16GlobalCredits     = pLsiLogic->cRequestQueueEntries - 1; /* One entry is always free. */
 
             pReply->IOCFacts.u8EventState         = 0; /* Event notifications not enabled. */
-            pReply->IOCFacts.u32CurrentSenseBufferHighAddr = pThis->u32SenseBufferHighAddr;
-            pReply->IOCFacts.u16CurReplyFrameSize = pThis->cbReplyFrame;
-            pReply->IOCFacts.u8MaxDevices         = pThis->cMaxDevices;
-            pReply->IOCFacts.u8MaxBuses           = pThis->cMaxBuses;
-
-            /* Check for a valid firmware image in the IOC memory which was downlaoded by tzhe guest earlier. */
-            PLSILOGICMEMREGN pRegion = lsilogicR3MemRegionFindByAddr(pThis, LSILOGIC_FWIMGHDR_LOAD_ADDRESS);
-
-            if (pRegion)
-            {
-                uint32_t offImgHdr = (LSILOGIC_FWIMGHDR_LOAD_ADDRESS - pRegion->u32AddrStart) / 4;
-                PFwImageHdr pFwImgHdr = (PFwImageHdr)&pRegion->au32Data[offImgHdr];
-
-                /* Check for the signature. */
-                /** @todo: Checksum validation. */
-                if (   pFwImgHdr->u32Signature1 == LSILOGIC_FWIMGHDR_SIGNATURE1
-                    && pFwImgHdr->u32Signature2 == LSILOGIC_FWIMGHDR_SIGNATURE2
-                    && pFwImgHdr->u32Signature3 == LSILOGIC_FWIMGHDR_SIGNATURE3)
-                {
-                    LogFlowFunc(("IOC Facts: Found valid firmware image header in memory, using version (%#x), size (%d) and product ID (%#x) from there\n",
-                                 pFwImgHdr->u32FwVersion, pFwImgHdr->u32ImageSize, pFwImgHdr->u16ProductId));
-
-                    pReply->IOCFacts.u16ProductID         = pFwImgHdr->u16ProductId;
-                    pReply->IOCFacts.u32FwImageSize       = pFwImgHdr->u32ImageSize;
-                    pReply->IOCFacts.u32FWVersion         = pFwImgHdr->u32FwVersion;
-                }
-            }
-            else
-            {
-                pReply->IOCFacts.u16ProductID         = 0xcafe; /* Our own product ID :) */
-                pReply->IOCFacts.u32FwImageSize       = 0; /* No image needed. */
-                pReply->IOCFacts.u32FWVersion         = 0;
-            }
+            pReply->IOCFacts.u32CurrentSenseBufferHighAddr = pLsiLogic->u32SenseBufferHighAddr;
+            pReply->IOCFacts.u16CurReplyFrameSize = pLsiLogic->cbReplyFrame;
+            pReply->IOCFacts.u8MaxDevices         = pLsiLogic->cMaxDevices;
+            pReply->IOCFacts.u8MaxBuses           = pLsiLogic->cMaxBuses;
+            pReply->IOCFacts.u32FwImageSize       = 0; /* No image needed. */
+            pReply->IOCFacts.u32FWVersion         = 0;
             break;
         }
         case MPT_MESSAGE_HDR_FUNCTION_PORT_FACTS:
@@ -1130,10 +829,10 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             pReply->PortFacts.u8MessageLength = 10;
             pReply->PortFacts.u8PortNumber    = pPortFactsReq->u8PortNumber;
 
-            if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+            if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
             {
                 /* This controller only supports one bus with bus number 0. */
-                if (pPortFactsReq->u8PortNumber >= pThis->cPorts)
+                if (pPortFactsReq->u8PortNumber >= pLsiLogic->cPorts)
                 {
                     pReply->PortFacts.u8PortType = 0; /* Not existant. */
                 }
@@ -1148,25 +847,25 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
                     pReply->PortFacts.u16MaxLANBuckets       = 0; /* Only for the LAN controller. */
                 }
             }
-            else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+            else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
             {
-                if (pPortFactsReq->u8PortNumber >= pThis->cPorts)
+                if (pPortFactsReq->u8PortNumber >= pLsiLogic->cPorts)
                 {
                     pReply->PortFacts.u8PortType = 0; /* Not existant. */
                 }
                 else
                 {
                     pReply->PortFacts.u8PortType             = 0x30; /* SAS Port. */
-                    pReply->PortFacts.u16MaxDevices          = pThis->cPorts;
+                    pReply->PortFacts.u16MaxDevices          = pLsiLogic->cPorts;
                     pReply->PortFacts.u16ProtocolFlags       = RT_BIT(3) | RT_BIT(0); /* SCSI initiator and LUN supported. */
-                    pReply->PortFacts.u16PortSCSIID          = pThis->cPorts;
+                    pReply->PortFacts.u16PortSCSIID          = pLsiLogic->cPorts;
                     pReply->PortFacts.u16MaxPersistentIDs    = 0;
                     pReply->PortFacts.u16MaxPostedCmdBuffers = 0; /* Only applies for target mode which we dont support. */
                     pReply->PortFacts.u16MaxLANBuckets       = 0; /* Only for the LAN controller. */
                 }
             }
             else
-                AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
+                AssertMsgFailed(("Invalid controller type %d\n", pLsiLogic->enmCtrlType));
             break;
         }
         case MPT_MESSAGE_HDR_FUNCTION_PORT_ENABLE:
@@ -1186,9 +885,9 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             PMptEventNotificationRequest pEventNotificationReq = (PMptEventNotificationRequest)pMessageHdr;
 
             if (pEventNotificationReq->u8Switch)
-                pThis->fEventNotificationEnabled = true;
+                pLsiLogic->fEventNotificationEnabled = true;
             else
-                pThis->fEventNotificationEnabled = false;
+                pLsiLogic->fEventNotificationEnabled = false;
 
             pReply->EventNotification.u16EventDataLength = 1; /* 1 32bit D-Word. */
             pReply->EventNotification.u8MessageLength    = 8;
@@ -1196,7 +895,7 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             pReply->EventNotification.u8AckRequired      = 0;
             pReply->EventNotification.u32Event           = MPT_EVENT_EVENT_CHANGE;
             pReply->EventNotification.u32EventContext    = 0;
-            pReply->EventNotification.u32EventData       = pThis->fEventNotificationEnabled ? 1 : 0;
+            pReply->EventNotification.u32EventData       = pLsiLogic->fEventNotificationEnabled ? 1 : 0;
 
             break;
         }
@@ -1209,7 +908,7 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
         {
             PMptConfigurationRequest pConfigurationReq = (PMptConfigurationRequest)pMessageHdr;
 
-            rc = lsilogicR3ProcessConfigurationRequest(pThis, pConfigurationReq, &pReply->Configuration);
+            rc = lsilogicProcessConfigurationRequest(pLsiLogic, pConfigurationReq, &pReply->Configuration);
             AssertRC(rc);
             break;
         }
@@ -1227,7 +926,6 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
             //PMptFWDownloadRequest pFWDownloadReq = (PMptFWDownloadRequest)pMessageHdr;
 
             pReply->FWDownload.u8MessageLength    = 5;
-            LogFlowFunc(("FW Download request issued\n"));
             break;
         }
         case MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST: /* Should be handled already. */
@@ -1239,24 +937,27 @@ static int lsilogicR3ProcessMessageRequest(PLSILOGICSCSI pThis, PMptMessageHdr p
     pReply->Header.u8Function        = pMessageHdr->u8Function;
     pReply->Header.u32MessageContext = pMessageHdr->u32MessageContext;
 
-    lsilogicFinishAddressReply(pThis, pReply, fForceReplyPostFifo);
+    lsilogicFinishAddressReply(pLsiLogic, pReply, fForceReplyPostFifo);
     return rc;
 }
-
-#endif /* IN_RING3 */
+#endif
 
 /**
  * Writes a value to a register at a given offset.
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   offReg      Offset of the register to write.
- * @param   u32         The value being written.
+ * @param   pThis    Pointer to the LsiLogic SCSI controller instance data.
+ * @param   uOffset  Offset of the register to write.
+ * @param   pv       Pointer to the value to write
+ * @param   cb       Number of bytes to write.
  */
-static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t u32)
+static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t uOffset, void const *pv, unsigned cb)
 {
-    LogFlowFunc(("pThis=%#p offReg=%#x u32=%#x\n", pThis, offReg, u32));
-    switch (offReg)
+    uint32_t u32 = *(uint32_t *)pv;
+
+    LogFlowFunc(("pThis=%#p uOffset=%#x pv=%#p{%.*Rhxs} cb=%u\n", pThis, uOffset, pv, cb, pv, cb));
+
+    switch (uOffset)
     {
         case LSILOGIC_REG_REPLY_QUEUE:
         {
@@ -1282,22 +983,13 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
             uNextWrite %= pThis->cRequestQueueEntries;
             ASMAtomicWriteU32(&pThis->uRequestQueueNextEntryFreeWrite, uNextWrite);
 
-            /* Send notification to R3 if there is not one sent already. Do this
-             * only if the worker thread is not sleeping or might go sleeping. */
-            if (!ASMAtomicXchgBool(&pThis->fNotificationSent, true))
+            /* Send notification to R3 if there is not one send already. */
+            if (!ASMAtomicXchgBool(&pThis->fNotificationSend, true))
             {
-                if (ASMAtomicReadBool(&pThis->fWrkThreadSleeping))
-                {
-#ifdef IN_RC
-                    PPDMQUEUEITEMCORE pNotificationItem = PDMQueueAlloc(pThis->CTX_SUFF(pNotificationQueue));
-                    AssertPtr(pNotificationItem);
-                    PDMQueueInsert(pThis->CTX_SUFF(pNotificationQueue), pNotificationItem);
-#else
-                    LogFlowFunc(("Signal event semaphore\n"));
-                    int rc = SUPSemEventSignal(pThis->pSupDrvSession, pThis->hEvtProcess);
-                    AssertRC(rc);
-#endif
-                }
+                PPDMQUEUEITEMCORE pNotificationItem = PDMQueueAlloc(pThis->CTX_SUFF(pNotificationQueue));
+                AssertPtr(pNotificationItem);
+
+                PDMQueueInsert(pThis->CTX_SUFF(pNotificationQueue), pNotificationItem);
             }
             break;
         }
@@ -1310,20 +1002,14 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
              * The guest needs to wait with posting new messages here until the bit is cleared.
              * Because the guest is not continuing execution while we are here we can skip this.
              */
-            if (pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_NOT_IN_USE)
+            if (!pThis->fDoorbellInProgress)
             {
                 uint32_t uFunction = LSILOGIC_REG_DOORBELL_GET_FUNCTION(u32);
 
                 switch (uFunction)
                 {
-                    case LSILOGIC_DOORBELL_FUNCTION_IO_UNIT_RESET:
                     case LSILOGIC_DOORBELL_FUNCTION_IOC_MSG_UNIT_RESET:
                     {
-                        /*
-                         * The I/O unit reset does much more on real hardware like
-                         * reloading the firmware, nothing we need to do here,
-                         * so this is like the IOC message unit reset.
-                         */
                         pThis->enmState = LSILOGICSTATE_RESET;
 
                         /* Reset interrupt status. */
@@ -1337,10 +1023,12 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
                         pThis->uReplyPostQueueNextAddressRead = 0;
                         pThis->uRequestQueueNextEntryFreeWrite = 0;
                         pThis->uRequestQueueNextAddressRead = 0;
-
-                        /* Only the IOC message unit reset transisionts to the ready state. */
-                        if (uFunction == LSILOGIC_DOORBELL_FUNCTION_IOC_MSG_UNIT_RESET)
-                            pThis->enmState = LSILOGICSTATE_READY;
+                        pThis->enmState = LSILOGICSTATE_READY;
+                        break;
+                    }
+                    case LSILOGIC_DOORBELL_FUNCTION_IO_UNIT_RESET:
+                    {
+                        AssertMsgFailed(("todo\n"));
                         break;
                     }
                     case LSILOGIC_DOORBELL_FUNCTION_HANDSHAKE:
@@ -1349,23 +1037,21 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
                         pThis->iMessage = 0;
                         AssertMsg(pThis->cMessage <= RT_ELEMENTS(pThis->aMessage),
                                   ("Message doesn't fit into the buffer, cMessage=%u", pThis->cMessage));
-                        pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_FN_HANDSHAKE;
+                        pThis->fDoorbellInProgress = true;
                         /* Update the interrupt status to notify the guest that a doorbell function was started. */
                         lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
                         break;
                     }
                     case LSILOGIC_DOORBELL_FUNCTION_REPLY_FRAME_REMOVAL:
                     {
-                        pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_LOW;
-                        /* Update the interrupt status to notify the guest that a doorbell function was started. */
-                        lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
+                        AssertMsgFailed(("todo\n"));
                         break;
                     }
                     default:
                         AssertMsgFailed(("Unknown function %u to perform\n", uFunction));
                 }
             }
-            else if (pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_FN_HANDSHAKE)
+            else
             {
                 /*
                  * We are already performing a doorbell function.
@@ -1378,13 +1064,13 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
                  */
 #ifndef IN_RING3
                 if (pThis->iMessage == pThis->cMessage - 1)
-                    return VINF_IOM_R3_MMIO_WRITE;
+                    return VINF_IOM_HC_MMIO_WRITE;
 #endif
                 pThis->aMessage[pThis->iMessage++] = u32;
 #ifdef IN_RING3
                 if (pThis->iMessage == pThis->cMessage)
                 {
-                    int rc = lsilogicR3ProcessMessageRequest(pThis, (PMptMessageHdr)pThis->aMessage, &pThis->ReplyBuffer);
+                    int rc = lsilogicProcessMessageRequest(pThis, (PMptMessageHdr)pThis->aMessage, &pThis->ReplyBuffer);
                     AssertRC(rc);
                 }
 #endif
@@ -1407,24 +1093,15 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
              * We do not use lsilogicSetInterrupt here because the interrupt status
              * is updated afterwards anyway.
              */
-            if (   (pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_FN_HANDSHAKE)
+            if (   (pThis->fDoorbellInProgress)
                 && (pThis->cMessage == pThis->iMessage))
             {
                 if (pThis->uNextReplyEntryRead == pThis->cReplySize)
                 {
                     /* Reply finished. Reset doorbell in progress status. */
                     Log(("%s: Doorbell function finished\n", __FUNCTION__));
-                    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_NOT_IN_USE;
+                    pThis->fDoorbellInProgress = false;
                 }
-                ASMAtomicOrU32(&pThis->uInterruptStatus, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-            }
-            else if (   pThis->enmDoorbellState != LSILOGICDOORBELLSTATE_NOT_IN_USE
-                     && pThis->enmDoorbellState != LSILOGICDOORBELLSTATE_FN_HANDSHAKE)
-            {
-                /* Reply frame removal, check whether the reply free queue is empty. */
-                if (   pThis->uReplyFreeQueueNextAddressRead == pThis->uReplyFreeQueueNextEntryFreeWrite
-                    && pThis->enmDoorbellState == LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_LOW)
-                    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_NOT_IN_USE;
                 ASMAtomicOrU32(&pThis->uInterruptStatus, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
             }
 
@@ -1444,7 +1121,6 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
                 /* Any value will cause a reset and disabling access. */
                 pThis->fDiagnosticEnabled = false;
                 pThis->iDiagnosticAccess  = 0;
-                pThis->fDiagRegsEnabled   = false;
             }
             else if ((u32 & 0xf) == g_lsilogicDiagnosticAccess[pThis->iDiagnosticAccess])
             {
@@ -1467,42 +1143,15 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
         }
         case LSILOGIC_REG_HOST_DIAGNOSTIC:
         {
-            if (pThis->fDiagnosticEnabled)
-            {
 #ifndef IN_RING3
-                return VINF_IOM_R3_MMIO_WRITE;
+            return VINF_IOM_HC_IOPORT_WRITE;
 #else
-                if (u32 & LSILOGIC_REG_HOST_DIAGNOSTIC_RESET_ADAPTER)
-                    lsilogicR3HardReset(pThis);
-                else if (u32 & LSILOGIC_REG_HOST_DIAGNOSTIC_DIAG_RW_ENABLE)
-                    pThis->fDiagRegsEnabled = true;
-#endif
+            if (u32 & LSILOGIC_REG_HOST_DIAGNOSTIC_RESET_ADAPTER)
+            {
+                lsilogicHardReset(pThis);
             }
             break;
-        }
-        case LSILOGIC_REG_DIAG_RW_DATA:
-        {
-            if (pThis->fDiagRegsEnabled)
-            {
-#ifndef IN_RING3
-                return VINF_IOM_R3_MMIO_WRITE;
-#else
-                lsilogicR3DiagRegDataWrite(pThis, u32);
 #endif
-            }
-            break;
-        }
-        case LSILOGIC_REG_DIAG_RW_ADDRESS:
-        {
-            if (pThis->fDiagRegsEnabled)
-            {
-#ifndef IN_RING3
-                return VINF_IOM_R3_MMIO_WRITE;
-#else
-                lsilogicR3DiagRegAddressWrite(pThis, u32);
-#endif
-            }
-            break;
         }
         default: /* Ignore. */
         {
@@ -1516,22 +1165,29 @@ static int lsilogicRegisterWrite(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t 
  * Reads the content of a register at a given offset.
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   offReg      Offset of the register to read.
- * @param   pu32        Where to store the content of the register.
+ * @param   pThis    Pointer to the LsiLogic SCSI controller instance data.
+ * @param   uOffset  Offset of the register to read.
+ * @param   pv       Where to store the content of the register.
+ * @param   cb       Number of bytes to read.
  */
-static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t *pu32)
+static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t uOffset, void *pv, unsigned cb)
 {
     int rc = VINF_SUCCESS;
     uint32_t u32 = 0;
-    Assert(!(offReg & 3));
 
     /* Align to a 4 byte offset. */
-    switch (offReg)
+    switch (uOffset & ~3)
     {
         case LSILOGIC_REG_REPLY_QUEUE:
         {
-            rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_IOM_R3_MMIO_READ);
+            /*
+             * Non 4-byte access may cause real strange behavior because the data is part of a physical guest address.
+             * But some drivers use 1-byte access to scan for SCSI controllers.
+             */
+            if (RT_UNLIKELY(cb != 4))
+                LogFlowFunc((": cb is not 4 (%u)\n", cb));
+
+            rc = PDMCritSectEnter(&pThis->ReplyPostQueueCritSect, VINF_IOM_HC_MMIO_READ);
             if (rc != VINF_SUCCESS)
                 break;
 
@@ -1559,61 +1215,23 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t *
         case LSILOGIC_REG_DOORBELL:
         {
             u32  = LSILOGIC_REG_DOORBELL_SET_STATE(pThis->enmState);
-            u32 |= LSILOGIC_REG_DOORBELL_SET_USED(pThis->enmDoorbellState);
+            u32 |= LSILOGIC_REG_DOORBELL_SET_USED(pThis->fDoorbellInProgress);
             u32 |= LSILOGIC_REG_DOORBELL_SET_WHOINIT(pThis->enmWhoInit);
             /*
              * If there is a doorbell function in progress we pass the return value
              * instead of the status code. We transfer 16bit of the reply
              * during one read.
              */
-            switch (pThis->enmDoorbellState)
+            if (pThis->fDoorbellInProgress)
             {
-                case LSILOGICDOORBELLSTATE_NOT_IN_USE:
-                    /* We return the status code of the I/O controller. */
-                    u32 |= pThis->u16IOCFaultCode;
-                    break;
-                case LSILOGICDOORBELLSTATE_FN_HANDSHAKE:
-                    /* Return next 16bit value. */
-                    u32 |= pThis->ReplyBuffer.au16Reply[pThis->uNextReplyEntryRead++];
-                    lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-                    break;
-                case LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_LOW:
-                {
-                    uint32_t cReplyFrames = lsilogicReplyFreeQueueGetFrameCount(pThis);
-
-                    u32 |= cReplyFrames & UINT32_C(0xffff);
-                    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_HIGH;
-                    lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-                    break;
-                }
-                case LSILOGICDOORBELLSTATE_RFR_FRAME_COUNT_HIGH:
-                {
-                    uint32_t cReplyFrames = lsilogicReplyFreeQueueGetFrameCount(pThis);
-
-                    u32 |= cReplyFrames >> 16;
-                    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_LOW;
-                    lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-                    break;
-                }
-                case LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_LOW:
-                    if (pThis->uReplyFreeQueueNextEntryFreeWrite != pThis->uReplyFreeQueueNextAddressRead)
-                    {
-                        u32 |= pThis->CTX_SUFF(pReplyFreeQueueBase)[pThis->uReplyFreeQueueNextAddressRead] & UINT32_C(0xffff);
-                        pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_HIGH;
-                        lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-                    }
-                    break;
-                case LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_HIGH:
-                    u32 |= pThis->CTX_SUFF(pReplyFreeQueueBase)[pThis->uReplyFreeQueueNextAddressRead] >> 16;
-                    pThis->uReplyFreeQueueNextAddressRead++;
-                    pThis->uReplyFreeQueueNextAddressRead %= pThis->cReplyQueueEntries;
-                    pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_RFR_NEXT_FRAME_LOW;
-                    lsilogicSetInterrupt(pThis, LSILOGIC_REG_HOST_INTR_STATUS_SYSTEM_DOORBELL);
-                    break;
-                default:
-                    AssertMsgFailed(("Invalid doorbell state %d\n", pThis->enmDoorbellState));
+                /* Return next 16bit value. */
+                u32 |= pThis->ReplyBuffer.au16Reply[pThis->uNextReplyEntryRead++];
             }
-
+            else
+            {
+                /* We return the status code of the I/O controller. */
+                u32 |= pThis->u16IOCFaultCode;
+            }
             break;
         }
         case LSILOGIC_REG_HOST_INTR_STATUS:
@@ -1629,130 +1247,99 @@ static int lsilogicRegisterRead(PLSILOGICSCSI pThis, uint32_t offReg, uint32_t *
         case LSILOGIC_REG_HOST_DIAGNOSTIC:
         {
             if (pThis->fDiagnosticEnabled)
-                u32 |= LSILOGIC_REG_HOST_DIAGNOSTIC_DRWE;
-            if (pThis->fDiagRegsEnabled)
-                u32 |= LSILOGIC_REG_HOST_DIAGNOSTIC_DIAG_RW_ENABLE;
+                u32 = LSILOGIC_REG_HOST_DIAGNOSTIC_DRWE;
+            else
+                u32 = 0;
             break;
-        }
-        case LSILOGIC_REG_DIAG_RW_DATA:
-        {
-            if (pThis->fDiagRegsEnabled)
-            {
-#ifndef IN_RING3
-                return VINF_IOM_R3_MMIO_READ;
-#else
-                lsilogicR3DiagRegDataRead(pThis, &u32);
-#endif
-            }
-        }
-        case LSILOGIC_REG_DIAG_RW_ADDRESS:
-        {
-            if (pThis->fDiagRegsEnabled)
-            {
-#ifndef IN_RING3
-                return VINF_IOM_R3_MMIO_READ;
-#else
-                lsilogicR3DiagRegAddressRead(pThis, &u32);
-#endif
-            }
         }
         case LSILOGIC_REG_TEST_BASE_ADDRESS: /* The spec doesn't say anything about these registers, so we just ignore them */
+        case LSILOGIC_REG_DIAG_RW_DATA:
+        case LSILOGIC_REG_DIAG_RW_ADDRESS:
         default: /* Ignore. */
         {
-            /** @todo LSILOGIC_REG_DIAG_* should return all F's when accessed by MMIO. We
-             *        return 0.  Likely to apply to undefined offsets as well. */
             break;
         }
     }
 
-    *pu32 = u32;
-    LogFlowFunc(("pThis=%#p offReg=%#x u32=%#x\n", pThis, offReg, u32));
-    return rc;
-}
-
-/**
- * @callback_method_impl{FNIOMIOPORTOUT}
- */
-PDMBOTHCBDECL(int) lsilogicIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
-{
-    PLSILOGICSCSI   pThis  = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    uint32_t        offReg = Port - pThis->IOPortBase;
-    int             rc;
-
-    if (!(offReg & 3))
+    /* Clip data according to the read size. */
+    switch (cb)
     {
-        rc = lsilogicRegisterWrite(pThis, offReg, u32);
-        if (rc == VINF_IOM_R3_MMIO_WRITE)
-            rc = VINF_IOM_R3_IOPORT_WRITE;
+        case 4:
+        {
+            *(uint32_t *)pv = u32;
+            break;
+        }
+        case 2:
+        {
+            uint8_t uBitsOff = (uOffset - (uOffset & 3))*8;
+
+            u32 &= (0xffff << uBitsOff);
+            *(uint16_t *)pv = (uint16_t)(u32 >> uBitsOff);
+            break;
+        }
+        case 1:
+        {
+            uint8_t uBitsOff = (uOffset - (uOffset & 3))*8;
+
+            u32 &= (0xff << uBitsOff);
+            *(uint8_t *)pv = (uint8_t)(u32 >> uBitsOff);
+            break;
+        }
+        default:
+            AssertMsgFailed(("Invalid access size %u\n", cb));
     }
-    else
-    {
-        Log(("lsilogicIOPortWrite: Ignoring misaligned write - offReg=%#x u32=%#x cb=%#x\n", offReg, u32, cb));
-        rc = VINF_SUCCESS;
-    }
 
-    return rc;
-}
-
-/**
- * @callback_method_impl{FNIOMIOPORTIN}
- */
-PDMBOTHCBDECL(int) lsilogicIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
-{
-    PLSILOGICSCSI   pThis   = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    uint32_t        offReg  = Port - pThis->IOPortBase;
-
-    int rc = lsilogicRegisterRead(pThis, offReg & ~(uint32_t)3, pu32);
-    if (rc == VINF_IOM_R3_MMIO_READ)
-        rc = VINF_IOM_R3_IOPORT_READ;
+    LogFlowFunc(("pThis=%#p uOffset=%#x pv=%#p{%.*Rhxs} cb=%u\n", pThis, uOffset, pv, cb, pv, cb));
 
     return rc;
 }
 
-/**
- * @callback_method_impl{FNIOMMMIOWRITE}
- */
-PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+PDMBOTHCBDECL(int) lsilogicIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
+                                        RTIOPORT Port, uint32_t u32, unsigned cb)
 {
-    PLSILOGICSCSI   pThis  = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    uint32_t        offReg = GCPhysAddr - pThis->GCPhysMMIOBase;
-    uint32_t        u32;
-    int             rc;
+    PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    uint32_t   uOffset = Port - pThis->IOPortBase;
 
-    /* See comments in lsilogicR3Map regarding size and alignment. */
-    if (cb == 4)
-        u32 = *(uint32_t const *)pv;
-    else
-    {
-        if (cb > 4)
-            u32 = *(uint32_t const *)pv;
-        else if (cb >= 2)
-            u32 = *(uint16_t const *)pv;
-        else
-            u32 = *(uint8_t const *)pv;
-        Log(("lsilogicMMIOWrite: Non-DWORD write access - offReg=%#x u32=%#x cb=%#x\n", offReg, u32, cb));
-    }
+    Assert(cb <= 4);
 
-    if (!(offReg & 3))
-        rc = lsilogicRegisterWrite(pThis, offReg, u32);
-    else
-    {
-        Log(("lsilogicIOPortWrite: Ignoring misaligned write - offReg=%#x u32=%#x cb=%#x\n", offReg, u32, cb));
-        rc = VINF_SUCCESS;
-    }
+    int rc = lsilogicRegisterWrite(pThis, uOffset, &u32, cb);
+    if (rc == VINF_IOM_HC_MMIO_WRITE)
+        rc = VINF_IOM_HC_IOPORT_WRITE;
+
     return rc;
 }
 
-/**
- * @callback_method_impl{FNIOMMMIOREAD}
- */
-PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+PDMBOTHCBDECL(int) lsilogicIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
+                                       RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
-    PLSILOGICSCSI   pThis  = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    uint32_t        offReg = GCPhysAddr - pThis->GCPhysMMIOBase;
-    Assert(!(offReg & 3)); Assert(cb == 4);
+    PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    uint32_t   uOffset = Port - pThis->IOPortBase;
 
-    return lsilogicRegisterRead(pThis, offReg, (uint32_t *)pv);
+    Assert(cb <= 4);
+
+    int rc = lsilogicRegisterRead(pThis, uOffset, pu32, cb);
+    if (rc == VINF_IOM_HC_MMIO_READ)
+        rc = VINF_IOM_HC_IOPORT_READ;
+
+    return rc;
+}
+
+PDMBOTHCBDECL(int) lsilogicMMIOWrite(PPDMDEVINS pDevIns, void *pvUser,
+                                     RTGCPHYS GCPhysAddr, void const *pv, unsigned cb)
+{
+    PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    uint32_t   uOffset = GCPhysAddr - pThis->GCPhysMMIOBase;
+
+    return lsilogicRegisterWrite(pThis, uOffset, pv, cb);
+}
+
+PDMBOTHCBDECL(int) lsilogicMMIORead(PPDMDEVINS pDevIns, void *pvUser,
+                                    RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
+{
+    PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    uint32_t   uOffset = GCPhysAddr - pThis->GCPhysMMIOBase;
+
+    return lsilogicRegisterRead(pThis, uOffset, pv, cb);
 }
 
 PDMBOTHCBDECL(int) lsilogicDiagnosticWrite(PPDMDEVINS pDevIns, void *pvUser,
@@ -1777,7 +1364,212 @@ PDMBOTHCBDECL(int) lsilogicDiagnosticRead(PPDMDEVINS pDevIns, void *pvUser,
 
 #ifdef IN_RING3
 
-# ifdef LOG_ENABLED
+/**
+ * Copies a contiguous buffer into the scatter gather list provided by the guest.
+ *
+ * @returns nothing
+ * @param   pTaskState    Pointer to the task state which contains the SGL.
+ * @param   pvBuf         Pointer to the buffer to copy.
+ * @param   cbCopy        Number of bytes to copy.
+ */
+static void lsilogicScatterGatherListCopyFromBuffer(PLSILOGICTASKSTATE pTaskState, void *pvBuf, size_t cbCopy)
+{
+    unsigned cSGEntry = 0;
+    PRTSGSEG pSGEntry = &pTaskState->pSGListHead[cSGEntry];
+    uint8_t *pu8Buf = (uint8_t *)pvBuf;
+
+    while (cSGEntry < pTaskState->cSGListEntries)
+    {
+        size_t cbToCopy = (cbCopy < pSGEntry->cbSeg) ? cbCopy : pSGEntry->cbSeg;
+
+        memcpy(pSGEntry->pvSeg, pu8Buf, cbToCopy);
+
+        cbCopy -= cbToCopy;
+        /* We finished. */
+        if (!cbCopy)
+            break;
+
+        /* Advance the buffer. */
+        pu8Buf += cbToCopy;
+
+        /* Go to the next entry in the list. */
+        pSGEntry++;
+        cSGEntry++;
+    }
+}
+
+/**
+ * Copy a temporary buffer into a part of the guest scatter gather list
+ * described by the given descriptor entry.
+ *
+ * @returns nothing.
+ * @param   pDevIns    Pointer to the device instance data.
+ * @param   pSGInfo    Pointer to the segment info structure which describes the guest segments
+ *                     to write to which are unaligned.
+ */
+static void lsilogicCopyFromBufferIntoSGList(PPDMDEVINS pDevIns, PLSILOGICTASKSTATESGENTRY pSGInfo)
+{
+    RTGCPHYS GCPhysBuffer = pSGInfo->u.GCPhysAddrBufferUnaligned;
+
+    AssertMsg(!pSGInfo->fGuestMemory, ("This is not possible\n"));
+
+    /* Copy into SG entry. */
+    PDMDevHlpPhysWrite(pDevIns, GCPhysBuffer, pSGInfo->pvBuf, pSGInfo->cbBuf);
+
+}
+
+/**
+ * Copy a part of the guest scatter gather list into a temporary buffer.
+ *
+ * @returns nothing.
+ * @param   pDevIns    Pointer to the device instance data.
+ * @param   pSGInfo    Pointer to the segment info structure which describes the guest segments
+ *                     to read from which are unaligned.
+ */
+static void lsilogicCopyFromSGListIntoBuffer(PPDMDEVINS pDevIns, PLSILOGICTASKSTATESGENTRY pSGInfo)
+{
+    RTGCPHYS GCPhysBuffer = pSGInfo->u.GCPhysAddrBufferUnaligned;
+
+    AssertMsg(!pSGInfo->fGuestMemory, ("This is not possible\n"));
+
+    /* Copy into temporary buffer. */
+    PDMDevHlpPhysRead(pDevIns, GCPhysBuffer, pSGInfo->pvBuf, pSGInfo->cbBuf);
+}
+
+static int lsilogicScatterGatherListAllocate(PLSILOGICTASKSTATE pTaskState, uint32_t cSGList, uint32_t cSGInfo, uint32_t cbUnaligned)
+{
+    if (pTaskState->cSGListSize < cSGList)
+    {
+        /* The entries are not allocated yet or the number is too small. */
+        if (pTaskState->cSGListSize)
+            RTMemFree(pTaskState->pSGListHead);
+
+        /* Allocate R3 scatter gather list. */
+        pTaskState->pSGListHead = (PRTSGSEG)RTMemAllocZ(cSGList * sizeof(RTSGSEG));
+        if (!pTaskState->pSGListHead)
+            return VERR_NO_MEMORY;
+
+        /* Reset usage statistics. */
+        pTaskState->cSGListSize     = cSGList;
+        pTaskState->cSGListEntries  = cSGList;
+        pTaskState->cSGListTooBig = 0;
+    }
+    else if (pTaskState->cSGListSize > cSGList)
+    {
+        /*
+         * The list is too big. Increment counter.
+         * So that the destroying function can free
+         * the list if it is too big too many times
+         * in a row.
+         */
+        pTaskState->cSGListEntries = cSGList;
+        pTaskState->cSGListTooBig++;
+    }
+    else
+    {
+        /*
+         * Needed entries matches current size.
+         * Reset counter.
+         */
+        pTaskState->cSGListEntries = cSGList;
+        pTaskState->cSGListTooBig  = 0;
+    }
+
+    if (pTaskState->cSGInfoSize < cSGInfo)
+    {
+        /* The entries are not allocated yet or the number is too small. */
+        if (pTaskState->cSGInfoSize)
+            RTMemFree(pTaskState->paSGEntries);
+
+        pTaskState->paSGEntries = (PLSILOGICTASKSTATESGENTRY)RTMemAllocZ(cSGInfo * sizeof(LSILOGICTASKSTATESGENTRY));
+        if (!pTaskState->paSGEntries)
+            return VERR_NO_MEMORY;
+
+        /* Reset usage statistics. */
+        pTaskState->cSGInfoSize = cSGInfo;
+        pTaskState->cSGInfoEntries  = cSGInfo;
+        pTaskState->cSGInfoTooBig = 0;
+    }
+    else if (pTaskState->cSGInfoSize > cSGInfo)
+    {
+        /*
+         * The list is too big. Increment counter.
+         * So that the destroying function can free
+         * the list if it is too big too many times
+         * in a row.
+         */
+        pTaskState->cSGInfoEntries = cSGInfo;
+        pTaskState->cSGInfoTooBig++;
+    }
+    else
+    {
+        /*
+         * Needed entries matches current size.
+         * Reset counter.
+         */
+        pTaskState->cSGInfoEntries  = cSGInfo;
+        pTaskState->cSGInfoTooBig = 0;
+    }
+
+
+    if (pTaskState->cbBufferUnaligned < cbUnaligned)
+    {
+        if (pTaskState->pvBufferUnaligned)
+            RTMemPageFree(pTaskState->pvBufferUnaligned, pTaskState->cbBufferUnaligned);
+
+        Log(("%s: Allocating buffer for unaligned segments cbUnaligned=%u\n", __FUNCTION__, cbUnaligned));
+
+        pTaskState->pvBufferUnaligned = RTMemPageAlloc(cbUnaligned);
+        if (!pTaskState->pvBufferUnaligned)
+            return VERR_NO_MEMORY;
+
+        pTaskState->cbBufferUnaligned = cbUnaligned;
+    }
+
+    /* Make debugging easier. */
+#ifdef DEBUG
+    memset(pTaskState->pSGListHead, 0, pTaskState->cSGListSize * sizeof(RTSGSEG));
+    memset(pTaskState->paSGEntries, 0, pTaskState->cSGInfoSize * sizeof(LSILOGICTASKSTATESGENTRY));
+    if (pTaskState->pvBufferUnaligned)
+        memset(pTaskState->pvBufferUnaligned, 0, pTaskState->cbBufferUnaligned);
+#endif
+    return VINF_SUCCESS;
+}
+
+/**
+ * Destroy a scatter gather list.
+ *
+ * @returns nothing.
+ * @param   pLsiLogic    Pointer to the LsiLogic SCSI controller.
+ * @param   pTaskState   Pointer to the task state.
+ */
+static void lsilogicScatterGatherListDestroy(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKSTATE pTaskState)
+{
+    PPDMDEVINS                pDevIns     = pLsiLogic->CTX_SUFF(pDevIns);
+    PLSILOGICTASKSTATESGENTRY pSGInfoCurr = pTaskState->paSGEntries;
+
+    for (unsigned i = 0; i < pTaskState->cSGInfoEntries; i++)
+    {
+        if (pSGInfoCurr->fGuestMemory)
+        {
+            /* Release the lock. */
+            PDMDevHlpPhysReleasePageMappingLock(pDevIns, &pSGInfoCurr->u.PageLock);
+        }
+        else if (!pSGInfoCurr->fBufferContainsData)
+        {
+            /* Copy the data into the guest segments now. */
+            lsilogicCopyFromBufferIntoSGList(pLsiLogic->CTX_SUFF(pDevIns), pSGInfoCurr);
+        }
+
+        pSGInfoCurr++;
+    }
+
+    /* Free allocated memory if the list was too big too many times. */
+    if (pTaskState->cSGListTooBig >= LSILOGIC_NR_OF_ALLOWED_BIGGER_LISTS)
+        lsilogicTaskStateClear(pTaskState);
+}
+
+#ifdef DEBUG
 /**
  * Dump an SG entry.
  *
@@ -1786,311 +1578,331 @@ PDMBOTHCBDECL(int) lsilogicDiagnosticRead(PPDMDEVINS pDevIns, void *pvUser,
  */
 static void lsilogicDumpSGEntry(PMptSGEntryUnion pSGEntry)
 {
-    if (LogIsEnabled())
+    switch (pSGEntry->Simple32.u2ElementType)
     {
-        switch (pSGEntry->Simple32.u2ElementType)
+        case MPTSGENTRYTYPE_SIMPLE:
         {
-            case MPTSGENTRYTYPE_SIMPLE:
+            Log(("%s: Dumping info for SIMPLE SG entry:\n", __FUNCTION__));
+            Log(("%s: u24Length=%u\n", __FUNCTION__, pSGEntry->Simple32.u24Length));
+            Log(("%s: fEndOfList=%d\n", __FUNCTION__, pSGEntry->Simple32.fEndOfList));
+            Log(("%s: f64BitAddress=%d\n", __FUNCTION__, pSGEntry->Simple32.f64BitAddress));
+            Log(("%s: fBufferContainsData=%d\n", __FUNCTION__, pSGEntry->Simple32.fBufferContainsData));
+            Log(("%s: fLocalAddress=%d\n", __FUNCTION__, pSGEntry->Simple32.fLocalAddress));
+            Log(("%s: fEndOfBuffer=%d\n", __FUNCTION__, pSGEntry->Simple32.fEndOfBuffer));
+            Log(("%s: fLastElement=%d\n", __FUNCTION__, pSGEntry->Simple32.fLastElement));
+            Log(("%s: u32DataBufferAddressLow=%u\n", __FUNCTION__, pSGEntry->Simple32.u32DataBufferAddressLow));
+            if (pSGEntry->Simple32.f64BitAddress)
             {
-                Log(("%s: Dumping info for SIMPLE SG entry:\n", __FUNCTION__));
-                Log(("%s: u24Length=%u\n", __FUNCTION__, pSGEntry->Simple32.u24Length));
-                Log(("%s: fEndOfList=%d\n", __FUNCTION__, pSGEntry->Simple32.fEndOfList));
-                Log(("%s: f64BitAddress=%d\n", __FUNCTION__, pSGEntry->Simple32.f64BitAddress));
-                Log(("%s: fBufferContainsData=%d\n", __FUNCTION__, pSGEntry->Simple32.fBufferContainsData));
-                Log(("%s: fLocalAddress=%d\n", __FUNCTION__, pSGEntry->Simple32.fLocalAddress));
-                Log(("%s: fEndOfBuffer=%d\n", __FUNCTION__, pSGEntry->Simple32.fEndOfBuffer));
-                Log(("%s: fLastElement=%d\n", __FUNCTION__, pSGEntry->Simple32.fLastElement));
-                Log(("%s: u32DataBufferAddressLow=%u\n", __FUNCTION__, pSGEntry->Simple32.u32DataBufferAddressLow));
-                if (pSGEntry->Simple32.f64BitAddress)
-                {
-                    Log(("%s: u32DataBufferAddressHigh=%u\n", __FUNCTION__, pSGEntry->Simple64.u32DataBufferAddressHigh));
-                    Log(("%s: GCDataBufferAddress=%RGp\n", __FUNCTION__,
-                         ((uint64_t)pSGEntry->Simple64.u32DataBufferAddressHigh << 32)
-                         | pSGEntry->Simple64.u32DataBufferAddressLow));
-                }
-                else
-                    Log(("%s: GCDataBufferAddress=%RGp\n", __FUNCTION__, pSGEntry->Simple32.u32DataBufferAddressLow));
-
-                break;
-            }
-            case MPTSGENTRYTYPE_CHAIN:
-            {
-                Log(("%s: Dumping info for CHAIN SG entry:\n", __FUNCTION__));
-                Log(("%s: u16Length=%u\n", __FUNCTION__, pSGEntry->Chain.u16Length));
-                Log(("%s: u8NExtChainOffset=%d\n", __FUNCTION__, pSGEntry->Chain.u8NextChainOffset));
-                Log(("%s: f64BitAddress=%d\n", __FUNCTION__, pSGEntry->Chain.f64BitAddress));
-                Log(("%s: fLocalAddress=%d\n", __FUNCTION__, pSGEntry->Chain.fLocalAddress));
-                Log(("%s: u32SegmentAddressLow=%u\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressLow));
-                Log(("%s: u32SegmentAddressHigh=%u\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressHigh));
-                if (pSGEntry->Chain.f64BitAddress)
-                    Log(("%s: GCSegmentAddress=%RGp\n", __FUNCTION__,
-                        ((uint64_t)pSGEntry->Chain.u32SegmentAddressHigh << 32) | pSGEntry->Chain.u32SegmentAddressLow));
-                else
-                    Log(("%s: GCSegmentAddress=%RGp\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressLow));
-                break;
-            }
-        }
-    }
-}
-# endif /* LOG_ENABLED */
-
-/**
- * Walks the guest S/G buffer calling the given copy worker for every buffer.
- *
- * @returns nothing.
- * @param   pDevIns      Device instance data.
- * @param   pLsiReq      LSI request state.
- * @param   cbCopy       How much bytes to copy.
- * @param   pfnIoBufCopy Copy worker to call.
- */
-static void lsilogicSgBufWalker(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq, size_t cbCopy,
-                                PFNLSILOGICIOBUFCOPY pfnIoBufCopy)
-{
-    bool     fEndOfList = false;
-    RTGCPHYS GCPhysSgEntryNext = pLsiReq->GCPhysSgStart;
-    RTGCPHYS GCPhysSegmentStart = pLsiReq->GCPhysSgStart;
-    uint32_t cChainOffsetNext = pLsiReq->cChainOffset;
-    uint8_t *pbBuf = (uint8_t *)pLsiReq->SegIoBuf.pvSeg;
-
-    /* Go through the list until we reach the end. */
-    while (   !fEndOfList
-           && cbCopy)
-    {
-        bool fEndOfSegment = false;
-
-        while (   !fEndOfSegment
-               && cbCopy)
-        {
-            MptSGEntryUnion SGEntry;
-
-            Log(("%s: Reading SG entry from %RGp\n", __FUNCTION__, GCPhysSgEntryNext));
-
-            /* Read the entry. */
-            PDMDevHlpPhysRead(pDevIns, GCPhysSgEntryNext, &SGEntry, sizeof(MptSGEntryUnion));
-
-# ifdef LOG_ENABLED
-            lsilogicDumpSGEntry(&SGEntry);
-# endif
-
-            AssertMsg(SGEntry.Simple32.u2ElementType == MPTSGENTRYTYPE_SIMPLE, ("Invalid SG entry type\n"));
-
-            /* Check if this is a zero element and abort. */
-            if (   !SGEntry.Simple32.u24Length
-                && SGEntry.Simple32.fEndOfList
-                && SGEntry.Simple32.fEndOfBuffer)
-                return;
-
-            uint32_t cbCopyThis           = SGEntry.Simple32.u24Length;
-            RTGCPHYS GCPhysAddrDataBuffer = SGEntry.Simple32.u32DataBufferAddressLow;
-
-            if (SGEntry.Simple32.f64BitAddress)
-            {
-                GCPhysAddrDataBuffer |= ((uint64_t)SGEntry.Simple64.u32DataBufferAddressHigh) << 32;
-                GCPhysSgEntryNext += sizeof(MptSGEntrySimple64);
+                Log(("%s: u32DataBufferAddressHigh=%u\n", __FUNCTION__, pSGEntry->Simple64.u32DataBufferAddressHigh));
+                Log(("%s: GCDataBufferAddress=%RGp\n", __FUNCTION__,
+                    ((uint64_t)pSGEntry->Simple64.u32DataBufferAddressHigh << 32) | pSGEntry->Simple64.u32DataBufferAddressLow));
             }
             else
-                GCPhysSgEntryNext += sizeof(MptSGEntrySimple32);
+                Log(("%s: GCDataBufferAddress=%RGp\n", __FUNCTION__, pSGEntry->Simple32.u32DataBufferAddressLow));
 
-
-            pfnIoBufCopy(pDevIns, GCPhysAddrDataBuffer, pbBuf, cbCopyThis);
-            pbBuf  += cbCopyThis;
-            cbCopy -= cbCopyThis;
-
-            /* Check if we reached the end of the list. */
-            if (SGEntry.Simple32.fEndOfList)
-            {
-                /* We finished. */
-                fEndOfSegment = true;
-                fEndOfList = true;
-            }
-            else if (SGEntry.Simple32.fLastElement)
-                fEndOfSegment = true;
-        } /* while (!fEndOfSegment) */
-
-        /* Get next chain element. */
-        if (cChainOffsetNext)
-        {
-            MptSGEntryChain SGEntryChain;
-
-            PDMDevHlpPhysRead(pDevIns, GCPhysSegmentStart + cChainOffsetNext, &SGEntryChain, sizeof(MptSGEntryChain));
-
-            AssertMsg(SGEntryChain.u2ElementType == MPTSGENTRYTYPE_CHAIN, ("Invalid SG entry type\n"));
-
-           /* Set the next address now. */
-            GCPhysSgEntryNext = SGEntryChain.u32SegmentAddressLow;
-            if (SGEntryChain.f64BitAddress)
-                GCPhysSgEntryNext |= ((uint64_t)SGEntryChain.u32SegmentAddressHigh) << 32;
-
-            GCPhysSegmentStart = GCPhysSgEntryNext;
-            cChainOffsetNext   = SGEntryChain.u8NextChainOffset * sizeof(uint32_t);
+            break;
         }
-    } /* while (!fEndOfList) */
-}
-
-static DECLCALLBACK(void) lsilogicCopyFromGuest(PPDMDEVINS pDevIns, RTGCPHYS GCPhysIoBuf,
-                                                void *pvBuf, size_t cbCopy)
-{
-    PDMDevHlpPhysRead(pDevIns, GCPhysIoBuf, pvBuf, cbCopy);
-}
-
-static DECLCALLBACK(void) lsilogicCopyToGuest(PPDMDEVINS pDevIns, RTGCPHYS GCPhysIoBuf,
-                                              void *pvBuf, size_t cbCopy)
-{
-    PDMDevHlpPCIPhysWrite(pDevIns, GCPhysIoBuf, pvBuf, cbCopy);
-}
-
-/**
- * Copy from a guest S/G buffer to the I/O buffer.
- *
- * @returns nothing.
- * @param   pDevIns      Device instance data.
- * @param   pLsiReq      Request data.
- * @param   cbCopy       How much to copy over.
- */
-DECLINLINE(void) lsilogicCopyFromSgBuf(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq, size_t cbCopy)
-{
-    lsilogicSgBufWalker(pDevIns, pLsiReq, cbCopy, lsilogicCopyFromGuest);
-}
-
-/**
- * Copy from an I/O buffer to the guest S/G buffer.
- *
- * @returns nothing.
- * @param   pDevIns      Device instance data.
- * @param   pLsiReq      Request data.
- * @param   cbCopy       How much to copy over.
- */
-DECLINLINE(void) lsilogicCopyToSgBuf(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq, size_t cbCopy)
-{
-    lsilogicSgBufWalker(pDevIns, pLsiReq, cbCopy, lsilogicCopyToGuest);
-}
-
-/**
- * Allocates memory for the given request using already allocated memory if possible.
- *
- * @returns Pointer to the memory or NULL on failure
- * @param   pLsiReq     The request to allocate memory for.
- * @param   cb          The amount of memory to allocate.
- */
-static void *lsilogicReqMemAlloc(PLSILOGICREQ pLsiReq, size_t cb)
-{
-    if (pLsiReq->cbAlloc > cb)
-        pLsiReq->cAllocTooMuch++;
-    else if (pLsiReq->cbAlloc < cb)
-    {
-        if (pLsiReq->cbAlloc)
-            RTMemPageFree(pLsiReq->pvAlloc, pLsiReq->cbAlloc);
-
-        pLsiReq->cbAlloc = RT_ALIGN_Z(cb, _4K);
-        pLsiReq->pvAlloc = RTMemPageAlloc(pLsiReq->cbAlloc);
-        pLsiReq->cAllocTooMuch = 0;
-        if (RT_UNLIKELY(!pLsiReq->pvAlloc))
-            pLsiReq->cbAlloc = 0;
-    }
-
-    return pLsiReq->pvAlloc;
-}
-
-/**
- * Frees memory allocated for the given request.
- *
- * @returns nothing.
- * @param   pLsiReq     The request.
- */
-static void lsilogicReqMemFree(PLSILOGICREQ pLsiReq)
-{
-    if (pLsiReq->cAllocTooMuch >= LSILOGIC_MAX_ALLOC_TOO_MUCH)
-    {
-        RTMemPageFree(pLsiReq->pvAlloc, pLsiReq->cbAlloc);
-        pLsiReq->cbAlloc = 0;
-        pLsiReq->cAllocTooMuch = 0;
+        case MPTSGENTRYTYPE_CHAIN:
+        {
+            Log(("%s: Dumping info for CHAIN SG entry:\n", __FUNCTION__));
+            Log(("%s: u16Length=%u\n", __FUNCTION__, pSGEntry->Chain.u16Length));
+            Log(("%s: u8NExtChainOffset=%d\n", __FUNCTION__, pSGEntry->Chain.u8NextChainOffset));
+            Log(("%s: f64BitAddress=%d\n", __FUNCTION__, pSGEntry->Chain.f64BitAddress));
+            Log(("%s: fLocalAddress=%d\n", __FUNCTION__, pSGEntry->Chain.fLocalAddress));
+            Log(("%s: u32SegmentAddressLow=%u\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressLow));
+            Log(("%s: u32SegmentAddressHigh=%u\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressHigh));
+            if (pSGEntry->Chain.f64BitAddress)
+                Log(("%s: GCSegmentAddress=%RGp\n", __FUNCTION__,
+                    ((uint64_t)pSGEntry->Chain.u32SegmentAddressHigh << 32) | pSGEntry->Chain.u32SegmentAddressLow));
+            else
+                Log(("%s: GCSegmentAddress=%RGp\n", __FUNCTION__, pSGEntry->Chain.u32SegmentAddressLow));
+            break;
+        }
     }
 }
+#endif
 
 /**
- * Allocate I/O memory and copies the guest buffer for writes.
+ * Create scatter gather list descriptors.
  *
  * @returns VBox status code.
- * @param   pDevIns     The device instance.
- * @param   pLsiReq     The request state.
- * @param   cbTransfer  Amount of bytes to allocate.
+ * @param   pLsiLogic      Pointer to the LsiLogic SCSI controller.
+ * @param   pTaskState     Pointer to the task state.
+ * @param   GCPhysSGLStart Guest physical address of the first SG entry.
+ * @param   uChainOffset   Offset in bytes from the beginning of the SGL segment to the chain element.
+ * @thread  EMT
  */
-static int lsilogicIoBufAllocate(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
-                                 size_t cbTransfer)
+static int lsilogicScatterGatherListCreate(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKSTATE pTaskState,
+                                           RTGCPHYS GCPhysSGLStart, uint32_t uChainOffset)
 {
-    uint8_t uTxDir = MPT_SCSIIO_REQUEST_CONTROL_TXDIR_GET(pLsiReq->GuestRequest.SCSIIO.u32Control);
+    int                        rc           = VINF_SUCCESS;
+    PPDMDEVINS                 pDevIns      = pLsiLogic->CTX_SUFF(pDevIns);
+    PVM                        pVM          = PDMDevHlpGetVM(pDevIns);
+    bool                       fUnaligned;     /* Flag whether the current buffer is unaligned. */
+    uint32_t                   cbUnaligned;    /* Size of the unaligned buffers. */
+    uint32_t                   cSGEntriesR3 = 0;
+    uint32_t                   cSGInfo      = 0;
+    uint32_t                   cbSegment    = 0;
+    PLSILOGICTASKSTATESGENTRY  pSGInfoCurr  = NULL;
+    uint8_t                   *pu8BufferUnalignedPos = NULL;
+    uint8_t                   *pbBufferUnalignedSGInfoPos = NULL;
+    uint32_t                   cbUnalignedComplete = 0;
+    bool                       fDoMapping = false;
+    bool                       fEndOfList;
+    RTGCPHYS                   GCPhysSGEntryNext;
+    RTGCPHYS                   GCPhysSegmentStart;
+    uint32_t                   uChainOffsetNext;
 
-    AssertMsg(   uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_WRITE
-              || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_READ
-              || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_NONE,
-              ("Allocating I/O memory for a non I/O request is not allowed\n"));
+    /*
+     * Two passes - one to count needed scatter gather list entries and needed unaligned
+     * buffers and one to actually map the SG list into R3.
+     */
+    for (int i = 0; i < 2; i++)
+    {
+        fUnaligned      = false;
+        cbUnaligned     = 0;
+        fEndOfList      = false;
 
-    pLsiReq->SegIoBuf.pvSeg = lsilogicReqMemAlloc(pLsiReq, cbTransfer);
-    if (!pLsiReq->SegIoBuf.pvSeg)
-        return VERR_NO_MEMORY;
+        GCPhysSGEntryNext  = GCPhysSGLStart;
+        uChainOffsetNext   = uChainOffset;
+        GCPhysSegmentStart = GCPhysSGLStart;
 
-    pLsiReq->SegIoBuf.cbSeg = cbTransfer;
-    if (   uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_WRITE
-        || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_NONE)
-        lsilogicCopyFromSgBuf(pDevIns, pLsiReq, cbTransfer);
+        if (fDoMapping)
+        {
+            Log(("%s: cSGInfo=%u\n", __FUNCTION__, cSGInfo));
 
-    return VINF_SUCCESS;
+            /* The number of needed SG entries in R3 is known. Allocate needed memory. */
+            rc = lsilogicScatterGatherListAllocate(pTaskState, cSGInfo, cSGInfo, cbUnalignedComplete);
+            AssertMsgRC(rc, ("Failed to allocate scatter gather array rc=%Rrc\n", rc));
+
+            /* We are now able to map the pages into R3. */
+            pSGInfoCurr = pTaskState->paSGEntries;
+            /* Initialize first segment to remove the need for additional if checks later in the code. */
+            pSGInfoCurr->fGuestMemory= false;
+            pu8BufferUnalignedPos = (uint8_t *)pTaskState->pvBufferUnaligned;
+            pbBufferUnalignedSGInfoPos = pu8BufferUnalignedPos;
+        }
+
+        /* Go through the list until we reach the end. */
+        while (!fEndOfList)
+        {
+            bool fEndOfSegment = false;
+
+            while (!fEndOfSegment)
+            {
+                MptSGEntryUnion SGEntry;
+
+                Log(("%s: Reading SG entry from %RGp\n", __FUNCTION__, GCPhysSGEntryNext));
+
+                /* Read the entry. */
+                PDMDevHlpPhysRead(pDevIns, GCPhysSGEntryNext, &SGEntry, sizeof(MptSGEntryUnion));
+
+#ifdef DEBUG
+                lsilogicDumpSGEntry(&SGEntry);
+#endif
+
+                AssertMsg(SGEntry.Simple32.u2ElementType == MPTSGENTRYTYPE_SIMPLE, ("Invalid SG entry type\n"));
+
+                /* Check if this is a zero element. */
+                if (   !SGEntry.Simple32.u24Length
+                    && SGEntry.Simple32.fEndOfList
+                    && SGEntry.Simple32.fEndOfBuffer)
+                {
+                    pTaskState->cSGListEntries = 0;
+                    pTaskState->cSGInfoEntries = 0;
+                    return VINF_SUCCESS;
+                }
+
+                uint32_t cbDataToTransfer     = SGEntry.Simple32.u24Length;
+                bool     fBufferContainsData  = !!SGEntry.Simple32.fBufferContainsData;
+                RTGCPHYS GCPhysAddrDataBuffer = SGEntry.Simple32.u32DataBufferAddressLow;
+
+                if (SGEntry.Simple32.f64BitAddress)
+                {
+                    GCPhysAddrDataBuffer |= ((uint64_t)SGEntry.Simple64.u32DataBufferAddressHigh) << 32;
+                    GCPhysSGEntryNext += sizeof(MptSGEntrySimple64);
+                }
+                else
+                    GCPhysSGEntryNext += sizeof(MptSGEntrySimple32);
+
+                if (fDoMapping)
+                {
+                    pSGInfoCurr->fGuestMemory = false;
+                    pSGInfoCurr->fBufferContainsData = fBufferContainsData;
+                    pSGInfoCurr->cbBuf = cbDataToTransfer;
+                    pSGInfoCurr->pvBuf = pbBufferUnalignedSGInfoPos;
+                    pbBufferUnalignedSGInfoPos += cbDataToTransfer;
+                    pSGInfoCurr->u.GCPhysAddrBufferUnaligned = GCPhysAddrDataBuffer;
+                    if (fBufferContainsData)
+                        lsilogicCopyFromSGListIntoBuffer(pDevIns, pSGInfoCurr);
+                    pSGInfoCurr++;
+                }
+                else
+                {
+                    cbUnalignedComplete += cbDataToTransfer;
+                    cSGInfo++;
+                }
+
+                /* Check if we reached the end of the list. */
+                if (SGEntry.Simple32.fEndOfList)
+                {
+                    /* We finished. */
+                    fEndOfSegment = true;
+                    fEndOfList = true;
+                }
+                else if (SGEntry.Simple32.fLastElement)
+                {
+                    fEndOfSegment = true;
+                }
+            } /* while (!fEndOfSegment) */
+
+            /* Get next chain element. */
+            if (uChainOffsetNext)
+            {
+                MptSGEntryChain SGEntryChain;
+
+                PDMDevHlpPhysRead(pDevIns, GCPhysSegmentStart + uChainOffsetNext, &SGEntryChain, sizeof(MptSGEntryChain));
+
+                AssertMsg(SGEntryChain.u2ElementType == MPTSGENTRYTYPE_CHAIN, ("Invalid SG entry type\n"));
+
+               /* Set the next address now. */
+                GCPhysSGEntryNext = SGEntryChain.u32SegmentAddressLow;
+                if (SGEntryChain.f64BitAddress)
+                    GCPhysSGEntryNext |= ((uint64_t)SGEntryChain.u32SegmentAddressHigh) << 32;
+
+                GCPhysSegmentStart = GCPhysSGEntryNext;
+                uChainOffsetNext   = SGEntryChain.u8NextChainOffset * sizeof(uint32_t);
+            }
+
+        } /* while (!fEndOfList) */
+
+        fDoMapping = true;
+        if (fUnaligned)
+            cbUnalignedComplete += cbUnaligned;
+    }
+
+    uint32_t    cSGEntries;
+    PRTSGSEG    pSGEntryCurr = pTaskState->pSGListHead;
+    pSGInfoCurr              = pTaskState->paSGEntries;
+
+    /* Initialize first entry. */
+    pSGEntryCurr->pvSeg = pSGInfoCurr->pvBuf;
+    pSGEntryCurr->cbSeg = pSGInfoCurr->cbBuf;
+    pSGInfoCurr++;
+    cSGEntries = 1;
+
+    /* Construct the scatter gather list. */
+    for (unsigned i = 0; i < (pTaskState->cSGInfoEntries-1); i++)
+    {
+        if (pSGEntryCurr->cbSeg % 512 != 0)
+        {
+            AssertMsg((uint8_t *)pSGEntryCurr->pvSeg + pSGEntryCurr->cbSeg == pSGInfoCurr->pvBuf,
+                      ("Buffer ist not sector aligned but the buffer addresses are not adjacent\n"));
+
+            pSGEntryCurr->cbSeg += pSGInfoCurr->cbBuf;
+        }
+        else
+        {
+            if (((uint8_t *)pSGEntryCurr->pvSeg + pSGEntryCurr->cbSeg) == pSGInfoCurr->pvBuf)
+            {
+                pSGEntryCurr->cbSeg += pSGInfoCurr->cbBuf;
+            }
+            else
+            {
+                pSGEntryCurr++;
+                cSGEntries++;
+                pSGEntryCurr->pvSeg = pSGInfoCurr->pvBuf;
+                pSGEntryCurr->cbSeg = pSGInfoCurr->cbBuf;
+            }
+        }
+
+        pSGInfoCurr++;
+    }
+
+    pTaskState->cSGListEntries = cSGEntries;
+
+    return rc;
+}
+
+/*
+ * Disabled because the sense buffer provided by the LsiLogic driver for Windows XP
+ * crosses page boundaries.
+ */
+#if 0
+/**
+ * Free the sense buffer.
+ *
+ * @returns nothing.
+ * @param   pTaskState   Pointer to the task state.
+ */
+static void lsilogicFreeGCSenseBuffer(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKSTATE pTaskState)
+{
+    PVM pVM = PDMDevHlpGetVM(pLsiLogic->CTX_SUFF(pDevIns));
+
+    PGMPhysReleasePageMappingLock(pVM, &pTaskState->PageLockSense);
+    pTaskState->pbSenseBuffer = NULL;
 }
 
 /**
- * Frees the I/O memory of the given request and updates the guest buffer if necessary.
+ * Map the sense buffer into R3.
  *
- * @returns nothing.
- * @param   pDevIns      The device instance.
- * @param   pLsiReq      The request state.
- * @param   fCopyToGuest Flag whether to update the guest buffer if necessary.
- *                       Nothing is copied if false even if the request was a read.
+ * @returns VBox status code.
+ * @param   pTaskState    Pointer to the task state.
+ * @note Current assumption is that the sense buffer is not scattered and does not cross a page boundary.
  */
-static void lsilogicIoBufFree(PPDMDEVINS pDevIns, PLSILOGICREQ pLsiReq,
-                              bool fCopyToGuest)
+static int lsilogicMapGCSenseBufferIntoR3(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKSTATE pTaskState)
 {
-    uint8_t uTxDir = MPT_SCSIIO_REQUEST_CONTROL_TXDIR_GET(pLsiReq->GuestRequest.SCSIIO.u32Control);
+    int rc = VINF_SUCCESS;
+    PPDMDEVINS pDevIns = pLsiLogic->CTX_SUFF(pDevIns);
+    RTGCPHYS GCPhysAddrSenseBuffer;
 
-    AssertMsg(   uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_WRITE
-              || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_READ
-              || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_NONE,
-              ("Allocating I/O memory for a non I/O request is not allowed\n"));
+    GCPhysAddrSenseBuffer = pTaskState->GuestRequest.SCSIIO.u32SenseBufferLowAddress;
+    GCPhysAddrSenseBuffer |= ((uint64_t)pLsiLogic->u32SenseBufferHighAddr << 32);
 
-    if (   (   uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_READ
-            || uTxDir == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_NONE)
-        && fCopyToGuest)
-        lsilogicCopyToSgBuf(pDevIns, pLsiReq, pLsiReq->SegIoBuf.cbSeg);
+#ifdef RT_STRICT
+    uint32_t cbSenseBuffer = pTaskState->GuestRequest.SCSIIO.u8SenseBufferLength;
+#endif
+    RTGCPHYS GCPhysAddrSenseBufferBase = PAGE_ADDRESS(GCPhysAddrSenseBuffer);
 
-    lsilogicReqMemFree(pLsiReq);
-    pLsiReq->SegIoBuf.pvSeg = NULL;
-    pLsiReq->SegIoBuf.cbSeg = 0;
+    AssertMsg(GCPhysAddrSenseBuffer >= GCPhysAddrSenseBufferBase,
+              ("Impossible GCPhysAddrSenseBuffer < GCPhysAddrSenseBufferBase\n"));
+
+    /* Sanity checks for the assumption. */
+    AssertMsg(((GCPhysAddrSenseBuffer + cbSenseBuffer) <= (GCPhysAddrSenseBufferBase + PAGE_SIZE)),
+              ("Sense buffer crosses page boundary\n"));
+
+    rc = PDMDevHlpPhysGCPhys2CCPtr(pDevIns, GCPhysAddrSenseBufferBase, (void **)&pTaskState->pbSenseBuffer, &pTaskState->PageLockSense);
+    AssertMsgRC(rc, ("Mapping sense buffer failed rc=%Rrc\n", rc));
+
+    /* Correct start address of the sense buffer. */
+    pTaskState->pbSenseBuffer += (GCPhysAddrSenseBuffer - GCPhysAddrSenseBufferBase);
+
+    return rc;
 }
+#endif
 
-# ifdef LOG_ENABLED
-static void lsilogicR3DumpSCSIIORequest(PMptSCSIIORequest pSCSIIORequest)
+#ifdef DEBUG
+static void lsilogicDumpSCSIIORequest(PMptSCSIIORequest pSCSIIORequest)
 {
-    if (LogIsEnabled())
-    {
-        Log(("%s: u8TargetID=%d\n", __FUNCTION__, pSCSIIORequest->u8TargetID));
-        Log(("%s: u8Bus=%d\n", __FUNCTION__, pSCSIIORequest->u8Bus));
-        Log(("%s: u8ChainOffset=%d\n", __FUNCTION__, pSCSIIORequest->u8ChainOffset));
-        Log(("%s: u8Function=%d\n", __FUNCTION__, pSCSIIORequest->u8Function));
-        Log(("%s: u8CDBLength=%d\n", __FUNCTION__, pSCSIIORequest->u8CDBLength));
-        Log(("%s: u8SenseBufferLength=%d\n", __FUNCTION__, pSCSIIORequest->u8SenseBufferLength));
-        Log(("%s: u8MessageFlags=%d\n", __FUNCTION__, pSCSIIORequest->u8MessageFlags));
-        Log(("%s: u32MessageContext=%#x\n", __FUNCTION__, pSCSIIORequest->u32MessageContext));
-        for (unsigned i = 0; i < RT_ELEMENTS(pSCSIIORequest->au8LUN); i++)
-            Log(("%s: u8LUN[%d]=%d\n", __FUNCTION__, i, pSCSIIORequest->au8LUN[i]));
-        Log(("%s: u32Control=%#x\n", __FUNCTION__, pSCSIIORequest->u32Control));
-        for (unsigned i = 0; i < RT_ELEMENTS(pSCSIIORequest->au8CDB); i++)
-            Log(("%s: u8CDB[%d]=%d\n", __FUNCTION__, i, pSCSIIORequest->au8CDB[i]));
-        Log(("%s: u32DataLength=%#x\n", __FUNCTION__, pSCSIIORequest->u32DataLength));
-        Log(("%s: u32SenseBufferLowAddress=%#x\n", __FUNCTION__, pSCSIIORequest->u32SenseBufferLowAddress));
-    }
+    Log(("%s: u8TargetID=%d\n", __FUNCTION__, pSCSIIORequest->u8TargetID));
+    Log(("%s: u8Bus=%d\n", __FUNCTION__, pSCSIIORequest->u8Bus));
+    Log(("%s: u8ChainOffset=%d\n", __FUNCTION__, pSCSIIORequest->u8ChainOffset));
+    Log(("%s: u8Function=%d\n", __FUNCTION__, pSCSIIORequest->u8Function));
+    Log(("%s: u8CDBLength=%d\n", __FUNCTION__, pSCSIIORequest->u8CDBLength));
+    Log(("%s: u8SenseBufferLength=%d\n", __FUNCTION__, pSCSIIORequest->u8SenseBufferLength));
+    Log(("%s: u8MessageFlags=%d\n", __FUNCTION__, pSCSIIORequest->u8MessageFlags));
+    Log(("%s: u32MessageContext=%#x\n", __FUNCTION__, pSCSIIORequest->u32MessageContext));
+    for (unsigned i = 0; i < RT_ELEMENTS(pSCSIIORequest->au8LUN); i++)
+        Log(("%s: u8LUN[%d]=%d\n", __FUNCTION__, i, pSCSIIORequest->au8LUN[i]));
+    Log(("%s: u32Control=%#x\n", __FUNCTION__, pSCSIIORequest->u32Control));
+    for (unsigned i = 0; i < RT_ELEMENTS(pSCSIIORequest->au8CDB); i++)
+        Log(("%s: u8CDB[%d]=%d\n", __FUNCTION__, i, pSCSIIORequest->au8CDB[i]));
+    Log(("%s: u32DataLength=%#x\n", __FUNCTION__, pSCSIIORequest->u32DataLength));
+    Log(("%s: u32SenseBufferLowAddress=%#x\n", __FUNCTION__, pSCSIIORequest->u32SenseBufferLowAddress));
 }
-# endif
+#endif
 
-static void lsilogicR3WarningDiskFull(PPDMDEVINS pDevIns)
+static void lsilogicWarningDiskFull(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("LsiLogic#%d: Host disk full\n", pDevIns->iInstance));
@@ -2099,7 +1911,7 @@ static void lsilogicR3WarningDiskFull(PPDMDEVINS pDevIns)
     AssertRC(rc);
 }
 
-static void lsilogicR3WarningFileTooBig(PPDMDEVINS pDevIns)
+static void lsilogicWarningFileTooBig(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("LsiLogic#%d: File too big\n", pDevIns->iInstance));
@@ -2108,7 +1920,7 @@ static void lsilogicR3WarningFileTooBig(PPDMDEVINS pDevIns)
     AssertRC(rc);
 }
 
-static void lsilogicR3WarningISCSI(PPDMDEVINS pDevIns)
+static void lsilogicWarningISCSI(PPDMDEVINS pDevIns)
 {
     int rc;
     LogRel(("LsiLogic#%d: iSCSI target unavailable\n", pDevIns->iInstance));
@@ -2117,7 +1929,7 @@ static void lsilogicR3WarningISCSI(PPDMDEVINS pDevIns)
     AssertRC(rc);
 }
 
-static void lsilogicR3WarningUnknown(PPDMDEVINS pDevIns, int rc)
+static void lsilogicWarningUnknown(PPDMDEVINS pDevIns, int rc)
 {
     int rc2;
     LogRel(("LsiLogic#%d: Unknown but recoverable error has occurred (rc=%Rrc)\n", pDevIns->iInstance, rc));
@@ -2126,20 +1938,20 @@ static void lsilogicR3WarningUnknown(PPDMDEVINS pDevIns, int rc)
     AssertRC(rc2);
 }
 
-static void lsilogicR3RedoSetWarning(PLSILOGICSCSI pThis, int rc)
+static void lsilogicRedoSetWarning(PLSILOGICSCSI pThis, int rc)
 {
     if (rc == VERR_DISK_FULL)
-        lsilogicR3WarningDiskFull(pThis->CTX_SUFF(pDevIns));
+        lsilogicWarningDiskFull(pThis->CTX_SUFF(pDevIns));
     else if (rc == VERR_FILE_TOO_BIG)
-        lsilogicR3WarningFileTooBig(pThis->CTX_SUFF(pDevIns));
+        lsilogicWarningFileTooBig(pThis->CTX_SUFF(pDevIns));
     else if (rc == VERR_BROKEN_PIPE || rc == VERR_NET_CONNECTION_REFUSED)
     {
         /* iSCSI connection abort (first error) or failure to reestablish
          * connection (second error). Pause VM. On resume we'll retry. */
-        lsilogicR3WarningISCSI(pThis->CTX_SUFF(pDevIns));
+        lsilogicWarningISCSI(pThis->CTX_SUFF(pDevIns));
     }
     else
-        lsilogicR3WarningUnknown(pThis->CTX_SUFF(pDevIns), rc);
+        lsilogicWarningUnknown(pThis->CTX_SUFF(pDevIns), rc);
 }
 
 /**
@@ -2150,223 +1962,216 @@ static void lsilogicR3RedoSetWarning(PLSILOGICSCSI pThis, int rc)
  * the request.
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
- * @param   pLsiReq  Pointer to the task state data.
+ * @param   pLsiLogic    Pointer to the device instance which sends the request.
+ * @param   pTaskState   Pointer to the task state data.
  */
-static int lsilogicR3ProcessSCSIIORequest(PLSILOGICSCSI pThis, PLSILOGICREQ pLsiReq)
+static int lsilogicProcessSCSIIORequest(PLSILOGICSCSI pLsiLogic, PLSILOGICTASKSTATE pTaskState)
 {
     int rc = VINF_SUCCESS;
 
-# ifdef LOG_ENABLED
-    lsilogicR3DumpSCSIIORequest(&pLsiReq->GuestRequest.SCSIIO);
-# endif
+#ifdef DEBUG
+    lsilogicDumpSCSIIORequest(&pTaskState->GuestRequest.SCSIIO);
+#endif
 
-    pLsiReq->fBIOS = false;
-    pLsiReq->GCPhysSgStart = pLsiReq->GCPhysMessageFrameAddr + sizeof(MptSCSIIORequest);
-    pLsiReq->cChainOffset  = pLsiReq->GuestRequest.SCSIIO.u8ChainOffset;
-    if (pLsiReq->cChainOffset)
-        pLsiReq->cChainOffset = pLsiReq->cChainOffset * sizeof(uint32_t) - sizeof(MptSCSIIORequest);
+    pTaskState->fBIOS = false;
 
-    if (RT_LIKELY(   (pLsiReq->GuestRequest.SCSIIO.u8TargetID < pThis->cDeviceStates)
-                  && (pLsiReq->GuestRequest.SCSIIO.u8Bus == 0)))
+    if (RT_LIKELY(   (pTaskState->GuestRequest.SCSIIO.u8TargetID < pLsiLogic->cDeviceStates)
+                  && (pTaskState->GuestRequest.SCSIIO.u8Bus == 0)))
     {
         PLSILOGICDEVICE pTargetDevice;
-        pTargetDevice = &pThis->paDeviceStates[pLsiReq->GuestRequest.SCSIIO.u8TargetID];
+        pTargetDevice = &pLsiLogic->paDeviceStates[pTaskState->GuestRequest.SCSIIO.u8TargetID];
 
         if (pTargetDevice->pDrvBase)
         {
+            uint32_t uChainOffset;
 
-            if (pLsiReq->GuestRequest.SCSIIO.u32DataLength)
-            {
+            /* Create Scatter gather list. */
+            uChainOffset = pTaskState->GuestRequest.SCSIIO.u8ChainOffset;
 
-                rc = lsilogicIoBufAllocate(pThis->CTX_SUFF(pDevIns), pLsiReq,
-                                                           pLsiReq->GuestRequest.SCSIIO.u32DataLength);
-                AssertRC(rc); /** @todo: Insufficient resources error. */
-            }
+            if (uChainOffset)
+                uChainOffset = uChainOffset * sizeof(uint32_t) - sizeof(MptSCSIIORequest);
+
+            rc = lsilogicScatterGatherListCreate(pLsiLogic, pTaskState,
+                                                 pTaskState->GCPhysMessageFrameAddr + sizeof(MptSCSIIORequest),
+                                                 uChainOffset);
+            AssertRC(rc);
+
+#if 0
+            /* Map sense buffer. */
+            rc = lsilogicMapGCSenseBufferIntoR3(pLsiLogic, pTaskState);
+            AssertRC(rc);
+#endif
 
             /* Setup the SCSI request. */
-            pLsiReq->pTargetDevice                        = pTargetDevice;
-            pLsiReq->PDMScsiRequest.uLogicalUnit          = pLsiReq->GuestRequest.SCSIIO.au8LUN[1];
+            pTaskState->pTargetDevice                        = pTargetDevice;
+            pTaskState->PDMScsiRequest.uLogicalUnit          = pTaskState->GuestRequest.SCSIIO.au8LUN[1];
 
-            uint8_t uDataDirection = MPT_SCSIIO_REQUEST_CONTROL_TXDIR_GET(pLsiReq->GuestRequest.SCSIIO.u32Control);
+            uint8_t uDataDirection = MPT_SCSIIO_REQUEST_CONTROL_TXDIR_GET(pTaskState->GuestRequest.SCSIIO.u32Control);
 
             if (uDataDirection == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_NONE)
-                pLsiReq->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_NONE;
+                pTaskState->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_NONE;
             else if (uDataDirection == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_WRITE)
-                pLsiReq->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_TO_DEVICE;
+                pTaskState->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_TO_DEVICE;
             else if (uDataDirection == MPT_SCSIIO_REQUEST_CONTROL_TXDIR_READ)
-                pLsiReq->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_FROM_DEVICE;
+                pTaskState->PDMScsiRequest.uDataDirection    = PDMSCSIREQUESTTXDIR_FROM_DEVICE;
 
-            pLsiReq->PDMScsiRequest.cbCDB                 = pLsiReq->GuestRequest.SCSIIO.u8CDBLength;
-            pLsiReq->PDMScsiRequest.pbCDB                 = pLsiReq->GuestRequest.SCSIIO.au8CDB;
-            pLsiReq->PDMScsiRequest.cbScatterGather       = pLsiReq->GuestRequest.SCSIIO.u32DataLength;
-            if (pLsiReq->PDMScsiRequest.cbScatterGather)
-            {
-                pLsiReq->PDMScsiRequest.cScatterGatherEntries = 1;
-                pLsiReq->PDMScsiRequest.paScatterGatherHead   = &pLsiReq->SegIoBuf;
-            }
-            else
-            {
-                pLsiReq->PDMScsiRequest.cScatterGatherEntries = 0;
-                pLsiReq->PDMScsiRequest.paScatterGatherHead   = NULL;
-            }
-            pLsiReq->PDMScsiRequest.cbSenseBuffer         = sizeof(pLsiReq->abSenseBuffer);
-            memset(pLsiReq->abSenseBuffer, 0, pLsiReq->PDMScsiRequest.cbSenseBuffer);
-            pLsiReq->PDMScsiRequest.pbSenseBuffer         = pLsiReq->abSenseBuffer;
-            pLsiReq->PDMScsiRequest.pvUser                = pLsiReq;
+            pTaskState->PDMScsiRequest.cbCDB                 = pTaskState->GuestRequest.SCSIIO.u8CDBLength;
+            pTaskState->PDMScsiRequest.pbCDB                 = pTaskState->GuestRequest.SCSIIO.au8CDB;
+            pTaskState->PDMScsiRequest.cbScatterGather       = pTaskState->GuestRequest.SCSIIO.u32DataLength;
+            pTaskState->PDMScsiRequest.cScatterGatherEntries = pTaskState->cSGListEntries;
+            pTaskState->PDMScsiRequest.paScatterGatherHead   = pTaskState->pSGListHead;
+            pTaskState->PDMScsiRequest.cbSenseBuffer         = sizeof(pTaskState->abSenseBuffer);
+            memset(pTaskState->abSenseBuffer, 0, pTaskState->PDMScsiRequest.cbSenseBuffer);
+            pTaskState->PDMScsiRequest.pbSenseBuffer         = pTaskState->abSenseBuffer;
+            pTaskState->PDMScsiRequest.pvUser                = pTaskState;
 
             ASMAtomicIncU32(&pTargetDevice->cOutstandingRequests);
-            rc = pTargetDevice->pDrvSCSIConnector->pfnSCSIRequestSend(pTargetDevice->pDrvSCSIConnector, &pLsiReq->PDMScsiRequest);
+            rc = pTargetDevice->pDrvSCSIConnector->pfnSCSIRequestSend(pTargetDevice->pDrvSCSIConnector, &pTaskState->PDMScsiRequest);
             AssertMsgRC(rc, ("Sending request to SCSI layer failed rc=%Rrc\n", rc));
             return VINF_SUCCESS;
         }
         else
         {
             /* Device is not present report SCSI selection timeout. */
-            pLsiReq->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_DEVICE_NOT_THERE;
+            pTaskState->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_DEVICE_NOT_THERE;
         }
     }
     else
     {
         /* Report out of bounds target ID or bus. */
-        if (pLsiReq->GuestRequest.SCSIIO.u8Bus != 0)
-            pLsiReq->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_BUS;
+        if (pTaskState->GuestRequest.SCSIIO.u8Bus != 0)
+            pTaskState->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_BUS;
         else
-            pLsiReq->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_TARGETID;
+            pTaskState->IOCReply.SCSIIOError.u16IOCStatus = MPT_SCSI_IO_ERROR_IOCSTATUS_INVALID_TARGETID;
     }
 
     static int g_cLogged = 0;
 
     if (g_cLogged++ < MAX_REL_LOG_ERRORS)
     {
-        LogRel(("LsiLogic#%d: %d/%d (Bus/Target) doesn't exist\n", pThis->CTX_SUFF(pDevIns)->iInstance,
-                pLsiReq->GuestRequest.SCSIIO.u8TargetID, pLsiReq->GuestRequest.SCSIIO.u8Bus));
+        LogRel(("LsiLogic#%d: %d/%d (Bus/Target) doesn't exist\n", pLsiLogic->CTX_SUFF(pDevIns)->iInstance,
+                pTaskState->GuestRequest.SCSIIO.u8TargetID, pTaskState->GuestRequest.SCSIIO.u8Bus));
         /* Log the CDB too  */
         LogRel(("LsiLogic#%d: Guest issued CDB {%#x",
-                pThis->CTX_SUFF(pDevIns)->iInstance, pLsiReq->GuestRequest.SCSIIO.au8CDB[0]));
-        for (unsigned i = 1; i < pLsiReq->GuestRequest.SCSIIO.u8CDBLength; i++)
-            LogRel((", %#x", pLsiReq->GuestRequest.SCSIIO.au8CDB[i]));
+                pLsiLogic->CTX_SUFF(pDevIns)->iInstance, pTaskState->GuestRequest.SCSIIO.au8CDB[0]));
+        for (unsigned i = 1; i < pTaskState->GuestRequest.SCSIIO.u8CDBLength; i++)
+            LogRel((", %#x", pTaskState->GuestRequest.SCSIIO.au8CDB[i]));
         LogRel(("}\n"));
     }
 
     /* The rest is equal to both errors. */
-    pLsiReq->IOCReply.SCSIIOError.u8TargetID          = pLsiReq->GuestRequest.SCSIIO.u8TargetID;
-    pLsiReq->IOCReply.SCSIIOError.u8Bus               = pLsiReq->GuestRequest.SCSIIO.u8Bus;
-    pLsiReq->IOCReply.SCSIIOError.u8MessageLength     = sizeof(MptSCSIIOErrorReply) / 4;
-    pLsiReq->IOCReply.SCSIIOError.u8Function          = pLsiReq->GuestRequest.SCSIIO.u8Function;
-    pLsiReq->IOCReply.SCSIIOError.u8CDBLength         = pLsiReq->GuestRequest.SCSIIO.u8CDBLength;
-    pLsiReq->IOCReply.SCSIIOError.u8SenseBufferLength = pLsiReq->GuestRequest.SCSIIO.u8SenseBufferLength;
-    pLsiReq->IOCReply.SCSIIOError.u32MessageContext   = pLsiReq->GuestRequest.SCSIIO.u32MessageContext;
-    pLsiReq->IOCReply.SCSIIOError.u8SCSIStatus        = SCSI_STATUS_OK;
-    pLsiReq->IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_TERMINATED;
-    pLsiReq->IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
-    pLsiReq->IOCReply.SCSIIOError.u32TransferCount    = 0;
-    pLsiReq->IOCReply.SCSIIOError.u32SenseCount       = 0;
-    pLsiReq->IOCReply.SCSIIOError.u32ResponseInfo     = 0;
+    pTaskState->IOCReply.SCSIIOError.u8TargetID          = pTaskState->GuestRequest.SCSIIO.u8TargetID;
+    pTaskState->IOCReply.SCSIIOError.u8Bus               = pTaskState->GuestRequest.SCSIIO.u8Bus;
+    pTaskState->IOCReply.SCSIIOError.u8MessageLength     = sizeof(MptSCSIIOErrorReply) / 4;
+    pTaskState->IOCReply.SCSIIOError.u8Function          = pTaskState->GuestRequest.SCSIIO.u8Function;
+    pTaskState->IOCReply.SCSIIOError.u8CDBLength         = pTaskState->GuestRequest.SCSIIO.u8CDBLength;
+    pTaskState->IOCReply.SCSIIOError.u8SenseBufferLength = pTaskState->GuestRequest.SCSIIO.u8SenseBufferLength;
+    pTaskState->IOCReply.SCSIIOError.u32MessageContext   = pTaskState->GuestRequest.SCSIIO.u32MessageContext;
+    pTaskState->IOCReply.SCSIIOError.u8SCSIStatus        = SCSI_STATUS_OK;
+    pTaskState->IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_TERMINATED;
+    pTaskState->IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
+    pTaskState->IOCReply.SCSIIOError.u32TransferCount    = 0;
+    pTaskState->IOCReply.SCSIIOError.u32SenseCount       = 0;
+    pTaskState->IOCReply.SCSIIOError.u32ResponseInfo     = 0;
 
-    lsilogicFinishAddressReply(pThis, &pLsiReq->IOCReply, false);
-    RTMemCacheFree(pThis->hTaskCache, pLsiReq);
+    lsilogicFinishAddressReply(pLsiLogic, &pTaskState->IOCReply, false);
+    RTMemCacheFree(pLsiLogic->hTaskCache, pTaskState);
 
     return rc;
 }
 
 
-/**
- * @interface_method_impl{PDMISCSIPORT,pfnSCSIRequestCompleted}
- */
-static DECLCALLBACK(int) lsilogicR3DeviceSCSIRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
-                                                              int rcCompletion, bool fRedo, int rcReq)
+static DECLCALLBACK(int) lsilogicDeviceSCSIRequestCompleted(PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
+                                                            int rcCompletion, bool fRedo, int rcReq)
 {
-    PLSILOGICREQ pLsiReq      = (PLSILOGICREQ)pSCSIRequest->pvUser;
-    PLSILOGICDEVICE    pLsiLogicDevice = pLsiReq->pTargetDevice;
-    PLSILOGICSCSI      pThis       = pLsiLogicDevice->CTX_SUFF(pLsiLogic);
+    PLSILOGICTASKSTATE pTaskState      = (PLSILOGICTASKSTATE)pSCSIRequest->pvUser;
+    PLSILOGICDEVICE    pLsiLogicDevice = pTaskState->pTargetDevice;
+    PLSILOGICSCSI      pLsiLogic       = pLsiLogicDevice->CTX_SUFF(pLsiLogic);
 
     /* If the task failed but it is possible to redo it again after a suspend
      * add it to the list. */
     if (fRedo)
     {
-        if (!pLsiReq->fBIOS && pLsiReq->PDMScsiRequest.cbScatterGather)
-            lsilogicIoBufFree(pThis->CTX_SUFF(pDevIns), pLsiReq, false /* fCopyToGuest */);
+        if (!pTaskState->fBIOS)
+            lsilogicScatterGatherListDestroy(pLsiLogic, pTaskState);
 
         /* Add to the list. */
         do
         {
-            pLsiReq->pRedoNext = ASMAtomicReadPtrT(&pThis->pTasksRedoHead, PLSILOGICREQ);
-        } while (!ASMAtomicCmpXchgPtr(&pThis->pTasksRedoHead, pLsiReq, pLsiReq->pRedoNext));
+            pTaskState->pRedoNext = ASMAtomicReadPtrT(&pLsiLogic->pTasksRedoHead, PLSILOGICTASKSTATE);
+        } while (!ASMAtomicCmpXchgPtr(&pLsiLogic->pTasksRedoHead, pTaskState, pTaskState->pRedoNext));
 
         /* Suspend the VM if not done already. */
-        if (!ASMAtomicXchgBool(&pThis->fRedo, true))
-            lsilogicR3RedoSetWarning(pThis, rcReq);
+        if (!ASMAtomicXchgBool(&pLsiLogic->fRedo, true))
+            lsilogicRedoSetWarning(pLsiLogic, rcReq);
     }
     else
     {
-        if (RT_UNLIKELY(pLsiReq->fBIOS))
+        if (RT_UNLIKELY(pTaskState->fBIOS))
         {
-            int rc = vboxscsiRequestFinished(&pThis->VBoxSCSI, pSCSIRequest, rcCompletion);
+            int rc = vboxscsiRequestFinished(&pLsiLogic->VBoxSCSI, pSCSIRequest);
             AssertMsgRC(rc, ("Finishing BIOS SCSI request failed rc=%Rrc\n", rc));
         }
         else
         {
+#if 0
+            lsilogicFreeGCSenseBuffer(pLsiLogic, pTaskState);
+#else
             RTGCPHYS GCPhysAddrSenseBuffer;
 
-            GCPhysAddrSenseBuffer = pLsiReq->GuestRequest.SCSIIO.u32SenseBufferLowAddress;
-            GCPhysAddrSenseBuffer |= ((uint64_t)pThis->u32SenseBufferHighAddr << 32);
+            GCPhysAddrSenseBuffer = pTaskState->GuestRequest.SCSIIO.u32SenseBufferLowAddress;
+            GCPhysAddrSenseBuffer |= ((uint64_t)pLsiLogic->u32SenseBufferHighAddr << 32);
 
             /* Copy the sense buffer over. */
-            PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhysAddrSenseBuffer, pLsiReq->abSenseBuffer,
-                                  RT_UNLIKELY(  pLsiReq->GuestRequest.SCSIIO.u8SenseBufferLength
-                                              < pLsiReq->PDMScsiRequest.cbSenseBuffer)
-                                  ? pLsiReq->GuestRequest.SCSIIO.u8SenseBufferLength
-                                  : pLsiReq->PDMScsiRequest.cbSenseBuffer);
-
-            if (pLsiReq->PDMScsiRequest.cbScatterGather)
-                lsilogicIoBufFree(pThis->CTX_SUFF(pDevIns), pLsiReq, true /* fCopyToGuest */);
+            PDMDevHlpPhysWrite(pLsiLogic->CTX_SUFF(pDevIns), GCPhysAddrSenseBuffer, pTaskState->abSenseBuffer,
+                                 RT_UNLIKELY(pTaskState->GuestRequest.SCSIIO.u8SenseBufferLength < pTaskState->PDMScsiRequest.cbSenseBuffer)
+                               ? pTaskState->GuestRequest.SCSIIO.u8SenseBufferLength
+                               : pTaskState->PDMScsiRequest.cbSenseBuffer);
+#endif
+            lsilogicScatterGatherListDestroy(pLsiLogic, pTaskState);
 
 
             if (RT_LIKELY(rcCompletion == SCSI_STATUS_OK))
-                lsilogicR3FinishContextReply(pThis, pLsiReq->GuestRequest.SCSIIO.u32MessageContext);
+                lsilogicFinishContextReply(pLsiLogic, pTaskState->GuestRequest.SCSIIO.u32MessageContext);
             else
             {
                 /* The SCSI target encountered an error during processing post a reply. */
-                memset(&pLsiReq->IOCReply, 0, sizeof(MptReplyUnion));
-                pLsiReq->IOCReply.SCSIIOError.u8TargetID          = pLsiReq->GuestRequest.SCSIIO.u8TargetID;
-                pLsiReq->IOCReply.SCSIIOError.u8Bus               = pLsiReq->GuestRequest.SCSIIO.u8Bus;
-                pLsiReq->IOCReply.SCSIIOError.u8MessageLength     = 8;
-                pLsiReq->IOCReply.SCSIIOError.u8Function          = pLsiReq->GuestRequest.SCSIIO.u8Function;
-                pLsiReq->IOCReply.SCSIIOError.u8CDBLength         = pLsiReq->GuestRequest.SCSIIO.u8CDBLength;
-                pLsiReq->IOCReply.SCSIIOError.u8SenseBufferLength = pLsiReq->GuestRequest.SCSIIO.u8SenseBufferLength;
-                pLsiReq->IOCReply.SCSIIOError.u8MessageFlags      = pLsiReq->GuestRequest.SCSIIO.u8MessageFlags;
-                pLsiReq->IOCReply.SCSIIOError.u32MessageContext   = pLsiReq->GuestRequest.SCSIIO.u32MessageContext;
-                pLsiReq->IOCReply.SCSIIOError.u8SCSIStatus        = rcCompletion;
-                pLsiReq->IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_AUTOSENSE_VALID;
-                pLsiReq->IOCReply.SCSIIOError.u16IOCStatus        = 0;
-                pLsiReq->IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
-                pLsiReq->IOCReply.SCSIIOError.u32TransferCount    = 0;
-                pLsiReq->IOCReply.SCSIIOError.u32SenseCount       = sizeof(pLsiReq->abSenseBuffer);
-                pLsiReq->IOCReply.SCSIIOError.u32ResponseInfo     = 0;
+                memset(&pTaskState->IOCReply, 0, sizeof(MptReplyUnion));
+                pTaskState->IOCReply.SCSIIOError.u8TargetID          = pTaskState->GuestRequest.SCSIIO.u8TargetID;
+                pTaskState->IOCReply.SCSIIOError.u8Bus               = pTaskState->GuestRequest.SCSIIO.u8Bus;
+                pTaskState->IOCReply.SCSIIOError.u8MessageLength     = 8;
+                pTaskState->IOCReply.SCSIIOError.u8Function          = pTaskState->GuestRequest.SCSIIO.u8Function;
+                pTaskState->IOCReply.SCSIIOError.u8CDBLength         = pTaskState->GuestRequest.SCSIIO.u8CDBLength;
+                pTaskState->IOCReply.SCSIIOError.u8SenseBufferLength = pTaskState->GuestRequest.SCSIIO.u8SenseBufferLength;
+                pTaskState->IOCReply.SCSIIOError.u8MessageFlags      = pTaskState->GuestRequest.SCSIIO.u8MessageFlags;
+                pTaskState->IOCReply.SCSIIOError.u32MessageContext   = pTaskState->GuestRequest.SCSIIO.u32MessageContext;
+                pTaskState->IOCReply.SCSIIOError.u8SCSIStatus        = rcCompletion;
+                pTaskState->IOCReply.SCSIIOError.u8SCSIState         = MPT_SCSI_IO_ERROR_SCSI_STATE_AUTOSENSE_VALID;
+                pTaskState->IOCReply.SCSIIOError.u16IOCStatus        = 0;
+                pTaskState->IOCReply.SCSIIOError.u32IOCLogInfo       = 0;
+                pTaskState->IOCReply.SCSIIOError.u32TransferCount    = 0;
+                pTaskState->IOCReply.SCSIIOError.u32SenseCount       = sizeof(pTaskState->abSenseBuffer);
+                pTaskState->IOCReply.SCSIIOError.u32ResponseInfo     = 0;
 
-                lsilogicFinishAddressReply(pThis, &pLsiReq->IOCReply, false);
+                lsilogicFinishAddressReply(pLsiLogic, &pTaskState->IOCReply, true);
             }
         }
 
-        RTMemCacheFree(pThis->hTaskCache, pLsiReq);
+        RTMemCacheFree(pLsiLogic->hTaskCache, pTaskState);
     }
 
     ASMAtomicDecU32(&pLsiLogicDevice->cOutstandingRequests);
 
-    if (pLsiLogicDevice->cOutstandingRequests == 0 && pThis->fSignalIdle)
-        PDMDevHlpAsyncNotificationCompleted(pThis->pDevInsR3);
+    if (pLsiLogicDevice->cOutstandingRequests == 0 && pLsiLogic->fSignalIdle)
+        PDMDevHlpAsyncNotificationCompleted(pLsiLogic->pDevInsR3);
 
     return VINF_SUCCESS;
 }
 
-/**
- * @interface_method_impl{PDMISCSIPORT,pfnQueryDeviceLocation}
- */
-static DECLCALLBACK(int) lsilogicR3QueryDeviceLocation(PPDMISCSIPORT pInterface, const char **ppcszController,
-                                                       uint32_t *piInstance, uint32_t *piLUN)
+static DECLCALLBACK(int) lsilogicQueryDeviceLocation(PPDMISCSIPORT pInterface, const char **ppcszController,
+                                                     uint32_t *piInstance, uint32_t *piLUN)
 {
-    PLSILOGICDEVICE pLsiLogicDevice = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, ISCSIPort);
+    PLSILOGICDEVICE pLsiLogicDevice = PDMISCSIPORT_2_PLSILOGICDEVICE(pInterface);
     PPDMDEVINS pDevIns = pLsiLogicDevice->CTX_SUFF(pLsiLogic)->CTX_SUFF(pDevIns);
 
     AssertPtrReturn(ppcszController, VERR_INVALID_POINTER);
@@ -2390,17 +2195,17 @@ static DECLCALLBACK(int) lsilogicR3QueryDeviceLocation(PPDMISCSIPORT pInterface,
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationIOUnitPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                          PMptConfigurationPagesSupported pPages,
-                                                          uint8_t u8PageNumber,
-                                                          PMptConfigurationPageHeader *ppPageHeader,
-                                                          uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationIOUnitPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                        PMptConfigurationPagesSupported pPages,
+                                                        uint8_t u8PageNumber,
+                                                        PMptConfigurationPageHeader *ppPageHeader,
+                                                        uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->IOUnitPage0.u.fields.Header;
@@ -2444,17 +2249,17 @@ static int lsilogicR3ConfigurationIOUnitPageGetFromNumber(PLSILOGICSCSI pThis,
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationIOCPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                       PMptConfigurationPagesSupported pPages,
-                                                       uint8_t u8PageNumber,
-                                                       PMptConfigurationPageHeader *ppPageHeader,
-                                                       uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationIOCPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                     PMptConfigurationPagesSupported pPages,
+                                                     uint8_t u8PageNumber,
+                                                     PMptConfigurationPageHeader *ppPageHeader,
+                                                     uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->IOCPage0.u.fields.Header;
@@ -2503,17 +2308,17 @@ static int lsilogicR3ConfigurationIOCPageGetFromNumber(PLSILOGICSCSI pThis,
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationManufacturingPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                                 PMptConfigurationPagesSupported pPages,
-                                                                 uint8_t u8PageNumber,
-                                                                 PMptConfigurationPageHeader *ppPageHeader,
-                                                                 uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationManufacturingPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                               PMptConfigurationPagesSupported pPages,
+                                                               uint8_t u8PageNumber,
+                                                               PMptConfigurationPageHeader *ppPageHeader,
+                                                               uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->ManufacturingPage0.u.fields.Header;
@@ -2551,7 +2356,7 @@ static int lsilogicR3ConfigurationManufacturingPageGetFromNumber(PLSILOGICSCSI p
             *pcbPage      = sizeof(pPages->ManufacturingPage6);
             break;
         case 7:
-            if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+            if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
             {
                 *ppPageHeader = &pPages->u.SasPages.pManufacturingPage7->u.fields.Header;
                 *ppbPageData  =  pPages->u.SasPages.pManufacturingPage7->u.abPageData;
@@ -2592,17 +2397,17 @@ static int lsilogicR3ConfigurationManufacturingPageGetFromNumber(PLSILOGICSCSI p
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationBiosPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                        PMptConfigurationPagesSupported pPages,
-                                                        uint8_t u8PageNumber,
-                                                        PMptConfigurationPageHeader *ppPageHeader,
-                                                        uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationBiosPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                      PMptConfigurationPagesSupported pPages,
+                                                      uint8_t u8PageNumber,
+                                                      PMptConfigurationPageHeader *ppPageHeader,
+                                                      uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 1:
             *ppPageHeader = &pPages->BIOSPage1.u.fields.Header;
@@ -2636,21 +2441,21 @@ static int lsilogicR3ConfigurationBiosPageGetFromNumber(PLSILOGICSCSI pThis,
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationSCSISPIPortPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                               PMptConfigurationPagesSupported pPages,
-                                                               uint8_t u8Port,
-                                                               uint8_t u8PageNumber,
-                                                               PMptConfigurationPageHeader *ppPageHeader,
-                                                               uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationSCSISPIPortPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                             PMptConfigurationPagesSupported pPages,
+                                                             uint8_t u8Port,
+                                                             uint8_t u8PageNumber,
+                                                             PMptConfigurationPageHeader *ppPageHeader,
+                                                             uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
 
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
     if (u8Port >= RT_ELEMENTS(pPages->u.SpiPages.aPortPages))
         return VERR_NOT_FOUND;
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->u.SpiPages.aPortPages[u8Port].SCSISPIPortPage0.u.fields.Header;
@@ -2684,15 +2489,16 @@ static int lsilogicR3ConfigurationSCSISPIPortPageGetFromNumber(PLSILOGICSCSI pTh
  * @param   ppPageHeader  Where to store the pointer to the page header.
  * @param   ppbPageData   Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationSCSISPIDevicePageGetFromNumber(PLSILOGICSCSI pThis,
-                                                                 PMptConfigurationPagesSupported pPages,
-                                                                 uint8_t u8Bus,
-                                                                 uint8_t u8TargetID, uint8_t u8PageNumber,
-                                                                 PMptConfigurationPageHeader *ppPageHeader,
-                                                                 uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationSCSISPIDevicePageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                               PMptConfigurationPagesSupported pPages,
+                                                               uint8_t u8Bus,
+                                                               uint8_t u8TargetID, uint8_t u8PageNumber,
+                                                               PMptConfigurationPageHeader *ppPageHeader,
+                                                               uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
-    AssertPtr(ppPageHeader); Assert(ppbPageData);
+
+    AssertMsg(VALID_PTR(ppPageHeader) && VALID_PTR(ppbPageData), ("Invalid parameters\n"));
 
     if (u8Bus >= RT_ELEMENTS(pPages->u.SpiPages.aBuses))
         return VERR_NOT_FOUND;
@@ -2700,7 +2506,7 @@ static int lsilogicR3ConfigurationSCSISPIDevicePageGetFromNumber(PLSILOGICSCSI p
     if (u8TargetID >= RT_ELEMENTS(pPages->u.SpiPages.aBuses[u8Bus].aDevicePages))
         return VERR_NOT_FOUND;
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->u.SpiPages.aBuses[u8Bus].aDevicePages[u8TargetID].SCSISPIDevicePage0.u.fields.Header;
@@ -2729,15 +2535,15 @@ static int lsilogicR3ConfigurationSCSISPIDevicePageGetFromNumber(PLSILOGICSCSI p
     return rc;
 }
 
-static int lsilogicR3ConfigurationSASIOUnitPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                             PMptConfigurationPagesSupported pPages,
-                                                             uint8_t u8PageNumber,
-                                                             PMptExtendedConfigurationPageHeader *ppPageHeader,
-                                                             uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationSASIOUnitPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                           PMptConfigurationPagesSupported pPages,
+                                                           uint8_t u8PageNumber,
+                                                           PMptExtendedConfigurationPageHeader *ppPageHeader,
+                                                           uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
-    switch (u8PageNumber)
+    switch(u8PageNumber)
     {
         case 0:
             *ppPageHeader = &pPages->u.SasPages.pSASIOUnitPage0->u.fields.ExtHeader;
@@ -2766,12 +2572,12 @@ static int lsilogicR3ConfigurationSASIOUnitPageGetFromNumber(PLSILOGICSCSI pThis
     return rc;
 }
 
-static int lsilogicR3ConfigurationSASPHYPageGetFromNumber(PLSILOGICSCSI pThis,
-                                                          PMptConfigurationPagesSupported pPages,
-                                                          uint8_t u8PageNumber,
-                                                          MptConfigurationPageAddress PageAddress,
-                                                          PMptExtendedConfigurationPageHeader *ppPageHeader,
-                                                          uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationSASPHYPageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                        PMptConfigurationPagesSupported pPages,
+                                                        uint8_t u8PageNumber,
+                                                        MptConfigurationPageAddress PageAddress,
+                                                        PMptExtendedConfigurationPageHeader *ppPageHeader,
+                                                        uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
     uint8_t uAddressForm = MPT_CONFIGURATION_PAGE_ADDRESS_GET_SAS_FORM(PageAddress);
@@ -2807,7 +2613,7 @@ static int lsilogicR3ConfigurationSASPHYPageGetFromNumber(PLSILOGICSCSI pThis,
 
     if (pPHYPages)
     {
-        switch (u8PageNumber)
+        switch(u8PageNumber)
         {
             case 0:
                 *ppPageHeader = &pPHYPages->SASPHYPage0.u.fields.ExtHeader;
@@ -2829,12 +2635,12 @@ static int lsilogicR3ConfigurationSASPHYPageGetFromNumber(PLSILOGICSCSI pThis,
     return rc;
 }
 
-static int lsilogicR3ConfigurationSASDevicePageGetFromNumber(PLSILOGICSCSI pThis,
-                                                             PMptConfigurationPagesSupported pPages,
-                                                             uint8_t u8PageNumber,
-                                                             MptConfigurationPageAddress PageAddress,
-                                                             PMptExtendedConfigurationPageHeader *ppPageHeader,
-                                                             uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationSASDevicePageGetFromNumber(PLSILOGICSCSI pLsiLogic,
+                                                           PMptConfigurationPagesSupported pPages,
+                                                           uint8_t u8PageNumber,
+                                                           MptConfigurationPageAddress PageAddress,
+                                                           PMptExtendedConfigurationPageHeader *ppPageHeader,
+                                                           uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
     uint8_t uAddressForm = MPT_CONFIGURATION_PAGE_ADDRESS_GET_SAS_FORM(PageAddress);
@@ -2893,7 +2699,7 @@ static int lsilogicR3ConfigurationSASDevicePageGetFromNumber(PLSILOGICSCSI pThis
 
     if (pSASDevice)
     {
-        switch (u8PageNumber)
+        switch(u8PageNumber)
         {
             case 0:
                 *ppPageHeader = &pSASDevice->SASDevicePage0.u.fields.ExtHeader;
@@ -2924,15 +2730,15 @@ static int lsilogicR3ConfigurationSASDevicePageGetFromNumber(PLSILOGICSCSI pThis
  * Returns the extended configuration page header and data.
  * @returns VINF_SUCCESS if successful
  *          VERR_NOT_FOUND if the requested page could be found.
- * @param   pThis               Pointer to the LsiLogic device state.
+ * @param   pLsiLogic           The LsiLogic controller instance.
  * @param   pConfigurationReq   The configuration request.
  * @param   u8PageNumber        Number of the page to get.
  * @param   ppPageHeader        Where to store the pointer to the page header.
  * @param   ppbPageData         Where to store the pointer to the page data.
  */
-static int lsilogicR3ConfigurationPageGetExtended(PLSILOGICSCSI pThis, PMptConfigurationRequest pConfigurationReq,
-                                                  PMptExtendedConfigurationPageHeader *ppPageHeader,
-                                                  uint8_t **ppbPageData, size_t *pcbPage)
+static int lsilogicConfigurationPageGetExtended(PLSILOGICSCSI pLsiLogic, PMptConfigurationRequest pConfigurationReq,
+                                                PMptExtendedConfigurationPageHeader *ppPageHeader,
+                                                uint8_t **ppbPageData, size_t *pcbPage)
 {
     int rc = VINF_SUCCESS;
 
@@ -2944,16 +2750,16 @@ static int lsilogicR3ConfigurationPageGetExtended(PLSILOGICSCSI pThis, PMptConfi
     {
         case MPT_CONFIGURATION_PAGE_TYPE_EXTENDED_SASIOUNIT:
         {
-            rc = lsilogicR3ConfigurationSASIOUnitPageGetFromNumber(pThis,
-                                                                 pThis->pConfigurationPages,
+            rc = lsilogicConfigurationSASIOUnitPageGetFromNumber(pLsiLogic,
+                                                                 pLsiLogic->pConfigurationPages,
                                                                  pConfigurationReq->u8PageNumber,
                                                                  ppPageHeader, ppbPageData, pcbPage);
             break;
         }
         case MPT_CONFIGURATION_PAGE_TYPE_EXTENDED_SASPHYS:
         {
-            rc = lsilogicR3ConfigurationSASPHYPageGetFromNumber(pThis,
-                                                              pThis->pConfigurationPages,
+            rc = lsilogicConfigurationSASPHYPageGetFromNumber(pLsiLogic,
+                                                              pLsiLogic->pConfigurationPages,
                                                               pConfigurationReq->u8PageNumber,
                                                               pConfigurationReq->PageAddress,
                                                               ppPageHeader, ppbPageData, pcbPage);
@@ -2961,8 +2767,8 @@ static int lsilogicR3ConfigurationPageGetExtended(PLSILOGICSCSI pThis, PMptConfi
         }
         case MPT_CONFIGURATION_PAGE_TYPE_EXTENDED_SASDEVICE:
         {
-            rc = lsilogicR3ConfigurationSASDevicePageGetFromNumber(pThis,
-                                                                 pThis->pConfigurationPages,
+            rc = lsilogicConfigurationSASDevicePageGetFromNumber(pLsiLogic,
+                                                                 pLsiLogic->pConfigurationPages,
                                                                  pConfigurationReq->u8PageNumber,
                                                                  pConfigurationReq->PageAddress,
                                                                  ppPageHeader, ppbPageData, pcbPage);
@@ -2981,12 +2787,12 @@ static int lsilogicR3ConfigurationPageGetExtended(PLSILOGICSCSI pThis, PMptConfi
  * Processes a Configuration request.
  *
  * @returns VBox status code.
- * @param   pThis               Pointer to the LsiLogic device state.
- * @param   pConfigurationReq   Pointer to the request structure.
- * @param   pReply              Pointer to the reply message frame
+ * @param   pLsiLogic             Pointer to the device instance which sends the request.
+ * @param   pConfigurationReq     Pointer to the request structure.
+ * @param   pReply                Pointer to the reply message frame
  */
-static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfigurationRequest pConfigurationReq,
-                                                 PMptConfigurationReply pReply)
+static int lsilogicProcessConfigurationRequest(PLSILOGICSCSI pLsiLogic, PMptConfigurationRequest pConfigurationReq,
+                                               PMptConfigurationReply pReply)
 {
     int                                 rc             = VINF_SUCCESS;
     uint8_t                            *pbPageData     = NULL;
@@ -2996,7 +2802,7 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
     uint8_t                             u8PageAttribute;
     size_t                              cbPage = 0;
 
-    LogFlowFunc(("pThis=%#p\n", pThis));
+    LogFlowFunc(("pLsiLogic=%#p\n", pLsiLogic));
 
     u8PageType = MPT_CONFIGURATION_PAGE_TYPE_GET(pConfigurationReq->u8PageType);
     u8PageAttribute = MPT_CONFIGURATION_PAGE_ATTRIBUTE_GET(pConfigurationReq->u8PageType);
@@ -3019,8 +2825,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         case MPT_CONFIGURATION_PAGE_TYPE_IO_UNIT:
         {
             /* Get the page data. */
-            rc = lsilogicR3ConfigurationIOUnitPageGetFromNumber(pThis,
-                                                              pThis->pConfigurationPages,
+            rc = lsilogicConfigurationIOUnitPageGetFromNumber(pLsiLogic,
+                                                              pLsiLogic->pConfigurationPages,
                                                               pConfigurationReq->u8PageNumber,
                                                               &pPageHeader, &pbPageData, &cbPage);
             break;
@@ -3028,8 +2834,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         case MPT_CONFIGURATION_PAGE_TYPE_IOC:
         {
             /* Get the page data. */
-            rc = lsilogicR3ConfigurationIOCPageGetFromNumber(pThis,
-                                                           pThis->pConfigurationPages,
+            rc = lsilogicConfigurationIOCPageGetFromNumber(pLsiLogic,
+                                                           pLsiLogic->pConfigurationPages,
                                                            pConfigurationReq->u8PageNumber,
                                                            &pPageHeader, &pbPageData, &cbPage);
             break;
@@ -3037,8 +2843,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         case MPT_CONFIGURATION_PAGE_TYPE_MANUFACTURING:
         {
             /* Get the page data. */
-            rc = lsilogicR3ConfigurationManufacturingPageGetFromNumber(pThis,
-                                                                     pThis->pConfigurationPages,
+            rc = lsilogicConfigurationManufacturingPageGetFromNumber(pLsiLogic,
+                                                                     pLsiLogic->pConfigurationPages,
                                                                      pConfigurationReq->u8PageNumber,
                                                                      &pPageHeader, &pbPageData, &cbPage);
             break;
@@ -3046,8 +2852,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         case MPT_CONFIGURATION_PAGE_TYPE_SCSI_SPI_PORT:
         {
             /* Get the page data. */
-            rc = lsilogicR3ConfigurationSCSISPIPortPageGetFromNumber(pThis,
-                                                                   pThis->pConfigurationPages,
+            rc = lsilogicConfigurationSCSISPIPortPageGetFromNumber(pLsiLogic,
+                                                                   pLsiLogic->pConfigurationPages,
                                                                    pConfigurationReq->PageAddress.MPIPortNumber.u8PortNumber,
                                                                    pConfigurationReq->u8PageNumber,
                                                                    &pPageHeader, &pbPageData, &cbPage);
@@ -3056,8 +2862,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         case MPT_CONFIGURATION_PAGE_TYPE_SCSI_SPI_DEVICE:
         {
             /* Get the page data. */
-            rc = lsilogicR3ConfigurationSCSISPIDevicePageGetFromNumber(pThis,
-                                                                     pThis->pConfigurationPages,
+            rc = lsilogicConfigurationSCSISPIDevicePageGetFromNumber(pLsiLogic,
+                                                                     pLsiLogic->pConfigurationPages,
                                                                      pConfigurationReq->PageAddress.BusAndTargetId.u8Bus,
                                                                      pConfigurationReq->PageAddress.BusAndTargetId.u8TargetID,
                                                                      pConfigurationReq->u8PageNumber,
@@ -3066,15 +2872,15 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
         }
         case MPT_CONFIGURATION_PAGE_TYPE_BIOS:
         {
-            rc = lsilogicR3ConfigurationBiosPageGetFromNumber(pThis,
-                                                            pThis->pConfigurationPages,
+            rc = lsilogicConfigurationBiosPageGetFromNumber(pLsiLogic,
+                                                            pLsiLogic->pConfigurationPages,
                                                             pConfigurationReq->u8PageNumber,
                                                             &pPageHeader, &pbPageData, &cbPage);
             break;
         }
         case MPT_CONFIGURATION_PAGE_TYPE_EXTENDED:
         {
-            rc = lsilogicR3ConfigurationPageGetExtended(pThis,
+            rc = lsilogicConfigurationPageGetExtended(pLsiLogic,
                                                       pConfigurationReq,
                                                       &pExtPageHeader, &pbPageData, &cbPage);
             break;
@@ -3139,7 +2945,8 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
                 if (pConfigurationReq->SimpleSGElement.f64BitAddress)
                     GCPhysAddrPageBuffer |= (uint64_t)pConfigurationReq->SimpleSGElement.u32DataBufferAddressHigh << 32;
 
-                PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns), GCPhysAddrPageBuffer, pbPageData, RT_MIN(cbBuffer, cbPage));
+                PDMDevHlpPhysWrite(pLsiLogic->CTX_SUFF(pDevIns), GCPhysAddrPageBuffer, pbPageData,
+                                   RT_MIN(cbBuffer, cbPage));
             }
             break;
         }
@@ -3155,7 +2962,7 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
 
                 LogFlow(("cbBuffer=%u cbPage=%u\n", cbBuffer, cbPage));
 
-                PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), GCPhysAddrPageBuffer, pbPageData,
+                PDMDevHlpPhysRead(pLsiLogic->CTX_SUFF(pDevIns), GCPhysAddrPageBuffer, pbPageData,
                                   RT_MIN(cbBuffer, cbPage));
             }
             break;
@@ -3171,18 +2978,18 @@ static int lsilogicR3ProcessConfigurationRequest(PLSILOGICSCSI pThis, PMptConfig
  * Initializes the configuration pages for the SPI SCSI controller.
  *
  * @returns nothing
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pLsiLogic    Pointer to the Lsilogic SCSI instance.
  */
-static void lsilogicR3InitializeConfigurationPagesSpi(PLSILOGICSCSI pThis)
+static void lsilogicInitializeConfigurationPagesSpi(PLSILOGICSCSI pLsiLogic)
 {
-    PMptConfigurationPagesSpi pPages = &pThis->pConfigurationPages->u.SpiPages;
+    PMptConfigurationPagesSpi pPages = &pLsiLogic->pConfigurationPages->u.SpiPages;
 
-    AssertMsg(pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI, ("Controller is not the SPI SCSI one\n"));
+    AssertMsg(pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI, ("Controller is not the SPI SCSI one\n"));
 
-    LogFlowFunc(("pThis=%#p\n", pThis));
+    LogFlowFunc(("pLsiLogic=%#p\n", pLsiLogic));
 
     /* Clear everything first. */
-    memset(pPages, 0, sizeof(MptConfigurationPagesSpi));
+    memset(pPages, 0, sizeof(PMptConfigurationPagesSpi));
 
     for (unsigned i = 0; i < RT_ELEMENTS(pPages->aPortPages); i++)
     {
@@ -3262,7 +3069,7 @@ static void lsilogicR3InitializeConfigurationPagesSpi(PLSILOGICSCSI pThis)
  * Generates a handle.
  *
  * @returns the handle.
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis    The LsiLogic instance.
  */
 DECLINLINE(uint16_t) lsilogicGetHandle(PLSILOGICSCSI pThis)
 {
@@ -3295,9 +3102,9 @@ void lsilogicSASAddressGenerate(PSASADDRESS pSASAddress, unsigned iId)
  * Initializes the configuration pages for the SAS SCSI controller.
  *
  * @returns nothing
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis    Pointer to the Lsilogic SCSI instance.
  */
-static void lsilogicR3InitializeConfigurationPagesSas(PLSILOGICSCSI pThis)
+static void lsilogicInitializeConfigurationPagesSas(PLSILOGICSCSI pThis)
 {
     PMptConfigurationPagesSas pPages = &pThis->pConfigurationPages->u.SasPages;
 
@@ -3491,16 +3298,16 @@ static void lsilogicR3InitializeConfigurationPagesSas(PLSILOGICSCSI pThis)
  * Initializes the configuration pages.
  *
  * @returns nothing
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pLsiLogic    Pointer to the Lsilogic SCSI instance.
  */
-static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
+static void lsilogicInitializeConfigurationPages(PLSILOGICSCSI pLsiLogic)
 {
     /* Initialize the common pages. */
     PMptConfigurationPagesSupported pPages = (PMptConfigurationPagesSupported)RTMemAllocZ(sizeof(MptConfigurationPagesSupported));
 
-    pThis->pConfigurationPages = pPages;
+    pLsiLogic->pConfigurationPages = pPages;
 
-    LogFlowFunc(("pThis=%#p\n", pThis));
+    LogFlowFunc(("pLsiLogic=%#p\n", pLsiLogic));
 
     /* Clear everything first. */
     memset(pPages, 0, sizeof(MptConfigurationPagesSupported));
@@ -3525,12 +3332,12 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
                                               MptConfigurationPageManufacturing2, 2,
                                               MPT_CONFIGURATION_PAGE_ATTRIBUTE_PERSISTENT_READONLY);
 
-    if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+    if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
     {
         pPages->ManufacturingPage2.u.fields.u16PCIDeviceID = LSILOGICSCSI_PCI_SPI_DEVICE_ID;
         pPages->ManufacturingPage2.u.fields.u8PCIRevisionID = LSILOGICSCSI_PCI_SPI_REVISION_ID;
     }
-    else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+    else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
     {
         pPages->ManufacturingPage2.u.fields.u16PCIDeviceID = LSILOGICSCSI_PCI_SAS_DEVICE_ID;
         pPages->ManufacturingPage2.u.fields.u8PCIRevisionID = LSILOGICSCSI_PCI_SAS_REVISION_ID;
@@ -3541,12 +3348,12 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
                                               MptConfigurationPageManufacturing3, 3,
                                               MPT_CONFIGURATION_PAGE_ATTRIBUTE_PERSISTENT_READONLY);
 
-    if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+    if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
     {
         pPages->ManufacturingPage3.u.fields.u16PCIDeviceID = LSILOGICSCSI_PCI_SPI_DEVICE_ID;
         pPages->ManufacturingPage3.u.fields.u8PCIRevisionID = LSILOGICSCSI_PCI_SPI_REVISION_ID;
     }
-    else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+    else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
     {
         pPages->ManufacturingPage3.u.fields.u16PCIDeviceID = LSILOGICSCSI_PCI_SAS_DEVICE_ID;
         pPages->ManufacturingPage3.u.fields.u8PCIRevisionID = LSILOGICSCSI_PCI_SAS_REVISION_ID;
@@ -3609,7 +3416,7 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
     pPages->IOUnitPage2.u.fields.aAdapterOrder[0].fAdapterEnabled = true;
     pPages->IOUnitPage2.u.fields.aAdapterOrder[0].fAdapterEmbedded = true;
     pPages->IOUnitPage2.u.fields.aAdapterOrder[0].u8PCIBusNumber = 0;
-    pPages->IOUnitPage2.u.fields.aAdapterOrder[0].u8PCIDevFn     = pThis->PciDev.devfn;
+    pPages->IOUnitPage2.u.fields.aAdapterOrder[0].u8PCIDevFn     = pLsiLogic->PciDev.devfn;
 
     /* I/O Unit page 3. */
     MPT_CONFIG_PAGE_HEADER_INIT_IO_UNIT(&pPages->IOUnitPage3,
@@ -3629,7 +3436,7 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
     pPages->IOCPage0.u.fields.u32TotalNVStore      = 0;
     pPages->IOCPage0.u.fields.u32FreeNVStore       = 0;
 
-    if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+    if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
     {
         pPages->IOCPage0.u.fields.u16VendorId          = LSILOGICSCSI_PCI_VENDOR_ID;
         pPages->IOCPage0.u.fields.u16DeviceId          = LSILOGICSCSI_PCI_SPI_DEVICE_ID;
@@ -3638,7 +3445,7 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
         pPages->IOCPage0.u.fields.u16SubsystemVendorId = LSILOGICSCSI_PCI_SPI_SUBSYSTEM_VENDOR_ID;
         pPages->IOCPage0.u.fields.u16SubsystemId       = LSILOGICSCSI_PCI_SPI_SUBSYSTEM_ID;
     }
-    else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+    else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
     {
         pPages->IOCPage0.u.fields.u16VendorId          = LSILOGICSCSI_PCI_VENDOR_ID;
         pPages->IOCPage0.u.fields.u16DeviceId          = LSILOGICSCSI_PCI_SAS_DEVICE_ID;
@@ -3695,26 +3502,122 @@ static void lsilogicR3InitializeConfigurationPages(PLSILOGICSCSI pThis)
                                      MptConfigurationPageBIOS4, 4,
                                      MPT_CONFIGURATION_PAGE_ATTRIBUTE_CHANGEABLE);
 
-    if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
-        lsilogicR3InitializeConfigurationPagesSpi(pThis);
-    else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
-        lsilogicR3InitializeConfigurationPagesSas(pThis);
+    if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+        lsilogicInitializeConfigurationPagesSpi(pLsiLogic);
+    else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+        lsilogicInitializeConfigurationPagesSas(pLsiLogic);
     else
-        AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
+        AssertMsgFailed(("Invalid controller type %d\n", pLsiLogic->enmCtrlType));
 }
 
 /**
- * @callback_method_impl{FNPDMQUEUEDEV, Transmit queue consumer.}
+ * Transmit queue consumer
+ * Queue a new async task.
+ *
+ * @returns Success indicator.
+ *          If false the item will not be removed and the flushing will stop.
+ * @param   pDevIns     The device instance.
+ * @param   pItem       The item to consume. Upon return this item will be freed.
  */
-static DECLCALLBACK(bool) lsilogicR3NotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
+static DECLCALLBACK(bool) lsilogicNotifyQueueConsumer(PPDMDEVINS pDevIns, PPDMQUEUEITEMCORE pItem)
 {
-    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    PLSILOGICSCSI pLsiLogic = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc = VINF_SUCCESS;
 
     LogFlowFunc(("pDevIns=%#p pItem=%#p\n", pDevIns, pItem));
 
-    rc = SUPSemEventSignal(pThis->pSupDrvSession, pThis->hEvtProcess);
-    AssertRC(rc);
+    /* Reset notification event. */
+    ASMAtomicXchgBool(&pLsiLogic->fNotificationSend, false);
+
+    /* Only process request which arrived before we received the notification. */
+    uint32_t uRequestQueueNextEntryWrite = ASMAtomicReadU32(&pLsiLogic->uRequestQueueNextEntryFreeWrite);
+
+    /* Go through the messages now and process them. */
+    while (   RT_LIKELY(pLsiLogic->enmState == LSILOGICSTATE_OPERATIONAL)
+           && (pLsiLogic->uRequestQueueNextAddressRead != uRequestQueueNextEntryWrite))
+    {
+        uint32_t  u32RequestMessageFrameDesc = pLsiLogic->CTX_SUFF(pRequestQueueBase)[pLsiLogic->uRequestQueueNextAddressRead];
+        RTGCPHYS  GCPhysMessageFrameAddr = LSILOGIC_RTGCPHYS_FROM_U32(pLsiLogic->u32HostMFAHighAddr,
+                                                                      (u32RequestMessageFrameDesc & ~0x07));
+
+        PLSILOGICTASKSTATE pTaskState;
+
+        /* Get new task state. */
+        rc = RTMemCacheAllocEx(pLsiLogic->hTaskCache, (void **)&pTaskState);
+        AssertRC(rc);
+
+        pTaskState->GCPhysMessageFrameAddr = GCPhysMessageFrameAddr;
+
+        /* Read the message header from the guest first. */
+        PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &pTaskState->GuestRequest, sizeof(MptMessageHdr));
+
+        /* Determine the size of the request. */
+        uint32_t cbRequest = 0;
+
+        switch (pTaskState->GuestRequest.Header.u8Function)
+        {
+            case MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST:
+                cbRequest = sizeof(MptSCSIIORequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_SCSI_TASK_MGMT:
+                cbRequest = sizeof(MptSCSITaskManagementRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_IOC_INIT:
+                cbRequest = sizeof(MptIOCInitRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_IOC_FACTS:
+                cbRequest = sizeof(MptIOCFactsRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_CONFIG:
+                cbRequest = sizeof(MptConfigurationRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_PORT_FACTS:
+                cbRequest = sizeof(MptPortFactsRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_PORT_ENABLE:
+                cbRequest = sizeof(MptPortEnableRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_EVENT_NOTIFICATION:
+                cbRequest = sizeof(MptEventNotificationRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_EVENT_ACK:
+                AssertMsgFailed(("todo\n"));
+                //cbRequest = sizeof(MptEventAckRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_FW_DOWNLOAD:
+                cbRequest = sizeof(MptFWDownloadRequest);
+                break;
+            case MPT_MESSAGE_HDR_FUNCTION_FW_UPLOAD:
+                cbRequest = sizeof(MptFWUploadRequest);
+                break;
+            default:
+                AssertMsgFailed(("Unknown function issued %u\n", pTaskState->GuestRequest.Header.u8Function));
+                lsilogicSetIOCFaultCode(pLsiLogic, LSILOGIC_IOCSTATUS_INVALID_FUNCTION);
+        }
+
+        if (cbRequest != 0)
+        {
+            /* Read the complete message frame from guest memory now. */
+            PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &pTaskState->GuestRequest, cbRequest);
+
+            /* Handle SCSI I/O requests now. */
+            if (pTaskState->GuestRequest.Header.u8Function == MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST)
+            {
+               rc = lsilogicProcessSCSIIORequest(pLsiLogic, pTaskState);
+               AssertRC(rc);
+            }
+            else
+            {
+                MptReplyUnion Reply;
+                rc = lsilogicProcessMessageRequest(pLsiLogic, &pTaskState->GuestRequest.Header, &Reply);
+                AssertRC(rc);
+                RTMemCacheFree(pLsiLogic->hTaskCache, pTaskState);
+            }
+
+            pLsiLogic->uRequestQueueNextAddressRead++;
+            pLsiLogic->uRequestQueueNextAddressRead %= pLsiLogic->cRequestQueueEntries;
+        }
+    }
 
     return true;
 }
@@ -3724,10 +3627,10 @@ static DECLCALLBACK(bool) lsilogicR3NotifyQueueConsumer(PPDMDEVINS pDevIns, PPDM
  *
  * @returns VBox status code.
  *
- * @param   pThis           Pointer to the LsiLogic device state.
- * @param   pcszCtrlType    The string to use.
+ * @param   pThis        The LsiLogic devi state.
+ * @param   pcszCtrlType The string to use.
  */
-static int lsilogicR3GetCtrlTypeFromString(PLSILOGICSCSI pThis, const char *pcszCtrlType)
+static int lsilogicGetCtrlTypeFromString(PLSILOGICSCSI pThis, const char *pcszCtrlType)
 {
     int rc = VERR_INVALID_PARAMETER;
 
@@ -3746,18 +3649,28 @@ static int lsilogicR3GetCtrlTypeFromString(PLSILOGICSCSI pThis, const char *pcsz
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTIN, Legacy ISA port.}
+ * Port I/O Handler for IN operations - legacy port.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   uPort       Port number used for the IN operation.
+ * @param   pu32        Where to store the result.
+ * @param   cb          Number of bytes read.
  */
-static DECLCALLBACK(int) lsilogicR3IsaIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static int  lsilogicIsaIOPortRead (PPDMDEVINS pDevIns, void *pvUser,
+                                   RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    int rc;
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     Assert(cb == 1);
 
-    uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                      ? Port - LSILOGIC_BIOS_IO_PORT
-                      : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    int rc = vboxscsiReadRegister(&pThis->VBoxSCSI, iRegister, pu32);
+    uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
+                        ? Port - LSILOGIC_ISA_IO_PORT
+                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+    rc = vboxscsiReadRegister(&pThis->VBoxSCSI, iRegister, pu32);
 
     Log2(("%s: pu32=%p:{%.*Rhxs} iRegister=%d rc=%Rrc\n",
           __FUNCTION__, pu32, 1, pu32, iRegister, rc));
@@ -3769,41 +3682,41 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortRead(PPDMDEVINS pDevIns, void *pvUse
  * Prepares a request from the BIOS.
  *
  * @returns VBox status code.
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pLsiLogic    Pointer to the LsiLogic device instance.
  */
-static int lsilogicR3PrepareBiosScsiRequest(PLSILOGICSCSI pThis)
+static int lsilogicPrepareBIOSSCSIRequest(PLSILOGICSCSI pLsiLogic)
 {
     int rc;
-    PLSILOGICREQ pLsiReq;
+    PLSILOGICTASKSTATE pTaskState;
     uint32_t           uTargetDevice;
 
-    rc = RTMemCacheAllocEx(pThis->hTaskCache, (void **)&pLsiReq);
+    rc = RTMemCacheAllocEx(pLsiLogic->hTaskCache, (void **)&pTaskState);
     AssertMsgRCReturn(rc, ("Getting task from cache failed rc=%Rrc\n", rc), rc);
 
-    pLsiReq->fBIOS = true;
+    pTaskState->fBIOS = true;
 
-    rc = vboxscsiSetupRequest(&pThis->VBoxSCSI, &pLsiReq->PDMScsiRequest, &uTargetDevice);
+    rc = vboxscsiSetupRequest(&pLsiLogic->VBoxSCSI, &pTaskState->PDMScsiRequest, &uTargetDevice);
     AssertMsgRCReturn(rc, ("Setting up SCSI request failed rc=%Rrc\n", rc), rc);
 
-    pLsiReq->PDMScsiRequest.pvUser = pLsiReq;
+    pTaskState->PDMScsiRequest.pvUser = pTaskState;
 
-    if (uTargetDevice < pThis->cDeviceStates)
+    if (uTargetDevice < pLsiLogic->cDeviceStates)
     {
-        pLsiReq->pTargetDevice = &pThis->paDeviceStates[uTargetDevice];
+        pTaskState->pTargetDevice = &pLsiLogic->paDeviceStates[uTargetDevice];
 
-        if (pLsiReq->pTargetDevice->pDrvBase)
+        if (pTaskState->pTargetDevice->pDrvBase)
         {
-            ASMAtomicIncU32(&pLsiReq->pTargetDevice->cOutstandingRequests);
+            ASMAtomicIncU32(&pTaskState->pTargetDevice->cOutstandingRequests);
 
-            rc = pLsiReq->pTargetDevice->pDrvSCSIConnector->pfnSCSIRequestSend(pLsiReq->pTargetDevice->pDrvSCSIConnector,
-                                                                                  &pLsiReq->PDMScsiRequest);
+            rc = pTaskState->pTargetDevice->pDrvSCSIConnector->pfnSCSIRequestSend(pTaskState->pTargetDevice->pDrvSCSIConnector,
+                                                                                  &pTaskState->PDMScsiRequest);
             AssertMsgRCReturn(rc, ("Sending request to SCSI layer failed rc=%Rrc\n", rc), rc);
             return VINF_SUCCESS;
         }
     }
 
     /* Device is not present. */
-    AssertMsg(pLsiReq->PDMScsiRequest.pbCDB[0] == SCSI_INQUIRY,
+    AssertMsg(pTaskState->PDMScsiRequest.pbCDB[0] == SCSI_INQUIRY,
                 ("Device is not present but command is not inquiry\n"));
 
     SCSIINQUIRYDATA ScsiInquiryData;
@@ -3812,32 +3725,44 @@ static int lsilogicR3PrepareBiosScsiRequest(PLSILOGICSCSI pThis)
     ScsiInquiryData.u5PeripheralDeviceType = SCSI_INQUIRY_DATA_PERIPHERAL_DEVICE_TYPE_UNKNOWN;
     ScsiInquiryData.u3PeripheralQualifier = SCSI_INQUIRY_DATA_PERIPHERAL_QUALIFIER_NOT_CONNECTED_NOT_SUPPORTED;
 
-    memcpy(pThis->VBoxSCSI.pbBuf, &ScsiInquiryData, 5);
+    memcpy(pLsiLogic->VBoxSCSI.pBuf, &ScsiInquiryData, 5);
 
-    rc = vboxscsiRequestFinished(&pThis->VBoxSCSI, &pLsiReq->PDMScsiRequest, SCSI_STATUS_OK);
+    rc = vboxscsiRequestFinished(&pLsiLogic->VBoxSCSI, &pTaskState->PDMScsiRequest);
     AssertMsgRCReturn(rc, ("Finishing BIOS SCSI request failed rc=%Rrc\n", rc), rc);
 
-    RTMemCacheFree(pThis->hTaskCache, pLsiReq);
+    RTMemCacheFree(pLsiLogic->hTaskCache, pTaskState);
     return rc;
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Legacy ISA port.}
+ * Port I/O Handler for OUT operations - legacy port.
+ *
+ * @returns VBox status code.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pvUser      User argument.
+ * @param   uPort       Port number used for the IN operation.
+ * @param   u32         The value to output.
+ * @param   cb          The value size in bytes.
  */
-static DECLCALLBACK(int) lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static int lsilogicIsaIOPortWrite (PPDMDEVINS pDevIns, void *pvUser,
+                                   RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    int rc;
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    Log2(("#%d %s: pvUser=%#p cb=%d u32=%#x Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, u32, Port));
+
+    Log2(("#%d %s: pvUser=%#p cb=%d u32=%#x Port=%#x\n",
+          pDevIns->iInstance, __FUNCTION__, pvUser, cb, u32, Port));
 
     Assert(cb == 1);
 
-    uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                      ? Port - LSILOGIC_BIOS_IO_PORT
-                      : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    int rc = vboxscsiWriteRegister(&pThis->VBoxSCSI, iRegister, (uint8_t)u32);
+    uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
+                        ? Port - LSILOGIC_ISA_IO_PORT
+                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+    rc = vboxscsiWriteRegister(&pThis->VBoxSCSI, iRegister, (uint8_t)u32);
     if (rc == VERR_MORE_DATA)
     {
-        rc = lsilogicR3PrepareBiosScsiRequest(pThis);
+        rc = lsilogicPrepareBIOSSCSIRequest(pThis);
         AssertRC(rc);
     }
     else if (RT_FAILURE(rc))
@@ -3847,22 +3772,25 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWrite(PPDMDEVINS pDevIns, void *pvUs
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUTSTRING,
- * Port I/O Handler for primary port range OUT string operations.}
+ * Port I/O Handler for primary port range OUT string operations.
+ * @see FNIOMIOPORTOUTSTRING for details.
  */
-static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port,
-                                                     PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) lsilogicIsaIOPortWriteStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n", pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+    int rc;
 
-    uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                      ? Port - LSILOGIC_BIOS_IO_PORT
-                      : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    int rc = vboxscsiWriteString(pDevIns, &pThis->VBoxSCSI, iRegister, pGCPtrSrc, pcTransfer, cb);
+    Log2(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
+          pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
+
+    uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
+                        ? Port - LSILOGIC_ISA_IO_PORT
+                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+    rc = vboxscsiWriteString(pDevIns, &pThis->VBoxSCSI, iRegister,
+                             pGCPtrSrc, pcTransfer, cb);
     if (rc == VERR_MORE_DATA)
     {
-        rc = lsilogicR3PrepareBiosScsiRequest(pThis);
+        rc = lsilogicPrepareBIOSSCSIRequest(pThis);
         AssertRC(rc);
     }
     else if (RT_FAILURE(rc))
@@ -3872,29 +3800,26 @@ static DECLCALLBACK(int) lsilogicR3IsaIOPortWriteStr(PPDMDEVINS pDevIns, void *p
 }
 
 /**
- * @callback_method_impl{FNIOMIOPORTINSTRING,
- * Port I/O Handler for primary port range IN string operations.}
+ * Port I/O Handler for primary port range IN string operations.
+ * @see FNIOMIOPORTINSTRING for details.
  */
-static DECLCALLBACK(int) lsilogicR3IsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
-                                                  PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) lsilogicIsaIOPortReadStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfer, unsigned cb)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     LogFlowFunc(("#%d %s: pvUser=%#p cb=%d Port=%#x\n",
                  pDevIns->iInstance, __FUNCTION__, pvUser, cb, Port));
 
-    uint8_t iRegister = pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
-                      ? Port - LSILOGIC_BIOS_IO_PORT
-                      : Port - LSILOGIC_SAS_BIOS_IO_PORT;
-    return vboxscsiReadString(pDevIns, &pThis->VBoxSCSI, iRegister, pGCPtrDst, pcTransfer, cb);
+    uint8_t iRegister =   pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
+                        ? Port - LSILOGIC_ISA_IO_PORT
+                        : Port - LSILOGIC_SAS_ISA_IO_PORT;
+    return vboxscsiReadString(pDevIns, &pThis->VBoxSCSI, iRegister,
+                              pGCPtrDst, pcTransfer, cb);
 }
 
-/**
- * @callback_method_impl{FNPCIIOREGIONMAP}
- */
-static DECLCALLBACK(int) lsilogicR3Map(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion,
-                                       RTGCPHYS GCPhysAddress, uint32_t cb,
-                                       PCIADDRESSSPACE enmType)
+static DECLCALLBACK(int) lsilogicMap(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion,
+                                     RTGCPHYS GCPhysAddress, uint32_t cb,
+                                     PCIADDRESSSPACE enmType)
 {
     PPDMDEVINS pDevIns = pPciDev->pDevIns;
     PLSILOGICSCSI  pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
@@ -3912,24 +3837,11 @@ static DECLCALLBACK(int) lsilogicR3Map(PPCIDEVICE pPciDev, /*unsigned*/ int iReg
               || (enmType == PCI_ADDRESS_SPACE_IO  && cb >= LSILOGIC_PCI_SPACE_IO_SIZE),
               ("PCI region type and size do not match\n"));
 
-    if (enmType == PCI_ADDRESS_SPACE_MEM && iRegion == 1)
+    if ((enmType == PCI_ADDRESS_SPACE_MEM) && (iRegion == 1))
     {
-        /*
-         * Non-4-byte read access to LSILOGIC_REG_REPLY_QUEUE may cause real strange behavior
-         * because the data is part of a physical guest address.  But some drivers use 1-byte
-         * access to scan for SCSI controllers.  So, we simplify our code by telling IOM to
-         * read DWORDs.
-         *
-         * Regarding writes, we couldn't find anything specific in the specs about what should
-         * happen. So far we've ignored unaligned writes and assumed the missing bytes of
-         * byte and word access to be zero. We suspect that IOMMMIO_FLAGS_WRITE_ONLY_DWORD
-         * or IOMMMIO_FLAGS_WRITE_DWORD_ZEROED would be the most appropriate here, but since we
-         * don't have real hw to test one, the old behavior is kept exactly like it used to be.
-         */
-        /** @todo Check out unaligned writes and non-dword writes on real LsiLogic
-         *        hardware. */
+        /* We use the assigned size here, because we currently only support page aligned MMIO ranges. */
         rc = PDMDevHlpMMIORegister(pDevIns, GCPhysAddress, cb, NULL /*pvUser*/,
-                                   IOMMMIO_FLAGS_READ_DWORD | IOMMMIO_FLAGS_WRITE_PASSTHRU,
+                                   IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU,
                                    lsilogicMMIOWrite, lsilogicMMIORead, pcszCtrl);
         if (RT_FAILURE(rc))
             return rc;
@@ -4009,9 +3921,13 @@ static DECLCALLBACK(int) lsilogicR3Map(PPCIDEVICE pPciDev, /*unsigned*/ int iReg
 }
 
 /**
- * @callback_method_impl{PFNDBGFHANDLERDEV}
+ * LsiLogic status info callback.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   pHlp        The output helpers.
+ * @param   pszArgs     The arguments.
  */
-static DECLCALLBACK(void) lsilogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+static DECLCALLBACK(void) lsilogicInfo(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     bool          fVerbose = false;
@@ -4039,9 +3955,9 @@ static DECLCALLBACK(void) lsilogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
      */
     pHlp->pfnPrintf(pHlp, "enmState=%u\n", pThis->enmState);
     pHlp->pfnPrintf(pHlp, "enmWhoInit=%u\n", pThis->enmWhoInit);
-    pHlp->pfnPrintf(pHlp, "enmDoorbellState=%d\n", pThis->enmDoorbellState);
+    pHlp->pfnPrintf(pHlp, "fDoorbellInProgress=%RTbool\n", pThis->fDoorbellInProgress);
     pHlp->pfnPrintf(pHlp, "fDiagnosticEnabled=%RTbool\n", pThis->fDiagnosticEnabled);
-    pHlp->pfnPrintf(pHlp, "fNotificationSent=%RTbool\n", pThis->fNotificationSent);
+    pHlp->pfnPrintf(pHlp, "fNotificationSend=%RTbool\n", pThis->fNotificationSend);
     pHlp->pfnPrintf(pHlp, "fEventNotificationEnabled=%RTbool\n", pThis->fEventNotificationEnabled);
     pHlp->pfnPrintf(pHlp, "uInterruptMask=%#x\n", pThis->uInterruptMask);
     pHlp->pfnPrintf(pHlp, "uInterruptStatus=%#x\n", pThis->uInterruptStatus);
@@ -4103,9 +4019,9 @@ static DECLCALLBACK(void) lsilogicR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp,
  *
  * @returns VBox status code.
  *
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis     The LsiLogic device instance.
  */
-static int lsilogicR3QueuesAlloc(PLSILOGICSCSI pThis)
+static int lsilogicQueuesAlloc(PLSILOGICSCSI pThis)
 {
     PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
     uint32_t cbQueues;
@@ -4137,9 +4053,9 @@ static int lsilogicR3QueuesAlloc(PLSILOGICSCSI pThis)
  *
  * @returns nothing.
  *
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis     The LsiLogic device instance.
  */
-static void lsilogicR3QueuesFree(PLSILOGICSCSI pThis)
+static void lsilogicQueuesFree(PLSILOGICSCSI pThis)
 {
     PVM pVM = PDMDevHlpGetVM(pThis->pDevInsR3);
     int rc = VINF_SUCCESS;
@@ -4154,152 +4070,16 @@ static void lsilogicR3QueuesFree(PLSILOGICSCSI pThis)
     pThis->pRequestQueueBaseR3   = NULL;
 }
 
-
-/* The worker thread. */
-static DECLCALLBACK(int) lsilogicR3Worker(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
-{
-    PLSILOGICSCSI pThis = (PLSILOGICSCSI)pThread->pvUser;
-    int rc = VINF_SUCCESS;
-
-    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
-        return VINF_SUCCESS;
-
-    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
-    {
-        ASMAtomicWriteBool(&pThis->fWrkThreadSleeping, true);
-        bool fNotificationSent = ASMAtomicXchgBool(&pThis->fNotificationSent, false);
-        if (!fNotificationSent)
-        {
-            Assert(ASMAtomicReadBool(&pThis->fWrkThreadSleeping));
-            rc = SUPSemEventWaitNoResume(pThis->pSupDrvSession, pThis->hEvtProcess, RT_INDEFINITE_WAIT);
-            AssertLogRelMsgReturn(RT_SUCCESS(rc) || rc == VERR_INTERRUPTED, ("%Rrc\n", rc), rc);
-            if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
-                break;
-            LogFlowFunc(("Woken up with rc=%Rrc\n", rc));
-            ASMAtomicWriteBool(&pThis->fNotificationSent, false);
-        }
-
-        ASMAtomicWriteBool(&pThis->fWrkThreadSleeping, false);
-
-        /* Only process request which arrived before we received the notification. */
-        uint32_t uRequestQueueNextEntryWrite = ASMAtomicReadU32(&pThis->uRequestQueueNextEntryFreeWrite);
-
-        /* Go through the messages now and process them. */
-        while (   RT_LIKELY(pThis->enmState == LSILOGICSTATE_OPERATIONAL)
-               && (pThis->uRequestQueueNextAddressRead != uRequestQueueNextEntryWrite))
-        {
-            uint32_t  u32RequestMessageFrameDesc = pThis->CTX_SUFF(pRequestQueueBase)[pThis->uRequestQueueNextAddressRead];
-            RTGCPHYS  GCPhysMessageFrameAddr = LSILOGIC_RTGCPHYS_FROM_U32(pThis->u32HostMFAHighAddr,
-                                                                          (u32RequestMessageFrameDesc & ~0x07));
-
-            PLSILOGICREQ pLsiReq;
-
-            /* Get new task state. */
-            rc = RTMemCacheAllocEx(pThis->hTaskCache, (void **)&pLsiReq);
-            AssertRC(rc);
-
-            pLsiReq->GCPhysMessageFrameAddr = GCPhysMessageFrameAddr;
-
-            /* Read the message header from the guest first. */
-            PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &pLsiReq->GuestRequest, sizeof(MptMessageHdr));
-
-            /* Determine the size of the request. */
-            uint32_t cbRequest = 0;
-
-            switch (pLsiReq->GuestRequest.Header.u8Function)
-            {
-                case MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST:
-                    cbRequest = sizeof(MptSCSIIORequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_SCSI_TASK_MGMT:
-                    cbRequest = sizeof(MptSCSITaskManagementRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_IOC_INIT:
-                    cbRequest = sizeof(MptIOCInitRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_IOC_FACTS:
-                    cbRequest = sizeof(MptIOCFactsRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_CONFIG:
-                    cbRequest = sizeof(MptConfigurationRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_PORT_FACTS:
-                    cbRequest = sizeof(MptPortFactsRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_PORT_ENABLE:
-                    cbRequest = sizeof(MptPortEnableRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_EVENT_NOTIFICATION:
-                    cbRequest = sizeof(MptEventNotificationRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_EVENT_ACK:
-                    AssertMsgFailed(("todo\n"));
-                    //cbRequest = sizeof(MptEventAckRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_FW_DOWNLOAD:
-                    cbRequest = sizeof(MptFWDownloadRequest);
-                    break;
-                case MPT_MESSAGE_HDR_FUNCTION_FW_UPLOAD:
-                    cbRequest = sizeof(MptFWUploadRequest);
-                    break;
-                default:
-                    AssertMsgFailed(("Unknown function issued %u\n", pLsiReq->GuestRequest.Header.u8Function));
-                    lsilogicSetIOCFaultCode(pThis, LSILOGIC_IOCSTATUS_INVALID_FUNCTION);
-            }
-
-            if (cbRequest != 0)
-            {
-                /* Read the complete message frame from guest memory now. */
-                PDMDevHlpPhysRead(pDevIns, GCPhysMessageFrameAddr, &pLsiReq->GuestRequest, cbRequest);
-
-                /* Handle SCSI I/O requests now. */
-                if (pLsiReq->GuestRequest.Header.u8Function == MPT_MESSAGE_HDR_FUNCTION_SCSI_IO_REQUEST)
-                {
-                   rc = lsilogicR3ProcessSCSIIORequest(pThis, pLsiReq);
-                   AssertRC(rc);
-                }
-                else
-                {
-                    MptReplyUnion Reply;
-                    rc = lsilogicR3ProcessMessageRequest(pThis, &pLsiReq->GuestRequest.Header, &Reply);
-                    AssertRC(rc);
-                    RTMemCacheFree(pThis->hTaskCache, pLsiReq);
-                }
-
-                pThis->uRequestQueueNextAddressRead++;
-                pThis->uRequestQueueNextAddressRead %= pThis->cRequestQueueEntries;
-            }
-        } /* While request frames available. */
-    } /* While running */
-
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Unblock the worker thread so it can respond to a state change.
- *
- * @returns VBox status code.
- * @param   pDevIns     The pcnet device instance.
- * @param   pThread     The send thread.
- */
-static DECLCALLBACK(int) lsilogicR3WorkerWakeUp(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
-{
-    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    return SUPSemEventSignal(pThis->pSupDrvSession, pThis->hEvtProcess);
-}
-
-
 /**
  * Kicks the controller to process pending tasks after the VM was resumed
  * or loaded from a saved state.
  *
  * @returns nothing.
- * @param   pThis       Pointer to the LsiLogic device state.
+ * @param   pThis    The LsiLogic device instance.
  */
-static void lsilogicR3Kick(PLSILOGICSCSI pThis)
+static void lsilogicKick(PLSILOGICSCSI pThis)
 {
-    if (pThis->fNotificationSent)
+    if (pThis->fNotificationSend)
     {
         /* Send a notifier to the PDM queue that there are pending requests. */
         PPDMQUEUEITEMCORE pItem = PDMQueueAlloc(pThis->CTX_SUFF(pNotificationQueue));
@@ -4309,21 +4089,13 @@ static void lsilogicR3Kick(PLSILOGICSCSI pThis)
     else if (pThis->VBoxSCSI.fBusy)
     {
         /* The BIOS had a request active when we got suspended. Resume it. */
-        int rc = lsilogicR3PrepareBiosScsiRequest(pThis);
+        int rc = lsilogicPrepareBIOSSCSIRequest(pThis);
         AssertRC(rc);
     }
 
 }
 
-
-/*
- * Saved state.
- */
-
-/**
- * @callback_method_impl{FNSSMDEVLIVEEXEC}
- */
-static DECLCALLBACK(int) lsilogicR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
+static DECLCALLBACK(int) lsilogicLiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
@@ -4338,77 +4110,62 @@ static DECLCALLBACK(int) lsilogicR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     return VINF_SSM_DONT_CALL_AGAIN;
 }
 
-/**
- * @callback_method_impl{FNSSMDEVSAVEEXEC}
- */
-static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) lsilogicSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
-    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    PLSILOGICSCSI pLsiLogic = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
     /* Every device first. */
-    lsilogicR3LiveExec(pDevIns, pSSM, SSM_PASS_FINAL);
-    for (unsigned i = 0; i < pThis->cDeviceStates; i++)
+    lsilogicLiveExec(pDevIns, pSSM, SSM_PASS_FINAL);
+    for (unsigned i = 0; i < pLsiLogic->cDeviceStates; i++)
     {
-        PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[i];
+        PLSILOGICDEVICE pDevice = &pLsiLogic->paDeviceStates[i];
 
         AssertMsg(!pDevice->cOutstandingRequests,
                   ("There are still outstanding requests on this device\n"));
         SSMR3PutU32(pSSM, pDevice->cOutstandingRequests);
     }
     /* Now the main device state. */
-    SSMR3PutU32   (pSSM, pThis->enmState);
-    SSMR3PutU32   (pSSM, pThis->enmWhoInit);
-    SSMR3PutU32   (pSSM, pThis->enmDoorbellState);
-    SSMR3PutBool  (pSSM, pThis->fDiagnosticEnabled);
-    SSMR3PutBool  (pSSM, pThis->fNotificationSent);
-    SSMR3PutBool  (pSSM, pThis->fEventNotificationEnabled);
-    SSMR3PutU32   (pSSM, pThis->uInterruptMask);
-    SSMR3PutU32   (pSSM, pThis->uInterruptStatus);
-    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aMessage); i++)
-        SSMR3PutU32   (pSSM, pThis->aMessage[i]);
-    SSMR3PutU32   (pSSM, pThis->iMessage);
-    SSMR3PutU32   (pSSM, pThis->cMessage);
-    SSMR3PutMem   (pSSM, &pThis->ReplyBuffer, sizeof(pThis->ReplyBuffer));
-    SSMR3PutU32   (pSSM, pThis->uNextReplyEntryRead);
-    SSMR3PutU32   (pSSM, pThis->cReplySize);
-    SSMR3PutU16   (pSSM, pThis->u16IOCFaultCode);
-    SSMR3PutU32   (pSSM, pThis->u32HostMFAHighAddr);
-    SSMR3PutU32   (pSSM, pThis->u32SenseBufferHighAddr);
-    SSMR3PutU8    (pSSM, pThis->cMaxDevices);
-    SSMR3PutU8    (pSSM, pThis->cMaxBuses);
-    SSMR3PutU16   (pSSM, pThis->cbReplyFrame);
-    SSMR3PutU32   (pSSM, pThis->iDiagnosticAccess);
-    SSMR3PutU32   (pSSM, pThis->cReplyQueueEntries);
-    SSMR3PutU32   (pSSM, pThis->cRequestQueueEntries);
-    SSMR3PutU32   (pSSM, pThis->uReplyFreeQueueNextEntryFreeWrite);
-    SSMR3PutU32   (pSSM, pThis->uReplyFreeQueueNextAddressRead);
-    SSMR3PutU32   (pSSM, pThis->uReplyPostQueueNextEntryFreeWrite);
-    SSMR3PutU32   (pSSM, pThis->uReplyPostQueueNextAddressRead);
-    SSMR3PutU32   (pSSM, pThis->uRequestQueueNextEntryFreeWrite);
-    SSMR3PutU32   (pSSM, pThis->uRequestQueueNextAddressRead);
+    SSMR3PutU32   (pSSM, pLsiLogic->enmState);
+    SSMR3PutU32   (pSSM, pLsiLogic->enmWhoInit);
+    SSMR3PutBool  (pSSM, pLsiLogic->fDoorbellInProgress);
+    SSMR3PutBool  (pSSM, pLsiLogic->fDiagnosticEnabled);
+    SSMR3PutBool  (pSSM, pLsiLogic->fNotificationSend);
+    SSMR3PutBool  (pSSM, pLsiLogic->fEventNotificationEnabled);
+    SSMR3PutU32   (pSSM, pLsiLogic->uInterruptMask);
+    SSMR3PutU32   (pSSM, pLsiLogic->uInterruptStatus);
+    for (unsigned i = 0; i < RT_ELEMENTS(pLsiLogic->aMessage); i++)
+        SSMR3PutU32   (pSSM, pLsiLogic->aMessage[i]);
+    SSMR3PutU32   (pSSM, pLsiLogic->iMessage);
+    SSMR3PutU32   (pSSM, pLsiLogic->cMessage);
+    SSMR3PutMem   (pSSM, &pLsiLogic->ReplyBuffer, sizeof(pLsiLogic->ReplyBuffer));
+    SSMR3PutU32   (pSSM, pLsiLogic->uNextReplyEntryRead);
+    SSMR3PutU32   (pSSM, pLsiLogic->cReplySize);
+    SSMR3PutU16   (pSSM, pLsiLogic->u16IOCFaultCode);
+    SSMR3PutU32   (pSSM, pLsiLogic->u32HostMFAHighAddr);
+    SSMR3PutU32   (pSSM, pLsiLogic->u32SenseBufferHighAddr);
+    SSMR3PutU8    (pSSM, pLsiLogic->cMaxDevices);
+    SSMR3PutU8    (pSSM, pLsiLogic->cMaxBuses);
+    SSMR3PutU16   (pSSM, pLsiLogic->cbReplyFrame);
+    SSMR3PutU32   (pSSM, pLsiLogic->iDiagnosticAccess);
+    SSMR3PutU32   (pSSM, pLsiLogic->cReplyQueueEntries);
+    SSMR3PutU32   (pSSM, pLsiLogic->cRequestQueueEntries);
+    SSMR3PutU32   (pSSM, pLsiLogic->uReplyFreeQueueNextEntryFreeWrite);
+    SSMR3PutU32   (pSSM, pLsiLogic->uReplyFreeQueueNextAddressRead);
+    SSMR3PutU32   (pSSM, pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
+    SSMR3PutU32   (pSSM, pLsiLogic->uReplyPostQueueNextAddressRead);
+    SSMR3PutU32   (pSSM, pLsiLogic->uRequestQueueNextEntryFreeWrite);
+    SSMR3PutU32   (pSSM, pLsiLogic->uRequestQueueNextAddressRead);
 
-    for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
-        SSMR3PutU32(pSSM, pThis->pReplyFreeQueueBaseR3[i]);
-    for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
-        SSMR3PutU32(pSSM, pThis->pReplyPostQueueBaseR3[i]);
-    for (unsigned i = 0; i < pThis->cRequestQueueEntries; i++)
-        SSMR3PutU32(pSSM, pThis->pRequestQueueBaseR3[i]);
+    for (unsigned i = 0; i < pLsiLogic->cReplyQueueEntries; i++)
+        SSMR3PutU32(pSSM, pLsiLogic->pReplyFreeQueueBaseR3[i]);
+    for (unsigned i = 0; i < pLsiLogic->cReplyQueueEntries; i++)
+        SSMR3PutU32(pSSM, pLsiLogic->pReplyPostQueueBaseR3[i]);
+    for (unsigned i = 0; i < pLsiLogic->cRequestQueueEntries; i++)
+        SSMR3PutU32(pSSM, pLsiLogic->pRequestQueueBaseR3[i]);
 
-    SSMR3PutU16   (pSSM, pThis->u16NextHandle);
+    SSMR3PutU16   (pSSM, pLsiLogic->u16NextHandle);
 
-    /* Save diagnostic memory register and data regions. */
-    SSMR3PutU32   (pSSM, pThis->u32DiagMemAddr);
-    SSMR3PutU32   (pSSM, lsilogicR3MemRegionsCount(pThis));
-
-    PLSILOGICMEMREGN pIt = NULL;
-    RTListForEach(&pThis->ListMemRegns, pIt, LSILOGICMEMREGN, NodeList)
-    {
-        SSMR3PutU32(pSSM, pIt->u32AddrStart);
-        SSMR3PutU32(pSSM, pIt->u32AddrEnd);
-        SSMR3PutMem(pSSM, &pIt->au32Data[0], (pIt->u32AddrEnd - pIt->u32AddrStart + 1) * sizeof(uint32_t));
-    }
-
-    PMptConfigurationPagesSupported pPages = pThis->pConfigurationPages;
+    PMptConfigurationPagesSupported pPages = pLsiLogic->pConfigurationPages;
 
     SSMR3PutMem   (pSSM, &pPages->ManufacturingPage0, sizeof(MptConfigurationPageManufacturing0));
     SSMR3PutMem   (pSSM, &pPages->ManufacturingPage1, sizeof(MptConfigurationPageManufacturing1));
@@ -4436,7 +4193,7 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     SSMR3PutMem   (pSSM, &pPages->BIOSPage4, sizeof(MptConfigurationPageBIOS4));
 
     /* Device dependent pages */
-    if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+    if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
     {
         PMptConfigurationPagesSpi pSpiPages = &pPages->u.SpiPages;
 
@@ -4452,7 +4209,7 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
             SSMR3PutMem(pSSM, &pSpiPages->aBuses[0].aDevicePages[i].SCSISPIDevicePage3, sizeof(MptConfigurationPageSCSISPIDevice3));
         }
     }
-    else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+    else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
     {
         PMptConfigurationPagesSas pSasPages = &pPages->u.SasPages;
 
@@ -4489,47 +4246,39 @@ static DECLCALLBACK(int) lsilogicR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         }
     }
     else
-        AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
+        AssertMsgFailed(("Invalid controller type %d\n", pLsiLogic->enmCtrlType));
 
     /* Now the data for the BIOS interface. */
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.regIdentify);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.uTargetDevice);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.uTxDir);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.cbCDB);
-    SSMR3PutMem   (pSSM, pThis->VBoxSCSI.abCDB, sizeof(pThis->VBoxSCSI.abCDB));
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.iCDB);
-    SSMR3PutU32   (pSSM, pThis->VBoxSCSI.cbBuf);
-    SSMR3PutU32   (pSSM, pThis->VBoxSCSI.iBuf);
-    SSMR3PutBool  (pSSM, pThis->VBoxSCSI.fBusy);
-    SSMR3PutU8    (pSSM, pThis->VBoxSCSI.enmState);
-    if (pThis->VBoxSCSI.cbBuf)
-        SSMR3PutMem(pSSM, pThis->VBoxSCSI.pbBuf, pThis->VBoxSCSI.cbBuf);
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.regIdentify);
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.uTargetDevice);
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.uTxDir);
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.cbCDB);
+    SSMR3PutMem   (pSSM, pLsiLogic->VBoxSCSI.aCDB, sizeof(pLsiLogic->VBoxSCSI.aCDB));
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.iCDB);
+    SSMR3PutU32   (pSSM, pLsiLogic->VBoxSCSI.cbBuf);
+    SSMR3PutU32   (pSSM, pLsiLogic->VBoxSCSI.iBuf);
+    SSMR3PutBool  (pSSM, pLsiLogic->VBoxSCSI.fBusy);
+    SSMR3PutU8    (pSSM, pLsiLogic->VBoxSCSI.enmState);
+    if (pLsiLogic->VBoxSCSI.cbBuf)
+        SSMR3PutMem(pSSM, pLsiLogic->VBoxSCSI.pBuf, pLsiLogic->VBoxSCSI.cbBuf);
 
     return SSMR3PutU32(pSSM, ~0);
 }
 
-/**
- * @callback_method_impl{FNSSMDEVLOADDONE}
- */
-static DECLCALLBACK(int) lsilogicR3LoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) lsilogicLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
-    lsilogicR3Kick(pThis);
+    lsilogicKick(pThis);
     return VINF_SUCCESS;
 }
 
-/**
- * @callback_method_impl{FNSSMDEVLOADEXEC}
- */
-static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+static DECLCALLBACK(int) lsilogicLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    PLSILOGICSCSI   pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    PLSILOGICSCSI   pLsiLogic = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int             rc;
 
     if (    uVersion != LSILOGIC_SAVED_STATE_VERSION
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM
-        &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL
         &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_PRE_SAS
         &&  uVersion != LSILOGIC_SAVED_STATE_VERSION_VBOX_30)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
@@ -4547,111 +4296,96 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
         rc = SSMR3GetU32(pSSM, &cPorts);
         AssertRCReturn(rc, rc);
 
-        if (enmCtrlType != pThis->enmCtrlType)
+        if (enmCtrlType != pLsiLogic->enmCtrlType)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Target config mismatch (Controller type): config=%d state=%d"),
-                                    pThis->enmCtrlType, enmCtrlType);
-        if (cDeviceStates != pThis->cDeviceStates)
+                                    pLsiLogic->enmCtrlType, enmCtrlType);
+        if (cDeviceStates != pLsiLogic->cDeviceStates)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Target config mismatch (Device states): config=%u state=%u"),
-                                    pThis->cDeviceStates, cDeviceStates);
-        if (cPorts != pThis->cPorts)
+                                    pLsiLogic->cDeviceStates, cDeviceStates);
+        if (cPorts != pLsiLogic->cPorts)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Target config mismatch (Ports): config=%u state=%u"),
-                                    pThis->cPorts, cPorts);
+                                    pLsiLogic->cPorts, cPorts);
     }
     if (uVersion > LSILOGIC_SAVED_STATE_VERSION_VBOX_30)
     {
-        for (unsigned i = 0; i < pThis->cDeviceStates; i++)
+        for (unsigned i = 0; i < pLsiLogic->cDeviceStates; i++)
         {
             bool fPresent;
             rc = SSMR3GetBool(pSSM, &fPresent);
             AssertRCReturn(rc, rc);
-            if (fPresent != (pThis->paDeviceStates[i].pDrvBase != NULL))
+            if (fPresent != (pLsiLogic->paDeviceStates[i].pDrvBase != NULL))
                 return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Target %u config mismatch: config=%RTbool state=%RTbool"),
-                                         i, pThis->paDeviceStates[i].pDrvBase != NULL, fPresent);
+                                         i, pLsiLogic->paDeviceStates[i].pDrvBase != NULL, fPresent);
         }
     }
     if (uPass != SSM_PASS_FINAL)
         return VINF_SUCCESS;
 
     /* Every device first. */
-    for (unsigned i = 0; i < pThis->cDeviceStates; i++)
+    for (unsigned i = 0; i < pLsiLogic->cDeviceStates; i++)
     {
-        PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[i];
+        PLSILOGICDEVICE pDevice = &pLsiLogic->paDeviceStates[i];
 
         AssertMsg(!pDevice->cOutstandingRequests,
                   ("There are still outstanding requests on this device\n"));
         SSMR3GetU32(pSSM, (uint32_t *)&pDevice->cOutstandingRequests);
     }
     /* Now the main device state. */
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->enmState);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->enmWhoInit);
-    if (uVersion <= LSILOGIC_SAVED_STATE_VERSION_BOOL_DOORBELL)
-    {
-        bool fDoorbellInProgress = false;
-
-        /*
-         * The doorbell status flag distinguishes only between
-         * doorbell not in use or a Function handshake is currently in progress.
-         */
-        SSMR3GetBool  (pSSM, &fDoorbellInProgress);
-        if (fDoorbellInProgress)
-            pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_FN_HANDSHAKE;
-        else
-            pThis->enmDoorbellState = LSILOGICDOORBELLSTATE_NOT_IN_USE;
-    }
-    else
-        SSMR3GetU32(pSSM, (uint32_t *)&pThis->enmDoorbellState);
-    SSMR3GetBool  (pSSM, &pThis->fDiagnosticEnabled);
-    SSMR3GetBool  (pSSM, &pThis->fNotificationSent);
-    SSMR3GetBool  (pSSM, &pThis->fEventNotificationEnabled);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uInterruptMask);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uInterruptStatus);
-    for (unsigned i = 0; i < RT_ELEMENTS(pThis->aMessage); i++)
-        SSMR3GetU32   (pSSM, &pThis->aMessage[i]);
-    SSMR3GetU32   (pSSM, &pThis->iMessage);
-    SSMR3GetU32   (pSSM, &pThis->cMessage);
-    SSMR3GetMem   (pSSM, &pThis->ReplyBuffer, sizeof(pThis->ReplyBuffer));
-    SSMR3GetU32   (pSSM, &pThis->uNextReplyEntryRead);
-    SSMR3GetU32   (pSSM, &pThis->cReplySize);
-    SSMR3GetU16   (pSSM, &pThis->u16IOCFaultCode);
-    SSMR3GetU32   (pSSM, &pThis->u32HostMFAHighAddr);
-    SSMR3GetU32   (pSSM, &pThis->u32SenseBufferHighAddr);
-    SSMR3GetU8    (pSSM, &pThis->cMaxDevices);
-    SSMR3GetU8    (pSSM, &pThis->cMaxBuses);
-    SSMR3GetU16   (pSSM, &pThis->cbReplyFrame);
-    SSMR3GetU32   (pSSM, &pThis->iDiagnosticAccess);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->enmState);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->enmWhoInit);
+    SSMR3GetBool  (pSSM, &pLsiLogic->fDoorbellInProgress);
+    SSMR3GetBool  (pSSM, &pLsiLogic->fDiagnosticEnabled);
+    SSMR3GetBool  (pSSM, &pLsiLogic->fNotificationSend);
+    SSMR3GetBool  (pSSM, &pLsiLogic->fEventNotificationEnabled);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uInterruptMask);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uInterruptStatus);
+    for (unsigned i = 0; i < RT_ELEMENTS(pLsiLogic->aMessage); i++)
+        SSMR3GetU32   (pSSM, &pLsiLogic->aMessage[i]);
+    SSMR3GetU32   (pSSM, &pLsiLogic->iMessage);
+    SSMR3GetU32   (pSSM, &pLsiLogic->cMessage);
+    SSMR3GetMem   (pSSM, &pLsiLogic->ReplyBuffer, sizeof(pLsiLogic->ReplyBuffer));
+    SSMR3GetU32   (pSSM, &pLsiLogic->uNextReplyEntryRead);
+    SSMR3GetU32   (pSSM, &pLsiLogic->cReplySize);
+    SSMR3GetU16   (pSSM, &pLsiLogic->u16IOCFaultCode);
+    SSMR3GetU32   (pSSM, &pLsiLogic->u32HostMFAHighAddr);
+    SSMR3GetU32   (pSSM, &pLsiLogic->u32SenseBufferHighAddr);
+    SSMR3GetU8    (pSSM, &pLsiLogic->cMaxDevices);
+    SSMR3GetU8    (pSSM, &pLsiLogic->cMaxBuses);
+    SSMR3GetU16   (pSSM, &pLsiLogic->cbReplyFrame);
+    SSMR3GetU32   (pSSM, &pLsiLogic->iDiagnosticAccess);
 
     uint32_t cReplyQueueEntries, cRequestQueueEntries;
     SSMR3GetU32   (pSSM, &cReplyQueueEntries);
     SSMR3GetU32   (pSSM, &cRequestQueueEntries);
 
-    if (   cReplyQueueEntries != pThis->cReplyQueueEntries
-        || cRequestQueueEntries != pThis->cRequestQueueEntries)
+    if (   cReplyQueueEntries != pLsiLogic->cReplyQueueEntries
+        || cRequestQueueEntries != pLsiLogic->cRequestQueueEntries)
     {
         LogFlow(("Reallocating queues cReplyQueueEntries=%u cRequestQueuEntries=%u\n",
                  cReplyQueueEntries, cRequestQueueEntries));
-        lsilogicR3QueuesFree(pThis);
-        pThis->cReplyQueueEntries = cReplyQueueEntries;
-        pThis->cRequestQueueEntries = cRequestQueueEntries;
-        rc = lsilogicR3QueuesAlloc(pThis);
+        lsilogicQueuesFree(pLsiLogic);
+        pLsiLogic->cReplyQueueEntries = cReplyQueueEntries;
+        pLsiLogic->cRequestQueueEntries = cRequestQueueEntries;
+        rc = lsilogicQueuesAlloc(pLsiLogic);
         if (RT_FAILURE(rc))
             return rc;
     }
 
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uReplyFreeQueueNextEntryFreeWrite);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uReplyFreeQueueNextAddressRead);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uReplyPostQueueNextEntryFreeWrite);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uReplyPostQueueNextAddressRead);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uRequestQueueNextEntryFreeWrite);
-    SSMR3GetU32   (pSSM, (uint32_t *)&pThis->uRequestQueueNextAddressRead);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyFreeQueueNextEntryFreeWrite);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyFreeQueueNextAddressRead);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyPostQueueNextEntryFreeWrite);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uReplyPostQueueNextAddressRead);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uRequestQueueNextEntryFreeWrite);
+    SSMR3GetU32   (pSSM, (uint32_t *)&pLsiLogic->uRequestQueueNextAddressRead);
 
-    PMptConfigurationPagesSupported pPages = pThis->pConfigurationPages;
+    PMptConfigurationPagesSupported pPages = pLsiLogic->pConfigurationPages;
 
     if (uVersion <= LSILOGIC_SAVED_STATE_VERSION_PRE_SAS)
     {
         PMptConfigurationPagesSpi pSpiPages = &pPages->u.SpiPages;
         MptConfigurationPagesSupported_SSM_V2 ConfigPagesV2;
 
-        if (pThis->enmCtrlType != LSILOGICCTRLTYPE_SCSI_SPI)
+        if (pLsiLogic->enmCtrlType != LSILOGICCTRLTYPE_SCSI_SPI)
             return SSMR3SetCfgError(pSSM, RT_SRC_POS, N_("Config mismatch: Expected SPI SCSI controller"));
 
         SSMR3GetMem(pSSM, &ConfigPagesV2,
@@ -4688,52 +4422,14 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     else
     {
         /* Queue content */
-        for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
-            SSMR3GetU32(pSSM, (uint32_t *)&pThis->pReplyFreeQueueBaseR3[i]);
-        for (unsigned i = 0; i < pThis->cReplyQueueEntries; i++)
-            SSMR3GetU32(pSSM, (uint32_t *)&pThis->pReplyPostQueueBaseR3[i]);
-        for (unsigned i = 0; i < pThis->cRequestQueueEntries; i++)
-            SSMR3GetU32(pSSM, (uint32_t *)&pThis->pRequestQueueBaseR3[i]);
+        for (unsigned i = 0; i < pLsiLogic->cReplyQueueEntries; i++)
+            SSMR3GetU32(pSSM, (uint32_t *)&pLsiLogic->pReplyFreeQueueBaseR3[i]);
+        for (unsigned i = 0; i < pLsiLogic->cReplyQueueEntries; i++)
+            SSMR3GetU32(pSSM, (uint32_t *)&pLsiLogic->pReplyPostQueueBaseR3[i]);
+        for (unsigned i = 0; i < pLsiLogic->cRequestQueueEntries; i++)
+            SSMR3GetU32(pSSM, (uint32_t *)&pLsiLogic->pRequestQueueBaseR3[i]);
 
-        SSMR3GetU16(pSSM, &pThis->u16NextHandle);
-
-        if (uVersion > LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM)
-        {
-            uint32_t cMemRegions = 0;
-
-            /* Save diagnostic memory register and data regions. */
-            SSMR3GetU32   (pSSM, &pThis->u32DiagMemAddr);
-            SSMR3GetU32   (pSSM, &cMemRegions);
-
-            while (cMemRegions)
-            {
-                uint32_t u32AddrStart = 0;
-                uint32_t u32AddrEnd = 0;
-                uint32_t cRegion = 0;
-                PLSILOGICMEMREGN pRegion = NULL;
-
-                SSMR3GetU32(pSSM, &u32AddrStart);
-                SSMR3GetU32(pSSM, &u32AddrEnd);
-
-                cRegion = u32AddrEnd - u32AddrStart + 1;
-                pRegion = (PLSILOGICMEMREGN)RTMemAllocZ(RT_OFFSETOF(LSILOGICMEMREGN, au32Data[cRegion]));
-                if (pRegion)
-                {
-                    pRegion->u32AddrStart = u32AddrStart;
-                    pRegion->u32AddrEnd = u32AddrEnd;
-                    SSMR3GetMem(pSSM, &pRegion->au32Data[0], cRegion * sizeof(uint32_t));
-                    lsilogicR3MemRegionInsert(pThis, pRegion);
-                    pThis->cbMemRegns += cRegion * sizeof(uint32_t);
-                }
-                else
-                {
-                    /* Leave a log message but continue. */
-                    LogRel(("LsiLogic: Out of memory while restoring the state, might not work as expected\n"));
-                    SSMR3Skip(pSSM, cRegion * sizeof(uint32_t));
-                }
-                cMemRegions--;
-            }
-        }
+        SSMR3GetU16(pSSM, &pLsiLogic->u16NextHandle);
 
         /* Configuration pages */
         SSMR3GetMem(pSSM, &pPages->ManufacturingPage0, sizeof(MptConfigurationPageManufacturing0));
@@ -4762,7 +4458,7 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
         SSMR3GetMem(pSSM, &pPages->BIOSPage4, sizeof(MptConfigurationPageBIOS4));
 
         /* Device dependent pages */
-        if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
+        if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
         {
             PMptConfigurationPagesSpi pSpiPages = &pPages->u.SpiPages;
 
@@ -4778,7 +4474,7 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
                 SSMR3GetMem(pSSM, &pSpiPages->aBuses[0].aDevicePages[i].SCSISPIDevicePage3, sizeof(MptConfigurationPageSCSISPIDevice3));
             }
         }
-        else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
+        else if (pLsiLogic->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
         {
             uint32_t cbPage0, cbPage1, cPHYs, cbManufacturingPage7;
             PMptConfigurationPagesSas pSasPages = &pPages->u.SasPages;
@@ -4831,30 +4527,30 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
             Assert(!pCurr);
         }
         else
-            AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
+            AssertMsgFailed(("Invalid controller type %d\n", pLsiLogic->enmCtrlType));
     }
 
     /* Now the data for the BIOS interface. */
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.regIdentify);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.uTargetDevice);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.uTxDir);
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.cbCDB);
-    SSMR3GetMem (pSSM, pThis->VBoxSCSI.abCDB, sizeof(pThis->VBoxSCSI.abCDB));
-    SSMR3GetU8  (pSSM, &pThis->VBoxSCSI.iCDB);
-    SSMR3GetU32 (pSSM, &pThis->VBoxSCSI.cbBuf);
-    SSMR3GetU32 (pSSM, &pThis->VBoxSCSI.iBuf);
-    SSMR3GetBool(pSSM, (bool *)&pThis->VBoxSCSI.fBusy);
-    SSMR3GetU8  (pSSM, (uint8_t *)&pThis->VBoxSCSI.enmState);
-    if (pThis->VBoxSCSI.cbBuf)
+    SSMR3GetU8  (pSSM, &pLsiLogic->VBoxSCSI.regIdentify);
+    SSMR3GetU8  (pSSM, &pLsiLogic->VBoxSCSI.uTargetDevice);
+    SSMR3GetU8  (pSSM, &pLsiLogic->VBoxSCSI.uTxDir);
+    SSMR3GetU8  (pSSM, &pLsiLogic->VBoxSCSI.cbCDB);
+    SSMR3GetMem (pSSM, pLsiLogic->VBoxSCSI.aCDB, sizeof(pLsiLogic->VBoxSCSI.aCDB));
+    SSMR3GetU8  (pSSM, &pLsiLogic->VBoxSCSI.iCDB);
+    SSMR3GetU32 (pSSM, &pLsiLogic->VBoxSCSI.cbBuf);
+    SSMR3GetU32 (pSSM, &pLsiLogic->VBoxSCSI.iBuf);
+    SSMR3GetBool(pSSM, (bool *)&pLsiLogic->VBoxSCSI.fBusy);
+    SSMR3GetU8  (pSSM, (uint8_t *)&pLsiLogic->VBoxSCSI.enmState);
+    if (pLsiLogic->VBoxSCSI.cbBuf)
     {
-        pThis->VBoxSCSI.pbBuf = (uint8_t *)RTMemAllocZ(pThis->VBoxSCSI.cbBuf);
-        if (!pThis->VBoxSCSI.pbBuf)
+        pLsiLogic->VBoxSCSI.pBuf = (uint8_t *)RTMemAllocZ(pLsiLogic->VBoxSCSI.cbBuf);
+        if (!pLsiLogic->VBoxSCSI.pBuf)
         {
             LogRel(("LsiLogic: Out of memory during restore.\n"));
             return PDMDEV_SET_ERROR(pDevIns, VERR_NO_MEMORY,
                                     N_("LsiLogic: Out of memory during restore\n"));
         }
-        SSMR3GetMem(pSSM, pThis->VBoxSCSI.pbBuf, pThis->VBoxSCSI.cbBuf);
+        SSMR3GetMem(pSSM, pLsiLogic->VBoxSCSI.pBuf, pLsiLogic->VBoxSCSI.cbBuf);
     }
 
     uint32_t u32;
@@ -4866,19 +4562,18 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
     return VINF_SUCCESS;
 }
 
-
-/*
- * The device level IBASE and LED interfaces.
- */
-
 /**
- * @interface_method_impl{PDMILEDPORTS,pfnQueryInterface, For a SCSI device.}
+ * Gets the pointer to the status LED of a device - called from the SCSi driver.
  *
- * @remarks Called by the scsi driver, proxying the main calls.
+ * @returns VBox status code.
+ * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+ * @param   iLUN            The unit which status LED we desire. Always 0 here as the driver
+ *                          doesn't know about other LUN's.
+ * @param   ppLed           Where to store the LED pointer.
  */
-static DECLCALLBACK(int) lsilogicR3DeviceQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
+static DECLCALLBACK(int) lsilogicDeviceQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
 {
-    PLSILOGICDEVICE pDevice = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, ILed);
+    PLSILOGICDEVICE pDevice = PDMILEDPORTS_2_PLSILOGICDEVICE(pInterface);
     if (iLUN == 0)
     {
         *ppLed = &pDevice->Led;
@@ -4892,20 +4587,15 @@ static DECLCALLBACK(int) lsilogicR3DeviceQueryStatusLed(PPDMILEDPORTS pInterface
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) lsilogicR3DeviceQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+static DECLCALLBACK(void *) lsilogicDeviceQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PLSILOGICDEVICE pDevice = RT_FROM_MEMBER(pInterface, LSILOGICDEVICE, IBase);
+    PLSILOGICDEVICE pDevice = PDMIBASE_2_PLSILOGICDEVICE(pInterface);
 
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDevice->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMISCSIPORT, &pDevice->ISCSIPort);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pDevice->ILed);
     return NULL;
 }
-
-
-/*
- * The controller level IBASE and LED interfaces.
- */
 
 /**
  * Gets the pointer to the status LED of a unit.
@@ -4915,12 +4605,12 @@ static DECLCALLBACK(void *) lsilogicR3DeviceQueryInterface(PPDMIBASE pInterface,
  * @param   iLUN            The unit which status LED we desire.
  * @param   ppLed           Where to store the LED pointer.
  */
-static DECLCALLBACK(int) lsilogicR3StatusQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
+static DECLCALLBACK(int) lsilogicStatusQueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
 {
-    PLSILOGICSCSI pThis = RT_FROM_MEMBER(pInterface, LSILOGICSCSI, ILeds);
-    if (iLUN < pThis->cDeviceStates)
+    PLSILOGICSCSI pLsiLogic = PDMILEDPORTS_2_PLSILOGICSCSI(pInterface);
+    if (iLUN < pLsiLogic->cDeviceStates)
     {
-        *ppLed = &pThis->paDeviceStates[iLUN].Led;
+        *ppLed = &pLsiLogic->paDeviceStates[iLUN].Led;
         Assert((*ppLed)->u32Magic == PDMLED_MAGIC);
         return VINF_SUCCESS;
     }
@@ -4930,23 +4620,20 @@ static DECLCALLBACK(int) lsilogicR3StatusQueryStatusLed(PPDMILEDPORTS pInterface
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
  */
-static DECLCALLBACK(void *) lsilogicR3StatusQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+static DECLCALLBACK(void *) lsilogicStatusQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PLSILOGICSCSI pThis = RT_FROM_MEMBER(pInterface, LSILOGICSCSI, IBase);
+    PLSILOGICSCSI pThis = PDMIBASE_2_PLSILOGICSCSI(pInterface);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
     return NULL;
 }
 
-
-/*
- * The PDM device interface and some helpers.
- */
+/* -=-=-=-=- Helper -=-=-=-=- */
 
 /**
  * Checks if all asynchronous I/O is finished.
  *
- * Used by lsilogicR3Reset, lsilogicR3Suspend and lsilogicR3PowerOff.
+ * Used by lsilogicReset, lsilogicSuspend and lsilogicPowerOff.
  *
  * @returns true if quiesced, false if busy.
  * @param   pDevIns         The device instance.
@@ -4969,8 +4656,10 @@ static bool lsilogicR3AllAsyncIOIsFinished(PPDMDEVINS pDevIns)
 }
 
 /**
- * @callback_method_impl{FNPDMDEVASYNCNOTIFY,
- * Callback employed by lsilogicR3Suspend and lsilogicR3PowerOff.}
+ * Callback employed by lsilogicR3Suspend and lsilogicR3PowerOff..
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
  */
 static DECLCALLBACK(bool) lsilogicR3IsAsyncSuspendOrPowerOffDone(PPDMDEVINS pDevIns)
 {
@@ -4996,7 +4685,7 @@ static void lsilogicR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
     {
         ASMAtomicWriteBool(&pThis->fSignalIdle, false);
 
-        AssertMsg(!pThis->fNotificationSent, ("The PDM Queue should be empty at this point\n"));
+        AssertMsg(!pThis->fNotificationSend, ("The PDM Queue should be empty at this point\n"));
 
         if (pThis->fRedo)
         {
@@ -5006,33 +4695,33 @@ static void lsilogicR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
              * Guest execution is suspended at this point so there is no race between us and
              * lsilogicRegisterWrite.
              */
-            PLSILOGICREQ pLsiReq = pThis->pTasksRedoHead;
+            PLSILOGICTASKSTATE pTaskState = pThis->pTasksRedoHead;
 
             pThis->pTasksRedoHead = NULL;
 
-            while (pLsiReq)
+            while (pTaskState)
             {
-                PLSILOGICREQ pFree;
+                PLSILOGICTASKSTATE pFree;
 
-                if (!pLsiReq->fBIOS)
+                if (!pTaskState->fBIOS)
                 {
                     /* Write only the lower 32bit part of the address. */
                     ASMAtomicWriteU32(&pThis->CTX_SUFF(pRequestQueueBase)[pThis->uRequestQueueNextEntryFreeWrite],
-                                      pLsiReq->GCPhysMessageFrameAddr & UINT32_C(0xffffffff));
+                                      pTaskState->GCPhysMessageFrameAddr & UINT32_C(0xffffffff));
 
                     pThis->uRequestQueueNextEntryFreeWrite++;
                     pThis->uRequestQueueNextEntryFreeWrite %= pThis->cRequestQueueEntries;
 
-                    pThis->fNotificationSent = true;
+                    pThis->fNotificationSend = true;
                 }
                 else
                 {
-                    AssertMsg(!pLsiReq->pRedoNext, ("Only one BIOS task can be active!\n"));
-                    vboxscsiSetRequestRedo(&pThis->VBoxSCSI, &pLsiReq->PDMScsiRequest);
+                    AssertMsg(!pTaskState->pRedoNext, ("Only one BIOS task can be active!\n"));
+                    vboxscsiSetRequestRedo(&pThis->VBoxSCSI, &pTaskState->PDMScsiRequest);
                 }
 
-                pFree = pLsiReq;
-                pLsiReq = pLsiReq->pRedoNext;
+                pFree = pTaskState;
+                pTaskState = pTaskState->pRedoNext;
 
                 RTMemCacheFree(pThis->hTaskCache, pFree);
             }
@@ -5042,33 +4731,41 @@ static void lsilogicR3SuspendOrPowerOff(PPDMDEVINS pDevIns)
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnSuspend}
+ * Suspend notification.
+ *
+ * @param   pDevIns     The device instance data.
  */
-static DECLCALLBACK(void) lsilogicR3Suspend(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) lsilogicSuspend(PPDMDEVINS pDevIns)
 {
-    Log(("lsilogicR3Suspend\n"));
+    Log(("lsilogicSuspend\n"));
     lsilogicR3SuspendOrPowerOff(pDevIns);
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnResume}
+ * Resume notification.
+ *
+ * @param   pDevIns     The device instance data.
  */
-static DECLCALLBACK(void) lsilogicR3Resume(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) lsilogicResume(PPDMDEVINS pDevIns)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
-    Log(("lsilogicR3Resume\n"));
+    Log(("lsilogicResume\n"));
 
-    lsilogicR3Kick(pThis);
+    lsilogicKick(pThis);
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnDetach}
+ * Detach notification.
  *
  * One harddisk at one port has been unplugged.
  * The VM is suspended at this point.
+ *
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(void) lsilogicR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+static DECLCALLBACK(void) lsilogicDetach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PLSILOGICSCSI   pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[iLUN];
@@ -5089,9 +4786,16 @@ static DECLCALLBACK(void) lsilogicR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, ui
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnAttach}
+ * Attach command.
+ *
+ * This is called when we change block driver.
+ *
+ * @returns VBox status code.
+ * @param   pDevIns     The device instance.
+ * @param   iLUN        The logical unit which is being detached.
+ * @param   fFlags      Flags, combination of the PDMDEVATT_FLAGS_* \#defines.
  */
-static DECLCALLBACK(int)  lsilogicR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
+static DECLCALLBACK(int)  lsilogicAttach(PPDMDEVINS pDevIns, unsigned iLUN, uint32_t fFlags)
 {
     PLSILOGICSCSI   pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     PLSILOGICDEVICE pDevice = &pThis->paDeviceStates[iLUN];
@@ -5138,18 +4842,20 @@ static DECLCALLBACK(int)  lsilogicR3Attach(PPDMDEVINS pDevIns, unsigned iLUN, ui
  */
 static void lsilogicR3ResetCommon(PPDMDEVINS pDevIns)
 {
-    PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
+    PLSILOGICSCSI pLsiLogic = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     int rc;
 
-    rc = lsilogicR3HardReset(pThis);
+    rc = lsilogicHardReset(pLsiLogic);
     AssertRC(rc);
 
-    vboxscsiInitialize(&pThis->VBoxSCSI);
+    vboxscsiInitialize(&pLsiLogic->VBoxSCSI);
 }
 
 /**
- * @callback_method_impl{FNPDMDEVASYNCNOTIFY,
- * Callback employed by lsilogicR3Reset.}
+ * Callback employed by lsilogicR3Reset.
+ *
+ * @returns true if we've quiesced, false if we're still working.
+ * @param   pDevIns     The device instance.
  */
 static DECLCALLBACK(bool) lsilogicR3IsAsyncResetDone(PPDMDEVINS pDevIns)
 {
@@ -5164,9 +4870,9 @@ static DECLCALLBACK(bool) lsilogicR3IsAsyncResetDone(PPDMDEVINS pDevIns)
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnReset}
+ * @copydoc FNPDMDEVRESET
  */
-static DECLCALLBACK(void) lsilogicR3Reset(PPDMDEVINS pDevIns)
+static DECLCALLBACK(void) lsilogicReset(PPDMDEVINS pDevIns)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
@@ -5181,9 +4887,9 @@ static DECLCALLBACK(void) lsilogicR3Reset(PPDMDEVINS pDevIns)
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnRelocate}
+ * @copydoc FNPDMDEVRELOCATE
  */
-static DECLCALLBACK(void) lsilogicR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
+static DECLCALLBACK(void) lsilogicRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
 
@@ -5197,18 +4903,9 @@ static DECLCALLBACK(void) lsilogicR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offD
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnPowerOff}
+ * @copydoc FNPDMDEVDESTRUCT
  */
-static DECLCALLBACK(void) lsilogicR3PowerOff(PPDMDEVINS pDevIns)
-{
-    Log(("lsilogicR3PowerOff\n"));
-    lsilogicR3SuspendOrPowerOff(pDevIns);
-}
-
-/**
- * @interface_method_impl{PDMDEVREG,pfnDestruct}
- */
-static DECLCALLBACK(int) lsilogicR3Destruct(PPDMDEVINS pDevIns)
+static DECLCALLBACK(int) lsilogicDestruct(PPDMDEVINS pDevIns)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
     PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
@@ -5216,43 +4913,41 @@ static DECLCALLBACK(int) lsilogicR3Destruct(PPDMDEVINS pDevIns)
     PDMR3CritSectDelete(&pThis->ReplyFreeQueueCritSect);
     PDMR3CritSectDelete(&pThis->ReplyPostQueueCritSect);
 
-    RTMemFree(pThis->paDeviceStates);
-    pThis->paDeviceStates = NULL;
+    if (pThis->paDeviceStates)
+        RTMemFree(pThis->paDeviceStates);
 
     /* Destroy task cache. */
+    int rc = VINF_SUCCESS;
     if (pThis->hTaskCache != NIL_RTMEMCACHE)
-    {
-        int rc = RTMemCacheDestroy(pThis->hTaskCache); AssertRC(rc);
-        pThis->hTaskCache = NIL_RTMEMCACHE;
-    }
+        rc = RTMemCacheDestroy(pThis->hTaskCache);
 
-    if (pThis->hEvtProcess != NIL_SUPSEMEVENT)
-    {
-        SUPSemEventClose(pThis->pSupDrvSession, pThis->hEvtProcess);
-        pThis->hEvtProcess = NIL_SUPSEMEVENT;
-    }
+    lsilogicConfigurationPagesFree(pThis);
 
-    lsilogicR3ConfigurationPagesFree(pThis);
-    lsilogicR3MemRegionsFree(pThis);
-
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**
- * @interface_method_impl{PDMDEVREG,pfnConstruct}
+ * Poweroff notification.
+ *
+ * @param   pDevIns Pointer to the device instance
  */
-static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
+static DECLCALLBACK(void) lsilogicPowerOff(PPDMDEVINS pDevIns)
+{
+    Log(("lsilogicPowerOff\n"));
+    lsilogicR3SuspendOrPowerOff(pDevIns);
+}
+
+/**
+ * @copydoc FNPDMDEVCONSTRUCT
+ */
+static DECLCALLBACK(int) lsilogicConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
     PLSILOGICSCSI pThis = PDMINS_2_DATA(pDevIns, PLSILOGICSCSI);
-    int           rc    = VINF_SUCCESS;
+    int rc = VINF_SUCCESS;
+    char *pszCtrlType = NULL;
+    char  szDevTag[20];
+    bool fBootable = true;
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
-
-    /*
-     * Initialize enought of the state to make the destructure not trip up.
-     */
-    pThis->hTaskCache  = NIL_RTMEMCACHE;
-    pThis->hEvtProcess = NIL_SUPSEMEVENT;
-    RTListInit(&pThis->ListMemRegns);
 
     /*
      * Validate and read configuration.
@@ -5295,7 +4990,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
                                 N_("LsiLogic configuration error: failed to read RequestQueue as integer"));
     Log(("%s: RequestQueueDepth=%u\n", __FUNCTION__, pThis->cRequestQueueEntries));
 
-    char *pszCtrlType;
     rc = CFGMR3QueryStringAllocDef(pCfg, "ControllerType",
                                    &pszCtrlType, LSILOGICSCSI_PCI_SPI_CTRLNAME);
     if (RT_FAILURE(rc))
@@ -5303,10 +4997,9 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
                                 N_("LsiLogic configuration error: failed to read ControllerType as string"));
     Log(("%s: ControllerType=%s\n", __FUNCTION__, pszCtrlType));
 
-    rc = lsilogicR3GetCtrlTypeFromString(pThis, pszCtrlType);
+    rc = lsilogicGetCtrlTypeFromString(pThis, pszCtrlType);
     MMR3HeapFree(pszCtrlType);
 
-    char szDevTag[20];
     RTStrPrintf(szDevTag, sizeof(szDevTag), "LSILOGIC%s-%u",
                 pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI ? "SPI" : "SAS",
                 iInstance);
@@ -5331,7 +5024,6 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         return PDMDEV_SET_ERROR(pDevIns, rc,
                                 N_("LsiLogic configuration error: failed to read NumPorts as integer"));
 
-    bool fBootable;
     rc = CFGMR3QueryBoolDef(pCfg, "Bootable", &fBootable, true);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc,
@@ -5361,71 +5053,56 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     PCIDevSetClassBase   (&pThis->PciDev,   0x01); /* Mass storage */
     PCIDevSetInterruptPin(&pThis->PciDev,   0x01); /* Interrupt pin A */
 
-# ifdef VBOX_WITH_MSI_DEVICES
+#ifdef VBOX_WITH_MSI_DEVICES
     PCIDevSetStatus(&pThis->PciDev,   VBOX_PCI_STATUS_CAP_LIST);
     PCIDevSetCapabilityList(&pThis->PciDev, 0x80);
-# endif
+#endif
 
     pThis->pDevInsR3 = pDevIns;
     pThis->pDevInsR0 = PDMDEVINS_2_R0PTR(pDevIns);
     pThis->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
-    pThis->pSupDrvSession = PDMDevHlpGetSupDrvSession(pDevIns);
-    pThis->IBase.pfnQueryInterface = lsilogicR3StatusQueryInterface;
-    pThis->ILeds.pfnQueryStatusLed = lsilogicR3StatusQueryStatusLed;
-
-    /*
-     * Create critical sections protecting the reply post and free queues.
-     * Note! We do our own syncronization, so NOP the default crit sect for the device.
-     */
-    rc = PDMDevHlpSetDeviceCritSect(pDevIns, PDMDevHlpCritSectGetNop(pDevIns));
-    AssertRCReturn(rc, rc);
-
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyFreeQueueCritSect, RT_SRC_POS, "%sRFQ", szDevTag);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic: cannot create critical section for reply free queue"));
-
-    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyPostQueueCritSect, RT_SRC_POS, "%sRPQ", szDevTag);
-    if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic: cannot create critical section for reply post queue"));
+    pThis->IBase.pfnQueryInterface = lsilogicStatusQueryInterface;
+    pThis->ILeds.pfnQueryStatusLed = lsilogicStatusQueryStatusLed;
 
     /*
      * Register the PCI device, it's I/O regions.
      */
-    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->PciDev);
+    rc = PDMDevHlpPCIRegister (pDevIns, &pThis->PciDev);
     if (RT_FAILURE(rc))
         return rc;
 
-# ifdef VBOX_WITH_MSI_DEVICES
-    PDMMSIREG MsiReg;
-    RT_ZERO(MsiReg);
+#ifdef VBOX_WITH_MSI_DEVICES
+    PDMMSIREG aMsiReg;
+    RT_ZERO(aMsiReg);
     /* use this code for MSI-X support */
-#  if 0
-    MsiReg.cMsixVectors    = 1;
-    MsiReg.iMsixCapOffset  = 0x80;
-    MsiReg.iMsixNextOffset = 0x00;
-    MsiReg.iMsixBar        = 3;
-#  else
-    MsiReg.cMsiVectors     = 1;
-    MsiReg.iMsiCapOffset   = 0x80;
-    MsiReg.iMsiNextOffset  = 0x00;
-#  endif
-    rc = PDMDevHlpPCIRegisterMsi(pDevIns, &MsiReg);
+#if 0
+    aMsiReg.cMsixVectors = 1;
+    aMsiReg.iMsixCapOffset = 0x80;
+    aMsiReg.iMsixNextOffset = 0x0;
+    aMsiReg.iMsixBar = 3;
+#else
+    aMsiReg.cMsiVectors = 1;
+    aMsiReg.iMsiCapOffset = 0x80;
+    aMsiReg.iMsiNextOffset = 0x0;
+#endif
+    rc = PDMDevHlpPCIRegisterMsi(pDevIns, &aMsiReg);
     if (RT_FAILURE (rc))
     {
+        LogRel(("Chipset cannot do MSI: %Rrc\n", rc));
         /* That's OK, we can work without MSI */
         PCIDevSetCapabilityList(&pThis->PciDev, 0x0);
     }
-# endif
+#endif
 
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, LSILOGIC_PCI_SPACE_IO_SIZE, PCI_ADDRESS_SPACE_IO, lsilogicR3Map);
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 0, LSILOGIC_PCI_SPACE_IO_SIZE, PCI_ADDRESS_SPACE_IO, lsilogicMap);
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 1, LSILOGIC_PCI_SPACE_MEM_SIZE, PCI_ADDRESS_SPACE_MEM, lsilogicR3Map);
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 1, LSILOGIC_PCI_SPACE_MEM_SIZE, PCI_ADDRESS_SPACE_MEM, lsilogicMap);
     if (RT_FAILURE(rc))
         return rc;
 
-    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, LSILOGIC_PCI_SPACE_MEM_SIZE, PCI_ADDRESS_SPACE_MEM, lsilogicR3Map);
+    rc = PDMDevHlpPCIIORegionRegister(pDevIns, 2, LSILOGIC_PCI_SPACE_MEM_SIZE, PCI_ADDRESS_SPACE_MEM, lsilogicMap);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -5433,7 +5110,7 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     char szTaggedText[64];
     RTStrPrintf(szTaggedText, sizeof(szTaggedText), "%s-Task", szDevTag);
     rc = PDMDevHlpQueueCreate(pDevIns, sizeof(PDMQUEUEITEMCORE), 2, 0,
-                              lsilogicR3NotifyQueueConsumer, true,
+                              lsilogicNotifyQueueConsumer, true,
                               szTaggedText,
                               &pThis->pNotificationQueueR3);
     if (RT_FAILURE(rc))
@@ -5450,17 +5127,31 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     /*
      * Allocate memory for the queues.
      */
-    rc = lsilogicR3QueuesAlloc(pThis);
+    rc = lsilogicQueuesAlloc(pThis);
     if (RT_FAILURE(rc))
         return rc;
 
     /*
+     * Create critical sections protecting the reply post and free queues.
+     */
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyFreeQueueCritSect, RT_SRC_POS, "%sRFQ", szDevTag);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("LsiLogic: cannot create critical section for reply free queue"));
+
+    rc = PDMDevHlpCritSectInit(pDevIns, &pThis->ReplyPostQueueCritSect, RT_SRC_POS, "%sRPQ", szDevTag);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("LsiLogic: cannot create critical section for reply post queue"));
+
+    /*
      * Allocate task cache.
      */
-    rc = RTMemCacheCreate(&pThis->hTaskCache, sizeof(LSILOGICREQ), 0, UINT32_MAX,
-                          NULL, NULL, NULL, 0);
+    rc = RTMemCacheCreate(&pThis->hTaskCache, sizeof(LSILOGICTASKSTATE), 0, UINT32_MAX,
+                          lsilogicTaskStateCtor, lsilogicTaskStateDtor, NULL, 0);
     if (RT_FAILURE(rc))
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Cannot create task cache"));
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Cannot create task cache"));
 
     if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
         pThis->cDeviceStates = pThis->cPorts * LSILOGICSCSI_PCI_SPI_DEVICES_PER_BUS_MAX;
@@ -5470,25 +5161,12 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         AssertMsgFailed(("Invalid controller type: %d\n", pThis->enmCtrlType));
 
     /*
-     * Create event semaphore and worker thread.
-     */
-    rc = PDMDevHlpThreadCreate(pDevIns, &pThis->pThreadWrk, pThis, lsilogicR3Worker,
-                               lsilogicR3WorkerWakeUp, 0, RTTHREADTYPE_IO, szDevTag);
-    if (RT_FAILURE(rc))
-        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                   N_("LsiLogic: Failed to create worker thread %s"), szDevTag);
-
-    rc = SUPSemEventCreate(pThis->pSupDrvSession, &pThis->hEvtProcess);
-    if (RT_FAILURE(rc))
-        return PDMDevHlpVMSetError(pDevIns, rc, RT_SRC_POS,
-                                   N_("LsiLogic: Failed to create SUP event semaphore"));
-
-    /*
      * Allocate device states.
      */
     pThis->paDeviceStates = (PLSILOGICDEVICE)RTMemAllocZ(sizeof(LSILOGICDEVICE) * pThis->cDeviceStates);
     if (!pThis->paDeviceStates)
-        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to allocate memory for device states"));
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("Failed to allocate memory for device states"));
 
     for (unsigned i = 0; i < pThis->cDeviceStates; i++)
     {
@@ -5499,12 +5177,12 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
         pDevice->iLUN                              = i;
         pDevice->pLsiLogicR3                       = pThis;
         pDevice->Led.u32Magic                      = PDMLED_MAGIC;
-        pDevice->IBase.pfnQueryInterface           = lsilogicR3DeviceQueryInterface;
-        pDevice->ISCSIPort.pfnSCSIRequestCompleted = lsilogicR3DeviceSCSIRequestCompleted;
-        pDevice->ISCSIPort.pfnQueryDeviceLocation  = lsilogicR3QueryDeviceLocation;
-        pDevice->ILed.pfnQueryStatusLed            = lsilogicR3DeviceQueryStatusLed;
+        pDevice->IBase.pfnQueryInterface           = lsilogicDeviceQueryInterface;
+        pDevice->ISCSIPort.pfnSCSIRequestCompleted = lsilogicDeviceSCSIRequestCompleted;
+        pDevice->ISCSIPort.pfnQueryDeviceLocation  = lsilogicQueryDeviceLocation;
+        pDevice->ILed.pfnQueryStatusLed            = lsilogicDeviceQueryStatusLed;
 
-        RTStrPrintf(szName, sizeof(szName), "Device%u", i);
+        RTStrPrintf(szName, sizeof(szName), "Device%d", i);
 
         /* Attach SCSI driver. */
         rc = PDMDevHlpDriverAttach(pDevIns, pDevice->iLUN, &pDevice->IBase, &pDevice->pDrvBase, szName);
@@ -5551,14 +5229,14 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
     if (fBootable)
     {
         if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI)
-            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_BIOS_IO_PORT, 4, NULL,
-                                         lsilogicR3IsaIOPortWrite, lsilogicR3IsaIOPortRead,
-                                         lsilogicR3IsaIOPortWriteStr, lsilogicR3IsaIOPortReadStr,
+            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_ISA_IO_PORT, 3, NULL,
+                                         lsilogicIsaIOPortWrite, lsilogicIsaIOPortRead,
+                                         lsilogicIsaIOPortWriteStr, lsilogicIsaIOPortReadStr,
                                          "LsiLogic BIOS");
         else if (pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SAS)
-            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_SAS_BIOS_IO_PORT, 4, NULL,
-                                         lsilogicR3IsaIOPortWrite, lsilogicR3IsaIOPortRead,
-                                         lsilogicR3IsaIOPortWriteStr, lsilogicR3IsaIOPortReadStr,
+            rc = PDMDevHlpIOPortRegister(pDevIns, LSILOGIC_SAS_ISA_IO_PORT, 3, NULL,
+                                         lsilogicIsaIOPortWrite, lsilogicIsaIOPortRead,
+                                         lsilogicIsaIOPortWriteStr, lsilogicIsaIOPortReadStr,
                                          "LsiLogic SAS BIOS");
         else
             AssertMsgFailed(("Invalid controller type %d\n", pThis->enmCtrlType));
@@ -5569,9 +5247,9 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
 
     /* Register save state handlers. */
     rc = PDMDevHlpSSMRegisterEx(pDevIns, LSILOGIC_SAVED_STATE_VERSION, sizeof(*pThis), NULL,
-                                NULL, lsilogicR3LiveExec, NULL,
-                                NULL, lsilogicR3SaveExec, NULL,
-                                NULL, lsilogicR3LoadExec, lsilogicR3LoadDone);
+                                NULL, lsilogicLiveExec, NULL,
+                                NULL, lsilogicSaveExec, NULL,
+                                NULL, lsilogicLoadExec, lsilogicLoadDone);
     if (RT_FAILURE(rc))
         return PDMDEV_SET_ERROR(pDevIns, rc, N_("LsiLogic cannot register save state handlers"));
 
@@ -5581,14 +5259,14 @@ static DECLCALLBACK(int) lsilogicR3Construct(PPDMDEVINS pDevIns, int iInstance, 
      * Register the info item.
      */
     char szTmp[128];
-    RTStrPrintf(szTmp, sizeof(szTmp), "%s%u", pDevIns->pReg->szName, pDevIns->iInstance);
+    RTStrPrintf(szTmp, sizeof(szTmp), "%s%d", pDevIns->pReg->szName, pDevIns->iInstance);
     PDMDevHlpDBGFInfoRegister(pDevIns, szTmp,
                               pThis->enmCtrlType == LSILOGICCTRLTYPE_SCSI_SPI
                               ? "LsiLogic SPI info."
-                              : "LsiLogic SAS info.", lsilogicR3Info);
+                              : "LsiLogic SAS info.", lsilogicInfo);
 
     /* Perform hard reset. */
-    rc = lsilogicR3HardReset(pThis);
+    rc = lsilogicHardReset(pThis);
     AssertRC(rc);
 
     return rc;
@@ -5619,31 +5297,31 @@ const PDMDEVREG g_DeviceLsiLogicSCSI =
     /* cbInstance */
     sizeof(LSILOGICSCSI),
     /* pfnConstruct */
-    lsilogicR3Construct,
+    lsilogicConstruct,
     /* pfnDestruct */
-    lsilogicR3Destruct,
+    lsilogicDestruct,
     /* pfnRelocate */
-    lsilogicR3Relocate,
-    /* pfnMemSetup */
+    lsilogicRelocate,
+    /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
     NULL,
     /* pfnReset */
-    lsilogicR3Reset,
+    lsilogicReset,
     /* pfnSuspend */
-    lsilogicR3Suspend,
+    lsilogicSuspend,
     /* pfnResume */
-    lsilogicR3Resume,
+    lsilogicResume,
     /* pfnAttach */
-    lsilogicR3Attach,
+    lsilogicAttach,
     /* pfnDetach */
-    lsilogicR3Detach,
+    lsilogicDetach,
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete */
     NULL,
     /* pfnPowerOff */
-    lsilogicR3PowerOff,
+    lsilogicPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */
@@ -5667,8 +5345,7 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     "LSI Logic SAS1068 controller.\n",
     /* fFlags */
     PDM_DEVREG_FLAGS_DEFAULT_BITS | PDM_DEVREG_FLAGS_RC | PDM_DEVREG_FLAGS_R0 |
-    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION |
-    PDM_DEVREG_FLAGS_FIRST_RESET_NOTIFICATION,
+    PDM_DEVREG_FLAGS_FIRST_SUSPEND_NOTIFICATION | PDM_DEVREG_FLAGS_FIRST_POWEROFF_NOTIFICATION,
     /* fClass */
     PDM_DEVREG_CLASS_STORAGE,
     /* cMaxInstances */
@@ -5676,31 +5353,31 @@ const PDMDEVREG g_DeviceLsiLogicSAS =
     /* cbInstance */
     sizeof(LSILOGICSCSI),
     /* pfnConstruct */
-    lsilogicR3Construct,
+    lsilogicConstruct,
     /* pfnDestruct */
-    lsilogicR3Destruct,
+    lsilogicDestruct,
     /* pfnRelocate */
-    lsilogicR3Relocate,
-    /* pfnMemSetup */
+    lsilogicRelocate,
+    /* pfnIOCtl */
     NULL,
     /* pfnPowerOn */
     NULL,
     /* pfnReset */
-    lsilogicR3Reset,
+    lsilogicReset,
     /* pfnSuspend */
-    lsilogicR3Suspend,
+    lsilogicSuspend,
     /* pfnResume */
-    lsilogicR3Resume,
+    lsilogicResume,
     /* pfnAttach */
-    lsilogicR3Attach,
+    lsilogicAttach,
     /* pfnDetach */
-    lsilogicR3Detach,
+    lsilogicDetach,
     /* pfnQueryInterface. */
     NULL,
     /* pfnInitComplete */
     NULL,
     /* pfnPowerOff */
-    lsilogicR3PowerOff,
+    lsilogicPowerOff,
     /* pfnSoftReset */
     NULL,
     /* u32VersionEnd */
