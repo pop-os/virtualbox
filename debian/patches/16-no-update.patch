@@ -7,7 +7,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2013-11-19 03:42:12.725479132 -0500
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2013-11-19 03:42:12.721479132 -0500
-@@ -475,6 +475,8 @@
+@@ -440,6 +440,8 @@
  
  void UIUpdateManager::sltForceCheck()
  {
