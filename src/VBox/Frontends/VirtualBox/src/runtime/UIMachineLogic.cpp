@@ -443,9 +443,27 @@ void UIMachineLogic::sltMachineStateChanged()
             QString strLogFolder = session().GetMachine().GetLogFolder();
             /* Take the screenshot for debugging purposes: */
             takeScreenshot(strLogFolder + "/VBox.png", "png");
-            /* Warn the user about GURU meditation: */
-            if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
-                powerOff(false /* do NOT restore current snapshot */);
+            /* How should we handle Guru Meditation? */
+            switch (uisession()->guruMeditationHandlerType())
+            {
+                /* Ask how to proceed; Power off VM if proposal accepted: */
+                case GuruMeditationHandlerType_Default:
+                {
+                    if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
+                        powerOff(false /* do NOT restore current snapshot */);
+                    break;
+                }
+                /* Power off VM silently: */
+                case GuruMeditationHandlerType_PowerOff:
+                {
+                    powerOff(false /* do NOT restore current snapshot */);
+                    break;
+                }
+                /* Just ignore it: */
+                case GuruMeditationHandlerType_Ignore:
+                default:
+                    break;
+            }
             break;
         }
         case KMachineState_Paused:
@@ -783,7 +801,7 @@ void UIMachineLogic::prepareRequiredFeatures()
 void UIMachineLogic::prepareSessionConnections()
 {
     /* We should check for entering/exiting requested modes: */
-    connect(uisession(), SIGNAL(sigMachineStarted()), this, SLOT(sltCheckForRequestedVisualStateType()));
+    connect(uisession(), SIGNAL(sigStarted()), this, SLOT(sltCheckForRequestedVisualStateType()));
     connect(uisession(), SIGNAL(sigAdditionsStateChange()), this, SLOT(sltCheckForRequestedVisualStateType()));
 
     /* Machine state-change updater: */

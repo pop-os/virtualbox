@@ -29,8 +29,12 @@ SPUDispatchTable cr_unpackDispatch;
 static void crUnpackExtend(void);
 static void crUnpackExtendDbg(void);
 
-/*#define CR_UNPACK_DEBUG_OPCODES*/
-/*#define CR_UNPACK_DEBUG_LAST_OPCODES*/
+static GLenum g_VBoxDbgCrLastOpcode = 0;
+
+#ifdef DEBUG_misha
+//# define CR_UNPACK_DEBUG_OPCODES
+# define CR_UNPACK_DEBUG_LAST_OPCODES
+#endif
 """
 
 nodebug_opcodes = [
@@ -292,6 +296,8 @@ print 'static void crUnpackExtend(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
 print ''
+print '\tg_VBoxDbgCrLastOpcode = extend_opcode;'
+print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'
 print '\t{'
@@ -317,6 +323,8 @@ print """       default:
 print 'static void crUnpackExtendDbg(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
+print ''
+print '\tg_VBoxDbgCrLastOpcode = extend_opcode;'
 print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'

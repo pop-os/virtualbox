@@ -1174,23 +1174,27 @@ static int PortSControl_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32
 #else
     if ((u32Value & AHCI_PORT_SCTL_DET) == AHCI_PORT_SCTL_DET_INIT)
     {
-        bool fAllTasksCanceled;
-
-        /* Cancel all tasks first. */
-        fAllTasksCanceled = ahciCancelActiveTasks(pAhciPort);
-        Assert(fAllTasksCanceled);
-
         if (!ASMAtomicXchgBool(&pAhciPort->fPortReset, true))
             LogRel(("AHCI#%u: Port %d reset\n", ahci->CTX_SUFF(pDevIns)->iInstance,
                     pAhciPort->iLUN));
+
+        /* Make sure the async I/O thread is not working before we start to cancel active requests. */
+        while (   pAhciPort->u32TasksNew
+               || !pAhciPort->fWrkThreadSleeping)
+            RTThreadYield();
+
+        /* Cancel all tasks first. */
+        bool fAllTasksCanceled = ahciCancelActiveTasks(pAhciPort);
+        Assert(fAllTasksCanceled);
 
         pAhciPort->regSSTS = 0;
         pAhciPort->regSIG  = ~0;
         pAhciPort->regTFD  = 0x7f;
         pAhciPort->fFirstD2HFisSend = false;
     }
-    else if ((u32Value & AHCI_PORT_SCTL_DET) == AHCI_PORT_SCTL_DET_NINIT && pAhciPort->pDrvBase &&
-             (pAhciPort->regSCTL & AHCI_PORT_SCTL_DET) == AHCI_PORT_SCTL_DET_INIT)
+    else if (   (u32Value & AHCI_PORT_SCTL_DET) == AHCI_PORT_SCTL_DET_NINIT
+             && (pAhciPort->regSCTL & AHCI_PORT_SCTL_DET) == AHCI_PORT_SCTL_DET_INIT
+             && pAhciPort->pDrvBase)
     {
         if (pAhciPort->pDrvBase)
         {
@@ -1237,7 +1241,7 @@ static int PortSControl_w(PAHCI ahci, PAHCIPort pAhciPort, uint32_t iReg, uint32
                     AssertRC(rc);
                 }
             }
-       }
+        }
     }
 
     pAhciPort->regSCTL = u32Value;
@@ -6533,7 +6537,8 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         }
 
         idx = ASMBitFirstSetU32(u32Tasks);
-        while (idx)
+        while (   idx
+               && !pAhciPort->fPortReset)
         {
             bool fReqCanceled = false;
             AHCITXDIR enmTxDir;
@@ -7691,6 +7696,7 @@ static DECLCALLBACK(void) ahciR3Detach(PPDMDEVINS pDevIns, unsigned iLUN, uint32
             AssertMsgFailed(("%s Failed to destroy async IO thread rc=%Rrc rcThread=%Rrc\n", __FUNCTION__, rc, rcThread));
 
         pAhciPort->pAsyncIOThread = NULL;
+        pAhciPort->fWrkThreadSleeping = true;
     }
 
     if (pAhciPort->fATAPI)
@@ -8232,6 +8238,7 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         pAhciPort->IPort.pfnQueryDeviceLocation         = ahciR3PortQueryDeviceLocation;
         pAhciPort->IMountNotify.pfnMountNotify          = ahciR3MountNotify;
         pAhciPort->IMountNotify.pfnUnmountNotify        = ahciR3UnmountNotify;
+        pAhciPort->fWrkThreadSleeping                   = true;
 
         /*
          * Attach the block driver

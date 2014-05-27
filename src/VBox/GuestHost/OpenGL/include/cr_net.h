@@ -35,6 +35,7 @@
 
 #include <iprt/types.h>
 #include <iprt/thread.h>
+#include <iprt/list.h>
     
 #ifdef __cplusplus
 extern "C" {
@@ -244,6 +245,7 @@ struct CRConnection {
     struct _crclient *pClient; /* back reference, just for simplicity */
     CRVBOXHGSMI_CMDDATA CmdData;
 # endif
+    RTLISTANCHOR PendingMsgList;
 #endif
     /* Used on host side to indicate that we are not allowed to store above pointers for later use
      * in crVBoxHGCMReceiveMessage. As those messages are going to be processed after the corresponding 
@@ -302,6 +304,9 @@ extern DECLEXPORT(int) crNetRecv(
         }                    \
     } while (0)
 
+#endif
+#ifdef IN_GUEST
+extern DECLEXPORT(uint32_t) crNetHostCapsGet();
 #endif
 extern DECLEXPORT(void) crNetDefaultRecv( CRConnection *conn, CRMessage *msg, unsigned int len );
 extern DECLEXPORT(void) crNetDispatchMessage( CRNetReceiveFuncList *rfl, CRConnection *conn, CRMessage *msg, unsigned int len );

@@ -293,6 +293,14 @@ static struct
     { "user",     sizeof("user"    ) - 1,  RTLOGDEST_USER },
 };
 
+/**
+ * Log rotation backoff table, important on Windows host, especially for
+ * VBoxSVC release logging. Only a medium term solution, until a proper fix
+ * for log file handling is available. 10 seconds total.
+ */
+static const uint32_t s_aLogBackoff[] =
+{ 10, 10, 10, 20, 50, 100, 200, 200, 200, 200, 500, 500, 500, 500, 1000, 1000, 1000, 1000, 1000, 1000, 1000 };
+
 
 /**
  * Locks the logger instance.
@@ -2077,24 +2085,27 @@ RTDECL(int) RTLogGetDestinations(PRTLOGGER pLogger, char *pszBuf, size_t cchBuf)
         char szNum[32];
         if (pLogger->pInt->cHistory)
         {
-            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? "history=%u" : " history=%u", pLogger->pInt->cHistory);
+            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? " history=%u" : "history=%u", pLogger->pInt->cHistory);
             rc = RTStrCopyP(&pszBuf, &cchBuf, szNum);
             if (RT_FAILURE(rc))
                 return rc;
+            fNotFirst = true;
         }
         if (pLogger->pInt->cbHistoryFileMax != UINT64_MAX)
         {
-            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? "histsize=%llu" : " histsize=%llu", pLogger->pInt->cbHistoryFileMax);
+            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? " histsize=%llu" : "histsize=%llu", pLogger->pInt->cbHistoryFileMax);
             rc = RTStrCopyP(&pszBuf, &cchBuf, szNum);
             if (RT_FAILURE(rc))
                 return rc;
+            fNotFirst = true;
         }
         if (pLogger->pInt->cSecsHistoryTimeSlot != UINT32_MAX)
         {
-            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? "histtime=%llu" : " histtime=%llu", pLogger->pInt->cSecsHistoryTimeSlot);
+            RTStrPrintf(szNum, sizeof(szNum), fNotFirst ? " histtime=%llu" : "histtime=%llu", pLogger->pInt->cSecsHistoryTimeSlot);
             rc = RTStrCopyP(&pszBuf, &cchBuf, szNum);
             if (RT_FAILURE(rc))
                 return rc;
+            fNotFirst = true;
         }
     }
 # endif /* IN_RING3 */
@@ -2609,7 +2620,7 @@ RT_EXPORT_SYMBOL(RTLogPrintfV);
  */
 static int rtlogFileOpen(PRTLOGGER pLogger, char *pszErrorMsg, size_t cchErrorMsg)
 {
-    uint32_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_WRITE;
+    uint32_t fOpen = RTFILE_O_WRITE | RTFILE_O_DENY_NONE;
     if (pLogger->fFlags & RTLOGFLAGS_APPEND)
         fOpen |= RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND;
     else
@@ -2617,7 +2628,20 @@ static int rtlogFileOpen(PRTLOGGER pLogger, char *pszErrorMsg, size_t cchErrorMs
     if (pLogger->fFlags & RTLOGFLAGS_WRITE_THROUGH)
         fOpen |= RTFILE_O_WRITE_THROUGH;
 
-    int rc = RTFileOpen(&pLogger->pInt->hFile, pLogger->pInt->szFilename, fOpen);
+    int rc;
+    unsigned cBackoff = 0;
+    do
+    {
+        rc = RTFileOpen(&pLogger->pInt->hFile, pLogger->pInt->szFilename, fOpen);
+        if (rc == VERR_SHARING_VIOLATION)
+        {
+            if (cBackoff >= RT_ELEMENTS(s_aLogBackoff))
+                break;
+            RTThreadSleep(s_aLogBackoff[cBackoff]);
+            cBackoff++;
+        }
+    }
+    while (rc == VERR_SHARING_VIOLATION);
     if (RT_FAILURE(rc))
     {
         pLogger->pInt->hFile = NIL_RTFILE;
@@ -2709,8 +2733,24 @@ static void rtlogRotate(PRTLOGGER pLogger, uint32_t uTimeSlot, bool fFirst)
 
             char szNewName[sizeof(pLogger->pInt->szFilename) + 32];
             RTStrPrintf(szNewName, sizeof(szNewName), "%s.%u", pLogger->pInt->szFilename, i + 1);
-            if (   RTFileRename(szOldName, szNewName, RTFILEMOVE_FLAGS_REPLACE)
-                == VERR_FILE_NOT_FOUND)
+
+
+
+            int rc;
+            unsigned cBackoff = 0;
+            do
+            {
+                rc = RTFileRename(szOldName, szNewName, RTFILEMOVE_FLAGS_REPLACE);
+                if (rc == VERR_SHARING_VIOLATION)
+                {
+                    if (cBackoff >= RT_ELEMENTS(s_aLogBackoff))
+                        break;
+                    RTThreadSleep(s_aLogBackoff[cBackoff]);
+                    cBackoff++;
+                }
+            }
+            while (rc == VERR_SHARING_VIOLATION);
+            if (rc == VERR_FILE_NOT_FOUND)
                 RTFileDelete(szNewName);
         }
 

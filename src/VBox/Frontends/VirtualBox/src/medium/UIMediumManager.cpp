@@ -284,7 +284,7 @@ void UIMediumManager::sltHandleMediumCreated(const QString &strMediumID)
 
     /* Ignore mediums (and their children) which are
      * marked as hidden or attached to hidden machines only: */
-    if (isMediumAttachedToHiddenMachinesOnly(medium))
+    if (UIMedium::isMediumAttachedToHiddenMachinesOnly(medium))
         return;
 
     /* Prepare medium-item: */
@@ -419,7 +419,7 @@ void UIMediumManager::sltHandleMediumEnumerated(const QString &strMediumID)
 
     /* Ignore mediums (and their children) which are
      * marked as hidden or attached to hidden machines only: */
-    if (isMediumAttachedToHiddenMachinesOnly(medium))
+    if (UIMedium::isMediumAttachedToHiddenMachinesOnly(medium))
         return;
 
     /* Search for corresponding medium-item: */
@@ -1716,25 +1716,6 @@ QString UIMediumManager::formatPaneText(const QString &strText, bool fCompact /*
                                    strText)
                               .arg(fCompact ? "</compact>" : "");
     return strInfo;
-}
-
-/* static */
-bool UIMediumManager::isMediumAttachedToHiddenMachinesOnly(const UIMedium &medium)
-{
-    /* Iterate till the root: */
-    UIMedium mediumIterator = medium;
-    do
-    {
-        /* Ignore medium if its hidden
-         * or attached to hidden machines only: */
-        if (mediumIterator.isHidden())
-            return true;
-        /* Move iterator to parent: */
-        mediumIterator = mediumIterator.parent();
-    }
-    while (!mediumIterator.isNull());
-    /* False by default: */
-    return false;
 }
 
 #include "UIMediumManager.moc"

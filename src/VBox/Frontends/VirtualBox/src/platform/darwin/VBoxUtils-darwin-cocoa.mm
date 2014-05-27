@@ -197,10 +197,9 @@ void darwinEnableTransienceSupport(NativeNSWindowRef pWindow)
 
 void darwinToggleFullscreenMode(NativeNSWindowRef pWindow)
 {
-    /* Toggle native fullscreen mode for passed pWindow. This method is available since 10.7 only.
-     * To automatically sync this method subsequent calls we performing it on the main (GUI) thread. */
+    /* Toggle native fullscreen mode for passed pWindow. This method is available since 10.7 only. */
     if ([pWindow respondsToSelector: @selector(toggleFullScreen:)])
-        [pWindow performSelectorOnMainThread: @selector(toggleFullScreen:) withObject: (id)nil waitUntilDone :NO];
+        [pWindow performSelector: @selector(toggleFullScreen:) withObject: (id)nil];
 }
 
 bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow)
@@ -217,6 +216,31 @@ bool darwinScreensHaveSeparateSpaces()
         return [NSScreen performSelector: @selector(screensHaveSeparateSpaces)];
     else
         return false;
+}
+
+double darwinBackingScaleFactor(NativeNSWindowRef pWindow)
+{
+    /* If host window responds to 'backingScaleFactor' selector: */
+    if ([pWindow respondsToSelector :@selector(backingScaleFactor)])
+    {
+        /* Default scale-factor still '1': */
+        CGFloat dScaleFactor = 1.0;
+        /* Compose dynamical invocation: */
+        SEL selector = @selector(backingScaleFactor);
+        NSMethodSignature *signature = [pWindow methodSignatureForSelector :selector];
+        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature :signature];
+        /* Configure invocation: */
+        [invocation setTarget :pWindow];
+        [invocation setSelector :selector];
+        /* Call for invocation: */
+        [invocation invoke];
+        /* And acquire invocation result finally: */
+        [invocation getReturnValue :&dScaleFactor];
+        /* Return scale-factor we have: */
+        return dScaleFactor;
+    }
+    /* Default scale-factor is '1': */
+    return 1.0;
 }
 
 void darwinSetDockIconMenu(QMenu* pMenu)

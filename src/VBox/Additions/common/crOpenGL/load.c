@@ -31,7 +31,6 @@
 #include <d3d9types.h>
 #include <D3dumddi.h>
 #include "../../WINNT/Graphics/Video/common/wddm/VBoxMPIf.h"
-#include "../../WINNT/Graphics/Video/disp/wddm/VBoxDispMp.h"
 #endif
 
 /**
@@ -459,11 +458,10 @@ static void stubSPUSafeTearDown(void)
     {
         ASMAtomicWriteBool(&stub.bShutdownSyncThread, true);
         {
-            /*RTThreadWait might return too early, which cause our code being unloaded while RT thread wrapper is still running*/
-            int rc = pthread_join(RTThreadGetNative(stub.hSyncThread), NULL);
-            if (!rc)
+            int rc = RTThreadWait(stub.hSyncThread, RT_INDEFINITE_WAIT, NULL);
+            if (RT_FAILURE(rc))
             {
-                crDebug("pthread_join failed %i", rc);
+                WARN(("RTThreadWait_join failed %i", rc));
             }
         }
     }

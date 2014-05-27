@@ -1,6 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.12 (2014-05-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed an occasional Guru Meditation (Mac OS X hosts only;
+          bugs #12727, #12954)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a rare condition that would fail to invalidate guest TLB
+          entries or would invalidate them when not required (Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed a <emphasis>VERR_NOT_SUPPORTED</emphasis> Guru Meditation
+          seen with certain guests, e.g. OpenServer 5.0.7</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: more fixes for MSR emulation on certain hardware (tickets #12240,
+          #12875)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed mouse positioning with mouse integration disabled and
+          multiple guest screens (Windows hosts only; bug #9059)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed crash in VM manager (bug #12878)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed crash under rare conditions on entering/exiting
+          fullscreen/seamless mode</para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Clipboard: don't stop working after taking a snapshot
+          (bug #12700)</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a crash under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed a hang during VM shutdown under rare conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed generation of malformed ICMP error datagrams (4.3.10 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed potential crash in DNS proxy</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: don't drop port forwarding rules after some time</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed ARP cache corruption and network loss in Windows guest caused
+          by iSCSI service activity</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: improved check if a storage device is currently mounted to the host
+          when the device is about to be attached to the VM (Mac OS X hosts only; #11038)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D support: several fixes, including better support for Ubuntu 14.04</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed a potential crash on client disconnect (bug #12858)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a race when a new client is started a few seconds after
+          the last client terminated (Windows hosts only; bugs #11309, #12509)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed VirtualBox.xml registry corruption after VM renaming</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxSVC: fixed a potential crash caused by incorrect USB device filter
+          (Mac OS X hosts only; #11038)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: partly support 32-bit COM on 64-bit systems</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: implemented merge module (msm) support</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed dependency of boot script on older Debian systems
+          (bug #12262)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: fix symbolic link to shared folder helper
+          (bug #12879)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: don't crash VBoxService during guest execute for
+          users without a password (bug #12994)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed a bug in guest execution where the guest process
+          terminated with <emphasis>VERR_INTERRUPTED</emphasis> to the host</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.10 (2014-03-26)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

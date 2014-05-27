@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions kernel module init script ($Revision: 90030 $)
+# Linux Additions kernel module init script ($Revision: 93574 $)
 #
 
 #
@@ -34,7 +34,7 @@ LOG="/var/log/vboxadd-install.log"
 MODPROBE=/sbin/modprobe
 OLDMODULES="vboxguest vboxadd vboxsf vboxvfs vboxvideo"
 
-if $MODPROBE -c | grep -q '^allow_unsupported_modules  *0'; then
+if $MODPROBE -c 2>/dev/null | grep -q '^allow_unsupported_modules  *0'; then
   MODPROBE="$MODPROBE --allow-unsupported-modules"
 fi
 
@@ -43,17 +43,19 @@ cpu=`uname -m`;
 case "$cpu" in
   i[3456789]86|x86)
     cpu="x86"
-    lib_path="/usr/lib"
+    lib_candidates="/usr/lib/i386-linux-gnu /usr/lib /lib"
     ;;
   x86_64|amd64)
     cpu="amd64"
-    if test -d "/usr/lib64"; then
-      lib_path="/usr/lib64"
-    else
-      lib_path="/usr/lib"
-    fi
+    lib_candidates="/usr/lib/x86_64-linux-gnu /usr/lib64 /usr/lib /lib64 /lib"
     ;;
 esac
+for i in $lib_candidates; do
+  if test -d "$i/VBoxGuestAdditions"; then
+    lib_path=$i
+    break
+  fi
+done
 
 if [ -f /etc/arch-release ]; then
     system=arch

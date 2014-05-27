@@ -119,6 +119,10 @@ namespace UIDefs
     extern const char* GUI_HideDetails;
 
     /* Machine-window declarations: */
+#ifndef Q_WS_MAC
+    extern const char* GUI_MachineWindowIcons;
+    extern const char* GUI_MachineWindowNamePostfix;
+#endif /* !Q_WS_MAC */
     extern const char* GUI_RestrictedRuntimeMenus;
 #ifdef Q_WS_MAC
     extern const char* GUI_RestrictedRuntimeApplicationMenuActions;
@@ -148,6 +152,8 @@ namespace UIDefs
     extern const char* GUI_DefaultCloseAction;
     extern const char* GUI_RestrictedStatusBarIndicators;
     extern const char* GUI_HidLedsSync;
+    extern const char* GUI_GuruMeditationHandler;
+    extern const char* GUI_HiDPIOptimization;
 
     /* Settings dialogs stuff: */
     extern const char* GUI_RestrictedGlobalSettingsPages;
@@ -468,6 +474,21 @@ enum MachineCloseAction
     MachineCloseAction_All                        = 0xFF
 };
 Q_DECLARE_METATYPE(MachineCloseAction);
+
+/** Guru Meditation handler types. */
+enum GuruMeditationHandlerType
+{
+    GuruMeditationHandlerType_Default,
+    GuruMeditationHandlerType_PowerOff,
+    GuruMeditationHandlerType_Ignore
+};
+
+/** Runtime UI: HiDPI optimization types. */
+enum HiDPIOptimizationType
+{
+    HiDPIOptimizationType_None,
+    HiDPIOptimizationType_Performance
+};
 
 #endif /* !___UIDefs_h___ */
 

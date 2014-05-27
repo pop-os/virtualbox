@@ -185,13 +185,11 @@ static RenderMode vboxGetRenderMode (const char *aModeStr)
 {
     RenderMode mode = InvalidRenderMode;
 
-#if defined(Q_WS_MAC) && defined(VBOX_GUI_USE_QUARTZ2D)
-    mode = Quartz2DMode;
-#elif defined(VBOX_GUI_USE_QIMAGE)
+#ifdef VBOX_GUI_USE_QIMAGE
     mode = QImageMode;
-#else
+#else /* !VBOX_GUI_USE_QIMAGE */
 # error "Cannot determine the default render mode!"
-#endif
+#endif /* !VBOX_GUI_USE_QIMAGE */
 
     if (aModeStr)
     {
@@ -3768,6 +3766,35 @@ QList<MachineSettingsPageType> VBoxGlobal::restrictedMachineSettingsPages(CMachi
     }
     /* Return result: */
     return result;
+}
+
+#ifndef Q_WS_MAC
+/* static */
+QStringList VBoxGlobal::machineWindowIconNames(CMachine &machine)
+{
+    /* Return result: */
+    return machine.GetExtraDataStringList(GUI_MachineWindowIcons);
+}
+
+/* static */
+QString VBoxGlobal::machineWindowNamePostfix(CMachine &machine)
+{
+    return machine.GetExtraData(GUI_MachineWindowNamePostfix);
+}
+#endif /* !Q_WS_MAC */
+
+/* static */
+GuruMeditationHandlerType VBoxGlobal::guruMeditationHandlerType(CMachine &machine)
+{
+    /* Return result: */
+    return gpConverter->fromInternalString<GuruMeditationHandlerType>(machine.GetExtraData(GUI_GuruMeditationHandler));
+}
+
+/* static */
+HiDPIOptimizationType VBoxGlobal::hiDPIOptimizationType(CMachine &machine)
+{
+    /* Return result: */
+    return gpConverter->fromInternalString<HiDPIOptimizationType>(machine.GetExtraData(GUI_HiDPIOptimization));
 }
 
 #ifdef RT_OS_LINUX

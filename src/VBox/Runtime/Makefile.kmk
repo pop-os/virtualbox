@@ -1427,6 +1427,7 @@ endif # linux
 #
 VBoxRT-x86_EXTENDS = VBoxRT
 VBoxRT-x86_TEMPLATE = VBoxR3Dll-x86
+VBoxRT-x86_INST.win = $(INST_DLL)x86/
 VBoxRT-x86_SDKS  = VBOX_LIBXML2
 ifdef VBOX_WITH_LIBCURL
  VBoxRT-x86_SDKS += VBOX_LIBCURL-x86
@@ -2506,7 +2507,7 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 		'd'
 # Find the best way to generate a symbol list and subject it to mangling.h.
   if $(intersects $(KBUILD_TARGET), linux) && "$(VBOX_GCC_fvisibility-hidden)"
-	$(call MSG_L1,IPRT: Testing mangling and visiblity...)
+	$(call MSG_L1,IPRT: Testing mangling and visiblity for newer gcc...)
 	@readelf -Ws $^ \
 		| $(SED) \
 			-e '/^  *[[:digit:]]\+:/!d' \
@@ -2555,9 +2556,9 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e '/^VBoxHost_/d'\
 			-e '/^VBoxGuest_/d'\
 		| $(SED) -nf "$@"
-  else
-	$(call MSG_L1,IPRT: Testing mangling...)
-	nm $^ 	| $(SED) -n \
+  endif
+	$(call MSG_L1,IPRT: Testing mangling for older gcc...)
+	@nm $^ 	| $(SED) -n \
 			-e 's/^[0-9a-f][0-9a-f]* //' \
 			-e '/^[TUDB] /!d' \
 			-e 's/^. //' \
@@ -2578,7 +2579,6 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e '/^RT/p' \
 			-e '/^g_/p' \
 		| $(SED) -nf "$@"
-  endif
  endif
 endif
 	$(QUIET)$(APPEND) -t $@
