@@ -207,13 +207,10 @@ void UIFrameBufferQImage::paintDefault(QPaintEvent *pEvent)
     /* Create painter: */
     QPainter painter(m_pMachineView->viewport());
 
-    /* Draw image rectangle depending on rectangle width: */
-    if ((ulong)paintRect.width() < m_width * 2 / 3)
-        drawImageRectNarrow(painter, m_img,
-                            paintRect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
-    else
-        drawImageRectWide(painter, m_img,
-                          paintRect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
+    /* Draw image rectangle: */
+    drawImageRect(painter, m_img, paintRect,
+                  m_pMachineView->contentsX(), m_pMachineView->contentsY(),
+                  hiDPIOptimizationType(), backingScaleFactor());
 }
 
 void UIFrameBufferQImage::paintSeamless(QPaintEvent *pEvent)
@@ -258,13 +255,10 @@ void UIFrameBufferQImage::paintSeamless(QPaintEvent *pEvent)
             painter.setCompositionMode(QPainter::CompositionMode_SourceAtop);
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
 
-            /* Draw image rectangle depending on rectangle width: */
-            if ((ulong)rect.width() < m_width * 2 / 3)
-                drawImageRectNarrow(painter, m_img,
-                                    rect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
-            else
-                drawImageRectWide(painter, m_img,
-                                  rect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
+            /* Draw image rectangle: */
+            drawImageRect(painter, m_img, rect,
+                          m_pMachineView->contentsX(), m_pMachineView->contentsY(),
+                          hiDPIOptimizationType(), backingScaleFactor());
         }
     }
 }
@@ -293,35 +287,75 @@ void UIFrameBufferQImage::paintScale(QPaintEvent *pEvent)
     /* Create painter: */
     QPainter painter(m_pMachineView->viewport());
 
-    /* Draw image rectangle depending on rectangle width: */
-    if ((ulong)paintRect.width() < m_width * 2 / 3)
-        drawImageRectNarrow(painter, sourceImage,
-                            paintRect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
-    else
-        drawImageRectWide(painter, sourceImage,
-                          paintRect, m_pMachineView->contentsX(), m_pMachineView->contentsY());
+    /* Draw image rectangle: */
+    drawImageRect(painter, sourceImage, paintRect,
+                  m_pMachineView->contentsX(), m_pMachineView->contentsY(),
+                  hiDPIOptimizationType(), backingScaleFactor());
 }
 
 /* static */
-void UIFrameBufferQImage::drawImageRectNarrow(QPainter &painter, const QImage &image,
-                                              const QRect &rect, int iContentsShiftX, int iContentsShiftY)
+void UIFrameBufferQImage::drawImageRect(QPainter &painter, const QImage &image, const QRect &rect,
+                                        int iContentsShiftX, int iContentsShiftY,
+                                        HiDPIOptimizationType hiDPIOptimizationType,
+                                        double dBackingScaleFactor)
 {
-    /* This method is faster for narrow updates: */
-    QPixmap pm = QPixmap::fromImage(image.copy(rect.x() + iContentsShiftX,
-                                               rect.y() + iContentsShiftY,
-                                               rect.width(), rect.height()));
-    painter.drawPixmap(rect.x(), rect.y(), pm);
-}
+    /* Calculate offset: */
+    size_t offset = (rect.x() + iContentsShiftX) * image.depth() / 8 +
+                    (rect.y() + iContentsShiftY) * image.bytesPerLine();
 
-/* static */
-void UIFrameBufferQImage::drawImageRectWide(QPainter &painter, const QImage &image,
-                                            const QRect &rect, int iContentsShiftX, int iContentsShiftY)
-{
-    /* This method is faster for wide updates: */
-    QPixmap pm = QPixmap::fromImage(QImage(image.scanLine(rect.y() + iContentsShiftY),
-                                           image.width(), rect.height(), image.bytesPerLine(),
-                                           QImage::Format_RGB32));
-    painter.drawPixmap(rect.x(), rect.y(), pm, rect.x() + iContentsShiftX, 0, 0, 0);
+    /* Create sub-image (no copy involved): */
+    QImage subImage = QImage(image.bits() + offset,
+                             rect.width(), rect.height(),
+                             image.bytesPerLine(), image.format());
+
+#ifndef QIMAGE_FRAMEBUFFER_WITH_DIRECT_OUTPUT
+    /* Create sub-pixmap on the basis of sub-image above (1st copy involved): */
+    QPixmap subPixmap = QPixmap::fromImage(subImage);
+
+    /* If HiDPI 'backing scale factor' defined: */
+    if (dBackingScaleFactor > 1.0)
+    {
+        /* Should we optimize HiDPI output for performance? */
+        if (hiDPIOptimizationType == HiDPIOptimizationType_Performance)
+        {
+            /* Fast scale sub-pixmap (2nd copy involved): */
+            subPixmap = subPixmap.scaled(subPixmap.size() * dBackingScaleFactor,
+                                         Qt::IgnoreAspectRatio, Qt::FastTransformation);
+# ifdef Q_WS_MAC
+#  ifdef VBOX_GUI_WITH_HIDPI
+            /* Mark sub-pixmap as HiDPI: */
+            subPixmap.setDevicePixelRatio(dBackingScaleFactor);
+#  endif /* VBOX_GUI_WITH_HIDPI */
+# endif /* Q_WS_MAC */
+        }
+    }
+
+    /* Draw sub-pixmap: */
+    painter.drawPixmap(rect.x(), rect.y(), subPixmap);
+#else /* QIMAGE_FRAMEBUFFER_WITH_DIRECT_OUTPUT */
+    /* If HiDPI 'backing scale factor' defined: */
+    if (dBackingScaleFactor > 1.0)
+    {
+        /* Should we optimize HiDPI output for performance? */
+        if (hiDPIOptimizationType == HiDPIOptimizationType_Performance)
+        {
+            /* Create fast-scaled-sub-image (1st copy involved): */
+            QImage scaledSubImage = subImage.scaled(subImage.size() * dBackingScaleFactor,
+                                                    Qt::IgnoreAspectRatio, Qt::FastTransformation);
+# ifdef Q_WS_MAC
+#  ifdef VBOX_GUI_WITH_HIDPI
+            /* Mark sub-pixmap as HiDPI: */
+            scaledSubImage.setDevicePixelRatio(dBackingScaleFactor);
+#  endif /* VBOX_GUI_WITH_HIDPI */
+# endif /* Q_WS_MAC */
+            /* Directly draw scaled-sub-image: */
+            painter.drawImage(rect.x(), rect.y(), scaledSubImage);
+            return;
+        }
+    }
+    /* Directly draw sub-image: */
+    painter.drawImage(rect.x(), rect.y(), subImage);
+#endif /* QIMAGE_FRAMEBUFFER_WITH_DIRECT_OUTPUT */
 }
 
 void UIFrameBufferQImage::goFallback()

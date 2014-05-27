@@ -48,6 +48,8 @@ UIFrameBuffer::UIFrameBuffer(UIMachineView *pMachineView)
 #ifdef Q_OS_WIN
     , m_iRefCnt(0)
 #endif /* Q_OS_WIN */
+    , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
+    , m_dBackingScaleFactor(1.0)
 {
     /* Assign mahine-view: */
     AssertMsg(m_pMachineView, ("UIMachineView must not be NULL\n"));
@@ -569,6 +571,26 @@ void UIFrameBuffer::setView(UIMachineView * pView)
     /* Connect handlers: */
     if (m_pMachineView)
         prepareConnections();
+}
+
+void UIFrameBuffer::setHiDPIOptimizationType(HiDPIOptimizationType optimizationType)
+{
+    /* Make sure 'HiDPI optimization type' changed: */
+    if (m_hiDPIOptimizationType == optimizationType)
+        return;
+
+    /* Update 'HiDPI optimization type': */
+    m_hiDPIOptimizationType = optimizationType;
+}
+
+void UIFrameBuffer::setBackingScaleFactor(double dBackingScaleFactor)
+{
+    /* Make sure 'backing scale factor' changed: */
+    if (m_dBackingScaleFactor == dBackingScaleFactor)
+        return;
+
+    /* Update 'backing scale factor': */
+    m_dBackingScaleFactor = dBackingScaleFactor;
 }
 
 void UIFrameBuffer::prepareConnections()

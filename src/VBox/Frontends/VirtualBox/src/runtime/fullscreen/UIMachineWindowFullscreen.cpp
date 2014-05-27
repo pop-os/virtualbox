@@ -91,6 +91,15 @@ void UIMachineWindowFullscreen::handleNativeNotification(const QString &strNativ
                 "Native fullscreen mode exited, notifying listener...\n"));
         emit sigNotifyAboutNativeFullscreenDidExit();
     }
+    /* Handle 'NSWindowDidFailToEnterFullScreenNotification' notification: */
+    else if (strNativeNotificationName == "NSWindowDidFailToEnterFullScreenNotification")
+    {
+        /* Mark window transition complete: */
+        m_fIsInFullscreenTransition = false;
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode fail to enter, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenFailToEnter();
+    }
 }
 #endif /* Q_WS_MAC */
 
@@ -216,6 +225,8 @@ void UIMachineWindowFullscreen::prepareVisualState()
                                                                      UIMachineWindow::handleNativeNotification);
         UICocoaApplication::instance()->registerToNativeNotification("NSWindowDidExitFullScreenNotification", this,
                                                                      UIMachineWindow::handleNativeNotification);
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowDidFailToEnterFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
     }
 #endif /* Q_WS_MAC */
 }
@@ -280,6 +291,7 @@ void UIMachineWindowFullscreen::cleanupVisualState()
         UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidEnterFullScreenNotification", this);
         UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowWillExitFullScreenNotification", this);
         UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidExitFullScreenNotification", this);
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidFailToEnterFullScreenNotification", this);
     }
 #endif /* Q_WS_MAC */
 
@@ -325,8 +337,6 @@ void UIMachineWindowFullscreen::placeOnScreen()
     /* Move mini-toolbar into appropriate place: */
     if (m_pMiniToolBar)
         m_pMiniToolBar->adjustGeometry();
-    /* Process pending move & resize events: */
-    qApp->processEvents();
 }
 
 void UIMachineWindowFullscreen::showInNecessaryMode()

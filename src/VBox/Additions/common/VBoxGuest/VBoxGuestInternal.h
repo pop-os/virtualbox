@@ -157,9 +157,6 @@ typedef struct VBOXGUESTDEVEXT
 
     /** Spinlock various items in the VBOXGUESTSESSION. */
     RTSPINLOCK                  SessionSpinlock;
-#ifdef VBOX_WITH_VRDP_SESSION_HANDLING
-    bool                        fVRDPEnabled;
-#endif
     /** Flag indicating whether logging to the release log
      *  is enabled. */
     bool                        fLoggingEnabled;

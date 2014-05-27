@@ -10172,7 +10172,7 @@ HRESULT Machine::prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
             // store the old and new so that VirtualBox::saveSettings() can update
             // the media registry
             if (    mData->mRegistered
-                 && configDir != newConfigDir)
+                 && (configDir != newConfigDir || configFile != newConfigFile))
             {
                 mParent->rememberMachineNameChangeForMedia(configDir, newConfigDir);
 

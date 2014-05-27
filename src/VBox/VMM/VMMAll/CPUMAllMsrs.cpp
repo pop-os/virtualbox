@@ -199,12 +199,16 @@ static DECLCALLBACK(int) cpumMsrRd_Ia32PlatformId(PVMCPU pVCpu, uint32_t idMsr, 
 static DECLCALLBACK(int) cpumMsrRd_Ia32ApicBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
+#if 0 /** @todo Sort this one out properly.  Evidence from ticks 12240 and 12875 suggest the apic base is still readable even
+       * after the apic has been diabled.  That makes common sense too.  What we need to do here, though, is check whether
+       * there is an APIC device associated with the VM, and GP if there isn't.  But that's for later. */
     if (   !pVM->cpum.s.GuestFeatures.fApic
         && !pVM->cpum.s.GuestFeatures.fX2Apic)
     {
         Log(("CPUM: %s, apic not present -> GP\n", pRange->szName));
         return VERR_CPUM_RAISE_GP_0;
     }
+#endif
 
     *puValue = pVCpu->cpum.s.Guest.msrApicBase;
     return VINF_SUCCESS;
@@ -563,7 +567,11 @@ static DECLCALLBACK(int) cpumMsrWr_Ia32SysEnterEip(PVMCPU pVCpu, uint32_t idMsr,
         pVCpu->cpum.s.Guest.SysEnter.eip = uValue;
         return VINF_SUCCESS;
     }
+#ifdef IN_RING3
+    LogRel(("CPUM: IA32_SYSENTER_EIP not canonical! %#llx\n", uValue));
+#else
     Log(("CPUM: IA32_SYSENTER_EIP not canonical! %#llx\n", uValue));
+#endif
     return VERR_CPUM_RAISE_GP_0;
 }
 

@@ -76,6 +76,7 @@ void crUnpackExtendShaderSource(void)
     }
 
 //    cr_unpackDispatch.ShaderSource(shader, count, ppStrings, length ? length : pLocalLength);
+
     cr_unpackDispatch.ShaderSource(shader, 1, ppStrings, 0);
 
     crFree(ppStrings);
@@ -334,4 +335,13 @@ void crUnpackExtendGetUniformsLocations(void)
 	SET_RETURN_PTR(16);
 	SET_WRITEBACK_PTR(24);
 	cr_unpackDispatch.GetUniformsLocations(program, maxcbData, NULL, NULL);
+}
+
+void crUnpackExtendGetAttribsLocations(void)
+{
+    GLuint program = READ_DATA(8, GLuint);
+    GLsizei maxcbData = READ_DATA(12, GLsizei);
+    SET_RETURN_PTR(16);
+    SET_WRITEBACK_PTR(24);
+    cr_unpackDispatch.GetAttribsLocations(program, maxcbData, NULL, NULL);
 }

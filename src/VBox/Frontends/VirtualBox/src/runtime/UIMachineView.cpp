@@ -437,6 +437,7 @@ void UIMachineView::prepareFrameBuffer()
 # else /* VBOX_WITH_VIDEOHWACCEL */
                 pFrameBuffer = new UIFrameBufferQImage(this);
 # endif /* !VBOX_WITH_VIDEOHWACCEL */
+                pFrameBuffer->setHiDPIOptimizationType(uisession()->hiDPIOptimizationType());
                 uisession()->setFrameBuffer(screenId(), pFrameBuffer);
             }
             m_pFrameBuffer = pFrameBuffer;
@@ -1033,6 +1034,15 @@ bool UIMachineView::eventFilter(QObject *pWatched, QEvent *pEvent)
                 }
                 break;
             }
+#ifdef Q_WS_MAC
+            case QEvent::Move:
+            {
+                /* Update backing scale factor for underlying frame-buffer: */
+                if (m_pFrameBuffer)
+                    m_pFrameBuffer->setBackingScaleFactor(darwinBackingScaleFactor(machineWindow()));
+                break;
+            }
+#endif /* Q_WS_MAC */
             default:
                 break;
         }

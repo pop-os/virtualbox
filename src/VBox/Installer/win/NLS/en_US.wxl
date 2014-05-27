@@ -1,10 +1,10 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<WixLocalization xmlns="http://schemas.microsoft.com/wix/2003/11/localization" Codepage="1252" Culture="en_US">
+<WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1252" Culture="en_US">
 
     <!--
             Language Definition Include for VirtualBox WiX script.
 
-            Copyright (C) 2011-2012 Oracle Corporation
+            Copyright (C) 2011-2014 Oracle Corporation
 
             This file is part of VirtualBox Open Source Edition (OSE), as
             available from http://www.virtualbox.org. This file is free software;

@@ -206,7 +206,7 @@ VBOX_VERSION_MINOR = 3
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 10
+VBOX_VERSION_BUILD = 12
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -539,6 +539,8 @@ VBOX_WITH_QTGUI = 1
 ifeq ($(KBUILD_TARGET),darwin)
  VBOX_WITH_COCOA_QT = 1
 endif
+# HiDPI support for OS X
+VBOX_GUI_WITH_HIDPI = 1
 # The SDL based GUI.
 VBOX_WITH_VBOXSDL = 1
 # Build VBoxSDL with secure label support.
@@ -1054,6 +1056,7 @@ ifdef VBOX_OSE
  if1of ($(KBUILD_TARGET), win)
   VBOX_WITH_VPX=
  endif
+ VBOX_GUI_WITH_HIDPI=
  # branding
  VBOX_BRAND_LICENSE_HTML       := $(PATH_ROOT)/doc/License-gpl-2.0.html
  VBOX_BRAND_LICENSE_RTF        := $(PATH_ROOT)/doc/License-gpl-2.0.rtf
@@ -4626,8 +4629,6 @@ ifdef VBOX_WITH_QTGUI
 
   TEMPLATE_VBOXQT4GUIEXE_DEFS.solaris = _REENTRANT
 
-  TEMPLATE_VBOXQT4GUIEXE_INCS += \
-	$(LIB_SDL_INC)
   ## @todo Use VBOX_GCC_PEDANTIC_CXX?
   TEMPLATE_VBOXQT4GUIEXE_CXXFLAGS = \
 	-g $(VBOX_GCC_pipe) $(filter-out -Wno-unused,$(VBOX_GCC_WARN)) -frtti -fno-exceptions -Wno-non-virtual-dtor \
@@ -5528,7 +5529,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 93012 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 93733 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

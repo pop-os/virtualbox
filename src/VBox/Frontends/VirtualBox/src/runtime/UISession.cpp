@@ -129,6 +129,11 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_pMenuPool(0)
     , m_machineStatePrevious(KMachineState_Null)
     , m_machineState(session().GetMachine().GetState())
+#ifndef Q_WS_MAC
+    , m_pMachineWindowIcon(0)
+#endif /* !Q_WS_MAC */
+    , m_guruMeditationHandlerType(GuruMeditationHandlerType_Default)
+    , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
     , m_fIsExtensionPackUsable(false)
     , m_requestedVisualStateType(UIVisualStateType_Invalid)
 #ifdef Q_WS_WIN
@@ -142,6 +147,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_fAllCloseActionsRestricted(false)
     , m_fSnapshotOperationsAllowed(true)
     /* Common flags: */
+    , m_fIsStarted(false)
     , m_fIsFirstTimeStarted(false)
     , m_fIsIgnoreRuntimeMediumsChanging(false)
     , m_fIsGuestResizeIgnored(false)
@@ -364,7 +370,7 @@ void UISession::powerUp()
 #endif
 
     /* Warn listeners about machine was started: */
-    emit sigMachineStarted();
+    emit sigStarted();
 }
 
 bool UISession::saveState()
@@ -1011,6 +1017,7 @@ void UISession::prepareConsoleEventHandlers()
 
 void UISession::prepareConnections()
 {
+    connect(this, SIGNAL(sigStarted()), this, SLOT(sltMarkStarted()));
     connect(this, SIGNAL(sigCloseRuntimeUI()), this, SLOT(sltCloseRuntimeUI()));
 
 #ifdef Q_WS_MAC
@@ -1116,6 +1123,25 @@ void UISession::loadSessionSettings()
         /* Temporary: */
         QString strSettings;
 
+#ifndef Q_WS_MAC
+        /* Load/prepare user's machine-window icon: */
+        QIcon icon;
+        foreach (const QString &strIconName, VBoxGlobal::machineWindowIconNames(machine))
+            if (!strIconName.isEmpty())
+                icon.addFile(strIconName);
+        if (!icon.isNull())
+            m_pMachineWindowIcon = new QIcon(icon);
+
+        /* Load user's machine-window name postfix: */
+        m_strMachineWindowNamePostfix = VBoxGlobal::machineWindowNamePostfix(machine);
+#endif /* !Q_WS_MAC */
+
+        /* Determine Guru Meditation handler type: */
+        m_guruMeditationHandlerType = VBoxGlobal::guruMeditationHandlerType(machine);
+
+        /* Determine HiDPI optimization type: */
+        m_hiDPIOptimizationType = VBoxGlobal::hiDPIOptimizationType(machine);
+
         /* Is there should be First RUN Wizard? */
         strSettings = machine.GetExtraData(GUI_FirstRun);
         if (strSettings == "yes")
@@ -1178,6 +1204,12 @@ void UISession::saveSessionSettings()
         SystemParametersInfo(SPI_SETSCREENSAVEACTIVE, true, 0, 0);
 # endif /* Q_WS_WIN */
 #endif
+
+#ifndef Q_WS_MAC
+        /* Cleanup user's machine-window icon: */
+        delete m_pMachineWindowIcon;
+        m_pMachineWindowIcon = 0;
+#endif /* !Q_WS_MAC */
     }
 }
 

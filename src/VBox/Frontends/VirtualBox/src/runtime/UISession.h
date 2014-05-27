@@ -40,6 +40,9 @@ class CSession;
 class CUSBDevice;
 class CNetworkAdapter;
 class CMediumAttachment;
+#ifndef Q_WS_MAC
+class QIcon;
+#endif /* !Q_WS_MAC */
 
 /* CConsole callback event types: */
 enum UIConsoleEventType
@@ -92,6 +95,24 @@ public:
     QMenu* newMenu(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QMenuBar* newMenuBar(RuntimeMenuType fOptions = RuntimeMenuType_All);
     QCursor cursor() const { return m_cursor; }
+
+#ifndef Q_WS_MAC
+    /** @name Branding stuff.
+     ** @{ */
+    /** Returns redefined machine-window icon. */
+    QIcon* machineWindowIcon() const { return m_pMachineWindowIcon; }
+    /** Returns redefined machine-window name postfix. */
+    QString machineWindowNamePostfix() const { return m_strMachineWindowNamePostfix; }
+    /** @} */
+#endif /* !Q_WS_MAC */
+
+    /** @name Runtime workflow stuff.
+     ** @{ */
+    /** Returns Guru Meditation handler type. */
+    GuruMeditationHandlerType guruMeditationHandlerType() const { return m_guruMeditationHandlerType; }
+    /** Returns HiDPI optimization type. */
+    HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
+    /** @} */
 
     /** @name Extension Pack stuff.
      ** @{ */
@@ -159,6 +180,7 @@ public:
     bool isStuck() const { return machineState() == KMachineState_Stuck; }
     bool wasPaused() const { return machineStatePrevious() == KMachineState_Paused ||
                                     machineStatePrevious() == KMachineState_TeleportingPausedVM; }
+    bool isStarted() const { return m_fIsStarted; }
     bool isFirstTimeStarted() const { return m_fIsFirstTimeStarted; }
     bool isIgnoreRuntimeMediumsChanging() const { return m_fIsIgnoreRuntimeMediumsChanging; }
     bool isGuestResizeIgnored() const { return m_fIsGuestResizeIgnored; }
@@ -247,13 +269,16 @@ signals:
     void sigHostScreenGeometryChanged();
 
     /* Session signals: */
-    void sigMachineStarted();
+    void sigStarted();
 
 public slots:
 
     void sltInstallGuestAdditionsFrom(const QString &strSource);
 
 private slots:
+
+    /** Marks machine started. */
+    void sltMarkStarted() { m_fIsStarted = true; }
 
     /* Handler: Close Runtime UI stuff: */
     void sltCloseRuntimeUI();
@@ -329,6 +354,24 @@ private:
     KMachineState m_machineState;
     QCursor m_cursor;
 
+#ifndef Q_WS_MAC
+    /** @name Branding variables.
+     ** @{ */
+    /** Holds redefined machine-window icon. */
+    QIcon *m_pMachineWindowIcon;
+    /** Holds redefined machine-window name postfix. */
+    QString m_strMachineWindowNamePostfix;
+    /** @} */
+#endif /* !Q_WS_MAC */
+
+    /** @name Runtime workflow variables.
+     ** @{ */
+    /** Holds Guru Meditation handler type. */
+    GuruMeditationHandlerType m_guruMeditationHandlerType;
+    /** Holds HiDPI optimization type. */
+    HiDPIOptimizationType m_hiDPIOptimizationType;
+    /** @} */
+
     /** @name Extension Pack variables.
      ** @{ */
     /** Determines whether extension pack installed and usable. */
@@ -392,6 +435,7 @@ private:
     /** @} */
 
     /* Common flags: */
+    bool m_fIsStarted : 1;
     bool m_fIsFirstTimeStarted : 1;
     bool m_fIsIgnoreRuntimeMediumsChanging : 1;
     bool m_fIsGuestResizeIgnored : 1;

@@ -671,11 +671,16 @@ RTDECL(int) RTStrReallocTag(char **ppsz, size_t cbNew, const char *pszTag);
  */
 RTDECL(int) RTStrValidateEncoding(const char *psz);
 
-/** @name Flags for RTStrValidateEncodingEx
+/** @name Flags for RTStrValidateEncodingEx and RTUtf16ValidateEncodingEx
  */
 /** Check that the string is zero terminated within the given size.
  * VERR_BUFFER_OVERFLOW will be returned if the check fails. */
 #define RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED     RT_BIT_32(0)
+/** Check that the string is exactly the given length.
+ * If it terminates early, VERR_BUFFER_UNDERFLOW will be returned.  When used
+ * together with RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED, the given length must
+ * include the terminator or VERR_BUFFER_OVERFLOW will be returned. */
+#define RTSTR_VALIDATE_ENCODING_EXACT_LENGTH        RT_BIT_32(1)
 /** @} */
 
 /**
@@ -683,8 +688,9 @@ RTDECL(int) RTStrValidateEncoding(const char *psz);
  *
  * @returns iprt status code.
  * @param   psz         The string.
- * @param   cch         The max string length. Use RTSTR_MAX to process the entire string.
- * @param   fFlags      Reserved for future. Pass 0.
+ * @param   cch         The max string length (/ size).  Use RTSTR_MAX to
+ *                      process the entire string.
+ * @param   fFlags      Combination of RTSTR_VALIDATE_ENCODING_XXX flags.
  */
 RTDECL(int) RTStrValidateEncodingEx(const char *psz, size_t cch, uint32_t fFlags);
 
@@ -3343,6 +3349,33 @@ RTDECL(PRTUTF16) RTUtf16ToLower(PRTUTF16 pwsz);
  * @param   pwsz        The string to fold.
  */
 RTDECL(PRTUTF16) RTUtf16ToUpper(PRTUTF16 pwsz);
+
+/**
+ * Validates the UTF-16 encoding of the string.
+ *
+ * @returns iprt status code.
+ * @param   pwsz        The string.
+ */
+RTDECL(int) RTUtf16ValidateEncoding(PCRTUTF16 pwsz);
+
+/**
+ * Validates the UTF-16 encoding of the string.
+ *
+ * @returns iprt status code.
+ * @param   pwsz        The string.
+ * @param   cwc         The max string length (/ size) in UTF-16 units. Use
+ *                      RTSTR_MAX to process the entire string.
+ * @param   fFlags      Combination of RTSTR_VALIDATE_ENCODING_XXX flags.
+ */
+RTDECL(int) RTUtf16ValidateEncodingEx(PCRTUTF16 pwsz, size_t cwc, uint32_t fFlags);
+
+/**
+ * Checks if the UTF-16 encoding is valid.
+ *
+ * @returns true / false.
+ * @param   pwsz        The string.
+ */
+RTDECL(bool) RTUtf16IsValidEncoding(PCRTUTF16 pwsz);
 
 /**
  * Sanitise a (valid) UTF-16 string by replacing all characters outside a white
