@@ -50,6 +50,10 @@ const char* UIDefs::GUI_PreventSnapshotOperations = "GUI/PreventSnapshotOperatio
 const char* UIDefs::GUI_HideDetails = "GUI/HideDetails";
 
 /* Machine-window definitions: */
+#ifndef Q_WS_MAC
+const char* UIDefs::GUI_MachineWindowIcons = "GUI/MachineWindowIcons";
+const char* UIDefs::GUI_MachineWindowNamePostfix = "GUI/MachineWindowNamePostfix";
+#endif /* !Q_WS_MAC */
 const char* UIDefs::GUI_RestrictedRuntimeMenus = "GUI/RestrictedRuntimeMenus";
 #ifdef Q_WS_MAC
 const char* UIDefs::GUI_RestrictedRuntimeApplicationMenuActions = "GUI/RestrictedRuntimeApplicationMenuActions";
@@ -79,6 +83,8 @@ const char* UIDefs::GUI_PassCAD = "GUI/PassCAD";
 const char* UIDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
 const char* UIDefs::GUI_RestrictedStatusBarIndicators = "GUI/RestrictedStatusBarIndicators";
 const char* UIDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
+const char* UIDefs::GUI_GuruMeditationHandler = "GUI/GuruMeditationHandler";
+const char* UIDefs::GUI_HiDPIOptimization = "GUI/HiDPI/Optimization";
 
 /* Settings dialogs stuff: */
 const char* UIDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";

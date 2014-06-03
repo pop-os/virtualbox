@@ -173,13 +173,18 @@ UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
     , m_pRightSpacer(0)
 {
 #ifndef Q_WS_MAC
-    /* On Mac OS X application icon referenced in info.plist is used. */
+    /* On Mac OS X window icon referenced in info.plist is used. */
 
-    /* Set default application icon (will be changed to VM-specific icon little bit later): */
+    /* Set default window icon (will be changed to VM-specific icon little bit later): */
     setWindowIcon(QIcon(":/VirtualBox_48px.png"));
 
-    /* Set VM-specific application icon: */
-    setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId()));
+    /* Set redefined machine-window icon if any: */
+    QIcon *pMachineWidnowIcon = uisession()->machineWindowIcon();
+    if (pMachineWidnowIcon)
+        setWindowIcon(*pMachineWidnowIcon);
+    /* Or set default machine-window icon: */
+    else
+        setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId()));
 #endif /* !Q_WS_MAC */
 }
 
@@ -441,26 +446,6 @@ void UIMachineWindow::cleanupMachineView()
     m_pMachineView = 0;
 }
 
-void UIMachineWindow::handleScreenCountChange()
-{
-    /* Ignore if window is minimized: */
-    if (isMinimized())
-        return;
-
-    /* Make sure window is in necessary mode: */
-    showInNecessaryMode();
-}
-
-void UIMachineWindow::handleScreenGeometryChange()
-{
-    /* Ignore if window is minimized: */
-    if (isMinimized())
-        return;
-
-    /* Make sure window is in necessary mode: */
-    showInNecessaryMode();
-}
-
 void UIMachineWindow::updateAppearanceOf(int iElement)
 {
     /* Update window title: */
@@ -482,7 +467,8 @@ void UIMachineWindow::updateAppearanceOf(int iElement)
             strMachineName += " [" + gpConverter->toString(state) + "]";
         /* Unusual on the Mac. */
 #ifndef Q_WS_MAC
-        strMachineName += " - " + defaultWindowTitle();
+        const QString strUserProductName = uisession()->machineWindowNamePostfix();
+        strMachineName += " - " + (strUserProductName.isEmpty() ? defaultWindowTitle() : strUserProductName);
 #endif /* !Q_WS_MAC */
         if (m.GetMonitorCount() > 1)
             strMachineName += QString(" : %1").arg(m_uScreenId + 1);
@@ -526,4 +512,20 @@ Qt::Alignment UIMachineWindow::viewAlignment(UIVisualStateType visualStateType)
     AssertMsgFailed(("Incorrect visual state!"));
     return 0;
 }
+
+#ifdef Q_WS_MAC
+void UIMachineWindow::handleNativeNotification(const QString &strNativeNotificationName, QWidget *pWidget)
+{
+    /* Handle arrived notification: */
+    LogRel(("UIMachineWindow::handleNativeNotification: Notification '%s' received.\n",
+            strNativeNotificationName.toAscii().constData()));
+    if (UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(pWidget))
+    {
+        /* Redirect arrived notification: */
+        LogRel(("UIMachineWindow::handleNativeNotification: Redirecting '%s' notification to corresponding machine-window...\n",
+                strNativeNotificationName.toAscii().constData()));
+        pMachineWindow->handleNativeNotification(strNativeNotificationName);
+    }
+}
+#endif /* Q_WS_MAC */
 

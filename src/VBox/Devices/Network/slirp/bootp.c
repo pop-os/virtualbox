@@ -341,7 +341,9 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
         val = (int)strlen(slirp_hostname);
         FILL_BOOTP_EXT(q, RFC1533_HOSTNAME, val, slirp_hostname);
     }
-    slirp_arp_cache_update_or_add(pData, rbp->bp_yiaddr.s_addr, bc->macaddr);
+    /* Temporary fix: do not pollute ARP cache from BOOTP because it may result
+       in network loss due to cache entry override w/ invalid MAC address. */
+    //slirp_arp_cache_update_or_add(pData, rbp->bp_yiaddr.s_addr, bc->macaddr);
     return q - rbp->bp_vend; /*return offset */
 }
 
@@ -528,11 +530,15 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf 
                 return offReply;
             }
 
-            bc = bc_alloc_client(pData);
+            /* find_addr() got some result? */
             if (!bc)
             {
-                LogRel(("NAT: can't alloc address. RENEW has been silently ignored\n"));
-                return -1;
+                bc = bc_alloc_client(pData);
+                if (!bc)
+                {
+                    LogRel(("NAT: can't alloc address. RENEW has been silently ignored\n"));
+                    return -1;
+                }
             }
             Assert((bp->bp_hlen == ETH_ALEN));
             memcpy(bc->macaddr, bp->bp_hwaddr, bp->bp_hlen);

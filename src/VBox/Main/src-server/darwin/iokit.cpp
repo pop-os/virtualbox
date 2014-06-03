@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@
 #ifdef VBOX_WITH_USB
 # include <IOKit/usb/IOUSBLib.h>
 # include <IOKit/IOCFPlugIn.h>
+# include <IOKit/storage/IOMedia.h>
 #endif
 
 #include <VBox/log.h>
@@ -274,7 +275,7 @@ static bool darwinDictDupString(CFDictionaryRef DictRef, CFStringRef KeyStrRef, 
     char szBuf[512];
     if (darwinDictGetString(DictRef, KeyStrRef, szBuf, sizeof(szBuf)))
     {
-        *ppsz = RTStrDup(RTStrStrip(szBuf));
+        *ppsz = RTStrDup(szBuf);
         if (*ppsz)
             return true;
     }
@@ -736,13 +737,28 @@ static io_object_t darwinFindObjectByClass(io_object_t Object, const char *pszCl
  */
 static bool darwinIsMassStorageInterfaceInUse(io_object_t MSDObj, io_name_t pszNameBuf)
 {
-    io_object_t MediaObj = darwinFindObjectByClass(MSDObj, "IOMedia", pszNameBuf);
+    io_object_t MediaObj = darwinFindObjectByClass(MSDObj, kIOMediaClass, pszNameBuf);
     if (MediaObj)
     {
+        CFMutableDictionaryRef pProperties;
+        kern_return_t krc;
+        bool fInUse = true;
+
+        krc = IORegistryEntryCreateCFProperties(MediaObj, &pProperties, kCFAllocatorDefault, kNilOptions);
+        if (krc == KERN_SUCCESS)
+        {
+            CFBooleanRef pBoolValue = (CFBooleanRef)CFDictionaryGetValue(pProperties, CFSTR(kIOMediaOpenKey));
+            if (pBoolValue)
+                fInUse = CFBooleanGetValue(pBoolValue);
+
+            CFRelease(pProperties);
+        }
+
         /* more checks? */
         IOObjectRelease(MediaObj);
-        return true;
+        return fInUse;
     }
+
     return false;
 }
 
@@ -1354,7 +1370,7 @@ PDARWINDVD DarwinGetDVDDrives(void)
                             if (*pszVendor && *pszProduct)
                                 RTStrPrintf(szName, sizeof(szName), "%s %s (#%u)", pszVendor, pszProduct, i);
                             else
-                                RTStrPrintf(szName, sizeof(szName), "%s %s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
+                                RTStrPrintf(szName, sizeof(szName), "%s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
                             break;
                         }
                     }

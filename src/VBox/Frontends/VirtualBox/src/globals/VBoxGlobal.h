@@ -378,6 +378,16 @@ public:
     static MachineCloseAction restrictedMachineCloseActions(CMachine &machine);
     static QList<GlobalSettingsPageType> restrictedGlobalSettingsPages(CVirtualBox &vbox);
     static QList<MachineSettingsPageType> restrictedMachineSettingsPages(CMachine &machine);
+#ifndef Q_WS_MAC
+    /** Except Mac OS X: Loads redefined machine-window icon names. */
+    static QStringList machineWindowIconNames(CMachine &machine);
+    /** Except Mac OS X: Loads redefined machine-window name postfix. */
+    static QString machineWindowNamePostfix(CMachine &machine);
+#endif /* !Q_WS_MAC */
+    /** Loads redefined guru-meditation handler type. */
+    static GuruMeditationHandlerType guruMeditationHandlerType(CMachine &machine);
+    /** Loads Runtime UI HiDPI optimization type. */
+    static HiDPIOptimizationType hiDPIOptimizationType(CMachine &machine);
 
 #ifdef RT_OS_LINUX
     static void checkForWrongUSBMounted();

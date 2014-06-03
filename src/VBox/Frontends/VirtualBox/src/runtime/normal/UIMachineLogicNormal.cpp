@@ -55,7 +55,8 @@ void UIMachineLogicNormal::sltCheckForRequestedVisualStateType()
             /* And supported: */
             if (uisession()->isGuestSupportsSeamless())
             {
-                LogRel(("UIMachineLogicNormal: Going 'seamless' as requested...\n"));
+                LogRel(("UIMachineLogicNormal::sltCheckForRequestedVisualStateType: "
+                        "Going 'seamless' as requested...\n"));
                 uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
                 uisession()->changeVisualState(UIVisualStateType_Seamless);
             }
@@ -98,11 +99,11 @@ void UIMachineLogicNormal::prepareActionConnections()
 
     /* "View" actions connections: */
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+            this, SLOT(sltChangeVisualStateToFullscreen()));
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToSeamless()));
+            this, SLOT(sltChangeVisualStateToSeamless()));
     connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
-            uisession(), SLOT(sltChangeVisualStateToScale()));
+            this, SLOT(sltChangeVisualStateToScale()));
 
     /* "Device" actions connections: */
     connect(gActionPool->action(UIActionIndexRuntime_Menu_SharedFolders)->menu(), SIGNAL(aboutToShow()),
@@ -156,11 +157,11 @@ void UIMachineLogicNormal::cleanupActionConnections()
 {
     /* "View" actions disconnections: */
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToFullscreen()));
+               this, SLOT(sltChangeVisualStateToFullscreen()));
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToSeamless()));
+               this, SLOT(sltChangeVisualStateToSeamless()));
     disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
-               uisession(), SLOT(sltChangeVisualStateToScale()));
+               this, SLOT(sltChangeVisualStateToScale()));
 
     /* Call to base-class: */
     UIMachineLogic::cleanupActionConnections();

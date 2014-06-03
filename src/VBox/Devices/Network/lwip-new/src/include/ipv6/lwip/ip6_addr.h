@@ -85,8 +85,6 @@ extern const ip6_addr_t ip6_addr_any;
 #define IP6_ADDR_ANY         ((ip6_addr_t *)&ip6_addr_any)
 
 
-
-
 #if BYTE_ORDER == BIG_ENDIAN
 /** Set an IPv6 partial address given by byte-parts. */
 #define IP6_ADDR(ip6addr, index, a,b,c,d) \
@@ -146,7 +144,6 @@ Little-endian version, stored in network order (no htonl). */
                                         (dest)->addr[3] = (src) == NULL ? 0 : htonl((src)->addr[3]);}while(0)
 
 
-
 /**
  * Determine if two IPv6 address are on the same network.
  *
@@ -170,6 +167,10 @@ Little-endian version, stored in network order (no htonl). */
                              ((ip6addr)->addr[2] == 0) && \
                              ((ip6addr)->addr[3] == 0)))
 
+#define ip6_addr_isloopback(ip6addr) (((ip6addr)->addr[0] == 0UL) && \
+                                      ((ip6addr)->addr[1] == 0UL) && \
+                                      ((ip6addr)->addr[2] == 0UL) && \
+                                      ((ip6addr)->addr[3] == PP_HTONL(0x00000001UL)))
 
 #define ip6_addr_isglobal(ip6addr) (((ip6addr)->addr[0] & PP_HTONL(0xe0000000UL)) == PP_HTONL(0x20000000UL))
 
@@ -269,6 +270,8 @@ Little-endian version, stored in network order (no htonl). */
                       ipaddr != NULL ? IP6_ADDR_BLOCK6(ipaddr) : 0,    \
                       ipaddr != NULL ? IP6_ADDR_BLOCK7(ipaddr) : 0,    \
                       ipaddr != NULL ? IP6_ADDR_BLOCK8(ipaddr) : 0))
+
+#define IP6ADDR_STRLEN_MAX    46
 
 int ip6addr_aton(const char *cp, ip6_addr_t *addr);
 /** returns ptr to static buffer; not reentrant! */

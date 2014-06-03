@@ -31,6 +31,10 @@
 #include "UIMachineView.h"
 #include "UIMachineDefs.h"
 #include "UIMiniToolBar.h"
+#ifdef Q_WS_MAC
+# include "VBoxUtils-darwin.h"
+# include "UICocoaApplication.h"
+#endif /* Q_WS_MAC */
 
 /* COM includes: */
 #include "CSnapshot.h"
@@ -39,8 +43,65 @@ UIMachineWindowFullscreen::UIMachineWindowFullscreen(UIMachineLogic *pMachineLog
     : UIMachineWindow(pMachineLogic, uScreenId)
     , m_pMainMenu(0)
     , m_pMiniToolBar(0)
+#ifdef Q_WS_MAC
+    , m_fIsInFullscreenTransition(false)
+#endif /* Q_WS_MAC */
 {
 }
+
+#ifdef Q_WS_MAC
+void UIMachineWindowFullscreen::handleNativeNotification(const QString &strNativeNotificationName)
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Log all arrived notifications: */
+    LogRel(("UIMachineWindowFullscreen::handleNativeNotification: Notification '%s' received.\n",
+            strNativeNotificationName.toAscii().constData()));
+
+    /* Handle 'NSWindowWillEnterFullScreenNotification' notification: */
+    if (strNativeNotificationName == "NSWindowWillEnterFullScreenNotification")
+    {
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode about to enter, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenWillEnter();
+    }
+    /* Handle 'NSWindowDidEnterFullScreenNotification' notification: */
+    else if (strNativeNotificationName == "NSWindowDidEnterFullScreenNotification")
+    {
+        /* Mark window transition complete: */
+        m_fIsInFullscreenTransition = false;
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode entered, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenDidEnter();
+    }
+    /* Handle 'NSWindowWillExitFullScreenNotification' notification: */
+    else if (strNativeNotificationName == "NSWindowWillExitFullScreenNotification")
+    {
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode about to exit, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenWillExit();
+    }
+    /* Handle 'NSWindowDidExitFullScreenNotification' notification: */
+    else if (strNativeNotificationName == "NSWindowDidExitFullScreenNotification")
+    {
+        /* Mark window transition complete: */
+        m_fIsInFullscreenTransition = false;
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode exited, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenDidExit();
+    }
+    /* Handle 'NSWindowDidFailToEnterFullScreenNotification' notification: */
+    else if (strNativeNotificationName == "NSWindowDidFailToEnterFullScreenNotification")
+    {
+        /* Mark window transition complete: */
+        m_fIsInFullscreenTransition = false;
+        LogRel(("UIMachineWindowFullscreen::handleNativeNotification: "
+                "Native fullscreen mode fail to enter, notifying listener...\n"));
+        emit sigNotifyAboutNativeFullscreenFailToEnter();
+    }
+}
+#endif /* Q_WS_MAC */
 
 void UIMachineWindowFullscreen::sltMachineStateChanged()
 {
@@ -59,6 +120,63 @@ void UIMachineWindowFullscreen::sltPopupMainMenu()
         m_pMainMenu->popup(geometry().center());
         QTimer::singleShot(0, m_pMainMenu, SLOT(sltHighlightFirstAction()));
     }
+}
+
+#ifdef Q_WS_MAC
+void UIMachineWindowFullscreen::sltEnterNativeFullscreen(UIMachineWindow *pMachineWindow)
+{
+    /* Make sure this slot is called only under ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Make sure it is NULL or 'this' window passed: */
+    if (pMachineWindow && pMachineWindow != this)
+        return;
+
+    /* Make sure this window should be shown at all: */
+    if (!uisession()->isScreenVisible(m_uScreenId))
+        return;
+
+    /* Make sure this window has fullscreen logic: */
+    UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
+    if (!pFullscreenLogic)
+        return;
+
+    /* Make sure this window mapped to some host-screen: */
+    if (!pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
+        return;
+
+    /* Mark window 'transitioned to fullscreen': */
+    m_fIsInFullscreenTransition = true;
+
+    /* Enter native fullscreen mode if necessary: */
+    if (   (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+        && !darwinIsInFullscreenMode(this))
+        darwinToggleFullscreenMode(this);
+}
+
+void UIMachineWindowFullscreen::sltExitNativeFullscreen(UIMachineWindow *pMachineWindow)
+{
+    /* Make sure this slot is called only under ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Make sure it is NULL or 'this' window passed: */
+    if (pMachineWindow && pMachineWindow != this)
+        return;
+
+    /* Mark window 'transitioned from fullscreen': */
+    m_fIsInFullscreenTransition = true;
+
+    /* Exit native fullscreen mode if necessary: */
+    if (   (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+        && darwinIsInFullscreenMode(this))
+        darwinToggleFullscreenMode(this);
+}
+#endif /* Q_WS_MAC */
+
+void UIMachineWindowFullscreen::sltRevokeFocus()
+{
+    /* Revoke stolen focus: */
+    m_pMachineView->setFocus();
 }
 
 void UIMachineWindowFullscreen::prepareMenu()
@@ -87,6 +205,30 @@ void UIMachineWindowFullscreen::prepareVisualState()
 
     /* Prepare mini-toolbar: */
     prepareMiniToolbar();
+
+#ifdef Q_WS_MAC
+    /* Native fullscreen stuff on ML and next: */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
+    {
+        /* Enable fullscreen support for every screen which requires it: */
+        if (darwinScreensHaveSeparateSpaces() || m_uScreenId == 0)
+            darwinEnableFullscreenSupport(this);
+        /* Enable transience support for other screens: */
+        else
+            darwinEnableTransienceSupport(this);
+        /* Register to native fullscreen notifications: */
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowWillEnterFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowDidEnterFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowWillExitFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowDidExitFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
+        UICocoaApplication::instance()->registerToNativeNotification("NSWindowDidFailToEnterFullScreenNotification", this,
+                                                                     UIMachineWindow::handleNativeNotification);
+    }
+#endif /* Q_WS_MAC */
 }
 
 void UIMachineWindowFullscreen::prepareMiniToolbar()
@@ -115,11 +257,14 @@ void UIMachineWindowFullscreen::prepareMiniToolbar()
     for (int i=0; i < actions.size(); ++i)
         menus << actions.at(i)->menu();
     m_pMiniToolBar->addMenus(menus);
+#ifndef RT_OS_DARWIN
     connect(m_pMiniToolBar, SIGNAL(sigMinimizeAction()), this, SLOT(showMinimized()));
+#endif /* !RT_OS_DARWIN */
     connect(m_pMiniToolBar, SIGNAL(sigExitAction()),
             gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SLOT(trigger()));
     connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
             gActionPool->action(UIActionIndexRuntime_Simple_Close), SLOT(trigger()));
+    connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutFocusStolen()), this, SLOT(sltRevokeFocus()));
 }
 
 void UIMachineWindowFullscreen::cleanupMiniToolbar()
@@ -137,6 +282,19 @@ void UIMachineWindowFullscreen::cleanupMiniToolbar()
 
 void UIMachineWindowFullscreen::cleanupVisualState()
 {
+#ifdef Q_WS_MAC
+    /* Native fullscreen stuff on ML and next: */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
+    {
+        /* Unregister from native fullscreen notifications: */
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowWillEnterFullScreenNotification", this);
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidEnterFullScreenNotification", this);
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowWillExitFullScreenNotification", this);
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidExitFullScreenNotification", this);
+        UICocoaApplication::instance()->unregisterFromNativeNotification("NSWindowDidFailToEnterFullScreenNotification", this);
+    }
+#endif /* Q_WS_MAC */
+
     /* Cleanup mini-toolbar: */
     cleanupMiniToolbar();
 
@@ -162,55 +320,63 @@ void UIMachineWindowFullscreen::placeOnScreen()
     QRect workingArea = QApplication::desktop()->screenGeometry(iScreen);
     /* Move to the appropriate position: */
     move(workingArea.topLeft());
+#ifdef Q_WS_MAC
+    /* Resize to the appropriate size on Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        resize(workingArea.size());
+    /* Resize to the appropriate size on ML and next
+     * only if that screen has no own user-space: */
+    else if (!darwinScreensHaveSeparateSpaces() && m_uScreenId != 0)
+        resize(workingArea.size());
+#else /* !Q_WS_MAC */
     /* Resize to the appropriate size: */
     resize(workingArea.size());
+#endif /* !Q_WS_MAC */
     /* Adjust guest screen size if necessary: */
     machineView()->maybeAdjustGuestScreenSize();
     /* Move mini-toolbar into appropriate place: */
     if (m_pMiniToolBar)
         m_pMiniToolBar->adjustGeometry();
-    /* Process pending move & resize events: */
-    qApp->processEvents();
 }
 
 void UIMachineWindowFullscreen::showInNecessaryMode()
 {
-    /* Should we show window?: */
-    if (uisession()->isScreenVisible(m_uScreenId))
-    {
-        /* Do we have the seamless logic? */
-        if (UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic()))
-        {
-            /* Is this guest screen has own host screen? */
-            if (pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
-            {
-                /* Make sure the window is maximized and placed on valid screen: */
-                placeOnScreen();
+    /* Make sure this window should be shown at all: */
+    if (!uisession()->isScreenVisible(m_uScreenId))
+        return hide();
 
-#ifdef Q_WS_WIN
-                /* On Windows we should activate main window first,
-                 * because entering fullscreen there doesn't means window will be auto-activated,
-                 * so no window-activation event will be received
-                 * and no keyboard-hook created otherwise... */
-                if (m_uScreenId == 0)
-                    setWindowState(windowState() | Qt::WindowActive);
-#endif /* Q_WS_WIN */
+    /* Make sure this window has fullscreen logic: */
+    UIMachineLogicFullscreen *pFullscreenLogic = qobject_cast<UIMachineLogicFullscreen*>(machineLogic());
+    if (!pFullscreenLogic)
+        return hide();
 
-                /* Show in fullscreen mode: */
-                showFullScreen();
+    /* Make sure this window mapped to some host-screen: */
+    if (!pFullscreenLogic->hasHostScreenForGuestScreen(m_uScreenId))
+        return hide();
 
-                /* Make sure the window is placed on valid screen again
-                 * after window is shown & window's decorations applied.
-                 * That is required (still?) due to X11 Window Geometry Rules. */
-                placeOnScreen();
+    /* Make sure this window is not minimized: */
+    if (isMinimized())
+        return;
 
-                /* Return early: */
-                return;
-            }
-        }
-    }
-    /* Hide in other cases: */
-    hide();
+    /* Make sure this window is maximized and placed on valid screen: */
+    placeOnScreen();
+
+#ifdef Q_WS_MAC
+    /* ML and next using native stuff, so we can call for simple show(): */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion) show();
+    /* Lion and previous using Qt stuff, so we should call for showFullScreen(): */
+    else showFullScreen();
+#else /* !Q_WS_MAC */
+    /* Show in fullscreen mode: */
+    showFullScreen();
+#endif /* !Q_WS_MAC */
+
+#ifdef Q_WS_X11
+    /* Make sure the window is placed on valid screen again
+     * after window is shown & window's decorations applied.
+     * That is required (still?) due to X11 Window Geometry Rules. */
+    placeOnScreen();
+#endif /* Q_WS_X11 */
 }
 
 void UIMachineWindowFullscreen::updateAppearanceOf(int iElement)

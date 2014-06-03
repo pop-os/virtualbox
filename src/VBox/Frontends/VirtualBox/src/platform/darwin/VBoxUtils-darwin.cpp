@@ -138,6 +138,26 @@ void darwinMinaturizeWindow(QWidget *pWidget)
     return ::darwinMinaturizeWindow(::darwinToNativeWindow(pWidget));
 }
 
+void darwinEnableFullscreenSupport(QWidget *pWidget)
+{
+    return ::darwinEnableFullscreenSupport(::darwinToNativeWindow(pWidget));
+}
+
+void darwinEnableTransienceSupport(QWidget *pWidget)
+{
+    return ::darwinEnableTransienceSupport(::darwinToNativeWindow(pWidget));
+}
+
+void darwinToggleFullscreenMode(QWidget *pWidget)
+{
+    return ::darwinToggleFullscreenMode(::darwinToNativeWindow(pWidget));
+}
+
+bool darwinIsInFullscreenMode(QWidget *pWidget)
+{
+    return ::darwinIsInFullscreenMode(::darwinToNativeWindow(pWidget));
+}
+
 void darwinInstallResizeDelegate(QWidget *pWidget)
 {
     ::darwinInstallResizeDelegate(::darwinToNativeWindow(pWidget));
@@ -151,6 +171,11 @@ void darwinUninstallResizeDelegate(QWidget *pWidget)
 bool darwinOpenFile(const QString& strFile)
 {
     return ::darwinOpenFile(darwinToNativeString(strFile.toUtf8().constData()));
+}
+
+double darwinBackingScaleFactor(QWidget *pWidget)
+{
+    return ::darwinBackingScaleFactor(::darwinToNativeWindow(pWidget));
 }
 
 QString darwinSystemLanguage(void)

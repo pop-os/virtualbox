@@ -92,9 +92,6 @@ struct VBOXHGCMCMD
     /** Whether the command is in the active commands list. */
     bool fInList;
 
-    /** Whether the command was saved. */
-    bool fSaved;
-
     /** GC physical address of the guest request. */
     RTGCPHYS        GCPhys;
 
@@ -515,6 +512,9 @@ int vmmdevHGCMConnect (PVMMDEV pThis, VMMDevHGCMConnect *pHGCMConnect, RTGCPHYS 
         pHGCMConnectCopy->loc.type = VMMDevHGCMLoc_LocalHost_Existing;
 
         rc = pThis->pHGCMDrv->pfnConnect (pThis->pHGCMDrv, pCmd, &pHGCMConnectCopy->loc, &pHGCMConnectCopy->u32ClientID);
+
+        if (RT_FAILURE(rc))
+            vmmdevHGCMRemoveCommand(pThis, pCmd);
     }
     else
     {
@@ -554,6 +554,8 @@ static int vmmdevHGCMConnectSaved (PVMMDEV pThis, VMMDevHGCMConnect *pHGCMConnec
         {
             *pfHGCMCalled = true;
         }
+        /* else
+         *  ... the caller will also execute vmmdevHGCMRemoveCommand() for us */
     }
     else
     {
@@ -580,6 +582,9 @@ int vmmdevHGCMDisconnect (PVMMDEV pThis, VMMDevHGCMDisconnect *pHGCMDisconnect, 
         pCmd->paLinPtrs = NULL;
 
         rc = pThis->pHGCMDrv->pfnDisconnect (pThis->pHGCMDrv, pCmd, pHGCMDisconnect->u32ClientID);
+
+        if (RT_FAILURE(rc))
+            vmmdevHGCMRemoveCommand(pThis, pCmd);
     }
     else
     {
@@ -614,6 +619,8 @@ static int vmmdevHGCMDisconnectSaved (PVMMDEV pThis, VMMDevHGCMDisconnect *pHGCM
         {
             *pfHGCMCalled = true;
         }
+        /* else
+         *  ... the caller will also execute vmmdevHGCMRemoveCommand() for us */
     }
     else
     {
@@ -798,14 +805,12 @@ int vmmdevHGCMCall (PVMMDEV pThis, VMMDevHGCMCall *pHGCMCall, uint32_t cbHGCMCal
         return rc;
     }
 
-    PVBOXHGCMCMD pCmd = (PVBOXHGCMCMD)RTMemAlloc (cbCmdSize);
+    PVBOXHGCMCMD pCmd = (PVBOXHGCMCMD)RTMemAllocZ(cbCmdSize);
 
     if (pCmd == NULL)
     {
         return VERR_NO_MEMORY;
     }
-
-    memset (pCmd, 0, sizeof (*pCmd));
 
     pCmd->paHostParms = NULL;
     pCmd->cLinPtrs    = cLinPtrs;
@@ -813,8 +818,8 @@ int vmmdevHGCMCall (PVMMDEV pThis, VMMDevHGCMCall *pHGCMCall, uint32_t cbHGCMCal
 
     if (cLinPtrs > 0)
     {
-        pCmd->paLinPtrs = (VBOXHGCMLINPTR *)RTMemAlloc (  sizeof (VBOXHGCMLINPTR) * cLinPtrs
-                                                          + sizeof (RTGCPHYS) * cLinPtrPages);
+        pCmd->paLinPtrs = (VBOXHGCMLINPTR *)RTMemAllocZ(  sizeof (VBOXHGCMLINPTR) * cLinPtrs
+                                                        + sizeof (RTGCPHYS) * cLinPtrPages);
 
         if (pCmd->paLinPtrs == NULL)
         {
@@ -1735,6 +1740,8 @@ static int vmmdevHGCMCallSaved (PVMMDEV pThis, VMMDevHGCMCall *pHGCMCall, RTGCPH
         {
             *pfHGCMCalled = true;
         }
+        /* else
+         *  ... the caller will also execute vmmdevHGCMRemoveCommand() for us */
     }
 
     return rc;
@@ -1943,9 +1950,9 @@ DECLCALLBACK(void) hgcmCompletedWorker (PPDMIHGCMPORT pInterface, int32_t result
     VBOXDD_HGCMCALL_COMPLETED_EMT(pCmd, result);
     vmmdevHGCMRemoveCommand (pThis, pCmd);
 
-    if (pCmd->fCancelled || pCmd->fSaved)
+    if (pCmd->fCancelled)
     {
-        LogFlowFunc(("A cancelled command %p: %d %d\n", pCmd, pCmd->fCancelled, pCmd->fSaved));
+        LogFlowFunc(("A cancelled command %p: %d\n", pCmd, pCmd->fCancelled));
     }
     else
     {
@@ -2495,12 +2502,6 @@ int vmmdevHGCMSaveState(PVMMDEV pThis, PSSMHANDLE pSSM)
             rc = SSMR3PutU32(pSSM, 0);
             AssertRCReturn(rc, rc);
 
-            /* Mark the command as saved to make sure that it will not be
-             * completed later by a still running host service.
-             */
-            pIter->fSaved = true;
-            vmmdevHGCMRemoveCommand (pThis, pIter);
-
             pIter = pNext;
         }
     }
@@ -2974,4 +2975,26 @@ int vmmdevHGCMLoadStateDone(PVMMDEV pThis, PSSMHANDLE pSSM)
     }
 
     return rc;
+}
+
+void vmmdevHGCMDestroy(PVMMDEV pThis)
+{
+    LogFlowFunc(("\n"));
+
+    PVBOXHGCMCMD pIter = pThis->pHGCMCmdList;
+
+    while (pIter)
+    {
+        PVBOXHGCMCMD pNext = pIter->pNext;
+
+        vmmdevHGCMRemoveCommand(pThis, pIter);
+
+        /* Deallocate the command memory. */
+        RTMemFree(pIter->paLinPtrs);
+        RTMemFree(pIter);
+
+        pIter = pNext;
+    }
+
+    return;
 }

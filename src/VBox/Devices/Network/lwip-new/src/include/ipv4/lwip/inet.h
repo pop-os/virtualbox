@@ -40,9 +40,14 @@
 extern "C" {
 #endif
 
+/* If your port already typedef's in_addr_t, define IN_ADDR_T_DEFINED
+   to prevent this code from redefining it. */
+#if !defined(in_addr_t) && !defined(IN_ADDR_T_DEFINED)
+typedef u32_t in_addr_t;
+#endif
 /** For compatibility with BSD code */
 struct in_addr {
-  u32_t s_addr;
+  in_addr_t s_addr;
 };
 
 /** 255.255.255.255 */
@@ -88,6 +93,15 @@ struct in_addr {
 #define IN_BADCLASS(a)      IP_BADCLASS(a)
 
 #define IN_LOOPBACKNET      IP_LOOPBACKNET
+
+#ifndef INET_ADDRSTRLEN
+#define INET_ADDRSTRLEN     IP4ADDR_STRLEN_MAX
+#endif
+#if LWIP_IPV6
+#ifndef INET6_ADDRSTRLEN
+#define INET6_ADDRSTRLEN    IP6ADDR_STRLEN_MAX
+#endif
+#endif
 
 #define inet_addr_from_ipaddr(target_inaddr, source_ipaddr) ((target_inaddr)->s_addr = ip4_addr_get_u32(source_ipaddr))
 #define inet_addr_to_ipaddr(target_ipaddr, source_inaddr)   (ip4_addr_set_u32(target_ipaddr, (source_inaddr)->s_addr))

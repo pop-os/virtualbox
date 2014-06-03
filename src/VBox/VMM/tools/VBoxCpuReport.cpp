@@ -71,6 +71,9 @@ static PRTSTREAM        g_pReportOut;
 /** The alternative debug stream. */
 static PRTSTREAM        g_pDebugOut;
 
+/** Snooping info storage for vbCpuRepGuessScalableBusFrequencyName. */
+static uint64_t         g_uMsrIntelP6FsbFrequency = UINT64_MAX;
+
 
 static void vbCpuRepDebug(const char *pszMsg, ...)
 {
@@ -623,7 +626,7 @@ static const char *getMsrNameHandled(uint32_t uMsr)
         case 0x00000032: return "P6_UNK_0000_0032"; /* P6_M_Dothan. */
         case 0x00000033: return "TEST_CTL";
         case 0x00000034: return "P6_UNK_0000_0034"; /* P6_M_Dothan. */
-        case 0x00000035: return "P6_UNK_0000_0035"; /* P6_M_Dothan. */
+        case 0x00000035: return CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch) ? "MSR_CORE_THREAD_COUNT" : "P6_UNK_0000_0035"; /* P6_M_Dothan. */
         case 0x00000036: return "I7_UNK_0000_0036"; /* SandyBridge, IvyBridge. */
         case 0x00000039: return "C2_UNK_0000_0039"; /* Core2_Penryn */
         case 0x0000003a: return "IA32_FEATURE_CONTROL";
@@ -693,7 +696,7 @@ static const char *getMsrNameHandled(uint32_t uMsr)
         case 0x000000c6: return g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First ? "IA32_PMC5" : NULL;
         case 0x000000c7: return g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First ? "IA32_PMC6" : "P6_UNK_0000_00c7"; /* P6_M_Dothan. */
         case 0x000000c8: return g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First ? "IA32_PMC7" : NULL;
-        case 0x000000cd: return "P6_UNK_0000_00cd"; /* P6_M_Dothan. */
+        case 0x000000cd: return "MSR_FSB_FREQ"; /* P6_M_Dothan. */
         case 0x000000ce: return g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First ? "IA32_PLATFORM_INFO" : "P6_UNK_0000_00ce"; /* P6_M_Dothan. */
         case 0x000000cf: return "C2_UNK_0000_00cf"; /* Core2_Penryn. */
         case 0x000000e0: return "C2_UNK_0000_00e0"; /* Core2_Penryn. */
@@ -947,7 +950,7 @@ static const char *getMsrNameHandled(uint32_t uMsr)
         case 0x00000394: return g_enmMicroarch < kCpumMicroarch_Intel_Core7_SandyBridge ? "I7_UNC_PERF_FIXED_CTR"  /* X */    : "I7_UNC_PERF_FIXED_CTR_CTRL"; /* >= S,H */
         case 0x00000395: return g_enmMicroarch < kCpumMicroarch_Intel_Core7_SandyBridge ? "I7_UNC_PERF_FIXED_CTR_CTRL" /* X*/ : "I7_UNC_PERF_FIXED_CTR";      /* >= S,H */
         case 0x00000396: return g_enmMicroarch < kCpumMicroarch_Intel_Core7_SandyBridge ? "I7_UNC_ADDR_OPCODE_MATCH" /* X */  : "I7_UNC_CBO_CONFIG";          /* >= S,H */
-        case 0x00000397: return g_enmMicroarch < kCpumMicroarch_Intel_Core7_IvyBridge   ? NULL                                : "I7_IB_UNK_0000_0397";
+        case 0x00000397: return g_enmMicroarch < kCpumMicroarch_Intel_Core7_SandyBridge ? NULL                                : "I7_SB_UNK_0000_0397";
         case 0x0000039c: return "I7_SB_MSR_PEBS_NUM_ALT";
         case 0x000003a0: return g_fIntelNetBurst ? "P4_MSR_BSU_ESCR0"   : NULL;
         case 0x000003a1: return g_fIntelNetBurst ? "P4_MSR_BSU_ESCR1"   : NULL;
@@ -1055,6 +1058,7 @@ static const char *getMsrNameHandled(uint32_t uMsr)
         case 0x00000603: return "I7_SB_MSR_VR_MISC_CONFIG"; /* SandyBridge, IvyBridge. */
         case 0x00000604: return "I7_IB_UNK_0000_0602";
         case 0x00000606: return "I7_SB_MSR_RAPL_POWER_UNIT"; /* SandyBridge, IvyBridge. */
+        case 0x00000609: return "I7_SB_UNK_0000_0609";  /* SandyBridge (non EP). */
         case 0x0000060a: return "I7_SB_MSR_PKGC3_IRTL"; /* SandyBridge, IvyBridge. */
         case 0x0000060b: return "I7_SB_MSR_PKGC6_IRTL"; /* SandyBridge, IvyBridge. */
         case 0x0000060c: return "I7_SB_MSR_PKGC7_IRTL"; /* SandyBridge, IvyBridge. */
@@ -1578,6 +1582,66 @@ static const char *getMsrNameHandled(uint32_t uMsr)
     }
 
     /*
+     * Uncore stuff on Sandy. Putting it here to avoid ugly microarch checks for each register.
+     * Note! These are found on model 42 (2a) but not 45 (2d), the latter is the EP variant.
+     */
+    if (g_enmMicroarch == kCpumMicroarch_Intel_Core7_SandyBridge)
+        switch (uMsr)
+        {
+            case 0x00000700: return "MSR_UNC_CBO_0_PERFEVTSEL0";
+            case 0x00000701: return "MSR_UNC_CBO_0_PERFEVTSEL1";
+            case 0x00000702: return "MSR_UNC_CBO_0_PERFEVTSEL2?";
+            case 0x00000703: return "MSR_UNC_CBO_0_PERFEVTSEL3?";
+            case 0x00000704: return "MSR_UNC_CBO_0_UNK_4";
+            case 0x00000705: return "MSR_UNC_CBO_0_UNK_5";
+            case 0x00000706: return "MSR_UNC_CBO_0_PER_CTR0";
+            case 0x00000707: return "MSR_UNC_CBO_0_PER_CTR1";
+            case 0x00000708: return "MSR_UNC_CBO_0_PER_CTR2?";
+            case 0x00000709: return "MSR_UNC_CBO_0_PER_CTR3?";
+            case 0x00000710: return "MSR_UNC_CBO_1_PERFEVTSEL0";
+            case 0x00000711: return "MSR_UNC_CBO_1_PERFEVTSEL1";
+            case 0x00000712: return "MSR_UNC_CBO_1_PERFEVTSEL2?";
+            case 0x00000713: return "MSR_UNC_CBO_1_PERFEVTSEL3?";
+            case 0x00000714: return "MSR_UNC_CBO_1_UNK_4";
+            case 0x00000715: return "MSR_UNC_CBO_1_UNK_5";
+            case 0x00000716: return "MSR_UNC_CBO_1_PER_CTR0";
+            case 0x00000717: return "MSR_UNC_CBO_1_PER_CTR1";
+            case 0x00000718: return "MSR_UNC_CBO_1_PER_CTR2?";
+            case 0x00000719: return "MSR_UNC_CBO_1_PER_CTR3?";
+            case 0x00000720: return "MSR_UNC_CBO_2_PERFEVTSEL0";
+            case 0x00000721: return "MSR_UNC_CBO_2_PERFEVTSEL1";
+            case 0x00000722: return "MSR_UNC_CBO_2_PERFEVTSEL2?";
+            case 0x00000723: return "MSR_UNC_CBO_2_PERFEVTSEL3?";
+            case 0x00000724: return "MSR_UNC_CBO_2_UNK_4";
+            case 0x00000725: return "MSR_UNC_CBO_2_UNK_5";
+            case 0x00000726: return "MSR_UNC_CBO_2_PER_CTR0";
+            case 0x00000727: return "MSR_UNC_CBO_2_PER_CTR1";
+            case 0x00000728: return "MSR_UNC_CBO_2_PER_CTR2?";
+            case 0x00000729: return "MSR_UNC_CBO_2_PER_CTR3?";
+            case 0x00000730: return "MSR_UNC_CBO_3_PERFEVTSEL0";
+            case 0x00000731: return "MSR_UNC_CBO_3_PERFEVTSEL1";
+            case 0x00000732: return "MSR_UNC_CBO_3_PERFEVTSEL2?";
+            case 0x00000733: return "MSR_UNC_CBO_3_PERFEVTSEL3?";
+            case 0x00000734: return "MSR_UNC_CBO_3_UNK_4";
+            case 0x00000735: return "MSR_UNC_CBO_3_UNK_5";
+            case 0x00000736: return "MSR_UNC_CBO_3_PER_CTR0";
+            case 0x00000737: return "MSR_UNC_CBO_3_PER_CTR1";
+            case 0x00000738: return "MSR_UNC_CBO_3_PER_CTR2?";
+            case 0x00000739: return "MSR_UNC_CBO_3_PER_CTR3?";
+            case 0x00000740: return "MSR_UNC_CBO_4_PERFEVTSEL0?";
+            case 0x00000741: return "MSR_UNC_CBO_4_PERFEVTSEL1?";
+            case 0x00000742: return "MSR_UNC_CBO_4_PERFEVTSEL2?";
+            case 0x00000743: return "MSR_UNC_CBO_4_PERFEVTSEL3?";
+            case 0x00000744: return "MSR_UNC_CBO_4_UNK_4";
+            case 0x00000745: return "MSR_UNC_CBO_4_UNK_5";
+            case 0x00000746: return "MSR_UNC_CBO_4_PER_CTR0?";
+            case 0x00000747: return "MSR_UNC_CBO_4_PER_CTR1?";
+            case 0x00000748: return "MSR_UNC_CBO_4_PER_CTR2?";
+            case 0x00000749: return "MSR_UNC_CBO_4_PER_CTR3?";
+
+        }
+
+    /*
      * Bunch of unknown sandy bridge registers.  They might seem like the
      * nehalem based xeon stuff, but the layout doesn't match.  I bet it's the
      * same kind of registes though (i.e. uncore (UNC)).
@@ -1800,11 +1864,13 @@ static const char *getMsrFnName(uint32_t uMsr, bool *pfTakesValue)
                 return NULL; /* TR4 / cache tag on Pentium, but that's for later. */
             return "Ia32MonitorFilterLineSize";
         case 0x00000010: return "Ia32TimestampCounter";
+        case 0x00000017: *pfTakesValue = true; return "Ia32PlatformId";
         case 0x0000001b: return "Ia32ApicBase";
         case 0x0000002a: *pfTakesValue = true; return g_fIntelNetBurst ? "IntelP4EbcHardPowerOn" : "IntelEblCrPowerOn";
         case 0x0000002b: *pfTakesValue = true; return g_fIntelNetBurst ? "IntelP4EbcSoftPowerOn" : NULL;
         case 0x0000002c: *pfTakesValue = true; return g_fIntelNetBurst ? "IntelP4EbcFrequencyId" : NULL;
         //case 0x00000033: return "IntelTestCtl";
+        case 0x00000035: return CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch) ? "IntelI7CoreThreadCount" : NULL;
         case 0x0000003a: return "Ia32FeatureControl";
 
         case 0x00000040:
@@ -1842,11 +1908,8 @@ static const char *getMsrFnName(uint32_t uMsr, bool *pfTakesValue)
                 return "Ia32PmcN";
             return NULL;
 
-        case 0x000000ce: return CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch)
-                              ? (g_enmMicroarch >= kCpumMicroarch_Intel_Core7_SandyBridge
-                                 ? "IntelPlatformInfo100MHz" : "IntelPlatformInfo133MHz")
-                              : NULL;
-
+        case 0x000000cd: *pfTakesValue = true; return "IntelP6FsbFrequency";
+        case 0x000000ce: return CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch)  ? "IntelPlatformInfo" : NULL;
         case 0x000000e2: return "IntelPkgCStConfigControl";
         case 0x000000e3: return "IntelCore2SmmCStMiscInfo";
         case 0x000000e4: return "IntelPmgIoCaptureBase";
@@ -1881,12 +1944,7 @@ static const char *getMsrFnName(uint32_t uMsr, bool *pfTakesValue)
         case 0x00000186: return "Ia32PerfEvtSelN";
         case 0x00000187: return "Ia32PerfEvtSelN";
         case 0x00000193: return /*g_fIntelNetBurst ? NULL :*/ NULL /* Core2_Penryn. */;
-        case 0x00000194:
-            if (g_fIntelNetBurst)
-                break;
-            *pfTakesValue = true;
-            return CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch) && g_enmMicroarch >= kCpumMicroarch_Intel_Core7_SandyBridge
-                 ? "IntelFlexRatio100MHz" : "IntelFlexRatio133MHz";
+        case 0x00000194: if (g_fIntelNetBurst) break;   *pfTakesValue = true; return "IntelFlexRatio";
         case 0x00000198: *pfTakesValue = true; return "Ia32PerfStatus";
         case 0x00000199: *pfTakesValue = true; return "Ia32PerfCtl";
         case 0x0000019a: *pfTakesValue = true; return "Ia32ClockModulation";
@@ -3273,7 +3331,7 @@ static int reportMsr_Ia32MtrrPhysBaseMaskN(VBCPUREPMSR const *paMsrs, uint32_t c
     /* Probing the mask is relatively straight forward. */
     uint64_t fIgnMask = 0;
     uint64_t fGpMask  = 0;
-    rc = msrProberModifyBitChanges(uMsr + iGuineaPig + 1, &fIgnMask, &fGpMask, 0);
+    rc = msrProberModifyBitChanges(uMsr + iGuineaPig + 1, &fIgnMask, &fGpMask, 0x800); /* enabling it may cause trouble */
     if (RT_FAILURE(rc))
         return rc;
     vbCpuRepDebug("fIgnMask=%#llx fGpMask=%#llx\n", fIgnMask, fGpMask);
@@ -3349,7 +3407,11 @@ static int reportMsr_Ia32MtrrFixedOrPat(uint32_t uMsr)
     /* Had a spot of trouble on an old macbook pro with core2 duo T9900 (penryn)
        running 64-bit win81pe. Not giving PAT such a scrutiny fixes it. */
     if (   uMsr != 0x00000277
-        || g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First)
+        || (  g_enmVendor == CPUMCPUVENDOR_INTEL
+            ? g_enmMicroarch >= kCpumMicroarch_Intel_Core7_First
+            : g_enmVendor == CPUMCPUVENDOR_AMD
+            ? g_enmMicroarch != kCpumMicroarch_AMD_K8_90nm_AMDV
+            : true) )
     {
         /* Every 8 bytes is a type, check the type ranges one by one. */
         for (uint32_t iBit = 0; iBit < 64; iBit += 8)
@@ -3372,16 +3434,25 @@ static int reportMsr_Ia32MtrrFixedOrPat(uint32_t uMsr)
  */
 static int reportMsr_Ia32MtrrDefType(uint32_t uMsr)
 {
-    int rc = msrVerifyMtrrTypeGPs(uMsr, 0, 7);
-    if (RT_FAILURE(rc))
-        return rc;
-
     uint64_t fGpMask  = 0;
     uint64_t fIgnMask = 0;
-    rc = msrProberModifyBitChanges(uMsr, &fIgnMask, &fGpMask, 0x7);
-    if (RT_FAILURE(rc))
-        return rc;
-    Assert(!(fGpMask & 7)); Assert(!(fIgnMask & 7));
+    if (g_enmMicroarch == kCpumMicroarch_AMD_K8_90nm_AMDV)
+    {
+        /* Problematic CPU! Fake it for now. */
+        fGpMask = ~(uint64_t)0xc07;
+        fIgnMask = 0;
+    }
+    else
+    {
+        int rc = msrVerifyMtrrTypeGPs(uMsr, 0, 7);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        rc = msrProberModifyBitChanges(uMsr, &fIgnMask, &fGpMask, 0x7);
+        if (RT_FAILURE(rc))
+            return rc;
+        Assert(!(fGpMask & 7)); Assert(!(fIgnMask & 7));
+    }
 
     return printMsrFunctionCpumCpuEx(uMsr, NULL, NULL, NULL, fIgnMask, fGpMask, NULL);
 }
@@ -3624,7 +3695,7 @@ static int reportMsr_AmdK8SysCfg(uint32_t uMsr, uint64_t uValue)
 
     /* Turns out there are more killer bits here, at least on Opteron 2384.
        Skipping all known bits. */
-    if (g_enmMicroarch >= kCpumMicroarch_AMD_K8_65nm /* Not sure when introduced - harmless? */)
+    if (g_enmMicroarch >= kCpumMicroarch_AMD_K8_90nm_AMDV /* Not sure when introduced - harmless? */)
         fSkipMask |= RT_BIT(22); /* Tom2ForceMemTypeWB */
     if (g_enmMicroarch >= kCpumMicroarch_AMD_K8_First)
         fSkipMask |= RT_BIT(21); /* MtrrTom2En */
@@ -3944,9 +4015,9 @@ static int produceMsrReport(VBCPUREPMSR *paMsrs, uint32_t cMsrs)
         uint64_t    uValue     = paMsrs[i].uValue;
         int         rc;
 #if 0
-        if (uMsr < 0x00003170)
-            continue;
-        if (uMsr >= 0x00003170)
+        //if (uMsr < 0x00000000)
+        //    continue;
+        if (uMsr >= 0x00000277)
         {
             vbCpuRepDebug("produceMsrReport: uMsr=%#x (%s)...\n", uMsr, getMsrNameHandled(uMsr));
             RTThreadSleep(1000);
@@ -4096,6 +4167,12 @@ static int produceMsrReport(VBCPUREPMSR *paMsrs, uint32_t cMsrs)
 
         if (RT_FAILURE(rc))
             return rc;
+
+        /*
+         *  A little ugly snooping.
+         */
+        if (uMsr == 0x000000cd && !(fFlags & VBCPUREPMSR_F_WRITE_ONLY))
+            g_uMsrIntelP6FsbFrequency = uValue;
     }
 
     return VINF_SUCCESS;
@@ -4131,13 +4208,10 @@ static int hackingMsrs(void)
     }
 #else
 
-    uint32_t uMsr = 0xc0000080;
+    uint32_t uMsr = 0xc0010010;
     uint64_t uValue = 0;
     msrProberRead(uMsr, &uValue);
-    /* Try for a triple fault... */
-    msrProberWrite(uMsr, uValue ^ MSR_K6_EFER_LME);
-    msrProberRead(uMsr, &uValue);
-    msrProberWrite(uMsr, uValue ^ MSR_K6_EFER_NXE);
+    reportMsr_AmdK8SysCfg(uMsr, uValue);
 #endif
     return VINF_SUCCESS;
 }
@@ -4312,6 +4386,32 @@ static const char *cpuVendorToString(CPUMCPUVENDOR enmCpuVendor)
             break;
     }
     return "invalid-cpu-vendor";
+}
+
+
+/**
+ * Takes a shot a the bus frequency name (last part).
+ *
+ * @returns Name suffix.
+ */
+static const char *vbCpuRepGuessScalableBusFrequencyName(void)
+{
+    if (CPUMMICROARCH_IS_INTEL_CORE7(g_enmMicroarch))
+        return g_enmMicroarch >= kCpumMicroarch_Intel_Core7_SandyBridge ? "100MHZ" : "133MHZ";
+
+    if (g_uMsrIntelP6FsbFrequency != UINT64_MAX)
+        switch (g_uMsrIntelP6FsbFrequency & 0x7)
+        {
+            case 5: return "100MHZ";
+            case 1: return "133MHZ";
+            case 3: return "167MHZ";
+            case 2: return "200MHZ";
+            case 0: return "267MHZ";
+            case 4: return "333MHZ";
+            case 6: return "400MHZ";
+        }
+
+    return "UNKNOWN";
 }
 
 
@@ -4507,6 +4607,7 @@ static int produceCpuReport(void)
                    "    /*.uModel           = */ %u,\n"
                    "    /*.uStepping        = */ %u,\n"
                    "    /*.enmMicroarch     = */ kCpumMicroarch_%s,\n"
+                   "    /*.uScalableBusFreq = */ CPUM_SBUSFREQ_%s,\n"
                    "    /*.fFlags           = */ 0,\n"
                    "    /*.cMaxPhysAddrWidth= */ %u,\n"
                    "    /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_%s),\n"
@@ -4529,6 +4630,7 @@ static int produceCpuReport(void)
                    ASMGetCpuModel(uEax, enmVendor == CPUMCPUVENDOR_INTEL),
                    ASMGetCpuStepping(uEax),
                    CPUMR3MicroarchName(enmMicroarch),
+                   vbCpuRepGuessScalableBusFrequencyName(),
                    vbCpuRepGetPhysAddrWidth(),
                    szNameC,
                    szNameC,

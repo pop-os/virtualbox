@@ -21,6 +21,7 @@
 #include <QDesktopWidget>
 #include <QMouseEvent>
 #include <QTouchEvent>
+#include <QTimer>
 
 /* GUI includes: */
 #include "VBoxGlobal.h"
@@ -178,7 +179,7 @@ void UIMouseHandler::captureMouse(ulong uScreenId)
         QRect visibleRectangle = m_viewports[m_iMouseCaptureViewIndex]->visibleRegion().boundingRect();
         QPoint visibleRectanglePos = m_views[m_iMouseCaptureViewIndex]->mapToGlobal(m_viewports[m_iMouseCaptureViewIndex]->pos());
         visibleRectangle.translate(visibleRectanglePos);
-        visibleRectangle = visibleRectangle.intersected(QApplication::desktop()->availableGeometry());
+        visibleRectangle = visibleRectangle.intersected(QApplication::desktop()->availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
 
 #ifdef Q_WS_WIN
         /* Move the mouse to the center of the visible area: */
@@ -425,6 +426,21 @@ void UIMouseHandler::sltMousePointerShapeChanged()
     }
 }
 
+void UIMouseHandler::sltMaybeActivateHoveredWindow()
+{
+    /* Are we still have hovered window to activate? */
+    if (m_pHoveredWindow && !m_pHoveredWindow->isActiveWindow())
+    {
+        /* Activate it: */
+        m_pHoveredWindow->activateWindow();
+#ifdef Q_WS_X11
+        /* On X11 its not enough to just activate window if you
+         * want to raise it also, so we will make it separately: */
+        m_pHoveredWindow->raise();
+#endif /* Q_WS_X11 */
+    }
+}
+
 /* Mouse-handler constructor: */
 UIMouseHandler::UIMouseHandler(UIMachineLogic *pMachineLogic)
     : QObject(pMachineLogic)
@@ -547,13 +563,25 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                 case QEvent::MouseMove:
                 case QEvent::MouseButtonRelease:
                 {
+                    /* Get mouse-event: */
+                    QMouseEvent *pOldMouseEvent = static_cast<QMouseEvent*>(pEvent);
+
+                    /* Check which viewport(s) we *probably* hover: */
+                    QWidgetList probablyHoveredViewports;
+                    foreach (QWidget *pViewport, m_viewports)
+                    {
+                        QPoint posInViewport = pViewport->mapFromGlobal(pOldMouseEvent->globalPos());
+                        if (pViewport->geometry().adjusted(0, 0, 1, 1).contains(posInViewport))
+                            probablyHoveredViewports << pViewport;
+                    }
+                    /* Determine actually hovered viewport: */
+                    QWidget *pHoveredWidget = probablyHoveredViewports.isEmpty() ? 0 :
+                                              probablyHoveredViewports.contains(pWatchedWidget) ? pWatchedWidget :
+                                              probablyHoveredViewports.first();
+
                     /* Check if we should propagate this event to another window: */
-                    QWidget *pHoveredWidget = QApplication::widgetAt(QCursor::pos());
                     if (pHoveredWidget && pHoveredWidget != pWatchedWidget && m_viewports.values().contains(pHoveredWidget))
                     {
-                        /* Get current mouse-move event: */
-                        QMouseEvent *pOldMouseEvent = static_cast<QMouseEvent*>(pEvent);
-
                         /* Prepare redirected mouse-move event: */
                         QMouseEvent *pNewMouseEvent = new QMouseEvent(pOldMouseEvent->type(),
                                                                       pHoveredWidget->mapFromGlobal(pOldMouseEvent->globalPos()),
@@ -584,13 +612,14 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         m_windows.values().contains(pWatchedWidget->window()) &&
                         QApplication::activeWindow() != pWatchedWidget->window())
                     {
-                        /* Activating hovered machine window: */
-                        pWatchedWidget->window()->activateWindow();
-#ifdef Q_WS_X11
-                        /* On X11 its not enough to just activate window if you
-                         * want to raise it also, so we will make it separately: */
-                        pWatchedWidget->window()->raise();
-#endif /* Q_WS_X11 */
+                        /* Put request for hovered window activation in 300msec: */
+                        m_pHoveredWindow = pWatchedWidget->window();
+                        QTimer::singleShot(300, this, SLOT(sltMaybeActivateHoveredWindow()));
+                    }
+                    else
+                    {
+                        /* Revoke request for hovered window activation: */
+                        m_pHoveredWindow = 0;
                     }
 
                     /* This event should be also processed using next 'case': */
@@ -1051,7 +1080,7 @@ void UIMouseHandler::updateMouseCursorClipping()
         /* Get full-viewport-rectangle in global coordinates: */
         viewportRectangle.translate(viewportRectangleGlobalPos);
         /* Trim full-viewport-rectangle by available geometry: */
-        viewportRectangle = viewportRectangle.intersected(QApplication::desktop()->availableGeometry());
+        viewportRectangle = viewportRectangle.intersected(QApplication::desktop()->availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
         /* Trim partial-viewport-rectangle by top-most windows: */
         QRegion viewportRegion(viewportRectangle);
         QRegion topMostRegion(NativeWindowSubsystem::areaCoveredByTopMostWindows());

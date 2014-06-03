@@ -18,26 +18,43 @@ crServerDispatchWindowCreate(const char *dpyName, GLint visBits)
     return crServerDispatchWindowCreateEx(dpyName, visBits, -1);
 }
 
-GLint crServerMuralInit(CRMuralInfo *mural, const char *dpyName, GLint visBits, GLint preloadWinID)
+GLint crServerMuralInit(CRMuralInfo *mural, GLboolean fGuestWindow, GLint visBits, GLint preloadWinID)
 {
     CRMuralInfo *defaultMural;
     GLint dims[2];
     GLint windowID = -1;
-    GLint spuWindow;
-    int rc;
+    GLint spuWindow = 0;
     GLint realVisBits = visBits;
+    const char *dpyName = "";
 
     crMemset(mural, 0, sizeof (*mural));
 
     if (cr_server.fVisualBitsDefault)
         realVisBits = cr_server.fVisualBitsDefault;
 
-    /*
-     * Have first SPU make a new window.
-     */
-    spuWindow = cr_server.head_spu->dispatch_table.WindowCreate( dpyName, realVisBits );
-    if (spuWindow < 0) {
-        return spuWindow;
+#ifdef RT_OS_DARWIN
+    if (fGuestWindow)
+    {
+        CRMuralInfo *dummy = crServerGetDummyMural(visBits);
+        if (!dummy)
+        {
+            WARN(("crServerGetDummyMural failed"));
+            return -1;
+        }
+        spuWindow = dummy->spuWindow;
+        mural->fIsDummyRefference = GL_TRUE;
+    }
+    else
+#endif
+    {
+        /*
+         * Have first SPU make a new window.
+         */
+        spuWindow = cr_server.head_spu->dispatch_table.WindowCreate( dpyName, realVisBits );
+        if (spuWindow < 0) {
+            return spuWindow;
+        }
+        mural->fIsDummyRefference = GL_FALSE;
     }
 
     /* get initial window size */
@@ -121,7 +138,7 @@ GLint crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint p
         return -1;
     }
 
-    windowID = crServerMuralInit(mural, dpyName, visBits, preloadWinID);
+    windowID = crServerMuralInit(mural, GL_TRUE, visBits, preloadWinID);
     if (windowID < 0)
     {
         crWarning("crServerMuralInit failed!");
@@ -181,7 +198,7 @@ void crServerMuralTerm(CRMuralInfo *mural)
          * which might lead to muralFBO (offscreen rendering) gl entities being created in a scope of that context */
         cr_server.head_spu->dispatch_table.MakeCurrent(dummyMural->spuWindow, 0, cr_server.MainContextInfo.SpuContext);
         cr_server.currentWindow = -1;
-        cr_server.currentMural = NULL;
+        cr_server.currentMural = dummyMural;
     }
     else
     {
@@ -202,7 +219,10 @@ void crServerMuralTerm(CRMuralInfo *mural)
     	}
     }
 
-    cr_server.head_spu->dispatch_table.WindowDestroy( mural->spuWindow );
+    if (!mural->fIsDummyRefference)
+        cr_server.head_spu->dispatch_table.WindowDestroy( mural->spuWindow );
+
+    mural->spuWindow = 0;
 
     if (mural->pVisibleRects)
     {

@@ -48,6 +48,8 @@ UIFrameBuffer::UIFrameBuffer(UIMachineView *pMachineView)
 #ifdef Q_OS_WIN
     , m_iRefCnt(0)
 #endif /* Q_OS_WIN */
+    , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
+    , m_dBackingScaleFactor(1.0)
 {
     /* Assign mahine-view: */
     AssertMsg(m_pMachineView, ("UIMachineView must not be NULL\n"));
@@ -283,6 +285,14 @@ STDMETHODIMP UIFrameBuffer::RequestResize(ULONG uScreenId, ULONG uPixelFormat,
  */
 STDMETHODIMP UIFrameBuffer::NotifyUpdate(ULONG uX, ULONG uY, ULONG uWidth, ULONG uHeight)
 {
+    /* Retina screens with physical-to-logical scaling requires
+     * odd/even pixel updates to be taken into account,
+     * otherwise we have artifacts on the borders of incoming rectangle. */
+    uX = qMax(0, (int)uX - 1);
+    uY = qMax(0, (int)uY - 1);
+    uWidth = qMin((int)m_width, (int)uWidth + 2);
+    uHeight = qMin((int)m_height, (int)uHeight + 2);
+
     LogRel2(("UIFrameBuffer::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu\n",
              (unsigned long)uX, (unsigned long)uY,
              (unsigned long)uWidth, (unsigned long)uHeight));
@@ -561,6 +571,26 @@ void UIFrameBuffer::setView(UIMachineView * pView)
     /* Connect handlers: */
     if (m_pMachineView)
         prepareConnections();
+}
+
+void UIFrameBuffer::setHiDPIOptimizationType(HiDPIOptimizationType optimizationType)
+{
+    /* Make sure 'HiDPI optimization type' changed: */
+    if (m_hiDPIOptimizationType == optimizationType)
+        return;
+
+    /* Update 'HiDPI optimization type': */
+    m_hiDPIOptimizationType = optimizationType;
+}
+
+void UIFrameBuffer::setBackingScaleFactor(double dBackingScaleFactor)
+{
+    /* Make sure 'backing scale factor' changed: */
+    if (m_dBackingScaleFactor == dBackingScaleFactor)
+        return;
+
+    /* Update 'backing scale factor': */
+    m_dBackingScaleFactor = dBackingScaleFactor;
 }
 
 void UIFrameBuffer::prepareConnections()

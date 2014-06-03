@@ -55,6 +55,7 @@
 #include "UIConverter.h"
 #include "UIModalWindowManager.h"
 #include "UIMedium.h"
+#include "UIExtraDataEventHandler.h"
 #ifdef Q_WS_MAC
 # include "DockIconPreview.h"
 # include "UIExtraDataEventHandler.h"
@@ -398,6 +399,30 @@ void UIMachineLogic::notifyAbout3DOverlayVisibilityChange(bool fVisible)
     }
 }
 
+void UIMachineLogic::sltChangeVisualStateToNormal()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Normal);
+}
+
+void UIMachineLogic::sltChangeVisualStateToFullscreen()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Fullscreen);
+}
+
+void UIMachineLogic::sltChangeVisualStateToSeamless()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Seamless);
+}
+
+void UIMachineLogic::sltChangeVisualStateToScale()
+{
+    uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+    uisession()->changeVisualState(UIVisualStateType_Scale);
+}
+
 void UIMachineLogic::sltMachineStateChanged()
 {
     /* Get machine state: */
@@ -418,9 +443,27 @@ void UIMachineLogic::sltMachineStateChanged()
             QString strLogFolder = session().GetMachine().GetLogFolder();
             /* Take the screenshot for debugging purposes: */
             takeScreenshot(strLogFolder + "/VBox.png", "png");
-            /* Warn the user about GURU meditation: */
-            if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
-                powerOff(false /* do NOT restore current snapshot */);
+            /* How should we handle Guru Meditation? */
+            switch (uisession()->guruMeditationHandlerType())
+            {
+                /* Ask how to proceed; Power off VM if proposal accepted: */
+                case GuruMeditationHandlerType_Default:
+                {
+                    if (msgCenter().remindAboutGuruMeditation(QDir::toNativeSeparators(strLogFolder)))
+                        powerOff(false /* do NOT restore current snapshot */);
+                    break;
+                }
+                /* Power off VM silently: */
+                case GuruMeditationHandlerType_PowerOff:
+                {
+                    powerOff(false /* do NOT restore current snapshot */);
+                    break;
+                }
+                /* Just ignore it: */
+                case GuruMeditationHandlerType_Ignore:
+                default:
+                    break;
+            }
             break;
         }
         case KMachineState_Paused:
@@ -510,6 +553,11 @@ void UIMachineLogic::sltMouseCapabilityChanged()
         pAction->setChecked(false);
 }
 
+void UIMachineLogic::sltHidLedsSyncStateChanged(bool fEnabled)
+{
+    m_isHidLedsSyncEnabled = fEnabled;
+}
+
 void UIMachineLogic::sltKeyboardLedsChanged()
 {
     /* Here we have to update host LED lock states using values provided by UISession:
@@ -572,25 +620,29 @@ void UIMachineLogic::sltShowWindows()
 
 void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)
 {
-    /* Deliver event to all machine-windows: */
+    LogRel(("UIMachineLogic: Guest-screen count changed.\n"));
+
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenCountChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 void UIMachineLogic::sltHostScreenCountChanged()
 {
-    /* Deliver event to all machine-windows: */
+    LogRel(("UIMachineLogic: Host-screen count changed.\n"));
+
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenCountChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 void UIMachineLogic::sltHostScreenGeometryChanged()
 {
-    LogRelFlow(("UIMachineLogic: Host-screen geometry changed.\n"));
+    LogRel(("UIMachineLogic: Host-screen geometry changed.\n"));
 
-    /* Deliver event to all machine-windows: */
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        pMachineWindow->handleScreenGeometryChange();
+        pMachineWindow->showInNecessaryMode();
 }
 
 UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualStateType visualStateType)
@@ -618,7 +670,28 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_DockIconPreviewMonitor(0)
 #endif /* Q_WS_MAC */
     , m_pHostLedsState(NULL)
+    , m_isHidLedsSyncEnabled(false)
 {
+    /* Setup HID LEDs synchronization. */
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
+    /* Read initial extradata value. */
+    QString strHidLedsSyncSettings = session().GetMachine().GetExtraData(GUI_HidLedsSync);
+
+    /* If extra data GUI/HidLedsSync is not present in VM config or set
+     * to 1 then sync is enabled. Otherwise, it is disabled. */
+
+    /* (temporary disabled by default) */
+    if (strHidLedsSyncSettings == "1")
+        m_isHidLedsSyncEnabled = true;
+    else
+        m_isHidLedsSyncEnabled = false;
+
+    /* Subscribe to GUI_HidLedsSync extradata changes in order to
+     * be able to enable or disable feature dynamically. */
+    connect(gEDataEvents, SIGNAL(sigHidLedsSyncStateChanged(bool)), this, SLOT(sltHidLedsSyncStateChanged(bool)));
+#else
+    m_isHidLedsSyncEnabled = false;
+#endif
 }
 
 void UIMachineLogic::setMachineWindowsCreated(bool fIsWindowsCreated)
@@ -691,14 +764,6 @@ void UIMachineLogic::retranslateUi()
     }
 }
 
-bool UIMachineLogic::isHidLedsSyncEnabled()
-{
-    QString strHidLedsSyncSettings = session().GetMachine().GetExtraData(GUI_HidLedsSync);
-    if (strHidLedsSyncSettings == "1")
-        return true;
-    return false;
-}
-
 #ifdef Q_WS_MAC
 void UIMachineLogic::updateDockOverlay()
 {
@@ -736,7 +801,7 @@ void UIMachineLogic::prepareRequiredFeatures()
 void UIMachineLogic::prepareSessionConnections()
 {
     /* We should check for entering/exiting requested modes: */
-    connect(uisession(), SIGNAL(sigMachineStarted()), this, SLOT(sltCheckForRequestedVisualStateType()));
+    connect(uisession(), SIGNAL(sigStarted()), this, SLOT(sltCheckForRequestedVisualStateType()));
     connect(uisession(), SIGNAL(sigAdditionsStateChange()), this, SLOT(sltCheckForRequestedVisualStateType()));
 
     /* Machine state-change updater: */
