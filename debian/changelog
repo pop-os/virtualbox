@@ -1,8 +1,9 @@
-virtualbox (4.3.12-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (4.3.12-dfsg-1) unstable; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * New upstream release.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Tue, 27 May 2014 15:08:04 +0200
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 04 Jun 2014 09:43:11 -0400
 
 virtualbox (4.3.10-dfsg-1) unstable; urgency=high
 
