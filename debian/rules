@@ -201,3 +201,5 @@ override_dh_auto_clean:
 
 	find . -name "*.pyc" -exec rm -f {} \;
 
+get-orig-source:
+	uscan --debug
