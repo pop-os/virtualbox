@@ -3,6 +3,8 @@ virtualbox (4.3.12-dfsg-2) UNRELEASED; urgency=medium
   [ Gianfranco Costamagna ]
   * Add get-orig-source rules target, to fully comply with
     debian policy. (Closes: #699141), thanks Dmitry!
+  * Removing some binary files from the source tarball,
+    spotted by lintian.
   [ Mateusz Łukasik ]
   * Add fix-ftbfs-with-gcc4.9.patch. (Closes: #754220)
 
