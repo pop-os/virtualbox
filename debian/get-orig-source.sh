@@ -36,7 +36,14 @@ rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/linux/selinux-fedora
 find   ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include -mindepth 1 -maxdepth 1 \
    -type d ! -name '*mesa-*' -exec rm -rf {} \;
-
+rm -fr ${ORIG_TARBALL_DIR}/src/libs/kStuff/kStuff/kLdr/testcase/bin
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ebc/Fat.efi
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ia32/Fat.efi
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/Ipf/Fat.efi
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDxe/X64/Fat.efi
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/StdLib/LibC/Main/Ia32/ftol2.obj
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/BaseTools/Source/Python/UPT/Dll/sqlite3.dll
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Main/webservice/jaxlibs/*.jar
 
 tar --exclude .svn --exclude '.git*' --exclude debian --directory ${WORKING_DIR} -cJf ${DEST_TARBALL_NAME} ${ORIG_TARBALL_DIR_STRIP} || exit 1
 rm -rf ${ORIG_TARBALL_DIR}
