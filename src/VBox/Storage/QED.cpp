@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,8 @@
 #include <iprt/alloc.h>
 #include <iprt/path.h>
 #include <iprt/list.h>
+
+#include "VDBackends.h"
 
 /**
  * The QED backend implements support for the qemu enhanced disk format (short QED)
@@ -1178,6 +1180,20 @@ static int qedOpenImage(PQEDIMAGE pImage, unsigned uOpenFlags)
     AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
 
     /*
+     * Create the L2 cache before opening the image so we can call qedFreeImage()
+     * even if opening the image file fails.
+     */
+    rc = qedL2TblCacheCreate(pImage);
+    if (RT_FAILURE(rc))
+    {
+        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
+                       N_("Qed: Creating the L2 table cache for image '%s' failed"),
+                       pImage->pszFilename);
+
+        goto out;
+    }
+
+    /*
      * Open the image.
      */
     rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,
@@ -1254,17 +1270,10 @@ static int qedOpenImage(PQEDIMAGE pImage, unsigned uOpenFlags)
                         if (RT_SUCCESS(rc))
                         {
                             qedTableConvertToHostEndianess(pImage->paL1Table, pImage->cTableEntries);
-                            rc = qedL2TblCacheCreate(pImage);
-                            if (RT_SUCCESS(rc))
-                            {
-                                /* If the consistency check succeeded, clear the flag by flushing the image. */
-                                if (Header.u64FeatureFlags & QED_FEATURE_NEED_CHECK)
-                                    rc = qedFlushImage(pImage);
-                            }
-                            else
-                                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
-                                               N_("Qed: Creating the L2 table cache for image '%s' failed"),
-                                               pImage->pszFilename);
+
+                            /* If the consistency check succeeded, clear the flag by flushing the image. */
+                            if (Header.u64FeatureFlags & QED_FEATURE_NEED_CHECK)
+                                rc = qedFlushImage(pImage);
                         }
                         else
                             rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
@@ -2597,7 +2606,7 @@ static int qedResize(void *pBackendData, uint64_t cbSize,
 }
 
 
-VBOXHDDBACKEND g_QedBackend =
+const VBOXHDDBACKEND g_QedBackend =
 {
     /* pszBackendName */
     "QED",
@@ -2609,8 +2618,6 @@ VBOXHDDBACKEND g_QedBackend =
     s_aQedFileExtensions,
     /* paConfigInfo */
     NULL,
-    /* hPlugin */
-    NIL_RTLDRMOD,
     /* pfnCheckIfValid */
     qedCheckIfValid,
     /* pfnOpen */
@@ -2692,5 +2699,7 @@ VBOXHDDBACKEND g_QedBackend =
     /* pfnResize */
     qedResize,
     /* pfnRepair */
+    NULL,
+    /* pfnTraverseMetadata */
     NULL
 };

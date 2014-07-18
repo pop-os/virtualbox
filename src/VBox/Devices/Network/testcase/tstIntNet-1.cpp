@@ -644,7 +644,10 @@ static int getDefaultIfaceName(char *pszName)
 #endif /* RT_OS_LINUX */
 
 
-int main(int argc, char **argv)
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     /*
      * Init the runtime and parse the arguments.
@@ -803,7 +806,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 88563 $\n");
+                RTPrintf("$Revision: 94787 $\n");
                 return 0;
 
             default:
@@ -1001,4 +1004,15 @@ int main(int argc, char **argv)
 
     return !!g_cErrors;
 }
+
+
+#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
+/**
+ * Main entry point.
+ */
+int main(int argc, char **argv, char **envp)
+{
+    return TrustedMain(argc, argv, envp);
+}
+#endif
 

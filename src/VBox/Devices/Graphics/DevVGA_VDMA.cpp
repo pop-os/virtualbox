@@ -13,7 +13,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-//#include <VBox/VMMDev.h>
+#include <VBox/VMMDev.h>
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/VBoxVideo.h>
 #include <iprt/semaphore.h>
@@ -21,10 +21,10 @@
 #include <iprt/mem.h>
 #include <iprt/asm.h>
 #include <iprt/list.h>
+#include <iprt/param.h>
 
 #include "DevVGA.h"
 #include "HGSMI/SHGSMIHost.h"
-#include "HGSMI/HGSMIHostHlp.h"
 
 #include <VBox/VBoxVideo3D.h>
 #include <VBox/VBoxVideoHost3D.h>
@@ -47,16 +47,22 @@
         WARN_BP(); \
     } while (0)
 
-#define VBOXVDMATHREAD_STATE_TERMINATED     0
-#define VBOXVDMATHREAD_STATE_CREATED        1
-#define VBOXVDMATHREAD_STATE_TERMINATING    2
+#define VBOXVDMATHREAD_STATE_TERMINATED             0
+#define VBOXVDMATHREAD_STATE_CREATING               1
+#define VBOXVDMATHREAD_STATE_CREATED                3
+#define VBOXVDMATHREAD_STATE_TERMINATING            4
+
+struct VBOXVDMATHREAD;
+
+typedef DECLCALLBACKPTR(void, PFNVBOXVDMATHREAD_CHANGED)(struct VBOXVDMATHREAD *pThread, int rc, void *pvThreadContext, void *pvChangeContext);
 
 typedef struct VBOXVDMATHREAD
 {
     RTTHREAD hWorkerThread;
     RTSEMEVENT hEvent;
-    RTSEMEVENT hClientEvent;
     volatile uint32_t u32State;
+    PFNVBOXVDMATHREAD_CHANGED pfnChanged;
+    void *pvChanged;
 } VBOXVDMATHREAD, *PVBOXVDMATHREAD;
 
 
@@ -94,14 +100,16 @@ typedef enum
     VBVAEXHOSTCTL_TYPE_UNDEFINED = 0,
     VBVAEXHOSTCTL_TYPE_HH_INTERNAL_PAUSE,
     VBVAEXHOSTCTL_TYPE_HH_INTERNAL_RESUME,
-    VBVAEXHOSTCTL_TYPE_HH_ENABLE,
-    VBVAEXHOSTCTL_TYPE_HH_TERM,
-    VBVAEXHOSTCTL_TYPE_HH_RESET,
     VBVAEXHOSTCTL_TYPE_HH_SAVESTATE,
     VBVAEXHOSTCTL_TYPE_HH_LOADSTATE,
+    VBVAEXHOSTCTL_TYPE_HH_LOADSTATE_DONE,
     VBVAEXHOSTCTL_TYPE_HH_BE_OPAQUE,
+    VBVAEXHOSTCTL_TYPE_HH_ON_HGCM_UNLOAD,
     VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE,
-    VBVAEXHOSTCTL_TYPE_GH_ENABLE_DISABLE
+    VBVAEXHOSTCTL_TYPE_GHH_ENABLE,
+    VBVAEXHOSTCTL_TYPE_GHH_ENABLE_PAUSED,
+    VBVAEXHOSTCTL_TYPE_GHH_DISABLE,
+    VBVAEXHOSTCTL_TYPE_GHH_RESIZE
 } VBVAEXHOSTCTL_TYPE;
 
 struct VBVAEXHOSTCTL;
@@ -141,6 +149,10 @@ typedef enum
     VBVAEXHOST_DATA_TYPE_HOSTCTL,
     VBVAEXHOST_DATA_TYPE_GUESTCTL
 } VBVAEXHOST_DATA_TYPE;
+
+static DECLCALLBACK(int) vdmaVBVANotifyDisable(PVGASTATE pVGAState);
+
+
 static VBVAEXHOST_DATA_TYPE VBoxVBVAExHPDataGet(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t **ppCmd, uint32_t *pcbCmd);
 
 static void VBoxVBVAExHPDataCompleteCmd(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint32_t cbCmd);
@@ -212,7 +224,7 @@ static VBVAEXHOSTCTL* vboxVBVAExHPCheckCtl(struct VBVAEXHOSTCONTEXT *pCmdVbva, b
             *pfHostCtl = true;
         else if (!fHostOnlyMode)
         {
-            if (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) > VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
+            if (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) != VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
             {
                 pCtl = RTListGetFirst(&pCmdVbva->GuestCtlList, VBVAEXHOSTCTL, Node);
                 /* pCtl can not be null here since pCmdVbva->u32cCtls is not null,
@@ -240,8 +252,34 @@ static VBVAEXHOSTCTL* vboxVBVAExHPCheckCtl(struct VBVAEXHOSTCONTEXT *pCmdVbva, b
 
 static VBVAEXHOSTCTL* VBoxVBVAExHPCheckHostCtlOnDisable(struct VBVAEXHOSTCONTEXT *pCmdVbva)
 {
-    bool fHostCtl;
-    return vboxVBVAExHPCheckCtl(pCmdVbva, &fHostCtl, true);
+    bool fHostCtl = false;
+    VBVAEXHOSTCTL* pCtl = vboxVBVAExHPCheckCtl(pCmdVbva, &fHostCtl, true);
+    Assert(!pCtl || fHostCtl);
+    return pCtl;
+}
+
+static int VBoxVBVAExHPPause(struct VBVAEXHOSTCONTEXT *pCmdVbva)
+{
+    if (pCmdVbva->i32EnableState < VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
+    {
+        WARN(("Invalid state\n"));
+        return VERR_INVALID_STATE;
+    }
+
+    ASMAtomicWriteS32(&pCmdVbva->i32EnableState, VBVAEXHOSTCONTEXT_ESTATE_PAUSED);
+    return VINF_SUCCESS;
+}
+
+static int VBoxVBVAExHPResume(struct VBVAEXHOSTCONTEXT *pCmdVbva)
+{
+    if (pCmdVbva->i32EnableState != VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
+    {
+        WARN(("Invalid state\n"));
+        return VERR_INVALID_STATE;
+    }
+
+    ASMAtomicWriteS32(&pCmdVbva->i32EnableState, VBVAEXHOSTCONTEXT_ESTATE_ENABLED);
+    return VINF_SUCCESS;
 }
 
 
@@ -250,13 +288,17 @@ static bool vboxVBVAExHPCheckProcessCtlInternal(struct VBVAEXHOSTCONTEXT *pCmdVb
     switch (pCtl->enmType)
     {
         case VBVAEXHOSTCTL_TYPE_HH_INTERNAL_PAUSE:
-            if (pCmdVbva->i32EnableState > VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
-                ASMAtomicWriteS32(&pCmdVbva->i32EnableState, VBVAEXHOSTCONTEXT_ESTATE_PAUSED);
+        {
+            int rc = VBoxVBVAExHPPause(pCmdVbva);
+            VBoxVBVAExHPDataCompleteCtl(pCmdVbva, pCtl, VINF_SUCCESS);
             return true;
+        }
         case VBVAEXHOSTCTL_TYPE_HH_INTERNAL_RESUME:
-            if (pCmdVbva->i32EnableState == VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
-                ASMAtomicWriteS32(&pCmdVbva->i32EnableState, VBVAEXHOSTCONTEXT_ESTATE_ENABLED);
+        {
+            int rc = VBoxVBVAExHPResume(pCmdVbva);
+            VBoxVBVAExHPDataCompleteCtl(pCmdVbva, pCtl, VINF_SUCCESS);
             return true;
+        }
         default:
             return false;
     }
@@ -376,6 +418,7 @@ static VBVAEXHOST_DATA_TYPE vboxVBVAExHPDataGet(struct VBVAEXHOSTCONTEXT *pCmdVb
                     *pcbCmd = sizeof (*pCtl);
                     return VBVAEXHOST_DATA_TYPE_HOSTCTL;
                 }
+                continue;
             }
             else
             {
@@ -524,10 +567,18 @@ DECLINLINE(bool) VBoxVBVAExHSIsEnabled(struct VBVAEXHOSTCONTEXT *pCmdVbva)
     return (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) >= VBVAEXHOSTCONTEXT_ESTATE_PAUSED);
 }
 
+DECLINLINE(bool) VBoxVBVAExHSIsDisabled(struct VBVAEXHOSTCONTEXT *pCmdVbva)
+{
+    return (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) == VBVAEXHOSTCONTEXT_ESTATE_DISABLED);
+}
+
 static int VBoxVBVAExHSEnable(struct VBVAEXHOSTCONTEXT *pCmdVbva, VBVABUFFER *pVBVA)
 {
     if (VBoxVBVAExHSIsEnabled(pCmdVbva))
-        return VINF_ALREADY_INITIALIZED;
+    {
+        WARN(("VBVAEx is enabled already\n"));
+        return VERR_INVALID_STATE;
+    }
 
     pCmdVbva->pVBVA = pVBVA;
     pCmdVbva->pVBVA->hostFlags.u32HostEvents = 0;
@@ -537,7 +588,7 @@ static int VBoxVBVAExHSEnable(struct VBVAEXHOSTCONTEXT *pCmdVbva, VBVABUFFER *pV
 
 static int VBoxVBVAExHSDisable(struct VBVAEXHOSTCONTEXT *pCmdVbva)
 {
-    if (!VBoxVBVAExHSIsEnabled(pCmdVbva))
+    if (VBoxVBVAExHSIsDisabled(pCmdVbva))
         return VINF_SUCCESS;
 
     ASMAtomicWriteS32(&pCmdVbva->i32EnableState, VBVAEXHOSTCONTEXT_ESTATE_DISABLED);
@@ -565,46 +616,143 @@ static void VBoxVBVAExHSTerm(struct VBVAEXHOSTCONTEXT *pCmdVbva)
     memset(pCmdVbva, 0, sizeof (*pCmdVbva));
 }
 
-/* Saves state
- * @returns - same as VBoxVBVAExHSCheckCommands, or failure on load state fail
- */
-static int VBoxVBVAExHSSaveState(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM)
+static int vboxVBVAExHSSaveGuestCtl(struct VBVAEXHOSTCONTEXT *pCmdVbva, VBVAEXHOSTCTL* pCtl, uint8_t* pu8VramBase, PSSMHANDLE pSSM)
 {
-    int rc;
-
-    int32_t i32EnableState = ASMAtomicUoReadS32(&pCmdVbva->i32EnableState);
-    if (i32EnableState >= VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
-    {
-        if (i32EnableState != VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
-        {
-            WARN(("vbva not paused\n"));
-            return VERR_INVALID_STATE;
-        }
-
-        rc = SSMR3PutU32(pSSM, (uint32_t)(((uint8_t*)pCmdVbva->pVBVA) - pu8VramBase));
-        AssertRCReturn(rc, rc);
-        return VINF_SUCCESS;
-    }
-
-    rc = SSMR3PutU32(pSSM, 0xffffffff);
+    int rc = SSMR3PutU32(pSSM, pCtl->enmType);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, pCtl->u.cmd.cbCmd);
+    AssertRCReturn(rc, rc);
+    rc = SSMR3PutU32(pSSM, (uint32_t)(pCtl->u.cmd.pu8Cmd - pu8VramBase));
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
 }
 
+static int vboxVBVAExHSSaveStateLocked(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM)
+{
+    if (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) != VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
+    {
+        WARN(("vbva not paused\n"));
+        return VERR_INVALID_STATE;
+    }
+
+    VBVAEXHOSTCTL* pCtl;
+    int rc;
+    RTListForEach(&pCmdVbva->GuestCtlList, pCtl, VBVAEXHOSTCTL, Node)
+    {
+        rc = vboxVBVAExHSSaveGuestCtl(pCmdVbva, pCtl, pu8VramBase, pSSM);
+        AssertRCReturn(rc, rc);
+    }
+
+    rc = SSMR3PutU32(pSSM, 0);
+    AssertRCReturn(rc, rc);
+
+    return VINF_SUCCESS;
+}
+/* Saves state
+ * @returns - same as VBoxVBVAExHSCheckCommands, or failure on load state fail
+ */
+static int VBoxVBVAExHSSaveState(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM)
+{
+    int rc = RTCritSectEnter(&pCmdVbva->CltCritSect);
+    if (RT_FAILURE(rc))
+    {
+        WARN(("RTCritSectEnter failed %d\n", rc));
+        return rc;
+    }
+
+    rc = vboxVBVAExHSSaveStateLocked(pCmdVbva, pu8VramBase, pSSM);
+    if (RT_FAILURE(rc))
+        WARN(("vboxVBVAExHSSaveStateLocked failed %d\n", rc));
+
+    RTCritSectLeave(&pCmdVbva->CltCritSect);
+
+    return rc;
+}
+
+static int vboxVBVAExHSLoadGuestCtl(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    uint32_t u32;
+    int rc = SSMR3GetU32(pSSM, &u32);
+    AssertRCReturn(rc, rc);
+
+    if (!u32)
+        return VINF_EOF;
+
+    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(pCmdVbva, (VBVAEXHOSTCTL_TYPE)u32);
+    if (!pHCtl)
+    {
+        WARN(("VBoxVBVAExHCtlCreate failed\n"));
+        return VERR_NO_MEMORY;
+    }
+
+    rc = SSMR3GetU32(pSSM, &u32);
+    AssertRCReturn(rc, rc);
+    pHCtl->u.cmd.cbCmd = u32;
+
+    rc = SSMR3GetU32(pSSM, &u32);
+    AssertRCReturn(rc, rc);
+    pHCtl->u.cmd.pu8Cmd = pu8VramBase + u32;
+
+    RTListAppend(&pCmdVbva->GuestCtlList, &pHCtl->Node);
+    ++pCmdVbva->u32cCtls;
+
+    return VINF_SUCCESS;
+}
+
+
+static int vboxVBVAExHSLoadStateLocked(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    if (ASMAtomicUoReadS32(&pCmdVbva->i32EnableState) != VBVAEXHOSTCONTEXT_ESTATE_PAUSED)
+    {
+        WARN(("vbva not stopped\n"));
+        return VERR_INVALID_STATE;
+    }
+
+    int rc;
+
+    do {
+        rc = vboxVBVAExHSLoadGuestCtl(pCmdVbva, pu8VramBase, pSSM, u32Version);
+        AssertRCReturn(rc, rc);
+    } while (VINF_EOF != rc);
+
+    return VINF_SUCCESS;
+}
+
+/* Loads state
+ * @returns - same as VBoxVBVAExHSCheckCommands, or failure on load state fail
+ */
+static int VBoxVBVAExHSLoadState(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    Assert(VGA_SAVEDSTATE_VERSION_3D <= u32Version);
+    int rc = RTCritSectEnter(&pCmdVbva->CltCritSect);
+    if (RT_FAILURE(rc))
+    {
+        WARN(("RTCritSectEnter failed %d\n", rc));
+        return rc;
+    }
+
+    rc = vboxVBVAExHSLoadStateLocked(pCmdVbva, pu8VramBase, pSSM, u32Version);
+    if (RT_FAILURE(rc))
+        WARN(("vboxVBVAExHSSaveStateLocked failed %d\n", rc));
+
+    RTCritSectLeave(&pCmdVbva->CltCritSect);
+
+    return rc;
+}
+
 typedef enum
 {
     VBVAEXHOSTCTL_SOURCE_GUEST = 0,
-    VBVAEXHOSTCTL_SOURCE_HOST_ANY,
-    VBVAEXHOSTCTL_SOURCE_HOST_ENABLED
+    VBVAEXHOSTCTL_SOURCE_HOST
 } VBVAEXHOSTCTL_SOURCE;
 
 
 static int VBoxVBVAExHCtlSubmit(VBVAEXHOSTCONTEXT *pCmdVbva, VBVAEXHOSTCTL* pCtl, VBVAEXHOSTCTL_SOURCE enmSource, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
 {
-    if ((enmSource == VBVAEXHOSTCTL_SOURCE_HOST_ENABLED) && !VBoxVBVAExHSIsEnabled(pCmdVbva))
+    if (!VBoxVBVAExHSIsEnabled(pCmdVbva))
     {
-        WARN(("cmd vbva not enabled\n"));
+        Log(("cmd vbva not enabled\n"));
         return VERR_INVALID_STATE;
     }
 
@@ -614,14 +762,15 @@ static int VBoxVBVAExHCtlSubmit(VBVAEXHOSTCONTEXT *pCmdVbva, VBVAEXHOSTCTL* pCtl
     int rc = RTCritSectEnter(&pCmdVbva->CltCritSect);
     if (RT_SUCCESS(rc))
     {
+        if (!VBoxVBVAExHSIsEnabled(pCmdVbva))
+        {
+            Log(("cmd vbva not enabled\n"));
+            RTCritSectLeave(&pCmdVbva->CltCritSect);
+            return VERR_INVALID_STATE;
+        }
+
         if (enmSource > VBVAEXHOSTCTL_SOURCE_GUEST)
         {
-            if ((enmSource == VBVAEXHOSTCTL_SOURCE_HOST_ENABLED) && !VBoxVBVAExHSIsEnabled(pCmdVbva))
-            {
-                WARN(("cmd vbva not enabled\n"));
-                RTCritSectLeave(&pCmdVbva->CltCritSect);
-                return VERR_INVALID_STATE;
-            }
             RTListAppend(&pCmdVbva->HostCtlList, &pCtl->Node);
         }
         else
@@ -639,26 +788,13 @@ static int VBoxVBVAExHCtlSubmit(VBVAEXHOSTCONTEXT *pCmdVbva, VBVAEXHOSTCTL* pCtl
     return rc;
 }
 
-
-/* Loads state
- * @returns - same as VBoxVBVAExHSCheckCommands, or failure on load state fail
- */
-static int VBoxVBVAExHSLoadState(struct VBVAEXHOSTCONTEXT *pCmdVbva, uint8_t* pu8VramBase, PSSMHANDLE pSSM, uint32_t u32Version)
+#ifdef VBOX_WITH_CRHGSMI
+typedef struct VBOXVDMA_SOURCE
 {
-    AssertMsgFailed(("implement!\n"));
-    uint32_t u32;
-    int rc = SSMR3GetU32(pSSM, &u32);
-    AssertRCReturn(rc, rc);
-    if (u32 != 0xffffffff)
-    {
-        VBVABUFFER *pVBVA = (VBVABUFFER*)pu8VramBase + u32;
-        rc = VBoxVBVAExHSEnable(pCmdVbva, pVBVA);
-        AssertRCReturn(rc, rc);
-        return VBoxVBVAExHSCheckCommands(pCmdVbva);
-    }
-
-    return VINF_SUCCESS;
-}
+    VBVAINFOSCREEN Screen;
+    VBOXCMDVBVA_SCREENMAP_DECL(uint32_t, aTargetMap);
+} VBOXVDMA_SOURCE;
+#endif
 
 typedef struct VBOXVDMAHOST
 {
@@ -669,6 +805,9 @@ typedef struct VBOXVDMAHOST
     VBOXVDMATHREAD Thread;
     VBOXCRCMD_SVRINFO CrSrvInfo;
     VBVAEXHOSTCTL* pCurRemainingHostCtl;
+    RTSEMEVENTMULTI HostCrCtlCompleteEvent;
+    int32_t volatile i32cHostCrCtlCompleted;
+//    VBOXVDMA_SOURCE aSources[VBOX_VIDEO_MAX_SCREENS];
 #endif
 #ifdef VBOX_VDMA_WITH_WATCHDOG
     PTMTIMERR3 WatchDogTimer;
@@ -677,23 +816,32 @@ typedef struct VBOXVDMAHOST
 
 #ifdef VBOX_WITH_CRHGSMI
 
-int VBoxVDMAThreadNotifyConstructSucceeded(PVBOXVDMATHREAD pThread)
+void VBoxVDMAThreadNotifyConstructSucceeded(PVBOXVDMATHREAD pThread, void *pvThreadContext)
 {
-    Assert(pThread->u32State == VBOXVDMATHREAD_STATE_TERMINATED);
-    pThread->u32State = VBOXVDMATHREAD_STATE_CREATED;
-    int rc = RTSemEventSignal(pThread->hClientEvent);
-    AssertRC(rc);
-    return VINF_SUCCESS;
+    Assert(pThread->u32State == VBOXVDMATHREAD_STATE_CREATING);
+    PFNVBOXVDMATHREAD_CHANGED pfnChanged = pThread->pfnChanged;
+    void *pvChanged = pThread->pvChanged;
+
+    pThread->pfnChanged = NULL;
+    pThread->pvChanged = NULL;
+
+    ASMAtomicWriteU32(&pThread->u32State, VBOXVDMATHREAD_STATE_CREATED);
+
+    if (pfnChanged)
+        pfnChanged(pThread, VINF_SUCCESS, pvThreadContext, pvChanged);
 }
 
-int VBoxVDMAThreadNotifyConstructFailed(PVBOXVDMATHREAD pThread)
+void VBoxVDMAThreadNotifyTerminatingSucceeded(PVBOXVDMATHREAD pThread, void *pvThreadContext)
 {
-    Assert(pThread->u32State == VBOXVDMATHREAD_STATE_TERMINATED);
-    int rc = RTSemEventSignal(pThread->hClientEvent);
-    AssertRC(rc);
-    if (RT_SUCCESS(rc))
-        return VINF_SUCCESS;
-    return rc;
+    Assert(pThread->u32State == VBOXVDMATHREAD_STATE_TERMINATING);
+    PFNVBOXVDMATHREAD_CHANGED pfnChanged = pThread->pfnChanged;
+    void *pvChanged = pThread->pvChanged;
+
+    pThread->pfnChanged = NULL;
+    pThread->pvChanged = NULL;
+
+    if (pfnChanged)
+        pfnChanged(pThread, VINF_SUCCESS, pvThreadContext, pvChanged);
 }
 
 DECLINLINE(bool) VBoxVDMAThreadIsTerminating(PVBOXVDMATHREAD pThread)
@@ -701,43 +849,66 @@ DECLINLINE(bool) VBoxVDMAThreadIsTerminating(PVBOXVDMATHREAD pThread)
     return ASMAtomicUoReadU32(&pThread->u32State) == VBOXVDMATHREAD_STATE_TERMINATING;
 }
 
-int VBoxVDMAThreadCreate(PVBOXVDMATHREAD pThread, PFNRTTHREAD pfnThread, void *pvThread)
+void VBoxVDMAThreadInit(PVBOXVDMATHREAD pThread)
 {
-    int rc = RTSemEventCreate(&pThread->hEvent);
+    memset(pThread, 0, sizeof (*pThread));
+    pThread->u32State = VBOXVDMATHREAD_STATE_TERMINATED;
+}
+
+int VBoxVDMAThreadCleanup(PVBOXVDMATHREAD pThread)
+{
+    uint32_t u32State = ASMAtomicUoReadU32(&pThread->u32State);
+    switch (u32State)
+    {
+        case VBOXVDMATHREAD_STATE_TERMINATED:
+            return VINF_SUCCESS;
+        case VBOXVDMATHREAD_STATE_TERMINATING:
+        {
+            int rc = RTThreadWait(pThread->hWorkerThread, RT_INDEFINITE_WAIT, NULL);
+            if (!RT_SUCCESS(rc))
+            {
+                WARN(("RTThreadWait failed %d\n", rc));
+                return rc;
+            }
+
+            RTSemEventDestroy(pThread->hEvent);
+
+            ASMAtomicWriteU32(&pThread->u32State, VBOXVDMATHREAD_STATE_TERMINATED);
+            return VINF_SUCCESS;
+        }
+        default:
+            WARN(("invalid state"));
+            return VERR_INVALID_STATE;
+    }
+}
+
+int VBoxVDMAThreadCreate(PVBOXVDMATHREAD pThread, PFNRTTHREAD pfnThread, void *pvThread, PFNVBOXVDMATHREAD_CHANGED pfnCreated, void*pvCreated)
+{
+    int rc = VBoxVDMAThreadCleanup(pThread);
+    if (RT_FAILURE(rc))
+    {
+        WARN(("VBoxVDMAThreadCleanup failed %d\n", rc));
+        return rc;
+    }
+
+    rc = RTSemEventCreate(&pThread->hEvent);
     if (RT_SUCCESS(rc))
     {
-        rc = RTSemEventCreate(&pThread->hClientEvent);
+        pThread->u32State = VBOXVDMATHREAD_STATE_CREATING;
+        pThread->pfnChanged = pfnCreated;
+        pThread->pvChanged = pvCreated;
+        rc = RTThreadCreate(&pThread->hWorkerThread, pfnThread, pvThread, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "VDMA");
         if (RT_SUCCESS(rc))
-        {
-            pThread->u32State = VBOXVDMATHREAD_STATE_TERMINATED;
-            rc = RTThreadCreate(&pThread->hWorkerThread, pfnThread, pvThread, 0, RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "VDMA");
-            if (RT_SUCCESS(rc))
-            {
-                rc = RTSemEventWait(pThread->hClientEvent, RT_INDEFINITE_WAIT);
-                if (RT_SUCCESS(rc))
-                {
-                    if (pThread->u32State == VBOXVDMATHREAD_STATE_CREATED)
-                        return VINF_SUCCESS;
-                    WARN(("thread routine failed the initialization\n"));
-                    rc = VERR_INVALID_STATE;
-                }
-                else
-                    WARN(("RTSemEventWait failed %d\n", rc));
-
-                RTThreadWait(pThread->hWorkerThread, RT_INDEFINITE_WAIT, NULL);
-            }
-            else
-                WARN(("RTThreadCreate failed %d\n", rc));
-
-            RTSemEventDestroy(pThread->hClientEvent);
-        }
+            return VINF_SUCCESS;
         else
-            WARN(("RTSemEventCreate failed %d\n", rc));
+            WARN(("RTThreadCreate failed %d\n", rc));
 
         RTSemEventDestroy(pThread->hEvent);
     }
     else
         WARN(("RTSemEventCreate failed %d\n", rc));
+
+    pThread->u32State = VBOXVDMATHREAD_STATE_TERMINATED;
 
     return rc;
 }
@@ -756,25 +927,45 @@ DECLINLINE(int) VBoxVDMAThreadEventWait(PVBOXVDMATHREAD pThread, RTMSINTERVAL cM
     return rc;
 }
 
-void VBoxVDMAThreadMarkTerminating(PVBOXVDMATHREAD pThread)
-{
-    Assert(pThread->u32State == VBOXVDMATHREAD_STATE_CREATED);
-    ASMAtomicWriteU32(&pThread->u32State, VBOXVDMATHREAD_STATE_TERMINATING);
-}
-
-void VBoxVDMAThreadTerm(PVBOXVDMATHREAD pThread)
+int VBoxVDMAThreadTerm(PVBOXVDMATHREAD pThread, PFNVBOXVDMATHREAD_CHANGED pfnTerminated, void*pvTerminated, bool fNotify)
 {
     int rc;
-    if (ASMAtomicReadU32(&pThread->u32State) != VBOXVDMATHREAD_STATE_TERMINATING)
+    do
     {
-        VBoxVDMAThreadMarkTerminating(pThread);
-        rc = VBoxVDMAThreadEventNotify(pThread);
-        AssertRC(rc);
-    }
-    rc = RTThreadWait(pThread->hWorkerThread, RT_INDEFINITE_WAIT, NULL);
-    AssertRC(rc);
-    RTSemEventDestroy(pThread->hClientEvent);
-    RTSemEventDestroy(pThread->hEvent);
+        uint32_t u32State = ASMAtomicUoReadU32(&pThread->u32State);
+        switch (u32State)
+        {
+            case VBOXVDMATHREAD_STATE_CREATED:
+                pThread->pfnChanged = pfnTerminated;
+                pThread->pvChanged = pvTerminated;
+                ASMAtomicWriteU32(&pThread->u32State, VBOXVDMATHREAD_STATE_TERMINATING);
+                if (fNotify)
+                {
+                    rc = VBoxVDMAThreadEventNotify(pThread);
+                    AssertRC(rc);
+                }
+                return VINF_SUCCESS;
+            case VBOXVDMATHREAD_STATE_TERMINATING:
+            case VBOXVDMATHREAD_STATE_TERMINATED:
+            {
+                WARN(("thread is marked to termination or terminated\nn"));
+                return VERR_INVALID_STATE;
+            }
+            case VBOXVDMATHREAD_STATE_CREATING:
+            {
+                /* wait till the thread creation is completed */
+                WARN(("concurrent thread create/destron\n"));
+                RTThreadYield();
+                continue;
+            }
+            default:
+                WARN(("invalid state"));
+                return VERR_INVALID_STATE;
+        }
+    } while (1);
+
+    WARN(("should never be here\n"));
+    return VERR_INTERNAL_ERROR;
 }
 
 static int vdmaVBVACtlSubmitSync(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL* pCtl, VBVAEXHOSTCTL_SOURCE enmSource);
@@ -940,6 +1131,22 @@ static int vboxVDMACrHgcmSubmitSync(struct VBOXVDMAHOST *pVdma, VBOXCRCMDCTL* pC
     return rc;
 }
 
+static int vdmaVBVACtlDisableSync(PVBOXVDMAHOST pVdma)
+{
+    VBVAEXHOSTCTL HCtl;
+    HCtl.enmType = VBVAEXHOSTCTL_TYPE_GHH_DISABLE;
+    int rc = vdmaVBVACtlSubmitSync(pVdma, &HCtl, VBVAEXHOSTCTL_SOURCE_HOST);
+    if (RT_FAILURE(rc))
+    {
+        Log(("vdmaVBVACtlSubmitSync failed %d\n", rc));
+        return rc;
+    }
+
+    vgaUpdateDisplayAll(pVdma->pVGAState);
+
+    return VINF_SUCCESS;
+}
+
 static DECLCALLBACK(uint8_t*) vboxVDMACrHgcmHandleEnableRemainingHostCommand(HVBOXCRCMDCTL_REMAINING_HOST_COMMAND hClient, uint32_t *pcbCtl, int prevCmdRc)
 {
     struct VBOXVDMAHOST *pVdma = hClient;
@@ -964,12 +1171,40 @@ static DECLCALLBACK(uint8_t*) vboxVDMACrHgcmHandleEnableRemainingHostCommand(HVB
     return NULL;
 }
 
+static DECLCALLBACK(void) vboxVDMACrHgcmNotifyTerminatingDoneCb(HVBOXCRCMDCTL_NOTIFY_TERMINATING hClient)
+{
+    struct VBOXVDMAHOST *pVdma = hClient;
+    Assert(pVdma->CmdVbva.i32State == VBVAEXHOSTCONTEXT_STATE_PROCESSING);
+    Assert(pVdma->Thread.u32State == VBOXVDMATHREAD_STATE_TERMINATING);
+}
+
+static DECLCALLBACK(int) vboxVDMACrHgcmNotifyTerminatingCb(HVBOXCRCMDCTL_NOTIFY_TERMINATING hClient, VBOXCRCMDCTL_HGCMENABLE_DATA *pHgcmEnableData)
+{
+    struct VBOXVDMAHOST *pVdma = hClient;
+    VBVAEXHOSTCTL HCtl;
+    HCtl.enmType = VBVAEXHOSTCTL_TYPE_HH_ON_HGCM_UNLOAD;
+    int rc = vdmaVBVACtlSubmitSync(pVdma, &HCtl, VBVAEXHOSTCTL_SOURCE_HOST);
+
+    pHgcmEnableData->hRHCmd = pVdma;
+    pHgcmEnableData->pfnRHCmd = vboxVDMACrHgcmHandleEnableRemainingHostCommand;
+
+    if (RT_FAILURE(rc))
+    {
+        if (rc == VERR_INVALID_STATE)
+            rc = VINF_SUCCESS;
+        else
+            WARN(("vdmaVBVACtlSubmitSync failed %d\n", rc));
+    }
+
+    return rc;
+}
+
 static int vboxVDMACrHgcmHandleEnable(struct VBOXVDMAHOST *pVdma)
 {
     VBOXCRCMDCTL_ENABLE Enable;
     Enable.Hdr.enmType = VBOXCRCMDCTL_TYPE_ENABLE;
-    Enable.hRHCmd = pVdma;
-    Enable.pfnRHCmd = vboxVDMACrHgcmHandleEnableRemainingHostCommand;
+    Enable.Data.hRHCmd = pVdma;
+    Enable.Data.pfnRHCmd = vboxVDMACrHgcmHandleEnableRemainingHostCommand;
 
     int rc = vboxVDMACrHgcmSubmitSync(pVdma, &Enable.Hdr, sizeof (Enable));
     Assert(!pVdma->pCurRemainingHostCtl);
@@ -1011,9 +1246,12 @@ static int vdmaVBVAEnableProcess(struct VBOXVDMAHOST *pVdma, uint32_t u32Offset)
     int rc = VBoxVBVAExHSEnable(&pVdma->CmdVbva, pVBVA);
     if (RT_SUCCESS(rc))
     {
-        VBOXCRCMDCTL Ctl;
-        Ctl.enmType = VBOXCRCMDCTL_TYPE_DISABLE;
-        rc = vboxVDMACrHgcmSubmitSync(pVdma, &Ctl, sizeof (Ctl));
+        VBOXCRCMDCTL_DISABLE Disable;
+        Disable.Hdr.enmType = VBOXCRCMDCTL_TYPE_DISABLE;
+        Disable.Data.hNotifyTerm = pVdma;
+        Disable.Data.pfnNotifyTerm = vboxVDMACrHgcmNotifyTerminatingCb;
+        Disable.Data.pfnNotifyTermDone = vboxVDMACrHgcmNotifyTerminatingDoneCb;
+        rc = vboxVDMACrHgcmSubmitSync(pVdma, &Disable.Hdr, sizeof (Disable));
         if (RT_SUCCESS(rc))
         {
             PVGASTATE pVGAState = pVdma->pVGAState;
@@ -1041,7 +1279,7 @@ static int vdmaVBVAEnableProcess(struct VBOXVDMAHOST *pVdma, uint32_t u32Offset)
     return rc;
 }
 
-static int vdmaVBVADisableProcess(struct VBOXVDMAHOST *pVdma)
+static int vdmaVBVADisableProcess(struct VBOXVDMAHOST *pVdma, bool fDoHgcmEnable)
 {
     if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
     {
@@ -1052,20 +1290,27 @@ static int vdmaVBVADisableProcess(struct VBOXVDMAHOST *pVdma)
     int rc = pVdma->CrSrvInfo.pfnDisable(pVdma->CrSrvInfo.hSvr);
     if (RT_SUCCESS(rc))
     {
-        /* disable is a bit tricky
-         * we need to ensure the host ctl commands do not come out of order
-         * and do not come over HGCM channel until after it is enabled */
-        rc = vboxVDMACrHgcmHandleEnable(pVdma);
-        if (RT_SUCCESS(rc))
-            return rc;
+        if (fDoHgcmEnable)
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
 
-        PVGASTATE pVGAState = pVdma->pVGAState;
-        VBOXCRCMD_SVRENABLE_INFO Info;
-        Info.hCltScr = pVGAState->pDrv;
-        Info.pfnCltScrUpdateBegin = pVGAState->pDrv->pfnVBVAUpdateBegin;
-        Info.pfnCltScrUpdateProcess = pVGAState->pDrv->pfnVBVAUpdateProcess;
-        Info.pfnCltScrUpdateEnd = pVGAState->pDrv->pfnVBVAUpdateEnd;
-        pVdma->CrSrvInfo.pfnEnable(pVdma->CrSrvInfo.hSvr, &Info);
+            /* disable is a bit tricky
+             * we need to ensure the host ctl commands do not come out of order
+             * and do not come over HGCM channel until after it is enabled */
+            rc = vboxVDMACrHgcmHandleEnable(pVdma);
+            if (RT_SUCCESS(rc))
+            {
+                vdmaVBVANotifyDisable(pVGAState);
+                return VINF_SUCCESS;
+            }
+
+            VBOXCRCMD_SVRENABLE_INFO Info;
+            Info.hCltScr = pVGAState->pDrv;
+            Info.pfnCltScrUpdateBegin = pVGAState->pDrv->pfnVBVAUpdateBegin;
+            Info.pfnCltScrUpdateProcess = pVGAState->pDrv->pfnVBVAUpdateProcess;
+            Info.pfnCltScrUpdateEnd = pVGAState->pDrv->pfnVBVAUpdateEnd;
+            pVdma->CrSrvInfo.pfnEnable(pVdma->CrSrvInfo.hSvr, &Info);
+        }
     }
     else
         WARN(("pfnDisable failed %d\n", rc));
@@ -1073,51 +1318,108 @@ static int vdmaVBVADisableProcess(struct VBOXVDMAHOST *pVdma)
     return rc;
 }
 
-static int vboxVDMACrHostCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *pCmd)
+static int vboxVDMACrHostCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *pCmd, bool *pfContinue)
 {
+    *pfContinue = true;
+
     switch (pCmd->enmType)
     {
-        case VBVAEXHOSTCTL_TYPE_HH_SAVESTATE:
-            if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
-            {
-                WARN(("VBVAEXHOSTCTL_TYPE_HH_SAVESTATE for disabled vdma VBVA\n"));
-                return VERR_INVALID_STATE;
-            }
-            return pVdma->CrSrvInfo.pfnSaveState(pVdma->CrSrvInfo.hSvr, pCmd->u.state.pSSM);
-        case VBVAEXHOSTCTL_TYPE_HH_LOADSTATE:
-            if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
-            {
-                WARN(("VBVAEXHOSTCTL_TYPE_HH_LOADSTATE for disabled vdma VBVA\n"));
-                return VERR_INVALID_STATE;
-            }
-            return pVdma->CrSrvInfo.pfnLoadState(pVdma->CrSrvInfo.hSvr, pCmd->u.state.pSSM, pCmd->u.state.u32Version);
         case VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE:
+        {
             if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
             {
                 WARN(("VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE for disabled vdma VBVA\n"));
                 return VERR_INVALID_STATE;
             }
             return pVdma->CrSrvInfo.pfnHostCtl(pVdma->CrSrvInfo.hSvr, pCmd->u.cmd.pu8Cmd, pCmd->u.cmd.cbCmd);
-        case VBVAEXHOSTCTL_TYPE_HH_TERM:
+        }
+        case VBVAEXHOSTCTL_TYPE_GHH_DISABLE:
         {
-            int rc = vdmaVBVADisableProcess(pVdma);
-            if (!RT_SUCCESS(rc))
+            int rc = vdmaVBVADisableProcess(pVdma, true);
+            if (RT_FAILURE(rc))
             {
                 WARN(("vdmaVBVADisableProcess failed %d\n", rc));
                 return rc;
             }
 
-            VBoxVDMAThreadMarkTerminating(&pVdma->Thread);
-            return VINF_SUCCESS;
+            return VBoxVDMAThreadTerm(&pVdma->Thread, NULL, NULL, false);
         }
-        case VBVAEXHOSTCTL_TYPE_HH_RESET:
+        case VBVAEXHOSTCTL_TYPE_HH_ON_HGCM_UNLOAD:
         {
-            int rc = vdmaVBVADisableProcess(pVdma);
-            if (!RT_SUCCESS(rc))
+            int rc = vdmaVBVADisableProcess(pVdma, false);
+            if (RT_FAILURE(rc))
             {
                 WARN(("vdmaVBVADisableProcess failed %d\n", rc));
                 return rc;
             }
+
+            rc = VBoxVDMAThreadTerm(&pVdma->Thread, NULL, NULL, true);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("VBoxVDMAThreadTerm failed %d\n", rc));
+                return rc;
+            }
+
+            *pfContinue = false;
+            return VINF_SUCCESS;
+        }
+        case VBVAEXHOSTCTL_TYPE_HH_SAVESTATE:
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
+            uint8_t * pu8VramBase = pVGAState->vram_ptrR3;
+            int rc = VBoxVBVAExHSSaveState(&pVdma->CmdVbva, pu8VramBase, pCmd->u.state.pSSM);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("VBoxVBVAExHSSaveState failed %d\n", rc));
+                return rc;
+            }
+            return pVdma->CrSrvInfo.pfnSaveState(pVdma->CrSrvInfo.hSvr, pCmd->u.state.pSSM);
+        }
+        case VBVAEXHOSTCTL_TYPE_HH_LOADSTATE:
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
+            uint8_t * pu8VramBase = pVGAState->vram_ptrR3;
+
+            int rc = VBoxVBVAExHSLoadState(&pVdma->CmdVbva, pu8VramBase, pCmd->u.state.pSSM, pCmd->u.state.u32Version);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("VBoxVBVAExHSSaveState failed %d\n", rc));
+                return rc;
+            }
+
+            rc = pVdma->CrSrvInfo.pfnLoadState(pVdma->CrSrvInfo.hSvr, pCmd->u.state.pSSM, pCmd->u.state.u32Version);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("pfnLoadState failed %d\n", rc));
+                return rc;
+            }
+
+            return VINF_SUCCESS;
+        }
+        case VBVAEXHOSTCTL_TYPE_HH_LOADSTATE_DONE:
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
+
+            for (uint32_t i = 0; i < pVGAState->cMonitors; ++i)
+            {
+                VBVAINFOSCREEN CurScreen;
+                VBVAINFOVIEW CurView;
+
+                int rc = VBVAGetInfoViewAndScreen(pVGAState, i, &CurView, &CurScreen);
+                if (RT_FAILURE(rc))
+                {
+                    WARN(("VBVAGetInfoViewAndScreen failed %d\n", rc));
+                    return rc;
+                }
+
+                rc = VBVAInfoScreen(pVGAState, &CurScreen);
+                if (RT_FAILURE(rc))
+                {
+                    WARN(("VBVAInfoScreen failed %d\n", rc));
+                    return rc;
+                }
+            }
+
             return VINF_SUCCESS;
         }
         default:
@@ -1126,28 +1428,186 @@ static int vboxVDMACrHostCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *p
     }
 }
 
+static int vboxVDMACrGuestCtlResizeEntryProcess(struct VBOXVDMAHOST *pVdma, VBOXCMDVBVA_RESIZE_ENTRY *pEntry)
+{
+    PVGASTATE pVGAState = pVdma->pVGAState;
+    VBVAINFOSCREEN Screen = pEntry->Screen;
+    VBVAINFOVIEW View;
+    VBOXCMDVBVA_SCREENMAP_DECL(uint32_t, aTargetMap);
+    uint32_t u32ViewIndex = Screen.u32ViewIndex;
+    uint16_t u16Flags = Screen.u16Flags;
+    bool fDisable = false;
+
+    memcpy(aTargetMap, pEntry->aTargetMap, sizeof (aTargetMap));
+
+    ASMBitClearRange(aTargetMap, pVGAState->cMonitors, VBOX_VIDEO_MAX_SCREENS);
+
+    if (u16Flags & VBVA_SCREEN_F_DISABLED)
+    {
+        fDisable = true;
+        memset(&Screen, 0, sizeof (Screen));
+        Screen.u32ViewIndex = u32ViewIndex;
+        Screen.u16Flags = VBVA_SCREEN_F_ACTIVE | VBVA_SCREEN_F_DISABLED;
+    }
+
+    if (u32ViewIndex > pVGAState->cMonitors)
+    {
+        if (u32ViewIndex != 0xffffffff)
+        {
+            WARN(("invalid view index\n"));
+            return VERR_INVALID_PARAMETER;
+        }
+        else if (!fDisable)
+        {
+            WARN(("0xffffffff view index only valid for disable requests\n"));
+            return VERR_INVALID_PARAMETER;
+        }
+    }
+
+    View.u32ViewOffset = 0;
+    View.u32ViewSize = Screen.u32LineSize * Screen.u32Height + Screen.u32StartOffset;
+    View.u32MaxScreenSize = View.u32ViewSize + Screen.u32Width + 1; /* <- make VBVAInfoScreen logic (offEnd < pView->u32MaxScreenSize) happy */
+
+    int rc = VINF_SUCCESS;
+
+    for (int i = ASMBitFirstSet(aTargetMap, pVGAState->cMonitors);
+            i >= 0;
+            i = ASMBitNextSet(aTargetMap, pVGAState->cMonitors, i))
+    {
+        Screen.u32ViewIndex = i;
+
+        VBVAINFOSCREEN CurScreen;
+        VBVAINFOVIEW CurView;
+
+        rc = VBVAGetInfoViewAndScreen(pVGAState, i, &CurView, &CurScreen);
+        AssertRC(rc);
+
+        if (!memcmp(&Screen, &CurScreen, sizeof (CurScreen)))
+            continue;
+
+        if (!fDisable || !CurView.u32ViewSize)
+        {
+            View.u32ViewIndex = Screen.u32ViewIndex;
+
+            rc = VBVAInfoView(pVGAState, &View);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("VBVAInfoView failed %d\n", rc));
+                break;
+            }
+        }
+
+        rc = VBVAInfoScreen(pVGAState, &Screen);
+        if (RT_FAILURE(rc))
+        {
+            WARN(("VBVAInfoScreen failed %d\n", rc));
+            break;
+        }
+    }
+
+    if (RT_FAILURE(rc))
+        return rc;
+
+    Screen.u32ViewIndex = u32ViewIndex;
+
+    rc = pVdma->CrSrvInfo.pfnResize(pVdma->CrSrvInfo.hSvr, &Screen, aTargetMap);
+    if (RT_FAILURE(rc))
+        WARN(("pfnResize failed %d\n", rc));
+
+    return rc;
+}
+
 static int vboxVDMACrGuestCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *pCmd)
 {
-    switch (pCmd->enmType)
+    VBVAEXHOSTCTL_TYPE enmType = pCmd->enmType;
+    switch (enmType)
     {
-       case VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE:
-           if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
-           {
-               WARN(("VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE for disabled vdma VBVA\n"));
-               return VERR_INVALID_STATE;
-           }
-           return pVdma->CrSrvInfo.pfnGuestCtl(pVdma->CrSrvInfo.hSvr, pCmd->u.cmd.pu8Cmd, pCmd->u.cmd.cbCmd);
-        case VBVAEXHOSTCTL_TYPE_GH_ENABLE_DISABLE:
+        case VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE:
+        {
+            if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
+            {
+                WARN(("VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE for disabled vdma VBVA\n"));
+                return VERR_INVALID_STATE;
+            }
+            return pVdma->CrSrvInfo.pfnGuestCtl(pVdma->CrSrvInfo.hSvr, pCmd->u.cmd.pu8Cmd, pCmd->u.cmd.cbCmd);
+        }
+        case VBVAEXHOSTCTL_TYPE_GHH_RESIZE:
+        {
+            if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
+            {
+                WARN(("VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE for disabled vdma VBVA\n"));
+                return VERR_INVALID_STATE;
+            }
+
+            uint32_t cbCmd = pCmd->u.cmd.cbCmd;
+
+            if (cbCmd % sizeof (VBOXCMDVBVA_RESIZE_ENTRY))
+            {
+                WARN(("invalid buffer size\n"));
+                return VERR_INVALID_PARAMETER;
+            }
+
+            uint32_t cElements = cbCmd / sizeof (VBOXCMDVBVA_RESIZE_ENTRY);
+            if (!cElements)
+            {
+                WARN(("invalid buffer size\n"));
+                return VERR_INVALID_PARAMETER;
+            }
+
+            VBOXCMDVBVA_RESIZE *pResize = (VBOXCMDVBVA_RESIZE*)pCmd->u.cmd.pu8Cmd;
+
+            int rc = VINF_SUCCESS;
+
+            for (uint32_t i = 0; i < cElements; ++i)
+            {
+                VBOXCMDVBVA_RESIZE_ENTRY *pEntry = &pResize->aEntries[i];
+                rc = vboxVDMACrGuestCtlResizeEntryProcess(pVdma, pEntry);
+                if (RT_FAILURE(rc))
+                {
+                    WARN(("vboxVDMACrGuestCtlResizeEntryProcess failed %d\n", rc));
+                    break;
+                }
+            }
+            return rc;
+        }
+        case VBVAEXHOSTCTL_TYPE_GHH_ENABLE:
+        case VBVAEXHOSTCTL_TYPE_GHH_ENABLE_PAUSED:
         {
             VBVAENABLE *pEnable = (VBVAENABLE *)pCmd->u.cmd.pu8Cmd;
             Assert(pCmd->u.cmd.cbCmd == sizeof (VBVAENABLE));
-            if ((pEnable->u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_ENABLE)
+            uint32_t u32Offset = pEnable->u32Offset;
+            int rc = vdmaVBVAEnableProcess(pVdma, u32Offset);
+            if (!RT_SUCCESS(rc))
             {
-                uint32_t u32Offset = pEnable->u32Offset;
-                return vdmaVBVAEnableProcess(pVdma, u32Offset);
+                WARN(("vdmaVBVAEnableProcess failed %d\n", rc));
+                return rc;
             }
 
-            return vdmaVBVADisableProcess(pVdma);
+            if (enmType == VBVAEXHOSTCTL_TYPE_GHH_ENABLE_PAUSED)
+            {
+                rc = VBoxVBVAExHPPause(&pVdma->CmdVbva);
+                if (!RT_SUCCESS(rc))
+                {
+                    WARN(("VBoxVBVAExHPPause failed %d\n", rc));
+                    return rc;
+                }
+            }
+
+            return VINF_SUCCESS;
+        }
+        case VBVAEXHOSTCTL_TYPE_GHH_DISABLE:
+        {
+            int rc = vdmaVBVADisableProcess(pVdma, true);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("vdmaVBVADisableProcess failed %d\n", rc));
+                return rc;
+            }
+
+            /* do vgaUpdateDisplayAll right away */
+            vgaUpdateDisplayAll(pVdma->pVGAState);
+
+            return VBoxVDMAThreadTerm(&pVdma->Thread, NULL, NULL, false);
         }
         default:
             WARN(("unexpected ctl type %d\n", pCmd->enmType));
@@ -1155,15 +1615,424 @@ static int vboxVDMACrGuestCtlProcess(struct VBOXVDMAHOST *pVdma, VBVAEXHOSTCTL *
     }
 }
 
-
-/*
- * @returns
- *
+/**
+ * @param fIn - whether this is a page in or out op.
+ * the direction is VRA#M - related, so fIn == true - transfer to VRAM); false - transfer from VRAM
  */
-static int vboxVDMACrCmdProcess(struct VBOXVDMAHOST *pVdma, uint8_t* pu8Cmd, uint32_t cbCmd)
+static int vboxVDMACrCmdVbvaProcessPagingEl(PPDMDEVINS pDevIns, VBOXCMDVBVAPAGEIDX iPage, uint8_t *pu8Vram, bool fIn)
+{
+    RTGCPHYS phPage = (RTGCPHYS)iPage << PAGE_SHIFT;
+    PGMPAGEMAPLOCK Lock;
+    int rc;
+
+    if (fIn)
+    {
+        const void * pvPage;
+        rc = PDMDevHlpPhysGCPhys2CCPtrReadOnly(pDevIns, phPage, 0, &pvPage, &Lock);
+        if (!RT_SUCCESS(rc))
+        {
+            WARN(("PDMDevHlpPhysGCPhys2CCPtrReadOnly failed %d", rc));
+            return rc;
+        }
+
+        memcpy(pu8Vram, pvPage, PAGE_SIZE);
+
+        PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+    }
+    else
+    {
+        void * pvPage;
+        rc = PDMDevHlpPhysGCPhys2CCPtr(pDevIns, phPage, 0, &pvPage, &Lock);
+        if (!RT_SUCCESS(rc))
+        {
+            WARN(("PDMDevHlpPhysGCPhys2CCPtr failed %d", rc));
+            return rc;
+        }
+
+        memcpy(pvPage, pu8Vram, PAGE_SIZE);
+
+        PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+    }
+
+    return VINF_SUCCESS;
+}
+
+static int vboxVDMACrCmdVbvaProcessPagingEls(PPDMDEVINS pDevIns, const VBOXCMDVBVAPAGEIDX *piPages, uint32_t cPages, uint8_t *pu8Vram, bool fIn)
+{
+    for (uint32_t i = 0; i < cPages; ++i, pu8Vram += PAGE_SIZE)
+    {
+        int rc = vboxVDMACrCmdVbvaProcessPagingEl(pDevIns, piPages[i], pu8Vram, fIn);
+        if (!RT_SUCCESS(rc))
+        {
+            WARN(("vboxVDMACrCmdVbvaProcessPagingEl failed %d", rc));
+            return rc;
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+static int8_t vboxVDMACrCmdVbvaPagingDataInit(PVGASTATE pVGAState, const VBOXCMDVBVA_HDR *pHdr, const VBOXCMDVBVA_PAGING_TRANSFER_DATA *pData, uint32_t cbCmd,
+                            const VBOXCMDVBVAPAGEIDX **ppPages, VBOXCMDVBVAPAGEIDX *pcPages,
+                            uint8_t **ppu8Vram, bool *pfIn)
+{
+    if (cbCmd < sizeof (VBOXCMDVBVA_PAGING_TRANSFER))
+    {
+        WARN(("cmd too small"));
+        return -1;
+    }
+
+    VBOXCMDVBVAPAGEIDX cPages = cbCmd - RT_OFFSETOF(VBOXCMDVBVA_PAGING_TRANSFER, Data.aPageNumbers);
+    if (cPages % sizeof (VBOXCMDVBVAPAGEIDX))
+    {
+        WARN(("invalid cmd size"));
+        return -1;
+    }
+    cPages /= sizeof (VBOXCMDVBVAPAGEIDX);
+
+    VBOXCMDVBVAOFFSET offVRAM = pData->Alloc.u.offVRAM;
+    if (offVRAM & PAGE_OFFSET_MASK)
+    {
+        WARN(("offVRAM address is not on page boundary\n"));
+        return -1;
+    }
+    const VBOXCMDVBVAPAGEIDX *pPages = pData->aPageNumbers;
+
+    uint8_t * pu8VramBase = pVGAState->vram_ptrR3;
+    uint8_t *pu8VramMax = pu8VramBase + pVGAState->vram_size;
+    if (offVRAM >= pVGAState->vram_size)
+    {
+        WARN(("invalid vram offset"));
+        return -1;
+    }
+
+    if (~(~(VBOXCMDVBVAPAGEIDX)0 >> PAGE_SHIFT) & cPages)
+    {
+        WARN(("invalid cPages %d", cPages));
+        return -1;
+    }
+
+    if (offVRAM + ((VBOXCMDVBVAOFFSET)cPages << PAGE_SHIFT) >= pVGAState->vram_size)
+    {
+        WARN(("invalid cPages %d, exceeding vram size", cPages));
+        return -1;
+    }
+
+    uint8_t *pu8Vram = pu8VramBase + offVRAM;
+    bool fIn = !!(pHdr->u8Flags & VBOXCMDVBVA_OPF_PAGING_TRANSFER_IN);
+
+    *ppPages = pPages;
+    *pcPages = cPages;
+    *ppu8Vram = pu8Vram;
+    *pfIn = fIn;
+    return 0;
+}
+
+static int8_t vboxVDMACrCmdVbvaPagingFill(PVGASTATE pVGAState, VBOXCMDVBVA_PAGING_FILL *pFill)
+{
+    VBOXCMDVBVAOFFSET offVRAM = pFill->offVRAM;
+    if (offVRAM & PAGE_OFFSET_MASK)
+    {
+        WARN(("offVRAM address is not on page boundary\n"));
+        return -1;
+    }
+
+    uint8_t * pu8VramBase = pVGAState->vram_ptrR3;
+    uint8_t *pu8VramMax = pu8VramBase + pVGAState->vram_size;
+    if (offVRAM >= pVGAState->vram_size)
+    {
+        WARN(("invalid vram offset"));
+        return -1;
+    }
+
+    uint32_t cbFill = pFill->u32CbFill;
+
+    if (offVRAM + cbFill >= pVGAState->vram_size)
+    {
+        WARN(("invalid cPages"));
+        return -1;
+    }
+
+    uint32_t *pu32Vram = (uint32_t*)(pu8VramBase + offVRAM);
+    uint32_t u32Color = pFill->u32Pattern;
+
+    Assert(!(cbFill % 4));
+    for (uint32_t i = 0; i < cbFill / 4; ++i)
+    {
+        pu32Vram[i] = u32Color;
+    }
+
+    return 0;
+}
+
+static int8_t vboxVDMACrCmdVbvaProcessCmdData(struct VBOXVDMAHOST *pVdma, const VBOXCMDVBVA_HDR *pCmd, uint32_t cbCmd)
+{
+    switch (pCmd->u8OpCode)
+    {
+        case VBOXCMDVBVA_OPTYPE_NOPCMD:
+            return 0;
+        case VBOXCMDVBVA_OPTYPE_PAGING_TRANSFER:
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
+            const VBOXCMDVBVAPAGEIDX *pPages;
+            uint32_t cPages;
+            uint8_t *pu8Vram;
+            bool fIn;
+            int8_t i8Result = vboxVDMACrCmdVbvaPagingDataInit(pVGAState, pCmd, &((VBOXCMDVBVA_PAGING_TRANSFER*)pCmd)->Data, cbCmd,
+                                                                &pPages, &cPages,
+                                                                &pu8Vram, &fIn);
+            if (i8Result < 0)
+            {
+                WARN(("vboxVDMACrCmdVbvaPagingDataInit failed %d", i8Result));
+                return i8Result;
+            }
+
+            PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
+            int rc = vboxVDMACrCmdVbvaProcessPagingEls(pDevIns, pPages, cPages, pu8Vram, fIn);
+            if (!RT_SUCCESS(rc))
+            {
+                WARN(("vboxVDMACrCmdVbvaProcessPagingEls failed %d", rc));
+                return -1;
+            }
+
+            return 0;
+        }
+        case VBOXCMDVBVA_OPTYPE_PAGING_FILL:
+        {
+            PVGASTATE pVGAState = pVdma->pVGAState;
+            if (cbCmd != sizeof (VBOXCMDVBVA_PAGING_FILL))
+            {
+                WARN(("cmd too small"));
+                return -1;
+            }
+
+            return vboxVDMACrCmdVbvaPagingFill(pVGAState, (VBOXCMDVBVA_PAGING_FILL*)pCmd);
+        }
+        default:
+            return pVdma->CrSrvInfo.pfnCmd(pVdma->CrSrvInfo.hSvr, pCmd, cbCmd);
+    }
+}
+
+#if 0
+typedef struct VBOXCMDVBVA_PAGING_TRANSFER
+{
+    VBOXCMDVBVA_HDR Hdr;
+    /* for now can only contain offVRAM.
+     * paging transfer can NOT be initiated for allocations having host 3D object (hostID) associated */
+    VBOXCMDVBVA_ALLOCINFO Alloc;
+    uint32_t u32Reserved;
+    VBOXCMDVBVA_SYSMEMEL aSysMem[1];
+} VBOXCMDVBVA_PAGING_TRANSFER;
+#endif
+
+AssertCompile(sizeof (VBOXCMDVBVA_HDR) == 8);
+AssertCompile(sizeof (VBOXCMDVBVA_ALLOCINFO) == 4);
+AssertCompile(sizeof (VBOXCMDVBVAPAGEIDX) == 4);
+AssertCompile(!(PAGE_SIZE % sizeof (VBOXCMDVBVAPAGEIDX)));
+
+#define VBOXCMDVBVA_NUM_SYSMEMEL_PER_PAGE (PAGE_SIZE / sizeof (VBOXCMDVBVA_SYSMEMEL))
+
+static int8_t vboxVDMACrCmdVbvaProcess(struct VBOXVDMAHOST *pVdma, const VBOXCMDVBVA_HDR *pCmd, uint32_t cbCmd)
+{
+    switch (pCmd->u8OpCode)
+    {
+        case VBOXCMDVBVA_OPTYPE_SYSMEMCMD:
+        {
+            if (cbCmd < sizeof (VBOXCMDVBVA_SYSMEMCMD))
+            {
+                WARN(("invalid command size"));
+                return -1;
+            }
+            VBOXCMDVBVA_SYSMEMCMD *pSysmemCmd = (VBOXCMDVBVA_SYSMEMCMD*)pCmd;
+            const VBOXCMDVBVA_HDR *pRealCmdHdr;
+            uint32_t cbRealCmd = pCmd->u8Flags;
+            cbRealCmd |= (uint32_t)pCmd->u.u8PrimaryID << 8;
+            if (cbRealCmd < sizeof (VBOXCMDVBVA_HDR))
+            {
+                WARN(("invalid sysmem cmd size"));
+                return -1;
+            }
+
+            RTGCPHYS phCmd = (RTGCPHYS)pSysmemCmd->phCmd;
+
+            PGMPAGEMAPLOCK Lock;
+            PVGASTATE pVGAState = pVdma->pVGAState;
+            PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
+            const void * pvCmd;
+            int rc = PDMDevHlpPhysGCPhys2CCPtrReadOnly(pDevIns, phCmd, 0, &pvCmd, &Lock);
+            if (!RT_SUCCESS(rc))
+            {
+                WARN(("PDMDevHlpPhysGCPhys2CCPtrReadOnly failed %d\n", rc));
+                return -1;
+            }
+
+            Assert((phCmd & PAGE_OFFSET_MASK) == (((uintptr_t)pvCmd) & PAGE_OFFSET_MASK));
+
+            uint32_t cbCmdPart = PAGE_SIZE - (((uintptr_t)pvCmd) & PAGE_OFFSET_MASK);
+
+            if (cbRealCmd <= cbCmdPart)
+            {
+                pRealCmdHdr = (const VBOXCMDVBVA_HDR *)pvCmd;
+                uint8_t i8Result = vboxVDMACrCmdVbvaProcessCmdData(pVdma, pRealCmdHdr, cbRealCmd);
+                PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+                return i8Result;
+            }
+
+            VBOXCMDVBVA_HDR Hdr;
+            const void *pvCurCmdTail;
+            uint32_t cbCurCmdTail;
+            if (cbCmdPart >= sizeof (*pRealCmdHdr))
+            {
+                pRealCmdHdr = (const VBOXCMDVBVA_HDR *)pvCmd;
+                pvCurCmdTail = (const void*)(pRealCmdHdr + 1);
+                cbCurCmdTail = cbCmdPart - sizeof (*pRealCmdHdr);
+            }
+            else
+            {
+                memcpy(&Hdr, pvCmd, cbCmdPart);
+                PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+                phCmd += cbCmdPart;
+                Assert(!(phCmd & PAGE_OFFSET_MASK));
+                rc = PDMDevHlpPhysGCPhys2CCPtrReadOnly(pDevIns, phCmd, 0, &pvCmd, &Lock);
+                if (!RT_SUCCESS(rc))
+                {
+                    WARN(("PDMDevHlpPhysGCPhys2CCPtrReadOnly failed %d\n", rc));
+                    return -1;
+                }
+
+                cbCmdPart = sizeof (*pRealCmdHdr) - cbCmdPart;
+                memcpy(((uint8_t*)(&Hdr)) + cbCmdPart, pvCmd, cbCmdPart);
+                pRealCmdHdr = &Hdr;
+                pvCurCmdTail = (const void*)(((uint8_t*)pvCmd) + cbCmdPart);
+                cbCurCmdTail = PAGE_SIZE - cbCmdPart;
+            }
+
+            if (cbCurCmdTail > cbRealCmd - sizeof (*pRealCmdHdr))
+                cbCurCmdTail = cbRealCmd - sizeof (*pRealCmdHdr);
+
+            int8_t i8Result = 0;
+
+            switch (pRealCmdHdr->u8OpCode)
+            {
+                case VBOXCMDVBVA_OPTYPE_PAGING_TRANSFER:
+                {
+                    const uint32_t *pPages;
+                    uint32_t cPages;
+                    uint8_t *pu8Vram;
+                    bool fIn;
+                    i8Result = vboxVDMACrCmdVbvaPagingDataInit(pVGAState, pRealCmdHdr, (const VBOXCMDVBVA_PAGING_TRANSFER_DATA*)pvCurCmdTail, cbRealCmd,
+                                                                        &pPages, &cPages,
+                                                                        &pu8Vram, &fIn);
+                    if (i8Result < 0)
+                    {
+                        WARN(("vboxVDMACrCmdVbvaPagingDataInit failed %d", i8Result));
+                        /* we need to break, not return, to ensure currently locked page is released */
+                        break;
+                    }
+
+                    if (cbCurCmdTail & 3)
+                    {
+                        WARN(("command is not alligned properly %d", cbCurCmdTail));
+                        i8Result = -1;
+                        /* we need to break, not return, to ensure currently locked page is released */
+                        break;
+                    }
+
+                    uint32_t cCurPages = cbCurCmdTail / sizeof (VBOXCMDVBVAPAGEIDX);
+                    Assert(cCurPages < cPages);
+
+                    do
+                    {
+                        rc = vboxVDMACrCmdVbvaProcessPagingEls(pDevIns, pPages, cCurPages, pu8Vram, fIn);
+                        if (!RT_SUCCESS(rc))
+                        {
+                            WARN(("vboxVDMACrCmdVbvaProcessPagingEls failed %d", rc));
+                            i8Result = -1;
+                            /* we need to break, not return, to ensure currently locked page is released */
+                            break;
+                        }
+
+                        Assert(cPages >= cCurPages);
+                        cPages -= cCurPages;
+
+                        if (!cPages)
+                            break;
+
+                        PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+
+                        Assert(!(phCmd & PAGE_OFFSET_MASK));
+
+                        phCmd += PAGE_SIZE;
+                        pu8Vram += (VBOXCMDVBVAOFFSET)cCurPages << PAGE_SHIFT;
+
+                        rc = PDMDevHlpPhysGCPhys2CCPtrReadOnly(pDevIns, phCmd, 0, &pvCmd, &Lock);
+                        if (!RT_SUCCESS(rc))
+                        {
+                            WARN(("PDMDevHlpPhysGCPhys2CCPtrReadOnly failed %d\n", rc));
+                            /* the page is not locked, return */
+                            return -1;
+                        }
+
+                        cCurPages = PAGE_SIZE / sizeof (VBOXCMDVBVAPAGEIDX);
+                        if (cCurPages > cPages)
+                            cCurPages = cPages;
+                    } while (1);
+                    break;
+                }
+                default:
+                    WARN(("command can not be splitted"));
+                    i8Result = -1;
+                    break;
+            }
+
+            PDMDevHlpPhysReleasePageMappingLock(pDevIns, &Lock);
+            return i8Result;
+        }
+        case VBOXCMDVBVA_OPTYPE_COMPLEXCMD:
+        {
+            Assert(cbCmd >= sizeof (VBOXCMDVBVA_HDR));
+            ++pCmd;
+            cbCmd -= sizeof (*pCmd);
+            uint32_t cbCurCmd = 0;
+            for ( ; cbCmd; cbCmd -= cbCurCmd, pCmd = (VBOXCMDVBVA_HDR*)(((uint8_t*)pCmd) + cbCurCmd))
+            {
+                if (cbCmd < sizeof (VBOXCMDVBVA_HDR))
+                {
+                    WARN(("invalid command size"));
+                    return -1;
+                }
+
+                cbCurCmd = pCmd->u2.complexCmdEl.u16CbCmdHost;
+                if (cbCmd < cbCurCmd)
+                {
+                    WARN(("invalid command size"));
+                    return -1;
+                }
+
+                int8_t i8Result = vboxVDMACrCmdVbvaProcess(pVdma, pCmd, cbCurCmd);
+                if (i8Result < 0)
+                {
+                    WARN(("vboxVDMACrCmdVbvaProcess failed"));
+                    return i8Result;
+                }
+            }
+            return 0;
+        }
+        default:
+            return vboxVDMACrCmdVbvaProcessCmdData(pVdma, pCmd, cbCmd);
+    }
+}
+
+static void vboxVDMACrCmdProcess(struct VBOXVDMAHOST *pVdma, uint8_t* pu8Cmd, uint32_t cbCmd)
 {
     if (*pu8Cmd == VBOXCMDVBVA_OPTYPE_NOP)
-        return VINF_EOF;
+        return;
+
+    if (cbCmd < sizeof (VBOXCMDVBVA_HDR))
+    {
+        WARN(("invalid command size"));
+        return;
+    }
 
     PVBOXCMDVBVA_HDR pCmd = (PVBOXCMDVBVA_HDR)pu8Cmd;
 
@@ -1171,50 +2040,10 @@ static int vboxVDMACrCmdProcess(struct VBOXVDMAHOST *pVdma, uint8_t* pu8Cmd, uin
     if (!ASMAtomicCmpXchgU8(&pCmd->u8State, VBOXCMDVBVA_STATE_IN_PROGRESS, VBOXCMDVBVA_STATE_SUBMITTED))
     {
         Assert(pCmd->u8State == VBOXCMDVBVA_STATE_CANCELLED);
-        return VINF_EOF;
+        return;
     }
 
-    /* come commands can be handled right away? */
-    switch (pCmd->u8OpCode)
-    {
-        case VBOXCMDVBVA_OPTYPE_NOPCMD:
-            pCmd->u.i8Result = 0;
-            return VINF_EOF;
-        default:
-            return VINF_SUCCESS;
-    }
-}
-
-static DECLCALLBACK(int) vboxVDMACrCmdEnable(HVBOXCRCMDSVR hSvr, VBOXCRCMD_SVRENABLE_INFO *pInfo)
-{
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(void) vboxVDMACrCmdDisable(HVBOXCRCMDSVR hSvr)
-{
-}
-
-static DECLCALLBACK(int) vboxVDMACrCmdCtl(HVBOXCRCMDSVR hSvr, uint8_t* pCmd, uint32_t cbCmd)
-{
-    return VERR_NOT_SUPPORTED;
-}
-
-static DECLCALLBACK(int) vboxVDMACrCmdCmd(HVBOXCRCMDSVR hSvr, PVBOXCMDVBVA_HDR pCmd, uint32_t cbCmd)
-{
-    switch (pCmd->u8OpCode)
-    {
-#if 0
-        case VBOXCMDVBVA_OPTYPE_BLT_OFFPRIMSZFMT_OR_ID:
-        {
-            crVBoxServerCrCmdBltProcess(pCmd, cbCmd);
-            break;
-        }
-#endif
-        default:
-            WARN(("unsupported command\n"));
-            pCmd->u.i8Result = -1;
-    }
-    return VINF_SUCCESS;
+    pCmd->u.i8Result = vboxVDMACrCmdVbvaProcess(pVdma, pCmd, cbCmd);
 }
 
 static int vboxVDMACrCtlHgsmiSetup(struct VBOXVDMAHOST *pVdma)
@@ -1227,6 +2056,7 @@ static int vboxVDMACrCtlHgsmiSetup(struct VBOXVDMAHOST *pVdma)
         PVGASTATE pVGAState = pVdma->pVGAState;
         pCmd->pvVRamBase = pVGAState->vram_ptrR3;
         pCmd->cbVRam = pVGAState->vram_size;
+        pCmd->pLed = &pVGAState->Led3D;
         rc = vboxVDMACrCtlPost(pVGAState, &pCmd->Hdr, sizeof (*pCmd));
         if (RT_SUCCESS(rc))
         {
@@ -1713,13 +2543,9 @@ static DECLCALLBACK(int) vboxVDMAWorkerThread(RTTHREAD ThreadSelf, void *pvUser)
     PHGSMIINSTANCE pHgsmi = pVdma->pHgsmi;
     uint8_t *pCmd;
     uint32_t cbCmd;
+    int rc;
 
-    int rc = VBoxVDMAThreadNotifyConstructSucceeded(&pVdma->Thread);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("VBoxVDMAThreadNotifyConstructSucceeded failed %d\n", rc));
-        return rc;
-    }
+    VBoxVDMAThreadNotifyConstructSucceeded(&pVdma->Thread, pvUser);
 
     while (!VBoxVDMAThreadIsTerminating(&pVdma->Thread))
     {
@@ -1731,14 +2557,18 @@ static DECLCALLBACK(int) vboxVDMAWorkerThread(RTTHREAD ThreadSelf, void *pvUser)
                 VBoxVBVAExHPDataCompleteCmd(pCmdVbva, cbCmd);
                 VBVARaiseIrqNoWait(pVGAState, 0);
                 break;
-            case VBVAEXHOST_DATA_TYPE_HOSTCTL:
-                rc = vboxVDMACrHostCtlProcess(pVdma, (VBVAEXHOSTCTL*)pCmd);
-                VBoxVBVAExHPDataCompleteCtl(pCmdVbva, (VBVAEXHOSTCTL*)pCmd, rc);
-                break;
             case VBVAEXHOST_DATA_TYPE_GUESTCTL:
                 rc = vboxVDMACrGuestCtlProcess(pVdma, (VBVAEXHOSTCTL*)pCmd);
                 VBoxVBVAExHPDataCompleteCtl(pCmdVbva, (VBVAEXHOSTCTL*)pCmd, rc);
                 break;
+            case VBVAEXHOST_DATA_TYPE_HOSTCTL:
+            {
+                bool fContinue = true;
+                rc = vboxVDMACrHostCtlProcess(pVdma, (VBVAEXHOSTCTL*)pCmd, &fContinue);
+                VBoxVBVAExHPDataCompleteCtl(pCmdVbva, (VBVAEXHOSTCTL*)pCmd, rc);
+                if (fContinue)
+                    break;
+            }
             case VBVAEXHOST_DATA_TYPE_NO_DATA:
                 rc = VBoxVDMAThreadEventWait(&pVdma->Thread, RT_INDEFINITE_WAIT);
                 AssertRC(rc);
@@ -1748,6 +2578,8 @@ static DECLCALLBACK(int) vboxVDMAWorkerThread(RTTHREAD ThreadSelf, void *pvUser)
                 break;
         }
     }
+
+    VBoxVDMAThreadNotifyTerminatingSucceeded(&pVdma->Thread, pvUser);
 
     return VINF_SUCCESS;
 }
@@ -1852,28 +2684,34 @@ int vboxVDMAConstruct(PVGASTATE pVGAState, uint32_t cPipeElements)
 
 #ifdef VBOX_VDMA_WITH_WATCHDOG
         rc = PDMDevHlpTMTimerCreate(pVGAState->pDevInsR3, TMCLOCK_REAL, vboxVDMAWatchDogTimer,
-                                    pVdma, TMTIMER_FLAGS_NO_CRIT_SECT,
-                                    "VDMA WatchDog Timer", &pVdma->WatchDogTimer);
+                                        pVdma, TMTIMER_FLAGS_NO_CRIT_SECT,
+                                        "VDMA WatchDog Timer", &pVdma->WatchDogTimer);
         AssertRC(rc);
 #endif
+
 #ifdef VBOX_WITH_CRHGSMI
-        rc = VBoxVBVAExHSInit(&pVdma->CmdVbva);
+        VBoxVDMAThreadInit(&pVdma->Thread);
+
+        rc = RTSemEventMultiCreate(&pVdma->HostCrCtlCompleteEvent);
         if (RT_SUCCESS(rc))
         {
-            rc = VBoxVDMAThreadCreate(&pVdma->Thread, vboxVDMAWorkerThread, pVdma);
+            rc = VBoxVBVAExHSInit(&pVdma->CmdVbva);
             if (RT_SUCCESS(rc))
             {
                 pVGAState->pVdma = pVdma;
                 int rcIgnored = vboxVDMACrCtlHgsmiSetup(pVdma); NOREF(rcIgnored); /** @todo is this ignoring intentional? */
                 return VINF_SUCCESS;
+
+                VBoxVBVAExHSTerm(&pVdma->CmdVbva);
             }
             else
-                WARN(("VBoxVDMAThreadCreate faile %d\n", rc));
+                WARN(("VBoxVBVAExHSInit failed %d\n", rc));
 
-            VBoxVBVAExHSTerm(&pVdma->CmdVbva);
+            RTSemEventMultiDestroy(pVdma->HostCrCtlCompleteEvent);
         }
         else
-            WARN(("VBoxVBVAExHSInit faile %d\n", rc));
+            WARN(("RTSemEventMultiCreate failed %d\n", rc));
+
 
         RTMemFree(pVdma);
 #else
@@ -1890,14 +2728,7 @@ int vboxVDMAConstruct(PVGASTATE pVGAState, uint32_t cPipeElements)
 int vboxVDMAReset(struct VBOXVDMAHOST *pVdma)
 {
 #ifdef VBOX_WITH_CRHGSMI
-    VBVAEXHOSTCTL Ctl;
-    Ctl.enmType = VBVAEXHOSTCTL_TYPE_HH_RESET;
-    int rc = vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST_ANY);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("vdmaVBVACtlSubmitSync failed %d\n", rc));
-        return rc;
-    }
+    vdmaVBVACtlDisableSync(pVdma);
 #endif
     return VINF_SUCCESS;
 }
@@ -1905,67 +2736,13 @@ int vboxVDMAReset(struct VBOXVDMAHOST *pVdma)
 int vboxVDMADestruct(struct VBOXVDMAHOST *pVdma)
 {
 #ifdef VBOX_WITH_CRHGSMI
-    VBVAEXHOSTCTL Ctl;
-    Ctl.enmType = VBVAEXHOSTCTL_TYPE_HH_TERM;
-    int rc = vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST_ANY);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("vdmaVBVACtlSubmitSync failed %d\n", rc));
-        return rc;
-    }
-    VBoxVDMAThreadTerm(&pVdma->Thread);
+    vdmaVBVACtlDisableSync(pVdma);
+    VBoxVDMAThreadCleanup(&pVdma->Thread);
     VBoxVBVAExHSTerm(&pVdma->CmdVbva);
+    RTSemEventMultiDestroy(pVdma->HostCrCtlCompleteEvent);
 #endif
     RTMemFree(pVdma);
     return VINF_SUCCESS;
-}
-
-int vboxVDMASaveStateExecPrep(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
-{
-#ifdef VBOX_WITH_CRHGSMI
-    PVGASTATE pVGAState = pVdma->pVGAState;
-    PVBOXVDMACMD_CHROMIUM_CTL pCmd = (PVBOXVDMACMD_CHROMIUM_CTL)vboxVDMACrCtlCreate(
-            VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_BEGIN, sizeof (*pCmd));
-    Assert(pCmd);
-    if (pCmd)
-    {
-        int rc = vboxVDMACrCtlPost(pVGAState, pCmd, sizeof (*pCmd));
-        AssertRC(rc);
-        if (RT_SUCCESS(rc))
-        {
-            rc = vboxVDMACrCtlGetRc(pCmd);
-        }
-        vboxVDMACrCtlRelease(pCmd);
-        return rc;
-    }
-    return VERR_NO_MEMORY;
-#else
-    return VINF_SUCCESS;
-#endif
-}
-
-int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
-{
-#ifdef VBOX_WITH_CRHGSMI
-    PVGASTATE pVGAState = pVdma->pVGAState;
-    PVBOXVDMACMD_CHROMIUM_CTL pCmd = (PVBOXVDMACMD_CHROMIUM_CTL)vboxVDMACrCtlCreate(
-            VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END, sizeof (*pCmd));
-    Assert(pCmd);
-    if (pCmd)
-    {
-        int rc = vboxVDMACrCtlPost(pVGAState, pCmd, sizeof (*pCmd));
-        AssertRC(rc);
-        if (RT_SUCCESS(rc))
-        {
-            rc = vboxVDMACrCtlGetRc(pCmd);
-        }
-        vboxVDMACrCtlRelease(pCmd);
-        return rc;
-    }
-    return VERR_NO_MEMORY;
-#else
-    return VINF_SUCCESS;
-#endif
 }
 
 void vboxVDMAControl(struct VBOXVDMAHOST *pVdma, PVBOXVDMA_CTL pCmd, uint32_t cbCmd)
@@ -2026,6 +2803,9 @@ void vboxVDMACommand(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pCmd, uint32_t
 
 /**/
 #ifdef VBOX_WITH_CRHGSMI
+
+static DECLCALLBACK(void) vdmaVBVACtlSubmitSyncCompletion(VBVAEXHOSTCONTEXT *pVbva, struct VBVAEXHOSTCTL *pCtl, int rc, void *pvContext);
+
 static int vdmaVBVACtlSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL* pCtl, VBVAEXHOSTCTL_SOURCE enmSource, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
 {
     int rc = VBoxVBVAExHCtlSubmit(&pVdma->CmdVbva, pCtl, enmSource, pfnComplete, pvComplete);
@@ -2037,7 +2817,7 @@ static int vdmaVBVACtlSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL* pCtl, VBVAEXHOS
             Assert(rc == VINF_ALREADY_INITIALIZED);
     }
     else
-        WARN(("VBoxVBVAExHCtlSubmit failed %d\n", rc));
+        Log(("VBoxVBVAExHCtlSubmit failed %d\n", rc));
 
     return rc;
 }
@@ -2056,9 +2836,9 @@ static DECLCALLBACK(void) vboxCmdVBVACmdCtlGuestCompletion(VBVAEXHOSTCONTEXT *pV
     VBoxVBVAExHCtlFree(pVbva, pCtl);
 }
 
-static int vdmaVBVACtlOpaqueSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL_SOURCE enmSource, uint8_t* pu8Cmd, uint32_t cbCmd, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
+static int vdmaVBVACtlGenericSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL_SOURCE enmSource, VBVAEXHOSTCTL_TYPE enmType, uint8_t* pu8Cmd, uint32_t cbCmd, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
 {
-    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE);
+    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, enmType);
     if (!pHCtl)
     {
         WARN(("VBoxVBVAExHCtlCreate failed\n"));
@@ -2068,23 +2848,24 @@ static int vdmaVBVACtlOpaqueSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL_SOURCE enm
     pHCtl->u.cmd.pu8Cmd = pu8Cmd;
     pHCtl->u.cmd.cbCmd = cbCmd;
     int rc = vdmaVBVACtlSubmit(pVdma, pHCtl, enmSource, pfnComplete, pvComplete);
-    if (!RT_SUCCESS(rc))
+    if (RT_FAILURE(rc))
     {
-        WARN(("vdmaVBVACtlSubmit failed rc %d\n", rc));
+        VBoxVBVAExHCtlFree(&pVdma->CmdVbva, pHCtl);
+        Log(("vdmaVBVACtlSubmit failed rc %d\n", rc));
         return rc;;
     }
     return VINF_SUCCESS;
 }
 
-static int vdmaVBVACtlOpaqueGuestSubmit(PVBOXVDMAHOST pVdma, VBOXCMDVBVA_CTL *pCtl, uint32_t cbCtl)
+static int vdmaVBVACtlGenericGuestSubmit(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL_TYPE enmType, VBOXCMDVBVA_CTL *pCtl, uint32_t cbCtl)
 {
     Assert(cbCtl >= sizeof (VBOXCMDVBVA_CTL));
     VBoxSHGSMICommandMarkAsynchCompletion(pCtl);
-    int rc = vdmaVBVACtlOpaqueSubmit(pVdma, VBVAEXHOSTCTL_SOURCE_GUEST, (uint8_t*)(pCtl+1), cbCtl - sizeof (VBOXCMDVBVA_CTL), vboxCmdVBVACmdCtlGuestCompletion, pVdma);
+    int rc = vdmaVBVACtlGenericSubmit(pVdma, VBVAEXHOSTCTL_SOURCE_GUEST, enmType, (uint8_t*)(pCtl+1), cbCtl - sizeof (VBOXCMDVBVA_CTL), vboxCmdVBVACmdCtlGuestCompletion, pVdma);
     if (RT_SUCCESS(rc))
         return VINF_SUCCESS;
 
-    WARN(("vdmaVBVACtlOpaqueSubmit failed %d\n", rc));
+    WARN(("vdmaVBVACtlGenericSubmit failed %d\n", rc));
     pCtl->i32Result = rc;
     rc = VBoxSHGSMICommandComplete(pVdma->pHgsmi, pCtl);
     AssertRC(rc);
@@ -2094,8 +2875,8 @@ static int vdmaVBVACtlOpaqueGuestSubmit(PVBOXVDMAHOST pVdma, VBOXCMDVBVA_CTL *pC
 static DECLCALLBACK(void) vboxCmdVBVACmdCtlHostCompletion(VBVAEXHOSTCONTEXT *pVbva, struct VBVAEXHOSTCTL *pCtl, int rc, void *pvCompletion)
 {
     VBOXCRCMDCTL* pVboxCtl = (VBOXCRCMDCTL*)pCtl->u.cmd.pu8Cmd;
-    if (pVboxCtl->pfnInternal)
-        ((PFNCRCTLCOMPLETION)pVboxCtl->pfnInternal)(pVboxCtl, pCtl->u.cmd.cbCmd, rc, pvCompletion);
+    if (pVboxCtl->u.pfnInternal)
+        ((PFNCRCTLCOMPLETION)pVboxCtl->u.pfnInternal)(pVboxCtl, pCtl->u.cmd.cbCmd, rc, pvCompletion);
     VBoxVBVAExHCtlFree(pVbva, pCtl);
 }
 
@@ -2103,13 +2884,13 @@ static int vdmaVBVACtlOpaqueHostSubmit(PVBOXVDMAHOST pVdma, struct VBOXCRCMDCTL*
         PFNCRCTLCOMPLETION pfnCompletion,
         void *pvCompletion)
 {
-    pCmd->pfnInternal = (void(*)())pfnCompletion;
-    int rc = vdmaVBVACtlOpaqueSubmit(pVdma, VBVAEXHOSTCTL_SOURCE_HOST_ENABLED, (uint8_t*)pCmd, cbCmd, vboxCmdVBVACmdCtlHostCompletion, pvCompletion);
-    if (!RT_SUCCESS(rc))
+    pCmd->u.pfnInternal = (void(*)())pfnCompletion;
+    int rc = vdmaVBVACtlGenericSubmit(pVdma, VBVAEXHOSTCTL_SOURCE_HOST, VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE, (uint8_t*)pCmd, cbCmd, vboxCmdVBVACmdCtlHostCompletion, pvCompletion);
+    if (RT_FAILURE(rc))
     {
         if (rc == VERR_INVALID_STATE)
         {
-            pCmd->pfnInternal = NULL;
+            pCmd->u.pfnInternal = NULL;
             PVGASTATE pVGAState = pVdma->pVGAState;
             rc = pVGAState->pDrv->pfnCrHgcmCtlSubmit(pVGAState->pDrv, pCmd, cbCmd, pfnCompletion, pvCompletion);
             if (!RT_SUCCESS(rc))
@@ -2117,16 +2898,146 @@ static int vdmaVBVACtlOpaqueHostSubmit(PVBOXVDMAHOST pVdma, struct VBOXCRCMDCTL*
 
             return rc;
         }
-        WARN(("vdmaVBVACtlOpaqueSubmit failed %d\n", rc));
+        WARN(("vdmaVBVACtlGenericSubmit failed %d\n", rc));
         return rc;
     }
 
     return VINF_SUCCESS;
 }
 
-static int vdmaVBVACtlEnableDisableSubmitInternal(PVBOXVDMAHOST pVdma, VBVAENABLE *pEnable, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
+static DECLCALLBACK(int) vdmaVBVANotifyEnable(PVGASTATE pVGAState)
 {
-    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, VBVAEXHOSTCTL_TYPE_GH_ENABLE_DISABLE);
+    for (uint32_t i = 0; i < pVGAState->cMonitors; i++)
+    {
+        int rc = pVGAState->pDrv->pfnVBVAEnable (pVGAState->pDrv, i, NULL, true);
+        if (!RT_SUCCESS(rc))
+        {
+            WARN(("pfnVBVAEnable failed %d\n", rc));
+            for (uint32_t j = 0; j < i; j++)
+            {
+                pVGAState->pDrv->pfnVBVADisable (pVGAState->pDrv, j);
+            }
+
+            return rc;
+        }
+    }
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(int) vdmaVBVANotifyDisable(PVGASTATE pVGAState)
+{
+    for (uint32_t i = 0; i < pVGAState->cMonitors; i++)
+    {
+        pVGAState->pDrv->pfnVBVADisable (pVGAState->pDrv, i);
+    }
+    return VINF_SUCCESS;
+}
+
+static DECLCALLBACK(void) vdmaVBVACtlThreadCreatedEnable(struct VBOXVDMATHREAD *pThread, int rc, void *pvThreadContext, void *pvContext)
+{
+    PVBOXVDMAHOST pVdma = (PVBOXVDMAHOST)pvThreadContext;
+    VBVAEXHOSTCTL* pHCtl = (VBVAEXHOSTCTL*)pvContext;
+
+    if (RT_SUCCESS(rc))
+    {
+        rc = vboxVDMACrGuestCtlProcess(pVdma, pHCtl);
+        /* rc == VINF_SUCCESS would mean the actual state change has occcured */
+        if (rc == VINF_SUCCESS)
+        {
+            /* we need to inform Main about VBVA enable/disable
+             * main expects notifications to be done from the main thread
+             * submit it there */
+            PVGASTATE pVGAState = pVdma->pVGAState;
+
+            if (VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
+                vdmaVBVANotifyEnable(pVGAState);
+            else
+                vdmaVBVANotifyDisable(pVGAState);
+        }
+        else if (RT_FAILURE(rc))
+            WARN(("vboxVDMACrGuestCtlProcess failed %d\n", rc));
+    }
+    else
+        WARN(("vdmaVBVACtlThreadCreatedEnable is passed %d\n", rc));
+
+    VBoxVBVAExHPDataCompleteCtl(&pVdma->CmdVbva, pHCtl, rc);
+}
+
+static int vdmaVBVACtlEnableSubmitInternal(PVBOXVDMAHOST pVdma, VBVAENABLE *pEnable, bool fPaused, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
+{
+    int rc;
+    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, fPaused ? VBVAEXHOSTCTL_TYPE_GHH_ENABLE_PAUSED : VBVAEXHOSTCTL_TYPE_GHH_ENABLE);
+    if (pHCtl)
+    {
+        pHCtl->u.cmd.pu8Cmd = (uint8_t*)pEnable;
+        pHCtl->u.cmd.cbCmd = sizeof (*pEnable);
+        pHCtl->pfnComplete = pfnComplete;
+        pHCtl->pvComplete = pvComplete;
+
+        rc = VBoxVDMAThreadCreate(&pVdma->Thread, vboxVDMAWorkerThread, pVdma, vdmaVBVACtlThreadCreatedEnable, pHCtl);
+        if (RT_SUCCESS(rc))
+            return VINF_SUCCESS;
+        else
+            WARN(("VBoxVDMAThreadCreate failed %d\n", rc));
+
+        VBoxVBVAExHCtlFree(&pVdma->CmdVbva, pHCtl);
+    }
+    else
+    {
+        WARN(("VBoxVBVAExHCtlCreate failed\n"));
+        rc = VERR_NO_MEMORY;
+    }
+
+    return rc;
+}
+
+static int vdmaVBVACtlEnableSubmitSync(PVBOXVDMAHOST pVdma, uint32_t offVram, bool fPaused)
+{
+    VBVAENABLE Enable = {0};
+    Enable.u32Flags = VBVA_F_ENABLE;
+    Enable.u32Offset = offVram;
+
+    VDMA_VBVA_CTL_CYNC_COMPLETION Data;
+    Data.rc = VERR_NOT_IMPLEMENTED;
+    int rc = RTSemEventCreate(&Data.hEvent);
+    if (!RT_SUCCESS(rc))
+    {
+        WARN(("RTSemEventCreate failed %d\n", rc));
+        return rc;
+    }
+
+    rc = vdmaVBVACtlEnableSubmitInternal(pVdma, &Enable, fPaused, vdmaVBVACtlSubmitSyncCompletion, &Data);
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTSemEventWait(Data.hEvent, RT_INDEFINITE_WAIT);
+        if (RT_SUCCESS(rc))
+        {
+            rc = Data.rc;
+            if (!RT_SUCCESS(rc))
+                WARN(("vdmaVBVACtlSubmitSyncCompletion returned %d\n", rc));
+        }
+        else
+            WARN(("RTSemEventWait failed %d\n", rc));
+    }
+    else
+        WARN(("vdmaVBVACtlSubmit failed %d\n", rc));
+
+    RTSemEventDestroy(Data.hEvent);
+
+    return rc;
+}
+
+static int vdmaVBVACtlDisableSubmitInternal(PVBOXVDMAHOST pVdma, VBVAENABLE *pEnable, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
+{
+    int rc;
+    VBVAEXHOSTCTL* pHCtl;
+    if (VBoxVBVAExHSIsDisabled(&pVdma->CmdVbva))
+    {
+        WARN(("VBoxVBVAExHSIsDisabled: disabled"));
+        return VINF_SUCCESS;
+    }
+
+    pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, VBVAEXHOSTCTL_TYPE_GHH_DISABLE);
     if (!pHCtl)
     {
         WARN(("VBoxVBVAExHCtlCreate failed\n"));
@@ -2135,13 +3046,21 @@ static int vdmaVBVACtlEnableDisableSubmitInternal(PVBOXVDMAHOST pVdma, VBVAENABL
 
     pHCtl->u.cmd.pu8Cmd = (uint8_t*)pEnable;
     pHCtl->u.cmd.cbCmd = sizeof (*pEnable);
-    int rc = vdmaVBVACtlSubmit(pVdma, pHCtl, VBVAEXHOSTCTL_SOURCE_GUEST, pfnComplete, pvComplete);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("vdmaVBVACtlSubmit failed rc %d\n", rc));
-        return rc;;
-    }
-    return VINF_SUCCESS;
+    rc = vdmaVBVACtlSubmit(pVdma, pHCtl, VBVAEXHOSTCTL_SOURCE_GUEST, pfnComplete, pvComplete);
+    if (RT_SUCCESS(rc))
+        return VINF_SUCCESS;
+
+    WARN(("vdmaVBVACtlSubmit failed rc %d\n", rc));
+    VBoxVBVAExHCtlFree(&pVdma->CmdVbva, pHCtl);
+    return rc;
+}
+
+static int vdmaVBVACtlEnableDisableSubmitInternal(PVBOXVDMAHOST pVdma, VBVAENABLE *pEnable, PFNVBVAEXHOSTCTL_COMPLETE pfnComplete, void *pvComplete)
+{
+    bool fEnable = ((pEnable->u32Flags & (VBVA_F_ENABLE | VBVA_F_DISABLE)) == VBVA_F_ENABLE);
+    if (fEnable)
+        return vdmaVBVACtlEnableSubmitInternal(pVdma, pEnable, false, pfnComplete, pvComplete);
+    return vdmaVBVACtlDisableSubmitInternal(pVdma, pEnable, pfnComplete, pvComplete);
 }
 
 static int vdmaVBVACtlEnableDisableSubmit(PVBOXVDMAHOST pVdma, VBOXCMDVBVA_CTL_ENABLE *pEnable)
@@ -2192,7 +3111,7 @@ static int vdmaVBVACtlSubmitSync(PVBOXVDMAHOST pVdma, VBVAEXHOSTCTL* pCtl, VBVAE
             WARN(("RTSemEventWait failed %d\n", rc));
     }
     else
-        WARN(("vdmaVBVACtlSubmit failed %d\n", rc));
+        Log(("vdmaVBVACtlSubmit failed %d\n", rc));
 
     RTSemEventDestroy(Data.hEvent);
 
@@ -2203,14 +3122,14 @@ static int vdmaVBVAPause(PVBOXVDMAHOST pVdma)
 {
     VBVAEXHOSTCTL Ctl;
     Ctl.enmType = VBVAEXHOSTCTL_TYPE_HH_INTERNAL_PAUSE;
-    return vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST_ANY);
+    return vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST);
 }
 
 static int vdmaVBVAResume(PVBOXVDMAHOST pVdma)
 {
     VBVAEXHOSTCTL Ctl;
     Ctl.enmType = VBVAEXHOSTCTL_TYPE_HH_INTERNAL_RESUME;
-    return vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST_ANY);
+    return vdmaVBVACtlSubmitSync(pVdma, &Ctl, VBVAEXHOSTCTL_SOURCE_HOST);
 }
 
 static int vboxVDMACmdSubmitPerform(struct VBOXVDMAHOST *pVdma)
@@ -2241,6 +3160,69 @@ int vboxCmdVBVACmdHostCtl(PPDMIDISPLAYVBVACALLBACKS pInterface,
     return vdmaVBVACtlOpaqueHostSubmit(pVdma, pCmd, cbCmd, pfnCompletion, pvCompletion);
 }
 
+typedef struct VBOXCMDVBVA_CMDHOSTCTL_SYNC
+{
+    struct VBOXVDMAHOST *pVdma;
+    uint32_t fProcessing;
+    int rc;
+} VBOXCMDVBVA_CMDHOSTCTL_SYNC;
+
+static DECLCALLBACK(void) vboxCmdVBVACmdHostCtlSyncCb(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
+{
+    VBOXCMDVBVA_CMDHOSTCTL_SYNC *pData = (VBOXCMDVBVA_CMDHOSTCTL_SYNC*)pvCompletion;
+
+    pData->rc = rc;
+    pData->fProcessing = 0;
+
+    struct VBOXVDMAHOST *pVdma = pData->pVdma;
+
+    ASMAtomicIncS32(&pVdma->i32cHostCrCtlCompleted);
+
+    RTSemEventMultiSignal(pVdma->HostCrCtlCompleteEvent);
+}
+
+int vboxCmdVBVACmdHostCtlSync(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                               struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd)
+{
+    PVGASTATE pVGAState = PPDMIDISPLAYVBVACALLBACKS_2_PVGASTATE(pInterface);
+    struct VBOXVDMAHOST *pVdma = pVGAState->pVdma;
+    VBOXCMDVBVA_CMDHOSTCTL_SYNC Data;
+    Data.pVdma = pVdma;
+    Data.fProcessing = 1;
+    Data.rc = VERR_INTERNAL_ERROR;
+    int rc = vdmaVBVACtlOpaqueHostSubmit(pVdma, pCmd, cbCmd, vboxCmdVBVACmdHostCtlSyncCb, &Data);
+    if (!RT_SUCCESS(rc))
+    {
+        WARN(("vdmaVBVACtlOpaqueHostSubmit failed %d", rc));
+        return rc;
+    }
+
+    while (Data.fProcessing)
+    {
+        /* Poll infrequently to make sure no completed message has been missed. */
+        RTSemEventMultiWait(pVdma->HostCrCtlCompleteEvent, 500);
+
+        if (Data.fProcessing)
+            RTThreadYield();
+    }
+
+    /* 'Our' message has been processed, so should reset the semaphore.
+     * There is still possible that another message has been processed
+     * and the semaphore has been signalled again.
+     * Reset only if there are no other messages completed.
+     */
+    int32_t c = ASMAtomicDecS32(&pVdma->i32cHostCrCtlCompleted);
+    Assert(c >= 0);
+    if (!c)
+        RTSemEventMultiReset(pVdma->HostCrCtlCompleteEvent);
+
+    rc = Data.rc;
+    if (!RT_SUCCESS(rc))
+        WARN(("host call failed %d", rc));
+
+    return rc;
+}
+
 int vboxCmdVBVACmdCtl(PVGASTATE pVGAState, VBOXCMDVBVA_CTL *pCtl, uint32_t cbCtl)
 {
     struct VBOXVDMAHOST *pVdma = pVGAState->pVdma;
@@ -2248,7 +3230,9 @@ int vboxCmdVBVACmdCtl(PVGASTATE pVGAState, VBOXCMDVBVA_CTL *pCtl, uint32_t cbCtl
     switch (pCtl->u32Type)
     {
         case VBOXCMDVBVACTL_TYPE_3DCTL:
-            return vdmaVBVACtlOpaqueGuestSubmit(pVdma, pCtl, cbCtl);
+            return vdmaVBVACtlGenericGuestSubmit(pVdma, VBVAEXHOSTCTL_TYPE_GHH_BE_OPAQUE, pCtl, cbCtl);
+        case VBOXCMDVBVACTL_TYPE_RESIZE:
+            return vdmaVBVACtlGenericGuestSubmit(pVdma, VBVAEXHOSTCTL_TYPE_GHH_RESIZE, pCtl, cbCtl);
         case VBOXCMDVBVACTL_TYPE_ENABLE:
             if (cbCtl != sizeof (VBOXCMDVBVA_CTL_ENABLE))
             {
@@ -2298,4 +3282,177 @@ void vboxCmdVBVACmdTimer(PVGASTATE pVGAState)
     vboxVDMACmdSubmitPerform(pVGAState->pVdma);
 }
 
+bool vboxCmdVBVAIsEnabled(PVGASTATE pVGAState)
+{
+    return VBoxVBVAExHSIsEnabled(&pVGAState->pVdma->CmdVbva);
+}
 #endif
+
+int vboxVDMASaveStateExecPrep(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
+{
+#ifdef VBOX_WITH_CRHGSMI
+    int rc = vdmaVBVAPause(pVdma);
+    if (RT_SUCCESS(rc))
+        return VINF_SUCCESS;
+
+    if (rc != VERR_INVALID_STATE)
+    {
+        WARN(("vdmaVBVAPause failed %d\n", rc));
+        return rc;
+    }
+
+#ifdef DEBUG_misha
+    WARN(("debug prep"));
+#endif
+
+    PVGASTATE pVGAState = pVdma->pVGAState;
+    PVBOXVDMACMD_CHROMIUM_CTL pCmd = (PVBOXVDMACMD_CHROMIUM_CTL)vboxVDMACrCtlCreate(
+            VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_BEGIN, sizeof (*pCmd));
+    Assert(pCmd);
+    if (pCmd)
+    {
+        rc = vboxVDMACrCtlPost(pVGAState, pCmd, sizeof (*pCmd));
+        AssertRC(rc);
+        if (RT_SUCCESS(rc))
+        {
+            rc = vboxVDMACrCtlGetRc(pCmd);
+        }
+        vboxVDMACrCtlRelease(pCmd);
+        return rc;
+    }
+    return VERR_NO_MEMORY;
+#else
+    return VINF_SUCCESS;
+#endif
+}
+
+int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
+{
+#ifdef VBOX_WITH_CRHGSMI
+    int rc = vdmaVBVAResume(pVdma);
+    if (RT_SUCCESS(rc))
+        return VINF_SUCCESS;
+
+    if (rc != VERR_INVALID_STATE)
+    {
+        WARN(("vdmaVBVAResume failed %d\n", rc));
+        return rc;
+    }
+
+#ifdef DEBUG_misha
+    WARN(("debug done"));
+#endif
+
+    PVGASTATE pVGAState = pVdma->pVGAState;
+    PVBOXVDMACMD_CHROMIUM_CTL pCmd = (PVBOXVDMACMD_CHROMIUM_CTL)vboxVDMACrCtlCreate(
+            VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END, sizeof (*pCmd));
+    Assert(pCmd);
+    if (pCmd)
+    {
+        rc = vboxVDMACrCtlPost(pVGAState, pCmd, sizeof (*pCmd));
+        AssertRC(rc);
+        if (RT_SUCCESS(rc))
+        {
+            rc = vboxVDMACrCtlGetRc(pCmd);
+        }
+        vboxVDMACrCtlRelease(pCmd);
+        return rc;
+    }
+    return VERR_NO_MEMORY;
+#else
+    return VINF_SUCCESS;
+#endif
+}
+
+int vboxVDMASaveStateExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM)
+{
+    int rc;
+
+#ifdef VBOX_WITH_CRHGSMI
+    if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
+#endif
+    {
+        rc = SSMR3PutU32(pSSM, 0xffffffff);
+        AssertRCReturn(rc, rc);
+        return VINF_SUCCESS;
+    }
+
+#ifdef VBOX_WITH_CRHGSMI
+    PVGASTATE pVGAState = pVdma->pVGAState;
+    uint8_t * pu8VramBase = pVGAState->vram_ptrR3;
+
+    rc = SSMR3PutU32(pSSM, (uint32_t)(((uint8_t*)pVdma->CmdVbva.pVBVA) - pu8VramBase));
+    AssertRCReturn(rc, rc);
+
+    VBVAEXHOSTCTL HCtl;
+    HCtl.enmType = VBVAEXHOSTCTL_TYPE_HH_SAVESTATE;
+    HCtl.u.state.pSSM = pSSM;
+    HCtl.u.state.u32Version = 0;
+    return vdmaVBVACtlSubmitSync(pVdma, &HCtl, VBVAEXHOSTCTL_SOURCE_HOST);
+#endif
+}
+
+int vboxVDMASaveLoadExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM, uint32_t u32Version)
+{
+    uint32_t u32;
+    int rc = SSMR3GetU32(pSSM, &u32);
+    AssertRCReturn(rc, rc);
+
+    if (u32 != 0xffffffff)
+    {
+#ifdef VBOX_WITH_CRHGSMI
+        rc = vdmaVBVACtlEnableSubmitSync(pVdma, u32, true);
+        AssertRCReturn(rc, rc);
+
+        Assert(pVdma->CmdVbva.i32State == VBVAEXHOSTCONTEXT_ESTATE_PAUSED);
+
+        VBVAEXHOSTCTL HCtl;
+        HCtl.enmType = VBVAEXHOSTCTL_TYPE_HH_LOADSTATE;
+        HCtl.u.state.pSSM = pSSM;
+        HCtl.u.state.u32Version = u32Version;
+        rc = vdmaVBVACtlSubmitSync(pVdma, &HCtl, VBVAEXHOSTCTL_SOURCE_HOST);
+        AssertRCReturn(rc, rc);
+
+        rc = vdmaVBVAResume(pVdma);
+        AssertRCReturn(rc, rc);
+
+        return VINF_SUCCESS;
+#else
+        WARN(("Unsupported VBVACtl info!\n"));
+        return VERR_VERSION_MISMATCH;
+#endif
+    }
+
+    return VINF_SUCCESS;
+}
+
+int vboxVDMASaveLoadDone(struct VBOXVDMAHOST *pVdma)
+{
+#ifdef VBOX_WITH_CRHGSMI
+    if (!VBoxVBVAExHSIsEnabled(&pVdma->CmdVbva))
+        return VINF_SUCCESS;
+
+/** @todo r=bird: BTW. would be great if you put in a couple of comments here and there explaining what
+       * the purpose of this code is. */
+    VBVAEXHOSTCTL* pHCtl = VBoxVBVAExHCtlCreate(&pVdma->CmdVbva, VBVAEXHOSTCTL_TYPE_HH_LOADSTATE_DONE);
+    if (!pHCtl)
+    {
+        WARN(("VBoxVBVAExHCtlCreate failed\n"));
+        return VERR_NO_MEMORY;
+    }
+
+    /* sanity */
+    pHCtl->u.cmd.pu8Cmd = NULL;
+    pHCtl->u.cmd.cbCmd = 0;
+
+    /* NULL completion will just free the ctl up */
+    int rc = vdmaVBVACtlSubmit(pVdma, pHCtl, VBVAEXHOSTCTL_SOURCE_HOST, NULL, NULL);
+    if (RT_FAILURE(rc))
+    {
+        Log(("vdmaVBVACtlSubmit failed rc %d\n", rc));
+        VBoxVBVAExHCtlFree(&pVdma->CmdVbva, pHCtl);
+        return rc;
+    }
+#endif
+    return VINF_SUCCESS;
+}

@@ -1312,6 +1312,8 @@ int HGSMIHostSaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM)
 
     int rc;
 
+    SSMR3PutU32(pSSM, pIns->hostHeap.fOffsetBased ? HGSMI_HEAP_TYPE_OFFSET : HGSMI_HEAP_TYPE_POINTER);
+
     HGSMIOFFSET off = pIns->pHGFlags ? HGSMIPointerToOffset(&pIns->area, (const HGSMIBUFFERHEADER *)pIns->pHGFlags) : HGSMIOFFSET_VOID;
     SSMR3PutU32 (pSSM, off);
 
@@ -1351,6 +1353,14 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
 
     int rc;
     HGSMIOFFSET off;
+    uint32_t u32HeapType = HGSMI_HEAP_TYPE_NULL;
+
+    if (u32Version >= VGA_SAVEDSTATE_VERSION_HGSMIMA)
+    {
+        rc = SSMR3GetU32(pSSM, &u32HeapType);
+        AssertRCReturn(rc, rc);
+    }
+
     rc = SSMR3GetU32(pSSM, &off);
     AssertRCReturn(rc, rc);
     pIns->pHGFlags = (off != HGSMIOFFSET_VOID) ? (HGSMIHOSTFLAGS*)HGSMIOffsetToPointer (&pIns->area, off) : NULL;
@@ -1360,6 +1370,20 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
     AssertRCReturn(rc, rc);
     if(off != HGSMIOFFSET_VOID)
     {
+        /* There is a saved heap. */
+        if (u32HeapType == HGSMI_HEAP_TYPE_NULL)
+        {
+            u32HeapType = u32Version > VGA_SAVEDSTATE_VERSION_HOST_HEAP?
+                              HGSMI_HEAP_TYPE_OFFSET:
+                              HGSMI_HEAP_TYPE_POINTER;
+        }
+
+        if (u32HeapType == HGSMI_HEAP_TYPE_MA)
+        {
+            AssertMsgFailed(("MA heap not supported"));
+            return VERR_VERSION_MISMATCH;
+        }
+
         HGSMIOFFSET offHeap;
         SSMR3GetU32(pSSM, &offHeap);
         uint32_t cbHeap;
@@ -1380,7 +1404,7 @@ int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Ve
                                    uintptr_t(pIns->area.pu8Base) - uintptr_t(oldMem),
                                    cbHeap,
                                    offHeap,
-                                   u32Version > VGA_SAVEDSTATE_VERSION_HOST_HEAP);
+                                   u32HeapType == HGSMI_HEAP_TYPE_OFFSET);
 
             hgsmiHostHeapUnlock (pIns);
         }

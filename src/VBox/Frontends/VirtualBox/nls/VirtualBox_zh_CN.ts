@@ -829,6 +829,10 @@
         <source>&amp;Webcams</source>
         <translation>摄像头(&amp;W)</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished">网络</translation>
+    </message>
 </context>
 <context>
     <name>UIApplianceEditorWidget</name>
@@ -3760,6 +3764,14 @@
         <source>No supported webcams connected to the host PC</source>
         <translation>没有可用摄像头连接到主机</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4034,6 +4046,10 @@
     <message>
         <source>Enable video recording for screen %1.</source>
         <translation>启用屏幕 %1 录像。</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

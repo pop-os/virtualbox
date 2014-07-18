@@ -31,6 +31,8 @@
 #include <iprt/path.h>
 #include <iprt/string.h>
 
+#include "VDBackends.h"
+
 #define VHD_RELATIVE_MAX_PATH 512
 #define VHD_ABSOLUTE_MAX_PATH 512
 
@@ -3179,7 +3181,7 @@ static DECLCALLBACK(int) vhdRepair(const char *pszFilename, PVDINTERFACE pVDIfsD
 }
 
 
-VBOXHDDBACKEND g_VhdBackend =
+const VBOXHDDBACKEND g_VhdBackend =
 {
     /* pszBackendName */
     "VHD",
@@ -3193,8 +3195,6 @@ VBOXHDDBACKEND g_VhdBackend =
     s_aVhdFileExtensions,
     /* paConfigInfo */
     NULL,
-    /* hPlugin */
-    NIL_RTLDRMOD,
     /* pfnCheckIfValid */
     vhdCheckIfValid,
     /* pfnOpen */
@@ -3276,5 +3276,7 @@ VBOXHDDBACKEND g_VhdBackend =
     /* pfnResize */
     vhdResize,
     /* pfnRepair */
-    vhdRepair
+    vhdRepair,
+    /* pfnTraverseMetadata */
+    NULL
 };

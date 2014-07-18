@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,23 +38,6 @@
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include "internal/ldr.h"
-
-
-RTDECL(bool) RTLdrIsLoadable(const char *pszFilename)
-{
-    /*
-     * Try to load the library.
-     */
-    RTLDRMOD hLib;
-    int rc = RTLdrLoad(pszFilename, &hLib);
-    if (RT_SUCCESS(rc))
-    {
-        RTLdrClose(hLib);
-        return true;
-    }
-    return false;
-}
-RT_EXPORT_SYMBOL(RTLdrIsLoadable);
 
 
 RTDECL(int) RTLdrGetSymbol(RTLDRMOD hLdrMod, const char *pszSymbol, void **ppvValue)
@@ -147,6 +130,8 @@ RTDECL(int) RTLdrClose(RTLDRMOD hLdrMod)
     /*
      * Validate input.
      */
+    if (hLdrMod == NIL_RTLDRMOD)
+        return VINF_SUCCESS;
     AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), VERR_INVALID_HANDLE);
     PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
     //AssertMsgReturn(pMod->eState == LDR_STATE_OPENED, ("eState=%d\n", pMod->eState), VERR_WRONG_ORDER);

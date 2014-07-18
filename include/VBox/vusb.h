@@ -29,6 +29,8 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 
+#include <iprt/queueatomic.h>
+
 struct PDMLED;
 
 RT_C_DECLS_BEGIN
@@ -1036,15 +1038,18 @@ typedef struct VUSBURB
         uint32_t        u32FrameNo;
         /** Flag indicating that the TDs have been unlinked. */
         bool            fUnlinked;
+        RTQUEUEATOMICITEM QueueItem;
     } Hci;
 
     /** The device data. */
     struct VUSBURBDEV
     {
         /** Pointer to private device specific data.  */
-        void           *pvPrivate;
+        void             *pvPrivate;
         /** Used by the device when linking the URB in some list of its own.   */
-        PVUSBURB        pNext;
+        PVUSBURB          pNext;
+        /** Work queue item. */
+        RTQUEUEATOMICITEM QueueItem;
     } Dev;
 
 #ifndef RDESKTOP
@@ -1086,7 +1091,8 @@ typedef struct VUSBURB
     uint32_t        cbData;
     /** The message data.
      * IN: On host to device transfers, the data to send.
-     * OUT: On device to host transfers, the data to received. */
+     * OUT: On device to host transfers, the data to received.
+     * This array has actually a size of VUsb.cbDataAllocated, not 8KB! */
     uint8_t         abData[8*_1K];
 } VUSBURB;
 

@@ -293,9 +293,6 @@ typedef struct VGAState {
     /** LUN\#0: VBVA callbacks interface */
     PDMIDISPLAYVBVACALLBACKS    IVBVACallbacks;
 # endif
-# if HC_ARCH_BITS == 32
-    uint32_t                    Padding0;
-# endif
     /** Pointer to base interface of the driver. */
     R3PTRTYPE(PPDMIBASE)        pDrvBase;
     /** Pointer to display connector interface of the driver. */
@@ -518,6 +515,8 @@ typedef struct VGAState {
 #  endif
 # endif /* VBOX_WITH_HGSMI */
 
+    PDMLED Led3D;
+
     struct {
         volatile uint32_t cPending;
         uint32_t Padding1;
@@ -594,12 +593,15 @@ void     VBVADestroy    (PVGASTATE pVGAState);
 int      VBVAUpdateDisplay (PVGASTATE pVGAState);
 void     VBVAReset (PVGASTATE pVGAState);
 void     VBVAPause (PVGASTATE pVGAState, bool fPause);
-int      VBVAGetScreenInfo(PVGASTATE pVGAState, unsigned uScreenId, struct VBVAINFOSCREEN *pScreen, void **ppvVram);
 
 bool VBVAIsEnabled(PVGASTATE pVGAState);
 
 void VBVARaiseIrq (PVGASTATE pVGAState, uint32_t fFlags);
 void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags);
+
+int VBVAInfoView(PVGASTATE pVGAState, VBVAINFOVIEW *pView);
+int VBVAInfoScreen(PVGASTATE pVGAState, VBVAINFOSCREEN *pScreen);
+int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINFOVIEW *pView, VBVAINFOSCREEN *pScreen);
 
 /* @return host-guest flags that were set on reset
  * this allows the caller to make further cleaning when needed,
@@ -607,7 +609,7 @@ void VBVARaiseIrqNoWait(PVGASTATE pVGAState, uint32_t fFlags);
 uint32_t HGSMIReset (PHGSMIINSTANCE pIns);
 
 # ifdef VBOX_WITH_VIDEOHWACCEL
-int vbvaVHWACommandCompleteAsynch(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
+int vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWACMD pCmd);
 int vbvaVHWAConstruct (PVGASTATE pVGAState);
 int vbvaVHWAReset (PVGASTATE pVGAState);
 
@@ -628,11 +630,15 @@ int vboxCmdVBVACmdHostCtl(PPDMIDISPLAYVBVACALLBACKS pInterface,
                                                                struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
                                                                PFNCRCTLCOMPLETION pfnCompletion,
                                                                void *pvCompletion);
+int vboxCmdVBVACmdHostCtlSync(PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                               struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
 # endif
 
 int vboxVBVASaveStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Version);
 int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
+
+int vgaUpdateDisplayAll(PVGASTATE pThis);
 
 # ifdef VBOX_WITH_VDMA
 typedef struct VBOXVDMAHOST *PVBOXVDMAHOST;
@@ -643,6 +649,9 @@ void vboxVDMAControl(PVBOXVDMAHOST pVdma, PVBOXVDMA_CTL pCmd, uint32_t cbCmd);
 void vboxVDMACommand(PVBOXVDMAHOST pVdma, PVBOXVDMACBUF_DR pCmd, uint32_t cbCmd);
 int vboxVDMASaveStateExecPrep(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
 int vboxVDMASaveStateExecDone(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
+int vboxVDMASaveStateExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM);
+int vboxVDMASaveLoadExecPerform(struct VBOXVDMAHOST *pVdma, PSSMHANDLE pSSM, uint32_t u32Version);
+int vboxVDMASaveLoadDone(struct VBOXVDMAHOST *pVdma);
 # endif /* VBOX_WITH_VDMA */
 
 # ifdef VBOX_WITH_CRHGSMI
@@ -650,6 +659,7 @@ int vboxCmdVBVACmdSubmit(PVGASTATE pVGAState);
 int vboxCmdVBVACmdFlush(PVGASTATE pVGAState);
 void vboxCmdVBVACmdTimer(PVGASTATE pVGAState);
 int vboxCmdVBVACmdCtl(PVGASTATE pVGAState, VBOXCMDVBVA_CTL *pCtl, uint32_t cbCtl);
+bool vboxCmdVBVAIsEnabled(PVGASTATE pVGAState);
 # endif /* VBOX_WITH_CRHGSMI */
 #endif /* VBOX_WITH_HGSMI */
 

@@ -1055,6 +1055,10 @@
         <source>&amp;Webcams</source>
         <translation>&amp;Cámaras web</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished">Red</translation>
+    </message>
 </context>
 <context>
     <name>UIActonPool</name>
@@ -4702,6 +4706,14 @@ p, li { white-space: pre-wrap; }
         <source>No supported webcams connected to the host PC</source>
         <translation>No hay cámaras web soportadas conectadas al PC anfitrión</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -5010,6 +5022,10 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>The virtual machine is set up to use Video Stream Acceleration. As this feature only works with Windows guest systems it will be disabled.</source>
         <translation>La máquina virtual usará aceleración de transferencia de vídeo. Como esta característica solo funciona con sistemas invitados Windows será deshabilitada.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

@@ -406,6 +406,16 @@ typedef struct VDINTERFACEIOINT
     DECLR3CALLBACKMEMBER(bool, pfnIoCtxIsZero, (void *pvUser, PVDIOCTX pIoCtx,
                                                 size_t cbCheck, bool fAdvance));
 
+    /**
+     * Returns the data unit size, i.e. the smallest size for a transfer.
+     * (similar to the sector size of disks).
+     *
+     * @returns The data unit size.
+     * @param   pvUser         The opaque user data passed on container creation.
+     * @param   pIoCtx         The I/O context.
+     */
+    DECLR3CALLBACKMEMBER(size_t, pfnIoCtxGetDataUnitSize, (void *pvUser, PVDIOCTX pIoCtx));
+
 } VDINTERFACEIOINT, *PVDINTERFACEIOINT;
 
 /**
@@ -584,6 +594,55 @@ DECLINLINE(bool) vdIfIoIntIoCtxIsZero(PVDINTERFACEIOINT pIfIoInt, PVDIOCTX pIoCt
     return pIfIoInt->pfnIoCtxIsZero(pIfIoInt->Core.pvUser, pIoCtx, cbCheck, fAdvance);
 }
 
+DECLINLINE(size_t) vdIfIoIntIoCtxGetDataUnitSize(PVDINTERFACEIOINT pIfIoInt, PVDIOCTX pIoCtx)
+{
+    return pIfIoInt->pfnIoCtxGetDataUnitSize(pIfIoInt->Core.pvUser, pIoCtx);
+}
+
+/**
+ * Interface for the metadata traverse callback.
+ *
+ * Per-operation interface. Present only for the metadata traverse callback.
+ */
+typedef struct VDINTERFACETRAVERSEMETADATA
+{
+    /**
+     * Common interface header.
+     */
+    VDINTERFACE    Core;
+
+    /**
+     * Traverse callback.
+     *
+     * @returns VBox status code.
+     * @param   pvUser          The opaque data passed for the operation.
+     * @param   pvMetadataChunk Pointer to a chunk of the image metadata.
+     * @param   cbMetadataChunk Size of the metadata chunk
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMetadataCallback, (void *pvUser, const void *pvMetadataChunk,
+                                                    size_t cbMetadataChunk));
+
+} VDINTERFACETRAVERSEMETADATA, *PVDINTERFACETRAVERSEMETADATA;
+
+
+/**
+ * Get parent state interface from interface list.
+ *
+ * @return Pointer to the first parent state interface in the list.
+ * @param  pVDIfs    Pointer to the interface list.
+ */
+DECLINLINE(PVDINTERFACETRAVERSEMETADATA) VDIfTraverseMetadataGet(PVDINTERFACE pVDIfs)
+{
+    PVDINTERFACE pIf = VDInterfaceGet(pVDIfs, VDINTERFACETYPE_TRAVERSEMETADATA);
+
+    /* Check that the interface descriptor the correct interface. */
+    AssertMsgReturn(   !pIf
+                    || (   (pIf->enmInterface == VDINTERFACETYPE_TRAVERSEMETADATA)
+                        && (pIf->cbSize == sizeof(VDINTERFACETRAVERSEMETADATA))),
+                    ("Not a traverse metadata interface"), NULL);
+
+    return (PVDINTERFACETRAVERSEMETADATA)pIf;
+}
 
 RT_C_DECLS_END
 

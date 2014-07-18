@@ -1,6 +1,191 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.14 (2014-07-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: more fixes for MSR emulation on certain hardware (bugs
+          #12784, #12949, #13034)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: improve MSI handling under rare circumstances (only
+          relevant for the ICH9 chipset)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed #UD exception for 64-bit guests with the EFER.SCE bit
+          and the <emphasis>SYSCALL</emphasis> instruction (VT-x only;
+          4.3 regression; bug #13008)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed timekeeping after resuming SMP guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: properly wake up a halted VCPU on NMI/SMI</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a potential crash</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed stuck AltGr key on Windows hosts (bug #2537)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed a potential error during the version check</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: shortcut change should not require Enter/Return (or other
+          trigger) to confirm (bugs #12828, #12847, #12937, #13087)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed update check which was broken due to changing the
+          location of the root certificates (bug #13096)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed typo in <emphasis>showvminfo --machinereadable</emphasis>
+          (bug #13176)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed inbound half-close (bug #13116)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed slow upload speed under certain conditions
+          (bug #10034)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed potential loss of inbound TCP data</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed potential infinite stalls of TCP
+          connections over IPv6</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed resets of TCP connections on Windows
+          hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed inbound half-close on Mac OS X hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed socket leak on Solaris hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed ping of mapped host loopback on Mac OS X
+          and Solaris hosts, fixed proxying of IMCP errors on Mac OS X</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-Only Network: fixed SNMP <emphasis>ifConnectorPresent</emphasis>
+          value on Windows (bug #13143)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a possible crash with CD/DVD passthrough under
+          certain circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a crash when trying to open an inaccessible QED
+          or QCOW image (bug #12613)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed data corruption or read errors under rare
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>AHCI: fixed a crash under rare circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: performance fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>ICH9: properly reset MSI capability on reset</para>
+      </listitem>
+
+      <listitem>
+        <para>Keyboard: active modifier keys during suspend were stuck after
+          resuming the host</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed misbehavior with huge guests (i.e. guest more than
+          4GB guest memory</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>API: properly detect the Windows 8.1 guest OS type (bug #13090)</para>
+      </listitem>
+
+      <listitem>
+        <para>ExtPack: cleanup of dangling uninstallation directories</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: compile fix for EL7 (bug #12638)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: made 3D pass-through work with recent versions
+          of Mesa in the guest (bug #12941)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.16 fixes (bug #13123)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: when scanning for host CD/DVD devices also consider
+          BlueRay devices</para>
+      </listitem>
+
+      <listitem>
+        <para>OS/2 Additions: fixed gengradd.dll library name (bug #12785)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed permissions of files and directories
+        located on shared folders</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows host installer: fixed the need for rebooting Windows after
+          installation or upgrade, extended logging for NetFlt/NetAdp (un)installation</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.12 (2014-05-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -24,7 +209,7 @@
       </listitem>
 
       <listitem>
-        <para>VMM: more fixes for MSR emulation on certain hardware (tickets #12240,
+        <para>VMM: more fixes for MSR emulation on certain hardware (bugs #12240,
           #12875)</para>
       </listitem>
 

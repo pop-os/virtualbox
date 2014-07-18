@@ -583,7 +583,7 @@ static DECLCALLBACK(int) renderspuWinCmdThreadProc(RTTHREAD ThreadSelf, void *pv
                         pCompositor = renderspuVBoxCompositorAcquire(pWindow);
                         if (pCompositor)
                         {
-                            renderspuVBoxPresentCompositionGeneric(pWindow, pCompositor, NULL, 0);
+                            renderspuVBoxPresentCompositionGeneric(pWindow, pCompositor, NULL, 0, true);
                             renderspuVBoxCompositorRelease(pWindow);
                         }
                     }
@@ -672,23 +672,23 @@ int renderspu_SystemInit()
         rc = RTThreadCreate(&render_spu.hWinCmdThread, renderspuWinCmdThreadProc, NULL, 0, RTTHREADTYPE_DEFAULT, RTTHREADFLAGS_WAITABLE, "VBoxCrWinCmd");
 	if (RT_SUCCESS(rc))
 	{
-            rc = RTSemEventWait(render_spu.hWinCmdCompleteEvent, RT_INDEFINITE_WAIT);
+	    rc = RTSemEventWait(render_spu.hWinCmdCompleteEvent, RT_INDEFINITE_WAIT);
 	    if (RT_SUCCESS(rc))
 	    {
-                return VINF_SUCCESS;
-            }
+	        return VINF_SUCCESS;
+	    }
 	    else
 	    {
-                crWarning("RTSemEventWait failed rc %d", rc);
-            }
+            crWarning("RTSemEventWait failed rc %d", rc);
+        }
 
-	    RTThreadWait(render_spu.hWinCmdThread, RT_INDEFINITE_WAIT, NULL);
+        RTThreadWait(render_spu.hWinCmdThread, RT_INDEFINITE_WAIT, NULL);
         }
         else
         {
             crWarning("RTThreadCreate failed rc %d", rc);
         }
-	RTSemEventDestroy(render_spu.hWinCmdCompleteEvent);
+	    RTSemEventDestroy(render_spu.hWinCmdCompleteEvent);
     }
     else
     {
@@ -1888,6 +1888,11 @@ renderspu_SystemWindowPosition( WindowInfo *window, GLint x, GLint y )
     }
 }
 
+GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window)
+{
+    return GL_FALSE;
+}
+
 void
 renderspu_SystemWindowVisibleRegion( WindowInfo *window, GLint cRects, const GLint *pRects )
 {
@@ -1980,7 +1985,7 @@ void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VB
     int rc = renderspuVBoxCompositorTryAcquire(window, &pCompositor);
     if (RT_SUCCESS(rc))
     {
-        renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0);
+        renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0, false);
         renderspuVBoxCompositorRelease(window);
     }
     else if (rc == VERR_SEM_BUSY)

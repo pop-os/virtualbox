@@ -115,7 +115,7 @@ typedef struct _CRSharedState {
     CRHashTable *fbTable;       /* frame buffers */
     CRHashTable *rbTable;       /* render buffers */
 
-    GLint refCount;
+    volatile int32_t refCount;
     GLint id;                   /*unique shared state id, it's not always matching some existing context id!*/
     GLint saveCount;
 
@@ -213,6 +213,7 @@ DECLEXPORT(CRContext *) crStateCreateContext(const CRLimitsState *limits, GLint 
 DECLEXPORT(CRContext *) crStateCreateContextEx(const CRLimitsState *limits, GLint visBits, CRContext *share, GLint presetID);
 DECLEXPORT(void) crStateMakeCurrent(CRContext *ctx);
 DECLEXPORT(void) crStateSetCurrent(CRContext *ctx);
+DECLEXPORT(void) crStateCleanupCurrent();
 DECLEXPORT(CRContext *) crStateGetCurrent(void);
 DECLEXPORT(void) crStateDestroyContext(CRContext *ctx);
 DECLEXPORT(GLboolean) crStateEnableDiffOnMakeCurrent(GLboolean fEnable);
@@ -306,6 +307,7 @@ crStateReadPixels( GLint x, GLint y, GLsizei width, GLsizei height,
                    GLenum format, GLenum type, GLvoid *pixels );
 
 DECLEXPORT(void) STATE_APIENTRY crStateShareContext(GLboolean value);
+DECLEXPORT(void) STATE_APIENTRY crStateShareLists(CRContext *pContext1, CRContext *pContext2);
 DECLEXPORT(void) STATE_APIENTRY crStateSetSharedContext(CRContext *pCtx);
 DECLEXPORT(GLboolean) STATE_APIENTRY crStateContextIsShared(CRContext *pCtx);
 

@@ -654,9 +654,12 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
 
     /* Prepare the error-message: */
     QString strTitle = QApplication::tr("VirtualBox - Error In %1").arg(pszWhere);
-    char msgBuf[1024];
-    vsprintf(msgBuf, pszMsgFmt, va);
-    QString strText = QApplication::tr("<html><b>%1 (rc=%2)</b><br/><br/>").arg(msgBuf).arg(rc);
+
+    char szMsgBuf[1024];
+    RTStrPrintfV(szMsgBuf, sizeof(szMsgBuf), pszMsgFmt, va);
+    QString strText = QApplication::tr("<html><b>%1 (rc=%2)</b><br/><br/>").arg(szMsgBuf).arg(rc);
+    strText.replace(QString("\n"), QString("<br>"));
+
     switch (enmWhat)
     {
         case kSupInitOp_Driver:
@@ -668,6 +671,7 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
             break;
 # ifdef RT_OS_LINUX
         case kSupInitOp_IPRT:
+        case kSupInitOp_Misc:
             if (rc == VERR_NO_MEMORY)
                 strText += g_QStrHintLinuxNoMemory;
             else
@@ -689,6 +693,7 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
             /* no hints here */
             break;
     }
+
     strText += "</html>";
 
 # ifdef RT_OS_LINUX

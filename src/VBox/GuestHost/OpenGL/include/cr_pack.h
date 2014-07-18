@@ -50,12 +50,25 @@ typedef void (*CRPackFlushFunc)(void *arg);
 typedef void (*CRPackSendHugeFunc)(CROpcode, void *);
 typedef void (*CRPackErrorHandlerFunc)(int line, const char *file, GLenum error, const char *info);
 
-typedef enum
-{
-    CRPackBeginEndStateNone = 0, /* not in begin end */
-    CRPackBeginEndStateStarted,       /* begin issued */
-    CRPackBeginEndStateFlushDone /* begin issued & buffer flash is done thus part of commands is issued to host */
-} CRPackBeginEndState;
+#define CRPACKBLOCKSTATE_OP_BEGIN           0x01
+#define CRPACKBLOCKSTATE_OP_NEWLIST         0x02
+#define CRPACKBLOCKSTATE_OP_BEGINQUERY      0x04
+#define CRPACKBLOCKSTATE_OP_ALL             0x07
+
+#define CRPACKBLOCKSTATE_IS_OP_STARTED(_state, _op)      (!!((_state) & (_op)))
+
+#define CRPACKBLOCKSTATE_IS_STARTED(_state)      (!!(_state))
+
+#define CRPACKBLOCKSTATE_OP_START(_state, _op)      do { \
+            Assert(!CRPACKBLOCKSTATE_IS_OP_STARTED(_state, _op)); \
+            (_state) |= (_op); \
+        } while (0)
+
+#define CRPACKBLOCKSTATE_OP_STOP(_state, _op)      do { \
+            Assert(CRPACKBLOCKSTATE_IS_OP_STARTED(_state, _op)); \
+            (_state) &= ~(_op); \
+        } while (0)
+
 /**
  * Packer context
  */
@@ -67,7 +80,7 @@ struct CRPackContext_t
     CRPackSendHugeFunc SendHuge;
     CRPackErrorHandlerFunc Error;
     CRCurrentStatePointers current;
-    CRPackBeginEndState enmBeginEndState;
+    uint32_t u32CmdBlockState;
     GLvectorf bounds_min, bounds_max;
     int updateBBOX;
     int swapping;
@@ -95,6 +108,7 @@ extern DLLDATA(CRPackContext) cr_packer_globals;
 #  define CR_LOCK_PACKER_CONTEXT(PC)
 #  define CR_UNLOCK_PACKER_CONTEXT(PC)
 # endif
+extern int cr_packer_cmd_blocks_enabled;
 #else /* if defined IN_RING0 */
 # define CR_PACKER_CONTEXT_ARGSINGLEDECL CRPackContext *_pCtx
 # define CR_PACKER_CONTEXT_ARGDECL CR_PACKER_CONTEXT_ARGSINGLEDECL,
@@ -122,6 +136,7 @@ extern DECLEXPORT(void) crPackInitBuffer( CRPackBuffer *buffer, void *buf, int s
         , unsigned int num_opcodes
 #endif
         );
+
 extern DECLEXPORT(void) crPackFlushFunc( CRPackContext *pc, CRPackFlushFunc ff );
 extern DECLEXPORT(void) crPackFlushArg( CRPackContext *pc, void *flush_arg );
 extern DECLEXPORT(void) crPackSendHugeFunc( CRPackContext *pc, CRPackSendHugeFunc shf );
@@ -154,26 +169,28 @@ extern DECLEXPORT(void) crHugePacket( CR_PACKER_CONTEXT_ARGDECL CROpcode op, voi
 extern DECLEXPORT(void) crPackFree( CR_PACKER_CONTEXT_ARGDECL void *ptr );
 extern DECLEXPORT(void) crNetworkPointerWrite( CRNetworkPointer *, void * );
 
-extern DECLEXPORT(void) crPackExpandDrawArrays(GLenum mode, GLint first, GLsizei count, CRClientState *c);
-extern DECLEXPORT(void) crPackExpandDrawArraysSWAP(GLenum mode, GLint first, GLsizei count, CRClientState *c);
+extern DECLEXPORT(void) crPackExpandDrawArrays(GLenum mode, GLint first, GLsizei count, CRClientState *c, const GLfloat *pZva);
+extern DECLEXPORT(void) crPackExpandDrawArraysSWAP(GLenum mode, GLint first, GLsizei count, CRClientState *c, const GLfloat *pZva);
 
 extern DECLEXPORT(void) crPackUnrollDrawElements(GLsizei count, GLenum type, const GLvoid *indices);
 extern DECLEXPORT(void) crPackUnrollDrawElementsSWAP(GLsizei count, GLenum type, const GLvoid *indices);
 
-extern DECLEXPORT(void) crPackExpandDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c);
-extern DECLEXPORT(void) crPackExpandDrawElementsSWAP(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c);
+extern DECLEXPORT(void) crPackExpandDrawElements(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c, const GLfloat *pZva);
+extern DECLEXPORT(void) crPackExpandDrawElementsSWAP(GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c, const GLfloat *pZva);
 
-extern DECLEXPORT(void) crPackExpandDrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c);
-extern DECLEXPORT(void) crPackExpandDrawRangeElementsSWAP(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c);
+extern DECLEXPORT(void) crPackExpandDrawRangeElements(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c, const GLfloat *pZva);
+extern DECLEXPORT(void) crPackExpandDrawRangeElementsSWAP(GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, CRClientState *c, const GLfloat *pZva);
 
-extern DECLEXPORT(void) crPackExpandArrayElement(GLint index, CRClientState *c);
-extern DECLEXPORT(void) crPackExpandArrayElementSWAP(GLint index, CRClientState *c);
+extern DECLEXPORT(void) crPackExpandArrayElement(GLint index, CRClientState *c, const GLfloat *pZva);
+extern DECLEXPORT(void) crPackExpandArrayElementSWAP(GLint index, CRClientState *c, const GLfloat *pZva);
 
-extern DECLEXPORT(void) crPackExpandMultiDrawArraysEXT( GLenum mode, GLint *first, GLsizei *count, GLsizei primcount, CRClientState *c );
-extern DECLEXPORT(void) crPackExpandMultiDrawArraysEXTSWAP( GLenum mode, GLint *first, GLsizei *count, GLsizei primcount, CRClientState *c );
+extern DECLEXPORT(void) crPackExpandMultiDrawArraysEXT( GLenum mode, GLint *first, GLsizei *count, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
+extern DECLEXPORT(void) crPackExpandMultiDrawArraysEXTSWAP( GLenum mode, GLint *first, GLsizei *count, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
 
-extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXT( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c );
-extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXTSWAP( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c );
+extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXT( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
+extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXTSWAP( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
+
+extern DECLEXPORT(void) crPackCmdBlocksEnable();
 
 
 /**
@@ -186,6 +203,10 @@ crPackNumOpcodes(const CRPackBuffer *buffer)
     return buffer->opcode_start - buffer->opcode_current;
 }
 
+DECLINLINE(bool) crPackBufferIsEmpty(CRPackBuffer *buffer)
+{
+    return crPackNumOpcodes(buffer) == 0;
+}
 
 /**
  * Return amount of data (in bytes) in buffer.
@@ -216,6 +237,74 @@ crPackCanHoldOpcode(const CRPackContext *pc, int num_opcode, int num_data)
 }
 
 
+#define CR_PACK_SPECIAL_OP( _pc, _op)                               \
+  do {                                                              \
+    data_ptr = pc->buffer.data_current;                             \
+    (_pc)->buffer.data_current += 4;                                \
+    WRITE_OPCODE( (_pc), (_op) );                                   \
+    WRITE_DATA( 0, GLuint, 0xdeadbeef );                            \
+    data_ptr = NULL; /* <- sanity*/                                 \
+  } while (0)
+
+#define CR_CMDBLOCK_OP( _pc, _op)                                   \
+  do {                                                              \
+      CR_PACK_SPECIAL_OP( _pc, _op);                                \
+  } while (0)
+
+
+#define CR_CMDBLOCK_BEGIN( pc, op )                                 \
+  do {                                                              \
+    CR_LOCK_PACKER_CONTEXT(pc);                                     \
+    if (!cr_packer_cmd_blocks_enabled) break;                       \
+    if (!CRPACKBLOCKSTATE_IS_STARTED(pc->u32CmdBlockState)) {       \
+      THREADASSERT( pc );                                           \
+      CRASSERT( pc->currentBuffer );                                \
+      if (!crPackBufferIsEmpty(&pc->buffer)) {                      \
+        if ((*pc->buffer.opcode_start) != CR_NOP_OPCODE) {          \
+          pc->Flush( pc->flush_arg );                               \
+          Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                 \
+          CR_CMDBLOCK_OP( pc, CR_CMDBLOCKBEGIN_OPCODE );            \
+        }                                                           \
+        else {                                                      \
+          (*pc->buffer.opcode_start) = CR_CMDBLOCKBEGIN_OPCODE;     \
+        }                                                           \
+      }                                                             \
+      else {                                                        \
+        Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                   \
+        CR_CMDBLOCK_OP( pc, CR_CMDBLOCKBEGIN_OPCODE );              \
+      }                                                             \
+    }                                                               \
+    CRPACKBLOCKSTATE_OP_START(pc->u32CmdBlockState, op);            \
+  } while (0)
+
+#define CR_CMDBLOCK_END( pc, op )                                   \
+  do {                                                              \
+    if (!cr_packer_cmd_blocks_enabled) break;                       \
+    CRPACKBLOCKSTATE_OP_STOP(pc->u32CmdBlockState, op);             \
+    if (!CRPACKBLOCKSTATE_IS_STARTED(pc->u32CmdBlockState)) {       \
+      THREADASSERT( pc );                                           \
+      CRASSERT( pc->currentBuffer );                                \
+      if (!crPackBufferIsEmpty(&pc->buffer)) {                      \
+        if ((*pc->buffer.opcode_start) != CR_CMDBLOCKBEGIN_OPCODE) {\
+          if ( !crPackCanHoldOpcode( pc, 1, 4 ) ) {                 \
+            pc->Flush( pc->flush_arg );                             \
+            Assert(crPackCanHoldOpcode( pc, 1, 4 ) );               \
+          }                                                         \
+          CR_CMDBLOCK_OP( pc, CR_CMDBLOCKEND_OPCODE );              \
+          pc->Flush( pc->flush_arg );                               \
+        }                                                           \
+        else {                                                      \
+          (*pc->buffer.opcode_start) = CR_NOP_OPCODE;               \
+        }                                                           \
+      }                                                             \
+      else {                                                        \
+        Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                   \
+        CR_CMDBLOCK_OP( pc, CR_CMDBLOCKEND_OPCODE );                \
+        pc->Flush( pc->flush_arg );                                 \
+      }                                                             \
+    }                                                               \
+  } while (0)
+
 /**
  * Alloc space for a message of 'len' bytes (plus 1 opcode).
  * Only flush if buffer is full.
@@ -228,14 +317,10 @@ crPackCanHoldOpcode(const CRPackContext *pc, int num_opcode, int num_data)
     if ( !crPackCanHoldOpcode( pc, 1, (len) ) ) {                   \
       pc->Flush( pc->flush_arg );                                   \
       CRASSERT(crPackCanHoldOpcode( pc, 1, (len) ) );               \
-      if (pc->enmBeginEndState == CRPackBeginEndStateStarted) {     \
-        pc->enmBeginEndState = CRPackBeginEndStateFlushDone;        \
-      }                                                             \
     }                                                               \
     data_ptr = pc->buffer.data_current;                             \
     pc->buffer.data_current += (len);                               \
   } while (0)
-
 
 /**
  * As above, flush if the buffer contains vertex data and we're
@@ -278,9 +363,6 @@ crPackCanHoldOpcode(const CRPackContext *pc, int num_opcode, int num_data)
     if ( !crPackCanHoldOpcode( pc, 1, (len) ) ) {       \
       pc->Flush( pc->flush_arg );                       \
       CRASSERT( crPackCanHoldOpcode( pc, 1, (len) ) );  \
-      if (pc->enmBeginEndState == CRPackBeginEndStateStarted) {     \
-        pc->enmBeginEndState = CRPackBeginEndStateFlushDone;        \
-      }                                                             \
     }                                                   \
     data_ptr = pc->buffer.data_current;                 \
     pc->current.vtx_count++;                            \

@@ -472,6 +472,22 @@ VBOXDDU_DECL(int) VDInit(void);
 VBOXDDU_DECL(int) VDShutdown(void);
 
 /**
+ * Loads a single plugin given by filename.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename     The plugin filename to load.
+ */
+VBOXDDU_DECL(int) VDPluginLoadFromFilename(const char *pszFilename);
+
+/**
+ * Load all plugins from a given path.
+ *
+ * @returns VBox statuse code.
+ * @param   pszPath         The path to load plugins from.
+ */
+VBOXDDU_DECL(int) VDPluginLoadFromPath(const char *pszPath);
+
+/**
  * Lists all HDD backends and their capabilities in a caller-provided buffer.
  *
  * @return  VBox status code.
@@ -566,6 +582,17 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
 VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
                               const char *pszFilename, unsigned uOpenFlags,
                               PVDINTERFACE pVDIfsCache);
+
+/**
+ * Adds a filter to the disk.
+ *
+ * @returns VBox status code.
+ * @param   pDisk           Pointer to the HDD container which should use the filter.
+ * @param   pszFilter       Name of the filter backend to use (case insensitive).
+ * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
+ */
+VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter,
+                              PVDINTERFACE pVDIfsFilter);
 
 /**
  * Creates and opens a new base image file.
@@ -828,6 +855,15 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
 VBOXDDU_DECL(int) VDClose(PVBOXHDD pDisk, bool fDelete);
 
 /**
+ * Removes the last added filter in the HDD container.
+ *
+ * @return  VBox status code.
+ * @retval  VERR_VD_NOT_OPENED if no filter is present for the disk.
+ * @param   pDisk           Pointer to HDD container.
+ */
+VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk);
+
+/**
  * Closes the currently opened cache image file in HDD container.
  *
  * @return  VBox status code.
@@ -844,6 +880,14 @@ VBOXDDU_DECL(int) VDCacheClose(PVBOXHDD pDisk, bool fDelete);
  * @param   pDisk           Pointer to HDD container.
  */
 VBOXDDU_DECL(int) VDCloseAll(PVBOXHDD pDisk);
+
+/**
+ * Removes all filters of the given HDD container.
+ *
+ * @return  VBox status code.
+ * @param   pDisk           Pointer to HDD container.
+ */
+VBOXDDU_DECL(int) VDFilterRemoveAll(PVBOXHDD pDisk);
 
 /**
  * Read data from virtual HDD.

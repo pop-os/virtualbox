@@ -100,7 +100,6 @@ typedef struct WindowInfo {
     GLboolean mapPending;
     GLboolean visible;
     GLboolean everCurrent; /**< has this window ever been bound? */
-    GLboolean fCompositorPresentEmpty;
     char *title;
 
     const VBOXVR_SCR_COMPOSITOR *pCompositor;
@@ -399,6 +398,7 @@ extern void renderspu_SystemGetWindowGeometry( WindowInfo *window, GLint *x, GLi
 extern void renderspu_SystemGetMaxWindowSize( WindowInfo *window, GLint *w, GLint *h );
 extern void renderspu_SystemWindowPosition( WindowInfo *window, GLint x, GLint y );
 extern void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const GLint* pRects);
+extern GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window);
 extern int renderspu_SystemInit();
 extern int renderspu_SystemTerm();
 extern void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext);
@@ -410,19 +410,22 @@ extern void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const st
 uint32_t renderspu_SystemPostprocessFunctions(SPUNamedFunctionTable *aFunctions, uint32_t cFunctions, uint32_t cTable);
 extern void renderspu_GCWindow(void);
 extern int renderspuCreateFunctions( SPUNamedFunctionTable table[] );
-extern void renderspuVBoxCompositorSet( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor);
+extern GLboolean renderspuVBoxCompositorSet( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor);
 extern void renderspuVBoxCompositorClearAll();
-extern int renderspuVBoxCompositorLock(WindowInfo *window);
+extern int renderspuVBoxCompositorLock(WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR **ppCompositor);
 extern int renderspuVBoxCompositorUnlock(WindowInfo *window);
 extern const struct VBOXVR_SCR_COMPOSITOR * renderspuVBoxCompositorAcquire( WindowInfo *window);
 extern int renderspuVBoxCompositorTryAcquire(WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR **ppCompositor);
 extern void renderspuVBoxCompositorRelease( WindowInfo *window);
-extern void renderspuVBoxPresentCompositionGeneric( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry, int32_t i32MakeCurrentUserData );
+extern void renderspuVBoxPresentCompositionGeneric( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor,
+        const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry, int32_t i32MakeCurrentUserData,
+        bool fRedraw);
 extern PCR_BLITTER renderspuVBoxPresentBlitterGet( WindowInfo *window );
 void renderspuVBoxPresentBlitterCleanup( WindowInfo *window );
 extern int renderspuVBoxPresentBlitterEnter( PCR_BLITTER pBlitter, int32_t i32MakeCurrentUserData );
-extern PCR_BLITTER renderspuVBoxPresentBlitterGetAndEnter( WindowInfo *window, int32_t i32MakeCurrentUserData );
+extern PCR_BLITTER renderspuVBoxPresentBlitterGetAndEnter( WindowInfo *window, int32_t i32MakeCurrentUserData, bool fRedraw );
 extern PCR_BLITTER renderspuVBoxPresentBlitterEnsureCreated( WindowInfo *window, int32_t i32MakeCurrentUserData );
+void renderspuWindowTermBase( WindowInfo *window );
 extern void renderspuWindowTerm( WindowInfo *window );
 extern WindowInfo* renderspuGetDummyWindow(GLint visBits);
 extern void renderspuPerformMakeCurrent(WindowInfo *window, GLint nativeWindow, ContextInfo *context);
@@ -441,6 +444,9 @@ extern void RENDER_APIENTRY renderspuMakeCurrent(GLint crWindow, GLint nativeWin
 extern void RENDER_APIENTRY renderspuSwapBuffers( GLint window, GLint flags );
 
 extern uint32_t renderspuContextMarkDeletedAndRelease( ContextInfo *context );
+
+int renderspuDefaultCtxInit();
+void renderspuCleanupBase(bool fDeleteTables);
 
 ContextInfo * renderspuDefaultSharedContextAcquire();
 void renderspuDefaultSharedContextRelease(ContextInfo * pCtx);

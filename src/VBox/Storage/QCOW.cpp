@@ -30,6 +30,8 @@
 #include <iprt/path.h>
 #include <iprt/list.h>
 
+#include "VDBackends.h"
+
 /**
  * The QCOW backend implements support for the qemu copy on write format (short QCOW)
  * There is no official specification available but the format is described
@@ -1031,6 +1033,9 @@ static int qcowOpenImage(PQCOWIMAGE pImage, unsigned uOpenFlags)
     pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
     AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
 
+    rc = qcowL2TblCacheCreate(pImage);
+    AssertRC(rc);
+
     /*
      * Open the image.
      */
@@ -1058,9 +1063,6 @@ static int qcowOpenImage(PQCOWIMAGE pImage, unsigned uOpenFlags)
         {
             pImage->offNextCluster = RT_ALIGN_64(cbFile, 512); /* Align image to sector boundary. */
             Assert(pImage->offNextCluster >= cbFile);
-
-            rc = qcowL2TblCacheCreate(pImage);
-            AssertRC(rc);
 
             if (Header.u32Version == 1)
             {
@@ -2459,7 +2461,7 @@ static int qcowSetParentFilename(void *pBackendData, const char *pszParentFilena
 
 
 
-VBOXHDDBACKEND g_QCowBackend =
+const VBOXHDDBACKEND g_QCowBackend =
 {
     /* pszBackendName */
     "QCOW",
@@ -2471,8 +2473,6 @@ VBOXHDDBACKEND g_QCowBackend =
     s_aQCowFileExtensions,
     /* paConfigInfo */
     NULL,
-    /* hPlugin */
-    NIL_RTLDRMOD,
     /* pfnCheckIfValid */
     qcowCheckIfValid,
     /* pfnOpen */
@@ -2554,5 +2554,7 @@ VBOXHDDBACKEND g_QCowBackend =
     /* pfnResize */
     NULL,
     /* pfnRepair */
+    NULL,
+    /* pfnTraverseMetadata */
     NULL
 };

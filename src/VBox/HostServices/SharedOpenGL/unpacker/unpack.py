@@ -29,12 +29,8 @@ SPUDispatchTable cr_unpackDispatch;
 static void crUnpackExtend(void);
 static void crUnpackExtendDbg(void);
 
-static GLenum g_VBoxDbgCrLastOpcode = 0;
-
-#ifdef DEBUG_misha
-//# define CR_UNPACK_DEBUG_OPCODES
-# define CR_UNPACK_DEBUG_LAST_OPCODES
-#endif
+/*#define CR_UNPACK_DEBUG_OPCODES*/
+/*#define CR_UNPACK_DEBUG_LAST_OPCODES*/
 """
 
 nodebug_opcodes = [
@@ -210,6 +206,29 @@ void crUnpackPop(void)
     crFree( node );
 }
 
+CR_UNPACK_BUFFER_TYPE crUnpackGetBufferType(const void *opcodes, unsigned int num_opcodes)
+{
+    const uint8_t *pu8Codes = (const uint8_t *)opcodes;
+
+    CR_UNPACK_BUFFER_TYPE enmType;
+    uint8_t first;
+    uint8_t last;
+
+    if (!num_opcodes)
+        return CR_UNPACK_BUFFER_TYPE_GENERIC;
+
+    first = pu8Codes[0];
+    last = pu8Codes[1-(int)num_opcodes];
+
+    enmType = (first != CR_CMDBLOCKBEGIN_OPCODE) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN;
+
+    if (last != CR_CMDBLOCKEND_OPCODE)
+        return enmType;
+
+    /* last is CMDBLOCKEND*/
+    return (enmType == CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_END;
+}
+
 void crUnpack( const void *data, const void *opcodes, 
         unsigned int num_opcodes, SPUDispatchTable *table )
 {
@@ -266,6 +285,11 @@ print """
                     crUnpackExtend();
                 #endif
                 break;
+            case CR_CMDBLOCKBEGIN_OPCODE:
+            case CR_CMDBLOCKEND_OPCODE:
+            case CR_NOP_OPCODE:
+                INCR_DATA_PTR_NO_ARGS( );
+                break;
             default:
                 crError( "Unknown opcode: %d", *unpack_opcodes );
                 break;
@@ -296,8 +320,6 @@ print 'static void crUnpackExtend(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
 print ''
-print '\tg_VBoxDbgCrLastOpcode = extend_opcode;'
-print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'
 print '\t{'
@@ -323,8 +345,6 @@ print """       default:
 print 'static void crUnpackExtendDbg(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
-print ''
-print '\tg_VBoxDbgCrLastOpcode = extend_opcode;'
 print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'

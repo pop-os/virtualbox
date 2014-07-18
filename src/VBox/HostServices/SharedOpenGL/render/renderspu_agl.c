@@ -609,7 +609,7 @@ renderspu_SystemShowWindow(WindowInfo *window, GLboolean showIt)
 
 void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR * pCompositor, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
 {
-    renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0);
+    renderspuVBoxPresentCompositionGeneric(window, pCompositor, pChangedEntry, 0, false);
 }
 
 void
@@ -701,6 +701,11 @@ renderspu_SystemSwapBuffers(WindowInfo *window, GLint flags)
 
         render_spu.uiDockUpdateTS = curTS;
     }
+}
+
+GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *window)
+{
+    return GL_FALSE;
 }
 
 void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const GLint* pRects)

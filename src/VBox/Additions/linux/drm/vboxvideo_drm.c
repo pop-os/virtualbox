@@ -97,6 +97,13 @@
 # endif
 #endif
 
+/* The first of these was introduced when drm was generalised to work with
+ * non-PCI buses, but was removed between 3.15 and 3.16.  The second is a
+ * random definition introduced in the mean-time. */
+#if defined(DRIVER_BUS_PCI) || defined(DRIVER_PRIME)
+# define DRM_NEW_BUS_INIT 1
+#endif
+
 static struct pci_device_id pciidlist[] = {
         vboxvideo_PCI_IDS
 };
@@ -155,7 +162,7 @@ static struct drm_driver driver =
 #else /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_FOPS_AS_POINTER) */
     .fops = &driver_fops,
 #endif
-#ifndef DRIVER_BUS_PCI
+#ifndef DRM_NEW_BUS_INIT
     .pci_driver =
     {
         .name = DRIVER_NAME,
@@ -170,7 +177,7 @@ static struct drm_driver driver =
     .patchlevel = DRIVER_PATCHLEVEL,
 };
 
-#ifdef DRIVER_BUS_PCI
+#ifdef DRM_NEW_BUS_INIT
 static struct pci_driver pci_driver =
 {
     .name = DRIVER_NAME,
@@ -180,7 +187,7 @@ static struct pci_driver pci_driver =
 
 static int __init vboxvideo_init(void)
 {
-#ifndef DRIVER_BUS_PCI
+#ifndef DRM_NEW_BUS_INIT
     return drm_init(&driver);
 #else
     return drm_pci_init(&driver, &pci_driver);
@@ -189,7 +196,7 @@ static int __init vboxvideo_init(void)
 
 static void __exit vboxvideo_exit(void)
 {
-#ifndef DRIVER_BUS_PCI
+#ifndef DRM_NEW_BUS_INIT
     drm_exit(&driver);
 #else
     drm_pci_exit(&driver, &pci_driver);

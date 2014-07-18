@@ -132,9 +132,9 @@ static inline int op_usbproxy_back_interface_setting(PUSBPROXYDEV pDev, int ifnu
     return g_USBProxyDeviceHost.pfnSetInterface (pDev, ifnum, setting);
 }
 
-static inline int op_usbproxy_back_queue_urb(PVUSBURB pUrb)
+static inline int op_usbproxy_back_queue_urb(PUSBPROXYDEV pDev, PVUSBURB pUrb)
 {
-    return g_USBProxyDeviceHost.pfnUrbQueue(pUrb);
+    return g_USBProxyDeviceHost.pfnUrbQueue(pDev, pUrb);
 }
 
 static inline PVUSBURB op_usbproxy_back_reap_urb(PUSBPROXYDEV pDev, unsigned cMillies)
@@ -147,9 +147,9 @@ static inline bool op_usbproxy_back_clear_halted_ep(PUSBPROXYDEV pDev, unsigned 
     return g_USBProxyDeviceHost.pfnClearHaltedEndpoint (pDev, EndPoint);
 }
 
-static inline void op_usbproxy_back_cancel_urb(PVUSBURB pUrb)
+static inline int op_usbproxy_back_cancel_urb(PUSBPROXYDEV pDev, PVUSBURB pUrb)
 {
-    return g_USBProxyDeviceHost.pfnUrbCancel (pUrb);
+    return g_USBProxyDeviceHost.pfnUrbCancel (pDev, pUrb);
 }
 
 
@@ -461,9 +461,21 @@ rdpusb_process(STREAM s)
 		{
 			PUSBDEVICE pDevice;
 
-	        	in_uint32_le(s, devid);
+			in_uint32_le(s, devid);
 
 			proxy = (PUSBPROXYDEV )xmalloc (sizeof (USBPROXYDEV));
+			if (!proxy)
+			{
+				error("RDPUSB: Out of memory allocating proxy backend data\n");
+				return;
+			}
+
+			proxy->pvInstanceDataR3 = xmalloc(g_USBProxyDeviceHost.cbBackend);
+			if (!proxy->pvInstanceDataR3)
+			{
+				error("RDPUSB: Out of memory allocating proxy backend data\n");
+				return;
+			}
 
 			memset (proxy, 0, sizeof (USBPROXYDEV));
 
@@ -471,15 +483,15 @@ rdpusb_process(STREAM s)
 			proxy->devid = devid;
 
 			for (pDevice = g_pUsbDevices; pDevice; pDevice = pDevice->pNext)
-			    if ((pDevice->bPort << 8) + pDevice->bBus == devid)
-			        break;
+				if ((pDevice->bPort << 8) + pDevice->bBus == devid)
+					break;
 
 			rc = pDevice ? op_usbproxy_back_open(proxy, pDevice->pszAddress)
 			             : VERR_NOT_FOUND;
 
 			if (rc != VINF_SUCCESS)
 			{
-			        rdpusb_send_access_denied (code, devid);
+				rdpusb_send_access_denied (code, devid);
 				xfree (proxy);
 				proxy = NULL;
 			}
@@ -497,7 +509,7 @@ rdpusb_process(STREAM s)
 
 		case RDPUSB_REQ_CLOSE:
 		{
-	        	in_uint32_le(s, devid);
+			in_uint32_le(s, devid);
 			proxy = devid2proxy (devid);
 
 			if (proxy)
@@ -518,6 +530,7 @@ rdpusb_process(STREAM s)
 					proxy->pNext->pPrev = proxy->pPrev;
 				}
 
+				xfree (proxy->pvInstanceDataR3);
 				xfree (proxy);
 				proxy = NULL;
 			}
@@ -685,7 +698,7 @@ rdpusb_process(STREAM s)
 				in_uint8a (s, pUrb->abData, datalen);
 			}
 
-			rc = op_usbproxy_back_queue_urb(pUrb);
+			rc = op_usbproxy_back_queue_urb(proxy, pUrb);
 
 			/* No reply required. */
 
@@ -758,7 +771,7 @@ rdpusb_process(STREAM s)
 
 			if (pUrb)
 			{
-				op_usbproxy_back_cancel_urb(pUrb);
+				op_usbproxy_back_cancel_urb(proxy, pUrb);
 
 				/* No reply required. */
 

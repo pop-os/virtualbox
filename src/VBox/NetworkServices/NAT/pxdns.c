@@ -33,6 +33,8 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
+
 #include "winutils.h"
 
 #include "proxy.h"
@@ -713,7 +715,7 @@ pxdns_forward_outbound(struct pxdns *pxdns, struct request *req)
     }
 
     if (nsent < 0) {
-        DPRINTF2(("%s: send: errno %d\n", __func__, errno));
+        DPRINTF2(("%s: send: %R[sockerr]\n", __func__, SOCKERRNO()));
     }
     else {
         DPRINTF2(("%s: sent only %lu of %lu\n",
@@ -779,11 +781,11 @@ pxdns_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
         status = getsockopt(fd, SOL_SOCKET,
                             SO_ERROR, (char *)&sockerr, &optlen);
         if (status < 0) {
-            DPRINTF(("%s: sock %d: SO_ERROR failed with errno %d\n",
-                     __func__, fd, errno));
+            DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
+                     __func__, fd, SOCKERRNO()));
         }
         else {
-            DPRINTF(("%s: sock %d: errno %d\n",
+            DPRINTF(("%s: sock %d: %R[sockerr]\n",
                      __func__, fd, sockerr));
         }
     }
@@ -795,7 +797,7 @@ pxdns_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
 
     nread = recv(fd, pollmgr_udpbuf, sizeof(pollmgr_udpbuf), 0);
     if (nread < 0) {
-        perror(__func__);
+        DPRINTF(("%s: %R[sockerr]\n", __func__, SOCKERRNO()));
         return POLLIN;
     }
 

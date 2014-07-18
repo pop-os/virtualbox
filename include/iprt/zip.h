@@ -85,6 +85,8 @@ typedef enum RTZIPTYPE
     RTZIPTYPE_LZJB,
     /** Lempel-Ziv-Oberhumer compression. */
     RTZIPTYPE_LZO,
+    /* Zlib compression the data without zlib header. */
+    RTZIPTYPE_ZLIB_NO_HEADER,
     /** End of valid the valid compression types.  */
     RTZIPTYPE_END
 } RTZIPTYPE;
@@ -216,6 +218,21 @@ RTDECL(int)     RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
 
 
 /**
+ * Opens a zip decompression I/O stream.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIosIn           The compressed input stream (must be readable).
+ *                              The reference is not consumed, instead another
+ *                              one is retained.
+ * @param   fFlags              Flags, MBZ.
+ * @param   phVfsIosUnzip       Where to return the handle to the gunzipped I/O
+ *                              stream (read).
+ */
+RTDECL(int) RTZipDecompressIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSIOSTREAM phVfsIosUnzip);
+
+
+/**
  * Opens a gzip decompression I/O stream.
  *
  * @returns IPRT status code.
@@ -276,6 +293,47 @@ RTDECL(int) RTZipTarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlag
  *                              reordered, so the memory must be writable.)
  */
 RTDECL(RTEXITCODE) RTZipTarCmd(unsigned cArgs, char **papszArgs);
+
+/**
+ * Opens a ZIP filesystem stream.
+ *
+ * This is used to extract, list or check a ZIP archive.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIosIn           The compressed input stream.  The reference is
+ *                              not consumed, instead another one is retained.
+ * @param   fFlags              Flags, MBZ.
+ * @param   phVfsFss            Where to return the handle to the TAR
+ *                              filesystem stream.
+ */
+RTDECL(int) RTZipPkzipFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
+
+/**
+ * A mini UNZIP program.
+ *
+ * @returns Program exit code.
+ * @
+ * @param   cArgs               The number of arguments.
+ * @param   papszArgs           The argument vector.  (Note that this may be
+ *                              reordered, so the memory must be writable.)
+ */
+RTDECL(RTEXITCODE) RTZipUnzipCmd(unsigned cArgs, char **papszArgs);
+
+/**
+ * Helper for decompressing files of a ZIP file located in memory.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   ppvDst              Where to store the pointer to the allocated
+ *                              buffer. To be freed with RTMemFree().
+ * @param   pcbDst              Where to store the pointer to the size of the
+ *                              allocated buffer.
+ * @param   pvSrc               Pointer to the buffer containing the .zip file.
+ * @param   cbSrc               Size of the buffer containing the .zip file.
+ * @param   pszObject           Name of the object to extract.
+ */
+RTDECL(int) RTZipPkzipMemDecompress(void **ppvDst, size_t *pcbDst, const void *pvSrc, size_t cbSrc, const char *pszObject);
 
 /**
  * Opens a XAR filesystem stream.

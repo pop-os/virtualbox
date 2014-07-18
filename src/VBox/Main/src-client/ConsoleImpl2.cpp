@@ -3920,6 +3920,26 @@ int Console::configMedium(PCFGMNODE pLunL0,
                 InsertConfigString(pLunL1, "Driver", "VD");
                 InsertConfigNode(pLunL1, "Config", &pCfg);
 
+# ifdef VBOX_WITH_EXTPACK
+                static const Utf8Str strExtPackPuel("Oracle VM VirtualBox Extension Pack");
+                static const char *s_pszVDPlugin = "VDPluginCrypt";
+                if (mptrExtPackManager->isExtPackUsable(strExtPackPuel.c_str()))
+                {
+                    /* Configure loading the VDPlugin. */
+                    PCFGMNODE pCfgPlugins = NULL;
+                    PCFGMNODE pCfgPlugin = NULL;
+                    Utf8Str strPlugin;
+                    hrc = mptrExtPackManager->getLibraryPathForExtPack(s_pszVDPlugin, &strExtPackPuel, &strPlugin);
+                    // Don't fail, this is optional!
+                    if (SUCCEEDED(hrc))
+                    {
+                        InsertConfigNode(pCfg, "Plugins", &pCfgPlugins);
+                        InsertConfigNode(pCfgPlugins, s_pszVDPlugin, &pCfgPlugin);
+                        InsertConfigString(pCfgPlugin, "Path", strPlugin.c_str());
+                    }
+                }
+# endif
+
                 hrc = pMedium->COMGETTER(Location)(bstr.asOutParam());                      H();
                 InsertConfigString(pCfg, "Path", bstr);
 

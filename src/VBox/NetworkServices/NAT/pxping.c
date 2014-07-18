@@ -1,9 +1,12 @@
 /* -*- indent-tabs-mode: nil; -*- */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
 
 #include "winutils.h"
 #include "proxy.h"
 #include "proxy_pollmgr.h"
 #include "pxremap.h"
+
+#include <iprt/string.h>
 
 #ifndef RT_OS_WINDOWS
 #include <sys/types.h>
@@ -12,7 +15,6 @@
 # define __APPLE_USE_RFC_3542
 #endif
 #include <netinet/in.h>
-#include <arpa/inet.h>          /* XXX: inet_ntop */
 #include <poll.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -191,13 +193,13 @@ static struct ping_pcb *pxping_pcb_for_request(struct pxping *pxping,
 static struct ping_pcb *pxping_pcb_for_reply(struct pxping *pxping, int is_ipv6,
                                              ipX_addr_t *dst, u16_t host_id);
 
+static FNRTSTRFORMATTYPE pxping_pcb_rtstrfmt;
 static struct ping_pcb *pxping_pcb_allocate(struct pxping *pxping);
 static void pxping_pcb_register(struct pxping *pxping, struct ping_pcb *pcb);
 static void pxping_pcb_deregister(struct pxping *pxping, struct ping_pcb *pcb);
 static void pxping_pcb_delete(struct pxping *pxping, struct ping_pcb *pcb);
 static void pxping_timeout_add(struct pxping *pxping, struct ping_pcb *pcb);
 static void pxping_timeout_del(struct pxping *pxping, struct ping_pcb *pcb);
-static void pxping_pcb_debug_print(struct ping_pcb *pcb);
 
 static int pxping_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents);
 
@@ -256,7 +258,7 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
     g_pxping.sock4 = sock4;
     if (g_pxping.sock4 != INVALID_SOCKET) {
 #ifdef DF_WITH_IP_HDRINCL
-        g_pxping.hdrincl = -1;
+        g_pxping.hdrincl = 0;
 #else
         g_pxping.df = -1;
 #endif
@@ -269,7 +271,7 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
             status = setsockopt(sock4, IPPROTO_IP, IP_MTU_DISCOVER,
                                 &dont, sizeof(dont));
             if (status != 0) {
-                perror("IP_MTU_DISCOVER");
+                DPRINTF(("IP_MTU_DISCOVER: %R[sockerr]\n", SOCKERRNO()));
             }
         }
 #endif /* RT_OS_LINUX */
@@ -302,7 +304,7 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
         status = setsockopt(sock6, IPPROTO_IPV6, IPV6_RECVPKTINFO,
                             (const char *)&on, sizeof(on));
         if (status < 0) {
-            perror("IPV6_RECVPKTINFO");
+            DPRINTF(("IPV6_RECVPKTINFO: %R[sockerr]\n", SOCKERRNO()));
             /* XXX: for now this is fatal */
         }
 
@@ -312,7 +314,7 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
         status = setsockopt(sock6, IPPROTO_IPV6, IPV6_RECVHOPLIMIT,
                             (const char *)&on, sizeof(on));
         if (status < 0) {
-            perror("IPV6_RECVHOPLIMIT");
+            DPRINTF(("IPV6_RECVHOPLIMIT: %R[sockerr]\n", SOCKERRNO()));
         }
 
 #ifdef IPV6_RECVTCLASS  /* new in RFC 3542, there's no RFC 2292 counterpart */
@@ -326,6 +328,9 @@ pxping_init(struct netif *netif, SOCKET sock4, SOCKET sock6)
 
         ping6_proxy_accept(pxping_recv6, &g_pxping);
     }
+
+    status = RTStrFormatTypeRegister("ping_pcb", pxping_pcb_rtstrfmt, NULL);
+    AssertRC(status);
 
     return ERR_OK;
 }
@@ -453,8 +458,8 @@ pxping_recv4(void *arg, struct pbuf *p)
         return;
     }
 
-    pxping_pcb_debug_print(pcb); /* XXX */
-    DPRINTF((" seq %d len %u ttl %d\n",
+    DPRINTF(("ping %p: %R[ping_pcb] seq %d len %u ttl %d\n",
+             pcb, pcb,
              ntohs(icmph->seqno), (unsigned int)p->tot_len,
              IPH_TTL(iph)));
 
@@ -489,7 +494,7 @@ pxping_recv4(void *arg, struct pbuf *p)
             pxping->hdrincl = df;
         }
         else {
-            perror("IP_HDRINCL");
+            DPRINTF(("IP_HDRINCL: %R[sockerr]\n", SOCKERRNO()));
         }
     }
 
@@ -503,13 +508,16 @@ pxping_recv4(void *arg, struct pbuf *p)
         /* we will overwrite IP header, save original for ICMP errors */
         memcpy(&iph_orig, iph, iphlen);
 
+        if (pcb->is_mapped) {
+            ip4_addr_set_u32(&iph->dest, pcb->peer.sin.sin_addr.s_addr);
+        }
+
         if (g_proxy_options->src4 != NULL) {
-            memcpy(&iph->src, &g_proxy_options->src4->sin_addr,
-                   sizeof(g_proxy_options->src4->sin_addr));
+            ip4_addr_set_u32(&iph->src, g_proxy_options->src4->sin_addr.s_addr);
         }
         else {
             /* let the kernel select suitable source address */
-            memset(&iph->src, 0, sizeof(iph->src));
+            ip_addr_set_any(&iph->src);
         }
 
         IPH_TTL_SET(iph, ttl);  /* already decremented */
@@ -548,7 +556,7 @@ pxping_recv4(void *arg, struct pbuf *p)
                 pxping->df = df;
             }
             else {
-                perror(dfoptname);
+                DPRINTF(("%s: %R[sockerr]\n", dfoptname, SOCKERRNO()));
             }
         }
 #endif /* !DF_WITH_IP_HDRINCL */
@@ -560,7 +568,7 @@ pxping_recv4(void *arg, struct pbuf *p)
                 pxping->ttl = ttl;
             }
             else {
-                perror("IP_TTL");
+                DPRINTF(("IP_TTL: %R[sockerr]\n", SOCKERRNO()));
             }
         }
 
@@ -572,7 +580,7 @@ pxping_recv4(void *arg, struct pbuf *p)
                 pxping->tos = tos;
             }
             else {
-                perror("IP_TOS");
+                DPRINTF(("IP_TOS: %R[sockerr]\n", SOCKERRNO()));
             }
         }
     }
@@ -588,7 +596,7 @@ pxping_recv4(void *arg, struct pbuf *p)
                           &pcb->peer.sin, sizeof(pcb->peer.sin));
     if (status != 0) {
         int error = -status;
-        DPRINTF(("%s: sendto errno %d\n", __func__, error));
+        DPRINTF(("%s: sendto: %R[sockerr]\n", __func__, error));
 
 #ifdef DF_WITH_IP_HDRINCL
         if (pxping->hdrincl) {
@@ -671,8 +679,8 @@ pxping_recv6(void *arg, struct pbuf *p)
         return;
     }
 
-    pxping_pcb_debug_print(pcb); /* XXX */
-    DPRINTF((" seq %d len %u hopl %d\n",
+    DPRINTF(("ping %p: %R[ping_pcb] seq %d len %u hopl %d\n",
+             pcb, pcb,
              ntohs(seq), (unsigned int)p->tot_len,
              IP6H_HOPLIM(iph)));
 
@@ -705,7 +713,7 @@ pxping_recv6(void *arg, struct pbuf *p)
             pxping->hopl = hopl;
         }
         else {
-            perror("IPV6_HOPLIMIT");
+            DPRINTF(("IPV6_HOPLIMIT: %R[sockerr]\n", SOCKERRNO()));
         }
     }
 
@@ -713,7 +721,7 @@ pxping_recv6(void *arg, struct pbuf *p)
                           &pcb->peer.sin6, sizeof(pcb->peer.sin6));
     if (status != 0) {
         int error = -status;
-        DPRINTF(("%s: sendto errno %d\n", __func__, error));
+        DPRINTF(("%s: sendto: %R[sockerr]\n", __func__, error));
 
         status = pbuf_header(p, iphlen); /* back to IP header */
         if (RT_UNLIKELY(status != 0)) {
@@ -745,24 +753,53 @@ pxping_recv6(void *arg, struct pbuf *p)
 }
 
 
-static void
-pxping_pcb_debug_print(struct ping_pcb *pcb)
+/**
+ * Formatter for %R[ping_pcb].
+ */
+static DECLCALLBACK(size_t)
+pxping_pcb_rtstrfmt(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput,
+                    const char *pszType, const void *pvValue,
+                    int cchWidth, int cchPrecision, unsigned int fFlags,
+                    void *pvUser)
 {
-    char addrbuf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
-    const char *addrstr;
-    int sdom = pcb->is_ipv6 ? AF_INET6 : AF_INET;
+    const struct ping_pcb *pcb = (const struct ping_pcb *)pvValue;
+    size_t cb = 0;
 
-    DPRINTF(("ping %p:", (void *)pcb));
+    NOREF(cchWidth);
+    NOREF(cchPrecision);
+    NOREF(fFlags);
+    NOREF(pvUser);
 
-    addrstr = inet_ntop(sdom, (void *)&pcb->src, addrbuf, sizeof(addrbuf));
-    DPRINTF((" %s", addrstr));
+    AssertReturn(strcmp(pszType, "ping_pcb") == 0, 0);
 
-    DPRINTF((" ->"));
+    if (pcb == NULL) {
+        return RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL, "(null)");
+    }
 
-    addrstr = inet_ntop(sdom, (void *)&pcb->dst, addrbuf, sizeof(addrbuf));
-    DPRINTF((" %s", addrstr));
+    /* XXX: %RTnaipv4 takes the value, but %RTnaipv6 takes the pointer */
+    if (pcb->is_ipv6) {
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL,
+                          "%RTnaipv6 -> %RTnaipv6", &pcb->src, &pcb->dst);
+        if (pcb->is_mapped) {
+            cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL,
+                              " (%RTnaipv6)", &pcb->peer.sin6.sin6_addr);
+        }
+    }
+    else {
+        cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL,
+                          "%RTnaipv4 -> %RTnaipv4",
+                          ip4_addr_get_u32(ipX_2_ip(&pcb->src)),
+                          ip4_addr_get_u32(ipX_2_ip(&pcb->dst)));
+        if (pcb->is_mapped) {
+            cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL,
+                              " (%RTnaipv4)", pcb->peer.sin.sin_addr.s_addr);
+        }
+    }
+                      
+    cb += RTStrFormat(pfnOutput, pvArgOutput, NULL, NULL,
+                      " id %04x->%04x", ntohs(pcb->guest_id), ntohs(pcb->host_id));
 
-    DPRINTF((" id %04x->%04x", ntohs(pcb->guest_id), ntohs(pcb->host_id)));
+    return cb;
 }
 
 
@@ -930,15 +967,14 @@ pxping_pcb_for_request(struct pxping *pxping,
         pxping_pcb_register(pxping, pcb);
         sys_mutex_unlock(&pxping->lock);
 
-        pxping_pcb_debug_print(pcb); /* XXX */
-        DPRINTF((" - created\n"));
+        DPRINTF(("ping %p: %R[ping_pcb] - created\n", pcb, pcb));
 
         pxping_timer_needed(pxping);
     }
     else {
         /* just bump up expiration timeout lazily */
-        pxping_pcb_debug_print(pcb); /* XXX */
-        DPRINTF((" - slot %d -> %d\n",
+        DPRINTF(("ping %p: %R[ping_pcb] - slot %d -> %d\n",
+                 pcb, pcb,
                  (unsigned int)pcb->timeout_slot,
                  (unsigned int)pxping->timeout_slot));
         pcb->timeout_slot = pxping->timeout_slot;
@@ -1050,11 +1086,11 @@ pxping_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
         status = getsockopt(fd, SOL_SOCKET,
                             SO_ERROR, (char *)&sockerr, &optlen);
         if (status < 0) {
-            DPRINTF(("%s: sock %d: SO_ERROR failed with errno %d\n",
-                     __func__, fd, errno));
+            DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
+                     __func__, fd, SOCKERRNO()));
         }
         else {
-            DPRINTF(("%s: sock %d: errno %d\n",
+            DPRINTF(("%s: sock %d: %R[sockerr]\n",
                      __func__, fd, sockerr));
         }
     }
@@ -1086,7 +1122,7 @@ pxping_pmgr_icmp4(struct pxping *pxping)
     ssize_t nread;
     struct ip_hdr *iph;
     struct icmp_echo_hdr *icmph;
-    u16_t iplen;
+    u16_t iplen, ipoff;
 
     memset(&sin, 0, sizeof(sin));
 
@@ -1097,7 +1133,7 @@ pxping_pmgr_icmp4(struct pxping *pxping)
     nread = recvfrom(pxping->sock4, pollmgr_udpbuf, sizeof(pollmgr_udpbuf), 0,
                      (struct sockaddr *)&sin, &salen);
     if (nread < 0) {
-        perror(__func__);
+        DPRINTF(("%s: %R[sockerr]\n", __func__, SOCKERRNO()));
         return;
     }
 
@@ -1116,8 +1152,15 @@ pxping_pmgr_icmp4(struct pxping *pxping)
     }
 
     /* no fragmentation */
-    if ((IPH_OFFSET(iph) & PP_HTONS(IP_OFFMASK | IP_MF)) != 0) {
-        DPRINTF2(("%s: dropping fragmented datagram\n", __func__));
+    ipoff = IPH_OFFSET(iph);
+#if defined(RT_OS_DARWIN)
+    /* darwin reports IPH_OFFSET in host byte order */
+    ipoff = htons(ipoff);
+    IPH_OFFSET_SET(iph, ipoff);
+#endif
+    if ((ipoff & PP_HTONS(IP_OFFMASK | IP_MF)) != 0) {
+        DPRINTF2(("%s: dropping fragmented datagram (0x%04x)\n",
+                  __func__, ntohs(ipoff)));
         return;
     }
 
@@ -1141,7 +1184,7 @@ pxping_pmgr_icmp4(struct pxping *pxping)
 #if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
     /* darwin and solaris change IPH_LEN to payload length only */
     iplen += IP_HLEN;           /* we verified there are no options */
-    IPH_LEN(iph) = htons(iplen);
+    IPH_LEN_SET(iph, htons(iplen));
 #endif
     if (nread < iplen) {
         DPRINTF2(("%s: read %d bytes but total length is %d bytes\n",
@@ -1185,6 +1228,7 @@ pxping_pmgr_icmp4_echo(struct pxping *pxping,
     int mapped;
     struct ping_pcb *pcb;
     u16_t guest_id;
+    u16_t oipsum;
     u32_t sum;
 
     iph = (struct ip_hdr *)pollmgr_udpbuf;
@@ -1193,15 +1237,8 @@ pxping_pmgr_icmp4_echo(struct pxping *pxping,
     id  = icmph->id;
     seq = icmph->seqno;
 
-    {
-        char addrbuf[sizeof "255.255.255.255"];
-        const char *addrstr;
-
-        addrstr = inet_ntop(AF_INET, &peer->sin_addr, addrbuf, sizeof(addrbuf));
-        DPRINTF(("<--- PING %s id 0x%x seq %d\n",
-                 addrstr, ntohs(id), ntohs(seq)));
-    }
-
+    DPRINTF(("<--- PING %RTnaipv4 id 0x%x seq %d\n",
+             peer->sin_addr.s_addr, ntohs(id), ntohs(seq)));
 
     /*
      * Is this a reply to one of our pings?
@@ -1245,19 +1282,33 @@ pxping_pmgr_icmp4_echo(struct pxping *pxping,
     icmph->chksum = ~sum;
 
     /* rewrite IP header */
-    sum = (u16_t)~IPH_CHKSUM(iph);
-    sum += chksum_update_32((u32_t *)&iph->dest,
-                                ip4_addr_get_u32(&guest_ip));
-    if (mapped == PXREMAP_MAPPED) {
-        sum += chksum_update_32((u32_t *)&iph->src,
-                                    ip4_addr_get_u32(&target_ip));
+    oipsum = IPH_CHKSUM(iph);
+    if (oipsum == 0) {
+        /* Solaris doesn't compute checksum for local replies */
+        ip_addr_copy(iph->dest, guest_ip);
+        if (mapped == PXREMAP_MAPPED) {
+            ip_addr_copy(iph->src, target_ip);
+        }
+        else {
+            IPH_TTL_SET(iph, IPH_TTL(iph) - 1);
+        }
+        IPH_CHKSUM_SET(iph, inet_chksum(iph, ntohs(IPH_LEN(iph))));
     }
     else {
-        IPH_TTL_SET(iph, IPH_TTL(iph) - 1);
-        sum += PP_NTOHS(~0x0100);
+        sum = (u16_t)~oipsum;
+        sum += chksum_update_32((u32_t *)&iph->dest,
+                                ip4_addr_get_u32(&guest_ip));
+        if (mapped == PXREMAP_MAPPED) {
+            sum += chksum_update_32((u32_t *)&iph->src,
+                                    ip4_addr_get_u32(&target_ip));
+        }
+        else {
+            IPH_TTL_SET(iph, IPH_TTL(iph) - 1);
+            sum += PP_NTOHS(~0x0100);
+        }
+        sum = FOLD_U32T(sum);
+        IPH_CHKSUM_SET(iph, ~sum);
     }
-    sum = FOLD_U32T(sum);
-    IPH_CHKSUM_SET(iph, ~sum);
 
     pxping_pmgr_forward_inbound(pxping, iplen);
 }
@@ -1337,19 +1388,13 @@ pxping_pmgr_icmp4_error(struct pxping *pxping,
     id  = oicmph->id;
     seq = oicmph->seqno;
 
-    {
-        char addrbuf[sizeof "255.255.255.255"];
-        const char *addrstr;
-
-        addrstr = inet_ntop(AF_INET, &oiph->dest, addrbuf, sizeof(addrbuf));
-        DPRINTF2(("%s: ping %s id 0x%x seq %d",
-                  __func__, addrstr, ntohs(id), ntohs(seq)));
-        if (ICMPH_TYPE(icmph) == ICMP_DUR) {
-            DPRINTF2((" unreachable (code %d)\n", ICMPH_CODE(icmph)));
-        }
-        else {
-            DPRINTF2((" time exceeded\n"));
-        }
+    DPRINTF2(("%s: ping %RTnaipv4 id 0x%x seq %d",
+              __func__, ip4_addr_get_u32(&oiph->dest), ntohs(id), ntohs(seq)));
+    if (ICMPH_TYPE(icmph) == ICMP_DUR) {
+        DPRINTF2((" unreachable (code %d)\n", ICMPH_CODE(icmph)));
+    }
+    else {
+        DPRINTF2((" time exceeded\n"));
     }
 
 
@@ -1403,6 +1448,10 @@ pxping_pmgr_icmp4_error(struct pxping *pxping,
     oicmph->chksum = ~sum;
 
     /* rewrite inner IP header */
+#if defined(RT_OS_DARWIN)
+    /* darwin converts inner length to host byte order too */
+    IPH_LEN_SET(oiph, htons(IPH_LEN(oiph)));
+#endif
     sum = (u16_t)~IPH_CHKSUM(oiph);
     sum += chksum_update_32((u32_t *)&oiph->src, ip4_addr_get_u32(&guest_ip));
     if (target_mapped == PXREMAP_MAPPED) {
@@ -1452,9 +1501,6 @@ pxping_pmgr_icmp6(struct pxping *pxping)
     int hopl, tclass;
     int status;
 
-    char addrbuf[sizeof "ffff:ffff:ffff:ffff:ffff:ffff:255.255.255.255"];
-    const char *addrstr;
-
     /*
      * Reads from raw IPv6 sockets deliver only the payload.  Full
      * headers are available via recvmsg(2)/cmsg(3).
@@ -1474,7 +1520,7 @@ pxping_pmgr_icmp6(struct pxping *pxping)
 
     nread = recvmsg(pxping->sock6, &mh, 0);
     if (nread < 0) {
-        perror(__func__);
+        DPRINTF(("%s: %R[sockerr]\n", __func__, SOCKERRNO()));
         return;
     }
 #else  /* RT_OS_WINDOWS */
@@ -1495,9 +1541,7 @@ pxping_pmgr_icmp6(struct pxping *pxping)
 
     icmph = (struct icmp6_echo_hdr *)pollmgr_udpbuf;
 
-    addrstr = inet_ntop(AF_INET6, (void *)&sin6.sin6_addr,
-                        addrbuf, sizeof(addrbuf));
-    DPRINTF2(("%s: %s ICMPv6: ", __func__, addrstr));
+    DPRINTF2(("%s: %RTnaipv6 ICMPv6: ", __func__, &sin6.sin6_addr));
 
     if (icmph->type == ICMP6_TYPE_EREP) {
         DPRINTF2(("echo reply %04x %u\n",
@@ -1733,14 +1777,14 @@ pxping_pmgr_icmp6_error(struct pxping *pxping,
         return;
     }
 
-    memcpy(&target_ip, &oiph->dest, sizeof(target_ip)); /* inner (failed) */
+    ip6_addr_copy(target_ip, oiph->dest); /* inner (failed) */
     target_mapped = pxremap_inbound_ip6(&target_ip, &target_ip);
     if (target_mapped == PXREMAP_FAILED) {
         return;
     }
 
     sys_mutex_lock(&pxping->lock);
-    pcb = pxping_pcb_for_reply(pxping, 1, ip_2_ipX(&target_ip), oicmph->id);
+    pcb = pxping_pcb_for_reply(pxping, 1, ip6_2_ipX(&target_ip), oicmph->id);
     if (pcb == NULL) {
         sys_mutex_unlock(&pxping->lock);
         DPRINTF2(("%s: no match\n", __func__));

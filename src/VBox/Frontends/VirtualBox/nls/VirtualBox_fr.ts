@@ -932,6 +932,10 @@
         <source>Insert the Guest Additions disk file into the virtual drive</source>
         <translation>Insère le fichier d&apos;image disque des Additions Invité dans le lecteur virtuel</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation type="unfinished">Réseau</translation>
+    </message>
 </context>
 <context>
     <name>UIActonPool</name>
@@ -4135,6 +4139,14 @@
         <source>No supported webcams connected to the host PC</source>
         <translation>Aucune Webcam supportée connectée</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4412,6 +4424,10 @@
     <message>
         <source>Enable video recording for screen %1.</source>
         <translation>Activer l&apos;enregistrement vidéo pour l&apos;écran %1.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6298,7 +6314,7 @@
     <message>
         <source>Check</source>
         <comment>inaccessible media message box</comment>
-        <translation>Tester</translation>
+        <translation>Vérifier</translation>
     </message>
     <message>
         <source>Switch</source>
@@ -6483,7 +6499,7 @@
     </message>
     <message>
         <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Un ou plusieurs disques durs virtuels, CD, DVD, ou disquettes ne sont pas pas accessibles pour l&apos;instant. Vous ne pourrez démarrer de machines virtuelles qui les utilisent tant qu&apos;ils ne seront pas accessibles.&lt;/p&gt;&lt;p&gt;Cliquez sur &lt;b&gt;Ouvrir&lt;/b&gt; pour ouvrir le Gestionnaire de médias virtuels et voir quels médias sont inaccessibles, ou bien sur &lt;b&gt;Ignorer&lt;/b&gt; pour ignorer ce message.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Un ou plusieurs disques durs virtuels, CD, DVD, ou disquettes ne sont pas pas accessibles pour l&apos;instant. Vous ne pourrez démarrer de machines virtuelles qui les utilisent tant qu&apos;ils ne seront pas accessibles.&lt;/p&gt;&lt;p&gt;Cliquez sur &lt;b&gt;Vérifier&lt;/b&gt; pour ouvrir le Gestionnaire de médias virtuels et voir quels médias sont inaccessibles, ou bien sur &lt;b&gt;Ignorer&lt;/b&gt; pour ignorer ce message.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>

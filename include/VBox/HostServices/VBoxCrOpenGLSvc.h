@@ -59,7 +59,8 @@
 #define SHCRGL_GUEST_FN_SET_PID     (12)
 #define SHCRGL_GUEST_FN_WRITE_BUFFER        (13)
 #define SHCRGL_GUEST_FN_WRITE_READ_BUFFERED (14)
-#define SHCRGL_GUEST_FN_GET_CAPS            (15)
+#define SHCRGL_GUEST_FN_GET_CAPS_LEGACY     (15)
+#define SHCRGL_GUEST_FN_GET_CAPS_NEW     (16)
 
 /* Parameters count */
 #define SHCRGL_CPARMS_SET_CONSOLE (1)
@@ -79,12 +80,14 @@
 #define SHCRGL_CPARMS_CRCMD_NOTIFY_CMDS (0)
 #define SHCRGL_CPARMS_VIEWPORT_CHANGED (5)
 #define SHCRGL_CPARMS_VIEWPORT_CHANGED2 (1)
-#define SHCRGL_CPARMS_GET_CAPS (1)
+#define SHCRGL_CPARMS_GET_CAPS_LEGACY (1)
+#define SHCRGL_CPARMS_GET_CAPS_NEW (1)
 
 /* @todo Move to H3DOR.h begin */
 
 /* Names of supported output redirect formats. */
 #define H3DOR_FMT_RGBA_TOPDOWN "H3DOR_FMT_RGBA_TOPDOWN"
+#define H3DOR_FMT_RGBA "H3DOR_FMT_RGBA"
 
 /* Comma separated list of output formats supported by the output redirect target. */
 #define H3DOR_PROP_FORMATS 0

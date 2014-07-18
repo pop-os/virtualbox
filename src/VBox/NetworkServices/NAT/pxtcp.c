@@ -1,4 +1,6 @@
 /* -*- indent-tabs-mode: nil; -*- */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
+
 #include "winutils.h"
 
 #include "pxtcp.h"
@@ -40,11 +42,19 @@
 #include "lwip/icmp.h"
 #include "lwip/icmp6.h"
 
-/* NetBSD doesn't report POLLHUP for TCP sockets */
-#ifdef __NetBSD__
-# define HAVE_TCP_POLLHUP 0
+/*
+ * Different OSes have different quirks in reporting POLLHUP for TCP
+ * sockets.
+ *
+ * Using shutdown(2) "how" values here would be more readable, but
+ * since SHUT_RD is 0, we can't use 0 for "none", unfortunately.
+ */
+#if defined(RT_OS_NETBSD) || defined(RT_OS_SOLARIS)
+# define HAVE_TCP_POLLHUP 0                     /* not reported */
+#elif defined(RT_OS_DARWIN)
+# define HAVE_TCP_POLLHUP POLLIN                /* reported when remote closes */
 #else
-# define HAVE_TCP_POLLHUP 1
+# define HAVE_TCP_POLLHUP (POLLIN|POLLOUT)      /* reported when both directions are closed */
 #endif
 
 
@@ -169,9 +179,6 @@ struct pxtcp {
      * the guest: lwIP may need to resend and the data are in pxtcp's
      * inbuf::buf.  We defer delete until all data are acked to
      * pxtcp_pcb_sent().
-     *
-     * It's also implied by inbound_pull.  It probably means that
-     * "deferred" is not a very fortunate name.
      */
     int deferred_delete;
 
@@ -210,7 +217,7 @@ static void pxtcp_pcb_dissociate(struct pxtcp *);
 static int pxtcp_pmgr_chan_add(struct pollmgr_handler *, SOCKET, int);
 static int pxtcp_pmgr_chan_pollout(struct pollmgr_handler *, SOCKET, int);
 static int pxtcp_pmgr_chan_pollin(struct pollmgr_handler *, SOCKET, int);
-#if !HAVE_TCP_POLLHUP
+#if !(HAVE_TCP_POLLHUP & POLLOUT)
 static int pxtcp_pmgr_chan_del(struct pollmgr_handler *, SOCKET, int);
 #endif
 static int pxtcp_pmgr_chan_reset(struct pollmgr_handler *, SOCKET, int);
@@ -225,7 +232,9 @@ static struct pxtcp *pxtcp_chan_recv_strong(struct pollmgr_handler *, SOCKET, in
 static int pxtcp_pmgr_connect(struct pollmgr_handler *, SOCKET, int);
 static int pxtcp_pmgr_pump(struct pollmgr_handler *, SOCKET, int);
 
+/* get incoming traffic into ring buffer */
 static ssize_t pxtcp_sock_read(struct pxtcp *, int *);
+static ssize_t pxtcp_sock_recv(struct pxtcp *, IOVEC *, size_t); /* default */
 
 /* convenience functions for poll manager callbacks */
 static int pxtcp_schedule_delete(struct pxtcp *);
@@ -253,6 +262,8 @@ static void pxtcp_pcb_err(void *, err_t);
 static err_t pxtcp_pcb_forward_outbound(struct pxtcp *, struct pbuf *);
 static void pxtcp_pcb_forward_outbound_close(struct pxtcp *);
 
+static ssize_t pxtcp_sock_send(struct pxtcp *, IOVEC *, size_t);
+
 static void pxtcp_pcb_forward_inbound(struct pxtcp *);
 static void pxtcp_pcb_forward_inbound_close(struct pxtcp *);
 DECLINLINE(int) pxtcp_pcb_forward_inbound_done(const struct pxtcp *);
@@ -266,7 +277,7 @@ DECLINLINE(void) pxtcp_pcb_maybe_deferred_delete(struct pxtcp *);
 static struct pollmgr_handler pxtcp_pmgr_chan_add_hdl;
 static struct pollmgr_handler pxtcp_pmgr_chan_pollout_hdl;
 static struct pollmgr_handler pxtcp_pmgr_chan_pollin_hdl;
-#if !HAVE_TCP_POLLHUP
+#if !(HAVE_TCP_POLLHUP & POLLOUT)
 static struct pollmgr_handler pxtcp_pmgr_chan_del_hdl;
 #endif
 static struct pollmgr_handler pxtcp_pmgr_chan_reset_hdl;
@@ -292,7 +303,7 @@ pxtcp_init(void)
     CHANNEL(POLLMGR_CHAN_PXTCP_ADD,     pxtcp_pmgr_chan_add);
     CHANNEL(POLLMGR_CHAN_PXTCP_POLLIN,  pxtcp_pmgr_chan_pollin);
     CHANNEL(POLLMGR_CHAN_PXTCP_POLLOUT, pxtcp_pmgr_chan_pollout);
-#if !HAVE_TCP_POLLHUP
+#if !(HAVE_TCP_POLLHUP & POLLOUT)
     CHANNEL(POLLMGR_CHAN_PXTCP_DEL,     pxtcp_pmgr_chan_del);
 #endif
     CHANNEL(POLLMGR_CHAN_PXTCP_RESET,   pxtcp_pmgr_chan_reset);
@@ -480,7 +491,7 @@ pxtcp_pmgr_chan_pollin(struct pollmgr_handler *handler, SOCKET fd, int revents)
 }
 
 
-#if !HAVE_TCP_POLLHUP
+#if !(HAVE_TCP_POLLHUP & POLLOUT)
 /**
  * POLLMGR_CHAN_PXTCP_DEL handler.
  *
@@ -511,7 +522,7 @@ pxtcp_pmgr_chan_del(struct pollmgr_handler *handler, SOCKET fd, int revents)
 
     return POLLIN;
 }
-#endif  /* !HAVE_TCP_POLLHUP  */
+#endif  /* !(HAVE_TCP_POLLHUP & POLLOUT)  */
 
 
 /**
@@ -928,7 +939,7 @@ pxtcp_pcb_accept_refuse(void *ctx)
 {
     struct pxtcp *pxtcp = (struct pxtcp *)ctx;
 
-    DPRINTF0(("%s: pxtcp %p, pcb %p, sock %d: errno %d\n",
+    DPRINTF0(("%s: pxtcp %p, pcb %p, sock %d: %R[sockerr]\n",
               __func__, (void *)pxtcp, (void *)pxtcp->pcb,
               pxtcp->sock, pxtcp->sockerr));
 
@@ -999,7 +1010,7 @@ pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
     sock = proxy_connected_socket(sdom, SOCK_STREAM,
                                   &dst_addr, newpcb->local_port);
     if (sock == INVALID_SOCKET) {
-        sockerr = errno;
+        sockerr = SOCKERRNO();
         goto abort;
     }
 
@@ -1031,7 +1042,7 @@ pxtcp_pcb_heard(void *arg, struct tcp_pcb *newpcb, err_t error)
     return ERR_OK;
 
   abort:
-    DPRINTF0(("%s: pcb %p, sock %d: errno %d\n",
+    DPRINTF0(("%s: pcb %p, sock %d: %R[sockerr]\n",
               __func__, (void *)newpcb, sock, sockerr));
     pxtcp_pcb_reject(ip_current_netif(), newpcb, p, sockerr);
     return ERR_ABRT;
@@ -1073,7 +1084,6 @@ static int
 pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
 {
     struct pxtcp *pxtcp;
-    int sockerr;
 
     pxtcp = (struct pxtcp *)handler->data;
     LWIP_ASSERT1(handler == &pxtcp->pmhdl);
@@ -1085,24 +1095,19 @@ pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
             pxtcp->sockerr = ETIMEDOUT;
         }
         else {
-            socklen_t optlen = (socklen_t)sizeof(sockerr);
+            socklen_t optlen = (socklen_t)sizeof(pxtcp->sockerr);
             int status;
             SOCKET s;
 
             status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
                                 (char *)&pxtcp->sockerr, &optlen);
-            if (status < 0) {       /* should not happen */
-                sockerr = errno;    /* ??? */
-                perror("connect: getsockopt");
+            if (status < 0) {   /* should not happen */
+                DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
+                         __func__, fd, SOCKERRNO()));
             }
             else {
-#ifndef RT_OS_WINDOWS
-                errno = pxtcp->sockerr; /* to avoid strerror_r */
-#else
-                /* see winutils.h */
-                WSASetLastError(pxtcp->sockerr);
-#endif
-                perror("connect");
+                DPRINTF(("%s: sock %d: connect: %R[sockerr]\n",
+                         __func__, fd, pxtcp->sockerr));
             }
             s = pxtcp->sock;
             pxtcp->sock = INVALID_SOCKET;
@@ -1372,18 +1377,14 @@ pxtcp_pcb_forward_outbound_close(struct pxtcp *pxtcp)
              (void *)pxtcp, (void *)pcb, tcp_debug_state_str(pcb->state)));
 
 
-    /*
-     * NB: set the flag first, since shutdown() will trigger POLLHUP
-     * if inbound is already closed, and poll manager asserts
-     * outbound_close_done (may be it should not?).
-     */
+    /* set the flag first, since shutdown() may trigger POLLHUP */
     pxtcp->outbound_close_done = 1;
     shutdown(pxtcp->sock, SHUT_WR); /* half-close the socket */
 
-#if !HAVE_TCP_POLLHUP
+#if !(HAVE_TCP_POLLHUP & POLLOUT)
     /*
-     * On NetBSD POLLHUP is not reported for TCP sockets, so we need
-     * to nudge poll manager manually.
+     * We need to nudge poll manager manually, since OS will not
+     * report POLLHUP.
      */
     if (pxtcp->inbound_close) {
         pxtcp_chan_send_weak(POLLMGR_CHAN_PXTCP_DEL, pxtcp);
@@ -1425,13 +1426,6 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
     size_t forwarded;
     int sockerr;
 
-#if defined(MSG_NOSIGNAL)
-    const int send_flags = MSG_NOSIGNAL;
-#else
-    const int send_flags = 0;
-#endif
-
-
     LWIP_ASSERT1(pxtcp->unsent == NULL || pxtcp->unsent == p);
 
     forwarded = 0;
@@ -1442,11 +1436,6 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
 
     qs = p;
     while (qs != NULL) {
-#ifndef RT_OS_WINDOWS
-        struct msghdr mh;
-#else
-        int rc;
-#endif
         IOVEC iov[8];
         const size_t iovsize = sizeof(iov)/sizeof(iov[0]);
         size_t fwd1;
@@ -1461,30 +1450,11 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
             fwd1 += q->len;
         }
 
-#ifndef RT_OS_WINDOWS
-        memset(&mh, 0, sizeof(mh));
-        mh.msg_iov = iov;
-        mh.msg_iovlen = i;
-
-        nsent = sendmsg(pxtcp->sock, &mh, send_flags);
-#else
-        /**
-         * WSASend(,,,DWORD *,,,) - takes SSIZE_T (64bit value) ... so all nsent's
-         * bits should be zeroed before passing to WSASent.
+        /*
+         * TODO: This is where application-level proxy can hook into
+         * to process outbound traffic.
          */
-        nsent = 0;
-        rc = WSASend(pxtcp->sock, iov, (DWORD)i, (DWORD *)&nsent, 0, NULL, NULL);
-        if (rc == SOCKET_ERROR) {
-            /* WSASent reports SOCKET_ERROR and updates error accessible with
-             * WSAGetLastError(). We assign nsent to -1, enforcing code below
-             * to access error in BSD style.
-             */
-            warn("pxtcp_pcb_forward_outbound:WSASend error:%d nsent:%d\n",
-                 WSAGetLastError(),
-                 nsent);
-            nsent = -1;
-       }
-#endif
+        nsent = pxtcp_sock_send(pxtcp, iov, i);
 
         if (nsent == (ssize_t)fwd1) {
             /* successfully sent this chain fragment completely */
@@ -1508,18 +1478,15 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
             break;
         }
         else {
+            sockerr = -nsent;
+
             /*
              * Some errors are really not errors - if we get them,
              * it's not different from getting nsent == 0, so filter
              * them out here.
              */
-            if (errno != EWOULDBLOCK
-                && errno != EAGAIN
-                && errno != ENOBUFS
-                && errno != ENOMEM
-                && errno != EINTR)
-            {
-                sockerr = errno;
+            if (proxy_error_is_transient(sockerr)) {
+                sockerr = 0;
             }
             q = qs;
             qoff = 0;
@@ -1580,6 +1547,49 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
 }
 
 
+#if !defined(RT_OS_WINDOWS)
+static ssize_t
+pxtcp_sock_send(struct pxtcp *pxtcp, IOVEC *iov, size_t iovlen)
+{
+    struct msghdr mh;
+    ssize_t nsent;
+
+#ifdef MSG_NOSIGNAL
+    const int send_flags = MSG_NOSIGNAL;
+#else
+    const int send_flags = 0;
+#endif
+
+    memset(&mh, 0, sizeof(mh));
+
+    mh.msg_iov = iov;
+    mh.msg_iovlen = iovlen;
+
+    nsent = sendmsg(pxtcp->sock, &mh, send_flags);
+    if (nsent < 0) {
+        nsent = -SOCKERRNO();
+    }
+
+    return nsent;
+}
+#else /* RT_OS_WINDOWS */
+static ssize_t
+pxtcp_sock_send(struct pxtcp *pxtcp, IOVEC *iov, size_t iovlen)
+{
+    DWORD nsent;
+    int status;
+
+    status = WSASend(pxtcp->sock, iov, (DWORD)iovlen, &nsent,
+                     0, NULL, NULL);
+    if (status == SOCKET_ERROR) {
+        return -SOCKERRNO();
+    }
+
+    return nsent;
+}
+#endif /* RT_OS_WINDOWS */
+
+
 /**
  * Callback from poll manager (on POLLOUT) to send data from
  * pxtcp::unsent pbuf to socket.
@@ -1624,11 +1634,12 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
         status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
                             (char *)&sockerr, &optlen);
         if (status < 0) {       /* should not happen */
-            perror("getsockopt");
-            sockerr = ECONNRESET;
+            DPRINTF(("sock %d: SO_ERROR failed: %R[sockerr]\n",
+                     fd, SOCKERRNO()));
         }
-
-        DPRINTF0(("sock %d: errno %d\n", fd, sockerr));
+        else {
+            DPRINTF0(("sock %d: %R[sockerr]\n", fd, sockerr));
+        }
         return pxtcp_schedule_reset(pxtcp);
     }
 
@@ -1644,7 +1655,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
         nread = pxtcp_sock_read(pxtcp, &stop_pollin);
         if (nread < 0) {
             sockerr = -(int)nread;
-            DPRINTF0(("sock %d: errno %d\n", fd, sockerr));
+            DPRINTF0(("sock %d: %R[sockerr]\n", fd, sockerr));
             return pxtcp_schedule_reset(pxtcp);
         }
 
@@ -1671,79 +1682,45 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
     LWIP_ASSERT1((revents & POLLHUP) == 0);
 #else
     if (revents & POLLHUP) {
+#if HAVE_TCP_POLLHUP == POLLIN
         /*
-         * Linux and Darwin seems to report POLLHUP when both
-         * directions are shut down.  And they do report POLLHUP even
-         * when there's unread data (which they aslo report as POLLIN
-         * along with that POLLHUP).
-         *
-         * FreeBSD (from source inspection) seems to follow Linux,
-         * reporting POLLHUP when both directions are shut down, but
-         * POLLHUP is always accompanied with POLLIN.
-         *
-         * NetBSD never reports POLLHUP for sockets.
-         *
-         * ---
-         *
-         * If external half-closes first, we don't get POLLHUP, we
-         * recv 0 bytes from the socket as EOF indicator, stop polling
-         * for POLLIN and poll with events == 0 (with occasional
-         * one-shot POLLOUT).  When guest eventually closes, we get
-         * POLLHUP.
-         *
-         * If guest half-closes first things are more tricky.  As soon
-         * as host sees the FIN from external it will spam POLLHUP,
-         * even when there's unread data.  The problem is that we
-         * might have stopped polling for POLLIN because the ring
-         * buffer is full or we were polling POLLIN but can't read all
-         * of the data becuase buffer doesn't have enough space.
-         * Either way, there's unread data but we can't keep polling
-         * the socket.
+         * Remote closed inbound.
          */
-        DPRINTF(("sock %d: HUP\n", fd));
-        LWIP_ASSERT1(pxtcp->outbound_close_done);
-
-        if (pxtcp->inbound_close) {
-            /* there's no unread data, we are done */
-            return pxtcp_schedule_delete(pxtcp);
-        }
-        else {
-            /* DPRINTF */ {
-#ifndef RT_OS_WINDOWS
-                int unread;
-#else
-                u_long unread;
-#endif
-                status = ioctlsocket(fd, FIONREAD, &unread);
-                if (status == SOCKET_ERROR) {
-                    perror("FIONREAD");
-                }
-                else {
-                    DPRINTF2(("sock %d: %d UNREAD bytes\n", fd, unread));
-                }
-            }
-
-            /*
-             * We cannot just set a flag here and let pxtcp_pcb_sent()
-             * notice and start pulling, because if we are preempted
-             * before setting the flag and all data in inbuf is ACKed
-             * there will be no more calls to pxtcp_pcb_sent() to
-             * notice the flag.
-             *
-             * We cannot set a flag and then send a message to make
-             * sure it noticed, because if it has and it has read all
-             * data while the message is in transit it will delete
-             * pxtcp.
-             *
-             * In a sense this message is like msg_delete (except we
-             * ask to pull some data first).
+        if (!pxtcp->outbound_close_done) {
+            /* 
+             * We might still need to poll for POLLOUT, but we can not
+             * poll for POLLIN anymore (even if not all data are read)
+             * because we will be spammed by POLLHUP.
              */
-            proxy_lwip_post(&pxtcp->msg_inpull);
-            pxtcp->pmhdl.slot = -1;
-            return -1;
+            pxtcp->events &= ~POLLIN;
+            if (!pxtcp->inbound_close) {
+                /* the rest of the input has to be pulled */
+                proxy_lwip_post(&pxtcp->msg_inpull);
+            }
         }
-        /* NOTREACHED */
-    } /* POLLHUP */
+        else
+#endif
+        /*
+         * Both directions are closed.
+         */
+        {
+            DPRINTF(("sock %d: HUP\n", fd));
+            LWIP_ASSERT1(pxtcp->outbound_close_done);
+
+            if (pxtcp->inbound_close) {
+                /* there's no unread data, we are done */
+                return pxtcp_schedule_delete(pxtcp);
+            }
+            else {
+                /* pull the rest of the input first (deferred_delete) */
+                pxtcp->pmhdl.slot = -1;
+                proxy_lwip_post(&pxtcp->msg_inpull);
+                return -1;
+            }
+            /* NOTREACHED */
+        }
+
+    }
 #endif  /* HAVE_TCP_POLLHUP */
 
     return pxtcp->events;
@@ -1761,7 +1738,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
  * Returns number of bytes read.  NB: EOF is reported as 1!
  *
  * Returns zero if nothing was read, either because buffer is full, or
- * if no data is available (EAGAIN, EINTR &c).
+ * if no data is available (EWOULDBLOCK, EINTR &c).
  *
  * Returns -errno on real socket errors.
  */
@@ -1769,24 +1746,13 @@ static ssize_t
 pxtcp_sock_read(struct pxtcp *pxtcp, int *pstop)
 {
     IOVEC iov[2];
-#ifndef RT_OS_WINDOWS
-    struct msghdr mh;
-#else
-    DWORD dwFlags;
-    int rc;
-#endif
-    int iovlen;
+    size_t iovlen;
     ssize_t nread;
 
     const size_t sz = pxtcp->inbuf.bufsize;
     size_t beg, lim, wrnew;
 
     *pstop = 0;
-
-#ifndef RT_OS_WINDOWS
-    memset(&mh, 0, sizeof(mh));
-    mh.msg_iov = iov;
-#endif
 
     beg = pxtcp->inbuf.vacant;
     IOVEC_SET_BASE(iov[0], &pxtcp->inbuf.buf[beg]);
@@ -1796,7 +1762,7 @@ pxtcp_sock_read(struct pxtcp *pxtcp, int *pstop)
     if (lim == 0) {
         lim = sz - 1;           /* empty slot at the end */
     }
-    else if (lim == 1) {
+    else if (lim == 1 && beg != 0) {
         lim = sz;               /* empty slot at the beginning */
     }
     else {
@@ -1827,31 +1793,11 @@ pxtcp_sock_read(struct pxtcp *pxtcp, int *pstop)
         IOVEC_SET_LEN(iov[1], lim);
     }
 
-#ifndef RT_OS_WINDOWS
-    mh.msg_iovlen = iovlen;
-    nread = recvmsg(pxtcp->sock, &mh, 0);
-#else
-    dwFlags = 0;
-    /* We can't assign nread to -1 expecting, that we'll got it back in case of error,
-     * instead, WSARecv(,,,DWORD *,,,) will rewrite only half of the 64bit value.
+    /*
+     * TODO: This is where application-level proxy can hook into to
+     * process inbound traffic.
      */
-    nread = 0;
-    rc = WSARecv(pxtcp->sock, iov, iovlen, (DWORD *)&nread, &dwFlags, NULL, NULL);
-    if (rc == SOCKET_ERROR) {
-        warn("pxtcp_sock_read:WSARecv(%d) error:%d nread:%d\n",
-             pxtcp->sock,
-             WSAGetLastError(),
-             nread);
-        nread = -1;
-    }
-
-    if (dwFlags) {
-        warn("pxtcp_sock_read:WSARecv(%d) dwFlags:%x nread:%d\n",
-             pxtcp->sock,
-             WSAGetLastError(),
-             nread);
-    }
-#endif
+    nread = pxtcp_sock_recv(pxtcp, iov, iovlen);
 
     if (nread > 0) {
         wrnew = beg + nread;
@@ -1870,19 +1816,62 @@ pxtcp_sock_read(struct pxtcp *pxtcp, int *pstop)
                  (void *)pxtcp, pxtcp->sock));
         return 1;
     }
-    else if (errno == EWOULDBLOCK || errno == EAGAIN || errno == EINTR) {
-        /* haven't read anything, just return */
-        DPRINTF2(("pxtcp %p: sock %d read cancelled\n",
-                  (void *)pxtcp, pxtcp->sock));
-        return 0;
-    }
     else {
-        /* socket error! */
-        DPRINTF0(("pxtcp %p: sock %d read errno %d\n",
-                  (void *)pxtcp, pxtcp->sock, errno));
-        return -errno;
+        int sockerr = -nread;
+
+        if (proxy_error_is_transient(sockerr)) {
+            /* haven't read anything, just return */
+            DPRINTF2(("pxtcp %p: sock %d read cancelled\n",
+                      (void *)pxtcp, pxtcp->sock));
+            return 0;
+        }
+        else {
+            /* socket error! */
+            DPRINTF0(("pxtcp %p: sock %d read: %R[sockerr]\n",
+                      (void *)pxtcp, pxtcp->sock, sockerr));
+            return -sockerr;
+        }
     }
 }
+
+
+#if !defined(RT_OS_WINDOWS)
+static ssize_t
+pxtcp_sock_recv(struct pxtcp *pxtcp, IOVEC *iov, size_t iovlen)
+{
+    struct msghdr mh;
+    ssize_t nread;
+
+    memset(&mh, 0, sizeof(mh));
+
+    mh.msg_iov = iov;
+    mh.msg_iovlen = iovlen;
+
+    nread = recvmsg(pxtcp->sock, &mh, 0);
+    if (nread < 0) {
+        nread = -SOCKERRNO();
+    }
+
+    return nread;
+}
+#else /* RT_OS_WINDOWS */
+static ssize_t
+pxtcp_sock_recv(struct pxtcp *pxtcp, IOVEC *iov, size_t iovlen)
+{
+    DWORD flags;
+    DWORD nread;
+    int status;
+
+    flags = 0;
+    status = WSARecv(pxtcp->sock, iov, (DWORD)iovlen, &nread,
+                     &flags, NULL, NULL);
+    if (status == SOCKET_ERROR) {
+        return -SOCKERRNO();
+    }
+
+    return (ssize_t)nread;
+}
+#endif /* RT_OS_WINDOWS */
 
 
 /**
@@ -2203,7 +2192,6 @@ pxtcp_pcb_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
 
     if (/* __predict_false */ len == 0) {
         /* we are notified to start pulling */
-        LWIP_ASSERT1(pxtcp->outbound_close_done);
         LWIP_ASSERT1(!pxtcp->inbound_close);
         LWIP_ASSERT1(pxtcp->inbound_pull);
 
@@ -2244,7 +2232,7 @@ pxtcp_pcb_sent(void *arg, struct tcp_pcb *pcb, u16_t len)
             if (nread < 0) {
                 int sockerr = -(int)nread;
                 LWIP_UNUSED_ARG(sockerr);
-                DPRINTF0(("%s: sock %d: errno %d\n",
+                DPRINTF0(("%s: sock %d: %R[sockerr]\n",
                           __func__, pxtcp->sock, sockerr));
 
                 /*
@@ -2319,10 +2307,17 @@ pxtcp_pcb_pull_inbound(void *ctx)
         return;
     }
 
-    DPRINTF(("%s: pxtcp %p: pcb %p\n",
-             __func__, (void *)pxtcp, (void *)pxtcp->pcb));
     pxtcp->inbound_pull = 1;
-    pxtcp->deferred_delete = 1;
+    if (pxtcp->outbound_close_done) {
+        DPRINTF(("%s: pxtcp %p: pcb %p (deferred delete)\n",
+                 __func__, (void *)pxtcp, (void *)pxtcp->pcb));
+        pxtcp->deferred_delete = 1;
+    }
+    else {
+        DPRINTF(("%s: pxtcp %p: pcb %p\n",
+                 __func__, (void *)pxtcp, (void *)pxtcp->pcb));
+    }
+
     pxtcp_pcb_sent(pxtcp, pxtcp->pcb, 0);
 }
 

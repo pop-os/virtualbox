@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2014 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@ PROGRAMS += \
 	SUPUninstall \
 	SUPLoggerCtl
 ifdef VBOX_WITH_TESTCASES
+ if !defined(VBOX_WITH_HARDENING) || "$(KBUILD_TARGET)" != "win"
 PROGRAMS += \
 	tstPage \
 	tstContiguous \
@@ -44,6 +45,7 @@ PROGRAMS += \
 	tstSupLoadModule \
 	tstSupSem \
 	tstSupSem-Zombie
+ endif
 PROGRAMS.win += \
 	tstNtQueryStuff
 endif # VBOX_WITH_TESTCASES

@@ -1,4 +1,4 @@
-/* $Id: kLdrModMachO.c 53 2013-07-09 17:18:44Z bird $ */
+/* $Id: kLdrModMachO.c 55 2013-10-11 00:55:44Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the MACH-O format.
  */
@@ -163,6 +163,9 @@ typedef struct KLDRMODMACHO
     KU32                    cchStrings;
     /** Pointer to the loaded string table. */
     char                   *pchStrings;
+
+    /** The image UUID, all zeros if not found. */
+    KU8                     abImageUuid[16];
 
     /** The RVA of the Global Offset Table. */
     KLDRADDR                GotRVA;
@@ -341,7 +344,8 @@ static int kldrModMachODoCreate(PKRDR pRdr, KLDRFOFF offImage, KU32 fOpenFlags, 
     if (   s.Hdr32.filetype != MH_OBJECT
         && s.Hdr32.filetype != MH_EXECUTE
         && s.Hdr32.filetype != MH_DYLIB
-        && s.Hdr32.filetype != MH_DSYM)
+        && s.Hdr32.filetype != MH_DSYM
+        && s.Hdr32.filetype != MH_KEXT_BUNDLE)
         return KLDR_ERR_MACHO_UNSUPPORTED_FILE_TYPE;
 
     /*
@@ -447,6 +451,7 @@ static int kldrModMachODoCreate(PKRDR pRdr, KLDRFOFF offImage, KU32 fOpenFlags, 
         case MH_OBJECT:     pMod->enmType = KLDRTYPE_OBJECT; break;
         case MH_EXECUTE:    pMod->enmType = KLDRTYPE_EXECUTABLE_FIXED; break;
         case MH_DYLIB:      pMod->enmType = KLDRTYPE_SHARED_LIBRARY_RELOCATABLE; break;
+        case MH_KEXT_BUNDLE:pMod->enmType = KLDRTYPE_SHARED_LIBRARY_RELOCATABLE; break;
         case MH_DSYM:       pMod->enmType = KLDRTYPE_DEBUG_INFO; break;
         default:
             return KLDR_ERR_MACHO_UNSUPPORTED_FILE_TYPE;
@@ -474,6 +479,7 @@ static int kldrModMachODoCreate(PKRDR pRdr, KLDRFOFF offImage, KU32 fOpenFlags, 
     pModMachO->offStrings = 0;
     pModMachO->cchStrings = 0;
     pModMachO->pchStrings = NULL;
+    kHlpMemSet(pModMachO->abImageUuid, 0, sizeof(pModMachO->abImageUuid));
     pModMachO->GotRVA = NIL_KLDRADDR;
     pModMachO->JmpStubsRVA = NIL_KLDRADDR;
     pModMachO->cSections = cSections;
@@ -720,6 +726,7 @@ static int  kldrModMachOPreParseLoadCommands(KU8 *pbLoadCommands, const mach_hea
                         case MH_EXECUTE:
                         case MH_DYLIB:
                         case MH_DSYM:
+                        case MH_KEXT_BUNDLE:
                         {
                             cSections++;
 
@@ -915,6 +922,7 @@ static int  kldrModMachOPreParseLoadCommands(KU8 *pbLoadCommands, const mach_hea
                         case MH_EXECUTE:
                         case MH_DYLIB:
                         case MH_DSYM:
+                        case MH_KEXT_BUNDLE:
                         {
                             cSections++;
 
@@ -1083,6 +1091,7 @@ static int  kldrModMachOPreParseLoadCommands(KU8 *pbLoadCommands, const mach_hea
         case MH_EXECUTE:
         case MH_DYLIB:
         case MH_DSYM:
+        case MH_KEXT_BUNDLE:
             if (!cSegments)
                 return KLDR_ERR_MACHO_BAD_OBJECT_FILE;
             break;
@@ -1116,6 +1125,7 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
         const segment_command_32_t *pSeg32;
         const segment_command_64_t *pSeg64;
         const symtab_command_t     *pSymTab;
+        const uuid_command_t       *pUuid;
     } u;
     const char *pchCurSegName = NULL;
     KU32 cLeft = pModMachO->Hdr.ncmds;
@@ -1159,6 +1169,7 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
                         case MH_EXECUTE:
                         case MH_DYLIB:
                         case MH_DSYM:
+                        case MH_KEXT_BUNDLE:
                         {
                             /* Section data extract. */
                             pSectExtra->cb = pSect->size;
@@ -1295,6 +1306,7 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
                         case MH_EXECUTE:
                         case MH_DYLIB:
                         case MH_DSYM:
+                        case MH_KEXT_BUNDLE:
                         {
                             /* Section data extract. */
                             pSectExtra->cb = pSect->size;
@@ -1417,12 +1429,17 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
                     case MH_EXECUTE:
                     case MH_DYLIB: /** @todo ??? */
                     case MH_DSYM:
+                    case MH_KEXT_BUNDLE:
                         pModMachO->offSymbols = u.pSymTab->symoff + pModMachO->offImage;
                         pModMachO->cSymbols = u.pSymTab->nsyms;
                         pModMachO->offStrings = u.pSymTab->stroff + pModMachO->offImage;
                         pModMachO->cchStrings = u.pSymTab->strsize;
                         break;
                 }
+                break;
+
+            case LC_UUID:
+                kHlpMemCopy(pModMachO->abImageUuid, u.pUuid->uuid, sizeof(pModMachO->abImageUuid));
                 break;
 
             default:
@@ -1527,6 +1544,7 @@ static int  kldrModMachOParseLoadCommands(PKLDRMODMACHO pModMachO, char *pbStrin
         case MH_EXECUTE:
         case MH_DYLIB: /** @todo dylib */
         case MH_DSYM:
+        case MH_KEXT_BUNDLE:
         {
             KLDRADDR cb1;
             KSIZE cb2;
@@ -1784,7 +1802,8 @@ static int kldrModMachOQuerySymbol(PKLDRMOD pMod, const void *pvBits, KLDRADDR B
     if (   pModMachO->Hdr.filetype == MH_OBJECT
         || pModMachO->Hdr.filetype == MH_EXECUTE /** @todo dylib, execute, dsym: symbols */
         || pModMachO->Hdr.filetype == MH_DYLIB
-        || pModMachO->Hdr.filetype == MH_DSYM)
+        || pModMachO->Hdr.filetype == MH_DSYM
+        || pModMachO->Hdr.filetype == MH_KEXT_BUNDLE)
     {
         rc = kldrModMachOLoadObjSymTab(pModMachO);
         if (!rc)
@@ -2097,7 +2116,8 @@ static int kldrModMachOEnumSymbols(PKLDRMOD pMod, const void *pvBits, KLDRADDR B
     if (   pModMachO->Hdr.filetype == MH_OBJECT
         || pModMachO->Hdr.filetype == MH_EXECUTE /** @todo dylib, execute, dsym: symbols */
         || pModMachO->Hdr.filetype == MH_DYLIB
-        || pModMachO->Hdr.filetype == MH_DSYM)
+        || pModMachO->Hdr.filetype == MH_DSYM
+        || pModMachO->Hdr.filetype == MH_KEXT_BUNDLE)
     {
         rc = kldrModMachOLoadObjSymTab(pModMachO);
         if (!rc)
@@ -2403,6 +2423,18 @@ static int kldrModMachOQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KL
 #else
     *pMainEPAddress = NIL_KLDRADDR;
 #endif
+    return 0;
+}
+
+
+/** @copydoc kLdrModQueryImageUuid */
+static int kldrModMachOQueryImageUuid(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE cbUuid)
+{
+    PKLDRMODMACHO pModMachO = (PKLDRMODMACHO)pMod->pvData;
+    kHlpMemSet(pvUuid, 0, cbUuid);
+    if (kHlpMemComp(pvUuid, pModMachO->abImageUuid, sizeof(pModMachO->abImageUuid)) == 0)
+        return KLDR_ERR_NO_IMAGE_UUID;
+    kHlpMemCopy(pvUuid, pModMachO->abImageUuid, sizeof(pModMachO->abImageUuid));
     return 0;
 }
 
@@ -3738,6 +3770,7 @@ KLDRMODOPS g_kLdrModMachOOps =
     NULL /* can execute one is optional */,
     kldrModMachOGetStackInfo,
     kldrModMachOQueryMainEntrypoint,
+    kldrModMachOQueryImageUuid,
     NULL,
     NULL,
     kldrModMachOEnumDbgInfo,
