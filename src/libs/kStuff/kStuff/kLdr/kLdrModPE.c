@@ -1,4 +1,4 @@
-/* $Id: kLdrModPE.c 41 2011-08-24 14:35:57Z bird $ */
+/* $Id: kLdrModPE.c 54 2013-10-09 19:52:48Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Portable Executable (PE) Format.
  */
@@ -1978,6 +1978,7 @@ KLDRMODOPS g_kLdrModPEOps =
     NULL /* can execute one is optional */,
     kldrModPEGetStackInfo,
     kldrModPEQueryMainEntrypoint,
+    NULL /* pfnQueryImageUuid */,
     NULL, /** @todo resources */
     NULL, /** @todo resources */
     kldrModPEEnumDbgInfo,

@@ -185,6 +185,20 @@ typedef struct VBOXDISK
 
     /** The block cache handle if configured. */
     PPDMBLKCACHE             pBlkCache;
+
+    /** Cryptographic support
+     * @{ */
+    /** Used algorithm, NULL means no encryption. */
+    char                    *pszEncryptionAlgorithm;
+    /** Config interface for the encryption filter. */
+    VDINTERFACECONFIG        VDIfCfg;
+    /** Flag whether the DEK was provided. */
+    bool                     fDekProvided;
+    /** Pointer to the key material - temporary. */
+    const uint8_t           *pbKey;
+    /** Size of the key material in bytes. */
+    size_t                   cbKey;
+    /** @} */
 } VBOXDISK, *PVBOXDISK;
 
 
@@ -615,6 +629,65 @@ static int drvvdCfgQuery(void *pvUser, const char *pszName, char *pszString, siz
     return CFGMR3QueryString((PCFGMNODE)pvUser, pszName, pszString, cchString);
 }
 
+static int drvvdCfgQueryBytes(void *pvUser, const char *pszName, void *ppvData, size_t cbData)
+{
+    return CFGMR3QueryBytes((PCFGMNODE)pvUser, pszName, ppvData, cbData);
+}
+
+
+/*******************************************************************************
+*   VD Configuration interface implementation for the encryption support       *
+*******************************************************************************/
+
+static bool drvvdCfgEncAreKeysValid(void *pvUser, const char *pszValid)
+{
+    return true;
+}
+
+static int drvvdCfgEncQuerySize(void *pvUser, const char *pszName, size_t *pcb)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    if (!strcmp(pszName, "Algorithm"))
+        *pcb = strlen(pThis->pszEncryptionAlgorithm) + 1;
+    else if (!strcmp(pszName, "Key"))
+        *pcb = pThis->cbKey;
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
+static int drvvdCfgEncQuery(void *pvUser, const char *pszName, char *pszString, size_t cchString)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    if (!strcmp(pszName, "Algorithm"))
+        rc = RTStrCopy(pszString, cchString, pThis->pszEncryptionAlgorithm);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
+static int drvvdCfgEncQueryBytes(void *pvUser, const char *pszName, void *pvData, size_t cbData)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    if (!strcmp(pszName, "Key"))
+        if (pThis->cbKey > cbData)
+            rc = VERR_BUFFER_OVERFLOW;
+        else
+            memcpy(pvData, pThis->pbKey, pThis->cbKey);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+    
+}
 
 #ifdef VBOX_WITH_INIP
 /*******************************************************************************
@@ -1499,6 +1572,15 @@ static DECLCALLBACK(int) drvvdRead(PPDMIMEDIA pInterface,
     LogFlowFunc(("off=%#llx pvBuf=%p cbRead=%d\n", off, pvBuf, cbRead));
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
 
+    if (   pThis->pszEncryptionAlgorithm
+        && !pThis->fDekProvided)
+    {
+        rc = PDMDrvHlpVMSetRuntimeError(pThis->pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_DEKMISSING",
+                                        N_("VD: The DEK for this disk is missing"));
+        AssertRC(rc);
+        return VERR_VD_DEK_MISSING;
+    }
+
     if (!pThis->fBootAccelActive)
         rc = VDRead(pThis->pDisk, off, pvBuf, cbRead);
     else
@@ -1549,6 +1631,15 @@ static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
     PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
     Log2(("%s: off=%#llx pvBuf=%p cbWrite=%d\n%.*Rhxd\n", __FUNCTION__,
           off, pvBuf, cbWrite, cbWrite, pvBuf));
+
+    if (   pThis->pszEncryptionAlgorithm
+        && !pThis->fDekProvided)
+    {
+        int rc = PDMDrvHlpVMSetRuntimeError(pThis->pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_DEKMISSING",
+                                            N_("VD: The DEK for this disk is missing"));
+        AssertRC(rc);
+        return VERR_VD_DEK_MISSING;
+    }
 
     /* Invalidate any buffer if boot acceleration is enabled. */
     if (pThis->fBootAccelActive)
@@ -1603,6 +1694,40 @@ static DECLCALLBACK(int) drvvdMerge(PPDMIMEDIA pInterface,
     }
     rc2 = RTSemFastMutexRelease(pThis->MergeCompleteMutex);
     AssertRC(rc2);
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/** @copydoc PDMIMEDIA::pfnSetKey */
+static DECLCALLBACK(int) drvvdSetKey(PPDMIMEDIA pInterface, const uint8_t *pbKey,
+                                     size_t cbKey)
+{
+    LogFlowFunc(("\n"));
+    PVBOXDISK pThis = PDMIMEDIA_2_VBOXDISK(pInterface);
+    int rc = VINF_SUCCESS;
+
+    if (pThis->pszEncryptionAlgorithm)
+    {
+        PVDINTERFACE pVDIfFilter = NULL;
+
+        pThis->pbKey = pbKey;
+        pThis->cbKey = cbKey;
+
+        rc = VDInterfaceAdd(&pThis->VDIfCfg.Core, "DrvVD_Config", VDINTERFACETYPE_CONFIG,
+                            pThis, sizeof(VDINTERFACECONFIG), &pVDIfFilter);
+        AssertRC(rc);
+
+        /* Load the crypt filter plugin. */
+        rc = VDFilterAdd(pThis->pDisk, "CRYPT", pVDIfFilter);
+        if (RT_SUCCESS(rc))
+            pThis->fDekProvided = true;
+
+        pThis->pbKey = NULL;
+        pThis->cbKey = 0;
+    }
+    else
+        rc = VERR_NOT_SUPPORTED;
+
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -1768,6 +1893,15 @@ static DECLCALLBACK(int) drvvdStartRead(PPDMIMEDIAASYNC pInterface, uint64_t uOf
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
 
+    if (   pThis->pszEncryptionAlgorithm
+        && !pThis->fDekProvided)
+    {
+        rc = PDMDrvHlpVMSetRuntimeError(pThis->pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_DEKMISSING",
+                                        N_("VD: The DEK for this disk is missing"));
+        AssertRC(rc);
+        return VERR_VD_DEK_MISSING;
+    }
+
     pThis->fBootAccelActive = false;
 
     RTSGBUF SgBuf;
@@ -1796,6 +1930,15 @@ static DECLCALLBACK(int) drvvdStartWrite(PPDMIMEDIAASYNC pInterface, uint64_t uO
                  uOffset, paSeg, cSeg, cbWrite, pvUser));
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMIMEDIAASYNC_2_VBOXDISK(pInterface);
+
+    if (   pThis->pszEncryptionAlgorithm
+        && !pThis->fDekProvided)
+    {
+        rc = PDMDrvHlpVMSetRuntimeError(pThis->pDrvIns, VMSETRTERR_FLAGS_SUSPEND | VMSETRTERR_FLAGS_NO_WAIT, "DrvVD_DEKMISSING",
+                                        N_("VD: The DEK for this disk is missing"));
+        AssertRC(rc);
+        return VERR_VD_DEK_MISSING;
+    }
 
     pThis->fBootAccelActive = false;
 
@@ -1881,6 +2024,8 @@ static int drvvdBlkCacheXferEnqueue(PPDMDRVINS pDrvIns,
     int rc = VINF_SUCCESS;
     PVBOXDISK pThis = PDMINS_2_DATA(pDrvIns, PVBOXDISK);
 
+    Assert (!pThis->pszEncryptionAlgorithm);
+
     switch (enmXferDir)
     {
         case PDMBLKCACHEXFERDIR_READ:
@@ -1923,6 +2068,76 @@ static int drvvdBlkCacheXferEnqueueDiscard(PPDMDRVINS pDrvIns, PCRTRANGE paRange
         PDMR3BlkCacheIoXferComplete(pThis->pBlkCache, hIoXfer, rc);
 
     return VINF_SUCCESS;
+}
+
+/**
+ * Loads all configured plugins.
+ *
+ * @returns VBox status code.
+ * @param   pThis    The disk instance.
+ * @param   pCfg     CFGM node holding plugin list.
+ */
+static int drvvdLoadPlugins(PVBOXDISK pThis, PCFGMNODE pCfg)
+{
+    int rc = VINF_SUCCESS;
+    PCFGMNODE pCfgPlugins = CFGMR3GetChild(pCfg, "Plugins");
+
+    if (pCfgPlugins)
+    {
+        PCFGMNODE pPluginCur = CFGMR3GetFirstChild(pCfgPlugins);
+        while (   pPluginCur
+               && RT_SUCCESS(rc))
+        {
+            char *pszPluginFilename = NULL;
+            rc = CFGMR3QueryStringAlloc(pPluginCur, "Path", &pszPluginFilename);
+            if (RT_SUCCESS(rc))
+                rc = VDPluginLoadFromFilename(pszPluginFilename);
+
+            pPluginCur = CFGMR3GetNextChild(pPluginCur);
+        }
+    }
+
+    return rc;
+}
+
+
+/**
+ * Sets up the disk filter chain.
+ *
+ * @returns VBox status code.
+ * @param   pThis    The disk instance.
+ * @param   pCfg     CFGM node holding the filter parameters.
+ */
+static int drvvdSetupFilters(PVBOXDISK pThis, PCFGMNODE pCfg)
+{
+    int rc = VINF_SUCCESS;
+    PCFGMNODE pCfgFilter = CFGMR3GetChild(pCfg, "Filters");
+
+    if (pCfgFilter)
+    {
+        PCFGMNODE pCfgFilterConfig = CFGMR3GetChild(pCfgFilter, "VDConfig");
+        char *pszFilterName = NULL;
+        VDINTERFACECONFIG VDIfConfig;
+        PVDINTERFACE pVDIfsFilter = NULL;
+
+        rc = CFGMR3QueryStringAlloc(pCfgFilter, "FilterName", &pszFilterName);
+        if (RT_SUCCESS(rc))
+        {
+            VDIfConfig.pfnAreKeysValid = drvvdCfgAreKeysValid;
+            VDIfConfig.pfnQuerySize    = drvvdCfgQuerySize;
+            VDIfConfig.pfnQuery        = drvvdCfgQuery;
+            VDIfConfig.pfnQueryBytes   = drvvdCfgQueryBytes;
+            rc = VDInterfaceAdd(&VDIfConfig.Core, "DrvVD_Config", VDINTERFACETYPE_CONFIG,
+                                pCfgFilterConfig, sizeof(VDINTERFACECONFIG), &pVDIfsFilter);
+            AssertRC(rc);
+
+            rc = VDFilterAdd(pThis->pDisk, pszFilterName, pVDIfsFilter);
+
+            MMR3HeapFree(pszFilterName);
+        }
+    }
+
+    return rc;
 }
 
 /*******************************************************************************
@@ -2128,6 +2343,11 @@ static DECLCALLBACK(void) drvvdDestruct(PPDMDRVINS pDrvIns)
         MMR3HeapFree(pThis->pszBwGroup);
         pThis->pszBwGroup = NULL;
     }
+    if (pThis->pszEncryptionAlgorithm)
+    {
+        MMR3HeapFree(pThis->pszEncryptionAlgorithm);
+        pThis->pszBwGroup = NULL;
+    }
 }
 
 /**
@@ -2163,12 +2383,15 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->MergeLock                    = NIL_RTSEMRW;
     pThis->uMergeSource                 = VD_LAST_IMAGE;
     pThis->uMergeTarget                 = VD_LAST_IMAGE;
+    pThis->pszEncryptionAlgorithm       = NULL;
+    pThis->fDekProvided                 = false;
 
     /* IMedia */
     pThis->IMedia.pfnRead               = drvvdRead;
     pThis->IMedia.pfnWrite              = drvvdWrite;
     pThis->IMedia.pfnFlush              = drvvdFlush;
     pThis->IMedia.pfnMerge              = drvvdMerge;
+    pThis->IMedia.pfnSetKey             = drvvdSetKey;
     pThis->IMedia.pfnGetSize            = drvvdGetSize;
     pThis->IMedia.pfnGetSectorSize      = drvvdGetSectorSize;
     pThis->IMedia.pfnIsReadOnly         = drvvdIsReadOnly;
@@ -2204,6 +2427,11 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
 
     /* Try to attach async media port interface above.*/
     pThis->pDrvMediaAsyncPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIMEDIAASYNCPORT);
+
+    /* Before we access any VD API load all given plugins. */
+    rc = drvvdLoadPlugins(pThis, pCfg);
+    if (RT_FAILURE(rc))
+        return PDMDRV_SET_ERROR(pDrvIns, rc, N_("Loading VD plugins failed"));
 
     /*
      * Validate configuration and find all parent images.
@@ -2563,9 +2791,33 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
         pImage->VDIfConfig.pfnAreKeysValid = drvvdCfgAreKeysValid;
         pImage->VDIfConfig.pfnQuerySize    = drvvdCfgQuerySize;
         pImage->VDIfConfig.pfnQuery        = drvvdCfgQuery;
+        pImage->VDIfConfig.pfnQueryBytes   = NULL;
         rc = VDInterfaceAdd(&pImage->VDIfConfig.Core, "DrvVD_Config", VDINTERFACETYPE_CONFIG,
                             pCfgVDConfig, sizeof(VDINTERFACECONFIG), &pImage->pVDIfsImage);
         AssertRC(rc);
+
+        /* Check VDConfig for encryption config. */
+        if (pCfgVDConfig)
+        {
+            rc = CFGMR3QueryStringAlloc(pCfgVDConfig, "EncryptionAlgorithm", &pThis->pszEncryptionAlgorithm);
+            if (RT_FAILURE(rc) && rc != VERR_CFGM_VALUE_NOT_FOUND)
+            {
+                rc = PDMDRV_SET_ERROR(pDrvIns, rc,
+                                      N_("DrvVD: Configuration error: Querying \"EncryptionAlgorithm\" as string failed"));
+                break;
+            }
+            else
+                rc = VINF_SUCCESS;
+        }
+
+        if (pThis->pszEncryptionAlgorithm)
+        {
+            /* Setup VDConfig interface for disk encryption support. */
+            pThis->VDIfCfg.pfnAreKeysValid = drvvdCfgEncAreKeysValid;
+            pThis->VDIfCfg.pfnQuerySize    = drvvdCfgEncQuerySize;
+            pThis->VDIfCfg.pfnQuery        = drvvdCfgEncQuery;
+            pThis->VDIfCfg.pfnQueryBytes   = drvvdCfgEncQueryBytes;
+        }
 
         /* Unconditionally insert the TCPNET interface, don't bother to check
          * if an image really needs it. Will be ignored. Since the TCPNET
@@ -2804,6 +3056,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     if (   fUseBlockCache
         && !pThis->fShareable
         && !fDiscard
+        && !pThis->pszEncryptionAlgorithm /* Disk encryption disables the block cache for security reasons */
         && RT_SUCCESS(rc))
     {
         /*
@@ -2850,6 +3103,9 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
                                       N_("DrvVD: Out of memory when creating block cache"));
         }
     }
+
+    if (RT_SUCCESS(rc))
+        rc = drvvdSetupFilters(pThis, pCfg);
 
     /*
      * Register a load-done callback so we can undo TempReadOnly config before

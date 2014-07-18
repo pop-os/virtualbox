@@ -112,7 +112,7 @@ void crServerRedirMuralFbClear(CRMuralInfo *mural)
     }
     mural->cUsedFBDatas = 0;
 
-    for (i = 0; i < cr_server.screenCount; ++i)
+    for (i = 0; i < (uint32_t)cr_server.screenCount; ++i)
     {
         GLuint j;
         CR_FBDATA *pData = &mural->aFBDatas[i];
@@ -359,7 +359,7 @@ static void crVBoxServerMuralFbSetCB(unsigned long key, void *data1, void *data2
                 Assert(idCurScreen != idScreen);
             }
 
-            for (int j = pMI->cUsedFBDatas; j > i; --j)
+            for (uint32_t j = pMI->cUsedFBDatas; j > i; --j)
             {
                 pMI->apUsedFBDatas[j] = pMI->apUsedFBDatas[j-1];
             }
@@ -373,7 +373,7 @@ static void crVBoxServerMuralFbSetCB(unsigned long key, void *data1, void *data2
     {
         if (fFbWasUsed)
         {
-            for (int j = i; j < pMI->cUsedFBDatas - 1; ++j)
+            for (uint32_t j = i; j < pMI->cUsedFBDatas - 1; ++j)
             {
                 pMI->apUsedFBDatas[j] = pMI->apUsedFBDatas[j+1];
             }
@@ -393,44 +393,27 @@ void crVBoxServerMuralFbResizeBegin(HCR_FRAMEBUFFER hFb)
     crHashtableWalk(cr_server.muralTable, crVBoxServerMuralFbCleanCB, hFb);
 }
 
-
-static int crVBoxServerResizeScreen(const struct VBVAINFOSCREEN *pScreen, void *pvVRAM)
+DECLEXPORT(int) crVBoxServerNotifyResize(const struct VBVAINFOSCREEN *pScreen, void *pvVRAM)
 {
-    int rc;
-    HCR_FRAMEBUFFER hFb = CrPMgrFbGet(pScreen->u32ViewIndex);
-    if (!hFb)
+    if (cr_server.fCrCmdEnabled)
     {
-        WARN(("CrPMgrFbGet failed"));
+        WARN(("crVBoxServerNotifyResize for enabled CrCmd"));
+        return VERR_INVALID_STATE;
+    }
+
+    if (pScreen->u32ViewIndex >= (uint32_t)cr_server.screenCount)
+    {
+        WARN(("invalid view index"));
         return VERR_INVALID_PARAMETER;
     }
 
-    rc = CrFbUpdateBegin(hFb);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("CrFbUpdateBegin failed %d", rc));
-        return rc;
-    }
+    VBOXCMDVBVA_SCREENMAP_DECL(uint32_t, aTargetMap);
 
-    crVBoxServerMuralFbResizeBegin(hFb);
+    memset(aTargetMap, 0, sizeof (aTargetMap));
 
-    rc = CrFbResize(hFb, pScreen, pvVRAM);
-    if (!RT_SUCCESS(rc))
-    {
-        WARN(("CrFbResize failed %d", rc));
-    }
+    ASMBitSet(aTargetMap, pScreen->u32ViewIndex);
 
-    crVBoxServerMuralFbResizeEnd(hFb);
-
-    CrFbUpdateEnd(hFb);
-
-    CrPMgrNotifyResize(hFb);
-
-    return rc;
-}
-
-DECLEXPORT(int) crVBoxServerNotifyResize(const struct VBVAINFOSCREEN *pScreen, void *pvVRAM)
-{
-    int rc = crVBoxServerResizeScreen(pScreen, pvVRAM);
+    int rc = CrPMgrResize(pScreen, pvVRAM, aTargetMap);
     if (!RT_SUCCESS(rc))
     {
         WARN(("err"));
@@ -667,7 +650,7 @@ DECLEXPORT(void) crServerVBoxScreenshotRelease(CR_SCREENSHOT *pScreenshot)
 
 DECLEXPORT(int) crServerVBoxScreenshotGet(uint32_t u32Screen, uint32_t width, uint32_t height, uint32_t pitch, void *pvBuffer, CR_SCREENSHOT *pScreenshot)
 {
-    HCR_FRAMEBUFFER hFb = CrPMgrFbGetEnabled(u32Screen);
+    HCR_FRAMEBUFFER hFb = CrPMgrFbGetEnabledForScreen(u32Screen);
     if (!hFb)
         return VERR_INVALID_STATE;
 
@@ -686,7 +669,7 @@ DECLEXPORT(int) crServerVBoxScreenshotGet(uint32_t u32Screen, uint32_t width, ui
             || pScreen->u32LineSize != pitch
             || pScreen->u16BitsPerPixel != 32)
     {
-        RTRECT SrcRect;
+        RTRECTSIZE SrcRectSize;
         RTRECT DstRect;
 
         pScreenshot->Img.cbData = pScreen->u32LineSize * pScreen->u32Height;
@@ -711,15 +694,13 @@ DECLEXPORT(int) crServerVBoxScreenshotGet(uint32_t u32Screen, uint32_t width, ui
         pScreenshot->Img.height = height;
         pScreenshot->Img.bpp = 32;
         pScreenshot->Img.pitch = pitch;
-        SrcRect.xLeft = 0;
-        SrcRect.yTop = 0;
-        SrcRect.xRight = pScreen->u32Width;
-        SrcRect.yBottom = pScreen->u32Height;
+        SrcRectSize.cx = pScreen->u32Width;
+        SrcRectSize.cy = pScreen->u32Height;
         DstRect.xLeft = 0;
         DstRect.yTop = 0;
         DstRect.xRight = width;
         DstRect.yBottom = height;
-        int rc = CrFbBltGetContents(hFb, &SrcRect, &DstRect, 1, &DstRect, &pScreenshot->Img);
+        int rc = CrFbBltGetContentsEx(hFb, &SrcRectSize, &DstRect, 1, &DstRect, &pScreenshot->Img);
         if (!RT_SUCCESS(rc))
         {
             WARN(("CrFbBltGetContents failed %d", rc));

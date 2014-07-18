@@ -432,7 +432,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
         LONG64 i64; \
         CHECK_ERROR2_RET(a_pObj, COMGETTER(a_Prop)(&i64), hrcCheck); \
         if (details == VMINFO_MACHINEREADABLE) \
-            RTPrintf(a_szHuman "=%lld", i64); \
+            RTPrintf(a_szMachine "=%lld\n", i64); \
         else \
             RTPrintf("%-16s %'lld" a_szUnit "\n", a_szHuman ":", i64); \
     } while (0)
@@ -1015,6 +1015,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                         ULONG tcpRcv = 0;
                         engine->GetNetworkSettings(&mtu, &sockSnd, &sockRcv, &tcpSnd, &tcpRcv);
 
+/** @todo r=klaus dnsproxy etc needs to be dumped, too */
                         if (details == VMINFO_MACHINEREADABLE)
                         {
                             RTPrintf("natnet%d=\"%ls\"\n", currentNIC + 1, strNetwork.length() ? strNetwork.raw(): Bstr("nat").raw());
@@ -1694,7 +1695,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> virtualBox,
                     {
                         currentPort = -1; /* VM not powered up */
                     }
-                    if (FAILED(rc))
+                    else if (FAILED(rc))
                     {
                         com::ErrorInfo info(vrdeServerInfo, COM_IIDOF(IVRDEServerInfo));
                         GluePrintErrorInfo(info);

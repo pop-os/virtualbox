@@ -3663,7 +3663,9 @@ static DECLCALLBACK(int) vmmdevDestruct(PPDMDEVINS pDevIns)
         pThis->pCredentials = NULL;
     }
 
+#ifdef VBOX_WITH_HGCM
     vmmdevHGCMDestroy(pThis);
+#endif
 
 #ifndef VBOX_WITHOUT_TESTING_FEATURES
     /*

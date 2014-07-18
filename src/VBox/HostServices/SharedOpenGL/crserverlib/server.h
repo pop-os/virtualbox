@@ -26,6 +26,7 @@ RT_C_DECLS_BEGIN
 
 extern uint8_t* g_pvVRamBase;
 extern uint32_t g_cbVRam;
+extern PPDMLED g_pLed;
 extern HCRHGSMICMDCOMPLETION g_hCrHgsmiCompletion;
 extern PFNCRHGSMICMDCOMPLETION g_pfnCrHgsmiCompletion;
 
@@ -43,14 +44,16 @@ DECLINLINE(void) crServerCrHgsmiCmdComplete(struct VBOXVDMACMD_CHROMIUM_CMD *pCm
 }
 
 #define VBOXCRHGSMI_CMD_COMPLETE(_pData, _rc) do { \
-        Assert(CRVBOXHGSMI_CMDDATA_IS_HGSMICMD(_pData)); \
         CRVBOXHGSMI_CMDDATA_ASSERT_ISSET(_pData); \
         CRVBOXHGSMI_CMDDATA_RC(_pData, _rc); \
-        crServerCrHgsmiCmdComplete((_pData)->pHgsmiCmd, VINF_SUCCESS); \
+        if (CRVBOXHGSMI_CMDDATA_IS_HGSMICMD(_pData)) { \
+            Assert(CRVBOXHGSMI_CMDDATA_IS_HGSMICMD(_pData)); \
+            crServerCrHgsmiCmdComplete((_pData)->pHgsmiCmd, VINF_SUCCESS); \
+        } \
     } while (0)
 
 #define VBOXCRHGSMI_CMD_CHECK_COMPLETE(_pData, _rc) do { \
-        if (CRVBOXHGSMI_CMDDATA_IS_SET(_pData)) { \
+        if (CRVBOXHGSMI_CMDDATA_IS_SET(_pData)) {\
             VBOXCRHGSMI_CMD_COMPLETE(_pData, _rc); \
         } \
     } while (0)
@@ -368,8 +371,6 @@ DECLINLINE(void) crServerCtxSwitchPostprocess(CR_SERVER_CTX_SWITCH *pData)
 
 void crServerInitTmpCtxDispatch();
 
-int crServerVBoxParseNumerics(const char *pszStr, const int defaultVal);
-
 typedef struct CR_FBMAP
 {
     uint8_t Map[(CR_MAX_GUEST_MONITORS+7)/8];
@@ -406,28 +407,33 @@ int CrPMgrHlpGlblUpdateBegin(CR_FBMAP *pMap);
 void CrPMgrHlpGlblUpdateEnd(CR_FBMAP *pMap);
 HCR_FRAMEBUFFER CrPMgrFbGetFirstEnabled();
 HCR_FRAMEBUFFER CrPMgrFbGetNextEnabled(HCR_FRAMEBUFFER hFb);
-HCR_FRAMEBUFFER CrPMgrFbGetEnabled(uint32_t idScreen);
+HCR_FRAMEBUFFER CrPMgrFbGetEnabled(uint32_t idFb);
+HCR_FRAMEBUFFER CrPMgrFbGetEnabledForScreen(uint32_t idScreen);
 int CrPMgrModeVrdp(bool fEnable);
 int CrPMgrModeRootVr(bool fEnable);
 int CrPMgrModeWinVisible(bool fEnable);
 int CrPMgrRootVrUpdate();
 int CrPMgrViewportUpdate(uint32_t idScreen);
 int CrPMgrScreenChanged(uint32_t idScreen);
-int CrPMgrNotifyResize(HCR_FRAMEBUFFER hFb);
+int CrPMgrResize(const struct VBVAINFOSCREEN *pScreen, void *pvVRAM, const uint32_t *pTargetMap);
 int CrPMgrSaveState(PSSMHANDLE pSSM);
 int CrPMgrLoadState(PSSMHANDLE pSSM, uint32_t version);
 HCR_FRAMEBUFFER CrPMgrFbGet(uint32_t idScreen);
 /*cleanup stuff*/
 
+
 int CrPMgrInit();
 void CrPMgrTerm();
+int CrPMgrDisable();
+int CrPMgrEnable();
 
 typedef DECLCALLBACKPTR(bool, PFNCR_FRAMEBUFFER_ENTRIES_VISITOR_CB)(HCR_FRAMEBUFFER hFb, HCR_FRAMEBUFFER_ENTRY hEntry, void *pvContext);
 
 bool CrFbHas3DData(HCR_FRAMEBUFFER hFb);
 void CrFbVisitCreatedEntries(HCR_FRAMEBUFFER hFb, PFNCR_FRAMEBUFFER_ENTRIES_VISITOR_CB pfnVisitorCb, void *pvContext);
 int CrFbResize(HCR_FRAMEBUFFER hFb, const struct VBVAINFOSCREEN * pScreen, void *pvVRAM);
-int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTRECT *pSrcRect, const RTRECT *pDstRect, uint32_t cRects, const RTRECT *pPrects, CR_BLITTER_IMG *pImg);
+int CrFbBltGetContentsEx(HCR_FRAMEBUFFER hFb, const RTRECTSIZE *pSrcRectSize, const RTRECT *pDstRect, uint32_t cRects, const RTRECT *pRects, CR_BLITTER_IMG *pImg);
+int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects, const RTRECT *pPrects, CR_BLITTER_IMG *pImg);
 bool CrFbIsEnabled(HCR_FRAMEBUFFER hFb);
 int CrFbEntryCreateForTexId(HCR_FRAMEBUFFER hFb, GLuint idTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);
 int CrFbEntryCreateForTexData(HCR_FRAMEBUFFER hFb, struct CR_TEXDATA *pTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry);
@@ -463,7 +469,15 @@ void* CrFbDDataEntryGet(HCR_FRAMEBUFFER_ENTRY hEntry, CRHTABLE_HANDLE hSlot);
 CR_TEXDATA* CrFbTexDataCreate(const VBOXVR_TEXTURE *pTex);
 void CrFbTexDataInit(CR_TEXDATA* pFbTex, const VBOXVR_TEXTURE *pTex, PFNCRTEXDATA_RELEASED pfnTextureReleased);
 
-int32_t crVBoxServerCrCmdBltProcess(PVBOXCMDVBVA_HDR pCmd, uint32_t cbCmd);
+int8_t crVBoxServerCrCmdBltProcess(const VBOXCMDVBVA_BLT_HDR *pCmd, uint32_t cbCmd);
+int8_t crVBoxServerCrCmdClrFillProcess(const VBOXCMDVBVA_CLRFILL_HDR *pCmd, uint32_t cbCmd);
+int8_t crVBoxServerCrCmdFlipProcess(const VBOXCMDVBVA_FLIP *pFlip);
+
+
+int32_t crVBoxServerClientGet(uint32_t u32ClientID, CRClient **ppClient);
+
+int crServerPendSaveState(PSSMHANDLE pSSM);
+int crServerPendLoadState(PSSMHANDLE pSSM, uint32_t u32Version);
 
 //#define VBOX_WITH_CRSERVER_DUMPER
 #ifdef VBOX_WITH_CRSERVER_DUMPER

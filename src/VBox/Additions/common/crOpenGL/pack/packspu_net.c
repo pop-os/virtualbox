@@ -130,6 +130,9 @@ void packspuFlush(void *arg )
     buf = &(thread->buffer);
     CRASSERT(buf);
 
+    if (ctx && ctx->fCheckZerroVertAttr)
+        crStateCurrentRecoverNew(ctx->clientState, &thread->packer->current);
+
     /* We're done packing into the current buffer, unbind it */
     crPackReleaseBuffer( thread->packer );
 
@@ -246,6 +249,8 @@ static void packspuFirstConnectToServer( CRNetServer *server
     if (server->conn)
     {
         g_u32VBoxHostCaps = crNetHostCapsGet();
+        if (g_u32VBoxHostCaps & CR_VBOX_CAP_CMDBLOCKS)
+            crPackCmdBlocksEnable();
     }
 }
 

@@ -1,6 +1,6 @@
 /* -*- indent-tabs-mode: nil; -*- */
-#define _USE_WINSTD_ERRNO
-/* XXX: replace POSIX file operations with IPRT, to avoid hacks with errno renamings */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
+
 #include "winutils.h"
 
 #include "proxy.h"

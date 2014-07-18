@@ -41,7 +41,8 @@
 #include <iprt/semaphore.h>
 
 #include <VBox/vd-plugin.h>
-#include <VBox/vd-cache-plugin.h>
+
+#include "VDBackends.h"
 
 /** Disable dynamic backends on non x86 architectures. This feature
  * requires the SUPR3 library which is not available there.
@@ -192,6 +193,27 @@ typedef struct VDDISCARDSTATE
 } VDDISCARDSTATE, *PVDDISCARDSTATE;
 
 /**
+ * VD filter instance.
+ */
+typedef struct VDFILTER
+{
+    /** Pointer to the previous filter. */
+    struct VDFILTER   *pPrev;
+    /** Pointer to the next filter. */
+    struct VDFILTER   *pNext;
+    /** Opaque VD filter backend instance data. */
+    void              *pvBackendData;
+    /** Pointer to the filter backend interface. */
+    PCVDFILTERBACKEND  pBackend;
+    /** Pointer to list of VD interfaces, per-filter. */
+    PVDINTERFACE        pVDIfsFilter;
+    /** I/O related things. */
+    VDIO                VDIo;
+} VDFILTER;
+/** Pointer to a VD filter instance. */
+typedef VDFILTER *PVDFILTER;
+
+/**
  * VBox HDD Container main structure, private part.
  */
 struct VBOXHDD
@@ -255,11 +277,22 @@ struct VBOXHDD
      * Other flush or growing write requests need to wait until
      * the current one completes. - NIL_VDIOCTX if unlocked. */
     volatile PVDIOCTX      pIoCtxLockOwner;
+    /** If the disk was locked by a growing write, flush or discard request this
+     * contains the start offset to check for interfering I/O while it is in progress. */
+    uint64_t               uOffsetStartLocked;
+    /** If the disk was locked by a growing write, flush or discard request this contains
+     * the first non affected offset to check for interfering I/O while it is in progress. */
+    uint64_t               uOffsetEndLocked;
 
     /** Pointer to the L2 disk cache if any. */
     PVDCACHE               pCache;
     /** Pointer to the discard state if any. */
     PVDDISCARDSTATE        pDiscard;
+
+     /** Pointer to the first filter in the chain. */
+     PVDFILTER              pFilterHead;
+     /** Pointer to the last filter in the chain. */
+     PVDFILTER              pFilterTail;
 
     /** Event semaphore for synchronous I/O. */
     RTSEMEVENT             hEventSemSyncIo;
@@ -360,6 +393,10 @@ typedef struct VDIOCTX
             unsigned             cImagesRead;
             /** Override for the parent image to start reading from. */
             PVDIMAGE             pImageParentOverride;
+            /** Original offset of the transfer - required for filtering read requests. */
+            uint64_t             uOffsetXferOrig;
+            /** Original size of the transfer - required for fitlering read requests. */
+            size_t               cbXferOrig;
         } Io;
         /** Discard requests. */
         struct
@@ -447,8 +484,13 @@ typedef struct VDIOCTX
 /** Don't free the I/O context when complete because
  * it was alloacted elsewhere (stack, ...). */
 #define VDIOCTX_FLAGS_DONT_FREE              RT_BIT_32(4)
-/* Don't set the modified flag for this I/O context when writing. */
+/** Don't set the modified flag for this I/O context when writing. */
 #define VDIOCTX_FLAGS_DONT_SET_MODIFIED_FLAG RT_BIT_32(5)
+/** The write filter was applied already and shouldn't be applied a second time.
+ * Used at the beginning of vdWriteHelperAsync() because it might be called
+ * multiple times.
+ */
+#define VDIOCTX_FLAGS_WRITE_FILTER_APPLIED   RT_BIT_32(6)
 
 /** NIL I/O context pointer value. */
 #define NIL_VDIOCTX ((PVDIOCTX)0)
@@ -556,20 +598,30 @@ typedef struct VDMETAXFER
 #define VDMETAXFER_TXDIR_GET(flags)      ((flags) & VDMETAXFER_TXDIR_MASK)
 #define VDMETAXFER_TXDIR_SET(flags, dir) ((flags) = (flags & ~VDMETAXFER_TXDIR_MASK) | (dir))
 
-extern VBOXHDDBACKEND g_RawBackend;
-extern VBOXHDDBACKEND g_VmdkBackend;
-extern VBOXHDDBACKEND g_VDIBackend;
-extern VBOXHDDBACKEND g_VhdBackend;
-extern VBOXHDDBACKEND g_ParallelsBackend;
-extern VBOXHDDBACKEND g_DmgBackend;
-extern VBOXHDDBACKEND g_ISCSIBackend;
-extern VBOXHDDBACKEND g_QedBackend;
-extern VBOXHDDBACKEND g_QCowBackend;
-extern VBOXHDDBACKEND g_VhdxBackend;
+/**
+ * Plugin structure.
+ */
+typedef struct VDPLUGIN
+{
+    /** Pointer to the next plugin structure. */
+    RTLISTNODE NodePlugin;
+    /** Handle of loaded plugin library. */
+    RTLDRMOD   hPlugin;
+    /** Filename of the loaded plugin. */
+    char       *pszFilename;
+} VDPLUGIN;
+/** Pointer to a plugin structure. */
+typedef VDPLUGIN *PVDPLUGIN;
 
+/** Head of loaded plugin list. */
+static RTLISTANCHOR g_ListPluginsLoaded;
+
+/** Number of image backends supported. */
 static unsigned g_cBackends = 0;
-static PVBOXHDDBACKEND *g_apBackends = NULL;
-static PVBOXHDDBACKEND aStaticBackends[] =
+/** Array of pointers to the image backends. */
+static PCVBOXHDDBACKEND *g_apBackends = NULL;
+/** Builtin image backends. */
+static PCVBOXHDDBACKEND aStaticBackends[] =
 {
     &g_VmdkBackend,
     &g_VDIBackend,
@@ -583,17 +635,20 @@ static PVBOXHDDBACKEND aStaticBackends[] =
     &g_ISCSIBackend
 };
 
-/**
- * Supported backends for the disk cache.
- */
-extern VDCACHEBACKEND g_VciCacheBackend;
-
+/** Number of supported cache backends. */
 static unsigned g_cCacheBackends = 0;
-static PVDCACHEBACKEND *g_apCacheBackends = NULL;
-static PVDCACHEBACKEND aStaticCacheBackends[] =
+/** Array of pointers to the cache backends. */
+static PCVDCACHEBACKEND *g_apCacheBackends = NULL;
+/** Builtin cache backends. */
+static PCVDCACHEBACKEND aStaticCacheBackends[] =
 {
     &g_VciCacheBackend
 };
+
+/** Number of supported filter backends. */
+static unsigned g_cFilterBackends = 0;
+/** Array of pointers to the filters backends. */
+static PCVDFILTERBACKEND *g_apFilterBackends = NULL;
 
 /** Forward declaration of the async discard helper. */
 static int vdDiscardHelperAsync(PVDIOCTX pIoCtx);
@@ -605,14 +660,14 @@ static DECLCALLBACK(void) vdIoCtxSyncComplete(void *pvUser1, void *pvUser2, int 
 /**
  * internal: add several backends.
  */
-static int vdAddBackends(PVBOXHDDBACKEND *ppBackends, unsigned cBackends)
+static int vdAddBackends(PCVBOXHDDBACKEND *ppBackends, unsigned cBackends)
 {
-    PVBOXHDDBACKEND *pTmp = (PVBOXHDDBACKEND*)RTMemRealloc(g_apBackends,
-           (g_cBackends + cBackends) * sizeof(PVBOXHDDBACKEND));
+    PCVBOXHDDBACKEND *pTmp = (PCVBOXHDDBACKEND*)RTMemRealloc(g_apBackends,
+           (g_cBackends + cBackends) * sizeof(PCVBOXHDDBACKEND));
     if (RT_UNLIKELY(!pTmp))
         return VERR_NO_MEMORY;
     g_apBackends = pTmp;
-    memcpy(&g_apBackends[g_cBackends], ppBackends, cBackends * sizeof(PVBOXHDDBACKEND));
+    memcpy(&g_apBackends[g_cBackends], ppBackends, cBackends * sizeof(PCVBOXHDDBACKEND));
     g_cBackends += cBackends;
     return VINF_SUCCESS;
 }
@@ -620,7 +675,7 @@ static int vdAddBackends(PVBOXHDDBACKEND *ppBackends, unsigned cBackends)
 /**
  * internal: add single backend.
  */
-DECLINLINE(int) vdAddBackend(PVBOXHDDBACKEND pBackend)
+DECLINLINE(int) vdAddBackend(PCVBOXHDDBACKEND pBackend)
 {
     return vdAddBackends(&pBackend, 1);
 }
@@ -628,14 +683,14 @@ DECLINLINE(int) vdAddBackend(PVBOXHDDBACKEND pBackend)
 /**
  * internal: add several cache backends.
  */
-static int vdAddCacheBackends(PVDCACHEBACKEND *ppBackends, unsigned cBackends)
+static int vdAddCacheBackends(PCVDCACHEBACKEND *ppBackends, unsigned cBackends)
 {
-    PVDCACHEBACKEND *pTmp = (PVDCACHEBACKEND*)RTMemRealloc(g_apCacheBackends,
-           (g_cCacheBackends + cBackends) * sizeof(PVDCACHEBACKEND));
+    PCVDCACHEBACKEND *pTmp = (PCVDCACHEBACKEND*)RTMemRealloc(g_apCacheBackends,
+           (g_cCacheBackends + cBackends) * sizeof(PCVDCACHEBACKEND));
     if (RT_UNLIKELY(!pTmp))
         return VERR_NO_MEMORY;
     g_apCacheBackends = pTmp;
-    memcpy(&g_apCacheBackends[g_cCacheBackends], ppBackends, cBackends * sizeof(PVDCACHEBACKEND));
+    memcpy(&g_apCacheBackends[g_cCacheBackends], ppBackends, cBackends * sizeof(PCVDCACHEBACKEND));
     g_cCacheBackends += cBackends;
     return VINF_SUCCESS;
 }
@@ -643,9 +698,39 @@ static int vdAddCacheBackends(PVDCACHEBACKEND *ppBackends, unsigned cBackends)
 /**
  * internal: add single cache backend.
  */
-DECLINLINE(int) vdAddCacheBackend(PVDCACHEBACKEND pBackend)
+DECLINLINE(int) vdAddCacheBackend(PCVDCACHEBACKEND pBackend)
 {
     return vdAddCacheBackends(&pBackend, 1);
+}
+
+/**
+ * Add several filter bakends.
+ *
+ * @returns VBox status code.
+ * @param   ppBackends    Array of filter backends to add.
+ * @param   cBackends     Number of backends to add.
+ */
+static int vdAddFilterBackends(PCVDFILTERBACKEND *ppBackends, unsigned cBackends)
+{
+    PCVDFILTERBACKEND *pTmp = (PCVDFILTERBACKEND *)RTMemRealloc(g_apFilterBackends,
+           (g_cFilterBackends + cBackends) * sizeof(PCVDFILTERBACKEND));
+    if (RT_UNLIKELY(!pTmp))
+        return VERR_NO_MEMORY;
+    g_apFilterBackends = pTmp;
+    memcpy(&g_apFilterBackends[g_cFilterBackends], ppBackends, cBackends * sizeof(PCVDFILTERBACKEND));
+    g_cFilterBackends += cBackends;
+    return VINF_SUCCESS;
+}
+
+/**
+ * Add a single filter backend to the list of supported filters.
+ *
+ * @returns VBox status code.
+ * @param   pBackend    The backend to add.
+ */
+DECLINLINE(int) vdAddFilterBackend(PCVDFILTERBACKEND pBackend)
+{
+    return vdAddFilterBackends(&pBackend, 1);
 }
 
 /**
@@ -753,6 +838,27 @@ static int vdFindCacheBackend(const char *pszBackend, PCVDCACHEBACKEND *ppBacken
 }
 
 /**
+ * internal: find filter backend.
+ */
+static int vdFindFilterBackend(const char *pszFilter, PCVDFILTERBACKEND *ppBackend)
+{
+    int rc = VINF_SUCCESS;
+    PCVDFILTERBACKEND pBackend = NULL;
+
+    for (unsigned i = 0; i < g_cFilterBackends; i++)
+    {
+        if (!RTStrICmp(pszFilter, g_apFilterBackends[i]->pszBackendName))
+        {
+            pBackend = g_apFilterBackends[i];
+            break;
+        }
+    }
+    *ppBackend = pBackend;
+    return rc;
+}
+
+
+/**
  * internal: add image structure to the end of images list.
  */
 static void vdAddImageToList(PVBOXHDD pDisk, PVDIMAGE pImage)
@@ -801,6 +907,48 @@ static void vdRemoveImageFromList(PVBOXHDD pDisk, PVDIMAGE pImage)
 }
 
 /**
+ * internal: add filter structure to the end of filter list.
+ */
+static void vdAddFilterToList(PVBOXHDD pDisk, PVDFILTER pFilter)
+{
+    pFilter->pPrev = NULL;
+    pFilter->pNext = NULL;
+
+    if (pDisk->pFilterHead)
+    {
+        pFilter->pPrev = pDisk->pFilterTail;
+        pDisk->pFilterTail->pNext = pFilter;
+        pDisk->pFilterTail = pFilter;
+    }
+    else
+    {
+        pDisk->pFilterHead = pFilter;
+        pDisk->pFilterTail = pFilter;
+    }
+}
+
+/**
+ * internal: Remove last filter structure from the filter list.
+ */
+static void vdRemoveFilterFromList(PVBOXHDD pDisk, PVDFILTER pFilter)
+{
+    Assert(pDisk->pFilterHead != NULL && pDisk->pFilterTail != NULL);
+
+    if (pFilter->pPrev)
+        pFilter->pPrev->pNext = pFilter->pNext;
+    else
+        pDisk->pFilterHead = pFilter->pNext;
+
+    if (pFilter->pNext)
+        pFilter->pNext->pPrev = pFilter->pPrev;
+    else
+        pDisk->pFilterTail = pFilter->pPrev;
+
+    pFilter->pPrev = NULL;
+    pFilter->pNext = NULL;
+}
+
+/**
  * internal: find image by index into the images list.
  */
 static PVDIMAGE vdGetImageByNumber(PVBOXHDD pDisk, unsigned nImage)
@@ -814,6 +962,89 @@ static PVDIMAGE vdGetImageByNumber(PVBOXHDD pDisk, unsigned nImage)
         nImage--;
     }
     return pImage;
+}
+
+/**
+ * Applies the filter chain to the given write request.
+ *
+ * @returns VBox status code.
+ * @param   pDisk    The HDD container.
+ * @param   uOffset  The start offset of the write.
+ * @param   cbWrite  Number of bytes to write.
+ * @param   pIoCtx   The I/O context associated with the request.
+ */
+static int vdFilterChainApplyWrite(PVBOXHDD pDisk, uint64_t uOffset, size_t cbWrite,
+                                   PVDIOCTX pIoCtx)
+{
+    int rc = VINF_SUCCESS;
+
+    VD_IS_LOCKED(pDisk);
+
+    if (pDisk->pFilterHead)
+    {
+        PVDFILTER pFilterCurr = pDisk->pFilterHead;
+
+        do
+        {
+            rc = pFilterCurr->pBackend->pfnFilterWrite(pFilterCurr->pvBackendData, uOffset, cbWrite, pIoCtx);
+            /* Reset S/G buffer for the next filter. */
+            RTSgBufReset(&pIoCtx->Req.Io.SgBuf);
+
+            pFilterCurr = pFilterCurr->pNext;
+        } while (   RT_SUCCESS(rc)
+                 && pFilterCurr);
+    }
+
+    return rc;
+}
+
+/**
+ * Applies the filter chain to the given read request.
+ *
+ * @returns VBox status code.
+ * @param   pDisk    The HDD container.
+ * @param   uOffset  The start offset of the read.
+ * @param   cbRead   Number of bytes read.
+ * @param   pIoCtx   The I/O context associated with the request.
+ */
+static int vdFilterChainApplyRead(PVBOXHDD pDisk, uint64_t uOffset, size_t cbRead,
+                                  PVDIOCTX pIoCtx)
+{
+    int rc = VINF_SUCCESS;
+
+    VD_IS_LOCKED(pDisk);
+
+    if (pDisk->pFilterHead)
+    {
+        PVDFILTER pFilterCurr = pDisk->pFilterHead;
+
+        /* Reset buffer before starting. */
+        RTSgBufReset(&pIoCtx->Req.Io.SgBuf);
+
+        do
+        {
+            rc = pFilterCurr->pBackend->pfnFilterRead(pFilterCurr->pvBackendData, uOffset, cbRead, pIoCtx);
+            /* Reset S/G buffer for the next filter. */
+            RTSgBufReset(&pIoCtx->Req.Io.SgBuf);
+
+            pFilterCurr = pFilterCurr->pNext;
+        } while (   RT_SUCCESS(rc)
+                 && pFilterCurr);
+    }
+
+    return rc;
+}
+
+DECLINLINE(void) vdIoCtxRootComplete(PVBOXHDD pDisk, PVDIOCTX pIoCtx)
+{
+    if (   RT_SUCCESS(pIoCtx->rcReq)
+        && pIoCtx->enmTxDir == VDIOCTXTXDIR_READ)
+        pIoCtx->rcReq = vdFilterChainApplyRead(pDisk, pIoCtx->Req.Io.uOffsetXferOrig,
+                                               pIoCtx->Req.Io.cbXferOrig, pIoCtx);
+
+    pIoCtx->Type.Root.pfnComplete(pIoCtx->Type.Root.pvUser1,
+                                  pIoCtx->Type.Root.pvUser2,
+                                  pIoCtx->rcReq);
 }
 
 /**
@@ -833,6 +1064,8 @@ DECLINLINE(void) vdIoCtxInit(PVDIOCTX pIoCtx, PVBOXHDD pDisk, VDIOCTXTXDIR enmTx
     pIoCtx->Req.Io.pImageCur      = pImageStart;
     pIoCtx->Req.Io.cbBufClear     = 0;
     pIoCtx->Req.Io.pImageParentOverride = NULL;
+    pIoCtx->Req.Io.uOffsetXferOrig      = uOffset;
+    pIoCtx->Req.Io.cbXferOrig           = cbTransfer;
     pIoCtx->cDataTransfersPending = 0;
     pIoCtx->cMetaTransfersPending = 0;
     pIoCtx->fComplete             = false;
@@ -1279,9 +1512,9 @@ DECLINLINE(void) vdIoCtxFree(PVBOXHDD pDisk, PVDIOCTX pIoCtx)
 
 DECLINLINE(void) vdIoTaskFree(PVBOXHDD pDisk, PVDIOTASK pIoTask)
 {
-//#ifdef DEBUG
+#ifdef DEBUG
     memset(pIoTask, 0xff, sizeof(VDIOTASK));
-//#endif
+#endif
     RTMemCacheFree(pDisk->hMemCacheIoTask, pIoTask);
 }
 
@@ -1329,7 +1562,7 @@ DECLINLINE(void) vdIoCtxAddToWaitingList(volatile PVDIOCTX *ppList, PVDIOCTX pIo
 
 DECLINLINE(void) vdIoCtxDefer(PVBOXHDD pDisk, PVDIOCTX pIoCtx)
 {
-    LogFlowFunc(("Deferring write pIoCtx=%#p\n", pIoCtx));
+    LogFlowFunc(("Deferring I/O context pIoCtx=%#p\n", pIoCtx));
 
     Assert(!pIoCtx->pIoCtxParent && !(pIoCtx->fFlags & VDIOCTX_FLAGS_BLOCKED));
     pIoCtx->fFlags |= VDIOCTX_FLAGS_BLOCKED;
@@ -1425,7 +1658,8 @@ static int vdIoCtxProcessLocked(PVDIOCTX pIoCtx)
 
     if (   RT_SUCCESS(rc)
         && !pIoCtx->cMetaTransfersPending
-        && !pIoCtx->cDataTransfersPending)
+        && !pIoCtx->cDataTransfersPending
+        && !(pIoCtx->fFlags & VDIOCTX_FLAGS_BLOCKED))
         rc = VINF_VD_ASYNC_IO_FINISHED;
     else if (   RT_SUCCESS(rc)
              || rc == VERR_VD_NOT_ENOUGH_METADATA
@@ -1515,6 +1749,16 @@ static int vdDiskProcessWaitingIoCtx(PVBOXHDD pDisk, PVDIOCTX pIoCtxRc)
         rcTmp = vdIoCtxProcessLocked(pTmp);
         if (pTmp == pIoCtxRc)
         {
+            if (   rcTmp == VINF_VD_ASYNC_IO_FINISHED
+                && RT_SUCCESS(pTmp->rcReq)
+                && pTmp->enmTxDir == VDIOCTXTXDIR_READ)
+            {
+                   int rc2 = vdFilterChainApplyRead(pDisk, pTmp->Req.Io.uOffsetXferOrig,
+                                                    pTmp->Req.Io.cbXferOrig, pTmp);
+                    if (RT_FAILURE(rc2))
+                        rcTmp = rc2;
+            }
+
             /* The given I/O context was processed, pass the return code to the caller. */
             rc = rcTmp;
         }
@@ -1523,9 +1767,7 @@ static int vdDiskProcessWaitingIoCtx(PVBOXHDD pDisk, PVDIOCTX pIoCtxRc)
         {
             LogFlowFunc(("Waiting I/O context completed pTmp=%#p\n", pTmp));
             vdThreadFinishWrite(pDisk);
-            pTmp->Type.Root.pfnComplete(pTmp->Type.Root.pvUser1,
-                                        pTmp->Type.Root.pvUser2,
-                                        pTmp->rcReq);
+            vdIoCtxRootComplete(pDisk, pTmp);
             vdIoCtxFree(pDisk, pTmp);
         }
     }
@@ -1589,9 +1831,7 @@ static void vdDiskProcessBlockedIoCtx(PVBOXHDD pDisk)
         {
             LogFlowFunc(("Waiting I/O context completed pTmp=%#p\n", pTmp));
             vdThreadFinishWrite(pDisk);
-            pTmp->Type.Root.pfnComplete(pTmp->Type.Root.pvUser1,
-                                        pTmp->Type.Root.pvUser2,
-                                        pTmp->rcReq);
+            vdIoCtxRootComplete(pDisk, pTmp);
             vdIoCtxFree(pDisk, pTmp);
         }
     }
@@ -1766,6 +2006,22 @@ static int vdReadHelperAsync(PVDIOCTX pIoCtx)
     unsigned cImagesRead          = pIoCtx->Req.Io.cImagesRead;
     size_t cbThisRead;
 
+    /*
+     * Check whether there is a full block write in progress which was not allocated.
+     * Defer I/O if the range interferes but only if it does not belong to the
+     * write doing the allocation.
+     */
+    if (   pDisk->pIoCtxLockOwner != NIL_VDIOCTX
+        && uOffset >= pDisk->uOffsetStartLocked
+        && uOffset < pDisk->uOffsetEndLocked
+        && (   !pIoCtx->pIoCtxParent
+            || pIoCtx->pIoCtxParent != pDisk->pIoCtxLockOwner))
+    {
+        Log(("Interferring read while allocating a new block => deferring read\n"));
+        vdIoCtxDefer(pDisk, pIoCtx);
+        return VINF_SUCCESS;
+    }
+
     /* Loop until all reads started or we have a backend which needs to read metadata. */
     do
     {
@@ -1795,7 +2051,6 @@ static int vdReadHelperAsync(PVDIOCTX pIoCtx)
         }
         else
         {
-
             /*
              * Try to read from the given image.
              * If the block is not allocated read from override chain if present.
@@ -2628,6 +2883,15 @@ static int vdWriteHelperAsync(PVDIOCTX pIoCtx)
     size_t cbThisWrite;
     size_t cbPreRead, cbPostRead;
 
+    /* Apply write filter chain here if it was not done already. */
+    if (!(pIoCtx->fFlags & VDIOCTX_FLAGS_WRITE_FILTER_APPLIED))
+    {
+        rc = vdFilterChainApplyWrite(pDisk, uOffset, cbWrite, pIoCtx);
+        if (RT_FAILURE(rc))
+            return rc;
+        pIoCtx->fFlags |= VDIOCTX_FLAGS_WRITE_FILTER_APPLIED;
+    }
+
     if (!(pIoCtx->fFlags & VDIOCTX_FLAGS_DONT_SET_MODIFIED_FLAG))
     {
         rc = vdSetModifiedFlagAsync(pDisk, pIoCtx);
@@ -2649,12 +2913,26 @@ static int vdWriteHelperAsync(PVDIOCTX pIoCtx)
          * to avoid unnecessarily allocating unchanged blocks. This prevents
          * unwanted expanding of images. VMDK is an example. */
         cbThisWrite = cbWrite;
+
+        /*
+         * Check whether there is a full block write in progress which was not allocated.
+         * Defer I/O if the range interferes.
+         */
+        if (   pDisk->pIoCtxLockOwner != NIL_VDIOCTX
+            && uOffset >= pDisk->uOffsetStartLocked
+            && uOffset < pDisk->uOffsetEndLocked)
+        {
+            Log(("Interferring write while allocating a new block => deferring write\n"));
+            vdIoCtxDefer(pDisk, pIoCtx);
+            rc = VERR_VD_ASYNC_IO_IN_PROGRESS;
+            break;
+        }
+
         fWrite =   (pImage->uOpenFlags & VD_OPEN_FLAGS_HONOR_SAME)
                  ? 0 : VD_WRITE_NO_ALLOC;
-        rc = pImage->Backend->pfnWrite(pImage->pBackendData, uOffset,
-                                            cbThisWrite, pIoCtx,
-                                            &cbThisWrite, &cbPreRead,
-                                            &cbPostRead, fWrite);
+        rc = pImage->Backend->pfnWrite(pImage->pBackendData, uOffset, cbThisWrite,
+                                       pIoCtx, &cbThisWrite, &cbPreRead, &cbPostRead,
+                                       fWrite);
         if (rc == VERR_VD_BLOCK_FREE)
         {
             /* Lock the disk .*/
@@ -2691,6 +2969,10 @@ static int vdWriteHelperAsync(PVDIOCTX pIoCtx)
 
                 LogFlowFunc(("Disk is growing because of pIoCtx=%#p pIoCtxWrite=%#p\n",
                              pIoCtx, pIoCtxWrite));
+
+                /* Save the current range for the growing operation to check for intersecting requests later. */
+                pDisk->uOffsetStartLocked = uOffset - cbPreRead;
+                pDisk->uOffsetEndLocked = uOffset + cbThisWrite + cbPostRead;
 
                 pIoCtxWrite->Type.Child.cbPreRead  = cbPreRead;
                 pIoCtxWrite->Type.Child.cbPostRead = cbPostRead;
@@ -2779,6 +3061,10 @@ static int vdFlushHelperAsync(PVDIOCTX pIoCtx)
     rc = vdIoCtxLockDisk(pDisk, pIoCtx);
     if (RT_SUCCESS(rc))
     {
+        /* Mark the whole disk as locked. */
+        pDisk->uOffsetStartLocked = 0;
+        pDisk->uOffsetEndLocked = UINT64_C(0xffffffffffffffff);
+
         vdResetModifiedFlag(pDisk);
         rc = pImage->Backend->pfnFlush(pImage->pBackendData, pIoCtx);
         if (   (   RT_SUCCESS(rc)
@@ -3049,6 +3335,9 @@ static int vdDiscardHelperAsync(PVDIOCTX pIoCtx)
         size_t   cbDiscardLeft = pIoCtx->Req.Discard.cbDiscardLeft;
         size_t   cbThisDiscard;
 
+        pDisk->uOffsetStartLocked = offStart;
+        pDisk->uOffsetEndLocked = offStart + cbDiscardLeft;
+
         if (RT_UNLIKELY(!pDiscard))
         {
             pDiscard = vdDiscardStateCreate();
@@ -3131,30 +3420,183 @@ static int vdDiscardHelperAsync(PVDIOCTX pIoCtx)
     return rc;
 }
 
+#ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
 /**
- * internal: scans plugin directory and loads the backends have been found.
+ * @copydoc VDPLUGIN::pfnRegisterImage
  */
-static int vdLoadDynamicBackends()
+static DECLCALLBACK(int) vdPluginRegisterImage(void *pvUser, PCVBOXHDDBACKEND pBackend)
+{
+    int rc = VINF_SUCCESS;
+
+    if (pBackend->cbSize == sizeof(VBOXHDDBACKEND))
+        vdAddBackend(pBackend);
+    else
+    {
+        LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
+        rc = VERR_IGNORED;
+    }
+
+    return rc;
+}
+
+/**
+ * @copydoc VDPLUGIN::pfnRegisterCache
+ */
+static DECLCALLBACK(int) vdPluginRegisterCache(void *pvUser, PCVDCACHEBACKEND pBackend)
+{
+    int rc = VINF_SUCCESS;
+
+    if (pBackend->cbSize == sizeof(VDCACHEBACKEND))
+        vdAddCacheBackend(pBackend);
+    else
+    {
+        LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
+        rc = VERR_IGNORED;
+    }
+
+    return rc;
+}
+
+/**
+ * @copydoc VDPLUGIN::pfnRegisterFilter
+ */
+static DECLCALLBACK(int) vdPluginRegisterFilter(void *pvUser, PCVDFILTERBACKEND pBackend)
+{
+    int rc = VINF_SUCCESS;
+
+    if (pBackend->cbSize == sizeof(VDFILTERBACKEND))
+        vdAddFilterBackend(pBackend);
+    else
+    {
+        LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
+        rc = VERR_IGNORED;
+    }
+
+    return rc;
+}
+
+/**
+ * Checks whether the given plugin filename was already loaded.
+ *
+ * @returns true if the plugin was already loaded, false otherwise.
+ * @param   pszFilename    The filename to check.
+ */
+static bool vdPluginFind(const char *pszFilename)
+{
+    PVDPLUGIN pIt = NULL;
+
+    RTListForEach(&g_ListPluginsLoaded, pIt, VDPLUGIN, NodePlugin)
+    {
+        if (!RTStrCmp(pIt->pszFilename, pszFilename))
+            return true;
+    }
+
+    return false;
+}
+
+/**
+ * Adds a plugin to the list of loaded plugins.
+ *
+ * @returns VBox status code.
+ * @param   hPlugin     Plugin handle to add.
+ * @param   pszFilename The associated filename, sued for finding duplicates.
+ */
+static int vdAddPlugin(RTLDRMOD hPlugin, const char *pszFilename)
+{
+    int rc = VINF_SUCCESS;
+    PVDPLUGIN pPlugin = (PVDPLUGIN)RTMemAllocZ(sizeof(VDPLUGIN));
+
+    if (pPlugin)
+    {
+        pPlugin->hPlugin = hPlugin;
+        pPlugin->pszFilename = RTStrDup(pszFilename);
+        if (pPlugin->pszFilename)
+            RTListAppend(&g_ListPluginsLoaded, &pPlugin->NodePlugin);
+        else
+        {
+            RTMemFree(pPlugin);
+            rc = VERR_NO_MEMORY;
+        }
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    return rc;
+}
+#endif
+
+/**
+ * Worker for VDPluginLoadFromFilename() and vdPluginLoadFromPath().
+ *
+ * @returns VBox status code.
+ * @param   pszFilename    The plugin filename to load.
+ */
+static int vdPluginLoadFromFilename(const char *pszFilename)
 {
 #ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
-    int rc = VINF_SUCCESS;
-    PRTDIR pPluginDir = NULL;
+    /* Plugin loaded? Nothing to do. */
+    if (vdPluginFind(pszFilename))
+        return VINF_SUCCESS;
 
-    /* Enumerate plugin backends. */
-    char szPath[RTPATH_MAX];
-    rc = RTPathAppPrivateArch(szPath, sizeof(szPath));
-    if (RT_FAILURE(rc))
-        return rc;
+    RTLDRMOD hPlugin = NIL_RTLDRMOD;
+    int rc = SUPR3HardenedLdrLoadPlugIn(pszFilename, &hPlugin, NULL);
+    if (RT_SUCCESS(rc))
+    {
+        VDBACKENDREGISTER BackendRegister;
+        PFNVDPLUGINLOAD pfnVDPluginLoad = NULL;
 
+        BackendRegister.pfnRegisterImage  = vdPluginRegisterImage;
+        BackendRegister.pfnRegisterCache  = vdPluginRegisterCache;
+        BackendRegister.pfnRegisterFilter = vdPluginRegisterFilter;
+
+        rc = RTLdrGetSymbol(hPlugin, VD_PLUGIN_LOAD_NAME, (void**)&pfnVDPluginLoad);
+        if (RT_FAILURE(rc) || !pfnVDPluginLoad)
+        {
+            LogFunc(("error resolving the entry point %s in plugin %s, rc=%Rrc, pfnVDPluginLoad=%#p\n",
+                     VD_PLUGIN_LOAD_NAME, pszFilename, rc, pfnVDPluginLoad));
+            if (RT_SUCCESS(rc))
+                rc = VERR_SYMBOL_NOT_FOUND;
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            /* Get the function table. */
+            rc = pfnVDPluginLoad(NULL, &BackendRegister);
+        }
+        else
+            LogFunc(("ignored plugin '%s': rc=%Rrc\n", pszFilename, rc));
+
+        /* Create a plugin entry on success. */
+        if (RT_SUCCESS(rc))
+            vdAddPlugin(hPlugin, pszFilename);
+        else
+            RTLdrClose(hPlugin);
+    }
+
+    return rc;
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+/**
+ * Worker for VDPluginLoadFromPath() and vdLoadDynamicBackends().
+ *
+ * @returns VBox status code.
+ * @param   pszPath        The path to load plugins from.
+ */
+static int vdPluginLoadFromPath(const char *pszPath)
+{
+#ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
     /* To get all entries with VBoxHDD as prefix. */
-    char *pszPluginFilter = RTPathJoinA(szPath, VBOX_HDDFORMAT_PLUGIN_PREFIX "*");
+    char *pszPluginFilter = RTPathJoinA(pszPath, VD_PLUGIN_PREFIX "*");
     if (!pszPluginFilter)
         return VERR_NO_STR_MEMORY;
 
     PRTDIRENTRYEX pPluginDirEntry = NULL;
+    PRTDIR pPluginDir = NULL;
     size_t cbPluginDirEntry = sizeof(RTDIRENTRYEX);
-    /* The plugins are in the same directory as the other shared libs. */
-    rc = RTDirOpenFiltered(&pPluginDir, pszPluginFilter, RTDIRFILTER_WINNT, 0);
+    int rc = RTDirOpenFiltered(&pPluginDir, pszPluginFilter, RTDIRFILTER_WINNT, 0);
     if (RT_FAILURE(rc))
     {
         /* On Windows the above immediately signals that there are no
@@ -3172,9 +3614,6 @@ static int vdLoadDynamicBackends()
 
     while ((rc = RTDirReadEx(pPluginDir, pPluginDirEntry, &cbPluginDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK)) != VERR_NO_MORE_FILES)
     {
-        RTLDRMOD hPlugin = NIL_RTLDRMOD;
-        PFNVBOXHDDFORMATLOAD pfnHDDFormatLoad = NULL;
-        PVBOXHDDBACKEND pBackend = NULL;
         char *pszPluginPath = NULL;
 
         if (rc == VERR_BUFFER_OVERFLOW)
@@ -3200,42 +3639,14 @@ static int vdLoadDynamicBackends()
             continue;
 
         /* Prepend the path to the libraries. */
-        pszPluginPath = RTPathJoinA(szPath, pPluginDirEntry->szName);
+        pszPluginPath = RTPathJoinA(pszPath, pPluginDirEntry->szName);
         if (!pszPluginPath)
         {
             rc = VERR_NO_STR_MEMORY;
             break;
         }
 
-        rc = SUPR3HardenedLdrLoadPlugIn(pszPluginPath, &hPlugin, NULL);
-        if (RT_SUCCESS(rc))
-        {
-            rc = RTLdrGetSymbol(hPlugin, VBOX_HDDFORMAT_LOAD_NAME, (void**)&pfnHDDFormatLoad);
-            if (RT_FAILURE(rc) || !pfnHDDFormatLoad)
-            {
-                LogFunc(("error resolving the entry point %s in plugin %s, rc=%Rrc, pfnHDDFormat=%#p\n", VBOX_HDDFORMAT_LOAD_NAME, pPluginDirEntry->szName, rc, pfnHDDFormatLoad));
-                if (RT_SUCCESS(rc))
-                    rc = VERR_SYMBOL_NOT_FOUND;
-            }
-
-            if (RT_SUCCESS(rc))
-            {
-                /* Get the function table. */
-                rc = pfnHDDFormatLoad(&pBackend);
-                if (RT_SUCCESS(rc) && pBackend->cbSize == sizeof(VBOXHDDBACKEND))
-                {
-                    pBackend->hPlugin = hPlugin;
-                    vdAddBackend(pBackend);
-                }
-                else
-                    LogFunc(("ignored plugin '%s': pBackend->cbSize=%d rc=%Rrc\n", pszPluginPath, pBackend->cbSize, rc));
-            }
-            else
-                LogFunc(("ignored plugin '%s': rc=%Rrc\n", pszPluginPath, rc));
-
-            if (RT_FAILURE(rc))
-                RTLdrClose(hPlugin);
-        }
+        rc = vdPluginLoadFromFilename(pszPluginPath);
         RTStrFree(pszPluginPath);
     }
 out:
@@ -3248,130 +3659,26 @@ out:
         RTDirClose(pPluginDir);
     return rc;
 #else
-    return VINF_SUCCESS;
+    return VERR_NOT_IMPLEMENTED;
 #endif
 }
 
 /**
- * internal: scans plugin directory and loads the cache backends have been found.
+ * internal: scans plugin directory and loads found plugins.
  */
-static int vdLoadDynamicCacheBackends()
+static int vdLoadDynamicBackends()
 {
 #ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
-    int rc = VINF_SUCCESS;
-    PRTDIR pPluginDir = NULL;
-
-    /* Enumerate plugin backends. */
+    /*
+     * Enumerate plugin backends from the application directory where the other
+     * shared libraries are.
+     */
     char szPath[RTPATH_MAX];
-    rc = RTPathAppPrivateArch(szPath, sizeof(szPath));
+    int rc = RTPathAppPrivateArch(szPath, sizeof(szPath));
     if (RT_FAILURE(rc))
         return rc;
 
-    /* To get all entries with VBoxHDD as prefix. */
-    char *pszPluginFilter = RTPathJoinA(szPath, VD_CACHEFORMAT_PLUGIN_PREFIX "*");
-    if (!pszPluginFilter)
-    {
-        rc = VERR_NO_STR_MEMORY;
-        return rc;
-    }
-
-    PRTDIRENTRYEX pPluginDirEntry = NULL;
-    size_t cbPluginDirEntry = sizeof(RTDIRENTRYEX);
-    /* The plugins are in the same directory as the other shared libs. */
-    rc = RTDirOpenFiltered(&pPluginDir, pszPluginFilter, RTDIRFILTER_WINNT, 0);
-    if (RT_FAILURE(rc))
-    {
-        /* On Windows the above immediately signals that there are no
-         * files matching, while on other platforms enumerating the
-         * files below fails. Either way: no plugins. */
-        goto out;
-    }
-
-    pPluginDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(sizeof(RTDIRENTRYEX));
-    if (!pPluginDirEntry)
-    {
-        rc = VERR_NO_MEMORY;
-        goto out;
-    }
-
-    while ((rc = RTDirReadEx(pPluginDir, pPluginDirEntry, &cbPluginDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK)) != VERR_NO_MORE_FILES)
-    {
-        RTLDRMOD hPlugin = NIL_RTLDRMOD;
-        PFNVDCACHEFORMATLOAD pfnVDCacheLoad = NULL;
-        PVDCACHEBACKEND pBackend = NULL;
-        char *pszPluginPath = NULL;
-
-        if (rc == VERR_BUFFER_OVERFLOW)
-        {
-            /* allocate new buffer. */
-            RTMemFree(pPluginDirEntry);
-            pPluginDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(cbPluginDirEntry);
-            if (!pPluginDirEntry)
-            {
-                rc = VERR_NO_MEMORY;
-                break;
-            }
-            /* Retry. */
-            rc = RTDirReadEx(pPluginDir, pPluginDirEntry, &cbPluginDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
-            if (RT_FAILURE(rc))
-                break;
-        }
-        else if (RT_FAILURE(rc))
-            break;
-
-        /* We got the new entry. */
-        if (!RTFS_IS_FILE(pPluginDirEntry->Info.Attr.fMode))
-            continue;
-
-        /* Prepend the path to the libraries. */
-        pszPluginPath = RTPathJoinA(szPath, pPluginDirEntry->szName);
-        if (!pszPluginPath)
-        {
-            rc = VERR_NO_STR_MEMORY;
-            break;
-        }
-
-        rc = SUPR3HardenedLdrLoadPlugIn(pszPluginPath, &hPlugin, NULL);
-        if (RT_SUCCESS(rc))
-        {
-            rc = RTLdrGetSymbol(hPlugin, VD_CACHEFORMAT_LOAD_NAME, (void**)&pfnVDCacheLoad);
-            if (RT_FAILURE(rc) || !pfnVDCacheLoad)
-            {
-                LogFunc(("error resolving the entry point %s in plugin %s, rc=%Rrc, pfnVDCacheLoad=%#p\n",
-                         VD_CACHEFORMAT_LOAD_NAME, pPluginDirEntry->szName, rc, pfnVDCacheLoad));
-                if (RT_SUCCESS(rc))
-                    rc = VERR_SYMBOL_NOT_FOUND;
-            }
-
-            if (RT_SUCCESS(rc))
-            {
-                /* Get the function table. */
-                rc = pfnVDCacheLoad(&pBackend);
-                if (RT_SUCCESS(rc) && pBackend->cbSize == sizeof(VDCACHEBACKEND))
-                {
-                    pBackend->hPlugin = hPlugin;
-                    vdAddCacheBackend(pBackend);
-                }
-                else
-                    LogFunc(("ignored plugin '%s': pBackend->cbSize=%d rc=%Rrc\n", pszPluginPath, pBackend->cbSize, rc));
-            }
-            else
-                LogFunc(("ignored plugin '%s': rc=%Rrc\n", pszPluginPath, rc));
-
-            if (RT_FAILURE(rc))
-                RTLdrClose(hPlugin);
-        }
-        RTStrFree(pszPluginPath);
-    }
-out:
-    if (rc == VERR_NO_MORE_FILES)
-        rc = VINF_SUCCESS;
-    RTStrFree(pszPluginFilter);
-    if (pPluginDirEntry)
-        RTMemFree(pPluginDirEntry);
-    if (pPluginDir)
-        RTDirClose(pPluginDir);
-    return rc;
+    return vdPluginLoadFromPath(szPath);
 #else
     return VINF_SUCCESS;
 #endif
@@ -3582,9 +3889,7 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                     && ASMAtomicCmpXchgBool(&pIoCtxParent->fComplete, true, false))
                 {
                     LogFlowFunc(("Parent I/O context completed pIoCtxParent=%#p rcReq=%Rrc\n", pIoCtxParent, pIoCtxParent->rcReq));
-                    pIoCtxParent->Type.Root.pfnComplete(pIoCtxParent->Type.Root.pvUser1,
-                                                        pIoCtxParent->Type.Root.pvUser2,
-                                                        pIoCtxParent->rcReq);
+                    vdIoCtxRootComplete(pDisk, pIoCtxParent);
                     vdThreadFinishWrite(pDisk);
                     vdIoCtxFree(pDisk, pIoCtxParent);
                     vdDiskProcessBlockedIoCtx(pDisk);
@@ -3612,9 +3917,7 @@ static int vdIoCtxContinue(PVDIOCTX pIoCtx, int rcReq)
                 }
 
                 LogFlowFunc(("I/O context completed pIoCtx=%#p rcReq=%Rrc\n", pIoCtx, pIoCtx->rcReq));
-                pIoCtx->Type.Root.pfnComplete(pIoCtx->Type.Root.pvUser1,
-                                              pIoCtx->Type.Root.pvUser2,
-                                              pIoCtx->rcReq);
+                vdIoCtxRootComplete(pDisk, pIoCtx);
             }
 
             vdIoCtxFree(pDisk, pIoCtx);
@@ -4627,9 +4930,13 @@ static size_t vdIOIntIoCtxSegArrayCreate(void *pvUser, PVDIOCTX pIoCtx,
     PVBOXHDD pDisk = pVDIo->pDisk;
     size_t cbCreated = 0;
 
+    /** @todo: It is possible that this gets called from a filter plugin
+     * outside of the disk lock. Refine assertion or remove completely. */
+#if 0
     /** @todo: Enable check for sync I/O later. */
     if (!(pIoCtx->fFlags & VDIOCTX_FLAGS_SYNC))
         VD_IS_LOCKED(pDisk);
+#endif
 
     cbCreated = RTSgBufSegArrayCreate(&pIoCtx->Req.Io.SgBuf, paSeg, pcSeg, cbData);
     Assert(!paSeg || cbData == cbCreated);
@@ -4691,6 +4998,16 @@ static DECLCALLBACK(bool) vdIOIntIoCtxIsZero(void *pvUser, PVDIOCTX pIoCtx, size
         RTSgBufAdvance(&pIoCtx->Req.Io.SgBuf, cbCheck);
 
     return fIsZero;
+}
+
+static DECLCALLBACK(size_t) vdIOIntIoCtxGetDataUnitSize(void *pvUser, PVDIOCTX pIoCtx)
+{
+    PVDIO    pVDIo = (PVDIO)pvUser;
+    PVBOXHDD pDisk = pVDIo->pDisk;
+
+    PVDIMAGE pImage = vdGetImageByNumber(pDisk, VD_LAST_IMAGE);
+    AssertPtrReturn(pImage, 0);
+    return pImage->Backend->pfnGetSectorSize(pImage->pBackendData);  
 }
 
 /**
@@ -4955,27 +5272,28 @@ static void vdIfIoFallbackCallbacksSetup(PVDINTERFACEIO pIfIo)
  */
 static void vdIfIoIntCallbacksSetup(PVDINTERFACEIOINT pIfIoInt)
 {
-    pIfIoInt->pfnOpen                = vdIOIntOpen;
-    pIfIoInt->pfnClose               = vdIOIntClose;
-    pIfIoInt->pfnDelete              = vdIOIntDelete;
-    pIfIoInt->pfnMove                = vdIOIntMove;
-    pIfIoInt->pfnGetFreeSpace        = vdIOIntGetFreeSpace;
-    pIfIoInt->pfnGetModificationTime = vdIOIntGetModificationTime;
-    pIfIoInt->pfnGetSize             = vdIOIntGetSize;
-    pIfIoInt->pfnSetSize             = vdIOIntSetSize;
-    pIfIoInt->pfnReadUser            = vdIOIntReadUser;
-    pIfIoInt->pfnWriteUser           = vdIOIntWriteUser;
-    pIfIoInt->pfnReadMeta            = vdIOIntReadMeta;
-    pIfIoInt->pfnWriteMeta           = vdIOIntWriteMeta;
-    pIfIoInt->pfnMetaXferRelease     = vdIOIntMetaXferRelease;
-    pIfIoInt->pfnFlush               = vdIOIntFlush;
-    pIfIoInt->pfnIoCtxCopyFrom       = vdIOIntIoCtxCopyFrom;
-    pIfIoInt->pfnIoCtxCopyTo         = vdIOIntIoCtxCopyTo;
-    pIfIoInt->pfnIoCtxSet            = vdIOIntIoCtxSet;
-    pIfIoInt->pfnIoCtxSegArrayCreate = vdIOIntIoCtxSegArrayCreate;
-    pIfIoInt->pfnIoCtxCompleted      = vdIOIntIoCtxCompleted;
-    pIfIoInt->pfnIoCtxIsSynchronous  = vdIOIntIoCtxIsSynchronous;
-    pIfIoInt->pfnIoCtxIsZero         = vdIOIntIoCtxIsZero;
+    pIfIoInt->pfnOpen                 = vdIOIntOpen;
+    pIfIoInt->pfnClose                = vdIOIntClose;
+    pIfIoInt->pfnDelete               = vdIOIntDelete;
+    pIfIoInt->pfnMove                 = vdIOIntMove;
+    pIfIoInt->pfnGetFreeSpace         = vdIOIntGetFreeSpace;
+    pIfIoInt->pfnGetModificationTime  = vdIOIntGetModificationTime;
+    pIfIoInt->pfnGetSize              = vdIOIntGetSize;
+    pIfIoInt->pfnSetSize              = vdIOIntSetSize;
+    pIfIoInt->pfnReadUser             = vdIOIntReadUser;
+    pIfIoInt->pfnWriteUser            = vdIOIntWriteUser;
+    pIfIoInt->pfnReadMeta             = vdIOIntReadMeta;
+    pIfIoInt->pfnWriteMeta            = vdIOIntWriteMeta;
+    pIfIoInt->pfnMetaXferRelease      = vdIOIntMetaXferRelease;
+    pIfIoInt->pfnFlush                = vdIOIntFlush;
+    pIfIoInt->pfnIoCtxCopyFrom        = vdIOIntIoCtxCopyFrom;
+    pIfIoInt->pfnIoCtxCopyTo          = vdIOIntIoCtxCopyTo;
+    pIfIoInt->pfnIoCtxSet             = vdIOIntIoCtxSet;
+    pIfIoInt->pfnIoCtxSegArrayCreate  = vdIOIntIoCtxSegArrayCreate;
+    pIfIoInt->pfnIoCtxCompleted       = vdIOIntIoCtxCompleted;
+    pIfIoInt->pfnIoCtxIsSynchronous   = vdIOIntIoCtxIsSynchronous;
+    pIfIoInt->pfnIoCtxIsZero          = vdIOIntIoCtxIsZero;
+    pIfIoInt->pfnIoCtxGetDataUnitSize = vdIOIntIoCtxGetDataUnitSize;
 }
 
 /**
@@ -5002,9 +5320,8 @@ VBOXDDU_DECL(int) VDInit(void)
         rc = vdAddCacheBackends(aStaticCacheBackends, RT_ELEMENTS(aStaticCacheBackends));
         if (RT_SUCCESS(rc))
         {
+            RTListInit(&g_ListPluginsLoaded);
             rc = vdLoadDynamicBackends();
-            if (RT_SUCCESS(rc))
-                rc = vdLoadDynamicCacheBackends();
         }
     }
     LogRel(("VDInit finished\n"));
@@ -5018,39 +5335,74 @@ VBOXDDU_DECL(int) VDInit(void)
  */
 VBOXDDU_DECL(int) VDShutdown(void)
 {
-    PVBOXHDDBACKEND *pBackends = g_apBackends;
-    PVDCACHEBACKEND *pCacheBackends = g_apCacheBackends;
+    PCVBOXHDDBACKEND *pBackends = g_apBackends;
+    PCVDCACHEBACKEND *pCacheBackends = g_apCacheBackends;
     unsigned cBackends = g_cBackends;
 
-    if (!pBackends)
+    if (!g_apBackends)
         return VERR_INTERNAL_ERROR;
+
+    if (g_apCacheBackends)
+        RTMemFree(g_apCacheBackends);
+    RTMemFree(g_apBackends);
 
     g_cBackends = 0;
     g_apBackends = NULL;
 
-#ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
-    for (unsigned i = 0; i < cBackends; i++)
-        if (pBackends[i]->hPlugin != NIL_RTLDRMOD)
-            RTLdrClose(pBackends[i]->hPlugin);
-#endif
-
     /* Clear the supported cache backends. */
-    cBackends = g_cCacheBackends;
     g_cCacheBackends = 0;
     g_apCacheBackends = NULL;
 
 #ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
-    for (unsigned i = 0; i < cBackends; i++)
-        if (pCacheBackends[i]->hPlugin != NIL_RTLDRMOD)
-            RTLdrClose(pCacheBackends[i]->hPlugin);
+    PVDPLUGIN pPlugin, pPluginNext;
+
+    RTListForEachSafe(&g_ListPluginsLoaded, pPlugin, pPluginNext, VDPLUGIN, NodePlugin)
+    {
+        RTLdrClose(pPlugin->hPlugin);
+        RTStrFree(pPlugin->pszFilename);
+        RTListNodeRemove(&pPlugin->NodePlugin);
+        RTMemFree(pPlugin);
+    }
 #endif
 
-    if (pCacheBackends)
-        RTMemFree(pCacheBackends);
-    RTMemFree(pBackends);
     return VINF_SUCCESS;
 }
 
+/**
+ * Loads a single plugin given by filename.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename     The plugin filename to load.
+ */
+VBOXDDU_DECL(int) VDPluginLoadFromFilename(const char *pszFilename)
+{
+    if (!g_apBackends)
+    {
+        int rc = VDInit();
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return vdPluginLoadFromFilename(pszFilename);
+}
+
+/**
+ * Load all plugins from a given path.
+ *
+ * @returns VBox statuse code.
+ * @param   pszPath         The path to load plugins from.
+ */
+VBOXDDU_DECL(int) VDPluginLoadFromPath(const char *pszPath)
+{
+    if (!g_apBackends)
+    {
+        int rc = VDInit();
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return vdPluginLoadFromPath(pszPath);
+}
 
 /**
  * Lists all HDD backends and their capabilities in a caller-provided buffer.
@@ -5185,6 +5537,8 @@ VBOXDDU_DECL(int) VDCreate(PVDINTERFACE pVDIfsDisk, VDTYPE enmType, PVBOXHDD *pp
             pDisk->hEventSemSyncIo         = NIL_RTSEMEVENT;
             pDisk->hMemCacheIoCtx          = NIL_RTMEMCACHE;
             pDisk->hMemCacheIoTask         = NIL_RTMEMCACHE;
+            pDisk->pFilterHead             = NULL;
+            pDisk->pFilterTail             = NULL;
 
             rc = RTSemEventCreate(&pDisk->hEventSemSyncIo);
             if (RT_FAILURE(rc))
@@ -5248,6 +5602,10 @@ VBOXDDU_DECL(int) VDDestroy(PVBOXHDD pDisk)
         Assert(!pDisk->fLocked);
 
         rc = VDCloseAll(pDisk);
+        int rc2 = VDFilterRemoveAll(pDisk);
+        if (RT_SUCCESS(rc))
+            rc = rc2;
+
         RTMemCacheDestroy(pDisk->hMemCacheIoCtx);
         RTMemCacheDestroy(pDisk->hMemCacheIoTask);
         RTSemEventDestroy(pDisk->hEventSemSyncIo);
@@ -5909,6 +6267,100 @@ VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
                 RTStrFree(pCache->pszFilename);
             RTMemFree(pCache);
         }
+    }
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/**
+ * Adds a filter to the disk.
+ *
+ * @returns VBox status code.
+ * @param   pDisk           Pointer to the HDD container which should use the filter.
+ * @param   pszFilter       Name of the filter backend to use (case insensitive).
+ * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
+ */
+VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter,
+                              PVDINTERFACE pVDIfsFilter)
+{
+    int rc = VINF_SUCCESS;
+    int rc2;
+    bool fLockWrite = false;
+    PVDFILTER pFilter = NULL;
+
+    LogFlowFunc(("pDisk=%#p pszFilter=\"%s\" pVDIfsFilter=%#p\n",
+                 pDisk, pszFilter, pVDIfsFilter));
+
+    do
+    {
+        /* sanity check */
+        AssertPtrBreakStmt(pDisk, rc = VERR_INVALID_PARAMETER);
+        AssertMsg(pDisk->u32Signature == VBOXHDDDISK_SIGNATURE, ("u32Signature=%08x\n", pDisk->u32Signature));
+
+        /* Check arguments. */
+        AssertMsgBreakStmt(VALID_PTR(pszFilter) && *pszFilter,
+                           ("pszFilter=%#p \"%s\"\n", pszFilter, pszFilter),
+                           rc = VERR_INVALID_PARAMETER);
+
+        /* Set up image descriptor. */
+        pFilter = (PVDFILTER)RTMemAllocZ(sizeof(VDFILTER));
+        if (!pFilter)
+        {
+            rc = VERR_NO_MEMORY;
+            break;
+        }
+
+        rc = vdFindFilterBackend(pszFilter, &pFilter->pBackend);
+        if (RT_FAILURE(rc))
+            break;
+        if (!pFilter->pBackend)
+        {
+            rc = vdError(pDisk, VERR_INVALID_PARAMETER, RT_SRC_POS,
+                         N_("VD: unknown filter backend name '%s'"), pszFilter);
+            break;
+        }
+
+        pFilter->VDIo.pDisk   = pDisk;
+        pFilter->pVDIfsFilter = pVDIfsFilter;
+
+        /* Set up the internal I/O interface. */
+        AssertBreakStmt(!VDIfIoIntGet(pVDIfsFilter), rc = VERR_INVALID_PARAMETER);
+        vdIfIoIntCallbacksSetup(&pFilter->VDIo.VDIfIoInt);
+        rc = VDInterfaceAdd(&pFilter->VDIo.VDIfIoInt.Core, "VD_IOINT", VDINTERFACETYPE_IOINT,
+                            &pFilter->VDIo, sizeof(VDINTERFACEIOINT), &pFilter->pVDIfsFilter);
+        AssertRC(rc);
+
+        rc = pFilter->pBackend->pfnCreate(pDisk->pVDIfsDisk, pFilter->pVDIfsFilter,
+                                          &pFilter->pvBackendData);
+
+        /* If the open in read-write mode failed, retry in read-only mode. */
+        if (RT_FAILURE(rc))
+        {
+            rc = vdError(pDisk, rc, RT_SRC_POS,
+                         N_("VD: error %Rrc creating filter '%s'"), rc, pszFilter);
+            break;
+        }
+
+        /* Lock disk for writing, as we modify pDisk information below. */
+        rc2 = vdThreadStartWrite(pDisk);
+        AssertRC(rc2);
+        fLockWrite = true;
+
+        /* Add filter to chain. */
+        vdAddFilterToList(pDisk, pFilter);
+    } while (0);
+
+    if (RT_UNLIKELY(fLockWrite))
+    {
+        rc2 = vdThreadFinishWrite(pDisk);
+        AssertRC(rc2);
+    }
+
+    if (RT_FAILURE(rc))
+    {
+        if (pFilter)
+            RTMemFree(pFilter);
     }
 
     LogFlowFunc(("returns %Rrc\n", rc));
@@ -7902,6 +8354,51 @@ VBOXDDU_DECL(int) VDCacheClose(PVBOXHDD pDisk, bool fDelete)
 }
 
 /**
+ * Removes the last added filter in the HDD container.
+ *
+ * @return  VBox status code.
+ * @retval  VERR_VD_NOT_OPENED if no filter is present for the disk.
+ * @param   pDisk           Pointer to HDD container.
+ */
+VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk)
+{
+    int rc = VINF_SUCCESS;
+    int rc2;
+    bool fLockWrite = false;
+    PVDFILTER pFilter = NULL;
+
+    LogFlowFunc(("pDisk=%#p\n", pDisk));
+
+    do
+    {
+        /* sanity check */
+        AssertPtrBreakStmt(pDisk, rc = VERR_INVALID_PARAMETER);
+        AssertMsg(pDisk->u32Signature == VBOXHDDDISK_SIGNATURE, ("u32Signature=%08x\n", pDisk->u32Signature));
+
+        rc2 = vdThreadStartWrite(pDisk);
+        AssertRC(rc2);
+        fLockWrite = true;
+
+        AssertPtrBreakStmt(pDisk->pFilterHead, rc = VERR_VD_NOT_OPENED);
+
+        pFilter = pDisk->pFilterTail;
+        vdRemoveFilterFromList(pDisk, pFilter);
+
+        pFilter->pBackend->pfnDestroy(pFilter->pvBackendData);
+        RTMemFree(pFilter);
+    } while (0);
+
+    if (RT_LIKELY(fLockWrite))
+    {
+        rc2 = vdThreadFinishWrite(pDisk);
+        AssertRC(rc2);
+    }
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/**
  * Closes all opened image files in HDD container.
  *
  * @returns VBox status code.
@@ -7953,6 +8450,56 @@ VBOXDDU_DECL(int) VDCloseAll(PVBOXHDD pDisk)
             pImage = pPrev;
         }
         Assert(!VALID_PTR(pDisk->pLast));
+    } while (0);
+
+    if (RT_UNLIKELY(fLockWrite))
+    {
+        rc2 = vdThreadFinishWrite(pDisk);
+        AssertRC(rc2);
+    }
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/**
+ * Removes all filters of the given HDD container.
+ *
+ * @return  VBox status code.
+ * @param   pDisk           Pointer to HDD container.
+ */
+VBOXDDU_DECL(int) VDFilterRemoveAll(PVBOXHDD pDisk)
+{
+    int rc = VINF_SUCCESS;
+    int rc2;
+    bool fLockWrite = false;
+
+    LogFlowFunc(("pDisk=%#p\n", pDisk));
+    do
+    {
+        /* sanity check */
+        AssertPtrBreakStmt(pDisk, rc = VERR_INVALID_PARAMETER);
+        AssertMsg(pDisk->u32Signature == VBOXHDDDISK_SIGNATURE, ("u32Signature=%08x\n", pDisk->u32Signature));
+
+        /* Lock the entire operation. */
+        rc2 = vdThreadStartWrite(pDisk);
+        AssertRC(rc2);
+        fLockWrite = true;
+
+        PVDFILTER pFilter = pDisk->pFilterTail;
+        while (VALID_PTR(pFilter))
+        {
+            PVDFILTER pPrev = pFilter->pPrev;
+            vdRemoveFilterFromList(pDisk, pFilter);
+
+            rc2 = pFilter->pBackend->pfnDestroy(pFilter->pvBackendData);
+            if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
+                rc = rc2;
+            /* Free remaining resources related to the image. */
+            RTMemFree(pFilter);
+            pFilter = pPrev;
+        }
+        Assert(!VALID_PTR(pDisk->pFilterTail));
     } while (0);
 
     if (RT_UNLIKELY(fLockWrite))

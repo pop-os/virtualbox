@@ -963,6 +963,18 @@ static DECLCALLBACK(PVUSBURB) usbMsdUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVAL cMi
 
 
 /**
+ * @copydoc PDMUSBREG::pfnWakeup
+ */
+static DECLCALLBACK(int) usbMsdWakeup(PPDMUSBINS pUsbIns)
+{
+    PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
+    LogFlow(("usbMsdUrbReap/#%u:\n", pUsbIns->iInstance));
+
+    return RTSemEventSignal(pThis->hEvtDoneQueue);
+}
+
+
+/**
  * @copydoc PDMUSBREG::pfnUrbCancel
  */
 static DECLCALLBACK(int) usbMsdUrbCancel(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
@@ -1775,6 +1787,8 @@ const PDMUSBREG g_UsbMsd =
     usbMsdUrbCancel,
     /* pfnUrbReap */
     usbMsdUrbReap,
+    /* pfnWakeup */
+    usbMsdWakeup,
     /* u32TheEnd */
     PDM_USBREG_VERSION
 };

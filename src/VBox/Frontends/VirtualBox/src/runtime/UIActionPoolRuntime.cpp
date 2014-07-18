@@ -1203,6 +1203,17 @@ UIActionPoolRuntime::UIActionPoolRuntime()
     connect(gShortcutPool, SIGNAL(sigMachineShortcutsReloaded()), this, SLOT(sltApplyShortcuts()));
 }
 
+void UIActionPoolRuntime::retranslateUi()
+{
+    /* Translate all the actions: */
+    foreach (const int iActionPoolKey, m_pool.keys())
+        m_pool[iActionPoolKey]->retranslateUi();
+    /* Re-apply Runtime UI shortcuts: */
+    sltApplyShortcuts();
+    /* Temporary create Selector UI pool to do the same: */
+    UIActionPool::createTemporary(UIActionPoolType_Selector);
+}
+
 QString UIActionPoolRuntime::shortcutsExtraDataID() const
 {
     return GUI_Input_MachineShortcuts;

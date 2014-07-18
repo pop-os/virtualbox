@@ -14,6 +14,7 @@
 #include "cr_glstate.h"
 #include "cr_vreg.h"
 #include "cr_blitter.h"
+#include "cr_htable.h"
 #include "spu_dispatch_table.h"
 #include "cr_dump.h"
 
@@ -353,10 +354,13 @@ typedef struct {
     CRScreenViewportInfo screenVieport[CR_MAX_GUEST_MONITORS];
     int          screenCount;
 
+    GLboolean fCrCmdEnabled;
+
     int numClients;
     CRClient *clients[CR_MAX_CLIENTS];  /**< array [numClients] */
     CRClient *curClient;
     CRClientNode *pCleanupClient;  /*list of clients with pending clean up*/
+    CRHTABLE clientTable;
     CRCurrentStatePointers current;
 
     GLboolean firstCallCreateContext;
@@ -408,6 +412,8 @@ typedef struct {
     CR_BLITTER Blitter;
 
     CR_SERVER_RPW RpwWorker;
+
+    VBOXCRCMDCTL_HGCMDISABLE_DATA DisableData;
 
     /** configuration options */
     /*@{*/
@@ -513,7 +519,8 @@ extern DECLEXPORT(void) crVBoxServerRemoveClient(uint32_t u32ClientID);
 extern DECLEXPORT(int32_t) crVBoxServerClientWrite(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t cbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientRead(uint32_t u32ClientID, uint8_t *pBuffer, uint32_t *pcbBuffer);
 extern DECLEXPORT(int32_t) crVBoxServerClientSetVersion(uint32_t u32ClientID, uint32_t vMajor, uint32_t vMinor);
-extern DECLEXPORT(int32_t) crVBoxServerClientGetCaps(uint32_t u32ClientID, uint32_t *pu32Caps);
+extern DECLEXPORT(int32_t) crVBoxServerClientGetCapsLegacy(uint32_t u32ClientID, uint32_t *pu32Caps);
+extern DECLEXPORT(int32_t) crVBoxServerClientGetCapsNew(uint32_t u32ClientID, CR_CAPS_INFO *pInfo);
 extern DECLEXPORT(int32_t) crVBoxServerClientSetPID(uint32_t u32ClientID, uint64_t pid);
 
 extern DECLEXPORT(int32_t) crVBoxServerSaveState(PSSMHANDLE pSSM);
@@ -568,8 +575,8 @@ extern DECLEXPORT(int32_t) crVBoxServerCrHgsmiCtl(struct VBOXVDMACMD_CHROMIUM_CT
 
 #endif
 
-extern DECLEXPORT(int32_t) crVBoxServerHgcmEnable(HVBOXCRCMDCTL_REMAINING_HOST_COMMAND hRHCmd, PFNVBOXCRCMDCTL_REMAINING_HOST_COMMAND pfnRHCmd);
-extern DECLEXPORT(int32_t) crVBoxServerHgcmDisable();
+extern DECLEXPORT(int32_t) crVBoxServerHgcmEnable(VBOXCRCMDCTL_HGCMENABLE_DATA *pData);
+extern DECLEXPORT(int32_t) crVBoxServerHgcmDisable(VBOXCRCMDCTL_HGCMDISABLE_DATA *pData);
 
 extern int crVBoxServerHostCtl(VBOXCRCMDCTL *pCtl, uint32_t cbCtl);
 

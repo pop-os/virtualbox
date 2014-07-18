@@ -40,7 +40,9 @@
 
 #elif defined(RT_OS_WINDOWS)
 # include <Windows.h>
-# include <stdio.h>
+# ifndef IN_SUP_HARDENED_R3
+#  include <stdio.h>
+# endif
 
 #else /* UNIXes */
 # include <sys/types.h>
@@ -55,7 +57,6 @@
 # include <sys/stat.h>
 # include <sys/time.h>
 # include <sys/fcntl.h>
-# include <stdio.h>
 # include <pwd.h>
 # ifdef RT_OS_DARWIN
 #  include <mach-o/dyld.h>
@@ -72,6 +73,10 @@
 #include <iprt/string.h>
 
 #include "SUPLibInternal.h"
+#if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_HARDENING)
+# define SUPHNTVI_NO_NT_STUFF
+# include "win/SUPHardenedVerify-win.h"
+#endif
 
 
 /*******************************************************************************
@@ -82,6 +87,13 @@
 
 #ifdef RT_OS_SOLARIS
 # define dirfd(d) ((d)->d_fd)
+#endif
+
+/** Compare table file names with externally supplied names. */
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+# define SUP_COMP_FILENAME  suplibHardenedStrICmp
+#else
+# define SUP_COMP_FILENAME  suplibHardenedStrCmp
 #endif
 
 
@@ -105,9 +117,9 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDD2R0.r0" },
 
 #ifdef VBOX_WITH_RAW_MODE
-    {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VMMGC.gc" },
-    {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDDGC.gc" },
-    {   kSupIFT_Dll,  kSupID_AppPrivArch,       false, "VBoxDD2GC.gc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VMMGC.gc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDDGC.gc" },
+    {   kSupIFT_Rc,   kSupID_AppPrivArch,       false, "VBoxDD2GC.gc" },
 #endif
 
     {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxRT" SUPLIB_DLL_SUFF },
@@ -152,7 +164,7 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
 #ifdef VBOX_WITH_MAIN
     {   kSupIFT_Exe,  kSupID_AppBin,            false, "VBoxSVC" SUPLIB_EXE_SUFF },
  #ifdef RT_OS_WINDOWS
-    {   kSupIFT_Dll,  kSupID_AppPrivArchComp,   false, "VBoxC" SUPLIB_DLL_SUFF },
+    {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxC" SUPLIB_DLL_SUFF },
  #else
     {   kSupIFT_Exe,  kSupID_AppPrivArch,       false, "VBoxXPCOMIPCD" SUPLIB_EXE_SUFF },
     {   kSupIFT_Dll,  kSupID_SharedLib,         false, "VBoxXPCOM" SUPLIB_DLL_SUFF },
@@ -203,6 +215,27 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     {   kSupIFT_Exe,  kSupID_AppBin,             true, "VBoxNetNAT" SUPLIB_EXE_SUFF },
     {   kSupIFT_Dll,  kSupID_AppPrivArch,        true, "VBoxNetNAT" SUPLIB_DLL_SUFF },
 //#endif
+#if defined(VBOX_WITH_HARDENING) && defined(RT_OS_WINDOWS)
+# define HARDENED_TESTCASE_BIN_ENTRY(a_szName) \
+        {   kSupIFT_TestExe, kSupID_AppBin, true, a_szName SUPLIB_EXE_SUFF }, \
+        {   kSupIFT_TestDll, kSupID_AppBin, true, a_szName SUPLIB_DLL_SUFF }
+    HARDENED_TESTCASE_BIN_ENTRY("tstMicro"),
+    HARDENED_TESTCASE_BIN_ENTRY("tstPDMAsyncCompletion"),
+    HARDENED_TESTCASE_BIN_ENTRY("tstPDMAsyncCompletionStress"),
+    HARDENED_TESTCASE_BIN_ENTRY("tstVMM"),
+    HARDENED_TESTCASE_BIN_ENTRY("tstVMREQ"),
+# define HARDENED_TESTCASE_ENTRY(a_szName) \
+        {   kSupIFT_TestExe, kSupID_Testcase, true, a_szName SUPLIB_EXE_SUFF }, \
+        {   kSupIFT_TestDll, kSupID_Testcase, true, a_szName SUPLIB_DLL_SUFF }
+    HARDENED_TESTCASE_ENTRY("tstCFGM"),
+    HARDENED_TESTCASE_ENTRY("tstIntNet-1"),
+    HARDENED_TESTCASE_ENTRY("tstMMHyperHeap"),
+    HARDENED_TESTCASE_ENTRY("tstR0ThreadPreemptionDriver"),
+    HARDENED_TESTCASE_ENTRY("tstRTR0MemUserKernelDriver"),
+    HARDENED_TESTCASE_ENTRY("tstRTR0SemMutexDriver"),
+    HARDENED_TESTCASE_ENTRY("tstRTR0TimerDriver"),
+    HARDENED_TESTCASE_ENTRY("tstSSM"),
+#endif
 };
 
 
@@ -243,15 +276,26 @@ static int supR3HardenedMakePath(SUPINSTDIR enmDir, char *pszDst, size_t cchDst,
             rc = supR3HardenedPathAppPrivateArch(pszDst, cchDst);
             if (RT_SUCCESS(rc))
             {
-                size_t off = strlen(pszDst);
+                size_t off = suplibHardenedStrLen(pszDst);
                 if (cchDst - off >= sizeof("/components"))
-                    memcpy(&pszDst[off], "/components", sizeof("/components"));
+                    suplibHardenedMemCopy(&pszDst[off], "/components", sizeof("/components"));
                 else
                     rc = VERR_BUFFER_OVERFLOW;
             }
             break;
         case kSupID_AppPrivNoArch:
             rc = supR3HardenedPathAppPrivateNoArch(pszDst, cchDst);
+            break;
+        case kSupID_Testcase:
+            rc = supR3HardenedPathExecDir(pszDst, cchDst);
+            if (RT_SUCCESS(rc))
+            {
+                size_t off = suplibHardenedStrLen(pszDst);
+                if (cchDst - off >= sizeof("/testcase"))
+                    suplibHardenedMemCopy(&pszDst[off], "/testcase", sizeof("/testcase"));
+                else
+                    rc = VERR_BUFFER_OVERFLOW;
+            }
             break;
         default:
             return supR3HardenedError(VERR_INTERNAL_ERROR, fFatal,
@@ -285,12 +329,12 @@ static int supR3HardenedMakeFilePath(PCSUPINSTFILE pFile, char *pszDst, size_t c
     int rc = supR3HardenedMakePath(pFile->enmDir, pszDst, cchDst, fFatal);
     if (RT_SUCCESS(rc) && fWithFilename)
     {
-        size_t cchFile = strlen(pFile->pszFile);
-        size_t off = strlen(pszDst);
+        size_t cchFile = suplibHardenedStrLen(pFile->pszFile);
+        size_t off = suplibHardenedStrLen(pszDst);
         if (cchDst - off >= cchFile + 2)
         {
             pszDst[off++] = '/';
-            memcpy(&pszDst[off], pFile->pszFile, cchFile + 1);
+            suplibHardenedMemCopy(&pszDst[off], pFile->pszFile, cchFile + 1);
         }
         else
             rc = supR3HardenedError(VERR_BUFFER_OVERFLOW, fFatal,
@@ -341,27 +385,42 @@ DECLHIDDEN(int) supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal)
     if (RT_SUCCESS(rc))
     {
 #if defined(RT_OS_WINDOWS)
-        HANDLE hDir = CreateFile(szPath,
-                                 GENERIC_READ,
-                                 FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE,
-                                 NULL,
-                                 OPEN_ALWAYS,
-                                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS,
-                                 NULL);
-        if (hDir != INVALID_HANDLE_VALUE)
+        PRTUTF16 pwszPath;
+        rc = RTStrToUtf16(szPath, &pwszPath);
+        if (RT_SUCCESS(rc))
         {
-            /** @todo check the type */
-            /* That's all on windows, for now at least... */
-            g_aSupVerifiedDirs[enmDir].hDir = (intptr_t)hDir;
-            g_aSupVerifiedDirs[enmDir].fValidated = true;
+            HANDLE hDir = CreateFileW(pwszPath,
+                                      GENERIC_READ,
+                                      FILE_SHARE_READ | FILE_SHARE_DELETE | FILE_SHARE_WRITE,
+                                      NULL,
+                                      OPEN_EXISTING,
+                                      FILE_ATTRIBUTE_NORMAL | FILE_FLAG_BACKUP_SEMANTICS,
+                                      NULL);
+            if (hDir != INVALID_HANDLE_VALUE)
+            {
+                /** @todo check the type */
+                /* That's all on windows, for now at least... */
+                g_aSupVerifiedDirs[enmDir].hDir = (intptr_t)hDir;
+                g_aSupVerifiedDirs[enmDir].fValidated = true;
+            }
+            else if (enmDir == kSupID_Testcase)
+            {
+                g_aSupVerifiedDirs[enmDir].fValidated = true;
+                rc = VINF_SUCCESS; /* Optional directory, ignore if missing. */
+            }
+            else
+            {
+                int err = GetLastError();
+                rc = supR3HardenedError(VERR_PATH_NOT_FOUND, fFatal,
+                                        "supR3HardenedVerifyDir: Failed to open \"%s\": err=%d\n",
+                                        szPath, err);
+            }
+            RTUtf16Free(pwszPath);
         }
         else
-        {
-            int err = GetLastError();
-            rc = supR3HardenedError(VERR_PATH_NOT_FOUND, fFatal,
-                                    "supR3HardenedVerifyDir: Failed to open \"%s\": err=%d\n",
-                                    szPath, err);
-        }
+            rc = supR3HardenedError(rc, fFatal,
+                                    "supR3HardenedVerifyDir: Failed to convert \"%s\" to UTF-16: err=%d\n", szPath, rc);
+
 #else /* UNIXY */
         int fd = open(szPath, O_RDONLY, 0);
         if (fd >= 0)
@@ -406,6 +465,11 @@ DECLHIDDEN(int) supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal)
                                         szPath, strerror(err), err);
                 close(fd);
             }
+        }
+        else if (enmDir == kSupID_Testcase)
+        {
+            g_aSupVerifiedDirs[enmDir].fValidated = true;
+            rc = VINF_SUCCESS; /* Optional directory, ignore if missing. */
         }
         else
         {
@@ -465,33 +529,61 @@ static int supR3HardenedVerifyFileInternal(int iFile, bool fFatal, bool fLeaveFi
         if (RT_SUCCESS(rc))
         {
 #if defined(RT_OS_WINDOWS)
-            HANDLE hFile = CreateFile(szPath,
-                                      GENERIC_READ,
-                                      FILE_SHARE_READ,
-                                      NULL,
-                                      OPEN_ALWAYS,
-                                      FILE_ATTRIBUTE_NORMAL,
-                                      NULL);
-            if (hFile != INVALID_HANDLE_VALUE)
+            PRTUTF16 pwszPath;
+            rc = RTStrToUtf16(szPath, &pwszPath);
+            if (RT_SUCCESS(rc))
             {
-                /** @todo Check the type, and verify the signature (separate function so we can skip it). */
+                HANDLE hFile = CreateFileW(pwszPath,
+                                           GENERIC_READ,
+                                           FILE_SHARE_READ,
+                                           NULL,
+                                           OPEN_EXISTING,
+                                           FILE_ATTRIBUTE_NORMAL,
+                                           NULL);
+                if (hFile != INVALID_HANDLE_VALUE)
                 {
-                    /* it's valid. */
-                    if (fLeaveFileOpen)
-                        pVerified->hFile = (intptr_t)hFile;
-                    else
+# if defined(VBOX_WITH_HARDENING) && !defined(IN_SUP_R3_STATIC) /* Latter: Not in VBoxCpuReport and friends. */
+
+                    char szErr[1024];
+                    RTERRINFO ErrInfo;
+                    RTErrInfoInit(&ErrInfo, szErr, sizeof(szErr));
+
+                    uint32_t fFlags = SUPHNTVI_F_REQUIRE_BUILD_CERT;
+                    if (pFile->enmType == kSupIFT_Rc)
+                        fFlags |= SUPHNTVI_F_RC_IMAGE;
+
+                    rc = supHardenedWinVerifyImageByHandleNoName(hFile, fFlags, &ErrInfo);
+                    if (RT_FAILURE(rc))
+                    {
+                        rc = supR3HardenedError(rc, fFatal, "supR3HardenedVerifyFileInternal: '%s': Image verify error rc=%Rrc: %s\n",
+                                                szPath, rc, szErr);
                         CloseHandle(hFile);
-                    pVerified->fValidated = true;
+                    }
+                    else
+# endif
+                    {
+                        /* it's valid. */
+                        if (fLeaveFileOpen)
+                            pVerified->hFile = (intptr_t)hFile;
+                        else
+                            CloseHandle(hFile);
+                        pVerified->fValidated = true;
+                    }
                 }
+                else
+                {
+                    int err = GetLastError();
+                    if (   !pFile->fOptional
+                        || (    err != ERROR_FILE_NOT_FOUND
+                            &&  (err != ERROR_PATH_NOT_FOUND || pFile->enmDir != kSupID_Testcase) ) )
+                        rc = supR3HardenedError(VERR_PATH_NOT_FOUND, fFatal,
+                                                "supR3HardenedVerifyFileInternal: Failed to open '%s': err=%d\n", szPath, err);
+                }
+                RTUtf16Free(pwszPath);
             }
             else
-            {
-                int err = GetLastError();
-                if (!pFile->fOptional || err != ERROR_FILE_NOT_FOUND)
-                    rc = supR3HardenedError(VERR_PATH_NOT_FOUND, fFatal,
-                                            "supR3HardenedVerifyFileInternal: Failed to open \"%s\": err=%d\n",
-                                            szPath, err);
-            }
+                rc = supR3HardenedError(rc, fFatal, "supR3HardenedVerifyFileInternal: Failed to convert '%s' to UTF-16: %Rrc\n",
+                                        szPath, rc);
 #else /* UNIXY */
             int fd = open(szPath, O_RDONLY, 0);
             if (fd >= 0)
@@ -579,11 +671,7 @@ static int supR3HardenedVerifySameFile(int iFile, const char *pszFilename, bool 
     int rc = supR3HardenedMakeFilePath(pFile, szName, sizeof(szName), true /*fWithFilename*/, fFatal);
     if (RT_FAILURE(rc))
         return rc;
-#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-    if (stricmp(szName, pszFilename))
-#else
-    if (strcmp(szName, pszFilename))
-#endif
+    if (SUP_COMP_FILENAME(szName, pszFilename))
     {
         /*
          * Normalize the two paths and compare again.
@@ -594,14 +682,14 @@ static int supR3HardenedVerifySameFile(int iFile, const char *pszFilename, bool 
         char szName2[RTPATH_MAX];
         if (    GetFullPathName(szName, RT_ELEMENTS(szName2), &szName2[0], &pszIgnored)
             &&  GetFullPathName(pszFilename, RT_ELEMENTS(szName), &szName[0], &pszIgnored))
-            if (!stricmp(szName2, szName))
+            if (!SUP_COMP_FILENAME(szName2, szName))
                 rc = VINF_SUCCESS;
 #else
         AssertCompile(RTPATH_MAX >= PATH_MAX);
         char szName2[RTPATH_MAX];
         if (    realpath(szName, szName2) != NULL
             &&  realpath(pszFilename, szName) != NULL)
-            if (!strcmp(szName2, szName))
+            if (!SUP_COMP_FILENAME(szName2, szName))
                 rc = VINF_SUCCESS;
 #endif
 
@@ -643,7 +731,7 @@ DECLHIDDEN(int) supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFata
      */
     const char *pszName = supR3HardenedPathFilename(pszFilename);
     for (unsigned iFile = 0; iFile < RT_ELEMENTS(g_aSupInstallFiles); iFile++)
-        if (!strcmp(pszName, g_aSupInstallFiles[iFile].pszFile))
+        if (!SUP_COMP_FILENAME(pszName, g_aSupInstallFiles[iFile].pszFile))
         {
             int rc = supR3HardenedVerifySameFile(iFile, pszFilename, fFatal);
             if (RT_SUCCESS(rc))
@@ -670,12 +758,13 @@ static int supR3HardenedVerifyProgram(const char *pszProgName, bool fFatal)
     int             rc = VINF_SUCCESS;
     bool            fExe = false;
     bool            fDll = false;
-    size_t const    cchProgName = strlen(pszProgName);
+    size_t const    cchProgName = suplibHardenedStrLen(pszProgName);
     for (unsigned iFile = 0; iFile < RT_ELEMENTS(g_aSupInstallFiles); iFile++)
-        if (!strncmp(pszProgName, g_aSupInstallFiles[iFile].pszFile, cchProgName))
+        if (!suplibHardenedStrNCmp(pszProgName, g_aSupInstallFiles[iFile].pszFile, cchProgName))
         {
-            if (    g_aSupInstallFiles[iFile].enmType == kSupIFT_Dll
-                &&  !strcmp(&g_aSupInstallFiles[iFile].pszFile[cchProgName], SUPLIB_DLL_SUFF))
+            if (    (   g_aSupInstallFiles[iFile].enmType == kSupIFT_Dll
+                     || g_aSupInstallFiles[iFile].enmType == kSupIFT_TestDll)
+                &&  !suplibHardenedStrCmp(&g_aSupInstallFiles[iFile].pszFile[cchProgName], SUPLIB_DLL_SUFF))
             {
                 /* This only has to be found (once). */
                 if (fDll)
@@ -683,8 +772,9 @@ static int supR3HardenedVerifyProgram(const char *pszProgName, bool fFatal)
                                             "supR3HardenedVerifyProgram: duplicate DLL entry for \"%s\"\n", pszProgName);
                 fDll = true;
             }
-            else if (   g_aSupInstallFiles[iFile].enmType == kSupIFT_Exe
-                     && !strcmp(&g_aSupInstallFiles[iFile].pszFile[cchProgName], SUPLIB_EXE_SUFF))
+            else if (   (   g_aSupInstallFiles[iFile].enmType == kSupIFT_Exe
+                         || g_aSupInstallFiles[iFile].enmType == kSupIFT_TestExe)
+                     && !suplibHardenedStrCmp(&g_aSupInstallFiles[iFile].pszFile[cchProgName], SUPLIB_EXE_SUFF))
             {
                 /* Here we'll have to check that the specific program is the same as the entry. */
                 if (fExe)
@@ -696,8 +786,8 @@ static int supR3HardenedVerifyProgram(const char *pszProgName, bool fFatal)
                 int rc2 = supR3HardenedPathExecDir(szFilename, sizeof(szFilename) - cchProgName - sizeof(SUPLIB_EXE_SUFF));
                 if (RT_SUCCESS(rc2))
                 {
-                    strcat(szFilename, "/");
-                    strcat(szFilename, g_aSupInstallFiles[iFile].pszFile);
+                    suplibHardenedStrCat(szFilename, "/");
+                    suplibHardenedStrCat(szFilename, g_aSupInstallFiles[iFile].pszFile);
                     supR3HardenedVerifySameFile(iFile, szFilename, fFatal);
                 }
                 else
@@ -785,10 +875,10 @@ static int supR3HardenedSetErrorN(int rc, PRTERRINFO pErrInfo, unsigned cMsgs, .
         while (cMsgs-- > 0 && cbErr > 0)
         {
             const char *pszMsg = va_arg(va,  const char *);
-            size_t cchMsg = VALID_PTR(pszMsg) ? strlen(pszMsg) : 0;
+            size_t cchMsg = VALID_PTR(pszMsg) ? suplibHardenedStrLen(pszMsg) : 0;
             if (cchMsg >= cbErr)
                 cchMsg = cbErr - 1;
-            memcpy(pszErr, pszMsg, cchMsg);
+            suplibHardenedMemCopy(pszErr, pszMsg, cchMsg);
             pszErr[cchMsg] = '\0';
             pszErr += cchMsg;
             cbErr -= cchMsg;
@@ -902,7 +992,7 @@ static int supR3HardenedVerifyPathSanity(const char *pszPath, PRTERRINFO pErrInf
      * Check that it's an absolute path and copy the volume/root specifier.
      */
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
-    if (   RT_C_IS_ALPHA(pszSrc[0])
+    if (   !RT_C_IS_ALPHA(pszSrc[0])
         || pszSrc[1] != ':'
         || !RTPATH_IS_SLASH(pszSrc[2]))
         return supR3HardenedSetError3(VERR_SUPLIB_PATH_NOT_ABSOLUTE, pErrInfo, "The path is not absolute: '", pszPath, "'");
@@ -1196,7 +1286,7 @@ static int supR3HardenedVerifyFsObject(PCSUPR3HARDENEDFSOBJSTATE pFsObjState, bo
            full access. So, to work around we relax the hardening a bit and
            permit grand parents and beyond to be group writable by admin. */
         /** @todo dynamically resolve the admin group? */
-        bool fBad = !fRelaxed || pFsObjState->Stat.st_gid != 80 /*admin*/ || strcmp(pszPath, "/Applications");
+        bool fBad = !fRelaxed || pFsObjState->Stat.st_gid != 80 /*admin*/ || suplibHardenedStrCmp(pszPath, "/Applications");
 
 #elif defined(RT_OS_FREEBSD)
         /* HACK ALERT: PC-BSD 9 has group-writable /usr/pib directory which is
@@ -1204,7 +1294,7 @@ static int supR3HardenedVerifyFsObject(PCSUPR3HARDENEDFSOBJSTATE pFsObjState, bo
            On FreeBSD root is normally the only member of this group, on
            PC-BSD the default user is a member. */
         /** @todo dynamically resolve the operator group? */
-        bool fBad = !fRelaxed || pFsObjState->Stat.st_gid != 5 /*operator*/ || strcmp(pszPath, "/usr/pbi");
+        bool fBad = !fRelaxed || pFsObjState->Stat.st_gid != 5 /*operator*/ || suplibHardenedStrCmp(pszPath, "/usr/pbi");
         NOREF(fRelaxed);
 #else
         NOREF(fRelaxed);
@@ -1335,14 +1425,14 @@ static int supR3HardenedVerifyDirRecursive(char *pszDirPath, size_t cchDirPath, 
          * Check the length and copy it into the path buffer so it can be
          * stat()'ed.
          */
-        size_t cchName = strlen(pEntry->d_name);
+        size_t cchName = suplibHardenedStrLen(pEntry->d_name);
         if (cchName + cchDirPath > SUPR3HARDENED_MAX_PATH)
         {
             rc = supR3HardenedSetErrorN(VERR_SUPLIB_PATH_TOO_LONG, pErrInfo,
                                         4, "Path grew too long during recursion: '", pszDirPath, pEntry->d_name, "'");
             break;
         }
-        memcpy(&pszDirPath[cchName], pEntry->d_name, cchName + 1);
+        suplibHardenedMemCopy(&pszDirPath[cchName], pEntry->d_name, cchName + 1);
 
         /*
          * Query the information about the entry and verify it.
@@ -1362,8 +1452,8 @@ static int supR3HardenedVerifyDirRecursive(char *pszDirPath, size_t cchDirPath, 
          */
         if (    fRecursive
             &&  S_ISDIR(pFsObjState->Stat.st_mode)
-            &&  strcmp(pEntry->d_name, ".")
-            &&  strcmp(pEntry->d_name, ".."))
+            &&  suplibHardenedStrCmp(pEntry->d_name, ".")
+            &&  suplibHardenedStrCmp(pEntry->d_name, ".."))
         {
             pszDirPath[cchDirPath + cchName]     = RTPATH_SLASH;
             pszDirPath[cchDirPath + cchName + 1] = '\0';
@@ -1440,10 +1530,14 @@ DECLHIDDEN(int) supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, 
  * @param   hNativeFile         Handle to the file, verify that it's the same
  *                              as we ended up with when verifying the path.
  *                              RTHCUINTPTR_MAX means NIL here.
+ * @param   fMaybe3rdParty      Set if the file is could be a supplied by a
+ *                              third party.  Different validation rules may
+ *                              apply to 3rd party code on some platforms.
  * @param   pErrInfo            Where to return extended error information.
  *                              Optional.
  */
-DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNativeFile,
+                                        bool fMaybe3rdParty, PRTERRINFO pErrInfo)
 {
     /*
      * Validate the input path and parse it.
@@ -1475,10 +1569,63 @@ DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNa
     }
 
     /*
-     * Verify the file.
+     * Verify the file handle against the last component, if specified.
      */
     if (hNativeFile != RTHCUINTPTR_MAX)
-        return supR3HardenedVerifySameFsObject(hNativeFile, &FsObjState, Info.szPath, pErrInfo);
+    {
+        rc = supR3HardenedVerifySameFsObject(hNativeFile, &FsObjState, Info.szPath, pErrInfo);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+#ifdef RT_OS_WINDOWS
+    /*
+     * The files shall be signed on windows, verify that.
+     */
+    rc = VINF_SUCCESS;
+    HANDLE hVerify;
+    if (hNativeFile == RTHCUINTPTR_MAX)
+    {
+        PRTUTF16 pwszPath;
+        rc = RTStrToUtf16(pszFilename, &pwszPath);
+        if (RT_SUCCESS(rc))
+        {
+            hVerify = CreateFileW(pwszPath, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+            RTUtf16Free(pwszPath);
+        }
+        else
+            rc = RTErrInfoSetF(pErrInfo, rc, "Error converting '%s' to UTF-16: %Rrc", pszFilename, rc);
+    }
+    else if (!DuplicateHandle(GetCurrentProcess(), (HANDLE)hNativeFile, GetCurrentProcess(), &hVerify,
+                              GENERIC_READ, false /*bInheritHandle*/, 0 /*dwOptions*/))
+        hVerify = INVALID_HANDLE_VALUE;
+    if (hVerify != INVALID_HANDLE_VALUE)
+    {
+# ifdef VBOX_WITH_HARDENING
+        uint32_t fFlags = SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING;
+        if (!fMaybe3rdParty)
+            fFlags = SUPHNTVI_F_REQUIRE_BUILD_CERT;
+        const char *pszSuffix = RTPathExt(pszFilename);
+        if (   pszSuffix
+            &&                   pszSuffix[0]  == '.'
+            && (   RT_C_TO_LOWER(pszSuffix[1]) == 'r'
+                || RT_C_TO_LOWER(pszSuffix[1]) == 'g')
+            &&     RT_C_TO_LOWER(pszSuffix[2]) == 'c'
+            &&                   pszSuffix[3]  == '\0' )
+            fFlags |= SUPHNTVI_F_RC_IMAGE;
+#  ifndef IN_SUP_R3_STATIC /* Not in VBoxCpuReport and friends. */
+        rc = supHardenedWinVerifyImageByHandleNoName(hVerify, fFlags, pErrInfo);
+#  endif
+# endif
+        CloseHandle(hVerify);
+    }
+    else if (RT_SUCCESS(rc))
+        rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(GetLastError()),
+                           "Error %u trying to open (or duplicate handle for) '%s'", GetLastError(), pszFilename);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+
     return VINF_SUCCESS;
 }
 
@@ -1527,7 +1674,7 @@ DECLHIDDEN(int) supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData)
         if (    g_aSupInstallFiles[iFile].enmDir    != paInstallFiles[iFile].enmDir
             ||  g_aSupInstallFiles[iFile].enmType   != paInstallFiles[iFile].enmType
             ||  g_aSupInstallFiles[iFile].fOptional != paInstallFiles[iFile].fOptional
-            ||  strcmp(g_aSupInstallFiles[iFile].pszFile, paInstallFiles[iFile].pszFile))
+            ||  suplibHardenedStrCmp(g_aSupInstallFiles[iFile].pszFile, paInstallFiles[iFile].pszFile))
             return VERR_VERSION_MISMATCH;
 
     /*
@@ -1541,7 +1688,7 @@ DECLHIDDEN(int) supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData)
     /*
      * Copy the verification data over.
      */
-    memcpy(&g_aSupVerifiedFiles[0], pPreInitData->paVerifiedFiles, sizeof(g_aSupVerifiedFiles));
-    memcpy(&g_aSupVerifiedDirs[0], pPreInitData->paVerifiedDirs, sizeof(g_aSupVerifiedDirs));
+    suplibHardenedMemCopy(&g_aSupVerifiedFiles[0], pPreInitData->paVerifiedFiles, sizeof(g_aSupVerifiedFiles));
+    suplibHardenedMemCopy(&g_aSupVerifiedDirs[0], pPreInitData->paVerifiedDirs, sizeof(g_aSupVerifiedDirs));
     return VINF_SUCCESS;
 }

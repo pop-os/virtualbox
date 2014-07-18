@@ -1,4 +1,5 @@
 /* -*- indent-tabs-mode: nil; -*- */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
 
 #include "winutils.h"
 #include "proxy.h"
@@ -562,11 +563,11 @@ pxudp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
         status = getsockopt(pxudp->sock, SOL_SOCKET,
                             SO_ERROR, (char *)&sockerr, &optlen);
         if (status < 0) {
-            DPRINTF(("%s: sock %d: SO_ERROR failed with errno %d\n",
-                     __func__, pxudp->sock, errno));
+            DPRINTF(("%s: sock %d: SO_ERROR failed:%R[sockerr]\n",
+                     __func__, pxudp->sock, SOCKERRNO()));
         }
         else {
-            DPRINTF(("%s: sock %d: errno %d\n",
+            DPRINTF(("%s: sock %d: %R[sockerr]\n",
                      __func__, pxudp->sock, sockerr));
         }
     }
@@ -577,7 +578,7 @@ pxudp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
 
     nread = recv(pxudp->sock, pollmgr_udpbuf, sizeof(pollmgr_udpbuf), 0);
     if (nread == SOCKET_ERROR) {
-        perror(__func__);
+        DPRINTF(("%s: %R[sockerr]\n", __func__, SOCKERRNO()));
         return POLLIN;
     }
 

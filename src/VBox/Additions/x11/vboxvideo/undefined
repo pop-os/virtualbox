@@ -28,8 +28,11 @@ chmod
 chown
 close
 drmClose
+drmDropMaster
 drmFreeVersion
 drmGetVersion
+drmIoctl
+drmSetMaster
 fbPictureInit
 fbScreenInit
 fchmod

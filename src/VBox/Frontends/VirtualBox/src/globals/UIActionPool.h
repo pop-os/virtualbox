@@ -68,7 +68,7 @@ enum UIActionIndex
 };
 
 /* Basic abstract QAction reimplemetation, extending interface: */
-class UIAction : public QIWithRetranslateUI3<QAction>
+class UIAction : public QAction
 {
     Q_OBJECT;
 
@@ -97,6 +97,9 @@ public:
     void showShortcut();
     void hideShortcut();
 
+    /** Calls for action translation handler. */
+    virtual void retranslateUi() = 0;
+
 protected:
 
     /* Constructor: */
@@ -105,10 +108,10 @@ protected:
     /* Protected API: Menu stuff: */
     QString nameInMenu() const;
 
-private:
+    /** Updates action text accordingly. */
+    virtual void updateText();
 
-    /* Helper: Text stuff: */
-    void updateText();
+private:
 
     /* Variables: */
     UIActionPool *m_pActionPool;
@@ -231,10 +234,13 @@ protected:
                  const QString &strIcon = QString(), const QString &strIconDis = QString());
     UIActionMenu(UIActionPool *pParent,
                  const QIcon &icon);
+
+    /** Updates action text accordingly. */
+    virtual void updateText();
 };
 
 /* Singleton action pool: */
-class UIActionPool : public QObject
+class UIActionPool : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 

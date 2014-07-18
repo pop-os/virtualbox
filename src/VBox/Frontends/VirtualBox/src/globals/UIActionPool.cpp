@@ -46,7 +46,7 @@ private:
 
 /* UIAction stuff: */
 UIAction::UIAction(UIActionPool *pParent, UIActionType type)
-    : QIWithRetranslateUI3<QAction>(pParent)
+    : QAction(pParent)
     , m_pActionPool(pParent)
     , m_type(type)
     , m_actionPoolType(pParent->type())
@@ -282,6 +282,11 @@ UIActionMenu::UIActionMenu(UIActionPool *pParent,
     if (!icon.isNull())
         setIcon(icon);
     setMenu(new UIMenu);
+}
+
+void UIActionMenu::updateText()
+{
+    setText(nameInMenu());
 }
 
 

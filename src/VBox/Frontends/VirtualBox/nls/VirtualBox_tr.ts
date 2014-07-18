@@ -910,6 +910,10 @@
         <source>&amp;Webcams</source>
         <translation>&amp;Web kameraları</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation>Ağ</translation>
+    </message>
 </context>
 <context>
     <name>UIActonPool</name>
@@ -3768,6 +3772,14 @@
         <source>No supported webcams connected to the host PC</source>
         <translation>Anamakineye bağlanmış desteklenen web kameraları yok</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation>Ağ Bağdaştırıcısı Bağla</translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation>%1 Ağ Bağdaştırıcısını Bağla</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4044,6 +4056,10 @@
     <message>
         <source>Enable video recording for screen %1.</source>
         <translation>Ekran %1 için görüntü kaydını etkinleştir.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation>Uzak Görüntü bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin aksi halde VM&apos;iniz etkisizleştirilmiş Uzak Görüntü ile başlatılacaktır.</translation>
     </message>
 </context>
 <context>
@@ -5609,7 +5625,7 @@
     </message>
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
-        <translation>USB 2.0 şu anda bu sanal makine için etkinleştirildi. Ancak, bu &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
+        <translation>USB 2.0 bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
     </message>
 </context>
 <context>
@@ -11922,7 +11938,7 @@ Version %1</source>
     </message>
     <message>
         <source>QED (QEMU enhanced disk)</source>
-        <translation>QED (QEMU geliştirilmiş disk)</translation>
+        <translation>QED (QEMU Geliştirilmiş Disk)</translation>
     </message>
     <message>
         <source>QCOW (QEMU Copy-On-Write)</source>

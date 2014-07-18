@@ -75,6 +75,7 @@
 #include "fb.h"
 
 #include "vboxvideo.h"
+#include <VBox/VBoxGuest.h>
 #include "version-generated.h"
 #include "product-generated.h"
 #include <xf86.h>
@@ -100,6 +101,10 @@
 # include "xf86Crtc.h"
 # include "xf86Modes.h"
 # include <X11/Xatom.h>
+#endif
+
+#ifdef VBOX_DRI
+# include "xf86drm.h"
 #endif
 
 /* Mandatory functions */
@@ -1013,6 +1018,11 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
 
 #ifdef VBOX_DRI
     pVBox->useDRI = VBOXDRIScreenInit(pScrn, pScreen, pVBox);
+# ifndef VBOX_DRI_OLD  /* DRI2 */
+    if (pVBox->drmFD >= 0)
+        /* Tell the kernel driver, if present, that we are taking over. */
+        drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_DISABLE_HGSMI, NULL);
+# endif
 #endif
 
     if (!fbScreenInit(pScreen, pVBox->base,
@@ -1178,12 +1188,19 @@ static Bool VBOXEnterVT(ScrnInfoPtr pScrn)
 
     TRACE_ENTRY();
     vboxClearVRAM(pScrn, 0, 0);
-    if (pVBox->fHaveHGSMI)
-        vboxEnableVbva(pScrn);
 #ifdef VBOX_DRI_OLD
     if (pVBox->useDRI)
         DRIUnlock(xf86ScrnToScreen(pScrn));
+#elif defined(VBOX_DRI)  /* DRI2 */
+    if (pVBox->drmFD >= 0)
+    {
+        /* Tell the kernel driver, if present, that we are taking over. */
+        drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_DISABLE_HGSMI, NULL);
+        drmSetMaster(pVBox->drmFD);
+    }
 #endif
+    if (pVBox->fHaveHGSMI)
+        vboxEnableVbva(pScrn);
     /* Re-assert this in case we had a change request while switched out. */
     if (pVBox->FBSize.cx && pVBox->FBSize.cy)
         VBOXAdjustScreenPixmap(pScrn, pVBox->FBSize.cx, pVBox->FBSize.cy);
@@ -1207,12 +1224,20 @@ static void VBOXLeaveVT(ScrnInfoPtr pScrn)
     if (pVBox->fHaveHGSMI)
         vboxDisableVbva(pScrn);
     vboxClearVRAM(pScrn, 0, 0);
-    VBOXRestoreMode(pScrn);
     vboxDisableGraphicsCap(pVBox);
 #ifdef VBOX_DRI_OLD
     if (pVBox->useDRI)
         DRILock(xf86ScrnToScreen(pScrn), 0);
+#elif defined(VBOX_DRI)  /* DRI2 */
+    if (pVBox->drmFD >= 0)
+        drmDropMaster(pVBox->drmFD);
+    /* Tell the kernel driver, if present, that it can use the framebuffer
+     * driver again.  If not, or if that fails, restore the old mode ourselves.
+     */
+    if (   pVBox->drmFD < 0
+        || drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_ENABLE_HGSMI, NULL) < 0)
 #endif
+        VBOXRestoreMode(pScrn);
     TRACE_EXIT();
 }
 
@@ -1220,7 +1245,9 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86ScreenToScrn(pScreen);
     VBOXPtr pVBox = VBOXGetRec(pScrn);
-
+#if defined(VBOX_DRI) && !defined(VBOX_DRI_OLD)  /* DRI2 */
+    BOOL fRestore = TRUE;
+#endif
     if (pScrn->vtSema)
     {
         if (pVBox->fHaveHGSMI)
@@ -1230,15 +1257,23 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
         vboxClearVRAM(pScrn, 0, 0);
     }
 #ifdef VBOX_DRI
+# ifndef VBOX_DRI_OLD  /* DRI2 */
+    if (   pVBox->drmFD >= 0
+        /* Tell the kernel driver, if present, that we are going away. */
+        && drmIoctl(pVBox->drmFD, VBOXVIDEO_IOCTL_ENABLE_HGSMI, NULL) >= 0)
+        fRestore = false;
+# endif
     if (pVBox->useDRI)
         VBOXDRICloseScreen(pScreen, pVBox);
     pVBox->useDRI = false;
 #endif
-
-    if (pScrn->vtSema) {
-        VBOXRestoreMode(pScrn);
+#if defined(VBOX_DRI) && !defined(VBOX_DRI_OLD)  /* DRI2 */
+    if (fRestore)
+#endif
+        if (pScrn->vtSema)
+            VBOXRestoreMode(pScrn);
+    if (pScrn->vtSema)
         VBOXUnmapVidMem(pScrn);
-    }
     pScrn->vtSema = FALSE;
 
     /* Do additional bits which are separate for historical reasons */

@@ -1,8 +1,9 @@
 #ifndef __WINUTILS_H_
 # define __WINUTILS_H_
 
+# include <iprt/cdefs.h>
+
 # ifdef RT_OS_WINDOWS
-#  include <iprt/cdefs.h>
 #  include <WinSock2.h>
 #  include <ws2tcpip.h>
 #  include <mswsock.h>
@@ -20,8 +21,6 @@
 #   define PF_LOCAL AF_INET
 #  endif
 
-#  define warn(...) DPRINTF2((__VA_ARGS__))
-#  define warnx warn
 #  ifdef DEBUG
 #   define err(code,...) do { \
       AssertMsgFailed((__VA_ARGS__));           \
@@ -36,77 +35,75 @@
 #  define __func__ __FUNCTION__
 #  define __attribute__(x) /* IGNORE */
 
-/*
- * XXX: inet_ntop() is only available starting from Vista.
- */
-DECLINLINE(PCSTR)
-inet_ntop(INT Family, PVOID pAddr, PSTR pStringBuf, size_t StringBufSize)
-{
-    DWORD size = (DWORD)StringBufSize;
-    int status;
-
-    if (Family == AF_INET)
-    {
-        struct sockaddr_in sin;
-        memset(&sin, 0, sizeof(sin));
-        sin.sin_family = AF_INET;
-        memcpy(&sin.sin_addr, pAddr, sizeof(sin.sin_addr));
-        sin.sin_port = 0;
-        status = WSAAddressToStringA((LPSOCKADDR)&sin, sizeof(sin), NULL,
-                                     pStringBuf, &size);
-    }
-    else if (Family == AF_INET6)
-    {
-        struct sockaddr_in6 sin6;
-        memset(&sin6, 0, sizeof(sin6));
-        sin6.sin6_family = AF_INET6;
-        memcpy(&sin6.sin6_addr, pAddr, sizeof(sin6.sin6_addr));
-        sin6.sin6_port = 0;
-        status = WSAAddressToStringA((LPSOCKADDR)&sin6, sizeof(sin6), NULL,
-                                     pStringBuf, &size);
-    }
-    else
-    {
-        WSASetLastError(WSAEAFNOSUPPORT);
-        return NULL;
-    }
-
-    if (status == SOCKET_ERROR)
-    {
-        return NULL;
-    }
-
-    return pStringBuf;
-}
-
-
-/**
- * tftpd emulation we're using POSIX operations which needs "DOS errno". see proxy_tftpd.c
- */
-#  ifndef _USE_WINSTD_ERRNO
-/**
- * http://msdn.microsoft.com/en-us/library/windows/desktop/ms737828(v=vs.85).aspx
- * "Error Codes - errno, h_errno and WSAGetLastError" says "Error codes set by Windows Sockets are
- *  not made available through the errno variable."
- */
-#   include <errno.h>
-#   ifdef errno
-#    undef errno
-#   endif
-#   define errno (WSAGetLastError())
-#  endif
-/* Missing errno codes */
+#  define SOCKERRNO() (WSAGetLastError())
 
 /**
  * "Windows Sockets Error Codes" obtained with WSAGetLastError().
  * http://msdn.microsoft.com/en-us/library/windows/desktop/ms740668(v=vs.85).aspx
+ *
+ * This block of error codes from <winsock2.h> conflicts with "POSIX
+ * supplement" error codes from <errno.h>, but we don't expect to ever
+ * encounter the latter in the proxy code, so redefine them to their
+ * unixy names.
  */
+#  undef  EWOULDBLOCK
+#  define EWOULDBLOCK           WSAEWOULDBLOCK
+#  undef  EINPROGRESS
+#  define EINPROGRESS           WSAEINPROGRESS
+#  undef  EALREADY
+#  define EALREADY              WSAEALREADY
+#  undef  ENOTSOCK
+#  define ENOTSOCK              WSAENOTSOCK
+#  undef  EDESTADDRREQ
+#  define EDESTADDRREQ          WSAEDESTADDRREQ
 #  undef  EMSGSIZE
 #  define EMSGSIZE              WSAEMSGSIZE
+#  undef  EPROTOTYPE
+#  define EPROTOTYPE            WSAEPROTOTYPE
+#  undef  ENOPROTOOPT
+#  define ENOPROTOOPT           WSAENOPROTOOPT
+#  undef  EPROTONOSUPPORT
+#  define EPROTONOSUPPORT       WSAEPROTONOSUPPORT
+#  undef  ESOCKTNOSUPPORT
+#  define ESOCKTNOSUPPORT       WSAESOCKTNOSUPPORT
+#  undef  EOPNOTSUPP
+#  define EOPNOTSUPP            WSAEOPNOTSUPP
+#  undef  EPFNOSUPPORT
+#  define EPFNOSUPPORT          WSAEPFNOSUPPORT
+#  undef  EAFNOSUPPORT
+#  define EAFNOSUPPORT          WSAEAFNOSUPPORT
+#  undef  EADDRINUSE
+#  define EADDRINUSE            WSAEADDRINUSE
+#  undef  EADDRNOTAVAIL
+#  define EADDRNOTAVAIL         WSAEADDRNOTAVAIL
 #  undef  ENETDOWN
 #  define ENETDOWN              WSAENETDOWN
 #  undef  ENETUNREACH
 #  define ENETUNREACH           WSAENETUNREACH
+#  undef  ENETRESET
+#  define ENETRESET             WSAENETRESET
+#  undef  ECONNABORTED
+#  define ECONNABORTED          WSAECONNABORTED
+#  undef  ECONNRESET
+#  define ECONNRESET            WSAECONNRESET
+#  undef  ENOBUFS
+#  define ENOBUFS               WSAENOBUFS
+#  undef  EISCONN
+#  define EISCONN               WSAEISCONN
+#  undef  ENOTCONN
+#  define ENOTCONN              WSAENOTCONN
+#  undef  ESHUTDOWN
+#  define ESHUTDOWN             WSAESHUTDOWN
+#  undef  ETOOMANYREFS
+#  define ETOOMANYREFS          WSAETOOMANYREFS
+#  undef  ETIMEDOUT
+#  define ETIMEDOUT             WSAETIMEDOUT
+#  undef  ECONNREFUSED
+#  define ECONNREFUSED          WSAECONNREFUSED
+#  undef  ELOOP
+#  define ELOOP                 WSAELOOP
+#  undef  ENAMETOOLONG
+#  define ENAMETOOLONG          WSAENAMETOOLONG
 #  undef  EHOSTDOWN
 #  define EHOSTDOWN             WSAEHOSTDOWN
 #  undef  EHOSTUNREACH
@@ -148,11 +145,17 @@ int RTWinSocketPair(int domain, int type, int protocol, SOCKET socket_vector[2])
 RT_C_DECLS_END
 
 # else /* !RT_OS_WINDOWS */
-#  define ioctlsocket ioctl
-#  define closesocket close
+
+#  include <errno.h>
+
 #  define SOCKET int
 #  define INVALID_SOCKET (-1)
 #  define SOCKET_ERROR (-1)
+
+#  define SOCKERRNO() (errno)
+
+#  define closesocket(s) close(s)
+#  define ioctlsocket(s, req, arg) ioctl((s), (req), (arg))
 
 typedef struct iovec IOVEC;
 
@@ -162,4 +165,23 @@ typedef struct iovec IOVEC;
 #  define IOVEC_GET_LEN(iov) ((iov).iov_len)
 #  define IOVEC_SET_LEN(iov, l) ((iov).iov_len = (l))
 # endif
+
+DECLINLINE(int)
+proxy_error_is_transient(int error)
+{
+# if !defined(RT_OS_WINDOWS)
+    return error == EWOULDBLOCK
+#  if EAGAIN != EWOULDBLOCK
+	|| error == EAGAIN
+#  endif
+	|| error == EINTR
+	|| error == ENOBUFS
+	|| error == ENOMEM;
+# else
+    return error == WSAEWOULDBLOCK
+	|| error == WSAEINTR	/* NB: we don't redefine EINTR above */
+	|| error == WSAENOBUFS;
+# endif
+}
+
 #endif

@@ -834,6 +834,10 @@
         <source>&amp;Webcams</source>
         <translation>&amp;Webcams</translation>
     </message>
+    <message>
+        <source>Network</source>
+        <translation>Netwerk</translation>
+    </message>
 </context>
 <context>
     <name>UIActonPool</name>
@@ -3797,6 +3801,14 @@
         <source>No supported webcams connected to the host PC</source>
         <translation>Er zijn geen ondersteunde webcams aan de host-PC verbonden</translation>
     </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation>Verbind netwerkadapter</translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation>Verbind netwerkadapter %1</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsAudio</name>
@@ -4069,6 +4081,10 @@
     <message>
         <source>Enable video recording for screen %1.</source>
         <translation>Schakel video-opname in voor scherm %1.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation>Beeldscherm op Afstand is voor deze virtuele machine momenteel ingeschakeld. Hiervoor moet echter &lt;b&gt;%1&lt;/b&gt; geïnstalleerd zijn. Installeer het Extension Pack dat te vinden is op de downloadsite van VirtualBox, anders start deze VM op met Beeldscherm op Afstand uitgeschakeld.</translation>
     </message>
 </context>
 <context>

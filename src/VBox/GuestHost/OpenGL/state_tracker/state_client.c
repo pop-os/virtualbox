@@ -1562,13 +1562,18 @@ static void crStateDumpClientPointer(CRClientPointer *cp, const char *name, int 
   }
 }
 
+#ifdef DEBUG_misha
+/* debugging */
+//# define CR_NO_SERVER_ARRAYS
+#endif
+
 /*
  * Determine if the enabled arrays all live on the server
  * (via GL_ARB_vertex_buffer_object).
  */
 GLboolean crStateUseServerArrays(void)
 {
-#ifdef CR_ARB_vertex_buffer_object
+#if defined(CR_ARB_vertex_buffer_object) && !defined(CR_NO_SERVER_ARRAYS)
     CRContext *g = GetCurrentContext();
     CRClientState *c = &(g->client);
     int i;
@@ -1621,6 +1626,49 @@ GLboolean crStateUseServerArrays(void)
 #endif
 
     return res;
+#else
+    return GL_FALSE;
+#endif
+}
+
+GLuint crStateNeedDummyZeroVertexArray(CRContext *g, CRCurrentStatePointers *current, GLfloat *pZva)
+{
+#if defined(CR_ARB_vertex_buffer_object)
+    CRClientState *c = &(g->client);
+    int i;
+    GLuint zvMax = 0;
+
+    if (c->array.a[0].enabled)
+        return 0;
+
+    for (i = 1; (unsigned int)i < g->limits.maxVertexProgramAttribs; i++)
+    {
+        if (c->array.a[i].enabled)
+        {
+            if (c->array.a[i].buffer && c->array.a[i].buffer->id)
+            {
+                GLuint cElements = c->array.a[i].buffer->size / c->array.a[i].stride;
+                if (zvMax < cElements)
+                    zvMax = cElements;
+            }
+            else
+            {
+                zvMax = ~0;
+                break;
+            }
+        }
+    }
+
+    if (zvMax)
+    {
+        Assert(!c->array.v.enabled);
+
+        crStateCurrentRecoverNew(g, current);
+
+        crMemcpy(pZva, &g->current.vertexAttrib[0][0], sizeof (*pZva) * 4);
+    }
+
+    return zvMax;
 #else
     return GL_FALSE;
 #endif

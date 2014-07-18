@@ -67,6 +67,7 @@
 # undef LOG_GROUP
 # include "../USB/DevOHCI.cpp"
 # ifdef VBOX_WITH_EHCI_IMPL
+#  undef LOG_GROUP
 #  include "../USB/DevEHCI.cpp"
 # endif
 #endif
@@ -1015,6 +1016,13 @@ int main()
     GEN_CHECK_OFF(OHCI, StatDroppedUrbs);
     GEN_CHECK_OFF(OHCI, StatTimer);
 # endif
+    GEN_CHECK_OFF(OHCI, hThreadFrame);
+    GEN_CHECK_OFF(OHCI, hSemEventFrame);
+    GEN_CHECK_OFF(OHCI, fBusStarted);
+    GEN_CHECK_OFF(OHCI, CsIrq);
+    GEN_CHECK_OFF(OHCI, nsWait);
+    GEN_CHECK_OFF(OHCI, CritSect);
+
 # ifdef VBOX_WITH_EHCI_IMPL
     /* USB/DevEHCI.cpp */
     GEN_CHECK_SIZE(EHCIHUBPORT);
@@ -1091,6 +1099,13 @@ int main()
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncRC);
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR3);
     GEN_CHECK_OFF(EHCI, pEOFTimerNoSyncR0);
+    GEN_CHECK_OFF(EHCI, hThreadFrame);
+    GEN_CHECK_OFF(EHCI, hSemEventFrame);
+    GEN_CHECK_OFF(EHCI, fBusStarted);
+    GEN_CHECK_OFF(EHCI, CsIrq);
+    GEN_CHECK_OFF(EHCI, uFrameRateDefault);
+    GEN_CHECK_OFF(EHCI, nsWait);
+    GEN_CHECK_OFF(EHCI, CritSect);
 # endif /* VBOX_WITH_EHCI_IMPL */
 #endif /* VBOX_WITH_USB */
 
@@ -1291,6 +1306,7 @@ int main()
     GEN_CHECK_OFF(AHCI, fR0Enabled);
     GEN_CHECK_OFF(AHCI, fSignalIdle);
     GEN_CHECK_OFF(AHCI, fBootable);
+    GEN_CHECK_OFF(AHCI, fLegacyPortResetMethod);
     GEN_CHECK_OFF(AHCI, cPortsImpl);
     GEN_CHECK_OFF(AHCI, cCmdSlotsAvail);
     GEN_CHECK_OFF(AHCI, f8ByteMMIO4BytesWrittenSuccessfully);

@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 52 2013-07-09 17:03:37Z bird $ */
+/* $Id: kLdr.h 54 2013-10-09 19:52:48Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -613,6 +613,7 @@ KI32    kLdrModNumberOfImports(PKLDRMOD pMod, const void *pvBits);
 int     kLdrModCanExecuteOn(PKLDRMOD pMod, const void *pvBits, KCPUARCH enmArch, KCPU enmCpu);
 int     kLdrModGetStackInfo(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo);
 int     kLdrModQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRADDR pMainEPAddress);
+int     kLdrModQueryImageUuid(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE cbUuid);
 int     kLdrModQueryResource(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
                              KU32 idName, const char *pszName, KU32 idLang, PKLDRADDR pAddrRsrc, KSIZE *pcbRsrc);
 int     kLdrModEnumResources(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
@@ -698,6 +699,8 @@ typedef struct KLDRMODOPS
     int (* pfnGetStackInfo)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRSTACKINFO pStackInfo);
     /** @copydoc kLdrModQueryMainEntrypoint */
     int (* pfnQueryMainEntrypoint)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, PKLDRADDR pMainEPAddress);
+    /** @copydoc kLdrModQueryImageUuid  */
+    int (* pfnQueryImageUuid)(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE pcbUuid);
     /** @copydoc kLdrModQueryResource */
     int (* pfnQueryResource)(PKLDRMOD pMod, const void *pvBits, KLDRADDR BaseAddress, KU32 idType, const char *pszType,
                              KU32 idName, const char *pszName, KU32 idLang, PKLDRADDR pAddrRsrc, KSIZE *pcbRsrc);

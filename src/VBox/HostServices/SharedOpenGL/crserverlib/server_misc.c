@@ -93,6 +93,54 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
     static int gather_connect_count = 0;
 
     switch (target) {
+        case GL_SHARE_LISTS_CR:
+        {
+            CRContextInfo *pCtx[2];
+            GLint *ai32Values;
+            int i;
+            if (count != 2)
+            {
+                WARN(("GL_SHARE_LISTS_CR invalid cound %d", count));
+                return;
+            }
+
+            if (type != GL_UNSIGNED_INT && type != GL_INT)
+            {
+                WARN(("GL_SHARE_LISTS_CR invalid type %d", type));
+                return;
+            }
+
+            ai32Values = (GLint*)values;
+
+            for (i = 0; i < 2; ++i)
+            {
+                const int32_t val = ai32Values[i];
+
+                if (val == 0)
+                {
+                    WARN(("GL_SHARE_LISTS_CR invalid value[%d] %d", i, val));
+                    return;
+                }
+
+                pCtx[i] = (CRContextInfo *) crHashtableSearch(cr_server.contextTable, val);
+                if (!pCtx[i])
+                {
+                    WARN(("GL_SHARE_LISTS_CR invalid pCtx1 for value[%d] %d", i, val));
+                    return;
+                }
+
+                if (!pCtx[i]->pContext)
+                {
+                    WARN(("GL_SHARE_LISTS_CR invalid pCtx1 pContext for value[%d] %d", i, val));
+                    return;
+                }
+            }
+
+            crStateShareLists(pCtx[0]->pContext, pCtx[1]->pContext);
+
+            break;
+        }
+
     case GL_SET_MAX_VIEWPORT_CR:
         {
             GLint *maxDims = (GLint *)values;
@@ -280,6 +328,9 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParameteriCR(GLenum target
         break;
     case GL_HH_SET_DEFAULT_SHARED_CTX:
         crWarning("Recieved GL_HH_SET_DEFAULT_SHARED_CTX from guest, ignoring");
+        break;
+    case GL_HH_RENDERTHREAD_INFORM:
+        crWarning("Recieved GL_HH_RENDERTHREAD_INFORM from guest, ignoring");
         break;
     default:
         /* Pass the parameter info to the head SPU */
@@ -724,7 +775,10 @@ int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTU
         GLuint hwid;
 
         if (!mural->fRedirected)
+        {
+            WARN(("mural not redirected!"));
             return VERR_NOT_IMPLEMENTED;
+        }
 
         enmBuf = fDraw ? ctx->buffer.drawBuffer : ctx->buffer.readBuffer;
         switch (enmBuf)
@@ -740,7 +794,7 @@ int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTU
                 hwid = mural->aidColorTexs[CR_SERVER_FBO_FB_IDX(mural)];
                 break;
             default:
-                crWarning("unsupported enum buf");
+                WARN(("unsupported enum buf %d", enmBuf));
                 return VERR_NOT_IMPLEMENTED;
                 break;
         }
@@ -775,7 +829,7 @@ int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTU
 
     if (pAp->level)
     {
-        crWarning("non-zero level not implemented");
+        WARN(("non-zero level not implemented"));
         return VERR_NOT_IMPLEMENTED;
     }
 
@@ -788,7 +842,7 @@ int crServerVBoxBlitterTexInit(CRContext *ctx, CRMuralInfo *mural, PVBOXVR_TEXTU
 
     if (tobj->target != GL_TEXTURE_2D && tobj->target != GL_TEXTURE_RECTANGLE_NV)
     {
-        crWarning("non-texture[rect|2d] not implemented");
+        WARN(("non-texture[rect|2d] not implemented"));
         return VERR_NOT_IMPLEMENTED;
     }
 
@@ -819,7 +873,7 @@ int crServerVBoxBlitterBlitCurrentCtx(GLint srcX0, GLint srcY0, GLint srcX1, GLi
 
     if (mask != GL_COLOR_BUFFER_BIT)
     {
-        crWarning("not supported blit mask %d", mask);
+        WARN(("not supported blit mask %d", mask));
         return VERR_NOT_IMPLEMENTED;
     }
 

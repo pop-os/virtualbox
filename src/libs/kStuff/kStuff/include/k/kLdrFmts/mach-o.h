@@ -1,4 +1,4 @@
-/* $Id: mach-o.h 50 2012-09-05 09:55:16Z bird $ */
+/* $Id: mach-o.h 55 2013-10-11 00:55:44Z bird $ */
 /** @file
  * Mach-0 structures, types and defines.
  */
@@ -144,6 +144,7 @@ typedef struct mach_header_64
 #define MH_BUNDLE           KU32_C(8) /**< Dymamically bound bundle. */
 #define MH_DYLIB_STUB       KU32_C(9) /**< Shared library stub for static linking. */
 #define MH_DSYM             KU32_C(10)/**< Debug symbols. */
+#define MH_KEXT_BUNDLE      KU32_C(11)/**< Kernel extension (introduced with the AMD64 kernel). */
 
 /** @} */
 

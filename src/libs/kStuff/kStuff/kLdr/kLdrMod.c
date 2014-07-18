@@ -1,4 +1,4 @@
-/* $Id: kLdrMod.c 52 2013-07-09 17:03:37Z bird $ */
+/* $Id: kLdrMod.c 54 2013-10-09 19:52:48Z bird $ */
 /** @file
  * kLdr - The Module Interpreter.
  */
@@ -510,6 +510,8 @@ KI32 kLdrModNumberOfImports(PKLDRMOD pMod, const void *pvBits)
  * @param   pMod            The module.
  * @param   pvBits          Optional pointer to bits returned by kLdrModGetBits().
  *                          This can be used by some module interpreters to reduce memory consumption.
+ * @param   enmArch         The CPU architecture.
+ * @param   enmCpu          The CPU series/model.
  */
 int     kLdrModCanExecuteOn(PKLDRMOD pMod, const void *pvBits, KCPUARCH enmArch, KCPU enmCpu)
 {
@@ -559,6 +561,27 @@ int     kLdrModQueryMainEntrypoint(PKLDRMOD pMod, const void *pvBits, KLDRADDR B
     KLDRMOD_VALIDATE(pMod);
     *pMainEPAddress = 0;
     return pMod->pOps->pfnQueryMainEntrypoint(pMod, pvBits, BaseAddress, pMainEPAddress);
+}
+
+
+/**
+ * Queries the image UUID, if the image has one.
+ *
+ * @returns 0 and *pvUuid. Non-zero status code on failure.
+ * @param   pMod            The module.
+ * @param   pvBits          Optional pointer to bits returned by kLdrModGetBits() currently located at BaseAddress.
+ *                          This can be used by some module interpreters to reduce memory consumption.
+ * @param   pvUuid          Where to store the UUID.
+ * @param   cbUuid          Size of the UUID buffer, must be at least 16 bytes.
+ */
+int     kLdrModQueryImageUuid(PKLDRMOD pMod, const void *pvBits, void *pvUuid, KSIZE cbUuid)
+{
+    KLDRMOD_VALIDATE(pMod);
+    if (cbUuid < 16)
+        return KERR_INVALID_SIZE;
+    if (pMod->pOps->pfnQueryImageUuid)
+        return pMod->pOps->pfnQueryImageUuid(pMod, pvBits, pvUuid, cbUuid);
+    return KLDR_ERR_NO_IMAGE_UUID;
 }
 
 

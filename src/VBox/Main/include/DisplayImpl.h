@@ -95,6 +95,7 @@ typedef struct _DISPLAYFBINFO
 
 #ifdef VBOX_WITH_HGSMI
     bool fVBVAEnabled;
+    bool fRenderThreadMode;
     uint32_t cVBVASkipUpdate;
     struct
     {
@@ -166,17 +167,15 @@ public:
     int handleVHWACommandProcess(PVBOXVHWACMD pCommand);
 #endif
 #ifdef VBOX_WITH_CRHGSMI
-    void handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
-    void handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
-
     void handleCrHgsmiCommandCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
     void handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
+    void handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
+    void handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl);
 #endif
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     int  handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
                                         PFNCRCTLCOMPLETION pfnCompletion,
                                         void *pvCompletion);
-    void  handleCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam);
     void  handleCrVRecScreenshotPerform(uint32_t uScreen,
                                         uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
                                         uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
@@ -243,7 +242,7 @@ private:
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    void crViewportNotify(class VMMDev *pVMMDev, ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
+    int crViewportNotify(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
 #endif
 
     static DECLCALLBACK(int)   changeFramebuffer(Display *that, IFramebuffer *aFB, unsigned uScreenId);
@@ -279,7 +278,7 @@ private:
     static DECLCALLBACK(void)  displayCrHgcmCtlSubmitCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
 #ifdef VBOX_WITH_HGSMI
-    static DECLCALLBACK(int)   displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags);
+    static DECLCALLBACK(int)   displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode);
     static DECLCALLBACK(void)  displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
     static DECLCALLBACK(void)  displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId);
     static DECLCALLBACK(void)  displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd);
@@ -298,8 +297,8 @@ private:
     static DECLCALLBACK(void) displayCrVRecScreenshotEnd(void *pvCtx, uint32_t uScreen, uint64_t u64TimeStamp);
 
     static DECLCALLBACK(void)  displayVRecCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
-    static DECLCALLBACK(void)  displayCrAsyncCmdCompletion(int32_t result, uint32_t u32Function, PVBOXHGCMSVCPARM pParam, void *pvContext);
 #endif
+    static DECLCALLBACK(void) displayCrCmdFree(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
 
     static DECLCALLBACK(void)  displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser);
     static DECLCALLBACK(int)   displaySSMLoadScreenshot(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
@@ -345,17 +344,19 @@ private:
 #ifdef VBOX_WITH_CRHGSMI
     /* for fast host hgcm calls */
     HGCMCVSHANDLE mhCrOglSvc;
+    RTCRITSECTRW mCrOglLock;
 #endif
 #ifdef VBOX_WITH_CROGL
     CR_MAIN_INTERFACE mCrOglCallbacks;
     volatile uint32_t mfCrOglVideoRecState;
     CRVBOXHGCMTAKESCREENSHOT mCrOglScreenshotData;
+    VBOXCRCMDCTL_HGCM mCrOglScreenshotCtl;
 #endif
 
     bool vbvaFetchCmd(VBVACMDHDR **ppHdr, uint32_t *pcbCmd);
     void vbvaReleaseCmd(VBVACMDHDR *pHdr, int32_t cbCmd);
 
-    void handleResizeCompletedEMT(void);
+    void handleResizeCompletedEMT(BOOL fResizeContext);
 
     RTCRITSECT mVBVALock;
     volatile uint32_t mfu32PendingVideoAccelDisable;
@@ -372,7 +373,21 @@ public:
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     static BOOL  displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data, uint32_t u32Width, uint32_t u32Height);
+    int crCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion);
+    int crCtlSubmitSync(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+    /* copies the given command and submits it asynchronously,
+     * i.e. the pCmd data may be discarded right after the call returns */
+    int crCtlSubmitAsyncCmdCopy(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
+    /* performs synchronous request processing if 3D backend has something to display
+     * this is primarily to work-around 3d<->main thread deadlocks on OSX
+     * in case of async completion, the command is coppied to the allocated buffer,
+     * freeded on command completion
+     * can be used for "notification" commands, when client is not interested in command result,
+     * that must synchronize with 3D backend only when some 3D data is displayed.
+     * The routine does NOT provide any info on whether command is processed asynchronously or not */
+    int crCtlSubmitSyncIfHasDataForScreen(uint32_t u32ScreenID, struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd);
 #endif
+
 private:
     static void InvalidateAndUpdateEMT(Display *pDisplay, unsigned uId, bool fUpdateAll);
     static int  drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address, ULONG x, ULONG y, ULONG width, ULONG height);

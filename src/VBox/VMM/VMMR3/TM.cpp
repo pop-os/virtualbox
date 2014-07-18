@@ -697,6 +697,8 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     STAM_REG(pVM, &pVM->tm.s.StatTSCWarp,                             STAMTYPE_COUNTER, "/TM/TSC/Intercept/Warp",              STAMUNIT_OCCURENCES, "Warpdrive is active.");
     STAM_REG(pVM, &pVM->tm.s.StatTSCSet,                              STAMTYPE_COUNTER, "/TM/TSC/Sets",                        STAMUNIT_OCCURENCES, "Calls to TMCpuTickSet.");
     STAM_REG(pVM, &pVM->tm.s.StatTSCUnderflow,                        STAMTYPE_COUNTER, "/TM/TSC/Underflow",                   STAMUNIT_OCCURENCES, "TSC underflow; corrected with last seen value .");
+    STAM_REG(pVM, &pVM->tm.s.StatVirtualPause,                        STAMTYPE_COUNTER, "/TM/TSC/Pause",                       STAMUNIT_OCCURENCES, "The number of times the TSC was paused.");
+    STAM_REG(pVM, &pVM->tm.s.StatVirtualResume,                       STAMTYPE_COUNTER, "/TM/TSC/Resume",                      STAMUNIT_OCCURENCES, "The number of times the TSC was resumed.");
 #endif /* VBOX_WITH_STATISTICS */
 
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
@@ -1153,6 +1155,7 @@ static DECLCALLBACK(int) tmR3Save(PVM pVM, PSSMHANDLE pSSM)
     }
     Assert(!pVM->tm.s.cVirtualTicking);
     Assert(!pVM->tm.s.fVirtualSyncTicking);
+    Assert(!pVM->tm.s.cTSCsTicking);
 #endif
 
     /*
@@ -1204,6 +1207,7 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
     }
     Assert(!pVM->tm.s.cVirtualTicking);
     Assert(!pVM->tm.s.fVirtualSyncTicking);
+    Assert(!pVM->tm.s.cTSCsTicking);
 #endif
 
     /*
@@ -1260,12 +1264,17 @@ static DECLCALLBACK(int) tmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, u
     }
 
     /* the cpu tick clock. */
+    pVM->tm.s.cTSCsTicking = 0;
+    pVM->tm.s.offTSCPause = 0;
+    pVM->tm.s.u64LastPausedTSC = 0;
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
         pVCpu->tm.s.fTSCTicking = false;
         SSMR3GetU64(pSSM, &pVCpu->tm.s.u64TSC);
+        if (pVM->tm.s.u64LastPausedTSC < pVCpu->tm.s.u64TSC)
+            pVM->tm.s.u64LastPausedTSC = pVCpu->tm.s.u64TSC;
 
         if (pVM->tm.s.fTSCUseRealTSC)
             pVCpu->tm.s.offTSCRawSrc = 0; /** @todo TSC restore stuff and HWACC. */
@@ -2675,11 +2684,16 @@ VMMR3DECL(int) TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu)
 
     /*
      * Pause the TSC last since it is normally linked to the virtual
-     * sync clock, so the above code may actually stop both clock.
+     * sync clock, so the above code may actually stop both clocks.
      */
-    rc = tmCpuTickPause(pVCpu);
-    if (RT_FAILURE(rc))
-        return rc;
+    if (!pVM->tm.s.fTSCTiedToExecution)
+    {
+        TM_LOCK_TIMERS(pVM);    /* Exploit the timer lock for synchronization. */
+        rc = tmCpuTickPauseLocked(pVM, pVCpu);
+        TM_UNLOCK_TIMERS(pVM);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
 
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     /*
@@ -2723,7 +2737,9 @@ VMMR3DECL(int) TMR3NotifyResume(PVM pVM, PVMCPU pVCpu)
      */
     if (!pVM->tm.s.fTSCTiedToExecution)
     {
-        rc = tmCpuTickResume(pVM, pVCpu);
+        TM_LOCK_TIMERS(pVM);    /* Exploit the timer lock for synchronization. */
+        rc = tmCpuTickResumeLocked(pVM, pVCpu);
+        TM_UNLOCK_TIMERS(pVM);
         if (RT_FAILURE(rc))
             return rc;
     }

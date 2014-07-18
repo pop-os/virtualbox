@@ -1,4 +1,4 @@
-/* $Id: kErrors.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kErrors.h 54 2013-10-09 19:52:48Z bird $ */
 /** @file
  * kErrors - Status Codes.
  */
@@ -205,13 +205,15 @@
 #define KLDR_ERR_FAT_INVALID                            (KLDR_ERR_BASE + 36)
 /** Unsupported CPU subtype found in a FAT entry. */
 #define KLDR_ERR_FAT_UNSUPPORTED_CPU_SUBTYPE            (KLDR_ERR_BASE + 37)
+/** The image has no UUID. */
+#define KLDR_ERR_NO_IMAGE_UUID                          (KLDR_ERR_BASE + 38)
 /** @} */
 
 /** @name kLdrModPE Specific
  * @{
  */
 /** The base of the kLdrModPE specific status codes. */
-#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 38)
+#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 39)
 /** The machine isn't supported by the interpreter. */
 #define KLDR_ERR_PE_UNSUPPORTED_MACHINE                 (KLDR_ERR_PE_BASE + 0)
 /** The file handler isn't valid. */
