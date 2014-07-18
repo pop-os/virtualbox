@@ -20,7 +20,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2013-11-19 03:42:12.725479132 -0500
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2013-11-19 03:42:12.721479132 -0500
-@@ -653,7 +653,6 @@
+@@ -658,7 +658,6 @@
      m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
