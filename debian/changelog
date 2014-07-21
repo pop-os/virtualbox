@@ -3,8 +3,8 @@ virtualbox (4.3.14-dfsg-1) UNRELEASED; urgency=medium
   [ Gianfranco Costamagna ]
   * New upstream release (Closes: #754220)
     thanks Mateusz Łukasik for the patch.
-  * Add get-orig-source rules target, to fully comply with
-    debian policy. (Closes: #699141), thanks Dmitry!
+  * Tweak README.source to show how to upgrade the package with
+    uscan (Closes: #699141), thanks Dmitry!
   * Removing some binary files from the source tarball,
     spotted by lintian.
 

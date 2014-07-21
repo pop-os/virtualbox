@@ -3,11 +3,7 @@ Source repackaging
 
 The upstream tarball used to build this package has been repackaged to
 remove unneeded/unwanted files and directories.
-You can follow these steps to upgrade to a new upstream version:
-
-uscan
-or
-./debian/rules get-orig-source
+You can just call "uscan" to upgrade to a new upstream version
 
 
 Generating manpages
