@@ -1,4 +1,4 @@
-virtualbox (4.3.14-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (4.3.14-dfsg-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
   * New upstream release (Closes: #754220)
@@ -9,7 +9,7 @@ virtualbox (4.3.14-dfsg-1) UNRELEASED; urgency=medium
   * Removing some binary files from the source tarball,
     spotted by lintian.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Wed, 02 Jul 2014 12:44:15 +0200
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Sat, 26 Jul 2014 15:25:37 +0200
 
 virtualbox (4.3.12-dfsg-1) unstable; urgency=medium
 
