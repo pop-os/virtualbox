@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -114,7 +114,7 @@ public:
 
 private:
 
-    HRESULT unlockMachine(bool aFinalRelease, bool aFromServer);
+    HRESULT unlockMachine(bool aFinalRelease, bool aFromServer, AutoWriteLock &alock);
 
     SessionState_T mState;
     SessionType_T mType;

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,8 +120,8 @@ public:
     ComObjPtr<MediumFormat> mediumFormat(const Utf8Str &aFormat);
     ComObjPtr<MediumFormat> mediumFormatFromExtension(const Utf8Str &aExt);
 
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
+    int loadVDPlugin(const char *pszPluginLibrary);
+    int unloadVDPlugin(const char *pszPluginLibrary);
 
 private:
 

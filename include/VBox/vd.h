@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -423,6 +423,19 @@ typedef struct VDBACKENDINFO
     DECLR3CALLBACKMEMBER(int, pfnComposeName, (PVDINTERFACE pConfig, char **pszName));
 } VDBACKENDINFO, *PVDBACKENDINFO;
 
+/**
+ * Data structure for returning a list of filter capabilities.
+ */
+typedef struct VDFILTERINFO
+{
+    /** Name of the filter. Must be unique even with case insensitive comparison. */
+    const char *pszFilter;
+    /** Pointer to an array of structs describing each supported config key.
+     * Terminated by a NULL config key. Note that some filters do not support
+     * the configuration interface, so this pointer may just contain NULL. */
+    PCVDCONFIGINFO paConfigInfo;
+} VDFILTERINFO, *PVDFILTERINFO;
+
 
 /**
  * Request completion callback for the async read/write API.
@@ -488,6 +501,22 @@ VBOXDDU_DECL(int) VDPluginLoadFromFilename(const char *pszFilename);
 VBOXDDU_DECL(int) VDPluginLoadFromPath(const char *pszPath);
 
 /**
+ * Unloads a single plugin given by filename.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename     The plugin filename to unload.
+ */
+VBOXDDU_DECL(int) VDPluginUnloadFromFilename(const char *pszFilename);
+
+/**
+ * Unload all plugins from a given path.
+ *
+ * @returns VBox statuse code.
+ * @param   pszPath         The path to unload plugins from.
+ */
+VBOXDDU_DECL(int) VDPluginUnloadFromPath(const char *pszPath);
+
+/**
  * Lists all HDD backends and their capabilities in a caller-provided buffer.
  *
  * @return  VBox status code.
@@ -507,6 +536,27 @@ VBOXDDU_DECL(int) VDBackendInfo(unsigned cEntriesAlloc, PVDBACKENDINFO pEntries,
  * @param   pEntries        Pointer to an entry.
  */
 VBOXDDU_DECL(int) VDBackendInfoOne(const char *pszBackend, PVDBACKENDINFO pEntry);
+
+/**
+ * Lists all filters and their capabilities in a caller-provided buffer.
+ *
+ * @return  VBox status code.
+ *          VERR_BUFFER_OVERFLOW if not enough space is passed.
+ * @param   cEntriesAlloc   Number of list entries available.
+ * @param   pEntries        Pointer to array for the entries.
+ * @param   pcEntriesUsed   Number of entries returned.
+ */
+VBOXDDU_DECL(int) VDFilterInfo(unsigned cEntriesAlloc, PVDFILTERINFO pEntries,
+                               unsigned *pcEntriesUsed);
+
+/**
+ * Lists the capabilities of a filter identified by its name.
+ *
+ * @return  VBox status code.
+ * @param   pszFilter       The filter name (case insensitive).
+ * @param   pEntries        Pointer to an entry.
+ */
+VBOXDDU_DECL(int) VDFilterInfoOne(const char *pszFilter, PVDFILTERINFO pEntry);
 
 /**
  * Allocates and initializes an empty HDD container.

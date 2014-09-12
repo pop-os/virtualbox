@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -445,6 +445,9 @@ public:
 
     /** |true| when uninit() has already been called (so the object is NotReady) */
     bool uninitDone() { return mUninitDone; }
+
+    /** Immediately complete the span, object is NotReady now */
+    void setSucceeded();
 
 private:
 

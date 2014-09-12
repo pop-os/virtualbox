@@ -147,6 +147,25 @@ static DECLCALLBACK(int) drvblockRead(PPDMIBLOCK pInterface, uint64_t off, void 
 }
 
 
+/** @copydoc PDMIBLOCK::pfnRead */
+static DECLCALLBACK(int) drvblockReadPcBios(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead)
+{
+    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
+
+    /*
+     * Check the state.
+     */
+    if (!pThis->pDrvMedia)
+    {
+        AssertMsgFailed(("Invalid state! Not mounted!\n"));
+        return VERR_PDM_MEDIA_NOT_MOUNTED;
+    }
+
+    int rc = pThis->pDrvMedia->pfnReadPcBios(pThis->pDrvMedia, off, pvBuf, cbRead);
+    return rc;
+}
+
+
 /** @copydoc PDMIBLOCK::pfnWrite */
 static DECLCALLBACK(int) drvblockWrite(PPDMIBLOCK pInterface, uint64_t off, const void *pvBuf, size_t cbWrite)
 {
@@ -307,6 +326,22 @@ static DECLCALLBACK(int) drvblockDiscard(PPDMIBLOCK pInterface, PCRTRANGE paRang
     PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
 
     return pThis->pDrvMedia->pfnDiscard(pThis->pDrvMedia, paRanges, cRanges);
+}
+
+/** @copydoc PDMIBLOCK::pfnIoBufAlloc */
+static DECLCALLBACK(int) drvblockIoBufAlloc(PPDMIBLOCK pInterface, size_t cb, void **ppvNew)
+{
+    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
+
+    return pThis->pDrvMedia->pfnIoBufAlloc(pThis->pDrvMedia, cb, ppvNew);
+}
+
+/** @copydoc PDMIBLOCK::pfnIoBufFree */
+static DECLCALLBACK(int) drvblockIoBufFree(PPDMIBLOCK pInterface, void *pv, size_t cb)
+{
+    PDRVBLOCK pThis = PDMIBLOCK_2_DRVBLOCK(pInterface);
+
+    return pThis->pDrvMedia->pfnIoBufFree(pThis->pDrvMedia, pv, cb);
 }
 
 /* -=-=-=-=- IBlockAsync -=-=-=-=- */
@@ -864,6 +899,7 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
 
     /* IBlock. */
     pThis->IBlock.pfnRead                   = drvblockRead;
+    pThis->IBlock.pfnReadPcBios             = drvblockReadPcBios;
     pThis->IBlock.pfnWrite                  = drvblockWrite;
     pThis->IBlock.pfnFlush                  = drvblockFlush;
     pThis->IBlock.pfnMerge                  = drvblockMerge;
@@ -872,6 +908,8 @@ static DECLCALLBACK(int) drvblockConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, u
     pThis->IBlock.pfnGetSectorSize          = drvblockGetSectorSize;
     pThis->IBlock.pfnGetType                = drvblockGetType;
     pThis->IBlock.pfnGetUuid                = drvblockGetUuid;
+    pThis->IBlock.pfnIoBufAlloc             = drvblockIoBufAlloc;
+    pThis->IBlock.pfnIoBufFree              = drvblockIoBufFree;
 
     /* IBlockBios. */
     pThis->IBlockBios.pfnGetPCHSGeometry    = drvblockGetPCHSGeometry;

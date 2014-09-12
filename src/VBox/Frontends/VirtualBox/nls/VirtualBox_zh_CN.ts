@@ -247,7 +247,7 @@
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
-        <translation>为当前虚拟电脑生成一个备份</translation>
+        <translation>为当前虚拟电脑生成一个备份(系统快照)</translation>
     </message>
     <message>
         <source>Show Session Information Window</source>
@@ -454,15 +454,16 @@
     </message>
     <message>
         <source>Take Sn&amp;apshot...</source>
-        <translation>生成备份(&amp;A)...</translation>
+        <translation>生成备份[系统快照](&amp;A)...</translation>
     </message>
     <message>
         <source>Take Screensh&amp;ot...</source>
-        <translation>抓取屏幕快照(&amp;O)...</translation>
+        <translatorcomment>Fixed</translatorcomment>
+        <translation>屏幕截图(&amp;O)...</translation>
     </message>
     <message>
         <source>Take a screenshot of the virtual machine</source>
-        <translation>为当前虚拟电脑生成一个屏幕快照</translation>
+        <translation>为当前虚拟电脑生成一个屏幕截图</translation>
     </message>
     <message>
         <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
@@ -831,7 +832,7 @@
     </message>
     <message>
         <source>Network</source>
-        <translation type="unfinished">网络</translation>
+        <translation>网络</translation>
     </message>
 </context>
 <context>
@@ -3754,7 +3755,7 @@
     </message>
     <message>
         <source>Select a filename for the screenshot ...</source>
-        <translation>选择屏幕快照的文件名...</translation>
+        <translation>选择屏幕截图的文件名...</translation>
     </message>
     <message>
         <source>No Webcams Connected</source>
@@ -3766,11 +3767,11 @@
     </message>
     <message>
         <source>Connect Network Adapter</source>
-        <translation type="unfinished"></translation>
+        <translation>启用网络连接</translation>
     </message>
     <message>
         <source>Connect Network Adapter %1</source>
-        <translation type="unfinished"></translation>
+        <translation>启用网络连接 %1</translation>
     </message>
 </context>
 <context>
@@ -4049,7 +4050,7 @@
     </message>
     <message>
         <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
-        <translation type="unfinished"></translation>
+        <translation>本虚拟机当前已启用远程桌面。然而，这需要安装 &lt;b&gt;%1&lt;/b&gt;。请从 VirtualBox 下载站中安装“扩展增强包” (菜单操作：设备--安装增强功能)，不然远程桌面将禁用。</translation>
     </message>
 </context>
 <context>
@@ -6483,7 +6484,7 @@
     </message>
     <message>
         <source>Create a snapshot of the current machine state</source>
-        <translation>创建当前虚拟机状态的备份</translation>
+        <translation>创建当前虚拟机状态的备份(系统快照)</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
@@ -7807,7 +7808,8 @@
     </message>
     <message>
         <source>&amp;Snapshots</source>
-        <translation>备份(&amp;S)</translation>
+        <translatorcomment>Fix</translatorcomment>
+        <translation>备份[系统快照](&amp;S)</translation>
     </message>
 </context>
 <context>

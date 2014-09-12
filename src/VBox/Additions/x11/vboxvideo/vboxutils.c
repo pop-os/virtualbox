@@ -208,7 +208,7 @@ static void vboxFillDisplayMode(ScrnInfoPtr pScrn, DisplayModePtr m,
     if (pszName)
     {
         if (m->name)
-            free(m->name);
+            free((void*)m->name);
         m->name      = xnfstrdup(pszName);
     }
 }

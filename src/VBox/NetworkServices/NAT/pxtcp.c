@@ -51,7 +51,7 @@
  */
 #if defined(RT_OS_NETBSD) || defined(RT_OS_SOLARIS)
 # define HAVE_TCP_POLLHUP 0                     /* not reported */
-#elif defined(RT_OS_DARWIN)
+#elif defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
 # define HAVE_TCP_POLLHUP POLLIN                /* reported when remote closes */
 #else
 # define HAVE_TCP_POLLHUP (POLLIN|POLLOUT)      /* reported when both directions are closed */
@@ -1101,7 +1101,7 @@ pxtcp_pmgr_connect(struct pollmgr_handler *handler, SOCKET fd, int revents)
 
             status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
                                 (char *)&pxtcp->sockerr, &optlen);
-            if (status < 0) {   /* should not happen */
+            if (status == SOCKET_ERROR) { /* should not happen */
                 DPRINTF(("%s: sock %d: SO_ERROR failed: %R[sockerr]\n",
                          __func__, fd, SOCKERRNO()));
             }
@@ -1633,7 +1633,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
 
         status = getsockopt(pxtcp->sock, SOL_SOCKET, SO_ERROR,
                             (char *)&sockerr, &optlen);
-        if (status < 0) {       /* should not happen */
+        if (status == SOCKET_ERROR) { /* should not happen */
             DPRINTF(("sock %d: SO_ERROR failed: %R[sockerr]\n",
                      fd, SOCKERRNO()));
         }
@@ -1682,6 +1682,7 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
     LWIP_ASSERT1((revents & POLLHUP) == 0);
 #else
     if (revents & POLLHUP) {
+        DPRINTF(("sock %d: HUP\n", fd));
 #if HAVE_TCP_POLLHUP == POLLIN
         /*
          * Remote closed inbound.
@@ -1704,7 +1705,6 @@ pxtcp_pmgr_pump(struct pollmgr_handler *handler, SOCKET fd, int revents)
          * Both directions are closed.
          */
         {
-            DPRINTF(("sock %d: HUP\n", fd));
             LWIP_ASSERT1(pxtcp->outbound_close_done);
 
             if (pxtcp->inbound_close) {

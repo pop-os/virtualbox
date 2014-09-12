@@ -108,6 +108,8 @@ public:
 
     /** @name Runtime workflow stuff.
      ** @{ */
+    /** Returns the mouse-capture policy. */
+    MouseCapturePolicy mouseCapturePolicy() const { return m_mouseCapturePolicy; }
     /** Returns Guru Meditation handler type. */
     GuruMeditationHandlerType guruMeditationHandlerType() const { return m_guruMeditationHandlerType; }
     /** Returns HiDPI optimization type. */
@@ -264,9 +266,12 @@ signals:
     void sigCPUExecutionCapChange();
     void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
 
-    /* Notifiers: Qt callback stuff: */
-    void sigHostScreenCountChanged();
-    void sigHostScreenGeometryChanged();
+    /** Notifies about host-screen count change. */
+    void sigHostScreenCountChange();
+    /** Notifies about host-screen geometry change. */
+    void sigHostScreenGeometryChange();
+    /** Notifies about host-screen available-area change. */
+    void sigHostScreenAvailableAreaChange();
 
     /* Session signals: */
     void sigStarted();
@@ -298,8 +303,13 @@ private slots:
     void sltHandleHostDisplayAboutToChange();
     void sltCheckIfHostDisplayChanged();
 #endif /* RT_OS_DARWIN */
+
+    /** Handles host-screen count change. */
     void sltHandleHostScreenCountChange();
+    /** Handles host-screen geometry change. */
     void sltHandleHostScreenGeometryChange();
+    /** Handles host-screen available-area change. */
+    void sltHandleHostScreenAvailableAreaChange();
 
 private:
 
@@ -366,6 +376,8 @@ private:
 
     /** @name Runtime workflow variables.
      ** @{ */
+    /** Holds the mouse-capture policy. */
+    MouseCapturePolicy m_mouseCapturePolicy;
     /** Holds Guru Meditation handler type. */
     GuruMeditationHandlerType m_guruMeditationHandlerType;
     /** Holds HiDPI optimization type. */

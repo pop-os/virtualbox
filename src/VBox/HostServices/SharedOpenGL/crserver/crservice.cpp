@@ -1096,13 +1096,14 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                     CHECK_ERROR_BREAK(pMachine, COMGETTER(MonitorCount)(&monitorCount));
                     CHECK_ERROR_BREAK(pConsole, COMGETTER(Display)(pDisplay.asOutParam()));
 
-                    crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
-
                     g_pConsole = pConsole;
                     g_u32ScreenCount = monitorCount;
 
                     rc = crVBoxServerSetScreenCount(monitorCount);
                     AssertRCReturn(rc, rc);
+
+#if 1
+                    crServerVBoxCompositionSetEnableStateGlobal(GL_FALSE);
 
                     for (i=0; i<monitorCount; ++i)
                     {
@@ -1125,6 +1126,7 @@ static int svcHostCallPerform(uint32_t u32Function, uint32_t cParms, VBOXHGCMSVC
                     }
 
                     crServerVBoxCompositionSetEnableStateGlobal(GL_TRUE);
+#endif
 
                     rc = VINF_SUCCESS;
                 }
@@ -1533,7 +1535,16 @@ int crVBoxServerHostCtl(VBOXCRCMDCTL *pCtl, uint32_t cbCtl)
         return VERR_INVALID_PARAMETER;
     }
     uint32_t cParams = (cbCtl - sizeof (VBOXCRCMDCTL)) / sizeof (VBOXHGCMSVCPARM);
-    return svcHostCallPerform(pCtl->u32Function, cParams, (VBOXHGCMSVCPARM*)(pCtl + 1));
+    bool fHasCallout = VBOXCRCMDCTL_IS_CALLOUT_AVAILABLE(pCtl);
+    if (fHasCallout)
+        crVBoxServerCalloutEnable(pCtl);
+
+    int rc = svcHostCallPerform(pCtl->u32Function, cParams, (VBOXHGCMSVCPARM*)(pCtl + 1));
+
+    if (fHasCallout)
+        crVBoxServerCalloutDisable();
+
+    return rc;
 }
 
 static DECLCALLBACK(int) svcHostCall(void *, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])

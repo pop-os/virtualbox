@@ -71,6 +71,17 @@ typedef void *pointer;
 extern "C" int xf86open(const char *, int, ...);
 extern "C" int xf86close(int);
 extern "C" int xf86ioctl(int, unsigned long, pointer);
+# define VBOX_VBGLR3_XSERVER
+#elif defined(VBOX_VBGLR3_XORG)
+# include <sys/stat.h>
+# include <fcntl.h>
+# include <unistd.h>
+# include <sys/ioctl.h>
+# define xf86open open
+# define xf86close close
+# define xf86ioctl ioctl
+# define XF86_O_RDWR O_RDWR
+# define VBOX_VBGLR3_XSERVER
 #endif
 
 
@@ -78,7 +89,7 @@ extern "C" int xf86ioctl(int, unsigned long, pointer);
 *   Global Variables                                                           *
 *******************************************************************************/
 /** The VBoxGuest device handle. */
-#ifdef VBOX_VBGLR3_XFREE86
+#ifdef VBOX_VBGLR3_XSERVER
 static int g_File = -1;
 #elif defined(RT_OS_WINDOWS)
 static HANDLE g_hFile = INVALID_HANDLE_VALUE;
@@ -114,7 +125,7 @@ static int vbglR3Init(const char *pszDeviceName)
          */
 #ifdef RT_OS_WINDOWS
         if (g_hFile == INVALID_HANDLE_VALUE)
-#elif !defined (VBOX_VBGLR3_XFREE86)
+#elif !defined (VBOX_VBGLR3_XSERVER)
         if (g_File == NIL_RTFILE)
 #else
         if (g_File == -1)
@@ -124,7 +135,7 @@ static int vbglR3Init(const char *pszDeviceName)
     }
 #if defined(RT_OS_WINDOWS)
     if (g_hFile != INVALID_HANDLE_VALUE)
-#elif !defined(VBOX_VBGLR3_XFREE86)
+#elif !defined(VBOX_VBGLR3_XSERVER)
     if (g_File != NIL_RTFILE)
 #else
     if (g_File != -1)
@@ -233,7 +244,7 @@ static int vbglR3Init(const char *pszDeviceName)
     g_File = hFile;
     g_uConnection = uConnection;
 
-#elif defined(VBOX_VBGLR3_XFREE86)
+#elif defined(VBOX_VBGLR3_XSERVER)
     int File = xf86open(pszDeviceName, XF86_O_RDWR);
     if (File == -1)
         return VERR_OPEN_FAILED;
@@ -250,7 +261,7 @@ static int vbglR3Init(const char *pszDeviceName)
 
 #endif
 
-#ifndef VBOX_VBGLR3_XFREE86
+#ifndef VBOX_VBGLR3_XSERVER
     /*
      * Create release logger
      */
@@ -295,7 +306,7 @@ VBGLR3DECL(void) VbglR3Term(void)
     uint32_t cInits = ASMAtomicDecU32(&g_cInits);
     if (cInits > 0)
         return;
-#if !defined(VBOX_VBGLR3_XFREE86)
+#if !defined(VBOX_VBGLR3_XSERVER)
     AssertReturnVoid(!cInits);
 
 # if defined(RT_OS_WINDOWS)
@@ -330,13 +341,13 @@ VBGLR3DECL(void) VbglR3Term(void)
     AssertRC(rc);
 # endif
 
-#else  /* VBOX_VBGLR3_XFREE86 */
+#else  /* VBOX_VBGLR3_XSERVER */
     int File = g_File;
     g_File = -1;
     if (File == -1)
         return;
     xf86close(File);
-#endif /* VBOX_VBGLR3_XFREE86 */
+#endif /* VBOX_VBGLR3_XSERVER */
 }
 
 
@@ -382,41 +393,40 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
         return vrc;
     return RTErrConvertFromOS2(rc);
 
-#elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
+#else
+# if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
     VBGLBIGREQ Hdr;
     Hdr.u32Magic = VBGLBIGREQ_MAGIC;
     Hdr.cbData = cbData;
     Hdr.pvDataR3 = pvData;
-# if HC_ARCH_BITS == 32
+#  if HC_ARCH_BITS == 32
     Hdr.u32Padding = 0;
-# endif
+#  endif
+    pvData = &Hdr;
 
 /** @todo test status code passing! Check that the kernel doesn't do any
  *        error checks using specific errno values, and just pass an VBox
  *        error instead of an errno.h one. Alternatively, extend/redefine the
  *        header with an error code return field (much better alternative
  *        actually). */
-#ifdef VBOX_VBGLR3_XFREE86
-    int rc = xf86ioctl(g_File, iFunction, &Hdr);
-#else
-    if (g_File == NIL_RTFILE)
-        return VERR_INVALID_HANDLE;
-    int rc = ioctl(RTFileToNative(g_File), iFunction, &Hdr);
-#endif
-    if (rc == -1)
-    {
-        rc = errno;
-        return RTErrConvertFromErrno(rc);
-    }
-    return VINF_SUCCESS;
+# elif defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
+    NOREF(cbData);
+# endif
 
-#elif defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
-# ifdef VBOX_VBGLR3_XFREE86
+# if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD) || defined(RT_OS_DARWIN) || defined(RT_OS_LINUX)
+#  ifdef VBOX_VBGLR3_XSERVER
     int rc = xf86ioctl((int)g_File, iFunction, pvData);
-# else
+#  else
     if (g_File == NIL_RTFILE)
         return VERR_INVALID_HANDLE;
     int rc = ioctl(RTFileToNative(g_File), iFunction, pvData);
+#  endif
+# elif defined(RT_OS_HAIKU)
+    /* The ioctl hook in Haiku does take the len parameter when specified,
+     * so just use it. */
+    int rc = ioctl((int)g_File, iFunction, pvData, cbData);
+# else
+#  error Port me!
 # endif
     if (RT_LIKELY(rc == 0))
         return VINF_SUCCESS;
@@ -425,44 +435,13 @@ int vbglR3DoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
     if (rc > 0)
         rc = -rc;
     else
-# ifdef VBOX_VBGLR3_XFREE86
+# ifdef VBOX_VBGLR3_XSERVER
         rc = VERR_FILE_IO_ERROR;
 #  else
         rc = RTErrConvertFromErrno(errno);
 # endif
-    NOREF(cbData);
     return rc;
 
-#elif defined(RT_OS_HAIKU)
-    /* The ioctl hook in Haiku does take the len parameter when specified,
-     * so just use it. */
-    int rc = ioctl((int)g_File, iFunction, pvData, cbData);
-    if (RT_LIKELY(rc == 0))
-        return VINF_SUCCESS;
-
-    /* Positive values are negated VBox error status codes. */
-    if (rc > 0)
-        rc = -rc;
-    else
-        rc = RTErrConvertFromErrno(errno);
-    return rc;
-
-#elif defined(VBOX_VBGLR3_XFREE86)
-    /* PORTME - This is preferred over the RTFileIOCtl variant below, just be careful with the (int). */
-/** @todo test status code passing! */
-    int rc = xf86ioctl(g_File, iFunction, pvData);
-    if (rc == -1)
-        return VERR_FILE_IO_ERROR;  /* This is purely legacy stuff, it has to work and no more. */
-    return VINF_SUCCESS;
-
-#else
-    /* Default implementation - PORTME: Do not use this without testings that passing errors works! */
-/** @todo test status code passing! */
-    int rc2 = VERR_INTERNAL_ERROR;
-    int rc = RTFileIoCtl(g_File, (int)iFunction, pvData, cbData, &rc2);
-    if (RT_SUCCESS(rc))
-        rc = rc2;
-    return rc;
 #endif
 }
 

@@ -759,14 +759,14 @@ HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName,
         /* pfnGetFilePath       = */ ExtPack::hlpGetFilePath,
         /* pfnGetContext        = */ ExtPack::hlpGetContext,
         /* pfnLoadHGCMService   = */ ExtPack::hlpLoadHGCMService,
+        /* pfnLoadVDPlugin      = */ ExtPack::hlpLoadVDPlugin,
+        /* pfnUnloadVDPlugin    = */ ExtPack::hlpUnloadVDPlugin,
         /* pfnReserved1         = */ ExtPack::hlpReservedN,
         /* pfnReserved2         = */ ExtPack::hlpReservedN,
         /* pfnReserved3         = */ ExtPack::hlpReservedN,
         /* pfnReserved4         = */ ExtPack::hlpReservedN,
         /* pfnReserved5         = */ ExtPack::hlpReservedN,
         /* pfnReserved6         = */ ExtPack::hlpReservedN,
-        /* pfnReserved7         = */ ExtPack::hlpReservedN,
-        /* pfnReserved8         = */ ExtPack::hlpReservedN,
         /* u32EndMarker         = */ VBOXEXTPACKHLP_VERSION
     };
 
@@ -1632,6 +1632,56 @@ ExtPack::hlpLoadHGCMService(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IConsole) *
     return pCon->hgcmLoadService(pszServiceLibrary, pszServiceName);
 #else
     NOREF(pHlp); NOREF(pConsole); NOREF(pszServiceLibrary); NOREF(pszServiceName);
+#endif
+    return VERR_INVALID_STATE;
+}
+
+/*static*/ DECLCALLBACK(int)
+ExtPack::hlpLoadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary)
+{
+#ifndef VBOX_COM_INPROC
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pszPluginLibrary, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, VERR_INVALID_POINTER);
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+    AssertPtrReturn(m, VERR_INVALID_POINTER);
+    ExtPack *pThis = m->pThis;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pVirtualBox, VERR_INVALID_POINTER);
+
+    VirtualBox *pVBox = (VirtualBox *)pVirtualBox;
+    return pVBox->loadVDPlugin(pszPluginLibrary);
+#else
+    NOREF(pHlp); NOREF(pVirtualBox);
+#endif
+    return VERR_INVALID_STATE;
+}
+
+/*static*/ DECLCALLBACK(int)
+ExtPack::hlpUnloadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary)
+{
+#ifndef VBOX_COM_INPROC
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pszPluginLibrary, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, VERR_INVALID_POINTER);
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+    AssertPtrReturn(m, VERR_INVALID_POINTER);
+    ExtPack *pThis = m->pThis;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pVirtualBox, VERR_INVALID_POINTER);
+
+    VirtualBox *pVBox = (VirtualBox *)pVirtualBox;
+    return pVBox->unloadVDPlugin(pszPluginLibrary);
+#else
+    NOREF(pHlp); NOREF(pVirtualBox);
 #endif
     return VERR_INVALID_STATE;
 }

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -272,7 +272,7 @@ public:
 
 private:
 
-    HRESULT queryInfo(bool fSetImageId, bool fSetParentId);
+    HRESULT queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &autoCaller);
 
     HRESULT canClose();
     HRESULT unregisterWithVirtualBox();
@@ -286,6 +286,8 @@ private:
     DeviceType_T convertToDeviceType(VDTYPE enmType);
 
     Utf8Str vdError(int aVRC);
+
+    bool    isPropertyForFilter(const com::Utf8Str &aName);
 
     static DECLCALLBACK(void) vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
                                           const char *pszFormat, va_list va);

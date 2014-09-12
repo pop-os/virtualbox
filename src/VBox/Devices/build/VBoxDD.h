@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,6 +80,10 @@ extern const PDMDEVREG g_DeviceEFI;
 #endif
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
 extern const PDMDEVREG g_DevicePciRaw;
+#endif
+extern const PDMDEVREG g_DeviceGIMDev;
+#ifdef VBOX_WITH_VIRTUALKD
+extern const PDMDEVREG g_DeviceVirtualKD;
 #endif
 
 extern const PDMDRVREG g_DrvMouseQueue;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -436,6 +436,18 @@ HRESULT VirtualBox::init()
          */
         unconst(m->pAutostartDb) = new AutostartDb;
 
+#ifdef VBOX_WITH_EXTPACK
+        /*
+         * Initialize extension pack manager before system properties because
+         * it is required for the VD plugins.
+         */
+        rc = unconst(m->ptrExtPackManager).createObject();
+        if (SUCCEEDED(rc))
+            rc = m->ptrExtPackManager->initExtPackManager(this, VBOXEXTPACKCTX_PER_USER_DAEMON);
+        if (FAILED(rc))
+            throw rc;
+#endif
+
         /* create the system properties object, someone may need it too */
         unconst(m->pSystemProperties).createObject();
         rc = m->pSystemProperties->init(this);
@@ -511,15 +523,6 @@ HRESULT VirtualBox::init()
         if (SUCCEEDED(rc = unconst(m->pEventSource).createObject()))
             rc = m->pEventSource->init();
         if (FAILED(rc)) throw rc;
-
-#ifdef VBOX_WITH_EXTPACK
-        /* extension manager */
-        rc = unconst(m->ptrExtPackManager).createObject();
-        if (SUCCEEDED(rc))
-            rc = m->ptrExtPackManager->initExtPackManager(this, VBOXEXTPACKCTX_PER_USER_DAEMON);
-        if (FAILED(rc))
-            throw rc;
-#endif
     }
     catch (HRESULT err)
     {
@@ -669,7 +672,7 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
                                  strMachineFolder);
         if (FAILED(rc)) return rc;
 
-        rc = registerMedium(pHardDisk, &pHardDisk, DeviceType_HardDisk);
+        rc = registerMedium(pHardDisk, &pHardDisk, DeviceType_HardDisk, treeLock);
         if (FAILED(rc)) return rc;
     }
 
@@ -689,7 +692,7 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
                               strMachineFolder);
         if (FAILED(rc)) return rc;
 
-        rc = registerMedium(pImage, &pImage, DeviceType_DVD);
+        rc = registerMedium(pImage, &pImage, DeviceType_DVD, treeLock);
         if (FAILED(rc)) return rc;
     }
 
@@ -709,7 +712,7 @@ HRESULT VirtualBox::initMedia(const Guid &uuidRegistry,
                               strMachineFolder);
         if (FAILED(rc)) return rc;
 
-        rc = registerMedium(pImage, &pImage, DeviceType_Floppy);
+        rc = registerMedium(pImage, &pImage, DeviceType_Floppy, treeLock);
         if (FAILED(rc)) return rc;
     }
 
@@ -1531,7 +1534,7 @@ void sanitiseMachineFilename(Utf8Str &strName)
         { ' ', ' ', '(', ')', '-', '.', '0', '9', 'A', 'Z', 'a', 'z', '_', '_',
           0xa0, 0xd7af, '\0' };
     char *pszName = strName.mutableRaw();
-    int cReplacements = RTStrPurgeComplementSet(pszName, aCpSet, '_');
+    ssize_t cReplacements = RTStrPurgeComplementSet(pszName, aCpSet, '_');
     Assert(cReplacements >= 0);
     NOREF(cReplacements);
     /* No leading dot or dash. */
@@ -2012,7 +2015,7 @@ STDMETHODIMP VirtualBox::OpenMedium(IN_BSTR aLocation,
 
         if (SUCCEEDED(rc))
         {
-            rc = registerMedium(pMedium, &pMedium, deviceType);
+            rc = registerMedium(pMedium, &pMedium, deviceType, treeLock);
 
             treeLock.release();
 
@@ -2861,6 +2864,24 @@ struct MachineEvent : public VirtualBox::CallbackEvent
     MachineState_T mState;
     BOOL mBool;
 };
+
+
+/**
+ * VD plugin load
+ */
+int VirtualBox::loadVDPlugin(const char *pszPluginLibrary)
+{
+    return m->pSystemProperties->loadVDPlugin(pszPluginLibrary);
+}
+
+/**
+ * VD plugin unload
+ */
+int VirtualBox::unloadVDPlugin(const char *pszPluginLibrary)
+{
+    return m->pSystemProperties->unloadVDPlugin(pszPluginLibrary);
+}
+
 
 /**
  *  @note Doesn't lock any object.
@@ -4365,14 +4386,20 @@ HRESULT VirtualBox::registerMachine(Machine *aMachine)
  *                  to an unavoidable race there was a duplicate Medium object
  *                  created.
  * @param argType   Either DeviceType_HardDisk, DeviceType_DVD or DeviceType_Floppy.
+ * @param mediaTreeLock Reference to the AutoWriteLock holding the media tree
+ *                  lock, necessary to release it in the right spot.
  * @return
  */
 HRESULT VirtualBox::registerMedium(const ComObjPtr<Medium> &pMedium,
                                    ComObjPtr<Medium> *ppMedium,
-                                   DeviceType_T argType)
+                                   DeviceType_T argType,
+                                   AutoWriteLock &mediaTreeLock)
 {
     AssertReturn(pMedium != NULL, E_INVALIDARG);
     AssertReturn(ppMedium != NULL, E_INVALIDARG);
+
+    // caller must hold the media tree write lock
+    Assert(getMediaTreeLockHandle().isWriteLockOnCurrentThread());
 
     AutoCaller autoCaller(this);
     AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
@@ -4399,9 +4426,6 @@ HRESULT VirtualBox::registerMedium(const ComObjPtr<Medium> &pMedium,
         default:
             AssertMsgFailedReturn(("invalid device type %d", argType), E_INVALIDARG);
     }
-
-    // caller must hold the media tree write lock
-    Assert(getMediaTreeLockHandle().isWriteLockOnCurrentThread());
 
     Guid id;
     Utf8Str strLocationFull;
@@ -4442,6 +4466,8 @@ HRESULT VirtualBox::registerMedium(const ComObjPtr<Medium> &pMedium,
         if (argType == DeviceType_HardDisk)
             m->mapHardDisks[id] = pMedium;
 
+        mediumCaller.release();
+        mediaTreeLock.release();
         *ppMedium = pMedium;
     }
     else
@@ -4451,8 +4477,14 @@ HRESULT VirtualBox::registerMedium(const ComObjPtr<Medium> &pMedium,
         // In this case the assignment will uninit the object, and we must not
         // have a caller pending.
         mediumCaller.release();
+        // release media tree lock, must not be held at uninit time.
+        mediaTreeLock.release();
+        // must not hold the media tree write lock any more
+        Assert(!getMediaTreeLockHandle().isWriteLockOnCurrentThread());
         *ppMedium = pDupMedium;
     }
+
+    mediaTreeLock.acquire();
 
     return rc;
 }

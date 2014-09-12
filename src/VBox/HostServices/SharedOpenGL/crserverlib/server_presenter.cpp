@@ -45,6 +45,8 @@
 
 #include "render/renderspu.h"
 
+//#define CR_SERVER_WITH_CLIENT_CALLOUTS
+
 class ICrFbDisplay
 {
 public:
@@ -71,6 +73,7 @@ class CrFbDisplayBase;
 class CrFbDisplayWindow;
 class CrFbDisplayWindowRootVr;
 class CrFbDisplayVrdp;
+class CrFbWindow;
 
 typedef struct CR_FRAMEBUFFER
 {
@@ -125,6 +128,8 @@ typedef struct CR_FBDISPLAY_INFO
     CrFbDisplayWindow *pDpWin;
     CrFbDisplayWindowRootVr *pDpWinRootVr;
     CrFbDisplayVrdp *pDpVrdp;
+    CrFbWindow *pWindow;
+    uint32_t u32DisplayMode;
     uint32_t u32Id;
     int32_t iFb;
 } CR_FBDISPLAY_INFO;
@@ -150,6 +155,8 @@ typedef struct CR_PRESENTER_GLOBALS
     uint32_t cbTmpBuf2;
     void *pvTmpBuf2;
 } CR_PRESENTER_GLOBALS;
+
+static int crPMgrFbConnectTargetDisplays(HCR_FRAMEBUFFER hFb, CR_FBDISPLAY_INFO *pDpInfo, uint32_t u32ModeAdd);
 
 static CR_PRESENTER_GLOBALS g_CrPresenter;
 
@@ -923,9 +930,15 @@ int CrFbResize(CR_FRAMEBUFFER *pFb, const struct VBVAINFOSCREEN * pScreen, void 
         return VERR_INVALID_STATE;
     }
 
-    if (pScreen->u16Flags & VBVA_SCREEN_F_DISABLED)
+    int rc = VINF_SUCCESS;
+    if (CrFbIsEnabled(pFb))
     {
-        CrVrScrCompositorClear(&pFb->Compositor);
+        rc = CrFbRegionsClear(pFb);
+        if (RT_FAILURE(rc))
+        {
+            WARN(("CrFbRegionsClear failed %d", rc));
+            return rc;
+        }
     }
 
     RTRECT Rect;
@@ -933,7 +946,7 @@ int CrFbResize(CR_FRAMEBUFFER *pFb, const struct VBVAINFOSCREEN * pScreen, void 
     Rect.yTop = 0;
     Rect.xRight = pScreen->u32Width;
     Rect.yBottom = pScreen->u32Height;
-    int rc = CrVrScrCompositorRectSet(&pFb->Compositor, &Rect, NULL);
+    rc = CrVrScrCompositorRectSet(&pFb->Compositor, &Rect, NULL);
     if (!RT_SUCCESS(rc))
     {
         WARN(("CrVrScrCompositorRectSet failed rc %d", rc));
@@ -1046,21 +1059,10 @@ DECLCALLBACK(void) crFbTexRelease(CR_TEXDATA *pTex)
 
     if (pTobj)
     {
-        CR_STATE_SHAREDOBJ_USAGE_CLEAR(pTobj, cr_server.MainContextInfo.pContext);
-
         crHashtableDelete(g_CrPresenter.pFbTexMap, pTobj->id, NULL);
 
-        if (!CR_STATE_SHAREDOBJ_USAGE_IS_USED(pTobj))
-        {
-            CRSharedState *pShared = crStateGlobalSharedAcquire();
+        crStateReleaseTexture(cr_server.MainContextInfo.pContext, pTobj);
 
-            CRASSERT(pShared);
-            /* on the host side, we need to delete an ogl texture object here as well, which crStateDeleteTextureCallback will do
-             * in addition to calling crStateDeleteTextureObject to delete a state object */
-            crHashtableDelete(pShared->textureTable, pTobj->id, crStateDeleteTextureCallback);
-
-            crStateGlobalSharedRelease();
-        }
 
         crStateGlobalSharedRelease();
     }
@@ -2369,10 +2371,11 @@ public:
             renderspuSetWindowId(cr_server.screen[0].winID);
 
             if (parentId)
-                cr_server.head_spu->dispatch_table.WindowPosition(mSpuWindow, mxPos, myPos);
-
-            if (!oldParentId && parentId && mFlags.fVisible)
-                cr_server.head_spu->dispatch_table.WindowShow(mSpuWindow, true);
+            {
+                if (mFlags.fVisible)
+                    cr_server.head_spu->dispatch_table.WindowPosition(mSpuWindow, mxPos, myPos);
+                cr_server.head_spu->dispatch_table.WindowShow(mSpuWindow, mFlags.fVisible);
+            }
         }
 
         return VINF_SUCCESS;
@@ -2392,7 +2395,11 @@ public:
         {
             mFlags.fVisible = fVisible;
             if (mSpuWindow && mParentId)
+            {
+                if (fVisible)
+                    cr_server.head_spu->dispatch_table.WindowPosition(mSpuWindow, mxPos, myPos);
                 cr_server.head_spu->dispatch_table.WindowShow(mSpuWindow, fVisible);
+            }
         }
 
         return VINF_SUCCESS;
@@ -2637,13 +2644,14 @@ typedef union CR_FBDISPWINDOW_FLAGS
 class CrFbDisplayWindow : public CrFbDisplayBase
 {
 public:
-    CrFbDisplayWindow(CrFbWindow *pWindow, const RTRECT *pViewportRect) :
-        mpWindow(pWindow),
+    CrFbDisplayWindow(const RTRECT *pViewportRect, uint64_t parentId, uint64_t defaultParentId) :
+        mpWindow(NULL),
         mViewportRect(*pViewportRect),
-        mu32Screen(~0)
+        mu32Screen(~0),
+        mParentId(parentId),
+        mDefaultParentId(defaultParentId)
     {
         mFlags.u32Value = 0;
-        CRASSERT(pWindow);
     }
 
     virtual ~CrFbDisplayWindow()
@@ -2654,14 +2662,18 @@ public:
 
     virtual int UpdateBegin(struct CR_FRAMEBUFFER *pFb)
     {
-        int rc = mpWindow->UpdateBegin();
+        int rc = mpWindow ? mpWindow->UpdateBegin() : VINF_SUCCESS;
         if (RT_SUCCESS(rc))
         {
             rc = CrFbDisplayBase::UpdateBegin(pFb);
             if (RT_SUCCESS(rc))
                 return VINF_SUCCESS;
             else
+            {
                 WARN(("err"));
+                if (mpWindow)
+                    mpWindow->UpdateEnd();
+            }
         }
         else
             WARN(("err"));
@@ -2673,7 +2685,8 @@ public:
     {
         CrFbDisplayBase::UpdateEnd(pFb);
 
-        mpWindow->UpdateEnd();
+        if (mpWindow)
+            mpWindow->UpdateEnd();
     }
 
     virtual int RegionsChanged(struct CR_FRAMEBUFFER *pFb)
@@ -2685,7 +2698,7 @@ public:
             return rc;
         }
 
-        if (mpWindow->GetParentId())
+        if (mpWindow && mpWindow->GetParentId())
         {
             rc = mpWindow->Create();
             if (!RT_SUCCESS(rc))
@@ -2707,7 +2720,7 @@ public:
             return rc;
         }
 
-        if (mpWindow->GetParentId())
+        if (mpWindow && mpWindow->GetParentId())
         {
             rc = mpWindow->Create();
             if (!RT_SUCCESS(rc))
@@ -2729,7 +2742,7 @@ public:
             return rc;
         }
 
-        if (mpWindow->GetParentId())
+        if (mpWindow && mpWindow->GetParentId())
         {
             rc = mpWindow->Create();
             if (!RT_SUCCESS(rc))
@@ -2751,7 +2764,7 @@ public:
             return rc;
         }
 
-        if (mpWindow->GetParentId())
+        if (mpWindow && mpWindow->GetParentId())
         {
             rc = mpWindow->Create();
             if (!RT_SUCCESS(rc))
@@ -2791,6 +2804,7 @@ public:
 
 // always call SetPosition to ensure window is adjustep properly
 //        if (pViewportRect->xLeft != mViewportRect.xLeft || pViewportRect->yTop != mViewportRect.yTop)
+        if (mpWindow)
         {
             const RTRECT* pRect = getRect();
             int rc = mpWindow->SetPosition(pRect->xLeft - pViewportRect->xLeft, pRect->yTop - pViewportRect->yTop);
@@ -2806,7 +2820,7 @@ public:
         return VINF_SUCCESS;
     }
 
-    virtual CrFbWindow * windowDetach()
+    virtual CrFbWindow * windowDetach(bool fCleanup = true)
     {
         if (isUpdating())
         {
@@ -2817,7 +2831,8 @@ public:
         CrFbWindow * pWindow = mpWindow;
         if (mpWindow)
         {
-            windowCleanup();
+            if (fCleanup)
+                windowCleanup();
             mpWindow = NULL;
         }
         return pWindow;
@@ -2842,6 +2857,23 @@ public:
         return mpWindow;
     }
 
+    virtual int setDefaultParent(uint64_t parentId)
+    {
+        mDefaultParentId = parentId;
+
+        if (!isActive() && mpWindow)
+        {
+            int rc = mpWindow->Reparent(parentId);
+            if (!RT_SUCCESS(rc))
+            {
+                WARN(("window reparent failed"));
+                return rc;
+            }
+        }
+
+        return VINF_SUCCESS;
+    }
+
     virtual int reparent(uint64_t parentId)
     {
         if (!isUpdating())
@@ -2850,11 +2882,17 @@ public:
             return VERR_INVALID_STATE;
         }
 
-        int rc = mpWindow->Reparent(parentId);
-        if (!RT_SUCCESS(rc))
-            WARN(("window reparent failed"));
+        mParentId = parentId;
+        int rc = VINF_SUCCESS;
 
-        mFlags.fNeForce = 1;
+        if (isActive() && mpWindow)
+        {
+            rc = mpWindow->Reparent(parentId);
+            if (!RT_SUCCESS(rc))
+                WARN(("window reparent failed"));
+
+            mFlags.fNeForce = 1;
+        }
 
         return rc;
     }
@@ -2873,25 +2911,31 @@ public:
         HCR_FRAMEBUFFER hFb = getFramebuffer();
         if (!hFb || !CrFbIsEnabled(hFb))
         {
-            Assert(!mpWindow->IsVisivle());
+            Assert(!mpWindow || !mpWindow->IsVisivle());
             return VINF_SUCCESS;
         }
 
-        int rc = mpWindow->UpdateBegin();
-        if (RT_SUCCESS(rc))
-        {
-            rc = mpWindow->SetVisible(!g_CrPresenter.fWindowsForceHidden);
-            if (!RT_SUCCESS(rc))
-                WARN(("SetVisible failed, rc %d", rc));
+        int rc = VINF_SUCCESS;
 
-            mpWindow->UpdateEnd();
+        if (mpWindow)
+        {
+            rc = mpWindow->UpdateBegin();
+            if (RT_SUCCESS(rc))
+            {
+                rc = mpWindow->SetVisible(!g_CrPresenter.fWindowsForceHidden);
+                if (!RT_SUCCESS(rc))
+                    WARN(("SetVisible failed, rc %d", rc));
+
+                mpWindow->UpdateEnd();
+            }
+            else
+                WARN(("UpdateBegin failed, rc %d", rc));
         }
-        else
-            WARN(("UpdateBegin failed, rc %d", rc));
 
         return rc;
     }
 
+    CrFbWindow* getWindow() {return mpWindow;}
 protected:
     virtual void onUpdateEnd()
     {
@@ -2907,7 +2951,8 @@ protected:
 
     virtual void ueRegions()
     {
-        mpWindow->SetVisibleRegionsChanged();
+        if (mpWindow)
+            mpWindow->SetVisibleRegionsChanged();
     }
 
     virtual int screenChanged()
@@ -2930,6 +2975,9 @@ protected:
 
     virtual int windowSetCompositor(bool fSet)
     {
+        if (!mpWindow)
+            return VINF_SUCCESS;
+
         if (fSet)
         {
             const struct VBOXVR_SCR_COMPOSITOR* pCompositor = CrFbGetCompositor(getFramebuffer());
@@ -2940,6 +2988,9 @@ protected:
 
     virtual int windowCleanup()
     {
+        if (!mpWindow)
+            return VINF_SUCCESS;
+
         int rc = mpWindow->UpdateBegin();
         if (!RT_SUCCESS(rc))
         {
@@ -2979,14 +3030,33 @@ protected:
         return CrFbDisplayBase::fbCleanup();
     }
 
+    bool isActive()
+    {
+        HCR_FRAMEBUFFER hFb = getFramebuffer();
+        return hFb && CrFbIsEnabled(hFb);
+    }
+
     int windowDimensionsSync(bool fForceCleanup = false)
     {
         int rc = VINF_SUCCESS;
 
-        HCR_FRAMEBUFFER hFb = getFramebuffer();
-        if (!fForceCleanup && hFb && CrFbIsEnabled(hFb))
+        if (!mpWindow)
+            return VINF_SUCCESS;
+
+//        HCR_FRAMEBUFFER hFb = getFramebuffer();
+        if (!fForceCleanup && isActive())
         {
             const RTRECT* pRect = getRect();
+
+            if (mpWindow->GetParentId() != mParentId)
+            {
+                rc = mpWindow->Reparent(mParentId);
+                if (!RT_SUCCESS(rc))
+                {
+                    WARN(("err"));
+                    return rc;
+                }
+            }
 
             rc = mpWindow->SetPosition(pRect->xLeft - mViewportRect.xLeft, pRect->yTop - mViewportRect.yTop);
             if (!RT_SUCCESS(rc))
@@ -3019,6 +3089,15 @@ protected:
                 WARN(("err"));
                 return rc;
             }
+
+#if 0
+            rc = mpWindow->Reparent(mDefaultParentId);
+            if (!RT_SUCCESS(rc))
+            {
+                WARN(("err"));
+                return rc;
+            }
+#endif
         }
 
         return rc;
@@ -3026,6 +3105,9 @@ protected:
 
     virtual int windowSync()
     {
+        if (!mpWindow)
+            return VINF_SUCCESS;
+
         int rc = mpWindow->UpdateBegin();
         if (!RT_SUCCESS(rc))
         {
@@ -3076,7 +3158,7 @@ protected:
 
         if (CrFbHas3DData(hFb))
         {
-            if (mpWindow->GetParentId())
+            if (mpWindow && mpWindow->GetParentId())
             {
                 rc = mpWindow->Create();
                 if (!RT_SUCCESS(rc))
@@ -3096,19 +3178,20 @@ protected:
         return CrVrScrCompositorRectGet(pCompositor);
     }
 
-    CrFbWindow* getWindow() {return mpWindow;}
 private:
     CrFbWindow *mpWindow;
     RTRECT mViewportRect;
     CR_FBDISPWINDOW_FLAGS mFlags;
     uint32_t mu32Screen;
+    uint64_t mParentId;
+    uint64_t mDefaultParentId;
 };
 
 class CrFbDisplayWindowRootVr : public CrFbDisplayWindow
 {
 public:
-    CrFbDisplayWindowRootVr(CrFbWindow *pWindow, const RTRECT *pViewportRect) :
-        CrFbDisplayWindow(pWindow, pViewportRect)
+    CrFbDisplayWindowRootVr(const RTRECT *pViewportRect, uint64_t parentId, uint64_t defaultParentId) :
+        CrFbDisplayWindow(pViewportRect, parentId, defaultParentId)
     {
         CrVrScrCompositorInit(&mCompositor, NULL);
     }
@@ -4116,6 +4199,24 @@ static uint32_t crPMgrModeAdjustVal(uint32_t u32Mode)
     return u32Mode;
 }
 
+static int crPMgrCheckInitWindowDisplays(uint32_t idScreen)
+{
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+    CR_FBDISPLAY_INFO *pDpInfo = &g_CrPresenter.aDisplayInfos[idScreen];
+    if (pDpInfo->iFb >= 0)
+    {
+        uint32_t u32ModeAdd = g_CrPresenter.u32DisplayMode & (CR_PMGR_MODE_WINDOW | CR_PMGR_MODE_ROOTVR);
+        int rc = crPMgrFbConnectTargetDisplays(&g_CrPresenter.aFramebuffers[pDpInfo->iFb], pDpInfo, u32ModeAdd);
+        if (RT_FAILURE(rc))
+        {
+            WARN(("crPMgrFbConnectTargetDisplays failed %d", rc));
+            return rc;
+        }
+    }
+#endif
+    return VINF_SUCCESS;
+}
+
 int CrPMgrScreenChanged(uint32_t idScreen)
 {
     if (idScreen >= CR_MAX_GUEST_MONITORS)
@@ -4124,17 +4225,67 @@ int CrPMgrScreenChanged(uint32_t idScreen)
         return VERR_INVALID_PARAMETER;
     }
 
-    CR_FBDISPLAY_INFO *pDpInfo = &g_CrPresenter.aDisplayInfos[idScreen];
+    int rc = VINF_SUCCESS;
+    CR_FBDISPLAY_INFO *pDpInfo;
+#if 0
+    bool fDefaultParentChange = (idScreen == 0);
+    if (fDefaultParentChange)
+    {
+        for (int i = 0; i < cr_server.screenCount; ++i)
+        {
+            pDpInfo = &g_CrPresenter.aDisplayInfos[i];
+            if (pDpInfo->pDpWin)
+            {
+                HCR_FRAMEBUFFER hFb = pDpInfo->iFb >= 0 ? CrPMgrFbGet(pDpInfo->iFb) : NULL;
+                rc = pDpInfo->pDpWin->UpdateBegin(hFb);
+                if (RT_SUCCESS(rc))
+                {
+                    rc = pDpInfo->pDpWin->setDefaultParent(cr_server.screen[idScreen].winID);
+                    if (RT_FAILURE(rc))
+                    {
+                        WARN(("setDefaultParent failed %d", rc));
+                        pDpInfo->pDpWin->UpdateEnd(hFb);
+                    }
+                }
+                else
+                    WARN(("UpdateBegin failed %d", rc));
+
+                if (RT_FAILURE(rc))
+                {
+                    WARN(("err"));
+                    for (int j = 0; j < i - 1; ++j)
+                    {
+                        pDpInfo = &g_CrPresenter.aDisplayInfos[j];
+                        if (pDpInfo->pDpWin)
+                        {
+                            HCR_FRAMEBUFFER hFb = pDpInfo->iFb >= 0 ? CrPMgrFbGet(pDpInfo->iFb) : NULL;
+                            pDpInfo->pDpWin->UpdateEnd(hFb);
+                        }
+                    }
+
+                    Assert(RT_FAILURE(rc));
+                    return rc;
+                }
+            }
+        }
+    }
+#endif
+
+    pDpInfo = &g_CrPresenter.aDisplayInfos[idScreen];
+
+    HCR_FRAMEBUFFER hFb = pDpInfo->iFb >= 0 ? CrPMgrFbGet(pDpInfo->iFb) : NULL;
+    if (hFb && CrFbIsUpdating(hFb))
+    {
+        WARN(("trying to update viewport while framebuffer is being updated"));
+        rc = VERR_INVALID_STATE;
+        goto end;
+    }
+
     if (pDpInfo->pDpWin)
     {
-        HCR_FRAMEBUFFER hFb = pDpInfo->iFb >= 0 ? CrPMgrFbGet(pDpInfo->iFb) : NULL;
-        if (hFb && CrFbIsUpdating(hFb))
-        {
-            WARN(("trying to update viewport while framebuffer is being updated"));
-            return VERR_INVALID_STATE;
-        }
+        CRASSERT(pDpInfo->pDpWin->getWindow());
 
-        int rc = pDpInfo->pDpWin->UpdateBegin(hFb);
+        rc = pDpInfo->pDpWin->UpdateBegin(hFb);
         if (RT_SUCCESS(rc))
         {
             pDpInfo->pDpWin->reparent(cr_server.screen[idScreen].winID);
@@ -4144,8 +4295,59 @@ int CrPMgrScreenChanged(uint32_t idScreen)
         else
             WARN(("UpdateBegin failed %d", rc));
     }
+    else
+    {
+        if (pDpInfo->pWindow)
+        {
+            rc = pDpInfo->pWindow->UpdateBegin();
+            if (RT_FAILURE(rc))
+            {
+                WARN(("UpdateBegin failed %d", rc));
+                goto end;
+            }
 
-    return VINF_SUCCESS;
+            rc = pDpInfo->pWindow->SetVisible(false);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("SetVisible failed %d", rc));
+                pDpInfo->pWindow->UpdateEnd();
+                goto end;
+            }
+
+            rc = pDpInfo->pWindow->Reparent(cr_server.screen[idScreen].winID);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("Reparent failed %d", rc));
+                pDpInfo->pWindow->UpdateEnd();
+                goto end;
+            }
+
+            pDpInfo->pWindow->UpdateEnd();
+        }
+
+        rc = crPMgrCheckInitWindowDisplays(idScreen);
+        if (RT_FAILURE(rc))
+        {
+            WARN(("crPMgrFbConnectTargetDisplays failed %d", rc));
+            goto end;
+        }
+    }
+end:
+#if 0
+    if (fDefaultParentChange)
+    {
+        for (int i = 0; i < cr_server.screenCount; ++i)
+        {
+            pDpInfo = &g_CrPresenter.aDisplayInfos[i];
+            if (pDpInfo->pDpWin)
+            {
+                HCR_FRAMEBUFFER hFb = pDpInfo->iFb >= 0 ? CrPMgrFbGet(pDpInfo->iFb) : NULL;
+                pDpInfo->pDpWin->UpdateEnd(hFb);
+            }
+        }
+    }
+#endif
+    return rc;
 }
 
 int CrPMgrViewportUpdate(uint32_t idScreen)
@@ -4166,14 +4368,18 @@ int CrPMgrViewportUpdate(uint32_t idScreen)
             return VERR_INVALID_STATE;
         }
 
-        int rc = pDpInfo->pDpWin->UpdateBegin(hFb);
-        if (RT_SUCCESS(rc))
+        if (pDpInfo->pDpWin)
         {
-            pDpInfo->pDpWin->setViewportRect(&cr_server.screenVieport[idScreen].Rect);
-            pDpInfo->pDpWin->UpdateEnd(hFb);
+            CRASSERT(pDpInfo->pDpWin->getWindow());
+            int rc = pDpInfo->pDpWin->UpdateBegin(hFb);
+            if (RT_SUCCESS(rc))
+            {
+                pDpInfo->pDpWin->setViewportRect(&cr_server.screenVieport[idScreen].Rect);
+                pDpInfo->pDpWin->UpdateEnd(hFb);
+            }
+            else
+                WARN(("UpdateBegin failed %d", rc));
         }
-        else
-            WARN(("UpdateBegin failed %d", rc));
     }
 
     return VINF_SUCCESS;
@@ -4289,6 +4495,10 @@ static int crPMgrFbDisconnectTarget(HCR_FRAMEBUFFER hFb, uint32_t i)
 
     if (pDpInfo->pDpWinRootVr)
     {
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+        CrFbWindow *pWindow = pDpInfo->pDpWinRootVr->windowDetach(false);
+        Assert(pWindow == pDpInfo->pWindow);
+#endif
         rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWinRootVr);
         if (RT_FAILURE(rc))
         {
@@ -4296,9 +4506,12 @@ static int crPMgrFbDisconnectTarget(HCR_FRAMEBUFFER hFb, uint32_t i)
             return rc;
         }
     }
-
-    if (pDpInfo->pDpWin)
+    else if (pDpInfo->pDpWin)
     {
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+        CrFbWindow *pWindow = pDpInfo->pDpWin->windowDetach(false);
+        Assert(pWindow == pDpInfo->pWindow);
+#endif
         rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWin);
         if (RT_FAILURE(rc))
         {
@@ -4317,30 +4530,33 @@ static void crPMgrDpWinRootVrCreate(CR_FBDISPLAY_INFO *pDpInfo)
 {
     if (!pDpInfo->pDpWinRootVr)
     {
-        CrFbWindow *pWin = NULL;
         if (pDpInfo->pDpWin)
         {
-            pWin = pDpInfo->pDpWin->windowDetach();
+            CrFbWindow *pWin = pDpInfo->pDpWin->windowDetach();
             CRASSERT(pWin);
+            Assert(pWin == pDpInfo->pWindow);
             delete pDpInfo->pDpWin;
             pDpInfo->pDpWin = NULL;
         }
-        else
-            pWin = new CrFbWindow(cr_server.screen[pDpInfo->u32Id].winID);
+        else if (!pDpInfo->pWindow)
+        {
+            pDpInfo->pWindow = new CrFbWindow(0);
+        }
 
-        pDpInfo->pDpWinRootVr = new CrFbDisplayWindowRootVr(pWin, &cr_server.screenVieport[pDpInfo->u32Id].Rect);
+        pDpInfo->pDpWinRootVr = new CrFbDisplayWindowRootVr(&cr_server.screenVieport[pDpInfo->u32Id].Rect, cr_server.screen[pDpInfo->u32Id].winID, /*cr_server.screen[0].winID*/ 0);
         pDpInfo->pDpWin = pDpInfo->pDpWinRootVr;
+        pDpInfo->pDpWinRootVr->windowAttach(pDpInfo->pWindow);
     }
 }
 
 static void crPMgrDpWinCreate(CR_FBDISPLAY_INFO *pDpInfo)
 {
-    CrFbWindow *pWin = NULL;
     if (pDpInfo->pDpWinRootVr)
     {
         CRASSERT(pDpInfo->pDpWinRootVr == pDpInfo->pDpWin);
-        pWin = pDpInfo->pDpWin->windowDetach();
+        CrFbWindow *pWin = pDpInfo->pDpWin->windowDetach();
         CRASSERT(pWin);
+        Assert(pWin == pDpInfo->pWindow);
         delete pDpInfo->pDpWinRootVr;
         pDpInfo->pDpWinRootVr = NULL;
         pDpInfo->pDpWin = NULL;
@@ -4348,10 +4564,11 @@ static void crPMgrDpWinCreate(CR_FBDISPLAY_INFO *pDpInfo)
 
     if (!pDpInfo->pDpWin)
     {
-        if (!pWin)
-            pWin = new CrFbWindow(cr_server.screen[pDpInfo->u32Id].winID);
+        if (!pDpInfo->pWindow)
+            pDpInfo->pWindow = new CrFbWindow(0);
 
-        pDpInfo->pDpWin = new CrFbDisplayWindow(pWin, &cr_server.screenVieport[pDpInfo->u32Id].Rect);
+        pDpInfo->pDpWin = new CrFbDisplayWindow(&cr_server.screenVieport[pDpInfo->u32Id].Rect, cr_server.screen[pDpInfo->u32Id].winID, /*cr_server.screen[0].winID*/ 0);
+        pDpInfo->pDpWin->windowAttach(pDpInfo->pWindow);
     }
 }
 
@@ -4360,37 +4577,53 @@ static int crPMgrFbDisconnectTargetDisplays(HCR_FRAMEBUFFER hFb, CR_FBDISPLAY_IN
     int rc = VINF_SUCCESS;
     if (u32ModeRemove & CR_PMGR_MODE_ROOTVR)
     {
-        CRASSERT(pDpInfo->pDpWinRootVr);
-        CRASSERT(pDpInfo->pDpWin == pDpInfo->pDpWinRootVr);
-        rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWinRootVr);
-        if (RT_FAILURE(rc))
+        if (pDpInfo->pDpWinRootVr)
         {
-            WARN(("crPMgrFbDisconnectDisplay pDpWinRootVr failed %d", rc));
-            return rc;
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+            CrFbWindow *pWindow = pDpInfo->pDpWinRootVr->windowDetach(false);
+            Assert(pWindow == pDpInfo->pWindow);
+#endif
+            CRASSERT(pDpInfo->pDpWin == pDpInfo->pDpWinRootVr);
+            rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWinRootVr);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("crPMgrFbDisconnectDisplay pDpWinRootVr failed %d", rc));
+                return rc;
+            }
         }
     }
     else if (u32ModeRemove & CR_PMGR_MODE_WINDOW)
     {
         CRASSERT(!pDpInfo->pDpWinRootVr);
-        CRASSERT(pDpInfo->pDpWin);
-        rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWin);
-        if (RT_FAILURE(rc))
+        if (pDpInfo->pDpWin)
         {
-            WARN(("crPMgrFbDisconnectDisplay pDpWin failed %d", rc));
-            return rc;
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+            CrFbWindow *pWindow = pDpInfo->pDpWin->windowDetach(false);
+            Assert(pWindow == pDpInfo->pWindow);
+#endif
+            rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpWin);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("crPMgrFbDisconnectDisplay pDpWin failed %d", rc));
+                return rc;
+            }
         }
     }
 
     if (u32ModeRemove & CR_PMGR_MODE_VRDP)
     {
-        CRASSERT(pDpInfo->pDpVrdp);
-        rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpVrdp);
-        if (RT_FAILURE(rc))
+        if (pDpInfo->pDpVrdp)
         {
-            WARN(("crPMgrFbDisconnectDisplay pDpVrdp failed %d", rc));
-            return rc;
+            rc = crPMgrFbDisconnectDisplay(hFb, pDpInfo->pDpVrdp);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("crPMgrFbDisconnectDisplay pDpVrdp failed %d", rc));
+                return rc;
+            }
         }
     }
+
+    pDpInfo->u32DisplayMode &= ~u32ModeRemove;
 
     return VINF_SUCCESS;
 }
@@ -4435,6 +4668,8 @@ static int crPMgrFbConnectTargetDisplays(HCR_FRAMEBUFFER hFb, CR_FBDISPLAY_INFO 
         }
     }
 
+    pDpInfo->u32DisplayMode |= u32ModeAdd;
+
     return VINF_SUCCESS;
 }
 
@@ -4467,7 +4702,11 @@ static int crPMgrFbConnectTarget(HCR_FRAMEBUFFER hFb, uint32_t i)
         }
     }
 
-    rc = crPMgrFbConnectTargetDisplays(hFb, pDpInfo, g_CrPresenter.u32DisplayMode);
+    rc = crPMgrFbConnectTargetDisplays(hFb, pDpInfo, g_CrPresenter.u32DisplayMode
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+            & ~(CR_PMGR_MODE_WINDOW | CR_PMGR_MODE_ROOTVR)
+#endif
+            );
     if (RT_FAILURE(rc))
     {
         WARN(("crPMgrFbConnectTargetDisplays failed %d", rc));
@@ -4566,9 +4805,15 @@ static void crPMgrCleanUnusedDisplays()
         {
             if (!pDpInfo->pDpWinRootVr->getFramebuffer())
             {
+                pDpInfo->pDpWinRootVr->windowDetach(false);
                 delete pDpInfo->pDpWinRootVr;
                 pDpInfo->pDpWinRootVr = NULL;
                 pDpInfo->pDpWin = NULL;
+                if (pDpInfo->pWindow)
+                {
+                    delete pDpInfo->pWindow;
+                    pDpInfo->pWindow = NULL;
+                }
             }
             else
                 WARN(("pDpWinRootVr is used"));
@@ -4577,8 +4822,14 @@ static void crPMgrCleanUnusedDisplays()
         {
             if (!pDpInfo->pDpWin->getFramebuffer())
             {
+                pDpInfo->pDpWin->windowDetach(false);
                 delete pDpInfo->pDpWin;
                 pDpInfo->pDpWin = NULL;
+                if (pDpInfo->pWindow)
+                {
+                    delete pDpInfo->pWindow;
+                    pDpInfo->pWindow = NULL;
+                }
             }
             else
                 WARN(("pDpWin is used"));
@@ -4633,6 +4884,28 @@ static int crPMgrModeModifyGlobal(uint32_t u32ModeAdd, uint32_t u32ModeRemove)
             hFb = CrPMgrFbGetNextInitialized(hFb))
     {
         crPMgrModeModify(hFb, u32ModeAdd, u32ModeRemove);
+    }
+
+    return VINF_SUCCESS;
+}
+
+int CrPMgrClearRegionsGlobal()
+{
+    for (HCR_FRAMEBUFFER hFb = CrPMgrFbGetFirstEnabled();
+            hFb;
+            hFb = CrPMgrFbGetNextEnabled(hFb))
+    {
+        int rc = CrFbUpdateBegin(hFb);
+        if (RT_SUCCESS(rc))
+        {
+            rc = CrFbRegionsClear(hFb);
+            if (RT_FAILURE(rc))
+            {
+                WARN(("CrFbRegionsClear failed %d", rc));
+            }
+
+            CrFbUpdateEnd(hFb);
+        }
     }
 
     return VINF_SUCCESS;
@@ -4869,6 +5142,14 @@ int CrPMgrResize(const struct VBVAINFOSCREEN *pScreen, void *pvVRAM, const uint3
 
     if (fFbInfoChanged)
     {
+#ifdef CR_SERVER_WITH_CLIENT_CALLOUTS
+        rc = crPMgrModeModify(hFb, 0, CR_PMGR_MODE_WINDOW | CR_PMGR_MODE_ROOTVR);
+        if (!RT_SUCCESS(rc))
+        {
+            WARN(("crPMgrModeModifyTarget failed %d", rc));
+            return rc;
+        }
+#endif
         rc = CrFbUpdateBegin(hFb);
         if (!RT_SUCCESS(rc))
         {
@@ -5370,7 +5651,7 @@ static void crPMgrPrimaryUpdateScreen(HCR_FRAMEBUFFER hFb, uint32_t idScreen, ui
     const VBVAINFOSCREEN *pScreen = CrFbGetScreenInfo(hFb);
 
     bool fDirtyEmpty = true;
-    RTRECT dirtyRect;
+    RTRECT dirtyRect = {0};
     cr_server.CrCmdClientInfo.pfnCltScrUpdateBegin(cr_server.CrCmdClientInfo.hCltScr, idScreen);
 
     VBVACMDHDR hdr;
@@ -6093,4 +6374,55 @@ int8_t crVBoxServerCrCmdFlipProcess(const VBOXCMDVBVA_FLIP *pFlip)
     const RTRECT *pRect = CrVrScrCompositorRectGet(&hFb->Compositor);
     crServerDispatchVBoxTexPresent(hostId, idFb, 0, 0, 1, (const GLint*)pRect);
     return 0;
+}
+
+typedef struct CRSERVER_CLIENT_CALLOUT
+{
+    VBOXCRCMDCTL_CALLOUT_LISTENTRY Entry;
+    PFNVCRSERVER_CLIENT_CALLOUT_CB pfnCb;
+    void*pvCb;
+} CRSERVER_CLIENT_CALLOUT;
+
+static DECLCALLBACK(void) crServerClientCalloutCb(struct VBOXCRCMDCTL_CALLOUT_LISTENTRY *pEntry)
+{
+    CRSERVER_CLIENT_CALLOUT *pCallout = RT_FROM_MEMBER(pEntry, CRSERVER_CLIENT_CALLOUT, Entry);
+    pCallout->pfnCb(pCallout->pvCb);
+    int rc = RTSemEventSignal(cr_server.hCalloutCompletionEvent);
+    if (RT_FAILURE(rc))
+        WARN(("RTSemEventSignal failed rc %d", rc));
+}
+
+static DECLCALLBACK(void) crServerClientCallout(PFNVCRSERVER_CLIENT_CALLOUT_CB pfnCb, void*pvCb)
+{
+    Assert(cr_server.pCurrentCalloutCtl);
+    CRSERVER_CLIENT_CALLOUT Callout;
+    Callout.pfnCb = pfnCb;
+    Callout.pvCb = pvCb;
+    cr_server.ClientInfo.pfnCallout(cr_server.ClientInfo.hClient, cr_server.pCurrentCalloutCtl, &Callout.Entry, crServerClientCalloutCb);
+
+    int rc = RTSemEventWait(cr_server.hCalloutCompletionEvent, RT_INDEFINITE_WAIT);
+    if (RT_FAILURE(rc))
+        WARN(("RTSemEventWait failed %d", rc));
+}
+
+
+DECLEXPORT(void) crVBoxServerCalloutEnable(VBOXCRCMDCTL *pCtl)
+{
+#if 1 //def CR_SERVER_WITH_CLIENT_CALLOUTS
+    Assert(!cr_server.pCurrentCalloutCtl);
+    cr_server.pCurrentCalloutCtl = pCtl;
+
+    cr_server.head_spu->dispatch_table.ChromiumParametervCR(GL_HH_SET_CLIENT_CALLOUT, 0, 0, (void*)crServerClientCallout);
+#endif
+}
+
+extern DECLEXPORT(void) crVBoxServerCalloutDisable()
+{
+#if 1 //def CR_SERVER_WITH_CLIENT_CALLOUTS
+    Assert(cr_server.pCurrentCalloutCtl);
+
+    cr_server.head_spu->dispatch_table.ChromiumParametervCR(GL_HH_SET_CLIENT_CALLOUT, 0, 0, NULL);
+
+    cr_server.pCurrentCalloutCtl = NULL;
+#endif
 }

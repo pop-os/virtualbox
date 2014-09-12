@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -824,6 +824,7 @@ HRESULT Medium::FinalConstruct()
     m->vdIfConfig.pfnAreKeysValid = vdConfigAreKeysValid;
     m->vdIfConfig.pfnQuerySize = vdConfigQuerySize;
     m->vdIfConfig.pfnQuery = vdConfigQuery;
+    m->vdIfConfig.pfnQueryBytes = NULL;
 
     /* Initialize the callbacks of the VD TCP interface (we always use the host
      * IP stack for now) */
@@ -932,8 +933,8 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
     rc = setLocation(aLocation);
     if (FAILED(rc)) return rc;
 
-    if (!(m->formatObj->i_getCapabilities() & (   MediumFormatCapabilities_CreateFixed
-                                              | MediumFormatCapabilities_CreateDynamic))
+    if (!(m->formatObj->i_getCapabilities() & (  MediumFormatCapabilities_CreateFixed
+                                               | MediumFormatCapabilities_CreateDynamic))
        )
     {
         /* Storage for hard disks of this format can neither be explicitly
@@ -968,7 +969,7 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
                 break;
         }
 
-        rc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk);
+        rc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk, treeLock);
         Assert(this == pMedium || FAILED(rc));
     }
 
@@ -1064,7 +1065,8 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
 
     /* need to call queryInfo immediately to correctly place the medium in
      * the respective media tree and update other information such as uuid */
-    rc = queryInfo(fForceNewUuid /* fSetImageId */, false /* fSetParentId */);
+    rc = queryInfo(fForceNewUuid /* fSetImageId */, false /* fSetParentId */,
+                   autoCaller);
     if (SUCCEEDED(rc))
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -1263,8 +1265,6 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
      * get the actual state and the rest of the data, the user will have to call
      * COMGETTER(State). */
 
-    AutoWriteLock treeLock(aVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
     /* load all children */
     for (settings::MediaList::const_iterator it = data.llChildren.begin();
          it != data.llChildren.end();
@@ -1282,7 +1282,9 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
                        strMachineFolder);
         if (FAILED(rc)) break;
 
-        rc = m->pVirtualBox->registerMedium(pHD, &pHD, DeviceType_HardDisk);
+        AutoWriteLock treeLock(aVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+
+        rc = m->pVirtualBox->registerMedium(pHD, &pHD, DeviceType_HardDisk, treeLock);
         if (FAILED(rc)) break;
     }
 
@@ -1364,6 +1366,22 @@ HRESULT Medium::init(VirtualBox *aVirtualBox,
  */
 void Medium::uninit()
 {
+    /* It is possible that some previous/concurrent uninit has already cleared
+     * the pVirtualBox reference, and in this case we don't need to continue.
+     * Normally this would be handled through the AutoUninitSpan magic,
+     * however this cannot be done at this point as the media tree must be
+     * locked before reaching the AutoUninitSpan, otherwise deadlocks can
+     * happen due to lock order violation. */
+    ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
+    if (!pVirtualBox)
+        return;
+
+    /* Caller must not hold the object or media tree lock over uninit(). */
+    Assert(!isWriteLockOnCurrentThread());
+    //Assert(!pVirtualBox->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+
+    AutoWriteLock treeLock(pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+
     /* Enclose the state transition Ready->InUninit->NotReady */
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
@@ -1384,16 +1402,19 @@ void Medium::uninit()
     }
     else
     {
-        MediaList::iterator it;
-        for (it = m->llChildren.begin();
-            it != m->llChildren.end();
-            ++it)
+        MediaList llChildren(m->llChildren);
+        m->llChildren.clear();
+        autoUninitSpan.setSucceeded();
+
+        while (!llChildren.empty())
         {
-            Medium *pChild = *it;
+            ComObjPtr<Medium> pChild = llChildren.front();
+            llChildren.pop_front();
             pChild->m->pParent.setNull();
+            treeLock.release();
             pChild->uninit();
+            treeLock.acquire();
         }
-        m->llChildren.clear();          // this unsets all the ComPtrs and probably calls delete
 
         if (m->pParent)
         {
@@ -1790,11 +1811,15 @@ STDMETHODIMP Medium::COMGETTER(Parent)(IMedium **aParent)
 {
     CheckComArgOutPointerValid(aParent);
 
+    /* It is possible that some previous/concurrent uninit has already cleared
+     * the pVirtualBox reference, see #uninit(). */
+    ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
+
+    /* we access mParent, must be before the AutoCaller to avoid deadlocks */
+    AutoReadLock treeLock(!pVirtualBox.isNull() ? &pVirtualBox->getMediaTreeLockHandle() : NULL COMMA_LOCKVAL_SRC_POS);
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* we access mParent */
-    AutoReadLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     m->pParent.queryInterfaceTo(aParent);
 
@@ -1805,11 +1830,15 @@ STDMETHODIMP Medium::COMGETTER(Children)(ComSafeArrayOut(IMedium *, aChildren))
 {
     CheckComArgOutSafeArrayPointerValid(aChildren);
 
+    /* It is possible that some previous/concurrent uninit has already cleared
+     * the pVirtualBox reference, see #uninit(). */
+    ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
+
+    /* we access children, must be before the AutoCaller to avoid deadlocks */
+    AutoReadLock treeLock(!pVirtualBox.isNull() ? &pVirtualBox->getMediaTreeLockHandle() : NULL COMMA_LOCKVAL_SRC_POS);
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* we access children */
-    AutoReadLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     SafeIfaceArray<IMedium> children(this->getChildren());
     children.detachTo(ComSafeArrayOutArg(aChildren));
@@ -1985,7 +2014,8 @@ STDMETHODIMP Medium::SetIds(BOOL aSetImageId,
     alock.release();
 
     HRESULT rc = queryInfo(!!aSetImageId /* fSetImageId */,
-                           !!aSetParentId /* fSetParentId */);
+                           !!aSetParentId /* fSetParentId */,
+                           autoCaller);
 
     return rc;
 }
@@ -2010,7 +2040,8 @@ STDMETHODIMP Medium::RefreshState(MediumState_T *aState)
             // must not hold any locks before calling Medium::queryInfo
             alock.release();
 
-            rc = queryInfo(false /* fSetImageId */, false /* fSetParentId */);
+            rc = queryInfo(false /* fSetImageId */, false /* fSetParentId */,
+                           autoCaller);
 
             alock.acquire();
             break;
@@ -2082,8 +2113,6 @@ STDMETHODIMP Medium::LockRead(IToken **aToken)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* Must not hold the object lock, as we need control over it below. */
-    Assert(!isWriteLockOnCurrentThread());
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Wait for a concurrently running Medium::queryInfo to complete. */
@@ -2095,6 +2124,8 @@ STDMETHODIMP Medium::LockRead(IToken **aToken)
         while (m->queryInfoRunning)
         {
             alock.release();
+            /* must not hold the object lock now */
+            Assert(!isWriteLockOnCurrentThread());
             {
                 AutoReadLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
             }
@@ -2205,8 +2236,6 @@ STDMETHODIMP Medium::LockWrite(IToken **aToken)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* Must not hold the object lock, as we need control over it below. */
-    Assert(!isWriteLockOnCurrentThread());
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Wait for a concurrently running Medium::queryInfo to complete. */
@@ -2218,6 +2247,8 @@ STDMETHODIMP Medium::LockWrite(IToken **aToken)
         while (m->queryInfoRunning)
         {
             alock.release();
+            /* must not hold the object lock now */
+            Assert(!isWriteLockOnCurrentThread());
             {
                 AutoReadLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
             }
@@ -2332,7 +2363,8 @@ STDMETHODIMP Medium::GetProperty(IN_BSTR aName, BSTR *aValue)
     settings::StringsMap::const_iterator it = m->mapProperties.find(Utf8Str(aName));
     if (it == m->mapProperties.end())
     {
-        if (!Utf8Str(aName).startsWith("Special/"))
+     if (   !Utf8Str(aName).startsWith("Special/")
+         && !isPropertyForFilter(aName))
             return setError(VBOX_E_OBJECT_NOT_FOUND,
                             tr("Property '%ls' does not exist"), aName);
         else
@@ -2453,6 +2485,7 @@ STDMETHODIMP Medium::SetProperties(ComSafeArrayIn(IN_BSTR, aNames),
     {
         Utf8Str strName(names[i]);
         if (   !strName.startsWith("Special/")
+            && !isPropertyForFilter(strName)
             && m->mapProperties.find(strName) == m->mapProperties.end())
             return setError(VBOX_E_OBJECT_NOT_FOUND,
                             tr("Property '%s' does not exist"), strName.c_str());
@@ -2466,7 +2499,8 @@ STDMETHODIMP Medium::SetProperties(ComSafeArrayIn(IN_BSTR, aNames),
         Utf8Str strName(names[i]);
         Utf8Str strValue(values[i]);
         settings::StringsMap::iterator it = m->mapProperties.find(strName);
-        if (!strName.startsWith("Special/"))
+        if (   !strName.startsWith("Special/")
+            && !isPropertyForFilter(strName))
         {
             AssertReturn(it != m->mapProperties.end(), E_FAIL);
             it->second = strValue;
@@ -3460,6 +3494,10 @@ void Medium::markRegistriesModified()
         llRegistryIDs = m->llRegistryIDs;
     }
 
+    // avoid lock order trouble with marking the registry modified
+    // below, it needs the media tree lock
+    autoCaller.release();
+
     /* Save the error information now, the implicit restore when this goes
      * out of scope will throw away spurious additional errors created below. */
     ErrorInfoKeeper eik;
@@ -3754,16 +3792,21 @@ HRESULT Medium::updatePath(const Utf8Str &strOldPath, const Utf8Str &strNewPath)
 ComObjPtr<Medium> Medium::getBase(uint32_t *aLevel /*= NULL*/)
 {
     ComObjPtr<Medium> pBase;
-    uint32_t level;
+
+    /* it is possible that some previous/concurrent uninit has already cleared
+     * the pVirtualBox reference, and in this case we don't need to continue */
+    ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
+    if (!pVirtualBox)
+        return pBase;
+
+    /* we access mParent */
+    AutoReadLock treeLock(pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     AutoCaller autoCaller(this);
     AssertReturn(autoCaller.isOk(), pBase);
 
-    /* we access mParent */
-    AutoReadLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
     pBase = this;
-    level = 0;
+    uint32_t level = 0;
 
     if (m->pParent)
     {
@@ -3983,7 +4026,9 @@ HRESULT Medium::createMediumLockList(bool fFailIfInaccessible,
         if (mediumState == MediumState_Inaccessible)
         {
             alock.release();
-            rc = pMedium->queryInfo(false /* fSetImageId */, false /* fSetParentId */);
+            rc = pMedium->queryInfo(false /* fSetImageId */,
+                                    false /* fSetParentId */,
+                                    autoCaller);
             alock.acquire();
             if (FAILED(rc)) return rc;
 
@@ -4200,10 +4245,16 @@ Utf8Str Medium::getPreferredDiffFormat()
  */
 HRESULT Medium::close(AutoCaller &autoCaller)
 {
+    // must temporarily drop the caller, need the tree lock first
+    autoCaller.release();
+
     // we're accessing parent/child and backrefs, so lock the tree first, then ourselves
     AutoMultiWriteLock2 multilock(&m->pVirtualBox->getMediaTreeLockHandle(),
                                   this->lockHandle()
                                   COMMA_LOCKVAL_SRC_POS);
+
+    autoCaller.add();
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     LogFlowFunc(("ENTER for %s\n", getLocationFull().c_str()));
 
@@ -4239,19 +4290,19 @@ HRESULT Medium::close(AutoCaller &autoCaller)
         if (FAILED(rc)) return rc;
 
         multilock.release();
-        markRegistriesModified();
-        // Release the AutoCalleri now, as otherwise uninit() will simply hang.
-        // Needs to be done before saving the registry, as otherwise there
-        // may be a deadlock with someone else closing this object while we're
-        // in saveModifiedRegistries(), which needs the media tree lock, which
-        // the other thread holds until after uninit() below.
-        /// @todo redesign the locking here, as holding the locks over uninit causes lock order trouble which the lock validator can't detect
+        // Release the AutoCaller now, as otherwise uninit() will simply hang.
+        // Needs to be done before mark the registries as modified and saving
+        // the registry, as otherwise there may be a deadlock with someone else
+        // closing this object while we're in saveModifiedRegistries(), which
+        // needs the media tree lock, which the other thread holds until after
+        // uninit() below.
         autoCaller.release();
+        markRegistriesModified();
         m->pVirtualBox->saveModifiedRegistries();
-        multilock.acquire();
     }
     else
     {
+        multilock.release();
         // release the AutoCaller, as otherwise uninit() will simply hang
         autoCaller.release();
     }
@@ -4307,8 +4358,8 @@ HRESULT Medium::deleteStorage(ComObjPtr<Progress> *aProgress,
                                       COMMA_LOCKVAL_SRC_POS);
         LogFlowThisFunc(("aWait=%RTbool locationFull=%s\n", aWait, getLocationFull().c_str() ));
 
-        if (    !(m->formatObj->i_getCapabilities() & (   MediumFormatCapabilities_CreateDynamic
-                                                      | MediumFormatCapabilities_CreateFixed)))
+        if (    !(m->formatObj->i_getCapabilities() & (  MediumFormatCapabilities_CreateDynamic
+                                                       | MediumFormatCapabilities_CreateFixed)))
             throw setError(VBOX_E_NOT_SUPPORTED,
                            tr("Medium format '%s' does not support storage deletion"),
                            m->strFormat.c_str());
@@ -5591,7 +5642,7 @@ HRESULT Medium::cloneToEx(const ComObjPtr<Medium> &aTarget, ULONG aVariant,
  * @param fSetParentId Whether to reset the parent UUID contained in the image file to the parent UUID in the medium instance data (see SetIDs())
  * @return
  */
-HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
+HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &autoCaller)
 {
     Assert(!isWriteLockOnCurrentThread());
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -5615,6 +5666,8 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
         while (m->queryInfoRunning)
         {
             alock.release();
+            /* must not hold the object lock now */
+            Assert(!isWriteLockOnCurrentThread());
             {
                 AutoReadLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
             }
@@ -5647,15 +5700,14 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
     if (m->type == MediumType_Shareable)
         uOpenFlags |= VD_OPEN_FLAGS_SHAREABLE;
 
-    /* Lock the medium, which makes the behavior much more consistent */
-    alock.release();
+    /* Lock the medium, which makes the behavior much more consistent, must be
+     * done before dropping the object lock and setting queryInfoRunning. */
     ComPtr<IToken> pToken;
     if (uOpenFlags & (VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_SHAREABLE))
         rc = LockRead(pToken.asOutParam());
     else
         rc = LockWrite(pToken.asOutParam());
     if (FAILED(rc)) return rc;
-    alock.acquire();
 
     /* Copies of the input state fields which are not read-only,
      * as we're dropping the lock. CAUTION: be extremely careful what
@@ -5675,14 +5727,15 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
      * need repairing after it was closed again. */
     bool fRepairImageZeroParentUuid = false;
 
-    /* release the object lock before a lengthy operation, and take the
-     * opportunity to have a media tree lock, too, which isn't held initially */
+    ComObjPtr<VirtualBox> pVirtualBox = m->pVirtualBox;
+
+    /* must be set before leaving the object lock the first time */
     m->queryInfoRunning = true;
+
+    /* must leave object lock now, because a lock from a higher lock class
+     * is needed and also a lengthy operation is coming */
     alock.release();
-    Assert(!isWriteLockOnCurrentThread());
-    Assert(!m->pVirtualBox->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
-    AutoWriteLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-    treeLock.release();
+    autoCaller.release();
 
     /* Note that taking the queryInfoSem after leaving the object lock above
      * can lead to short spinning of the loops waiting for queryInfo() to
@@ -5690,6 +5743,20 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
      * violation: here it would be requesting the object lock (at the beginning
      * of the method), then queryInfoSem, and below the other way round. */
     AutoWriteLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
+
+    /* take the opportunity to have a media tree lock, released initially */
+    Assert(!isWriteLockOnCurrentThread());
+    Assert(!pVirtualBox->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+    AutoWriteLock treeLock(pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    treeLock.release();
+
+    /* re-take the caller, but not the object lock, to keep uninit away */
+    autoCaller.add();
+    if (FAILED(autoCaller.rc()))
+    {
+        m->queryInfoRunning = false;
+        return autoCaller.rc();
+    }
 
     try
     {
@@ -5781,7 +5848,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                                 &uuid,
                                 location.c_str(),
                                 mediumId.raw(),
-                                m->pVirtualBox->settingsFilePath().c_str());
+                                pVirtualBox->settingsFilePath().c_str());
                         throw S_OK;
                     }
                 }
@@ -5847,7 +5914,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                     if (RTUuidIsNull(&parentId))
                         rc = VBOX_E_OBJECT_NOT_FOUND;
                     else
-                        rc = m->pVirtualBox->findHardDiskById(Guid(parentId), false /* aSetError */, &pParent);
+                        rc = pVirtualBox->findHardDiskById(Guid(parentId), false /* aSetError */, &pParent);
                     if (FAILED(rc))
                     {
                         if (fSetImageId && !fSetParentId)
@@ -5869,13 +5936,18 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                         {
                             lastAccessError = Utf8StrFmt(tr("Parent medium with UUID {%RTuuid} of the medium '%s' is not found in the media registry ('%s')"),
                                                          &parentId, location.c_str(),
-                                                         m->pVirtualBox->settingsFilePath().c_str());
+                                                         pVirtualBox->settingsFilePath().c_str());
                             throw S_OK;
                         }
                     }
 
+                    /* must drop the caller before taking the tree lock */
+                    autoCaller.release();
                     /* we set mParent & children() */
                     treeLock.acquire();
+                    autoCaller.add();
+                    if (FAILED(autoCaller.rc()))
+                        throw autoCaller.rc();
 
                     if (m->pParent)
                         deparent();
@@ -5885,8 +5957,13 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                 }
                 else
                 {
+                    /* must drop the caller before taking the tree lock */
+                    autoCaller.release();
                     /* we access mParent */
                     treeLock.acquire();
+                    autoCaller.add();
+                    if (FAILED(autoCaller.rc()))
+                        throw autoCaller.rc();
 
                     /* check that parent UUIDs match. Note that there's no need
                      * for the parent's AutoCaller (our lifetime is bound to
@@ -5908,14 +5985,19 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                         lastAccessError = Utf8StrFmt(
                                 tr("Medium type of '%s' is differencing but it is not associated with any parent medium in the media registry ('%s')"),
                                 location.c_str(),
-                                m->pVirtualBox->settingsFilePath().c_str());
+                                pVirtualBox->settingsFilePath().c_str());
                         treeLock.release();
                         throw S_OK;
 #endif /* 0 */
                     }
 
                     {
+                        autoCaller.release();
                         AutoReadLock parentLock(m->pParent COMMA_LOCKVAL_SRC_POS);
+                        autoCaller.add();
+                        if (FAILED(autoCaller.rc()))
+                            throw autoCaller.rc();
+
                         if (   !fRepairImageZeroParentUuid
                             && m->pParent->getState() != MediumState_Inaccessible
                             && m->pParent->getId() != parentId)
@@ -5925,7 +6007,7 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                                     tr("Parent UUID {%RTuuid} of the medium '%s' does not match UUID {%RTuuid} of its parent medium stored in the media registry ('%s')"),
                                     &parentId, location.c_str(),
                                     m->pParent->getId().raw(),
-                                    m->pVirtualBox->settingsFilePath().c_str());
+                                    pVirtualBox->settingsFilePath().c_str());
                             parentLock.release();
                             treeLock.release();
                             throw S_OK;
@@ -5964,7 +6046,14 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
         rc = aRC;
     }
 
+    autoCaller.release();
     treeLock.acquire();
+    autoCaller.add();
+    if (FAILED(autoCaller.rc()))
+    {
+        m->queryInfoRunning = false;
+        return autoCaller.rc();
+    }
     alock.acquire();
 
     if (success)
@@ -5981,15 +6070,15 @@ HRESULT Medium::queryInfo(bool fSetImageId, bool fSetParentId)
                         rc, vrc));
     }
 
-    /* unblock anyone waiting for the queryInfo results */
-    qlock.release();
-    m->queryInfoRunning = false;
-
     /* Set the proper state according to the result of the check */
     if (success)
         m->preLockState = MediumState_Created;
     else
         m->preLockState = MediumState_Inaccessible;
+
+    /* unblock anyone waiting for the queryInfo results */
+    qlock.release();
+    m->queryInfoRunning = false;
 
     pToken->Abandon();
     pToken.setNull();
@@ -6478,6 +6567,45 @@ DeviceType_T Medium::convertToDeviceType(VDTYPE enmType)
 }
 
 /**
+ * Internal method which checks whether a property name is for a filter plugin.
+ */
+bool Medium::isPropertyForFilter(const com::Utf8Str &aName)
+{
+    /* If the name contains "/" use the part before as a filter name and lookup the filter. */
+    size_t offSlash;
+    if ((offSlash = aName.find("/", 0)) != aName.npos)
+    {
+        com::Utf8Str strFilter;
+        com::Utf8Str strKey;
+
+        HRESULT rc = strFilter.assignEx(aName, 0, offSlash);
+        if (FAILED(rc))
+            return false;
+
+        rc = strKey.assignEx(aName, offSlash + 1, aName.length() - offSlash - 1); /* Skip slash */
+        if (FAILED(rc))
+            return false;
+
+        VDFILTERINFO FilterInfo;
+        int vrc = VDFilterInfoOne(strFilter.c_str(), &FilterInfo);
+        if (RT_SUCCESS(vrc))
+        {
+            /* Check that the property exists. */
+            PCVDCONFIGINFO paConfig = FilterInfo.paConfigInfo;
+            while (paConfig->pszKey)
+            {
+                if (strKey.equals(paConfig->pszKey))
+                    return true;
+                paConfig++;
+            }
+        }
+    }
+
+    return false;
+}
+
+
+/**
  * Returns the last error message collected by the vdErrorCall callback and
  * resets it.
  *
@@ -6865,7 +6993,7 @@ HRESULT Medium::taskCreateBaseHandler(Medium::CreateBaseTask &task)
          * better than breaking media registry consistency) */
         AutoWriteLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
         ComObjPtr<Medium> pMedium;
-        rc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk);
+        rc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk, treeLock);
         Assert(this == pMedium);
     }
 
@@ -7051,7 +7179,7 @@ HRESULT Medium::taskCreateDiffHandler(Medium::CreateDiffTask &task)
          * Created state only on success (leaving an orphan file is
          * better than breaking media registry consistency) */
         ComObjPtr<Medium> pMedium;
-        mrc = m->pVirtualBox->registerMedium(pTarget, &pMedium, DeviceType_HardDisk);
+        mrc = m->pVirtualBox->registerMedium(pTarget, &pMedium, DeviceType_HardDisk, treeLock);
         Assert(pTarget == pMedium);
 
         if (FAILED(mrc))
@@ -7286,7 +7414,8 @@ HRESULT Medium::taskMergeHandler(Medium::MergeTask &task)
             /* then, register again */
             ComObjPtr<Medium> pMedium;
             rc2 = m->pVirtualBox->registerMedium(pTarget, &pMedium,
-                                                 DeviceType_HardDisk);
+                                                 DeviceType_HardDisk,
+                                                 treeLock);
             AssertComRC(rc2);
         }
         else
@@ -7370,7 +7499,11 @@ HRESULT Medium::taskMergeHandler(Medium::MergeTask &task)
             AssertComRC(rc2);
 
             if (task.isAsync() || pMedium != this)
+            {
+                treeLock.release();
                 pMedium->uninit();
+                treeLock.acquire();
+            }
         }
     }
 
@@ -7613,7 +7746,7 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
     if (SUCCEEDED(mrc) && fCreatingTarget)
     {
         /* we set mParent & children() */
-        AutoWriteLock alock2(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
         Assert(pTarget->m->pParent.isNull());
 
@@ -7630,7 +7763,8 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
             eik.restore();
             ComObjPtr<Medium> pMedium;
             mrc = pParent->m->pVirtualBox->registerMedium(pTarget, &pMedium,
-                                                          DeviceType_HardDisk);
+                                                          DeviceType_HardDisk,
+                                                          treeLock);
             Assert(   FAILED(mrc)
                    || pTarget == pMedium);
             eik.fetch();
@@ -7645,7 +7779,8 @@ HRESULT Medium::taskCloneHandler(Medium::CloneTask &task)
             eik.restore();
             ComObjPtr<Medium> pMedium;
             mrc = m->pVirtualBox->registerMedium(pTarget, &pMedium,
-                                                 DeviceType_HardDisk);
+                                                 DeviceType_HardDisk,
+                                                 treeLock);
             Assert(   FAILED(mrc)
                    || pTarget == pMedium);
             eik.fetch();
@@ -8399,7 +8534,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
     if (SUCCEEDED(mrc) && fCreatingTarget)
     {
         /* we set mParent & children() */
-        AutoWriteLock alock2(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock treeLock(m->pVirtualBox->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
         Assert(m->pParent.isNull());
 
@@ -8416,7 +8551,8 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
             eik.restore();
             ComObjPtr<Medium> pMedium;
             mrc = pParent->m->pVirtualBox->registerMedium(this, &pMedium,
-                                                          DeviceType_HardDisk);
+                                                          DeviceType_HardDisk,
+                                                          treeLock);
             Assert(this == pMedium);
             eik.fetch();
 
@@ -8429,7 +8565,7 @@ HRESULT Medium::taskImportHandler(Medium::ImportTask &task)
             /* just register  */
             eik.restore();
             ComObjPtr<Medium> pMedium;
-            mrc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk);
+            mrc = m->pVirtualBox->registerMedium(this, &pMedium, DeviceType_HardDisk, treeLock);
             Assert(this == pMedium);
             eik.fetch();
         }

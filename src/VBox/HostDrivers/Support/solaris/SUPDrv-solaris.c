@@ -796,7 +796,7 @@ static int VBoxDrvSolarisIOCtlSlow(PSUPDRVSESSION pSession, int iCmd, int Mode, 
     /*
      * Process the IOCtl.
      */
-    rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr);
+    rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr, cbBuf);
 
     /*
      * Copy ioctl data and output buffer back to user space.
@@ -1222,6 +1222,15 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 
     szMsg[sizeof(szMsg) - 1] = '\0';
     cmn_err(CE_CONT, "%s", szMsg);
+    return 0;
+}
+
+
+/**
+ * Returns configuration flags of the host kernel.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
+{
     return 0;
 }
 

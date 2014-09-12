@@ -88,6 +88,7 @@
 #include <iprt/string.h>
 #include <iprt/system.h>
 #include <iprt/base64.h>
+#include <iprt/memsafer.h>
 
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/vmm.h>
@@ -410,6 +411,7 @@ Console::Console()
     , mUsbCardReader(NULL)
 #endif
     , mBusMgr(NULL)
+    , mpIfSecKey(NULL)
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
     , mMachineState(MachineState_PoweredOff)
@@ -445,6 +447,14 @@ HRESULT Console::FinalConstruct()
     pVmm2UserMethods->u32EndMagic       = VMM2USERMETHODS_MAGIC;
     pVmm2UserMethods->pConsole          = this;
     mpVmm2UserMethods = pVmm2UserMethods;
+
+    MYPDMISECKEY *pIfSecKey = (MYPDMISECKEY *)RTMemAllocZ(sizeof(*mpIfSecKey) + sizeof(Console *));
+    if (!pIfSecKey)
+        return E_OUTOFMEMORY;
+    pIfSecKey->pfnKeyRetain             = Console::i_pdmIfSecKey_KeyRetain;
+    pIfSecKey->pfnKeyRelease            = Console::i_pdmIfSecKey_KeyRelease;
+    pIfSecKey->pConsole                 = this;
+    mpIfSecKey = pIfSecKey;
 
     return BaseFinalConstruct();
 }
@@ -670,6 +680,12 @@ void Console::uninit()
         mpVmm2UserMethods = NULL;
     }
 
+    if (mpIfSecKey)
+    {
+        RTMemFree((void *)mpIfSecKey);
+        mpIfSecKey = NULL;
+    }
+
     if (mNvram)
     {
         delete mNvram;
@@ -709,6 +725,12 @@ void Console::uninit()
 
     mRemoteUSBDevices.clear();
     mUSBDevices.clear();
+
+    for (SecretKeyMap::iterator it = m_mapSecretKeys.begin();
+         it != m_mapSecretKeys.end();
+         it++)
+        delete it->second;
+    m_mapSecretKeys.clear();
 
     if (mVRDEServerInfo)
     {
@@ -4439,15 +4461,97 @@ int Console::consoleParseKeyValue(const char *psz, const char **ppszEnd,
 }
 
 /**
+ * Removes the key interfaces from all disk attachments, useful when
+ * changing the key store or dropping it.
+ */
+HRESULT Console::clearDiskEncryptionKeysOnAllAttachments(void)
+{
+    HRESULT hrc = S_OK;
+    SafeIfaceArray<IMediumAttachment> sfaAttachments;
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    /* Get the VM - must be done before the read-locking. */
+    SafeVMPtr ptrVM(this);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    hrc = mMachine->COMGETTER(MediumAttachments)(ComSafeArrayAsOutParam(sfaAttachments));
+    AssertComRCReturnRC(hrc);
+
+    /* Find the correct attachment. */
+    for (unsigned i = 0; i < sfaAttachments.size(); i++)
+    {
+        const ComPtr<IMediumAttachment> &pAtt = sfaAttachments[i];
+
+        /*
+         * Query storage controller, port and device
+         * to identify the correct driver.
+         */
+        ComPtr<IStorageController> pStorageCtrl;
+        Bstr storageCtrlName;
+        LONG lPort, lDev;
+        ULONG ulStorageCtrlInst;
+
+        hrc = pAtt->COMGETTER(Controller)(storageCtrlName.asOutParam());
+        AssertComRC(hrc);
+
+        hrc = pAtt->COMGETTER(Port)(&lPort);
+        AssertComRC(hrc);
+
+        hrc = pAtt->COMGETTER(Device)(&lDev);
+        AssertComRC(hrc);
+
+        hrc = mMachine->GetStorageControllerByName(storageCtrlName.raw(), pStorageCtrl.asOutParam());
+        AssertComRC(hrc);
+
+        hrc = pStorageCtrl->COMGETTER(Instance)(&ulStorageCtrlInst);
+        AssertComRC(hrc);
+
+        StorageControllerType_T enmCtrlType;
+        hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
+        AssertComRC(hrc);
+        const char *pcszDevice = convertControllerTypeToDev(enmCtrlType);
+
+        StorageBus_T enmBus;
+        hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
+        AssertComRC(hrc);
+
+        unsigned uLUN;
+        hrc = Console::convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
+        AssertComRC(hrc);
+
+        PPDMIBASE pIBase = NULL;
+        PPDMIMEDIA pIMedium = NULL;
+        int rc = PDMR3QueryDriverOnLun(ptrVM.rawUVM(), pcszDevice, ulStorageCtrlInst, uLUN, "VD", &pIBase);
+        if (RT_SUCCESS(rc))
+        {
+            if (pIBase)
+            {
+                pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
+                if (pIMedium)
+                {
+                    rc = pIMedium->pfnSetSecKeyIf(pIMedium, NULL);
+                    Assert(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED);
+                }
+            }
+        }
+    }
+
+    return hrc;
+}
+
+/**
  * Configures the encryption support for the disk identified by the gien UUID with
  * the given key.
  *
  * @returns COM status code.
  * @param   pszUuid   The UUID of the disk to configure encryption for.
- * @param   pbKey     The key to use
- * @param   cbKey     Size of the key in bytes.
  */
-HRESULT Console::configureEncryptionForDisk(const char *pszUuid, const uint8_t *pbKey, size_t cbKey)
+HRESULT Console::configureEncryptionForDisk(const char *pszUuid)
 {
     HRESULT hrc = S_OK;
     SafeIfaceArray<IMediumAttachment> sfaAttachments;
@@ -4545,14 +4649,16 @@ HRESULT Console::configureEncryptionForDisk(const char *pszUuid, const uint8_t *
                     pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
                     if (!pIMedium)
                         return setError(E_FAIL, tr("could not query medium interface of controller"));
+                    else
+                    {
+                        rc = pIMedium->pfnSetSecKeyIf(pIMedium, mpIfSecKey);
+                        if (RT_FAILURE(rc))
+                            return setError(E_FAIL, tr("Failed to set the encryption key (%Rrc)"), rc);
+                    }
                 }
                 else
                     return setError(E_FAIL, tr("could not query base interface of controller"));
             }
-
-            rc = pIMedium->pfnSetKey(pIMedium, pbKey, cbKey);
-            if (RT_FAILURE(rc))
-                return setError(E_FAIL, tr("Failed to set the encryption key (%Rrc)"), rc);
         }
     }
 
@@ -4620,23 +4726,26 @@ HRESULT Console::consoleParseDiskEncryption(const char *psz, const char **ppszEn
         cbKey = RTBase64DecodedSize(pszKeyEnc, NULL);
         if (cbKey != -1)
         {
-            uint8_t *pbKey = (uint8_t *)RTMemLockedAlloc(cbKey);
-            if (pbKey)
+            void *pvKey = NULL;
+            rc = RTMemSaferAllocZEx(&pvKey, cbKey, RTMEMSAFER_F_REQUIRE_NOT_PAGABLE);
+            if (RT_SUCCESS(rc))
             {
-                rc = RTBase64Decode(pszKeyEnc, pbKey, cbKey, NULL, NULL);
+                rc = RTBase64Decode(pszKeyEnc, pvKey, cbKey, NULL, NULL);
                 if (RT_SUCCESS(rc))
-                    hrc = configureEncryptionForDisk(pszUuid, pbKey, cbKey);
+                {
+                    SecretKey *pKey = new SecretKey(pvKey, cbKey);
+                    /* Add the key to the map */
+                    m_mapSecretKeys.insert(std::make_pair(Utf8Str(pszUuid), pKey));
+                    hrc = configureEncryptionForDisk(pszUuid);
+                }
                 else
                     hrc = setError(E_FAIL,
                                    tr("Failed to decode the key (%Rrc)"),
                                    rc);
-
-                RTMemWipeThoroughly(pbKey, cbKey, 10 /* cMinPasses */);
-                RTMemLockedFree(pbKey);
             }
             else
                 hrc = setError(E_FAIL,
-                               tr("Failed to allocate secure memory for the key"));
+                               tr("Failed to allocate secure memory for the key (%Rrc)"), rc);
         }
         else
             hrc = setError(E_FAIL,
@@ -6024,6 +6133,18 @@ HRESULT Console::pause(Reason_T aReason)
     HRESULT hrc = S_OK;
     if (RT_FAILURE(vrc))
         hrc = setError(VBOX_E_VM_ERROR, tr("Could not suspend the machine execution (%Rrc)"), vrc);
+    else
+    {
+        /* Unconfigure disk encryption from all attachments. */
+        clearDiskEncryptionKeysOnAllAttachments();
+
+        /* Clear any keys we have stored. */
+        for (SecretKeyMap::iterator it = m_mapSecretKeys.begin();
+            it != m_mapSecretKeys.end();
+            it++)
+            delete it->second;
+        m_mapSecretKeys.clear();
+    }
 
     LogFlowThisFunc(("hrc=%Rhrc\n", hrc));
     LogFlowThisFuncLeave();
@@ -6112,6 +6233,12 @@ HRESULT Console::saveState(Reason_T aReason, IProgress **aProgress)
             tr("Cannot save the execution state as the machine is not running or paused (machine state: %s)"),
             Global::stringifyMachineState(mMachineState));
     }
+
+    Bstr strDisableSaveState;
+    mMachine->GetExtraData(Bstr("VBoxInternal2/DisableSaveState").raw(), strDisableSaveState.asOutParam());
+    if (strDisableSaveState == "1")
+        return setError(VBOX_E_VM_ERROR,
+                        tr("Saving the execution state is disabled for this VM"));
 
     if (aReason != Reason_Unspecified)
         LogRel(("Saving state of VM, reason \"%s\"\n", Global::stringifyReason(aReason)));
@@ -10193,6 +10320,50 @@ Console::vmm2User_NotifyResetTurnedIntoPowerOff(PCVMM2USERMETHODS pThis, PUVM pU
     NOREF(pUVM);
 
     pConsole->mfPowerOffCausedByReset = true;
+}
+
+
+
+
+/**
+ * @interface_method_impl{PDMISECKEY,pfnKeyRetain}
+ */
+/*static*/ DECLCALLBACK(int)
+Console::i_pdmIfSecKey_KeyRetain(PPDMISECKEY pInterface, const char *pszId, const uint8_t **ppbKey,
+                                 size_t *pcbKey)
+{
+    Console *pConsole = ((MYPDMISECKEY *)pInterface)->pConsole;
+
+    SecretKeyMap::const_iterator it = pConsole->m_mapSecretKeys.find(Utf8Str(pszId));
+    if (it != pConsole->m_mapSecretKeys.end())
+    {
+        SecretKey *pKey = (*it).second;
+
+        ASMAtomicIncU32(&pKey->m_cRefs);
+        *ppbKey = (const uint8_t *)pKey->m_pvKey;
+        *pcbKey = pKey->m_cbKey;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_NOT_FOUND;
+}
+
+/**
+ * @interface_method_impl{PDMISECKEY,pfnKeyRelease}
+ */
+/*static*/ DECLCALLBACK(int)
+Console::i_pdmIfSecKey_KeyRelease(PPDMISECKEY pInterface, const char *pszId)
+{
+    Console *pConsole = ((MYPDMISECKEY *)pInterface)->pConsole;
+    SecretKeyMap::const_iterator it = pConsole->m_mapSecretKeys.find(Utf8Str(pszId));
+    if (it != pConsole->m_mapSecretKeys.end())
+    {
+        SecretKey *pKey = (*it).second;
+        ASMAtomicDecU32(&pKey->m_cRefs);
+        return VINF_SUCCESS;
+    }
+
+    return VERR_NOT_FOUND;
 }
 
 

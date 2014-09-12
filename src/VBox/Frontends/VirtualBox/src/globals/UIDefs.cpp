@@ -83,6 +83,7 @@ const char* UIDefs::GUI_PassCAD = "GUI/PassCAD";
 const char* UIDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";
 const char* UIDefs::GUI_RestrictedStatusBarIndicators = "GUI/RestrictedStatusBarIndicators";
 const char* UIDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
+const char* UIDefs::GUI_MouseCapturePolicy = "GUI/MouseCapturePolicy";
 const char* UIDefs::GUI_GuruMeditationHandler = "GUI/GuruMeditationHandler";
 const char* UIDefs::GUI_HiDPIOptimization = "GUI/HiDPI/Optimization";
 

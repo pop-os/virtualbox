@@ -216,14 +216,40 @@ typedef struct RTLDROPS
      * This entrypoint can be omitted if RTLDROPS::pfnGetSymbolEx() is provided and the special BaseAddress feature isn't supported.
      *
      * @returns iprt status code.
+     * @retval  VERR_LDR_FORWARDER forwarder, use pfnQueryForwarderInfo. Buffer size
+     *          in @a pValue.
      * @param   pMod        Pointer to the loader module structure.
      * @param   pvBits      Pointer to bits returned by RTLDROPS::pfnGetBits(), optional.
      * @param   BaseAddress The image base address to use when calculating the symbol value.
+     * @param   iOrdinal    Symbol table ordinal, UINT32_MAX if the symbol name
+     *                      should be used.
      * @param   pszSymbol   The symbol name.
      * @param   pValue      Where to store the symbol value.
      * @remark  Extended loader feature.
      */
-    DECLCALLBACKMEMBER(int, pfnGetSymbolEx)(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress, const char *pszSymbol, RTUINTPTR *pValue);
+    DECLCALLBACKMEMBER(int, pfnGetSymbolEx)(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
+                                            uint32_t iOrdinal, const char *pszSymbol, RTUINTPTR *pValue);
+
+    /**
+     * Query forwarder information on the specified symbol.
+     *
+     * This is an optional entrypoint.
+     *
+     * @returns iprt status code.
+     * @param   pMod        Pointer to the loader module structure.
+     * @param   pvBits      Pointer to bits returned by RTLDROPS::pfnGetBits(),
+     *                      optional.
+     * @param   iOrdinal    Symbol table ordinal of the forwarded symbol to query.
+     *                      UINT32_MAX if the symbol name should be used.
+     * @param   pszSymbol   The symbol name of the forwarded symbol to query.
+     * @param   pInfo       Where to return the forwarder information.
+     * @param   cbInfo      The size of the pInfo buffer. The pfnGetSymbolEx
+     *                      entrypoint returns the required size in @a pValue when
+     *                      the return code is VERR_LDR_FORWARDER.
+     * @remark  Extended loader feature.
+     */
+    DECLCALLBACKMEMBER(int, pfnQueryForwarderInfo)(PRTLDRMODINTERNAL pMod, const void *pvBits, uint32_t iOrdinal,
+                                                   const char *pszSymbol, PRTLDRIMPORTINFO pInfo, size_t cbInfo);
 
     /**
      * Enumerates the debug info contained in the module.
@@ -332,14 +358,19 @@ typedef struct RTLDROPS
      *
      * @param   pMod            Pointer to the loader module structure.
      * @param   enmLdrProp      The property to query (valid).
-     * @param   pvBuf           Pointer to the return buffer (valid).
-     * @param   cbBuf           The size of the return buffer (valid as per
+     * @param   pvBits          Pointer to the bits returned by
+     *                          RTLDROPS::pfnGetBits(), optional.
+     * @param   pvBuf           Pointer to the input / output buffer. This is valid.
+     *                          Normally only used for returning data, but in some
+     *                          cases it also holds input.
+     * @param   cbBuf           The size of the buffer (valid as per
      *                          property).
      * @param   pcbRet          The number of bytes actually returned.  If
      *                          VERR_BUFFER_OVERFLOW is returned, this is set to the
      *                          required buffer size.
      */
-    DECLCALLBACKMEMBER(int, pfnQueryProp)(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf, size_t *pcbRet);
+    DECLCALLBACKMEMBER(int, pfnQueryProp)(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void const *pvBits,
+                                          void *pvBuf, size_t cbBuf, size_t *pcbRet);
 
     /**
      * Verify the image signature.

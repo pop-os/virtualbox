@@ -622,6 +622,7 @@ static int vhdAsyncExpansionComplete(PVHDIMAGE pImage, PVDIOCTX pIoCtx, PVHDIMAG
     /* Quick path, check if everything succeeded. */
     if (fFlags == VHDIMAGEEXPAND_ALL_SUCCESS)
     {
+        pImage->pBlockAllocationTable[pExpand->idxBatAllocated] = RT_BE2H_U32(pExpand->idxBlockBe);
         RTMemFree(pExpand);
     }
     else
@@ -902,7 +903,7 @@ DECLINLINE(bool) vhdBlockBitmapSectorContainsData(PVHDIMAGE pImage, uint32_t cBl
     AssertMsg(puBitmap < (pImage->pu8Bitmap + pImage->cbDataBlockBitmap),
                 ("VHD: Current bitmap position exceeds maximum size of the bitmap\n"));
 
-    return ASMBitTest(puBitmap, iBitInByte);
+    return ((*puBitmap) & RT_BIT(iBitInByte)) != 0;
 }
 
 /**
@@ -922,7 +923,9 @@ DECLINLINE(bool) vhdBlockBitmapSectorSet(PVHDIMAGE pImage, uint8_t *pu8Bitmap, u
     AssertMsg(puBitmap < (pu8Bitmap + pImage->cbDataBlockBitmap),
                 ("VHD: Current bitmap position exceeds maximum size of the bitmap\n"));
 
-    return !ASMBitTestAndSet(puBitmap, iBitInByte);
+    bool fClear = ((*puBitmap) & RT_BIT(iBitInByte)) == 0;
+    *puBitmap |= RT_BIT(iBitInByte);
+    return fClear;
 }
 
 /**
@@ -1687,7 +1690,7 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
                  * Write the new block at the current end of the file.
                  */
                 rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
-                                            pImage->uCurrentEndOfFile + pImage->cDataBlockBitmapSectors * VHD_SECTOR_SIZE,
+                                            pImage->uCurrentEndOfFile + (pImage->cDataBlockBitmapSectors + (cSector % pImage->cSectorsPerDataBlock)) * VHD_SECTOR_SIZE,
                                             pIoCtx, cbWrite,
                                             vhdAsyncExpansionDataComplete,
                                             pExpand);
@@ -1725,7 +1728,6 @@ static int vhdWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
                 /*
                  * Set the new end of the file and link the new block into the BAT.
                  */
-                pImage->pBlockAllocationTable[cBlockAllocationTableEntry] = pImage->uCurrentEndOfFile / VHD_SECTOR_SIZE;
                 pImage->uCurrentEndOfFile += pImage->cDataBlockBitmapSectors * VHD_SECTOR_SIZE + pImage->cbDataBlock;
 
                 /* Update the footer. */

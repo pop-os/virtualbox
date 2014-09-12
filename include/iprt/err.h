@@ -920,6 +920,12 @@ RT_C_DECLS_END
 #define VERR_ACCOUNT_RESTRICTED             (-22405)
 /** An account is restricted in a certain way. */
 #define VINF_ACCOUNT_RESTRICTED             22405
+/** Not able satisfy all the requirements of the request. */
+#define VERR_UNABLE_TO_SATISFY_REQUIREMENTS (-22406)
+/** Not able satisfy all the requirements of the request. */
+#define VWRN_UNABLE_TO_SATISFY_REQUIREMENTS 22406
+/** The requested allocation is too big. */
+#define VERR_ALLOCATION_TOO_BIG             (-22407)
 /** @} */
 
 
@@ -2050,6 +2056,8 @@ RT_C_DECLS_END
 #define VERR_ASN1_EXPECTED_PRIMITIVE                (-22853)
 /** Expected valid data pointer for ASN.1 object. */
 #define VERR_ASN1_INVALID_DATA_POINTER              (-22854)
+/** The ASN.1 encoding is too deeply nested for the decoder. */
+#define VERR_ASN1_TOO_DEEPLY_NESTED                 (-22855)
 
 /** ANS.1 internal error 1. */
 #define VERR_ASN1_INTERNAL_ERROR_1                  (-22895)
@@ -2130,6 +2138,17 @@ RT_C_DECLS_END
 #define VERR_LDRVI_PAGE_HASH_MISMATCH               (-22928)
 /** Image hash mismatch. */
 #define VERR_LDRVI_IMAGE_HASH_MISMATCH              (-22929)
+
+/** Cannot resolve symbol because it's a forwarder. */
+#define VERR_LDR_FORWARDER                          (-22950)
+/** The symbol is not a forwarder. */
+#define VERR_LDR_NOT_FORWARDER                      (-22951)
+/** Malformed forwarder entry. */
+#define VERR_LDR_BAD_FORWARDER                      (-22952)
+/** Too long forwarder chain or there is a loop. */
+#define VERR_LDR_FORWARDER_CHAIN_TOO_LONG           (-22953)
+/** Support for forwarders has not been implemented. */
+#define VERR_LDR_FORWARDERS_NOT_SUPPORTED           (-22954)
 /** @} */
 
 /** @name RTCrX509 status codes.

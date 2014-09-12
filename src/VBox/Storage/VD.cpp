@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -583,6 +583,12 @@ typedef struct VDMETAXFER
     unsigned         cRefs;
     /** Size of the data stored with this entry. */
     size_t           cbMeta;
+    /** Shadow buffer which is used in case a write is still active and other
+     * writes update the shadow buffer. */
+    uint8_t         *pbDataShw;
+    /** List of I/O contexts updating the shadow buffer while there is a write
+     * in progress. */
+    RTLISTNODE       ListIoCtxShwWrites;
     /** Data stored - variable size. */
     uint8_t          abData[1];
 } VDMETAXFER;
@@ -620,6 +626,8 @@ static RTLISTANCHOR g_ListPluginsLoaded;
 static unsigned g_cBackends = 0;
 /** Array of pointers to the image backends. */
 static PCVBOXHDDBACKEND *g_apBackends = NULL;
+/** Array of handles to the corresponding plugin. */
+static RTLDRMOD *g_ahBackendPlugins = NULL;
 /** Builtin image backends. */
 static PCVBOXHDDBACKEND aStaticBackends[] =
 {
@@ -639,6 +647,8 @@ static PCVBOXHDDBACKEND aStaticBackends[] =
 static unsigned g_cCacheBackends = 0;
 /** Array of pointers to the cache backends. */
 static PCVDCACHEBACKEND *g_apCacheBackends = NULL;
+/** Array of handles to the corresponding plugin. */
+static RTLDRMOD *g_ahCacheBackendPlugins = NULL;
 /** Builtin cache backends. */
 static PCVDCACHEBACKEND aStaticCacheBackends[] =
 {
@@ -649,6 +659,8 @@ static PCVDCACHEBACKEND aStaticCacheBackends[] =
 static unsigned g_cFilterBackends = 0;
 /** Array of pointers to the filters backends. */
 static PCVDFILTERBACKEND *g_apFilterBackends = NULL;
+/** Array of handles to the corresponding plugin. */
+static RTLDRMOD *g_ahFilterBackendPlugins = NULL;
 
 /** Forward declaration of the async discard helper. */
 static int vdDiscardHelperAsync(PVDIOCTX pIoCtx);
@@ -660,14 +672,21 @@ static DECLCALLBACK(void) vdIoCtxSyncComplete(void *pvUser1, void *pvUser2, int 
 /**
  * internal: add several backends.
  */
-static int vdAddBackends(PCVBOXHDDBACKEND *ppBackends, unsigned cBackends)
+static int vdAddBackends(RTLDRMOD hPlugin, PCVBOXHDDBACKEND *ppBackends, unsigned cBackends)
 {
     PCVBOXHDDBACKEND *pTmp = (PCVBOXHDDBACKEND*)RTMemRealloc(g_apBackends,
            (g_cBackends + cBackends) * sizeof(PCVBOXHDDBACKEND));
     if (RT_UNLIKELY(!pTmp))
         return VERR_NO_MEMORY;
+    RTLDRMOD *pTmpPlugins = (RTLDRMOD*)RTMemRealloc(g_ahBackendPlugins,
+           (g_cBackends + cBackends) * sizeof(RTLDRMOD));
+    if (RT_UNLIKELY(!pTmpPlugins))
+        return VERR_NO_MEMORY;
     g_apBackends = pTmp;
+    g_ahBackendPlugins = pTmpPlugins;
     memcpy(&g_apBackends[g_cBackends], ppBackends, cBackends * sizeof(PCVBOXHDDBACKEND));
+    for (unsigned i = g_cBackends; i < g_cBackends + cBackends; i++)
+        g_ahBackendPlugins[i] = hPlugin;
     g_cBackends += cBackends;
     return VINF_SUCCESS;
 }
@@ -675,22 +694,29 @@ static int vdAddBackends(PCVBOXHDDBACKEND *ppBackends, unsigned cBackends)
 /**
  * internal: add single backend.
  */
-DECLINLINE(int) vdAddBackend(PCVBOXHDDBACKEND pBackend)
+DECLINLINE(int) vdAddBackend(RTLDRMOD hPlugin, PCVBOXHDDBACKEND pBackend)
 {
-    return vdAddBackends(&pBackend, 1);
+    return vdAddBackends(hPlugin, &pBackend, 1);
 }
 
 /**
  * internal: add several cache backends.
  */
-static int vdAddCacheBackends(PCVDCACHEBACKEND *ppBackends, unsigned cBackends)
+static int vdAddCacheBackends(RTLDRMOD hPlugin, PCVDCACHEBACKEND *ppBackends, unsigned cBackends)
 {
     PCVDCACHEBACKEND *pTmp = (PCVDCACHEBACKEND*)RTMemRealloc(g_apCacheBackends,
            (g_cCacheBackends + cBackends) * sizeof(PCVDCACHEBACKEND));
     if (RT_UNLIKELY(!pTmp))
         return VERR_NO_MEMORY;
+    RTLDRMOD *pTmpPlugins = (RTLDRMOD*)RTMemRealloc(g_ahCacheBackendPlugins,
+           (g_cCacheBackends + cBackends) * sizeof(RTLDRMOD));
+    if (RT_UNLIKELY(!pTmpPlugins))
+        return VERR_NO_MEMORY;
     g_apCacheBackends = pTmp;
+    g_ahCacheBackendPlugins = pTmpPlugins;
     memcpy(&g_apCacheBackends[g_cCacheBackends], ppBackends, cBackends * sizeof(PCVDCACHEBACKEND));
+    for (unsigned i = g_cCacheBackends; i < g_cCacheBackends + cBackends; i++)
+        g_ahCacheBackendPlugins[i] = hPlugin;
     g_cCacheBackends += cBackends;
     return VINF_SUCCESS;
 }
@@ -698,26 +724,34 @@ static int vdAddCacheBackends(PCVDCACHEBACKEND *ppBackends, unsigned cBackends)
 /**
  * internal: add single cache backend.
  */
-DECLINLINE(int) vdAddCacheBackend(PCVDCACHEBACKEND pBackend)
+DECLINLINE(int) vdAddCacheBackend(RTLDRMOD hPlugin, PCVDCACHEBACKEND pBackend)
 {
-    return vdAddCacheBackends(&pBackend, 1);
+    return vdAddCacheBackends(hPlugin, &pBackend, 1);
 }
 
 /**
- * Add several filter bakends.
+ * Add several filter backends.
  *
  * @returns VBox status code.
+ * @param   hPlugin       Plugin handle to add.
  * @param   ppBackends    Array of filter backends to add.
  * @param   cBackends     Number of backends to add.
  */
-static int vdAddFilterBackends(PCVDFILTERBACKEND *ppBackends, unsigned cBackends)
+static int vdAddFilterBackends(RTLDRMOD hPlugin, PCVDFILTERBACKEND *ppBackends, unsigned cBackends)
 {
     PCVDFILTERBACKEND *pTmp = (PCVDFILTERBACKEND *)RTMemRealloc(g_apFilterBackends,
            (g_cFilterBackends + cBackends) * sizeof(PCVDFILTERBACKEND));
     if (RT_UNLIKELY(!pTmp))
         return VERR_NO_MEMORY;
+    RTLDRMOD *pTmpPlugins = (RTLDRMOD*)RTMemRealloc(g_ahFilterBackendPlugins,
+           (g_cFilterBackends + cBackends) * sizeof(RTLDRMOD));
+    if (RT_UNLIKELY(!pTmpPlugins))
+        return VERR_NO_MEMORY;
     g_apFilterBackends = pTmp;
+    g_ahFilterBackendPlugins = pTmpPlugins;
     memcpy(&g_apFilterBackends[g_cFilterBackends], ppBackends, cBackends * sizeof(PCVDFILTERBACKEND));
+    for (unsigned i = g_cFilterBackends; i < g_cFilterBackends + cBackends; i++)
+        g_ahFilterBackendPlugins[i] = hPlugin;
     g_cFilterBackends += cBackends;
     return VINF_SUCCESS;
 }
@@ -726,11 +760,12 @@ static int vdAddFilterBackends(PCVDFILTERBACKEND *ppBackends, unsigned cBackends
  * Add a single filter backend to the list of supported filters.
  *
  * @returns VBox status code.
+ * @param   hPlugin     Plugin handle to add.
  * @param   pBackend    The backend to add.
  */
-DECLINLINE(int) vdAddFilterBackend(PCVDFILTERBACKEND pBackend)
+DECLINLINE(int) vdAddFilterBackend(RTLDRMOD hPlugin, PCVDFILTERBACKEND pBackend)
 {
-    return vdAddFilterBackends(&pBackend, 1);
+    return vdAddFilterBackends(hPlugin, &pBackend, 1);
 }
 
 /**
@@ -1540,7 +1575,9 @@ DECLINLINE(PVDMETAXFER) vdMetaXferAlloc(PVDIOSTORAGE pIoStorage, uint64_t uOffse
         pMetaXfer->cbMeta       = cb;
         pMetaXfer->pIoStorage   = pIoStorage;
         pMetaXfer->cRefs        = 0;
+        pMetaXfer->pbDataShw    = NULL;
         RTListInit(&pMetaXfer->ListIoCtxWaiting);
+        RTListInit(&pMetaXfer->ListIoCtxShwWrites);
     }
     return pMetaXfer;
 }
@@ -2019,7 +2056,7 @@ static int vdReadHelperAsync(PVDIOCTX pIoCtx)
     {
         Log(("Interferring read while allocating a new block => deferring read\n"));
         vdIoCtxDefer(pDisk, pIoCtx);
-        return VINF_SUCCESS;
+        return VERR_VD_ASYNC_IO_IN_PROGRESS;
     }
 
     /* Loop until all reads started or we have a backend which needs to read metadata. */
@@ -2667,11 +2704,12 @@ static int vdWriteHelperOptimizedPreReadAsync(PVDIOCTX pIoCtx)
         && !pIoCtx->cDataTransfersPending)
         rc = vdReadHelperAsync(pIoCtx);
 
-    if (   RT_SUCCESS(rc)
+    if (   (   RT_SUCCESS(rc)
+            || (rc == VERR_VD_ASYNC_IO_IN_PROGRESS))
         && (   pIoCtx->Req.Io.cbTransferLeft
             || pIoCtx->cMetaTransfersPending))
         rc = VERR_VD_ASYNC_IO_IN_PROGRESS;
-     else
+    else
         pIoCtx->pfnIoCtxTransferNext = vdWriteHelperOptimizedCmpAndWriteAsync;
 
     return rc;
@@ -3429,7 +3467,7 @@ static DECLCALLBACK(int) vdPluginRegisterImage(void *pvUser, PCVBOXHDDBACKEND pB
     int rc = VINF_SUCCESS;
 
     if (pBackend->cbSize == sizeof(VBOXHDDBACKEND))
-        vdAddBackend(pBackend);
+        vdAddBackend((RTLDRMOD)pvUser, pBackend);
     else
     {
         LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
@@ -3447,7 +3485,7 @@ static DECLCALLBACK(int) vdPluginRegisterCache(void *pvUser, PCVDCACHEBACKEND pB
     int rc = VINF_SUCCESS;
 
     if (pBackend->cbSize == sizeof(VDCACHEBACKEND))
-        vdAddCacheBackend(pBackend);
+        vdAddCacheBackend((RTLDRMOD)pvUser, pBackend);
     else
     {
         LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
@@ -3465,7 +3503,7 @@ static DECLCALLBACK(int) vdPluginRegisterFilter(void *pvUser, PCVDFILTERBACKEND 
     int rc = VINF_SUCCESS;
 
     if (pBackend->cbSize == sizeof(VDFILTERBACKEND))
-        vdAddFilterBackend(pBackend);
+        vdAddFilterBackend((RTLDRMOD)pvUser, pBackend);
     else
     {
         LogFunc(("ignored plugin: pBackend->cbSize=%d rc=%Rrc\n", pBackend->cbSize));
@@ -3499,7 +3537,7 @@ static bool vdPluginFind(const char *pszFilename)
  *
  * @returns VBox status code.
  * @param   hPlugin     Plugin handle to add.
- * @param   pszFilename The associated filename, sued for finding duplicates.
+ * @param   pszFilename The associated filename, used for finding duplicates.
  */
 static int vdAddPlugin(RTLDRMOD hPlugin, const char *pszFilename)
 {
@@ -3522,6 +3560,61 @@ static int vdAddPlugin(RTLDRMOD hPlugin, const char *pszFilename)
         rc = VERR_NO_MEMORY;
 
     return rc;
+}
+
+static int vdRemovePlugin(const char *pszFilename)
+{
+    /* Find plugin to be removed from the list. */
+    PVDPLUGIN pIt = NULL;
+    RTListForEach(&g_ListPluginsLoaded, pIt, VDPLUGIN, NodePlugin)
+    {
+        if (!RTStrCmp(pIt->pszFilename, pszFilename))
+            break;
+    }
+    if (!pIt)
+        return VINF_SUCCESS;
+
+    /** @todo r=klaus: need to add a plugin entry point for unregistering the
+     * backends. Only if this doesn't exist (or fails to work) we should fall
+     * back to the following uncoordinated backend cleanup. */
+    for (unsigned i = 0; i < g_cBackends; i++)
+    {
+        while (i < g_cBackends && g_ahBackendPlugins[i] == pIt->hPlugin)
+        {
+            memcpy(&g_apBackends[i], &g_apBackends[i + 1], (g_cBackends - i - 1) * sizeof(PCVBOXHDDBACKEND));
+            memcpy(&g_ahBackendPlugins[i], &g_ahBackendPlugins[i + 1], (g_cBackends - i - 1) * sizeof(RTLDRMOD));
+            /** @todo for now skip reallocating, doesn't save much */
+            g_cBackends--;
+        }
+    }
+    for (unsigned i = 0; i < g_cCacheBackends; i++)
+    {
+        while (i < g_cCacheBackends && g_ahCacheBackendPlugins[i] == pIt->hPlugin)
+        {
+            memcpy(&g_apCacheBackends[i], &g_apCacheBackends[i + 1], (g_cCacheBackends - i - 1) * sizeof(PCVBOXHDDBACKEND));
+            memcpy(&g_ahCacheBackendPlugins[i], &g_ahCacheBackendPlugins[i + 1], (g_cCacheBackends - i - 1) * sizeof(RTLDRMOD));
+            /** @todo for now skip reallocating, doesn't save much */
+            g_cCacheBackends--;
+        }
+    }
+    for (unsigned i = 0; i < g_cFilterBackends; i++)
+    {
+        while (i < g_cFilterBackends && g_ahFilterBackendPlugins[i] == pIt->hPlugin)
+        {
+            memcpy(&g_apFilterBackends[i], &g_apFilterBackends[i + 1], (g_cFilterBackends - i - 1) * sizeof(PCVBOXHDDBACKEND));
+            memcpy(&g_ahFilterBackendPlugins[i], &g_ahFilterBackendPlugins[i + 1], (g_cFilterBackends - i - 1) * sizeof(RTLDRMOD));
+            /** @todo for now skip reallocating, doesn't save much */
+            g_cFilterBackends--;
+        }
+    }
+
+    /* Remove the plugin node now, all traces of it are gone. */
+    RTListNodeRemove(&pIt->NodePlugin);
+    RTLdrClose(pIt->hPlugin);
+    RTStrFree(pIt->pszFilename);
+    RTMemFree(pIt);
+
+    return VINF_SUCCESS;
 }
 #endif
 
@@ -3561,7 +3654,7 @@ static int vdPluginLoadFromFilename(const char *pszFilename)
         if (RT_SUCCESS(rc))
         {
             /* Get the function table. */
-            rc = pfnVDPluginLoad(NULL, &BackendRegister);
+            rc = pfnVDPluginLoad(hPlugin, &BackendRegister);
         }
         else
             LogFunc(("ignored plugin '%s': rc=%Rrc\n", pszFilename, rc));
@@ -3681,6 +3774,105 @@ static int vdLoadDynamicBackends()
     return vdPluginLoadFromPath(szPath);
 #else
     return VINF_SUCCESS;
+#endif
+}
+
+/**
+ * Worker for VDPluginUnloadFromFilename() and vdPluginUnloadFromPath().
+ *
+ * @returns VBox status code.
+ * @param   pszFilename    The plugin filename to unload.
+ */
+static int vdPluginUnloadFromFilename(const char *pszFilename)
+{
+#ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
+    return vdRemovePlugin(pszFilename);
+#else
+    return VERR_NOT_IMPLEMENTED;
+#endif
+}
+
+/**
+ * Worker for VDPluginUnloadFromPath().
+ *
+ * @returns VBox status code.
+ * @param   pszPath        The path to unload plugins from.
+ */
+static int vdPluginUnloadFromPath(const char *pszPath)
+{
+#ifndef VBOX_HDD_NO_DYNAMIC_BACKENDS
+    /* To get all entries with VBoxHDD as prefix. */
+    char *pszPluginFilter = RTPathJoinA(pszPath, VD_PLUGIN_PREFIX "*");
+    if (!pszPluginFilter)
+        return VERR_NO_STR_MEMORY;
+
+    PRTDIRENTRYEX pPluginDirEntry = NULL;
+    PRTDIR pPluginDir = NULL;
+    size_t cbPluginDirEntry = sizeof(RTDIRENTRYEX);
+    int rc = RTDirOpenFiltered(&pPluginDir, pszPluginFilter, RTDIRFILTER_WINNT, 0);
+    if (RT_FAILURE(rc))
+    {
+        /* On Windows the above immediately signals that there are no
+         * files matching, while on other platforms enumerating the
+         * files below fails. Either way: no plugins. */
+        goto out;
+    }
+
+    pPluginDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(sizeof(RTDIRENTRYEX));
+    if (!pPluginDirEntry)
+    {
+        rc = VERR_NO_MEMORY;
+        goto out;
+    }
+
+    while ((rc = RTDirReadEx(pPluginDir, pPluginDirEntry, &cbPluginDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK)) != VERR_NO_MORE_FILES)
+    {
+        char *pszPluginPath = NULL;
+
+        if (rc == VERR_BUFFER_OVERFLOW)
+        {
+            /* allocate new buffer. */
+            RTMemFree(pPluginDirEntry);
+            pPluginDirEntry = (PRTDIRENTRYEX)RTMemAllocZ(cbPluginDirEntry);
+            if (!pPluginDirEntry)
+            {
+                rc = VERR_NO_MEMORY;
+                break;
+            }
+            /* Retry. */
+            rc = RTDirReadEx(pPluginDir, pPluginDirEntry, &cbPluginDirEntry, RTFSOBJATTRADD_NOTHING, RTPATH_F_ON_LINK);
+            if (RT_FAILURE(rc))
+                break;
+        }
+        else if (RT_FAILURE(rc))
+            break;
+
+        /* We got the new entry. */
+        if (!RTFS_IS_FILE(pPluginDirEntry->Info.Attr.fMode))
+            continue;
+
+        /* Prepend the path to the libraries. */
+        pszPluginPath = RTPathJoinA(pszPath, pPluginDirEntry->szName);
+        if (!pszPluginPath)
+        {
+            rc = VERR_NO_STR_MEMORY;
+            break;
+        }
+
+        rc = vdPluginUnloadFromFilename(pszPluginPath);
+        RTStrFree(pszPluginPath);
+    }
+out:
+    if (rc == VERR_NO_MORE_FILES)
+        rc = VINF_SUCCESS;
+    RTStrFree(pszPluginFilter);
+    if (pPluginDirEntry)
+        RTMemFree(pPluginDirEntry);
+    if (pPluginDir)
+        RTDirClose(pPluginDir);
+    return rc;
+#else
+    return VERR_NOT_IMPLEMENTED;
 #endif
 }
 
@@ -3958,51 +4150,17 @@ static int vdUserXferCompleted(PVDIOSTORAGE pIoStorage, PVDIOCTX pIoCtx,
     return rc;
 }
 
-/**
- * Internal - Called when a meta transfer completed.
- */
-static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnComplete, void *pvUser,
-                               PVDMETAXFER pMetaXfer, int rcReq)
+static void vdIoCtxContinueDeferredList(PVDIOSTORAGE pIoStorage, PRTLISTANCHOR pListWaiting,
+                                        PFNVDXFERCOMPLETED pfnComplete, void *pvUser, int rcReq)
 {
-    PVBOXHDD pDisk = pIoStorage->pVDIo->pDisk;
-    RTLISTNODE ListIoCtxWaiting;
-    bool fFlush;
-
-    LogFlowFunc(("pIoStorage=%#p pfnComplete=%#p pvUser=%#p pMetaXfer=%#p rcReq=%Rrc\n",
-                 pIoStorage, pfnComplete, pvUser, pMetaXfer, rcReq));
-
-    VD_IS_LOCKED(pDisk);
-
-    fFlush = VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_FLUSH;
-    VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_NONE);
-
-    if (!fFlush)
-    {
-        RTListMove(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxWaiting);
-
-        if (RT_FAILURE(rcReq))
-        {
-            /* Remove from the AVL tree. */
-            LogFlow(("Removing meta xfer=%#p\n", pMetaXfer));
-            bool fRemoved = RTAvlrFileOffsetRemove(pIoStorage->pTreeMetaXfers, pMetaXfer->Core.Key) != NULL;
-            Assert(fRemoved);
-            RTMemFree(pMetaXfer);
-        }
-        else
-        {
-            /* Increase the reference counter to make sure it doesn't go away before the last context is processed. */
-            pMetaXfer->cRefs++;
-        }
-    }
-    else
-        RTListMove(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxWaiting);
+    LogFlowFunc(("pIoStorage=%#p pListWaiting=%#p pfnComplete=%#p pvUser=%#p rcReq=%Rrc\n",
+                 pIoStorage, pListWaiting, pfnComplete, pvUser, rcReq));
 
     /* Go through the waiting list and continue the I/O contexts. */
-    while (!RTListIsEmpty(&ListIoCtxWaiting))
+    while (!RTListIsEmpty(pListWaiting))
     {
         int rc = VINF_SUCCESS;
-        bool fContinue = true;
-        PVDIOCTXDEFERRED pDeferred = RTListGetFirst(&ListIoCtxWaiting, VDIOCTXDEFERRED, NodeDeferred);
+        PVDIOCTXDEFERRED pDeferred = RTListGetFirst(pListWaiting, VDIOCTXDEFERRED, NodeDeferred);
         PVDIOCTX pIoCtx = pDeferred->pIoCtx;
         RTListNodeRemove(&pDeferred->NodeDeferred);
 
@@ -4022,9 +4180,107 @@ static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnCo
         else
             Assert(rc == VERR_VD_ASYNC_IO_IN_PROGRESS);
     }
+}
+
+/**
+ * Internal - Called when a meta transfer completed.
+ */
+static int vdMetaXferCompleted(PVDIOSTORAGE pIoStorage, PFNVDXFERCOMPLETED pfnComplete, void *pvUser,
+                               PVDMETAXFER pMetaXfer, int rcReq)
+{
+    PVBOXHDD pDisk = pIoStorage->pVDIo->pDisk;
+    RTLISTNODE ListIoCtxWaiting;
+    bool fFlush;
+
+    LogFlowFunc(("pIoStorage=%#p pfnComplete=%#p pvUser=%#p pMetaXfer=%#p rcReq=%Rrc\n",
+                 pIoStorage, pfnComplete, pvUser, pMetaXfer, rcReq));
+
+    VD_IS_LOCKED(pDisk);
+
+    fFlush = VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_FLUSH;
+
+    if (!fFlush)
+    {
+        RTListMove(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxWaiting);
+
+        if (RT_FAILURE(rcReq))
+        {
+            /* Remove from the AVL tree. */
+            LogFlow(("Removing meta xfer=%#p\n", pMetaXfer));
+            bool fRemoved = RTAvlrFileOffsetRemove(pIoStorage->pTreeMetaXfers, pMetaXfer->Core.Key) != NULL;
+            Assert(fRemoved);
+            /* If this was a write check if there is a shadow buffer with updated data. */
+            if (pMetaXfer->pbDataShw)
+            {
+                Assert(VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_WRITE);
+                Assert(!RTListIsEmpty(&pMetaXfer->ListIoCtxShwWrites));
+                RTListConcatenate(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxShwWrites);
+                RTMemFree(pMetaXfer->pbDataShw);
+                pMetaXfer->pbDataShw = NULL;
+            }
+            RTMemFree(pMetaXfer);
+        }
+        else
+        {
+            /* Increase the reference counter to make sure it doesn't go away before the last context is processed. */
+            pMetaXfer->cRefs++;
+        }
+    }
+    else
+        RTListMove(&ListIoCtxWaiting, &pMetaXfer->ListIoCtxWaiting);
+
+    VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_NONE);
+    vdIoCtxContinueDeferredList(pIoStorage, &ListIoCtxWaiting, pfnComplete, pvUser, rcReq);
+
+    /*
+     * If there is a shadow buffer and the previous write was successful update with the
+     * new data and trigger a new write.
+     */
+    if (   pMetaXfer->pbDataShw
+        && RT_SUCCESS(rcReq)
+        && VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_NONE)
+    {
+        LogFlowFunc(("pMetaXfer=%#p Updating from shadow buffer and triggering new write\n", pMetaXfer));
+        memcpy(pMetaXfer->abData, pMetaXfer->pbDataShw, pMetaXfer->cbMeta);
+        RTMemFree(pMetaXfer->pbDataShw);
+        pMetaXfer->pbDataShw = NULL;
+        Assert(!RTListIsEmpty(&pMetaXfer->ListIoCtxShwWrites));
+
+        /* Setup a new I/O write. */
+        PVDIOTASK pIoTask = vdIoTaskMetaAlloc(pIoStorage, pfnComplete, pvUser, pMetaXfer);
+        if (RT_LIKELY(pIoTask))
+        {
+            void *pvTask = NULL;
+            RTSGSEG Seg;
+
+            Seg.cbSeg = pMetaXfer->cbMeta;
+            Seg.pvSeg = pMetaXfer->abData;
+
+            VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_WRITE);
+            rcReq = pIoStorage->pVDIo->pInterfaceIo->pfnWriteAsync(pIoStorage->pVDIo->pInterfaceIo->Core.pvUser,
+                                                                   pIoStorage->pStorage,
+                                                                   pMetaXfer->Core.Key, &Seg, 1,
+                                                                   pMetaXfer->cbMeta, pIoTask,
+                                                                   &pvTask);
+            if (   RT_SUCCESS(rcReq)
+                || rcReq != VERR_VD_ASYNC_IO_IN_PROGRESS)
+            {
+                VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_NONE);
+                vdIoTaskFree(pDisk, pIoTask);
+            }
+            else
+                RTListMove(&pMetaXfer->ListIoCtxWaiting, &pMetaXfer->ListIoCtxShwWrites);
+        }
+        else
+            rcReq = VERR_NO_MEMORY;
+
+        /* Cleanup if there was an error or the request completed already. */
+        if (rcReq != VERR_VD_ASYNC_IO_IN_PROGRESS)
+            vdIoCtxContinueDeferredList(pIoStorage, &pMetaXfer->ListIoCtxShwWrites, pfnComplete, pvUser, rcReq);
+    }
 
     /* Remove if not used anymore. */
-    if (RT_SUCCESS(rcReq) && !fFlush)
+    if (!fFlush)
     {
         pMetaXfer->cRefs--;
         if (!pMetaXfer->cRefs && RTListIsEmpty(&pMetaXfer->ListIoCtxWaiting))
@@ -4628,7 +4884,10 @@ static int vdIOIntReadMeta(void *pvUser, PVDIOSTORAGE pIoStorage, uint64_t uOffs
                 pMetaXfer->cRefs++;
                 Assert(pMetaXfer->cbMeta >= cbRead);
                 Assert(pMetaXfer->Core.Key == (RTFOFF)uOffset);
-                memcpy(pvBuf, pMetaXfer->abData, cbRead);
+                if (pMetaXfer->pbDataShw)
+                    memcpy(pvBuf, pMetaXfer->pbDataShw, cbRead);
+                else
+                    memcpy(pvBuf, pMetaXfer->abData, cbRead);
                 *ppMetaXfer = pMetaXfer;
             }
         }
@@ -4690,60 +4949,105 @@ static int vdIOIntWriteMeta(void *pvUser, PVDIOSTORAGE pIoStorage, uint64_t uOff
             fInTree = true;
         }
 
-        Assert(VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_NONE);
-
-        pIoTask = vdIoTaskMetaAlloc(pIoStorage, pfnComplete, pvCompleteUser, pMetaXfer);
-        if (!pIoTask)
+        if (VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_NONE)
         {
-            RTMemFree(pMetaXfer);
-            return VERR_NO_MEMORY;
-        }
-
-        memcpy(pMetaXfer->abData, pvBuf, cbWrite);
-        Seg.cbSeg = cbWrite;
-        Seg.pvSeg = pMetaXfer->abData;
-
-        ASMAtomicIncU32(&pIoCtx->cMetaTransfersPending);
-
-        VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_WRITE);
-        rc = pVDIo->pInterfaceIo->pfnWriteAsync(pVDIo->pInterfaceIo->Core.pvUser,
-                                                pIoStorage->pStorage,
-                                                uOffset, &Seg, 1, cbWrite, pIoTask,
-                                                &pvTask);
-        if (RT_SUCCESS(rc))
-        {
-            VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_NONE);
-            ASMAtomicDecU32(&pIoCtx->cMetaTransfersPending);
-            vdIoTaskFree(pDisk, pIoTask);
-            if (fInTree && !pMetaXfer->cRefs)
+            pIoTask = vdIoTaskMetaAlloc(pIoStorage, pfnComplete, pvCompleteUser, pMetaXfer);
+            if (!pIoTask)
             {
-                LogFlow(("Removing meta xfer=%#p\n", pMetaXfer));
-                bool fRemoved = RTAvlrFileOffsetRemove(pIoStorage->pTreeMetaXfers, pMetaXfer->Core.Key) != NULL;
-                AssertMsg(fRemoved, ("Metadata transfer wasn't removed\n"));
+                RTMemFree(pMetaXfer);
+                return VERR_NO_MEMORY;
+            }
+
+            memcpy(pMetaXfer->abData, pvBuf, cbWrite);
+            Seg.cbSeg = cbWrite;
+            Seg.pvSeg = pMetaXfer->abData;
+
+            ASMAtomicIncU32(&pIoCtx->cMetaTransfersPending);
+
+            VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_WRITE);
+            rc = pVDIo->pInterfaceIo->pfnWriteAsync(pVDIo->pInterfaceIo->Core.pvUser,
+                                                    pIoStorage->pStorage,
+                                                    uOffset, &Seg, 1, cbWrite, pIoTask,
+                                                    &pvTask);
+            if (RT_SUCCESS(rc))
+            {
+                VDMETAXFER_TXDIR_SET(pMetaXfer->fFlags, VDMETAXFER_TXDIR_NONE);
+                ASMAtomicDecU32(&pIoCtx->cMetaTransfersPending);
+                vdIoTaskFree(pDisk, pIoTask);
+                if (fInTree && !pMetaXfer->cRefs)
+                {
+                    LogFlow(("Removing meta xfer=%#p\n", pMetaXfer));
+                    bool fRemoved = RTAvlrFileOffsetRemove(pIoStorage->pTreeMetaXfers, pMetaXfer->Core.Key) != NULL;
+                    AssertMsg(fRemoved, ("Metadata transfer wasn't removed\n"));
+                    RTMemFree(pMetaXfer);
+                    pMetaXfer = NULL;
+                }
+            }
+            else if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+            {
+                PVDIOCTXDEFERRED pDeferred = (PVDIOCTXDEFERRED)RTMemAllocZ(sizeof(VDIOCTXDEFERRED));
+                AssertPtr(pDeferred);
+
+                RTListInit(&pDeferred->NodeDeferred);
+                pDeferred->pIoCtx = pIoCtx;
+
+                if (!fInTree)
+                {
+                    bool fInserted = RTAvlrFileOffsetInsert(pIoStorage->pTreeMetaXfers, &pMetaXfer->Core);
+                    Assert(fInserted);
+                }
+
+                RTListAppend(&pMetaXfer->ListIoCtxWaiting, &pDeferred->NodeDeferred);
+            }
+            else
+            {
                 RTMemFree(pMetaXfer);
                 pMetaXfer = NULL;
             }
         }
-        else if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
-        {
-            PVDIOCTXDEFERRED pDeferred = (PVDIOCTXDEFERRED)RTMemAllocZ(sizeof(VDIOCTXDEFERRED));
-            AssertPtr(pDeferred);
-
-            RTListInit(&pDeferred->NodeDeferred);
-            pDeferred->pIoCtx = pIoCtx;
-
-            if (!fInTree)
-            {
-                bool fInserted = RTAvlrFileOffsetInsert(pIoStorage->pTreeMetaXfers, &pMetaXfer->Core);
-                Assert(fInserted);
-            }
-
-            RTListAppend(&pMetaXfer->ListIoCtxWaiting, &pDeferred->NodeDeferred);
-        }
         else
         {
-            RTMemFree(pMetaXfer);
-            pMetaXfer = NULL;
+            /* I/O is in progress, update shadow buffer and add to waiting list. */
+            Assert(VDMETAXFER_TXDIR_GET(pMetaXfer->fFlags) == VDMETAXFER_TXDIR_WRITE);
+            if (!pMetaXfer->pbDataShw)
+            {
+                /* Allocate shadow buffer and set initial state. */
+                LogFlowFunc(("pMetaXfer=%#p Creating shadow buffer\n", pMetaXfer));
+                pMetaXfer->pbDataShw = (uint8_t *)RTMemAlloc(pMetaXfer->cbMeta);
+                if (RT_LIKELY(pMetaXfer->pbDataShw))
+                    memcpy(pMetaXfer->pbDataShw, pMetaXfer->abData, pMetaXfer->cbMeta);
+                else
+                    rc = VERR_NO_MEMORY;
+            }
+
+            if (RT_SUCCESS(rc))
+            {
+                /* Update with written data and append to waiting list. */
+                PVDIOCTXDEFERRED pDeferred = (PVDIOCTXDEFERRED)RTMemAllocZ(sizeof(VDIOCTXDEFERRED));
+                if (pDeferred)
+                {
+                    LogFlowFunc(("pMetaXfer=%#p Updating shadow buffer\n", pMetaXfer));
+
+                    RTListInit(&pDeferred->NodeDeferred);
+                    pDeferred->pIoCtx = pIoCtx;
+                    ASMAtomicIncU32(&pIoCtx->cMetaTransfersPending);
+                    memcpy(pMetaXfer->pbDataShw, pvBuf, cbWrite);
+                    RTListAppend(&pMetaXfer->ListIoCtxShwWrites, &pDeferred->NodeDeferred);
+                }
+                else
+                {
+                    /*
+                     * Free shadow buffer if there is no one depending on it, i.e.
+                     * we just allocated it.
+                     */
+                    if (RTListIsEmpty(&pMetaXfer->ListIoCtxShwWrites))
+                    {
+                        RTMemFree(pMetaXfer->pbDataShw);
+                        pMetaXfer->pbDataShw = NULL;
+                    }
+                    rc = VERR_NO_MEMORY;
+                }
+            }
         }
     }
 
@@ -5314,10 +5618,10 @@ static DECLCALLBACK(void) vdIoCtxSyncComplete(void *pvUser1, void *pvUser2, int 
  */
 VBOXDDU_DECL(int) VDInit(void)
 {
-    int rc = vdAddBackends(aStaticBackends, RT_ELEMENTS(aStaticBackends));
+    int rc = vdAddBackends(NIL_RTLDRMOD, aStaticBackends, RT_ELEMENTS(aStaticBackends));
     if (RT_SUCCESS(rc))
     {
-        rc = vdAddCacheBackends(aStaticCacheBackends, RT_ELEMENTS(aStaticCacheBackends));
+        rc = vdAddCacheBackends(NIL_RTLDRMOD, aStaticCacheBackends, RT_ELEMENTS(aStaticCacheBackends));
         if (RT_SUCCESS(rc))
         {
             RTListInit(&g_ListPluginsLoaded);
@@ -5405,6 +5709,42 @@ VBOXDDU_DECL(int) VDPluginLoadFromPath(const char *pszPath)
 }
 
 /**
+ * Unloads a single plugin given by filename.
+ *
+ * @returns VBox status code.
+ * @param   pszFilename     The plugin filename to unload.
+ */
+VBOXDDU_DECL(int) VDPluginUnloadFromFilename(const char *pszFilename)
+{
+    if (!g_apBackends)
+    {
+        int rc = VDInit();
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return vdPluginUnloadFromFilename(pszFilename);
+}
+
+/**
+ * Unload all plugins from a given path.
+ *
+ * @returns VBox statuse code.
+ * @param   pszPath         The path to unload plugins from.
+ */
+VBOXDDU_DECL(int) VDPluginUnloadFromPath(const char *pszPath)
+{
+    if (!g_apBackends)
+    {
+        int rc = VDInit();
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    return vdPluginUnloadFromPath(pszPath);
+}
+
+/**
  * Lists all HDD backends and their capabilities in a caller-provided buffer.
  *
  * @returns VBox status code.
@@ -5484,6 +5824,86 @@ VBOXDDU_DECL(int) VDBackendInfoOne(const char *pszBackend, PVDBACKENDINFO pEntry
             pEntry->uBackendCaps = g_apBackends[i]->uBackendCaps;
             pEntry->paFileExtensions = g_apBackends[i]->paFileExtensions;
             pEntry->paConfigInfo = g_apBackends[i]->paConfigInfo;
+            return VINF_SUCCESS;
+        }
+    }
+
+    return VERR_NOT_FOUND;
+}
+
+/**
+ * Lists all filters and their capabilities in a caller-provided buffer.
+ *
+ * @return  VBox status code.
+ *          VERR_BUFFER_OVERFLOW if not enough space is passed.
+ * @param   cEntriesAlloc   Number of list entries available.
+ * @param   pEntries        Pointer to array for the entries.
+ * @param   pcEntriesUsed   Number of entries returned.
+ */
+VBOXDDU_DECL(int) VDFilterInfo(unsigned cEntriesAlloc, PVDFILTERINFO pEntries,
+                               unsigned *pcEntriesUsed)
+{
+    int rc = VINF_SUCCESS;
+    unsigned cEntries = 0;
+
+    LogFlowFunc(("cEntriesAlloc=%u pEntries=%#p pcEntriesUsed=%#p\n", cEntriesAlloc, pEntries, pcEntriesUsed));
+    /* Check arguments. */
+    AssertMsgReturn(cEntriesAlloc,
+                    ("cEntriesAlloc=%u\n", cEntriesAlloc),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(VALID_PTR(pEntries),
+                    ("pEntries=%#p\n", pEntries),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(VALID_PTR(pcEntriesUsed),
+                    ("pcEntriesUsed=%#p\n", pcEntriesUsed),
+                    VERR_INVALID_PARAMETER);
+    if (!g_apBackends)
+        VDInit();
+
+    if (cEntriesAlloc < g_cFilterBackends)
+    {
+        *pcEntriesUsed = g_cFilterBackends;
+        return VERR_BUFFER_OVERFLOW;
+    }
+
+    for (unsigned i = 0; i < g_cFilterBackends; i++)
+    {
+        pEntries[i].pszFilter = g_apFilterBackends[i]->pszBackendName;
+        pEntries[i].paConfigInfo = g_apFilterBackends[i]->paConfigInfo;
+    }
+
+    LogFlowFunc(("returns %Rrc *pcEntriesUsed=%u\n", rc, cEntries));
+    *pcEntriesUsed = g_cFilterBackends;
+    return rc;
+}
+
+/**
+ * Lists the capabilities of a filter identified by its name.
+ *
+ * @return  VBox status code.
+ * @param   pszFilter       The filter name (case insensitive).
+ * @param   pEntries        Pointer to an entry.
+ */
+VBOXDDU_DECL(int) VDFilterInfoOne(const char *pszFilter, PVDFILTERINFO pEntry)
+{
+    LogFlowFunc(("pszFilter=%#p pEntry=%#p\n", pszFilter, pEntry));
+    /* Check arguments. */
+    AssertMsgReturn(VALID_PTR(pszFilter),
+                    ("pszFilter=%#p\n", pszFilter),
+                    VERR_INVALID_PARAMETER);
+    AssertMsgReturn(VALID_PTR(pEntry),
+                    ("pEntry=%#p\n", pEntry),
+                    VERR_INVALID_PARAMETER);
+    if (!g_apBackends)
+        VDInit();
+
+    /* Go through loaded backends. */
+    for (unsigned i = 0; i < g_cFilterBackends; i++)
+    {
+        if (!RTStrICmp(pszFilter, g_apFilterBackends[i]->pszBackendName))
+        {
+            pEntry->pszFilter = g_apFilterBackends[i]->pszBackendName;
+            pEntry->paConfigInfo = g_apFilterBackends[i]->paConfigInfo;
             return VINF_SUCCESS;
         }
     }

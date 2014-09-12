@@ -27,6 +27,7 @@ chdir
 chmod
 chown
 close
+__ctype_mask
 drmClose
 drmDropMaster
 drmFreeVersion
@@ -58,6 +59,7 @@ iconv
 iconv_close
 iconv_open
 ioctl
+isspace
 lchown
 lseek
 lseek64
@@ -118,6 +120,8 @@ strncpy
 __strncpy_chk
 strpbrk
 strstr
+strtoul
+__strtoul_internal
 symlink
 tolower
 unlink
@@ -125,6 +129,8 @@ unsetenv
 utimes
 vfprintf
 __vfprintf_chk
+vsnprintf
+__vsnprintf_chk
 vgaHWFreeHWRec
 vgaHWGetHWRec
 vgaHWGetIOBase

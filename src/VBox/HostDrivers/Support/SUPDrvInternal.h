@@ -72,8 +72,6 @@
 #       include <iprt/nt/nt.h>
 #   endif
 #   include <memory.h>
-#   define memcmp(a,b,c) mymemcmp(a,b,c)
-    int VBOXCALL mymemcmp(const void *, const void *, size_t);
     RT_C_DECLS_END
 
 #elif defined(RT_OS_LINUX)
@@ -761,7 +759,7 @@ int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
 *   Shared Functions                                                           *
 *******************************************************************************/
 /* SUPDrv.c */
-int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr);
+int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr, size_t cbReq);
 int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);

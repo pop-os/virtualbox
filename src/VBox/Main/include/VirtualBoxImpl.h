@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -200,6 +200,9 @@ public:
     void addProcessToReap(RTPROCESS pid);
     void updateClientWatcher();
 
+    int loadVDPlugin(const char *pszPluginLibrary);
+    int unloadVDPlugin(const char *pszPluginLibrary);
+
     void onMachineStateChange(const Guid &aId, MachineState_T aState);
     void onMachineDataChange(const Guid &aId, BOOL aTemporary = FALSE);
     BOOL onExtraDataCanChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue,
@@ -287,7 +290,7 @@ public:
     int calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
     void copyPathRelativeToConfig(const Utf8Str &strSource, Utf8Str &strTarget);
 
-    HRESULT registerMedium(const ComObjPtr<Medium> &pMedium, ComObjPtr<Medium> *ppMedium, DeviceType_T argType);
+    HRESULT registerMedium(const ComObjPtr<Medium> &pMedium, ComObjPtr<Medium> *ppMedium, DeviceType_T argType, AutoWriteLock &mediaTreeLock);
     HRESULT unregisterMedium(Medium *pMedium);
 
     void pushMediumToListWithChildren(MediaList &llMedia, Medium *pMedium);

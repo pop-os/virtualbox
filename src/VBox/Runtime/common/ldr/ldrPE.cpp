@@ -107,6 +107,8 @@ typedef struct RTLDRMODPE
     uint32_t                cbHeaders;
     /** The image timestamp. */
     uint32_t                uTimestamp;
+    /** The number of imports.  UINT32_MAX if not determined. */
+    uint32_t                cImports;
     /** Set if the image is 64-bit, clear if 32-bit. */
     bool                    f64Bit;
     /** The import data directory entry. */
@@ -309,21 +311,23 @@ static int rtldrPEReadPartByRva(PRTLDRMODPE pThis, const void *pvBits, uint32_t 
             if (   pThis->paSections[0].PointerToRawData > 0
                 && pThis->paSections[0].SizeOfRawData > 0)
                 offFirstRawData = pThis->paSections[0].PointerToRawData;
-            if (offFile > offFirstRawData)
+            if (offFile >= offFirstRawData)
                 cbToRead = 0;
             else if (offFile + cbToRead > offFirstRawData)
-                cbToRead = offFile + cbToRead - offFirstRawData;
+                cbToRead = offFile - offFirstRawData;
         }
         else
         {
             /* Find the matching section and its mapping size. */
-            uint32_t j         = 0;
-            uint32_t cbMapping = 0;
+            uint32_t j          = 0;
+            uint32_t cbMapping  = 0;
+            uint32_t offSection = 0;
             while (j < pThis->cSections)
             {
                 cbMapping = (j + 1 < pThis->cSections ? pThis->paSections[j + 1].VirtualAddress : pThis->cbImage)
                           - pThis->paSections[j].VirtualAddress;
-                if (uRva - pThis->paSections[j].VirtualAddress < cbMapping)
+                offSection = uRva - pThis->paSections[j].VirtualAddress;
+                if (offSection < cbMapping)
                     break;
                 j++;
             }
@@ -331,12 +335,13 @@ static int rtldrPEReadPartByRva(PRTLDRMODPE pThis, const void *pvBits, uint32_t 
                 break; /* This shouldn't happen, just return zeros if it does. */
 
             /* Adjust the sizes and calc the file offset. */
-            if (cbToAdv > cbMapping)
-                cbToAdv = cbToRead = cbMapping;
+            if (offSection + cbToAdv > cbMapping)
+                cbToAdv = cbToRead = cbMapping - offSection;
+
             if (   pThis->paSections[j].PointerToRawData > 0
                 && pThis->paSections[j].SizeOfRawData > 0)
             {
-                offFile = uRva - pThis->paSections[j].VirtualAddress;
+                offFile = offSection;
                 if (offFile + cbToRead > pThis->paSections[j].SizeOfRawData)
                     cbToRead = pThis->paSections[j].SizeOfRawData - offFile;
                 offFile += pThis->paSections[j].PointerToRawData;
@@ -365,11 +370,11 @@ static int rtldrPEReadPartByRva(PRTLDRMODPE pThis, const void *pvBits, uint32_t 
         }
 
         /* Advance */
-        if (cbMem == cbToRead)
+        if (cbMem <= cbToAdv)
             break;
-        cbMem -= cbToRead;
-        pbMem += cbToRead;
-        uRva  += cbToRead;
+        cbMem -= cbToAdv;
+        pbMem += cbToAdv;
+        uRva  += cbToAdv;
     }
 
     return VINF_SUCCESS;
@@ -432,7 +437,10 @@ static int rtldrPEReadPartFromFile(PRTLDRMODPE pThis, uint32_t offFile, uint32_t
 static int rtldrPEReadPart(PRTLDRMODPE pThis, const void *pvBits, RTFOFF offFile, RTLDRADDR uRva,
                            uint32_t cbMem, void const **ppvMem)
 {
-    if (uRva == NIL_RTLDRADDR || uRva > pThis->cbImage)
+    if (   uRva == NIL_RTLDRADDR
+        || uRva         > pThis->cbImage
+        || cbMem        > pThis->cbImage
+        || uRva + cbMem > pThis->cbImage)
     {
         if (offFile < 0 || offFile >= UINT32_MAX)
             return VERR_INVALID_PARAMETER;
@@ -454,9 +462,9 @@ static void rtldrPEFreePart(PRTLDRMODPE pThis, const void *pvBits, void const *p
     if (!pvMem)
         return;
 
-    if (pvBits        && (uintptr_t)pvBits        - (uintptr_t)pvMem < pThis->cbImage)
+    if (pvBits        && (uintptr_t)pvMem - (uintptr_t)pvBits        < pThis->cbImage)
         return;
-    if (pThis->pvBits && (uintptr_t)pThis->pvBits - (uintptr_t)pvMem < pThis->cbImage)
+    if (pThis->pvBits && (uintptr_t)pvMem - (uintptr_t)pThis->pvBits < pThis->cbImage)
         return;
 
     RTMemFree((void *)pvMem);
@@ -574,7 +582,8 @@ static DECLCALLBACK(int) rtldrPEGetBits(PRTLDRMODINTERNAL pMod, void *pvBits, RT
         /*
          * Resolve imports.
          */
-        rc = ((PRTLDROPSPE)pMod->pOps)->pfnResolveImports(pModPe, pvBits, pvBits, pfnGetImport, pvUser);
+        if (pfnGetImport)
+            rc = ((PRTLDROPSPE)pMod->pOps)->pfnResolveImports(pModPe, pvBits, pvBits, pfnGetImport, pvUser);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -611,9 +620,11 @@ static DECLCALLBACK(int) rtldrPEResolveImports32(PRTLDRMODPE pModPe, const void 
          !rc && pImps->Name != 0 && pImps->FirstThunk != 0;
          pImps++)
     {
+        AssertReturn(pImps->Name < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
         const char *pszModName = PE_RVA2TYPE(pvBitsR, pImps->Name, const char *);
-        PIMAGE_THUNK_DATA32 pFirstThunk;    /* update this. */
-        PIMAGE_THUNK_DATA32 pThunk;         /* read from this. */
+        AssertReturn(pImps->FirstThunk < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
+        AssertReturn(pImps->u.OriginalFirstThunk < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
+
         Log3(("RTLdrPE: Import descriptor: %s\n", pszModName));
         Log4(("RTLdrPE:   OriginalFirstThunk = %#RX32\n"
               "RTLdrPE:   TimeDateStamp      = %#RX32\n"
@@ -626,10 +637,10 @@ static DECLCALLBACK(int) rtldrPEResolveImports32(PRTLDRMODPE pModPe, const void 
         /*
          * Walk the thunks table(s).
          */
-        pFirstThunk = PE_RVA2TYPE(pvBitsW, pImps->FirstThunk, PIMAGE_THUNK_DATA32);
-        pThunk = pImps->u.OriginalFirstThunk == 0
-            ? PE_RVA2TYPE(pvBitsR, pImps->FirstThunk, PIMAGE_THUNK_DATA32)
-            : PE_RVA2TYPE(pvBitsR, pImps->u.OriginalFirstThunk, PIMAGE_THUNK_DATA32);
+        PIMAGE_THUNK_DATA32 pFirstThunk = PE_RVA2TYPE(pvBitsW, pImps->FirstThunk, PIMAGE_THUNK_DATA32); /* update this. */
+        PIMAGE_THUNK_DATA32 pThunk      = pImps->u.OriginalFirstThunk == 0                              /* read from this. */
+                                        ? PE_RVA2TYPE(pvBitsR, pImps->FirstThunk, PIMAGE_THUNK_DATA32)
+                                        : PE_RVA2TYPE(pvBitsR, pImps->u.OriginalFirstThunk, PIMAGE_THUNK_DATA32);
         while (!rc && pThunk->u1.Ordinal != 0)
         {
             RTUINTPTR Value = 0;
@@ -686,9 +697,11 @@ static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void 
          !rc && pImps->Name != 0 && pImps->FirstThunk != 0;
          pImps++)
     {
-        const char *        pszModName = PE_RVA2TYPE(pvBitsR, pImps->Name, const char *);
-        PIMAGE_THUNK_DATA64 pFirstThunk;    /* update this. */
-        PIMAGE_THUNK_DATA64 pThunk;         /* read from this. */
+        AssertReturn(pImps->Name < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
+        const char *pszModName = PE_RVA2TYPE(pvBitsR, pImps->Name, const char *);
+        AssertReturn(pImps->FirstThunk < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
+        AssertReturn(pImps->u.OriginalFirstThunk < pModPe->cbImage, VERR_BAD_EXE_FORMAT);
+
         Log3(("RTLdrPE: Import descriptor: %s\n", pszModName));
         Log4(("RTLdrPE:   OriginalFirstThunk = %#RX32\n"
               "RTLdrPE:   TimeDateStamp      = %#RX32\n"
@@ -701,10 +714,10 @@ static DECLCALLBACK(int) rtldrPEResolveImports64(PRTLDRMODPE pModPe, const void 
         /*
          * Walk the thunks table(s).
          */
-        pFirstThunk = PE_RVA2TYPE(pvBitsW, pImps->FirstThunk, PIMAGE_THUNK_DATA64);
-        pThunk = pImps->u.OriginalFirstThunk == 0
-            ? PE_RVA2TYPE(pvBitsR, pImps->FirstThunk, PIMAGE_THUNK_DATA64)
-            : PE_RVA2TYPE(pvBitsR, pImps->u.OriginalFirstThunk, PIMAGE_THUNK_DATA64);
+        PIMAGE_THUNK_DATA64 pFirstThunk = PE_RVA2TYPE(pvBitsW, pImps->FirstThunk, PIMAGE_THUNK_DATA64); /* update this. */
+        PIMAGE_THUNK_DATA64 pThunk      = pImps->u.OriginalFirstThunk == 0                              /* read from this. */
+                                        ? PE_RVA2TYPE(pvBitsR, pImps->FirstThunk, PIMAGE_THUNK_DATA64)
+                                        : PE_RVA2TYPE(pvBitsR, pImps->u.OriginalFirstThunk, PIMAGE_THUNK_DATA64);
         while (!rc && pThunk->u1.Ordinal != 0)
         {
             RTUINTPTR Value = 0;
@@ -895,11 +908,20 @@ static DECLCALLBACK(int) rtldrPERelocate(PRTLDRMODINTERNAL pMod, void *pvBits, R
 }
 
 
-/** @copydoc RTLDROPS::pfnGetSymbolEx. */
-static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress, const char *pszSymbol, RTUINTPTR *pValue)
+/**
+ * Internal worker for pfnGetSymbolEx and pfnQueryForwarderInfo.
+ *
+ * @returns IPRT status code.
+ * @param   pModPe              The PE module instance.
+ * @param   iOrdinal            The symbol ordinal, UINT32_MAX if named symbol.
+ * @param   pszSymbol           The symbol name.
+ * @param   ppvBits             The image bits pointer (input/output).
+ * @param   puRvaExport         Where to return the symbol RVA.
+ * @param   puOrdinal           Where to return the ordinal number. Optional.
+ */
+static int rtLdrPE_ExportToRva(PRTLDRMODPE pModPe, uint32_t iOrdinal, const char *pszSymbol,
+                               const void **ppvBits, uint32_t *puRvaExport, uint32_t *puOrdinal)
 {
-    PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
-
     /*
      * Check if there is actually anything to work on.
      */
@@ -910,6 +932,7 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
     /*
      * No bits supplied? Do we need to read the bits?
      */
+    void const *pvBits = *ppvBits;
     if (!pvBits)
     {
         if (!pModPe->pvBits)
@@ -918,21 +941,20 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
             if (RT_FAILURE(rc))
                 return rc;
         }
-        pvBits = pModPe->pvBits;
+        *ppvBits = pvBits = pModPe->pvBits;
     }
 
     PIMAGE_EXPORT_DIRECTORY pExpDir = PE_RVA2TYPE(pvBits, pModPe->ExportDir.VirtualAddress, PIMAGE_EXPORT_DIRECTORY);
     int                     iExpOrdinal = 0;    /* index into address table. */
-    if ((uintptr_t)pszSymbol <= 0xffff)
+    if (iOrdinal != UINT32_MAX)
     {
         /*
          * Find ordinal export: Simple table lookup.
          */
-        unsigned uOrdinal = (uintptr_t)pszSymbol & 0xffff;
-        if (    uOrdinal >= pExpDir->Base + RT_MAX(pExpDir->NumberOfNames, pExpDir->NumberOfFunctions)
-            ||  uOrdinal < pExpDir->Base)
+        if (    iOrdinal >= pExpDir->Base + RT_MAX(pExpDir->NumberOfNames, pExpDir->NumberOfFunctions)
+            ||  iOrdinal < pExpDir->Base)
             return VERR_SYMBOL_NOT_FOUND;
-        iExpOrdinal = uOrdinal - pExpDir->Base;
+        iExpOrdinal = iOrdinal - pExpDir->Base;
     }
     else
     {
@@ -949,7 +971,7 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
             /* end of search? */
             if (iStart > iEnd)
             {
-            #ifdef RT_STRICT
+#ifdef RT_STRICT
                 /* do a linear search just to verify the correctness of the above algorithm */
                 for (unsigned i = 0; i < pExpDir->NumberOfNames; i++)
                 {
@@ -958,7 +980,7 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
                     AssertMsg(strcmp(PE_RVA2TYPE(pvBits, paRVANames[i], const char *), pszSymbol) != 0,
                               ("bug in binary export search!!!\n"));
                 }
-            #endif
+#endif
                 return VERR_SYMBOL_NOT_FOUND;
             }
 
@@ -980,21 +1002,130 @@ static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
     /*
      * Found export (iExpOrdinal).
      */
-    uint32_t *  paAddress = PE_RVA2TYPE(pvBits, pExpDir->AddressOfFunctions, uint32_t *);
-    unsigned    uRVAExport = paAddress[iExpOrdinal];
-
-    if (    uRVAExport > pModPe->ExportDir.VirtualAddress
-        &&  uRVAExport < pModPe->ExportDir.VirtualAddress + pModPe->ExportDir.Size)
-    {
-        /* Resolve forwarder. */
-        AssertMsgFailed(("Forwarders are not supported!\n"));
-        return VERR_SYMBOL_NOT_FOUND;
-    }
-
-    /* Get plain export address */
-    *pValue = PE_RVA2TYPE(BaseAddress, uRVAExport, RTUINTPTR);
-
+    uint32_t *paAddress = PE_RVA2TYPE(pvBits, pExpDir->AddressOfFunctions, uint32_t *);
+    *puRvaExport = paAddress[iExpOrdinal];
+    if (puOrdinal)
+        *puOrdinal = iExpOrdinal;
     return VINF_SUCCESS;
+}
+
+
+/** @copydoc RTLDROPS::pfnGetSymbolEx. */
+static DECLCALLBACK(int) rtldrPEGetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
+                                            uint32_t iOrdinal, const char *pszSymbol, RTUINTPTR *pValue)
+{
+    PRTLDRMODPE pThis = (PRTLDRMODPE)pMod;
+    uint32_t uRvaExport;
+    int rc = rtLdrPE_ExportToRva(pThis, iOrdinal, pszSymbol, &pvBits, &uRvaExport, NULL);
+    if (RT_SUCCESS(rc))
+    {
+
+        uint32_t offForwarder = uRvaExport - pThis->ExportDir.VirtualAddress;
+        if (offForwarder >= pThis->ExportDir.Size)
+            /* Get plain export address */
+            *pValue = PE_RVA2TYPE(BaseAddress, uRvaExport, RTUINTPTR);
+        else
+        {
+            /* Return the approximate length of the forwarder buffer. */
+            const char *pszForwarder = PE_RVA2TYPE(pvBits, uRvaExport, const char *);
+            *pValue = sizeof(RTLDRIMPORTINFO) + RTStrNLen(pszForwarder, offForwarder - pThis->ExportDir.Size);
+            rc = VERR_LDR_FORWARDER;
+        }
+    }
+    return rc;
+}
+
+
+/** @copydoc RTLDROPS::pfnQueryForwarderInfo. */
+static DECLCALLBACK(int) rtldrPE_QueryForwarderInfo(PRTLDRMODINTERNAL pMod, const void *pvBits,  uint32_t iOrdinal,
+                                                    const char *pszSymbol, PRTLDRIMPORTINFO pInfo, size_t cbInfo)
+{
+    AssertReturn(cbInfo >= sizeof(*pInfo), VERR_INVALID_PARAMETER);
+
+    PRTLDRMODPE pThis = (PRTLDRMODPE)pMod;
+    uint32_t uRvaExport;
+    int rc = rtLdrPE_ExportToRva(pThis, iOrdinal, pszSymbol, &pvBits, &uRvaExport, &iOrdinal);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t offForwarder = uRvaExport - pThis->ExportDir.VirtualAddress;
+        if (offForwarder < pThis->ExportDir.Size)
+        {
+            const char *pszForwarder = PE_RVA2TYPE(pvBits, uRvaExport, const char *);
+
+            /*
+             * Parse and validate the string.  We must make sure it's valid
+             * UTF-8, so we restrict it to ASCII.
+             */
+            const char *pszEnd = RTStrEnd(pszForwarder, offForwarder - pThis->ExportDir.Size);
+            if (pszEnd)
+            {
+                /* The module name. */
+                char ch;
+                uint32_t off = 0;
+                while ((ch = pszForwarder[off]) != '.' && ch != '\0')
+                {
+                    if (RT_UNLIKELY((uint8_t)ch >= 0x80))
+                        return VERR_LDR_BAD_FORWARDER;
+                    off++;
+                }
+                if (RT_UNLIKELY(ch != '.'))
+                    return VERR_LDR_BAD_FORWARDER;
+                uint32_t const offDot = off;
+                off++;
+
+                /* The function name or ordinal number. Ordinals starts with a hash. */
+                uint32_t iImpOrdinal;
+                if (pszForwarder[off] != '#')
+                {
+                    iImpOrdinal = UINT32_MAX;
+                    while ((ch = pszForwarder[off]) != '\0')
+                    {
+                        if (RT_UNLIKELY((uint8_t)ch >= 0x80))
+                            return VERR_LDR_BAD_FORWARDER;
+                        off++;
+                    }
+                    if (RT_UNLIKELY(off == offDot + 1))
+                        return VERR_LDR_BAD_FORWARDER;
+                }
+                else
+                {
+                    rc = RTStrToUInt32Full(&pszForwarder[off + 1], 10, &iImpOrdinal);
+                    if (RT_UNLIKELY(rc != VINF_SUCCESS || iImpOrdinal > UINT16_MAX))
+                        return VERR_LDR_BAD_FORWARDER;
+                }
+
+                /*
+                 * Enough buffer?
+                 */
+                uint32_t cbNeeded = RT_OFFSETOF(RTLDRIMPORTINFO, szModule[iImpOrdinal != UINT32_MAX ? offDot + 1 : off + 1]);
+                if (cbNeeded > cbInfo)
+                    return VERR_BUFFER_OVERFLOW;
+
+                /*
+                 * Fill in the return buffer.
+                 */
+                pInfo->iSelfOrdinal = iOrdinal;
+                pInfo->iOrdinal     = iImpOrdinal;
+                if (iImpOrdinal == UINT32_MAX)
+                {
+                    pInfo->pszSymbol = &pInfo->szModule[offDot + 1];
+                    memcpy(&pInfo->szModule[0], pszForwarder, off + 1);
+                }
+                else
+                {
+                    pInfo->pszSymbol = NULL;
+                    memcpy(&pInfo->szModule[0], pszForwarder, offDot);
+                }
+                pInfo->szModule[offDot] = '\0';
+                rc = VINF_SUCCESS;
+            }
+            else
+                rc = VERR_LDR_BAD_FORWARDER;
+        }
+        else
+            rc = VERR_LDR_NOT_FORWARDER;
+    }
+    return rc;
 }
 
 
@@ -1604,8 +1735,142 @@ static DECLCALLBACK(int) rtldrPE_RvaToSegOffset(PRTLDRMODINTERNAL pMod, RTLDRADD
 }
 
 
+/**
+ * Worker for rtLdrPE_QueryProp and rtLdrPE_QueryImportModule that counts the
+ * number of imports, storing the result in RTLDRMODPE::cImports.
+ *
+ * @returns IPRT status code.
+ * @param   pThis           The PE module instance.
+ * @param   pvBits          Image bits if the caller had them available, NULL if
+ *                          not. Saves a couple of file accesses.
+ */
+static int rtLdrPE_CountImports(PRTLDRMODPE pThis, void const *pvBits)
+{
+    PCIMAGE_IMPORT_DESCRIPTOR paImpDescs;
+    int rc = rtldrPEReadPartByRva(pThis, pvBits, pThis->ImportDir.VirtualAddress, pThis->ImportDir.Size,
+                                  (void const **)&paImpDescs);
+    if (RT_SUCCESS(rc))
+    {
+        uint32_t const cMax = pThis->ImportDir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR);
+        uint32_t       i = 0;
+        while (   i < cMax
+               && paImpDescs[i].Name > pThis->offNtHdrs
+               && paImpDescs[i].Name < pThis->cbImage
+               && paImpDescs[i].FirstThunk > pThis->offNtHdrs
+               && paImpDescs[i].FirstThunk < pThis->cbImage)
+            i++;
+        pThis->cImports = i;
+
+        rtldrPEFreePart(pThis, pvBits, paImpDescs);
+    }
+    return rc;
+}
+
+
+/**
+ * Worker for rtLdrPE_QueryProp that retrievs the name of an import DLL.
+ *
+ * @returns IPRT status code. If VERR_BUFFER_OVERFLOW, pcbBuf is required size.
+ * @param   pThis           The PE module instance.
+ * @param   pvBits          Image bits if the caller had them available, NULL if
+ *                          not. Saves a couple of file accesses.
+ * @param   iImport         The index of the import table descriptor to fetch
+ *                          the name from.
+ * @param   pvBuf           The output buffer.
+ * @param   cbBuf           The buffer size.
+ * @param   pcbRet          Where to return the number of bytes we've returned
+ *                          (or in case of VERR_BUFFER_OVERFLOW would have).
+ */
+static int rtLdrPE_QueryImportModule(PRTLDRMODPE pThis, void const *pvBits, uint32_t iImport,
+                                     void *pvBuf, size_t cbBuf, size_t *pcbRet)
+{
+    /*
+     * Make sure we got the import count.
+     */
+    int rc;
+    if (pThis->cImports == UINT32_MAX)
+    {
+        rc = rtLdrPE_CountImports(pThis, pvBits);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    /*
+     * Check the index first, converting it to an RVA.
+     */
+    if (iImport < pThis->cImports)
+    {
+        uint32_t offEntry = iImport * sizeof(IMAGE_IMPORT_DESCRIPTOR) + pThis->ImportDir.VirtualAddress;
+
+        /*
+         * Retrieve the import table descriptor.
+         */
+        PCIMAGE_IMPORT_DESCRIPTOR pImpDesc;
+        rc = rtldrPEReadPartByRva(pThis, pvBits, offEntry, sizeof(*pImpDesc), (void const **)&pImpDesc);
+        if (RT_SUCCESS(rc))
+        {
+            if (   pImpDesc->Name >= pThis->cbHeaders
+                && pImpDesc->Name < pThis->cbImage)
+            {
+                /*
+                 * Limit the name to 1024 bytes (more than enough for everyone).
+                 */
+                uint32_t cchNameMax = pThis->cbImage - pImpDesc->Name;
+                if (cchNameMax > 1024)
+                    cchNameMax = 1024;
+                char *pszName;
+                rc = rtldrPEReadPartByRva(pThis, pvBits, pImpDesc->Name, cchNameMax, (void const **)&pszName);
+                if (RT_SUCCESS(rc))
+                {
+                    /*
+                     * Make sure it's null terminated and valid UTF-8 encoding.
+                     *
+                     * Which encoding this really is isn't defined, I think,
+                     * but we need to make sure we don't get bogus UTF-8 into
+                     * the process, so making sure it's valid UTF-8 is a good
+                     * as anything else since it covers ASCII.
+                     */
+                    size_t cchName = RTStrNLen(pszName, cchNameMax);
+                    if (cchName < cchNameMax)
+                    {
+                        rc = RTStrValidateEncodingEx(pszName, cchName, 0 /*fFlags*/);
+                        if (RT_SUCCESS(rc))
+                        {
+                            /*
+                             * Copy out the result and we're done.
+                             * (We have to do all the cleanup code though, so no return success here.)
+                             */
+                            *pcbRet = cchName + 1;
+                            if (cbBuf >= cchName + 1)
+                                memcpy(pvBuf, pszName, cchName + 1);
+                            else
+                                rc = VERR_BUFFER_OVERFLOW;
+                        }
+                    }
+                    else
+                        rc = VERR_BAD_EXE_FORMAT;
+                    rtldrPEFreePart(pThis, pvBits, pszName);
+                }
+            }
+            else
+                rc = VERR_BAD_EXE_FORMAT;
+            rtldrPEFreePart(pThis, pvBits, pImpDesc);
+        }
+    }
+    else
+        rc = VERR_NOT_FOUND;
+
+    if (RT_SUCCESS(rc))
+        return VINF_SUCCESS;
+
+    *pcbRet = 0;
+    return rc;
+}
+
+
 /** @interface_method_impl{RTLDROPS,pfnQueryProp} */
-static DECLCALLBACK(int) rtldrPE_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf, size_t *pcbRet)
+static DECLCALLBACK(int) rtldrPE_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void const *pvBits,
+                                           void *pvBuf, size_t cbBuf, size_t *pcbRet)
 {
     PRTLDRMODPE pModPe = (PRTLDRMODPE)pMod;
     switch (enmProp)
@@ -1645,6 +1910,23 @@ static DECLCALLBACK(int) rtldrPE_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enm
             *(bool *)pvBuf = pModPe->offPkcs7SignedData > 0
                           && (pModPe->fDllCharacteristics & IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY);
             break;
+
+        case RTLDRPROP_IMPORT_COUNT:
+            Assert(cbBuf == sizeof(uint32_t));
+            Assert(*pcbRet == cbBuf);
+            if (pModPe->cImports == UINT32_MAX)
+            {
+                int rc = rtLdrPE_CountImports(pModPe, pvBits);
+                if (RT_FAILURE(rc))
+                    return rc;
+            }
+            *(uint32_t *)pvBuf = pModPe->cImports;
+            break;
+
+
+        case RTLDRPROP_IMPORT_MODULE:
+            Assert(cbBuf >= sizeof(uint32_t));
+            return rtLdrPE_QueryImportModule(pModPe, pvBits, *(uint32_t *)pvBuf, pvBuf, cbBuf, pcbRet);
 
         default:
             return VERR_NOT_FOUND;
@@ -2540,6 +2822,7 @@ static const RTLDROPSPE s_rtldrPE32Ops =
         rtldrPEGetBits,
         rtldrPERelocate,
         rtldrPEGetSymbolEx,
+        rtldrPE_QueryForwarderInfo,
         rtldrPE_EnumDbgInfo,
         rtldrPE_EnumSegments,
         rtldrPE_LinkAddressToSegOffset,
@@ -2573,6 +2856,7 @@ static const RTLDROPSPE s_rtldrPE64Ops =
         rtldrPEGetBits,
         rtldrPERelocate,
         rtldrPEGetSymbolEx,
+        rtldrPE_QueryForwarderInfo,
         rtldrPE_EnumDbgInfo,
         rtldrPE_EnumSegments,
         rtldrPE_LinkAddressToSegOffset,
@@ -3164,7 +3448,7 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
 
         if (u.Cfg64.Size != Dir.Size)
         {
-            /* Kludge, seen ati shipping 32-bit DLLs and EXEs with Dir.Size=0x40
+            /* Kludge #1, seen ati shipping 32-bit DLLs and EXEs with Dir.Size=0x40
                and Cfg64.Size=0x5c or 0x48.  Windows seems to deal with it, so
                lets do so as well. */
             if (   Dir.Size < u.Cfg64.Size
@@ -3180,6 +3464,14 @@ static int rtldrPEValidateDirectoriesAndRememberStuff(PRTLDRMODPE pModPe, const 
                     return rc;
                 rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
             }
+
+            /* Kludge #2, ntdll.dll from XP seen with Dir.Size=0x40 and Cfg64.Size=0x00. */
+            if (Dir.Size == 0x40 && u.Cfg64.Size == 0x00 && !pModPe->f64Bit)
+            {
+                u.Cfg64.Size = 0x40;
+                rtldrPEConvert32BitLoadConfigTo64Bit(&u.Cfg64);
+            }
+
             if (u.Cfg64.Size != Dir.Size)
             {
                 Log(("rtldrPEOpen: %s: load cfg dir: unexpected header size of %d bytes, expected %d.\n",
@@ -3396,6 +3688,7 @@ int rtldrPEOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, RTFOFF
                 pModPe->cbImage       = OptHdr.SizeOfImage;
                 pModPe->cbHeaders     = OptHdr.SizeOfHeaders;
                 pModPe->uTimestamp    = FileHdr.TimeDateStamp;
+                pModPe->cImports      = UINT32_MAX;
                 pModPe->f64Bit        = FileHdr.SizeOfOptionalHeader == sizeof(OptHdr);
                 pModPe->ImportDir     = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
                 pModPe->RelocDir      = OptHdr.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];

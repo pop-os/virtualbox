@@ -10,6 +10,9 @@
 #include "cr_mem.h"
 #include "cr_string.h"
 #include "cr_pixeldata.h"
+#ifdef VBOX_WITH_CRDUMPER
+# include "cr_dump.h"
+#endif
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchSelectBuffer( GLsizei size, GLuint *buffer )
 {
@@ -79,6 +82,12 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchGetChromiumParametervCR(GLenum tar
             }
             break;
         }
+        case GL_HH_SET_DEFAULT_SHARED_CTX:
+            WARN(("Recieved GL_HH_SET_DEFAULT_SHARED_CTX from guest, ignoring"));
+            break;
+        case GL_HH_SET_CLIENT_CALLOUT:
+            WARN(("Recieved GL_HH_SET_CLIENT_CALLOUT from guest, ignoring"));
+            break;
         default:
             cr_server.head_spu->dispatch_table.GetChromiumParametervCR( target, index, type, count, local_storage );
             break;
@@ -291,6 +300,10 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParametervCR(GLenum target
         /*we should not receive it from the guest! */
         break;
 
+    case GL_HH_SET_CLIENT_CALLOUT:
+        WARN(("Recieved GL_HH_SET_CLIENT_CALLOUT from guest, ignoring"));
+        break;
+
     default:
         /* Pass the parameter info to the head SPU */
         cr_server.head_spu->dispatch_table.ChromiumParametervCR( target, type, count, values );
@@ -311,6 +324,12 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParameteriCR(GLenum target
     case GL_RCUSAGE_TEXTURE_CLEAR_CR:
         crStateSetTextureUsed(value, GL_FALSE);
         break;
+    case GL_PIN_TEXTURE_SET_CR:
+        crStatePinTexture(value, GL_TRUE);
+        break;
+    case GL_PIN_TEXTURE_CLEAR_CR:
+        crStatePinTexture(value, GL_FALSE);
+        break;
     case GL_SHARED_DISPLAY_LISTS_CR:
         cr_server.sharedDisplayLists = value;
         break;
@@ -327,10 +346,10 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchChromiumParameteriCR(GLenum target
         cr_server.bWindowsInitiallyHidden = value ? 1 : 0;
         break;
     case GL_HH_SET_DEFAULT_SHARED_CTX:
-        crWarning("Recieved GL_HH_SET_DEFAULT_SHARED_CTX from guest, ignoring");
+        WARN(("Recieved GL_HH_SET_DEFAULT_SHARED_CTX from guest, ignoring"));
         break;
     case GL_HH_RENDERTHREAD_INFORM:
-        crWarning("Recieved GL_HH_RENDERTHREAD_INFORM from guest, ignoring");
+        WARN(("Recieved GL_HH_RENDERTHREAD_INFORM from guest, ignoring"));
         break;
     default:
         /* Pass the parameter info to the head SPU */
@@ -1485,6 +1504,10 @@ void crServerInitTmpCtxDispatch()
 /* dump stuff */
 #ifdef VBOX_WITH_CRSERVER_DUMPER
 
+# ifndef VBOX_WITH_CRDUMPER
+#  error "VBOX_WITH_CRDUMPER undefined!"
+# endif
+
 /* first four bits are buffer dump config
  * second four bits are texture dump config
  * config flags:
@@ -1688,8 +1711,6 @@ void crServerDumpDrawelv(GLuint idx, const char*pszElFormat, uint32_t cbEl, cons
 void crServerDumpBuffer(int idx)
 {
     CRContextInfo *pCtxInfo = cr_server.currentCtxInfo;
-    CR_BLITTER_WINDOW BltWin;
-    CR_BLITTER_CONTEXT BltCtx;
     CRContext *ctx = crStateGetCurrent();
     GLint idFBO;
     GLint idTex;
@@ -1711,15 +1732,12 @@ void crServerDumpBuffer(int idx)
     idFBO = CR_SERVER_FBO_FOR_IDX(cr_server.currentMural, idx);
     idTex = CR_SERVER_FBO_TEX_FOR_IDX(cr_server.currentMural, idx);
 
-    crServerVBoxBlitterWinInit(&BltWin, cr_server.currentMural);
-    crServerVBoxBlitterCtxInit(&BltCtx, pCtxInfo);
-
     RedirTex.width = cr_server.currentMural->fboWidth;
     RedirTex.height = cr_server.currentMural->fboHeight;
     RedirTex.target = GL_TEXTURE_2D;
     RedirTex.hwid = idTex;
 
-    crRecDumpBuffer(&cr_server.Recorder, ctx, &BltCtx, &BltWin, idFBO, idTex ? &RedirTex : NULL);
+    crRecDumpBuffer(&cr_server.Recorder, ctx, idFBO, idTex ? &RedirTex : NULL);
 }
 
 void crServerDumpTexture(const VBOXVR_TEXTURE *pTex)
@@ -1744,8 +1762,6 @@ void crServerDumpTexture(const VBOXVR_TEXTURE *pTex)
 void crServerDumpTextures()
 {
     CRContextInfo *pCtxInfo = cr_server.currentCtxInfo;
-    CR_BLITTER_WINDOW BltWin;
-    CR_BLITTER_CONTEXT BltCtx;
     CRContext *ctx = crStateGetCurrent();
     int rc = crServerDumpCheckInit();
     if (!RT_SUCCESS(rc))
@@ -1754,10 +1770,7 @@ void crServerDumpTextures()
         return;
     }
 
-    crServerVBoxBlitterWinInit(&BltWin, cr_server.currentMural);
-    crServerVBoxBlitterCtxInit(&BltCtx, pCtxInfo);
-
-    crRecDumpTextures(&cr_server.Recorder, ctx, &BltCtx, &BltWin);
+    crRecDumpTextures(&cr_server.Recorder, ctx);
 }
 
 void crServerDumpFilterOpLeave(unsigned long event, CR_DUMPER *pDumper)

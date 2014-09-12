@@ -201,7 +201,18 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                  * We can't be sure this shortcut will be released at all, so we will retry to grab keyboard for 50 times,
                  * and after we will just ignore that issue: */
                 int cTriesLeft = 50;
+                XEvent dummy;
                 while (cTriesLeft && XGrabKeyboard(QX11Info::display(), m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync, CurrentTime)) { --cTriesLeft; }
+                /* If the grab succeeds, X will insert a FocusIn event for this
+                 * window into the event queue.  If we have two windows they can
+                 * end up in an endless cycle of passing the focus back and
+                 * forward as there is always a pending FocusIn for each, and we
+                 * drop and re-take the grab each time the focus changes.  So we
+                 * remove the event again before Qt can see it. */
+                if (cTriesLeft > 0)
+                    XCheckTypedWindowEvent(QX11Info::display(),
+                            m_windows[m_iKeyboardCaptureViewIndex]->winId(),
+                            XFocusIn, &dummy);
                 break;
             }
             /* Should we try to grab keyboard in default case? I think - NO. */
@@ -620,6 +631,7 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
                 }
             }
             fResult = false;
+            break;
         }
         case XKeyPress:
         case XKeyRelease:
@@ -1054,6 +1066,14 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
     if (!m_fIsKeyboardCaptured)
         return false;
 
+    /* For normal user applications, Windows defines AltGr to be the same as
+     * LControl + RAlt.  Without a low-level hook it is hard to recognise the
+     * additional LControl event inserted, but in a hook we recognise it by
+     * its special 0x21D scan code. */
+    if (   m_views[m_iKeyboardHookViewIndex]->hasFocus()
+        && ((event.scanCode & ~0x80) == 0x21D))
+        return true;
+
     MSG message;
     message.hwnd = m_views[m_iKeyboardHookViewIndex]->winId();
     message.message = msg;
@@ -1383,7 +1403,11 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                         qApp->processEvents();
 #endif /* Q_WS_X11 */
                         if (m_fIsKeyboardCaptured)
-                            machineLogic()->mouseHandler()->captureMouse(uScreenId);
+                        {
+                            if (uisession()->mouseCapturePolicy() == MouseCapturePolicy_Default ||
+                                uisession()->mouseCapturePolicy() == MouseCapturePolicy_HostComboOnly)
+                                machineLogic()->mouseHandler()->captureMouse(uScreenId);
+                        }
                         else
                             machineLogic()->mouseHandler()->releaseMouse();
                     }

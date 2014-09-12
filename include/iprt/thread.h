@@ -275,6 +275,12 @@ typedef enum RTTHREADFLAGS
  */
 RTDECL(int) RTThreadCreate(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUser, size_t cbStack,
                            RTTHREADTYPE enmType, unsigned fFlags, const char *pszName);
+#ifndef RT_OS_LINUX /* XXX crashes genksyms at least on 32-bit Linux hosts */
+/** @copydoc RTThreadCreate */
+typedef DECLCALLBACKPTR(int, PFNRTTHREADCREATE)(PRTTHREAD pThread, PFNRTTHREAD pfnThread, void *pvUser, size_t cbStack,
+                                                RTTHREADTYPE enmType, unsigned fFlags, const char *pszName);
+#endif
+
 
 /**
  * Create a new thread.

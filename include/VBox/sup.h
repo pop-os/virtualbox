@@ -91,6 +91,15 @@ typedef enum SUPPAGINGMODE
     SUPPAGINGMODE_AMD64_GLOBAL_NX
 } SUPPAGINGMODE;
 
+
+/** Flags returned by SUPR0GetKernelFeatures().
+ * @{
+ */
+/** GDT is read-only. */
+#define SUPKERNELFEATURES_GDT_READ_ONLY     RT_BIT(0)
+/** @} */
+
+
 /**
  * Usermode probe context information.
  */
@@ -705,7 +714,9 @@ typedef enum SUPINITOP
  * Trusted error entry point, optional.
  *
  * This is exported as "TrustedError" by the dynamic libraries which contains
- * the "real" application binary for which the hardened stub is built.
+ * the "real" application binary for which the hardened stub is built. The
+ * hardened main() must specify SUPSECMAIN_FLAGS_TRUSTED_ERROR when calling
+ * SUPR3HardenedMain.
  *
  * @param   pszWhere        Where the error occurred (function name).
  * @param   enmWhat         Which operation went wrong.
@@ -739,10 +750,12 @@ typedef FNSUPTRUSTEDERROR *PFNSUPTRUSTEDERROR;
  */
 DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int argc, char **argv, char **envp);
 
-/** @name SUPR3SecureMain flags.
+/** @name SUPR3HardenedMain flags.
  * @{ */
 /** Don't open the device. (Intended for VirtualBox without -startvm.) */
 #define SUPSECMAIN_FLAGS_DONT_OPEN_DEV      RT_BIT_32(0)
+/** The hardened DLL has a "TrustedError" function (see FNSUPTRUSTEDERROR). */
+#define SUPSECMAIN_FLAGS_TRUSTED_ERROR      RT_BIT_32(1)
 /** @} */
 
 /**
@@ -1406,6 +1419,7 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...);
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable);
 SUPR0DECL(bool) SUPR0SuspendVTxOnCpu(void);
 SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended);

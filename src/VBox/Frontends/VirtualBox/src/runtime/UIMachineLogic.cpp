@@ -627,7 +627,7 @@ void UIMachineLogic::sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong,
         pMachineWindow->showInNecessaryMode();
 }
 
-void UIMachineLogic::sltHostScreenCountChanged()
+void UIMachineLogic::sltHostScreenCountChange()
 {
     LogRel(("UIMachineLogic: Host-screen count changed.\n"));
 
@@ -636,9 +636,18 @@ void UIMachineLogic::sltHostScreenCountChanged()
         pMachineWindow->showInNecessaryMode();
 }
 
-void UIMachineLogic::sltHostScreenGeometryChanged()
+void UIMachineLogic::sltHostScreenGeometryChange()
 {
     LogRel(("UIMachineLogic: Host-screen geometry changed.\n"));
+
+    /* Make sure all machine-window(s) have proper geometry: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->showInNecessaryMode();
+}
+
+void UIMachineLogic::sltHostScreenAvailableAreaChange()
+{
+    LogRel(("UIMachineLogic: Host-screen available-area changed.\n"));
 
     /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
@@ -834,10 +843,9 @@ void UIMachineLogic::prepareSessionConnections()
             this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
 
     /* Host-screen-change updaters: */
-    connect(uisession(), SIGNAL(sigHostScreenCountChanged()),
-            this, SLOT(sltHostScreenCountChanged()));
-    connect(uisession(), SIGNAL(sigHostScreenGeometryChanged()),
-            this, SLOT(sltHostScreenGeometryChanged()));
+    connect(uisession(), SIGNAL(sigHostScreenCountChange()), this, SLOT(sltHostScreenCountChange()));
+    connect(uisession(), SIGNAL(sigHostScreenGeometryChange()), this, SLOT(sltHostScreenGeometryChange()));
+    connect(uisession(), SIGNAL(sigHostScreenAvailableAreaChange()), this, SLOT(sltHostScreenAvailableAreaChange()));
 }
 
 void UIMachineLogic::prepareActionGroups()
@@ -1222,7 +1230,7 @@ void UIMachineLogic::sltAdjustWindow()
             pMachineWindow->showNormal();
 
         /* Normalize window geometry: */
-        pMachineWindow->normalizeGeometry(true);
+        pMachineWindow->normalizeGeometry(true /* adjust position */);
     }
 }
 

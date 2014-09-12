@@ -88,6 +88,9 @@
 # define supR3HardenedFatalMsg             supR3HardenedStaticFatalMsg
 # define supR3HardenedErrorV               supR3HardenedStaticErrorV
 # define supR3HardenedError                supR3HardenedStaticError
+# define supR3HardenedOpenLog              supR3HardenedStaticOpenLog
+# define supR3HardenedLogV                 supR3HardenedStaticLogV
+# define supR3HardenedLog                  supR3HardenedStaticLog
 # define supR3HardenedVerifyAll            supR3HardenedStaticVerifyAll
 # define supR3HardenedVerifyFixedDir       supR3HardenedStaticVerifyFixedDir
 # define supR3HardenedVerifyFixedFile      supR3HardenedStaticVerifyFixedFile
@@ -112,7 +115,6 @@ DECLHIDDEN(size_t) suplibHardenedStrLen(const char *psz);
 DECLHIDDEN(char *) suplibHardenedStrCat(char *pszDst, const char *pszSrc);
 DECLHIDDEN(int)    suplibHardenedStrCmp(const char *psz1, const char *psz2);
 DECLHIDDEN(int)    suplibHardenedStrNCmp(const char *psz1, const char *psz2, size_t cchMax);
-DECLHIDDEN(int)    suplibHardenedStrICmp(const char *psz1, const char *psz2);
 #else
 # undef SUP_HARDENED_NEED_CRT_FUNCTIONS
 # define suplibHardenedMemComp memcmp
@@ -123,7 +125,6 @@ DECLHIDDEN(int)    suplibHardenedStrICmp(const char *psz1, const char *psz2);
 # define suplibHardenedStrCat  strcat
 # define suplibHardenedStrCmp  strcmp
 # define suplibHardenedStrNCmp strncmp
-# define suplibHardenedStrICmp stricmp
 #endif
 DECLNORETURN(void)  suplibHardenedExit(RTEXITCODE rcExit);
 DECLHIDDEN(void)    suplibHardenedPrintF(const char *pszFormat, ...);
@@ -132,14 +133,18 @@ DECLHIDDEN(void)    suplibHardenedPrintFV(const char *pszFormat, va_list va);
 /** @} */
 
 /** Debug output macro. */
-#ifdef DEBUG_bird
-# ifdef IN_SUP_HARDENED_R3
-#  define SUP_DPRINTF(a)    suplibHardenedPrintF a
+#ifdef IN_SUP_HARDENED_R3
+# if defined(DEBUG_bird) && defined(RT_OS_WINDOWS)
+#  define SUP_DPRINTF(a)    do { supR3HardenedStaticLog a; suplibHardenedPrintF a; } while (0)
 # else
-#  define SUP_DPRINTF(a)    RTLogPrintf a
+#  define SUP_DPRINTF(a)    do { supR3HardenedStaticLog a; } while (0)
 # endif
 #else
-# define SUP_DPRINTF(a)     do { } while (0)
+# if defined(DEBUG_bird) && defined(RT_OS_WINDOWS)
+#  define SUP_DPRINTF(a)    RTLogPrintf a
+# else
+#  define SUP_DPRINTF(a)    do { } while (0)
+# endif
 #endif
 
 
@@ -205,6 +210,10 @@ typedef struct SUPVERIFIEDFILE
     intptr_t    hFile;
     /** Whether the file has been validated. */
     bool        fValidated;
+#ifdef RT_OS_WINDOWS
+    /** Whether we've checked the signature of the file. */
+    bool        fCheckedSignature;
+#endif
 } SUPVERIFIEDFILE;
 typedef SUPVERIFIEDFILE *PSUPVERIFIEDFILE;
 typedef SUPVERIFIEDFILE const *PCSUPVERIFIEDFILE;
@@ -393,7 +402,23 @@ DECLHIDDEN(int)    supR3HardenedErrorV(int rc, bool fFatal, const char *pszForma
  */
 DECLHIDDEN(int)     supR3HardenedError(int rc, bool fFatal, const char *pszFormat, ...);
 
-DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, bool fLeaveFilesOpen, const char *pszProgName);
+/**
+ * Open any startup log file specified in the argument.
+ */
+DECLHIDDEN(void)    supR3HardenedOpenLog(int *pcArgs, char **papszArgs);
+
+/**
+ * Write to the startup log file.
+ */
+DECLHIDDEN(void)    supR3HardenedLogV(const char *pszFormat, va_list va);
+
+/**
+ * Write to the startup log file.
+ */
+DECLHIDDEN(void)    supR3HardenedLog(const char *pszFormat, ...);
+
+
+DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedDir(SUPINSTDIR enmDir, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyFixedFile(const char *pszFilename, bool fFatal);
 DECLHIDDEN(int)     supR3HardenedVerifyDir(const char *pszDirPath, bool fRecursive, bool fCheckFiles, PRTERRINFO pErrInfo);
@@ -405,10 +430,16 @@ DECLHIDDEN(int)     supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 #ifdef RT_OS_WINDOWS
 DECLHIDDEN(void)    supR3HardenedWinInit(uint32_t fFlags);
 DECLHIDDEN(void)    supR3HardenedWinInitVersion(void);
+DECLHIDDEN(void)    supR3HardenedWinInitImports(void);
 DECLHIDDEN(void)    supR3HardenedWinVerifyProcess(void);
-DECLHIDDEN(void)    supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(void);
-DECLHIDDEN(bool)    supR3HardenedWinIsReSpawnNeeded(int cArgs, char **papszArgs);
-DECLHIDDEN(int)     supR3HardenedWinReSpawn(void);
+DECLHIDDEN(void)    supR3HardenedWinEnableThreadCreation(void);
+DECLHIDDEN(void)    supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(const char *pszProgName);
+DECLHIDDEN(void)    supR3HardenedWinFlushLoaderCache();
+DECLHIDDEN(bool)    supR3HardenedWinIsReSpawnNeeded(int iWhich, int cArgs, char **papszArgs);
+DECLHIDDEN(int)     supR3HardenedWinReSpawn(int iWhich);
+# ifdef _WINDEF_
+DECLHIDDEN(void)    supR3HardenedWinCreateParentWatcherThread(HMODULE hVBoxRT);
+# endif
 DECLHIDDEN(void *)  supR3HardenedWinLoadLibrary(const char *pszName, bool fSystem32Only);
 extern RTUTF16      g_wszSupLibHardenedExePath[1024];
 # ifdef RTPATH_MAX
