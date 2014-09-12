@@ -1,3 +1,10 @@
+virtualbox (4.3.16-dfsg-1) UNRELEASED; urgency=medium
+
+  * Imported Upstream version 4.3.16-dfsg
+  * Patch refresh.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 12 Sep 2014 17:15:35 +0200
+
 virtualbox (4.3.14-dfsg-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]

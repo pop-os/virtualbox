@@ -12,8 +12,8 @@ Index: virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
 -  LIBRARIES += \
 -  	VBoxGuestR3LibXFree86
   endif
- endif
- LIBRARIES.win.amd64 += VBoxGuestR3Lib-x86 VBoxGuestR3LibShared-x86
+  if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd solaris)
+   LIBRARIES += \
 Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 ===================================================================
 --- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500

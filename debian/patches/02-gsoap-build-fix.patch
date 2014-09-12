@@ -11,4 +11,4 @@ Index: virtualbox-git-orig/src/VBox/Main/webservice/Makefile.kmk
 +	$(REDIRECT) -C $(VBOXWEB_OUT_DIR) -- $(VBOX_SOAPCPP2) $(VBOXWEB_SOAPCPP2_SKIP_FILES) -z1 -L -2 -w -I$(VBOX_PATH_GSOAP_IMPORT) $(GSOAPH_RELEVANT)
  	$(APPEND) $@ done
  
- # copy the generated headers and stuff. This has to be a separate rule if we
+ # Copy the generated headers and stuff.  This was split into a separate rule
