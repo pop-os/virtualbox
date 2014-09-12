@@ -334,7 +334,7 @@ DECLASM(int) VBoxDrvIOCtl(uint16_t sfn, uint8_t iCat, uint8_t iFunction, void *p
                 /*
                  * Process the IOCtl.
                  */
-                rc = supdrvIOCtl(iFunction, &g_DevExt, pSession, pHdr);
+                rc = supdrvIOCtl(iFunction, &g_DevExt, pSession, pHdr, cbReq);
             }
             else
             {
@@ -480,3 +480,13 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
 
     return cch;
 }
+
+
+/**
+ * Returns configuration flags of the host kernel.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
+{
+    return 0;
+}
+

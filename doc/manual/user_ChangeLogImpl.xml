@@ -1,6 +1,197 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.16 (2014-09-09)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed restoring 32-bit FPU state on 64-bit capable VMs
+          and restoring guest FPU in raw-mode VMs (bug #12646; 4.3 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: properly restore normal/scale mode guest-screen size
+          after exiting full-screen/seamless mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: mini-toolbar should provoke less artifacts/conflicts with
+          3D guest rendering</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: Native full-screen multi-screen transition
+          was able to blackout host-screens for nearly minute</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: Modern window managers should now use native full-screen
+          multi-screen mapping API</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: added extradata item for configuring the mouse capture
+          behavior, see <xref linkend="mouse-capture" xreflabel="here"/>
+          (bug #3506)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a VBoxSVC crash when querying an iSCSI target with
+          authentication configured (4.3.14 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a rare data corruption during reads if another
+          allocating write is running concurrently and accesses the same range</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a rare crash for certain VHD images from other products</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a rare release assertion when using the AHCI controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Floppy: fixed read errors and guest memory corruption when running
+          under control of QEMM</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: added experimental support for rendering on offline GPUs for Mac OS X host</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed white window appearing on entering FullScreen mode on OSX host</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed video recording support for 3D data regression (bug #13073)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixes for MS Office 2013 support</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Networking: improved IPv6 support when bridging
+          to a wireless interface</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: prevent internal DNS service from stuck in host-resolver mode
+          when host was switched from one network to another one while host was
+          sleeping (Mac OS X hosts)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: preserve DF (if possible) and TOS when proxying
+          outbound UDP datagrams (bugs #9440, #12309)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't let multicast datagrams out (bug #7338)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed handling of large incoming UDP datagrams on
+          Windows hosts (bug #12136)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: fixed handling of the RFC 1533 DHCP PAD option</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed inbound half-close on Windows hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: preserve IPv4 DF (if possible), TTL, TOS
+          and IPv6 Hop Limit when proxying outbound UDP
+          datagrams</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed a rare crash when using remote audio input</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed several regressions from 4.3.14 (bug #13320)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: made the HDA sound emulation work with certain OSX guests
+          (e.g. Mountain Lion)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed startup problems on certain Windows hosts due
+          to conflicts with anti-virus software (4.3.14 regression, bug #13187)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed 4.3.14 regression whereby AltGr stopped
+          working for some people (bug #13216)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 hosts: made the extra key on Brazilian Thinkpads work
+          (bug #8745)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 hosts: fixed a problem of input focus cycles and immediately
+           released key presses in full screen mode (bug #13238)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed flooding the kernel log with USB related messages
+           when passing through certain USB devices to a VM (bug #13085)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: stop applications crashing when <emphasis>drm_wait_vblank</emphasis>
+           is called (bug #13265)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: fix a crash in gnome-session (bug #13335)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: do not start VBoxClient over an SSH connection
+           (bug #13107)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: added support for X.Org Server 1.16 (bug #13207)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: fixed a wrong parameter in the video driver which
+          caused problems with full-screen X11 clients (bug #2748)</para>
+      </listitem>
+
+      <listitem>
+        <para>VirtualKD: introduced stub/loader device for speeding up Windows
+          kernel debugging, details see <ulink type=""
+          url="http://virtualkd.sysprogs.org/">http://virtualkd.sysprogs.org/</ulink></para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.14 (2014-07-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -165,6 +356,11 @@
       <listitem>
         <para>Mac OS X hosts: when scanning for host CD/DVD devices also consider
           BlueRay devices</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed host shutdown and reboot delay caused by running VBoxSVC
+          process in some cases.</para>
       </listitem>
 
       <listitem>

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1019,6 +1019,23 @@ AutoUninitSpan::~AutoUninitSpan()
     Assert(mObj->mState == VirtualBoxBase::InUninit);
 
     mObj->setState(VirtualBoxBase::NotReady);
+}
+
+/**
+ * Immediately complete the span, object is NotReady now
+ */
+void AutoUninitSpan::setSucceeded()
+{
+    /* do nothing if already uninitialized */
+    if (mUninitDone)
+        return;
+
+    AutoWriteLock stateLock(mObj->mStateLock COMMA_LOCKVAL_SRC_POS);
+
+    Assert(mObj->mState == VirtualBoxBase::InUninit);
+
+    mObj->setState(VirtualBoxBase::NotReady);
+    mUninitDone = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

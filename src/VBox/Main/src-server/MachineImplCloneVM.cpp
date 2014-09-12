@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1221,7 +1221,8 @@ HRESULT MachineCloneVM::run()
                         {
                             AutoWriteLock tlock(p->mParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
                             rc = p->mParent->registerMedium(pTarget, &pTarget,
-                                                            DeviceType_HardDisk);
+                                                            DeviceType_HardDisk,
+                                                            tlock);
                             if (FAILED(rc)) throw rc;
                         }
                         /* This medium becomes the parent of the next medium in the

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2012 Oracle Corporation
+ * Copyright (C) 2009-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #include <iprt/mem.h>
 #include <iprt/time.h>
 #include <iprt/assert.h>
+#include <VBox/VBoxOGLTest.h>
 
 #include <cr_vreg.h>
 #include <cr_error.h>
@@ -91,28 +92,51 @@
 # define DEBUG_VERBOSE /* Define this to get some debug info about the messages flow. */
 #endif
 
-#ifdef DEBUG_misha
+#ifdef DEBUG_VERBOSE
+# error "should be disabled!"
+# define DEBUG_INFO(text) do { \
+        crWarning text ; \
+        Assert(0); \
+    } while (0)
+
 # define DEBUG_MSG(text) \
     printf text
+
 # define DEBUG_WARN(text) do { \
         crWarning text ; \
         Assert(0); \
     } while (0)
+
+# define DEBUG_MSG_1(text) \
+    DEBUG_MSG(text)
+
 #else
+
+# define DEBUG_INFO(text) do { \
+        crInfo text ; \
+    } while (0)
+
 # define DEBUG_MSG(text) \
     do {} while (0)
+
 # define DEBUG_WARN(text) do { \
         crWarning text ; \
     } while (0)
-#endif
 
-#ifdef DEBUG_VERBOSE
-# define DEBUG_MSG_1(text) \
-    DEBUG_MSG(text)
-#else
 # define DEBUG_MSG_1(text) \
     do {} while (0)
+
 #endif
+
+
+#define DEBUG_FUNC_ENTER() do { \
+        DEBUG_MSG(("==>%s\n", __PRETTY_FUNCTION__)); \
+    } while (0)
+    
+#define DEBUG_FUNC_LEAVE() do { \
+        DEBUG_MSG(("<==%s\n", __PRETTY_FUNCTION__)); \
+    } while (0)
+
 
 #ifdef DEBUG_poetzsch
 # define CHECK_GL_ERROR()\
@@ -301,6 +325,298 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 - (NSOpenGLPixelFormat*)openGLPixelFormat;
 @end
 
+@interface VBoxTask : NSObject
+{
+}
+- (void)run;
+@end
+
+@interface VBoxTaskPerformSelector : VBoxTask
+{
+@private
+    id m_Object;
+    SEL m_Selector;
+    id m_Arg;
+}
+- (id)initWithObject:(id)aObject selector:(SEL)aSelector arg:(id)aArg;
+- (void)run;
+- (void)dealloc;
+@end
+
+#if 0
+typedef DECLCALLBACKPTR(void, PFNVBOXTASKCALLBACK)(void *pvCb);
+
+@interface VBoxTaskCallback: VBoxTask
+{
+@private
+    PFNVBOXTASKCALLBACK m_pfnCb;
+    void *m_pvCb;
+}
+- (id)initWithCb:(PFNVBOXTASKCALLBACK)pfnCb arg:(void*)pvCb;
+- (void)run;
+@end
+#endif
+
+@interface VBoxTaskComposite: VBoxTask
+{
+@private
+    NSUInteger m_CurIndex;
+    RTCRITSECT m_Lock;
+    NSMutableArray *m_pArray;
+}
+- (id)init;
+- (void)add:(VBoxTask*)pTask;
+- (void)run;
+- (void)dealloc;
+@end
+
+@implementation VBoxTask
+@end
+
+@implementation VBoxTaskPerformSelector
+- (id)initWithObject:(id)aObject selector:(SEL)aSelector arg:(id)aArg
+{
+    self = [super init];
+
+    if (self)
+    {
+        [aObject retain];
+        m_Object = aObject;
+        m_Selector = aSelector;
+        if (aArg != nil)
+            [aArg retain];
+        m_Arg = aArg;
+    }
+
+    return self;
+}
+
+- (void)run
+{
+    [m_Object performSelector:m_Selector withObject:m_Arg];
+}
+
+- (void)dealloc
+{
+    [m_Object release];
+    if (m_Arg != nil)
+        [m_Arg release];
+
+    [super dealloc];
+}
+@end
+
+@implementation VBoxTaskComposite
+- (id)init
+{
+    self = [super init];
+
+    if (self)
+    {
+        int rc = RTCritSectInit(&m_Lock);
+        if (!RT_SUCCESS(rc))
+        {
+            DEBUG_WARN(("RTCritSectInit failed %d\n", rc));
+            return nil;
+        }
+
+        m_CurIndex = 0;
+
+        m_pArray = [[NSMutableArray alloc] init];
+    }
+
+    return self;
+}
+
+- (void)add:(VBoxTask*)pTask
+{
+    [pTask retain];
+    int rc = RTCritSectEnter(&m_Lock);
+    if (RT_SUCCESS(rc))
+    {
+        [m_pArray addObject:pTask];
+        RTCritSectLeave(&m_Lock);
+    }
+    else
+    {
+        DEBUG_WARN(("RTCritSectEnter failed %d\n", rc));
+        [pTask release];
+    }
+}
+
+- (void)run
+{
+    for(;;)
+    {
+        int rc = RTCritSectEnter(&m_Lock);
+        if (RT_FAILURE(rc))
+        {
+            DEBUG_WARN(("RTCritSectEnter failed %d\n", rc));
+            break;
+        }
+        
+        NSUInteger count = [m_pArray count];
+        Assert(m_CurIndex <= count);
+        if (m_CurIndex == count)
+        {
+            [m_pArray removeAllObjects];
+            m_CurIndex = 0;
+            RTCritSectLeave(&m_Lock);
+            break;
+        }
+
+        VBoxTask* pTask = (VBoxTask*)[m_pArray objectAtIndex:m_CurIndex];
+        Assert(pTask != nil);
+        
+        ++m_CurIndex;
+        
+        if (m_CurIndex > 1024)
+        {
+            NSRange range;
+            range.location = 0;
+            range.length = m_CurIndex;
+            [m_pArray removeObjectsInRange:range];
+            m_CurIndex = 0;
+        }
+        RTCritSectLeave(&m_Lock);
+        
+        [pTask run];
+        [pTask release];
+    }
+}
+
+- (void)dealloc
+{
+    NSUInteger count = [m_pArray count];
+    for(;m_CurIndex < count; ++m_CurIndex)
+    {
+        VBoxTask* pTask = (VBoxTask*)[m_pArray objectAtIndex:m_CurIndex];
+        DEBUG_WARN(("dealloc with non-empty tasks! %p\n", pTask));
+        [pTask release];
+    }
+    
+    [m_pArray release];
+    RTCritSectDelete(&m_Lock);
+
+    [super dealloc];
+}
+@end
+
+@interface VBoxMainThreadTaskRunner : NSObject
+{
+@private
+    VBoxTaskComposite *m_pTasks;
+}
+- (id)init;
+- (void)add:(VBoxTask*)pTask;
+- (void)addObj:(id)aObject selector:(SEL)aSelector arg:(id)aArg;
+- (void)runTasks;
+- (bool)runTasksSyncIfPossible;
+- (void)dealloc;
++ (VBoxMainThreadTaskRunner*) globalInstance;
+@end
+
+@implementation VBoxMainThreadTaskRunner
+- (id)init
+{
+    self = [super init];
+    if (self)
+    {
+        m_pTasks = [[VBoxTaskComposite alloc] init];
+    }
+    
+    return self;
+}
+
++ (VBoxMainThreadTaskRunner*) globalInstance
+{
+    static dispatch_once_t dispatchOnce;
+    static VBoxMainThreadTaskRunner *pRunner = nil;
+    dispatch_once(&dispatchOnce, ^{
+        pRunner = [[VBoxMainThreadTaskRunner alloc] init];
+    });
+    return pRunner;
+}
+
+typedef struct CR_RCD_RUN
+{
+    VBoxMainThreadTaskRunner *pRunner;
+} CR_RCD_RUN;
+
+static DECLCALLBACK(void) vboxRcdRun(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_RUN * pRun = (CR_RCD_RUN*)pvCb;
+    [pRun->pRunner runTasks];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)add:(VBoxTask*)pTask
+{
+    DEBUG_FUNC_ENTER();
+    [m_pTasks add:pTask];
+    [self retain];
+
+    if (![self runTasksSyncIfPossible])
+    {
+        DEBUG_MSG(("task will be processed async\n"));
+        [self performSelectorOnMainThread:@selector(runTasks) withObject:nil waitUntilDone:NO];
+    }
+    
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)addObj:(id)aObject selector:(SEL)aSelector arg:(id)aArg
+{
+    VBoxTaskPerformSelector *pSelTask = [[VBoxTaskPerformSelector alloc] initWithObject:aObject selector:aSelector arg:aArg];
+    [self add:pSelTask];
+    [pSelTask release];
+}
+
+- (void)runTasks
+{
+    BOOL fIsMain = [NSThread isMainThread];
+    Assert(fIsMain);
+    if (fIsMain)
+    {
+        [m_pTasks run];
+        [self release];
+    }
+    else
+    {
+        DEBUG_WARN(("run tasks called not on main thread!\n"));
+        [self performSelectorOnMainThread:@selector(runTasks) withObject:nil waitUntilDone:YES];
+    }
+}
+
+- (bool)runTasksSyncIfPossible
+{
+    if (renderspuCalloutAvailable())
+    {
+        CR_RCD_RUN Run;
+        Run.pRunner = self;
+        Assert(![NSThread isMainThread]);
+        renderspuCalloutClient(vboxRcdRun, &Run);
+        return true;
+    }
+    
+    if ([NSThread isMainThread])
+    {
+        [self runTasks];
+        return true;
+    }
+    
+    return false;
+}
+
+- (void)dealloc
+{
+    [m_pTasks release];
+    [super dealloc];
+}
+
+@end
+
 @class DockOverlayView;
 
 /** The custom view class.
@@ -360,10 +676,15 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 - (void)setOverlayWin: (NSWindow*)win;
 - (NSWindow*)overlayWin;
 
-- (void)setPos:(NSPoint)pos;
+- (void)vboxSetPos:(NSPoint)pos;
+- (void)vboxSetPosUI:(NSPoint)pos;
+- (void)vboxSetPosUIObj:(NSValue*)pPos;
 - (NSPoint)pos;
 - (bool)isEverSized;
-- (void)setSize:(NSSize)size;
+- (void)vboxDestroy;
+- (void)vboxSetSizeUI:(NSSize)size;
+- (void)vboxSetSizeUIObj:(NSValue*)pSize;
+- (void)vboxSetSize:(NSSize)size;
 - (NSSize)size;
 - (void)updateViewportCS;
 - (void)vboxReshapePerform;
@@ -375,8 +696,13 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (void)makeCurrentFBO;
 - (void)swapFBO;
+- (void)vboxSetVisible:(GLboolean)fVisible;
+- (void)vboxSetVisibleUIObj:(NSNumber*)pVisible;
+- (void)vboxSetVisibleUI:(GLboolean)fVisible;
 - (void)vboxTryDraw;
 - (void)vboxTryDrawUI;
+- (void)vboxReparent:(NSView*)pParentView;
+- (void)vboxReparentUI:(NSView*)pParentView;
 - (void)vboxPresent:(const VBOXVR_SCR_COMPOSITOR*)pCompositor;
 - (void)vboxPresentCS:(const VBOXVR_SCR_COMPOSITOR*)pCompositor;
 - (void)vboxPresentToDockTileCS:(const VBOXVR_SCR_COMPOSITOR*)pCompositor;
@@ -447,6 +773,7 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 @implementation DockOverlayView
 - (id)init
 {
+    DEBUG_FUNC_ENTER();
     self = [super init];
 
     if (self)
@@ -457,19 +784,27 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         m_Lock = [[NSLock alloc] init];
     }
 
+    DEBUG_FUNC_LEAVE();
+    
     return self;
 }
 
 - (void)dealloc
 {
+    DEBUG_FUNC_ENTER();
+    
     [self cleanup];
     [m_Lock release];
 
     [super dealloc];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)cleanup
 {
+    DEBUG_FUNC_ENTER();
+    
     if (m_ThumbImage != nil)
     {
         [m_ThumbImage release];
@@ -480,20 +815,27 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         [m_ThumbBitmap release];
         m_ThumbBitmap = nil;
     }
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)lock
 {
+    DEBUG_FUNC_ENTER();
     [m_Lock lock];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)unlock
 {
+    DEBUG_FUNC_ENTER();
     [m_Lock unlock];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)setFrame:(NSRect)frame
 {
+    DEBUG_FUNC_ENTER();
     [super setFrame:frame];
 
     [self lock];
@@ -518,15 +860,19 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         [m_ThumbImage addRepresentation:m_ThumbBitmap];
     }
     [self unlock];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (BOOL)isFlipped
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
     return YES;
 }
 
 - (void)drawRect:(NSRect)aRect
 {
+    DEBUG_FUNC_ENTER();
     NSRect frame;
 
     [self lock];
@@ -538,15 +884,21 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     if (m_ThumbImage != nil)
         [m_ThumbImage drawAtPoint:NSMakePoint(0, 0) fromRect:NSZeroRect operation:NSCompositeSourceOver fraction:1.0];
     [self unlock];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSBitmapImageRep*)thumbBitmap
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
     return m_ThumbBitmap;
 }
 
 - (NSImage*)thumbImage
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
     return m_ThumbImage;
 }
 @end
@@ -560,6 +912,8 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 -(id)initWithFormat:(NSOpenGLPixelFormat*)format shareContext:(NSOpenGLContext*)share
 {
+    DEBUG_FUNC_ENTER();
+
     m_pPixelFormat = NULL;
     m_pView = NULL;
 
@@ -569,27 +923,40 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
     DEBUG_MSG(("OCTX(%p): init OverlayOpenGLContext\n", (void*)self));
 
+    DEBUG_FUNC_LEAVE();
+
     return self;
 }
 
 - (void)dealloc
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OCTX(%p): dealloc OverlayOpenGLContext\n", (void*)self));
 
     [m_pPixelFormat release];
 
     [super dealloc];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 -(bool)isDoubleBuffer
 {
+    DEBUG_FUNC_ENTER();
+
     GLint val;
     [m_pPixelFormat getValues:&val forAttribute:NSOpenGLPFADoubleBuffer forVirtualScreen:0];
+    
+    DEBUG_FUNC_LEAVE();
+    
     return val == GL_TRUE ? YES : NO;
 }
 
 -(void)setView:(NSView*)view
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OCTX(%p): setView: new view: %p\n", (void*)self, (void*)view));
 
 #if 1 /* def FBO */
@@ -597,10 +964,15 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 #else
     [super setView: view];
 #endif
+
+    DEBUG_FUNC_LEAVE();
 }
 
 -(NSView*)view
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
 #if 1 /* def FBO */
     return m_pView;
 #else
@@ -610,14 +982,21 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 -(void)clearDrawable
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OCTX(%p): clearDrawable\n", (void*)self));
 
     m_pView = NULL;;
     [super clearDrawable];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 -(NSOpenGLPixelFormat*)openGLPixelFormat
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
     return m_pPixelFormat;
 }
 
@@ -632,20 +1011,28 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 -(id)initWithOverlayWindow:(OverlayWindow*)pOverlayWindow
 {
+    DEBUG_FUNC_ENTER();
+
     self = [super initWithFrame:NSZeroRect];
 
     m_pOverlayWindow = pOverlayWindow;
 
     DEBUG_MSG(("OHVW(%p): init OverlayHelperView\n", (void*)self));
 
+    DEBUG_FUNC_LEAVE();
+
     return self;
 }
 
 -(void)viewDidMoveToWindow
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OHVW(%p): viewDidMoveToWindow: new win: %p\n", (void*)self, (void*)[self window]));
 
     [m_pOverlayWindow parentWindowChanged:[self window]];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 @end
@@ -659,6 +1046,8 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (id)initWithParentView:(NSView*)pParentView overlayView:(OverlayView*)pOverlayView
 {
+    DEBUG_FUNC_ENTER();
+
     NSWindow *pParentWin = nil;
 
     if((self = [super initWithContentRect:NSZeroRect styleMask:NSBorderlessWindowMask backing:NSBackingStoreBuffered defer:NO]))
@@ -702,11 +1091,15 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     }
     DEBUG_MSG(("OWIN(%p): init OverlayWindow\n", (void*)self));
 
+    DEBUG_FUNC_LEAVE();
+
     return self;
 }
 
 - (void)dealloc
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OWIN(%p): dealloc OverlayWindow\n", (void*)self));
 
     [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -715,10 +1108,14 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     [m_pOverlayHelperView release];
 
     [super dealloc];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)parentWindowFrameChanged:(NSNotification*)pNote
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OWIN(%p): parentWindowFrameChanged\n", (void*)self));
 
     /* Reposition this window with the help of the OverlayView. Perform the
@@ -734,10 +1131,14 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         else
             [self performSelectorOnMainThread:@selector(vboxReshapePerform) withObject:nil waitUntilDone:NO];
     }
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)parentWindowChanged:(NSWindow*)pWindow
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OWIN(%p): parentWindowChanged\n", (void*)self));
 
     [[NSNotificationCenter defaultCenter] removeObserver:self];
@@ -767,6 +1168,8 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
                 [self performSelectorOnMainThread:@selector(vboxReshapePerform) withObject:nil waitUntilDone:NO];
         }        
     }
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 @end
@@ -780,6 +1183,8 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (id)initWithFrame:(NSRect)frame thread:(RTTHREAD)aThread parentView:(NSView*)pParentView winInfo:(WindowInfo*)pWinInfo
 {
+    DEBUG_FUNC_ENTER();
+
     m_pParentView             = pParentView;
     /* Make some reasonable defaults */
     m_pGLCtx                  = nil;
@@ -804,11 +1209,15 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
     DEBUG_MSG(("OVIW(%p): init OverlayView\n", (void*)self));
 
+    DEBUG_FUNC_LEAVE();
+
     return self;
 }
 
 - (void)cleanupData
 {
+    DEBUG_FUNC_ENTER();
+
     [self deleteDockTile];
     
     [self setGLCtx:nil];
@@ -830,15 +1239,21 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     }
 
     [self clearVisibleRegions];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)dealloc
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OVIW(%p): dealloc OverlayView\n", (void*)self));
 
     [self cleanupData];
 
     [super dealloc];
+
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)drawRect:(NSRect)aRect
@@ -848,9 +1263,14 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (void)setGLCtx:(NSOpenGLContext*)pCtx
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OVIW(%p): setGLCtx: new ctx: %p\n", (void*)self, (void*)pCtx));
     if (m_pGLCtx == pCtx)
+    {
+        DEBUG_FUNC_LEAVE();
         return;
+    }
 
     /* ensure the context drawable is cleared to avoid holding a reference to inexistent view */
     if (m_pGLCtx)
@@ -863,79 +1283,223 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     m_pGLCtx = pCtx;
     if (pCtx)
         [pCtx retain];
+        
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSOpenGLContext*)glCtx
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
     return m_pGLCtx;
 }
 
 - (NSView*)parentView
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
     return m_pParentView;
 }
 
 - (void)setParentView:(NSView*)pView
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OVIW(%p): setParentView: new view: %p\n", (void*)self, (void*)pView));
 
     m_pParentView = pView;
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)setOverlayWin:(NSWindow*)pWin
 {
+    DEBUG_FUNC_ENTER();
+
     DEBUG_MSG(("OVIW(%p): setOverlayWin: new win: %p\n", (void*)self, (void*)pWin));
 
     m_pOverlayWin = pWin;
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSWindow*)overlayWin
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
+
     return m_pOverlayWin;
 }
 
-- (void)setPos:(NSPoint)pos
+- (void)vboxSetPosUI:(NSPoint)pos
 {
-    DEBUG_MSG(("OVIW(%p): setPos: new pos: %d, %d\n", (void*)self, (int)pos.x, (int)pos.y));
+    DEBUG_FUNC_ENTER();
 
     m_Pos = pos;
 
     if (m_fEverSized)
-        [self performSelectorOnMainThread:@selector(vboxReshapePerform) withObject:nil waitUntilDone:NO];
+        [self vboxReshapePerform];
+        
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetPosUIObj:(NSValue*)pPos
+{
+    DEBUG_FUNC_ENTER();
+
+    NSPoint pos = [pPos pointValue];
+    [self vboxSetPosUI:pos];
+
+    DEBUG_FUNC_LEAVE();
+}
+
+typedef struct CR_RCD_SETPOS
+{
+    OverlayView *pView;
+    NSPoint pos;
+} CR_RCD_SETPOS;
+
+static DECLCALLBACK(void) vboxRcdSetPos(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+
+    CR_RCD_SETPOS * pPos = (CR_RCD_SETPOS*)pvCb;
+    [pPos->pView vboxSetPosUI:pPos->pos];
+
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetPos:(NSPoint)pos
+{
+    DEBUG_FUNC_ENTER();
+
+    DEBUG_MSG(("OVIW(%p): vboxSetPos: new pos: %d, %d\n", (void*)self, (int)pos.x, (int)pos.y));
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    NSValue *pPos =  [NSValue valueWithPoint:pos];
+    [pRunner addObj:self selector:@selector(vboxSetPosUIObj:) arg:pPos];
+
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSPoint)pos
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
     return m_Pos;
 }
 
 - (bool)isEverSized
 {
+    DEBUG_FUNC_ENTER();
+    DEBUG_FUNC_LEAVE();
     return m_fEverSized;
 }
 
-- (void)setSize:(NSSize)size
+- (void)vboxDestroy
 {
-    NSOpenGLContext *pCurCtx;
-    NSView *pCurView;
+    DEBUG_FUNC_ENTER();
+    BOOL fIsMain = [NSThread isMainThread];
+    NSWindow *pWin = nil;
+    
+    Assert(fIsMain);
+
+    /* Hide the view early */
+    [self setHidden: YES];
+
+    pWin = [self window];
+    [[NSNotificationCenter defaultCenter] removeObserver:pWin];
+    [pWin setContentView: nil];
+    [[pWin parentWindow] removeChildWindow: pWin];
+    
+    if (fIsMain)
+        [pWin release];
+    else
+    {
+        /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
+           caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
+           and main hgcm thread waiting for us, this is why use waitUntilDone:NO, 
+           which should cause no harm */ 
+        [pWin performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
+    }
+
+    [self cleanupData];
+
+    if (fIsMain)
+        [self release];
+    else
+    {
+        /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
+           caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
+           and main hgcm thread waiting for us, this is why use waitUntilDone:NO. 
+           We need to avoid concurrency though, so we cleanup some data right away via a cleanupData call */
+        [self performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
+    }
+    
+    renderspuWinRelease(m_pWinInfo);
+    
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetSizeUIObj:(NSValue*)pSize
+{
+    DEBUG_FUNC_ENTER();
+    NSSize size = [pSize sizeValue];
+    [self vboxSetSizeUI:size];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetSizeUI:(NSSize)size
+{
+    DEBUG_FUNC_ENTER();
     m_Size = size;
     
     m_fEverSized = true;
 
-    DEBUG_MSG(("OVIW(%p): setSize: new size: %dx%d\n", (void*)self, (int)size.width, (int)size.height));
-    [self performSelectorOnMainThread:@selector(vboxReshapeOnResizePerform) withObject:nil waitUntilDone:NO];
+    DEBUG_MSG(("OVIW(%p): vboxSetSize: new size: %dx%d\n", (void*)self, (int)m_Size.width, (int)m_Size.height));
+    [self vboxReshapeOnResizePerform];
 
     /* ensure window contents is updated after that */
-    [self setNeedsDisplay:YES];
+    [self vboxTryDrawUI];
+    DEBUG_FUNC_LEAVE();
+}
+
+typedef struct CR_RCD_SETSIZE
+{
+    OverlayView *pView;
+    NSSize size;
+} CR_RCD_SETSIZE;
+
+static DECLCALLBACK(void) vboxRcdSetSize(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_SETSIZE * pSetSize = (CR_RCD_SETSIZE*)pvCb;
+    [pSetSize->pView vboxSetSizeUI:pSetSize->size];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetSize:(NSSize)size
+{
+    DEBUG_FUNC_ENTER();
+    
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    NSValue *pSize = [NSValue valueWithSize:size];
+    [pRunner addObj:self selector:@selector(vboxSetSizeUIObj:) arg:pSize];
+
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSSize)size
 {
+    DEBUG_FUNC_ENTER();
     return m_Size;
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)updateViewportCS
 {
+    DEBUG_FUNC_ENTER();
     DEBUG_MSG(("OVIW(%p): updateViewport\n", (void*)self));
 
     /* Update the viewport for our OpenGL view */
@@ -945,10 +1509,12 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         
     /* Clear background to transparent */
     glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)vboxReshapeOnResizePerform
 {
+    DEBUG_FUNC_ENTER();
     [self vboxReshapePerform];
     
     [self createDockTile];
@@ -967,15 +1533,19 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         m_fNeedCtxUpdate = true;
     }
 #endif
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)vboxReshapeOnReparentPerform
 {
+    DEBUG_FUNC_ENTER();
     [self createDockTile];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)vboxReshapePerform
 {
+    DEBUG_FUNC_ENTER();
     NSRect parentFrame = NSZeroRect;
     NSPoint parentPos  = NSZeroPoint;
     NSPoint childPos   = NSZeroPoint;
@@ -1067,10 +1637,12 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     
         vboxCtxLeave(&CtxInfo);
     }
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)createDockTile
 {
+    DEBUG_FUNC_ENTER();
 	NSView *pDockScreen      = nil;
 	[self deleteDockTile];
 	
@@ -1083,16 +1655,19 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         [self reshapeDockTile];
         [pDockScreen addSubview:m_DockTileView];
     }
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)deleteDockTile
 {
+    DEBUG_FUNC_ENTER();
 	if (m_DockTileView != nil)
     {
         [m_DockTileView removeFromSuperview];
         [m_DockTileView release];
         m_DockTileView = nil;
     }
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)makeCurrentFBO
@@ -1133,14 +1708,19 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (bool)vboxSharedCtxCreate
 {
+    DEBUG_FUNC_ENTER();
     if (m_pSharedGLCtx)
+    {
+        DEBUG_FUNC_LEAVE();
         return true;
+    }
         
     Assert(!m_pBlitter);
     m_pBlitter = RTMemAlloc(sizeof (*m_pBlitter));
     if (!m_pBlitter)
     {
         DEBUG_WARN(("m_pBlitter allocation failed"));
+        DEBUG_FUNC_LEAVE();
         return false;
     }
         
@@ -1154,6 +1734,7 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         DEBUG_WARN(("CrBltInit failed, rc %d", rc));
         RTMemFree(m_pBlitter);
         m_pBlitter = NULL;
+        DEBUG_FUNC_LEAVE();
         return false;
     }        
     
@@ -1169,20 +1750,124 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     
     m_pSharedGLCtx = pSharedGLCtx;
     
+    DEBUG_FUNC_LEAVE();
     return true;
 }
 
 - (void)vboxTryDraw
 {
     glFlush();
-                        
+                  
+    DEBUG_MSG(("My[%p]: Draw\n", self));      
     /* issue to the gui thread */
-    [self setNeedsDisplay:YES];
+    [self performSelectorOnMainThread:@selector(vboxTryDrawUI) withObject:nil waitUntilDone:NO];
+}
+
+typedef struct CR_RCD_SETVISIBLE
+{
+    OverlayView *pView;
+    BOOL fVisible;
+} CR_RCD_SETVISIBLE;
+
+static DECLCALLBACK(void) vboxRcdSetVisible(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_SETVISIBLE * pVisible = (CR_RCD_SETVISIBLE*)pvCb;
+    
+    [pVisible->pView vboxSetVisibleUI:pVisible->fVisible];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetVisible:(GLboolean)fVisible
+{
+    DEBUG_FUNC_ENTER();
+    
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    NSNumber* pVisObj = [NSNumber numberWithBool:fVisible];
+    [pRunner addObj:self selector:@selector(vboxSetVisibleUIObj:) arg:pVisObj];
+
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetVisibleUI:(GLboolean)fVisible
+{
+    DEBUG_FUNC_ENTER();
+    [self setHidden: !fVisible];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxSetVisibleUIObj:(NSNumber*)pVisible
+{
+    DEBUG_FUNC_ENTER();
+    BOOL fVisible = [pVisible boolValue];
+    [self vboxSetVisibleUI:fVisible];
+    DEBUG_FUNC_LEAVE();
+}
+
+typedef struct CR_RCD_REPARENT
+{
+    OverlayView *pView;
+    NSView *pParent;
+} CR_RCD_REPARENT;
+
+static DECLCALLBACK(void) vboxRcdReparent(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_REPARENT * pReparent = (CR_RCD_REPARENT*)pvCb;
+    [pReparent->pView vboxReparentUI:pReparent->pParent];
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxReparent:(NSView*)pParentView
+{
+    DEBUG_FUNC_ENTER();
+    
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    [pRunner addObj:self selector:@selector(vboxReparentUI:) arg:pParentView];
+
+    DEBUG_FUNC_LEAVE();
+}
+
+- (void)vboxReparentUI:(NSView*)pParentView
+{
+    DEBUG_FUNC_ENTER();
+    /* Make sure the window is removed from any previous parent window. */
+    if ([[self overlayWin] parentWindow] != nil)
+    {
+        [[[self overlayWin] parentWindow] removeChildWindow:[self overlayWin]];
+    }
+
+    /* Set the new parent view */
+    [self setParentView: pParentView];
+
+    /* Add the overlay window as a child to the new parent window */
+    if (pParentView != nil)
+    {
+        [[pParentView window] addChildWindow:[self overlayWin] ordered:NSWindowAbove];
+        if ([self isEverSized])
+            [self vboxReshapeOnReparentPerform];
+    }
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)vboxTryDrawUI
 {
+    DEBUG_MSG(("My[%p]: DrawUI\n", self));
     const VBOXVR_SCR_COMPOSITOR *pCompositor;
+    
+    if ([self isHidden])
+    {
+        DEBUG_INFO(("request to draw on a hidden view"));
+        return;
+    }
+
+    if ([[self overlayWin] parentWindow] == nil)
+    {
+        DEBUG_INFO(("request to draw a view w/o a parent"));
+        return;
+    }
+    
     int rc = renderspuVBoxCompositorLock(m_pWinInfo, &pCompositor);
     if (RT_FAILURE(rc))
     {
@@ -1192,6 +1877,7 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
     if (!pCompositor && !m_fCleanupNeeded)
     {
+        DEBUG_MSG(("My[%p]: noCompositorUI\n", self));
         renderspuVBoxCompositorUnlock(m_pWinInfo);
         return;
     }
@@ -1222,6 +1908,7 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
     }
     else
     {
+        DEBUG_MSG(("My[%p]: NeedCleanup\n", self));
         Assert(m_fCleanupNeeded);
         CrVrScrCompositorInit(&TmpCompositor, NULL);
         pCompositor = &TmpCompositor;
@@ -1232,8 +1919,14 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
         [self vboxPresent:pCompositor];            
         [self unlockFocus];
     }
+    else if (!m_pWinInfo->visible)
+    {
+        DEBUG_MSG(("My[%p]: NotVisible\n", self));
+        m_fCleanupNeeded = false;
+    }
     else
     {
+        DEBUG_MSG(("My[%p]: Reschedule\n", self));
         [NSTimer scheduledTimerWithTimeInterval:0.1 target:self selector:@selector(vboxTryDrawUI) userInfo:nil repeats:NO];
     }
     
@@ -1242,7 +1935,9 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
 
 - (void)swapFBO
 {
+    DEBUG_FUNC_ENTER();
     [m_pGLCtx flushBuffer];
+    DEBUG_FUNC_LEAVE();
 }
 
 - (void)vboxPresent:(const VBOXVR_SCR_COMPOSITOR*)pCompositor
@@ -1276,7 +1971,7 @@ static void vboxCtxLeave(PVBOX_CR_RENDER_CTX_INFO pCtxInfo)
                 m_fNeedViewportUpdate = false;
             }
             
-            m_fCleanupNeeded = GL_FALSE;
+            m_fCleanupNeeded = false;
             
             /* Render FBO content to the dock tile when necessary. */
             [self vboxPresentToDockTileCS:pCompositor];
@@ -1564,12 +2259,14 @@ static int g_cVBoxTgaCtr = 0;
 
 - (void)clearVisibleRegions
 {
+    DEBUG_FUNC_ENTER();
     if(m_paClipRects)
     {
         RTMemFree(m_paClipRects);
         m_paClipRects = NULL;
     }
     m_cClipRects = 0;
+    DEBUG_FUNC_LEAVE();
 }
 
 - (GLboolean)vboxNeedsEmptyPresent
@@ -1585,6 +2282,7 @@ static int g_cVBoxTgaCtr = 0;
 
 - (void)setVisibleRegions:(GLint)cRects paRects:(const GLint*)paRects
 {
+    DEBUG_FUNC_ENTER();
     GLint cOldRects = m_cClipRects;
 
     DEBUG_MSG_1(("OVIW(%p): setVisibleRegions: cRects=%d\n", (void*)self, cRects));
@@ -1603,10 +2301,13 @@ static int g_cVBoxTgaCtr = 0;
         m_cClipRects = cRects;
         memcpy(m_paClipRects, paRects, sizeof(GLint) * 4 * cRects);
     }
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 - (NSView*)dockTileScreen
 {
+    DEBUG_FUNC_ENTER();
     NSView *contentView = [[[NSApplication sharedApplication] dockTile] contentView];
     NSView *screenContent = nil;
     /* First try the new variant which checks if this window is within the
@@ -1616,11 +2317,14 @@ static int g_cVBoxTgaCtr = 0;
     /* If it fails, fall back to the old variant (VBox...) */
     else if ([contentView respondsToSelector:@selector(screenContent)])
          screenContent = [contentView performSelector:@selector(screenContent)];
+    
+    DEBUG_FUNC_LEAVE();
     return screenContent;
 }
 
 - (void)reshapeDockTile
 {
+    DEBUG_FUNC_ENTER();
     NSRect newFrame = NSZeroRect;
 
     NSView *pView = [self dockTileScreen];
@@ -1640,6 +2344,7 @@ static int g_cVBoxTgaCtr = 0;
         */
         [m_DockTileView setFrame: newFrame];
     }
+    DEBUG_FUNC_LEAVE();
 }
 
 @end
@@ -1651,6 +2356,7 @@ static int g_cVBoxTgaCtr = 0;
 ********************************************************************************/
 void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams, NativeNSOpenGLContextRef pSharedCtx)
 {
+    DEBUG_FUNC_ENTER();
     NSOpenGLPixelFormat *pFmt = nil;
 
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
@@ -1712,6 +2418,12 @@ void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams, Na
         */
     }
 
+    if (VBoxOglIsOfflineRenderingAppropriate())
+    {
+        DEBUG_MSG(("Offline rendering is enabled\n"));
+        attribs[i++] = NSOpenGLPFAAllowOfflineRenderers;
+    }
+
     /* Mark the end */
     attribs[i++] = 0;
 
@@ -1734,16 +2446,20 @@ void cocoaGLCtxCreate(NativeNSOpenGLContextRef *ppCtx, GLbitfield fVisParams, Na
     }
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaGLCtxDestroy(NativeNSOpenGLContextRef pCtx)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     [pCtx release];
     /*[pCtx performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];*/
 
     [pPool release];
+    DEBUG_FUNC_LEAVE();
 }
 
 /********************************************************************************
@@ -1751,10 +2467,18 @@ void cocoaGLCtxDestroy(NativeNSOpenGLContextRef pCtx)
 * View management
 *
 ********************************************************************************/
-void cocoaViewCreate(NativeNSViewRef *ppView, WindowInfo *pWinInfo, NativeNSViewRef pParentView, GLbitfield fVisParams)
+typedef struct CR_RCD_CREATEVIEW
 {
-    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
+    WindowInfo *pWinInfo;
+    NSView *pParentView;
+    GLbitfield fVisParams;
+    /* out */
+    OverlayView *pView;
+} CR_RCD_CREATEVIEW;
 
+static OverlayView * vboxViewCreate(WindowInfo *pWinInfo, NativeNSViewRef pParentView)
+{
+    DEBUG_FUNC_ENTER();
     /* Create our worker view */
     OverlayView* pView = [[OverlayView alloc] initWithFrame:NSZeroRect thread:RTThreadSelf() parentView:pParentView winInfo:pWinInfo];
 
@@ -1763,144 +2487,206 @@ void cocoaViewCreate(NativeNSViewRef *ppView, WindowInfo *pWinInfo, NativeNSView
         /* We need a real window as container for the view */
         [[OverlayWindow alloc] initWithParentView:pParentView overlayView:pView];
         /* Return the freshly created overlay view */
-        *ppView = pView;
+        DEBUG_FUNC_LEAVE();
+        return pView;
     }
+    
+    DEBUG_FUNC_LEAVE();
+    return NULL;
+}
 
+static DECLCALLBACK(void) vboxRcdCreateView(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_CREATEVIEW * pCreateView = (CR_RCD_CREATEVIEW*)pvCb;
+    pCreateView->pView = vboxViewCreate(pCreateView->pWinInfo, pCreateView->pParentView);
+    DEBUG_FUNC_LEAVE();
+}
+
+void cocoaViewCreate(NativeNSViewRef *ppView, WindowInfo *pWinInfo, NativeNSViewRef pParentView, GLbitfield fVisParams)
+{
+    DEBUG_FUNC_ENTER();
+    NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
+
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    /* make sure all tasks are run, to preserve the order */
+    [pRunner runTasksSyncIfPossible];
+    
+    renderspuWinRetain(pWinInfo);
+
+    if (renderspuCalloutAvailable())
+    {
+        CR_RCD_CREATEVIEW CreateView;
+        CreateView.pWinInfo = pWinInfo;
+        CreateView.pParentView = pParentView;
+        CreateView.fVisParams = fVisParams;
+        CreateView.pView = NULL;
+        renderspuCalloutClient(vboxRcdCreateView, &CreateView);
+        *ppView = CreateView.pView;
+    }
+    else
+    {
+        DEBUG_MSG(("no callout available on createWindow\n"));
+#if 0
+        dispatch_sync(dispatch_get_main_queue(), ^{
+#endif
+            *ppView = vboxViewCreate(pWinInfo, pParentView);
+#if 0
+        });
+#endif
+    }
+    
+    if (!*ppView)
+        renderspuWinRelease(pWinInfo);
+    
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewReparent(NativeNSViewRef pView, NativeNSViewRef pParentView)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     OverlayView* pOView = (OverlayView*)pView;
 
     if (pOView)
     {
-        /* Make sure the window is removed from any previous parent window. */
-        if ([[pOView overlayWin] parentWindow] != nil)
-        {
-            [[[pOView overlayWin] parentWindow] removeChildWindow:[pOView overlayWin]];
-        }
-
-        /* Set the new parent view */
-        [pOView setParentView: pParentView];
-
-        /* Add the overlay window as a child to the new parent window */
-        if (pParentView != nil)
-        {
-            [[pParentView window] addChildWindow:[pOView overlayWin] ordered:NSWindowAbove];
-            if ([pOView isEverSized])
-                [pOView performSelectorOnMainThread:@selector(vboxReshapeOnReparentPerform) withObject:nil waitUntilDone:NO];
-        }
+        [pOView vboxReparent:pParentView];
     }
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
+}
+
+typedef struct CR_RCD_DESTROYVIEW
+{
+    OverlayView *pView;
+} CR_RCD_DESTROYVIEW;
+
+static DECLCALLBACK(void) vboxRcdDestroyView(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_DESTROYVIEW * pDestroyView = (CR_RCD_DESTROYVIEW*)pvCb;
+    [pDestroyView->pView vboxDestroy];
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewDestroy(NativeNSViewRef pView)
 {
-    NSWindow *pWin = nil;
-
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    /* Hide the view early */
-    [pView setHidden: YES];
-
-    pWin = [pView window];
-    [[NSNotificationCenter defaultCenter] removeObserver:pWin];
-    [pWin setContentView: nil];
-    [[pWin parentWindow] removeChildWindow: pWin];
-    
-    /*
-    a = [pWin retainCount];
-    for (; a > 1; --a)
-        [pWin performSelector:@selector(release)]
-    */
-    /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
-       caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
-       and main hgcm thread waiting for us, this is why use waitUntilDone:NO, 
-       which should cause no harm */ 
-    [pWin performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
-    /*
-    [pWin release];
-    */
-
-    /* We can NOT run synchronously with the main thread since this may lead to a deadlock,
-       caused by main thread waiting xpcom thread, xpcom thread waiting to main hgcm thread,
-       and main hgcm thread waiting for us, this is why use waitUntilDone:NO. 
-       We need to avoid concurrency though, so we cleanup some data right away via a cleanupData call */
-    [(OverlayView*)pView cleanupData];
-
-    /* There seems to be a bug in the performSelector method which is called in
-     * parentWindowChanged above. The object is retained but not released. This
-     * results in an unbalanced reference count, which is here manually
-     * decremented. */
-    /*
-    a = [pView retainCount];
-    for (; a > 1; --a)
-    */
-    [pView performSelectorOnMainThread:@selector(release) withObject:nil waitUntilDone:NO];
-    /*
-    [pView release];
-    */
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    [pRunner addObj:pView selector:@selector(vboxDestroy) arg:nil];
 
     [pPool release];
+
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewShow(NativeNSViewRef pView, GLboolean fShowIt)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    [pView setHidden: fShowIt==GL_TRUE?NO:YES];
+    [(OverlayView*)pView vboxSetVisible:fShowIt];
 
     [pPool release];
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewDisplay(NativeNSViewRef pView)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
+    DEBUG_WARN(("cocoaViewDisplay should never happen!\n"));
     DEBUG_MSG_1(("cocoaViewDisplay %p\n", (void*)pView));
     [(OverlayView*)pView swapFBO];
 
     [pPool release];
-
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewSetPosition(NativeNSViewRef pView, NativeNSViewRef pParentView, int x, int y)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    [(OverlayView*)pView setPos:NSMakePoint(x, y)];
+    [(OverlayView*)pView vboxSetPos:NSMakePoint(x, y)];
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewSetSize(NativeNSViewRef pView, int w, int h)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    [(OverlayView*)pView setSize:NSMakeSize(w, h)];
+    [(OverlayView*)pView vboxSetSize:NSMakeSize(w, h)];
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
+}
+
+typedef struct CR_RCD_GETGEOMETRY
+{
+    OverlayView *pView;
+    NSRect rect;
+} CR_RCD_GETGEOMETRY;
+
+static DECLCALLBACK(void) vboxRcdGetGeomerty(void *pvCb)
+{
+    DEBUG_FUNC_ENTER();
+    CR_RCD_GETGEOMETRY * pGetGeometry = (CR_RCD_GETGEOMETRY*)pvCb;
+    pGetGeometry->rect = [[pGetGeometry->pView window] frame];
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewGetGeometry(NativeNSViewRef pView, int *pX, int *pY, int *pW, int *pH)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
-    NSRect frame = [[pView window] frame];
+    NSRect frame;
+    VBoxMainThreadTaskRunner *pRunner = [VBoxMainThreadTaskRunner globalInstance];
+    /* make sure all tasks are run, to preserve the order */
+    [pRunner runTasksSyncIfPossible];
+    
+    
+    if (renderspuCalloutAvailable())
+    {
+        CR_RCD_GETGEOMETRY GetGeometry;
+        GetGeometry.pView = (OverlayView*)pView;
+        renderspuCalloutClient(vboxRcdGetGeomerty, &GetGeometry);
+        frame = GetGeometry.rect;
+    }
+    else
+    {
+        DEBUG_MSG(("no callout available on getGeometry\n"));
+        frame = [[pView window] frame];
+    }
+    
     *pX = frame.origin.x;
     *pY = frame.origin.y;
     *pW = frame.size.width;
     *pH = frame.size.height;
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewPresentComposition(NativeNSViewRef pView, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
     NSOpenGLContext *pCtx;
     
@@ -1914,6 +2700,7 @@ void cocoaViewPresentComposition(NativeNSViewRef pView, const struct VBOXVR_SCR_
             DEBUG_WARN(("renderspuDefaultSharedContextAcquire returned NULL"));
             
             [pPool release];
+            DEBUG_FUNC_LEAVE();
             return;
         }
         
@@ -1925,10 +2712,13 @@ void cocoaViewPresentComposition(NativeNSViewRef pView, const struct VBOXVR_SCR_
     [(OverlayView*)pView presentComposition:pChangedEntry];
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 void cocoaViewMakeCurrentContext(NativeNSViewRef pView, NativeNSOpenGLContextRef pCtx)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     DEBUG_MSG(("cocoaViewMakeCurrentContext(%p, %p)\n", (void*)pView, (void*)pCtx));
@@ -1944,24 +2734,33 @@ void cocoaViewMakeCurrentContext(NativeNSViewRef pView, NativeNSOpenGLContextRef
     }
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }
 
 GLboolean cocoaViewNeedsEmptyPresent(NativeNSViewRef pView)
 {
+    DEBUG_FUNC_ENTER();
+    
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     GLboolean fNeedsPresent = [(OverlayView*)pView vboxNeedsEmptyPresent];
 
     [pPool release];
     
+    DEBUG_FUNC_LEAVE();
+    
     return fNeedsPresent;
 }
 
 void cocoaViewSetVisibleRegion(NativeNSViewRef pView, GLint cRects, const GLint* paRects)
 {
+    DEBUG_FUNC_ENTER();
     NSAutoreleasePool *pPool = [[NSAutoreleasePool alloc] init];
 
     [(OverlayView*)pView setVisibleRegions:cRects paRects:paRects];
 
     [pPool release];
+    
+    DEBUG_FUNC_LEAVE();
 }

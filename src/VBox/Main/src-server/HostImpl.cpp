@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2013 Oracle Corporation
+ * Copyright (C) 2004-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -491,6 +491,7 @@ void Host::uninit()
     while (!m->llChildren.empty())
     {
         ComObjPtr<HostUSBDeviceFilter> &pChild = m->llChildren.front();
+        m->llChildren.pop_front();
         pChild->uninit();
     }
 
@@ -520,10 +521,10 @@ STDMETHODIMP Host::COMGETTER(DVDDrives)(ComSafeArrayOut(IMedium *, aDrives))
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     MediaList *pList;
-    HRESULT rc = getDrives(DeviceType_DVD, true /* fRefresh */, pList);
+    HRESULT rc = getDrives(DeviceType_DVD, true /* fRefresh */, pList, treeLock);
     if (SUCCEEDED(rc))
     {
         SafeIfaceArray<IMedium> array(*pList);
@@ -546,10 +547,10 @@ STDMETHODIMP Host::COMGETTER(FloppyDrives)(ComSafeArrayOut(IMedium *, aDrives))
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoWriteLock alock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     MediaList *pList;
-    HRESULT rc = getDrives(DeviceType_Floppy, true /* fRefresh */, pList);
+    HRESULT rc = getDrives(DeviceType_Floppy, true /* fRefresh */, pList, treeLock);
     if (SUCCEEDED(rc))
     {
         SafeIfaceArray<IMedium> collection(*pList);
@@ -1831,11 +1832,13 @@ HRESULT Host::saveSettings(settings::Host &data)
  * @param mediumType Must be DeviceType_Floppy or DeviceType_DVD.
  * @param fRefresh Whether to refresh the host drives list even if this is not the first call.
  * @param pll Caller's pointer which gets set to the static list of host drives.
+ * @param treeLock Reference to media tree lock, need to drop it temporarily.
  * @return
  */
 HRESULT Host::getDrives(DeviceType_T mediumType,
                         bool fRefresh,
-                        MediaList *&pll)
+                        MediaList *&pll,
+                        AutoWriteLock &treeLock)
 {
     HRESULT rc = S_OK;
     Assert(m->pParent->getMediaTreeLockHandle().isWriteLockOnCurrentThread());
@@ -1942,6 +1945,14 @@ HRESULT Host::getDrives(DeviceType_T mediumType,
     // return cached list to caller
     pll = pllCached;
 
+    // Make sure the media tree lock is released before llNew is cleared,
+    // as this usually triggers calls to uninit().
+    treeLock.release();
+
+    llNew.clear();
+
+    treeLock.acquire();
+
     return rc;
 }
 
@@ -1953,7 +1964,7 @@ HRESULT Host::getDrives(DeviceType_T mediumType,
  * @param mediumType Must be DeviceType_DVD or DeviceType_Floppy.
  * @param uuid Medium UUID of host drive to look for.
  * @param fRefresh Whether to refresh the host drives list (see getDrives())
- * @param pMedium Medium object, if found…
+ * @param pMedium Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
 HRESULT Host::findHostDriveById(DeviceType_T mediumType,
@@ -1963,8 +1974,8 @@ HRESULT Host::findHostDriveById(DeviceType_T mediumType,
 {
     MediaList *pllMedia;
 
-    AutoWriteLock wlock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia, treeLock);
     if (SUCCEEDED(rc))
     {
         for (MediaList::iterator it = pllMedia->begin();
@@ -1993,7 +2004,7 @@ HRESULT Host::findHostDriveById(DeviceType_T mediumType,
  * @param mediumType Must be DeviceType_DVD or DeviceType_Floppy.
  * @param strLocationFull Name (path) of host drive to look for.
  * @param fRefresh Whether to refresh the host drives list (see getDrives())
- * @param pMedium Medium object, if found…
+ * @param pMedium Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
 HRESULT Host::findHostDriveByName(DeviceType_T mediumType,
@@ -2003,8 +2014,8 @@ HRESULT Host::findHostDriveByName(DeviceType_T mediumType,
 {
     MediaList *pllMedia;
 
-    AutoWriteLock wlock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia);
+    AutoWriteLock treeLock(m->pParent->getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = getDrives(mediumType, fRefresh, pllMedia, treeLock);
     if (SUCCEEDED(rc))
     {
         for (MediaList::iterator it = pllMedia->begin();
@@ -2032,7 +2043,7 @@ HRESULT Host::findHostDriveByName(DeviceType_T mediumType,
  *
  * @param mediumType  Must be DeviceType_DVD or DeviceType_Floppy.
  * @param strNameOrId Name or full location or UUID of host drive to look for.
- * @param pMedium     Medium object, if found…
+ * @param pMedium     Medium object, if found...
  * @return VBOX_E_OBJECT_NOT_FOUND if not found, or S_OK if found, or errors from getDrives().
  */
 HRESULT Host::findHostDriveByNameOrId(DeviceType_T mediumType,

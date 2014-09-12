@@ -328,8 +328,6 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->phEvents[VBOX_SOCKET_EVENT_INDEX] = CreateEvent(NULL, FALSE, FALSE, NULL);
 #endif
 
-    link_up = 1;
-
     rc = bootp_dhcp_init(pData);
     if (RT_FAILURE(rc))
     {
@@ -353,12 +351,6 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 
     /* set default addresses */
     inet_aton("127.0.0.1", &loopback_addr);
-
-    if (!fUseHostResolver)
-    {
-        rc = slirpInitializeDnsSettings(pData);
-        AssertRCReturn(rc, VINF_NAT_DNS);
-    }
 
     rc = slirpTftpInit(pData);
     AssertRCReturn(rc, VINF_NAT_DNS);
@@ -402,6 +394,8 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->pInSockAddrHomeAddress[0].sin_len = sizeof(struct sockaddr_in);
 # endif
 #endif
+
+    slirp_link_up(pData);
     return VINF_SUCCESS;
 }
 
@@ -447,7 +441,14 @@ void slirp_deregister_statistics(PNATState pData, PPDMDRVINS pDrvIns)
 void slirp_link_up(PNATState pData)
 {
     struct arp_cache_entry *ac;
+
+    if (link_up == 1)
+        return;
+
     link_up = 1;
+
+    if (!pData->fUseHostResolverPermanent)
+        slirpInitializeDnsSettings(pData);
 
     if (LIST_EMPTY(&pData->arp_cache))
         return;
@@ -465,6 +466,12 @@ void slirp_link_down(PNATState pData)
 {
     struct socket *so;
     struct port_forward_rule *rule;
+
+    if (link_up == 0)
+        return;
+
+    if (!pData->fUseHostResolverPermanent)
+        slirpReleaseDnsSettings(pData);
 
     while ((so = tcb.so_next) != &tcb)
     {
@@ -502,8 +509,10 @@ void slirp_term(PNATState pData)
         return;
     icmp_finit(pData);
 
+    /* Signal to slirp_link_down() to release DNS data. */
+    pData->fUseHostResolverPermanent = 0;
+
     slirp_link_down(pData);
-    slirpReleaseDnsSettings(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
     if (pData->fUseHostResolver)
@@ -855,11 +864,7 @@ static bool slirpConnectOrWrite(PNATState pData, struct socket *so, bool fConnec
                 tp->t_flags |= TF_DELACK;
         }
     }
-    /*
-     * XXX If we wrote something (a lot), there could be the need
-     * for a window update. In the worst case, the remote will send
-     * a window probe to get things going again.
-     */
+
     LogFlowFunc(("LEAVE: true\n"));
     return true;
 }
@@ -2044,7 +2049,8 @@ void slirp_info(PNATState pData, const void *pvArg, const char *pszArgs)
 
 int slirp_host_network_configuration_change_strategy_selector(const PNATState pData)
 {
-    if (pData->fUseHostResolver) return VBOX_NAT_HNCE_HOSTRESOLVER;
+    if (pData->fUseHostResolverPermanent) return VBOX_NAT_HNCE_HOSTRESOLVER;
+    if (pData->fUseHostResolver) return VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY;
     if (pData->fUseDnsProxy) return VBOX_NAT_HNCE_DNSPROXY;
     return VBOX_NAT_HNCE_EXSPOSED_NAME_RESOLUTION_INFO;
 }

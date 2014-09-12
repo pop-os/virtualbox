@@ -29,7 +29,7 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/assert.h>
-#ifndef VBOX_VBGLR3_XFREE86
+#if !defined(VBOX_VBGLR3_XFREE86) && !defined(VBOX_VBGLR3_XORG)
 # include <iprt/mem.h>
 #endif
 #include <iprt/string.h>

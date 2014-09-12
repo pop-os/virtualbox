@@ -91,7 +91,8 @@ typedef RTHCUINTREG                   HMVMXHCUINTREG;
 #define HMVMX_UPDATED_GUEST_SYSENTER_ESP_MSR      RT_BIT(16)
 #define HMVMX_UPDATED_GUEST_AUTO_LOAD_STORE_MSRS  RT_BIT(17)
 #define HMVMX_UPDATED_GUEST_ACTIVITY_STATE        RT_BIT(18)
-#define HMVMX_UPDATED_GUEST_APIC_STATE            RT_BIT(19)
+#define HMVMX_UPDATED_GUEST_INTR_STATE            RT_BIT(19)
+#define HMVMX_UPDATED_GUEST_APIC_STATE            RT_BIT(20)
 #define HMVMX_UPDATED_GUEST_ALL                   (  HMVMX_UPDATED_GUEST_RIP                   \
                                                    | HMVMX_UPDATED_GUEST_RSP                   \
                                                    | HMVMX_UPDATED_GUEST_RFLAGS                \
@@ -111,6 +112,7 @@ typedef RTHCUINTREG                   HMVMXHCUINTREG;
                                                    | HMVMX_UPDATED_GUEST_SYSENTER_ESP_MSR      \
                                                    | HMVMX_UPDATED_GUEST_AUTO_LOAD_STORE_MSRS  \
                                                    | HMVMX_UPDATED_GUEST_ACTIVITY_STATE        \
+                                                   | HMVMX_UPDATED_GUEST_INTR_STATE            \
                                                    | HMVMX_UPDATED_GUEST_APIC_STATE)
 /** @} */
 
@@ -2559,6 +2561,9 @@ DECLINLINE(int) hmR0VmxSaveHostSegmentRegs(PVM pVM, PVMCPU pVCpu)
             || pDesc->System.u4LimitHigh)
         {
             pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_SEL_TR;
+            /* If the host has made GDT read-only, we would need to temporarily toggle CR0.WP before writing the GDT. */
+            if (pVM->hm.s.uHostKernelFeatures & SUPKERNELFEATURES_GDT_READ_ONLY)
+                pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_GDT_READ_ONLY;
             pVCpu->hm.s.vmx.RestoreHost.uHostSelTR = uSelTR;
 
             /* Store the GDTR here as we need it while restoring TR. */
@@ -2807,7 +2812,8 @@ DECLINLINE(int) hmR0VmxSaveHostMsrs(PVM pVM, PVMCPU pVCpu)
     }
 
 # if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
-    if (HMVMX_IS_64BIT_HOST_MODE())
+    if (   HMVMX_IS_64BIT_HOST_MODE()
+        && pVM->hm.s.fAllow64BitGuests)
     {
         hmR0VmxAddAutoLoadStoreHostMsr(pVCpu, MSR_K6_STAR,           ASMRdMsr(MSR_K6_STAR));
         hmR0VmxAddAutoLoadStoreHostMsr(pVCpu, MSR_K8_LSTAR,          ASMRdMsr(MSR_K8_LSTAR));
@@ -4296,8 +4302,7 @@ static int hmR0VmxLoadGuestMsrs(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
         /* See Intel spec. 4.1.4 "Enumeration of Paging Features by CPUID". */
         /** @todo r=ramshankar: Optimize this further to do lazy restoration and only
          *        when the guest really is in 64-bit mode. */
-        bool fSupportsLongMode = CPUMGetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_LONG_MODE);
-        if (fSupportsLongMode)
+        if (pVM->hm.s.fAllow64BitGuests)
         {
             pGuestMsr->u32Msr      = MSR_K6_STAR;
             pGuestMsr->u32Reserved = 0;
@@ -5690,23 +5695,31 @@ DECLINLINE(int) hmR0VmxSaveGuestRipRspRflags(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  */
 static void hmR0VmxSaveGuestIntrState(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
-    uint32_t uIntrState = 0;
-    int rc = VMXReadVmcs32(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, &uIntrState);
-    AssertRC(rc);
-
-    if (!uIntrState)
-        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
-    else
+    if (!HMVMXCPU_GST_IS_SET(pVCpu, HMVMX_UPDATED_GUEST_INTR_STATE))
     {
-        Assert(   uIntrState == VMX_VMCS_GUEST_INTERRUPTIBILITY_STATE_BLOCK_STI
-               || uIntrState == VMX_VMCS_GUEST_INTERRUPTIBILITY_STATE_BLOCK_MOVSS);
-        rc  = hmR0VmxSaveGuestRip(pVCpu, pMixedCtx);
-        AssertRC(rc);
-        rc = hmR0VmxSaveGuestRflags(pVCpu, pMixedCtx);    /* for hmR0VmxGetGuestIntrState(). */
+        uint32_t uIntrState = 0;
+        int rc = VMXReadVmcs32(VMX_VMCS32_GUEST_INTERRUPTIBILITY_STATE, &uIntrState);
         AssertRC(rc);
 
-        EMSetInhibitInterruptsPC(pVCpu, pMixedCtx->rip);
-        Assert(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
+        if (!uIntrState)
+        {
+            if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
+        }
+        else
+        {
+            Assert(   uIntrState == VMX_VMCS_GUEST_INTERRUPTIBILITY_STATE_BLOCK_STI
+                   || uIntrState == VMX_VMCS_GUEST_INTERRUPTIBILITY_STATE_BLOCK_MOVSS);
+            rc  = hmR0VmxSaveGuestRip(pVCpu, pMixedCtx);
+            AssertRC(rc);
+            rc = hmR0VmxSaveGuestRflags(pVCpu, pMixedCtx);    /* for hmR0VmxGetGuestIntrState(). */
+            AssertRC(rc);
+
+            EMSetInhibitInterruptsPC(pVCpu, pMixedCtx->rip);
+            Assert(VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
+        }
+
+        HMVMXCPU_GST_SET_UPDATED(pVCpu, HMVMX_UPDATED_GUEST_INTR_STATE);
     }
 }
 

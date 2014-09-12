@@ -97,6 +97,9 @@ typedef struct WindowInfo {
     CR_BLITTER_WINDOW BltInfo;
 
     VisualInfo *visual;
+
+    volatile uint32_t cRefs;
+
     GLboolean mapPending;
     GLboolean visible;
     GLboolean everCurrent; /**< has this window ever been bound? */
@@ -218,6 +221,10 @@ typedef void (*PFNGET_OBJECT_PARAMETERFV)( GLhandleARB obj, GLenum pname, GLfloa
 typedef void (*PFNGET_OBJECT_PARAMETERIV)( GLhandleARB obj, GLenum pname, GLint * params );
 #endif
 
+typedef DECLCALLBACKPTR(void, PFNVCRSERVER_CLIENT_CALLOUT_CB)(void *pvCb);
+typedef DECLCALLBACKPTR(void, PFNVCRSERVER_CLIENT_CALLOUT)(PFNVCRSERVER_CLIENT_CALLOUT_CB pfnCb, void*pvCb);
+
+
 /**
  * Renderspu state info
  */
@@ -286,6 +293,8 @@ typedef struct {
 
     SPUDispatchTable blitterDispatch;
     CRHashTable *blitterTable;
+
+    PFNVCRSERVER_CLIENT_CALLOUT pfnClientCallout;
 
 #ifdef USE_OSMESA
     /** Off screen rendering hooks.  */
@@ -425,12 +434,35 @@ void renderspuVBoxPresentBlitterCleanup( WindowInfo *window );
 extern int renderspuVBoxPresentBlitterEnter( PCR_BLITTER pBlitter, int32_t i32MakeCurrentUserData );
 extern PCR_BLITTER renderspuVBoxPresentBlitterGetAndEnter( WindowInfo *window, int32_t i32MakeCurrentUserData, bool fRedraw );
 extern PCR_BLITTER renderspuVBoxPresentBlitterEnsureCreated( WindowInfo *window, int32_t i32MakeCurrentUserData );
-void renderspuWindowTermBase( WindowInfo *window );
-extern void renderspuWindowTerm( WindowInfo *window );
+WindowInfo* renderspuWinCreate(GLint visBits, GLint id);
+void renderspuWinTermOnShutdown(WindowInfo *window);
+void renderspuWinTerm( WindowInfo *window );
+void renderspuWinCleanup(WindowInfo *window);
+void renderspuWinDestroy(WindowInfo *window);
+GLboolean renderspuWinInitWithVisual( WindowInfo *window, VisualInfo *visual, GLboolean showIt, GLint id );
+GLboolean renderspuWinInit(WindowInfo *pWindow, const char *dpyName, GLint visBits, GLint id);
+
+DECLINLINE(void) renderspuWinRetain(WindowInfo *window)
+{
+    ASMAtomicIncU32(&window->cRefs);
+}
+
+DECLINLINE(bool) renderspuWinIsTermed(WindowInfo *window)
+{
+    return window->BltInfo.Base.id < 0;
+}
+
+DECLINLINE(void) renderspuWinRelease(WindowInfo *window)
+{
+    uint32_t cRefs = ASMAtomicDecU32(&window->cRefs);
+    if (!cRefs)
+    {
+        renderspuWinDestroy(window);
+    }
+}
+
 extern WindowInfo* renderspuGetDummyWindow(GLint visBits);
 extern void renderspuPerformMakeCurrent(WindowInfo *window, GLint nativeWindow, ContextInfo *context);
-extern GLboolean renderspuWindowInit(WindowInfo *pWindow, const char *dpyName, GLint visBits, GLint id);
-extern GLboolean renderspuWindowInitWithVisual( WindowInfo *window, VisualInfo *visual, GLboolean showIt, GLint id );
 extern GLboolean renderspuInitVisual(VisualInfo *pVisInfo, const char *displayName, GLbitfield visAttribs);
 extern void renderspuVBoxCompositorBlit ( const struct VBOXVR_SCR_COMPOSITOR * pCompositor, PCR_BLITTER pBlitter);
 extern void renderspuVBoxCompositorBlitStretched ( const struct VBOXVR_SCR_COMPOSITOR * pCompositor, PCR_BLITTER pBlitter, GLfloat scaleX, GLfloat scaleY);
@@ -452,6 +484,10 @@ ContextInfo * renderspuDefaultSharedContextAcquire();
 void renderspuDefaultSharedContextRelease(ContextInfo * pCtx);
 uint32_t renderspuContextRelease(ContextInfo *context);
 uint32_t renderspuContextRetain(ContextInfo *context);
+
+bool renderspuCalloutAvailable();
+bool renderspuCalloutClient(PFNVCRSERVER_CLIENT_CALLOUT_CB pfnCb, void *pvCb);
+
 
 #ifdef __cplusplus
 extern "C" {

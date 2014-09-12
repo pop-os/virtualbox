@@ -35,11 +35,11 @@ class UIMiniToolBar;
 class QMdiSubWindow;
 class UIAnimation;
 
-/* IntegrationMode enum: */
-enum IntegrationMode
+/** Geometry types. */
+enum GeometryType
 {
-    IntegrationMode_Embedded,
-    IntegrationMode_External
+    GeometryType_Available,
+    GeometryType_Full
 };
 
 /* Runtime mini-toolbar frameless-window prototype: */
@@ -70,16 +70,13 @@ public:
 
     /* Constructor/destructor: */
     UIRuntimeMiniToolBar(QWidget *pParent,
+                         GeometryType geometryType,
                          Qt::Alignment alignment,
-                         IntegrationMode integrationMode,
                          bool fAutoHide = true);
     ~UIRuntimeMiniToolBar();
 
     /* API: Alignment stuff: */
     void setAlignment(Qt::Alignment alignment);
-
-    /* API: Integration mode stuff: */
-    void setIntegrationMode(IntegrationMode integrationMode);
 
     /* API: Auto-hide stuff: */
     bool autoHide() const { return m_fAutoHide; }
@@ -92,7 +89,7 @@ public:
     void addMenus(const QList<QMenu*> &menus);
 
     /* API: Geometry stuff: */
-    void adjustGeometry();
+    void adjustGeometry(int iHostScreen = -1);
 
 private slots:
 
@@ -126,12 +123,9 @@ private:
     QPoint hiddenToolbarPosition() const { return m_hiddenToolbarPosition; }
     QPoint shownToolbarPosition() const { return m_shownToolbarPosition; }
 
-    /* Helper: Integration stuff: */
-    void integrate();
-
     /* Variables: General stuff: */
+    const GeometryType m_geometryType;
     Qt::Alignment m_alignment;
-    IntegrationMode m_integrationMode;
     bool m_fAutoHide;
 
     /* Variables: Contents stuff: */
@@ -174,9 +168,6 @@ public:
     /* API: Alignment stuff: */
     void setAlignment(Qt::Alignment alignment);
 
-    /* API: Integration mode stuff: */
-    void setIntegrationMode(IntegrationMode integrationMode);
-
     /* API: Auto-hide stuff: */
     bool autoHide() const;
     void setAutoHide(bool fAutoHide);
@@ -206,7 +197,6 @@ private:
     /* Variables: General stuff: */
     bool m_fPolished;
     Qt::Alignment m_alignment;
-    IntegrationMode m_integrationMode;
     QPainterPath m_shape;
 
     /* Variables: Contents stuff: */

@@ -1000,6 +1000,21 @@ typedef struct PDMIBLOCK
     DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
 
     /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
      * Write bits.
      *
      * @returns VBox status code.
@@ -1105,9 +1120,31 @@ typedef struct PDMIBLOCK
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIBLOCK pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIBLOCK pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIBLOCK::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIBLOCK::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIBLOCK pInterface, void *pv, size_t cb));
+
 } PDMIBLOCK;
 /** PDMIBLOCK interface ID. */
-#define PDMIBLOCK_IID                           "5e7123dd-8cdf-4a6e-97a5-ab0c68d7e850"
+#define PDMIBLOCK_IID                           "4e804e8e-3c01-4f20-98d9-a30ece8ec9f5"
 
 
 /** Pointer to a mount interface. */
@@ -1214,6 +1251,43 @@ typedef struct PDMIMOUNT
 /** PDMIMOUNT interface ID. */
 #define PDMIMOUNT_IID                           "34fc7a4c-623a-4806-a6bf-5be1be33c99f"
 
+/** Pointer to a secret key interface. */
+typedef struct PDMISECKEY *PPDMISECKEY;
+
+/**
+ * Secret key interface to retrieve secret keys.
+ */
+typedef struct PDMISECKEY
+{
+    /**
+     * Retains a key identified by the ID. The caller will only hold a reference
+     * to the key and must not modify the key buffer in any way.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pszId           The alias/id for the key to retrieve.
+     * @param   ppbKey          Where to store the pointer to the key buffer on success.
+     * @param   pcbKey          Where to store the size of the key in bytes on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyRetain, (PPDMISECKEY pInterface, const char *pszId,
+                                             const uint8_t **pbKey, size_t *pcbKey));
+
+    /**
+     * Releases one reference of the key identified by the given identifier.
+     * The caller must not access the key buffer after calling this operation.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pszId          The alias/id for the key to release.
+     *
+     * @note: It is advised to release the key whenever it is not used anymore so the entity
+     *        storing the key can do anything to make retrieving the key from memory more
+     *        difficult like scrambling the memory buffer for instance.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyRelease, (PPDMISECKEY pInterface, const char *pszId));
+} PDMISECKEY;
+/** PDMISECKEY interface ID. */
+#define PDMISECKEY_IID                           "a7336c4a-2ca0-489d-ad2d-f740f215a1e6"
 
 /**
  * Media geometry structure.
@@ -1278,6 +1352,21 @@ typedef struct PDMIMEDIA
     DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
 
     /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
      * Write bits.
      *
      * @returns VBox status code.
@@ -1312,17 +1401,16 @@ typedef struct PDMIMEDIA
     DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIMEDIA pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
 
     /**
-     * Merge medium contents during a live snapshot deletion. All details
-     * must have been configured through CFGM or this will fail.
-     * This method is optional (i.e. the function pointer may be NULL).
+     * Sets the secret key retrieval interface to use to get secret keys.
      *
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pbKey           Pointer to the key.
-     * @param   cbKey           Size of the key in bytes.
+     * @param   pIfSecKey       The secret key interface to use.
+     *                          Use NULL to clear the currently set interface and clear all secret
+     *                          keys from the user.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetKey,(PPDMIMEDIA pInterface, const uint8_t *pbKey, size_t cbKey));
+    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey));
 
     /**
      * Get the media size in bytes.
@@ -1427,9 +1515,30 @@ typedef struct PDMIMEDIA
      */
     DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges));
 
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIMEDIA pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIMEDIA::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIMEDIA::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIMEDIA pInterface, void *pv, size_t cb));
+
 } PDMIMEDIA;
 /** PDMIMEDIA interface ID. */
-#define PDMIMEDIA_IID                           "ec385d21-7aa9-42ca-8cfb-e1388297fa52"
+#define PDMIMEDIA_IID                           "b4acf420-c9e3-4333-9ed5-e86f6b2d5f1a"
 
 
 /** Pointer to a block BIOS interface. */

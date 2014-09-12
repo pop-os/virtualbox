@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -105,7 +105,7 @@ void Session::uninit()
         return;
     }
 
-    /* close() needs write lock */
+    /* unlockMachine() needs write lock */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (mState != SessionState_Unlocked)
@@ -113,7 +113,7 @@ void Session::uninit()
         Assert(mState == SessionState_Locked ||
                mState == SessionState_Spawning);
 
-        HRESULT rc = unlockMachine(true /* aFinalRelease */, false /* aFromServer */);
+        HRESULT rc = unlockMachine(true /* aFinalRelease */, false /* aFromServer */, alock);
         AssertComRC(rc);
     }
 
@@ -233,12 +233,12 @@ STDMETHODIMP Session::UnlockMachine()
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* close() needs write lock */
+    /* unlockMachine() needs write lock */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     CHECK_OPEN();
 
-    return unlockMachine(false /* aFinalRelease */, false /* aFromServer */);
+    return unlockMachine(false /* aFinalRelease */, false /* aFromServer */, alock);
 }
 
 // IInternalSessionControl methods
@@ -517,7 +517,7 @@ STDMETHODIMP Session::Uninitialize()
 
     if (autoCaller.state() == Ready)
     {
-        /* close() needs write lock */
+        /* unlockMachine() needs write lock */
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         LogFlowThisFunc(("mState=%s, mType=%d\n", Global::stringifySessionState(mState), mType));
@@ -534,8 +534,7 @@ STDMETHODIMP Session::Uninitialize()
                          mState, SessionState_Locked, SessionState_Spawning),
                         VBOX_E_INVALID_VM_STATE);
 
-        /* close ourselves */
-        rc = unlockMachine(false /* aFinalRelease */, true /* aFromServer */);
+        rc = unlockMachine(false /* aFinalRelease */, true /* aFromServer */, alock);
     }
     else if (autoCaller.state() == InUninit)
     {
@@ -1109,11 +1108,13 @@ STDMETHODIMP Session::SaveStateWithReason(Reason_T aReason, IProgress **aProgres
  *
  *  @param aFinalRelease    called as a result of FinalRelease()
  *  @param aFromServer      called as a result of Uninitialize()
+ *  @param alock            Write lock to be used in this method,
+ *                          to unlock it at the right time.
  *
  *  @note To be called only from #uninit(), #UnlockMachine() or #Uninitialize().
  *  @note Locks this object for writing.
  */
-HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer)
+HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer, AutoWriteLock &alock)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aFinalRelease=%d, isFromServer=%d\n",
@@ -1121,8 +1122,6 @@ HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer)
 
     AutoCaller autoCaller(this);
     AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     LogFlowThisFunc(("mState=%s, mType=%d\n", Global::stringifySessionState(mState), mType));
 
@@ -1132,12 +1131,12 @@ HRESULT Session::unlockMachine(bool aFinalRelease, bool aFromServer)
 
         /* The session object is going to be uninitialized before it has been
          * assigned a direct console of the machine the client requested to open
-         * a remote session to using IVirtualBox:: openRemoteSession(). It is OK
-         * only if this close request comes from the server (for example, it
+         * a remote session to using IMachine::launchVMProcess(). It is OK
+         * only if this unlock request comes from the server (for example, it
          * detected that the VM process it started terminated before opening a
          * direct session). Otherwise, it means that the client is too fast and
-         * trying to close the session before waiting for the progress object it
-         * got from IVirtualBox:: openRemoteSession() to complete, so assert. */
+         * trying to unlock the session before waiting for the progress object it
+         * got from IMachine::launchVMProcess() to complete, so assert. */
         Assert(aFromServer);
 
         mState = SessionState_Unlocked;

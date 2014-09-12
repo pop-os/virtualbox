@@ -133,3 +133,6 @@ DeleteBuffersARB
 StringMarkerGREMEDY
 GenTextures
 CompileShader
+NewList
+EndList
+GetError

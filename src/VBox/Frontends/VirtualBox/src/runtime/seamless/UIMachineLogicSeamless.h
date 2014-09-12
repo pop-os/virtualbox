@@ -37,6 +37,9 @@ protected:
     /* Check if this logic is available: */
     bool checkAvailability();
 
+    /** Returns machine-window flags for 'Seamless' machine-logic and passed @a uScreenId. */
+    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::FramelessWindowHint; }
+
     /* Helpers: Multi-screen stuff: */
     void maybeAdjustGuestScreenSize();
     int hostScreenForGuestScreen(int iScreenId) const;
@@ -56,8 +59,10 @@ private slots:
     /** Updates machine-window(s) location/size on screen-layout changes. */
     void sltScreenLayoutChanged();
 
-    void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
-    void sltHostScreenCountChanged();
+    /** Handles guest-screen count change. */
+    virtual void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
+    /** Handles host-screen count change. */
+    virtual void sltHostScreenCountChange();
 
 private:
 

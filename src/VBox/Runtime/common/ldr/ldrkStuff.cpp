@@ -561,7 +561,7 @@ static DECLCALLBACK(int) rtkldr_Relocate(PRTLDRMODINTERNAL pMod, void *pvBits, R
 
 /** @copydoc RTLDROPS::pfnGetSymbolEx */
 static DECLCALLBACK(int) rtkldr_GetSymbolEx(PRTLDRMODINTERNAL pMod, const void *pvBits, RTUINTPTR BaseAddress,
-                                            const char *pszSymbol, RTUINTPTR *pValue)
+                                            uint32_t iOrdinal, const char *pszSymbol, RTUINTPTR *pValue)
 {
     PKLDRMOD pModkLdr = ((PRTLDRMODKLDR)pMod)->pMod;
     KLDRADDR uValue;
@@ -581,8 +581,10 @@ static DECLCALLBACK(int) rtkldr_GetSymbolEx(PRTLDRMODINTERNAL pMod, const void *
 #endif
 
     int rc = kLdrModQuerySymbol(pModkLdr, pvBits, BaseAddress,
-                                NIL_KLDRMOD_SYM_ORDINAL, pszSymbol, strlen(pszSymbol), NULL,
-                                NULL, NULL, &uValue, NULL);
+                                iOrdinal == UINT32_MAX ? NIL_KLDRMOD_SYM_ORDINAL : iOrdinal,
+                                pszSymbol, strlen(pszSymbol), NULL,
+                                NULL, NULL,
+                                &uValue, NULL);
     if (!rc)
     {
         *pValue = uValue;
@@ -838,7 +840,8 @@ static DECLCALLBACK(int) rtkldr_ReadDbgInfo(PRTLDRMODINTERNAL pMod, uint32_t iDb
 
 
 /** @interface_method_impl{RTLDROPS,pfnQueryProp} */
-static DECLCALLBACK(int) rtkldr_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf, size_t *pcbRet)
+static DECLCALLBACK(int) rtkldr_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enmProp, void const *pvBits,
+                                          void *pvBuf, size_t cbBuf, size_t *pcbRet)
 {
     PRTLDRMODKLDR pThis = (PRTLDRMODKLDR)pMod;
 #if 0
@@ -877,6 +880,7 @@ static const RTLDROPS g_rtkldrOps =
     rtkldr_GetBits,
     rtkldr_Relocate,
     rtkldr_GetSymbolEx,
+    NULL /*pfnQueryForwarderInfo*/,
     rtkldr_EnumDbgInfo,
     rtkldr_EnumSegments,
     rtkldr_LinkAddressToSegOffset,

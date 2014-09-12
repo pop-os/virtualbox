@@ -207,6 +207,18 @@ void PACKSPU_APIENTRY packspu_Flush( void )
     }
 }
 
+void PACKSPU_APIENTRY packspu_NewList(GLuint list, GLenum mode)
+{
+    crStateNewList(list, mode);
+    crPackNewList(list, mode);
+}
+
+void PACKSPU_APIENTRY packspu_EndList()
+{
+    crStateEndList();
+    crPackEndList();
+}
+
 void PACKSPU_APIENTRY packspu_VBoxWindowDestroy( GLint con, GLint window )
 {
     if (CRPACKSPU_IS_WDDM_CRHGSMI())
@@ -508,15 +520,59 @@ void PACKSPU_APIENTRY packspu_ChromiumParameteriCR(GLenum target, GLint value)
             crStateShareContext(value);
             break;
         case GL_RCUSAGE_TEXTURE_SET_CR:
+        {
+            Assert(value);
             crStateSetTextureUsed(value, GL_TRUE);
             break;
+        }
         case GL_RCUSAGE_TEXTURE_CLEAR_CR:
+        {
+            Assert(value);
+#ifdef DEBUG
+            {
+                CRContext *pCurState = crStateGetCurrent();
+                CRTextureObj *tobj = (CRTextureObj*)crHashtableSearch(pCurState->shared->textureTable, value);
+                Assert(tobj);
+            }
+#endif
             crStateSetTextureUsed(value, GL_FALSE);
             break;
+        }
         default:
             break;
     }
     crPackChromiumParameteriCR(target, value);
+}
+
+GLenum PACKSPU_APIENTRY packspu_GetError( void )
+{
+    GET_THREAD(thread);
+    int writeback = 1;
+    GLenum return_val = (GLenum) 0;
+    CRContext *pCurState = crStateGetCurrent();
+
+    if (!CRPACKSPU_IS_WDDM_CRHGSMI() && !(pack_spu.thread[pack_spu.idxThreadInUse].netServer.conn->actual_network))
+    {
+        crError( "packspu_GetError doesn't work when there's no actual network involved!\nTry using the simplequery SPU in your chain!" );
+    }
+    if (pack_spu.swap)
+    {
+        crPackGetErrorSWAP( &return_val, &writeback );
+    }
+    else
+    {
+        crPackGetError( &return_val, &writeback );
+    }
+
+    packspuFlush( (void *) thread );
+    CRPACKSPU_WRITEBACK_WAIT(thread, writeback);
+
+    if (pack_spu.swap)
+    {
+        return_val = (GLenum) SWAP32(return_val);
+    }
+
+    return return_val;
 }
 
 #ifdef CHROMIUM_THREADSAFE

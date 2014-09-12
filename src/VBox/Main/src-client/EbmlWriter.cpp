@@ -125,14 +125,14 @@ static int ebml_WriteLen(EbmlGlobal *glob, uint64_t val)
 {
     //TODO check and make sure we are not > than 0x0100000000000000LLU
     size_t size = 8;
-    uint64_t minVal = UINT64_C(0x00000000000000ff); //mask to compare for byte size
+    uint64_t minVal = UINT64_C(0x000000000000007f); //mask to compare for byte size
 
     for (size = 1; size < 8; size ++)
     {
         if (val < minVal)
             break;
 
-        minVal = (minVal << 7);
+        minVal = (minVal << 7) | 0x7f;
     }
 
     val |= (UINT64_C(0x000000000000080) << ((size - 1) * 7));
@@ -273,8 +273,8 @@ int Ebml_WriteWebMSeekInfo(EbmlGlobal *ebml)
             rc = Ebml_SerializeFloat(ebml, Segment_Duration,
                                      (double)(ebml->last_pts_ms + frame_time));
         char szVersion[64];
-        RTStrPrintf(szVersion, sizeof(szVersion), "vpxenc%",
-                    ebml->debug ? vpx_codec_version_str() : "");
+        RTStrPrintf(szVersion, sizeof(szVersion), "vpxenc%s",
+                    ebml->debug ? "" : vpx_codec_version_str());
         if (RT_SUCCESS(rc))
             rc = Ebml_SerializeString(ebml, MuxingApp, szVersion);
         if (RT_SUCCESS(rc))

@@ -3107,6 +3107,81 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
     return result;
 }
 
+#ifdef Q_WS_X11
+/* This method tests whether the current X11 window manager supports full-screen mode as we need it.
+ * Unfortunately the EWMH specification was not fully clear about whether we can expect to find
+ * all of these atoms on the _NET_SUPPORTED root window property, so we have to test with all
+ * interesting window managers. If this fails for a user when you think it should succeed
+ * they should try executing:
+ * xprop -root | egrep -w '_NET_WM_FULLSCREEN_MONITORS|_NET_WM_STATE|_NET_WM_STATE_FULLSCREEN'
+ * in an X11 terminal window.
+ * All three strings should be found under a property called "_NET_SUPPORTED(ATOM)". */
+/* static */
+bool VBoxGlobal::supportsFullScreenMonitorsProtocolX11()
+{
+    /* Using a global to get at the display does not feel right, but that is
+     * how it is done elsewhere in the code. */
+    Display *pDisplay = QX11Info::display();
+    Atom atomSupported            = XInternAtom(pDisplay, "_NET_SUPPORTED",
+                                                True /* only_if_exists */);
+    Atom atomWMFullScreenMonitors = XInternAtom(pDisplay,
+                                                "_NET_WM_FULLSCREEN_MONITORS",
+                                                True /* only_if_exists */);
+    Atom atomWMState              = XInternAtom(pDisplay,
+                                                "_NET_WM_STATE",
+                                                True /* only_if_exists */);
+    Atom atomWMStateFullScreen    = XInternAtom(pDisplay,
+                                                "_NET_WM_STATE_FULLSCREEN",
+                                                True /* only_if_exists */);
+    bool fFoundFullScreenMonitors = false;
+    bool fFoundState              = false;
+    bool fFoundStateFullScreen    = false;
+    Atom atomType;
+    int cFormat;
+    unsigned long cItems;
+    unsigned long cbLeft;
+    Atom *pAtomHints;
+    int rc;
+    unsigned i;
+
+    if (   atomSupported == None || atomWMFullScreenMonitors == None
+        || atomWMState == None || atomWMStateFullScreen == None)
+        return false;
+    /* Get atom value: */
+    rc = XGetWindowProperty(pDisplay, DefaultRootWindow(pDisplay),
+                            atomSupported, 0, 0x7fffffff /*LONG_MAX*/,
+                            False /* delete */, XA_ATOM, &atomType,
+                            &cFormat, &cItems, &cbLeft,
+                            (unsigned char **)&pAtomHints);
+    if (rc != Success)
+        return false;
+    if (pAtomHints == NULL)
+        return false;
+    if (atomType == XA_ATOM && cFormat == 32 && cbLeft == 0)
+        for (i = 0; i < cItems; ++i)
+        {
+            if (pAtomHints[i] == atomWMFullScreenMonitors)
+                fFoundFullScreenMonitors = true;
+            if (pAtomHints[i] == atomWMState)
+                fFoundState = true;
+            if (pAtomHints[i] == atomWMStateFullScreen)
+                fFoundStateFullScreen = true;
+        }
+    XFree(pAtomHints);
+    return fFoundFullScreenMonitors && fFoundState && fFoundStateFullScreen;
+}
+
+/* static */
+bool VBoxGlobal::setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId)
+{
+    return XXSendClientMessage(pWidget->x11Info().display(),
+                               pWidget->window()->winId(),
+                               "_NET_WM_FULLSCREEN_MONITORS",
+                               uScreenId, uScreenId, uScreenId, uScreenId,
+                               1 /* Source indication (1 = normal application) */);
+}
+#endif /* Q_WS_X11 */
+
 /**
  *  Removes the accelerator mark (the ampersand symbol) from the given string
  *  and returns the result. The string is supposed to be a menu item's text
@@ -3782,6 +3857,13 @@ QString VBoxGlobal::machineWindowNamePostfix(CMachine &machine)
     return machine.GetExtraData(GUI_MachineWindowNamePostfix);
 }
 #endif /* !Q_WS_MAC */
+
+/* static */
+MouseCapturePolicy VBoxGlobal::mouseCapturePolicy(CMachine &machine)
+{
+    /* Return result: */
+    return gpConverter->fromInternalString<MouseCapturePolicy>(machine.GetExtraData(GUI_MouseCapturePolicy));
+}
 
 /* static */
 GuruMeditationHandlerType VBoxGlobal::guruMeditationHandlerType(CMachine &machine)

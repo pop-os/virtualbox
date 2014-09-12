@@ -35,11 +35,19 @@ class UIMachineLogicFullscreen : public UIMachineLogic
 
 #ifdef RT_OS_DARWIN
 signals:
+
     /** Mac OS X: Notifies listeners about native fullscreen mode should be entered on @a pMachineWindow. */
     void sigNotifyAboutNativeFullscreenShouldBeEntered(UIMachineWindow *pMachineWindow = 0);
     /** Mac OS X: Notifies listeners about native fullscreen mode should be exited on @a pMachineWindow. */
     void sigNotifyAboutNativeFullscreenShouldBeExited(UIMachineWindow *pMachineWindow = 0);
 #endif /* RT_OS_DARWIN */
+
+#ifdef Q_WS_MAC
+public:
+
+    /** Returns whether screens have separate spaces. */
+    bool screensHaveSeparateSpaces() const { return m_fScreensHaveSeparateSpaces; }
+#endif /* Q_WS_MAC */
 
 protected:
 
@@ -49,6 +57,9 @@ protected:
 
     /* Check if this logic is available: */
     bool checkAvailability();
+
+    /** Returns machine-window flags for 'Fullscreen' machine-logic and passed @a uScreenId. */
+    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::FramelessWindowHint; }
 
     /* Helpers: Multi-screen stuff: */
     void maybeAdjustGuestScreenSize();
@@ -83,15 +94,19 @@ private slots:
     /* Handler: Console callback stuff: */
     void sltMachineStateChanged();
 
-#ifdef Q_WS_MAC
+#ifdef RT_OS_DARWIN
     void sltChangePresentationMode(bool fEnabled);
-#endif /* Q_WS_MAC */
+#endif /* RT_OS_DARWIN */
 
     /** Updates machine-window(s) location/size on screen-layout changes. */
     void sltScreenLayoutChanged();
 
-    void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
-    void sltHostScreenCountChanged();
+    /** Handles guest-screen count change. */
+    virtual void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
+    /** Handles host-screen count change. */
+    virtual void sltHostScreenCountChange();
+    /** Handles host-screen available-area change. */
+    virtual void sltHostScreenAvailableAreaChange();
 
 private:
 
@@ -125,12 +140,20 @@ private:
     void revalidateNativeFullScreen(UIMachineWindow *pMachineWindow);
     /** Mac OS X: Revalidates 'fullscreen' mode for all windows. */
     void revalidateNativeFullScreen();
+
+    /** Mac OS X: Proxies native notification about active space change. */
+    static void nativeHandlerForApplicationActivation(QObject *pObject, const QMap<QString, QString> &userInfo);
+    /** Mac OS X: Handles native notification about active space change. */
+    void nativeHandlerForApplicationActivation(const QMap<QString, QString> &userInfo);
 #endif /* Q_WS_MAC */
 
     /* Variables: */
     UIMultiScreenLayout *m_pScreenLayout;
 
 #ifdef Q_WS_MAC
+    /** Mac OS X: Holds whether screens have separate spaces. */
+    const bool m_fScreensHaveSeparateSpaces;
+
     /** Mac OS X: Fade token. */
     CGDisplayFadeReservationToken m_fadeToken;
 

@@ -132,6 +132,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
 #ifndef Q_WS_MAC
     , m_pMachineWindowIcon(0)
 #endif /* !Q_WS_MAC */
+    , m_mouseCapturePolicy(MouseCapturePolicy_Default)
     , m_guruMeditationHandlerType(GuruMeditationHandlerType_Default)
     , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
     , m_fIsExtensionPackUsable(false)
@@ -920,7 +921,7 @@ void UISession::sltHandleHostScreenCountChange()
     LogRelFlow(("UISession: Host-screen count changed.\n"));
 
     /* Notify current machine-logic: */
-    emit sigHostScreenCountChanged();
+    emit sigHostScreenCountChange();
 }
 
 void UISession::sltHandleHostScreenGeometryChange()
@@ -928,7 +929,15 @@ void UISession::sltHandleHostScreenGeometryChange()
     LogRelFlow(("UISession: Host-screen geometry changed.\n"));
 
     /* Notify current machine-logic: */
-    emit sigHostScreenGeometryChanged();
+    emit sigHostScreenGeometryChange();
+}
+
+void UISession::sltHandleHostScreenAvailableAreaChange()
+{
+    LogRelFlow(("UISession: Host-screen available-area changed.\n"));
+
+    /* Notify current machine-logic: */
+    emit sigHostScreenAvailableAreaChange();
 }
 
 void UISession::sltAdditionsChange()
@@ -1030,7 +1039,7 @@ void UISession::prepareConnections()
     connect(QApplication::desktop(), SIGNAL(resized(int)),
             this, SLOT(sltHandleHostScreenGeometryChange()));
     connect(QApplication::desktop(), SIGNAL(workAreaResized(int)),
-            this, SLOT(sltHandleHostScreenGeometryChange()));
+            this, SLOT(sltHandleHostScreenAvailableAreaChange()));
 #endif /* !Q_WS_MAC */
 }
 
@@ -1135,6 +1144,9 @@ void UISession::loadSessionSettings()
         /* Load user's machine-window name postfix: */
         m_strMachineWindowNamePostfix = VBoxGlobal::machineWindowNamePostfix(machine);
 #endif /* !Q_WS_MAC */
+
+        /* Determine mouse-capture policy: */
+        m_mouseCapturePolicy = VBoxGlobal::mouseCapturePolicy(machine);
 
         /* Determine Guru Meditation handler type: */
         m_guruMeditationHandlerType = VBoxGlobal::guruMeditationHandlerType(machine);

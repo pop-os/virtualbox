@@ -142,7 +142,8 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_SUPSVC),VBOX_WITH_SUPSVC) \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
-	VBOX_PERMIT_MORE
+	VBOX_PERMIT_MORE \
+	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
 SUPR3_SOURCES       = \
 	SUPLib.cpp \
@@ -183,7 +184,8 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
-	VBOX_PERMIT_MORE
+	VBOX_PERMIT_MORE \
+	VBOX_PERMIT_EVEN_MORE
 ifdef VBOX_WITH_VISTA_NO_SP
  SUPR3HardenedStatic_DEFS.win += VBOX_WITH_VISTA_NO_SP
 endif
@@ -196,12 +198,22 @@ SUPR3HardenedStatic_SOURCES  = \
 SUPR3HardenedStatic_SOURCES.win = \
 	win/SUPR3HardenedMain-win.cpp \
 	win/SUPR3HardenedMainA-win.asm \
+	win/SUPR3HardenedMainImports-win.cpp \
        win/SUPHardenedVerifyProcess-win.cpp \
        win/SUPHardenedVerifyImage-win.cpp \
 	$(VBOX_SUP_WIN_CERTS_FILE)
 
 if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of this move up.
- SUPR3HardenedStatic_DEFS += IN_RT IN_RT_R3 IN_RT_STATIC IPRT_NO_CRT RT_WITH_NOCRT_ALIASES LOG_DISABLED IPRT_NO_ERROR_DATA
+ SUPR3HardenedStatic_DEFS += \
+  	IN_RT \
+ 	IN_RT_R3 \
+ 	IN_RT_STATIC \
+ 	IN_DIS \
+ 	DIS_CORE_ONLY \
+  	IPRT_NO_CRT \
+ 	RT_WITH_NOCRT_ALIASES \
+ 	LOG_DISABLED \
+ 	IPRT_NO_ERROR_DATA
  SUPR3HardenedStatic_DEFS.win += LDR_ONLY_PE __STRALIGN_H_
 
  SUPR3HardenedStatic_INCS += $(PATH_ROOT)/include/iprt/nocrt  $(VBOX_PATH_RUNTIME_SRC)/include
@@ -267,6 +279,10 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/taf-core.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/taf-init.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/taf-sanity.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/tsp-asn1-decoder.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/tsp-core.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/tsp-init.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/tsp-sanity.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-md2.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-md5.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/checksum/alt-sha1.cpp \
@@ -283,14 +299,20 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTStrPrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16PrintHexBytes.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16ICmpAscii.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16CatAscii.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16CopyAscii.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/string/RTUtf16End.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/strstrip.cpp \
        \
 	$(VBOX_PATH_RUNTIME_SRC)/common/err/errmsg.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/math/bignum.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/math/bignum-amd64-x86.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg1Weak.cpp \
+	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2Weak.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/RTAssertMsg2WeakV.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/misc/zero.asm \
+	$(VBOX_PATH_RUNTIME_SRC)/common/path/RTPathFilename.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memchr.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memcmp.asm \
 	$(VBOX_PATH_RUNTIME_SRC)/common/string/memcpy.asm \
@@ -323,7 +345,14 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/generic/RTAssertShouldPanic-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/memsafer-generic.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/generic/uuid-generic.cpp \
+       \
+	../../Disassembler/DisasmCore.cpp \
+	../../Disassembler/DisasmTables.cpp \
+	../../Disassembler/DisasmTablesX64.cpp \
+	../../Disassembler/DisasmReg.cpp
 
+ SUPR3HardenedStatic_SOURCES.amd64 += \
+ 	$(VBOX_PATH_RUNTIME_SRC)/common/math/RTUInt128MulByU64.asm
 
  SUPR3HardenedStatic_SOURCES.win += \
  	win/SUPR3HardenedNoCrt-win.cpp \
@@ -361,6 +390,8 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
  endif
 endif
 
+SUPR3HardenedMain.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
+
 
 #
 # VBoxSupLib - Windows DLL for catching thread creation and termination.
@@ -372,8 +403,10 @@ VBoxSupLib_DEFS = \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,)
 VBoxSupLib_SOURCES = \
 	$(KBUILD_TARGET)/VBoxSupLib-$(KBUILD_TARGET).cpp
-VBoxSupLib_LIBS.win = \
-	$(SUPR3HardenedStatic_1_TARGET)
+VBoxSupLib_LIBS.win.x86 = \
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.x86)_LIB)/libcmt$(VBOX_VCC_CRT_TYPE).lib   # for __chkstk
+VBoxSupLib_LIBS.win.amd64 = \
+ 	$(PATH_TOOL_$(TEMPLATE_VBOXR3STATIC_TOOL.win.amd64)_LIB)/libcmt$(VBOX_VCC_CRT_TYPE).lib # for __chkstk
 
 
 #
@@ -535,7 +568,7 @@ if1of ($(KBUILD_TARGET), darwin linux solaris win)
  ifdef VBOX_PERMIT_VISUAL_STUDIO_PROFILING
   VBoxDrv_DEFS           += VBOX_PERMIT_VISUAL_STUDIO_PROFILING
  endif
- VBoxDrv_DEFS            += VBOX_PERMIT_MORE
+ VBoxDrv_DEFS            += VBOX_PERMIT_MORE VBOX_PERMIT_EVEN_MORE
  #VBoxDrv_DEFS.debug      += DEBUG_DARWIN_GIP
  VBoxDrv_DEFS.darwin     := VBOX_WITH_HOST_VMX
  VBoxDrv_DEFS.linux      := \

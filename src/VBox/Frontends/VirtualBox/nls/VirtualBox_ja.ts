@@ -93,22 +93,22 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="460"/>
+        <location filename="../src/main.cpp" line="465"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>実行ファイル &lt;b&gt;%1&lt;/b&gt; はQt %2.x が必要です。Qt %3 が見つかりました。</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="464"/>
+        <location filename="../src/main.cpp" line="469"/>
         <source>Incompatible Qt Library Error</source>
         <translation>互換性のないQtライブラリーエラー</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="656"/>
+        <location filename="../src/main.cpp" line="661"/>
         <source>VirtualBox - Error In %1</source>
         <translation>VirtualBox - %1 のエラー</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="660"/>
+        <location filename="../src/main.cpp" line="665"/>
         <source>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</source>
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
@@ -131,22 +131,22 @@
         <translation>カーネルモジュールが正しくロードされたことを確認してください。</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="595"/>
+        <location filename="../src/main.cpp" line="600"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - ランタイムエラー</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="601"/>
+        <location filename="../src/main.cpp" line="606"/>
         <source>&lt;b&gt;Cannot access the kernel driver!&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</source>
         <translation>&lt;b&gt;カーネルドライバーにアクセスできません！&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="624"/>
+        <location filename="../src/main.cpp" line="629"/>
         <source>Unknown error %2 during initialization of the Runtime</source>
         <translation>ランタイムの初期化中に予期しないエラー(%2)</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="614"/>
+        <location filename="../src/main.cpp" line="619"/>
         <source>Kernel driver not accessible</source>
         <translation>カーネルドライバーにアクセスできません</translation>
     </message>
@@ -10906,7 +10906,7 @@ step and attach hard disks later using the VM Settings dialog.&lt;/p&gt;</source
         <translation type="obsolete">インストール</translation>
     </message>
     <message>
-        <location filename="../src/runtime/UISession.cpp" line="570"/>
+        <location filename="../src/runtime/UISession.cpp" line="571"/>
         <source>Updating Guest Additions</source>
         <translation>Guest Additions をアップデートしています</translation>
     </message>
@@ -15319,8 +15319,8 @@ Version %1</source>
         <translation type="obsolete">^(?:(?:(\d+)(?:\s?(B|KB|MB|GB|TB|PB))?)|(?:(\d*)%1(\d{1,2})(?:\s?(KB|MB|GB|TB|PB))))$</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="61"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="80"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="62"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="81"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2572"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2604"/>
         <source>B</source>
@@ -15328,8 +15328,8 @@ Version %1</source>
         <translation>B</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="62"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="81"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="63"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="82"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2573"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2606"/>
         <source>KB</source>
@@ -15337,8 +15337,8 @@ Version %1</source>
         <translation>KB</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="63"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="82"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="64"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="83"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2574"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2608"/>
         <location filename="../src/widgets/UIApplianceEditorWidget.cpp" line="241"/>
@@ -15354,8 +15354,8 @@ Version %1</source>
         <translation>MB</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="64"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="83"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="65"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="84"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2575"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2610"/>
         <source>GB</source>
@@ -15363,8 +15363,8 @@ Version %1</source>
         <translation>GB</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="65"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="84"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="66"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="85"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2576"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2612"/>
         <source>TB</source>
@@ -15372,8 +15372,8 @@ Version %1</source>
         <translation>TB</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="66"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="85"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="67"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="86"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2577"/>
         <location filename="../src/globals/VBoxGlobal.cpp" line="2614"/>
         <source>PB</source>
@@ -15556,141 +15556,141 @@ Version %1</source>
         <translation>アダプター %1</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="114"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="200"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="115"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="201"/>
         <source>IDE Primary Master</source>
         <comment>StorageSlot</comment>
         <translation>IDE プライマリマスター</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="116"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="201"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="117"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="202"/>
         <source>IDE Primary Slave</source>
         <comment>StorageSlot</comment>
         <translation>IDE プライマリスレーブ</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="118"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="202"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="119"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="203"/>
         <source>IDE Secondary Master</source>
         <comment>StorageSlot</comment>
         <translation>IDE セカンダリマスター</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="120"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="203"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="121"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="204"/>
         <source>IDE Secondary Slave</source>
         <comment>StorageSlot</comment>
         <translation>IDE セカンダリスレーブ</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="136"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="204"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="137"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="205"/>
         <source>SATA Port %1</source>
         <comment>StorageSlot</comment>
         <translation>SATA ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="152"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="205"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="153"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="206"/>
         <source>SCSI Port %1</source>
         <comment>StorageSlot</comment>
         <translation>SCSI ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="168"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="206"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="169"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="207"/>
         <source>SAS Port %1</source>
         <comment>StorageSlot</comment>
         <translation>SAS ポート %1</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="184"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="207"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="185"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="208"/>
         <source>Floppy Device %1</source>
         <comment>StorageSlot</comment>
         <translation>フロッピーデバイス %1</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="685"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="712"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="686"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="713"/>
         <source>General</source>
         <comment>DetailsElementType</comment>
         <translation>一般</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="686"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="713"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="687"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="714"/>
         <source>Preview</source>
         <comment>DetailsElementType</comment>
         <translation>プレビュー</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="687"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="714"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="688"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="715"/>
         <source>System</source>
         <comment>DetailsElementType</comment>
         <translation>システム</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="688"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="715"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="689"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="716"/>
         <source>Display</source>
         <comment>DetailsElementType</comment>
         <translation>ディスプレイ</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="689"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="716"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="690"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="717"/>
         <source>Storage</source>
         <comment>DetailsElementType</comment>
         <translation>ストレージ</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="690"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="717"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="691"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="718"/>
         <source>Audio</source>
         <comment>DetailsElementType</comment>
         <translation>オーディオ</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="691"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="718"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="692"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="719"/>
         <source>Network</source>
         <comment>DetailsElementType</comment>
         <translation>ネットワーク</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="692"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="719"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="693"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="720"/>
         <source>Serial ports</source>
         <comment>DetailsElementType</comment>
         <translation>シリアルポート</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="694"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="721"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="695"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="722"/>
         <source>Parallel ports</source>
         <comment>DetailsElementType</comment>
         <translation>パラレルポート</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="696"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="723"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="697"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="724"/>
         <source>USB</source>
         <comment>DetailsElementType</comment>
         <translation>USB</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="697"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="724"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="698"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="725"/>
         <source>Shared folders</source>
         <comment>DetailsElementType</comment>
         <translation>共有フォルダー</translation>
     </message>
     <message>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="698"/>
-        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="725"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="699"/>
+        <location filename="../src/converter/UIConverterBackendGlobal.cpp" line="726"/>
         <source>Description</source>
         <comment>DetailsElementType</comment>
         <translation>説明</translation>

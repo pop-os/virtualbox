@@ -29,8 +29,16 @@ SPUDispatchTable cr_unpackDispatch;
 static void crUnpackExtend(void);
 static void crUnpackExtendDbg(void);
 
-/*#define CR_UNPACK_DEBUG_OPCODES*/
-/*#define CR_UNPACK_DEBUG_LAST_OPCODES*/
+#if 0 //def DEBUG_misha
+//# define CR_UNPACK_DEBUG_OPCODES
+# define CR_UNPACK_DEBUG_LAST_OPCODES
+# define CR_UNPACK_DEBUG_PREV_OPCODES
+#endif
+
+#ifdef CR_UNPACK_DEBUG_PREV_OPCODES
+static GLenum g_VBoxDbgCrPrevOpcode = 0;
+static GLenum g_VBoxDbgCrPrevExtendOpcode = 0;
+#endif
 """
 
 nodebug_opcodes = [
@@ -210,7 +218,6 @@ CR_UNPACK_BUFFER_TYPE crUnpackGetBufferType(const void *opcodes, unsigned int nu
 {
     const uint8_t *pu8Codes = (const uint8_t *)opcodes;
 
-    CR_UNPACK_BUFFER_TYPE enmType;
     uint8_t first;
     uint8_t last;
 
@@ -219,14 +226,16 @@ CR_UNPACK_BUFFER_TYPE crUnpackGetBufferType(const void *opcodes, unsigned int nu
 
     first = pu8Codes[0];
     last = pu8Codes[1-(int)num_opcodes];
-
-    enmType = (first != CR_CMDBLOCKBEGIN_OPCODE) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN;
-
-    if (last != CR_CMDBLOCKEND_OPCODE)
-        return enmType;
-
-    /* last is CMDBLOCKEND*/
-    return (enmType == CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_END;
+    
+    switch (last)
+    {
+        case CR_CMDBLOCKFLUSH_OPCODE:
+            return CR_UNPACK_BUFFER_TYPE_CMDBLOCK_FLUSH;
+        case CR_CMDBLOCKEND_OPCODE:
+            return (first == CR_CMDBLOCKBEGIN_OPCODE) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_END;
+        default:
+            return (first != CR_CMDBLOCKBEGIN_OPCODE) ? CR_UNPACK_BUFFER_TYPE_GENERIC : CR_UNPACK_BUFFER_TYPE_CMDBLOCK_BEGIN;
+    } 
 }
 
 void crUnpack( const void *data, const void *opcodes, 
@@ -254,6 +263,9 @@ void crUnpack( const void *data, const void *opcodes,
         CRDBGPTR_CHECKZ(return_ptr);
     
         /*crDebug(\"Unpacking opcode \%d\", *unpack_opcodes);*/
+#ifdef CR_UNPACK_DEBUG_PREV_OPCODES
+        g_VBoxDbgCrPrevOpcode = *unpack_opcodes;
+#endif
         switch( *unpack_opcodes )
         {"""
 
@@ -287,6 +299,7 @@ print """
                 break;
             case CR_CMDBLOCKBEGIN_OPCODE:
             case CR_CMDBLOCKEND_OPCODE:
+            case CR_CMDBLOCKFLUSH_OPCODE:
             case CR_NOP_OPCODE:
                 INCR_DATA_PTR_NO_ARGS( );
                 break;
@@ -320,6 +333,10 @@ print 'static void crUnpackExtend(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
 print ''
+print '#ifdef CR_UNPACK_DEBUG_PREV_OPCODES'
+print '\tg_VBoxDbgCrPrevExtendOpcode = extend_opcode;'
+print '#endif'
+print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'
 print '\t{'
@@ -345,6 +362,10 @@ print """       default:
 print 'static void crUnpackExtendDbg(void)'
 print '{'
 print '\tGLenum extend_opcode = %s;' % ReadData( 4, 'GLenum' );
+print ''
+print '#ifdef CR_UNPACK_DEBUG_PREV_OPCODES'
+print '\tg_VBoxDbgCrPrevExtendOpcode = extend_opcode;'
+print '#endif'
 print ''
 print '\t/*crDebug(\"Unpacking extended opcode \%d", extend_opcode);*/'
 print '\tswitch( extend_opcode )'

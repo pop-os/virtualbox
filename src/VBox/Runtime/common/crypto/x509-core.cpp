@@ -643,6 +643,7 @@ static struct
     const char *pszLongNm;
 } const g_aRdnMap[] =
 {
+    {   "0.9.2342.19200300.100.1.3",  RT_STR_TUPLE("Mail"),                 "Rfc822Mailbox" },
     {   "0.9.2342.19200300.100.1.25", RT_STR_TUPLE("DC"),                   "DomainComponent" },
     {   "1.2.840.113549.1.9.1",       RT_STR_TUPLE("Email"),                "EmailAddress" },
     {   "2.5.4.3",                    RT_STR_TUPLE("CN"),                   "CommonName" },
@@ -1276,7 +1277,7 @@ static void rtCrx509TbsCertificate_AddExtKeyUsageFlags(PRTCRX509TBSCERTIFICATE p
                     case  5: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_IPSEC_END_SYSTEM; break;
                     case  6: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_IPSEC_TUNNEL; break;
                     case  7: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_IPSEC_USER; break;
-                    case  8: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_TIME_STAMPING; break;
+                    case  8: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_TIMESTAMPING; break;
                     case  9: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_OCSP_SIGNING; break;
                     case 10: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_DVCS; break;
                     case 11: pThis->T3.fExtKeyUsage |= RTCRX509CERT_EKU_F_SBGP_CERT_AA_SERVICE_AUTH; break;

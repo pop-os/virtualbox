@@ -152,6 +152,7 @@ namespace UIDefs
     extern const char* GUI_DefaultCloseAction;
     extern const char* GUI_RestrictedStatusBarIndicators;
     extern const char* GUI_HidLedsSync;
+    extern const char* GUI_MouseCapturePolicy;
     extern const char* GUI_GuruMeditationHandler;
     extern const char* GUI_HiDPIOptimization;
 
@@ -474,6 +475,14 @@ enum MachineCloseAction
     MachineCloseAction_All                        = 0xFF
 };
 Q_DECLARE_METATYPE(MachineCloseAction);
+
+/** Mouse capture policy types. */
+enum MouseCapturePolicy
+{
+    MouseCapturePolicy_Default,
+    MouseCapturePolicy_HostComboOnly,
+    MouseCapturePolicy_Disabled
+};
 
 /** Guru Meditation handler types. */
 enum GuruMeditationHandlerType

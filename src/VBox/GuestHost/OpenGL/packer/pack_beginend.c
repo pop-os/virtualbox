@@ -13,6 +13,12 @@ void PACK_APIENTRY crPackBegin( GLenum mode )
     unsigned char *data_ptr;
     (void) pc;
 
+    if (CR_CMDBLOCK_IS_STARTED(pc, CRPACKBLOCKSTATE_OP_BEGIN))
+    {
+        WARN(("recursive begin?"));
+        return;
+    }
+
     CR_CMDBLOCK_BEGIN( pc, CRPACKBLOCKSTATE_OP_BEGIN );
 #ifndef VBOX
     if (pc->buffer.canBarf)
@@ -78,4 +84,3 @@ void PACK_APIENTRY crPackEndSWAP( void )
     CR_CMDBLOCK_END( pc, CRPACKBLOCKSTATE_OP_BEGIN );
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
-

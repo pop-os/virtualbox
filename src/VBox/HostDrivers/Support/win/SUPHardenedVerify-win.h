@@ -29,18 +29,72 @@
 
 #include <iprt/types.h>
 #include <iprt/crypto/x509.h>
+#ifndef SUP_CERTIFICATES_ONLY
+# ifdef RT_OS_WINDOWS
+#  include <iprt/ldr.h>
+# endif
+#endif
+
 
 RT_C_DECLS_BEGIN
 
 #ifndef SUP_CERTIFICATES_ONLY
 # ifdef RT_OS_WINDOWS
-DECLHIDDEN(int)      supHardenedWinInitImageVerifier(PRTERRINFO pErrInfo);
-DECLHIDDEN(void)     supHardenedWinTermImageVerifier(void);
-DECLHIDDEN(int)      supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supHardenedWinInitImageVerifier(PRTERRINFO pErrInfo);
+DECLHIDDEN(void)    supHardenedWinTermImageVerifier(void);
+DECLHIDDEN(void)    supR3HardenedWinVerifyCacheScheduleImports(RTLDRMOD hLdrMod, PCRTUTF16 pwszName);
+DECLHIDDEN(void)    supR3HardenedWinVerifyCachePreload(PCRTUTF16 pwszName);
 
-DECLHIDDEN(bool)     supHardViIsAppPatchDir(PCRTUTF16 pwszPath, uint32_t cwcName);
-DECLHIDDEN(int)      supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, bool *pfCacheable, PRTERRINFO pErrInfo);
-DECLHIDDEN(int)      supHardenedWinVerifyImageByHandleNoName(HANDLE hFile, uint32_t fFlags, PRTERRINFO pErrInfo);
+
+typedef enum SUPHARDNTVPKIND
+{
+    SUPHARDNTVPKIND_VERIFY_ONLY = 1,
+    SUPHARDNTVPKIND_CHILD_PURIFICATION,
+    SUPHARDNTVPKIND_SELF_PURIFICATION,
+    SUPHARDNTVPKIND_32BIT_HACK = 0x7fffffff
+} SUPHARDNTVPKIND;
+DECLHIDDEN(int)     supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUPHARDNTVPKIND enmKind,
+                                                uint32_t *pcFixes, PRTERRINFO pErrInfo);
+
+DECLHIDDEN(bool)    supHardViUtf16PathIsEqualEx(PCRTUTF16 pawcLeft, size_t cwcLeft, const char *pszRight);
+DECLHIDDEN(bool)    supHardViUniStrPathStartsWithUniStr(UNICODE_STRING const *pUniStrLeft,
+                                                        UNICODE_STRING const *pUniStrRight, bool fCheckSlash);
+DECLHIDDEN(bool)    supHardViUtf16PathStartsWithEx(PCRTUTF16 pwszLeft, uint32_t cwcLeft,
+                                                PCRTUTF16 pwszRight, uint32_t cwcRight, bool fCheckSlash);
+DECLHIDDEN(bool)    supHardViIsAppPatchDir(PCRTUTF16 pwszPath, uint32_t cwcName);
+
+
+/**
+ * SUP image verifier loader reader instance.
+ */
+typedef struct SUPHNTVIRDR
+{
+    /** The core reader structure. */
+    RTLDRREADER Core;
+    /** The file handle . */
+    HANDLE      hFile;
+    /** Current file offset. */
+    RTFOFF      off;
+    /** The file size. */
+    RTFOFF      cbFile;
+    /** Flags for the verification callback, SUPHNTVI_F_XXX. */
+    uint32_t    fFlags;
+    /** The executable timstamp in second since unix epoch. */
+    uint64_t    uTimestamp;
+    /** Log name. */
+    char        szFilename[1];
+} SUPHNTVIRDR;
+/** Pointer to an SUP image verifier loader reader instance. */
+typedef SUPHNTVIRDR *PSUPHNTVIRDR;
+DECLHIDDEN(int)  supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, PSUPHNTVIRDR *ppNtViRdr);
+DECLHIDDEN(bool) supHardenedWinIsWinVerifyTrustCallable(void);
+DECLHIDDEN(int)  supHardenedWinVerifyImageTrust(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, int rc,
+                                                bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardenedWinVerifyImageByHandle(HANDLE hFile, PCRTUTF16 pwszName, uint32_t fFlags, bool fAvoidWinVerifyTrust,
+                                                   bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardenedWinVerifyImageByHandleNoName(HANDLE hFile, uint32_t fFlags, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pwszName, PSUPHNTVIRDR pNtViRdr,
+                                                   bool fAvoidWinVerifyTrust, bool *pfWinVerifyTrust, PRTERRINFO pErrInfo);
 /** @name SUPHNTVI_F_XXX - Flags for supHardenedWinVerifyImageByHandle.
  * @{ */
 /** The signing certificate must be the same as the one the VirtualBox build
@@ -52,11 +106,44 @@ DECLHIDDEN(int)      supHardenedWinVerifyImageByHandleNoName(HANDLE hFile, uint3
 #  define SUPHNTVI_F_REQUIRE_SIGNATURE_ENFORCEMENT  RT_BIT(2)
 /** Whether to allow image verification by catalog file. */
 #  define SUPHNTVI_F_ALLOW_CAT_FILE_VERIFICATION    RT_BIT(3)
+/** The file owner must be TrustedInstaller on Vista+. */
+#  define SUPHNTVI_F_TRUSTED_INSTALLER_OWNER        RT_BIT(4)
 /** Resource image, could be any bitness. */
 #  define SUPHNTVI_F_RESOURCE_IMAGE                 RT_BIT(30)
 /** Raw-mode context image, always 32-bit. */
 #  define SUPHNTVI_F_RC_IMAGE                       RT_BIT(31)
 /** @} */
+
+/**
+ * Loader cache entry.
+ *
+ * This is for avoiding loading and signature checking a file multiple times,
+ * due to multiple passes thru the process validation code (and syscall import
+ * code of NTDLL).
+ */
+typedef struct SUPHNTLDRCACHEENTRY
+{
+    /** The file name (from g_apszSupNtVpAllowedDlls or
+     *  g_apszSupNtVpAllowedVmExes). */
+    const char         *pszName;
+    /** Load module associated with the image during content verfication. */
+    RTLDRMOD            hLdrMod;
+    /** The file reader. */
+    PSUPHNTVIRDR        pNtViRdr;
+    /** The module file handle, if we've opened it.
+     * (pNtviRdr does not close the file handle on destruction.)  */
+    HANDLE              hFile;
+    /** Bits buffer. */
+    uint8_t            *pbBits;
+    /** Set if verified. */
+    bool                fVerified;
+} SUPHNTLDRCACHEENTRY;
+/** Pointer to a loader cache entry. */
+typedef SUPHNTLDRCACHEENTRY *PSUPHNTLDRCACHEENTRY;
+DECLHIDDEN(int)  supHardNtLdrCacheOpen(const char *pszName, PSUPHNTLDRCACHEENTRY *ppEntry);
+DECLHIDDEN(int)  supHardNtLdrCacheEntryVerify(PSUPHNTLDRCACHEENTRY pEntry, PCRTUTF16 pwszName, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardNtLdrCacheEntryAllocBits(PSUPHNTLDRCACHEENTRY pEntry, uint8_t **ppbBits, PRTERRINFO pErrInfo);
+
 
 /** Which directory under the system root to get. */
 typedef enum SUPHARDNTSYSROOTDIR
@@ -77,12 +164,22 @@ typedef struct SUPSYSROOTDIRBUF
 } SUPSYSROOTDIRBUF;
 extern SUPSYSROOTDIRBUF g_System32NtPath;
 extern SUPSYSROOTDIRBUF g_WinSxSNtPath;
+#ifdef IN_RING3
+extern SUPSYSROOTDIRBUF g_ProgramFilesNtPath;
+extern SUPSYSROOTDIRBUF g_CommonFilesNtPath;
+# if ARCH_BITS == 64
+extern SUPSYSROOTDIRBUF g_ProgramFilesX86NtPath;
+extern SUPSYSROOTDIRBUF g_CommonFilesX86NtPath;
+# endif
+#endif
 extern SUPSYSROOTDIRBUF g_SupLibHardenedExeNtPath;
 extern uint32_t         g_offSupLibHardenedExeNtName;
 
+#   ifdef IN_RING0
 /** Pointer to NtQueryVirtualMemory. */
 typedef NTSTATUS (NTAPI *PFNNTQUERYVIRTUALMEMORY)(HANDLE, void const *, MEMORY_INFORMATION_CLASS, PVOID, SIZE_T, PSIZE_T);
 extern PFNNTQUERYVIRTUALMEMORY g_pfnNtQueryVirtualMemory;
+#   endif
 
 #  endif /* SUPHNTVI_NO_NT_STUFF */
 
@@ -99,6 +196,8 @@ extern uint32_t         g_uNtVerCombined;
 
 /** Combined NT version number for XP. */
 #define SUP_NT_VER_XP       SUP_MAKE_NT_VER_SIMPLE(5,1)
+/** Combined NT version number for Windows server 2003 & XP64. */
+#define SUP_NT_VER_W2K3     SUP_MAKE_NT_VER_SIMPLE(5,2)
 /** Combined NT version number for Vista. */
 #define SUP_NT_VER_VISTA    SUP_MAKE_NT_VER_SIMPLE(6,0)
 /** Combined NT version number for Windows 7. */
@@ -125,7 +224,6 @@ extern uint32_t         g_uNtVerCombined;
 #  define suplibHardenedStrCat       strcat
 #  define suplibHardenedStrCmp       strcmp
 #  define suplibHardenedStrNCmp      strncmp
-#  define suplibHardenedStrICmp      stricmp
 # else   /* IN_SUP_HARDENED_R3 */
 #  include <iprt/mem.h>
 #if 0
@@ -137,7 +235,6 @@ extern uint32_t         g_uNtVerCombined;
 #  define strcat                     suplibHardenedStrCat
 #  define strcmp                     suplibHardenedStrCmp
 #  define strncmp                    suplibHardenedStrNCmp
-#  define stricmp                    suplibHardenedStrICmp
 #endif
 DECLHIDDEN(void *)  suplibHardenedAllocZ(size_t cb);
 DECLHIDDEN(void *)  suplibHardenedReAlloc(void *pvOld, size_t cbNew);

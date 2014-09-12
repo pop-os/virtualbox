@@ -396,7 +396,13 @@ typedef RTASN1COREVTABLE const *PCRTASN1COREVTABLE;
     RTASN1TYPE_STANDARD_PROTOTYPES_NO_GET_CORE(a_TypeNm, a_DeclMacro, a_ImplExtNm)
 
 
-/** Aliases two ASN.1 types. */
+/** Aliases two ASN.1 types, no method aliases. */
+#define RTASN1TYPE_ALIAS_TYPE_ONLY(a_TypeNm, a_AliasType) \
+    typedef a_AliasType a_TypeNm; \
+    typedef a_TypeNm *RT_CONCAT(P,a_TypeNm); \
+    typedef a_TypeNm const *RT_CONCAT(PC,a_TypeNm)
+
+/** Aliases two ASN.1 types and methods. */
 #define RTASN1TYPE_ALIAS(a_TypeNm, a_AliasType, a_ImplExtNm, a_AliasExtNm) \
     typedef a_AliasType a_TypeNm; \
     typedef a_TypeNm *RT_CONCAT(P,a_TypeNm); \
@@ -1251,10 +1257,8 @@ RTASN1CONTEXTTAG_DO_TYPEDEF_AND_INLINE(7);
  */
 typedef enum RTASN1TYPE
 {
-    /** Invalid zero value. */
-    RTASN1TYPE_INVALID = 0,
     /** Not present. */
-    RTASN1TYPE_NOT_PRESENT,
+    RTASN1TYPE_NOT_PRESENT = 0,
     /** Generic ASN.1 for unknown tag/class. */
     RTASN1TYPE_CORE,
     /** ASN.1 NULL. */
@@ -1494,7 +1498,11 @@ typedef struct RTASN1CURSOR
     /** Number of bytes left to decode. */
     uint32_t                    cbLeft;
     /** RTASN1CURSOR_FLAGS_XXX.  */
-    uint32_t                    fFlags;
+    uint8_t                     fFlags;
+    /** The cursor depth. */
+    uint8_t                     cDepth;
+    /** Two bytes reserved for future tricks. */
+    uint8_t                     abReserved[2];
     /** Pointer to the primary cursor. */
     struct RTASN1CURSORPRIMARY *pPrimary;
     /** Pointer to the parent cursor. */
@@ -1550,15 +1558,15 @@ RTDECL(PRTASN1CURSOR) RTAsn1CursorInitPrimary(PRTASN1CURSORPRIMARY pPrimaryCurso
 /**
  * Initialize a sub-cursor for traversing the content of an ASN.1 object.
  *
- * @returns @a pChild
+ * @returns IPRT status code.
  * @param   pParent             The parent cursor.
  * @param   pAsn1Core           The ASN.1 object which content we should
  *                              traverse with the sub-cursor.
  * @param   pChild              The sub-cursor to initialize.
  * @param   pszErrorTag         The error tag of the sub-cursor.
  */
-RTDECL(PRTASN1CURSOR) RTAsn1CursorInitSubFromCore(PRTASN1CURSOR pParent, PRTASN1CORE pAsn1Core,
-                                                  PRTASN1CURSOR pChild, const char *pszErrorTag);
+RTDECL(int) RTAsn1CursorInitSubFromCore(PRTASN1CURSOR pParent, PRTASN1CORE pAsn1Core,
+                                        PRTASN1CURSOR pChild, const char *pszErrorTag);
 
 /**
  * Initalizes the an allocation structure prior to making an allocation.

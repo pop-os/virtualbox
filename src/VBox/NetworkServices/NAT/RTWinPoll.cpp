@@ -1,4 +1,6 @@
 /* -*- indent-tabs-mode: nil; -*- */
+#define LOG_GROUP LOG_GROUP_NAT_SERVICE
+
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/cdefs.h>
@@ -6,6 +8,7 @@
 #include <iprt/string.h>
 
 #include <VBox/err.h>
+#include <VBox/log.h>
 
 #include <Winsock2.h>
 #include <Windows.h>
@@ -100,34 +103,27 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
         /* deassociate socket with event */
         WSAEventSelect(pFds[i].fd, g_hNetworkEvent, 0);
 
-        if (NetworkEvents.lNetworkEvents & (FD_READ|FD_ACCEPT))
-        {
-            if (   NetworkEvents.iErrorCode[FD_READ_BIT] != 0
-                || NetworkEvents.iErrorCode[FD_ACCEPT_BIT] != 0)
-                revents |= POLLERR;
+#define WSA_TO_POLL(_wsaev, _pollev)                                    \
+        do {                                                            \
+            if (NetworkEvents.lNetworkEvents & (_wsaev)) {              \
+                revents |= (_pollev);                                   \
+                if (NetworkEvents.iErrorCode[_wsaev##_BIT] != 0) {      \
+                    Log2(("sock %d: %s: %R[sockerr]\n",                 \
+                          pFds[i].fd, #_wsaev,                          \
+                          NetworkEvents.iErrorCode[_wsaev##_BIT]));     \
+                    revents |= POLLERR;                                 \
+                }                                                       \
+            }                                                           \
+        } while (0)
 
-            revents |= POLLIN;
-        }
+        WSA_TO_POLL(FD_READ,    POLLIN);
+        WSA_TO_POLL(FD_ACCEPT,  POLLIN);
+        WSA_TO_POLL(FD_WRITE,   POLLOUT);
+        WSA_TO_POLL(FD_CONNECT, POLLOUT);
+        WSA_TO_POLL(FD_CLOSE,   POLLHUP | (pFds[i].events & POLLIN));
 
-        if (NetworkEvents.lNetworkEvents & (FD_WRITE|FD_CONNECT))
-        {
-            if (   NetworkEvents.iErrorCode[FD_WRITE_BIT] != 0
-                || NetworkEvents.iErrorCode[FD_CONNECT_BIT] != 0)
-                revents |= POLLERR;
+        Assert((revents & ~(pFds[i].events | POLLHUP | POLLERR)) == 0);
 
-            revents |= POLLOUT;
-        }
-
-        if (NetworkEvents.lNetworkEvents & FD_CLOSE)
-        {
-            if (NetworkEvents.iErrorCode[FD_CLOSE_BIT] != 0)
-                revents |= POLLERR;
-
-            revents |= POLLHUP;
-        }
-
-        /* paranoid */
-        revents &= (pFds[i].events | POLLHUP | POLLERR);
         if (revents != 0)
         {
             pFds[i].revents = revents;

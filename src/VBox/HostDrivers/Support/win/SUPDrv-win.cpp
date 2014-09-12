@@ -1008,7 +1008,7 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
                         /*
                          * Now call the common code to do the real work.
                          */
-                        rc = supdrvIOCtl(uCmd, pDevExt, pSession, pHdr);
+                        rc = supdrvIOCtl(uCmd, pDevExt, pSession, pHdr, cbBuf);
                         if (RT_SUCCESS(rc))
                         {
                             /*
@@ -1158,10 +1158,15 @@ static int VBoxDrvNtDeviceControlSlow(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSes
                 &&  pStack->Parameters.DeviceIoControl.InputBufferLength ==  pHdr->cbIn
                 &&  pStack->Parameters.DeviceIoControl.OutputBufferLength ==  pHdr->cbOut)
             {
+                /* Zero extra output bytes to make sure we don't leak anything. */
+                if (pHdr->cbIn < pHdr->cbOut)
+                    RtlZeroMemory((uint8_t *)pHdr + pHdr->cbIn, pHdr->cbOut - pHdr->cbIn);
+
                 /*
                  * Do the job.
                  */
-                rc = supdrvIOCtl(pStack->Parameters.DeviceIoControl.IoControlCode, pDevExt, pSession, pHdr);
+                rc = supdrvIOCtl(pStack->Parameters.DeviceIoControl.IoControlCode, pDevExt, pSession, pHdr,
+                                 RT_MAX(pHdr->cbIn, pHdr->cbOut));
                 if (!rc)
                 {
                     rcNt = STATUS_SUCCESS;
@@ -1750,19 +1755,6 @@ static NTSTATUS     VBoxDrvNtErr2NtStatus(int rc)
 }
 
 
-
-/** @todo use the nocrt stuff? */
-int VBOXCALL mymemcmp(const void *pv1, const void *pv2, size_t cb)
-{
-    const uint8_t *pb1 = (const uint8_t *)pv1;
-    const uint8_t *pb2 = (const uint8_t *)pv2;
-    for (; cb > 0; cb--, pb1++, pb2++)
-        if (*pb1 != *pb2)
-            return *pb1 - *pb2;
-    return 0;
-}
-
-
 #if 0 /* See alternative in SUPDrvA-win.asm */
 /**
  * Alternative version of SUPR0Printf for Windows.
@@ -1784,6 +1776,15 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
     return 0;
 }
 #endif
+
+
+/**
+ * Returns configuration flags of the host kernel.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
+{
+    return 0;
+}
 
 
 #ifdef VBOX_WITH_HARDENING
@@ -2134,6 +2135,41 @@ static bool supdrvNtProtectIsFrigginThemesService(PSUPDRVNTPROTECT pNtProtect, P
 }
 
 
+#ifdef VBOX_WITHOUT_DEBUGGER_CHECKS
+/**
+ * Checks if the given process is one of the whitelisted debuggers.
+ *
+ * @returns true / false.
+ * @param   pProcess            The process to check.
+ */
+static bool supdrvNtProtectIsWhitelistedDebugger(PEPROCESS pProcess)
+{
+    const char *pszImageFile = (const char *)PsGetProcessImageFileName(pProcess);
+    if (!pszImageFile)
+        return false;
+
+    if (pszImageFile[0] == 'w' || pszImageFile[0] == 'W')
+    {
+        if (RTStrICmp(pszImageFile, "windbg.exe") == 0)
+            return true;
+        if (RTStrICmp(pszImageFile, "werfault.exe") == 0)
+            return true;
+        if (RTStrICmp(pszImageFile, "werfaultsecure.exe") == 0)
+            return true;
+    }
+    else if (pszImageFile[0] == 'd' || pszImageFile[0] == 'D')
+    {
+        if (RTStrICmp(pszImageFile, "drwtsn32.exe") == 0)
+            return true;
+        if (RTStrICmp(pszImageFile, "dwwin.exe") == 0)
+            return true;
+    }
+
+    return false;
+}
+#endif /* VBOX_WITHOUT_DEBUGGER_CHECKS */
+
+
 /** @} */
 
 
@@ -2337,7 +2373,8 @@ static void supdrvNtProtectVerifyNewChildProtection(PSUPDRVNTPROTECT pNtStub, PS
         && pNtVm->u.pParent        == pNtStub
         && pNtStub->u.pChild       == pNtVm)
     {
-        /* Fine, nothing to do. */
+        /* Fine, reset the CSRSS hack (fixes ViRobot APT Shield 2.0 issue). */
+        pNtVm->fFirstProcessCreateHandle = true;
         return;
     }
 
@@ -2520,12 +2557,26 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                 pOpInfo->CallContext = NULL; /* don't assert */
                 pNtProtect->fFirstProcessCreateHandle = false;
 
-                Log(("vboxdrv/ProcessHandlePre: ctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] %s\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] %s\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
                      pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind,
                      PsGetProcessImageFileName(PsGetCurrentProcess()) ));
             }
+#ifdef VBOX_WITHOUT_DEBUGGER_CHECKS
+            /* Allow debuggers full access. */
+            else if (supdrvNtProtectIsWhitelistedDebugger(PsGetCurrentProcess()))
+            {
+                pOpInfo->CallContext = NULL; /* don't assert */
+                pNtProtect->fFirstProcessCreateHandle = false;
+
+                Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] %s [debugger]\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                     pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
+                     pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind,
+                     PsGetProcessImageFileName(PsGetCurrentProcess()) ));
+            }
+#endif
             else
             {
                 /* Special case 1 on Vista, 7 & 8:
@@ -2539,7 +2590,9 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                    something, we'll drop these in the stub code. */
                 if (   pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fFirstProcessCreateHandle
-                    && pNtProtect->hParentPid == PsGetProcessId(PsGetCurrentProcess()))
+                    && pOpInfo->KernelHandle == 0
+                    && pNtProtect->hParentPid == PsGetProcessId(PsGetCurrentProcess())
+                    && ExGetPreviousMode() != KernelMode)
                 {
                     if (   !pOpInfo->KernelHandle
                         && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
@@ -2566,8 +2619,8 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                 if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 3)
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fCsrssFirstProcessCreateHandle
-                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess())
-                   )
+                    && pOpInfo->KernelHandle == 0
+                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fCsrssFirstProcessCreateHandle = false;
                     if (pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
@@ -2592,19 +2645,20 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     && g_uNtVerCombined  < SUP_MAKE_NT_VER_SIMPLE(6, 2)
                     && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == 0x1478 /* 6.1.7600.16385 (win7_rtm.090713-1255) */
                     && pNtProtect->fThemesFirstProcessCreateHandle
-                    && supdrvNtProtectIsFrigginThemesService(pNtProtect, PsGetCurrentProcess()))
+                    && pOpInfo->KernelHandle == 0
+                    && supdrvNtProtectIsFrigginThemesService(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fThemesFirstProcessCreateHandle = true; /* Only once! */
                     fAllowedRights |= PROCESS_DUP_HANDLE;
                     pOpInfo->CallContext = NULL; /* don't assert this. */
                 }
 
-                Log(("vboxdrv/ProcessHandlePre: ctx=%04zx/%p wants %#x to %p/pid=%04zx [%d], allow %#x => %#x; %s\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p wants %#x to %p/pid=%04zx [%d], allow %#x => %#x; %s [prev=%#x]\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
                      pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind, fAllowedRights,
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess & fAllowedRights,
-                     PsGetProcessImageFileName(PsGetCurrentProcess())));
+                     PsGetProcessImageFileName(PsGetCurrentProcess()), ExGetPreviousMode() ));
 
                 pOpInfo->Parameters->CreateHandleInformation.DesiredAccess &= fAllowedRights;
             }
@@ -2633,11 +2687,11 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                 if (   g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 3)
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fCsrssFirstProcessDuplicateHandle
+                    && pOpInfo->KernelHandle == 0
                     &&    pNtProtect->hParentPid
                        == PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess)
                     && pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == PsGetCurrentProcess()
-                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess())
-                   )
+                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fCsrssFirstProcessDuplicateHandle = false;
                     if (pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
@@ -2653,8 +2707,8 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     }
                 }
 
-                Log(("vboxdrv/ProcessHandlePre: ctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d] %s\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ProcessHandlePre: %sctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d] %s\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess,
                      PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess),
                      pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess,
@@ -2754,13 +2808,25 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
             /* Don't restrict the process accessing its own threads. */
             if (pProcess == PsGetCurrentProcess())
             {
-                Log(("vboxdrv/ThreadHandlePre: ctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] self\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ThreadHandlePre: %sctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] self\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
                      pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind));
                 pOpInfo->CallContext = NULL; /* don't assert */
                 pNtProtect->fFirstThreadCreateHandle = false;
             }
+#ifdef VBOX_WITHOUT_DEBUGGER_CHECKS
+            /* Allow debuggers full access. */
+            else if (supdrvNtProtectIsWhitelistedDebugger(PsGetCurrentProcess()))
+            {
+                Log(("vboxdrv/ThreadHandlePre: %sctx=%04zx/%p wants %#x to %p in pid=%04zx [%d] %s [debugger]\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                     pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
+                     pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind,
+                     PsGetProcessImageFileName(PsGetCurrentProcess()) ));
+                pOpInfo->CallContext = NULL; /* don't assert */
+            }
+#endif
             else
             {
                 /* Special case 1 on Vista, 7, 8:
@@ -2771,7 +2837,8 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                 if (   g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 3)
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fFirstThreadCreateHandle
-                    && pNtProtect->hParentPid == PsGetProcessId(PsGetCurrentProcess()))
+                    && pOpInfo->KernelHandle == 0
+                    && pNtProtect->hParentPid == PsGetProcessId(PsGetCurrentProcess()) )
                 {
                     if (   !pOpInfo->KernelHandle
                         && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
@@ -2792,6 +2859,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                 if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_COMBINED(6, 0, 0, 0, 0)
                     && (   (enmProcessKind = pNtProtect->enmProcessKind) == kSupDrvNtProtectKind_VmProcessConfirmed
                         || enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
+                    && pOpInfo->KernelHandle == 0
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     fAllowedRights |= THREAD_IMPERSONATE;
@@ -2800,12 +2868,12 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                     pOpInfo->CallContext = NULL; /* don't assert this. */
                 }
 
-                Log(("vboxdrv/ThreadHandlePre: ctx=%04zx/%p wants %#x to %p in pid=%04zx [%d], allow %#x => %#x; %s\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ThreadHandlePre: %sctx=%04zx/%p wants %#x to %p in pid=%04zx [%d], allow %#x => %#x; %s [prev=%#x]\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess,
                      pOpInfo->Object, pNtProtect->AvlCore.Key, pNtProtect->enmProcessKind, fAllowedRights,
                      pOpInfo->Parameters->CreateHandleInformation.DesiredAccess & fAllowedRights,
-                     PsGetProcessImageFileName(PsGetCurrentProcess())));
+                     PsGetProcessImageFileName(PsGetCurrentProcess()), ExGetPreviousMode()));
 
                 pOpInfo->Parameters->CreateHandleInformation.DesiredAccess &= fAllowedRights;
             }
@@ -2816,8 +2884,8 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
             if (   pProcess == PsGetCurrentProcess()
                 && (PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == pProcess)
             {
-                Log(("vboxdrv/ThreadHandlePre: ctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d] self\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ThreadHandlePre: %sctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d] self\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess,
                      PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess),
                      pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess,
@@ -2835,6 +2903,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                     && (   (enmProcessKind = pNtProtect->enmProcessKind) == kSupDrvNtProtectKind_VmProcessConfirmed
                         || enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
                     && pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == PsGetCurrentProcess()
+                    && pOpInfo->KernelHandle == 0
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     fAllowedRights |= THREAD_IMPERSONATE;
@@ -2843,8 +2912,8 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                     pOpInfo->CallContext = NULL; /* don't assert this. */
                 }
 
-                Log(("vboxdrv/ThreadHandlePre: ctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d], allow %#x => %#x; %s\n",
-                     PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
+                Log(("vboxdrv/ThreadHandlePre: %sctx=%04zx/%p[%p] dup from %04zx/%p with %#x to %p in pid=%04zx [%d], allow %#x => %#x; %s\n",
+                     pOpInfo->KernelHandle ? "k" : "", PsGetProcessId(PsGetCurrentProcess()), PsGetCurrentProcess(),
                      pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess,
                      PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess),
                      pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess,
@@ -2926,8 +2995,9 @@ static int supdrvNtProtectCreate(PSUPDRVNTPROTECT *ppNtProtect, HANDLE hPid, SUP
         {
             /* Duplicate entry, fail. */
             pNtProtect->u32Magic = SUPDRVNTPROTECT_MAGIC_DEAD;
+            LogRel(("supdrvNtProtectCreate: Duplicate (%#x).\n", pNtProtect->AvlCore.Key));
             RTMemFree(pNtProtect);
-            return VERR_ACCESS_DENIED;
+            return VERR_DUPLICATE;
         }
     }
 
@@ -3067,6 +3137,9 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
      * Walk the information and look for handles to the two objects we're protecting.
      */
     int rc = VINF_SUCCESS;
+# ifdef VBOX_WITHOUT_DEBUGGER_CHECKS
+    HANDLE   idLastDebugger = (HANDLE)~(uintptr_t)0;
+# endif
 
     uint32_t cCsrssProcessHandles  = 0;
     uint32_t cSystemProcessHandles = 0;
@@ -3141,6 +3214,24 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
         else
             continue;
 
+# ifdef VBOX_WITHOUT_DEBUGGER_CHECKS
+        /* Ignore whitelisted debuggers. */
+        if (pHandleInfo->UniqueProcessId == idLastDebugger)
+            continue;
+        PEPROCESS pDbgProc;
+        NTSTATUS rcNt = PsLookupProcessByProcessId(pHandleInfo->UniqueProcessId, &pDbgProc);
+        if (NT_SUCCESS(rcNt))
+        {
+            bool fIsDebugger = supdrvNtProtectIsWhitelistedDebugger(pDbgProc);
+            ObDereferenceObject(pDbgProc);
+            if (fIsDebugger)
+            {
+                idLastDebugger = pHandleInfo->UniqueProcessId;
+                continue;
+            }
+        }
+# endif
+
         /* Found evil handle. Currently ignoring on pre-Vista. */
 # ifndef VBOX_WITH_VISTA_NO_SP
         if (   g_uNtVerCombined >= SUP_NT_VER_VISTA
@@ -3186,7 +3277,8 @@ static int supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect)
         RTERRINFO ErrInfo;
         RTErrInfoInit(&ErrInfo, szErr, sizeof(szErr));
 
-        rc = supHardenedWinVerifyProcess(NtCurrentProcess(), NtCurrentThread(), &ErrInfo);
+        rc = supHardenedWinVerifyProcess(NtCurrentProcess(), NtCurrentThread(), SUPHARDNTVPKIND_VERIFY_ONLY,
+                                         NULL /*pcFixes*/, &ErrInfo);
         if (RT_FAILURE(rc))
             RTLogWriteDebugger(szErr, strlen(szErr));
     }

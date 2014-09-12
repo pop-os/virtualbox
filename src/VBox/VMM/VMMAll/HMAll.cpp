@@ -283,6 +283,19 @@ VMM_INT_DECL(bool) HMIsNestedPagingActive(PVM pVM)
     return HMIsEnabled(pVM) && pVM->hm.s.fNestedPaging;
 }
 
+
+/**
+ * Checks if this VM is long-mode capable.
+ *
+ * @returns true if long mode is allowed, false otherwise.
+ * @param   pUVM        The user mode VM handle.
+ */
+VMM_INT_DECL(bool) HMIsLongModeAllowed(PVM pVM)
+{
+    return HMIsEnabled(pVM) && pVM->hm.s.fAllow64BitGuests;
+}
+
+
 /**
  * Return the shadow paging mode for nested paging/ept
  *

@@ -247,9 +247,16 @@ static int get_dns_addr_domain(PNATState pData, const char **ppszDomain)
         *ppszDomain = NULL;
 
     Log(("NAT: DNS Servers:\n"));
+#ifdef RT_OS_DARWIN
+    LogRel(("NAT: /etc/resolv.conf dump:\n"));
+    int cLine = 0;
+#endif
     while (    RT_SUCCESS(rc = RTFileGets(ResolvConfFile, buff, sizeof(buff), &bytes))
             && rc != VERR_EOF)
     {
+#ifdef RT_OS_DARWIN
+        LogRel(("NAT: resolv.conf:%d: %s\n", ++cLine, buff));
+#endif
         struct dns_entry *pDns = NULL;
         if (   cNameserversFound == 4
             && !fWarnTooManyDnsServers

@@ -313,6 +313,13 @@ public:
 
     static bool activateWindow (WId aWId, bool aSwitchDesktop = true);
 
+#ifdef Q_WS_X11
+    /** X11: Test whether the current window manager supports full screen mode. */
+    static bool supportsFullScreenMonitorsProtocolX11();
+    /** X11: Performs mapping of the passed @a pWidget to host-screen with passed @a uScreenId. */
+    static bool setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId);
+#endif /* Q_WS_X11 */
+
     static QString removeAccelMark (const QString &aText);
 
     static QString insertKeyToActionText (const QString &aText, const QString &aKey);
@@ -384,6 +391,8 @@ public:
     /** Except Mac OS X: Loads redefined machine-window name postfix. */
     static QString machineWindowNamePostfix(CMachine &machine);
 #endif /* !Q_WS_MAC */
+    /** Loads redefined mouse-capture policy type. */
+    static MouseCapturePolicy mouseCapturePolicy(CMachine &machine);
     /** Loads redefined guru-meditation handler type. */
     static GuruMeditationHandlerType guruMeditationHandlerType(CMachine &machine);
     /** Loads Runtime UI HiDPI optimization type. */

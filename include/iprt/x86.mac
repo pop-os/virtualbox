@@ -555,6 +555,8 @@
 %define X86_PML4E_NX                        RT_BIT_64(63)
 %define X86_PML4_SHIFT              39
 %define X86_PML4_MASK               0x1ff
+%define X86_OFF_FXSTATE_RSVD            0x1d0
+%define X86_FXSTATE_RSVD_32BIT_MAGIC    0x32b3232b
 %define X86_FSW_IE          RT_BIT(0)
 %define X86_FSW_DE          RT_BIT(1)
 %define X86_FSW_ZE          RT_BIT(2)

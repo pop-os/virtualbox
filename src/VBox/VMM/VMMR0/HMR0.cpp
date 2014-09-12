@@ -1286,6 +1286,8 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
         pVCpu->hm.s.uCurrentAsid        = 0;
     }
 
+    pVM->hm.s.uHostKernelFeatures = SUPR0GetKernelFeatures();
+
     /*
      * Call the hardware specific initialization method.
      */

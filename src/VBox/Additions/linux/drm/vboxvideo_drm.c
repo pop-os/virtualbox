@@ -112,11 +112,7 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 
 int vboxvideo_driver_load(struct drm_device * dev, unsigned long flags)
 {
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)
-    return drm_vblank_init(dev, 1);
-#else
     return 0;
-#endif
 }
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(DRM_FOPS_AS_POINTER)
 /* since linux-3.3.0-rc1 drm_driver::fops is pointer */

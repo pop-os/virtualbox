@@ -655,6 +655,8 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
                 RTMemTmpFree(pHdr);
             return rc;
         }
+        if (Hdr.cbIn < cbReq)
+            RT_BZERO((uint8_t *)pHdr + Hdr.cbIn, cbReq - Hdr.cbIn);
     }
     else
     {
@@ -665,7 +667,7 @@ static int VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t 
     /*
      * Process the IOCtl.
      */
-    int rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr);
+    int rc = supdrvIOCtl(iCmd, &g_DevExt, pSession, pHdr, cbReq);
     if (RT_LIKELY(!rc))
     {
         /*
@@ -1075,6 +1077,15 @@ RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
     szMsg[sizeof(szMsg) - 1] = '\0';
 
     printf("%s", szMsg);
+    return 0;
+}
+
+
+/**
+ * Returns configuration flags of the host kernel.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
+{
     return 0;
 }
 

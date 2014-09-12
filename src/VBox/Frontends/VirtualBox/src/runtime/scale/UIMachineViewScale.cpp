@@ -52,6 +52,8 @@ UIMachineViewScale::UIMachineViewScale(  UIMachineWindow *pMachineWindow
                     )
     , m_pPauseImage(0)
 {
+    /* Resend the last resize hint if necessary: */
+    maybeResendSizeHint();
 }
 
 UIMachineViewScale::~UIMachineViewScale()
@@ -177,8 +179,31 @@ bool UIMachineViewScale::eventFilter(QObject *pWatched, QEvent *pEvent)
 
 void UIMachineViewScale::saveMachineViewSettings()
 {
-    /* Store guest size in case we are switching to fullscreen: */
-    storeGuestSizeHint(QSize(frameBuffer()->width(), frameBuffer()->height()));
+    /* If guest screen-still visible => store it's size-hint: */
+    if (uisession()->isScreenVisible(screenId()))
+        storeGuestSizeHint(QSize(frameBuffer()->width(), frameBuffer()->height()));
+}
+
+void UIMachineViewScale::maybeResendSizeHint()
+{
+    if (uisession()->isGuestSupportsGraphics())
+    {
+        /* Get the current machine: */
+        CMachine machine = session().GetMachine();
+
+        /* We send a guest size hint if needed to reverse a transition
+         * to fullscreen or seamless. */
+        QString strKey = makeExtraDataKeyPerMonitor(GUI_LastGuestSizeHintWasFullscreen);
+        QString strHintSent = machine.GetExtraData(strKey);
+        if (!strHintSent.isEmpty())
+        {
+            const QSize sizeHint = guestSizeHint();
+            LogRel(("UIMachineViewScale::maybeResendSizeHint: "
+                    "Restoring guest size-hint for screen %d to %dx%d\n",
+                    (int)screenId(), sizeHint.width(), sizeHint.height()));
+            sltPerformGuestResize(sizeHint);
+        }
+    }
 }
 
 QSize UIMachineViewScale::sizeHint() const

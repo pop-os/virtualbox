@@ -101,6 +101,9 @@ void slirp_set_somaxconn(PNATState pData, int iSoMaxConn);
  *    VBOX_NAT_HNCE_EXPOSED_NAME_RESOLVING_INFO
  * - enforce internal DNS update (we are using dnsproxy and track but don't export DNS host settings)
  *    VBOX_NAT_HNCE_DNSPROXY
+ * - flap link and trigger guest to request new DHCP configuration (means that NAT was temporary in
+ *   host resolver mode due to temporary DNS data outage)
+ *    VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY
  * - ignore (NAT configured to use hostresolver - we aren't track any host DNS changes)
  *    VBOX_NAT_HNCE_HOSTRESOLVER
  * @note: It's safe to call this method from any thread, because settings we're checking 
@@ -108,7 +111,9 @@ void slirp_set_somaxconn(PNATState pData, int iSoMaxConn);
  */
 #define VBOX_NAT_HNCE_EXSPOSED_NAME_RESOLUTION_INFO 0
 #define VBOX_NAT_HNCE_DNSPROXY 1
-#define VBOX_NAT_HNCE_HOSTRESOLVER 2
+#define VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY 2
+#define VBOX_NAT_HNCE_HOSTRESOLVER 3
+
 int slirp_host_network_configuration_change_strategy_selector(const PNATState);
 #if defined(RT_OS_WINDOWS)
 

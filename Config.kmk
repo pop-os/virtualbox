@@ -208,7 +208,7 @@ VBOX_VERSION_MINOR = 3
 # This is the current build number. It should be increased every time we publish a
 # new build. The define is available in every source file. Only even build numbers
 # will be published, odd numbers are set during development.
-VBOX_VERSION_BUILD = 14
+VBOX_VERSION_BUILD = 16
 # The raw version string. This *must not* contain any other information/fields than
 # major, minor and build revision (as it is now) -- also will be used for host/guest version
 # comparison.
@@ -520,6 +520,8 @@ endif
 VBOX_WITH_USB_CARDREADER = 1
 # Disk crypt plugin
 VBOX_WITH_PLUGIN_CRYPT = 1
+# VirtualKD stub/loader device, only relevant on Windows host
+VBOX_WITH_VIRTUALKD = 1
 ## @}
 
 
@@ -3097,7 +3099,10 @@ ifdef VBOX_WITH_RAW_MODE
    TEMPLATE_VBoxRc_CXXFLAGS          = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- -Gs8192 $(VBOX_VCC_GC_OPT) $(VBOX_VCC_GC_FP) -W3 -wd4244 -wd4996 $(VBOX_VCC_WERR)
   endif
   TEMPLATE_VBoxRc_CFLAGS             = $(TEMPLATE_VBoxRc_CXXFLAGS)
-  TEMPLATE_VBoxRc_LDFLAGS            = -Driver -Subsystem:NATIVE -Incremental:NO -Align:64 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug
+  TEMPLATE_VBoxRc_LDFLAGS            = \
+  	-Driver -Subsystem:NATIVE -Incremental:NO -Align:64 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug \
+  	-Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+  	-Stub:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com
   ifdef VBOX_SIGNING_MODE
    TEMPLATE_VBoxRc_LDFLAGS          += -IntegrityCheck
   endif
@@ -3156,7 +3161,10 @@ ifdef VBOX_WITH_RAW_MODE
  TEMPLATE_VBoxRcExe_MODE = $(NO_SUCH_VARIABLE)
 
  ifeq ($(VBOX_LDR_FMT32),pe)
-  TEMPLATE_VBoxRcExe_LDFLAGS = -Incremental:NO -MapInfo:Exports -NoD -Debug
+  TEMPLATE_VBoxRcExe_LDFLAGS = \
+  	-Incremental:NO -MapInfo:Exports -NoD -Debug \
+  	-Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+  	-Stub:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com
   TEMPLATE_VBoxRcExe_SDKS    = ReorderCompilerIncs $(VBOX_WINPSDK)
   TEMPLATE_VBoxRcExe_LIBS    = \
   	$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)X86_LIB)/libcmt.lib \
@@ -3223,7 +3231,10 @@ TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $
 TEMPLATE_VBoxR0_CXXFLAGS            = -Zi -Zl -GR- -EHs- -GF -GS- -Zc:wchar_t- $(VBOX_VCC_OPT) $(VBOX_VCC_FP) -W3 -wd4244 -wd4996 $(VBOX_VCC_WERR)
  endif
 TEMPLATE_VBoxR0_CFLAGS              = $(TEMPLATE_VBoxR0_CXXFLAGS)
-TEMPLATE_VBoxR0_LDFLAGS             = -Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug
+TEMPLATE_VBoxR0_LDFLAGS             = \
+	-Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD $(VBOX_VCC_LD_WERR) -Release -Debug \
+	-Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+	-Stub:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com
  ifdef VBOX_WITH_DTRACE_R0
 TEMPLATE_VBoxR0_LDFLAGS            += -Merge:VTGPrLc.Data=VTGPrLc.Begin -Merge:VTGPrLc.End=VTGPrLc.Begin -Merge:VTGPrLc.Begin=VTGObj
  endif
@@ -3330,7 +3341,10 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR0DRV_DEFS.amd64         = _AMD64_
  TEMPLATE_VBOXR0DRV_CXXFLAGS           = -Zi -Zl -GR- -EHs- -GF -Gz -W3 -GS- -wd4996 -Zc:wchar_t- -Gs4096 $(VBOX_VCC_OPT) $(VBOX_VCC_FP)
  TEMPLATE_VBOXR0DRV_CFLAGS             = $(TEMPLATE_VBOXR0DRV_CXXFLAGS)
- TEMPLATE_VBOXR0DRV_LDFLAGS            = -Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD -Release -Debug
+ TEMPLATE_VBOXR0DRV_LDFLAGS            = \
+ 	-Driver -Subsystem:NATIVE -Incremental:NO -Align:4096 -MapInfo:Exports -NoD -Release -Debug \
+	-Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+	-Stub:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com
  ifdef VBOX_WITH_DTRACE_R0DRV
   TEMPLATE_VBOXR0DRV_LDFLAGS          += -Merge:VTGPrLc.Data=VTGPrLc.Begin -Merge:VTGPrLc.End=VTGPrLc.Begin -Merge:VTGPrLc.Begin=VTGObj
  endif
@@ -3630,6 +3644,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3EXE_LDFLAGS            = \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+	/STUB:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com \
 	/DISALLOWLIB:libc.lib \
 	/DISALLOWLIB:libcd.lib \
 	/DISALLOWLIB:libcmt.lib \
@@ -4297,6 +4312,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXMAINEXE_LDFLAGS            = \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+	/STUB:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com \
 	/DISALLOWLIB:libc.lib \
 	/DISALLOWLIB:libcd.lib \
 	/DISALLOWLIB:libcmt.lib \
@@ -4753,7 +4769,8 @@ ifdef VBOX_WITH_QTGUI
 	$(PATH_TOOL_$(VBOX_VCC_TOOL)_ATLMFC_INC)
   TEMPLATE_VBOXQT4GUIEXE_LDFLAGS = \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug \
-	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)
+	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
+	/STUB:$(PATH_ROOT)/src/VBox/HostDrivers/Support/win/winstub.com
   if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_HARDENING)
    TEMPLATE_VBOXQT4GUIEXE_LDFLAGS += -IntegrityCheck
   endif
@@ -5229,11 +5246,6 @@ endif
 TEMPLATE_VBOXGUESTR3LIB           = VBox Guest User Libraries
 TEMPLATE_VBOXGUESTR3LIB_EXTENDS   = VBOXGUESTR3EXE
 TEMPLATE_VBOXGUESTR3LIB_INST      = $(INST_ADDITIONS_LIB)
-if1of ($(KBUILD_TARGET), solaris) ## @todo r=bird: Fix the *R3Mini template to VBOXGUESTR3DLL and remove this hack.
- TEMPLATE_VBOXGUESTR3LIB_DEFS     = $(TEMPLATE_VBOXGUESTR3EXE_DEFS) PIC
- TEMPLATE_VBOXGUESTR3LIB_CFLAGS   = $(TEMPLATE_VBOXGUESTR3EXE_CFLAGS) -fPIC
- TEMPLATE_VBOXGUESTR3LIB_CXXFLAGS = $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS) -fPIC -fno-exceptions
-endif
 
 #
 # Template for building R3 (static) libraries for the guest additions, strict.
@@ -5279,14 +5291,6 @@ endif
 TEMPLATE_VBOXGUESTR3NPLIB           = VBox Guest User Libraries Non-pedantic
 TEMPLATE_VBOXGUESTR3NPLIB_EXTENDS   = VBOXGUESTR3NPEXE
 TEMPLATE_VBOXGUESTR3NPLIB_INST      = $(INST_ADDITIONS_LIB)
-## @todo r=bird: Fix the *R3Mini template to VBOXGUESTR3DLL and remove this hack.
-ifeq ($(filter-out solaris.x86 %.amd64 %.sparc32 %.sparc64,$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)),) ## TODO: Remove these checks!
- ifn1of ($(KBUILD_TARGET), darwin os2 win)
-  TEMPLATE_VBOXGUESTR3NPLIB_DEFS     = $(TEMPLATE_VBOXGUESTR3NPEXE_DEFS) PIC
-  TEMPLATE_VBOXGUESTR3NPLIB_CFLAGS   = $(TEMPLATE_VBOXGUESTR3NPEXE_CFLAGS) -fPIC
-  TEMPLATE_VBOXGUESTR3NPLIB_CXXFLAGS = $(TEMPLATE_VBOXGUESTR3NPEXE_CXXFLAGS) -fPIC -fno-exceptions
- endif
-endif
 
 
 #
@@ -5340,7 +5344,7 @@ if1of ($(KBUILD_TARGET), linux)
   TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS               += $(VBOX_GCC_Wno-variadic-macros)
  endif
 endif
-TEMPLATE_VBOXGUESTR3XORGMOD_DEFS = $(TEMPLATE_VBOXGUESTR3DLL_DEFS) LOG_TO_BACKDOOR VBOX_GUESTR3XORGMOD RTMEM_NO_WRAP_TO_EF_APIS
+TEMPLATE_VBOXGUESTR3XORGMOD_DEFS = $(TEMPLATE_VBOXGUESTR3DLL_DEFS) VBOX_GUESTR3XORGMOD RTMEM_NO_WRAP_TO_EF_APIS
 ifeq ($(KBUILD_TARGET_ARCH),amd64)
  TEMPLATE_VBOXGUESTR3XORGMOD_DEFS += _XSERVER64
 endif
@@ -5348,12 +5352,17 @@ if1of ($(KBUILD_TARGET), linux)
  TEMPLATE_VBOXGUESTR3XORGMOD_LDFLAGS = $(TEMPLATE_VBOXGUESTR3DLL_LDFLAGS)
 endif
 TEMPLATE_VBOXGUESTR3XORGMOD_LIBS = \
-	$(VBOX_LIB_VBGL_R3_SHARED) \
-	$(VBOX_LIB_IPRT_GUEST_R3_MINI) \
-	$(VBOX_LIB_VBGL_R3_SHARED) \
-	$(VBOX_LIB_IPRT_GUEST_R3_MINI)
+	$(VBOX_LIB_VBGL_R3_XORG)
 TEMPLATE_VBOXGUESTR3XORGMOD_LIBS.freebsd += \
 	iconv
+
+
+#
+# Template for X.Org guest libraries.
+#
+TEMPLATE_VBOXGUESTR3XORGLIB         = VBox X.Org Guest Library
+TEMPLATE_VBOXGUESTR3XORGLIB_EXTENDS = VBOXGUESTR3XORGMOD
+TEMPLATE_VBOXGUESTR3XORGLIB_INST    = $(INST_ADDITIONS_LIB)
 
 
 #
@@ -5469,7 +5478,6 @@ endif
 #   The _MINI and _SHARED are both compiled as PIC and intended for linking into a .so/.dll/.dylib.
 #
 VBOX_LIB_IPRT_GUEST_R3           = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3$(VBOX_SUFF_LIB)
-VBOX_LIB_IPRT_GUEST_R3_MINI      = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3Mini$(VBOX_SUFF_LIB)
 VBOX_LIB_IPRT_GUEST_R3_SHARED    = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR3Shared$(VBOX_SUFF_LIB)
 VBOX_LIB_IPRT_GUEST_R0           = $(VBOX_PATH_ADDITIONS_LIB)/RuntimeGuestR0$(VBOX_SUFF_LIB)
 ifeq ($(KBUILD_TARGET_ARCH),x86)
@@ -5479,6 +5487,7 @@ else
 endif
 VBOX_LIB_VBGL_R3                 = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3Lib$(VBOX_SUFF_LIB)
 VBOX_LIB_VBGL_R3_XFREE86         = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3LibXFree86$(VBOX_SUFF_LIB)
+VBOX_LIB_VBGL_R3_XORG            = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3LibXOrg$(VBOX_SUFF_LIB)
 VBOX_LIB_VBGL_R3_SHARED          = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR3LibShared$(VBOX_SUFF_LIB)
 VBOX_LIB_VBGL_R0BASE             = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR0LibBase$(VBOX_SUFF_LIB)
 VBOX_LIB_VBGL_R0                 = $(VBOX_PATH_ADDITIONS_LIB)/VBoxGuestR0Lib$(VBOX_SUFF_LIB)
@@ -5681,7 +5690,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 95030 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 95972 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

@@ -991,7 +991,8 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                         qApp->processEvents();
 #endif /* Q_WS_X11 */
                         machineLogic()->keyboardHandler()->captureKeyboard(uScreenId);
-                        captureMouse(uScreenId);
+                        if (uisession()->mouseCapturePolicy() == MouseCapturePolicy_Default)
+                            captureMouse(uScreenId);
                     }
                 }
             }

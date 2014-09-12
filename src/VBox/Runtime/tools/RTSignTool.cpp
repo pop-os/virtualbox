@@ -152,13 +152,13 @@ static RTEXITCODE HandleExtractExeSignerCert(int cArgs, char **papszArgs)
 #endif
     void      *pvBuf = RTMemAlloc(cbBuf);
     size_t     cbRet = 0;
-    rc = RTLdrQueryPropEx(hLdrMod, RTLDRPROP_PKCS7_SIGNED_DATA, pvBuf, cbBuf, &cbRet);
+    rc = RTLdrQueryPropEx(hLdrMod, RTLDRPROP_PKCS7_SIGNED_DATA, NULL /*pvBits*/, pvBuf, cbBuf, &cbRet);
     if (rc == VERR_BUFFER_OVERFLOW && cbRet < _4M && cbRet > 0)
     {
         RTMemFree(pvBuf);
         cbBuf = cbRet;
         pvBuf = RTMemAlloc(cbBuf);
-        rc = RTLdrQueryPropEx(hLdrMod, RTLDRPROP_PKCS7_SIGNED_DATA, pvBuf, cbBuf, &cbRet);
+        rc = RTLdrQueryPropEx(hLdrMod, RTLDRPROP_PKCS7_SIGNED_DATA, NULL /*pvBits*/, pvBuf, cbBuf, &cbRet);
     }
     if (RT_SUCCESS(rc))
     {
@@ -182,8 +182,8 @@ static RTEXITCODE HandleExtractExeSignerCert(int cArgs, char **papszArgs)
                 {
                     PCRTCRPKCS7ISSUERANDSERIALNUMBER pISN = &pSd->SignerInfos.paItems[0].IssuerAndSerialNumber;
                     PCRTCRX509CERTIFICATE pCert;
-                    pCert = RTCrX509Certificates_FindByIssuerAndSerialNumber(&pSd->Certificates,
-                                                                            &pISN->Name, &pISN->SerialNumber);
+                    pCert = RTCrPkcs7SetOfCerts_FindX509ByIssuerAndSerialNumber(&pSd->Certificates,
+                                                                                &pISN->Name, &pISN->SerialNumber);
                     if (pCert)
                     {
                         /*
@@ -274,10 +274,10 @@ struct STSTORESET
 #endif
 
 /**
- * @callback_method_impl{RTCRPKCS7VERIFYCERTCALLBACK,
+ * @callback_method_impl{FNRTCRPKCS7VERIFYCERTCALLBACK,
  * Standard code signing.  Use this for Microsoft SPC.}
  */
-static DECLCALLBACK(int) VerifyExecCertVerifyCallback(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths,
+static DECLCALLBACK(int) VerifyExecCertVerifyCallback(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths, uint32_t fFlags,
                                                       void *pvUser, PRTERRINFO pErrInfo)
 {
     VERIFYEXESTATE *pState = (VERIFYEXESTATE *)pvUser;
@@ -314,8 +314,9 @@ static DECLCALLBACK(int) VerifyExecCertVerifyCallback(PCRTCRX509CERTIFICATE pCer
     /*
      * Standard code signing capabilites required.
      */
-    int rc = RTCrPkcs7VerifyCertCallbackCodeSigning(pCert, hCertPaths, NULL, pErrInfo);
-    if (RT_SUCCESS(rc))
+    int rc = RTCrPkcs7VerifyCertCallbackCodeSigning(pCert, hCertPaths, fFlags, NULL, pErrInfo);
+    if (   RT_SUCCESS(rc)
+        && (fFlags & RTCRPKCS7VCC_F_SIGNED_DATA))
     {
         /*
          * If kernel signing, a valid certificate path must be anchored by the
@@ -348,8 +349,14 @@ static DECLCALLBACK(int) VerifyExecCertVerifyCallback(PCRTCRX509CERTIFICATE pCer
                     PCRTCRCERTCTX pCertCtx;
                     while ((pCertCtx = RTCrStoreCertSearchNext(pState->hKernelRootStore, &Search)) != NULL)
                     {
-                        if (RTCrX509SubjectPublicKeyInfo_Compare(&pCertCtx->pCert->TbsCertificate.SubjectPublicKeyInfo,
-                                                                 pPublicKeyInfo) == 0)
+                        PCRTCRX509SUBJECTPUBLICKEYINFO pPubKeyInfo;
+                        if (pCertCtx->pCert)
+                            pPubKeyInfo = &pCertCtx->pCert->TbsCertificate.SubjectPublicKeyInfo;
+                        else if (pCertCtx->pTaInfo)
+                            pPubKeyInfo = &pCertCtx->pTaInfo->PubKey;
+                        else
+                            pPubKeyInfo = NULL;
+                        if (RTCrX509SubjectPublicKeyInfo_Compare(pPubKeyInfo, pPublicKeyInfo) == 0)
                             cFound++;
                         RTCrCertCtxRelease(pCertCtx);
                     }
@@ -394,7 +401,11 @@ static DECLCALLBACK(int) VerifyExeCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE 
              * Do the actual verification.  Will have to modify this so it takes
              * the authenticode policies into account.
              */
-            return RTCrPkcs7VerifySignedData(pContentInfo, 0, pState->hAdditionalStore, pState->hRootStore, &ValidationTime,
+            return RTCrPkcs7VerifySignedData(pContentInfo,
+                                             RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE_SIGNING_TIME_ONLY
+                                             | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT
+                                             | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT,
+                                             pState->hAdditionalStore, pState->hRootStore, &ValidationTime,
                                              VerifyExecCertVerifyCallback, pState, pErrInfo);
         }
 

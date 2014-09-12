@@ -108,7 +108,7 @@ extern DLLDATA(CRPackContext) cr_packer_globals;
 #  define CR_LOCK_PACKER_CONTEXT(PC)
 #  define CR_UNLOCK_PACKER_CONTEXT(PC)
 # endif
-extern int cr_packer_cmd_blocks_enabled;
+extern uint32_t cr_packer_cmd_blocks_enabled;
 #else /* if defined IN_RING0 */
 # define CR_PACKER_CONTEXT_ARGSINGLEDECL CRPackContext *_pCtx
 # define CR_PACKER_CONTEXT_ARGDECL CR_PACKER_CONTEXT_ARGSINGLEDECL,
@@ -190,8 +190,7 @@ extern DECLEXPORT(void) crPackExpandMultiDrawArraysEXTSWAP( GLenum mode, GLint *
 extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXT( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
 extern DECLEXPORT(void) crPackExpandMultiDrawElementsEXTSWAP( GLenum mode, const GLsizei *count, GLenum type, const GLvoid **indices, GLsizei primcount, CRClientState *c, const GLfloat *pZva );
 
-extern DECLEXPORT(void) crPackCmdBlocksEnable();
-
+extern DECLEXPORT(void) crPackCapsSet(uint32_t u32Caps);
 
 /**
  * Return number of opcodes in given buffer.
@@ -251,58 +250,77 @@ crPackCanHoldOpcode(const CRPackContext *pc, int num_opcode, int num_data)
       CR_PACK_SPECIAL_OP( _pc, _op);                                \
   } while (0)
 
+#define CR_CMDBLOCK_IS_STARTED( pc, op )  CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, op)
 
 #define CR_CMDBLOCK_BEGIN( pc, op )                                 \
   do {                                                              \
     CR_LOCK_PACKER_CONTEXT(pc);                                     \
     if (!cr_packer_cmd_blocks_enabled) break;                       \
-    if (!CRPACKBLOCKSTATE_IS_STARTED(pc->u32CmdBlockState)) {       \
+    if (!CRPACKBLOCKSTATE_IS_STARTED((pc)->u32CmdBlockState)) {       \
       THREADASSERT( pc );                                           \
-      CRASSERT( pc->currentBuffer );                                \
-      if (!crPackBufferIsEmpty(&pc->buffer)) {                      \
-        if ((*pc->buffer.opcode_start) != CR_NOP_OPCODE) {          \
-          pc->Flush( pc->flush_arg );                               \
-          Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                 \
-          CR_CMDBLOCK_OP( pc, CR_CMDBLOCKBEGIN_OPCODE );            \
+      CRASSERT( (pc)->currentBuffer );                                \
+      if (!crPackBufferIsEmpty(&(pc)->buffer)) {                      \
+        if ((*(pc)->buffer.opcode_start) != CR_NOP_OPCODE) {          \
+          (pc)->Flush( (pc)->flush_arg );                               \
+          Assert(crPackCanHoldOpcode( (pc), 1, 4 ) );                 \
+          CR_CMDBLOCK_OP( (pc), CR_CMDBLOCKBEGIN_OPCODE );            \
         }                                                           \
         else {                                                      \
-          (*pc->buffer.opcode_start) = CR_CMDBLOCKBEGIN_OPCODE;     \
+          (*(pc)->buffer.opcode_start) = CR_CMDBLOCKBEGIN_OPCODE;     \
         }                                                           \
       }                                                             \
       else {                                                        \
-        Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                   \
-        CR_CMDBLOCK_OP( pc, CR_CMDBLOCKBEGIN_OPCODE );              \
+        Assert(crPackCanHoldOpcode( (pc), 1, 4 ) );                   \
+        CR_CMDBLOCK_OP( (pc), CR_CMDBLOCKBEGIN_OPCODE );              \
       }                                                             \
     }                                                               \
-    CRPACKBLOCKSTATE_OP_START(pc->u32CmdBlockState, op);            \
+    Assert(!CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, op)); \
+    CRPACKBLOCKSTATE_OP_START((pc)->u32CmdBlockState, op);            \
+    Assert(CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, op)); \
   } while (0)
 
 #define CR_CMDBLOCK_END( pc, op )                                   \
   do {                                                              \
     if (!cr_packer_cmd_blocks_enabled) break;                       \
-    CRPACKBLOCKSTATE_OP_STOP(pc->u32CmdBlockState, op);             \
-    if (!CRPACKBLOCKSTATE_IS_STARTED(pc->u32CmdBlockState)) {       \
+    Assert(CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, op)); \
+    CRPACKBLOCKSTATE_OP_STOP((pc)->u32CmdBlockState, op);             \
+    Assert(!CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, op)); \
+    if (!CRPACKBLOCKSTATE_IS_STARTED((pc)->u32CmdBlockState)) {     \
       THREADASSERT( pc );                                           \
-      CRASSERT( pc->currentBuffer );                                \
-      if (!crPackBufferIsEmpty(&pc->buffer)) {                      \
-        if ((*pc->buffer.opcode_start) != CR_CMDBLOCKBEGIN_OPCODE) {\
+      CRASSERT( (pc)->currentBuffer );                              \
+      if (!crPackBufferIsEmpty(&(pc)->buffer)) {                    \
+        if ((*(pc)->buffer.opcode_start) != CR_CMDBLOCKBEGIN_OPCODE) {\
           if ( !crPackCanHoldOpcode( pc, 1, 4 ) ) {                 \
-            pc->Flush( pc->flush_arg );                             \
+            (pc)->Flush( (pc)->flush_arg );                         \
             Assert(crPackCanHoldOpcode( pc, 1, 4 ) );               \
           }                                                         \
           CR_CMDBLOCK_OP( pc, CR_CMDBLOCKEND_OPCODE );              \
-          pc->Flush( pc->flush_arg );                               \
+          (pc)->Flush( (pc)->flush_arg );                           \
         }                                                           \
         else {                                                      \
-          (*pc->buffer.opcode_start) = CR_NOP_OPCODE;               \
+          (*(pc)->buffer.opcode_start) = CR_NOP_OPCODE;             \
         }                                                           \
       }                                                             \
       else {                                                        \
         Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                   \
         CR_CMDBLOCK_OP( pc, CR_CMDBLOCKEND_OPCODE );                \
-        pc->Flush( pc->flush_arg );                                 \
+        (pc)->Flush( pc->flush_arg );                               \
       }                                                             \
     }                                                               \
+  } while (0)
+
+#define CR_CMDBLOCK_CHECK_FLUSH( pc )                               \
+  do {                                                              \
+    if (!(cr_packer_cmd_blocks_enabled & CR_VBOX_CAP_CMDBLOCKS_FLUSH)) break; \
+    if(!CRPACKBLOCKSTATE_IS_OP_STARTED((pc)->u32CmdBlockState, CRPACKBLOCKSTATE_OP_NEWLIST)) break; \
+    THREADASSERT( pc );                                             \
+    CRASSERT( (pc)->currentBuffer );                                \
+    if ( !crPackCanHoldOpcode( pc, 1, 4 ) ) {                       \
+      (pc)->Flush( (pc)->flush_arg );                               \
+      Assert(crPackCanHoldOpcode( pc, 1, 4 ) );                     \
+    }                                                               \
+    CR_CMDBLOCK_OP( pc, CR_CMDBLOCKFLUSH_OPCODE );                  \
+    (pc)->Flush( (pc)->flush_arg );                                 \
   } while (0)
 
 /**

@@ -68,6 +68,10 @@ struct socket
 
     u_int8_t        so_iptos;    /* Type of service */
 
+    uint8_t         so_sottl;    /* cached socket's IP_TTL option */
+    uint8_t         so_sotos;    /* cached socket's IP_TOS option */
+    int8_t          so_sodf;     /* cached socket's DF option */
+
     u_char          so_type;     /* Type of socket, UDP or TCP */
     int             so_state;    /* internal state flags SS_*, below */
 
@@ -157,11 +161,20 @@ void slirpDeleteLinkSocket(void *pvLnk);
 extern struct socket tcb;
 
 #if defined(DECLARE_IOVEC) && !defined(HAVE_READV)
+# if !defined(RT_OS_WINDOWS)
 struct iovec
 {
     char *iov_base;
     size_t iov_len;
 };
+# else
+/* make it congruent with WSABUF */
+struct iovec
+{
+    ULONG iov_len;
+    char *iov_base;
+};
+# endif
 #endif
 
 void so_init (void);

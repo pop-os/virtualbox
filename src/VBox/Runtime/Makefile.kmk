@@ -31,7 +31,7 @@ ifdef VBOX_ONLY_ADDITIONS
  #
  # Only build the additions, sort out the legacy names first.
  #
- LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
+ LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared
  LIBRARIES.win.amd64 += RuntimeGuestR3-x86 RuntimeGuestR3Shared-x86
  ifdef VBOX_WITH_ADDITION_DRIVERS
   LIBRARIES += RuntimeGuestR0
@@ -86,7 +86,7 @@ else # !VBOX_ONLY_ADDITIONS && !VBOX_ONLY_TESTSUITE && !VBOX_ONLY_DOCS
   LIBRARIES += RuntimeR0Drv
  endif
  ifdef VBOX_WITH_ADDITIONS
-  LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared RuntimeGuestR3Mini
+  LIBRARIES += RuntimeGuestR3 RuntimeGuestR3Shared
   LIBRARIES.win.amd64 += RuntimeGuestR3-x86 RuntimeGuestR3Shared-x86
   ifdef VBOX_WITH_ADDITION_DRIVERS
    LIBRARIES += RuntimeGuestR0
@@ -352,6 +352,10 @@ RuntimeR3_SOURCES       = \
 	common/crypto/taf-core.cpp \
 	common/crypto/taf-init.cpp \
 	common/crypto/taf-sanity.cpp \
+	common/crypto/tsp-asn1-decoder.cpp \
+	common/crypto/tsp-core.cpp \
+	common/crypto/tsp-init.cpp \
+	common/crypto/tsp-sanity.cpp \
 	common/crypto/store.cpp \
 	common/crypto/store-inmem.cpp \
 	common/crypto/RTCrStoreCertAddFromFile.cpp \
@@ -581,7 +585,6 @@ RuntimeR3_SOURCES       = \
 	generic/RTProcessQueryUsernameA-generic.cpp \
 	generic/RTTimerLRCreate-generic.cpp \
 	generic/mempool-generic.cpp \
-	generic/memsafer-generic.cpp \
 	generic/semfastmutex-generic.cpp \
 	generic/semxroads-generic.cpp \
 	generic/spinlock-generic.cpp \
@@ -595,6 +598,7 @@ RuntimeR3_SOURCES       = \
 	r3/fs.cpp \
 	r3/init.cpp \
 	r3/isofs.cpp \
+	r3/memsafer-r3.cpp \
 	r3/path.cpp \
 	r3/poll.cpp \
 	r3/process.cpp \
@@ -638,7 +642,8 @@ RuntimeR3_SOURCES.x86 += \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
 	common/asm/ASMRdMsrEx.asm \
-	common/asm/ASMWrMsrEx.asm
+	common/asm/ASMWrMsrEx.asm \
+	common/math/bignum-amd64-x86.asm
 RuntimeR3_SOURCES.amd64 += \
 	common/asm/ASMCpuIdExSlow.asm \
 	common/asm/ASMAtomicUoAndU64.asm \
@@ -646,7 +651,9 @@ RuntimeR3_SOURCES.amd64 += \
 	common/asm/ASMAtomicUoOrU64.asm \
 	common/asm/ASMAtomicUoOrU32.asm \
 	common/asm/ASMRdMsrEx.asm \
-	common/asm/ASMWrMsrEx.asm
+	common/asm/ASMWrMsrEx.asm \
+	common/math/bignum-amd64-x86.asm \
+	common/math/RTUInt128MulByU64.asm
 
 # Some versions of GCC might require this.
 RuntimeR3_SOURCES.x86 += \
@@ -1188,7 +1195,7 @@ RuntimeBldProg_EXTENDS         := RuntimeR3
 RuntimeBldProg_BLD_TRG         := $(KBUILD_HOST)
 RuntimeBldProg_BLD_TRG_ARCH    := $(KBUILD_HOST_ARCH)
 RuntimeBldProg_BLD_TRG_CPU     := $(KBUILD_HOST_CPU)
-RuntimeBldProg_DEFS            := $(RuntimeR3_DEFS) IPRT_WITHOUT_LDR_VERIFY
+RuntimeBldProg_DEFS            := $(filter-out IN_SUP_R3 IN_SUP, $(RuntimeR3_DEFS)) IPRT_WITHOUT_LDR_VERIFY RT_NO_GIP
 RuntimeBldProg_SOURCES          = $(filter-out \
 	r3/xml.cpp \
 	common/zip/xarvfs.cpp \
@@ -1255,147 +1262,6 @@ RuntimeGuestR3Shared_INST                = $(INST_ADDITIONS_LIB)
 #
 RuntimeGuestR3Shared-x86_EXTENDS        := RuntimeGuestR3Shared
 RuntimeGuestR3Shared-x86_BLD_TRG_ARCH   := x86
-
-
-#
-# RuntimeGuestR3Mini - Minimal Guest Additions Runtime which does not require
-#                      initialization and can be linked into an .so. Intended
-#                      for X11 drivers, GRADD and similar.
-#
-RuntimeGuestR3Mini_TEMPLATE                 := VBoxGuestR3Dll
-## @todo change this to EXTEND the RuntimeGuestR3 target.
-RuntimeGuestR3Mini_INST                     := $(INST_ADDITIONS_LIB)
-RuntimeGuestR3Mini_SDKS.win                 := $(RuntimeR3_SDKS.win)
-RuntimeGuestR3Mini_DEFS                     := \
-	$(filter-out RTCRITSECT_STRICT RT_NO_GIP RT_WITH_ICONV_CACHE, $(RuntimeR3_DEFS)) \
-	RT_MINI IN_RT_STATIC RTMEM_NO_WRAP_TO_EF_APIS
-RuntimeGuestR3Mini_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
-RuntimeGuestR3Mini_DEFS.$(KBUILD_HOST)      := $(RuntimeR3_DEFS.$(KBUILD_HOST))
-RuntimeGuestR3Mini_INCS                     := $(RuntimeR3_INCS)
-RuntimeGuestR3Mini_INCS.$(KBUILD_TARGET)    := $(RuntimeR3_INCS.$(KBUILD_TARGET))
-RuntimeGuestR3Mini_INCS.$(KBUILD_HOST)      := $(RuntimeR3_INCS.$(KBUILD_HOST))
-RuntimeGuestR3Mini_SOURCES = \
-	common/alloc/alloc.cpp \
-	common/err/errmsg.cpp \
-	common/err/RTErrConvertFromErrno.cpp \
-	common/log/logformat.cpp \
-	common/misc/RTAssertMsg1Weak.cpp \
-	common/misc/RTAssertMsg2.cpp \
-	common/misc/RTAssertMsg2Add.cpp \
-	common/misc/RTAssertMsg2AddWeak.cpp \
-	common/misc/RTAssertMsg2AddWeakV.cpp \
-	common/misc/RTAssertMsg2Weak.cpp \
-	common/misc/RTAssertMsg2WeakV.cpp \
-	common/misc/assert.cpp \
-	common/misc/buildconfig.cpp \
-	common/misc/sanity-c.c \
-	common/misc/sanity-cpp.cpp \
-	common/misc/sg.cpp \
-	common/path/rtPathVolumeSpecLen.cpp \
-	common/path/RTPathAbsDup.cpp \
-	common/path/RTPathAbsEx.cpp \
-	common/path/RTPathAbsExDup.cpp \
-	common/path/RTPathAppend.cpp \
-	common/path/RTPathAppendEx.cpp \
-	common/path/RTPathExt.cpp \
-	common/path/RTPathFilename.cpp \
-	common/path/RTPathHasExt.cpp \
-	common/path/RTPathHasPath.cpp \
-	common/path/RTPathJoin.cpp \
-	common/path/RTPathJoinA.cpp \
-	common/path/RTPathParseSimple.cpp \
-	common/path/RTPathRealDup.cpp \
-	common/path/RTPathStripExt.cpp \
-	common/path/RTPathStripFilename.cpp \
-	common/path/RTPathStripTrailingSlash.cpp \
-	common/string/RTStrCat.cpp \
-	common/string/RTStrCatEx.cpp \
-	common/string/RTStrCatP.cpp \
-	common/string/RTStrCatPEx.cpp \
-	common/string/RTStrCmp.cpp \
-	common/string/RTStrCopy.cpp \
-	common/string/RTStrCopyEx.cpp \
-	common/string/RTStrCopyP.cpp \
-	common/string/RTStrCopyPEx.cpp \
-	common/string/RTStrNCmp.cpp \
-	common/string/RTStrNLen.cpp \
-	common/string/RTStrNLenEx.cpp \
-	common/string/RTStrStr.cpp \
-	common/string/straprintf.cpp \
-	common/string/strformat.cpp \
-	common/string/strformatnum.cpp \
-	common/string/strformatrt.cpp \
-	common/string/strformattype.cpp \
-	common/string/stringalloc.cpp \
-	common/string/strprintf.cpp \
-	common/string/strtonum.cpp \
-	common/string/unidata-flags.cpp \
-	common/string/unidata-lower.cpp \
-	common/string/unidata-upper.cpp \
-	common/string/utf-8.cpp \
-	common/string/utf-8-case.cpp \
-	common/string/utf-8-case2.cpp \
-	common/string/utf-16.cpp \
-	common/string/utf-16-case.cpp \
-	common/string/utf-16-latin-1.cpp \
-	common/table/avlpv.cpp \
-	generic/critsect-generic.cpp \
-	generic/pathhost-generic.cpp \
-	generic/RTAssertShouldPanic-generic.cpp \
-	generic/errvars-generic.cpp \
-	r3/alloc.cpp \
-	r3/alloc-ef.cpp \
-	r3/fileio.cpp \
-	r3/fs.cpp
-RuntimeGuestR3Mini_SOURCES.freebsd = \
-	r3/posix/RTMemProtect-posix.cpp \
-	r3/posix/rtmempage-exec-mmap-posix.cpp \
-	r3/posix/RTPathUserHome-posix.cpp \
-	r3/posix/env-posix.cpp \
-	r3/posix/fileio-posix.cpp \
-	r3/posix/fileio2-posix.cpp \
-	r3/posix/path-posix.cpp \
-	r3/posix/path2-posix.cpp \
-	r3/posix/utf8-posix.cpp \
-	r3/posix/thread2-posix.cpp \
-	common/err/errmsgxpcom.cpp
-RuntimeGuestR3Mini_SOURCES.linux = \
-	r3/posix/RTMemProtect-posix.cpp \
-	r3/posix/rtmempage-exec-mmap-posix.cpp \
-	r3/posix/RTPathUserHome-posix.cpp \
-	r3/posix/env-posix.cpp \
-	r3/posix/fileio-posix.cpp \
-	r3/posix/fileio2-posix.cpp \
-	r3/posix/path-posix.cpp \
-	r3/posix/path2-posix.cpp \
-	r3/posix/utf8-posix.cpp \
-	r3/posix/thread2-posix.cpp \
-	common/err/errmsgxpcom.cpp
-RuntimeGuestR3Mini_SOURCES.solaris = \
-	r3/posix/RTMemProtect-posix.cpp \
-	r3/posix/rtmempage-exec-mmap-posix.cpp \
-	r3/posix/RTPathUserHome-posix.cpp \
-	r3/posix/env-posix.cpp \
-	r3/posix/fileio-posix.cpp \
-	r3/posix/fileio2-posix.cpp \
-	r3/posix/path-posix.cpp \
-	r3/posix/path2-posix.cpp \
-	r3/posix/utf8-posix.cpp \
-	r3/posix/thread2-posix.cpp \
-	common/err/errmsgxpcom.cpp
-RuntimeGuestR3Mini_SOURCES.win = \
-	r3/win/alloc-win.cpp \
-	r3/win/fileio-win.cpp \
-	r3/win/path-win.cpp \
-	r3/win/utf8-win.cpp \
-	r3/win/thread2-win.cpp \
-	win/errmsgwin.cpp \
-	win/RTErrConvertFromWin32.cpp
-
-# VBox specific stuff.
-RuntimeGuestR3Mini_SOURCES += \
-	VBox/logbackdoor.cpp \
-	VBox/logbackdoor-redirect.cpp
 
 
 #
@@ -1496,9 +1362,16 @@ ifn1of ($(KBUILD_TARGET_ARCH), sparc32 sparc64)
 endif
 VBoxRT_LIBS.win                = \
 	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/vccomsup.lib \
-	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/wbemuuid.lib
+	$(PATH_SDK_$(VBOX_WINDDK)_LIB)/wbemuuid.lib \
+	$(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
 VBoxRT_LDFLAGS.darwin          = -framework IOKit -framework CoreFoundation -framework CoreServices -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxRT.dylib
-VBoxRT_LDFLAGS.win             = /MANIFEST
+VBoxRT_LDFLAGS.win             = /MANIFEST \
+	/delayload:gdi32.dll \
+	/delayload:user32.dll \
+	/delayload:shell32.dll \
+	/delayload:ole32.dll \
+	/delayload:oleaut32.dll \
+	/delayload:advapi32.dll
 
 if1of ($(DLLS), VBoxRT)
 $$(VBoxRT_0_OUTDIR)/VBoxRT.def: \
@@ -1591,7 +1464,8 @@ ifn1of ($(KBUILD_TARGET_ARCH), sparc32 sparc64)
 endif
 VBoxRT-x86_LIBS.win                = \
 	$(PATH_SDK_$(VBOX_WINDDK)_LIB.x86)/vccomsup.lib \
-	$(PATH_SDK_$(VBOX_WINDDK)_LIB.x86)/wbemuuid.lib
+	$(PATH_SDK_$(VBOX_WINDDK)_LIB.x86)/wbemuuid.lib \
+	$(PATH_TOOL_$(VBOX_VCC_TOOL_STEM)X86_LIB)/delayimp.lib
 
 VBoxRT-x86_SOURCES.win = $(filter-out %.def,$(VBoxRT_SOURCES.win)) \
 	$(VBoxRT-x86_0_OUTDIR)/VBoxRT-x86.def
@@ -1941,10 +1815,13 @@ RuntimeR0Drv_SOURCES    = \
 
 RuntimeR0Drv_SOURCES.amd64 = \
 	common/asm/ASMRdMsrEx.asm \
-	common/asm/ASMWrMsrEx.asm
+	common/asm/ASMWrMsrEx.asm \
+	common/math/bignum-amd64-x86.asm \
+	common/math/RTUInt128MulByU64.asm
 RuntimeR0Drv_SOURCES.x86   = \
 	common/asm/ASMRdMsrEx.asm \
-	common/asm/ASMWrMsrEx.asm
+	common/asm/ASMWrMsrEx.asm \
+	common/math/bignum-amd64-x86.asm
 
 
 RuntimeR0Drv_SOURCES.linux = \
@@ -2038,6 +1915,10 @@ RuntimeR0Drv_SOURCES.win = \
 	common/crypto/taf-core.cpp \
 	common/crypto/taf-init.cpp \
 	common/crypto/taf-sanity.cpp \
+	common/crypto/tsp-asn1-decoder.cpp \
+	common/crypto/tsp-core.cpp \
+	common/crypto/tsp-init.cpp \
+	common/crypto/tsp-sanity.cpp \
 	common/checksum/alt-md2.cpp \
 	common/checksum/alt-sha1.cpp \
 	common/checksum/alt-sha256.cpp \
@@ -2852,6 +2733,7 @@ include $(FILE_KBUILD_SUB_FOOTER)
 rsa-template.o rsa-template.obj: rsa-core.o rsa-asn1-decoder.o rsa-sanity.o rsa-init.o
 spc-template.o spc-template.obj: spc-core.o spc-asn1-decoder.o spc-sanity.o spc-init.o
 taf-template.o taf-template.obj: taf-core.o taf-asn1-decoder.o taf-sanity.o taf-init.o
+tsp-template.o tsp-template.obj: tsp-core.o tsp-asn1-decoder.o tsp-sanity.o tsp-init.o
 x509-template.o x509-template.obj: x509-core.o x509-asn1-decoder.o x509-sanity.o x509-init.o
 pkcs7-template.o pkcs7-template.obj: pkcs7-core.o pkcs7-asn1-decoder.o pkcs7-sanity.o pkcs7-init.o
 

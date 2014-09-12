@@ -89,6 +89,7 @@ PROGRAMS += \
 	tstRTMemCache \
 	tstRTMemPool \
 	tstRTMemWipe \
+	tstRTMemSafer \
 	tstMove \
 	tstRTMp-1 \
 	tstOnce \
@@ -222,6 +223,7 @@ tstRTBase64_SOURCES = tstRTBase64.cpp
 
 tstRTBigNum_TEMPLATE = VBOXR3TSTEXE
 tstRTBigNum_SOURCES = tstRTBigNum.cpp
+tstRTBigNum_SDKS = VBOX_OPENSSL
 
 tstRTBitOperations_TEMPLATE = VBOXR3TSTEXE
 tstRTBitOperations_SOURCES = tstRTBitOperations.cpp
@@ -457,6 +459,9 @@ tstRTMemPool_SOURCES = tstRTMemPool.cpp
 
 tstRTMemWipe_TEMPLATE = VBOXR3TSTEXE
 tstRTMemWipe_SOURCES = tstRTMemWipe.cpp
+
+tstRTMemSafer_TEMPLATE = VBOXR3TSTEXE
+tstRTMemSafer_SOURCES = tstRTMemSafer.cpp
 
 tstMove_TEMPLATE = VBOXR3TSTEXE
 tstMove_SOURCES = tstMove.cpp

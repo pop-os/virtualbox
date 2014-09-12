@@ -102,35 +102,43 @@ RTDECL(int) RTMemSaferUnscramble(void *pv, size_t cb)
 RT_EXPORT_SYMBOL(RTMemSaferUnscramble);
 
 
-RTDECL(int) RTMemSaferAllocZExTag(void **ppvNew, size_t cb, const char *pszTag) RT_NO_THROW
+RTDECL(int) RTMemSaferAllocZExTag(void **ppvNew, size_t cb, uint32_t fFlags, const char *pszTag) RT_NO_THROW
 {
-    AssertReturn(cb, VERR_INVALID_PARAMETER);
     AssertPtrReturn(ppvNew, VERR_INVALID_PARAMETER);
     *ppvNew = NULL;
+    AssertReturn(cb, VERR_INVALID_PARAMETER);
 
     /*
-     * Don't request zeroed memory.  We want random heap garbage in the
-     * padding zones, notthing that makes our allocations easier to find.
+     * We support none of the hard requirements passed thru flags.
      */
-    size_t cbUser = RT_ALIGN_Z(cb, RTMEMSAFER_ALIGN);
-    void *pvNew = RTMemAlloc(cbUser + RTMEMSAFER_PAD_BEFORE + RTMEMSAFER_PAD_AFTER);
-    if (pvNew)
+    if (fFlags == 0)
     {
+        /*
+         * Don't request zeroed memory.  We want random heap garbage in the
+         * padding zones, nothing that makes our allocations easier to find.
+         */
+        size_t cbUser = RT_ALIGN_Z(cb, RTMEMSAFER_ALIGN);
+        void *pvNew = RTMemAlloc(cbUser + RTMEMSAFER_PAD_BEFORE + RTMEMSAFER_PAD_AFTER);
+        if (pvNew)
+        {
 #ifdef RT_STRICT /* For checking input in string builds. */
-        memset(pvNew, 0xad, RTMEMSAFER_PAD_BEFORE);
-        memset((char *)pvNew + RTMEMSAFER_PAD_BEFORE + cb, 0xda, RTMEMSAFER_PAD_AFTER + (cbUser - cb));
-        *(size_t *)pvNew = cb;
+            memset(pvNew, 0xad, RTMEMSAFER_PAD_BEFORE);
+            memset((char *)pvNew + RTMEMSAFER_PAD_BEFORE + cb, 0xda, RTMEMSAFER_PAD_AFTER + (cbUser - cb));
+            *(size_t *)pvNew = cb;
 #endif
 
-        void *pvUser = (char *)pvNew + RTMEMSAFER_PAD_BEFORE;
-        *ppvNew = pvUser;
+            void *pvUser = (char *)pvNew + RTMEMSAFER_PAD_BEFORE;
+            *ppvNew = pvUser;
 
-        /* You don't use this API for performance, so we always clean memory. */
-        RT_BZERO(pvUser, cb);
+            /* You don't use this API for performance, so we always clean memory. */
+            RT_BZERO(pvUser, cb);
 
-        return VINF_SUCCESS;
+            return VINF_SUCCESS;
+        }
+        return VERR_NO_MEMORY;
     }
-    return VERR_NO_MEMORY;
+    AssertReturn(!(fFlags & ~RTMEMSAFER_F_VALID_MASK), VERR_INVALID_FLAGS);
+    return VWRN_UNABLE_TO_SATISFY_REQUIREMENTS;
 }
 RT_EXPORT_SYMBOL(RTMemSaferAllocZExTag);
 
@@ -151,7 +159,7 @@ RTDECL(void) RTMemSaferFree(void *pv, size_t cb) RT_NO_THROW
 RT_EXPORT_SYMBOL(RTMemSaferFree);
 
 
-RTDECL(int) RTMemSaferReallocZExTag(size_t cbOld, void *pvOld, size_t cbNew, void **ppvNew, const char *pszTag) RT_NO_THROW
+RTDECL(int) RTMemSaferReallocZExTag(size_t cbOld, void *pvOld, size_t cbNew, void **ppvNew, uint32_t fFlags, const char *pszTag) RT_NO_THROW
 {
     /*
      * We cannot let the heap move us around because we will be failing in our
@@ -166,8 +174,11 @@ RTDECL(int) RTMemSaferReallocZExTag(size_t cbOld, void *pvOld, size_t cbNew, voi
         AssertMsg(*(size_t *)((char *)pvOld - RTMEMSAFER_PAD_BEFORE) == cbOld,
                   ("*pvStart=%#zx cbOld=%#zx\n", *(size_t *)((char *)pvOld - RTMEMSAFER_PAD_BEFORE), cbOld));
 
+        /*
+         * We support none of the hard requirements passed thru flags.
+         */
         void *pvNew;
-        rc = RTMemSaferAllocZExTag(&pvNew, cbNew, pszTag);
+        rc = RTMemSaferAllocZExTag(&pvNew, cbNew, fFlags, pszTag);
         if (RT_SUCCESS(rc))
         {
             memcpy(pvNew, pvOld, RT_MIN(cbNew, cbOld));
@@ -179,7 +190,7 @@ RTDECL(int) RTMemSaferReallocZExTag(size_t cbOld, void *pvOld, size_t cbNew, voi
     else if (!cbOld)
     {
         Assert(pvOld == NULL);
-        rc = RTMemSaferAllocZExTag(ppvNew, cbNew, pszTag);
+        rc = RTMemSaferAllocZExTag(ppvNew, cbNew, fFlags, pszTag);
     }
     /* Free operation*/
     else
@@ -195,7 +206,7 @@ RT_EXPORT_SYMBOL(RTMemSaferReallocZExTag);
 RTDECL(void *) RTMemSaferAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW
 {
     void *pvNew = NULL;
-    int rc = RTMemSaferAllocZExTag(&pvNew, cb, pszTag);
+    int rc = RTMemSaferAllocZExTag(&pvNew, cb, 0 /*fFlags*/, pszTag);
     if (RT_SUCCESS(rc))
         return pvNew;
     return NULL;
@@ -206,7 +217,7 @@ RT_EXPORT_SYMBOL(RTMemSaferAllocZTag);
 RTDECL(void *) RTMemSaferReallocZTag(size_t cbOld, void *pvOld, size_t cbNew, const char *pszTag) RT_NO_THROW
 {
     void *pvNew = NULL;
-    int rc = RTMemSaferReallocZExTag(cbOld, pvOld, cbNew, &pvNew, pszTag);
+    int rc = RTMemSaferReallocZExTag(cbOld, pvOld, cbNew, &pvNew, 0 /*fFlags*/, pszTag);
     if (RT_SUCCESS(rc))
         return pvNew;
     return NULL;

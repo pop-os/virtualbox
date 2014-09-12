@@ -210,10 +210,14 @@ def PrintFunc( func_name, params, is_swapped, can_have_pointers ):
     else:
         print "\tWRITE_OPCODE( pc, %s );" % apiutil.OpcodeName( func_name )
 
+    if "get" in apiutil.Properties(func_name):
+        print '\tCR_CMDBLOCK_CHECK_FLUSH(pc);'
+
     print '\tCR_UNLOCK_PACKER_CONTEXT(pc);'
     print '}\n'
 
 
+r0_funcs = [ 'ChromiumParameteriCR', 'WindowSize', 'WindowShow', 'WindowPosition' ]
 
 
 apiutil.CopyrightC()
@@ -258,5 +262,12 @@ for func_name in keys:
     if func_name == 'Writeback':
         pointers_ok = 1
 
+    if not func_name in r0_funcs:
+        print '#ifndef IN_RING0'
+        
     PrintFunc( func_name, params, 0, pointers_ok )
     PrintFunc( func_name, params, 1, pointers_ok )
+    
+    if not func_name in r0_funcs:
+        print '#endif'
+    

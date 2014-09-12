@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1269,6 +1269,23 @@ ComObjPtr<MediumFormat> SystemProperties::mediumFormatFromExtension(const Utf8St
     }
 
     return format;
+}
+
+
+/**
+ * VD plugin load
+ */
+int SystemProperties::loadVDPlugin(const char *pszPluginLibrary)
+{
+    return VDPluginLoadFromFilename(pszPluginLibrary);
+}
+
+/**
+ * VD plugin unload
+ */
+int SystemProperties::unloadVDPlugin(const char *pszPluginLibrary)
+{
+    return VDPluginUnloadFromFilename(pszPluginLibrary);
 }
 
 // private methods
