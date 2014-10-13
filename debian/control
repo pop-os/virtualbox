@@ -3,7 +3,7 @@ Section: contrib/misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Michael Meskes <meskes@debian.org>,
-           Felix Geyer <fgeyer@debian.org>, Ritesh Raj Sarraf <rrs@debian.org>
+           Ritesh Raj Sarraf <rrs@debian.org>
 Build-Depends: bzip2,
                debhelper (>= 9),
                default-jdk,
