@@ -53,8 +53,29 @@ typedef enum SUPHARDNTVPKIND
     SUPHARDNTVPKIND_SELF_PURIFICATION,
     SUPHARDNTVPKIND_32BIT_HACK = 0x7fffffff
 } SUPHARDNTVPKIND;
-DECLHIDDEN(int)     supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUPHARDNTVPKIND enmKind,
+/** @name SUPHARDNTVP_F_XXX - Flags for supHardenedWinVerifyProcess
+ * @{ */
+/** Replace unwanted executable memory allocations with a new one that's filled
+ * with a safe read-write copy (default is just to free it).
+ *
+ * This is one way we attempt to work around buggy protection software that
+ * either result in host BSOD or VBox application malfunction.  Here the current
+ * shit list:
+ *  - Trend Micro's data protection software includes a buggy driver called
+ *    sakfile.sys that has been observed crashing accessing user memory that we
+ *    probably freed.  I'd love to report this to Trend Micro, but unfortunately
+ *    they doesn't advertise (or have?) an email address for reporting security
+ *    vulnerabilities in the their software.  Having wasted time looking and not
+ *    very sorry for having to disclosing the bug here.
+ *  - Maybe one more.
+ */
+#define SUPHARDNTVP_F_EXEC_ALLOC_REPLACE_WITH_RW        RT_BIT_32(0)
+/** @} */
+DECLHIDDEN(int)     supHardenedWinVerifyProcess(HANDLE hProcess, HANDLE hThread, SUPHARDNTVPKIND enmKind, uint32_t fFlags,
                                                 uint32_t *pcFixes, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supHardNtVpThread(HANDLE hProcess, HANDLE hThread, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)     supHardNtVpDebugger(HANDLE hProcess, PRTERRINFO pErrInfo);
+
 
 DECLHIDDEN(bool)    supHardViUtf16PathIsEqualEx(PCRTUTF16 pawcLeft, size_t cwcLeft, const char *pszRight);
 DECLHIDDEN(bool)    supHardViUniStrPathStartsWithUniStr(UNICODE_STRING const *pUniStrLeft,
@@ -71,8 +92,11 @@ typedef struct SUPHNTVIRDR
 {
     /** The core reader structure. */
     RTLDRREADER Core;
-    /** The file handle . */
+    /** The file handle. */
     HANDLE      hFile;
+    /** Handle to event sempahore in case we're force to deal with asynchronous
+     * I/O. */
+    HANDLE      hEvent;
     /** Current file offset. */
     RTFOFF      off;
     /** The file size. */
@@ -137,12 +161,17 @@ typedef struct SUPHNTLDRCACHEENTRY
     uint8_t            *pbBits;
     /** Set if verified. */
     bool                fVerified;
+    /** Whether we've got valid cacheable image bit.s */
+    bool                fValidBits;
+    /** The image base address. */
+    uintptr_t           uImageBase;
 } SUPHNTLDRCACHEENTRY;
 /** Pointer to a loader cache entry. */
 typedef SUPHNTLDRCACHEENTRY *PSUPHNTLDRCACHEENTRY;
 DECLHIDDEN(int)  supHardNtLdrCacheOpen(const char *pszName, PSUPHNTLDRCACHEENTRY *ppEntry);
 DECLHIDDEN(int)  supHardNtLdrCacheEntryVerify(PSUPHNTLDRCACHEENTRY pEntry, PCRTUTF16 pwszName, PRTERRINFO pErrInfo);
-DECLHIDDEN(int)  supHardNtLdrCacheEntryAllocBits(PSUPHNTLDRCACHEENTRY pEntry, uint8_t **ppbBits, PRTERRINFO pErrInfo);
+DECLHIDDEN(int)  supHardNtLdrCacheEntryGetBits(PSUPHNTLDRCACHEENTRY pEntry, uint8_t **ppbBits, RTLDRADDR uBaseAddress,
+                                               PFNRTLDRIMPORT pfnGetImport, void *pvUser, PRTERRINFO pErrInfo);
 
 
 /** Which directory under the system root to get. */
@@ -164,14 +193,14 @@ typedef struct SUPSYSROOTDIRBUF
 } SUPSYSROOTDIRBUF;
 extern SUPSYSROOTDIRBUF g_System32NtPath;
 extern SUPSYSROOTDIRBUF g_WinSxSNtPath;
-#ifdef IN_RING3
+#if defined(IN_RING3) && !defined(VBOX_PERMIT_EVEN_MORE)
 extern SUPSYSROOTDIRBUF g_ProgramFilesNtPath;
 extern SUPSYSROOTDIRBUF g_CommonFilesNtPath;
 # if ARCH_BITS == 64
 extern SUPSYSROOTDIRBUF g_ProgramFilesX86NtPath;
 extern SUPSYSROOTDIRBUF g_CommonFilesX86NtPath;
 # endif
-#endif
+#endif /* IN_RING3 && !VBOX_PERMIT_EVEN_MORE */
 extern SUPSYSROOTDIRBUF g_SupLibHardenedExeNtPath;
 extern uint32_t         g_offSupLibHardenedExeNtName;
 
@@ -194,18 +223,23 @@ extern PFNNTQUERYVIRTUALMEMORY g_pfnNtQueryVirtualMemory;
 #define SUP_MAKE_NT_VER_SIMPLE(a_uMajor, a_uMinor) SUP_MAKE_NT_VER_COMBINED(a_uMajor, a_uMinor, 0, 0, 0)
 extern uint32_t         g_uNtVerCombined;
 
+/** @name NT version constants for less-than checks.
+ * @{ */
 /** Combined NT version number for XP. */
 #define SUP_NT_VER_XP       SUP_MAKE_NT_VER_SIMPLE(5,1)
 /** Combined NT version number for Windows server 2003 & XP64. */
 #define SUP_NT_VER_W2K3     SUP_MAKE_NT_VER_SIMPLE(5,2)
 /** Combined NT version number for Vista. */
 #define SUP_NT_VER_VISTA    SUP_MAKE_NT_VER_SIMPLE(6,0)
+/** Combined NT version number for Vista with SP1. */
+#define SUP_NT_VER_VISTA_SP1 SUP_MAKE_NT_VER_COMBINED(6,0,6001,1,0)
 /** Combined NT version number for Windows 7. */
 #define SUP_NT_VER_W70      SUP_MAKE_NT_VER_SIMPLE(6,1)
 /** Combined NT version number for Windows 8.0. */
 #define SUP_NT_VER_W80      SUP_MAKE_NT_VER_SIMPLE(6,2)
 /** Combined NT version number for Windows 8.1. */
 #define SUP_NT_VER_W81      SUP_MAKE_NT_VER_SIMPLE(6,3)
+/** @} */
 
 # endif
 
@@ -213,9 +247,6 @@ extern uint32_t         g_uNtVerCombined;
 #  include <iprt/mem.h>
 #  include <iprt/string.h>
 
-#  define suplibHardenedAllocZ       RTMemAllocZ
-#  define suplibHardenedReAlloc      RTMemRealloc
-#  define suplibHardenedFree         RTMemFree
 #  define suplibHardenedMemComp      memcmp
 #  define suplibHardenedMemCopy      memcpy
 #  define suplibHardenedMemSet       memset
@@ -226,7 +257,7 @@ extern uint32_t         g_uNtVerCombined;
 #  define suplibHardenedStrNCmp      strncmp
 # else   /* IN_SUP_HARDENED_R3 */
 #  include <iprt/mem.h>
-#if 0
+#  if 0
 #  define memcmp                     suplibHardenedMemComp
 #  define memcpy                     suplibHardenedMemCopy
 #  define memset                     suplibHardenedMemSet
@@ -235,10 +266,7 @@ extern uint32_t         g_uNtVerCombined;
 #  define strcat                     suplibHardenedStrCat
 #  define strcmp                     suplibHardenedStrCmp
 #  define strncmp                    suplibHardenedStrNCmp
-#endif
-DECLHIDDEN(void *)  suplibHardenedAllocZ(size_t cb);
-DECLHIDDEN(void *)  suplibHardenedReAlloc(void *pvOld, size_t cbNew);
-DECLHIDDEN(void)    suplibHardenedFree(void *pv);
+#  endif
 # endif  /* IN_SUP_HARDENED_R3 */
 
 #endif /* SUP_CERTIFICATES_ONLY */

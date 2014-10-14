@@ -389,8 +389,9 @@ STDMETHODIMP Appliance::Interpret()
                 }
             }
             /* else we use the ovf configuration. */
-            else if (size_t cEthernetAdapters = vsysThis.llEthernetAdapters.size() >  0)
+            else if (vsysThis.llEthernetAdapters.size() >  0)
             {
+                size_t cEthernetAdapters = vsysThis.llEthernetAdapters.size();
                 uint32_t maxNetworkAdapters = Global::getMaxNetworkAdapters(ChipsetType_PIIX3);
 
                 /* Check for the constrains */
@@ -3820,10 +3821,8 @@ void Appliance::importMachines(ImportStack &stack,
     list< ComObjPtr<VirtualSystemDescription> >::const_iterator it1;
     /* Iterate through all virtual systems of that appliance */
     size_t i = 0;
-    for (it = reader.m_llVirtualSystems.begin(),
-         it1 = m->virtualSystemDescriptions.begin();
-         it != reader.m_llVirtualSystems.end(),
-         it1 != m->virtualSystemDescriptions.end();
+    for (it  = reader.m_llVirtualSystems.begin(), it1  = m->virtualSystemDescriptions.begin();
+         it != reader.m_llVirtualSystems.end() && it1 != m->virtualSystemDescriptions.end();
          ++it, ++it1, ++i)
     {
         const ovf::VirtualSystem &vsysThis = *it;

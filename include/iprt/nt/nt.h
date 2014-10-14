@@ -237,6 +237,31 @@ RTDECL(int) RTNtPathOpenDir(const char *pszPath, ACCESS_MASK fDesiredAccess, ULO
                             ULONG fObjAttribs, PHANDLE phHandle, bool *pfObjDir);
 RTDECL(int) RTNtPathClose(HANDLE hHandle);
 
+/**
+ * Converts a UTF-16 windows-style path to NT format.
+ *
+ * @returns IPRT status code.
+ * @param   pNtName             Where to return the NT name.  Free using
+ *                              RTNtPathFree.
+ * @param   phRootDir           Where to return the root handle, if applicable.
+ * @param   pwszPath            The UTF-16 windows-style path.
+ * @param   cwcPath             The max length of the windows-style path in
+ *                              RTUTF16 units.  Use RTSTR_MAX if unknown and @a
+ *                              pwszPath is correctly terminated.
+ */
+RTDECL(int) RTNtPathFromWinUtf16Ex(struct _UNICODE_STRING *pNtName, HANDLE *phRootDir, PCRTUTF16 pwszPath, size_t cwcPath);
+
+/**
+ * Frees the native path and root handle.
+ *
+ * @param   pNtName             The NT path after a successful
+ *                              RTNtPathFromWinUtf16Ex call.
+ * @param   phRootDir           The root handle variable after a successfull
+ *                              RTNtPathFromWinUtf16Ex call.
+ */
+RTDECL(void) RTNtPathFree(struct _UNICODE_STRING *pNtName, HANDLE *phRootDir);
+
+
 RT_C_DECLS_END
 /** @} */
 
@@ -364,6 +389,178 @@ typedef struct _CLIENT_ID
 } CLIENT_ID;
 typedef CLIENT_ID *PCLIENT_ID;
 #endif
+
+/** @name User Shared Data
+ * @{ */
+
+#ifdef IPRT_NT_USE_WINTERNL
+typedef struct _KSYSTEM_TIME
+{
+    ULONG                   LowPart;
+    LONG                    High1Time;
+    LONG                    High2Time;
+} KSYSTEM_TIME;
+typedef KSYSTEM_TIME *PKSYSTEM_TIME;
+
+typedef enum _NT_PRODUCT_TYPE
+{
+    NtProductWinNt = 1,
+    NtProductLanManNt,
+    NtProductServer
+} NT_PRODUCT_TYPE;
+
+#define PROCESSOR_FEATURE_MAX       64
+
+typedef enum _ALTERNATIVE_ARCHITECTURE_TYPE
+{
+    StandardDesign = 0,
+    NEC98x86,
+    EndAlternatives
+} ALTERNATIVE_ARCHITECTURE_TYPE;
+
+# if 0
+typedef struct _XSTATE_FEATURE
+{
+    ULONG                   Offset;
+    ULONG                   Size;
+} XSTATE_FEATURE;
+typedef XSTATE_FEATURE *PXSTATE_FEATURE;
+
+#define MAXIMUM_XSTATE_FEATURES     64
+
+typedef struct _XSTATE_CONFIGURATION
+{
+    ULONG64                 EnabledFeatures;
+    ULONG                   Size;
+    ULONG                   OptimizedSave  : 1;
+    XSTATE_FEATURE          Features[MAXIMUM_XSTATE_FEATURES];
+} XSTATE_CONFIGURATION;
+typedef XSTATE_CONFIGURATION *PXSTATE_CONFIGURATION;
+# endif
+
+typedef struct _KUSER_SHARED_DATA
+{
+    ULONG                   TickCountLowDeprecated;
+    ULONG                   TickCountMultiplier;
+    KSYSTEM_TIME volatile   InterruptTime;
+    KSYSTEM_TIME volatile   SystemTime;
+    KSYSTEM_TIME volatile   TimeZoneBias;
+    USHORT                  ImageNumberLow;
+    USHORT                  ImageNumberHigh;
+    WCHAR                   NtSystemRoot[260];
+    ULONG                   MaxStackTraceDepth;
+    ULONG                   CryptoExponent;
+    ULONG                   TimeZoneId;
+    ULONG                   LargePageMinimum;
+    ULONG                   AitSamplingValue;
+    ULONG                   AppCompatFlag;
+    ULONGLONG               RNGSeedVersion;
+    ULONG                   GlobalValidationRunlevel;
+    LONG volatile           TimeZoneBiasStamp;
+    ULONG                   Reserved2;
+    NT_PRODUCT_TYPE         NtProductType;
+    BOOLEAN                 ProductTypeIsValid;
+    BOOLEAN                 Reserved0[1];
+    USHORT                  NativeProcessorArchitecture;
+    ULONG                   NtMajorVersion;
+    ULONG                   NtMinorVersion;
+    BOOLEAN                 ProcessorFeatures[PROCESSOR_FEATURE_MAX];
+    ULONG                   Reserved1;
+    ULONG                   Reserved3;
+    ULONG volatile          TimeSlip;
+    ALTERNATIVE_ARCHITECTURE_TYPE AlternativeArchitecture;
+    ULONG                   AltArchitecturePad[1];
+    LARGE_INTEGER           SystemExpirationDate;
+    ULONG                   SuiteMask;
+    BOOLEAN                 KdDebuggerEnabled;
+    union
+    {
+        UCHAR               MitigationPolicies;
+        struct
+        {
+            UCHAR           NXSupportPolicy  : 2;
+            UCHAR           SEHValidationPolicy  : 2;
+            UCHAR           CurDirDevicesSkippedForDlls  : 2;
+            UCHAR           Reserved  : 2;
+        };
+    };
+    UCHAR                   Reserved6[2];
+    ULONG volatile          ActiveConsoleId;
+    ULONG volatile          DismountCount;
+    ULONG                   ComPlusPackage;
+    ULONG                   LastSystemRITEventTickCount;
+    ULONG                   NumberOfPhysicalPages;
+    BOOLEAN                 SafeBootMode;
+    UCHAR                   Reserved12[3];
+    union
+    {
+        ULONG               SharedDataFlags;
+        struct
+        {
+            ULONG           DbgErrorPortPresent  : 1;
+            ULONG           DbgElevationEnabled  : 1;
+            ULONG           DbgVirtEnabled  : 1;
+            ULONG           DbgInstallerDetectEnabled  : 1;
+            ULONG           DbgLkgEnabled  : 1;
+            ULONG           DbgDynProcessorEnabled  : 1;
+            ULONG           DbgConsoleBrokerEnabled  : 1;
+            ULONG           DbgSecureBootEnabled  : 1;
+            ULONG           SpareBits  : 24;
+        };
+    };
+    ULONG                   DataFlagsPad[1];
+    ULONGLONG               TestRetInstruction;
+    LONGLONG                QpcFrequency;
+    ULONGLONG               SystemCallPad[3];
+    union
+    {
+        ULONG64 volatile    TickCountQuad;
+        KSYSTEM_TIME volatile TickCount;
+        struct
+        {
+            ULONG           ReservedTickCountOverlay[3];
+            ULONG           TickCountPad[1];
+        };
+    };
+    ULONG                   Cookie;
+    ULONG                   CookiePad[1];
+    LONGLONG                ConsoleSessionForegroundProcessId;
+    ULONGLONG               TimeUpdateLock;
+    ULONGLONG               BaselineSystemTimeQpc;
+    ULONGLONG               BaselineInterruptTimeQpc;
+    ULONGLONG               QpcSystemTimeIncrement;
+    ULONGLONG               QpcInterruptTimeIncrement;
+    ULONG                   QpcSystemTimeIncrement32;
+    ULONG                   QpcInterruptTimeIncrement32;
+    UCHAR                   QpcSystemTimeIncrementShift;
+    UCHAR                   QpcInterruptTimeIncrementShift;
+    UCHAR                   Reserved8[14];
+    USHORT                  UserModeGlobalLogger[16];
+    ULONG                   ImageFileExecutionOptions;
+    ULONG                   LangGenerationCount;
+    ULONGLONG               Reserved4;
+    ULONGLONG volatile      InterruptTimeBias;
+    ULONGLONG volatile      QpcBias;
+    ULONG volatile          ActiveProcessorCount;
+    UCHAR volatile          ActiveGroupCount;
+    UCHAR                   Reserved9;
+    union
+    {
+        USHORT              QpcData;
+        struct
+        {
+            BOOLEAN volatile QpcBypassEnabled;
+            UCHAR           QpcShift;
+        };
+    };
+    LARGE_INTEGER           TimeZoneBiasEffectiveStart;
+    LARGE_INTEGER           TimeZoneBiasEffectiveEnd;
+    XSTATE_CONFIGURATION    XState;
+} KUSER_SHARED_DATA;
+typedef KUSER_SHARED_DATA *PKUSER_SHARED_DATA;
+#endif /* IPRT_NT_USE_WINTERNL */
+/** @} */
+
 
 /** @name Process And Thread Environment Blocks
  * @{ */
@@ -1104,7 +1301,10 @@ typedef PPEB_COMMON PPEB;
 typedef TEB_COMMON  TEB;
 typedef PTEB_COMMON PTEB;
 
-#define NtCurrentPeb()  (((PTEB)NtCurrentTeb())->ProcessEnvironmentBlock)
+#define RTNtCurrentTeb()        ((PTEB)NtCurrentTeb())
+#define RTNtCurrentPeb()        (RTNtCurrentTeb()->ProcessEnvironmentBlock)
+#define NtCurrentPeb()          RTNtCurrentPeb()
+#define RTNtCurrentThreadId()   ((uint32_t)(uintptr_t)RTNtCurrentTeb()->ClientId.UniqueThread)
 
 /** @} */
 
@@ -1172,6 +1372,15 @@ typedef struct _FILE_BOTH_DIR_INFORMATION
     WCHAR           FileName[1];
 } FILE_BOTH_DIR_INFORMATION;
 typedef FILE_BOTH_DIR_INFORMATION *PFILE_BOTH_DIR_INFORMATION;
+typedef struct _FILE_BASIC_INFORMATION
+{
+    LARGE_INTEGER   CreationTime;
+    LARGE_INTEGER   LastAccessTime;
+    LARGE_INTEGER   LastWriteTime;
+    LARGE_INTEGER   ChangeTime;
+    ULONG           FileAttributes;
+} FILE_BASIC_INFORMATION;
+typedef FILE_BASIC_INFORMATION *PFILE_BASIC_INFORMATION;
 typedef struct _FILE_STANDARD_INFORMATION
 {
     LARGE_INTEGER   AllocationSize;
@@ -1481,6 +1690,16 @@ typedef enum _SECTION_INFORMATION_CLASS
 } SECTION_INFORMATION_CLASS;
 NTSYSAPI NTSTATUS NTAPI NtQuerySection(HANDLE, SECTION_INFORMATION_CLASS, PVOID, SIZE_T, PSIZE_T);
 
+NTSYSAPI NTSTATUS NTAPI NtCreateSymbolicLinkObject(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PUNICODE_STRING pTarget);
+NTSYSAPI NTSTATUS NTAPI NtOpenSymbolicLinkObject(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+NTSYSAPI NTSTATUS NTAPI NtQuerySymbolicLinkObject(HANDLE, PUNICODE_STRING, PULONG);
+#ifndef SYMBOLIC_LINK_QUERY
+# define SYMBOLIC_LINK_QUERY        UINT32_C(0x00000001)
+#endif
+#ifndef SYMBOLIC_LINK_ALL_ACCESS
+# define SYMBOLIC_LINK_ALL_ACCESS   (STANDARD_RIGHTS_REQUIRED | SYMBOLIC_LINK_QUERY)
+#endif
+
 NTSYSAPI NTSTATUS NTAPI NtQueryInformationThread(HANDLE, THREADINFOCLASS, PVOID, ULONG, PULONG);
 NTSYSAPI NTSTATUS NTAPI NtResumeThread(HANDLE, PULONG);
 NTSYSAPI NTSTATUS NTAPI NtSuspendThread(HANDLE, PULONG);
@@ -1599,6 +1818,38 @@ typedef enum _SYSTEM_INFORMATION_CLASS
     SystemInformation_Unknown_62,
     SystemInformation_Unknown_63,
     SystemExtendedHandleInformation, /* 64 */
+    SystemInformation_Unknown_65,
+    SystemInformation_Unknown_66,
+    SystemInformation_Unknown_67,
+    SystemInformation_Unknown_68,
+    SystemInformation_HotPatchInfo, /* 69 */
+    SystemInformation_Unknown_70,
+    SystemInformation_Unknown_71,
+    SystemInformation_Unknown_72,
+    SystemInformation_Unknown_73,
+    SystemInformation_Unknown_74,
+    SystemInformation_Unknown_75,
+    SystemInformation_Unknown_76,
+    SystemInformation_Unknown_77,
+    SystemInformation_Unknown_78,
+    SystemInformation_Unknown_79,
+    SystemInformation_Unknown_80,
+    SystemInformation_Unknown_81,
+    SystemInformation_Unknown_82,
+    SystemInformation_Unknown_83,
+    SystemInformation_Unknown_84,
+    SystemInformation_Unknown_85,
+    SystemInformation_Unknown_86,
+    SystemInformation_Unknown_87,
+    SystemInformation_Unknown_88,
+    SystemInformation_Unknown_89,
+    SystemInformation_Unknown_90,
+    SystemInformation_Unknown_91,
+    SystemInformation_Unknown_92,
+    SystemInformation_Unknown_93,
+    SystemInformation_Unknown_94,
+    SystemInformation_Unknown_95,
+    SystemInformation_KiOpPrefetchPatchCount,
 
     /** @todo fill gap. they've added a whole bunch of things  */
     SystemPolicyInformation = 134,
@@ -1722,11 +1973,40 @@ NTSYSAPI NTSTATUS NTAPI NtYieldExecution(void);
 #ifndef IPRT_NT_USE_WINTERNL
 NTSYSAPI NTSTATUS NTAPI NtWaitForSingleObject(HANDLE, BOOLEAN PLARGE_INTEGER);
 #endif
+typedef NTSYSAPI NTSTATUS (NTAPI *PFNNTWAITFORSINGLEOBJECT)(HANDLE, BOOLEAN, PLARGE_INTEGER);
 typedef enum _OBJECT_WAIT_TYPE { WaitAllObjects = 0, WaitAnyObject = 1, ObjectWaitTypeHack = 0x7fffffff } OBJECT_WAIT_TYPE;
 NTSYSAPI NTSTATUS NTAPI NtWaitForMultipleObjects(ULONG, PHANDLE, OBJECT_WAIT_TYPE, BOOLEAN, PLARGE_INTEGER);
 
 NTSYSAPI NTSTATUS NTAPI NtQuerySecurityObject(HANDLE, ULONG, PSECURITY_DESCRIPTOR, ULONG, PULONG);
 
+#ifdef IPRT_NT_USE_WINTERNL
+typedef enum _EVENT_TYPE
+{
+    /* Manual reset event. */
+    NotificationEvent = 0,
+    /* Automaitc reset event. */
+    SynchronizationEvent
+} EVENT_TYPE;
+#endif
+NTSYSAPI NTSTATUS NTAPI NtCreateEvent(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, EVENT_TYPE, BOOLEAN);
+NTSYSAPI NTSTATUS NTAPI NtOpenEvent(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+typedef NTSYSAPI NTSTATUS (NTAPI *PFNNTCLEAREVENT)(HANDLE);
+NTSYSAPI NTSTATUS NTAPI NtClearEvent(HANDLE);
+NTSYSAPI NTSTATUS NTAPI NtResetEvent(HANDLE, PULONG);
+NTSYSAPI NTSTATUS NTAPI NtSetEvent(HANDLE, PULONG);
+typedef NTSYSAPI NTSTATUS (NTAPI *PFNNTSETEVENT)(HANDLE, PULONG);
+typedef enum _EVENT_INFORMATION_CLASS
+{
+    EventBasicInformation = 0
+} EVENT_INFORMATION_CLASS;
+/** Data returned by NtQueryEvent + EventBasicInformation. */
+typedef struct EVENT_BASIC_INFORMATION
+{
+    EVENT_TYPE  EventType;
+    ULONG       EventState;
+} EVENT_BASIC_INFORMATION;
+typedef EVENT_BASIC_INFORMATION *PEVENT_BASIC_INFORMATION;
+NTSYSAPI NTSTATUS NTAPI NtQueryEvent(HANDLE, EVENT_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 
 #ifdef IPRT_NT_USE_WINTERNL
 /** For NtQueryValueKey. */
@@ -1879,8 +2159,41 @@ typedef struct CSR_MSG_DATA_CREATED_PROCESS
 #define CSR_MSG_NO_CREATED_THREAD     UINT32_C(0x10001)
 NTSYSAPI NTSTATUS NTAPI CsrClientCallServer(PVOID, PVOID, ULONG, SIZE_T);
 #endif
+
 NTSYSAPI VOID NTAPI     LdrInitializeThunk(PVOID, PVOID, PVOID);
+
+typedef struct _LDR_DLL_LOADED_NOTIFICATION_DATA
+{
+    ULONG               Flags;
+    PCUNICODE_STRING    FullDllName;
+    PCUNICODE_STRING    BaseDllName;
+    PVOID               DllBase;
+    ULONG               SizeOfImage;
+} LDR_DLL_LOADED_NOTIFICATION_DATA, LDR_DLL_UNLOADED_NOTIFICATION_DATA;
+typedef LDR_DLL_LOADED_NOTIFICATION_DATA *PLDR_DLL_LOADED_NOTIFICATION_DATA, *PLDR_DLL_UNLOADED_NOTIFICATION_DATA;
+typedef LDR_DLL_LOADED_NOTIFICATION_DATA const *PCLDR_DLL_LOADED_NOTIFICATION_DATA, *PCLDR_DLL_UNLOADED_NOTIFICATION_DATA;
+
+typedef union _LDR_DLL_NOTIFICATION_DATA
+{
+    LDR_DLL_LOADED_NOTIFICATION_DATA    Loaded;
+    LDR_DLL_UNLOADED_NOTIFICATION_DATA  Unloaded;
+} LDR_DLL_NOTIFICATION_DATA;
+typedef LDR_DLL_NOTIFICATION_DATA *PLDR_DLL_NOTIFICATION_DATA;
+typedef LDR_DLL_NOTIFICATION_DATA const *PCLDR_DLL_NOTIFICATION_DATA;
+
+typedef VOID (NTAPI *PLDR_DLL_NOTIFICATION_FUNCTION)(ULONG ulReason, PCLDR_DLL_NOTIFICATION_DATA pData, PVOID pvUser);
+
+#define LDR_DLL_NOTIFICATION_REASON_LOADED      UINT32_C(1)
+#define LDR_DLL_NOTIFICATION_REASON_UNLOADED    UINT32_C(2)
+NTSYSAPI NTSTATUS NTAPI LdrRegisterDllNotification(ULONG fFlags, PLDR_DLL_NOTIFICATION_FUNCTION pfnCallback, PVOID pvUser,
+                                                   PVOID *pvCookie);
+typedef NTSTATUS (NTAPI *PFNLDRREGISTERDLLNOTIFICATION)(ULONG, PLDR_DLL_NOTIFICATION_FUNCTION, PVOID, PVOID *);
+NTSYSAPI NTSTATUS NTAPI LdrUnregisterDllNotification(PVOID pvCookie);
+typedef NTSTATUS (NTAPI *PFNLDRUNREGISTERDLLNOTIFICATION)(PVOID);
+
 NTSYSAPI NTSTATUS NTAPI RtlExpandEnvironmentStrings_U(PVOID, PUNICODE_STRING, PUNICODE_STRING, PULONG);
+NTSYSAPI VOID NTAPI     RtlExitUserProcess(NTSTATUS rcExitCode); /**< Vista and later. */
+NTSYSAPI VOID NTAPI     RtlExitUserThread(NTSTATUS rcExitCode);
 NTSYSAPI NTSTATUS NTAPI RtlDosApplyFileIsolationRedirection_Ustr(IN ULONG fFlags,
                                                                  IN PCUNICODE_STRING pOrgName,
                                                                  IN PUNICODE_STRING pDefaultSuffix,
@@ -1890,7 +2203,90 @@ NTSYSAPI NTSTATUS NTAPI RtlDosApplyFileIsolationRedirection_Ustr(IN ULONG fFlags
                                                                  IN PULONG pfNewFlags OPTIONAL,
                                                                  IN PSIZE_T pcbFilename OPTIONAL,
                                                                  IN PSIZE_T pcbNeeded OPTIONAL);
+
+# ifdef IPRT_NT_USE_WINTERNL
+typedef NTSTATUS NTAPI RTL_HEAP_COMMIT_ROUTINE(PVOID, PVOID *, PSIZE_T);
+typedef RTL_HEAP_COMMIT_ROUTINE *PRTL_HEAP_COMMIT_ROUTINE;
+typedef struct _RTL_HEAP_PARAMETERS
+{
+    ULONG   Length;
+    SIZE_T  SegmentReserve;
+    SIZE_T  SegmentCommit;
+    SIZE_T  DeCommitFreeBlockThreshold;
+    SIZE_T  DeCommitTotalFreeThreshold;
+    SIZE_T  MaximumAllocationSize;
+    SIZE_T  VirtualMemoryThreshold;
+    SIZE_T  InitialCommit;
+    SIZE_T  InitialReserve;
+    PRTL_HEAP_COMMIT_ROUTINE  CommitRoutine;
+    SIZE_T  Reserved[2];
+} RTL_HEAP_PARAMETERS;
+typedef RTL_HEAP_PARAMETERS *PRTL_HEAP_PARAMETERS;
+NTSYSAPI PVOID NTAPI RtlCreateHeap(ULONG fFlags, PVOID pvHeapBase, SIZE_T cbReserve, SIZE_T cbCommit, PVOID pvLock,
+                                   PRTL_HEAP_PARAMETERS pParameters);
+/** @name Heap flags (for RtlCreateHeap).
+ * @{ */
+/*#  define HEAP_NO_SERIALIZE             UINT32_C(0x00000001)
+#  define HEAP_GROWABLE                 UINT32_C(0x00000002)
+#  define HEAP_GENERATE_EXCEPTIONS      UINT32_C(0x00000004)
+#  define HEAP_ZERO_MEMORY              UINT32_C(0x00000008)
+#  define HEAP_REALLOC_IN_PLACE_ONLY    UINT32_C(0x00000010)
+#  define HEAP_TAIL_CHECKING_ENABLED    UINT32_C(0x00000020)
+#  define HEAP_FREE_CHECKING_ENABLED    UINT32_C(0x00000040)
+#  define HEAP_DISABLE_COALESCE_ON_FREE UINT32_C(0x00000080)*/
+#  define HEAP_SETTABLE_USER_VALUE      UINT32_C(0x00000100)
+#  define HEAP_SETTABLE_USER_FLAG1      UINT32_C(0x00000200)
+#  define HEAP_SETTABLE_USER_FLAG2      UINT32_C(0x00000400)
+#  define HEAP_SETTABLE_USER_FLAG3      UINT32_C(0x00000800)
+#  define HEAP_SETTABLE_USER_FLAGS      UINT32_C(0x00000e00)
+#  define HEAP_CLASS_0                  UINT32_C(0x00000000)
+#  define HEAP_CLASS_1                  UINT32_C(0x00001000)
+#  define HEAP_CLASS_2                  UINT32_C(0x00002000)
+#  define HEAP_CLASS_3                  UINT32_C(0x00003000)
+#  define HEAP_CLASS_4                  UINT32_C(0x00004000)
+#  define HEAP_CLASS_5                  UINT32_C(0x00005000)
+#  define HEAP_CLASS_6                  UINT32_C(0x00006000)
+#  define HEAP_CLASS_7                  UINT32_C(0x00007000)
+#  define HEAP_CLASS_8                  UINT32_C(0x00008000)
+#  define HEAP_CLASS_MASK               UINT32_C(0x0000f000)
+# endif
+# define HEAP_CLASS_PROCESS             HEAP_CLASS_0
+# define HEAP_CLASS_PRIVATE             HEAP_CLASS_1
+# define HEAP_CLASS_KERNEL              HEAP_CLASS_2
+# define HEAP_CLASS_GDI                 HEAP_CLASS_3
+# define HEAP_CLASS_USER                HEAP_CLASS_4
+# define HEAP_CLASS_CONSOLE             HEAP_CLASS_5
+# define HEAP_CLASS_USER_DESKTOP        HEAP_CLASS_6
+# define HEAP_CLASS_CSRSS_SHARED        HEAP_CLASS_7
+# define HEAP_CLASS_CSRSS_PORT          HEAP_CLASS_8
+# ifdef IPRT_NT_USE_WINTERNL
+/*#  define HEAP_CREATE_ALIGN_16          UINT32_C(0x00010000)
+#  define HEAP_CREATE_ENABLE_TRACING    UINT32_C(0x00020000)
+#  define HEAP_CREATE_ENABLE_EXECUTE    UINT32_C(0x00040000)*/
+#  define HEAP_CREATE_VALID_MASK        UINT32_C(0x0007f0ff)
+# endif /* IPRT_NT_USE_WINTERNL */
+/** @} */
+# ifdef IPRT_NT_USE_WINTERNL
+/** @name Heap tagging constants
+ * @{ */
+#  define HEAP_GLOBAL_TAG               UINT32_C(0x00000800)
+/*#  define HEAP_MAXIMUM_TAG              UINT32_C(0x00000fff)
+#  define HEAP_PSEUDO_TAG_FLAG          UINT32_C(0x00008000)
+#  define HEAP_TAG_SHIFT                18 */
+#  define HEAP_TAG_MASK                 (HEAP_MAXIMUM_TAG << HEAP_TAG_SHIFT)
+/** @}  */
+NTSYSAPI PVOID NTAPI    RtlAllocateHeap(HANDLE hHeap, ULONG fFlags, SIZE_T cb);
+NTSYSAPI PVOID NTAPI    RtlReAllocateHeap(HANDLE hHeap, ULONG fFlags, PVOID pvOld, SIZE_T cbNew);
+NTSYSAPI BOOLEAN NTAPI  RtlFreeHeap(HANDLE hHeap, ULONG fFlags, PVOID pvMem);
+# endif /* IPRT_NT_USE_WINTERNL */
+NTSYSAPI SIZE_T NTAPI   RtlCompactHeap(HANDLE hHeap, ULONG fFlags);
 NTSYSAPI VOID NTAPI     RtlFreeUnicodeString(PUNICODE_STRING);
+NTSYSAPI SIZE_T NTAPI   RtlSizeHeap(HANDLE hHeap, ULONG fFlags, PVOID pvMem);
+NTSYSAPI NTSTATUS NTAPI RtlGetLastNtStatus(VOID);
+NTSYSAPI ULONG NTAPI    RtlGetLastWin32Error(VOID);
+NTSYSAPI VOID NTAPI     RtlSetLastWin32Error(ULONG uError);
+NTSYSAPI VOID NTAPI     RtlSetLastWin32ErrorAndNtStatusFromNtStatus(NTSTATUS rcNt);
+NTSYSAPI VOID NTAPI     RtlRestoreLastWin32Error(ULONG uError);
 
 RT_C_DECLS_END
 /** @} */

@@ -197,6 +197,7 @@ typedef const BSTR CBSTR;
 
 #define ComSafeArrayAsInParam(f) (f)
 #define ComSafeArrayAsOutParam(f) (&amp;(f))
+#define ComSafeArrayAsOutTypeParam(f,t) (&amp;(f))
 #define ComSafeArrayAsOutIfaceParam(f,t) (&amp;(f))
 
 #else /* !WIN32 */
@@ -867,6 +868,7 @@ typedef struct SAFEARRAY
 
 #define ComSafeArrayAsInParam(f) ((f)->c), ((f)->pv)
 #define ComSafeArrayAsOutParam(f) (&amp;((f)->c)), (&amp;((f)->pv))
+#define ComSafeArrayAsOutTypeParam(f,t) (&amp;((f)->c)), (t**)(&amp;((f)->pv))
 #define ComSafeArrayAsOutIfaceParam(f,t) (&amp;((f)->c)), (t**)(&amp;((f)->pv))
 
 /* Glossing over differences between COM and XPCOM */
@@ -2096,7 +2098,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
   <xsl:if test="not(@readonly='yes')">
     <!-- setter (COM compatible) -->
     <xsl:text>#define </xsl:text>
-    <xsl:value-of select="concat($iface, '_set_')"/>
+    <xsl:value-of select="concat($iface, '_put_')"/>
     <xsl:call-template name="capitalize">
       <xsl:with-param name="str" select="@name"/>
     </xsl:call-template>
@@ -2285,7 +2287,7 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
   <xsl:text>, 0x</xsl:text><xsl:value-of select="substring(@uuid,33,2)"/>
   <xsl:text>, 0x</xsl:text><xsl:value-of select="substring(@uuid,35,2)"/>
   <xsl:text> } \&#x0A;}&#x0A;</xsl:text>
-  <xsl:text>enum </xsl:text>
+  <xsl:text>typedef enum </xsl:text>
   <xsl:value-of select="@name"/>
   <xsl:text>&#x0A;{&#x0A;</xsl:text>
   <xsl:variable name="this" select="."/>
@@ -2299,7 +2301,9 @@ typedef PCVBOXCAPI (*PFNVBOXGETXPCOMCFUNCTIONS)(unsigned uVersion);
     </xsl:if>
     <xsl:text>&#x0A;</xsl:text>
   </xsl:for-each>
-  <xsl:text>};&#x0A;</xsl:text>
+  <xsl:text>} </xsl:text>
+  <xsl:value-of select="@name"/>
+  <xsl:text>;&#x0A;</xsl:text>
   <xsl:text>/* End of enum </xsl:text>
   <xsl:value-of select="@name"/>
   <xsl:text> declaration */

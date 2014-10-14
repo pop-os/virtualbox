@@ -8724,17 +8724,17 @@ static uint32_t hmR0VmxCheckGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             HMVMX_CHECK_BREAK(!(u64Val & UINT64_C(0x707070707070707)), VMX_IGS_PAT_MSR_RESERVED);
             for (unsigned i = 0; i < 8; i++)
             {
-                uint8_t u8Val = (u64Val & 0x7);
+                uint8_t u8Val = (u64Val & 0xff);
                 if (   u8Val != 0 /* UC */
-                    || u8Val != 1 /* WC */
-                    || u8Val != 4 /* WT */
-                    || u8Val != 5 /* WP */
-                    || u8Val != 6 /* WB */
-                    || u8Val != 7 /* UC- */)
+                    && u8Val != 1 /* WC */
+                    && u8Val != 4 /* WT */
+                    && u8Val != 5 /* WP */
+                    && u8Val != 6 /* WB */
+                    && u8Val != 7 /* UC- */)
                 {
                     HMVMX_ERROR_BREAK(VMX_IGS_PAT_MSR_INVALID);
                 }
-                u64Val >>= 3;
+                u64Val >>= 8;
             }
         }
 
@@ -10749,9 +10749,11 @@ static int hmR0VmxExitXcptMF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
 
     if (!(pMixedCtx->cr0 & X86_CR0_NE))
     {
-        /* Old-style FPU error reporting needs some extra work. */
-        /** @todo don't fall back to the recompiler, but do it manually. */
-        return VERR_EM_INTERPRETER;
+        /* Convert a #MF into a FERR -> IRQ 13. */
+        rc = PDMIsaSetIrq(pVCpu->CTX_SUFF(pVM), 13, 1, 0 /*uTagSrc*/);
+        int rc2 = hmR0VmxAdvanceGuestRip(pVCpu, pMixedCtx, pVmxTransient);
+        AssertRCReturn(rc2, rc2);
+        return rc;
     }
 
     hmR0VmxSetPendingEvent(pVCpu, VMX_VMCS_CTRL_ENTRY_IRQ_INFO_FROM_EXIT_INT_INFO(pVmxTransient->uExitIntInfo),

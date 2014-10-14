@@ -537,11 +537,8 @@ vbox_output_set_property(xf86OutputPtr output, Atom property,
             return FALSE;
         pVBox->aPreferredSize[cDisplay].cx = w;
         pVBox->aPreferredSize[cDisplay].cy = h;
-        return TRUE;
     }
-    if (property == vboxAtomEDID())
-        return TRUE;
-    return FALSE;
+    return TRUE;
 }
 #endif
 

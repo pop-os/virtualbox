@@ -31,50 +31,82 @@
 %include "iprt/asmdefs.mac"
 
 
-; External data.
-extern NAME(g_pfnNtCreateSectionJmpBack)
+; External code.
+extern NAME(supR3HardenedEarlyProcessInit)
 
 
 BEGINCODE
 
+
+;;
+; Alternative code for LdrInitializeThunk that performs the early process startup
+; for the Stub and VM processes.
 ;
-; 64-bit
+; This does not concern itself with any arguments on stack or in registers that
+; may be passed to the LdrIntializeThunk routine as we just save and restore
+; them all before we restart the restored LdrInitializeThunk routine.
 ;
+; @sa supR3HardenedEarlyProcessInit
+;
+BEGINPROC supR3HardenedEarlyProcessInitThunk
+        ;
+        ; Prologue.
+        ;
+
+        ; Reserve space for the "return" address.
+        push    0
+
+        ; Create a stack frame, saving xBP.
+        push    xBP
+        SEH64_PUSH_xBP
+        mov     xBP, xSP
+        SEH64_SET_FRAME_xBP 0 ; probably wrong...
+
+        ; Save all volatile registers.
+        push    xAX
+        push    xCX
+        push    xDX
 %ifdef RT_ARCH_AMD64
- %macro supR3HardenedJmpBack_NtCreateSection_Xxx 1
- BEGINPROC supR3HardenedJmpBack_NtCreateSection_ %+ %1
+        push    r8
+        push    r9
+        push    r10
+        push    r11
+%endif
+
+        ; Reserve spill space and align the stack.
+        sub     xSP, 20h
+        and     xSP, ~0fh
         SEH64_END_PROLOGUE
-        ; The code we replaced.
-        mov     r10, rcx
-        mov     eax, %1
 
-        ; Jump back to the original code.
-        jmp     [NAME(g_pfnNtCreateSectionJmpBack) wrt RIP]
- ENDPROC   supR3HardenedJmpBack_NtCreateSection_ %+ %1
- %endm
- %define SYSCALL(a_Num) supR3HardenedJmpBack_NtCreateSection_Xxx a_Num
- %include "NtCreateSection-template-amd64-syscall-type-1.h"
+        ;
+        ; Call the C/C++ code that does the actual work.  This returns the
+        ; resume address in xAX, which we put in the "return" stack position.
+        ;
+        call    NAME(supR3HardenedEarlyProcessInit)
+        mov     [xBP + xCB], xAX
 
+        ;
+        ; Restore volatile registers.
+        ;
+        mov     xAX, [xBP - xCB*1]
+        mov     xCX, [xBP - xCB*2]
+        mov     xDX, [xBP - xCB*3]
+%ifdef RT_ARCH_AMD64
+        mov     r8,  [xBP - xCB*4]
+        mov     r9,  [xBP - xCB*5]
+        mov     r10, [xBP - xCB*6]
+        mov     r11, [xBP - xCB*7]
 %endif
+        ;
+        ; Use the leave instruction to restore xBP and set up xSP to point at
+        ; the resume address. Then use the 'ret' instruction to resume process
+        ; initializaton.
+        ;
+        leave
+        ret
+ENDPROC   supR3HardenedEarlyProcessInitThunk
 
 
-;
-; 32-bit.
-;
-%ifdef RT_ARCH_X86
- %macro supR3HardenedJmpBack_NtCreateSection_Xxx 1
- BEGINPROC supR3HardenedJmpBack_NtCreateSection_ %+ %1
-        ; The code we replaced.
-        mov     eax, %1
-
-        ; Jump back to the original code.
-        jmp     [NAME(g_pfnNtCreateSectionJmpBack)]
- ENDPROC   supR3HardenedJmpBack_NtCreateSection_ %+ %1
- %endm
- %define SYSCALL(a_Num) supR3HardenedJmpBack_NtCreateSection_Xxx a_Num
- %include "NtCreateSection-template-x86-syscall-type-1.h"
-
-%endif
 
 ;;
 ; Composes a standard call name.
@@ -84,6 +116,9 @@ BEGINCODE
  %define SUPHNTIMP_STDCALL_NAME(a,b) NAME(a)
 %endif
 
+;; Concats two litterals.
+%define SUPHNTIMP_CONCAT(a,b) a %+ b
+
 
 ;;
 ; Import data and code for an API call.
@@ -91,9 +126,10 @@ BEGINCODE
 ; @param 1  The plain API name.
 ; @param 2  The parameter frame size on x86. Multiple of dword.
 ; @param 3  Non-zero expression if system call.
+; @param 4  Non-zero expression if early available call
 ;
 %define SUPHNTIMP_SYSCALL 1
-%macro SupHardNtImport 3
+%macro SupHardNtImport 4
         ;
         ; The data.
         ;
@@ -145,11 +181,24 @@ BEGINPROC %1 %+ _SyscallType2
 ENDPROC %1 %+ _SyscallType2
   %endif
 %endif
+
+%if %4 == 0
+global NAME(SUPHNTIMP_CONCAT(%1,_Early))
+NAME(SUPHNTIMP_CONCAT(%1,_Early)):
+        int3
+ %ifdef RT_ARCH_AMD64
+        ret
+ %else
+        ret     %2
+ %endif
+%endif
 %endmacro
 
 %define SUPHARNT_COMMENT(a_Comment)
-%define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86) SupHardNtImport a_Name, a_cbParamsX86, SUPHNTIMP_SYSCALL
-%define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) SupHardNtImport a_Name, a_cbParamsX86, 0
+%define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86)       SupHardNtImport a_Name, a_cbParamsX86, SUPHNTIMP_SYSCALL, 1
+%define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86)       SupHardNtImport a_Name, a_cbParamsX86, 0, 0
+%define SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86) SupHardNtImport a_Name, a_cbParamsX86, 0, 1
+%define SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL(a_Name, a_cbParamsX86) SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86)
 %include "import-template-ntdll.h"
 %include "import-template-kernel32.h"
 

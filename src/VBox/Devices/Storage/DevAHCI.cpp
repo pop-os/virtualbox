@@ -1077,6 +1077,23 @@ static void ahciPortResetFinish(PAHCIPort pAhciPort)
     else
         pAhciPort->regSIG = AHCI_PORT_SIG_DISK;
 
+    /* We received a COMINIT from the device. Tell the guest. */
+    ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_PCS);
+    pAhciPort->regSERR |= AHCI_PORT_SERR_X;
+    pAhciPort->regTFD  |= ATA_STAT_BUSY;
+
+    if ((pAhciPort->regCMD & AHCI_PORT_CMD_FRE) && (!pAhciPort->fFirstD2HFisSend))
+    {
+        ahciPostFirstD2HFisIntoMemory(pAhciPort);
+        ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_DHRS);
+
+        if (pAhciPort->regIE & AHCI_PORT_IE_DHRE)
+        {
+            int rc = ahciHbaSetInterrupt(pAhciPort->CTX_SUFF(pAhci), pAhciPort->iLUN, VERR_IGNORED);
+            AssertRC(rc);
+        }
+    }
+
     pAhciPort->regSSTS = (0x01 << 8)  | /* Interface is active. */
                          (0x03 << 0);   /* Device detected and communication established. */
 
@@ -1094,23 +1111,6 @@ static void ahciPortResetFinish(PAHCIPort pAhciPort)
         default:
             pAhciPort->regSSTS |= (0x02 << 4); /* Generation 2 (3.0GBps) speed. */
             break;
-    }
-
-    /* We received a COMINIT from the device. Tell the guest. */
-    ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_PCS);
-    pAhciPort->regSERR |= AHCI_PORT_SERR_X;
-    pAhciPort->regTFD  |= ATA_STAT_BUSY;
-
-    if ((pAhciPort->regCMD & AHCI_PORT_CMD_FRE) && (!pAhciPort->fFirstD2HFisSend))
-    {
-        ahciPostFirstD2HFisIntoMemory(pAhciPort);
-        ASMAtomicOrU32(&pAhciPort->regIS, AHCI_PORT_IS_DHRS);
-
-        if (pAhciPort->regIE & AHCI_PORT_IE_DHRE)
-        {
-            int rc = ahciHbaSetInterrupt(pAhciPort->CTX_SUFF(pAhci), pAhciPort->iLUN, VERR_IGNORED);
-            AssertRC(rc);
-        }
     }
 
     ASMAtomicXchgBool(&pAhciPort->fPortReset, false);
@@ -1703,6 +1703,9 @@ static int HbaInterruptStatus_w(PAHCI ahci, uint32_t iReg, uint32_t u32Value)
     rc = PDMCritSectEnter(&ahci->lock, VINF_IOM_R3_MMIO_WRITE);
     if (rc != VINF_SUCCESS)
         return rc;
+
+    /* Update interrupt status register first. */
+    ahci->regHbaIs |= ASMAtomicXchgU32(&ahci->u32PortsInterrupted, 0);
 
     if (u32Value > 0)
     {
@@ -6738,7 +6741,11 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
                         rc = ahciIoBufAllocate(pAhciPort, pAhciReq, pAhciReq->cbTransfer);
                         if (RT_FAILURE(rc))
+                        {
+                            /* In case we can't allocate enough memory fail the request with an overflow error. */
                             AssertMsgFailed(("%s: Failed to process command %Rrc\n", __FUNCTION__, rc));
+                            pAhciReq->fFlags |= AHCI_REQ_OVERFLOW;
+                        }
                     }
 
                     if (!(pAhciReq->fFlags & AHCI_REQ_OVERFLOW))
@@ -6936,6 +6943,7 @@ static DECLCALLBACK(void) ahciR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, con
         pHlp->pfnPrintf(pHlp, "PortATAPI=%RTbool\n", pThisPort->fATAPI);
         pHlp->pfnPrintf(pHlp, "PortTasksFinished=%#x\n", pThisPort->u32TasksFinished);
         pHlp->pfnPrintf(pHlp, "PortQueuedTasksFinished=%#x\n", pThisPort->u32QueuedTasksFinished);
+        pHlp->pfnPrintf(pHlp, "PortTasksNew=%#x\n", pThisPort->u32TasksNew);
         pHlp->pfnPrintf(pHlp, "\n");
     }
 }

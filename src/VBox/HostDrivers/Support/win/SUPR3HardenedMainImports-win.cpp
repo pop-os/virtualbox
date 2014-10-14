@@ -47,10 +47,13 @@
 
 #define VBOX_HARDENED_STUB_WITHOUT_IMPORTS
 #ifdef VBOX_HARDENED_STUB_WITHOUT_IMPORTS
-# define SUPHNTIMP_ERROR(a_id, a_szWhere, a_enmOp, a_rc, ...) \
-    do { static const char s_szWhere[] = a_szWhere; *(char *)(uintptr_t)(a_id) += 1; __debugbreak(); } while (0)
+# define SUPHNTIMP_ERROR(a_fReportErrors, a_id, a_szWhere, a_enmOp, a_rc, ...) \
+    do { \
+        if (a_fReportErrors) supR3HardenedFatalMsg(a_szWhere, a_enmOp, a_rc, __VA_ARGS__); \
+        else { static const char s_szWhere[] = a_szWhere; *(char *)(uintptr_t)(a_id) += 1; __debugbreak(); } \
+    } while (0)
 #else
-# define SUPHNTIMP_ERROR(a_id, a_szWhere, a_enmOp, a_rc, ...) \
+# define SUPHNTIMP_ERROR(a_fReportErrors, a_id, a_szWhere, a_enmOp, a_rc, ...) \
     supR3HardenedFatalMsg(a_szWhere, a_enmOp, a_rc, __VA_ARGS__)
 
 #endif
@@ -68,6 +71,12 @@ typedef struct SUPHNTIMPFUNC
     const char         *pszName;
     /** Where to store the function address (think __imp_ApiName). */
     PFNRT              *ppfnImport;
+    /** Pointer to an early dummy function for imports that aren't available
+     * during early process initialization. */
+    PFNRT               pfnEarlyDummy;
+    /** Indicates whether this is an optional import and failure to locate it
+     * should set it to NULL instead of freaking out. */
+    bool                fOptional;
 } SUPHNTIMPFUNC;
 /** Pointer to an import table entry.  */
 typedef SUPHNTIMPFUNC const *PCSUPHNTIMPFUNC;
@@ -138,6 +147,9 @@ typedef struct SUPHNTIMPDLL
      *  (indexes into paoffExports). */
     uint16_t const         *pau16NameOrdinals;
 
+    /** Number of patched export table entries. */
+    uint32_t                cPatchedExports;
+
 } SUPHNTIMPDLL;
 /** Pointer to an import DLL entry. */
 typedef SUPHNTIMPDLL *PSUPHNTIMPDLL;
@@ -147,13 +159,17 @@ typedef SUPHNTIMPDLL *PSUPHNTIMPDLL;
 /*
  * Declare assembly symbols.
  */
-#define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) \
+#define SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86) \
     extern PFNRT    RT_CONCAT(g_pfn, a_Name);
+#define SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL(a_Name, a_cbParamsX86)  SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86)
 #define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86) \
-    SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) \
+    SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86) \
     extern uint32_t RT_CONCAT(g_uApiNo, a_Name); \
     extern FNRT     RT_CONCAT(a_Name, _SyscallType1); \
     extern FNRT     RT_CONCAT(a_Name, _SyscallType2);
+#define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) \
+    extern PFNRT    RT_CONCAT(g_pfn, a_Name); \
+    extern FNRT     RT_CONCAT(a_Name, _Early);
 
 RT_C_DECLS_BEGIN
 #include "import-template-ntdll.h"
@@ -164,9 +180,17 @@ RT_C_DECLS_END
  * Import functions.
  */
 #undef SUPHARNT_IMPORT_SYSCALL
+#undef SUPHARNT_IMPORT_STDCALL_EARLY
+#undef SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL
 #undef SUPHARNT_IMPORT_STDCALL
-#define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86) { #a_Name, &RT_CONCAT(g_pfn, a_Name) },
-#define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) { #a_Name, &RT_CONCAT(g_pfn, a_Name) },
+#define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86) \
+    { #a_Name, &RT_CONCAT(g_pfn, a_Name), NULL, false },
+#define SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86) \
+    { #a_Name, &RT_CONCAT(g_pfn, a_Name), NULL, false },
+#define SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL(a_Name, a_cbParamsX86) \
+    { #a_Name, &RT_CONCAT(g_pfn, a_Name), NULL, true },
+#define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) \
+    { #a_Name, &RT_CONCAT(g_pfn, a_Name), RT_CONCAT(a_Name,_Early), false },
 static const SUPHNTIMPFUNC g_aSupNtImpNtDllFunctions[] =
 {
 #include "import-template-ntdll.h"
@@ -184,6 +208,8 @@ static const SUPHNTIMPFUNC g_aSupNtImpKernel32Functions[] =
  */
 #undef SUPHARNT_IMPORT_SYSCALL
 #undef SUPHARNT_IMPORT_STDCALL
+#undef SUPHARNT_IMPORT_STDCALL_EARLY
+#undef SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL
 #ifdef RT_ARCH_AMD64
 # define SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86) \
     { NULL, NULL },
@@ -195,6 +221,8 @@ static const SUPHNTIMPFUNC g_aSupNtImpKernel32Functions[] =
 # define SUPHARNT_IMPORT_SYSCALL(a_Name, a_cbParamsX86) \
     { &RT_CONCAT(g_uApiNo, a_Name), &RT_CONCAT(a_Name,_SyscallType1), &RT_CONCAT(a_Name, _SyscallType2), a_cbParamsX86 },
 #endif
+#define SUPHARNT_IMPORT_STDCALL_EARLY(a_Name, a_cbParamsX86)          SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86)
+#define SUPHARNT_IMPORT_STDCALL_EARLY_OPTIONAL(a_Name, a_cbParamsX86) SUPHARNT_IMPORT_STDCALL(a_Name, a_cbParamsX86)
 static const SUPHNTIMPSYSCALL g_aSupNtImpNtDllSyscalls[] =
 {
 #include "import-template-ntdll.h"
@@ -203,6 +231,7 @@ static const SUPHNTIMPSYSCALL g_aSupNtImpNtDllSyscalls[] =
 
 /**
  * All the DLLs we import from.
+ * @remarks Code ASSUMES that ntdll is the first entry.
  */
 static SUPHNTIMPDLL g_aSupNtImpDlls[] =
 {
@@ -241,12 +270,12 @@ static void supR3HardenedFindOrLoadModule(PSUPHNTIMPDLL pDll)
     if (!pDll->cImports)
         pDll->pbImageBase = NULL; /* optional */
     else
-        SUPHNTIMP_ERROR(1, "supR3HardenedFindOrLoadModule", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+        SUPHNTIMP_ERROR(false, 1, "supR3HardenedFindOrLoadModule", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
                         "Failed to locate %ls", pDll->pwszName);
 #else
     HMODULE hmod = GetModuleHandleW(pDll->pwszName);
     if (RT_UNLIKELY(!hmod && pDll->cImports))
-        SUPHNTIMP_ERROR(1, "supR3HardenedWinInitImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+        SUPHNTIMP_ERROR(true, 1, "supR3HardenedWinInitImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
                         "Failed to locate %ls", pDll->pwszName);
     pDll->pbImageBase = (uint8_t *)hmod;
 #endif
@@ -265,22 +294,22 @@ static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
     {
         offNtHdrs = pMzHdr->e_lfanew;
         if (offNtHdrs > _2K)
-            SUPHNTIMP_ERROR(2, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+            SUPHNTIMP_ERROR(false, 2, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
                             "%ls: e_lfanew=%#x, expected a lower value", pDll->pwszName, offNtHdrs);
     }
     pDll->pNtHdrs = pNtHdrs = (PIMAGE_NT_HEADERS)&pDll->pbImageBase[offNtHdrs];
 
     if (pNtHdrs->Signature != IMAGE_NT_SIGNATURE)
-        SUPHNTIMP_ERROR(3, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 3, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: Invalid PE signature: %#x", pDll->pwszName, pNtHdrs->Signature);
     if (pNtHdrs->FileHeader.SizeOfOptionalHeader != sizeof(pNtHdrs->OptionalHeader))
-        SUPHNTIMP_ERROR(4, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 4, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: Unexpected optional header size: %#x", pDll->pwszName, pNtHdrs->FileHeader.SizeOfOptionalHeader);
     if (pNtHdrs->OptionalHeader.Magic != RT_CONCAT3(IMAGE_NT_OPTIONAL_HDR,ARCH_BITS,_MAGIC))
-        SUPHNTIMP_ERROR(5, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 5, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: Unexpected optional header magic: %#x", pDll->pwszName, pNtHdrs->OptionalHeader.Magic);
     if (pNtHdrs->OptionalHeader.NumberOfRvaAndSizes != IMAGE_NUMBEROF_DIRECTORY_ENTRIES)
-        SUPHNTIMP_ERROR(6, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 6, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: Unexpected number of RVA and sizes: %#x", pDll->pwszName, pNtHdrs->OptionalHeader.NumberOfRvaAndSizes);
 
     pDll->offNtHdrs      = offNtHdrs;
@@ -297,7 +326,7 @@ static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
         || ExpDir.VirtualAddress < pDll->offEndSectHdrs
         || ExpDir.VirtualAddress >= pNtHdrs->OptionalHeader.SizeOfImage
         || ExpDir.VirtualAddress + ExpDir.Size > pNtHdrs->OptionalHeader.SizeOfImage)
-        SUPHNTIMP_ERROR(7, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 7, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: Missing or invalid export directory: %#lx LB %#x", pDll->pwszName, ExpDir.VirtualAddress, ExpDir.Size);
     pDll->offExportDir = ExpDir.VirtualAddress;
     pDll->cbExportDir  = ExpDir.Size;
@@ -308,7 +337,7 @@ static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
         || pExpDir->NumberOfFunctions <  1
         || pExpDir->NumberOfNames     >= _1M
         || pExpDir->NumberOfNames     <  1)
-        SUPHNTIMP_ERROR(8, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+        SUPHNTIMP_ERROR(false, 8, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                         "%ls: NumberOfNames or/and NumberOfFunctions are outside the expected range: nof=%#x non=%#x\n",
                         pDll->pwszName, pExpDir->NumberOfFunctions, pExpDir->NumberOfNames);
     pDll->cNamedExports = pExpDir->NumberOfNames;
@@ -317,27 +346,27 @@ static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
     if (   pExpDir->AddressOfFunctions < pDll->offEndSectHdrs
         || pExpDir->AddressOfFunctions >= pNtHdrs->OptionalHeader.SizeOfImage
         || pExpDir->AddressOfFunctions + pDll->cExports * sizeof(uint32_t) > pNtHdrs->OptionalHeader.SizeOfImage)
-           SUPHNTIMP_ERROR(9, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+           SUPHNTIMP_ERROR(false, 9, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                            "%ls: Bad AddressOfFunctions: %#x\n", pDll->pwszName, pExpDir->AddressOfFunctions);
     pDll->paoffExports = (uint32_t const *)&pDll->pbImageBase[pExpDir->AddressOfFunctions];
 
     if (   pExpDir->AddressOfNames < pDll->offEndSectHdrs
         || pExpDir->AddressOfNames >= pNtHdrs->OptionalHeader.SizeOfImage
         || pExpDir->AddressOfNames + pExpDir->NumberOfNames * sizeof(uint32_t) > pNtHdrs->OptionalHeader.SizeOfImage)
-           SUPHNTIMP_ERROR(10, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+           SUPHNTIMP_ERROR(false, 10, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                            "%ls: Bad AddressOfNames: %#x\n", pDll->pwszName, pExpDir->AddressOfNames);
     pDll->paoffNamedExports = (uint32_t const *)&pDll->pbImageBase[pExpDir->AddressOfNames];
 
     if (   pExpDir->AddressOfNameOrdinals < pDll->offEndSectHdrs
         || pExpDir->AddressOfNameOrdinals >= pNtHdrs->OptionalHeader.SizeOfImage
         || pExpDir->AddressOfNameOrdinals + pExpDir->NumberOfNames * sizeof(uint32_t) > pNtHdrs->OptionalHeader.SizeOfImage)
-           SUPHNTIMP_ERROR(11, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
+           SUPHNTIMP_ERROR(false, 11, "supR3HardenedParseModule", kSupInitOp_Misc, VERR_INVALID_EXE_SIGNATURE,
                            "%ls: Bad AddressOfNameOrdinals: %#x\n", pDll->pwszName, pExpDir->AddressOfNameOrdinals);
     pDll->pau16NameOrdinals = (uint16_t const *)&pDll->pbImageBase[pExpDir->AddressOfNameOrdinals];
 }
 
 
-static const char *supR3HardenedResolveImport(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImport)
+static const char *supR3HardenedResolveImport(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImport, bool fReportErrors)
 {
     /*
      * Binary search.
@@ -349,7 +378,7 @@ static const char *supR3HardenedResolveImport(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUN
         uint32_t iCur        = iStart + (iEnd - iStart) / 2;
         uint32_t offExpName  = pDll->paoffNamedExports[iCur];
         if (RT_UNLIKELY(offExpName < pDll->offEndSectHdrs || offExpName >= pDll->cbImage))
-            SUPHNTIMP_ERROR(12, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_SYMBOL_NOT_FOUND,
+            SUPHNTIMP_ERROR(fReportErrors, 12, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_SYMBOL_NOT_FOUND,
                             "%ls: Bad export name entry: %#x (iCur=%#x)", pDll->pwszName, offExpName, iCur);
 
         const char *pszExpName = (const char *)&pDll->pbImageBase[offExpName];
@@ -364,36 +393,37 @@ static const char *supR3HardenedResolveImport(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUN
             if (iExpOrdinal < pDll->cExports)
             {
                 uint32_t offExport = pDll->paoffExports[iExpOrdinal];
-                if (offExport < pDll->cbImage)
-                {
-                    if (offExport - pDll->offExportDir >= pDll->cbExportDir)
-                    {
-                        *pImport->ppfnImport = (PFNRT)&pDll->pbImageBase[offExport];
-                        return NULL;
-                    }
 
-                    /* Forwarder. */
-                    return (const char *)&pDll->pbImageBase[offExport];
+                /* detect export table patching. */
+                if (offExport >= pDll->cbImage)
+                    pDll->cPatchedExports++;
+
+                if (offExport - pDll->offExportDir >= pDll->cbExportDir)
+                {
+                    *pImport->ppfnImport = (PFNRT)&pDll->pbImageBase[offExport];
+                    return NULL;
                 }
-                SUPHNTIMP_ERROR(13, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_BAD_EXE_FORMAT,
-                                "%ls: The export RVA for '%s' is out of bounds: %#x (SizeOfImage %#x)",
-                                 pDll->pwszName, offExport, pDll->cbImage);
+
+                /* Forwarder. */
+                return (const char *)&pDll->pbImageBase[offExport];
             }
-            SUPHNTIMP_ERROR(14, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_BAD_EXE_FORMAT,
+            SUPHNTIMP_ERROR(fReportErrors, 14, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_BAD_EXE_FORMAT,
                             "%ls: Name ordinal for '%s' is out of bounds: %#x (max %#x)",
                             pDll->pwszName, iExpOrdinal, pDll->cExports);
             return NULL;
         }
     }
 
-    SUPHNTIMP_ERROR(15, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_SYMBOL_NOT_FOUND,
-                    "%ls: Failed to resolve '%s'.", pDll->pwszName, pImport->pszName);
+    if (!pImport->fOptional)
+        SUPHNTIMP_ERROR(fReportErrors, 15, "supR3HardenedResolveImport", kSupInitOp_Misc, VERR_SYMBOL_NOT_FOUND,
+                        "%ls: Failed to resolve '%s'.", pDll->pwszName, pImport->pszName);
+    *pImport->ppfnImport = NULL;
     return NULL;
 }
 
 
 static void supR3HardenedDirectSyscall(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImport, PCSUPHNTIMPSYSCALL pSyscall,
-                                       PSUPHNTLDRCACHEENTRY pLdrEntry, uint8_t *pbBits)
+                                       PSUPHNTLDRCACHEENTRY pLdrEntry, uint8_t *pbBits, bool fReportErrors)
 {
     /*
      * Skip non-syscall entries.
@@ -408,7 +438,7 @@ static void supR3HardenedDirectSyscall(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImpo
     int rc = RTLdrGetSymbolEx(pLdrEntry->hLdrMod, pbBits, (uintptr_t)pDll->pbImageBase, UINT32_MAX, pImport->pszName, &uValue);
     if (RT_FAILURE(rc))
     {
-        SUPHNTIMP_ERROR(16, "supR3HardenedDirectSyscall", kSupInitOp_Misc, rc,
+        SUPHNTIMP_ERROR(fReportErrors, 16, "supR3HardenedDirectSyscall", kSupInitOp_Misc, rc,
                         "%s: RTLdrGetSymbolEx failed on %s: %Rrc", pDll->pszName, pImport->pszName, rc);
         return;
     }
@@ -513,11 +543,126 @@ static void supR3HardenedDirectSyscall(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImpo
      */
     volatile uint8_t abCopy[16];
     memcpy((void *)&abCopy[0], pbFunction, sizeof(abCopy));
-    SUPHNTIMP_ERROR(17, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
+    SUPHNTIMP_ERROR(fReportErrors, 17, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
                     "%ls: supHardNtLdrCacheOpen failed: '%s': %.16Rhxs",
-                    g_aSupNtImpDlls[iDll].pwszName, pImport->pszName, &abCopy[0]);
+                    pDll->pwszName, pImport->pszName, &abCopy[0]);
 }
 
+
+/**
+ * Check out system calls and do the directly instead of via NtDll.
+ *
+ * We need to have access to the on disk NTDLL.DLL file as we do not trust the
+ * stuff we find in memory.  Too early to verify signatures though.
+ *
+ * @param   fReportErrors       Whether we've got the machinery for reporting
+ *                              errors going already.
+ */
+DECLHIDDEN(void) supR3HardenedWinInitSyscalls(bool fReportErrors)
+{
+    for (uint32_t iDll = 0; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
+        if (g_aSupNtImpDlls[iDll].paSyscalls)
+        {
+            PSUPHNTLDRCACHEENTRY pLdrEntry;
+            int rc = supHardNtLdrCacheOpen(g_aSupNtImpDlls[iDll].pszName, &pLdrEntry);
+            if (RT_SUCCESS(rc))
+            {
+                uint8_t *pbBits;
+                rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase, NULL, NULL,
+                                                   NULL /*pErrInfo*/);
+                if (RT_SUCCESS(rc))
+                {
+                    for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
+                        supR3HardenedDirectSyscall(&g_aSupNtImpDlls[iDll], &g_aSupNtImpDlls[iDll].paImports[i],
+                                                   &g_aSupNtImpDlls[iDll].paSyscalls[i], pLdrEntry, pbBits, fReportErrors);
+                }
+                else
+                    SUPHNTIMP_ERROR(fReportErrors, 20, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
+                                    "%ls: supHardNtLdrCacheEntryGetBits failed: %Rrc '%s'.", g_aSupNtImpDlls[iDll].pwszName, rc);
+            }
+            else
+                SUPHNTIMP_ERROR(fReportErrors, 21, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
+                                "%ls: supHardNtLdrCacheOpen failed: %Rrc '%s'.", g_aSupNtImpDlls[iDll].pwszName, rc);
+        }
+}
+
+
+/**
+ * Resolves a few NtDll functions we need before child purification is executed.
+ *
+ * We must not permanently modify any global data here.
+ *
+ * @param   uNtDllAddr          The address of the NTDLL.
+ */
+DECLHIDDEN(void) supR3HardenedWinGetVeryEarlyImports(uintptr_t uNtDllAddr,
+                                                     PFNNTWAITFORSINGLEOBJECT *ppfnNtWaitForSingleObject,
+                                                     PFNNTSETEVENT *ppfnNtSetEvent)
+{
+    /*
+     * NTDLL is the first entry in the list.  Save it and do the parsing.
+     */
+    SUPHNTIMPDLL SavedDllEntry = g_aSupNtImpDlls[0];
+
+    g_aSupNtImpDlls[0].pbImageBase = (uint8_t const *)uNtDllAddr;
+    supR3HardenedParseModule(&g_aSupNtImpDlls[0]);
+
+    /*
+     * Create a temporary import table for the requested APIs and resolve them.
+     */
+    SUPHNTIMPFUNC aImports[] =
+    {
+        { "NtWaitForSingleObject",  (PFNRT *)ppfnNtWaitForSingleObject,     NULL, false },
+        { "NtSetEvent",             (PFNRT *)ppfnNtSetEvent,                NULL, false },
+    };
+
+    for (uint32_t i = 0; i < RT_ELEMENTS(aImports); i++)
+        {
+            const char *pszForwarder = supR3HardenedResolveImport(&g_aSupNtImpDlls[0], &aImports[i], false);
+            if (pszForwarder)
+                SUPHNTIMP_ERROR(false, 31, "supR3HardenedWinGetVeryEarlyImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+                                "ntdll: Failed to resolve forwarder '%s'.", pszForwarder);
+        }
+
+    /*
+     * Restore the NtDll entry.
+     */
+    g_aSupNtImpDlls[0] = SavedDllEntry;
+}
+
+
+/**
+ * Resolves NtDll functions we can trust calling before process init.
+ *
+ * @param   uNtDllAddr          The address of the NTDLL.
+ */
+DECLHIDDEN(void) supR3HardenedWinInitImportsEarly(uintptr_t uNtDllAddr)
+{
+    /*
+     * NTDLL is the first entry in the list.
+     */
+    g_aSupNtImpDlls[0].pbImageBase = (uint8_t const *)uNtDllAddr;
+    supR3HardenedParseModule(&g_aSupNtImpDlls[0]);
+    for (uint32_t i = 0; i < g_aSupNtImpDlls[0].cImports; i++)
+        if (!g_aSupNtImpDlls[0].paImports[i].pfnEarlyDummy)
+        {
+            const char *pszForwarder = supR3HardenedResolveImport(&g_aSupNtImpDlls[0], &g_aSupNtImpDlls[0].paImports[i], false);
+            if (pszForwarder)
+                SUPHNTIMP_ERROR(false, 32, "supR3HardenedWinInitImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+                                "ntdll: Failed to resolve forwarder '%s'.", pszForwarder);
+        }
+        else
+            *g_aSupNtImpDlls[0].paImports[i].ppfnImport = g_aSupNtImpDlls[0].paImports[i].pfnEarlyDummy;
+
+    /*
+     * Pointer the other imports at the early init stubs.
+     */
+    for (uint32_t iDll = 1; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
+        for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
+            if (!g_aSupNtImpDlls[iDll].paImports[i].fOptional)
+                *g_aSupNtImpDlls[iDll].paImports[i].ppfnImport = g_aSupNtImpDlls[iDll].paImports[i].pfnEarlyDummy;
+            else
+                *g_aSupNtImpDlls[iDll].paImports[i].ppfnImport = NULL;
+}
 
 
 /**
@@ -547,7 +692,8 @@ DECLHIDDEN(void) supR3HardenedWinInitImports(void)
     for (uint32_t iDll = 0; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
         for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
         {
-            const char *pszForwarder = supR3HardenedResolveImport(&g_aSupNtImpDlls[iDll], &g_aSupNtImpDlls[iDll].paImports[i]);
+            const char *pszForwarder = supR3HardenedResolveImport(&g_aSupNtImpDlls[iDll], &g_aSupNtImpDlls[iDll].paImports[i],
+                                                                  false);
             if (pszForwarder)
             {
                 const char *pszDot = strchr(pszForwarder, '.');
@@ -555,53 +701,103 @@ DECLHIDDEN(void) supR3HardenedWinInitImports(void)
                 SUPHNTIMPFUNC  Tmp = g_aSupNtImpDlls[iDll].paImports[i];
                 Tmp.pszName = pszDot + 1;
                 if (cchDllName == sizeof("ntdll") - 1 && RTStrNICmp(pszForwarder, RT_STR_TUPLE("ntdll")) == 0)
-                    supR3HardenedResolveImport(&g_aSupNtImpDlls[0], &Tmp);
+                    supR3HardenedResolveImport(&g_aSupNtImpDlls[0], &Tmp, false);
                 else if (cchDllName == sizeof("kernelbase") - 1 && RTStrNICmp(pszForwarder, RT_STR_TUPLE("kernelbase")) == 0)
-                    supR3HardenedResolveImport(&g_aSupNtImpDlls[1], &Tmp);
+                    supR3HardenedResolveImport(&g_aSupNtImpDlls[1], &Tmp, false);
                 else
-                    SUPHNTIMP_ERROR(18, "supR3HardenedWinInitImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
+                    SUPHNTIMP_ERROR(false, 18, "supR3HardenedWinInitImports", kSupInitOp_Misc, VERR_MODULE_NOT_FOUND,
                                     "%ls: Failed to resolve forwarder '%s'.", g_aSupNtImpDlls[iDll].pwszName, pszForwarder);
             }
         }
 
     /*
-     * Check out system calls and try do them directly if we can.
-     * In order to do this though, we need to access the DLL on disk as we
-     * cannot trust the memory content to be unpatched.
-     *
-     * Note! It's too early to validate any signatures.
+     * Do system calls directly.
+     */
+    supR3HardenedWinInitSyscalls(false);
+
+    /*
+     * Use the on disk image to avoid export table patching.  Currently
+     * ignoring errors here as can live normally without this step.
      */
     for (uint32_t iDll = 0; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
-        if (g_aSupNtImpDlls[iDll].paSyscalls)
+        if (g_aSupNtImpDlls[iDll].cPatchedExports > 0)
         {
             PSUPHNTLDRCACHEENTRY pLdrEntry;
             int rc = supHardNtLdrCacheOpen(g_aSupNtImpDlls[iDll].pszName, &pLdrEntry);
             if (RT_SUCCESS(rc))
             {
                 uint8_t *pbBits;
-                rc = supHardNtLdrCacheEntryAllocBits(pLdrEntry, &pbBits, NULL);
+                rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase, NULL, NULL,
+                                                   NULL /*pErrInfo*/);
                 if (RT_SUCCESS(rc))
-                {
-                    rc = RTLdrGetBits(pLdrEntry->hLdrMod, pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase, NULL, NULL);
-                    if (RT_SUCCESS(rc))
-                        for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
-                            supR3HardenedDirectSyscall(&g_aSupNtImpDlls[iDll], &g_aSupNtImpDlls[iDll].paImports[i],
-                                                       &g_aSupNtImpDlls[iDll].paSyscalls[i], pLdrEntry, pbBits);
-                    else
-                        SUPHNTIMP_ERROR(19, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
-                                        "%ls: RTLdrGetBits failed: %Rrc '%s'.", g_aSupNtImpDlls[iDll].pwszName, rc);
-                }
-                else
-                    SUPHNTIMP_ERROR(20, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
-                                    "%ls: supHardNtLdrCacheEntryAllocBits failed: %Rrc '%s'.", g_aSupNtImpDlls[iDll].pwszName, rc);
+                    for (uint32_t i = 0; i < g_aSupNtImpDlls[iDll].cImports; i++)
+                    {
+                        RTLDRADDR uValue;
+                        rc = RTLdrGetSymbolEx(pLdrEntry->hLdrMod, pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase,
+                                              UINT32_MAX, g_aSupNtImpDlls[iDll].paImports[i].pszName, &uValue);
+                        if (RT_SUCCESS(rc))
+                            *g_aSupNtImpDlls[iDll].paImports[i].ppfnImport = (PFNRT)(uintptr_t)uValue;
+                    }
             }
-            else
-                SUPHNTIMP_ERROR(21, "supR3HardenedWinInitImports", kSupInitOp_Misc, rc,
-                                "%ls: supHardNtLdrCacheOpen failed: %Rrc '%s'.", g_aSupNtImpDlls[iDll].pwszName, rc);
         }
+
 
 #if 0 /* Win7/32 ntdll!LdrpDebugFlags. */
     *(uint8_t *)&g_aSupNtImpDlls[0].pbImageBase[0xdd770] = 0x3;
 #endif
+}
+
+
+/**
+ * Gets the address of a procedure in a DLL, ignoring our own syscall
+ * implementations.
+ *
+ * Currently restricted to NTDLL and KERNEL32
+ *
+ * @returns The procedure address.
+ * @param   pszDll          The DLL name.
+ * @param   pszProcedure    The procedure name.
+ */
+DECLHIDDEN(PFNRT) supR3HardenedWinGetRealDllSymbol(const char *pszDll, const char *pszProcedure)
+{
+    /*
+     * Look the DLL up in the import DLL table.
+     */
+    for (uint32_t iDll = 0; iDll < RT_ELEMENTS(g_aSupNtImpDlls); iDll++)
+        if (RTStrICmp(g_aSupNtImpDlls[iDll].pszName, pszDll) == 0)
+        {
+
+            PSUPHNTLDRCACHEENTRY pLdrEntry;
+            int rc = supHardNtLdrCacheOpen(g_aSupNtImpDlls[iDll].pszName, &pLdrEntry);
+            if (RT_SUCCESS(rc))
+            {
+                uint8_t *pbBits;
+                rc = supHardNtLdrCacheEntryGetBits(pLdrEntry, &pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase, NULL, NULL,
+                                                   NULL /*pErrInfo*/);
+                if (RT_SUCCESS(rc))
+                {
+                    RTLDRADDR uValue;
+                    rc = RTLdrGetSymbolEx(pLdrEntry->hLdrMod, pbBits, (uintptr_t)g_aSupNtImpDlls[iDll].pbImageBase,
+                                          UINT32_MAX, pszProcedure, &uValue);
+                    if (RT_SUCCESS(rc))
+                        return (PFNRT)(uintptr_t)uValue;
+                    SUP_DPRINTF(("supR3HardenedWinGetRealDllSymbol: Error getting %s in %s -> %Rrc\n", pszProcedure, pszDll, rc));
+                }
+                else
+                    SUP_DPRINTF(("supR3HardenedWinGetRealDllSymbol: supHardNtLdrCacheEntryAllocBits failed on %s: %Rrc\n",
+                                 pszDll, rc));
+            }
+            else
+                SUP_DPRINTF(("supR3HardenedWinGetRealDllSymbol: supHardNtLdrCacheOpen failed on %s: %Rrc\n",
+                             pszDll, rc));
+
+            /* Complications, just call GetProcAddress. */
+            if (g_enmSupR3HardenedMainState >= SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED)
+                return (PFNRT)GetProcAddress(GetModuleHandleW(g_aSupNtImpDlls[iDll].pwszName), pszProcedure);
+            return NULL;
+        }
+
+    supR3HardenedFatal("supR3HardenedWinGetRealDllSymbol: Unknown DLL %s (proc: %s)\n", pszDll, pszProcedure);
+    return NULL;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2013 Oracle Corporation
+ * Copyright (C) 2004-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -5346,7 +5346,10 @@ STDMETHODIMP Machine::SetExtraData(IN_BSTR aKey, IN_BSTR aValue)
                 // creates a new key if needed
 
         bool fNeedsGlobalSaveSettings = false;
-        saveSettings(&fNeedsGlobalSaveSettings);
+        // This saving of settings is tricky: there is no "old state" for the
+        // extradata items at all (unlike all other settings), so the old/new
+        // settings comparison would give a wrong result!
+        saveSettings(&fNeedsGlobalSaveSettings, SaveS_Force);
 
         if (fNeedsGlobalSaveSettings)
         {
@@ -5797,6 +5800,11 @@ HRESULT Machine::deleteTaskWorker(DeleteTask &task)
                                      logFolder.c_str(), RTPATH_DELIMITER, i);
                     RTFileDelete(log.c_str());
                 }
+#if defined(RT_OS_WINDOWS)
+                log = Utf8StrFmt("%s%cVBoxStartup.log",
+                                 logFolder.c_str(), RTPATH_DELIMITER);
+                RTFileDelete(log.c_str());
+#endif
 
                 RTDirRemove(logFolder.c_str());
             }

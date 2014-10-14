@@ -121,7 +121,7 @@ static RTCRSTORE            g_hSpcAndNtKernelSuppStore = NIL_RTCRSTORE;
 SUPSYSROOTDIRBUF            g_System32NtPath;
 /** The full \\SystemRoot\\WinSxS path. */
 SUPSYSROOTDIRBUF            g_WinSxSNtPath;
-#ifdef IN_RING3
+#if defined(IN_RING3) && !defined(VBOX_PERMIT_EVEN_MORE)
 /** The full 'Program Files' path. */
 SUPSYSROOTDIRBUF            g_ProgramFilesNtPath;
 # ifdef RT_ARCH_AMD64
@@ -134,7 +134,7 @@ SUPSYSROOTDIRBUF            g_CommonFilesNtPath;
 /** The full 'Common Files (x86)' path. */
 SUPSYSROOTDIRBUF            g_CommonFilesX86NtPath;
 # endif
-#endif /* IN_RING3 */
+#endif /* IN_RING3 && !VBOX_PERMIT_MORE*/
 
 static union
 {
@@ -144,7 +144,9 @@ static union
 /** The TrustedInstaller SID (Vista+). */
                             g_TrustedInstallerSid,
 /** Local system ID (S-1-5-21). */
-                            g_LocalSystemSid;
+                            g_LocalSystemSid,
+/** Builtin Administrators group alias (S-1-5-32-544). */
+                            g_AdminsGroupSid;
 
 
 /** Set after we've retrived other SPC root certificates from the system. */
@@ -208,93 +210,67 @@ static DECLCALLBACK(int) supHardNtViRdrRead(PRTLDRREADER pReader, void *pvBuf, s
 {
     PSUPHNTVIRDR pNtViRdr = (PSUPHNTVIRDR)pReader;
     Assert(pNtViRdr->Core.uMagic == RTLDRREADER_MAGIC);
+    NTSTATUS rcNt;
 
+    /* Check for type overflow (paranoia). */
     if ((ULONG)cb != cb)
         return VERR_OUT_OF_RANGE;
 
-
-    /*
-     * For some reason I'm getting occational read error in an XP VM with
-     * STATUS_FAILED_DRIVER_ENTRY.  Redoing the call again works in the
-     * debugger, so try do that automatically.
-     */
-    for (uint32_t iTry = 0;; iTry++)
+#ifdef IN_RING3
+    /* Make sure the event semaphore is reset (normally we don't use one). */
+    if (pNtViRdr->hEvent)
     {
-        LARGE_INTEGER offNt;
-        offNt.QuadPart = off;
-
-        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
-        NTSTATUS rcNt = NtReadFile(pNtViRdr->hFile,
-                                   NULL /*hEvent*/,
-                                   NULL /*ApcRoutine*/,
-                                   NULL /*ApcContext*/,
-                                   &Ios,
-                                   pvBuf,
-                                   (ULONG)cb,
-                                   &offNt,
-                                   NULL);
-        if (NT_SUCCESS(rcNt))
-            rcNt = Ios.Status;
-        if (NT_SUCCESS(rcNt))
-        {
-            if (Ios.Information == cb)
-            {
-                pNtViRdr->off = off + cb;
-                return VINF_SUCCESS;
-            }
-#ifdef IN_RING3
-            supR3HardenedError(VERR_READ_ERROR, false,
-                               "supHardNtViRdrRead: Only got %#zx bytes when requesting %#zx bytes at %#llx in '%s'.\n",
-                               Ios.Information, off, cb, pNtViRdr->szFilename);
-#endif
-            pNtViRdr->off = -1;
-            return VERR_READ_ERROR;
-        }
-
-        /*
-         * Delay a little before we retry?
-         */
-#ifdef IN_RING3
-        if (iTry == 0)
-            NtYieldExecution();
-        else if (iTry >= 1)
-        {
-            LARGE_INTEGER Time;
-            Time.QuadPart = -1000000 / 100; /* 1ms in 100ns units, relative time. */
-            NtDelayExecution(TRUE, &Time);
-        }
-#endif
-        /*
-         * Before we give up, we'll try split up the request in case the
-         * kernel is low on memory or similar.  For simplicity reasons, we do
-         * this in a recursion fashion.
-         */
-        if (iTry >= 2)
-        {
-            if (cb >= _8K)
-            {
-                size_t const cbBlock = RT_ALIGN_Z(cb / 4, 512);
-                while (cb > 0)
-                {
-                    size_t cbThisRead = RT_MIN(cb, cbBlock);
-                    int rc = supHardNtViRdrRead(&pNtViRdr->Core, pvBuf, cbThisRead, off);
-                    if (RT_FAILURE(rc))
-                        return rc;
-                    off  += cbThisRead;
-                    cb   -= cbThisRead;
-                    pvBuf = (uint8_t *)pvBuf + cbThisRead;
-                }
-                return VINF_SUCCESS;
-            }
-
-#ifdef IN_RING3
-            supR3HardenedError(VERR_READ_ERROR, false, "supHardNtViRdrRead: Error %#x reading %#zx bytes at %#llx in '%s'.\n",
-                               rcNt, off, cb, pNtViRdr->szFilename);
-#endif
-            pNtViRdr->off = -1;
-            return VERR_READ_ERROR;
-        }
+        rcNt = NtClearEvent(pNtViRdr->hEvent);
+        if (!NT_SUCCESS(rcNt))
+            return RTErrConvertFromNtStatus(rcNt);
     }
+#endif
+
+    /* Perform the read. */
+    LARGE_INTEGER offNt;
+    offNt.QuadPart = off;
+
+    IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    rcNt = NtReadFile(pNtViRdr->hFile,
+                      pNtViRdr->hEvent,
+                      NULL /*ApcRoutine*/,
+                      NULL /*ApcContext*/,
+                      &Ios,
+                      pvBuf,
+                      (ULONG)cb,
+                      &offNt,
+                      NULL);
+
+#ifdef IN_RING0
+    /* In ring-0 the handles shall be synchronized and not alertable. */
+    AssertMsg(rcNt == STATUS_SUCCESS || !NT_SUCCESS(rcNt), ("%#x\n", rcNt));
+#else
+    /* In ring-3 we like our handles synchronized and non-alertable, but we
+       sometimes have to take what we can get.  So, deal with pending I/O as
+       best we can. */
+    if (rcNt == STATUS_PENDING)
+        rcNt = NtWaitForSingleObject(pNtViRdr->hEvent ? pNtViRdr->hEvent : pNtViRdr->hFile, FALSE /*Alertable*/, NULL);
+#endif
+    if (NT_SUCCESS(rcNt))
+        rcNt = Ios.Status;
+    if (NT_SUCCESS(rcNt))
+    {
+        /* We require the caller to not read beyond the end of the file since
+           we don't have any way to communicate that we've read less that
+           requested. */
+        if (Ios.Information == cb)
+        {
+            pNtViRdr->off = off + cb; /* (just for show) */
+            return VINF_SUCCESS;
+        }
+#ifdef IN_RING3
+        supR3HardenedError(VERR_READ_ERROR, false,
+                           "supHardNtViRdrRead: Only got %#zx bytes when requesting %#zx bytes at %#llx in '%s'.\n",
+                           Ios.Information, off, cb, pNtViRdr->szFilename);
+#endif
+    }
+    pNtViRdr->off = -1;
+    return VERR_READ_ERROR;
 }
 
 
@@ -346,7 +322,13 @@ static DECLCALLBACK(int) supHardNtViRdrDestroy(PRTLDRREADER pReader)
 
     pNtViRdr->Core.uMagic = ~RTLDRREADER_MAGIC;
     pNtViRdr->hFile = NULL;
-
+#ifdef IN_RING3
+    if (pNtViRdr->hEvent)
+    {
+        NtClose(pNtViRdr->hEvent);
+        pNtViRdr->hEvent = NULL;
+    }
+#endif
     RTMemFree(pNtViRdr);
     return VINF_SUCCESS;
 }
@@ -373,6 +355,31 @@ DECLHIDDEN(int) supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t 
         return VERR_LDRVI_FILE_LENGTH_ERROR;
 
     /*
+     * Figure the file mode so we can see whether we'll be needing an event
+     * semaphore for waiting on reads.  This may happen in very unlikely
+     * NtCreateSection scenarios.
+     */
+#if defined(IN_RING3) || defined(VBOX_STRICT)
+    Ios.Status = STATUS_UNSUCCESSFUL;
+    ULONG fMode;
+    rcNt = NtQueryInformationFile(hFile, &Ios, &fMode, sizeof(fMode), FileModeInformation);
+    if (!NT_SUCCESS(rcNt) || !NT_SUCCESS(Ios.Status))
+        return VERR_SUP_VP_FILE_MODE_ERROR;
+#endif
+
+    HANDLE hEvent = NULL;
+#ifdef IN_RING3
+    if (!(fMode & (FILE_SYNCHRONOUS_IO_NONALERT | FILE_SYNCHRONOUS_IO_ALERT)))
+    {
+        rcNt = NtCreateEvent(&hEvent, EVENT_ALL_ACCESS, NULL, NotificationEvent, FALSE);
+        if (!NT_SUCCESS(rcNt))
+            return VERR_SUP_VP_CREATE_READ_EVT_SEM_FAILED;
+    }
+#else
+    Assert(fMode & FILE_SYNCHRONOUS_IO_NONALERT);
+#endif
+
+    /*
      * Calc the file name length and allocate memory for the reader instance.
      */
     size_t cchFilename = 0;
@@ -382,7 +389,13 @@ DECLHIDDEN(int) supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t 
     int rc = VERR_NO_MEMORY;
     PSUPHNTVIRDR pNtViRdr = (PSUPHNTVIRDR)RTMemAllocZ(sizeof(*pNtViRdr) + cchFilename);
     if (!pNtViRdr)
+    {
+#ifdef IN_RING3
+        if (hEvent != NULL)
+            NtClose(hEvent);
+#endif
         return VERR_NO_MEMORY;
+    }
 
     /*
      * Initialize the structure.
@@ -405,6 +418,7 @@ DECLHIDDEN(int) supHardNtViRdrCreate(HANDLE hFile, PCRTUTF16 pwszName, uint32_t 
     pNtViRdr->Core.pfnUnmap   = supHardNtViRdrUnmap;
     pNtViRdr->Core.pfnDestroy = supHardNtViRdrDestroy;
     pNtViRdr->hFile           = hFile;
+    pNtViRdr->hEvent          = hEvent;
     pNtViRdr->off             = 0;
     pNtViRdr->cbFile          = StdInfo.EndOfFile.QuadPart;
     pNtViRdr->fFlags          = fFlags;
@@ -451,9 +465,17 @@ static bool supHardNtViCheckIsOwnedByTrustedInstallerOrSimilar(HANDLE hFile, PCR
      * turned up owned by the local system user, and we cannot operate without
      * the plugin loaded once it's installed (WinVerityTrust fails).
      *
-     * Note! We cannot really allow Builtin\Administrators here it's the default
-     *       owner of anything an admin user creates. (We must, unforutnately,
-     *       allow that in system32 though.)
+     * We'd like to avoid allowing Builtin\Administrators here since it's the
+     * default owner of anything an admin user creates (at least when elevated).
+     * Seems windows update or someone ends up installing or modifying system
+     * DLL ownership to this group, so for system32 and winsxs it's unavoidable.
+     * And, not surprise, a bunch of products, including AV, firewalls and similar
+     * ends up with their files installed with this group as owner.  For instance
+     * if we wish to have NAT continue working, we need to allow this.
+     *
+     * Hopefully, we can limit the allowed files to these owners though, so
+     * we won't be subject to ordinary (non-admin, or not elevated) users
+     * downloading or be tricked into putting evil DLLs around the place...
      */
     PSID pOwner = uBuf.Rel.Control & SE_SELF_RELATIVE ? &uBuf.abView[uBuf.Rel.Owner] : uBuf.Abs.Owner;
     Assert((uintptr_t)pOwner - (uintptr_t)&uBuf < sizeof(uBuf) - sizeof(SID));
@@ -461,6 +483,11 @@ static bool supHardNtViCheckIsOwnedByTrustedInstallerOrSimilar(HANDLE hFile, PCR
         return true;
     if (RtlEqualSid(pOwner, &g_LocalSystemSid))
         return true;
+    if (RtlEqualSid(pOwner, &g_AdminsGroupSid))
+    {
+        SUP_DPRINTF(("%ls: Owner is administrators group.\n", pwszName));
+        return true;
+    }
 
     SUP_DPRINTF(("%ls: Owner is not trusted installer (%.*Rhxs)\n",
                  pwszName, ((uint8_t *)pOwner)[1] /*SubAuthorityCount*/ * sizeof(ULONG) + 8, pOwner));
@@ -1065,27 +1092,38 @@ DECLHIDDEN(int) supHardenedWinVerifyImageByLdrMod(RTLDRMOD hLdrMod, PCRTUTF16 pw
      * Check the trusted installer bit first, if requested as it's somewhat
      * cheaper than the rest.
      *
-     * We relax this for system32, like we used to, as there are apparently
-     * some systems out there where the user, admin, or someone has changed the
-     * ownership of core windows DLLs like user32.dll.  Since we need user32.dll
-     * and will be checking it's digital signature, it's reasonably safe to let
-     * this thru. (The report was of SECURITY_BUILTIN_DOMAIN_RID + DOMAIN_ALIAS_RID_ADMINS
+     * We relax this for system32 and a little for WinSxS, like we used to, as
+     * there are apparently  some systems out there where the user, admin, or
+     * someone has changed the ownership of core windows DLLs like user32.dll
+     * and comctl32.dll.  Since we need user32.dll  and will be checking it's
+     * digital signature, it's reasonably safe to let this thru. (The report
+     * was of SECURITY_BUILTIN_DOMAIN_RID + DOMAIN_ALIAS_RID_ADMINS
      * owning user32.dll, see public ticket 13187, VBoxStartup.3.log.)
      *
      * We've also had problems with graphics driver components like ig75icd64.dll
      * and atig6pxx.dll not being owned by TrustedInstaller, with the result
      * that 3D got broken (mod by zero issue in test build 5).  These were also
      * SECURITY_BUILTIN_DOMAIN_RID + DOMAIN_ALIAS_RID_ADMINS.
+     *
+     * In one report by 'thor' the WinSxS resident comctl32.dll was owned by
+     * SECURITY_BUILTIN_DOMAIN_RID + DOMAIN_ALIAS_RID_ADMINS (with 4.3.16).
      */
+    /** @todo Since we're now allowing Builtin\Administrators after all, perhaps we
+     *        could drop these system32 + winsxs hacks?? */
     if (   (pNtViRdr->fFlags & SUPHNTVI_F_TRUSTED_INSTALLER_OWNER)
         && !supHardNtViCheckIsOwnedByTrustedInstallerOrSimilar(pNtViRdr->hFile, pwszName))
     {
-        if (!supHardViUtf16PathStartsWithEx(pwszName, (uint32_t)RTUtf16Len(pwszName),
-                                            g_System32NtPath.UniStr.Buffer, g_System32NtPath.UniStr.Length / sizeof(WCHAR),
-                                            true /*fCheckSlash*/))
+        if (supHardViUtf16PathStartsWithEx(pwszName, (uint32_t)RTUtf16Len(pwszName),
+                                           g_System32NtPath.UniStr.Buffer, g_System32NtPath.UniStr.Length / sizeof(WCHAR),
+                                           true /*fCheckSlash*/))
+            SUP_DPRINTF(("%ls: Relaxing the TrustedInstaller requirement for this DLL (it's in system32).\n", pwszName));
+        else if (supHardViUtf16PathStartsWithEx(pwszName, (uint32_t)RTUtf16Len(pwszName),
+                                                g_WinSxSNtPath.UniStr.Buffer, g_WinSxSNtPath.UniStr.Length / sizeof(WCHAR),
+                                                true /*fCheckSlash*/))
+            SUP_DPRINTF(("%ls: Relaxing the TrustedInstaller requirement for this DLL (it's in WinSxS).\n", pwszName));
+        else
             return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_NOT_OWNED_BY_TRUSTED_INSTALLER,
                                  "supHardenedWinVerifyImageByHandle: TrustedInstaller is not the owner of '%ls'.", pwszName);
-        SUP_DPRINTF(("%ls: Relaxing the TrustedInstaller requirement for this DLL (it's in system32).\n", pwszName));
     }
 
     /*
@@ -1416,8 +1454,7 @@ static int supHardNtViCertStoreInit(PRTCRSTORE phStore,
 }
 
 
-
-#ifdef IN_RING3
+#if defined(IN_RING3) && !defined(VBOX_PERMIT_EVEN_MORE)
 /**
  * Initializes the windows paths.
  */
@@ -1605,7 +1642,7 @@ static void supHardenedWinInitImageVerifierWinPaths(void)
         }
     }
 }
-#endif /* IN_RING3 */
+#endif /* IN_RING3 && !VBOX_PERMIT_EVEN_MORE */
 
 
 /**
@@ -1629,7 +1666,7 @@ DECLHIDDEN(int) supHardenedWinInitImageVerifier(PRTERRINFO pErrInfo)
     {
         SUP_DPRINTF(("System32:  %ls\n", g_System32NtPath.UniStr.Buffer));
         SUP_DPRINTF(("WinSxS:    %ls\n", g_WinSxSNtPath.UniStr.Buffer));
-#ifdef IN_RING3
+#if defined(IN_RING3) && !defined(VBOX_PERMIT_EVEN_MORE)
         supHardenedWinInitImageVerifierWinPaths();
 #endif
 
@@ -1681,12 +1718,18 @@ DECLHIDDEN(int) supHardenedWinInitImageVerifier(PRTERRINFO pErrInfo)
                 *RtlSubAuthoritySid(&g_TrustedInstallerSid, 4) = 1853292631;
                 *RtlSubAuthoritySid(&g_TrustedInstallerSid, 5) = 2271478464;
 
-                if (NT_SUCCESS(rcNt))
-                    rcNt = RtlInitializeSid(&g_LocalSystemSid, &s_NtAuth, 1);
+                rcNt = RtlInitializeSid(&g_LocalSystemSid, &s_NtAuth, 1);
                 if (NT_SUCCESS(rcNt))
                 {
                     *RtlSubAuthoritySid(&g_LocalSystemSid, 0) = SECURITY_LOCAL_SYSTEM_RID;
-                    return VINF_SUCCESS;
+
+                    rcNt = RtlInitializeSid(&g_AdminsGroupSid, &s_NtAuth, 2);
+                    if (NT_SUCCESS(rcNt))
+                    {
+                        *RtlSubAuthoritySid(&g_AdminsGroupSid, 0) = SECURITY_BUILTIN_DOMAIN_RID;
+                        *RtlSubAuthoritySid(&g_AdminsGroupSid, 1) = DOMAIN_ALIAS_RID_ADMINS;
+                        return VINF_SUCCESS;
+                    }
                 }
             }
             rc = RTErrConvertFromNtStatus(rcNt);
@@ -1878,13 +1921,13 @@ DECLHIDDEN(HMODULE) supR3HardenedWinLoadSystem32Dll(const char *pszName)
     if (   hMod == NULL
         && fFlags
         && g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 2)
-        && GetLastError() == ERROR_INVALID_PARAMETER)
+        && RtlGetLastWin32Error() == ERROR_INVALID_PARAMETER)
     {
         fFlags = 0;
         hMod = LoadLibraryExW(wszName, NULL, fFlags);
     }
     if (hMod == NULL)
-        supR3HardenedFatal("Error loading '%s': %u [%ls]", pszName, GetLastError(), wszName);
+        supR3HardenedFatal("Error loading '%s': %u [%ls]", pszName, RtlGetLastWin32Error(), wszName);
     return hMod;
 }
 
@@ -1906,7 +1949,7 @@ static void supR3HardenedWinRetrieveTrustedRootCAs(void)
 
 #define RESOLVE_CRYPT32_API(a_Name, a_pfnType) \
     a_pfnType pfn##a_Name = (a_pfnType)GetProcAddress(hCrypt32, #a_Name); \
-    if (pfn##a_Name == NULL) supR3HardenedFatal("Error locating '" #a_Name "' in 'crypt32.dll': %u", GetLastError())
+    if (pfn##a_Name == NULL) supR3HardenedFatal("Error locating '" #a_Name "' in 'crypt32.dll': %u", RtlGetLastWin32Error())
     RESOLVE_CRYPT32_API(CertOpenStore, PFNCERTOPENSTORE);
     RESOLVE_CRYPT32_API(CertCloseStore, PFNCERTCLOSESTORE);
     RESOLVE_CRYPT32_API(CertEnumCertificatesInStore, PFNCERTENUMCERTIFICATESINSTORE);
@@ -1993,7 +2036,7 @@ DECLHIDDEN(void) supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(cons
     suplibHardenedStrCat(szPath, "/VBoxSupLib.DLL");
     HMODULE hSupLibMod = (HMODULE)supR3HardenedWinLoadLibrary(szPath, true /*fSystem32Only*/);
     if (hSupLibMod == NULL)
-        supR3HardenedFatal("Error loading '%s': %u", szPath, GetLastError());
+        supR3HardenedFatal("Error loading '%s': %u", szPath, RtlGetLastWin32Error());
 # endif
 
     /*
@@ -2003,7 +2046,7 @@ DECLHIDDEN(void) supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(cons
     if (iTls != TLS_OUT_OF_INDEXES)
         g_iTlsWinVerifyTrustRecursion = iTls;
     else
-        supR3HardenedError(GetLastError(), false /*fFatal*/, "TlsAlloc failed");
+        supR3HardenedError(RtlGetLastWin32Error(), false /*fFatal*/, "TlsAlloc failed");
 
     /*
      * Resolve it.
@@ -2013,12 +2056,12 @@ DECLHIDDEN(void) supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(cons
     do { \
         g_pfn##a_Name = (a_pfnType)GetProcAddress(hWintrust, #a_Name); \
         if (g_pfn##a_Name == NULL && (a_uMinWinVer) < g_uNtVerCombined) \
-            supR3HardenedFatal("Error locating '" #a_Name "' in 'Wintrust.dll': %u", GetLastError()); \
+            supR3HardenedFatal("Error locating '" #a_Name "' in 'Wintrust.dll': %u", RtlGetLastWin32Error()); \
     } while (0)
 
     PFNWINVERIFYTRUST pfnWinVerifyTrust = (PFNWINVERIFYTRUST)GetProcAddress(hWintrust, "WinVerifyTrust");
     if (!pfnWinVerifyTrust)
-        supR3HardenedFatal("Error locating 'WinVerifyTrust' in 'Wintrust.dll': %u", GetLastError());
+        supR3HardenedFatal("Error locating 'WinVerifyTrust' in 'Wintrust.dll': %u", RtlGetLastWin32Error());
 
     RESOLVE_CRYPT_API(CryptCATAdminAcquireContext,           PFNCRYPTCATADMINACQUIRECONTEXT,          0);
     RESOLVE_CRYPT_API(CryptCATAdminCalcHashFromFileHandle,   PFNCRYPTCATADMINCALCHASHFROMFILEHANDLE,  0);
@@ -2151,23 +2194,25 @@ static int supR3HardNtViCallWinVerifyTrust(HANDLE hFile, PCRTUTF16 pwszName, uin
         const char *pszErrConst = NULL;
         switch (hrc)
         {
-            case TRUST_E_SYSTEM_ERROR:             pszErrConst = "TRUST_E_SYSTEM_ERROR";          break;
-            case TRUST_E_NO_SIGNER_CERT:           pszErrConst = "TRUST_E_NO_SIGNER_CERT";        break;
-            case TRUST_E_COUNTER_SIGNER:           pszErrConst = "TRUST_E_COUNTER_SIGNER";        break;
-            case TRUST_E_CERT_SIGNATURE:           pszErrConst = "TRUST_E_CERT_SIGNATURE";        break;
-            case TRUST_E_TIME_STAMP:               pszErrConst = "TRUST_E_TIME_STAMP";            break;
-            case TRUST_E_BAD_DIGEST:               pszErrConst = "TRUST_E_BAD_DIGEST";            break;
-            case TRUST_E_BASIC_CONSTRAINTS:        pszErrConst = "TRUST_E_BASIC_CONSTRAINTS";     break;
-            case TRUST_E_FINANCIAL_CRITERIA:       pszErrConst = "TRUST_E_FINANCIAL_CRITERIA";    break;
-            case TRUST_E_PROVIDER_UNKNOWN:         pszErrConst = "TRUST_E_PROVIDER_UNKNOWN";      break;
-            case TRUST_E_ACTION_UNKNOWN:           pszErrConst = "TRUST_E_ACTION_UNKNOWN";        break;
-            case TRUST_E_SUBJECT_FORM_UNKNOWN:     pszErrConst = "TRUST_E_SUBJECT_FORM_UNKNOWN";  break;
-            case TRUST_E_SUBJECT_NOT_TRUSTED:      pszErrConst = "TRUST_E_SUBJECT_NOT_TRUSTED";   break;
-            case TRUST_E_NOSIGNATURE:              pszErrConst = "TRUST_E_NOSIGNATURE";           break;
-            case TRUST_E_FAIL:                     pszErrConst = "TRUST_E_FAIL";                  break;
-            case TRUST_E_EXPLICIT_DISTRUST:        pszErrConst = "TRUST_E_EXPLICIT_DISTRUST";     break;
-            case CERT_E_CHAINING:                  pszErrConst = "CERT_E_CHAINING";               break;
-            case CERT_E_REVOCATION_FAILURE:        pszErrConst = "CERT_E_REVOCATION_FAILURE";     break;
+            case TRUST_E_SYSTEM_ERROR:            pszErrConst = "TRUST_E_SYSTEM_ERROR";         break;
+            case TRUST_E_NO_SIGNER_CERT:          pszErrConst = "TRUST_E_NO_SIGNER_CERT";       break;
+            case TRUST_E_COUNTER_SIGNER:          pszErrConst = "TRUST_E_COUNTER_SIGNER";       break;
+            case TRUST_E_CERT_SIGNATURE:          pszErrConst = "TRUST_E_CERT_SIGNATURE";       break;
+            case TRUST_E_TIME_STAMP:              pszErrConst = "TRUST_E_TIME_STAMP";           break;
+            case TRUST_E_BAD_DIGEST:              pszErrConst = "TRUST_E_BAD_DIGEST";           break;
+            case TRUST_E_BASIC_CONSTRAINTS:       pszErrConst = "TRUST_E_BASIC_CONSTRAINTS";    break;
+            case TRUST_E_FINANCIAL_CRITERIA:      pszErrConst = "TRUST_E_FINANCIAL_CRITERIA";   break;
+            case TRUST_E_PROVIDER_UNKNOWN:        pszErrConst = "TRUST_E_PROVIDER_UNKNOWN";     break;
+            case TRUST_E_ACTION_UNKNOWN:          pszErrConst = "TRUST_E_ACTION_UNKNOWN";       break;
+            case TRUST_E_SUBJECT_FORM_UNKNOWN:    pszErrConst = "TRUST_E_SUBJECT_FORM_UNKNOWN"; break;
+            case TRUST_E_SUBJECT_NOT_TRUSTED:     pszErrConst = "TRUST_E_SUBJECT_NOT_TRUSTED";  break;
+            case TRUST_E_NOSIGNATURE:             pszErrConst = "TRUST_E_NOSIGNATURE";          break;
+            case TRUST_E_FAIL:                    pszErrConst = "TRUST_E_FAIL";                 break;
+            case TRUST_E_EXPLICIT_DISTRUST:       pszErrConst = "TRUST_E_EXPLICIT_DISTRUST";    break;
+            case CERT_E_CHAINING:                 pszErrConst = "CERT_E_CHAINING";              break;
+            case CERT_E_REVOCATION_FAILURE:       pszErrConst = "CERT_E_REVOCATION_FAILURE";    break;
+            case CRYPT_E_FILE_ERROR:              pszErrConst = "CRYPT_E_FILE_ERROR";           break;
+            case CRYPT_E_REVOKED:                 pszErrConst = "CRYPT_E_REVOKED";              break;
         }
         if (pszErrConst)
             rc = RTErrInfoSetF(pErrInfo, VERR_LDRVI_UNSUPPORTED_ARCH,
@@ -2253,6 +2298,7 @@ static int supR3HardNtViCallWinVerifyTrustCatFile(HANDLE hFile, PCRTUTF16 pwszNa
     /*
      * On Windows 8.0 and later there are more than one digest choice.
      */
+    int fNoSignedCatalogFound = -1;
     rc = VERR_LDRVI_NOT_SIGNED;
     static struct
     {
@@ -2339,16 +2385,21 @@ l_fresh_context:
                             {
                                 if (!fFreshContext)
                                 {
-                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: Retrying with fresh context (CryptCATAdminEnumCatalogFromHash -> %u; iCat=%#x)\n", GetLastError(), iCat));
+                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: Retrying with fresh context (CryptCATAdminEnumCatalogFromHash -> %u; iCat=%#x)\n", RtlGetLastWin32Error(), iCat));
                                     if (hCatInfoPrev != NULL)
                                         g_pfnCryptCATAdminReleaseCatalogContext(hCatAdmin, hCatInfoPrev, 0 /*dwFlags*/);
                                     g_pfnCryptCATAdminReleaseContext(hCatAdmin, 0 /*dwFlags*/);
                                     goto l_fresh_context;
                                 }
+                                ULONG ulErr = RtlGetLastWin32Error();
+                                fNoSignedCatalogFound = ulErr == ERROR_NOT_FOUND && fNoSignedCatalogFound != 0;
                                 if (iCat == 0)
-                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed %u\n", GetLastError()));
+                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed ERRROR_NOT_FOUND (%u)\n", ulErr));
+                                else if (iCat == 0)
+                                    SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATAdminEnumCatalogFromHash failed %u\n", ulErr));
                                 break;
                             }
+                            fNoSignedCatalogFound = 0;
                             Assert(hCatInfoPrev == NULL);
                             hCatInfoPrev = hCatInfo;
 
@@ -2410,9 +2461,9 @@ l_fresh_context:
                             }
                             else
                             {
-                                rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(GetLastError()),
+                                rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(RtlGetLastWin32Error()),
                                                    "CryptCATCatalogInfoFromContext failed: %d [file=%s]",
-                                                   GetLastError(), pwszName);
+                                                   RtlGetLastWin32Error(), pwszName);
                                 SUP_DPRINTF(("supR3HardNtViCallWinVerifyTrustCatFile: CryptCATCatalogInfoFromContext failed\n"));
                             }
                             iCat++;
@@ -2426,16 +2477,16 @@ l_fresh_context:
                         rc = RTErrInfoSetF(pErrInfo, rc2, "RTUtf16PrintHexBytes failed: %Rrc", rc);
                 }
                 else
-                    rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(GetLastError()),
-                                       "CryptCATAdminCalcHashFromFileHandle[2] failed: %d [file=%s]", GetLastError(), pwszName);
+                    rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(RtlGetLastWin32Error()),
+                                       "CryptCATAdminCalcHashFromFileHandle[2] failed: %d [file=%s]", RtlGetLastWin32Error(), pwszName);
 
                 if (!ASMAtomicCmpXchgPtr(&s_aHashes[i].hCachedCatAdmin, hCatAdmin, NULL))
                     if (!g_pfnCryptCATAdminReleaseContext(hCatAdmin, 0 /*dwFlags*/))
                         AssertFailed();
             }
             else
-                rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(GetLastError()),
-                                   "CryptCATAdminAcquireContext[2] failed: %d [file=%s]", GetLastError(), pwszName);
+                rc = RTErrInfoSetF(pErrInfo, RTErrConvertFromWin32(RtlGetLastWin32Error()),
+                                   "CryptCATAdminAcquireContext[2] failed: %d [file=%s]", RtlGetLastWin32Error(), pwszName);
              iPolicy++;
         } while (   fTryNextPolicy
                  && iPolicy < RT_ELEMENTS(s_aPolicies));
@@ -2451,6 +2502,45 @@ l_fresh_context:
 
     if (hFileClose != NULL)
         NtClose(hFileClose);
+
+    /*
+     * DLLs that are likely candidates for local modifications.
+     */
+    if (rc == VERR_LDRVI_NOT_SIGNED)
+    {
+        bool        fCoreSystemDll = false;
+        PCRTUTF16   pwsz;
+        uint32_t    cwcName  = (uint32_t)RTUtf16Len(pwszName);
+        uint32_t    cwcOther = g_System32NtPath.UniStr.Length / sizeof(WCHAR);
+        if (supHardViUtf16PathStartsWithEx(pwszName, cwcName, g_System32NtPath.UniStr.Buffer, cwcOther, true /*fCheckSlash*/))
+        {
+            pwsz = pwszName + cwcOther + 1;
+            if (   supHardViUtf16PathIsEqual(pwsz, "uxtheme.dll")
+                || supHardViUtf16PathIsEqual(pwsz, "user32.dll")
+                || supHardViUtf16PathIsEqual(pwsz, "gdi32.dll")
+                || supHardViUtf16PathIsEqual(pwsz, "opengl32.dll")
+                || (fCoreSystemDll = supHardViUtf16PathIsEqual(pwsz, "KernelBase.dll"))
+                || (fCoreSystemDll = supHardViUtf16PathIsEqual(pwsz, "kernel32.dll"))
+                || (fCoreSystemDll = supHardViUtf16PathIsEqual(pwsz, "ntdll.dll"))
+                )
+            {
+                if (RTErrInfoIsSet(pErrInfo))
+                    RTErrInfoAdd(pErrInfo, rc, "\n");
+                RTErrInfoAddF(pErrInfo, rc, "'%ls' is most likely modified.", pwszName);
+            }
+        }
+
+        /* Kludge for ancient windows versions we don't want to support but
+           users still wants to use.  Keep things as safe as possible without
+           unnecessary effort.  Problem is that 3rd party catalog files cannot
+           easily be found.  Showstopper for ATI users. */
+        if (   fNoSignedCatalogFound == 1
+            && g_uNtVerCombined < SUP_NT_VER_VISTA
+            && !fCoreSystemDll)
+        {
+            rc = VINF_LDRVI_NOT_SIGNED;
+        }
+    }
 
     return rc;
 }
@@ -2493,7 +2583,7 @@ DECLHIDDEN(int) supHardenedWinVerifyImageTrust(HANDLE hFile, PCRTUTF16 pwszName,
         }
         else
         {
-            uint32_t const idCurrentThread = GetCurrentThreadId();
+            uint32_t const idCurrentThread = RTNtCurrentThreadId();
             fNoRecursion = ASMAtomicCmpXchgU32(&g_idActiveThread, idCurrentThread, UINT32_MAX);
         }
         if (fNoRecursion)
@@ -2557,7 +2647,7 @@ DECLHIDDEN(bool) supHardenedWinIsWinVerifyTrustCallable(void)
     return g_pfnWinVerifyTrust != NULL
         && (   g_iTlsWinVerifyTrustRecursion != UINT32_MAX
             ?  (uintptr_t)TlsGetValue(g_iTlsWinVerifyTrustRecursion) == 0
-            : g_idActiveThread != GetCurrentThreadId() );
+            : g_idActiveThread != RTNtCurrentThreadId() );
 }
 
 

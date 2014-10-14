@@ -2398,7 +2398,8 @@ STDMETHODIMP Medium::SetProperty(IN_BSTR aName, IN_BSTR aValue)
     Utf8Str strName(aName);
     Utf8Str strValue(aValue);
     settings::StringsMap::iterator it = m->mapProperties.find(strName);
-    if (!strName.startsWith("Special/"))
+    if (   !strName.startsWith("Special/")
+        && !isPropertyForFilter(strName))
     {
         if (it == m->mapProperties.end())
             return setError(VBOX_E_OBJECT_NOT_FOUND,

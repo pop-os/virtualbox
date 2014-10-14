@@ -39,15 +39,20 @@
 # include "VBoxUtils-darwin.h"
 #endif /* Q_WS_MAC */
 
-#ifndef Q_WS_X11
-# define VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR
-#endif /* !Q_WS_X11 */
 
 UIRuntimeMiniToolBar::UIRuntimeMiniToolBar(QWidget *pParent,
                                            GeometryType geometryType,
                                            Qt::Alignment alignment,
                                            bool fAutoHide /* = true */)
-    : QWidget(pParent, Qt::Tool | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint)
+    : QWidget(pParent,
+#if   defined (Q_WS_WIN)
+              Qt::Tool | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint
+#elif defined (Q_WS_MAC)
+              Qt::Window | Qt::FramelessWindowHint
+#elif defined (Q_WS_X11)
+              Qt::Widget
+#endif /* RT_OS_DARWIN */
+              )
     /* Variables: General stuff: */
     , m_geometryType(geometryType)
     , m_alignment(alignment)
@@ -138,10 +143,15 @@ void UIRuntimeMiniToolBar::adjustGeometry(int iHostScreen /* = -1 */)
     int iX = 0, iY = 0;
     switch (m_geometryType)
     {
-        case GeometryType_Available: screenRect = vboxGlobal().availableGeometry(iHostScreen); break;
+        case GeometryType_Available: screenRect = QApplication::desktop()->availableGeometry(iHostScreen); break;
         case GeometryType_Full:      screenRect = QApplication::desktop()->screenGeometry(iHostScreen); break;
         default: break;
     }
+#ifdef Q_WS_X11
+    /* Disregard origin under X11,
+     * because this is widget, not window: */
+    screenRect.moveTopLeft(QPoint(0, 0));
+#endif /* Q_WS_X11 */
     iX = screenRect.x() + screenRect.width() / 2 - width() / 2;
     switch (m_alignment)
     {
@@ -192,7 +202,12 @@ void UIRuntimeMiniToolBar::sltHoverLeave()
 
 void UIRuntimeMiniToolBar::prepare()
 {
-#ifdef VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR
+#ifdef RT_OS_DARWIN
+    /* Install own event filter: */
+    installEventFilter(this);
+#endif /* RT_OS_DARWIN */
+
+#if defined(Q_WS_MAC) || defined(Q_WS_WIN)
     /* Make sure we have no background
      * until the first one paint-event: */
     setAttribute(Qt::WA_NoSystemBackground);
@@ -208,7 +223,7 @@ void UIRuntimeMiniToolBar::prepare()
      * - Under x11 host Qt has broken XComposite support (black background): */
     setAttribute(Qt::WA_TranslucentBackground);
 # endif /* Q_WS_WIN */
-#endif /* VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR */
+#endif /* Q_WS_MAC || Q_WS_WIN */
 
     /* Make sure we have no focus: */
     setFocusPolicy(Qt::NoFocus);
@@ -283,9 +298,6 @@ void UIRuntimeMiniToolBar::prepare()
 
     /* Adjust geometry finally: */
     adjustGeometry();
-
-    /* Show: */
-    show();
 }
 
 void UIRuntimeMiniToolBar::cleanup()
@@ -329,6 +341,7 @@ void UIRuntimeMiniToolBar::leaveEvent(QEvent*)
 
 bool UIRuntimeMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
+#ifndef RT_OS_DARWIN
     /* Due to Qt bug QMdiArea can
      * 1. steal focus from current application focus-widget
      * 3. and even request focus stealing if QMdiArea hidden yet.
@@ -336,6 +349,13 @@ bool UIRuntimeMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
     if (pWatched && m_pEmbeddedToolbar && pWatched == m_pEmbeddedToolbar &&
         pEvent->type() == QEvent::FocusIn)
         emit sigNotifyAboutFocusStolen();
+#else /* RT_OS_DARWIN */
+    /* Due to Qt bug on Mac OS X window will be activated
+     * even if has Qt::WA_ShowWithoutActivating attribute. */
+    if (pWatched == this &&
+        pEvent->type() == QEvent::WindowActivate)
+        emit sigNotifyAboutFocusStolen();
+#endif /* RT_OS_DARWIN */
     /* Call to base-class: */
     return QWidget::eventFilter(pWatched, pEvent);
 }
@@ -382,6 +402,12 @@ void UIRuntimeMiniToolBar::setToolbarPosition(QPoint point)
      * Mac host has native translucency support,
      * Win host allows to enable it through Qt::WA_TranslucentBackground: */
     setMask(m_pEmbeddedToolbar->geometry());
+
+# ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+    /* Notify listeners as well: */
+    const QRect windowGeo = geometry();
+    emit sigNotifyAboutGeometryChange(windowGeo.intersected(m_pEmbeddedToolbar->geometry().translated(windowGeo.topLeft())));
+# endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 #endif /* Q_WS_X11 */
 }
 
@@ -538,10 +564,8 @@ void UIMiniToolBar::prepare()
     /* Configure toolbar: */
     setIconSize(QSize(16, 16));
 
-#ifdef VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR
     /* Left margin: */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR */
 
     /* Prepare push-pin: */
     m_pAutoHideAction = new QAction(this);
@@ -592,10 +616,8 @@ void UIMiniToolBar::prepare()
     connect(m_pCloseAction, SIGNAL(triggered()), this, SIGNAL(sigCloseAction()));
     addAction(m_pCloseAction);
 
-#ifdef VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR
     /* Right margin: */
     m_spacings << widgetForAction(addWidget(new QWidget));
-#endif /* VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR */
 
     /* Resize to sizehint: */
     resize(sizeHint());
@@ -603,7 +625,6 @@ void UIMiniToolBar::prepare()
 
 void UIMiniToolBar::rebuildShape()
 {
-#ifdef VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR
     /* Rebuild shape: */
     QPainterPath shape;
     switch (m_alignment)
@@ -637,6 +658,5 @@ void UIMiniToolBar::rebuildShape()
 
     /* Update: */
     update();
-#endif /* VBOX_RUNTIME_UI_WITH_SHAPED_MINI_TOOLBAR */
 }
 

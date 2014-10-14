@@ -144,6 +144,9 @@ namespace UIDefs
     extern const char* GUI_Fullscreen;
     extern const char* GUI_Seamless;
     extern const char* GUI_Scale;
+#ifdef Q_WS_X11
+    extern const char* GUI_Fullscreen_LegacyMode;
+#endif /* Q_WS_X11 */
     extern const char* GUI_VirtualScreenToHostScreen;
     extern const char* GUI_AutoresizeGuest;
     extern const char* GUI_AutomountGuestScreens;
@@ -234,7 +237,8 @@ enum MacOSXRelease
     MacOSXRelease_SnowLeopard,
     MacOSXRelease_Lion,
     MacOSXRelease_MountainLion,
-    MacOSXRelease_Mavericks
+    MacOSXRelease_Mavericks,
+    MacOSXRelease_Yosemite
 };
 #endif /* Q_WS_MAC */
 

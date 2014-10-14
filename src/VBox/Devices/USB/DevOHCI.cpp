@@ -368,6 +368,8 @@ typedef struct OHCI
     R3PTRTYPE(PPDMTHREAD) hThreadFrame;
     /** Event semaphore to interact with the framer thread. */
     R3PTRTYPE(RTSEMEVENT) hSemEventFrame;
+    /** Event semaphore to release the thread waiting for the framer thread to stop. */
+    R3PTRTYPE(RTSEMEVENTMULTI) hSemEventFrameStopped;
     /** Flag whether the framer thread should processing frames. */
     volatile bool         fBusStarted;
     /** Alignment. */
@@ -783,6 +785,7 @@ RT_C_DECLS_BEGIN
 /* Update host controller state to reflect a device attach */
 static void                 rhport_power(POHCIROOTHUB pRh, unsigned iPort, bool fPowerUp);
 static void                 ohciBusResume(POHCI ohci, bool fHardware);
+static void                 ohciBusStop(POHCI pThis);
 
 static DECLCALLBACK(void)   ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb);
 static DECLCALLBACK(bool)   ohciRhXferError(PVUSBIROOTHUBPORT pInterface, PVUSBURB pUrb);
@@ -1101,6 +1104,9 @@ static void ohciDoReset(POHCI pThis, uint32_t fNewMode, bool fResetOnLinux)
     Log(("ohci: %s reset%s\n", fNewMode == OHCI_USB_RESET ? "hardware" : "software",
          fResetOnLinux ? " (reset on linux)" : ""));
 
+    /* Stop the bus in any case, disabling walking the lists. */
+    ohciBusStop(pThis);
+
     /*
      * Cancel all outstanding URBs.
      *
@@ -1117,6 +1123,9 @@ static void ohciDoReset(POHCI pThis, uint32_t fNewMode, bool fResetOnLinux)
         pThis->ctl |= OHCI_CTL_RWC;                     /* We're the firmware, set RemoteWakeupConnected. */
     else
         pThis->ctl &= OHCI_CTL_IR | OHCI_CTL_RWC;       /* IR and RWC are preserved on software reset. */
+
+    /* Clear the HCFS bits first to make setting the new state work. */
+    pThis->ctl &= ~OHCI_CTL_HCFS;
     pThis->ctl |= fNewMode;
     pThis->status = 0;
     pThis->intr_status = 0;
@@ -3826,7 +3835,12 @@ static DECLCALLBACK(int) ohciR3ThreadFrame(PPDMDEVINS pDevIns, PPDMTHREAD pThrea
         while (   !ASMAtomicReadBool(&pThis->fBusStarted)
                && pThread->enmState == PDMTHREADSTATE_RUNNING
                && RT_SUCCESS(rc))
+        {
+            /* Signal the waiter that we are stopped now. */
+            rc = RTSemEventMultiSignal(pThis->hSemEventFrameStopped);
+            AssertRC(rc);
             rc = RTSemEventWait(pThis->hSemEventFrame, RT_INDEFINITE_WAIT);
+        }
 
         AssertLogRelMsgReturn(RT_SUCCESS(rc) || rc == VERR_TIMEOUT, ("%Rrc\n", rc), rc);
         if (RT_UNLIKELY(pThread->enmState != PDMTHREADSTATE_RUNNING))
@@ -3895,8 +3909,9 @@ static void ohciBusStart(POHCI pThis)
     Log(("ohci: %s: Bus started\n", pThis->PciDev.name));
 
     pThis->SofTime = PDMDevHlpTMTimeVirtGet(pThis->CTX_SUFF(pDevIns));
-    ASMAtomicXchgBool(&pThis->fBusStarted, true);
-    RTSemEventSignal(pThis->hSemEventFrame);
+    bool fBusActive = ASMAtomicXchgBool(&pThis->fBusStarted, true);
+    if (!fBusActive)
+        RTSemEventSignal(pThis->hSemEventFrame);
 }
 
 /**
@@ -3904,8 +3919,19 @@ static void ohciBusStart(POHCI pThis)
  */
 static void ohciBusStop(POHCI pThis)
 {
-    ASMAtomicXchgBool(&pThis->fBusStarted, false);
-    RTSemEventSignal(pThis->hSemEventFrame);
+    bool fBusActive = ASMAtomicXchgBool(&pThis->fBusStarted, false);
+    if (fBusActive)
+    {
+        int rc = RTSemEventMultiReset(pThis->hSemEventFrameStopped);
+        AssertRC(rc);
+
+        /* Signal the frame thread to stop. */
+        RTSemEventSignal(pThis->hSemEventFrame);
+
+        /* Wait for signal from the thrad that it stopped. */
+        rc = RTSemEventMultiWait(pThis->hSemEventFrameStopped, RT_INDEFINITE_WAIT);
+        AssertRC(rc);
+    }
     VUSBIDevPowerOff(pThis->RootHub.pIDev);
 }
 
@@ -5452,7 +5478,6 @@ static DECLCALLBACK(void) ohciR3Reset(PPDMDEVINS pDevIns)
      * Important: Don't confuse UsbReset with hardware reset. Hardware reset is
      *            just one way of getting into the UsbReset state.
      */
-    ohciBusStop(pThis);
     ohciDoReset(pThis, OHCI_USB_RESET, true /* reset devices */);
 }
 
@@ -5569,7 +5594,10 @@ static DECLCALLBACK(int) ohciR3Destruct(PPDMDEVINS pDevIns)
     /*
      * Destroy event sempahores.
      */
-    RTSemEventDestroy(pThis->hSemEventFrame);
+    if (pThis->hSemEventFrame)
+        RTSemEventDestroy(pThis->hSemEventFrame);
+    if (pThis->hSemEventFrameStopped)
+        RTSemEventMultiDestroy(pThis->hSemEventFrameStopped);
     if (RTCritSectIsInitialized(&pThis->CritSect))
         RTCritSectDelete(&pThis->CritSect);
     PDMR3CritSectDelete(&pThis->CsIrq);
@@ -5725,6 +5753,9 @@ static DECLCALLBACK(int) ohciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                    N_("EHCI: Failed to create critical section"));
 
     rc = RTSemEventCreate(&pThis->hSemEventFrame);
+    AssertRCReturn(rc, rc);
+
+    rc = RTSemEventMultiCreate(&pThis->hSemEventFrameStopped);
     AssertRCReturn(rc, rc);
 
     rc = RTCritSectInit(&pThis->CritSect);

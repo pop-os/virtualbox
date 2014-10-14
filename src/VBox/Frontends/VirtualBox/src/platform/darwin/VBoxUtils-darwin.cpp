@@ -158,6 +158,11 @@ bool darwinIsInFullscreenMode(QWidget *pWidget)
     return ::darwinIsInFullscreenMode(::darwinToNativeWindow(pWidget));
 }
 
+bool darwinIsOnActiveSpace(QWidget *pWidget)
+{
+    return ::darwinIsOnActiveSpace(::darwinToNativeWindow(pWidget));
+}
+
 void darwinInstallResizeDelegate(QWidget *pWidget)
 {
     ::darwinInstallResizeDelegate(::darwinToNativeWindow(pWidget));

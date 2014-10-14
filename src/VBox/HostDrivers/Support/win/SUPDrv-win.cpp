@@ -40,6 +40,8 @@
 #include <iprt/mem.h>
 #include <iprt/process.h>
 #include <iprt/power.h>
+#include <iprt/rand.h>
+#include <iprt/semaphore.h>
 #include <iprt/spinlock.h>
 #include <iprt/string.h>
 #include <VBox/log.h>
@@ -60,19 +62,23 @@
 /** The Pool tag (VBox). */
 #define SUPDRV_NT_POOL_TAG  'xoBV'
 
-/** NT device name for system access. */
-#define DEVICE_NAME_NT_SYS      L"\\Device\\VBoxDrv"
 /** NT device name for user access. */
-#define DEVICE_NAME_NT_USR      L"\\Device\\VBoxDrvU"
+#define DEVICE_NAME_NT_USR          L"\\Device\\VBoxDrvU"
 #ifdef VBOX_WITH_HARDENING
-/** NT device name for hardened stub access. */
-# define DEVICE_NAME_NT_STUB    L"\\Device\\VBoxDrvStub"
-
 /** Macro for checking for deflecting calls to the stub device. */
 # define VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_DEV(a_pDevObj, a_pIrp) \
-    do { if ((a_pDevObj) == g_pDevObjStub) supdrvNtCompleteRequest(STATUS_ACCESS_DENIED, a_pIrp); } while (0)
+    do { if ((a_pDevObj) == g_pDevObjStub) \
+            return supdrvNtCompleteRequest(STATUS_ACCESS_DENIED, a_pIrp); \
+    } while (0)
+/** Macro for checking for deflecting calls to the stub and error info
+ *  devices. */
+# define VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_OR_ERROR_INFO_DEV(a_pDevObj, a_pIrp) \
+    do { if ((a_pDevObj) == g_pDevObjStub || (a_pDevObj) == g_pDevObjErrorInfo) \
+            return supdrvNtCompleteRequest(STATUS_ACCESS_DENIED, a_pIrp); \
+    } while (0)
 #else
-# define VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_DEV(a_pDevObj, a_pIrp) do {} while (0)
+# define VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_DEV(a_pDevObj, a_pIrp)                 do {} while (0)
+# define VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_OR_ERROR_INFO_DEV(a_pDevObj, a_pIrp)   do {} while (0)
 #endif
 
 /** Enables the fast I/O control code path. */
@@ -107,17 +113,52 @@ typedef SUPDRVDEVEXTUSR *PSUPDRVDEVEXTUSR;
 #ifdef VBOX_WITH_HARDENING
 
 /**
- * Device extension used by VBoxDrvS.
+ * Device extension used by VBoxDrvStub.
  */
 typedef struct SUPDRVDEVEXTSTUB
 {
     /** Common header. */
     SUPDRVDEVEXTUSR     Common;
 } SUPDRVDEVEXTSTUB;
-/** Pointer to the VBoxDrvS device extension. */
+/** Pointer to the VBoxDrvStub device extension. */
 typedef SUPDRVDEVEXTSTUB *PSUPDRVDEVEXTSTUB;
 /** Value of SUPDRVDEVEXTSTUB::Common.u32Cookie. */
 #define SUPDRVDEVEXTSTUB_COOKIE      UINT32_C(0x90abcdef)
+
+
+/**
+ * Device extension used by VBoxDrvErrorInfo.
+ */
+typedef struct SUPDRVDEVEXTERRORINFO
+{
+    /** Common header. */
+    SUPDRVDEVEXTUSR     Common;
+} SUPDRVDEVEXTERRORINFO;
+/** Pointer to the VBoxDrvErrorInfo device extension. */
+typedef SUPDRVDEVEXTERRORINFO *PSUPDRVDEVEXTERRORINFO;
+/** Value of SUPDRVDEVEXTERRORINFO::Common.u32Cookie. */
+#define SUPDRVDEVEXTERRORINFO_COOKIE      UINT32_C(0xBadC0ca0)
+
+/**
+ * Error info for a failed VBoxDrv or VBoxDrvStub open attempt.
+ */
+typedef struct SUPDRVNTERRORINFO
+{
+    /** The list entry (in g_ErrorInfoHead). */
+    RTLISTNODE      ListEntry;
+    /** The ID of the process this error info belongs to.  */
+    HANDLE          hProcessId;
+    /** The ID of the thread owning this info. */
+    HANDLE          hThreadId;
+    /** Milliseconds createion timestamp (for cleaning up).  */
+    uint64_t        uCreatedMsTs;
+    /** Number of bytes of valid info. */
+    uint32_t        cchErrorInfo;
+    /** The error info. */
+    char            szErrorInfo[2048];
+} SUPDRVNTERRORINFO;
+/** Pointer to error info. */
+typedef SUPDRVNTERRORINFO *PSUPDRVNTERRORINFO;
 
 
 /**
@@ -165,6 +206,9 @@ typedef struct SUPDRVNTPROTECT
     uint32_t volatile   cRefs;
     /** The kind of process we're protecting. */
     SUPDRVNTPROTECTKIND volatile enmProcessKind;
+    /** 7,: Hack to allow the supid themes service duplicate handle privileges to
+     *  our process. */
+    bool                fThemesFirstProcessCreateHandle : 1;
     /** Vista, 7 & 8: Hack to allow more rights to the handle returned by
      *  NtCreateUserProcess. Only applicable to VmProcessUnconfirmed. */
     bool                fFirstProcessCreateHandle : 1;
@@ -174,15 +218,16 @@ typedef struct SUPDRVNTPROTECT
     /** 8.1: Hack to allow more rights to the handle returned by
      *  NtCreateUserProcess. Only applicable to VmProcessUnconfirmed. */
     bool                fCsrssFirstProcessCreateHandle : 1;
-    /** Vista, 7 & 8: Hack to allow more rights to the handle duplicated by CSR
-     *  during process creation. Only applicable to VmProcessUnconfirmed. */
-    bool                fCsrssFirstProcessDuplicateHandle : 1;
-    /** 7,: Hack to allow the supid themes service duplicate handle privileges to
-     *  our process. */
-    bool                fThemesFirstProcessCreateHandle : 1;
+    /** Vista, 7 & 8: Hack to allow more rights to the handle duplicated by CSRSS
+     * during process creation. Only applicable to VmProcessUnconfirmed.  On
+     * 32-bit systems we allow two as ZoneAlarm's system call hooks has been
+     * observed to do some seemingly unnecessary duplication work. */
+    int32_t volatile    cCsrssFirstProcessDuplicateHandle;
 
     /** The parent PID for VM processes, otherwise NULL. */
     HANDLE              hParentPid;
+    /** The TID of the thread opening VBoxDrv or VBoxDrvStub, NULL if not opened. */
+    HANDLE              hOpenTid;
     /** The PID of the CSRSS process associated with this process. */
     HANDLE              hCsrssPid;
     /** Pointer to the CSRSS process structure (referenced). */
@@ -196,7 +241,7 @@ typedef struct SUPDRVNTPROTECT
         struct SUPDRVNTPROTECT *pChild;
         /** A process in the VmProcessUnconfirmed state will keep a weak
          * reference to the parent's protection structure so it can clean up the pChild
-         * refernece the parent has to it. */
+         * reference the parent has to it. */
         struct SUPDRVNTPROTECT *pParent;
     } u;
 } SUPDRVNTPROTECT;
@@ -207,6 +252,8 @@ typedef SUPDRVNTPROTECT *PSUPDRVNTPROTECT;
 /** The SUPDRVNTPROTECT::u32Magic value of a dead structure. */
 # define SUPDRVNTPROTECT_MAGIC_DEAD UINT32_C(0x19880508)
 
+/** Pointer to ObGetObjectType. */
+typedef POBJECT_TYPE (NTAPI *PFNOBGETOBJECTTYPE)(PVOID);
 /** Pointer to ObRegisterCallbacks. */
 typedef NTSTATUS (NTAPI *PFNOBREGISTERCALLBACKS)(POB_CALLBACK_REGISTRATION, PVOID *);
 /** Pointer to ObUnregisterCallbacks. */
@@ -217,6 +264,8 @@ typedef NTSTATUS (NTAPI *PFNPSSETCREATEPROCESSNOTIFYROUTINEEX)(PCREATE_PROCESS_N
 typedef NTSTATUS (NTAPI *PFNPSREFERENCEPROCESSFILEPOINTER)(PEPROCESS, PFILE_OBJECT *);
 /** Pointer to PsIsProtectedProcessLight. */
 typedef BOOLEAN  (NTAPI *PFNPSISPROTECTEDPROCESSLIGHT)(PEPROCESS);
+/** Pointer to ZwAlpcCreatePort. */
+typedef NTSTATUS (NTAPI *PFNZWALPCCREATEPORT)(PHANDLE, POBJECT_ATTRIBUTES, struct _ALPC_PORT_ATTRIBUTES *);
 
 #endif /* VBOX_WITH_HARDENINIG */
 
@@ -237,6 +286,7 @@ static NTSTATUS _stdcall   VBoxDrvNtDeviceControl(PDEVICE_OBJECT pDevObj, PIRP p
 static int                 VBoxDrvNtDeviceControlSlow(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PIRP pIrp, PIO_STACK_LOCATION pStack);
 static NTSTATUS _stdcall   VBoxDrvNtInternalDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static VOID     _stdcall   VBoxPowerDispatchCallback(PVOID pCallbackContext, PVOID pArgument1, PVOID pArgument2);
+static NTSTATUS _stdcall   VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS _stdcall   VBoxDrvNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp);
 static NTSTATUS            VBoxDrvNtErr2NtStatus(int rc);
 #ifdef VBOX_WITH_HARDENING
@@ -250,6 +300,8 @@ static int                  supdrvNtProtectFindAssociatedCsrss(PSUPDRVNTPROTECT 
 static int                  supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect);
 
 static bool                 supdrvNtIsDebuggerAttached(void);
+static void                 supdrvNtErrorInfoCleanupProcess(HANDLE hProcessId);
+
 #endif
 
 
@@ -315,6 +367,8 @@ static AVLPVTREE                    g_NtProtectTree  = NULL;
 static PVOID                        g_pvObCallbacksCookie = NULL;
 /** Combined windows NT version number.  See SUP_MAKE_NT_VER_COMBINED. */
 uint32_t                            g_uNtVerCombined = 0;
+/** Pointer to ObGetObjectType if available.. */
+static PFNOBGETOBJECTTYPE           g_pfnObGetObjectType = NULL;
 /** Pointer to ObRegisterCallbacks if available.. */
 static PFNOBREGISTERCALLBACKS       g_pfnObRegisterCallbacks = NULL;
 /** Pointer to ObUnregisterCallbacks if available.. */
@@ -325,6 +379,8 @@ static PFNPSSETCREATEPROCESSNOTIFYROUTINEEX g_pfnPsSetCreateProcessNotifyRoutine
 static PFNPSREFERENCEPROCESSFILEPOINTER g_pfnPsReferenceProcessFilePointer = NULL;
 /** Pointer to PsIsProtectedProcessLight. */
 static PFNPSISPROTECTEDPROCESSLIGHT g_pfnPsIsProtectedProcessLight = NULL;
+/** Pointer to ZwAlpcCreatePort. */
+static PFNZWALPCCREATEPORT          g_pfnZwAlpcCreatePort = NULL;
 
 # ifdef RT_ARCH_AMD64
 extern "C" {
@@ -336,6 +392,18 @@ PFNRT                               g_pfnKiServiceLinkage  = NULL;
 PFNRT                               g_pfnKiServiceInternal = NULL;
 }
 # endif
+/** The primary ALPC port object type. (LpcPortObjectType at init time.) */
+static POBJECT_TYPE                 g_pAlpcPortObjectType1 = NULL;
+/** The secondary ALPC port object type. (Sampled at runtime.) */
+static POBJECT_TYPE volatile        g_pAlpcPortObjectType2 = NULL;
+
+/** Pointer to the error information device instance. */
+static PDEVICE_OBJECT               g_pDevObjErrorInfo = NULL;
+/** Fast mutex semaphore protecting the error info list. */
+static RTSEMMUTEX                   g_hErrorInfoLock = NIL_RTSEMMUTEX;
+/** Head of the error info (SUPDRVNTERRORINFO). */
+static RTLISTANCHOR                 g_ErrorInfoHead;
+
 #endif
 
 
@@ -351,14 +419,14 @@ static NTSTATUS vboxdrvNtCreateDevices(PDRIVER_OBJECT pDrvObj)
      * System device.
      */
     UNICODE_STRING DevName;
-    RtlInitUnicodeString(&DevName, DEVICE_NAME_NT_SYS);
+    RtlInitUnicodeString(&DevName, SUPDRV_NT_DEVICE_NAME_SYS);
     NTSTATUS rcNt = IoCreateDevice(pDrvObj, sizeof(SUPDRVDEVEXT), &DevName, FILE_DEVICE_UNKNOWN, 0, FALSE, &g_pDevObjSys);
     if (NT_SUCCESS(rcNt))
     {
         /*
          * User device.
          */
-        RtlInitUnicodeString(&DevName, DEVICE_NAME_NT_USR);
+        RtlInitUnicodeString(&DevName, SUPDRV_NT_DEVICE_NAME_USR);
         rcNt = IoCreateDevice(pDrvObj, sizeof(SUPDRVDEVEXTUSR), &DevName, FILE_DEVICE_UNKNOWN, 0, FALSE, &g_pDevObjUsr);
         if (NT_SUCCESS(rcNt))
         {
@@ -370,7 +438,7 @@ static NTSTATUS vboxdrvNtCreateDevices(PDRIVER_OBJECT pDrvObj)
             /*
              * Hardened stub device.
              */
-            RtlInitUnicodeString(&DevName, DEVICE_NAME_NT_STUB);
+            RtlInitUnicodeString(&DevName, SUPDRV_NT_DEVICE_NAME_STUB);
             rcNt = IoCreateDevice(pDrvObj, sizeof(SUPDRVDEVEXTSTUB), &DevName, FILE_DEVICE_UNKNOWN, 0, FALSE, &g_pDevObjStub);
             if (NT_SUCCESS(rcNt))
             {
@@ -379,11 +447,33 @@ static NTSTATUS vboxdrvNtCreateDevices(PDRIVER_OBJECT pDrvObj)
                     PSUPDRVDEVEXTSTUB pDevExtStub = (PSUPDRVDEVEXTSTUB)g_pDevObjStub->DeviceExtension;
                     pDevExtStub->Common.pMainDrvExt = (PSUPDRVDEVEXT)g_pDevObjSys->DeviceExtension;
                     pDevExtStub->Common.u32Cookie   = SUPDRVDEVEXTSTUB_COOKIE;
-#endif
 
-                    /* Done. */
-                    return rcNt;
+                    /*
+                     * Hardened error information device.
+                     */
+                    RtlInitUnicodeString(&DevName, SUPDRV_NT_DEVICE_NAME_ERROR_INFO);
+                    rcNt = IoCreateDevice(pDrvObj, sizeof(SUPDRVDEVEXTERRORINFO), &DevName, FILE_DEVICE_UNKNOWN, 0, FALSE,
+                                          &g_pDevObjErrorInfo);
+                    if (NT_SUCCESS(rcNt))
+                    {
+                        g_pDevObjErrorInfo->Flags |= DO_BUFFERED_IO;
+
+                        if (NT_SUCCESS(rcNt))
+                        {
+                            PSUPDRVDEVEXTERRORINFO pDevExtStub = (PSUPDRVDEVEXTERRORINFO)g_pDevObjStub->DeviceExtension;
+                            pDevExtStub->Common.pMainDrvExt = (PSUPDRVDEVEXT)g_pDevObjSys->DeviceExtension;
+                            pDevExtStub->Common.u32Cookie   = SUPDRVDEVEXTERRORINFO_COOKIE;
+
+#endif
+                            /* Done. */
+                            return rcNt;
 #ifdef VBOX_WITH_HARDENING
+                        }
+
+                        /* Bail out. */
+                        IoDeleteDevice(g_pDevObjErrorInfo);
+                        g_pDevObjErrorInfo = NULL;
+                    }
                 }
 
                 /* Bail out. */
@@ -416,9 +506,16 @@ static void vboxdrvNtDestroyDevices(void)
         PSUPDRVDEVEXTSTUB pDevExtStub = (PSUPDRVDEVEXTSTUB)g_pDevObjStub->DeviceExtension;
         pDevExtStub->Common.pMainDrvExt = NULL;
     }
+    if (g_pDevObjErrorInfo)
+    {
+        PSUPDRVDEVEXTERRORINFO pDevExtErrorInfo = (PSUPDRVDEVEXTERRORINFO)g_pDevObjStub->DeviceExtension;
+        pDevExtErrorInfo->Common.pMainDrvExt = NULL;
+    }
 #endif
 
 #ifdef VBOX_WITH_HARDENING
+    IoDeleteDevice(g_pDevObjErrorInfo);
+    g_pDevObjErrorInfo = NULL;
     IoDeleteDevice(g_pDevObjStub);
     g_pDevObjStub = NULL;
 #endif
@@ -493,7 +590,7 @@ ULONG _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
                     pDrvObj->MajorFunction[IRP_MJ_CLOSE]                    = VBoxDrvNtClose;
                     pDrvObj->MajorFunction[IRP_MJ_DEVICE_CONTROL]           = VBoxDrvNtDeviceControl;
                     pDrvObj->MajorFunction[IRP_MJ_INTERNAL_DEVICE_CONTROL]  = VBoxDrvNtInternalDeviceControl;
-                    pDrvObj->MajorFunction[IRP_MJ_READ]                     = VBoxDrvNtNotSupportedStub;
+                    pDrvObj->MajorFunction[IRP_MJ_READ]                     = VBoxDrvNtRead;
                     pDrvObj->MajorFunction[IRP_MJ_WRITE]                    = VBoxDrvNtNotSupportedStub;
 
 #ifdef VBOXDRV_WITH_FAST_IO
@@ -644,6 +741,16 @@ NTSTATUS _stdcall VBoxDrvNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
         rcNt = STATUS_ACCESS_DENIED;
     }
+#ifdef VBOX_WITH_HARDENING
+    /*
+     * Anyone can open the error device.
+     */
+    else if (pDevObj == g_pDevObjErrorInfo)
+    {
+        pFileObj->FsContext = NULL;
+        return supdrvNtCompleteRequestEx(STATUS_SUCCESS, FILE_OPENED, pIrp);
+    }
+#endif
     else
     {
 #if defined(VBOX_WITH_HARDENING) && !defined(VBOX_WITHOUT_DEBUGGER_CHECKS)
@@ -819,6 +926,8 @@ NTSTATUS _stdcall VBoxDrvNtCleanup(PDEVICE_OBJECT pDevObj, PIRP pIrp)
             pFileObj->FsContext = NULL;
         }
     }
+    else if (pDevObj == g_pDevObjErrorInfo)
+        supdrvNtErrorInfoCleanupProcess(PsGetCurrentProcessId());
     else
 #endif
     {
@@ -859,6 +968,8 @@ NTSTATUS _stdcall VBoxDrvNtClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
             pFileObj->FsContext = NULL;
         }
     }
+    else if (pDevObj == g_pDevObjErrorInfo)
+        supdrvNtErrorInfoCleanupProcess(PsGetCurrentProcessId());
     else
 #endif
     {
@@ -898,13 +1009,22 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
                                                      PVOID pvOutput, ULONG cbOutput, ULONG uCmd,
                                                      PIO_STATUS_BLOCK pIoStatus, PDEVICE_OBJECT pDevObj)
 {
-    PSUPDRVDEVEXT   pDevExt  = SUPDRVNT_GET_DEVEXT(pDevObj);
+    /*
+     * Only the normal devices, not the stub or error info ones.
+     */
+    if (pDevObj != g_pDevObjSys && pDevObj != g_pDevObjUsr)
+    {
+        pIoStatus->Status      = STATUS_NOT_SUPPORTED;
+        pIoStatus->Information = 0;
+        return TRUE;
+    }
 
     /*
      * Check the input a little bit and get a the session references.
      */
-    PSUPDRVSESSION  pSession = supdrvSessionHashTabLookup(pDevExt, RTProcSelf(), RTR0ProcHandleSelf(),
-                                                          (PSUPDRVSESSION *)&pFileObj->FsContext);
+    PSUPDRVDEVEXT  pDevExt  = SUPDRVNT_GET_DEVEXT(pDevObj);
+    PSUPDRVSESSION pSession = supdrvSessionHashTabLookup(pDevExt, RTProcSelf(), RTR0ProcHandleSelf(),
+                                                         (PSUPDRVSESSION *)&pFileObj->FsContext);
     if (!pSession)
     {
         pIoStatus->Status      = STATUS_TRUST_FAILURE;
@@ -1083,7 +1203,7 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
  */
 NTSTATUS _stdcall VBoxDrvNtDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
-    VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_DEV(pDevObj, pIrp);
+    VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_OR_ERROR_INFO_DEV(pDevObj, pIrp);
 
     PSUPDRVDEVEXT       pDevExt  = SUPDRVNT_GET_DEVEXT(pDevObj);
     PIO_STACK_LOCATION  pStack   = IoGetCurrentIrpStackLocation(pIrp);
@@ -1225,7 +1345,7 @@ static int VBoxDrvNtDeviceControlSlow(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSes
  */
 NTSTATUS _stdcall VBoxDrvNtInternalDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
-    VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_DEV(pDevObj, pIrp);
+    VBOXDRV_COMPLETE_IRP_AND_RETURN_IF_STUB_OR_ERROR_INFO_DEV(pDevObj, pIrp);
 
     PSUPDRVDEVEXT       pDevExt  = SUPDRVNT_GET_DEVEXT(pDevObj);
     PIO_STACK_LOCATION  pStack   = IoGetCurrentIrpStackLocation(pIrp);
@@ -1303,6 +1423,115 @@ NTSTATUS _stdcall VBoxDrvNtInternalDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pI
     /* complete the request. */
     pIrp->IoStatus.Status = rcNt;
     pIrp->IoStatus.Information = cbOut;
+    IoCompleteRequest(pIrp, IO_NO_INCREMENT);
+    return rcNt;
+}
+
+
+/**
+ * Implementation of the read major function for VBoxDrvErrorInfo.
+ *
+ * This is a stub function for the other devices.
+ *
+ * @returns NT status code.
+ * @param   pDevObj             The device object.
+ * @param   pIrp                The I/O request packet.
+ */
+NTSTATUS _stdcall VBoxDrvNtRead(PDEVICE_OBJECT pDevObj, PIRP pIrp)
+{
+    Log(("VBoxDrvNtRead\n"));
+
+    NTSTATUS rcNt;
+    pIrp->IoStatus.Information = 0;
+
+#ifdef VBOX_WITH_HARDENING
+    /*
+     * VBoxDrvErrorInfo?
+     */
+    if (pDevObj == g_pDevObjErrorInfo)
+    {
+        PIO_STACK_LOCATION pStack = IoGetCurrentIrpStackLocation(pIrp);
+        if (   pStack
+            && (pIrp->Flags & IRP_BUFFERED_IO))
+        {
+            /*
+             * Look up the process error information.
+             */
+            HANDLE hCurThreadId  = PsGetCurrentThreadId();
+            HANDLE hCurProcessId = PsGetCurrentProcessId();
+            int rc = RTSemMutexRequestNoResume(g_hErrorInfoLock, RT_INDEFINITE_WAIT);
+            if (RT_SUCCESS(rc))
+            {
+                PSUPDRVNTERRORINFO  pCur;
+                RTListForEach(&g_ErrorInfoHead, pCur, SUPDRVNTERRORINFO, ListEntry)
+                {
+                    if (   pCur->hProcessId == hCurProcessId
+                        && pCur->hThreadId  == hCurThreadId)
+                        break;
+                }
+
+                /*
+                 * Did we find error info and is the caller requesting data within it?
+                 * If so, cehck the destination buffer and copy the data into it.
+                 */
+                if (   pCur
+                    && pStack->Parameters.Read.ByteOffset.QuadPart < pCur->cchErrorInfo
+                    && pStack->Parameters.Read.ByteOffset.QuadPart >= 0)
+                {
+                    PVOID pvDstBuf = pIrp->AssociatedIrp.SystemBuffer;
+                    if (pvDstBuf)
+                    {
+                        uint32_t offRead  = (uint32_t)pStack->Parameters.Read.ByteOffset.QuadPart;
+                        uint32_t cbToRead = pCur->cchErrorInfo - (uint32_t)offRead;
+                        if (cbToRead > pStack->Parameters.Read.Length)
+                        {
+                            cbToRead = pStack->Parameters.Read.Length;
+                            RT_BZERO((uint8_t *)pvDstBuf + cbToRead, pStack->Parameters.Read.Length - cbToRead);
+                        }
+                        memcpy(pvDstBuf, &pCur->szErrorInfo[offRead], cbToRead);
+                        pIrp->IoStatus.Information = cbToRead;
+
+                        rcNt = STATUS_SUCCESS;
+                    }
+                    else
+                        rcNt = STATUS_INVALID_ADDRESS;
+                }
+                /*
+                 * End of file. Free the info.
+                 */
+                else if (pCur)
+                {
+                    RTListNodeRemove(&pCur->ListEntry);
+                    RTMemFree(pCur);
+                    rcNt = STATUS_END_OF_FILE;
+                }
+                /*
+                 * We found no error info. Return EOF.
+                 */
+                else
+                    rcNt = STATUS_END_OF_FILE;
+
+                RTSemMutexRelease(g_hErrorInfoLock);
+            }
+            else
+                rcNt = STATUS_UNSUCCESSFUL;
+        }
+        else
+            rcNt = STATUS_INVALID_PARAMETER;
+    }
+    else
+#endif /* VBOX_WITH_HARDENING */
+    {
+        /*
+         * Stub.
+         */
+        rcNt = STATUS_NOT_SUPPORTED;
+    }
+
+    /*
+     * Complete the request.
+     */
+    pIrp->IoStatus.Status = rcNt;
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
     return rcNt;
 }
@@ -1900,6 +2129,157 @@ static bool supdrvNtProtectIsCsrssByProcess(PEPROCESS pProcess)
 
 
 /**
+ * Helper for supdrvNtProtectGetAlpcPortObjectType that tries out a name.
+ *
+ * @returns true if done, false if not.
+ * @param   pwszPortNm          The port path.
+ * @param   ppObjType           The object type return variable, updated when
+ *                              returning true.
+ */
+static bool supdrvNtProtectGetAlpcPortObjectType2(PCRTUTF16 pwszPortNm, POBJECT_TYPE *ppObjType)
+{
+    bool fDone = false;
+
+    UNICODE_STRING UniStrPortNm;
+    UniStrPortNm.Buffer = (WCHAR *)pwszPortNm;
+    UniStrPortNm.Length = (USHORT)(RTUtf16Len(pwszPortNm) * sizeof(WCHAR));
+    UniStrPortNm.MaximumLength = UniStrPortNm.Length + sizeof(WCHAR);
+
+    OBJECT_ATTRIBUTES ObjAttr;
+    InitializeObjectAttributes(&ObjAttr, &UniStrPortNm, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
+
+    HANDLE hPort;
+    NTSTATUS rcNt = g_pfnZwAlpcCreatePort(&hPort, &ObjAttr, NULL /*pPortAttribs*/);
+    if (NT_SUCCESS(rcNt))
+    {
+        PVOID pvObject;
+        rcNt = ObReferenceObjectByHandle(hPort, 0 /*DesiredAccess*/, NULL /*pObjectType*/,
+                                         KernelMode, &pvObject, NULL /*pHandleInfo*/);
+        if (NT_SUCCESS(rcNt))
+        {
+            POBJECT_TYPE pObjType = g_pfnObGetObjectType(pvObject);
+            if (pObjType)
+            {
+                SUPR0Printf("vboxdrv: ALPC Port Object Type %p (vs %p)\n", pObjType, *ppObjType);
+                *ppObjType = pObjType;
+                fDone = true;
+            }
+            ObDereferenceObject(pvObject);
+        }
+        NtClose(hPort);
+    }
+    return fDone;
+}
+
+
+/**
+ * Attempts to retrieve the ALPC Port object type.
+ *
+ * We've had at least three reports that using LpcPortObjectType when trying to
+ * get at the ApiPort object results in STATUS_OBJECT_TYPE_MISMATCH errors.
+ * It's not known who has modified LpcPortObjectType or AlpcPortObjectType (not
+ * exported) so that it differs from the actual ApiPort type, or maybe this
+ * unknown entity is intercepting our attempt to reference the port and
+ * tries to mislead us.  The paranoid explanataion is of course that some evil
+ * root kit like software is messing with the OS, however, it's possible that
+ * this is valid kernel behavior that 99.8% of our users and 100% of the
+ * developers are not triggering for some reason.
+ *
+ * The code here creates an ALPC port object and gets it's type.  It will cache
+ * the result in g_pAlpcPortObjectType2 on success.
+ *
+ * @returns Object type.
+ * @param   uSessionId      The session id.
+ * @param   pszSessionId    The session id formatted as a string.
+ */
+static POBJECT_TYPE supdrvNtProtectGetAlpcPortObjectType(uint32_t uSessionId, const char *pszSessionId)
+{
+    POBJECT_TYPE pObjType = *LpcPortObjectType;
+
+    if (   g_pfnZwAlpcCreatePort
+        && g_pfnObGetObjectType)
+    {
+        int     rc;
+        ssize_t cchTmp; NOREF(cchTmp);
+        char    szTmp[16];
+        RTUTF16 wszPortNm[128];
+        size_t  offRand;
+
+        /*
+         * First attempt is in the session directory.
+         */
+        rc  = RTUtf16CopyAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "\\Sessions\\");
+        rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), pszSessionId);
+        rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "\\VBoxDrv-");
+        cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), (uint32_t)(uintptr_t)PsGetProcessId(PsGetCurrentProcess()), 16, 0, 0, 0);
+        Assert(cchTmp > 0);
+        rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+        rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "-");
+        offRand = RTUtf16Len(wszPortNm);
+        cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), RTRandU32(), 16, 0, 0, 0);
+        Assert(cchTmp > 0);
+        rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+        AssertRCSuccess(rc);
+
+        bool fDone = supdrvNtProtectGetAlpcPortObjectType2(wszPortNm, &pObjType);
+        if (!fDone)
+        {
+            wszPortNm[offRand] = '\0';
+            cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), RTRandU32(), 16, 0, 0, 0); Assert(cchTmp > 0);
+            rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+            AssertRCSuccess(rc);
+
+            fDone = supdrvNtProtectGetAlpcPortObjectType2(wszPortNm, &pObjType);
+        }
+        if (!fDone)
+        {
+            /*
+             * Try base names.
+             */
+            if (uSessionId == 0)
+                rc  = RTUtf16CopyAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "\\BaseNamedObjects\\VBoxDrv-");
+            else
+            {
+                rc  = RTUtf16CopyAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "\\Sessions\\");
+                rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), pszSessionId);
+                rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "\\BaseNamedObjects\\VBoxDrv-");
+            }
+            cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), (uint32_t)(uintptr_t)PsGetProcessId(PsGetCurrentProcess()), 16, 0, 0, 0);
+            Assert(cchTmp > 0);
+            rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+            rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), "-");
+            offRand = RTUtf16Len(wszPortNm);
+            cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), RTRandU32(), 16, 0, 0, 0);
+            Assert(cchTmp > 0);
+            rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+            AssertRCSuccess(rc);
+
+            bool fDone = supdrvNtProtectGetAlpcPortObjectType2(wszPortNm, &pObjType);
+            if (!fDone)
+            {
+                wszPortNm[offRand] = '\0';
+                cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), RTRandU32(), 16, 0, 0, 0);
+                Assert(cchTmp > 0);
+                rc |= RTUtf16CatAscii(wszPortNm, RT_ELEMENTS(wszPortNm), szTmp);
+                AssertRCSuccess(rc);
+
+                fDone = supdrvNtProtectGetAlpcPortObjectType2(wszPortNm, &pObjType);
+            }
+        }
+
+        /* Cache the result in g_pAlpcPortObjectType2. */
+        if (   g_pAlpcPortObjectType2 == NULL
+            && pObjType != g_pAlpcPortObjectType1
+            && fDone)
+            g_pAlpcPortObjectType2 = pObjType;
+
+    }
+
+    return pObjType;
+}
+
+
+/**
  * Called in the context of VBoxDrvNtCreate to determin the CSRSS for the
  * current process.
  *
@@ -1921,19 +2301,23 @@ static int supdrvNtProtectFindAssociatedCsrss(PSUPDRVNTPROTECT pNtProtect)
      * We'll try use the ApiPort LPC object for the session we're in to track
      * down the CSRSS process. So, we start by constructing a path to it.
      */
-    int rc;
+    int         rc;
     uint32_t    uSessionId = PsGetProcessSessionId(PsGetCurrentProcess());
+    char        szSessionId[16];
     WCHAR       wszApiPort[48];
     if (uSessionId == 0)
+    {
+        szSessionId[0] = '0';
+        szSessionId[1] = '\0';
         rc = RTUtf16CopyAscii(wszApiPort, RT_ELEMENTS(wszApiPort), "\\Windows\\ApiPort");
+    }
     else
     {
-        char szTmp[64];
-        ssize_t cchTmp = RTStrFormatU32(szTmp, sizeof(szTmp), uSessionId, 10, 0, 0, 0);
+        ssize_t cchTmp = RTStrFormatU32(szSessionId, sizeof(szSessionId), uSessionId, 10, 0, 0, 0);
         AssertReturn(cchTmp > 0, (int)cchTmp);
         rc = RTUtf16CopyAscii(wszApiPort, RT_ELEMENTS(wszApiPort), "\\Sessions\\");
         if (RT_SUCCESS(rc))
-            rc = RTUtf16CatAscii(wszApiPort, RT_ELEMENTS(wszApiPort), szTmp);
+            rc = RTUtf16CatAscii(wszApiPort, RT_ELEMENTS(wszApiPort), szSessionId);
         if (RT_SUCCESS(rc))
             rc = RTUtf16CatAscii(wszApiPort, RT_ELEMENTS(wszApiPort), "\\Windows\\ApiPort");
     }
@@ -1952,14 +2336,35 @@ static int supdrvNtProtectFindAssociatedCsrss(PSUPDRVNTPROTECT pNtProtect)
                                             0,
                                             NULL /*pAccessState*/,
                                             STANDARD_RIGHTS_READ,
-                                            *LpcPortObjectType,
+                                            g_pAlpcPortObjectType1,
                                             KernelMode,
                                             NULL /*pvParseContext*/,
                                             &pvApiPortObj);
+    if (   rcNt == STATUS_OBJECT_TYPE_MISMATCH
+        && g_pAlpcPortObjectType2 != NULL)
+        rcNt = ObReferenceObjectByName(&ApiPortStr,
+                                       0,
+                                       NULL /*pAccessState*/,
+                                       STANDARD_RIGHTS_READ,
+                                       g_pAlpcPortObjectType2,
+                                       KernelMode,
+                                       NULL /*pvParseContext*/,
+                                       &pvApiPortObj);
+    if (   rcNt == STATUS_OBJECT_TYPE_MISMATCH
+        && g_pfnObGetObjectType
+        && g_pfnZwAlpcCreatePort)
+        rcNt = ObReferenceObjectByName(&ApiPortStr,
+                                       0,
+                                       NULL /*pAccessState*/,
+                                       STANDARD_RIGHTS_READ,
+                                       supdrvNtProtectGetAlpcPortObjectType(uSessionId, szSessionId),
+                                       KernelMode,
+                                       NULL /*pvParseContext*/,
+                                       &pvApiPortObj);
     if (!NT_SUCCESS(rcNt))
     {
         SUPR0Printf("vboxdrv: Error opening '%ls': %#x\n", wszApiPort, rcNt);
-        return VERR_SUPDRV_APIPORT_OPEN_ERROR;
+        return rcNt == STATUS_OBJECT_TYPE_MISMATCH ? VERR_SUPDRV_APIPORT_OPEN_ERROR_TYPE : VERR_SUPDRV_APIPORT_OPEN_ERROR;
     }
 
     /*
@@ -2176,6 +2581,31 @@ static bool supdrvNtProtectIsWhitelistedDebugger(PEPROCESS pProcess)
 /** @name Process Creation Callbacks.
  * @{ */
 
+
+/**
+ * Cleans up VBoxDrv or VBoxDrvStub error info not collected by the dead process.
+ *
+ * @param   hProcessId          The ID of the dead process.
+ */
+static void supdrvNtErrorInfoCleanupProcess(HANDLE hProcessId)
+{
+    int rc = RTSemMutexRequestNoResume(g_hErrorInfoLock, RT_INDEFINITE_WAIT);
+    if (RT_SUCCESS(rc))
+    {
+        PSUPDRVNTERRORINFO pCur, pNext;
+        RTListForEachSafe(&g_ErrorInfoHead, pCur, pNext, SUPDRVNTERRORINFO, ListEntry)
+        {
+            if (pCur->hProcessId == hProcessId)
+            {
+                RTListNodeRemove(&pCur->ListEntry);
+                RTMemFree(pCur);
+            }
+        }
+        RTSemMutexRelease(g_hErrorInfoLock);
+    }
+}
+
+
 /**
  * Common worker used by the process creation hooks as well as the process
  * handle creation hooks to check if a VM process is being created.
@@ -2239,7 +2669,7 @@ static int supdrvNtProtectProtectNewStubChild(PSUPDRVNTPROTECT pNtParent, HANDLE
         pNtChild->fFirstProcessCreateHandle = true;
         pNtChild->fFirstThreadCreateHandle = true;
         pNtChild->fCsrssFirstProcessCreateHandle = true;
-        pNtChild->fCsrssFirstProcessDuplicateHandle = true;
+        pNtChild->cCsrssFirstProcessDuplicateHandle = ARCH_BITS == 32 ? 2 : 1;
         pNtChild->fThemesFirstProcessCreateHandle = true;
         pNtChild->hParentPid = pNtParent->AvlCore.Key;
         pNtChild->hCsrssPid = pNtParent->hCsrssPid;
@@ -2422,7 +2852,10 @@ supdrvNtProtectCallback_ProcessCreateNotify(HANDLE hParentPid, HANDLE hNewPid, B
      * Process termination, do clean ups.
      */
     else
+    {
         supdrvNtProtectUnprotectDeadProcess(hNewPid);
+        supdrvNtErrorInfoCleanupProcess(hNewPid);
+    }
 }
 
 
@@ -2478,7 +2911,10 @@ supdrvNtProtectCallback_ProcessCreateNotifyEx(PEPROCESS pNewProcess, HANDLE hNew
      * Process termination, do clean ups.
      */
     else
+    {
         supdrvNtProtectUnprotectDeadProcess(hNewPid);
+        supdrvNtErrorInfoCleanupProcess(hNewPid);
+    }
 }
 
 /** @} */
@@ -2620,6 +3056,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fCsrssFirstProcessCreateHandle
                     && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fCsrssFirstProcessCreateHandle = false;
@@ -2646,6 +3083,7 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                     && pOpInfo->Parameters->CreateHandleInformation.DesiredAccess == 0x1478 /* 6.1.7600.16385 (win7_rtm.090713-1255) */
                     && pNtProtect->fThemesFirstProcessCreateHandle
                     && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
                     && supdrvNtProtectIsFrigginThemesService(pNtProtect, PsGetCurrentProcess()) )
                 {
                     pNtProtect->fThemesFirstProcessCreateHandle = true; /* Only once! */
@@ -2686,15 +3124,16 @@ supdrvNtProtectCallback_ProcessHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMA
                    This is the CSRSS.EXE end of special case #1. */
                 if (   g_uNtVerCombined < SUP_MAKE_NT_VER_SIMPLE(6, 3)
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
-                    && pNtProtect->fCsrssFirstProcessDuplicateHandle
+                    && pNtProtect->cCsrssFirstProcessDuplicateHandle > 0
                     && pOpInfo->KernelHandle == 0
+                    && pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess == s_fCsrssStupidDesires
                     &&    pNtProtect->hParentPid
                        == PsGetProcessId((PEPROCESS)pOpInfo->Parameters->DuplicateHandleInformation.SourceProcess)
                     && pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == PsGetCurrentProcess()
-                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
+                    && ExGetPreviousMode() == UserMode
+                    && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()))
                 {
-                    pNtProtect->fCsrssFirstProcessDuplicateHandle = false;
-                    if (pOpInfo->Parameters->DuplicateHandleInformation.DesiredAccess == s_fCsrssStupidDesires)
+                    if (ASMAtomicDecS32(&pNtProtect->cCsrssFirstProcessDuplicateHandle) >= 0)
                     {
                         /* Not needed: PROCESS_CREATE_THREAD, PROCESS_SET_SESSIONID,
                            PROCESS_CREATE_PROCESS, PROCESS_DUP_HANDLE */
@@ -2838,6 +3277,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                     && pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed
                     && pNtProtect->fFirstThreadCreateHandle
                     && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
                     && pNtProtect->hParentPid == PsGetProcessId(PsGetCurrentProcess()) )
                 {
                     if (   !pOpInfo->KernelHandle
@@ -2860,6 +3300,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                     && (   (enmProcessKind = pNtProtect->enmProcessKind) == kSupDrvNtProtectKind_VmProcessConfirmed
                         || enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
                     && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     fAllowedRights |= THREAD_IMPERSONATE;
@@ -2904,6 +3345,7 @@ supdrvNtProtectCallback_ThreadHandlePre(PVOID pvUser, POB_PRE_OPERATION_INFORMAT
                         || enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
                     && pOpInfo->Parameters->DuplicateHandleInformation.TargetProcess == PsGetCurrentProcess()
                     && pOpInfo->KernelHandle == 0
+                    && ExGetPreviousMode() == UserMode
                     && supdrvNtProtectIsAssociatedCsrss(pNtProtect, PsGetCurrentProcess()) )
                 {
                     fAllowedRights |= THREAD_IMPERSONATE;
@@ -2982,6 +3424,7 @@ static int supdrvNtProtectCreate(PSUPDRVNTPROTECT *ppNtProtect, HANDLE hPid, SUP
     pNtProtect->cRefs                        = 1;
     pNtProtect->enmProcessKind               = enmProcessKind;
     pNtProtect->hParentPid                   = NULL;
+    pNtProtect->hOpenTid                     = NULL;
     pNtProtect->hCsrssPid                    = NULL;
     pNtProtect->pCsrssProcess                = NULL;
 
@@ -3041,7 +3484,7 @@ static void supdrvNtProtectRelease(PSUPDRVNTPROTECT pNtProtect)
                 pNtProtect->u.pChild   = NULL;
                 pChild->u.pParent      = NULL;
                 pChild->enmProcessKind = kSupDrvNtProtectKind_VmProcessDead;
-                uint32_t cChildRefs = ASMAtomicIncU32(&pChild->cRefs);
+                uint32_t cChildRefs = ASMAtomicDecU32(&pChild->cRefs);
                 if (!cChildRefs)
                     pRemovedChild = (PSUPDRVNTPROTECT)RTAvlPVRemove(&g_NtProtectTree, pChild->AvlCore.Key);
                 else
@@ -3087,14 +3530,114 @@ static PSUPDRVNTPROTECT supdrvNtProtectLookup(HANDLE hPid)
 
 
 /**
+ * Validates a few facts about the stub process when the VM process opens
+ * vboxdrv.
+ *
+ * This makes sure the stub process is still around and that it has neither
+ * debugger nor extra threads in it.
+ *
+ * @returns VBox status code.
+ * @param   pNtProtect          The unconfirmed VM process currently trying to
+ *                              open vboxdrv.
+ * @param   pErrInfo            Additional error information.
+ */
+static int supdrvNtProtectVerifyStubForVmProcess(PSUPDRVNTPROTECT pNtProtect, PRTERRINFO pErrInfo)
+{
+    /*
+     * Grab a reference to the parent stub process.
+     */
+    SUPDRVNTPROTECTKIND enmStub = kSupDrvNtProtectKind_Invalid;
+    PSUPDRVNTPROTECT    pNtStub = NULL;
+    RTSpinlockAcquire(g_hNtProtectLock);
+    if (pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
+    {
+        pNtStub = pNtProtect->u.pParent; /* weak reference. */
+        if (pNtStub)
+        {
+            enmStub = pNtStub->enmProcessKind;
+            if (enmStub == kSupDrvNtProtectKind_StubParent)
+            {
+                uint32_t cRefs = ASMAtomicIncU32(&pNtStub->cRefs);
+                Assert(cRefs > 0 && cRefs < 1024);
+            }
+            else
+                pNtStub = NULL;
+        }
+    }
+    RTSpinlockRelease(g_hNtProtectLock);
+
+    /*
+     * We require the stub process to be present.
+     */
+    if (!pNtStub)
+        return RTErrInfoSetF(pErrInfo, VERR_SUP_VP_STUB_NOT_FOUND, "Missing stub process (enmStub=%d).", enmStub);
+
+    /*
+     * Open the parent process and thread so we can check for debuggers and unwanted threads.
+     */
+    int rc;
+    PEPROCESS pStubProcess;
+    NTSTATUS rcNt = PsLookupProcessByProcessId(pNtStub->AvlCore.Key, &pStubProcess);
+    if (NT_SUCCESS(rcNt))
+    {
+        HANDLE hStubProcess;
+        rcNt = ObOpenObjectByPointer(pStubProcess, OBJ_KERNEL_HANDLE, NULL /*PassedAccessState*/,
+                                     0 /*DesiredAccess*/, *PsProcessType, KernelMode, &hStubProcess);
+        if (NT_SUCCESS(rcNt))
+        {
+            PETHREAD pStubThread;
+            rcNt = PsLookupThreadByThreadId(pNtStub->hOpenTid, &pStubThread);
+            if (NT_SUCCESS(rcNt))
+            {
+                HANDLE hStubThread;
+                rcNt = ObOpenObjectByPointer(pStubThread, OBJ_KERNEL_HANDLE, NULL /*PassedAccessState*/,
+                                             0 /*DesiredAccess*/, *PsThreadType, KernelMode, &hStubThread);
+                if (NT_SUCCESS(rcNt))
+                {
+                    /*
+                     * Do some simple sanity checking.
+                     */
+                    rc = supHardNtVpDebugger(hStubProcess, pErrInfo);
+                    if (RT_SUCCESS(rc))
+                        rc = supHardNtVpThread(hStubProcess, hStubThread, pErrInfo);
+
+                    /* Clean up. */
+                    rcNt = NtClose(hStubThread); AssertMsg(NT_SUCCESS(rcNt), ("%#x\n", rcNt));
+                }
+                else
+                    rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_STUB_THREAD_OPEN_ERROR,
+                                       "Error opening stub thread %p (tid %p, pid %p): %#x",
+                                       pStubThread, pNtStub->hOpenTid, pNtStub->AvlCore.Key, rcNt);
+            }
+            else
+                rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_STUB_THREAD_NOT_FOUND,
+                                   "Failed to locate thread %p in %p: %#x", pNtStub->hOpenTid, pNtStub->AvlCore.Key, rcNt);
+            rcNt = NtClose(hStubProcess); AssertMsg(NT_SUCCESS(rcNt), ("%#x\n", rcNt));
+        }
+        else
+            rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_STUB_OPEN_ERROR,
+                               "Error opening stub process %p (pid %p): %#x", pStubProcess, pNtStub->AvlCore.Key, rcNt);
+        ObDereferenceObject(pStubProcess);
+    }
+    else
+        rc = RTErrInfoSetF(pErrInfo, VERR_SUP_VP_STUB_NOT_FOUND,
+                           "Failed to locate stub process %p: %#x", pNtStub->AvlCore.Key, rcNt);
+
+    supdrvNtProtectRelease(pNtStub);
+    return rc;
+}
+
+
+/**
  * Worker for supdrvNtProtectVerifyProcess that verifies the handles to a VM
  * process and its thread.
  *
  * @returns VBox status code.
  * @param   pNtProtect          The NT protect structure for getting information
  *                              about special processes.
+ * @param   pErrInfo            Where to return additional error details.
  */
-static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNtProtect)
+static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNtProtect, PRTERRINFO pErrInfo)
 {
     /*
      * What to protect.
@@ -3123,13 +3666,14 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
             RTMemFree(pbBuf);
             pbBuf = (uint8_t *)RTMemAlloc(cbBuf);
             if (!pbBuf)
-                return VERR_NO_MEMORY;
+                return RTErrInfoSetF(pErrInfo, VERR_NO_MEMORY, "Error allocating %zu bytes for querying handles.", cbBuf);
             rcNt = NtQuerySystemInformation(SystemExtendedHandleInformation, pbBuf, cbBuf, &cbNeeded);
         }
         if (!NT_SUCCESS(rcNt))
         {
             RTMemFree(pbBuf);
-            return RTErrConvertFromNtStatus(rcNt);
+            return RTErrInfoSetF(pErrInfo, RTErrConvertFromNtStatus(rcNt),
+                                 "NtQuerySystemInformation/SystemExtendedHandleInformation failed: %#x\n", rcNt);
         }
     }
 
@@ -3159,7 +3703,7 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
         SYSTEM_HANDLE_ENTRY_INFO_EX const *pHandleInfo = &pInfo->Handles[i];
         if (pHandleInfo->Object == pProtectedProcess)
         {
-            /* Handles within the protected process is fine. */
+            /* Handles within the protected process are fine. */
             if (   !(pHandleInfo->GrantedAccess & SUPDRV_NT_EVIL_PROCESS_RIGHTS)
                 || pHandleInfo->UniqueProcessId == hProtectedPid)
             {
@@ -3176,10 +3720,11 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
                 continue;
             }
 
-            /* The system process is allowed having one open process handle in
-               Windows 8.1 and later. */
-            if (   g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 3)
-                && cSystemProcessHandles < 1
+            /* The system process is allowed having two open process handle in
+               Windows 8.1 and later, and one in earlier. This is probably a
+               little overly paranoid as I think we can safely trust the
+               system process... */
+            if (   cSystemProcessHandles < (g_uNtVerCombined >= SUP_MAKE_NT_VER_SIMPLE(6, 3) ? 2 : 1)
                 && pHandleInfo->UniqueProcessId == PsGetProcessId(PsInitialSystemProcess))
             {
                 cSystemProcessHandles++;
@@ -3243,7 +3788,24 @@ static int supdrvNtProtectRestrictHandlesToProcessAndThread(PSUPDRVNTPROTECT pNt
             LogRel(("vboxdrv: Found evil handle to budding VM process: pid=%p h=%p acc=%#x attr=%#x type=%s\n",
                     pHandleInfo->UniqueProcessId, pHandleInfo->HandleValue,
                     pHandleInfo->GrantedAccess, pHandleInfo->HandleAttributes, pszType));
-            rc = VERR_SUPDRV_HARDENING_EVIL_HANDLE;
+            rc = RTErrInfoAddF(pErrInfo, VERR_SUPDRV_HARDENING_EVIL_HANDLE,
+                               *pErrInfo->pszMsg
+                               ? "\nFound evil handle to budding VM process: pid=%p h=%p acc=%#x attr=%#x type=%s"
+                               : "Found evil handle to budding VM process: pid=%p h=%p acc=%#x attr=%#x type=%s",
+                               pHandleInfo->UniqueProcessId, pHandleInfo->HandleValue,
+                               pHandleInfo->GrantedAccess, pHandleInfo->HandleAttributes, pszType);
+
+            /* Try add the process name. */
+            PEPROCESS pOffendingProcess;
+            rcNt = PsLookupProcessByProcessId(pHandleInfo->UniqueProcessId, &pOffendingProcess);
+            if (NT_SUCCESS(rcNt))
+            {
+                const char *pszName = (const char *)PsGetProcessImageFileName(pOffendingProcess);
+                if (pszName && *pszName)
+                    rc = RTErrInfoAddF(pErrInfo, rc, " [%s]", pszName);
+
+                ObDereferenceObject(pOffendingProcess);
+            }
         }
     }
 
@@ -3268,30 +3830,39 @@ static int supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect)
      * on VM processes.
      */
     int rc = VINF_SUCCESS;
-    if (pNtProtect->enmProcessKind >= kSupDrvNtProtectKind_VmProcessUnconfirmed)
-        rc = supdrvNtProtectRestrictHandlesToProcessAndThread(pNtProtect);
+    PSUPDRVNTERRORINFO pErrorInfo = (PSUPDRVNTERRORINFO)RTMemAllocZ(sizeof(*pErrorInfo));
     if (RT_SUCCESS(rc))
     {
-        char szErr[256];
-        RT_ZERO(szErr);
+        pErrorInfo->hProcessId = PsGetCurrentProcessId();
+        pErrorInfo->hThreadId  = PsGetCurrentThreadId();
         RTERRINFO ErrInfo;
-        RTErrInfoInit(&ErrInfo, szErr, sizeof(szErr));
+        RTErrInfoInit(&ErrInfo, pErrorInfo->szErrorInfo, sizeof(pErrorInfo->szErrorInfo));
 
-        rc = supHardenedWinVerifyProcess(NtCurrentProcess(), NtCurrentThread(), SUPHARDNTVPKIND_VERIFY_ONLY,
-                                         NULL /*pcFixes*/, &ErrInfo);
-        if (RT_FAILURE(rc))
-            RTLogWriteDebugger(szErr, strlen(szErr));
+        if (pNtProtect->enmProcessKind >= kSupDrvNtProtectKind_VmProcessUnconfirmed)
+            rc = supdrvNtProtectRestrictHandlesToProcessAndThread(pNtProtect, &ErrInfo);
+        if (RT_SUCCESS(rc))
+        {
+            rc = supHardenedWinVerifyProcess(NtCurrentProcess(), NtCurrentThread(), SUPHARDNTVPKIND_VERIFY_ONLY, 0 /*fFlags*/,
+                                             NULL /*pcFixes*/, &ErrInfo);
+            if (RT_SUCCESS(rc) && pNtProtect->enmProcessKind >= kSupDrvNtProtectKind_VmProcessUnconfirmed)
+                rc = supdrvNtProtectVerifyStubForVmProcess(pNtProtect, &ErrInfo);
+        }
     }
+    else
+        rc = VERR_NO_MEMORY;
 
     /*
      * Upgrade and return.
      */
+    HANDLE hOpenTid = PsGetCurrentThreadId();
     RTSpinlockAcquire(g_hNtProtectLock);
 
     /* Stub process verficiation is pretty much straight forward. */
     if (pNtProtect->enmProcessKind == kSupDrvNtProtectKind_StubUnverified)
+    {
         pNtProtect->enmProcessKind = RT_SUCCESS(rc) ? kSupDrvNtProtectKind_StubSpawning : kSupDrvNtProtectKind_StubDead;
-
+        pNtProtect->hOpenTid       = hOpenTid;
+    }
     /* The VM process verification is a little bit more complicated
        because we need to drop the parent process reference as well. */
     else if (pNtProtect->enmProcessKind == kSupDrvNtProtectKind_VmProcessUnconfirmed)
@@ -3307,7 +3878,10 @@ static int supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect)
         ASMAtomicDecU32(&pNtProtect->cRefs);
 
         if (RT_SUCCESS(rc))
+        {
             pNtProtect->enmProcessKind = kSupDrvNtProtectKind_VmProcessConfirmed;
+            pNtProtect->hOpenTid       = hOpenTid;
+        }
         else
             pNtProtect->enmProcessKind = kSupDrvNtProtectKind_VmProcessDead;
     }
@@ -3334,6 +3908,44 @@ static int supdrvNtProtectVerifyProcess(PSUPDRVNTPROTECT pNtProtect)
     }
 
     RTSpinlockRelease(g_hNtProtectLock);
+
+    /*
+     * Free error info on success, keep it on failure.
+     */
+    if (RT_SUCCESS(rc))
+        RTMemFree(pErrorInfo);
+    else if (pErrorInfo)
+    {
+        pErrorInfo->cchErrorInfo = (uint32_t)strlen(pErrorInfo->szErrorInfo);
+        if (!pErrorInfo->cchErrorInfo)
+            pErrorInfo->cchErrorInfo = (uint32_t)RTStrPrintf(pErrorInfo->szErrorInfo, sizeof(pErrorInfo->szErrorInfo),
+                                                             "supdrvNtProtectVerifyProcess: rc=%d", rc);
+        if (RT_FAILURE(rc))
+            RTLogWriteDebugger(pErrorInfo->szErrorInfo, pErrorInfo->cchErrorInfo);
+
+        int rc2 = RTSemMutexRequest(g_hErrorInfoLock, RT_INDEFINITE_WAIT);
+        if (RT_SUCCESS(rc2))
+        {
+            pErrorInfo->uCreatedMsTs = RTTimeMilliTS();
+
+            /* Free old entries. */
+            PSUPDRVNTERRORINFO pCur;
+            while (   (pCur = RTListGetFirst(&g_ErrorInfoHead, SUPDRVNTERRORINFO, ListEntry)) != NULL
+                   && (int64_t)(pErrorInfo->uCreatedMsTs - pCur->uCreatedMsTs) > 60000 /*60sec*/)
+            {
+                RTListNodeRemove(&pCur->ListEntry);
+                RTMemFree(pCur);
+            }
+
+            /* Insert our new entry. */
+            RTListAppend(&g_ErrorInfoHead, &pErrorInfo->ListEntry);
+
+            RTSemMutexRelease(g_hErrorInfoLock);
+        }
+        else
+            RTMemFree(pErrorInfo);
+    }
+
     return rc;
 }
 
@@ -3384,6 +3996,16 @@ static void supdrvNtProtectTerm(void)
     RTSpinlockDestroy(g_hNtProtectLock);
     g_NtProtectTree = NIL_RTSPINLOCK;
 
+    RTSemMutexDestroy(g_hErrorInfoLock);
+    g_hErrorInfoLock = NIL_RTSEMMUTEX;
+
+    PSUPDRVNTERRORINFO pCur;
+    while ((pCur = RTListGetFirst(&g_ErrorInfoHead, SUPDRVNTERRORINFO, ListEntry)) != NULL)
+    {
+        RTListNodeRemove(&pCur->ListEntry);
+        RTMemFree(pCur);
+    }
+
     supHardenedWinTermImageVerifier();
 }
 
@@ -3432,6 +4054,9 @@ static NTSTATUS supdrvNtProtectInit(void)
     /* Resolve methods we want but isn't available everywhere. */
     UNICODE_STRING RoutineName;
 
+    RtlInitUnicodeString(&RoutineName, L"ObGetObjectType");
+    g_pfnObGetObjectType = (PFNOBGETOBJECTTYPE)MmGetSystemRoutineAddress(&RoutineName);
+
     RtlInitUnicodeString(&RoutineName, L"ObRegisterCallbacks");
     g_pfnObRegisterCallbacks   = (PFNOBREGISTERCALLBACKS)MmGetSystemRoutineAddress(&RoutineName);
 
@@ -3446,6 +4071,9 @@ static NTSTATUS supdrvNtProtectInit(void)
 
     RtlInitUnicodeString(&RoutineName, L"PsIsProtectedProcessLight");
     g_pfnPsIsProtectedProcessLight = (PFNPSISPROTECTEDPROCESSLIGHT)MmGetSystemRoutineAddress(&RoutineName);
+
+    RtlInitUnicodeString(&RoutineName, L"ZwAlpcCreatePort");
+    g_pfnZwAlpcCreatePort = (PFNZWALPCCREATEPORT)MmGetSystemRoutineAddress(&RoutineName);
 
     RtlInitUnicodeString(&RoutineName, L"ZwQueryVirtualMemory"); /* Yes, using Zw version here. */
     g_pfnNtQueryVirtualMemory = (PFNNTQUERYVIRTUALMEMORY)MmGetSystemRoutineAddress(&RoutineName);
@@ -3527,6 +4155,18 @@ static NTSTATUS supdrvNtProtectInit(void)
         return STATUS_PROCEDURE_NOT_FOUND;
     }
 
+# ifdef VBOX_STRICT
+    if (   g_uNtVerCombined >= SUP_NT_VER_W70
+        && (   g_pfnObGetObjectType == NULL
+            || g_pfnZwAlpcCreatePort == NULL) )
+    {
+        LogRel(("vboxdrv: g_pfnObGetObjectType=%p g_pfnZwAlpcCreatePort=%p.\n", g_pfnObGetObjectType, g_pfnZwAlpcCreatePort));
+        return STATUS_PROCEDURE_NOT_FOUND;
+    }
+# endif
+
+    /* LPC object type. */
+    g_pAlpcPortObjectType1 = *LpcPortObjectType;
 
     /* The spinlock protecting our structures. */
     int rc = RTSpinlockCreate(&g_hNtProtectLock, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "NtProtectLock");
@@ -3534,119 +4174,131 @@ static NTSTATUS supdrvNtProtectInit(void)
         return VBoxDrvNtErr2NtStatus(rc);
     g_NtProtectTree = NULL;
 
-    /* Image stuff + certificates. */
     NTSTATUS rcNt;
-    rc = supHardenedWinInitImageVerifier(NULL);
+
+    /* The mutex protecting the error information. */
+    RTListInit(&g_ErrorInfoHead);
+    rc = RTSemMutexCreate(&g_hErrorInfoLock);
     if (RT_SUCCESS(rc))
     {
-        /*
-         * Intercept process creation and termination.
-         */
-        if (g_pfnPsSetCreateProcessNotifyRoutineEx)
-            rcNt = g_pfnPsSetCreateProcessNotifyRoutineEx(supdrvNtProtectCallback_ProcessCreateNotifyEx, FALSE /*fRemove*/);
-        else
-            rcNt = PsSetCreateProcessNotifyRoutine(supdrvNtProtectCallback_ProcessCreateNotify, FALSE /*fRemove*/);
-        if (NT_SUCCESS(rcNt))
+        /* Image stuff + certificates. */
+        rc = supHardenedWinInitImageVerifier(NULL);
+        if (RT_SUCCESS(rc))
         {
             /*
-             * Intercept process and thread handle creation calls.
-             * The preferred method is only available on Vista SP1+.
+             * Intercept process creation and termination.
              */
-            if (g_pfnObRegisterCallbacks && g_pfnObUnRegisterCallbacks)
-            {
-                static OB_OPERATION_REGISTRATION s_aObOperations[] =
-                {
-                    {
-                        PsProcessType,
-                        OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
-                        supdrvNtProtectCallback_ProcessHandlePre,
-                        supdrvNtProtectCallback_ProcessHandlePost,
-                    },
-                    {
-                        PsThreadType,
-                        OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
-                        supdrvNtProtectCallback_ThreadHandlePre,
-                        supdrvNtProtectCallback_ThreadHandlePost,
-                    },
-                };
-                static OB_CALLBACK_REGISTRATION s_ObCallbackReg =
-                {
-                    /* .Version                     = */ OB_FLT_REGISTRATION_VERSION,
-                    /* .OperationRegistrationCount  = */ RT_ELEMENTS(s_aObOperations),
-                    /* .Altitude.Length             = */ 0,
-                    /* .Altitude.MaximumLength      = */ 0,
-                    /* .Altitude.Buffer             = */ NULL,
-                    /* .RegistrationContext         = */ NULL,
-                    /* .OperationRegistration       = */ &s_aObOperations[0]
-                };
-                static WCHAR const *s_apwszAltitudes[] = /** @todo get a valid number */
-                {
-                     L"48596.98940",  L"46935.19485",  L"49739.39704",  L"40334.74976",
-                     L"66667.98940",  L"69888.19485",  L"69889.39704",  L"60364.74976",
-                     L"85780.98940",  L"88978.19485",  L"89939.39704",  L"80320.74976",
-                     L"329879.98940", L"326787.19485", L"328915.39704", L"320314.74976",
-                };
-
-                rcNt = STATUS_FLT_INSTANCE_ALTITUDE_COLLISION;
-                for (uint32_t i = 0; i < RT_ELEMENTS(s_apwszAltitudes) && rcNt == STATUS_FLT_INSTANCE_ALTITUDE_COLLISION; i++)
-                {
-                    s_ObCallbackReg.Altitude.Buffer = (WCHAR *)s_apwszAltitudes[i];
-                    s_ObCallbackReg.Altitude.Length = (uint16_t)RTUtf16Len(s_apwszAltitudes[i]) * sizeof(WCHAR);
-                    s_ObCallbackReg.Altitude.MaximumLength = s_ObCallbackReg.Altitude.Length + sizeof(WCHAR);
-
-                    rcNt = g_pfnObRegisterCallbacks(&s_ObCallbackReg, &g_pvObCallbacksCookie);
-                    if (NT_SUCCESS(rcNt))
-                    {
-                        /*
-                         * Happy ending.
-                         */
-                        return STATUS_SUCCESS;
-                    }
-                }
-                LogRel(("vboxdrv: ObRegisterCallbacks failed with rcNt=%#x\n", rcNt));
-                g_pvObCallbacksCookie = NULL;
-            }
+            if (g_pfnPsSetCreateProcessNotifyRoutineEx)
+                rcNt = g_pfnPsSetCreateProcessNotifyRoutineEx(supdrvNtProtectCallback_ProcessCreateNotifyEx, FALSE /*fRemove*/);
             else
+                rcNt = PsSetCreateProcessNotifyRoutine(supdrvNtProtectCallback_ProcessCreateNotify, FALSE /*fRemove*/);
+            if (NT_SUCCESS(rcNt))
             {
                 /*
-                 * For the time being, we do not implement extra process
-                 * protection on pre-Vista-SP1 systems as they are lacking
-                 * necessary KPIs.  XP is end of life, we do not wish to
-                 * spend more time on it, so we don't put up a fuss there.
-                 * Vista users without SP1 can install SP1 (or later), darn it,
-                 * so refuse to load.
+                 * Intercept process and thread handle creation calls.
+                 * The preferred method is only available on Vista SP1+.
                  */
-                /** @todo Hack up an XP solution - will require hooking kernel APIs or doing bad
-                 *        stuff to a couple of object types. */
-# ifndef VBOX_WITH_VISTA_NO_SP
-                if (g_uNtVerCombined >= SUP_NT_VER_VISTA)
-# else
-                if (g_uNtVerCombined >= SUP_MAKE_NT_VER_COMBINED(6, 0, 6001, 0, 0))
-# endif
+                if (g_pfnObRegisterCallbacks && g_pfnObUnRegisterCallbacks)
                 {
-                    DbgPrint("vboxdrv: ObRegisterCallbacks was not found. Please make sure you got the latest updates and service packs installed\n");
-                    rcNt = STATUS_SXS_VERSION_CONFLICT;
+                    static OB_OPERATION_REGISTRATION s_aObOperations[] =
+                    {
+                        {
+                            PsProcessType,
+                            OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
+                            supdrvNtProtectCallback_ProcessHandlePre,
+                            supdrvNtProtectCallback_ProcessHandlePost,
+                        },
+                        {
+                            PsThreadType,
+                            OB_OPERATION_HANDLE_CREATE | OB_OPERATION_HANDLE_DUPLICATE,
+                            supdrvNtProtectCallback_ThreadHandlePre,
+                            supdrvNtProtectCallback_ThreadHandlePost,
+                        },
+                    };
+                    static OB_CALLBACK_REGISTRATION s_ObCallbackReg =
+                    {
+                        /* .Version                     = */ OB_FLT_REGISTRATION_VERSION,
+                        /* .OperationRegistrationCount  = */ RT_ELEMENTS(s_aObOperations),
+                        /* .Altitude.Length             = */ 0,
+                        /* .Altitude.MaximumLength      = */ 0,
+                        /* .Altitude.Buffer             = */ NULL,
+                        /* .RegistrationContext         = */ NULL,
+                        /* .OperationRegistration       = */ &s_aObOperations[0]
+                    };
+                    static WCHAR const *s_apwszAltitudes[] = /** @todo get a valid number */
+                    {
+                         L"48596.98940",  L"46935.19485",  L"49739.39704",  L"40334.74976",
+                         L"66667.98940",  L"69888.19485",  L"69889.39704",  L"60364.74976",
+                         L"85780.98940",  L"88978.19485",  L"89939.39704",  L"80320.74976",
+                         L"329879.98940", L"326787.19485", L"328915.39704", L"320314.74976",
+                    };
+
+                    rcNt = STATUS_FLT_INSTANCE_ALTITUDE_COLLISION;
+                    for (uint32_t i = 0; i < RT_ELEMENTS(s_apwszAltitudes) && rcNt == STATUS_FLT_INSTANCE_ALTITUDE_COLLISION; i++)
+                    {
+                        s_ObCallbackReg.Altitude.Buffer = (WCHAR *)s_apwszAltitudes[i];
+                        s_ObCallbackReg.Altitude.Length = (uint16_t)RTUtf16Len(s_apwszAltitudes[i]) * sizeof(WCHAR);
+                        s_ObCallbackReg.Altitude.MaximumLength = s_ObCallbackReg.Altitude.Length + sizeof(WCHAR);
+
+                        rcNt = g_pfnObRegisterCallbacks(&s_ObCallbackReg, &g_pvObCallbacksCookie);
+                        if (NT_SUCCESS(rcNt))
+                        {
+                            /*
+                             * Happy ending.
+                             */
+                            return STATUS_SUCCESS;
+                        }
+                    }
+                    LogRel(("vboxdrv: ObRegisterCallbacks failed with rcNt=%#x\n", rcNt));
+                    g_pvObCallbacksCookie = NULL;
                 }
                 else
                 {
-                    Log(("vboxdrv: ObRegisterCallbacks was not found; ignored pre-Vista\n"));
-                    return rcNt = STATUS_SUCCESS;
+                    /*
+                     * For the time being, we do not implement extra process
+                     * protection on pre-Vista-SP1 systems as they are lacking
+                     * necessary KPIs.  XP is end of life, we do not wish to
+                     * spend more time on it, so we don't put up a fuss there.
+                     * Vista users without SP1 can install SP1 (or later), darn it,
+                     * so refuse to load.
+                     */
+                    /** @todo Hack up an XP solution - will require hooking kernel APIs or doing bad
+                     *        stuff to a couple of object types. */
+# ifndef VBOX_WITH_VISTA_NO_SP
+                    if (g_uNtVerCombined >= SUP_NT_VER_VISTA)
+# else
+                    if (g_uNtVerCombined >= SUP_MAKE_NT_VER_COMBINED(6, 0, 6001, 0, 0))
+# endif
+                    {
+                        DbgPrint("vboxdrv: ObRegisterCallbacks was not found. Please make sure you got the latest updates and service packs installed\n");
+                        rcNt = STATUS_SXS_VERSION_CONFLICT;
+                    }
+                    else
+                    {
+                        Log(("vboxdrv: ObRegisterCallbacks was not found; ignored pre-Vista\n"));
+                        return rcNt = STATUS_SUCCESS;
+                    }
+                    g_pvObCallbacksCookie = NULL;
                 }
-                g_pvObCallbacksCookie = NULL;
-            }
 
-            /*
-             * Drop process create/term notifications.
-             */
-            if (g_pfnPsSetCreateProcessNotifyRoutineEx)
-                g_pfnPsSetCreateProcessNotifyRoutineEx(supdrvNtProtectCallback_ProcessCreateNotifyEx, TRUE /*fRemove*/);
+                /*
+                 * Drop process create/term notifications.
+                 */
+                if (g_pfnPsSetCreateProcessNotifyRoutineEx)
+                    g_pfnPsSetCreateProcessNotifyRoutineEx(supdrvNtProtectCallback_ProcessCreateNotifyEx, TRUE /*fRemove*/);
+                else
+                    PsSetCreateProcessNotifyRoutine(supdrvNtProtectCallback_ProcessCreateNotify, TRUE /*fRemove*/);
+            }
             else
-                PsSetCreateProcessNotifyRoutine(supdrvNtProtectCallback_ProcessCreateNotify, TRUE /*fRemove*/);
+                LogRel(("vboxdrv: PsSetCreateProcessNotifyRoutine%s failed with rcNt=%#x\n",
+                        g_pfnPsSetCreateProcessNotifyRoutineEx ? "Ex" : "", rcNt));
+            supHardenedWinTermImageVerifier();
         }
         else
-            LogRel(("vboxdrv: PsSetCreateProcessNotifyRoutine%s failed with rcNt=%#x\n",
-                    g_pfnPsSetCreateProcessNotifyRoutineEx ? "Ex" : "", rcNt));
-        supHardenedWinTermImageVerifier();
+            rcNt = VBoxDrvNtErr2NtStatus(rc);
+
+        RTSemMutexDestroy(g_hErrorInfoLock);
+        g_hErrorInfoLock = NIL_RTSEMMUTEX;
     }
     else
         rcNt = VBoxDrvNtErr2NtStatus(rc);

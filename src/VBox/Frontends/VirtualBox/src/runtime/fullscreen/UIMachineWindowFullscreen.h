@@ -54,6 +54,8 @@ protected:
     void handleNativeNotification(const QString &strNativeNotificationName);
     /** Mac OS X: Returns whether window is in 'fullscreen' transition. */
     bool isInFullscreenTransition() const { return m_fIsInFullscreenTransition; }
+    /** Mac OS X: Defines whether mini-toolbar should be @a fVisible. */
+    void setMiniToolbarVisible(bool fVisible);
 #endif /* Q_WS_MAC */
 
 private slots:
@@ -89,6 +91,9 @@ private:
     /* Show stuff: */
     void placeOnScreen();
     void showInNecessaryMode();
+
+    /** Adjusts machine-view size to correspond current machine-window size. */
+    virtual void adjustMachineViewSize();
 
     /* Update stuff: */
     void updateAppearanceOf(int iElement);

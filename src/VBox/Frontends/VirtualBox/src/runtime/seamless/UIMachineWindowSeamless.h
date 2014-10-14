@@ -48,6 +48,13 @@ private slots:
     /** Revokes keyboard-focus. */
     void sltRevokeFocus();
 
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+# ifdef Q_WS_X11
+    /** Assigns mini-toolbar seamless mask. */
+    void sltUpdateMiniToolbarMask(const QRect &geo);
+# endif /* Q_WS_X11 */
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
+
 private:
 
     /* Prepare helpers: */
@@ -68,6 +75,9 @@ private:
     void placeOnScreen();
     void showInNecessaryMode();
 
+    /** Adjusts machine-view size to correspond current machine-window size. */
+    virtual void adjustMachineViewSize();
+
 #ifndef Q_WS_MAC
     /* Update routines: */
     void updateAppearanceOf(int iElement);
@@ -79,8 +89,8 @@ private:
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
 
 #ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-    /* Helper: Masking stuff: */
-    void setMask(const QRegion &region);
+    /** Assigns guest seamless mask. */
+    void setMask(const QRegion &maskGuest);
 #endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
     /* Widgets: */
@@ -90,8 +100,14 @@ private:
 #endif /* !Q_WS_MAC */
 
 #ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-    /* Variable: Masking stuff: */
-    QRegion m_maskRegion;
+    /** Holds the full seamless mask. */
+    QRegion m_maskFull;
+    /** Holds the guest seamless mask. */
+    QRegion m_maskGuest;
+# ifdef Q_WS_X11
+    /** Holds the mini-toolbar seamless mask. */
+    QRect m_maskMiniToolbar;
+# endif /* Q_WS_X11 */
 #endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
     /* Factory support: */

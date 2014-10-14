@@ -312,11 +312,19 @@ typedef FNSUPR3PREINIT *PFNSUPR3PREINIT;
 typedef enum SUPR3HARDENEDMAINSTATE
 {
     SUPR3HARDENEDMAINSTATE_NOT_YET_CALLED = 0,
-    SUPR3HARDENEDMAINSTATE_VERIFY_TRUST_READY,
+    SUPR3HARDENEDMAINSTATE_WIN_EARLY_INIT_CALLED,
+    SUPR3HARDENEDMAINSTATE_WIN_EARLY_IMPORTS_RESOLVED,
+    SUPR3HARDENEDMAINSTATE_WIN_EARLY_DEVICE_OPENED,
+    SUPR3HARDENEDMAINSTATE_WIN_EP_CALLED,
+    SUPR3HARDENEDMAINSTATE_WIN_IMPORTS_RESOLVED,
+    SUPR3HARDENEDMAINSTATE_WIN_VERSION_INITIALIZED,
+    SUPR3HARDENEDMAINSTATE_WIN_VERIFY_TRUST_READY,
+    SUPR3HARDENEDMAINSTATE_HARDENED_MAIN_CALLED,
     SUPR3HARDENEDMAINSTATE_INIT_RUNTIME,
     SUPR3HARDENEDMAINSTATE_GET_TRUSTED_MAIN,
     SUPR3HARDENEDMAINSTATE_CALLED_TRUSTED_MAIN,
-    SUPR3HARDENEDMAINSTATE_END
+    SUPR3HARDENEDMAINSTATE_END,
+    SUPR3HARDENEDMAINSTATE_32BIT_HACK = 0x7fffffff
 } SUPR3HARDENEDMAINSTATE;
 
 
@@ -327,6 +335,9 @@ extern DECLHIDDEN(uint32_t)     g_u32Cookie;
 extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
 extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
 extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
+#ifdef RT_OS_WINDOWS
+extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;
+#endif
 
 
 /*******************************************************************************
@@ -335,7 +346,7 @@ extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
 RT_C_DECLS_BEGIN
 int     suplibOsInstall(void);
 int     suplibOsUninstall(void);
-int     suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted);
+int     suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo);
 int     suplibOsTerm(PSUPLIBDATA pThis);
 int     suplibOsHardenedVerifyInit(void);
 int     suplibOsHardenedVerifyTerm(void);
@@ -428,10 +439,17 @@ DECLHIDDEN(void)    supR3HardenedGetPreInitData(PSUPPREINITDATA pPreInitData);
 DECLHIDDEN(int)     supR3HardenedRecvPreInitData(PCSUPPREINITDATA pPreInitData);
 
 #ifdef RT_OS_WINDOWS
-DECLHIDDEN(void)    supR3HardenedWinInit(uint32_t fFlags);
+DECLHIDDEN(void)    supR3HardenedWinInit(uint32_t fFlags, bool fAvastKludge);
 DECLHIDDEN(void)    supR3HardenedWinInitVersion(void);
 DECLHIDDEN(void)    supR3HardenedWinInitImports(void);
-DECLHIDDEN(void)    supR3HardenedWinVerifyProcess(void);
+# ifdef ___iprt_nt_nt_h___
+DECLHIDDEN(void)    supR3HardenedWinGetVeryEarlyImports(uintptr_t uNtDllAddr,
+                                                        PFNNTWAITFORSINGLEOBJECT *ppfnNtWaitForSingleObject,
+                                                        PFNNTSETEVENT *ppfnNtSetEvent);
+# endif
+DECLHIDDEN(void)    supR3HardenedWinInitImportsEarly(uintptr_t uNtDllAddr);
+DECLHIDDEN(void)    supR3HardenedWinInitSyscalls(bool fReportErrors);
+DECLHIDDEN(PFNRT)   supR3HardenedWinGetRealDllSymbol(const char *pszDll, const char *pszProcedure);
 DECLHIDDEN(void)    supR3HardenedWinEnableThreadCreation(void);
 DECLHIDDEN(void)    supR3HardenedWinResolveVerifyTrustApiAndHookThreadCreation(const char *pszProgName);
 DECLHIDDEN(void)    supR3HardenedWinFlushLoaderCache();
@@ -445,6 +463,11 @@ extern RTUTF16      g_wszSupLibHardenedExePath[1024];
 # ifdef RTPATH_MAX
 extern char         g_szSupLibHardenedExePath[RTPATH_MAX];
 # endif
+DECLHIDDEN(void)    supR3HardenedWinCompactHeaps(void);
+DECLHIDDEN(void)    supR3HardenedMainOpenDevice(void);
+DECLHIDDEN(char *)  supR3HardenedWinReadErrorInfoDevice(char *pszErrorInfo, size_t cbErrorInfo, const char *pszPrefix);
+DECLHIDDEN(void)    supR3HardenedWinReportErrorToParent(const char *pszWhere, SUPINITOP enmWhat, int rc,
+                                                        const char *pszFormat, va_list va);
 #endif
 
 SUPR3DECL(int)      supR3PageLock(void *pvStart, size_t cPages, PSUPPAGE paPages);

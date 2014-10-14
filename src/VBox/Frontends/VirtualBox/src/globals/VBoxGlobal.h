@@ -128,8 +128,6 @@ public:
     const char *vmRenderModeStr() const { return vm_render_mode_str; }
     bool isKWinManaged() const { return mIsKWinManaged; }
 
-    const QRect availableGeometry(int iScreen = 0) const;
-
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
     bool isPatmDisabled() const { return mDisablePatm; }
     bool isCsamDisabled() const { return mDisableCsam; }
@@ -360,6 +358,9 @@ public:
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     static bool shouldWeAllowApplicationUpdate(CVirtualBox &vbox);
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+#ifdef Q_WS_X11
+    static bool legacyFullscreenModeRequested(CVirtualBox vbox);
+#endif /* Q_WS_X11 */
     static bool shouldWeShowMachine(CMachine &machine);
     static bool shouldWeAllowMachineReconfiguration(CMachine &machine,
                                                     bool fIncludingMachineGeneralCheck = false,

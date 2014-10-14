@@ -1,6 +1,124 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.18 (2014-10-10)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed a potential misbehavior after restoring the A20 state
+          from a saved state</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed full-screen mode mini-toolbar related regressions
+          for different platforms and window managers (bug #13369)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: fixed full-screen mode Unity panels quirk caused by
+          mini-toolbar code changes in last release (bug #13365)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: X11: added possibility to use legacy full-screen mode
+          as the new one can cause multi-screen issues under Unity, see
+          <xref linkend="legacy-fullscreen-mode" xreflabel="here"/> (bug #13365)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: fixed full-screen mode artifact causing black screen
+           when 3D acceleration was enabled on 10.10 Yosemite hosts (bug #13448)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: fixed regression in user-space swiping from/to
+          VBox in full-screen mode</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: fixed issue with switching to VBox in full-screen
+          mode through Alt+Tab and Mission Control</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed data corruption when resizing huge VHD images under
+          certain circumstances (bug #11960)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a rare hang during startup when the BIOS enumerates the
+          storage devices attached to the SATA controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: follow the spec with AHCI interrupt acknowledge (bug #13474)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed broken iSCSI authentication (4.3.14 regression, bugs #13386,
+          #13435)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: properly parse port forwarding rules to allow UDP
+          rules</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a crash on Linux hosts with older Linux kernels (bug #13400) and
+          several other fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: fixed ACPI timer anomalies (bug #12076)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: fixed a memory leak (bug #13434)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: when removing a VM, do also remove the VBoxStartup.log file
+          which might exist on Windows hosts (bug #13478)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed more startup problems on certain Windows hosts due
+          to conflicts with anti-virus software; better error reporting
+          (4.3.14 regression; bug #13187)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: propagate the process startup information to the child
+          process (4.3.14 regression; bug #13243)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: don't force using the discrete GPU (bug #11111)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: some Windows 10 tweaks</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: fix a bug handling video driver display properties
+           which prevented GNOME Shell on Fedora 21 from starting</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: fixed a few remaining warnings in the kernel
+          log if memory allocation fails (bug #11171)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.16 (2014-09-09)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -136,7 +254,7 @@
 
       <listitem>
         <para>Windows hosts: fixed startup problems on certain Windows hosts due
-          to conflicts with anti-virus software (4.3.14 regression, bug #13187)</para>
+          to conflicts with anti-virus software (4.3.14 regression; bug #13187)</para>
       </listitem>
 
       <listitem>
@@ -420,7 +538,7 @@
 
       <listitem>
         <para>GUI: fixed crash under rare conditions on entering/exiting
-          fullscreen/seamless mode</para>
+          full-screen/seamless mode</para>
       </listitem>
 
       <listitem>
@@ -920,7 +1038,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: fixed deleting of inaccessible VMs (4.3 regression, bug
+        <para>GUI: fixed deleting of inaccessible VMs (4.3 regression; bug
           #12205)</para>
       </listitem>
 
@@ -976,7 +1094,7 @@
 
       <listitem>
         <para>Solaris hosts: fixed accessing the host driver from non-global zones
-          (4.3 regression, bug #12271)</para>
+          (4.3 regression; bug #12271)</para>
       </listitem>
 
     </itemizedlist>
@@ -1801,7 +1919,7 @@
 
       <listitem>
         <para>Snapshots: fixed a bug which could result in lost medium attachments
-          (4.2.18 regression, bug #11750)</para>
+          (4.2.18 regression; bug #11750)</para>
       </listitem>
 
       <listitem>
@@ -2553,7 +2671,7 @@
 
       <listitem>
         <para>Storage: fixed non working online merging of snapshots
-          (4.2.6 regression, bug #11359)</para>
+          (4.2.6 regression; bug #11359)</para>
       </listitem>
 
       <listitem>
@@ -2872,7 +2990,7 @@
 
       <listitem>
         <para>GUI: fixed validation warning on global settings / proxy page
-          (4.2.2 regression, bug #11089)</para>
+          (4.2.2 regression; bug #11089)</para>
       </listitem>
 
       <listitem>
@@ -3165,7 +3283,7 @@
       <listitem>
         <para>VMM: fixed a potential host crash triggered by shutting down a VM
           when another VM was running (only affected 32-bit hosts and 64-bit OS X hosts,
-          4.1 regression, bug #9897)</para>
+          4.1 regression; bug #9897)</para>
       </listitem>
 
       <listitem>
@@ -3492,7 +3610,7 @@
 
       <listitem>
         <para>Windows Additions: fixed guest driver crash of VBoxSF in certain
-          cases (4.1.10 regression, bug #10408)</para>
+          cases (4.1.10 regression; bug #10408)</para>
       </listitem>
 
       <listitem>
@@ -7981,7 +8099,7 @@
 
       <listitem>
         <para>Linux Additions: make the mouse driver work on Debian 5.0.3 guests
-           again (3.1.2 regression, bug #5832)</para>
+           again (3.1.2 regression; bug #5832)</para>
       </listitem>
 
       <listitem>
@@ -8999,7 +9117,7 @@
 
       <listitem>
         <para>BIOS: fixed a bug that caused the OS/2 boot manager to fail
-          (2.1.0 regression, bug #3911)</para>
+          (2.1.0 regression; bug #3911)</para>
       </listitem>
 
       <listitem>
@@ -9202,7 +9320,7 @@
 
       <listitem>
         <para>USB: fixed a bug that may have rendered USB device filter settings
-          inactive (3.0.2 regression, bug #4668)</para>
+          inactive (3.0.2 regression; bug #4668)</para>
       </listitem>
 
       <listitem>
@@ -9880,7 +9998,7 @@
 
       <listitem>
         <para>Windows Additions: fixed mouse pointer integration of some
-          Windows guests (2.2.0 regression, bug #3734)</para>
+          Windows guests (2.2.0 regression; bug #3734)</para>
       </listitem>
 
       <listitem>
@@ -9924,7 +10042,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: HostKey could not be changed (2.2.0 regression,
+        <para>GUI: HostKey could not be changed (2.2.0 regression;
           bug #3689)</para>
       </listitem>
 
@@ -9961,7 +10079,7 @@
 
       <listitem>
         <para>Networking: fixed a deadlock caused by the PCnet network device
-          emulation (2.2.0 regression, bug #3676)</para>
+          emulation (2.2.0 regression; bug #3676)</para>
       </listitem>
 
       <listitem>
@@ -10668,7 +10786,7 @@
 
       <listitem>
         <para>SATA: raw disk partitions were not recognized
-          (2.1.0 regression, Windows host only, bug #2778)</para>
+          (2.1.0 regression; Windows host only, bug #2778)</para>
       </listitem>
 
       <listitem>
