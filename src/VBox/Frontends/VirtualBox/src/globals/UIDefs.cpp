@@ -75,6 +75,9 @@ const char* UIDefs::GUI_LastGuestSizeHintWasFullscreen = "GUI/LastGuestSizeHintW
 const char* UIDefs::GUI_Fullscreen = "GUI/Fullscreen";
 const char* UIDefs::GUI_Seamless = "GUI/Seamless";
 const char* UIDefs::GUI_Scale = "GUI/Scale";
+#ifdef Q_WS_X11
+const char* UIDefs::GUI_Fullscreen_LegacyMode = "GUI/Fullscreen/LegacyMode";
+#endif /* Q_WS_X11 */
 const char* UIDefs::GUI_VirtualScreenToHostScreen = "GUI/VirtualScreenToHostScreen";
 const char* UIDefs::GUI_AutoresizeGuest = "GUI/AutoresizeGuest";
 const char* UIDefs::GUI_AutomountGuestScreens = "GUI/AutomountGuestScreens";

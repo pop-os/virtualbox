@@ -364,6 +364,15 @@ void UIMachineWindowNormal::prepareVisualState()
     /* Call to base-class: */
     UIMachineWindow::prepareVisualState();
 
+#ifdef VBOX_GUI_WITH_CUSTOMIZATIONS1
+    /* Customer request: The background has to go black: */
+    QPalette palette(centralWidget()->palette());
+    palette.setColor(centralWidget()->backgroundRole(), Qt::black);
+    centralWidget()->setPalette(palette);
+    centralWidget()->setAutoFillBackground(true);
+    setAutoFillBackground(true);
+#endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+
     /* Make sure host-combination LED will be updated: */
     connect(&vboxGlobal().settings(), SIGNAL(propertyChanged(const char *, const char *)),
             this, SLOT(sltProcessGlobalSettingChange(const char *, const char *)));
@@ -609,6 +618,7 @@ void UIMachineWindowNormal::showInNecessaryMode()
  */
 void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
 {
+#ifndef VBOX_GUI_WITH_CUSTOMIZATIONS1
     /* Skip if maximized: */
     if (isMaximized())
         return;
@@ -640,6 +650,11 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
     /* Finally, set the frame geometry: */
     setGeometry(frameGeo.left() + dl, frameGeo.top() + dt,
                 frameGeo.width() - dl - dr, frameGeo.height() - dt - db);
+#else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
+    /* Customer request: There should no be
+     * machine-window resize on machine-view resize: */
+    Q_UNUSED(fAdjustPosition);
+#endif /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
 }
 
 void UIMachineWindowNormal::updateAppearanceOf(int iElement)

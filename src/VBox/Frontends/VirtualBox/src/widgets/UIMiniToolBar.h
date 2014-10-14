@@ -66,6 +66,13 @@ signals:
     /** Notifies listeners about we stole focus. */
     void sigNotifyAboutFocusStolen();
 
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+# ifdef Q_WS_X11
+    /** Notifies about geometry change. */
+    void sigNotifyAboutGeometryChange(const QRect &geo);
+# endif /* Q_WS_X11 */
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
+
 public:
 
     /* Constructor/destructor: */
@@ -92,6 +99,11 @@ public:
     void adjustGeometry(int iHostScreen = -1);
 
 private slots:
+
+#ifdef RT_OS_DARWIN
+    /** Handle 3D overlay visibility change. */
+    void sltHandle3DOverlayVisibilityChange(bool fVisible) { if (fVisible) activateWindow(); }
+#endif /* RT_OS_DARWIN */
 
     /* Handlers: Toolbar stuff: */
     void sltHandleToolbarResize();

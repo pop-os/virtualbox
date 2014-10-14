@@ -2889,6 +2889,26 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
 
     </sect2>
 
+    <sect2 id="legacy-fullscreen-mode">
+      <title>Requesting legacy full-screen mode</title>
+
+      <para>
+        As of version 4.3.16, VirtualBox uses special window manager facilities to switch
+        a multi-screen machine to full-screen on a multi-monitor host system. However,
+        not all window managers provide these facilities correctly, so VirtualBox can be
+        told to use the old method of switching to full-screen mode instead using the command:
+      </para>
+      <para><screen>VBoxManage setextradata global GUI/Fullscreen/LegacyMode true</screen></para>
+
+      <para>
+        You can go back to the new method using the command:
+      </para>
+      <para><screen>VBoxManage setextradata global GUI/Fullscreen/LegacyMode</screen></para>
+
+      <para>This is a global setting.</para>
+
+    </sect2>
+
   </sect1>
 
   <sect1 id="vboxwebsrv-daemon">

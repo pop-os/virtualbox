@@ -285,6 +285,15 @@ static int rtMemSaferSupR3AllocPages(PRTMEMSAFERNODE pThis)
         rtMemSaferInitializePages(pThis, pvPages);
 
         /*
+         * On darwin we cannot allocate pages without an R0 mapping and
+         * SUPR3PageAllocEx falls back to another method which is incompatible with
+         * the way SUPR3PageProtect works. Ignore changing the protection of the guard
+         * pages.
+         */
+#ifdef RT_OS_DARWIN
+        return VINF_SUCCESS;
+#else
+        /*
          * Configure the guard pages.
          * SUPR3PageProtect isn't supported on all hosts, we ignore that.
          */
@@ -301,6 +310,7 @@ static int rtMemSaferSupR3AllocPages(PRTMEMSAFERNODE pThis)
 
         /* failed. */
         int rc2 = SUPR3PageFreeEx(pvPages, pThis->cPages); AssertRC(rc2);
+#endif
     }
     return rc;
 #else  /* !IN_SUP_R3 */

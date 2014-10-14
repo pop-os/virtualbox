@@ -40,6 +40,8 @@
 #undef LOG_GROUP
 #include "../Bus/DevPciIch9.cpp"
 #undef LOG_GROUP
+#include "../EFI/DevSmc.cpp"
+#undef LOG_GROUP
 #include "../Graphics/DevVGA.cpp"
 #undef LOG_GROUP
 #include "../Input/DevPS2.cpp"
@@ -211,6 +213,23 @@ int main()
     GEN_CHECK_OFF(ICH9PCIGLOBALS, u64PciConfigMMioAddress);
     GEN_CHECK_OFF(ICH9PCIGLOBALS, u64PciConfigMMioLength);
     GEN_CHECK_OFF(ICH9PCIGLOBALS, aPciBus);
+
+    /* EFI/DevSMC.cpp */
+    GEN_CHECK_SIZE(DEVSMC);
+    GEN_CHECK_OFF(DEVSMC, bCmd);
+    GEN_CHECK_OFF(DEVSMC, offKey);
+    GEN_CHECK_OFF(DEVSMC, offValue);
+    GEN_CHECK_OFF(DEVSMC, cKeys);
+    GEN_CHECK_OFF(DEVSMC, CurKey);
+    GEN_CHECK_OFF(DEVSMC, u);
+    GEN_CHECK_OFF(DEVSMC, u.s);
+    GEN_CHECK_OFF(DEVSMC, u.s.bState);
+    GEN_CHECK_OFF(DEVSMC, u.s.bStatusCode);
+    GEN_CHECK_OFF(DEVSMC, u.s.bStatusCode);
+    GEN_CHECK_OFF(DEVSMC, szOsk0And1);
+    GEN_CHECK_OFF(DEVSMC, bDollaryNumber);
+    GEN_CHECK_OFF(DEVSMC, bShutdownReason);
+    GEN_CHECK_OFF(DEVSMC, bNinjaActionTimerJob);
 
     /* DevVGA.cpp */
     GEN_CHECK_SIZE(VGASTATE);
@@ -567,6 +586,7 @@ int main()
     GEN_CHECK_OFF(ACPIState, pPmTimerR3);
     GEN_CHECK_OFF(ACPIState, pPmTimerR0);
     GEN_CHECK_OFF(ACPIState, pPmTimerRC);
+    GEN_CHECK_OFF(ACPIState, uPmTimerVal);
     GEN_CHECK_OFF(ACPIState, gpe0_en);
     GEN_CHECK_OFF(ACPIState, gpe0_sts);
     GEN_CHECK_OFF(ACPIState, uBatteryIndex);
@@ -588,7 +608,8 @@ int main()
     GEN_CHECK_OFF(ACPIState, fCpuHotPlug);
     GEN_CHECK_OFF(ACPIState, IBase);
     GEN_CHECK_OFF(ACPIState, IACPIPort);
-    GEN_CHECK_OFF(ACPIState, pDevIns);
+    GEN_CHECK_OFF(ACPIState, pDevInsR3);
+    GEN_CHECK_OFF(ACPIState, pDevInsR0);
     GEN_CHECK_OFF(ACPIState, pDrvBase);
     GEN_CHECK_OFF(ACPIState, pDrv);
 

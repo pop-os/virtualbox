@@ -1,4 +1,4 @@
-/* $Revision: 93190 $ */
+/* $Revision: 96185 $ */
 /** @file tstCAPIGlue.c
  * Demonstrator program to illustrate use of C bindings of Main API.
  *
@@ -748,7 +748,7 @@ static void startVM(const char *argv0, IVirtualBox *virtualBox, ISession *sessio
         return;
     }
 
-    rc = IMachine_get_Groups(machine, ComSafeArrayAsOutParam(groupsSA));
+    rc = IMachine_get_Groups(machine, ComSafeArrayAsOutTypeParam(groupsSA, BSTR));
     if (SUCCEEDED(rc))
     {
         BSTR *groups = NULL;

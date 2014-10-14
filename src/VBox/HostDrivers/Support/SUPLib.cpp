@@ -261,7 +261,8 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
     /*
      * Open the support driver.
      */
-    int rc = suplibOsInit(&g_supLibData, g_fPreInited, fUnrestricted);
+    SUPINITOP enmWhat = kSupInitOp_Driver;
+    int rc = suplibOsInit(&g_supLibData, g_fPreInited, fUnrestricted, &enmWhat, NULL);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -278,7 +279,7 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
         const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x001a0000
-                                   ? 0x001a0005
+                                   ? 0x001a0008
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);

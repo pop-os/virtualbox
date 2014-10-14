@@ -54,7 +54,7 @@
  */
 
 /*
- * Copyright (C) 2007-2013 Oracle Corporation
+ * Copyright (C) 2007-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2188,7 +2188,7 @@ bool MachineConfigFile::operator==(const MachineConfigFile &c) const
                  && (hardwareMachine            == c.hardwareMachine)       // this one's deep
                  && (storageMachine             == c.storageMachine)        // this one's deep
                  && (mediaRegistry              == c.mediaRegistry)         // this one's deep
-                 && (mapExtraDataItems          == c.mapExtraDataItems)     // this one's deep
+                 // skip mapExtraDataItems! there is no old state available as it's always forced
                  && (llFirstSnapshot            == c.llFirstSnapshot)       // this one's deep
                )
            );
@@ -5386,7 +5386,7 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
                     if (ctrl.strName != "OHCI")
                         fNonStdName = true;
                     break;
-               case USBControllerType_EHCI:
+                case USBControllerType_EHCI:
                     cEhciCtrls++;
                     if (ctrl.strName != "EHCI")
                         fNonStdName = true;

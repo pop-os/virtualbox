@@ -1213,7 +1213,7 @@ private:
     HRESULT setMachineState(MachineState_T aMachineState);
     HRESULT updateMachineStateOnClient();
 
-    HRESULT mRemoveSavedState;
+    bool mRemoveSavedState;
 
     ConsoleTaskData mConsoleTaskData;
 

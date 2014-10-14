@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2013 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,7 +17,6 @@
  */
 #define LOGGROUP LOGGROUP_DEFAULT
 #include <VBox/vd.h>
-#include <VBox/vddbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -32,12 +31,22 @@
 #include <iprt/thread.h>
 #include <iprt/rand.h>
 #include <iprt/critsect.h>
+#include <iprt/test.h>
+#include <iprt/system.h>
+
+#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
+# include <VBox/vddbg.h>
+#endif
 
 #include "VDMemDisk.h"
 #include "VDIoBackend.h"
 #include "VDIoRnd.h"
 
 #include "VDScript.h"
+#include "BuiltinTests.h"
+
+/** forward declaration for the global test data pointer. */
+typedef struct VDTESTGLOB *PVDTESTGLOB;
 
 /**
  * A virtual file backed by memory.
@@ -98,6 +107,8 @@ typedef struct VDDISK
     VDGEOMETRY     PhysGeom;
     /** Logical CHS geometry. */
     VDGEOMETRY     LogicalGeom;
+    /** Global test data. */
+    PVDTESTGLOB    pTestGlob;
 } VDDISK, *PVDDISK;
 
 /**
@@ -140,7 +151,9 @@ typedef struct VDTESTGLOB
     PVDIORND         pIoRnd;
     /** Current storage backend to use. */
     char            *pszIoBackend;
-} VDTESTGLOB, *PVDTESTGLOB;
+    /** Testcase handle. */
+    RTTEST           hTest;
+} VDTESTGLOB;
 
 /**
  * Transfer direction.
@@ -227,7 +240,6 @@ static DECLCALLBACK(int) vdScriptHandlerDiscard(PVDSCRIPTARG paScriptArgs, void 
 static DECLCALLBACK(int) vdScriptHandlerCopy(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerClose(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerPrintFileSize(PVDSCRIPTARG paScriptArgs, void *pvUser);
-static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerIoRngCreate(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerIoRngDestroy(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerIoPatternCreateFromNumber(PVDSCRIPTARG paScriptArgs, void *pvUser);
@@ -245,6 +257,10 @@ static DECLCALLBACK(int) vdScriptHandlerResetStatistics(PVDSCRIPTARG paScriptArg
 static DECLCALLBACK(int) vdScriptHandlerResize(PVDSCRIPTARG paScriptArgs, void *pvUser);
 static DECLCALLBACK(int) vdScriptHandlerSetFileBackend(PVDSCRIPTARG paScriptArgs, void *pvUser);
 
+#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
+static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, void *pvUser);
+#endif
+
 /* create action */
 const VDSCRIPTTYPE g_aArgCreate[] =
 {
@@ -254,6 +270,7 @@ const VDSCRIPTTYPE g_aArgCreate[] =
     VDSCRIPTTYPE_STRING,
     VDSCRIPTTYPE_STRING,
     VDSCRIPTTYPE_UINT64,
+    VDSCRIPTTYPE_BOOL,
     VDSCRIPTTYPE_BOOL
 };
 
@@ -267,7 +284,8 @@ const VDSCRIPTTYPE g_aArgOpen[] =
     VDSCRIPTTYPE_BOOL,   /* shareable */
     VDSCRIPTTYPE_BOOL,   /* readonly */
     VDSCRIPTTYPE_BOOL,   /* discard */
-    VDSCRIPTTYPE_BOOL    /* ignoreflush */
+    VDSCRIPTTYPE_BOOL,   /* ignoreflush */
+    VDSCRIPTTYPE_BOOL,   /* honorsame */
 };
 
 /* I/O action */
@@ -344,12 +362,14 @@ const VDSCRIPTTYPE g_aArgPrintFileSize[] =
     VDSCRIPTTYPE_UINT32 /* image */
 };
 
+#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
 /* print file size action */
 const VDSCRIPTTYPE g_aArgIoLogReplay[] =
 {
     VDSCRIPTTYPE_STRING, /* disk */
     VDSCRIPTTYPE_STRING  /* iolog */
 };
+#endif
 
 /* I/O RNG create action */
 const VDSCRIPTTYPE g_aArgIoRngCreate[] =
@@ -459,7 +479,9 @@ const VDSCRIPTCALLBACK g_aScriptActions[] =
     {"flush",                      VDSCRIPTTYPE_VOID, g_aArgFlush,                       RT_ELEMENTS(g_aArgFlush),                      vdScriptHandlerFlush},
     {"close",                      VDSCRIPTTYPE_VOID, g_aArgClose,                       RT_ELEMENTS(g_aArgClose),                      vdScriptHandlerClose},
     {"printfilesize",              VDSCRIPTTYPE_VOID, g_aArgPrintFileSize,               RT_ELEMENTS(g_aArgPrintFileSize),              vdScriptHandlerPrintFileSize},
+#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
     {"ioreplay",                   VDSCRIPTTYPE_VOID, g_aArgIoLogReplay,                 RT_ELEMENTS(g_aArgIoLogReplay),                vdScriptHandlerIoLogReplay},
+#endif
     {"merge",                      VDSCRIPTTYPE_VOID, g_aArgMerge,                       RT_ELEMENTS(g_aArgMerge),                      vdScriptHandlerMerge},
     {"compact",                    VDSCRIPTTYPE_VOID, g_aArgCompact,                     RT_ELEMENTS(g_aArgCompact),                    vdScriptHandlerCompact},
     {"discard",                    VDSCRIPTTYPE_VOID, g_aArgDiscard,                     RT_ELEMENTS(g_aArgDiscard),                    vdScriptHandlerDiscard},
@@ -531,6 +553,7 @@ static DECLCALLBACK(int) vdScriptHandlerCreate(PVDSCRIPTARG paScriptArgs, void *
     bool fBase = false;
     bool fDynamic = true;
     bool fIgnoreFlush = false;
+    bool fHonorSame = false;
     PVDIOBACKEND pIoBackend = NULL;
 
     pcszDisk = paScriptArgs[0].psz;
@@ -556,6 +579,7 @@ static DECLCALLBACK(int) vdScriptHandlerCreate(PVDSCRIPTARG paScriptArgs, void *
     pcszBackend = paScriptArgs[4].psz;
     cbSize = paScriptArgs[5].u64;
     fIgnoreFlush = paScriptArgs[6].f;
+    fHonorSame = paScriptArgs[7].f;
 
     if (RT_SUCCESS(rc))
     {
@@ -570,6 +594,9 @@ static DECLCALLBACK(int) vdScriptHandlerCreate(PVDSCRIPTARG paScriptArgs, void *
 
             if (fIgnoreFlush)
                 fOpenFlags |= VD_OPEN_FLAGS_IGNORE_FLUSH;
+
+            if (fHonorSame)
+                fOpenFlags |= VD_OPEN_FLAGS_HONOR_SAME;
 
             if (fBase)
                 rc = VDCreateBase(pDisk->pVD, pcszBackend, pcszImage, cbSize, fImageFlags, NULL,
@@ -599,6 +626,7 @@ static DECLCALLBACK(int) vdScriptHandlerOpen(PVDSCRIPTARG paScriptArgs, void *pv
     bool fAsyncIo  = true;
     bool fDiscard  = false;
     bool fIgnoreFlush = false;
+    bool fHonorSame = false;
 
     pcszDisk = paScriptArgs[0].psz;
     pcszImage = paScriptArgs[1].psz;
@@ -607,6 +635,8 @@ static DECLCALLBACK(int) vdScriptHandlerOpen(PVDSCRIPTARG paScriptArgs, void *pv
     fReadonly = paScriptArgs[4].f;
     fAsyncIo = paScriptArgs[5].f;
     fDiscard = paScriptArgs[6].f;
+    fIgnoreFlush = paScriptArgs[7].f;
+    fHonorSame = paScriptArgs[8].f;
 
     if (RT_SUCCESS(rc))
     {
@@ -625,6 +655,8 @@ static DECLCALLBACK(int) vdScriptHandlerOpen(PVDSCRIPTARG paScriptArgs, void *pv
                 fOpenFlags |= VD_OPEN_FLAGS_DISCARD;
             if (fIgnoreFlush)
                 fOpenFlags |= VD_OPEN_FLAGS_IGNORE_FLUSH;
+            if (fHonorSame)
+                fOpenFlags |= VD_OPEN_FLAGS_HONOR_SAME;
 
             rc = VDOpen(pDisk->pVD, pcszBackend, pcszImage, fOpenFlags, pGlob->pInterfacesImages);
         }
@@ -711,6 +743,7 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
     {
         VDIOTEST IoTest;
 
+        RTTestSub(pGlob->hTest, "Basic I/O");
         rc = tstVDIoTestInit(&IoTest, pGlob, fRandomAcc, cbIo, cbBlkSize, offStart, offEnd, uWriteChance, pPattern);
         if (RT_SUCCESS(rc))
         {
@@ -769,7 +802,7 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
 
                                                 if (VDMemDiskCmp(pDisk->pMemDiskVerify, paIoReq[idx].off, paIoReq[idx].cbReq, &SgBuf))
                                                 {
-                                                    RTPrintf("Corrupted disk at offset %llu!\n", paIoReq[idx].off);
+                                                    RTTestFailed(pGlob->hTest, "Corrupted disk at offset %llu!\n", paIoReq[idx].off);
                                                     rc = VERR_INVALID_STATE;
                                                 }
                                             }
@@ -848,7 +881,7 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
                                                     if (VDMemDiskCmp(pDisk->pMemDiskVerify, paIoReq[idx].off, paIoReq[idx].cbReq,
                                                                      &paIoReq[idx].SgBuf))
                                                     {
-                                                        RTPrintf("Corrupted disk at offset %llu!\n", paIoReq[idx].off);
+                                                        RTTestFailed(pGlob->hTest, "Corrupted disk at offset %llu!\n", paIoReq[idx].off);
                                                         rc = VERR_INVALID_STATE;
                                                     }
                                                     RTCritSectLeave(&pDisk->CritSectVerify);
@@ -922,7 +955,13 @@ static DECLCALLBACK(int) vdScriptHandlerIo(PVDSCRIPTARG paScriptArgs, void *pvUs
 
                 NanoTS = RTTimeNanoTS() - NanoTS;
                 uint64_t SpeedKBs = (uint64_t)(cbIo / (NanoTS / 1000000000.0) / 1024);
-                RTPrintf("I/O Test: Throughput %lld kb/s\n", SpeedKBs);
+                RTTestValue(pGlob->hTest, "Throughput", SpeedKBs, RTTESTUNIT_KILOBYTES_PER_SEC);
+
+                for (unsigned i = 0; i < cMaxTasksOutstanding; i++)
+                {
+                    if (paIoReq[i].pvBufRead)
+                        RTMemFree(paIoReq[i].pvBufRead);
+                }
 
                 RTSemEventDestroy(EventSem);
                 RTMemFree(paIoReq);
@@ -1363,6 +1402,7 @@ static DECLCALLBACK(int) vdScriptHandlerPrintFileSize(PVDSCRIPTARG paScriptArgs,
 }
 
 
+#ifdef VBOX_TSTVDIO_WITH_LOG_REPLAY
 static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, void *pvUser)
 {
     int rc = VINF_SUCCESS;
@@ -1513,6 +1553,7 @@ static DECLCALLBACK(int) vdScriptHandlerIoLogReplay(PVDSCRIPTARG paScriptArgs, v
 
     return rc;
 }
+#endif
 
 
 static DECLCALLBACK(int) vdScriptHandlerIoRngCreate(PVDSCRIPTARG paScriptArgs, void *pvUser)
@@ -1744,6 +1785,7 @@ static DECLCALLBACK(int) vdScriptHandlerCreateDisk(PVDSCRIPTARG paScriptArgs, vo
         pDisk = (PVDDISK)RTMemAllocZ(sizeof(VDDISK));
         if (pDisk)
         {
+            pDisk->pTestGlob = pGlob;
             pDisk->pszName = RTStrDup(pcszDisk);
             if (pDisk->pszName)
             {
@@ -1844,8 +1886,9 @@ static DECLCALLBACK(int) vdScriptHandlerCompareDisks(PVDSCRIPTARG paScriptArgs, 
             cbDisk1 = VDGetSize(pDisk1->pVD, VD_LAST_IMAGE);
             cbDisk2 = VDGetSize(pDisk2->pVD, VD_LAST_IMAGE);
 
+            RTTestSub(pGlob->hTest, "Comparing two disks for equal content");
             if (cbDisk1 != cbDisk2)
-                RTPrintf("Disks differ in size %llu vs %llu\n", cbDisk1, cbDisk2);
+                RTTestFailed(pGlob->hTest, "Disks differ in size %llu vs %llu\n", cbDisk1, cbDisk2);
             else
             {
                 while (uOffCur < cbDisk1)
@@ -1860,14 +1903,14 @@ static DECLCALLBACK(int) vdScriptHandlerCompareDisks(PVDSCRIPTARG paScriptArgs, 
                     {
                         if (memcmp(pbBuf1, pbBuf2, cbRead))
                         {
-                            RTPrintf("Disks differ at offset %llu\n", uOffCur);
+                            RTTestFailed(pGlob->hTest, "Disks differ at offset %llu\n", uOffCur);
                             rc = VERR_DEV_IO_ERROR;
                             break;
                         }
                     }
                     else
                     {
-                        RTPrintf("Reading one disk at offset %llu failed\n", uOffCur);
+                        RTTestFailed(pGlob->hTest, "Reading one disk at offset %llu failed\n", uOffCur);
                         break;
                     }
 
@@ -1990,7 +2033,7 @@ static DECLCALLBACK(int) vdScriptHandlerResize(PVDSCRIPTARG paScriptArgs, void *
     int rc = VINF_SUCCESS;
     PVDTESTGLOB pGlob = (PVDTESTGLOB)pvUser;
     const char *pcszDisk = paScriptArgs[0].psz;
-    uint64_t cbDiskNew = 0;
+    uint64_t cbDiskNew = paScriptArgs[1].u64;
     PVDDISK pDisk = NULL;
 
     pDisk = tstVDIoGetDiskByName(pGlob, pcszDisk);
@@ -2515,7 +2558,7 @@ static void tstVDIoTestReqComplete(void *pvUser1, void *pvUser2, int rcReq)
 
                 if (VDMemDiskCmp(pDisk->pMemDiskVerify, pIoReq->off, pIoReq->cbReq,
                                  &pIoReq->SgBuf))
-                    RTPrintf("Corrupted disk at offset %llu!\n", pIoReq->off);
+                    RTTestFailed(pDisk->pTestGlob->hTest, "Corrupted disk at offset %llu!\n", pIoReq->off);
                 RTCritSectLeave(&pDisk->CritSectVerify);
             }
             case VDIOREQTXDIR_WRITE:
@@ -2647,18 +2690,15 @@ static int tstVDIoPatternGetBuffer(PVDPATTERN pPattern, void **ppv, size_t cb)
 }
 
 /**
- * Executes the given I/O script using the new scripting engine.
+ * Executes the given script.
  *
  * @returns nothing.
- *
- * @param pcszFilename    The script to execute.
+ * @param   pszScript    The script to execute.
  */
-static void tstVDIoScriptRun(const char *pcszFilename)
+static void tstVDIoScriptExec(const char *pszScript)
 {
     int rc = VINF_SUCCESS;
     VDTESTGLOB GlobTest;   /**< Global test data. */
-    void *pvFile = NULL;
-    size_t cbFile = 0;
 
     memset(&GlobTest, 0, sizeof(VDTESTGLOB));
     RTListInit(&GlobTest.ListFiles);
@@ -2671,40 +2711,36 @@ static void tstVDIoScriptRun(const char *pcszFilename)
         return;
     }
 
-    rc = RTFileReadAll(pcszFilename, &pvFile, &cbFile);
+    /* Init global test data. */
+    GlobTest.VDIfError.pfnError     = tstVDError;
+    GlobTest.VDIfError.pfnMessage   = tstVDMessage;
+
+    rc = VDInterfaceAdd(&GlobTest.VDIfError.Core, "tstVDIo_VDIError", VDINTERFACETYPE_ERROR,
+                        NULL, sizeof(VDINTERFACEERROR), &GlobTest.pInterfacesDisk);
+    AssertRC(rc);
+
+    GlobTest.VDIfIo.pfnOpen                = tstVDIoFileOpen;
+    GlobTest.VDIfIo.pfnClose               = tstVDIoFileClose;
+    GlobTest.VDIfIo.pfnDelete              = tstVDIoFileDelete;
+    GlobTest.VDIfIo.pfnMove                = tstVDIoFileMove;
+    GlobTest.VDIfIo.pfnGetFreeSpace        = tstVDIoFileGetFreeSpace;
+    GlobTest.VDIfIo.pfnGetModificationTime = tstVDIoFileGetModificationTime;
+    GlobTest.VDIfIo.pfnGetSize             = tstVDIoFileGetSize;
+    GlobTest.VDIfIo.pfnSetSize             = tstVDIoFileSetSize;
+    GlobTest.VDIfIo.pfnWriteSync           = tstVDIoFileWriteSync;
+    GlobTest.VDIfIo.pfnReadSync            = tstVDIoFileReadSync;
+    GlobTest.VDIfIo.pfnFlushSync           = tstVDIoFileFlushSync;
+    GlobTest.VDIfIo.pfnReadAsync           = tstVDIoFileReadAsync;
+    GlobTest.VDIfIo.pfnWriteAsync          = tstVDIoFileWriteAsync;
+    GlobTest.VDIfIo.pfnFlushAsync          = tstVDIoFileFlushAsync;
+
+    rc = VDInterfaceAdd(&GlobTest.VDIfIo.Core, "tstVDIo_VDIIo", VDINTERFACETYPE_IO,
+                        &GlobTest, sizeof(VDINTERFACEIO), &GlobTest.pInterfacesImages);
+    AssertRC(rc);
+
+    rc = RTTestCreate("tstVDIo", &GlobTest.hTest);
     if (RT_SUCCESS(rc))
     {
-        char *pszScript = RTStrDupN((char *)pvFile, cbFile);
-        RTFileReadAllFree(pvFile, cbFile);
-
-        AssertPtr(pszScript);
-        /* Init global test data. */
-        GlobTest.VDIfError.pfnError     = tstVDError;
-        GlobTest.VDIfError.pfnMessage   = tstVDMessage;
-
-        rc = VDInterfaceAdd(&GlobTest.VDIfError.Core, "tstVDIo_VDIError", VDINTERFACETYPE_ERROR,
-                            NULL, sizeof(VDINTERFACEERROR), &GlobTest.pInterfacesDisk);
-        AssertRC(rc);
-
-        GlobTest.VDIfIo.pfnOpen                = tstVDIoFileOpen;
-        GlobTest.VDIfIo.pfnClose               = tstVDIoFileClose;
-        GlobTest.VDIfIo.pfnDelete              = tstVDIoFileDelete;
-        GlobTest.VDIfIo.pfnMove                = tstVDIoFileMove;
-        GlobTest.VDIfIo.pfnGetFreeSpace        = tstVDIoFileGetFreeSpace;
-        GlobTest.VDIfIo.pfnGetModificationTime = tstVDIoFileGetModificationTime;
-        GlobTest.VDIfIo.pfnGetSize             = tstVDIoFileGetSize;
-        GlobTest.VDIfIo.pfnSetSize             = tstVDIoFileSetSize;
-        GlobTest.VDIfIo.pfnWriteSync           = tstVDIoFileWriteSync;
-        GlobTest.VDIfIo.pfnReadSync            = tstVDIoFileReadSync;
-        GlobTest.VDIfIo.pfnFlushSync           = tstVDIoFileFlushSync;
-        GlobTest.VDIfIo.pfnReadAsync           = tstVDIoFileReadAsync;
-        GlobTest.VDIfIo.pfnWriteAsync          = tstVDIoFileWriteAsync;
-        GlobTest.VDIfIo.pfnFlushAsync          = tstVDIoFileFlushAsync;
-
-        rc = VDInterfaceAdd(&GlobTest.VDIfIo.Core, "tstVDIo_VDIIo", VDINTERFACETYPE_IO,
-                            &GlobTest, sizeof(VDINTERFACEIO), &GlobTest.pInterfacesImages);
-        AssertRC(rc);
-
         /* Init I/O backend. */
         rc = VDIoBackendCreate(&GlobTest.pIoBackend);
         if (RT_SUCCESS(rc))
@@ -2713,9 +2749,10 @@ static void tstVDIoScriptRun(const char *pcszFilename)
             rc = VDScriptCtxCreate(&hScriptCtx);
             if (RT_SUCCESS(rc))
             {
-                rc = VDScriptCtxCallbacksRegister(hScriptCtx, g_aScriptActions, g_cScriptActions, &GlobTest);
-                AssertRC(rc);
+                RTTEST_CHECK_RC_OK(GlobTest.hTest,
+                                   VDScriptCtxCallbacksRegister(hScriptCtx, g_aScriptActions, g_cScriptActions, &GlobTest));
 
+                RTTestBanner(GlobTest.hTest);
                 rc = VDScriptCtxLoadScript(hScriptCtx, pszScript);
                 if (RT_FAILURE(rc))
                 {
@@ -2729,11 +2766,77 @@ static void tstVDIoScriptRun(const char *pcszFilename)
         }
         else
             RTPrintf("Creating the I/O backend failed rc=%Rrc\n");
+
+        RTTestSummaryAndDestroy(GlobTest.hTest);
     }
     else
-        RTPrintf("Opening script failed rc=%Rrc\n", rc);
+        RTStrmPrintf(g_pStdErr, "tstVDIo: fatal error: RTTestCreate failed with rc=%Rrc\n", rc);
 
     RTStrFree(GlobTest.pszIoBackend);
+}
+
+/**
+ * Executes the given I/O script using the new scripting engine.
+ *
+ * @returns nothing.
+ *
+ * @param pcszFilename    The script to execute.
+ */
+static void tstVDIoScriptRun(const char *pcszFilename)
+{
+    int rc = VINF_SUCCESS;
+    void *pvFile = NULL;
+    size_t cbFile = 0;
+
+    rc = RTFileReadAll(pcszFilename, &pvFile, &cbFile);
+    if (RT_SUCCESS(rc))
+    {
+        char *pszScript = RTStrDupN((char *)pvFile, cbFile);
+        RTFileReadAllFree(pvFile, cbFile);
+
+        AssertPtr(pszScript);
+        tstVDIoScriptExec(pszScript);
+        RTStrFree(pszScript);
+    }
+    else
+        RTPrintf("Opening the script failed: %Rrc\n", rc);
+
+}
+
+/**
+ * Run builtin tests.
+ *
+ * @returns nothing.
+ */
+static void tstVDIoRunBuiltinTests(void)
+{
+    /* 32bit hosts are excluded because of the 4GB address space. */
+#if HC_ARCH_BITS == 32
+    RTStrmPrintf(g_pStdErr, "tstVDIo: Running on a 32bit host is not supported for the builtin tests, skipping\n");
+    return;
+#else
+    /*
+     * We need quite a bit of RAM for the builtin tests. Skip it if there
+     * is not enough free RAM available.
+     */
+    uint64_t cbFree = 0;
+    int rc = RTSystemQueryAvailableRam(&cbFree);
+    if (   RT_FAILURE(rc)
+        || cbFree < (UINT64_C(6) * _1G))
+    {
+        RTStrmPrintf(g_pStdErr, "tstVDIo: fatal error: Failed to query available RAM or not enough available, skipping (rc=%Rrc cbFree=%llu)\n",
+                     rc, cbFree);
+        return;
+    }
+
+    for (unsigned i = 0; i < g_cVDIoTests; i++)
+    {
+        char *pszScript = RTStrDupN((const char *)g_aVDIoTests[i].pch, g_aVDIoTests[i].cb);
+
+        AssertPtr(pszScript);
+        tstVDIoScriptExec(pszScript);
+    }
+#endif
 }
 
 /**
@@ -2747,27 +2850,27 @@ static void printUsage(void)
 
 static const RTGETOPTDEF g_aOptions[] =
 {
-    { "--script",   's', RTGETOPT_REQ_STRING }
+    { "--script",   's', RTGETOPT_REQ_STRING },
+    { "--help",     'h', RTGETOPT_REQ_NOTHING }
 };
 
 int main(int argc, char *argv[])
 {
-#if 0 /** @todo: Enable when the testcase was fixed. */
     RTR3InitExe(argc, &argv, 0);
     int rc;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     char c;
 
-    if (argc != 3)
-    {
-        printUsage();
-        return RTEXITCODE_FAILURE;
-    }
-
     rc = VDInit();
     if (RT_FAILURE(rc))
         return RTEXITCODE_FAILURE;
+
+    if (argc == 1)
+    {
+        tstVDIoRunBuiltinTests();
+        return RTEXITCODE_SUCCESS;
+    }
 
     RTGetOptInit(&GetState, argc, argv, g_aOptions,
                  RT_ELEMENTS(g_aOptions), 1, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
@@ -2780,15 +2883,17 @@ int main(int argc, char *argv[])
             case 's':
                 tstVDIoScriptRun(ValueUnion.psz);
                 break;
-            default:
+            case 'h':
                 printUsage();
+                break;
+            default: /* Default is to run built in tests if no arguments are given (automated testing). */
+                tstVDIoRunBuiltinTests();
         }
     }
 
     rc = VDShutdown();
     if (RT_FAILURE(rc))
         RTPrintf("tstVDIo: unloading backends failed! rc=%Rrc\n", rc);
-#endif
 
     return RTEXITCODE_SUCCESS;
 }

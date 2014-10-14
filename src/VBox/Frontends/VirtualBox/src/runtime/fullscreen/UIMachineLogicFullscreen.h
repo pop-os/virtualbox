@@ -61,8 +61,10 @@ protected:
     /** Returns machine-window flags for 'Fullscreen' machine-logic and passed @a uScreenId. */
     virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::FramelessWindowHint; }
 
+    /** Adjusts machine-window geometry if necessary for 'Fullscreen'. */
+    virtual void adjustMachineWindowsGeometry();
+
     /* Helpers: Multi-screen stuff: */
-    void maybeAdjustGuestScreenSize();
     int hostScreenForGuestScreen(int iScreenId) const;
     bool hasHostScreenForGuestScreen(int iScreenId) const;
 
@@ -141,10 +143,15 @@ private:
     /** Mac OS X: Revalidates 'fullscreen' mode for all windows. */
     void revalidateNativeFullScreen();
 
-    /** Mac OS X: Proxies native notification about active space change. */
+    /** Mac OS X: Proxies native notification about application activation. */
     static void nativeHandlerForApplicationActivation(QObject *pObject, const QMap<QString, QString> &userInfo);
-    /** Mac OS X: Handles native notification about active space change. */
+    /** Mac OS X: Handles native notification about application activation. */
     void nativeHandlerForApplicationActivation(const QMap<QString, QString> &userInfo);
+
+    /** Mac OS X: Proxies native notification about active space change. */
+    static void nativeHandlerForActiveSpaceChange(QObject *pObject, const QMap<QString, QString> &userInfo);
+    /** Mac OS X: Handles native notification about active space change. */
+    void nativeHandlerForActiveSpaceChange(const QMap<QString, QString> &userInfo);
 #endif /* Q_WS_MAC */
 
     /* Variables: */

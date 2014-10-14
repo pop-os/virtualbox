@@ -1129,7 +1129,7 @@ static void stamR3LookupMaybeFree(PSTAMLOOKUP pLookup)
     if (pCur->cDescsInTree > 0)
         return;
     PSTAMLOOKUP pParent = pCur->pParent;
-    if (pParent)
+    if (!pParent)
         return;
 
     if (pParent->cDescsInTree == 0 && pParent->pParent)
@@ -1150,6 +1150,7 @@ static void stamR3LookupMaybeFree(PSTAMLOOKUP pLookup)
         papChildren[i] = pChild;
     }
     pCur->pParent = NULL;
+    pCur->iParent = UINT16_MAX;
 
     /*
      * Destroy pCur.

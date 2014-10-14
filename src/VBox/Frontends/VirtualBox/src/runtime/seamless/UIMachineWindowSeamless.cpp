@@ -80,6 +80,22 @@ void UIMachineWindowSeamless::sltRevokeFocus()
     m_pMachineView->setFocus();
 }
 
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+# ifdef Q_WS_X11
+void UIMachineWindowSeamless::sltUpdateMiniToolbarMask(const QRect &geo)
+{
+    /* Make sure mini-toolbar exists: */
+    AssertPtrReturnVoid(m_pMiniToolBar);
+
+    /* Remember mini-toolbar mask: */
+    m_maskMiniToolbar = geo;
+
+    /* Re-assign guest mask. */
+    setMask(m_maskGuest);
+}
+# endif /* Q_WS_X11 */
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
+
 void UIMachineWindowSeamless::prepareMenu()
 {
     /* Call to base-class: */
@@ -119,7 +135,7 @@ void UIMachineWindowSeamless::prepareVisualState()
 #else /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
     /* Make sure we have no background
      * until the first one set-region-event: */
-    setMask(m_maskRegion);
+    setMask(m_maskGuest);
 #endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 
 #ifndef Q_WS_MAC
@@ -162,6 +178,12 @@ void UIMachineWindowSeamless::prepareMiniToolbar()
     connect(m_pMiniToolBar, SIGNAL(sigCloseAction()),
             gActionPool->action(UIActionIndexRuntime_Simple_Close), SLOT(trigger()));
     connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutFocusStolen()), this, SLOT(sltRevokeFocus()));
+#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
+# ifdef Q_WS_X11
+    connect(m_pMiniToolBar, SIGNAL(sigNotifyAboutGeometryChange(const QRect&)),
+            this, SLOT(sltUpdateMiniToolbarMask(const QRect&)));
+# endif /* Q_WS_X11 */
+#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 }
 #endif /* !Q_WS_MAC */
 
@@ -206,7 +228,7 @@ void UIMachineWindowSeamless::placeOnScreen()
     /* Get corresponding screen: */
     int iScreen = qobject_cast<UIMachineLogicSeamless*>(machineLogic())->hostScreenForGuestScreen(m_uScreenId);
     /* And corresponding working area: */
-    QRect workingArea = vboxGlobal().availableGeometry(iScreen);
+    QRect workingArea = QApplication::desktop()->availableGeometry(iScreen);
 
     /* Move to the appropriate position: */
     move(workingArea.topLeft());
@@ -245,15 +267,34 @@ void UIMachineWindowSeamless::showInNecessaryMode()
     /* Show in normal mode: */
     show();
 
-    /* Adjust guest screen size if necessary: */
-    machineView()->maybeAdjustGuestScreenSize();
+    /* Adjust machine-view size if necessary: */
+    adjustMachineViewSize();
 
 #ifndef Q_WS_MAC
-    /* Show/Move mini-toolbar into appropriate place: */
+    /* Show mini-toolbar: */
+    if (m_pMiniToolBar)
+        m_pMiniToolBar->show();
+#endif /* !Q_WS_MAC */
+}
+
+void UIMachineWindowSeamless::adjustMachineViewSize()
+{
+    /* Call to base-class: */
+    UIMachineWindow::adjustMachineViewSize();
+
+#ifndef Q_WS_MAC
+    /* If mini-toolbar present: */
     if (m_pMiniToolBar)
     {
-        m_pMiniToolBar->show();
-        m_pMiniToolBar->adjustGeometry();
+        /* Make sure this window has seamless logic: */
+        const UIMachineLogicSeamless *pSeamlessLogic = qobject_cast<UIMachineLogicSeamless*>(machineLogic());
+        AssertPtrReturnVoid(pSeamlessLogic);
+
+        /* Which host-screen should that machine-window located on? */
+        const int iHostScreen = pSeamlessLogic->hostScreenForGuestScreen(m_uScreenId);
+
+        /* Move mini-toolbar into appropriate place: */
+        m_pMiniToolBar->adjustGeometry(iHostScreen);
     }
 #endif /* !Q_WS_MAC */
 }
@@ -298,34 +339,40 @@ void UIMachineWindowSeamless::showEvent(QShowEvent*)
 #endif /* VBOX_WITH_TRANSLUCENT_SEAMLESS && Q_WS_WIN */
 
 #ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-void UIMachineWindowSeamless::setMask(const QRegion &region)
+void UIMachineWindowSeamless::setMask(const QRegion &maskGuest)
 {
-    /* Prepare mask-region: */
-    QRegion maskRegion(region);
+    /* Remember new guest mask: */
+    m_maskGuest = maskGuest;
 
-    /* Shift region if left spacer width is NOT zero or top spacer height is NOT zero: */
+    /* Prepare full mask: */
+    QRegion maskFull(m_maskGuest);
+
+    /* Shift full mask if left or top spacer width is NOT zero: */
     if (m_pLeftSpacer->geometry().width() || m_pTopSpacer->geometry().height())
-        maskRegion.translate(m_pLeftSpacer->geometry().width(), m_pTopSpacer->geometry().height());
+        maskFull.translate(m_pLeftSpacer->geometry().width(), m_pTopSpacer->geometry().height());
 
-    /* Seamless-window for empty region should be empty too,
+# ifdef Q_WS_X11
+    /* Take into account mini-toolbar mask if necessary: */
+    if (m_pMiniToolBar)
+        maskFull += m_maskMiniToolbar;
+# endif /* Q_WS_X11 */
+
+    /* Seamless-window for empty full mask should be empty too,
      * but the QWidget::setMask() wrapper doesn't allow this.
-     * Instead, we have a full painted screen of seamless-geometry size visible.
-     * Moreover, we can't just hide the empty seamless-window as 'hiding'
-     * 1. will collide with the multi-screen layout behavior and
-     * 2. will cause a task-bar flicker on moving window from one screen to another.
-     * As a *temporary* though quite a dirty workaround we have to make sure
-     * region have at least one pixel. */
-    if (maskRegion.isEmpty())
-        maskRegion += QRect(0, 0, 1, 1);
-    /* Make sure mask-region had changed: */
-    if (m_maskRegion != maskRegion)
+     * Instead, we see a full guest-screen of available-geometry size.
+     * So we have to make sure full mask have at least one pixel. */
+    if (maskFull.isEmpty())
+        maskFull += QRect(0, 0, 1, 1);
+
+    /* Make sure full mask had changed: */
+    if (m_maskFull != maskFull)
     {
         /* Compose viewport region to update: */
-        QRegion toUpdate = m_maskRegion + maskRegion;
-        /* Remember new mask-region: */
-        m_maskRegion = maskRegion;
-        /* Assign new mask-region: */
-        UIMachineWindow::setMask(m_maskRegion);
+        QRegion toUpdate = m_maskFull + maskFull;
+        /* Remember new full mask: */
+        m_maskFull = maskFull;
+        /* Assign new full mask: */
+        UIMachineWindow::setMask(m_maskFull);
         /* Update viewport region finally: */
         m_pMachineView->viewport()->update(toUpdate);
     }
