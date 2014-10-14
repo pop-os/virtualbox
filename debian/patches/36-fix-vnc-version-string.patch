@@ -2,7 +2,7 @@ Index: virtualbox/Config.kmk
 ===================================================================
 --- virtualbox.orig/Config.kmk	2013-11-19 04:41:16.173643708 -0500
 +++ virtualbox/Config.kmk	2013-11-19 04:41:16.169643708 -0500
-@@ -2489,6 +2489,7 @@
+@@ -2493,6 +2493,7 @@
  	-e 's/@VBOX_VERSION_MINOR@/$(VBOX_VERSION_MINOR)/g' \
  	-e 's/@VBOX_VERSION_BUILD@/$(VBOX_VERSION_BUILD)/g' \
  	-e 's/@VBOX_VERSION_STRING@/$(VBOX_VERSION_STRING)/g' \

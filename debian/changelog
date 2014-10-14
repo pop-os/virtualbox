@@ -1,8 +1,11 @@
-virtualbox (4.3.16-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (4.3.18-dfsg-1) UNRELEASED; urgency=medium
 
   [ Gianfranco Costamagna ]
-  * Imported Upstream version 4.3.16-dfsg
+  * Imported Upstream release.
+  * Add myself to uploaders.
   * Patch refresh.
+  * Bump Standards-Version to 3.9.6, no changes needed.
+  * Wrap-and-sort control file.
 
   [ Felix Geyer ]
   * Remove myself from uploaders.
