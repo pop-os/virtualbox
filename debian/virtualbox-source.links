@@ -1,4 +1,4 @@
-/usr/share/modass/packages/default.sh   /usr/share/modass/overrides/virtualbox-source
+#/usr/share/modass/packages/default.sh   /usr/share/modass/overrides/virtualbox-source
 
 /usr/src/modules/virtualbox/r0drv /usr/src/modules/virtualbox/vboxdrv/r0drv
 /usr/src/modules/virtualbox/r0drv /usr/src/modules/virtualbox/vboxnetflt/r0drv
