@@ -1,4 +1,4 @@
-virtualbox (4.3.18-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (4.3.18-dfsg-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
   * Imported Upstream release.
@@ -10,7 +10,7 @@ virtualbox (4.3.18-dfsg-1) UNRELEASED; urgency=medium
   [ Felix Geyer ]
   * Remove myself from uploaders.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 12 Sep 2014 17:15:35 +0200
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 17 Oct 2014 11:54:01 +0200
 
 virtualbox (4.3.14-dfsg-1) unstable; urgency=medium
 
