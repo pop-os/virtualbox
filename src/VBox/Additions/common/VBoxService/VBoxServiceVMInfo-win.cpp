@@ -97,7 +97,7 @@ int  VBoxServiceVMInfoWinProcessesEnumerate(PVBOXSERVICEVMINFOPROC *ppProc, DWOR
 void VBoxServiceVMInfoWinProcessesFree(DWORD cProcs, PVBOXSERVICEVMINFOPROC paProcs);
 int vboxServiceVMInfoWinWriteLastInput(PVBOXSERVICEVEPROPCACHE pCache, const char *pszUser, const char *pszDomain);
 
-typedef BOOL WINAPI FNQUERYFULLPROCESSIMAGENAME(HANDLE,  DWORD, LPTSTR, PDWORD);
+typedef BOOL WINAPI FNQUERYFULLPROCESSIMAGENAME(HANDLE,  DWORD, LPWSTR, PDWORD);
 typedef FNQUERYFULLPROCESSIMAGENAME *PFNQUERYFULLPROCESSIMAGENAME;
 
 
@@ -129,16 +129,12 @@ static bool vboxServiceVMInfoSession0Separation(void)
  * Retrieves the module name of a given process.
  *
  * @return  IPRT status code.
- * @param   pProc
- * @param   pszBuf
- * @param   cbBuf
  */
-static int VBoxServiceVMInfoWinProcessesGetModuleName(PVBOXSERVICEVMINFOPROC const pProc,
-                                                      TCHAR *pszName, size_t cbName)
+static int VBoxServiceVMInfoWinProcessesGetModuleNameA(PVBOXSERVICEVMINFOPROC const pProc,
+                                                       PRTUTF16 *ppszName)
 {
     AssertPtrReturn(pProc, VERR_INVALID_POINTER);
-    AssertPtrReturn(pszName, VERR_INVALID_POINTER);
-    AssertReturn(cbName, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppszName, VERR_INVALID_POINTER);
 
     /** @todo Only do this once. Later. */
     OSVERSIONINFOEX OSInfoEx;
@@ -170,31 +166,42 @@ static int VBoxServiceVMInfoWinProcessesGetModuleName(PVBOXSERVICEVMINFOPROC con
     {
         /* Since GetModuleFileNameEx has trouble with cross-bitness stuff (32-bit apps cannot query 64-bit
            apps and vice verse) we have to use a different code path for Vista and up. */
+        WCHAR wszName[_1K];
+        DWORD dwLen = sizeof(wszName);
 
-        /* Note: For 2000 + NT4 we might just use GetModuleFileName() instead. */
+        /* Note: For 2000 + NT4 we might just use GetModuleFileNameW() instead. */
         if (OSInfoEx.dwMajorVersion >= 6 /* Vista or later */)
         {
             /* Loading the module and getting the symbol for each and every process is expensive
              * -- since this function (at the moment) only is used for debugging purposes it's okay. */
             PFNQUERYFULLPROCESSIMAGENAME pfnQueryFullProcessImageName;
             pfnQueryFullProcessImageName = (PFNQUERYFULLPROCESSIMAGENAME)
-                RTLdrGetSystemSymbol("kernel32.dll", "QueryFullProcessImageNameA");
-            /** @todo r=bird: WTF don't we query the UNICODE name? */
+                RTLdrGetSystemSymbol("kernel32.dll", "QueryFullProcessImageNameW");
             if (pfnQueryFullProcessImageName)
             {
-                /** @todo r=bird: Completely bogus use of TCHAR.
-                 *  !!ALL USE OF TCHAR IS HEREWITH BANNED IN ALL VBOX SOURCES!!
-                 *  We use WCHAR when talking to windows, everything else is WRONG. (We don't
-                 *  want Chinese MBCS being treated as UTF-8.) */
-                DWORD dwLen = cbName / sizeof(TCHAR);
-                if (!pfnQueryFullProcessImageName(h, 0 /*PROCESS_NAME_NATIVE*/, pszName, &dwLen))
+                if (!pfnQueryFullProcessImageName(h, 0 /*PROCESS_NAME_NATIVE*/, wszName, &dwLen))
                     rc = VERR_ACCESS_DENIED;
             }
         }
         else
         {
-            if (!GetModuleFileNameEx(h, NULL /* Get main executable */, pszName, cbName / sizeof(TCHAR)))
+            if (!GetModuleFileNameExW(h, NULL /* Get main executable */, wszName, dwLen))
                 rc = VERR_ACCESS_DENIED;
+        }
+
+        if (   RT_FAILURE(rc)
+            && g_cVerbosity > 3)
+        {
+           VBoxServiceError("Unable to retrieve process name for PID=%ld, error=%ld\n",
+                             pProc->id, GetLastError());
+        }
+        else
+        {
+            PRTUTF16 pszName = RTUtf16Dup(wszName);
+            if (pszName)
+                *ppszName = pszName;
+            else
+                rc = VERR_NO_MEMORY;
         }
 
         CloseHandle(h);
@@ -576,28 +583,33 @@ uint32_t VBoxServiceVMInfoWinSessionHasProcesses(PLUID pSession,
      * session <-> process LUIDs.
      */
     uint32_t cNumProcs = 0;
+
     for (DWORD i = 0; i < cProcs; i++)
     {
-        if (g_cVerbosity)
-        {
-            TCHAR szModule[_1K];
-            rc = VBoxServiceVMInfoWinProcessesGetModuleName(&paProcs[i], szModule, sizeof(szModule));
-            if (RT_SUCCESS(rc))
-                VBoxServiceVerbose(4, "PID=%ld: %s\n",
-                                   paProcs[i].id, szModule);
-        }
-
         PSID pProcSID = paProcs[i].pSid;
         if (   RT_SUCCESS(rc)
             && pProcSID
             && IsValidSid(pProcSID))
         {
-            if (   EqualSid(pSessionData->Sid, paProcs[i].pSid)
-                && paProcs[i].fInteractive)
+            if (EqualSid(pSessionData->Sid, paProcs[i].pSid))
             {
-                cNumProcs++;
-                if (!g_cVerbosity) /* We want a bit more info on higher verbosity. */
-                    break;
+                if (g_cVerbosity)
+                {
+                    PRTUTF16 pszName;
+                    int rc2 = VBoxServiceVMInfoWinProcessesGetModuleNameA(&paProcs[i], &pszName);
+                    VBoxServiceVerbose(4, "Session %RU32: PID=%ld (fInt=%RTbool): %ls\n",
+                                       pSessionData->Session, paProcs[i].id, paProcs[i].fInteractive,
+                                       RT_SUCCESS(rc2) ? pszName : L"<Unknown>");
+                    if (RT_SUCCESS(rc2))
+                        RTUtf16Free(pszName);
+                }
+
+                if (paProcs[i].fInteractive)
+                {
+                    cNumProcs++;
+                    if (!g_cVerbosity) /* We want a bit more info on higher verbosity. */
+                        break;
+                }
             }
         }
     }

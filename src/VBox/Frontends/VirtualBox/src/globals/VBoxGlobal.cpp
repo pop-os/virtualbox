@@ -3333,14 +3333,14 @@ QString VBoxGlobal::fullMediumFormatName(const QString &strBaseMediumFormatName)
 }
 
 /* static */
-bool VBoxGlobal::isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey)
+bool VBoxGlobal::isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey, bool fApprovedByDefault /* = false */)
 {
     /* Load corresponding extra-data value: */
     QString strExtraDataValue(vbox.GetExtraData(strExtraDataKey));
 
     /* 'false' if value was not set: */
     if (strExtraDataValue.isEmpty())
-        return false;
+        return fApprovedByDefault;
 
     /* Handle particular values: */
     return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
@@ -3350,14 +3350,14 @@ bool VBoxGlobal::isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtr
 }
 
 /* static */
-bool VBoxGlobal::isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey)
+bool VBoxGlobal::isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey, bool fApprovedByDefault /* = false */)
 {
     /* Load corresponding extra-data value: */
     QString strExtraDataValue(machine.GetExtraData(strExtraDataKey));
 
     /* 'false' if value was not set: */
     if (strExtraDataValue.isEmpty())
-        return false;
+        return fApprovedByDefault;
 
     /* Handle particular values: */
     return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
@@ -3729,6 +3729,20 @@ QList<MachineSettingsPageType> VBoxGlobal::restrictedMachineSettingsPages(CMachi
     }
     /* Return result: */
     return result;
+}
+
+/* static */
+bool VBoxGlobal::activateHoveredMachineWindow(CVirtualBox &vbox)
+{
+    /* 'true' if activating is approved by the extra-data: */
+    return isApprovedByExtraData(vbox, GUI_ActivateHoveredMachineWindow, true);
+}
+
+/* static */
+void VBoxGlobal::setActivateHoveredMachineWindow(CVirtualBox &vbox, bool fActivate)
+{
+    /* "false" if activating is restricted, null-string otherwise: */
+    vbox.SetExtraData(GUI_ActivateHoveredMachineWindow, fActivate ? QString() : QString("false"));
 }
 
 #ifndef Q_WS_MAC

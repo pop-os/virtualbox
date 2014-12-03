@@ -3021,6 +3021,7 @@ static int vdWriteHelperAsync(PVDIOCTX pIoCtx)
 
                 if (RT_FAILURE(rc) && (rc != VERR_VD_ASYNC_IO_IN_PROGRESS))
                 {
+                    vdIoCtxUnlockDisk(pDisk, pIoCtx, false /* fProcessDeferredReqs*/ );
                     vdIoCtxFree(pDisk, pIoCtxWrite);
                     break;
                 }

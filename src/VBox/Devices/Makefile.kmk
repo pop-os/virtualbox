@@ -236,20 +236,27 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
 
  ifdef VBOX_WITH_VMSVGA
-  VBoxDD_DEFS         += VBOX_WITH_VMSVGA
-  VBoxDD_SOURCES      += Graphics/DevVGA-SVGA.cpp
+  VBoxDD_DEFS           += VBOX_WITH_VMSVGA
+  VBoxDD_SOURCES        += Graphics/DevVGA-SVGA.cpp
  endif
  ifdef VBOX_WITH_VMSVGA3D
-  VBoxDD_DEFS         += VBOX_WITH_VMSVGA3D
-  VBoxDD_SOURCES      += Graphics/DevVGA-SVGA3d-shared.cpp
-  ifeq ($(KBUILD_TARGET),win)
-    VBoxDD_SOURCES += Graphics/DevVGA-SVGA3d-win.cpp
+  VBoxDD_DEFS           += VBOX_WITH_VMSVGA3D
+  VBoxDD_SOURCES        += Graphics/DevVGA-SVGA3d-shared.cpp
+  ifeq ($(KBUILD_TARGET),win) # (Disable this to work with OpenGL on Windows.)
+   VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
+   VBoxDD_LIBS.win      += d3d9.lib
   else
-    VBoxDD_SOURCES += Graphics/DevVGA-SVGA3d-ogl.cpp
-    VBoxDD_LIBS    += $(PATH_STAGE_BIN)/vmsvgashader$(VBOX_SUFF_DLL)
+   VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-ogl.cpp
+   if1of ($(KBUILD_TARGET),win)
+    VBoxDD_LIBS         += $(PATH_STAGE_LIB)/VBoxSVGA3D$(VBOX_SUFF_LIB)
+   else
+    VBoxDD_LIBS         += $(PATH_STAGE_BIN)/VBoxSVGA3D$(VBOX_SUFF_DLL)
+   endif
+   VBoxDD_LIBS.linux    += GL X11
+   VBoxDD_LIBS.win      += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+   VBoxDD_LDFLAGS.darwin += -framework OpenGL
   endif
-  VBoxDD_LIBS.win      += d3d9.lib
-  VBoxDD_LIBS.linux    += GL X11
+  Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
  endif
 
  ifdef VBOX_WITH_VDMA
@@ -348,7 +355,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	USB/DrvVUSBRootHub.cpp \
  	USB/VUSBDevice.cpp \
  	USB/VUSBReadAhead.cpp \
- 	USB/VUSBUrb.cpp
+ 	USB/VUSBUrb.cpp \
+ 	USB/VUSBSniffer.cpp
  endif
 
  # --- Networking bits. ---
@@ -846,7 +854,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   ifdef VBOX_WITH_VMSVGA
    VBoxDDGC_DEFS         += VBOX_WITH_VMSVGA
    VBoxDDGC_SOURCES      += \
-    Graphics/DevVGA-SVGA.cpp
+ 	Graphics/DevVGA-SVGA.cpp
   endif
   ifdef VBOX_WITH_VMSVGA3D
    VBoxDDGC_DEFS         += VBOX_WITH_VMSVGA3D
@@ -995,7 +1003,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  ifdef VBOX_WITH_VMSVGA
   VBoxDDR0_DEFS         += VBOX_WITH_VMSVGA
   VBoxDDR0_SOURCES      += \
-    Graphics/DevVGA-SVGA.cpp
+	Graphics/DevVGA-SVGA.cpp
  endif
  ifdef VBOX_WITH_VMSVGA3D
   VBoxDDR0_DEFS         += VBOX_WITH_VMSVGA3D
@@ -1237,6 +1245,92 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
  VBoxExtPackPuelInsRoms_TEMPLATE = VBoxInsExtPackPuel
  VBoxExtPackPuelInsRoms_SOURCES = PC/PXE/PXE-Intel.rom=>PXE-Intel.rom
 endif # VBOX_WITH_EXTPACK_PUEL
+
+
+if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
+ #
+ # Template used for VBoxSVGA3D.  (Stips away compiler options.)
+ #
+ TEMPLATE_VBoxSVGA3D         = VBoxSVGA3D
+ TEMPLATE_VBoxSVGA3D_EXTENDS = VBOXR3
+ TEMPLATE_VBoxSVGA3D_CFLAGS  = \
+ 	$(filter-out -pedantic -fno-common -Wstrict-prototypes,$(TEMPLATE_VBOXR3_CFLAGS))
+ TEMPLATE_VBoxSVGA3D_CXXFLAG = \
+ 	$(filter-out -pedantic -fno-common,$(TEMPLATE_VBOXR3_CXXFLAGS))
+ TEMPLATE_VBoxSVGA3D_CFLAGS.darwin  = \
+ 	$(filter-out -fno-common,$(TEMPLATE_VBOXR3_CFLAGS.darwin))
+ TEMPLATE_VBoxSVGA3D_LDFLAGS.darwin = \
+ 	-framework AppKit -framework OpenGL
+
+ #
+ # The shader library used by the SVGA3D implementation.
+ #
+ DLLS += VBoxSVGA3D
+ VBoxSVGA3D_TEMPLATE = VBoxSVGA3D
+ VBoxSVGA3D_SDKS         = ReorderCompilerIncs
+ VBoxSVGA3D_DEFS         = \
+ 	__WINESRC__ \
+ 	WINE_UNICODE_API="" \
+ 	_REENTRANT \
+ 	WINE_NOWINSOCK \
+ 	VBOX_WITH_VMSVGA \
+ 	VBOX_WITH_VMSVGA3D \
+ 	DLLDIR=\"\" \
+ 	BINDIR=\"\" \
+ 	LIB_TO_BINDIR=\"\" \
+ 	LIB_TO_DLLDIR=\"\" \
+ 	BIN_TO_DLLDIR=\"\" \
+ 	LIB_TO_DATADIR=\"\" \
+ 	BIN_TO_DATADIR=\"\" \
+ 	_USE_MATH_DEFINES \
+ 	VBOX_USING_WINDDK_W7_OR_LATER \
+ 	VBOX_WINE_WITH_SINGLE_SWAPCHAIN_CONTEXT \
+ 	IN_vmsvgashader_STATIC \
+ 	VBOX_WINE_WITH_IPRT
+ if "$(KBUILD_TYPE)" != "debug" || defined(VBOX_WINE_NO_DEBUG_MSGS)
+  VBoxSVGA3D_DEFS       += WINE_NO_DEBUG_MSGS
+ endif
+ VBoxSVGA3D_DEFS.x86    += __i386__
+ VBoxSVGA3D_DEFS.amd64  += __x86_64__
+ VBoxSVGA3D_DEFS.win    += \
+ 	USE_WIN32_OPENGL \
+ 	VBOX_WINE_WITHOUT_LIBWINE
+ # WINE relies on a gcc 4.4 feature but we have 4.2 on Darwin
+ VBoxSVGA3D_DEFS.darwin += \
+ 	__builtin_ms_va_list=va_list \
+ 	__stdcall= \
+ 	ms_abi=
+ # WTF IS THIS? -fno-pic?? doubt it.
+ VBoxSVGA3D_CFLAGS = \
+ 	$(filter-out -pedantic -Wattributes,$(VBoxR3DllWarnNoPic_CFLAGS))
+ VBoxSVGA3D_INCS.win    := \
+ 	Graphics/shaderlib/libWineStub/include
+ VBoxSVGA3D_INCS.linux  := \
+ 	Graphics/shaderlib/wine/include
+ VBoxSVGA3D_INCS.darwin := \
+ 	Graphics/shaderlib/wine/include
+ VBoxSVGA3D_SOURCES     := \
+ 	Graphics/shaderlib/glsl_shader.c \
+ 	Graphics/shaderlib/shader.c \
+ 	Graphics/shaderlib/shader_sm1.c \
+ 	Graphics/shaderlib/shader_sm4.c \
+ 	Graphics/shaderlib/shaderapi.c \
+ 	Graphics/shaderlib/utils.c \
+ 	Graphics/shaderlib/stateblock.c \
+ 	Graphics/shaderlib/directx.c \
+ 	Graphics/shaderlib/libWineStub/debug.c
+ VBoxSVGA3D_SOURCES.darwin  += \
+ 	Graphics/DevVGA-SVGA3d-cocoa.m
+ VBoxSVGA3D_LIBS        = \
+ 	$(LIB_RUNTIME)
+ VBoxSVGA3D_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+ if1of ($(KBUILD_TARGET), solaris linux freebsd)
+  VBoxSVGA3D_LIBS += GL
+ endif
+ VBoxSVGA3D_LDFLAGS.darwin += \
+ 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSVGA3D.dylib
+
+endif # defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

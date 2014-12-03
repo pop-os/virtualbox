@@ -17,8 +17,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIGlobalSettingsDisplay.h"
+#include "VBoxGlobal.h"
 
 /* Display page constructor: */
 UIGlobalSettingsDisplay::UIGlobalSettingsDisplay()
@@ -49,8 +50,12 @@ void UIGlobalSettingsDisplay::loadToCacheFrom(QVariant &data)
     /* Fetch data to properties & settings: */
     UISettingsPageGlobal::fetchData(data);
 
+    /* Get VBox instance: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+
     /* Load to cache: */
     m_cache.m_strMaxGuestResolution = m_settings.maxGuestRes();
+    m_cache.m_fActivateHoveredMachineWindow = VBoxGlobal::activateHoveredMachineWindow(vbox);
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);
@@ -83,6 +88,8 @@ void UIGlobalSettingsDisplay::getFromCache()
         m_pResolutionWidthSpin->setValue(iWidth);
         m_pResolutionHeightSpin->setValue(iHeight);
     }
+    /* Set state for corresponding check-box: */
+    m_pCheckBoxActivateOnMouseHover->setChecked(m_cache.m_fActivateHoveredMachineWindow);
 }
 
 /* Save data from corresponding widgets to cache,
@@ -107,6 +114,8 @@ void UIGlobalSettingsDisplay::putToCache()
         /* Else if both field attributes are non-zeroes => resolution set to "fixed": */
         m_cache.m_strMaxGuestResolution = QString("%1,%2").arg(m_pResolutionWidthSpin->value()).arg(m_pResolutionHeightSpin->value());
     }
+    /* Acquire state from corresponding check-box: */
+    m_cache.m_fActivateHoveredMachineWindow = m_pCheckBoxActivateOnMouseHover->isChecked();
 }
 
 /* Save data from cache to corresponding external object(s),
@@ -116,8 +125,12 @@ void UIGlobalSettingsDisplay::saveFromCacheTo(QVariant &data)
     /* Fetch data to properties & settings: */
     UISettingsPageGlobal::fetchData(data);
 
+    /* Get VBox instance: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+
     /* Save from cache: */
     m_settings.setMaxGuestRes(m_cache.m_strMaxGuestResolution);
+    VBoxGlobal::setActivateHoveredMachineWindow(vbox, m_cache.m_fActivateHoveredMachineWindow);
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);

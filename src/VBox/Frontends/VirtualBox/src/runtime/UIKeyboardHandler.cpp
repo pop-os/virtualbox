@@ -63,6 +63,10 @@ const int XKeyRelease = KeyRelease;
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
+#ifdef Q_WS_WIN
+# include "WinKeyboard.h"
+#endif /* Q_WS_WIN */
+ 
 /* COM includes: */
 #include "CConsole.h"
 
@@ -161,6 +165,40 @@ void UIKeyboardHandler::cleanupListener(ulong uIndex)
     }
 }
 
+#ifdef Q_WS_X11
+struct CHECKFORX11FOCUSEVENTSDATA
+{
+    Window hWindow;
+    bool fEventFound;
+};
+
+static Bool checkForX11FocusEventsWorker(Display *pDisplay, XEvent *pEvent,
+                                         XPointer pArg)
+{
+    NOREF(pDisplay);
+    struct CHECKFORX11FOCUSEVENTSDATA *pStruct;
+    
+    pStruct = (struct CHECKFORX11FOCUSEVENTSDATA *)pArg;
+    if (   pEvent->xany.type == XFocusIn
+        || pEvent->xany.type == XFocusOut)
+        if (pEvent->xany.window == pStruct->hWindow)
+            pStruct->fEventFound = true;
+    return false;
+}
+
+bool UIKeyboardHandler::checkForX11FocusEvents(Window hWindow)
+{
+    XEvent dummy;
+    struct CHECKFORX11FOCUSEVENTSDATA data;
+
+    data.hWindow = hWindow;
+    data.fEventFound = false;
+    XCheckIfEvent(QX11Info::display(), &dummy, checkForX11FocusEventsWorker,
+                  (XPointer)&data);
+    return data.fEventFound;
+}
+#endif /* Q_WS_X11 */
+
 void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 {
     /* Do NOT capture keyboard if its captured already: */
@@ -201,18 +239,17 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                  * We can't be sure this shortcut will be released at all, so we will retry to grab keyboard for 50 times,
                  * and after we will just ignore that issue: */
                 int cTriesLeft = 50;
-                XEvent dummy;
-                while (cTriesLeft && XGrabKeyboard(QX11Info::display(), m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync, CurrentTime)) { --cTriesLeft; }
-                /* If the grab succeeds, X will insert a FocusIn event for this
-                 * window into the event queue.  If we have two windows they can
-                 * end up in an endless cycle of passing the focus back and
-                 * forward as there is always a pending FocusIn for each, and we
-                 * drop and re-take the grab each time the focus changes.  So we
-                 * remove the event again before Qt can see it. */
-                if (cTriesLeft > 0)
-                    XCheckTypedWindowEvent(QX11Info::display(),
-                            m_windows[m_iKeyboardCaptureViewIndex]->winId(),
-                            XFocusIn, &dummy);
+                Window hWindow;
+
+                /* Only do our keyboard grab if there are no other focus events
+                 * for this window on the queue.  This can prevent problems
+                 * including two windows fighting to grab the keyboard. */
+                hWindow = m_windows[m_iKeyboardCaptureViewIndex]->winId();
+                if (!checkForX11FocusEvents(hWindow))
+                    while (cTriesLeft && XGrabKeyboard(QX11Info::display(),
+                           hWindow, False, GrabModeAsync, GrabModeAsync,
+                           CurrentTime))
+                        --cTriesLeft;
                 break;
             }
             /* Should we try to grab keyboard in default case? I think - NO. */
@@ -373,75 +410,6 @@ void UIKeyboardHandler::winSkipKeyboardEvents(bool fSkip)
     m_fSkipKeyboardEvents = fSkip;
 }
 
-/**
- * @brief isSyntheticLCtrl
- * @param   pMsg  Windows WM_[SYS]KEY* event message structure
- * @return  true if this is a synthetic LCtrl event, false otherwise
- * This function is a heuristic to tell whether a key event is the first in
- * a synthetic LCtrl+RAlt sequence which Windows uses to signal AltGr.  Our
- * heuristic is in two parts.  First of all, we check whether there is a pending
- * RAlt key event matching this LCtrl event (i.e. both key up or both key down)
- * and if there is, we check whether the current layout has an AltGr key.  We
- * check this by looking to see if any of the layout-dependent keys has a symbol
- * associated when AltGr is pressed.
- */
-static bool isSyntheticLCtrl(MSG *pMsg)
-{
-    MSG peekMsg;
-    /** Keyboard state array with VK_CONTROL and VK_MENU depressed. */
-    const BYTE auKeyStates[256] =
-    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x80, 0x80 };
-    WORD ach;
-    unsigned i;
-
-    Assert(   pMsg->message == WM_KEYDOWN || pMsg->message == WM_SYSKEYDOWN
-           || pMsg->message == WM_KEYUP || pMsg->message == WM_SYSKEYUP);
-    if (   ((RT_HIWORD(pMsg->lParam) & 0xFF) != 0x1d /* scan code: Control */)
-        || RT_HIWORD(pMsg->lParam) & KF_EXTENDED)
-        return false;
-    if (!PeekMessage(&peekMsg, NULL, WM_KEYFIRST, WM_KEYLAST, PM_NOREMOVE))
-        return false;
-    if (   (pMsg->message == WM_KEYDOWN || pMsg->message == WM_SYSKEYDOWN)
-        && (peekMsg.message != WM_KEYDOWN && peekMsg.message != WM_SYSKEYDOWN))
-        return false;
-    if (   (pMsg->message == WM_KEYUP || pMsg->message == WM_SYSKEYUP)
-        && (peekMsg.message != WM_KEYUP && peekMsg.message != WM_SYSKEYUP))
-        return false;
-    if (   ((RT_HIWORD(peekMsg.lParam) & 0xFF) != 0x38 /* scan code: Alt */)
-        || !(RT_HIWORD(peekMsg.lParam) & KF_EXTENDED))
-        return false;
-    /* If we got this far then we have a key event which could potentially
-     * be a synthetic left control.  Now we check to see whether the current
-     * keyboard layout actually has an AltGr key by checking whether any of
-     * the keys which might do produce a symbol when AltGr (Control + Alt) is
-     * depressed.  Generally this loop will exit pretty early (it exits on the
-     * first iteration for my German layout).  If there is no AltGr key in the
-     * layout then it will run right through, but that should not happen very
-     * often as we should hardly ever reach the loop in that case.
-     *
-     * In theory we could do this once and cache the result, but that involves
-     * tracking layout switches to invalidate the cache, and I don't think
-     * that the added complexity is worth the price.
-     */
-    for (i = '0'; i <= VK_OEM_102; ++i)
-    {
-        if (ToAscii(i, 0, auKeyStates, &ach, 0))
-            break;
-        /* Skip ranges of virtual keys which are undefined or not relevant. */
-        if (i == '9')
-            i = 'A' - 1;
-        if (i == 'Z')
-            i = VK_OEM_1 - 1;
-        if (i == VK_OEM_3)
-            i = VK_OEM_4 - 1;
-        if (i == VK_OEM_8)
-            i = VK_OEM_102 - 1;
-    }
-    if (i > VK_OEM_102)
-        return false;
-    return true;
-}
-
 bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
 {
     /* Check if some system event should be filtered-out.
@@ -468,12 +436,6 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
                 break;
             }
 
-            if (isSyntheticLCtrl(pMsg))
-            {
-                fResult = true;
-                break;
-            }
-
             /* Scancodes 0x80 and 0x00 are ignored: */
             unsigned scan = (pMsg->lParam >> 16) & 0x7F;
             if (!scan)
@@ -489,6 +451,26 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
                 flags |= KeyExtended;
             if (!(pMsg->lParam & 0x80000000))
                 flags |= KeyPressed;
+
+            /* If present - why not just assert this? */
+            if (m_pAltGrMonitor)
+            {
+                /* Get the VM keyboard: */
+                CKeyboard keyboard = session().GetConsole().GetKeyboard();
+                Assert(!keyboard.isNull());
+
+                /* Bail out if we are sure that this is a fake left control. */
+                if (m_pAltGrMonitor->isCurrentEventDefinitelyFake(scan, flags & KeyPressed, flags & KeyExtended))
+                {
+                    fResult = true;
+                    break;
+                }
+                /* Update AltGR monitor state from key-event: */
+                m_pAltGrMonitor->updateStateFromKeyEvent(scan, flags & KeyPressed, flags & KeyExtended);
+                /* And release left Ctrl key early (if required): */
+                if (m_pAltGrMonitor->isLeftControlReleaseNeeded())
+                    keyboard.PutScancode(0x1D | 0x80);
+            }
 
             /* Check for special Korean keys. Based on the keyboard layout selected
              * on the host, the scancode in lParam might be 0x71/0x72 or 0xF1/0xF2.
@@ -779,11 +761,13 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_bIsHostkeyInCapture(false)
     , m_iKeyboardHookViewIndex(-1)
     , m_fSkipKeyboardEvents(false)
+    , m_pAltGrMonitor(0)
 #elif defined(Q_WS_MAC)
     , m_darwinKeyModifiers(0)
     , m_fKeyboardGrabbed(false)
     , m_iKeyboardGrabViewIndex(-1)
-#endif
+#endif /* Q_WS_MAC */
+    , m_cMonitors(1)
 {
     /* Prepare: */
     prepareCommon();
@@ -804,11 +788,18 @@ UIKeyboardHandler::~UIKeyboardHandler()
 
 void UIKeyboardHandler::prepareCommon()
 {
+#ifdef Q_WS_WIN
+    /* Prepare AltGR monitor: */
+    m_pAltGrMonitor = new WinAltGrMonitor;
+#endif /* Q_WS_WIN */
+
     /* Machine state-change updater: */
     connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
 
     /* Pressed keys: */
     ::memset(m_pressedKeys, 0, sizeof(m_pressedKeys));
+
+    m_cMonitors = uisession()->session().GetMachine().GetMonitorCount();
 }
 
 void UIKeyboardHandler::loadSettings()
@@ -831,6 +822,10 @@ void UIKeyboardHandler::loadSettings()
 void UIKeyboardHandler::cleanupCommon()
 {
 #if defined(Q_WS_WIN)
+    /* Cleanup AltGR monitor: */
+    delete m_pAltGrMonitor;
+    m_pAltGrMonitor = 0;
+
     /* Cleaning keyboard-hook: */
     if (m_keyboardHook)
     {
@@ -842,7 +837,7 @@ void UIKeyboardHandler::cleanupCommon()
      * is released when closing this view. */
     if (m_fKeyboardGrabbed)
         darwinGrabKeyboardEvents(false);
-#endif
+#endif /* Q_WS_MAC */
 }
 
 /* Machine-logic getter: */

@@ -135,6 +135,7 @@ UISession::UISession(UIMachine *pMachine, CSession &sessionReference)
     , m_mouseCapturePolicy(MouseCapturePolicy_Default)
     , m_guruMeditationHandlerType(GuruMeditationHandlerType_Default)
     , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
+    , m_fActivateHoveredMachineWindow(false)
     , m_fIsExtensionPackUsable(false)
     , m_requestedVisualStateType(UIVisualStateType_Invalid)
 #ifdef Q_WS_WIN
@@ -1096,7 +1097,9 @@ void UISession::prepareMenuPool()
 
 void UISession::loadSessionSettings()
 {
-   /* Get uisession machine: */
+    /* Get vbox instance: */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    /* Get uisession machine: */
     CMachine machine = session().GetConsole().GetMachine();
 
     /* Load extra-data settings: */
@@ -1153,6 +1156,9 @@ void UISession::loadSessionSettings()
 
         /* Determine HiDPI optimization type: */
         m_hiDPIOptimizationType = VBoxGlobal::hiDPIOptimizationType(machine);
+
+        /* Determine whether hovered machine-window should be activated: */
+        m_fActivateHoveredMachineWindow = VBoxGlobal::activateHoveredMachineWindow(vbox);
 
         /* Is there should be First RUN Wizard? */
         strSettings = machine.GetExtraData(GUI_FirstRun);

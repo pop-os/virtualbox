@@ -353,8 +353,8 @@ public:
     static QString fullMediumFormatName(const QString &strBaseMediumFormatName);
 
     /* Extra-data settings stuff: */
-    static bool isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey);
-    static bool isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey);
+    static bool isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey, bool fApprovedByDefault = false);
+    static bool isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey, bool fApprovedByDefault = false);
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     static bool shouldWeAllowApplicationUpdate(CVirtualBox &vbox);
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
@@ -386,6 +386,8 @@ public:
     static MachineCloseAction restrictedMachineCloseActions(CMachine &machine);
     static QList<GlobalSettingsPageType> restrictedGlobalSettingsPages(CVirtualBox &vbox);
     static QList<MachineSettingsPageType> restrictedMachineSettingsPages(CMachine &machine);
+    static bool activateHoveredMachineWindow(CVirtualBox &vbox);
+    static void setActivateHoveredMachineWindow(CVirtualBox &vbox, bool fActivate);
 #ifndef Q_WS_MAC
     /** Except Mac OS X: Loads redefined machine-window icon names. */
     static QStringList machineWindowIconNames(CMachine &machine);

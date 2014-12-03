@@ -94,6 +94,9 @@ const char* UIDefs::GUI_HiDPIOptimization = "GUI/HiDPI/Optimization";
 const char* UIDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";
 const char* UIDefs::GUI_RestrictedMachineSettingsPages = "GUI/RestrictedMachineSettingsPages";
 
+/* Settings dialogs: Display page stuff: */
+const char* UIDefs::GUI_ActivateHoveredMachineWindow = "GUI/ActivateHoveredMachineWindow";
+
 /* Mini tool-bar definitions: */
 const char* UIDefs::GUI_ShowMiniToolBar = "GUI/ShowMiniToolBar";
 const char* UIDefs::GUI_MiniToolBarAlignment = "GUI/MiniToolBarAlignment";

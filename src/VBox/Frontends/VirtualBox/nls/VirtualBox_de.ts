@@ -1311,6 +1311,18 @@
         <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
         <translation>Setzt die maximale Größe des Gastbildschirms. Der Gast wird diese Angabe nur befolgen, wenn die Gasterweiterungen installiert sind.</translation>
     </message>
+    <message>
+        <source>Machine Windows:</source>
+        <translation>VM-Fenster:</translation>
+    </message>
+    <message>
+        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
+        <translation>Wird die Maus von einem Fenster eines Gastes auf ein anderes Fenster desselben Gastes bewegt, dann wird das neue Fenster automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>&amp;Raise Window Under Mouse</source>
+        <translation>Fenster unter Maus &amp;aktivieren</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsExtension</name>

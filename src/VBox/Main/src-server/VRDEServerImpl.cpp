@@ -396,6 +396,9 @@ STDMETHODIMP VRDEServer::SetVRDEProperty(IN_BSTR aKey, IN_BSTR aValue)
     {
         Bstr ports = aValue;
 
+        if (ports == Bstr("0"))
+            ports = VRDP_DEFAULT_PORT_STR;
+
         /* Verify the string. */
         int vrc = vrdpServerVerifyPortsString(ports);
         if (RT_FAILURE(vrc))
@@ -408,10 +411,7 @@ STDMETHODIMP VRDEServer::SetVRDEProperty(IN_BSTR aKey, IN_BSTR aValue)
              * stop. There is no fool proof here.
              */
             mData.backup();
-            if (ports == Bstr("0"))
-                mData->mProperties["TCP/Ports"] = VRDP_DEFAULT_PORT_STR;
-            else
-                mData->mProperties["TCP/Ports"] = ports;
+            mData->mProperties["TCP/Ports"] = ports;
 
             /* leave the lock before informing callbacks */
             alock.release();

@@ -527,7 +527,7 @@ static int SetBiosDiskInfo(ComPtr<IMachine> pMachine, PCFGMNODE pCfg, PCFGMNODE 
 {
     HRESULT             hrc;
 #define MAX_DEVICES     30
-#define H()     AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+#define H()     AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
 
     LONG lPortLUN[MAX_BIOS_LUN_COUNT];
     LONG lPortUsed[MAX_DEVICES];
@@ -783,7 +783,7 @@ DECLCALLBACK(int) Console::configConstructor(PUVM pUVM, PVM pVM, void *pvConsole
 {
     LogFlowFuncEnter();
 
-    AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
+    AssertReturn(pvConsole, VERR_INVALID_POINTER);
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
 
     AutoCaller autoCaller(pConsole);
@@ -837,7 +837,7 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
     Utf8Str         strTmp;
     Bstr            bstr;
 
-#define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+#define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
 
     /*
      * Get necessary objects and frequently used parameters.
@@ -1892,7 +1892,7 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 }
 
                 default:
-                    AssertMsgFailedReturn(("invalid storage controller type: %d\n", enmCtrlType), VERR_GENERAL_FAILURE);
+                    AssertLogRelMsgFailedReturn(("invalid storage controller type: %d\n", enmCtrlType), VERR_MAIN_CONFIG_CONSTRUCTOR_IPE);
             }
 
             /* Attach the media to the storage controllers. */
@@ -2945,7 +2945,7 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
     }
     catch (HRESULT hrcXcpt)
     {
-        AssertMsgFailedReturn(("hrc=%Rhrc\n", hrcXcpt), VERR_GENERAL_FAILURE);
+        AssertLogRelMsgFailedReturn(("hrc=%Rhrc\n", hrcXcpt), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR);
     }
 
 #ifdef VBOX_WITH_EXTPACK
@@ -3251,7 +3251,7 @@ int Console::configGraphicsController(PCFGMNODE pDevices,
         Bstr    bstr;
         const char *pcszDevice = "vga";
 
-#define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+#define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
         InsertConfigNode(pDevices, pcszDevice, &pDev);
         InsertConfigNode(pDev,     "0", &pInst);
         InsertConfigInteger(pInst, "Trusted",              1); /* boolean */
@@ -3426,7 +3426,7 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
         Bstr    bstr;
 
 // #define RC_CHECK()  AssertMsgReturn(RT_SUCCESS(rc), ("rc=%Rrc\n", rc), rc)
-#define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+#define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
 
         LONG lDev;
         hrc = pMediumAtt->COMGETTER(Device)(&lDev);                                         H();
@@ -4172,7 +4172,7 @@ int Console::configNetwork(const char *pszDevice,
         HRESULT hrc;
         Bstr bstr;
 
-#define H()         AssertMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE)
+#define H()         AssertLogRelMsgReturn(!FAILED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR)
 
         /*
          * Locking the object before doing VMR3* calls is quite safe here, since
@@ -5274,9 +5274,9 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
 /* static */ int Console::configGuestProperties(void *pvConsole, PUVM pUVM)
 {
 #ifdef VBOX_WITH_GUEST_PROPS
-    AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
+    AssertReturn(pvConsole, VERR_INVALID_POINTER);
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
-    AssertReturn(pConsole->m_pVMMDev, VERR_GENERAL_FAILURE);
+    AssertReturn(pConsole->m_pVMMDev, VERR_INVALID_POINTER);
 
     /* Load the service */
     int rc = pConsole->m_pVMMDev->hgcmLoadService("VBoxGuestPropSvc", "VBoxGuestPropSvc");
@@ -5327,7 +5327,7 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
                                                       ComSafeArrayAsOutParam(valuesOut),
                                                       ComSafeArrayAsOutParam(timestampsOut),
                                                       ComSafeArrayAsOutParam(flagsOut));
-        AssertMsgReturn(SUCCEEDED(hrc), ("hrc=%Rhrc\n", hrc), VERR_GENERAL_FAILURE);
+        AssertLogRelMsgReturn(SUCCEEDED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR);
         size_t cProps = namesOut.size();
         size_t cAlloc = cProps + 1;
         if (   valuesOut.size() != cProps
@@ -5431,7 +5431,7 @@ int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
 /* static */ int Console::configGuestControl(void *pvConsole)
 {
 #ifdef VBOX_WITH_GUEST_CONTROL
-    AssertReturn(pvConsole, VERR_GENERAL_FAILURE);
+    AssertReturn(pvConsole, VERR_INVALID_POINTER);
     ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
 
     /* Load the service */

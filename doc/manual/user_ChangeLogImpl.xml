@@ -1,6 +1,148 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.20 (2014-11-21)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed reboot hang of 32-bit Windows SMP guests (bug #13319,
+          #13462)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: proper <emphasis>Math Fault</emphasis> handling with certain
+          legacy guests (bug #9042, AMD hosts)</para>
+      </listitem>
+      
+      <listitem>
+        <para>VMM: fixed a Guru Meditation <emphasis>VINF_EM_TRIPLE_FAULT</emphasis>
+          on older CPUs that don't support MSR-bitmaps (VT-x only;
+          bugs #13034, #13125, #13311, #13425, #13426, #13463, #13585)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fix 3D overlay window reparenting issue when VM goes to
+          fullscreen mode on X11 hosts.</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fix occasional loss of focus in full-screen mode on X11
+           host systems (4.3.16 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Mac OS X: wizards should have Cancel button
+          (bug #12541)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: added a global option to prevent automatic raising of the
+          new window by mouse move with multi-screen guests (bug #8878)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: accept remote display port 0 as the default RDP port
+          (bug #8534)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed crash when executing <emphasis>showvminfo</emphasis>
+          command under certain circumstances (bug #13190)</para>
+      </listitem>
+
+      <listitem>
+        <para>ACPI: fixed occassional Guru Meditations in ACPI timer code
+          (4.3.18 regression; bug #13521)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: improved performance of IDE disk access</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: fixed a bug in the EFI video driver which prevented
+          Windows to boot in UEFI mode (bug #12022)</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: properly announce the amount of RAM for big VMs
+          (bugs #11103 and #13211)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a crash under certain cicrumstances when a medium
+          was ejected from a drive attached to the SATA controller without
+          inserting a new medium before pausing or closing the VM
+          (4.3.16 regression) </para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed an interrupt acknowledge issue causing hanging guests
+          or slower I/O (4.3.18 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed broken resume after the VM was suspended due to
+          a full disk if host I/O caching is used</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed a Guru Meditation under certain conditions when
+          using the DevLsiLogic controller with VMs running in raw mode
+          (4.3 regression; bugs #12254, #12655, #12709, #12774, #12886)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: fixed a bug which might lead to a crash during
+          recursive copy</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: Java COM bindings fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>iPXE: enable the HTTP download protocol (bug #13628)</para>
+      </listitem>
+
+      <listitem>
+        <para>Runtime: do not use a fixed stack size creating temporary threads
+           during initialization (bug #13038)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed more startup problems on certain Windows hosts due
+          to conflicts with anti-virus software; better error reporting
+          (4.3.14 regression; bug #13187)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed DirectSound host audio failure under certain conditions
+          (bug #13418)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed additional cases of 4.3.14 regression
+          whereby AltGr stopped working for some people (bug #13216)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: preserve guest monitor layout when resizing
+          Windows 7 or newer guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.18 compile fixes (bug #13515)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.18 (2014-10-10)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

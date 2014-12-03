@@ -2698,6 +2698,7 @@ static int supdrvNtProtectProtectNewStubChild(PSUPDRVNTPROTECT pNtParent, HANDLE
         }
         else
             rc = VERR_WRONG_ORDER;
+        pNtChild->enmProcessKind = kSupDrvNtProtectKind_VmProcessDead;
         RTSpinlockRelease(g_hNtProtectLock);
 
         supdrvNtProtectRelease(pNtChild);
