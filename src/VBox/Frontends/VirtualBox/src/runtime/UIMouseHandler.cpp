@@ -606,7 +606,8 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         pWatchedWidget->window()->activateWindow();
 #endif /* Q_WS_X11 */
                     /* Check if we should activate window under cursor: */
-                    if (!uisession()->isMouseCaptured() &&
+                    if (uisession()->activateHoveredMachineWindow() &&
+                        !uisession()->isMouseCaptured() &&
                         QApplication::activeWindow() &&
                         m_windows.values().contains(QApplication::activeWindow()) &&
                         m_windows.values().contains(pWatchedWidget->window()) &&

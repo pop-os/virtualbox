@@ -1366,7 +1366,10 @@
               <xsl:with-param name="forceelem" select="'yes'" />
             </xsl:call-template>
           </xsl:variable>
-          <xsl:value-of select="concat('Helper.unwrap2(', $elemgluetype, '.class, ', $elembacktype, '.class, ', $value, ')')"/>
+          <!-- Sometimes javac needs a boost of self-confidence regarding
+               varargs calls, and this (Object) cast makes sure that it calls
+               the varargs method - as if there is any other. -->
+          <xsl:value-of select="concat('(Object)Helper.unwrap2(', $elemgluetype, '.class, ', $elembacktype, '.class, ', $value, ')')"/>
         </xsl:when>
         <xsl:otherwise>
           <xsl:value-of select="concat('(', $value, ' != null) ? ', $value, '.getTypedWrapped() : null')" />
@@ -1453,7 +1456,7 @@
     </xsl:when>
 
     <xsl:when test="($idltype='octet') and ($safearray='yes')">
-      <xsl:value-of select="concat('Helper.encodeBase64(', $value, ')')"/>
+      <xsl:value-of select="$value"/>
     </xsl:when>
 
     <xsl:otherwise>
@@ -1579,7 +1582,7 @@
 
   <xsl:choose>
     <xsl:when test="($G_vboxGlueStyle='xpcom')">
-      <xsl:text>                </xsl:text>
+      <xsl:text>            </xsl:text>
       <xsl:if test="param[@dir='return']">
         <xsl:value-of select="concat($retval, ' = ')" />
       </xsl:if>
@@ -1624,7 +1627,7 @@
     </xsl:when>
 
     <xsl:when test="($G_vboxGlueStyle='mscom')">
-      <xsl:text>                </xsl:text>
+      <xsl:text>            </xsl:text>
       <xsl:if test="param[@dir='return']">
         <xsl:value-of select="concat($retval, ' = ')" />
       </xsl:if>
@@ -1994,7 +1997,7 @@
                                   '&gt;();&#10;')"/>
           </xsl:when>
           <xsl:otherwise>
-            <xsl:value-of select="concat('        ', $backrettype, ' retVal;&#10;')"/>
+            <xsl:value-of select="concat('            ', $backrettype, ' retVal;&#10;')"/>
           </xsl:otherwise>
         </xsl:choose>
       </xsl:if>
@@ -2045,7 +2048,7 @@
             <xsl:with-param name="safearray" select="$returnidlsafearray" />
           </xsl:call-template>
         </xsl:variable>
-        <xsl:value-of select="concat('        return ', $wrapped, ';&#10;')" />
+        <xsl:value-of select="concat('            return ', $wrapped, ';&#10;')" />
       </xsl:if>
       <xsl:call-template name="endExcWrapper"/>
 
@@ -2120,19 +2123,19 @@
           <xsl:with-param name="type" select="$ifname" />
         </xsl:call-template>
       </xsl:variable>
-      <xsl:text>      nsISupports nsobj = obj != null ? (nsISupports)obj.getWrapped() : null;&#10;</xsl:text>
-      <xsl:text>      if (nsobj == null) return null;&#10;</xsl:text>
-      <xsl:value-of select="concat('      ', $backtype, ' qiobj = Helper.queryInterface(nsobj, &quot;{', $uuid, '}&quot;, ', $backtype, '.class);&#10;')" />
-      <xsl:value-of select="concat('      return qiobj == null ? null : new ', $ifname, '(qiobj);&#10;')" />
+      <xsl:text>        nsISupports nsobj = obj != null ? (nsISupports)obj.getWrapped() : null;&#10;</xsl:text>
+      <xsl:text>        if (nsobj == null) return null;&#10;</xsl:text>
+      <xsl:value-of select="concat('        ', $backtype, ' qiobj = Helper.queryInterface(nsobj, &quot;{', $uuid, '}&quot;, ', $backtype, '.class);&#10;')" />
+      <xsl:value-of select="concat('        return qiobj == null ? null : new ', $ifname, '(qiobj);&#10;')" />
     </xsl:when>
 
     <xsl:when test="$G_vboxGlueStyle='mscom'">
-      <xsl:value-of select="concat('       return', ' obj == null ? null : new ', $ifname, '((com.jacob.com.Dispatch)obj.getWrapped());&#10;')" />
+      <xsl:value-of select="concat('        return', ' obj == null ? null : new ', $ifname, '((com.jacob.com.Dispatch)obj.getWrapped());&#10;')" />
     </xsl:when>
 
     <xsl:when test="$G_vboxGlueStyle='jaxws'">
       <!-- bad, need to check that we really can be casted to this type -->
-      <xsl:value-of select="concat('       return obj == null ?  null : new ', $ifname, '(obj.getWrapped(), obj.getRemoteWSPort());&#10;')" />
+      <xsl:value-of select="concat('        return obj == null ?  null : new ', $ifname, '(obj.getWrapped(), obj.getRemoteWSPort());&#10;')" />
     </xsl:when>
 
     <xsl:otherwise>
@@ -2331,14 +2334,14 @@
       <xsl:when test="($G_vboxGlueStyle='jaxws')">
         <xsl:value-of select="concat('    public ', $ifname, '(String wrapped, VboxPortType port)&#10;')" />
         <xsl:text>    {&#10;</xsl:text>
-        <xsl:text>          super(wrapped, port);&#10;</xsl:text>
+        <xsl:text>        super(wrapped, port);&#10;</xsl:text>
         <xsl:text>    }&#10;</xsl:text>
       </xsl:when>
 
       <xsl:when test="($G_vboxGlueStyle='xpcom') or ($G_vboxGlueStyle='mscom')">
         <xsl:value-of select="concat('    public ', $ifname, '(',  $wrappedType, ' wrapped)&#10;')" />
         <xsl:text>    {&#10;</xsl:text>
-        <xsl:text>          super(wrapped);&#10;</xsl:text>
+        <xsl:text>        super(wrapped);&#10;</xsl:text>
         <xsl:text>    }&#10;</xsl:text>
 
         <!-- Typed wrapped object accessor -->
@@ -3333,8 +3336,6 @@ public class Helper
     {
         if (values == null)
             return null;
-        if (values.length == 0)
-            return Collections.emptyList();
 
         List<Short> ret = new ArrayList<Short>(values.length);
         for (short v : values)
@@ -3348,8 +3349,6 @@ public class Helper
     {
         if (values == null)
             return null;
-        if (values.length == 0)
-            return Collections.emptyList();
 
         List<Integer> ret = new ArrayList<Integer>(values.length);
         for (int v : values)
@@ -3363,8 +3362,6 @@ public class Helper
     {
         if (values == null)
             return null;
-        if (values.length == 0)
-            return Collections.emptyList();
 
         List<Long> ret = new ArrayList<Long>(values.length);
         for (long v : values)
@@ -3378,8 +3375,6 @@ public class Helper
     {
         if (values == null)
             return null;
-        if (values.length == 0)
-            return Collections.emptyList();
 
         List<String> ret = new ArrayList<String>(values.length);
         for (String v : values)
@@ -3442,7 +3437,7 @@ public class Helper
             case Variant.VariantDispatch:
                 return wrapDispatch(wrapperClass, v.getDispatch());
             default:
-                throw new VBoxException("unhandled variant type " + vt);
+                throw new IllegalArgumentException("unhandled variant type " + vt);
         }
     }
 
@@ -4242,10 +4237,19 @@ import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.ArrayList;
 import javax.xml.namespace.QName;
 import javax.xml.ws.BindingProvider;
 import javax.xml.ws.Holder;
 import javax.xml.ws.WebServiceException;
+import java.io.IOException;
+import java.net.UnknownHostException;
+import java.net.Socket;
+import java.net.InetAddress;
+import javax.net.SocketFactory;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.SSLSocket;
 
 class PortPool
 {
@@ -4361,6 +4365,99 @@ class PortPool
 }
 
 
+class VBoxTLSSocketFactory extends SSLSocketFactory
+{
+    private final SSLSocketFactory sf;
+
+    private void setupSocket(SSLSocket s)
+    {
+        String[] oldproto = s.getEnabledProtocols();
+        List<String> protolist = new ArrayList<String>();
+        for (int i = 0; i < oldproto.length; i++)
+            if (oldproto[i].toUpperCase().startsWith("TLS"))
+                protolist.add(oldproto[i]);
+        String[] newproto = protolist.toArray(new String[protolist.size()]);
+        s.setEnabledProtocols(newproto);
+    }
+
+    public VBoxTLSSocketFactory()
+    {
+        SSLSocketFactory tmp = null;
+        try
+        {
+            SSLContext sc = SSLContext.getInstance("TLS");
+            sc.init(null, null, null);
+            tmp = sc.getSocketFactory();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+        }
+        sf = tmp;
+    }
+
+    public static SocketFactory getDefault()
+    {
+        return new VBoxTLSSocketFactory();
+    }
+
+    public Socket createSocket(Socket socket, String host, int port,
+                               boolean autoClose) throws IOException, UnknownHostException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket(socket, host, port, autoClose);
+        setupSocket(s);
+        return s;
+    }
+
+    public Socket createSocket() throws IOException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket();
+        setupSocket(s);
+        return s;
+    }
+
+    public Socket createSocket(InetAddress host, int port) throws IOException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket(host, port);
+        setupSocket(s);
+        return s;
+    }
+
+    public Socket createSocket(InetAddress address, int port,
+                               InetAddress localAddress, int localPort) throws IOException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket(address, port, localAddress, localPort);
+        setupSocket(s);
+        return s;
+    }
+
+    public Socket createSocket(String host, int port) throws IOException, UnknownHostException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket(host, port);
+        setupSocket(s);
+        return s;
+    }
+
+    public Socket createSocket(String host, int port,
+                               InetAddress localHost, int localPort) throws IOException, UnknownHostException
+    {
+        SSLSocket s = (SSLSocket)sf.createSocket(host, port, localHost, localPort);
+        setupSocket(s);
+        return s;
+    }
+
+    public String[] getDefaultCipherSuites()
+    {
+        return sf.getSupportedCipherSuites();
+    }
+
+    public String[] getSupportedCipherSuites()
+    {
+        return sf.getSupportedCipherSuites();
+    }
+}
+        
+
 public class VirtualBoxManager
 {
     private static PortPool pool = new PortPool(true);
@@ -4387,6 +4484,21 @@ public class VirtualBoxManager
         {
             ((BindingProvider)port).getRequestContext().
                 put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, url);
+
+            // Unfortunately there is no official way to make JAX-WS use
+            // TLS only, which means that a rather tedious approach is
+            // unavoidable (implementing a TLS only SSLSocketFactory,
+            // because the default one associated with a TLS SSLContext
+            // happily uses SSLv2/3 handshakes, which make TLS servers
+            // drop the connection), and additionally a not standardized,
+            // shotgun approach is needed to make the relevant JAX-WS
+            // implementations use this factory.
+            VBoxTLSSocketFactory sf = new VBoxTLSSocketFactory();
+            ((BindingProvider)port).getRequestContext().
+                put("com.sun.xml.internal.ws.transport.https.client.SSLSocketFactory", sf);
+            ((BindingProvider)port).getRequestContext().
+                put("com.sun.xml.ws.transport.https.client.SSLSocketFactory", sf);
+
             String handle = port.iWebsessionManagerLogon(username, passwd);
             this.vbox = new IVirtualBox(handle, port);
         }

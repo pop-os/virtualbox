@@ -8115,9 +8115,7 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
         if (pVCpu->hm.s.vmx.u32ProcCtls2 & VMX_VMCS_CTRL_PROC_EXEC2_RDTSCP)
             ASMWrMsr(MSR_K8_TSC_AUX, pVCpu->hm.s.u64HostTscAux);
 #endif
-        /** @todo Find a way to fix hardcoding a guestimate.  */
-        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC()
-                             + pVCpu->hm.s.vmx.u64TSCOffset - 0x400   /* guestimate of world switch overhead in clock ticks */);
+        TMCpuTickSetLastSeen(pVCpu, ASMReadTSC() + pVCpu->hm.s.vmx.u64TSCOffset);
     }
 
     STAM_PROFILE_ADV_STOP_START(&pVCpu->hm.s.StatInGC, &pVCpu->hm.s.StatExit1, x);
@@ -8387,42 +8385,46 @@ VMMR0DECL(int) VMXR0RunGuestCode(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 #ifndef HMVMX_USE_FUNCTION_TABLE
 DECLINLINE(int) hmR0VmxHandleExit(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient, uint32_t rcReason)
 {
+#ifdef DEBUG_ramshankar
+# define SVVMCS()       do { int rc2 = hmR0VmxSaveGuestState(pVCpu, pMixedCtx); AssertRC(rc2); } while (0)
+# define LDVMCS()       do { HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST); } while (0)
+#endif
     int rc;
     switch (rcReason)
     {
-        case VMX_EXIT_EPT_MISCONFIG:           rc = hmR0VmxExitEptMisconfig(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_EPT_VIOLATION:           rc = hmR0VmxExitEptViolation(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_IO_INSTR:                rc = hmR0VmxExitIoInstr(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_CPUID:                   rc = hmR0VmxExitCpuid(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RDTSC:                   rc = hmR0VmxExitRdtsc(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RDTSCP:                  rc = hmR0VmxExitRdtscp(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_APIC_ACCESS:             rc = hmR0VmxExitApicAccess(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_XCPT_OR_NMI:             rc = hmR0VmxExitXcptOrNmi(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_MOV_CRX:                 rc = hmR0VmxExitMovCRx(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_EXT_INT:                 rc = hmR0VmxExitExtInt(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_INT_WINDOW:              rc = hmR0VmxExitIntWindow(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_MWAIT:                   rc = hmR0VmxExitMwait(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_MONITOR:                 rc = hmR0VmxExitMonitor(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_TASK_SWITCH:             rc = hmR0VmxExitTaskSwitch(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_PREEMPT_TIMER:           rc = hmR0VmxExitPreemptTimer(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RDMSR:                   rc = hmR0VmxExitRdmsr(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_WRMSR:                   rc = hmR0VmxExitWrmsr(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_MOV_DRX:                 rc = hmR0VmxExitMovDRx(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_TPR_BELOW_THRESHOLD:     rc = hmR0VmxExitTprBelowThreshold(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_HLT:                     rc = hmR0VmxExitHlt(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_INVD:                    rc = hmR0VmxExitInvd(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_INVLPG:                  rc = hmR0VmxExitInvlpg(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RSM:                     rc = hmR0VmxExitRsm(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_MTF:                     rc = hmR0VmxExitMtf(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_PAUSE:                   rc = hmR0VmxExitPause(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_XDTR_ACCESS:             rc = hmR0VmxExitXdtrAccess(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_TR_ACCESS:               rc = hmR0VmxExitXdtrAccess(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_WBINVD:                  rc = hmR0VmxExitWbinvd(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_XSETBV:                  rc = hmR0VmxExitXsetbv(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RDRAND:                  rc = hmR0VmxExitRdrand(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_INVPCID:                 rc = hmR0VmxExitInvpcid(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_GETSEC:                  rc = hmR0VmxExitGetsec(pVCpu, pMixedCtx, pVmxTransient); break;
-        case VMX_EXIT_RDPMC:                   rc = hmR0VmxExitRdpmc(pVCpu, pMixedCtx, pVmxTransient); break;
+        case VMX_EXIT_EPT_MISCONFIG:           /* SVVMCS(); */ rc = hmR0VmxExitEptMisconfig(pVCpu, pMixedCtx, pVmxTransient);      /* LDVMCS(); */ break;
+        case VMX_EXIT_EPT_VIOLATION:           /* SVVMCS(); */ rc = hmR0VmxExitEptViolation(pVCpu, pMixedCtx, pVmxTransient);      /* LDVMCS(); */ break;
+        case VMX_EXIT_IO_INSTR:                /* SVVMCS(); */ rc = hmR0VmxExitIoInstr(pVCpu, pMixedCtx, pVmxTransient);           /* LDVMCS(); */ break;
+        case VMX_EXIT_CPUID:                   /* SVVMCS(); */ rc = hmR0VmxExitCpuid(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_RDTSC:                   /* SVVMCS(); */ rc = hmR0VmxExitRdtsc(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_RDTSCP:                  /* SVVMCS(); */ rc = hmR0VmxExitRdtscp(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_APIC_ACCESS:             /* SVVMCS(); */ rc = hmR0VmxExitApicAccess(pVCpu, pMixedCtx, pVmxTransient);        /* LDVMCS(); */ break;
+        case VMX_EXIT_XCPT_OR_NMI:             /* SVVMCS(); */ rc = hmR0VmxExitXcptOrNmi(pVCpu, pMixedCtx, pVmxTransient);         /* LDVMCS(); */ break;
+        case VMX_EXIT_MOV_CRX:                 /* SVVMCS(); */ rc = hmR0VmxExitMovCRx(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_EXT_INT:                 /* SVVMCS(); */ rc = hmR0VmxExitExtInt(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_INT_WINDOW:              /* SVVMCS(); */ rc = hmR0VmxExitIntWindow(pVCpu, pMixedCtx, pVmxTransient);         /* LDVMCS(); */ break;
+        case VMX_EXIT_MWAIT:                   /* SVVMCS(); */ rc = hmR0VmxExitMwait(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_MONITOR:                 /* SVVMCS(); */ rc = hmR0VmxExitMonitor(pVCpu, pMixedCtx, pVmxTransient);           /* LDVMCS(); */ break;
+        case VMX_EXIT_TASK_SWITCH:             /* SVVMCS(); */ rc = hmR0VmxExitTaskSwitch(pVCpu, pMixedCtx, pVmxTransient);        /* LDVMCS(); */ break;
+        case VMX_EXIT_PREEMPT_TIMER:           /* SVVMCS(); */ rc = hmR0VmxExitPreemptTimer(pVCpu, pMixedCtx, pVmxTransient);      /* LDVMCS(); */ break;
+        case VMX_EXIT_RDMSR:                   /* SVVMCS(); */ rc = hmR0VmxExitRdmsr(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_WRMSR:                   /* SVVMCS(); */ rc = hmR0VmxExitWrmsr(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_MOV_DRX:                 /* SVVMCS(); */ rc = hmR0VmxExitMovDRx(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_TPR_BELOW_THRESHOLD:     /* SVVMCS(); */ rc = hmR0VmxExitTprBelowThreshold(pVCpu, pMixedCtx, pVmxTransient); /* LDVMCS(); */ break;
+        case VMX_EXIT_HLT:                     /* SVVMCS(); */ rc = hmR0VmxExitHlt(pVCpu, pMixedCtx, pVmxTransient);               /* LDVMCS(); */ break;
+        case VMX_EXIT_INVD:                    /* SVVMCS(); */ rc = hmR0VmxExitInvd(pVCpu, pMixedCtx, pVmxTransient);              /* LDVMCS(); */ break;
+        case VMX_EXIT_INVLPG:                  /* SVVMCS(); */ rc = hmR0VmxExitInvlpg(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_RSM:                     /* SVVMCS(); */ rc = hmR0VmxExitRsm(pVCpu, pMixedCtx, pVmxTransient);               /* LDVMCS(); */ break;
+        case VMX_EXIT_MTF:                     /* SVVMCS(); */ rc = hmR0VmxExitMtf(pVCpu, pMixedCtx, pVmxTransient);               /* LDVMCS(); */ break;
+        case VMX_EXIT_PAUSE:                   /* SVVMCS(); */ rc = hmR0VmxExitPause(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */ break;
+        case VMX_EXIT_XDTR_ACCESS:             /* SVVMCS(); */ rc = hmR0VmxExitXdtrAccess(pVCpu, pMixedCtx, pVmxTransient);        /* LDVMCS(); */ break;
+        case VMX_EXIT_TR_ACCESS:               /* SVVMCS(); */ rc = hmR0VmxExitXdtrAccess(pVCpu, pMixedCtx, pVmxTransient);        /* LDVMCS(); */ break;
+        case VMX_EXIT_WBINVD:                  /* SVVMCS(); */ rc = hmR0VmxExitWbinvd(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_XSETBV:                  /* SVVMCS(); */ rc = hmR0VmxExitXsetbv(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_RDRAND:                  /* SVVMCS(); */ rc = hmR0VmxExitRdrand(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_INVPCID:                 /* SVVMCS(); */ rc = hmR0VmxExitInvpcid(pVCpu, pMixedCtx, pVmxTransient);           /* LDVMCS(); */ break;
+        case VMX_EXIT_GETSEC:                  /* SVVMCS(); */ rc = hmR0VmxExitGetsec(pVCpu, pMixedCtx, pVmxTransient);            /* LDVMCS(); */ break;
+        case VMX_EXIT_RDPMC:                   /* SVVMCS(); */ rc = hmR0VmxExitRdpmc(pVCpu, pMixedCtx, pVmxTransient);             /* LDVMCS(); */  break;
 
         case VMX_EXIT_TRIPLE_FAULT:            rc = hmR0VmxExitTripleFault(pVCpu, pMixedCtx, pVmxTransient); break;
         case VMX_EXIT_NMI_WINDOW:              rc = hmR0VmxExitNmiWindow(pVCpu, pMixedCtx, pVmxTransient); break;
@@ -9887,6 +9889,24 @@ HMVMX_EXIT_DECL hmR0VmxExitWrmsr(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT
     rc |= hmR0VmxSaveGuestRflags(pVCpu, pMixedCtx);
     rc |= hmR0VmxSaveGuestSegmentRegs(pVCpu, pMixedCtx);
     rc |= hmR0VmxSaveGuestAutoLoadStoreMsrs(pVCpu, pMixedCtx);
+
+    /*
+     * If MSR bitmaps are not supported, save those MSRs we are forced to intercept.
+     * When MSR bitmaps are available, we don't intercept these MSRs, see hmR0VmxSetupProcCtls().
+     */
+    if (!(pVCpu->hm.s.vmx.u32ProcCtls & VMX_VMCS_CTRL_PROC_EXEC_USE_MSR_BITMAPS))
+    {
+        switch (pMixedCtx->ecx)
+        {
+            case MSR_IA32_SYSENTER_CS:
+            case MSR_IA32_SYSENTER_EIP:
+            case MSR_IA32_SYSENTER_ESP: rc |= hmR0VmxSaveGuestSysenterMsrs(pVCpu, pMixedCtx); break;
+            case MSR_K8_FS_BASE:        rc |= hmR0VmxSaveGuestFSBaseMsr(pVCpu, pMixedCtx);    break;
+            case MSR_K8_GS_BASE:        rc |= hmR0VmxSaveGuestGSBaseMsr(pVCpu, pMixedCtx);    break;
+            /* case MSR_K8_LSTAR:   case MSR_K6_STAR: case MSR_K8_SF_MASK:
+               case MSR_K8_TSC_AUX: case MSR_K8_KERNEL_GS_BASE: done in hmR0VmxSaveGuestAutoLoadStoreMsrs() */
+        }
+    }
     AssertRCReturn(rc, rc);
     Log4(("ecx=%#RX32\n", pMixedCtx->ecx));
 
@@ -9926,6 +9946,9 @@ HMVMX_EXIT_DECL hmR0VmxExitWrmsr(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT
                 case MSR_IA32_SYSENTER_ESP: HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SYSENTER_ESP_MSR); break;
                 case MSR_K8_FS_BASE:        /* no break */
                 case MSR_K8_GS_BASE:        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_SEGMENT_REGS);     break;
+                case MSR_K8_LSTAR:
+                case MSR_K6_STAR:
+                case MSR_K8_SF_MASK:
                 case MSR_K8_KERNEL_GS_BASE: HMCPU_CF_SET(pVCpu, HM_CHANGED_VMX_GUEST_AUTO_MSRS);    break;
             }
         }
@@ -10406,6 +10429,16 @@ HMVMX_EXIT_DECL hmR0VmxExitTaskSwitch(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRAN
                 }
 
                 Log4(("Pending event on TaskSwitch uIntType=%#x uVector=%#x\n", uIntType, uVector));
+                STAM_COUNTER_INC(&pVCpu->hm.s.StatExitTaskSwitch);
+
+                /*
+                 * emR3ExecuteInstruction() will call IEMExecOne() which doesn't honor TRPM events. We could implement
+                 * IEMInjectTrpmEvent() but since IEM task-switching isn't backported to 4.3 it would return
+                 * VERR_IEM_ASPECT_NOT_IMPLEMENTED. What we really want is to just inject the event and not even try
+                 * emulate the instruction at RIP. At the moment for 4.3, only REM does this, so fallback directly to
+                 * REM here. See @bugref{7445} comment #25.
+                 */
+                return VINF_EM_RESCHEDULE_REM;
             }
         }
     }

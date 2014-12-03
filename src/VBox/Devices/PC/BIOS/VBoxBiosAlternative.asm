@@ -853,7 +853,7 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcf8 class=DATA group=DGROUP
     db   'FATAL: ', 000h
     db   'bios_printf: unknown format', 00ah, 000h, 000h
     db   'ata-detect: Failed to detect ATA device', 00ah, 000h
-    db   'ata%d-%d: PCHS=%u/%d/%d LCHS=%u/%u/%u', 00ah, 000h
+    db   'ata%d-%d: PCHS=%u/%u/%u LCHS=%u/%u/%u', 00ah, 000h
     db   'ata-detect: Failed to detect ATAPI device', 00ah, 000h
     db   ' slave', 000h
     db   'master', 000h
@@ -949,14 +949,14 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcf8 class=DATA group=DGROUP
     db   '%s: SCSI_INQUIRY failed', 00ah, 000h
     db   '%s: SCSI_READ_CAPACITY failed', 00ah, 000h
     db   'Disk %d has an unsupported sector size of %u', 00ah, 000h
-    db   'SCSI %d-ID#%d: LCHS=%u/%u/%u %ld sectors', 00ah, 000h
+    db   'SCSI %d-ID#%d: LCHS=%u/%u/%u %lu sectors', 00ah, 000h
     db   'SCSI %d-ID#%d: CD/DVD-ROM', 00ah, 000h
     db   'ahci_read_sectors', 000h
     db   '%s: device_id out of range %d', 00ah, 000h
     db   'ahci_write_sectors', 000h
     db   'ahci_cmd_packet', 000h
     db   '%s: DATA_OUT not supported yet', 00ah, 000h
-    db   'AHCI %d-P#%d: PCHS=%u/%d/%d LCHS=%u/%u/%u %ld sectors', 00ah, 000h, 000h
+    db   'AHCI %d-P#%d: PCHS=%u/%u/%u LCHS=%u/%u/%u %lu sectors', 00ah, 000h, 000h
     db   'Standby', 000h
     db   'Suspend', 000h
     db   'Shutdown', 000h
@@ -965,7 +965,7 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcf8 class=DATA group=DGROUP
 
 section CONST2 progbits vstart=0xda8 align=1 ; size=0x3fa class=DATA group=DGROUP
 _bios_cvs_version_string:                    ; 0xf0da8 LB 0x12
-    db  'VirtualBox 4.3.16', 000h
+    db  'VirtualBox 4.3.20', 000h
 _bios_prefix_string:                         ; 0xf0dba LB 0x8
     db  'BIOS: ', 000h, 000h
 _isotag:                                     ; 0xf0dc2 LB 0x6
@@ -16070,4 +16070,4 @@ dummy_iret:                                  ; 0xfff53 LB 0x9d
     db  'XM'
 cpu_reset:                                   ; 0xffff0 LB 0x10
     jmp far 0f000h:0e05bh                     ; ea 5b e0 00 f0
-    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 064h
+    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fch, 003h

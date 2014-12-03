@@ -41,7 +41,9 @@ class UIMachineLogic;
 class UIMachineWindow;
 class UIMachineView;
 class VBoxGlobalSettings;
-#ifdef Q_WS_X11
+#if defined(Q_WS_WIN)
+class WinAltGrMonitor;
+#elif defined(Q_WS_X11)
 typedef union  _XEvent XEvent;
 #endif /* Q_WS_X11 */
 
@@ -61,6 +63,9 @@ public:
     void cleanupListener(ulong uIndex);
 
     /* Commands to capture/release keyboard: */
+#ifdef Q_WS_X11
+    bool checkForX11FocusEvents(unsigned long hWindow);
+#endif
     void captureKeyboard(ulong uScreenId);
     void releaseKeyboard();
     void releaseAllPressedKeys(bool aReleaseHostKey = true);
@@ -84,6 +89,8 @@ public:
 #if defined(Q_WS_WIN)
     bool winEventFilter(MSG *pMsg, ulong uScreenId);
     void winSkipKeyboardEvents(bool fSkip);
+    /** Holds the object monitoring key event stream for problematic AltGr events. */
+    WinAltGrMonitor *m_pAltGrMonitor;
 #elif defined(Q_WS_X11)
     bool x11EventFilter(XEvent *pEvent, ulong uScreenId);
 #endif
@@ -191,7 +198,9 @@ protected:
     UInt32 m_darwinKeyModifiers;
     bool m_fKeyboardGrabbed;
     int m_iKeyboardGrabViewIndex;
-#endif
+#endif /* Q_WS_MAC */
+
+    ULONG m_cMonitors;
 };
 
 #endif // !___UIKeyboardHandler_h___

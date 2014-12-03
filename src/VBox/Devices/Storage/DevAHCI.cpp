@@ -943,6 +943,7 @@ static size_t ahciCopyToPrdtl(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq,
 static size_t ahciCopyFromPrdtl(PPDMDEVINS pDevIns, PAHCIREQ pAhciReq,
                                 void *pvBuf, size_t cbBuf);
 static bool ahciCancelActiveTasks(PAHCIPort pAhciPort, PAHCIREQ pAhciReqExcept);
+static void ahciReqMemFree(PAHCIPort pAhciPort, PAHCIREQ pAhciReq, bool fForceFree);
 #endif
 RT_C_DECLS_END
 
@@ -1704,58 +1705,52 @@ static int HbaInterruptStatus_w(PAHCI ahci, uint32_t iReg, uint32_t u32Value)
     if (rc != VINF_SUCCESS)
         return rc;
 
-    /* Update interrupt status register first. */
+    ahci->regHbaIs &= ~(u32Value);
+
+    /*
+     * Update interrupt status register and check for ports who
+     * set the interrupt inbetween.
+     */
+    bool fClear = true;
     ahci->regHbaIs |= ASMAtomicXchgU32(&ahci->u32PortsInterrupted, 0);
-
-    if (u32Value > 0)
+    if (!ahci->regHbaIs)
     {
-        /*
-         * Clear the interrupt only if no port has signalled
-         * an interrupt and the guest has cleared all set interrupt
-         * notification bits.
-         */
-        bool fClear = true;
+        unsigned i = 0;
 
-        ahci->regHbaIs &= ~(u32Value);
-
-        fClear = !ahci->u32PortsInterrupted && !ahci->regHbaIs;
-        if (fClear)
+        /* Check if the cleared ports have a interrupt status bit set. */
+        while ((u32Value > 0) && (i < AHCI_MAX_NR_PORTS_IMPL))
         {
-            unsigned i = 0;
-
-            /* Check if the cleared ports have a interrupt status bit set. */
-            while ((u32Value > 0) && (i < AHCI_MAX_NR_PORTS_IMPL))
+            if (u32Value & 0x01)
             {
-                if (u32Value & 0x01)
+                PAHCIPort pAhciPort = &ahci->ahciPort[i];
+
+                if (pAhciPort->regIE & pAhciPort->regIS)
                 {
-                    PAHCIPort pAhciPort = &ahci->ahciPort[i];
-
-                    if (pAhciPort->regIE & pAhciPort->regIS)
-                    {
-                        Log(("%s: Interrupt status of port %u set -> Set interrupt again\n", __FUNCTION__, i));
-                        ASMAtomicOrU32(&ahci->u32PortsInterrupted, 1 << i);
-                        fClear = false;
-                        break;
-                    }
+                    Log(("%s: Interrupt status of port %u set -> Set interrupt again\n", __FUNCTION__, i));
+                    ASMAtomicOrU32(&ahci->u32PortsInterrupted, 1 << i);
+                    fClear = false;
+                    break;
                 }
-                u32Value = u32Value >> 1;
-                i++;
             }
+            u32Value >>= 1;
+            i++;
         }
+    }
+    else
+        fClear = false;
 
-        if (fClear)
-            ahciHbaClearInterrupt(ahci);
-        else
-        {
-            Log(("%s: Not clearing interrupt: u32PortsInterrupted=%#010x\n", __FUNCTION__, ahci->u32PortsInterrupted));
-            /*
-             * We need to set the interrupt again because the I/O APIC does not set it again even if the
-             * line is still high.
-             * We need to clear it first because the PCI bus only calls the interrupt controller if the state changes.
-             */
-            PDMDevHlpPCISetIrq(ahci->CTX_SUFF(pDevIns), 0, 0);
-            PDMDevHlpPCISetIrq(ahci->CTX_SUFF(pDevIns), 0, 1);
-        }
+    if (fClear)
+        ahciHbaClearInterrupt(ahci);
+    else
+    {
+        Log(("%s: Not clearing interrupt: u32PortsInterrupted=%#010x\n", __FUNCTION__, ahci->u32PortsInterrupted));
+        /*
+         * We need to set the interrupt again because the I/O APIC does not set it again even if the
+         * line is still high.
+         * We need to clear it first because the PCI bus only calls the interrupt controller if the state changes.
+         */
+        PDMDevHlpPCISetIrq(ahci->CTX_SUFF(pDevIns), 0, 0);
+        PDMDevHlpPCISetIrq(ahci->CTX_SUFF(pDevIns), 0, 1);
     }
 
     PDMCritSectLeave(&ahci->lock);
@@ -4637,6 +4632,17 @@ static AHCITXDIR atapiParseCmdVirtualATAPI(PAHCIPort pAhciPort, PAHCIREQ pAhciRe
                     /* This must be done from EMT. */
                     PAHCI pAhci = pAhciPort->CTX_SUFF(pAhci);
                     PPDMDEVINS pDevIns = pAhci->CTX_SUFF(pDevIns);
+
+                    /*
+                     * Free the I/O memory of all cached tasks of this port
+                     * because the driver providing I/O memory allocation interface
+                     * is about to be destroyed.
+                     */
+                    for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
+                    {
+                        if (pAhciPort->aCachedTasks[i])
+                            ahciReqMemFree(pAhciPort, pAhciPort->aCachedTasks[i], true /* fForceFree */);
+                    }
 
                     rc = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
                                                  (PFNRT)pAhciPort->pDrvMount->pfnUnmount, 3,

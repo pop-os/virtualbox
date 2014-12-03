@@ -2536,8 +2536,6 @@
 /** @} */
 
 
-/** @} */
-
 /** @name VBox Guest Control Status Codes
  * @{
  */
@@ -2547,6 +2545,17 @@
 #define VWRN_GSTCTL_OBJECTSTATE_CHANGED             6220
 /** @} */
 
+
+/** @name Main API Status Codes
+ * @{
+ */
+/** The configuration constructor in main failed due to a COM error.  Check
+ * the release log of the VM for further details. */
+#define VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR      (-6400)
+/** The configuration constructor in main failed due to an internal consistency
+ *  error. Consult the release log of the VM for further details. */
+#define VERR_MAIN_CONFIG_CONSTRUCTOR_IPE            (-6401)
+/** @} */
 
 /* SED-END */
 

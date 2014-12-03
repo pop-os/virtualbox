@@ -40,6 +40,11 @@ NS_DECL_CLASSINFO (UIFrameBuffer)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI (UIFrameBuffer, IFramebuffer)
 #endif
 
+#ifdef Q_WS_X11
+# include <QX11Info>
+# include <X11/Xlib.h>
+#endif /* Q_WS_X11 */
+
 UIFrameBuffer::UIFrameBuffer(UIMachineView *pMachineView)
     : m_pMachineView(pMachineView)
     , m_width(0), m_height(0)
@@ -574,6 +579,12 @@ void UIFrameBuffer::setView(UIMachineView * pView)
     /* Reassign machine-view: */
     m_pMachineView = pView;
     m_WinId = (m_pMachineView && m_pMachineView->viewport()) ? (LONG64)m_pMachineView->viewport()->winId() : 0;
+
+#ifdef Q_WS_X11
+    /* Sync Qt and X11 Server. Notify server about newly
+     * created winId (see xTracker #7547). */
+    XSync(QX11Info::display(), false);
+#endif
 
     /* Connect handlers: */
     if (m_pMachineView)

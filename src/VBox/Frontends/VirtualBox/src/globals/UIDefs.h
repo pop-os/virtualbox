@@ -163,6 +163,9 @@ namespace UIDefs
     extern const char* GUI_RestrictedGlobalSettingsPages;
     extern const char* GUI_RestrictedMachineSettingsPages;
 
+    /* Settings dialogs: Display page stuff: */
+    extern const char* GUI_ActivateHoveredMachineWindow;
+
     /* Mini tool-bar declarations: */
     extern const char* GUI_ShowMiniToolBar;
     extern const char* GUI_MiniToolBarAlignment;

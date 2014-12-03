@@ -2774,8 +2774,8 @@ STDMETHODIMP GuestSession::DirectoryOpen(IN_BSTR aPath, IN_BSTR aFilter, ComSafe
         switch (rc)
         {
             case VERR_INVALID_PARAMETER:
-               hr = setError(VBOX_E_IPRT_ERROR, tr("Opening directory \"%s\" failed; invalid parameters given",
-                                                   Utf8Str(aPath).c_str()));
+               hr = setError(VBOX_E_IPRT_ERROR, tr("Opening directory \"%s\" failed; invalid parameters given"),
+                                                   Utf8Str(aPath).c_str());
                break;
 
             case VERR_GSTCTL_GUEST_ERROR:
@@ -2837,8 +2837,8 @@ STDMETHODIMP GuestSession::DirectoryQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **a
                 break;
 
             case VERR_NOT_A_DIRECTORY:
-                hr = setError(VBOX_E_IPRT_ERROR, tr("Element \"%s\" exists but is not a directory",
-                                                    Utf8Str(aPath).c_str()));
+                hr = setError(VBOX_E_IPRT_ERROR, tr("Element \"%s\" exists but is not a directory"),
+                                                    Utf8Str(aPath).c_str());
                 break;
 
             default:

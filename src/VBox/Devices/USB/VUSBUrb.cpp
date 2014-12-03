@@ -1011,13 +1011,24 @@ void vusbUrbCompletionRh(PVUSBURB pUrb)
     AssertMsg(   pUrb->enmState == VUSBURBSTATE_REAPED
               || pUrb->enmState == VUSBURBSTATE_CANCELLED, ("%d\n", pUrb->enmState));
 
+    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
+    AssertPtrReturnVoid(pRh);
+
+    /* If there is a sniffer on the roothub record the completed URB there too. */
+    if (pRh->hSniffer != VUSBSNIFFER_NIL)
+    {
+        int rc = VUSBSnifferRecordEvent(pRh->hSniffer, pUrb,
+                                          pUrb->enmStatus == VUSBSTATUS_OK
+                                        ? VUSBSNIFFEREVENT_COMPLETE
+                                        : VUSBSNIFFEREVENT_ERROR_COMPLETE);
+        if (RT_FAILURE(rc))
+            LogRel(("VUSB: Capturing URB completion event on the root hub failed with %Rrc\n", rc));
+    }
 
 #ifdef VBOX_WITH_STATISTICS
     /*
      * Total and per-type submit statistics.
      */
-    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
-    AssertPtrReturnVoid(pRh);
     if (pUrb->enmType != VUSBXFERTYPE_MSG)
     {
         Assert(pUrb->enmType >= 0 && pUrb->enmType < (int)RT_ELEMENTS(pRh->aTypes));
@@ -1118,10 +1129,6 @@ void vusbUrbCompletionRh(PVUSBURB pUrb)
     }
 #ifdef LOG_ENABLED
     vusbUrbTrace(pUrb, "vusbUrbCompletionRh", true);
-#endif
-#ifndef VBOX_WITH_STATISTICS
-    PVUSBROOTHUB pRh = vusbDevGetRh(pUrb->VUsb.pDev);
-    AssertPtrReturnVoid(pRh);
 #endif
 
     pRh->pIRhPort->pfnXferCompletion(pRh->pIRhPort, pUrb);

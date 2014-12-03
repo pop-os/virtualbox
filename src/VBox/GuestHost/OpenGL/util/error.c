@@ -1,3 +1,102 @@
+/* $Id: error.c $ */
+/** @file
+ * VBox crOpenGL error logging
+ */
+
+/*
+ * Copyright (C) 2014 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+#ifdef VBOX
+
+#include <iprt/string.h>
+#include <iprt/stream.h>
+#ifndef IN_GUEST
+#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+#endif
+#include <VBox/log.h>
+
+bool fWarningsEnabled = true;
+
+static void logMessage(const char *pszPrefix, const char *pszFormat, va_list va)
+{
+    char *pszMessage;
+    int rc = RTStrAPrintfV(&pszMessage, pszFormat, va);
+    if (RT_SUCCESS(rc))
+    {
+        LogRel(("%s%s\n", pszPrefix, pszMessage));
+#ifdef IN_GUEST
+        RTStrmPrintf(g_pStdErr, "%s%s\n", pszPrefix, pszMessage);
+#endif
+        RTStrFree(pszMessage);
+    }
+}
+
+static void logDebug(const char *pszPrefix, const char *pszFormat, va_list va)
+{
+    char *pszMessage;
+    int rc = RTStrAPrintfV(&pszMessage, pszFormat, va);
+    if (RT_SUCCESS(rc))
+    {
+        Log(("%s%s\n", pszPrefix, pszMessage));
+        RTStrFree(pszMessage);
+    }
+}
+
+DECLEXPORT(void) crError(const char *pszFormat, ... )
+{
+    va_list va;
+
+    va_start(va, pszFormat);
+    logMessage("OpenGL Error: ", pszFormat, va);
+    va_end(va);
+    AssertLogRelFailed();
+}
+
+DECLEXPORT(void) crEnableWarnings(int fEnabled)
+{
+    fWarningsEnabled = RT_BOOL(fEnabled);
+}
+
+DECLEXPORT(void) crWarning(const char *pszFormat, ... )
+{
+    if (fWarningsEnabled)
+    {
+        va_list va;
+
+        va_start(va, pszFormat);
+        logMessage("OpenGL Warning: ", pszFormat, va);
+        va_end(va);
+    }
+}
+
+DECLEXPORT(void) crInfo(const char *pszFormat, ... )
+{
+    va_list va;
+
+    va_start(va, pszFormat);
+    logMessage("OpenGL Info: ", pszFormat, va);
+    va_end(va);
+}
+
+DECLEXPORT(void) crDebug(const char *pszFormat, ... )
+{
+    va_list va;
+
+    va_start(va, pszFormat);
+    logDebug("OpenGL Debug: ", pszFormat, va);
+    va_end(va);
+}
+
+#else
+
 /* Copyright (c) 2001, Stanford University
  * All rights reserved
  *
@@ -606,3 +705,5 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
     return TRUE;
 }
 #endif
+
+#endif /* !VBOX */

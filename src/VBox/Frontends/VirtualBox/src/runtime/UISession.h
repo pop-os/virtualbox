@@ -114,6 +114,8 @@ public:
     GuruMeditationHandlerType guruMeditationHandlerType() const { return m_guruMeditationHandlerType; }
     /** Returns HiDPI optimization type. */
     HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
+    /** Returns whether hovered machine-window should be activated. */
+    bool activateHoveredMachineWindow() const { return m_fActivateHoveredMachineWindow; }
     /** @} */
 
     /** @name Extension Pack stuff.
@@ -382,6 +384,8 @@ private:
     GuruMeditationHandlerType m_guruMeditationHandlerType;
     /** Holds HiDPI optimization type. */
     HiDPIOptimizationType m_hiDPIOptimizationType;
+    /** Holds whether hovered machine-window should be activated. */
+    bool m_fActivateHoveredMachineWindow;
     /** @} */
 
     /** @name Extension Pack variables.
