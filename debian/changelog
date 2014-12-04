@@ -1,6 +1,10 @@
 virtualbox (4.3.20-dfsg-1) experimental; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * Imported Upstream release.
+
+  [ Ritesh Raj Sarraf ]
+  * Flip build dependency to libcurl4-gnutls-dev
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Wed, 03 Dec 2014 09:37:08 +0100
 
