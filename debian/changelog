@@ -1,3 +1,13 @@
+virtualbox (4.3.18-dfsg-2) unstable; urgency=high
+
+  [ Frank Mehnert ]
+  * d/rules: Disable experimental code by exporting
+    VBOX_WITH_VMSVGA= VBOX_WITH_VMSVGA3D=
+    this fixes CVE-2014-6595, CVE-2014-6590, CVE-2014-6589,
+    CVE-2014-6588 and CVE-2015-0427.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Thu, 22 Jan 2015 10:51:40 +0100
+
 virtualbox (4.3.18-dfsg-1) unstable; urgency=medium
 
   [ Gianfranco Costamagna ]
