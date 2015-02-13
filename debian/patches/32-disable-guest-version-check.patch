@@ -3,12 +3,11 @@ Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
 +++ b/src/VBox/Additions/x11/VBoxClient/hostversion.cpp
-@@ -43,6 +43,8 @@ public:
+@@ -39,6 +39,7 @@ public:
  
-     virtual int showNotify(const char *pcHeader, const char *pcBody)
-     {
-+        return VINF_SUCCESS;
-+
-         int rc;
+ static int showNotify(const char *pcHeader, const char *pcBody)
+ {
++    return VINF_SUCCESS;
+     int rc;
  # ifdef VBOX_WITH_DBUS
-         DBusConnection *conn;
+     DBusConnection *conn;
