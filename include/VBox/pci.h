@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,8 @@ typedef enum PCIADDRESSSPACE
  *
  * @param   enmType         One of the PCI_ADDRESS_SPACE_* values.
  *
+ * @remarks Called with the PDM lock held.  The device lock is NOT take because
+ *          that is very likely be a lock order violation.
  */
 typedef DECLCALLBACK(int) FNPCIIOREGIONMAP(PPCIDEVICE pPciDev, /*unsigned*/ int iRegion, RTGCPHYS GCPhysAddress, uint32_t cb, PCIADDRESSSPACE enmType);
 /** Pointer to a FNPCIIOREGIONMAP() function. */
@@ -470,6 +472,9 @@ typedef FNPCIIOREGIONMAP *PFNPCIIOREGIONMAP;
  * @param   pPciDev         Pointer to PCI device. Use pPciDev->pDevIns to get the device instance.
  * @param   Address         The configuration space register address. [0..4096]
  * @param   cb              The register size. [1,2,4]
+ *
+ * @remarks Called with the PDM lock held.  The device lock is NOT take because
+ *          that is very likely be a lock order violation.
  */
 typedef DECLCALLBACK(uint32_t) FNPCICONFIGREAD(PPCIDEVICE pPciDev, uint32_t Address, unsigned cb);
 /** Pointer to a FNPCICONFIGREAD() function. */
@@ -485,6 +490,9 @@ typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
  * @param   u32Value        The value that's being written. The number of bits actually used from
  *                          this value is determined by the cb parameter.
  * @param   cb              The register size. [1,2,4]
+ *
+ * @remarks Called with the PDM lock held.  The device lock is NOT take because
+ *          that is very likely be a lock order violation.
  */
 typedef DECLCALLBACK(void) FNPCICONFIGWRITE(PPCIDEVICE pPciDev, uint32_t Address, uint32_t u32Value, unsigned cb);
 /** Pointer to a FNPCICONFIGWRITE() function. */
@@ -537,47 +545,48 @@ typedef struct PCIDevice
     /**  @} */
 } PCIDEVICE;
 
-/* @todo: handle extended space access */
-DECLINLINE(void)     PCIDevSetByte(PPCIDEVICE pPciDev, uint32_t uOffset, uint8_t u8Value)
+/** @todo handle extended space access. */
+
+DECLINLINE(void)     PCIDevSetByte(PPCIDEVICE pPciDev, uint32_t offReg, uint8_t u8Value)
 {
-    pPciDev->config[uOffset]   = u8Value;
+    pPciDev->config[offReg] = u8Value;
 }
 
-DECLINLINE(uint8_t)  PCIDevGetByte(PPCIDEVICE pPciDev, uint32_t uOffset)
+DECLINLINE(uint8_t)  PCIDevGetByte(PPCIDEVICE pPciDev, uint32_t offReg)
 {
-    return pPciDev->config[uOffset];
+    return pPciDev->config[offReg];
 }
 
-DECLINLINE(void)     PCIDevSetWord(PPCIDEVICE pPciDev, uint32_t uOffset, uint16_t u16Value)
+DECLINLINE(void)     PCIDevSetWord(PPCIDEVICE pPciDev, uint32_t offReg, uint16_t u16Value)
 {
-    *(uint16_t*)&pPciDev->config[uOffset] = RT_H2LE_U16(u16Value);
+    *(uint16_t*)&pPciDev->config[offReg] = RT_H2LE_U16(u16Value);
 }
 
-DECLINLINE(uint16_t) PCIDevGetWord(PPCIDEVICE pPciDev, uint32_t uOffset)
+DECLINLINE(uint16_t) PCIDevGetWord(PPCIDEVICE pPciDev, uint32_t offReg)
 {
-    uint16_t u16Value = *(uint16_t*)&pPciDev->config[uOffset];
+    uint16_t u16Value = *(uint16_t*)&pPciDev->config[offReg];
     return RT_H2LE_U16(u16Value);
 }
 
-DECLINLINE(void)     PCIDevSetDWord(PPCIDEVICE pPciDev, uint32_t uOffset, uint32_t u32Value)
+DECLINLINE(void)     PCIDevSetDWord(PPCIDEVICE pPciDev, uint32_t offReg, uint32_t u32Value)
 {
-    *(uint32_t*)&pPciDev->config[uOffset] = RT_H2LE_U32(u32Value);
+    *(uint32_t*)&pPciDev->config[offReg] = RT_H2LE_U32(u32Value);
 }
 
-DECLINLINE(uint32_t) PCIDevGetDWord(PPCIDEVICE pPciDev, uint32_t uOffset)
+DECLINLINE(uint32_t) PCIDevGetDWord(PPCIDEVICE pPciDev, uint32_t offReg)
 {
-    uint32_t u32Value = *(uint32_t*)&pPciDev->config[uOffset];
+    uint32_t u32Value = *(uint32_t*)&pPciDev->config[offReg];
     return RT_H2LE_U32(u32Value);
 }
 
-DECLINLINE(void)     PCIDevSetQWord(PPCIDEVICE pPciDev, uint32_t uOffset, uint64_t u64Value)
+DECLINLINE(void)     PCIDevSetQWord(PPCIDEVICE pPciDev, uint32_t offReg, uint64_t u64Value)
 {
-    *(uint64_t*)&pPciDev->config[uOffset] = RT_H2LE_U64(u64Value);
+    *(uint64_t*)&pPciDev->config[offReg] = RT_H2LE_U64(u64Value);
 }
 
-DECLINLINE(uint64_t) PCIDevGetQWord(PPCIDEVICE pPciDev, uint32_t uOffset)
+DECLINLINE(uint64_t) PCIDevGetQWord(PPCIDEVICE pPciDev, uint32_t offReg)
 {
-    uint64_t u64Value = *(uint64_t*)&pPciDev->config[uOffset];
+    uint64_t u64Value = *(uint64_t*)&pPciDev->config[offReg];
     return RT_H2LE_U64(u64Value);
 }
 
@@ -642,6 +651,16 @@ DECLINLINE(void) PCIDevSetCommand(PPCIDEVICE pPciDev, uint16_t u16Command)
 DECLINLINE(uint16_t) PCIDevGetCommand(PPCIDEVICE pPciDev)
 {
     return PCIDevGetWord(pPciDev, VBOX_PCI_COMMAND);
+}
+
+/**
+ * Checks if the given PCI device is a bus master.
+ * @returns true if the device is a bus master, false if not.
+ * @param   pPciDev         The PCI device.
+ */
+DECLINLINE(bool) PCIDevIsBusmaster(PPCIDEVICE pPciDev)
+{
+    return (PCIDevGetCommand(pPciDev) & VBOX_PCI_COMMAND_MASTER) != 0;
 }
 
 /**
@@ -807,6 +826,15 @@ DECLINLINE(void) PCIDevSetBaseAddress(PPCIDEVICE pPciDev, uint8_t iReg, bool fIO
     PCIDevSetDWord(pPciDev, iReg, u32Addr);
 }
 
+/**
+ * Please document me. I don't seem to be getting as much as calculating
+ * the address of some PCI region.
+ */
+DECLINLINE(uint32_t) PCIDevGetRegionReg(uint32_t iRegion)
+{
+    return iRegion == VBOX_PCI_ROM_SLOT
+         ? VBOX_PCI_ROM_ADDRESS : (VBOX_PCI_BASE_ADDRESS_0 + iRegion * 4);
+}
 
 /**
  * Sets the sub-system vendor id config register.
@@ -1030,7 +1058,7 @@ DECLINLINE(bool) pciDevIsPassthrough(PPCIDEVICE pDev)
  *          if it's contained to ring-3 and that this is a one time exception
  *          which sets no precedent.
  */
-struct PciBusAddress
+struct PCIBusAddress
 {
     /** @todo: think if we'll need domain, which is higher
      *  word of the address. */
@@ -1038,23 +1066,23 @@ struct PciBusAddress
     int  miDevice;
     int  miFn;
 
-    PciBusAddress()
+    PCIBusAddress()
     {
         clear();
     }
 
-    PciBusAddress(int iBus, int iDevice, int iFn)
+    PCIBusAddress(int iBus, int iDevice, int iFn)
     {
         init(iBus, iDevice, iFn);
     }
 
-    PciBusAddress(int32_t iAddr)
+    PCIBusAddress(int32_t iAddr)
     {
         clear();
         fromLong(iAddr);
     }
 
-    PciBusAddress& clear()
+    PCIBusAddress& clear()
     {
         miBus = miDevice = miFn = -1;
         return *this;
@@ -1067,14 +1095,14 @@ struct PciBusAddress
         miFn     = iFn;
     }
 
-    void init(const PciBusAddress &a)
+    void init(const PCIBusAddress &a)
     {
         miBus    = a.miBus;
         miDevice = a.miDevice;
         miFn     = a.miFn;
     }
 
-    bool operator<(const PciBusAddress &a) const
+    bool operator<(const PCIBusAddress &a) const
     {
         if (miBus < a.miBus)
             return true;
@@ -1097,14 +1125,14 @@ struct PciBusAddress
         return false;
     }
 
-    bool operator==(const PciBusAddress &a) const
+    bool operator==(const PCIBusAddress &a) const
     {
         return     (miBus    == a.miBus)
                 && (miDevice == a.miDevice)
                 && (miFn     == a.miFn);
     }
 
-    bool operator!=(const PciBusAddress &a) const
+    bool operator!=(const PCIBusAddress &a) const
     {
         return     (miBus    != a.miBus)
                 || (miDevice != a.miDevice)
@@ -1124,7 +1152,7 @@ struct PciBusAddress
         return (miBus << 8) | (miDevice << 3) | miFn;
     }
 
-    PciBusAddress& fromLong(int32_t value)
+    PCIBusAddress& fromLong(int32_t value)
     {
         miBus = (value >> 8) & 0xff;
         miDevice = (value & 0xff) >> 3;

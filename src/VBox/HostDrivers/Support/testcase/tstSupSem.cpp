@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,7 @@
 #include <VBox/param.h>
 #include <iprt/err.h>
 #include <iprt/initterm.h>
+#include <iprt/message.h>
 #include <iprt/stream.h>
 #include <iprt/test.h>
 #include <iprt/thread.h>
@@ -78,12 +79,9 @@ int main(int argc, char **argv)
     /*
      * Init.
      */
-    int rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     if (RT_FAILURE(rc))
-    {
-        RTPrintf("tstSupSem: fatal error: RTR3InitAndSUPLib failed with rc=%Rrc\n", rc);
-        return 1;
-    }
+        return RTMsgInitFailure(rc);
 
     if (argc == 2 && !strcmp(argv[1], "child"))
     {
@@ -238,7 +236,7 @@ int main(int argc, char **argv)
      * Fork test.
      * Spawn a thread waiting for an event, then spawn a new child process (of
      * ourselves) and make sure that this does not alter the intended behaviour
-     * of our event semaphore implementation (see #5090).
+     * of our event semaphore implementation (see @bugref{5090}).
      */
     RTTestSub(hTest, "SRE Process Spawn");
     hThread = NIL_RTTHREAD;
@@ -289,12 +287,15 @@ int main(int argc, char **argv)
 #endif /* !OS2 && !WINDOWS */
 
     {
+
+#define LOOP_COUNT 20
         static unsigned const s_acMsIntervals[] = { 0, 1, 2, 3, 4, 8, 10, 16, 32 };
         if (RTTestErrorCount(hTest) == 0)
         {
             RTTestSub(hTest, "SRE Timeout Accuracy (ms)");
             RTTESTI_CHECK_RC(SUPSemEventCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acMsIntervals); i++)
             {
                 uint64_t cMs        = s_acMsIntervals[i];
@@ -302,35 +303,45 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys = RTTimeSystemNanoTS();
                     uint64_t u64Start    = RTTimeNanoTS();
                     int rcX = SUPSemEventWaitNoResume(pSession, hEvent, cMs);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cMs=%u", rcX, j, cMs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cMs=%u", rcX, cLoops, cMs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%u ms min (clock=sys)", cMs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%u ms avg (clock=sys)", cMs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%u ms min (clock=sys)", cMs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%u ms avg (clock=sys)", cMs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%u ms min (clock=gip)", cMs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%u ms avg (clock=gip)", cMs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%u ms min (clock=gip)", cMs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%u ms avg (clock=gip)", cMs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -338,6 +349,7 @@ int main(int argc, char **argv)
             RTTestSub(hTest, "MRE Timeout Accuracy (ms)");
             RTTESTI_CHECK_RC(SUPSemEventMultiCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acMsIntervals); i++)
             {
                 uint64_t cMs        = s_acMsIntervals[i];
@@ -345,35 +357,45 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys = RTTimeSystemNanoTS();
                     uint64_t u64Start    = RTTimeNanoTS();
                     int rcX = SUPSemEventMultiWaitNoResume(pSession, hEvent, cMs);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cMs=%u", rcX, j, cMs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cMs=%u", rcX, cLoops, cMs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%u ms min (clock=sys)", cMs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%u ms avg (clock=sys)", cMs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%u ms min (clock=sys)", cMs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%u ms avg (clock=sys)", cMs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%u ms min (clock=gip)", cMs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%u ms avg (clock=gip)", cMs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%u ms min (clock=gip)", cMs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%u ms avg (clock=gip)", cMs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
     }
 
@@ -389,6 +411,7 @@ int main(int argc, char **argv)
             RTTestValueF(hTest, SUPSemEventGetResolution(pSession), RTTESTUNIT_NS, "SRE resolution");
             RTTESTI_CHECK_RC(SUPSemEventCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acNsIntervals); i++)
             {
                 uint64_t cNs        = s_acNsIntervals[i];
@@ -396,35 +419,45 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys = RTTimeSystemNanoTS();
                     uint64_t u64Start    = RTTimeNanoTS();
                     int rcX = SUPSemEventWaitNsRelIntr(pSession, hEvent, cNs);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cNs=%u", rcX, j, cNs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cNs=%u", rcX, cLoops, cNs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%'u ns min (clock=sys)", cNs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%'u ns min (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%'u ns min (clock=gip)", cNs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%'u ns min (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -433,6 +466,7 @@ int main(int argc, char **argv)
             RTTestValueF(hTest, SUPSemEventMultiGetResolution(pSession), RTTESTUNIT_NS, "MRE resolution");
             RTTESTI_CHECK_RC(SUPSemEventMultiCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acNsIntervals); i++)
             {
                 uint64_t cNs        = s_acNsIntervals[i];
@@ -440,35 +474,45 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys = RTTimeSystemNanoTS();
                     uint64_t u64Start    = RTTimeNanoTS();
                     int rcX = SUPSemEventMultiWaitNsRelIntr(pSession, hEvent, cNs);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cNs=%u", rcX, j, cNs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cNs=%u", rcX, cLoops, cNs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%'u ns min (clock=sys)", cNs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%'u ns min (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%'u ns min (clock=gip)", cNs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%'u ns min (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
 
         if (RTTestErrorCount(hTest) == 0)
@@ -477,6 +521,7 @@ int main(int argc, char **argv)
             RTTestValueF(hTest, SUPSemEventGetResolution(pSession), RTTESTUNIT_NS, "MRE resolution");
             RTTESTI_CHECK_RC(SUPSemEventCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acNsIntervals); i++)
             {
                 uint64_t cNs        = s_acNsIntervals[i];
@@ -484,36 +529,46 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys   = RTTimeSystemNanoTS();
                     uint64_t u64Start      = RTTimeNanoTS();
                     uint64_t uAbsDeadline  = (fGip ? u64Start : u64StartSys) + cNs;
                     int rcX = SUPSemEventWaitNsAbsIntr(pSession, hEvent, uAbsDeadline);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cNs=%u", rcX, j, cNs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cNs=%u", rcX, cLoops, cNs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%'u ns min (clock=sys)", cNs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%'u ns min (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%'u ns min (clock=gip)", cNs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%'u ns min (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
 
 
@@ -523,6 +578,7 @@ int main(int argc, char **argv)
             RTTestValueF(hTest, SUPSemEventMultiGetResolution(pSession), RTTESTUNIT_NS, "MRE resolution");
             RTTESTI_CHECK_RC(SUPSemEventMultiCreate(pSession, &hEvent), VINF_SUCCESS);
 
+            uint32_t cInterrupted = 0;
             for (unsigned i = 0; i < RT_ELEMENTS(s_acNsIntervals); i++)
             {
                 uint64_t cNs        = s_acNsIntervals[i];
@@ -530,36 +586,46 @@ int main(int argc, char **argv)
                 uint64_t cNsMin     = UINT64_MAX;
                 uint64_t cNsTotalSys= 0;
                 uint64_t cNsTotal   = 0;
-                for (unsigned j = 0; j < 10; j++)
+                unsigned cLoops     = 0;
+                while (cLoops < LOOP_COUNT)
                 {
                     uint64_t u64StartSys   = RTTimeSystemNanoTS();
                     uint64_t u64Start      = RTTimeNanoTS();
                     uint64_t uAbsDeadline  = (fGip ? u64Start : u64StartSys) + cNs;
                     int rcX = SUPSemEventMultiWaitNsAbsIntr(pSession, hEvent, uAbsDeadline);
-                    if (rcX != VERR_TIMEOUT)
-                        RTTestFailed(hTest, "%Rrc j=%u cNs=%u", rcX, j, cNs);
                     uint64_t cNsElapsedSys = RTTimeSystemNanoTS() - u64StartSys;
                     uint64_t cNsElapsed    = RTTimeNanoTS()       - u64Start;
+
+                    if (rcX == VERR_INTERRUPTED)
+                    {
+                        cInterrupted++;
+                        continue; /* retry */
+                    }
+                    if (rcX != VERR_TIMEOUT)
+                        RTTestFailed(hTest, "%Rrc cLoops=%u cNs=%u", rcX, cLoops, cNs);
+
                     if (cNsElapsedSys < cNsMinSys)
                         cNsMinSys = cNsElapsedSys;
                     if (cNsElapsed < cNsMin)
                         cNsMin = cNsElapsed;
                     cNsTotalSys += cNsElapsedSys;
                     cNsTotal    += cNsElapsed;
+                    cLoops++;
                 }
                 if (fSys)
                 {
-                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,        "%'u ns min (clock=sys)", cNs);
-                    RTTestValueF(hTest, cNsTotalSys / 10, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsMinSys, RTTESTUNIT_NS,            "%'u ns min (clock=sys)", cNs);
+                    RTTestValueF(hTest, cNsTotalSys / cLoops, RTTESTUNIT_NS, "%'u ns avg (clock=sys)", cNs);
                 }
                 if (fGip)
                 {
-                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,           "%'u ns min (clock=gip)", cNs);
-                    RTTestValueF(hTest, cNsTotal / 10, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsMin, RTTESTUNIT_NS,               "%'u ns min (clock=gip)", cNs);
+                    RTTestValueF(hTest, cNsTotal / cLoops, RTTESTUNIT_NS,    "%'u ns avg (clock=gip)", cNs);
                 }
             }
 
             RTTESTI_CHECK_RC(SUPSemEventMultiClose(pSession, hEvent), VINF_OBJECT_DESTROYED);
+            RTTestValueF(hTest, cInterrupted, RTTESTUNIT_OCCURRENCES, "VERR_INTERRUPTED returned", cInterrupted);
         }
 
     }

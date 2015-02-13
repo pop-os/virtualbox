@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,11 @@
 #include "AutoCaller.h"
 #include "Global.h"
 #include "ProgressImpl.h"
-#include "SystemPropertiesImpl.h"
-#include "VirtualBoxImpl.h"
+#if defined(VBOX_COM_INPROC)
+# include "ConsoleImpl.h"
+#else
+# include "VirtualBoxImpl.h"
+#endif
 
 
 /*******************************************************************************
@@ -80,6 +83,7 @@ public:
     Utf8Str             strWhyUnusable;
 };
 
+#if !defined(VBOX_COM_INPROC)
 /**
  * Private extension pack data.
  */
@@ -101,6 +105,7 @@ public:
 
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
+#endif
 
 /**
  * Private extension pack data.
@@ -150,8 +155,10 @@ struct ExtPackManager::Data
     Utf8Str             strCertificatDirPath;
     /** The list of installed extension packs. */
     ExtPackList         llInstalledExtPacks;
+#if !defined(VBOX_COM_INPROC)
     /** Pointer to the VirtualBox object, our parent. */
     VirtualBox         *pVirtualBox;
+#endif
     /** The current context. */
     VBOXEXTPACKCTX      enmContext;
 #if !defined(RT_OS_WINDOWS) && !defined(RT_OS_DARWIN)
@@ -162,6 +169,7 @@ struct ExtPackManager::Data
     RTMEMEF_NEW_AND_DELETE_OPERATORS();
 };
 
+#if !defined(VBOX_COM_INPROC)
 /**
  * Extension pack installation job.
  */
@@ -393,22 +401,22 @@ STDMETHODIMP ExtPackFile::COMGETTER(Version)(BSTR *a_pbstrVersion)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /* HACK ALERT: This is for easing backporting to 4.1. The edition stuff
-           will be changed into a separate */
-        if (m->Desc.strEdition.isEmpty())
-        {
-            Bstr str(m->Desc.strVersion);
-            str.cloneTo(a_pbstrVersion);
-        }
-        else
-        {
-            RTCString strHack(m->Desc.strVersion);
-            strHack.append('-');
-            strHack.append(m->Desc.strEdition);
+        Bstr str(m->Desc.strVersion);
+        str.cloneTo(a_pbstrVersion);
+    }
+    return hrc;
+}
 
-            Bstr str(strHack);
-            str.cloneTo(a_pbstrVersion);
-        }
+STDMETHODIMP ExtPackFile::COMGETTER(Edition)(BSTR *a_pbstrEdition)
+{
+    CheckComArgOutPointerValid(a_pbstrEdition);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        Bstr str(m->Desc.strEdition);
+        str.cloneTo(a_pbstrEdition);
     }
     return hrc;
 }
@@ -705,6 +713,7 @@ STDMETHODIMP ExtPackFile::Install(BOOL a_fReplace, IN_BSTR a_bstrDisplayInfo, IP
     return hrc;
 }
 
+#endif
 
 
 
@@ -749,15 +758,15 @@ HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName,
         /* pfnFindModule        = */ ExtPack::hlpFindModule,
         /* pfnGetFilePath       = */ ExtPack::hlpGetFilePath,
         /* pfnGetContext        = */ ExtPack::hlpGetContext,
+        /* pfnLoadHGCMService   = */ ExtPack::hlpLoadHGCMService,
+        /* pfnLoadVDPlugin      = */ ExtPack::hlpLoadVDPlugin,
+        /* pfnUnloadVDPlugin    = */ ExtPack::hlpUnloadVDPlugin,
         /* pfnReserved1         = */ ExtPack::hlpReservedN,
         /* pfnReserved2         = */ ExtPack::hlpReservedN,
         /* pfnReserved3         = */ ExtPack::hlpReservedN,
         /* pfnReserved4         = */ ExtPack::hlpReservedN,
         /* pfnReserved5         = */ ExtPack::hlpReservedN,
         /* pfnReserved6         = */ ExtPack::hlpReservedN,
-        /* pfnReserved7         = */ ExtPack::hlpReservedN,
-        /* pfnReserved8         = */ ExtPack::hlpReservedN,
-        /* pfnReserved9         = */ ExtPack::hlpReservedN,
         /* u32EndMarker         = */ VBOXEXTPACKHLP_VERSION
     };
 
@@ -782,6 +791,13 @@ HRESULT ExtPack::initWithDir(VBOXEXTPACKCTX a_enmContext, const char *a_pszName,
     m->pReg                         = NULL;
     m->enmContext                   = a_enmContext;
     m->fMadeReadyCall               = false;
+
+    /*
+     * Make sure the SUPR3Hardened API works (ignoring errors for now).
+     */
+    int rc = SUPR3HardenedVerifyInit();
+    if (RT_FAILURE(rc))
+        LogRel(("SUPR3HardenedVerifyInit failed: %Rrc\n", rc));
 
     /*
      * Probe the extension pack (this code is shared with refresh()).
@@ -1102,6 +1118,28 @@ HRESULT ExtPack::getVrdpLibraryName(Utf8Str *a_pstrVrdeLibrary)
             hrc = setError(E_FAIL, tr("Failed to locate the VRDE module '%s' in extension pack '%s'"),
                            m->Desc.strVrdeModule.c_str(), m->Desc.strName.c_str());
     }
+    return hrc;
+}
+
+/**
+ * Resolves the path to the module.
+ *
+ * @returns S_OK or COM error status with error information.
+ * @param   a_pszModuleName  The library.
+ * @param   a_pstrLibrary  Where to return the path on success.
+ *
+ * @remarks Caller holds the extension manager lock for reading, no locking
+ *          necessary.
+ */
+HRESULT ExtPack::getLibraryName(const char *a_pszModuleName, Utf8Str *a_pstrLibrary)
+{
+    HRESULT hrc;
+    if (findModule(a_pszModuleName, NULL, VBOXEXTPACKMODKIND_R3,
+                   a_pstrLibrary, NULL /*a_pfNative*/, NULL /*a_pObjInfo*/))
+        hrc = S_OK;
+    else
+        hrc = setError(E_FAIL, tr("Failed to locate the module '%s' in extension pack '%s'"),
+                       a_pszModuleName, m->Desc.strName.c_str());
     return hrc;
 }
 
@@ -1572,6 +1610,83 @@ ExtPack::hlpGetContext(PCVBOXEXTPACKHLP pHlp)
 }
 
 /*static*/ DECLCALLBACK(int)
+ExtPack::hlpLoadHGCMService(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IConsole) *pConsole,
+                            const char *pszServiceLibrary, const char *pszServiceName)
+{
+#ifdef VBOX_COM_INPROC
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pszServiceLibrary, VERR_INVALID_POINTER);
+    AssertPtrReturn(pszServiceName, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, VERR_INVALID_POINTER);
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+    AssertPtrReturn(m, VERR_INVALID_POINTER);
+    ExtPack *pThis = m->pThis;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pConsole, VERR_INVALID_POINTER);
+
+    Console *pCon = (Console *)pConsole;
+    return pCon->hgcmLoadService(pszServiceLibrary, pszServiceName);
+#else
+    NOREF(pHlp); NOREF(pConsole); NOREF(pszServiceLibrary); NOREF(pszServiceName);
+#endif
+    return VERR_INVALID_STATE;
+}
+
+/*static*/ DECLCALLBACK(int)
+ExtPack::hlpLoadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary)
+{
+#ifndef VBOX_COM_INPROC
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pszPluginLibrary, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, VERR_INVALID_POINTER);
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+    AssertPtrReturn(m, VERR_INVALID_POINTER);
+    ExtPack *pThis = m->pThis;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pVirtualBox, VERR_INVALID_POINTER);
+
+    VirtualBox *pVBox = (VirtualBox *)pVirtualBox;
+    return pVBox->loadVDPlugin(pszPluginLibrary);
+#else
+    NOREF(pHlp); NOREF(pVirtualBox);
+#endif
+    return VERR_INVALID_STATE;
+}
+
+/*static*/ DECLCALLBACK(int)
+ExtPack::hlpUnloadVDPlugin(PCVBOXEXTPACKHLP pHlp, VBOXEXTPACK_IF_CS(IVirtualBox) *pVirtualBox, const char *pszPluginLibrary)
+{
+#ifndef VBOX_COM_INPROC
+    /*
+     * Validate the input and get our bearings.
+     */
+    AssertPtrReturn(pszPluginLibrary, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pHlp, VERR_INVALID_POINTER);
+    AssertReturn(pHlp->u32Version == VBOXEXTPACKHLP_VERSION, VERR_INVALID_POINTER);
+    ExtPack::Data *m = RT_FROM_CPP_MEMBER(pHlp, Data, Hlp);
+    AssertPtrReturn(m, VERR_INVALID_POINTER);
+    ExtPack *pThis = m->pThis;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pVirtualBox, VERR_INVALID_POINTER);
+
+    VirtualBox *pVBox = (VirtualBox *)pVirtualBox;
+    return pVBox->unloadVDPlugin(pszPluginLibrary);
+#else
+    NOREF(pHlp); NOREF(pVirtualBox);
+#endif
+    return VERR_INVALID_STATE;
+}
+
+/*static*/ DECLCALLBACK(int)
 ExtPack::hlpReservedN(PCVBOXEXTPACKHLP pHlp)
 {
     /*
@@ -1627,22 +1742,8 @@ STDMETHODIMP ExtPack::COMGETTER(Version)(BSTR *a_pbstrVersion)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /* HACK ALERT: This is for easing backporting to 4.1. The edition stuff
-           will be changed into a separate */
-        if (m->Desc.strEdition.isEmpty())
-        {
-            Bstr str(m->Desc.strVersion);
-            str.cloneTo(a_pbstrVersion);
-        }
-        else
-        {
-            RTCString strHack(m->Desc.strVersion);
-            strHack.append('-');
-            strHack.append(m->Desc.strEdition);
-
-            Bstr str(strHack);
-            str.cloneTo(a_pbstrVersion);
-        }
+        Bstr str(m->Desc.strVersion);
+        str.cloneTo(a_pbstrVersion);
     }
     return hrc;
 }
@@ -1655,6 +1756,20 @@ STDMETHODIMP ExtPack::COMGETTER(Revision)(ULONG *a_puRevision)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
         *a_puRevision = m->Desc.uRevision;
+    return hrc;
+}
+
+STDMETHODIMP ExtPack::COMGETTER(Edition)(BSTR *a_pbstrEdition)
+{
+    CheckComArgOutPointerValid(a_pbstrEdition);
+
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        Bstr str(m->Desc.strEdition);
+        str.cloneTo(a_pbstrEdition);
+    }
     return hrc;
 }
 
@@ -1883,7 +1998,9 @@ HRESULT ExtPackManager::initExtPackManager(VirtualBox *a_pVirtualBox, VBOXEXTPAC
     m = new Data;
     m->strBaseDir           = szBaseDir;
     m->strCertificatDirPath = szCertificatDir;
+#if !defined(VBOX_COM_INPROC)
     m->pVirtualBox          = a_pVirtualBox;
+#endif
     m->enmContext           = a_enmContext;
 
     /*
@@ -2034,6 +2151,7 @@ STDMETHODIMP ExtPackManager::OpenExtPackFile(IN_BSTR a_bstrTarballAndDigest, IEx
     CheckComArgOutPointerValid(a_ppExtPackFile);
     AssertReturn(m->enmContext == VBOXEXTPACKCTX_PER_USER_DAEMON, E_UNEXPECTED);
 
+#if !defined(VBOX_COM_INPROC)
     /* The API can optionally take a ::SHA-256=<hex-digest> attribute at the
        end of the file name.  This is just a temporary measure for
        backporting, in 4.2 we'll add another parameter to the method. */
@@ -2057,6 +2175,9 @@ STDMETHODIMP ExtPackManager::OpenExtPackFile(IN_BSTR a_bstrTarballAndDigest, IEx
         NewExtPackFile.queryInterfaceTo(a_ppExtPackFile);
 
     return hrc;
+#else
+    return E_NOTIMPL;
+#endif
 }
 
 STDMETHODIMP ExtPackManager::Uninstall(IN_BSTR a_bstrName, BOOL a_fForcedRemoval, IN_BSTR a_bstrDisplayInfo,
@@ -2067,6 +2188,7 @@ STDMETHODIMP ExtPackManager::Uninstall(IN_BSTR a_bstrName, BOOL a_fForcedRemoval
         *a_ppProgress = NULL;
     Assert(m->enmContext == VBOXEXTPACKCTX_PER_USER_DAEMON);
 
+#if !defined(VBOX_COM_INPROC)
     AutoCaller autoCaller(this);
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
@@ -2115,6 +2237,9 @@ STDMETHODIMP ExtPackManager::Uninstall(IN_BSTR a_bstrName, BOOL a_fForcedRemoval
     }
 
     return hrc;
+#else
+    return E_NOTIMPL;
+#endif
 }
 
 STDMETHODIMP ExtPackManager::Cleanup(void)
@@ -2448,6 +2573,7 @@ void ExtPackManager::removeExtPack(const char *a_pszName)
     AssertMsgFailed(("%s\n", a_pszName));
 }
 
+#if !defined(VBOX_COM_INPROC)
 /**
  * Refreshes the specified extension pack.
  *
@@ -2670,7 +2796,7 @@ HRESULT ExtPackManager::doInstall(ExtPackFile *a_pExtPackFile, bool a_fReplace, 
                         LogRel(("ExtPackManager: Successfully installed extension pack '%s'.\n", pStrName->c_str()));
                     else
                     {
-                        LogRel(("ExtPackManager: Installated hook for '%s' failed: %Rrc - %s\n",
+                        LogRel(("ExtPackManager: Installed hook for '%s' failed: %Rrc - %s\n",
                                 pStrName->c_str(), ErrInfo.Core.rc, ErrInfo.Core.pszMsg));
 
                         /*
@@ -2848,6 +2974,7 @@ void ExtPackManager::callAllVirtualBoxReadyHooks(void)
             it++;
     }
 }
+#endif
 
 /**
  * Calls the pfnConsoleReady hook for all working extension packs.
@@ -2875,6 +3002,7 @@ void ExtPackManager::callAllConsoleReadyHooks(IConsole *a_pConsole)
     }
 }
 
+#if !defined(VBOX_COM_INPROC)
 /**
  * Calls the pfnVMCreated hook for all working extension packs.
  *
@@ -2893,6 +3021,7 @@ void ExtPackManager::callAllVmCreatedHooks(IMachine *a_pMachine)
     for (ExtPackList::iterator it = llExtPacks.begin(); it != llExtPacks.end(); it++)
         (*it)->callVmCreatedHook(m->pVirtualBox, a_pMachine, &autoLock);
 }
+#endif
 
 /**
  * Calls the pfnVMConfigureVMM hook for all working extension packs.
@@ -3020,6 +3149,33 @@ int ExtPackManager::getVrdeLibraryPathForExtPack(Utf8Str const *a_pstrExtPack, U
         ExtPack *pExtPack = findExtPack(a_pstrExtPack->c_str());
         if (pExtPack)
             hrc = pExtPack->getVrdpLibraryName(a_pstrVrdeLibrary);
+        else
+            hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("No extension pack by the name '%s' was found"), a_pstrExtPack->c_str());
+    }
+
+    return hrc;
+}
+
+/**
+ * Gets the full path to the specified library of the specified extension pack.
+ *
+ * @returns S_OK if a path is returned, COM error status and message return if
+ *          not.
+ * @param   a_pszModuleName     The library.
+ * @param   a_pstrExtPack       The extension pack.
+ * @param   a_pstrVrdeLibrary   Where to return the path.
+ */
+HRESULT ExtPackManager::getLibraryPathForExtPack(const char *a_pszModuleName, Utf8Str const *a_pstrExtPack, Utf8Str *a_pstrLibrary)
+{
+    AutoCaller autoCaller(this);
+    HRESULT hrc = autoCaller.rc();
+    if (SUCCEEDED(hrc))
+    {
+        AutoReadLock autoLock(this COMMA_LOCKVAL_SRC_POS);
+
+        ExtPack *pExtPack = findExtPack(a_pstrExtPack->c_str());
+        if (pExtPack)
+            hrc = pExtPack->getLibraryName(a_pszModuleName, a_pstrLibrary);
         else
             hrc = setError(VBOX_E_OBJECT_NOT_FOUND, tr("No extension pack by the name '%s' was found"), a_pstrExtPack->c_str());
     }

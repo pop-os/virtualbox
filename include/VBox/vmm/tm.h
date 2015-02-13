@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,9 +87,9 @@ VMM_INT_DECL(void)      TMNotifyEndOfHalt(PVMCPU pVCpu);
 #ifdef IN_RING3
 VMMR3DECL(int)          TMR3NotifySuspend(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(int)          TMR3NotifyResume(PVM pVM, PVMCPU pVCpu);
-VMMR3DECL(int)          TMR3SetWarpDrive(PVM pVM, uint32_t u32Percent);
+VMMR3DECL(int)          TMR3SetWarpDrive(PUVM pUVM, uint32_t u32Percent);
+VMMR3DECL(uint32_t)     TMR3GetWarpDrive(PUVM pUVM);
 #endif
-VMMDECL(uint32_t)       TMGetWarpDrive(PVM pVM);
 VMM_INT_DECL(uint32_t)  TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu);
 #ifdef IN_RING3
 VMMR3DECL(int)          TMR3GetCpuLoadTimes(PVM pVM, VMCPUID idCpu, uint64_t *pcNsTotal, uint64_t *pcNsExecuting,
@@ -117,7 +117,7 @@ VMM_INT_DECL(uint64_t)  TMVirtualSyncGet(PVM pVM);
 VMM_INT_DECL(uint64_t)  TMVirtualSyncGetNoCheck(PVM pVM);
 VMM_INT_DECL(uint64_t)  TMVirtualSyncGetEx(PVM pVM, bool fCheckTimers);
 VMM_INT_DECL(uint64_t)  TMVirtualSyncGetWithDeadlineNoCheck(PVM pVM, uint64_t *pcNsToDeadline);
-VMM_INT_DECL(uint64_t)  TMVirtualSyncGetNsToDeadline(PVM pVM);
+VMMDECL(uint64_t)       TMVirtualSyncGetNsToDeadline(PVM pVM);
 VMM_INT_DECL(uint64_t)  TMVirtualToNano(PVM pVM, uint64_t u64VirtualTicks);
 VMM_INT_DECL(uint64_t)  TMVirtualToMicro(PVM pVM, uint64_t u64VirtualTicks);
 VMM_INT_DECL(uint64_t)  TMVirtualToMilli(PVM pVM, uint64_t u64VirtualTicks);

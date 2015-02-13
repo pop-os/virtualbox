@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -121,7 +121,7 @@ static int testLdrOne(const char *pszFilename)
 
         /* open it */
         int rc;
-        if (!strncmp(aLoads[i].pszName, "kLdr-", sizeof("kLdr-") - 1))
+        if (!strncmp(aLoads[i].pszName, RT_STR_TUPLE("kLdr-")))
             rc = RTLdrOpenkLdr(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
         else
             rc = RTLdrOpen(pszFilename, 0, RTLDRARCH_WHATEVER, &aLoads[i].hLdrMod);
@@ -200,10 +200,6 @@ static int testLdrOne(const char *pszFilename)
         unsigned iRel = 0;
         for (;;)
         {
-            /* adjust load address and announce our intentions */
-            if (g_cBits == 32)
-                aRels[iRel] &= UINT32_C(0xffffffff);
-
             /* Compare all which are at the same address. */
             for (i = 0; i < RT_ELEMENTS(aLoads) - 1; i++)
             {
@@ -240,7 +236,8 @@ static int testLdrOne(const char *pszFilename)
                 for (unsigned iSym = 0; iSym < RT_ELEMENTS(aSyms); iSym++)
                 {
                     RTUINTPTR Value;
-                    int rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, aLoads[i].Addr, aSyms[iSym].pszName, &Value);
+                    int rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, aLoads[i].Addr,
+                                              UINT32_MAX, aSyms[iSym].pszName, &Value);
                     if (RT_SUCCESS(rc))
                     {
                         unsigned off = Value - aLoads[i].Addr;
@@ -272,6 +269,10 @@ static int testLdrOne(const char *pszFilename)
 
             if (iRel >= RT_ELEMENTS(aRels))
                 break;
+
+            /* adjust load address and announce our intentions */
+            if (g_cBits == 32)
+                aRels[iRel] &= UINT32_C(0xffffffff);
 
             /* relocate it stuff. */
             RTPrintf("tstLdr: Relocating image 2 from %RTptr to %RTptr\n", aLoads[2].Addr, aRels[iRel]);
@@ -315,7 +316,7 @@ static int testLdrOne(const char *pszFilename)
 
 int main(int argc, char **argv)
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
 
     int rcRet = 0;
     if (argc <= 1)

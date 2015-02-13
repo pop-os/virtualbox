@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -13,6 +13,15 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ *
+ * The contents of this file may alternatively be used under the terms
+ * of the Common Development and Distribution License Version 1.0
+ * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+ * VirtualBox OSE distribution, in which case the provisions of the
+ * CDDL are applicable instead of those of the GPL.
+ *
+ * You may elect to license modified versions of this file under the
+ * terms and conditions of either the GPL or the CDDL or both.
  */
 
 
@@ -326,7 +335,7 @@ static int VBoxGuestSolarisAttach(dev_info_t *pDip, ddi_attach_cmd_t enmCmd)
                                                          VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
                                 if (RT_SUCCESS(rc))
                                 {
-                                    rc = ddi_create_minor_node(pDip, DEVICE_NAME, S_IFCHR, instance, DDI_PSEUDO, 0);
+                                    rc = ddi_create_minor_node(pDip, DEVICE_NAME, S_IFCHR, instance, DDI_PSEUDO, 0 /* fFlags */);
                                     if (rc == DDI_SUCCESS)
                                     {
                                         g_pDip = pDip;
@@ -687,6 +696,8 @@ static int VBoxGuestSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cr
          * which are not really failures that require logging.
          */
         Log((DEVICE_NAME "::IOCtl: VBoxGuestCommonIOCtl failed. Cmd=%#x rc=%d\n", Cmd, rc));
+        if (rc == VERR_PERMISSION_DENIED)   /* RTErrConvertToErrno() below will ring-0 debug assert if we don't do this. */
+            rc = VERR_ACCESS_DENIED;
         rc = RTErrConvertToErrno(rc);
     }
     *pVal = rc;
@@ -769,13 +780,13 @@ static int VBoxGuestSolarisAddIRQ(dev_info_t *pDip)
                             if (rc == DDI_SUCCESS)
                             {
                                 /* Initialize the mutex. */
-                                mutex_init(&g_IrqMtx, NULL, MUTEX_DRIVER, DDI_INTR_PRI(uIntrPriority));
+                                mutex_init(&g_IrqMtx, NULL /* pszDesc */, MUTEX_DRIVER, DDI_INTR_PRI(uIntrPriority));
 
                                 /* Assign interrupt handler functions and enable interrupts. */
                                 for (int i = 0; i < IntrAllocated; i++)
                                 {
                                     rc = ddi_intr_add_handler(g_pIntr[i], (ddi_intr_handler_t *)VBoxGuestSolarisISR,
-                                                            NULL /* No Private Data */, NULL);
+                                                              NULL /* pvArg1 */, NULL /* pvArg2 */);
                                     if (rc == DDI_SUCCESS)
                                         rc = ddi_intr_enable(g_pIntr[i]);
                                     if (rc != DDI_SUCCESS)

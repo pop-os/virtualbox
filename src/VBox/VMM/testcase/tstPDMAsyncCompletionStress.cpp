@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -567,15 +567,18 @@ static void tstPDMACStressTestPatternDestroy(void)
     RTMemFree(g_pbTestPattern);
 }
 
-int main(int argc, char *argv[])
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     int rcRet = 0; /* error count */
-    int rc = VINF_SUCCESS;
 
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
     PVM pVM;
-    rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -617,7 +620,7 @@ int main(int argc, char *argv[])
             rcRet++;
         }
 
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         AssertMsg(rc == VINF_SUCCESS, ("%s: Destroying VM failed rc=%Rrc!!\n", __FUNCTION__, rc));
     }
     else
@@ -628,4 +631,15 @@ int main(int argc, char *argv[])
 
     return rcRet;
 }
+
+
+#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
+/**
+ * Main entry point.
+ */
+int main(int argc, char **argv, char **envp)
+{
+    return TrustedMain(argc, argv, envp);
+}
+#endif
 

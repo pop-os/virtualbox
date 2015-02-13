@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,7 @@ typedef struct NETIFINFO
     RTMAC          MACAddress;
     NETIFTYPE      enmMediumType;
     NETIFSTATUS    enmStatus;
+    uint32_t       uSpeedMbits;
     RTUUID         Uuid;
     char           szShortName[VBOXNET_MAX_SHORT_NAME];
     char           szName[1];
@@ -83,14 +84,17 @@ typedef NETIFINFO const *PCNETIFINFO;
 #endif
 
 int NetIfList(std::list <ComObjPtr<HostNetworkInterface> > &list);
-int NetIfEnableStaticIpConfig(VirtualBox *pVbox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask);
-int NetIfEnableStaticIpConfigV6(VirtualBox *pVbox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength);
-int NetIfEnableDynamicIpConfig(VirtualBox *pVbox, HostNetworkInterface * pIf);
-int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVbox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, const char *pcszName = NULL);
-int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVbox, IN_GUID aId, IProgress **aProgress);
+int NetIfEnableStaticIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf, ULONG aOldIp, ULONG aNewIp, ULONG aMask);
+int NetIfEnableStaticIpConfigV6(VirtualBox *pVBox, HostNetworkInterface * pIf, IN_BSTR aOldIPV6Address, IN_BSTR aIPV6Address, ULONG aIPV6MaskPrefixLength);
+int NetIfEnableDynamicIpConfig(VirtualBox *pVBox, HostNetworkInterface * pIf);
+int NetIfCreateHostOnlyNetworkInterface (VirtualBox *pVBox, IHostNetworkInterface **aHostNetworkInterface, IProgress **aProgress, const char *pcszName = NULL);
+int NetIfRemoveHostOnlyNetworkInterface (VirtualBox *pVBox, IN_GUID aId, IProgress **aProgress);
 int NetIfGetConfig(HostNetworkInterface * pIf, NETIFINFO *);
 int NetIfGetConfigByName(PNETIFINFO pInfo);
-int NetIfDhcpRediscover(VirtualBox *pVbox, HostNetworkInterface * pIf);
+int NetIfGetState(const char *pcszIfName, NETIFSTATUS *penmState);
+int NetIfGetLinkSpeed(const char *pcszIfName, uint32_t *puMbits);
+int NetIfDhcpRediscover(VirtualBox *pVBox, HostNetworkInterface * pIf);
+int NetIfAdpCtlOut(const char * pcszName, const char * pcszCmd, char *pszBuffer, size_t cBufSize);
 
 DECLINLINE(Bstr) composeIPv6Address(PRTNETADDRIPV6 aAddrPtr)
 {
@@ -119,12 +123,12 @@ DECLINLINE(ULONG) composeIPv6PrefixLenghFromAddress(PRTNETADDRIPV6 aAddrPtr)
 
 DECLINLINE(int) prefixLength2IPv6Address(ULONG cPrefix, PRTNETADDRIPV6 aAddrPtr)
 {
-    if(cPrefix > 128)
+    if (cPrefix > 128)
         return VERR_INVALID_PARAMETER;
-    if(!aAddrPtr)
+    if (!aAddrPtr)
         return VERR_INVALID_PARAMETER;
 
-    memset(aAddrPtr, 0, sizeof(RTNETADDRIPV6));
+    RT_ZERO(*aAddrPtr);
 
     ASMBitSetRange(aAddrPtr, 0, cPrefix);
 
@@ -148,7 +152,8 @@ DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)
     /* Get the index from the name */
     Utf8Str strTmp = bstrIfName;
     const char *pszIfName = strTmp.c_str();
-    int iInstance = 0, iPos = strcspn(pszIfName, "0123456789");
+    int iInstance = 0;
+    size_t iPos = strcspn(pszIfName, "0123456789");
     if (pszIfName[iPos])
         iInstance = RTStrToUInt32(pszIfName + iPos);
 

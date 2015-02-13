@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,9 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/err.h>
@@ -307,7 +309,7 @@ static DECLCALLBACK(int) loadMem(PVM pVM, RTFILE File, uint64_t *poff)
             }
 
             /* Write that page to the guest - skip known rom areas for now. */
-            if (GCPhys < 0xa0000 || GCPhys >= 0x10000) /* ASSUME size of a8Page is a power of 2. */
+            if (GCPhys < 0xa0000 || GCPhys >= 0x100000) /* ASSUME size of a8Page is a power of 2. */
                 PGMPhysWrite(pVM, GCPhys, &au8Page, cbRead);
             GCPhys += cbRead;
         }
@@ -324,9 +326,9 @@ static DECLCALLBACK(int) loadMem(PVM pVM, RTFILE File, uint64_t *poff)
  * This assumes an empty tree.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
-static DECLCALLBACK(int) cfgmR3CreateDefault(PVM pVM, void *pvUser)
+static DECLCALLBACK(int) cfgmR3CreateDefault(PUVM pUVM, PVM pVM, void *pvUser)
 {
     uint64_t cbMem = *(uint64_t *)pvUser;
     int rc;
@@ -616,11 +618,14 @@ static void syntax(void)
 }
 
 
-int main(int argc, char **argv)
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     int rcRet = 1;
     int rc;
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
     /*
      * Parse input.
@@ -829,25 +834,26 @@ int main(int argc, char **argv)
      * Create empty VM.
      */
     PVM pVM;
-    rc = VMR3Create(1, NULL, NULL, NULL, cfgmR3CreateDefault, &cbMem, &pVM);
+    PUVM pUVM;
+    rc = VMR3Create(1, NULL, NULL, NULL, cfgmR3CreateDefault, &cbMem, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         /*
          * Load memory.
          */
         if (FileRawMem != NIL_RTFILE)
-            rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)loadMem, 3, pVM, FileRawMem, &offRawMem);
+            rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)loadMem, 3, pVM, FileRawMem, &offRawMem);
         else
-            rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)SSMR3Load,
-                                 7, pVM, pszSavedState, (uintptr_t)NULL /*pStreamOps*/, (uintptr_t)NULL /*pvUser*/,
-                                 SSMAFTER_DEBUG_IT, (uintptr_t)NULL /*pfnProgress*/, (uintptr_t)NULL /*pvProgressUser*/);
+            rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)SSMR3Load,
+                                  7, pVM, pszSavedState, (uintptr_t)NULL /*pStreamOps*/, (uintptr_t)NULL /*pvUser*/,
+                                  SSMAFTER_DEBUG_IT, (uintptr_t)NULL /*pfnProgress*/, (uintptr_t)NULL /*pvProgressUser*/);
         if (RT_SUCCESS(rc))
         {
             /*
              * Load register script.
              */
             if (FileScript != NIL_RTFILE)
-                rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)scriptRun, 2, pVM, FileScript);
+                rc = VMR3ReqCallWaitU(pUVM, VMCPUID_ANY, (PFNRT)scriptRun, 2, pVM, FileScript);
             if (RT_SUCCESS(rc))
             {
                 if (fPowerOn)
@@ -857,7 +863,7 @@ int main(int argc, char **argv)
                      */
                     if (u32WarpDrive != 100)
                     {
-                        rc = TMR3SetWarpDrive(pVM, u32WarpDrive);
+                        rc = TMR3SetWarpDrive(pUVM, u32WarpDrive);
                         if (RT_FAILURE(rc))
                             RTPrintf("warning: TMVirtualSetWarpDrive(,%u) -> %Rrc\n", u32WarpDrive, rc);
                     }
@@ -868,14 +874,18 @@ int main(int argc, char **argv)
                      */
                     RTPrintf("info: powering on the VM...\n");
                     RTLogGroupSettings(NULL, "+REM_DISAS.e.l.f");
+#ifdef VBOX_WITH_REM
                     rc = REMR3DisasEnableStepping(pVM, true);
+#else
+                    rc = VERR_NOT_IMPLEMENTED; /** @todo need some EM single-step indicator */
+#endif
                     if (RT_SUCCESS(rc))
                     {
-                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);
-                        rc = EMR3SetExecutionPolicy(pVM, EMEXECPOLICY_RECOMPILE_RING3, true); AssertReleaseRC(rc);
-                        DBGFR3Info(pVM, "cpumguest", "verbose", NULL);
+                        rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_RECOMPILE_RING0, true); AssertReleaseRC(rc);
+                        rc = EMR3SetExecutionPolicy(pUVM, EMEXECPOLICY_RECOMPILE_RING3, true); AssertReleaseRC(rc);
+                        DBGFR3Info(pUVM, "cpumguest", "verbose", NULL);
                         if (fPowerOn)
-                            rc = VMR3PowerOn(pVM);
+                            rc = VMR3PowerOn(pUVM);
                         if (RT_SUCCESS(rc))
                         {
                             RTPrintf("info: VM is running\n");
@@ -895,7 +905,7 @@ int main(int argc, char **argv)
                      * Don't start it, just enter the debugger.
                      */
                     RTPrintf("info: entering debugger...\n");
-                    DBGFR3Info(pVM, "cpumguest", "verbose", NULL);
+                    DBGFR3Info(pUVM, "cpumguest", "verbose", NULL);
                     signal(SIGINT, SigInterrupt);
                     while (!g_fSignaled)
                         RTThreadSleep(1000);
@@ -911,12 +921,14 @@ int main(int argc, char **argv)
         /*
          * Cleanup.
          */
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf("tstAnimate: error: failed to destroy vm! rc=%Rrc\n", rc);
             rcRet++;
         }
+
+        VMR3ReleaseUVM(pUVM);
     }
     else
     {
@@ -926,4 +938,15 @@ int main(int argc, char **argv)
 
     return rcRet;
 }
+
+
+#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
+/**
+ * Main entry point.
+ */
+int main(int argc, char **argv, char **envp)
+{
+    return TrustedMain(argc, argv, envp);
+}
+#endif
 

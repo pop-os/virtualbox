@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,16 +20,21 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-/* Global includes */
+
+/* Qt includes: */
 #include <QDateTime>
 #include <QPushButton>
 #include <QScrollArea>
 
-/* Local includes */
+/* GUI includes: */
 #include <VBoxGlobal.h>
 #include <UIMessageCenter.h>
 #include <VBoxSnapshotDetailsDlg.h>
 #include <VBoxUtils.h>
+
+/* COM includes: */
+#include "CMachine.h"
+
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 VBoxSnapshotDetailsDlg::VBoxSnapshotDetailsDlg (QWidget *aParent)
@@ -106,7 +111,7 @@ void VBoxSnapshotDetailsDlg::putBackToSnapshot()
     AssertReturn (!mSnapshot.isNull(), (void) 0);
 
     /* We need a session when we manipulate the snapshot data of a machine. */
-    CSession session = vboxGlobal().openSession(mSnapshot.GetMachine().GetId(), true);
+    CSession session = vboxGlobal().openExistingSession(mSnapshot.GetMachine().GetId());
     if (session.isNull())
         return;
 

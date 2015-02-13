@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,12 +16,36 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
-#
-# Include sub-makefile(s).
-#
-include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
+vboxvideo_70_DEFS := \
+	IN_MODULE XORG_7X RENDER=1 IN_RT_STATIC
+ifeq ($(KBUILD_TARGET),solaris) # don't use .solaris or anything here.
+ vboxvideo_70_DEFS += __EXTENSIONS__  ## @todo Why this?
+endif
+vboxvideo_13_DEFS := $(vboxvideo_70_DEFS) VBOXVIDEO_13
+vboxvideo_15_DEFS := \
+	$(vboxvideo_13_DEFS) NO_ANSIC PCIACCESS XSERVER_LIBPCIACCESS _XORG_SERVER_H_ _DIX_CONFIG_H_
+if1of ($(KBUILD_TARGET), linux solaris)
+ vboxvideo_15_DEFS += \
+ 	VBOX_DRI
+endif
+vboxvideo_xorg_INCS = \
+    $(VBOX_PATH_X11_ROOT)/dri2proto-2.8 \
+	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
+	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
+	$(VBOX_PATH_X11_ROOT)/MesaLib-8.0.4-GL \
+	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
+	$(VBOX_PATH_X11_ROOT)/kbproto-1.0.6 \
+	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
+	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
+	$(VBOX_PATH_X11_ROOT)/libXext-1.3.1 \
+	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
+	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
+	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
+	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
+	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
+	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
 
 #
 # vboxvideo_drv
@@ -30,6 +54,7 @@ if1of ($(KBUILD_TARGET), linux)
  SYSMODS += vboxvideo_drv
 endif   # target linux
 vboxvideo_drv_TEMPLATE = VBOXGUESTR3XF86MOD
+vboxvideo_drv_CFLAGS += -Wno-shadow # Avoid MBs of warnings in X11 and OpenGL headers (solaris mostly).
 vboxvideo_drv_DEFS.linux = linux
 vboxvideo_drv_DEFS.x86 = __i386__
 # This one has to be defined when building server code on systems where
@@ -76,9 +101,10 @@ vboxvideo_drv_INCS = \
 	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/Xext
 vboxvideo_drv_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_SOURCES = \
+	getmode.c \
+	helpers.c \
 	pointer.c \
 	setmode.c \
-	vboxutils.c \
 	vboxvideo.c \
 	vbva.c \
 	$(PATH_ROOT)/src/VBox/Additions/common/VBoxVideo/HGSMIBase.cpp \
@@ -87,7 +113,12 @@ vboxvideo_drv_SOURCES = \
 	$(PATH_ROOT)/src/VBox/GuestHost/HGSMI/HGSMICommon.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/common/alloc/heapsimple.cpp \
 	$(PATH_ROOT)/src/VBox/Runtime/common/alloc/heapoffset.cpp
-
+ # Any global symbols in the driver object files will be added to XFree86's
+ # symbol table, which can cause problems if we e.g. define a symbol in two
+ # modules.
+ vboxvideo_drv_POST_CMDS = \
+	objcopy --keep-global-symbol vboxvideoModuleData $(out) $(out)-objcopy$$(NLTAB) \
+	$(MV) -f $(out)-objcopy $(out)
 
 #
 # vboxvideo_drv_70
@@ -99,20 +130,13 @@ vboxvideo_drv_SOURCES = \
 #
 DLLS += vboxvideo_drv_70
 vboxvideo_drv_70_TEMPLATE = VBOXGUESTR3XORGMOD
-if1of ($(KBUILD_TARGET), linux)
- vboxvideo_drv_70_CFLAGS += \
-	-Wno-conversion -Wno-unused-parameter $(VBOX_GCC_Wno-variadic-macros) # template?
-endif
-vboxvideo_drv_70_DEFS := \
-	XFree86Server IN_MODULE XFree86Module XFree86LOADER XORG_7X RENDER=1 IN_XF86_MODULE IN_RT_STATIC
+vboxvideo_drv_70_DEFS = $(vboxvideo_70_DEFS) XORG_VERSION_CURRENT=700000000
 ifeq ($(KBUILD_TARGET),solaris) # don't use .solaris or anything here.
- vboxvideo_drv_70_DEFS += __EXTENSIONS__
- vboxvideo_drv_70_CFLAGS += -D_XPG6 # Until we have moved the C++ bits into a library
+ vboxvideo_drv_70_CFLAGS += -D_XPG6 -Wno-shadow # Use XPG6 until we have moved the C++ bits into a library.
 endif
 vboxvideo_drv_70_INCS = \
-	$(VBOX_PATH_X11_XORG_7_0) \
-	$(VBOX_PATH_X11_XORG_7_0)/X11 \
-	$(VBOX_PATH_X11_XORG_7_0)/xorg
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.0.1
 vboxvideo_drv_70_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_70_SOURCES  = $(vboxvideo_drv_SOURCES)
 
@@ -123,11 +147,10 @@ vboxvideo_drv_70_SOURCES  = $(vboxvideo_drv_SOURCES)
 DLLS += vboxvideo_drv_71
 vboxvideo_drv_71_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_71_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_71_DEFS := $(vboxvideo_drv_70_DEFS)
+vboxvideo_drv_71_DEFS := $(vboxvideo_70_DEFS) XORG_VERSION_CURRENT=700100000
 vboxvideo_drv_71_INCS = \
-	$(VBOX_PATH_X11_XORG_7_1) \
-	$(VBOX_PATH_X11_XORG_7_1)/X11 \
-	$(VBOX_PATH_X11_XORG_7_1)/xorg
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.1.0
 vboxvideo_drv_71_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_71_SOURCES  = $(vboxvideo_drv_SOURCES)
 
@@ -138,15 +161,10 @@ vboxvideo_drv_71_SOURCES  = $(vboxvideo_drv_SOURCES)
 DLLS += vboxvideo_drv_13
 vboxvideo_drv_13_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_13_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_13_DEFS := $(vboxvideo_drv_70_DEFS) VBOXVIDEO_13
+vboxvideo_drv_13_DEFS := $(vboxvideo_13_DEFS) XORG_VERSION_CURRENT=100300000
 vboxvideo_drv_13_INCS = \
-	$(VBOX_PATH_X11_XORG_1_3) \
-	$(VBOX_PATH_X11_XORG_1_3)/X11 \
-	$(VBOX_PATH_X11_XORG_1_3)/xorg \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.3.0.0
 vboxvideo_drv_13_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_13_SOURCES = $(vboxvideo_drv_SOURCES) edid.c
 
@@ -157,15 +175,10 @@ vboxvideo_drv_13_SOURCES = $(vboxvideo_drv_SOURCES) edid.c
 DLLS += vboxvideo_drv_14
 vboxvideo_drv_14_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_14_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_14_DEFS := $(vboxvideo_drv_13_DEFS)
+vboxvideo_drv_14_DEFS := $(vboxvideo_13_DEFS) XORG_VERSION_CURRENT=100400000
 vboxvideo_drv_14_INCS = \
-	$(VBOX_PATH_X11_XORG_1_4) \
-	$(VBOX_PATH_X11_XORG_1_4)/X11 \
-	$(VBOX_PATH_X11_XORG_1_4)/xorg \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.4.2
 vboxvideo_drv_14_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_14_SOURCES  = $(vboxvideo_drv_13_SOURCES)
 
@@ -176,24 +189,19 @@ vboxvideo_drv_14_SOURCES  = $(vboxvideo_drv_13_SOURCES)
 DLLS += vboxvideo_drv_15
 vboxvideo_drv_15_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_15_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_15_DEFS := $(vboxvideo_drv_13_DEFS) NO_ANSIC PCIACCESS \
-                         VBOX_NO_LOW_COLOUR
+vboxvideo_drv_15_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=100503000
 if1of ($(KBUILD_TARGET), linux solaris)
- vboxvideo_drv_15_DEFS += VBOX_DRI
+ vboxvideo_drv_15_DEFS += \
+ 	VBOX_DRI_OLD
 endif
 vboxvideo_drv_15_INCS = \
-	$(VBOX_PATH_X11_XORG_1_5) \
-	$(VBOX_PATH_X11_XORG_1_5)/X11 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
+	$(vboxvideo_xorg_INCS) \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.5.3
 vboxvideo_drv_15_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_15_SOURCES  = $(vboxvideo_drv_13_SOURCES)
 if1of ($(KBUILD_TARGET), linux solaris)
  vboxvideo_drv_15_SOURCES += \
-	vboxvideo_dri.c
+ 	vboxvideo_dri.c
 endif
 
 
@@ -203,16 +211,14 @@ endif
 DLLS += vboxvideo_drv_16
 vboxvideo_drv_16_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_16_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_16_DEFS := $(vboxvideo_drv_15_DEFS)
+vboxvideo_drv_16_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=100600000
+if1of ($(KBUILD_TARGET), linux solaris)
+ vboxvideo_drv_16_DEFS += \
+ 	VBOX_DRI_OLD
+endif
 vboxvideo_drv_16_INCS = \
-	$(VBOX_PATH_X11_XORG_1_6) \
-	$(VBOX_PATH_X11_XORG_1_6)/X11 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.5 \
 vboxvideo_drv_16_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_16_SOURCES := $(vboxvideo_drv_15_SOURCES)
 
@@ -223,25 +229,16 @@ vboxvideo_drv_16_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_17
 vboxvideo_drv_17_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_17_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_17_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_17_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=100699000
 vboxvideo_drv_17_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.99-20090831 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.7.7
 vboxvideo_drv_17_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_17_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_17_SOURCES := $(vboxvideo_drv_13_SOURCES)
+if1of ($(KBUILD_TARGET), linux solaris)
+ vboxvideo_drv_17_SOURCES += \
+ 	vboxvideo_dri2.c
+endif
 
 
 #
@@ -250,25 +247,12 @@ vboxvideo_drv_17_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_18
 vboxvideo_drv_18_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_18_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_18_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_18_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=100800000
 vboxvideo_drv_18_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.8.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.8.0
 vboxvideo_drv_18_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_17_SOURCES)
 
 
 #
@@ -277,25 +261,12 @@ vboxvideo_drv_18_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_19
 vboxvideo_drv_19_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_19_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_19_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_19_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=100900000
 vboxvideo_drv_19_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.9.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.9.0
 vboxvideo_drv_19_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_19_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_19_SOURCES := $(vboxvideo_drv_17_SOURCES)
 
 
 #
@@ -304,25 +275,12 @@ vboxvideo_drv_19_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_110
 vboxvideo_drv_110_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_110_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_110_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_110_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101000000
 vboxvideo_drv_110_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.10.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.10.0
 vboxvideo_drv_110_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_17_SOURCES)
 
 
 #
@@ -331,25 +289,12 @@ vboxvideo_drv_110_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_111
 vboxvideo_drv_111_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_111_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_111_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_111_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101100000
 vboxvideo_drv_111_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.11.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.11.0
 vboxvideo_drv_111_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_111_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_111_SOURCES := $(vboxvideo_drv_17_SOURCES)
 
 
 #
@@ -358,31 +303,109 @@ vboxvideo_drv_111_SOURCES := $(vboxvideo_drv_15_SOURCES)
 DLLS += vboxvideo_drv_112
 vboxvideo_drv_112_TEMPLATE = VBOXGUESTR3XORGMOD
 vboxvideo_drv_112_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
-vboxvideo_drv_112_DEFS := $(vboxvideo_drv_15_DEFS)
-## @todo replace $(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local
+vboxvideo_drv_112_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101200000
 vboxvideo_drv_112_INCS = \
-	$(VBOX_PATH_X11_ROOT)/fontsproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/glproto-1.4.10 \
-	$(VBOX_PATH_X11_ROOT)/mesa-7.2/include \
-	$(VBOX_PATH_X11_ROOT)/inputproto-1.9.99.902 \
-	$(VBOX_PATH_X11_ROOT)/libdrm-2.4.13 \
-	$(VBOX_PATH_X11_ROOT)/libpciaccess-0.10.8 \
-	$(VBOX_PATH_X11_ROOT)/pixman-0.16.0 \
-	$(VBOX_PATH_X11_ROOT)/randrproto-1.3.0 \
-	$(VBOX_PATH_X11_ROOT)/renderproto-0.11 \
-	$(VBOX_PATH_X11_ROOT)/xextproto-7.1.1 \
-	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.12.0 \
-	$(VBOX_PATH_X11_ROOT)/xorg-server-1.6.0-local \
-	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.12.0
 vboxvideo_drv_112_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_112_SOURCES := $(vboxvideo_drv_15_SOURCES)
+vboxvideo_drv_112_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+#
+# vboxvideo_drv_113
+#
+DLLS += vboxvideo_drv_113
+vboxvideo_drv_113_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_113_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_113_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101300000
+vboxvideo_drv_113_INCS = \
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.13.0
+vboxvideo_drv_113_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
+vboxvideo_drv_113_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+#
+# vboxvideo_drv_114
+#
+DLLS += vboxvideo_drv_114
+vboxvideo_drv_114_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_114_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_114_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101400000
+vboxvideo_drv_114_INCS = \
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.14.0
+vboxvideo_drv_114_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
+vboxvideo_drv_114_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+#
+# vboxvideo_drv_115
+#
+DLLS += vboxvideo_drv_115
+vboxvideo_drv_115_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_115_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_115_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101500000
+vboxvideo_drv_115_INCS = \
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.15.0
+vboxvideo_drv_115_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
+vboxvideo_drv_115_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+#
+# vboxvideo_drv_116
+#
+DLLS += vboxvideo_drv_116
+vboxvideo_drv_116_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_116_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_116_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101600000
+vboxvideo_drv_116_INCS = \
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.16.0
+vboxvideo_drv_116_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
+vboxvideo_drv_116_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+#
+# vboxvideo_drv_117
+#
+DLLS += vboxvideo_drv_117
+vboxvideo_drv_117_TEMPLATE = VBOXGUESTR3XORGMOD
+vboxvideo_drv_117_CFLAGS := $(vboxvideo_drv_70_CFLAGS)
+vboxvideo_drv_117_DEFS := $(vboxvideo_15_DEFS) XORG_VERSION_CURRENT=101700000
+vboxvideo_drv_117_INCS = \
+	$(vboxvideo_xorg_INCS) \
+	$(VBOX_PATH_X11_ROOT)/xorg-server-1.17.1
+vboxvideo_drv_117_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
+vboxvideo_drv_117_SOURCES := $(vboxvideo_drv_17_SOURCES)
+
+
+ifdef VBOX_USE_SYSTEM_XORG_HEADERS
+ # Build using local X.Org headers.  We assume X.Org Server 1.7 or later.
+ DLLS    := $(filter-out vboxvideo_drv_%,$(DLLS)) vboxvideo_drv_system
+ SYSMODS := $(filter-out vboxvideo_drv%,$(SYSMODS))
+ vboxvideo_drv_system_TEMPLATE = VBOXGUESTR3XORGMOD
+ vboxvideo_drv_system_CFLAGS := \
+        $(vboxvideo_drv_70_CFLAGS) -include xorg-server.h
+ vboxvideo_drv_system_DEFS := $(vboxvideo_15_DEFS)
+ vboxvideo_drv_system_INCS += \
+        $(PATH_ROOT)/src/VBox/Runtime/include \
+        /usr/include/x11 \
+        /usr/include/X11/dri \
+        /usr/include/libdrm \
+        /usr/include/xorg \
+        /usr/include/pixman-1
+ vboxvideo_drv_system_SOURCES := $(vboxvideo_drv_17_SOURCES)
+endif
 
 
 # Check the undefined symbols in the X.Org modules against lists of allowed
 # symbols.  Not very elegant, but it will catch problems early.
+
 ifdef VBOX_WITH_TESTCASES
 # ifndef VBOX_ONLY_ADDITIONS
+ ifndef VBOX_USE_SYSTEM_XORG_HEADERS
   if1of ($(KBUILD_TARGET),linux solaris)
    ifeq ($(KBUILD_HOST_ARCH),$(KBUILD_TARGET_ARCH))
     ifndef VBOX_ONLY_SDK
@@ -393,111 +416,31 @@ ifdef VBOX_WITH_TESTCASES
       OTHERS += $(vboxvideo_drv_0_OUTDIR)/tstvboxvideo68.run
 $$(vboxvideo_drv_0_OUTDIR)/tstvboxvideo68.run: $$(vboxvideo_drv_1_STAGE_TARGET)
 	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined --static
+	$(QUIET)$(ASH) $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_HOST)  \
+	    $(vboxvideo_drv_1_STAGE_TARGET) --static $(VBOXVIDEO_SRC_PATH)/../undefined_xfree86 $(VBOXVIDEO_SRC_PATH)/../undefined_xfree86_modules
 	$(QUIET)$(APPEND) -t "$@" "done"
      endif
 
-     TESTING += $(vboxvideo_drv_70_0_OUTDIR)/tstvboxvideo70.run
-     OTHERS += $(vboxvideo_drv_70_0_OUTDIR)/tstvboxvideo70.run
-$$(vboxvideo_drv_70_0_OUTDIR)/tstvboxvideo70.run: $$(vboxvideo_drv_70_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_70_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
+##
+# Using the extra expansion to replace $(ver) before eval, thus everything
+# else needs escaped dollars.
+     define def_vboxvideo_test
+      TESTING += $$(vboxvideo_drv$(ver)_0_OUTDIR)/tstvboxvideo$(ver).run
+      OTHERS  += $$(vboxvideo_drv$(ver)_0_OUTDIR)/tstvboxvideo$(ver).run
+      $$$$(vboxvideo_drv$(ver)_0_OUTDIR)/tstvboxvideo$(ver).run: $$$$(vboxvideo_drv$(ver)_1_STAGE_TARGET)
+	$$(QUIET)$$(call MSG_L1,Checking for unresolved symbols in $$<)
+	$$(QUIET)$$(ASH) $$(PATH_ROOT)/src/bldprogs/checkUndefined.sh $$(KBUILD_HOST)  \
+	        $$(vboxvideo_drv$(ver)_1_STAGE_TARGET) $$(VBOXVIDEO_SRC_PATH)/../undefined_xfree86 $(VBOXVIDEO_SRC_PATH)/../undefined_xfree86_modules $$(VBOXVIDEO_SRC_PATH)/../undefined_xorg
+	$$(QUIET)$$(APPEND) -t "$$@" "done"
+    endef
 
-     TESTING += $(vboxvideo_drv_71_0_OUTDIR)/tstvboxvideo71.run
-     OTHERS += $(vboxvideo_drv_71_0_OUTDIR)/tstvboxvideo71.run
-$$(vboxvideo_drv_71_0_OUTDIR)/tstvboxvideo71.run: $$(vboxvideo_drv_71_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_71_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_13_0_OUTDIR)/tstvboxvideo13.run
-     OTHERS += $(vboxvideo_drv_13_0_OUTDIR)/tstvboxvideo13.run
-$$(vboxvideo_drv_13_0_OUTDIR)/tstvboxvideo13.run: $$(vboxvideo_drv_13_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_13_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_14_0_OUTDIR)/tstvboxvideo14.run
-     OTHERS += $(vboxvideo_drv_14_0_OUTDIR)/tstvboxvideo14.run
-$$(vboxvideo_drv_14_0_OUTDIR)/tstvboxvideo14.run: $$(vboxvideo_drv_14_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_14_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_15_0_OUTDIR)/tstvboxvideo15.run
-     OTHERS += $(vboxvideo_drv_15_0_OUTDIR)/tstvboxvideo15.run
-$$(vboxvideo_drv_15_0_OUTDIR)/tstvboxvideo15.run: $$(vboxvideo_drv_15_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_15_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_16_0_OUTDIR)/tstvboxvideo16.run
-     OTHERS += $(vboxvideo_drv_16_0_OUTDIR)/tstvboxvideo16.run
-$$(vboxvideo_drv_16_0_OUTDIR)/tstvboxvideo16.run: $$(vboxvideo_drv_16_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_16_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_17_0_OUTDIR)/tstvboxvideo17.run
-     OTHERS += $(vboxvideo_drv_17_0_OUTDIR)/tstvboxvideo17.run
-$$(vboxvideo_drv_17_0_OUTDIR)/tstvboxvideo17.run: $$(vboxvideo_drv_17_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_17_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_18_0_OUTDIR)/tstvboxvideo18.run
-     OTHERS += $(vboxvideo_drv_18_0_OUTDIR)/tstvboxvideo18.run
-$$(vboxvideo_drv_18_0_OUTDIR)/tstvboxvideo18.run: $$(vboxvideo_drv_18_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_18_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_19_0_OUTDIR)/tstvboxvideo19.run
-     OTHERS += $(vboxvideo_drv_19_0_OUTDIR)/tstvboxvideo19.run
-$$(vboxvideo_drv_19_0_OUTDIR)/tstvboxvideo19.run: $$(vboxvideo_drv_19_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_19_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_110_0_OUTDIR)/tstvboxvideo110.run
-     OTHERS += $(vboxvideo_drv_110_0_OUTDIR)/tstvboxvideo110.run
-$$(vboxvideo_drv_110_0_OUTDIR)/tstvboxvideo110.run: $$(vboxvideo_drv_110_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_110_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_111_0_OUTDIR)/tstvboxvideo111.run
-     OTHERS += $(vboxvideo_drv_111_0_OUTDIR)/tstvboxvideo111.run
-$$(vboxvideo_drv_111_0_OUTDIR)/tstvboxvideo111.run: $$(vboxvideo_drv_111_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_111_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
-
-     TESTING += $(vboxvideo_drv_112_0_OUTDIR)/tstvboxvideo112.run
-     OTHERS += $(vboxvideo_drv_112_0_OUTDIR)/tstvboxvideo112.run
-$$(vboxvideo_drv_112_0_OUTDIR)/tstvboxvideo112.run: $$(vboxvideo_drv_112_1_STAGE_TARGET)
-	$(QUIET)$(call MSG_L1,Checking for unresolved symbols in $<)
-	$(QUIET)/bin/sh $(PATH_ROOT)/src/bldprogs/checkUndefined.sh $(KBUILD_TARGET)  \
-	    $(vboxvideo_drv_112_1_STAGE_TARGET) $(VBOXVIDEO_SRC_PATH)/undefined
-	$(QUIET)$(APPEND) -t "$@" "done"
+    $(foreach ver, _70 _71 _13 _14 _15 _16 _17 _18 _19 _110 _111 _112 _113 _114 _115 _116 _117, $(eval $(def_vboxvideo_test)))
 
     endif # ! VBOX_ONLY_SDK
    endif # eq ($(KBUILD_HOST_ARCH),$(KBUILD_TARGET_ARCH))
-  endif # eq ($(KBUILD_TARGET),linux)
+  endif # 1of ($(KBUILD_TARGET),linux solaris)
+ endif # ! VBOX_USE_SYSTEM_XORG_HEADERS
 # endif # ! VBOX_ONLY_ADDITIONS
 endif # VBOX_WITH_TESTCASES
 
-include	$(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)

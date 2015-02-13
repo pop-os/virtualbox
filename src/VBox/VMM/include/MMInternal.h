@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -400,7 +400,7 @@ typedef MMHYPERHEAP *PMMHYPERHEAP;
 #define MMHYPER_HEAP_ALIGN_MIN          16
 
 /**
- * The aligned size of the the MMHYPERHEAP structure.
+ * The aligned size of the MMHYPERHEAP structure.
  */
 #define MMYPERHEAP_HDR_SIZE             RT_ALIGN_Z(sizeof(MMHYPERHEAP), MMHYPER_HEAP_ALIGN_MIN * 4)
 

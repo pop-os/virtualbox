@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -120,7 +120,7 @@ HRESULT VBoxEvent::init(IEventSource *aSource, VBoxEventType_T aType, BOOL aWait
 
             if (RT_FAILURE(vrc))
             {
-                AssertFailed ();
+                AssertFailed();
                 return setError(E_FAIL,
                                 tr("Internal error (%Rrc)"), vrc);
             }
@@ -155,19 +155,21 @@ STDMETHODIMP VBoxEvent::COMGETTER(Type)(VBoxEventType_T *aType)
     CheckComArgNotNull(aType);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-    // never  changes till event alive, no locking?
+    // never changes while event alive, no locking
     *aType = m->mType;
     return S_OK;
 }
 
-STDMETHODIMP VBoxEvent::COMGETTER(Source)(IEventSource* *aSource)
+STDMETHODIMP VBoxEvent::COMGETTER(Source)(IEventSource **aSource)
 {
     CheckComArgOutPointerValid(aSource);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     m->mSource.queryInterfaceTo(aSource);
     return S_OK;
@@ -178,9 +180,10 @@ STDMETHODIMP VBoxEvent::COMGETTER(Waitable)(BOOL *aWaitable)
     CheckComArgNotNull(aWaitable);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
-    // never  changes till event alive, no locking?
+    // never changes while event alive, no locking
     *aWaitable = m->mWaitable;
     return S_OK;
 }
@@ -189,7 +192,8 @@ STDMETHODIMP VBoxEvent::COMGETTER(Waitable)(BOOL *aWaitable)
 STDMETHODIMP VBoxEvent::SetProcessed()
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -209,7 +213,8 @@ STDMETHODIMP VBoxEvent::WaitProcessed(LONG aTimeout, BOOL *aResult)
     CheckComArgNotNull(aResult);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     {
         AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -249,8 +254,7 @@ STDMETHODIMP VBoxEvent::WaitProcessed(LONG aTimeout, BOOL *aResult)
 typedef std::list<Bstr> VetoList;
 struct VBoxVetoEvent::Data
 {
-    Data()
-        :
+    Data() :
         mVetoed(FALSE)
     {}
     BOOL                    mVetoed;
@@ -281,7 +285,8 @@ HRESULT VBoxVetoEvent::init(IEventSource *aSource, VBoxEventType_T aType)
     HRESULT rc = S_OK;
     // all veto events are waitable
     rc = VBoxEvent::init(aSource, aType, TRUE);
-    if (FAILED(rc)) return rc;
+    if (FAILED(rc))
+        return rc;
 
     m->mVetoed = FALSE;
     m->mVetoList.clear();
@@ -300,7 +305,8 @@ void VBoxVetoEvent::uninit()
 STDMETHODIMP VBoxVetoEvent::AddVeto(IN_BSTR aVeto)
 {
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -312,12 +318,13 @@ STDMETHODIMP VBoxVetoEvent::AddVeto(IN_BSTR aVeto)
     return S_OK;
 }
 
-STDMETHODIMP VBoxVetoEvent::IsVetoed(BOOL * aResult)
+STDMETHODIMP VBoxVetoEvent::IsVetoed(BOOL *aResult)
 {
     CheckComArgOutPointerValid(aResult);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -326,13 +333,14 @@ STDMETHODIMP VBoxVetoEvent::IsVetoed(BOOL * aResult)
     return S_OK;
 }
 
-STDMETHODIMP  VBoxVetoEvent::GetVetos(ComSafeArrayOut(BSTR, aVetos))
+STDMETHODIMP VBoxVetoEvent::GetVetos(ComSafeArrayOut(BSTR, aVetos))
 {
     if (ComSafeArrayOutIsNull(aVetos))
         return E_POINTER;
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     com::SafeArray<BSTR> vetos(m->mVetoList.size());
@@ -351,8 +359,8 @@ STDMETHODIMP  VBoxVetoEvent::GetVetos(ComSafeArrayOut(BSTR, aVetos))
 }
 
 static const int FirstEvent = (int)VBoxEventType_LastWildcard + 1;
-static const int LastEvent  = (int)VBoxEventType_Last;
-static const int NumEvents  = LastEvent - FirstEvent;
+static const int LastEvent = (int)VBoxEventType_Last;
+static const int NumEvents = LastEvent - FirstEvent;
 
 /**
  * Class replacing std::list and able to provide required stability
@@ -367,24 +375,19 @@ public:
      * We have to be double linked, as structural modifications in list are delayed
      * till element removed, so we have to know our previous one to update its next
      */
-    EventMapRecord* mNext;
+    EventMapRecord *mNext;
     bool            mAlive;
 private:
-    EventMapRecord* mPrev;
-    ListenerRecord* mRef; /* must be weak reference */
+    EventMapRecord *mPrev;
+    ListenerRecord *mRef; /* must be weak reference */
     int32_t         mRefCnt;
 
 public:
-    EventMapRecord(ListenerRecord* aRef)
-        :
-        mNext(0),
-        mAlive(true),
-        mPrev(0),
-        mRef(aRef),
-        mRefCnt(1)
+    EventMapRecord(ListenerRecord *aRef) :
+        mNext(0), mAlive(true), mPrev(0), mRef(aRef), mRefCnt(1)
     {}
 
-    EventMapRecord(EventMapRecord& aOther)
+    EventMapRecord(EventMapRecord &aOther)
     {
         mNext = aOther.mNext;
         mPrev = aOther.mPrev;
@@ -408,7 +411,8 @@ public:
 
     void release()
     {
-        if (ASMAtomicDecS32(&mRefCnt) <= 0) delete this;
+        if (ASMAtomicDecS32(&mRefCnt) <= 0)
+            delete this;
     }
 
     // Called when an element is no longer needed
@@ -418,7 +422,7 @@ public:
         release();
     }
 
-    ListenerRecord* ref()
+    ListenerRecord *ref()
     {
         return mAlive ? mRef : 0;
     }
@@ -429,7 +433,7 @@ public:
 
 class EventMapList
 {
-    EventMapRecord* mHead;
+    EventMapRecord *mHead;
     uint32_t        mSize;
 public:
     EventMapList()
@@ -439,12 +443,12 @@ public:
     {}
     ~EventMapList()
     {
-        EventMapRecord* aCur = mHead;
-        while (aCur)
+        EventMapRecord *pCur = mHead;
+        while (pCur)
         {
-            EventMapRecord* aNext = aCur->mNext;
-            aCur->release();
-            aCur = aNext;
+            EventMapRecord *pNext = pCur->mNext;
+            pCur->release();
+            pCur = pNext;
         }
     }
 
@@ -453,13 +457,13 @@ public:
      * that iterators doesn't see newly added listeners, and iteration
      * will always complete.
      */
-    void add(ListenerRecord* aRec)
+    void add(ListenerRecord *aRec)
     {
-        EventMapRecord* aNew = new EventMapRecord(aRec);
-        aNew->mNext = mHead;
+        EventMapRecord *pNew = new EventMapRecord(aRec);
+        pNew->mNext = mHead;
         if (mHead)
-            mHead->mPrev = aNew;
-        mHead = aNew;
+            mHead->mPrev = pNew;
+        mHead = pNew;
         mSize++;
     }
 
@@ -468,21 +472,21 @@ public:
      * all consumers release it too. This helps to keep list stable
      * enough for iterators to allow long and probably intrusive callbacks.
      */
-    void remove(ListenerRecord* aRec)
+    void remove(ListenerRecord *aRec)
     {
-        EventMapRecord* aCur = mHead;
-        while (aCur)
+        EventMapRecord *pCur = mHead;
+        while (pCur)
         {
-            EventMapRecord* aNext = aCur->mNext;
-            if (aCur->ref() == aRec)
+            EventMapRecord *aNext = pCur->mNext;
+            if (pCur->ref() == aRec)
             {
-                if (aCur == mHead)
+                if (pCur == mHead)
                     mHead = aNext;
-                aCur->kill();
+                pCur->kill();
                 mSize--;
                 // break?
             }
-            aCur = aNext;
+            pCur = aNext;
         }
     }
 
@@ -493,62 +497,62 @@ public:
 
     struct iterator
     {
-      EventMapRecord* mCur;
+        EventMapRecord *mCur;
 
-      iterator()
-      : mCur(0)
-      {}
+        iterator() :
+            mCur(0)
+        {}
 
-      explicit
-      iterator(EventMapRecord* aCur)
-      : mCur(aCur)
-      {
-          // Prevent element removal, till we're at it
-          if (mCur)
-              mCur->addRef();
-      }
+        explicit
+        iterator(EventMapRecord *aCur) :
+            mCur(aCur)
+        {
+            // Prevent element removal, till we're at it
+            if (mCur)
+                mCur->addRef();
+        }
 
-      ~iterator()
-      {
-          if (mCur)
-              mCur->release();
-      }
+        ~iterator()
+        {
+            if (mCur)
+                mCur->release();
+        }
 
-      ListenerRecord*
-      operator*() const
-      {
-          return mCur->ref();
-      }
+        ListenerRecord *
+        operator*() const
+        {
+            return mCur->ref();
+        }
 
-      EventMapList::iterator&
-      operator++()
-      {
-          EventMapRecord* aPrev = mCur;
-          do {
-              mCur = mCur->mNext;
-          } while (mCur && !mCur->mAlive);
+        EventMapList::iterator &
+        operator++()
+        {
+            EventMapRecord *pPrev = mCur;
+            do {
+                mCur = mCur->mNext;
+            } while (mCur && !mCur->mAlive);
 
-          // now we can safely release previous element
-          aPrev->release();
+            // now we can safely release previous element
+            pPrev->release();
 
-          // And grab the new current
-          if (mCur)
-              mCur->addRef();
+            // And grab the new current
+            if (mCur)
+                mCur->addRef();
 
-          return *this;
-      }
+            return *this;
+        }
 
-      bool
-      operator==(const EventMapList::iterator& aOther) const
-      {
-          return mCur == aOther.mCur;
-      }
+        bool
+        operator==(const EventMapList::iterator &aOther) const
+        {
+            return mCur == aOther.mCur;
+        }
 
-      bool
-      operator!=(const EventMapList::iterator& aOther) const
-      {
-          return mCur != aOther.mCur;
-      }
+        bool
+        operator!=(const EventMapList::iterator &aOther) const
+        {
+            return mCur != aOther.mCur;
+        }
     };
 
     iterator begin()
@@ -563,7 +567,7 @@ public:
 };
 
 typedef EventMapList EventMap[NumEvents];
-typedef std::map<IEvent*, int32_t> PendingEventsMap;
+typedef std::map<IEvent *, int32_t> PendingEventsMap;
 typedef std::deque<ComPtr<IEvent> > PassiveQueue;
 
 class ListenerRecord
@@ -571,33 +575,39 @@ class ListenerRecord
 private:
     ComPtr<IEventListener>        mListener;
     BOOL                          mActive;
-    EventSource*                  mOwner;
+    EventSource                  *mOwner;
 
     RTSEMEVENT                    mQEvent;
+    int32_t volatile              mWaitCnt;
     RTCRITSECT                    mcsQLock;
     PassiveQueue                  mQueue;
     int32_t volatile              mRefCnt;
     uint64_t                      mLastRead;
 
 public:
-    ListenerRecord(IEventListener*                    aListener,
-                   com::SafeArray<VBoxEventType_T>&   aInterested,
-                   BOOL                               aActive,
-                   EventSource*                       aOwner);
+    ListenerRecord(IEventListener *aListener,
+                   com::SafeArray<VBoxEventType_T> &aInterested,
+                   BOOL aActive,
+                   EventSource *aOwner);
     ~ListenerRecord();
 
-    HRESULT process(IEvent* aEvent, BOOL aWaitable, PendingEventsMap::iterator& pit, AutoLockBase& alock);
-    HRESULT enqueue(IEvent* aEvent);
-    HRESULT dequeue(IEvent* *aEvent, LONG aTimeout, AutoLockBase& aAlock);
-    HRESULT eventProcessed(IEvent * aEvent, PendingEventsMap::iterator& pit);
+    HRESULT process(IEvent *aEvent, BOOL aWaitable, PendingEventsMap::iterator &pit, AutoLockBase &alock);
+    HRESULT enqueue(IEvent *aEvent);
+    HRESULT dequeue(IEvent **aEvent, LONG aTimeout, AutoLockBase &aAlock);
+    HRESULT eventProcessed(IEvent *aEvent, PendingEventsMap::iterator &pit);
+    void shutdown();
+
     void addRef()
     {
         ASMAtomicIncS32(&mRefCnt);
     }
+
     void release()
     {
-        if (ASMAtomicDecS32(&mRefCnt) <= 0) delete this;
+        if (ASMAtomicDecS32(&mRefCnt) <= 0)
+            delete this;
     }
+
     BOOL isActive()
     {
         return mActive;
@@ -611,15 +621,13 @@ template<typename Held>
 class RecordHolder
 {
 public:
-    RecordHolder(Held* lr)
-    :
-    held(lr)
+    RecordHolder(Held *lr) :
+        held(lr)
     {
         addref();
     }
-    RecordHolder(const RecordHolder& that)
-    :
-    held(that.held)
+    RecordHolder(const RecordHolder &that) :
+        held(that.held)
     {
         addref();
     }
@@ -633,7 +641,7 @@ public:
         release();
     }
 
-    Held* obj()
+    Held *obj()
     {
         return held;
     }
@@ -644,7 +652,7 @@ public:
         return *this;
     }
 private:
-    Held* held;
+    Held *held;
 
     void addref()
     {
@@ -656,7 +664,7 @@ private:
         if (held)
             held->release();
     }
-    void safe_assign (Held *that_p)
+    void safe_assign(Held *that_p)
     {
         if (that_p)
             that_p->addRef();
@@ -665,14 +673,17 @@ private:
     }
 };
 
-typedef std::map<IEventListener*, RecordHolder<ListenerRecord> >  Listeners;
+typedef std::map<IEventListener *, RecordHolder<ListenerRecord> > Listeners;
 
 struct EventSource::Data
 {
-    Data() {}
+    Data() : fShutdown(false)
+    {}
+
     Listeners                     mListeners;
     EventMap                      mEvMap;
     PendingEventsMap              mPendingMap;
+    bool                          fShutdown;
 };
 
 /**
@@ -685,42 +696,39 @@ static BOOL implies(VBoxEventType_T who, VBoxEventType_T what)
         case VBoxEventType_Any:
             return TRUE;
         case VBoxEventType_Vetoable:
-            return     (what == VBoxEventType_OnExtraDataCanChange)
-                    || (what == VBoxEventType_OnCanShowWindow);
+            return    (what == VBoxEventType_OnExtraDataCanChange)
+                   || (what == VBoxEventType_OnCanShowWindow);
         case VBoxEventType_MachineEvent:
-            return     (what == VBoxEventType_OnMachineStateChanged)
-                    || (what == VBoxEventType_OnMachineDataChanged)
-                    || (what == VBoxEventType_OnMachineRegistered)
-                    || (what == VBoxEventType_OnSessionStateChanged)
-                    || (what == VBoxEventType_OnGuestPropertyChanged);
+            return    (what == VBoxEventType_OnMachineStateChanged)
+                   || (what == VBoxEventType_OnMachineDataChanged)
+                   || (what == VBoxEventType_OnMachineRegistered)
+                   || (what == VBoxEventType_OnSessionStateChanged)
+                   || (what == VBoxEventType_OnGuestPropertyChanged);
         case VBoxEventType_SnapshotEvent:
-            return     (what == VBoxEventType_OnSnapshotTaken)
-                    || (what == VBoxEventType_OnSnapshotDeleted)
-                    || (what == VBoxEventType_OnSnapshotChanged)
-                    ;
+            return    (what == VBoxEventType_OnSnapshotTaken)
+                   || (what == VBoxEventType_OnSnapshotDeleted)
+                   || (what == VBoxEventType_OnSnapshotChanged) ;
         case VBoxEventType_InputEvent:
-            return     (what == VBoxEventType_OnKeyboardLedsChanged)
-                    || (what == VBoxEventType_OnMousePointerShapeChanged)
-                    || (what == VBoxEventType_OnMouseCapabilityChanged)
-                    ;
+            return    (what == VBoxEventType_OnKeyboardLedsChanged)
+                   || (what == VBoxEventType_OnMousePointerShapeChanged)
+                   || (what == VBoxEventType_OnMouseCapabilityChanged);
         case VBoxEventType_Invalid:
             return FALSE;
         default:
-            return who == what;
+            break;
     }
+
+    return who == what;
 }
 
-ListenerRecord::ListenerRecord(IEventListener*                  aListener,
-                               com::SafeArray<VBoxEventType_T>& aInterested,
-                               BOOL                             aActive,
-                               EventSource*                     aOwner)
-    :
-    mActive(aActive),
-    mOwner(aOwner),
-    mRefCnt(0)
+ListenerRecord::ListenerRecord(IEventListener *aListener,
+                               com::SafeArray<VBoxEventType_T> &aInterested,
+                               BOOL aActive,
+                               EventSource *aOwner) :
+    mActive(aActive), mOwner(aOwner), mWaitCnt(0), mRefCnt(0)
 {
     mListener = aListener;
-    EventMap* aEvMap = &aOwner->m->mEvMap;
+    EventMap *aEvMap = &aOwner->m->mEvMap;
 
     for (size_t i = 0; i < aInterested.size(); ++i)
     {
@@ -738,12 +746,12 @@ ListenerRecord::ListenerRecord(IEventListener*                  aListener,
     if (!mActive)
     {
         ::RTCritSectInit(&mcsQLock);
-        ::RTSemEventCreate (&mQEvent);
+        ::RTSemEventCreate(&mQEvent);
         mLastRead = RTTimeMilliTS();
     }
     else
     {
-        mQEvent =NIL_RTSEMEVENT;
+        mQEvent = NIL_RTSEMEVENT;
         RT_ZERO(mcsQLock);
         mLastRead = 0;
     }
@@ -752,7 +760,7 @@ ListenerRecord::ListenerRecord(IEventListener*                  aListener,
 ListenerRecord::~ListenerRecord()
 {
     /* Remove references to us from the event map */
-    EventMap* aEvMap = &mOwner->m->mEvMap;
+    EventMap *aEvMap = &mOwner->m->mEvMap;
     for (int j = FirstEvent; j < LastEvent; j++)
     {
         (*aEvMap)[j - FirstEvent].remove(this);
@@ -762,7 +770,7 @@ ListenerRecord::~ListenerRecord()
     {
         // at this moment nobody could add elements to our queue, so we can safely
         // clean it up, otherwise there will be pending events map elements
-        PendingEventsMap* aPem = &mOwner->m->mPendingMap;
+        PendingEventsMap *aPem = &mOwner->m->mPendingMap;
         while (true)
         {
             ComPtr<IEvent> aEvent;
@@ -784,25 +792,25 @@ ListenerRecord::~ListenerRecord()
         }
 
         ::RTCritSectDelete(&mcsQLock);
-        ::RTSemEventDestroy(mQEvent);
     }
+    shutdown();
 }
 
-HRESULT ListenerRecord::process(IEvent*                     aEvent,
-                                BOOL                        aWaitable,
-                                PendingEventsMap::iterator& pit,
-                                AutoLockBase&               aAlock)
+HRESULT ListenerRecord::process(IEvent *aEvent,
+                                BOOL aWaitable,
+                                PendingEventsMap::iterator &pit,
+                                AutoLockBase &aAlock)
 {
     if (mActive)
     {
         /*
          * We release lock here to allow modifying ops on EventSource inside callback.
          */
-        HRESULT rc =  S_OK;
+        HRESULT rc = S_OK;
         if (mListener)
         {
             aAlock.release();
-            rc =  mListener->HandleEvent(aEvent);
+            rc = mListener->HandleEvent(aEvent);
 #ifdef RT_OS_WINDOWS
             Assert(rc != RPC_E_WRONG_THREAD);
 #endif
@@ -812,12 +820,11 @@ HRESULT ListenerRecord::process(IEvent*                     aEvent,
             eventProcessed(aEvent, pit);
         return rc;
     }
-    else
-        return enqueue(aEvent);
+    return enqueue(aEvent);
 }
 
 
-HRESULT ListenerRecord::enqueue (IEvent* aEvent)
+HRESULT ListenerRecord::enqueue(IEvent *aEvent)
 {
     AssertMsg(!mActive, ("must be passive\n"));
 
@@ -828,7 +835,7 @@ HRESULT ListenerRecord::enqueue (IEvent* aEvent)
     // and events keep coming, or queue is oversized we shall unregister this listener.
     uint64_t sinceRead = RTTimeMilliTS() - mLastRead;
     size_t queueSize = mQueue.size();
-    if ( (queueSize > 1000) || ((queueSize > 500) && (sinceRead > 60 * 1000)))
+    if ((queueSize > 1000) || ((queueSize > 500) && (sinceRead > 60 * 1000)))
     {
         ::RTCritSectLeave(&mcsQLock);
         return E_ABORT;
@@ -844,15 +851,15 @@ HRESULT ListenerRecord::enqueue (IEvent* aEvent)
 
     ::RTCritSectLeave(&mcsQLock);
 
-     // notify waiters
+    // notify waiters
     ::RTSemEventSignal(mQEvent);
 
     return S_OK;
 }
 
-HRESULT ListenerRecord::dequeue (IEvent*       *aEvent,
-                                 LONG          aTimeout,
-                                 AutoLockBase& aAlock)
+HRESULT ListenerRecord::dequeue(IEvent **aEvent,
+                                LONG aTimeout,
+                                AutoLockBase &aAlock)
 {
     if (mActive)
         return VBOX_E_INVALID_OBJECT_STATE;
@@ -864,7 +871,8 @@ HRESULT ListenerRecord::dequeue (IEvent*       *aEvent,
 
     mLastRead = RTTimeMilliTS();
 
-    if (mQueue.empty())    {
+    if (mQueue.empty())
+    {
         ::RTCritSectLeave(&mcsQLock);
         // Speed up common case
         if (aTimeout == 0)
@@ -874,7 +882,12 @@ HRESULT ListenerRecord::dequeue (IEvent*       *aEvent,
         }
         // release lock while waiting, listener will not go away due to above holder
         aAlock.release();
+
+        // In order to safely shutdown, count all waiting threads here.
+        ASMAtomicIncS32(&mWaitCnt);
         ::RTSemEventWait(mQEvent, aTimeout);
+        ASMAtomicDecS32(&mWaitCnt);
+
         // reacquire lock
         aAlock.acquire();
         ::RTCritSectEnter(&mcsQLock);
@@ -892,7 +905,7 @@ HRESULT ListenerRecord::dequeue (IEvent*       *aEvent,
     return S_OK;
 }
 
-HRESULT ListenerRecord::eventProcessed (IEvent* aEvent, PendingEventsMap::iterator& pit)
+HRESULT ListenerRecord::eventProcessed(IEvent *aEvent, PendingEventsMap::iterator &pit)
 {
     if (--pit->second == 0)
     {
@@ -902,6 +915,33 @@ HRESULT ListenerRecord::eventProcessed (IEvent* aEvent, PendingEventsMap::iterat
     }
 
     return S_OK;
+}
+
+void ListenerRecord::shutdown()
+{
+    if (mQEvent != NIL_RTSEMEVENT)
+    {
+        RTSEMEVENT tmp = mQEvent;
+        mQEvent = NIL_RTSEMEVENT;
+
+        /* On Darwin it is known that RTSemEventDestroy() returns 0 while
+         * corresponding thread remains to be blocked after that. In order to prevent
+         * undesireble freeze on shutdown, this workaround is used. */
+        Log(("Wait for %d waiters to release.\n", ASMAtomicReadS32(&mWaitCnt)));
+        while (ASMAtomicReadS32(&mWaitCnt) > 0)
+        {
+            ::RTSemEventSignal(tmp);
+
+            /* Are we already done? */
+            if (ASMAtomicReadS32(&mWaitCnt) == 0)
+                break;
+
+            RTThreadSleep(10);
+        }
+        Log(("All waiters just released the lock.\n"));
+
+        ::RTSemEventDestroy(tmp);
+    }
 }
 
 EventSource::EventSource()
@@ -923,7 +963,7 @@ void EventSource::FinalRelease()
     BaseFinalRelease();
 }
 
-HRESULT EventSource::init(IUnknown *)
+HRESULT EventSource::init()
 {
     HRESULT rc = S_OK;
 
@@ -937,32 +977,58 @@ HRESULT EventSource::init(IUnknown *)
 
 void EventSource::uninit()
 {
+    {
+        // First of all (before even thinking about entering the uninit span):
+        // make sure that all listeners are are shut down (no pending events or
+        // wait calls), because they cannot be alive without the associated
+        // event source. Otherwise API clients which use long-term (or
+        // indefinite) waits will block VBoxSVC termination (just one example)
+        // for a long time or even infinitely long.
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (!m->fShutdown)
+        {
+            m->fShutdown = true;
+            for (Listeners::iterator it = m->mListeners.begin();
+                 it != m->mListeners.end();
+                 ++it)
+            {
+                it->second.obj()->shutdown();
+            }
+        }
+    }
+
     AutoUninitSpan autoUninitSpan(this);
     if (autoUninitSpan.uninitDone())
         return;
+
     m->mListeners.clear();
     // m->mEvMap shall be cleared at this point too by destructors, assert?
 }
 
-STDMETHODIMP EventSource::RegisterListener(IEventListener * aListener,
+STDMETHODIMP EventSource::RegisterListener(IEventListener *aListener,
                                            ComSafeArrayIn(VBoxEventType_T, aInterested),
-                                           BOOL             aActive)
+                                           BOOL aActive)
 {
     CheckComArgNotNull(aListener);
     CheckComArgSafeArrayNotNull(aInterested);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+        if (m->fShutdown)
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("This event source is already shut down"));
 
         Listeners::const_iterator it = m->mListeners.find(aListener);
         if (it != m->mListeners.end())
             return setError(E_INVALIDARG,
                             tr("This listener already registered"));
 
-        com::SafeArray<VBoxEventType_T> interested(ComSafeArrayInArg (aInterested));
+        com::SafeArray<VBoxEventType_T> interested(ComSafeArrayInArg(aInterested));
         RecordHolder<ListenerRecord> lrh(new ListenerRecord(aListener, interested, aActive, this));
         m->mListeners.insert(Listeners::value_type(aListener, lrh));
     }
@@ -974,12 +1040,13 @@ STDMETHODIMP EventSource::RegisterListener(IEventListener * aListener,
     return S_OK;
 }
 
-STDMETHODIMP EventSource::UnregisterListener(IEventListener * aListener)
+STDMETHODIMP EventSource::UnregisterListener(IEventListener *aListener)
 {
     CheckComArgNotNull(aListener);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     HRESULT rc;
     {
@@ -989,6 +1056,7 @@ STDMETHODIMP EventSource::UnregisterListener(IEventListener * aListener)
 
         if (it != m->mListeners.end())
         {
+            it->second.obj()->shutdown();
             m->mListeners.erase(it);
             // destructor removes refs from the event map
             rc = S_OK;
@@ -1010,15 +1078,16 @@ STDMETHODIMP EventSource::UnregisterListener(IEventListener * aListener)
     return rc;
 }
 
-STDMETHODIMP EventSource::FireEvent(IEvent * aEvent,
-                                    LONG     aTimeout,
-                                    BOOL     *aProcessed)
+STDMETHODIMP EventSource::FireEvent(IEvent *aEvent,
+                                    LONG aTimeout,
+                                    BOOL *aProcessed)
 {
     CheckComArgNotNull(aEvent);
     CheckComArgOutPointerValid(aProcessed);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     HRESULT hrc;
     BOOL aWaitable = FALSE;
@@ -1027,11 +1096,15 @@ STDMETHODIMP EventSource::FireEvent(IEvent * aEvent,
     do {
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+        if (m->fShutdown)
+            return setError(VBOX_E_INVALID_OBJECT_STATE,
+                            tr("This event source is already shut down"));
+
         VBoxEventType_T evType;
         hrc = aEvent->COMGETTER(Type)(&evType);
         AssertComRCReturn(hrc, hrc);
 
-        EventMapList& listeners = m->mEvMap[(int)evType-FirstEvent];
+        EventMapList &listeners = m->mEvMap[(int)evType - FirstEvent];
 
         /* Anyone interested in this event? */
         uint32_t cListeners = listeners.size();
@@ -1050,14 +1123,15 @@ STDMETHODIMP EventSource::FireEvent(IEvent * aEvent,
             // pending events lookup
             pit = m->mPendingMap.find(aEvent);
         }
-        for(EventMapList::iterator it = listeners.begin();
-            it != listeners.end(); ++it)
+        for (EventMapList::iterator it = listeners.begin();
+             it != listeners.end();
+             ++it)
         {
             HRESULT cbRc;
             // keep listener record reference, in case someone will remove it while in callback
             RecordHolder<ListenerRecord> record(*it);
 
-            /**
+            /*
              * We pass lock here to allow modifying ops on EventSource inside callback
              * in active mode. Note that we expect list iterator stability as 'alock'
              * could be temporary released when calling event handler.
@@ -1068,11 +1142,14 @@ STDMETHODIMP EventSource::FireEvent(IEvent * aEvent,
              * listener was unregistered due to not picking up its event.
              * This overlaps with XPCOM specific use of E_ABORT to signal
              * death of an active listener, but that's irrelevant here. */
-            if (FAILED_DEAD_INTERFACE(cbRc) || (cbRc == E_ABORT))
+            if (FAILED_DEAD_INTERFACE(cbRc) || cbRc == E_ABORT)
             {
                 Listeners::iterator lit = m->mListeners.find(record.obj()->mListener);
                 if (lit != m->mListeners.end())
+                {
+                    lit->second.obj()->shutdown();
                     m->mListeners.erase(lit);
+                }
             }
             // anything else to do with cbRc?
         }
@@ -1088,17 +1165,22 @@ STDMETHODIMP EventSource::FireEvent(IEvent * aEvent,
 }
 
 
-STDMETHODIMP EventSource::GetEvent(IEventListener * aListener,
-                                   LONG             aTimeout,
-                                   IEvent  **       aEvent)
+STDMETHODIMP EventSource::GetEvent(IEventListener *aListener,
+                                   LONG aTimeout,
+                                   IEvent **aEvent)
 {
 
     CheckComArgNotNull(aListener);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->fShutdown)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("This event source is already shut down"));
 
     Listeners::iterator it = m->mListeners.find(aListener);
     HRESULT rc;
@@ -1115,16 +1197,21 @@ STDMETHODIMP EventSource::GetEvent(IEventListener * aListener,
     return rc;
 }
 
-STDMETHODIMP EventSource::EventProcessed(IEventListener * aListener,
-                                         IEvent *         aEvent)
+STDMETHODIMP EventSource::EventProcessed(IEventListener *aListener,
+                                         IEvent *aEvent)
 {
     CheckComArgNotNull(aListener);
     CheckComArgNotNull(aEvent);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->fShutdown)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("This event source is already shut down"));
 
     Listeners::iterator it = m->mListeners.find(aListener);
     HRESULT rc;
@@ -1134,11 +1221,11 @@ STDMETHODIMP EventSource::EventProcessed(IEventListener * aListener,
 
     if (it != m->mListeners.end())
     {
-        ListenerRecord* aRecord = it->second.obj();
+        ListenerRecord *aRecord = it->second.obj();
 
         if (aRecord->isActive())
             return setError(E_INVALIDARG,
-                        tr("Only applicable to passive listeners"));
+                            tr("Only applicable to passive listeners"));
 
         if (aWaitable)
         {
@@ -1244,14 +1331,14 @@ public:
         BaseFinalRelease();
     }
 
-    HRESULT init(IEventSource* aSource)
+    HRESULT init(IEventSource *aSource)
     {
         mSource = aSource;
         return S_OK;
     }
 
     // IEventListener methods
-    STDMETHOD(HandleEvent)(IEvent * aEvent)
+    STDMETHOD(HandleEvent)(IEvent *aEvent)
     {
         BOOL fProcessed = FALSE;
         if (mSource)
@@ -1267,7 +1354,7 @@ class ATL_NO_VTABLE EventSourceAggregator :
 {
     typedef std::list <ComPtr<IEventSource> > EventSourceList;
     /* key is weak reference */
-    typedef std::map<IEventListener*, ComPtr<IEventListener> > ProxyListenerMap;
+    typedef std::map<IEventListener *, ComPtr<IEventListener> > ProxyListenerMap;
 
     EventSourceList           mEventSources;
     ProxyListenerMap          mListenerProxies;
@@ -1306,28 +1393,28 @@ public:
     HRESULT init(ComSafeArrayIn(IEventSource *, aSources));
 
     // IEventSource methods
-    STDMETHOD(CreateListener)(IEventListener ** aListener);
-    STDMETHOD(CreateAggregator)(ComSafeArrayIn(IEventSource*, aSubordinates),
-                                IEventSource **               aAggregator);
-    STDMETHOD(RegisterListener)(IEventListener * aListener,
+    STDMETHOD(CreateListener)(IEventListener **aListener);
+    STDMETHOD(CreateAggregator)(ComSafeArrayIn(IEventSource *, aSubordinates),
+                                IEventSource **aAggregator);
+    STDMETHOD(RegisterListener)(IEventListener *aListener,
                                 ComSafeArrayIn(VBoxEventType_T, aInterested),
-                                BOOL             aActive);
-    STDMETHOD(UnregisterListener)(IEventListener * aListener);
-    STDMETHOD(FireEvent)(IEvent * aEvent,
-                         LONG     aTimeout,
-                         BOOL     *aProcessed);
-    STDMETHOD(GetEvent)(IEventListener * aListener,
-                        LONG      aTimeout,
-                        IEvent  * *aEvent);
-    STDMETHOD(EventProcessed)(IEventListener * aListener,
-                              IEvent *         aEvent);
+                                BOOL aActive);
+    STDMETHOD(UnregisterListener)(IEventListener *aListener);
+    STDMETHOD(FireEvent)(IEvent *aEvent,
+                         LONG aTimeout,
+                         BOOL *aProcessed);
+    STDMETHOD(GetEvent)(IEventListener *aListener,
+                        LONG aTimeout,
+                        IEvent **aEvent);
+    STDMETHOD(EventProcessed)(IEventListener *aListener,
+                              IEvent *aEvent);
 
   protected:
-    HRESULT createProxyListener(IEventListener * aListener,
-                                IEventListener * *aProxy);
-    HRESULT getProxyListener   (IEventListener * aListener,
-                                IEventListener * *aProxy);
-    HRESULT removeProxyListener(IEventListener * aListener);
+    HRESULT createProxyListener(IEventListener *aListener,
+                                IEventListener **aProxy);
+    HRESULT getProxyListener(IEventListener *aListener,
+                             IEventListener **aProxy);
+    HRESULT removeProxyListener(IEventListener *aListener);
 };
 
 #ifdef VBOX_WITH_XPCOM
@@ -1346,47 +1433,48 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(EventSourceAggregator, IEventSource)
 #endif
 
 
-STDMETHODIMP EventSource::CreateListener(IEventListener ** aListener)
+STDMETHODIMP EventSource::CreateListener(IEventListener **aListener)
 {
     CheckComArgOutPointerValid(aListener);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     ComObjPtr<PassiveEventListener> listener;
 
     HRESULT rc = listener.createObject();
-    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create wrapper object (%Rrc)", rc),
+    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create wrapper object (%Rhrc)", rc),
                     E_FAIL);
     listener.queryInterfaceTo(aListener);
     return S_OK;
 }
 
 
-STDMETHODIMP EventSource::CreateAggregator(ComSafeArrayIn(IEventSource*, aSubordinates),
-                                           IEventSource **               aResult)
+STDMETHODIMP EventSource::CreateAggregator(ComSafeArrayIn(IEventSource *, aSubordinates),
+                                           IEventSource **aResult)
 {
     CheckComArgOutPointerValid(aResult);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     ComObjPtr<EventSourceAggregator> agg;
 
     HRESULT rc = agg.createObject();
-    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create aggregator (%Rrc)", rc),
+    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create aggregator (%Rhrc)", rc),
                     E_FAIL);
 
     rc = agg->init(ComSafeArrayInArg(aSubordinates));
     if (FAILED(rc))
         return rc;
 
-
     agg.queryInterfaceTo(aResult);
     return S_OK;
 }
 
-HRESULT  EventSourceAggregator::init(ComSafeArrayIn(IEventSource*, aSourcesIn))
+HRESULT EventSourceAggregator::init(ComSafeArrayIn(IEventSource *, aSourcesIn))
 {
     HRESULT rc;
 
@@ -1394,10 +1482,10 @@ HRESULT  EventSourceAggregator::init(ComSafeArrayIn(IEventSource*, aSourcesIn))
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     rc = mSource.createObject();
-    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create source (%Rrc)", rc),
+    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create source (%Rhrc)", rc),
                     E_FAIL);
-    rc = mSource->init((IEventSource*)this);
-    ComAssertMsgRet(SUCCEEDED(rc), ("Could not init source (%Rrc)", rc),
+    rc = mSource->init();
+    ComAssertMsgRet(SUCCEEDED(rc), ("Could not init source (%Rhrc)", rc),
                     E_FAIL);
 
     com::SafeIfaceArray<IEventSource> aSources(ComSafeArrayInArg (aSourcesIn));
@@ -1416,26 +1504,27 @@ HRESULT  EventSourceAggregator::init(ComSafeArrayIn(IEventSource*, aSourcesIn))
     return rc;
 }
 
-STDMETHODIMP EventSourceAggregator::CreateListener(IEventListener ** aListener)
+STDMETHODIMP EventSourceAggregator::CreateListener(IEventListener **aListener)
 {
     return mSource->CreateListener(aListener);
 }
 
-STDMETHODIMP EventSourceAggregator::CreateAggregator(ComSafeArrayIn(IEventSource*, aSubordinates),
-                                                     IEventSource **               aResult)
+STDMETHODIMP EventSourceAggregator::CreateAggregator(ComSafeArrayIn(IEventSource *, aSubordinates),
+                                                     IEventSource **aResult)
 {
     return mSource->CreateAggregator(ComSafeArrayInArg(aSubordinates), aResult);
 }
 
-STDMETHODIMP EventSourceAggregator::RegisterListener(IEventListener * aListener,
+STDMETHODIMP EventSourceAggregator::RegisterListener(IEventListener *aListener,
                                                      ComSafeArrayIn(VBoxEventType_T, aInterested),
-                                                     BOOL             aActive)
+                                                     BOOL aActive)
 {
     CheckComArgNotNull(aListener);
     CheckComArgSafeArrayNotNull(aInterested);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     HRESULT rc;
 
@@ -1460,12 +1549,13 @@ STDMETHODIMP EventSourceAggregator::RegisterListener(IEventListener * aListener,
     return rc;
 }
 
-STDMETHODIMP EventSourceAggregator::UnregisterListener(IEventListener * aListener)
+STDMETHODIMP EventSourceAggregator::UnregisterListener(IEventListener *aListener)
 {
     CheckComArgNotNull(aListener);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     HRESULT rc = S_OK;
 
@@ -1488,19 +1578,20 @@ STDMETHODIMP EventSourceAggregator::UnregisterListener(IEventListener * aListene
 
 }
 
-STDMETHODIMP EventSourceAggregator::FireEvent(IEvent * aEvent,
-                                              LONG     aTimeout,
-                                              BOOL     *aProcessed)
+STDMETHODIMP EventSourceAggregator::FireEvent(IEvent *aEvent,
+                                              LONG aTimeout,
+                                              BOOL *aProcessed)
 {
     CheckComArgNotNull(aEvent);
     CheckComArgOutPointerValid(aProcessed);
 
     AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+    if (FAILED(autoCaller.rc()))
+        return autoCaller.rc();
 
     HRESULT rc = S_OK;
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-    /* Aggresgator event source shalln't have direct event firing, but we may
+    /* Aggregator event source shall not have direct event firing, but we may
        wish to support aggregation chains */
     for (EventSourceList::const_iterator it = mEventSources.begin(); it != mEventSources.end();
          ++it)
@@ -1515,26 +1606,26 @@ STDMETHODIMP EventSourceAggregator::FireEvent(IEvent * aEvent,
     return S_OK;
 }
 
-STDMETHODIMP EventSourceAggregator::GetEvent(IEventListener * aListener,
-                                             LONG             aTimeout,
-                                             IEvent  **       aEvent)
+STDMETHODIMP EventSourceAggregator::GetEvent(IEventListener *aListener,
+                                             LONG aTimeout,
+                                             IEvent **aEvent)
 {
     return mSource->GetEvent(aListener, aTimeout, aEvent);
 }
 
-STDMETHODIMP EventSourceAggregator::EventProcessed(IEventListener * aListener,
-                                                   IEvent *         aEvent)
+STDMETHODIMP EventSourceAggregator::EventProcessed(IEventListener *aListener,
+                                                   IEvent *aEvent)
 {
     return mSource->EventProcessed(aListener, aEvent);
 }
 
-HRESULT EventSourceAggregator::createProxyListener(IEventListener * aListener,
-                                                   IEventListener * *aProxy)
+HRESULT EventSourceAggregator::createProxyListener(IEventListener *aListener,
+                                                   IEventListener **aProxy)
 {
     ComObjPtr<ProxyEventListener> proxy;
 
     HRESULT rc = proxy.createObject();
-    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create proxy (%Rrc)", rc),
+    ComAssertMsgRet(SUCCEEDED(rc), ("Could not create proxy (%Rhrc)", rc),
                     E_FAIL);
 
     rc = proxy->init(mSource);
@@ -1552,8 +1643,8 @@ HRESULT EventSourceAggregator::createProxyListener(IEventListener * aListener,
     return S_OK;
 }
 
-HRESULT EventSourceAggregator::getProxyListener(IEventListener * aListener,
-                                                IEventListener * *aProxy)
+HRESULT EventSourceAggregator::getProxyListener(IEventListener *aListener,
+                                                IEventListener **aProxy)
 {
     ProxyListenerMap::const_iterator it = mListenerProxies.find(aListener);
     if (it == mListenerProxies.end())
@@ -1564,7 +1655,7 @@ HRESULT EventSourceAggregator::getProxyListener(IEventListener * aListener,
     return S_OK;
 }
 
-HRESULT EventSourceAggregator::removeProxyListener(IEventListener * aListener)
+HRESULT EventSourceAggregator::removeProxyListener(IEventListener *aListener)
 {
     ProxyListenerMap::iterator it = mListenerProxies.find(aListener);
     if (it == mListenerProxies.end())

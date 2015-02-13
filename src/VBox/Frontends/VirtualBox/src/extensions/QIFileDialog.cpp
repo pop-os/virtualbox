@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,8 @@
 
 /* VBox includes */
 #include "VBoxGlobal.h"
+#include "UIModalWindowManager.h"
+#include "UIMessageCenter.h"
 #include "QIFileDialog.h"
 
 #if defined Q_WS_WIN
@@ -264,7 +266,7 @@ QString QIFileDialog::getExistingDirectory (const QString &aDir,
         {
             QString result;
 
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
+            QWidget *topParent = windowManager().realParentWindow(mParent ? mParent : windowManager().mainWindowShown());
             QString title = mCaption.isNull() ? tr ("Select a directory") : mCaption;
 
             TCHAR path [MAX_PATH];
@@ -399,9 +401,20 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
                                        QWidget       *aParent,
                                        const QString &aCaption,
                                        QString       *aSelectedFilter /* = 0 */,
-                                       bool           aResolveSymlinks /* = true */)
+                                       bool           aResolveSymlinks /* = true */,
+                                       bool           fConfirmOverwrite /* = false */)
 {
 #if defined Q_WS_WIN
+
+    /* Further code (WinAPI call to GetSaveFileName() in other thread)
+     * seems not necessary any more since the MS COM issue has been fixed,
+     * we can just call for the default QFileDialog::getSaveFileName(): */
+    Q_UNUSED(aResolveSymlinks);
+    QFileDialog::Options o;
+    if (!fConfirmOverwrite)
+        o |= QFileDialog::DontConfirmOverwrite;
+    return QFileDialog::getSaveFileName(aParent, aCaption, aStartWith,
+                                        aFilters, aSelectedFilter, o);
 
     /**
      *  QEvent class reimplementation to carry Win32 API native dialog's
@@ -426,10 +439,11 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 
         Thread (QWidget *aParent, QObject *aTarget,
                 const QString &aStartWith, const QString &aFilters,
-                const QString &aCaption) :
+                const QString &aCaption, bool fConfirmOverwrite) :
                 mParent (aParent), mTarget (aTarget),
                 mStartWith (aStartWith), mFilters (aFilters),
-                mCaption (aCaption) {}
+                mCaption (aCaption),
+                m_fConfirmOverwrite(fConfirmOverwrite) {}
 
         virtual void run()
         {
@@ -453,7 +467,7 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 
             QString title = mCaption.isNull() ? tr ("Select a file") : mCaption;
 
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
+            QWidget *topParent = windowManager().realParentWindow(mParent ? mParent : windowManager().mainWindowShown());
             QString winFilters = winFilter (mFilters);
             AssertCompile (sizeof (TCHAR) == sizeof (QChar));
             TCHAR buf [1024];
@@ -468,14 +482,14 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 
             ofn.lStructSize = sizeof (OPENFILENAME);
             ofn.hwndOwner = topParent ? topParent->winId() : 0;
-            ofn.lpstrFilter = (TCHAR *) winFilters.isNull() ? 0 : winFilters.utf16();
+            ofn.lpstrFilter = (TCHAR *)(winFilters.isNull() ? 0 : winFilters.utf16());
             ofn.lpstrFile = buf;
             ofn.nMaxFile = sizeof (buf) - 1;
-            ofn.lpstrInitialDir = (TCHAR *) workDir.isNull() ? 0 : workDir.utf16();
-            ofn.lpstrTitle = (TCHAR *) title.isNull() ? 0 : title.utf16();
+            ofn.lpstrInitialDir = (TCHAR *)(workDir.isNull() ? 0 : workDir.utf16());
+            ofn.lpstrTitle = (TCHAR *)(title.isNull() ? 0 : title.utf16());
             ofn.Flags = (OFN_NOCHANGEDIR | OFN_HIDEREADONLY |
                          OFN_EXPLORER | OFN_ENABLEHOOK |
-                         OFN_NOTESTFILECREATE);
+                         OFN_NOTESTFILECREATE | (m_fConfirmOverwrite ? OFN_OVERWRITEPROMPT : 0));
             ofn.lpfnHook = OFNHookProc;
 
             if (GetSaveFileName (&ofn))
@@ -501,6 +515,7 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
         QString mStartWith;
         QString mFilters;
         QString mCaption;
+        bool    m_fConfirmOverwrite;
     };
 
     if (aSelectedFilter)
@@ -516,7 +531,7 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
     if (aParent)
         aParent->setWindowModality (Qt::WindowModal);
 
-    Thread openDirThread (aParent, &loopObject, startWith, aFilters, aCaption);
+    Thread openDirThread (aParent, &loopObject, startWith, aFilters, aCaption, fConfirmOverwrite);
     openDirThread.start();
     loop.exec();
     openDirThread.wait();
@@ -541,7 +556,7 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
     if (aSelectedFilter)
         dlg.selectFilter (*aSelectedFilter);
     dlg.setResolveSymlinks (aResolveSymlinks);
-    dlg.setConfirmOverwrite (false);
+    dlg.setConfirmOverwrite (fConfirmOverwrite);
     QAction *hidden = dlg.findChild <QAction*> ("qt_show_hidden_action");
     if (hidden)
     {
@@ -566,7 +581,7 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
     if (aSelectedFilter)
         dlg.selectFilter (*aSelectedFilter);
     dlg.setResolveSymlinks (aResolveSymlinks);
-    dlg.setConfirmOverwrite (false);
+    dlg.setConfirmOverwrite (fConfirmOverwrite);
 
     QEventLoop eventLoop;
     QObject::connect(&dlg, SIGNAL(finished(int)),
@@ -589,7 +604,8 @@ QString QIFileDialog::getSaveFileName (const QString &aStartWith,
 # endif
     if (!aResolveSymlinks)
         o |= QFileDialog::DontResolveSymlinks;
-    o |= QFileDialog::DontConfirmOverwrite;
+    if (!fConfirmOverwrite)
+        o |= QFileDialog::DontConfirmOverwrite;
     return QFileDialog::getSaveFileName (aParent, aCaption, aStartWith,
                                          aFilters, aSelectedFilter, o);
 #endif
@@ -700,7 +716,7 @@ QStringList QIFileDialog::getOpenFileNames (const QString &aStartWith,
 
             QString title = mCaption.isNull() ? tr ("Select a file") : mCaption;
 
-            QWidget *topParent = mParent ? mParent->window() : vboxGlobal().mainWindow();
+            QWidget *topParent = windowManager().realParentWindow(mParent ? mParent : windowManager().mainWindowShown());
             QString winFilters = winFilter (mFilters);
             AssertCompile (sizeof (TCHAR) == sizeof (QChar));
             TCHAR buf [1024];
@@ -715,11 +731,11 @@ QStringList QIFileDialog::getOpenFileNames (const QString &aStartWith,
 
             ofn.lStructSize = sizeof (OPENFILENAME);
             ofn.hwndOwner = topParent ? topParent->winId() : 0;
-            ofn.lpstrFilter = (TCHAR *) winFilters.isNull() ? 0 : winFilters.utf16();
+            ofn.lpstrFilter = (TCHAR *)(winFilters.isNull() ? 0 : winFilters.utf16());
             ofn.lpstrFile = buf;
             ofn.nMaxFile = sizeof (buf) - 1;
-            ofn.lpstrInitialDir = (TCHAR *) workDir.isNull() ? 0 : workDir.utf16();
-            ofn.lpstrTitle = (TCHAR *) title.isNull() ? 0 : title.utf16();
+            ofn.lpstrInitialDir = (TCHAR *)(workDir.isNull() ? 0 : workDir.utf16());
+            ofn.lpstrTitle = (TCHAR *)(title.isNull() ? 0 : title.utf16());
             ofn.Flags = (OFN_NOCHANGEDIR | OFN_HIDEREADONLY |
                           OFN_EXPLORER | OFN_ENABLEHOOK |
                           OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST);

@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -70,18 +70,21 @@ extern "C" DECLEXPORT(int) Entrypoint(void)
 
 extern "C" DECLEXPORT(uint32_t) SomeExportFunction1(void *pvBuf)
 {
+    NOREF(pvBuf);
     return achBss[0] + achBss[16384];
 }
 
 
 extern "C" DECLEXPORT(char *) SomeExportFunction2(void *pvBuf)
 {
+    NOREF(pvBuf);
     return (char *)memcpy(achBss, szStr1, sizeof(szStr1));
 }
 
 
 extern "C" DECLEXPORT(char *) SomeExportFunction3(void *pvBuf)
 {
+    NOREF(pvBuf);
     return (char *)memcpy(achBss, szStr2, strlen(szStr2));
 }
 
@@ -92,9 +95,8 @@ extern "C" DECLEXPORT(void *) SomeExportFunction4(void)
     DISCPUSTATE Cpu;
 
     memset(&Cpu, 0, sizeof(Cpu));
-    Cpu.mode = CPUMODE_32BIT;
 
-    DISCoreOne(&Cpu, (uintptr_t)SomeExportFunction3, &cb);
+    DISInstr((void *)(uintptr_t)SomeExportFunction3, DISCPUMODE_32BIT, &Cpu, &cb);
     return (void *)(uintptr_t)&SomeExportFunction1;
 }
 

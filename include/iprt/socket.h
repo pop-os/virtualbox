@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,9 @@ RT_C_DECLS_BEGIN
  * @ingroup grp_rt
  * @{
  */
+
+/** Use the system default timeout for the connet attempt. */
+#define RT_SOCKETCONNECT_DEFAULT_WAIT (RT_INDEFINITE_WAIT - 1)
 
 /**
  * Retains a reference to the socket handle.
@@ -117,11 +120,33 @@ RTDECL(int) RTSocketSetInheritance(RTSOCKET hSocket, bool fInheritable);
  * Parse Internet style addresses, getting a generic IPRT network address.
  *
  * @returns IPRT status code
- * @param   pszAddress      Name or IP address.
+ * @param   pszAddress      Name or IP address.  NULL or empty string (no
+ *                          spaces) is taken to mean INADDR_ANY, which is
+ *                          meaningful when binding a server socket for
+ *                          instance.
  * @param   uPort           Port number (host byte order).
  * @param   pAddr           Where to return the generic IPRT network address.
  */
 RTDECL(int) RTSocketParseInetAddress(const char *pszAddress, unsigned uPort, PRTNETADDR pAddr);
+
+/**
+ * Try resolve a host name, returning the first matching address.
+ *
+ * @returns IPRT status code.
+ * @param   pszHost         Name or IP address to look up.
+ * @param   pszAddress      Where to return the stringified address.
+ * @param   pcbAddress      Input: The size of the @a pszResult buffer.
+ *                          Output: size of the returned string.  This is set on
+ *                          VERR_BUFFER_OVERFLOW and most other error statuses.
+ * @param   penmAddrType    Input: Which kind of address to return. Valid values
+ *                          are:
+ *                              - RTNETADDRTYPE_IPV4 -> lookup AF_INET.
+ *                              - RTNETADDRTYPE_IPV6 -> lookup AF_INET6.
+ *                              - RTNETADDRTYPE_INVALID/NULL -> lookup anything.
+ *                          Output: The type of address that is being returned.
+ *                          Not modified on failure.
+ */
+RTDECL(int) RTSocketQueryAddressStr(const char *pszHost, char *pszAddress, size_t *pcbAddress, PRTNETADDRTYPE penmAddrType);
 
 /**
  * Receive data from a socket.

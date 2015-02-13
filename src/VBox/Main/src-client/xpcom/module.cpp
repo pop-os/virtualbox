@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,13 +36,18 @@
 # include "ExtPackManagerImpl.h"
 #endif
 #include "GuestImpl.h"
-#include "GuestDirEntryImpl.h"
+#ifdef VBOX_WITH_GUEST_CONTROL
+# include "GuestDirectoryImpl.h"
+# include "GuestFileImpl.h"
+# include "GuestFsObjInfoImpl.h"
+# include "GuestProcessImpl.h"
+# include "GuestSessionImpl.h"
+#endif
 #include "KeyboardImpl.h"
 #include "MachineDebuggerImpl.h"
 #include "MouseImpl.h"
 #include "NATEngineImpl.h"
 #include "NetworkAdapterImpl.h"
-#include "ProgressCombinedImpl.h"
 #include "ProgressImpl.h"
 #include "RemoteUSBDeviceImpl.h"
 #include "SessionImpl.h"
@@ -54,10 +59,26 @@
 
 // XPCOM glue code unfolding
 
+NS_DECL_CLASSINFO(VirtualBoxClient)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBoxClient, IVirtualBoxClient)
+NS_DECL_CLASSINFO(Session)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(Session, ISession, IInternalSessionControl)
+
+#ifndef VBOX_COM_INPROC_API_CLIENT
 NS_DECL_CLASSINFO(Guest)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Guest, IGuest)
-NS_DECL_CLASSINFO(GuestDirEntry)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestDirEntry, IGuestDirEntry)
+ #ifdef VBOX_WITH_GUEST_CONTROL
+NS_DECL_CLASSINFO(GuestDirectory)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestDirectory, IGuestDirectory, IDirectory)
+NS_DECL_CLASSINFO(GuestFile)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestFile, IGuestFile, IFile)
+NS_DECL_CLASSINFO(GuestFsObjInfo)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestFsObjInfo, IGuestFsObjInfo, IFsObjInfo)
+NS_DECL_CLASSINFO(GuestProcess)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(GuestProcess, IGuestProcess, IProcess)
+NS_DECL_CLASSINFO(GuestSession)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestSession, IGuestSession)
+ #endif
 NS_DECL_CLASSINFO(Keyboard)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Keyboard, IKeyboard)
 NS_DECL_CLASSINFO(Mouse)
@@ -68,34 +89,30 @@ NS_DECL_CLASSINFO(MachineDebugger)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MachineDebugger, IMachineDebugger)
 NS_DECL_CLASSINFO(Progress)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Progress, IProgress)
-NS_DECL_CLASSINFO(CombinedProgress)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(CombinedProgress, IProgress)
 NS_DECL_CLASSINFO(OUSBDevice)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(OUSBDevice, IUSBDevice)
 NS_DECL_CLASSINFO(RemoteUSBDevice)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(RemoteUSBDevice, IHostUSBDevice)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(RemoteUSBDevice, IHostUSBDevice, IUSBDevice)
 NS_DECL_CLASSINFO(SharedFolder)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SharedFolder, ISharedFolder)
 NS_DECL_CLASSINFO(VRDEServerInfo)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VRDEServerInfo, IVRDEServerInfo)
-#ifdef VBOX_WITH_EXTPACK
-NS_DECL_CLASSINFO(ExtPackFile)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPackFile, IExtPackFile)
+ #ifdef VBOX_WITH_EXTPACK
+// deliberately omit ExtPackFile as it's unusable in the client context
+// NS_DECL_CLASSINFO(ExtPackFile)
+// NS_IMPL_THREADSAFE_ISUPPORTS2_CI(ExtPackFile, IExtPackFile, IExtPackBase)
 NS_DECL_CLASSINFO(ExtPack)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPack, IExtPack)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(ExtPack, IExtPack, IExtPackBase)
 NS_DECL_CLASSINFO(ExtPackManager)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPackManager, IExtPackManager)
-#endif
+ #endif
 NS_DECL_CLASSINFO(AdditionsFacility)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(AdditionsFacility, IAdditionsFacility)
 
-NS_DECL_CLASSINFO(Session)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(Session, ISession, IInternalSessionControl)
 NS_DECL_CLASSINFO(Console)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Console, IConsole)
 
-NS_DECL_CLASSINFO(VirtualBoxClient)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBoxClient, IVirtualBoxClient)
+#endif /* VBOX_COM_INPROC_API_CLIENT */
 
 /**
  *  Singleton class factory that holds a reference to the created instance

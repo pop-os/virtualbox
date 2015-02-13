@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,9 @@
 #ifndef __UIVirtualBoxEventHandler_h__
 #define __UIVirtualBoxEventHandler_h__
 
-/* Local includes */
-#include "COMDefs.h"
+/* COM includes: */
+#include "COMEnums.h"
+#include "CEventListener.h"
 
 class UIVirtualBoxEventHandler: public QObject
 {
@@ -36,6 +37,8 @@ signals:
     void sigMachineDataChange(QString strId);
     void sigMachineRegistered(QString strId, bool fRegistered);
     void sigSessionStateChange(QString strId, KSessionState state);
+    void sigSnapshotTake(QString strId, QString strSnapshotId);
+    void sigSnapshotDelete(QString strId, QString strSnapshotId);
     void sigSnapshotChange(QString strId, QString strSnapshotId);
 
 private:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,12 +37,6 @@ extern "C" {
 typedef struct sffs_data {
 	vfs_t		*sf_vfsp;	/* filesystem's vfs struct */
 	vnode_t		*sf_rootnode;	/* of vnode of the root directory */
-	uid_t		sf_uid;		/* owner of all shared folders */
-	gid_t		sf_gid;		/* group of all shared folders */
-	mode_t		sf_dmode;   /* mode of all directories */
-	mode_t		sf_fmode;   /* mode of all files */
-	mode_t		sf_dmask;   /* mask of all directories */
-	mode_t		sf_fmask;   /* mask of all files */
 	int  		sf_stat_ttl;	/* ttl for stat caches (in ms) */
 	int  		sf_fsync;	/* whether to honor fsync or not */
 	char		*sf_share_name;

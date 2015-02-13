@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 #include <QHBoxLayout>
 #include <QAction>
 #include <QContextMenuEvent>
+#include <QMenu>
 
 #include <VBox/dbg.h>
 #include <VBox/vmm/cfgm.h>
@@ -67,21 +68,52 @@ VBoxDbgConsoleOutput::VBoxDbgConsoleOutput(QWidget *pParent/* = NULL*/, const ch
     setTabChangesFocus(true);
     setAcceptRichText(false);
 
-#ifdef Q_WS_MAC
-    QFont Font("Monaco", 10, QFont::Normal, FALSE);
-    Font.setStyleStrategy(QFont::NoAntialias);
-#else
-    QFont Font = font();
-    Font.setStyleHint(QFont::TypeWriter);
-    Font.setFamily("Courier [Monotype]");
-#endif
-    setFont(Font);
+    /*
+     * Font.
+     * Create actions for font menu items.
+     */
+    m_pCourierFontAction = new QAction(tr("Courier"), this);
+    m_pCourierFontAction->setCheckable(true);
+    m_pCourierFontAction->setShortcut(Qt::ControlModifier + Qt::Key_D);
+    connect(m_pCourierFontAction, SIGNAL(triggered()), this, SLOT(setFontCourier()));
 
-    /* green on black */
-    QPalette Pal(palette());
-    Pal.setColor(QPalette::All, QPalette::Base, QColor(Qt::black));
-    setPalette(Pal);
-    setTextColor(QColor(qRgb(0, 0xe0, 0)));
+    m_pMonospaceFontAction = new QAction(tr("Monospace"), this);
+    m_pMonospaceFontAction->setCheckable(true);
+    m_pMonospaceFontAction->setShortcut(Qt::ControlModifier + Qt::Key_M);
+    connect(m_pMonospaceFontAction, SIGNAL(triggered()), this, SLOT(setFontMonospace()));
+
+    /* Create action group for grouping of exclusive font menu items. */
+    QActionGroup *pActionFontGroup = new QActionGroup(this);
+    pActionFontGroup->addAction(m_pCourierFontAction);
+    pActionFontGroup->addAction(m_pMonospaceFontAction);
+    pActionFontGroup->setExclusive(true);
+
+    /*
+     * Color scheme.
+     * Create actions for color-scheme menu items.
+     */
+    m_pGreenOnBlackAction = new QAction(tr("Green On Black"), this);
+    m_pGreenOnBlackAction->setCheckable(true);
+    m_pGreenOnBlackAction->setShortcut(Qt::ControlModifier + Qt::Key_1);
+    connect(m_pGreenOnBlackAction, SIGNAL(triggered()), this, SLOT(setColorGreenOnBlack()));
+
+    m_pBlackOnWhiteAction = new QAction(tr("Black On White"), this);
+    m_pBlackOnWhiteAction->setCheckable(true);
+    m_pBlackOnWhiteAction->setShortcut(Qt::ControlModifier + Qt::Key_2);
+    connect(m_pBlackOnWhiteAction, SIGNAL(triggered()), this, SLOT(setColorBlackOnWhite()));
+
+    /* Create action group for grouping of exclusive color-scheme menu items. */
+    QActionGroup *pActionColorGroup = new QActionGroup(this);
+    pActionColorGroup->addAction(m_pGreenOnBlackAction);
+    pActionColorGroup->addAction(m_pBlackOnWhiteAction);
+    pActionColorGroup->setExclusive(true);
+
+    /*
+     * Set the defaults (which syncs with the menu item checked state).
+     */
+    setFontCourier();
+    setColorGreenOnBlack();
+
     NOREF(pszName);
 }
 
@@ -93,7 +125,83 @@ VBoxDbgConsoleOutput::~VBoxDbgConsoleOutput()
 
 
 void
-VBoxDbgConsoleOutput::appendText(const QString &rStr)
+VBoxDbgConsoleOutput::contextMenuEvent(QContextMenuEvent *pEvent)
+{
+    /*
+     * Create the context menu and add the menu items.
+     */
+    QMenu *pMenu = createStandardContextMenu();
+    QMenu *pColorMenu = pMenu->addMenu(tr("Co&lor Scheme"));
+    pColorMenu->addAction(m_pGreenOnBlackAction);
+    pColorMenu->addAction(m_pBlackOnWhiteAction);
+
+    QMenu *pFontMenu = pMenu->addMenu(tr("&Font Family"));
+    pFontMenu->addAction(m_pCourierFontAction);
+    pFontMenu->addAction(m_pMonospaceFontAction);
+
+    pMenu->exec(pEvent->globalPos());
+    delete pMenu;
+}
+
+
+void
+VBoxDbgConsoleOutput::setColorGreenOnBlack()
+{
+    setStyleSheet("QTextEdit { background-color: black; color: rgb(0, 224, 0) }");
+    m_enmColorScheme = kGreenOnBlack;
+
+    /* This is used both as a trigger as well as called independently from code.
+       When used as a trigger, the checked is done automatically by Qt. */
+    if (!m_pGreenOnBlackAction->isChecked())
+        m_pGreenOnBlackAction->setChecked(true);
+}
+
+
+void
+VBoxDbgConsoleOutput::setColorBlackOnWhite()
+{
+    setStyleSheet("QTextEdit { background-color: white; color: black }");
+    m_enmColorScheme = kBlackOnWhite;
+
+    if (!m_pBlackOnWhiteAction->isChecked())
+        m_pBlackOnWhiteAction->setChecked(true);
+}
+
+
+void
+VBoxDbgConsoleOutput::setFontCourier()
+{
+#ifdef Q_WS_MAC
+    QFont Font("Monaco", 10, QFont::Normal, FALSE);
+    Font.setStyleStrategy(QFont::NoAntialias);
+#else
+    QFont Font = font();
+    Font.setStyleHint(QFont::TypeWriter);
+    Font.setFamily("Courier [Monotype]");
+#endif
+    setFont(Font);
+
+    if (!m_pCourierFontAction->isChecked())
+        m_pCourierFontAction->setChecked(true);
+}
+
+
+void
+VBoxDbgConsoleOutput::setFontMonospace()
+{
+    QFont Font = font();
+    Font.setStyleHint(QFont::TypeWriter);
+    Font.setStyleStrategy(QFont::PreferAntialias);
+    Font.setFamily("Monospace [Monotype]");
+    setFont(Font);
+
+    if (!m_pMonospaceFontAction->isChecked())
+        m_pMonospaceFontAction->setChecked(true);
+}
+
+
+void
+VBoxDbgConsoleOutput::appendText(const QString &rStr, bool fClearSelection)
 {
     Assert(m_hGUIThread == RTThreadNativeSelf());
 
@@ -102,12 +210,33 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr)
 
     /*
      * Insert all in one go and make sure it's visible.
+     *
+     * We need to move the cursor and unselect any selected text before
+     * inserting anything, otherwise, text will disappear.
      */
     QTextCursor Cursor = textCursor();
-    if (!Cursor.atEnd())
-        moveCursor(QTextCursor::End); /* make sure we append the text */
-    Cursor.insertText(rStr);
-    ensureCursorVisible();
+    if (!fClearSelection && Cursor.hasSelection())
+    {
+        QTextCursor SavedCursor = Cursor;
+        Cursor.clearSelection();
+        Cursor.movePosition(QTextCursor::End);
+
+        Cursor.insertText(rStr);
+
+        setTextCursor(SavedCursor);
+    }
+    else
+    {
+        if (Cursor.hasSelection())
+            Cursor.clearSelection();
+        if (!Cursor.atEnd())
+            Cursor.movePosition(QTextCursor::End);
+
+        Cursor.insertText(rStr);
+
+        setTextCursor(Cursor);
+        ensureCursorVisible();
+    }
 }
 
 
@@ -124,9 +253,10 @@ VBoxDbgConsoleOutput::appendText(const QString &rStr)
 
 
 VBoxDbgConsoleInput::VBoxDbgConsoleInput(QWidget *pParent/* = NULL*/, const char *pszName/* = NULL*/)
-    : QComboBox(pParent), m_iBlankItem(0), m_hGUIThread(RTThreadNativeSelf())
+    : QComboBox(pParent), m_hGUIThread(RTThreadNativeSelf())
 {
-    insertItem(m_iBlankItem, "");
+    addItem(""); /* invariant: empty command line is the last item */
+
     setEditable(true);
     setInsertPolicy(NoInsert);
     setAutoCompletion(false);
@@ -159,23 +289,52 @@ void
 VBoxDbgConsoleInput::returnPressed()
 {
     Assert(m_hGUIThread == RTThreadNativeSelf());
-    /* deal with the current command. */
-    QString Str = currentText();
-    emit commandSubmitted(Str);
 
-    /* update the history and clear the entry field */
-    QString PrevStr = m_iBlankItem > 0 ? itemText(m_iBlankItem - 1) : "";
-    if (PrevStr != Str)
+    QString strCommand = currentText();
+    /* TODO: trim whitespace? */
+    if (strCommand.isEmpty())
+        return;
+
+    /* deal with the current command. */
+    emit commandSubmitted(strCommand);
+
+
+    /*
+     * Add current command to history.
+     */
+    bool fNeedsAppending = true;
+
+    /* invariant: empty line at the end */
+    int iLastItem = count() - 1;
+    Assert(itemText(iLastItem).isEmpty());
+
+    /* have previous command? check duplicate. */
+    if (iLastItem > 0)
     {
-        setItemText(m_iBlankItem, Str);
-        if (    m_iBlankItem > 0
-            &&  m_iBlankItem >= maxCount() - 1)
-            removeItem(m_iBlankItem - maxCount() - 1);
-        insertItem(++m_iBlankItem, "");
+        const QString strPrevCommand(itemText(iLastItem - 1));
+        if (strCommand == strPrevCommand)
+            fNeedsAppending = false;
     }
 
-    clearEditText();
-    setCurrentIndex(m_iBlankItem);
+    if (fNeedsAppending)
+    {
+        /* history full? drop the oldest command. */
+        if (count() == maxCount())
+        {
+            removeItem(0);
+            --iLastItem;
+        }
+
+        /* insert before the empty line. */
+        insertItem(iLastItem, strCommand);
+    }
+
+    /* invariant: empty line at the end */
+    int iNewLastItem = count() - 1;
+    Assert(itemText(iNewLastItem).isEmpty());
+
+    /* select empty line to present "new" command line to the user */
+    setCurrentIndex(iNewLastItem);
 }
 
 
@@ -259,6 +418,7 @@ VBoxDbgConsole::VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent/* = NUL
      * The tab order is from input to output, not the other way around as it is by default.
      */
     setTabOrder(m_pInput, m_pOutput);
+    m_fInputRestoreFocus = true; /* hack */
 
     /*
      * Setup the timer.
@@ -301,6 +461,11 @@ VBoxDbgConsole::VBoxDbgConsole(VBoxDbgGui *a_pDbgGui, QWidget *a_pParent/* = NUL
     m_pFocusToOutput->setShortcut(QKeySequence("Ctrl+O"));
     addAction(m_pFocusToOutput);
     connect(m_pFocusToOutput, SIGNAL(triggered(bool)), this, SLOT(actFocusToOutput()));
+
+    addAction(m_pOutput->m_pBlackOnWhiteAction);
+    addAction(m_pOutput->m_pGreenOnBlackAction);
+    addAction(m_pOutput->m_pCourierFontAction);
+    addAction(m_pOutput->m_pMonospaceFontAction);
 }
 
 
@@ -380,7 +545,7 @@ VBoxDbgConsole::commandSubmitted(const QString &rCommand)
     m_cbInputBuf += cb;
     m_pszInputBuf[m_cbInputBuf++] = '\n';
 
-    m_pOutput->appendText(rCommand + "\n");
+    m_pOutput->appendText(rCommand + "\n", true /*fClearSelection*/);
     m_pOutput->ensureCursorVisible();
 
     m_fInputRestoreFocus = m_pInput->hasFocus();    /* dirty focus hack */
@@ -400,7 +565,7 @@ VBoxDbgConsole::updateOutput()
     m_fUpdatePending = false;
     if (m_cbOutputBuf)
     {
-        m_pOutput->appendText(QString::fromUtf8((const char *)m_pszOutputBuf, (int)m_cbOutputBuf));
+        m_pOutput->appendText(QString::fromUtf8((const char *)m_pszOutputBuf, (int)m_cbOutputBuf), false /*fClearSelection*/);
         m_cbOutputBuf = 0;
     }
     unlock();

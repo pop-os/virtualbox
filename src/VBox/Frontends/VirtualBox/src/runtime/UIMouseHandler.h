@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,20 +19,19 @@
 #ifndef ___UIMouseHandler_h___
 #define ___UIMouseHandler_h___
 
-/* Global includes */
+/* Qt includes: */
 #include <QObject>
 #include <QPoint>
 #include <QMap>
 #include <QRect>
+#include <QPointer>
 
-/* Local includes */
-#include "UIMachineDefs.h"
+/* GUI includes: */
+#include "UIDefs.h"
 
-/* Global forwards */
+/* Forward declarations: */
 class QWidget;
-
-/* Local forwards */
-class CSession;
+class QTouchEvent;
 class UISession;
 class UIMachineLogic;
 class UIMachineWindow;
@@ -40,6 +39,7 @@ class UIMachineView;
 #ifdef Q_WS_X11
 typedef union  _XEvent XEvent;
 #endif /* Q_WS_X11 */
+class CSession;
 
 /* Delegate to control VM mouse functionality: */
 class UIMouseHandler : public QObject
@@ -86,6 +86,9 @@ protected slots:
     /* Mouse pointer-shape-change handler: */
     virtual void sltMousePointerShapeChanged();
 
+    /** Activate hovered window if any. */
+    void sltMaybeActivateHoveredWindow();
+
 protected:
 
     /* Mouse-handler constructor/destructor: */
@@ -106,6 +109,9 @@ protected:
                     Qt::MouseButtons mouseButtons,
                     int wheelDelta, Qt::Orientation wheelDirection);
 
+    /* Separate function to handle incoming multi-touch events: */
+    bool multiTouchEvent(QTouchEvent *pTouchEvent, ulong uScreenId);
+
 #ifdef Q_WS_WIN
     /* This method is actually required only because under win-host
      * we do not really grab the mouse in case of capturing it: */
@@ -122,6 +128,9 @@ protected:
     QMap<ulong, UIMachineView*> m_views;
     /* Registered machine-view-viewport(s): */
     QMap<ulong, QWidget*> m_viewports;
+
+    /** Hovered window to be activated. */
+    QPointer<QWidget> m_pHoveredWindow;
 
     /* Other mouse variables: */
     QPoint m_lastMousePos;

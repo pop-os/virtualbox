@@ -72,7 +72,11 @@ static struct {
  *
  */
 static void
-InitConnection(CRConnection *conn, const char *protocol, unsigned int mtu)
+InitConnection(CRConnection *conn, const char *protocol, unsigned int mtu
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+        )
 {
     if (!crStrcmp(protocol, "devnull"))
     {
@@ -110,7 +114,11 @@ InitConnection(CRConnection *conn, const char *protocol, unsigned int mtu)
     {
         cr_net.use_hgcm++;
         crVBoxHGCMInit(cr_net.recv_list, cr_net.close_list, mtu);
-        crVBoxHGCMConnection(conn);
+        crVBoxHGCMConnection(conn
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                    , pHgsmi
+#endif
+                );
     }
 #endif
 #ifdef GM_SUPPORT
@@ -183,9 +191,11 @@ InitConnection(CRConnection *conn, const char *protocol, unsigned int mtu)
  * \param broker  either 1 or 0 to indicate if connection is brokered through
  *                the mothership
  */
-CRConnection *
-crNetConnectToServer( const char *server, unsigned short default_port,
-                      int mtu, int broker )
+CRConnection * crNetConnectToServer( const char *server, unsigned short default_port, int mtu, int broker
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+)
 {
     char hostname[4096], protocol[4096];
     unsigned short port;
@@ -269,7 +279,11 @@ crNetConnectToServer( const char *server, unsigned short default_port,
     crInitMessageList(&conn->messageList);
 
     /* now, just dispatch to the appropriate protocol's initialization functions. */
-    InitConnection(conn, protocol, mtu);
+    InitConnection(conn, protocol, mtu
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+            );
 
     if (!crNetConnect( conn ))
     {
@@ -286,12 +300,15 @@ crNetConnectToServer( const char *server, unsigned short default_port,
     return conn;
 }
 
-
 /**
  * Send a message to the receiver that another connection is needed.
  * We send a CR_MESSAGE_NEWCLIENT packet, then call crNetServerConnect.
  */
-void crNetNewClient( CRConnection *conn, CRNetServer *ns )
+void crNetNewClient( CRNetServer *ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+)
 {
     /*
     unsigned int len = sizeof(CRMessageNewClient);
@@ -307,7 +324,11 @@ void crNetNewClient( CRConnection *conn, CRNetServer *ns )
     crNetSend( conn, NULL, &msg, len );
     */
 
-    crNetServerConnect( ns );
+    crNetServerConnect( ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+);
 }
 
 
@@ -367,11 +388,19 @@ crNetAcceptClient( const char *protocol, const char *hostname,
         conn->hostname = crStrdup( filename );
 
     /* call the protocol-specific init routines */  // ktd (add)
-    InitConnection(conn, protocol_only, mtu);       // ktd (add)
+    InitConnection(conn, protocol_only, mtu
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+            );       // ktd (add)
     }
     else {
     /* call the protocol-specific init routines */
-      InitConnection(conn, protocol, mtu);
+      InitConnection(conn, protocol, mtu
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+              );
     }
 
     crNetAccept( conn, hostname, port );
@@ -394,7 +423,6 @@ crNetFreeConnection(CRConnection *conn)
 }
 
 
-extern void __getHostInfo();
 /**
  * Start the ball rolling.  give functions to handle incoming traffic
  * (usually placing blocks on a queue), and a handler for dropped
@@ -420,8 +448,6 @@ void crNetInit( CRNetReceiveFunc recvFunc, CRNetCloseFunc closeFunc )
         err = WSAStartup(wVersionRequested, &wsaData);
         if (err != 0)
             crError("Couldn't initialize sockets on WINDOWS");
-        //reinit hostname for debug messages as it's incorrect before WSAStartup gets called    
-        __getHostInfo();
 #endif
 
         cr_net.use_gm      = 0;
@@ -833,12 +859,19 @@ void crNetSendExact( CRConnection *conn, const void *buf, unsigned int len )
  * of the CRNetServer parameter.
  * When done, the CrNetServer's conn field will be initialized.
  */
-void crNetServerConnect( CRNetServer *ns )
+void crNetServerConnect( CRNetServer *ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+)
 {
     ns->conn = crNetConnectToServer( ns->name, DEFAULT_SERVER_PORT,
-                                     ns->buffer_size, 0 );
+                                     ns->buffer_size, 0
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+            );
 }
-
 
 /**
  * Actually set up the specified connection.
@@ -957,7 +990,7 @@ crNetRecvFlowControl( CRConnection *conn,   CRMessageFlowControl *msg,
     conn->InstantReclaim( conn, (CRMessage *) msg );
 }
 
-
+#ifdef IN_GUEST
 /**
  * Called by the main receive function when we get a CR_MESSAGE_WRITEBACK
  * message.  Writeback is used to implement glGet*() functions.
@@ -990,7 +1023,7 @@ crNetRecvReadback( CRMessageReadback *rb, unsigned int len )
     (*writeback)--;
     crMemcpy( dest_ptr, ((char *)rb) + sizeof(*rb), payload_len );
 }
-
+#endif
 
 /**
  * This is used by the SPUs that do packing (such as Pack, Tilesort and
@@ -1068,13 +1101,21 @@ crNetDefaultRecv( CRConnection *conn, CRMessage *msg, unsigned int len )
             }
             break;
         case CR_MESSAGE_READ_PIXELS:
-            crError( "Can't handle read pixels" );
+            WARN(( "Can't handle read pixels" ));
             return;
         case CR_MESSAGE_WRITEBACK:
+#ifdef IN_GUEST
             crNetRecvWriteback( &(pRealMsg->writeback) );
+#else
+            WARN(("CR_MESSAGE_WRITEBACK not expected\n"));
+#endif
             return;
         case CR_MESSAGE_READBACK:
+#ifdef IN_GUEST
             crNetRecvReadback( &(pRealMsg->readback), len );
+#else
+            WARN(("CR_MESSAGE_READBACK not expected\n"));
+#endif
             return;
         case CR_MESSAGE_CRUT:
             /* nothing */
@@ -1092,10 +1133,10 @@ crNetDefaultRecv( CRConnection *conn, CRMessage *msg, unsigned int len )
             {
                 char string[128];
                 crBytesToString( string, sizeof(string), msg, len );
-                crError("crNetDefaultRecv: received a bad message: type=%d buf=[%s]\n"
+                WARN(("crNetDefaultRecv: received a bad message: type=%d buf=[%s]\n"
                                 "Did you add a new message type and forget to tell "
                                 "crNetDefaultRecv() about it?\n",
-                                msg->header.type, string );
+                                msg->header.type, string ));
             }
     }
 
@@ -1185,7 +1226,11 @@ crNetGetMessage( CRConnection *conn, CRMessage **message )
         int len = crNetPeekMessage( conn, message );
         if (len)
             return len;
-        crNetRecv();
+        crNetRecv(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                conn
+#endif
+                );
     }
 
 #if !defined(WINDOWS) && !defined(IRIX) && !defined(IRIX64)
@@ -1227,13 +1272,29 @@ void crNetReadline( CRConnection *conn, void *buf )
     }
 }
 
+#ifdef IN_GUEST
+uint32_t crNetHostCapsGet()
+{
+#ifdef VBOX_WITH_HGCM
+    if ( cr_net.use_hgcm )
+        return crVBoxHGCMHostCapsGet();
+#endif
+    WARN(("HostCaps supportted for HGCM only!"));
+    return 0;
+}
+#endif
+
 /**
  * The big boy -- call this function to see (non-blocking) if there is
  * any pending work.  If there is, the networking layer's "work received"
  * handler will be called, so this function only returns a flag.  Work
  * is assumed to be placed on queues for processing by the handler.
  */
-int crNetRecv( void )
+int crNetRecv(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        CRConnection *conn
+#endif
+        )
 {
     int found_work = 0;
 
@@ -1241,7 +1302,11 @@ int crNetRecv( void )
         found_work += crTCPIPRecv();
 #ifdef VBOX_WITH_HGCM
     if ( cr_net.use_hgcm )
-        found_work += crVBoxHGCMRecv();
+        found_work += crVBoxHGCMRecv(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                    conn
+#endif
+                );
 #endif
 #ifdef SDP_SUPPORT
     if ( cr_net.use_sdp )

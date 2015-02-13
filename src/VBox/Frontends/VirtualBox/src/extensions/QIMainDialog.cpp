@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,35 +47,37 @@ QIMainDialog::QIMainDialog (QWidget *aParent /* = 0 */,
 
 QDialog::DialogCode QIMainDialog::exec()
 {
-    AssertMsg (!mEventLoop, ("exec is called recursively!\n"));
+    /* Check for the recursive run: */
+    AssertMsg(!mEventLoop, ("QIMainDialog::exec() is called recursively!\n"));
 
-    /* Reset the result code */
-    setResult (QDialog::Rejected);
-    bool deleteOnClose = testAttribute (Qt::WA_DeleteOnClose);
-    setAttribute (Qt::WA_DeleteOnClose, false);
-    bool wasShowModal = testAttribute (Qt::WA_ShowModal);
-    setAttribute (Qt::WA_ShowModal, true);
+    /* Reset the result code: */
+    setResult(QDialog::Rejected);
 
-    /* Create a local event loop */
-    mEventLoop = new QEventLoop();
-    /* Show the window */
+    /* Tune some attributes: */
+    bool fDeleteOnClose = testAttribute(Qt::WA_DeleteOnClose); NOREF(fDeleteOnClose);
+    AssertMsg(!fDeleteOnClose, ("QIMainDialog is NOT supposed to be run in 'delete-on-close' mode!"));
+    setAttribute(Qt::WA_DeleteOnClose, false);
+    bool fWasShowModal = testAttribute(Qt::WA_ShowModal);
+    setAttribute(Qt::WA_ShowModal, true);
+
+    /* Create a local event-loop: */
+    QEventLoop eventLoop;
+    mEventLoop = &eventLoop;
+    /* Show the window: */
     show();
-    /* A guard to ourself for the case we destroy ourself. */
+    /* A guard to ourself for the case we destroy ourself: */
     QPointer<QIMainDialog> guard = this;
-    /* Start the event loop. This blocks. */
-    mEventLoop->exec();
-    /* Delete the event loop */
-    delete mEventLoop;
-    /* Are we valid anymore? */
+    /* Start the event-loop: */
+    eventLoop.exec();
+    /* Check if dialog is still valid: */
     if (guard.isNull())
         return QDialog::Rejected;
+    mEventLoop = 0;
+    /* Prepare result: */
     QDialog::DialogCode res = result();
-    /* Set the old show modal attribute */
-    setAttribute (Qt::WA_ShowModal, wasShowModal);
-    /* Delete us in the case we should do so on close */
-    if (deleteOnClose)
-        delete this;
-    /* Return the final result */
+    /* Restore old show-modal attribute: */
+    setAttribute(Qt::WA_ShowModal, fWasShowModal);
+    /* Return the final result: */
     return res;
 }
 
@@ -165,11 +167,7 @@ bool QIMainDialog::event (QEvent *aEvent)
                       return true;
                   }
               }
-#if QT_VERSION < 0x040400
-              else if (currentModifiers == Qt::ShiftModifier)
-#else
               else if (currentModifiers == Qt::ControlModifier)
-#endif
               {
                   if (!mFileForProxyIcon.isEmpty())
                   {
@@ -244,6 +242,64 @@ void QIMainDialog::resizeEvent (QResizeEvent *aEvent)
     }
 }
 
+void QIMainDialog::keyPressEvent(QKeyEvent *pEvent)
+{
+    /* Make sure that we only proceed if no
+     * popup or other modal widgets are open. */
+    if (qApp->activePopupWidget() ||
+        (qApp->activeModalWidget() && qApp->activeModalWidget() != this))
+    {
+        /* Call to base-class: */
+        return QMainWindow::keyPressEvent(pEvent);
+    }
+
+    /* Special handling for some keys: */
+    switch (pEvent->key())
+    {
+        /* Special handling for Escape key: */
+        case Qt::Key_Escape:
+        {
+            if (pEvent->modifiers() == Qt::NoModifier)
+            {
+                reject();
+                return;
+            }
+            break;
+        }
+#ifdef Q_WS_MAC
+        /* Special handling for Period key: */
+        case Qt::Key_Period:
+        {
+            if (pEvent->modifiers() == Qt::ControlModifier)
+            {
+                reject();
+                return;
+            }
+            break;
+        }
+#endif /* Q_WS_MAC */
+        /* Special handling for Return/Enter key: */
+        case Qt::Key_Return:
+        case Qt::Key_Enter:
+        {
+            if (((pEvent->modifiers() == Qt::NoModifier) && (pEvent->key() == Qt::Key_Return)) ||
+                ((pEvent->modifiers() & Qt::KeypadModifier) && (pEvent->key() == Qt::Key_Enter)))
+            {
+                if (QPushButton *pCurrentDefault = searchDefaultButton())
+                {
+                    pCurrentDefault->animateClick();
+                    return;
+                }
+            }
+            break;
+        }
+        /* Default handling for others: */
+        default: break;
+    }
+    /* Call to base-class: */
+    return QMainWindow::keyPressEvent(pEvent);
+}
+
 bool QIMainDialog::eventFilter (QObject *aObject, QEvent *aEvent)
 {
     if (!isActiveWindow())
@@ -282,56 +338,6 @@ bool QIMainDialog::eventFilter (QObject *aObject, QEvent *aEvent)
                 qobject_cast<QPushButton*> (aObject)->setDefault (aObject == mDefaultButton);
             }
             break;
-        }
-        case QEvent::KeyPress:
-        {
-#if defined (Q_WS_MAC) && (QT_VERSION < 0x040402)
-            /* Bug in Qt below 4.4.2. The key events are send to the current
-             * window even if a menu is shown & has the focus. See
-             * http://trolltech.com/developer/task-tracker/index_html?method=entry&id=214681. */
-            if (::darwinIsMenuOpen())
-                return true;
-#endif /* defined (Q_WS_MAC) && (QT_VERSION < 0x040402) */
-            /* Make sure that we only proceed if no
-             * popup or other modal widgets are open. */
-            if (qApp->activePopupWidget() ||
-                (qApp->activeModalWidget() && qApp->activeModalWidget() != this))
-                break;
-
-            QKeyEvent *event = static_cast<QKeyEvent*> (aEvent);
-#ifdef Q_WS_MAC
-            if (event->modifiers() == Qt::ControlModifier &&
-                event->key() == Qt::Key_Period)
-                reject();
-            else
-#endif
-                if (event->modifiers() == Qt::NoModifier ||
-                    (event->modifiers() & Qt::KeypadModifier && event->key() == Qt::Key_Enter))
-                {
-                    switch (event->key())
-                    {
-                        case Qt::Key_Enter:
-                        case Qt::Key_Return:
-                        {
-                            QPushButton *currentDefault = searchDefaultButton();
-                            if (currentDefault)
-                            {
-                                /* We handle this, so return true after
-                                 * that. */
-                                currentDefault->animateClick();
-                                return true;
-                            }
-                            break;
-                        }
-                        case Qt::Key_Escape:
-                        {
-                            reject();
-                            return true;
-                        }
-                        default:
-                            break;
-                    }
-                }
         }
         default:
             break;

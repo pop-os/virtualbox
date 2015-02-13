@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -175,6 +175,7 @@ static DECLCALLBACK(int) rtldrFileUnmap(PRTLDRREADER pReader, const void *pvBits
         pFileReader->pvMapping = NULL;
     }
 
+    NOREF(pvBits);
     return VINF_SUCCESS;
 }
 
@@ -216,6 +217,7 @@ static int rtldrFileCreate(PRTLDRREADER *ppReader, const char *pszFilename)
             rc = RTFileGetSize(pFileReader->hFile, (uint64_t *)&pFileReader->cbFile);
             if (RT_SUCCESS(rc))
             {
+                pFileReader->Core.uMagic     = RTLDRREADER_MAGIC;
                 pFileReader->Core.pfnRead    = rtldrFileRead;
                 pFileReader->Core.pfnTell    = rtldrFileTell;
                 pFileReader->Core.pfnSize    = rtldrFileSize;
@@ -252,20 +254,8 @@ RTDECL(int) RTLdrOpen(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArc
 {
     LogFlow(("RTLdrOpen: pszFilename=%p:{%s} fFlags=%#x enmArch=%d phLdrMod=%p\n",
              pszFilename, pszFilename, fFlags, enmArch, phLdrMod));
-    AssertMsgReturn(!fFlags, ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
+    AssertMsgReturn(!(fFlags & ~RTLDR_O_VALID_MASK), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
     AssertMsgReturn(enmArch > RTLDRARCH_INVALID && enmArch < RTLDRARCH_END, ("%d\n", enmArch), VERR_INVALID_PARAMETER);
-
-    /*
-     * Resolve RTLDRARCH_HOST.
-     */
-    if (enmArch == RTLDRARCH_HOST)
-#if   defined(RT_ARCH_AMD64)
-        enmArch = RTLDRARCH_AMD64;
-#elif defined(RT_ARCH_X86)
-        enmArch = RTLDRARCH_X86_32;
-#else
-        enmArch = RTLDRARCH_WHATEVER;
-#endif
 
     /*
      * Create file reader & invoke worker which identifies and calls the image interpreter.
@@ -274,7 +264,7 @@ RTDECL(int) RTLdrOpen(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArc
     int rc = rtldrFileCreate(&pReader, pszFilename);
     if (RT_SUCCESS(rc))
     {
-        rc = rtldrOpenWithReader(pReader, fFlags, enmArch, phLdrMod);
+        rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, NULL);
         if (RT_SUCCESS(rc))
         {
             LogFlow(("RTLdrOpen: return %Rrc *phLdrMod\n", rc, *phLdrMod));
@@ -304,18 +294,7 @@ RTDECL(int) RTLdrOpenkLdr(const char *pszFilename, uint32_t fFlags, RTLDRARCH en
 #ifdef LDR_WITH_KLDR
     LogFlow(("RTLdrOpenkLdr: pszFilename=%p:{%s} fFlags=%#x enmArch=%d phLdrMod=%p\n",
              pszFilename, pszFilename, fFlags, enmArch, phLdrMod));
-
-    /*
-     * Resolve RTLDRARCH_HOST.
-     */
-    if (enmArch == RTLDRARCH_HOST)
-# if   defined(RT_ARCH_AMD64)
-        enmArch = RTLDRARCH_AMD64;
-# elif defined(RT_ARCH_X86)
-        enmArch = RTLDRARCH_X86_32;
-# else
-        enmArch = RTLDRARCH_WHATEVER;
-# endif
+    AssertMsgReturn(!(fFlags & ~RTLDR_O_VALID_MASK), ("%#x\n", fFlags), VERR_INVALID_PARAMETER);
 
     /*
      * Create file reader & invoke worker which identifies and calls the image interpreter.
@@ -324,7 +303,7 @@ RTDECL(int) RTLdrOpenkLdr(const char *pszFilename, uint32_t fFlags, RTLDRARCH en
     int rc = rtldrFileCreate(&pReader, pszFilename);
     if (RT_SUCCESS(rc))
     {
-        rc = rtldrkLdrOpen(pReader, fFlags, enmArch, phLdrMod);
+        rc = rtldrkLdrOpen(pReader, fFlags, enmArch, phLdrMod, NULL);
         if (RT_SUCCESS(rc))
         {
             LogFlow(("RTLdrOpenkLdr: return %Rrc *phLdrMod\n", rc, *phLdrMod));

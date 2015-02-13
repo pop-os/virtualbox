@@ -31,7 +31,6 @@
 #include <d3d9types.h>
 #include <D3dumddi.h>
 #include "../../WINNT/Graphics/Video/common/wddm/VBoxMPIf.h"
-#include "../../WINNT/Graphics/Video/disp/wddm/VBoxDispMp.h"
 #endif
 
 /**
@@ -47,11 +46,7 @@
 #define PYTHON_EXE "python"
 #endif
 
-#ifdef WINDOWS
-static char* gsViewportHackApps[] = {"googleearth.exe", NULL};
-#endif
-
-static int stub_initialized = 0;
+static bool stub_initialized = 0;
 #ifdef WINDOWS
 static CRmutex stub_init_mutex;
 #define STUB_INIT_LOCK() do { crLockMutex(&stub_init_mutex); } while (0)
@@ -189,9 +184,9 @@ static void stubCheckWindowsCB(unsigned long key, void *data1, void *data2)
     if (!stubSystemWindowExist(pWindow))
     {
 #ifdef WINDOWS
-        crWindowDestroy((GLint)pWindow->hWnd);
+        stubDestroyWindow(CR_CTX_CON(pCtx), (GLint)pWindow->hWnd);
 #else
-        crWindowDestroy((GLint)pWindow->drawable);
+        stubDestroyWindow(CR_CTX_CON(pCtx), (GLint)pWindow->drawable);
 #endif
         return;
     }
@@ -213,16 +208,19 @@ static void stubCheckWindowsState(void)
         return;
 #endif
 
+    /* Try to keep a consistent locking order. */
+    crHashtableLock(stub.windowTable);
 #if defined(CR_NEWWINTRACK) && !defined(WINDOWS)
     crLockMutex(&stub.mutex);
 #endif
 
     stubCheckWindowState(context->currentDrawable, GL_TRUE);
-    crHashtableWalk(stub.windowTable, stubCheckWindowsCB, context);
+    crHashtableWalkUnlocked(stub.windowTable, stubCheckWindowsCB, context);
 
 #if defined(CR_NEWWINTRACK) && !defined(WINDOWS)
     crUnlockMutex(&stub.mutex);
 #endif
+    crHashtableUnlock(stub.windowTable);
 }
 
 
@@ -246,20 +244,7 @@ static void SPU_APIENTRY trapViewport(GLint x, GLint y, GLsizei w, GLsizei h)
 {
     stubCheckWindowsState();
     /* call the original SPU glViewport function */
-    if (!stub.viewportHack)
-    {
-        origViewport(x, y, w, h);
-    }
-    else
-    {
-        ContextInfo *context = stubGetCurrentContext();
-        int winX, winY;
-        unsigned int winW, winH;
-        WindowInfo *pWindow;
-        pWindow = context->currentDrawable;
-        stubGetWindowGeometry(pWindow, &winX, &winY, &winW, &winH);
-        origViewport(0, 0, winW, winH);
-    }
+    origViewport(x, y, w, h);
 }
 
 static void SPU_APIENTRY trapSwapBuffers(GLint window, GLint flags)
@@ -304,8 +289,6 @@ static void stubInitSPUDispatch(SPU *spu)
         stub.spuDispatch.Clear = trapClear;
         stub.spuDispatch.Viewport = trapViewport;
 
-        if (stub.viewportHack)
-            stub.spuDispatch.Scissor = trapScissor;
         /*stub.spuDispatch.SwapBuffers = trapSwapBuffers;
         stub.spuDispatch.DrawBuffer = trapDrawBuffer;*/
     }
@@ -415,7 +398,7 @@ static void stubSPUSafeTearDown(void)
 #if defined(CR_NEWWINTRACK)
     crUnlockMutex(mutex);
 # if defined(WINDOWS)
-    if (RTThreadGetState(stub.hSyncThread)!=RTTHREADSTATE_TERMINATED)
+    if (stub.hSyncThread && RTThreadGetState(stub.hSyncThread)!=RTTHREADSTATE_TERMINATED)
     {
         HANDLE hNative;
         DWORD ec=0;
@@ -475,11 +458,10 @@ static void stubSPUSafeTearDown(void)
     {
         ASMAtomicWriteBool(&stub.bShutdownSyncThread, true);
         {
-            /*RTThreadWait might return too early, which cause our code being unloaded while RT thread wrapper is still running*/
-            int rc = pthread_join(RTThreadGetNative(stub.hSyncThread), NULL);
-            if (!rc)
+            int rc = RTThreadWait(stub.hSyncThread, RT_INDEFINITE_WAIT, NULL);
+            if (RT_FAILURE(rc))
             {
-                crDebug("pthread_join failed %i", rc);
+                WARN(("RTThreadWait_join failed %i", rc));
             }
         }
     }
@@ -502,6 +484,8 @@ static void stubSPUSafeTearDown(void)
 static void stubExitHandler(void)
 {
     stubSPUSafeTearDown();
+    signal(SIGTERM, SIG_DFL);
+    signal(SIGINT, SIG_DFL);
 }
 
 /**
@@ -752,30 +736,11 @@ void stubSetDefaultConfigurationOptions(void)
     crNetSetNodeRange("iam0", "iamvis20");
     crNetSetKey(key,sizeof(key));
     stub.force_pbuffers = 0;
-    stub.viewportHack = 0;
 
 #ifdef WINDOWS
-    {
-        char name[1000];
-        int i;
-
 # ifdef VBOX_WITH_WDDM
-        stub.bRunningUnderWDDM = false;
+    stub.bRunningUnderWDDM = false;
 # endif
-        /* Apply viewport hack only if we're running under wine */
-        if (NULL!=GetModuleHandle("wined3d.dll") || NULL != GetModuleHandle("wined3dwddm.dll"))
-        {
-            crGetProcName(name, 1000);
-            for (i=0; gsViewportHackApps[i]; ++i)
-            {
-                if (!stricmp(name, gsViewportHackApps[i]))
-                {
-                    stub.viewportHack = 1;
-                    break;
-                }
-            }
-        }
-    }
 #endif
 }
 
@@ -819,156 +784,7 @@ static HRGN stubMakeRegionFromRects(PVBOXVIDEOCM_CMD_RECTS pRegions, uint32_t st
     return hRgn;
 }
 
-typedef struct VBOXCR_UPDATEWNDCB
-{
-    VBOXDISPMP_REGIONS Regions;
-    bool fSendUpdateMsg;
-} VBOXCR_UPDATEWNDCB, *PVBOXCR_UPDATEWNDCB;
-
-static void stubSyncTrUpdateWindowCB(unsigned long key, void *data1, void *data2)
-{
-    WindowInfo *pWindow = (WindowInfo *) data1;
-    PVBOXCR_UPDATEWNDCB pCbData = (PVBOXCR_UPDATEWNDCB) data2;
-    VBOXDISPMP_REGIONS *pRegions = &pCbData->Regions;
-    bool bChanged = false;
-    HRGN hNewRgn = INVALID_HANDLE_VALUE;
-
-    if (pRegions->hWnd != pWindow->hWnd)
-    {
-        return;
-    }
-
-    stub.spu->dispatch_table.VBoxPackSetInjectID(pWindow->u32ClientID);
-
-    if (!stubSystemWindowExist(pWindow))
-    {
-        crWindowDestroy((GLint)pWindow->hWnd);
-        return;
-    }
-
-    if (!pWindow->mapped)
-    {
-        pWindow->mapped = GL_TRUE;
-        bChanged = true;
-        crDebug("Dispatched: WindowShow(%i, %i)", pWindow->spuWindow, pWindow->mapped);
-        stub.spu->dispatch_table.WindowShow(pWindow->spuWindow, pWindow->mapped);
-    }
-
-    if (pRegions->pRegions->fFlags.bAddVisibleRects || pRegions->pRegions->fFlags.bSetViewRect)
-    {
-        /* ensure data integrity */
-        Assert(!pRegions->pRegions->fFlags.bAddHiddenRects);
-
-        if (pRegions->pRegions->fFlags.bSetViewRect)
-        {
-            int winX, winY;
-            unsigned int winW, winH;
-            BOOL bRc;
-
-            winX = pRegions->pRegions->RectsInfo.aRects[0].left;
-            winY = pRegions->pRegions->RectsInfo.aRects[0].top;
-            winW = pRegions->pRegions->RectsInfo.aRects[0].right - winX;
-            winH = pRegions->pRegions->RectsInfo.aRects[0].bottom - winY;
-
-            if (stub.trackWindowPos && (winX!=pWindow->x || winY!=pWindow->y))
-            {
-                crDebug("Dispatched WindowPosition (%i)", pWindow->spuWindow);
-                stub.spuDispatch.WindowPosition(pWindow->spuWindow, winX, winY);
-                pWindow->x = winX;
-                pWindow->y = winY;
-                bChanged = true;
-            }
-
-            if (stub.trackWindowSize && (winW!=pWindow->width || winH!=pWindow->height))
-            {
-                crDebug("Dispatched WindowSize (%i)", pWindow->spuWindow);
-                stub.spuDispatch.WindowSize(pWindow->spuWindow, winW, winH);
-                pWindow->width = winW;
-                pWindow->height = winH;
-                bChanged = true;
-            }
-
-            bRc = MoveWindow(pRegions->hWnd, winX, winY, winW, winH, FALSE /*BOOL bRepaint*/);
-            if (!bRc)
-            {
-                DWORD winEr = GetLastError();
-                crWarning("stubSyncTrUpdateWindowCB: MoveWindow failed winEr(%d)", winEr);
-            }
-        }
-
-        if (pRegions->pRegions->fFlags.bAddVisibleRects)
-        {
-            hNewRgn = stubMakeRegionFromRects(pRegions->pRegions, pRegions->pRegions->fFlags.bSetViewRect ? 1 : 0);
-        }
-    }
-    else if (!pRegions->pRegions->fFlags.bHide)
-    {
-        Assert(pRegions->pRegions->fFlags.bAddHiddenRects);
-        hNewRgn = stubMakeRegionFromRects(pRegions->pRegions, 0);
-    }
-    else
-    {
-        Assert(pRegions->pRegions->fFlags.bAddHiddenRects);
-        hNewRgn = CreateRectRgn(pWindow->x, pWindow->y, pWindow->x + pWindow->width, pWindow->y + pWindow->height);
-    }
-
-    if (hNewRgn!=INVALID_HANDLE_VALUE)
-    {
-        if (pRegions->pRegions->fFlags.bAddVisibleRects)
-        {
-            HRGN hEmptyRgn = CreateRectRgn(0, 0, 0, 0);
-
-            if (hEmptyRgn!=INVALID_HANDLE_VALUE)
-            {
-                if (pWindow->hVisibleRegion==INVALID_HANDLE_VALUE || EqualRgn(pWindow->hVisibleRegion, hEmptyRgn))
-                {
-                    pCbData->fSendUpdateMsg = true;
-                }
-
-                DeleteObject(hEmptyRgn);
-            }
-            else
-            {
-                crWarning("Failed to created empty region!");
-            }
-        }
-
-        OffsetRgn(hNewRgn, -pWindow->x, -pWindow->y);
-
-        if (pWindow->hVisibleRegion!=INVALID_HANDLE_VALUE)
-        {
-            CombineRgn(hNewRgn, pWindow->hVisibleRegion, hNewRgn,
-                       pRegions->pRegions->fFlags.bAddHiddenRects ? RGN_DIFF:RGN_OR);
-
-            if (!EqualRgn(pWindow->hVisibleRegion, hNewRgn))
-            {
-                DeleteObject(pWindow->hVisibleRegion);
-                pWindow->hVisibleRegion = hNewRgn;
-                stubDispatchVisibleRegions(pWindow);
-                bChanged = true;
-            }
-            else
-            {
-                DeleteObject(hNewRgn);
-            }
-        }
-        else
-        {
-            if (pRegions->pRegions->fFlags.bAddVisibleRects)
-            {
-                pWindow->hVisibleRegion = hNewRgn;
-                stubDispatchVisibleRegions(pWindow);
-                bChanged = true;
-            }
-        }
-    }
-
-    if (bChanged)
-    {
-        stub.spu->dispatch_table.Flush();
-    }
-}
-# endif
+# endif /* VBOX_WITH_WDDM */
 
 static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2)
 {
@@ -985,9 +801,9 @@ static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2
     if (!stubSystemWindowExist(pWindow))
     {
 #ifdef WINDOWS
-        crWindowDestroy((GLint)pWindow->hWnd);
+        stubDestroyWindow(0, (GLint)pWindow->hWnd);
 #else
-        crWindowDestroy((GLint)pWindow->drawable);
+        stubDestroyWindow(0, (GLint)pWindow->drawable);
 #endif
         /*No need to flush here as crWindowDestroy does it*/
         return;
@@ -1005,10 +821,8 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
 #ifdef WINDOWS
     MSG msg;
 # ifdef VBOX_WITH_WDDM
-    static VBOXDISPMP_CALLBACKS VBoxDispMpTstCallbacks = {NULL, NULL, NULL};
     HMODULE hVBoxD3D = NULL;
-    VBOXCR_UPDATEWNDCB RegionsData;
-    HRESULT hr;
+    GLint spuConnection = 0;
 # endif
 #endif
 
@@ -1018,48 +832,33 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
 #ifdef WINDOWS
     PeekMessage(&msg, NULL, WM_USER, WM_USER, PM_NOREMOVE);
 # ifdef VBOX_WITH_WDDM
-    hVBoxD3D = GetModuleHandle("VBoxDispD3D");
-    if (hVBoxD3D)
+    hVBoxD3D = NULL;
+    if (!GetModuleHandleEx(0, VBOX_MODNAME_DISPD3D, &hVBoxD3D))
     {
-        hVBoxD3D = LoadLibrary("VBoxDispD3D");
+        crDebug("GetModuleHandleEx failed err %d", GetLastError());
+        hVBoxD3D = NULL;
     }
 
     if (hVBoxD3D)
     {
-        PFNVBOXDISPMP_GETCALLBACKS pfnVBoxDispMpGetCallbacks;
-        pfnVBoxDispMpGetCallbacks = (PFNVBOXDISPMP_GETCALLBACKS)GetProcAddress(hVBoxD3D, TEXT("VBoxDispMpGetCallbacks"));
-        if (pfnVBoxDispMpGetCallbacks)
-        {
-            hr = pfnVBoxDispMpGetCallbacks(VBOXDISPMP_VERSION, &VBoxDispMpTstCallbacks);
-            if (S_OK==hr)
-            {
-                CRASSERT(VBoxDispMpTstCallbacks.pfnEnableEvents);
-                CRASSERT(VBoxDispMpTstCallbacks.pfnDisableEvents);
-                CRASSERT(VBoxDispMpTstCallbacks.pfnGetRegions);
-
-                hr = VBoxDispMpTstCallbacks.pfnEnableEvents();
-                if (hr != S_OK)
-                {
-                    crWarning("VBoxDispMpTstCallbacks.pfnEnableEvents failed");
-                }
-                else
-                {
-                    crDebug("running with VBoxDispD3D");
+                    crDebug("running with " VBOX_MODNAME_DISPD3D);
                     stub.trackWindowVisibleRgn = 0;
                     stub.bRunningUnderWDDM = true;
-                }
-            }
-            else
-            {
-                crWarning("VBoxDispMpGetCallbacks failed");
-            }
-        }
     }
-# endif
-#endif
+# endif /* VBOX_WITH_WDDM */
+#endif /* WINDOWS */
 
     crLockMutex(&stub.mutex);
-    stub.spu->dispatch_table.VBoxPackSetInjectThread();
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    spuConnection =
+#endif
+            stub.spu->dispatch_table.VBoxPackSetInjectThread(NULL);
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    if (stub.bRunningUnderWDDM && !spuConnection)
+    {
+        crError("VBoxPackSetInjectThread failed!");
+    }
+#endif
     crUnlockMutex(&stub.mutex);
 
     RTThreadUserSignal(ThreadSelf);
@@ -1070,38 +869,9 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
         if (!PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
         {
 # ifdef VBOX_WITH_WDDM
-            if (VBoxDispMpTstCallbacks.pfnGetRegions)
+            if (stub.bRunningUnderWDDM)
             {
-                hr = VBoxDispMpTstCallbacks.pfnGetRegions(&RegionsData.Regions, 50);
-                if (S_OK==hr)
-                {
-                    RegionsData.fSendUpdateMsg = false;
-#  if 0
-                    uint32_t i;
-                    crDebug(">>>Regions for HWND(0x%x)>>>", RegionsData.Regions.hWnd);
-                    crDebug("Flags(0x%x)", RegionsData.Regions.pRegions->fFlags.Value);
-                    for (i = 0; i < RegionsData.Regions.pRegions->RectsInfo.cRects; ++i)
-                    {
-                        RECT *pRect = &RegionsData.Regions.pRegions->RectsInfo.aRects[i];
-                        crDebug("Rect(%d): left(%d), top(%d), right(%d), bottom(%d)", i, pRect->left, pRect->top, pRect->right, pRect->bottom);
-                    }
-                    crDebug("<<<<<");
-#  endif
-                    /*hacky way to make sure window wouldn't be deleted in another thread as we hold hashtable lock here*/
-                    crHashtableWalk(stub.windowTable, stubSyncTrUpdateWindowCB, &RegionsData);
-                    if (RegionsData.fSendUpdateMsg)
-                    {
-                        SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, 0, SMTO_NORMAL, 1000, NULL);
-                    }
-                }
-                else
-                {
-                    if (WAIT_TIMEOUT!=hr)
-                    {
-                        crWarning("VBoxDispMpTstCallbacks.pfnGetRegions failed with 0x%x", hr);
-                    }
-                    crHashtableWalk(stub.windowTable, stubSyncTrCheckWindowsCB, NULL);
-                }
+
             }
             else
 # endif
@@ -1124,17 +894,20 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
             }
         }
 #else
+        /* Try to keep a consistent locking order. */
+        crHashtableLock(stub.windowTable);
         crLockMutex(&stub.mutex);
-        crHashtableWalk(stub.windowTable, stubSyncTrCheckWindowsCB, NULL);
+        crHashtableWalkUnlocked(stub.windowTable, stubSyncTrCheckWindowsCB, NULL);
         crUnlockMutex(&stub.mutex);
+        crHashtableUnlock(stub.windowTable);
         RTThreadSleep(50);
 #endif
     }
 
 #ifdef VBOX_WITH_WDDM
-    if (VBoxDispMpTstCallbacks.pfnDisableEvents)
+    if (spuConnection)
     {
-        VBoxDispMpTstCallbacks.pfnDisableEvents();
+        stub.spu->dispatch_table.VBoxConDestroy(spuConnection);
     }
     if (hVBoxD3D)
     {
@@ -1144,7 +917,7 @@ static DECLCALLBACK(int) stubSyncThreadProc(RTTHREAD ThreadSelf, void *pvUser)
     crDebug("Sync thread stopped");
     return 0;
 }
-#endif
+#endif /* CR_NEWWINTRACK */
 
 /**
  * Do one-time initializations for the faker.
@@ -1169,6 +942,9 @@ stubInitLocked(void)
     const char *app_id;
     int i;
     int disable_sync = 0;
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    HMODULE hVBoxD3D = NULL;
+#endif
 
     stubInitVars();
 
@@ -1197,7 +973,11 @@ stubInitLocked(void)
 
         ns.name = "vboxhgcm://host:0";
         ns.buffer_size = 1024;
-        crNetServerConnect(&ns);
+        crNetServerConnect(&ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+                );
         if (!ns.conn)
         {
             crWarning("Failed to connect to host. Make sure 3D acceleration is enabled for this VM.");
@@ -1207,15 +987,6 @@ stubInitLocked(void)
         {
             crNetFreeConnection(ns.conn);
         }
-#if 0 && defined(CR_NEWWINTRACK)
-        {
-            Status st = XInitThreads();
-            if (st==0)
-            {
-                crWarning("XInitThreads returned %i", (int)st);
-            }
-        }
-#endif
     }
 #endif
 
@@ -1232,6 +1003,27 @@ stubInitLocked(void)
     }
 
     stubSetDefaultConfigurationOptions();
+
+#if defined(WINDOWS) && defined(VBOX_WITH_WDDM)
+    hVBoxD3D = NULL;
+    if (!GetModuleHandleEx(0, VBOX_MODNAME_DISPD3D, &hVBoxD3D))
+    {
+        crDebug("GetModuleHandleEx failed err %d", GetLastError());
+        hVBoxD3D = NULL;
+    }
+
+    if (hVBoxD3D)
+    {
+        disable_sync = 1;
+        crDebug("running with %s", VBOX_MODNAME_DISPD3D);
+        stub.trackWindowVisibleRgn = 0;
+        /* @todo: should we enable that? */
+        stub.trackWindowSize = 0;
+        stub.trackWindowPos = 0;
+        stub.trackWindowVisibility = 0;
+        stub.bRunningUnderWDDM = true;
+    }
+#endif
 
     stub.spu = crSPULoadChain( num_spus, spu_ids, spu_names, stub.spu_dir, NULL );
 
@@ -1273,7 +1065,7 @@ raise(SIGINT);*/
     {
         int rc;
 
-        RTR3Init();
+        RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
 
         if (!disable_sync)
         {
@@ -1335,14 +1127,127 @@ stubInit(void)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
-#ifdef DEBUG_misha
+#if 1//def DEBUG_misha
  /* debugging: this is to be able to catch first-chance notifications
   * for exceptions other than EXCEPTION_BREAKPOINT in kernel debugger */
-//# define VDBG_VEHANDLER
+# define VDBG_VEHANDLER
 #endif
 
 #ifdef VDBG_VEHANDLER
-static PVOID g_VBoxWDbgVEHandler = NULL;
+# include <dbghelp.h>
+# include <cr_string.h>
+static PVOID g_VBoxVehHandler = NULL;
+static DWORD g_VBoxVehEnable = 0;
+
+/* generate a crash dump on exception */
+#define VBOXVEH_F_DUMP 0x00000001
+/* generate a debugger breakpoint exception */
+#define VBOXVEH_F_BREAK 0x00000002
+/* exit on exception */
+#define VBOXVEH_F_EXIT  0x00000004
+
+static DWORD g_VBoxVehFlags = 0;
+
+typedef BOOL WINAPI FNVBOXDBG_MINIDUMPWRITEDUMP(HANDLE hProcess,
+            DWORD ProcessId,
+            HANDLE hFile,
+            MINIDUMP_TYPE DumpType,
+            PMINIDUMP_EXCEPTION_INFORMATION ExceptionParam,
+            PMINIDUMP_USER_STREAM_INFORMATION UserStreamParam,
+            PMINIDUMP_CALLBACK_INFORMATION CallbackParam);
+typedef FNVBOXDBG_MINIDUMPWRITEDUMP *PFNVBOXDBG_MINIDUMPWRITEDUMP;
+
+static HMODULE g_hVBoxMdDbgHelp = NULL;
+static PFNVBOXDBG_MINIDUMPWRITEDUMP g_pfnVBoxMdMiniDumpWriteDump = NULL;
+static size_t g_cVBoxMdFilePrefixLen = 0;
+static WCHAR g_aszwVBoxMdFilePrefix[MAX_PATH];
+static WCHAR g_aszwVBoxMdDumpCount = 0;
+static MINIDUMP_TYPE g_enmVBoxMdDumpType = MiniDumpNormal
+        | MiniDumpWithDataSegs
+        | MiniDumpWithFullMemory
+        | MiniDumpWithHandleData
+////        | MiniDumpFilterMemory
+////        | MiniDumpScanMemory
+//        | MiniDumpWithUnloadedModules
+////        | MiniDumpWithIndirectlyReferencedMemory
+////        | MiniDumpFilterModulePaths
+//        | MiniDumpWithProcessThreadData
+//        | MiniDumpWithPrivateReadWriteMemory
+////        | MiniDumpWithoutOptionalData
+//        | MiniDumpWithFullMemoryInfo
+//        | MiniDumpWithThreadInfo
+//        | MiniDumpWithCodeSegs
+//        | MiniDumpWithFullAuxiliaryState
+//        | MiniDumpWithPrivateWriteCopyMemory
+//        | MiniDumpIgnoreInaccessibleMemory
+//        | MiniDumpWithTokenInformation
+////        | MiniDumpWithModuleHeaders
+////        | MiniDumpFilterTriage
+        ;
+
+
+
+#define VBOXMD_DUMP_DIR_DEFAULT "C:\\dumps"
+#define VBOXMD_DUMP_NAME_PREFIX_W L"VBoxDmp_"
+
+static HMODULE loadSystemDll(const char *pszName)
+{
+    char   szPath[MAX_PATH];
+    UINT   cchPath = GetSystemDirectoryA(szPath, sizeof(szPath));
+    size_t cbName  = strlen(pszName) + 1;
+    if (cchPath + 1 + cbName > sizeof(szPath))
+    {
+        SetLastError(ERROR_FILENAME_EXCED_RANGE);
+        return NULL;
+    }
+    szPath[cchPath] = '\\';
+    memcpy(&szPath[cchPath + 1], pszName, cbName);
+    return LoadLibraryA(szPath);
+}
+
+static DWORD vboxMdMinidumpCreate(struct _EXCEPTION_POINTERS *pExceptionInfo)
+{
+    WCHAR aszwMdFileName[MAX_PATH];
+    HANDLE hProcess = GetCurrentProcess();
+    DWORD ProcessId = GetCurrentProcessId();
+    MINIDUMP_EXCEPTION_INFORMATION ExceptionInfo;
+    HANDLE hFile;
+    DWORD winErr = ERROR_SUCCESS;
+
+    if (!g_pfnVBoxMdMiniDumpWriteDump)
+    {
+        if (!g_hVBoxMdDbgHelp)
+        {
+            g_hVBoxMdDbgHelp = loadSystemDll("DbgHelp.dll");
+            if (!g_hVBoxMdDbgHelp)
+                return GetLastError();
+        }
+
+        g_pfnVBoxMdMiniDumpWriteDump = (PFNVBOXDBG_MINIDUMPWRITEDUMP)GetProcAddress(g_hVBoxMdDbgHelp, "MiniDumpWriteDump");
+        if (!g_pfnVBoxMdMiniDumpWriteDump)
+            return GetLastError();
+    }
+
+    ++g_aszwVBoxMdDumpCount;
+
+    memcpy(aszwMdFileName, g_aszwVBoxMdFilePrefix, g_cVBoxMdFilePrefixLen * sizeof (g_aszwVBoxMdFilePrefix[0]));
+    swprintf(aszwMdFileName + g_cVBoxMdFilePrefixLen, RT_ELEMENTS(aszwMdFileName) - g_cVBoxMdFilePrefixLen, L"%d_%d.dmp", ProcessId, g_aszwVBoxMdDumpCount);
+
+    hFile = CreateFileW(aszwMdFileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (hFile == INVALID_HANDLE_VALUE)
+        return GetLastError();
+
+    ExceptionInfo.ThreadId = GetCurrentThreadId();
+    ExceptionInfo.ExceptionPointers = pExceptionInfo;
+    ExceptionInfo.ClientPointers = FALSE;
+
+    if (!g_pfnVBoxMdMiniDumpWriteDump(hProcess, ProcessId, hFile, g_enmVBoxMdDumpType, &ExceptionInfo, NULL, NULL))
+        winErr = GetLastError();
+
+    CloseHandle(hFile);
+    return winErr;
+}
+
 LONG WINAPI vboxVDbgVectoredHandler(struct _EXCEPTION_POINTERS *pExceptionInfo)
 {
     PEXCEPTION_RECORD pExceptionRecord = pExceptionInfo->ExceptionRecord;
@@ -1357,7 +1262,33 @@ LONG WINAPI vboxVDbgVectoredHandler(struct _EXCEPTION_POINTERS *pExceptionInfo)
         case EXCEPTION_FLT_INVALID_OPERATION:
         case EXCEPTION_INT_DIVIDE_BY_ZERO:
         case EXCEPTION_ILLEGAL_INSTRUCTION:
-            CRASSERT(0);
+            if (g_VBoxVehFlags & VBOXVEH_F_BREAK)
+            {
+                BOOL fBreak = TRUE;
+#ifndef DEBUG_misha
+                if (pExceptionRecord->ExceptionCode == EXCEPTION_BREAKPOINT)
+                {
+                    HANDLE hProcess = GetCurrentProcess();
+                    BOOL fDebuggerPresent = FALSE;
+                    /* we do not want to generate breakpoint exceptions recursively, so do it only when running under debugger */
+                    if (CheckRemoteDebuggerPresent(hProcess, &fDebuggerPresent))
+                        fBreak = !!fDebuggerPresent;
+                    else
+                        fBreak = FALSE; /* <- the function has failed, don't break for sanity */
+                }
+#endif
+
+                if (fBreak)
+                {
+                    RT_BREAKPOINT();
+                }
+            }
+
+            if (g_VBoxVehFlags & VBOXVEH_F_DUMP)
+                vboxMdMinidumpCreate(pExceptionInfo);
+
+            if (g_VBoxVehFlags & VBOXVEH_F_EXIT)
+                exit(1);
             break;
         default:
             break;
@@ -1367,19 +1298,19 @@ LONG WINAPI vboxVDbgVectoredHandler(struct _EXCEPTION_POINTERS *pExceptionInfo)
 
 void vboxVDbgVEHandlerRegister()
 {
-    CRASSERT(!g_VBoxWDbgVEHandler);
-    g_VBoxWDbgVEHandler = AddVectoredExceptionHandler(1,vboxVDbgVectoredHandler);
-    CRASSERT(g_VBoxWDbgVEHandler);
+    CRASSERT(!g_VBoxVehHandler);
+    g_VBoxVehHandler = AddVectoredExceptionHandler(1,vboxVDbgVectoredHandler);
+    CRASSERT(g_VBoxVehHandler);
 }
 
 void vboxVDbgVEHandlerUnregister()
 {
     ULONG uResult;
-    if (g_VBoxWDbgVEHandler)
+    if (g_VBoxVehHandler)
     {
-        uResult = RemoveVectoredExceptionHandler(g_VBoxWDbgVEHandler);
+        uResult = RemoveVectoredExceptionHandler(g_VBoxVehHandler);
         CRASSERT(uResult);
-        g_VBoxWDbgVEHandler = NULL;
+        g_VBoxVehHandler = NULL;
     }
 }
 #endif
@@ -1394,7 +1325,18 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
     case DLL_PROCESS_ATTACH:
     {
         CRNetServer ns;
+        const char * env;
+#if defined(DEBUG_misha)
+        HMODULE hCrUtil;
+        char aName[MAX_PATH];
 
+        GetModuleFileNameA(hDLLInst, aName, RT_ELEMENTS(aName));
+        crDbgCmdSymLoadPrint(aName, hDLLInst);
+
+        hCrUtil = GetModuleHandleA("VBoxOGLcrutil.dll");
+        Assert(hCrUtil);
+        crDbgCmdSymLoadPrint("VBoxOGLcrutil.dll", hCrUtil);
+#endif
 #ifdef CHROMIUM_THREADSAFE
         crInitTSD(&g_stubCurrentContextTSD);
 #endif
@@ -1402,23 +1344,120 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
         crInitMutex(&stub_init_mutex);
 
 #ifdef VDBG_VEHANDLER
-        vboxVDbgVEHandlerRegister();
+        env = crGetenv("CR_DBG_VEH_ENABLE");
+        g_VBoxVehEnable = crStrParseI32(env,
+# ifdef DEBUG_misha
+                1
+# else
+                0
+# endif
+                );
+
+        if (g_VBoxVehEnable)
+        {
+            char procName[1024];
+            size_t cProcName;
+            size_t cChars;
+
+            env = crGetenv("CR_DBG_VEH_FLAGS");
+            g_VBoxVehFlags = crStrParseI32(env,
+                    0
+# ifdef DEBUG_misha
+                    | VBOXVEH_F_BREAK
+# else
+                    | VBOXVEH_F_DUMP
+# endif
+                    );
+
+            env = crGetenv("CR_DBG_VEH_DUMP_DIR");
+            if (!env)
+                env = VBOXMD_DUMP_DIR_DEFAULT;
+
+            g_cVBoxMdFilePrefixLen = strlen(env);
+
+            if (RT_ELEMENTS(g_aszwVBoxMdFilePrefix) <= g_cVBoxMdFilePrefixLen + 26 + (sizeof (VBOXMD_DUMP_NAME_PREFIX_W) - sizeof (WCHAR)) / sizeof (WCHAR))
+            {
+                g_cVBoxMdFilePrefixLen = 0;
+                env = "";
+            }
+
+            mbstowcs_s(&cChars, g_aszwVBoxMdFilePrefix, g_cVBoxMdFilePrefixLen + 1, env, _TRUNCATE);
+
+            Assert(cChars == g_cVBoxMdFilePrefixLen + 1);
+
+            g_cVBoxMdFilePrefixLen = cChars - 1;
+
+            if (g_cVBoxMdFilePrefixLen && g_aszwVBoxMdFilePrefix[g_cVBoxMdFilePrefixLen - 1] != L'\\')
+                g_aszwVBoxMdFilePrefix[g_cVBoxMdFilePrefixLen++] = L'\\';
+
+            memcpy(g_aszwVBoxMdFilePrefix + g_cVBoxMdFilePrefixLen, VBOXMD_DUMP_NAME_PREFIX_W, sizeof (VBOXMD_DUMP_NAME_PREFIX_W) - sizeof (WCHAR));
+            g_cVBoxMdFilePrefixLen += (sizeof (VBOXMD_DUMP_NAME_PREFIX_W) - sizeof (WCHAR)) / sizeof (WCHAR);
+
+            crGetProcName(procName, RT_ELEMENTS(procName));
+            cProcName = strlen(procName);
+
+            if (RT_ELEMENTS(g_aszwVBoxMdFilePrefix) > g_cVBoxMdFilePrefixLen + cProcName + 1 + 26)
+            {
+                mbstowcs_s(&cChars, g_aszwVBoxMdFilePrefix + g_cVBoxMdFilePrefixLen, cProcName + 1, procName, _TRUNCATE);
+                Assert(cChars == cProcName + 1);
+                g_cVBoxMdFilePrefixLen += cChars - 1;
+                g_aszwVBoxMdFilePrefix[g_cVBoxMdFilePrefixLen++] = L'_';
+            }
+
+            /* sanity */
+            g_aszwVBoxMdFilePrefix[g_cVBoxMdFilePrefixLen] = L'\0';
+
+            env = crGetenv("CR_DBG_VEH_DUMP_TYPE");
+
+            g_enmVBoxMdDumpType = crStrParseI32(env,
+                    MiniDumpNormal
+                    | MiniDumpWithDataSegs
+                    | MiniDumpWithFullMemory
+                    | MiniDumpWithHandleData
+            ////        | MiniDumpFilterMemory
+            ////        | MiniDumpScanMemory
+            //        | MiniDumpWithUnloadedModules
+            ////        | MiniDumpWithIndirectlyReferencedMemory
+            ////        | MiniDumpFilterModulePaths
+            //        | MiniDumpWithProcessThreadData
+            //        | MiniDumpWithPrivateReadWriteMemory
+            ////        | MiniDumpWithoutOptionalData
+            //        | MiniDumpWithFullMemoryInfo
+            //        | MiniDumpWithThreadInfo
+            //        | MiniDumpWithCodeSegs
+            //        | MiniDumpWithFullAuxiliaryState
+            //        | MiniDumpWithPrivateWriteCopyMemory
+            //        | MiniDumpIgnoreInaccessibleMemory
+            //        | MiniDumpWithTokenInformation
+            ////        | MiniDumpWithModuleHeaders
+            ////        | MiniDumpFilterTriage
+                    );
+
+            vboxVDbgVEHandlerRegister();
+        }
 #endif
 
         crNetInit(NULL, NULL);
         ns.name = "vboxhgcm://host:0";
         ns.buffer_size = 1024;
-        crNetServerConnect(&ns);
+        crNetServerConnect(&ns
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , NULL
+#endif
+);
         if (!ns.conn)
         {
             crDebug("Failed to connect to host (is guest 3d acceleration enabled?), aborting ICD load.");
 #ifdef VDBG_VEHANDLER
-            vboxVDbgVEHandlerUnregister();
+            if (g_VBoxVehEnable)
+                vboxVDbgVEHandlerUnregister();
 #endif
             return FALSE;
         }
         else
+        {
             crNetFreeConnection(ns.conn);
+        }
 
         break;
     }
@@ -1441,7 +1480,8 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
 #endif
 
 #ifdef VDBG_VEHANDLER
-        vboxVDbgVEHandlerUnregister();
+        if (g_VBoxVehEnable)
+            vboxVDbgVEHandlerUnregister();
 #endif
         break;
     }

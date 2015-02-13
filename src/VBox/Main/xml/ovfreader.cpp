@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,10 +64,37 @@ OVFReader::OVFReader(const RTCString &path)
 void OVFReader::parse()
 {
     const xml::ElementNode *pRootElem = m_doc.getRootElement();
-    if (    !pRootElem
-         || strcmp(pRootElem->getName(), "Envelope")
-       )
+    const xml::AttributeNode *pTypeAttr;
+    const char *pcszTypeAttr = "";
+    RTCString pcszNamespaceURI;
+
+    if (!pRootElem || strcmp(pRootElem->getName(), "Envelope"))
         throw OVFLogicError(N_("Root element in OVF file must be \"Envelope\"."));
+
+    pcszNamespaceURI = pRootElem->getNamespaceURI();
+    if(pcszNamespaceURI.isEmpty())
+    {
+        throw OVFLogicError(N_("Error reading namespace URI in 'Envelope' element, line %d"), pRootElem->getLineNumber());
+    }
+
+    if (strncmp(ovf::OVF20_URI_string, pcszNamespaceURI.c_str(), pcszNamespaceURI.length()) == 0)
+    {
+        m_envelopeData.setOVFVersion(ovf::OVFVersion_2_0);
+    }
+    else if (strncmp(OVF10_URI_string, pcszNamespaceURI.c_str(), pcszNamespaceURI.length()) == 0)
+    {
+        m_envelopeData.setOVFVersion(ovf::OVFVersion_1_0);
+    }
+    else
+    {
+        m_envelopeData.setOVFVersion(ovf::OVFVersion_0_9);
+    }
+
+    if ((pTypeAttr = pRootElem->findAttribute("lang", "xml")))
+    {
+        pcszTypeAttr = pTypeAttr->getValue();
+        m_envelopeData.lang = pcszTypeAttr;
+    }
 
     // OVF has the following rough layout:
     /*
@@ -105,56 +132,52 @@ void OVFReader::LoopThruSections(const xml::ElementNode *pReferencesElem,
     while ((pElem = loopChildren.forAllNodes()))
     {
         const char *pcszElemName = pElem->getName();
-        const char *pcszTypeAttr = "";
-        const xml::AttributeNode *pTypeAttr;
-        if (    ((pTypeAttr = pElem->findAttribute("xsi:type")))
-             || ((pTypeAttr = pElem->findAttribute("type")))
-           )
-            pcszTypeAttr = pTypeAttr->getValue();
+        const xml::AttributeNode *pTypeAttr = pElem->findAttribute("type");
+        const char *pcszTypeAttr = pTypeAttr ? pTypeAttr->getValue() : "";
 
-        if (    (!strcmp(pcszElemName, "DiskSection"))
-             || (    (!strcmp(pcszElemName, "Section"))
-                  && (!strcmp(pcszTypeAttr, "ovf:DiskSection_Type"))
+        if (    !strcmp(pcszElemName, "DiskSection")
+             || (    !strcmp(pcszElemName, "Section")
+                  && !strcmp(pcszTypeAttr, "ovf:DiskSection_Type")
                 )
            )
         {
             HandleDiskSection(pReferencesElem, pElem);
         }
-        else if (    (!strcmp(pcszElemName, "NetworkSection"))
-                  || (    (!strcmp(pcszElemName, "Section"))
-                       && (!strcmp(pcszTypeAttr, "ovf:NetworkSection_Type"))
+        else if (    !strcmp(pcszElemName, "NetworkSection")
+                  || (    !strcmp(pcszElemName, "Section")
+                       && !strcmp(pcszTypeAttr, "ovf:NetworkSection_Type")
                      )
                 )
         {
             HandleNetworkSection(pElem);
         }
-        else if (    (!strcmp(pcszElemName, "DeploymentOptionSection")))
+        else if (    !strcmp(pcszElemName, "DeploymentOptionSection"))
         {
             // TODO
         }
-        else if (    (!strcmp(pcszElemName, "Info")))
+        else if (    !strcmp(pcszElemName, "Info"))
         {
             // child of VirtualSystemCollection -- TODO
         }
-        else if (    (!strcmp(pcszElemName, "ResourceAllocationSection")))
+        else if (    !strcmp(pcszElemName, "ResourceAllocationSection"))
         {
             // child of VirtualSystemCollection -- TODO
         }
-        else if (    (!strcmp(pcszElemName, "StartupSection")))
+        else if (    !strcmp(pcszElemName, "StartupSection"))
         {
             // child of VirtualSystemCollection -- TODO
         }
-        else if (    (!strcmp(pcszElemName, "VirtualSystem"))
-                  || (    (!strcmp(pcszElemName, "Content"))
-                       && (!strcmp(pcszTypeAttr, "ovf:VirtualSystem_Type"))
+        else if (    !strcmp(pcszElemName, "VirtualSystem")
+                  || (    !strcmp(pcszElemName, "Content")
+                       && !strcmp(pcszTypeAttr, "ovf:VirtualSystem_Type")
                      )
                 )
         {
             HandleVirtualSystemContent(pElem);
         }
-        else if (    (!strcmp(pcszElemName, "VirtualSystemCollection"))
-                  || (    (!strcmp(pcszElemName, "Content"))
-                       && (!strcmp(pcszTypeAttr, "ovf:VirtualSystemCollection_Type"))
+        else if (    !strcmp(pcszElemName, "VirtualSystemCollection")
+                  || (    !strcmp(pcszElemName, "Content")
+                       && !strcmp(pcszTypeAttr, "ovf:VirtualSystemCollection_Type")
                      )
                 )
         {
@@ -187,23 +210,23 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
         const char *pcszBad = NULL;
         const char *pcszDiskId;
         const char *pcszFormat;
-        if (!(pelmDisk->getAttributeValue("diskId", pcszDiskId)))
+        if (!pelmDisk->getAttributeValue("diskId", pcszDiskId))
             pcszBad = "diskId";
-        else if (!(pelmDisk->getAttributeValue("format", pcszFormat)))
+        else if (!pelmDisk->getAttributeValue("format", pcszFormat))
             pcszBad = "format";
-        else if (!(pelmDisk->getAttributeValue("capacity", d.iCapacity)))
+        else if (!pelmDisk->getAttributeValue("capacity", d.iCapacity))
             pcszBad = "capacity";
         else
         {
             d.strDiskId = pcszDiskId;
             d.strFormat = pcszFormat;
 
-            if (!(pelmDisk->getAttributeValue("populatedSize", d.iPopulatedSize)))
+            if (!pelmDisk->getAttributeValue("populatedSize", d.iPopulatedSize))
                 // optional
                 d.iPopulatedSize = -1;
 
             // optional vbox:uuid attribute (if OVF was exported by VirtualBox != 3.2)
-            pelmDisk->getAttributeValue("vbox:uuid", d.uuidVbox);
+            pelmDisk->getAttributeValue("uuid", d.uuidVBox, "vbox");
 
             const char *pcszFileRef;
             if (pelmDisk->getAttributeValue("fileRef", pcszFileRef)) // optional
@@ -211,15 +234,16 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
                 // look up corresponding /References/File nodes (list built above)
                 const xml::ElementNode *pFileElem;
                 if (    pReferencesElem
-                     && ((pFileElem = pReferencesElem->findChildElementFromId(pcszFileRef)))
+                     && (pFileElem = pReferencesElem->findChildElementFromId(pcszFileRef)) != NULL
                    )
                 {
+
                     // copy remaining values from file node then
                     const char *pcszBadInFile = NULL;
                     const char *pcszHref;
-                    if (!(pFileElem->getAttributeValue("href", pcszHref)))
+                    if (!pFileElem->getAttributeValue("href", pcszHref))
                         pcszBadInFile = "href";
-                    else if (!(pFileElem->getAttributeValue("size", d.iSize)))
+                    else if (!pFileElem->getAttributeValue("size", d.iSize))
                         d.iSize = -1;       // optional
 
                     d.strHref = pcszHref;
@@ -253,11 +277,11 @@ void OVFReader::HandleDiskSection(const xml::ElementNode *pReferencesElem,
         // suggest a size in megabytes to help callers with progress reports
         d.ulSuggestedSizeMB = 0;
         if (d.iCapacity != -1)
-            d.ulSuggestedSizeMB = d.iCapacity / _1M;
+            d.ulSuggestedSizeMB = (uint32_t)(d.iCapacity / _1M);
         else if (d.iPopulatedSize != -1)
-            d.ulSuggestedSizeMB = d.iPopulatedSize / _1M;
+            d.ulSuggestedSizeMB = (uint32_t)(d.iPopulatedSize / _1M);
         else if (d.iSize != -1)
-            d.ulSuggestedSizeMB = d.iSize / _1M;
+            d.ulSuggestedSizeMB = (uint32_t)(d.iSize / _1M);
         if (d.ulSuggestedSizeMB == 0)
             d.ulSuggestedSizeMB = 10000;         // assume 10 GB, this is for the progress bar only anyway
 
@@ -306,7 +330,7 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
 
     // peek under the <VirtualSystem> node whether we have a <vbox:Machine> node;
     // that case case, the caller can completely ignore the OVF but only load the VBox machine XML
-    vsys.pelmVboxMachine = pelmVirtualSystem->findChildElement("vbox", "Machine");
+    vsys.pelmVBoxMachine = pelmVirtualSystem->findChildElementNS("vbox", "Machine");
 
     // now look for real OVF
     const xml::AttributeNode *pIdAttr = pelmVirtualSystem->findAttribute("id");
@@ -321,10 +345,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
         const char *pcszTypeAttr = "";
         if (!strcmp(pcszElemName, "Section"))       // OVF 0.9 used "Section" element always with a varying "type" attribute
         {
-            const xml::AttributeNode *pTypeAttr;
-            if (    ((pTypeAttr = pelmThis->findAttribute("type")))
-                 || ((pTypeAttr = pelmThis->findAttribute("xsi:type")))
-               )
+            const xml::AttributeNode *pTypeAttr = pelmThis->findAttribute("type");
+            if (pTypeAttr)
                 pcszTypeAttr = pTypeAttr->getValue();
             else
                 throw OVFLogicError(N_("Error reading \"%s\": element \"Section\" has no \"type\" attribute, line %d"),
@@ -332,8 +354,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                                     pelmThis->getLineNumber());
         }
 
-        if (    (!strcmp(pcszElemName, "EulaSection"))
-             || (!strcmp(pcszTypeAttr, "ovf:EulaSection_Type"))
+        if (    !strcmp(pcszElemName, "EulaSection")
+             || !strcmp(pcszTypeAttr, "ovf:EulaSection_Type")
            )
         {
          /* <EulaSection>
@@ -345,8 +367,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
             if ((pelmLicense = pelmThis->findChildElement("License")))
                 vsys.strLicenseText = pelmLicense->getValue();
         }
-        if (    (!strcmp(pcszElemName, "ProductSection"))
-             || (!strcmp(pcszTypeAttr, "ovf:ProductSection_Type"))
+        if (    !strcmp(pcszElemName, "ProductSection")
+             || !strcmp(pcszTypeAttr, "ovf:ProductSection_Type")
            )
         {
             /* <Section ovf:required="false" xsi:type="ovf:ProductSection_Type">
@@ -373,8 +395,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
             if ((pelmVendorUrl = pelmThis->findChildElement("VendorUrl")))
                 vsys.strVendorUrl = pelmVendorUrl->getValue();
         }
-        else if (    (!strcmp(pcszElemName, "VirtualHardwareSection"))
-                  || (!strcmp(pcszTypeAttr, "ovf:VirtualHardwareSection_Type"))
+        else if (    !strcmp(pcszElemName, "VirtualHardwareSection")
+                  || !strcmp(pcszTypeAttr, "ovf:VirtualHardwareSection_Type")
                 )
         {
             const xml::ElementNode *pelmSystem, *pelmVirtualSystemType;
@@ -391,93 +413,80 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                     vsys.strVirtualSystemType = pelmVirtualSystemType->getValue();
             }
 
-            xml::NodesLoop loopVirtualHardwareItems(*pelmThis, "Item");      // all "Item" child elements
-            const xml::ElementNode *pelmItem;
-            while ((pelmItem = loopVirtualHardwareItems.forAllNodes()))
             {
-                VirtualHardwareItem i;
-
-                i.ulLineNumber = pelmItem->getLineNumber();
-
-                xml::NodesLoop loopItemChildren(*pelmItem);      // all child elements
-                const xml::ElementNode *pelmItemChild;
-                while ((pelmItemChild = loopItemChildren.forAllNodes()))
+                xml::NodesLoop loopVirtualHardwareItems(*pelmThis, "Item");      // all "Item" child elements
+                const xml::ElementNode *pelmItem;
+                while ((pelmItem = loopVirtualHardwareItems.forAllNodes()))
                 {
-                    const char *pcszItemChildName = pelmItemChild->getName();
-                    if (!strcmp(pcszItemChildName, "Description"))
-                        i.strDescription = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "Caption"))
-                        i.strCaption = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ElementName"))
-                        i.strElementName = pelmItemChild->getValue();
-                    else if (    (!strcmp(pcszItemChildName, "InstanceID"))
-                              || (!strcmp(pcszItemChildName, "InstanceId"))
-                            )
-                        pelmItemChild->copyValue(i.ulInstanceID);
-                    else if (!strcmp(pcszItemChildName, "HostResource"))
-                        i.strHostResource = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ResourceType"))
-                    {
-                        uint32_t ulType;
-                        pelmItemChild->copyValue(ulType);
-                        i.resourceType = (ResourceType_T)ulType;
-                        i.fResourceRequired = true;
-                        const char *pcszAttValue;
-                        if (pelmItem->getAttributeValue("required", pcszAttValue))
-                        {
-                            if (!strcmp(pcszAttValue, "false"))
-                                i.fResourceRequired = false;
-                        }
-                    }
-                    else if (!strcmp(pcszItemChildName, "OtherResourceType"))
-                        i.strOtherResourceType = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "ResourceSubType"))
-                        i.strResourceSubType = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "AutomaticAllocation"))
-                        i.fAutomaticAllocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
-                    else if (!strcmp(pcszItemChildName, "AutomaticDeallocation"))
-                        i.fAutomaticDeallocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
-                    else if (!strcmp(pcszItemChildName, "Parent"))
-                        pelmItemChild->copyValue(i.ulParent);
-                    else if (!strcmp(pcszItemChildName, "Connection"))
-                        i.strConnection = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "Address"))
-                    {
-                        i.strAddress = pelmItemChild->getValue();
-                        pelmItemChild->copyValue(i.lAddress);
-                    }
-                    else if (!strcmp(pcszItemChildName, "AddressOnParent"))
-                        i.strAddressOnParent = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "AllocationUnits"))
-                        i.strAllocationUnits = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "VirtualQuantity"))
-                        pelmItemChild->copyValue(i.ullVirtualQuantity);
-                    else if (!strcmp(pcszItemChildName, "Reservation"))
-                        pelmItemChild->copyValue(i.ullReservation);
-                    else if (!strcmp(pcszItemChildName, "Limit"))
-                        pelmItemChild->copyValue(i.ullLimit);
-                    else if (!strcmp(pcszItemChildName, "Weight"))
-                        pelmItemChild->copyValue(i.ullWeight);
-                    else if (!strcmp(pcszItemChildName, "ConsumerVisibility"))
-                        i.strConsumerVisibility = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "MappingBehavior"))
-                        i.strMappingBehavior = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "PoolID"))
-                        i.strPoolID = pelmItemChild->getValue();
-                    else if (!strcmp(pcszItemChildName, "BusNumber"))       // seen in some old OVF, but it's not listed in the OVF specs
-                        pelmItemChild->copyValue(i.ulBusNumber);
-                    else
-                        throw OVFLogicError(N_("Error reading \"%s\": unknown element \"%s\" under Item element, line %d"),
-                                            m_strPath.c_str(),
-                                            pcszItemChildName,
-                                            i.ulLineNumber);
-                }
+                    VirtualHardwareItem i;
 
-                // store!
-                vsys.mapHardwareItems[i.ulInstanceID] = i;
+                    i.ulLineNumber = pelmItem->getLineNumber();
+                    i.fillItem(pelmItem);
+                    try{
+                        i.checkConsistencyAndCompliance();
+                    }
+                    catch (OVFLogicError &e)
+                    {
+                        throw OVFLogicError(N_("Error reading \"%s\": \"%s\""),
+                                            m_strPath.c_str(),
+                                            e.what());
+                    }
+
+                    // store!
+                    vsys.mapHardwareItems[i.ulInstanceID] = i;
+                }
             }
 
-            HardDiskController *pPrimaryIDEController = NULL;       // will be set once found
+            {
+                xml::NodesLoop loopVirtualHardwareItems(*pelmThis, "StorageItem");// all "StorageItem" child elements
+                const xml::ElementNode *pelmItem;
+                while ((pelmItem = loopVirtualHardwareItems.forAllNodes()))
+                {
+                    StorageItem i;
+
+                    i.ulLineNumber = pelmItem->getLineNumber();
+                    i.fillItem(pelmItem);
+
+                    try
+                    {
+                        i.checkConsistencyAndCompliance();
+                    }
+                    catch (OVFLogicError &e)
+                    {
+                        throw OVFLogicError(N_("Error reading \"%s\": \"%s\""),
+                                            m_strPath.c_str(),
+                                            e.what());
+                    }
+
+                    vsys.mapHardwareItems[i.ulInstanceID] = i;
+                }
+            }
+
+            {
+                xml::NodesLoop loopVirtualHardwareItems(*pelmThis, "EthernetPortItem");// all "EthernetPortItem" child elements
+                const xml::ElementNode *pelmItem;
+                while ((pelmItem = loopVirtualHardwareItems.forAllNodes()))
+                {
+                    EthernetPortItem i;
+
+                    i.ulLineNumber = pelmItem->getLineNumber();
+                    i.fillItem(pelmItem);
+
+                    try{
+                        i.checkConsistencyAndCompliance();
+                    }
+                    catch (OVFLogicError &e)
+                    {
+                        throw OVFLogicError(N_("Error reading \"%s\": \"%s\""),
+                                            m_strPath.c_str(),
+                                            e.what());
+                    }
+
+                    vsys.mapHardwareItems[i.ulInstanceID] = i;
+                }
+            }
+
+            HardDiskController *pPrimaryIDEController = NULL;// will be set once found
 
             // now go thru all hardware items and handle them according to their type;
             // in this first loop we handle all items _except_ hard disk images,
@@ -510,11 +519,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         break;
 
                     case ResourceType_Memory:        // 4
-                        if (    (i.strAllocationUnits == "MegaBytes")           // found in OVF created by OVF toolkit
-                             || (i.strAllocationUnits == "MB")                  // found in MS docs
-                             || (i.strAllocationUnits == "byte * 2^20")         // suggested by OVF spec DSP0243 page 21
+                        if (    i.strAllocationUnits == "MegaBytes"           // found in OVF created by OVF toolkit
+                             || i.strAllocationUnits == "MB"                  // found in MS docs
+                             || i.strAllocationUnits == "byte * 2^20"         // suggested by OVF spec DSP0243 page 21
                            )
-                            vsys.ullMemorySize = i.ullVirtualQuantity * 1024 * 1024;
+                            vsys.ullMemorySize = i.ullVirtualQuantity * _1M;
                         else
                             throw OVFLogicError(N_("Error reading \"%s\": Invalid allocation unit \"%s\" specified with memory size item, line %d"),
                                                 m_strPath.c_str(),
@@ -721,6 +730,15 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 // do some analysis
                 switch (i.resourceType)
                 {
+                    case ResourceType_CDDrive: // 15
+                        /*  <Item ovf:required="false">
+                                <rasd:Caption>cdrom1</rasd:Caption>
+                                <rasd:InstanceId>7</rasd:InstanceId>
+                                <rasd:ResourceType>15</rasd:ResourceType>
+                                <rasd:AutomaticAllocation>true</rasd:AutomaticAllocation>
+                                <rasd:Parent>5</rasd:Parent>
+                                <rasd:AddressOnParent>0</rasd:AddressOnParent>
+                            </Item> */
                     case ResourceType_HardDisk: // 17
                     {
                         /*  <Item>
@@ -737,12 +755,11 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         // this is how the connection is specified in OVF
                         ControllersMap::const_iterator it = vsys.mapControllers.find(i.ulParent);
                         if (it == vsys.mapControllers.end())
-                            throw OVFLogicError(N_("Error reading \"%s\": Hard disk item with instance ID %d specifies invalid parent %d, line %d"),
+                            throw OVFLogicError(N_("Error reading \"%s\": Disk item with instance ID %d specifies invalid parent %d, line %d"),
                                                 m_strPath.c_str(),
                                                 i.ulInstanceID,
                                                 i.ulParent,
                                                 i.ulLineNumber);
-                        //const HardDiskController &hdc = it->second;
 
                         VirtualDisk vd;
                         vd.idController = i.ulParent;
@@ -756,14 +773,14 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                         else if (i.strHostResource.startsWith("/disk/"))
                             vd.strDiskId = i.strHostResource.substr(6);
 
-                        if (    !(vd.strDiskId.length())
-                             || (m_mapDisks.find(vd.strDiskId) == m_mapDisks.end())
-                           )
-                            throw OVFLogicError(N_("Error reading \"%s\": Hard disk item with instance ID %d specifies invalid host resource \"%s\", line %d"),
-                                                m_strPath.c_str(),
-                                                i.ulInstanceID,
-                                                i.strHostResource.c_str(),
-                                                i.ulLineNumber);
+                        //the error may be missed for CD, because CD can be empty
+                        if ((vd.strDiskId.isEmpty() || (m_mapDisks.find(vd.strDiskId) == m_mapDisks.end()))
+                             && i.resourceType == ResourceType_HardDisk)
+                          throw OVFLogicError(N_("Error reading \"%s\": Disk item with instance ID %d specifies invalid host resource \"%s\", line %d"),
+                                              m_strPath.c_str(),
+                                              i.ulInstanceID,
+                                              i.strHostResource.c_str(),
+                                              i.ulLineNumber);
 
                         vsys.mapVirtualDisks[vd.strDiskId] = vd;
                         break;
@@ -773,8 +790,8 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 }
             }
         }
-        else if (    (!strcmp(pcszElemName, "OperatingSystemSection"))
-                  || (!strcmp(pcszTypeAttr, "ovf:OperatingSystemSection_Type"))
+        else if (    !strcmp(pcszElemName, "OperatingSystemSection")
+                  || !strcmp(pcszTypeAttr, "ovf:OperatingSystemSection_Type")
                 )
         {
             uint64_t cimos64;
@@ -789,9 +806,9 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
                 vsys.strCimosDesc = pelmCIMOSDescription->getValue();
 
             const xml::ElementNode *pelmVBoxOSType;
-            if ((pelmVBoxOSType = pelmThis->findChildElement("vbox",            // namespace
-                                                             "OSType")))        // element name
-                vsys.strTypeVbox = pelmVBoxOSType->getValue();
+            if ((pelmVBoxOSType = pelmThis->findChildElementNS("vbox",            // namespace
+                                                               "OSType")))        // element name
+                vsys.strTypeVBox = pelmVBoxOSType->getValue();
         }
         else if (    (!strcmp(pcszElemName, "AnnotationSection"))
                   || (!strcmp(pcszTypeAttr, "ovf:AnnotationSection_Type"))
@@ -805,6 +822,224 @@ void OVFReader::HandleVirtualSystemContent(const xml::ElementNode *pelmVirtualSy
 
     // now create the virtual system
     m_llVirtualSystems.push_back(vsys);
+}
+
+void VirtualHardwareItem::fillItem(const xml::ElementNode *item)
+{
+    xml::NodesLoop loopItemChildren(*item);// all child elements
+    const xml::ElementNode *pelmItemChild;
+    while ((pelmItemChild = loopItemChildren.forAllNodes()))
+    {
+        const char *pcszItemChildName = pelmItemChild->getName();
+        if (!strcmp(pcszItemChildName, "Description"))
+            strDescription = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "Caption"))
+            strCaption = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "ElementName"))
+            strElementName = pelmItemChild->getValue();
+        else if ((!strcmp(pcszItemChildName, "InstanceID"))
+                 ||(!strcmp(pcszItemChildName, "InstanceId"))
+                )
+            pelmItemChild->copyValue(ulInstanceID);
+        else if (!strcmp(pcszItemChildName, "HostResource"))
+            strHostResource = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "ResourceType"))
+        {
+            uint32_t ulType;
+            pelmItemChild->copyValue(ulType);
+            resourceType = (ResourceType_T)ulType;
+            fResourceRequired = true;
+            const char *pcszAttValue;
+            if (item->getAttributeValue("required", pcszAttValue))
+            {
+                if (!strcmp(pcszAttValue, "false"))
+                    fResourceRequired = false;
+            }
+        }
+        else if (!strcmp(pcszItemChildName, "OtherResourceType"))
+            strOtherResourceType = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "ResourceSubType"))
+            strResourceSubType = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "AutomaticAllocation"))
+            fAutomaticAllocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
+        else if (!strcmp(pcszItemChildName, "AutomaticDeallocation"))
+            fAutomaticDeallocation = (!strcmp(pelmItemChild->getValue(), "true")) ? true : false;
+        else if (!strcmp(pcszItemChildName, "Parent"))
+            pelmItemChild->copyValue(ulParent);
+        else if (!strcmp(pcszItemChildName, "Connection"))
+            strConnection = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "Address"))
+        {
+            strAddress = pelmItemChild->getValue();
+            pelmItemChild->copyValue(lAddress);
+        }
+        else if (!strcmp(pcszItemChildName, "AddressOnParent"))
+            strAddressOnParent = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "AllocationUnits"))
+            strAllocationUnits = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "VirtualQuantity"))
+            pelmItemChild->copyValue(ullVirtualQuantity);
+        else if (!strcmp(pcszItemChildName, "Reservation"))
+            pelmItemChild->copyValue(ullReservation);
+        else if (!strcmp(pcszItemChildName, "Limit"))
+            pelmItemChild->copyValue(ullLimit);
+        else if (!strcmp(pcszItemChildName, "Weight"))
+            pelmItemChild->copyValue(ullWeight);
+        else if (!strcmp(pcszItemChildName, "ConsumerVisibility"))
+            strConsumerVisibility = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "MappingBehavior"))
+            strMappingBehavior = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "PoolID"))
+            strPoolID = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "BusNumber"))
+            pelmItemChild->copyValue(ulBusNumber);
+//      else if (pelmItemChild->getPrefix() == NULL
+//               || strcmp(pelmItemChild->getPrefix(), "vmw"))
+//          throw OVFLogicError(N_("Unknown element \"%s\" under Item element, line %d"),
+//                              pcszItemChildName,
+//                              ulLineNumber);
+    }
+}
+
+void VirtualHardwareItem::_checkConsistencyAndCompliance() RT_THROW(OVFLogicError)
+{
+    RTCString name = getItemName();
+    if (ulInstanceID == 0)
+        throw OVFLogicError(N_("Element InstanceID is absent under %s element, line %d. "
+                               "see DMTF Schema Documentation %s"),
+                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+    if (resourceType == 0)
+        throw OVFLogicError(N_("Empty element ResourceType under %s element, line %d. "
+                               "see DMTF Schema Documentation %s"),
+                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+}
+
+void StorageItem::fillItem(const xml::ElementNode *item)
+{
+    VirtualHardwareItem::fillItem(item);
+
+    xml::NodesLoop loopItemChildren(*item);// all child elements
+    const xml::ElementNode *pelmItemChild;
+    while ((pelmItemChild = loopItemChildren.forAllNodes()))
+    {
+        const char *pcszItemChildName = pelmItemChild->getName();
+        if (!strcmp(pcszItemChildName, "HostExtentName"))
+            strHostExtentName = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "OtherHostExtentNameFormat"))
+            strOtherHostExtentNameFormat = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "OtherHostExtentNameNamespace"))
+            strOtherHostExtentNameNamespace = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "VirtualQuantityUnits"))
+            strVirtualQuantityUnits = pelmItemChild->getValue();
+        else if (!strcmp(pcszItemChildName, "Access"))
+        {
+            uint32_t temp;
+            pelmItemChild->copyValue(temp);
+            accessType = (StorageAccessType_T)temp;
+        }
+        else if (!strcmp(pcszItemChildName, "HostExtentNameFormat"))
+        {
+        }
+        else if (!strcmp(pcszItemChildName, "HostExtentNameNamespace"))
+        {
+        }
+        else if (!strcmp(pcszItemChildName, "HostExtentStartingAddress"))
+        {
+        }
+        else if (!strcmp(pcszItemChildName, "HostResourceBlockSize"))
+        {
+            int64_t temp;
+            pelmItemChild->copyValue(temp);
+            hostResourceBlockSize = temp;
+        }
+        else if (!strcmp(pcszItemChildName, "Limit"))
+        {
+            int64_t temp;
+            pelmItemChild->copyValue(temp);
+            limit = temp;
+        }
+        else if (!strcmp(pcszItemChildName, "Reservation"))
+        {
+            int64_t temp;
+            pelmItemChild->copyValue(temp);
+            reservation = temp;
+        }
+        else if (!strcmp(pcszItemChildName, "VirtualQuantity"))
+        {
+            int64_t temp;
+            pelmItemChild->copyValue(temp);
+            virtualQuantity = temp;
+        }
+        else if (!strcmp(pcszItemChildName, "VirtualResourceBlockSize"))
+        {
+            int64_t temp;
+            pelmItemChild->copyValue(temp);
+            virtualResourceBlockSize = temp;
+        }
+    }
+}
+
+
+void StorageItem::_checkConsistencyAndCompliance() RT_THROW(OVFLogicError)
+{
+    VirtualHardwareItem::_checkConsistencyAndCompliance();
+
+    RTCString name = getItemName();
+
+    if (accessType == StorageAccessType_Unknown)
+    {
+        //throw OVFLogicError(N_("Access type is unknown under %s element, line %d"),
+        //        name.c_str(), ulLineNumber);
+    }
+
+    if (hostResourceBlockSize <= 0 && reservation > 0)
+    {
+        throw OVFLogicError(N_("Element HostResourceBlockSize is absent under %s element, line %d. "
+                               "see DMTF Schema Documentation %s"),
+                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+    }
+
+    if (virtualResourceBlockSize <= 0 && virtualQuantity > 0)
+    {
+        throw OVFLogicError(N_("Element VirtualResourceBlockSize is absent under %s element, line %d. "
+                               "see DMTF Schema Documentation %s"),
+                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+    }
+
+    if (virtualQuantity > 0 && strVirtualQuantityUnits.isEmpty())
+    {
+        throw OVFLogicError(N_("Element VirtualQuantityUnits is absent under %s element, line %d. "
+                               "see DMTF Schema Documentation %s"),
+                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+    }
+
+    if (virtualResourceBlockSize <= 1 &&
+        strVirtualQuantityUnits.compare(RTCString("count"), RTCString::CaseInsensitive) == 0
+       )
+    {
+        throw OVFLogicError(N_("Element VirtualQuantityUnits is set to \"count\" "
+                               "while VirtualResourceBlockSize is set to 1. "
+                               "under %s element, line %d. "
+                               "It's needed to change on \"byte\". "
+                               "see DMTF Schema Documentation %s"),
+                                name.c_str(), ulLineNumber, DTMF_SPECS_URI);
+    }
+}
+
+void EthernetPortItem::fillItem(const xml::ElementNode *item)
+{
+    VirtualHardwareItem::fillItem(item);
+
+    xml::NodesLoop loopItemChildren(*item);// all child elements
+    const xml::ElementNode *pelmItemChild;
+    while ((pelmItemChild = loopItemChildren.forAllNodes()))
+    {
+    }
+}
+
+void EthernetPortItem::_checkConsistencyAndCompliance() RT_THROW(OVFLogicError)
+{
+    VirtualHardwareItem::_checkConsistencyAndCompliance();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

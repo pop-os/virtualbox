@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,20 +68,23 @@ typedef TRPMEVENT const *PCTRPMEVENT;
  */
 #define TRPM_INVALID_HANDLER        0
 
-VMMDECL(int)        TRPMQueryTrap(PVMCPU pVCpu, uint8_t *pu8TrapNo, PTRPMEVENT pEnmType);
+VMMDECL(int)        TRPMQueryTrap(PVMCPU pVCpu, uint8_t *pu8TrapNo, PTRPMEVENT penmType);
 VMMDECL(uint8_t)    TRPMGetTrapNo(PVMCPU pVCpu);
 VMMDECL(RTGCUINT)   TRPMGetErrorCode(PVMCPU pVCpu);
 VMMDECL(RTGCUINTPTR) TRPMGetFaultAddress(PVMCPU pVCpu);
+VMMDECL(uint8_t)    TRPMGetInstrLength(PVMCPU pVCpu);
 VMMDECL(int)        TRPMResetTrap(PVMCPU pVCpu);
 VMMDECL(int)        TRPMAssertTrap(PVMCPU pVCpu, uint8_t u8TrapNo, TRPMEVENT enmType);
+VMMDECL(int)        TRPMAssertXcptPF(PVMCPU pVCpu, RTGCUINTPTR uCR2, RTGCUINT uErrorCode);
 VMMDECL(void)       TRPMSetErrorCode(PVMCPU pVCpu, RTGCUINT uErrorCode);
 VMMDECL(void)       TRPMSetFaultAddress(PVMCPU pVCpu, RTGCUINTPTR uCR2);
+VMMDECL(void)       TRPMSetInstrLength(PVMCPU pVCpu, uint8_t cbInstr);
 VMMDECL(bool)       TRPMIsSoftwareInterrupt(PVMCPU pVCpu);
 VMMDECL(bool)       TRPMHasTrap(PVMCPU pVCpu);
-VMMDECL(int)        TRPMQueryTrapAll(PVMCPU pVCpu, uint8_t *pu8TrapNo, PTRPMEVENT pEnmType, PRTGCUINT puErrorCode, PRTGCUINTPTR puCR2);
+VMMDECL(int)        TRPMQueryTrapAll(PVMCPU pVCpu, uint8_t *pu8TrapNo, PTRPMEVENT pEnmType, PRTGCUINT puErrorCode, PRTGCUINTPTR puCR2, uint8_t *pcbInstr);
 VMMDECL(void)       TRPMSaveTrap(PVMCPU pVCpu);
 VMMDECL(void)       TRPMRestoreTrap(PVMCPU pVCpu);
-VMMDECL(int)        TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGate, uint32_t opsize, TRPMERRORCODE enmError, TRPMEVENT enmType, int32_t iOrgTrap);
+VMMDECL(int)        TRPMForwardTrap(PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t iGate, uint32_t cbInstr, TRPMERRORCODE enmError, TRPMEVENT enmType, int32_t iOrgTrap);
 VMMDECL(int)        TRPMRaiseXcpt(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt);
 VMMDECL(int)        TRPMRaiseXcptErr(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr);
 VMMDECL(int)        TRPMRaiseXcptErrCR2(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, X86XCPT enmXcpt, uint32_t uErr, RTGCUINTPTR uCR2);
@@ -97,14 +100,16 @@ VMMR3DECL(void)     TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta);
 VMMR3DECL(void)     TRPMR3ResetCpu(PVMCPU pVCpu);
 VMMR3DECL(void)     TRPMR3Reset(PVM pVM);
 VMMR3DECL(int)      TRPMR3Term(PVM pVM);
-VMMR3DECL(int)      TRPMR3EnableGuestTrapHandler(PVM pVM, unsigned iTrap);
-VMMR3DECL(int)      TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandler);
-VMMR3DECL(RTRCPTR)  TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap);
-VMMR3DECL(void)     TRPMR3DisableMonitoring(PVM pVM);
+VMMR3DECL(int)      TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent);
+# ifdef VBOX_WITH_RAW_MODE
+VMMR3_INT_DECL(int) TRPMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pRCPtrValue);
 VMMR3DECL(int)      TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu);
 VMMR3DECL(bool)     TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr);
 VMMR3DECL(uint32_t) TRPMR3QueryGateByHandler(PVM pVM, RTRCPTR GCPtr);
-VMMR3DECL(int)      TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent);
+VMMR3DECL(int)      TRPMR3EnableGuestTrapHandler(PVM pVM, unsigned iTrap);
+VMMR3DECL(int)      TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandler);
+VMMR3DECL(RTRCPTR)  TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap);
+# endif
 /** @} */
 #endif
 

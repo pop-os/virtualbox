@@ -10,21 +10,97 @@
 #include "cr_rand.h"
 #include "cr_string.h"
 
+#include "render/renderspu.h"
+
 GLint SERVER_DISPATCH_APIENTRY
 crServerDispatchWindowCreate(const char *dpyName, GLint visBits)
 {
     return crServerDispatchWindowCreateEx(dpyName, visBits, -1);
 }
 
+GLint crServerMuralInit(CRMuralInfo *mural, GLboolean fGuestWindow, GLint visBits, GLint preloadWinID)
+{
+    CRMuralInfo *defaultMural;
+    GLint dims[2];
+    GLint windowID = -1;
+    GLint spuWindow = 0;
+    GLint realVisBits = visBits;
+    const char *dpyName = "";
 
-GLint
-crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preloadWinID)
+    crMemset(mural, 0, sizeof (*mural));
+
+    if (cr_server.fVisualBitsDefault)
+        realVisBits = cr_server.fVisualBitsDefault;
+
+#ifdef RT_OS_DARWIN
+    if (fGuestWindow)
+    {
+        CRMuralInfo *dummy = crServerGetDummyMural(realVisBits);
+        if (!dummy)
+        {
+            WARN(("crServerGetDummyMural failed"));
+            return -1;
+        }
+        spuWindow = dummy->spuWindow;
+        mural->fIsDummyRefference = GL_TRUE;
+
+        dims[0] = dummy->width;
+        dims[1] = dummy->height;
+    }
+    else
+#endif
+    {
+        /*
+         * Have first SPU make a new window.
+         */
+        spuWindow = cr_server.head_spu->dispatch_table.WindowCreate( dpyName, realVisBits );
+        if (spuWindow < 0) {
+            return spuWindow;
+        }
+        mural->fIsDummyRefference = GL_FALSE;
+
+        /* get initial window size */
+        cr_server.head_spu->dispatch_table.GetChromiumParametervCR(GL_WINDOW_SIZE_CR, spuWindow, GL_INT, 2, dims);
+    }
+
+    defaultMural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, 0);
+    CRASSERT(defaultMural);
+    mural->gX = 0;
+    mural->gY = 0;
+    mural->width = dims[0];
+    mural->height = dims[1];
+
+    mural->spuWindow = spuWindow;
+    mural->screenId = 0;
+    mural->fHasParentWindow = !!cr_server.screen[0].winID;
+    mural->bVisible = !cr_server.bWindowsInitiallyHidden;
+
+    mural->cVisibleRects = 0;
+    mural->pVisibleRects = NULL;
+    mural->bReceivedRects = GL_FALSE;
+
+    /* generate ID for this new window/mural (special-case for file conns) */
+    if (cr_server.curClient && cr_server.curClient->conn->type == CR_FILE)
+        windowID = spuWindow;
+    else
+        windowID = preloadWinID<0 ? (GLint)crHashtableAllocKeys( cr_server.muralTable, 1 ) : preloadWinID;
+
+    mural->CreateInfo.realVisualBits = realVisBits;
+    mural->CreateInfo.requestedVisualBits = visBits;
+    mural->CreateInfo.externalID = windowID;
+    mural->CreateInfo.pszDpyName = dpyName ? crStrdup(dpyName) : NULL;
+
+    CR_STATE_SHAREDOBJ_USAGE_INIT(mural);
+
+    return windowID;
+}
+
+GLint crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preloadWinID)
 {
     CRMuralInfo *mural;
     GLint windowID = -1;
-    GLint spuWindow;
-    GLint dims[2];
-    CRCreateInfo_t *pCreateInfo;
+
+    dpyName = "";
 
     if (cr_server.sharedWindows) {
         int pos, j;
@@ -54,61 +130,30 @@ crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preload
         }
     }
 
-    /*
-     * Have first SPU make a new window.
-     */
-    spuWindow = cr_server.head_spu->dispatch_table.WindowCreate( dpyName, visBits );
-    if (spuWindow < 0) {
-        crServerReturnValue( &spuWindow, sizeof(spuWindow) );
-        return spuWindow;
-    }
-
-    /* get initial window size */
-    cr_server.head_spu->dispatch_table.GetChromiumParametervCR(GL_WINDOW_SIZE_CR, spuWindow, GL_INT, 2, dims);
 
     /*
      * Create a new mural for the new window.
      */
     mural = (CRMuralInfo *) crCalloc(sizeof(CRMuralInfo));
-    if (mural) {
-        CRMuralInfo *defaultMural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, 0);
-        CRASSERT(defaultMural);
-        mural->gX = 0;
-        mural->gY = 0;
-        mural->width = dims[0];
-        mural->height = dims[1];
-
-        mural->spuWindow = spuWindow;
-        mural->screenId = 0;
-        mural->bVisible = GL_FALSE;
-        mural->bUseFBO = GL_FALSE;
-
-        mural->cVisibleRects = 0;
-        mural->pVisibleRects = NULL;
-        mural->bReceivedRects = GL_FALSE;
-
-        mural->pvOutputRedirectInstance = NULL;
-
-        /* generate ID for this new window/mural (special-case for file conns) */
-        if (cr_server.curClient && cr_server.curClient->conn->type == CR_FILE)
-            windowID = spuWindow;
-        else
-            windowID = preloadWinID<0 ? crServerGenerateID(&cr_server.idsPool.freeWindowID) : preloadWinID;
-        crHashtableAdd(cr_server.muralTable, windowID, mural);
-
-        pCreateInfo = (CRCreateInfo_t *) crAlloc(sizeof(CRCreateInfo_t));
-        pCreateInfo->pszDpyName = dpyName ? crStrdup(dpyName) : NULL;
-        pCreateInfo->visualBits = visBits;
-        crHashtableAdd(cr_server.pWindowCreateInfoTable, windowID, pCreateInfo);
-
-        crServerSetupOutputRedirect(mural);
-
-        crStateGetCurrent()->buffer.width = mural->width;
-        crStateGetCurrent()->buffer.height = mural->height;
+    if (!mural)
+    {
+        crWarning("crCalloc failed!");
+        return -1;
     }
 
+    windowID = crServerMuralInit(mural, GL_TRUE, visBits, preloadWinID);
+    if (windowID < 0)
+    {
+        crWarning("crServerMuralInit failed!");
+        crServerReturnValue( &windowID, sizeof(windowID) );
+        crFree(mural);
+        return windowID;
+    }
+
+    crHashtableAdd(cr_server.muralTable, windowID, mural);
+
     crDebug("CRServer: client %p created new window %d (SPU window %d)",
-                    cr_server.curClient, windowID, spuWindow);
+                    cr_server.curClient, windowID, mural->spuWindow);
 
     if (windowID != -1 && !cr_server.bIsInLoadingState) {
         int pos;
@@ -119,6 +164,9 @@ crServerDispatchWindowCreateEx(const char *dpyName, GLint visBits, GLint preload
             }
         }
     }
+
+    /* ensure we have a dummy mural created right away to avoid potential deadlocks on VM shutdown */
+    crServerGetDummyMural(mural->CreateInfo.realVisualBits);
 
     crServerReturnValue( &windowID, sizeof(windowID) );
     return windowID;
@@ -138,6 +186,65 @@ static int crServerRemoveClientWindow(CRClient *pClient, GLint window)
     }
 
     return false;
+}
+
+void crServerMuralTerm(CRMuralInfo *mural)
+{
+	PCR_BLITTER pBlitter;
+    crServerRedirMuralFBO(mural, false);
+    crServerDeleteMuralFBO(mural);
+
+    if (cr_server.currentMural == mural)
+    {
+        CRMuralInfo *dummyMural = crServerGetDummyMural(cr_server.MainContextInfo.CreateInfo.realVisualBits);
+        /* reset the current context to some dummy values to ensure render spu does not switch to a default "0" context,
+         * which might lead to muralFBO (offscreen rendering) gl entities being created in a scope of that context */
+        cr_server.head_spu->dispatch_table.MakeCurrent(dummyMural->spuWindow, 0, cr_server.MainContextInfo.SpuContext);
+        cr_server.currentWindow = -1;
+        cr_server.currentMural = dummyMural;
+    }
+    else
+    {
+        CRASSERT(cr_server.currentMural != mural);
+    }
+
+    pBlitter = crServerVBoxBlitterGetInitialized();
+    if (pBlitter)
+    {
+    	const CR_BLITTER_WINDOW * pWindow = CrBltMuralGetCurrentInfo(pBlitter);
+    	if (pWindow && pWindow->Base.id == mural->spuWindow)
+    	{
+    		CRMuralInfo *dummy = crServerGetDummyMural(mural->CreateInfo.realVisualBits);
+    		CR_BLITTER_WINDOW DummyInfo;
+    		CRASSERT(dummy);
+    		crServerVBoxBlitterWinInit(&DummyInfo, dummy);
+    		CrBltMuralSetCurrentInfo(pBlitter, &DummyInfo);
+    	}
+    }
+
+    if (!mural->fIsDummyRefference)
+        cr_server.head_spu->dispatch_table.WindowDestroy( mural->spuWindow );
+
+    mural->spuWindow = 0;
+
+    if (mural->pVisibleRects)
+    {
+        crFree(mural->pVisibleRects);
+    }
+
+    if (mural->CreateInfo.pszDpyName)
+        crFree(mural->CreateInfo.pszDpyName);
+
+    crServerRedirMuralFbClear(mural);
+}
+
+static void crServerCleanupCtxMuralRefsCB(unsigned long key, void *data1, void *data2)
+{
+    CRContextInfo *ctxInfo = (CRContextInfo *) data1;
+    CRMuralInfo *mural = (CRMuralInfo *) data2;
+
+    if (ctxInfo->currentMural == mural)
+        ctxInfo->currentMural = NULL;
 }
 
 void SERVER_DISPATCH_APIENTRY
@@ -160,21 +267,13 @@ crServerDispatchWindowDestroy( GLint window )
          return;
     }
 
-    if (mural->pvOutputRedirectInstance)
-    {
-        cr_server.outputRedirect.CROREnd(mural->pvOutputRedirectInstance);
-        mural->pvOutputRedirectInstance = NULL;
-    }
-
-    if (cr_server.currentWindow == window)
-    {
-        cr_server.currentWindow = -1;
-        crServerRedirMuralFBO(mural, GL_FALSE);
-        crServerDeleteMuralFBO(mural);
-    }
-
     crDebug("CRServer: Destroying window %d (spu window %d)", window, mural->spuWindow);
-    cr_server.head_spu->dispatch_table.WindowDestroy( mural->spuWindow );
+
+    crHashtableWalk(cr_server.contextTable, crServerCleanupCtxMuralRefsCB, mural);
+
+    crServerMuralTerm(mural);
+
+    CRASSERT(cr_server.currentWindow != window);
 
     if (cr_server.curClient)
     {
@@ -235,13 +334,29 @@ crServerDispatchWindowDestroy( GLint window )
         pNode = pNode->next;
     }
 
-    crHashtableDelete(cr_server.pWindowCreateInfoTable, window, crServerCreateInfoDeleteCB);
-
-    if (mural->pVisibleRects)
-    {
-        crFree(mural->pVisibleRects);
-    }
     crHashtableDelete(cr_server.muralTable, window, crFree);
+
+    crServerCheckAllMuralGeometry(NULL);
+}
+
+GLboolean crServerMuralSize(CRMuralInfo *mural, GLint width, GLint height)
+{
+    if (mural->width == width && mural->height == height)
+        return GL_FALSE;
+
+    mural->width = width;
+    mural->height = height;
+
+    if (cr_server.curClient && cr_server.curClient->currentMural == mural
+            && !mural->fRedirected)
+    {
+        crStateGetCurrent()->buffer.width = mural->width;
+        crStateGetCurrent()->buffer.height = mural->height;
+    }
+
+    crServerCheckAllMuralGeometry(mural);
+
+    return GL_TRUE;
 }
 
 void SERVER_DISPATCH_APIENTRY
@@ -257,46 +372,41 @@ crServerDispatchWindowSize( GLint window, GLint width, GLint height )
 #endif
          return;
     }
-    mural->width = width;
-    mural->height = height;
 
-    crStateGetCurrent()->buffer.width = mural->width;
-    crStateGetCurrent()->buffer.height = mural->height;
+    crServerMuralSize(mural, width, height);
 
-    crServerCheckMuralGeometry(mural);
-
-    cr_server.head_spu->dispatch_table.WindowSize(mural->spuWindow, width, height);
+    if (cr_server.currentMural == mural)
+    {
+        crServerPerformMakeCurrent( mural, cr_server.currentCtxInfo );
+    }
 }
 
+void crServerMuralPosition(CRMuralInfo *mural, GLint x, GLint y)
+{
+    if (mural->gX == x && mural->gY == y)
+        return;
+
+    mural->gX = x;
+    mural->gY = y;
+
+    crServerCheckAllMuralGeometry(mural);
+}
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchWindowPosition( GLint window, GLint x, GLint y )
 {
     CRMuralInfo *mural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, window);
-    /*  crDebug("CRServer: Window %d pos %d, %d", window, x, y);*/
     if (!mural) {
 #if EXTRA_WARN
          crWarning("CRServer: invalid window %d passed to WindowPosition()", window);
 #endif
          return;
     }
-    mural->gX = x;
-    mural->gY = y;
-
-    crServerCheckMuralGeometry(mural);
+    crServerMuralPosition(mural, x, y);
 }
 
-void SERVER_DISPATCH_APIENTRY
-crServerDispatchWindowVisibleRegion( GLint window, GLint cRects, GLint *pRects )
+void crServerMuralVisibleRegion( CRMuralInfo *mural, GLint cRects, const GLint *pRects )
 {
-    CRMuralInfo *mural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, window);
-    if (!mural) {
-#if EXTRA_WARN
-         crWarning("CRServer: invalid window %d passed to WindowVisibleRegion()", window);
-#endif
-         return;
-    }
-
     if (mural->pVisibleRects)
     {
         crFree(mural->pVisibleRects);
@@ -315,17 +425,35 @@ crServerDispatchWindowVisibleRegion( GLint window, GLint cRects, GLint *pRects )
         crMemcpy(mural->pVisibleRects, pRects, 4*sizeof(GLint)*cRects);
     }
 
-    cr_server.head_spu->dispatch_table.WindowVisibleRegion(mural->spuWindow, cRects, pRects);
-
-    if (mural->pvOutputRedirectInstance)
-    {
-        /* @todo the code assumes that RTRECT == four GLInts. */
-        cr_server.outputRedirect.CRORVisibleRegion(mural->pvOutputRedirectInstance,
-                                                   cRects, (RTRECT *)pRects);
-    }
+    crServerCheckAllMuralGeometry(mural);
 }
 
+void SERVER_DISPATCH_APIENTRY
+crServerDispatchWindowVisibleRegion( GLint window, GLint cRects, const GLint *pRects )
+{
+    CRMuralInfo *mural = (CRMuralInfo *) crHashtableSearch(cr_server.muralTable, window);
+    if (!mural) {
+#if EXTRA_WARN
+         crWarning("CRServer: invalid window %d passed to WindowVisibleRegion()", window);
+#endif
+         return;
+    }
 
+    crServerMuralVisibleRegion( mural, cRects, pRects );
+}
+
+void crServerMuralShow( CRMuralInfo *mural, GLint state )
+{
+    if (!mural->bVisible == !state)
+        return;
+
+    mural->bVisible = !!state;
+
+    if (mural->bVisible)
+        crServerCheckMuralGeometry(mural);
+    else
+        crServerCheckAllMuralGeometry(mural);
+}
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchWindowShow( GLint window, GLint state )
@@ -338,14 +466,8 @@ crServerDispatchWindowShow( GLint window, GLint state )
          return;
     }
 
-    if (!mural->bUseFBO)
-    {
-        cr_server.head_spu->dispatch_table.WindowShow(mural->spuWindow, state);
-    }
-
-    mural->bVisible = state;
+    crServerMuralShow( mural, state );
 }
-
 
 GLint
 crServerSPUWindowID(GLint serverWindow)

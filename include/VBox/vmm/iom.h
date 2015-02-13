@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,27 +47,25 @@ RT_C_DECLS_BEGIN
  * Macro for checking if an I/O or MMIO emulation call succeeded.
  *
  * This macro shall only be used with the IOM APIs where it's mentioned
- * in the return value description. And there is must be used to correctly
- * determine if the call succeeded and things like the EIP needs updating.
+ * in the return value description.  And there it must be used to correctly
+ * determine if the call succeeded and things like the RIP needs updating.
  *
  *
  * @returns Success indicator (true/false).
  *
- * @param   rc          The status code. This may be evaluated
+ * @param   rc          The status code.  This may be evaluated
  *                      more than once!
  *
  * @remark  To avoid making assumptions about the layout of the
- *          VINF_EM_FIRST...VINF_EM_LAST range we're checking
- *          explicitly for each for exach the exceptions.
- *          However, for efficieny we ASSUME that the
- *          VINF_EM_LAST is smaller than most of the relevant
- *          status codes. We also ASSUME that the
- *          VINF_EM_RESCHEDULE_REM status code is the most
- *          frequent status code we'll enounter in this range.
+ *          VINF_EM_FIRST...VINF_EM_LAST range we're checking explicitly for
+ *          each exact exception. However, for efficiency we ASSUME that the
+ *          VINF_EM_LAST is smaller than most of the relevant status codes. We
+ *          also ASSUME that the VINF_EM_RESCHEDULE_REM status code is the
+ *          most frequent status code we'll enounter in this range.
  *
  * @todo    Will have to add VINF_EM_DBG_HYPER_BREAKPOINT if the
  *          I/O port and MMIO breakpoints should trigger before
- *          the I/O is done. Currently, we don't implement these
+ *          the I/O is done.  Currently, we don't implement these
  *          kind of breakpoints.
  */
 #define IOM_SUCCESS(rc)     (   (rc) == VINF_SUCCESS \
@@ -75,7 +73,7 @@ RT_C_DECLS_BEGIN
                                  && (rc) != VINF_EM_RESCHEDULE_REM \
                                  && (rc) >= VINF_EM_FIRST \
                                  && (rc) != VINF_EM_RESCHEDULE_RAW \
-                                 && (rc) != VINF_EM_RESCHEDULE_HWACC \
+                                 && (rc) != VINF_EM_RESCHEDULE_HM \
                                 ) \
                             )
 
@@ -116,6 +114,16 @@ RT_C_DECLS_BEGIN
  *          simplifications of devices where reads doesn't change the device
  *          state in any way. */
 #define IOMMMIO_FLAGS_WRITE_DWORD_QWORD_READ_MISSING    UINT32_C(0x00000040)
+/** All write accesses are DWORD (32-bit) sized and aligned, attempts at other
+ * accesses are ignored.
+ * @remarks E1000, APIC */
+#define IOMMMIO_FLAGS_WRITE_ONLY_DWORD                  UINT32_C(0x00000050)
+/** All write accesses are DWORD (32-bit) or QWORD (64-bit) sized and aligned,
+ * attempts at other accesses are ignored.
+ * @remarks Seemingly required by AHCI (although I doubt it's _really_
+ *          required as EM/REM doesn't do the right thing in ring-3 anyway,
+ *          esp. not in raw-mode). */
+#define IOMMMIO_FLAGS_WRITE_ONLY_DWORD_QWORD            UINT32_C(0x00000060)
 /** The read access mode mask. */
 #define IOMMMIO_FLAGS_WRITE_MODE                        UINT32_C(0x00000070)
 
@@ -132,6 +140,14 @@ RT_C_DECLS_BEGIN
 #define IOMMMIO_FLAGS_VALID_MASK                        UINT32_C(0x00000373)
 /** @} */
 
+/**
+ * Checks whether the write mode allows aligned QWORD accesses to be passed
+ * thru to the device handler.
+ * @param   a_fFlags        The MMIO handler flags.
+ * @remarks The current implementation makes ASSUMPTIONS about the mode values!
+ */
+#define IOMMMIO_DOES_WRITE_MODE_ALLOW_QWORD(a_fFlags)   RT_BOOL((a_fFlags) & UINT32_C(0x00000020))
+
 
 /**
  * Port I/O Handler for IN operations.
@@ -145,6 +161,7 @@ RT_C_DECLS_BEGIN
  * @param   pu32        Where to store the result.  This is always a 32-bit
  *                      variable regardless of what @a cb might say.
  * @param   cb          Number of bytes read.
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMIOPORTIN(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb);
 /** Pointer to a FNIOMIOPORTIN(). */
@@ -162,6 +179,7 @@ typedef FNIOMIOPORTIN *PFNIOMIOPORTIN;
  * @param   pGCPtrDst   Pointer to the destination buffer (GC, incremented appropriately).
  * @param   pcTransfers Pointer to the number of transfer units to read, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMIOPORTINSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb);
 /** Pointer to a FNIOMIOPORTINSTRING(). */
@@ -177,6 +195,7 @@ typedef FNIOMIOPORTINSTRING *PFNIOMIOPORTINSTRING;
  * @param   uPort       Port number used for the OUT operation.
  * @param   u32         The value to output.
  * @param   cb          The value size in bytes.
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMIOPORTOUT(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb);
 /** Pointer to a FNIOMIOPORTOUT(). */
@@ -193,6 +212,7 @@ typedef FNIOMIOPORTOUT *PFNIOMIOPORTOUT;
  * @param   pGCPtrSrc   Pointer to the source buffer (GC, incremented appropriately).
  * @param   pcTransfers Pointer to the number of transfer units to write, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMIOPORTOUTSTRING(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb);
 /** Pointer to a FNIOMIOPORTOUTSTRING(). */
@@ -209,6 +229,7 @@ typedef FNIOMIOPORTOUTSTRING *PFNIOMIOPORTOUTSTRING;
  * @param   GCPhysAddr  Physical address (in GC) where the read starts.
  * @param   pv          Where to store the result.
  * @param   cb          Number of bytes read.
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMMMIOREAD(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb);
 /** Pointer to a FNIOMMMIOREAD(). */
@@ -224,6 +245,7 @@ typedef FNIOMMMIOREAD *PFNIOMMMIOREAD;
  * @param   GCPhysAddr  Physical address (in GC) where the read starts.
  * @param   pv          Where to fetch the result.
  * @param   cb          Number of bytes to write.
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMMMIOWRITE(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void const *pv, unsigned cb);
 /** Pointer to a FNIOMMMIOWRITE(). */
@@ -240,36 +262,37 @@ typedef FNIOMMMIOWRITE *PFNIOMMMIOWRITE;
  * @param   u32Item     Byte/Word/Dword data to fill.
  * @param   cbItem      Size of data in u32Item parameter, restricted to 1/2/4 bytes.
  * @param   cItems      Number of iterations.
+ * @remarks Caller enters the device critical section.
  */
 typedef DECLCALLBACK(int) FNIOMMMIOFILL(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, uint32_t u32Item, unsigned cbItem, unsigned cItems);
 /** Pointer to a FNIOMMMIOFILL(). */
 typedef FNIOMMMIOFILL *PFNIOMMMIOFILL;
 
-VMMDECL(VBOXSTRICTRC)   IOMIOPortRead(PVM pVM, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMIOPortWrite(PVM pVM, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretOUT(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretIN(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
-VMMDECL(VBOXSTRICTRC)   IOMIOPortReadString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb);
-VMMDECL(VBOXSTRICTRC)   IOMIOPortWriteString(PVM pVM, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretINS(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretINSEx(PVM pVM, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTS(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
-VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTSEx(PVM pVM, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
-VMMDECL(VBOXSTRICTRC)   IOMMMIORead(PVM pVM, RTGCPHYS GCPhys, uint32_t *pu32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMMMIOWrite(PVM pVM, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
-VMMDECL(VBOXSTRICTRC)   IOMMMIOPhysHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore, RTGCPHYS GCPhysFault);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortRead(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t *pu32Value, size_t cbValue);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortWrite(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, uint32_t u32Value, size_t cbValue);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretOUT(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretIN(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortReadString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, PRTGCPTR pGCPtrDst, PRTGCUINTREG pcTransfers, unsigned cb);
+VMMDECL(VBOXSTRICTRC)   IOMIOPortWriteString(PVM pVM, PVMCPU pVCpu, RTIOPORT Port, PRTGCPTR pGCPtrSrc, PRTGCUINTREG pcTransfers, unsigned cb);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretINS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretINSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTS(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMDECL(VBOXSTRICTRC)   IOMInterpretOUTSEx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t uPort, uint32_t uPrefix, DISCPUMODE enmAddrMode, uint32_t cbTransfer);
+VMMDECL(VBOXSTRICTRC)   IOMMMIORead(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t *pu32Value, size_t cbValue);
+VMMDECL(VBOXSTRICTRC)   IOMMMIOWrite(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint32_t u32Value, size_t cbValue);
+VMMDECL(VBOXSTRICTRC)   IOMMMIOPhysHandler(PVM pVM, PVMCPU pVCpu, RTGCUINT uErrorCode, PCPUMCTXCORE pCtxCore, RTGCPHYS GCPhysFault);
 VMMDECL(VBOXSTRICTRC)   IOMInterpretCheckPortIOAccess(PVM pVM, PCPUMCTXCORE pCtxCore, RTIOPORT Port, unsigned cb);
 VMMDECL(int)            IOMMMIOMapMMIO2Page(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS GCPhysRemapped, uint64_t fPageFlags);
-VMMDECL(int)            IOMMMIOMapMMIOHCPage(PVM pVM, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint64_t fPageFlags);
+VMMDECL(int)            IOMMMIOMapMMIOHCPage(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, RTHCPHYS HCPhys, uint64_t fPageFlags);
 VMMDECL(int)            IOMMMIOResetRegion(PVM pVM, RTGCPHYS GCPhys);
-VMMDECL(bool)           IOMIsLockOwner(PVM pVM);
+VMMDECL(bool)           IOMIsLockWriteOwner(PVM pVM);
 
 #ifdef IN_RC
-/** @defgroup grp_iom_gc    The IOM Guest Context API
+/** @defgroup grp_iom_rc    The IOM Raw-Mode Context API
  * @ingroup grp_iom
  * @{
  */
-VMMRCDECL(VBOXSTRICTRC) IOMGCIOPortHandler(PVM pVM, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
+VMMRCDECL(VBOXSTRICTRC) IOMRCIOPortHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, PDISCPUSTATE pCpu);
 /** @} */
 #endif /* IN_RC */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +22,8 @@
 #include <VBox/types.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/cpum.h>
+#include <VBox/log.h>
+#include <iprt/x86.h>
 
 
 
@@ -30,6 +32,27 @@
  * @internal
  * @{
  */
+
+/** Enable or disable tracking of Shadow GDT/LDT/TSS.
+ * @{
+ */
+#if defined(VBOX_WITH_RAW_MODE) || defined(DOXYGEN_RUNNING)
+# define SELM_TRACK_SHADOW_GDT_CHANGES
+# define SELM_TRACK_SHADOW_LDT_CHANGES
+# define SELM_TRACK_SHADOW_TSS_CHANGES
+#endif
+/** @} */
+
+/** Enable or disable tracking of Guest GDT/LDT/TSS.
+ * @{
+ */
+#if defined(VBOX_WITH_RAW_MODE) || defined(DOXYGEN_RUNNING)
+# define SELM_TRACK_GUEST_GDT_CHANGES
+# define SELM_TRACK_GUEST_LDT_CHANGES
+# define SELM_TRACK_GUEST_TSS_CHANGES
+#endif
+/** @} */
+
 
 /** The number of GDTS allocated for our GDT. (full size) */
 #define SELM_GDT_ELEMENTS                   8192
@@ -142,12 +165,9 @@ typedef struct SELM
     /** Indicates that the Guest GDT access handler have been registered. */
     bool                    fGDTRangeRegistered;
 
-    /** Indicates whether LDT/GDT/TSS monitoring and syncing is disabled. */
-    bool                    fDisableMonitoring;
-
     /** Indicates whether the TSS stack selector & base address need to be refreshed.  */
     bool                    fSyncTSSRing0Stack;
-    bool                    fPadding2[1+2];
+    bool                    fPadding2[4];
 
     /** SELMR3UpdateFromCPUM() profiling. */
     STAMPROFILE             StatUpdateFromCPUM;
@@ -172,6 +192,21 @@ typedef struct SELM
     STAMCOUNTER             StatHyperSelsChanged;
     /** The number of times we had find free hypervisor selectors. */
     STAMCOUNTER             StatScanForHyperSels;
+    /** Counts the times we detected state selectors in SELMR3UpdateFromCPUM. */
+    STAMCOUNTER             aStatDetectedStaleSReg[X86_SREG_COUNT];
+    /** Counts the times we were called with already state selectors in
+     * SELMR3UpdateFromCPUM. */
+    STAMCOUNTER             aStatAlreadyStaleSReg[X86_SREG_COUNT];
+    /** Counts the times we found a stale selector becomming valid again. */
+    STAMCOUNTER             StatStaleToUnstaleSReg;
+#ifdef VBOX_WITH_STATISTICS
+    /** Times we updated hidden selector registers in CPUMR3UpdateFromCPUM. */
+    STAMCOUNTER             aStatUpdatedSReg[X86_SREG_COUNT];
+    STAMCOUNTER             StatLoadHidSelGst;
+    STAMCOUNTER             StatLoadHidSelShw;
+#endif
+    STAMCOUNTER             StatLoadHidSelReadErrors;
+    STAMCOUNTER             StatLoadHidSelGstNoGood;
 } SELM, *PSELM;
 
 RT_C_DECLS_BEGIN
@@ -185,6 +220,9 @@ VMMRCDECL(int) selmRCShadowLDTWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCT
 VMMRCDECL(int) selmRCShadowTSSWriteHandler(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 
 void           selmSetRing1Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
+#ifdef VBOX_WITH_RAW_RING1
+void           selmSetRing2Stack(PVM pVM, uint32_t ss, RTGCPTR32 esp);
+#endif
 
 RT_C_DECLS_END
 

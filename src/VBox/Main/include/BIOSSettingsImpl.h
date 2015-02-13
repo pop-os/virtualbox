@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -71,6 +71,7 @@ public:
     STDMETHOD(COMSETTER(PXEDebugEnabled))(BOOL enable);
     STDMETHOD(COMGETTER)(TimeOffset)(LONG64 *offset);
     STDMETHOD(COMSETTER)(TimeOffset)(LONG64 offset);
+    STDMETHOD(COMGETTER)(NonVolatileStorageFile)(BSTR *pbstrPath);
 
     // public methods only for internal purposes
 

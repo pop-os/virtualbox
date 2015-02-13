@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -79,17 +79,17 @@ static const uint8_t g_ab32BitCode[] =
 };
 
 
-DECLCALLBACK(int) DisasmTest1ReadCode(RTUINTPTR SrcAddr, uint8_t *pbDst, uint32_t cb, void *pvUser)
+/**
+ * @callback_method_impl{FNDISREADBYTES}
+ */
+static DECLCALLBACK(int) DisasmTest1ReadCode(PDISCPUSTATE pDis, uint8_t offInstr, uint8_t cbMinRead, uint8_t cbMaxRead)
 {
-    while (cb > 0)
-    {
-        *pbDst = g_ab32BitCode[SrcAddr];
-        /* next */
-        pbDst++;
-        SrcAddr++;
-        cb--;
-    }
-    return 0;
+    size_t cb = cbMaxRead;
+    if (cb + pDis->uInstrAddr + offInstr > sizeof(g_ab32BitCode))
+        cb = cbMinRead;
+    memcpy(&pDis->abInstr[offInstr], &g_ab32BitCode[pDis->uInstrAddr + offInstr], cb);
+    pDis->cbCachedInstr = offInstr + (uint8_t)cb;
+    return VINF_SUCCESS;
 }
 
 
@@ -99,10 +99,10 @@ DECLCALLBACK(int) DisasmTest1ReadCode(RTUINTPTR SrcAddr, uint8_t *pbDst, uint32_
 inline int MyDisasm(uintptr_t CodeIndex, PDISCPUSTATE pCpu, uint32_t *pcb)
 {
     uint32_t cb;
-    int rc = DISCoreOneEx(CodeIndex, CPUMODE_32BIT, DisasmTest1ReadCode, 0, pCpu, &cb);
+    int rc = DISInstrWithReader(CodeIndex, DISCPUMODE_32BIT, DisasmTest1ReadCode, 0, pCpu, &cb);
     *pcb = cb;
-    MY_PRINTF(("DISCoreOneEx -> rc=%d cb=%d  Cpu: opcode=%#x pCurInstr=%p (42=%d)\n", \
-               rc, cb, pCpu->opcode, pCpu->pCurInstr, 42)); \
+    MY_PRINTF(("DISCoreOneEx -> rc=%d cb=%d  Cpu: bOpCode=%#x pCurInstr=%p (42=%d)\n", \
+               rc, cb, pCpu->bOpCode, pCpu->pCurInstr, 42)); \
     return rc;
 }
 
@@ -116,14 +116,13 @@ extern "C" DECLEXPORT(int) DisasmTest1(void)
     MY_PRINTF(("DisasmTest1: %p\n", &DisasmTest1));
 
     memset(&Cpu, 0, sizeof(Cpu));
-    Cpu.mode = CPUMODE_32BIT;
 
 #define DISAS_AND_CHECK(cbInstr, enmOp) \
         do { \
             rc = MyDisasm(CodeIndex, &Cpu, &cb); \
             if (RT_FAILURE(rc)) \
                 return CodeIndex | 0xf000; \
-            if (Cpu.pCurInstr->opcode != (enmOp)) \
+            if (Cpu.pCurInstr->uOpcode != (enmOp)) \
                 return CodeIndex| 0xe000; \
             if (cb != (cbInstr)) \
                 return CodeIndex | 0xd000; \

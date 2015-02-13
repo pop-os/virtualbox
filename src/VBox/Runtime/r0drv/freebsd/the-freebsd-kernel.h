@@ -50,6 +50,9 @@
 #include <sys/unistd.h>
 #include <sys/kthread.h>
 #include <sys/lock.h>
+#if __FreeBSD_version >= 1000030
+#include <sys/rwlock.h>
+#endif
 #include <sys/mutex.h>
 #include <sys/sched.h>
 #include <sys/callout.h>
@@ -66,6 +69,7 @@
 #include <vm/vm_page.h>
 #include <vm/vm_phys.h>         /* vm_phys_alloc_* */
 #include <vm/vm_extern.h>       /* kmem_alloc_attr */
+#include <vm/vm_pageout.h>      /* vm_contig_grow_cache */
 #include <sys/vmmeter.h>        /* cnt */
 #include <sys/resourcevar.h>
 #include <machine/cpu.h>

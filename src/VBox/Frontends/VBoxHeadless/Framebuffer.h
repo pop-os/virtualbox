@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,7 @@ public:
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
 
+    STDMETHOD(Notify3DEvent)(ULONG uType, BYTE *pReserved);
 private:
     /* If the format is Opaque, then internal memory buffer is used.
      * Otherwise guest VRAM is used directly.

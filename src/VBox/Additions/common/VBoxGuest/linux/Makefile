@@ -1,10 +1,10 @@
-# $Revision: 71955 $
+# $Revision: 97163 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -47,6 +47,7 @@ MOD_OBJS   = \
 	r0drv/linux/semevent-r0drv-linux.o \
 	r0drv/linux/semeventmulti-r0drv-linux.o \
 	r0drv/linux/semfastmutex-r0drv-linux.o \
+	r0drv/linux/semmutex-r0drv-linux.o \
 	r0drv/linux/spinlock-r0drv-linux.o \
 	r0drv/linux/thread-r0drv-linux.o \
 	r0drv/linux/thread2-r0drv-linux.o \
@@ -72,6 +73,7 @@ MOD_OBJS   = \
 	common/misc/assert.o \
 	common/misc/thread.o \
 	common/string/RTStrCopy.o \
+	common/string/RTStrCopyEx.o \
 	common/string/RTStrCopyP.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
@@ -125,7 +127,7 @@ ifeq ($(KERN_VERSION),24)
  ## @todo move to MOD_DEFS when we have finished refactoring
  MOD_CFLAGS = -DEXPORT_SYMTAB
 else
- MOD_CFLAGS = -include $(MANGLING)
+ MOD_CFLAGS = -Wno-declaration-after-statement -include $(MANGLING)
 endif
 
 MOD_CLEAN = . linux r0drv generic r0drv/linux r0drv/generic VBox \

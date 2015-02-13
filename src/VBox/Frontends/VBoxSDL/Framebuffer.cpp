@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,6 @@
 #include <VBox/com/string.h>
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
-#include <VBox/com/EventQueue.h>
 #include <VBox/com/VirtualBox.h>
 
 #include <iprt/stream.h>
@@ -49,7 +48,7 @@ using namespace com;
 #if defined(VBOX_WITH_XPCOM)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VBoxSDLFB, IFramebuffer)
 NS_DECL_CLASSINFO(VBoxSDLFB)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VBoxSDLFBOverlay, IFramebufferOverlay)
+NS_IMPL_THREADSAFE_ISUPPORTS2_CI(VBoxSDLFBOverlay, IFramebufferOverlay, IFramebuffer)
 NS_DECL_CLASSINFO(VBoxSDLFBOverlay)
 #endif
 
@@ -168,7 +167,7 @@ bool VBoxSDLFB::init(bool fShowSDLConfig)
 
 #ifdef RT_OS_WINDOWS
     /* default to DirectX if nothing else set */
-    if (!RTEnvGet("SDL_VIDEODRIVER"))
+    if (!RTEnvExist("SDL_VIDEODRIVER"))
     {
         _putenv("SDL_VIDEODRIVER=directx");
 //        _putenv("SDL_VIDEODRIVER=windib");
@@ -465,8 +464,8 @@ STDMETHODIMP VBoxSDLFB::NotifyUpdate(ULONG x, ULONG y,
     event.user.code  = mScreenId;
     event.user.type  = SDL_USER_EVENT_UPDATERECT;
     // 16 bit is enough for coordinates
-    event.user.data1 = (void*)(x << 16 | y);
-    event.user.data2 = (void*)(w << 16 | h);
+    event.user.data1 = (void*)(uintptr_t)(x << 16 | y);
+    event.user.data2 = (void*)(uintptr_t)(w << 16 | h);
     PushNotifyUpdateEvent(&event);
 #else /* !VBOXSDL_WITH_X11 */
     update(x, y, w, h, true /* fGuestRelative */);
@@ -621,6 +620,12 @@ STDMETHODIMP VBoxSDLFB::ProcessVHWACommand(BYTE *pCommand)
 {
     return E_NOTIMPL;
 }
+
+STDMETHODIMP VBoxSDLFB::Notify3DEvent(ULONG uType, BYTE *pReserved)
+{
+    return E_NOTIMPL;
+}
+
 //
 // Internal public methods
 //

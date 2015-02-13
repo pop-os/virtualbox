@@ -111,17 +111,6 @@
     </message>
 </context>
 <context>
-    <name>QIHttp</name>
-    <message>
-        <source>Connection timed out</source>
-        <translation>Die Verbindung konnte innerhalb der vorgegebenen Zeit nicht aufgebaut werden</translation>
-    </message>
-    <message>
-        <source>Could not locate the file on the server (response: %1)</source>
-        <translation>Die Datei konnte auf dem Server nicht gefunden werden (Antwort: %1)</translation>
-    </message>
-</context>
-<context>
     <name>QILabel</name>
     <message>
         <source>&amp;Copy</source>
@@ -147,10 +136,6 @@
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <source>Ignore</source>
-        <translation>Ignorieren</translation>
-    </message>
-    <message>
         <source>&amp;Details</source>
         <translation>&amp;Details</translation>
     </message>
@@ -165,34 +150,6 @@
     <message>
         <source>Copy</source>
         <translation>Kopieren</translation>
-    </message>
-</context>
-<context>
-    <name>QIWidgetValidator</name>
-    <message>
-        <source>not complete</source>
-        <comment>value state</comment>
-        <translation>unvollständig</translation>
-    </message>
-    <message>
-        <source>invalid</source>
-        <comment>value state</comment>
-        <translation>unzulässig</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;The value of the &lt;b&gt;%1&lt;/b&gt; field on the &lt;b&gt;%2&lt;/b&gt; page is %3.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Der Wert des Feldes &lt;b&gt;%1&lt;/b&gt; auf der Seite &lt;b&gt;%2&lt;/b&gt; ist %3.&lt;/qt&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;One of the values on the &lt;b&gt;%1&lt;/b&gt; page is %2.&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Einer der Werte der Seite &lt;b&gt;%1&lt;/b&gt; ist %2.&lt;/qt&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>QIWizardPage</name>
-    <message>
-        <source>Use the &lt;b&gt;%1&lt;/b&gt; button to go to the next page of the wizard and the &lt;b&gt;%2&lt;/b&gt; button to return to the previous page. You can also press &lt;b&gt;%3&lt;/b&gt; if you want to cancel the execution of this wizard.&lt;/p&gt;</source>
-        <translation>Wählen Sie &lt;b&gt;%1&lt;/b&gt;, um auf die nächste Seite zu gelangen oder &lt;b&gt;%2&lt;/b&gt;, um auf die vorherige Seite zurückzukehren. Wählen Sie &lt;b&gt;%3&lt;/b&gt;, um den Assistenten zu beenden.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -230,24 +187,16 @@
         <translation>Sendet die Sequenz Strg-Alt-Entf (Affengriff) an die virtuelle Maschine</translation>
     </message>
     <message>
-        <source>&amp;Insert Ctrl-Alt-Backspace</source>
-        <translation>&amp;Sende Strg-Alt-Rücktaste</translation>
-    </message>
-    <message>
         <source>Send the Ctrl-Alt-Backspace sequence to the virtual machine</source>
         <translation>Sendet die Sequenz Strg-Alt-Rücktaste an die virtuelle Maschine</translation>
-    </message>
-    <message>
-        <source>Take &amp;Snapshot...</source>
-        <translation>&amp;Sicherungspunkt erstellen...</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
         <translation>Erstellt einen Sicherungspunkt der virtuellen Maschine</translation>
     </message>
     <message>
-        <source>Show Session Information Dialog</source>
-        <translation>Zeigt einen Dialog mit Session-Informationen</translation>
+        <source>Show Session Information Window</source>
+        <translation>Zeigt einen Dialog mit Sitzungsinformationen</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -271,7 +220,7 @@
     </message>
     <message>
         <source>Send the ACPI Power Button press event to the virtual machine</source>
-        <translation>Sendet das ACPI-Ereignis &quot;Einschaltknopf gedrückt&quot; an die virtuelle Maschine</translation>
+        <translation>Sendet das ACPI-Ereignis &quot;Ausschaltknopf gedrückt&quot; an die virtuelle Maschine</translation>
     </message>
     <message>
         <source>&amp;Close...</source>
@@ -302,28 +251,20 @@
         <translation>&amp;USB-Geräte</translation>
     </message>
     <message>
-        <source>&amp;Network Adapters...</source>
-        <translation>&amp;Netzwerkadapter...</translation>
-    </message>
-    <message>
         <source>Change the settings of network adapters</source>
         <translation>Ändert die Einstellungen der Netzwerkadapter</translation>
-    </message>
-    <message>
-        <source>&amp;Shared Folders...</source>
-        <translation>&amp;Gemeinsame Ordner...</translation>
     </message>
     <message>
         <source>Create or modify shared folders</source>
         <translation>Öffnet den Dialog für gemeinsame Ordner</translation>
     </message>
     <message>
-        <source>&amp;Install Guest Additions...</source>
-        <translation>&amp;Gasterweiterungen installieren...</translation>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <translation>Medium mit &amp;Gasterweiterungen einlegen...</translation>
     </message>
     <message>
-        <source>Mount the Guest Additions installation image</source>
-        <translation>Medium mit Gasterweiterungen einbinden</translation>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation>Medium mit den VirtualBox-Gasterweiterungen einbinden</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -356,15 +297,6 @@
         <translation>Zeige Programm-Icon</translation>
     </message>
     <message>
-        <source>Enable remote desktop (RDP) connections to this machine</source>
-        <translation>Einschalten der Fernsteuerung (remote desktop protocol, RDP) für diese virtuelle Maschine</translation>
-    </message>
-    <message>
-        <source>Enable &amp;Logging...</source>
-        <comment>debug action</comment>
-        <translation>&amp;Logging aktivieren...</translation>
-    </message>
-    <message>
         <source>Switch to &amp;Fullscreen</source>
         <translation>&amp;Vollbildmodus einschalten</translation>
     </message>
@@ -381,11 +313,11 @@
         <translation>Schaltet in den nahtlosen Fenstermodus (Fenster des Gastes werden nahtlos in den Hostdesktop integriert)</translation>
     </message>
     <message>
-        <source>Switch to &amp;Scale Mode</source>
+        <source>Switch to &amp;Scaled Mode</source>
         <translation>&amp;Skalierten Modus einschalten</translation>
     </message>
     <message>
-        <source>Switch between normal and scale mode</source>
+        <source>Switch between normal and scaled mode</source>
         <translation>Schaltet in den skalierten Modus bzw. zurück</translation>
     </message>
     <message>
@@ -393,12 +325,8 @@
         <translation>Automatische Anpassung der &amp;Gastanzeige</translation>
     </message>
     <message>
-        <source>Enable R&amp;emote Display</source>
-        <translation>&amp;Fernsteuerung aktivieren</translation>
-    </message>
-    <message>
         <source>&amp;Settings...</source>
-        <translation>Änd&amp;ern...</translation>
+        <translation>&amp;Ändern...</translation>
     </message>
     <message>
         <source>Manage the virtual machine settings</source>
@@ -406,7 +334,383 @@
     </message>
     <message>
         <source>Session I&amp;nformation...</source>
-        <translation>Session-I&amp;nformationen...</translation>
+        <translation>Sitzungsi&amp;nformationen...</translation>
+    </message>
+    <message>
+        <source>Show the log files of the selected virtual machine</source>
+        <translation>Zeigt die Log-Dateien der ausgewählten virtuellen Maschine</translation>
+    </message>
+    <message>
+        <source>&amp;Contents...</source>
+        <translation>&amp;Inhalt...</translation>
+    </message>
+    <message>
+        <source>Show help contents</source>
+        <translation>Zeigt den Inhalt der Hilft</translation>
+    </message>
+    <message>
+        <source>Open the browser and go to the VirtualBox product web site</source>
+        <translation>Öffnet den Browser mit der Produktwebseite von VirtualBox</translation>
+    </message>
+    <message>
+        <source>Go back to showing all suppressed warnings and messages</source>
+        <translation>Alle unterdrückten Warnungen werden beim nächsten Mal erneut angezeigt</translation>
+    </message>
+    <message>
+        <source>&amp;Network Operations Manager...</source>
+        <translation>Manager für &amp;Netzoperationen...</translation>
+    </message>
+    <message>
+        <source>Show Network Operations Manager</source>
+        <translation>Zeige Manager für Netzoperationen</translation>
+    </message>
+    <message>
+        <source>Check for a new VirtualBox version</source>
+        <translation>Überprüft, ob eine neue Version von VirtualBox verfügbar ist</translation>
+    </message>
+    <message>
+        <source>&amp;About VirtualBox...</source>
+        <translation>&amp;Über VirtualBox...</translation>
+    </message>
+    <message>
+        <source>Show a window with product information</source>
+        <translation>Zeigt einen Dialog mit Produktinformationen</translation>
+    </message>
+    <message>
+        <source>Take Sn&amp;apshot...</source>
+        <translation>Sicherungs&amp;punkt erstellen...</translation>
+    </message>
+    <message>
+        <source>Take Screensh&amp;ot...</source>
+        <translation>&amp;Screenshot erstellen...</translation>
+    </message>
+    <message>
+        <source>Take a screenshot of the virtual machine</source>
+        <translation>Erzeugt ein Bildschirmfoto der virtuellen Maschine</translation>
+    </message>
+    <message>
+        <source>Ins&amp;ert Ctrl-Alt-Backspace</source>
+        <translation>Sende Strg-Alt-&amp;Rücktaste</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Mac OS X version</comment>
+        <translation>&amp;Datei</translation>
+    </message>
+    <message>
+        <source>&amp;File</source>
+        <comment>Non Mac OS X version</comment>
+        <translation>&amp;Datei</translation>
+    </message>
+    <message>
+        <source>&amp;Virtual Media Manager...</source>
+        <translation>Manager für virtuelle &amp;Medien...</translation>
+    </message>
+    <message>
+        <source>Display the Virtual Media Manager window</source>
+        <translation>Zeigt den Manager für virtuelle Medien</translation>
+    </message>
+    <message>
+        <source>&amp;Import Appliance...</source>
+        <translation>Appliance &amp;importieren ...</translation>
+    </message>
+    <message>
+        <source>Import an appliance into VirtualBox</source>
+        <translation>Importiert eine Appliance in VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Export Appliance...</source>
+        <translation>Appliance &amp;exportieren ...</translation>
+    </message>
+    <message>
+        <source>Export one or more VirtualBox virtual machines as an appliance</source>
+        <translation>Exportiert eine Appliance aus VirtualBox</translation>
+    </message>
+    <message>
+        <source>&amp;Preferences...</source>
+        <comment>global settings</comment>
+        <translation>&amp;Globale Einstellungen...</translation>
+    </message>
+    <message>
+        <source>Display the global settings window</source>
+        <translation>Zeigt den Dialog für globale Einstellungen</translation>
+    </message>
+    <message>
+        <source>E&amp;xit</source>
+        <translation>B&amp;eenden</translation>
+    </message>
+    <message>
+        <source>Close application</source>
+        <translation>Anwendung schließen</translation>
+    </message>
+    <message>
+        <source>&amp;Group</source>
+        <translation>&amp;Gruppieren</translation>
+    </message>
+    <message>
+        <source>Create a new virtual machine</source>
+        <translation>Neue virtuelle Maschine erzeugen</translation>
+    </message>
+    <message>
+        <source>Add an existing virtual machine</source>
+        <translation>Fügt eine existierende virtuelle Maschine hinzu</translation>
+    </message>
+    <message>
+        <source>Rename the selected virtual machine group</source>
+        <translation>Benennt die ausgewählte virtuelle Maschine um</translation>
+    </message>
+    <message>
+        <source>S&amp;tart</source>
+        <translation>&amp;Starten</translation>
+    </message>
+    <message>
+        <source>S&amp;how</source>
+        <translation>&amp;Zeigen</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh...</source>
+        <translation>&amp;Aktualisieren...</translation>
+    </message>
+    <message>
+        <source>Refresh the accessibility state of the selected virtual machine</source>
+        <translation>Aktualisiert den Zustand der ausgewählten virtuellen Maschine</translation>
+    </message>
+    <message>
+        <source>Show in Finder</source>
+        <translation>Im Finder zeigen</translation>
+    </message>
+    <message>
+        <source>Show in Explorer</source>
+        <translation>Im Explorer zeigen</translation>
+    </message>
+    <message>
+        <source>Show in File Manager</source>
+        <translation>Im Dateimanager zeigen</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
+        <translation>Zeigt die VirtualBox-VM-Definition im Dateimanager</translation>
+    </message>
+    <message>
+        <source>&amp;New...</source>
+        <translation>&amp;Neu...</translation>
+    </message>
+    <message>
+        <source>&amp;Add...</source>
+        <translation>&amp;Hinzufügen...</translation>
+    </message>
+    <message>
+        <source>Add a new group based on the items selected</source>
+        <translation>Neue Gruppe mit den ausgewählten Maschinen erzeugen</translation>
+    </message>
+    <message>
+        <source>Cl&amp;one...</source>
+        <translation>&amp;Klonen...</translation>
+    </message>
+    <message>
+        <source>Clone the selected virtual machine</source>
+        <translation>Die ausgewählte virtuelle Maschine klonen</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation>&amp;Entfernen...</translation>
+    </message>
+    <message>
+        <source>Discard</source>
+        <translation>Verwerfen</translation>
+    </message>
+    <message>
+        <source>D&amp;iscard saved state...</source>
+        <translation>&amp;Verwerfen...</translation>
+    </message>
+    <message>
+        <source>Create Alias on Desktop</source>
+        <translation>Alias auf dem Desktop erzeugen</translation>
+    </message>
+    <message>
+        <source>Create Shortcut on Desktop</source>
+        <translation>Desktop-Verknüpfung</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation>&amp;Schließen</translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <translation>Zeige &amp;Log...</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Web Site...</source>
+        <translation>Webseite von &amp;VirtualBox...</translation>
+    </message>
+    <message>
+        <source>&amp;Reset All Warnings</source>
+        <translation>Alle Warnungen &amp;zurücksetzen</translation>
+    </message>
+    <message>
+        <source>C&amp;heck for Updates...</source>
+        <translation>Überprüfung auf &amp;Update...</translation>
+    </message>
+    <message>
+        <source>Rena&amp;me Group...</source>
+        <translation>Gruppe &amp;umbenennen...</translation>
+    </message>
+    <message>
+        <source>Sort the items of the selected virtual machine group alphabetically</source>
+        <translation>Sortiert die Gruppe der ausgewählten Maschine automatisch</translation>
+    </message>
+    <message>
+        <source>Remove the selected virtual machines</source>
+        <translation>Löscht die ausgewählten virtuelle Maschinen</translation>
+    </message>
+    <message>
+        <source>Start the selected virtual machines</source>
+        <translation>Starten der ausgewählten virtuellen Maschinen</translation>
+    </message>
+    <message>
+        <source>Switch to the windows of the selected virtual machines</source>
+        <translation>Holt die Fenster der ausgewählten virtuellen Maschinen in den Vordergrund</translation>
+    </message>
+    <message>
+        <source>Suspend the execution of the selected virtual machines</source>
+        <translation>Suspendiert die Ausführung der ausgewählten virtuellen Maschinen</translation>
+    </message>
+    <message>
+        <source>Reset the selected virtual machines</source>
+        <translation>Zurücksetzen der ausgewählten virtuellen Maschinen</translation>
+    </message>
+    <message>
+        <source>Discard the saved state of the selected virtual machines</source>
+        <translation>Verwirft den gesicherten Zustand der ausgewählten virtuellen Maschinen</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Finder</source>
+        <translation>Zeigt die VirtualBox-VM-Definition im Finder</translation>
+    </message>
+    <message>
+        <source>Show the VirtualBox Machine Definition file in Explorer</source>
+        <translation>Zeigt die VirtualBox-VM-Definition im Explorer</translation>
+    </message>
+    <message>
+        <source>Creates an alias file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation>Erzeugt einen Alias für die VirtualBox-VM-Definition auf Ihrem Desktop</translation>
+    </message>
+    <message>
+        <source>Creates an shortcut file to the VirtualBox Machine Definition file on your desktop</source>
+        <translation>Erzeugt eine Verknüfung auf die VirtualBox-VM auf Ihrem Destkop</translation>
+    </message>
+    <message>
+        <source>Save State</source>
+        <translation>Zustand sichern</translation>
+    </message>
+    <message>
+        <source>Save the machine state of the selected virtual machines</source>
+        <translation>Sichert den Zustand der ausgewählten virtuellen Maschinen</translation>
+    </message>
+    <message>
+        <source>Send the ACPI Power Button press event to the selected virtual machines</source>
+        <translation>Sendet das ACPI-Ereignis &quot;Ausschaltknopf gedrückt&quot; an die virtuelle Maschinen</translation>
+    </message>
+    <message>
+        <source>Po&amp;wer Off</source>
+        <translation>&amp;Ausschalten</translation>
+    </message>
+    <message>
+        <source>Power off the selected virtual machines</source>
+        <translation>Schaltet die ausgewählte virtuelle Maschine aus</translation>
+    </message>
+    <message>
+        <source>&amp;New Machine...</source>
+        <translation>&amp;Neue Maschine...</translation>
+    </message>
+    <message>
+        <source>&amp;Add Machine...</source>
+        <translation>Maschine &amp;hinzufügen...</translation>
+    </message>
+    <message>
+        <source>&amp;Ungroup...</source>
+        <translation>Gruppierung &amp;aufheben...</translation>
+    </message>
+    <message>
+        <source>Ungroup items of the selected virtual machine group</source>
+        <translation>Gruppierung der ausgewählten Gruppe aufheben</translation>
+    </message>
+    <message>
+        <source>Sort</source>
+        <translation>Sortieren</translation>
+    </message>
+    <message>
+        <source>Gro&amp;up</source>
+        <translation>Gr&amp;uppieren</translation>
+    </message>
+    <message>
+        <source>Sort the group of the first selected machine alphabetically</source>
+        <translation>Sortiert die Gruppe der ersten ausgewählten Maschine automatisch</translation>
+    </message>
+    <message>
+        <source>Shared &amp;Clipboard</source>
+        <translation>Gemeinsame &amp;Zwischenablage</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop</source>
+        <translation>Drag&apos;n&apos;Drop</translation>
+    </message>
+    <message>
+        <source>Save the machine state of the virtual machine</source>
+        <translation>Sichert den Zustand der virtuellen Maschine</translation>
+    </message>
+    <message>
+        <source>Power off the virtual machine</source>
+        <translation>Schaltet die virtuelle Maschine aus</translation>
+    </message>
+    <message>
+        <source>&amp;Network Settings...</source>
+        <translation>&amp;Netzwerkeinstellungen...</translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders Settings...</source>
+        <translation>&amp;Gemeinsame Ordner...</translation>
+    </message>
+    <message>
+        <source>R&amp;emote Display</source>
+        <translation>&amp;Fernsteuerung</translation>
+    </message>
+    <message>
+        <source>Toggle remote desktop (RDP) connections to this machine</source>
+        <translation>Fernsteuerung (RDP) ein- oder ausschalten</translation>
+    </message>
+    <message>
+        <source>&amp;Video Capture</source>
+        <translation>&amp;Videoaufzeichnung</translation>
+    </message>
+    <message>
+        <source>Toggle video capture</source>
+        <translation>Videoaufzeichnung ein- oder ausschalten</translation>
+    </message>
+    <message>
+        <source>&amp;Video Capture Settings...</source>
+        <translation>Einstellungen für &amp;Videoaufzeichnung...</translation>
+    </message>
+    <message>
+        <source>Configure video capture settings</source>
+        <translation>Parameter für Videoaufzeichnung ändern</translation>
+    </message>
+    <message>
+        <source>&amp;Logging...</source>
+        <comment>debug action</comment>
+        <translation>&amp;Logging...</translation>
+    </message>
+    <message>
+        <source>Popup Menu</source>
+        <translation>Menü in Fullscreen/Seamless</translation>
+    </message>
+    <message>
+        <source>&amp;Webcams</source>
+        <translation>&amp;Webcams</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <translation>Netzwerk</translation>
     </message>
 </context>
 <context>
@@ -517,7 +821,7 @@
     </message>
     <message>
         <source>When checked a new unique MAC address will assigned to all configured network cards.</source>
-        <translation>Falls ausgewählt, wird allen aktivierten Netzwerkkarten eine neue MAC-Adresse zugewiesen.</translation>
+        <translation>Allen aktivierten Netzwerkkarten wird eine neue MAC-Adresse zugewiesen.</translation>
     </message>
     <message>
         <source>&amp;Reinitialize the MAC address of all network cards</source>
@@ -536,416 +840,46 @@
     </message>
 </context>
 <context>
-    <name>UICloneVMWizard</name>
-    <message>
-        <source>Clone a virtual machine</source>
-        <translation>Virtuelle Maschine klonen</translation>
-    </message>
-    <message>
-        <source>Clone</source>
-        <translation>Klonen</translation>
-    </message>
-    <message>
-        <source>Linked Base for %1 and %2</source>
-        <translation>Ausgangspunkt für %1 und %2</translation>
-    </message>
-</context>
-<context>
-    <name>UICloneVMWizardPage1</name>
-    <message>
-        <source>&lt;p&gt;This wizard will help you to create a clone of your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Assistent hilft Ihnen bei der Erstellung eines Klones (einer exakten Kopie) einer virtuellen Maschine.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please choose a name for the new virtual machine:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bitte wählen Sie einen Namen für die neue virtuelle Maschine:&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Welcome to the virtual machine clone wizard</source>
-        <translation>Klone-Assistent</translation>
-    </message>
-    <message>
-        <source>%1 Clone</source>
-        <translation>%1-Klon</translation>
-    </message>
-    <message>
-        <source>&amp;Reinitialize the MAC address of all network cards</source>
-        <translation>&amp;Zuweisen neuer MAC-Adressen für alle Netzwerkkarten</translation>
-    </message>
-    <message>
-        <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
-        <translation>Falls ausgewählt, wird allen aktivierten Netzwerkkarten eine neue MAC-Adresse zugewiesen.</translation>
-    </message>
-</context>
-<context>
-    <name>UICloneVMWizardPage2</name>
-    <message>
-        <source>Cloning Configuration</source>
-        <translation>Auswahl der Zustände</translation>
-    </message>
-    <message>
-        <source>Full Clone</source>
-        <translation>vollständiger Klon</translation>
-    </message>
-    <message>
-        <source>Linked Clone</source>
-        <translation>verknüpfter Klon</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please select the type of the clone.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full Clone&lt;/b&gt; an exact copy (including all virtual disk images) of the original VM will be created. If you select &lt;b&gt;Linked Clone&lt;/b&gt;, a new VM will be created, but the virtual disk images will point to the virtual disk images of original VM.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bitte wählen Sie, wie der Klon erstellt werden soll.&lt;/p&gt;&lt;p&gt;Ein &lt;b&gt;vollständiger Klon&lt;/b&gt; erzeugt eine genaue Kopie der VM mit allen virtuellen Plattenabbildern. Ein &lt;b&gt;verknüpfter Klon&lt;/b&gt; erzeugt eine Kopie, bei dem alle virtuellen Platten der originalen VM verwendet werden.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Note that a new snapshot within the source VM is created in case you select &lt;b&gt;Linked Clone&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bitte beachten Sie, dass ein neuer Sicherungspunkt der originalen VM erzeugt wird, falls Sie &lt;b&gt;verknüpfter Klon&lt;/b&gt; wählen.&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UICloneVMWizardPage3</name>
-    <message>
-        <source>Current machine state</source>
-        <translation>aktueller Zustand</translation>
-    </message>
-    <message>
-        <source>Current machine and all child states</source>
-        <translation>aktueller und alle nachfolgenden Zustände</translation>
-    </message>
-    <message>
-        <source>All states</source>
-        <translation>alle Zustände</translation>
-    </message>
-    <message>
-        <source>Cloning Configuration</source>
-        <translation>Auswahl der Zustände</translation>
-    </message>
-    <message>
-        <source>Please choose which parts of the virtual machine should be cloned.</source>
-        <translation>Bitte wählen Sie, welche Zustände der virtuellen Maschine geklont werden sollen.</translation>
-    </message>
-    <message>
-        <source>If you select &lt;b&gt;Current machine state&lt;/b&gt;, only the current state of the virtual machine is cloned.</source>
-        <translation>Falls Sie &lt;b&gt;aktueller Zustand&lt;/b&gt; wählen, wird nur der aktuelle Zustand der virtuellen Maschine geklont.</translation>
-    </message>
-    <message>
-        <source>If you select &lt;b&gt;Current machine and all child states&lt;/b&gt; the current state of the virtual machine and any states of child snapshots are cloned.</source>
-        <translation>Falls Sie &lt;b&gt;aktueller und alle nachfolgenden Zustände&lt;/b&gt; auswählen, werden der aktuelle Zustand und alle Zustände, die in nachfolgenden Sicherheitspunkten gespeichert sind, kopiert.</translation>
-    </message>
-    <message>
-        <source>If you select &lt;b&gt;All states&lt;/b&gt;, the current machine state and all snapshots are cloned.</source>
-        <translation>Falls Sie &lt;b&gt;alle Zustände&lt;/b&gt; wählen, werden wirklich alle Zustände geklont.</translation>
-    </message>
-</context>
-<context>
-    <name>UIDescriptionPagePrivate</name>
-    <message>
-        <source>No description. Press the Edit button below to add it.</source>
-        <translation>Noch keine Beschreibung. Betätigen Sie den Editieren-Knopf um eine Beschreibung zu erstellen.</translation>
-    </message>
-    <message>
-        <source>Edit</source>
-        <translation>Editieren</translation>
-    </message>
-    <message>
-        <source>Edit (Ctrl+E)</source>
-        <translation>Editieren (Strg+E)</translation>
-    </message>
-</context>
-<context>
     <name>UIDetailsPagePrivate</name>
-    <message>
-        <source>Name</source>
-        <comment>details report</comment>
-        <translation>Name</translation>
-    </message>
-    <message>
-        <source>OS Type</source>
-        <comment>details report</comment>
-        <translation>OS-Typ</translation>
-    </message>
-    <message>
-        <source>Base Memory</source>
-        <comment>details report</comment>
-        <translation>Hauptspeicher</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</source>
-        <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1 MB&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Processors</source>
-        <comment>details report</comment>
-        <translation>Prozessoren</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
-        <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Boot Order</source>
-        <comment>details report</comment>
-        <translation>Bootreihenfolge</translation>
-    </message>
-    <message>
-        <source>ACPI</source>
-        <comment>details report</comment>
-        <translation>ACPI</translation>
-    </message>
-    <message>
-        <source>IO APIC</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>BIOS</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>VT-x/AMD-V</source>
-        <comment>details report</comment>
-        <translation>VT-x/AMD-V</translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <comment>details report</comment>
-        <translation>Nested Paging</translation>
-    </message>
-    <message>
-        <source>PAE/NX</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Acceleration</source>
-        <comment>details report</comment>
-        <translation>Beschleunigung</translation>
-    </message>
-    <message>
-        <source>Video Memory</source>
-        <comment>details report</comment>
-        <translation>Grafikspeicher</translation>
-    </message>
-    <message>
-        <source>Screens</source>
-        <comment>details report</comment>
-        <translation>Bildschirme</translation>
-    </message>
-    <message>
-        <source>2D Video</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>3D</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>(CD/DVD)</source>
-        <translation>(CD/DVD)</translation>
-    </message>
-    <message>
-        <source>Not Attached</source>
-        <comment>details report (Storage)</comment>
-        <translation>nicht angeschlossen</translation>
-    </message>
-    <message>
-        <source>Host Driver</source>
-        <comment>details report (audio)</comment>
-        <translation>Host-Treiber</translation>
-    </message>
-    <message>
-        <source>Controller</source>
-        <comment>details report (audio)</comment>
-        <translation>Controller</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (audio)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Bridged adapter, %1</source>
-        <comment>details report (network)</comment>
-        <translation>Netzwerkbrücke, %1</translation>
-    </message>
-    <message>
-        <source>Internal network, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation>Internes Netzwerk, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Host-only adapter, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation>Host-only Adapter, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Adapter %1</source>
-        <comment>details report (network)</comment>
-        <translation>Adapter %1</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (network)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Port %1</source>
-        <comment>details report (serial ports)</comment>
-        <translation>Port %1</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (serial ports)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Port %1</source>
-        <comment>details report (parallel ports)</comment>
-        <translation>Port %1</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (parallel ports)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Device Filters</source>
-        <comment>details report (USB)</comment>
-        <translation>Gerätefilter</translation>
-    </message>
-    <message>
-        <source>%1 (%2 active)</source>
-        <comment>details report (USB)</comment>
-        <translation>%1 (%2 aktiv)</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (USB)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Shared Folders</source>
-        <comment>details report (shared folders)</comment>
-        <translation>Gemeinsame Ordner</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <comment>details report (shared folders)</comment>
-        <translation>keine</translation>
-    </message>
-    <message>
-        <source>None</source>
-        <comment>details report (description)</comment>
-        <translation>keine</translation>
-    </message>
     <message>
         <source>The selected virtual machine is &lt;i&gt;inaccessible&lt;/i&gt;. Please inspect the error message shown below and press the &lt;b&gt;Refresh&lt;/b&gt; button if you want to repeat the accessibility check:</source>
         <translation>Die ausgewählte virtuelle Maschine ist &lt;i&gt;nicht zugreifbar&lt;/i&gt;. Bitte beachten Sie die Fehlermeldung, die unten gezeigt wird und betätigen Sie den &lt;b&gt;Refreshknopf&lt;/b&gt;, falls Sie den Test wiederholen wollen:</translation>
     </message>
+</context>
+<context>
+    <name>UIDnDHandler</name>
     <message>
-        <source>General</source>
-        <comment>details report</comment>
-        <translation>Allgemein</translation>
+        <source>Dropping data ...</source>
+        <translation>Kopiere Daten ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIDnDMimeData</name>
+    <message>
+        <source>Dropping data ...</source>
+        <translation>Kopiere Daten ...</translation>
+    </message>
+</context>
+<context>
+    <name>UIDownloader</name>
+    <message>
+        <source>Looking for %1...</source>
+        <translation>Suche %1...</translation>
     </message>
     <message>
-        <source>System</source>
-        <comment>details report</comment>
-        <translation>System</translation>
-    </message>
-    <message>
-        <source>Preview</source>
-        <comment>details report</comment>
-        <translation>Vorschau</translation>
-    </message>
-    <message>
-        <source>Display</source>
-        <comment>details report</comment>
-        <translation>Anzeige</translation>
-    </message>
-    <message>
-        <source>Storage</source>
-        <comment>details report</comment>
-        <translation>Massenspeicher</translation>
-    </message>
-    <message>
-        <source>Audio</source>
-        <comment>details report</comment>
-        <translation>Audio</translation>
-    </message>
-    <message>
-        <source>Network</source>
-        <comment>details report</comment>
-        <translation>Netzwerk</translation>
-    </message>
-    <message>
-        <source>Serial Ports</source>
-        <comment>details report</comment>
-        <translation>Serielle Schnittstellen</translation>
-    </message>
-    <message>
-        <source>Parallel Ports</source>
-        <comment>details report</comment>
-        <translation>Parallel-Ports</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>details report</comment>
-        <translation>USB</translation>
-    </message>
-    <message>
-        <source>Shared Folders</source>
-        <comment>details report</comment>
-        <translation>Gemeinsame Ordner</translation>
-    </message>
-    <message>
-        <source>Description</source>
-        <comment>details report</comment>
-        <translation>Beschreibung</translation>
-    </message>
-    <message>
-        <source>Remote Desktop Server Port</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation>Port für Fernsteuerung</translation>
-    </message>
-    <message>
-        <source>Remote Desktop Server</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation>Fernsteuerung</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>details report (VRDE Server)</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Execution Cap</source>
-        <comment>details report</comment>
-        <translation>CPU-Begrenzung</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
-        <comment>details report</comment>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Generic driver, &apos;%1&apos;</source>
-        <comment>details report (network)</comment>
-        <translation>Generischer Treiber, &apos;%1&apos;</translation>
-    </message>
-    <message>
-        <source>Generic driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
-        <comment>details report (network)</comment>
-        <translation>Generischer Treiber, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+        <source>Downloading %1...</source>
+        <translation>%1 wird heruntergeladen...</translation>
     </message>
 </context>
 <context>
     <name>UIDownloaderAdditions</name>
     <message>
         <source>Select folder to save Guest Additions image to</source>
-        <translation>Wählen Sie den Ordner aus, in dem die Gasterweiterungen gespeichert werden sollen</translation>
+        <translation>Wählen Sie den Ordner aus, in dem die VirtualBox-Gasterweiterungen gespeichert werden sollen</translation>
+    </message>
+    <message>
+        <source>VirtualBox Guest Additions</source>
+        <translation>VirtualBox Gasterweiterungen</translation>
     </message>
 </context>
 <context>
@@ -954,245 +888,444 @@
         <source>Select folder to save %1 to</source>
         <translation>Wählen Sie einen Zielordner für %1</translation>
     </message>
+    <message>
+        <source>VirtualBox Extension Pack</source>
+        <translation>VirtualBox Zusatzpaket</translation>
+    </message>
 </context>
 <context>
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
-        <translation>Wählen Sie den Ordner aus, in dem das Benutzerhandbuch gespeichert werden soll.</translation>
+        <translation>Wählen Sie den Ordner aus, in dem das Benutzerhandbuch gespeichert werden soll</translation>
+    </message>
+    <message>
+        <source>VirtualBox User Manual</source>
+        <translation>VirtualBox Benutzerhandbuch</translation>
     </message>
 </context>
 <context>
-    <name>UIExportApplianceWzd</name>
+    <name>UIGChooserItemGroup</name>
     <message>
-        <source>Appliance Export Wizard</source>
-        <translation>Appliance Exportassistent</translation>
+        <source>&lt;b&gt;%1&lt;/b&gt;</source>
+        <comment>Group item tool-tip / Group name</comment>
+        <translation></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n group(s)</source>
+        <comment>Group item tool-tip / Group info</comment>
+        <translation>
+            <numerusform>%n Gruppe</numerusform>
+            <numerusform>%n Gruppen</numerusform>
+        </translation>
     </message>
     <message>
-        <source>Restore Defaults</source>
-        <translation>Standardeinstellungen</translation>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Group info wrapper</comment>
+        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n machine(s)</source>
+        <comment>Group item tool-tip / Machine info</comment>
+        <translation>
+            <numerusform>% Maschine</numerusform>
+            <numerusform>% Maschinen</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n running)</source>
+        <comment>Group item tool-tip / Running machine info</comment>
+        <translation>
+            <numerusform>(%n wird ausgeführt)</numerusform>
+            <numerusform>(%n wird ausgeführt)</numerusform>
+        </translation>
     </message>
     <message>
-        <source>Export</source>
-        <translation>Exportieren</translation>
-    </message>
-</context>
-<context>
-    <name>UIExportApplianceWzdPage1</name>
-    <message>
-        <source>Welcome to the Appliance Export Wizard!</source>
-        <translation>Appliance Exportassistent</translation>
+        <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Machine info wrapper</comment>
+        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;This wizard will guide you through the process of exporting an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Assistent hilft Ihnen beim Export einer Appliance. &lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Bitte wählen Sie die virtuellen Maschinen aus, die in die Appliance exportiert werden sollen. Sie können auch mehrere VMs auswählen. Bitte beachten Sie, dass diese Maschinen ausgeschaltet sein müssen, damit sie exportiert werden können.&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIExportApplianceWzdPage2</name>
-    <message>
-        <source>Appliance Export Settings</source>
-        <translation>Appliance Exporteinstellungen</translation>
+        <source>&lt;nobr&gt;%1 %2&lt;/nobr&gt;</source>
+        <comment>Group item tool-tip / Machine info wrapper, including running</comment>
+        <translation>&lt;nobr&gt;%1&lt;/nobr&gt; {1 %2&lt;?}</translation>
     </message>
     <message>
-        <source>Please specify the target for the OVF export. You can choose between a local file system export, uploading the OVF to the Sun Cloud service or an S3 storage server.</source>
-        <translation>Bitte geben Sie eine Datei für den OVF-Export an. Sie können zwischen Abspeichern auf einem lokalen Dateisystem, dem Upload des OVF in den Sun Cloud-Service oder in einen S3-Storage-Server wählen.</translation>
+        <source>Enter group</source>
+        <translation>Gruppe betreten</translation>
     </message>
     <message>
-        <source>&amp;Local Filesystem </source>
-        <translation>&amp;Lokales Dateisystem</translation>
+        <source>Exit group</source>
+        <translation>Gruppe verlassen</translation>
     </message>
     <message>
-        <source>Sun &amp;Cloud</source>
-        <translation>Sun &amp;Cloud</translation>
+        <source>Collapse group</source>
+        <translation>Gruppe schließen</translation>
     </message>
     <message>
-        <source>&amp;Simple Storage System (S3)</source>
-        <translation>&amp;Simple Storage System (S3)</translation>
-    </message>
-</context>
-<context>
-    <name>UIExportApplianceWzdPage3</name>
-    <message>
-        <source>Appliance Export Settings</source>
-        <translation>Appliance Exporteinstellungen</translation>
-    </message>
-    <message>
-        <source>&amp;Username:</source>
-        <translation>&amp;Nutzername:</translation>
-    </message>
-    <message>
-        <source>&amp;Password:</source>
-        <translation>&amp;Passwort:</translation>
-    </message>
-    <message>
-        <source>&amp;Hostname:</source>
-        <translation>&amp;Hostname:</translation>
-    </message>
-    <message>
-        <source>&amp;Bucket:</source>
-        <translation>&amp;Bucket:</translation>
-    </message>
-    <message>
-        <source>&amp;File:</source>
-        <translation>&amp;Datei:</translation>
-    </message>
-    <message>
-        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
-        <translation>Erstelle das ältere OVF-Format 0.9 für die Kompatibilität mit anderen Virtualisierungsprodukten.</translation>
-    </message>
-    <message>
-        <source>&amp;Write legacy OVF 0.9</source>
-        <translation>Erzeuge &amp;Legacy OVF 0.9</translation>
-    </message>
-    <message>
-        <source>Create a Manifest file for automatic data integrity checks on import.</source>
-        <translation>Manifest für automatischen Test der Integrität der Daten beim Import.</translation>
-    </message>
-    <message>
-        <source>Write &amp;Manifest file</source>
-        <translation>Schreibe &amp;Manifest-Datei</translation>
-    </message>
-    <message>
-        <source>Appliance</source>
-        <translation>Appliance</translation>
-    </message>
-    <message>
-        <source>Select a file to export into</source>
-        <translation>Wählt eine Datei aus, in die exportiert werden soll</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format Archive (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
-    </message>
-    <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
-    </message>
-    <message>
-        <source>Please choose a filename to export the OVF/OVA to. If you use an &lt;i&gt;ova&lt;/i&gt; file name extension, then all the files will be combined into one Open Virtualization Format Archive. If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately. Other extensions are not allowed.</source>
-        <translation>Bitte wählen Sie einen Dateinamen für den Export als OVF/OVA. Bei Angabe der &lt;i&gt;ova&lt;/i&gt;-Dateiendung werden alle Dateien in ein OVA-(Open Virtualization Format)-Archiv geschrieben. Bei Angabe der Endung &lt;i&gt;ovf&lt;/i&gt; werden einzelne Dateien geschrieben. Andere Dateiendungen sind nicht erlaubt.</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Bitte fügen Sie die Felder für Nutzername, Passwort und Bucket aus und geben Sie einen Dateinamen für den OVF-Export an.</translation>
-    </message>
-    <message>
-        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
-        <translation>Bitte fügen Sie die Felder für Nutzername, Passwort, Hostname und Bucket aus und geben Sie einen Dateinamen für den OVF-Export an.</translation>
+        <source>Expand group</source>
+        <translation>Gruppe öffnen</translation>
     </message>
 </context>
 <context>
-    <name>UIExportApplianceWzdPage4</name>
+    <name>UIGChooserModel</name>
     <message>
-        <source>Appliance Export Settings</source>
-        <translation>Appliance Exporteinstellungen</translation>
-    </message>
-    <message>
-        <source>Checking files ...</source>
-        <translation>Überprüfe Dateien ...</translation>
-    </message>
-    <message>
-        <source>Removing files ...</source>
-        <translation>Lösche Dateien ...</translation>
-    </message>
-    <message>
-        <source>Exporting Appliance ...</source>
-        <translation>Exportiere Appliance ...</translation>
-    </message>
-    <message>
-        <source>Here you can change additional configuration values of the selected virtual machines. You can modify most of the properties shown by double-clicking on the items.</source>
-        <translation>Hier können Sie weitere Einstellungen der ausgewählten virtuellen Maschinen ändern. Sie können die meisten der gezeigten Eigenschaften durch Doppelklick auf den Eintrag ändern.</translation>
+        <source>New group</source>
+        <translation>Neue Gruppe</translation>
     </message>
 </context>
 <context>
-    <name>UIFirstRunWzd</name>
+    <name>UIGDetails</name>
     <message>
-        <source>First Run Wizard</source>
-        <translation>Startassistent</translation>
+        <source>Name</source>
+        <comment>details (general)</comment>
+        <translation>Name</translation>
     </message>
     <message>
-        <source>Start</source>
-        <translation>Starten</translation>
+        <source>Groups</source>
+        <comment>details (general)</comment>
+        <translation>Gruppen</translation>
+    </message>
+    <message>
+        <source>%1 MB</source>
+        <comment>details</comment>
+        <translation>%1 MB</translation>
+    </message>
+    <message>
+        <source>Processors</source>
+        <comment>details (system)</comment>
+        <translation>Prozessoren</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <comment>details</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>VT-x/AMD-V</source>
+        <comment>details (system)</comment>
+        <translation>VT-x/AMD-V</translation>
+    </message>
+    <message>
+        <source>PAE/NX</source>
+        <comment>details (system)</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details (system)</comment>
+        <translation>Beschleunigung</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>details (display)</comment>
+        <translation>Bildschirme</translation>
+    </message>
+    <message>
+        <source>3D</source>
+        <comment>details (display)</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Acceleration</source>
+        <comment>details (display)</comment>
+        <translation>Beschleunigung</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/vrde/VRDE server)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>[CD/DVD]</source>
+        <comment>details (storage)</comment>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Controller</source>
+        <comment>details (audio)</comment>
+        <translation>Controller</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (audio)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>Adapter %1</source>
+        <comment>details (network)</comment>
+        <translation>Adapter %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (network/adapter)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details (serial)</comment>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (serial)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>Port %1</source>
+        <comment>details (parallel)</comment>
+        <translation>Port %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (parallel)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>%1 (%2 active)</source>
+        <comment>details (usb)</comment>
+        <translation>%1 (%2 aktiv)</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (usb)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details (shared folders)</comment>
+        <translation>keine</translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>details (description)</comment>
+        <translation>keine</translation>
+    </message>
+    <message>
+        <source>Operating System</source>
+        <comment>details (general)</comment>
+        <translation>Betriebssystem</translation>
+    </message>
+    <message>
+        <source>Information Inaccessible</source>
+        <comment>details</comment>
+        <translation>Information nicht zugreifbar</translation>
+    </message>
+    <message>
+        <source>Base Memory</source>
+        <comment>details (system)</comment>
+        <translation>Hauptspeicher</translation>
+    </message>
+    <message>
+        <source>Execution Cap</source>
+        <comment>details (system)</comment>
+        <translation>CPU-Begrenzung</translation>
+    </message>
+    <message>
+        <source>Boot Order</source>
+        <comment>details (system)</comment>
+        <translation>Bootreihenfolge</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details (system)</comment>
+        <translation>Nested Paging</translation>
+    </message>
+    <message>
+        <source>Video Memory</source>
+        <comment>details (display)</comment>
+        <translation>Grafikspeicher</translation>
+    </message>
+    <message>
+        <source>2D Video</source>
+        <comment>details (display)</comment>
+        <translation>2D-Video</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server Port</source>
+        <comment>details (display/vrde)</comment>
+        <translation>Port für Fernsteuerung</translation>
+    </message>
+    <message>
+        <source>Remote Desktop Server</source>
+        <comment>details (display/vrde)</comment>
+        <translation>Fernsteuerung</translation>
+    </message>
+    <message>
+        <source>Not Attached</source>
+        <comment>details (storage)</comment>
+        <translation>nicht angeschlossen</translation>
+    </message>
+    <message>
+        <source>Host Driver</source>
+        <comment>details (audio)</comment>
+        <translation>Host-Treiber</translation>
+    </message>
+    <message>
+        <source>Bridged Adapter, %1</source>
+        <comment>details (network)</comment>
+        <translation>Netzwerkbrücke, %1</translation>
+    </message>
+    <message>
+        <source>Internal Network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Internes Netzwerk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Host-only Adapter, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Host-only Adapter, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic Driver, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>Generischer Treiber, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Generic Driver, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</source>
+        <comment>details (network)</comment>
+        <translation>Generischer Treiber, &apos;%1&apos; {&amp;nbsp;%2&amp;nbsp;}</translation>
+    </message>
+    <message>
+        <source>Device Filters</source>
+        <comment>details (usb)</comment>
+        <translation>Gerätefilter</translation>
+    </message>
+    <message>
+        <source>USB Controller Inaccessible</source>
+        <comment>details (usb)</comment>
+        <translation>USB-Controller nicht zugreifbar</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>details (shared folders)</comment>
+        <translation>Gemeinsame Ordner</translation>
+    </message>
+    <message>
+        <source>Video Capture File</source>
+        <comment>details (display/video capture)</comment>
+        <translation>Datei für Videoaufzeichnung</translation>
+    </message>
+    <message>
+        <source>Video Capture Attributes</source>
+        <comment>details (display/video capture)</comment>
+        <translation>Parameter für Videoaufzeichnung</translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>details (display/video capture)</comment>
+        <translation>Videoaufzeichnung</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details (display/video capture)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>NAT Network, &apos;%1&apos;</source>
+        <comment>details (network)</comment>
+        <translation>NAT-Netzwerk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
+        <translation>Bildgröße: %1x%2, Bildrate: %3fps, Bitrate: %4kbps</translation>
     </message>
 </context>
 <context>
-    <name>UIFirstRunWzdPage1</name>
+    <name>UIGMachinePreview</name>
     <message>
-        <source>Welcome to the First Run Wizard!</source>
-        <translation>Startassistent</translation>
+        <source>Every 0.5 s</source>
+        <translation>alle 0.5 Sekunden</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for installing an operating system of your choice onto this virtual machine.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie haben eine neu erzeugte virtuelle Maschine zum ersten Mal gestartet. Dieser Assistent wird Ihnen helfen, die für die Installation eines Betriebssystems Ihrer Wahl notwendigen Schritte auszuführen.&lt;/p&gt;%1&lt;/p&gt;</translation>
+        <source>Every 1 s</source>
+        <translation>jede Sekunde</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have started a newly created virtual machine for the first time. This wizard will help you to perform the steps necessary for booting an operating system of your choice on the virtual machine.&lt;/p&gt;&lt;p&gt;Note that you will not be able to install an operating system into this virtual machine right now because you did not attach any hard disk to it. If this is not what you want, you can cancel the execution of this wizard, select &lt;b&gt;Settings&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window to access the settings dialog of this machine and change the hard disk configuration.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie haben eine neu erzeugte virtuelle Maschine zum ersten Mal gestartet. Dieser Assistent wird Ihnen helfen, die für die Installation eines Betriebssystems Ihrer Wahl notwendigen Schritte auszuführen.&lt;/p&gt;&lt;p&gt;Beachten Sie, dass Sie kein Betriebssystem in dieser virtuellen Maschine installieren können, da Sie ihr keine Festplatte zugewiesen haben. Falls Sie eine Festplatte zuweisen wollen, beenden Sie diesen Assistenten, wählen Sie &lt;b&gt;Einstellungen&lt;/b&gt; aus dem Menü &lt;b&gt;Maschine&lt;/b&gt; des Hauptfensters um den Einstellungsdialog dieser VM zu aktivieren und ändern Sie die Konfiguration der Festplatten.&lt;/p&gt;%1&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIFirstRunWzdPage2</name>
-    <message>
-        <source>&lt;p&gt;Select the media which contains the setup program of the operating system you want to install. This media must be bootable, otherwise the setup program will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wählen Sie das Medium mit dem Installationsprogramm des Betriebssystems, das Sie installieren wollen. Dieses Medium muss bootbar sein, anderenfalls kann das Installationsprogramm nicht starten.&lt;/p&gt;</translation>
+        <source>Every 2 s</source>
+        <translation>alle 2 Sekunden</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Select the media that contains the operating system you want to work with. This media must be bootable, otherwise the operating system will not be able to start.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wählen Sie das Medium mit dem Betriebssystem, mit dem Sie arbeiten wollen. Dieses Medium muss bootbar sein, weil das System sonst nicht starten kann.&lt;/p&gt;</translation>
+        <source>Every 5 s</source>
+        <translation>alle 5 Sekunden</translation>
     </message>
     <message>
-        <source>Media Source</source>
-        <translation>Medienquelle</translation>
+        <source>Every 10 s</source>
+        <translation>alle 10 Sekunden</translation>
     </message>
     <message>
-        <source>Select Installation Media</source>
-        <translation>Installationsmedium auswählen</translation>
+        <source>Update disabled</source>
+        <translation>keine Aktualisierung</translation>
+    </message>
+    <message>
+        <source>No preview</source>
+        <translation>keine Voransicht</translation>
     </message>
 </context>
 <context>
-    <name>UIFirstRunWzdPage3</name>
+    <name>UIGlobalSettingsDisplay</name>
     <message>
-        <source>&lt;p&gt;You have selected the following media to boot from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie haben die folgenden Medien zum Booten ausgewählt:&lt;/p&gt;</translation>
+        <source>Maximum Guest Screen &amp;Size:</source>
+        <translation>Maximale &amp;Größe Gastbildschirm:</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You have selected the following media to boot an operating system from:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie haben das folgende Medium zum Booten eines Betriebssystems ausgewählt:&lt;/p&gt;</translation>
+        <source>&amp;Width:</source>
+        <translation>&amp;Breite:</translation>
     </message>
     <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be temporarily mounted on the virtual machine and the machine will start execution.&lt;/p&gt;&lt;p&gt;Please note that when you close the virtual machine, the specified media will be automatically unmounted and the boot device will be set back to the first hard disk.&lt;/p&gt;&lt;p&gt;Depending on the type of the setup program, you may need to manually unmount (eject) the media after the setup program reboots the virtual machine, to prevent the installation process from starting again. You can do this by selecting the corresponding &lt;b&gt;Unmount...&lt;/b&gt; action in the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Betätigen Sie &lt;b&gt;Fertig&lt;/b&gt; wenn diese Angaben richtig sind. Nachdem Sie dies getan haben, wird das ausgewählte Medium temporär der virtuellen Maschine zugewiesen und diese startet.&lt;/p&gt;￼&lt;p&gt;Bitte beachten Sie, dass die Zuweisung des Mediums automatisch nach dem Ausschalten der virtuellen Maschine aufgehoben und die Bootreihenfolge auf die erste Festplatte zurückgesetzt wird.&lt;/p&gt;￼&lt;p&gt;Abhängig von der Art des Installationsprogrammes kann es möglich sein, dass Sie das Medium manuell auswerfen müssen, wenn nach der Installation die virtuelle Maschine neu bootet, anderenfalls würde das Installationsprogramm erneut starten. Die Zuweisung kann durch den Punkt &lt;b&gt;Trennen...&lt;/b&gt; im Menü &lt;b&gt;Geräte&lt;/b&gt; aufgehoben werden.&lt;/p&gt;</translation>
+        <source>Specifies the maximum width which we would like the guest to use.</source>
+        <translation>Legt die maximale Breite des Gastbildschirms fest, die der Gast einstellen darf.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;If the above is correct, press the &lt;b&gt;Finish&lt;/b&gt; button. Once you press it, the selected media will be mounted on the virtual machine and the machine will start execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wenn die Auswahl stimmt, wählen Sie bitte &lt;b&gt;Fertigstellen&lt;/b&gt;. Danach wird das ausgewählte Medium der virtuellen Maschine zugewiesen und die Ausführung der Maschine beginnt.&lt;/p&gt;</translation>
+        <source>&amp;Height:</source>
+        <translation>&amp;Höhe:</translation>
     </message>
     <message>
-        <source>Summary</source>
-        <translation>Zusammenfassung</translation>
+        <source>Specifies the maximum height which we would like the guest to use.</source>
+        <translation>Legt die maximale Höhe des Gastbildschirms fest, die der Gast einstellen darf.</translation>
     </message>
     <message>
-        <source>Type</source>
-        <comment>summary</comment>
-        <translation>Typ</translation>
+        <source>Automatic</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>automatisch</translation>
     </message>
     <message>
-        <source>Source</source>
-        <comment>summary</comment>
-        <translation>Quelle</translation>
+        <source>Suggest a reasonable maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation>Legt eine vernünftige maximale Größe für den Gast-Bildschirm fest. Der Gast wird diese Angabe nur befolgen, wenn die Gasterweiterungen installiert sind.</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM Device</source>
-        <translation>CD/DVD-ROM-Gerät</translation>
+        <source>None</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>keine</translation>
+    </message>
+    <message>
+        <source>Do not attempt to limit the size of the guest screen.</source>
+        <translation>Größe des Gast-Bildschirms nicht beschränken.</translation>
+    </message>
+    <message>
+        <source>Hint</source>
+        <comment>Maximum Guest Screen Size</comment>
+        <translation>Vorschlag</translation>
+    </message>
+    <message>
+        <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
+        <translation>Setzt die maximale Größe des Gastbildschirms. Der Gast wird diese Angabe nur befolgen, wenn die Gasterweiterungen installiert sind.</translation>
+    </message>
+    <message>
+        <source>Machine Windows:</source>
+        <translation>VM-Fenster:</translation>
+    </message>
+    <message>
+        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
+        <translation>Wird die Maus von einem Fenster eines Gastes auf ein anderes Fenster desselben Gastes bewegt, dann wird das neue Fenster automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>&amp;Raise Window Under Mouse</source>
+        <translation>Fenster unter Maus &amp;aktivieren</translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsExtension</name>
-    <message>
-        <source>&amp;Extension Packages:</source>
-        <translation>&amp;Zusatzpakete:</translation>
-    </message>
     <message>
         <source>Lists all installed packages.</source>
         <translation>Zeigt alle installierten Zusatzpakete.</translation>
@@ -1229,15 +1362,19 @@
         <source>Extensions</source>
         <translation>Zusatzpakete</translation>
     </message>
+    <message>
+        <source>&amp;Extension Packages</source>
+        <translation>&amp;Zusatzpakete</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsGeneral</name>
     <message>
-        <source>Displays the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
+        <source>Holds the path to the default virtual machine folder. This folder is used, if not explicitly specified otherwise, when creating new virtual machines.</source>
         <translation>Zeigt den voreingestellten Pfad für virtuelle Maschinen. Neue virtuelle Maschinen werden standardmäßig in diesem Ordner erzeugt und vorhandene werden hier zuerst gesucht.</translation>
     </message>
     <message>
-        <source>Displays the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
+        <source>Holds the path to the library that provides authentication for Remote Display (VRDP) clients.</source>
         <translation>Zeigt den Pfad der Authentisierungsbibliothek für ferngesteuerte Clients (VRDP).</translation>
     </message>
     <message>
@@ -1249,36 +1386,32 @@
         <translation>V&amp;RDP-Authentisierungsbibliothek:</translation>
     </message>
     <message>
-        <source>When checked, the application will provide an icon with the context menu in the system tray.</source>
-        <translation>Aktiviert das Systray-Icon mit einem Kontextmenü.</translation>
+        <source>&amp;Dock and Menubar:</source>
+        <translation>&amp;Dock und Menübar:</translation>
     </message>
     <message>
-        <source>&amp;Show System Tray Icon</source>
-        <translation>&amp;Zeige Systray-Icon</translation>
+        <source>Auto-Show in Fullscreen</source>
+        <translation>Automatisch im Vollbildmodus</translation>
     </message>
     <message>
-        <source>&amp;Auto show Dock and Menubar in fullscreen</source>
-        <translation>Dock &amp;&amp; Menubar im Vollbildmodus &amp;automatisch zeigen</translation>
+        <source>When checked, the host dock and menu bar will be shown when the virtual machine is in fullscreen mode.</source>
+        <translation>Das Host-Dock und die Menüleiste wird gezeigt, wenn sich die VM im Vollbildmodus befindet.</translation>
     </message>
     <message>
-        <source>When checked, the host screen saver will be disabled whenever a virtual machine is running.</source>
-        <translation>Deaktiviert den Bildschirmschoner des Hosts, wenn eine virtuelle Maschine ausgeführt wird.</translation>
+        <source>&amp;Host Screensaver:</source>
+        <translation>&amp;Host-Bildschirmschoner:</translation>
     </message>
     <message>
-        <source>Disable Host &amp;ScreenSaver</source>
-        <translation>Host-Bildschirm&amp;schoner deaktivieren</translation>
+        <source>When checked, the host screensaver will be disabled whenever a virtual machine is running.</source>
+        <translation>Der Host-Bildschirmschoner wird deaktiviert, solange eine virtuelle Machine ausgeführt wird.</translation>
+    </message>
+    <message>
+        <source>Disable When Running Virtual Machines</source>
+        <translation>Deaktivieren bei aktiven VMs</translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsInput</name>
-    <message>
-        <source>Host &amp;Key:</source>
-        <translation>&amp;Host-Taste:</translation>
-    </message>
-    <message>
-        <source>Displays the key used as a Host Key in the VM window. Activate the entry field and press a new Host Key. Note that alphanumeric, cursor movement and editing keys cannot be used.</source>
-        <translation>Zeigt die Taste, die als Host-Taste für VM-Fenster verwendet wird. Aktivieren Sie dieses Feld und betätigen Sie eine Taste, um diese als Host-Taste festzulegen. Als Host-Taste eignen sich üblicherweise nur Strg, Umsch, Alt usw.</translation>
-    </message>
     <message>
         <source>When checked, the keyboard is automatically captured every time the VM window is activated. When the keyboard is captured, all keystrokes (including system ones like Alt-Tab) are directed to the VM.</source>
         <translation>Ist diese Funktion eingeschaltet, wird die Tastatur jedes Mal automatisch gefangen, wenn das VM-Fenster aktiviert wird. In diesem Fall werden alle Tastendrücke (einschließlich Alt-Tab) in die VM umgeleitet.</translation>
@@ -1288,12 +1421,28 @@
         <translation>&amp;Auto-Fangmodus für Tastatur</translation>
     </message>
     <message>
-        <source>Reset host combination</source>
-        <translation>keine Tastenkombination</translation>
+        <source>Host Key Combination</source>
+        <translation>Host-Tastenkombination</translation>
     </message>
     <message>
-        <source>Resets the key combination used as the host combination in the VM window.</source>
-        <translation>Deaktiviert die VM-Steuerung über Host-Taste(n-Kombination).</translation>
+        <source>Some items have the same shortcuts assigned.</source>
+        <translation>Einige Tastenkombinationen sind an verschiedene Aktionen gebunden.</translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox Manager</source>
+        <translation>&amp;VirtualBox-Manager</translation>
+    </message>
+    <message>
+        <source>Virtual &amp;Machine</source>
+        <translation>Virtuelle &amp;Maschine</translation>
+    </message>
+    <message>
+        <source>Lists all the available shortcuts which can be configured.</source>
+        <translation>Zeigt alle verfügbaren Aktionen, die durch Tastenkombinationen ausgelöst werden können.</translation>
+    </message>
+    <message>
+        <source>Enter a sequence to filter the shortcut list.</source>
+        <translation>Erlaubt das Filtern der Liste.</translation>
     </message>
 </context>
 <context>
@@ -1323,10 +1472,6 @@
         <translation>Sprache:</translation>
     </message>
     <message>
-        <source>&amp;Interface Language:</source>
-        <translation>&amp;Sprache der Nutzeroberfläche:</translation>
-    </message>
-    <message>
         <source>Lists all available user interface languages. The effective language is written in &lt;b&gt;bold&lt;/b&gt;. Select &lt;i&gt;Default&lt;/i&gt; to reset to the system default language.</source>
         <translation>Zeigt alle verfügbaren Sprachen für die Nutzeroberfläche. Die aktuelle Sprache wird &lt;b&gt;fett&lt;/b&gt; hervorgehoben. Wählen Sie &lt;i&gt;Voreingestellt&lt;/i&gt; um die voreingestellte Sprache Ihres Systems einzustellen.</translation>
     </message>
@@ -1350,37 +1495,13 @@
         <source>Author(s):</source>
         <translation>Autor(en):</translation>
     </message>
+    <message>
+        <source>&amp;Interface Languages</source>
+        <translation>&amp;Sprachen der Nutzeroberfläche</translation>
+    </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetwork</name>
-    <message>
-        <source>host IPv4 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die Host-IPv4-Adresse von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>host IPv4 network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die Host-IPv4-Netmaske von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>host IPv6 address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die Host-IPv6-Adresse von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>DHCP server address of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die DHCP-Server-Adresse von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>DHCP server network mask of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die DHCP-Server-Netzmaske von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>DHCP lower address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die kleinste IP-Adresse für den DHCP-Server von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
-    <message>
-        <source>DHCP upper address bound of &lt;b&gt;%1&lt;/b&gt; is wrong</source>
-        <translation>Die größte IP-Adresse für den DHCP-Server von &lt;b&gt;%1&lt;/b&gt; ist ungültig</translation>
-    </message>
     <message>
         <source>Adapter</source>
         <translation>Adapter</translation>
@@ -1474,10 +1595,6 @@
         <translation>Host-only Netzwerk &amp;ändern</translation>
     </message>
     <message>
-        <source>&amp;Host-only Networks:</source>
-        <translation>&amp;Host-only Netzwerke:</translation>
-    </message>
-    <message>
         <source>Lists all available host-only networks.</source>
         <translation>Zeigt die verfügbaren host-only Netzwerke.</translation>
     </message>
@@ -1489,9 +1606,134 @@
         <source>Networking</source>
         <translation>Netzwerk</translation>
     </message>
+    <message>
+        <source>&amp;NAT Networks</source>
+        <translation>&amp;NAT-Netzwerke</translation>
+    </message>
+    <message>
+        <source>Lists all available NAT networks.</source>
+        <translation>Zeigt alle NAT-Netzwerke.</translation>
+    </message>
+    <message>
+        <source>&amp;Host-only Networks</source>
+        <translation>&amp;Host-only Netzwerke</translation>
+    </message>
+    <message>
+        <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Kein neuer Name für das NAT-Netzwerk mit der bisherigen Bezeichnung &lt;b&gt;%1&lt;/b&gt; angegeben.</translation>
+    </message>
+    <message>
+        <source>No CIDR specified for the NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Keine CIDR-Adresse für das NAT-Netzwerk &lt;b&gt;%1&lt;/b&gt; angegeben.</translation>
+    </message>
+    <message>
+        <source>No CIDR specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Keine CIDR-Adresse für das NAT-Netzwerk mit der bisherigen Bezeichnung &lt;b&gt;%1&lt;/b&gt; angegeben.</translation>
+    </message>
+    <message>
+        <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Ungültige CIDR (&lt;i&gt;%1&lt;/i&gt;) für das NAT-Netzwerk &lt;b&gt;%2&lt;/b&gt; angegeben.</translation>
+    </message>
+    <message>
+        <source>Invalid CIDR specified (&lt;i&gt;%1&lt;/i&gt;) for the NAT network previously called &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Ungültige CIDR (&lt;i&gt;%1&lt;/i&gt;) für das NAT-Netzwerk mit dem vorherigen Namen &lt;b&gt;%2&lt;/b&gt; angegeben.</translation>
+    </message>
+    <message>
+        <source>Network Name</source>
+        <translation>Netzwerk-Name</translation>
+    </message>
+    <message>
+        <source>[empty]</source>
+        <translation>[leer]</translation>
+    </message>
+    <message>
+        <source>%1 (renamed from %2)</source>
+        <translation>%1 (umbenannt von %2)</translation>
+    </message>
+    <message>
+        <source>Old Network Name</source>
+        <translation>Alter Netzwerk-Name</translation>
+    </message>
+    <message>
+        <source>New Network Name</source>
+        <translation>Neuer Netzwerk-Name</translation>
+    </message>
+    <message>
+        <source>Network CIDR</source>
+        <translation>Netzwerk-CIDR</translation>
+    </message>
+    <message>
+        <source>Supports DHCP</source>
+        <translation>Unterstützt DHCP</translation>
+    </message>
+    <message>
+        <source>yes</source>
+        <translation>ja</translation>
+    </message>
+    <message>
+        <source>no</source>
+        <translation>nein</translation>
+    </message>
+    <message>
+        <source>Supports IPv6</source>
+        <translation>Unterstützt IPv6</translation>
+    </message>
+    <message>
+        <source>Default IPv6 route</source>
+        <translation>Default IPv6-Route</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige IPv4-Adresse.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 network mask.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige IPv4-Netzmaske.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 address.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige IPv6-Adresse.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige DHCP-Server-Adresse.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server mask.</source>
+        <translation>Das Host-Netzinterface &lt;b&gt;%1&lt;/b&gt; hat keine gültige DHCP-Server-Netzmaske.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server lower address bound.</source>
+        <translation>Das Host-Interface &lt;b&gt;%1&lt;/b&gt; hat keine gültige kleinste Adresse für den Bereich gültiger DHCP-Adressen.</translation>
+    </message>
+    <message>
+        <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server upper address bound.</source>
+        <translation>Das Host-Interface &lt;b&gt;%1&lt;/b&gt; hat keine gültige größte Adresse für den Bereich gültiger DHCP-Adressen.</translation>
+    </message>
+    <message>
+        <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
+        <translation>Der Name &lt;b&gt;%1&lt;/b&gt; wurde für mehrere NAT-Netzwerke vergeben.</translation>
+    </message>
+    <message>
+        <source>Active</source>
+        <comment>NAT network</comment>
+        <translation>aktiv</translation>
+    </message>
+    <message>
+        <source>&amp;Add NAT network</source>
+        <translation>NAT-Netzwerk &amp;hinzufügen</translation>
+    </message>
+    <message>
+        <source>&amp;Remove NAT network</source>
+        <translation>NAT-Netzwerk &amp;entfernen</translation>
+    </message>
+    <message>
+        <source>&amp;Edit NAT network</source>
+        <translation>NAT-Netzwerk &amp;ändern</translation>
+    </message>
 </context>
 <context>
-    <name>UIGlobalSettingsNetworkDetails</name>
+    <name>UIGlobalSettingsNetworkDetailsHost</name>
     <message>
         <source>Host-only Network Details</source>
         <translation>Einstellungen für Host-only Netzwerk</translation>
@@ -1513,7 +1755,7 @@
         <translation>&amp;IPv4-Adresse:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 address for this adapter.</source>
+        <source>Holds the host IPv4 address for this adapter.</source>
         <translation>Zeigt die IPv4-Adresse für diesen Adapter.</translation>
     </message>
     <message>
@@ -1521,7 +1763,7 @@
         <translation>IPv4-Netz&amp;maske:</translation>
     </message>
     <message>
-        <source>Displays the host IPv4 network mask for this adapter.</source>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
         <translation>Zeigt die IPv4-Netzmaske für diesen Adapter.</translation>
     </message>
     <message>
@@ -1529,7 +1771,7 @@
         <translation>I&amp;Pv6-Adresse:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
         <translation>Zeigt die IPv6-Adresse für diesen Adapter falls IPv6 unterstützt wird.</translation>
     </message>
     <message>
@@ -1537,7 +1779,7 @@
         <translation>IPv6 Netzmasken-&amp;Länge:</translation>
     </message>
     <message>
-        <source>Displays the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
+        <source>Holds the host IPv6 network mask prefix length for this adapter if IPv6 is supported.</source>
         <translation>Zeigt die IPv6 Netzmasken-Prefixlänge für diesen Adapter falls IPv6 unterstützt wird.</translation>
     </message>
     <message>
@@ -1557,7 +1799,7 @@
         <translation>Server-A&amp;dresse:</translation>
     </message>
     <message>
-        <source>Displays the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation>Zeigt die Adresse des DHCP-Servers der die IP-Adressen für das Netzwerk an diesem Hostadapter verwaltet.</translation>
     </message>
     <message>
@@ -1565,7 +1807,7 @@
         <translation>Server-&amp;Maske:</translation>
     </message>
     <message>
-        <source>Displays the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation>Zeigt die Netzmaske des DHCP-Servers, der die IP-Adressen an diesem Host-only Netzwerkadapter verwaltet.</translation>
     </message>
     <message>
@@ -1573,7 +1815,7 @@
         <translation>&amp;Kleinste Adresse:</translation>
     </message>
     <message>
-        <source>Displays the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation>Zeigt die kleinste IP-Adresse, die der DHCP-Server für das Netzwerk an diesem Host-only Netzwerkadapter verwaltet.</translation>
     </message>
     <message>
@@ -1581,8 +1823,90 @@
         <translation>&amp;Größte Adresse:</translation>
     </message>
     <message>
-        <source>Displays the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
         <translation>Zeigt die größte IP-Adresse, die der DHCP-Server für das Netzwerk an diesem Host-only Netzwerkadapter verwaltet.</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsNetworkDetailsNAT</name>
+    <message>
+        <source>NAT Network Details</source>
+        <translation>Einstellungen für NAT-Netzwerk</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Network</source>
+        <translation>Netzwerk &amp;aktivieren</translation>
+    </message>
+    <message>
+        <source>Enable this NAT network.</source>
+        <translation>Dieses NAT-Netzwerk aktivieren.</translation>
+    </message>
+    <message>
+        <source>Network &amp;Name:</source>
+        <translation>Netzwerk-&amp;Name:</translation>
+    </message>
+    <message>
+        <source>Holds the name for this network.</source>
+        <translation>Legt den Namen für dieses Netzwerk fest.</translation>
+    </message>
+    <message>
+        <source>Network &amp;CIDR:</source>
+        <translation>Netzwerk-&amp;CIDR:</translation>
+    </message>
+    <message>
+        <source>Holds the CIDR for this network.</source>
+        <translation>Legt die CIDR-Adresse für dieses Netzwerk fest.</translation>
+    </message>
+    <message>
+        <source>Network Options:</source>
+        <translation>Netzwerk-Optionen:</translation>
+    </message>
+    <message>
+        <source>Supports &amp;DHCP</source>
+        <translation>Unterstützt &amp;DHCP</translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports DHCP.</source>
+        <translation>Gibt an, ob dieses Netzwerk DHCP unterstützt.</translation>
+    </message>
+    <message>
+        <source>Supports &amp;IPv6</source>
+        <translation>Unterstützt &amp;IPv6</translation>
+    </message>
+    <message>
+        <source>Determines whether this network supports IPv6.</source>
+        <translation>Gibt an, ob dieses Netzwerk IPv6 unterstützt.</translation>
+    </message>
+    <message>
+        <source>Advertise Default IPv6 &amp;Route</source>
+        <translation>Verwende als voreingestellte IPv6-&amp;Route</translation>
+    </message>
+    <message>
+        <source>Determines whether this network should be advertised as the default IPv6 route.</source>
+        <translation>Legt fest ob dieses Netzwerk als die voreingestellte IPv6-Route verwendet werden soll.</translation>
+    </message>
+    <message>
+        <source>Opens a window to manage port forwarding rules.</source>
+        <translation>Öffnet den Dialog für Regeln zur Portweiterleitung.</translation>
+    </message>
+    <message>
+        <source>&amp;Port Forwarding</source>
+        <translation>&amp;Port-Weiterleitung</translation>
+    </message>
+</context>
+<context>
+    <name>UIGlobalSettingsPortForwardingDlg</name>
+    <message>
+        <source>Port Forwarding Rules</source>
+        <translation>Regel für Port-Weiterleitung</translation>
+    </message>
+    <message>
+        <source>IPv4</source>
+        <translation>IPv4</translation>
+    </message>
+    <message>
+        <source>IPv6</source>
+        <translation>IPv6</translation>
     </message>
 </context>
 <context>
@@ -1592,7 +1916,7 @@
         <translation>Durch Aktivieren dieser Einstellung benutzt VirtualBox einen HTTP-Proxy für Aufgaben wie beispielsweise den Test auf neue VirtualBox-Versionen oder das Herunterladen der Gasterweiterungen.</translation>
     </message>
     <message>
-        <source>&amp;Enable proxy</source>
+        <source>&amp;Enable Proxy</source>
         <translation>Proxy &amp;aktivieren</translation>
     </message>
     <message>
@@ -1612,28 +1936,12 @@
         <translation>Ändert den Proxy-Port.</translation>
     </message>
     <message>
-        <source>When checked the authentication supplied will be used with the proxy server.</source>
-        <translation>Durch Aktivierung dieser Einstellung wird Proxy-Authentifierzierung verwendet.</translation>
+        <source>No proxy host is currently specified.</source>
+        <translation>Es wurde kein Proxy-Host angegeben.</translation>
     </message>
     <message>
-        <source>&amp;Use authentication</source>
-        <translation>&amp;Benutze Authentisierung</translation>
-    </message>
-    <message>
-        <source>User &amp;name:</source>
-        <translation>Benutzer&amp;name:</translation>
-    </message>
-    <message>
-        <source>Changes the user name used for authentication.</source>
-        <translation>Ändert den Benutzernamen für die Authentisierung.</translation>
-    </message>
-    <message>
-        <source>Pass&amp;word:</source>
-        <translation>&amp;Passwort:</translation>
-    </message>
-    <message>
-        <source>Changes the password used for authentication.</source>
-        <translation>Ändert das Passwort für die Authentisierung.</translation>
+        <source>No proxy port is currently specified.</source>
+        <translation>Es wurde kein Proxy-Port angegeben.</translation>
     </message>
 </context>
 <context>
@@ -1643,7 +1951,7 @@
         <translation>Durch Aktivierung erlauben Sie eine periodische Abfrage der VirtualBox-Webseite nach einer neuen Version von VirtualBox.</translation>
     </message>
     <message>
-        <source>&amp;Check for updates</source>
+        <source>&amp;Check for Updates</source>
         <translation>Nach &amp;Updates suchen</translation>
     </message>
     <message>
@@ -1667,7 +1975,7 @@
         <translation>&lt;p&gt;Wählen Sie diesen Punkt, wenn Sie über neue stabile Versionen von VirtualBox benachrichtigt werden wollen.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Stable release versions</source>
+        <source>&amp;Stable Release Versions</source>
         <translation>&amp;Stabile Versionen</translation>
     </message>
     <message>
@@ -1675,7 +1983,7 @@
         <translation>&lt;p&gt;Wählen Sie diese Möglichkeit, um über alle neuen Versionen von VirtualBox benachrichtigt zu werden.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;All new releases</source>
+        <source>&amp;All New Releases</source>
         <translation>&amp;Alle neuen Versionen</translation>
     </message>
     <message>
@@ -1683,7 +1991,7 @@
         <translation>&lt;p&gt;Wählen Sie diese Möglichkeit, um über alle neuen Versionen von VirtualBox inklusive Vorab-Versionen benachrichtigt zu werden.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>All new releases and &amp;pre-releases</source>
+        <source>All New Releases and &amp;Pre-Releases</source>
         <translation>Alle Versionen inkl. &amp;Vorab-Versionen</translation>
     </message>
 </context>
@@ -1695,7 +2003,7 @@
     </message>
 </context>
 <context>
-    <name>UIHotKeyEditor</name>
+    <name>UIHostComboEditor</name>
     <message>
         <source>&lt;key_%1&gt;</source>
         <translation>&lt;Taste_%1&gt;</translation>
@@ -1707,6 +2015,26 @@
     <message>
         <source>Right </source>
         <translation>Rechts</translation>
+    </message>
+    <message>
+        <source>Left Shift</source>
+        <translation>Shift Links</translation>
+    </message>
+    <message>
+        <source>Right Shift</source>
+        <translation>Shift Rechts</translation>
+    </message>
+    <message>
+        <source>Left Ctrl</source>
+        <translation>Strg Links</translation>
+    </message>
+    <message>
+        <source>Right Ctrl</source>
+        <translation>Strg Rechts</translation>
+    </message>
+    <message>
+        <source>Left Alt</source>
+        <translation>Alt Links</translation>
     </message>
     <message>
         <source>Right Alt</source>
@@ -1737,73 +2065,34 @@
         <translation>Rollen Lock</translation>
     </message>
     <message>
+        <source>Host+</source>
+        <translation>Host+</translation>
+    </message>
+    <message>
         <source>None</source>
-        <translation>Keine</translation>
-    </message>
-    <message>
-        <source>Left Shift</source>
-        <translation>Shift Links</translation>
-    </message>
-    <message>
-        <source>Right Shift</source>
-        <translation>Shift Rechts</translation>
-    </message>
-    <message>
-        <source>Left Ctrl</source>
-        <translation>Strg Links</translation>
-    </message>
-    <message>
-        <source>Right Ctrl</source>
-        <translation>Strg Rechts</translation>
-    </message>
-    <message>
-        <source>Left Alt</source>
-        <translation>Alt Links</translation>
+        <translation>keine</translation>
     </message>
 </context>
 <context>
-    <name>UIImportApplianceWzd</name>
+    <name>UIHotKeyEditor</name>
     <message>
-        <source>Appliance Import Wizard</source>
-        <translation>Appliance importieren</translation>
+        <source>Reset shortcut to default</source>
+        <translation>Verwende voreingestellte Tastenkombination</translation>
     </message>
     <message>
-        <source>Restore Defaults</source>
-        <translation>Standardeinstellungen</translation>
-    </message>
-    <message>
-        <source>Import</source>
-        <translation>Importieren</translation>
+        <source>Unset shortcut</source>
+        <translation>Keine Tastenkombination</translation>
     </message>
 </context>
 <context>
-    <name>UIImportApplianceWzdPage1</name>
+    <name>UIHotKeyTableModel</name>
     <message>
-        <source>Select an appliance to import</source>
-        <translation>Auswahl einer Appliance für den Import</translation>
+        <source>Name</source>
+        <translation>Aktion</translation>
     </message>
     <message>
-        <source>Open Virtualization Format (%1)</source>
-        <translation>Open Virtualization Format (%1)</translation>
-    </message>
-    <message>
-        <source>Welcome to the Appliance Import Wizard!</source>
-        <translation>Appliance importieren</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will guide you through importing an appliance.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Assistent begleitet Sie beim Import einer Appliance. &lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;VirtualBox unterstützt im Moment das Open Virtualization Format (OVF). Wählen Sie die zu importierende Datei aus:&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIImportApplianceWzdPage2</name>
-    <message>
-        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Dies sind die in der Appliance beschriebenen virtuellen Maschinen mit den entsprechenden Abbildungen für den Import in VirtualBox. Sie können Änderungen an vielen dieser Einstellungen mittels Doppelklick bzw. duch Auswahl der entsprechenden Checkbox ändern.</translation>
-    </message>
-    <message>
-        <source>Appliance Import Settings</source>
-        <translation>Appliance Import-Einstellungen</translation>
+        <source>Shortcut</source>
+        <translation>Tastenkombination</translation>
     </message>
 </context>
 <context>
@@ -1851,7 +2140,7 @@
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the CD/DVD devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD/DVD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Zeigt die Aktivität der CD/DVD-ROM-Laufwerke:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Zeigt die Aktivität der CD/DVD-Laufwerke:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
@@ -1922,17 +2211,21 @@
         <translation>Zeigt, ob die Tastatur vom Gast gefangen ist (&lt;img src=:/hostkey_captured_16px.png/&gt;) oder nicht (&lt;img src=:/hostkey_16px.png/&gt;).</translation>
     </message>
     <message>
-        <source>Indicates whether the Remote Desktop Server is enabled (&lt;img src=:/vrdp_16px.png/&gt;) or not (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</source>
-        <translation>Zeigt an ob die Fernsteuerung für diese VM aktiviert ist (&lt;img src=:/vrdp_16px.png/&gt;) oder nicht (&lt;img src=:/vrdp_disabled_16px.png/&gt;).</translation>
+        <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
+        <translation>&lt;nobr&gt;Zeigt die Aktivität der Videoaufzeichnung:&lt;/nobr&gt;&lt;br&gt;%1</translation>
     </message>
     <message>
-        <source>&lt;hr&gt;The Remote Desktop Server is listening on port %1</source>
-        <translation>&lt;hr&gt;Der Server für die Fernsteuerung lauscht an Port %1</translation>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture disabled&lt;/b&gt;&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;Videoaufzeichnung deaktiviert&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>Indicates the status of different features used by this virtual machine:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</source>
+        <source>&lt;nobr&gt;&lt;b&gt;Video capture file:&lt;/b&gt; %1&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;&lt;b&gt;Videoaufzeichnungs-Datei:&lt;/b&gt; %1&lt;/nobr&gt;</translation>
+    </message>
+    <message>
+        <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Zeigt an, ob diese virtuelle Maschine Hardware-Virtualisierung benutzt:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6%&lt;/nobr&gt;</translation>
+        <translation>Status zusätzlicher Features:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -1945,10 +2238,6 @@
 <context>
     <name>UIMachineLogic</name>
     <message>
-        <source> EXPERIMENTAL build %1r%2 - %3</source>
-        <translation> Experimentelle Version %1r%2 - %3</translation>
-    </message>
-    <message>
         <source>Preview Monitor %1</source>
         <translation>Monitor %1</translation>
     </message>
@@ -1957,28 +2246,32 @@
         <translation>Sicherungspunkt %1</translation>
     </message>
     <message>
-        <source>No CD/DVD Devices Attached</source>
-        <translation>Kein CD/DVD-Laufwerk angeschlossen</translation>
-    </message>
-    <message>
-        <source>No CD/DVD devices attached to that VM</source>
-        <translation>Kein CD/DVD-Laufwerk an diese VM angeschlossen</translation>
-    </message>
-    <message>
-        <source>No Floppy Devices Attached</source>
-        <translation>Kein Diskettenlaufwerk angeschlossen</translation>
-    </message>
-    <message>
-        <source>No floppy devices attached to that VM</source>
-        <translation>Kein Diskettenlaufwerk an diese VM angeschlossen</translation>
-    </message>
-    <message>
         <source>No USB Devices Connected</source>
         <translation>Kein USB-Gerät angeschlossen</translation>
     </message>
     <message>
         <source>No supported devices connected to the host PC</source>
         <translation>Keine unterstützten Geräte mit dem PC verbunden</translation>
+    </message>
+    <message>
+        <source>Select a filename for the screenshot ...</source>
+        <translation>Wählen Sie einen Dateinamen für diesen Screenshot ...</translation>
+    </message>
+    <message>
+        <source>No Webcams Connected</source>
+        <translation>Keine Webcams verbunden</translation>
+    </message>
+    <message>
+        <source>No supported webcams connected to the host PC</source>
+        <translation>Keine unterstützten Webcams mit dem PC verbunden</translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter</source>
+        <translation>Netzwerkadapter verbinden</translation>
+    </message>
+    <message>
+        <source>Connect Network Adapter %1</source>
+        <translation>Netzwerkadapter %1 verbinden</translation>
     </message>
 </context>
 <context>
@@ -2011,10 +2304,6 @@
 <context>
     <name>UIMachineSettingsDisplay</name>
     <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch the virtual machine to fullscreen or seamless mode.</source>
-        <translation>haben Sie weniger als &lt;b&gt;%1&lt;/b&gt; Grafikspeicher reserviert. Um in den Vollbildmodus oder in den nahtlosen Modus schalten zu können, ist dies zu wenig.</translation>
-    </message>
-    <message>
         <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
     </message>
@@ -2036,7 +2325,7 @@
     </message>
     <message>
         <source>Extended Features:</source>
-        <translation>Erweiterte Einstellungen:</translation>
+        <translation>Erweitert:</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will be given access to the 3D graphics capabilities available on the host.</source>
@@ -2052,7 +2341,7 @@
     </message>
     <message>
         <source>When checked, the VM will act as a Remote Desktop Protocol (RDP) server, allowing remote clients to connect and operate the VM (when it is running) using a standard RDP client.</source>
-        <translation>Aktiviert die Fernsteuerung (RDP = Remote Desktop Protocol) über die sich entfernte RDP-Clients mit der VM verbinden und diese steuern können.</translation>
+        <translation>Aktiviert die Fernsteuerung (RDP = Remote Desktop Protocol), über die sich entfernte RDP-Clients mit der VM verbinden und diese steuern können.</translation>
     </message>
     <message>
         <source>&amp;Enable Server</source>
@@ -2077,10 +2366,6 @@
     <message>
         <source>Specifies the timeout for guest authentication, in milliseconds.</source>
         <translation>Legt die maximale Zeit für die Anmeldung des Gastes in Millisekunden fest.</translation>
-    </message>
-    <message>
-        <source>you have assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for HD Video to be played efficiently.</source>
-        <translation>haben Sie weniger als &lt;b&gt;%1&lt;/b&gt; Grafikspeicher allokiert. Dies ist der Minimalwert, um HD-Videos effizient abspielen zu können.</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will be given access to the Video Acceleration capabilities available on the host.</source>
@@ -2115,35 +2400,147 @@
         <translation>&amp;Gleichzeitige Verbindungen erlauben</translation>
     </message>
     <message>
-        <source>you have 3D Acceleration enabled for a operation system which uses the WDDM video driver. For maximal performance set the guest VRAM to at least &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>haben Sie die 3D-Unterstützung für ein Betriebssystem aktiviert, welches den WDDM-Videotreiber benutzt. Setzen Sie die Größe des Grafikspeichers auf mindestens &lt;b&gt;%1&lt;/b&gt; um eine optimale Performance zu erreichen.</translation>
+        <source>Video &amp;Capture</source>
+        <translation>Video&amp;aufzeichnung</translation>
     </message>
     <message>
-        <source>you have 2D Video Acceleration enabled. As 2D Video Acceleration is supported for Windows guests only, this feature will be disabled.</source>
-        <translation>haben Sie 2D-Video-Beschleunigung aktiviert. Diese Funktion wird momentan nur für Windows-Gäste unterstützt und wird daher deaktiviert.</translation>
+        <source>When checked, VirtualBox will record the virtual machine session as a video file.</source>
+        <translation>Aktiviert die Videoaufzeichnung dieser Sitzung in eine Datei.</translation>
     </message>
     <message>
-        <source>you enabled 3D acceleration. However, 3D acceleration is not working on the current host setup so you will not be able to start the VM.</source>
-        <translation>haben Sie die 3D-Unterstützung aktiviert. Allderings funktioniert die 3D-Hardwarebeschleunigung nicht auf dem Host, daher kann die VM nicht gestartet werden.</translation>
+        <source>&amp;Enable Video Capture</source>
+        <translation>&amp;Videoaufzeichnung aktivieren</translation>
+    </message>
+    <message>
+        <source>File &amp;Path:</source>
+        <translation>Datei&amp;pfad:</translation>
+    </message>
+    <message>
+        <source>This setting determines the filename VirtualBox uses to save the recorded content.</source>
+        <translation>Geben Sie hier den Namen für die Videoaufzeichnungsdatei an.</translation>
+    </message>
+    <message>
+        <source>Frame &amp;Size:</source>
+        <translation>Bild&amp;größe:</translation>
+    </message>
+    <message>
+        <source>This setting determines the resolution (frame size) of the recorded video.</source>
+        <translation>Diese Einstellung legt die Auflösung (Größe eines Bildes) der Videoaufzeichnung fest.</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;horizontal&lt;/b&gt; resolution (frame width) of the recorded video.</source>
+        <translation>Diese Einstellung bestimmt die &lt;b&gt;waagerechte&lt;/b&gt; Auflösung (Bildbreite) der Videoaufzeichnung.</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;vertical&lt;/b&gt; resolution (frame height) of the recorded video.</source>
+        <translation>Diese Einstellung bestimmt die &lt;b&gt;senkrechte&lt;/b&gt; Auflösung (Bildbreite) der Videoaufzeichnung.</translation>
+    </message>
+    <message>
+        <source>&amp;Frame Rate:</source>
+        <translation>Bild&amp;rate:</translation>
+    </message>
+    <message>
+        <source>This setting determines the maximum number of &lt;b&gt;frames per second&lt;/b&gt;. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</source>
+        <translation>Diese Einstellung legt die maximale Anzahl an &lt;b&gt;Bildern pro Sekunde&lt;/b&gt; fest. Wird dieser Wert vermindert, so reduziert sich die Dateigröße, aber es werden mehr Bilder übersprungen.</translation>
+    </message>
+    <message>
+        <source>&amp;Quality:</source>
+        <translation>&amp;Qualität:</translation>
+    </message>
+    <message>
+        <source>This setting determines the &lt;b&gt;quality&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation>Wählen Sie hier die &lt;b&gt;Qualität&lt;/b&gt;. Mehr Qualität wird durch größere Videoaufzeichnungsdateien erkauft.</translation>
+    </message>
+    <message>
+        <source>This setting determines the bitrate in &lt;b&gt;kilobits per second&lt;/b&gt;. Increasing this value will make the video look better at the cost of an increased file size.</source>
+        <translation>Geben Si ehier die Bitrate in &lt;b&gt;Kilobit pro Sekunde&lt;/b&gt; an. Größere Werte ergeben eine bessere Qualität auf Kosten größerer Dateien.</translation>
+    </message>
+    <message>
+        <source>&amp;Screens:</source>
+        <translation>&amp;Bildschirme:</translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use hardware graphics acceleration. However the host system does not currently provide this, so you will not be able to start the machine.</source>
+        <translation>Die virtuelle Maschine soll mit Hardware-Beschleunigung ausgeführt werden. Allerdings kann der Host dieses Feature nicht bereitstellen. Daher können Sie diese Maschine nicht starten.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required to switch to fullscreen or seamless mode.</source>
+        <translation>Es wurden weniger als &lt;b&gt;%1&lt;/b&gt; Grafikspeicher für diese VM eingestellt. Um in den Vollbildmodus oder in den nahtlosen Modus schalten zu können, ist dies zu wenig.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is currently assigned less than &lt;b&gt;%1&lt;/b&gt; of video memory which is the minimum amount required for High Definition Video to be played efficiently.</source>
+        <translation>Es wurden weniger als &lt;b&gt;%1&lt;/b&gt; Grafikspeicher für diese VM eingestellt. Um Video in guter Qualität abspielen zu können zu können, ist dies zu wenig.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use hardware graphics acceleration and the operating system hint is set to Windows Vista or later. For best performance you should set the machine&apos;s video memory to at least b&gt;%1&lt;/b&gt;.</source>
+        <translation>In den Video-Einstellungen wurde hardwarebeschleunigtes 3D aktiviert, und der Typ des Gastes wurde als Windows Vista oder später eingestellt. Für beste Performance sollte der Grafikspeicher auf mindestens &lt;b&gt;%1&lt;/b&gt; eingestellt werden.</translation>
+    </message>
+    <message>
+        <source>The virtual machine is set up to use Video Stream Acceleration. As this feature only works with Windows guest systems it will be disabled.</source>
+        <translation>Für diese virtuelle Maschine wurde Video-Beschleunigung aktiviert. Dieses Feature ist nur für Windows-Gäste verfügbar und wird daher deaktiviert.</translation>
+    </message>
+    <message>
+        <source>The VRDE server port value is not currently specified.</source>
+        <translation>Es wurde kein VRDE-Server-Port angegeben.</translation>
+    </message>
+    <message>
+        <source>The VRDE authentication timeout value is not currently specified.</source>
+        <translation>Die Zeitüberschreitung für die VRDE-Authentisierung wurde nicht angegeben.</translation>
+    </message>
+    <message>
+        <source>User Defined</source>
+        <translation>benutzerdefiniert</translation>
+    </message>
+    <message>
+        <source>%1 fps</source>
+        <translation>%1 fps</translation>
+    </message>
+    <message>
+        <source>fps</source>
+        <translation>fps</translation>
+    </message>
+    <message>
+        <source>low</source>
+        <comment>quality</comment>
+        <translation>niedrig</translation>
+    </message>
+    <message>
+        <source>medium</source>
+        <comment>quality</comment>
+        <translation>mittel</translation>
+    </message>
+    <message>
+        <source>high</source>
+        <comment>quality</comment>
+        <translation>hoch</translation>
+    </message>
+    <message>
+        <source>kbps</source>
+        <translation>kbps</translation>
+    </message>
+    <message>
+        <source>Screen %1</source>
+        <translation>Bildschirm %1</translation>
+    </message>
+    <message>
+        <source>Enable video recording for screen %1.</source>
+        <translation>Videoaufzeichnung für Bildschirm %1 aktivieren.</translation>
+    </message>
+    <message>
+        <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translatorcomment>Die Fernsteu</translatorcomment>
+        <translation>Die Fernsteuerung per Remote Desktop Protocol wurde für diese virtuelle Maschine aktiviert. Dafür ist allerdings die Installation des &lt;b&gt;%1&lt;/b&gt; notwendig. Bitte installieren Sie dieses Zusatzpaket von der VirtualBox-Webseite, sonst wird die virtuelle Maschine mit deaktivierter Fernsteuerung gestartet.</translation>
     </message>
 </context>
 <context>
     <name>UIMachineSettingsGeneral</name>
     <message>
-        <source>Displays the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
+        <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of disk space.</source>
         <translation>Zeigt den Pfad an, wo Sicherungspunkte für diese virtuelle Maschine gespeichert werden. Beachten Sie, dass Sicherungspunkte viel Platz beanspruchen können.</translation>
     </message>
     <message>
         <source>&amp;Basic</source>
         <translation>&amp;Basis</translation>
-    </message>
-    <message>
-        <source>&amp;Name:</source>
-        <translation>&amp;Name:</translation>
-    </message>
-    <message>
-        <source>Displays the name of the virtual machine.</source>
-        <translation>Zeigt den Namen der virtuellen Maschine.</translation>
     </message>
     <message>
         <source>&amp;Advanced</source>
@@ -2166,12 +2563,12 @@
         <translation>&amp;Beschreibung</translation>
     </message>
     <message>
-        <source>Displays the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
+        <source>Holds the description of the virtual machine. The description field is useful for commenting on configuration details of the installed guest OS.</source>
         <translation>Zeigt die Beschreibung für diese virtuelle Maschine. Das Beschreibungsfeld kann für Kommentare über die Konfiguration des installierten Gastsystems verwendet werden.</translation>
     </message>
     <message>
-        <source>If checked, any change to mounted CD/DVD or Floppy media performed during machine execution will be saved in the settings file in order to preserve the configuration of mounted media between runs.</source>
-        <translation>Falls ausgewählt, werden zur Laufzeit zugewiesene CD/DVD- oder Diskettenmedien in den Einstellungen gespeichert um die Zuweisung über die Laufzeit der VM hinaus beizubehalten.</translation>
+        <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
+        <translation>Falls ausgewählt, werden zur Laufzeit zugewiesene CD/DVD- oder Diskettenmedien in den Einstellungen gespeichert, um die Zuweisung über die Laufzeit der VM hinaus beizubehalten.</translation>
     </message>
     <message>
         <source>Removable Media:</source>
@@ -2179,7 +2576,7 @@
     </message>
     <message>
         <source>&amp;Remember Runtime Changes</source>
-        <translation>&amp;Gebundene Medien merken</translation>
+        <translation>&amp;gebundene Medien merken</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
@@ -2190,36 +2587,36 @@
         <translation>Falls aktiviert wird die Mini-Toolbar im Vollbildmodus und im nahtlosen Modus gezeigt.</translation>
     </message>
     <message>
-        <source>Show At &amp;Top Of Screen</source>
-        <translation>Zeige am oberen Bildschirmrand</translation>
+        <source>Show at &amp;Top of Screen</source>
+        <translation>am &amp;oberen Bildschirmrand zeigen</translation>
     </message>
     <message>
-        <source>Show In &amp;Fullscreen/Seamless</source>
-        <translation>Zeige im &amp;Fullscreen/Seamless-Modus</translation>
+        <source>Show in &amp;Fullscreen/Seamless</source>
+        <translation>im &amp;Vollbild-/Seamless-Modus zeigen</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
         <translation>Zeigt die Mini-Toolbar am oberen Rand des Bildschirms wenn ausgewählt, sonst am unteren Rand.</translation>
     </message>
     <message>
-        <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
-        <translation>haben Sie ein 64-Bit-Gastbestriebssystem ausgewählt. Da solche Gäste Hardwarevirtualisierung benötigen (VT-x/AMD-V), wird diese VM-Einstellung automatisch aktiviert.</translation>
+        <source>&amp;Drag&apos;n&apos;Drop:</source>
+        <translation>&amp;Drag&apos;n&apos;Drop:</translation>
+    </message>
+    <message>
+        <source>Selects which data will be copied between the guest and the host OS by drag&apos;n&apos;drop. This feature requires Guest Additions to be installed in the guest OS.</source>
+        <translation>Legt fest, wie Daten zwischen Gast und Host durch Ziehen und Ablegen (drag&apos;n&apos;drop) kopiert werden können. Dieses Feature benötigt installierte Gasterweiterungen im Gast-Betriebssystem.</translation>
+    </message>
+    <message>
+        <source>No name specified for the virtual machine.</source>
+        <translation>Kein Name für die virtuelle Maschine angegeben.</translation>
+    </message>
+    <message>
+        <source>The virtual machine operating system hint is set to a 64-bit type. 64-bit guest systems require hardware virtualization, so this will be enabled automatically if you confirm the changes.</source>
+        <translation>Der Typ des Gastsystems erlaubt 64-Bit-Gäste. Dafür wird Hardware-Virtualisierung benötigt. Diese Einstellung wird daher beim Bestätigen automatisch aktiviert.</translation>
     </message>
 </context>
 <context>
     <name>UIMachineSettingsNetwork</name>
-    <message>
-        <source>no bridged network adapter is selected</source>
-        <translation>haben Sie kein Interface für die Netzwerkbrücke ausgewählt</translation>
-    </message>
-    <message>
-        <source>no internal network name is specified</source>
-        <translation>haben Sie keinen Namen für das interne Netzwerk ausgewählt</translation>
-    </message>
-    <message>
-        <source>no host-only network adapter is selected</source>
-        <translation>haben Sie keinen Host-Only-Netzwerkadapter ausgewählt</translation>
-    </message>
     <message>
         <source>Not selected</source>
         <comment>network adapter name</comment>
@@ -2262,12 +2659,8 @@
         <translation>Zeigt oder verdeckt erweiterte Einstellungen für den Netzwerkadapter.</translation>
     </message>
     <message>
-        <source>&amp;Mac Address:</source>
-        <translation>&amp;Mac-Adresse:</translation>
-    </message>
-    <message>
-        <source>Displays the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
-        <translation>Zeigt die MAC-Adresse dieses Adapters. Sie besteht aus genau 12 Zeichen aus dem Zeichenvorrat {0-9,A-F}. Das zweite Zeichen muss eine gerate Zahl sein.</translation>
+        <source>Holds the MAC address of this adapter. It contains exactly 12 characters chosen from {0-9,A-F}. Note that the second character must be an even digit.</source>
+        <translation>Zeigt die MAC-Adresse dieses Adapters. Sie besteht aus genau 12 Zeichen aus dem Zeichenvorrat {0-9,A-F}. Das zweite Zeichen muss eine gerade Zahl sein.</translation>
     </message>
     <message>
         <source>Generates a new random MAC address.</source>
@@ -2278,11 +2671,11 @@
         <translation>Zeigt, ob das virtuelle Netzwerkkabel an die virtuelle Maschine angeschlossen ist oder nicht.</translation>
     </message>
     <message>
-        <source>&amp;Cable connected</source>
+        <source>&amp;Cable Connected</source>
         <translation>&amp;Kabel verbunden</translation>
     </message>
     <message>
-        <source>Opens dialog to manage port forwarding rules.</source>
+        <source>Opens a window to manage port forwarding rules.</source>
         <translation>Öffnet den Dialog für Regeln zur Portweiterleitung.</translation>
     </message>
     <message>
@@ -2306,15 +2699,11 @@
         <translation>Geben Sie hier Konfigurationseinstellungen für den generischen Treiber an. Diese Einstellungen müssen in der Form &lt;b&gt;Name=Wert&lt;/b&gt; angegeben werden. Die möglichen Einstellungen richten sich nach dem Treiber. Benutzen Sie &lt;b&gt;Shift-Enter&lt;/b&gt;, um einen neuen Eintrag hinzuzufügen.</translation>
     </message>
     <message>
-        <source>no generic driver is selected</source>
-        <translation>haben Sie keinen generischen Treiber ausgewählt</translation>
-    </message>
-    <message>
         <source>Selects the network adapter on the host system that traffic to and from this network card will go through.</source>
         <translation>Bezeichnet den Netzwerkadapter auf dem Host, mit dem diese virtuelle Netzwerkkarte verbunden ist.</translation>
     </message>
     <message>
-        <source>Enter the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
+        <source>Holds the name of the internal network that this network card will be connected to. You can create a new internal network by choosing a name which is not used by any other network cards in this virtual machine or others.</source>
         <translation>Spezifizieren Sie den Namen des internen Netzwerkes, an den die Netzwerkkarte angeschlossen werden soll. Sie können ein neues internes Netzwerk durch Angabe eines Namens erzeugen, der von keiner anderen Netzwerkkarte dieser oder anderer virtueller Maschinen benutzt wird.</translation>
     </message>
     <message>
@@ -2324,6 +2713,42 @@
     <message>
         <source>Selects the driver to be used with this network card.</source>
         <translation>Wählt den Treiber für die Netzwerkkarte aus.</translation>
+    </message>
+    <message>
+        <source>&amp;MAC Address:</source>
+        <translation>&amp;MAC-Adresse:</translation>
+    </message>
+    <message>
+        <source>No bridged network adapter is currently selected.</source>
+        <translation>Es wurde kein Netzwerkadapter für die Netzwerkbrücke ausgewählt.</translation>
+    </message>
+    <message>
+        <source>No internal network name is currently specified.</source>
+        <translation>Es wurde kein Name für das interne Netzwerk angegeben.</translation>
+    </message>
+    <message>
+        <source>No host-only network adapter is currently selected.</source>
+        <translation>Es wurde kein Host-Netzinterface-Adapter ausgewählt.</translation>
+    </message>
+    <message>
+        <source>No generic driver is currently selected.</source>
+        <translation>Es wurde kein generischer Treiber ausgewählt.</translation>
+    </message>
+    <message>
+        <source>The MAC address must be 12 hexadecimal digits long.</source>
+        <translation>Die MAC-Adresse muss aus 12 Hexadezimalzahlen bestehen.</translation>
+    </message>
+    <message>
+        <source>The second digit in the MAC address may not be odd as only unicast addresses are allowed.</source>
+        <translation>Die zweite Stelle der MAC-Adresse darf nicht ungerade sein, da nur Unicast-Adressen erlaubt sind.</translation>
+    </message>
+    <message>
+        <source>No NAT network name is currently specified.</source>
+        <translation>Es wurde kein NAT-Netzwerk-Name angegeben.</translation>
+    </message>
+    <message>
+        <source>Holds the name of the NAT network that this network card will be connected to. You can create and remove networks using the global network settings in the virtual machine manager window.</source>
+        <translation>Der Name des NAT-Netzwerkes an welches diese Netzwerkkarte gebunden wird. Sie können NAT-Netzwerke in den globalen Netzwerkeinstellungen des VM-Managers hinzufügen oder entfernen.</translation>
     </message>
 </context>
 <context>
@@ -2346,7 +2771,7 @@
         <translation>Port&amp;nummer:</translation>
     </message>
     <message>
-        <source>Displays the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation>Zeigt die Portnummer der parallelen Schnittstelle. Sie können einen der Standardports auswählen, oder Sie wählen &lt;b&gt;benutzerdefiniert&lt;/b&gt; und können die Portparameter frei einstellen.</translation>
     </message>
     <message>
@@ -2362,31 +2787,39 @@
         <translation>Port&amp;pfad:</translation>
     </message>
     <message>
-        <source>Displays the host parallel device name.</source>
+        <source>Holds the host parallel device name.</source>
         <translation>Zeigt den Namen der parallelen Schnittstelle des Hostes an.</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <source>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
         <translation>Zeigt die IRQ-Nummer dieser parallelen Schnittstelle. Gültige Werte sind ganze Zahlen im Bereich von &lt;tt&gt;0&lt;/tt&gt; bis &lt;tt&gt;255&lt;/tt&gt;. Zahlen größer als &lt;tt&gt;15&lt;/tt&gt; können nur verwendet werden, wenn der &lt;b&gt;I/O-APIC&lt;/b&gt; für diese virtuelle Maschine aktiviert ist.</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation>Zeigt die Basis-Portadresse dieser parallelen Schnittstelle. Zulässige Werte sind ganze Zahlen im Bereich von &lt;tt&gt;0&lt;/tt&gt; bis &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
 </context>
 <context>
     <name>UIMachineSettingsParallelPage</name>
     <message>
-        <source>Duplicate port number selected </source>
-        <translation>Doppelte Portnummer ist ausgewählt</translation>
+        <source>No IRQ is currently specified.</source>
+        <translation>Es wurde kein IRQ angegeben.</translation>
     </message>
     <message>
-        <source>Port path not specified </source>
-        <translation>Der Pfad für den Port fehlt</translation>
+        <source>No I/O port is currently specified.</source>
+        <translation>Es wurde kein I/O-Port angegeben.</translation>
     </message>
     <message>
-        <source>Duplicate port path entered </source>
-        <translation>Doppelter Portpfad ist ausgewählt</translation>
+        <source>Two or more ports have the same settings.</source>
+        <translation>Zwei oder mehr Ports haben identische Einstellungen.</translation>
+    </message>
+    <message>
+        <source>No port path is currently specified.</source>
+        <translation>Es wurde kein Pfad für den Port angegeben.</translation>
+    </message>
+    <message>
+        <source>There are currently duplicate port paths specified.</source>
+        <translation>Der gleiche Port-Pfad wurde mehrfach zugewiesen.</translation>
     </message>
 </context>
 <context>
@@ -2487,7 +2920,7 @@
         <translation>Ja</translation>
     </message>
     <message>
-        <source>Auto-Mount</source>
+        <source>Auto-mount</source>
         <translation>automatisch einbinden</translation>
     </message>
 </context>
@@ -2502,10 +2935,6 @@
         <translation>Ordner ändern</translation>
     </message>
     <message>
-        <source>Dialog</source>
-        <translation>Dialog</translation>
-    </message>
-    <message>
         <source>Folder Path:</source>
         <translation>Ordner-Pfad:</translation>
     </message>
@@ -2514,7 +2943,7 @@
         <translation>Ordner-Name:</translation>
     </message>
     <message>
-        <source>Displays the name of the shared folder (as it will be seen by the guest OS).</source>
+        <source>Holds the name of the shared folder (as it will be seen by the guest OS).</source>
         <translation>Zeigt den Namen des gemeinsamen Ordners (wie er vom Gastsystem gesehen wird).</translation>
     </message>
     <message>
@@ -2541,6 +2970,10 @@
         <source>If checked, this shared folder will be permanent.</source>
         <translation>Falls aktiviert wird die Änderung permanent.</translation>
     </message>
+    <message>
+        <source>Window</source>
+        <translation>Fenster</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSerial</name>
@@ -2562,7 +2995,7 @@
         <translation>Port&amp;nummer:</translation>
     </message>
     <message>
-        <source>Displays the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
+        <source>Selects the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
         <translation>Zeigt die Portnummer der seriellen Schnittstelle. Sie können einen der Standardports auswählen, oder Sie wählen &lt;b&gt;benutzerdefiniert&lt;/b&gt; und können die Portparameter frei einstellen.</translation>
     </message>
     <message>
@@ -2590,7 +3023,7 @@
         <translation>Erzeuge &amp;Pipe</translation>
     </message>
     <message>
-        <source>Displays the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
+        <source>Holds the path to the serial port&apos;s pipe on the host when the port is working in &lt;b&gt;Host Pipe&lt;/b&gt; mode, or the host serial device name when the port is working in &lt;b&gt;Host Device&lt;/b&gt; mode.</source>
         <translation>Zeigt den Pfad zur seriellen Port-Pipe des Hostes wenn der Port im Modus &lt;b&gt;Host-Pipe&lt;/b&gt; arbeitet oder den Namen der seriellen Schnittstelle des Hostes im Modus &lt;b&gt;Host-Schnittstelle&lt;/b&gt;.</translation>
     </message>
     <message>
@@ -2598,27 +3031,35 @@
         <translation>Port/Datei-&amp;Pfad:</translation>
     </message>
     <message>
-        <source>Displays the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;IO APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
+        <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
         <translation>Zeigt die IRQ-Nummer dieser seriellen Schnittstelle. Gültige Werte sind ganze Zahlen im Bereich von &lt;tt&gt;0&lt;/tt&gt; bis &lt;tt&gt;255&lt;/tt&gt;. Zahlen größer als &lt;tt&gt;15&lt;/tt&gt; können nur verwendet werden, wenn der &lt;b&gt;I/O-APIC&lt;/b&gt; für diese virtuelle Maschine aktiviert ist.</translation>
     </message>
     <message>
-        <source>Displays the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
+        <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
         <translation>Zeigt die Basis-Portadresse dieser seriellen Schnittstelle. Zulässige Werte sind ganze Zahlen im Bereich von &lt;tt&gt;0&lt;/tt&gt; bis &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
 </context>
 <context>
     <name>UIMachineSettingsSerialPage</name>
     <message>
-        <source>Duplicate port number selected </source>
-        <translation>Doppelte Portnummer ist ausgewählt</translation>
+        <source>No IRQ is currently specified.</source>
+        <translation>Es wurde kein IRQ angegeben.</translation>
     </message>
     <message>
-        <source>Port path not specified </source>
-        <translation>Der Pfad für den Port fehlt</translation>
+        <source>No I/O port is currently specified.</source>
+        <translation>Es wurde kein I/O-Port angegeben.</translation>
     </message>
     <message>
-        <source>Duplicate port path entered </source>
-        <translation>Doppelter Portpfad ist ausgewählt</translation>
+        <source>Two or more ports have the same settings.</source>
+        <translation>Zwei oder mehr Ports haben identische Einstellungen.</translation>
+    </message>
+    <message>
+        <source>No port path is currently specified.</source>
+        <translation>Der Port-Pfad wurde nicht angegeben.</translation>
+    </message>
+    <message>
+        <source>There are currently duplicate port paths specified.</source>
+        <translation>Der gleiche Port-Pfad wurde mehrfach zugewiesen.</translation>
     </message>
 </context>
 <context>
@@ -2642,10 +3083,6 @@
     <message>
         <source>&lt;nobr&gt;Add&amp;nbsp;Floppy&amp;nbsp;Device&lt;/nobr&gt;</source>
         <translation>&lt;nobr&gt;Diskettenlaufwerk hinzufügen&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;i&gt;%1&lt;/i&gt; uses a medium that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
-        <translation>&lt;i&gt;%1&lt;/i&gt; benutzt ein Medium, das bereits an &lt;i&gt;%2&lt;/i&gt; angeschlossen ist.</translation>
     </message>
     <message>
         <source>Add Controller</source>
@@ -2706,22 +3143,6 @@
     <message>
         <source>Removes the attachment highlighted in the Storage Tree.</source>
         <translation>Entfernt den ausgewählten Anschluss.</translation>
-    </message>
-    <message>
-        <source>IDE Controller</source>
-        <translation>IDE-Controller</translation>
-    </message>
-    <message>
-        <source>SATA Controller</source>
-        <translation>SATA-Controller</translation>
-    </message>
-    <message>
-        <source>SCSI Controller</source>
-        <translation>SCSI-Controller</translation>
-    </message>
-    <message>
-        <source>Floppy Controller</source>
-        <translation>Disketten-Controller</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
@@ -2796,7 +3217,7 @@
         <translation>Typ (Format):</translation>
     </message>
     <message>
-        <source>Attached To:</source>
+        <source>Attached to:</source>
         <translation>angeschlossen an:</translation>
     </message>
     <message>
@@ -2804,15 +3225,11 @@
         <translation>SAS-Controller hinzufügen</translation>
     </message>
     <message>
-        <source>SAS Controller</source>
-        <translation>SAS-Controller</translation>
-    </message>
-    <message>
         <source>Allows to use host I/O caching capabilities.</source>
         <translation>Benutze den Host-I/O-Cache.</translation>
     </message>
     <message>
-        <source>Use host I/O cache</source>
+        <source>Use Host I/O Cache</source>
         <translation>Host I/O-Cache verwenden</translation>
     </message>
     <message>
@@ -2829,7 +3246,7 @@
     </message>
     <message>
         <source>Choose or create a virtual hard disk file. The virtual machine will see the data in the file as the contents of the virtual hard disk.</source>
-        <translation>Wählen Sie ein virtuelles Festplattenabbild. Der Gast kann auf die Daten dieser Datei als Inhalt der virtuellen Festplatte zugreifen.</translation>
+        <translation>Wählen Sie ein virtuelles Festplattenabbild. Der Gast kann auf die Daten dieser Datei als virtuelle Festplatte zugreifen.</translation>
     </message>
     <message>
         <source>Set up the virtual hard disk</source>
@@ -2841,11 +3258,11 @@
     </message>
     <message>
         <source>Choose a virtual CD/DVD disk or a physical drive to use with the virtual drive. The virtual machine will see a disk inserted into the drive with the data in the file or on the disk in the physical drive as its contents.</source>
-        <translation>Wählen Sie ein virtuelles CD/DVD-ROM-Abbild oder ein physisches Laufwerk am Host aus. Der Gast kann auf diese Daten als Medium im virtuellen Laufwerk zugreifen.</translation>
+        <translation>Wählen Sie ein virtuelles CD/DVD-Abbild oder ein physisches Laufwerk am Host aus. Der Gast kann auf diese Daten als Medium im virtuellen Laufwerk zugreifen.</translation>
     </message>
     <message>
         <source>Set up the virtual CD/DVD drive</source>
-        <translation>Virtuelles CD/DVD-ROM-Laufwerk aufsetzen</translation>
+        <translation>Virtuelles CD/DVD-Laufwerk aufsetzen</translation>
     </message>
     <message>
         <source>Floppy &amp;Drive:</source>
@@ -2869,7 +3286,7 @@
     </message>
     <message>
         <source>Choose a virtual CD/DVD disk file...</source>
-        <translation>Datei für virtuelles CD/DVD-ROM-Medium auswählen...</translation>
+        <translation>Datei für virtuelles CD/DVD-Medium auswählen...</translation>
     </message>
     <message>
         <source>Remove disk from virtual drive</source>
@@ -2878,18 +3295,6 @@
     <message>
         <source>Choose a virtual floppy disk file...</source>
         <translation>Datei für virtuelle Diskette auswählen...</translation>
-    </message>
-    <message>
-        <source>no name specified for controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>haben Sie keinen Namen für den Controller auf der Position &lt;b&gt;%1&lt;/b&gt; angegeben.</translation>
-    </message>
-    <message>
-        <source>controller at position &lt;b&gt;%1&lt;/b&gt; uses the name that is already used by controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>ist für den Controller auf der Position &lt;b&gt;%1&lt;/b&gt; ein Name angegeben, der bereits von dem Controller an Position &lt;b&gt;%2&lt;/b&gt; benutzt wird.</translation>
-    </message>
-    <message>
-        <source>no hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
-        <translation>haben Sie keine Platte für &lt;i&gt;%1&lt;/i&gt; ausgewählt.</translation>
     </message>
     <message>
         <source>When checked the virtual disk will not be removed when the guest system ejects it.</source>
@@ -2904,7 +3309,7 @@
         <translation>Markiert das Medium als nicht rotierbaren Speicher (SSD).</translation>
     </message>
     <message>
-        <source>&amp;Solid-state drive</source>
+        <source>&amp;Solid-state Drive</source>
         <translation>&amp;SSD-Laufwerk</translation>
     </message>
     <message>
@@ -2918,10 +3323,6 @@
         <translation>bis zu %1 unterstützt</translation>
     </message>
     <message>
-        <source>you are currently using more storage controllers than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2.</source>
-        <translation>werden momentan mehr Controller benutzt als ein %1-Chipsatz unterstützt. Bitte ändern Sie den Typ des Chipsatzes auf der Seite Systemeinstellungen oder entfernen Sie Controller aus der folgenden Liste: %2.</translation>
-    </message>
-    <message>
         <source>Details:</source>
         <translation>abgespeichert wie:</translation>
     </message>
@@ -2933,33 +3334,33 @@
         <source>Selects the port count of the SATA storage controller currently selected in the Storage Tree. This must be at least one more than the highest port number you need to use.</source>
         <translation>Setzt die Anzahl der Anschlüsse des SATA-Controllers. Dieser Wert kann nicht kleiner sein als der letzte benutzte Port plus 1.</translation>
     </message>
+    <message>
+        <source>Controller: %1</source>
+        <translation>Controller: %1</translation>
+    </message>
+    <message>
+        <source>No name is currently specified for the controller at position &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Für den Controller auf der Position &lt;b&gt;%1&lt;/b&gt; wurde kein Name angegeben.</translation>
+    </message>
+    <message>
+        <source>The controller at position &lt;b&gt;%1&lt;/b&gt; has the same name as the controller at position &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Der Controller an der Stelle &lt;b&gt;%1&lt;/b&gt; hat den gleichen Namen wie der Controller an der Stelle &lt;b&gt;%2&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>No hard disk is selected for &lt;i&gt;%1&lt;/i&gt;.</source>
+        <translation>Es wurde keine Festplatte für &lt;i&gt;%1&lt;/i&gt; ausgewählt.</translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;%1&lt;/i&gt; is using a disk that is already attached to &lt;i&gt;%2&lt;/i&gt;.</source>
+        <translation>&lt;i&gt;%1&lt;/i&gt; benutzt eine Platte, die bereits an &lt;i&gt;%2&lt;/i&gt; angeschlossen ist.</translation>
+    </message>
+    <message>
+        <source>The machine currently has more storage controllers assigned than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2</source>
+        <translation>Die Maschon besitzt mehr Controller für Massenspeicher als der Chipsatz %1 unterstützt. Bitte ändern Sie den Chipsatz-Typ auf der Seite der Systemeinstellungen oder löschen Sie Controller auf der folgenden Seite: %2</translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
-    <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. Not enough memory is left for your host operating system. Please select a smaller amount.</source>
-        <translation>haben Sie mehr als &lt;b&gt;%1%&lt;/b&gt; des Hauptspeichers (&lt;b&gt;%2&lt;/b&gt;) für die virtuelle Maschine reserviert. Es bleibt nicht genügend Speicher für das Host-Betriebssystem übrig. Bitte wählen Sie einen kleineren Wert.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than &lt;b&gt;%1%&lt;/b&gt; of your computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) to the virtual machine. There might not be enough memory left for your host operating system. Continue at your own risk.</source>
-        <translation>haben Sie mehr als &lt;b&gt;%1%&lt;/b&gt; des Hauptspeichers (&lt;b&gt;%2&lt;/b&gt;) für die virtuelle Maschine reserviert. Dadurch bleibt möglicherweise nicht genug Speicher für den Host übrig. Fahren Sie auf eigenes Risiko fort.</translation>
-    </message>
-    <message>
-        <source>for performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
-        <translation>sollte die Anzahl der virtuellen CPUs nicht mehr als doppelt so groß sein, wie die Anzahl der physischen CPU-Cores auf dem Host (&lt;b&gt;%1&lt;/b&gt;). Bitte wählen Sie einen kleineren Wert.</translation>
-    </message>
-    <message>
-        <source>you have assigned more virtual CPUs to the virtual machine than the number of physical CPUs on your host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
-        <translation>haben Sie mehr virtuellle CPUs eingestellt als physische CPU-Cores auf Ihrem Host vorhanden sind (&lt;b&gt;%1&lt;/b&gt;). Für beste Performance sollten Sie die Anzahl der virtuellen CPUs verringern.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than one virtual CPU to this VM. This will not work unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>haben Sie mehr als eine virtuelle CPU eingestellt. Unterstützung für mehrere CPUs im Gast erfordert die Aktivierung des IO-APIC. Dieses Feature wird automatisch aktiviert, sobald Sie die Einstellungen bestätigen.</translation>
-    </message>
-    <message>
-        <source>you have assigned more than one virtual CPU to this VM. This will not work unless hardware virtualization (VT-x/AMD-V) is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>haben Sie mehr als eine virtuelle CPU eingestellt. Unterstützung für mehrere CPUs im Gast erfordert die Aktivierung von VT-x/AMD-V. Dieses Feature wird automatisch aktiviert, sobald Sie die Einstellungen bestätigen.</translation>
-    </message>
     <message>
         <source>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</source>
         <translation>&lt;qt&gt;%1&amp;nbsp;MB&lt;/qt&gt;</translation>
@@ -3011,14 +3412,14 @@
     </message>
     <message>
         <source>Extended Features:</source>
-        <translation>Erweiterte Einstellungen:</translation>
+        <translation>Erweitert:</translation>
     </message>
     <message>
-        <source>When checked, the virtual machine will support the Input Output APIC (IO APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
+        <source>When checked, the virtual machine will support the Input Output APIC (I/O APIC), which may slightly decrease performance. &lt;b&gt;Note:&lt;/b&gt; don&apos;t disable this feature after having installed a Windows guest operating system!</source>
         <translation>Aktiviert die Unterstützung für den Input/Output APIC (IO-APIC). Dies kann negative Auswirkungen auf die VM-Performance haben. &lt;b&gt;Beachten Sie:&lt;/b&gt; Deaktivieren Sie die Unterstützung nicht, nachdem Sie Windows installiert haben!</translation>
     </message>
     <message>
-        <source>Enable &amp;IO APIC</source>
+        <source>Enable &amp;I/O APIC</source>
         <translation>&amp;IO-APIC aktivieren</translation>
     </message>
     <message>
@@ -3079,20 +3480,12 @@
         <translation>Durch Aktivierung wird die virtuelle Echtzeituhr die Uhrzeit in UTC bereitstellen, anderenfalls in lokaler (Host-)Zeit. Unix-Gäste erwarten die Zeit normalerweise in UTC.</translation>
     </message>
     <message>
-        <source>Hardware clock in &amp;UTC time</source>
-        <translation>Hardware-Uhr in UTC</translation>
+        <source>Hardware Clock in &amp;UTC Time</source>
+        <translation>Hardware-Uhr in &amp;UTC</translation>
     </message>
     <message>
         <source>Controls the number of virtual CPUs in the virtual machine. You need hardware virtualization support on your host system to use more than one virtual CPU.</source>
         <translation>Legt die Anzahl der virtuellen CPUs dieser VM fest. Der Host muss Hardware-Virtualisierung unterstützen, falls mehr als eine virtuelle CPU emuliert werden soll.</translation>
-    </message>
-    <message>
-        <source>If checked, an absolute pointing device (a USB tablet) will be supported. Otherwise, only a standard PS/2 mouse will be emulated.</source>
-        <translation>Aktiviert ein absolutes Zeigegerät (ein USB-Tablet). Anderenfalls wird eine Standard-PS/2-Maus emuliert.</translation>
-    </message>
-    <message>
-        <source>Enable &amp;absolute pointing device</source>
-        <translation>Absolutes &amp;Zeigegerät aktivieren</translation>
     </message>
     <message>
         <source>&amp;Chipset:</source>
@@ -3108,15 +3501,7 @@
     </message>
     <message>
         <source>Limits the amount of time that each virtual CPU is allowed to run for. Each virtual CPU will be allowed to use up to this percentage of the processing time available on one physical CPU. The execution cap can be disabled by setting it to 100%. Setting the cap too low can make the machine feel slow to respond.</source>
-        <translation>Begrenzt die jeder virtuellen CPU zur Verfügung stehenden Zeit. Jede virtuelle CPU darf nicht länger als dieser Prozentsatz der verfügbaren Zeit auf einer physischen CPU laufen. Durch Setzen dieses Wertes auf 100% wird diese Begrenzung aufgehoben. Wird dieser Wert zu tief gewählt, kann sich dies negativ auf das Zeitverhalten der VM auswirken.</translation>
-    </message>
-    <message>
-        <source>you have set the processor execution cap to a low value. This can make the machine feel slow to respond.</source>
-        <translation>haben Sie die CPU-Ausführungsbegrenzung auf einen sehr niedrigen Wert gesetzt. Dadurch wird die virtuelle Maschine wahrscheinlich spürebar schlechter reagieren.</translation>
-    </message>
-    <message>
-        <source>you have enabled a USB HID (Human Interface Device). This will not work unless USB emulation is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>haben Sie ein USB HID (Human Interface Device) aktiviert. Dieses benötigt die USB-Emulation. Wenn Sie die Einstellungen bestätigen, wird die USB-Emulation für diese VM aktiviert.</translation>
+        <translation>Begrenzt die jeder virtuellen CPU zur Verfügung stehende Zeit. Jede virtuelle CPU darf nicht länger als dieser Prozentsatz der verfügbaren Zeit auf einer physischen CPU laufen. Durch Setzen dieses Wertes auf 100% wird diese Begrenzung aufgehoben. Wird dieser Wert zu tief gewählt, kann sich dies negativ auf das Zeitverhalten der VM auswirken.</translation>
     </message>
     <message>
         <source>&lt;qt&gt;%1%&lt;/qt&gt;</source>
@@ -3129,8 +3514,48 @@
         <translation></translation>
     </message>
     <message>
-        <source>you have assigned ICH9 chipset type to this VM. It will not work properly unless the IO-APIC feature is also enabled. This will be done automatically when you accept the VM Settings by pressing the OK button.</source>
-        <translation>haben Sie die ICH9-Chipsatzemulation für diese Machine gewählt. Diese Emulation setzt einen aktivierten IO-APIC voraus. Diese Änderung wird automatisch vorgenommen, falls Sie die Einstellungen akzeptieren.</translation>
+        <source>&amp;Pointing Device:</source>
+        <translation>&amp;Zeigergerät:</translation>
+    </message>
+    <message>
+        <source>Determines whether the emulated pointing device is a standard PS/2 mouse, a USB tablet or a USB multi-touch tablet.</source>
+        <translation>Legt fest, ob das emulierte Zeigergerät entweder eine Standard-PS/2-Maus, ein USB-Tablet oder ein USB-Multi-Touch-Tablet ist.</translation>
+    </message>
+    <message>
+        <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. Not enough memory is left for the host operating system. Please select a smaller amount.</source>
+        <translation>Mehr als &lt;b&gt;%1%&lt;/b&gt; des Hauptspeichers des Hosts (&lt;b&gt;%2&lt;/b&gt;) wurden der virtuellen Maschine zugewiesen. Damit bleibt nicht genügend Speicher für das Host-Betriebssystem. Bitte wählen Sie einen kleineren Wert.</translation>
+    </message>
+    <message>
+        <source>More than &lt;b&gt;%1%&lt;/b&gt; of the host computer&apos;s memory (&lt;b&gt;%2&lt;/b&gt;) is assigned to the virtual machine. There might not be enough memory left for the host operating system. Please consider selecting a smaller amount.</source>
+        <translation>Mehr als &lt;b&gt;%1%&lt;/b&gt; des Hauptspeichers des Hosts (&lt;b&gt;%2&lt;/b&gt;) wurden der virtuellen Maschine zugewiesen. Damit bleibt möglicherweise nicht genügend Speicher für das Host-Betriebssystem. Bitte wählen ggf. Sie einen kleineren Wert.</translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
+        <translation>Der I/O-APIC wurde in den System-Einstellungen nicht aktiviert. Der ICH9-Chipsatz erfordert die Emulation von I/O-APICs. Diese Einstellung wird daher beim Bestätigen automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
+        <translation>Die USB-Controller-Emulation wurde nicht aktiviert. Ein USB-Controller wird für das USB-Zeigergerät benötigt. Diese Einstellung wird daher beim Bestätigen automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
+        <translation>Die Anzahl der virtuellen CPUs einer virtuellen Maschine darf nicht größer sein als die doppelte Anzahl der tatsächlich vorhandenen CPU-Kerne auf dem Host (&lt;b&gt;%1&lt;/b&gt;). Bitte verringern Sie die Anzahl der virtuellen CPUs.</translation>
+    </message>
+    <message>
+        <source>More virtual CPUs are assigned to the virtual machine than the number of physical CPUs on the host system (&lt;b&gt;%1&lt;/b&gt;). This is likely to degrade the performance of your virtual machine. Please consider reducing the number of virtual CPUs.</source>
+        <translation>Die Anzahl der virtuellen CPUs der virtuellen Maschine sollte nicht größer sein als die Anzahl der tatsächlich vorhandenen CPU-Kerne auf dem Host (&lt;b&gt;%1&lt;/b&gt;). Bitte verringern Sie die ggf. Anzahl der virtuellen CPUs.</translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation>Der I/O-APIC ist in den Systemeinstellungen deaktiviert. Für Multi-CPU-Gäste ist ein I/O-APIC erforderlich. Diese Einstellung wird daher beim Bestätigen automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
+        <translation>Hardware-Virtualisierung ist in den Systemeinstellungen deaktiviert. Für Multi-CPU-Gäste muss diese Einstellung aber aktiviert sein. Diese Einstellung wird daher beim Bestätigen automatisch aktiviert.</translation>
+    </message>
+    <message>
+        <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
+        <translation>Die CPU-Ausführungsbegrenzung wurde auf einen sehr niedrigen Wert gesetzt. Dadurch wird die virtuelle Maschine wahrscheinlich spürbar schlechter reagieren.</translation>
     </message>
 </context>
 <context>
@@ -3257,8 +3682,8 @@
         <translation>&lt;nobr&gt;Zustand: %1&lt;/nobr&gt;</translation>
     </message>
     <message>
-        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.</source>
-        <translation>Für diese virtuelle Maschine ist USB-2.0-Unterstützung aktiviert. Dafür wird aber das &lt;b&gt;%1&lt;/b&gt; benötigt. Bitte installieren Sie das Zusatzpaket von der VirtualBox-Webseite. Danach können Sie USB-2.0 wieder aktivieren. In der Zwischenzeit wird diese Einstellung deaktiviert, wenn Sie die Einstellungen bestätigen.</translation>
+        <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
+        <translation>USB-2.0-Unterstützung wurde für diese virtuelle Maschine aktiviert. Dafür ist allerdings die Installation des &lt;b&gt;%1&lt;/b&gt; notwendig. Bitte installieren Sie dieses Zusatzpaket von der VirtualBox-Webseite oder deaktivieren Sie die USB-2.0-Unterstützung zum Starten der Maschine.</translation>
     </message>
 </context>
 <context>
@@ -3283,7 +3708,7 @@
         <translation>&amp;Name:</translation>
     </message>
     <message>
-        <source>Displays the filter name.</source>
+        <source>Holds the filter name.</source>
         <translation>Zeigt den Namen des Filters.</translation>
     </message>
     <message>
@@ -3351,16 +3776,15 @@
         <translation>Legt fest, ob dieser Filter auf USB-Geräte angewendet wird, die nur lokal an den Hostcomputer angeschlossen sind (&lt;i&gt;Nein&lt;/i&gt;), nur an einen entfernten Computer über VRDP (&lt;i&gt;Ja&lt;/i&gt;) oder beides (&lt;i&gt;Beides&lt;/i&gt;).</translation>
     </message>
     <message>
-        <source>&amp;Action:</source>
-        <translation>&amp;Aktion:</translation>
-    </message>
-    <message>
-        <source>Defines an action performed by the host computer when a matching device is attached: give it up to the host OS (&lt;i&gt;Ignore&lt;/i&gt;) or grab it for later usage by virtual machines (&lt;i&gt;Hold&lt;/i&gt;).</source>
-        <translation>Legt fest, was der Host machen soll, wenn ein passendes Gerät angeschlossen wurde: Zur Verwendung durch das Host-BS freigeben (&lt;i&gt;Ignorieren&lt;/i&gt;) oder für spätere Verwendung durch das Gast-BS ergreifen (&lt;i&gt;Halten&lt;/i&gt;).</translation>
-    </message>
-    <message>
         <source>USB Filter Details</source>
         <translation>Filter für USB-Geräte</translation>
+    </message>
+</context>
+<context>
+    <name>UIMachineWindow</name>
+    <message>
+        <source> EXPERIMENTAL build %1r%2 - %3</source>
+        <translation> Experimentelle Version %1r%2 - %3</translation>
     </message>
 </context>
 <context>
@@ -3371,17 +3795,36 @@
     </message>
 </context>
 <context>
+    <name>UIMediumManager</name>
+    <message>
+        <source>&amp;Hard drives</source>
+        <translation>&amp;Festplatten</translation>
+    </message>
+    <message>
+        <source>&amp;Optical disks</source>
+        <translation>&amp;Optische Medien</translation>
+    </message>
+    <message>
+        <source>&amp;Floppy disks</source>
+        <translation>&amp;Disketten</translation>
+    </message>
+    <message>
+        <source>C&amp;lose</source>
+        <translation>&amp;Schließen</translation>
+    </message>
+</context>
+<context>
     <name>UIMediumTypeChangeDialog</name>
     <message>
         <source>Modify medium attributes</source>
         <translation>Mediumattribute ändern</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to change the attributes of the virtual disk located in &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following medium types and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
+        <source>&lt;p&gt;You are about to change the settings of the disk image file &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following modes and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Sie möchten die Attribute der virtuellen Festplatte &lt;b&gt;%1&lt;/b&gt; ändern.&lt;/p&gt;&lt;p&gt;Bitte wählen Sie einen der folgenden Medientypen und bestätigen dann mit &lt;b&gt;%2&lt;/b&gt; um fortzufahren oder verwerfen die Änderung mit &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Choose medium type:</source>
+        <source>Choose mode:</source>
         <translation>Mediumtyp ändern:</translation>
     </message>
 </context>
@@ -3419,7 +3862,7 @@
     </message>
     <message>
         <source>The following files already exist:&lt;br /&gt;&lt;br /&gt;%1&lt;br /&gt;&lt;br /&gt;Are you sure you want to replace them? Replacing them will overwrite their contents.</source>
-        <translation>Die folgenden Dateien sind bereits vorhanden: &lt;br/&gt;&lt;br/&gt;%1&lt;br/&gt;&lt;br/&gt;Sind Sie sicher, dass Sie diese überschreiben wollen?</translation>
+        <translation>Die folgenden Dateien sind bereits vorhanden: &lt;br/&gt;&lt;br/&gt;%1&lt;br/&gt;&lt;br/&gt;Sind Sie sicher, dass Sie diese überschreiben wollen? Dadurch geht der bisherige Inhalt verloren.</translation>
     </message>
     <message>
         <source>You are running a prerelease version of VirtualBox. This version is not suitable for production use.</source>
@@ -3448,14 +3891,6 @@
     <message>
         <source>Failed to create a new virtual machine.</source>
         <translation>Eine neue virtuelle Maschine konnte nicht erstellt werden.</translation>
-    </message>
-    <message>
-        <source>Failed to create a new virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Die neue virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; konnte nicht erstellt werden.</translation>
-    </message>
-    <message>
-        <source>Failed to apply the settings to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Die Einstellungen für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; konnten nicht übernommen werden.</translation>
     </message>
     <message>
         <source>Failed to start the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -3498,10 +3933,6 @@
         <translation>Es gibt keine virtuelle Maschine mit dem Namen &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Are you sure you want to discard the saved state of the virtual machine &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie den gesicherten Zustand der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; wirklich freigeben?&lt;/p&gt;&lt;p&gt;Diese Operation ist gleichbedeutend mit dem Ausschalten der VM ohne sauberes Herunterfahren durch das Gast-Betriebssystem.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to create a new session.</source>
         <translation>Eine neue Sitzung konnte nicht angelegt werden.</translation>
     </message>
@@ -3530,24 +3961,12 @@
         <translation>Der gemeinsame Ordner &lt;b&gt;%1&lt;/b&gt; (mit Verweis auf &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) für die virtuelle Maschine &lt;b&gt;%3&lt;/b&gt; konnte nicht erstellt werden.</translation>
     </message>
     <message>
-        <source>Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Der gemeinsame Ordner &lt;b&gt;%1&lt;/b&gt; (Verweis auf &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) konnte nicht aus der virtuellen Maschine &lt;b&gt;%3&lt;/b&gt; entfernt werden.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Der VM-Monitor zeigt an, dass das Gastbetriebssystem keine &lt;b&gt;Mauszeiger-Integration&lt;/b&gt; für den aktuellen Videomodus unterstützt. Um die Maus im Gastsystem zu nutzen, muss diese durch Mausklick im VM-Fenster gefangen werden.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine is currently in the &lt;b&gt;Paused&lt;/b&gt; state and not able to see any keyboard or mouse input. If you want to continue to work inside the VM, you need to resume it by selecting the corresponding action from the menu bar.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Die virtuelle Maschine ist momentan &lt;b&gt;angehalten&lt;/b&gt; und nimmt deshalb keine Maus- und Tastatureingaben entgegen. Um mit der Arbeit der virtuellen Maschine fortzufahren, müssen Sie die virtuelle Maschine weiterlaufen lassen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Cannot run VirtualBox in &lt;i&gt;VM Selector&lt;/i&gt; mode due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox kann aufgrund von lokalen Beschränkungen nicht im &lt;i&gt;VM Selektor-Modus&lt;/i&gt; ausgeführt werden.&lt;/p&gt;&lt;p&gt;Die Anwendung wird nun beendet.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to create appliance.</source>
-        <translation>Appliance konnte nicht erstellt werden.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Fatal Error&lt;/nobr&gt;</source>
@@ -3612,56 +4031,12 @@
         <translation>Callee&amp;nbsp;RC:</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; dialog which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Für die Sprache &lt;b&gt;%1&lt;/b&gt; konnte im Verzeichnis &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; keine Sprachdatei gefunden werden.&lt;/p&gt;&lt;p&gt;Die Sprache wird vorübergehend auf die voreingestellte Systemsprache zurückgesetzt. Bitte benutzen Sie die &lt;b&gt;Globalen Einstellungen&lt;/b&gt;, um eine andere Sprache auszuwählen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; dialog which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the main VirtualBox window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Die Sprachdatei &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; konnte nicht geöffnet werden.&lt;p&gt;Die Sprache wird vorübergehend auf Englisch zurückgesetzt. Bitte wählen Sie in den &lt;b&gt;Globalen Einstellungen&lt;/b&gt; eine neue Sprache aus.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
-        <translation>Der gemeinsame Ordner &lt;b&gt;%1&lt;/b&gt; (mit Verweis auf &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) konnte nicht aus der virtuellen Maschine &lt;b&gt;%3&lt;/b&gt; entfernt werden.&lt;/p&gt;&lt;p&gt;Bitte schließen Sie alle Programme im Gast, die diesen gemeinsamen Ordner benutzen, und versuchen Sie die Aktion erneut.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not find the VirtualBox Guest Additions CD image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; or &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this CD image from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ein CDROM-Abbild mit den VirtualBox-Gasterweiterungen konnte weder unter &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; noch unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; gefunden werden.&lt;/p&gt;&lt;p&gt;Möchten Sie diese Datei nun aus dem Internet herunterladen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das CDROM-Abbild mit den VirtualBox Gasterweiterungen konnte nicht von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen werden.&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to download the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sind Sie sicher, dass Sie ein CDROM-Abbild mit den VirtualBox Gasterweiterungen von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (Größe %3 Byte) herunterladen wollen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions CD image has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this CD image and mount it on the virtual CD/DVD drive?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das CDROM-Abbild mit den VirtualBox Gasterweiterungen wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und lokal als &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt; gespeichert.&lt;/p&gt;&lt;p&gt;Möchten Sie das CDROM-Abbild registrieren und als virtuelle CD/DVD einbinden?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das Fenster der virtuellen Maschine ist optimiert für eine Anzeige im &lt;b&gt;%1-Bit&lt;/b&gt;-Farbmodus, der aktuelle Modus des virtuellen Bildschirms ist aber auf &lt;b&gt;%2-&amp;nbsp;Bit&lt;/b&gt; gesetzt.&lt;/p&gt;&lt;p&gt;Bitte öffnen Sie die Einstellungen für die Anzeige im Gast und wählen Sie den &lt;b&gt;%3-Bit&lt;/b&gt;-Farbmodus, falls verfügbar, um die beste Performance der Anzeige zu erreichen.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Beachten Sie&lt;/b&gt;: Manche Betriebssysteme (z.B. OS/2) arbeiten tatsächlich im 32-Bit-Farbmodus, zeigen aber einen 24-Bit-Farbmodus (16 Millionen Farben) an. Sie können versuchen, einen anderen Farbmodus einzustellen, um zu testen, ob diese Meldung verschwindet. Oder Sie können diese Meldung nun deaktivieren falls Sie sicher sind, dass der erforderliche Farbmodus (%4&amp;nbsp;Bit) im Gast-Betriebssystem nicht verfügbar ist.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You didn&apos;t attach a hard disk to the new virtual machine. The machine will not be able to boot unless you attach a hard disk with a guest operating system or some other bootable media to it later using the machine settings dialog or the First Run Wizard.&lt;/p&gt;&lt;p&gt;Do you wish to continue?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie haben der neuen virtuellen Maschine keine Festplatte zugewiesen. Die Maschine kann nicht booten bis Sie der VM eine Festplatte mit einem Betriebssystem oder ein anderes bootbares Medium zuweisen. Sie können dafür die VM-Einstellungen oder den Startassistenten verwenden.&lt;/p&gt;&lt;p&gt;Möchten Sie fortfahren?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Failed to find license files in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Es konnte keine Lizenzdatei in &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; gefunden werden.</translation>
-    </message>
-    <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
         <translation>Die Lizenzdatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden. Bitte überprüfen Sie die Zugriffsrechte.</translation>
     </message>
     <message>
         <source>Failed to send the ACPI Power Button press event to the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Das ACPI-Ereignis &lt;i&gt;Netztaste gedrückt&lt;/i&gt; konnte nicht an die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; übermittelt werden.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Congratulations! You have been successfully registered as a user of VirtualBox.&lt;/p&gt;&lt;p&gt;Thank you for finding time to fill out the registration form!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Herzlichen Glückwunsch! Sie haben sich erfolgreich als Nutzer von VirtualBox registriert.&lt;/p&gt;&lt;p&gt;Vielen Dank, dass Sie sich die Zeit zum Ausfüllen des Formulars genommen haben!&lt;/p&gt;</translation>
+        <translation>Das ACPI-Ereignis &lt;i&gt;Ausschaltknopf gedrückt&lt;/i&gt; konnte nicht an die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; übermittelt werden.</translation>
     </message>
     <message>
         <source>Discard</source>
@@ -3669,12 +4044,7 @@
         <translation>Verwerfen</translation>
     </message>
     <message>
-        <source>Download</source>
-        <comment>additions</comment>
-        <translation>Herunterladen</translation>
-    </message>
-    <message>
-        <source>Mount</source>
+        <source>Insert</source>
         <comment>additions</comment>
         <translation>Einbinden</translation>
     </message>
@@ -3692,20 +4062,6 @@
         <source>Check</source>
         <comment>inaccessible media message box</comment>
         <translation>Überprüfen</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <comment>fullscreen</comment>
-        <translation>Einschalten</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <comment>seamless</comment>
-        <translation>Einschalten</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Do you really want to reset the virtual machine?&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie die virtuelle Maschine wirklich zurücksetzen?&lt;/p&gt;&lt;p&gt;Dabei gehen ungesicherte Daten aller noch offenen Anwendungen des Gastes verloren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -3735,10 +4091,6 @@
         <translation>Die Einstellungen der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; konnten nicht nach &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; abgespeichert werden.</translation>
     </message>
     <message>
-        <source>Failed to load the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
-        <translation>Die Einstellungen der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; konnten nicht von der Datei &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; geladen werden.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Could not enter seamless mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Der nahtlose Modus konnte nicht aktiviert werden, weil dem Gast zu wenig Grafikspeicher zugewiesen wurde.&lt;/p&gt;&lt;p&gt;Sie sollten der VM mindestens &lt;b&gt;%1&lt;/b&gt; Grafikspeicher zur Verfügung stellen.&lt;/p&gt;</translation>
     </message>
@@ -3763,77 +4115,13 @@
         <translation>&lt;p&gt;Die virtuelle Maschine meldet Unterstützung der &lt;b&gt;Mauszeiger-Integration&lt;/b&gt; durch das Gastsystem. Dies bedeutet, dass die Maus nicht gefangen werden muss, um es im Gastsystem zu benutzen, sondern alle Mausaktionen über der VM-Anzeigebereich werden direkt an den Gast weitergeleitet. Der Fangmodus wird automatisch aufgehoben, falls die Maus momentan gefangen ist.&lt;/p&gt;&lt;p&gt;Das Mausicon in der Statuszeile wird so &amp;nbsp;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;aussehen, um anzuzeigen, dass die Mauszeiger-Integration durch den Gast unterstützt und momentan aktiv ist.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Beachten Sie&lt;/b&gt;: Einige Anwendungen verhalten sich möglicherweise inkorrekt, wenn die Mauszeiger-Integration aktiv ist. Sie können diesen Modus durch Auswahl des entsprechenden Eintrages in der Menüzeile jederzeit deaktivieren.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Contents...</source>
-        <translation>&amp;Inhalt...</translation>
-    </message>
-    <message>
-        <source>Show the online help contents</source>
-        <translation>Zeigt die Online-Hilfe</translation>
-    </message>
-    <message>
-        <source>&amp;VirtualBox Web Site...</source>
-        <translation>Webseite von &amp;VirtualBox...</translation>
-    </message>
-    <message>
-        <source>Open the browser and go to the VirtualBox product web site</source>
-        <translation>Öffnet den Browser mit der Produktwebseite von VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Reset All Warnings</source>
-        <translation>Alle Warnungen &amp;zurücksetzen</translation>
-    </message>
-    <message>
-        <source>Go back to showing all suppressed warnings and messages</source>
-        <translation>Alle unterdrückten Warnungen werden beim nächsten Mal erneut angezeigt</translation>
-    </message>
-    <message>
-        <source>R&amp;egister VirtualBox...</source>
-        <translation>VirtualBox r&amp;egistrieren...</translation>
-    </message>
-    <message>
-        <source>Open VirtualBox registration form</source>
-        <translation>Öffnet das Formular zur Registrierung von VirtualBox</translation>
-    </message>
-    <message>
-        <source>C&amp;heck for Updates...</source>
-        <translation>Überprüfung auf &amp;Update...</translation>
-    </message>
-    <message>
-        <source>Check for a new VirtualBox version</source>
-        <translation>Überprüft, ob eine neue Version von VirtualBox verfügbar ist</translation>
-    </message>
-    <message>
-        <source>&amp;About VirtualBox...</source>
-        <translation>&amp;Über VirtualBox...</translation>
-    </message>
-    <message>
-        <source>Show a dialog with product information</source>
-        <translation>Zeigt einen Dialog mit Produktinformationen</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
         <translation>&lt;p&gt;Eine neue Version von VirtualBox ist verfügbar! Version &lt;b&gt;%1&lt;/b&gt; ist auf &lt;a href=&quot;http://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; verfügbar.&lt;/p&gt;&lt;p&gt;Sie können diese Version von der folgenden Adresse herunterladen:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to release the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wirklich freigeben?&lt;/p&gt;&lt;p&gt;Dieses Medium ist momentan an folgende virtuelle Maschinen gebunden: &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Release</source>
         <comment>detach medium</comment>
         <translation>Freigeben</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to remove the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the list of known media?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie die %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; wirklich von der Liste der bekannten Medien löschen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Note that as this hard disk is inaccessible its storage unit cannot be deleted right now.</source>
-        <translation>Beachten Sie, dass die Festplatte nicht zugreifbar ist. Daher kann diese momentan nicht gelöscht werden.</translation>
-    </message>
-    <message>
-        <source>The next dialog will let you choose whether you also want to delete the storage unit of this hard disk or keep it for later usage.</source>
-        <translation>Im folgenden Dialog haben Sie die Möglichkeit, das Speichermedium explizit zu löschen oder für eine spätere Verwendung zu bewahren.</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -3867,28 +4155,12 @@
         <translation>Die virtuelle Festplatte &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht erzeugt werden.</translation>
     </message>
     <message>
-        <source>Failed to open the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Die %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden.</translation>
-    </message>
-    <message>
-        <source>Failed to close the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
-        <translation>Die %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht geschlossen werden.</translation>
-    </message>
-    <message>
-        <source>Failed to determine the accessibility state of the medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <source>Failed to access the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
         <translation>Die Rechte für das Medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnten nicht ermittelt werden.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to connect to the VirtualBox online registration service due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Die Verbindung zur VirtualBox-Online-Registrierung konnte aufgrund des folgenden Fehlers nicht aufgebaut werden:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Unable to obtain the new version information due to the following error:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Neue Versionsinformationen konnten aufgrund des folgenden Fehlers nicht ermittelt werden:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy media are not currently accessible. As a result, you will not be able to operate virtual machines that use these media until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see what media are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Eine oder mehrere virtuelle Festplatten, CD/DVD-ROMs oder Diskettenmedien sind momentan nicht zugreifbar. Virtuelle Maschinen, die diese Medien benutzen, können so lange nicht benutzt werden, bis die Medien wieder zugreifbar werden.&lt;/p&gt;&lt;p&gt;Wählen Sie &lt;b&gt;Überprüfen&lt;/b&gt; um den Manager für virtuelle Medien zu öffnen oder wählen Sie &lt;b&gt;Ignorieren&lt;/b&gt;, um dieses Problem zu ignorieren.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;One or more virtual hard disks, CD/DVD or floppy disk image files are not currently accessible. As a result, you will not be able to operate virtual machines that use these files until they become accessible later.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Check&lt;/b&gt; to open the Virtual Media Manager window and see which files are inaccessible, or press &lt;b&gt;Ignore&lt;/b&gt; to ignore this message.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Eine oder mehrere virtuelle Festplatten, CD/DVDs oder Diskettenmedien sind momentan nicht zugreifbar. Virtuelle Maschinen, die diese Medien benutzen, können so lange nicht benutzt werden, bis die Medien wieder zugreifbar werden.&lt;/p&gt;&lt;p&gt;Wählen Sie &lt;b&gt;Überprüfen&lt;/b&gt; um den Manager für virtuelle Medien zu öffnen oder wählen Sie &lt;b&gt;Ignorieren&lt;/b&gt;, um dieses Problem zu ignorieren.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A critical error has occurred while running the virtual machine and the machine execution has been stopped.&lt;/p&gt;&lt;p&gt;For help, please see the Community section on &lt;a href=http://www.virtualbox.org&gt;http://www.virtualbox.org&lt;/a&gt; or your support contract. Please provide the contents of the log file &lt;tt&gt;VBox.log&lt;/tt&gt; and the image file &lt;tt&gt;VBox.png&lt;/tt&gt;, which you can find in the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; directory, as well as a description of what you were doing when this error happened. Note that you can also access the above files by selecting &lt;b&gt;Show Log&lt;/b&gt; from the &lt;b&gt;Machine&lt;/b&gt; menu of the main VirtualBox window.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; if you want to power off the machine or press &lt;b&gt;Ignore&lt;/b&gt; if you want to leave it as is for debugging. Please note that debugging requires special knowledge and tools, so it is recommended to press &lt;b&gt;OK&lt;/b&gt; now.&lt;/p&gt;</source>
@@ -3907,24 +4179,12 @@
         <translation>Fortfahren</translation>
     </message>
     <message>
-        <source>Failed to create the host-only network interface.</source>
-        <translation>Das Host-only-Interface konnte nicht erzeugt werden.</translation>
-    </message>
-    <message>
-        <source>Failed to open appliance.</source>
-        <translation>Die Appliance konnte nicht geöffnet werden.</translation>
-    </message>
-    <message>
         <source>Failed to open/interpret appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Die Appliance &lt;b&gt;%1&lt;/b&gt; konnte nicht geöffnet bzw. nicht interpretiert werden.</translation>
     </message>
     <message>
         <source>Failed to import appliance &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Die Appliance &lt;b&gt;%1&lt;/b&gt; konnte nicht importiert werden.</translation>
-    </message>
-    <message>
-        <source>Failed to create an appliance.</source>
-        <translation>Die Appliance konnte nicht erzeugt werden.</translation>
     </message>
     <message>
         <source>Failed to prepare the export of the appliance &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -3939,24 +4199,12 @@
         <translation>Abbrechen</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Your existing VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Die vorhandenen VirtualBox-Einstellungen werden automatisch aus dem alten Format in ein neues Format für die aktuelle Version von VirtualBox konvertiert.&lt;/p&gt;&lt;p&gt;Wählen Sie &lt;b&gt;OK&lt;/b&gt;, um VirtualBox nun zu starten oder &lt;b&gt;Beenden&lt;/b&gt;, um VirtualBox ohne Speichern der Konvertierungen zu beenden.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>A file named &lt;b&gt;%1&lt;/b&gt; already exists. Are you sure you want to replace it?&lt;br /&gt;&lt;br /&gt;Replacing it will overwrite its contents.</source>
         <translation>Eine Datei mit dem Namen &lt;b&gt;%1&lt;/b&gt; existiert bereits. Sind Sie sicher, dass Sie diese ersetzen möchten?&lt;br/&gt;&lt;br/&gt;Durch Ersetzen wird der alte Inhalt überschrieben.</translation>
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Certain guests (e.g. OS/2 and QNX) require this feature.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Die Einstellung VT-X/AMD-V wurde aktiviert, diese Funktion ist aber nicht verfügbar. Bestimmte Gäste (z.B. OS/2 und QNX) werden ohne diese Funktion nicht ordnungsgemäß ausgeführt.&lt;/p&gt;&lt;p&gt;Bitte stellen Sie sicher, dass VT-x/AMD-V ordnungsgemäß im BIOS ihres Computers aktiviert wurde.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Invalid e-mail address or password specified.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Ungültige E-Mail-Adresse oder ungültiges Passwort angegeben.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to register the VirtualBox product.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Fehler beim Registrieren von VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to check files.</source>
@@ -3995,66 +4243,12 @@
         <translation>Fehler beim Löschen des Sicherungspunktes &lt;b&gt;%1&lt;/b&gt; der virtuellen Maschine &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
-        <source>Unable to mount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; on the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht an die Maschine &lt;b&gt;%3&lt;/b&gt; gebunden werden.</translation>
-    </message>
-    <message>
-        <source> Would you like to force mounting of this medium?</source>
-        <translation> Möchten Sie die Anbindung des Mediums erzwingen?</translation>
-    </message>
-    <message>
-        <source>Unable to unmount the %1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>%1 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; der Maschine &lt;b&gt;%3&lt;/b&gt; konnte nicht ausgeworfen werden.</translation>
-    </message>
-    <message>
-        <source> Would you like to force unmounting of this medium?</source>
-        <translation> Möchten Sie den Auswurf dieses Mediums erzwingen?</translation>
-    </message>
-    <message>
         <source>Force Unmount</source>
         <translation>Auswurf erzwingen</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Could not insert the VirtualBox Guest Additions installer CD image into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD-ROM drives. Please add a drive using the storage page of the virtual machine settings dialog.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das CD-Abbild mit den Gast-Erweiterungen konnte nicht an die Maschine &lt;b&gt;%1&lt;/b&gt; gebunden werden, da diese Maschine kein CD/DVD-Laufwerk besitzt. Bitte fügen Sie ein solches auf der Seite Massenspeicher der Einstellungen für die virtuelle Maschine hinzu.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>E&amp;xit</source>
-        <comment>warnAboutSettingsAutoConversion message box</comment>
-        <translation>B&amp;eenden</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The following VirtualBox settings files will be automatically converted from the old format to a new format required by the new version of VirtualBox.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;OK&lt;/b&gt; to start VirtualBox now or press &lt;b&gt;Exit&lt;/b&gt; if you want to terminate the VirtualBox application without any further actions.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Die folgenden Einstellungen von VirtualBox werden automatisch vom alten Format in ein neues Format konvertiert.&lt;/p&gt;&lt;p&gt;Betätigen Sie &lt;b&gt;OK&lt;/b&gt; um VirtualBox zu starten oder &lt;b&gt;Beenden&lt;/b&gt; falls Sie VirtualBox ohne weitere Änderungen abbrechen wollen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <comment>failed to mount ...</comment>
-        <translation>Die Festplatte</translation>
-    </message>
-    <message>
-        <source>CD/DVD</source>
-        <comment>failed to mount ... host-drive</comment>
-        <translation>Dass CD/DVD-Laufwerk</translation>
-    </message>
-    <message>
-        <source>CD/DVD image</source>
-        <comment>failed to mount ...</comment>
-        <translation>Das CD/DVD-Abbild</translation>
-    </message>
-    <message>
-        <source>floppy</source>
-        <comment>failed to mount ... host-drive</comment>
-        <translation>Das Diskettenlaufwerk</translation>
-    </message>
-    <message>
-        <source>floppy image</source>
-        <comment>failed to mount ...</comment>
-        <translation>Das Diskettenabbild</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD-ROM device?&lt;/p&gt;&lt;p&gt;You will not be able to mount any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie wirklich das CD/DVD-ROM-Laufwerk löschen?&lt;/p&gt;&lt;p&gt;Ohne CD/DVD-ROM-Laufwerk können Sie keine CDs oder CD-Abbilder einbinden und die Gast-Erweiterungen nicht installieren!&lt;/p&gt;</translation>
+        <source>&lt;p&gt;Are you sure you want to delete the CD/DVD device?&lt;/p&gt;&lt;p&gt;You will not be able to insert any CDs or ISO images or install the Guest Additions without it!&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das CD/DVD-Laufwerk löschen?&lt;/p&gt;&lt;p&gt;Ohne CD/DVD-Laufwerk können Sie keine CDs oder CD-Abbilder einbinden und die Gast-Erweiterungen nicht installieren!&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Remove</source>
@@ -4078,34 +4272,6 @@
         <translation>&lt;p&gt;Der Gast-Bildschirm konnte diesem Host-Monitor nicht zugeordnet werden, weil der für den Gast reservierte Grafikspeicher dafür nicht ausreicht. Sie sollten dem Gast mindestens &lt;b&gt;%1&lt;/b&gt; Grafikspeicher zuordnen.&lt;/p&gt;&lt;p&gt;Betätigen Sie &lt;b&gt;Ignorieren&lt;/b&gt;, um den Bildschrim dennoch umzuschalten oder &lt;b&gt;Abbrechen&lt;/b&gt;, um diese Operation nicht auszuführen.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Can not switch the guest display to fullscreen mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie können den Gast nicht in den Vollbildmodus schalten. Sie haben mehr virtuelle Bildschirme als physisch am Host angeschlossene Monitore konfiguriert.&lt;/p&gt;&lt;p&gt;Bitte verringern Sie entweder die Anzahl der virtuellen Bildschirme des Gastes oder schließen sie weitere Monitore am Host an.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Can not switch the guest display to seamless mode. You have more virtual screens configured than physical screens are attached to your host.&lt;/p&gt;&lt;p&gt;Please either lower the virtual screens in your VM configuration or attach additional screens to your host.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Der Gast konnte nicht in den nahtlosen Modus geschaltet werden. Sie haben mehr virtuelle Bildschirme als physisch am Host angeschlossene Monitore konfiguriert.&lt;/p&gt;&lt;p&gt;Bitte verringern Sie entweder die Anzahl virtueller Bildschirme oder schließen Sie weitere Monitore am Host an.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Could not find the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht gefunden werden.&lt;/p&gt;&lt;p&gt;Möchten Sie dieses aus dem Internet herunterladen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie wirklich das VirtualBox-Benutzerhandbuch von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (Größe %3 Byte) herunterladen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Failed to download the VirtualBox User Manual from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch konnte nicht von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen werden&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und lokal unter &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt; gespeichert.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, kann aber nicht lokal unter &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt; gespeichert werden. Bitte wählen Sie ein anderes Verzeichnis.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Deleting the snapshot %1 will temporarily need more disk space. In the worst case the size of image %2 will grow by %3, however on this filesystem there is only %4 free.&lt;/p&gt;&lt;p&gt;Running out of disk space during the merge operation can result in corruption of the image and the VM configuration, i.e. loss of the VM and its data.&lt;/p&gt;&lt;p&gt;You may continue with deleting the snapshot at your own risk.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Für das Löschen des Sicherungspunktes %1 wird vorübergehend mehr Platz auf der Festplatte benötigt. Im schlimmsten Fall wird die Größe des Abbildes %2 um %3 wachsen. Auf diesem Dateisystem sind aber nur noch %4 frei.&lt;/p&gt;&lt;p&gt;Falls während der Operation der Plattenplatz nicht ausreicht kann dies zu Fehlern im Abbild und in der VM-Konfiguration führen, im schlimmsten Fall zum Verlust von VM und VM-Abbild.&lt;/p&gt;&lt;p&gt;Sie können auf eigenes Risiko fortfahren.&lt;/p&gt;</translation>
     </message>
@@ -4126,24 +4292,12 @@
         <translation>Die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; in &lt;i&gt;%2&lt;/i&gt; konnte nicht geöffnet werden, weil sie bereits registriert ist.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie sind im Begriff, die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; aus der Liste der virtuellen Maschine zu entfernen.&lt;/p&gt;&lt;p&gt;Möchten Sie die entsprechenden Dateien von der Festplatte ebenfalls löschen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You are about to remove the virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list.&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie sind im Begriff, die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; aus der Liste der virtuellen Maschine zu entfernen.&lt;/p&gt;&lt;p&gt;Möchten Sie die entsprechenden Dateien von der Festplatte ebenfalls löschen? Falls ja, werden die virtuellen Festplatten ebenfalls unwiderruflich gelöscht, falls diese nicht noch an eine andere VM gebunden sind &lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Delete all files</source>
         <translation>Alle Dateien löschen</translation>
     </message>
     <message>
         <source>Remove only</source>
         <translation>Nur löschen</translation>
-    </message>
-    <message>
-        <source>You are about to remove the inaccessible virtual machine &lt;b&gt;%1&lt;/b&gt; from the machine list. Do you wish to proceed?</source>
-        <translation>Sie sind im Begriff, die nicht-zugreifbare virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; von der Liste der virtuellen Maschinen zu löschen. Möchten Sie fortfahren?</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -4154,35 +4308,15 @@
         <translation>&lt;p&gt;Sie sind dabei, eine virtuelle Festplatte an den Controller &lt;b&gt;%1&lt;/b&gt; anzuschließen.&lt;/p&gt;&lt;p&gt;Möchten Sie eine neue leere Festplatte erzeugen oder möchten Sie ein bereits vorhandenes Plattenabbild verwenden?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Create &amp;new disk</source>
-        <comment>add attachment routine</comment>
-        <translation>&amp;Neue Platte erzeugen</translation>
-    </message>
-    <message>
-        <source>&amp;Choose existing disk</source>
-        <comment>add attachment routine</comment>
-        <translation>&amp;Vorhandene Platte auswählen</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You are about to add a new CD/DVD drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual CD/DVD disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie sind dabei, ein neues CD/DVD-ROM-Gerät an den Controller &lt;b&gt;%1&lt;/b&gt; anzuschließen.&lt;/p&gt;&lt;p&gt;Möchten Sie ein Medium an das Laufwerk binden oder soll das Laufwerk jetzt kein Medium enthalten?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Choose disk</source>
-        <comment>add attachment routine</comment>
-        <translation>&amp;Medium auswählen</translation>
-    </message>
-    <message>
-        <source>Leave &amp;empty</source>
-        <comment>add attachment routine</comment>
-        <translation>&amp;Kein Medium</translation>
+        <translation>&lt;p&gt;Sie sind dabei, ein neues CD/DVD-Gerät an den Controller &lt;b&gt;%1&lt;/b&gt; anzuschließen.&lt;/p&gt;&lt;p&gt;Möchten Sie ein Medium an das Laufwerk binden oder soll das Laufwerk jetzt kein Medium enthalten?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to add a new floppy drive to controller &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Would you like to choose a virtual floppy disk to put in the drive or to leave it empty for now?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Sie sind dabei, ein neues virtuelles Diskettenlaufwerk an den Controller &lt;b&gt;%1&lt;/b&gt; anzuschließen.&lt;/p&gt;&lt;p&gt;Möchten Sie ein existierendes Medium an das Laufwerk binden oder soll das Laufwerk jetzt kein Medium enthalten?&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Failed to update Guest Additions. The Guest Additions installation image will be mounted to provide a manual installation.</source>
+        <source>Failed to update Guest Additions. The Guest Additions disk image file will be inserted for user installation.</source>
         <translation>Die Gasterweiterungen konnten nicht aktualisiert werden. Das ISO-Abbild mit den Erweiterungen wird jetzt für eine manuelle gemountet.</translation>
     </message>
     <message>
@@ -4230,10 +4364,6 @@
         <translation>&lt;p&gt;Sie sind dabei, ein Zusatzpaket für VirtualBox zu installieren. Zusatzpakete ergänzen die Funktionalität von VirtualBox und können Systemprogramme enthalten, die Ihr System potentiell gefärden könnten. Bitte kontrollieren Sie die Beschreibung sorgfältig und fahren Sie nur fort, falls Sie das Zusatzpaket von einer vertrauenswürdigen Quelle erhalten haben.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Beschreibung:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&amp;Install</source>
-        <translation>&amp;Installieren</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You are about to remove the VirtualBox extension pack &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Are you sure you want to proceed?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Sie sind dabei, das Zusatzpaket &lt;b&gt;%1&lt;/b&gt; zu entfernen.&lt;/p&gt;&lt;p&gt;Möchten Sie das Paket wirklich löschen?&lt;/p&gt;</translation>
     </message>
@@ -4242,7 +4372,7 @@
         <translation>&lt;p&gt;Beachten Sie, dass der Datencontainer dieses Mediums nicht gelöscht wird und Sie daher das Medium später wieder verwenden können.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Die VirtualBox-Gasterweiterungen sind anscheinend für diese VM nicht verfügbar, sind aber Vorrausetzung für Gemeinsame Ordner. Um diesen Dienst zu benutzen müssen Sie daher die Gasterweiterungen installieren oder diese, falls sie nicht richtig funktionieren, neu installieren. Dies können Sie durch Auswahl von &lt;b&gt;Gasterweiterungen installieren...&lt;/b&gt; im Menü &lt;b&gt;Geräte&lt;/b&gt; erreichen. Beachten Sie, dass Gemeinsame Ordner erst benutzt werden können, wenn der Gast vollständig gebootet wurde.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -4254,13 +4384,8 @@
         <translation>&lt;p&gt;Die virtuelle Maschine wird nun in den &lt;b&gt;nahtlosen&lt;/b&gt; Anzeigemodus geschaltet. Durch Betätigen von &lt;b&gt;%1&lt;/b&gt; können Sie jederzeit in den normalen Fenstermodus zurückkehren. Als &lt;i&gt;Host-Taste&lt;/i&gt; ist derzeit &lt;b&gt;%2&lt;/b&gt; eingestellt.&lt;/p&gt;&lt;p&gt;Das Hauptmenü wird im nahtlosen Modus nicht angezeigt. Sie können es aber durch Betätigen von &lt;b&gt;Host+Pos1&lt;/b&gt; aufrufen.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;Scale&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in scale mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;Scale&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in scaled mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Die virtuelle Maschine wird nun in den &lt;b&gt;skalierten&lt;/b&gt; Anzeigemodus geschaltet. Durch Betätigen von &lt;b&gt;%1&lt;/b&gt; können Sie jederzeit in den normalen Fenstermodus zurückkehren. Als &lt;i&gt;Host-Taste&lt;/i&gt; ist derzeit &lt;b&gt;%2&lt;/b&gt; eingestellt.&lt;/p&gt;&lt;p&gt;Das Hauptmenü wird im nahtlosen Modus nicht angezeigt. Sie können es aber durch Betätigen von &lt;b&gt;Host+Pos1&lt;/b&gt; aufrufen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Switch</source>
-        <comment>scale</comment>
-        <translation>Einschalten</translation>
     </message>
     <message>
         <source>The extension pack &lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;nobr&gt;&lt;br&gt; was installed successfully.</source>
@@ -4295,16 +4420,8 @@
         <translation>&amp;Neu installieren</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to restore snapshot &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie möchten zum Sicherungspunkt &lt;b&gt;%1&lt;/b&gt; zurückkehren.&lt;/p&gt;&lt;p&gt;Sie können gleichzeitig durch Auswahl der Checkbox einen Sicherungspunkt für den aktuellen Zustand anlegen, anderenfalls geht der aktuelle Zustand unwiderruflich verloren. Möchten Sie fortfahren?&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Create a snapshot of the current machine state</source>
-        <translation>Erzeugt einen Sicherungspunkt der aktuellen virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;b&gt;%1&lt;/b&gt;?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Möchten Sie wirklich zum Sicherungspunkt &lt;b&gt;%1&lt;/b&gt; zurückkehren?&lt;/p&gt;</translation>
+        <translation>Sicherungspunkt des aktuellen VM-Zustands erstellen</translation>
     </message>
     <message>
         <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that the parent really exists and that you have permissions to create the machine folder.&lt;/p&gt;</source>
@@ -4316,7 +4433,7 @@
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
-        <translation>VirtualBox kann nicht auf USB-Geräte zugreifen. Dieses Problem kann dadurch gelöst werden, indem der aktuelle Nutzer Mitglied der Gruppe &apos;vboxusers&apos; wird. In der Dokumentation finden Sie eine genauere Erklärung.</translation>
+        <translation>VirtualBox kann nicht auf USB-Geräte zugreifen. Dieses Problem kann dadurch gelöst werden, indem der aktuelle Nutzer Mitglied der Gruppe &apos;vboxusers&apos; wird. In der Dokumentation finden Sie weitere Erläuterungen.</translation>
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
@@ -4351,37 +4468,20 @@
         <translation>Die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; konnte nicht geklont werden.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Error changing medium type from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <source>&lt;p&gt;Error changing disk image mode from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Der Mediumtyp konnte nicht von &lt;b&gt;%1&lt;/b&gt; nach &lt;b&gt;%2&lt;/b&gt; geändert werden.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Sorry, some generic error happens.</source>
-        <translation>Ein generischer Fehler ist aufgetreten.</translation>
     </message>
     <message>
         <source>The virtual machine that you are changing has been started. Only certain settings can be changed while a machine is running. All other changes will be lost if you close this window now.</source>
         <translation>Der Zustand der virtuellen Maschine hat sich in der Zwischenzeit geändert. Durch Bestätigen werden nur die zur Laufzeit änderbaren Einstellungen abgespeichert. Alle anderen Änderungen gehen verloren.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; to be installed.&lt;/p&gt;&lt;p&gt;Please install the Extension Pack from the VirtualBox download site. After this you will be able to re-enable USB 2.0. It will be disabled in the meantime unless you cancel the current settings changes.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Für diese virtuelle Maschine ist USB-2.0-Unterstützung aktiviert. Dafür wird aber das &lt;b&gt;%1&lt;/b&gt; benötigt. Bitte installieren Sie das Zusatzpaket von der VirtualBox-Webseite. Danach können Sie USB-2.0 wieder aktivieren. In der Zwischenzeit wird diese Einstellung deaktiviert, wenn Sie die Einstellungen bestätigen.&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Can&apos;t find snapshot named &lt;b&gt;%1&lt;/b&gt;.</source>
         <translation>Der Sicherungspunkt &lt;b&gt;%1&lt;/b&gt; konnte nicht gefunden werden.</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to save the downloaded file as &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Die heruntergeladene Datei konnte nicht als &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; gespeichert werden.&lt;/nobr&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
         <translation>&lt;p&gt;Sie haben eine alte Version (%1) des &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installiert.&lt;/p&gt;&lt;p&gt;Möchten Sie die aktuelle Version aus dem Internet herunterladen?&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <comment>extension pack</comment>
-        <translation>Herunterladen</translation>
     </message>
     <message>
         <source>&lt;p&gt;You have version %1 of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;You should download and install version %3 of this extension pack from Oracle!&lt;/p&gt;</source>
@@ -4405,62 +4505,353 @@
         <translation>&lt;p&gt;Das &lt;b&gt;&lt;/nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, kann aber nicht lokal unter &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;&lt;/nobr&gt; gespeichert werden. Bitte wählen Sie ein anderes Verzeichnis.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;Failed to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;b&gt; konnte nicht von &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; heruntergeladen werden&lt;/p&gt;&lt;p&gt;%3&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Ok</source>
-        <comment>extension pack</comment>
-        <translation></translation>
-    </message>
-    <message>
         <source>&lt;p&gt;Failed to initialize COM because the VirtualBox global configuration directory &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; is not accessible. Please check the permissions of this directory and of its parent directory.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Das COM-Subsystem konnte nicht gestartet werden, weil auf das Verzeichnis &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; nicht zugegriffen werden kann. Bitte überprüfen Sie die Zugriffsrechte für dieses Verzeichnis und das Verzeichnis darüber.&lt;/p&gt;&lt;p&gt;Die Anwendung wird nun geschlossen.&lt;/p&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie sind im Begriff, die folgenden virtuellen Maschinen von der VM-Liste zu entfernen:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Möchten Sie fortfahren?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following inaccessible virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie sind im Begriff, die folgenden virtuellen Maschinen von der VM-Liste zu entfernen:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Möchten Sie fortfahren?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie sind im Begriff, die folgenden virtuellen Maschinen aus der VM-Liste zu entfernen:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Möchten Sie die entsprechenden Dateien von der Festplatte ebenfalls löschen? Falls ja, werden die virtuellen Festplatten ebenfalls unwiderruflich gelöscht, falls diese nicht noch an eine andere VM gebunden sind &lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie sind im Begriff, die folgenden virtuellen Maschinen aus der VM-Liste zu entfernen:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Möchten Sie die entsprechenden Dateien von der Festplatte ebenfalls löschen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Do you wish to cancel all current network operations?</source>
+        <translation>Möchten Sie alle laufenden Netzoperationen abbrechen?</translation>
+    </message>
+    <message>
+        <source>ACPI Shutdown</source>
+        <comment>machine</comment>
+        <translation>Ausschalten per ACPI</translation>
+    </message>
+    <message>
+        <source>Power Off</source>
+        <comment>machine</comment>
+        <translation>Ausschalten</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot remove the machine folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that this folder really exists and that you have permissions to remove it.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Ordner der Machine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; kann nicht gelöscht werden.&lt;/p&gt;&lt;p&gt;Bitte stellen Sie sicher, dass dieser Ordner vorhanden ist und dass Sie die notwendigen Zugriffsrechte besitzen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot create the machine folder &lt;b&gt;%1&lt;/b&gt; in the parent folder &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;This folder already exists and possibly belongs to another machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Maschinen-Verzeichnis &lt;b&gt;%1&lt;/b&gt; konnte nicht im Verzeichnis &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; erzeugt werden.&lt;/p&gt;&lt;p&gt;Bitte überprüfen Sie, ob das übergeordnete Verzeichnis vorhanden ist und ob Sie geeignete Zugriffsrechte zum Erzeugen des Maschinen-Verzeichnisses haben.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>You are about to create a new virtual machine without a hard drive. You will not be able to install an operating system on the machine until you add one. In the mean time you will only be able to start the machine using a virtual optical disk or from the network.</source>
+        <translation>Sie sind im Begriff, eine neue virtuelle Maschine ohne Festplatte zu erzeugen. Ohne Festplatte kann kein Betriebssystem installiert werden. Sie können die Maschine aber mit einem optischen Medium oder über Netzwerk starten.</translation>
+    </message>
+    <message>
+        <source>Failed to drop data.</source>
+        <translation>Daten konnten nicht kopiert werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to discard the saved state of the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This operation is equivalent to resetting or powering off the machine without doing a proper shutdown of the guest OS.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie den gesicherten Zustand der folgenden virtuellen Maschinen wirklich freigeben?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Diese Operation ist gleichbedeutend mit dem Ausschalten der VMs ohne sauberes Herunterfahren durch das Gast-Betriebssystem.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to reset the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie die folgenden virtuellen Maschinen wirklich zurücksetzen?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;Alle nicht gesicherten Daten gehen dabei verloren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to send an ACPI shutdown signal to the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie folgenden virtuellen Maschinen wirklich per ACPI beenden?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you really want to power off the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie die folgenden virtuellen Maschinen wirklich ausschalten?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Alle nicht gesicherten Daten von momentan ausgeführten Anwendungen gehen dabei verloren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are trying to move machine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have sub-group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Please resolve this name-conflict and try again.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie möchten die Maschine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; in die Gruppe &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; verschieben. Diese enthält aber bereits die Untergruppe &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Versuchen Sie es noch einmal, nachdem Sie den Konflikt beseitigt haben.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are trying to move group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have another item with the same name.&lt;/p&gt;&lt;p&gt;Would you like to automatically rename it?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie möchten die Gruppe &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; in die Gruppe &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; verschieben. Diese enthält aber bereits einen Eintrag mit dem gleichen Namen.&lt;/p&gt;&lt;p&gt;Möchten Sie die Gruppe automatisch umbenennen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>Umbenennen</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie möchten zum Sicherungspunkt &lt;b&gt;%1&lt;/b&gt; zurückkehren.&lt;/p&gt;&lt;p&gt;Sie können gleichzeitig durch Auswahl der Checkbox einen Sicherungspunkt für den aktuellen Zustand anlegen, anderenfalls geht der aktuelle Zustand unwiderruflich verloren. Möchten Sie fortfahren?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich zum Sicherungspunkt &lt;b&gt;%1&lt;/b&gt; zurückkehren?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to set groups of the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Die Gruppe der virtuellen Maschine &lt;b&gt;%1&lt;/b&gt; konnte nicht gesetzt werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not start the machine &lt;b&gt;%1&lt;/b&gt; because the following physical network interfaces were not found:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/p&gt;&lt;p&gt;You can either change the machine&apos;s network settings or stop the machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; konnte nicht gestartet werden, weil das folgende Netzinterface des Hosts nicht vorhanden ist:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Sie können das Netzinterface entweder ändern oder die virtuelle Maschine jetzt beenden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Change Network Settings</source>
+        <translation>Netzwerkeinstellungen ändern</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Cannot start the VirtualBox Manager due to local restrictions.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Der VirtualBox-Manager kann aufgrund einer Einstellung nicht gestartet werden.&lt;/p&gt;&lt;p&gt;Die Anwendung wird nun beended.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find a language file for the language &lt;b&gt;%1&lt;/b&gt; in the directory &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The language will be temporarily reset to the system default language. Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Eine Datei für die Sprache &lt;b&gt;%1&lt;/b&gt; konnte im Verzeichnis &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; nicht gefunden werden.&lt;/p&gt;&lt;/p&gt;Die Sprache wird vorübergehend auf die voreingestellte Sprache zurückgesetzt. Bitte stellen Sie in den &lt;b&gt;Globalen Einstellungen&lt;/b&gt; auf der Seite &lt;b&gt;Sprache&lt;/b&gt; eine andere Sprache ein.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not load the language file &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;. &lt;p&gt;The language will be temporarily reset to English (built-in). Please go to the &lt;b&gt;Preferences&lt;/b&gt; window which you can open from the &lt;b&gt;File&lt;/b&gt; menu of the VirtualBox Manager window, and select one of the existing languages on the &lt;b&gt;Language&lt;/b&gt; page.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Die Sprachdatei &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;b&gt; konnte nicht geladen werden.&lt;/p&gt;&lt;p&gt;Die Sprache wird auf die eingebaute Sprache (Englisch) zurückgesetzt. Bitte wählen Sie in den &lt;b&gt;globalen Einstellungen&lt;/b&gt; im Manager für virtuelle Maschinen eine andere Sprache.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>There is no virtual machine with the identifier &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Es gibt keine virtuelle Maschine mit dem Namen &lt;b&gt;%1&lt;/b&gt;.</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <translation>Ignorieren</translation>
+    </message>
+    <message>
+        <source>Failed to create NAT network.</source>
+        <translation>Es konnte kein NAT-Netzwerk erzeugt werden.</translation>
+    </message>
+    <message>
+        <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Das NAT-Netzwerk &lt;b&gt;%1&lt;/b&gt; konnte nicht gelöscht werden.</translation>
+    </message>
+    <message>
+        <source>Failed to create DHCP server.</source>
+        <translation>Es konnte kein DHCP-Server erzeugt werden.</translation>
+    </message>
+    <message>
+        <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Der DHCP-Server für das Interface &lt;b&gt;%1&lt;/b&gt; konnte nicht gelöscht werden.</translation>
+    </message>
+    <message>
+        <source>Failed to create the host network interface.</source>
+        <translation>Es konnte kein Host-Netzinterface erzeugt werden.</translation>
+    </message>
+    <message>
+        <source>Create &amp;new disk</source>
+        <translation>&amp;Neue Platte erzeugen</translation>
+    </message>
+    <message>
+        <source>&amp;Choose existing disk</source>
+        <translation>&amp;Vorhandene Platte auswählen</translation>
+    </message>
+    <message>
+        <source>Leave &amp;empty</source>
+        <translation>&amp;Kein Medium</translation>
+    </message>
+    <message>
+        <source>&amp;Choose disk</source>
+        <translation>&amp;Medium auswählen</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie die virtuelle Festplatte &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; wirklich freigeben?&lt;/p&gt;&lt;p&gt;Damit wird sie von folgenden virtuellen Maschinen freigegeben:&lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das optische Medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; freigeben?&lt;/p&gt;&lt;p&gt;Damit wird das Medium von folgenden virtuellen Maschinen freigegeben: &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to release the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das Diskettenmedium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; freigeben?&lt;/p&gt;&lt;p&gt;Damit wird das Medium von folgenden virtuellen Maschinen freigegeben: &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das Festplattenabbild &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; von der Liste der bekannten Plattenabbilder löschen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;As this hard disk is inaccessible its image file can not be deleted.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Plattenabbild ist nicht zugreifbar und kann daher nicht gelöscht werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das CD/DVD-Abbild &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; von der Liste der bekannten CD/DVD-Abbilder löschen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to remove the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the list of known disk image files?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das Diskettenabbild &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; von der Liste der bekannten Diskettenabbilder löschen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to insert the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das virtuelle optische Medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht in das Laufwerk der Maschine &lt;b&gt;%2&lt;/b&gt; eingelegt werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Would you like to try to force insertion of this disk?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie das Einlegen des Mediums erzwingen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to eject the virtual optical disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das optische Medium &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht von der virtuellen Maschine &lt;b&gt;%2&lt;/b&gt; entfernt werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Would you like to try to force ejection of this disk?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie das Aufwerfen des Mediums erzwingen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to insert the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; into the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Die Diskettenabbilddatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht in das virtuelle Laufwerk der VM &lt;b&gt;%2&lt;/b&gt; eingelegt werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Unable to eject the virtual floppy disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from the machine &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Die Diskettenabbilddatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht aus dem virtuellen Laufwerk der VM &lt;b&gt;%2&lt;/b&gt; entfernt werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to open the hard disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die Plattenabbilddatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Failed to open the optical disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die CD/DVD-Abbilddatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Failed to open the floppy disk file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die Diskettenabbilddatei &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht geöffnet werden.</translation>
+    </message>
+    <message>
+        <source>Failed to close the hard disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die Plattenabbilddatei &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht geschlossen werden.</translation>
+    </message>
+    <message>
+        <source>Failed to close the optical disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die CD/DVD-Abbilddatei &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht geschlossen werden.</translation>
+    </message>
+    <message>
+        <source>Failed to close the floppy disk file &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;.</source>
+        <translation>Die Diskettenabbilddatei &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; konnte nicht geschlossen werden.</translation>
+    </message>
     <message numerus="yes">
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
-        <comment>This text is never used with n == 0.  Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
+        <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
         <translation>
             <numerusform>&lt;p&gt;Die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; hat momentan ihren Zustand auf der Festplatte gesichert.&lt;/p&gt;&lt;p&gt;Falls Sie fortfahren, wird dieser Zustand nicht mit exportiert. Der Zustand der existierenden virtuellen Maschine wird nicht verändert.&lt;/p&gt;</numerusform>
             <numerusform>&lt;p&gt;Die %n virtuellen Maschinen &lt;b&gt;%1&lt;/b&gt; haben momentan ihren Zustand auf der Festplatte gesichert.&lt;/p&gt;&lt;p&gt;Falls Sie fortfahren, wird dieser Zustand nicht mit exportiert. Der Zustand der existierenden virtuellen Maschinen wird nicht verändert.&lt;/p&gt;</numerusform>
         </translation>
     </message>
+    <message>
+        <source>Switch</source>
+        <translation>Einschalten</translation>
+    </message>
+    <message>
+        <source>Failed to enable the remote desktop server for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Die RDP-Fernsteuerung konnte für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; nicht aktiviert werden.</translation>
+    </message>
+    <message>
+        <source>Failed to disable the remote desktop server for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Die RDP-Fernsteuerung konnte für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; nicht deaktiviert werden.</translation>
+    </message>
+    <message>
+        <source>Failed to enable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Die Videoaufzeichnung konnte für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; nicht aktiviert werden.</translation>
+    </message>
+    <message>
+        <source>Failed to disable video capturing for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
+        <translation>Die Videoaufzeichnung konnte für die virtuelle Maschine &lt;b&gt;%1&lt;/b&gt; nicht deaktiviert werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file.&lt;/p&gt;&lt;p&gt;Do you wish to download this disk image file from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Die Datei mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; konnte nicht gefunden werden.&lt;/p&gt;&lt;p&gt;Möchten Sie dieses Abbild aus dem Internet herunterladen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>Herunterladen</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sind Sie sicher, dass Sie die VirtualBox Gasterweiterungen von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (Größe %2 Byte) herunterladen wollen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das CD-Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, konnte aber nicht unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;gespeichert werden.&lt;/p&gt;&lt;p&gt;Bitte wählen Sie einen anderen Ordner für diese Datei.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual CD/DVD drive?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das CD-Abbild mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und auf der lokalen Festplatte unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;gespeichert.&lt;/p&gt;&lt;p&gt;Möchten Sie dieses Abbild in VirtualBox registrieren und in das virtuelle CD/DVD-Laufwerk einlegen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no CD/DVD drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das virtuelle Medium mit den &lt;b&gt;VirtualBox-Gasterweiterungen&lt;/b&gt; konnte in kein Laufwerk der virtuellen Machine &lt;b&gt;%1&lt;/b&gt; eingelegt werden, da diese keine CD/DVD-Laufwerke besitzt. Bitte fügen Sie ein solches Laufwerk in den Einstellungen zu Massenspeichern ein.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das &lt;b&gt;VirtualBox-Benutzerhandbuch&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; konnte nicht gefunden werden.&lt;/p&gt;&lt;p&gt;Möchten Sie es aus dem Internet herunterladen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie wirklich das &lt;b&gt;VirtualBox-Benutzerhandbuch&lt;/b&gt; (in Englisch) von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (Größe %2 Byte) herunterladen?&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen, kann aber nicht lokal unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; gespeichert werden. Bitte wählen Sie ein anderes Verzeichnis.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das VirtualBox-Benutzerhandbuch wurde erfolgreich von &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; heruntergeladen und lokal unter &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; gespeichert.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Schließen</translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <translation>Ok</translation>
+    </message>
+    <message>
+        <source>Do not show this message again</source>
+        <translation>Diese Meldung später nicht mehr zeigen</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Do you want to remove the NAT network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Möchten Sie das NAT-Netzwerk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; löschen?&lt;/p&gt;&lt;p&gt;Falls dieses Netzwerk von einer oder mehreren virtuellen Netzwerkadaptern verwendet wird, dann werden diese funktionsuntüchtig, bis Sie die Einstellungen dieser Adapter korrigieren.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Der gemeinsame Ordner &lt;b&gt;%1&lt;/b&gt; (mit Verweis auf &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) der virtuellen Maschine &lt;b&gt;%3&lt;/b&gt; kann nicht gelöscht werden.&lt;/p&gt;&lt;p&gt;Bitte schließen Sie alle Programme im Gast, die auf diesen Ordner zugreifen, und versuchen Sie es noch einmal.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Die Webcam &lt;b&gt;%1&lt;/b&gt; konnte der virtuellen Maschine &lt;b&gt;%2&lt;/b&gt; nicht zugewiesen werden.</translation>
+    </message>
+    <message>
+        <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
+        <translation>Die Zuordnung der Webcam &lt;b&gt;%1&lt;/b&gt; an die virtuelle Maschine &lt;b&gt;%2&lt;/b&gt; konnte nicht aufgehoben werden.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Der virtuelle Bildschirm ist momentan auf eine Farbtiefe von &lt;b&gt;%1&amp;nbsp;Bit&lt;/b&gt; eingestellt. Für eine bestmögliche Performance sollten Sie die Farbtiefe auf &lt;b&gt;%2&amp;nbsp;Bit&lt;/b&gt; ändern. Benutzen Sie dafür die Anzeigeeinstellungen des Gast-Betriebssystems.&lt;/p&gt;</translation>
+    </message>
 </context>
 <context>
-    <name>UIMiniProcessWidgetUserManual</name>
+    <name>UIMiniToolBar</name>
     <message>
-        <source>Cancel the VirtualBox User Manual download</source>
-        <translation>Bricht das Herunterladen des Benutzerhandbuchs ab</translation>
+        <source>Always show the toolbar</source>
+        <translation>Toolbar immer zeigen</translation>
     </message>
     <message>
-        <source>Downloading the VirtualBox User Manual</source>
-        <translation>Benutzerhandbuch herunterladen</translation>
+        <source>Minimize Window</source>
+        <translation>Anwendung minimieren</translation>
     </message>
     <message>
-        <source>Downloading the VirtualBox User Manual &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Herunterladen das Benutzerhandbuchs von &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIMiniProgressWidgetAdditions</name>
-    <message>
-        <source>Cancel the VirtualBox Guest Additions CD image download</source>
-        <translation>Bricht das Herunterladen der VirtualBox-Gasterweiterungen ab</translation>
+        <source>Exit Full Screen or Seamless Mode</source>
+        <translation>Vollbildmodus bzw. nahtlosen Modus verlassen</translation>
     </message>
     <message>
-        <source>Downloading the VirtualBox Guest Additions CD image from &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Herunterladen des CDROM-Abbilds mit den VirtualBox-Gasterweiterungen von &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;...&lt;/nobr&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UIMiniProgressWidgetExtension</name>
-    <message>
-        <source>Cancel the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; download</source>
-        <translation>Bricht das Herunterladen des &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; ab</translation>
-    </message>
-    <message>
-        <source>Downloading the &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; from &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</source>
-        <translation>Herunterladen des &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; von &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;...&lt;/nobr&gt;</translation>
+        <source>Close VM</source>
+        <translation>VM beenden</translation>
     </message>
 </context>
 <context>
@@ -4475,345 +4866,119 @@
     </message>
 </context>
 <context>
-    <name>UINewHDWizard</name>
+    <name>UINameAndSystemEditor</name>
     <message>
-        <source>%1_copy</source>
-        <comment>copied virtual disk name</comment>
-        <translation>%1_Kopie</translation>
+        <source>&amp;Name:</source>
+        <translation>&amp;Name:</translation>
     </message>
     <message>
-        <source>Create New Virtual Disk</source>
-        <translation>Neue virtuelle Festplatte erstellen</translation>
+        <source>Holds the name of the virtual machine.</source>
+        <translation>Zeigt den Namen der virtuellen Maschine.</translation>
     </message>
     <message>
-        <source>Copy Virtual Disk</source>
-        <translation>Virtuelle Festplatte kopieren</translation>
+        <source>&amp;Type:</source>
+        <translation>&amp;Typ:</translation>
     </message>
     <message>
-        <source>Welcome to the virtual disk copying wizard</source>
-        <translation>Virtuelle Platte kopieren</translation>
+        <source>Selects the operating system family that you plan to install into this virtual machine.</source>
+        <translation>Zeigt die Familie des Betriebssystems, das Sie in dieser virtuellen Maschine installieren wollen.</translation>
     </message>
     <message>
-        <source>&amp;VDI (VirtualBox Disk Image)</source>
+        <source>&amp;Version:</source>
+        <translation>&amp;Version:</translation>
+    </message>
+    <message>
+        <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
+        <translation>Zeigt den Typ des Betriebssystems, das Sie in der virtuellen Maschine installieren wollen (auch als Gast bezeichnet).</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkManagerDialog</name>
+    <message>
+        <source>Network Operations Manager</source>
+        <translation>Manager für Netzoperationen</translation>
+    </message>
+    <message>
+        <source>There are no active network operations.</source>
+        <translation>Keine aktiven Netzoperationen.</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel All</source>
+        <translation>Alle &amp;abbrechen</translation>
+    </message>
+    <message>
+        <source>Cancel all active network operations</source>
+        <translation>Alle aktiven Netzoperationen abbrechen</translation>
+    </message>
+    <message>
+        <source>Network Operation</source>
+        <translation>Netzoperation</translation>
+    </message>
+    <message>
+        <source>Restart network operation</source>
+        <translation>Netzoperation neu starten</translation>
+    </message>
+    <message>
+        <source>Cancel network operation</source>
+        <translation>Netzoperation abbrechen</translation>
+    </message>
+    <message>
+        <source>The network operation failed with the following error: %1.</source>
+        <translation>Die Netzoperation schlug mit dem folgenden Fehler fehl: %1.</translation>
+    </message>
+</context>
+<context>
+    <name>UINetworkManagerIndicator</name>
+    <message>
+        <source>Current network operations:</source>
+        <translation>Netzweroperationen:</translation>
+    </message>
+    <message>
+        <source>failed</source>
+        <comment>network operation</comment>
+        <translation>fehlgeschlagen</translation>
+    </message>
+    <message>
+        <source>(%1 of %2)</source>
         <translation></translation>
     </message>
     <message>
-        <source>V&amp;MDK (Virtual Machine Disk)</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>V&amp;HD (Virtual Hard Disk)</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Welcome to the virtual disk creation wizard</source>
-        <translation>Erstellen einer virtuellen Festplatte</translation>
-    </message>
-    <message>
-        <source>Virtual disk file type</source>
-        <translation>Dateityp der virtuellen Platte</translation>
-    </message>
-    <message>
-        <source>Virtual disk storage details</source>
-        <translation>Art der virtuellen Platte</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; virtual disk file will only use space on your physical hard disk as it fills up, although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Eine &lt;b&gt;dynamisch allozierte&lt;/b&gt; Datei einer virtuellen Platte belegt nur dann Platz auf der physischen Platte des Hosts, wenn der Gast Daten schreibt. Einmal belegter Platz wird nicht automatisch freigegeben.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; virtual disk file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Das Erzeugen einer Datei &lt;b&gt;fester Größe&lt;/b&gt; dauert auf manchen Systemen länger aber bietet eine etwas bessere Performance.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the virtual disk into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation>&lt;p&gt;Die virtuelle Platte kann ebenfalls auf mehrere Dateien mit einer maximalen Größe von 2 GB aufgeteilt werden. Dies ist sinnvoll, wenn die virtuelle Maschine auf einem USB-Gerät oder auf älteren Systemen gespeichert werden soll, die keine größeren Dateien unterstützen.</translation>
-    </message>
-    <message>
-        <source>&amp;Dynamically allocated</source>
-        <translation>&amp;dynamisch alloziert</translation>
-    </message>
-    <message>
-        <source>&amp;Fixed size</source>
-        <translation>&amp;feste Größe</translation>
-    </message>
-    <message>
-        <source>&amp;Split into files of less than 2GB</source>
-        <translation>&amp;Aufteilen in Dateien mit weniger als 2GB</translation>
-    </message>
-    <message>
-        <source>Virtual disk file location and size</source>
-        <translation>Lage und Größe der virtuellen Festplatte</translation>
-    </message>
-    <message>
-        <source>Select the size of the virtual disk in megabytes. This size will be reported to the Guest OS as the maximum size of this virtual disk.</source>
-        <translation>Legt die Größe der virtuellen Platte in Megabyte fest. Diese Größenangabe wird an den Gast als die Größe der virtuellen Platte übermittelt.</translation>
-    </message>
-    <message>
-        <source>Virtual disk file location</source>
-        <translation>Ort der virtuellen Datei</translation>
-    </message>
-    <message>
-        <source>Please type the name of the new virtual disk file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation>Wählen Sie &lt;b&gt;Auswählen&lt;/b&gt; um den Ort der Datei festzulegen oder bestimmen Sie direkt einen Dateinamen.</translation>
-    </message>
-    <message>
-        <source>Select a file for the new hard disk image file</source>
-        <translation>Wählen Sie eine Datei für ein neues Plattenabbild aus</translation>
-    </message>
-    <message>
-        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Zusammenfassung</translation>
-    </message>
-    <message>
-        <source>You are going to create a new virtual disk with the following parameters:</source>
-        <translation>Es wird eine neue virtuelle Platte mit den folgenden Parametern erstellt:</translation>
-    </message>
-    <message>
-        <source>You are going to create a copied virtual disk with the following parameters:</source>
-        <translation>Es wird eine Kopie der virtuellen Festplatte mit den folgenden Parametern erstellt:</translation>
-    </message>
-    <message>
-        <source>If the above settings are correct, press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it the new virtual disk file will be created.</source>
-        <translation>Falls diese Einstellungen richtig sind, betätigen Sie bitte &lt;b&gt;%1&lt;/b&gt;. Dann wird die neue virtuelle Festplatte erzeugt.</translation>
-    </message>
-    <message>
-        <source>%1 B</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>File type</source>
-        <comment>summary</comment>
-        <translation>Dateityp</translation>
-    </message>
-    <message>
-        <source>Location</source>
-        <comment>summary</comment>
-        <translation>abgespeichert wo</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <comment>summary</comment>
-        <translation>Größe</translation>
-    </message>
-    <message>
-        <source>Create</source>
-        <translation>Erzeugen</translation>
-    </message>
-    <message>
-        <source>Copy</source>
-        <translation>Kopieren</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will help you to copy a virtual disk.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Assistent unterstützt Sie bei der Erzeugung einer Kopie einer virtuellen Platte.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Please select the virtual disk which you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select a virtual disk file.</source>
-        <translation>Bitte wählen Sie eine virtuelle Festplatte zum Kopieren aus. Diese können Sie entweder aus der Liste oder mit Hilfe des Icons neben der Liste mittels Dateidialog auswählen.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will help you to create a new virtual disk for your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Assistent unterstützt Sie bei der Erzeugung einer neuen virtuellen Festplatte.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Bitte wählen Sie den Typ der neuen virtuelle Festplatte. Falls Sie diese nicht mit anderer Virtualisierungssoftware verwenden, können Sie diese Einstellung unverändert lassen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Please choose the type of file that you would like to use for the new virtual disk. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation>Bitte wählen Sie den Dateityp für die neue virtuelle Festplatte. Falls Sie diese nicht mit andere Virtualisierungssoftware verwenden, können Sie diese Einstellung unverändert lassen.</translation>
-    </message>
-    <message>
-        <source>Please choose whether the new virtual disk file should be allocated as it is used or if it should be created fully allocated.</source>
-        <translation>Bitte wählen Sie, ob die neue virtuelle Festplatte erst nach und nach zur Laufzeit alloziert werden soll oder ob die Platte jetzt sofort vollständig alloziert werden soll.</translation>
-    </message>
-    <message>
-        <source>Details</source>
-        <comment>summary</comment>
-        <translation>abgespeichert wie</translation>
-    </message>
-    <message>
-        <source>H&amp;DD (Parallels Hard Disk)</source>
-        <translation>H&amp;DD (Parallels Festplatte)</translation>
-    </message>
-    <message>
-        <source>Q&amp;ED (QEMU enhanced disk)</source>
-        <translation>Q&amp;ED (QEMU erweiterte Festplatte)</translation>
-    </message>
-    <message>
-        <source>&amp;QCOW (QEMU Copy-On-Write)</source>
-        <translation>&amp;QCOW (QEMU Copy-on-Write)</translation>
+        <source>Double-click for more information.</source>
+        <translation>Doppelklicken für mehr Informationen.</translation>
     </message>
 </context>
 <context>
-    <name>UINewHDWizardPageFormat</name>
+    <name>UINetworkReplyPrivate</name>
     <message>
-        <source>File type</source>
-        <translation>Dateityp</translation>
+        <source>Host not found</source>
+        <translation>Der Host wurde nicht gefunden</translation>
+    </message>
+    <message>
+        <source>Content access denied</source>
+        <translation>Zugriff verweigert</translation>
+    </message>
+    <message>
+        <source>Protocol failure</source>
+        <translation>Protokollfehler</translation>
+    </message>
+    <message>
+        <source>Wrong SSL certificate format</source>
+        <translation>Falsches SSL-Zertifikat</translation>
+    </message>
+    <message>
+        <source>SSL authentication failed</source>
+        <translation>SSL-Authentisierung fehlgeschlagen</translation>
+    </message>
+    <message>
+        <source>Unknown reason</source>
+        <translation>Unbekannte Ursache</translation>
     </message>
 </context>
 <context>
-    <name>UINewHDWizardPageOptions</name>
+    <name>UIPopupCenter</name>
     <message>
-        <source>&amp;Location</source>
-        <translation>&amp;Ort</translation>
-    </message>
-    <message>
-        <source>&amp;Size</source>
-        <translation>&amp;Größe</translation>
-    </message>
-</context>
-<context>
-    <name>UINewHDWizardPageVariant</name>
-    <message>
-        <source>Storage details</source>
-        <translation>Art der Abspeicherung</translation>
-    </message>
-</context>
-<context>
-    <name>UINewHDWizardPageWelcome</name>
-    <message>
-        <source>Virtual disk to copy</source>
-        <translation>Zu kopierende Festplatte</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard disk file...</source>
-        <translation>Datei für virtuelle Festplatte auswählen...</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzd</name>
-    <message>
-        <source>Create New Virtual Machine</source>
-        <translation>Neue virtuelle Maschine erstellen</translation>
-    </message>
-    <message>
-        <source>Create</source>
-        <translation>Erzeugen</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzdPage1</name>
-    <message>
-        <source>Welcome to the New Virtual Machine Wizard!</source>
-        <translation>Erstellen einer Virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;This wizard will guide you through the steps that are necessary to create a new virtual machine for VirtualBox.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Dieser Dialog wird Sie durch die für die Erstellung einer virtuellen Maschine notwendigen Schritte führen.&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzdPage2</name>
-    <message>
-        <source>&lt;p&gt;Enter a name for the new virtual machine and select the type of the guest operating system you plan to install onto the virtual machine.&lt;/p&gt;&lt;p&gt;The name of the virtual machine usually indicates its software and hardware configuration. It will be used by all VirtualBox components to identify your virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Geben Sie einen Namen für die neue virtuelle Maschine ein und wählen Sie den Typ des Gast-Betriebssystems, das Sie installieren wollen.&lt;/p&gt;&lt;p&gt;Der Name der virtuellen Maschine gibt üblicherweise einen Anhaltspunkt über die Software und die Konfiguration der virtuellen Hardware. Er wird von allen VirtualBox-Produkten benutzt, um die VM eindeutig zu identifizieren.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>N&amp;ame</source>
-        <translation>N&amp;ame</translation>
-    </message>
-    <message>
-        <source>OS &amp;Type</source>
-        <translation>&amp;Typ des Gastbetriebssystems</translation>
-    </message>
-    <message>
-        <source>VM Name and OS Type</source>
-        <translation>VM-Name und BS-Typ</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzdPage3</name>
-    <message>
-        <source>&lt;p&gt;Select the amount of base memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wählen Sie die Größe des Hauptspeichers (RAM) in Megabyte, die für die virtuelle Maschine verwendet werden soll.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Base &amp;Memory Size</source>
-        <translation>Größe &amp;Hauptspeicher</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <translation>MB</translation>
-    </message>
-    <message>
-        <source>Memory</source>
-        <translation>Speicher</translation>
-    </message>
-    <message>
-        <source>The recommended base memory size is &lt;b&gt;%1&lt;/b&gt; MB.</source>
-        <translation>Die empfohlene Hauptspeichergröße beträgt &lt;b&gt;%1&lt;/b&gt; MB.</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzdPage4</name>
-    <message>
-        <source>&amp;Create new hard disk</source>
-        <translation>Festplatte &amp;erzeugen</translation>
-    </message>
-    <message>
-        <source>&amp;Use existing hard disk</source>
-        <translation>Festplatte &amp;benutzen</translation>
-    </message>
-    <message>
-        <source>Virtual Hard Disk</source>
-        <translation>Virtuelle Festplatte</translation>
-    </message>
-    <message>
-        <source>Start-up &amp;Disk</source>
-        <translation>Boot&amp;festplatte</translation>
-    </message>
-    <message>
-        <source>The recommended size of the start-up disk is &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Die empfohlene Größe der Bootplatte beträgt &lt;b&gt;%1&lt;/b&gt;.</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If you wish you can now add a start-up disk to the new machine. You can either create a new virtual disk or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex virtual disk setup you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Wählen Sie ein Abbild einer Festplatte, die als Bootplatte der virtuellen Maschine dienen soll. Sie können entweder eine neue Festplatte erzeugen oder existierendes Abbild durch Klicken auf den entsprechenden Schaltknopf auswählen (öffnet einen entsprechenden Dialog).&lt;/p&gt;&lt;p&gt;Falls die virtuelle Platte zusätzliche Parameter benötigt, kann dieser Schritt auch übersprungen werden und ein Abbild später über den VM-Einstellungs-Dialog angeschlossen werden.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard disk file...</source>
-        <translation>Datei für virtuelle Festplatte auswählen...</translation>
-    </message>
-</context>
-<context>
-    <name>UINewVMWzdPage5</name>
-    <message>
-        <source>&lt;p&gt;You are going to create a new virtual machine with the following parameters:&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sie möchten eine neue virtuelle Festplatte mit den folgenden Parametern erstellen:&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Summary</source>
-        <translation>Zusammenfassung</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <comment>summary</comment>
-        <translation>Name</translation>
-    </message>
-    <message>
-        <source>OS Type</source>
-        <comment>summary</comment>
-        <translation>OS-Typ</translation>
-    </message>
-    <message>
-        <source>Base Memory</source>
-        <comment>summary</comment>
-        <translation>Hauptspeicher</translation>
-    </message>
-    <message>
-        <source>Start-up Disk</source>
-        <comment>summary</comment>
-        <translation>Bootfestplatte</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;If the above is correct press the &lt;b&gt;%1&lt;/b&gt; button. Once you press it, a new virtual machine will be created. &lt;/p&gt;&lt;p&gt;Note that you can alter these and all other setting of the created virtual machine at any time using the &lt;b&gt;Settings&lt;/b&gt; dialog accessible through the menu of the main window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Klicken Sie auf &lt;b&gt;%1&lt;/b&gt;, wenn alle oben angegebenen Einstellungen richtig sind. Damit wird eine neue virtuelle Maschine erzeugt.&lt;/p&gt;&lt;/p&gt;Sie können diese und andere Einstellungen der virtuellen Maschine jederzeit im Dialog &lt;b&gt;Einstellungen&lt;/b&gt; ausgehend vom Hauptfenster ändern.&lt;/p&gt;</translation>
+        <source>Click for full details</source>
+        <translation>Klicken für ausführliche Meldung</translation>
     </message>
 </context>
 <context>
@@ -4873,25 +5038,45 @@
     </message>
 </context>
 <context>
+    <name>UISelectorWindow</name>
+    <message>
+        <source>Show Toolbar</source>
+        <translation>Toolbar zeigen</translation>
+    </message>
+    <message>
+        <source>Show Statusbar</source>
+        <translation>Statusleiste-Zeigen</translation>
+    </message>
+    <message>
+        <source>Select a virtual machine file</source>
+        <translation>Virtuelle-Maschinen-Datei auswählen</translation>
+    </message>
+    <message>
+        <source>Virtual machine files (%1)</source>
+        <translation>Virtuelle-Maschinen-Dateien (%1)</translation>
+    </message>
+    <message>
+        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
+        <translation>&lt;h3&gt;Willkommen zu VirtualBox!&lt;/h3&gt;&lt;p&gt;Der linke Teil dieses Fensters zeigt eine Liste aller virtuellen Maschinen auf Ihrem Computer. Diese Liste ist momentan leer, da Sie noch keine virtuelle Maschine erstellt haben.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Um eine virtuelle Maschine anzulegen, wählen Sie &lt;b&gt;Neu&lt;/b&gt; in der Symbolleiste am oberen Rand des Fensters.&lt;/p&gt;&lt;p&gt;Die Taste &lt;b&gt;%1&lt;/b&gt; öffnet das Hilfefenster. Für aktuelle Produktinformationen aus dem Internet öffnen Sie &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Manager</source>
+        <comment>Note: main window title which is pretended by the product name.</comment>
+        <translation>Manager</translation>
+    </message>
+</context>
+<context>
     <name>UISession</name>
     <message>
-        <source>Install</source>
-        <translation>Installieren</translation>
+        <source>Updating Guest Additions</source>
+        <translation>Aktualisiere Gasterweiterungen</translation>
     </message>
 </context>
 <context>
     <name>UISettingsDialog</name>
     <message>
-        <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
-        <translation>Auf der Seite &lt;b&gt;%1&lt;/b&gt; %2</translation>
-    </message>
-    <message>
         <source>Invalid settings detected</source>
         <translation>Ungültige Einstellungen erkannt</translation>
-    </message>
-    <message>
-        <source>Non-optimal settings detected</source>
-        <translation>Einige Einstellungen sind nicht optimal</translation>
     </message>
     <message>
         <source>Settings</source>
@@ -4899,7 +5084,15 @@
     </message>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information.&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Wählen Sie eine Kategorie aus der Liste auf der linken Seite und fahren Sie mit der Maus über eine Einstellung, um mehr Informationen zu erhalten&lt;/i&gt;.</translation>
+        <translation>&lt;i&gt;Wählen Sie eine Kategorie aus der Liste auf der linken Seite und fahren Sie mit der Maus über eine Einstellung, um mehr Informationen zu erhalten.&lt;/i&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1&lt;/b&gt; page:</source>
+        <translation>Seite &lt;b&gt;%1&lt;/b&gt;:</translation>
+    </message>
+    <message>
+        <source>&lt;b&gt;%1: %2&lt;/b&gt; page:</source>
+        <translation>Seite &lt;b&gt;%1: %2&lt;/b&gt;:</translation>
     </message>
 </context>
 <context>
@@ -4921,10 +5114,6 @@
         <translation>Sprache</translation>
     </message>
     <message>
-        <source>USB</source>
-        <translation>USB</translation>
-    </message>
-    <message>
         <source>Network</source>
         <translation>Netzwerk</translation>
     </message>
@@ -4939,6 +5128,10 @@
     <message>
         <source>Proxy</source>
         <translation>Proxy</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <translation>Anzeige</translation>
     </message>
 </context>
 <context>
@@ -5063,6 +5256,13 @@
     </message>
 </context>
 <context>
+    <name>UIUpdateStepVirtualBox</name>
+    <message>
+        <source>Checking for a new VirtualBox version...</source>
+        <translation>Suche neue VirtualBox-Version...</translation>
+    </message>
+</context>
+<context>
     <name>UIVMCloseDialog</name>
     <message>
         <source>Close Virtual Machine</source>
@@ -5082,7 +5282,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Sends the ACPI Power Button press event to the virtual machine.&lt;/p&gt;&lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;&lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sendet das ACPI-Ereignis &apos;Netztaste gedrückt&apos; an die virtuelle Maschine.&lt;/p&gt;&lt;p&gt;Übliche Gastsysteme werden dieses Ereignis empfangen und die Maschine in Folge dessen sauber herunterfahren. Dies ist das empfohlene Vorgehen, um die Maschine auszuschalten, weil alle Anwendungen innerhalb der Maschine Gelegenheit zum Sichern Ihrer Daten bekommen.&lt;/p&gt;&lt;p&gt;Falls der Gast nicht auf dieses Ereignis reagiert, ist dieser entweder falsch konfiguriert oder versteht dieses Ereignis generell nicht. In diesem Fall sollten Sie &lt;b&gt;die virtuelle Maschine ausschalten&lt;/b&gt; wählen.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sendet das ACPI-Ereignis &apos;Ausschaltknopf gedrückt&apos; an die virtuelle Maschine.&lt;/p&gt;&lt;p&gt;Übliche Gastsysteme werden dieses Ereignis empfangen und die Maschine in Folge dessen sauber herunterfahren. Dies ist das empfohlene Vorgehen, um die Maschine auszuschalten, weil alle Anwendungen innerhalb der Maschine Gelegenheit zum Sichern Ihrer Daten bekommen.&lt;/p&gt;&lt;p&gt;Falls der Gast nicht auf dieses Ereignis reagiert, ist dieser entweder falsch konfiguriert oder versteht dieses Ereignis generell nicht. In diesem Fall sollten Sie &lt;b&gt;die virtuelle Maschine ausschalten&lt;/b&gt; wählen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>S&amp;end the shutdown signal</source>
@@ -5098,7 +5298,7 @@
     </message>
     <message>
         <source>Restore the machine state stored in the current snapshot</source>
-        <translation>Der Ausführungszustand wird auf den aktuellen Sicherungspunkt zurückgesetzt.</translation>
+        <translation>Der Ausführungszustand wird auf den aktuellen Sicherungspunkt zurückgesetzt</translation>
     </message>
     <message>
         <source>&lt;p&gt;When checked, the machine will be returned to the state stored in the current snapshot after it is turned off. This is useful if you are sure that you want to discard the results of your last sessions and start again at that snapshot.&lt;/p&gt;</source>
@@ -5129,7 +5329,7 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
         <comment>VM tooltip (name, last state change, session state)</comment>
-        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 seit %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 seit %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Sitzung %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;Inaccessible since %2&lt;/nobr&gt;</source>
@@ -5138,34 +5338,665 @@
     </message>
 </context>
 <context>
-    <name>UIVMPreviewWindow</name>
+    <name>UIVMLogViewer</name>
     <message>
-        <source>Update Disabled</source>
-        <translation>Update deaktiviert</translation>
+        <source>Close the search panel</source>
+        <translation>Schließt das Suchfeld</translation>
     </message>
     <message>
-        <source>Every 0.5 s</source>
-        <translation>alle 0.5 Sekunden</translation>
+        <source>&amp;Find</source>
+        <translation>&amp;Suche</translation>
     </message>
     <message>
-        <source>Every 1 s</source>
-        <translation>jede Sekunde</translation>
+        <source>Enter a search string here</source>
+        <translation>Geben Sie den Suchtext hier ein</translation>
     </message>
     <message>
-        <source>Every 2 s</source>
-        <translation>alle 2 Sekunden</translation>
+        <source>&amp;Previous</source>
+        <translation>&amp;Rückwärts</translation>
     </message>
     <message>
-        <source>Every 5 s</source>
-        <translation>alle 5 Sekunden</translation>
+        <source>Search for the previous occurrence of the string</source>
+        <translation>Durchsucht den Text rückwärts</translation>
     </message>
     <message>
-        <source>Every 10 s</source>
-        <translation>alle 10 Sekunden</translation>
+        <source>&amp;Next</source>
+        <translation>&amp;Vorwärts</translation>
     </message>
     <message>
-        <source>No Preview</source>
-        <translation>Keine Voransicht</translation>
+        <source>Search for the next occurrence of the string</source>
+        <translation>Durchsucht den Text vorwärts</translation>
+    </message>
+    <message>
+        <source>C&amp;ase Sensitive</source>
+        <translation>Berücksichtige &amp;Groß- und Kleinschreibung</translation>
+    </message>
+    <message>
+        <source>Perform case sensitive search (when checked)</source>
+        <translation>Groß- und Kleinschreibung berücksichtigen (wenn ausgewählt) oder ignorieren</translation>
+    </message>
+    <message>
+        <source>String not found</source>
+        <translation>Suchtext nicht gefunden</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Keine Log-Dateien gefunden. Klicken Sie auf &lt;b&gt;Aktualisieren&lt;/b&gt;, um erneut im Ordner &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; zu suchen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Save VirtualBox Log As</source>
+        <translation>VirtualBox Log-Datei sichern als</translation>
+    </message>
+    <message>
+        <source>%1 - VirtualBox Log Viewer</source>
+        <translation>%1 - VirtualBox Log-Anzeige</translation>
+    </message>
+    <message>
+        <source>&amp;Refresh</source>
+        <translation>&amp;Aktualisieren</translation>
+    </message>
+    <message>
+        <source>&amp;Save</source>
+        <translation>&amp;Sichern</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Schließen</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizard</name>
+    <message>
+        <source>Hide Description</source>
+        <translation>Beschreibung verdecken</translation>
+    </message>
+    <message>
+        <source>Show Description</source>
+        <translation>Beschreibung zeigen</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardCloneVD</name>
+    <message>
+        <source>Copy Virtual Hard Drive</source>
+        <translation>Virtuelle Festplatte kopieren</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>Kopieren</translation>
+    </message>
+    <message>
+        <source>Hard drive to copy</source>
+        <translation>Zu kopierende Festplatte</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select the virtual hard drive file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie eine virtuelle Festplatte zum Kopieren aus. Diese können Sie entweder aus der Liste oder mit Hilfe des Icons neben der Liste mittels Dateidialog auswählen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file to copy...</source>
+        <translation>Wählen Sie eine virtuelle Festplatte zum Kopieren...</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation>Dateityp der Festplatte</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation>Bitte wählen Sie den Typ der neuen virtuelle Festplatte. Falls Sie diese nicht mit anderer Virtualisierungssoftware verwenden, können Sie diese Einstellung unverändert lassen.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation>Art der Speicherung</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation>Bitte wählen Sie, ob die neue virtuelle Festplatte erst nach und nach zur Laufzeit (dynamisch) alloziert werden soll oder ob die Platte jetzt sofort vollständig alloziert werden soll (feste Größe).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Eine &lt;b&gt;dynamisch allozierte&lt;/b&gt; Datei einer virtuellen Platte belegt nur dann Platz auf der physischen Platte des Hosts, wenn der Gast Daten schreibt. Einmal belegter Platz wird nicht automatisch freigegeben.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Erzeugen einer Datei &lt;b&gt;fester Größe&lt;/b&gt; dauert auf manchen Systemen länger aber bietet eine etwas bessere Performance.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation>&lt;p&gt;Die virtuelle Platte kann ebenfalls auf mehrere Dateien mit einer maximalen Größe von 2 GB aufgeteilt werden. Dies ist sinnvoll, wenn die virtuelle Maschine auf einem USB-Gerät oder auf älteren Systemen gespeichert werden soll, die keine größeren Dateien unterstützen.</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically allocated</source>
+        <translation>&amp;dynamisch alloziert</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed size</source>
+        <translation>&amp;feste Größe</translation>
+    </message>
+    <message>
+        <source>&amp;Split into files of less than 2GB</source>
+        <translation>&amp;Aufteilen in Dateien mit weniger als 2GB</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation>Bitte wählen Sie einen Dateinamen für die neue virtuelle Festplatte</translation>
+    </message>
+    <message>
+        <source>New hard drive to create</source>
+        <translation>Neue Festplatte</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation>Bitte geben Sie den Namen der neuen Festplatte an oder wählen Sie das Ordner-Icon, um einen anderen Ordner für die Datei zu wählen.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation>Bitte wählen Sie einen Dateinamen für die neue virtuelle Festplatte...</translation>
+    </message>
+    <message>
+        <source>%1_copy</source>
+        <comment>copied virtual hard drive name</comment>
+        <translation>%1_Kopie</translation>
+    </message>
+    <message>
+        <source>Hard drive to &amp;copy</source>
+        <translation>Zu &amp;kopierende Festplatte</translation>
+    </message>
+    <message>
+        <source>&amp;New hard drive to create</source>
+        <translation>&amp;Neue Festplatte</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation>Datei&amp;typ der Festplatte</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardCloneVM</name>
+    <message>
+        <source>Linked Base for %1 and %2</source>
+        <translation>Ausgangspunkt für %1 und %2</translation>
+    </message>
+    <message>
+        <source>Clone Virtual Machine</source>
+        <translation>Virtuelle Maschine klonen</translation>
+    </message>
+    <message>
+        <source>Clone</source>
+        <translation>Klonen</translation>
+    </message>
+    <message>
+        <source>%1 Clone</source>
+        <translation>%1-Klon</translation>
+    </message>
+    <message>
+        <source>New machine name</source>
+        <translation>Name für neue VM</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose a name for the new virtual machine. The new machine will be a clone of the machine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie einen Namen für die neue virtuelle Maschine. Die neue virtuelle Maschine wird ein Klon der Maschine &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>When checked a new unique MAC address will be assigned to all configured network cards.</source>
+        <translation>Falls ausgewählt, wird allen aktivierten Netzwerkkarten eine neue MAC-Adresse zugewiesen.</translation>
+    </message>
+    <message>
+        <source>&amp;Reinitialize the MAC address of all network cards</source>
+        <translation>&amp;Zuweisen neuer MAC-Adressen für alle Netzwerkkarten</translation>
+    </message>
+    <message>
+        <source>Clone type</source>
+        <translation>Typ des Klons</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose the type of clone you wish to create.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Full clone&lt;/b&gt;, an exact copy (including all virtual hard drive files) of the original virtual machine will be created.&lt;/p&gt;&lt;p&gt;If you choose &lt;b&gt;Linked clone&lt;/b&gt;, a new machine will be created, but the virtual hard drive files will be tied to the virtual hard drive files of original machine and you will not be able to move the new virtual machine to a different computer without moving the original as well.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie, wie die Maschine geklont werden soll.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Vollständiger Klon&lt;/b&gt; bedeutet, dass eine genaue Kopie der ursprünglichen virtuellen Maschine einschließlich aller virtuellen Festplattendateien angefertigt wird.&lt;/p&gt;&lt;p&gt;Falls Sie &lt;b&gt;Verknüpfter Klon&lt;/b&gt; auswählen, wird eine neue virtuelle Maschine erzeugt aber die virtuellen Festplatten der ursprünglichen virtuellen Maschine werden verwendet. In diesem Fall gibt es dauerhafte Abhängigkeiten zu der originalen virtuellen Maschine.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you create a &lt;b&gt;Linked clone&lt;/b&gt; then a new snapshot will be created in the original virtual machine as part of the cloning process.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falls Sie einen &lt;b&gt;verknüpften Klon&lt;/b&gt; erzeugen, dann wird während des Klonens ein Sicherungspunkt der ursprünglichen virtuellen Maschine erzeugt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&amp;Full clone</source>
+        <translation>&amp;vollständiger Klon</translation>
+    </message>
+    <message>
+        <source>&amp;Linked clone</source>
+        <translation>&amp;verknüpfter Klon</translation>
+    </message>
+    <message>
+        <source>Snapshots</source>
+        <translation>Sicherungspunkte</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please choose which parts of the snapshot tree should be cloned with the machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie, welche Sicherungszustände der virtuellen Maschine geklont werden sollen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Current machine state&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have no snapshots.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falls Sie &lt;b&gt;aktueller Zustand&lt;/b&gt; auswählen, wird der aktuelle Zustand der ursprünglichen VM ohne Sicherungspunkte kopiert.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Current snapshot tree branch&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the tree branch starting at the current state in the original machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falls Sie &lt;b&gt;aktuelle Sicherungspunkte&lt;/b&gt; auswählen, wird der aktuelle Zustand mit den dazugehörigen Sicherungspunkten der ursprünglichen VM koiert.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you choose &lt;b&gt;Everything&lt;/b&gt;, the new machine will reflect the current state of the original machine and will have matching snapshots for all snapshots in the original machine.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Falls Sie &lt;b&gt;alles&lt;/b&gt; auswählen, dann wird die neue virtuelle Maschine den kompletten Zustand der ursprünglichen Maschine einschließlich aller Sicherungspunkte wiederspiegeln.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Current &amp;machine state</source>
+        <translation>aktueller &amp;Zustand</translation>
+    </message>
+    <message>
+        <source>Current &amp;snapshot tree branch</source>
+        <translation>aktuelle &amp;Sicherungspunkte</translation>
+    </message>
+    <message>
+        <source>&amp;Everything</source>
+        <translation>&amp;alles</translation>
+    </message>
+    <message>
+        <source>New machine &amp;name</source>
+        <translation>Neuer VM-&amp;Name</translation>
+    </message>
+    <message>
+        <source>&amp;Full Clone</source>
+        <translation>&amp;vollständiger Klon</translation>
+    </message>
+    <message>
+        <source>&amp;Linked Clone</source>
+        <translation>&amp;verknüpfter Klon</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportApp</name>
+    <message>
+        <source>Checking files ...</source>
+        <translation>Überprüfe Dateien ...</translation>
+    </message>
+    <message>
+        <source>Removing files ...</source>
+        <translation>Lösche Dateien ...</translation>
+    </message>
+    <message>
+        <source>Exporting Appliance ...</source>
+        <translation>Exportiere Appliance ...</translation>
+    </message>
+    <message>
+        <source>Export Virtual Appliance</source>
+        <translation>Appliance exportieren</translation>
+    </message>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Standardeinstellungen</translation>
+    </message>
+    <message>
+        <source>Export</source>
+        <translation>Exportieren</translation>
+    </message>
+    <message>
+        <source>Virtual machines to export</source>
+        <translation>Zu exportierende VMs</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select the virtual machines that should be added to the appliance. You can select more than one. Please note that these machines have to be turned off before they can be exported.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen sie die virtuellen Maschinen, die zu der Appliance hinzugefügt werden sollen. Sie können mehr als eine VM auswählen, diese müssen aber ausgeschaltet sein, bevor sie exportiert werden können.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Appliance settings</source>
+        <translation>Appliance-Einstellungen</translation>
+    </message>
+    <message>
+        <source>Please choose where to create the virtual appliance. You can create it on your own computer, on the Sun Cloud service or on an S3 storage server.</source>
+        <translation>Bitte wählen Sie, woe die virtuelle Appliance erzeugt werden soll.</translation>
+    </message>
+    <message>
+        <source>Create on</source>
+        <translation>Erzeugen auf</translation>
+    </message>
+    <message>
+        <source>&amp;This computer</source>
+        <translation>&amp;Dieser Computer</translation>
+    </message>
+    <message>
+        <source>Sun &amp;Cloud</source>
+        <translation>Sun &amp;Cloud</translation>
+    </message>
+    <message>
+        <source>&amp;Simple Storage System (S3)</source>
+        <translation>&amp;Simple Storage System (S3)</translation>
+    </message>
+    <message>
+        <source>Appliance</source>
+        <translation>Appliance</translation>
+    </message>
+    <message>
+        <source>&amp;Username:</source>
+        <translation>&amp;Nutzername:</translation>
+    </message>
+    <message>
+        <source>&amp;Password:</source>
+        <translation>&amp;Passwort:</translation>
+    </message>
+    <message>
+        <source>&amp;Hostname:</source>
+        <translation>&amp;Hostname:</translation>
+    </message>
+    <message>
+        <source>&amp;Bucket:</source>
+        <translation>&amp;Bucket:</translation>
+    </message>
+    <message>
+        <source>&amp;File:</source>
+        <translation>&amp;Datei:</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format Archive (%1)</source>
+        <translation>Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Write in legacy OVF 0.9 format for compatibility with other virtualization products.</source>
+        <translation>Erstelle das ältere OVF-Format 0.9 für die Kompatibilität mit anderen Virtualisierungsprodukten.</translation>
+    </message>
+    <message>
+        <source>Create a Manifest file for automatic data integrity checks on import.</source>
+        <translation>Manifest für automatischen Test der Integrität der Daten während des Imports.</translation>
+    </message>
+    <message>
+        <source>Write &amp;Manifest file</source>
+        <translation>Schreibe &amp;Manifest-Datei</translation>
+    </message>
+    <message>
+        <source>This is the descriptive information which will be added to the virtual appliance.  You can change it by double clicking on individual lines.</source>
+        <translation>Dies ist eine informative Beschreibung, die zu der Appliance hinzugefügt wird. Sie können diese durch Doppelklicken auf die Zeilen ändern.</translation>
+    </message>
+    <message>
+        <source>Virtual &amp;machines to export</source>
+        <translation>Zu exportierende &amp;VMs</translation>
+    </message>
+    <message>
+        <source>Appliance &amp;settings</source>
+        <translation>Appliance-&amp;Einstellungen</translation>
+    </message>
+    <message>
+        <source>&amp;Destination</source>
+        <translation>&amp;Ziel</translation>
+    </message>
+    <message>
+        <source>&amp;Local Filesystem </source>
+        <translation>&amp;Lokales Dateisystem</translation>
+    </message>
+    <message>
+        <source>Storage settings</source>
+        <translation>Massenspeicher</translation>
+    </message>
+    <message>
+        <source>Please choose a file to export the virtual appliance to</source>
+        <translation>Bitte wählen Sie eine Datei für den Export der Appliance</translation>
+    </message>
+    <message>
+        <source>F&amp;ormat:</source>
+        <translation>F&amp;ormat:</translation>
+    </message>
+    <message>
+        <source>OVF 0.9</source>
+        <translation>OVF 0.9</translation>
+    </message>
+    <message>
+        <source>OVF 1.0</source>
+        <translation>OVF 1.0</translation>
+    </message>
+    <message>
+        <source>OVF 2.0</source>
+        <translation>OVF 2.0</translation>
+    </message>
+    <message>
+        <source>Write in standard OVF 1.0 format.</source>
+        <translation>Schreibe OVF-1.0-Format.</translation>
+    </message>
+    <message>
+        <source>Write in new experimental OVF 2.0 format.</source>
+        <translation>Schreibe im experimentellen OVF-2.0-Format.</translation>
+    </message>
+    <message>
+        <source>&amp;Storage settings</source>
+        <translation>&amp;Massenspeicher</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportAppPageBasic3</name>
+    <message>
+        <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie einen Dateinamen für den Export als OVF/OVA. Bei Angabe der &lt;i&gt;ova&lt;/i&gt;-Dateiendung werden alle Dateien in ein OVA-(Open Virtualization Format)-Archiv geschrieben. Bei Angabe der Endung &lt;i&gt;ovf&lt;/i&gt; werden einzelne Dateien geschrieben.&lt;/p&gt;&lt;/p&gt;Andere Dateiendungen sind nicht erlaubt.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Bitte fügen Sie die Felder für Nutzername, Passwort und Bucket aus und geben Sie einen Dateinamen für den OVF-Export an.</translation>
+    </message>
+    <message>
+        <source>Please complete the additional fields like the username, password, hostname and the bucket, and provide a filename for the OVF target.</source>
+        <translation>Bitte fügen Sie die Felder für Nutzername, Passwort, Hostname und Bucket aus und geben Sie einen Dateinamen für den OVF-Export an.</translation>
+    </message>
+    <message>
+        <source>Choose a file to export the virtual appliance to...</source>
+        <translation>Wählen Sie eine Datei für den Export der Appliance...</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardExportAppPageExpert</name>
+    <message>
+        <source>Choose a file to export the virtual appliance to...</source>
+        <translation>Wählen Sie eine Datei für den Export der Appliance...</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardFirstRun</name>
+    <message>
+        <source>Select start-up disk</source>
+        <translation>Medium für Start auswählen</translation>
+    </message>
+    <message>
+        <source>Start</source>
+        <translation>Starten</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from and should contain the operating system you wish to install on the virtual machine if you want to do that now. The disk will be ejected from the virtual drive automatically next time you switch the virtual machine off, but you can also do this yourself if needed using the Devices menu.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie eine Datei für ein virtuelles optisches Medium oder ein physisches optisches Laufwerk mit dem Medium zum Starten der neuen virtuellen Maschine.&lt;/p&gt;&lt;p&gt;Das Medium sollte für das Starten eines Computers geeignet sein und das Betriebssystem enthalten, dass Sie in der virtuellen Maschine installieren wollen. Das Medium wird beim nächsten Ausschalten der virtuellen Maschine automatisch ausgeworfen, Sie können dies aber auch selbst im Geräte Menü erzwingen.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from. As this virtual machine has no hard drive you will not be able to install an operating system on it at the moment.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Bitte wählen Sie eine Datei für ein virtuelles optisches Medium oder ein optisches Laufwerk des Hosts mit dem Medium zum Starten der neuen virtuellen Maschine.&lt;/p&gt;&lt;p&gt;Das Medium sollte für das Starten eines Computers geeignet sein. Da diese virtuelle Maschine keine Festplatte besitzt, kann kein Betriebssystem installiert werden.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual optical disk file...</source>
+        <translation>Wählen Sie ein virtuelles optisches Medium...</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardImportApp</name>
+    <message>
+        <source>Restore Defaults</source>
+        <translation>Standardeinstellungen</translation>
+    </message>
+    <message>
+        <source>Import</source>
+        <translation>Importieren</translation>
+    </message>
+    <message>
+        <source>Appliance to import</source>
+        <translation>Zu importierende Appliance</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;VirtualBox currently supports importing appliances saved in the Open Virtualization Format (OVF). To continue, select the file to import below.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;VirtualBox unterstützt momentan das Importieren von Appliances im Open-Virtualization-Format (OVF). Wählen Sie die Datei zum Importieren aus.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Open Virtualization Format (%1)</source>
+        <translation>Open Virtualization Format (%1)</translation>
+    </message>
+    <message>
+        <source>Appliance settings</source>
+        <translation>Appliance-Einstellungen</translation>
+    </message>
+    <message>
+        <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
+        <translation>Dies sind die in der Appliance beschriebenen virtuellen Maschinen mit den entsprechenden Abbildungen für den Import in VirtualBox. Sie können Änderungen an vielen dieser Einstellungen mittels Doppelklick bzw. duch Auswahl der entsprechenden Checkbox ändern.</translation>
+    </message>
+    <message>
+        <source>Import Virtual Appliance</source>
+        <translation>Appliance importieren</translation>
+    </message>
+    <message>
+        <source>Choose a virtual appliance file to import...</source>
+        <translation>Wählen Sie eine virtuelle Appliance zum Importieren...</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual appliance file to import</source>
+        <translation>Bitte wählen Sie eine virtuelle Appliance zum Importieren</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewVD</name>
+    <message>
+        <source>Create Virtual Hard Drive</source>
+        <translation>Virtuelle Festplatte</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Erzeugen</translation>
+    </message>
+    <message>
+        <source>Hard drive file type</source>
+        <translation>Dateityp der Festplatte</translation>
+    </message>
+    <message>
+        <source>Please choose the type of file that you would like to use for the new virtual hard drive. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
+        <translation>Bitte wählen Sie den Typ der neuen virtuelle Festplatte. Falls Sie diese nicht mit anderer Virtualisierungssoftware verwenden, können Sie diese Einstellung unverändert lassen.</translation>
+    </message>
+    <message>
+        <source>Storage on physical hard drive</source>
+        <translation>Art der Speicherung</translation>
+    </message>
+    <message>
+        <source>Please choose whether the new virtual hard drive file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
+        <translation>Bitte wählen Sie, ob die neue virtuelle Festplatte erst nach und nach zur Laufzeit (dynamisch) alloziert werden soll oder ob die Platte jetzt sofort vollständig alloziert werden soll (feste Größe).</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; hard drive file will only use space on your physical hard drive as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Eine &lt;b&gt;dynamisch allozierte&lt;/b&gt; Datei einer virtuellen Platte belegt nur dann Platz auf der physischen Platte des Hosts, wenn der Gast Daten schreibt. Einmal belegter Platz wird nicht automatisch freigegeben.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; hard drive file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Das Erzeugen einer Datei &lt;b&gt;fester Größe&lt;/b&gt; dauert auf manchen Systemen länger aber bietet eine etwas bessere Performance.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the hard drive file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
+        <translation>&lt;p&gt;Die virtuelle Platte kann ebenfalls auf mehrere Dateien mit einer maximalen Größe von 2 GB aufgeteilt werden. Dies ist sinnvoll, wenn die virtuelle Maschine auf einem USB-Gerät oder auf älteren Systemen gespeichert werden soll, die keine größeren Dateien unterstützen.</translation>
+    </message>
+    <message>
+        <source>&amp;Dynamically allocated</source>
+        <translation>&amp;dynamisch alloziert</translation>
+    </message>
+    <message>
+        <source>&amp;Fixed size</source>
+        <translation>&amp;feste Größe</translation>
+    </message>
+    <message>
+        <source>&amp;Split into files of less than 2GB</source>
+        <translation>&amp;Aufteilen in Dateien mit weniger als 2GB</translation>
+    </message>
+    <message>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>File location and size</source>
+        <translation>Dateiname und Größe</translation>
+    </message>
+    <message>
+        <source>Please type the name of the new virtual hard drive file into the box below or click on the folder icon to select a different folder to create the file in.</source>
+        <translation>Bitte geben Sie den Namen der neuen Festplatte an oder wählen Sie das Ordner-Icon, um einen anderen Ordner für die Datei zu wählen.</translation>
+    </message>
+    <message>
+        <source>Choose a location for new virtual hard drive file...</source>
+        <translation>Bitte wählen Sie einen Dateinamen für die neue virtuelle Festplatte...</translation>
+    </message>
+    <message>
+        <source>Select the size of the virtual hard drive in megabytes. This size is the limit on the amount of file data that a virtual machine will be able to store on the hard drive.</source>
+        <translation>Wählen Sie die Größe der virtuellen Festplatte in Megabyte. Dies ist die maximal nutzbare Größe der virtuellen Festplatte.</translation>
+    </message>
+    <message>
+        <source>File &amp;location</source>
+        <translation>Datei&amp;pfad</translation>
+    </message>
+    <message>
+        <source>File &amp;size</source>
+        <translation>Datei&amp;größe</translation>
+    </message>
+    <message>
+        <source>Hard drive file &amp;type</source>
+        <translation>Datei&amp;typ der Festplatte</translation>
+    </message>
+</context>
+<context>
+    <name>UIWizardNewVM</name>
+    <message>
+        <source>Create Virtual Machine</source>
+        <translation>Virtuelle Maschine erzeugen</translation>
+    </message>
+    <message>
+        <source>Create</source>
+        <translation>Erzeugen</translation>
+    </message>
+    <message>
+        <source>Name and operating system</source>
+        <translation>Name und Betriebssystem</translation>
+    </message>
+    <message>
+        <source>Please choose a descriptive name for the new virtual machine and select the type of operating system you intend to install on it. The name you choose will be used throughout VirtualBox to identify this machine.</source>
+        <translation>Bitte wählen Sie einen angemessenen Namen für die neue virtuelle Maschine und wählen Sie den Typ des Betriebssystems, das Sie installieren möchten. Der gewählte Name wird zur Identifizierung dieser Maschine verwendet.</translation>
+    </message>
+    <message>
+        <source>Memory size</source>
+        <translation>Speichergröße</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Select the amount of memory (RAM) in megabytes to be allocated to the virtual machine.&lt;/p&gt;&lt;p&gt;The recommended memory size is &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Wählen Sie die Größe des Hauptspeichers (RAM) der virtuellen Maschine in Megabyte.&lt;/p&gt;&lt;p&gt;Die empfohlene Größe beträgt &lt;b&gt;%1&lt;/b&gt; MB.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Hard drive</source>
+        <translation>Festplatte</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;If you wish you can add a virtual hard drive to the new machine. You can either create a new hard drive file or select one from the list or from another location using the folder icon.&lt;/p&gt;&lt;p&gt;If you need a more complex storage set-up you can skip this step and make the changes to the machine settings once the machine is created.&lt;/p&gt;&lt;p&gt;The recommended size of the hard drive is &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Sie können eine virtuelle Festplatte zur Konfiguration hinzufügen. Dafür können Sie eine neue Datei erzeugen oder eine Datei aus der Liste mit dem Icon auswählen.&lt;/p&gt;&lt;p&gt;Für ein umfangreicheres Setup können Sie diesen Schritt auch auslassen und später Änderungen an der Konfiguration der virtuellen Maschine vornehmen.&lt;/p&gt;&lt;p&gt;Die empfohlene Größe der Festplatte beträgt &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>Choose a virtual hard drive file...</source>
+        <translation>Datei für virtuelle Festplatte auswählen...</translation>
+    </message>
+    <message>
+        <source>&amp;Memory size</source>
+        <translation>&amp;Speichergröße</translation>
+    </message>
+    <message>
+        <source>&amp;Do not add a virtual hard drive</source>
+        <translation>&amp;Keine Festplatte</translation>
+    </message>
+    <message>
+        <source>&amp;Create a virtual hard drive now</source>
+        <translation>&amp;Festplatte erzeugen</translation>
+    </message>
+    <message>
+        <source>&amp;Use an existing virtual hard drive file</source>
+        <translation>&amp;Vorhandene Festplatte verwenden</translation>
     </message>
 </context>
 <context>
@@ -5186,8 +6017,8 @@
 <context>
     <name>VBoxEmptyFileSelector</name>
     <message>
-        <source>&amp;Choose...</source>
-        <translation>&amp;Auswählen...</translation>
+        <source>Choose...</source>
+        <translation>Schließen...</translation>
     </message>
 </context>
 <context>
@@ -5197,7 +6028,7 @@
         <translation>&lt;Voreinstellung&gt;</translation>
     </message>
     <message>
-        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
+        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
         <translation>Der Standardpfad wird nach Bestätigen der Änderungen und erneutes Öffnen dieses Dialogs angezeigt.</translation>
     </message>
     <message>
@@ -5217,7 +6048,7 @@
         <translation>Zurücksetzen</translation>
     </message>
     <message>
-        <source>Opens a dialog to select a different folder.</source>
+        <source>Opens a window to select a different folder.</source>
         <translation>Öffnet einen Dialog zur Auswahl eines anderen Verzeichnisses.</translation>
     </message>
     <message>
@@ -5225,7 +6056,7 @@
         <translation>Setzt den Verzeichnispfad auf die Voreinstellung zurück.</translation>
     </message>
     <message>
-        <source>Opens a dialog to select a different file.</source>
+        <source>Opens a window to select a different file.</source>
         <translation>Öffnet einen Dialog um eine andere Datei auszuwählen.</translation>
     </message>
     <message>
@@ -5303,7 +6134,7 @@
         <translation>ACPI</translation>
     </message>
     <message>
-        <source>IO APIC</source>
+        <source>I/O APIC</source>
         <comment>details report</comment>
         <translation></translation>
     </message>
@@ -5319,12 +6150,12 @@
     </message>
     <message>
         <source>Enabled</source>
-        <comment>details report (IO APIC)</comment>
+        <comment>details report (I/O APIC)</comment>
         <translation>aktiviert</translation>
     </message>
     <message>
         <source>Disabled</source>
-        <comment>details report (IO APIC)</comment>
+        <comment>details report (I/O APIC)</comment>
         <translation>deaktiviert</translation>
     </message>
     <message>
@@ -5443,9 +6274,9 @@
         <translation>Diskette</translation>
     </message>
     <message>
-        <source>CD/DVD-ROM</source>
+        <source>CD/DVD</source>
         <comment>DeviceType</comment>
-        <translation>CD/DVD-ROM</translation>
+        <translation>CD/DVD</translation>
     </message>
     <message>
         <source>Hard Disk</source>
@@ -5456,51 +6287,6 @@
         <source>Network</source>
         <comment>DeviceType</comment>
         <translation>Netzwerk</translation>
-    </message>
-    <message>
-        <source>Normal</source>
-        <comment>DiskType</comment>
-        <translation>normal</translation>
-    </message>
-    <message>
-        <source>Immutable</source>
-        <comment>DiskType</comment>
-        <translation>nicht veränderlich</translation>
-    </message>
-    <message>
-        <source>Writethrough</source>
-        <comment>DiskType</comment>
-        <translation>durchschreibend</translation>
-    </message>
-    <message>
-        <source>Differencing</source>
-        <comment>DiskType</comment>
-        <translation>differentiell</translation>
-    </message>
-    <message>
-        <source>Shareable</source>
-        <comment>DiskType</comment>
-        <translation>gemeinsam benutzbar</translation>
-    </message>
-    <message>
-        <source>Readonly</source>
-        <comment>DiskType</comment>
-        <translation>nur lesbar</translation>
-    </message>
-    <message>
-        <source>Multi-attach</source>
-        <comment>DiskType</comment>
-        <translation>mehrfach anschließbar</translation>
-    </message>
-    <message>
-        <source>Ignore</source>
-        <comment>USBFilterActionType</comment>
-        <translation>Ignorieren</translation>
-    </message>
-    <message>
-        <source>Hold</source>
-        <comment>USBFilterActionType</comment>
-        <translation>Halten</translation>
     </message>
     <message>
         <source>Null Audio Driver</source>
@@ -5605,7 +6391,7 @@
     <message>
         <source>Bidirectional</source>
         <comment>ClipboardType</comment>
-        <translation>Bidirektional</translation>
+        <translation>bidirektional</translation>
     </message>
     <message>
         <source>Port %1</source>
@@ -5746,31 +6532,6 @@
         <source>SATA</source>
         <comment>StorageBus</comment>
         <translation></translation>
-    </message>
-    <message>
-        <source>Primary</source>
-        <comment>StorageBusChannel</comment>
-        <translation>Primärer</translation>
-    </message>
-    <message>
-        <source>Secondary</source>
-        <comment>StorageBusChannel</comment>
-        <translation>Sekundärer</translation>
-    </message>
-    <message>
-        <source>Master</source>
-        <comment>StorageBusDevice</comment>
-        <translation>Master</translation>
-    </message>
-    <message>
-        <source>Slave</source>
-        <comment>StorageBusDevice</comment>
-        <translation>Slave</translation>
-    </message>
-    <message>
-        <source>Port %1</source>
-        <comment>StorageBusChannel</comment>
-        <translation>Port %1</translation>
     </message>
     <message>
         <source>Solaris Audio</source>
@@ -6023,46 +6784,6 @@
         <translation>Diskette</translation>
     </message>
     <message>
-        <source>Device %1</source>
-        <comment>StorageBusDevice</comment>
-        <translation>Gerät %1</translation>
-    </message>
-    <message>
-        <source>IDE Primary Master</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>Primärer Master</translation>
-    </message>
-    <message>
-        <source>IDE Primary Slave</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>Primärer Slave</translation>
-    </message>
-    <message>
-        <source>IDE Secondary Master</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>Sekundärer Master</translation>
-    </message>
-    <message>
-        <source>IDE Secondary Slave</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>Sekundärer Slave</translation>
-    </message>
-    <message>
-        <source>SATA Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>SATA-Port %1</translation>
-    </message>
-    <message>
-        <source>SCSI Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>SCSI-Port %1</translation>
-    </message>
-    <message>
-        <source>Floppy Device %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>Diskettenlaufwerk %1</translation>
-    </message>
-    <message>
         <source>Paravirtualized Network (virtio-net)</source>
         <comment>NetworkAdapterType</comment>
         <translation>Paravirtualisiertes Netzwerk (virtio-net)</translation>
@@ -6108,12 +6829,12 @@
         <translation>&lt;i&gt;Überprüfe Zugriffsrecht...&lt;/i&gt;</translation>
     </message>
     <message>
-        <source>Failed to check media accessibility.</source>
+        <source>Failed to check accessibility of disk image files.</source>
         <comment>medium</comment>
         <translation>Die Zugriffsrechte des Mediums konnten nicht ermittelt werden.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No medium selected&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image file selected&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;Kein Medium ausgewählt&lt;/b&gt;</translation>
     </message>
@@ -6122,13 +6843,9 @@
         <translation>Dieses Medium kann auch während der Ausführung gewechselt werden.</translation>
     </message>
     <message>
-        <source>&lt;b&gt;No media available&lt;/b&gt;</source>
+        <source>&lt;b&gt;No disk image files available&lt;/b&gt;</source>
         <comment>medium</comment>
         <translation>&lt;b&gt;Kein Medium verfügbar&lt;/b&gt;</translation>
-    </message>
-    <message>
-        <source>You can create media images using the virtual media manager.</source>
-        <translation>Sie können Medienabbilder im Manager für virtuelle Medien erzeugen.</translation>
     </message>
     <message>
         <source>Attaching this hard disk will be performed indirectly using a newly created differencing hard disk.</source>
@@ -6136,7 +6853,7 @@
         <translation>Diese Festplatte wird indirekt mittels einer neu erzeugten Differenzdatei angeschlossen.</translation>
     </message>
     <message>
-        <source>Some of the media in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these media.</source>
+        <source>Some of the files in this hard disk chain are inaccessible. Please use the Virtual Media Manager in &lt;b&gt;Show Differencing Hard Disks&lt;/b&gt; mode to inspect these files.</source>
         <comment>medium</comment>
         <translation>Einige der zu dieser virtuellen Festplatte gehörigen Dateien sind nicht zugreifbar. Bitte verwenden Sie den Manager für virtuelle Medien im Modus &lt;b&gt;Zeige Differenz-Abbilder&lt;/b&gt; um diese Dateien anzuzeigen.</translation>
     </message>
@@ -6207,16 +6924,6 @@
         <translation></translation>
     </message>
     <message>
-        <source>Enabled</source>
-        <comment>nested paging</comment>
-        <translation>aktiviert</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>nested paging</comment>
-        <translation>deaktiviert</translation>
-    </message>
-    <message>
         <source>Nested Paging</source>
         <translation>Nested Paging</translation>
     </message>
@@ -6256,11 +6963,6 @@
         <translation>Unbekanntes Gerät</translation>
     </message>
     <message>
-        <source>SAS Port %1</source>
-        <comment>New Storage UI : Slot Name</comment>
-        <translation>SAS-Port %1</translation>
-    </message>
-    <message>
         <source>Fault Tolerant Syncing</source>
         <comment>MachineState</comment>
         <translation>Fault-Tolerance Sync</translation>
@@ -6268,7 +6970,7 @@
     <message>
         <source>Unlocked</source>
         <comment>SessionState</comment>
-        <translation>entsperrt</translation>
+        <translation>nicht gesperrt</translation>
     </message>
     <message>
         <source>Locked</source>
@@ -6286,21 +6988,6 @@
         <translation></translation>
     </message>
     <message>
-        <source>UDP</source>
-        <comment>NATProtocolType</comment>
-        <translation>UDP</translation>
-    </message>
-    <message>
-        <source>TCP</source>
-        <comment>NATProtocolType</comment>
-        <translation>TCP</translation>
-    </message>
-    <message>
-        <source>MB</source>
-        <comment>size suffix MBytes=1024KBytes</comment>
-        <translation>MB</translation>
-    </message>
-    <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
         <translation>Port für Fernsteuerung</translation>
@@ -6314,34 +7001,6 @@
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
         <translation>deaktiviert</translation>
-    </message>
-    <message>
-        <source>Choose a virtual hard disk file</source>
-        <translation>Wählen Sie ein virtuelles Plattenabbild</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <translation>Platten</translation>
-    </message>
-    <message>
-        <source>Choose a virtual CD/DVD disk file</source>
-        <translation>Datei für virtuelles CD/DVD-Medium auswählen</translation>
-    </message>
-    <message>
-        <source>CD/DVD-ROM disk</source>
-        <translation>CD/DVD-ROM</translation>
-    </message>
-    <message>
-        <source>Choose a virtual floppy disk file</source>
-        <translation>Wählen Sie ein virtuelles Diskettenabbild</translation>
-    </message>
-    <message>
-        <source>floppy disk</source>
-        <translation>Disketten</translation>
-    </message>
-    <message>
-        <source>All %1 images (%2)</source>
-        <translation>Alle %1-Abbilder (%2)</translation>
     </message>
     <message>
         <source>All files (*)</source>
@@ -6373,37 +7032,6 @@
         <translation>ICH9</translation>
     </message>
     <message>
-        <source>Deny</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>verweigern (deny)</translation>
-    </message>
-    <message>
-        <source>Allow VMs</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>erlauben für alle VMs</translation>
-    </message>
-    <message>
-        <source>Allow All</source>
-        <comment>NetworkAdapterPromiscModePolicyType</comment>
-        <translation>erlauben für allen VMs und den Host</translation>
-    </message>
-    <message>
-        <source>Dynamically allocated storage</source>
-        <translation>dynamisch belegt</translation>
-    </message>
-    <message>
-        <source>Fixed size storage</source>
-        <translation>feste Größe</translation>
-    </message>
-    <message>
-        <source>Dynamically allocated storage split into files of less than 2GB</source>
-        <translation>dynamisch belegt mit Dateien kleiner als 2GB</translation>
-    </message>
-    <message>
-        <source>Fixed size storage split into files of less than 2GB</source>
-        <translation>Dateien mit fester Größe kleiner als 2GB</translation>
-    </message>
-    <message>
         <source>Execution Cap</source>
         <comment>details report</comment>
         <translation>CPU-Begrenzung</translation>
@@ -6426,6 +7054,356 @@
     <message>
         <source>Adapter %1</source>
         <translation>Adapter %1</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>DragAndDropType</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>Host To Guest</source>
+        <comment>DragAndDropType</comment>
+        <translation>Host zu Gast</translation>
+    </message>
+    <message>
+        <source>Guest To Host</source>
+        <comment>DragAndDropType</comment>
+        <translation>Gast zu Host</translation>
+    </message>
+    <message>
+        <source>Bidirectional</source>
+        <comment>DragAndDropType</comment>
+        <translation>bidirektional</translation>
+    </message>
+    <message>
+        <source>Normal</source>
+        <comment>MediumType</comment>
+        <translation>normal</translation>
+    </message>
+    <message>
+        <source>Immutable</source>
+        <comment>MediumType</comment>
+        <translation>nicht veränderlich</translation>
+    </message>
+    <message>
+        <source>Writethrough</source>
+        <comment>MediumType</comment>
+        <translation>durchschreibend</translation>
+    </message>
+    <message>
+        <source>Shareable</source>
+        <comment>MediumType</comment>
+        <translation>gemeinsam benutzbar</translation>
+    </message>
+    <message>
+        <source>Readonly</source>
+        <comment>MediumType</comment>
+        <translation>nur lesbar</translation>
+    </message>
+    <message>
+        <source>Multi-attach</source>
+        <comment>MediumType</comment>
+        <translation>mehrfach anschließbar</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt mit differentieller Speicherung</translation>
+    </message>
+    <message>
+        <source>Fixed size storage</source>
+        <comment>MediumVariant</comment>
+        <translation>feste Größe</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt mit Dateien kleiner als 2GB</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt mit differentieller Speicherung mit Dateien kleiner als 2GB</translation>
+    </message>
+    <message>
+        <source>Fixed size storage split into files of less than 2GB</source>
+        <comment>MediumVariant</comment>
+        <translation>Dateien mit fester Größe kleiner als 2GB</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt und komprimiert</translation>
+    </message>
+    <message>
+        <source>Dynamically allocated differencing compressed storage</source>
+        <comment>MediumVariant</comment>
+        <translation>dynamisch belegt und differentiell komprimiert gespeichert</translation>
+    </message>
+    <message>
+        <source>Fixed size ESX storage</source>
+        <comment>MediumVariant</comment>
+        <translation>ESX-Storage mit fester Größe</translation>
+    </message>
+    <message>
+        <source>Fixed size storage on raw disk</source>
+        <comment>MediumVariant</comment>
+        <translation>feste Größe auf Festplatte</translation>
+    </message>
+    <message>
+        <source>Deny</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>verweigern (deny)</translation>
+    </message>
+    <message>
+        <source>Allow VMs</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>erlauben für alle VMs</translation>
+    </message>
+    <message>
+        <source>Allow All</source>
+        <comment>NetworkAdapterPromiscModePolicy</comment>
+        <translation>erlauben für allen VMs und den Host</translation>
+    </message>
+    <message>
+        <source>Ignore</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation>Ignorieren</translation>
+    </message>
+    <message>
+        <source>Hold</source>
+        <comment>USBDeviceFilterAction</comment>
+        <translation>Halten</translation>
+    </message>
+    <message>
+        <source>UDP</source>
+        <comment>NATProtocol</comment>
+        <translation>UDP</translation>
+    </message>
+    <message>
+        <source>TCP</source>
+        <comment>NATProtocol</comment>
+        <translation>TCP</translation>
+    </message>
+    <message>
+        <source>IDE Primary Master</source>
+        <comment>StorageSlot</comment>
+        <translation>Primärer Master</translation>
+    </message>
+    <message>
+        <source>IDE Primary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation>Primärer Slave</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Master</source>
+        <comment>StorageSlot</comment>
+        <translation>Sekundärer Master</translation>
+    </message>
+    <message>
+        <source>IDE Secondary Slave</source>
+        <comment>StorageSlot</comment>
+        <translation>Sekundärer Slave</translation>
+    </message>
+    <message>
+        <source>SATA Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SATA-Port %1</translation>
+    </message>
+    <message>
+        <source>SCSI Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SCSI-Port %1</translation>
+    </message>
+    <message>
+        <source>SAS Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation>SAS-Port %1</translation>
+    </message>
+    <message>
+        <source>Floppy Device %1</source>
+        <comment>StorageSlot</comment>
+        <translation>Diskettenlaufwerk %1</translation>
+    </message>
+    <message>
+        <source>General</source>
+        <comment>DetailsElementType</comment>
+        <translation>Allgemein</translation>
+    </message>
+    <message>
+        <source>Preview</source>
+        <comment>DetailsElementType</comment>
+        <translation>Vorschau</translation>
+    </message>
+    <message>
+        <source>System</source>
+        <comment>DetailsElementType</comment>
+        <translation>System</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>DetailsElementType</comment>
+        <translation>Anzeige</translation>
+    </message>
+    <message>
+        <source>Storage</source>
+        <comment>DetailsElementType</comment>
+        <translation>Massenspeicher</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>DetailsElementType</comment>
+        <translation>Audio</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>DetailsElementType</comment>
+        <translation>Netzwerk</translation>
+    </message>
+    <message>
+        <source>Serial ports</source>
+        <comment>DetailsElementType</comment>
+        <translation>Serielle Schnittstellen</translation>
+    </message>
+    <message>
+        <source>Parallel ports</source>
+        <comment>DetailsElementType</comment>
+        <translation>Parallel-Ports</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>DetailsElementType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared folders</source>
+        <comment>DetailsElementType</comment>
+        <translation>Gemeinsame Ordner</translation>
+    </message>
+    <message>
+        <source>Description</source>
+        <comment>DetailsElementType</comment>
+        <translation>Beschreibung</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual hard drive file</source>
+        <translation>Bitte wählen Sie eine Datei für die virtuelle Festplatte aus</translation>
+    </message>
+    <message>
+        <source>All virtual hard drive files (%1)</source>
+        <translation>Alle Dateien für virtuelle Festplatten (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual optical disk file</source>
+        <translation>Bitte wählen Sie eine Datei für ein virtuelles optisches Medium</translation>
+    </message>
+    <message>
+        <source>All virtual optical disk files (%1)</source>
+        <translation>Alle Dateien für virtuelle optische Medien (%1)</translation>
+    </message>
+    <message>
+        <source>Please choose a virtual floppy disk file</source>
+        <translation>Bitte wählen Sie eine Datei für virtuelle die Diskette</translation>
+    </message>
+    <message>
+        <source>All virtual floppy disk files (%1)</source>
+        <translation>Alle Dateien für virtuelle Disketten (%1)</translation>
+    </message>
+    <message>
+        <source>VDI (VirtualBox Disk Image)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>VMDK (Virtual Machine Disk)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>VHD (Virtual Hard Disk)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>HDD (Parallels Hard Disk)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>QED (QEMU enhanced disk)</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>QCOW (QEMU Copy-On-Write)</source>
+        <translation>QCOW (QEMU Copy-on-Write)</translation>
+    </message>
+    <message>
+        <source>Please choose a location for new virtual hard drive file</source>
+        <translation>Bitte wählen Sie einen Dateinamen für die neue virtuelle Festplatte</translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>DiskType</comment>
+        <translation>differentiell</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation>aktiviert</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>details report (Unrestricted Execution)</comment>
+        <translation>deaktiviert</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <comment>details report</comment>
+        <translation>Unrestricted Execution</translation>
+    </message>
+    <message>
+        <source>PS/2 Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation>PS/2-Maus</translation>
+    </message>
+    <message>
+        <source>USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation>USB-Maus</translation>
+    </message>
+    <message>
+        <source>PS/2 and USB Mouse</source>
+        <comment>PointingHIDType</comment>
+        <translation>PS/2- und USB-Maus</translation>
+    </message>
+    <message>
+        <source>Unrestricted Execution</source>
+        <translation>Unrestricted Execution</translation>
+    </message>
+    <message>
+        <source>USB Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation>USB-Tablet</translation>
+    </message>
+    <message>
+        <source>USB Multi-Touch Tablet</source>
+        <comment>PointingHIDType</comment>
+        <translation>USB-Multitouch-Tablet</translation>
+    </message>
+    <message>
+        <source>NAT Network</source>
+        <comment>NetworkAttachmentType</comment>
+        <translation>NAT-Netzwerk</translation>
+    </message>
+    <message>
+        <source>NAT network, &apos;%1&apos;</source>
+        <comment>details report (network)</comment>
+        <translation>NAT-Netzwerk, &apos;%1&apos;</translation>
+    </message>
+    <message>
+        <source>You can create or add disk image files in the virtual machine settings.</source>
+        <translation>Sie können Medienabbilder in den VM-Einstellungen erzeugen oder hinzufügen.</translation>
     </message>
 </context>
 <context>
@@ -6459,61 +7437,10 @@
     </message>
 </context>
 <context>
-    <name>VBoxLogSearchPanel</name>
-    <message>
-        <source>Close the search panel</source>
-        <translation>Schließt das Suchfeld</translation>
-    </message>
-    <message>
-        <source>Find </source>
-        <translation>Suche</translation>
-    </message>
-    <message>
-        <source>Enter a search string here</source>
-        <translation>Geben Sie den Suchtext hier ein</translation>
-    </message>
-    <message>
-        <source>&amp;Previous</source>
-        <translation>&amp;Rückwärts</translation>
-    </message>
-    <message>
-        <source>Search for the previous occurrence of the string</source>
-        <translation>Durchsucht den Text rückwärts</translation>
-    </message>
-    <message>
-        <source>&amp;Next</source>
-        <translation>&amp;Vorwärts</translation>
-    </message>
-    <message>
-        <source>Search for the next occurrence of the string</source>
-        <translation>Durchsucht den Text vorwärts</translation>
-    </message>
-    <message>
-        <source>C&amp;ase Sensitive</source>
-        <translation>Unterscheidet &amp;Groß- und Kleinschreibung</translation>
-    </message>
-    <message>
-        <source>Perform case sensitive search (when checked)</source>
-        <translation>Groß- und Kleinschreibung berücksichtigen (wenn ausgewählt) oder ignorieren</translation>
-    </message>
-    <message>
-        <source>String not found</source>
-        <translation>Suchtext nicht gefunden</translation>
-    </message>
-</context>
-<context>
     <name>VBoxMediaManagerDlg</name>
     <message>
         <source>&amp;Actions</source>
         <translation>&amp;Aktionen</translation>
-    </message>
-    <message>
-        <source>&amp;New...</source>
-        <translation>&amp;Neu...</translation>
-    </message>
-    <message>
-        <source>&amp;Add...</source>
-        <translation>&amp;Hinzufügen...</translation>
     </message>
     <message>
         <source>R&amp;emove</source>
@@ -6528,48 +7455,20 @@
         <translation>&amp;Aktualisieren</translation>
     </message>
     <message>
-        <source>Create a new virtual hard disk</source>
-        <translation>Erstellt eine neue virtuelle Festplatte</translation>
-    </message>
-    <message>
-        <source>Add an existing medium</source>
-        <translation>Vorhandenes Medium hinzufügen</translation>
-    </message>
-    <message>
-        <source>Remove the selected medium</source>
+        <source>Remove the selected disk image file</source>
         <translation>Ausgewähltes Medium entfernen</translation>
     </message>
     <message>
-        <source>Release the selected medium by detaching it from the machines</source>
+        <source>Release the selected disk image file by detaching it from the machines</source>
         <translation>Löst die Bindung des ausgewählten Medium an alle virtuellen Maschinen</translation>
     </message>
     <message>
-        <source>Refresh the media list</source>
+        <source>Refresh the list of disk image files</source>
         <translation>Aktualisiert die Medienliste</translation>
     </message>
     <message>
         <source>Checking accessibility</source>
         <translation>Überprüfe Zugriffsrecht</translation>
-    </message>
-    <message>
-        <source>&amp;Select</source>
-        <translation>&amp;Auswählen</translation>
-    </message>
-    <message>
-        <source>All files (*)</source>
-        <translation>Alle Dateien (*)</translation>
-    </message>
-    <message>
-        <source>Select a hard disk image file</source>
-        <translation>Wählen Sie ein Plattenabbild aus</translation>
-    </message>
-    <message>
-        <source>Select a CD/DVD-ROM disk image file</source>
-        <translation>Wählen Sie ein CD/DVD-ROM-Abbild aus</translation>
-    </message>
-    <message>
-        <source>Select a floppy disk image file</source>
-        <translation>Wählen Sie ein Diskettenabbild aus</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
@@ -6585,10 +7484,6 @@
         <translation>Manager für virtuelle Medien</translation>
     </message>
     <message>
-        <source>Hard &amp;Disks</source>
-        <translation>&amp;Festplatten</translation>
-    </message>
-    <message>
         <source>Name</source>
         <translation>Name</translation>
     </message>
@@ -6601,32 +7496,8 @@
         <translation>Größe</translation>
     </message>
     <message>
-        <source>&amp;CD/DVD Images</source>
-        <translation>&amp;CD/DVD-Abbilder</translation>
-    </message>
-    <message>
         <source>Size</source>
         <translation>Größe</translation>
-    </message>
-    <message>
-        <source>&amp;Floppy Images</source>
-        <translation>&amp;Diskettenabbilder</translation>
-    </message>
-    <message>
-        <source>CD/DVD-ROM disk</source>
-        <translation>CD/DVD-ROM</translation>
-    </message>
-    <message>
-        <source>hard disk</source>
-        <translation>Die Festplatte</translation>
-    </message>
-    <message>
-        <source>floppy disk</source>
-        <translation>Diskette</translation>
-    </message>
-    <message>
-        <source>All %1 images (%2)</source>
-        <translation>Alle %1-Abbilder (%2)</translation>
     </message>
     <message>
         <source>Type:</source>
@@ -6653,7 +7524,7 @@
         <translation>&amp;Kopieren...</translation>
     </message>
     <message>
-        <source>Copy an existing medium</source>
+        <source>Copy an existing disk image file</source>
         <translation>Erstellt eine Kopie des Medium</translation>
     </message>
     <message>
@@ -6661,50 +7532,8 @@
         <translation>&amp;Ändern...</translation>
     </message>
     <message>
-        <source>Modify the attributes of the selected medium</source>
+        <source>Modify the attributes of the selected disk image file</source>
         <translation>Ändert die Attribute des ausgewählten Mediums</translation>
-    </message>
-    <message>
-        <source>C&amp;lose</source>
-        <translation>&amp;Schließen</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxMiniToolBar</name>
-    <message>
-        <source>Always show the toolbar</source>
-        <translation>Toolbar immer zeigen</translation>
-    </message>
-    <message>
-        <source>Exit Full Screen or Seamless Mode</source>
-        <translation>Vollbildmodus bzw. nahtlosen Modus verlassen</translation>
-    </message>
-    <message>
-        <source>Close VM</source>
-        <translation>VM beenden</translation>
-    </message>
-    <message>
-        <source>Minimize Window</source>
-        <translation>Anwendung minimieren</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxOSTypeSelectorWidget</name>
-    <message>
-        <source>Operating &amp;System:</source>
-        <translation>&amp;Betriebssystem:</translation>
-    </message>
-    <message>
-        <source>Displays the operating system family that you plan to install into this virtual machine.</source>
-        <translation>Zeigt die Familie des Betriebssystems, das Sie in dieser virtuellen Maschine installieren wollen.</translation>
-    </message>
-    <message>
-        <source>Displays the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
-        <translation>Zeigt den Typ des Betriebssystems, das Sie in der virtuellen Maschine installieren wollen (auch als Gast bezeichnet).</translation>
-    </message>
-    <message>
-        <source>&amp;Version:</source>
-        <translation>&amp;Version:</translation>
     </message>
 </context>
 <context>
@@ -6720,230 +7549,6 @@
     <message>
         <source>Click to view scaled screenshot.</source>
         <translation>Klicken für skalierten Screenshot.</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxSelectorWnd</name>
-    <message>
-        <source>&amp;Preferences...</source>
-        <comment>global settings</comment>
-        <translation>&amp;Globale Einstellungen...</translation>
-    </message>
-    <message>
-        <source>Display the global settings dialog</source>
-        <translation>Zeigt den Dialog für globale Einstellungen</translation>
-    </message>
-    <message>
-        <source>E&amp;xit</source>
-        <translation>B&amp;eenden</translation>
-    </message>
-    <message>
-        <source>Close application</source>
-        <translation>Anwendung schließen</translation>
-    </message>
-    <message>
-        <source>&amp;New...</source>
-        <translation>&amp;Neu...</translation>
-    </message>
-    <message>
-        <source>Create a new virtual machine</source>
-        <translation>Neue virtuelle Maschine erzeugen</translation>
-    </message>
-    <message>
-        <source>&amp;Settings...</source>
-        <translation>Änd&amp;ern...</translation>
-    </message>
-    <message>
-        <source>Configure the selected virtual machine</source>
-        <translation>Einstellungen der ausgewählten virtuellen Maschine ändern</translation>
-    </message>
-    <message>
-        <source>Discard the saved state of the selected virtual machine</source>
-        <translation>Verwirft den gesicherten Zustand der ausgewählten virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>Refresh the accessibility state of the selected virtual machine</source>
-        <translation>Aktualisiert den Zustand der ausgewählten virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>S&amp;how</source>
-        <translation>&amp;Zeigen</translation>
-    </message>
-    <message>
-        <source>Switch to the window of the selected virtual machine</source>
-        <translation>Wechselt zum Fenster der ausgewählten virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>S&amp;tart</source>
-        <translation>&amp;Starten</translation>
-    </message>
-    <message>
-        <source>Start the selected virtual machine</source>
-        <translation>Starten der virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>&amp;Machine</source>
-        <translation>&amp;Maschine</translation>
-    </message>
-    <message>
-        <source>Show &amp;Log...</source>
-        <translation>Zeige &amp;Log...</translation>
-    </message>
-    <message>
-        <source>Show the log files of the selected virtual machine</source>
-        <translation>Zeigt die Log-Dateien der ausgewählten virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>Resume the execution of the virtual machine</source>
-        <translation>Fährt mit der Ausführung der virtuellen Maschine fort</translation>
-    </message>
-    <message>
-        <source>&amp;Pause</source>
-        <translation>&amp;Pause</translation>
-    </message>
-    <message>
-        <source>Suspend the execution of the virtual machine</source>
-        <translation>Suspendiert die Ausführung der virtuellen Maschine</translation>
-    </message>
-    <message>
-        <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Willkommen zu VirtualBox!&lt;/h3&gt;&lt;p&gt;Der linke Teil dieses Fensters zeigt eine Liste aller virtuellen Maschinen auf Ihrem Computer. Diese Liste ist momentan leer, da Sie noch keine virtuelle Maschine erstellt haben.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Um eine virtuelle Maschine anzulegen, wählen Sie &lt;b&gt;Neu&lt;/b&gt; in der Symbolleiste am oberen Rand des Fensters.&lt;/p&gt;&lt;p&gt;Die Taste &lt;b&gt;%1&lt;/b&gt; öffnet das Hilfefenster. Für aktuelle Produktinformationen aus dem Internet öffnen Sie &lt;a href=http://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt;.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&amp;Virtual Media Manager...</source>
-        <translation>Manager für virtuelle &amp;Medien...</translation>
-    </message>
-    <message>
-        <source>Display the Virtual Media Manager dialog</source>
-        <translation>Zeigt den Manager für virtuelle Medien</translation>
-    </message>
-    <message>
-        <source>Log</source>
-        <comment>icon text</comment>
-        <translation>Loggen</translation>
-    </message>
-    <message>
-        <source>&amp;Import Appliance...</source>
-        <translation>Appliance &amp;importieren ...</translation>
-    </message>
-    <message>
-        <source>Import an appliance into VirtualBox</source>
-        <translation>Importiert eine Appliance in VirtualBox</translation>
-    </message>
-    <message>
-        <source>&amp;Export Appliance...</source>
-        <translation>Appliance &amp;exportieren ...</translation>
-    </message>
-    <message>
-        <source>Export one or more VirtualBox virtual machines as an appliance</source>
-        <translation>Exportiert eine Appliance aus VirtualBox</translation>
-    </message>
-    <message>
-        <source>Re&amp;fresh</source>
-        <translation>&amp;Aktualisieren</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Mac OS X version</comment>
-        <translation>&amp;Ablage</translation>
-    </message>
-    <message>
-        <source>&amp;File</source>
-        <comment>Non Mac OS X version</comment>
-        <translation>&amp;Datei</translation>
-    </message>
-    <message>
-        <source>Show Toolbar</source>
-        <translation>Toolbar zeigen</translation>
-    </message>
-    <message>
-        <source>Show Statusbar</source>
-        <translation>Statusleiste-Zeigen</translation>
-    </message>
-    <message>
-        <source>Select a virtual machine file</source>
-        <translation>Virtuelle-Maschinen-Datei auswählen</translation>
-    </message>
-    <message>
-        <source>Virtual machine files (%1)</source>
-        <translation>Virtuelle-Maschinen-Dateien (%1)</translation>
-    </message>
-    <message>
-        <source>&amp;Add...</source>
-        <translation>&amp;Hinzufügen...</translation>
-    </message>
-    <message>
-        <source>Add an existing virtual machine</source>
-        <translation>Fügt eine existierende virtuelle Maschine hinzu</translation>
-    </message>
-    <message>
-        <source>&amp;Remove</source>
-        <translation>&amp;Entfernen</translation>
-    </message>
-    <message>
-        <source>Remove the selected virtual machine</source>
-        <translation>Entfernt die ausgewählte virtuelle Maschine</translation>
-    </message>
-    <message>
-        <source>Show in Finder</source>
-        <translation>Im Finder zeigen</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Finder.</source>
-        <translation>Zeigt die VirtualBox-VM-Definition im Finder.</translation>
-    </message>
-    <message>
-        <source>Create Alias on Desktop</source>
-        <translation>Alias auf dem Desktop erzeugen</translation>
-    </message>
-    <message>
-        <source>Creates an Alias file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Erzeugt einen Alias für die VirtualBox-VM-Definition auf Ihrem Desktop.</translation>
-    </message>
-    <message>
-        <source>Show in Explorer</source>
-        <translation>Im Explorer zeigen</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in Explorer.</source>
-        <translation>Zeigt die VirtualBox-VM-Definition im Explorer.</translation>
-    </message>
-    <message>
-        <source>Create Shortcut on Desktop</source>
-        <translation>Desktop-Verknüpfung</translation>
-    </message>
-    <message>
-        <source>Creates an Shortcut file to the VirtualBox Machine Definition file on your Desktop.</source>
-        <translation>Erzeugt eine Verknüfung auf die VirtualBox-VM auf Ihrem Destkop.</translation>
-    </message>
-    <message>
-        <source>Show in File Manager</source>
-        <translation>Im Dateimanager zeigen</translation>
-    </message>
-    <message>
-        <source>Show the VirtualBox Machine Definition file in the File Manager</source>
-        <translation>Zeigt die VirtualBox-VM-Definition im Dateimanager</translation>
-    </message>
-    <message>
-        <source>Manager</source>
-        <comment>Note: main window title which is pretended by the product name.</comment>
-        <translation>Manager</translation>
-    </message>
-    <message>
-        <source>Discard</source>
-        <translation>Verwerfen</translation>
-    </message>
-    <message>
-        <source>D&amp;iscard Saved State</source>
-        <translation>&amp;Verwerfen</translation>
-    </message>
-    <message>
-        <source>Clone the selected virtual machine</source>
-        <translation>Die ausgewählte virtuelle Maschine klonen</translation>
-    </message>
-    <message>
-        <source>Cl&amp;one...</source>
-        <translation>&amp;Klonen...</translation>
     </message>
 </context>
 <context>
@@ -7041,7 +7646,7 @@
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation>Erzeugt einen Sicherungspunkt der aktuellen virtuellen Maschine</translation>
+        <translation>Sicherungspunkt des aktuellen VM-Zustands erstellen</translation>
     </message>
     <message>
         <source>Show the details of the selected snapshot</source>
@@ -7078,17 +7683,6 @@
     <message>
         <source>Clone the selected virtual machine</source>
         <translation>Die ausgewählte virtuelle Maschine klonen</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxSwitchMenu</name>
-    <message>
-        <source>Disable</source>
-        <translation>Deaktivieren</translation>
-    </message>
-    <message>
-        <source>Enable</source>
-        <translation>Aktivieren</translation>
     </message>
 </context>
 <context>
@@ -7130,15 +7724,7 @@
     <name>VBoxVMInformationDlg</name>
     <message>
         <source>%1 - Session Information</source>
-        <translation>%1 - Session-Informationen</translation>
-    </message>
-    <message>
-        <source>&amp;Details</source>
-        <translation>&amp;Basis</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime</source>
-        <translation>&amp;Laufzeit</translation>
+        <translation>%1 - Sitzungsinformationen</translation>
     </message>
     <message>
         <source>DMA Transfers</source>
@@ -7215,40 +7801,21 @@
         <comment>details report (VRDE server port)</comment>
         <translation>nicht verfügbar</translation>
     </message>
-</context>
-<context>
-    <name>VBoxVMLogViewer</name>
     <message>
-        <source>Log Viewer</source>
-        <translation>Log-Anzeige</translation>
+        <source>Clipboard Mode</source>
+        <translation>Gemeinsame Zwischenablage</translation>
     </message>
     <message>
-        <source>&amp;Save</source>
-        <translation>&amp;Sichern</translation>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation>Drag&apos;n&apos;Drop</translation>
     </message>
     <message>
-        <source>&amp;Refresh</source>
-        <translation>&amp;Aktualisieren</translation>
+        <source>Configuration &amp;Details</source>
+        <translation>&amp;Konfiguration</translation>
     </message>
     <message>
-        <source>%1 - VirtualBox Log Viewer</source>
-        <translation>%1 - VirtualBox Log-Anzeige</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Keine Log-Dateien gefunden. Klicken Sie auf &lt;b&gt;Aktualisieren&lt;/b&gt;, um erneut im Ordner &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; zu suchen.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Save VirtualBox Log As</source>
-        <translation>VirtualBox Log-Datei sichern als</translation>
-    </message>
-    <message>
-        <source>&amp;Find</source>
-        <translation>&amp;Suche</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation>Schließen</translation>
+        <source>&amp;Runtime Information</source>
+        <translation>&amp;Laufzeit</translation>
     </message>
 </context>
 </TS>

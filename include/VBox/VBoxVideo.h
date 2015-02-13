@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,10 +26,11 @@
 #ifndef ___VBox_VBoxVideo_h
 #define ___VBox_VBoxVideo_h
 
+#include <VBox/VMMDev.h>
+#include <VBox/Hardware/VBoxVideoVBE.h>
+
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
-
-#include <VBox/VMMDev.h>
 
 /*
  * The last 4096 bytes of the guest VRAM contains the generic info for all
@@ -79,8 +80,6 @@
 
 #define VBOX_VIDEO_PRIMARY_SCREEN 0
 #define VBOX_VIDEO_NO_SCREEN ~0
-
-#define VBOX_VIDEO_MAX_SCREENS 64
 
 /* The size of the information. */
 /*
@@ -850,7 +849,18 @@ typedef struct VBVABUFFER
 # define VBVA_VDMA_CTL   10 /* setup G<->H DMA channel info */
 # define VBVA_VDMA_CMD    11 /* G->H DMA command             */
 #endif
-#define VBVA_INFO_CAPS   12 /* informs host about HGSMI caps. see _VBVACAPS below */
+#define VBVA_INFO_CAPS   12 /* informs host about HGSMI caps. see VBVACAPS below */
+#define VBVA_SCANLINE_CFG    13 /* configures scanline, see VBVASCANLINECFG below */
+#define VBVA_SCANLINE_INFO   14 /* requests scanline info, see VBVASCANLINEINFO below */
+#define VBVA_CMDVBVA_SUBMIT  16 /* inform host about VBVA Command submission */
+#define VBVA_CMDVBVA_FLUSH   17 /* inform host about VBVA Command submission */
+#define VBVA_CMDVBVA_CTL     18 /* G->H DMA command             */
+#define VBVA_QUERY_MODE_HINTS 19 /* Query most recent mode hints sent. */
+/** Report the guest virtual desktop position and size for mapping host and
+ * guest pointer positions. */
+#define VBVA_REPORT_INPUT_MAPPING 20
+/** Report the guest cursor position and query the host position. */
+#define VBVA_CURSOR_POSITION 21
 
 /* host->guest commands */
 #define VBVAHG_EVENT              1
@@ -906,6 +916,16 @@ typedef struct VBVAHOSTCMD
 /* VBVACONF32::u32Index */
 #define VBOX_VBVA_CONF32_MONITOR_COUNT  0
 #define VBOX_VBVA_CONF32_HOST_HEAP_SIZE 1
+/** Returns VINF_SUCCESS if the host can report mode hints via VBVA.
+ * Set value to VERR_NOT_SUPPORTED before calling. */
+#define VBOX_VBVA_CONF32_MODE_HINT_REPORTING  2
+/** Returns VINF_SUCCESS if the host can receive guest cursor information via
+ * VBVA.  Set value to VERR_NOT_SUPPORTED before calling. */
+#define VBOX_VBVA_CONF32_GUEST_CURSOR_REPORTING  3
+/** Returns the currently available host cursor capabilities.  Available if
+ * VBVACONF32::VBOX_VBVA_CONF32_GUEST_CURSOR_REPORTING returns success.
+ * @see VMMDevReqMouseStatus::mouseFeatures. */
+#define VBOX_VBVA_CONF32_CURSOR_CAPABILITIES  4
 
 typedef struct VBVACONF32
 {
@@ -943,6 +963,20 @@ typedef struct VBVAFLUSH
     uint32_t u32Reserved;
 
 } VBVAFLUSH;
+
+typedef struct VBVACMDVBVASUBMIT
+{
+    uint32_t u32Reserved;
+} VBVACMDVBVASUBMIT;
+
+/* flush is requested because due to guest command buffer overflow */
+#define VBVACMDVBVAFLUSH_F_GUEST_BUFFER_OVERFLOW 1
+
+typedef struct VBVACMDVBVAFLUSH
+{
+    uint32_t u32Flags;
+} VBVACMDVBVAFLUSH;
+
 
 /* VBVAINFOSCREEN::u8Flags */
 #define VBVA_SCREEN_F_NONE     0x0000
@@ -1058,11 +1092,98 @@ typedef struct VBVAMOUSEPOINTERSHAPE
 #define VBVACAPS_COMPLETEGCMD_BY_IOREAD 0x00000001
 /* the guest driver can handle video adapter IRQs */
 #define VBVACAPS_IRQ                    0x00000002
+/** The guest can read video mode hints sent via VBVA. */
+#define VBVACAPS_VIDEO_MODE_HINTS       0x00000004
+/** The guest can switch to a software cursor on demand. */
+#define VBVACAPS_DISABLE_CURSOR_INTEGRATION 0x00000008
 typedef struct VBVACAPS
 {
     int32_t rc;
     uint32_t fCaps;
 } VBVACAPS;
+
+/* makes graphics device generate IRQ on VSYNC */
+#define VBVASCANLINECFG_ENABLE_VSYNC_IRQ        0x00000001
+/* guest driver may request the current scanline */
+#define VBVASCANLINECFG_ENABLE_SCANLINE_INFO    0x00000002
+/* request the current refresh period, returned in u32RefreshPeriodMs */
+#define VBVASCANLINECFG_QUERY_REFRESH_PERIOD    0x00000004
+/* set new refresh period specified in u32RefreshPeriodMs.
+ * if used with VBVASCANLINECFG_QUERY_REFRESH_PERIOD,
+ * u32RefreshPeriodMs is set to the previous refresh period on return */
+#define VBVASCANLINECFG_SET_REFRESH_PERIOD      0x00000008
+
+typedef struct VBVASCANLINECFG
+{
+    int32_t rc;
+    uint32_t fFlags;
+    uint32_t u32RefreshPeriodMs;
+    uint32_t u32Reserved;
+} VBVASCANLINECFG;
+
+typedef struct VBVASCANLINEINFO
+{
+    int32_t rc;
+    uint32_t u32ScreenId;
+    uint32_t u32InVBlank;
+    uint32_t u32ScanLine;
+} VBVASCANLINEINFO;
+
+/** Query the most recent mode hints received from the host. */
+typedef struct VBVAQUERYMODEHINTS
+{
+    /** The maximum number of screens to return hints for. */
+    uint16_t cHintsQueried;
+    /** The size of the mode hint structures directly following this one. */
+    uint16_t cbHintStructureGuest;
+    /** The return code for the operation.  Initialise to VERR_NOT_SUPPORTED. */
+    int32_t  rc;
+} VBVAQUERYMODEHINTS;
+
+/** Structure in which a mode hint is returned.  The guest allocates an array
+ *  of these immediately after the VBVAQUERYMODEHINTS structure.  To accomodate
+ *  future extensions, the VBVAQUERYMODEHINTS structure specifies the size of
+ *  the VBVAMODEHINT structures allocated by the guest, and the host only fills
+ *  out structure elements which fit into that size.  The host should fill any
+ *  unused members (e.g. dx, dy) or structure space on the end with ~0.  The
+ *  whole structure can legally be set to ~0 to skip a screen. */
+typedef struct VBVAMODEHINT
+{
+    uint32_t magic;
+    uint32_t cx;
+    uint32_t cy;
+    uint32_t cBPP;  /* Which has never been used... */
+    uint32_t cDisplay;
+    uint32_t dx;  /**< X offset into the virtual frame-buffer. */
+    uint32_t dy;  /**< Y offset into the virtual frame-buffer. */
+    uint32_t fEnabled;  /* Not fFlags.  Add new members for new flags. */
+} VBVAMODEHINT;
+
+#define VBVAMODEHINT_MAGIC UINT32_C(0x0801add9)
+
+/** Report the rectangle relative to which absolute pointer events should be
+ *  expressed.  This information remains valid until the next VBVA resize event
+ *  for any screen, at which time it is reset to the bounding rectangle of all
+ *  virtual screens. 
+ *  @see VBVA_REPORT_INPUT_MAPPING. */
+typedef struct VBVAREPORTINPUTMAPPING
+{
+    int32_t x;    /**< Upper left X co-ordinate relative to the first screen. */
+    int32_t y;    /**< Upper left Y co-ordinate relative to the first screen. */
+    uint32_t cx;  /**< Rectangle width. */
+    uint32_t cy;  /**< Rectangle height. */
+} VBVAREPORTINPUTMAPPING;
+
+/** Report the guest cursor position and query the host one.  The host may wish
+ *  to use the guest information to re-position its own cursor (though this is
+ *  currently unlikely).
+ *  @see VBVA_CURSOR_POSITION */
+typedef struct VBVACURSORPOSITION
+{
+    uint32_t fReportPosition;  /**< Are we reporting a position? */
+    uint32_t x;                /**< Guest cursor X position */
+    uint32_t y;                /**< Guest cursor Y position */
+} VBVACURSORPOSITION;
 
 #pragma pack()
 
@@ -1154,7 +1275,8 @@ typedef enum
     VBOXVDMA_CTL_TYPE_NONE = 0,
     VBOXVDMA_CTL_TYPE_ENABLE,
     VBOXVDMA_CTL_TYPE_DISABLE,
-    VBOXVDMA_CTL_TYPE_FLUSH
+    VBOXVDMA_CTL_TYPE_FLUSH,
+    VBOXVDMA_CTL_TYPE_WATCHDOG
 } VBOXVDMA_CTL_TYPE;
 
 typedef struct VBOXVDMA_CTL
@@ -1368,14 +1490,13 @@ typedef struct VBOXVDMACMD_CHILD_STATUS_IRQ
 # pragma pack()
 #endif /* #ifdef VBOX_WITH_VDMA */
 
-#ifdef VBOX_WITH_CRHGSMI
-# pragma pack(1)
+#pragma pack(1)
 typedef struct VBOXVDMACMD_CHROMIUM_BUFFER
 {
     VBOXVIDEOOFFSET offBuffer;
     uint32_t cbBuffer;
-    uint32_t u32GuesData;
-    uint64_t u64GuesData;
+    uint32_t u32GuestData;
+    uint64_t u64GuestData;
 } VBOXVDMACMD_CHROMIUM_BUFFER, *PVBOXVDMACMD_CHROMIUM_BUFFER;
 
 typedef struct VBOXVDMACMD_CHROMIUM_CMD
@@ -1391,8 +1512,9 @@ typedef enum
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP,
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_BEGIN,
     VBOXVDMACMD_CHROMIUM_CTL_TYPE_SAVESTATE_END,
-    VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_COMPLETION,
-    VBOXVDMACMD_CHROMIUM_CTL_TYPE_SIZEHACK = 0xfffffffe
+    VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRHGSMI_SETUP_MAINCB,
+    VBOXVDMACMD_CHROMIUM_CTL_TYPE_CRCONNECT,
+    VBOXVDMACMD_CHROMIUM_CTL_TYPE_SIZEHACK = 0x7fffffff
 } VBOXVDMACMD_CHROMIUM_CTL_TYPE;
 
 typedef struct VBOXVDMACMD_CHROMIUM_CTL
@@ -1401,29 +1523,470 @@ typedef struct VBOXVDMACMD_CHROMIUM_CTL
     uint32_t cbCmd;
 } VBOXVDMACMD_CHROMIUM_CTL, *PVBOXVDMACMD_CHROMIUM_CTL;
 
-typedef struct VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP
-{
-    VBOXVDMACMD_CHROMIUM_CTL Hdr;
-    union
-    {
-        void *pvVRamBase;
-        uint64_t uAlignment;
-    };
-    uint64_t cbVRam;
-} VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP, *PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP;
 
 typedef struct PDMIDISPLAYVBVACALLBACKS *HCRHGSMICMDCOMPLETION;
 typedef DECLCALLBACK(int) FNCRHGSMICMDCOMPLETION(HCRHGSMICMDCOMPLETION hCompletion, PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc);
 typedef FNCRHGSMICMDCOMPLETION *PFNCRHGSMICMDCOMPLETION;
 
-typedef struct VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION
+/* tells whether 3D backend has some 3D overlay data displayed */
+typedef DECLCALLBACK(bool) FNCROGLHASDATA(void);
+typedef FNCROGLHASDATA *PFNCROGLHASDATA;
+
+/* same as PFNCROGLHASDATA, but for specific screen */
+typedef DECLCALLBACK(bool) FNCROGLHASDATAFORSCREEN(uint32_t i32ScreenID);
+typedef FNCROGLHASDATAFORSCREEN *PFNCROGLHASDATAFORSCREEN;
+
+/* callbacks chrogl gives to main */
+typedef struct CR_MAIN_INTERFACE
+{
+    PFNCROGLHASDATA pfnHasData;
+    PFNCROGLHASDATAFORSCREEN pfnHasDataForScreen;
+} CR_MAIN_INTERFACE;
+
+typedef struct VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB
 {
     VBOXVDMACMD_CHROMIUM_CTL Hdr;
+    /*in*/
     HCRHGSMICMDCOMPLETION hCompletion;
     PFNCRHGSMICMDCOMPLETION pfnCompletion;
-} VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION, *PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_COMPLETION;
-# pragma pack()
+    /*out*/
+    CR_MAIN_INTERFACE MainInterface;
+} VBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB, *PVBOXVDMACMD_CHROMIUM_CTL_CRHGSMI_SETUP_MAINCB;
+
+typedef struct VBOXCRCON_SERVER *HVBOXCRCON_SERVER;
+typedef struct PDMIDISPLAYVBVACALLBACKS* HVBOXCRCON_CLIENT;
+
+typedef struct VBOXCRCON_3DRGN_CLIENT* HVBOXCRCON_3DRGN_CLIENT;
+typedef struct VBOXCRCON_3DRGN_ASYNCCLIENT* HVBOXCRCON_3DRGN_ASYNCCLIENT;
+
+/* server callbacks */
+/* submit chromium cmd */
+typedef DECLCALLBACK(int) FNVBOXCRCON_SVR_CRCMD(HVBOXCRCON_SERVER hServer, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd);
+typedef FNVBOXCRCON_SVR_CRCMD *PFNVBOXCRCON_SVR_CRCMD;
+
+/* submit chromium control cmd */
+typedef DECLCALLBACK(int) FNVBOXCRCON_SVR_CRCTL(HVBOXCRCON_SERVER hServer, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCmd);
+typedef FNVBOXCRCON_SVR_CRCTL *PFNVBOXCRCON_SVR_CRCTL;
+
+/* request 3D data.
+ * The protocol is the following:
+ * 1. if there is no 3D data displayed on screen, returns VINF_EOF immediately w/o calling any PFNVBOXCRCON_3DRGN_XXX callbacks
+ * 2. otherwise calls PFNVBOXCRCON_3DRGN_ONSUBMIT, submits the "regions get" request to the CrOpenGL server to process it asynchronously and returns VINF_SUCCESS
+ * 2.a on "regions get" request processing calls PFNVBOXCRCON_3DRGN_BEGIN,
+ * 2.b then PFNVBOXCRCON_3DRGN_REPORT zero or more times for each 3D region,
+ * 2.c and then PFNVBOXCRCON_3DRGN_END
+ * 3. returns VERR_XXX code on failure
+ * */
+typedef DECLCALLBACK(int) FNVBOXCRCON_SVR_3DRGN_GET(HVBOXCRCON_SERVER hServer, HVBOXCRCON_3DRGN_CLIENT hRgnClient, uint32_t idScreen);
+typedef FNVBOXCRCON_SVR_3DRGN_GET *PFNVBOXCRCON_SVR_3DRGN_GET;
+
+/* 3D Regions Client callbacks */
+/* called from the PFNVBOXCRCON_SVR_3DRGN_GET callback in case server has 3D data and is going to process the request asynchronously,
+ * see comments for PFNVBOXCRCON_SVR_3DRGN_GET above */
+typedef DECLCALLBACK(int) FNVBOXCRCON_3DRGN_ONSUBMIT(HVBOXCRCON_3DRGN_CLIENT hRgnClient, uint32_t idScreen, HVBOXCRCON_3DRGN_ASYNCCLIENT *phRgnAsyncClient);
+typedef FNVBOXCRCON_3DRGN_ONSUBMIT *PFNVBOXCRCON_3DRGN_ONSUBMIT;
+
+/* called from the "regions get" command processing thread, to indicate that the "regions get" is started.
+ * see comments for PFNVBOXCRCON_SVR_3DRGN_GET above */
+typedef DECLCALLBACK(int) FNVBOXCRCON_3DRGN_BEGIN(HVBOXCRCON_3DRGN_ASYNCCLIENT hRgnAsyncClient, uint32_t idScreen);
+typedef FNVBOXCRCON_3DRGN_BEGIN *PFNVBOXCRCON_3DRGN_BEGIN;
+
+/* called from the "regions get" command processing thread, to report a 3D region.
+ * see comments for PFNVBOXCRCON_SVR_3DRGN_GET above */
+typedef DECLCALLBACK(int) FNVBOXCRCON_3DRGN_REPORT(HVBOXCRCON_3DRGN_ASYNCCLIENT hRgnAsyncClient, uint32_t idScreen, void *pvData, uint32_t cbStride, const RTRECT *pRect);
+typedef FNVBOXCRCON_3DRGN_REPORT *PFNVBOXCRCON_3DRGN_REPORT;
+
+/* called from the "regions get" command processing thread, to indicate that the "regions get" is completed.
+ * see comments for PFNVBOXCRCON_SVR_3DRGN_GET above */
+typedef DECLCALLBACK(int) FNVBOXCRCON_3DRGN_END(HVBOXCRCON_3DRGN_ASYNCCLIENT hRgnAsyncClient, uint32_t idScreen);
+typedef FNVBOXCRCON_3DRGN_END *PFNVBOXCRCON_3DRGN_END;
+
+
+/* client callbacks */
+/* complete chromium cmd */
+typedef DECLCALLBACK(int) FNVBOXCRCON_CLT_CRCTL_COMPLETE(HVBOXCRCON_CLIENT hClient, PVBOXVDMACMD_CHROMIUM_CTL pCtl, int rc);
+typedef FNVBOXCRCON_CLT_CRCTL_COMPLETE *PFNVBOXCRCON_CLT_CRCTL_COMPLETE;
+
+/* complete chromium control cmd */
+typedef DECLCALLBACK(int) FNVBOXCRCON_CLT_CRCMD_COMPLETE(HVBOXCRCON_CLIENT hClient, PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc);
+typedef FNVBOXCRCON_CLT_CRCMD_COMPLETE *PFNVBOXCRCON_CLT_CRCMD_COMPLETE;
+
+typedef struct VBOXCRCON_SERVER_CALLBACKS
+{
+    HVBOXCRCON_SERVER hServer;
+    PFNVBOXCRCON_SVR_CRCMD pfnCrCmd;
+    PFNVBOXCRCON_SVR_CRCTL pfnCrCtl;
+    PFNVBOXCRCON_SVR_3DRGN_GET pfn3DRgnGet;
+} VBOXCRCON_SERVER_CALLBACKS, *PVBOXCRCON_SERVER_CALLBACKS;
+
+typedef struct VBOXCRCON_CLIENT_CALLBACKS
+{
+    HVBOXCRCON_CLIENT hClient;
+    PFNVBOXCRCON_CLT_CRCMD_COMPLETE pfnCrCmdComplete;
+    PFNVBOXCRCON_CLT_CRCTL_COMPLETE pfnCrCtlComplete;
+    PFNVBOXCRCON_3DRGN_ONSUBMIT pfn3DRgnOnSubmit;
+    PFNVBOXCRCON_3DRGN_BEGIN pfn3DRgnBegin;
+    PFNVBOXCRCON_3DRGN_REPORT pfn3DRgnReport;
+    PFNVBOXCRCON_3DRGN_END pfn3DRgnEnd;
+} VBOXCRCON_CLIENT_CALLBACKS, *PVBOXCRCON_CLIENT_CALLBACKS;
+
+/* issued by Main to establish connection between Main and CrOpenGL service */
+typedef struct VBOXVDMACMD_CHROMIUM_CTL_CRCONNECT
+{
+    VBOXVDMACMD_CHROMIUM_CTL Hdr;
+    /*input (filled by Client) :*/
+    /*class VMMDev*/void *pVMMDev;
+    VBOXCRCON_CLIENT_CALLBACKS ClientCallbacks;
+    /*output (filled by Server) :*/
+    VBOXCRCON_SERVER_CALLBACKS ServerCallbacks;
+} VBOXVDMACMD_CHROMIUM_CTL_CRCONNECT, *PVBOXVDMACMD_CHROMIUM_CTL_CRCONNECT;
+
+/* ring command buffer dr */
+#define VBOXCMDVBVA_STATE_SUBMITTED   1
+#define VBOXCMDVBVA_STATE_CANCELLED   2
+#define VBOXCMDVBVA_STATE_IN_PROGRESS 3
+/* the "completed" state is signalled via the ring buffer values */
+
+/* CrHgsmi command */
+#define VBOXCMDVBVA_OPTYPE_CRCMD                        1
+/* blit command that does blitting of allocations identified by VRAM offset or host id
+ * for VRAM-offset ones the size and format are same as primary */
+#define VBOXCMDVBVA_OPTYPE_BLT                          2
+/* flip */
+#define VBOXCMDVBVA_OPTYPE_FLIP                         3
+/* ColorFill */
+#define VBOXCMDVBVA_OPTYPE_CLRFILL                      4
+/* allocation paging transfer request */
+#define VBOXCMDVBVA_OPTYPE_PAGING_TRANSFER              5
+/* allocation paging fill request */
+#define VBOXCMDVBVA_OPTYPE_PAGING_FILL                  6
+/* same as VBOXCMDVBVA_OPTYPE_NOP, but contains VBOXCMDVBVA_HDR data */
+#define VBOXCMDVBVA_OPTYPE_NOPCMD                       7
+/* actual command is stored in guest system memory */
+#define VBOXCMDVBVA_OPTYPE_SYSMEMCMD                    8
+/* complex command - i.e. can contain multiple commands
+ * i.e. the VBOXCMDVBVA_OPTYPE_COMPLEXCMD VBOXCMDVBVA_HDR is followed
+ * by one or more VBOXCMDVBVA_HDR commands.
+ * Each command's size is specified in it's VBOXCMDVBVA_HDR's u32FenceID field */
+#define VBOXCMDVBVA_OPTYPE_COMPLEXCMD                   9
+
+/* nop - is a one-bit command. The buffer size to skip is determined by VBVA buffer size */
+#define VBOXCMDVBVA_OPTYPE_NOP                          0x80
+
+/* u8Flags flags */
+/* transfer from RAM to Allocation */
+#define VBOXCMDVBVA_OPF_PAGING_TRANSFER_IN                  0x80
+
+#define VBOXCMDVBVA_OPF_BLT_TYPE_SAMEDIM_A8R8G8B8           0
+#define VBOXCMDVBVA_OPF_BLT_TYPE_GENERIC_A8R8G8B8           1
+#define VBOXCMDVBVA_OPF_BLT_TYPE_OFFPRIMSZFMT_OR_ID         2
+
+#define VBOXCMDVBVA_OPF_BLT_TYPE_MASK                       3
+
+
+#define VBOXCMDVBVA_OPF_CLRFILL_TYPE_GENERIC_A8R8G8B8       0
+
+#define VBOXCMDVBVA_OPF_CLRFILL_TYPE_MASK                   1
+
+
+/* blit direction is from first operand to second */
+#define VBOXCMDVBVA_OPF_BLT_DIR_IN_2                        0x10
+/* operand 1 contains host id */
+#define VBOXCMDVBVA_OPF_OPERAND1_ISID                       0x20
+/* operand 2 contains host id */
+#define VBOXCMDVBVA_OPF_OPERAND2_ISID                       0x40
+/* primary hint id is src */
+#define VBOXCMDVBVA_OPF_PRIMARY_HINT_SRC                    0x80
+
+/* trying to make the header as small as possible,
+ * we'd have pretty few op codes actually, so 8bit is quite enough,
+ * we will be able to extend it in any way. */
+typedef struct VBOXCMDVBVA_HDR
+{
+    /* one VBOXCMDVBVA_OPTYPE_XXX, except NOP, see comments above */
+    uint8_t u8OpCode;
+    /* command-specific
+     * VBOXCMDVBVA_OPTYPE_CRCMD                     - must be null
+     * VBOXCMDVBVA_OPTYPE_BLT                       - OR-ed VBOXCMDVBVA_OPF_ALLOC_XXX flags
+     * VBOXCMDVBVA_OPTYPE_PAGING_TRANSFER           - must be null
+     * VBOXCMDVBVA_OPTYPE_PAGING_FILL               - must be null
+     * VBOXCMDVBVA_OPTYPE_NOPCMD                    - must be null
+     * VBOXCMDVBVA_OPTYPE_NOP                       - not applicable (as the entire VBOXCMDVBVA_HDR is not valid) */
+    uint8_t u8Flags;
+    /* one of VBOXCMDVBVA_STATE_XXX*/
+    volatile uint8_t u8State;
+    union
+    {
+        /* result, 0 on success, otherwise contains the failure code TBD */
+        int8_t i8Result;
+        uint8_t u8PrimaryID;
+    } u;
+    union
+    {
+        /* complex command (VBOXCMDVBVA_OPTYPE_COMPLEXCMD) element data */
+        struct
+        {
+            /* command length */
+            uint16_t u16CbCmdHost;
+            /* guest-specific data, host expects it to be NULL */
+            uint16_t u16CbCmdGuest;
+        } complexCmdEl;
+        /* DXGK DDI fence ID */
+        uint32_t u32FenceID;
+    } u2;
+} VBOXCMDVBVA_HDR;
+
+typedef uint32_t VBOXCMDVBVAOFFSET;
+typedef uint64_t VBOXCMDVBVAPHADDR;
+typedef uint32_t VBOXCMDVBVAPAGEIDX;
+
+typedef struct VBOXCMDVBVA_CRCMD_BUFFER
+{
+    uint32_t cbBuffer;
+    VBOXCMDVBVAOFFSET offBuffer;
+} VBOXCMDVBVA_CRCMD_BUFFER;
+
+typedef struct VBOXCMDVBVA_CRCMD_CMD
+{
+    uint32_t cBuffers;
+    VBOXCMDVBVA_CRCMD_BUFFER aBuffers[1];
+} VBOXCMDVBVA_CRCMD_CMD;
+
+typedef struct VBOXCMDVBVA_CRCMD
+{
+    VBOXCMDVBVA_HDR Hdr;
+    VBOXCMDVBVA_CRCMD_CMD Cmd;
+} VBOXCMDVBVA_CRCMD;
+
+typedef struct VBOXCMDVBVA_ALLOCINFO
+{
+    union
+    {
+        VBOXCMDVBVAOFFSET offVRAM;
+        uint32_t id;
+    } u;
+} VBOXCMDVBVA_ALLOCINFO;
+
+typedef struct VBOXCMDVBVA_ALLOCDESC
+{
+    VBOXCMDVBVA_ALLOCINFO Info;
+    uint16_t u16Width;
+    uint16_t u16Height;
+} VBOXCMDVBVA_ALLOCDESC;
+
+typedef struct VBOXCMDVBVA_RECT
+{
+   /** Coordinates of affected rectangle. */
+   int16_t xLeft;
+   int16_t yTop;
+   int16_t xRight;
+   int16_t yBottom;
+} VBOXCMDVBVA_RECT;
+
+typedef struct VBOXCMDVBVA_POINT
+{
+   int16_t x;
+   int16_t y;
+} VBOXCMDVBVA_POINT;
+
+typedef struct VBOXCMDVBVA_BLT_HDR
+{
+    VBOXCMDVBVA_HDR Hdr;
+    VBOXCMDVBVA_POINT Pos;
+} VBOXCMDVBVA_BLT_HDR;
+
+typedef struct VBOXCMDVBVA_BLT_PRIMARY
+{
+    VBOXCMDVBVA_BLT_HDR Hdr;
+    VBOXCMDVBVA_ALLOCINFO alloc;
+    /* the rects count is determined from the command size */
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_BLT_PRIMARY;
+
+typedef struct VBOXCMDVBVA_BLT_PRIMARY_GENERIC_A8R8G8B8
+{
+    VBOXCMDVBVA_BLT_HDR Hdr;
+    VBOXCMDVBVA_ALLOCDESC alloc;
+    /* the rects count is determined from the command size */
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_BLT_PRIMARY_GENERIC_A8R8G8B8;
+
+typedef struct VBOXCMDVBVA_BLT_OFFPRIMSZFMT_OR_ID
+{
+    VBOXCMDVBVA_BLT_HDR Hdr;
+    VBOXCMDVBVA_ALLOCINFO alloc;
+    uint32_t id;
+    /* the rects count is determined from the command size */
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_BLT_OFFPRIMSZFMT_OR_ID;
+
+typedef struct VBOXCMDVBVA_BLT_SAMEDIM_A8R8G8B8
+{
+    VBOXCMDVBVA_BLT_HDR Hdr;
+    VBOXCMDVBVA_ALLOCDESC alloc1;
+    VBOXCMDVBVA_ALLOCINFO info2;
+    /* the rects count is determined from the command size */
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_BLT_SAMEDIM_A8R8G8B8;
+
+typedef struct VBOXCMDVBVA_BLT_GENERIC_A8R8G8B8
+{
+    VBOXCMDVBVA_BLT_HDR Hdr;
+    VBOXCMDVBVA_ALLOCDESC alloc1;
+    VBOXCMDVBVA_ALLOCDESC alloc2;
+    /* the rects count is determined from the command size */
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_BLT_GENERIC_A8R8G8B8;
+
+#define VBOXCMDVBVA_SIZEOF_BLTSTRUCT_MAX (sizeof (VBOXCMDVBVA_BLT_GENERIC_A8R8G8B8))
+
+typedef struct VBOXCMDVBVA_FLIP
+{
+    VBOXCMDVBVA_HDR Hdr;
+    VBOXCMDVBVA_ALLOCINFO src;
+} VBOXCMDVBVA_FLIP;
+
+typedef struct VBOXCMDVBVA_CLRFILL_HDR
+{
+    VBOXCMDVBVA_HDR Hdr;
+    uint32_t u32Color;
+} VBOXCMDVBVA_CLRFILL_HDR;
+
+typedef struct VBOXCMDVBVA_CLRFILL_PRIMARY
+{
+    VBOXCMDVBVA_CLRFILL_HDR Hdr;
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_CLRFILL_PRIMARY;
+
+typedef struct VBOXCMDVBVA_CLRFILL_GENERIC_A8R8G8B8
+{
+    VBOXCMDVBVA_CLRFILL_HDR Hdr;
+    VBOXCMDVBVA_ALLOCDESC dst;
+    VBOXCMDVBVA_RECT aRects[1];
+} VBOXCMDVBVA_CLRFILL_GENERIC_A8R8G8B8;
+
+#define VBOXCMDVBVA_SIZEOF_CLRFILLSTRUCT_MAX (sizeof (VBOXCMDVBVA_CLRFILL_GENERIC_A8R8G8B8))
+
+#if 0
+#define VBOXCMDVBVA_SYSMEMEL_CPAGES_MAX  0x1000
+
+typedef struct VBOXCMDVBVA_SYSMEMEL
+{
+    uint32_t cPagesAfterFirst  : 12;
+    uint32_t iPage1            : 20;
+    uint32_t iPage2;
+} VBOXCMDVBVA_SYSMEMEL;
 #endif
+
+typedef struct VBOXCMDVBVA_PAGING_TRANSFER_DATA
+{
+    /* for now can only contain offVRAM.
+     * paging transfer can NOT be initiated for allocations having host 3D object (hostID) associated */
+    VBOXCMDVBVA_ALLOCINFO Alloc;
+    VBOXCMDVBVAPAGEIDX aPageNumbers[1];
+} VBOXCMDVBVA_PAGING_TRANSFER_DATA;
+
+typedef struct VBOXCMDVBVA_PAGING_TRANSFER
+{
+    VBOXCMDVBVA_HDR Hdr;
+    VBOXCMDVBVA_PAGING_TRANSFER_DATA Data;
+} VBOXCMDVBVA_PAGING_TRANSFER;
+
+typedef struct VBOXCMDVBVA_PAGING_FILL
+{
+    VBOXCMDVBVA_HDR Hdr;
+    uint32_t u32CbFill;
+    uint32_t u32Pattern;
+    /* paging transfer can NOT be initiated for allocations having host 3D object (hostID) associated */
+    VBOXCMDVBVAOFFSET offVRAM;
+} VBOXCMDVBVA_PAGING_FILL;
+
+typedef struct VBOXCMDVBVA_SYSMEMCMD
+{
+    VBOXCMDVBVA_HDR Hdr;
+    VBOXCMDVBVAPHADDR phCmd;
+} VBOXCMDVBVA_SYSMEMCMD;
+
+#define VBOXCMDVBVACTL_TYPE_ENABLE     1
+#define VBOXCMDVBVACTL_TYPE_3DCTL      2
+#define VBOXCMDVBVACTL_TYPE_RESIZE     3
+
+typedef struct VBOXCMDVBVA_CTL
+{
+    uint32_t u32Type;
+    int32_t i32Result;
+} VBOXCMDVBVA_CTL;
+
+typedef struct VBOXCMDVBVA_CTL_ENABLE
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBVAENABLE Enable;
+} VBOXCMDVBVA_CTL_ENABLE;
+
+#define VBOXCMDVBVA_SCREENMAP_SIZE(_elType) ((VBOX_VIDEO_MAX_SCREENS + sizeof (_elType) - 1) / sizeof (_elType))
+#define VBOXCMDVBVA_SCREENMAP_DECL(_elType, _name) _elType _name[VBOXCMDVBVA_SCREENMAP_SIZE(_elType)]
+
+typedef struct VBOXCMDVBVA_RESIZE_ENTRY
+{
+    VBVAINFOSCREEN Screen;
+    VBOXCMDVBVA_SCREENMAP_DECL(uint32_t, aTargetMap);
+} VBOXCMDVBVA_RESIZE_ENTRY;
+
+typedef struct VBOXCMDVBVA_RESIZE
+{
+    VBOXCMDVBVA_RESIZE_ENTRY aEntries[1];
+} VBOXCMDVBVA_RESIZE;
+
+typedef struct VBOXCMDVBVA_CTL_RESIZE
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBOXCMDVBVA_RESIZE Resize;
+} VBOXCMDVBVA_CTL_RESIZE;
+
+#define VBOXCMDVBVA3DCTL_TYPE_CONNECT     1
+#define VBOXCMDVBVA3DCTL_TYPE_DISCONNECT  2
+#define VBOXCMDVBVA3DCTL_TYPE_CMD         3
+
+typedef struct VBOXCMDVBVA_3DCTL
+{
+    uint32_t u32Type;
+    uint32_t u32CmdClientId;
+} VBOXCMDVBVA_3DCTL;
+
+typedef struct VBOXCMDVBVA_3DCTL_CONNECT
+{
+    VBOXCMDVBVA_3DCTL Hdr;
+    uint32_t u32MajorVersion;
+    uint32_t u32MinorVersion;
+    uint64_t u64Pid;
+} VBOXCMDVBVA_3DCTL_CONNECT;
+
+typedef struct VBOXCMDVBVA_3DCTL_CMD
+{
+    VBOXCMDVBVA_3DCTL Hdr;
+    VBOXCMDVBVA_HDR Cmd;
+} VBOXCMDVBVA_3DCTL_CMD;
+
+typedef struct VBOXCMDVBVA_CTL_3DCTL_CMD
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBOXCMDVBVA_3DCTL_CMD Cmd;
+} VBOXCMDVBVA_CTL_3DCTL_CMD;
+
+typedef struct VBOXCMDVBVA_CTL_3DCTL_CONNECT
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBOXCMDVBVA_3DCTL_CONNECT Connect;
+} VBOXCMDVBVA_CTL_3DCTL_CONNECT;
+
+typedef struct VBOXCMDVBVA_CTL_3DCTL
+{
+    VBOXCMDVBVA_CTL Hdr;
+    VBOXCMDVBVA_3DCTL Ctl;
+} VBOXCMDVBVA_CTL_3DCTL;
+
+#pragma pack()
+
 
 #ifdef VBOXVDMA_WITH_VBVA
 # pragma pack(1)

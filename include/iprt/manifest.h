@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -398,13 +398,13 @@ RTDECL(int) RTManifestWriteStandardToFile(RTMANIFEST hManifest, const char *pszF
 
 /**
  * Input structure for RTManifestVerify() which contains the filename & the
- * SHA1 digest.
+ * SHA1/SHA256 digest.
  */
 typedef struct RTMANIFESTTEST
 {
     /** The filename. */
     const char *pszTestFile;
-    /** The SHA1 digest of the file. */
+    /** The SHA1/SHA256 digest of the file. */
     const char *pszTestDigest;
 } RTMANIFESTTEST;
 /** Pointer to the input structure. */
@@ -427,6 +427,7 @@ typedef RTMANIFESTTEST* PRTMANIFESTTEST;
  * @param   piFailed             A index to paTests in the
  *                               VERR_MANIFEST_DIGEST_MISMATCH error case
  *                               (optional).
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerify(const char *pszManifestFile, PRTMANIFESTTEST paTests, size_t cTests, size_t *piFailed);
 
@@ -444,6 +445,7 @@ RTR3DECL(int) RTManifestVerify(const char *pszManifestFile, PRTMANIFESTTEST paTe
  *                               (optional).
  * @param   pfnProgressCallback  optional callback for the progress indication
  * @param   pvUser               user defined pointer for the callback
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerifyFiles(const char *pszManifestFile, const char * const *papszFiles, size_t cFiles, size_t *piFailed,
                                     PFNRTPROGRESS pfnProgressCallback, void *pvUser);
@@ -456,13 +458,29 @@ RTR3DECL(int) RTManifestVerifyFiles(const char *pszManifestFile, const char * co
  * @returns iprt status code.
  *
  * @param   pszManifestFile      Filename of the manifest file to create.
+ * @param   enmDigestType        The digest type (RTDIGESTTYPE_*)
  * @param   papszFiles           Array of files to create SHA1 sums for.
  * @param   cFiles               Number of entries in papszFiles.
  * @param   pfnProgressCallback  optional callback for the progress indication
  * @param   pvUser               user defined pointer for the callback
+ * @deprecated Use the RTMANIFEST based API instead.
  */
-RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * const *papszFiles, size_t cFiles,
+RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, RTDIGESTTYPE enmDigestType,
+                                   const char * const *papszFiles, size_t cFiles,
                                    PFNRTPROGRESS pfnProgressCallback, void *pvUser);
+
+/**
+ * Queries the first digest type found in the given manifest.
+ *
+ * @returns iprt status code.
+ *
+ * @param   pvBuf                Pointer to memory buffer of the manifest file.
+ * @param   cbSize               Size of the memory buffer.
+ * @param   penmDigestType       Where to return the first digest type found in
+ *                               the manifest.
+ * @deprecated Use the RTMANIFEST based API instead.
+ */
+RTR3DECL(int) RTManifestVerifyDigestType(void const *pvBuf, size_t cbSize, RTDIGESTTYPE *penmDigestType);
 
 /**
  * Verify the given SHA1 digests against the entries in the manifest file in
@@ -477,6 +495,7 @@ RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * con
  * @param   piFailed             A index to paTests in the
  *                               VERR_MANIFEST_DIGEST_MISMATCH error case
  *                               (optional).
+ * @deprecated Use the RTMANIFEST based API instead.
  */
 RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTEST paTests, size_t cTests, size_t *piFailed);
 
@@ -489,10 +508,12 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
  *
  * @param   ppvBuf               Pointer to resulting memory buffer.
  * @param   pcbSize              Pointer for the size of the memory buffer.
+ * @param   enmDigestType        Which type of digest ("SHA1", "SHA256", ...)
  * @param   paFiles              Array of file names and digests.
  * @param   cFiles               Number of entries in paFiles.
+ * @deprecated Use the RTMANIFEST based API instead.
  */
-RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, PRTMANIFESTTEST paFiles, size_t cFiles);
+RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, RTDIGESTTYPE enmDigestType, PRTMANIFESTTEST paFiles, size_t cFiles);
 
 /** @} */
 

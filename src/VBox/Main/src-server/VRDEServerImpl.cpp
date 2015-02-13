@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 
 #include <VBox/err.h>
 #include <VBox/sup.h>
+#include <VBox/com/array.h>
 
 #include <VBox/RemoteDesktop/VRDE.h>
 
@@ -72,7 +73,7 @@ void VRDEServer::FinalRelease()
  *
  *  @param aParent  Handle of the parent object.
  */
-HRESULT VRDEServer::init (Machine *aParent)
+HRESULT VRDEServer::init(Machine *aParent)
 {
     LogFlowThisFunc(("aParent=%p\n", aParent));
 
@@ -111,7 +112,7 @@ HRESULT VRDEServer::init (Machine *aParent)
  *
  *  @note Locks @a aThat object for reading.
  */
-HRESULT VRDEServer::init (Machine *aParent, VRDEServer *aThat)
+HRESULT VRDEServer::init(Machine *aParent, VRDEServer *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
@@ -124,11 +125,11 @@ HRESULT VRDEServer::init (Machine *aParent, VRDEServer *aThat)
     unconst(mParent) = aParent;
     unconst(mPeer) = aThat;
 
-    AutoCaller thatCaller (aThat);
+    AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
-    mData.share (aThat->mData);
+    mData.share(aThat->mData);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -143,7 +144,7 @@ HRESULT VRDEServer::init (Machine *aParent, VRDEServer *aThat)
  *
  *  @note Locks @a aThat object for reading.
  */
-HRESULT VRDEServer::initCopy (Machine *aParent, VRDEServer *aThat)
+HRESULT VRDEServer::initCopy(Machine *aParent, VRDEServer *aThat)
 {
     LogFlowThisFunc(("aParent=%p, aThat=%p\n", aParent, aThat));
 
@@ -156,11 +157,11 @@ HRESULT VRDEServer::initCopy (Machine *aParent, VRDEServer *aThat)
     unconst(mParent) = aParent;
     /* mPeer is left null */
 
-    AutoCaller thatCaller (aThat);
+    AutoCaller thatCaller(aThat);
     AssertComRCReturnRC(thatCaller.rc());
 
     AutoReadLock thatLock(aThat COMMA_LOCKVAL_SRC_POS);
-    mData.attachCopy (aThat->mData);
+    mData.attachCopy(aThat->mData);
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -245,7 +246,7 @@ HRESULT VRDEServer::saveSettings(settings::VRDESettings &data)
 // IVRDEServer properties
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP VRDEServer::COMGETTER(Enabled) (BOOL *aEnabled)
+STDMETHODIMP VRDEServer::COMGETTER(Enabled)(BOOL *aEnabled)
 {
     CheckComArgOutPointerValid(aEnabled);
 
@@ -257,16 +258,18 @@ STDMETHODIMP VRDEServer::COMGETTER(Enabled) (BOOL *aEnabled)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(Enabled) (BOOL aEnabled)
+STDMETHODIMP VRDEServer::COMSETTER(Enabled)(BOOL aEnabled)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* the machine can also be in saved state for this property to change */
-    AutoMutableOrSavedStateDependency adep (mParent);
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT rc = S_OK;
 
     if (mData->mEnabled != aEnabled)
     {
@@ -283,10 +286,10 @@ STDMETHODIMP VRDEServer::COMSETTER(Enabled) (BOOL aEnabled)
         /* Avoid deadlock when onVRDEServerChange eventually calls SetExtraData. */
         adep.release();
 
-        mParent->onVRDEServerChange(/* aRestart */ TRUE);
+        rc = mParent->onVRDEServerChange(/* aRestart */ TRUE);
     }
 
-    return S_OK;
+    return rc;
 }
 
 static int portParseNumber(uint16_t *pu16Port, const char *pszStart, const char *pszEnd)
@@ -373,15 +376,15 @@ static int vrdpServerVerifyPortsString(Bstr ports)
     return VINF_SUCCESS;
 }
 
-STDMETHODIMP VRDEServer::SetVRDEProperty (IN_BSTR aKey, IN_BSTR aValue)
+STDMETHODIMP VRDEServer::SetVRDEProperty(IN_BSTR aKey, IN_BSTR aValue)
 {
     LogFlowThisFunc(("\n"));
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* The machine needs to be mutable. */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     Bstr key = aKey;
@@ -392,6 +395,9 @@ STDMETHODIMP VRDEServer::SetVRDEProperty (IN_BSTR aKey, IN_BSTR aValue)
     if (key == Bstr("TCP/Ports"))
     {
         Bstr ports = aValue;
+
+        if (ports == Bstr("0"))
+            ports = VRDP_DEFAULT_PORT_STR;
 
         /* Verify the string. */
         int vrc = vrdpServerVerifyPortsString(ports);
@@ -405,10 +411,7 @@ STDMETHODIMP VRDEServer::SetVRDEProperty (IN_BSTR aKey, IN_BSTR aValue)
              * stop. There is no fool proof here.
              */
             mData.backup();
-            if (ports == Bstr("0"))
-                mData->mProperties["TCP/Ports"] = VRDP_DEFAULT_PORT_STR;
-            else
-                mData->mProperties["TCP/Ports"] = ports;
+            mData->mProperties["TCP/Ports"] = ports;
 
             /* leave the lock before informing callbacks */
             alock.release();
@@ -460,7 +463,7 @@ STDMETHODIMP VRDEServer::SetVRDEProperty (IN_BSTR aKey, IN_BSTR aValue)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::GetVRDEProperty (IN_BSTR aKey, BSTR *aValue)
+STDMETHODIMP VRDEServer::GetVRDEProperty(IN_BSTR aKey, BSTR *aValue)
 {
     CheckComArgOutPointerValid(aValue);
 
@@ -627,7 +630,7 @@ STDMETHODIMP VRDEServer::COMGETTER(VRDEProperties)(ComSafeArrayOut(BSTR, aProper
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(AuthType) (AuthType_T *aType)
+STDMETHODIMP VRDEServer::COMGETTER(AuthType)(AuthType_T *aType)
 {
     CheckComArgOutPointerValid(aType);
 
@@ -641,13 +644,13 @@ STDMETHODIMP VRDEServer::COMGETTER(AuthType) (AuthType_T *aType)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(AuthType) (AuthType_T aType)
+STDMETHODIMP VRDEServer::COMSETTER(AuthType)(AuthType_T aType)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -670,7 +673,7 @@ STDMETHODIMP VRDEServer::COMSETTER(AuthType) (AuthType_T aType)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(AuthTimeout) (ULONG *aTimeout)
+STDMETHODIMP VRDEServer::COMGETTER(AuthTimeout)(ULONG *aTimeout)
 {
     CheckComArgOutPointerValid(aTimeout);
 
@@ -684,13 +687,13 @@ STDMETHODIMP VRDEServer::COMGETTER(AuthTimeout) (ULONG *aTimeout)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(AuthTimeout) (ULONG aTimeout)
+STDMETHODIMP VRDEServer::COMSETTER(AuthTimeout)(ULONG aTimeout)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -717,7 +720,7 @@ STDMETHODIMP VRDEServer::COMSETTER(AuthTimeout) (ULONG aTimeout)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(AuthLibrary) (BSTR *aLibrary)
+STDMETHODIMP VRDEServer::COMGETTER(AuthLibrary)(BSTR *aLibrary)
 {
     CheckComArgOutPointerValid(aLibrary);
 
@@ -748,13 +751,13 @@ STDMETHODIMP VRDEServer::COMGETTER(AuthLibrary) (BSTR *aLibrary)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(AuthLibrary) (IN_BSTR aLibrary)
+STDMETHODIMP VRDEServer::COMSETTER(AuthLibrary)(IN_BSTR aLibrary)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     Bstr bstrLibrary(aLibrary);
@@ -779,8 +782,7 @@ STDMETHODIMP VRDEServer::COMSETTER(AuthLibrary) (IN_BSTR aLibrary)
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(AllowMultiConnection) (
-    BOOL *aAllowMultiConnection)
+STDMETHODIMP VRDEServer::COMGETTER(AllowMultiConnection)(BOOL *aAllowMultiConnection)
 {
     CheckComArgOutPointerValid(aAllowMultiConnection);
 
@@ -794,14 +796,13 @@ STDMETHODIMP VRDEServer::COMGETTER(AllowMultiConnection) (
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(AllowMultiConnection) (
-    BOOL aAllowMultiConnection)
+STDMETHODIMP VRDEServer::COMSETTER(AllowMultiConnection)(BOOL aAllowMultiConnection)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -824,8 +825,7 @@ STDMETHODIMP VRDEServer::COMSETTER(AllowMultiConnection) (
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(ReuseSingleConnection) (
-    BOOL *aReuseSingleConnection)
+STDMETHODIMP VRDEServer::COMGETTER(ReuseSingleConnection)(BOOL *aReuseSingleConnection)
 {
     CheckComArgOutPointerValid(aReuseSingleConnection);
 
@@ -839,14 +839,13 @@ STDMETHODIMP VRDEServer::COMGETTER(ReuseSingleConnection) (
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMSETTER(ReuseSingleConnection) (
-    BOOL aReuseSingleConnection)
+STDMETHODIMP VRDEServer::COMSETTER(ReuseSingleConnection)(BOOL aReuseSingleConnection)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    /* the machine needs to be mutable */
-    AutoMutableStateDependency adep(mParent);
+    /* the machine can also be in saved state for this property to change */
+    AutoMutableOrSavedStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -869,7 +868,7 @@ STDMETHODIMP VRDEServer::COMSETTER(ReuseSingleConnection) (
     return S_OK;
 }
 
-STDMETHODIMP VRDEServer::COMGETTER(VRDEExtPack) (BSTR *aExtPack)
+STDMETHODIMP VRDEServer::COMGETTER(VRDEExtPack)(BSTR *aExtPack)
 {
     CheckComArgOutPointerValid(aExtPack);
 
@@ -919,8 +918,8 @@ STDMETHODIMP VRDEServer::COMSETTER(VRDEExtPack)(IN_BSTR aExtPack)
     HRESULT hrc = autoCaller.rc();
     if (SUCCEEDED(hrc))
     {
-        /* the machine needs to be mutable */
-        AutoMutableStateDependency adep(mParent);
+        /* the machine can also be in saved state for this property to change */
+        AutoMutableOrSavedStateDependency adep(mParent);
         hrc = adep.rc();
         if (SUCCEEDED(hrc))
         {
@@ -994,11 +993,11 @@ void VRDEServer::commit()
 {
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid (autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.rc());
 
     /* sanity too */
-    AutoCaller peerCaller (mPeer);
-    AssertComRCReturnVoid (peerCaller.rc());
+    AutoCaller peerCaller(mPeer);
+    AssertComRCReturnVoid(peerCaller.rc());
 
     /* lock both for writing since we modify both (mPeer is "master" so locked
      * first) */
@@ -1010,7 +1009,7 @@ void VRDEServer::commit()
         if (mPeer)
         {
             /* attach new data to the peer and reshare it */
-            mPeer->mData.attach (mData);
+            mPeer->mData.attach(mData);
         }
     }
 }
@@ -1019,17 +1018,17 @@ void VRDEServer::commit()
  *  @note Locks this object for writing, together with the peer object
  *  represented by @a aThat (locked for reading).
  */
-void VRDEServer::copyFrom (VRDEServer *aThat)
+void VRDEServer::copyFrom(VRDEServer *aThat)
 {
-    AssertReturnVoid (aThat != NULL);
+    AssertReturnVoid(aThat != NULL);
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid (autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.rc());
 
     /* sanity too */
-    AutoCaller thatCaller (aThat);
-    AssertComRCReturnVoid (thatCaller.rc());
+    AutoCaller thatCaller(aThat);
+    AssertComRCReturnVoid(thatCaller.rc());
 
     /* peer is not modified, lock it for reading (aThat is "master" so locked
      * first) */
@@ -1037,6 +1036,6 @@ void VRDEServer::copyFrom (VRDEServer *aThat)
     AutoWriteLock wl(this COMMA_LOCKVAL_SRC_POS);
 
     /* this will back up current data */
-    mData.assignCopy (aThat->mData);
+    mData.assignCopy(aThat->mData);
 }
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

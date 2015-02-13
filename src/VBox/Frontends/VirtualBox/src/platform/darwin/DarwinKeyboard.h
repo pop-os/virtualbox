@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,10 @@ UInt32   DarwinKeyCodeToDarwinModifierMask(unsigned uKeyCode);
 void     DarwinDisableGlobalHotKeys(bool fDisable);
 void     DarwinGrabKeyboard(bool fGlobalHotkeys);
 void     DarwinReleaseKeyboard(void);
+
+void   * DarwinHidDevicesKeepLedsState(void);
+int      DarwinHidDevicesApplyAndReleaseLedsState(void *pState);
+void     DarwinHidDevicesBroadcastLeds(void *pState, bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
 
 RT_C_DECLS_END
 

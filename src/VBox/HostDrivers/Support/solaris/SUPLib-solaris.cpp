@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,7 @@
 
 #include <sys/fcntl.h>
 #include <sys/ioctl.h>
+#include <sys/zone.h>
 
 #include <fcntl.h>
 #include <errno.h>
@@ -59,17 +60,24 @@
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <zone.h>
 
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** Solaris device link. */
-#define DEVICE_NAME     "/dev/vboxdrv"
+/** Solaris device link - system. */
+#define DEVICE_NAME_SYS       "/devices/pseudo/vboxdrv@0:vboxdrv"
+/** Solaris device link - user. */
+#define DEVICE_NAME_USR       "/devices/pseudo/vboxdrv@0:vboxdrvu"
+/** Solaris device link - system (non-global zone). */
+#define DEVICE_NAME_SYS_ZONE  "/dev/vboxdrv"
+/** Solaris device link - user (non-global zone). */
+#define DEVICE_NAME_USR_ZONE  "/dev/vboxdrvu"
 
 
 
-int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
+int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited, bool fUnrestricted, SUPINITOP *penmWhat, PRTERRINFO pErrInfo)
 {
     /*
      * Nothing to do if pre-inited.
@@ -78,7 +86,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
         return VINF_SUCCESS;
 
     /*
-     * Open dummy files to preallocate file descriptors, see #4650.
+     * Open dummy files to preallocate file descriptors, see @bugref{4650}.
      */
     for (int i = 0; i < SUPLIB_FLT_DUMMYFILES; i++)
     {
@@ -101,7 +109,12 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
     /*
      * Try to open the device.
      */
-    int hDevice = open(DEVICE_NAME, O_RDWR, 0);
+    const char *pszDeviceNm;
+    if (getzoneid() == GLOBAL_ZONEID)
+        pszDeviceNm = fUnrestricted ? DEVICE_NAME_SYS : DEVICE_NAME_USR;
+    else
+        pszDeviceNm = fUnrestricted ? DEVICE_NAME_SYS_ZONE : DEVICE_NAME_USR_ZONE;
+    int hDevice = open(pszDeviceNm, O_RDWR, 0);
     if (hDevice < 0)
     {
         int rc;
@@ -113,7 +126,7 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
             case ENOENT:    rc = VERR_VM_DRIVER_NOT_INSTALLED; break;
             default:        rc = VERR_VM_DRIVER_OPEN_ERROR; break;
         }
-        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", DEVICE_NAME, errno, rc));
+        LogRel(("Failed to open \"%s\", errno=%d, rc=%Rrc\n", pszDeviceNm, errno, rc));
         return rc;
     }
 
@@ -133,7 +146,8 @@ int suplibOsInit(PSUPLIBDATA pThis, bool fPreInited)
         return rc;
     }
 
-    pThis->hDevice = hDevice;
+    pThis->hDevice       = hDevice;
+    pThis->fUnrestricted = fUnrestricted;
     return VINF_SUCCESS;
 }
 

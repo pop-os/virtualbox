@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2007 Oracle Corporation
+# Copyright (C) 2007-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@ SUB_DEPTH = ../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 #
-# The library.
+# The library for dynamic linking.
 #
 LIBRARIES += VBox-kStuff
 VBox-kStuff_TEMPLATE = VBOXR3
@@ -70,7 +70,28 @@ VBox-kStuff_SOURCES = \
 	iprt/kHlpString-iprt.cpp \
 	iprt/kRdrFile-iprt.cpp
 
+ifdef VBOX_WITH_32_ON_64_MAIN_API # 32-bit edition.
+ LIBRARIES += VBox-kStuff-x86
+ VBox-kStuff-x86_TEMPLATE = VBoxR3Dll-x86
+ VBox-kStuff-x86_EXTENDS = VBox-kStuff
+endif
+
+#
+# The library for static linking.
+#
+LIBRARIES += VBox-kStuffStatic
+VBox-kStuffStatic_TEMPLATE = VBoxR3Static
+VBox-kStuffStatic_EXTENDS = VBox-kStuff
+
+
+LIBRARIES += VBox-kStuffStaticBldProg
+VBox-kStuffStaticBldProg_TEMPLATE = VBoxBldProg
+VBox-kStuffStaticBldProg_EXTENDS = VBox-kStuff
+
+
+#
 # Generate the error constants.
+#
 $$(VBox-kStuff_0_OUTDIR)/kErrNameConsts.h: \
 		$(PATH_SUB_CURRENT)/kStuff/include/k/kErrors.h \
 		$(MAKEFILE_CURRENT) \
@@ -84,5 +105,5 @@ $$(VBox-kStuff_0_OUTDIR)/kErrNameConsts.h: \
 		--output $@ \
 		$<
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

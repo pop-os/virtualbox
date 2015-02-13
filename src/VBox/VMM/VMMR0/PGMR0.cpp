@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,13 +59,13 @@
  * @retval  VINF_SUCCESS on success. FF cleared.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory. The FF is set in this case.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
  */
-VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
 {
     PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
 
@@ -168,19 +168,51 @@ VMMR0DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
 
 
 /**
+ * Flushes any changes pending in the handy page array.
+ *
+ * It is very important that this gets done when page sharing is enabled.
+ *
+ * @returns The following VBox status codes.
+ * @retval  VINF_SUCCESS on success. FF cleared.
+ *
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
+ *
+ * @remarks Must be called from within the PGM critical section.
+ */
+VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu)
+{
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
+
+    /*
+     * Try allocate a full set of handy pages.
+     */
+    uint32_t iFirst = pVM->pgm.s.cHandyPages;
+    AssertReturn(iFirst <= RT_ELEMENTS(pVM->pgm.s.aHandyPages), VERR_PGM_HANDY_PAGE_IPE);
+    uint32_t cPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages) - iFirst;
+    if (!cPages)
+        return VINF_SUCCESS;
+    int rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, cPages, 0, &pVM->pgm.s.aHandyPages[iFirst]);
+
+    LogFlow(("PGMR0PhysFlushHandyPages: cPages=%d rc=%Rrc\n", cPages, rc));
+    return rc;
+}
+
+
+/**
  * Worker function for PGMR3PhysAllocateLargeHandyPage
  *
  * @returns The following VBox status codes.
  * @retval  VINF_SUCCESS on success.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
  */
-VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
 {
     PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
     Assert(!pVM->pgm.s.cLargeHandyPages);
@@ -221,6 +253,7 @@ VMMR0DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
  */
 VMMR0_INT_DECL(int) GPciRawR0GuestPageBeginAssignments(PGVM pGVM)
 {
+    NOREF(pGVM);
     return VINF_SUCCESS;
 }
 
@@ -286,6 +319,7 @@ VMMR0_INT_DECL(int) GPciRawR0GuestPageUnassign(PGVM pGVM, RTGCPHYS GCPhys)
  */
 VMMR0_INT_DECL(int) GPciRawR0GuestPageEndAssignments(PGVM pGVM)
 {
+    NOREF(pGVM);
     return VINF_SUCCESS;
 }
 
@@ -304,6 +338,7 @@ VMMR0_INT_DECL(int) GPciRawR0GuestPageUpdate(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHY
 {
     AssertReturn(!(GCPhys & PAGE_OFFSET_MASK), VERR_INTERNAL_ERROR_4);
     AssertReturn(!(HCPhys & PAGE_OFFSET_MASK) || HCPhys == NIL_RTHCPHYS, VERR_INTERNAL_ERROR_4);
+    NOREF(pGVM);
     return VINF_SUCCESS;
 }
 
@@ -317,7 +352,7 @@ VMMR0_INT_DECL(int) GPciRawR0GuestPageUpdate(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHY
  *
  * @returns VBox status code.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
 {
@@ -375,8 +410,8 @@ VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
  * #PF Handler for nested paging.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM                 VM Handle.
- * @param   pVCpu               VMCPU Handle.
+ * @param   pVM                 Pointer to the VM.
+ * @param   pVCpu               Pointer to the VMCPU.
  * @param   enmShwPagingMode    Paging mode for the nested page tables.
  * @param   uErr                The trap error code.
  * @param   pRegFrame           Trap register frame.
@@ -446,7 +481,7 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
      *       can use existing code to build the nested page tables.
      */
     bool fLockTaken = false;
-    switch(enmShwPagingMode)
+    switch (enmShwPagingMode)
     {
         case PGMMODE_32_BIT:
             rc = PGM_BTH_NAME_32BIT_PROT(Trap0eHandler)(pVCpu, uErr, pRegFrame, GCPhysFault, &fLockTaken);
@@ -475,7 +510,10 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
 
     if (rc == VINF_PGM_SYNCPAGE_MODIFIED_PDE)
         rc = VINF_SUCCESS;
-    /* Note: hack alert for difficult to reproduce problem. */
+    /*
+     * Handle the case where we cannot interpret the instruction because we cannot get the guest physical address
+     * via its page tables, see @bugref{6043}.
+     */
     else if (   rc == VERR_PAGE_NOT_PRESENT                 /* SMP only ; disassembly might fail. */
              || rc == VERR_PAGE_TABLE_NOT_PRESENT           /* seen with UNI & SMP */
              || rc == VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT   /* seen with SMP */
@@ -499,8 +537,8 @@ VMMR0DECL(int) PGMR0Trap0eHandlerNestedPaging(PVM pVM, PVMCPU pVCpu, PGMMODE enm
  * employed for MMIO pages.
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM                 The VM Handle.
- * @param   pVCpu               The current CPU.
+ * @param   pVM                 Pointer to the VM.
+ * @param   pVCpu               Pointer to the VMCPU.
  * @param   enmShwPagingMode    Paging mode for the nested page tables.
  * @param   pRegFrame           Trap register frame.
  * @param   GCPhysFault         The fault address.

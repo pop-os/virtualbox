@@ -77,6 +77,15 @@ static const char main_key_us_intl[MAIN_LEN][2] =
 "zZ","xX","cC","vV","bB","nN","mM",",<",".>","/?","<>","\x0\x0","\x0\x0"
 };
 
+/* U.S. English, International, alternative 102nd key */
+static const char main_key_us_intl_alt102[MAIN_LEN][2] =
+{
+"PS","1!","2@","3#","4$","5%","6R","7&","8*","9(","0)","-_","=+",
+"qQ","wW","eE","rR","tT","yY","uU","iI","oO","pP","[{","]}",
+"aA","sS","dD","fF","gG","hH","jJ","kK","lL",";:","QW","\\|",
+"zZ","xX","cC","vV","bB","nN","mM",",<",".>","/?","\\|","\x0\x0","\x0\x0"
+};
+
 /* U.S. English, Dvorak */
 static const char main_key_us_dvorak[MAIN_LEN][2] =
 {
@@ -120,6 +129,15 @@ static const char main_key_us_rus[MAIN_LEN][2] =
 "\xd1\xf1","\xd7\xf7","\xc5\xe5","\xd2\xf2","\xd4\xf4","\xd9\xf9","\xd5\xf5","\xc9\xe9","\xcf\xef","\xd0\xf0","\xdb\xfb","\xdd\xfd",
 "\xc1\xe1","\xd3\xf3","\xc4\xe4","\xc6\xe6","\xc7\xe7","\xc8\xe8","\xca\xea","\xcb\xeb","\xcc\xec","\xde\xfe","\xc0\xe0","\xdc\xfc",
 "\xda\xfa","\xd8\xf8","\xc3\xe3","\xd6\xf6","\xc2\xe2","\xce\xee","\xcd\xed",",<",".>","/?","<>","\x0\x0","\x0\x0"
+};
+
+/* U.S. English, Colemak */
+static const char main_key_us_col[MAIN_LEN][2] =
+{
+"`~","1!","2@","3#","4$","5%","6^","7&","8*","9(","0)","-_","=+",
+"qQ","wW","fF","pP","gG","jJ","lL","uU","yY",";:","[{","]}",
+"aA","rR","sS","tT","dD","hH","nN","eE","iI","oO","'\"","\\|",
+"zZ","xX","cC","vV","bB","kK","mM",",<",".>","/?","-_","\x0\x0","\x0\x0"
 };
 
 /* Afghanistan */

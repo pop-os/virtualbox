@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,70 +19,95 @@
 #ifndef __UIMachineWindowFullscreen_h__
 #define __UIMachineWindowFullscreen_h__
 
-/* Global includes */
-#include <QMainWindow>
-
-/* Local includes */
-#include "QIWithRetranslateUI.h"
+/* Local includes: */
 #include "UIMachineWindow.h"
 
-/* Local forwards */
-class VBoxMiniToolBar;
+/* Forward declarations: */
+class UIRuntimeMiniToolBar;
 
-class UIMachineWindowFullscreen : public QIWithRetranslateUI2<QMainWindow>, public UIMachineWindow
+/* Fullscreen machine-window implementation: */
+class UIMachineWindowFullscreen : public UIMachineWindow
 {
     Q_OBJECT;
 
-public slots:
-
-    void sltPlaceOnScreen();
+#ifdef RT_OS_DARWIN
+signals:
+    /** Mac OS X: Notifies listener about native 'fullscreen' will be entered. */
+    void sigNotifyAboutNativeFullscreenWillEnter();
+    /** Mac OS X: Notifies listener about native 'fullscreen' entered. */
+    void sigNotifyAboutNativeFullscreenDidEnter();
+    /** Mac OS X: Notifies listener about native 'fullscreen' will be exited. */
+    void sigNotifyAboutNativeFullscreenWillExit();
+    /** Mac OS X: Notifies listener about native 'fullscreen' exited. */
+    void sigNotifyAboutNativeFullscreenDidExit();
+    /** Mac OS X: Notifies listener about native 'fullscreen' fail to enter. */
+    void sigNotifyAboutNativeFullscreenFailToEnter();
+#endif /* RT_OS_DARWIN */
 
 protected:
 
-    /* Fullscreen machine window constructor/destructor: */
+    /* Constructor: */
     UIMachineWindowFullscreen(UIMachineLogic *pMachineLogic, ulong uScreenId);
-    virtual ~UIMachineWindowFullscreen();
+
+#ifdef Q_WS_MAC
+    /** Mac OS X: Handles native notifications @a strNativeNotificationName for 'fullscreen' window. */
+    void handleNativeNotification(const QString &strNativeNotificationName);
+    /** Mac OS X: Returns whether window is in 'fullscreen' transition. */
+    bool isInFullscreenTransition() const { return m_fIsInFullscreenTransition; }
+    /** Mac OS X: Defines whether mini-toolbar should be @a fVisible. */
+    void setMiniToolbarVisible(bool fVisible);
+#endif /* Q_WS_MAC */
 
 private slots:
 
-    /* Console callback handlers: */
+    /* Session event-handlers: */
     void sltMachineStateChanged();
 
-    /* Popup main menu: */
+    /* Popup main-menu: */
     void sltPopupMainMenu();
 
-    /* Close window reimplementation: */
-    void sltTryClose();
+#ifdef RT_OS_DARWIN
+    /** Mac OS X: Commands @a pMachineWindow to enter native 'fullscreen' mode if possible. */
+    void sltEnterNativeFullscreen(UIMachineWindow *pMachineWindow);
+    /** Mac OS X: Commands @a pMachineWindow to exit native 'fullscreen' mode if possible. */
+    void sltExitNativeFullscreen(UIMachineWindow *pMachineWindow);
+#endif /* RT_OS_DARWIN */
+
+    /** Revokes keyboard-focus. */
+    void sltRevokeFocus();
 
 private:
 
-    /* Translate routine: */
-    void retranslateUi();
-
-    /* Event handlers: */
-#ifdef Q_WS_X11
-    bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
-    void closeEvent(QCloseEvent *pEvent);
-
     /* Prepare helpers: */
     void prepareMenu();
-    void prepareMiniToolBar();
-    void prepareMachineView();
-    //void loadWindowSettings() {}
+    void prepareVisualState();
+    void prepareMiniToolbar();
 
     /* Cleanup helpers: */
-    void saveWindowSettings();
-    void cleanupMachineView();
-    void cleanupMiniToolBar();
+    void cleanupMiniToolbar();
+    void cleanupVisualState();
     void cleanupMenu();
 
-    /* Update routines: */
+    /* Show stuff: */
+    void placeOnScreen();
+    void showInNecessaryMode();
+
+    /** Adjusts machine-view size to correspond current machine-window size. */
+    virtual void adjustMachineViewSize();
+
+    /* Update stuff: */
     void updateAppearanceOf(int iElement);
 
-    /* Private variables: */
+    /* Widgets: */
     QMenu *m_pMainMenu;
-    VBoxMiniToolBar *m_pMiniToolBar;
+    UIRuntimeMiniToolBar *m_pMiniToolBar;
+
+#ifdef Q_WS_MAC
+    /** Mac OS X: Reflects whether window is in 'fullscreen' transition. */
+    bool m_fIsInFullscreenTransition;
+    /** Mac OS X: Allows 'fullscreen' API access: */
+    friend class UIMachineLogicFullscreen;
+#endif /* Q_WS_MAC */
 
     /* Factory support: */
     friend class UIMachineWindow;

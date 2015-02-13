@@ -1,12 +1,10 @@
 /* $Id: SystemPropertiesImpl.cpp $ */
-
 /** @file
- *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +24,7 @@
 #include "AutoCaller.h"
 #include "Global.h"
 #include "Logging.h"
+#include "AutostartDb.h"
 
 // generated header
 #include "SchemaDefs.h"
@@ -91,12 +90,25 @@ HRESULT SystemProperties::init(VirtualBox *aParent)
     unconst(mParent) = aParent;
 
     setDefaultMachineFolder(Utf8Str::Empty);
+    setLoggingLevel(Utf8Str::Empty);
     setDefaultHardDiskFormat(Utf8Str::Empty);
 
     setVRDEAuthLibrary(Utf8Str::Empty);
     setDefaultVRDEExtPack(Utf8Str::Empty);
 
     m->ulLogHistoryCount = 3;
+
+
+    /* On Windows and OS X, HW virtualization use isn't exclusive by
+     * default so that VT-x or AMD-V can be shared with other
+     * hypervisors without requiring user intervention.
+     * NB: See also SystemProperties constructor in settings.h
+     */
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
+    m->fExclusiveHwVirt = false;
+#else
+    m->fExclusiveHwVirt = true;
+#endif
 
     HRESULT rc = S_OK;
 
@@ -314,6 +326,36 @@ STDMETHODIMP SystemProperties::COMGETTER(MaxBootPosition)(ULONG *aMaxBootPositio
 }
 
 
+STDMETHODIMP SystemProperties::COMGETTER(ExclusiveHwVirt)(BOOL *aExclusiveHwVirt)
+{
+    CheckComArgOutPointerValid(aExclusiveHwVirt);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aExclusiveHwVirt = m->fExclusiveHwVirt;
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(ExclusiveHwVirt)(BOOL aExclusiveHwVirt)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    m->fExclusiveHwVirt = !!aExclusiveHwVirt;
+    alock.release();
+
+    // VirtualBox::saveSettings() needs vbox write lock
+    AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = mParent->saveSettings();
+
+    return rc;
+}
+
 STDMETHODIMP SystemProperties::GetMaxNetworkAdapters(ChipsetType_T aChipset, ULONG *count)
 {
     CheckComArgOutPointerValid(count);
@@ -321,20 +363,10 @@ STDMETHODIMP SystemProperties::GetMaxNetworkAdapters(ChipsetType_T aChipset, ULO
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    ULONG uResult = 0;
-
     /* no need for locking, no state */
-    switch (aChipset)
-    {
-        case ChipsetType_PIIX3:
-            uResult = SchemaDefs::NetworkAdapterCount; /* == 8 */
-            break;
-        case ChipsetType_ICH9:
-            uResult = 36;
-            break;
-        default:
-            AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
-    }
+    uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
+    if (uResult == 0)
+        AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
 
     *count = uResult;
 
@@ -348,23 +380,23 @@ STDMETHODIMP SystemProperties::GetMaxNetworkAdaptersOfType(ChipsetType_T aChipse
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    ULONG uResult = 0;
-    HRESULT rc = GetMaxNetworkAdapters(aChipset, &uResult);
-    if (FAILED(rc))
-        return rc;
-
     /* no need for locking, no state */
+    uint32_t uResult = Global::getMaxNetworkAdapters(aChipset);
+    if (uResult == 0)
+        AssertMsgFailed(("Invalid chipset type %d\n", aChipset));
+
     switch (aType)
     {
         case NetworkAttachmentType_NAT:
         case NetworkAttachmentType_Internal:
+        case NetworkAttachmentType_NATNetwork:
             /* chipset default is OK */
             break;
         case NetworkAttachmentType_Bridged:
             /* Maybe use current host interface count here? */
             break;
         case NetworkAttachmentType_HostOnly:
-            uResult = 8;
+            uResult = RT_MIN(uResult, 8);
             break;
         default:
             AssertMsgFailed(("Unhandled attachment type %d\n", aType));
@@ -543,18 +575,12 @@ STDMETHODIMP SystemProperties::GetDeviceTypesForStorageBus(StorageBus_T aBus,
     {
         case StorageBus_IDE:
         case StorageBus_SATA:
+        case StorageBus_SCSI:
+        case StorageBus_SAS:
         {
             com::SafeArray<DeviceType_T> saDeviceTypes(2);
             saDeviceTypes[0] = DeviceType_DVD;
             saDeviceTypes[1] = DeviceType_HardDisk;
-            saDeviceTypes.detachTo(ComSafeArrayOutArg(aDeviceTypes));
-            break;
-        }
-        case StorageBus_SCSI:
-        case StorageBus_SAS:
-        {
-            com::SafeArray<DeviceType_T> saDeviceTypes(1);
-            saDeviceTypes[0] = DeviceType_HardDisk;
             saDeviceTypes.detachTo(ComSafeArrayOutArg(aDeviceTypes));
             break;
         }
@@ -600,6 +626,36 @@ STDMETHODIMP SystemProperties::GetDefaultIoCacheSettingForStorageController(Stor
     return S_OK;
 }
 
+STDMETHODIMP SystemProperties::GetMaxInstancesOfUSBControllerType(ChipsetType_T aChipset,
+                                                                  USBControllerType_T aType,
+                                                                  ULONG *aMaxInstances)
+{
+    NOREF(aChipset);
+    CheckComArgOutPointerValid(aMaxInstances);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    ULONG cCtrs = 0;
+
+    /* no need to lock, this is const */
+    switch (aType)
+    {
+        case USBControllerType_OHCI:
+        case USBControllerType_EHCI:
+        {
+            cCtrs = 1;
+            break;
+        }
+        default:
+            AssertMsgFailed(("Invalid bus type %d\n", aType));
+    }
+
+    *aMaxInstances = cCtrs;
+
+    return S_OK;
+}
+
 STDMETHODIMP SystemProperties::COMGETTER(DefaultMachineFolder)(BSTR *aDefaultMachineFolder)
 {
     CheckComArgOutPointerValid(aDefaultMachineFolder);
@@ -629,6 +685,44 @@ STDMETHODIMP SystemProperties::COMSETTER(DefaultMachineFolder)(IN_BSTR aDefaultM
         AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
         rc = mParent->saveSettings();
     }
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(LoggingLevel)(BSTR *aLoggingLevel)
+{
+    CheckComArgOutPointerValid(aLoggingLevel);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    Utf8Str useLoggingLevel(m->strLoggingLevel);
+    if (useLoggingLevel.isEmpty())
+        useLoggingLevel = VBOXSVC_LOG_DEFAULT;
+
+    useLoggingLevel.cloneTo(aLoggingLevel);
+    return S_OK;
+}
+
+
+STDMETHODIMP SystemProperties::COMSETTER(LoggingLevel)(IN_BSTR aLoggingLevel)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setLoggingLevel(aLoggingLevel);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+    else
+        LogRel(("Cannot set passed logging level=%ls, or the default one - Error=%Rhrc \n", aLoggingLevel, rc));
 
     return rc;
 }
@@ -929,6 +1023,120 @@ STDMETHODIMP SystemProperties::COMGETTER(DefaultAudioDriver)(AudioDriverType_T *
     return S_OK;
 }
 
+STDMETHODIMP SystemProperties::COMGETTER(AutostartDatabasePath)(BSTR *aAutostartDbPath)
+{
+    CheckComArgOutPointerValid(aAutostartDbPath);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    m->strAutostartDatabasePath.cloneTo(aAutostartDbPath);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(AutostartDatabasePath)(IN_BSTR aAutostartDbPath)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setAutostartDatabasePath(aAutostartDbPath);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(DefaultAdditionsISO)(BSTR *aDefaultAdditionsISO)
+{
+    CheckComArgOutPointerValid(aDefaultAdditionsISO);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (m->strDefaultAdditionsISO.isEmpty())
+    {
+        /* no guest additions, check if it showed up in the mean time */
+        alock.release();
+        {
+            AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
+            ErrorInfoKeeper eik;
+            (void)setDefaultAdditionsISO("");
+        }
+        alock.acquire();
+    }
+    m->strDefaultAdditionsISO.cloneTo(aDefaultAdditionsISO);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(DefaultAdditionsISO)(IN_BSTR aDefaultAdditionsISO)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    /** @todo not yet implemented, settings handling is missing */
+    ReturnComNotImplemented();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = setDefaultAdditionsISO(aDefaultAdditionsISO);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
+STDMETHODIMP SystemProperties::COMGETTER(DefaultFrontend)(BSTR *aDefaultFrontend)
+{
+    CheckComArgOutPointerValid(aDefaultFrontend);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    m->strDefaultFrontend.cloneTo(aDefaultFrontend);
+
+    return S_OK;
+}
+
+STDMETHODIMP SystemProperties::COMSETTER(DefaultFrontend)(IN_BSTR aDefaultFrontend)
+{
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    if (m->strDefaultFrontend == Utf8Str(aDefaultFrontend))
+        return S_OK;
+    HRESULT rc = setDefaultFrontend(aDefaultFrontend);
+    alock.release();
+
+    if (SUCCEEDED(rc))
+    {
+        // VirtualBox::saveSettings() needs vbox write lock
+        AutoWriteLock vboxLock(mParent COMMA_LOCKVAL_SRC_POS);
+        rc = mParent->saveSettings();
+    }
+
+    return rc;
+}
+
 // public methods only for internal purposes
 /////////////////////////////////////////////////////////////////////////////
 
@@ -944,6 +1152,9 @@ HRESULT SystemProperties::loadSettings(const settings::SystemProperties &data)
     rc = setDefaultMachineFolder(data.strDefaultMachineFolder);
     if (FAILED(rc)) return rc;
 
+    rc = setLoggingLevel(data.strLoggingLevel);
+    if (FAILED(rc)) return rc;
+
     rc = setDefaultHardDiskFormat(data.strDefaultHardDiskFormat);
     if (FAILED(rc)) return rc;
 
@@ -957,6 +1168,20 @@ HRESULT SystemProperties::loadSettings(const settings::SystemProperties &data)
     if (FAILED(rc)) return rc;
 
     m->ulLogHistoryCount = data.ulLogHistoryCount;
+    m->fExclusiveHwVirt  = data.fExclusiveHwVirt;
+
+    rc = setAutostartDatabasePath(data.strAutostartDatabasePath);
+    if (FAILED(rc)) return rc;
+
+    {
+        /* must ignore errors signalled here, because the guest additions
+         * file may not exist, and in this case keep the empty string */
+        ErrorInfoKeeper eik;
+        (void)setDefaultAdditionsISO(data.strDefaultAdditionsISO);
+    }
+
+    rc = setDefaultFrontend(data.strDefaultFrontend);
+    if (FAILED(rc)) return rc;
 
     return S_OK;
 }
@@ -996,7 +1221,7 @@ ComObjPtr<MediumFormat> SystemProperties::mediumFormat(const Utf8Str &aFormat)
     {
         /* MediumFormat is all const, no need to lock */
 
-        if ((*it)->getId().compare(aFormat, Utf8Str::CaseInsensitive) == 0)
+        if ((*it)->i_getId().compare(aFormat, Utf8Str::CaseInsensitive) == 0)
         {
             format = *it;
             break;
@@ -1029,8 +1254,8 @@ ComObjPtr<MediumFormat> SystemProperties::mediumFormatFromExtension(const Utf8St
          ++it)
     {
         /* MediumFormat is all const, no need to lock */
-        MediumFormat::StrList aFileList = (*it)->getFileExtensions();
-        for (MediumFormat::StrList::const_iterator it1 = aFileList.begin();
+        MediumFormat::StrArray aFileList = (*it)->i_getFileExtensions();
+        for (MediumFormat::StrArray::const_iterator it1 = aFileList.begin();
              it1 != aFileList.end();
              ++it1)
         {
@@ -1044,6 +1269,23 @@ ComObjPtr<MediumFormat> SystemProperties::mediumFormatFromExtension(const Utf8St
     }
 
     return format;
+}
+
+
+/**
+ * VD plugin load
+ */
+int SystemProperties::loadVDPlugin(const char *pszPluginLibrary)
+{
+    return VDPluginLoadFromFilename(pszPluginLibrary);
+}
+
+/**
+ * VD plugin unload
+ */
+int SystemProperties::unloadVDPlugin(const char *pszPluginLibrary)
+{
+    return VDPluginUnloadFromFilename(pszPluginLibrary);
 }
 
 // private methods
@@ -1099,6 +1341,31 @@ HRESULT SystemProperties::setDefaultMachineFolder(const Utf8Str &strPath)
     return S_OK;
 }
 
+HRESULT SystemProperties::setLoggingLevel(const Utf8Str &aLoggingLevel)
+{
+    Utf8Str useLoggingLevel(aLoggingLevel);
+    int rc = RTLogGroupSettings(RTLogRelDefaultInstance(), useLoggingLevel.c_str());
+    //  If failed and not the default logging level - try to use the default logging level.
+    if (RT_FAILURE(rc))
+    {
+        // If failed write message to the release log.
+        LogRel(("Cannot set passed logging level=%s Error=%Rrc \n", useLoggingLevel.c_str(), rc));
+        //  If attempted logging level not the default one then try the default one.
+        if (!useLoggingLevel.equals(VBOXSVC_LOG_DEFAULT))
+        {
+            rc = RTLogGroupSettings(RTLogRelDefaultInstance(), VBOXSVC_LOG_DEFAULT);
+            // If failed report this to the release log.
+            if (RT_FAILURE(rc))
+                LogRel(("Cannot set default logging level Error=%Rrc \n", rc));
+        }
+        // On any failure - set default level as the one to be stored.
+        useLoggingLevel = VBOXSVC_LOG_DEFAULT;
+    }
+    //  Set to passed value or if default used/attempted (even if error condition) use empty string.
+    m->strLoggingLevel = (useLoggingLevel.equals(VBOXSVC_LOG_DEFAULT) ? "" : useLoggingLevel);
+    return RT_SUCCESS(rc) ? S_OK : E_FAIL;
+}
+
 HRESULT SystemProperties::setDefaultHardDiskFormat(const Utf8Str &aFormat)
 {
     if (!aFormat.isEmpty())
@@ -1132,6 +1399,88 @@ HRESULT SystemProperties::setWebServiceAuthLibrary(const Utf8Str &aPath)
 HRESULT SystemProperties::setDefaultVRDEExtPack(const Utf8Str &aExtPack)
 {
     m->strDefaultVRDEExtPack = aExtPack;
+
+    return S_OK;
+}
+
+HRESULT SystemProperties::setAutostartDatabasePath(const Utf8Str &aPath)
+{
+    HRESULT rc = S_OK;
+    AutostartDb *autostartDb = this->mParent->getAutostartDb();
+
+    if (!aPath.isEmpty())
+    {
+        /* Update path in the autostart database. */
+        int vrc = autostartDb->setAutostartDbPath(aPath.c_str());
+        if (RT_SUCCESS(vrc))
+            m->strAutostartDatabasePath = aPath;
+        else
+            rc = setError(E_FAIL,
+                          tr("Cannot set the autostart database path (%Rrc)"),
+                          vrc);
+    }
+    else
+    {
+        int vrc = autostartDb->setAutostartDbPath(NULL);
+        if (RT_SUCCESS(vrc) || vrc == VERR_NOT_SUPPORTED)
+            m->strAutostartDatabasePath = "";
+        else
+            rc = setError(E_FAIL,
+                          tr("Deleting the autostart database path failed (%Rrc)"),
+                          vrc);
+    }
+
+    return rc;
+}
+
+HRESULT SystemProperties::setDefaultAdditionsISO(const Utf8Str &aPath)
+{
+    Utf8Str path(aPath);
+    if (path.isEmpty())
+    {
+        char strTemp[RTPATH_MAX];
+        int vrc = RTPathAppPrivateNoArch(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc1 = Utf8Str(strTemp).append("/VBoxGuestAdditions.iso");
+
+        vrc = RTPathExecDir(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc2 = Utf8Str(strTemp).append("/additions/VBoxGuestAdditions.iso");
+
+        vrc = RTPathUserHome(strTemp, sizeof(strTemp));
+        AssertRC(vrc);
+        Utf8Str strSrc3 = Utf8StrFmt("%s/VBoxGuestAdditions_%ls.iso", strTemp, VirtualBox::getVersionNormalized().raw());
+
+        /* Check the standard image locations */
+        if (RTFileExists(strSrc1.c_str()))
+            path = strSrc1;
+        else if (RTFileExists(strSrc2.c_str()))
+            path = strSrc2;
+        else if (RTFileExists(strSrc3.c_str()))
+            path = strSrc3;
+        else
+            return setError(E_FAIL,
+                            tr("Cannot determine default Guest Additions ISO location. Most likely they are not available"));
+    }
+
+    if (!RTPathStartsWithRoot(path.c_str()))
+        return setError(E_INVALIDARG,
+                        tr("Given default machine Guest Additions ISO file '%s' is not fully qualified"),
+                        path.c_str());
+
+    if (!RTFileExists(path.c_str()))
+        return setError(E_INVALIDARG,
+                        tr("Given default machine Guest Additions ISO file '%s' does not exist"),
+                        path.c_str());
+
+    m->strDefaultAdditionsISO = path;
+
+    return S_OK;
+}
+
+HRESULT SystemProperties::setDefaultFrontend(const Utf8Str &aDefaultFrontend)
+{
+    m->strDefaultFrontend = aDefaultFrontend;
 
     return S_OK;
 }

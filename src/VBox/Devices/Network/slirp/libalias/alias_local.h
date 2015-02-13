@@ -59,7 +59,7 @@
 /* XXX: LibAliasSetTarget() uses this constant. */
 #define INADDR_NONE 0xffffffff
 #endif
-#else /* !VBOX */
+#else  /* VBOX */
 # include <slirp.h>
 #endif /* VBOX */
 
@@ -178,8 +178,8 @@ struct libalias {
 #else
 #define LIBALIAS_LOCK_INIT(l)
 #define LIBALIAS_LOCK_ASSERT(l)
-#define LIBALIAS_LOCK(l)
-#define LIBALIAS_UNLOCK(l)
+#define LIBALIAS_LOCK(l) NOREF((l));
+#define LIBALIAS_UNLOCK(l) NOREF((l))
 #define LIBALIAS_LOCK_DESTROY(l)
 #endif
 

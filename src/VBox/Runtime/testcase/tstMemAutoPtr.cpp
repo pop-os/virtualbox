@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,12 +100,12 @@ void tstMemAutoPtrDestructorCounter(T *aMem)
 {
     if (aMem == NULL)
     {
-        RTPrintf("tstMemAutoPtr(%d): Destructor called with NILL handle!\n");
+        RTPrintf("tstMemAutoPtr(): Destructor called with NULL handle!\n");
         g_cErrors++;
     }
     else if (!VALID_PTR(aMem))
     {
-        RTPrintf("tstMemAutoPtr(%d): Destructor called with a bad handle %p\n", aMem);
+        RTPrintf("tstMemAutoPtr(): Destructor called with a bad handle %p\n", aMem);
         g_cErrors++;
     }
     RTMemEfFreeNP(aMem);
@@ -124,7 +124,7 @@ void *tstMemAutoPtrAllocatorNoZero(void *pvOld, size_t cbNew, const char *pszTag
 
 int main()
 {
-    RTR3Init();
+    RTR3InitExeNoArguments(0);
     RTPrintf("tstMemAutoPtr: TESTING...\n");
 
 #define CHECK_EXPR(expr) \

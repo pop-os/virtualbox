@@ -3,7 +3,7 @@
 //
 // VirtualBox ACPI
 //
-// Copyright (C) 2006-2007 Oracle Corporation
+// Copyright (C) 2006-2011 Oracle Corporation
 //
 // This file is part of VirtualBox Open Source Edition (OSE), as
 // available from http://www.virtualbox.org. This file is free software;
@@ -909,6 +909,41 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                  }
             }
 
+            // Graphics device
+            Device (GFX0)
+            {
+                Name (_ADR, 0x00020000)
+
+                Scope (\_GPE)
+                {
+                    // GPE bit 2 handler
+                    // GPE.2 must be set and SCI raised when
+                    // display information changes.
+                    Method (_L02, 0, NotSerialized)
+                    {
+                            Notify (\_SB.PCI0.GFX0, 0x81)
+                    }
+                }
+
+                Method (_DOS, 1) { }
+
+                Method (_DOD, 0, NotSerialized)
+                {
+                    Return (Package()
+                    {
+                        0x80000100
+                    })
+                }
+
+                Device (VGA)
+                {
+                    Method (_ADR, 0, Serialized)
+                    {
+                        Return (0x0100)
+                    }
+                }
+            }
+
             // HDA Audio card
             Device (HDEF)
             {
@@ -919,7 +954,7 @@ DefinitionBlock ("DSDT.aml", "DSDT", 1, "VBOX  ", "VBOXBIOS", 2)
                         "layout-id",                                                                                                                               
                         Buffer (0x04)                                                                                                                              
                         {                                                                                                                                          
-                            /* 0000 */    0x07, 0x00, 0x00, 0x00                                                                                                   
+                            /* 04 */    0x04, 0x00, 0x00, 0x00                                                                                                   
                         },                                                                                                                                         
                                                                                                                                                                    
                         "PinConfigurations",                                                                                                                       

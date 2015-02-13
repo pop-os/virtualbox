@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2005-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,61 +37,41 @@ class ATL_NO_VTABLE USBController :
 public:
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(USBController, IUSBController)
 
-    DECLARE_NOT_AGGREGATABLE (USBController)
+    DECLARE_NOT_AGGREGATABLE(USBController)
 
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(USBController)
-        VBOX_DEFAULT_INTERFACE_ENTRIES (IUSBController)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(IUSBController)
     END_COM_MAP()
 
-    DECLARE_EMPTY_CTOR_DTOR (USBController)
+    DECLARE_EMPTY_CTOR_DTOR(USBController)
 
     HRESULT FinalConstruct();
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init (Machine *aParent);
-    HRESULT init (Machine *aParent, USBController *aThat);
-    HRESULT initCopy (Machine *aParent, USBController *aThat);
+    HRESULT init(Machine *aParent, const Utf8Str &aName, USBControllerType_T enmType);
+    HRESULT init(Machine *aParent, USBController *aThat, bool fReshare = false);
+    HRESULT initCopy(Machine *aParent, USBController *aThat);
     void uninit();
 
     // IUSBController properties
-    STDMETHOD(COMGETTER(Enabled)) (BOOL *aEnabled);
-    STDMETHOD(COMSETTER(Enabled)) (BOOL aEnabled);
-    STDMETHOD(COMGETTER(EnabledEhci)) (BOOL *aEnabled);
-    STDMETHOD(COMSETTER(EnabledEhci)) (BOOL aEnabled);
-    STDMETHOD(COMGETTER(ProxyAvailable)) (BOOL *aEnabled);
-    STDMETHOD(COMGETTER(USBStandard)) (USHORT *aUSBStandard);
-    STDMETHOD(COMGETTER(DeviceFilters)) (ComSafeArrayOut (IUSBDeviceFilter *, aDevicesFilters));
-
-    // IUSBController methods
-    STDMETHOD(CreateDeviceFilter) (IN_BSTR aName, IUSBDeviceFilter **aFilter);
-    STDMETHOD(InsertDeviceFilter) (ULONG aPosition, IUSBDeviceFilter *aFilter);
-    STDMETHOD(RemoveDeviceFilter) (ULONG aPosition, IUSBDeviceFilter **aFilter);
+    STDMETHOD(COMGETTER(Name))(BSTR *aName);
+    STDMETHOD(COMGETTER(Type))(USBControllerType_T *enmType);
+    STDMETHOD(COMGETTER(USBStandard))(USHORT *aUSBStandard);
 
     // public methods only for internal purposes
 
-    HRESULT loadSettings(const settings::USBController &data);
-    HRESULT saveSettings(settings::USBController &data);
-
     void rollback();
     void commit();
-    void copyFrom (USBController *aThat);
+    void copyFrom(USBController *aThat);
+    void unshare();
 
-#ifdef VBOX_WITH_USB
-    HRESULT onDeviceFilterChange (USBDeviceFilter *aFilter,
-                                  BOOL aActiveChanged = FALSE);
+    const Utf8Str &getName() const;
+    USBControllerType_T getControllerType() const;
 
-    bool hasMatchingFilter (const ComObjPtr<HostUSBDevice> &aDevice, ULONG *aMaskedIfs);
-    bool hasMatchingFilter (IUSBDevice *aUSBDevice, ULONG *aMaskedIfs);
-
-    HRESULT notifyProxy (bool aInsertFilters);
-#endif /* VBOX_WITH_USB */
-
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
-    Machine* getMachine();
+    ComObjPtr<USBController> getPeer();
 
 private:
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,11 +19,14 @@
 #ifndef __UIMachineSettingsSF_h__
 #define __UIMachineSettingsSF_h__
 
-/* Local includes */
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsSF.gen.h"
 
-/* Local forwards */
+/* COM includes: */
+#include "CSharedFolder.h"
+
+/* Forward declarations: */
 class SFTreeViewItem;
 
 enum UISharedFolderType { MachineType, ConsoleType };
@@ -83,7 +86,7 @@ public:
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     void loadToCacheFrom(UISharedFolderType sharedFoldersType);

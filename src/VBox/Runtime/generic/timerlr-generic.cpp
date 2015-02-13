@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -122,7 +122,7 @@ RTDECL(int) RTTimerLRCreateEx(RTTIMERLR *phTimerLR, uint64_t u64NanoInterval, ui
     int rc = RTSemEventCreate(&pThis->hEvent);
     if (RT_SUCCESS(rc))
     {
-        rc = RTThreadCreate(&pThis->hThread, rtTimerLRThread, pThis, 0, RTTHREADTYPE_TIMER, RTTHREADFLAGS_WAITABLE, "TIMER");
+        rc = RTThreadCreate(&pThis->hThread, rtTimerLRThread, pThis, 0, RTTHREADTYPE_TIMER, RTTHREADFLAGS_WAITABLE, "TimerLR");
         if (RT_SUCCESS(rc))
         {
             *phTimerLR = pThis;
@@ -153,23 +153,18 @@ RTDECL(int) RTTimerLRDestroy(RTTIMERLR hTimerLR)
     AssertReturn(!pThis->fDestroyed, VERR_INVALID_HANDLE);
 
     /*
-     * If the timer is active, we just flag it to self destruct on the next tick.
-     * If it's suspended we can safely set the destroy flag and signal it.
+     * If the timer is active, we stop and destruct it in one go, to avoid
+     * unnecessary waiting for the next tick. If it's suspended we can safely
+     * set the destroy flag and signal it.
      */
     RTTHREAD hThread = pThis->hThread;
     if (!pThis->fSuspended)
-    {
         ASMAtomicWriteBool(&pThis->fSuspended, true);
-        ASMAtomicWriteBool(&pThis->fDestroyed, true);
-    }
-    else
-    {
-        ASMAtomicWriteBool(&pThis->fDestroyed, true);
-        int rc = RTSemEventSignal(pThis->hEvent);
-        if (rc == VERR_ALREADY_POSTED)
-            rc = VINF_SUCCESS;
-        AssertRC(rc);
-    }
+    ASMAtomicWriteBool(&pThis->fDestroyed, true);
+    int rc = RTSemEventSignal(pThis->hEvent);
+    if (rc == VERR_ALREADY_POSTED)
+        rc = VINF_SUCCESS;
+    AssertRC(rc);
 
     RTThreadWait(hThread, 250, NULL);
     return VINF_SUCCESS;
@@ -245,18 +240,38 @@ RTDECL(int) RTTimerLRChangeInterval(RTTIMERLR hTimerLR, uint64_t u64NanoInterval
     if (u64NanoInterval && u64NanoInterval < 100*1000*1000)
         return VERR_INVALID_PARAMETER;
 
-    uint64_t u64Now = RTTimeNanoTS();
-    ASMAtomicWriteU64(&pThis->iTick, 0);
-    ASMAtomicWriteU64(&pThis->u64StartTS, u64Now);
-    ASMAtomicWriteU64(&pThis->u64NextTS, u64Now);
-    ASMAtomicWriteU64(&pThis->u64NanoInterval, u64NanoInterval);
-    return RTSemEventSignal(pThis->hEvent);
+#if 0
+    if (!pThis->fSuspended)
+    {
+        int rc = RTTimerLRStop(hTimerLR);
+        if (RT_FAILURE(rc))
+            return rc;
+
+        ASMAtomicWriteU64(&pThis->u64NanoInterval, u64NanoInterval);
+
+        rc = RTTimerLRStart(hTimerLR, 0);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+    else
+#endif
+    {
+        uint64_t u64Now = RTTimeNanoTS();
+        ASMAtomicWriteU64(&pThis->iTick, 0);
+        ASMAtomicWriteU64(&pThis->u64StartTS, u64Now);
+        ASMAtomicWriteU64(&pThis->u64NextTS, u64Now);
+        ASMAtomicWriteU64(&pThis->u64NanoInterval, u64NanoInterval);
+        int rc = RTSemEventSignal(pThis->hEvent);
+    }
+
+    return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTTimerLRChangeInterval);
 
-static DECLCALLBACK(int) rtTimerLRThread(RTTHREAD hThread, void *pvUser)
+static DECLCALLBACK(int) rtTimerLRThread(RTTHREAD hThreadSelf, void *pvUser)
 {
     PRTTIMERLRINT pThis = (PRTTIMERLRINT)pvUser;
+    NOREF(hThreadSelf);
 
     /*
      * The loop.
@@ -298,7 +313,7 @@ static DECLCALLBACK(int) rtTimerLRThread(RTTHREAD hThread, void *pvUser)
                  *
                  * If we're more than 60 intervals behind, just skip ahead. We
                  * don't want the timer thread running wild just because the
-                 * clock changed in an unexpected way. As seen in #3611 this
+                 * clock changed in an unexpected way. As seen in @bugref{3611} this
                  * does happen during suspend/resume, but it may also happen
                  * if we're using a non-monotonic clock as time source.
                  */

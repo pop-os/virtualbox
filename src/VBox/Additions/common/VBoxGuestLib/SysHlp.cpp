@@ -1,10 +1,10 @@
-/* $Revision: 67140 $ */
+/* $Revision: 83575 $ */
 /** @file
  * VBoxGuestLibR0 - IDC with VBoxGuest and HGCM helpers.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -169,6 +169,17 @@ extern DECLVBGL(int)    VBoxGuestIDCCall (void *pvOpaque, unsigned int iCmd, voi
 RT_C_DECLS_END
 # endif
 
+bool vbglDriverIsOpened (VBGLDRIVER *pDriver)
+{
+# ifdef RT_OS_WINDOWS
+    return pDriver->pFileObject != NULL;
+# elif defined (RT_OS_OS2)
+    return pDriver->u32Session != UINT32_MAX && pDriver->u32Session != 0;
+# else
+    return pDriver->pvOpaque != NULL;
+# endif
+}
+
 int vbglDriverOpen (VBGLDRIVER *pDriver)
 {
 # ifdef RT_OS_WINDOWS
@@ -298,7 +309,13 @@ int vbglDriverIOCtl (VBGLDRIVER *pDriver, uint32_t u32Function, void *pvData, ui
     if (rc != STATUS_SUCCESS)
         Log(("vbglDriverIOCtl: ntstatus=%x\n", rc));
 
-    return NT_SUCCESS(rc)? VINF_SUCCESS: VERR_VBGL_IOCTL_FAILED;
+    if (NT_SUCCESS(rc))
+        return VINF_SUCCESS;
+    if (rc == STATUS_INVALID_PARAMETER)
+        return VERR_INVALID_PARAMETER;
+    if (rc == STATUS_INVALID_BUFFER_SIZE)
+        return VERR_OUT_OF_RANGE;
+    return VERR_VBGL_IOCTL_FAILED;
 
 # elif defined (RT_OS_OS2)
     if (    pDriver->u32Session
@@ -318,12 +335,15 @@ void vbglDriverClose (VBGLDRIVER *pDriver)
 # ifdef RT_OS_WINDOWS
     Log(("vbglDriverClose pDeviceObject=%x\n", pDriver->pDeviceObject));
     ObDereferenceObject (pDriver->pFileObject);
+    pDriver->pFileObject = NULL;
+    pDriver->pDeviceObject = NULL;
 
 # elif defined (RT_OS_OS2)
     pDriver->u32Session = 0;
 
 # else
     VBoxGuestIDCClose (pDriver->pvOpaque);
+    pDriver->pvOpaque = NULL;
 # endif
 }
 

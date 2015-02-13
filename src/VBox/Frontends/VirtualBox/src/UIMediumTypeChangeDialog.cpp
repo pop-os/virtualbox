@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,18 +17,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes: */
+/* Qt includes: */
 #include <QVBoxLayout>
 #include <QGroupBox>
 #include <QRadioButton>
 #include <QPushButton>
 
-/* Local includes: */
+/* GUI includes: */
 #include "UIMediumTypeChangeDialog.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 #include "QILabel.h"
 #include "QIDialogButtonBox.h"
+#include "UIConverter.h"
+#include "UIMedium.h"
 
 /* Constructor: */
 UIMediumTypeChangeDialog::UIMediumTypeChangeDialog(QWidget *pParent, const QString &strMediumId)
@@ -42,7 +44,7 @@ UIMediumTypeChangeDialog::UIMediumTypeChangeDialog(QWidget *pParent, const QStri
 #endif /* Q_WS_MAC */
 
     /* Search for corresponding medium: */
-    m_medium = vboxGlobal().findMedium(strMediumId).medium();
+    m_medium = vboxGlobal().medium(strMediumId).medium();
     m_oldMediumType = m_medium.GetType();
     m_newMediumType = m_oldMediumType;
 
@@ -90,7 +92,7 @@ void UIMediumTypeChangeDialog::sltAccept()
     if (!m_medium.isOk())
     {
         /* Show error message: */
-        msgCenter().cannotChangeMediumType(this, m_medium, m_oldMediumType, m_newMediumType);
+        msgCenter().cannotChangeMediumType(m_medium, m_oldMediumType, m_newMediumType, this);
         return;
     }
     /* Accept dialog with parent class method: */
@@ -111,20 +113,20 @@ void UIMediumTypeChangeDialog::retranslateUi()
     setWindowTitle(tr("Modify medium attributes"));
 
     /* Translate description: */
-    m_pLabel->setText(tr("<p>You are about to change the attributes of the virtual disk located in <b>%1</b>.</p>"
-                         "<p>Please choose one of the following medium types and press <b>%2</b> "
+    m_pLabel->setText(tr("<p>You are about to change the settings of the disk image file <b>%1</b>.</p>"
+                         "<p>Please choose one of the following modes and press <b>%2</b> "
                          "to proceed or <b>%3</b> otherwise.</p>")
                       .arg(m_medium.GetLocation())
                       .arg(VBoxGlobal::removeAccelMark(m_pButtonBox->button(QDialogButtonBox::Ok)->text()))
                       .arg(VBoxGlobal::removeAccelMark(m_pButtonBox->button(QDialogButtonBox::Cancel)->text())));
 
     /* Translate group-box: */
-    m_pGroupBox->setTitle(tr("Choose medium type:"));
+    m_pGroupBox->setTitle(tr("Choose mode:"));
 
     /* Translate radio-buttons: */
     QList<QRadioButton*> buttons = findChildren<QRadioButton*>();
     for (int i = 0; i < buttons.size(); ++i)
-        buttons[i]->setText(vboxGlobal().toString(buttons[i]->property("mediumType").value<KMediumType>()));
+        buttons[i]->setText(gpConverter->toString(buttons[i]->property("mediumType").value<KMediumType>()));
 }
 
 void UIMediumTypeChangeDialog::sltValidate()

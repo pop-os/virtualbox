@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,14 +20,21 @@
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
 # include "precomp.h"
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-/* Qt includes */
+
+/* Qt includes: */
 #include <QString>
 #include <QRegExp>
 #include <QVariant>
 
+/* GUI includes: */
+#include "UIDefs.h"
 #include "VBoxGlobalSettings.h"
-#include "UIHotKeyEditor.h"
-#include "COMDefs.h"
+#include "UIHostComboEditor.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CVirtualBox.h"
+
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /** @class VBoxGlobalSettingsData
@@ -54,7 +61,6 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData()
     maxGuestRes = "auto";
     remapScancodes = QString::null;
     proxySettings = QString::null;
-    trayIconEnabled = false;
     presentationModeEnabled = false;
     hostScreenSaverDisabled = false;
 }
@@ -68,7 +74,6 @@ VBoxGlobalSettingsData::VBoxGlobalSettingsData (const VBoxGlobalSettingsData &th
     maxGuestRes = that.maxGuestRes;
     remapScancodes = that.remapScancodes;
     proxySettings = that.proxySettings;
-    trayIconEnabled = that.trayIconEnabled;
     presentationModeEnabled = that.presentationModeEnabled;
     hostScreenSaverDisabled = that.hostScreenSaverDisabled;
 }
@@ -87,7 +92,6 @@ bool VBoxGlobalSettingsData::operator== (const VBoxGlobalSettingsData &that) con
          maxGuestRes == that.maxGuestRes &&
          remapScancodes == that.remapScancodes &&
          proxySettings == that.proxySettings &&
-         trayIconEnabled == that.trayIconEnabled &&
          presentationModeEnabled == that.presentationModeEnabled &&
          hostScreenSaverDisabled == that.hostScreenSaverDisabled
         );
@@ -118,16 +122,15 @@ gPropertyMap[] =
     { "GUI/MaxGuestResolution",                    "maxGuestRes",             "\\d*[1-9]\\d*,\\d*[1-9]\\d*|any|auto", true },
     { "GUI/RemapScancodes",                        "remapScancodes",          "(\\d+=\\d+,)*\\d+=\\d+", true },
     { "GUI/ProxySettings",                         "proxySettings",           "[\\s\\S]*", true },
-    { "GUI/TrayIcon/Enabled",                      "trayIconEnabled",         "true|false", true },
 #ifdef Q_WS_MAC
-    { VBoxDefs::GUI_PresentationModeEnabled,       "presentationModeEnabled", "true|false", true },
+    { GUI_PresentationModeEnabled,                 "presentationModeEnabled", "true|false", true },
 #endif /* Q_WS_MAC */
     { "GUI/HostScreenSaverDisabled",               "hostScreenSaverDisabled", "true|false", true }
 };
 
 void VBoxGlobalSettings::setHostCombo (const QString &hostCombo)
 {
-    if (!UIHotKeyCombination::isValidKeyCombo (hostCombo))
+    if (!UIHostCombo::isValidKeyCombo (hostCombo))
     {
         last_err = tr ("'%1' is an invalid host-combination code-sequence.").arg (hostCombo);
         return;

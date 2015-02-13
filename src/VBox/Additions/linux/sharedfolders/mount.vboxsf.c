@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -465,6 +465,8 @@ main (int argc, char **argv)
         flags |= MS_NOEXEC;
     if (opts.nodev)
         flags |= MS_NODEV;
+    if (opts.remount)
+        flags |= MS_REMOUNT;
 
     mntinf.uid   = opts.uid;
     mntinf.gid   = opts.gid;

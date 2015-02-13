@@ -1,10 +1,9 @@
 /** @file
- *
  * VirtualBox Appliance private data definitions
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +20,7 @@
 class VirtualSystemDescription;
 
 #include "ovfreader.h"
+#include <map>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -47,10 +47,13 @@ struct LocationInfo
 struct Appliance::Data
 {
     enum ApplianceState { ApplianceIdle, ApplianceImporting, ApplianceExporting };
+    enum digest_T {SHA1, SHA256};
 
     Data()
       : state(ApplianceIdle)
       , fManifest(true)
+      , fSha256(false)
+      , fExportISOImages(false)
       , pReader(NULL)
       , ulWeightForXmlOperation(0)
       , ulWeightForManifestOperation(0)
@@ -72,7 +75,13 @@ struct Appliance::Data
 
     LocationInfo        locInfo;        // location info for the currently processed OVF
     bool                fManifest;      // Create a manifest file on export
-    RTCList<ImportOptions_T> optList;
+    bool                fSha256;        // true = SHA256 (OVF 2.0), false = SHA1 (OVF 1.0)
+    Utf8Str             strOVFSHADigest;//SHA digest of OVf file. It is stored here after reading OVF file (before import)
+
+    bool                fExportISOImages;// when 1 the ISO images are exported
+
+    RTCList<ImportOptions_T> optListImport;
+    RTCList<ExportOptions_T> optListExport;
 
     ovf::OVFReader      *pReader;
 
@@ -85,7 +94,6 @@ struct Appliance::Data
     ULONG               ulWeightForManifestOperation;
     ULONG               ulTotalDisksMB;
     ULONG               cDisks;
-    Utf8Str             strOVFSHA1Digest;
 
     std::list<Guid>     llGuidsMachinesCreated;
 };
@@ -113,7 +121,7 @@ struct Appliance::TaskOVF
         taskType(aType),
         locInfo(aLocInfo),
         pProgress(aProgress),
-        enFormat(unspecified),
+        enFormat(ovf::OVFVersion_unknown),
         rc(S_OK)
     {}
 
@@ -126,7 +134,7 @@ struct Appliance::TaskOVF
     const LocationInfo locInfo;
     ComObjPtr<Progress> pProgress;
 
-    OVFFormat enFormat;
+    ovf::OVFVersion_T enFormat;
 
     HRESULT rc;
 };
@@ -219,22 +227,25 @@ struct VirtualSystemDescription::Data
 
 void convertCIMOSType2VBoxOSType(Utf8Str &strType, ovf::CIMOSType_T c, const Utf8Str &cStr);
 
-ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVbox);
+ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVBox, BOOL fLongMode);
 
 Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type);
 
-typedef struct SHA1STORAGE
+
+typedef struct SHASTORAGE
 {
     PVDINTERFACE pVDImageIfaces;
     bool         fCreateDigest;
+    bool         fSha256;        /* false = SHA1 (OVF 1.x), true = SHA256 (OVF 2.0) */
     Utf8Str      strDigest;
-} SHA1STORAGE, *PSHA1STORAGE;
+} SHASTORAGE, *PSHASTORAGE;
 
-PVDINTERFACEIO Sha1CreateInterface();
+PVDINTERFACEIO ShaCreateInterface();
 PVDINTERFACEIO FileCreateInterface();
 PVDINTERFACEIO TarCreateInterface();
-int Sha1ReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pCallbacks, void *pvUser);
-int Sha1WriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pCallbacks, void *pvUser);
-
-#endif // ____H_APPLIANCEIMPLPRIVATE
+int ShaReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser);
+int ShaWriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser);
+int decompressImageAndSave(const char *pcszFullFilenameIn, const char *pcszFullFilenameOut, PVDINTERFACEIO pIfIo, void *pvUser);
+int copyFileAndCalcShaDigest(const char *pcszSourceFilename, const char *pcszTargetFilename, PVDINTERFACEIO pIfIo, void *pvUser);
+#endif // !____H_APPLIANCEIMPLPRIVATE
 

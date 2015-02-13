@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QHeaderView>
+#include <QHelpEvent>
+#include <QToolTip>
 
-/* Local includes */
+/* GUI includes: */
 #include "QIWidgetValidator.h"
 #include "UIIconPool.h"
 #include "VBoxGlobal.h"
@@ -28,15 +30,115 @@
 #include "UIToolBar.h"
 #include "UIMachineSettingsUSB.h"
 #include "UIMachineSettingsUSBFilterDetails.h"
-#include "VBoxDefs.h"
+#include "UIConverter.h"
 
-/* Using declarations: */
-using namespace VBoxGlobalDefs;
+/* COM includes: */
+#include "CConsole.h"
+#include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
+#include "CUSBDevice.h"
+#include "CUSBDeviceFilter.h"
+#include "CHostUSBDevice.h"
+#include "CHostUSBDeviceFilter.h"
+#include "CExtPackManager.h"
+#include "CExtPack.h"
 
-UIMachineSettingsUSB::UIMachineSettingsUSB(UISettingsPageType type)
-    : UISettingsPage(type)
-    , mValidator(0)
-    , m_pToolBar(0)
+/**
+ *  USB popup menu class.
+ *  This class provides the list of USB devices attached to the host.
+ */
+class VBoxUSBMenu : public QMenu
+{
+    Q_OBJECT;
+
+public:
+
+    /* Constructor: */
+    VBoxUSBMenu(QWidget *)
+    {
+        connect(this, SIGNAL(aboutToShow()), this, SLOT(processAboutToShow()));
+    }
+
+    /* Returns USB device related to passed action: */
+    const CUSBDevice& getUSB(QAction *pAction)
+    {
+        return m_usbDeviceMap[pAction];
+    }
+
+    /* Console setter: */
+    void setConsole(const CConsole &console)
+    {
+        m_console = console;
+    }
+
+private slots:
+
+    /* Prepare menu appearance: */
+    void processAboutToShow()
+    {
+        clear();
+        m_usbDeviceMap.clear();
+
+        CHost host = vboxGlobal().host();
+
+        bool fIsUSBEmpty = host.GetUSBDevices().size() == 0;
+        if (fIsUSBEmpty)
+        {
+            QAction *pAction = addAction(tr("<no devices available>", "USB devices"));
+            pAction->setEnabled(false);
+            pAction->setToolTip(tr("No supported devices connected to the host PC", "USB device tooltip"));
+        }
+        else
+        {
+            CHostUSBDeviceVector devvec = host.GetUSBDevices();
+            for (int i = 0; i < devvec.size(); ++i)
+            {
+                CHostUSBDevice dev = devvec[i];
+                CUSBDevice usb(dev);
+                QAction *pAction = addAction(vboxGlobal().details(usb));
+                pAction->setCheckable(true);
+                m_usbDeviceMap[pAction] = usb;
+                /* Check if created item was already attached to this session: */
+                if (!m_console.isNull())
+                {
+                    CUSBDevice attachedUSB = m_console.FindUSBDeviceById(usb.GetId());
+                    pAction->setChecked(!attachedUSB.isNull());
+                    pAction->setEnabled(dev.GetState() != KUSBDeviceState_Unavailable);
+                }
+            }
+        }
+    }
+
+private:
+
+    /* Event handler: */
+    bool event(QEvent *pEvent)
+    {
+        /* We provide dynamic tooltips for the usb devices: */
+        if (pEvent->type() == QEvent::ToolTip)
+        {
+            QHelpEvent *pHelpEvent = static_cast<QHelpEvent*>(pEvent);
+            QAction *pAction = actionAt(pHelpEvent->pos());
+            if (pAction)
+            {
+                CUSBDevice usb = m_usbDeviceMap[pAction];
+                if (!usb.isNull())
+                {
+                    QToolTip::showText(pHelpEvent->globalPos(), vboxGlobal().toolTip(usb));
+                    return true;
+                }
+            }
+        }
+        /* Call to base-class: */
+        return QMenu::event(pEvent);
+    }
+
+    QMap<QAction*, CUSBDevice> m_usbDeviceMap;
+    CConsole m_console;
+};
+
+UIMachineSettingsUSB::UIMachineSettingsUSB()
+    : m_pToolBar(0)
     , mNewAction(0), mAddAction(0), mEdtAction(0), mDelAction(0)
     , mMupAction(0), mMdnAction(0)
     , mUSBDevicesMenu(0)
@@ -72,27 +174,16 @@ UIMachineSettingsUSB::UIMachineSettingsUSB(UISettingsPageType type)
     mMdnAction->setIcon(UIIconPool::iconSet(":/usb_movedown_16px.png",
                                             ":/usb_movedown_disabled_16px.png"));
 
-    /* Prepare toolbar */
-    m_pToolBar = new UIToolBar (mWtFilterHandler);
-    m_pToolBar->setUsesTextLabel (false);
-    m_pToolBar->setIconSize (QSize (16, 16));
-    m_pToolBar->setOrientation (Qt::Vertical);
-    m_pToolBar->addAction (mNewAction);
-    m_pToolBar->addAction (mAddAction);
-    m_pToolBar->addAction (mEdtAction);
-    m_pToolBar->addAction (mDelAction);
-    m_pToolBar->addAction (mMupAction);
-    m_pToolBar->addAction (mMdnAction);
-    m_pToolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
-    m_pToolBar->updateGeometry();
-#ifdef Q_WS_MAC
-    /* On the Mac this has to be slightly higher, than what sizeHint returned.
-     * No idea why. */
-    m_pToolBar->setMinimumHeight(m_pToolBar->sizeHint().height() + 4);
-#else
-    m_pToolBar->setMinimumHeight(m_pToolBar->sizeHint().height());
-#endif /* Q_WS_MAC */
-    mWtFilterHandler->layout()->addWidget (m_pToolBar);
+    /* Prepare tool-bar: */
+    m_pFiltersToolBar->setUsesTextLabel(false);
+    m_pFiltersToolBar->setIconSize(QSize(16, 16));
+    m_pFiltersToolBar->setOrientation(Qt::Vertical);
+    m_pFiltersToolBar->addAction(mNewAction);
+    m_pFiltersToolBar->addAction(mAddAction);
+    m_pFiltersToolBar->addAction(mEdtAction);
+    m_pFiltersToolBar->addAction(mDelAction);
+    m_pFiltersToolBar->addAction(mMupAction);
+    m_pFiltersToolBar->addAction(mMdnAction);
 
     /* Setup connections */
     connect (mGbUSB, SIGNAL (toggled (bool)),
@@ -125,6 +216,9 @@ UIMachineSettingsUSB::UIMachineSettingsUSB(UISettingsPageType type)
     /* Setup dialog */
     mTwFilters->header()->hide();
 
+    /* Prepare validation: */
+    prepareValidation();
+
     /* Applying language settings */
     retranslateUi();
 
@@ -138,7 +232,7 @@ bool UIMachineSettingsUSB::isOHCIEnabled() const
     return mGbUSB->isChecked();
 }
 
-/* Load data to cashe from corresponding external object(s),
+/* Load data to cache from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsUSB::loadToCacheFrom(QVariant &data)
 {
@@ -148,101 +242,47 @@ void UIMachineSettingsUSB::loadToCacheFrom(QVariant &data)
     /* Clear cache initially: */
     m_cache.clear();
 
-    /* Depending on page type: */
-    switch (pageType())
+    /* Prepare USB data: */
+    UIDataSettingsMachineUSB usbData;
+
+    /* Gather USB values: */
+    usbData.m_fUSBEnabled = m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI) > 0;
+    usbData.m_fEHCIEnabled = m_machine.GetUSBControllerCountByType(KUSBControllerType_EHCI) > 0;
+
+    /* Check if controller is valid: */
+    const CUSBDeviceFilters &filters = m_machine.GetUSBDeviceFilters();
+    if (!filters.isNull())
     {
-        case UISettingsPageType_Global:
+        /* For each USB filter: */
+        const CUSBDeviceFilterVector &coll = filters.GetDeviceFilters();
+        for (int iFilterIndex = 0; iFilterIndex < coll.size(); ++iFilterIndex)
         {
-            /* For each USB filter: */
-            const CHostUSBDeviceFilterVector &filters = vboxGlobal().host().GetUSBDeviceFilters();
-            for (int iFilterIndex = 0; iFilterIndex < filters.size(); ++iFilterIndex)
+            /* Prepare USB filter data: */
+            UIDataSettingsMachineUSBFilter usbFilterData;
+
+            /* Check if filter is valid: */
+            const CUSBDeviceFilter &filter = coll[iFilterIndex];
+            if (!filter.isNull())
             {
-                /* Prepare USB filter data: */
-                UIDataSettingsMachineUSBFilter usbFilterData;
-
-                /* Check if filter is valid: */
-                const CHostUSBDeviceFilter &filter = filters[iFilterIndex];
-                if (!filter.isNull())
-                {
-                    usbFilterData.m_fActive = filter.GetActive();
-                    usbFilterData.m_strName = filter.GetName();
-                    usbFilterData.m_strVendorId = filter.GetVendorId();
-                    usbFilterData.m_strProductId = filter.GetProductId();
-                    usbFilterData.m_strRevision = filter.GetRevision();
-                    usbFilterData.m_strManufacturer = filter.GetManufacturer();
-                    usbFilterData.m_strProduct = filter.GetProduct();
-                    usbFilterData.m_strSerialNumber = filter.GetSerialNumber();
-                    usbFilterData.m_strPort = filter.GetPort();
-                    usbFilterData.m_strRemote = filter.GetRemote();
-                    usbFilterData.m_action = filter.GetAction();
-                    CHostUSBDevice hostUSBDevice(filter);
-                    if (!hostUSBDevice.isNull())
-                    {
-                        usbFilterData.m_fHostUSBDevice = true;
-                        usbFilterData.m_hostUSBDeviceState = hostUSBDevice.GetState();
-                    }
-                    else
-                    {
-                        usbFilterData.m_fHostUSBDevice = false;
-                        usbFilterData.m_hostUSBDeviceState = KUSBDeviceState_NotSupported;
-                    }
-                }
-
-                /* Cache USB filter data: */
-                m_cache.child(iFilterIndex).cacheInitialData(usbFilterData);
+                usbFilterData.m_fActive = filter.GetActive();
+                usbFilterData.m_strName = filter.GetName();
+                usbFilterData.m_strVendorId = filter.GetVendorId();
+                usbFilterData.m_strProductId = filter.GetProductId();
+                usbFilterData.m_strRevision = filter.GetRevision();
+                usbFilterData.m_strManufacturer = filter.GetManufacturer();
+                usbFilterData.m_strProduct = filter.GetProduct();
+                usbFilterData.m_strSerialNumber = filter.GetSerialNumber();
+                usbFilterData.m_strPort = filter.GetPort();
+                usbFilterData.m_strRemote = filter.GetRemote();
             }
 
-            break;
+            /* Cache USB filter data: */
+            m_cache.child(iFilterIndex).cacheInitialData(usbFilterData);
         }
-        case UISettingsPageType_Machine:
-        {
-            /* Prepare USB data: */
-            UIDataSettingsMachineUSB usbData;
-
-            /* Check if controller is valid: */
-            const CUSBController &controller = m_machine.GetUSBController();
-            if (!controller.isNull())
-            {
-                /* Gather USB values: */
-                usbData.m_fUSBEnabled = controller.GetEnabled();
-                usbData.m_fEHCIEnabled = controller.GetEnabledEhci();
-
-                /* For each USB filter: */
-                const CUSBDeviceFilterVector &filters = controller.GetDeviceFilters();
-                for (int iFilterIndex = 0; iFilterIndex < filters.size(); ++iFilterIndex)
-                {
-                    /* Prepare USB filter data: */
-                    UIDataSettingsMachineUSBFilter usbFilterData;
-
-                    /* Check if filter is valid: */
-                    const CUSBDeviceFilter &filter = filters[iFilterIndex];
-                    if (!filter.isNull())
-                    {
-                        usbFilterData.m_fActive = filter.GetActive();
-                        usbFilterData.m_strName = filter.GetName();
-                        usbFilterData.m_strVendorId = filter.GetVendorId();
-                        usbFilterData.m_strProductId = filter.GetProductId();
-                        usbFilterData.m_strRevision = filter.GetRevision();
-                        usbFilterData.m_strManufacturer = filter.GetManufacturer();
-                        usbFilterData.m_strProduct = filter.GetProduct();
-                        usbFilterData.m_strSerialNumber = filter.GetSerialNumber();
-                        usbFilterData.m_strPort = filter.GetPort();
-                        usbFilterData.m_strRemote = filter.GetRemote();
-                    }
-
-                    /* Cache USB filter data: */
-                    m_cache.child(iFilterIndex).cacheInitialData(usbFilterData);
-                }
-            }
-
-            /* Cache USB data: */
-            m_cache.cacheInitialData(usbData);
-
-            break;
-        }
-        default:
-            break;
     }
+
+    /* Cache USB data: */
+    m_cache.cacheInitialData(usbData);
 
     /* Upload properties & settings or machine to data: */
     uploadData(data);
@@ -256,28 +296,11 @@ void UIMachineSettingsUSB::getFromCache()
     mTwFilters->clear();
     m_filters.clear();
 
-    /* Depending on page type: */
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-        {
-            /* Hide unused widgets: */
-            mGbUSB->setVisible(false);
-            mCbUSB2->setVisible(false);
-            break;
-        }
-        case UISettingsPageType_Machine:
-        {
-            /* Get USB data from cache: */
-            const UIDataSettingsMachineUSB &usbData = m_cache.base();
-            /* Load USB data to page: */
-            mGbUSB->setChecked(usbData.m_fUSBEnabled);
-            mCbUSB2->setChecked(usbData.m_fEHCIEnabled);
-            break;
-        }
-        default:
-            break;
-    }
+    /* Get USB data from cache: */
+    const UIDataSettingsMachineUSB &usbData = m_cache.base();
+    /* Load USB data to page: */
+    mGbUSB->setChecked(usbData.m_fUSBEnabled);
+    mCbUSB2->setChecked(usbData.m_fEHCIEnabled);
 
     /* For each USB filter => load it to the page: */
     for (int iFilterIndex = 0; iFilterIndex < m_cache.childCount(); ++iFilterIndex)
@@ -292,37 +315,24 @@ void UIMachineSettingsUSB::getFromCache()
     /* Polish page finally: */
     polishPage();
 
-    /* Revalidate if possible: */
-    if (mValidator)
-        mValidator->revalidate();
+    /* Revalidate: */
+    revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsUSB::putToCache()
 {
-    /* Depending on page type: */
-    switch (pageType())
-    {
-        case UISettingsPageType_Machine:
-        {
-            /* Prepare USB data: */
-            UIDataSettingsMachineUSB usbData = m_cache.base();
+    /* Prepare USB data: */
+    UIDataSettingsMachineUSB usbData = m_cache.base();
 
-            /* USB 1.0 (OHCI): */
-            usbData.m_fUSBEnabled = mGbUSB->isChecked();
-            /* USB 2.0 (EHCI): */
-            CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(UI_ExtPackName);
-            usbData.m_fEHCIEnabled = extPack.isNull() || !extPack.GetUsable() ? false : mCbUSB2->isChecked();
+    /* USB 1.0 (OHCI): */
+    usbData.m_fUSBEnabled = mGbUSB->isChecked();
+    /* USB 2.0 (EHCI): */
+    usbData.m_fEHCIEnabled = mCbUSB2->isChecked();
 
-            /* Update USB cache: */
-            m_cache.cacheCurrentData(usbData);
-
-            break;
-        }
-        default:
-            break;
-    }
+    /* Update USB cache: */
+    m_cache.cacheCurrentData(usbData);
 
     /* For each USB filter => recache USB filter data: */
     for (int iFilterIndex = 0; iFilterIndex < m_filters.size(); ++iFilterIndex)
@@ -336,155 +346,108 @@ void UIMachineSettingsUSB::saveFromCacheTo(QVariant &data)
     /* Fetch data to properties & settings or machine: */
     fetchData(data);
 
-    /* Save settings depending on page type: */
-    switch (pageType())
+    /* Check if USB data really changed: */
+    if (m_cache.wasChanged())
     {
-        /* Here come the global USB properties: */
-        case UISettingsPageType_Global:
+        /* Check if controller is valid: */
+        CUSBDeviceFilters filters = m_machine.GetUSBDeviceFilters();
+        if (!filters.isNull())
         {
-            /* Check if USB data really changed: */
-            if (m_cache.wasChanged())
+            /* Get USB data from cache: */
+            const UIDataSettingsMachineUSB &usbData = m_cache.data();
+            /* Store USB data: */
+            if (isMachineOffline())
             {
-                /* Store USB data: */
-                if (isMachineInValidMode())
-                {
-                    /* Get host: */
-                    CHost host = vboxGlobal().host();
-                    /* For each USB filter data set: */
-                    for (int iFilterIndex = 0; iFilterIndex < m_cache.childCount(); ++iFilterIndex)
-                    {
-                        /* Check if USB filter data really changed: */
-                        const UICacheSettingsMachineUSBFilter &usbFilterCache = m_cache.child(iFilterIndex);
-                        if (usbFilterCache.wasChanged())
-                        {
-                            /* If filter was removed or updated: */
-                            if (usbFilterCache.wasRemoved() || usbFilterCache.wasUpdated())
-                                host.RemoveUSBDeviceFilter(iFilterIndex);
-                            /* If filter was created or updated: */
-                            if (usbFilterCache.wasCreated() || usbFilterCache.wasUpdated())
-                            {
-                                /* Get USB filter data from cache: */
-                                const UIDataSettingsMachineUSBFilter &usbFilterData = usbFilterCache.data();
+                ULONG cOhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI);
+                ULONG cEhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_EHCI);
 
-                                /* Store USB filter data: */
-                                CHostUSBDeviceFilter hostFilter = host.CreateUSBDeviceFilter(usbFilterData.m_strName);
-                                hostFilter.SetActive(usbFilterData.m_fActive);
-                                hostFilter.SetVendorId(usbFilterData.m_strVendorId);
-                                hostFilter.SetProductId(usbFilterData.m_strProductId);
-                                hostFilter.SetRevision(usbFilterData.m_strRevision);
-                                hostFilter.SetManufacturer(usbFilterData.m_strManufacturer);
-                                hostFilter.SetProduct(usbFilterData.m_strProduct);
-                                hostFilter.SetSerialNumber(usbFilterData.m_strSerialNumber);
-                                hostFilter.SetPort(usbFilterData.m_strPort);
-                                hostFilter.SetRemote(usbFilterData.m_strRemote);
-                                hostFilter.SetAction(usbFilterData.m_action);
-                                host.InsertUSBDeviceFilter(iFilterIndex, hostFilter);
-                            }
+                if (!cOhciCtls && usbData.m_fUSBEnabled)
+                    m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
+                else if (cOhciCtls && !usbData.m_fUSBEnabled)
+                    m_machine.RemoveUSBController("OHCI");
+
+                if (!cEhciCtls && usbData.m_fEHCIEnabled)
+                    m_machine.AddUSBController("EHCI", KUSBControllerType_EHCI);
+                else if (cEhciCtls && !usbData.m_fEHCIEnabled)
+                    m_machine.RemoveUSBController("EHCI");
+            }
+            /* Store USB filters data: */
+            if (isMachineInValidMode())
+            {
+                /* For each USB filter data set: */
+                int iOperationPosition = 0;
+                for (int iFilterIndex = 0; iFilterIndex < m_cache.childCount(); ++iFilterIndex)
+                {
+                    /* Check if USB filter data really changed: */
+                    const UICacheSettingsMachineUSBFilter &usbFilterCache = m_cache.child(iFilterIndex);
+                    if (usbFilterCache.wasChanged())
+                    {
+                        /* If filter was removed or updated: */
+                        if (usbFilterCache.wasRemoved() || usbFilterCache.wasUpdated())
+                        {
+                            filters.RemoveDeviceFilter(iOperationPosition);
+                            if (usbFilterCache.wasRemoved())
+                                --iOperationPosition;
+                        }
+
+                        /* If filter was created or updated: */
+                        if (usbFilterCache.wasCreated() || usbFilterCache.wasUpdated())
+                        {
+                            /* Get USB filter data from cache: */
+                            const UIDataSettingsMachineUSBFilter &usbFilterData = usbFilterCache.data();
+                            /* Store USB filter data: */
+                            CUSBDeviceFilter filter = filters.CreateDeviceFilter(usbFilterData.m_strName);
+                            filter.SetActive(usbFilterData.m_fActive);
+                            filter.SetVendorId(usbFilterData.m_strVendorId);
+                            filter.SetProductId(usbFilterData.m_strProductId);
+                            filter.SetRevision(usbFilterData.m_strRevision);
+                            filter.SetManufacturer(usbFilterData.m_strManufacturer);
+                            filter.SetProduct(usbFilterData.m_strProduct);
+                            filter.SetSerialNumber(usbFilterData.m_strSerialNumber);
+                            filter.SetPort(usbFilterData.m_strPort);
+                            filter.SetRemote(usbFilterData.m_strRemote);
+                            filters.InsertDeviceFilter(iOperationPosition, filter);
                         }
                     }
+
+                    /* Advance operation position: */
+                    ++iOperationPosition;
                 }
             }
-            break;
         }
-        /* Here come VM USB properties: */
-        case UISettingsPageType_Machine:
-        {
-            /* Check if USB data really changed: */
-            if (m_cache.wasChanged())
-            {
-                /* Check if controller is valid: */
-                CUSBController controller = m_machine.GetUSBController();
-                if (!controller.isNull())
-                {
-                    /* Get USB data from cache: */
-                    const UIDataSettingsMachineUSB &usbData = m_cache.data();
-                    /* Store USB data: */
-                    if (isMachineOffline())
-                    {
-                        controller.SetEnabled(usbData.m_fUSBEnabled);
-                        controller.SetEnabledEhci(usbData.m_fEHCIEnabled);
-                    }
-                    /* Store USB filters data: */
-                    if (isMachineInValidMode())
-                    {
-                        /* For each USB filter data set: */
-                        int iOperationPosition = 0;
-                        for (int iFilterIndex = 0; iFilterIndex < m_cache.childCount(); ++iFilterIndex)
-                        {
-                            /* Check if USB filter data really changed: */
-                            const UICacheSettingsMachineUSBFilter &usbFilterCache = m_cache.child(iFilterIndex);
-                            if (usbFilterCache.wasChanged())
-                            {
-                                /* If filter was removed or updated: */
-                                if (usbFilterCache.wasRemoved() || usbFilterCache.wasUpdated())
-                                {
-                                    controller.RemoveDeviceFilter(iOperationPosition);
-                                    if (usbFilterCache.wasRemoved())
-                                        --iOperationPosition;
-                                }
-
-                                /* If filter was created or updated: */
-                                if (usbFilterCache.wasCreated() || usbFilterCache.wasUpdated())
-                                {
-                                    /* Get USB filter data from cache: */
-                                    const UIDataSettingsMachineUSBFilter &usbFilterData = usbFilterCache.data();
-                                    /* Store USB filter data: */
-                                    CUSBDeviceFilter filter = controller.CreateDeviceFilter(usbFilterData.m_strName);
-                                    filter.SetActive(usbFilterData.m_fActive);
-                                    filter.SetVendorId(usbFilterData.m_strVendorId);
-                                    filter.SetProductId(usbFilterData.m_strProductId);
-                                    filter.SetRevision(usbFilterData.m_strRevision);
-                                    filter.SetManufacturer(usbFilterData.m_strManufacturer);
-                                    filter.SetProduct(usbFilterData.m_strProduct);
-                                    filter.SetSerialNumber(usbFilterData.m_strSerialNumber);
-                                    filter.SetPort(usbFilterData.m_strPort);
-                                    filter.SetRemote(usbFilterData.m_strRemote);
-                                    controller.InsertDeviceFilter(iOperationPosition, filter);
-                                }
-                            }
-
-                            /* Advance operation position: */
-                            ++iOperationPosition;
-                        }
-                    }
-                }
-            }
-            break;
-        }
-        default:
-            break;
     }
 
     /* Upload properties & settings or machine to data: */
     uploadData(data);
 }
 
-void UIMachineSettingsUSB::setValidator (QIWidgetValidator *aVal)
+bool UIMachineSettingsUSB::validate(QList<UIValidationMessage> &messages)
 {
-    mValidator = aVal;
-    connect (mGbUSB, SIGNAL (stateChanged (int)), mValidator, SLOT (revalidate()));
-    connect(mCbUSB2, SIGNAL(stateChanged(int)), mValidator, SLOT(revalidate()));
-}
+    Q_UNUSED(messages);
 
-bool UIMachineSettingsUSB::revalidate(QString &strWarningText, QString& /* strTitle */)
-{
-    /* USB 2.0 Extension Pack presence test: */
-    NOREF(strWarningText);
+    /* Pass by default: */
+    bool fPass = true;
+
 #ifdef VBOX_WITH_EXTPACK
-    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(UI_ExtPackName);
+    /* USB 2.0 Extension Pack presence test: */
+    CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
     if (mGbUSB->isChecked() && mCbUSB2->isChecked() && (extPack.isNull() || !extPack.GetUsable()))
     {
-        strWarningText = tr("USB 2.0 is currently enabled for this virtual machine. "
-                            "However, this requires the <b>%1</b> to be installed. "
-                            "Please install the Extension Pack from the VirtualBox download site. "
-                            "After this you will be able to re-enable USB 2.0. "
-                            "It will be disabled in the meantime unless you cancel the current settings changes.")
-                            .arg(UI_ExtPackName);
-        msgCenter().remindAboutUnsupportedUSB2(UI_ExtPackName, this);
-        return true;
+        /* Prepare message: */
+        UIValidationMessage message;
+        message.second << tr("USB 2.0 is currently enabled for this virtual machine. "
+                             "However, this requires the <b>%1</b> to be installed. "
+                             "Please install the Extension Pack from the VirtualBox download site "
+                             "or disable USB 2.0 to be able to start the machine.")
+                             .arg(GUI_ExtPackName);
+        /* Serialize message: */
+        if (!message.second.isEmpty())
+            messages << message;
     }
-#endif
-    return true;
+#endif /* VBOX_WITH_EXTPACK */
+
+    /* Return result: */
+    return fPass;
 }
 
 void UIMachineSettingsUSB::setOrderAfter (QWidget *aWidget)
@@ -590,14 +553,6 @@ void UIMachineSettingsUSB::newClicked()
 
     /* Prepare new USB filter data: */
     UIDataSettingsMachineUSBFilter usbFilterData;
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-            usbFilterData.m_action = KUSBDeviceFilterAction_Hold;
-            break;
-        default:
-            break;
-    }
     usbFilterData.m_fActive = true;
     usbFilterData.m_strName = mUSBFilterName.arg(iMaxFilterIndex + 1);
     usbFilterData.m_fHostUSBDevice = false;
@@ -605,9 +560,8 @@ void UIMachineSettingsUSB::newClicked()
     /* Add new USB filter data: */
     addUSBFilter(usbFilterData, true /* its new? */);
 
-    /* Revalidate if possible: */
-    if (mValidator)
-        mValidator->revalidate();
+    /* Revalidate: */
+    revalidate();
 }
 
 void UIMachineSettingsUSB::addClicked()
@@ -624,14 +578,6 @@ void UIMachineSettingsUSB::addConfirmed(QAction *pAction)
 
     /* Prepare new USB filter data: */
     UIDataSettingsMachineUSBFilter usbFilterData;
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-            usbFilterData.m_action = KUSBDeviceFilterAction_Hold;
-            break;
-        default:
-            break;
-    }
     usbFilterData.m_fActive = true;
     usbFilterData.m_strName = vboxGlobal().details(usb);
     usbFilterData.m_fHostUSBDevice = false;
@@ -653,9 +599,8 @@ void UIMachineSettingsUSB::addConfirmed(QAction *pAction)
     /* Add new USB filter data: */
     addUSBFilter(usbFilterData, true /* its new? */);
 
-    /* Revalidate if possible: */
-    if (mValidator)
-        mValidator->revalidate();
+    /* Revalidate: */
+    revalidate();
 }
 
 void UIMachineSettingsUSB::edtClicked()
@@ -666,7 +611,7 @@ void UIMachineSettingsUSB::edtClicked()
     UIDataSettingsMachineUSBFilter &usbFilterData = m_filters[mTwFilters->indexOfTopLevelItem(pItem)];
 
     /* Configure USB filter details dialog: */
-    UIMachineSettingsUSBFilterDetails dlgFilterDetails(pageType(), this);
+    UIMachineSettingsUSBFilterDetails dlgFilterDetails(this);
     dlgFilterDetails.mLeName->setText(usbFilterData.m_strName);
     dlgFilterDetails.mLeVendorID->setText(usbFilterData.m_strVendorId);
     dlgFilterDetails.mLeProductID->setText(usbFilterData.m_strProductId);
@@ -675,32 +620,13 @@ void UIMachineSettingsUSB::edtClicked()
     dlgFilterDetails.mLeManufacturer->setText(usbFilterData.m_strManufacturer);
     dlgFilterDetails.mLeProduct->setText(usbFilterData.m_strProduct);
     dlgFilterDetails.mLeSerialNo->setText(usbFilterData.m_strSerialNumber);
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-        {
-            if (usbFilterData.m_action == KUSBDeviceFilterAction_Ignore)
-                dlgFilterDetails.mCbAction->setCurrentIndex(0);
-            else if (usbFilterData.m_action == KUSBDeviceFilterAction_Hold)
-                dlgFilterDetails.mCbAction->setCurrentIndex(1);
-            else
-                AssertMsgFailed(("Invalid USBDeviceFilterAction type"));
-            break;
-        }
-        case UISettingsPageType_Machine:
-        {
-            QString strRemote = usbFilterData.m_strRemote.toLower();
-            if (strRemote == "yes" || strRemote == "true" || strRemote == "1")
-                dlgFilterDetails.mCbRemote->setCurrentIndex(ModeOn);
-            else if (strRemote == "no" || strRemote == "false" || strRemote == "0")
-                dlgFilterDetails.mCbRemote->setCurrentIndex(ModeOff);
-            else
-                dlgFilterDetails.mCbRemote->setCurrentIndex(ModeAny);
-            break;
-        }
-        default:
-            break;
-    }
+    QString strRemote = usbFilterData.m_strRemote.toLower();
+    if (strRemote == "yes" || strRemote == "true" || strRemote == "1")
+        dlgFilterDetails.mCbRemote->setCurrentIndex(ModeOn);
+    else if (strRemote == "no" || strRemote == "false" || strRemote == "0")
+        dlgFilterDetails.mCbRemote->setCurrentIndex(ModeOff);
+    else
+        dlgFilterDetails.mCbRemote->setCurrentIndex(ModeAny);
 
     /* Run USB filter details dialog: */
     if (dlgFilterDetails.exec() == QDialog::Accepted)
@@ -713,26 +639,12 @@ void UIMachineSettingsUSB::edtClicked()
         usbFilterData.m_strProduct = dlgFilterDetails.mLeProduct->text().isEmpty() ? QString::null : dlgFilterDetails.mLeProduct->text();
         usbFilterData.m_strSerialNumber = dlgFilterDetails.mLeSerialNo->text().isEmpty() ? QString::null : dlgFilterDetails.mLeSerialNo->text();
         usbFilterData.m_strPort = dlgFilterDetails.mLePort->text().isEmpty() ? QString::null : dlgFilterDetails.mLePort->text();
-        switch (pageType())
+        switch (dlgFilterDetails.mCbRemote->currentIndex())
         {
-            case UISettingsPageType_Global:
-            {
-                usbFilterData.m_action = vboxGlobal().toUSBDevFilterAction(dlgFilterDetails.mCbAction->currentText());
-                break;
-            }
-            case UISettingsPageType_Machine:
-            {
-                switch (dlgFilterDetails.mCbRemote->currentIndex())
-                {
-                    case ModeAny: usbFilterData.m_strRemote = QString(); break;
-                    case ModeOn:  usbFilterData.m_strRemote = QString::number(1); break;
-                    case ModeOff: usbFilterData.m_strRemote = QString::number(0); break;
-                    default: AssertMsgFailed(("Invalid combo box index"));
-                }
-                break;
-            }
-            default:
-                break;
+            case ModeAny: usbFilterData.m_strRemote = QString(); break;
+            case ModeOn:  usbFilterData.m_strRemote = QString::number(1); break;
+            case ModeOff: usbFilterData.m_strRemote = QString::number(0); break;
+            default: AssertMsgFailed(("Invalid combo box index"));
         }
         pItem->setText(0, usbFilterData.m_strName);
         pItem->setToolTip(0, toolTipFor(usbFilterData));
@@ -751,15 +663,9 @@ void UIMachineSettingsUSB::delClicked()
 
     /* Update current item: */
     currentChanged(mTwFilters->currentItem());
-    /* Revalidate if possible: */
-    if (!mTwFilters->topLevelItemCount())
-    {
-        if (mValidator)
-        {
-            mValidator->rescan();
-            mValidator->revalidate();
-        }
-    }
+
+    /* Revalidate: */
+    revalidate();
 }
 
 void UIMachineSettingsUSB::mupClicked()
@@ -819,6 +725,13 @@ void UIMachineSettingsUSB::sltUpdateActivityState(QTreeWidgetItem *pChangedItem)
     data.m_fActive = pChangedItem->checkState(0) == Qt::Checked;
 }
 
+void UIMachineSettingsUSB::prepareValidation()
+{
+    /* Prepare validation: */
+    connect(mGbUSB, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+    connect(mCbUSB2, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
+}
+
 void UIMachineSettingsUSB::addUSBFilter(const UIDataSettingsMachineUSBFilter &usbFilterData, bool fIsNew)
 {
     /* Append internal list with data: */
@@ -834,48 +747,6 @@ void UIMachineSettingsUSB::addUSBFilter(const UIDataSettingsMachineUSBFilter &us
     /* Select this item if its new: */
     if (fIsNew)
         mTwFilters->setCurrentItem(pItem);
-}
-
-/* Fetch data to m_properties & m_settings or m_machine & m_console: */
-void UIMachineSettingsUSB::fetchData(const QVariant &data)
-{
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-        {
-            m_properties = data.value<UISettingsDataGlobal>().m_properties;
-            m_settings = data.value<UISettingsDataGlobal>().m_settings;
-            break;
-        }
-        case UISettingsPageType_Machine:
-        {
-            m_machine = data.value<UISettingsDataMachine>().m_machine;
-            m_console = data.value<UISettingsDataMachine>().m_console;
-            break;
-        }
-        default:
-            break;
-    }
-}
-
-/* Upload m_properties & m_settings or m_machine & m_console to data: */
-void UIMachineSettingsUSB::uploadData(QVariant &data) const
-{
-    switch (pageType())
-    {
-        case UISettingsPageType_Global:
-        {
-            data = QVariant::fromValue(UISettingsDataGlobal(m_properties, m_settings));
-            break;
-        }
-        case UISettingsPageType_Machine:
-        {
-            data = QVariant::fromValue(UISettingsDataMachine(m_machine, m_console));
-            break;
-        }
-        default:
-            break;
-    }
 }
 
 /* static */
@@ -916,7 +787,7 @@ QString UIMachineSettingsUSB::toolTipFor(const UIDataSettingsMachineUSBFilter &u
     if (usbFilterData.m_fHostUSBDevice)
     {
         strToolTip += strToolTip.isEmpty() ? "":"<br/>" + tr("<nobr>State: %1</nobr>", "USB filter tooltip")
-                                                          .arg(vboxGlobal().toString(usbFilterData.m_hostUSBDeviceState));
+                                                          .arg(gpConverter->toString(usbFilterData.m_hostUSBDeviceState));
     }
 
     return strToolTip;
@@ -928,4 +799,6 @@ void UIMachineSettingsUSB::polishPage()
     mUSBChild->setEnabled(isMachineInValidMode() && mGbUSB->isChecked());
     mCbUSB2->setEnabled(isMachineOffline() && mGbUSB->isChecked());
 }
+
+#include "UIMachineSettingsUSB.moc"
 

@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2007 Oracle Corporation
+; Copyright (C) 2006-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -72,6 +72,50 @@
 %define RT_BIT(bit)        (1 << bit)
 
 ;;
+; Makes a 32-bit unsigned (not type safe, but whatever) out of four byte values.
+%define RT_MAKE_U32_FROM_U8(b0, b1, b2, b3) ( (b3 << 24) | (b2 << 16) | (b1 << 8) | b0 )
+
+;; Define ASM_FORMAT_PE64 if applicable.
+%ifdef ASM_FORMAT_PE
+ %ifdef RT_ARCH_AMD64
+  %define ASM_FORMAT_PE64       1
+ %endif
+%endif
+
+;;
+; SEH64 macros.
+%ifdef RT_ASM_WITH_SEH64
+ %ifndef ASM_FORMAT_PE64
+  %undef RT_ASM_WITH_SEH64
+ %endif
+%endif
+
+;;
+; Records a xBP push.
+%macro SEH64_PUSH_xBP 0
+ %ifdef RT_ASM_WITH_SEH64
+  [pushreg rbp]
+ %endif
+%endmacro
+
+;;
+; Sets xBP as frame pointer that's pointing to a stack position %1 relative to xSP.
+%macro SEH64_SET_FRAME_xBP 1
+ %ifdef RT_ASM_WITH_SEH64
+  [setframe rbp, %1]
+ %endif
+%endmacro
+
+;;
+; Ends the prologue.
+%macro SEH64_END_PROLOGUE 0
+ %ifdef RT_ASM_WITH_SEH64
+ [endprolog]
+ %endif
+%endmacro
+
+
+;;
 ; Align code, pad with INT3.
 %define ALIGNCODE(alignment) align alignment, db 0cch
 
@@ -94,16 +138,18 @@
 ;;
 ; Mangles the given name so it can be referenced using DECLASM() in the
 ; C/C++ world.
-%ifdef RT_ARCH_X86
- %ifdef RT_OS_OS2
+%ifndef ASM_FORMAT_BIN
+ %ifdef RT_ARCH_X86
+  %ifdef RT_OS_OS2
+   %define NAME(name)   _ %+ NAME_OVERLOAD(name)
+  %endif
+  %ifdef RT_OS_WINDOWS
+   %define NAME(name)   _ %+ NAME_OVERLOAD(name)
+  %endif
+ %endif
+ %ifdef RT_OS_DARWIN
   %define NAME(name)    _ %+ NAME_OVERLOAD(name)
  %endif
- %ifdef RT_OS_WINDOWS
-  %define NAME(name)    _ %+ NAME_OVERLOAD(name)
- %endif
-%endif
-%ifdef RT_OS_DARWIN
- %define NAME(name)     _ %+ NAME_OVERLOAD(name)
 %endif
 %ifndef NAME
  %define NAME(name)     NAME_OVERLOAD(name)
@@ -112,21 +158,55 @@
 ;;
 ; Mangles the given C name so it will _import_ the right symbol.
 %ifdef ASM_FORMAT_PE
-%define IMPNAME(name)   __imp_ %+ NAME(name)
+ %define IMPNAME(name)  __imp_ %+ NAME(name)
 %else
-%define IMPNAME(name)   NAME(name)
+ %define IMPNAME(name)  NAME(name)
 %endif
 
 ;;
 ; Gets the pointer to an imported object.
 %ifdef ASM_FORMAT_PE
  %ifdef RT_ARCH_AMD64
-  %define IMP(name)       qword [IMPNAME(name) wrt rip]
+  %define IMP(name)     qword [IMPNAME(name) wrt rip]
  %else
-  %define IMP(name)       dword [IMPNAME(name)]
+  %define IMP(name)     dword [IMPNAME(name)]
  %endif
 %else
- %define IMP(name)       IMPNAME(name)
+ %define IMP(name)      IMPNAME(name)
+%endif
+
+;;
+; Declares an imported object for use with IMP2.
+; @note May change the current section!
+%macro EXTERN_IMP2 1
+    extern IMPNAME(%1)
+    BEGINDATA
+ %ifdef ASM_FORMAT_MACHO
+    g_Imp2_ %+ %1:  RTCCPTR_DEF IMPNAME(%1)
+ %endif
+%endmacro
+
+;;
+; Gets the pointer to an imported object, version 2.
+%ifdef ASM_FORMAT_PE
+ %ifdef RT_ARCH_AMD64
+  %define IMP2(name)    qword [IMPNAME(name) wrt rip]
+ %else
+  %define IMP2(name)    dword [IMPNAME(name)]
+ %endif
+%elifdef ASM_FORMAT_ELF
+ %ifdef PIC
+  %ifdef RT_ARCH_AMD64
+   %define IMP2(name)   qword [rel IMPNAME(name) wrt ..got]
+  %else
+   %define IMP2(name)   IMPNAME(name) wrt ..plt
+  %endif
+ %endif
+%elifdef ASM_FORMAT_MACHO
+ %define IMP2(name)     RTCCPTR_PRE [g_Imp2_ %+ name xWrtRIP]
+%endif
+%ifndef IMP2
+ %define IMP2(name)     IMPNAME(name)
 %endif
 
 
@@ -155,21 +235,68 @@ GLOBALNAME %1
 %endmacro
 
 ;;
+; Global marker which is DECLASM() compatible.
+%macro GLOBALNAME_EX 2,
+%ifndef ASM_FORMAT_BIN
+ %ifdef ASM_FORMAT_ELF
+global NAME(%1):%2
+ %else
+global NAME(%1)
+ %endif
+%endif
+NAME(%1):
+%endmacro
+
+;;
+; Global exported marker which is DECLASM() compatible.
+%macro EXPORTEDNAME_EX 2,
+ %ifdef ASM_FORMAT_PE
+  export %1=NAME(%1)
+ %endif
+ %ifdef __NASM__
+  %ifdef ASM_FORMAT_OMF
+   export NAME(%1) NAME(%1)
+  %endif
+%endif
+GLOBALNAME_EX %1, %2
+%endmacro
+
+;;
 ; Begins a C callable procedure.
 %macro BEGINPROC 1
-GLOBALNAME %1
+ %ifdef RT_ASM_WITH_SEH64
+global     NAME(%1):function
+proc_frame NAME(%1)
+ %else
+GLOBALNAME_EX %1, function hidden
+ %endif
 %endmacro
 
 ;;
 ; Begins a C callable exported procedure.
 %macro BEGINPROC_EXPORTED 1
-EXPORTEDNAME %1
+ %ifdef RT_ASM_WITH_SEH64
+  %ifdef ASM_FORMAT_PE
+export  %1=NAME(%1)
+  %endif
+global     NAME(%1):function
+proc_frame NAME(%1)
+ %else
+EXPORTEDNAME_EX %1, function
+ %endif
 %endmacro
 
 ;;
 ; Ends a C callable procedure.
 %macro ENDPROC 1
-GLOBALNAME %1_EndProc
+ %ifdef RT_ASM_WITH_SEH64
+endproc_frame
+ %endif
+GLOBALNAME_EX %1 %+ _EndProc, function hidden
+%ifdef ASM_FORMAT_ELF
+size NAME(%1)               NAME(%1 %+ _EndProc) - NAME(%1)
+size NAME(%1 %+ _EndProc)   0
+%endif
     db  0xCC, 0xCC, 0xCC, 0xCC
 %endmacro
 
@@ -229,8 +356,8 @@ GLOBALNAME %1_EndProc
 
 %ifdef ASM_FORMAT_MACHO
  %ifdef __YASM__
- [section .text]
- [section .data]
+  section .text
+  section .data
  %endif
 %endif
 
@@ -243,7 +370,7 @@ GLOBALNAME %1_EndProc
  %endmacro
 %else
 %macro BEGINCODE 0
-[section .text]
+ section .text
 %endmacro
 %endif
 
@@ -260,9 +387,9 @@ GLOBALNAME %1_EndProc
 %else
  %macro BEGINCONST 0
   %ifdef ASM_FORMAT_MACHO ;; @todo check the other guys too.
-   [section .rodata]
+   section .rodata
   %else
-   [section .text]
+   section .text
   %endif
  %endmacro
 %endif
@@ -275,7 +402,7 @@ GLOBALNAME %1_EndProc
  %endmacro
 %else
 %macro BEGINDATA 0
-[section .data]
+ section .data
 %endmacro
 %endif
 
@@ -287,7 +414,7 @@ GLOBALNAME %1_EndProc
  %endmacro
 %else
 %macro BEGINBSS 0
-[section .bss]
+ section .bss
 %endmacro
 %endif
 
@@ -670,7 +797,7 @@ BEGINPROC RT_NOCRT(%1)
 
 
 
-;; @def xS
+;; @def xCB
 ; The stack unit size  / The register unit size.
 
 ;; @def xSP
@@ -701,7 +828,7 @@ BEGINPROC RT_NOCRT(%1)
 ; 'wrt rip' for AMD64 targets, nothing for x86 ones.
 
 %ifdef RT_ARCH_AMD64
- %define xS  8
+ %define xCB 8
  %define xSP rsp
  %define xBP rbp
  %define xAX rax
@@ -712,7 +839,7 @@ BEGINPROC RT_NOCRT(%1)
  %define xSI rsi
  %define xWrtRIP wrt rip
 %else
- %define xS  4
+ %define xCB 4
  %define xSP esp
  %define xBP ebp
  %define xAX eax
@@ -723,5 +850,38 @@ BEGINPROC RT_NOCRT(%1)
  %define xSI esi
  %define xWrtRIP
 %endif
+
+
+;
+; Some simple compile time assertions.
+;
+; Note! Requires new kBuild to work.
+;
+
+;;
+; Structure size assertion macro.
+%define AssertCompileSize(a_Type, a_Size) AssertCompileSizeML a_Type, a_Size
+%macro AssertCompileSizeML 2,
+ %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %assign AssertVar_cbActual   %1 %+ _size
+  %assign AssertVar_cbExpected %2
+  %if AssertVar_cbActual != AssertVar_cbExpected
+   %error %1 is AssertVar_cbActual bytes instead of AssertVar_cbExpected
+  %endif
+ %endif
+%endmacro
+
+;;
+; Structure memember offset assertion macro.
+%define AssertCompileMemberOffset(a_Type, a_Member, a_off) AssertCompileMemberOffsetML a_Type, a_Member, a_off
+%macro AssertCompileMemberOffsetML 3,
+ %ifndef KBUILD_GENERATING_MAKEFILE_DEPENDENCIES
+  %assign AssertVar_offActual   %1 %+ . %+ %2
+  %assign AssertVar_offExpected %3
+  %if AssertVar_offActual != AssertVar_offExpected
+   %error %1 %+ . %+ %2 is at AssertVar_offActual instead of AssertVar_offExpected
+  %endif
+ %endif
+%endmacro
 
 %endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,6 +55,8 @@ typedef struct RTFILEAIOCTXINTERNAL
     int               iPort;
     /** Current number of requests active on this context. */
     volatile int32_t  cRequests;
+    /** Flags given during creation. */
+    uint32_t          fFlags;
     /** Magic value (RTFILEAIOCTX_MAGIC). */
     uint32_t          u32Magic;
 } RTFILEAIOCTXINTERNAL;
@@ -166,7 +168,7 @@ DECLINLINE(int) rtFileAioReqPrepareTransfer(RTFILEAIOREQ hReq, RTFILE hFile,
     Assert(cbTransfer > 0);
 
     pReqInt->AioCB.aio_lio_opcode = uTransferDirection;
-    pReqInt->AioCB.aio_fildes     = (int)hFile;
+    pReqInt->AioCB.aio_fildes     = RTFileToNative(hFile);
     pReqInt->AioCB.aio_offset     = off;
     pReqInt->AioCB.aio_nbytes     = cbTransfer;
     pReqInt->AioCB.aio_buf        = pvBuf;
@@ -201,7 +203,7 @@ RTDECL(int) RTFileAioReqPrepareFlush(RTFILEAIOREQ hReq, RTFILE hFile, void *pvUs
     Assert(hFile != NIL_RTFILE);
 
     pReqInt->fFlush           = true;
-    pReqInt->AioCB.aio_fildes = (int)hFile;
+    pReqInt->AioCB.aio_fildes = RTFileToNative(hFile);
     pReqInt->AioCB.aio_offset = 0;
     pReqInt->AioCB.aio_nbytes = 0;
     pReqInt->AioCB.aio_buf    = NULL;
@@ -270,11 +272,13 @@ RTDECL(int) RTFileAioReqGetRC(RTFILEAIOREQ hReq, size_t *pcbTransfered)
     return RTErrConvertFromErrno(rcSol);
 }
 
-RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax)
+RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax,
+                               uint32_t fFlags)
 {
     int rc = VINF_SUCCESS;
     PRTFILEAIOCTXINTERNAL pCtxInt;
     AssertPtrReturn(phAioCtx, VERR_INVALID_POINTER);
+    AssertReturn(!(fFlags & ~RTFILEAIOCTX_FLAGS_VALID_MASK), VERR_INVALID_PARAMETER);
 
     pCtxInt = (PRTFILEAIOCTXINTERNAL)RTMemAllocZ(sizeof(RTFILEAIOCTXINTERNAL));
     if (RT_UNLIKELY(!pCtxInt))
@@ -284,7 +288,8 @@ RTDECL(int) RTFileAioCtxCreate(PRTFILEAIOCTX phAioCtx, uint32_t cAioReqsMax)
     pCtxInt->iPort = port_create();
     if (RT_LIKELY(pCtxInt->iPort > 0))
     {
-        pCtxInt->u32Magic     = RTFILEAIOCTX_MAGIC;
+        pCtxInt->fFlags   = fFlags;
+        pCtxInt->u32Magic = RTFILEAIOCTX_MAGIC;
         *phAioCtx = (RTFILEAIOCTX)pCtxInt;
     }
     else
@@ -448,7 +453,8 @@ RTDECL(int) RTFileAioCtxWait(RTFILEAIOCTX hAioCtx, size_t cMinReqs, RTMSINTERVAL
     AssertReturn(cReqs != 0, VERR_INVALID_PARAMETER);
     AssertReturn(cReqs >= cMinReqs, VERR_OUT_OF_RANGE);
 
-    if (RT_UNLIKELY(ASMAtomicReadS32(&pCtxInt->cRequests) == 0))
+    if (    RT_UNLIKELY(ASMAtomicReadS32(&pCtxInt->cRequests) == 0)
+        && !(pCtxInt->fFlags & RTFILEAIOCTX_FLAGS_WAIT_WITHOUT_PENDING_REQUESTS))
         return VERR_FILE_AIO_NO_REQUEST;
 
     /*

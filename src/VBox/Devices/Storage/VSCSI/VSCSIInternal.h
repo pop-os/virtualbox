@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,8 +20,11 @@
 #include <VBox/vscsi.h>
 #include <VBox/scsi.h>
 #include <iprt/memcache.h>
+#include <iprt/sg.h>
+#include <iprt/list.h>
 
 #include "VSCSIInline.h"
+#include "VSCSIVpdPages.h"
 
 /** Pointer to an internal virtual SCSI device. */
 typedef VSCSIDEVICEINT        *PVSCSIDEVICEINT;
@@ -35,6 +38,17 @@ typedef struct VSCSILUNDESC   *PVSCSILUNDESC;
 typedef VSCSIREQINT           *PVSCSIREQINT;
 /** Pointer to a virtual SCSI I/O request. */
 typedef VSCSIIOREQINT         *PVSCSIIOREQINT;
+/** Pointer to virtual SCSI sense data state. */
+typedef struct VSCSISENSE     *PVSCSISENSE;
+
+/**
+ * Virtual SCSI sense data handling.
+ */
+typedef struct VSCSISENSE
+{
+    /** Buffer holding the sense data. */
+    uint8_t              abSenseBuf[32];
+} VSCSISENSE;
 
 /**
  * Virtual SCSI device.
@@ -51,6 +65,8 @@ typedef struct VSCSIDEVICEINT
     uint32_t             cLunsMax;
     /** Request cache */
     RTMEMCACHE           hCacheReq;
+    /** Sense data handling. */
+    VSCSISENSE           VScsiSense;
     /** Pointer to the array of LUN handles.
      *  The index is the LUN id. */
     PPVSCSILUNINT        papVScsiLun;
@@ -69,6 +85,12 @@ typedef struct VSCSILUNINT
     PVSCSILUNIOCALLBACKS pVScsiLunIoCallbacks;
     /** Pointer to the LUN type descriptor. */
     PVSCSILUNDESC        pVScsiLunDesc;
+    /** Flag indicating whether LUN is ready. */
+    bool                 fReady;
+    /** Flag indicating media presence in LUN. */
+    bool                 fMediaPresent;
+    /** Flags of supported features. */
+    uint64_t             fFeatures;
     /** I/O request processing data */
     struct
     {
@@ -76,25 +98,6 @@ typedef struct VSCSILUNINT
         volatile uint32_t cReqOutstanding;
     } IoReq;
 } VSCSILUNINT;
-
-/**
- * VSCSI Scatter/gather list handling
- */
-typedef struct VSCSIIOMEMCTX
-{
-    /** Pointer to the scatter/gather list. */
-    PCRTSGSEG      paDataSeg;
-    /** Number of segments. */
-    size_t         cSegments;
-    /** Current segment we are in. */
-    unsigned       iSegIdx;
-    /** Pointer to the current buffer. */
-    uint8_t       *pbBuf;
-    /** Number of bytes left in the current buffer. */
-    size_t         cbBufLeft;
-} VSCSIIOMEMCTX;
-/** Pointer to a I/O memory context. */
-typedef VSCSIIOMEMCTX *PVSCSIIOMEMCTX;
 
 /**
  * Virtual SCSI request.
@@ -107,8 +110,8 @@ typedef struct VSCSIREQINT
     uint8_t             *pbCDB;
     /** Size of the CDB */
     size_t               cbCDB;
-    /** I/O memory context */
-    VSCSIIOMEMCTX        IoMemCtx;
+    /** S/G buffer. */
+    RTSGBUF              SgBuf;
     /** Pointer to the sense buffer. */
     uint8_t             *pbSense;
     /** Size of the sense buffer */
@@ -123,22 +126,49 @@ typedef struct VSCSIREQINT
 typedef struct VSCSIIOREQINT
 {
     /** The associated request. */
-    PVSCSIREQINT        pVScsiReq;
+    PVSCSIREQINT           pVScsiReq;
     /** Lun for this I/O request. */
-    PVSCSILUNINT        pVScsiLun;
+    PVSCSILUNINT           pVScsiLun;
     /** Transfer direction */
-    VSCSIIOREQTXDIR     enmTxDir;
-    /** Start offset */
-    uint64_t            uOffset;
-    /** Number of bytes to transfer */
-    size_t              cbTransfer;
-    /** Number of bytes the S/G list holds */
-    size_t              cbSeg;
-    /** Number of segments. */
-    unsigned            cSeg;
-    /** Segment array. */
-    PCRTSGSEG           paSeg;
+    VSCSIIOREQTXDIR        enmTxDir;
+    /** Direction dependent data. */
+    union
+    {
+        /** Read/Write request. */
+        struct
+        {
+            /** Start offset */
+            uint64_t       uOffset;
+            /** Number of bytes to transfer */
+            size_t         cbTransfer;
+            /** Number of bytes the S/G list holds */
+            size_t         cbSeg;
+            /** Number of segments. */
+            unsigned       cSeg;
+            /** Segment array. */
+            PCRTSGSEG      paSeg;
+        } Io;
+        /** Unmape request. */
+        struct
+        {
+            /** Array of ranges to unmap. */
+            PRTRANGE       paRanges;
+            /** Number of ranges. */
+            unsigned       cRanges;
+        } Unmap;
+    } u;
 } VSCSIIOREQINT;
+
+/**
+ * VPD page pool.
+ */
+typedef struct VSCSIVPDPOOL
+{
+    /** List of registered pages (VSCSIVPDPAGE). */
+    RTLISTANCHOR    ListPages;
+} VSCSIVPDPOOL;
+/** Pointer to the VSCSI VPD page pool. */
+typedef VSCSIVPDPOOL *PVSCSIVPDPOOL;
 
 /**
  * Virtual SCSI LUN descriptor.
@@ -197,65 +227,83 @@ void vscsiDeviceReqComplete(PVSCSIDEVICEINT pVScsiDevice, PVSCSIREQINT pVScsiReq
                             int rcScsiCode, bool fRedoPossible, int rcReq);
 
 /**
- * Initialize a I/O memory context.
+ * Init the sense data state.
  *
- * @returns nothing
- * @param   pIoMemCtx    Pointer to a unitialized I/O memory context.
- * @param   paDataSeg    Pointer to the S/G list.
- * @param   cSegments    Number of segments in the S/G list.
+ * @returns nothing.
+ * @param   pVScsiSense  The SCSI sense data state to init.
  */
-void vscsiIoMemCtxInit(PVSCSIIOMEMCTX pIoMemCtx, PCRTSGSEG paDataSeg, size_t cSegments);
-
-/**
- * Return a buffer from the I/O memory context.
- *
- * @returns Pointer to the buffer
- * @param   pIoMemCtx    Pointer to the I/O memory context.
- * @param   pcbData      Pointer to the amount of byte requested.
- *                       If the current buffer doesn't have enough bytes left
- *                       the amount is returned in the variable.
- */
-uint8_t *vscsiIoMemCtxGetBuffer(PVSCSIIOMEMCTX pIoMemCtx, size_t *pcbData);
-
-/**
- * Copies data to a buffer described by a I/O memory context.
- *
- * @returns The amount of data copied before we run out of either
- *          I/O memory or src data.
- * @param   pIoMemCtx    The I/O memory context to copy the data into.
- * @param   pbData       Pointer to the data data to copy.
- * @param   cbData       Amount of data to copy.
- */
-size_t vscsiCopyToIoMemCtx(PVSCSIIOMEMCTX pIoMemCtx, uint8_t *pbData, size_t cbData);
-
-/**
- * Copies data from a buffer described by a I/O memory context.
- *
- * @returns The amount of data copied before we run out of either
- *          I/O memory or dst data.
- * @param   pIoMemCtx    The I/O memory context to copy the data from.
- * @param   pbData       Pointer to the destination buffer.
- * @param   cbData       Amount of data to copy.
- */
-size_t vscsiCopyFromIoMemCtx(PVSCSIIOMEMCTX pIoMemCtx, uint8_t *pbData, size_t cbData);
+void vscsiSenseInit(PVSCSISENSE pVScsiSense);
 
 /**
  * Sets a ok sense code.
  *
  * @returns SCSI status code.
+ * @param   pVScsiSense  The SCSI sense state to use.
  * @param   pVScsiReq    The SCSI request.
  */
-int vscsiReqSenseOkSet(PVSCSIREQINT pVScsiReq);
+int vscsiReqSenseOkSet(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq);
 
 /**
  * Sets a error sense code.
  *
  * @returns SCSI status code.
+ * @param   pVScsiSense   The SCSI sense state to use.
  * @param   pVScsiReq     The SCSI request.
- * @param   uSCSISenseKey The SCSi sense key to set.
+ * @param   uSCSISenseKey The SCSI sense key to set.
  * @param   uSCSIASC      The ASC value.
+ * @param   uSCSIASC      The ASCQ value.
  */
-int vscsiReqSenseErrorSet(PVSCSIREQINT pVScsiReq, uint8_t uSCSISenseKey, uint8_t uSCSIASC);
+int vscsiReqSenseErrorSet(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq, uint8_t uSCSISenseKey,
+                          uint8_t uSCSIASC, uint8_t uSCSIASCQ);
+
+/**
+ * Process a request sense command.
+ *
+ * @returns SCSI status code.
+ * @param   pVScsiSense   The SCSI sense state to use.
+ * @param   pVScsiReq     The SCSI request.
+ */
+int vscsiReqSenseCmd(PVSCSISENSE pVScsiSense, PVSCSIREQINT pVScsiReq);
+
+/**
+ * Inits the VPD page pool.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiVpdPool    The VPD page pool to initialize.
+ */
+int vscsiVpdPagePoolInit(PVSCSIVPDPOOL pVScsiVpdPool);
+
+/**
+ * Destroys the given VPD page pool freeing all pages in it.
+ *
+ * @returns nothing.
+ * @param   pVScsiVpdPool    The VPD page pool to destroy.
+ */
+void vscsiVpdPagePoolDestroy(PVSCSIVPDPOOL pVScsiVpdPool);
+
+/**
+ * Allocates a new page in the VPD page pool with the given number.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_ALREADY_EXIST if the page number is in use.
+ * @param   pVScsiVpdPool    The VPD page pool the page will belong to.
+ * @param   uPage            The page number, must be unique.
+ * @param   cbPage           Size of the page in bytes.
+ * @param   ppbPage          Where to store the pointer to the raw page data on success.
+ */
+int vscsiVpdPagePoolAllocNewPage(PVSCSIVPDPOOL pVScsiVpdPool, uint8_t uPage, size_t cbPage, uint8_t **ppbPage);
+
+/**
+ * Queries the given page from the pool and cpies it to the buffer given
+ * by the SCSI request.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_NOT_FOUND if the page is not in the pool.
+ * @param   pVScsiVpdPool    The VPD page pool to use.
+ * @param   pVScsiReq        The SCSI request.
+ * @param   uPage            Page to query.
+ */
+int vscsiVpdPagePoolQueryPage(PVSCSIVPDPOOL pVScsiVpdPool, PVSCSIREQINT pVScsiReq, uint8_t uPage);
 
 /**
  * Enqueues a new flush request
@@ -281,6 +329,18 @@ int vscsiIoReqTransferEnqueue(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq,
                               size_t cbTransfer);
 
 /**
+ * Enqueue a new unmap request.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN instance which issued the request.
+ * @param   pVScsiReq   The virtual SCSI request associated with the transfer.
+ * @param   paRanges    The array of ranges to unmap.
+ * @param   cRanges     Number of ranges in the array.
+ */
+int vscsiIoReqUnmapEnqueue(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq,
+                           PRTRANGE paRanges, unsigned cRanges);
+
+/**
  * Returns the current number of outstanding tasks on the given LUN.
  *
  * @returns Number of outstanding tasks.
@@ -288,6 +348,13 @@ int vscsiIoReqTransferEnqueue(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq,
  */
 uint32_t vscsiIoReqOutstandingCountGet(PVSCSILUNINT pVScsiLun);
 
+/**
+ * Wrapper for the get medium size I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN.
+ * @param   pcbSize     Where to store the size on success.
+ */
 DECLINLINE(int) vscsiLunMediumGetSize(PVSCSILUNINT pVScsiLun, uint64_t *pcbSize)
 {
     return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumGetSize(pVScsiLun,
@@ -295,12 +362,78 @@ DECLINLINE(int) vscsiLunMediumGetSize(PVSCSILUNINT pVScsiLun, uint64_t *pcbSize)
                                                                      pcbSize);
 }
 
+/**
+ * Wrapper for the get medium sector size I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun     The LUN.
+ * @param   pcbSectorSize Where to store the sector size on success.
+ */
+DECLINLINE(int) vscsiLunMediumGetSectorSize(PVSCSILUNINT pVScsiLun, uint32_t *pcbSectorSize)
+{
+    return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumGetSectorSize(pVScsiLun,
+                                                                           pVScsiLun->pvVScsiLunUser,
+                                                                           pcbSectorSize);
+}
+
+/**
+ * Wrapper for the get medium lock/unlock I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN.
+ * @param   bool        The new medium lock state.
+ */
+DECLINLINE(int) vscsiLunMediumSetLock(PVSCSILUNINT pVScsiLun, bool fLocked)
+{
+    return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunMediumSetLock(pVScsiLun,
+                                                                     pVScsiLun->pvVScsiLunUser,
+                                                                     fLocked);
+}
+
+/**
+ * Wrapper for the I/O request enqueue I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN.
+ * @param   pVScsiIoReq The I/O request to enqueue.
+ */
 DECLINLINE(int) vscsiLunReqTransferEnqueue(PVSCSILUNINT pVScsiLun, PVSCSIIOREQINT pVScsiIoReq)
 {
     return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunReqTransferEnqueue(pVScsiLun,
                                                                           pVScsiLun->pvVScsiLunUser,
                                                                           pVScsiIoReq);
 }
+
+/**
+ * Wrapper for the get feature flags I/O callback.
+ *
+ * @returns VBox status code.
+ * @param   pVScsiLun   The LUN.
+ * @param   pVScsiIoReq The I/O request to enqueue.
+ */
+DECLINLINE(int) vscsiLunGetFeatureFlags(PVSCSILUNINT pVScsiLun, uint64_t *pfFeatures)
+{
+    return pVScsiLun->pVScsiLunIoCallbacks->pfnVScsiLunGetFeatureFlags(pVScsiLun,
+                                                                       pVScsiLun->pvVScsiLunUser,
+                                                                       pfFeatures);
+}
+
+/**
+ * Wrapper around vscsiReqSenseOkSet()
+ */
+DECLINLINE(int) vscsiLunReqSenseOkSet(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq)
+{
+    return vscsiReqSenseOkSet(&pVScsiLun->pVScsiDevice->VScsiSense, pVScsiReq);
+}
+
+/**
+ * Wrapper around vscsiReqSenseErrorSet()
+ */
+DECLINLINE(int) vscsiLunReqSenseErrorSet(PVSCSILUNINT pVScsiLun, PVSCSIREQINT pVScsiReq, uint8_t uSCSISenseKey, uint8_t uSCSIASC, uint8_t uSCSIASCQ)
+{
+    return vscsiReqSenseErrorSet(&pVScsiLun->pVScsiDevice->VScsiSense, pVScsiReq, uSCSISenseKey, uSCSIASC, uSCSIASCQ);
+}
+
 
 #endif /* ___VSCSIInternal_h */
 

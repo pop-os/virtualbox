@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,10 +203,10 @@ static int Test1(unsigned cThreads, unsigned cSeconds, bool fYield, bool fQuiet)
 
 int main(int argc, char **argv)
 {
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
     {
-        RTPrintf("tstSemMutex: RTR3Init failed (rc=%Rrc)\n", rc);
+        RTPrintf("tstSemMutex: RTR3InitExe failed (rc=%Rrc)\n", rc);
         return 1;
     }
     RTPrintf("tstSemMutex: TESTING...\n");

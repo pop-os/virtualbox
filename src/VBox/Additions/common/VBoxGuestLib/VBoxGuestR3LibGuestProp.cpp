@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,12 +24,15 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
+#if defined(VBOX_VBGLR3_XFREE86) || defined(VBOX_VBGLR3_XORG)
+# define VBOX_VBGLR3_XSERVER
+#endif
 
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #include <iprt/string.h>
-#ifndef VBOX_VBGLR3_XFREE86
+#ifndef VBOX_VBGLR3_XSERVER
 # include <iprt/cpp/mem.h>
 #endif
 #include <iprt/assert.h>
@@ -51,6 +54,10 @@ extern "C" void* xf86memchr(const void*,int,xf86size_t);
 extern "C" void* xf86memset(const void*,int,xf86size_t);
 # undef memset
 # define memset xf86memset
+
+#endif /* VBOX_VBGLR3_XFREE86 */
+
+#ifdef VBOX_VBGLR3_XSERVER
 
 # undef RTSTrEnd
 # define RTStrEnd xf86RTStrEnd
@@ -85,7 +92,7 @@ DECLINLINE(char *) RTStrEnd(char *pszString, size_t cchMax)
     return (char *)memchr(pszString, '\0', cchMax);
 }
 
-#endif /* VBOX_VBGLR3_XFREE86 */
+#endif /* VBOX_VBGLR3_XSERVER */
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -113,6 +120,7 @@ using namespace guestProp;
  * Connects to the guest property service.
  *
  * @returns VBox status code
+ * @returns VERR_NOT_SUPPORTED if guest properties are not available on the host.
  * @param   pu32ClientId    Where to put the client id on success. The client id
  *                          must be passed to all the other calls to the service.
  */
@@ -131,6 +139,8 @@ VBGLR3DECL(int) VbglR3GuestPropConnect(uint32_t *pu32ClientId)
         rc = Info.result;
         if (RT_SUCCESS(rc))
             *pu32ClientId = Info.u32ClientID;
+        if (rc == VERR_NOT_IMPLEMENTED || rc == VERR_HGCM_SERVICE_NOT_FOUND)
+            rc = VERR_NOT_SUPPORTED;
     }
     return rc;
 }
@@ -248,7 +258,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValue(uint32_t u32ClientId, const char *pszN
     return rc;
 }
 
-#ifndef VBOX_VBGLR3_XFREE86
+#ifndef VBOX_VBGLR3_XSERVER
 /**
  * Write a property value where the value is formatted in RTStrPrintfV fashion.
  *
@@ -293,7 +303,7 @@ VBGLR3DECL(int) VbglR3GuestPropWriteValueF(uint32_t u32ClientId, const char *psz
     va_end(va);
     return rc;
 }
-#endif /* VBOX_VBGLR3_XFREE86 */
+#endif /* VBOX_VBGLR3_XSERVER */
 
 /**
  * Retrieve a property.
@@ -390,7 +400,7 @@ VBGLR3DECL(int) VbglR3GuestPropRead(uint32_t u32ClientId, const char *pszName,
     return VINF_SUCCESS;
 }
 
-#ifndef VBOX_VBGLR3_XFREE86
+#ifndef VBOX_VBGLR3_XSERVER
 /**
  * Retrieve a property value, allocating space for it.
  *
@@ -470,7 +480,7 @@ VBGLR3DECL(void) VbglR3GuestPropReadValueFree(char *pszValue)
 {
     RTMemFree(pszValue);
 }
-#endif /* VBOX_VBGLR3_XFREE86 */
+#endif /* VBOX_VBGLR3_XSERVER */
 
 /**
  * Retrieve a property value, using a user-provided buffer to store it.
@@ -505,7 +515,7 @@ VBGLR3DECL(int) VbglR3GuestPropReadValue(uint32_t u32ClientId, const char *pszNa
 }
 
 
-#ifndef VBOX_VBGLR3_XFREE86
+#ifndef VBOX_VBGLR3_XSERVER
 /**
  * Raw API for enumerating guest properties which match a given pattern.
  *
@@ -558,7 +568,7 @@ VBGLR3DECL(int) VbglR3GuestPropEnumRaw(uint32_t u32ClientId,
             ||  rc == VERR_BUFFER_OVERFLOW))
     {
         int rc2 = VbglHGCMParmUInt32Get(&Msg.size, pcbBufActual);
-        if (!RT_SUCCESS(rc2))
+        if (RT_FAILURE(rc2))
             rc = rc2;
     }
     return rc;
@@ -573,8 +583,6 @@ VBGLR3DECL(int) VbglR3GuestPropEnumRaw(uint32_t u32ClientId,
  * @retval  VINF_SUCCESS on success, *ppHandle points to a handle for continuing
  *          the enumeration and *ppszName, *ppszValue, *pu64Timestamp and
  *          *ppszFlags are set.
- * @retval  VERR_NOT_FOUND if no matching properties were found.  In this case
- *          the return parameters are not initialised.
  * @retval  VERR_TOO_MUCH_DATA if it was not possible to determine the amount
  *          of local space needed to store all the enumeration data.  This is
  *          due to a race between allocating space and the host adding new
@@ -589,14 +597,21 @@ VBGLR3DECL(int) VbglR3GuestPropEnumRaw(uint32_t u32ClientId,
  * @param   ppHandle        where the handle for continued enumeration is stored
  *                          on success.  This must be freed with
  *                          VbglR3GuestPropEnumFree when it is no longer needed.
- * @param   ppszName        Where to store the first property name on success.
- *                          Should not be freed. Optional.
- * @param   ppszValue       Where to store the first property value on success.
- *                          Should not be freed. Optional.
- * @param   ppszValue       Where to store the first timestamp value on success.
- *                          Optional.
- * @param   ppszFlags       Where to store the first flags value on success.
- *                          Should not be freed. Optional.
+ * @param  ppszName      Where to store the next property name.  This will be
+ *                       set to NULL if there are no more properties to
+ *                       enumerate.  This pointer should not be freed. Optional.
+ * @param  ppszValue     Where to store the next property value.  This will be
+ *                       set to NULL if there are no more properties to
+ *                       enumerate.  This pointer should not be freed. Optional.
+ * @param  pu64Timestamp Where to store the next property timestamp.  This
+ *                       will be set to zero if there are no more properties
+ *                       to enumerate. Optional.
+ * @param  ppszFlags     Where to store the next property flags.  This will be
+ *                       set to NULL if there are no more properties to
+ *                       enumerate.  This pointer should not be freed. Optional.
+ *
+ * @remarks While all output parameters are optional, you need at least one to
+ *          figure out when to stop.
  */
 VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
                                     char const * const *papszPatterns,
@@ -665,10 +680,8 @@ VBGLR3DECL(int) VbglR3GuestPropEnum(uint32_t u32ClientId,
             ppszName = &pszNameTmp;
         rc = VbglR3GuestPropEnumNext(Handle.get(), ppszName, ppszValue,
                                      pu64Timestamp, ppszFlags);
-        if (RT_SUCCESS(rc) && *ppszName != NULL)
+        if (RT_SUCCESS(rc))
             *ppHandle = Handle.release();
-        else if (RT_SUCCESS(rc))
-            rc = VERR_NOT_FOUND; /* No matching properties found. */
     }
     else if (rc == VERR_BUFFER_OVERFLOW)
         rc = VERR_TOO_MUCH_DATA;
@@ -777,8 +790,36 @@ VBGLR3DECL(int) VbglR3GuestPropEnumNext(PVBGLR3GUESTPROPENUM pHandle,
  */
 VBGLR3DECL(void) VbglR3GuestPropEnumFree(PVBGLR3GUESTPROPENUM pHandle)
 {
+    if (!pHandle)
+        return;
     RTMemFree(pHandle->pchBuf);
     RTMemFree(pHandle);
+}
+
+
+/**
+ * Deletes a guest property.
+ *
+ * @returns VBox status code.
+ * @param   u32ClientId     The client id returned by VbglR3InvsSvcConnect().
+ * @param   pszName         The property to delete.  Utf8
+ */
+VBGLR3DECL(int) VbglR3GuestPropDelete(uint32_t u32ClientId, const char *pszName)
+{
+    AssertPtrReturn(pszName,  VERR_INVALID_POINTER);
+
+    DelProperty Msg;
+
+    Msg.hdr.result = VERR_WRONG_ORDER;
+    Msg.hdr.u32ClientID = u32ClientId;
+    Msg.hdr.u32Function = DEL_PROP;
+    Msg.hdr.cParms = 1;
+    VbglHGCMParmPtrSetString(&Msg.name, pszName);
+    int rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL(sizeof(Msg)), &Msg, sizeof(Msg));
+    if (RT_SUCCESS(rc))
+        rc = Msg.hdr.result;
+
+    return rc;
 }
 
 
@@ -815,7 +856,7 @@ VBGLR3DECL(int) VbglR3GuestPropDelSet(uint32_t u32ClientId,
     while (RT_SUCCESS(rc) && pszName)
     {
         rc = VbglR3GuestPropWriteValue(u32ClientId, pszName, NULL);
-        if (!RT_SUCCESS(rc))
+        if (RT_FAILURE(rc))
             break;
 
         rc = VbglR3GuestPropEnumNext(pHandle,
@@ -946,4 +987,4 @@ VBGLR3DECL(int) VbglR3GuestPropWait(uint32_t u32ClientId,
 
     return VINF_SUCCESS;
 }
-#endif /* VBOX_VBGLR3_XFREE86 */
+#endif /* VBOX_VBGLR3_XSERVER */

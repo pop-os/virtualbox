@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,15 +126,13 @@ static int sf_getdent(struct file *dir, char d_name[NAME_MAX])
 
     TRACE();
 
-    sf_g = GET_GLOB_INFO(dir->f_dentry->d_inode->i_sb);
+    inode = GET_F_DENTRY(dir)->d_inode;
+    sf_i = GET_INODE_INFO(inode);
+    sf_g = GET_GLOB_INFO(inode->i_sb);
     sf_d = dir->private_data;
 
     BUG_ON(!sf_g);
     BUG_ON(!sf_d);
-
-    inode = dir->f_dentry->d_inode;
-    sf_i = GET_INODE_INFO(inode);
-
     BUG_ON(!sf_i);
 
     if (sf_i->force_reread)
@@ -233,7 +231,11 @@ static int sf_getdent(struct file *dir, char d_name[NAME_MAX])
  * b. failure to compute fake inode number
  * c. filldir returns an error (see comment on that)
  */
-static int sf_dir_read (struct file *dir, void *opaque, filldir_t filldir)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+static int sf_dir_iterate(struct file *dir, struct dir_context *ctx)
+#else
+static int sf_dir_read(struct file *dir, void *opaque, filldir_t filldir)
+#endif
 {
     TRACE();
     for (;;)
@@ -257,12 +259,19 @@ static int sf_dir_read (struct file *dir, void *opaque, filldir_t filldir)
                 /* skip erroneous entry and proceed */
                 LogFunc(("sf_getdent error %d\n", err));
                 dir->f_pos += 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+                ctx->pos += 1;
+#endif
                 continue;
         }
 
         /* d_name now contains a valid entry name */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+        sanity = ctx->pos + 0xbeef;
+#else
         sanity = dir->f_pos + 0xbeef;
+#endif
         fake_ino = sanity;
         if (sanity - fake_ino)
         {
@@ -270,8 +279,14 @@ static int sf_dir_read (struct file *dir, void *opaque, filldir_t filldir)
             return -EINVAL;
         }
 
-        err = filldir(opaque, d_name, strlen(d_name),
-                      dir->f_pos, fake_ino, DT_UNKNOWN);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+        if (!dir_emit(ctx, d_name, strlen(d_name), fake_ino, DT_UNKNOWN))
+        {
+            LogFunc(("dir_emit failed\n"));
+            return 0;
+        }
+#else
+        err = filldir(opaque, d_name, strlen(d_name), dir->f_pos, fake_ino, DT_UNKNOWN);
         if (err)
         {
             LogFunc(("filldir returned error %d\n", err));
@@ -279,8 +294,12 @@ static int sf_dir_read (struct file *dir, void *opaque, filldir_t filldir)
                only when it runs out of space in opaque */
             return 0;
         }
+#endif
 
         dir->f_pos += 1;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+        ctx->pos += 1;
+#endif
     }
 
     BUG();
@@ -289,7 +308,11 @@ static int sf_dir_read (struct file *dir, void *opaque, filldir_t filldir)
 struct file_operations sf_dir_fops =
 {
     .open    = sf_dir_open,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+    .iterate = sf_dir_iterate,
+#else
     .readdir = sf_dir_read,
+#endif
     .release = sf_dir_release,
     .read    = generic_read_dir
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
@@ -310,7 +333,9 @@ struct file_operations sf_dir_fops =
  * returned in case of success and "negative" pointer on error
  */
 static struct dentry *sf_lookup(struct inode *parent, struct dentry *dentry
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+                                , unsigned int flags
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
                                 , struct nameidata *nd
 #endif
                                )
@@ -449,13 +474,6 @@ static int sf_instantiate(struct inode *parent, struct dentry *dentry,
     sf_init_inode(sf_g, inode, info);
     sf_new_i->path = path;
     SET_INODE_INFO(inode, sf_new_i);
-
-    dentry->d_time = jiffies;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
-    d_set_d_op(dentry, &sf_dentry_ops);
-#else
-    dentry->d_op = &sf_dentry_ops;
-#endif
     sf_new_i->force_restat = 1;
     sf_new_i->force_reread = 0;
 
@@ -585,7 +603,9 @@ fail0:
  * @param mode          file mode
  * @returns 0 on success, Linux error code otherwise
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+static int sf_create(struct inode *parent, struct dentry *dentry, umode_t mode, bool excl)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)
 static int sf_create(struct inode *parent, struct dentry *dentry, umode_t mode, struct nameidata *nd)
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 static int sf_create(struct inode *parent, struct dentry *dentry, int mode, struct nameidata *nd)

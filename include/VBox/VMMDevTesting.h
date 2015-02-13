@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,10 +36,10 @@
 #define VMMDEV_TESTING_MMIO_BASE        UINT32_C(0x00101000)
 /** The size of the MMIO range used for testing.  */
 #define VMMDEV_TESTING_MMIO_SIZE        UINT32_C(0x00001000)
-/** The NOP MMIO register - 124 RW. */
+/** The NOP MMIO register - 1248 RW. */
 #define VMMDEV_TESTING_MMIO_NOP         (VMMDEV_TESTING_MMIO_BASE + 0x000)
-/** The XXX MMIO register - 124 RW. */
-#define VMMDEV_TESTING_MMIO_TODO        (VMMDEV_TESTING_MMIO_BASE + 0x004)
+/** The go-to-ring-3-NOP MMIO register - 1248 RW. */
+#define VMMDEV_TESTING_MMIO_NOP_R3      (VMMDEV_TESTING_MMIO_BASE + 0x008)
 /** The real mode selector to use.
  * @remarks Requires that the A20 gate is enabled. */
 #define VMMDEV_TESTING_MMIO_RM_SEL       0xffff
@@ -60,6 +60,8 @@
 #define VMMDEV_TESTING_IOPORT_CMD       (VMMDEV_TESTING_IOPORT_BASE + 3)
 /** Data register which use depends on the current command - 1s, 4 WO. */
 #define VMMDEV_TESTING_IOPORT_DATA      (VMMDEV_TESTING_IOPORT_BASE + 4)
+/** The go-to-ring-3-NOP I/O port - 1,2,4 RW. */
+#define VMMDEV_TESTING_IOPORT_NOP_R3    (VMMDEV_TESTING_IOPORT_BASE + 5)
 
 /** @name Commands.
  * @{ */
@@ -76,6 +78,11 @@
 /** Report a value, sending the 64-bit value (2x4), the 32-bit unit (4), and
  * finally the name (zero terminated string).  (RTTestValue) */
 #define VMMDEV_TESTING_CMD_VALUE        UINT32_C(0xcab1e005)
+/** Report a failure, sending reason (zero terminated string). (RTTestSkipped) */
+#define VMMDEV_TESTING_CMD_SKIPPED      UINT32_C(0xcab1e006)
+/** Report a value found in a VMM register, sending a string on the form
+ * "value-name:register-name". */
+#define VMMDEV_TESTING_CMD_VALUE_REG    UINT32_C(0xcab1e007)
 /** @} */
 
 /** @name Value units

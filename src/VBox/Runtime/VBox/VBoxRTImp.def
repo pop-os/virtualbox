@@ -3,7 +3,7 @@
 ; VirtualBox Runtime DLL - Stable Interface Definition file.
 
 ;
-; Copyright (C) 2010 Oracle Corporation
+; Copyright (C) 2010-2012 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -663,6 +663,7 @@ EXPORTS
     RTManifestVerify
     RTManifestVerifyFiles
     RTManifestVerifyFilesBuf
+    RTManifestVerifyDigestType
     RTManifestWriteFiles
     RTManifestWriteFilesBuf
     RTManifestWriteStandard
@@ -708,6 +709,9 @@ EXPORTS
     RTMemExecAllocTag
     RTMemExecFree
     RTMemFree
+    RTMemLockedAllocTag
+    RTMemLockedAllocZTag
+    RTMemLockedFree
     RTMemPageAllocTag
     RTMemPageAllocZTag
     RTMemPageFree
@@ -802,7 +806,7 @@ EXPORTS
     RTPathJoin
     RTPathJoinA
     RTPathJoinEx
-    RTPathParse
+    RTPathParseSimple
     RTPathQueryInfo
     RTPathQueryInfoEx
     RTPathReal
@@ -858,11 +862,10 @@ EXPORTS
     RTProcTerminate
     RTProcWait
     RTProcWaitNoResume
-    RTR3Init
-    RTR3InitAndSUPLib
-    RTR3InitAndSUPLibWithProgramPath
+    RTR3InitDll
+    RTR3InitExe
+    RTR3InitExeNoArguments
     RTR3InitEx
-    RTR3InitWithProgramPath
     RTRandAdvBytes
     RTRandAdvCreateParkMiller
     RTRandAdvCreateSystemFaster
@@ -888,17 +891,19 @@ EXPORTS
     RTRandU32Ex
     RTRandU64
     RTRandU64Ex
-    RTReqAlloc
-    RTReqCall
-    RTReqCallEx
-    RTReqCallV
-    RTReqCallVoid
-    RTReqCreateQueue
-    RTReqDestroyQueue
-    RTReqFree
-    RTReqIsBusy
-    RTReqProcess
-    RTReqQueue
+    RTReqQueueAlloc
+    RTReqQueueCall
+    RTReqQueueCallEx
+    RTReqQueueCallV
+    RTReqQueueCallVoid
+    RTReqQueueCreate
+    RTReqQueueDestroy
+    RTReqQueueIsBusy
+    RTReqQueueProcess
+    RTReqGetStatus
+    RTReqRelease
+    RTReqRetain
+    RTReqSubmit
     RTReqWait
     RTS3BucketsDestroy
     RTS3Create
@@ -1008,6 +1013,8 @@ EXPORTS
     RTSha256Init
     RTSha256ToString
     RTSha256Update
+    RTSha256Digest
+    RTSha256DigestFromFile
     RTSha512
     RTSha512Final
     RTSha512FromString
@@ -1036,11 +1043,9 @@ EXPORTS
     RTSocketWrite
     RTSocketWriteNB
     RTSpinlockAcquire
-    RTSpinlockAcquireNoInts
     RTSpinlockCreate
     RTSpinlockDestroy
     RTSpinlockRelease
-    RTSpinlockReleaseNoInts
     RTStrAAppendExNVTag
     RTStrAAppendNTag
     RTStrAAppendTag
@@ -1476,3 +1481,9 @@ EXPORTS
     RTZipTarCmd
     RTZipTarFsStreamFromIoStream
 
+    ; Support library
+    SUPR3HardenedLdrLoad
+    SUPR3HardenedLdrLoadAppPriv
+    SUPR3HardenedLdrLoadPlugIn
+    SUPR3QueryVTxSupported
+    SUPR3QueryVTCaps

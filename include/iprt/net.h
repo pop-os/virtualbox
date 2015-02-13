@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,19 @@ RT_C_DECLS_BEGIN
  */
 
 /**
+ * Converts an stringified Ethernet MAC address into the RTMAC representation.
+ *
+ * @todo This should be move to some generic part of the runtime.
+ *
+ * @returns VINF_SUCCESS on success, VERR_GETOPT_INVALID_ARGUMENT_FORMAT on
+ *          failure.
+ *
+ * @param   pszValue        The value to convert.
+ * @param   pAddr           Where to store the result.
+ */
+RTDECL(int) RTNetStrToMacAddr(const char *pszAddr, PRTMAC pMacAddr);
+
+/**
  * IPv4 address.
  */
 typedef RTUINT32U RTNETADDRIPV4;
@@ -49,6 +62,26 @@ typedef RTNETADDRIPV4 *PRTNETADDRIPV4;
 typedef RTNETADDRIPV4 const *PCRTNETADDRIPV4;
 
 /**
+ * Tests if the given string is an IPv4 address.
+ *
+ * @returns boolean.
+ * @param   pszAddress          String which may be an IPv4 address.
+ */
+RTDECL(bool) RTNetIsIPv4AddrStr(const char *pszAddress);
+
+/**
+ * Converts an stringified IPv4 address into the RTNETADDRIPV4 representation.
+ *
+ * @returns VINF_SUCCESS on success, VERR_INVALID_PARAMETER on
+ *          failure.
+ *
+ * @param   pszAddr         The value to convert.
+ * @param   pAddr           Where to store the result.
+ */
+RTDECL(int) RTNetStrToIPv4Addr(const char *pszAddr, PRTNETADDRIPV4 pAddr);
+
+
+/**
  * IPv6 address.
  */
 typedef RTUINT128U RTNETADDRIPV6;
@@ -57,6 +90,15 @@ AssertCompileSize(RTNETADDRIPV6, 16);
 typedef RTNETADDRIPV6 *PRTNETADDRIPV6;
 /** Pointer to a const IPv6 address. */
 typedef RTNETADDRIPV6 const *PCRTNETADDRIPV6;
+
+/**
+ * Tests if the given string is a valid IPv6 address.
+ *
+ * @returns @c true if it is, @c false if not.
+ * @param   pszAddress          String which may be an IPv6 address.
+ */
+RTDECL(bool) RTNetIsIPv6AddrStr(const char *pszAddress);
+
 
 /**
  * IPX address.
@@ -93,8 +135,10 @@ typedef union RTNETADDRU
     uint8_t  au8[16];
     /** IPv4 view. */
     RTNETADDRIPV4 IPv4;
+#ifndef IPv6 /* Work around X11 and RDP defining IPv6 to 1. */
     /** IPv6 view. */
     RTNETADDRIPV6 IPv6;
+#endif
     /** IPX view. */
     RTNETADDRIPX Ipx;
     /** MAC address view. */
@@ -257,6 +301,14 @@ typedef RTNETIPV4 const *PCRTNETIPV4;
 #define RTNETIPV4_PORT_BOOTPC   (68)
 /** @} */
 
+/** @name IPv4 Flags
+ * @{ */
+/** IPv4: Don't fragment */
+#define RTNETIPV4_FLAGS_DF      (0x4000)
+/** IPv4: More fragments */
+#define RTNETIPV4_FLAGS_MF      (0x2000)
+/** @} */
+
 RTDECL(uint16_t) RTNetIPv4HdrChecksum(PCRTNETIPV4 pIpHdr);
 RTDECL(bool)     RTNetIPv4IsHdrValid(PCRTNETIPV4 pIpHdr, size_t cbHdrMax, size_t cbPktMax, bool fChecksum);
 RTDECL(uint32_t) RTNetIPv4PseudoChecksum(PCRTNETIPV4 pIpHdr);
@@ -295,7 +347,8 @@ typedef RTNETIPV6 const *PCRTNETIPV6;
 
 /** The minimum IPv6 header length (in bytes).
  * Up to and including RTNETIPV6::ip6_dst. */
-#define RTNETIPV6_MIN_LEN   (40)
+#define RTNETIPV6_MIN_LEN                           (40)
+#define RTNETIPV6_ICMPV6_ND_WITH_LLA_OPT_MIN_LEN    (32)
 
 RTDECL(uint32_t) RTNetIPv6PseudoChecksum(PCRTNETIPV6 pIpHdr);
 RTDECL(uint32_t) RTNetIPv6PseudoChecksumEx(PCRTNETIPV6 pIpHdr, uint8_t bProtocol, uint16_t cbPkt);
@@ -333,6 +386,7 @@ RTDECL(uint32_t) RTNetIPv4AddUDPChecksum(PCRTNETUDP pUdpHdr, uint32_t u32Sum);
 RTDECL(uint16_t) RTNetIPv4UDPChecksum(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData);
 RTDECL(bool)     RTNetIPv4IsUDPSizeValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, size_t cbPktMax);
 RTDECL(bool)     RTNetIPv4IsUDPValid(PCRTNETIPV4 pIpHdr, PCRTNETUDP pUdpHdr, void const *pvData, size_t cbPktMax, bool fChecksum);
+
 
 /**
  * IPv4 BOOTP / DHCP packet.
@@ -706,7 +760,75 @@ typedef RTNETICMPV4 *PRTNETICMPV4;
 typedef RTNETICMPV4 const *PCRTNETICMPV4;
 
 
-/** @todo add ICMPv6 when needed. */
+/**
+ * IPv6 ICMP packet header.
+ */
+#pragma pack(1)
+typedef struct RTNETICMPV6HDR
+{
+    /** 00 - The ICMPv6 message type. */
+    uint8_t         icmp6_type;
+    /** 01 - Type specific code that further qualifies the message. */
+    uint8_t         icmp6_code;
+    /** 02 - Checksum of the ICMPv6 message. */
+    uint16_t        icmp6_cksum;
+} RTNETICMPV6HDR;
+#pragma pack()
+AssertCompileSize(RTNETICMPV6HDR, 4);
+/** Pointer to an ICMPv6 packet header. */
+typedef RTNETICMPV6HDR *PRTNETICMPV6HDR;
+/** Pointer to a const ICMP packet header. */
+typedef RTNETICMPV6HDR const *PCRTNETICMPV6HDR;
+
+#define RTNETIPV6_PROT_ICMPV6       (58)
+
+/** @name Internet Control Message Protocol version 6 (ICMPv6) message types.
+ * @{ */
+#define RTNETIPV6_ICMP_TYPE_RS      133
+#define RTNETIPV6_ICMP_TYPE_RA      134
+#define RTNETIPV6_ICMP_TYPE_NS      135
+#define RTNETIPV6_ICMP_TYPE_NA      136
+#define RTNETIPV6_ICMP_TYPE_RDR     137
+/** @} */
+
+/** @name Neighbor Discovery option types
+ * @{ */
+#define RTNETIPV6_ICMP_ND_SLLA_OPT  (1)
+#define RTNETIPV6_ICMP_ND_TLLA_OPT  (2)
+/** @} */
+
+/** ICMPv6 ND Source/Target Link Layer Address option */
+#pragma pack(1)
+typedef struct RTNETNDP_LLA_OPT
+{
+    uint8_t type;
+    uint8_t len;
+    RTMAC lla;
+} RTNETNDP_LLA_OPT;
+#pragma pack()
+
+AssertCompileSize(RTNETNDP_LLA_OPT, 1+1+6);
+
+typedef RTNETNDP_LLA_OPT *PRTNETNDP_LLA_OPT;
+typedef RTNETNDP_LLA_OPT const *PCRTNETNDP_LLA_OPT;
+
+/** ICMPv6 ND Neighbor Sollicitation */
+#pragma pack(1)
+typedef struct RTNETNDP
+{
+    /** 00 - The ICMPv6 header. */
+    RTNETICMPV6HDR Hdr;
+    /** 04 - reserved */
+    uint32_t reserved;
+    /** 08 - target address */
+    RTNETADDRIPV6 target_address;
+} RTNETNDP;
+#pragma pack()
+AssertCompileSize(RTNETNDP, 4+4+16);
+/** Pointer to a NDP ND packet. */
+typedef RTNETNDP *PRTNETNDP;
+/** Pointer to a const NDP NS packet. */
+typedef RTNETNDP const *PCRTNETNDP;
 
 
 /**
@@ -774,9 +896,6 @@ AssertCompileSize(RTNETARPIPV4, 8+6+4+6+4);
 typedef RTNETARPIPV4 *PRTNETARPIPV4;
 /** Pointer to a const ethernet IPv4+MAC ARP request packet. */
 typedef RTNETARPIPV4 const *PCRTNETARPIPV4;
-
-
-/** @todo RTNETNDP (IPv6)*/
 
 
 /** @} */

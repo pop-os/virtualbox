@@ -76,7 +76,7 @@ typedef uint64_t target_ulong;
 #define EXCP_HALTED     0x10003 /* cpu is halted (waiting for external event) */
 #ifdef VBOX
 # define EXCP_EXECUTE_RAW   0x11024 /**< execute raw mode. */
-# define EXCP_EXECUTE_HWACC 0x11025 /**< execute hardware accelerated raw mode. */
+# define EXCP_EXECUTE_HM 0x11025 /**< execute hardware accelerated raw mode. */
 # define EXCP_SINGLE_INSTR  0x11026 /**< executed single instruction. */
 # define EXCP_RC            0x11027 /**< a EM rc was raised (VMR3Reset/Suspend/PowerOff). */
 #endif /* VBOX */
@@ -114,12 +114,12 @@ typedef struct CPUTLBEntry {
     target_ulong addr_code;
     /* Addend to virtual address to get host address.  IO accesses
        use the corresponding iotlb value.  */
-    unsigned long addend;
+    uintptr_t addend;
     /* padding to get a power of two size */
     uint8_t dummy[(1 << CPU_TLB_ENTRY_BITS) -
                   (sizeof(target_ulong) * 3 +
-                   ((-sizeof(target_ulong) * 3) & (sizeof(unsigned long) - 1)) +
-                   sizeof(unsigned long))];
+                   ((-sizeof(target_ulong) * 3) & (sizeof(uintptr_t) - 1)) +
+                   sizeof(uintptr_t))];
 } CPUTLBEntry;
 
 extern int CPUTLBEntry_wrong_size[sizeof(CPUTLBEntry) == (1 << CPU_TLB_ENTRY_BITS) ? 1 : -1];
@@ -174,7 +174,7 @@ typedef struct CPUWatchpoint {
     /* in order to avoid passing too many arguments to the MMIO         \
        helpers, we store some rarely used information in the CPU        \
        context) */                                                      \
-    unsigned long mem_io_pc; /* host pc at which the memory was         \
+    uintptr_t mem_io_pc; /* host pc at which the memory was             \
                                 accessed */                             \
     target_ulong mem_io_vaddr; /* target virtual addr at which the      \
                                      memory was accessed */             \

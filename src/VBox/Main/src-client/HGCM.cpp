@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -242,7 +242,7 @@ HGCMService::HGCMService ()
 #endif
     m_hExtension (NULL)
 {
-    memset (&m_fntable, 0, sizeof (m_fntable));
+    RT_ZERO(m_fntable);
 }
 
 
@@ -254,7 +254,7 @@ static bool g_fSaveState = false;
  *
  *  @return VBox code
  */
-int HGCMService::loadServiceDLL (void)
+int HGCMService::loadServiceDLL(void)
 {
     LogFlowFunc(("m_pszSvcLibrary = %s\n", m_pszSvcLibrary));
 
@@ -264,9 +264,14 @@ int HGCMService::loadServiceDLL (void)
     }
 
     RTERRINFOSTATIC ErrInfo;
-    RTErrInfoInitStatic (&ErrInfo);
+    RTErrInfoInitStatic(&ErrInfo);
 
-    int rc = SUPR3HardenedLdrLoadAppPriv (m_pszSvcLibrary, &m_hLdrMod, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
+    int rc;
+
+    if (RTPathHasPath(m_pszSvcLibrary))
+        rc = SUPR3HardenedLdrLoadPlugIn(m_pszSvcLibrary, &m_hLdrMod, &ErrInfo.Core);
+    else
+        rc = SUPR3HardenedLdrLoadAppPriv(m_pszSvcLibrary, &m_hLdrMod, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
 
     if (RT_SUCCESS(rc))
     {
@@ -274,7 +279,7 @@ int HGCMService::loadServiceDLL (void)
 
         m_pfnLoad = NULL;
 
-        rc = RTLdrGetSymbol (m_hLdrMod, VBOX_HGCM_SVCLOAD_NAME, (void**)&m_pfnLoad);
+        rc = RTLdrGetSymbol(m_hLdrMod, VBOX_HGCM_SVCLOAD_NAME, (void**)&m_pfnLoad);
 
         if (RT_FAILURE(rc) || !m_pfnLoad)
         {
@@ -289,13 +294,13 @@ int HGCMService::loadServiceDLL (void)
 
         if (RT_SUCCESS(rc))
         {
-            memset (&m_fntable, 0, sizeof (m_fntable));
+            RT_ZERO(m_fntable);
 
-            m_fntable.cbSize     = sizeof (m_fntable);
+            m_fntable.cbSize     = sizeof(m_fntable);
             m_fntable.u32Version = VBOX_HGCM_SVC_VERSION;
             m_fntable.pHelpers   = &m_svcHelpers;
 
-            rc = m_pfnLoad (&m_fntable);
+            rc = m_pfnLoad(&m_fntable);
 
             LogFlowFunc(("m_pfnLoad rc = %Rrc\n", rc));
 
@@ -313,7 +318,7 @@ int HGCMService::loadServiceDLL (void)
 
                     if (m_fntable.pfnUnload)
                     {
-                        m_fntable.pfnUnload (m_fntable.pvService);
+                        m_fntable.pfnUnload(m_fntable.pvService);
                     }
                 }
             }
@@ -328,7 +333,7 @@ int HGCMService::loadServiceDLL (void)
 
     if (RT_FAILURE(rc))
     {
-        unloadServiceDLL ();
+        unloadServiceDLL();
     }
 
     return rc;
@@ -338,14 +343,14 @@ int HGCMService::loadServiceDLL (void)
  *
  *  @return VBox code
  */
-void HGCMService::unloadServiceDLL (void)
+void HGCMService::unloadServiceDLL(void)
 {
     if (m_hLdrMod)
     {
-        RTLdrClose (m_hLdrMod);
+        RTLdrClose(m_hLdrMod);
     }
 
-    memset (&m_fntable, 0, sizeof (m_fntable));
+    RT_ZERO(m_fntable);
     m_pfnLoad = NULL;
     m_hLdrMod = NIL_RTLDRMOD;
 }
@@ -789,12 +794,15 @@ int HGCMService::instanceCreate (const char *pszServiceLibrary, const char *pszS
     LogFlowFunc(("name %s, lib %s\n", pszServiceName, pszServiceLibrary));
 
     /* The maximum length of the thread name, allowed by the RT is 15. */
-    char achThreadName[16];
+    char szThreadName[16];
+    if (!strncmp (pszServiceName, RT_STR_TUPLE("VBoxShared")))
+        RTStrPrintf (szThreadName, sizeof (szThreadName), "Sh%s", pszServiceName + 10);
+    else if (!strncmp (pszServiceName, RT_STR_TUPLE("VBox")))
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName + 4);
+    else
+        RTStrCopy (szThreadName, sizeof (szThreadName), pszServiceName);
 
-    strncpy (achThreadName, pszServiceName, 15);
-    achThreadName[15] = 0;
-
-    int rc = hgcmThreadCreate (&m_thread, achThreadName, hgcmServiceThread, this);
+    int rc = hgcmThreadCreate (&m_thread, szThreadName, hgcmServiceThread, this);
 
     if (RT_SUCCESS(rc))
     {

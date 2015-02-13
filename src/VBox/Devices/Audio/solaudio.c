@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -139,7 +139,7 @@ static char *solaudio_getdevice (void)
      * This is for multiple audio devices where env. var determines current one,
      * otherwise else we fallback to default.
      */
-    const char *pszAudioDev = RTEnvDupEx(RTENV_DEFAULT, "AUDIODEV");
+    char *pszAudioDev = RTEnvDupEx(RTENV_DEFAULT, "AUDIODEV");
     if (!pszAudioDev)
         pszAudioDev = RTStrDup("/dev/audio");
     return pszAudioDev;
@@ -407,7 +407,8 @@ static int solaudio_run_out (HWVoiceOut *hw)
 {
     solaudioVoiceOut *pSol = (solaudioVoiceOut *) hw;
     int          csLive, csDecr, csSamples, csToWrite, csAvail;
-    size_t       cbAvail, cbToWrite, cbWritten;
+    size_t       cbAvail, cbToWrite;
+    ssize_t      cbWritten;
     uint8_t     *pu8Dst;
     st_sample_t *psSrc;
 
@@ -843,7 +844,7 @@ static struct audio_pcm_ops solaudio_pcm_ops =
 
 static struct audio_option solaudio_options[] =
 {
-    {"PLAY_BUFFER_SIZE", AUD_OPT_INT, &conf.cbPlayBuffer,
+    {"PlayBufferSize", AUD_OPT_INT, &conf.cbPlayBuffer,
      "Size of the buffer in bytes", NULL, 0},
 #if 0
     {"RECORD_BUFFER_SIZE", AUD_OPT_INT, &conf.cbRecordBuffer,

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2005-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -338,10 +338,6 @@ static DECLCALLBACK(void) vusbRhFreeUrb(PVUSBURB pUrb)
     vusbUrbAssert(pUrb);
     PVUSBROOTHUB pRh = (PVUSBROOTHUB)pUrb->VUsb.pvFreeCtx;
     Assert(pRh);
-#ifdef VBOX_STRICT
-    for (PVUSBURB pCur = pRh->pAsyncUrbHead; pCur; pCur = pCur->VUsb.pNext)
-        Assert(pUrb != pCur);
-#endif
 
     /*
      * Free the URB description (logging builds only).
@@ -356,13 +352,13 @@ static DECLCALLBACK(void) vusbRhFreeUrb(PVUSBURB pUrb)
      * Put it into the LIFO of free URBs.
      * (No ppPrev is needed here.)
      */
-    RTCritSectEnter(&pRh->CritSect);
+    RTCritSectEnter(&pRh->CritSectFreeUrbs);
     pUrb->enmState = VUSBURBSTATE_FREE;
     pUrb->VUsb.ppPrev = NULL;
     pUrb->VUsb.pNext = pRh->pFreeUrbs;
     pRh->pFreeUrbs = pUrb;
     Assert(pRh->pFreeUrbs->enmState == VUSBURBSTATE_FREE);
-    RTCritSectLeave(&pRh->CritSect);
+    RTCritSectLeave(&pRh->CritSectFreeUrbs);
 }
 
 
@@ -379,7 +375,7 @@ PVUSBURB vusbRhNewUrb(PVUSBROOTHUB pRh, uint8_t DstAddress, uint32_t cbData, uin
     /** @todo The allocations should be done by the device, at least as an option, since the devices
      * frequently wish to associate their own stuff with the in-flight URB or need special buffering
      * (isochronous on Darwin for instance). */
-    RTCritSectEnter(&pRh->CritSect);
+    RTCritSectEnter(&pRh->CritSectFreeUrbs);
     PVUSBURB pUrbPrev = NULL;
     PVUSBURB pUrb = pRh->pFreeUrbs;
     while (pUrb)
@@ -414,7 +410,7 @@ PVUSBURB vusbRhNewUrb(PVUSBROOTHUB pRh, uint8_t DstAddress, uint32_t cbData, uin
                                     +   sizeof(pUrb->Hci.paTds[0]) * cTdsAllocated);
         if (RT_UNLIKELY(!pUrb))
         {
-            RTCritSectLeave(&pRh->CritSect);
+            RTCritSectLeave(&pRh->CritSectFreeUrbs);
             AssertLogRelFailedReturn(NULL);
         }
 
@@ -426,7 +422,7 @@ PVUSBURB vusbRhNewUrb(PVUSBROOTHUB pRh, uint8_t DstAddress, uint32_t cbData, uin
         pUrb->VUsb.cTdsAllocated = cTdsAllocated;
         pUrb->Hci.paTds = (VUSBURB::VUSBURBHCI::VUSBURBHCITD *)(&pUrb->abData[cbDataAllocated + 16]);
     }
-    RTCritSectLeave(&pRh->CritSect);
+    RTCritSectLeave(&pRh->CritSectFreeUrbs);
 
     /*
      * (Re)init the URB
@@ -502,6 +498,14 @@ static DECLCALLBACK(int) vusbRhSubmitUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUS
     }
 #endif
 
+    /* If there is a sniffer on the roothub record the URB there. */
+    if (pRh->hSniffer != VUSBSNIFFER_NIL)
+    {
+        int rc = VUSBSnifferRecordEvent(pRh->hSniffer, pUrb, VUSBSNIFFEREVENT_SUBMIT);
+        if (RT_FAILURE(rc))
+            LogRel(("VUSB: Capturing URB submit event on the root hub failed with %Rrc\n", rc));
+    }
+
     /*
      * The device was resolved when we allocated the URB.
      * Submit it to the device if we found it, if not fail with device-not-ready.
@@ -549,25 +553,35 @@ static DECLCALLBACK(int) vusbRhSubmitUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUS
 }
 
 
+static DECLCALLBACK(int) vusbRhReapAsyncUrbsWorker(PVUSBDEV pDev, RTMSINTERVAL cMillies)
+{
+    if (!cMillies)
+        vusbUrbDoReapAsync(pDev->pAsyncUrbHead, 0);
+    else
+    {
+        uint64_t u64Start = RTTimeMilliTS();
+        do
+        {
+            vusbUrbDoReapAsync(pDev->pAsyncUrbHead, RT_MIN(cMillies >> 8, 10));
+        } while (   pDev->pAsyncUrbHead
+                 && RTTimeMilliTS() - u64Start < cMillies);
+    }
+
+    return VINF_SUCCESS;
+}
+
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnReapAsyncUrbs */
-static DECLCALLBACK(void) vusbRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies)
+static DECLCALLBACK(void) vusbRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, RTMSINTERVAL cMillies)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
-    if (!pRh->pAsyncUrbHead)
+    PVUSBDEV pDev = (PVUSBDEV)pDevice;
+
+    if (!pDev->pAsyncUrbHead)
         return;
 
     STAM_PROFILE_START(&pRh->StatReapAsyncUrbs, a);
-    if (!cMillies)
-        vusbUrbDoReapAsync(pRh->pAsyncUrbHead, 0);
-    else
-    {
-        uint64_t    u64Start = RTTimeMilliTS();
-        do
-        {
-            vusbUrbDoReapAsync(pRh->pAsyncUrbHead, RT_MIN(cMillies >> 8, 10));
-        } while (   pRh->pAsyncUrbHead
-                 && RTTimeMilliTS() - u64Start < cMillies);
-    }
+    int rc = vusbDevIoThreadExecSync(pDev, (PFNRT)vusbRhReapAsyncUrbsWorker, 2, pDev, cMillies);
+    AssertRC(rc);
     STAM_PROFILE_STOP(&pRh->StatReapAsyncUrbs, a);
 }
 
@@ -584,18 +598,39 @@ static DECLCALLBACK(int) vusbRhCancelUrbsEp(PVUSBIROOTHUBCONNECTOR pInterface, P
      * Cancel and reap the URB(s) on an endpoint.
      */
     LogFlow(("vusbRhCancelUrbsEp: pRh=%p pUrb=%p\n", pRh));
-    vusbUrbCancel(pUrb, CANCELMODE_UNDO);
 
-    PVUSBURB pRipe;
-    if (pUrb->enmState == VUSBURBSTATE_REAPED)
-        pRipe = pUrb;
-    else
-        pRipe = pUrb->pUsbIns->pReg->pfnUrbReap(pUrb->pUsbIns, 0);
-    if (pRipe)
+    vusbUrbCancelAsync(pUrb, CANCELMODE_UNDO);
+
+    /* The reaper thread will take care of completing the URB. */
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Worker doing the actual cancelling of all outstanding URBs on the device I/O thread.
+ *
+ * @returns VBox status code.
+ * @param   pDev    USB device instance data.
+ */
+static DECLCALLBACK(int) vusbRhCancelAllUrbsWorker(PVUSBDEV pDev)
+{
+    /*
+     * Cancel the URBS.
+     *
+     * Not using th CritAsyncUrbs critical section here is safe
+     * as the I/O thread is the only thread accessing this struture at the
+     * moment.
+     */
+    PVUSBURB pUrb = pDev->pAsyncUrbHead;
+
+    while (pUrb)
     {
-        pRipe->enmStatus = VUSBSTATUS_CRC;
-        vusbUrbRipe(pRipe);
+        PVUSBURB pNext = pUrb->VUsb.pNext;
+        /* Call the worker directly. */
+        vusbUrbCancelWorker(pUrb, CANCELMODE_FAIL);
+        pUrb = pNext;
     }
+
     return VINF_SUCCESS;
 }
 
@@ -604,37 +639,14 @@ static DECLCALLBACK(void) vusbRhCancelAllUrbs(PVUSBIROOTHUBCONNECTOR pInterface)
 {
     PVUSBROOTHUB pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
 
-    /*
-     * Cancel the URBS.
-     */
-    PVUSBURB pUrb = pRh->pAsyncUrbHead;
-    LogFlow(("vusbRhCancelAllUrbs: pRh=%p\n", pRh));
-    while (pUrb)
+    RTCritSectEnter(&pRh->CritSectDevices);
+    PVUSBDEV pDev = pRh->pDevices;
+    while (pDev)
     {
-        PVUSBURB pNext = pUrb->VUsb.pNext;
-        vusbUrbCancel(pUrb, CANCELMODE_FAIL);
-        pUrb = pNext;
+        vusbDevIoThreadExecSync(pDev, (PFNRT)vusbRhCancelAllUrbsWorker, 1, pDev);
+        pDev = pDev->pNext;
     }
-
-    /*
-     * Reap any URBs which now are ripe.
-     */
-    pUrb = pRh->pAsyncUrbHead;
-    while (pUrb)
-    {
-        PVUSBURB pRipe;
-        if (pUrb->enmState == VUSBURBSTATE_REAPED)
-            pRipe = pUrb;
-        else
-            pRipe = pUrb->pUsbIns->pReg->pfnUrbReap(pUrb->pUsbIns, 0);
-        if (!pRipe || pUrb == pRipe)
-            pUrb = pUrb->VUsb.pNext;
-        if (pRipe)
-        {
-            pRipe->enmStatus = VUSBSTATUS_CRC;
-            vusbUrbRipe(pRipe);
-        }
-    }
+    RTCritSectLeave(&pRh->CritSectDevices);
 }
 
 
@@ -703,7 +715,14 @@ static DECLCALLBACK(int) vusbRhDevPowerOff(PVUSBIDEVICE pInterface)
      * Cancel all URBs and reap them.
      */
     VUSBIRhCancelAllUrbs(&pRh->IRhConnector);
-    VUSBIRhReapAsyncUrbs(&pRh->IRhConnector, 0);
+    RTCritSectEnter(&pRh->CritSectDevices);
+    PVUSBDEV pDev = pRh->pDevices;
+    while (pDev)
+    {
+        VUSBIRhReapAsyncUrbs(&pRh->IRhConnector, (PVUSBIDEVICE)pDev, 0);
+        pDev = pDev->pNext;
+    }
+    RTCritSectLeave(&pRh->CritSectDevices);
 
     pRh->Hub.Dev.enmState = VUSB_DEVICE_STATE_ATTACHED;
     return VINF_SUCCESS;
@@ -756,8 +775,10 @@ static int vusbRhHubOpAttach(PVUSBHUB pHub, PVUSBDEV pDev)
     int rc = pRh->pIRhPort->pfnAttach(pRh->pIRhPort, &pDev->IDevice, iPort);
     if (RT_SUCCESS(rc))
     {
+        RTCritSectEnter(&pRh->CritSectDevices);
         pDev->pNext = pRh->pDevices;
         pRh->pDevices = pDev;
+        RTCritSectLeave(&pRh->CritSectDevices);
         LogRel(("VUSB: attached '%s' to port %d\n", pDev->pUsbIns->pszName, iPort));
     }
     else
@@ -786,6 +807,7 @@ static void vusbRhHubOpDetach(PVUSBHUB pHub, PVUSBDEV pDev)
     /*
      * Check that it's attached and unlink it from the linked list.
      */
+    RTCritSectEnter(&pRh->CritSectDevices);
     if (pRh->pDevices != pDev)
     {
         PVUSBDEV pPrev = pRh->pDevices;
@@ -797,12 +819,14 @@ static void vusbRhHubOpDetach(PVUSBHUB pHub, PVUSBDEV pDev)
     else
         pRh->pDevices = pDev->pNext;
     pDev->pNext = NULL;
+    RTCritSectLeave(&pRh->CritSectDevices);
 
     /*
      * Detach the device and mark the port as available.
      */
     unsigned uPort = pDev->i16Port;
     pRh->pIRhPort->pfnDetach(pRh->pIRhPort, &pDev->IDevice, uPort);
+    LogRel(("VUSB: detached '%s' from port %u\n", pDev->pUsbIns->pszName, uPort));
     ASMBitSet(&pRh->Bitmap, uPort);
     pHub->cDevices--;
 }
@@ -871,7 +895,10 @@ static DECLCALLBACK(void) vusbRhDestruct(PPDMDRVINS pDrvIns)
         RTStrFree(pRh->Hub.pszName);
         pRh->Hub.pszName = NULL;
     }
-    RTCritSectDelete(&pRh->CritSect);
+    if (pRh->hSniffer != VUSBSNIFFER_NIL)
+        VUSBSnifferDestroy(pRh->hSniffer);
+    RTCritSectDelete(&pRh->CritSectDevices);
+    RTCritSectDelete(&pRh->CritSectFreeUrbs);
 }
 
 
@@ -889,7 +916,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     /*
      * Validate configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "CaptureFilename\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
 
     /*
@@ -900,11 +927,22 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                     VERR_PDM_DRVINS_NO_ATTACH);
 
     /*
-     * Initialize the critical section.
+     * Initialize the critical sections.
      */
-    int rc = RTCritSectInit(&pThis->CritSect);
+    int rc = RTCritSectInit(&pThis->CritSectDevices);
     if (RT_FAILURE(rc))
         return rc;
+
+    rc = RTCritSectInit(&pThis->CritSectFreeUrbs);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    char *pszCaptureFilename = NULL;
+    rc = CFGMR3QueryStringAlloc(pCfg, "CaptureFilename", &pszCaptureFilename);
+    if (   RT_FAILURE(rc)
+        && rc != VERR_CFGM_VALUE_NOT_FOUND)
+        return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+                                   N_("Configuration error: Failed to query value of \"CaptureFilename\""));
 
     /*
      * Initialize the data members.
@@ -936,6 +974,7 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     pThis->IRhConnector.pfnCancelAllUrbs= vusbRhCancelAllUrbs;
     pThis->IRhConnector.pfnAttachDevice = vusbRhAttachDevice;
     pThis->IRhConnector.pfnDetachDevice = vusbRhDetachDevice;
+    pThis->hSniffer                     = VUSBSNIFFER_NIL;
     /*
      * Resolve interface(s).
      */
@@ -955,6 +994,16 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
      */
     pThis->fHcVersions = pThis->pIRhPort->pfnGetUSBVersions(pThis->pIRhPort);
     Log(("vusbRhConstruct: fHcVersions=%u\n", pThis->fHcVersions));
+
+    if (pszCaptureFilename)
+    {
+        rc = VUSBSnifferCreate(&pThis->hSniffer, 0, pszCaptureFilename, NULL);
+        if (RT_FAILURE(rc))
+            return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
+                                       N_("VUSBSniffer cannot open '%s' for writing. The directory must exist and it must be writable for the current user"));
+
+        MMR3HeapFree(pszCaptureFilename);
+    }
 
     /*
      * Register ourselves as a USB hub.

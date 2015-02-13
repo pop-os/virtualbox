@@ -5,7 +5,7 @@
 /** @todo r=bird: Cut&Past rules... Please fix DHCP refs! */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,16 +16,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/** @page pg_net_dhcp       VBoxNetDHCP
- *
- * Write a few words...
- *
- */
-
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_NET_SERVICE
+
+#include <VBox/com/com.h>
+#include <VBox/com/listeners.h>
+#include <VBox/com/string.h>
+#include <VBox/com/Guid.h>
+#include <VBox/com/array.h>
+#include <VBox/com/ErrorInfo.h>
+#include <VBox/com/errorprint.h>
+#include <VBox/com/VirtualBox.h>
+#include <VBox/com/NativeEventQueue.h>
 
 #include <iprt/alloca.h>
 #include <iprt/buildconfig.h>
@@ -35,22 +39,26 @@
 #include <iprt/initterm.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
+#include <iprt/process.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/time.h>
+#include <iprt/thread.h>
+#include <iprt/mem.h>
+#include <iprt/message.h>
 
 #include <VBox/sup.h>
 #include <VBox/intnet.h>
+#include <VBox/intnetinline.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/version.h>
 
 #include <vector>
 #include <string>
 
+#include <VBox/err.h>
 #include <VBox/log.h>
 
-#include "VBoxNetLib.h"
-#include "VBoxNetBaseService.h"
 #include "VBoxNetLib.h"
 #include "VBoxNetBaseService.h"
 
@@ -63,41 +71,171 @@
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
-VBoxNetBaseService::VBoxNetBaseService()
+struct VBoxNetBaseService::Data
 {
-    /* numbers from DrvIntNet */
-    m_cbSendBuf             =  36 * _1K;
-    m_cbRecvBuf             = 218 * _1K;
-    m_hIf                   = INTNET_HANDLE_INVALID;
-    m_pIfBuf                = NULL;
+    Data(const std::string& aName, const std::string& aNetworkName):
+      m_Name(aName),
+      m_Network(aNetworkName),
+      m_enmTrunkType(kIntNetTrunkType_WhateverNone),
+      m_pSession(NIL_RTR0PTR),
+      m_cbSendBuf(128 * _1K),
+      m_cbRecvBuf(256 * _1K),
+      m_hIf(INTNET_HANDLE_INVALID),
+      m_pIfBuf(NULL),
+      m_cVerbosity(0),
+      m_fNeedMain(false),
+      m_EventQ(NULL),
+      m_hThrRecv(NIL_RTTHREAD),
+      fShutdown(false)
+    {
+        int rc = RTCritSectInit(&m_csThis);
+        AssertRC(rc);
+    };
 
-    m_cVerbosity            = 0;
-    m_Name                  = "VBoxNetNAT";
-    m_Network               = "intnet";
+    std::string         m_Name;
+    std::string         m_Network;
+    std::string         m_TrunkName;
+    INTNETTRUNKTYPE     m_enmTrunkType;
+
+    RTMAC               m_MacAddress;
+    RTNETADDRIPV4       m_Ipv4Address;
+    RTNETADDRIPV4       m_Ipv4Netmask;
+
+    PSUPDRVSESSION      m_pSession;
+    uint32_t            m_cbSendBuf;
+    uint32_t            m_cbRecvBuf;
+    INTNETIFHANDLE      m_hIf;          /**< The handle to the network interface. */
+    PINTNETBUF          m_pIfBuf;       /**< Interface buffer. */
+
+    std::vector<PRTGETOPTDEF> m_vecOptionDefs;
+
+    int32_t             m_cVerbosity;
+
+    /* cs for syncing */
+    RTCRITSECT          m_csThis;
+
+    /* Controls whether service will connect SVC for runtime needs */
+    bool                m_fNeedMain;
+    /* Event Queue */
+    com::NativeEventQueue  *m_EventQ;
+
+    /** receiving thread, used only if main is used */
+    RTTHREAD m_hThrRecv;
+
+    bool fShutdown;
+    static int recvLoop(RTTHREAD, void *);
+};
+
+/*******************************************************************************
+*   Global Variables                                                           *
+*******************************************************************************/
+/* Commonly used options for network configuration */
+static RTGETOPTDEF g_aGetOptDef[] =
+{
+    { "--name",           'N',   RTGETOPT_REQ_STRING },
+    { "--network",        'n',   RTGETOPT_REQ_STRING },
+    { "--trunk-name",     't',   RTGETOPT_REQ_STRING },
+    { "--trunk-type",     'T',   RTGETOPT_REQ_STRING },
+    { "--mac-address",    'a',   RTGETOPT_REQ_MACADDR },
+    { "--ip-address",     'i',   RTGETOPT_REQ_IPV4ADDR },
+    { "--netmask",        'm',   RTGETOPT_REQ_IPV4ADDR },
+    { "--verbose",        'v',   RTGETOPT_REQ_NOTHING },
+    { "--need-main",      'M',   RTGETOPT_REQ_BOOL },
+};
+
+
+int VBoxNetBaseService::Data::recvLoop(RTTHREAD, void *pvUser)
+{
+    VBoxNetBaseService *pThis = static_cast<VBoxNetBaseService *>(pvUser);
+
+    HRESULT hrc = com::Initialize();
+    AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+    pThis->doReceiveLoop();
+
+    return VINF_SUCCESS;
 }
+
+
+VBoxNetBaseService::VBoxNetBaseService(const std::string& aName, const std::string& aNetworkName):m(NULL)
+{
+    m = new VBoxNetBaseService::Data(aName, aNetworkName);
+
+    for(unsigned int i = 0; i < RT_ELEMENTS(g_aGetOptDef); ++i)
+        m->m_vecOptionDefs.push_back(&g_aGetOptDef[i]);
+}
+
+
 VBoxNetBaseService::~VBoxNetBaseService()
 {
     /*
      * Close the interface connection.
      */
-    if (m_hIf != INTNET_HANDLE_INVALID)
+    if (m != NULL)
     {
-        INTNETIFCLOSEREQ CloseReq;
-        CloseReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
-        CloseReq.Hdr.cbReq = sizeof(CloseReq);
-        CloseReq.pSession = m_pSession;
-        CloseReq.hIf = m_hIf;
-        m_hIf = INTNET_HANDLE_INVALID;
-        int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_RTCPUID, VMMR0_DO_INTNET_IF_CLOSE, 0, &CloseReq.Hdr);
-        AssertRC(rc);
-    }
+        shutdown();
+        if (m->m_hIf != INTNET_HANDLE_INVALID)
+        {
+            INTNETIFCLOSEREQ CloseReq;
+            CloseReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+            CloseReq.Hdr.cbReq = sizeof(CloseReq);
+            CloseReq.pSession = m->m_pSession;
+            CloseReq.hIf = m->m_hIf;
+            m->m_hIf = INTNET_HANDLE_INVALID;
+            int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_RTCPUID, VMMR0_DO_INTNET_IF_CLOSE, 0, &CloseReq.Hdr);
+            AssertRC(rc);
+        }
 
-    if (m_pSession)
-    {
-        SUPR3Term(false /*fForced*/);
-        m_pSession = NIL_RTR0PTR;
+        if (m->m_pSession != NIL_RTR0PTR)
+        {
+            SUPR3Term(false /*fForced*/);
+            m->m_pSession = NIL_RTR0PTR;
+        }
+
+        RTCritSectDelete(&m->m_csThis);
+
+        delete m;
+        m = NULL;
     }
 }
+
+
+int VBoxNetBaseService::init()
+{
+    if (isMainNeeded())
+    {
+        HRESULT hrc = com::Initialize();
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+
+        hrc = virtualbox.createLocalObject(CLSID_VirtualBox);
+        AssertComRCReturn(hrc, VERR_INTERNAL_ERROR);
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+bool VBoxNetBaseService::isMainNeeded() const
+{
+    return m->m_fNeedMain;
+}
+
+
+int VBoxNetBaseService::run()
+{
+    /**
+     * If child class need Main we start receving thread which calls doReceiveLoop and enter to event polling loop
+     * and for the rest clients we do receiving on the current (main) thread.
+     */
+    if (isMainNeeded())
+        return startReceiveThreadAndEnterEventLoop();
+    else
+    {
+        doReceiveLoop();
+        return VINF_SUCCESS;
+    }
+}
+
 /**
  * Parse the arguments.
  *
@@ -108,20 +246,15 @@ VBoxNetBaseService::~VBoxNetBaseService()
  */
 int VBoxNetBaseService::parseArgs(int argc, char **argv)
 {
-    static const RTGETOPTDEF s_aOptionDefs[] =
-    {
-        { "--name",           'N',   RTGETOPT_REQ_STRING },
-        { "--network",        'n',   RTGETOPT_REQ_STRING },
-        { "--trunk-name",     't',   RTGETOPT_REQ_STRING },
-        { "--trunk-type",     'T',   RTGETOPT_REQ_STRING },
-        { "--mac-address",    'a',   RTGETOPT_REQ_MACADDR },
-        { "--ip-address",     'i',   RTGETOPT_REQ_IPV4ADDR },
-        { "--verbose",        'v',   RTGETOPT_REQ_NOTHING },
-    };
 
     RTGETOPTSTATE State;
-    int rc = RTGetOptInit(&State, argc, argv, &s_aOptionDefs[0], RT_ELEMENTS(s_aOptionDefs), 0, 0 /*fFlags*/);
+    PRTGETOPTDEF paOptionArray = getOptionsPtr();
+    int rc = RTGetOptInit(&State, argc, argv, paOptionArray, m->m_vecOptionDefs.size(), 0, 0 /*fFlags*/);
     AssertRCReturn(rc, 49);
+#if 0
+    /* default initialization */
+    m_enmTrunkType = kIntNetTrunkType_WhateverNone;
+#endif
     Log2(("BaseService: parseArgs enter\n"));
 
     for (;;)
@@ -132,82 +265,104 @@ int VBoxNetBaseService::parseArgs(int argc, char **argv)
             break;
         switch (rc)
         {
-            case 'N':
-                m_Name = Val.psz;
+            case 'N': // --name
+                m->m_Name = Val.psz;
                 break;
-            case 'n':
-                m_Network = Val.psz;
+
+            case 'n': // --network
+                m->m_Network = Val.psz;
                 break;
-            case 't':
-                m_TrunkName = Val.psz;
+
+            case 't': //--trunk-name
+                m->m_TrunkName = Val.psz;
                 break;
-            case 'T':
+
+            case 'T': //--trunk-type
                 if (!strcmp(Val.psz, "none"))
-                    m_enmTrunkType = kIntNetTrunkType_None;
+                    m->m_enmTrunkType = kIntNetTrunkType_None;
                 else if (!strcmp(Val.psz, "whatever"))
-                    m_enmTrunkType = kIntNetTrunkType_WhateverNone;
+                    m->m_enmTrunkType = kIntNetTrunkType_WhateverNone;
                 else if (!strcmp(Val.psz, "netflt"))
-                    m_enmTrunkType = kIntNetTrunkType_NetFlt;
+                    m->m_enmTrunkType = kIntNetTrunkType_NetFlt;
                 else if (!strcmp(Val.psz, "netadp"))
-                    m_enmTrunkType = kIntNetTrunkType_NetAdp;
+                    m->m_enmTrunkType = kIntNetTrunkType_NetAdp;
                 else if (!strcmp(Val.psz, "srvnat"))
-                    m_enmTrunkType = kIntNetTrunkType_SrvNat;
+                    m->m_enmTrunkType = kIntNetTrunkType_SrvNat;
                 else
                 {
                     RTStrmPrintf(g_pStdErr, "Invalid trunk type '%s'\n", Val.psz);
                     return 1;
                 }
                 break;
-            case 'a':
-                m_MacAddress = Val.MacAddr;
-                break;
-            case 'i':
-                m_Ipv4Address = Val.IPv4Addr;
+
+            case 'a': // --mac-address
+                m->m_MacAddress = Val.MacAddr;
                 break;
 
-            case 'v':
-                m_cVerbosity++;
+            case 'i': // --ip-address
+                m->m_Ipv4Address = Val.IPv4Addr;
                 break;
 
-            case 'V':
+            case 'm': // --netmask
+                m->m_Ipv4Netmask = Val.IPv4Addr;
+                break;
+
+            case 'v': // --verbose
+                m->m_cVerbosity++;
+                break;
+
+            case 'V': // --version (missed)
                 RTPrintf("%sr%u\n", RTBldCfgVersion(), RTBldCfgRevision());
                 return 1;
 
-            case 'h':
-                RTPrintf("VBoxNetDHCP Version %s\n"
+            case 'M': // --need-main
+                m->m_fNeedMain = true;
+                break;
+
+            case 'h': // --help (missed)
+                RTPrintf("%s Version %sr%u\n"
                          "(C) 2009-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                          "All rights reserved.\n"
                          "\n"
-                         "Usage: VBoxNetDHCP <options>\n"
+                         "Usage: %s <options>\n"
                          "\n"
                          "Options:\n",
-                         RTBldCfgVersion());
-                for (size_t i = 0; i < RT_ELEMENTS(s_aOptionDefs); i++)
-                    RTPrintf("    -%c, %s\n", s_aOptionDefs[i].iShort, s_aOptionDefs[i].pszLong);
+                         RTProcShortName(),
+                         RTBldCfgVersion(),
+                         RTBldCfgRevision(),
+                         RTProcShortName());
+                for (unsigned int i = 0; i < m->m_vecOptionDefs.size(); i++)
+                    RTPrintf("    -%c, %s\n", m->m_vecOptionDefs[i]->iShort, m->m_vecOptionDefs[i]->pszLong);
                 usage(); /* to print Service Specific usage */
                 return 1;
 
             default:
-                rc = RTGetOptPrintError(rc, &Val);
-                RTPrintf("Use --help for more information.\n");
-                return rc;
+                int rc1 = parseOpt(rc, Val);
+                if (RT_FAILURE(rc1))
+                {
+                    rc = RTGetOptPrintError(rc, &Val);
+                    RTPrintf("Use --help for more information.\n");
+                    return rc;
+                }
         }
     }
 
+    RTMemFree(paOptionArray);
     return rc;
 }
+
 
 int VBoxNetBaseService::tryGoOnline(void)
 {
     /*
      * Open the session, load ring-0 and issue the request.
      */
-    int rc = SUPR3Init(&m_pSession);
+    int rc = SUPR3Init(&m->m_pSession);
     if (RT_FAILURE(rc))
     {
-        m_pSession = NIL_RTR0PTR;
+        m->m_pSession = NIL_RTR0PTR;
         LogRel(("VBoxNetBaseService: SUPR3Init -> %Rrc\n", rc));
-        return 1;
+        return rc;
     }
 
     char szPath[RTPATH_MAX];
@@ -215,14 +370,14 @@ int VBoxNetBaseService::tryGoOnline(void)
     if (RT_FAILURE(rc))
     {
         LogRel(("VBoxNetBaseService: RTPathExecDir -> %Rrc\n", rc));
-        return 1;
+        return rc;
     }
 
     rc = SUPR3LoadVMM(strcat(szPath, "/VMMR0.r0"));
     if (RT_FAILURE(rc))
     {
         LogRel(("VBoxNetBaseService: SUPR3LoadVMM(\"%s\") -> %Rrc\n", szPath, rc));
-        return 1;
+        return rc;
     }
 
     /*
@@ -232,15 +387,15 @@ int VBoxNetBaseService::tryGoOnline(void)
     INTNETOPENREQ OpenReq;
     OpenReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     OpenReq.Hdr.cbReq = sizeof(OpenReq);
-    OpenReq.pSession = m_pSession;
-    strncpy(OpenReq.szNetwork, m_Network.c_str(), sizeof(OpenReq.szNetwork));
+    OpenReq.pSession = m->m_pSession;
+    strncpy(OpenReq.szNetwork, m->m_Network.c_str(), sizeof(OpenReq.szNetwork));
     OpenReq.szNetwork[sizeof(OpenReq.szNetwork) - 1] = '\0';
-    strncpy(OpenReq.szTrunk, m_TrunkName.c_str(), sizeof(OpenReq.szTrunk));
+    strncpy(OpenReq.szTrunk, m->m_TrunkName.c_str(), sizeof(OpenReq.szTrunk));
     OpenReq.szTrunk[sizeof(OpenReq.szTrunk) - 1] = '\0';
-    OpenReq.enmTrunkType = m_enmTrunkType;
+    OpenReq.enmTrunkType = m->m_enmTrunkType;
     OpenReq.fFlags = 0; /** @todo check this */
-    OpenReq.cbSend = m_cbSendBuf;
-    OpenReq.cbRecv = m_cbRecvBuf;
+    OpenReq.cbSend = m->m_cbSendBuf;
+    OpenReq.cbRecv = m->m_cbRecvBuf;
     OpenReq.hIf = INTNET_HANDLE_INVALID;
 
     /*
@@ -251,10 +406,10 @@ int VBoxNetBaseService::tryGoOnline(void)
     if (RT_FAILURE(rc))
     {
         Log2(("VBoxNetBaseService: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_OPEN,) failed, rc=%Rrc\n", rc));
-        goto bad;
+        return rc;
     }
-    m_hIf = OpenReq.hIf;
-    Log2(("successfully opened/created \"%s\" - hIf=%#x\n", OpenReq.szNetwork, m_hIf));
+    m->m_hIf = OpenReq.hIf;
+    Log2(("successfully opened/created \"%s\" - hIf=%#x\n", OpenReq.szNetwork, m->m_hIf));
 
     /*
      * Get the ring-3 address of the shared interface buffer.
@@ -262,20 +417,20 @@ int VBoxNetBaseService::tryGoOnline(void)
     INTNETIFGETBUFFERPTRSREQ GetBufferPtrsReq;
     GetBufferPtrsReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     GetBufferPtrsReq.Hdr.cbReq = sizeof(GetBufferPtrsReq);
-    GetBufferPtrsReq.pSession = m_pSession;
-    GetBufferPtrsReq.hIf = m_hIf;
+    GetBufferPtrsReq.pSession = m->m_pSession;
+    GetBufferPtrsReq.hIf = m->m_hIf;
     GetBufferPtrsReq.pRing3Buf = NULL;
     GetBufferPtrsReq.pRing0Buf = NIL_RTR0PTR;
     rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS, 0, &GetBufferPtrsReq.Hdr);
     if (RT_FAILURE(rc))
     {
         Log2(("VBoxNetBaseService: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_GET_BUFFER_PTRS,) failed, rc=%Rrc\n", rc));
-        goto bad;
+        return rc;
     }
     pBuf = GetBufferPtrsReq.pRing3Buf;
     Log2(("pBuf=%p cbBuf=%d cbSend=%d cbRecv=%d\n",
                pBuf, pBuf->cbBuf, pBuf->cbSend, pBuf->cbRecv));
-    m_pIfBuf = pBuf;
+    m->m_pIfBuf = pBuf;
 
     /*
      * Activate the interface.
@@ -283,8 +438,8 @@ int VBoxNetBaseService::tryGoOnline(void)
     INTNETIFSETACTIVEREQ ActiveReq;
     ActiveReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     ActiveReq.Hdr.cbReq = sizeof(ActiveReq);
-    ActiveReq.pSession = m_pSession;
-    ActiveReq.hIf = m_hIf;
+    ActiveReq.pSession = m->m_pSession;
+    ActiveReq.hIf = m->m_hIf;
     ActiveReq.fActive = true;
     rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SET_ACTIVE, 0, &ActiveReq.Hdr);
     if (RT_SUCCESS(rc))
@@ -293,26 +448,328 @@ int VBoxNetBaseService::tryGoOnline(void)
     /* bail out */
     Log2(("VBoxNetBaseService: SUPR3CallVMMR0Ex(,VMMR0_DO_INTNET_IF_SET_PROMISCUOUS_MODE,) failed, rc=%Rrc\n", rc));
 
-    return 0;
-    bad:
-        return 1;
+    return VINF_SUCCESS;
 }
+
 
 void VBoxNetBaseService::shutdown(void)
 {
+    syncEnter();
+    m->fShutdown = true;
+    if (m->m_hThrRecv != NIL_RTTHREAD)
+    {
+        int rc = m->m_EventQ->interruptEventQueueProcessing();
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTThreadWait(m->m_hThrRecv, 60000, NULL);
+            if (RT_FAILURE(rc))
+                LogWarningFunc(("RTThreadWait(%RTthrd) -> %Rrc\n", m->m_hThrRecv, rc));
+        }
+        else
+        {
+            AssertMsgFailed(("interruptEventQueueProcessing() failed\n"));
+            RTThreadWait(m->m_hThrRecv , 0, NULL);
+        }
+    }
+    syncLeave();
+}
+
+
+int VBoxNetBaseService::syncEnter()
+{
+    return RTCritSectEnter(&m->m_csThis);
+}
+
+
+int VBoxNetBaseService::syncLeave()
+{
+    return RTCritSectLeave(&m->m_csThis);
+}
+
+
+int VBoxNetBaseService::waitForIntNetEvent(int cMillis)
+{
+    int rc = VINF_SUCCESS;
+    INTNETIFWAITREQ WaitReq;
+    LogFlowFunc(("ENTER:cMillis: %d\n", cMillis));
+    WaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    WaitReq.Hdr.cbReq = sizeof(WaitReq);
+    WaitReq.pSession = m->m_pSession;
+    WaitReq.hIf = m->m_hIf;
+    WaitReq.cMillies = cMillis;
+
+    rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_WAIT, 0, &WaitReq.Hdr);
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+/* S/G API */
+int VBoxNetBaseService::sendBufferOnWire(PCINTNETSEG pcSg, int cSg, size_t cbFrame)
+{
+    PINTNETHDR pHdr = NULL;
+    uint8_t *pu8Frame = NULL;
+
+    /* Allocate frame */
+    int rc = IntNetRingAllocateFrame(&m->m_pIfBuf->Send, cbFrame, &pHdr, (void **)&pu8Frame);
+    AssertRCReturn(rc, rc);
+
+    /* Now we fill pvFrame with S/G above */
+    int offFrame = 0;
+    for (int idxSg = 0; idxSg < cSg; ++idxSg)
+    {
+        memcpy(&pu8Frame[offFrame], pcSg[idxSg].pv, pcSg[idxSg].cb);
+        offFrame+=pcSg[idxSg].cb;
+    }
+
+    /* Commit */
+    IntNetRingCommitFrameEx(&m->m_pIfBuf->Send, pHdr, cbFrame);
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
 /**
- * Print debug message depending on the m_cVerbosity level.
- *
- * @param   iMinLevel       The minimum m_cVerbosity level for this message.
- * @param   fMsg            Whether to dump parts for the current DHCP message.
- * @param   pszFmt          The message format string.
- * @param   ...             Optional arguments.
+ * forcible ask for send packet on the "wire"
  */
-inline void VBoxNetBaseService::debugPrint(int32_t iMinLevel, bool fMsg, const char *pszFmt, ...) const
+void VBoxNetBaseService::flushWire()
 {
-    if (iMinLevel <= m_cVerbosity)
+    int rc = VINF_SUCCESS;
+    INTNETIFSENDREQ SendReq;
+    SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    SendReq.Hdr.cbReq    = sizeof(SendReq);
+    SendReq.pSession     = m->m_pSession;
+    SendReq.hIf          = m->m_hIf;
+    rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SEND, 0, &SendReq.Hdr);
+    AssertRCReturnVoid(rc);
+    LogFlowFuncLeave();
+
+}
+
+
+int VBoxNetBaseService::hlpUDPBroadcast(unsigned uSrcPort, unsigned uDstPort,
+                                         void const *pvData, size_t cbData) const
+{
+    return VBoxNetUDPBroadcast(m->m_pSession, m->m_hIf, m->m_pIfBuf,
+                        m->m_Ipv4Address, &m->m_MacAddress, uSrcPort,
+                        uDstPort, pvData, cbData);
+
+}
+
+
+const std::string VBoxNetBaseService::getName() const
+{
+    return m->m_Name;
+}
+
+
+void VBoxNetBaseService::setName(const std::string& aName)
+{
+    m->m_Name = aName;
+}
+
+
+const std::string VBoxNetBaseService::getNetwork() const
+{
+    return m->m_Network;
+}
+
+
+void VBoxNetBaseService::setNetwork(const std::string& aNetwork)
+{
+    m->m_Network = aNetwork;
+}
+
+
+const RTMAC VBoxNetBaseService::getMacAddress() const
+{
+    return m->m_MacAddress;
+}
+
+
+void VBoxNetBaseService::setMacAddress(const RTMAC& aMac)
+{
+    m->m_MacAddress = aMac;
+}
+
+
+const RTNETADDRIPV4 VBoxNetBaseService::getIpv4Address() const
+{
+    return m->m_Ipv4Address;
+}
+
+
+void VBoxNetBaseService::setIpv4Address(const RTNETADDRIPV4& aAddress)
+{
+    m->m_Ipv4Address = aAddress;
+}
+
+
+const RTNETADDRIPV4 VBoxNetBaseService::getIpv4Netmask() const
+{
+    return m->m_Ipv4Netmask;
+}
+
+
+void VBoxNetBaseService::setIpv4Netmask(const RTNETADDRIPV4& aNetmask)
+{
+    m->m_Ipv4Netmask = aNetmask;
+}
+
+
+uint32_t VBoxNetBaseService::getSendBufSize() const
+{
+    return m->m_cbSendBuf;
+}
+
+
+void VBoxNetBaseService::setSendBufSize(uint32_t cbBuf)
+{
+    m->m_cbSendBuf = cbBuf;
+}
+
+
+uint32_t VBoxNetBaseService::getRecvBufSize() const
+{
+    return m->m_cbRecvBuf;
+}
+
+
+void VBoxNetBaseService::setRecvBufSize(uint32_t cbBuf)
+{
+    m->m_cbRecvBuf = cbBuf;
+}
+
+
+int32_t VBoxNetBaseService::getVerbosityLevel() const
+{
+    return m->m_cVerbosity;
+}
+
+
+void VBoxNetBaseService::setVerbosityLevel(int32_t aVerbosity)
+{
+    m->m_cVerbosity = aVerbosity;
+}
+
+
+void VBoxNetBaseService::addCommandLineOption(const PRTGETOPTDEF optDef)
+{
+    m->m_vecOptionDefs.push_back(optDef);
+}
+
+
+void VBoxNetBaseService::doReceiveLoop()
+{
+    int rc;
+    /* Well we're ready */
+    PINTNETRINGBUF  pRingBuf = &m->m_pIfBuf->Recv;
+
+    for (;;)
+    {
+        /*
+         * Wait for a packet to become available.
+         */
+        /* 2. waiting for request for */
+        rc = waitForIntNetEvent(2000);
+        if (RT_FAILURE(rc))
+        {
+            if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
+            {
+                /* do we want interrupt anyone ??? */
+                continue;
+            }
+            LogRel(("VBoxNetNAT: waitForIntNetEvent returned %Rrc\n", rc));
+            AssertRCReturnVoid(rc);
+        }
+
+        /*
+         * Process the receive buffer.
+         */
+        PCINTNETHDR pHdr;
+
+        while ((pHdr = IntNetRingGetNextFrameToRead(pRingBuf)) != NULL)
+        {
+            uint8_t const u8Type = pHdr->u8Type;
+            size_t         cbFrame = pHdr->cbFrame;
+            switch (u8Type)
+            {
+
+                case INTNETHDR_TYPE_FRAME:
+                    {
+                        void *pvFrame = IntNetHdrGetFramePtr(pHdr, m->m_pIfBuf);
+                        rc = processFrame(pvFrame, cbFrame);
+                        if (RT_FAILURE(rc) && rc == VERR_IGNORED)
+                        {
+                            /* XXX: UDP + ARP for DHCP */
+                            VBOXNETUDPHDRS Hdrs;
+                            size_t  cb;
+                            void   *pv = VBoxNetUDPMatch(m->m_pIfBuf, RTNETIPV4_PORT_BOOTPS, &m->m_MacAddress,
+                                                         VBOXNETUDP_MATCH_UNICAST | VBOXNETUDP_MATCH_BROADCAST
+                                                         | VBOXNETUDP_MATCH_CHECKSUM
+                                                         | (m->m_cVerbosity > 2 ? VBOXNETUDP_MATCH_PRINT_STDERR : 0),
+                                                         &Hdrs, &cb);
+                            if (pv && cb)
+                                processUDP(pv, cb);
+                            else
+                                VBoxNetArpHandleIt(m->m_pSession, m->m_hIf, m->m_pIfBuf, &m->m_MacAddress, m->m_Ipv4Address);
+                        }
+                    }
+                    break;
+                case INTNETHDR_TYPE_GSO:
+                  {
+                      PCPDMNETWORKGSO pGso = IntNetHdrGetGsoContext(pHdr, m->m_pIfBuf);
+                      rc = processGSO(pGso, cbFrame);
+                      if (RT_FAILURE(rc) && rc == VERR_IGNORED)
+                          break;
+                  }
+                  break;
+                case INTNETHDR_TYPE_PADDING:
+                    break;
+                default:
+                    break;
+            }
+            IntNetRingSkipFrame(&m->m_pIfBuf->Recv);
+
+        } /* loop */
+    }
+
+}
+
+
+int VBoxNetBaseService::startReceiveThreadAndEnterEventLoop()
+{
+    AssertMsgReturn(isMainNeeded(), ("It's expected that we need Main"), VERR_INTERNAL_ERROR);
+
+    /* start receiving thread */
+    int rc = RTThreadCreate(&m->m_hThrRecv, /* thread handle*/
+                            &VBoxNetBaseService::Data::recvLoop,  /* routine */
+                            this, /* user data */
+                            128 * _1K, /* stack size */
+                            RTTHREADTYPE_IO, /* type */
+                            0, /* flags, @todo: waitable ?*/
+                            "RECV");
+    AssertRCReturn(rc, rc);
+
+    m->m_EventQ = com::NativeEventQueue::getMainEventQueue();
+    AssertPtrReturn(m->m_EventQ, VERR_INTERNAL_ERROR);
+
+    while (!m->fShutdown)
+    {
+        rc = m->m_EventQ->processEventQueue(RT_INDEFINITE_WAIT);
+        if (rc == VERR_INTERRUPTED)
+        {
+            LogFlow(("Event queue processing ended with rc=%Rrc\n", rc));
+            break;
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+void VBoxNetBaseService::debugPrint(int32_t iMinLevel, bool fMsg, const char *pszFmt, ...) const
+{
+    if (iMinLevel <= m->m_cVerbosity)
     {
         va_list va;
         va_start(va, pszFmt);
@@ -326,19 +783,37 @@ inline void VBoxNetBaseService::debugPrint(int32_t iMinLevel, bool fMsg, const c
  * Print debug message depending on the m_cVerbosity level.
  *
  * @param   iMinLevel       The minimum m_cVerbosity level for this message.
- * @param   fMsg            Whether to dump parts for the current DHCP message.
+ * @param   fMsg            Whether to dump parts for the current service message.
  * @param   pszFmt          The message format string.
  * @param   va              Optional arguments.
  */
 void VBoxNetBaseService::debugPrintV(int iMinLevel, bool fMsg, const char *pszFmt, va_list va) const
 {
-    if (iMinLevel <= m_cVerbosity)
+    if (iMinLevel <= m->m_cVerbosity)
     {
         va_list vaCopy;                 /* This dude is *very* special, thus the copy. */
         va_copy(vaCopy, va);
-        RTStrmPrintf(g_pStdErr, "VBoxNetDHCP: %s: %N\n", iMinLevel >= 2 ? "debug" : "info", pszFmt, &vaCopy);
+        RTStrmPrintf(g_pStdErr, "%s: %s: %N\n",
+                     RTProcShortName(),
+                     iMinLevel >= 2 ? "debug" : "info",
+                     pszFmt,
+                     &vaCopy);
         va_end(vaCopy);
     }
 
 }
 
+
+PRTGETOPTDEF VBoxNetBaseService::getOptionsPtr()
+{
+    PRTGETOPTDEF pOptArray = NULL;
+    pOptArray = (PRTGETOPTDEF)RTMemAlloc(sizeof(RTGETOPTDEF) * m->m_vecOptionDefs.size());
+    if (!pOptArray)
+        return NULL;
+    for (unsigned int i = 0; i < m->m_vecOptionDefs.size(); ++i)
+    {
+        PRTGETOPTDEF pOpt = m->m_vecOptionDefs[i];
+        memcpy(&pOptArray[i], m->m_vecOptionDefs[i], sizeof(RTGETOPTDEF));
+    }
+    return pOptArray;
+}

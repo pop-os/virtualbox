@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,17 +19,29 @@
 #ifndef __UIActionPool_h__
 #define __UIActionPool_h__
 
-/* Global includes: */
+/* Qt includes: */
 #include <QAction>
 #include <QMenu>
 
-/* Local includes: */
+/* GUI includes: */
 #include "QIWithRetranslateUI.h"
+
+/* Forward declarations: */
+class UIActionState;
+class UIActionPool;
+
+/* Action pool types: */
+enum UIActionPoolType
+{
+    UIActionPoolType_Selector,
+    UIActionPoolType_Runtime
+};
 
 /* Action types: */
 enum UIActionType
 {
     UIActionType_Simple,
+    UIActionType_State,
     UIActionType_Toggle,
     UIActionType_Menu
 };
@@ -37,15 +49,18 @@ enum UIActionType
 /* Action keys: */
 enum UIActionIndex
 {
+    /* Various dialog actions: */
+    UIActionIndex_Simple_LogDialog,
+
     /* 'Help' menu actions: */
     UIActionIndex_Menu_Help,
-    UIActionIndex_Simple_Help,
-    UIActionIndex_Simple_Web,
+    UIActionIndex_Simple_Contents,
+    UIActionIndex_Simple_WebSite,
     UIActionIndex_Simple_ResetWarnings,
-#ifdef VBOX_WITH_REGISTRATION
-    UIActionIndex_Simple_Register,
-#endif /* VBOX_WITH_REGISTRATION */
-    UIActionIndex_Simple_Update,
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    UIActionIndex_Simple_NetworkAccessManager,
+    UIActionIndex_Simple_CheckForUpdates,
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     UIActionIndex_Simple_About,
 
     /* Maximum index: */
@@ -53,140 +68,240 @@ enum UIActionIndex
 };
 
 /* Basic abstract QAction reimplemetation, extending interface: */
-class UIActionInterface : public QIWithRetranslateUI3<QAction>
+class UIAction : public QAction
 {
     Q_OBJECT;
 
 public:
 
+    /* API: RTTI: */
     UIActionType type() const { return m_type; }
+
+    /* API: Parent stuff: */
+    UIActionPool* actionPool() const { return m_pActionPool; }
+
+    /* API: Update stuff: */
+    virtual void update() {}
+
+    /* API: Cast stuff: */
+    UIActionState* toStateAction();
+
+    /* API: Name stuff: */
+    const QString& name() const { return m_strName; }
+    void setName(const QString &strName);
+
+    /* API: Shortcut stuff: */
+    virtual QString shortcutExtraDataID() const { return QString(); }
+    virtual QKeySequence defaultShortcut(UIActionPoolType) const { return QKeySequence(); }
+    void setShortcut(const QKeySequence &shortcut);
+    void showShortcut();
+    void hideShortcut();
+
+    /** Calls for action translation handler. */
+    virtual void retranslateUi() = 0;
 
 protected:
 
-    UIActionInterface(QObject *pParent, UIActionType type);
+    /* Constructor: */
+    UIAction(UIActionPool *pParent, UIActionType type);
+
+    /* Protected API: Menu stuff: */
+    QString nameInMenu() const;
+
+    /** Updates action text accordingly. */
+    virtual void updateText();
 
 private:
 
+    /* Variables: */
+    UIActionPool *m_pActionPool;
     UIActionType m_type;
+    UIActionPoolType m_actionPoolType;
+    QString m_strName;
+    QKeySequence m_shortcut;
+    bool m_fShortcutHidden;
 };
 
 /* Basic QMenu reimplemetation, extending interface: */
-class UIMenuInterface : public QMenu
+class UIMenu : public QMenu
 {
     Q_OBJECT;
 
 public:
 
-    UIMenuInterface();
+    /* Constructor: */
+    UIMenu();
 
+    /* API: Tool-tip stuff: */
     void setShowToolTips(bool fShowToolTips) { m_fShowToolTips = fShowToolTips; }
     bool isToolTipsShown() const { return m_fShowToolTips; }
 
 private:
 
+    /* Helper: Event stuff: */
     bool event(QEvent *pEvent);
 
+    /* Variables: */
     bool m_fShowToolTips;
 };
 
-/* Abstract extention for UIActionInterface, describing 'simple' action type: */
-class UISimpleAction : public UIActionInterface
+/* Abstract extention for UIAction, describing 'simple' action type: */
+class UIActionSimple : public UIAction
 {
     Q_OBJECT;
 
 protected:
 
-    UISimpleAction(QObject *pParent, const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UISimpleAction(QObject *pParent, const QIcon& icon);
+    /* Constructors: */
+    UIActionSimple(UIActionPool *pParent,
+                   const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionSimple(UIActionPool *pParent,
+                   const QSize &normalSize, const QSize &smallSize,
+                   const QString &strNormalIcon, const QString &strSmallIcon,
+                   const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
+    UIActionSimple(UIActionPool *pParent,
+                   const QIcon& icon);
 };
 
-/* Abstract extention for UIActionInterface, describing 'toggle' action type: */
-class UIToggleAction : public UIActionInterface
-{
-    Q_OBJECT;
-
-protected:
-
-    UIToggleAction(QObject *pParent, const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIToggleAction(QObject *pParent, const QString &strIconOn, const QString &strIconOff, const QString &strIconOnDis, const QString &strIconOffDis);
-    UIToggleAction(QObject *pParent, const QIcon &icon);
-
-private slots:
-
-    void sltUpdateAppearance();
-
-private:
-
-    void init();
-};
-
-/* Abstract extention for UIActionInterface, describing 'menu' action type: */
-class UIMenuAction : public UIActionInterface
-{
-    Q_OBJECT;
-
-protected:
-
-    UIMenuAction(QObject *pParent, const QString &strIcon = QString(), const QString &strIconDis = QString());
-    UIMenuAction(QObject *pParent, const QIcon &icon);
-};
-
-/* Action pool types: */
-enum UIActionPoolType
-{
-    UIActionPoolType_Offline,
-    UIActionPoolType_Runtime
-};
-
-/* Singleton action pool: */
-class UIActionPool : public QObject
+/* Abstract extention for UIAction, describing 'state' action type: */
+class UIActionState : public UIAction
 {
     Q_OBJECT;
 
 public:
 
-    /* Singleton methods: */
+    /* API: State stuff: */
+    void setState(int iState) { m_iState = iState; retranslateUi(); }
+
+protected:
+
+    /* Constructors: */
+    UIActionState(UIActionPool *pParent,
+                  const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionState(UIActionPool *pParent,
+                  const QSize &normalSize, const QSize &smallSize,
+                  const QString &strNormalIcon, const QString &strSmallIcon,
+                  const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
+    UIActionState(UIActionPool *pParent,
+                  const QIcon& icon);
+
+    /* Variables: */
+    int m_iState;
+};
+
+/* Abstract extention for UIAction, describing 'toggle' action type: */
+class UIActionToggle : public UIAction
+{
+    Q_OBJECT;
+
+protected:
+
+    /* Constructors: */
+    UIActionToggle(UIActionPool *pParent,
+                   const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionToggle(UIActionPool *pParent,
+                   const QSize &normalSize, const QSize &smallSize,
+                   const QString &strNormalIcon, const QString &strSmallIcon,
+                   const QString &strNormalIconDis = QString(), const QString &strSmallIconDis = QString());
+    UIActionToggle(UIActionPool *pParent,
+                   const QString &strIconOn, const QString &strIconOff, const QString &strIconOnDis, const QString &strIconOffDis);
+    UIActionToggle(UIActionPool *pParent,
+                   const QIcon &icon);
+
+    /* API reimplementation: Update stuff: */
+    void update() { sltUpdate(); }
+
+private slots:
+
+    /* Handler: Update stuff: */
+    void sltUpdate();
+
+private:
+
+    /* Helper: Prepare stuff: */
+    void init();
+};
+
+/* Abstract extention for UIAction, describing 'menu' action type: */
+class UIActionMenu : public UIAction
+{
+    Q_OBJECT;
+
+protected:
+
+    /* Constructors: */
+    UIActionMenu(UIActionPool *pParent,
+                 const QString &strIcon = QString(), const QString &strIconDis = QString());
+    UIActionMenu(UIActionPool *pParent,
+                 const QIcon &icon);
+
+    /** Updates action text accordingly. */
+    virtual void updateText();
+};
+
+/* Singleton action pool: */
+class UIActionPool : public QIWithRetranslateUI3<QObject>
+{
+    Q_OBJECT;
+
+public:
+
+    /* API: Singleton stuff: */
     static UIActionPool* instance();
+    static void create(UIActionPoolType type);
+    static void destroy();
+
+    /* API: Shortcut pool helper stuff: */
+    static void createTemporary(UIActionPoolType type);
+
+    /* API: RTTI: */
+    UIActionPoolType type() const { return m_type; }
+
+    /* API: Action stuff: */
+    UIAction* action(int iIndex) const { return m_pool[iIndex]; }
+    QList<UIAction*> actions() const { return m_pool.values(); }
+
+    /* API: Shortcuts stuff: */
+    virtual QString shortcutsExtraDataID() const = 0;
+
+    /* API: Prepare stuff: */
+    void recreateMenus() { createMenus(); }
+
+    /* API: Hot-key handling stuff: */
+    bool processHotKey(const QKeySequence &key);
+
+protected slots:
+
+    /* Handler: Shortcuts stuff: */
+    void sltApplyShortcuts();
+
+protected:
 
     /* Constructor/destructor: */
     UIActionPool(UIActionPoolType type);
     ~UIActionPool();
 
-    /* Prepare/cleanup: */
+    /* Helpers: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
 
-    /* Return corresponding action: */
-    UIActionInterface* action(int iIndex) const { return m_pool[iIndex]; }
-
-    /* Helping stuff: */
-    void recreateMenus() { createMenus(); }
-    bool processHotKey(const QKeySequence &key);
-
-    /* Action pool type: */
-    UIActionPoolType type() const { return m_type; }
-
-protected:
-
-    /* Virtual helping stuff: */
+    /* Virtual helpers: Prepare/cleanup stuff: */
     virtual void createActions();
     virtual void createMenus();
     virtual void destroyPool();
 
-    /* Event handler: */
+    /* Helper: Event stuff: */
     bool event(QEvent *pEvent);
 
     /* Instance: */
     static UIActionPool *m_pInstance;
-
     /* Action pool type: */
     UIActionPoolType m_type;
-
     /* Actions pool itself: */
-    QMap<int, UIActionInterface*> m_pool;
+    QMap<int, UIAction*> m_pool;
 };
 
 #define gActionPool UIActionPool::instance()
 
-#endif // __UIActionPool_h__
+#endif /* __UIActionPool_h__ */
 

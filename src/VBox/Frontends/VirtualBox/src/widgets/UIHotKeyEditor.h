@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,92 +19,137 @@
 #ifndef ___UIHotKeyEditor_h___
 #define ___UIHotKeyEditor_h___
 
-/* Global includes */
-#include <QLabel>
-#include <QMap>
+/* Qt includes: */
+#include <QMetaType>
+#include <QWidget>
 #include <QSet>
 
-/* Hot-key namespace to unify
- * all the related hot-key processing stuff: */
-namespace UIHotKey
-{
-    QString toString(int iKeyCode);
-    bool isValidKey(int iKeyCode);
-#ifdef Q_WS_WIN
-    int distinguishModifierVKey(int wParam, int lParam);
-#endif /* Q_WS_WIN */
-#ifdef Q_WS_X11
-    void retranslateKeyNames();
-#endif /* Q_WS_X11 */
-}
+/* GUI includes: */
+#include "QIWithRetranslateUI.h"
 
-/* Hot-combo namespace to unify
- * all the related hot-combo processing stuff: */
-namespace UIHotKeyCombination
-{
-    QString toReadableString(const QString &strKeyCombo);
-    QList<int> toKeyCodeList(const QString &strKeyCombo);
-    bool isValidKeyCombo(const QString &strKeyCombo);
-}
+/* Forward declarations: */
+class QHBoxLayout;
+class QIToolButton;
+class UIHotKeyLineEdit;
 
-class UIHotKeyEditor : public QLabel
+/* Host key type enumerator: */
+enum UIHotKeyType
 {
-    Q_OBJECT;
+    UIHotKeyType_Simple,
+    UIHotKeyType_WithModifiers
+};
 
+/* A string pair wrapper for hot-key sequence: */
+class UIHotKey
+{
 public:
 
-    UIHotKeyEditor(QWidget *pParent);
-    virtual ~UIHotKeyEditor();
+    /* Constructors: */
+    UIHotKey()
+        : m_type(UIHotKeyType_Simple)
+    {}
+    UIHotKey(UIHotKeyType type,
+             const QString &strSequence,
+             const QString &strDefaultSequence)
+        : m_type(type)
+        , m_strSequence(strSequence)
+        , m_strDefaultSequence(strDefaultSequence)
+    {}
+    UIHotKey(const UIHotKey &other)
+        : m_type(other.type())
+        , m_strSequence(other.sequence())
+        , m_strDefaultSequence(other.defaultSequence())
+    {}
 
-    void setCombo(const QString &strKeyCombo);
-    QString combo() const;
+    /* API: Operators stuff: */
+    UIHotKey& operator=(const UIHotKey &other)
+    {
+        m_type = other.type();
+        m_strSequence = other.sequence();
+        m_strDefaultSequence = other.defaultSequence();
+        return *this;
+    }
 
-    QSize sizeHint() const;
-    QSize minimumSizeHint() const;
+    /* API: Type access stuff: */
+    UIHotKeyType type() const { return m_type; }
 
-public slots:
-
-    void sltClear();
-
-protected:
-
-#ifdef Q_WS_WIN
-    bool winEvent(MSG *pMsg, long *pResult);
-#endif /* Q_WS_WIN */
-#ifdef Q_WS_X11
-    bool x11Event(XEvent *pEvent);
-#endif /* Q_WS_X11 */
-#ifdef Q_WS_MAC
-    static bool darwinEventHandlerProc(const void *pvCocoaEvent, const void *pvCarbonEvent, void *pvUser);
-    bool darwinKeyboardEvent(const void *pvCocoaEvent, EventRef inEvent);
-#endif /* Q_WS_MAC */
-
-    void focusInEvent(QFocusEvent *pEvent);
-    void focusOutEvent(QFocusEvent *pEvent);
-    void paintEvent(QPaintEvent *pEvent);
-
-private slots:
-
-    void sltReleasePendingKeys();
+    /* API: Sequence access stuff: */
+    const QString& sequence() const { return m_strSequence; }
+    const QString& defaultSequence() const { return m_strDefaultSequence; }
+    void setSequence(const QString &strSequence) { m_strSequence = strSequence; }
 
 private:
 
-    bool processKeyEvent(int iKeyCode, bool fKeyPress);
-    void updateText();
+    /* Variables: */
+    UIHotKeyType m_type;
+    QString m_strSequence;
+    QString m_strDefaultSequence;
+};
+Q_DECLARE_METATYPE(UIHotKey);
 
-    QSet<int> m_pressedKeys;
-    QSet<int> m_releasedKeys;
-    QMap<int, QString> m_shownKeys;
+/* A widget wrapper for real hot-key editor: */
+class UIHotKeyEditor : public QIWithRetranslateUI<QWidget>
+{
+    Q_OBJECT;
+    Q_PROPERTY(UIHotKey hotKey READ hotKey WRITE setHotKey USER true);
 
-    QTimer* m_pReleaseTimer;
-    bool m_fStartNewSequence;
+signals:
 
-#ifdef RT_OS_DARWIN
-    /* The current modifier key mask. Used to figure out which modifier
-     * key was pressed when we get a kEventRawKeyModifiersChanged event. */
-    uint32_t m_uDarwinKeyModifiers;
-#endif /* RT_OS_DARWIN */
+    /** Notifies listener about data should be committed. */
+    void sigCommitData(QWidget *pThis);
+
+public:
+
+    /* Constructor: */
+    UIHotKeyEditor(QWidget *pParent);
+
+private slots:
+
+    /* Handlers: Tool-button stuff: */
+    void sltReset();
+    void sltClear();
+
+private:
+
+    /* Helper: Translate stuff: */
+    void retranslateUi();
+
+    /* Handlers: Line-edit key event pre-processing stuff: */
+    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+    bool shouldWeSkipKeyEventToLineEdit(QKeyEvent *pEvent);
+
+    /* Handlers: Key event processing stuff: */
+    void keyPressEvent(QKeyEvent *pEvent);
+    void keyReleaseEvent(QKeyEvent *pEvent);
+    bool isKeyEventIgnored(QKeyEvent *pEvent);
+
+    /* Helpers: Modifier stuff: */
+    void fetchModifiersState();
+    void checkIfHostModifierNeeded();
+
+    /* Handlers: Sequence stuff: */
+    bool approvedKeyPressed(QKeyEvent *pKeyEvent);
+    void handleKeyPress(QKeyEvent *pKeyEvent);
+    void handleKeyRelease(QKeyEvent *pKeyEvent);
+    void reflectSequence();
+    void drawSequence();
+
+    /* API: Editor stuff: */
+    UIHotKey hotKey() const;
+    void setHotKey(const UIHotKey &hotKey);
+
+    /* Variables: */
+    UIHotKey m_hotKey;
+    bool m_fIsModifiersAllowed;
+    QHBoxLayout *m_pMainLayout;
+    QHBoxLayout *m_pButtonLayout;
+    UIHotKeyLineEdit *m_pLineEdit;
+    QIToolButton *m_pResetButton;
+    QIToolButton *m_pClearButton;
+    QSet<int> m_takenModifiers;
+    int m_iTakenKey;
+    bool m_fSequenceTaken;
 };
 
-#endif // !___UIHotKeyEditor_h___
+#endif /* !___UIHotKeyEditor_h___ */
 

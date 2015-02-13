@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +16,9 @@
  */
 
 
+/*******************************************************************************
+*   Header Files                                                               *
+*******************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VIRTIO
 
 #include <iprt/param.h>
@@ -27,8 +30,8 @@
 #define IFACE_TO_STATE(pIface, ifaceName) ((VPCISTATE *)((char*)pIface - RT_OFFSETOF(VPCISTATE, ifaceName)))
 
 #ifdef LOG_ENABLED
-#define QUEUENAME(s, q) (q->pcszName)
-#endif /* DEBUG */
+# define QUEUENAME(s, q) (q->pcszName)
+#endif
 
 
 
@@ -105,12 +108,23 @@ void vringSetNotification(PVPCISTATE pState, PVRING pVRing, bool fEnabled)
     else
         tmp |= VRINGUSED_F_NO_NOTIFY;
 
-    PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns),
-                       pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, uFlags),
-                       &tmp, sizeof(tmp));
+    PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns),
+                          pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, uFlags),
+                          &tmp, sizeof(tmp));
 }
 
-bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem)
+bool vqueueSkip(PVPCISTATE pState, PVQUEUE pQueue)
+{
+    if (vqueueIsEmpty(pState, pQueue))
+        return false;
+
+    Log2(("%s vqueueSkip: %s avail_idx=%u\n", INSTANCE(pState),
+          QUEUENAME(pState, pQueue), pQueue->uNextAvailIndex));
+    pQueue->uNextAvailIndex++;
+    return true;
+}
+
+bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, bool fRemove)
 {
     if (vqueueIsEmpty(pState, pQueue))
         return false;
@@ -121,7 +135,9 @@ bool vqueueGet(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem)
           QUEUENAME(pState, pQueue), pQueue->uNextAvailIndex));
 
     VRINGDESC desc;
-    uint16_t  idx = vringReadAvail(pState, &pQueue->VRing, pQueue->uNextAvailIndex++);
+    uint16_t  idx = vringReadAvail(pState, &pQueue->VRing, pQueue->uNextAvailIndex);
+    if (fRemove)
+        pQueue->uNextAvailIndex++;
     pElem->uIndex = idx;
     do
     {
@@ -164,9 +180,9 @@ uint16_t vringReadUsedIndex(PVPCISTATE pState, PVRING pVRing)
 
 void vringWriteUsedIndex(PVPCISTATE pState, PVRING pVRing, uint16_t u16Value)
 {
-    PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns),
-                       pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, uIndex),
-                       &u16Value, sizeof(u16Value));
+    PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns),
+                          pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, uIndex),
+                          &u16Value, sizeof(u16Value));
 }
 
 void vringWriteUsedElem(PVPCISTATE pState, PVRING pVRing, uint32_t uIndex, uint32_t uId, uint32_t uLen)
@@ -175,9 +191,9 @@ void vringWriteUsedElem(PVPCISTATE pState, PVRING pVRing, uint32_t uIndex, uint3
 
     elem.uId = uId;
     elem.uLen = uLen;
-    PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns),
-                       pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, aRing[uIndex % pVRing->uSize]),
-                       &elem, sizeof(elem));
+    PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns),
+                          pVRing->addrUsed + RT_OFFSETOF(VRINGUSED, aRing[uIndex % pVRing->uSize]),
+                          &elem, sizeof(elem));
 }
 
 void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uLen, uint32_t uReserved)
@@ -193,8 +209,8 @@ void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uL
         {
             Log2(("%s vqueuePut: %s used_idx=%u seg=%u addr=%p pv=%p cb=%u acb=%u\n", INSTANCE(pState),
                   QUEUENAME(pState, pQueue), pQueue->uNextUsedIndex, i, pElem->aSegsIn[i].addr, pElem->aSegsIn[i].pv, pElem->aSegsIn[i].cb, cbSegLen));
-            PDMDevHlpPhysWrite(pState->CTX_SUFF(pDevIns), pElem->aSegsIn[i].addr + cbReserved,
-                               pElem->aSegsIn[i].pv, cbSegLen);
+            PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns), pElem->aSegsIn[i].addr + cbReserved,
+                                  pElem->aSegsIn[i].pv, cbSegLen);
             cbReserved = 0;
         }
         uOffset += cbSegLen;
@@ -274,7 +290,7 @@ int vpciRaiseInterrupt(VPCISTATE *pState, int rcBusy, uint8_t u8IntCause)
  *
  * @param   pState      The device state structure.
  */
-PDMBOTHCBDECL(void) vpciLowerInterrupt(VPCISTATE *pState)
+static void vpciLowerInterrupt(VPCISTATE *pState)
 {
     LogFlow(("%s vpciLowerInterrupt\n", INSTANCE(pState)));
     PDMDevHlpPCISetIrq(pState->CTX_SUFF(pDevIns), 0, 0);
@@ -294,22 +310,21 @@ DECLINLINE(uint32_t) vpciGetHostFeatures(PVPCISTATE pState,
  *
  * @param   pDevIns     The device instance.
  * @param   pvUser      Pointer to the device state structure.
- * @param   port        Port number used for the IN operation.
+ * @param   Port        Port number used for the IN operation.
  * @param   pu32        Where to store the result.
  * @param   cb          Number of bytes read.
+ * @param   pCallbacks  Pointer to the callbacks.
  * @thread  EMT
  */
 int vpciIOPortIn(PPDMDEVINS         pDevIns,
                  void              *pvUser,
-                 RTIOPORT           port,
+                 RTIOPORT           Port,
                  uint32_t          *pu32,
                  unsigned           cb,
-                 PFNGETHOSTFEATURES pfnGetHostFeatures,
-                 PFNGETCONFIG       pfnGetConfig)
+                 PCVPCIIOCALLBACKS  pCallbacks)
 {
     VPCISTATE  *pState = PDMINS_2_DATA(pDevIns, VPCISTATE *);
     int         rc     = VINF_SUCCESS;
-    const char *szInst = INSTANCE(pState);
     STAM_PROFILE_ADV_START(&pState->CTXSUFF(StatIORead), a);
 
     /*
@@ -321,19 +336,19 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
      * here we gain the ability to deliver RX packets to the guest while TX is
      * holding cs transmitting queued packets.
      *
-    rc = vpciCsEnter(pState, VINF_IOM_HC_IOPORT_READ);
+    rc = vpciCsEnter(pState, VINF_IOM_R3_IOPORT_READ);
     if (RT_UNLIKELY(rc != VINF_SUCCESS))
     {
         STAM_PROFILE_ADV_STOP(&pState->CTXSUFF(StatIORead), a);
         return rc;
         }*/
 
-    port -= pState->addrIOPort;
-    switch (port)
+    Port -= pState->IOPortBase;
+    switch (Port)
     {
         case VPCI_HOST_FEATURES:
             /* Tell the guest what features we support. */
-            *pu32 = vpciGetHostFeatures(pState, pfnGetHostFeatures)
+            *pu32 = vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures)
                     | VPCI_F_BAD_FEATURE;
             break;
 
@@ -368,21 +383,17 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
             break;
 
         default:
-            if (port >= VPCI_CONFIG)
-            {
-                rc = pfnGetConfig(pState, port - VPCI_CONFIG, cb, pu32);
-            }
+            if (Port >= VPCI_CONFIG)
+                rc = pCallbacks->pfnGetConfig(pState, Port - VPCI_CONFIG, cb, pu32);
             else
             {
                 *pu32 = 0xFFFFFFFF;
-                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortIn: "
-                                       "no valid port at offset port=%RTiop "
-                                       "cb=%08x\n", szInst, port, cb);
+                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortIn: no valid port at offset port=%RTiop cb=%08x\n",
+                                       INSTANCE(pState), Port, cb);
             }
             break;
     }
-    Log3(("%s vpciIOPortIn:  At %RTiop in  %0*x\n",
-          szInst, port, cb*2, *pu32));
+    Log3(("%s vpciIOPortIn:  At %RTiop in  %0*x\n", INSTANCE(pState), Port, cb*2, *pu32));
     STAM_PROFILE_ADV_STOP(&pState->CTXSUFF(StatIORead), a);
     //vpciCsLeave(pState);
     return rc;
@@ -399,31 +410,25 @@ int vpciIOPortIn(PPDMDEVINS         pDevIns,
  * @param   Port        Port number used for the IN operation.
  * @param   u32         The value to output.
  * @param   cb          The value size in bytes.
+ * @param   pCallbacks  Pointer to the callbacks.
  * @thread  EMT
  */
 int vpciIOPortOut(PPDMDEVINS                pDevIns,
                   void                     *pvUser,
-                  RTIOPORT                  port,
+                  RTIOPORT                  Port,
                   uint32_t                  u32,
                   unsigned                  cb,
-                  PFNGETHOSTMINIMALFEATURES pfnGetHostMinimalFeatures,
-                  PFNGETHOSTFEATURES        pfnGetHostFeatures,
-                  PFNSETHOSTFEATURES        pfnSetHostFeatures,
-                  PFNRESET                  pfnReset,
-                  PFNREADY                  pfnReady,
-                  PFNSETCONFIG              pfnSetConfig)
-
+                  PCVPCIIOCALLBACKS         pCallbacks)
 {
     VPCISTATE  *pState = PDMINS_2_DATA(pDevIns, VPCISTATE *);
     int         rc     = VINF_SUCCESS;
-    const char *szInst = INSTANCE(pState);
     bool        fHasBecomeReady;
     STAM_PROFILE_ADV_START(&pState->CTXSUFF(StatIOWrite), a);
 
-    port -= pState->addrIOPort;
-    Log3(("%s virtioIOPortOut: At %RTiop out          %0*x\n", szInst, port, cb*2, u32));
+    Port -= pState->IOPortBase;
+    Log3(("%s virtioIOPortOut: At %RTiop out          %0*x\n", INSTANCE(pState), Port, cb*2, u32));
 
-    switch (port)
+    switch (Port)
     {
         case VPCI_GUEST_FEATURES:
             /* Check if the guest negotiates properly, fall back to basics if it does not. */
@@ -431,20 +436,20 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             {
                 Log(("%s WARNING! Guest failed to negotiate properly (guest=%x)\n",
                      INSTANCE(pState), u32));
-                pState->uGuestFeatures = pfnGetHostMinimalFeatures(pState);
+                pState->uGuestFeatures = pCallbacks->pfnGetHostMinimalFeatures(pState);
             }
             /* The guest may potentially desire features we don't support! */
-            else if (~vpciGetHostFeatures(pState, pfnGetHostFeatures) & u32)
+            else if (~vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures) & u32)
             {
                 Log(("%s Guest asked for features host does not support! (host=%x guest=%x)\n",
                      INSTANCE(pState),
-                     vpciGetHostFeatures(pState, pfnGetHostFeatures), u32));
+                     vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures), u32));
                 pState->uGuestFeatures =
-                    vpciGetHostFeatures(pState, pfnGetHostFeatures);
+                    vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures);
             }
             else
                 pState->uGuestFeatures = u32;
-            pfnSetHostFeatures(pState, pState->uGuestFeatures);
+            pCallbacks->pfnSetHostFeatures(pState, pState->uGuestFeatures);
             break;
 
         case VPCI_QUEUE_PFN:
@@ -458,7 +463,7 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             if (u32)
                 vqueueInit(&pState->Queues[pState->uQueueSelector], u32);
             else
-                rc = pfnReset(pState);
+                rc = pCallbacks->pfnReset(pState);
             break;
 
         case VPCI_QUEUE_SEL:
@@ -467,7 +472,7 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             if (u32 < pState->nQueues)
                 pState->uQueueSelector = u32;
             else
-                Log3(("%s vpciIOPortOut: Invalid queue selector %08x\n", szInst, u32));
+                Log3(("%s vpciIOPortOut: Invalid queue selector %08x\n", INSTANCE(pState), u32));
             break;
 
         case VPCI_QUEUE_NOTIFY:
@@ -490,7 +495,7 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             else
                 Log(("%s Invalid queue number (%d)\n", INSTANCE(pState), u32));
 #else
-            rc = VINF_IOM_HC_IOPORT_WRITE;
+            rc = VINF_IOM_R3_IOPORT_WRITE;
 #endif
             break;
 
@@ -501,16 +506,17 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
             pState->uStatus = u32;
             /* Writing 0 to the status port triggers device reset. */
             if (u32 == 0)
-                rc = pfnReset(pState);
+                rc = pCallbacks->pfnReset(pState);
             else if (fHasBecomeReady)
-                pfnReady(pState);
+                pCallbacks->pfnReady(pState);
             break;
 
         default:
-            if (port >= VPCI_CONFIG)
-                rc = pfnSetConfig(pState, port - VPCI_CONFIG, cb, &u32);
+            if (Port >= VPCI_CONFIG)
+                rc = pCallbacks->pfnSetConfig(pState, Port - VPCI_CONFIG, cb, &u32);
             else
-                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortOut: no valid port at offset port=%RTiop cb=%08x\n", szInst, port, cb);
+                rc = PDMDevHlpDBGFStop(pDevIns, RT_SRC_POS, "%s vpciIOPortOut: no valid port at offset Port=%RTiop cb=%08x\n",
+                                       INSTANCE(pState), Port, cb);
             break;
     }
 
@@ -912,9 +918,7 @@ void vpciRelocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta)
     // TBD
 }
 
-PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize,
-                     void (*pfnCallback)(void *pvState, PVQUEUE pQueue),
-                     const char *pcszName)
+PVQUEUE vpciAddQueue(VPCISTATE* pState, unsigned uSize, PFNVPCIQUEUECALLBACK pfnCallback, const char *pcszName)
 {
     PVQUEUE pQueue = NULL;
     /* Find an empty queue slot */

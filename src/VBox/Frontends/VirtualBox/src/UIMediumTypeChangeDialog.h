@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,13 @@
 #ifndef __UIMediumTypeChangeDialog_h__
 #define __UIMediumTypeChangeDialog_h__
 
-/* Local includes: */
+/* GUI includes: */
 #include "QIDialog.h"
 #include "QIWithRetranslateUI.h"
-#include "COMDefs.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CMedium.h"
 
 /* Forward declarations: */
 class QVBoxLayout;

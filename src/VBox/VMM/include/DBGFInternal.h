@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <iprt/critsect.h>
 #include <iprt/string.h>
 #include <iprt/avl.h>
+#include <iprt/dbg.h>
 #include <VBox/vmm/dbgf.h>
 
 
@@ -232,22 +233,6 @@ typedef struct DBGF
      * Not all commands take data. */
     DBGFCMDDATA                 VMMCmdData;
 
-    /** List of registered info handlers. */
-    R3PTRTYPE(PDBGFINFO)        pInfoFirst;
-    /** Critical section protecting the above list. */
-    RTCRITSECT                  InfoCritSect;
-
-    /** Range tree containing the loaded symbols of the a VM.
-     * This tree will never have blind spots. */
-    R3PTRTYPE(AVLRGCPTRTREE)    SymbolTree;
-    /** Symbol name space. */
-    R3PTRTYPE(PRTSTRSPACE)      pSymbolSpace;
-    /** Indicates whether DBGFSym.cpp is initialized or not.
-     * This part is initialized in a lazy manner for performance reasons. */
-    bool                        fSymInited;
-    /** Alignment padding. */
-    uint32_t                    uAlignment0;
-
     /** The number of hardware breakpoints. */
     uint32_t                    cHwBreakpoints;
     /** The number of active breakpoints. */
@@ -258,40 +243,6 @@ typedef struct DBGF
     /** Array of int 3 and REM breakpoints. (4..)
      * @remark This is currently a fixed size array for reasons of simplicity. */
     DBGFBP                      aBreakpoints[32];
-
-    /** The address space database lock. */
-    RTSEMRW                     hAsDbLock;
-    /** The address space handle database.      (Protected by hAsDbLock.) */
-    R3PTRTYPE(AVLPVTREE)        AsHandleTree;
-    /** The address space process id database.  (Protected by hAsDbLock.) */
-    R3PTRTYPE(AVLU32TREE)       AsPidTree;
-    /** The address space name database.        (Protected by hAsDbLock.) */
-    R3PTRTYPE(RTSTRSPACE)       AsNameSpace;
-    /** Special address space aliases.          (Protected by hAsDbLock.) */
-    RTDBGAS volatile            ahAsAliases[DBGF_AS_COUNT];
-    /** For lazily populating the aliased address spaces. */
-    bool volatile               afAsAliasPopuplated[DBGF_AS_COUNT];
-    /** Alignment padding. */
-    bool                        afAlignment1[2];
-
-    /** The register database lock. */
-    RTSEMRW                     hRegDbLock;
-    /** String space for looking up registers.  (Protected by hRegDbLock.) */
-    R3PTRTYPE(RTSTRSPACE)       RegSpace;
-    /** String space holding the register sets. (Protected by hRegDbLock.)  */
-    R3PTRTYPE(RTSTRSPACE)       RegSetSpace;
-    /** The number of registers (aliases, sub-fields and the special CPU
-     * register aliases (eg AH) are not counted). */
-    uint32_t                    cRegs;
-    /** For early initialization by . */
-    bool volatile               fRegDbInitialized;
-    /** Alignment padding. */
-    bool                        afAlignment2[3];
-
-    /** The current Guest OS digger. */
-    R3PTRTYPE(PDBGFOS)          pCurOS;
-    /** The head of the Guest OS digger instances. */
-    R3PTRTYPE(PDBGFOS)          pOSHead;
 } DBGF;
 /** Pointer to DBGF Data. */
 typedef DBGF *PDBGF;
@@ -321,27 +272,80 @@ typedef struct DBGFCPU
 
     /** Padding the structure to 16 bytes. */
     bool                    afReserved[7];
-
-    /** The guest register set for this CPU.  Can be NULL. */
-    R3PTRTYPE(struct DBGFREGSET *) pGuestRegSet;
-    /** The hypervisor register set for this CPU.  Can be NULL. */
-    R3PTRTYPE(struct DBGFREGSET *) pHyperRegSet;
 } DBGFCPU;
 /** Pointer to DBGFCPU data. */
 typedef DBGFCPU *PDBGFCPU;
 
 
-int  dbgfR3AsInit(PVM pVM);
-void dbgfR3AsTerm(PVM pVM);
-void dbgfR3AsRelocate(PVM pVM, RTGCUINTPTR offDelta);
+/**
+ * The DBGF data kept in the UVM.
+ */
+typedef struct DBGFUSERPERVM
+{
+    /** The address space database lock. */
+    RTSEMRW                     hAsDbLock;
+    /** The address space handle database.      (Protected by hAsDbLock.) */
+    R3PTRTYPE(AVLPVTREE)        AsHandleTree;
+    /** The address space process id database.  (Protected by hAsDbLock.) */
+    R3PTRTYPE(AVLU32TREE)       AsPidTree;
+    /** The address space name database.        (Protected by hAsDbLock.) */
+    R3PTRTYPE(RTSTRSPACE)       AsNameSpace;
+    /** Special address space aliases.          (Protected by hAsDbLock.) */
+    RTDBGAS volatile            ahAsAliases[DBGF_AS_COUNT];
+    /** For lazily populating the aliased address spaces. */
+    bool volatile               afAsAliasPopuplated[DBGF_AS_COUNT];
+    /** Alignment padding. */
+    bool                        afAlignment1[2];
+    /** Debug configuration. */
+    R3PTRTYPE(RTDBGCFG)         hDbgCfg;
+
+    /** The register database lock. */
+    RTSEMRW                     hRegDbLock;
+    /** String space for looking up registers.  (Protected by hRegDbLock.) */
+    R3PTRTYPE(RTSTRSPACE)       RegSpace;
+    /** String space holding the register sets. (Protected by hRegDbLock.)  */
+    R3PTRTYPE(RTSTRSPACE)       RegSetSpace;
+    /** The number of registers (aliases, sub-fields and the special CPU
+     * register aliases (eg AH) are not counted). */
+    uint32_t                    cRegs;
+    /** For early initialization by . */
+    bool volatile               fRegDbInitialized;
+    /** Alignment padding. */
+    bool                        afAlignment2[3];
+
+    /** The current Guest OS digger. */
+    R3PTRTYPE(PDBGFOS)          pCurOS;
+    /** The head of the Guest OS digger instances. */
+    R3PTRTYPE(PDBGFOS)          pOSHead;
+
+    /** List of registered info handlers. */
+    R3PTRTYPE(PDBGFINFO)        pInfoFirst;
+    /** Critical section protecting the above list. */
+    RTCRITSECT                  InfoCritSect;
+
+} DBGFUSERPERVM;
+
+/**
+ * The per-CPU DBGF data kept in the UVM.
+ */
+typedef struct DBGFUSERPERVMCPU
+{
+    /** The guest register set for this CPU.  Can be NULL. */
+    R3PTRTYPE(struct DBGFREGSET *) pGuestRegSet;
+    /** The hypervisor register set for this CPU.  Can be NULL. */
+    R3PTRTYPE(struct DBGFREGSET *) pHyperRegSet;
+} DBGFUSERPERVMCPU;
+
+
+int  dbgfR3AsInit(PUVM pUVM);
+void dbgfR3AsTerm(PUVM pUVM);
+void dbgfR3AsRelocate(PUVM pUVM, RTGCUINTPTR offDelta);
 int  dbgfR3BpInit(PVM pVM);
-int  dbgfR3InfoInit(PVM pVM);
-int  dbgfR3InfoTerm(PVM pVM);
-void dbgfR3OSTerm(PVM pVM);
-int  dbgfR3RegInit(PVM pVM);
-void dbgfR3RegTerm(PVM pVM);
-int  dbgfR3SymInit(PVM pVM);
-int  dbgfR3SymTerm(PVM pVM);
+int  dbgfR3InfoInit(PUVM pUVM);
+int  dbgfR3InfoTerm(PUVM pUVM);
+void dbgfR3OSTerm(PUVM pUVM);
+int  dbgfR3RegInit(PUVM pUVM);
+void dbgfR3RegTerm(PUVM pUVM);
 int  dbgfR3TraceInit(PVM pVM);
 void dbgfR3TraceRelocate(PVM pVM);
 void dbgfR3TraceTerm(PVM pVM);

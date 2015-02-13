@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@ PROGRAMS += tstSDL
 #
 VBoxSDLHardened_TEMPLATE = VBOXR3HARDENEDEXE
 VBoxSDLHardened_SOURCES = VBoxSDLHardened.cpp
+VBoxSDLHardened_SOURCES.win = $(VBoxSDL_0_OUTDIR)/VBoxSDL-icon.rc
 VBoxSDLHardened_NAME = VBoxSDL
 
 
@@ -103,10 +104,16 @@ $$(VBoxSDL_0_OUTDIR)/Ico64x01.h: $(PATH_ROOT)/src/VBox/Frontends/VBoxSDL/ico64x0
 	$(call MSG_TOOL,bin2c,VBoxSDL,$<,$@)
 	$(QUIET)$(VBOX_BIN2C) Ico64x01 $< $@
 
+ifeq ($(KBUILD_TARGET),win)
+VBoxSDL_SOURCES   += VBoxSDL.rc
+VBoxSDL.rc_INCS    = $(VBoxSDL_0_OUTDIR)
+VBoxSDL.rc_DEPS    = $(VBoxSDL_0_OUTDIR)/VBoxSDL-icon.rc
+VBoxSDL.rc_CLEAN   = $(VBoxSDL_0_OUTDIR)/VBoxSDL-icon.rc
 # Icon include file.
 $$(VBoxSDL_0_OUTDIR)/VBoxSDL-icon.rc: $(VBOX_WINDOWS_ICON_FILE) $$(VBoxSDL_DEFPATH)/Makefile.kmk | $$(dir $$@)
 	$(RM) -f $@
 	$(APPEND) $@ 'IDI_VIRTUALBOX ICON DISCARDABLE "$(subst /,\\,$(VBOX_WINDOWS_ICON_FILE))"'
+endif
 
 
 
@@ -156,5 +163,5 @@ tstSDL_CXXFLAGS.linux = -O -Wall -Wno-non-virtual-dtor -Wno-long-long -fshort-wc
 
 
 endif # !VBOX_WITH_HARDENING || "$(KBUILD_TARGET)" != "darwin"
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

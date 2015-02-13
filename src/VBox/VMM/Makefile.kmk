@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,9 +16,12 @@
 #
 
 SUB_DEPTH = ../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
 # Include sub-makefiles.
+ifndef VBOX_ONLY_EXTPACKS
+ include $(PATH_SUB_CURRENT)/tools/Makefile.kmk
+endif
 include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 
 
@@ -29,8 +32,14 @@ include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
 ## DEFS variable that is picked up by all three VMM targets.
 # Can be prepended to by setting it in LocalConfig.kmk
 VMM_COMMON_DEFS ?= VBOX_IN_VMM
-ifdef VBOX_WITH_RAW_MODE
- VMM_COMMON_DEFS += VBOX_WITH_RAW_MODE
+ifdef VBOX_WITH_FIRST_IEM_STEP
+ VMM_COMMON_DEFS += VBOX_WITH_FIRST_IEM_STEP
+endif
+#ifdef VBOX_WITH_IEM
+# VMM_COMMON_DEFS += VBOX_WITH_IEM
+#endif
+ifdef VBOX_WITH_REM
+ VMM_COMMON_DEFS += VBOX_WITH_REM
 endif
 ifdef VBOX_WITH_MULTI_CORE
  VMM_COMMON_DEFS += VBOX_WITH_MULTI_CORE
@@ -44,47 +53,76 @@ endif
 ifdef VBOX_WITH_PCI_PASSTHROUGH
  VMM_COMMON_DEFS += VBOX_WITH_PCI_PASSTHROUGH
 endif
+ifdef VBOX_WITH_DTRACE_RC
+ VMM_COMMON_DEFS += VBOX_WITH_DTRACE_RC
+endif
+ifdef VBOX_WITH_SAFE_STR
+ VMM_COMMON_DEFS += VBOX_WITH_SAFE_STR
+endif
+ifdef VBOX_WITH_RAW_RING1
+ VMM_COMMON_DEFS += VBOX_WITH_RAW_RING1
+endif
+ifdef VBOX_WITH_64ON32_IDT
+ VMM_COMMON_DEFS += VBOX_WITH_64ON32_IDT
+endif
+ifdef VBOX_WITH_64ON32_CMOS_DEBUG
+ VMM_COMMON_DEFS += VBOX_WITH_64ON32_CMOS_DEBUG
+endif
+
 # VMM_COMMON_DEFS += VBOX_WITH_NS_ACCOUNTING_STATS
 
-# Special IEM debug mode which compares the result with REM.
+# Special IEM debug mode which compares the result with HM/REM
 ifdef IEM_VERIFICATION_MODE
- VMM_COMMON_DEFS += IEM_VERIFICATION_MODE
+ VMM_COMMON_DEFS += IEM_VERIFICATION_MODE IEM_VERIFICATION_MODE_FULL IEM_VERIFICATION_MODE_FULL_HM
+endif
+
+ifdef VBOX_WITH_NEW_MSR_CODE
+ VMM_COMMON_DEFS += VBOX_WITH_NEW_MSR_CODE
 endif
 
 
 #
-# VMMR3.dll
+# The VMM DLL.
 #
 ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
-LIBRARIES += VMMR3
+ DLLS += VBoxVMM
 endif
+VBoxVMM_TEMPLATE = VBoxR3DllNoPic
+VBoxVMM_SONAME.linux = VBoxVMM.so
 
-VMMR3_TEMPLATE  = VBoxR3DllNoPic
-
-VMMR3_DEFS      = IN_VMM_R3 IN_DIS IN_GMM_R3 IN_DBG $(VMM_COMMON_DEFS)
+VBoxVMM_DEFS     = IN_VMM_R3 IN_DIS IN_GMM_R3 IN_DBG $(VMM_COMMON_DEFS)
 ## @todo eliminate IN_GMM_R3
 ifdef VBOX_WITH_PREALLOC_RAM_BY_DEFAULT
- VMMR3_DEFS    += VBOX_WITH_PREALLOC_RAM_BY_DEFAULT
+ VBoxVMM_DEFS   += VBOX_WITH_PREALLOC_RAM_BY_DEFAULT
 endif
 ifdef VBOX_WITH_VUSB
- VMMR3_DEFS    += VBOX_WITH_USB
+ VBoxVMM_DEFS   += VBOX_WITH_USB
 endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
- VMMR3_DEFS    += VBOX_WITH_PDM_ASYNC_COMPLETION
+ VBoxVMM_DEFS   += VBOX_WITH_PDM_ASYNC_COMPLETION
 endif
-VMMR3_DEFS.darwin = VMM_R0_SWITCH_STACK
-VMMR3_DEFS.darwin.x86 = \
+ifdef VBOX_WITH_NETSHAPER
+ VBoxVMM_DEFS   += VBOX_WITH_NETSHAPER
+endif
+ifdef VBOX_WITH_RAW_MODE
+ VBoxVMM_DEFS   += VBOX_WITH_RAW_MODE VBOX_WITH_RAW_MODE_NOT_R0
+endif
+VBoxVMM_DEFS.darwin = VMM_R0_SWITCH_STACK
+VBoxVMM_DEFS.darwin.x86 = \
 	VBOX_WITH_2X_4GB_ADDR_SPACE   VBOX_WITH_2X_4GB_ADDR_SPACE_IN_R3 \
 	VBOX_WITH_HYBRID_32BIT_KERNEL VBOX_WITH_HYBRID_32BIT_KERNEL_IN_R3
 
-VMMR3_INCS     = \
+VBoxVMM_INCS     = \
 	include \
-	PATM
-VMMR3_ASINCS   = .
+	$(if-expr defined(VBOX_WITH_RAW_MODE),PATM,)
+VBoxVMM_ASINCS   = .
 
-VMMR3_SOURCES   = \
+VBoxVMM_SOURCES  = \
+	VBoxVMM.d \
 	VMMR3/CFGM.cpp \
 	VMMR3/CPUM.cpp \
+	VMMR3/CPUMR3CpuId.cpp \
+	VMMR3/CPUMR3Db.cpp \
 	VMMR3/CPUMDbg.cpp \
 	VMMR3/DBGF.cpp \
 	VMMR3/DBGFAddr.cpp \
@@ -99,11 +137,11 @@ VMMR3_SOURCES   = \
 	VMMR3/DBGFOS.cpp \
 	VMMR3/DBGFReg.cpp \
 	VMMR3/DBGFStack.cpp \
-	VMMR3/DBGFSym.cpp \
 	VMMR3/DBGFR3Trace.cpp \
 	VMMR3/EM.cpp \
-	VMMR3/EMRaw.cpp \
-	VMMR3/EMHwaccm.cpp \
+	VMMR3/EMR3Dbg.cpp \
+	$(if $(VBOX_WITH_RAW_MODE),VMMR3/EMRaw.cpp) \
+	VMMR3/EMHM.cpp \
 	VMMR3/FTM.cpp \
 	VMMR3/IEMR3.cpp \
 	VMMR3/IOM.cpp \
@@ -143,17 +181,24 @@ VMMR3_SOURCES   = \
 	VMMR3/VMMGuruMeditation.cpp \
 	VMMR3/VMMSwitcher.cpp \
 	VMMR3/VMMTests.cpp \
-	VMMR3/HWACCM.cpp \
+	VMMR3/HM.cpp \
+	$(if-expr defined(VBOX_WITH_RAW_MODE), \
 	VMMR3/CSAM.cpp \
 	VMMR3/PATM.cpp \
 	VMMR3/PATMPatch.cpp \
 	VMMR3/PATMGuest.cpp \
 	VMMR3/PATMA.asm \
 	VMMR3/PATMSSM.cpp \
+	VMMR3/PATMR3Dbg.cpp \
+       ,) \
 	VMMAll/CPUMAllRegs.cpp \
+	VMMAll/CPUMAllMsrs.cpp \
 	VMMAll/CPUMStack.cpp \
 	VMMAll/DBGFAll.cpp \
-	VMMAll/HWACCMAll.cpp \
+	VMMAll/HMAll.cpp \
+	VMMAll/IEMAll.cpp \
+	VMMAll/IEMAllAImpl.asm \
+	VMMAll/IEMAllAImplC.cpp \
 	VMMAll/IOMAll.cpp \
 	VMMAll/IOMAllMMIO.cpp \
 	VMMAll/MMAll.cpp \
@@ -161,6 +206,8 @@ VMMR3_SOURCES   = \
 	VMMAll/MMAllPagePool.cpp \
 	VMMAll/PDMAll.cpp \
 	VMMAll/PDMAllCritSect.cpp \
+	VMMAll/PDMAllCritSectRw.cpp \
+	VMMAll/PDMAllCritSectBoth.cpp \
 	VMMAll/PDMAllQueue.cpp \
 	VMMAll/PGMAll.cpp \
 	VMMAll/PGMAllHandler.cpp \
@@ -172,9 +219,6 @@ VMMR3_SOURCES   = \
 	VMMAll/EMAll.cpp \
 	VMMAll/EMAllA.asm \
 	VMMAll/FTMAll.cpp \
-	VMMAll/IEMAll.cpp \
-	VMMAll/IEMAllAImpl.asm \
-	VMMAll/IEMAllAImplC.cpp \
 	VMMAll/TMAll.cpp \
 	VMMAll/TMAllCpu.cpp \
 	VMMAll/TMAllReal.cpp \
@@ -183,59 +227,48 @@ VMMR3_SOURCES   = \
 	VMMAll/VMAll.cpp \
 	VMMAll/VMMAll.cpp \
 	VMMAll/VMMAllA.asm \
+	$(if-expr defined(VBOX_WITH_RAW_MODE), \
 	VMMAll/CSAMAll.cpp \
-	VMMAll/PATMAll.cpp
+	VMMAll/PATMAll.cpp \
+	,)
 ifdef VBOX_WITH_VUSB
- VMMR3_SOURCES += VMMR3/PDMUsb.cpp
+ VBoxVMM_SOURCES += VMMR3/PDMUsb.cpp
 endif
 ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
- VMMR3_SOURCES += \
+ VBoxVMM_SOURCES += \
  	VMMR3/PDMAsyncCompletion.cpp \
  	VMMR3/PDMAsyncCompletionFile.cpp \
  	VMMR3/PDMAsyncCompletionFileFailsafe.cpp \
  	VMMR3/PDMAsyncCompletionFileNormal.cpp
 endif
-if defined(VBOX_WITH_WARNINGS_AS_ERRORS) && "$(KBUILD_TARGET)" == "win"
-## @todo Alexander, please fix these warnings.
-VMMR3/PDMBlkCache.cpp_CXXFLAGS = -WX-
+ifdef VBOX_WITH_NETSHAPER
+ VBoxVMM_SOURCES += \
+ 	VMMR3/PDMNetShaper.cpp \
+ 	VMMAll/PDMAllNetShaper.cpp
 endif
 
 ifdef VBOX_WITH_RAW_MODE
- VMMR3_SOURCES.x86 += \
+ VBoxVMM_SOURCES.x86 += \
  	VMMSwitcher/32BitTo32Bit.asm \
  	VMMSwitcher/32BitToPAE.asm \
- 	VMMSwitcher/32BitToAMD64.asm \
  	VMMSwitcher/PAETo32Bit.asm \
- 	VMMSwitcher/PAEToAMD64.asm \
  	VMMSwitcher/PAEToPAE.asm
- VMMR3_SOURCES.amd64 = \
+ VBoxVMM_SOURCES.amd64 = \
  	VMMSwitcher/AMD64To32Bit.asm \
  	VMMSwitcher/AMD64ToPAE.asm
- VMMR3_SOURCES.darwin.x86 += \
+ VBoxVMM_SOURCES.darwin.x86 += \
  	VMMSwitcher/AMD64ToPAE.asm
 endif
-
-
-# SSM wish to know the build type, host os and arch.
-VMMR3/SSM.cpp_DEFS +=	\
-	KBUILD_TYPE=\"$(KBUILD_TYPE)\" \
-	KBUILD_TARGET=\"$(KBUILD_TARGET)\" \
-	KBUILD_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\"
-
-#
-# The VMM DLL.
-#
-ifndef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
-DLLS += VBoxVMM
-endif
-VBoxVMM_TEMPLATE = VBoxR3DllNoPic
-VBoxVMM_DEFS = $(VMMR3_DEFS)
-VBoxVMM_DEFS.$(KBUILD_TARGET) = $(VMMR3_DEFS.$(KBUILD_TARGET))
-VBoxVMM_SOURCES = VMMR3/VBoxVMMDeps.cpp
-VBoxVMM_SONAME.linux = VBoxVMM.so
+VBoxVMM_SOURCES.x86 += \
+ 	VMMSwitcher/32BitToAMD64.asm \
+ 	VMMSwitcher/PAEToAMD64.asm \
+	VMMSwitcher/X86Stub.asm
+VBoxVMM_SOURCES.amd64 += \
+	VMMSwitcher/AMD64Stub.asm
+VBoxVMM_SOURCES.win += \
+	VMMR3/VMMR3.rc
 
 VBoxVMM_LIBS = \
-	$(PATH_STAGE_LIB)/VMMR3$(VBOX_SUFF_LIB) \
 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB)
 ifdef VBOX_WITH_DEBUGGER
  VBoxVMM_LIBS += \
@@ -246,10 +279,17 @@ VBoxVMM_LIBS += \
 	$(LIB_RUNTIME)
 
 VBoxVMM_LIBS.win = $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
-VBoxVMM_LDFLAGS.win = /DELAYLOAD:dbghelp.dll
 VBoxVMM_LDFLAGS.linux = -Wl,--no-undefined
 VBoxVMM_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxVMM.dylib
 VBoxVMM_LDFLAGS.solaris = -mimpure-text
+
+# SSM wish to know the build type, host os and arch.
+VMMR3/SSM.cpp_DEFS +=	\
+	KBUILD_TYPE=\"$(KBUILD_TYPE)\" \
+	KBUILD_TARGET=\"$(KBUILD_TARGET)\" \
+	KBUILD_TARGET_ARCH=\"$(KBUILD_TARGET_ARCH)\"
+
+
 #ifdef VBOX_WITH_PDM_ASYNC_COMPLETION
 # ifeq ($(KBUILD_HOST), linux)
 #VBoxVMM_LIBS += aio
@@ -336,6 +376,19 @@ endif # R0: pe + lx
 IMPORT_LIBS += VMMR3Imp
 $(call VBOX_GENERATE_IMPORT_TARGET_FN,VMMR3Imp,VBoxVMM,VMMR3/VMMR3.def)
 
+ifneq ($(VBOX_LIB_VMM_LAZY),$(LIB_VMM))
+ #
+ # VMMR3LazyImp.lib (experimental)
+ #
+ LIBRARIES += VMMR3LazyImp
+ VMMR3LazyImp_TEMPLATE = VBoxR3Dll
+ VMMR3LazyImp_INST     = $(INST_LIB)
+ VMMR3LazyImp_SOURCES  = $(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm
+ VMMR3LazyImp_CLEAN    = $(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm
+ $$(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm: $(PATH_SUB_CURRENT)/VMMR3/VMMR3.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(VBOX_DEF_2_LAZY_LOAD) --output $@ --library VBoxVMM $<
+endif
+
 
 if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  #
@@ -346,7 +399,7 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  VMMRC_NAME      = VMMGC
  VMMRC_SYSSUFF   = .gc
 
- VMMRC_DEFS      = IN_VMM_RC IN_RT_RC IN_DIS DIS_CORE_ONLY VBOX_WITH_RAW_MODE $(VMM_COMMON_DEFS)
+ VMMRC_DEFS      = IN_VMM_RC IN_RT_RC IN_DIS DIS_CORE_ONLY VBOX_WITH_RAW_MODE VBOX_WITH_RAW_MODE_NOT_R0 $(VMM_COMMON_DEFS)
  ifeq ($(KBUILD_TARGET_ARCH),x86)
   VMMRC_DEFS.darwin = VMM_R0_SWITCH_STACK
   VMMRC_DEFS.darwin = \
@@ -357,7 +410,7 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  VMMRC_INCS     := \
  	include \
  	VMMRC \
- 	PATM
+ 	$(if-expr defined(VBOX_WITH_RAW_MODE),PATM,)
 
  VMMRC_LIBS      = \
  	$(PATH_STAGE_LIB)/DisasmRC$(VBOX_SUFF_LIB) \
@@ -368,6 +421,7 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  endif
 
  VMMRC_SOURCES   = \
+ 	VBoxVMM.d \
  	VMMRC/VMMRC0.asm \
  	VMMRC/VMMRCDeps.cpp \
  	VMMRC/CPUMRC.cpp \
@@ -384,16 +438,20 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMRC/TRPMRCHandlersA.asm \
  	VMMRC/VMMRC.cpp \
  	VMMRC/VMMRCA.asm \
- 	VMMRC/HWACCMRCA.asm \
- 	VMMRC/CSAMRC.cpp \
+ 	$(if-expr defined(VBOX_WITH_RAW_MODE), \
+	VMMRC/CSAMRC.cpp \
  	VMMRC/PATMRC.cpp \
+	,) \
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/PGMRZDynMap.cpp \
  	VMMRZ/VMMRZ.cpp \
  	VMMAll/CPUMAllRegs.cpp \
- 	VMMAll/CPUMAllA.asm \
+	VMMAll/CPUMAllMsrs.cpp \
  	VMMAll/DBGFAll.cpp \
- 	VMMAll/IOMAll.cpp \
+	VMMAll/IEMAll.cpp \
+	VMMAll/IEMAllAImpl.asm \
+	VMMAll/IEMAllAImplC.cpp \
+  	VMMAll/IOMAll.cpp \
  	VMMAll/IOMAllMMIO.cpp \
  	VMMAll/EMAll.cpp \
  	VMMAll/EMAllA.asm \
@@ -402,6 +460,8 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMAll/MMAllHyper.cpp \
  	VMMAll/PDMAll.cpp \
  	VMMAll/PDMAllCritSect.cpp \
+ 	VMMAll/PDMAllCritSectRw.cpp \
+ 	VMMAll/PDMAllCritSectBoth.cpp \
  	VMMAll/PDMAllQueue.cpp \
  	VMMAll/PGMAll.cpp \
  	VMMAll/PGMAllHandler.cpp \
@@ -418,15 +478,16 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMAll/VMAll.cpp \
  	VMMAll/VMMAll.cpp \
  	VMMAll/VMMAllA.asm \
- 	VMMAll/CSAMAll.cpp \
- 	VMMAll/PATMAll.cpp
+ 	$(if-expr defined(VBOX_WITH_RAW_MODE), \
+	VMMAll/CSAMAll.cpp \
+ 	VMMAll/PATMAll.cpp \
+       ,)
  ifeq ($(VBOX_LDR_FMT32),pe)
   VMMRC_SOURCES += VMMRC/VMMRC.def
  endif
  ifeq ($(VBOX_LDR_FMT32),lx)
   VMMRC_SOURCES += $(VMMRCImp_0_OUTDIR)/VMMRC.def
  endif
-
 
  # the very last one.
  VMMRC_SOURCES += VMMRC/VMMRC99.asm
@@ -446,11 +507,14 @@ ifndef VBOX_ONLY_EXTPACKS
  VMMR0_DEFS      = IN_VMM_R0 IN_RT_R0 IN_DIS DIS_CORE_ONLY IN_GVMM_R0 IN_GMM_R0 IN_INTNET_R0 \
  	$(VMM_COMMON_DEFS) RTASSERT_HAVE_SHOULD_PANIC
  ## @todo eliminate IN_GVMM_R0 IN_GMM_R0
- ifdef VBOX_WITH_VMMR0_DISABLE_PREEMPTION
-  VMMR0_DEFS    += VBOX_WITH_VMMR0_DISABLE_PREEMPTION
- endif
  ifdef VBOX_WITH_PCI_PASSTHROUGH
   VMMR0_DEFS    += IN_PCIRAW_R0
+ endif
+ ifdef VBOX_WITH_TRIPLE_FAULT_HACK
+  VMMR0_DEFS    += VBOX_WITH_TRIPLE_FAULT_HACK
+ endif
+ ifdef VBOX_WITH_RAW_MODE
+  VMMR0_DEFS    += VBOX_WITH_RAW_MODE
  endif
  VMMR0_DEFS.darwin = VMM_R0_SWITCH_STACK
  VMMR0_DEFS.darwin.x86 = \
@@ -463,17 +527,18 @@ ifndef VBOX_ONLY_EXTPACKS
  endif
  VMMR0_INCS      = \
  	include \
- 	PATM
+ 	$(if-expr defined(VBOX_WITH_RAW_MODE),PATM,)
 
  VMMR0_SOURCES   = \
+ 	VBoxVMM.d \
  	VMMR0/CPUMR0.cpp \
  	VMMR0/CPUMR0A.asm \
  	VMMR0/GMMR0.cpp \
  	VMMR0/GVMMR0.cpp \
- 	VMMR0/HWACCMR0.cpp \
- 	VMMR0/HWACCMR0A.asm \
- 	VMMR0/HWSVMR0.cpp \
- 	VMMR0/HWVMXR0.cpp \
+ 	VMMR0/HMR0.cpp \
+ 	VMMR0/HMR0A.asm \
+	VMMR0/HMVMXR0.cpp \
+	VMMR0/HMSVMR0.cpp \
  	VMMR0/PDMR0Device.cpp \
  	VMMR0/PDMR0Driver.cpp \
  	VMMR0/PGMR0.cpp \
@@ -483,14 +548,17 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMR0/VMMR0.cpp \
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/VMMRZ.cpp \
- 	VMMAll/CPUMAllA.asm \
  	VMMAll/CPUMAllRegs.cpp \
+	VMMAll/CPUMAllMsrs.cpp \
  	VMMAll/CPUMStack.cpp \
  	VMMAll/DBGFAll.cpp \
  	VMMAll/EMAll.cpp \
  	VMMAll/EMAllA.asm \
  	VMMAll/FTMAll.cpp \
- 	VMMAll/HWACCMAll.cpp \
+ 	VMMAll/HMAll.cpp \
+	VMMAll/IEMAll.cpp \
+	VMMAll/IEMAllAImpl.asm \
+	VMMAll/IEMAllAImplC.cpp \
  	VMMAll/IOMAll.cpp \
  	VMMAll/IOMAllMMIO.cpp \
  	VMMAll/MMAll.cpp \
@@ -498,6 +566,8 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMAll/MMAllPagePool.cpp \
  	VMMAll/PDMAll.cpp \
  	VMMAll/PDMAllCritSect.cpp \
+ 	VMMAll/PDMAllCritSectRw.cpp \
+ 	VMMAll/PDMAllCritSectBoth.cpp \
  	VMMAll/PDMAllQueue.cpp \
  	VMMAll/PGMAll.cpp \
  	VMMAll/PGMAllHandler.cpp \
@@ -514,11 +584,17 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMAll/VMAll.cpp \
  	VMMAll/VMMAll.cpp \
  	VMMAll/VMMAllA.asm
- ifeq ($(VBOX_LDR_FMT),pe)
-  VMMR0_SOURCES += VMMR0/VMMR0.def
- endif
- ifeq ($(VBOX_LDR_FMT),lx)
+ if1of ($(VBOX_LDR_FMT), pe lx)
   VMMR0_SOURCES += $(VMMR0Imp_0_OUTDIR)/VMMR0.def
+ endif
+ ifdef VBOX_WITH_TRIPLE_FAULT_HACK
+  VMMR0_SOURCES += \
+ 	VMMR0/VMMR0TripleFaultHack.cpp \
+	VMMR0/VMMR0TripleFaultHackA.asm
+ endif
+ ifdef VBOX_WITH_NETSHAPER
+  VMMR0_SOURCES += \
+ 	VMMAll/PDMAllNetShaper.cpp
  endif
  VMMR0_SOURCES.amd64 = \
  	VMMR0/VMMR0JmpA-amd64.asm
@@ -544,10 +620,68 @@ ifndef VBOX_ONLY_EXTPACKS
  #
  LIBRARIES += SSMStandalone
  SSMStandalone_TEMPLATE = VBOXR3EXE
- SSMStandalone_DEFS     = IN_VMM_R3 IN_VMM_STATIC SSM_STANDALONE
+ SSMStandalone_DEFS     = IN_VMM_R3 IN_VMM_STATIC SSM_STANDALONE CPUM_DB_STANDALONE
  SSMStandalone_INCS     = include
- SSMStandalone_SOURCES  = VMMR3/SSM.cpp
+ SSMStandalone_SOURCES  = \
+ 	VMMR3/SSM.cpp \
+ 	VMMR3/CPUMR3Db.cpp
 endif # !VBOX_ONLY_EXTPACKS
+
+
+if !defined(VBOX_ONLY_EXTPACKS) \
+ && (   defined(VBOX_WITH_DTRACE_R3) \
+     || defined(VBOX_WITH_DTRACE_R0) \
+     || defined(VBOX_WITH_DTRACE_RC))
+ #
+ # Install the dtrace library files.
+ #
+ INSTALLS += VMMLibDTrace
+ VMMLibDTrace_INST    = $(VBOX_INST_DTRACE_LIB)$(KBUILD_TARGET_ARCH)/
+ VMMLibDTrace_SOURCES = \
+	dtrace/lib/vbox-types.d \
+	dtrace/lib/$(KBUILD_TARGET_ARCH)/vbox-arch-types.d \
+	$(VMMLibDTrace_0_OUTDIR)/vm.d \
+	$(VMMLibDTrace_0_OUTDIR)/cpumctx.d \
+	$(VMMLibDTrace_0_OUTDIR)/CPUMInternal.d \
+	$(VMMLibDTrace_0_OUTDIR)/x86.d \
+
+
+ ##
+ # Turn the header $2 into the DTrace library script $1.
+ #
+ define def_vmm_lib_dtrace_preprocess
+  $$$$(VMMLibDTrace_0_OUTDIR)/$1: $2 $$(VBOX_VBOXCPP) | $$$$(dir $$$$@)
+	$$(QUIET)$$(call MSG_GENERATE,VMMLibDTrace,$$@,$$<)
+	$$(QUIET)$(VBOX_VBOXCPP) -d \
+		-D VBOX_FOR_DTRACE_LIB \
+		-D VBOX_FOR_DTRACE_LIB_$(toupper $(KBUILD_TARGET_ARCH)) \
+		-D IN_RING0 \
+		-D RT_C_DECLS_BEGIN= \
+		-D RT_C_DECLS_END= \
+		-D 'RCPTRTYPE(a_Type)=RTRCPTR' \
+		-D 'R3PTRTYPE(a_Type)=RTR3PTR' \
+		-D 'R0PTRTYPE(a_Type)=a_Type' \
+		-D 'AssertCompile(a_Expr)=' \
+		-D 'AssertCompileSize(a_Stuct, a_Size)=' \
+		-D 'bool=uint8_t' \
+		$$(foreach def,\
+			$$(DEFS) \
+			$$(DEFS.$$(KBUILD_TARGET)) \
+			$$(DEFS.$(KBUILD_TARGET_ARCH)) \
+			$$(VMM_COMMON_DEFS) \
+			$$(ARCH_BITS_DEFS)\
+		   ,-D '$$(def)') \
+		$$< \
+		$$@
+	$$(QUIET)$$(CHMOD) 644 $$@
+ endef
+ $(evalcall2 def_vmm_lib_dtrace_preprocess,vm.d,$(PATH_ROOT)/include/VBox/vmm/vm.h)
+ $(evalcall2 def_vmm_lib_dtrace_preprocess,cpumctx.d,$(PATH_ROOT)/include/VBox/vmm/cpumctx.h)
+ $(evalcall2 def_vmm_lib_dtrace_preprocess,CPUMInternal.d,$(PATH_SUB_CURRENT)/include/CPUMInternal.h)
+ $(evalcall2 def_vmm_lib_dtrace_preprocess,x86.d,$(PATH_ROOT)/include/iprt/x86.h)
+
+endif
+
 
 
 #
@@ -558,22 +692,36 @@ VMMAll/VMMAll.cpp_DEFS = VBOX_SVN_REV=$(VBOX_SVN_REV)
 #
 # Disable annoying warnings about array subscript above array bounds in aPages[]
 #
-VMMR3/PGMPool.cpp_CXXFLAGS = $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
-VMMAll/PGMAllPool.cpp_CXXFLAGS = $(if-expr $(KBUILD_TARGET) == "win",,$(VBOX_GCC_Wno-array_bounds))
+ifneq ($(KBUILD_TARGET),win)
+ VMMR3/PGMPool.cpp_CXXFLAGS     = $(VBOX_GCC_Wno-array_bounds)
+ VMMAll/PGMAllPool.cpp_CXXFLAGS = $(VBOX_GCC_Wno-array_bounds)
+ VMMAll/PGMAll.cpp_CXXFLAGS     = -Wno-unused-function
+ VMMAll/IEMAll.cpp_CXXFLAGS     = -Wno-unused-parameter
+endif
 
 #
 # Always optimize the interpreter.
 #
+ifn1of ($(USERNAME),bird)
 if1of ($(KBUILD_TARGET), win)
-#VMMAll/IEMAll.cpp_CXXFLAGS = TODO
-#else if1of ($(KBUILD_TARGET_ARCH), amd64)
-# VMMAll/IEMAll.cpp_CXXFLAGS = -O2 -fomit-frame-pointer
+ # -noover is recognized despite the statement saying otherwise. It silences these warnings:
+ # cl : Command line warning D9025 : overriding '/Od' with '/O2'
+ # cl : Command line warning D9025 : overriding '/Oy-' with '/Oy'
+ VMMAll/IEMAll.cpp_CXXFLAGS += -noover -O2xy
 else
- VMMAll/IEMAll.cpp_CXXFLAGS = -O2 #-fomit-frame-pointer - latter causes trouble on mac.
+ VMMAll/IEMAll.cpp_CXXFLAGS += -O2
+ #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-align-functions -fno-align-jumps -fno-align-loops # Saves a few of percents, not worth it.
+ #VMMAll/IEMAll.cpp_CXXFLAGS += -fno-reorder-blocks    # Saves one or two percent ... never mind.
+ VMMAll/IEMAll.cpp_CXXFLAGS += -fomit-frame-pointer # Omitting the frame pointer results in larger code, but it might be worth it. (esp addressing vs ebp?)
 endif
+endif # bird wants good stacks
 
 
-include	$(KBUILD_PATH)/subfooter.kmk
+# Alias the CPU database entries.
+$(foreach base,$(notdir $(basename $(wildcard $(PATH_SUB_CURRENT)/VMMR3/cpus/*.h))), $(eval $(base).o $(base).obj: CPUMR3Db.o))
+
+
+include $(FILE_KBUILD_SUB_FOOTER)
 
 
 # Alias the PGM templates to the object in which they are defined.
@@ -596,4 +744,9 @@ IEMInternal.o \
 IEMAllInstructions.cpp.o  IEMAllInstructions.cpp.obj \
 IEMAllCImpl.cpp.o         IEMAllCImpl.cpp.obj \
 IEMAllCImplStrInstr.cpp.o IEMAllCImplStrInstr.cpp.obj: IEMAll.o
+
+# Alias the switcher templates.
+PAEand32Bit.o PAEand32Bit.obj:                 PAETo32Bit.o   PAEToPAE.o   32BitTo32Bit.o PAETo32Bit.o
+LegacyandAMD64.o LegacyandAMD64.obj:           32BitToAMD64.o PAEToAMD64.o
+AMD64andLegacy.o AMD64andLegacy.obj:           AMD64To32Bit.o AMD64ToPAE.o
 

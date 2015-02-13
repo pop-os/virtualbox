@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,12 @@
 #define __STDC_LIMIT_MACROS
 #define __STDC_CONSTANT_MACROS
 #include "slirp/libslirp.h"
+extern "C" {
+#include "slirp/slirp_dns.h"
+}
 #include "slirp/ctl.h"
+
+#include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/vmm/pdmnetifs.h>
 #include <VBox/vmm/pdmnetinline.h>
@@ -51,6 +56,10 @@
 #endif
 #include <iprt/semaphore.h>
 #include <iprt/req.h>
+#ifdef RT_OS_DARWIN
+# include <SystemConfiguration/SystemConfiguration.h>
+# include <CoreFoundation/CoreFoundation.h>
+#endif
 
 #define COUNTERS_INIT
 #include "counters.h"
@@ -59,6 +68,8 @@
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
+
+#define DRVNAT_MAXFRAMESIZE (16 * 1024)
 
 /**
  * @todo: This is a bad hack to prevent freezing the guest during high network
@@ -70,7 +81,7 @@
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                    (pthis)->pDrvIns->iInstance);                                    \
 } while (0)
 
@@ -78,7 +89,7 @@ do {                                                                            
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)))                                                                           \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                   (pthis)->pDrvIns->iInstance);                                     \
 } while (0)
 
@@ -86,7 +97,7 @@ do {                                                                            
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var), var_size);                                     \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                   (pthis)->pDrvIns->iInstance);                                     \
 } while (0)
 
@@ -153,20 +164,20 @@ typedef struct DRVNAT
     /** Polling thread. */
     PPDMTHREAD              pSlirpThread;
     /** Queue for NAT-thread-external events. */
-    PRTREQQUEUE             pSlirpReqQueue;
+    RTREQQUEUE              hSlirpReqQueue;
     /** The guest IP for port-forwarding. */
     uint32_t                GuestIP;
     /** Link state set when the VM is suspended. */
     PDMNETWORKLINKSTATE     enmLinkStateWant;
 
-#ifdef VBOX_WITH_SLIRP_MT
-    PPDMTHREAD              pGuestThread;
-#endif
 #ifndef RT_OS_WINDOWS
     /** The write end of the control pipe. */
     RTPIPE                  hPipeWrite;
     /** The read end of the control pipe. */
     RTPIPE                  hPipeRead;
+# if HC_ARCH_BITS == 32
+    uint32_t                u32Padding;
+# endif
 #else
     /** for external notification */
     HANDLE                  hWakeupEvent;
@@ -184,9 +195,9 @@ typedef struct DRVNAT
     /** event to wakeup the guest urgent receive thread */
     RTSEMEVENT              EventUrgRecv;
     /** Receive Req queue (deliver packets to the guest) */
-    PRTREQQUEUE             pRecvReqQueue;
+    RTREQQUEUE              hRecvReqQueue;
     /** Receive Urgent Req queue (deliver packets to the guest). */
-    PRTREQQUEUE             pUrgRecvReqQueue;
+    RTREQQUEUE              hUrgRecvReqQueue;
 
     /** makes access to device func RecvAvail and Recv atomical. */
     RTCRITSECT              DevAccessLock;
@@ -197,9 +208,14 @@ typedef struct DRVNAT
 
     /** Transmit lock taken by BeginXmit and released by EndXmit. */
     RTCRITSECT              XmitLock;
+
+#ifdef RT_OS_DARWIN
+    /* Handle of the DNS watcher runloop source. */
+    CFRunLoopSourceRef      hRunLoopSrcDnsWatcher;
+#endif
 } DRVNAT;
 AssertCompileMemberAlignment(DRVNAT, StatNATRecvWakeups, 8);
-/** Pointer the NAT driver instance data. */
+/** Pointer to the NAT driver instance data. */
 typedef DRVNAT *PDRVNAT;
 
 
@@ -207,6 +223,8 @@ typedef DRVNAT *PDRVNAT;
 *   Internal Functions                                                         *
 *******************************************************************************/
 static void drvNATNotifyNATThread(PDRVNAT pThis, const char *pszWho);
+DECLINLINE(void) drvNATUpdateDNS(PDRVNAT pThis, bool fFlapLink);
+static DECLCALLBACK(int) drvNATReinitializeHostNameResolving(PDRVNAT pThis);
 
 
 static DECLCALLBACK(int) drvNATRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
@@ -218,7 +236,7 @@ static DECLCALLBACK(int) drvNATRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        RTReqProcess(pThis->pRecvReqQueue, 0);
+        RTReqQueueProcess(pThis->hRecvReqQueue, 0);
         if (ASMAtomicReadU32(&pThis->cPkts) == 0)
             RTSemEventWait(pThis->EventRecv, RT_INDEFINITE_WAIT);
     }
@@ -245,7 +263,7 @@ static DECLCALLBACK(int) drvNATUrgRecv(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        RTReqProcess(pThis->pUrgRecvReqQueue, 0);
+        RTReqQueueProcess(pThis->hUrgRecvReqQueue, 0);
         if (ASMAtomicReadU32(&pThis->cUrgPkts) == 0)
         {
             int rc = RTSemEventWait(pThis->EventUrgRecv, RT_INDEFINITE_WAIT);
@@ -400,17 +418,17 @@ static void drvNATSendWorker(PDRVNAT pThis, PPDMSCATTERGATHER pSgBuf)
             {
                 size_t cbSeg;
                 void  *pvSeg;
-                m = slirp_ext_m_get(pThis->pNATState, pGso->cbHdrs + pGso->cbMaxSeg, &pvSeg, &cbSeg);
+                m = slirp_ext_m_get(pThis->pNATState, pGso->cbHdrsTotal + pGso->cbMaxSeg, &pvSeg, &cbSeg);
                 if (!m)
                     break;
 
 #if 1
-                uint32_t cbPayload;
+                uint32_t cbPayload, cbHdrs;
                 uint32_t offPayload = PDMNetGsoCarveSegment(pGso, pbFrame, pSgBuf->cbUsed,
-                                                            iSeg, cSegs, (uint8_t *)pvSeg, &cbPayload);
-                memcpy((uint8_t *)pvSeg + pGso->cbHdrs, pbFrame + offPayload, cbPayload);
+                                                            iSeg, cSegs, (uint8_t *)pvSeg, &cbHdrs, &cbPayload);
+                memcpy((uint8_t *)pvSeg + cbHdrs, pbFrame + offPayload, cbPayload);
 
-                slirp_input(pThis->pNATState, m, cbPayload + pGso->cbHdrs);
+                slirp_input(pThis->pNATState, m, cbPayload + cbHdrs);
 #else
                 uint32_t cbSegFrame;
                 void *pvSegFrame = PDMNetGsoCarveSegmentQD(pGso, (uint8_t *)pbFrame, pSgBuf->cbUsed, abHdrScratch,
@@ -468,6 +486,16 @@ static DECLCALLBACK(int) drvNATNetworkUp_AllocBuf(PPDMINETWORKUP pInterface, siz
         return VERR_NO_MEMORY;
     if (!pGso)
     {
+        /*
+         * Drop the frame if it is too big.
+         */
+        if (cbMin >= DRVNAT_MAXFRAMESIZE)
+        {
+            Log(("drvNATNetowrkUp_AllocBuf: drops over-sized frame (%u bytes), returns VERR_INVALID_PARAMETER\n",
+                 cbMin));
+            return VERR_INVALID_PARAMETER;
+        }
+
         pSgBuf->pvUser      = NULL;
         pSgBuf->pvAllocator = slirp_ext_m_get(pThis->pNATState, cbMin,
                                               &pSgBuf->aSegs[0].pvSeg, &pSgBuf->aSegs[0].cbSeg);
@@ -479,6 +507,16 @@ static DECLCALLBACK(int) drvNATNetworkUp_AllocBuf(PPDMINETWORKUP pInterface, siz
     }
     else
     {
+        /*
+         * Drop the frame if its segment is too big.
+         */
+        if (pGso->cbHdrsTotal + pGso->cbMaxSeg >= DRVNAT_MAXFRAMESIZE)
+        {
+            Log(("drvNATNetowrkUp_AllocBuf: drops over-sized frame (%u bytes), returns VERR_INVALID_PARAMETER\n",
+                 pGso->cbHdrsTotal + pGso->cbMaxSeg));
+            return VERR_INVALID_PARAMETER;
+        }
+
         pSgBuf->pvUser      = RTMemDup(pGso, sizeof(*pGso));
         pSgBuf->pvAllocator = NULL;
         pSgBuf->aSegs[0].cbSeg = RT_ALIGN_Z(cbMin, 16);
@@ -533,13 +571,11 @@ static DECLCALLBACK(int) drvNATNetworkUp_SendBuf(PPDMINETWORKUP pInterface, PPDM
         /* Set an FTM checkpoint as this operation changes the state permanently. */
         PDMDrvHlpFTSetCheckpoint(pThis->pDrvIns, FTMCHECKPOINTTYPE_NETWORK);
 
-#ifdef VBOX_WITH_SLIRP_MT
-        PRTREQQUEUE pQueue = (PRTREQQUEUE)slirp_get_queue(pThis->pNATState);
-#else
-        PRTREQQUEUE pQueue = pThis->pSlirpReqQueue;
-#endif
-        rc = RTReqCallEx(pQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                         (PFNRT)drvNATSendWorker, 2, pThis, pSgBuf);
+
+        RTREQQUEUE hQueue = pThis->hSlirpReqQueue;
+
+        rc = RTReqQueueCallEx(hQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                              (PFNRT)drvNATSendWorker, 2, pThis, pSgBuf);
         if (RT_SUCCESS(rc))
         {
             drvNATNotifyNATThread(pThis, "drvNATNetworkUp_SendBuf");
@@ -636,8 +672,8 @@ static DECLCALLBACK(void) drvNATNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInte
     }
 
     PRTREQ pReq;
-    int rc = RTReqCallEx(pThis->pSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
-                         (PFNRT)drvNATNotifyLinkChangedWorker, 2, pThis, enmLinkState);
+    int rc = RTReqQueueCallEx(pThis->hSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
+                              (PFNRT)drvNATNotifyLinkChangedWorker, 2, pThis, enmLinkState);
     if (RT_LIKELY(rc == VERR_TIMEOUT))
     {
         drvNATNotifyNATThread(pThis, "drvNATNetworkUp_NotifyLinkChanged");
@@ -646,7 +682,7 @@ static DECLCALLBACK(void) drvNATNetworkUp_NotifyLinkChanged(PPDMINETWORKUP pInte
     }
     else
         AssertRC(rc);
-    RTReqFree(pReq);
+    RTReqRelease(pReq);
 }
 
 static void drvNATNotifyApplyPortForwardCommand(PDRVNAT pThis, bool fRemove,
@@ -683,9 +719,9 @@ DECLCALLBACK(int) drvNATNetworkNatConfig_RedirectRuleCommand(PPDMINETWORKNATCONF
                  u16GuestPort));
     PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkNATCfg);
     PRTREQ pReq;
-    int rc = RTReqCallEx(pThis->pSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
-                         (PFNRT)drvNATNotifyApplyPortForwardCommand, 7, pThis, fRemove,
-                         fUdp, pHostIp, u16HostPort, pGuestIp, u16GuestPort);
+    int rc = RTReqQueueCallEx(pThis->hSlirpReqQueue, &pReq, 0 /*cMillies*/, RTREQFLAGS_VOID,
+                              (PFNRT)drvNATNotifyApplyPortForwardCommand, 7, pThis, fRemove,
+                              fUdp, pHostIp, u16HostPort, pGuestIp, u16GuestPort);
     if (RT_LIKELY(rc == VERR_TIMEOUT))
     {
         drvNATNotifyNATThread(pThis, "drvNATNetworkNatConfig_RedirectRuleCommand");
@@ -695,7 +731,7 @@ DECLCALLBACK(int) drvNATNetworkNatConfig_RedirectRuleCommand(PPDMINETWORKNATCONF
     else
         AssertRC(rc);
 
-    RTReqFree(pReq);
+    RTReqRelease(pReq);
     port_forwarding_done:
     return rc;
 }
@@ -706,9 +742,9 @@ DECLCALLBACK(int) drvNATNetworkNatConfig_RedirectRuleCommand(PPDMINETWORKNATCONF
  * The slirp implementation is single-threaded so we execute this enginre in a
  * dedicated thread. We take care that this thread does not become the
  * bottleneck: If the guest wants to send, a request is enqueued into the
- * pSlirpReqQueue and handled asynchronously by this thread.  If this thread
+ * hSlirpReqQueue and handled asynchronously by this thread.  If this thread
  * wants to deliver packets to the guest, it enqueues a request into
- * pRecvReqQueue which is later handled by the Recv thread.
+ * hRecvReqQueue which is later handled by the Recv thread.
  */
 static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
@@ -791,7 +827,7 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
             }
         }
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->pSlirpReqQueue, 0);
+        RTReqQueueProcess(pThis->hSlirpReqQueue, 0);
         RTMemFree(polls);
 
 #else /* RT_OS_WINDOWS */
@@ -799,9 +835,9 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         slirp_select_fill(pThis->pNATState, &nFDs);
         DWORD dwEvent = WSAWaitForMultipleEvents(nFDs, phEvents, FALSE,
                                                  slirp_get_timeout_ms(pThis->pNATState),
-                                                 FALSE);
+                                                 /* :fAlertable */ TRUE);
         if (   (dwEvent < WSA_WAIT_EVENT_0 || dwEvent > WSA_WAIT_EVENT_0 + nFDs - 1)
-            && dwEvent != WSA_WAIT_TIMEOUT)
+            && dwEvent != WSA_WAIT_TIMEOUT && dwEvent != WSA_WAIT_IO_COMPLETION)
         {
             int error = WSAGetLastError();
             LogRel(("NAT: WSAWaitForMultipleEvents returned %d (error %d)\n", dwEvent, error));
@@ -811,14 +847,14 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         if (dwEvent == WSA_WAIT_TIMEOUT)
         {
             /* only check for slow/fast timers */
-            slirp_select_poll(pThis->pNATState, /* fTimeout=*/true, /*fIcmp=*/false);
+            slirp_select_poll(pThis->pNATState, /* fTimeout=*/true);
             continue;
         }
         /* poll the sockets in any case */
         Log2(("%s: poll\n", __FUNCTION__));
-        slirp_select_poll(pThis->pNATState, /* fTimeout=*/false, /* fIcmp=*/(dwEvent == WSA_WAIT_EVENT_0));
+        slirp_select_poll(pThis->pNATState, /* fTimeout=*/false);
         /* process _all_ outstanding requests but don't wait */
-        RTReqProcess(pThis->pSlirpReqQueue, 0);
+        RTReqQueueProcess(pThis->hSlirpReqQueue, 0);
 # ifdef VBOX_NAT_DELAY_HACK
         if (cBreak++ > 128)
         {
@@ -847,31 +883,6 @@ static DECLCALLBACK(int) drvNATAsyncIoWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
     drvNATNotifyNATThread(pThis, "drvNATAsyncIoWakeup");
     return VINF_SUCCESS;
 }
-
-#ifdef VBOX_WITH_SLIRP_MT
-
-static DECLCALLBACK(int) drvNATAsyncIoGuest(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
-{
-    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
-
-    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
-        return VINF_SUCCESS;
-
-    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
-        slirp_process_queue(pThis->pNATState);
-
-    return VINF_SUCCESS;
-}
-
-
-static DECLCALLBACK(int) drvNATAsyncIoGuestWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
-{
-    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
-
-    return VINF_SUCCESS;
-}
-
-#endif /* VBOX_WITH_SLIRP_MT */
 
 /**
  * Function called by slirp to check if it's possible to feed incoming data to the network port.
@@ -902,8 +913,8 @@ void slirp_urg_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int c
         return;
 
     ASMAtomicIncU32(&pThis->cUrgPkts);
-    int rc = RTReqCallEx(pThis->pUrgRecvReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                         (PFNRT)drvNATUrgRecvWorker, 4, pThis, pu8Buf, cb, m);
+    int rc = RTReqQueueCallEx(pThis->hUrgRecvReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                              (PFNRT)drvNATUrgRecvWorker, 4, pThis, pu8Buf, cb, m);
     AssertRC(rc);
     drvNATUrgRecvWakeup(pThis->pDrvIns, pThis->pUrgRecvThread);
 }
@@ -915,7 +926,9 @@ void slirp_output_pending(void *pvUser)
 {
     PDRVNAT pThis = (PDRVNAT)pvUser;
     Assert(pThis);
+    LogFlowFuncEnter();
     pThis->pIAboveNet->pfnXmitPending(pThis->pIAboveNet);
+    LogFlowFuncLeave();
 }
 
 /**
@@ -926,8 +939,8 @@ void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
     PDRVNAT pThis = (PDRVNAT)pvUser;
     Assert(pThis);
 
-    LogFlow(("slirp_output BEGIN %x %d\n", pu8Buf, cb));
-    Log2(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
+    LogFlow(("slirp_output BEGIN %p %d\n", pu8Buf, cb));
+    Log6(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
 
     PRTREQ pReq = NULL;
 
@@ -936,13 +949,87 @@ void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
         return;
 
     ASMAtomicIncU32(&pThis->cPkts);
-    int rc = RTReqCallEx(pThis->pRecvReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
-                         (PFNRT)drvNATRecvWorker, 4, pThis, pu8Buf, cb, m);
+    int rc = RTReqQueueCallEx(pThis->hRecvReqQueue, NULL /*ppReq*/, 0 /*cMillies*/, RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                              (PFNRT)drvNATRecvWorker, 4, pThis, pu8Buf, cb, m);
     AssertRC(rc);
     drvNATRecvWakeup(pThis->pDrvIns, pThis->pRecvThread);
     STAM_COUNTER_INC(&pThis->StatQueuePktSent);
+    LogFlowFuncLeave();
 }
 
+
+/**
+ * @interface_method_impl{PDMINETWORKNATCONFIG,pfnNotifyDnsChanged}
+ *
+ * We are notified that host's resolver configuration has changed.  In
+ * the current setup we don't get any details and just reread that
+ * information ourselves.
+ */
+static DECLCALLBACK(void) drvNATNotifyDnsChanged(PPDMINETWORKNATCONFIG pInterface)
+{
+    PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkNATCfg);
+    drvNATUpdateDNS(pThis, /* fFlapLink */ true);
+}
+
+
+#ifdef RT_OS_DARWIN
+/**
+ * Callback for the SystemConfiguration framework to notify us whenever the DNS
+ * server changes.
+ *
+ * @returns nothing.
+ * @param   hDynStor    The DynamicStore handle.
+ * @param   hChangedKey Array of changed keys we watch for.
+ * @param   pvUser      Opaque user data (NAT driver instance).
+ */
+static DECLCALLBACK(void) drvNatDnsChanged(SCDynamicStoreRef hDynStor, CFArrayRef hChangedKeys, void *pvUser)
+{
+    PDRVNAT pThis = (PDRVNAT)pvUser;
+
+    Log2(("NAT: System configuration has changed\n"));
+
+    /* Check if any of parameters we are interested in were actually changed. If the size
+     * of hChangedKeys is 0, it means that SCDynamicStore has been restarted. */
+    if (hChangedKeys && CFArrayGetCount(hChangedKeys) > 0)
+    {
+        /* Look to the updated parameters in particular. */
+        CFStringRef pDNSKey = CFSTR("State:/Network/Global/DNS");
+
+        if (CFArrayContainsValue(hChangedKeys, CFRangeMake(0, CFArrayGetCount(hChangedKeys)), pDNSKey))
+        {
+            LogRel(("NAT: DNS servers changed, triggering reconnect\n"));
+#if 0
+            CFDictionaryRef hDnsDict = (CFDictionaryRef)SCDynamicStoreCopyValue(hDynStor, pDNSKey);
+            if (hDnsDict)
+            {
+                CFArrayRef hArrAddresses = (CFArrayRef)CFDictionaryGetValue(hDnsDict, kSCPropNetDNSServerAddresses);
+                if (hArrAddresses && CFArrayGetCount(hArrAddresses) > 0)
+                {
+                    /* Dump DNS servers list. */
+                    for (int i = 0; i < CFArrayGetCount(hArrAddresses); i++)
+                    {
+                        CFStringRef pDNSAddrStr = (CFStringRef)CFArrayGetValueAtIndex(hArrAddresses, i);
+                        const char *pszDNSAddr  =  pDNSAddrStr ? CFStringGetCStringPtr(pDNSAddrStr, CFStringGetSystemEncoding()) : NULL;
+                        LogRel(("NAT: New DNS server#%d: %s\n", i, pszDNSAddr ? pszDNSAddr : "None"));
+                    }
+                }
+                else
+                    LogRel(("NAT: DNS server list is empty (1)\n"));
+
+                CFRelease(hDnsDict);
+            }
+            else
+                LogRel(("NAT: DNS server list is empty (2)\n"));
+#endif
+            drvNATUpdateDNS(pThis, /* fFlapLink */ true);
+        }
+        else
+            Log2(("NAT: No DNS changes detected\n"));
+    }
+    else
+        Log2(("NAT: SCDynamicStore has been restarted\n"));
+}
+#endif
 
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
@@ -1000,6 +1087,101 @@ static DECLCALLBACK(void) drvNATPowerOn(PPDMDRVINS pDrvIns)
 
 
 /**
+ * @interface_method_impl{PDMDEVREG,pfnResume}
+ */
+static DECLCALLBACK(void) drvNATResume(PPDMDRVINS pDrvIns)
+{
+    PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
+    VMRESUMEREASON enmReason = PDMDrvHlpVMGetResumeReason(pDrvIns);
+
+    switch (enmReason)
+    {
+        case VMRESUMEREASON_HOST_RESUME:
+            bool fFlapLink;
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE
+            /* let event handler do it if necessary */
+            fFlapLink = false;
+#else
+            /* XXX: when in doubt, use brute force */
+            fFlapLink = true;
+#endif
+            drvNATUpdateDNS(pThis, fFlapLink);
+            return;
+        default: /* Ignore every other resume reason. */
+            /* do nothing */
+            return;
+    }
+}
+
+
+static DECLCALLBACK(int) drvNATReinitializeHostNameResolving(PDRVNAT pThis)
+{
+    slirpReleaseDnsSettings(pThis->pNATState);
+    slirpInitializeDnsSettings(pThis->pNATState);
+    return VINF_SUCCESS;
+}
+
+/**
+ * This function at this stage could be called from two places, but both from non-NAT thread,
+ * - drvNATResume (EMT?)
+ * - drvNatDnsChanged (darwin, GUI or main) "listener"
+ * When Main's interface IHost will support host network configuration change event on every host,
+ * we won't call it from drvNATResume, but from listener of Main event in the similar way it done
+ * for port-forwarding, and it wan't be on GUI/main thread, but on EMT thread only.
+ *
+ * Thread here is important, because we need to change DNS server list and domain name (+ perhaps,
+ * search string) at runtime (VBOX_NAT_ENFORCE_INTERNAL_DNS_UPDATE), we can do it safely on NAT thread,
+ * so with changing other variables (place where we handle update) the main mechanism of update
+ * _won't_ be changed, the only thing will change is drop of fFlapLink parameter.
+ */
+DECLINLINE(void) drvNATUpdateDNS(PDRVNAT pThis, bool fFlapLink)
+{
+    int strategy = slirp_host_network_configuration_change_strategy_selector(pThis->pNATState);
+    switch (strategy)
+    {
+
+        case VBOX_NAT_DNS_DNSPROXY:
+            {
+                /**
+                 * XXX: Here or in _strategy_selector we should deal with network change
+                 * in "network change" scenario domain name change we have to update guest lease
+                 * forcibly.
+                 * Note at that built-in dhcp also updates DNS information on NAT thread.
+                 */
+                /**
+                 * It's unsafe to to do it directly on non-NAT thread
+                 * so we schedule the worker and kick the NAT thread.
+                 */
+                RTREQQUEUE hQueue = pThis->hSlirpReqQueue;
+
+                int rc = RTReqQueueCallEx(hQueue, NULL /*ppReq*/, 0 /*cMillies*/,
+                                          RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
+                                          (PFNRT)drvNATReinitializeHostNameResolving, 1, pThis);
+                if (RT_SUCCESS(rc))
+                    drvNATNotifyNATThread(pThis, "drvNATUpdateDNS");
+
+                return;
+            }
+
+        case VBOX_NAT_DNS_EXTERNAL:
+            /*
+             * Host resumed from a suspend and the network might have changed.
+             * Disconnect the guest from the network temporarily to let it pick up the changes.
+             */
+
+            if (fFlapLink)
+                pThis->pIAboveConfig->pfnSetLinkState(pThis->pIAboveConfig,
+                                                      PDMNETWORKLINKSTATE_DOWN_RESUME);
+            return;
+
+        case VBOX_NAT_DNS_HOSTRESOLVER:
+        default:
+            return;
+    }
+}
+
+
+/**
  * Info handler.
  */
 static DECLCALLBACK(void) drvNATInfo(PPDMDRVINS pDrvIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
@@ -1019,8 +1201,7 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
             return PDMDRV_SET_ERROR(pThis->pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                     N_("Unknown configuration in dns mapping"));
         char szHostNameOrPattern[255];
-        /* fMatch = false used for equal matching, and true if regex is used */
-        bool fMatch = false;
+        bool fMatch = false;    /* false used for equal matching, and true if wildcard pattern is used. */
         RT_ZERO(szHostNameOrPattern);
         GET_STRING(rc, pThis, pNode, "HostName", szHostNameOrPattern[0], sizeof(szHostNameOrPattern));
         if (rc == VERR_CFGM_VALUE_NOT_FOUND)
@@ -1057,7 +1238,7 @@ static int drvNATConstructDNSMappings(unsigned iInstance, PDRVNAT pThis, PCFGMNO
  * @returns VBox status code.
  * @param   pCfg            The configuration handle.
  */
-static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCfg, RTIPV4ADDR Network)
+static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCfg, PRTNETADDRIPV4 pNetwork)
 {
     RTMAC Mac;
     RT_ZERO(Mac); /* can't get MAC here */
@@ -1116,8 +1297,7 @@ static int drvNATConstructRedir(unsigned iInstance, PDRVNAT pThis, PCFGMNODE pCf
 
         /* guest address */
         struct in_addr GuestIP;
-        /* @todo (vvl) use CTL_* */
-        GETIP_DEF(rc, pThis, pNode, GuestIP, htonl(Network | CTL_GUEST));
+        GETIP_DEF(rc, pThis, pNode, GuestIP, RT_H2N_U32(pNetwork->u | CTL_GUEST));
 
         /* Store the guest IP for re-establishing the port-forwarding rules. Note that GuestIP
          * is not documented. Without */
@@ -1167,11 +1347,11 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
         pThis->pNATState = NULL;
     }
 
-    RTReqDestroyQueue(pThis->pSlirpReqQueue);
-    pThis->pSlirpReqQueue = NULL;
+    RTReqQueueDestroy(pThis->hSlirpReqQueue);
+    pThis->hSlirpReqQueue = NIL_RTREQQUEUE;
 
-    RTReqDestroyQueue(pThis->pUrgRecvReqQueue);
-    pThis->pUrgRecvReqQueue = NULL;
+    RTReqQueueDestroy(pThis->hUrgRecvReqQueue);
+    pThis->hUrgRecvReqQueue = NIL_RTREQQUEUE;
 
     RTSemEventDestroy(pThis->EventRecv);
     pThis->EventRecv = NIL_RTSEMEVENT;
@@ -1184,6 +1364,16 @@ static DECLCALLBACK(void) drvNATDestruct(PPDMDRVINS pDrvIns)
 
     if (RTCritSectIsInitialized(&pThis->XmitLock))
         RTCritSectDelete(&pThis->XmitLock);
+
+#ifdef RT_OS_DARWIN
+    /* Cleanup the DNS watcher. */
+    CFRunLoopRef hRunLoopMain = CFRunLoopGetMain();
+    CFRetain(hRunLoopMain);
+    CFRunLoopRemoveSource(hRunLoopMain, pThis->hRunLoopSrcDnsWatcher, kCFRunLoopCommonModes);
+    CFRelease(hRunLoopMain);
+    CFRelease(pThis->hRunLoopSrcDnsWatcher);
+    pThis->hRunLoopSrcDnsWatcher = NULL;
+#endif
 }
 
 
@@ -1197,6 +1387,49 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     PDRVNAT pThis = PDMINS_2_DATA(pDrvIns, PDRVNAT);
     LogFlow(("drvNATConstruct:\n"));
     PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
+
+    /*
+     * Init the static parts.
+     */
+    pThis->pDrvIns                      = pDrvIns;
+    pThis->pNATState                    = NULL;
+    pThis->pszTFTPPrefix                = NULL;
+    pThis->pszBootFile                  = NULL;
+    pThis->pszNextServer                = NULL;
+    pThis->hSlirpReqQueue               = NIL_RTREQQUEUE;
+    pThis->hUrgRecvReqQueue             = NIL_RTREQQUEUE;
+    pThis->EventRecv                    = NIL_RTSEMEVENT;
+    pThis->EventUrgRecv                 = NIL_RTSEMEVENT;
+#ifdef RT_OS_DARWIN
+    pThis->hRunLoopSrcDnsWatcher        = NULL;
+#endif
+
+    /* IBase */
+    pDrvIns->IBase.pfnQueryInterface    = drvNATQueryInterface;
+
+    /* INetwork */
+    pThis->INetworkUp.pfnBeginXmit          = drvNATNetworkUp_BeginXmit;
+    pThis->INetworkUp.pfnAllocBuf           = drvNATNetworkUp_AllocBuf;
+    pThis->INetworkUp.pfnFreeBuf            = drvNATNetworkUp_FreeBuf;
+    pThis->INetworkUp.pfnSendBuf            = drvNATNetworkUp_SendBuf;
+    pThis->INetworkUp.pfnEndXmit            = drvNATNetworkUp_EndXmit;
+    pThis->INetworkUp.pfnSetPromiscuousMode = drvNATNetworkUp_SetPromiscuousMode;
+    pThis->INetworkUp.pfnNotifyLinkChanged  = drvNATNetworkUp_NotifyLinkChanged;
+
+    /* NAT engine configuration */
+    pThis->INetworkNATCfg.pfnRedirectRuleCommand = drvNATNetworkNatConfig_RedirectRuleCommand;
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE && !defined(RT_OS_DARWIN)
+    /* 
+     * On OS X we stick to the old OS X specific notifications for
+     * now.  Elsewhere use IHostNameResolutionConfigurationChangeEvent
+     * by enbaling HAVE_NOTIFICATION_FOR_DNS_UPDATE in libslirp.h.
+     * This code is still in a bit of flux and is implemented and
+     * enabled in steps to simplify more conservative backporting.
+     */
+    pThis->INetworkNATCfg.pfnNotifyDnsChanged = drvNATNotifyDnsChanged;
+#else
+    pThis->INetworkNATCfg.pfnNotifyDnsChanged = NULL;
+#endif
 
     /*
      * Validate the config.
@@ -1215,34 +1448,6 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         return PDMDRV_SET_ERROR(pDrvIns, VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES,
                                 N_("Unknown NAT configuration option, only supports PassDomain,"
                                 " TFTPPrefix, BootFile and Network"));
-
-    /*
-     * Init the static parts.
-     */
-    pThis->pDrvIns                      = pDrvIns;
-    pThis->pNATState                    = NULL;
-    pThis->pszTFTPPrefix                = NULL;
-    pThis->pszBootFile                  = NULL;
-    pThis->pszNextServer                = NULL;
-    pThis->pSlirpReqQueue               = NULL;
-    pThis->pUrgRecvReqQueue             = NULL;
-    pThis->EventRecv                    = NIL_RTSEMEVENT;
-    pThis->EventUrgRecv                 = NIL_RTSEMEVENT;
-
-    /* IBase */
-    pDrvIns->IBase.pfnQueryInterface    = drvNATQueryInterface;
-
-    /* INetwork */
-    pThis->INetworkUp.pfnBeginXmit          = drvNATNetworkUp_BeginXmit;
-    pThis->INetworkUp.pfnAllocBuf           = drvNATNetworkUp_AllocBuf;
-    pThis->INetworkUp.pfnFreeBuf            = drvNATNetworkUp_FreeBuf;
-    pThis->INetworkUp.pfnSendBuf            = drvNATNetworkUp_SendBuf;
-    pThis->INetworkUp.pfnEndXmit            = drvNATNetworkUp_EndXmit;
-    pThis->INetworkUp.pfnSetPromiscuousMode = drvNATNetworkUp_SetPromiscuousMode;
-    pThis->INetworkUp.pfnNotifyLinkChanged  = drvNATNetworkUp_NotifyLinkChanged;
-
-    /* NAT engine configuration */
-    pThis->INetworkNATCfg.pfnRedirectRuleCommand = drvNATNetworkNatConfig_RedirectRuleCommand;
 
     /*
      * Get the configuration settings.
@@ -1294,8 +1499,8 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                                    "missing network"),
                                    pDrvIns->iInstance, szNetwork);
 
-    RTIPV4ADDR Network;
-    RTIPV4ADDR Netmask;
+    RTNETADDRIPV4 Network, Netmask;
+
     rc = RTCidrStrToIPv4(szNetwork, &Network, &Netmask);
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("NAT#%d: Configuration error: "
@@ -1305,7 +1510,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     /*
      * Initialize slirp.
      */
-    rc = slirp_init(&pThis->pNATState, RT_H2N_U32(Network), Netmask,
+    rc = slirp_init(&pThis->pNATState, RT_H2N_U32(Network.u), Netmask.u,
                     fPassDomain, !!fUseHostResolver, i32AliasMode,
                     iIcmpCacheLimit, pThis);
     if (RT_SUCCESS(rc))
@@ -1319,7 +1524,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
         char *pszBindIP = NULL;
         GET_STRING_ALLOC(rc, pThis, pCfg, "BindIP", pszBindIP);
         rc = slirp_set_binding_address(pThis->pNATState, pszBindIP);
-        if (rc != 0)
+        if (rc != 0 && pszBindIP && *pszBindIP)
             LogRel(("NAT: value of BindIP has been ignored\n"));
 
         if(pszBindIP != NULL)
@@ -1354,7 +1559,7 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
             AssertRC(rc);
         }
 #endif
-        rc = drvNATConstructRedir(pDrvIns->iInstance, pThis, pCfg, Network);
+        rc = drvNATConstructRedir(pDrvIns->iInstance, pThis, pCfg, &Network);
         if (RT_SUCCESS(rc))
         {
             /*
@@ -1362,28 +1567,16 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
              * engine after we loaded a guest state.
              */
             rc = PDMDrvHlpSSMRegisterLoadDone(pDrvIns, drvNATLoadDone);
-            AssertRCReturn(rc, rc);
+            AssertLogRelRCReturn(rc, rc);
 
-            rc = RTReqCreateQueue(&pThis->pSlirpReqQueue);
-            if (RT_FAILURE(rc))
-            {
-                LogRel(("NAT: Can't create request queue\n"));
-                return rc;
-            }
+            rc = RTReqQueueCreate(&pThis->hSlirpReqQueue);
+            AssertLogRelRCReturn(rc, rc);
 
-            rc = RTReqCreateQueue(&pThis->pRecvReqQueue);
-            if (RT_FAILURE(rc))
-            {
-                LogRel(("NAT: Can't create request queue\n"));
-                return rc;
-            }
+            rc = RTReqQueueCreate(&pThis->hRecvReqQueue);
+            AssertLogRelRCReturn(rc, rc);
 
-            rc = RTReqCreateQueue(&pThis->pUrgRecvReqQueue);
-            if (RT_FAILURE(rc))
-            {
-                LogRel(("NAT: Can't create request queue\n"));
-                return rc;
-            }
+            rc = RTReqQueueCreate(&pThis->hUrgRecvReqQueue);
+            AssertLogRelRCReturn(rc, rc);
 
             rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pRecvThread, pThis, drvNATRecv,
                                        drvNATRecvWakeup, 128 * _1K, RTTHREADTYPE_IO, "NATRX");
@@ -1428,13 +1621,61 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
                                        drvNATAsyncIoWakeup, 128 * _1K, RTTHREADTYPE_IO, "NAT");
             AssertRCReturn(rc, rc);
 
-#ifdef VBOX_WITH_SLIRP_MT
-            rc = PDMDrvHlpThreadCreate(pDrvIns, &pThis->pGuestThread, pThis, drvNATAsyncIoGuest,
-                                       drvNATAsyncIoGuestWakeup, 128 * _1K, RTTHREADTYPE_IO, "NATGUEST");
-            AssertRCReturn(rc, rc);
-#endif
-
             pThis->enmLinkState = pThis->enmLinkStateWant = PDMNETWORKLINKSTATE_UP;
+
+#ifdef RT_OS_DARWIN
+            /* Set up a watcher which notifies us everytime the DNS server changes. */
+            int rc2 = VINF_SUCCESS;
+            SCDynamicStoreContext SCDynStorCtx;
+
+            SCDynStorCtx.version = 0;
+            SCDynStorCtx.info = pThis;
+            SCDynStorCtx.retain = NULL;
+            SCDynStorCtx.release = NULL;
+            SCDynStorCtx.copyDescription = NULL;
+
+            SCDynamicStoreRef hDynStor = SCDynamicStoreCreate(NULL, CFSTR("org.virtualbox.drvnat"), drvNatDnsChanged, &SCDynStorCtx);
+            if (hDynStor)
+            {
+                CFRunLoopSourceRef hRunLoopSrc = SCDynamicStoreCreateRunLoopSource(NULL, hDynStor, 0);
+                if (hRunLoopSrc)
+                {
+                    CFStringRef aWatchKeys[] =
+                    {
+                        CFSTR("State:/Network/Global/DNS")
+                    };
+                    CFArrayRef hArray = CFArrayCreate(NULL, (const void **)aWatchKeys, 1, &kCFTypeArrayCallBacks);
+
+                    if (hArray)
+                    {
+                        if (SCDynamicStoreSetNotificationKeys(hDynStor, hArray, NULL))
+                        {
+                            CFRunLoopRef hRunLoopMain = CFRunLoopGetMain();
+                            CFRetain(hRunLoopMain);
+                            CFRunLoopAddSource(hRunLoopMain, hRunLoopSrc, kCFRunLoopCommonModes);
+                            CFRelease(hRunLoopMain);
+                            pThis->hRunLoopSrcDnsWatcher = hRunLoopSrc;
+                        }
+                        else
+                            rc2 = VERR_NO_MEMORY;
+
+                        CFRelease(hArray);
+                    }
+                    else
+                        rc2 = VERR_NO_MEMORY;
+
+                    if (RT_FAILURE(rc2)) /* Keep the runloop source referenced for destruction. */
+                        CFRelease(hRunLoopSrc);
+                }
+                CFRelease(hDynStor);
+            }
+            else
+                rc2 = VERR_NO_MEMORY;
+
+            if (RT_FAILURE(rc2))
+                LogRel(("NAT#%d: Failed to install DNS change notifier. The guest might loose DNS access when switching networks on the host\n",
+                         pDrvIns->iInstance));
+#endif
 
             /* might return VINF_NAT_DNS */
             return rc;
@@ -1474,7 +1715,7 @@ const PDMDRVREG g_DrvNAT =
     /* fClass. */
     PDM_DRVREG_CLASS_NETWORK,
     /* cMaxInstances */
-    16,
+    ~0U,
     /* cbInstance */
     sizeof(DRVNAT),
     /* pfnConstruct */
@@ -1492,7 +1733,7 @@ const PDMDRVREG g_DrvNAT =
     /* pfnSuspend */
     NULL,
     /* pfnResume */
-    NULL,
+    drvNATResume,
     /* pfnAttach */
     NULL,
     /* pfnDetach */

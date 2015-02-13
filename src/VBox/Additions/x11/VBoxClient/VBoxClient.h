@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,33 +18,73 @@
 #ifndef ___vboxclient_vboxclient_h
 # define ___vboxclient_vboxclient_h
 
+#include <VBox/log.h>
 #include <iprt/cpp/utils.h>
+#include <iprt/string.h>
 
-/** Namespace for VBoxClient-specific things */
-namespace VBoxClient {
+/** Exit with a fatal error. */
+#define VBClFatalError(format) \
+do { \
+    char *pszMessage = RTStrAPrintf2 format; \
+    LogRel(format); \
+    vbclFatalError(pszMessage); \
+} while(0)
 
-/** A simple class describing a service.  VBoxClient will run exactly one
+/** Exit with a fatal error. */
+extern void vbclFatalError(char *pszMessage);
+
+/** Call clean-up for the current service and exit. */
+extern void VBClCleanUp();
+
+/** A simple interface describing a service.  VBoxClient will run exactly one
  * service per invocation. */
-class Service : public RTCNonCopyable
+struct VBCLSERVICE
 {
-public:
     /** Get the services default path to pidfile, relative to $HOME */
-    virtual const char *getPidFilePath() = 0;
+    /** @todo Should this also have a component relative to the X server number?
+     */
+    const char *(*getPidFilePath)(void);
+    /** Special initialisation, if needed.  @a pause and @a resume are
+     * guaranteed not to be called until after this returns. */
+    int (*init)(struct VBCLSERVICE **ppInterface);
     /** Run the service main loop */
-    virtual int run(bool fDaemonised = false) = 0;
-    /** Clean up any global resources before we shut down hard */
-    virtual void cleanup() = 0;
-    /** Virtual destructor.  Not used */
-    virtual ~Service() {}
+    int (*run)(struct VBCLSERVICE **ppInterface, bool fDaemonised);
+    /** Pause the service loop.  This is used to allow the service to disable
+     * itself when the X server is switched out.  It must be safe to call on a
+     * different thread if the VT monitoring thread is used. */
+    int (*pause)(struct VBCLSERVICE **ppInterface);
+    /** Resume after pausing.  The same applies here as for @a pause. */
+    int (*resume)(struct VBCLSERVICE **ppInterface);
+    /** Clean up any global resources before we shut down hard.  The last calls
+     * to @a pause and @a resume are guaranteed to finish before this is called.
+     */
+    void (*cleanup)(struct VBCLSERVICE **ppInterface);
 };
 
-extern Service *GetClipboardService();
-extern Service *GetSeamlessService();
-extern Service *GetDisplayService();
-extern Service *GetHostVersionService();
+/** Default handler for various struct VBCLSERVICE member functions. */
+static int VBClServiceDefaultHandler(struct VBCLSERVICE **pSelf)
+{
+    return VINF_SUCCESS;
+}
 
-extern void CleanUp();
+/** Default handler for the struct VBCLSERVICE clean-up member function.
+ * Usually used because the service is cleaned up automatically when the user
+ * process/X11 exits. */
+static void VBClServiceDefaultCleanup(struct VBCLSERVICE **ppInterface)
+{
+    NOREF(ppInterface);
+}
 
-} /* namespace VBoxClient */
+union _XEvent;  /* We do not want to pull in the X11 header files here. */
+extern void VBClCheckXOrgVT(union _XEvent *pEvent);
+extern int VBClStartVTMonitor();
+
+extern struct VBCLSERVICE **VBClGetClipboardService();
+extern struct VBCLSERVICE **VBClGetSeamlessService();
+extern struct VBCLSERVICE **VBClGetDisplayService();
+extern struct VBCLSERVICE **VBClGetHostVersionService();
+#ifdef VBOX_WITH_DRAG_AND_DROP
+extern struct VBCLSERVICE **VBClGetDragAndDropService();
+#endif /* VBOX_WITH_DRAG_AND_DROP */
 
 #endif /* !___vboxclient_vboxclient_h */

@@ -1,10 +1,9 @@
 /** @file
- *
- * vboxsf -- VirtualBox Guest Additions for Linux
+ * vboxsf - VirtualBox Guest Additions for Linux.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +17,11 @@
 #ifndef VFSMOD_H
 #define VFSMOD_H
 
+#define LOG_GROUP LOG_GROUP_SHARED_FOLDERS
 #include "the-linux-kernel.h"
 #include "version-generated.h"
 #include "product-generated.h"
+#include <VBox/log.h>
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 # include <linux/backing-dev.h>
@@ -144,7 +145,7 @@ int sf_get_volume_info(struct super_block *sb,STRUCT_STATFS *stat);
 # define SET_GLOB_INFO(sb, sf_g) (sb)->s_fs_info = sf_g
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION (2, 6, 19) || defined(KERNEL_FC6)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 19) || defined(KERNEL_FC6)
 /* FC6 kernel 2.6.18, vanilla kernel 2.6.19+ */
 # define GET_INODE_INFO(i)       ((struct sf_inode_info *) (i)->i_private)
 # define SET_INODE_INFO(i, sf_i) (i)->i_private = sf_i
@@ -154,4 +155,11 @@ int sf_get_volume_info(struct super_block *sb,STRUCT_STATFS *stat);
 # define SET_INODE_INFO(i, sf_i) (i)->u.generic_ip = sf_i
 #endif
 
-#endif /* vfsmod.h */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+# define GET_F_DENTRY(f)        (f->f_path.dentry)
+#else
+# define GET_F_DENTRY(f)        (f->f_dentry)
+#endif
+
+#endif
+

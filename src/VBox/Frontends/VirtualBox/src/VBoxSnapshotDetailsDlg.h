@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,12 +19,14 @@
 #ifndef __VBoxSnapshotDetailsDlg_h__
 #define __VBoxSnapshotDetailsDlg_h__
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxSnapshotDetailsDlg.gen.h"
 #include "QIWithRetranslateUI.h"
-#include "COMDefs.h"
 
-/* Global forwards */
+/* COM includes: */
+#include "CSnapshot.h"
+
+/* Forward declarations: */
 class QScrollArea;
 
 class VBoxSnapshotDetailsDlg : public QIWithRetranslateUI <QDialog>, public Ui::VBoxSnapshotDetailsDlg

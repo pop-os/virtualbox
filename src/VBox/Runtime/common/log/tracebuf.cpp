@@ -255,6 +255,7 @@ typedef RTTRACEBUFINT const *PCRTTRACEBUFINT;
         size_t cchPos = RTStrPrintf(pszBuf, cchBuf, "%s(%d): ", RTPathFilename(pszFile), iLine); \
         pszBuf += cchPos; \
         cchBuf -= cchPos; \
+        NOREF(pszFunction); \
     } while (0)
 
 
@@ -431,7 +432,7 @@ static void rtTraceBufDestroy(RTTRACEBUFINT *pThis)
 }
 
 
-RTDECL(uint32_t)RTTraceBufRetain(RTTRACEBUF hTraceBuf)
+RTDECL(uint32_t) RTTraceBufRetain(RTTRACEBUF hTraceBuf)
 {
     PCRTTRACEBUFINT pThis = hTraceBuf;
     RTTRACEBUF_VALID_RETURN_RC(pThis, UINT32_MAX);
@@ -657,6 +658,4 @@ RTDECL(int) RTTraceBufDumpToAssert(RTTRACEBUF hTraceBuf)
     RTTRACEBUF_DROP_REFERENCE(pThis);
     return VINF_SUCCESS;
 }
-
-
 

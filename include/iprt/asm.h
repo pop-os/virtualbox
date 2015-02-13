@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,6 +65,10 @@
 # pragma intrinsic(_InterlockedExchangeAdd)
 # pragma intrinsic(_InterlockedCompareExchange)
 # pragma intrinsic(_InterlockedCompareExchange64)
+# pragma intrinsic(_rotl)
+# pragma intrinsic(_rotr)
+# pragma intrinsic(_rotl64)
+# pragma intrinsic(_rotr64)
 # ifdef RT_ARCH_AMD64
 #  pragma intrinsic(__stosq)
 #  pragma intrinsic(_byteswap_uint64)
@@ -83,7 +87,7 @@
  *
  * @remarks The difference between ordered and unordered atomic operations are that
  *          the former will complete outstanding reads and writes before continuing
- *          while the latter doesn't make any promisses about the order. Ordered
+ *          while the latter doesn't make any promises about the order. Ordered
  *          operations doesn't, it seems, make any 100% promise wrt to whether
  *          the operation will complete before any subsequent memory access.
  *          (please, correct if wrong.)
@@ -188,28 +192,10 @@ DECLINLINE(void) ASMCompilerBarrier(void)
 
 /** @def ASMBreakpoint
  * Debugger Breakpoint.
- * @remark  In the gnu world we add a nop instruction after the int3 to
- *          force gdb to remain at the int3 source line.
- * @remark  The L4 kernel will try make sense of the breakpoint, thus the jmp.
+ * @deprecated Use RT_BREAKPOINT instead.
  * @internal
  */
-#if RT_INLINE_ASM_GNU_STYLE
-# if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
-#  ifndef __L4ENV__
-#   define ASMBreakpoint()      do { __asm__ __volatile__("int3\n\tnop"); } while (0)
-#  else
-#   define ASMBreakpoint()      do { __asm__ __volatile__("int3; jmp 1f; 1:"); } while (0)
-#  endif
-# elif defined(RT_ARCH_SPARC64)
-#  define ASMBreakpoint()       do { __asm__ __volatile__("illtrap 0\n\t") } while (0)  /** @todo Sparc64: this is just a wild guess. */
-# elif defined(RT_ARCH_SPARC)
-#  define ASMBreakpoint()       do { __asm__ __volatile__("unimp 0\n\t"); } while (0)   /** @todo Sparc: this is just a wild guess (same as Sparc64, just different name). */
-# else
-#  error "PORTME"
-# endif
-#else
-# define ASMBreakpoint()        __debugbreak()
-#endif
+#define ASMBreakpoint() RT_BREAKPOINT()
 
 
 /**
@@ -760,7 +746,7 @@ DECLINLINE(bool) ASMAtomicCmpXchgU32(volatile uint32_t *pu32, const uint32_t u32
     return (bool)u8Ret;
 
 # elif RT_INLINE_ASM_USES_INTRIN
-    return _InterlockedCompareExchange((long *)pu32, u32New, u32Old) == u32Old;
+    return (uint32_t)_InterlockedCompareExchange((long *)pu32, u32New, u32Old) == u32Old;
 
 # else
     uint32_t u32Ret;
@@ -821,7 +807,7 @@ DECLASM(bool) ASMAtomicCmpXchgU64(volatile uint64_t *pu64, const uint64_t u64New
 DECLINLINE(bool) ASMAtomicCmpXchgU64(volatile uint64_t *pu64, uint64_t u64New, uint64_t u64Old)
 {
 # if RT_INLINE_ASM_USES_INTRIN
-   return _InterlockedCompareExchange64((__int64 *)pu64, u64New, u64Old) == u64Old;
+   return (uint64_t)_InterlockedCompareExchange64((__int64 *)pu64, u64New, u64Old) == u64Old;
 
 # elif defined(RT_ARCH_AMD64)
 #  if RT_INLINE_ASM_GNU_STYLE
@@ -1954,7 +1940,7 @@ DECLINLINE(bool) ASMAtomicUoReadBool(volatile bool *pf)
  * Atomically read a value which size might differ
  * between platforms or compilers, ordered.
  *
- * @param   pu      Pointer to the variable to update.
+ * @param   pu      Pointer to the variable to read.
  * @param   puRes   Where to store the result.
  */
 #define ASMAtomicReadSize(pu, puRes) \
@@ -2027,7 +2013,7 @@ DECLINLINE(void) ASMAtomicWriteS8(volatile int8_t *pi8, int8_t i8)
 /**
  * Atomically writes a signed 8-bit value, unordered.
  *
- * @param   pi8     Pointer to the 8-bit variable to read.
+ * @param   pi8     Pointer to the 8-bit variable to write.
  * @param   i8      The 8-bit value to assign to *pi8.
  */
 DECLINLINE(void) ASMAtomicUoWriteS8(volatile int8_t *pi8, int8_t i8)
@@ -2039,7 +2025,7 @@ DECLINLINE(void) ASMAtomicUoWriteS8(volatile int8_t *pi8, int8_t i8)
 /**
  * Atomically writes an unsigned 16-bit value, ordered.
  *
- * @param   pu16    Pointer to the 16-bit variable.
+ * @param   pu16    Pointer to the 16-bit variable to write.
  * @param   u16     The 16-bit value to assign to *pu16.
  */
 DECLINLINE(void) ASMAtomicWriteU16(volatile uint16_t *pu16, uint16_t u16)
@@ -2051,7 +2037,7 @@ DECLINLINE(void) ASMAtomicWriteU16(volatile uint16_t *pu16, uint16_t u16)
 /**
  * Atomically writes an unsigned 16-bit value, unordered.
  *
- * @param   pu16    Pointer to the 16-bit variable.
+ * @param   pu16    Pointer to the 16-bit variable to write.
  * @param   u16     The 16-bit value to assign to *pu16.
  */
 DECLINLINE(void) ASMAtomicUoWriteU16(volatile uint16_t *pu16, uint16_t u16)
@@ -2064,7 +2050,7 @@ DECLINLINE(void) ASMAtomicUoWriteU16(volatile uint16_t *pu16, uint16_t u16)
 /**
  * Atomically writes a signed 16-bit value, ordered.
  *
- * @param   pi16    Pointer to the 16-bit variable to read.
+ * @param   pi16    Pointer to the 16-bit variable to write.
  * @param   i16     The 16-bit value to assign to *pi16.
  */
 DECLINLINE(void) ASMAtomicWriteS16(volatile int16_t *pi16, int16_t i16)
@@ -2076,7 +2062,7 @@ DECLINLINE(void) ASMAtomicWriteS16(volatile int16_t *pi16, int16_t i16)
 /**
  * Atomically writes a signed 16-bit value, unordered.
  *
- * @param   pi16    Pointer to the 16-bit variable to read.
+ * @param   pi16    Pointer to the 16-bit variable to write.
  * @param   i16     The 16-bit value to assign to *pi16.
  */
 DECLINLINE(void) ASMAtomicUoWriteS16(volatile int16_t *pi16, int16_t i16)
@@ -2089,7 +2075,7 @@ DECLINLINE(void) ASMAtomicUoWriteS16(volatile int16_t *pi16, int16_t i16)
 /**
  * Atomically writes an unsigned 32-bit value, ordered.
  *
- * @param   pu32    Pointer to the 32-bit variable.
+ * @param   pu32    Pointer to the 32-bit variable to write.
  * @param   u32     The 32-bit value to assign to *pu32.
  */
 DECLINLINE(void) ASMAtomicWriteU32(volatile uint32_t *pu32, uint32_t u32)
@@ -2101,7 +2087,7 @@ DECLINLINE(void) ASMAtomicWriteU32(volatile uint32_t *pu32, uint32_t u32)
 /**
  * Atomically writes an unsigned 32-bit value, unordered.
  *
- * @param   pu32    Pointer to the 32-bit variable.
+ * @param   pu32    Pointer to the 32-bit variable to write.
  * @param   u32     The 32-bit value to assign to *pu32.
  */
 DECLINLINE(void) ASMAtomicUoWriteU32(volatile uint32_t *pu32, uint32_t u32)
@@ -2114,7 +2100,7 @@ DECLINLINE(void) ASMAtomicUoWriteU32(volatile uint32_t *pu32, uint32_t u32)
 /**
  * Atomically writes a signed 32-bit value, ordered.
  *
- * @param   pi32    Pointer to the 32-bit variable to read.
+ * @param   pi32    Pointer to the 32-bit variable to write.
  * @param   i32     The 32-bit value to assign to *pi32.
  */
 DECLINLINE(void) ASMAtomicWriteS32(volatile int32_t *pi32, int32_t i32)
@@ -2126,7 +2112,7 @@ DECLINLINE(void) ASMAtomicWriteS32(volatile int32_t *pi32, int32_t i32)
 /**
  * Atomically writes a signed 32-bit value, unordered.
  *
- * @param   pi32    Pointer to the 32-bit variable to read.
+ * @param   pi32    Pointer to the 32-bit variable to write.
  * @param   i32     The 32-bit value to assign to *pi32.
  */
 DECLINLINE(void) ASMAtomicUoWriteS32(volatile int32_t *pi32, int32_t i32)
@@ -2139,7 +2125,7 @@ DECLINLINE(void) ASMAtomicUoWriteS32(volatile int32_t *pi32, int32_t i32)
 /**
  * Atomically writes an unsigned 64-bit value, ordered.
  *
- * @param   pu64    Pointer to the 64-bit variable.
+ * @param   pu64    Pointer to the 64-bit variable to write.
  * @param   u64     The 64-bit value to assign to *pu64.
  */
 DECLINLINE(void) ASMAtomicWriteU64(volatile uint64_t *pu64, uint64_t u64)
@@ -2151,7 +2137,7 @@ DECLINLINE(void) ASMAtomicWriteU64(volatile uint64_t *pu64, uint64_t u64)
 /**
  * Atomically writes an unsigned 64-bit value, unordered.
  *
- * @param   pu64    Pointer to the 64-bit variable.
+ * @param   pu64    Pointer to the 64-bit variable to write.
  * @param   u64     The 64-bit value to assign to *pu64.
  */
 DECLINLINE(void) ASMAtomicUoWriteU64(volatile uint64_t *pu64, uint64_t u64)
@@ -2168,7 +2154,7 @@ DECLINLINE(void) ASMAtomicUoWriteU64(volatile uint64_t *pu64, uint64_t u64)
 /**
  * Atomically writes a signed 64-bit value, ordered.
  *
- * @param   pi64    Pointer to the 64-bit variable.
+ * @param   pi64    Pointer to the 64-bit variable to write.
  * @param   i64     The 64-bit value to assign to *pi64.
  */
 DECLINLINE(void) ASMAtomicWriteS64(volatile int64_t *pi64, int64_t i64)
@@ -2180,7 +2166,7 @@ DECLINLINE(void) ASMAtomicWriteS64(volatile int64_t *pi64, int64_t i64)
 /**
  * Atomically writes a signed 64-bit value, unordered.
  *
- * @param   pi64    Pointer to the 64-bit variable.
+ * @param   pi64    Pointer to the 64-bit variable to write.
  * @param   i64     The 64-bit value to assign to *pi64.
  */
 DECLINLINE(void) ASMAtomicUoWriteS64(volatile int64_t *pi64, int64_t i64)
@@ -2197,7 +2183,7 @@ DECLINLINE(void) ASMAtomicUoWriteS64(volatile int64_t *pi64, int64_t i64)
 /**
  * Atomically writes a boolean value, unordered.
  *
- * @param   pf      Pointer to the boolean variable.
+ * @param   pf      Pointer to the boolean variable to write.
  * @param   f       The boolean value to assign to *pf.
  */
 DECLINLINE(void) ASMAtomicWriteBool(volatile bool *pf, bool f)
@@ -2209,7 +2195,7 @@ DECLINLINE(void) ASMAtomicWriteBool(volatile bool *pf, bool f)
 /**
  * Atomically writes a boolean value, unordered.
  *
- * @param   pf      Pointer to the boolean variable.
+ * @param   pf      Pointer to the boolean variable to write.
  * @param   f       The boolean value to assign to *pf.
  */
 DECLINLINE(void) ASMAtomicUoWriteBool(volatile bool *pf, bool f)
@@ -2221,7 +2207,7 @@ DECLINLINE(void) ASMAtomicUoWriteBool(volatile bool *pf, bool f)
 /**
  * Atomically writes a pointer value, ordered.
  *
- * @param   ppv     Pointer to the pointer variable.
+ * @param   ppv     Pointer to the pointer variable to write.
  * @param   pv      The pointer value to assign to *ppv.
  */
 DECLINLINE(void) ASMAtomicWritePtrVoid(void * volatile *ppv, const void *pv)
@@ -2239,7 +2225,7 @@ DECLINLINE(void) ASMAtomicWritePtrVoid(void * volatile *ppv, const void *pv)
 /**
  * Atomically writes a pointer value, ordered.
  *
- * @param   ppv     Pointer to the pointer variable.
+ * @param   ppv     Pointer to the pointer variable to write.
  * @param   pv      The pointer value to assign to *ppv. If NULL use
  *                  ASMAtomicWriteNullPtr or you'll land in trouble.
  *
@@ -2283,7 +2269,7 @@ DECLINLINE(void) ASMAtomicWritePtrVoid(void * volatile *ppv, const void *pv)
 # define ASMAtomicWriteNullPtr(ppv) \
     do \
     { \
-        __typeof__(*(ppv)) volatile * const ppvTypeChecked = (ppv); \
+        __typeof__(*(ppv)) * const ppvTypeChecked = (ppv); \
         AssertCompile(sizeof(*ppv) == sizeof(void *)); \
         Assert(!( (uintptr_t)ppv & ((ARCH_BITS / 8) - 1) )); \
         ASMAtomicWritePtrVoid((void * volatile *)(ppvTypeChecked), NULL); \
@@ -3010,6 +2996,8 @@ DECLINLINE(void) ASMAtomicOrS64(int64_t volatile *pi64, int64_t i64)
 {
     ASMAtomicOrU64((uint64_t volatile *)pi64, i64);
 }
+
+
 /**
  * Atomically And an unsigned 32-bit value, ordered.
  *
@@ -3100,6 +3088,180 @@ DECLINLINE(void) ASMAtomicAndU64(uint64_t volatile *pu64, uint64_t u64)
 DECLINLINE(void) ASMAtomicAndS64(int64_t volatile *pi64, int64_t i64)
 {
     ASMAtomicAndU64((uint64_t volatile *)pi64, (uint64_t)i64);
+}
+
+
+/**
+ * Atomically OR an unsigned 32-bit value, unordered but interrupt safe.
+ *
+ * @param   pu32   Pointer to the pointer variable to OR u32 with.
+ * @param   u32    The value to OR *pu32 with.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMAtomicUoOrU32(uint32_t volatile *pu32, uint32_t u32);
+#else
+DECLINLINE(void) ASMAtomicUoOrU32(uint32_t volatile *pu32, uint32_t u32)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("orl %1, %0\n\t"
+                         : "=m" (*pu32)
+                         : "ir" (u32),
+                           "m" (*pu32));
+# else
+    __asm
+    {
+        mov     eax, [u32]
+#  ifdef RT_ARCH_AMD64
+        mov     rdx, [pu32]
+        or      [rdx], eax
+#  else
+        mov     edx, [pu32]
+        or      [edx], eax
+#  endif
+    }
+# endif
+}
+#endif
+
+
+/**
+ * Atomically OR a signed 32-bit value, unordered.
+ *
+ * @param   pi32   Pointer to the pointer variable to OR u32 with.
+ * @param   i32    The value to OR *pu32 with.
+ */
+DECLINLINE(void) ASMAtomicUoOrS32(int32_t volatile *pi32, int32_t i32)
+{
+    ASMAtomicUoOrU32((uint32_t volatile *)pi32, i32);
+}
+
+
+/**
+ * Atomically OR an unsigned 64-bit value, unordered.
+ *
+ * @param   pu64   Pointer to the pointer variable to OR u64 with.
+ * @param   u64    The value to OR *pu64 with.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMAtomicUoOrU64(uint64_t volatile *pu64, uint64_t u64);
+#else
+DECLINLINE(void) ASMAtomicUoOrU64(uint64_t volatile *pu64, uint64_t u64)
+{
+# if RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_AMD64)
+    __asm__ __volatile__("orq %1, %q0\n\t"
+                         : "=m" (*pu64)
+                         : "r" (u64),
+                           "m" (*pu64));
+# else
+    for (;;)
+    {
+        uint64_t u64Old = ASMAtomicUoReadU64(pu64);
+        uint64_t u64New = u64Old | u64;
+        if (ASMAtomicCmpXchgU64(pu64, u64New, u64Old))
+            break;
+        ASMNopPause();
+    }
+# endif
+}
+#endif
+
+
+/**
+ * Atomically Or a signed 64-bit value, unordered.
+ *
+ * @param   pi64   Pointer to the pointer variable to OR u64 with.
+ * @param   i64    The value to OR *pu64 with.
+ */
+DECLINLINE(void) ASMAtomicUoOrS64(int64_t volatile *pi64, int64_t i64)
+{
+    ASMAtomicUoOrU64((uint64_t volatile *)pi64, i64);
+}
+
+
+/**
+ * Atomically And an unsigned 32-bit value, unordered.
+ *
+ * @param   pu32   Pointer to the pointer variable to AND u32 with.
+ * @param   u32    The value to AND *pu32 with.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMAtomicUoAndU32(uint32_t volatile *pu32, uint32_t u32);
+#else
+DECLINLINE(void) ASMAtomicUoAndU32(uint32_t volatile *pu32, uint32_t u32)
+{
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("andl %1, %0\n\t"
+                         : "=m" (*pu32)
+                         : "ir" (u32),
+                           "m" (*pu32));
+# else
+    __asm
+    {
+        mov     eax, [u32]
+#  ifdef RT_ARCH_AMD64
+        mov     rdx, [pu32]
+        and     [rdx], eax
+#  else
+        mov     edx, [pu32]
+        and     [edx], eax
+#  endif
+    }
+# endif
+}
+#endif
+
+
+/**
+ * Atomically And a signed 32-bit value, unordered.
+ *
+ * @param   pi32   Pointer to the pointer variable to AND i32 with.
+ * @param   i32    The value to AND *pi32 with.
+ */
+DECLINLINE(void) ASMAtomicUoAndS32(int32_t volatile *pi32, int32_t i32)
+{
+    ASMAtomicUoAndU32((uint32_t volatile *)pi32, (uint32_t)i32);
+}
+
+
+/**
+ * Atomically And an unsigned 64-bit value, unordered.
+ *
+ * @param   pu64   Pointer to the pointer variable to AND u64 with.
+ * @param   u64    The value to AND *pu64 with.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMAtomicUoAndU64(uint64_t volatile *pu64, uint64_t u64);
+#else
+DECLINLINE(void) ASMAtomicUoAndU64(uint64_t volatile *pu64, uint64_t u64)
+{
+# if RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_AMD64)
+    __asm__ __volatile__("andq %1, %0\n\t"
+                         : "=m" (*pu64)
+                         : "r" (u64),
+                           "m" (*pu64));
+# else
+    for (;;)
+    {
+        uint64_t u64Old = ASMAtomicUoReadU64(pu64);
+        uint64_t u64New = u64Old & u64;
+        if (ASMAtomicCmpXchgU64(pu64, u64New, u64Old))
+            break;
+        ASMNopPause();
+    }
+# endif
+}
+#endif
+
+
+/**
+ * Atomically And a signed 64-bit value, unordered.
+ *
+ * @param   pi64   Pointer to the pointer variable to AND i64 with.
+ * @param   i64    The value to AND *pi64 with.
+ */
+DECLINLINE(void) ASMAtomicUoAndS64(int64_t volatile *pi64, int64_t i64)
+{
+    ASMAtomicUoAndU64((uint64_t volatile *)pi64, (uint64_t)i64);
 }
 
 
@@ -4127,7 +4289,7 @@ DECLINLINE(void) ASMBitSetRange(volatile void *pvBitmap, int32_t iBitStart, int3
 
             /* whole dword. */
             if (iBitStart != iEnd)
-                ASMMemFill32(pu32, (iEnd - iBitStart) >> 3, ~0);
+                ASMMemFill32(pu32, (iEnd - iBitStart) >> 3, ~UINT32_C(0));
 
             /* bits in last dword. */
             if (iBitEnd & 31)
@@ -4651,6 +4813,121 @@ DECLINLINE(uint64_t) ASMByteSwapU64(uint64_t u64)
     return u64;
 }
 
+
+/**
+ * Rotate 32-bit unsigned value to the left by @a cShift.
+ *
+ * @returns Rotated value.
+ * @param   u32                 The value to rotate.
+ * @param   cShift              How many bits to rotate by.
+ */
+DECLINLINE(uint32_t) ASMRotateLeftU32(uint32_t u32, uint32_t cShift)
+{
+#if RT_INLINE_ASM_USES_INTRIN
+    return _rotl(u32, cShift);
+#elif RT_INLINE_ASM_GNU_STYLE && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
+    __asm__ __volatile__("roll %b1, %0" : "=g" (u32) : "Ic" (cShift), "0" (u32));
+    return u32;
+#else
+    cShift &= 31;
+    return (u32 << cShift) | (u32 >> (32 - cShift));
+#endif
+}
+
+
+/**
+ * Rotate 32-bit unsigned value to the right by @a cShift.
+ *
+ * @returns Rotated value.
+ * @param   u32                 The value to rotate.
+ * @param   cShift              How many bits to rotate by.
+ */
+DECLINLINE(uint32_t) ASMRotateRightU32(uint32_t u32, uint32_t cShift)
+{
+#if RT_INLINE_ASM_USES_INTRIN
+    return _rotr(u32, cShift);
+#elif RT_INLINE_ASM_GNU_STYLE && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
+    __asm__ __volatile__("rorl %b1, %0" : "=g" (u32) : "Ic" (cShift), "0" (u32));
+    return u32;
+#else
+    cShift &= 31;
+    return (u32 >> cShift) | (u32 << (32 - cShift));
+#endif
+}
+
+
+/**
+ * Rotate 64-bit unsigned value to the left by @a cShift.
+ *
+ * @returns Rotated value.
+ * @param   u64                 The value to rotate.
+ * @param   cShift              How many bits to rotate by.
+ */
+DECLINLINE(uint64_t) ASMRotateLeftU64(uint64_t u64, uint32_t cShift)
+{
+#if RT_INLINE_ASM_USES_INTRIN
+    return _rotl64(u64, cShift);
+#elif RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_AMD64)
+    __asm__ __volatile__("rolq %b1, %0" : "=g" (u64) : "Jc" (cShift), "0" (u64));
+    return u64;
+#elif RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_X86)
+    uint32_t uSpill;
+    __asm__ __volatile__("testb $0x20, %%cl\n\t"        /* if (cShift >= 0x20) { swap(u64.hi, u64lo); cShift -= 0x20; } */
+                         "jz    1f\n\t"
+                         "xchgl %%eax, %%edx\n\t"
+                         "1:\n\t"
+                         "andb  $0x1f, %%cl\n\t"        /* if (cShift & 0x1f) { */
+                         "jz    2f\n\t"
+                         "movl  %%edx, %2\n\t"          /*   save the hi value in %3. */
+                         "shldl %%cl,%%eax,%%edx\n\t"   /*   shift the hi value left, feeding MSBits from the low value. */
+                         "shldl %%cl,%2,%%eax\n\t"      /*   shift the lo value left, feeding MSBits from the saved hi value. */
+                         "2:\n\t"                       /* } */
+                         : "=A" (u64), "=c" (cShift), "=r" (uSpill)
+                         : "0" (u64),
+                           "1" (cShift));
+    return u64;
+#else
+    cShift &= 63;
+    return (u64 << cShift) | (u64 >> (64 - cShift));
+#endif
+}
+
+
+/**
+ * Rotate 64-bit unsigned value to the right by @a cShift.
+ *
+ * @returns Rotated value.
+ * @param   u64                 The value to rotate.
+ * @param   cShift              How many bits to rotate by.
+ */
+DECLINLINE(uint64_t) ASMRotateRightU64(uint64_t u64, uint32_t cShift)
+{
+#if RT_INLINE_ASM_USES_INTRIN
+    return _rotr64(u64, cShift);
+#elif RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_AMD64)
+    __asm__ __volatile__("rorq %b1, %0" : "=g" (u64) : "Jc" (cShift), "0" (u64));
+    return u64;
+#elif RT_INLINE_ASM_GNU_STYLE && defined(RT_ARCH_X86)
+    uint32_t uSpill;
+    __asm__ __volatile__("testb $0x20, %%cl\n\t"        /* if (cShift >= 0x20) { swap(u64.hi, u64lo); cShift -= 0x20; } */
+                         "jz    1f\n\t"
+                         "xchgl %%eax, %%edx\n\t"
+                         "1:\n\t"
+                         "andb  $0x1f, %%cl\n\t"        /* if (cShift & 0x1f) { */
+                         "jz    2f\n\t"
+                         "movl  %%edx, %2\n\t"          /*   save the hi value in %3. */
+                         "shrdl %%cl,%%eax,%%edx\n\t"   /*   shift the hi value right, feeding LSBits from the low value. */
+                         "shrdl %%cl,%2,%%eax\n\t"      /*   shift the lo value right, feeding LSBits from the saved hi value. */
+                         "2:\n\t"                       /* } */
+                         : "=A" (u64), "=c" (cShift), "=r" (uSpill)
+                         : "0" (u64),
+                           "1" (cShift));
+    return u64;
+#else
+    cShift &= 63;
+    return (u64 >> cShift) | (u64 << (64 - cShift));
+#endif
+}
 
 /** @} */
 

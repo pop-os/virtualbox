@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,87 +55,58 @@
 #include <VBox/VBoxVideoGuest.h>
 #include <VBox/VBoxVideo.h>
 
-#include <iprt/asm-math.h>
-
 #ifdef DEBUG
 
 #define TRACE_ENTRY() \
 do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, ": entering\n"); \
+    vbvxMsg(__PRETTY_FUNCTION__); \
+    vbvxMsg(": entering\n"); \
 } while(0)
 #define TRACE_EXIT() \
 do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, ": leaving\n"); \
+    vbvxMsg(__PRETTY_FUNCTION__); \
+    vbvxMsg(": leaving\n"); \
 } while(0)
 #define TRACE_LOG(...) \
 do { \
-    xf86Msg(X_INFO, __PRETTY_FUNCTION__); \
-    xf86Msg(X_INFO, __VA_ARGS__); \
+    vbvxMsg("%s: ", __PRETTY_FUNCTION__); \
+    vbvxMsg(__VA_ARGS__); \
 } while(0)
 # define TRACE_LINE() do \
 { \
-    ErrorF ("%s: line %d\n", __FUNCTION__, __LINE__); \
-    } while(0)
-# define XF86ASSERT(expr, out) \
-if (!(expr)) \
-{ \
-    ErrorF ("\nAssertion failed!\n\n"); \
-    ErrorF ("%s\n", #expr); \
-    ErrorF ("at %s (%s:%d)\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); \
-    ErrorF out; \
-    FatalError("Aborting"); \
-}
+    vbvxMsg("%s: line %d\n", __FUNCTION__, __LINE__); \
+} while(0)
 #else  /* !DEBUG */
 
 #define TRACE_ENTRY()         do { } while (0)
 #define TRACE_EXIT()          do { } while (0)
 #define TRACE_LOG(...)        do { } while (0)
-#define XF86ASSERT(expr, out) do { } while (0)
 
 #endif  /* !DEBUG */
+
+/* Not just for debug builds.  If something is wrong we want to know at once. */
+#define VBVXASSERT(expr, out) \
+if (!(expr)) \
+{ \
+    vbvxMsg("\nAssertion failed!\n\n"); \
+    vbvxMsg("%s\n", #expr); \
+    vbvxMsg("at %s (%s:%d)\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); \
+    vbvxMsg out; \
+    vbvxAbortServer(); \
+}
 
 #define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
 
 #include <VBox/Hardware/VBoxVideoVBE.h>
-#include <VBox/VMMDev.h>
 
-/* All drivers should typically include these */
-#include "xf86.h"
-#include "xf86_OSproc.h"
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
-# include "xf86Resources.h"
-#endif
-
-#include <iprt/string.h>
-#include "compiler.h"
-
-#ifndef PCIACCESS
-/* Drivers for PCI hardware need this */
-# include "xf86PciInfo.h"
-/* Drivers that need to access the PCI config space directly need this */
-# include "xf86Pci.h"
-#endif
-
-/* ShadowFB support */
-#include "shadowfb.h"
-
-/* Dga definitions */
-#include "dgaproc.h"
-
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
-# include "xf86RAC.h"
-#endif
-
-#include "fb.h"
-
-#define VBOX_VERSION		4000  /* Why? */
+#include "xf86str.h"
 #include "xf86Cursor.h"
-#define VBOX_NAME		      "VBoxVideo"
-#define VBOX_DRIVER_NAME	  "vboxvideo"
 
-#ifdef VBOX_DRI
+#define VBOX_VERSION            4000  /* Why? */
+#define VBOX_NAME               "VBoxVideo"
+#define VBOX_DRIVER_NAME        "vboxvideo"
+
+#ifdef VBOX_DRI_OLD
 /* DRI support */
 #define _XF86DRI_SERVER_
 /* Hack to work around a libdrm header which is broken on Solaris */
@@ -146,7 +117,6 @@ enum drm_bo_type { DRM_BO_TYPE };
 #undef u_int64_t
 #include "sarea.h"
 #include "GL/glxint.h"
-#include "GL/glxtokens.h"
 
 /* For some reason this is not in the header files. */
 extern void GlxSetVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
@@ -161,14 +131,48 @@ extern void GlxSetVisualConfigs(int nconfigs, __GLXvisualConfig *configs,
 
 #define VBOXPTR(p) ((VBOXPtr)((p)->driverPrivate))
 
-/*XXX*/
+/** Helper to work round different ways of getting the root window in different
+ * server versions. */
+#if defined(XORG_VERSION_CURRENT) && XORG_VERSION_CURRENT < 700000000 \
+    && XORG_VERSION_CURRENT >= 100900000
+# define ROOT_WINDOW(pScrn) screenInfo.screens[(pScrn)->scrnIndex]->root
+#else
+# define ROOT_WINDOW(pScrn) WindowTable[(pScrn)->scrnIndex]
+#endif
+
+/** Structure containing all virtual monitor-specific information. */
+struct VBoxScreen
+{
+    /** Position information for each virtual screen for the purposes of
+     * sending dirty rectangle information to the right one. */
+    RTRECT2 aScreenLocation;
+    /** Is this CRTC enabled or in DPMS off state? */
+    Bool fCrtcEnabled;
+    /** Is this output enabled or in DPMS low power state? */
+    Bool fOutputEnabled;
+#ifdef VBOXVIDEO_13
+    /** The virtual crtcs. */
+    struct _xf86Crtc *paCrtcs;
+    /** The virtual outputs, logically not distinct from crtcs. */
+    struct _xf86Output *paOutputs;
+#endif
+    /** Offsets of VBVA buffers in video RAM */
+    uint32_t aoffVBVABuffer;
+    /** Context information about the VBVA buffers for each screen */
+    struct VBVABUFFERCONTEXT aVbvaCtx;
+    /** The current preferred resolution for the screen */
+    RTRECTSIZE aPreferredSize;
+    /** Has this screen been enabled by the host? */
+    Bool afConnected;
+    /** The last mode hint data read from the X11 property. */
+    int32_t lastModeHintFromProperty;
+};
 
 typedef struct VBOXRec
 {
     EntityInfoPtr pEnt;
 #ifdef PCIACCESS
     struct pci_device *pciInfo;
-    struct pci_device *vmmDevInfo;
 #else
     pciVideoPtr pciInfo;
     PCITAG pciTag;
@@ -188,82 +192,83 @@ typedef struct VBOXRec
     CloseScreenProcPtr CloseScreen;
     /** Default X server procedure for enabling and disabling framebuffer access */
     xf86EnableDisableFBAccessProc *EnableDisableFBAccess;
-    /** Is access to the framebuffer currently allowed? */
-    Bool accessEnabled;
     OptionInfoPtr Options;
     /** @todo we never actually free this */
     xf86CursorInfoPtr pCurs;
-    Bool useDevice;
-    Bool forceSWCursor;
-    /** Do we know that the guest can handle absolute co-ordinates? */
-    Bool guestCanAbsolute;
-    /** Are we currently switched to a virtual terminal?  If so, it is not
-     * safe to touch the hardware. */
-    Bool vtSwitch;
-    /** Does this host support sending graphics commands using HGSMI? */
-    Bool fHaveHGSMI;
+    /** Do we currently want to use the host cursor? */
+    Bool fUseHardwareCursor;
+    /** The last cursor capabilities data read from the X11 property. */
+    int32_t fLastCursorCapabilitiesFromProperty;
     /** Number of screens attached */
     uint32_t cScreens;
-    /** Position information for each virtual screen for the purposes of
-     * sending dirty rectangle information to the right one. */
-    RTRECT2 aScreenLocation[VBOX_VIDEO_MAX_SCREENS];
-    /** Has this screen been disabled by the guest? */
-    Bool afDisabled[VBOX_VIDEO_MAX_SCREENS];
+    /** Information about each virtual screen. */
+    struct VBoxScreen *pScreens;
+    /** The last requested framebuffer size. */
+    RTRECTSIZE FBSize;
 #ifdef VBOXVIDEO_13
-    /** The virtual crtcs */
-    struct _xf86Crtc *paCrtcs[VBOX_VIDEO_MAX_SCREENS];
-    struct _xf86Output *paOutputs[VBOX_VIDEO_MAX_SCREENS];
+    /** Array of structures for receiving mode hints. */
+    VBVAMODEHINT *paVBVAModeHints;
+# ifdef RT_OS_LINUX
+    /** Input device file descriptor for getting ACPI hot-plug events. */
+    int fdACPIDevices;
+    /** Input handler handle for ACPI hot-plug listener. */
+    void *hACPIEventHandler;
+# endif
+    /** Have we read all available HGSMI mode hint data? */
+    bool fHaveReadHGSMIModeHintData;
+#else
+    /** The original CreateScreenResources procedure which we wrap with our own.
+     */
+    CreateScreenResourcesProcPtr pfnCreateScreenResources;
 #endif
-    /** Offsets of VBVA buffers in video RAM */
-    uint32_t aoffVBVABuffer[VBOX_VIDEO_MAX_SCREENS];
-    /** Context information about the VBVA buffers for each screen */
-    struct VBVABUFFERCONTEXT aVbvaCtx[VBOX_VIDEO_MAX_SCREENS];
-    /** The current preferred resolution for the screen */
-    RTRECTSIZE aPreferredSize[VBOX_VIDEO_MAX_SCREENS];
     /** HGSMI guest heap context */
     HGSMIGUESTCOMMANDCONTEXT guestCtx;
     /** Unrestricted horizontal resolution flag. */
     Bool fAnyX;
 #ifdef VBOX_DRI
     Bool useDRI;
+#ifdef VBOX_DRI_OLD
     int cVisualConfigs;
     __GLXvisualConfig *pVisualConfigs;
     DRIInfoRec *pDRIInfo;
+# endif
     int drmFD;
 #endif
 } VBOXRec, *VBOXPtr;
 
-extern Bool vbox_init(int scrnIndex, VBOXPtr pVBox);
+/* helpers.c */
+extern void vbvxMsg(const char *pszFormat, ...);
+extern void vbvxMsgV(const char *pszFormat, va_list args);
+extern void vbvxAbortServer(void);
+extern VBOXPtr vbvxGetRec(ScrnInfoPtr pScrn);
+#define VBOXGetRec vbvxGetRec  /* Temporary */
+extern int vbvxGetIntegerPropery(ScrnInfoPtr pScrn, char *pszName, size_t *pcData, int32_t **ppaData);
+extern void vbvxReprobeCursor(ScrnInfoPtr pScrn);
+
+/* setmode.c */
 extern Bool vbox_cursor_init (ScreenPtr pScreen);
-extern Bool vbox_open (ScrnInfoPtr pScrn, ScreenPtr pScreen, VBOXPtr pVBox);
+extern void vbox_open (ScrnInfoPtr pScrn, ScreenPtr pScreen, VBOXPtr pVBox);
 extern void vbox_close (ScrnInfoPtr pScrn, VBOXPtr pVBox);
-extern Bool vbox_device_available(VBOXPtr pVBox);
 
 extern Bool vboxEnableVbva(ScrnInfoPtr pScrn);
 extern void vboxDisableVbva(ScrnInfoPtr pScrn);
 
-extern Bool vboxEnableGraphicsCap(VBOXPtr pVBox);
-extern Bool vboxDisableGraphicsCap(VBOXPtr pVBox);
-extern Bool vboxGuestIsSeamless(ScrnInfoPtr pScrn);
-
-extern Bool vboxGetDisplayChangeRequest(ScrnInfoPtr pScrn, uint32_t *pcx,
-                                        uint32_t *pcy, uint32_t *pcBits,
-                                        uint32_t *piDisplay);
-extern Bool vboxHostLikesVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBits);
-extern Bool vboxSaveVideoMode(ScrnInfoPtr pScrn, uint32_t cx, uint32_t cy, uint32_t cBits);
-extern Bool vboxRetrieveVideoMode(ScrnInfoPtr pScrn, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits);
+/* getmode.c */
 extern unsigned vboxNextStandardMode(ScrnInfoPtr pScrn, unsigned cIndex,
-                                     uint32_t *pcx, uint32_t *pcy,
-                                     uint32_t *pcBits);
-extern void vboxGetPreferredMode(ScrnInfoPtr pScrn, uint32_t iScreen,
-                                 uint32_t *pcx, uint32_t *pcy,
-                                 uint32_t *pcBits);
-extern void vboxWriteHostModes(ScrnInfoPtr pScrn, DisplayModePtr pCurrent);
-extern void vboxAddModes(ScrnInfoPtr pScrn, uint32_t cxInit,
-                         uint32_t cyInit);
+                                     uint32_t *pcx, uint32_t *pcy);
+extern void vboxAddModes(ScrnInfoPtr pScrn);
+extern void VBoxInitialiseSizeHints(ScrnInfoPtr pScrn);
+extern void VBoxUpdateSizeHints(ScrnInfoPtr pScrn);
+#ifndef VBOXVIDEO_13
+extern void VBoxSetUpRandR11(ScreenPtr pScreen);
+#else
+void VBoxSetUpLinuxACPI(ScreenPtr pScreen);
+void VBoxCleanUpLinuxACPI(ScreenPtr pScreen);
+#endif
 
 /* DRI stuff */
-extern Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox);
+extern Bool VBOXDRIScreenInit(ScrnInfoPtr pScrn, ScreenPtr pScreen,
+                              VBOXPtr pVBox);
 extern Bool VBOXDRIFinishScreenInit(ScreenPtr pScreen);
 extern void VBOXDRIUpdateStride(ScrnInfoPtr pScrn, VBOXPtr pVBox);
 extern void VBOXDRICloseScreen(ScreenPtr pScreen, VBOXPtr pVBox);
@@ -275,16 +280,6 @@ extern Bool VBOXEDIDSet(struct _xf86Output *output, DisplayModePtr pmode);
 
 /* Utilities */
 
-static inline VBOXPtr VBOXGetRec(ScrnInfoPtr pScrn)
-{
-    if (!pScrn->driverPrivate)
-    {
-        pScrn->driverPrivate = calloc(sizeof(VBOXRec), 1);
-    }
-
-    return ((VBOXPtr)pScrn->driverPrivate);
-}
-
 /** Calculate the BPP from the screen depth */
 static inline uint16_t vboxBPP(ScrnInfoPtr pScrn)
 {
@@ -294,14 +289,14 @@ static inline uint16_t vboxBPP(ScrnInfoPtr pScrn)
 /** Calculate the scan line length for a display width */
 static inline int32_t vboxLineLength(ScrnInfoPtr pScrn, int32_t cDisplayWidth)
 {
-    uint64_t cbLine = ((uint64_t)cDisplayWidth * vboxBPP(pScrn) / 8 + 3) & ~3;
+    uint32_t cbLine = (cDisplayWidth * vboxBPP(pScrn) / 8 + 3) & ~3;
     return cbLine < INT32_MAX ? cbLine : INT32_MAX;
 }
 
 /** Calculate the display pitch from the scan line length */
 static inline int32_t vboxDisplayPitch(ScrnInfoPtr pScrn, int32_t cbLine)
 {
-    return ASMDivU64ByU32RetU32((uint64_t)cbLine * 8, vboxBPP(pScrn));
+    return cbLine * 8 / vboxBPP(pScrn);
 }
 
 extern void vboxClearVRAM(ScrnInfoPtr pScrn, int32_t cNewX, int32_t cNewY);

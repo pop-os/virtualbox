@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,16 +19,19 @@
 #ifndef __UIApplianceEditorWidget_h__
 #define __UIApplianceEditorWidget_h__
 
-/* VBox includes */
-#include "COMDefs.h"
-#include "UIApplianceEditorWidget.gen.h"
-#include "QIWithRetranslateUI.h"
-
-/* Qt includes */
+/* Qt includes: */
 #include <QSortFilterProxyModel>
 #include <QItemDelegate>
 
-/* vbOX Forward declarations */
+/* GUI includes: */
+#include "UIApplianceEditorWidget.gen.h"
+#include "QIWithRetranslateUI.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CVirtualSystemDescription.h"
+
+/* Forward declarations: */
 class ModelItem;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,7 +53,7 @@ class ModelItem
 public:
     ModelItem(int number, ModelItem_type type, ModelItem *pParent = NULL);
 
-    ~ModelItem();
+    virtual ~ModelItem();
 
     ModelItem *parent() const { return m_pParentItem; }
 

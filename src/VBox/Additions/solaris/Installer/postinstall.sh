@@ -1,8 +1,11 @@
 #!/bin/sh
+# $Id: postinstall.sh $
+## @file
+# VirtualBox postinstall script for Solaris Guest Additions.
 #
-# VirtualBox postinstall script for Solaris.
+
 #
-# Copyright (C) 2008-2010 Oracle Corporation
+# Copyright (C) 2008-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -48,40 +51,12 @@ uncompress_file()
     uncompress -f "$1/$2.Z" > /dev/null 2>&1
 }
 
+# uncompress_files(directory_with_*.Z_files)
 uncompress_files()
 {
-    # VBox guest files
-    uncompress_file "$1" "VBoxClient"
-    uncompress_file "$1" "VBoxService"
-    uncompress_file "$1" "VBoxControl"
-
-    # VBox Xorg Video drivers
-    uncompress_file "$1" "vboxvideo_drv_13.so"
-    uncompress_file "$1" "vboxvideo_drv_14.so"
-    uncompress_file "$1" "vboxvideo_drv_15.so"
-    uncompress_file "$1" "vboxvideo_drv_16.so"
-    uncompress_file "$1" "vboxvideo_drv_17.so"
-    uncompress_file "$1" "vboxvideo_drv_18.so"
-    uncompress_file "$1" "vboxvideo_drv_19.so"
-    uncompress_file "$1" "vboxvideo_drv_110.so"
-    uncompress_file "$1" "vboxvideo_drv_111.so"
-    uncompress_file "$1" "vboxvideo_drv_112.so"
-    uncompress_file "$1" "vboxvideo_drv_70.so"
-    uncompress_file "$1" "vboxvideo_drv_71.so"
-
-    # VBox Xorg Mouse drivers
-    uncompress_file "$1" "vboxmouse_drv_13.so"
-    uncompress_file "$1" "vboxmouse_drv_14.so"
-    uncompress_file "$1" "vboxmouse_drv_15.so"
-    uncompress_file "$1" "vboxmouse_drv_16.so"
-    uncompress_file "$1" "vboxmouse_drv_17.so"
-    uncompress_file "$1" "vboxmouse_drv_18.so"
-    uncompress_file "$1" "vboxmouse_drv_19.so"
-    uncompress_file "$1" "vboxmouse_drv_110.so"
-    uncompress_file "$1" "vboxmouse_drv_111.so"
-    uncompress_file "$1" "vboxmouse_drv_112.so"
-    uncompress_file "$1" "vboxmouse_drv_70.so"
-    uncompress_file "$1" "vboxmouse_drv_71.so"
+    for i in "${1}/"*.Z; do
+        uncompress_file "${1}" "`basename \"${i}\" .Z`"
+    done
 }
 
 solaris64dir="amd64"
@@ -145,6 +120,7 @@ fi
 echo "Creating links..."
 if test "$currentzone" = "global"; then
     /usr/sbin/installf -c none $PKGINST /dev/vboxguest=../devices/pci@0,0/pci80ee,cafe@4:vboxguest s
+    /usr/sbin/installf -c none $PKGINST /dev/vboxms=../devices/pseudo/vboxms@0:vboxms s
 fi
 
 # Install Xorg components to the required places
@@ -156,137 +132,91 @@ if test ! -z "$xorgbin"; then
         xorgversion=`/usr/bin/expr "${xorgversion_long}" : 'X.Org X Server \([^ ]*\)'`
     fi
 
-    vboxmouse_src=""
-    vboxvideo_src=""
+    # "X.Y.Z" - strip off all numerics after the 2nd '.' character, e.g. "1.11.3" -> "1.11"
+    # Then the next sed, strips of all '.' characters, "1.11" -> "111".
+    fileversion=`echo $xorgversion | sed "s/\.[0-9]*//2" | sed "s/\.//"`
+    vboxvideo_src="vboxvideo_drv_$fileversion.so"
 
+    # Handle exceptions now where the X.org version does not exactly match the file-version.
     case "$xorgversion" in
-        1.3.* )
-            vboxmouse_src="vboxmouse_drv_13.so"
-            vboxvideo_src="vboxvideo_drv_13.so"
-            ;;
-        1.4.* )
-            vboxmouse_src="vboxmouse_drv_14.so"
-            vboxvideo_src="vboxvideo_drv_14.so"
-            ;;
-        1.5.99 | 1.6.* )
-            vboxmouse_src="vboxmouse_drv_16.so"
+        1.5.99 )
             vboxvideo_src="vboxvideo_drv_16.so"
             ;;
-        1.5.* )
-            vboxmouse_src="vboxmouse_drv_15.so"
-            vboxvideo_src="vboxvideo_drv_15.so"
-            ;;
-        1.7.*)
-            vboxmouse_src="vboxmouse_drv_17.so"
-            vboxvideo_src="vboxvideo_drv_17.so"
-            ;;
-        1.8.*)
-            vboxmouse_src="vboxmouse_drv_18.so"
-            vboxvideo_src="vboxvideo_drv_18.so"
-            ;;
-        1.9.*)
-            vboxmouse_src="vboxmouse_drv_19.so"
-            vboxvideo_src="vboxvideo_drv_19.so"
-            ;;
-        1.10.*)
-            vboxmouse_src="vboxmouse_drv_110.so"
-            vboxvideo_src="vboxvideo_drv_110.so"
-            ;;
-        1.11.*)
-            vboxmouse_src="vboxmouse_drv_111.so"
-            vboxvideo_src="vboxvideo_drv_111.so"
-            ;;
-        1.12.*)
-            vboxmouse_src="vboxmouse_drv_112.so"
-            vboxvideo_src="vboxvideo_drv_112.so"
-            ;;
-        7.1.* | *7.2.* )
-            vboxmouse_src="vboxmouse_drv_71.so"
+        7.2.* )
             vboxvideo_src="vboxvideo_drv_71.so"
             ;;
-        6.9.* | 7.0.* )
-            vboxmouse_src="vboxmouse_drv_70.so"
+        6.9.* )
             vboxvideo_src="vboxvideo_drv_70.so"
             ;;
     esac
 
     retval=0
-    if test -z "$vboxmouse_src"; then
+    if test -z "$vboxvideo_src"; then
         echo "*** Unknown version of the X Window System installed."
         echo "*** Failed to install the VirtualBox X Window System drivers."
 
         # Exit as partially failed installation
         retval=2
+    elif test ! -f "$vboxadditions32_path/$vboxvideo_src" && test ! -f "$vboxadditions64_path/$vboxvideo_src"; then
+        echo "*** $vboxadditions32_path/$vboxvideo_src or $vboxadditions64_path/$vboxvideo_src not found!"
+        echo "*** Failed to install the VirtualBox X.org drivers."
+
+        # Exit as partially failed installation
+        retval=2
     else
-        echo "Installing mouse and video drivers for X.Org $xorgversion..."
+        echo "Installing video driver for X.Org $xorgversion..."
 
         # Determine destination paths (snv_130 and above use "/usr/lib/xorg", older use "/usr/X11/lib"
-        vboxmouse32_dest_base="/usr/lib/xorg/modules/input"
-        if test ! -d $vboxmouse32_dest_base; then
-            vboxmouse32_dest_base="/usr/X11/lib/modules/input"
-        fi
         vboxvideo32_dest_base="/usr/lib/xorg/modules/drivers"
         if test ! -d $vboxvideo32_dest_base; then
             vboxvideo32_dest_base="/usr/X11/lib/modules/drivers"
         fi
 
-        vboxmouse64_dest_base=$vboxmouse32_dest_base/$solaris64dir
         vboxvideo64_dest_base=$vboxvideo32_dest_base/$solaris64dir
 
         # snv_163 drops 32-bit support completely, and uses 32-bit locations for the 64-bit stuff. Ugly.
-        # We try to detect this by looking at bitness of "mouse_drv.so", and adjust our destination paths accordingly.
+        # We try to detect this by looking at bitness of "vesa_drv.so", and adjust our destination paths accordingly.
         # We do not rely on using Xorg -version's ABI output because some builds (snv_162 iirc) have 64-bit ABI with
         # 32-bit file locations.
-        if test -f "$vboxmouse32_dest_base/mouse_drv.so"; then
-            bitsize=`file "$vboxmouse32_dest_base/mouse_drv.so" | grep -i "32-bit"`
+        if test -f "$vboxvideo32_dest_base/vesa_drv.so"; then
+            bitsize=`file "$vboxvideo32_dest_base/vesa_drv.so" | grep -i "32-bit"`
             skip32="no"
         else
-            echo "* Warning mouse_drv.so missing. Assuming Xorg ABI is 64-bit..."
+            echo "* Warning vesa_drv.so missing. Assuming Xorg ABI is 64-bit..."
         fi
 
         if test -z "$bitsize"; then
             skip32="yes"
-            vboxmouse64_dest_base=$vboxmouse32_dest_base
             vboxvideo64_dest_base=$vboxvideo32_dest_base
         fi
 
         # Make sure destination path exists
-        if test ! -d $vboxmouse32_dest_base || test ! -d $vboxvideo32_dest_base || test ! -d $vboxmouse64_dest_base || test ! -d $vboxvideo64_dest_base; then
-            echo "*** Missing destination paths for mouse or video modules. Aborting."
-            echo "*** Failed to install the VirtualBox X Window System drivers."
+        if test ! -d $vboxvideo64_dest_base; then
+            echo "*** Missing destination paths for video module. Aborting."
+            echo "*** Failed to install the VirtualBox X Window System driver."
 
             # Exit as partially failed installation
             retval=2
         else
             # 32-bit x11 drivers
-            if test "$skip32" = "no" && test -f "$vboxadditions32_path/$vboxmouse_src"; then
-                vboxmouse_dest="$vboxmouse32_dest_base/vboxmouse_drv.so"
+            if test "$skip32" = "no" && test -f "$vboxadditions32_path/$vboxvideo_src"; then
                 vboxvideo_dest="$vboxvideo32_dest_base/vboxvideo_drv.so"
-                /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
                 /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
-                cp "$vboxadditions32_path/$vboxmouse_src" "$vboxmouse_dest"
                 cp "$vboxadditions32_path/$vboxvideo_src" "$vboxvideo_dest"
 
                 # Removing redundant names from pkg and files from disk
-                /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxmouse_drv_* 1>/dev/null
                 /usr/sbin/removef $PKGINST $vboxadditions32_path/vboxvideo_drv_* 1>/dev/null
-                rm -f $vboxadditions32_path/vboxmouse_drv_*
                 rm -f $vboxadditions32_path/vboxvideo_drv_*
             fi
 
             # 64-bit x11 drivers
-            if test -f "$vboxadditions64_path/$vboxmouse_src"; then
-                vboxmouse_dest="$vboxmouse64_dest_base/vboxmouse_drv.so"
+            if test -f "$vboxadditions64_path/$vboxvideo_src"; then
                 vboxvideo_dest="$vboxvideo64_dest_base/vboxvideo_drv.so"
-                /usr/sbin/installf -c none $PKGINST "$vboxmouse_dest" f
                 /usr/sbin/installf -c none $PKGINST "$vboxvideo_dest" f
-                cp "$vboxadditions64_path/$vboxmouse_src" "$vboxmouse_dest"
                 cp "$vboxadditions64_path/$vboxvideo_src" "$vboxvideo_dest"
 
                 # Removing redundant names from pkg and files from disk
-                /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxmouse_drv_* 1>/dev/null
                 /usr/sbin/removef $PKGINST $vboxadditions64_path/vboxvideo_drv_* 1>/dev/null
-                rm -f $vboxadditions64_path/vboxmouse_drv_*
                 rm -f $vboxadditions64_path/vboxvideo_drv_*
             fi
 
@@ -311,7 +241,7 @@ if test ! -z "$xorgbin"; then
                 rm -f $vboxadditions_path/$xorgconf_unfit
             fi
 
-            # Adjust xorg.conf with mouse and video driver sections
+            # Adjust xorg.conf with video driver sections
             $vboxadditions_path/x11config15sol.pl
         fi
     fi
@@ -399,6 +329,8 @@ if test ! -z "$xorgbin"; then
     fi
 fi
 
+# Move the pointer integration module to kernel/drv & remove the unused module name from pkg and file from disk
+
 # Finalize
 /usr/sbin/removef -f $PKGINST
 /usr/sbin/installf -f $PKGINST
@@ -407,8 +339,8 @@ fi
 if test "$currentzone" = "global"; then
     /usr/sbin/devfsadm -i vboxguest
 
-    # Setup VBoxService & start the service automatically
-    echo "Configuring service (this might take a while)..."
+    # Setup VBoxService and vboxmslnk and start the services automatically
+    echo "Configuring services (this might take a while)..."
     cmax=32
     cslept=0
     success=0
@@ -418,8 +350,8 @@ if test "$currentzone" = "global"; then
     # take a while to complete, using disable/enable -s doesn't work either. So we restart it, and poll in
     # 1 second intervals to see if our service has been successfully imported and timeout after 'cmax' seconds.
     /usr/sbin/svcadm restart svc:system/manifest-import:default
-    is_import=`/usr/bin/svcs virtualbox/vboxservice >/dev/null 2>&1`
-    while test $? -ne 0;
+    /usr/bin/svcs virtualbox/vboxservice virtualbox/vboxmslnk >/dev/null 2>&1
+    while test "$?" -ne 0;
     do
         sleep 1
         cslept=`expr $cslept + 1`
@@ -427,13 +359,14 @@ if test "$currentzone" = "global"; then
             success=1
             break
         fi
-        is_import=`/usr/bin/svcs virtualbox/vboxservice >/dev/null 2>&1`
+        /usr/bin/svcs virtualbox/vboxservice virtualbox/vboxmslnk >/dev/null 2>&1
     done
     if test "$success" -eq 0; then
-        echo "Enabling service..."
+        echo "Enabling services..."
         /usr/sbin/svcadm enable -s virtualbox/vboxservice
+        /usr/sbin/svcadm enable -s virtualbox/vboxmslnk
     else
-        echo "## VBoxService import failed."
+        echo "## Service import failed."
         echo "## See /var/svc/log/system-manifest-import:default.log for details."
         # Exit as partially failed installation
         retval=2

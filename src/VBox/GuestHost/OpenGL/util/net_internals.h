@@ -91,8 +91,19 @@ extern int crUDPTCPIPRecv( void );
  */
 #ifdef VBOX_WITH_HGCM
 extern void crVBoxHGCMInit( CRNetReceiveFuncList *rfl, CRNetCloseFuncList *cfl, unsigned int mtu );
-extern void crVBoxHGCMConnection( CRConnection *conn );
-extern int crVBoxHGCMRecv( void );
+extern void crVBoxHGCMConnection( CRConnection *conn
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        , struct VBOXUHGSMI *pHgsmi
+#endif
+        );
+extern int crVBoxHGCMRecv(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        CRConnection *conn
+#endif
+        );
+#ifdef IN_GUEST
+extern uint32_t crVBoxHGCMHostCapsGet();
+#endif
 extern CRConnection** crVBoxHGCMDump( int *num );
 extern void crVBoxHGCMTearDown(void);
 #endif

@@ -16,9 +16,24 @@
 #include <windows.h>
 #include <stdio.h>
 
+#include <iprt/cdefs.h>
+
+/* Currently host part will misbehave re-creating context with proper visual bits
+ * if contexts with alternative visual bits is requested.
+ * For now we just report a superset of all visual bits to avoid that.
+ * Better to it on the host side as well?
+ * We could also implement properly multiple pixel formats,
+ * which should be done by implementing offscreen rendering or multiple host contexts.
+ * */
+#define VBOX_CROGL_USE_VBITS_SUPERSET
+
+#ifdef VBOX_CROGL_USE_VBITS_SUPERSET
+static GLuint desiredVisual = CR_RGB_BIT | CR_ALPHA_BIT | CR_DEPTH_BIT | CR_STENCIL_BIT | CR_ACCUM_BIT | CR_DOUBLE_BIT;
+#else
 static GLuint desiredVisual = CR_RGB_BIT;
+#endif
 
-
+#ifndef VBOX_CROGL_USE_VBITS_SUPERSET
 /**
  * Compute a mask of CR_*_BIT flags which reflects the attributes of
  * the pixel format of the given hdc.
@@ -50,8 +65,9 @@ static GLuint ComputeVisBits( HDC hdc )
 
     return b;
 }
+#endif
 
-int WINAPI wglChoosePixelFormat_prox( HDC hdc, CONST PIXELFORMATDESCRIPTOR *pfd )
+DECLEXPORT(int) WINAPI wglChoosePixelFormat_prox( HDC hdc, CONST PIXELFORMATDESCRIPTOR *pfd )
 {
     DWORD okayFlags;
 
@@ -120,12 +136,8 @@ int WINAPI wglChoosePixelFormat_prox( HDC hdc, CONST PIXELFORMATDESCRIPTOR *pfd 
         crWarning( "wglChoosePixelFormat: asked for accumulation buffer, ignoring\n" );
     }
 
-    /* @todo: although this is not needed by VSG Open Inventor interop,
-     * still it does not make any sense actually since reporting this
-     * as well as choosing a pixel format with this cap would not do anything
-     * since ICD stuff has its own pixelformat state var */
-//    if ( pfd->cAccumBits > 0 )
-//        desiredVisual |= CR_ACCUM_BIT;
+    if ( pfd->cAccumBits > 0 )
+        desiredVisual |= CR_ACCUM_BIT;
 
     if ( pfd->cDepthBits > 32 ) {
         crError( "wglChoosePixelFormat; asked for too many depth bits\n" );
@@ -152,7 +164,7 @@ int WINAPI wglChoosePixelFormat_prox( HDC hdc, CONST PIXELFORMATDESCRIPTOR *pfd 
     return 1;
 }
 
-BOOL WINAPI wglSetPixelFormat_prox( HDC hdc, int pixelFormat, 
+DECLEXPORT(BOOL) WINAPI wglSetPixelFormat_prox( HDC hdc, int pixelFormat,
         CONST PIXELFORMATDESCRIPTOR *pdf )
 {
     CR_DDI_PROLOGUE();
@@ -164,14 +176,14 @@ BOOL WINAPI wglSetPixelFormat_prox( HDC hdc, int pixelFormat,
     return 1;
 }
 
-BOOL WINAPI wglDeleteContext_prox( HGLRC hglrc )
+DECLEXPORT(BOOL) WINAPI wglDeleteContext_prox( HGLRC hglrc )
 {
     CR_DDI_PROLOGUE();
     stubDestroyContext( (unsigned long) hglrc );
     return 1;
 }
 
-BOOL WINAPI wglMakeCurrent_prox( HDC hdc, HGLRC hglrc )
+DECLEXPORT(BOOL) WINAPI wglMakeCurrent_prox( HDC hdc, HGLRC hglrc )
 {
     ContextInfo *context;
     WindowInfo *window;
@@ -198,14 +210,14 @@ BOOL WINAPI wglMakeCurrent_prox( HDC hdc, HGLRC hglrc )
     return ret;
 }
 
-HGLRC WINAPI wglGetCurrentContext_prox( void )
+DECLEXPORT(HGLRC) WINAPI wglGetCurrentContext_prox( void )
 {
     ContextInfo *context = stubGetCurrentContext();
     CR_DDI_PROLOGUE();
     return (HGLRC) (context ? context->id : 0);
 }
 
-HDC WINAPI wglGetCurrentDC_prox( void )
+DECLEXPORT(HDC) WINAPI wglGetCurrentDC_prox( void )
 {
     ContextInfo *context = stubGetCurrentContext();
     CR_DDI_PROLOGUE();
@@ -215,14 +227,14 @@ HDC WINAPI wglGetCurrentDC_prox( void )
         return (HDC) NULL;
 }
 
-int WINAPI wglGetPixelFormat_prox( HDC hdc )
+DECLEXPORT(int) WINAPI wglGetPixelFormat_prox( HDC hdc )
 {
     CR_DDI_PROLOGUE();
     /* this is what we call our generic pixelformat, regardless of the HDC */
     return 1;
 }
 
-int WINAPI wglDescribePixelFormat_prox( HDC hdc, int pixelFormat, UINT nBytes,
+DECLEXPORT(int) WINAPI wglDescribePixelFormat_prox( HDC hdc, int pixelFormat, UINT nBytes,
         LPPIXELFORMATDESCRIPTOR pfd )
 {
     CR_DDI_PROLOGUE();
@@ -276,15 +288,70 @@ int WINAPI wglDescribePixelFormat_prox( HDC hdc, int pixelFormat, UINT nBytes,
     return 1;
 }
 
-BOOL WINAPI wglShareLists_prox( HGLRC hglrc1, HGLRC hglrc2 )
+DECLEXPORT(void) WINAPI VBoxCtxChromiumParameteriCR(HGLRC hglrc, GLenum param, GLint value)
 {
+    ContextInfo *context;
+
     CR_DDI_PROLOGUE();
-    crWarning( "wglShareLists: unsupported" );
-    return 0;
+
+//    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+
+    context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+
+    if (context)
+    {
+        stubCtxCheckCreate(context);
+        stubConChromiumParameteriCR(CR_CTX_CON(context), param, value);
+    }
+    else
+        crWarning("invalid context %#x", hglrc);
+
+    crHashtableUnlock(stub.contextTable);
+//    crHashtableUnlock(stub.windowTable);
 }
 
+DECLEXPORT(BOOL) WINAPI wglShareLists_prox( HGLRC hglrc1, HGLRC hglrc2 )
+{
+    ContextInfo *context1, *context2;
+    GLint aSpuContexts[2];
 
-HGLRC WINAPI wglCreateContext_prox( HDC hdc )
+    CR_DDI_PROLOGUE();
+
+//    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+
+    context1 = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc1);
+
+    if (!context1)
+    {
+        WARN(("invalid hglrc1"));
+        return FALSE;
+    }
+
+    stubCtxCheckCreate(context1);
+
+    context2 = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc2);
+
+    if (!context2)
+    {
+        WARN(("invalid hglrc2"));
+        return FALSE;
+    }
+
+    stubCtxCheckCreate(context2);
+
+    aSpuContexts[0] = context1->spuContext;
+    aSpuContexts[1] = context2->spuContext;
+
+    stubConChromiumParametervCR(CR_CTX_CON(context2), GL_SHARE_LISTS_CR, GL_INT, 2, aSpuContexts);
+
+    crHashtableUnlock(stub.contextTable);
+
+    return TRUE;
+}
+
+DECLEXPORT(HGLRC) WINAPI VBoxCreateContext( HDC hdc, struct VBOXUHGSMI *pHgsmi )
 {
     char dpyName[MAX_DPY_NAME];
     ContextInfo *context;
@@ -296,17 +363,115 @@ HGLRC WINAPI wglCreateContext_prox( HDC hdc )
     CRASSERT(stub.contextTable);
 
     sprintf(dpyName, "%d", hdc);
+#ifndef VBOX_CROGL_USE_VBITS_SUPERSET
     if (stub.haveNativeOpenGL)
         desiredVisual |= ComputeVisBits( hdc );
+#endif
 
-    context = stubNewContext(dpyName, desiredVisual, UNDECIDED, 0);
+    context = stubNewContext(dpyName, desiredVisual, UNDECIDED, 0
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+        , pHgsmi
+#else
+        , NULL
+#endif
+            );
     if (!context)
         return 0;
 
     return (HGLRC) context->id;
 }
 
-BOOL WINAPI
+DECLEXPORT(GLint) WINAPI VBoxGetWindowId( HDC hdc )
+{
+    WindowInfo *window;
+    GLint winid = 0;
+
+    CR_DDI_PROLOGUE();
+
+    crHashtableLock(stub.windowTable);
+
+    window = stubGetWindowInfo(hdc);
+    if (!window)
+    {
+        crWarning("stubGetWindowInfo: window not found!");
+        goto end;
+    }
+    if (!window->spuWindow)
+    {
+        crWarning("stubGetWindowInfo: window is null!");
+        goto end;
+    }
+
+    winid = window->spuWindow;
+
+end:
+    crHashtableUnlock(stub.windowTable);
+    return winid;
+}
+
+DECLEXPORT(GLint) WINAPI VBoxGetContextId( HGLRC hglrc )
+{
+    ContextInfo *context;
+    GLint ctxid = 0;
+
+    CR_DDI_PROLOGUE();
+
+//    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+
+    context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+    if (!context)
+    {
+        crWarning("crHashtableSearch: context not found!");
+        goto end;
+    }
+
+    if (context->type != CHROMIUM)
+    {
+        crWarning("unexpected context type %d", context->type);
+        goto end;
+    }
+
+    if (context->spuContext <= 0)
+    {
+        crWarning("no spuSontext defined");
+        goto end;
+    }
+
+    ctxid = context->spuContext;
+
+end:
+    crHashtableUnlock(stub.contextTable);
+    return ctxid;
+}
+
+
+DECLEXPORT(HGLRC) WINAPI wglCreateContext_prox( HDC hdc )
+{
+    return VBoxCreateContext(hdc, NULL);
+}
+
+DECLEXPORT(void) WINAPI VBoxFlushToHost ( HGLRC hglrc )
+{
+    ContextInfo *context;
+
+    CR_DDI_PROLOGUE();
+
+//    crHashtableLock(stub.windowTable);
+    crHashtableLock(stub.contextTable);
+
+    context = (ContextInfo *) crHashtableSearch(stub.contextTable, (unsigned long) hglrc);
+
+    if (context)
+        stubConFlush(CR_CTX_CON(context));
+    else
+        crWarning("invalid context %#x", hglrc);
+
+    crHashtableUnlock(stub.contextTable);
+//    crHashtableUnlock(stub.windowTable);
+}
+
+DECLEXPORT(BOOL) WINAPI
 wglSwapBuffers_prox( HDC hdc )
 {
     WindowInfo *window = stubGetWindowInfo(hdc);
@@ -315,14 +480,14 @@ wglSwapBuffers_prox( HDC hdc )
     return 1;
 }
 
-BOOL WINAPI wglCopyContext_prox( HGLRC src, HGLRC dst, UINT mask )
+DECLEXPORT(BOOL) WINAPI wglCopyContext_prox( HGLRC src, HGLRC dst, UINT mask )
 {
     CR_DDI_PROLOGUE();
     crWarning( "wglCopyContext: unsupported" );
     return 0;
 }
 
-HGLRC WINAPI wglCreateLayerContext_prox( HDC hdc, int layerPlane )
+DECLEXPORT(HGLRC) WINAPI wglCreateLayerContext_prox( HDC hdc, int layerPlane )
 {
     CR_DDI_PROLOGUE();
     stubInit();
@@ -330,27 +495,27 @@ HGLRC WINAPI wglCreateLayerContext_prox( HDC hdc, int layerPlane )
     return 0;
 }
 
-PROC WINAPI wglGetProcAddress_prox( LPCSTR name )
+DECLEXPORT(PROC) WINAPI wglGetProcAddress_prox( LPCSTR name )
 {
     CR_DDI_PROLOGUE();
     return (PROC) crGetProcAddress( name );
 }
 
-BOOL WINAPI wglUseFontBitmapsA_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase )
+DECLEXPORT(BOOL) WINAPI wglUseFontBitmapsA_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase )
 {
     CR_DDI_PROLOGUE();
     crWarning( "wglUseFontBitmapsA: unsupported" );
     return 0;
 }
 
-BOOL WINAPI wglUseFontBitmapsW_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase )
+DECLEXPORT(BOOL) WINAPI wglUseFontBitmapsW_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase )
 {
     CR_DDI_PROLOGUE();
     crWarning( "wglUseFontBitmapsW: unsupported" );
     return 0;
 }
 
-BOOL WINAPI wglDescribeLayerPlane_prox( HDC hdc, int pixelFormat, int layerPlane,
+DECLEXPORT(BOOL) WINAPI wglDescribeLayerPlane_prox( HDC hdc, int pixelFormat, int layerPlane,
         UINT nBytes, LPLAYERPLANEDESCRIPTOR lpd )
 {
     CR_DDI_PROLOGUE();
@@ -358,7 +523,7 @@ BOOL WINAPI wglDescribeLayerPlane_prox( HDC hdc, int pixelFormat, int layerPlane
     return 0;
 }
 
-int WINAPI wglSetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
+DECLEXPORT(int) WINAPI wglSetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
         int entries, CONST COLORREF *cr )
 {
     CR_DDI_PROLOGUE();
@@ -366,7 +531,7 @@ int WINAPI wglSetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
     return 0;
 }
 
-int WINAPI wglGetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
+DECLEXPORT(int) WINAPI wglGetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
         int entries, COLORREF *cr )
 {
     CR_DDI_PROLOGUE();
@@ -374,21 +539,21 @@ int WINAPI wglGetLayerPaletteEntries_prox( HDC hdc, int layerPlane, int start,
     return 0;
 }
 
-BOOL WINAPI wglRealizeLayerPalette_prox( HDC hdc, int layerPlane, BOOL realize )
+DECLEXPORT(BOOL) WINAPI wglRealizeLayerPalette_prox( HDC hdc, int layerPlane, BOOL realize )
 {
     CR_DDI_PROLOGUE();
     crWarning( "wglRealizeLayerPalette: unsupported" );
     return 0;
 }
 
-DWORD WINAPI wglSwapMultipleBuffers_prox( UINT a, CONST void *b )
+DECLEXPORT(DWORD) WINAPI wglSwapMultipleBuffers_prox( UINT a, CONST void *b )
 {
     CR_DDI_PROLOGUE();
     crWarning( "wglSwapMultipleBuffer: unsupported" );
     return 0;
 }
 
-BOOL WINAPI wglUseFontOutlinesA_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase,
+DECLEXPORT(BOOL) WINAPI wglUseFontOutlinesA_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase,
         FLOAT deviation, FLOAT extrusion, int format,
         LPGLYPHMETRICSFLOAT gmf )
 {
@@ -397,7 +562,7 @@ BOOL WINAPI wglUseFontOutlinesA_prox( HDC hdc, DWORD first, DWORD count, DWORD l
     return 0;
 }
 
-BOOL WINAPI wglUseFontOutlinesW_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase,
+DECLEXPORT(BOOL) WINAPI wglUseFontOutlinesW_prox( HDC hdc, DWORD first, DWORD count, DWORD listBase,
         FLOAT deviation, FLOAT extrusion, int format,
         LPGLYPHMETRICSFLOAT gmf )
 {
@@ -406,7 +571,7 @@ BOOL WINAPI wglUseFontOutlinesW_prox( HDC hdc, DWORD first, DWORD count, DWORD l
     return 0;
 }
 
-BOOL WINAPI wglSwapLayerBuffers_prox( HDC hdc, UINT planes )
+DECLEXPORT(BOOL) WINAPI wglSwapLayerBuffers_prox( HDC hdc, UINT planes )
 {
     CR_DDI_PROLOGUE();
     if (planes == WGL_SWAP_MAIN_PLANE)
@@ -420,7 +585,7 @@ BOOL WINAPI wglSwapLayerBuffers_prox( HDC hdc, UINT planes )
     }
 }
 
-BOOL WINAPI wglChoosePixelFormatEXT_prox
+DECLEXPORT(BOOL) WINAPI wglChoosePixelFormatEXT_prox
 (HDC hdc, const int *piAttributes, const FLOAT *pfAttributes, UINT nMaxFormats, int *piFormats, UINT *nNumFormats)
 {
     int *pi;
@@ -493,15 +658,7 @@ BOOL WINAPI wglChoosePixelFormatEXT_prox
             case WGL_ACCUM_GREEN_BITS_EXT:
             case WGL_ACCUM_BLUE_BITS_EXT:
                 if (pi[1] > 0)
-                {
-                    /* @todo: although this is not needed by VSG Open Inventor interop,
-                     * still it does not make any sense actually since reporting this
-                     * as well as choosing a pixel format with this cap would not do anything
-                     * since ICD stuff has its own pixelformat state var */
-                    crWarning("WGL_ACCUM_XXX not supporteed!");
-                    return 0;
-//                    desiredVisual |= CR_ACCUM_BIT;
-                }
+                    desiredVisual |= CR_ACCUM_BIT;
                 pi++;
                 break;
 
@@ -550,7 +707,7 @@ BOOL WINAPI wglChoosePixelFormatEXT_prox
     return 1;
 }
 
-BOOL WINAPI wglGetPixelFormatAttribivEXT_prox
+DECLEXPORT(BOOL) WINAPI wglGetPixelFormatAttribivEXT_prox
 (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, int *piAttributes, int *pValues)
 {
     UINT i;
@@ -685,7 +842,7 @@ BOOL WINAPI wglGetPixelFormatAttribivEXT_prox
     return 1;
 }
 
-BOOL WINAPI wglGetPixelFormatAttribfvEXT_prox
+DECLEXPORT(BOOL) WINAPI wglGetPixelFormatAttribfvEXT_prox
 (HDC hdc, int iPixelFormat, int iLayerPlane, UINT nAttributes, int *piAttributes, float *pValues)
 {
     UINT i;
@@ -820,13 +977,13 @@ BOOL WINAPI wglGetPixelFormatAttribfvEXT_prox
     return 1;
 }
 
-BOOL WINAPI wglSwapIntervalEXT_prox(int interval)
+DECLEXPORT(BOOL) WINAPI wglSwapIntervalEXT_prox(int interval)
 {
     CR_DDI_PROLOGUE();
     return TRUE;
 }
 
-int  WINAPI wglGetSwapIntervalEXT_prox()
+DECLEXPORT(int)  WINAPI wglGetSwapIntervalEXT_prox()
 {
     CR_DDI_PROLOGUE();
     return 1;
@@ -834,13 +991,13 @@ int  WINAPI wglGetSwapIntervalEXT_prox()
 
 static GLubyte *gsz_wgl_extensions = "WGL_EXT_pixel_format WGL_ARB_pixel_format WGL_ARB_multisample";
 
-const GLubyte * WINAPI wglGetExtensionsStringEXT_prox()
+DECLEXPORT(const GLubyte *) WINAPI wglGetExtensionsStringEXT_prox()
 {
     CR_DDI_PROLOGUE();
     return gsz_wgl_extensions;
 }
 
-const GLubyte * WINAPI wglGetExtensionsStringARB_prox(HDC hdc)
+DECLEXPORT(const GLubyte *) WINAPI wglGetExtensionsStringARB_prox(HDC hdc)
 {
     CR_DDI_PROLOGUE();
     (void) hdc;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#include <iprt/cidr.h>
 #include <iprt/net.h>                   /* must come before getopt.h */
 #include <iprt/getopt.h>
 #include "internal/iprt.h"
@@ -92,8 +93,6 @@ RT_EXPORT_SYMBOL(RTGetOptInit);
 /**
  * Converts an stringified IPv4 address into the RTNETADDRIPV4 representation.
  *
- * @todo This should be move to some generic part of the runtime.
- *
  * @returns VINF_SUCCESS on success, VERR_GETOPT_INVALID_ARGUMENT_FORMAT on
  *          failure.
  *
@@ -102,40 +101,14 @@ RT_EXPORT_SYMBOL(RTGetOptInit);
  */
 static int rtgetoptConvertIPv4Addr(const char *pszValue, PRTNETADDRIPV4 pAddr)
 {
-    char *pszNext;
-    int rc = RTStrToUInt8Ex(RTStrStripL(pszValue), &pszNext, 10, &pAddr->au8[0]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_CHARS)
+    if (RT_FAILURE(RTNetStrToIPv4Addr(pszValue, pAddr)))
         return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    if (*pszNext++ != '.')
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &pAddr->au8[1]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_CHARS)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    if (*pszNext++ != '.')
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &pAddr->au8[2]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_CHARS)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    if (*pszNext++ != '.')
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 10, &pAddr->au8[3]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_SPACES)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    pszNext = RTStrStripL(pszNext);
-    if (*pszNext)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-
     return VINF_SUCCESS;
 }
 
 
 /**
  * Converts an stringified Ethernet MAC address into the RTMAC representation.
- *
- * @todo This should be move to some generic part of the runtime.
  *
  * @returns VINF_SUCCESS on success, VERR_GETOPT_INVALID_ARGUMENT_FORMAT on
  *          failure.
@@ -145,42 +118,9 @@ static int rtgetoptConvertIPv4Addr(const char *pszValue, PRTNETADDRIPV4 pAddr)
  */
 static int rtgetoptConvertMacAddr(const char *pszValue, PRTMAC pAddr)
 {
-    /*
-     * Not quite sure if I should accept stuff like "08::27:::1" here...
-     * The code is accepting "::" patterns now, except for for the first
-     * and last parts.
-     */
 
-    /* first */
-    char *pszNext;
-    int rc = RTStrToUInt8Ex(RTStrStripL(pszValue), &pszNext, 16, &pAddr->au8[0]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_CHARS)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    if (*pszNext++ != ':')
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-
-    /* middle */
-    for (unsigned i = 1; i < 5; i++)
-    {
-        if (*pszNext == ':')
-            pAddr->au8[i] = 0;
-        else
-        {
-            rc = RTStrToUInt8Ex(pszNext, &pszNext, 16, &pAddr->au8[i]);
-            if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_CHARS)
-                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-            if (*pszNext != ':')
-                return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-        }
-        pszNext++;
-    }
-
-    /* last */
-    rc = RTStrToUInt8Ex(pszNext, &pszNext, 16, &pAddr->au8[5]);
-    if (rc != VINF_SUCCESS && rc != VWRN_TRAILING_SPACES)
-        return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
-    pszNext = RTStrStripL(pszNext);
-    if (*pszNext)
+    int rc = RTNetStrToMacAddr(pszValue, pAddr);
+    if (RT_FAILURE(rc))
         return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
 
     return VINF_SUCCESS;
@@ -257,7 +197,7 @@ static PCRTGETOPTDEF rtGetOptSearchLong(const char *pszOption, PCRTGETOPTDEF paO
     if (!(fFlags & RTGETOPTINIT_FLAGS_NO_STD_OPTS))
         for (uint32_t i = 0; i < RT_ELEMENTS(g_aStdOptions); i++)
             if (   !strcmp(pszOption, g_aStdOptions[i].pszLong)
-                || (   pOpt->fFlags & RTGETOPT_FLAG_ICASE
+                || (   g_aStdOptions[i].fFlags & RTGETOPT_FLAG_ICASE
                     && !RTStrICmp(pszOption, g_aStdOptions[i].pszLong)))
                 return &g_aStdOptions[i];
 
@@ -319,6 +259,38 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
     {
         case RTGETOPT_REQ_STRING:
             pValueUnion->psz = pszValue;
+            break;
+
+        case RTGETOPT_REQ_BOOL:
+            if (   !RTStrICmp(pszValue, "true")
+                || !RTStrICmp(pszValue, "t")
+                || !RTStrICmp(pszValue, "yes")
+                || !RTStrICmp(pszValue, "y")
+                || !RTStrICmp(pszValue, "enabled")
+                || !RTStrICmp(pszValue, "enable")
+                || !RTStrICmp(pszValue, "en")
+                || !RTStrICmp(pszValue, "e")
+                || !RTStrICmp(pszValue, "on")
+                || !RTStrCmp(pszValue, "1")
+                )
+                pValueUnion->f = true;
+            else if (   !RTStrICmp(pszValue, "false")
+                     || !RTStrICmp(pszValue, "f")
+                     || !RTStrICmp(pszValue, "no")
+                     || !RTStrICmp(pszValue, "n")
+                     || !RTStrICmp(pszValue, "disabled")
+                     || !RTStrICmp(pszValue, "disable")
+                     || !RTStrICmp(pszValue, "dis")
+                     || !RTStrICmp(pszValue, "d")
+                     || !RTStrICmp(pszValue, "off")
+                     || !RTStrCmp(pszValue, "0")
+                     )
+                pValueUnion->f = false;
+            else
+            {
+                pValueUnion->psz = pszValue;
+                return VERR_GETOPT_UNKNOWN_OPTION;
+            }
             break;
 
         case RTGETOPT_REQ_BOOL_ONOFF:
@@ -403,8 +375,17 @@ static int rtGetOptProcessValue(uint32_t fFlags, const char *pszValue, PRTGETOPT
             pValueUnion->IPv4Addr = Addr;
             break;
         }
-#if 0  /** @todo CIDR */
-#endif
+
+        case RTGETOPT_REQ_IPV4CIDR:
+        {
+            RTNETADDRIPV4 network;
+            RTNETADDRIPV4 netmask;
+            if (RT_FAILURE(RTCidrStrToIPv4(pszValue, &network, &netmask)))
+              return VERR_GETOPT_INVALID_ARGUMENT_FORMAT;
+            pValueUnion->CidrIPv4.IPv4Network.u = network.u;
+            pValueUnion->CidrIPv4.IPv4Netmask.u = netmask.u;
+            break;
+        }
 
         case RTGETOPT_REQ_MACADDR:
         {
@@ -687,7 +668,6 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion)
                 return VERR_GETOPT_INDEX_MISSING;
 
             uint32_t uIndex;
-            char *pszRet = NULL;
             if (RTStrToUInt32Full(&pszArgThis[cchLong], 10, &uIndex) == VINF_SUCCESS)
                 pState->uIndex = uIndex;
             else
@@ -720,7 +700,6 @@ RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion
      * Validate input.
      */
     PCRTGETOPTDEF pOpt = pState->pDef;
-    AssertReturn(pOpt, VERR_GETOPT_UNKNOWN_OPTION);
     AssertReturn(!(fFlags & ~RTGETOPT_VALID_MASK), VERR_INVALID_PARAMETER);
     AssertReturn((fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING, VERR_INVALID_PARAMETER);
 
@@ -760,6 +739,9 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion)
     }
     else if (ch == VERR_GETOPT_UNKNOWN_OPTION)
         RTMsgError("Unknown option: '%s'", pValueUnion->psz);
+    else if (ch == VERR_GETOPT_INVALID_ARGUMENT_FORMAT)
+        /** @todo r=klaus not really ideal, as the value isn't available */
+        RTMsgError("The value given '%s' has an invalid format.", pValueUnion->pDef->pszLong);
     else if (pValueUnion->pDef)
         RTMsgError("%s: %Rrs\n", pValueUnion->pDef->pszLong, ch);
     else

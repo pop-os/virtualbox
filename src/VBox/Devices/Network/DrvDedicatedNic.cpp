@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -325,6 +325,7 @@ PDMBOTHCBDECL(void) drvDedicatedNicUp_SetPromiscuousMode(PPDMINETWORKUP pInterfa
 {
     PDRVDEDICATEDNIC pThis = RT_FROM_MEMBER(pInterface, DRVDEDICATEDNIC, CTX_SUFF(INetworkUp));
     /** @todo enable/disable promiscuous mode (should be easy) */
+    NOREF(pThis);
 }
 
 #ifdef IN_RING3

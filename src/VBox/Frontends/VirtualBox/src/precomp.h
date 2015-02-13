@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -167,7 +167,6 @@
 #if 0
 #include "QIHotKeyEdit.h"
 #endif
-#include "QIHttp.h"
 #include "QILabel.h"
 #include "QILabelSeparator.h"
 #include "QILineEdit.h"
@@ -198,7 +197,7 @@
 # include "VBoxCocoaHelper.h"
 # include "VBoxCocoaSpecialControls.h"
 #endif
-#include "VBoxDefs.h"
+#include "UIDefs.h"
 #include "VBoxDownloaderWgt.h"
 #include "UIApplianceExportEditorWidget.h"
 #include "VBoxExportApplianceWzd.h"
@@ -225,15 +224,14 @@
 //#include "VBoxMediaComboBox.h"
 #include "VBoxMediaManagerDlg.h"
 //#include "VBoxMedium.h"               /* Expensive? Or what? */
-#include "VBoxMiniToolBar.h"
+#include "UIMiniToolBar.h"
 #include "VBoxNewHDWzd.h"
 #include "VBoxNewVMWzd.h"
 #include "VBoxOSTypeSelectorButton.h"
-#include "VBoxOSTypeSelectorWidget.h"
+#include "UINameAndSystemEditor.h"
 #include "UIMessageCenter.h"
 #include "VBoxProgressDialog.h"
-#include "VBoxRegistrationDlg.h"
-#include "VBoxSelectorWnd.h"
+#include "UISelectorWindow.h"
 #include "UISettingsDialog.h"
 #include "UISettingsDialogSpecific.h"
 #include "UISettingsPage.h"
@@ -248,8 +246,7 @@
 #include "VBoxUtils.h"
 #include "VBoxVMFirstRunWzd.h"
 #include "VBoxVMInformationDlg.h"
-#include "UIVMListView.h"
-#include "VBoxVMLogViewer.h"
+#include "UIVMLogViewer.h"
 #include "UIMachineSettingsAudio.h"
 #include "UIMachineSettingsDisplay.h"
 #include "UIMachineSettingsGeneral.h"
@@ -322,7 +319,7 @@ RT_C_DECLS_END                          /* rhel3 build hack */
 #endif
 
 #ifdef Q_WS_MAC
-# if MAC_LEOPARD_STYLE /* This is defined by VBoxDefs.h and must come after it was included */
+# if MAC_LEOPARD_STYLE /* This is defined by UIDefs.h and must come after it was included */
 #  include <qmacstyle_mac.h>
 # endif
 #endif

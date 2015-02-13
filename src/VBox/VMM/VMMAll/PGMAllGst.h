@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@ RT_C_DECLS_END
 
 DECLINLINE(int) PGM_GST_NAME(WalkReturnNotPresent)(PVMCPU pVCpu, PGSTPTWALK pWalk, int iLevel)
 {
-    NOREF(iLevel);
+    NOREF(iLevel); NOREF(pVCpu);
     pWalk->Core.fNotPresent     = true;
     pWalk->Core.uLevel          = (uint8_t)iLevel;
     return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -47,7 +47,7 @@ DECLINLINE(int) PGM_GST_NAME(WalkReturnNotPresent)(PVMCPU pVCpu, PGSTPTWALK pWal
 
 DECLINLINE(int) PGM_GST_NAME(WalkReturnBadPhysAddr)(PVMCPU pVCpu, PGSTPTWALK pWalk, int rc, int iLevel)
 {
-    AssertMsg(rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc));
+    AssertMsg(rc == VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS, ("%Rrc\n", rc)); NOREF(rc); NOREF(pVCpu);
     pWalk->Core.fBadPhysAddr    = true;
     pWalk->Core.uLevel          = (uint8_t)iLevel;
     return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -55,6 +55,7 @@ DECLINLINE(int) PGM_GST_NAME(WalkReturnBadPhysAddr)(PVMCPU pVCpu, PGSTPTWALK pWa
 
 DECLINLINE(int) PGM_GST_NAME(WalkReturnRsvdError)(PVMCPU pVCpu, PGSTPTWALK pWalk, int iLevel)
 {
+    NOREF(pVCpu);
     pWalk->Core.fRsvdError      = true;
     pWalk->Core.uLevel          = (uint8_t)iLevel;
     return VERR_PAGE_TABLE_NOT_PRESENT;
@@ -165,6 +166,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
 
             pWalk->Core.GCPhys       = GST_GET_BIG_PDE_GCPHYS(pVCpu->CTX_SUFF(pVM), Pde)
                                      | (GCPtr & GST_BIG_PAGE_OFFSET_MASK);
+            PGM_A20_APPLY_TO_VAR(pVCpu, pWalk->Core.GCPhys);
             uint8_t fEffectiveXX     = (uint8_t)pWalk->Pde.u
 #  if PGM_GST_TYPE == PGM_TYPE_AMD64
                                      & (uint8_t)pWalk->Pde.u
@@ -251,7 +253,7 @@ static int PGM_GST_NAME(Walk)(PVMCPU pVCpu, RTGCPTR GCPtr, PGSTPTWALK pWalk)
  * purpose.
  *
  * @returns VBox status.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*, even for big pages.
  * @param   pGCPhys     Where to store the GC physical address of the page.
@@ -268,6 +270,7 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
         *pfFlags = X86_PTE_P | X86_PTE_RW | X86_PTE_US;
     if (pGCPhys)
         *pGCPhys = GCPtr & PAGE_BASE_GC_MASK;
+    NOREF(pVCpu);
     return VINF_SUCCESS;
 
 #elif PGM_GST_TYPE == PGM_TYPE_32BIT \
@@ -321,7 +324,7 @@ PGM_GST_DECL(int, GetPage)(PVMCPU pVCpu, RTGCPTR GCPtr, uint64_t *pfFlags, PRTGC
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Virtual address of the first page in the range. Page aligned!
  * @param   cb          Size (in bytes) of the page range to apply the modification to. Page aligned!
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -390,6 +393,7 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
 
 #else
     /* real / protected mode: ignore. */
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(fFlags); NOREF(fMask);
     return VINF_SUCCESS;
 #endif
 }
@@ -399,7 +403,7 @@ PGM_GST_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCPTR GCPtr, size_t cb, uint64_t f
  * Retrieve guest PDE information.
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Guest context pointer.
  * @param   pPDE        Pointer to guest PDE structure.
  */
@@ -438,6 +442,7 @@ PGM_GST_DECL(int, GetPDE)(PVMCPU pVCpu, RTGCPTR GCPtr, PX86PDEPAE pPDE)
     return VINF_SUCCESS;
 
 #else
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(pPDE);
     AssertFailed();
     return VERR_NOT_IMPLEMENTED;
 #endif
@@ -510,7 +515,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
                         GSTPTE      Pte = pPT->a[iPTE];
                         RTGCPHYS    GCPhysNew;
                         if (Pte.n.u1Present)
-                            GCPhysNew = (RTGCPHYS)(pPT->a[iPTE].u & GST_PTE_PG_MASK) + offPage;
+                            GCPhysNew = PGM_A20_APPLY(pVCpu, (RTGCPHYS)(pPT->a[iPTE].u & GST_PTE_PG_MASK) + offPage);
                         else
                             GCPhysNew = NIL_RTGCPHYS;
                         if (pCur->aPhysToVirt[iPage].Core.Key != GCPhysNew)
@@ -562,7 +567,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
                      i4KB < PAGE_SIZE / sizeof(GSTPDE) && iPage < pCur->cPages;
                      i4KB++, iPage++, GCPtr += PAGE_SIZE, offPage = 0)
                 {
-                    RTGCPHYS GCPhysNew = GCPhys + (i4KB << PAGE_SHIFT) + offPage;
+                    RTGCPHYS GCPhysNew = PGM_A20_APPLY(pVCpu, GCPhys + (i4KB << PAGE_SHIFT) + offPage);
                     if (pCur->aPhysToVirt[iPage].Core.Key != GCPhysNew)
                     {
                         if (pCur->aPhysToVirt[iPage].Core.Key != NIL_RTGCPHYS)
@@ -608,7 +613,7 @@ static DECLCALLBACK(int) PGM_GST_NAME(VirtHandlerUpdateOne)(PAVLROGCPTRNODECORE 
  *
  * @returns true if bits were flushed.
  * @returns false if bits weren't flushed.
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   pPDSrc  The page directory.
  * @param   cr4     The cr4 register value.
  */
@@ -669,6 +674,7 @@ PGM_GST_DECL(bool, HandlerVirtualUpdate)(PVM pVM, uint32_t cr4)
     return !!(fTodo & PGM_SYNC_UPDATE_PAGE_BIT_VIRTUAL);
 
 #else /* real / protected */
+    NOREF(pVM); NOREF(cr4);
     return false;
 #endif
 }

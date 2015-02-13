@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@ public:
     DECLARE_PROTECT_FINAL_CONSTRUCT()
 
     BEGIN_COM_MAP(SystemProperties)
-        VBOX_DEFAULT_INTERFACE_ENTRIES (ISystemProperties)
+        VBOX_DEFAULT_INTERFACE_ENTRIES(ISystemProperties)
     END_COM_MAP()
 
     DECLARE_EMPTY_CTOR_DTOR(SystemProperties)
@@ -69,6 +69,10 @@ public:
     STDMETHOD(COMGETTER(SerialPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(ParallelPortCount))(ULONG *count);
     STDMETHOD(COMGETTER(MaxBootPosition))(ULONG *aMaxBootPosition);
+    STDMETHOD(COMGETTER(ExclusiveHwVirt))(BOOL *aExclusiveHwVirt);
+    STDMETHOD(COMSETTER(ExclusiveHwVirt))(BOOL aExclusiveHwVirt);
+    STDMETHOD(COMGETTER(LoggingLevel))(BSTR *aLoggingLevel);
+    STDMETHOD(COMSETTER(LoggingLevel))(IN_BSTR aLoggingLevel);
     STDMETHOD(COMGETTER(DefaultMachineFolder))(BSTR *aDefaultMachineFolder);
     STDMETHOD(COMSETTER(DefaultMachineFolder))(IN_BSTR aDefaultMachineFolder);
     STDMETHOD(COMGETTER(MediumFormats))(ComSafeArrayOut(IMediumFormat *, aMediumFormats));
@@ -91,6 +95,12 @@ public:
     STDMETHOD(COMGETTER(LogHistoryCount))(ULONG *count);
     STDMETHOD(COMSETTER(LogHistoryCount))(ULONG count);
     STDMETHOD(COMGETTER(DefaultAudioDriver))(AudioDriverType_T *aAudioDriver);
+    STDMETHOD(COMGETTER(AutostartDatabasePath))(BSTR *aAutostartDbPath);
+    STDMETHOD(COMSETTER(AutostartDatabasePath))(IN_BSTR aAutostartDbPath);
+    STDMETHOD(COMGETTER(DefaultAdditionsISO))(BSTR *aDefaultAdditionsISO);
+    STDMETHOD(COMSETTER(DefaultAdditionsISO))(IN_BSTR aDefaultAdditionsISO);
+    STDMETHOD(COMGETTER(DefaultFrontend))(BSTR *aDefaultFrontend);
+    STDMETHOD(COMSETTER(DefaultFrontend))(IN_BSTR aDefaultFrontend);
 
     STDMETHOD(GetMaxNetworkAdapters)(ChipsetType_T aChipset, ULONG *aMaxInstances);
     STDMETHOD(GetMaxNetworkAdaptersOfType)(ChipsetType_T aChipset, NetworkAttachmentType_T aType, ULONG *aMaxInstances);
@@ -100,6 +110,7 @@ public:
     STDMETHOD(GetMaxInstancesOfStorageBus)(ChipsetType_T aChipset, StorageBus_T aBus, ULONG *aMaxInstances);
     STDMETHOD(GetDeviceTypesForStorageBus)(StorageBus_T aBus, ComSafeArrayOut(DeviceType_T, aDeviceTypes));
     STDMETHOD(GetDefaultIoCacheSettingForStorageController)(StorageControllerType_T aControllerType, BOOL *aEnabled);
+    STDMETHOD(GetMaxInstancesOfUSBControllerType)(ChipsetType_T aChipset, USBControllerType_T aType, ULONG *aMaxInstances);
 
     // public methods only for internal purposes
 
@@ -109,8 +120,8 @@ public:
     ComObjPtr<MediumFormat> mediumFormat(const Utf8Str &aFormat);
     ComObjPtr<MediumFormat> mediumFormatFromExtension(const Utf8Str &aExt);
 
-    // public methods for internal purposes only
-    // (ensure there is a caller and a read lock before calling them!)
+    int loadVDPlugin(const char *pszPluginLibrary);
+    int unloadVDPlugin(const char *pszPluginLibrary);
 
 private:
 
@@ -118,11 +129,15 @@ private:
 
     HRESULT getUserHomeDirectory(Utf8Str &strPath);
     HRESULT setDefaultMachineFolder(const Utf8Str &aPath);
+    HRESULT setLoggingLevel(const Utf8Str &aLoggingLevel);
     HRESULT setDefaultHardDiskFormat(const Utf8Str &aFormat);
 
     HRESULT setVRDEAuthLibrary(const Utf8Str &aPath);
     HRESULT setWebServiceAuthLibrary(const Utf8Str &aPath);
     HRESULT setDefaultVRDEExtPack(const Utf8Str &aPath);
+    HRESULT setAutostartDatabasePath(const Utf8Str &aPath);
+    HRESULT setDefaultAdditionsISO(const Utf8Str &aPath);
+    HRESULT setDefaultFrontend(const Utf8Str &aPath);
 
     VirtualBox * const  mParent;
 

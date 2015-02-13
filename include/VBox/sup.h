@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,6 +33,10 @@
 #include <iprt/cpuset.h>
 
 RT_C_DECLS_BEGIN
+
+struct VTGOBJHDR;
+struct VTGPROBELOC;
+
 
 /** @defgroup   grp_sup     The Support Library API
  * @{
@@ -87,6 +91,82 @@ typedef enum SUPPAGINGMODE
     SUPPAGINGMODE_AMD64_GLOBAL_NX
 } SUPPAGINGMODE;
 
+
+/** Flags returned by SUPR0GetKernelFeatures().
+ * @{
+ */
+/** GDT is read-only. */
+#define SUPKERNELFEATURES_GDT_READ_ONLY     RT_BIT(0)
+/** @} */
+
+
+/**
+ * Usermode probe context information.
+ */
+typedef struct SUPDRVTRACERUSRCTX
+{
+    /** The probe ID from the VTG location record.  */
+    uint32_t                idProbe;
+    /** 32 if X86, 64 if AMD64. */
+    uint8_t                 cBits;
+    /** Reserved padding. */
+    uint8_t                 abReserved[3];
+    /** Data which format is dictated by the cBits member. */
+    union
+    {
+        /** X86 context info. */
+        struct
+        {
+            uint32_t        uVtgProbeLoc;   /**< Location record address. */
+            uint32_t        aArgs[20];      /**< Raw arguments. */
+            uint32_t        eip;
+            uint32_t        eflags;
+            uint32_t        eax;
+            uint32_t        ecx;
+            uint32_t        edx;
+            uint32_t        ebx;
+            uint32_t        esp;
+            uint32_t        ebp;
+            uint32_t        esi;
+            uint32_t        edi;
+            uint16_t        cs;
+            uint16_t        ss;
+            uint16_t        ds;
+            uint16_t        es;
+            uint16_t        fs;
+            uint16_t        gs;
+        } X86;
+
+        /** AMD64 context info. */
+        struct
+        {
+            uint64_t        uVtgProbeLoc;   /**< Location record address. */
+            uint64_t        aArgs[10];      /**< Raw arguments. */
+            uint64_t        rip;
+            uint64_t        rflags;
+            uint64_t        rax;
+            uint64_t        rcx;
+            uint64_t        rdx;
+            uint64_t        rbx;
+            uint64_t        rsp;
+            uint64_t        rbp;
+            uint64_t        rsi;
+            uint64_t        rdi;
+            uint64_t        r8;
+            uint64_t        r9;
+            uint64_t        r10;
+            uint64_t        r11;
+            uint64_t        r12;
+            uint64_t        r13;
+            uint64_t        r14;
+            uint64_t        r15;
+        } Amd64;
+    } u;
+} SUPDRVTRACERUSRCTX;
+/** Pointer to the usermode probe context information. */
+typedef SUPDRVTRACERUSRCTX *PSUPDRVTRACERUSRCTX;
+/** Pointer to the const usermode probe context information. */
+typedef SUPDRVTRACERUSRCTX const *PCSUPDRVTRACERUSRCTX;
 
 /**
  * The CPU state.
@@ -225,7 +305,11 @@ typedef struct SUPGLOBALINFOPAGE
     SUPGIPCPU           aCPUs[1];
 } SUPGLOBALINFOPAGE;
 AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, u64NanoTSLastUpdateHz, 8);
+#if defined(RT_ARCH_SPARC) || defined(RT_ARCH_SPARC64)
+AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 32);
+#else
 AssertCompileMemberAlignment(SUPGLOBALINFOPAGE, aCPUs, 256);
+#endif
 
 /** Pointer to the global info page.
  * @remark there is no const version of this typedef, see g_pSUPGlobalInfoPage for details. */
@@ -348,8 +432,8 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
  */
 /** @see VMMR0_DO_RAW_RUN. */
 #define SUP_VMMR0_DO_RAW_RUN    0
-/** @see VMMR0_DO_HWACC_RUN. */
-#define SUP_VMMR0_DO_HWACC_RUN  1
+/** @see VMMR0_DO_HM_RUN. */
+#define SUP_VMMR0_DO_HM_RUN  1
 /** @see VMMR0_DO_NOP */
 #define SUP_VMMR0_DO_NOP        2
 /** @} */
@@ -620,6 +704,8 @@ typedef enum SUPINITOP
     kSupInitOp_Driver,
     /** IPRT init related. */
     kSupInitOp_IPRT,
+    /** Miscellaneous. */
+    kSupInitOp_Misc,
     /** Place holder. */
     kSupInitOp_End
 } SUPINITOP;
@@ -628,7 +714,9 @@ typedef enum SUPINITOP
  * Trusted error entry point, optional.
  *
  * This is exported as "TrustedError" by the dynamic libraries which contains
- * the "real" application binary for which the hardened stub is built.
+ * the "real" application binary for which the hardened stub is built. The
+ * hardened main() must specify SUPSECMAIN_FLAGS_TRUSTED_ERROR when calling
+ * SUPR3HardenedMain.
  *
  * @param   pszWhere        Where the error occurred (function name).
  * @param   enmWhat         Which operation went wrong.
@@ -662,21 +750,37 @@ typedef FNSUPTRUSTEDERROR *PFNSUPTRUSTEDERROR;
  */
 DECLHIDDEN(int) SUPR3HardenedMain(const char *pszProgName, uint32_t fFlags, int argc, char **argv, char **envp);
 
-/** @name SUPR3SecureMain flags.
+/** @name SUPR3HardenedMain flags.
  * @{ */
 /** Don't open the device. (Intended for VirtualBox without -startvm.) */
 #define SUPSECMAIN_FLAGS_DONT_OPEN_DEV      RT_BIT_32(0)
+/** The hardened DLL has a "TrustedError" function (see FNSUPTRUSTEDERROR). */
+#define SUPSECMAIN_FLAGS_TRUSTED_ERROR      RT_BIT_32(1)
 /** @} */
 
 /**
  * Initializes the support library.
- * Each successful call to SUPR3Init() must be countered by a
+ *
+ * Each successful call to SUPR3Init() or SUPR3InitEx must be countered by a
  * call to SUPR3Term(false).
  *
  * @returns VBox status code.
  * @param   ppSession       Where to store the session handle. Defaults to NULL.
  */
 SUPR3DECL(int) SUPR3Init(PSUPDRVSESSION *ppSession);
+
+
+/**
+ * Initializes the support library, extended version.
+ *
+ * Each successful call to SUPR3Init() or SUPR3InitEx must be countered by a
+ * call to SUPR3Term(false).
+ *
+ * @returns VBox status code.
+ * @param   fUnrestricted   The desired access.
+ * @param   ppSession       Where to store the session handle. Defaults to NULL.
+ */
+SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession);
 
 /**
  * Terminates the support library.
@@ -979,6 +1083,18 @@ SUPR3DECL(int) SUPR3LoadServiceModule(const char *pszFilename, const char *pszMo
 SUPR3DECL(int) SUPR3FreeModule(void *pvImageBase);
 
 /**
+ * Lock down the module loader interface.
+ *
+ * This will lock down the module loader interface. No new modules can be
+ * loaded and all loaded modules can no longer be freed.
+ *
+ * @returns VBox status code.
+ * @param   pErrInfo        Where to return extended error information.
+ *                          Optional.
+ */
+SUPR3DECL(int) SUPR3LockDownLoader(PRTERRINFO pErrInfo);
+
+/**
  * Get the address of a symbol in a ring-0 module.
  *
  * @returns VBox status code.
@@ -1012,6 +1128,28 @@ SUPR3DECL(int) SUPR3UnloadVMM(void);
  * @param   pHCPhys     Where to store the physical address of the GIP.
  */
 SUPR3DECL(int) SUPR3GipGetPhys(PRTHCPHYS pHCPhys);
+
+/**
+ * Initializes only the bits relevant for the SUPR3HardenedVerify* APIs.
+ *
+ * This is for users that don't necessarily need to initialize the whole of
+ * SUPLib.  There is no harm in calling this one more time.
+ *
+ * @returns VBox status code.
+ * @remarks Currently not counted, so only call once.
+ */
+SUPR3DECL(int) SUPR3HardenedVerifyInit(void);
+
+/**
+ * Reverses the effect of SUPR3HardenedVerifyInit if SUPR3InitEx hasn't been
+ * called.
+ *
+ * Ignored if the support library was initialized using SUPR3Init or
+ * SUPR3InitEx.
+ *
+ * @returns VBox status code.
+ */
+SUPR3DECL(int) SUPR3HardenedVerifyTerm(void);
 
 /**
  * Verifies the integrity of a file, and optionally opens it.
@@ -1144,8 +1282,86 @@ SUPR3DECL(int) SUPR3QueryVTxSupported(void);
  */
 SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
 
+/**
+ * Open the tracer.
+ *
+ * @returns VBox status code.
+ * @param   uCookie         Cookie identifying the tracer we expect to talk to.
+ * @param   uArg            Tracer specific open argument.
+ */
+SUPR3DECL(int) SUPR3TracerOpen(uint32_t uCookie, uintptr_t uArg);
+
+/**
+ * Closes the tracer.
+ *
+ * @returns VBox status code.
+ */
+SUPR3DECL(int) SUPR3TracerClose(void);
+
+/**
+ * Perform an I/O request on the tracer.
+ *
+ * @returns VBox status.
+ * @param   uCmd                The tracer command.
+ * @param   uArg                The argument.
+ * @param   piRetVal            Where to store the tracer return value.
+ */
+SUPR3DECL(int) SUPR3TracerIoCtl(uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal);
+
+/**
+ * Registers the user module with the tracer.
+ *
+ * @returns VBox status code.
+ * @param   hModNative          Native module handle.  Pass ~(uintptr_t)0 if not
+ *                              at hand.
+ * @param   pszModule           The module name.
+ * @param   pVtgHdr             The VTG header.
+ * @param   uVtgHdrAddr         The address to which the VTG header is loaded
+ *                              in the relevant execution context.
+ * @param   fFlags              See SUP_TRACER_UMOD_FLAGS_XXX
+ */
+SUPR3DECL(int) SUPR3TracerRegisterModule(uintptr_t hModNative, const char *pszModule, struct VTGOBJHDR *pVtgHdr,
+                                         RTUINTPTR uVtgHdrAddr, uint32_t fFlags);
+
+/**
+ * Deregisters the user module.
+ *
+ * @returns VBox status code.
+ * @param   pVtgHdr             The VTG header.
+ */
+SUPR3DECL(int) SUPR3TracerDeregisterModule(struct VTGOBJHDR *pVtgHdr);
+
+/**
+ * Fire the probe.
+ *
+ * @param   pVtgProbeLoc        The probe location record.
+ * @param   uArg0               Raw probe argument 0.
+ * @param   uArg1               Raw probe argument 1.
+ * @param   uArg2               Raw probe argument 2.
+ * @param   uArg3               Raw probe argument 3.
+ * @param   uArg4               Raw probe argument 4.
+ */
+SUPDECL(void)  SUPTracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
+                                  uintptr_t uArg3, uintptr_t uArg4);
+/**
+ * Resume built-in keyboard on MacBook Air and Pro hosts.
+ *
+ * @returns VBox status code.
+ */
+SUPR3DECL(int) SUPR3ResumeSuspendedKeyboards(void);
+
 /** @} */
 #endif /* IN_RING3 */
+
+/** @name User mode module flags (SUPR3TracerRegisterModule & SUP_IOCTL_TRACER_UMOD_REG).
+ * @{ */
+/** Executable image. */
+#define SUP_TRACER_UMOD_FLAGS_EXE           UINT32_C(1)
+/** Shared library (DLL, DYLIB, SO, etc). */
+#define SUP_TRACER_UMOD_FLAGS_SHARED        UINT32_C(2)
+/** Image type mask. */
+#define SUP_TRACER_UMOD_FLAGS_TYPE_MASK     UINT32_C(3)
+/** @} */
 
 
 #ifdef IN_RING0
@@ -1215,7 +1431,10 @@ SUPR0DECL(int) SUPR0QueryVTCaps(PSUPDRVSESSION pSession, uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession);
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...);
 SUPR0DECL(SUPPAGINGMODE) SUPR0GetPagingMode(void);
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
 SUPR0DECL(int) SUPR0EnableVTx(bool fEnable);
+SUPR0DECL(bool) SUPR0SuspendVTxOnCpu(void);
+SUPR0DECL(void) SUPR0ResumeVTxOnCpu(bool fSuspended);
 
 /** @name Absolute symbols
  * Take the address of these, don't try call them.
@@ -1271,6 +1490,262 @@ SUPR0DECL(int) SUPR0ComponentDeregisterFactory(PSUPDRVSESSION pSession, PCSUPDRV
 SUPR0DECL(int) SUPR0ComponentQueryFactory(PSUPDRVSESSION pSession, const char *pszName, const char *pszInterfaceUuid, void **ppvFactoryIf);
 
 
+/** @name Tracing
+ * @{ */
+
+/**
+ * Tracer data associated with a provider.
+ */
+typedef union SUPDRVTRACERDATA
+{
+    /** Generic */
+    uint64_t                    au64[2];
+
+    /** DTrace data. */
+    struct
+    {
+        /** Provider ID. */
+        uintptr_t               idProvider;
+        /** The number of trace points provided. */
+        uint32_t volatile       cProvidedProbes;
+        /** Whether we've invalidated this bugger. */
+        bool                    fZombie;
+    } DTrace;
+} SUPDRVTRACERDATA;
+/** Pointer to the tracer data associated with a provider. */
+typedef SUPDRVTRACERDATA *PSUPDRVTRACERDATA;
+
+/**
+ * Probe location info for ring-0.
+ *
+ * Since we cannot trust user tracepoint modules, we need to duplicate the probe
+ * ID and enabled flag in ring-0.
+ */
+typedef struct SUPDRVPROBELOC
+{
+    /** The probe ID. */
+    uint32_t                idProbe;
+    /** Whether it's enabled or not. */
+    bool                    fEnabled;
+} SUPDRVPROBELOC;
+/** Pointer to a ring-0 probe location record. */
+typedef SUPDRVPROBELOC *PSUPDRVPROBELOC;
+
+/**
+ * Probe info for ring-0.
+ *
+ * Since we cannot trust user tracepoint modules, we need to duplicate the
+ * probe enable count.
+ */
+typedef struct SUPDRVPROBEINFO
+{
+    /** The number of times this probe has been enabled. */
+    uint32_t volatile           cEnabled;
+} SUPDRVPROBEINFO;
+/** Pointer to a ring-0 probe info record. */
+typedef SUPDRVPROBEINFO *PSUPDRVPROBEINFO;
+
+/**
+ * Support driver tracepoint provider core.
+ */
+typedef struct SUPDRVVDTPROVIDERCORE
+{
+    /** The tracer data member. */
+    SUPDRVTRACERDATA            TracerData;
+    /** Pointer to the provider name (a copy that's always available). */
+    const char                 *pszName;
+    /** Pointer to the module name (a copy that's always available). */
+    const char                 *pszModName;
+
+    /** The provider descriptor. */
+    struct VTGDESCPROVIDER     *pDesc;
+    /** The VTG header. */
+    struct VTGOBJHDR           *pHdr;
+
+    /** The size of the entries in the pvProbeLocsEn table. */
+    uint8_t                     cbProbeLocsEn;
+    /** The actual module bit count (corresponds to cbProbeLocsEn). */
+    uint8_t                     cBits;
+    /** Set if this is a Umod, otherwise clear.. */
+    bool                        fUmod;
+    /** Explicit alignment padding (paranoia). */
+    uint8_t                     abAlignment[ARCH_BITS == 32 ? 1 : 5];
+
+    /** The probe locations used for descriptive purposes. */
+    struct VTGPROBELOC const   *paProbeLocsRO;
+    /** Pointer to the probe location array where the enable flag needs
+     * flipping. For kernel providers, this will always be SUPDRVPROBELOC,
+     * while user providers can either be 32-bit or 64-bit.  Use
+     * cbProbeLocsEn to calculate the address of an entry. */
+    void                       *pvProbeLocsEn;
+    /** Pointer to the probe array containing the enabled counts. */
+    uint32_t                   *pacProbeEnabled;
+
+    /** The ring-0 probe location info for user tracepoint modules.
+     * This is NULL if fUmod is false. */
+    PSUPDRVPROBELOC             paR0ProbeLocs;
+    /** The ring-0 probe info for user tracepoint modules.
+     * This is NULL if fUmod is false. */
+    PSUPDRVPROBEINFO            paR0Probes;
+
+} SUPDRVVDTPROVIDERCORE;
+/** Pointer to a tracepoint provider core structure. */
+typedef SUPDRVVDTPROVIDERCORE *PSUPDRVVDTPROVIDERCORE;
+
+/** Pointer to a tracer registration record. */
+typedef struct SUPDRVTRACERREG const *PCSUPDRVTRACERREG;
+/**
+ * Support driver tracer registration record.
+ */
+typedef struct SUPDRVTRACERREG
+{
+    /** Magic value (SUPDRVTRACERREG_MAGIC). */
+    uint32_t                    u32Magic;
+    /** Version (SUPDRVTRACERREG_VERSION). */
+    uint32_t                    u32Version;
+
+    /**
+     * Fire off a kernel probe.
+     *
+     * @param   pVtgProbeLoc    The probe location record.
+     * @param   uArg0           The first raw probe argument.
+     * @param   uArg1           The second raw probe argument.
+     * @param   uArg2           The third raw probe argument.
+     * @param   uArg3           The fourth raw probe argument.
+     * @param   uArg4           The fifth raw probe argument.
+     *
+     * @remarks SUPR0TracerFireProbe will do a tail jump thru this member, so
+     *          no extra stack frames will be added.
+     * @remarks This does not take a 'this' pointer argument because it doesn't map
+     *          well onto VTG or DTrace.
+     *
+     */
+    DECLR0CALLBACKMEMBER(void, pfnProbeFireKernel, (struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
+                                                    uintptr_t uArg3, uintptr_t uArg4));
+
+    /**
+     * Fire off a user-mode probe.
+     *
+     * @param   pThis           Pointer to the registration record.
+     *
+     * @param   pVtgProbeLoc    The probe location record.
+     * @param   pSession        The user session.
+     * @param   pCtx            The usermode context info.
+     * @param   pVtgHdr         The VTG header (read-only).
+     * @param   pProbeLocRO     The read-only probe location record .
+     */
+    DECLR0CALLBACKMEMBER(void, pfnProbeFireUser, (PCSUPDRVTRACERREG pThis, PSUPDRVSESSION pSession, PCSUPDRVTRACERUSRCTX pCtx,
+                                                  struct VTGOBJHDR const *pVtgHdr, struct VTGPROBELOC const *pProbeLocRO));
+
+    /**
+     * Opens up the tracer.
+     *
+     * @returns VBox status code.
+     * @param   pThis           Pointer to the registration record.
+     * @param   pSession        The session doing the opening.
+     * @param   uCookie         A cookie (magic) unique to the tracer, so it can
+     *                          fend off incompatible clients.
+     * @param   uArg            Tracer specific argument.
+     * @param   puSessionData   Pointer to the session data variable.  This must be
+     *                          set to a non-zero value on success.
+     */
+    DECLR0CALLBACKMEMBER(int,   pfnTracerOpen, (PCSUPDRVTRACERREG pThis, PSUPDRVSESSION pSession, uint32_t uCookie, uintptr_t uArg,
+                                                uintptr_t *puSessionData));
+
+    /**
+     * I/O control style tracer communication method.
+     *
+     *
+     * @returns VBox status code.
+     * @param   pThis           Pointer to the registration record.
+     * @param   pSession        The session.
+     * @param   uSessionData    The session data value.
+     * @param   uCmd            The tracer specific command.
+     * @param   uArg            The tracer command specific argument.
+     * @param   piRetVal        The tracer specific return value.
+     */
+    DECLR0CALLBACKMEMBER(int,   pfnTracerIoCtl, (PCSUPDRVTRACERREG pThis, PSUPDRVSESSION pSession, uintptr_t uSessionData,
+                                                 uintptr_t uCmd, uintptr_t uArg, int32_t *piRetVal));
+
+    /**
+     * Cleans up data the tracer has associated with a session.
+     *
+     * @param   pThis           Pointer to the registration record.
+     * @param   pSession        The session handle.
+     * @param   uSessionData    The data assoicated with the session.
+     */
+    DECLR0CALLBACKMEMBER(void,  pfnTracerClose, (PCSUPDRVTRACERREG pThis, PSUPDRVSESSION pSession, uintptr_t uSessionData));
+
+    /**
+     * Registers a provider.
+     *
+     * @returns VBox status code.
+     * @param   pThis           Pointer to the registration record.
+     * @param   pCore           The provider core data.
+     *
+     * @todo Kernel vs. Userland providers.
+     */
+    DECLR0CALLBACKMEMBER(int,   pfnProviderRegister, (PCSUPDRVTRACERREG pThis, PSUPDRVVDTPROVIDERCORE pCore));
+
+    /**
+     * Attempts to deregisters a provider.
+     *
+     * @returns VINF_SUCCESS or VERR_TRY_AGAIN.  If the latter, the provider
+     *          should be made as harmless as possible before returning as the
+     *          VTG object and associated code will be unloaded upon return.
+     *
+     * @param   pThis           Pointer to the registration record.
+     * @param   pCore           The provider core data.
+     */
+    DECLR0CALLBACKMEMBER(int,   pfnProviderDeregister, (PCSUPDRVTRACERREG pThis, PSUPDRVVDTPROVIDERCORE pCore));
+
+    /**
+     * Make another attempt at unregister a busy provider.
+     *
+     * @returns VINF_SUCCESS or VERR_TRY_AGAIN.
+     * @param   pThis           Pointer to the registration record.
+     * @param   pCore           The provider core data.
+     */
+    DECLR0CALLBACKMEMBER(int,   pfnProviderDeregisterZombie, (PCSUPDRVTRACERREG pThis, PSUPDRVVDTPROVIDERCORE pCore));
+
+    /** End marker (SUPDRVTRACERREG_MAGIC). */
+    uintptr_t                   uEndMagic;
+} SUPDRVTRACERREG;
+
+/** Tracer magic (Kenny Garrett). */
+#define SUPDRVTRACERREG_MAGIC   UINT32_C(0x19601009)
+/** Tracer registration structure version. */
+#define SUPDRVTRACERREG_VERSION RT_MAKE_U32(0, 1)
+
+/** Pointer to a trace helper structure. */
+typedef struct SUPDRVTRACERHLP const *PCSUPDRVTRACERHLP;
+/**
+ * Helper structure.
+ */
+typedef struct SUPDRVTRACERHLP
+{
+    /** The structure version (SUPDRVTRACERHLP_VERSION). */
+    uintptr_t                   uVersion;
+
+    /** @todo ... */
+
+    /** End marker (SUPDRVTRACERHLP_VERSION) */
+    uintptr_t                   uEndVersion;
+} SUPDRVTRACERHLP;
+/** Tracer helper structure version. */
+#define SUPDRVTRACERHLP_VERSION RT_MAKE_U32(0, 1)
+
+SUPR0DECL(int)  SUPR0TracerRegisterImpl(void *hMod, PSUPDRVSESSION pSession, PCSUPDRVTRACERREG pReg, PCSUPDRVTRACERHLP *ppHlp);
+SUPR0DECL(int)  SUPR0TracerDeregisterImpl(void *hMod, PSUPDRVSESSION pSession);
+SUPR0DECL(int)  SUPR0TracerRegisterDrv(PSUPDRVSESSION pSession, struct VTGOBJHDR *pVtgHdr, const char *pszName);
+SUPR0DECL(void) SUPR0TracerDeregisterDrv(PSUPDRVSESSION pSession);
+SUPR0DECL(int)  SUPR0TracerRegisterModule(void *hMod, struct VTGOBJHDR *pVtgHdr);
+SUPR0DECL(void) SUPR0TracerFireProbe(struct VTGPROBELOC *pVtgProbeLoc, uintptr_t uArg0, uintptr_t uArg1, uintptr_t uArg2,
+                                     uintptr_t uArg3, uintptr_t uArg4);
+SUPR0DECL(void) SUPR0TracerUmodProbeFire(PSUPDRVSESSION pSession, PSUPDRVTRACERUSRCTX pCtx);
+/** @}  */
+
+
 /**
  * Service request callback function.
  *
@@ -1321,8 +1796,76 @@ SUPR0DECL(int) SUPR0IdcComponentDeregisterFactory(PSUPDRVIDCHANDLE pHandle, PCSU
 
 /** @} */
 
+/** @name Ring-0 module entry points.
+ *
+ * These can be exported by ring-0 modules SUP are told to load.
+ *
+ * @{ */
+DECLEXPORT(int)  ModuleInit(void *hMod);
+DECLEXPORT(void) ModuleTerm(void *hMod);
+/** @}  */
+
+
 /** @} */
 #endif
+
+
+/** @name Trust Anchors and Certificates
+ * @{ */
+
+/**
+ * Trust anchor table entry (in generated Certificates.cpp).
+ */
+typedef struct SUPTAENTRY
+{
+    /** Pointer to the raw bytes. */
+    const unsigned char    *pch;
+    /** Number of bytes. */
+    unsigned                cb;
+} SUPTAENTRY;
+/** Pointer to a trust anchor table entry. */
+typedef SUPTAENTRY const *PCSUPTAENTRY;
+
+/** Macro for simplifying generating the trust anchor tables. */
+#define SUPTAENTRY_GEN(a_abTA)      { &a_abTA[0], sizeof(a_abTA) }
+
+/** All certificates we know. */
+extern SUPTAENTRY const             g_aSUPAllTAs[];
+/** Number of entries in g_aSUPAllTAs. */
+extern unsigned const               g_cSUPAllTAs;
+
+/** Software publisher certificate roots (Authenticode). */
+extern SUPTAENTRY const             g_aSUPSpcRootTAs[];
+/** Number of entries in g_aSUPSpcRootTAs. */
+extern unsigned const               g_cSUPSpcRootTAs;
+
+/** Kernel root certificates used by Windows. */
+extern SUPTAENTRY const             g_aSUPNtKernelRootTAs[];
+/** Number of entries in g_aSUPNtKernelRootTAs. */
+extern unsigned const               g_cSUPNtKernelRootTAs;
+
+/** Timestamp root certificates trusted by Windows. */
+extern SUPTAENTRY const             g_aSUPTimestampTAs[];
+/** Number of entries in g_aSUPTimestampTAs. */
+extern unsigned const               g_cSUPTimestampTAs;
+
+/** TAs we trust (the build certificate, Oracle VirtualBox). */
+extern SUPTAENTRY const             g_aSUPTrustedTAs[];
+/** Number of entries in g_aSUPTrustedTAs. */
+extern unsigned const               g_cSUPTrustedTAs;
+
+/** Supplemental certificates, like cross signing certificates. */
+extern SUPTAENTRY const             g_aSUPSupplementalTAs[];
+/** Number of entries in g_aSUPTrustedTAs. */
+extern unsigned const               g_cSUPSupplementalTAs;
+
+/** The build certificate. */
+extern const unsigned char          g_abSUPBuildCert[];
+/** The size of the build certificate. */
+extern const unsigned               g_cbSUPBuildCert;
+
+/** @} */
+
 
 /** @} */
 

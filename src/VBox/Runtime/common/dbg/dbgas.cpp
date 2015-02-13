@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -396,6 +396,26 @@ RTDECL(uint32_t) RTDbgAsRelease(RTDBGAS hDbgAs)
 RT_EXPORT_SYMBOL(RTDbgAsRelease);
 
 
+RTDECL(int) RTDbgAsLockExcl(RTDBGAS hDbgAs)
+{
+    PRTDBGASINT pDbgAs = hDbgAs;
+    RTDBGAS_VALID_RETURN_RC(pDbgAs, VERR_INVALID_HANDLE);
+    RTDBGAS_LOCK_WRITE(pDbgAs);
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTDbgAsLockExcl);
+
+
+RTDECL(int) RTDbgAsUnlockExcl(RTDBGAS hDbgAs)
+{
+    PRTDBGASINT pDbgAs = hDbgAs;
+    RTDBGAS_VALID_RETURN_RC(pDbgAs, VERR_INVALID_HANDLE);
+    RTDBGAS_UNLOCK_WRITE(pDbgAs);
+    return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTDbgAsUnlockExcl);
+
+
 /**
  * Gets the name of an address space.
  *
@@ -757,7 +777,7 @@ static void rtDbgAsModuleUnlinkMod(PRTDBGASINT pDbgAs, PRTDBGASMOD pMod)
      * Remove it from the module handle tree.
      */
     PAVLPVNODECORE pNode = RTAvlPVRemove(&pDbgAs->ModTree, pMod->Core.Key);
-    Assert(pNode == &pMod->Core);
+    Assert(pNode == &pMod->Core); NOREF(pNode);
 
     /*
      * Remove it from the module table by replacing it by the last entry.
@@ -792,7 +812,7 @@ static void rtDbgAsModuleUnlinkMap(PRTDBGASINT pDbgAs, PRTDBGASMAP pMap)
 {
     /* remove from the tree */
     PAVLRUINTPTRNODECORE pNode = RTAvlrUIntPtrRemove(&pDbgAs->MapTree, pMap->Core.Key);
-    Assert(pNode == &pMap->Core);
+    Assert(pNode == &pMap->Core); NOREF(pNode);
 
     /* unlink */
     PRTDBGASMOD pMod = pMap->pMod;
@@ -900,7 +920,7 @@ RTDECL(int) RTDbgAsModuleUnlinkByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr)
 
     RTDBGAS_LOCK_WRITE(pDbgAs);
     PRTDBGASMAP pMap = (PRTDBGASMAP)RTAvlrUIntPtrRangeGet(&pDbgAs->MapTree, Addr);
-    if (pMap)
+    if (!pMap)
     {
         RTDBGAS_UNLOCK_WRITE(pDbgAs);
         return VERR_NOT_FOUND;
@@ -1283,26 +1303,62 @@ RT_EXPORT_SYMBOL(RTDbgAsSymbolAdd);
 
 
 /**
+ * Creates a snapshot of the module table on the temporary heap.
+ *
+ * The caller must release all the module handles before freeing the table
+ * using RTMemTmpFree.
+ *
+ * @returns Module table snaphot.
+ * @param   pDbgAs          The address space instance data.
+ * @param   pcModules       Where to return the number of modules.
+ */
+static PRTDBGMOD rtDbgAsSnapshotModuleTable(PRTDBGASINT pDbgAs, uint32_t *pcModules)
+{
+    RTDBGAS_LOCK_READ(pDbgAs);
+
+    uint32_t iMod = *pcModules = pDbgAs->cModules;
+    PRTDBGMOD pahModules = (PRTDBGMOD)RTMemTmpAlloc(sizeof(pahModules[0]) * RT_MAX(iMod, 1));
+    if (pahModules)
+    {
+        while (iMod-- > 0)
+        {
+            RTDBGMOD hMod = (RTDBGMOD)pDbgAs->papModules[iMod]->Core.Key;
+            pahModules[iMod] = hMod;
+            RTDbgModRetain(hMod);
+        }
+    }
+
+    RTDBGAS_UNLOCK_READ(pDbgAs);
+    return pahModules;
+}
+
+
+/**
  * Query a symbol by address.
  *
  * @returns IPRT status code. See RTDbgModSymbolAddr for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
- * @param   poffDisp        Where to return the distance between the symbol
- *                          and address. Optional.
+ * @param   fFlags          Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
+ * @param   poffDisp        Where to return the distance between the symbol and
+ *                          address. Optional.
  * @param   pSymbol         Where to return the symbol info.
  * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod)
+RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
+                                PRTINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod)
 {
     /*
      * Validate input and resolve the address.
      */
     PRTDBGASINT pDbgAs = hDbgAs;
     RTDBGAS_VALID_RETURN_RC(pDbgAs, VERR_INVALID_HANDLE);
+    if (phMod)
+        *phMod = NIL_RTDBGMOD;
 
     RTDBGSEGIDX iSeg    = NIL_RTDBGSEGIDX; /* shut up gcc */
     RTUINTPTR   offSeg  = 0;
@@ -1310,15 +1366,52 @@ RTDECL(int) RTDbgAsSymbolByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDi
     RTDBGMOD    hMod    = rtDbgAsModuleByAddr(pDbgAs, Addr, &iSeg, &offSeg, &MapAddr);
     if (hMod == NIL_RTDBGMOD)
     {
-        if (phMod)
-            *phMod = NIL_RTDBGMOD;
-        return VERR_NOT_FOUND;
+        /*
+         * Check for absolute symbols.  Requires iterating all modules.
+         */
+        uint32_t cModules;
+        PRTDBGMOD pahModules = rtDbgAsSnapshotModuleTable(pDbgAs, &cModules);
+        if (!pahModules)
+            return VERR_NO_TMP_MEMORY;
+
+        int      rc;
+        RTINTPTR offBestDisp = RTINTPTR_MAX;
+        uint32_t iBest       = UINT32_MAX;
+        for (uint32_t i = 0; i < cModules; i++)
+        {
+            RTINTPTR offDisp;
+            rc = RTDbgModSymbolByAddr(pahModules[i], RTDBGSEGIDX_ABS, Addr, fFlags, &offDisp, pSymbol);
+            if (RT_SUCCESS(rc) && RT_ABS(offDisp) < offBestDisp)
+            {
+                offBestDisp = RT_ABS(offDisp);
+                iBest = i;
+            }
+        }
+
+        if (iBest == UINT32_MAX)
+            rc = VERR_NOT_FOUND;
+        else
+        {
+            hMod = pahModules[iBest];
+            rc = RTDbgModSymbolByAddr(hMod, RTDBGSEGIDX_ABS, Addr, fFlags, poffDisp, pSymbol);
+            if (RT_SUCCESS(rc))
+            {
+                rtDbgAsAdjustSymbolValue(pSymbol, hMod, MapAddr, iSeg);
+                if (phMod)
+                    RTDbgModRetain(*phMod = hMod);
+            }
+        }
+
+        for (uint32_t i = 0; i < cModules; i++)
+            RTDbgModRelease(pahModules[i]);
+        RTMemTmpFree(pahModules);
+        return rc;
     }
 
     /*
      * Forward the call.
      */
-    int rc = RTDbgModSymbolByAddr(hMod, iSeg, offSeg, poffDisp, pSymbol);
+    int rc = RTDbgModSymbolByAddr(hMod, iSeg, offSeg, fFlags, poffDisp, pSymbol);
     if (RT_SUCCESS(rc))
         rtDbgAsAdjustSymbolValue(pSymbol, hMod, MapAddr, iSeg);
     if (phMod)
@@ -1336,16 +1429,19 @@ RT_EXPORT_SYMBOL(RTDbgAsSymbolByAddr);
  * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
  * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
  * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
+ * @retval  VERR_INVALID_PARAMETER if incorrect flags.
  *
  * @param   hDbgAs          The address space handle.
  * @param   Addr            The address which closest symbol is requested.
+ * @param   fFlags              Symbol search flags, see RTDBGSYMADDR_FLAGS_XXX.
  * @param   poffDisp        Where to return the distance between the symbol
  *                          and address. Optional.
  * @param   ppSymInfo       Where to return the pointer to the allocated symbol
  *                          info. Always set. Free with RTDbgSymbolFree.
  * @param   phMod           Where to return the module handle. Optional.
  */
-RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo, PRTDBGMOD phMod)
+RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, uint32_t fFlags,
+                                 PRTINTPTR poffDisp, PRTDBGSYMBOL *ppSymInfo, PRTDBGMOD phMod)
 {
     /*
      * Validate input and resolve the address.
@@ -1367,7 +1463,7 @@ RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffD
     /*
      * Forward the call.
      */
-    int rc = RTDbgModSymbolByAddrA(hMod, iSeg, offSeg, poffDisp, ppSymInfo);
+    int rc = RTDbgModSymbolByAddrA(hMod, iSeg, offSeg, fFlags, poffDisp, ppSymInfo);
     if (RT_SUCCESS(rc))
         rtDbgAsAdjustSymbolValue(*ppSymInfo, hMod, MapAddr, iSeg);
     if (phMod)
@@ -1377,37 +1473,6 @@ RTDECL(int) RTDbgAsSymbolByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffD
     return rc;
 }
 RT_EXPORT_SYMBOL(RTDbgAsSymbolByAddrA);
-
-
-/**
- * Creates a snapshot of the module table on the temporary heap.
- *
- * The caller must release all the module handles before freeing the table
- * using RTMemTmpFree.
- *
- * @returns Module table snaphot.
- * @param   pDbgAs          The address space instance data.
- * @param   pcModules       Where to return the number of modules.
- */
-DECLINLINE(PRTDBGMOD) rtDbgAsSnapshotModuleTable(PRTDBGASINT pDbgAs, uint32_t *pcModules)
-{
-    RTDBGAS_LOCK_READ(pDbgAs);
-
-    uint32_t iMod = *pcModules = pDbgAs->cModules;
-    PRTDBGMOD pahModules = (PRTDBGMOD)RTMemTmpAlloc(sizeof(pahModules[0]) * RT_MAX(iMod, 1));
-    if (pahModules)
-    {
-        while (iMod-- > 0)
-        {
-            RTDBGMOD hMod = (RTDBGMOD)pDbgAs->papModules[iMod]->Core.Key;
-            pahModules[iMod] = hMod;
-            RTDbgModRetain(hMod);
-        }
-    }
-
-    RTDBGAS_UNLOCK_READ(pDbgAs);
-    return pahModules;
-}
 
 
 /**
@@ -1669,20 +1734,7 @@ RTDECL(int) RTDbgAsLineAdd(RTDBGAS hDbgAs, const char *pszFile, uint32_t uLineNo
 RT_EXPORT_SYMBOL(RTDbgAsLineAdd);
 
 
-/**
- * Query a line number by address.
- *
- * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
- * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
- * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
- *
- * @param   hDbgAs          The address space handle.
- * @param   Addr            The address which closest symbol is requested.
- * @param   poffDisp        Where to return the distance between the line
- *                          number and address.
- * @param   pLine           Where to return the line number information.
- */
-RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine)
+RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE pLine, PRTDBGMOD phMod)
 {
     /*
      * Validate input and resolve the address.
@@ -1702,28 +1754,21 @@ RTDECL(int) RTDbgAsLineByAddr(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp
      */
     int rc = RTDbgModLineByAddr(hMod, iSeg, offSeg, poffDisp, pLine);
     if (RT_SUCCESS(rc))
+    {
         rtDbgAsAdjustLineAddress(pLine, hMod, MapAddr, iSeg);
-    RTDbgModRelease(hMod);
+        if (phMod)
+            *phMod = hMod;
+        else
+            RTDbgModRelease(hMod);
+    }
+    else
+        RTDbgModRelease(hMod);
     return rc;
 }
 RT_EXPORT_SYMBOL(RTDbgAsLineByAddr);
 
 
-/**
- * Query a line number by address.
- *
- * @returns IPRT status code. See RTDbgModSymbolAddrA for more specific ones.
- * @retval  VERR_INVALID_HANDLE if hDbgAs is invalid.
- * @retval  VERR_NOT_FOUND if the address couldn't be mapped to a module.
- *
- * @param   hDbgAs          The address space handle.
- * @param   Addr            The address which closest symbol is requested.
- * @param   poffDisp        Where to return the distance between the line
- *                          number and address.
- * @param   ppLine          Where to return the pointer to the allocated line
- *                          number info. Always set. Free with RTDbgLineFree.
- */
-RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE *ppLine)
+RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDisp, PRTDBGLINE *ppLine, PRTDBGMOD phMod)
 {
     /*
      * Validate input and resolve the address.
@@ -1743,8 +1788,15 @@ RTDECL(int) RTDbgAsLineByAddrA(RTDBGAS hDbgAs, RTUINTPTR Addr, PRTINTPTR poffDis
      */
     int rc = RTDbgModLineByAddrA(hMod, iSeg, offSeg, poffDisp, ppLine);
     if (RT_SUCCESS(rc))
+    {
         rtDbgAsAdjustLineAddress(*ppLine, hMod, MapAddr, iSeg);
-    RTDbgModRelease(hMod);
+        if (phMod)
+            *phMod = hMod;
+        else
+            RTDbgModRelease(hMod);
+    }
+    else
+        RTDbgModRelease(hMod);
     return rc;
 }
 RT_EXPORT_SYMBOL(RTDbgAsLineByAddrA);

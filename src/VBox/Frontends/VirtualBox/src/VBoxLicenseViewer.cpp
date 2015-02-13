@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,6 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 #include "VBoxLicenseViewer.h"
 #include "QIDialogButtonBox.h"
-#include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
 
 /* Qt includes */
@@ -58,7 +57,7 @@ VBoxLicenseViewer::VBoxLicenseViewer(QWidget *pParent /* = 0 */)
 
     QVBoxLayout *mainLayout = new QVBoxLayout (this);
     mainLayout->setSpacing (10);
-    VBoxGlobal::setLayoutMargin (mainLayout, 10);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
     mainLayout->addWidget (mLicenseText);
     mainLayout->addWidget (dbb);
 
@@ -79,7 +78,7 @@ int VBoxLicenseViewer::showLicenseFromFile(const QString &strLicenseFileName)
     }
     else
     {
-        msgCenter().cannotOpenLicenseFile(this, strLicenseFileName);
+        msgCenter().cannotOpenLicenseFile(strLicenseFileName, this);
         return QDialog::Rejected;
     }
 }

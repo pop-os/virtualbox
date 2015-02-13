@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/ctype.h>
+#include <iprt/string.h>
 #ifdef RT_STRICT
 # include <iprt/asm.h>
 #endif
@@ -108,8 +109,7 @@ static void rtBase64Sanity(void)
                    || (     u8 == BASE64_PAD
                        &&   i  == '=')
                    || (     u8 == BASE64_SPACE
-                       &&   (   RT_C_IS_SPACE(i)
-                             || (i == '\r'))) /* Carriage return is handled as a space character as well. */
+                       &&   RT_C_IS_SPACE(i))
                    || (     u8 < 64
                        &&   (unsigned)g_szValToChar[u8] == i));
         }
@@ -119,17 +119,7 @@ static void rtBase64Sanity(void)
 #endif /* RT_STRICT */
 
 
-/**
- * Calculates the decoded data size for a Base64 encoded string.
- *
- * @returns The length in bytes. -1 if the encoding is bad.
- *
- * @param   pszString           The Base64 encoded string.
- * @param   ppszEnd             If not NULL, this will point to the first char
- *                              following the Base64 encoded text block. If
- *                              NULL the entire string is assumed to be Base64.
- */
-RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
+RTDECL(ssize_t) RTBase64DecodedSizeEx(const char *pszString, size_t cchStringMax, char **ppszEnd)
 {
 #ifdef RT_STRICT
     rtBase64Sanity();
@@ -140,10 +130,10 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
      */
     uint32_t    c6Bits = 0;
     uint8_t     u8     = BASE64_INVALID;
-    unsigned    ch;
+    unsigned    ch     = 0;
     AssertCompile(sizeof(char) == sizeof(uint8_t));
 
-    while ((ch = *pszString))
+    while (cchStringMax > 0 && (ch = *pszString))
     {
         u8 = g_au8CharToVal[ch];
         if (u8 < 64)
@@ -153,6 +143,7 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
 
         /* advance */
         pszString++;
+        cchStringMax--;
     }
 
     /*
@@ -165,7 +156,8 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
         cbPad = 1;
         c6Bits++;
         pszString++;
-        while ((ch = *pszString))
+        cchStringMax--;
+        while (cchStringMax > 0 && (ch = *pszString))
         {
             u8 = g_au8CharToVal[ch];
             if (u8 != BASE64_SPACE)
@@ -176,6 +168,7 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
                 cbPad++;
             }
             pszString++;
+            cchStringMax--;
         }
         if (cbPad >= 3)
             return -1;
@@ -215,31 +208,18 @@ RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
         *ppszEnd = (char *)pszString;
     return cb;
 }
+RT_EXPORT_SYMBOL(RTBase64DecodedSizeEx);
+
+
+RTDECL(ssize_t) RTBase64DecodedSize(const char *pszString, char **ppszEnd)
+{
+    return RTBase64DecodedSizeEx(pszString, RTSTR_MAX, ppszEnd);
+}
 RT_EXPORT_SYMBOL(RTBase64DecodedSize);
 
 
-/**
- * Decodes a Base64 encoded string into the buffer supplied by the caller.
- *
- * @returns IPRT status code.
- * @retval  VERR_BUFFER_OVERFLOW if the buffer is too small. pcbActual will not
- *          be set, nor will ppszEnd.
- * @retval  VERR_INVALID_BASE64_ENCODING if the encoding is wrong.
- *
- * @param   pszString       The Base64 string. Whether the entire string or
- *                          just the start of the string is in Base64 depends
- *                          on whether ppszEnd is specified or not.
- * @param   pvData          Where to store the decoded data.
- * @param   cbData          The size of the output buffer that pvData points to.
- * @param   pcbActual       Where to store the actual number of bytes returned.
- *                          Optional.
- * @param   ppszEnd         Indicates that the string may contain other stuff
- *                          after the Base64 encoded data when not NULL. Will
- *                          be set to point to the first char that's not part of
- *                          the encoding. If NULL the entire string must be part
- *                          of the Base64 encoded data.
- */
-RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, size_t *pcbActual, char **ppszEnd)
+RTDECL(int) RTBase64DecodeEx(const char *pszString, size_t cchStringMax, void *pvData, size_t cbData,
+                             size_t *pcbActual, char **ppszEnd)
 {
 #ifdef RT_STRICT
     rtBase64Sanity();
@@ -250,16 +230,16 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
      */
     uint8_t     u8Trio[3] = { 0, 0, 0 }; /* shuts up gcc */
     uint8_t    *pbData    = (uint8_t *)pvData;
-    uint8_t     u8        = BASE64_INVALID;
-    unsigned    c6Bits    = 0;
     unsigned    ch;
+    uint8_t     u8;
+    unsigned    c6Bits    = 0;
     AssertCompile(sizeof(char) == sizeof(uint8_t));
 
     for (;;)
     {
         /* The first 6-bit group. */
-        while ((u8 = g_au8CharToVal[ch = *pszString]) == BASE64_SPACE)
-            pszString++;
+        while ((u8 = g_au8CharToVal[ch = cchStringMax > 0 ? (uint8_t)*pszString : 0]) == BASE64_SPACE)
+            pszString++, cchStringMax--;
         if (u8 >= 64)
         {
             c6Bits = 0;
@@ -267,10 +247,11 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
         }
         u8Trio[0] = u8 << 2;
         pszString++;
+        cchStringMax--;
 
         /* The second 6-bit group. */
-        while ((u8 = g_au8CharToVal[ch = *pszString]) == BASE64_SPACE)
-            pszString++;
+        while ((u8 = g_au8CharToVal[ch = cchStringMax > 0 ? (uint8_t)*pszString : 0]) == BASE64_SPACE)
+            pszString++, cchStringMax--;
         if (u8 >= 64)
         {
             c6Bits = 1;
@@ -279,10 +260,12 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
         u8Trio[0] |= u8 >> 4;
         u8Trio[1]  = u8 << 4;
         pszString++;
+        cchStringMax--;
 
         /* The third 6-bit group. */
-        while ((u8 = g_au8CharToVal[ch = *pszString]) == BASE64_SPACE)
-            pszString++;
+        u8 = BASE64_INVALID;
+        while ((u8 = g_au8CharToVal[ch = cchStringMax > 0 ? (uint8_t)*pszString : 0]) == BASE64_SPACE)
+            pszString++, cchStringMax--;
         if (u8 >= 64)
         {
             c6Bits = 2;
@@ -291,10 +274,12 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
         u8Trio[1] |= u8 >> 2;
         u8Trio[2]  = u8 << 6;
         pszString++;
+        cchStringMax--;
 
         /* The fourth 6-bit group. */
-        while ((u8 = g_au8CharToVal[ch = *pszString]) == BASE64_SPACE)
-            pszString++;
+        u8 = BASE64_INVALID;
+        while ((u8 = g_au8CharToVal[ch = cchStringMax > 0 ? (uint8_t)*pszString : 0]) == BASE64_SPACE)
+            pszString++, cchStringMax--;
         if (u8 >= 64)
         {
             c6Bits = 3;
@@ -302,6 +287,7 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
         }
         u8Trio[2] |= u8;
         pszString++;
+        cchStringMax--;
 
         /* flush the trio */
         if (cbData < 3)
@@ -322,7 +308,8 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
     {
         cbPad = 1;
         pszString++;
-        while ((ch = *pszString))
+        cchStringMax--;
+        while (cchStringMax > 0 && (ch = (uint8_t)*pszString))
         {
             u8 = g_au8CharToVal[ch];
             if (u8 != BASE64_SPACE)
@@ -332,6 +319,7 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
                 cbPad++;
             }
             pszString++;
+            cchStringMax--;
         }
         if (cbPad >= 3)
             return VERR_INVALID_BASE64_ENCODING;
@@ -343,7 +331,7 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
      */
     if (    u8 == BASE64_INVALID
         &&  !ppszEnd
-        &&  ch)
+        &&  ch != '\0')
         return VERR_INVALID_BASE64_ENCODING;
 
     /*
@@ -398,6 +386,13 @@ RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, s
     if (pcbActual)
         *pcbActual = pbData - (uint8_t *)pvData;
     return VINF_SUCCESS;
+}
+RT_EXPORT_SYMBOL(RTBase64DecodeEx);
+
+
+RTDECL(int) RTBase64Decode(const char *pszString, void *pvData, size_t cbData, size_t *pcbActual, char **ppszEnd)
+{
+    return RTBase64DecodeEx(pszString, RTSTR_MAX, pvData, cbData, pcbActual, ppszEnd);
 }
 RT_EXPORT_SYMBOL(RTBase64Decode);
 

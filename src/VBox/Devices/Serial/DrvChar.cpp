@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -304,11 +304,12 @@ static DECLCALLBACK(void) drvCharDestruct(PPDMDRVINS pDrvIns)
     if (pThis->SendSem != NIL_RTSEMEVENT)
     {
         RTSemEventSignal(pThis->SendSem);
+        pThis->SendSem = NIL_RTSEMEVENT;
     }
 
     /*
      * Wait for the threads.
-     * ASSUMES that PDM destroys the driver chain from the the bottom and up.
+     * ASSUMES that PDM destroys the driver chain from the bottom and up.
      */
     if (pThis->ReceiveThread != NIL_RTTHREAD)
     {

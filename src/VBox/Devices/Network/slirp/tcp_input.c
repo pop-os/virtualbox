@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,11 +65,13 @@
 #include "ip_icmp.h"
 
 
-#define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
+#if 0 /* code using this macroses is commented out */
+# define TCP_PAWS_IDLE   (24 * 24 * 60 * 60 * PR_SLOWHZ)
 
 /* for modulo comparisons of timestamps */
-#define TSTMP_LT(a, b)   ((int)((a)-(b)) < 0)
-#define TSTMP_GEQ(a, b)  ((int)((a)-(b)) >= 0)
+# define TSTMP_LT(a, b)   ((int)((a)-(b)) < 0)
+# define TSTMP_GEQ(a, b)  ((int)((a)-(b)) >= 0)
+#endif
 
 #ifndef TCP_ACK_HACK
 #define DELAY_ACK(tp, ti)                           \
@@ -287,7 +289,7 @@ present:
 void
 tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *inso)
 {
-    struct ip save_ip, *ip;
+    struct ip *ip, *save_ip;
     register struct tcpiphdr *ti;
     caddr_t optp = NULL;
     int optlen = 0;
@@ -300,10 +302,13 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
     int iss = 0;
     u_long tiwin;
 /*  int ts_present = 0; */
+    size_t ohdrlen;
+    uint8_t ohdr[60 + 8]; /* max IP header plus 8 bytes of payload for icmp */
+
     STAM_PROFILE_START(&pData->StatTCP_input, counter_input);
 
-    LogFlow(("tcp_input: m = %8lx, iphlen = %2d, inso = %lx\n",
-             (long)m, iphlen, (long)inso));
+    LogFlow(("tcp_input: m = %8lx, iphlen = %2d, inso = %R[natsock]\n",
+             (long)m, iphlen, inso));
 
     if (inso != NULL)
     {
@@ -321,8 +326,14 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
         /* Re-set a few variables */
         tp = sototcpcb(so);
         m = so->so_m;
-
         so->so_m = 0;
+
+        if (RT_LIKELY(so->so_ohdr != NULL))
+        {
+            RTMemFree(so->so_ohdr);
+            so->so_ohdr = NULL;
+        }
+
         ti = so->so_ti;
 
         /** @todo (vvl) clarify why it might happens */
@@ -344,6 +355,32 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
     }
 
     tcpstat.tcps_rcvtotal++;
+
+    ip = mtod(m, struct ip *);
+
+    /* ip_input() subtracts iphlen from ip::ip_len */
+    AssertStmt((ip->ip_len + iphlen == m_length(m, NULL)), goto drop);
+    if (RT_UNLIKELY(ip->ip_len < sizeof(struct tcphdr)))
+    {
+        /* tcps_rcvshort++; */
+        goto drop;
+    }
+
+    /*
+     * Save a copy of the IP header in case we want to restore it for
+     * sending an ICMP error message in response.
+     *
+     * XXX: This function should really be fixed to not strip IP
+     * options, to not overwrite IP header and to use "tlen" local
+     * variable (instead of ti->ti_len), then "m" could be passed to
+     * icmp_error() directly.
+     */
+    ohdrlen = iphlen + 8;
+    m_copydata(m, 0, ohdrlen, (caddr_t)ohdr);
+    save_ip = (struct ip *)ohdr;
+    save_ip->ip_len += iphlen;  /* undo change by ip_input() */
+
+
     /*
      * Get IP and TCP header together in first mbuf.
      * Note: IP leaves IP header in first mbuf.
@@ -354,21 +391,6 @@ tcp_input(PNATState pData, register struct mbuf *m, int iphlen, struct socket *i
         ip_stripoptions(m, (struct mbuf *)0);
         iphlen = sizeof(struct ip);
     }
-    /* XXX Check if too short */
-
-
-    /*
-     * Save a copy of the IP header in case we want restore it
-     * for sending an ICMP error message in response.
-     */
-    ip = mtod(m, struct ip *);
-    /*
-     * (vvl) ip_input substracts IP header length from ip->ip_len value.
-     * here we do the test the same as input method of UDP protocol.
-     */
-    Assert((ip->ip_len + iphlen == m_length(m, NULL)));
-    save_ip = *ip;
-    save_ip.ip_len+= iphlen;
 
     /*
      * Checksum extended TCP header and data.
@@ -457,32 +479,10 @@ findso:
         || so->so_laddr.s_addr != ti->ti_src.s_addr
         || so->so_faddr.s_addr != ti->ti_dst.s_addr)
     {
-#ifdef VBOX_WITH_SLIRP_MT
-        struct socket *sonxt;
-#endif
         QSOCKET_UNLOCK(tcb);
         /* @todo fix SOLOOKUP macrodefinition to be usable here */
-#ifndef VBOX_WITH_SLIRP_MT
         so = solookup(&tcb, ti->ti_src, ti->ti_sport,
                       ti->ti_dst, ti->ti_dport);
-#else
-        so = NULL;
-        QSOCKET_FOREACH(so, sonxt, tcp)
-        /* { */
-            if (   so->so_lport        == ti->ti_sport
-                && so->so_laddr.s_addr == ti->ti_src.s_addr
-                && so->so_faddr.s_addr == ti->ti_dst.s_addr
-                && so->so_fport        == ti->ti_dport
-                && so->so_deleted != 1)
-            {
-                break; /* so is locked here */
-            }
-        LOOP_LABEL(tcp, so, sonxt);
-        }
-        if (so == &tcb) {
-            so = NULL;
-        }
-#endif
         if (so)
         {
             tcp_last_so = so;
@@ -821,7 +821,7 @@ findso:
                     HTONS(ti->ti_urp);
                     m->m_data -= sizeof(struct tcpiphdr)+off-sizeof(struct tcphdr);
                     m->m_len  += sizeof(struct tcpiphdr)+off-sizeof(struct tcphdr);
-                    *ip = save_ip;
+                    *ip = *save_ip;
                     icmp_error(pData, m, ICMP_UNREACH, code, 0, strerror(errno));
                     tp->t_socket->so_m = NULL;
                 }
@@ -837,6 +837,7 @@ findso:
                  */
                 so->so_m = m;
                 so->so_ti = ti;
+                so->so_ohdr = RTMemDup(ohdr, ohdrlen);
                 tp->t_timer[TCPT_KEEP] = TCPTV_KEEP_INIT;
                 TCP_STATE_SWITCH_TO(tp, TCPS_SYN_RECEIVED);
             }
@@ -856,8 +857,7 @@ cont_conn:
                 LogFlowFunc(("%d -> dropwithreset\n", __LINE__));
                 goto dropwithreset;
             }
-cont_input:
-            LogFlowFunc(("cont_input:\n"));
+
             tcp_template(tp);
 
             if (optp)
@@ -1215,6 +1215,7 @@ close:
          * send an RST.  una<=ack<=max
          */
         case TCPS_SYN_RECEIVED:
+            LogFlowFunc(("%d -> TCPS_SYN_RECEIVED\n", __LINE__));
             if (   SEQ_GT(tp->snd_una, ti->ti_ack)
                 || SEQ_GT(ti->ti_ack, tp->snd_max))
                 goto dropwithreset;
@@ -1261,6 +1262,8 @@ close:
         case TCPS_CLOSING:
         case TCPS_LAST_ACK:
         case TCPS_TIME_WAIT:
+            LogFlowFunc(("%d -> TCPS_ESTABLISHED|TCPS_FIN_WAIT_1|TCPS_FIN_WAIT_2|TCPS_CLOSE_WAIT|"
+                         "TCPS_CLOSING|TCPS_LAST_ACK|TCPS_TIME_WAIT\n", __LINE__));
             if (SEQ_LEQ(ti->ti_ack, tp->snd_una))
             {
                 if (ti->ti_len == 0 && tiwin == tp->snd_wnd)
@@ -1614,7 +1617,7 @@ dodata:
         else
         {
             tiflags = tcp_reass(pData, tp, &ti->ti_t, &tlen, m);
-            tiflags |= TF_ACKNOW;
+            tp->t_flags |= TF_ACKNOW;
         }
         /*
          * Note the amount of data that peer has sent into
@@ -1759,6 +1762,67 @@ drop:
     LogFlowFuncLeave();
     return;
 }
+
+
+void
+tcp_fconnect_failed(PNATState pData, struct socket *so, int sockerr)
+{
+    struct tcpcb *tp;
+    int code;
+
+    Log2(("NAT: connect error %d %R[natsock]\n", sockerr, so));
+
+    Assert(so->so_state & SS_ISFCONNECTING);
+    so->so_state = SS_NOFDREF;
+
+    if (sockerr == ECONNREFUSED || sockerr == ECONNRESET)
+    {
+        /* hand off to tcp_input():cont_conn to send RST */
+        TCP_INPUT(pData, NULL, 0, so);
+        return;
+    }
+
+    tp = sototcpcb(so);
+    if (RT_UNLIKELY(tp == NULL)) /* should never happen */
+    {
+        LogRel(("NAT: tp == NULL %R[natsock]\n", so));
+        sofree(pData, so);
+        return;
+    }
+
+    if (sockerr == ENETUNREACH || sockerr == ENETDOWN)
+        code = ICMP_UNREACH_NET;
+    else if (sockerr == EHOSTUNREACH || sockerr == EHOSTDOWN)
+        code = ICMP_UNREACH_HOST;
+    else
+        code = -1;
+
+    if (code >= 0)
+    {
+        struct ip *oip;
+        size_t ohdrlen;
+        struct mbuf *m;
+
+        if (RT_UNLIKELY(so->so_ohdr == NULL))
+            goto out;
+
+        oip = (struct ip *)so->so_ohdr;
+        ohdrlen = oip->ip_hl * 4 + 8;
+
+        m = m_gethdr(pData, M_NOWAIT, MT_HEADER);
+        if (RT_UNLIKELY(m == NULL))
+            goto out;
+
+        m_copyback(pData, m, 0, ohdrlen, (caddr_t)so->so_ohdr);
+        m->m_pkthdr.header = mtod(m, void *);
+
+        icmp_error(pData, m, ICMP_UNREACH, code, 0, NULL);
+    }
+
+  out:
+    tcp_close(pData, tp);
+}
+
 
 void
 tcp_dooptions(PNATState pData, struct tcpcb *tp, u_char *cp, int cnt, struct tcpiphdr *ti)

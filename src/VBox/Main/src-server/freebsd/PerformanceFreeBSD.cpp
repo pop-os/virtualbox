@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,7 @@ CollectorHAL *createHAL()
 
 int CollectorFreeBSD::getHostCpuLoad(ULONG *user, ULONG *kernel, ULONG *idle)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorFreeBSD::getHostCpuMHz(ULONG *mhz)
@@ -101,12 +101,17 @@ int CollectorFreeBSD::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *avail
 
 int CollectorFreeBSD::getProcessCpuLoad(RTPROCESS process, ULONG *user, ULONG *kernel)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
 }
 
 int CollectorFreeBSD::getProcessMemoryUsage(RTPROCESS process, ULONG *used)
 {
-    return E_NOTIMPL;
+    return VERR_NOT_IMPLEMENTED;
+}
+
+int getDiskListByFs(const char *name, DiskList& list)
+{
+    return VERR_NOT_IMPLEMENTED;
 }
 
 } /* namespace pm */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,9 +56,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #ifdef DEBUG
-# define Assert(_expr) assert(_expr)
+# define NonStandardAssert(_expr) assert(_expr)
 #else
-# define Assert(_expr) do{ }while(0)
+# define NonStandardAssert(_expr) do{ }while(0)
 #endif
 
 #define MY_WTEXT_HLP(a_str) L##a_str
@@ -255,9 +255,8 @@ UINT __stdcall InstallPythonAPI(MSIHANDLE hModule)
         VBoxGetProperty(hModule, L"CustomActionData", wszPathTargetDir, sizeof(wszPathTargetDir));
         if (wcslen(wszPathTargetDir))
         {
-
             /* Set final path. */
-            swprintf_s(wszPath, RT_ELEMENTS(wszPath), L"%s\\sdk\\install", wszPathTargetDir);
+            swprintf_s(wszPath, RT_ELEMENTS(wszPath), L"%s", wszPathTargetDir);
 
             /* Install our API module. */
             swprintf_s(wszCmdLine, RT_ELEMENTS(wszCmdLine), L"%s\\python.exe vboxapisetup.py install", wszVal);
@@ -288,7 +287,7 @@ UINT __stdcall InstallPythonAPI(MSIHANDLE hModule)
             logStringW(hModule, L"InstallPythonAPI: Unable to retrieve VBox installation path!");
     }
 
-    VBoxSetProperty(hModule, L"PYTHON_INSTALLED", bInstalled ? L"1" : L"0");
+    VBoxSetProperty(hModule, L"VBOX_PYTHON_IS_INSTALLED", bInstalled ? L"1" : L"0");
 
     if (!bInstalled)
         logStringW(hModule, L"InstallPythonAPI: VBox API not installed.");
@@ -492,12 +491,28 @@ UINT __stdcall InstallBranding(MSIHANDLE hModule)
 /** @todo should use some real VBox app name */
 #define VBOX_NETCFG_APP_NAME L"VirtualBox Installer"
 #define VBOX_NETCFG_MAX_RETRIES 10
-#define NETFLT_PT_INF_REL_PATH L"drivers\\network\\netflt\\VBoxNetFlt.inf"
-#define NETFLT_MP_INF_REL_PATH L"drivers\\network\\netflt\\VBoxNetFltM.inf"
+#define NETFLT_PT_INF_REL_PATH L"VBoxNetFlt.inf"
+#define NETFLT_MP_INF_REL_PATH L"VBoxNetFltM.inf"
 #define NETFLT_ID  L"sun_VBoxNetFlt" /** @todo Needs to be changed (?). */
 #define NETADP_ID  L"sun_VBoxNetAdp" /** @todo Needs to be changed (?). */
 
 static MSIHANDLE g_hCurrentModule = NULL;
+
+static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char * msg, void * pvContext)
+{
+    switch (enmSeverity)
+    {
+        case VBOXDRVCFG_LOG_SEVERITY_FLOW:
+        case VBOXDRVCFG_LOG_SEVERITY_REGULAR:
+            break;
+        case VBOXDRVCFG_LOG_SEVERITY_REL:
+            if (g_hCurrentModule)
+                logString(g_hCurrentModule, (LPCSTR)msg);
+            break;
+        default:
+            break;
+    }
+}
 
 static VOID netCfgLoggerCallback(LPCSTR szString)
 {
@@ -516,7 +531,7 @@ static VOID netCfgLoggerDisable()
 
 static VOID netCfgLoggerEnable(MSIHANDLE hModule)
 {
-    Assert(hModule);
+    NonStandardAssert(hModule);
 
     if (g_hCurrentModule)
         netCfgLoggerDisable();
@@ -524,6 +539,8 @@ static VOID netCfgLoggerEnable(MSIHANDLE hModule)
     g_hCurrentModule = hModule;
 
     VBoxNetCfgWinSetLogging((LOG_ROUTINE)netCfgLoggerCallback);
+    /* uncomment next line if you want to add logging information from VBoxDrvCfg.cpp */
+    VBoxDrvCfgLoggerSet(vboxDrvLoggerCallback, NULL);
 }
 
 static UINT errorConvertFromHResult(MSIHANDLE hModule, HRESULT hr)
@@ -537,7 +554,7 @@ static UINT errorConvertFromHResult(MSIHANDLE hModule, HRESULT hr)
 
         case NETCFG_S_REBOOT:
         {
-            logStringW(hModule, L"Reboot required, setting REBOOT property to Force");
+            logStringW(hModule, L"Reboot required, setting REBOOT property to \"force\"");
             HRESULT hr2 = MsiSetPropertyW(hModule, L"REBOOT", L"Force");
             if (hr2 != ERROR_SUCCESS)
                 logStringW(hModule, L"Failed to set REBOOT property, error = 0x%x", hr2);
@@ -625,7 +642,7 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
             }
 
             UINT rTmp = MsiRecordSetStringW(hMsg, 2, lpszLockedBy);
-            Assert(rTmp == ERROR_SUCCESS);
+            NonStandardAssert(rTmp == ERROR_SUCCESS);
             if (rTmp != ERROR_SUCCESS)
             {
                 logStringW(hModule, L"doNetCfgInit: MsiRecordSetStringW failed, error = 0x%x", rTmp);
@@ -634,7 +651,7 @@ static UINT doNetCfgInit(MSIHANDLE hModule, INetCfg **ppnc, BOOL bWrite)
             }
 
             MsgResult = MsiProcessMessage(hModule, (INSTALLMESSAGE)(INSTALLMESSAGE_USER | MB_RETRYCANCEL), hMsg);
-            Assert(MsgResult == IDRETRY || MsgResult == IDCANCEL);
+            NonStandardAssert(MsgResult == IDRETRY || MsgResult == IDCANCEL);
             logStringW(hModule, L"doNetCfgInit: MsiProcessMessage returned (0x%x)", MsgResult);
         }
         CoTaskMemFree(lpszLockedBy);
@@ -700,9 +717,6 @@ UINT __stdcall UninstallNetFlt(MSIHANDLE hModule)
             VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
 
             logStringW(hModule, L"Uninstalling NetFlt done, error = 0x%x", uErr);
-
-            /* Never fail on uninstall. */
-            uErr = ERROR_SUCCESS;
         }
         else
             logStringW(hModule, L"UninstallNetFlt: doNetCfgInit failed, error = 0x%x", uErr);
@@ -735,7 +749,7 @@ UINT __stdcall InstallNetFlt(MSIHANDLE hModule)
     __try
     {
 
-        logStringW(hModule, L"Installing NetFlt");
+        logStringW(hModule, L"InstallNetFlt: Installing NetFlt");
 
         uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
         if (uErr == ERROR_SUCCESS)
@@ -757,7 +771,7 @@ UINT __stdcall InstallNetFlt(MSIHANDLE hModule)
 
             VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
 
-            logStringW(hModule, L"Installing NetFlt done");
+            logStringW(hModule, L"InstallNetFlt: Done");
         }
         else
             logStringW(hModule, L"InstallNetFlt: doNetCfgInit failed, error = 0x%x", uErr);
@@ -797,7 +811,7 @@ static BOOL RenameHostOnlyConnectionsCallback(HDEVINFO hDevInfo, PSP_DEVINFO_DAT
                 DIREG_DRV, /* IN DWORD  KeyType, */
                 KEY_READ /*IN REGSAM  samDesired*/
                 );
-        Assert(hKey != INVALID_HANDLE_VALUE);
+        NonStandardAssert(hKey != INVALID_HANDLE_VALUE);
         if (hKey != INVALID_HANDLE_VALUE)
         {
             WCHAR guid[50];
@@ -809,18 +823,18 @@ static BOOL RenameHostOnlyConnectionsCallback(HDEVINFO hDevInfo, PSP_DEVINFO_DAT
               (LPBYTE)guid, /*__out_opt    LPBYTE lpData,*/
               &cbGuid /*guid__inout_opt  LPDWORD lpcbData*/
             );
-            Assert(winEr == ERROR_SUCCESS);
+            NonStandardAssert(winEr == ERROR_SUCCESS);
             if (winEr == ERROR_SUCCESS)
             {
                 WCHAR ConnectoinName[128];
                 ULONG cbName = sizeof(ConnectoinName);
 
                 HRESULT hr = VBoxNetCfgWinGenHostonlyConnectionName (DevName, ConnectoinName, &cbName);
-                Assert(hr == S_OK);
+                NonStandardAssert(hr == S_OK);
                 if (SUCCEEDED(hr))
                 {
                     hr = VBoxNetCfgWinRenameConnection(guid, ConnectoinName);
-                    Assert(hr == S_OK);
+                    NonStandardAssert(hr == S_OK);
                 }
             }
         }
@@ -828,7 +842,7 @@ static BOOL RenameHostOnlyConnectionsCallback(HDEVINFO hDevInfo, PSP_DEVINFO_DAT
     }
     else
     {
-        Assert(0);
+        NonStandardAssert(0);
     }
 
     return TRUE;
@@ -843,18 +857,13 @@ UINT __stdcall CreateHostOnlyInterface(MSIHANDLE hModule)
     BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
     bool bSetStaticIp = true;
 
-    logStringW(hModule, L"Creating host-only interface");
+    logStringW(hModule, L"CreateHostOnlyInterface: Creating host-only interface");
 
-    HRESULT hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(NETADP_ID);
-    if (FAILED(hr))
-    {
-        logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinRemoveAllNetDevicesOfId failed, error = 0x%x", hr);
-        bSetStaticIp = false;
-    }
+    HRESULT hr;
 
     GUID guid;
     WCHAR wszMpInf[MAX_PATH];
-    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - sizeof("drivers\\network\\netadp\\VBoxNetAdp.inf") - 1;
+    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - sizeof("VBoxNetAdp.inf") - 1;
     LPCWSTR pwszInfPath = NULL;
     bool bIsFile = false;
     UINT uErr = MsiGetPropertyW(hModule, L"CustomActionData", wszMpInf, &cchMpInf);
@@ -869,52 +878,71 @@ UINT __stdcall CreateHostOnlyInterface(MSIHANDLE hModule)
                 wszMpInf[cchMpInf]   = L'\0';
             }
 
-            wcscat(wszMpInf, L"drivers\\network\\netadp\\VBoxNetAdp.inf");
+            wcscat(wszMpInf, L"VBoxNetAdp.inf");
             pwszInfPath = wszMpInf;
             bIsFile = true;
 
             logStringW(hModule, L"CreateHostOnlyInterface: Resulting INF path = %s", pwszInfPath);
         }
         else
-            logStringW(hModule, L"CreateHostOnlyInterface: NetAdpDir property value is empty");
+            logStringW(hModule, L"CreateHostOnlyInterface: VBox installation path is empty");
     }
     else
-        logStringW(hModule, L"CreateHostOnlyInterface: Failed to get NetAdpDir property, error = 0x%x", uErr);
+        logStringW(hModule, L"CreateHostOnlyInterface: Unable to retrieve VBox installation path, error = 0x%x", uErr);
 
     /* Make sure the inf file is installed. */
     if (pwszInfPath != NULL && bIsFile)
     {
-logStringW(hModule, L"CreateHostOnlyInterface: Calling VBoxDrvCfgInfInstall(%s)", pwszInfPath);
+        logStringW(hModule, L"CreateHostOnlyInterface: Calling VBoxDrvCfgInfInstall(%s)", pwszInfPath);
         hr = VBoxDrvCfgInfInstall(pwszInfPath);
-logStringW(hModule, L"CreateHostOnlyInterface: VBoxDrvCfgInfInstall returns 0x%x", hr);
+        logStringW(hModule, L"CreateHostOnlyInterface: VBoxDrvCfgInfInstall returns 0x%x", hr);
         if (FAILED(hr))
             logStringW(hModule, L"CreateHostOnlyInterface: Failed to install INF file, error = 0x%x", hr);
     }
 
     if (SUCCEEDED(hr))
     {
-logStringW(hModule, L"CreateHostOnlyInterface: calling VBoxNetCfgWinCreateHostOnlyNetworkInterface");
-        hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, bIsFile, &guid, NULL, NULL);
-logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinCreateHostOnlyNetworkInterface returns 0x%x", hr);
+    //first, try to update Host Only Network Interface
+        BOOL fRebootRequired = FALSE;
+        hr = VBoxNetCfgWinUpdateHostOnlyNetworkInterface(pwszInfPath, &fRebootRequired);
         if (SUCCEEDED(hr))
         {
-            ULONG ip = inet_addr("192.168.56.1");
-            ULONG mask = inet_addr("255.255.255.0");
-logStringW(hModule, L"CreateHostOnlyInterface: calling VBoxNetCfgWinEnableStaticIpConfig");
-            hr = VBoxNetCfgWinEnableStaticIpConfig(&guid, ip, mask);
-logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinEnableStaticIpConfig returns 0x%x", hr);
-            if (FAILED(hr))
-                logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinEnableStaticIpConfig failed, error = 0x%x", hr);
+            if (fRebootRequired)
+            {
+                logStringW(hModule, L"UpdateHostOnlyInterfaces: Reboot required, setting REBOOT property to force");
+                HRESULT hr2 = MsiSetPropertyW(hModule, L"REBOOT", L"Force");
+                if (hr2 != ERROR_SUCCESS)
+                    logStringW(hModule, L"UpdateHostOnlyInterfaces: Failed to set REBOOT property, error = 0x%x", hr2);
+            }
         }
         else
-            logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinCreateHostOnlyNetworkInterface failed, error = 0x%x", hr);
+            logStringW(hModule, L"UpdateHostOnlyInterfaces: VBoxNetCfgWinUpdateHostOnlyNetworkInterface failed, hr = 0x%x", hr);
+    //in fail case call CreateHostOnlyInterface
+        if (FAILED(hr))
+        {
+            logStringW(hModule, L"CreateHostOnlyInterface: calling VBoxNetCfgWinCreateHostOnlyNetworkInterface");
+            hr = VBoxNetCfgWinCreateHostOnlyNetworkInterface(pwszInfPath, bIsFile, &guid, NULL, NULL);
+            logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinCreateHostOnlyNetworkInterface returns 0x%x", hr);
+            if (SUCCEEDED(hr))
+            {
+                ULONG ip = inet_addr("192.168.56.1");
+                ULONG mask = inet_addr("255.255.255.0");
+                logStringW(hModule, L"CreateHostOnlyInterface: calling VBoxNetCfgWinEnableStaticIpConfig");
+                hr = VBoxNetCfgWinEnableStaticIpConfig(&guid, ip, mask);
+                logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinEnableStaticIpConfig returns 0x%x", hr);
+                if (FAILED(hr))
+                    logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinEnableStaticIpConfig failed, error = 0x%x", hr);
+            }
+            else
+                logStringW(hModule, L"CreateHostOnlyInterface: VBoxNetCfgWinCreateHostOnlyNetworkInterface failed, error = 0x%x", hr);
+        }
     }
 
     if (SUCCEEDED(hr))
-        logStringW(hModule, L"Creating host-only interface done");
+        logStringW(hModule, L"CreateHostOnlyInterface: Creating host-only interface done");
 
     /* Restore original setup mode. */
-logStringW(hModule, L"CreateHostOnlyInterface: almost done...");
+    logStringW(hModule, L"CreateHostOnlyInterface: Almost done...");
     if (bSetupModeInteractive)
         SetupSetNonInteractiveMode(bSetupModeInteractive);
 
@@ -922,7 +950,7 @@ logStringW(hModule, L"CreateHostOnlyInterface: almost done...");
 
 #endif /* VBOX_WITH_NETFLT */
 
-logStringW(hModule, L"CreateHostOnlyInterface: returns success (ignoring all failures)");
+    logStringW(hModule, L"CreateHostOnlyInterface: Returns success (ignoring all failures)");
     /* Never fail the install even if we did not succeed. */
     return ERROR_SUCCESS;
 }
@@ -932,27 +960,176 @@ UINT __stdcall RemoveHostOnlyInterfaces(MSIHANDLE hModule)
 #ifdef VBOX_WITH_NETFLT
     netCfgLoggerEnable(hModule);
 
-    logStringW(hModule, L"RemoveHostOnlyInterfaces: Removing All Host-Only Interface");
+    logStringW(hModule, L"RemoveHostOnlyInterfaces: Removing all host-only interfaces");
 
     BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
 
     HRESULT hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(NETADP_ID);
     if (SUCCEEDED(hr))
     {
-        hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, NETADP_ID, L"Net", 0/* could be SUOI_FORCEDELETE */);
+        hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, L"Net", NETADP_ID, SUOI_FORCEDELETE/* could be SUOI_FORCEDELETE */);
         if (FAILED(hr))
         {
-            logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstalled successfully, but failed to remove infs\n");
+            logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstalled successfully, but failed to remove INF files");
         }
+        else
+            logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstalled successfully");
     }
     else
-        logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstall failed, hr = 0x%x\n", hr);
+        logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstall failed, hr = 0x%x", hr);
 
     /* Restore original setup mode. */
     if (bSetupModeInteractive)
         SetupSetNonInteractiveMode(bSetupModeInteractive);
 
     netCfgLoggerDisable();
+#endif /* VBOX_WITH_NETFLT */
+
+    /* Never fail the install even if we did not succeed. */
+    return ERROR_SUCCESS;
+}
+
+UINT __stdcall StopHostOnlyInterfaces(MSIHANDLE hModule)
+{
+#ifdef VBOX_WITH_NETFLT
+    netCfgLoggerEnable(hModule);
+
+    logStringW(hModule, L"StopHostOnlyInterfaces: Stopping all host-only interfaces");
+
+    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
+
+    HRESULT hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(NETADP_ID, VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE);
+    if (SUCCEEDED(hr))
+        logStringW(hModule, L"StopHostOnlyInterfaces: Disabling host interfaces was successful, hr = 0x%x", hr);
+    else
+        logStringW(hModule, L"StopHostOnlyInterfaces: Disabling host interfaces failed, hr = 0x%x", hr);
+
+    /* Restore original setup mode. */
+    if (bSetupModeInteractive)
+        SetupSetNonInteractiveMode(bSetupModeInteractive);
+
+    netCfgLoggerDisable();
+#endif /* VBOX_WITH_NETFLT */
+
+    /* Never fail the install even if we did not succeed. */
+    return ERROR_SUCCESS;
+}
+
+UINT __stdcall UpdateHostOnlyInterfaces(MSIHANDLE hModule)
+{
+#ifdef VBOX_WITH_NETFLT
+    netCfgLoggerEnable(hModule);
+
+    logStringW(hModule, L"UpdateHostOnlyInterfaces: Updating all host-only interfaces");
+
+    BOOL bSetupModeInteractive = SetupSetNonInteractiveMode(FALSE);
+
+    WCHAR wszMpInf[MAX_PATH];
+    DWORD cchMpInf = RT_ELEMENTS(wszMpInf) - sizeof("VBoxNetAdp.inf") - 1;
+    LPCWSTR pwszInfPath = NULL;
+    bool bIsFile = false;
+    UINT uErr = MsiGetPropertyW(hModule, L"CustomActionData", wszMpInf, &cchMpInf);
+    if (uErr == ERROR_SUCCESS)
+    {
+        if (cchMpInf)
+        {
+            logStringW(hModule, L"UpdateHostOnlyInterfaces: NetAdpDir property = %s", wszMpInf);
+            if (wszMpInf[cchMpInf - 1] != L'\\')
+            {
+                wszMpInf[cchMpInf++] = L'\\';
+                wszMpInf[cchMpInf]   = L'\0';
+            }
+
+            wcscat(wszMpInf, L"VBoxNetAdp.inf");
+            pwszInfPath = wszMpInf;
+            bIsFile = true;
+
+            logStringW(hModule, L"UpdateHostOnlyInterfaces: Resulting INF path = %s", pwszInfPath);
+
+            DWORD attrFile = GetFileAttributesW(pwszInfPath);
+            if (attrFile == INVALID_FILE_ATTRIBUTES)
+            {
+                DWORD dwErr = GetLastError();
+                logStringW(hModule, L"UpdateHostOnlyInterfaces: File \"%s\" not found, dwErr=%ld",
+                           pwszInfPath, dwErr);
+            }
+            else
+            {
+                logStringW(hModule, L"UpdateHostOnlyInterfaces: File \"%s\" exists",
+                           pwszInfPath);
+
+                BOOL fRebootRequired = FALSE;
+                HRESULT hr = VBoxNetCfgWinUpdateHostOnlyNetworkInterface(pwszInfPath, &fRebootRequired);
+                if (SUCCEEDED(hr))
+                {
+                    if (fRebootRequired)
+                    {
+                        logStringW(hModule, L"UpdateHostOnlyInterfaces: Reboot required, setting REBOOT property to force");
+                        HRESULT hr2 = MsiSetPropertyW(hModule, L"REBOOT", L"Force");
+                        if (hr2 != ERROR_SUCCESS)
+                            logStringW(hModule, L"UpdateHostOnlyInterfaces: Failed to set REBOOT property, error = 0x%x", hr2);
+                    }
+                }
+                else
+                    logStringW(hModule, L"UpdateHostOnlyInterfaces: VBoxNetCfgWinUpdateHostOnlyNetworkInterface failed, hr = 0x%x", hr);
+            }
+        }
+        else
+            logStringW(hModule, L"UpdateHostOnlyInterfaces: VBox installation path is empty");
+    }
+    else
+        logStringW(hModule, L"UpdateHostOnlyInterfaces: Unable to retrieve VBox installation path, error = 0x%x", uErr);
+
+    /* Restore original setup mode. */
+    if (bSetupModeInteractive)
+        SetupSetNonInteractiveMode(bSetupModeInteractive);
+
+    netCfgLoggerDisable();
+#endif /* VBOX_WITH_NETFLT */
+
+    /* Never fail the install even if we did not succeed. */
+    return ERROR_SUCCESS;
+}
+
+UINT __stdcall UninstallNetAdp(MSIHANDLE hModule)
+{
+#ifdef VBOX_WITH_NETFLT
+    INetCfg *pNetCfg;
+    UINT uErr;
+
+    netCfgLoggerEnable(hModule);
+
+    BOOL bOldIntMode = SetupSetNonInteractiveMode(FALSE);
+
+    __try
+    {
+        logStringW(hModule, L"Uninstalling NetAdp");
+
+        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
+        if (uErr == ERROR_SUCCESS)
+        {
+            HRESULT hr = VBoxNetCfgWinNetAdpUninstall(pNetCfg);
+            if (hr != S_OK)
+                logStringW(hModule, L"UninstallNetAdp: VBoxNetCfgWinUninstallComponent failed, error = 0x%x", hr);
+
+            uErr = errorConvertFromHResult(hModule, hr);
+
+            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
+
+            logStringW(hModule, L"Uninstalling NetAdp done, error = 0x%x", uErr);
+        }
+        else
+            logStringW(hModule, L"UninstallNetAdp: doNetCfgInit failed, error = 0x%x", uErr);
+    }
+    __finally
+    {
+        if (bOldIntMode)
+        {
+            /* The prev mode != FALSE, i.e. non-interactive. */
+            SetupSetNonInteractiveMode(bOldIntMode);
+        }
+        netCfgLoggerDisable();
+    }
 #endif /* VBOX_WITH_NETFLT */
 
     /* Never fail the install even if we did not succeed. */

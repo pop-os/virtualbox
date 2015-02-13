@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,14 @@
 #include <iprt/string.h>
 #include "compiler.h"
 
+/* ShadowFB support */
+#include "shadowfb.h"
+
 #include "vboxvideo.h"
+
+#ifdef XORG_7X
+# include <stdlib.h>
+#endif
 
 /**************************************************************************
 * Main functions                                                          *
@@ -52,23 +59,24 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
     unsigned j;
 
     pVBox = pScrn->driverPrivate;
-    if (pVBox->fHaveHGSMI == FALSE || pVBox->vtSwitch)
+    if (!pScrn->vtSema)
         return;
 
-    for (i = 0; i < iRects; ++i)
-        for (j = 0; j < pVBox->cScreens; ++j)
+    for (j = 0; j < pVBox->cScreens; ++j)
+    {
+        /* Just continue quietly if VBVA is not currently active. */
+        struct VBVABUFFER *pVBVA = pVBox->pScreens[j].aVbvaCtx.pVBVA;
+        if (   !pVBVA
+            || !(pVBVA->hostFlags.u32HostEvents & VBVA_F_MODE_ENABLED))
+            continue;
+        for (i = 0; i < iRects; ++i)
         {
-            /* Just continue quietly if VBVA is not currently active. */
-            struct VBVABUFFER *pVBVA = pVBox->aVbvaCtx[j].pVBVA;
-            if (   !pVBVA
-                || !(pVBVA->hostFlags.u32HostEvents & VBVA_F_MODE_ENABLED))
-                continue;
-            if (   aRects[i].x1 >   pVBox->aScreenLocation[j].x
-                                  + pVBox->aScreenLocation[j].cx
-                || aRects[i].y1 >   pVBox->aScreenLocation[j].y
-                                  + pVBox->aScreenLocation[j].cy
-                || aRects[i].x2 <   pVBox->aScreenLocation[j].x
-                || aRects[i].y2 <   pVBox->aScreenLocation[j].y)
+            if (   aRects[i].x1 >   pVBox->pScreens[j].aScreenLocation.x
+                                  + pVBox->pScreens[j].aScreenLocation.cx
+                || aRects[i].y1 >   pVBox->pScreens[j].aScreenLocation.y
+                                  + pVBox->pScreens[j].aScreenLocation.cy
+                || aRects[i].x2 <   pVBox->pScreens[j].aScreenLocation.x
+                || aRects[i].y2 <   pVBox->pScreens[j].aScreenLocation.y)
                 continue;
             cmdHdr.x = (int16_t)aRects[i].x1;
             cmdHdr.y = (int16_t)aRects[i].y1;
@@ -80,14 +88,15 @@ vboxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
                       j, cmdHdr.x, cmdHdr.y, cmdHdr.w, cmdHdr.h);
 #endif
 
-            if (VBoxVBVABufferBeginUpdate(&pVBox->aVbvaCtx[j],
+            if (VBoxVBVABufferBeginUpdate(&pVBox->pScreens[j].aVbvaCtx,
                                           &pVBox->guestCtx))
             {
-                VBoxVBVAWrite(&pVBox->aVbvaCtx[j], &pVBox->guestCtx, &cmdHdr,
+                VBoxVBVAWrite(&pVBox->pScreens[j].aVbvaCtx, &pVBox->guestCtx, &cmdHdr,
                               sizeof(cmdHdr));
-                VBoxVBVABufferEndUpdate(&pVBox->aVbvaCtx[j]);
+                VBoxVBVABufferEndUpdate(&pVBox->pScreens[j].aVbvaCtx);
             }
         }
+    }
 }
 
 /** Callback to fill in the view structures */
@@ -117,6 +126,8 @@ vboxInitVbva(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
     ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
     int rc = VINF_SUCCESS;
 
+    /* Why is this here?  In case things break before we have found the real
+     * count? */
     pVBox->cScreens = 1;
     if (!VBoxHGSMIIsSupported())
     {
@@ -148,8 +159,6 @@ vboxSetupVRAMVbva(ScrnInfoPtr pScrn, VBOXPtr pVBox)
     uint32_t offVRAMBaseMapping, offGuestHeapMemory, cbGuestHeapMemory;
     void *pvGuestHeapMemory;
 
-    if (!pVBox->fHaveHGSMI)
-        return FALSE;
     VBoxHGSMIGetBaseMappingInfo(pScrn->videoRam * 1024, &offVRAMBaseMapping,
                                 NULL, &offGuestHeapMemory, &cbGuestHeapMemory,
                                 NULL);
@@ -168,16 +177,27 @@ vboxSetupVRAMVbva(ScrnInfoPtr pScrn, VBOXPtr pVBox)
     }
     pVBox->cbView = pVBox->cbFBMax = offVRAMBaseMapping;
     pVBox->cScreens = VBoxHGSMIGetMonitorCount(&pVBox->guestCtx);
+    if (pVBox->pScreens == NULL)
+        pVBox->pScreens = calloc(pVBox->cScreens, sizeof(*pVBox->pScreens));
+    if (pVBox->pScreens == NULL)
+        FatalError("Failed to allocate memory for screens array.\n");
+#ifdef VBOXVIDEO_13
+    if (pVBox->paVBVAModeHints == NULL)
+        pVBox->paVBVAModeHints = calloc(pVBox->cScreens,
+                                        sizeof(*pVBox->paVBVAModeHints));
+    if (pVBox->paVBVAModeHints == NULL)
+        FatalError("Failed to allocate memory for mode hints array.\n");
+#endif
     xf86DrvMsg(pScrn->scrnIndex, X_INFO, "Requested monitor count: %u\n",
                pVBox->cScreens);
     for (i = 0; i < pVBox->cScreens; ++i)
     {
         pVBox->cbFBMax -= VBVA_MIN_BUFFER_SIZE;
-        pVBox->aoffVBVABuffer[i] = pVBox->cbFBMax;
+        pVBox->pScreens[i].aoffVBVABuffer = pVBox->cbFBMax;
         TRACE_LOG("VBVA buffer offset for screen %u: 0x%lx\n", i,
                   (unsigned long) pVBox->cbFBMax);
-        VBoxVBVASetupBufferContext(&pVBox->aVbvaCtx[i],
-                                   pVBox->aoffVBVABuffer[i],
+        VBoxVBVASetupBufferContext(&pVBox->pScreens[i].aVbvaCtx,
+                                   pVBox->pScreens[i].aoffVBVABuffer,
                                    VBVA_MIN_BUFFER_SIZE);
     }
     TRACE_LOG("Maximum framebuffer size: %lu (0x%lx)\n",
@@ -193,19 +213,13 @@ vboxSetupVRAMVbva(ScrnInfoPtr pScrn, VBOXPtr pVBox)
     return TRUE;
 }
 
-Bool
+void
 vbox_open(ScrnInfoPtr pScrn, ScreenPtr pScreen, VBOXPtr pVBox)
 {
     TRACE_ENTRY();
 
-    pVBox->fHaveHGSMI = vboxInitVbva(pScrn->scrnIndex, pScreen, pVBox);
-    return pVBox->fHaveHGSMI;
-}
-
-Bool
-vbox_device_available(VBOXPtr pVBox)
-{
-    return pVBox->useDevice;
+    if (!vboxInitVbva(pScrn->scrnIndex, pScreen, pVBox))
+        FatalError("failed to initialise vboxvideo graphics acceleration.\n");
 }
 
 /**
@@ -231,8 +245,9 @@ vboxEnableVbva(ScrnInfoPtr pScrn)
         struct VBVABUFFER *pVBVA;
 
         pVBVA = (struct VBVABUFFER *) (  ((uint8_t *)pVBox->base)
-                                       + pVBox->aoffVBVABuffer[i]);
-        if (!VBoxVBVAEnable(&pVBox->aVbvaCtx[i], &pVBox->guestCtx, pVBVA, i))
+                                       + pVBox->pScreens[i].aoffVBVABuffer);
+        if (!VBoxVBVAEnable(&pVBox->pScreens[i].aVbvaCtx, &pVBox->guestCtx,
+                            pVBVA, i))
             rc = FALSE;
     }
     if (!rc)
@@ -242,6 +257,14 @@ vboxEnableVbva(ScrnInfoPtr pScrn)
                    "Failed to enable screen update reporting for at least one virtual monitor.\n");
          vboxDisableVbva(pScrn);
     }
+#ifdef VBOXVIDEO_13
+# ifdef RT_OS_LINUX
+    if (rc && pVBox->hACPIEventHandler != NULL)
+        /* We ignore the return value as the fall-back should be active
+         * anyway. */
+        VBoxHGSMISendCapsInfo(&pVBox->guestCtx, VBVACAPS_VIDEO_MODE_HINTS | VBVACAPS_DISABLE_CURSOR_INTEGRATION);
+# endif
+#endif
     return rc;
 }
 
@@ -262,8 +285,6 @@ vboxDisableVbva(ScrnInfoPtr pScrn)
     VBOXPtr pVBox = pScrn->driverPrivate;
 
     TRACE_ENTRY();
-    if (!pVBox->fHaveHGSMI)  /* Ths function should not have been called */
-        return;
     for (i = 0; i < pVBox->cScreens; ++i)
-        VBoxVBVADisable(&pVBox->aVbvaCtx[i], &pVBox->guestCtx, i);
+        VBoxVBVADisable(&pVBox->pScreens[i].aVbvaCtx, &pVBox->guestCtx, i);
 }

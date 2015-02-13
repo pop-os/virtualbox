@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2010 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,15 +38,24 @@
 /** @name USB MSD string IDs
  * @{ */
 #define USBMSD_STR_ID_MANUFACTURER  1
-#define USBMSD_STR_ID_PRODUCT       2
+#define USBMSD_STR_ID_PRODUCT_HD    2
+#define USBMSD_STR_ID_PRODUCT_CDROM 3
 /** @} */
 
+/** @name USB MSD vendor and product IDs
+ * @{ */
+#define VBOX_USB_VENDOR             0x80EE
+#define USBMSD_PID_HD               0x0030
+#define USBMSD_PID_CD               0x0031
+/** @} */
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
+
 /**
- * USB Command block wrapper (MSD/SCSI).
+ * USB MSD Command Block Wrapper or CBW. The command block
+ * itself (CBWCB) contains protocol-specific data (here SCSI).
  */
 #pragma pack(1)
 typedef struct USBCBW
@@ -71,7 +80,7 @@ typedef USBCBW *PUSBCBW;
 typedef const USBCBW *PCUSBCBW;
 
 /**
- * USB Command Status Wrapper (MSD/SCSI).
+ * USB MSD Command Status Wrapper or CSW.
  */
 #pragma pack(1)
 typedef struct USBCSW
@@ -254,8 +263,9 @@ typedef USBMSD *PUSBMSD;
 *******************************************************************************/
 static const PDMUSBDESCCACHESTRING g_aUsbMsdStrings_en_US[] =
 {
-    { USBMSD_STR_ID_MANUFACTURER,   "VirtualBox"     },
-    { USBMSD_STR_ID_PRODUCT,        "VirtualBox MSD" },
+    { USBMSD_STR_ID_MANUFACTURER,   "VirtualBox"   },
+    { USBMSD_STR_ID_PRODUCT_HD,     "USB Harddisk" },
+    { USBMSD_STR_ID_PRODUCT_CDROM,  "USB CD-ROM"   }
 };
 
 static const PDMUSBDESCCACHELANG g_aUsbMsdLanguages[] =
@@ -263,7 +273,7 @@ static const PDMUSBDESCCACHELANG g_aUsbMsdLanguages[] =
     { 0x0409, RT_ELEMENTS(g_aUsbMsdStrings_en_US), g_aUsbMsdStrings_en_US }
 };
 
-static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescs[2] =
+static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescsFS[2] =
 {
     {
         {
@@ -271,8 +281,8 @@ static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescs[2] =
             /* .bDescriptorType = */    VUSB_DT_ENDPOINT,
             /* .bEndpointAddress = */   0x81 /* ep=1, in */,
             /* .bmAttributes = */       2 /* bulk */,
-            /* .wMaxPacketSize = */     0x200 /* or 64? */,
-            /* .bInterval = */          0xff,
+            /* .wMaxPacketSize = */     64 /* maximum possible */,
+            /* .bInterval = */          0 /* not applicable for bulk EP */
         },
         /* .pvMore = */     NULL,
         /* .pvClass = */    NULL,
@@ -284,8 +294,8 @@ static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescs[2] =
             /* .bDescriptorType = */    VUSB_DT_ENDPOINT,
             /* .bEndpointAddress = */   0x02 /* ep=2, out */,
             /* .bmAttributes = */       2 /* bulk */,
-            /* .wMaxPacketSize = */     0x200 /* or 64? */,
-            /* .bInterval = */          0xff,
+            /* .wMaxPacketSize = */     64 /* maximum possible */,
+            /* .bInterval = */          0 /* not applicable for bulk EP */
         },
         /* .pvMore = */     NULL,
         /* .pvClass = */    NULL,
@@ -293,7 +303,37 @@ static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescs[2] =
     }
 };
 
-static const VUSBDESCINTERFACEEX g_UsbMsdInterfaceDesc =
+static const VUSBDESCENDPOINTEX g_aUsbMsdEndpointDescsHS[2] =
+{
+    {
+        {
+            /* .bLength = */            sizeof(VUSBDESCENDPOINT),
+            /* .bDescriptorType = */    VUSB_DT_ENDPOINT,
+            /* .bEndpointAddress = */   0x81 /* ep=1, in */,
+            /* .bmAttributes = */       2 /* bulk */,
+            /* .wMaxPacketSize = */     512 /* HS bulk packet size */,
+            /* .bInterval = */          0 /* no NAKs */
+        },
+        /* .pvMore = */     NULL,
+        /* .pvClass = */    NULL,
+        /* .cbClass = */    0
+    },
+    {
+        {
+            /* .bLength = */            sizeof(VUSBDESCENDPOINT),
+            /* .bDescriptorType = */    VUSB_DT_ENDPOINT,
+            /* .bEndpointAddress = */   0x02 /* ep=2, out */,
+            /* .bmAttributes = */       2 /* bulk */,
+            /* .wMaxPacketSize = */     512 /* HS bulk packet size */,
+            /* .bInterval = */          0 /* no NAKs */
+        },
+        /* .pvMore = */     NULL,
+        /* .pvClass = */    NULL,
+        /* .cbClass = */    0
+    }
+};
+
+static const VUSBDESCINTERFACEEX g_UsbMsdInterfaceDescFS =
 {
     {
         /* .bLength = */                sizeof(VUSBDESCINTERFACE),
@@ -309,52 +349,121 @@ static const VUSBDESCINTERFACEEX g_UsbMsdInterfaceDesc =
     /* .pvMore = */     NULL,
     /* .pvClass = */    NULL,
     /* .cbClass = */    0,
-    &g_aUsbMsdEndpointDescs[0]
+    &g_aUsbMsdEndpointDescsFS[0],
+    /* .pIAD = */ NULL,
+    /* .cbIAD = */ 0
 };
 
-static const VUSBINTERFACE g_aUsbMsdInterfaces[2] =
+static const VUSBDESCINTERFACEEX g_UsbMsdInterfaceDescHS =
 {
-    { &g_UsbMsdInterfaceDesc, /* .cSettings = */ 1 },
+    {
+        /* .bLength = */                sizeof(VUSBDESCINTERFACE),
+        /* .bDescriptorType = */        VUSB_DT_INTERFACE,
+        /* .bInterfaceNumber = */       0,
+        /* .bAlternateSetting = */      0,
+        /* .bNumEndpoints = */          2,
+        /* .bInterfaceClass = */        8 /* Mass Storage */,
+        /* .bInterfaceSubClass = */     6 /* SCSI transparent command set */,
+        /* .bInterfaceProtocol = */     0x50 /* Bulk-Only Transport */,
+        /* .iInterface = */             0
+    },
+    /* .pvMore = */     NULL,
+    /* .pvClass = */    NULL,
+    /* .cbClass = */    0,
+    &g_aUsbMsdEndpointDescsHS[0],
+    /* .pIAD = */ NULL,
+    /* .cbIAD = */ 0
 };
 
-static const VUSBDESCCONFIGEX g_UsbMsdConfigDesc =
+static const VUSBINTERFACE g_aUsbMsdInterfacesFS[] =
+{
+    { &g_UsbMsdInterfaceDescFS, /* .cSettings = */ 1 },
+};
+
+static const VUSBINTERFACE g_aUsbMsdInterfacesHS[] =
+{
+    { &g_UsbMsdInterfaceDescHS, /* .cSettings = */ 1 },
+};
+
+static const VUSBDESCCONFIGEX g_UsbMsdConfigDescFS =
 {
     {
         /* .bLength = */            sizeof(VUSBDESCCONFIG),
         /* .bDescriptorType = */    VUSB_DT_CONFIG,
         /* .wTotalLength = */       0 /* recalculated on read */,
-        /* .bNumInterfaces = */     RT_ELEMENTS(g_aUsbMsdInterfaces),
+        /* .bNumInterfaces = */     RT_ELEMENTS(g_aUsbMsdInterfacesFS),
         /* .bConfigurationValue =*/ 1,
         /* .iConfiguration = */     0,
         /* .bmAttributes = */       RT_BIT(7),
         /* .MaxPower = */           50 /* 100mA */
     },
-    NULL,
-    &g_aUsbMsdInterfaces[0]
+    NULL,                           /* pvMore */
+    &g_aUsbMsdInterfacesFS[0],
+    NULL                            /* pvOriginal */
+};
+
+static const VUSBDESCCONFIGEX g_UsbMsdConfigDescHS =
+{
+    {
+        /* .bLength = */            sizeof(VUSBDESCCONFIG),
+        /* .bDescriptorType = */    VUSB_DT_CONFIG,
+        /* .wTotalLength = */       0 /* recalculated on read */,
+        /* .bNumInterfaces = */     RT_ELEMENTS(g_aUsbMsdInterfacesHS),
+        /* .bConfigurationValue =*/ 1,
+        /* .iConfiguration = */     0,
+        /* .bmAttributes = */       RT_BIT(7),
+        /* .MaxPower = */           50 /* 100mA */
+    },
+    NULL,                           /* pvMore */
+    &g_aUsbMsdInterfacesHS[0],
+    NULL                            /* pvOriginal */
 };
 
 static const VUSBDESCDEVICE g_UsbMsdDeviceDesc =
 {
     /* .bLength = */                sizeof(g_UsbMsdDeviceDesc),
     /* .bDescriptorType = */        VUSB_DT_DEVICE,
-    /* .bcdUsb = */                 0x200,
+    /* .bcdUsb = */                 0x200, /* USB 2.0 */
     /* .bDeviceClass = */           0 /* Class specified in the interface desc. */,
     /* .bDeviceSubClass = */        0 /* Subclass specified in the interface desc. */,
-    /* .bDeviceProtocol = */        0x50 /* Protocol specified in the interface desc. */,
+    /* .bDeviceProtocol = */        0 /* Protocol specified in the interface desc. */,
     /* .bMaxPacketSize0 = */        64,
-    /* .idVendor = */               0x4200,
-    /* .idProduct = */              0x0042,
-    /* .bcdDevice = */              0x0100,
+    /* .idVendor = */               VBOX_USB_VENDOR,
+    /* .idProduct = */              USBMSD_PID_HD,
+    /* .bcdDevice = */              0x0100, /* 1.0 */
     /* .iManufacturer = */          USBMSD_STR_ID_MANUFACTURER,
-    /* .iProduct = */               USBMSD_STR_ID_PRODUCT,
+    /* .iProduct = */               USBMSD_STR_ID_PRODUCT_HD,
     /* .iSerialNumber = */          0,
     /* .bNumConfigurations = */     1
 };
 
-static const PDMUSBDESCCACHE g_UsbMsdDescCache =
+static const VUSBDEVICEQUALIFIER g_UsbMsdDeviceQualifier =
+{
+    /* .bLength = */                sizeof(g_UsbMsdDeviceQualifier),
+    /* .bDescriptorType = */        VUSB_DT_DEVICE_QUALIFIER,
+    /* .bcdUsb = */                 0x200, /* USB 2.0 */
+    /* .bDeviceClass = */           0 /* Class specified in the interface desc. */,
+    /* .bDeviceSubClass = */        0 /* Subclass specified in the interface desc. */,
+    /* .bDeviceProtocol = */        0 /* Protocol specified in the interface desc. */,
+    /* .bMaxPacketSize0 = */        64,
+    /* .bNumConfigurations = */     1,
+    /* .bReserved = */              0
+};
+
+static const PDMUSBDESCCACHE g_UsbMsdDescCacheFS =
 {
     /* .pDevice = */                &g_UsbMsdDeviceDesc,
-    /* .paConfigs = */              &g_UsbMsdConfigDesc,
+    /* .paConfigs = */              &g_UsbMsdConfigDescFS,
+    /* .paLanguages = */            g_aUsbMsdLanguages,
+    /* .cLanguages = */             RT_ELEMENTS(g_aUsbMsdLanguages),
+    /* .fUseCachedDescriptors = */  true,
+    /* .fUseCachedStringsDescriptors = */ true
+};
+
+static const PDMUSBDESCCACHE g_UsbMsdDescCacheHS =
+{
+    /* .pDevice = */                &g_UsbMsdDeviceDesc,
+    /* .paConfigs = */              &g_UsbMsdConfigDescHS,
     /* .paLanguages = */            g_aUsbMsdLanguages,
     /* .cLanguages = */             RT_ELEMENTS(g_aUsbMsdLanguages),
     /* .fUseCachedDescriptors = */  true,
@@ -635,7 +744,7 @@ static int usbMsdCompleteOk(PUSBMSD pThis, PVUSBURB pUrb, size_t cbData)
     Log(("usbMsdCompleteOk/#%u: pUrb=%p:%s cbData=%#zx\n", pThis->pUsbIns->iInstance, pUrb, pUrb->pszDesc, cbData));
 
     pUrb->enmStatus = VUSBSTATUS_OK;
-    pUrb->cbData    = cbData;
+    pUrb->cbData    = (uint32_t)cbData;
 
     usbMsdLinkDone(pThis, pUrb);
     return VINF_SUCCESS;
@@ -664,7 +773,7 @@ static int usbMsdResetWorker(PUSBMSD pThis, PVUSBURB pUrb, bool fSetConfig)
     if (   pReq
         && pReq->enmState == USBMSDREQSTATE_EXECUTING)
     {
-        /* Don't try deal with the set config variant nor multiple build-only
+        /* Don't try to deal with the set config variant nor multiple build-only
            mass storage resets. */
         if (pThis->pResetUrb && (pUrb || fSetConfig))
         {
@@ -784,7 +893,7 @@ static DECLCALLBACK(int) usbMsdLun0ScsiRequestCompleted(PPDMISCSIPORT pInterface
             if (!pUrb)
                 break;
 
-            /* Process it as the normal way. */
+            /* Process it the normal way. */
             usbMsdHandleBulkDevToHost(pThis, &pThis->aEps[1], pUrb);
         }
     }
@@ -854,6 +963,18 @@ static DECLCALLBACK(PVUSBURB) usbMsdUrbReap(PPDMUSBINS pUsbIns, RTMSINTERVAL cMi
 
 
 /**
+ * @copydoc PDMUSBREG::pfnWakeup
+ */
+static DECLCALLBACK(int) usbMsdWakeup(PPDMUSBINS pUsbIns)
+{
+    PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
+    LogFlow(("usbMsdUrbReap/#%u:\n", pUsbIns->iInstance));
+
+    return RTSemEventSignal(pThis->hEvtDoneQueue);
+}
+
+
+/**
  * @copydoc PDMUSBREG::pfnUrbCancel
  */
 static DECLCALLBACK(int) usbMsdUrbCancel(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
@@ -913,13 +1034,13 @@ static int usbMsdHandleScsiReqestSense(PUSBMSD pThis, PUSBMSDREQ pReq, PCUSBCBW 
     /* validation */
     if ((pCbw->bmCBWFlags & USBCBW_DIR_MASK) != USBCBW_DIR_IN)
         return usbMsdScsiIllegalRequest(pThis, pReq, SCSI_ASC_INVALID_MESSAGE, 0, "direction");
-    if (pCbw->bCBWCBLength != 6)
+    if (pCbw->bCBWCBLength < 6)
         return usbMsdScsiIllegalRequest(pThis, pReq, SCSI_ASC_INVALID_MESSAGE, 0, "length");
     if ((pCbw->CBWCB[1] >> 5) != pCbw->bCBWLun)
         return usbMsdScsiIllegalRequest(pThis, pReq, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0, "lun");
     if (pCbw->bCBWLun != 0)
         return usbMsdScsiIllegalRequest(pThis, pReq, SCSI_ASC_INVALID_MESSAGE, 0, "lun0");
-    if ((pCbw->CBWCB[4] < 6) != pCbw->bCBWLun)
+    if (pCbw->CBWCB[4] < 6)
         return usbMsdScsiIllegalRequest(pThis, pReq, SCSI_ASC_INV_FIELD_IN_CMD_PACKET, 0, "out length");
 
     /* If the previous command succeeded successfully, whip up some sense data. */
@@ -1000,7 +1121,7 @@ static bool usbMsdIsValidCommand(PUSBMSD pThis, PCUSBCBW pCbw, PVUSBURB pUrb)
 
 
 /**
- * Handles request sent to the out-bound (to device) bulk pipe.
+ * Handle requests sent to the outbound (to device) bulk pipe.
  */
 static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb)
 {
@@ -1034,13 +1155,13 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                 Log(("usbMsd: Bad CBW: cbData=%#x < min=%#x\n", pUrb->cbData, RT_UOFFSETOF(USBCBW, CBWCB[1]) ));
                 return usbMsdCompleteStall(pThis, NULL, pUrb, "BAD CBW");
             }
-            Log(("usbMsd: CBW: dCBWSignature=%#x dCBWTag=%#x dCBWDataTransferLength=%#x bmCBWFlags=%#x bCBWLun=%#x bCBWCBLength=%#x  cbData=%#x fShortNotOk=%RTbool\n",
-                 pCbw->dCBWSignature, pCbw->dCBWTag, pCbw->dCBWDataTransferLength, pCbw->bmCBWFlags, pCbw->bCBWLun, pCbw->bCBWCBLength, pUrb->cbData, pUrb->fShortNotOk));
             if (pCbw->dCBWSignature != USBCBW_SIGNATURE)
             {
                 Log(("usbMsd: CBW: Invalid dCBWSignature value: %#x\n", pCbw->dCBWSignature));
                 return usbMsdCompleteStall(pThis, NULL, pUrb, "Bad CBW");
             }
+            Log(("usbMsd: CBW: dCBWTag=%#x dCBWDataTransferLength=%#x bmCBWFlags=%#x bCBWLun=%#x bCBWCBLength=%#x  cbData=%#x fShortNotOk=%RTbool\n",
+                 pCbw->dCBWTag, pCbw->dCBWDataTransferLength, pCbw->bmCBWFlags, pCbw->bCBWLun, pCbw->bCBWCBLength, pUrb->cbData, pUrb->fShortNotOk));
             if (pCbw->bmCBWFlags & ~USBCBW_DIR_MASK)
             {
                 Log(("usbMsd: CBW: Bad bmCBWFlags value: %#x\n", pCbw->bmCBWFlags));
@@ -1120,7 +1241,7 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                 }
             }
 
-            return usbMsdCompleteOk(pThis, pUrb, 0);
+            return usbMsdCompleteOk(pThis, pUrb, pUrb->cbData);
         }
 
         /*
@@ -1148,7 +1269,8 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                     return usbMsdCompleteStall(pThis, NULL, pUrb, "SCSI Submit #2");
                 }
             }
-            return usbMsdCompleteOk(pThis, pUrb, 0);
+LogRel(("DATA_FROM_HOST: %d bytes\n", cbData));
+            return usbMsdCompleteOk(pThis, pUrb, cbData);
         }
 
         /*
@@ -1168,7 +1290,7 @@ static int usbMsdHandleBulkHostToDev(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
 
 
 /**
- * Handles request sent to the in-bound (to host) bulk pipe.
+ * Handle requests sent to the inbound (to host) bulk pipe.
  */
 static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb)
 {
@@ -1208,6 +1330,7 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                 Log(("usbMsdHandleBulkDevToHost: Entering STATUS\n"));
                 pReq->enmState = USBMSDREQSTATE_STATUS;
             }
+LogRel(("DATA_TO_HOST: %d bytes\n", cbCopy));
             return usbMsdCompleteOk(pThis, pUrb, cbCopy);
         }
 
@@ -1216,10 +1339,9 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
          */
         case USBMSDREQSTATE_STATUS:
         {
-            /** @todo !fShortNotOk and CSW request? */
-            if (pUrb->cbData != sizeof(USBCSW))
+            if ((pUrb->cbData < sizeof(USBCSW)) || (pUrb->cbData > sizeof(USBCSW) && pUrb->fShortNotOk))
             {
-                Log(("usbMsd: Unexpected status request size: %#x (expected %#x)\n", pUrb->cbData, sizeof(USBCSW)));
+                Log(("usbMsd: Unexpected status request size: %#x (expected %#x), fShortNotOK=%RTbool\n", pUrb->cbData, sizeof(USBCSW), pUrb->fShortNotOk));
                 return usbMsdCompleteStall(pThis, NULL, pUrb, "Invalid CSW size");
             }
 
@@ -1232,15 +1354,17 @@ static int usbMsdHandleBulkDevToHost(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb
                                 : pReq->iScsiReqStatus >= 0
                                 ? USBCSW_STATUS_FAILED
                                 : USBCSW_STATUS_PHASE_ERROR;
+            /** @todo the following is not always accurate; VSCSI needs
+             *        to implement residual counts properly! */
             if ((pReq->Cbw.bmCBWFlags & USBCBW_DIR_MASK) == USBCBW_DIR_OUT)
                 pCsw->dCSWDataResidue = pCsw->bCSWStatus == USBCSW_STATUS_OK
                                       ? pReq->Cbw.dCBWDataTransferLength - pReq->ScsiReq.cbScatterGather
                                       : pReq->Cbw.dCBWDataTransferLength;
             else
                 pCsw->dCSWDataResidue = pCsw->bCSWStatus == USBCSW_STATUS_OK
-                                      ? pReq->ScsiReq.cbScatterGather
-                                      : 0;
-            Log(("usbMsdHandleBulkDevToHost: CSW: dCSWTag=%#x bCSWStatus=%d dCSWDataResidue=%#x\n",
+                                      ? 0
+                                      : pReq->ScsiReq.cbScatterGather;
+            Log(("usbMsd: CSW: dCSWTag=%#x bCSWStatus=%d dCSWDataResidue=%#x\n",
                  pCsw->dCSWTag, pCsw->bCSWStatus, pCsw->dCSWDataResidue));
 
             Log(("usbMsdHandleBulkDevToHost: Entering READY\n"));
@@ -1333,9 +1457,18 @@ static int usbMsdHandleDefaultPipe(PUSBMSD pThis, PUSBMSDEP pEp, PVUSBURB pUrb)
 
                 switch (pSetup->wValue >> 8)
                 {
+                    uint32_t    cbCopy;
+
                     case VUSB_DT_STRING:
                         Log(("usbMsd: GET_DESCRIPTOR DT_STRING wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));
                         break;
+                    case VUSB_DT_DEVICE_QUALIFIER:
+                        Log(("usbMsd: GET_DESCRIPTOR DT_DEVICE_QUALIFIER wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));
+                        /* Returned data is written after the setup message. */
+                        cbCopy = pUrb->cbData - sizeof(*pSetup);
+                        cbCopy = RT_MIN(cbCopy, sizeof(g_UsbMsdDeviceQualifier));
+                        memcpy(&pUrb->abData[sizeof(*pSetup)], &g_UsbMsdDeviceQualifier, cbCopy);
+                        return usbMsdCompleteOk(pThis, pUrb, cbCopy + sizeof(*pSetup));
                     default:
                         Log(("usbMsd: GET_DESCRIPTOR, huh? wValue=%#x wIndex=%#x\n", pSetup->wValue, pSetup->wIndex));
                         break;
@@ -1484,7 +1617,10 @@ static DECLCALLBACK(PCPDMUSBDESCCACHE) usbMsdUsbGetDescriptorCache(PPDMUSBINS pU
 {
     PUSBMSD pThis = PDMINS_2_DATA(pUsbIns, PUSBMSD);
     LogFlow(("usbMsdUsbGetDescriptorCache/#%u:\n", pUsbIns->iInstance));
-    return &g_UsbMsdDescCache;
+    if (pThis->pUsbIns->iUsbHubVersion & VUSB_STDVER_20)
+        return &g_UsbMsdDescCacheHS;
+    else
+        return &g_UsbMsdDescCacheFS;
 }
 
 
@@ -1602,7 +1738,7 @@ const PDMUSBREG g_UsbMsd =
     /* pszDescription */
     "USB Mass Storage Device, one LUN.",
     /* fFlags */
-    0,
+    PDM_USBREG_HIGHSPEED_CAPABLE,
     /* cMaxInstances */
     ~0U,
     /* cbInstance */
@@ -1651,6 +1787,8 @@ const PDMUSBREG g_UsbMsd =
     usbMsdUrbCancel,
     /* pfnUrbReap */
     usbMsdUrbReap,
+    /* pfnWakeup */
+    usbMsdWakeup,
     /* u32TheEnd */
     PDM_USBREG_VERSION
 };

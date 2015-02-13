@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,10 +18,10 @@
  */
 
 /* VBox includes */
-#include "VBoxGlobal.h"
 #include "QIRichToolButton.h"
 
 /* Qt includes */
+#include <QApplication>
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QToolButton>
@@ -63,7 +63,7 @@ void QIRichToolButton::init()
 
     /* Setup main-layout */
     QHBoxLayout *mainLayout = new QHBoxLayout (this);
-    VBoxGlobal::setLayoutMargin (mainLayout, 0);
+    mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing (0);
     mainLayout->addWidget (mButton);
     mainLayout->addWidget (mLabel);

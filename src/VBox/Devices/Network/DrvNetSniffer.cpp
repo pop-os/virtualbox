@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -357,8 +357,11 @@ static DECLCALLBACK(void) drvNetSnifferDestruct(PPDMDRVINS pDrvIns)
     if (RTCritSectIsInitialized(&pThis->XmitLock))
         RTCritSectDelete(&pThis->XmitLock);
 
-    RTFileClose(pThis->hFile);
-    pThis->hFile = NIL_RTFILE;
+    if (pThis->hFile != NIL_RTFILE)
+    {
+        RTFileClose(pThis->hFile);
+        pThis->hFile = NIL_RTFILE;
+    }
 }
 
 

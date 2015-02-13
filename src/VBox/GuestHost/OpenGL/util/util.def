@@ -8,7 +8,6 @@ crDLLGetNoError
 crDLLGet
 crDLLClose
 crError
-crEnableWarnings
 crWarning
 crDebug
 crInfo
@@ -82,7 +81,10 @@ crHashtableSearch
 crHashtableReplace
 crHashtableNumElements
 crHashtableWalk
+crHashtableWalkUnlocked
+crHashtableAllocRegisterKey
 crAllocHashtable
+crAllocHashtableEx
 crFreeHashtable
 crHashtableGetDataKey
 crDetermineEndianness
@@ -145,7 +147,6 @@ crGetCurrentDir
 crHashtableAllocKeys
 crHashtableDeleteBlock
 crHashtableIsKeyUsed
-crHashtableWalk
 crMatrixInit
 crMatrixInitFromString
 crMatrixInitFromFloats

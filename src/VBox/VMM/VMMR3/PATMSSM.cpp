@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #define LOG_GROUP LOG_GROUP_PATM
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/cpum.h>
+#include <VBox/vmm/cpumctx-v1_6.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/param.h>
@@ -41,6 +42,7 @@
 #include <iprt/string.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
+#include <VBox/version.h>
 
 /**
  * Patch information - SSM version.
@@ -48,7 +50,7 @@
  * the difference is the missing pTrampolinePatchesHead member
  * to avoid changing the saved state version for now (will come later).
  */
-typedef struct _PATCHINFOSSM
+typedef struct PATCHINFOSSM
 {
     uint32_t              uState;
     uint32_t              uOldState;
@@ -135,11 +137,6 @@ typedef struct PATMPATCHRECSSM
     PATCHINFOSSM     patch;
 } PATMPATCHRECSSM, *PPATMPATCHRECSSM;
 
-/*******************************************************************************
-*   Defined Constants And Macros                                               *
-*******************************************************************************/
-#define PATM_SUBTRACT_PTR(a, b) *(uintptr_t *)&(a) = (uintptr_t)(a) - (uintptr_t)(b)
-#define PATM_ADD_PTR(a, b)      *(uintptr_t *)&(a) = (uintptr_t)(a) + (uintptr_t)(b)
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -192,6 +189,105 @@ static SSMFIELD const g_aPatmFields[] =
     SSMFIELD_ENTRY_IGN_HCPTR(       PATM, savedstate.pSSM),
     SSMFIELD_ENTRY(                 PATM, savedstate.cPatches),
     SSMFIELD_ENTRY_PAD_HC64(        PATM, savedstate.Alignment0, sizeof(uint32_t)),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatNrOpcodeRead),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDisabled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatUnusable),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEnabled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalled),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledFunctionPatches),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledTrampoline),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstalledJump),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInt3Callable),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInt3BlockRun),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatOverwritten),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFixedConflicts),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFlushed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPageBoundaryCrossed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatMonitored),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatHandleTrap),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSwitchBack),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSwitchBackFail),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPATMMemoryUsed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateREQSuccess),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateREQFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDuplicateUseExisting),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionFound),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionNotFound),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWrite),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteDetect),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatDirty),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPushTrap),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteInterpreted),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchWriteInterpretedFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSysEnter),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatSysExit),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEmulIret),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatEmulIretFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirty),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirtyGood),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatInstrDirtyBad),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchPageInserted),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchPageRemoved),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchRefreshSuccess),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatPatchRefreshFailed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenRet),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenRetReused),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenJump),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenCall),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatGenPopf),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatCheckPendingIRQ),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionLookupReplace),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatFunctionLookupInsert),
+    SSMFIELD_ENTRY_IGNORE(          PATM, StatU32FunctionMaxSlotsUsed),
+    SSMFIELD_ENTRY_IGNORE(          PATM, Alignment0),
+    SSMFIELD_ENTRY_TERM()
+};
+
+/**
+ * SSM descriptor table for the PATM structure starting with r86139.
+ */
+static SSMFIELD const g_aPatmFields86139[] =
+{
+    /** @todo there are a bunch more fields here which can be marked as ignored. */
+    SSMFIELD_ENTRY_IGNORE(          PATM, offVM),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchMemGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pPatchMemHC),
+    SSMFIELD_ENTRY(                 PATM, cbPatchMem),
+    SSMFIELD_ENTRY(                 PATM, offPatchMem),
+    SSMFIELD_ENTRY(                 PATM, fOutOfMemory),
+    SSMFIELD_ENTRY_PAD_HC_AUTO(     3, 3),
+    SSMFIELD_ENTRY(                 PATM, deltaReloc),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGCStateHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pGCStateGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pGCStackGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGCStackHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pCPUMCtxGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pStatsGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pStatsHC),
+    SSMFIELD_ENTRY(                 PATM, uCurrentPatchIdx),
+    SSMFIELD_ENTRY(                 PATM, ulCallDepth),
+    SSMFIELD_ENTRY(                 PATM, cPageRecords),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchedInstrGCLowest),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pPatchedInstrGCHighest),
+    SSMFIELD_ENTRY_RCPTR(           PATM, PatchLookupTreeGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, PatchLookupTreeHC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperCallGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperRetGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperJumpGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnHelperIretGC),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, pGlobalPatchRec),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnSysEnterGC),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pfnSysEnterPatchGC),
+    SSMFIELD_ENTRY(                 PATM, uSysEnterPatchIdx),
+    SSMFIELD_ENTRY_RCPTR(           PATM, pvFaultMonitor),
+    SSMFIELD_ENTRY_GCPHYS(          PATM, mmio.GCPhys),
+    SSMFIELD_ENTRY_RCPTR(           PATM, mmio.pCachedData),
+    SSMFIELD_ENTRY_IGN_RCPTR(       PATM, mmio.Alignment0),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, savedstate.pSSM),
+    SSMFIELD_ENTRY(                 PATM, savedstate.cPatches),
+    SSMFIELD_ENTRY_PAD_HC64(        PATM, savedstate.Alignment0, sizeof(uint32_t)),
+    SSMFIELD_ENTRY_IGN_HCPTR(       PATM, hDbgModPatchMem),
+    SSMFIELD_ENTRY_PAD_HC32(        PATM, Alignment0, sizeof(uint32_t)),
     SSMFIELD_ENTRY_IGNORE(          PATM, StatNrOpcodeRead),
     SSMFIELD_ENTRY_IGNORE(          PATM, StatDisabled),
     SSMFIELD_ENTRY_IGNORE(          PATM, StatUnusable),
@@ -363,8 +459,8 @@ static SSMFIELD const g_aPatmRecPatchToGuest[] =
     SSMFIELD_ENTRY_TERM()
 };
 
-
 #ifdef VBOX_STRICT
+
 /**
  * Callback function for RTAvlPVDoWithAll
  *
@@ -376,6 +472,7 @@ static SSMFIELD const g_aPatmRecPatchToGuest[] =
  */
 static DECLCALLBACK(int) patmCountLeafPV(PAVLPVNODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
@@ -391,9 +488,11 @@ static DECLCALLBACK(int) patmCountLeafPV(PAVLPVNODECORE pNode, void *pcPatches)
  */
 static DECLCALLBACK(int) patmCountLeaf(PAVLU32NODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
+
 #endif /* VBOX_STRICT */
 
 /**
@@ -407,6 +506,7 @@ static DECLCALLBACK(int) patmCountLeaf(PAVLU32NODECORE pNode, void *pcPatches)
  */
 static DECLCALLBACK(int) patmCountPatch(PAVLOU32NODECORE pNode, void *pcPatches)
 {
+    NOREF(pNode);
     *(uint32_t *)pcPatches = *(uint32_t *)pcPatches + 1;
     return VINF_SUCCESS;
 }
@@ -418,7 +518,7 @@ static DECLCALLBACK(int) patmCountPatch(PAVLOU32NODECORE pNode, void *pcPatches)
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *pVM1)
 {
@@ -427,7 +527,7 @@ static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *p
     PRECPATCHTOGUEST    pPatchToGuestRec = (PRECPATCHTOGUEST)pNode;
 
     /* Save the lookup record. */
-    int rc = SSMR3PutMem(pSSM, pPatchToGuestRec, sizeof(RECPATCHTOGUEST));
+    int rc = SSMR3PutStructEx(pSSM, pPatchToGuestRec, sizeof(RECPATCHTOGUEST), 0 /*fFlags*/, &g_aPatmRecPatchToGuest[0], NULL);
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -440,7 +540,7 @@ static DECLCALLBACK(int) patmSaveP2GLookupRecords(PAVLU32NODECORE pNode, void *p
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
 {
@@ -449,9 +549,16 @@ static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
     RELOCREC            rec  = *(PRELOCREC)pNode;
     RTRCPTR            *pFixup = (RTRCPTR *)rec.pRelocPos;
 
+    /* Convert pointer to an offset into patch memory.  May not be applicable
+       to all fixup types, thus the UINT32_MAX. */
     Assert(rec.pRelocPos);
-    /* Convert pointer to an offset into patch memory. */
-    PATM_SUBTRACT_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
+    uintptr_t offRelocPos = (uintptr_t)rec.pRelocPos - (uintptr_t)pVM->patm.s.pPatchMemHC;
+    if (offRelocPos > pVM->patm.s.cbPatchMem)
+        offRelocPos = UINT32_MAX;
+    rec.pRelocPos = (uint8_t *)offRelocPos;
+
+    /* Zero rec.Core.Key since it's unused and may trigger SSM check due to the hack below. */
+    rec.Core.Key = 0;
 
     if (rec.uType == FIXUP_ABSOLUTE)
     {
@@ -473,7 +580,7 @@ static DECLCALLBACK(int) patmSaveFixupRecords(PAVLPVNODECORE pNode, void *pVM1)
     }
 
     /* Save the lookup record. */
-    int rc = SSMR3PutMem(pSSM, &rec, sizeof(rec));
+    int rc = SSMR3PutStructEx(pSSM, &rec, sizeof(rec), 0 /*fFlags*/, &g_aPatmRelocRec[0], NULL);
     AssertRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -576,7 +683,7 @@ static void patmR3PatchConvertMem2SSM(PPATMPATCHRECSSM pPatchSSM, PPATMPATCHREC 
  *
  * @returns VBox status code.
  * @param   pNode           Current node
- * @param   pVM1            VM Handle
+ * @param   pVM1            Pointer to the VM
  */
 static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
 {
@@ -589,6 +696,9 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     Assert(!(pPatch->patch.flags & PATMFL_GLOBAL_FUNCTIONS));
 
     patmR3PatchConvertMem2SSM(&patch, pPatch);
+    Log4(("patmSavePatchState: cbPatchJump=%u uCurPathOffset=%#x pInstrGCLowest/Higest=%#x/%#x nrFixups=%#x nrJumpRecs=%#x\n",
+          patch.patch.cbPatchJump, patch.patch.uCurPatchOffset, patch.patch.pInstrGCLowest, patch.patch.pInstrGCHighest,
+          patch.patch.nrFixups, patch.patch.nrJumpRecs));
 
     /*
      * Reset HC pointers that need to be recalculated when loading the state
@@ -600,7 +710,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     Assert(!pPatch->patch.pTempInfo || pPatch->patch.pTempInfo->IllegalInstrTree == 0);
 
     /* Save the patch record itself */
-    rc = SSMR3PutMem(pSSM, &patch, sizeof(patch));
+    rc = SSMR3PutStructEx(pSSM, &patch, sizeof(patch), 0 /*fFlags*/, &g_aPatmPatchRecFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /*
@@ -611,7 +721,8 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmCountLeafPV, &nrFixupRecs);
     AssertMsg(nrFixupRecs == pPatch->patch.nrFixups, ("Fixup inconsistency! counted %d vs %d\n", nrFixupRecs, pPatch->patch.nrFixups));
 #endif
-    RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmSaveFixupRecords, pVM);
+    rc = RTAvlPVDoWithAll(&pPatch->patch.FixupTree, true, patmSaveFixupRecords, pVM);
+    AssertRCReturn(rc, rc);
 
 #ifdef VBOX_STRICT
     uint32_t nrLookupRecords = 0;
@@ -619,7 +730,9 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
     Assert(nrLookupRecords == pPatch->patch.nrPatch2GuestRecs);
 #endif
 
-    RTAvlU32DoWithAll(&pPatch->patch.Patch2GuestAddrTree, true, patmSaveP2GLookupRecords, pVM);
+    rc = RTAvlU32DoWithAll(&pPatch->patch.Patch2GuestAddrTree, true, patmSaveP2GLookupRecords, pVM);
+    AssertRCReturn(rc, rc);
+
     return VINF_SUCCESS;
 }
 
@@ -627,7 +740,7 @@ static DECLCALLBACK(int) patmSavePatchState(PAVLOU32NODECORE pNode, void *pVM1)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -655,7 +768,7 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
     /*
      * Save PATM structure
      */
-    rc = SSMR3PutMem(pSSM, &patmInfo, sizeof(patmInfo));
+    rc = SSMR3PutStructEx(pSSM, &patmInfo, sizeof(patmInfo), 0 /*fFlags*/, &g_aPatmFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /*
@@ -667,12 +780,13 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
     /*
      * Save GC state memory
      */
-    rc = SSMR3PutMem(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
+    rc = SSMR3PutStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), 0 /*fFlags*/, &g_aPatmGCStateFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /*
      * Save PATM stack page
      */
+    SSMR3PutU32(pSSM, PATM_STACK_TOTAL_SIZE);
     rc = SSMR3PutMem(pSSM, pVM->patm.s.pGCStackHC, PATM_STACK_TOTAL_SIZE);
     AssertRCReturn(rc, rc);
 
@@ -687,11 +801,12 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM)
     return VINF_SUCCESS;
 }
 
+
 /**
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -702,6 +817,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     int  rc;
 
     if (    uVersion != PATM_SSM_VERSION
+        &&  uVersion != PATM_SSM_VERSION_MEM
         &&  uVersion != PATM_SSM_VERSION_FIXUP_HACK
         &&  uVersion != PATM_SSM_VERSION_VER16
        )
@@ -709,6 +825,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         AssertMsgFailed(("patmR3Load: Invalid version uVersion=%d!\n", uVersion));
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     }
+    uint32_t const fStructRestoreFlags = uVersion <= PATM_SSM_VERSION_MEM ? SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED : 0;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
     pVM->patm.s.savedstate.pSSM = pSSM;
@@ -717,25 +834,27 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
      * Restore PATM structure
      */
     RT_ZERO(patmInfo);
-    rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmFields[0], NULL);
+    if (   uVersion == PATM_SSM_VERSION_MEM
+        && SSMR3HandleRevision(pSSM) >= 86139
+        && SSMR3HandleVersion(pSSM)  >= VBOX_FULL_VERSION_MAKE(4, 2, 51))
+        rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), SSMSTRUCT_FLAGS_MEM_BAND_AID_RELAXED,
+                              &g_aPatmFields86139[0], NULL);
+    else
+        rc = SSMR3GetStructEx(pSSM, &patmInfo, sizeof(patmInfo), fStructRestoreFlags, &g_aPatmFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /* Relative calls are made to the helper functions. Therefor their relative location must not change! */
     /* Note: we reuse the saved global helpers and assume they are identical, which is kind of dangerous. */
-    if (    (pVM->patm.s.pfnHelperCallGC - pVM->patm.s.pPatchMemGC) != (patmInfo.pfnHelperCallGC  - patmInfo.pPatchMemGC)
-        ||  (pVM->patm.s.pfnHelperRetGC  - pVM->patm.s.pPatchMemGC) != (patmInfo.pfnHelperRetGC   - patmInfo.pPatchMemGC)
-        ||  (pVM->patm.s.pfnHelperJumpGC - pVM->patm.s.pPatchMemGC) != (patmInfo.pfnHelperJumpGC  - patmInfo.pPatchMemGC)
-        ||  (pVM->patm.s.pfnHelperIretGC - pVM->patm.s.pPatchMemGC) != (patmInfo.pfnHelperIretGC  - patmInfo.pPatchMemGC))
-    {
-        AssertMsgFailed(("Helper function ptrs don't match!!!\n"));
-        return VERR_SSM_INVALID_STATE;
-    }
+    AssertLogRelReturn((pVM->patm.s.pfnHelperCallGC - pVM->patm.s.pPatchMemGC) == (patmInfo.pfnHelperCallGC  - patmInfo.pPatchMemGC),
+                       VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertLogRelReturn((pVM->patm.s.pfnHelperRetGC  - pVM->patm.s.pPatchMemGC) == (patmInfo.pfnHelperRetGC   - patmInfo.pPatchMemGC),
+                       VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertLogRelReturn((pVM->patm.s.pfnHelperJumpGC - pVM->patm.s.pPatchMemGC) == (patmInfo.pfnHelperJumpGC  - patmInfo.pPatchMemGC),
+                       VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertLogRelReturn((pVM->patm.s.pfnHelperIretGC - pVM->patm.s.pPatchMemGC) == (patmInfo.pfnHelperIretGC  - patmInfo.pPatchMemGC),
+                       VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    AssertLogRelReturn(pVM->patm.s.cbPatchMem == patmInfo.cbPatchMem, VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
 
-    if (pVM->patm.s.cbPatchMem != patmInfo.cbPatchMem)
-    {
-        AssertMsgFailed(("Patch memory ptrs and/or sizes don't match!!!\n"));
-        return VERR_SSM_INVALID_STATE;
-    }
     pVM->patm.s.offPatchMem         = patmInfo.offPatchMem;
     pVM->patm.s.deltaReloc          = patmInfo.deltaReloc;
     pVM->patm.s.uCurrentPatchIdx    = patmInfo.uCurrentPatchIdx;
@@ -771,14 +890,26 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
      * Restore GC state memory
      */
     RT_BZERO(pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE));
-    rc = SSMR3GetStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmGCStateFields[0], NULL);
+    rc = SSMR3GetStructEx(pSSM, pVM->patm.s.pGCStateHC, sizeof(PATMGCSTATE), fStructRestoreFlags, &g_aPatmGCStateFields[0], NULL);
     AssertRCReturn(rc, rc);
 
     /*
      * Restore PATM stack page
      */
-    rc = SSMR3GetMem(pSSM, pVM->patm.s.pGCStackHC, PATM_STACK_TOTAL_SIZE);
+    uint32_t cbStack = PATM_STACK_TOTAL_SIZE;
+    if (uVersion > PATM_SSM_VERSION_MEM)
+    {
+        rc = SSMR3GetU32(pSSM, &cbStack);
+        AssertRCReturn(rc, rc);
+    }
+    AssertCompile(!(PATM_STACK_TOTAL_SIZE & 31));
+    AssertLogRelMsgReturn(cbStack > 0 && cbStack <= PATM_STACK_TOTAL_SIZE && !(cbStack & 31),
+                          ("cbStack=%#x vs %#x", cbStack, PATM_STACK_TOTAL_SIZE),
+                          VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+    rc = SSMR3GetMem(pSSM, pVM->patm.s.pGCStackHC, cbStack);
     AssertRCReturn(rc, rc);
+    if (cbStack < PATM_STACK_TOTAL_SIZE)
+        memset((uint8_t *)pVM->patm.s.pGCStackHC + cbStack, 0, PATM_STACK_TOTAL_SIZE - cbStack);
 
     /*
      * Load all patches
@@ -789,8 +920,11 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         PATMPATCHREC *pPatchRec;
 
         RT_ZERO(patch);
-        rc = SSMR3GetStructEx(pSSM, &patch, sizeof(patch), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmPatchRecFields[0], NULL);
+        rc = SSMR3GetStructEx(pSSM, &patch, sizeof(patch), fStructRestoreFlags, &g_aPatmPatchRecFields[0], NULL);
         AssertRCReturn(rc, rc);
+        Log4(("patmR3Load: cbPatchJump=%u uCurPathOffset=%#x pInstrGCLowest/Higest=%#x/%#x nrFixups=%#x nrJumpRecs=%#x\n",
+              patch.patch.cbPatchJump, patch.patch.uCurPatchOffset, patch.patch.pInstrGCLowest, patch.patch.pInstrGCHighest,
+              patch.patch.nrFixups, patch.patch.nrJumpRecs));
 
         Assert(!(patch.patch.flags & PATMFL_GLOBAL_FUNCTIONS));
 
@@ -804,7 +938,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         /* Convert SSM version to memory. */
         patmR3PatchConvertSSM2Mem(pPatchRec, &patch);
 
-        Log(("Restoring patch %RRv -> %RRv\n", pPatchRec->patch.pPrivInstrGC, patmInfo.pPatchMemGC + pPatchRec->patch.pPatchBlockOffset));
+        Log(("Restoring patch %RRv -> %RRv state %x\n", pPatchRec->patch.pPrivInstrGC, patmInfo.pPatchMemGC + pPatchRec->patch.pPatchBlockOffset, pPatchRec->patch.uState));
         bool ret = RTAvloU32Insert(&pVM->patm.s.PatchLookupTreeHC->PatchTree, &pPatchRec->Core);
         Assert(ret);
         if (pPatchRec->patch.uState != PATCH_REFUSED)
@@ -823,7 +957,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         RT_ZERO(cacheRec);
         cacheRec.pPatch = &pPatchRec->patch;
 
-        uint8_t *pPrivInstrHC = PATMGCVirtToHCVirt(pVM, &cacheRec, pPatchRec->patch.pPrivInstrGC);
+        uint8_t *pPrivInstrHC = patmR3GCVirtToHCVirt(pVM, &cacheRec, pPatchRec->patch.pPrivInstrGC);
         /* Can fail due to page or page table not present. */
 
         /*
@@ -838,7 +972,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             RTRCPTR *pFixup;
 
             RT_ZERO(rec);
-            rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRelocRec[0], NULL);
+            rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), fStructRestoreFlags, &g_aPatmRelocRec[0], NULL);
             AssertRCReturn(rc, rc);
 
             if (pPrivInstrHC)
@@ -846,7 +980,10 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                 /* rec.pRelocPos now contains the relative position inside the hypervisor area. */
                 offset = (int32_t)(intptr_t)rec.pRelocPos;
                 /* Convert to HC pointer again. */
-                PATM_ADD_PTR(rec.pRelocPos, pVM->patm.s.pPatchMemHC);
+                if ((uintptr_t)rec.pRelocPos < pVM->patm.s.cbPatchMem)
+                    rec.pRelocPos = pVM->patm.s.pPatchMemHC + (uintptr_t)rec.pRelocPos;
+                else
+                    rec.pRelocPos = NULL;
                 pFixup = (RTRCPTR *)rec.pRelocPos;
 
                 if (pPatchRec->patch.uState != PATCH_REFUSED)
@@ -886,10 +1023,10 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
             for (uint32_t j=0;j<nrPatch2GuestRecs;j++)
             {
                 RT_ZERO(rec);
-                rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), SSMSTRUCT_FLAGS_MEM_BAND_AID, &g_aPatmRecPatchToGuest[0], NULL);
+                rc = SSMR3GetStructEx(pSSM, &rec, sizeof(rec), fStructRestoreFlags, &g_aPatmRecPatchToGuest[0], NULL);
                 AssertRCReturn(rc, rc);
 
-                patmr3AddP2GLookupRecord(pVM, &pPatchRec->patch, (uintptr_t)rec.Core.Key + pVM->patm.s.pPatchMemHC, rec.pOrgInstrGC, rec.enmType, rec.fDirty);
+                patmR3AddP2GLookupRecord(pVM, &pPatchRec->patch, (uintptr_t)rec.Core.Key + pVM->patm.s.pPatchMemHC, rec.pOrgInstrGC, rec.enmType, rec.fDirty);
             }
             Assert(pPatchRec->patch.Patch2GuestAddrTree);
         }
@@ -967,7 +1104,7 @@ DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32
  * Correct fixups to predefined hypervisor PATM regions. (their addresses might have changed)
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   ulSSMVersion    SSM version
  * @param   patmInfo        Saved PATM structure
  * @param   pPatch          Patch record
@@ -1164,7 +1301,7 @@ static void patmCorrectFixup(PVM pVM, unsigned ulSSMVersion, PATM &patmInfo, PPA
             cCpuidFixup++;
         }
         else
-        if (ulSSMVersion >= PATM_SSM_VERSION)
+        if (ulSSMVersion >= PATM_SSM_VERSION_MEM)
         {
 #ifdef LOG_ENABLED
             RTRCPTR oldFixup = *pFixup;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,6 @@
 #undef SHW_PDPT_SHIFT
 #undef SHW_PDPT_MASK
 #undef SHW_PDPE_PG_MASK
-#undef SHW_POOL_ROOT_IDX
 
 #if PGM_SHW_TYPE == PGM_TYPE_32BIT
 # define SHWPT                          X86PT
@@ -84,7 +83,6 @@
 # define SHW_PTE_SET_RW(Pte)            do { (Pte).n.u1Write = 1; } while (0)
 # define SHW_PT_SHIFT                   X86_PT_SHIFT
 # define SHW_PT_MASK                    X86_PT_MASK
-# define SHW_POOL_ROOT_IDX              PGMPOOL_IDX_PD
 
 #elif PGM_SHW_TYPE == PGM_TYPE_EPT
 # define SHWPT                          EPTPT
@@ -120,7 +118,6 @@
 # define SHW_PDPT_MASK                  EPT_PDPT_MASK
 # define SHW_PDPE_PG_MASK               EPT_PDPE_PG_MASK
 # define SHW_TOTAL_PD_ENTRIES           (EPT_PG_AMD64_ENTRIES*EPT_PG_AMD64_PDPE_ENTRIES)
-# define SHW_POOL_ROOT_IDX              PGMPOOL_IDX_NESTED_ROOT      /* do not use! exception is real mode & protected mode without paging. */
 
 #else
 # define SHWPT                          PGMSHWPTPAE
@@ -158,14 +155,12 @@
 #  define SHW_PDPT_MASK                 X86_PDPT_MASK_AMD64
 #  define SHW_PDPE_PG_MASK              X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES          (X86_PG_AMD64_ENTRIES * X86_PG_AMD64_PDPE_ENTRIES)
-#  define SHW_POOL_ROOT_IDX             PGMPOOL_IDX_AMD64_CR3
 
 # else /* 32 bits PAE mode */
 #  define SHW_PDPT_SHIFT                X86_PDPT_SHIFT
 #  define SHW_PDPT_MASK                 X86_PDPT_MASK_PAE
 #  define SHW_PDPE_PG_MASK              X86_PDPE_PG_MASK
 #  define SHW_TOTAL_PD_ENTRIES          (X86_PG_PAE_ENTRIES * X86_PG_PAE_PDPE_ENTRIES)
-#  define SHW_POOL_ROOT_IDX             PGMPOOL_IDX_PDPT
 
 # endif
 #endif
@@ -186,7 +181,7 @@ RT_C_DECLS_END
  * Gets effective page information (from the VMM page directory).
  *
  * @returns VBox status.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Guest Context virtual address of the page.
  * @param   pfFlags     Where to store the flags. These are X86_PTE_*.
  * @param   pHCPhys     Where to store the HC physical address of the page.
@@ -196,6 +191,7 @@ RT_C_DECLS_END
 PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, PRTHCPHYS pHCPhys)
 {
 #if PGM_SHW_TYPE == PGM_TYPE_NESTED
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(pfFlags); NOREF(pHCPhys);
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 #else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
@@ -297,8 +293,10 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
     else /* mapping: */
     {
 # if    PGM_SHW_TYPE == PGM_TYPE_AMD64 \
-     || PGM_SHW_TYPE == PGM_TYPE_EPT
+     || PGM_SHW_TYPE == PGM_TYPE_EPT \
+     || defined(PGM_WITHOUT_MAPPINGS)
         AssertFailed(); /* can't happen */
+        pPT = NULL;     /* shut up MSC */
 # else
         Assert(pgmMapAreMappingsEnabled(pVM));
 
@@ -346,7 +344,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
  * The existing flags are ANDed with the fMask and ORed with the fFlags.
  *
  * @returns VBox status code.
- * @param   pVCpu       The VMCPU handle.
+ * @param   pVCpu       Pointer to the VMCPU.
  * @param   GCPtr       Virtual address of the first page in the range. Page aligned!
  * @param   cb          Size (in bytes) of the range to apply the modification to. Page aligned!
  * @param   fFlags      The OR  mask - page flags X86_PTE_*, excluding the page mask of course.
@@ -358,6 +356,7 @@ PGM_SHW_DECL(int, GetPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, uint64_t *pfFlags, P
 PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64_t fFlags, uint64_t fMask, uint32_t fOpFlags)
 {
 # if PGM_SHW_TYPE == PGM_TYPE_NESTED
+    NOREF(pVCpu); NOREF(GCPtr); NOREF(cb); NOREF(fFlags); NOREF(fMask); NOREF(fOpFlags);
     return VERR_PAGE_TABLE_NOT_PRESENT;
 
 # else /* PGM_SHW_TYPE != PGM_TYPE_NESTED && PGM_SHW_TYPE != PGM_TYPE_EPT */
@@ -461,7 +460,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
                     AssertRC(rc);
                     if (RT_SUCCESS(rc))
                     {
-                        Assert(fGstPte & X86_PTE_RW);
+                        Assert((fGstPte & X86_PTE_RW) || !(CPUMGetGuestCR0(pVCpu) & X86_CR0_WP /* allow netware hack */));
                         PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
                         Assert(pPage);
                         if (pPage)
@@ -475,7 +474,7 @@ PGM_SHW_DECL(int, ModifyPage)(PVMCPU pVCpu, RTGCUINTPTR GCPtr, size_t cb, uint64
 
                 SHW_PTE_ATOMIC_SET2(pPT->a[iPTE], NewPte);
 # if PGM_SHW_TYPE == PGM_TYPE_EPT
-                HWACCMInvalidatePhysPage(pVM, (RTGCPHYS)GCPtr);
+                HMInvalidatePhysPage(pVM, (RTGCPHYS)GCPtr);
 # else
                 PGM_INVL_PG_ALL_VCPU(pVM, GCPtr);
 # endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -99,10 +99,11 @@ RTDECL(int) RTMpGetDescription(RTCPUID idCpu, char *pszBuf, size_t cbBuf)
     /*
      * Copy it out into the buffer supplied by the caller.
      */
-    size_t  cch = strlen(szString);
-    if (cch >= cbBuf)
+    char   *pszSrc = RTStrStrip(szString);
+    size_t  cchSrc = strlen(pszSrc);
+    if (cchSrc >= cbBuf)
         return VERR_BUFFER_OVERFLOW;
-    memcpy(pszBuf, szString, cch + 1);
+    memcpy(pszBuf, pszSrc, cchSrc + 1);
     return VINF_SUCCESS;
 }
 RT_EXPORT_SYMBOL(RTMpGetDescription);

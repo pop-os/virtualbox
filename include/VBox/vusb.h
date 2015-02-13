@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,8 @@
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
+
+#include <iprt/queueatomic.h>
 
 struct PDMLED;
 
@@ -54,6 +56,7 @@ RT_C_DECLS_BEGIN
 #define VUSB_DT_DEVICE_QUALIFIER        0x06
 #define VUSB_DT_OTHER_SPEED_CFG         0x07
 #define VUSB_DT_INTERFACE_POWER         0x08
+#define VUSB_DT_INTERFACE_ASSOCIATION   0x0B
 /** @} */
 
 /** @name USB Descriptor minimum sizes (from spec)
@@ -162,6 +165,26 @@ typedef const VUSBDESCCONFIG *PCVUSBDESCCONFIG;
 
 
 /**
+ * USB interface association descriptor (from USB ECN Interface Association Descriptors)
+ */
+typedef struct VUSBDESCIAD
+{
+    uint8_t bLength;
+    uint8_t bDescriptorType;
+    uint8_t bFirstInterface;
+    uint8_t bInterfaceCount;
+    uint8_t bFunctionClass;
+    uint8_t bFunctionSubClass;
+    uint8_t bFunctionProtocol;
+    uint8_t iFunction;
+} VUSBDESCIAD;
+/** Pointer to a USB interface association descriptor. */
+typedef VUSBDESCIAD *PVUSBDESCIAD;
+/** Pointer to a readonly USB interface association descriptor. */
+typedef const VUSBDESCIAD *PCVUSBDESCIAD;
+
+
+/**
  * USB interface descriptor (from spec)
  */
 typedef struct VUSBDESCINTERFACE
@@ -256,6 +279,11 @@ typedef struct VUSBDESCINTERFACEEX
     /** Pointer to an array of the endpoints referenced by the interface.
      * Core.bNumEndpoints in size. */
     const struct VUSBDESCENDPOINTEX *paEndpoints;
+    /** Interface association descriptor, which prepends a group of interfaces,
+     * starting with this interface. */
+    PCVUSBDESCIAD pIAD;
+    /** Size of interface association descriptor. */
+    uint16_t cbIAD;
 } VUSBDESCINTERFACEEX;
 /** Pointer to an prased USB interface descriptor. */
 typedef VUSBDESCINTERFACEEX *PVUSBDESCINTERFACEEX;
@@ -510,7 +538,7 @@ typedef struct VUSBIROOTHUBCONNECTOR
      * @param   pInterface  Pointer to this struct.
      * @param   cMillies    Number of milliseconds to poll for completion.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies));
+    DECLR3CALLBACKMEMBER(void, pfnReapAsyncUrbs,(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, RTMSINTERVAL cMillies));
 
     /**
      * Cancels and completes - with CRC failure - all URBs queued on an endpoint.
@@ -569,9 +597,9 @@ DECLINLINE(int) VUSBIRhSubmitUrb(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBURB pUr
 }
 
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnReapAsyncUrbs */
-DECLINLINE(void) VUSBIRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, RTMSINTERVAL cMillies)
+DECLINLINE(void) VUSBIRhReapAsyncUrbs(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice, RTMSINTERVAL cMillies)
 {
-    pInterface->pfnReapAsyncUrbs(pInterface, cMillies);
+    pInterface->pfnReapAsyncUrbs(pInterface, pDevice, cMillies);
 }
 
 /** @copydoc VUSBIROOTHUBCONNECTOR::pfnCancelAllUrbs */
@@ -1010,15 +1038,16 @@ typedef struct VUSBURB
         uint32_t        u32FrameNo;
         /** Flag indicating that the TDs have been unlinked. */
         bool            fUnlinked;
+        RTQUEUEATOMICITEM QueueItem;
     } Hci;
 
     /** The device data. */
     struct VUSBURBDEV
     {
         /** Pointer to private device specific data.  */
-        void           *pvPrivate;
+        void             *pvPrivate;
         /** Used by the device when linking the URB in some list of its own.   */
-        PVUSBURB        pNext;
+        PVUSBURB          pNext;
     } Dev;
 
 #ifndef RDESKTOP
@@ -1060,7 +1089,8 @@ typedef struct VUSBURB
     uint32_t        cbData;
     /** The message data.
      * IN: On host to device transfers, the data to send.
-     * OUT: On device to host transfers, the data to received. */
+     * OUT: On device to host transfers, the data to received.
+     * This array has actually a size of VUsb.cbDataAllocated, not 8KB! */
     uint8_t         abData[8*_1K];
 } VUSBURB;
 

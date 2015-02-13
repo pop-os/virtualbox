@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,39 +19,42 @@
 #ifndef __UIMachineWindowNormal_h__
 #define __UIMachineWindowNormal_h__
 
-/* Global includes */
-#include <QMainWindow>
+/* Global includes: */
 #include <QLabel>
 
-/* Local includes */
-#include "QIWithRetranslateUI.h"
+/* Local includes: */
 #include "UIMachineWindow.h"
-#include "COMDefs.h"
 
-/* Local forwards */
+/* Forward declarations: */
 class CMediumAttachment;
 class UIIndicatorsPool;
 class QIStateIndicator;
 
-class UIMachineWindowNormal : public QIWithRetranslateUI2<QMainWindow>, public UIMachineWindow
+/* Normal machine-window implementation: */
+class UIMachineWindowNormal : public UIMachineWindow
 {
     Q_OBJECT;
 
 protected:
 
-    /* Normal machine window constructor/destructor: */
+    /* Constructor: */
     UIMachineWindowNormal(UIMachineLogic *pMachineLogic, ulong uScreenId);
-    virtual ~UIMachineWindowNormal();
 
 private slots:
 
-    /* Console callback handlers: */
+#ifdef Q_WS_X11
+    /** X11: Performs machine-window async geometry normalization. */
+    void sltNormalizeGeometry() { normalizeGeometry(true /* adjust position */); }
+#endif /* Q_WS_X11 */
+
+    /* Session event-handlers: */
     void sltMachineStateChanged();
     void sltMediumChange(const CMediumAttachment &attachment);
     void sltUSBControllerChange();
     void sltUSBDeviceStateChange();
     void sltNetworkAdapterChange();
     void sltSharedFolderChange();
+    void sltVideoCaptureChange();
     void sltCPUExecutionCapChange();
 
     /* LED connections: */
@@ -59,61 +62,50 @@ private slots:
     void sltShowIndicatorsContextMenu(QIStateIndicator *pIndicator, QContextMenuEvent *pEvent);
     void sltProcessGlobalSettingChange(const char *aPublicName, const char *aName);
 
-    /* Close window reimplementation: */
-    void sltTryClose();
-
-    /* Downloader listeners: */
-    void sltEmbedDownloaderForAdditions();
-    void sltEmbedDownloaderForUserManual();
-    void sltEmbedDownloaderForExtensionPack();
-
 private:
 
-    /* Translate routine: */
-    void retranslateUi();
-
-    /* Update routines: */
-    void updateAppearanceOf(int aElement);
-
-    /* Event handlers: */
-    bool event(QEvent *pEvent);
-#ifdef Q_WS_X11
-    bool x11Event(XEvent *pEvent);
-#endif
-    void closeEvent(QCloseEvent *pEvent);
-
-    /* Private getters: */
-    UIIndicatorsPool* indicatorsPool() { return m_pIndicatorsPool; }
-
     /* Prepare helpers: */
-    void prepareConsoleConnections();
+    void prepareSessionConnections();
     void prepareMenu();
     void prepareStatusBar();
-    void prepareConnections();
-    void prepareMachineView();
-    void loadWindowSettings();
+    void prepareVisualState();
+    void prepareHandlers();
+    void loadSettings();
 
     /* Cleanup helpers: */
-    void saveWindowSettings();
-    void cleanupMachineView();
-    //void cleanupConnections() {}
+    void saveSettings();
+    //void cleanupHandlers() {}
+    //coid cleanupVisualState() {}
     void cleanupStatusBar();
     //void cleanupMenu() {}
     //void cleanupConsoleConnections() {}
 
-    /* Other members: */
-    void showSimple();
+    /* Translate stuff: */
+    void retranslateUi();
+
+    /* Show stuff: */
+    void showInNecessaryMode();
+
+    /* Helper: Machine-window geometry stuff: */
+    void normalizeGeometry(bool fAdjustPosition);
+
+    /* Update stuff: */
+    void updateAppearanceOf(int aElement);
+
+    /* Event handler: */
+    bool event(QEvent *pEvent);
+
+    /* Helpers: */
+    UIIndicatorsPool* indicatorsPool() { return m_pIndicatorsPool; }
     bool isMaximizedChecked();
     void updateIndicatorState(QIStateIndicator *pIndicator, KDeviceType deviceType);
 
-    /* Indicators pool: */
+    /* Widgets: */
     UIIndicatorsPool *m_pIndicatorsPool;
-    /* Other QWidgets: */
-    QWidget *m_pCntHostkey;
     QLabel *m_pNameHostkey;
-    /* Other QObjects: */
+
+    /* Variables: */
     QTimer *m_pIdleTimer;
-    /* Other members: */
     QRect m_normalGeometry;
 
     /* Factory support: */

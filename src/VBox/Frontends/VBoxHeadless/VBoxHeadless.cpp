@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 #include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-#include <VBox/com/EventQueue.h>
+#include <VBox/com/NativeEventQueue.h>
 
 #include <VBox/com/VirtualBox.h>
 #include <VBox/com/listeners.h>
@@ -42,14 +42,10 @@ using namespace com;
 #include <VBox/err.h>
 #include <VBox/VBoxVideo.h>
 
-#ifdef VBOX_FFMPEG
+#ifdef VBOX_WITH_VPX
 #include <cstdlib>
 #include <cerrno>
-#include "VBoxHeadless.h"
-#include <iprt/env.h>
-#include <iprt/param.h>
 #include <iprt/process.h>
-#include <VBox/sup.h>
 #endif
 
 //#define VBOX_WITH_SAVESTATE_ON_SIGNAL
@@ -58,9 +54,6 @@ using namespace com;
 #endif
 
 #include "Framebuffer.h"
-#ifdef VBOX_WITH_VNC
-# include "FramebufferVNC.h"
-#endif
 
 #include "NullFramebuffer.h"
 
@@ -76,14 +69,10 @@ using namespace com;
 
 /* global weak references (for event handlers) */
 static IConsole *gConsole = NULL;
-static EventQueue *gEventQ = NULL;
+static NativeEventQueue *gEventQ = NULL;
 
 /* flag whether frontend should terminate */
 static volatile bool g_fTerminateFE = false;
-
-#ifdef VBOX_WITH_VNC
-static VNCFB *g_pFramebufferVNC;
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,93 +160,129 @@ public:
         {
             case VBoxEventType_OnGuestPropertyChanged:
             {
-                ComPtr<IGuestPropertyChangedEvent> gpcev = aEvent;
-                Assert(gpcev);
+                ComPtr<IGuestPropertyChangedEvent> pChangedEvent = aEvent;
+                Assert(pChangedEvent);
 
-                Bstr aKey;
-                gpcev->COMGETTER(Name)(aKey.asOutParam());
+                HRESULT hrc;
 
-                if (aKey == Bstr("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"))
+                ComPtr <IMachine> pMachine;
+                if (gConsole)
                 {
-                    /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
-                    BOOL fProcessDisconnectOnGuestLogout = FALSE;
-                    ComPtr <IMachine> machine;
-                    HRESULT hrc = S_OK;
-
-                    if (gConsole)
+                    hrc = gConsole->COMGETTER(Machine)(pMachine.asOutParam());
+                    if (SUCCEEDED(hrc) && pMachine)
                     {
-                        hrc = gConsole->COMGETTER(Machine)(machine.asOutParam());
-                        if (SUCCEEDED(hrc) && machine)
+                        Bstr gpMachineId, machineId;
+                        hrc = pMachine->COMGETTER(Id)(gpMachineId.asOutParam());
+                        AssertComRC(hrc);
+                        hrc = pChangedEvent->COMGETTER(MachineId)(machineId.asOutParam());
+                        AssertComRC(hrc);
+                        if (gpMachineId != machineId)
+                            hrc = VBOX_E_OBJECT_NOT_FOUND;
+                    }
+                }
+                else
+                    hrc = VBOX_E_INVALID_VM_STATE;
+
+                if (SUCCEEDED(hrc))
+                {
+                    Bstr strKey;
+                    hrc = pChangedEvent->COMGETTER(Name)(strKey.asOutParam());
+                    AssertComRC(hrc);
+
+                    Bstr strValue;
+                    hrc = pChangedEvent->COMGETTER(Value)(strValue.asOutParam());
+                    AssertComRC(hrc);
+
+                    Utf8Str utf8Key = strKey;
+                    Utf8Str utf8Value = strValue;
+                    LogRelFlow(("Guest property \"%s\" has been changed to \"%s\"\n",
+                                utf8Key.c_str(), utf8Value.c_str()));
+
+                    if (utf8Key.equals("/VirtualBox/GuestInfo/OS/NoLoggedInUsers"))
+                    {
+                        LogRelFlow(("Guest indicates that there %s logged in users\n",
+                                    utf8Value.equals("true") ? "are no" : "are"));
+
+                        /* Check if this is our machine and the "disconnect on logout feature" is enabled. */
+                        BOOL fProcessDisconnectOnGuestLogout = FALSE;
+
+                        /* Does the machine handle VRDP disconnects? */
+                        Bstr strDiscon;
+                        hrc = pMachine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout").raw(),
+                                                    strDiscon.asOutParam());
+                        if (SUCCEEDED(hrc))
                         {
-                            Bstr id, machineId;
-                            hrc = machine->COMGETTER(Id)(id.asOutParam());
-                            gpcev->COMGETTER(MachineId)(machineId.asOutParam());
-                            if (id == machineId)
+                            Utf8Str utf8Discon = strDiscon;
+                            fProcessDisconnectOnGuestLogout = utf8Discon.equals("1")
+                                                            ? TRUE : FALSE;
+                        }
+
+                        LogRelFlow(("VRDE: hrc=%Rhrc: Host %s disconnecting clients (current host state known: %s)\n",
+                                    hrc, fProcessDisconnectOnGuestLogout ? "will handle" : "does not handle",
+                                    mfNoLoggedInUsers ? "No users logged in" : "Users logged in"));
+
+                        if (fProcessDisconnectOnGuestLogout)
+                        {
+                            bool fDropConnection = false;
+                            if (!mfNoLoggedInUsers) /* Only if the property really changes. */
                             {
-                                Bstr value1;
-                                hrc = machine->GetExtraData(Bstr("VRDP/DisconnectOnGuestLogout").raw(),
-                                                            value1.asOutParam());
-                                if (SUCCEEDED(hrc) && value1 == "1")
+                                if (   utf8Value == "true"
+                                    /* Guest property got deleted due to reset,
+                                     * so it has no value anymore. */
+                                    || utf8Value.isEmpty())
                                 {
-                                    fProcessDisconnectOnGuestLogout = TRUE;
+                                    mfNoLoggedInUsers = true;
+                                    fDropConnection = true;
                                 }
                             }
-                        }
-                    }
-
-                    if (fProcessDisconnectOnGuestLogout)
-                    {
-                        bool fDropConnection = false;
-
-                        Bstr value;
-                        gpcev->COMGETTER(Value)(value.asOutParam());
-                        Utf8Str utf8Value = value;
-
-                        if (!mfNoLoggedInUsers) /* Only if the property really changes. */
-                        {
-                            if (   utf8Value == "true"
-                                /* Guest property got deleted due to reset,
-                                 * so it has no value anymore. */
-                                || utf8Value.isEmpty())
-                            {
-                                mfNoLoggedInUsers = true;
+                            else if (utf8Value == "false")
+                                mfNoLoggedInUsers = false;
+                            /* Guest property got deleted due to reset,
+                             * take the shortcut without touching the mfNoLoggedInUsers
+                             * state. */
+                            else if (utf8Value.isEmpty())
                                 fDropConnection = true;
-                            }
-                        }
-                        else if (utf8Value == "false")
-                            mfNoLoggedInUsers = false;
-                        /* Guest property got deleted due to reset,
-                         * take the shortcut without touching the mfNoLoggedInUsers
-                         * state. */
-                        else if (utf8Value.isEmpty())
-                            fDropConnection = true;
 
-                        if (fDropConnection)
-                        {
-                            /* If there is a connection, drop it. */
-                            ComPtr<IVRDEServerInfo> info;
-                            hrc = gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
-                            if (SUCCEEDED(hrc) && info)
+                            LogRelFlow(("VRDE: szNoLoggedInUsers=%s, mfNoLoggedInUsers=%RTbool, fDropConnection=%RTbool\n",
+                                        utf8Value.c_str(), mfNoLoggedInUsers, fDropConnection));
+
+                            if (fDropConnection)
                             {
-                                ULONG cClients = 0;
-                                hrc = info->COMGETTER(NumberOfClients)(&cClients);
-                                if (SUCCEEDED(hrc) && cClients > 0)
+                                /* If there is a connection, drop it. */
+                                ComPtr<IVRDEServerInfo> info;
+                                hrc = gConsole->COMGETTER(VRDEServerInfo)(info.asOutParam());
+                                if (SUCCEEDED(hrc) && info)
                                 {
-                                    ComPtr <IVRDEServer> vrdeServer;
-                                    hrc = machine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
-                                    if (SUCCEEDED(hrc) && vrdeServer)
+                                    ULONG cClients = 0;
+                                    hrc = info->COMGETTER(NumberOfClients)(&cClients);
+
+                                    LogRelFlow(("VRDE: connected clients=%RU32\n", cClients));
+                                    if (SUCCEEDED(hrc) && cClients > 0)
                                     {
-                                        LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
-                                        vrdeServer->COMSETTER(Enabled)(FALSE);
-                                        vrdeServer->COMSETTER(Enabled)(TRUE);
+                                        ComPtr <IVRDEServer> vrdeServer;
+                                        hrc = pMachine->COMGETTER(VRDEServer)(vrdeServer.asOutParam());
+                                        if (SUCCEEDED(hrc) && vrdeServer)
+                                        {
+                                            LogRel(("VRDE: the guest user has logged out, disconnecting remote clients.\n"));
+                                            hrc = vrdeServer->COMSETTER(Enabled)(FALSE);
+                                            AssertComRC(hrc);
+                                            HRESULT hrc2 = vrdeServer->COMSETTER(Enabled)(TRUE);
+                                            if (SUCCEEDED(hrc))
+                                                hrc = hrc2;
+                                        }
                                     }
                                 }
                             }
                         }
                     }
+
+                    if (FAILED(hrc))
+                        LogRelFlow(("VRDE: returned error=%Rhrc\n", hrc));
                 }
+
                 break;
             }
+
             default:
                 AssertFailed();
         }
@@ -266,6 +291,7 @@ public:
     }
 
 private:
+
     bool mfNoLoggedInUsers;
 };
 
@@ -302,7 +328,7 @@ public:
             {
 
                 ComPtr<IMouseCapabilityChangedEvent> mccev = aEvent;
-                Assert(mccev);
+                Assert(!mccev.isNull());
 
                 BOOL fSupportsAbsolute = false;
                 mccev->COMGETTER(SupportsAbsolute)(&fSupportsAbsolute);
@@ -317,10 +343,6 @@ public:
                         mouse->PutMouseEventAbsolute(-1, -1, 0, 0 /* Horizontal wheel */, 0);
                     }
                 }
-#ifdef VBOX_WITH_VNC
-                if (g_pFramebufferVNC)
-                    g_pFramebufferVNC->enableAbsMouse(fSupportsAbsolute);
-#endif
                 break;
             }
             case VBoxEventType_OnStateChanged:
@@ -473,11 +495,6 @@ static void show_usage()
 {
     RTPrintf("Usage:\n"
              "   -s, -startvm, --startvm <name|uuid>   Start given VM (required argument)\n"
-#ifdef VBOX_WITH_VNC
-             "   -n, --vnc                             Enable the built in VNC server\n"
-             "   -m, --vncport <port>                  TCP port number to use for the VNC server\n"
-             "   -o, --vncpass <pw>                    Set the VNC server password\n"
-#endif
              "   -v, -vrde, --vrde on|off|config       Enable (default) or disable the VRDE\n"
              "                                         server or don't change the setting\n"
              "   -e, -vrdeproperty, --vrdeproperty <name=[value]> Set a VRDE property:\n"
@@ -486,21 +503,22 @@ static void show_usage()
              "                                         two port numbers to specify a range\n"
              "                                         \"TCP/Address\" - interface IP the VRDE server\n"
              "                                         will bind to\n"
-#ifdef VBOX_FFMPEG
+             "   --settingspw <pw>                     Specify the settings password\n"
+             "   --settingspwfile <file>               Specify a file containing the settings password\n"
+#ifdef VBOX_WITH_VPX
              "   -c, -capture, --capture               Record the VM screen output to a file\n"
              "   -w, --width                           Frame width when recording\n"
              "   -h, --height                          Frame height when recording\n"
              "   -r, --bitrate                         Recording bit rate when recording\n"
-             "   -f, --filename                        File name when recording.  The codec\n"
-             "                                         used will be chosen based on the\n"
-             "                                         file extension\n"
+             "   -f, --filename                        File name when recording. The codec used\n"
+             "                                         will be chosen based on the file extension\n"
 #endif
              "\n");
 }
 
-#ifdef VBOX_FFMPEG
+#ifdef VBOX_WITH_VPX
 /**
- * Parse the environment for variables which can influence the FFMPEG settings.
+ * Parse the environment for variables which can influence the VIDEOREC settings.
  * purely for backwards compatibility.
  * @param pulFrameWidth may be updated with a desired frame width
  * @param pulFrameHeight may be updated with a desired frame height
@@ -511,7 +529,12 @@ static void parse_environ(unsigned long *pulFrameWidth, unsigned long *pulFrameH
                           unsigned long *pulBitRate, const char **ppszFileName)
 {
     const char *pszEnvTemp;
-
+/** @todo r=bird: This isn't up to scratch. The life time of an RTEnvGet
+ *        return value is only up to the next RTEnv*, *getenv, *putenv,
+ *        setenv call in _any_ process in the system and the it has known and
+ *        documented code page issues.
+ *
+ *        Use RTEnvGetEx instead! */
     if ((pszEnvTemp = RTEnvGet("VBOX_CAPTUREWIDTH")) != 0)
     {
         errno = 0;
@@ -542,7 +565,70 @@ static void parse_environ(unsigned long *pulFrameWidth, unsigned long *pulFrameH
     if ((pszEnvTemp = RTEnvGet("VBOX_CAPTUREFILE")) != 0)
         *ppszFileName = pszEnvTemp;
 }
-#endif /* VBOX_FFMPEG defined */
+#endif /* VBOX_WITH_VPX defined */
+
+static RTEXITCODE readPasswordFile(const char *pszFilename, com::Utf8Str *pPasswd)
+{
+    size_t cbFile;
+    char szPasswd[512];
+    int vrc = VINF_SUCCESS;
+    RTEXITCODE rcExit = RTEXITCODE_SUCCESS;
+    bool fStdIn = !strcmp(pszFilename, "stdin");
+    PRTSTREAM pStrm;
+    if (!fStdIn)
+        vrc = RTStrmOpen(pszFilename, "r", &pStrm);
+    else
+        pStrm = g_pStdIn;
+    if (RT_SUCCESS(vrc))
+    {
+        vrc = RTStrmReadEx(pStrm, szPasswd, sizeof(szPasswd)-1, &cbFile);
+        if (RT_SUCCESS(vrc))
+        {
+            if (cbFile >= sizeof(szPasswd)-1)
+            {
+                RTPrintf("Provided password in file '%s' is too long\n", pszFilename);
+                rcExit = RTEXITCODE_FAILURE;
+            }
+            else
+            {
+                unsigned i;
+                for (i = 0; i < cbFile && !RT_C_IS_CNTRL(szPasswd[i]); i++)
+                    ;
+                szPasswd[i] = '\0';
+                *pPasswd = szPasswd;
+            }
+        }
+        else
+        {
+            RTPrintf("Cannot read password from file '%s': %Rrc\n", pszFilename, vrc);
+            rcExit = RTEXITCODE_FAILURE;
+        }
+        if (!fStdIn)
+            RTStrmClose(pStrm);
+    }
+    else
+    {
+        RTPrintf("Cannot open password file '%s' (%Rrc)\n", pszFilename, vrc);
+        rcExit = RTEXITCODE_FAILURE;
+    }
+
+    return rcExit;
+}
+
+static RTEXITCODE settingsPasswordFile(ComPtr<IVirtualBox> virtualBox, const char *pszFilename)
+{
+    com::Utf8Str passwd;
+    RTEXITCODE rcExit = readPasswordFile(pszFilename, &passwd);
+    if (rcExit == RTEXITCODE_SUCCESS)
+    {
+        int rc;
+        CHECK_ERROR(virtualBox, SetSettingsSecret(com::Bstr(passwd).raw()));
+        if (FAILED(rc))
+            rcExit = RTEXITCODE_FAILURE;
+    }
+
+    return rcExit;
+}
 
 #ifdef RT_OS_WINDOWS
 // Required for ATL
@@ -559,30 +645,25 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     const char *vrdeEnabled = NULL;
     unsigned cVRDEProperties = 0;
     const char *aVRDEProperties[16];
-#ifdef VBOX_WITH_VNC
-    bool        fVNCEnable      = false;
-    unsigned    uVNCPort        = 0;          /* default port */
-    char const *pszVNCPassword  = NULL;       /* no password */
-#endif
     unsigned fRawR0 = ~0U;
     unsigned fRawR3 = ~0U;
     unsigned fPATM  = ~0U;
     unsigned fCSAM  = ~0U;
-#ifdef VBOX_FFMPEG
-    unsigned fFFMPEG = 0;
+#ifdef VBOX_WITH_VPX
+    bool fVideoRec = 0;
     unsigned long ulFrameWidth = 800;
     unsigned long ulFrameHeight = 600;
-    unsigned long ulBitRate = 300000;
-    char pszMPEGFile[RTPATH_MAX];
+    unsigned long ulBitRate = 300000; /** @todo r=bird: The COM type ULONG isn't unsigned long, it's 32-bit unsigned int. */
+    char szMpegFile[RTPATH_MAX];
     const char *pszFileNameParam = "VBox-%d.vob";
-#endif /* VBOX_FFMPEG */
+#endif /* VBOX_WITH_VPX */
 
-    LogFlow (("VBoxHeadless STARTED.\n"));
-    RTPrintf (VBOX_PRODUCT " Headless Interface " VBOX_VERSION_STRING "\n"
-              "(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-              "All rights reserved.\n\n");
+    LogFlow(("VBoxHeadless STARTED.\n"));
+    RTPrintf(VBOX_PRODUCT " Headless Interface " VBOX_VERSION_STRING "\n"
+             "(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+             "All rights reserved.\n\n");
 
-#ifdef VBOX_FFMPEG
+#ifdef VBOX_WITH_VPX
     /* Parse the environment */
     parse_environ(&ulFrameWidth, &ulFrameHeight, &ulBitRate, &pszFileNameParam);
 #endif
@@ -597,6 +678,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         OPT_NO_PATM,
         OPT_CSAM,
         OPT_NO_CSAM,
+        OPT_SETTINGSPW,
+        OPT_SETTINGSPW_FILE,
         OPT_COMMENT
     };
 
@@ -614,11 +697,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         { "--vrde", 'v', RTGETOPT_REQ_STRING },
         { "-vrdeproperty", 'e', RTGETOPT_REQ_STRING },
         { "--vrdeproperty", 'e', RTGETOPT_REQ_STRING },
-#ifdef VBOX_WITH_VNC
-        { "--vncport", 'm', RTGETOPT_REQ_INT32 },
-        { "--vncpass", 'o', RTGETOPT_REQ_STRING },
-        { "--vnc", 'n', 0 },
-#endif /* VBOX_WITH_VNC */
         { "-rawr0", OPT_RAW_R0, 0 },
         { "--rawr0", OPT_RAW_R0, 0 },
         { "-norawr0", OPT_NO_RAW_R0, 0 },
@@ -635,14 +713,16 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         { "--csam", OPT_CSAM, 0 },
         { "-nocsam", OPT_NO_CSAM, 0 },
         { "--nocsam", OPT_NO_CSAM, 0 },
-#ifdef VBOX_FFMPEG
+        { "--settingspw", OPT_SETTINGSPW, RTGETOPT_REQ_STRING },
+        { "--settingspwfile", OPT_SETTINGSPW_FILE, RTGETOPT_REQ_STRING },
+#ifdef VBOX_WITH_VPX
         { "-capture", 'c', 0 },
         { "--capture", 'c', 0 },
         { "--width", 'w', RTGETOPT_REQ_UINT32 },
         { "--height", 'h', RTGETOPT_REQ_UINT32 }, /* great choice of short option! */
         { "--bitrate", 'r', RTGETOPT_REQ_UINT32 },
         { "--filename", 'f', RTGETOPT_REQ_STRING },
-#endif /* VBOX_FFMPEG defined */
+#endif /* VBOX_WITH_VPX defined */
         { "-comment", OPT_COMMENT, RTGETOPT_REQ_STRING },
         { "--comment", OPT_COMMENT, RTGETOPT_REQ_STRING }
     };
@@ -651,6 +731,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
     // parse the command line
     int ch;
+    const char *pcszSettingsPw = NULL;
+    const char *pcszSettingsPwFile = NULL;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
     RTGetOptInit(&GetState, argc, argv, s_aOptions, RT_ELEMENTS(s_aOptions), 1, 0 /* fFlags */);
@@ -678,17 +760,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 else
                      RTPrintf("Warning: too many VRDE properties. Ignored: '%s'\n", ValueUnion.psz);
                 break;
-#ifdef VBOX_WITH_VNC
-            case 'n':
-                fVNCEnable = true;
-                break;
-            case 'm':
-                uVNCPort = ValueUnion.i32;
-                break;
-            case 'o':
-                pszVNCPassword = ValueUnion.psz;
-                break;
-#endif /* VBOX_WITH_VNC */
             case OPT_RAW_R0:
                 fRawR0 = true;
                 break;
@@ -713,9 +784,15 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             case OPT_NO_CSAM:
                 fCSAM = false;
                 break;
-#ifdef VBOX_FFMPEG
+            case OPT_SETTINGSPW:
+                pcszSettingsPw = ValueUnion.psz;
+                break;
+            case OPT_SETTINGSPW_FILE:
+                pcszSettingsPwFile = ValueUnion.psz;
+                break;
+#ifdef VBOX_WITH_VPX
             case 'c':
-                fFFMPEG = true;
+                fVideoRec = true;
                 break;
             case 'w':
                 ulFrameWidth = ValueUnion.u32;
@@ -726,9 +803,9 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             case 'f':
                 pszFileNameParam = ValueUnion.psz;
                 break;
-#endif /* VBOX_FFMPEG defined */
+#endif /* VBOX_WITH_VPX defined */
             case 'h':
-#ifdef VBOX_FFMPEG
+#ifdef VBOX_WITH_VPX
                 if ((GetState.pDef->fFlags & RTGETOPT_REQ_MASK) != RTGETOPT_REQ_NOTHING)
                 {
                     ulFrameHeight = ValueUnion.u32;
@@ -750,7 +827,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         }
     }
 
-#ifdef VBOX_FFMPEG
+#ifdef VBOX_WITH_VPX
     if (ulFrameWidth < 512 || ulFrameWidth > 2048 || ulFrameWidth % 2)
     {
         LogError("VBoxHeadless: ERROR: please specify an even frame width between 512 and 2048", 0);
@@ -779,8 +856,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         LogError("VBoxHeadless: ERROR: Only one format modifier is allowed in the capture file name.", -1);
         return 1;
     }
-    RTStrPrintf(&pszMPEGFile[0], RTPATH_MAX, pszFileNameParam, RTProcSelf());
-#endif /* defined VBOX_FFMPEG */
+    RTStrPrintf(&szMpegFile[0], RTPATH_MAX, pszFileNameParam, RTProcSelf());
+#endif /* defined VBOX_WITH_VPX */
 
     if (!pcszNameOrUUID)
     {
@@ -845,6 +922,19 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             break;
         }
 
+        if (pcszSettingsPw)
+        {
+            CHECK_ERROR(virtualBox, SetSettingsSecret(Bstr(pcszSettingsPw).raw()));
+            if (FAILED(rc))
+                break;
+        }
+        else if (pcszSettingsPwFile)
+        {
+            int rcExit = settingsPasswordFile(virtualBox, pcszSettingsPwFile);
+            if (rcExit != RTEXITCODE_SUCCESS)
+                break;
+        }
+
         ComPtr<IMachine> m;
 
         rc = virtualBox->FindMachine(Bstr(pcszNameOrUUID).raw(), m.asOutParam());
@@ -863,7 +953,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
               Utf8Str(id).c_str()));
 
         // open a session
-        CHECK_ERROR_BREAK(m, LockMachine(session, LockType_Write));
+        CHECK_ERROR_BREAK(m, LockMachine(session, LockType_VM));
         fSessionOpened = true;
 
         /* get the console */
@@ -876,95 +966,22 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
         ComPtr<IDisplay> display;
         CHECK_ERROR_BREAK(console, COMGETTER(Display)(display.asOutParam()));
 
-#ifdef VBOX_FFMPEG
-        IFramebuffer *pFramebuffer = 0;
-        RTLDRMOD hLdrFFmpegFB;
-        PFNREGISTERFFMPEGFB pfnRegisterFFmpegFB;
-
-        if (fFFMPEG)
+#ifdef VBOX_WITH_VPX
+        if (fVideoRec)
         {
-            HRESULT         rcc = S_OK;
-            int             rrc = VINF_SUCCESS;
-            RTERRINFOSTATIC ErrInfo;
-
-            Log2(("VBoxHeadless: loading VBoxFFmpegFB shared library\n"));
-            RTErrInfoInitStatic(&ErrInfo);
-            rrc = SUPR3HardenedLdrLoadAppPriv("VBoxFFmpegFB", &hLdrFFmpegFB, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
-
-            if (RT_SUCCESS(rrc))
-            {
-                Log2(("VBoxHeadless: looking up symbol VBoxRegisterFFmpegFB\n"));
-                rrc = RTLdrGetSymbol(hLdrFFmpegFB, "VBoxRegisterFFmpegFB",
-                                     reinterpret_cast<void **>(&pfnRegisterFFmpegFB));
-                if (RT_FAILURE(rrc))
-                    LogError("Failed to load the video capture extension, possibly due to a damaged file\n", rrc);
-            }
-            else
-                LogError("Failed to load the video capture extension\n", rrc); /** @todo stupid function, no formatting options. */
-            if (RT_SUCCESS(rrc))
-            {
-                Log2(("VBoxHeadless: calling pfnRegisterFFmpegFB\n"));
-                rcc = pfnRegisterFFmpegFB(ulFrameWidth, ulFrameHeight, ulBitRate,
-                                         pszMPEGFile, &pFramebuffer);
-                if (rcc != S_OK)
-                    LogError("Failed to initialise video capturing - make sure that the file format\n"
-                             "you wish to use is supported on your system\n", rcc);
-            }
-            if (RT_SUCCESS(rrc) && rcc == S_OK)
-            {
-                Log2(("VBoxHeadless: Registering framebuffer\n"));
-                pFramebuffer->AddRef();
-                display->SetFramebuffer(VBOX_VIDEO_PRIMARY_SCREEN, pFramebuffer);
-            }
-            if (!RT_SUCCESS(rrc) || rcc != S_OK)
-                rc = E_FAIL;
+            CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureFile)(Bstr(szMpegFile).raw()));
+            CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureWidth)(ulFrameWidth));
+            CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureHeight)(ulFrameHeight));
+            CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureRate)(ulBitRate));
+            CHECK_ERROR_BREAK(machine, COMSETTER(VideoCaptureEnabled)(TRUE));
         }
-        if (rc != S_OK)
-        {
-            break;
-        }
-#endif /* defined(VBOX_FFMPEG) */
-#ifdef VBOX_WITH_VNC
-        if (fVNCEnable)
-        {
-            Bstr machineName;
-            machine->COMGETTER(Name)(machineName.asOutParam());
-            g_pFramebufferVNC = new VNCFB(console, uVNCPort, pszVNCPassword);
-            rc = g_pFramebufferVNC->init(machineName.raw() ? Utf8Str(machineName.raw()).c_str() : "");
-            if (rc != S_OK)
-            {
-                LogError("Failed to load the vnc server extension, possibly due to a damaged file\n", rc);
-                delete g_pFramebufferVNC;
-                break;
-            }
-
-            Log2(("VBoxHeadless: Registering VNC framebuffer\n"));
-            g_pFramebufferVNC->AddRef();
-            display->SetFramebuffer(VBOX_VIDEO_PRIMARY_SCREEN, g_pFramebufferVNC);
-        }
-        if (rc != S_OK)
-            break;
-#endif
+#endif /* defined(VBOX_WITH_VPX) */
         ULONG cMonitors = 1;
         machine->COMGETTER(MonitorCount)(&cMonitors);
 
         unsigned uScreenId;
         for (uScreenId = 0; uScreenId < cMonitors; uScreenId++)
         {
-# ifdef VBOX_FFMPEG
-            if (fFFMPEG && uScreenId == 0)
-            {
-                /* Already registered. */
-                continue;
-            }
-# endif
-# ifdef VBOX_WITH_VNC
-            if (fVNCEnable && uScreenId == 0)
-            {
-                /* Already registered. */
-                continue;
-            }
-# endif
             VRDPFramebuffer *pVRDPFramebuffer = new VRDPFramebuffer();
             if (!pVRDPFramebuffer)
             {
@@ -1043,7 +1060,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         /* initialize global references */
         gConsole = console;
-        gEventQ = com::EventQueue::getMainEventQueue();
+        gEventQ = com::NativeEventQueue::getMainEventQueue();
 
         /* VirtualBoxClient events registration. */
         {
@@ -1207,7 +1224,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 com::ProgressErrorInfo info(progress);
                 if (info.isBasicAvailable())
                 {
-                    RTPrintf("Error: failed to start machine. Error message: %lS\n", info.getText().raw());
+                    RTPrintf("Error: failed to start machine. Error message: %ls\n", info.getText().raw());
                 }
                 else
                 {
@@ -1227,6 +1244,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             vboxListener = listener;
             com::SafeArray<VBoxEventType_T> eventTypes;
             eventTypes.push_back(VBoxEventType_OnGuestPropertyChanged);
+
+            /**
+             * @todo Set the notification pattern to "/VirtualBox/GuestInfo/OS/ *Logged*"
+             *       to not cause too much load. The current API is broken as
+             *       IMachine::GuestPropertyNotificationPatterns() would change the
+             *       filter for _all_ clients. This is not what we want!
+             */
             CHECK_ERROR(es, RegisterListener(vboxListener, ComSafeArrayAsInParam(eventTypes), true));
         }
 
@@ -1243,14 +1267,13 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
         Log(("VBoxHeadless: event loop has terminated...\n"));
 
-#ifdef VBOX_FFMPEG
-        if (pFramebuffer)
+#ifdef VBOX_WITH_VPX
+        if (fVideoRec)
         {
-            pFramebuffer->Release();
-            Log(("Released framebuffer\n"));
-            pFramebuffer = NULL;
+            if (!machine.isNull())
+                machine->COMSETTER(VideoCaptureEnabled)(FALSE);
         }
-#endif /* defined(VBOX_FFMPEG) */
+#endif /* defined(VBOX_WITH_VPX) */
 
         /* we don't have to disable VRDE here because we don't save the settings of the VM */
     }
@@ -1360,7 +1383,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 int main(int argc, char **argv, char **envp)
 {
     // initialize VBox Runtime
-    int rc = RTR3InitAndSUPLib();
+    int rc = RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     if (RT_FAILURE(rc))
     {
         RTPrintf("VBoxHeadless: Runtime Error:\n"

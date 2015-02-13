@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,20 +38,22 @@ RT_C_DECLS_BEGIN
  */
 
 /** The saved state version. */
-#define EM_SAVED_STATE_VERSION                          4
+#define EM_SAVED_STATE_VERSION                          5
+#define EM_SAVED_STATE_VERSION_PRE_IEM                  4
 #define EM_SAVED_STATE_VERSION_PRE_MWAIT                3
 #define EM_SAVED_STATE_VERSION_PRE_SMP                  2
 
 
-/**
- * MWait state flags.
+/** @name MWait state flags.
+ * @{
  */
-/* MWait activated. */
+/** MWait activated. */
 #define EMMWAIT_FLAG_ACTIVE             RT_BIT(0)
-/* MWait will continue when an interrupt is pending even when IF=0. */
+/** MWait will continue when an interrupt is pending even when IF=0. */
 #define EMMWAIT_FLAG_BREAKIRQIF0        RT_BIT(1)
-/* Monitor instruction was executed previously. */
+/** Monitor instruction was executed previously. */
 #define EMMWAIT_FLAG_MONITOR_ACTIVE     RT_BIT(2)
+/** @} */
 
 /** EM time slice in ms; used for capping execution time. */
 #define EM_TIME_SLICE                   100
@@ -263,15 +265,19 @@ typedef struct EMSTATS
 
     /** @name Privileged Instructions Ending Up In HC.
      * @{ */
+    STAMCOUNTER             StatIoRestarted;
+#ifdef VBOX_WITH_FIRST_IEM_STEP
+    STAMCOUNTER             StatIoIem;
+#else
+    STAMCOUNTER             StatIn;
+    STAMCOUNTER             StatOut;
+#endif
     STAMCOUNTER             StatCli;
     STAMCOUNTER             StatSti;
-    STAMCOUNTER             StatIn;
-    STAMCOUNTER             StatIoRestarted;
-    STAMCOUNTER             StatOut;
     STAMCOUNTER             StatInvlpg;
     STAMCOUNTER             StatHlt;
-    STAMCOUNTER             StatMovReadCR[USE_REG_CR4 + 1];
-    STAMCOUNTER             StatMovWriteCR[USE_REG_CR4 + 1];
+    STAMCOUNTER             StatMovReadCR[DISCREG_CR4 + 1];
+    STAMCOUNTER             StatMovWriteCR[DISCREG_CR4 + 1];
     STAMCOUNTER             StatMovDRx;
     STAMCOUNTER             StatIret;
     STAMCOUNTER             StatMovLgdt;
@@ -306,13 +312,22 @@ typedef struct EM
      * See EM2VM(). */
     RTUINT                  offVM;
 
+    /** Whether IEM executes everything. */
+    bool                    fIemExecutesAll;
+    /** Whether a triple fault triggers a guru. */
+    bool                    fGuruOnTripleFault;
+    /** Alignment padding. */
+    bool                    afPadding[6];
+
     /** Id of the VCPU that last executed code in the recompiler. */
     VMCPUID                 idLastRemCpu;
 
+#ifdef VBOX_WITH_REM
     /** REM critical section.
      * This protects recompiler usage
      */
     PDMCRITSECT             CritSectREM;
+#endif
 } EM;
 /** Pointer to EM VM instance data. */
 typedef EM *PEM;
@@ -323,14 +338,10 @@ typedef EM *PEM;
  */
 typedef struct EMCPU
 {
-    /** Offset to the VM structure.
-     * See EMCPU2VM(). */
-    RTUINT                  offVMCPU;
-
     /** Execution Manager State. */
     EMSTATE volatile        enmState;
 
-    /** Previous Execution Manager State. */
+    /** The state prior to the suspending of the VM. */
     EMSTATE                 enmPrevState;
 
     /** Force raw-mode execution.
@@ -340,11 +351,17 @@ typedef struct EMCPU
 
     uint8_t                 u8Padding[3];
 
+    /** The number of instructions we've executed in IEM since switching to the
+     *  EMSTATE_IEM_THEN_REM state. */
+    uint32_t                cIemThenRemInstructions;
+
     /** Inhibit interrupts for this instruction. Valid only when VM_FF_INHIBIT_INTERRUPTS is set. */
     RTGCUINTPTR             GCPtrInhibitInterrupts;
 
+#ifdef VBOX_WITH_RAW_MODE
     /** Pointer to the PATM status structure. (R3 Ptr) */
     R3PTRTYPE(PPATMGCSTATE) pPatmGCState;
+#endif
 
     /** Pointer to the guest CPUM state. (R3 Ptr) */
     R3PTRTYPE(PCPUMCTX)     pCtx;
@@ -361,17 +378,17 @@ typedef struct EMCPU
     uint64_t                u64TimeSliceExec;
     uint64_t                u64Alignment;
 
-    /* MWait halt state. */
+    /** MWait halt state. */
     struct
     {
-        uint32_t            fWait;          /* type of mwait; see EMMWAIT_FLAG_* */
-        uint32_t            a32Padding[1];
-        RTGCPTR             uMWaitEAX;      /* mwait hints */
-        RTGCPTR             uMWaitECX;      /* mwait extensions */
-        RTGCPTR             uMonitorEAX;    /* monitored address. */
-        RTGCPTR             uMonitorECX;    /* monitor extension. */
-        RTGCPTR             uMonitorEDX;    /* monitor hint. */
-    } mwait;
+        uint32_t            fWait;          /** Type of mwait; see EMMWAIT_FLAG_*. */
+        uint32_t            u32Padding;
+        RTGCPTR             uMWaitRAX;      /** MWAIT hints. */
+        RTGCPTR             uMWaitRCX;      /** MWAIT extensions. */
+        RTGCPTR             uMonitorRAX;    /** Monitored address. */
+        RTGCPTR             uMonitorRCX;    /** Monitor extension. */
+        RTGCPTR             uMonitorRDX;    /** Monitor hint. */
+    } MWait;
 
     union
     {
@@ -386,23 +403,18 @@ typedef struct EMCPU
     } u;
 
     /** For saving stack space, the disassembler state is allocated here instead of
-     * on the stack.
-     * @note The DISCPUSTATE structure is not R3/R0/RZ clean!  */
-    union
-    {
-        /** The disassembler scratch space. */
-        DISCPUSTATE         DisState;
-        /** Padding. */
-        uint8_t             abDisStatePadding[DISCPUSTATE_PADDING_SIZE];
-    };
+     * on the stack. */
+    DISCPUSTATE             DisState;
 
     /** @name Execution profiling.
      * @{ */
     STAMPROFILE             StatForcedActions;
     STAMPROFILE             StatHalted;
     STAMPROFILEADV          StatCapped;
-    STAMPROFILEADV          StatHwAccEntry;
-    STAMPROFILE             StatHwAccExec;
+    STAMPROFILEADV          StatHmEntry;
+    STAMPROFILE             StatHmExec;
+    STAMPROFILE             StatIEMEmu;
+    STAMPROFILE             StatIEMThenREM;
     STAMPROFILE             StatREMEmu;
     STAMPROFILE             StatREMExec;
     STAMPROFILE             StatREMSync;
@@ -418,8 +430,8 @@ typedef struct EMCPU
     STAMPROFILE             StatIOEmu;
     /** R3: Profiling of emR3RawPrivileged. */
     STAMPROFILE             StatPrivEmu;
-    /** R3: Number of time emR3HwAccExecute is called. */
-    STAMCOUNTER             StatHwAccExecuteEntry;
+    /** R3: Number of time emR3HmExecute is called. */
+    STAMCOUNTER             StatHmExecuteEntry;
 
     /** More statistics (R3). */
     R3PTRTYPE(PEMSTATS)     pStatsR3;
@@ -444,11 +456,12 @@ typedef EMCPU *PEMCPU;
 
 /** @} */
 
+int     emR3InitDbg(PVM pVM);
 
-int     emR3HwAccExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
+int     emR3HmExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
 int     emR3RawExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
 int     emR3RawHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
-int     emR3HwaccmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
+int     emR3HmHandleRC(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
 EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 int     emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc);
 int     emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc);
@@ -456,6 +469,7 @@ int     emR3RawUpdateForceFlag(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, int rc);
 int     emR3RawResumeHyper(PVM pVM, PVMCPU pVCpu);
 int     emR3RawStep(PVM pVM, PVMCPU pVCpu);
 int     emR3SingleStepExecRem(PVM pVM, PVMCPU pVCpu, uint32_t cIterations);
+bool    emR3IsExecutionAllowed(PVM pVM, PVMCPU pVCpu);
 
 RT_C_DECLS_END
 

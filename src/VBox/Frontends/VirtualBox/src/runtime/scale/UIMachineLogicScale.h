@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicScale class declaration
+ * VBox Qt GUI - UIMachineLogicScale class declaration.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,39 +14,43 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineLogicScale_h__
-#define __UIMachineLogicScale_h__
+#ifndef ___UIMachineLogicScale_h___
+#define ___UIMachineLogicScale_h___
 
-/* Local includes */
+/* Local includes: */
 #include "UIMachineLogic.h"
 
+/* Scale machine logic implementation: */
 class UIMachineLogicScale : public UIMachineLogic
 {
     Q_OBJECT;
 
 protected:
 
-    /* Scale machine logic constructor/destructor: */
-    UIMachineLogicScale(QObject *pParent,
-                        UISession *pSession);
-    virtual ~UIMachineLogicScale();
+    /* Constructor: */
+    UIMachineLogicScale(QObject *pParent, UISession *pSession);
 
+    /* Check if this logic is available: */
     bool checkAvailability();
-    void initialize();
+
+    /** Returns machine-window flags for 'Scale' machine-logic and passed @a uScreenId. */
+    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::Window; }
 
 private:
 
     /* Prepare helpers: */
     void prepareActionGroups();
+    void prepareActionConnections();
     void prepareMachineWindows();
 
     /* Cleanup helpers: */
-    void cleanupMachineWindow();
+    void cleanupMachineWindows();
+    void cleanupActionConnections();
     void cleanupActionGroups();
 
     /* Friend classes: */
     friend class UIMachineLogic;
 };
 
-#endif // __UIMachineLogicScale_h__
+#endif /* !___UIMachineLogicScale_h___ */
 

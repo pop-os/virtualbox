@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,7 +83,8 @@ public:
 #endif
 
     VirtualBoxErrorInfo()
-        : m_resultCode(S_OK)
+        : m_resultCode(S_OK),
+          m_resultDetail(0)
     {}
 
     // public initializer/uninitializer for internal purposes only
@@ -93,8 +94,19 @@ public:
                  const Utf8Str &strText,
                  IVirtualBoxErrorInfo *aNext = NULL);
 
+    HRESULT initEx(HRESULT aResultCode,
+                   LONG aResultDetail,
+                   const GUID &aIID,
+                   const char *pcszComponent,
+                   const Utf8Str &strText,
+                   IVirtualBoxErrorInfo *aNext = NULL);
+
+    HRESULT init(const com::ErrorInfo &ei,
+                 IVirtualBoxErrorInfo *aNext = NULL);
+
     // IVirtualBoxErrorInfo properties
     STDMETHOD(COMGETTER(ResultCode))(LONG *aResultCode);
+    STDMETHOD(COMGETTER(ResultDetail))(LONG *aResultDetail);
     STDMETHOD(COMGETTER(InterfaceID))(BSTR *aIID);
     STDMETHOD(COMGETTER(Component))(BSTR *aComponent);
     STDMETHOD(COMGETTER(Text))(BSTR *aText);
@@ -110,6 +122,7 @@ private:
                             void *       /* c */) { return rc; }
 
     HRESULT m_resultCode;
+    LONG    m_resultDetail;
     Utf8Str m_strText;
     Guid    m_IID;
     Utf8Str m_strComponent;

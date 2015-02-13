@@ -1,5 +1,4 @@
 /* $Id: UsbCardReader.cpp $ */
-
 /** @file
  * UsbCardReader - Driver Interface to USB Smart Card Reader emulation.
  */
@@ -30,14 +29,6 @@
 
 #include <iprt/req.h>
 
-#define NIL_RTREQQUEUE ((RTREQQUEUE *)0)
-#define RTReqQueueCallEx RTReqCallEx
-#define RTReqQueueProcess RTReqProcess
-#define RTReqQueueCall RTReqCall
-#define RTReqQueueCreate RTReqCreateQueue
-#define RTReqQueueDestroy RTReqDestroyQueue
-#define RTReqRelease RTReqFree
-
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -57,7 +48,7 @@ struct USBCARDREADER
     /* Thread handling Cmd to card reader */
     PPDMTHREAD          pThrCardReaderCmd;
     /* Queue handling requests to cardreader */
-    RTREQQUEUE          *hReqQCardReaderCmd;
+    RTREQQUEUE          hReqQCardReaderCmd;
 };
 
 
@@ -77,9 +68,9 @@ static DECLCALLBACK(void) drvCardReaderCmdStatusChange(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpSetStatusChange(pThis->pICardReaderUp,
-                                                              pvUser, VRDE_SCARD_E_NO_SMARTCARD,
-                                                              paReaderStats, cReaderStats);
+        pThis->pICardReaderUp->pfnSetStatusChange(pThis->pICardReaderUp,
+                                                  pvUser, VRDE_SCARD_E_NO_SMARTCARD,
+                                                  paReaderStats, cReaderStats);
     }
     else
     {
@@ -98,8 +89,8 @@ static DECLCALLBACK(void) drvCardReaderCmdEstablishContext(PUSBCARDREADER pThis)
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpEstablishContext(pThis->pICardReaderUp,
-                                                               VRDE_SCARD_E_NO_SMARTCARD);
+        pThis->pICardReaderUp->pfnEstablishContext(pThis->pICardReaderUp,
+                                                   VRDE_SCARD_E_NO_SMARTCARD);
     }
     else
     {
@@ -138,15 +129,15 @@ static DECLCALLBACK(void) drvCardReaderCmdStatus(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpStatus(pThis->pICardReaderUp,
-                                                     pvUser,
-                                                     VRDE_SCARD_E_NO_SMARTCARD,
-                                                     /* pszReaderName */ NULL,
-                                                     /* cchReaderName */ 0,
-                                                     /* u32CardState */ 0,
-                                                     /* u32Protocol */ 0,
-                                                     /* pu8Atr */ 0,
-                                                     /* cbAtr */ 0);
+        pThis->pICardReaderUp->pfnStatus(pThis->pICardReaderUp,
+                                         pvUser,
+                                         VRDE_SCARD_E_NO_SMARTCARD,
+                                         /* pszReaderName */ NULL,
+                                         /* cchReaderName */ 0,
+                                         /* u32CardState */ 0,
+                                         /* u32Protocol */ 0,
+                                         /* pu8Atr */ 0,
+                                         /* cbAtr */ 0);
     }
     else
     {
@@ -168,10 +159,10 @@ static DECLCALLBACK(void) drvCardReaderCmdConnect(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpConnect(pThis->pICardReaderUp,
-                                                      pvUser,
-                                                      VRDE_SCARD_E_NO_SMARTCARD,
-                                                      0);
+        pThis->pICardReaderUp->pfnConnect(pThis->pICardReaderUp,
+                                          pvUser,
+                                          VRDE_SCARD_E_NO_SMARTCARD,
+                                          0);
     }
     else
     {
@@ -192,9 +183,9 @@ static DECLCALLBACK(void) drvCardReaderCmdDisconnect(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpDisconnect(pThis->pICardReaderUp,
-                                                         pvUser,
-                                                         VRDE_SCARD_E_NO_SMARTCARD);
+        pThis->pICardReaderUp->pfnDisconnect(pThis->pICardReaderUp,
+                                             pvUser,
+                                             VRDE_SCARD_E_NO_SMARTCARD);
     }
     else
     {
@@ -217,12 +208,12 @@ static DECLCALLBACK(void) drvCardReaderCmdTransmit(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpTransmit(pThis->pICardReaderUp,
-                                                       pvUser,
-                                                       VRDE_SCARD_E_NO_SMARTCARD,
-                                                       /* pioRecvPci */ NULL,
-                                                       /* pu8RecvBuffer */ NULL,
-                                                       /* cbRecvBuffer*/ 0);
+        pThis->pICardReaderUp->pfnTransmit(pThis->pICardReaderUp,
+                                           pvUser,
+                                           VRDE_SCARD_E_NO_SMARTCARD,
+                                           /* pioRecvPci */ NULL,
+                                           /* pu8RecvBuffer */ NULL,
+                                           /* cbRecvBuffer*/ 0);
     }
     else
     {
@@ -248,12 +239,12 @@ static DECLCALLBACK(void) drvCardReaderCmdGetAttr(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpGetAttrib(pThis->pICardReaderUp,
-                                                        pvUser,
-                                                        VRDE_SCARD_E_NO_SMARTCARD,
-                                                        u32AttrId,
-                                                        /* pvAttrib */ NULL,
-                                                        /* cbAttrib */ 0);
+        pThis->pICardReaderUp->pfnGetAttrib(pThis->pICardReaderUp,
+                                            pvUser,
+                                            VRDE_SCARD_E_NO_SMARTCARD,
+                                            u32AttrId,
+                                            /* pvAttrib */ NULL,
+                                            /* cbAttrib */ 0);
     }
     else
     {
@@ -275,10 +266,10 @@ static DECLCALLBACK(void) drvCardReaderCmdSetAttr(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpSetAttrib(pThis->pICardReaderUp,
-                                                        pvUser,
-                                                        VRDE_SCARD_E_NO_SMARTCARD,
-                                                        u32AttrId);
+        pThis->pICardReaderUp->pfnSetAttrib(pThis->pICardReaderUp,
+                                            pvUser,
+                                            VRDE_SCARD_E_NO_SMARTCARD,
+                                            u32AttrId);
     }
     else
     {
@@ -304,12 +295,12 @@ static DECLCALLBACK(void) drvCardReaderCmdControl(PUSBCARDREADER pThis,
     UsbCardReader *pUsbCardReader = pThis->pUsbCardReader;
     if (!pUsbCardReader)
     {
-        pThis->pICardReaderUp->pfnCardReaderUpControl(pThis->pICardReaderUp,
-                                                      pvUser,
-                                                      VRDE_SCARD_E_NO_SMARTCARD,
-                                                      u32ControlCode,
-                                                      /* pvOutBuffer */ NULL,
-                                                      /* cbOutBuffer */ 0);
+        pThis->pICardReaderUp->pfnControl(pThis->pICardReaderUp,
+                                          pvUser,
+                                          VRDE_SCARD_E_NO_SMARTCARD,
+                                          u32ControlCode,
+                                          /* pvOutBuffer */ NULL,
+                                          /* cbOutBuffer */ 0);
     }
     else
     {
@@ -346,9 +337,9 @@ static DECLCALLBACK(int) drvCardReaderDownConnect(PPDMICARDREADERDOWN pInterface
     return rc;
 }
 
-static DECLCALLBACK(int)drvCardReaderDownDisconnect(PPDMICARDREADERDOWN pInterface,
-                                                    void *pvUser,
-                                                    uint32_t u32Disposition)
+static DECLCALLBACK(int) drvCardReaderDownDisconnect(PPDMICARDREADERDOWN pInterface,
+                                                     void *pvUser,
+                                                     uint32_t u32Disposition)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_PARAMETER);
     LogFlowFunc(("ENTER: pvUser:%p, u32Disposition:%RX32\n",
@@ -397,10 +388,10 @@ static DECLCALLBACK(int) drvCardReaderDownReleaseContext(PPDMICARDREADERDOWN pIn
     return rc;
 }
 
-static DECLCALLBACK(int)drvCardReaderDownStatus(PPDMICARDREADERDOWN pInterface,
-                                                void *pvUser,
-                                                uint32_t cchReaderName,
-                                                uint32_t cbAtrLen)
+static DECLCALLBACK(int) drvCardReaderDownStatus(PPDMICARDREADERDOWN pInterface,
+                                                 void *pvUser,
+                                                 uint32_t cchReaderName,
+                                                 uint32_t cbAtrLen)
 {
     AssertPtrReturn(pInterface, VERR_INVALID_PARAMETER);
     LogFlowFunc(("ENTER: pvUser:%p, cchReaderName:%d, cbAtrLen:%d\n",
@@ -781,7 +772,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
     {
         case VRDE_SCARD_FN_ESTABLISHCONTEXT:
         {
-            Assert(cbData == sizeof(VRDESCARDESTABLISHCONTEXTRSP));
+            Assert(cbData == sizeof(VRDESCARDESTABLISHCONTEXTRSP) || RT_FAILURE(rcRequest));
             VRDESCARDESTABLISHCONTEXTRSP *pRsp = (VRDESCARDESTABLISHCONTEXTRSP *)pvData;
             UCRREMOTE *pRemote = (UCRREMOTE *)pvUser;
 
@@ -805,7 +796,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_LISTREADERS:
         {
-            Assert(cbData == sizeof(VRDESCARDLISTREADERSRSP));
+            Assert(cbData == sizeof(VRDESCARDLISTREADERSRSP) || RT_FAILURE(rcRequest));
             VRDESCARDLISTREADERSRSP *pRsp = (VRDESCARDLISTREADERSRSP *)pvData;
             UCRREMOTE *pRemote = (UCRREMOTE *)pvUser;
 
@@ -838,7 +829,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_RELEASECONTEXT:
         {
-            Assert(cbData == sizeof(VRDESCARDRELEASECONTEXTRSP));
+            Assert(cbData == sizeof(VRDESCARDRELEASECONTEXTRSP) || RT_FAILURE(rcRequest));
             VRDESCARDRELEASECONTEXTRSP *pRsp = (VRDESCARDRELEASECONTEXTRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -852,7 +843,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_GETSTATUSCHANGE:
         {
-            Assert(cbData == sizeof(VRDESCARDGETSTATUSCHANGERSP));
+            Assert(cbData == sizeof(VRDESCARDGETSTATUSCHANGERSP) || RT_FAILURE(rcRequest));
             VRDESCARDGETSTATUSCHANGERSP *pRsp = (VRDESCARDGETSTATUSCHANGERSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -861,7 +852,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
             LogFlowFunc(("GETSTATUSCHANGE\n"));
 
             uint32_t rcCard;
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -899,18 +890,18 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpSetStatusChange(mpDrv->pICardReaderUp,
-                                                                  pCtx->pvUser,
-                                                                  rcCard,
-                                                                  pCtx->u.GetStatusChange.paReaderStats,
-                                                                  pCtx->u.GetStatusChange.cReaderStats);
+            mpDrv->pICardReaderUp->pfnSetStatusChange(mpDrv->pICardReaderUp,
+                                                      pCtx->pvUser,
+                                                      rcCard,
+                                                      pCtx->u.GetStatusChange.paReaderStats,
+                                                      pCtx->u.GetStatusChange.cReaderStats);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_CANCEL:
         {
-            Assert(cbData == sizeof(VRDESCARDCANCELRSP));
+            Assert(cbData == sizeof(VRDESCARDCANCELRSP) || RT_FAILURE(rcRequest));
             VRDESCARDCANCELRSP *pRsp = (VRDESCARDCANCELRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -921,7 +912,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_CONNECT:
         {
-            Assert(cbData == sizeof(VRDESCARDCONNECTRSP));
+            Assert(cbData == sizeof(VRDESCARDCONNECTRSP) || RT_FAILURE(rcRequest));
             VRDESCARDCONNECTRSP *pRsp = (VRDESCARDCONNECTRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -932,7 +923,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
             uint32_t u32ActiveProtocol = 0;
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -950,17 +941,17 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpConnect(mpDrv->pICardReaderUp,
-                                                          pCtx->pvUser,
-                                                          rcCard,
-                                                          u32ActiveProtocol);
+            mpDrv->pICardReaderUp->pfnConnect(mpDrv->pICardReaderUp,
+                                              pCtx->pvUser,
+                                              rcCard,
+                                              u32ActiveProtocol);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_RECONNECT:
         {
-            Assert(cbData == sizeof(VRDESCARDRECONNECTRSP));
+            Assert(cbData == sizeof(VRDESCARDRECONNECTRSP) || RT_FAILURE(rcRequest));
             VRDESCARDRECONNECTRSP *pRsp = (VRDESCARDRECONNECTRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -971,7 +962,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_DISCONNECT:
         {
-            Assert(cbData == sizeof(VRDESCARDDISCONNECTRSP));
+            Assert(cbData == sizeof(VRDESCARDDISCONNECTRSP) || RT_FAILURE(rcRequest));
             VRDESCARDDISCONNECTRSP *pRsp = (VRDESCARDDISCONNECTRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -983,7 +974,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -992,16 +983,16 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 rcCard = pRsp->u32ReturnCode;
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpDisconnect(mpDrv->pICardReaderUp,
-                                                             pCtx->pvUser,
-                                                             rcCard);
+            mpDrv->pICardReaderUp->pfnDisconnect(mpDrv->pICardReaderUp,
+                                                 pCtx->pvUser,
+                                                 rcCard);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_BEGINTRANSACTION:
         {
-            Assert(cbData == sizeof(VRDESCARDBEGINTRANSACTIONRSP));
+            Assert(cbData == sizeof(VRDESCARDBEGINTRANSACTIONRSP) || RT_FAILURE(rcRequest));
             VRDESCARDBEGINTRANSACTIONRSP *pRsp = (VRDESCARDBEGINTRANSACTIONRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1012,7 +1003,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_ENDTRANSACTION:
         {
-            Assert(cbData == sizeof(VRDESCARDENDTRANSACTIONRSP));
+            Assert(cbData == sizeof(VRDESCARDENDTRANSACTIONRSP) || RT_FAILURE(rcRequest));
             VRDESCARDENDTRANSACTIONRSP *pRsp = (VRDESCARDENDTRANSACTIONRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1023,7 +1014,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_STATE:
         {
-            Assert(cbData == sizeof(VRDESCARDSTATERSP));
+            Assert(cbData == sizeof(VRDESCARDSTATERSP) || RT_FAILURE(rcRequest));
             VRDESCARDSTATERSP *pRsp = (VRDESCARDSTATERSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1034,7 +1025,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_STATUS:
         {
-            Assert(cbData == sizeof(VRDESCARDSTATUSRSP));
+            Assert(cbData == sizeof(VRDESCARDSTATUSRSP) || RT_FAILURE(rcRequest));
             VRDESCARDSTATUSRSP *pRsp = (VRDESCARDSTATUSRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1051,7 +1042,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -1062,7 +1053,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 if (pRsp->u32ReturnCode == VRDE_SCARD_S_SUCCESS)
                 {
                     pszReaderName = pRsp->szReader;
-                    cchReaderName = strlen(pRsp->szReader) + 1;
+                    cchReaderName = (uint32_t)strlen(pRsp->szReader) + 1;
                     u32CardState = pRsp->u32State;
                     u32Protocol = pRsp->u32Protocol;
                     u32AtrLength = pRsp->u32AtrLength;
@@ -1070,22 +1061,22 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpStatus(mpDrv->pICardReaderUp,
-                                                         pCtx->pvUser,
-                                                         rcCard,
-                                                         pszReaderName,
-                                                         cchReaderName,
-                                                         u32CardState,
-                                                         u32Protocol,
-                                                         pbAtr,
-                                                         u32AtrLength);
+            mpDrv->pICardReaderUp->pfnStatus(mpDrv->pICardReaderUp,
+                                             pCtx->pvUser,
+                                             rcCard,
+                                             pszReaderName,
+                                             cchReaderName,
+                                             u32CardState,
+                                             u32Protocol,
+                                             pbAtr,
+                                             u32AtrLength);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_TRANSMIT:
         {
-            Assert(cbData == sizeof(VRDESCARDTRANSMITRSP));
+            Assert(cbData == sizeof(VRDESCARDTRANSMITRSP) || RT_FAILURE(rcRequest));
             VRDESCARDTRANSMITRSP *pRsp = (VRDESCARDTRANSMITRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1099,7 +1090,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -1115,12 +1106,12 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpTransmit(mpDrv->pICardReaderUp,
-                                                           pCtx->pvUser,
-                                                           rcCard,
-                                                           pioRecvPci,
-                                                           pu8RecvBuffer,
-                                                           cbRecvBuffer);
+            mpDrv->pICardReaderUp->pfnTransmit(mpDrv->pICardReaderUp,
+                                               pCtx->pvUser,
+                                               rcCard,
+                                               pioRecvPci,
+                                               pu8RecvBuffer,
+                                               cbRecvBuffer);
 
             RTMemFree(pioRecvPci);
 
@@ -1129,7 +1120,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
         case VRDE_SCARD_FN_CONTROL:
         {
-            Assert(cbData == sizeof(VRDESCARDCONTROLRSP));
+            Assert(cbData == sizeof(VRDESCARDCONTROLRSP) || RT_FAILURE(rcRequest));
             VRDESCARDCONTROLRSP *pRsp = (VRDESCARDCONTROLRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1142,7 +1133,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -1157,19 +1148,19 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpControl(mpDrv->pICardReaderUp,
-                                                           pCtx->pvUser,
-                                                           rcCard,
-                                                           pCtx->u.Control.u32ControlCode,
-                                                           pu8OutBuffer,
-                                                           cbOutBuffer);
+            mpDrv->pICardReaderUp->pfnControl(mpDrv->pICardReaderUp,
+                                              pCtx->pvUser,
+                                              rcCard,
+                                              pCtx->u.Control.u32ControlCode,
+                                              pu8OutBuffer,
+                                              cbOutBuffer);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_GETATTRIB:
         {
-            Assert(cbData == sizeof(VRDESCARDGETATTRIBRSP));
+            Assert(cbData == sizeof(VRDESCARDGETATTRIBRSP) || RT_FAILURE(rcRequest));
             VRDESCARDGETATTRIBRSP *pRsp = (VRDESCARDGETATTRIBRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1182,7 +1173,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -1197,19 +1188,19 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 }
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpGetAttrib(mpDrv->pICardReaderUp,
-                                                            pCtx->pvUser,
-                                                            rcCard,
-                                                            pCtx->u.GetAttrib.u32AttrId,
-                                                            pu8Attrib,
-                                                            cbAttrib);
+            mpDrv->pICardReaderUp->pfnGetAttrib(mpDrv->pICardReaderUp,
+                                                pCtx->pvUser,
+                                                rcCard,
+                                                pCtx->u.GetAttrib.u32AttrId,
+                                                pu8Attrib,
+                                                cbAttrib);
 
             RTMemFree(pCtx);
         } break;
 
         case VRDE_SCARD_FN_SETATTRIB:
         {
-            Assert(cbData == sizeof(VRDESCARDSETATTRIBRSP));
+            Assert(cbData == sizeof(VRDESCARDSETATTRIBRSP) || RT_FAILURE(rcRequest));
             VRDESCARDSETATTRIBRSP *pRsp = (VRDESCARDSETATTRIBRSP *)pvData;
             UCRREQCTX *pCtx = (UCRREQCTX *)pvUser;
 
@@ -1219,7 +1210,7 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
 
             uint32_t rcCard;
 
-            if (RT_FAILURE(rc))
+            if (RT_FAILURE(rcRequest))
             {
                 rcCard = VRDE_SCARD_E_NO_SMARTCARD;
             }
@@ -1228,10 +1219,10 @@ int UsbCardReader::VRDEResponse(int rcRequest, void *pvUser, uint32_t u32Functio
                 rcCard = pRsp->u32ReturnCode;
             }
 
-            mpDrv->pICardReaderUp->pfnCardReaderUpSetAttrib(mpDrv->pICardReaderUp,
-                                                            pCtx->pvUser,
-                                                            rcCard,
-                                                            pCtx->u.SetAttrib.u32AttrId);
+            mpDrv->pICardReaderUp->pfnSetAttrib(mpDrv->pICardReaderUp,
+                                                pCtx->pvUser,
+                                                rcCard,
+                                                pCtx->u.SetAttrib.u32AttrId);
 
             RTMemFree(pCtx);
         } break;
@@ -1253,8 +1244,8 @@ int UsbCardReader::EstablishContext(struct USBCARDREADER *pDrv)
      * The device can be detached at the moment, for example the VRDP client did not connect yet.
      */
 
-    return mpDrv->pICardReaderUp->pfnCardReaderUpEstablishContext(mpDrv->pICardReaderUp,
-                                                                  VRDE_SCARD_S_SUCCESS);
+    return mpDrv->pICardReaderUp->pfnEstablishContext(mpDrv->pICardReaderUp,
+                                                      VRDE_SCARD_S_SUCCESS);
 }
 
 int UsbCardReader::ReleaseContext(struct USBCARDREADER *pDrv)
@@ -1314,22 +1305,22 @@ int UsbCardReader::GetStatusChange(struct USBCARDREADER *pDrv,
         || !m_pRemote->fContext
         || !m_pRemote->reader.fAvailable)
     {
-        rc = mpDrv->pICardReaderUp->pfnCardReaderUpSetStatusChange(mpDrv->pICardReaderUp,
-                                                                   pvUser,
-                                                                   VRDE_SCARD_E_NO_SMARTCARD,
-                                                                   paReaderStats,
-                                                                   cReaderStats);
+        rc = mpDrv->pICardReaderUp->pfnSetStatusChange(mpDrv->pICardReaderUp,
+                                                       pvUser,
+                                                       VRDE_SCARD_E_NO_SMARTCARD,
+                                                       paReaderStats,
+                                                       cReaderStats);
     }
     else
     {
         UCRREQCTX *pCtx = (UCRREQCTX *)RTMemAlloc(sizeof(UCRREQCTX));
         if (!pCtx)
         {
-            rc = mpDrv->pICardReaderUp->pfnCardReaderUpSetStatusChange(mpDrv->pICardReaderUp,
-                                                                       pvUser,
-                                                                       VRDE_SCARD_E_NO_MEMORY,
-                                                                       paReaderStats,
-                                                                       cReaderStats);
+            rc = mpDrv->pICardReaderUp->pfnSetStatusChange(mpDrv->pICardReaderUp,
+                                                           pvUser,
+                                                           VRDE_SCARD_E_NO_MEMORY,
+                                                           paReaderStats,
+                                                           cReaderStats);
         }
         else
         {
@@ -1372,20 +1363,20 @@ int UsbCardReader::Connect(struct USBCARDREADER *pDrv,
         || !m_pRemote->fContext
         || !m_pRemote->reader.fAvailable)
     {
-        rc = mpDrv->pICardReaderUp->pfnCardReaderUpConnect(mpDrv->pICardReaderUp,
-                                                           pvUser,
-                                                           VRDE_SCARD_E_NO_SMARTCARD,
-                                                           VRDE_SCARD_PROTOCOL_T0);
+        rc = mpDrv->pICardReaderUp->pfnConnect(mpDrv->pICardReaderUp,
+                                               pvUser,
+                                               VRDE_SCARD_E_NO_SMARTCARD,
+                                               VRDE_SCARD_PROTOCOL_T0);
     }
     else
     {
         UCRREQCTX *pCtx = (UCRREQCTX *)RTMemAlloc(sizeof(UCRREQCTX));
         if (!pCtx)
         {
-            rc = mpDrv->pICardReaderUp->pfnCardReaderUpConnect(mpDrv->pICardReaderUp,
-                                                               pvUser,
-                                                               VRDE_SCARD_E_NO_MEMORY,
-                                                               VRDE_SCARD_PROTOCOL_T0);
+            rc = mpDrv->pICardReaderUp->pfnConnect(mpDrv->pICardReaderUp,
+                                                   pvUser,
+                                                   VRDE_SCARD_E_NO_MEMORY,
+                                                   VRDE_SCARD_PROTOCOL_T0);
         }
         else
         {
@@ -1424,18 +1415,18 @@ int UsbCardReader::Disconnect(struct USBCARDREADER *pDrv,
         || !m_pRemote->reader.fAvailable
         || !m_pRemote->reader.fHandle)
     {
-        rc = mpDrv->pICardReaderUp->pfnCardReaderUpDisconnect(mpDrv->pICardReaderUp,
-                                                              pvUser,
-                                                              VRDE_SCARD_E_NO_SMARTCARD);
+        rc = mpDrv->pICardReaderUp->pfnDisconnect(mpDrv->pICardReaderUp,
+                                                  pvUser,
+                                                  VRDE_SCARD_E_NO_SMARTCARD);
     }
     else
     {
         UCRREQCTX *pCtx = (UCRREQCTX *)RTMemAlloc(sizeof(UCRREQCTX));
         if (!pCtx)
         {
-            rc = mpDrv->pICardReaderUp->pfnCardReaderUpDisconnect(mpDrv->pICardReaderUp,
-                                                                  pvUser,
-                                                                  VRDE_SCARD_E_NO_MEMORY);
+            rc = mpDrv->pICardReaderUp->pfnDisconnect(mpDrv->pICardReaderUp,
+                                                      pvUser,
+                                                      VRDE_SCARD_E_NO_MEMORY);
         }
         else
         {
@@ -1475,30 +1466,30 @@ int UsbCardReader::Status(struct USBCARDREADER *pDrv,
         || !m_pRemote->reader.fAvailable
         || !m_pRemote->reader.fHandle)
     {
-        rc = mpDrv->pICardReaderUp->pfnCardReaderUpStatus(mpDrv->pICardReaderUp,
-                                                          pvUser,
-                                                          VRDE_SCARD_E_NO_SMARTCARD,
-                                                          /* pszReaderName */ NULL,
-                                                          /* cchReaderName */ 0,
-                                                          /* u32CardState */ 0,
-                                                          /* u32Protocol */ 0,
-                                                          /* pu8Atr */ 0,
-                                                          /* cbAtr */ 0);
+        rc = mpDrv->pICardReaderUp->pfnStatus(mpDrv->pICardReaderUp,
+                                              pvUser,
+                                              VRDE_SCARD_E_NO_SMARTCARD,
+                                              /* pszReaderName */ NULL,
+                                              /* cchReaderName */ 0,
+                                              /* u32CardState */ 0,
+                                              /* u32Protocol */ 0,
+                                              /* pu8Atr */ 0,
+                                              /* cbAtr */ 0);
     }
     else
     {
         UCRREQCTX *pCtx = (UCRREQCTX *)RTMemAlloc(sizeof(UCRREQCTX));
         if (!pCtx)
         {
-            rc = mpDrv->pICardReaderUp->pfnCardReaderUpStatus(mpDrv->pICardReaderUp,
-                                                              pvUser,
-                                                              VRDE_SCARD_E_NO_MEMORY,
-                                                              /* pszReaderName */ NULL,
-                                                              /* cchReaderName */ 0,
-                                                              /* u32CardState */ 0,
-                                                              /* u32Protocol */ 0,
-                                                              /* pu8Atr */ 0,
-                                                              /* cbAtr */ 0);
+            rc = mpDrv->pICardReaderUp->pfnStatus(mpDrv->pICardReaderUp,
+                                                  pvUser,
+                                                  VRDE_SCARD_E_NO_MEMORY,
+                                                  /* pszReaderName */ NULL,
+                                                  /* cchReaderName */ 0,
+                                                  /* u32CardState */ 0,
+                                                  /* u32Protocol */ 0,
+                                                  /* pu8Atr */ 0,
+                                                  /* cbAtr */ 0);
         }
         else
         {
@@ -1568,12 +1559,12 @@ int UsbCardReader::Transmit(struct USBCARDREADER *pDrv,
     {
         Assert(pCtx == NULL);
 
-        rc = pDrv->pICardReaderUp->pfnCardReaderUpTransmit(pDrv->pICardReaderUp,
-                                                           pvUser,
-                                                           rcSCard,
-                                                           /* pioRecvPci */ NULL,
-                                                           /* pu8RecvBuffer */ NULL,
-                                                           /* cbRecvBuffer*/ 0);
+        rc = pDrv->pICardReaderUp->pfnTransmit(pDrv->pICardReaderUp,
+                                               pvUser,
+                                               rcSCard,
+                                               /* pioRecvPci */ NULL,
+                                               /* pu8RecvBuffer */ NULL,
+                                               /* cbRecvBuffer*/ 0);
     }
     else
     {
@@ -1653,12 +1644,12 @@ int UsbCardReader::Control(struct USBCARDREADER *pDrv,
     {
         Assert(pCtx == NULL);
 
-        rc = pDrv->pICardReaderUp->pfnCardReaderUpControl(pDrv->pICardReaderUp,
-                                                          pvUser,
-                                                          rcSCard,
-                                                          u32ControlCode,
-                                                          /* pvOutBuffer */ NULL,
-                                                          /* cbOutBuffer*/ 0);
+        rc = pDrv->pICardReaderUp->pfnControl(pDrv->pICardReaderUp,
+                                              pvUser,
+                                              rcSCard,
+                                              u32ControlCode,
+                                              /* pvOutBuffer */ NULL,
+                                              /* cbOutBuffer*/ 0);
     }
     else
     {
@@ -1727,12 +1718,12 @@ int UsbCardReader::GetAttrib(struct USBCARDREADER *pDrv,
     {
         Assert(pCtx == NULL);
 
-        pDrv->pICardReaderUp->pfnCardReaderUpGetAttrib(pDrv->pICardReaderUp,
-                                                       pvUser,
-                                                       rcSCard,
-                                                       u32AttrId,
-                                                       /* pvAttrib */ NULL,
-                                                       /* cbAttrib */ 0);
+        pDrv->pICardReaderUp->pfnGetAttrib(pDrv->pICardReaderUp,
+                                           pvUser,
+                                           rcSCard,
+                                           u32AttrId,
+                                           /* pvAttrib */ NULL,
+                                           /* cbAttrib */ 0);
     }
     else
     {
@@ -1800,10 +1791,10 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
     {
         Assert(pCtx == NULL);
 
-        pDrv->pICardReaderUp->pfnCardReaderUpSetAttrib(pDrv->pICardReaderUp,
-                                                       pvUser,
-                                                       rcSCard,
-                                                       u32AttrId);
+        pDrv->pICardReaderUp->pfnSetAttrib(pDrv->pICardReaderUp,
+                                           pvUser,
+                                           rcSCard,
+                                           u32AttrId);
     }
     else
     {
@@ -1831,10 +1822,10 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
 
 
 /*
- * PDM
+ * PDMDRVINS
  */
 
-/* static */ DECLCALLBACK(void *)UsbCardReader::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
+/* static */ DECLCALLBACK(void *) UsbCardReader::drvQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     LogFlowFunc(("pInterface:%p, pszIID:%s\n", pInterface, pszIID));
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
@@ -1845,10 +1836,37 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
     return NULL;
 }
 
+/* static */ DECLCALLBACK(void) UsbCardReader::drvDestruct(PPDMDRVINS pDrvIns)
+{
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+    LogFlowFunc(("iInstance/%d\n",pDrvIns->iInstance));
+    PUSBCARDREADER pThis = PDMINS_2_DATA(pDrvIns, PUSBCARDREADER);
+
+    /** @todo The driver is destroyed before the device.
+     * So device calls ReleaseContext when there is no more driver.
+     * Notify the device here so it can do cleanup or
+     * do a cleanup now in the driver.
+     */
+    if (pThis->hReqQCardReaderCmd != NIL_RTREQQUEUE)
+    {
+        int rc = RTReqQueueDestroy(pThis->hReqQCardReaderCmd);
+        AssertRC(rc);
+        pThis->hReqQCardReaderCmd = NIL_RTREQQUEUE;
+    }
+
+    /** @todo r=bird: why doesn't this set pThis->pUsbCardReader->mpDrv to NULL like
+     *        everyone else? */
+    pThis->pUsbCardReader = NULL;
+    LogFlowFuncLeave();
+}
+
 /* static */ DECLCALLBACK(int) UsbCardReader::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     LogFlowFunc(("iInstance/%d, pCfg:%p, fFlags:%x\n", pDrvIns->iInstance, pCfg, fFlags));
     PUSBCARDREADER pThis = PDMINS_2_DATA(pDrvIns, PUSBCARDREADER);
+
+    pThis->hReqQCardReaderCmd = NIL_RTREQQUEUE;
 
     if (!CFGMR3AreValuesValid(pCfg, "Object\0"))
         return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
@@ -1866,18 +1884,18 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
 
     pDrvIns->IBase.pfnQueryInterface = UsbCardReader::drvQueryInterface;
 
-    pThis->ICardReaderDown.pfnCardReaderDownEstablishContext = drvCardReaderDownEstablishContext;
-    pThis->ICardReaderDown.pfnCardReaderDownReleaseContext = drvCardReaderDownReleaseContext;
-    pThis->ICardReaderDown.pfnCardReaderDownConnect = drvCardReaderDownConnect;
-    pThis->ICardReaderDown.pfnCardReaderDownDisconnect = drvCardReaderDownDisconnect;
-    pThis->ICardReaderDown.pfnCardReaderDownStatus = drvCardReaderDownStatus;
-    pThis->ICardReaderDown.pfnCardReaderDownGetStatusChange = drvCardReaderDownGetStatusChange;
-    pThis->ICardReaderDown.pfnCardReaderDownBeginTransaction = drvCardReaderDownBeginTransaction;
-    pThis->ICardReaderDown.pfnCardReaderDownEndTransaction = drvCardReaderDownEndTransaction;
-    pThis->ICardReaderDown.pfnCardReaderDownTransmit = drvCardReaderDownTransmit;
-    pThis->ICardReaderDown.pfnCardReaderDownGetAttr = drvCardReaderDownGetAttr;
-    pThis->ICardReaderDown.pfnCardReaderDownSetAttr = drvCardReaderDownSetAttr;
-    pThis->ICardReaderDown.pfnCardReaderDownControl = drvCardReaderDownControl;
+    pThis->ICardReaderDown.pfnEstablishContext  = drvCardReaderDownEstablishContext;
+    pThis->ICardReaderDown.pfnReleaseContext    = drvCardReaderDownReleaseContext;
+    pThis->ICardReaderDown.pfnConnect           = drvCardReaderDownConnect;
+    pThis->ICardReaderDown.pfnDisconnect        = drvCardReaderDownDisconnect;
+    pThis->ICardReaderDown.pfnStatus            = drvCardReaderDownStatus;
+    pThis->ICardReaderDown.pfnGetStatusChange   = drvCardReaderDownGetStatusChange;
+    pThis->ICardReaderDown.pfnBeginTransaction  = drvCardReaderDownBeginTransaction;
+    pThis->ICardReaderDown.pfnEndTransaction    = drvCardReaderDownEndTransaction;
+    pThis->ICardReaderDown.pfnTransmit          = drvCardReaderDownTransmit;
+    pThis->ICardReaderDown.pfnGetAttr           = drvCardReaderDownGetAttr;
+    pThis->ICardReaderDown.pfnSetAttr           = drvCardReaderDownSetAttr;
+    pThis->ICardReaderDown.pfnControl           = drvCardReaderDownControl;
 
     pThis->pICardReaderUp = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMICARDREADERUP);
     AssertReturn(pThis->pICardReaderUp, VERR_PDM_MISSING_INTERFACE);
@@ -1900,27 +1918,6 @@ int UsbCardReader::SetAttrib(struct USBCARDREADER *pDrv,
 
     LogFlowFunc(("LEAVE: %Rrc\n", rc));
     return rc;
-}
-
-/* static */ DECLCALLBACK(void) UsbCardReader::drvDestruct(PPDMDRVINS pDrvIns)
-{
-    LogFlowFunc(("iInstance/%d\n",pDrvIns->iInstance));
-    PUSBCARDREADER pThis = PDMINS_2_DATA(pDrvIns, PUSBCARDREADER);
-
-    /* @todo The driver is destroyed before the device.
-     * So device calls ReleaseContext when there is no more driver.
-     * Notify the device here so it can do cleanup or
-     * do a cleanup now in the driver.
-     */
-    if (pThis->hReqQCardReaderCmd != NIL_RTREQQUEUE)
-    {
-        int rc = RTReqQueueDestroy(pThis->hReqQCardReaderCmd);
-        AssertRC(rc);
-        pThis->hReqQCardReaderCmd = NIL_RTREQQUEUE;
-    }
-
-    pThis->pUsbCardReader = NULL;
-    LogFlowFuncLeave();
 }
 
 /* static */ const PDMDRVREG UsbCardReader::DrvReg =

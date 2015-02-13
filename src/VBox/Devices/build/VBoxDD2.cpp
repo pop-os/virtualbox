@@ -1,4 +1,4 @@
-/* $Id $ */
+/* $Id: VBoxDD2.cpp $ */
 /** @file
  * VBoxDD2 - Built-in drivers & devices part 2.
  *
@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,9 +62,6 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceIOAPIC);
-    if (RT_FAILURE(rc))
-        return rc;
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSMC);
     if (RT_FAILURE(rc))
         return rc;
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceLPC);

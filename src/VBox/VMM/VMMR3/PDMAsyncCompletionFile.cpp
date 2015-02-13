@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,6 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_PDM_ASYNC_COMPLETION
-#define RT_STRICT
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
 #include <VBox/vmm/mm.h>
@@ -29,6 +28,7 @@
 #include <VBox/log.h>
 #include <VBox/dbg.h>
 #include <VBox/vmm/uvm.h>
+#include <VBox/vmm/tm.h>
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -40,42 +40,18 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/path.h>
-
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
-# include <errno.h>
-# include <sys/ioctl.h>
-# include <sys/types.h>
-# include <sys/stat.h>
-# include <fcntl.h>
-# include <unistd.h>
-#endif
-
-#ifdef RT_OS_WINDOWS
-# define _WIN32_WINNT 0x0500
-# include <windows.h>
-# include <winioctl.h>
-#endif
-#ifdef RT_OS_DARWIN
-# include <sys/disk.h>
-#endif /* RT_OS_DARWIN */
-#ifdef RT_OS_SOLARIS
-# include <stropts.h>
-# include <sys/dkio.h>
-# include <sys/vtoc.h>
-#endif /* RT_OS_SOLARIS */
-#ifdef RT_OS_FREEBSD
-# include <sys/disk.h>
-#endif /* RT_OS_FREEBSD */
+#include <iprt/rand.h>
 
 #include "PDMAsyncCompletionFileInternal.h"
-
 
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
 #ifdef VBOX_WITH_DEBUGGER
-static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs);
-static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs);
+static FNDBGCCMD pdmacEpFileErrorInject;
+# ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+static FNDBGCCMD pdmacEpFileDelayInject;
+# endif
 #endif
 
 /*******************************************************************************
@@ -94,22 +70,26 @@ static const DBGCVARDESC g_aInjectErrorArgs[] =
 static const DBGCVARDESC g_aInjectDelayArgs[] =
 {
     /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
-    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "direction",    "write/read." },
+    {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "direction",    "write|read|flush|any." },
     {  1,           1,          DBGCVAR_CAT_STRING,     0,                              "filename",     "Filename." },
     {  1,           1,          DBGCVAR_CAT_NUMBER,     0,                              "delay",        "Delay in milliseconds." },
+    {  1,           1,          DBGCVAR_CAT_NUMBER,     0,                              "jitter",       "Jitter of the delay." },
+    {  1,           1,          DBGCVAR_CAT_NUMBER,     0,                              "reqs",         "Number of requests to delay." }
+
 };
 # endif
 
 /** Command descriptors. */
 static const DBGCCMD g_aCmds[] =
 {
-    /* pszCmd,       cArgsMin, cArgsMax, paArgDesc,                cArgDescs, fFlags, pfnHandler              pszSyntax, ....pszDescription */
-    { "injecterror",        3, 3,        &g_aInjectErrorArgs[0],           3,      0, pdmacEpFileErrorInject, "",        "Inject error into I/O subsystem." }
+    /* pszCmd,       cArgsMin, cArgsMax, paArgDesc,                                    cArgDescs, fFlags, pfnHandler              pszSyntax,.pszDescription */
+    { "injecterror",        3, 3,        &g_aInjectErrorArgs[0],                               3,      0, pdmacEpFileErrorInject, "",        "Inject error into I/O subsystem." }
 # ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
-    ,{ "injectdelay",        3, 3,        &g_aInjectDelayArgs[0],           3,      0, pdmacEpFileDelayInject, "",        "Inject a delay of a request." }
+    ,{ "injectdelay",       3, 5,        &g_aInjectDelayArgs[0], RT_ELEMENTS(g_aInjectDelayArgs),      0, pdmacEpFileDelayInject, "",        "Inject a delay of a request." }
 # endif
 };
 #endif
+
 
 /**
  * Frees a task.
@@ -118,8 +98,7 @@ static const DBGCCMD g_aCmds[] =
  * @param   pEndpoint    Pointer to the endpoint the segment was for.
  * @param   pTask        The task to free.
  */
-void pdmacFileTaskFree(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint,
-                       PPDMACTASKFILE pTask)
+void pdmacFileTaskFree(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint, PPDMACTASKFILE pTask)
 {
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClass = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->Core.pEpClass;
 
@@ -185,12 +164,10 @@ PPDMACTASKFILE pdmacFileTaskAlloc(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 
 PPDMACTASKFILE pdmacFileEpGetNewTasks(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 {
-    PPDMACTASKFILE pTasks = NULL;
-
     /*
      * Get pending tasks.
      */
-    pTasks = ASMAtomicXchgPtrT(&pEndpoint->pTasksNewHead, NULL, PPDMACTASKFILE);
+    PPDMACTASKFILE pTasks = ASMAtomicXchgPtrT(&pEndpoint->pTasksNewHead, NULL, PPDMACTASKFILE);
 
     /* Reverse the list to process in FIFO order. */
     if (pTasks)
@@ -214,23 +191,19 @@ PPDMACTASKFILE pdmacFileEpGetNewTasks(PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 static void pdmacFileAioMgrWakeup(PPDMACEPFILEMGR pAioMgr)
 {
     bool fWokenUp = ASMAtomicXchgBool(&pAioMgr->fWokenUp, true);
-
     if (!fWokenUp)
     {
-        int rc = VINF_SUCCESS;
         bool fWaitingEventSem = ASMAtomicReadBool(&pAioMgr->fWaitingEventSem);
-
         if (fWaitingEventSem)
-            rc = RTSemEventSignal(pAioMgr->EventSem);
-
-        AssertRC(rc);
+        {
+            int rc = RTSemEventSignal(pAioMgr->EventSem);
+            AssertRC(rc);
+        }
     }
 }
 
 static int pdmacFileAioMgrWaitForBlockingEvent(PPDMACEPFILEMGR pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT enmEvent)
 {
-    int rc = VINF_SUCCESS;
-
     ASMAtomicWriteU32((volatile uint32_t *)&pAioMgr->enmBlockingEvent, enmEvent);
     Assert(!pAioMgr->fBlockingEventPending);
     ASMAtomicXchgBool(&pAioMgr->fBlockingEventPending, true);
@@ -239,7 +212,7 @@ static int pdmacFileAioMgrWaitForBlockingEvent(PPDMACEPFILEMGR pAioMgr, PDMACEPF
     pdmacFileAioMgrWakeup(pAioMgr);
 
     /* Wait for completion. */
-    rc = RTSemEventWait(pAioMgr->EventSemBlock, RT_INDEFINITE_WAIT);
+    int rc = RTSemEventWait(pAioMgr->EventSemBlock, RT_INDEFINITE_WAIT);
     AssertRC(rc);
 
     ASMAtomicXchgBool(&pAioMgr->fBlockingEventPending, false);
@@ -250,14 +223,12 @@ static int pdmacFileAioMgrWaitForBlockingEvent(PPDMACEPFILEMGR pAioMgr, PDMACEPF
 
 int pdmacFileAioMgrAddEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 {
-    int rc;
-
     LogFlowFunc(("pAioMgr=%#p pEndpoint=%#p{%s}\n", pAioMgr, pEndpoint, pEndpoint->Core.pszUri));
 
     /* Update the assigned I/O manager. */
     ASMAtomicWritePtr(&pEndpoint->pAioMgr, pAioMgr);
 
-    rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
+    int rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
     ASMAtomicWritePtr(&pAioMgr->BlockingEventData.AddEndpoint.pEndpoint, pEndpoint);
@@ -269,11 +240,10 @@ int pdmacFileAioMgrAddEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPO
     return rc;
 }
 
+#ifdef SOME_UNUSED_FUNCTION
 static int pdmacFileAioMgrRemoveEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 {
-    int rc;
-
-    rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
+    int rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
     ASMAtomicWritePtr(&pAioMgr->BlockingEventData.RemoveEndpoint.pEndpoint, pEndpoint);
@@ -284,12 +254,11 @@ static int pdmacFileAioMgrRemoveEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPL
 
     return rc;
 }
+#endif
 
 static int pdmacFileAioMgrCloseEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLETIONENDPOINTFILE pEndpoint)
 {
-    int rc;
-
-    rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
+    int rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
     ASMAtomicWritePtr(&pAioMgr->BlockingEventData.CloseEndpoint.pEndpoint, pEndpoint);
@@ -303,9 +272,7 @@ static int pdmacFileAioMgrCloseEndpoint(PPDMACEPFILEMGR pAioMgr, PPDMASYNCCOMPLE
 
 static int pdmacFileAioMgrShutdown(PPDMACEPFILEMGR pAioMgr)
 {
-    int rc;
-
-    rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
+    int rc = RTCritSectEnter(&pAioMgr->CritSectBlockingEvent);
     AssertRCReturn(rc, rc);
 
     rc = pdmacFileAioMgrWaitForBlockingEvent(pAioMgr, PDMACEPFILEAIOMGRBLOCKINGEVENT_SHUTDOWN);
@@ -336,9 +303,7 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
     LogFlowFunc(("pTask=%#p pvUser=%#p rc=%Rrc\n", pTask, pvUser, rc));
 
     if (pTask->enmTransferType == PDMACTASKFILETRANSFER_FLUSH)
-    {
         pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, rc, true);
-    }
     else
     {
         Assert((uint32_t)pTask->DataSeg.cbSeg == pTask->DataSeg.cbSeg && (int32_t)pTask->DataSeg.cbSeg >= 0);
@@ -368,30 +333,41 @@ void pdmacFileEpTaskCompleted(PPDMACTASKFILE pTask, void *pvUser, int rc)
         {
 #ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
             PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pTaskFile->Core.pEndpoint;
+            PPDMASYNCCOMPLETIONEPCLASSFILE  pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEpFile->Core.pEpClass;
 
             /* Check if we should delay completion of the request. */
             if (   ASMAtomicReadU32(&pEpFile->msDelay) > 0
-                && ASMAtomicCmpXchgPtr(&pEpFile->pReqDelayed, pTaskFile, NULL))
+                && ASMAtomicReadU32(&pEpFile->cReqsDelay) > 0)
             {
-                /* Arm the delay. */
-                pEpFile->tsDelayEnd = RTTimeProgramMilliTS() + pEpFile->msDelay;
-                LogRel(("AIOMgr: Delaying request %#p for %u ms\n", pTaskFile, pEpFile->msDelay));
-                return;
-            }
-#endif
-            pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, pTaskFile->rc, true);
+                uint64_t tsDelay = pEpFile->msDelay;
 
-#if PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
-            /* Check for an expired delay. */
-            if (   pEpFile->pReqDelayed != NULL
-                && RTTimeProgramMilliTS() >= pEpFile->tsDelayEnd)
-            {
-                pTaskFile = ASMAtomicXchgPtrT(&pEpFile->pReqDelayed, NULL, PPDMASYNCCOMPLETIONTASKFILE);
-                ASMAtomicXchgU32(&pEpFile->msDelay, 0);
-                LogRel(("AIOMgr: Delayed request %#p completed\n", pTaskFile));
-                pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, pTaskFile->rc, true);
+                if (pEpFile->msJitter)
+                    tsDelay = (RTRandU32() % 100) > 50 ? pEpFile->msDelay + (RTRandU32() % pEpFile->msJitter)
+                                                       : pEpFile->msDelay - (RTRandU32() % pEpFile->msJitter);
+                ASMAtomicDecU32(&pEpFile->cReqsDelay);
+
+                /* Arm the delay. */
+                pTaskFile->tsDelayEnd = RTTimeProgramMilliTS() + tsDelay;
+
+                /* Append to the list. */
+                PPDMASYNCCOMPLETIONTASKFILE pHead = NULL;
+                do
+                {
+                    pHead = ASMAtomicReadPtrT(&pEpFile->pDelayedHead, PPDMASYNCCOMPLETIONTASKFILE);
+                    pTaskFile->pDelayedNext = pHead;
+                } while (!ASMAtomicCmpXchgPtr(&pEpFile->pDelayedHead, pTaskFile, pHead));
+
+                if (tsDelay < pEpClassFile->cMilliesNext)
+                {
+                    ASMAtomicWriteU64(&pEpClassFile->cMilliesNext, tsDelay);
+                    TMTimerSetMillies(pEpClassFile->pTimer, tsDelay);
+                }
+
+                LogRel(("AIOMgr: Delaying request %#p for %u ms\n", pTaskFile, tsDelay));
             }
+            else
 #endif
+                pdmR3AsyncCompletionCompleteTask(&pTaskFile->Core, pTaskFile->rc, true);
         }
     }
 }
@@ -413,12 +389,11 @@ int pdmacFileEpTaskInitiate(PPDMASYNCCOMPLETIONTASK pTask,
 {
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
-    PPDMACEPFILEMGR pAioMgr = pEpFile->pAioMgr;
 
     Assert(   (enmTransfer == PDMACTASKFILETRANSFER_READ)
            || (enmTransfer == PDMACTASKFILETRANSFER_WRITE));
 
-    for (unsigned i = 0; i < cSegments; i++)
+    for (size_t i = 0; i < cSegments; i++)
     {
         PPDMACTASKFILE pIoTask = pdmacFileTaskAlloc(pEpFile);
         AssertPtr(pIoTask);
@@ -453,12 +428,10 @@ int pdmacFileEpTaskInitiate(PPDMASYNCCOMPLETIONTASK pTask,
 int pdmacFileAioMgrCreate(PPDMASYNCCOMPLETIONEPCLASSFILE pEpClass, PPPDMACEPFILEMGR ppAioMgr,
                           PDMACEPFILEMGRTYPE enmMgrType)
 {
-    int rc = VINF_SUCCESS;
-    PPDMACEPFILEMGR pAioMgrNew;
-
     LogFlowFunc((": Entered\n"));
 
-    rc = MMR3HeapAllocZEx(pEpClass->Core.pVM, MM_TAG_PDM_ASYNC_COMPLETION, sizeof(PDMACEPFILEMGR), (void **)&pAioMgrNew);
+    PPDMACEPFILEMGR pAioMgrNew;
+    int rc = MMR3HeapAllocZEx(pEpClass->Core.pVM, MM_TAG_PDM_ASYNC_COMPLETION, sizeof(PDMACEPFILEMGR), (void **)&pAioMgrNew);
     if (RT_SUCCESS(rc))
     {
         if (enmMgrType < pEpClass->enmMgrTypeOverride)
@@ -626,128 +599,32 @@ static const char *pdmacFileBackendTypeToName(PDMACFILEEPBACKEND enmBackendType)
  */
 static int pdmacFileEpNativeGetSize(RTFILE hFile, uint64_t *pcbSize)
 {
-    int rc = VINF_SUCCESS;
-    uint64_t cbSize = 0;
-
-    rc = RTFileGetSize(hFile, &cbSize);
-    if (RT_SUCCESS(rc) && (cbSize != 0))
-        *pcbSize = cbSize;
-    else
-    {
-#ifdef RT_OS_WINDOWS
-        DISK_GEOMETRY DriveGeo;
-        DWORD cbDriveGeo;
-        if (DeviceIoControl((HANDLE)RTFileToNative(hFile),
-                            IOCTL_DISK_GET_DRIVE_GEOMETRY, NULL, 0,
-                            &DriveGeo, sizeof(DriveGeo), &cbDriveGeo, NULL))
-        {
-            if (   DriveGeo.MediaType == FixedMedia
-                || DriveGeo.MediaType == RemovableMedia)
-            {
-                cbSize =     DriveGeo.Cylinders.QuadPart
-                         *   DriveGeo.TracksPerCylinder
-                         *   DriveGeo.SectorsPerTrack
-                         *   DriveGeo.BytesPerSector;
-
-                GET_LENGTH_INFORMATION DiskLenInfo;
-                DWORD junk;
-                if (DeviceIoControl((HANDLE)RTFileToNative(hFile),
-                                    IOCTL_DISK_GET_LENGTH_INFO, NULL, 0,
-                                    &DiskLenInfo, sizeof(DiskLenInfo), &junk, (LPOVERLAPPED)NULL))
-                {
-                    /* IOCTL_DISK_GET_LENGTH_INFO is supported -- override cbSize. */
-                    cbSize = DiskLenInfo.Length.QuadPart;
-                }
-
-                rc = VINF_SUCCESS;
-            }
-            else
-            {
-                rc = VERR_INVALID_PARAMETER;
-            }
-        }
-        else
-            rc = RTErrConvertFromWin32(GetLastError());
-
-#elif defined(RT_OS_DARWIN)
-        struct stat DevStat;
-        if (!fstat(RTFileToNative(hFile), &DevStat) && S_ISBLK(DevStat.st_mode))
-        {
-            uint64_t cBlocks;
-            uint32_t cbBlock;
-            if (!ioctl(RTFileToNative(hFile), DKIOCGETBLOCKCOUNT, &cBlocks))
-            {
-                if (!ioctl(RTFileToNative(hFile), DKIOCGETBLOCKSIZE, &cbBlock))
-                    cbSize = cBlocks * cbBlock;
-                else
-                    rc = RTErrConvertFromErrno(errno);
-            }
-            else
-                rc = RTErrConvertFromErrno(errno);
-        }
-        else
-            rc = VERR_INVALID_PARAMETER;
-
-#elif defined(RT_OS_SOLARIS)
-        struct stat DevStat;
-        if (   !fstat(RTFileToNative(hFile), &DevStat)
-            && (   S_ISBLK(DevStat.st_mode)
-                || S_ISCHR(DevStat.st_mode)))
-        {
-            struct dk_minfo mediainfo;
-            if (!ioctl(RTFileToNative(hFile), DKIOCGMEDIAINFO, &mediainfo))
-                cbSize = mediainfo.dki_capacity * mediainfo.dki_lbsize;
-            else
-                rc = RTErrConvertFromErrno(errno);
-        }
-        else
-            rc = VERR_INVALID_PARAMETER;
-
-#elif defined(RT_OS_FREEBSD)
-        struct stat DevStat;
-        if (!fstat(RTFileToNative(hFile), &DevStat) && S_ISCHR(DevStat.st_mode))
-        {
-            off_t cbMedia = 0;
-            if (!ioctl(RTFileToNative(hFile), DIOCGMEDIASIZE, &cbMedia))
-            {
-                cbSize = cbMedia;
-            }
-            else
-                rc = RTErrConvertFromErrno(errno);
-        }
-        else
-            rc = VERR_INVALID_PARAMETER;
-#else
-        /* Could be a block device */
-        rc = RTFileSeek(hFile, 0, RTFILE_SEEK_END, &cbSize);
-#endif
-
-        if (RT_SUCCESS(rc) && (cbSize != 0))
-            *pcbSize = cbSize;
-        else if (RT_SUCCESS(rc))
-            rc = VERR_NOT_SUPPORTED;
-    }
+    uint64_t cbFile;
+    int rc = RTFileGetSize(hFile, &cbFile);
+    if (RT_SUCCESS(rc))
+        *pcbSize = cbFile;
 
     return rc;
 }
 
 #ifdef VBOX_WITH_DEBUGGER
+
 /**
- * Error inject callback.
+ * @callback_method_impl{FNDBGCCMD, The '.injecterror' command.}
  */
-static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs)
+static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR pArgs, unsigned cArgs)
 {
     /*
      * Validate input.
      */
-    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 3);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, pArgs[0].enmType == DBGCVAR_TYPE_STRING);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, pArgs[1].enmType == DBGCVAR_TYPE_STRING);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 2, pArgs[2].enmType == DBGCVAR_TYPE_NUMBER);
 
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
-    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
+    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
 
     /* Syntax is "read|write <filename> <status code>" */
     bool fWrite;
@@ -761,7 +638,6 @@ static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
     int32_t rcToInject = (int32_t)pArgs[2].u.u64Number;
     if ((uint64_t)rcToInject != pArgs[2].u.u64Number)
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "The status code '%lld' is out of range", pArgs[0].u.u64Number);
-
 
     /*
      * Search for the matching endpoint.
@@ -799,28 +675,32 @@ static DECLCALLBACK(int) pdmacEpFileErrorInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
 
 # ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
 /**
- * Delay inject callback.
+ * @callback_method_impl{FNDBGCCMD, The '.injectdelay' command.}
  */
-static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PVM pVM, PCDBGCVAR pArgs, unsigned cArgs)
+static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR pArgs, unsigned cArgs)
 {
     /*
      * Validate input.
      */
-    DBGC_CMDHLP_REQ_VM_RET(pCmdHlp, pCmd, pVM);
-    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs == 3);
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs >= 3);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, pArgs[0].enmType == DBGCVAR_TYPE_STRING);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, pArgs[1].enmType == DBGCVAR_TYPE_STRING);
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 2, pArgs[2].enmType == DBGCVAR_TYPE_NUMBER);
 
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile;
-    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pVM->pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
+    pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pUVM->pdm.s.apAsyncCompletionEndpointClass[PDMASYNCCOMPLETIONEPCLASSTYPE_FILE];
 
-    /* Syntax is "read|write <filename> <status code>" */
-    bool fWrite;
+    /* Syntax is "read|write|flush|any <filename> <delay> [reqs]" */
+    PDMACFILEREQTYPEDELAY enmDelayType = PDMACFILEREQTYPEDELAY_ANY;
     if (!RTStrCmp(pArgs[0].u.pszString, "read"))
-        fWrite = false;
+        enmDelayType = PDMACFILEREQTYPEDELAY_READ;
     else if (!RTStrCmp(pArgs[0].u.pszString, "write"))
-        fWrite = true;
+        enmDelayType = PDMACFILEREQTYPEDELAY_WRITE;
+    else if (!RTStrCmp(pArgs[0].u.pszString, "flush"))
+        enmDelayType = PDMACFILEREQTYPEDELAY_FLUSH;
+    else if (!RTStrCmp(pArgs[0].u.pszString, "any"))
+        enmDelayType = PDMACFILEREQTYPEDELAY_ANY;
     else
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "invalid transfer direction '%s'", pArgs[0].u.pszString);
 
@@ -828,6 +708,12 @@ static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
     if ((uint64_t)msDelay != pArgs[2].u.u64Number)
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "The delay '%lld' is out of range", pArgs[0].u.u64Number);
 
+    uint32_t cReqsDelay = 1;
+    uint32_t msJitter = 0;
+    if (cArgs >= 4)
+        msJitter = (uint32_t)pArgs[3].u.u64Number;
+    if (cArgs == 5)
+        cReqsDelay = (uint32_t)pArgs[4].u.u64Number;
 
     /*
      * Search for the matching endpoint.
@@ -844,14 +730,13 @@ static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
 
     if (pEpFile)
     {
-        bool fXchg = ASMAtomicCmpXchgU32(&pEpFile->msDelay, msDelay, 0);
+        ASMAtomicWriteSize(&pEpFile->enmTypeDelay, enmDelayType);
+        ASMAtomicWriteU32(&pEpFile->msDelay, msDelay);
+        ASMAtomicWriteU32(&pEpFile->msJitter, msJitter);
+        ASMAtomicWriteU32(&pEpFile->cReqsDelay, cReqsDelay);
 
-        if (fXchg)
-            DBGCCmdHlpPrintf(pCmdHlp, "Injected delay of %u ms into '%s' for %s\n",
-                             msDelay, pArgs[1].u.pszString, pArgs[0].u.pszString);
-        else
-            DBGCCmdHlpPrintf(pCmdHlp, "Another delay for '%s' is still active, ignoring\n",
-                             pArgs[1].u.pszString);
+        DBGCCmdHlpPrintf(pCmdHlp, "Injected delay for the next %u requests of %u ms into '%s' for %s\n",
+                         cReqsDelay, msDelay, pArgs[1].u.pszString, pArgs[0].u.pszString);
     }
 
     RTCritSectLeave(&pEpClassFile->Core.CritSect);
@@ -860,18 +745,72 @@ static DECLCALLBACK(int) pdmacEpFileDelayInject(PCDBGCCMD pCmd, PDBGCCMDHLP pCmd
         return DBGCCmdHlpFail(pCmdHlp, pCmd, "No file with name '%s' found", pArgs[1].u.pszString);
     return VINF_SUCCESS;
 }
+
+static DECLCALLBACK(void) pdmacR3TimerCallback(PVM pVM, PTMTIMER pTimer, void *pvUser)
+{
+    uint64_t tsCur = RTTimeProgramMilliTS();
+    uint64_t cMilliesNext = UINT64_MAX;
+    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pvUser;
+
+    ASMAtomicWriteU64(&pEpClassFile->cMilliesNext, UINT64_MAX);
+
+    /* Go through all endpoints and check for expired requests. */
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpClassFile->Core.pEndpointsHead;
+
+    while (pEpFile)
+    {
+        /* Check for an expired delay. */
+        if (pEpFile->pDelayedHead != NULL)
+        {
+            PPDMASYNCCOMPLETIONTASKFILE pTaskFile = ASMAtomicXchgPtrT(&pEpFile->pDelayedHead, NULL, PPDMASYNCCOMPLETIONTASKFILE);
+
+            while (pTaskFile)
+            {
+                PPDMASYNCCOMPLETIONTASKFILE pTmp = pTaskFile;
+                pTaskFile = pTaskFile->pDelayedNext;
+
+                if (tsCur >= pTmp->tsDelayEnd)
+                {
+                    LogRel(("AIOMgr: Delayed request %#p completed\n", pTmp));
+                    pdmR3AsyncCompletionCompleteTask(&pTmp->Core, pTmp->rc, true);
+                }
+                else
+                {
+                    /* Prepend to the delayed list again. */
+                    PPDMASYNCCOMPLETIONTASKFILE pHead = NULL;
+
+                    if (pTmp->tsDelayEnd - tsCur < cMilliesNext)
+                        cMilliesNext = pTmp->tsDelayEnd - tsCur;
+
+                    do
+                    {
+                        pHead = ASMAtomicReadPtrT(&pEpFile->pDelayedHead, PPDMASYNCCOMPLETIONTASKFILE);
+                        pTmp->pDelayedNext = pHead;
+                    } while (!ASMAtomicCmpXchgPtr(&pEpFile->pDelayedHead, pTmp, pHead));
+                }
+            }
+        }
+
+        pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEpFile->Core.pNext;
+    }
+
+    if (cMilliesNext < pEpClassFile->cMilliesNext)
+    {
+        ASMAtomicWriteU64(&pEpClassFile->cMilliesNext, cMilliesNext);
+        TMTimerSetMillies(pEpClassFile->pTimer, cMilliesNext);
+    }
+}
+
 # endif /* PDM_ASYNC_COMPLETION_FILE_WITH_DELAY */
 
 #endif /* VBOX_WITH_DEBUGGER */
 
 static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNODE pCfgNode)
 {
-    int rc = VINF_SUCCESS;
-    RTFILEAIOLIMITS AioLimits; /** < Async I/O limitations. */
-
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pClassGlobals;
+    RTFILEAIOLIMITS                AioLimits; /** < Async I/O limitations. */
 
-    rc = RTFileAioGetLimits(&AioLimits);
+    int rc = RTFileAioGetLimits(&AioLimits);
 #ifdef DEBUG
     if (RT_SUCCESS(rc) && RTEnvExist("VBOX_ASYNC_IO_FAILBACK"))
         rc = VERR_ENV_VAR_NOT_FOUND;
@@ -940,6 +879,12 @@ static int pdmacFileInitialize(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals, PCFGMNO
         rc = DBGCRegisterCommands(&g_aCmds[0], RT_ELEMENTS(g_aCmds));
         AssertRC(rc);
     }
+
+#ifdef PDM_ASYNC_COMPLETION_FILE_WITH_DELAY
+    rc = TMR3TimerCreateInternal(pEpClassFile->Core.pVM, TMCLOCK_REAL, pdmacR3TimerCallback, pEpClassFile, "AC Delay", &pEpClassFile->pTimer);
+    AssertRC(rc);
+    pEpClassFile->cMilliesNext = UINT64_MAX;
+#endif
 #endif
 
     return rc;
@@ -962,7 +907,6 @@ static void pdmacFileTerminate(PPDMASYNCCOMPLETIONEPCLASS pClassGlobals)
 static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
                                  const char *pszUri, uint32_t fFlags)
 {
-    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
     PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
     PDMACEPFILEMGRTYPE enmMgrType = pEpClassFile->enmMgrTypeOverride;
@@ -1003,6 +947,7 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
     if (enmMgrType == PDMACEPFILEMGRTYPE_ASYNC)
         fFileFlags |= RTFILE_O_ASYNC_IO;
 
+    int rc;
     if (enmEpBackend == PDMACFILEEPBACKEND_NON_BUFFERED)
     {
         /*
@@ -1020,7 +965,6 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
             uint64_t cbSize;
 
             rc = pdmacFileEpNativeGetSize(hFile, &cbSize);
-            Assert(RT_FAILURE(rc) || cbSize != 0);
 
             if (RT_SUCCESS(rc) && ((cbSize % 512) == 0))
                 fFileFlags |= RTFILE_O_NO_CACHE;
@@ -1040,7 +984,8 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
 
     /* Open with final flags. */
     rc = RTFileOpen(&pEpFile->hFile, pszUri, fFileFlags);
-    if ((rc == VERR_INVALID_FUNCTION) || (rc == VERR_INVALID_PARAMETER))
+    if (   rc == VERR_INVALID_FUNCTION
+        || rc == VERR_INVALID_PARAMETER)
     {
         LogRel(("pdmacFileEpInitialize: RTFileOpen %s / %08x failed with %Rrc\n",
                pszUri, fFileFlags, rc));
@@ -1078,8 +1023,6 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
         pEpFile->fFlags = fFileFlags;
 
         rc = pdmacFileEpNativeGetSize(pEpFile->hFile, (uint64_t *)&pEpFile->cbFile);
-        Assert(RT_FAILURE(rc) || pEpFile->cbFile != 0);
-
         if (RT_SUCCESS(rc))
         {
             /* Initialize the segment cache */
@@ -1173,18 +1116,18 @@ static int pdmacFileEpInitialize(PPDMASYNCCOMPLETIONENDPOINT pEndpoint,
 
 static int pdmacFileEpRangesLockedDestroy(PAVLRFOFFNODECORE pNode, void *pvUser)
 {
+    NOREF(pNode); NOREF(pvUser);
     AssertMsgFailed(("The locked ranges tree should be empty at that point\n"));
     return VINF_SUCCESS;
 }
 
 static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
-    int rc = VINF_SUCCESS;
-    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
-    PPDMASYNCCOMPLETIONEPCLASSFILE pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile      = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
+    PPDMASYNCCOMPLETIONEPCLASSFILE  pEpClassFile = (PPDMASYNCCOMPLETIONEPCLASSFILE)pEndpoint->pEpClass;
 
     /* Make sure that all tasks finished for this endpoint. */
-    rc = pdmacFileAioMgrCloseEndpoint(pEpFile->pAioMgr, pEpFile);
+    int rc = pdmacFileAioMgrCloseEndpoint(pEpFile->pAioMgr, pEpFile);
     AssertRC(rc);
 
     /*
@@ -1210,8 +1153,8 @@ static int pdmacFileEpClose(PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
     RTFileClose(pEpFile->hFile);
 
 #ifdef VBOX_WITH_STATISTICS
-    STAMR3Deregister(pEpClassFile->Core.pVM, &pEpFile->StatRead);
-    STAMR3Deregister(pEpClassFile->Core.pVM, &pEpFile->StatWrite);
+    /* Not sure if this might be unnecessary because of similar statement in pdmR3AsyncCompletionStatisticsDeregister? */
+    STAMR3DeregisterF(pEpClassFile->Core.pVM->pUVM, "/PDM/AsyncCompletion/File/%s/*", RTPathFilename(pEpFile->Core.pszUri));
 #endif
 
     return VINF_SUCCESS;
@@ -1222,7 +1165,6 @@ static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
                            PCRTSGSEG paSegments, size_t cSegments,
                            size_t cbRead)
 {
-    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
     LogFlowFunc(("pTask=%#p pEndpoint=%#p off=%RTfoff paSegments=%#p cSegments=%zu cbRead=%zu\n",
@@ -1232,12 +1174,9 @@ static int pdmacFileEpRead(PPDMASYNCCOMPLETIONTASK pTask,
         return VERR_EOF;
 
     STAM_PROFILE_ADV_START(&pEpFile->StatRead, Read);
-
     pdmacFileEpTaskInit(pTask, cbRead);
-
-    rc = pdmacFileEpTaskInitiate(pTask, pEndpoint, off, paSegments, cSegments, cbRead,
-                                 PDMACTASKFILETRANSFER_READ);
-
+    int rc = pdmacFileEpTaskInitiate(pTask, pEndpoint, off, paSegments, cSegments, cbRead,
+                                     PDMACTASKFILETRANSFER_READ);
     STAM_PROFILE_ADV_STOP(&pEpFile->StatRead, Read);
 
     return rc;
@@ -1248,7 +1187,6 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
                             PCRTSGSEG paSegments, size_t cSegments,
                             size_t cbWrite)
 {
-    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
 
     if (RT_UNLIKELY(pEpFile->fReadonly))
@@ -1258,8 +1196,8 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
 
     pdmacFileEpTaskInit(pTask, cbWrite);
 
-    rc = pdmacFileEpTaskInitiate(pTask, pEndpoint, off, paSegments, cSegments, cbWrite,
-                                 PDMACTASKFILETRANSFER_WRITE);
+    int rc = pdmacFileEpTaskInitiate(pTask, pEndpoint, off, paSegments, cSegments, cbWrite,
+                                     PDMACTASKFILETRANSFER_WRITE);
 
     STAM_PROFILE_ADV_STOP(&pEpFile->StatWrite, Write);
 
@@ -1269,8 +1207,8 @@ static int pdmacFileEpWrite(PPDMASYNCCOMPLETIONTASK pTask,
 static int pdmacFileEpFlush(PPDMASYNCCOMPLETIONTASK pTask,
                             PPDMASYNCCOMPLETIONENDPOINT pEndpoint)
 {
-    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
-    PPDMASYNCCOMPLETIONTASKFILE pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
+    PPDMASYNCCOMPLETIONENDPOINTFILE pEpFile   = (PPDMASYNCCOMPLETIONENDPOINTFILE)pEndpoint;
+    PPDMASYNCCOMPLETIONTASKFILE     pTaskFile = (PPDMASYNCCOMPLETIONTASKFILE)pTask;
 
     if (RT_UNLIKELY(pEpFile->fReadonly))
         return VERR_NOT_SUPPORTED;

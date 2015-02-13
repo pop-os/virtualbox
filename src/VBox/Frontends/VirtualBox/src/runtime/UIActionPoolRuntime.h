@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@ enum UIActionIndexRuntime
     UIActionIndexRuntime_Menu_Machine = UIActionIndex_Max + 1,
     UIActionIndexRuntime_Simple_SettingsDialog,
     UIActionIndexRuntime_Simple_TakeSnapshot,
+    UIActionIndexRuntime_Simple_TakeScreenshot,
     UIActionIndexRuntime_Simple_InformationDialog,
     UIActionIndexRuntime_Menu_MouseIntegration,
     UIActionIndexRuntime_Toggle_MouseIntegration,
@@ -38,7 +39,9 @@ enum UIActionIndexRuntime
 #endif /* Q_WS_X11 */
     UIActionIndexRuntime_Toggle_Pause,
     UIActionIndexRuntime_Simple_Reset,
+    UIActionIndexRuntime_Simple_Save,
     UIActionIndexRuntime_Simple_Shutdown,
+    UIActionIndexRuntime_Simple_PowerOff,
     UIActionIndexRuntime_Simple_Close,
 
     /* 'View' menu actions: */
@@ -54,11 +57,17 @@ enum UIActionIndexRuntime
     UIActionIndexRuntime_Menu_OpticalDevices,
     UIActionIndexRuntime_Menu_FloppyDevices,
     UIActionIndexRuntime_Menu_USBDevices,
-    UIActionIndexRuntime_Menu_NetworkAdapters,
-    UIActionIndexRuntime_Simple_NetworkAdaptersDialog,
+    UIActionIndexRuntime_Menu_WebCams,
+    UIActionIndexRuntime_Menu_SharedClipboard,
+    UIActionIndexRuntime_Menu_DragAndDrop,
+    UIActionIndexRuntime_Menu_Network,
+    UIActionIndexRuntime_Simple_NetworkSettings,
     UIActionIndexRuntime_Menu_SharedFolders,
-    UIActionIndexRuntime_Simple_SharedFoldersDialog,
+    UIActionIndexRuntime_Simple_SharedFoldersSettings,
     UIActionIndexRuntime_Toggle_VRDEServer,
+    UIActionIndexRuntime_Menu_VideoCapture,
+    UIActionIndexRuntime_Toggle_VideoCapture,
+    UIActionIndexRuntime_Simple_VideoCaptureSettings,
     UIActionIndexRuntime_Simple_InstallGuestTools,
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -86,20 +95,23 @@ class UIActionPoolRuntime : public UIActionPool
 {
     Q_OBJECT;
 
-public:
-
-    /* Singleton methods: */
-    static void create();
-    static void destroy();
-
 private:
 
     /* Constructor: */
-    UIActionPoolRuntime() : UIActionPool(UIActionPoolType_Runtime) {}
+    UIActionPoolRuntime();
 
-    /* Virtual helping stuff: */
+    /** Translation handler. */
+    void retranslateUi();
+
+    /* Helper: Shortcuts stuff: */
+    QString shortcutsExtraDataID() const;
+
+    /* Helpers: Prepare stuff: */
     void createActions();
     void createMenus();
+
+    /* Friend zone: */
+    friend class UIActionPool;
 };
 
 #endif // __UIActionPoolRuntime_h__

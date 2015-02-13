@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -724,7 +724,7 @@ RTDECL(int) RTPipeWrite(RTPIPE hPipe, const void *pvBuf, size_t cbToWrite, size_
     int rc = RTCritSectEnter(&pThis->CritSect);
     if (RT_SUCCESS(rc))
     {
-        /* No concurrent readers, sorry. */
+        /* No concurrent writers, sorry. */
         if (pThis->cUsers == 0)
         {
             pThis->cUsers++;
@@ -839,7 +839,7 @@ RTDECL(int) RTPipeWriteBlocking(RTPIPE hPipe, const void *pvBuf, size_t cbToWrit
     int rc = RTCritSectEnter(&pThis->CritSect);
     if (RT_SUCCESS(rc))
     {
-        /* No concurrent readers, sorry. */
+        /* No concurrent writers, sorry. */
         if (pThis->cUsers == 0)
         {
             pThis->cUsers++;
@@ -1170,28 +1170,19 @@ RTDECL(int) RTPipeQueryReadable(RTPIPE hPipe, size_t *pcbReadable)
 }
 
 
-/**
- * Internal RTPollSetAdd helper that returns the handle that should be added to
- * the pollset.
- *
- * @returns Valid handle on success, INVALID_HANDLE_VALUE on failure.
- * @param   hPipe               The pipe handle.
- * @param   fEvents             The events we're polling for.
- * @param   ph                  where to put the primary handle.
- */
-int rtPipePollGetHandle(RTPIPE hPipe, uint32_t fEvents, PHANDLE ph)
+int rtPipePollGetHandle(RTPIPE hPipe, uint32_t fEvents, PRTHCINTPTR phNative)
 {
     RTPIPEINTERNAL *pThis = hPipe;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertReturn(pThis->u32Magic == RTPIPE_MAGIC, VERR_INVALID_HANDLE);
 
-    AssertReturn(!(fEvents & RTPOLL_EVT_READ) || pThis->fRead, VERR_INVALID_PARAMETER);
+    AssertReturn(!(fEvents & RTPOLL_EVT_READ)  || pThis->fRead,  VERR_INVALID_PARAMETER);
     AssertReturn(!(fEvents & RTPOLL_EVT_WRITE) || !pThis->fRead, VERR_INVALID_PARAMETER);
 
     /* Later: Try register an event handle with the pipe like on OS/2, there is
        a file control for doing this obviously intended for the OS/2 subsys.
        The question is whether this still exists on Vista and W7. */
-    *ph = pThis->Overlapped.hEvent;
+    *phNative = (RTHCINTPTR)pThis->Overlapped.hEvent;
     return VINF_SUCCESS;
 }
 
@@ -1397,6 +1388,7 @@ uint32_t rtPipePollDone(RTPIPE hPipe, uint32_t fEvents, bool fFinalEntry, bool f
 
     /* update counters. */
     pThis->cUsers--;
+    /** @todo This isn't sane, or is it? See OS/2 impl. */
     if (!pThis->cUsers)
         pThis->hPollSet = NIL_RTPOLLSET;
 

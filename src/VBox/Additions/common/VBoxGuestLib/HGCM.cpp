@@ -1,4 +1,4 @@
-/* $Revision: 76864 $ */
+/* $Revision: 97151 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,36 +137,27 @@ DECLVBGL(int) VbglHGCMConnect (VBGLHGCMHANDLE *pHandle, VBoxGuestHGCMConnectInfo
     if (!pHandle || !pData)
         return VERR_INVALID_PARAMETER;
 
-    pHandleData = vbglHGCMHandleAlloc ();
-
-    rc = VINF_SUCCESS;
-
+    pHandleData = vbglHGCMHandleAlloc();
     if (!pHandleData)
-    {
         rc = VERR_NO_MEMORY;
-    }
     else
     {
         rc = vbglDriverOpen (&pHandleData->driver);
-
         if (RT_SUCCESS(rc))
         {
             rc = vbglDriverIOCtl (&pHandleData->driver, VBOXGUEST_IOCTL_HGCM_CONNECT, pData, sizeof (*pData));
-
+            if (RT_SUCCESS(rc))
+                rc = pData->result;
             if (RT_SUCCESS(rc))
             {
                 *pHandle = pHandleData;
+                return rc;
             }
-            else
-            {
-                vbglDriverClose (&pHandleData->driver);
-            }
+
+            vbglDriverClose (&pHandleData->driver);
         }
 
-        if (RT_FAILURE(rc))
-        {
-            vbglHGCMHandleFree (pHandleData);
-        }
+        vbglHGCMHandleFree (pHandleData);
     }
 
     return rc;

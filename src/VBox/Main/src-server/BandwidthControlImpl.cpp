@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,8 @@
 #include "Logging.h"
 
 #include <iprt/cpp/utils.h>
+#include <VBox/com/array.h>
+#include <algorithm>
 
 // defines
 /////////////////////////////////////////////////////////////////////////////
@@ -72,8 +74,6 @@ void BandwidthControl::FinalRelease()
  *
  * @returns COM result indicator.
  * @param aParent       Pointer to our parent object.
- * @param aName         Name of the storage controller.
- * @param aInstance     Instance number of the storage controller.
  */
 HRESULT BandwidthControl::init(Machine *aParent)
 {
@@ -147,7 +147,7 @@ HRESULT BandwidthControl::init(Machine *aParent,
 }
 
 /**
- *  Initializes the storage controller object given another guest object
+ *  Initializes the bandwidth control object given another guest object
  *  (a kind of copy constructor). This object makes a private copy of data
  *  of the original object passed as an argument.
  */
@@ -176,7 +176,7 @@ HRESULT BandwidthControl::initCopy(Machine *aParent, BandwidthControl *aThat)
     {
         ComObjPtr<BandwidthGroup> group;
         group.createObject();
-        group->init(this, *it);
+        group->initCopy(this, *it);
         m->llBandwidthGroups->push_back(group);
         ++ it;
     }
@@ -215,7 +215,7 @@ void BandwidthControl::copyFrom (BandwidthControl *aThat)
     AutoReadLock rl(aThat COMMA_LOCKVAL_SRC_POS);
     AutoWriteLock wl(this COMMA_LOCKVAL_SRC_POS);
 
-    /* create private copies of all filters */
+    /* create private copies of all bandwidth groups */
     m->llBandwidthGroups.backup();
     m->llBandwidthGroups->clear();
     for (BandwidthGroupList::const_iterator it = aThat->m->llBandwidthGroups->begin();
@@ -285,7 +285,7 @@ void BandwidthControl::commit()
         {
             AutoWriteLock peerlock(m->pPeer COMMA_LOCKVAL_SRC_POS);
 
-            /* Commit all changes to new controllers (this will reshare data with
+            /* Commit all changes to new groups (this will reshare data with
              * peers for those who have peers) */
             BandwidthGroupList *newList = new BandwidthGroupList();
             BandwidthGroupList::const_iterator it = m->llBandwidthGroups->begin();
@@ -313,7 +313,7 @@ void BandwidthControl::commit()
                 ++it;
             }
 
-            /* uninit old peer's controllers that are left */
+            /* uninit old peer's groups that are left */
             it = m->pPeer->m->llBandwidthGroups->begin();
             while (it != m->pPeer->m->llBandwidthGroups->end())
             {
@@ -321,7 +321,7 @@ void BandwidthControl::commit()
                 ++it;
             }
 
-            /* attach new list of controllers to our peer */
+            /* attach new list of groups to our peer */
             m->pPeer->m->llBandwidthGroups.attach(newList);
         }
         else
@@ -334,7 +334,7 @@ void BandwidthControl::commit()
     else
     {
         /* the list of groups itself is not changed,
-         * just commit changes to controllers themselves */
+         * just commit changes to groups themselves */
         commitBandwidthGroups = true;
     }
 
@@ -379,10 +379,10 @@ void BandwidthControl::uninit()
 }
 
 /**
- * Returns a storage controller object with the given name.
+ * Returns a bandwidth group object with the given name.
  *
- *  @param aName                 storage controller name to find
- *  @param aStorageController    where to return the found storage controller
+ *  @param aName                 bandwidth group name to find
+ *  @param aBandwidthGroup where to return the found bandwidth group
  *  @param aSetError             true to set extended error info on failure
  */
 HRESULT BandwidthControl::getBandwidthGroupByName(const Utf8Str &aName,
@@ -409,8 +409,12 @@ HRESULT BandwidthControl::getBandwidthGroupByName(const Utf8Str &aName,
     return VBOX_E_OBJECT_NOT_FOUND;
 }
 
-STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGroupType_T aType, ULONG aMaxMbPerSec)
+STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGroupType_T aType, LONG64 aMaxBytesPerSec)
 {
+    if (aMaxBytesPerSec < 0)
+        return setError(E_INVALIDARG,
+                        tr("Bandwidth group limit cannot be negative"));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
@@ -431,7 +435,7 @@ STDMETHODIMP BandwidthControl::CreateBandwidthGroup(IN_BSTR aName, BandwidthGrou
 
     group.createObject();
 
-    rc = group->init(this, aName, aType, aMaxMbPerSec);
+    rc = group->init(this, aName, aType, aMaxBytesPerSec);
     if (FAILED(rc)) return rc;
 
     m->pParent->setModified(Machine::IsModified_BandwidthControl);
@@ -471,7 +475,7 @@ STDMETHODIMP BandwidthControl::DeleteBandwidthGroup(IN_BSTR aName)
     m->llBandwidthGroups->remove(group);
 
     /* inform the direct session if any */
-    alock.leave();
+    alock.release();
     //onStorageControllerChange(); @todo
 
     return S_OK;
@@ -524,7 +528,7 @@ STDMETHODIMP BandwidthControl::GetAllBandwidthGroups(ComSafeArrayOut(IBandwidthG
     return S_OK;
 }
 
-HRESULT BandwidthControl::loadSettings(const settings::IoSettings &data)
+HRESULT BandwidthControl::loadSettings(const settings::IOSettings &data)
 {
     HRESULT rc = S_OK;
 
@@ -536,14 +540,14 @@ HRESULT BandwidthControl::loadSettings(const settings::IoSettings &data)
         ++it)
     {
         const settings::BandwidthGroup &gr = *it;
-        rc = CreateBandwidthGroup(Bstr(gr.strName).raw(), gr.enmType, gr.cMaxMbPerSec);
+        rc = CreateBandwidthGroup(Bstr(gr.strName).raw(), gr.enmType, gr.cMaxBytesPerSec);
         if (FAILED(rc)) break;
     }
 
     return rc;
 }
 
-HRESULT BandwidthControl::saveSettings(settings::IoSettings &data)
+HRESULT BandwidthControl::saveSettings(settings::IOSettings &data)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -561,7 +565,7 @@ HRESULT BandwidthControl::saveSettings(settings::IoSettings &data)
 
         group.strName      = (*it)->getName();
         group.enmType      = (*it)->getType();
-        group.cMaxMbPerSec = (*it)->getMaxMbPerSec();
+        group.cMaxBytesPerSec = (*it)->getMaxBytesPerSec();
 
         data.llBandwidthGroups.push_back(group);
     }

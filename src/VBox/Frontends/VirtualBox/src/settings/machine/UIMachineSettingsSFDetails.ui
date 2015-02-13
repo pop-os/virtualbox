@@ -2,15 +2,15 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
-     Copyright (C) 2008-2010 Oracle Corporation
+ Copyright (C) 2008-2012 Oracle Corporation
 
-     This file is part of VirtualBox Open Source Edition (OSE), as
-     available from http://www.virtualbox.org. This file is free software;
-     you can redistribute it and/or modify it under the terms of the GNU
-     General Public License (GPL) as published by the Free Software
-     Foundation, in version 2 as it comes in the "COPYING" file of the
-     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ This file is part of VirtualBox Open Source Edition (OSE), as
+ available from http://www.virtualbox.org. This file is free software;
+ you can redistribute it and/or modify it under the terms of the GNU
+ General Public License (GPL) as published by the Free Software
+ Foundation, in version 2 as it comes in the "COPYING" file of the
+ VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  </comment>
  <class>UIMachineSettingsSFDetails</class>
  <widget class="QDialog" name="UIMachineSettingsSFDetails" >
@@ -23,7 +23,7 @@
    </rect>
   </property>
   <property name="windowTitle" >
-   <string>Dialog</string>
+   <string>Window</string>
   </property>
   <layout class="QGridLayout" >
    <item row="0" column="0" >
@@ -52,7 +52,7 @@
    <item row="1" column="1" >
     <widget class="QLineEdit" name="mLeName" >
      <property name="toolTip" >
-      <string>Displays the name of the shared folder (as it will be seen by the guest OS).</string>
+      <string>Holds the name of the shared folder (as it will be seen by the guest OS).</string>
      </property>
     </widget>
    </item>

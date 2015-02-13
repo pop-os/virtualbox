@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -327,15 +327,15 @@ typedef struct _VRDE_USB_REQ_REAP_URB_PARM
 #define VRDE_USB_XFER_STALL (1)
 #define VRDE_USB_XFER_DNR   (2)
 #define VRDE_USB_XFER_CRC   (3)
-/* VRDE_USB_VERSION_2: New error codes. */
-#define VRDE_USB_XFER_BS    (4)
-#define VRDE_USB_XFER_DTM   (5)
-#define VRDE_USB_XFER_PCF   (6)
-#define VRDE_USB_XFER_UPID  (7)
-#define VRDE_USB_XFER_DO    (8)
-#define VRDE_USB_XFER_DU    (9)
-#define VRDE_USB_XFER_BO    (10)
-#define VRDE_USB_XFER_BU    (11)
+/* VRDE_USB_VERSION_2: New error codes. OHCI Completion Codes. */
+#define VRDE_USB_XFER_BS    (4)  /* BitStuffing */
+#define VRDE_USB_XFER_DTM   (5)  /* DataToggleMismatch */
+#define VRDE_USB_XFER_PCF   (6)  /* PIDCheckFailure */
+#define VRDE_USB_XFER_UPID  (7)  /* UnexpectedPID */
+#define VRDE_USB_XFER_DO    (8)  /* DataOverrun */
+#define VRDE_USB_XFER_DU    (9)  /* DataUnderrun */
+#define VRDE_USB_XFER_BO    (10) /* BufferOverrun */
+#define VRDE_USB_XFER_BU    (11) /* BufferUnderrun */
 #define VRDE_USB_XFER_ERR   (12) /* VBox protocol error. */
 
 #define VRDE_USB_REAP_FLAG_CONTINUED (0x0)
@@ -1135,11 +1135,9 @@ typedef struct _VRDEENTRYPOINTS_3
                                         * which tells the server to bind to either of ports:
                                         * 3000, 3010, 3011, 3012, 4000.
                                         */
-#ifdef VBOX_WITH_VRDP_VIDEO_CHANNEL
 #define VRDE_QP_VIDEO_CHANNEL         (5)
 #define VRDE_QP_VIDEO_CHANNEL_QUALITY (6)
 #define VRDE_QP_VIDEO_CHANNEL_SUNFLSH (7)
-#endif /* VBOX_WITH_VRDP_VIDEO_CHANNEL */
 #define VRDE_QP_FEATURE           (8) /* VRDEFEATURE structure. Generic interface to query named VRDE properties. */
 
 #define VRDE_SP_BASE 0x1000

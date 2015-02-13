@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -83,7 +83,7 @@ typedef struct RTSEMEVENTINTERNAL
     /** Set if the object is signalled when there are no waiters. */
     bool                fSignaled;
     /** List of waiting and woken up threads. */
-    RTLISTNODE          WaitList;
+    RTLISTANCHOR        WaitList;
     /** The Solaris mutex protecting this structure and pairing up the with the cv. */
     kmutex_t            Mtx;
     /** The Solaris condition variable. */
@@ -233,6 +233,10 @@ RTDECL(int) RTSemEventSignal(RTSEMEVENT hEventSem)
     mutex_exit(&pThis->Mtx);
     rtR0SemEventSolRelease(pThis);
 
+#ifdef DEBUG_ramshankar
+    /** See @bugref{6318} comment#11 */
+    return VINF_SUCCESS;
+#endif
     RT_ASSERT_PREEMPT_CPUID();
     return VINF_SUCCESS;
 }

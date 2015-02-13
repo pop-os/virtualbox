@@ -34,6 +34,8 @@
 #include "cr_threads.h"
 
 #include <iprt/types.h>
+#include <iprt/thread.h>
+#include <iprt/list.h>
     
 #ifdef __cplusplus
 extern "C" {
@@ -235,15 +237,15 @@ struct CRConnection {
 #ifdef IN_GUEST
     uint32_t u32InjectClientID;
 # ifdef VBOX_WITH_CRHGSMI
-#  ifndef VBOX_CRHGSMI_WITH_D3DDEV
     CRVBOXHGSMI_CLIENT HgsmiClient;
-#  endif
+    struct VBOXUHGSMI *pExternalHgsmi;
 # endif
 #else
 # ifdef VBOX_WITH_CRHGSMI
     struct _crclient *pClient; /* back reference, just for simplicity */
     CRVBOXHGSMI_CMDDATA CmdData;
 # endif
+    RTLISTANCHOR PendingMsgList;
 #endif
     /* Used on host side to indicate that we are not allowed to store above pointers for later use
      * in crVBoxHGCMReceiveMessage. As those messages are going to be processed after the corresponding 
@@ -282,16 +284,38 @@ extern DECLEXPORT(unsigned int) crNetGetMessage( CRConnection *conn, CRMessage *
 extern DECLEXPORT(unsigned int) crNetPeekMessage( CRConnection *conn, CRMessage **message );
 extern DECLEXPORT(int) crNetNumMessages(CRConnection *conn);
 extern DECLEXPORT(void) crNetReadline( CRConnection *conn, void *buf );
-extern DECLEXPORT(int) crNetRecv( void );
-#define CR_WRITEBACK_WAIT() do { \
-        while (writeback) { \
-            crNetRecv();    \
-        }                   \
+extern DECLEXPORT(int) crNetRecv(
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                CRConnection *conn
+#endif
+        );
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+#define CR_WRITEBACK_WAIT(_conn, _writeback) do { \
+        while (_writeback) {     \
+            RTThreadYield();     \
+            crNetRecv(_conn);    \
+        }                        \
     } while (0)
+#else
+#define CR_WRITEBACK_WAIT(_conn, _writeback) do { \
+        while (_writeback) { \
+            RTThreadYield(); \
+            crNetRecv();     \
+        }                    \
+    } while (0)
+
+#endif
+#ifdef IN_GUEST
+extern DECLEXPORT(uint32_t) crNetHostCapsGet();
+#endif
 extern DECLEXPORT(void) crNetDefaultRecv( CRConnection *conn, CRMessage *msg, unsigned int len );
 extern DECLEXPORT(void) crNetDispatchMessage( CRNetReceiveFuncList *rfl, CRConnection *conn, CRMessage *msg, unsigned int len );
 
-extern DECLEXPORT(CRConnection *) crNetConnectToServer( const char *server, unsigned short default_port, int mtu, int broker );
+extern DECLEXPORT(CRConnection *) crNetConnectToServer( const char *server, unsigned short default_port, int mtu, int broker
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+);
 extern DECLEXPORT(CRConnection *) crNetAcceptClient( const char *protocol, const char *hostname, unsigned short port, unsigned int mtu, int broker );
 
 

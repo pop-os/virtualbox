@@ -9,9 +9,11 @@
 #include "packer.h"
 #include "cr_error.h"
 #include "cr_protocol.h"
+#ifndef IN_RING0
 #include "cr_unpack.h"
+#endif
 
-
+#ifndef IN_RING0
 void crWriteUnalignedDouble( void *buffer, double d )
 {
 	unsigned int *ui = (unsigned int *) buffer;
@@ -34,7 +36,7 @@ double crReadUnalignedDouble( const void *buffer )
 	((unsigned int *) &d)[1] = ui[1];
 	return d;
 }
-
+#endif
 /*
  * We need the packer to run as efficiently as possible.  To avoid one
  * pointer dereference from the CRPackContext to the current CRPackBuffer,
@@ -71,6 +73,7 @@ void crPackSetBuffer( CRPackContext *pc, CRPackBuffer *buffer )
 	pc->buffer = *buffer;  /* struct copy */
 }
 
+#ifndef IN_RING0
 /* This is useful for debugging packer problems */
 void crPackSetBufferDEBUG( const char *file, int line,
 													 CRPackContext *pc, CRPackBuffer *buffer)
@@ -81,7 +84,7 @@ void crPackSetBufferDEBUG( const char *file, int line,
 	pc->file = crStrdup(file);
 	pc->line = line;
 }
-
+#endif
 
 /*
  * Release the buffer currently attached to the context.
@@ -146,7 +149,11 @@ void crPackResetPointers( CRPackContext *pc )
 	const GLboolean canBarf = pc->buffer.canBarf;
 	CRPackBuffer *buf = pc->currentBuffer;
 	CRASSERT(buf);
-	crPackInitBuffer( buf, buf->pack, buf->size, buf->mtu );
+	crPackInitBuffer( buf, buf->pack, buf->size, buf->mtu
+#ifdef IN_RING0
+	        , 0
+#endif
+	        );
 	pc->buffer.geometry_only = geom_only;   /* restore the flag */
 	pc->buffer.holds_BeginEnd = holds_BeginEnd;
 	pc->buffer.in_BeginEnd = in_BeginEnd;
@@ -218,9 +225,15 @@ crPackMaxData( int buffer_size )
  *              has 'mtu' bytes in it, we have to send it.  The MTU might
  *              be somewhat smaller than the buffer size.
  */
-void crPackInitBuffer( CRPackBuffer *buf, void *pack, int size, int mtu )
+void crPackInitBuffer( CRPackBuffer *buf, void *pack, int size, int mtu
+#ifdef IN_RING0
+        , unsigned int num_opcodes
+#endif
+        )
 {
+#ifndef IN_RING0
 	unsigned int num_opcodes;
+#endif
 
 	CRASSERT(mtu <= size);
 
@@ -228,7 +241,16 @@ void crPackInitBuffer( CRPackBuffer *buf, void *pack, int size, int mtu )
 	buf->mtu  = mtu;
 	buf->pack = pack;
 
-	num_opcodes = crPackMaxOpcodes( buf->size );
+#ifdef IN_RING0
+	if(num_opcodes)
+	{
+	    num_opcodes = (num_opcodes + 0x3) & (~0x3);
+	}
+	else
+#endif
+	{
+	    num_opcodes = crPackMaxOpcodes( buf->size );
+	}
 
 	buf->data_start    = 
 		(unsigned char *) buf->pack + num_opcodes + sizeof(CRMessageOpcodes);
@@ -254,7 +276,7 @@ void crPackInitBuffer( CRPackBuffer *buf, void *pack, int size, int mtu )
 }
 
 
-int crPackCanHoldBuffer( const CRPackBuffer *src )
+int crPackCanHoldBuffer( CR_PACKER_CONTEXT_ARGDECL const CRPackBuffer *src )
 {
 	const int num_data = crPackNumData(src);
 	const int num_opcode = crPackNumOpcodes(src);
@@ -267,7 +289,7 @@ int crPackCanHoldBuffer( const CRPackBuffer *src )
 }
 
 
-int crPackCanHoldBoundedBuffer( const CRPackBuffer *src )
+int crPackCanHoldBoundedBuffer( CR_PACKER_CONTEXT_ARGDECL const CRPackBuffer *src )
 {
 	const int len_aligned = (src->data_current - src->opcode_current - 1 + 3) & ~3;
 	CR_GET_PACKER_CONTEXT(pc);
@@ -275,7 +297,7 @@ int crPackCanHoldBoundedBuffer( const CRPackBuffer *src )
 	return crPackCanHoldOpcode( pc, 1, len_aligned + 24 );
 }
 
-void crPackAppendBuffer( const CRPackBuffer *src )
+void crPackAppendBuffer( CR_PACKER_CONTEXT_ARGDECL const CRPackBuffer *src )
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	const int num_data = crPackNumData(src);
@@ -290,7 +312,7 @@ void crPackAppendBuffer( const CRPackBuffer *src )
 	CRASSERT(pc->currentBuffer);
 	CRASSERT(pc->currentBuffer != src);
 
-	if (!crPackCanHoldBuffer(src))
+	if (!crPackCanHoldBuffer(CR_PACKER_CONTEXT_ARG src))
 	{
 		if (src->holds_BeginEnd)
 		{
@@ -322,7 +344,7 @@ void crPackAppendBuffer( const CRPackBuffer *src )
 
 
 void
-crPackAppendBoundedBuffer( const CRPackBuffer *src, const CRrecti *bounds )
+crPackAppendBoundedBuffer( CR_PACKER_CONTEXT_ARGDECL const CRPackBuffer *src, const CRrecti *bounds )
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	const GLbyte *payload = (const GLbyte *) src->opcode_current + 1;
@@ -338,7 +360,7 @@ crPackAppendBoundedBuffer( const CRPackBuffer *src, const CRrecti *bounds )
 	 * payload points to the block of opcodes immediately followed by operands.
 	 */
 
-	if ( !crPackCanHoldBoundedBuffer( src ) )
+	if ( !crPackCanHoldBoundedBuffer( CR_PACKER_CONTEXT_ARG src ) )
 	{
 		if (src->holds_BeginEnd)
 		{
@@ -354,9 +376,9 @@ crPackAppendBoundedBuffer( const CRPackBuffer *src, const CRrecti *bounds )
 	}
 
 	if (pc->swapping)
-		crPackBoundsInfoCRSWAP( bounds, payload, length, num_opcodes );
+		crPackBoundsInfoCRSWAP( CR_PACKER_CONTEXT_ARG bounds, payload, length, num_opcodes );
 	else
-		crPackBoundsInfoCR( bounds, payload, length, num_opcodes );
+		crPackBoundsInfoCR( CR_PACKER_CONTEXT_ARG bounds, payload, length, num_opcodes );
 
 	pc->buffer.holds_BeginEnd |= src->holds_BeginEnd;
 	pc->buffer.in_BeginEnd = src->in_BeginEnd;
@@ -375,7 +397,7 @@ static unsigned char *sanityCheckPointer = NULL;
  * glTexImage2D or glBufferDataARB call.
  * The command buffer _MUST_ then be transmitted by calling crHugePacket.
  */
-void *crPackAlloc( unsigned int size )
+void *crPackAlloc( CR_PACKER_CONTEXT_ARGDECL unsigned int size )
 {
 	CR_GET_PACKER_CONTEXT(pc);
 	unsigned char *data_ptr;
@@ -463,7 +485,7 @@ void *crPackAlloc( unsigned int size )
 /*
  * Transmit a packet which was allocated with crPackAlloc.
  */
-void crHugePacket( CROpcode opcode, void *packet )
+void crHugePacket( CR_PACKER_CONTEXT_ARGDECL CROpcode opcode, void *packet )
 {
 	CR_GET_PACKER_CONTEXT(pc);
 #ifndef CHROMIUM_THREADSAFE
@@ -477,7 +499,7 @@ void crHugePacket( CROpcode opcode, void *packet )
 		pc->SendHuge( opcode, packet );
 }
 
-void crPackFree( void *packet )
+void crPackFree( CR_PACKER_CONTEXT_ARGDECL void *packet )
 {
 	CR_GET_PACKER_CONTEXT(pc);
     

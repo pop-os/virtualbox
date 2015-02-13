@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/mem.h>
+#include <iprt/ldr.h>
 #include <VBox/param.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
@@ -83,25 +84,6 @@ static VBOXSTATSCONTEXT gCtx = {0};
 static RTSEMEVENTMULTI  g_VMStatEvent = NIL_RTSEMEVENTMULTI;
 
 
-/** @copydoc VBOXSERVICE::pfnPreInit */
-static DECLCALLBACK(int) VBoxServiceVMStatsPreInit(void)
-{
-    return VINF_SUCCESS;
-}
-
-
-/** @copydoc VBOXSERVICE::pfnOption */
-static DECLCALLBACK(int) VBoxServiceVMStatsOption(const char **ppszShort, int argc, char **argv, int *pi)
-{
-    NOREF(ppszShort);
-    NOREF(argc);
-    NOREF(argv);
-    NOREF(pi);
-
-    return -1;
-}
-
-
 /** @copydoc VBOXSERVICE::pfnInit */
 static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
 {
@@ -123,45 +105,32 @@ static DECLCALLBACK(int) VBoxServiceVMStatsInit(void)
         VBoxServiceVerbose(3, "VBoxStatsInit: DeviceIoControl failed with %d\n", rc);
 
 #ifdef RT_OS_WINDOWS
-    /** @todo Use RTLdr instead of LoadLibrary/GetProcAddress here! */
-
-    /* NtQuerySystemInformation might be dropped in future releases, so load it dynamically as per Microsoft's recommendation */
-    HMODULE hMod = LoadLibrary("NTDLL.DLL");
-    if (hMod)
+    /* NtQuerySystemInformation might be dropped in future releases, so load
+       it dynamically as per Microsoft's recommendation. */
+    *(void **)&gCtx.pfnNtQuerySystemInformation = RTLdrGetSystemSymbol("ntdll.dll", "NtQuerySystemInformation");
+    if (gCtx.pfnNtQuerySystemInformation)
+        VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.pfnNtQuerySystemInformation = %x\n", gCtx.pfnNtQuerySystemInformation);
+    else
     {
-        *(uintptr_t *)&gCtx.pfnNtQuerySystemInformation = (uintptr_t)GetProcAddress(hMod, "NtQuerySystemInformation");
-        if (gCtx.pfnNtQuerySystemInformation)
-            VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.pfnNtQuerySystemInformation = %x\n", gCtx.pfnNtQuerySystemInformation);
-        else
-        {
-            VBoxServiceVerbose(3, "VBoxStatsInit: NTDLL.NtQuerySystemInformation not found!\n");
-            return VERR_SERVICE_DISABLED;
-        }
+        VBoxServiceVerbose(3, "VBoxStatsInit: ntdll.NtQuerySystemInformation not found!\n");
+        return VERR_SERVICE_DISABLED;
     }
 
     /* GlobalMemoryStatus is win2k and up, so load it dynamically */
-    hMod = LoadLibrary("KERNEL32.DLL");
-    if (hMod)
+    *(void **)&gCtx.pfnGlobalMemoryStatusEx = RTLdrGetSystemSymbol("kernel32.dll", "GlobalMemoryStatusEx");
+    if (gCtx.pfnGlobalMemoryStatusEx)
+        VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.GlobalMemoryStatusEx = %x\n", gCtx.pfnGlobalMemoryStatusEx);
+    else
     {
-        *(uintptr_t *)&gCtx.pfnGlobalMemoryStatusEx = (uintptr_t)GetProcAddress(hMod, "GlobalMemoryStatusEx");
-        if (gCtx.pfnGlobalMemoryStatusEx)
-            VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.GlobalMemoryStatusEx = %x\n", gCtx.pfnGlobalMemoryStatusEx);
-        else
-        {
-            /** @todo Now fails in NT4; do we care? */
-            VBoxServiceVerbose(3, "VBoxStatsInit: KERNEL32.GlobalMemoryStatusEx not found!\n");
-            return VERR_SERVICE_DISABLED;
-        }
+        /** @todo Now fails in NT4; do we care? */
+        VBoxServiceVerbose(3, "VBoxStatsInit: kernel32.GlobalMemoryStatusEx not found!\n");
+        return VERR_SERVICE_DISABLED;
     }
+
     /* GetPerformanceInfo is xp and up, so load it dynamically */
-    hMod = LoadLibrary("PSAPI.DLL");
-    if (hMod)
-    {
-        *(uintptr_t *)&gCtx.pfnGetPerformanceInfo = (uintptr_t)GetProcAddress(hMod, "GetPerformanceInfo");
-        if (gCtx.pfnGetPerformanceInfo)
-            VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.pfnGetPerformanceInfo= %x\n", gCtx.pfnGetPerformanceInfo);
-        /* failure is not fatal */
-    }
+    *(void **)&gCtx.pfnGetPerformanceInfo = RTLdrGetSystemSymbol("psapi.dll", "GetPerformanceInfo");
+    if (gCtx.pfnGetPerformanceInfo)
+        VBoxServiceVerbose(3, "VBoxStatsInit: gCtx.pfnGetPerformanceInfo= %x\n", gCtx.pfnGetPerformanceInfo);
 #endif /* RT_OS_WINDOWS */
 
     return VINF_SUCCESS;
@@ -354,6 +323,7 @@ static void VBoxServiceVMStatsReport(void)
     req.guestStats.u32PageSize = getpagesize();
     req.guestStats.u32StatCaps  = VBOX_GUEST_STAT_PHYS_MEM_TOTAL
                                 | VBOX_GUEST_STAT_PHYS_MEM_AVAIL
+                                | VBOX_GUEST_STAT_MEM_SYSTEM_CACHE
                                 | VBOX_GUEST_STAT_PAGE_FILE_SIZE;
 #ifdef VBOX_WITH_MEMBALLOON
     req.guestStats.u32PhysMemBalloon  = VBoxServiceBalloonQueryPages(_4K);
@@ -464,30 +434,30 @@ static void VBoxServiceVMStatsReport(void)
          */
         uint64_t u64Total = 0, u64Free = 0, u64Buffers = 0, u64Cached = 0, u64PagedTotal = 0;
         int rc = -1;
-        kstat_t *pStatPages = kstat_lookup(pStatKern, "unix", 0 /* instance */, "system_pages");
+        kstat_t *pStatPages = kstat_lookup(pStatKern, (char *)"unix", 0 /* instance */, (char *)"system_pages");
         if (pStatPages)
         {
             rc = kstat_read(pStatKern, pStatPages, NULL /* optional-copy-buf */);
             if (rc != -1)
             {
                 kstat_named_t *pStat = NULL;
-                pStat = (kstat_named_t *)kstat_data_lookup(pStatPages, "pagestotal");
+                pStat = (kstat_named_t *)kstat_data_lookup(pStatPages, (char *)"pagestotal");
                 if (pStat)
                     u64Total = pStat->value.ul;
 
-                pStat = (kstat_named_t *)kstat_data_lookup(pStatPages, "freemem");
+                pStat = (kstat_named_t *)kstat_data_lookup(pStatPages, (char *)"freemem");
                 if (pStat)
                     u64Free = pStat->value.ul;
             }
         }
 
-        kstat_t *pStatZFS = kstat_lookup(pStatKern, "zfs", 0 /* instance */, "arcstats");
+        kstat_t *pStatZFS = kstat_lookup(pStatKern, (char *)"zfs", 0 /* instance */, (char *)"arcstats");
         if (pStatZFS)
         {
             rc = kstat_read(pStatKern, pStatZFS, NULL /* optional-copy-buf */);
             if (rc != -1)
             {
-                kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(pStatZFS, "size");
+                kstat_named_t *pStat = (kstat_named_t *)kstat_data_lookup(pStatZFS, (char *)"size");
                 if (pStat)
                     u64Cached = pStat->value.ul;
             }
@@ -497,14 +467,14 @@ static void VBoxServiceVMStatsReport(void)
          * The vminfo are accumulative counters updated every "N" ticks. Let's get the
          * number of stat updates so far and use that to divide the swap counter.
          */
-        kstat_t *pStatInfo = kstat_lookup(pStatKern, "unix", 0 /* instance */, "sysinfo");
+        kstat_t *pStatInfo = kstat_lookup(pStatKern, (char *)"unix", 0 /* instance */, (char *)"sysinfo");
         if (pStatInfo)
         {
             sysinfo_t SysInfo;
             rc = kstat_read(pStatKern, pStatInfo, &SysInfo);
             if (rc != -1)
             {
-                kstat_t *pStatVMInfo = kstat_lookup(pStatKern, "unix", 0 /* instance */, "vminfo");
+                kstat_t *pStatVMInfo = kstat_lookup(pStatKern, (char *)"unix", 0 /* instance */, (char *)"vminfo");
                 if (pStatVMInfo)
                 {
                     vminfo_t VMInfo;
@@ -534,6 +504,7 @@ static void VBoxServiceVMStatsReport(void)
 
         req.guestStats.u32StatCaps = VBOX_GUEST_STAT_PHYS_MEM_TOTAL
                                    | VBOX_GUEST_STAT_PHYS_MEM_AVAIL
+                                   | VBOX_GUEST_STAT_MEM_SYSTEM_CACHE
                                    | VBOX_GUEST_STAT_PAGE_FILE_SIZE;
 #ifdef VBOX_WITH_MEMBALLOON
         req.guestStats.u32PhysMemBalloon  = VBoxServiceBalloonQueryPages(_4K);
@@ -690,14 +661,6 @@ DECLCALLBACK(int) VBoxServiceVMStatsWorker(bool volatile *pfShutdown)
 }
 
 
-/** @copydoc VBOXSERVICE::pfnTerm */
-static DECLCALLBACK(void) VBoxServiceVMStatsTerm(void)
-{
-    VBoxServiceVerbose(3, "VBoxServiceVMStatsTerm\n");
-    return;
-}
-
-
 /** @copydoc VBOXSERVICE::pfnStop */
 static DECLCALLBACK(void) VBoxServiceVMStatsStop(void)
 {
@@ -719,10 +682,11 @@ VBOXSERVICE g_VMStatistics =
     /* pszOptions. */
     NULL,
     /* methods */
-    VBoxServiceVMStatsPreInit,
-    VBoxServiceVMStatsOption,
+    VBoxServiceDefaultPreInit,
+    VBoxServiceDefaultOption,
     VBoxServiceVMStatsInit,
     VBoxServiceVMStatsWorker,
     VBoxServiceVMStatsStop,
-    VBoxServiceVMStatsTerm
+    VBoxServiceDefaultTerm
 };
+

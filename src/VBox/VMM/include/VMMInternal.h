@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,10 +19,11 @@
 #define ___VMMInternal_h
 
 #include <VBox/cdefs.h>
+#include <VBox/sup.h>
 #include <VBox/vmm/stam.h>
+#include <VBox/vmm/vmm.h>
 #include <VBox/log.h>
 #include <iprt/critsect.h>
-
 
 #if !defined(IN_VMM_R3) && !defined(IN_VMM_R0) && !defined(IN_VMM_RC)
 # error "Not in VMM! This is an internal header!"
@@ -46,7 +47,7 @@
  * so you have to sign up here by adding your defined(DEBUG_<userid>) to the
  * #if, or by adding VBOX_WITH_R0_LOGGING to your LocalConfig.kmk.
  */
-#if defined(DEBUG_sandervl) || defined(DEBUG_frank) || defined(DOXYGEN_RUNNING)
+#if defined(DEBUG_sandervl) || defined(DEBUG_frank) || defined(DEBUG_ramshankar) || defined(DOXYGEN_RUNNING)
 # define VBOX_WITH_R0_LOGGING
 #endif
 
@@ -68,7 +69,7 @@
 /**
  * Switcher function, HC to RC.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @returns Return code indicating the action to take.
  */
 typedef DECLASMTYPE(int) FNVMMSWITCHERHC(PVM pVM);
@@ -93,7 +94,7 @@ typedef FNVMMSWITCHERRC *PFNVMMSWITCHERRC;
  */
 typedef struct VMMR0LOGGER
 {
-    /** Pointer to the VM handle. */
+    /** Pointer to Pointer to the VM. */
     R0PTRTYPE(PVM)              pVM;
     /** Size of the allocated logger instance (Logger). */
     uint32_t                    cbLogger;
@@ -215,19 +216,18 @@ typedef struct VMM
     RTR0PTR                     pvCoreCodeR0;
     /** Pointer to core code guest context mapping. */
     RTRCPTR                     pvCoreCodeRC;
-    RTRCPTR                     pRCPadding0; /**< Alignment padding */
+    RTRCPTR                     pRCPadding0; /**< Alignment padding. */
 #ifdef VBOX_WITH_NMI
     /** The guest context address of the APIC (host) mapping. */
     RTRCPTR                     GCPtrApicBase;
-    RTRCPTR                     pRCPadding1; /**< Alignment padding */
+    RTRCPTR                     pRCPadding1; /**< Alignment padding. */
 #endif
     /** The current switcher.
      * This will be set before the VMM is fully initialized. */
     VMMSWITCHER                 enmSwitcher;
-    /** Flag to disable the switcher permanently (VMX) (boolean) */
-    bool                        fSwitcherDisabled;
     /** Array of offsets to the different switchers within the core code. */
-    RTUINT                      aoffSwitchers[VMMSWITCHER_MAX];
+    uint32_t                    aoffSwitchers[VMMSWITCHER_MAX];
+    uint32_t                    u32Padding2; /**< Alignment padding. */
 
     /** Resume Guest Execution. See CPUMGCResumeGuest(). */
     RTRCPTR                     pfnCPUMRCResumeGuest;
@@ -236,9 +236,9 @@ typedef struct VMM
     /** Call Trampoline. See vmmGCCallTrampoline(). */
     RTRCPTR                     pfnCallTrampolineRC;
     /** Guest to host switcher entry point. */
-    RCPTRTYPE(PFNVMMSWITCHERRC) pfnGuestToHostRC;
+    RCPTRTYPE(PFNVMMSWITCHERRC) pfnRCToHost;
     /** Host to guest switcher entry point. */
-    R0PTRTYPE(PFNVMMSWITCHERHC) pfnHostToGuestR0;
+    R0PTRTYPE(PFNVMMSWITCHERHC) pfnR0ToRawMode;
     /** @}  */
 
     /** @name Logging
@@ -410,22 +410,38 @@ typedef struct VMMCPU
     /** Pointer to the bottom of the stack - needed for doing relocations. */
     RCPTRTYPE(uint8_t *)        pbEMTStackBottomRC;
 
-#ifdef LOG_ENABLED
     /** Pointer to the R0 logger instance - R3 Ptr.
      * This is NULL if logging is disabled. */
     R3PTRTYPE(PVMMR0LOGGER)     pR0LoggerR3;
     /** Pointer to the R0 logger instance - R0 Ptr.
      * This is NULL if logging is disabled. */
     R0PTRTYPE(PVMMR0LOGGER)     pR0LoggerR0;
+
+    /** @name Thread-context hooks.
+     *  @{*/
+    R0PTRTYPE(RTTHREADCTX)      hR0ThreadCtx;
+#if HC_ARCH_BITS == 32
+    uint32_t                    u32Padding;
+#else
+    uint64_t                    u64Padding;
 #endif
+    /** @} */
 
     /** @name Rendezvous
      * @{ */
     /** Whether the EMT is executing a rendezvous right now. For detecting
      *  attempts at recursive rendezvous. */
     bool volatile               fInRendezvous;
-    bool                        afPadding[HC_ARCH_BITS == 32 ? 7 : 3];
+    bool                        afPadding[HC_ARCH_BITS == 32 ? 3 : 7];
     /** @} */
+
+    /** @name Raw-mode context tracting data.
+     * @{ */
+    SUPDRVTRACERUSRCTX          TracerCtx;
+    /** @} */
+
+    /** Alignment padding, making sure u64CallRing3Arg is nicely aligned. */
+    uint32_t                    au32Padding1[3];
 
     /** @name Call Ring-3
      * Formerly known as host calls.
@@ -438,11 +454,17 @@ typedef struct VMMCPU
     int32_t                     rcCallRing3;
     /** The argument to the operation. */
     uint64_t                    u64CallRing3Arg;
-    /** The Ring-0 jmp buffer. */
+    /** The Ring-0 notification callback. */
+    R0PTRTYPE(PFNVMMR0CALLRING3NOTIFICATION)   pfnCallRing3CallbackR0;
+    /** The Ring-0 notification callback user argument. */
+    R0PTRTYPE(void *)           pvCallRing3CallbackUserR0;
+    /** The Ring-0 jmp buffer.
+     * @remarks The size of this type isn't stable in assembly, so don't put
+     *          anything that needs to be accessed from assembly after it. */
     VMMR0JMPBUF                 CallRing3JmpBufR0;
     /** @} */
-
 } VMMCPU;
+AssertCompileMemberAlignment(VMMCPU, TracerCtx, 8);
 /** Pointer to VMMCPU. */
 typedef VMMCPU *PVMMCPU;
 
@@ -496,14 +518,35 @@ typedef enum VMMGCOPERATION
     /** Testcase for checking interrupt masking.. */
     VMMGC_DO_TESTCASE_INTERRUPT_MASKING,
     /** Switching testing and profiling stub. */
-    VMMGC_DO_TESTCASE_HWACCM_NOP,
+    VMMGC_DO_TESTCASE_HM_NOP,
 
     /** The usual 32-bit hack. */
     VMMGC_DO_32_BIT_HACK = 0x7fffffff
 } VMMGCOPERATION;
 
 
+
+/**
+ * MSR test result entry.
+ */
+typedef struct VMMTESTMSRENTRY
+{
+    /** The MSR number, including padding.
+     * Set to UINT64_MAX if invalid MSR. */
+    uint64_t    uMsr;
+    /** The register value. */
+    uint64_t    uValue;
+} VMMTESTMSRENTRY;
+/** Pointer to an MSR test result entry. */
+typedef VMMTESTMSRENTRY *PVMMTESTMSRENTRY;
+
+
+
 RT_C_DECLS_BEGIN
+
+int  vmmInitFormatTypes(void);
+void vmmTermFormatTypes(void);
+uint32_t vmmGetBuildType(void);
 
 #ifdef IN_RING3
 int  vmmR3SwitcherInit(PVM pVM);
@@ -516,7 +559,7 @@ void vmmR3SwitcherRelocate(PVM pVM, RTGCINTPTR offDelta);
  * It will call VMMGCEntry().
  *
  * @returns return code from VMMGCEntry().
- * @param   pVM     The VM in question.
+ * @param   pVM     Pointer to the VM.
  * @param   uArg    See VMMGCEntry().
  * @internal
  */
@@ -526,7 +569,7 @@ DECLASM(int)    vmmR0WorldSwitch(PVM pVM, unsigned uArg);
  * Callback function for vmmR0CallRing3SetJmp.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 typedef DECLCALLBACK(int) FNVMMR0SETJMP(PVM pVM, PVMCPU pVCpu);
 /** Pointer to FNVMMR0SETJMP(). */
@@ -601,6 +644,11 @@ VMMR0DECL(void) vmmR0LoggerFlush(PRTLOGGER pLogger);
  * @param   pvUser      User argument (ignored).
  */
 VMMR0DECL(size_t) vmmR0LoggerPrefix(PRTLOGGER pLogger, char *pchBuf, size_t cchBuf, void *pvUser);
+
+# ifdef VBOX_WITH_TRIPLE_FAULT_HACK
+int  vmmR0TripleFaultHackInit(void);
+void vmmR0TripleFaultHackTerm(void);
+# endif
 
 #endif /* IN_RING0 */
 #ifdef IN_RC

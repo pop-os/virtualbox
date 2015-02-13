@@ -1,20 +1,20 @@
 #!/usr/bin/python
-#
-# Copyright (C) 2009 Oracle Corporation
-#
-# This file is part of VirtualBox Open Source Edition (OSE), as
-# available from http://www.virtualbox.org. This file is free software;
-# you can redistribute it and/or modify it under the terms of the GNU
-# General Public License (GPL) as published by the Free Software
-# Foundation, in version 2 as it comes in the "COPYING" file of the
-# VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-# hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
-#
 
+"""
+Copyright (C) 2009-2013 Oracle Corporation
+
+This file is part of VirtualBox Open Source Edition (OSE), as
+available from http://www.virtualbox.org. This file is free software;
+you can redistribute it and/or modify it under the terms of the GNU
+General Public License (GPL) as published by the Free Software
+Foundation, in version 2 as it comes in the "COPYING" file of the
+VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+"""
 
 import os,sys
 
-versions = ["2.3", "2.4", "2.5", "2.6", "2.7", "2.8"]
+versions = ["2.3", "2.4", "2.5", "2.6", "2.7",]
 prefixes = ["/usr", "/usr/local", "/opt", "/opt/local"]
 known = {}
 
@@ -23,26 +23,29 @@ def checkPair(p, v,dllpre,dllsuff, bitness_magic):
     if not os.path.isfile(file):
         return None
 
-    lib = os.path.join(p, "lib", dllpre+"python"+v+dllsuff)
+    lib = os.path.join(p, "lib/i386-linux-gnu", dllpre+"python"+v+dllsuff)
+    if not os.path.isfile(lib):
+        lib = os.path.join(p, "lib", dllpre+"python"+v+dllsuff)
 
     if bitness_magic == 1:
         lib64 = os.path.join(p, "lib", "64", dllpre+"python"+v+dllsuff)
     elif bitness_magic == 2:
-        lib64 = os.path.join(p, "lib64", dllpre+"python"+v+dllsuff)
+        lib64 = os.path.join(p, "lib/x86_64-linux-gnu", dllpre+"python"+v+dllsuff)
         if not os.path.isfile(lib64):
-            lib64 = lib
+            lib64 = os.path.join(p, "lib64", dllpre+"python"+v+dllsuff)
+            if not os.path.isfile(lib64):
+                lib64 = lib
     else:
         lib64 = None
-    return [os.path.join(p, "include", "python"+v),
-            lib,
-            lib64]
+    return [os.path.join(p, "include", "python"+v), lib, lib64]
 
 def print_vars(vers, known, sep, bitness_magic):
     print "VBOX_PYTHON%s_INC=%s%s" %(vers, known[0], sep)
     if bitness_magic > 0:
-       print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[2], sep)
+        print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[2], sep)
+        print "VBOX_PYTHON%s_LIB_X86=%s%s" %(vers, known[1], sep)
     else:
-       print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[1], sep)
+        print "VBOX_PYTHON%s_LIB=%s%s" %(vers, known[1], sep)
 
 
 def main(argv):

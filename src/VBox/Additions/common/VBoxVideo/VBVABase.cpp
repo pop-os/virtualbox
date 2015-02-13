@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -301,7 +301,7 @@ static bool vboxHwBufferWrite(PVBVABUFFERCONTEXT pCtx,
     pRecord = pCtx->pRecord;
     Assert(pRecord && (pRecord->cbRecord & VBVA_F_RECORD_PARTIAL));
 
-    LogFunc(("%d\n", cb));
+    // LogFunc(("%d\n", cb));
 
     cbHwBufferAvail = vboxHwBufferAvail (pVBVA);
 

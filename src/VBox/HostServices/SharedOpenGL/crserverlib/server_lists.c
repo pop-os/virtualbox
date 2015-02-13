@@ -68,10 +68,40 @@ crServerDispatchNewList( GLuint list, GLenum mode )
     cr_server.head_spu->dispatch_table.NewList( list, mode );
 }
 
+static void crServerQueryHWState()
+{
+    if (!cr_server.bUseMultipleContexts)
+    {
+        GLuint fbFbo, bbFbo;
+        CRClient *client = cr_server.curClient;
+        CRMuralInfo *mural = client ? client->currentMural : NULL;
+        if (mural && mural->fRedirected)
+        {
+            fbFbo = mural->aidFBOs[CR_SERVER_FBO_FB_IDX(mural)];
+            bbFbo = mural->aidFBOs[CR_SERVER_FBO_BB_IDX(mural)];
+        }
+        else
+        {
+            fbFbo = bbFbo = 0;
+        }
+        crStateQueryHWState(fbFbo, bbFbo);
+    }
+}
+
 void SERVER_DISPATCH_APIENTRY crServerDispatchEndList(void)
 {
+    CRContext *g = crStateGetCurrent();
+    CRListsState *l = &(g->lists);
+
     cr_server.head_spu->dispatch_table.EndList();
     crStateEndList();
+
+#ifndef IN_GUEST
+    if (l->mode==GL_COMPILE)
+    {
+        crServerQueryHWState();
+    }
+#endif
 }
 
 void SERVER_DISPATCH_APIENTRY
@@ -79,11 +109,11 @@ crServerDispatchCallList( GLuint list )
 {
     list = TranslateListID( list );
 
-    if (cr_server.curClient->currentCtx->lists.mode == 0) {
+    if (cr_server.curClient->currentCtxInfo->pContext->lists.mode == 0) {
         /* we're not compiling, so execute the list now */
         /* Issue the list as-is */
         cr_server.head_spu->dispatch_table.CallList( list );
-        crStateQueryHWState();
+        crServerQueryHWState();
     }
     else {
         /* we're compiling glCallList into another list - just pass it through */
@@ -207,11 +237,11 @@ crServerDispatchCallLists( GLsizei n, GLenum type, const GLvoid *lists )
         type = GL_UNSIGNED_INT;
     }
 
-    if (cr_server.curClient->currentCtx->lists.mode == 0) {
+    if (cr_server.curClient->currentCtxInfo->pContext->lists.mode == 0) {
         /* we're not compiling, so execute the list now */
         /* Issue the list as-is */
         cr_server.head_spu->dispatch_table.CallLists( n, type, lists );
-        crStateQueryHWState();
+        crServerQueryHWState();
     }
     else {
         /* we're compiling glCallList into another list - just pass it through */
@@ -264,6 +294,12 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteTextures( GLsizei n, const G
         newTextures[i] = crStateGetTextureHWID(textures[i]);
     }
 
+//    for (i = 0; i < n; ++i)
+//    {
+//        crDebug("DeleteTexture: %d, pid %d, ctx %d", textures[i], (uint32_t)cr_server.curClient->pid, cr_server.currentCtxInfo->pContext->id);
+//    }
+
+
     crStateDeleteTextures(n, textures);
     cr_server.head_spu->dispatch_table.DeleteTextures(n, newTextures);
     crFree(newTextures);
@@ -280,12 +316,13 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchPrioritizeTextures( GLsizei n, con
         return;
     }
 
+    crStatePrioritizeTextures(n, textures, priorities);
+
     for (i = 0; i < n; i++)
     {
         newTextures[i] = crStateGetTextureHWID(textures[i]);
     }
 
-    crStatePrioritizeTextures(n, textures, priorities);
     cr_server.head_spu->dispatch_table.PrioritizeTextures(n, newTextures, priorities);
     crFree(newTextures);
 }

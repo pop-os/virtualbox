@@ -54,6 +54,10 @@
 
 #include <VBox/VBoxKeyboard.h>
 
+/* VBoxKeyboard uses the deprecated XKeycodeToKeysym(3) API, but uses it safely.
+ */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+
 #define KEYC2SCAN_SIZE 256
 
 /**
@@ -547,13 +551,17 @@ X11DRV_InitKeyboardByType(Display *display)
 
 /**
  * Checks for the XKB extension, and if it is found initialises the X11 keycode
- * to XT scan code mapping by looking at the XKB names for each keycode.
+ * to XT scan code mapping by looking at the XKB names for each keycode.  As it
+ * turns out that XKB can return an empty list we make sure that the list holds
+ * enough data to be useful to us.
  */
 static unsigned
 X11DRV_InitKeyboardByXkb(Display *pDisplay)
 {
     int major = XkbMajorVersion, minor = XkbMinorVersion;
     XkbDescPtr pKBDesc;
+    unsigned cFound = 0;
+
     if (!XkbLibraryVersion(&major, &minor))
         return 0;
     if (!XkbQueryExtension(pDisplay, NULL, NULL, &major, &minor, NULL))
@@ -574,12 +582,13 @@ X11DRV_InitKeyboardByXkb(Display *pDisplay)
                             XKB_NAME_SIZE))
                 {
                     keyc2scan[i] = xkbMap[j].uScan;
+                    ++cFound;
                     break;
                 }
     }
     XkbFreeNames(pKBDesc, XkbKeyNamesMask, True);
     XkbFreeKeyboard(pKBDesc, XkbAllComponentsMask, True);
-    return 1;
+    return cFound >= 45 ? 1 : 0;
 }
 
 /**
@@ -631,6 +640,15 @@ unsigned X11DRV_InitKeyboard(Display *display, unsigned *byLayoutOK,
     byXkb = X11DRV_InitKeyboardByXkb(display);
     if (byXkbOK)
         *byXkbOK = byXkb;
+
+    /* Fall back to the one which did work. */
+    if (!byXkb)
+    {
+        if (byType)
+            X11DRV_InitKeyboardByType(display);
+        else
+            X11DRV_InitKeyboardByLayout(display);
+    }
 
     /* Remap keycodes after initialization. Remapping stops after an
        identity mapping is seen */

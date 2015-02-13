@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,11 +19,13 @@
 #ifndef __VBoxTakeSnapshotDlg_h__
 #define __VBoxTakeSnapshotDlg_h__
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxTakeSnapshotDlg.gen.h"
 #include "QIWithRetranslateUI.h"
-#include "COMDefs.h"
 #include "QIDialog.h"
+
+/* Forward declarations: */
+class CMachine;
 
 class VBoxTakeSnapshotDlg : public QIWithRetranslateUI<QIDialog>, public Ui::VBoxTakeSnapshotDlg
 {

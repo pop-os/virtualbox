@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,9 @@
 #include <sys/errno.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
+#include <iprt/mp.h>
 #include <iprt/param.h>
+#include <iprt/system.h>
 #include "Performance.h"
 
 /* The following declarations are missing in 10.4.x SDK */
@@ -63,7 +65,8 @@ public:
     virtual int getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uint64_t *kernel, uint64_t *total);
     virtual int getProcessMemoryUsage(RTPROCESS process, ULONG *used);
 private:
-    ULONG totalRAM;
+    ULONG    totalRAM;
+    uint32_t nCpus;
 };
 
 CollectorHAL *createHAL()
@@ -73,19 +76,19 @@ CollectorHAL *createHAL()
 
 CollectorDarwin::CollectorDarwin()
 {
-    uint64_t hostMemory;
-    int mib[2];
-    size_t size;
-
-    mib[0] = CTL_HW;
-    mib[1] = HW_MEMSIZE;
-
-    size = sizeof(hostMemory);
-    if (sysctl(mib, 2, &hostMemory, &size, NULL, 0) == -1) {
-        Log(("sysctl() -> %s", strerror(errno)));
-        hostMemory = 0;
+    uint64_t cb;
+    int rc = RTSystemQueryTotalRam(&cb);
+    if (RT_FAILURE(rc))
+        totalRAM = 0;
+    else
+        totalRAM = (ULONG)(cb / 1024);
+    nCpus = RTMpGetOnlineCount();
+    Assert(nCpus);
+    if (nCpus == 0)
+    {
+        /* It is rather unsual to have no CPUs, but the show must go on. */
+        nCpus = 1;
     }
-    totalRAM = (ULONG)(hostMemory / 1024);
 }
 
 int CollectorDarwin::getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_t *idle)
@@ -112,23 +115,16 @@ int CollectorDarwin::getRawHostCpuLoad(uint64_t *user, uint64_t *kernel, uint64_
 
 int CollectorDarwin::getHostMemoryUsage(ULONG *total, ULONG *used, ULONG *available)
 {
-    kern_return_t krc;
-    mach_msg_type_number_t count;
-    vm_statistics_data_t info;
-
-    count = HOST_VM_INFO_COUNT;
-
-    krc = host_statistics(mach_host_self(), HOST_VM_INFO, (host_info_t)&info, &count);
-    if (krc != KERN_SUCCESS)
+    AssertReturn(totalRAM, VERR_INTERNAL_ERROR);
+    uint64_t cb;
+    int rc = RTSystemQueryAvailableRam(&cb);
+    if (RT_SUCCESS(rc))
     {
-        Log(("host_statistics() -> %s", mach_error_string(krc)));
-        return RTErrConvertFromDarwinKern(krc);
+        *total = totalRAM;
+        *available = cb / 1024;
+        *used = *total - *available;
     }
-
-    *total = totalRAM;
-    *available = info.free_count * (PAGE_SIZE / 1024);
-    *used = *total - *available;
-    return VINF_SUCCESS;
+    return rc;
 }
 
 static int getProcessInfo(RTPROCESS process, struct proc_taskinfo *tinfo)
@@ -156,8 +152,12 @@ int CollectorDarwin::getRawProcessCpuLoad(RTPROCESS process, uint64_t *user, uin
     int rc = getProcessInfo(process, &tinfo);
     if (RT_SUCCESS(rc))
     {
-        *user = tinfo.pti_total_user;
-        *kernel = tinfo.pti_total_system;
+        /*
+         * Adjust user and kernel values so 100% is when ALL cores are fully
+         * utilized (see @bugref{6345}).
+         */
+        *user = tinfo.pti_total_user / nCpus;
+        *kernel = tinfo.pti_total_system / nCpus;
         *total = mach_absolute_time();
     }
     return rc;

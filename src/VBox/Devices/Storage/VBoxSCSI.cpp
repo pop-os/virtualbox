@@ -1,12 +1,10 @@
 /* $Id: VBoxSCSI.cpp $ */
 /** @file
- *
- * VBox storage devices:
- * Simple SCSI interface for BIOS access
+ * VBox storage devices - Simple SCSI interface for BIOS access.
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,10 +19,10 @@
 *   Header Files                                                               *
 *******************************************************************************/
 //#define DEBUG
-#define LOG_GROUP LOG_GROUP_DEV_BUSLOGIC /* @todo: Create extra group. */
+#define LOG_GROUP LOG_GROUP_DEV_BUSLOGIC /** @todo Create extra group. */
 
 #if defined(IN_R0) || defined(IN_RC)
-# error This device has no R0 or GC components
+# error This device has no R0 or RC components
 #endif
 
 #include <VBox/vmm/pdmdev.h>
@@ -36,21 +34,26 @@
 
 #include "VBoxSCSI.h"
 
+
+/**
+ * Resets the state.
+ */
 static void vboxscsiReset(PVBOXSCSI pVBoxSCSI)
 {
-    pVBoxSCSI->regIdentify = 0;
-    pVBoxSCSI->cbCDB       = 0;
-    memset(pVBoxSCSI->aCDB, 0, sizeof(pVBoxSCSI->aCDB));
-    pVBoxSCSI->iCDB        = 0;
-    pVBoxSCSI->fBusy       = false;
-    pVBoxSCSI->cbBuf       = 0;
-    pVBoxSCSI->iBuf        = 0;
-    if (pVBoxSCSI->pBuf)
-        RTMemFree(pVBoxSCSI->pBuf);
+    pVBoxSCSI->regIdentify   = 0;
+    pVBoxSCSI->cbCDB         = 0;
+    memset(pVBoxSCSI->abCDB, 0, sizeof(pVBoxSCSI->abCDB));
+    pVBoxSCSI->iCDB          = 0;
+    pVBoxSCSI->fBusy         = false;
+    pVBoxSCSI->rcCompletion  = 0;
+    pVBoxSCSI->uTargetDevice = 0;
+    pVBoxSCSI->cbBuf         = 0;
+    pVBoxSCSI->iBuf          = 0;
+    if (pVBoxSCSI->pbBuf)
+        RTMemFree(pVBoxSCSI->pbBuf);
 
-    pVBoxSCSI->pBuf        = NULL;
-    pVBoxSCSI->enmState    = VBOXSCSISTATE_NO_COMMAND;
-
+    pVBoxSCSI->pbBuf         = NULL;
+    pVBoxSCSI->enmState      = VBOXSCSISTATE_NO_COMMAND;
 }
 
 /**
@@ -61,7 +64,7 @@ static void vboxscsiReset(PVBOXSCSI pVBoxSCSI)
  */
 int vboxscsiInitialize(PVBOXSCSI pVBoxSCSI)
 {
-    pVBoxSCSI->pBuf        = NULL;
+    pVBoxSCSI->pbBuf = NULL;
     vboxscsiReset(pVBoxSCSI);
 
     return VINF_SUCCESS;
@@ -91,16 +94,19 @@ int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32V
                  */
                 RTThreadYield();
             }
-            else
-                uVal &= ~VBOX_SCSI_BUSY;
+            if (pVBoxSCSI->rcCompletion)
+                uVal |= VBOX_SCSI_ERROR;
             break;
         }
         case 1:
         {
-            if (pVBoxSCSI->cbBuf > 0)
+            /* If we're not in the 'command ready' state, there may not even be a buffer yet. */
+            if ((pVBoxSCSI->enmState == VBOXSCSISTATE_COMMAND_READY) && pVBoxSCSI->cbBuf > 0)
             {
-                AssertMsg(pVBoxSCSI->pBuf, ("pBuf is NULL\n"));
-                uVal = pVBoxSCSI->pBuf[pVBoxSCSI->iBuf];
+                AssertMsg(pVBoxSCSI->pbBuf, ("pBuf is NULL\n"));
+                Assert(pVBoxSCSI->enmState == VBOXSCSISTATE_COMMAND_READY);
+                Assert(!pVBoxSCSI->fBusy);
+                uVal = pVBoxSCSI->pbBuf[pVBoxSCSI->iBuf];
                 pVBoxSCSI->iBuf++;
                 pVBoxSCSI->cbBuf--;
                 if (pVBoxSCSI->cbBuf == 0)
@@ -108,14 +114,15 @@ int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32V
                     /** The guest read the last byte from the data in buffer.
                      *  Clear everything and reset command buffer.
                      */
-                    RTMemFree(pVBoxSCSI->pBuf);
-                    pVBoxSCSI->pBuf  = NULL;
+                    RTMemFree(pVBoxSCSI->pbBuf);
+                    pVBoxSCSI->pbBuf = NULL;
                     pVBoxSCSI->cbCDB = 0;
                     pVBoxSCSI->iCDB  = 0;
                     pVBoxSCSI->iBuf  = 0;
+                    pVBoxSCSI->rcCompletion = 0;
                     pVBoxSCSI->uTargetDevice = 0;
                     pVBoxSCSI->enmState = VBOXSCSISTATE_NO_COMMAND;
-                    memset(pVBoxSCSI->aCDB, 0, sizeof(pVBoxSCSI->aCDB));
+                    memset(pVBoxSCSI->abCDB, 0, sizeof(pVBoxSCSI->abCDB));
                 }
             }
             break;
@@ -123,6 +130,11 @@ int vboxscsiReadRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint32_t *pu32V
         case 2:
         {
             uVal = pVBoxSCSI->regIdentify;
+            break;
+        }
+        case 3:
+        {
+            uVal = pVBoxSCSI->rcCompletion;
             break;
         }
         default:
@@ -162,33 +174,36 @@ int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal)
                     vboxscsiReset(pVBoxSCSI);
                 else
                 {
-                    pVBoxSCSI->enmState = VBOXSCSISTATE_READ_CDB_SIZE;
+                    pVBoxSCSI->enmState = VBOXSCSISTATE_READ_CDB_SIZE_BUFHI;
                     pVBoxSCSI->uTxDir = uVal;
                 }
             }
-            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_CDB_SIZE)
+            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_CDB_SIZE_BUFHI)
             {
-                if (uVal > VBOXSCSI_CDB_SIZE_MAX)
+                uint8_t     cbCDB = uVal & 0x0F;
+
+                if (cbCDB > VBOXSCSI_CDB_SIZE_MAX)
                     vboxscsiReset(pVBoxSCSI);
                 else
                 {
-                    pVBoxSCSI->enmState = VBOXSCSISTATE_READ_BUFFER_SIZE_LOW;
-                    pVBoxSCSI->cbCDB = uVal;
+                    pVBoxSCSI->enmState = VBOXSCSISTATE_READ_BUFFER_SIZE_LSB;
+                    pVBoxSCSI->cbCDB = cbCDB;
+                    pVBoxSCSI->cbBuf = (uVal & 0xF0) << 12;     /* Bits 16-19 of buffer size. */
                 }
             }
-            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_BUFFER_SIZE_LOW)
+            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_BUFFER_SIZE_LSB)
             {
-                pVBoxSCSI->enmState = VBOXSCSISTATE_READ_BUFFER_SIZE_HIGH;
-                pVBoxSCSI->cbBuf = uVal;
+                pVBoxSCSI->enmState = VBOXSCSISTATE_READ_BUFFER_SIZE_MID;
+                pVBoxSCSI->cbBuf |= uVal;                       /* Bits 0-7 of buffer size. */
             }
-            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_BUFFER_SIZE_HIGH)
+            else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_BUFFER_SIZE_MID)
             {
                 pVBoxSCSI->enmState = VBOXSCSISTATE_READ_COMMAND;
-                pVBoxSCSI->cbBuf |= (((uint16_t)uVal) << 8);
+                pVBoxSCSI->cbBuf |= (((uint16_t)uVal) << 8);    /* Bits 8-15 of buffer size. */
             }
             else if (pVBoxSCSI->enmState == VBOXSCSISTATE_READ_COMMAND)
             {
-                pVBoxSCSI->aCDB[pVBoxSCSI->iCDB] = uVal;
+                pVBoxSCSI->abCDB[pVBoxSCSI->iCDB] = uVal;
                 pVBoxSCSI->iCDB++;
 
                 /* Check if we have all necessary command data. */
@@ -199,8 +214,8 @@ int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal)
                     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_TO_DEVICE)
                     {
                         /* This is a write allocate buffer. */
-                        pVBoxSCSI->pBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
-                        if (!pVBoxSCSI->pBuf)
+                        pVBoxSCSI->pbBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
+                        if (!pVBoxSCSI->pbBuf)
                             return VERR_NO_MEMORY;
                     }
                     else
@@ -225,7 +240,7 @@ int vboxscsiWriteRegister(PVBOXSCSI pVBoxSCSI, uint8_t iRegister, uint8_t uVal)
             }
             else
             {
-                pVBoxSCSI->pBuf[pVBoxSCSI->iBuf++] = uVal;
+                pVBoxSCSI->pbBuf[pVBoxSCSI->iBuf++] = uVal;
                 if (pVBoxSCSI->iBuf == pVBoxSCSI->cbBuf)
                 {
                     rc = VERR_MORE_DATA;
@@ -268,13 +283,16 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
 
     AssertMsg(pVBoxSCSI->enmState == VBOXSCSISTATE_COMMAND_READY, ("Invalid state %u\n", pVBoxSCSI->enmState));
 
+    /* Clear any errors from a previous request. */
+    pVBoxSCSI->rcCompletion = 0;
+
     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_FROM_DEVICE)
     {
-        if (pVBoxSCSI->pBuf)
-            RTMemFree(pVBoxSCSI->pBuf);
+        if (pVBoxSCSI->pbBuf)
+            RTMemFree(pVBoxSCSI->pbBuf);
 
-        pVBoxSCSI->pBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
-        if (!pVBoxSCSI->pBuf)
+        pVBoxSCSI->pbBuf = (uint8_t *)RTMemAllocZ(pVBoxSCSI->cbBuf);
+        if (!pVBoxSCSI->pbBuf)
             return VERR_NO_MEMORY;
     }
 
@@ -282,8 +300,8 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
     pScsiRequest->paScatterGatherHead = (PRTSGSEG)RTMemAllocZ(sizeof(RTSGSEG) * 1); /* Only one element. */
     if (!pScsiRequest->paScatterGatherHead)
     {
-        RTMemFree(pVBoxSCSI->pBuf);
-        pVBoxSCSI->pBuf = NULL;
+        RTMemFree(pVBoxSCSI->pbBuf);
+        pVBoxSCSI->pbBuf = NULL;
         return VERR_NO_MEMORY;
     }
 
@@ -292,13 +310,13 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
     pScsiRequest->pbSenseBuffer = (uint8_t *)RTMemAllocZ(pScsiRequest->cbSenseBuffer);
 
     pScsiRequest->cbCDB = pVBoxSCSI->cbCDB;
-    pScsiRequest->pbCDB = pVBoxSCSI->aCDB;
+    pScsiRequest->pbCDB = pVBoxSCSI->abCDB;
     pScsiRequest->uLogicalUnit = 0;
     pScsiRequest->cbScatterGather = pVBoxSCSI->cbBuf;
     pScsiRequest->cScatterGatherEntries = 1;
 
     pScsiRequest->paScatterGatherHead[0].cbSeg = pVBoxSCSI->cbBuf;
-    pScsiRequest->paScatterGatherHead[0].pvSeg = pVBoxSCSI->pBuf;
+    pScsiRequest->paScatterGatherHead[0].pvSeg = pVBoxSCSI->pbBuf;
 
     *puTargetDevice = pVBoxSCSI->uTargetDevice;
 
@@ -309,7 +327,7 @@ int vboxscsiSetupRequest(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, uint
  * Notifies the device that a request finished and the incoming data
  * is ready at the incoming data port.
  */
-int vboxscsiRequestFinished(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest)
+int vboxscsiRequestFinished(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest, int rcCompletion)
 {
     LogFlowFunc(("pVBoxSCSI=%#p pScsiRequest=%#p\n", pVBoxSCSI, pScsiRequest));
     RTMemFree(pScsiRequest->paScatterGatherHead);
@@ -317,17 +335,19 @@ int vboxscsiRequestFinished(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest)
 
     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_TO_DEVICE)
     {
-        if (pVBoxSCSI->pBuf)
-            RTMemFree(pVBoxSCSI->pBuf);
-        pVBoxSCSI->pBuf  = NULL;
+        if (pVBoxSCSI->pbBuf)
+            RTMemFree(pVBoxSCSI->pbBuf);
+        pVBoxSCSI->pbBuf  = NULL;
         pVBoxSCSI->cbBuf = 0;
         pVBoxSCSI->cbCDB = 0;
         pVBoxSCSI->iCDB  = 0;
         pVBoxSCSI->iBuf  = 0;
         pVBoxSCSI->uTargetDevice = 0;
         pVBoxSCSI->enmState = VBOXSCSISTATE_NO_COMMAND;
-        memset(pVBoxSCSI->aCDB, 0, sizeof(pVBoxSCSI->aCDB));
+        memset(pVBoxSCSI->abCDB, 0, sizeof(pVBoxSCSI->abCDB));
     }
+
+    pVBoxSCSI->rcCompletion = rcCompletion;
 
     ASMAtomicXchgBool(&pVBoxSCSI->fBusy, false);
 
@@ -345,23 +365,40 @@ int vboxscsiReadString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegiste
 
     /* Read string only valid for data in register. */
     AssertMsg(iRegister == 1, ("Hey only register 1 can be read from with string\n"));
-    Assert(pVBoxSCSI->pBuf);
 
-    int rc = PGMPhysSimpleDirtyWriteGCPtr(PDMDevHlpGetVMCPU(pDevIns), GCDst, pVBoxSCSI->pBuf, cbTransfer);
+    /* Accesses without a valid buffer will be ignored. */
+    if (!pVBoxSCSI->pbBuf)
+        return VINF_SUCCESS;
+
+    /* Also ignore attempts to read more data than is available. */
+    Assert(cbTransfer <= pVBoxSCSI->cbBuf);
+    if (cbTransfer > pVBoxSCSI->cbBuf)
+        cbTransfer = pVBoxSCSI->cbBuf;  /* Ignore excess data (not supposed to happen). */
+
+    int rc = PGMPhysSimpleDirtyWriteGCPtr(PDMDevHlpGetVMCPU(pDevIns), GCDst, pVBoxSCSI->pbBuf + pVBoxSCSI->iBuf, cbTransfer);
     AssertRC(rc);
 
     *pGCPtrDst = (RTGCPTR)((RTGCUINTPTR)GCDst + cbTransfer);
     *pcTransfer = 0;
 
-    RTMemFree(pVBoxSCSI->pBuf);
-    pVBoxSCSI->pBuf  = NULL;
-    pVBoxSCSI->cbBuf = 0;
-    pVBoxSCSI->cbCDB = 0;
-    pVBoxSCSI->iCDB  = 0;
-    pVBoxSCSI->iBuf  = 0;
-    pVBoxSCSI->uTargetDevice = 0;
-    pVBoxSCSI->enmState = VBOXSCSISTATE_NO_COMMAND;
-    memset(pVBoxSCSI->aCDB, 0, sizeof(pVBoxSCSI->aCDB));
+    /* Advance current buffer position. */
+    pVBoxSCSI->iBuf  += cbTransfer;
+    pVBoxSCSI->cbBuf -= cbTransfer;
+
+    if (pVBoxSCSI->cbBuf == 0)
+    {
+        /** The guest read the last byte from the data in buffer.
+         *  Clear everything and reset command buffer.
+         */
+        RTMemFree(pVBoxSCSI->pbBuf);
+        pVBoxSCSI->pbBuf  = NULL;
+        pVBoxSCSI->cbCDB = 0;
+        pVBoxSCSI->iCDB  = 0;
+        pVBoxSCSI->iBuf  = 0;
+        pVBoxSCSI->uTargetDevice = 0;
+        pVBoxSCSI->enmState = VBOXSCSISTATE_NO_COMMAND;
+        memset(pVBoxSCSI->abCDB, 0, sizeof(pVBoxSCSI->abCDB));
+    }
 
     return rc;
 }
@@ -374,12 +411,21 @@ int vboxscsiWriteString(PPDMDEVINS pDevIns, PVBOXSCSI pVBoxSCSI, uint8_t iRegist
 
     /* Write string only valid for data in/out register. */
     AssertMsg(iRegister == 1, ("Hey only register 1 can be written to with string\n"));
-    Assert(cbTransfer == pVBoxSCSI->cbBuf);
+
+    /* Accesses without a valid buffer will be ignored. */
+    if (!pVBoxSCSI->pbBuf)
+        return VINF_SUCCESS;
+
+    Assert(cbTransfer <= pVBoxSCSI->cbBuf);
     if (cbTransfer > pVBoxSCSI->cbBuf)
         cbTransfer = pVBoxSCSI->cbBuf;  /* Ignore excess data (not supposed to happen). */
 
-    int rc = PDMDevHlpPhysReadGCVirt(pDevIns, pVBoxSCSI->pBuf, GCSrc, cbTransfer);
+    int rc = PDMDevHlpPhysReadGCVirt(pDevIns, pVBoxSCSI->pbBuf + pVBoxSCSI->iBuf, GCSrc, cbTransfer);
     AssertRC(rc);
+
+    /* Advance current buffer position. */
+    pVBoxSCSI->iBuf  += cbTransfer;
+    pVBoxSCSI->cbBuf -= cbTransfer;
 
     *pGCPtrSrc = (RTGCPTR)((RTGCUINTPTR)GCSrc + cbTransfer);
     *pcTransfer = 0;
@@ -397,7 +443,6 @@ void vboxscsiSetRequestRedo(PVBOXSCSI pVBoxSCSI, PPDMSCSIREQUEST pScsiRequest)
 
     if (pVBoxSCSI->uTxDir == VBOXSCSI_TXDIR_FROM_DEVICE)
     {
-        AssertPtr(pVBoxSCSI->pBuf);
+        AssertPtr(pVBoxSCSI->pbBuf);
     }
 }
-

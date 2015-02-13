@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1069,13 +1069,15 @@ static DECLCALLBACK(void) drvHostSerialDestruct(PPDMDRVINS pDrvIns)
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
     /* Empty the send queue */
-    RTSemEventDestroy(pThis->SendSem);
-    pThis->SendSem = NIL_RTSEMEVENT;
+    if (pThis->SendSem != NIL_RTSEMEVENT)
+    {
+        RTSemEventDestroy(pThis->SendSem);
+        pThis->SendSem = NIL_RTSEMEVENT;
+    }
 
-    int rc;
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
 
-    rc = RTPipeClose(pThis->hWakeupPipeW); AssertRC(rc);
+    int rc = RTPipeClose(pThis->hWakeupPipeW); AssertRC(rc);
     pThis->hWakeupPipeW = NIL_RTPIPE;
     rc = RTPipeClose(pThis->hWakeupPipeR); AssertRC(rc);
     pThis->hWakeupPipeR = NIL_RTPIPE;
@@ -1091,8 +1093,11 @@ static DECLCALLBACK(void) drvHostSerialDestruct(PPDMDRVINS pDrvIns)
         pThis->hDeviceFileR = NIL_RTFILE;
     }
 # endif
-    rc = RTFileClose(pThis->hDeviceFile); AssertRC(rc);
-    pThis->hDeviceFile = NIL_RTFILE;
+    if (pThis->hDeviceFile != NIL_RTFILE)
+    {
+        rc = RTFileClose(pThis->hDeviceFile); AssertRC(rc);
+        pThis->hDeviceFile = NIL_RTFILE;
+    }
 
 #elif defined(RT_OS_WINDOWS)
     CloseHandle(pThis->hEventRecv);
@@ -1135,6 +1140,7 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     pThis->hEventSend  = INVALID_HANDLE_VALUE;
     pThis->hDeviceFile = INVALID_HANDLE_VALUE;
 #endif
+    pThis->SendSem     = NIL_RTSEMEVENT;
     /* IBase. */
     pDrvIns->IBase.pfnQueryInterface        = drvHostSerialQueryInterface;
     /* ICharConnector. */
@@ -1142,8 +1148,6 @@ static DECLCALLBACK(int) drvHostSerialConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pC
     pThis->ICharConnector.pfnSetParameters  = drvHostSerialSetParameters;
     pThis->ICharConnector.pfnSetModemLines  = drvHostSerialSetModemLines;
     pThis->ICharConnector.pfnSetBreak       = drvHostSerialSetBreak;
-
-/** @todo Initialize all members with NIL values!! The destructor is ALWAYS called. */
 
     /*
      * Query configuration.

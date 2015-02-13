@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 
 #ifdef RT_OS_LINUX
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35) && defined(CONFIG_IOMMU_API)
 # define VBOX_WITH_IOMMU
 #endif
 

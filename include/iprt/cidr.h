@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,20 +29,13 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#include <iprt/net.h>
 
 /** @defgroup grp_rt_cidr   RTCidr - Classless Inter-Domain Routing notation
  * @ingroup grp_rt
  * @{
  */
 RT_C_DECLS_BEGIN
-
-/** An IPv4 address. */
-typedef uint32_t RTIPV4ADDR;
-/** Pointer to an IPv4 address. */
-typedef RTIPV4ADDR *PRTIPV4ADDR;
-/** Pointer to a const IPv4 address. */
-typedef RTIPV4ADDR const *PCRTIPV4ADDR;
-
 
 /**
  * Parse a string which contains an IP address in CIDR (Classless Inter-Domain Routing) notation.
@@ -53,7 +46,7 @@ typedef RTIPV4ADDR const *PCRTIPV4ADDR;
  * @param   pNetwork    The determined IP address / network.
  * @param   pNetmask    The determined netmask.
  */
-RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTIPV4ADDR pNetwork, PRTIPV4ADDR pNetmask);
+RTDECL(int) RTCidrStrToIPv4(const char *pszAddress, PRTNETADDRIPV4 pNetwork, PRTNETADDRIPV4 pNetmask);
 
 RT_C_DECLS_END
 /** @} */

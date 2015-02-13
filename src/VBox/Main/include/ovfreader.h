@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,39 @@ namespace ovf
 
 ////////////////////////////////////////////////////////////////////////////////
 //
+// Errors
+//
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Thrown by OVFReader for any kind of error that is not an XML error but
+ * still makes the OVF impossible to parse. Based on xml::LogicError so
+ * that one catch() for all xml::LogicError can handle all possible errors.
+ */
+class OVFLogicError : public xml::LogicError
+{
+public:
+    OVFLogicError(const char *aFormat, ...);
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
 // Enumerations
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+/**
+ * CIM OS values.
+ *
+ * The OVF 1.10 spec refers to some CIM_OperatingSystem.mof doc.  Could this be it:
+ *  http://cvs.opengroup.org/cgi-bin/cvsweb.cgi/pegasus/Schemas/CIM231/DMTF/System/CIM_OperatingSystem.mof
+ *
+ * @todo r=bird: Why are the values are repeating 'CIMOS'. CIMOSType_T is also
+ *               repeating it self, 'Type' and '_T'. Why not call it kCIOMOpSys,
+ *               easier to read as well.
+ *               Then also apply: s/CIMOSType_CIMOS_/kCIMOpSys_/g
+ */
 enum CIMOSType_T
 {
     CIMOSType_CIMOS_Unknown = 0,
@@ -149,6 +178,62 @@ enum CIMOSType_T
     // no new types added with CIM 2.26.0
 };
 
+enum OVFVersion_T
+{
+    OVFVersion_unknown,
+    OVFVersion_0_9,
+    OVFVersion_1_0,
+    OVFVersion_2_0
+};
+
+const char* const OVF09_URI_string = "http://www.vmware.com/schema/ovf/1/envelope";
+const char* const OVF10_URI_string = "http://schemas.dmtf.org/ovf/envelope/1";
+const char* const OVF20_URI_string = "http://schemas.dmtf.org/ovf/envelope/2";
+
+const char* const DTMF_SPECS_URI = "http://schemas.dmtf.org/wbem/cim-html/2/";
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// Envelope data
+//
+////////////////////////////////////////////////////////////////////////////////
+struct EnvelopeData
+{
+    OVFVersion_T version;//OVF standard version, it is used internally only by VirtualBox
+    RTCString lang;//language
+
+    OVFVersion_T getOVFVersion() const
+    {
+            return version;
+    }
+
+
+    RTCString getStringOVFVersion() const
+    {
+        if (version == OVFVersion_0_9)
+            return "0.9";
+        else if (version == OVFVersion_1_0)
+            return "1.0";
+        else if (version == OVFVersion_2_0)
+            return "2.0";
+        else
+            return "";
+    }
+
+    void setOVFVersion(OVFVersion_T v)
+    {
+        version = v;
+    }
+};
+
+
+struct FileReference
+{
+    RTCString strHref;       // value from /References/File/@href (filename)
+    RTCString strDiskId;     // value from /References/File/@id ()
+};
+
+typedef std::map<uint32_t, FileReference> FileReferenceMap;
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -167,7 +252,7 @@ struct DiskImage
                                     // space, but cannot be larger than iCapacity; -1 if not set)
     RTCString strFormat;              // value from DiskSection/Disk/@format
                 // typically http://www.vmware.com/interfaces/specifications/vmdk.html#streamOptimized
-    RTCString uuidVbox;      // optional; if the file was exported by VirtualBox >= 3.2,
+    RTCString uuidVBox;      // optional; if the file was exported by VirtualBox >= 3.2,
                                     // then this has the UUID with which the disk was registered
 
     // fields from /References/File; the spec says the file reference from disk can be empty,
@@ -204,8 +289,24 @@ enum ResourceType_T
     ResourceType_SoundCard   = 35
 };
 
-struct VirtualHardwareItem
+
+enum StorageAccessType_T
+{   StorageAccessType_Unknown = 0,
+    StorageAccessType_Readable = 1,
+    StorageAccessType_Writeable = 2,
+    StorageAccessType_ReadWrite = 3
+};
+
+enum ComplianceType_T
+{   ComplianceType_No = 0,
+    ComplianceType_Soft = 1,
+    ComplianceType_Medium = 2,
+    ComplianceType_Strong = 3
+};
+
+class VirtualHardwareItem
 {
+public:
     RTCString strDescription;
     RTCString strCaption;
     RTCString strElementName;
@@ -253,7 +354,133 @@ struct VirtualHardwareItem
           ullWeight(0),
           ulBusNumber(0),
           ulLineNumber(0)
-    {};
+    {
+        itemName = "Item";
+    };
+
+    void fillItem(const xml::ElementNode *item);
+
+    void setDefaultFlag()
+    {
+        fDefault = true;
+    }
+
+    bool isThereDefaultValues() const
+    {
+        return fDefault;
+    }
+
+    void checkConsistencyAndCompliance() RT_THROW(OVFLogicError)
+    {
+        _checkConsistencyAndCompliance();
+    }
+
+protected:
+    virtual void _checkConsistencyAndCompliance() RT_THROW(OVFLogicError);
+    virtual const RTCString& getItemName()
+    {
+        return _getItemName();
+    }
+
+private:
+    RTCString itemName;
+    bool fDefault;//true means that some fields were absent in the XML and some default values were assigned to.
+
+    virtual const RTCString& _getItemName()
+    {
+        return itemName;
+    }
+};
+
+class StorageItem: public VirtualHardwareItem
+{
+    //see DMTF Schema Documentation http://schemas.dmtf.org/wbem/cim-html/2/
+    StorageAccessType_T accessType;
+    RTCString strHostExtentName;
+    int16_t hostExtentNameFormat;
+    int16_t hostExtentNameNamespace;
+    int64_t hostExtentStartingAddress;
+    int64_t hostResourceBlockSize;
+    int64_t limit;
+    RTCString strOtherHostExtentNameFormat;
+    RTCString strOtherHostExtentNameNamespace;
+    int64_t reservation;
+    int64_t virtualQuantity;
+    RTCString strVirtualQuantityUnits;
+    int64_t virtualResourceBlockSize;
+
+public:
+    StorageItem(): VirtualHardwareItem(),
+        accessType(StorageAccessType_Unknown),
+        hostExtentNameFormat(-1),
+        hostExtentNameNamespace(-1),
+        hostExtentStartingAddress(-1),
+        hostResourceBlockSize(-1),
+        limit(-1),
+        reservation(-1),
+        virtualQuantity(-1),
+        virtualResourceBlockSize(-1)
+    {
+        itemName = "StorageItem";
+    };
+
+    void fillItem(const xml::ElementNode *item);
+
+protected:
+    virtual void _checkConsistencyAndCompliance() RT_THROW(OVFLogicError);
+private:
+    RTCString itemName;
+
+    virtual const RTCString& _getItemName()
+    {
+        return itemName;
+    }
+};
+
+
+class EthernetPortItem: public VirtualHardwareItem
+{
+    //see DMTF Schema Documentation http://schemas.dmtf.org/wbem/cim-html/2/
+    uint16_t DefaultPortVID;
+    uint16_t DefaultPriority;
+    uint16_t DesiredVLANEndpointMode;
+    uint32_t GroupID;
+    uint32_t ManagerID;
+    RTCString strNetworkPortProfileID;
+    uint16_t NetworkPortProfileIDType;
+    RTCString strOtherEndpointMode;
+    RTCString strOtherNetworkPortProfileIDTypeInfo;
+    RTCString strPortCorrelationID;
+    uint16_t PortVID;
+    bool Promiscuous;
+    uint64_t ReceiveBandwidthLimit;
+    uint16_t ReceiveBandwidthReservation;
+    bool SourceMACFilteringEnabled;
+    uint32_t VSITypeID;
+    uint8_t VSITypeIDVersion;
+    uint16_t AllowedPriorities[256];
+    RTCString strAllowedToReceiveMACAddresses;
+    uint16_t AllowedToReceiveVLANs[256];
+    RTCString strAllowedToTransmitMACAddresses;
+    uint16_t AllowedToTransmitVLANs[256];
+
+public:
+    EthernetPortItem(): VirtualHardwareItem()
+    {
+        itemName = "EthernetPortItem";
+    };
+
+    void fillItem(const xml::ElementNode *item);
+
+protected:
+    virtual void _checkConsistencyAndCompliance() RT_THROW(OVFLogicError);
+private:
+    RTCString itemName;
+
+    virtual const RTCString& _getItemName()
+    {
+        return itemName;
+    }
 };
 
 typedef std::map<RTCString, DiskImage> DiskImagesMap;
@@ -290,14 +517,15 @@ typedef std::map<uint32_t, HardDiskController> ControllersMap;
 
 struct VirtualDisk
 {
-    uint32_t            idController;           // SCSI (or IDE) controller this disk is connected to;
-                                                // this must match HardDiskController.idController and
-                                                // points into VirtualSystem.mapControllers
-    uint32_t            ulAddressOnParent;      // parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
-                                                // and possibly higher for disks attached to SCSI controllers (untested)
-    RTCString    strDiskId;              // if the hard disk has an ovf:/disk/<id> reference,
-                                                // this receives the <id> component; points to one of the
-                                                // references in Appliance::Data.mapDisks
+    uint32_t    idController;// SCSI (or IDE) controller this disk is connected to;
+                             // this must match HardDiskController.idController and
+                             // points into VirtualSystem.mapControllers
+    uint32_t    ulAddressOnParent;// parsed strAddressOnParent of hardware item; will be 0 or 1 for IDE
+                                  // and possibly higher for disks attached to SCSI controllers (untested)
+    RTCString   strDiskId;// if the hard disk has an ovf:/disk/<id> reference,
+                          // this receives the <id> component; points to one of the
+                          // references in Appliance::Data.mapDisks
+    bool        fEmpty;//true - empty disk, e.g. the component <rasd:HostResource>...</rasd:HostResource> is absent.
 };
 
 typedef std::map<RTCString, VirtualDisk> VirtualDisksMap;
@@ -326,7 +554,7 @@ struct VirtualSystem
 
     CIMOSType_T         cimos;
     RTCString    strCimosDesc;           // readable description of the cimos type in the case of cimos = 0/1/102
-    RTCString    strTypeVbox;            // optional type from @vbox:ostype attribute (VirtualBox 4.0 or higher)
+    RTCString    strTypeVBox;            // optional type from @vbox:ostype attribute (VirtualBox 4.0 or higher)
 
     RTCString    strVirtualSystemType;   // generic hardware description; OVF says this can be something like "vmx-4" or "xen";
                                                 // VMware Workstation 6.5 is "vmx-07"
@@ -360,8 +588,7 @@ struct VirtualSystem
     RTCString    strProductUrl;          // product info if any; receives contents of VirtualSystem/ProductSection/ProductUrl
     RTCString    strVendorUrl;           // product info if any; receives contents of VirtualSystem/ProductSection/VendorUrl
 
-    const xml::ElementNode                      // pointer to <vbox:Machine> element under <VirtualSystem> element or NULL if not present
-                        *pelmVboxMachine;
+    const xml::ElementNode *pelmVBoxMachine; // pointer to <vbox:Machine> element under <VirtualSystem> element or NULL if not present
 
     VirtualSystem()
         : cimos(CIMOSType_CIMOS_Unknown),
@@ -370,7 +597,7 @@ struct VirtualSystem
           fHasFloppyDrive(false),
           fHasCdromDrive(false),
           fHasUsbController(false),
-          pelmVboxMachine(NULL)
+          pelmVBoxMachine(NULL)
     {
     }
 };
@@ -403,7 +630,6 @@ struct VirtualSystem
         delete pReader;
 </code>
  */
-
 class OVFReader
 {
 public:
@@ -411,7 +637,8 @@ public:
     OVFReader(const RTCString &path);
 
     // Data fields
-    RTCString            m_strPath;            // file name given to constructor
+    EnvelopeData                m_envelopeData;       //data of root element "Envelope"
+    RTCString                   m_strPath;            // file name given to constructor
     DiskImagesMap               m_mapDisks;           // map of DiskImage structs, sorted by DiskImage.strDiskId
     std::list<VirtualSystem>    m_llVirtualSystems;   // list of virtual systems, created by and valid after read()
 
@@ -425,24 +652,7 @@ private:
     void HandleVirtualSystemContent(const xml::ElementNode *pContentElem);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-//
-// Errors
-//
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Thrown by OVFReader for any kind of error that is not an XML error but
- * still makes the OVF impossible to parse. Based on xml::LogicError so
- * that one catch() for all xml::LogicError can handle all possible errors.
- */
-
-class OVFLogicError : public xml::LogicError
-{
-public:
-    OVFLogicError(const char *aFormat, ...);
-};
-
 } // end namespace ovf
 
-#endif // ____H_OVFREADER
+#endif // !____H_OVFREADER
+

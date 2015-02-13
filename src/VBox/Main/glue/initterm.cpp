@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,19 +20,9 @@
 
 # include <objbase.h>
 
-#else /* !defined (VBOX_WITH_XPCOM) */
+#else /* !defined(VBOX_WITH_XPCOM) */
 
 # include <stdlib.h>
-
-  /* XPCOM_GLUE is defined when the client uses the standalone glue
-   * (i.e. dynamically picks up the existing XPCOM shared library installation).
-   * This is not the case for VirtualBox XPCOM clients (they are always
-   * distributed with the self-built XPCOM library, and therefore have a binary
-   * dependency on it) but left here for clarity.
-   */
-# if defined(XPCOM_GLUE)
-#  include <nsXPCOMGlue.h>
-# endif
 
 # include <nsIComponentRegistrar.h>
 # include <nsIServiceManager.h>
@@ -48,7 +38,7 @@
 
 #include "VBox/com/com.h"
 #include "VBox/com/assert.h"
-#include "VBox/com/EventQueue.h"
+#include "VBox/com/NativeEventQueue.h"
 #include "VBox/com/AutoLock.h"
 
 #include "../include/Logging.h"
@@ -182,7 +172,7 @@ DirectoryServiceProvider::GetFile(const char *aProp,
     if (NS_FAILED(rv))
         return rv;
 
-    return localFile->QueryInterface(NS_GET_IID (nsIFile), (void **)aRetval);
+    return localFile->QueryInterface(NS_GET_IID(nsIFile), (void **)aRetval);
 }
 
 /**
@@ -196,7 +186,7 @@ static bool volatile gIsXPCOMInitialized = false;
  */
 static unsigned int gXPCOMInitCount = 0;
 
-#else /* !defined (VBOX_WITH_XPCOM) */
+#else /* !defined(VBOX_WITH_XPCOM) */
 
 /**
  *  The COM main thread handle. (The first caller of com::Initialize().)
@@ -208,7 +198,7 @@ static RTTHREAD volatile gCOMMainThread = NIL_RTTHREAD;
  */
 static uint32_t gCOMMainInitCount = 0;
 
-#endif /* !defined (VBOX_WITH_XPCOM) */
+#endif /* !defined(VBOX_WITH_XPCOM) */
 
 
 /**
@@ -304,7 +294,7 @@ HRESULT Initialize(bool fGui)
     if (SUCCEEDED(rc))
         gCOMMainInitCount = 1;
 
-#else /* !defined (VBOX_WITH_XPCOM) */
+#else /* !defined(VBOX_WITH_XPCOM) */
 
     /* Unused here */
     NOREF(fGui);
@@ -345,33 +335,34 @@ HRESULT Initialize(bool fGui)
     if (vrc == VERR_ACCESS_DENIED)
         return NS_ERROR_FILE_ACCESS_DENIED;
     AssertRCReturn(vrc, NS_ERROR_FAILURE);
-    strcpy(szXptiDat, szCompReg);
-
+    vrc = RTStrCopy(szXptiDat, sizeof(szXptiDat), szCompReg);
+    AssertRCReturn(vrc, NS_ERROR_FAILURE);
+#ifdef VBOX_IN_32_ON_64_MAIN_API
+    vrc = RTPathAppend(szCompReg, sizeof(szCompReg), "compreg-x86.dat");
+    AssertRCReturn(vrc, NS_ERROR_FAILURE);
+    vrc = RTPathAppend(szXptiDat, sizeof(szXptiDat), "xpti-x86.dat");
+    AssertRCReturn(vrc, NS_ERROR_FAILURE);
+#else
     vrc = RTPathAppend(szCompReg, sizeof(szCompReg), "compreg.dat");
     AssertRCReturn(vrc, NS_ERROR_FAILURE);
     vrc = RTPathAppend(szXptiDat, sizeof(szXptiDat), "xpti.dat");
     AssertRCReturn(vrc, NS_ERROR_FAILURE);
+#endif
 
     LogFlowFunc(("component registry  : \"%s\"\n", szCompReg));
     LogFlowFunc(("XPTI data file      : \"%s\"\n", szXptiDat));
 
-#if defined (XPCOM_GLUE)
-    XPCOMGlueStartup(nsnull);
-#endif
-
     static const char *kAppPathsToProbe[] =
     {
         NULL, /* 0: will use VBOX_APP_HOME */
-        NULL, /* 1: will try RTPathAppPrivateArch() */
-#ifdef RT_OS_LINUX
-        "/usr/lib/virtualbox",
-        "/opt/VirtualBox",
-#elif RT_OS_SOLARIS
-        "/opt/VirtualBox/amd64",
-        "/opt/VirtualBox/i386",
-#elif RT_OS_DARWIN
-        "/Application/VirtualBox.app/Contents/MacOS",
-#endif
+        NULL, /* 1: will try RTPathAppPrivateArch(), correctly installed release builds will never go further */
+        NULL, /* 2: will try parent directory of RTPathAppPrivateArch(), only for testcases in non-hardened builds */
+        /* There used to be hard coded paths, but they only caused trouble
+         * because they often led to mixing of builds or even versions.
+         * If you feel tempted to add anything here, think again. They would
+         * only be used if option 1 would not work, which is a sign of a big
+         * problem, as it returns a fixed location defined at compile time.
+         * It is better to fail than blindly trying to cover the problem. */
     };
 
     /* Find out the directory where VirtualBox binaries are located */
@@ -393,11 +384,26 @@ HRESULT Initialize(bool fGui)
             vrc = RTPathAppPrivateArch(szAppHomeDir, sizeof(szAppHomeDir));
             AssertRC(vrc);
         }
+        else if (i == 2)
+        {
+#ifdef VBOX_WITH_HARDENING
+            continue;
+#else /* !VBOX_WITH_HARDENING */
+            /* Use parent of RTPathAppPrivateArch() if ends with "testcase" */
+            vrc = RTPathAppPrivateArch(szAppHomeDir, sizeof(szAppHomeDir));
+            AssertRC(vrc);
+            vrc = RTPathStripTrailingSlash(szAppHomeDir);
+            AssertRC(vrc);
+            char *filename = RTPathFilename(szAppHomeDir);
+            if (!filename || strcmp(filename, "testcase"))
+                continue;
+            RTPathStripFilename(szAppHomeDir);
+#endif /* !VBOX_WITH_HARDENING */
+        }
         else
         {
             /* Iterate over all other paths */
-            szAppHomeDir[RTPATH_MAX - 1] = '\0';
-            strncpy(szAppHomeDir, kAppPathsToProbe[i], RTPATH_MAX - 1);
+            RTStrCopy(szAppHomeDir, sizeof(szAppHomeDir), kAppPathsToProbe[i]);
             vrc = VINF_SUCCESS;
         }
         if (RT_FAILURE(vrc))
@@ -405,9 +411,14 @@ HRESULT Initialize(bool fGui)
             rc = NS_ERROR_FAILURE;
             continue;
         }
-
         char szCompDir[RTPATH_MAX];
-        vrc = RTPathAppend(strcpy(szCompDir, szAppHomeDir), sizeof(szCompDir), "components");
+        vrc = RTStrCopy(szCompDir, sizeof(szCompDir), szAppHomeDir);
+        if (RT_FAILURE(vrc))
+        {
+            rc = NS_ERROR_FAILURE;
+            continue;
+        }
+        vrc = RTPathAppend(szCompDir, sizeof(szCompDir), "components");
         if (RT_FAILURE(vrc))
         {
             rc = NS_ERROR_FAILURE;
@@ -476,7 +487,9 @@ HRESULT Initialize(bool fGui)
         }
 
         /* clean up before the new try */
-        rc = NS_ShutdownXPCOM(nsnull);
+        HRESULT rc2 = NS_ShutdownXPCOM(nsnull);
+        if (SUCCEEDED(rc))
+            rc = rc2;
 
         if (i == 0)
         {
@@ -485,20 +498,20 @@ HRESULT Initialize(bool fGui)
         }
     }
 
-#endif /* !defined (VBOX_WITH_XPCOM) */
+#endif /* !defined(VBOX_WITH_XPCOM) */
+
+    AssertComRCReturnRC(rc);
 
     // for both COM and XPCOM, we only get here if this is the main thread;
     // only then initialize the autolock system (AutoLock.cpp)
     Assert(RTThreadIsMain(RTThreadSelf()));
     util::InitAutoLockSystem();
 
-    AssertComRC(rc);
-
     /*
      * Init the main event queue (ASSUMES it cannot fail).
      */
     if (SUCCEEDED(rc))
-        EventQueue::init();
+        NativeEventQueue::init();
 
     return rc;
 }
@@ -516,14 +529,14 @@ HRESULT Shutdown()
     {
         if (-- gCOMMainInitCount == 0)
         {
-            EventQueue::uninit();
+            NativeEventQueue::uninit();
             ASMAtomicWriteHandle(&gCOMMainThread, NIL_RTTHREAD);
         }
     }
 
     CoUninitialize();
 
-#else /* !defined (VBOX_WITH_XPCOM) */
+#else /* !defined(VBOX_WITH_XPCOM) */
 
     nsCOMPtr<nsIEventQueue> eventQ;
     rc = NS_GetMainEventQ(getter_AddRefs(eventQ));
@@ -555,7 +568,7 @@ HRESULT Shutdown()
              * init counter drops to zero */
             if (--gXPCOMInitCount == 0)
             {
-                EventQueue::uninit();
+                NativeEventQueue::uninit();
                 rc = NS_ShutdownXPCOM(nsnull);
 
                 /* This is a thread initialized XPCOM and set gIsXPCOMInitialized to
@@ -563,10 +576,6 @@ HRESULT Shutdown()
                 bool wasInited = ASMAtomicXchgBool(&gIsXPCOMInitialized, false);
                 Assert(wasInited == true);
                 NOREF(wasInited);
-
-# if defined (XPCOM_GLUE)
-                XPCOMGlueShutdown();
-# endif
             }
         }
     }

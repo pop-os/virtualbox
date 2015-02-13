@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +17,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QKeyEvent>
+#ifdef Q_WS_X11
+# include <QX11Info>
+#endif /* Q_WS_X11 */
 
-/* Local includes */
+/* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+#include "UIPopupCenter.h"
 #include "UIActionPool.h"
 #include "UIKeyboardHandlerNormal.h"
 #include "UIKeyboardHandlerFullscreen.h"
@@ -33,10 +37,10 @@
 #include "UIMachineLogic.h"
 #include "UIMachineWindow.h"
 #include "UIMachineView.h"
-#include "UIHotKeyEditor.h"
+#include "UIHostComboEditor.h"
 
+/* Other VBox includes: */
 #ifdef Q_WS_X11
-# include <QX11Info>
 # include <X11/XKBlib.h>
 # include <X11/keysym.h>
 # ifdef KeyPress
@@ -58,6 +62,13 @@ const int XKeyRelease = KeyRelease;
 # include "UICocoaApplication.h"
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
+
+#ifdef Q_WS_WIN
+# include "WinKeyboard.h"
+#endif /* Q_WS_WIN */
+ 
+/* COM includes: */
+#include "CConsole.h"
 
 /* Enums representing different keyboard-states: */
 enum { KeyExtended = 0x01, KeyPressed = 0x02, KeyPause = 0x04, KeyPrint = 0x08 };
@@ -119,7 +130,7 @@ void UIKeyboardHandler::prepareListener(ulong uIndex, UIMachineWindow *pMachineW
         /* Add window: */
         m_windows.insert(uIndex, pMachineWindow);
         /* Install event-filter for window: */
-        m_windows[uIndex]->machineWindow()->installEventFilter(this);
+        m_windows[uIndex]->installEventFilter(this);
     }
 
     /* If that view is NOT registered yet: */
@@ -154,6 +165,40 @@ void UIKeyboardHandler::cleanupListener(ulong uIndex)
     }
 }
 
+#ifdef Q_WS_X11
+struct CHECKFORX11FOCUSEVENTSDATA
+{
+    Window hWindow;
+    bool fEventFound;
+};
+
+static Bool checkForX11FocusEventsWorker(Display *pDisplay, XEvent *pEvent,
+                                         XPointer pArg)
+{
+    NOREF(pDisplay);
+    struct CHECKFORX11FOCUSEVENTSDATA *pStruct;
+    
+    pStruct = (struct CHECKFORX11FOCUSEVENTSDATA *)pArg;
+    if (   pEvent->xany.type == XFocusIn
+        || pEvent->xany.type == XFocusOut)
+        if (pEvent->xany.window == pStruct->hWindow)
+            pStruct->fEventFound = true;
+    return false;
+}
+
+bool UIKeyboardHandler::checkForX11FocusEvents(Window hWindow)
+{
+    XEvent dummy;
+    struct CHECKFORX11FOCUSEVENTSDATA data;
+
+    data.hWindow = hWindow;
+    data.fEventFound = false;
+    XCheckIfEvent(QX11Info::display(), &dummy, checkForX11FocusEventsWorker,
+                  (XPointer)&data);
+    return data.fEventFound;
+}
+#endif /* Q_WS_X11 */
+
 void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
 {
     /* Do NOT capture keyboard if its captured already: */
@@ -183,7 +228,7 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId(), False, GrabModeAsync, GrabModeAsync);
+                XGrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId(), False, GrabModeAsync, GrabModeAsync);
                 break;
             }
             /* If window is NOT moveable we are making active keyboard grab: */
@@ -194,7 +239,17 @@ void UIKeyboardHandler::captureKeyboard(ulong uScreenId)
                  * We can't be sure this shortcut will be released at all, so we will retry to grab keyboard for 50 times,
                  * and after we will just ignore that issue: */
                 int cTriesLeft = 50;
-                while (cTriesLeft && XGrabKeyboard(QX11Info::display(), m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId(), False, GrabModeAsync, GrabModeAsync, CurrentTime)) { --cTriesLeft; }
+                Window hWindow;
+
+                /* Only do our keyboard grab if there are no other focus events
+                 * for this window on the queue.  This can prevent problems
+                 * including two windows fighting to grab the keyboard. */
+                hWindow = m_windows[m_iKeyboardCaptureViewIndex]->winId();
+                if (!checkForX11FocusEvents(hWindow))
+                    while (cTriesLeft && XGrabKeyboard(QX11Info::display(),
+                           hWindow, False, GrabModeAsync, GrabModeAsync,
+                           CurrentTime))
+                        --cTriesLeft;
                 break;
             }
             /* Should we try to grab keyboard in default case? I think - NO. */
@@ -241,7 +296,7 @@ void UIKeyboardHandler::releaseKeyboard()
             case UIVisualStateType_Normal:
             case UIVisualStateType_Scale:
             {
-                XUngrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->machineWindow()->winId());
+                XUngrabKey(QX11Info::display(), AnyKey, AnyModifier, m_windows[m_iKeyboardCaptureViewIndex]->winId());
                 break;
             }
             /* If window is NOT moveable we are making active keyboard ungrab: */
@@ -314,7 +369,7 @@ void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
 
 #ifdef Q_WS_MAC
     unsigned int hostComboModifierMask = 0;
-    QList<int> hostCombo = UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo());
+    QList<int> hostCombo = UIHostCombo::toKeyCodeList(m_globalSettings.hostCombo());
     for (int i = 0; i < hostCombo.size(); ++i)
         hostComboModifierMask |= ::DarwinKeyCodeToDarwinModifierMask(hostCombo.at(i));
     /* Clear most of the modifiers: */
@@ -333,7 +388,27 @@ int UIKeyboardHandler::keyboardState() const
            (m_bIsHostComboPressed ? UIViewStateType_HostKeyPressed : 0);
 }
 
+#ifdef VBOX_WITH_DEBUGGER_GUI
+void UIKeyboardHandler::setDebuggerActive(bool aActive /* = true*/)
+{
+    if (aActive)
+    {
+        m_fDebuggerActive = true;
+        releaseKeyboard();
+    }
+    else
+        m_fDebuggerActive = false;
+}
+
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+
 #if defined(Q_WS_WIN)
+/** Tell keyboard event handler to skip host keyboard events. Used for HID LEDs sync
+ * when on Windows host a keyboard event is generated in order to change corresponding LED. */
+void UIKeyboardHandler::winSkipKeyboardEvents(bool fSkip)
+{
+    m_fSkipKeyboardEvents = fSkip;
+}
 
 bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
 {
@@ -341,6 +416,11 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
      * Returning 'true' means filtering-out,
      * Returning 'false' means passing event to Qt. */
     bool fResult = false; /* Pass to Qt by default: */
+
+    /* Skip this event if m_fSkipKeyboardEvents is set by winSkipKeyboardEvents(). */
+    if (m_fSkipKeyboardEvents)
+        return false;
+
     switch (pMsg->message)
     {
         case WM_KEYDOWN:
@@ -371,6 +451,26 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
                 flags |= KeyExtended;
             if (!(pMsg->lParam & 0x80000000))
                 flags |= KeyPressed;
+
+            /* If present - why not just assert this? */
+            if (m_pAltGrMonitor)
+            {
+                /* Get the VM keyboard: */
+                CKeyboard keyboard = session().GetConsole().GetKeyboard();
+                Assert(!keyboard.isNull());
+
+                /* Bail out if we are sure that this is a fake left control. */
+                if (m_pAltGrMonitor->isCurrentEventDefinitelyFake(scan, flags & KeyPressed, flags & KeyExtended))
+                {
+                    fResult = true;
+                    break;
+                }
+                /* Update AltGR monitor state from key-event: */
+                m_pAltGrMonitor->updateStateFromKeyEvent(scan, flags & KeyPressed, flags & KeyExtended);
+                /* And release left Ctrl key early (if required): */
+                if (m_pAltGrMonitor->isLeftControlReleaseNeeded())
+                    keyboard.PutScancode(0x1D | 0x80);
+            }
 
             /* Check for special Korean keys. Based on the keyboard layout selected
              * on the host, the scancode in lParam might be 0x71/0x72 or 0xF1/0xF2.
@@ -427,6 +527,13 @@ bool UIKeyboardHandler::winEventFilter(MSG *pMsg, ulong uScreenId)
             }
 
             bool result = keyEvent(vkey, scan, flags, uScreenId);
+            /* Always let Windows see key releases to prevent stuck keys.
+             * Hopefully this won't cause any other issues. */
+            if (pMsg->message == WM_KEYUP || pMsg->message == WM_SYSKEYUP)
+            {
+                fResult = false;
+                break;
+            }
             if (!result && m_fIsKeyboardCaptured)
             {
                 /* keyEvent() returned that it didn't process the message, but since the
@@ -506,6 +613,7 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
                 }
             }
             fResult = false;
+            break;
         }
         case XKeyPress:
         case XKeyRelease:
@@ -531,7 +639,7 @@ bool UIKeyboardHandler::x11EventFilter(XEvent *pEvent, ulong uScreenId)
                 break;
             }
 
-            KeySym ks = ::XKeycodeToKeysym(pEvent->xkey.display, pEvent->xkey.keycode, 0);
+            KeySym ks = ::wrapXkbKeycodeToKeysym(pEvent->xkey.display, pEvent->xkey.keycode, 0, 0);
 
             int flags = 0;
             if (scan >> 8)
@@ -628,6 +736,13 @@ void UIKeyboardHandler::sltMachineStateChanged()
         default:
             break;
     }
+
+    /* Recall reminder about paused VM input
+     * if we are not in paused VM state already: */
+    if (machineLogic()->activeMachineWindow() &&
+        state != KMachineState_Paused &&
+        state != KMachineState_TeleportingPausedVM)
+        popupCenter().forgetAboutPausedVMInput(machineLogic()->activeMachineWindow());
 }
 
 /* Keyboard-handler constructor: */
@@ -641,14 +756,18 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_bIsHostComboAlone(false)
     , m_bIsHostComboProcessed(false)
     , m_fPassCAD(false)
+    , m_fDebuggerActive(false)
 #if defined(Q_WS_WIN)
     , m_bIsHostkeyInCapture(false)
     , m_iKeyboardHookViewIndex(-1)
+    , m_fSkipKeyboardEvents(false)
+    , m_pAltGrMonitor(0)
 #elif defined(Q_WS_MAC)
     , m_darwinKeyModifiers(0)
     , m_fKeyboardGrabbed(false)
     , m_iKeyboardGrabViewIndex(-1)
-#endif
+#endif /* Q_WS_MAC */
+    , m_cMonitors(1)
 {
     /* Prepare: */
     prepareCommon();
@@ -669,11 +788,18 @@ UIKeyboardHandler::~UIKeyboardHandler()
 
 void UIKeyboardHandler::prepareCommon()
 {
+#ifdef Q_WS_WIN
+    /* Prepare AltGR monitor: */
+    m_pAltGrMonitor = new WinAltGrMonitor;
+#endif /* Q_WS_WIN */
+
     /* Machine state-change updater: */
     connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
 
     /* Pressed keys: */
     ::memset(m_pressedKeys, 0, sizeof(m_pressedKeys));
+
+    m_cMonitors = uisession()->session().GetMachine().GetMonitorCount();
 }
 
 void UIKeyboardHandler::loadSettings()
@@ -687,7 +813,7 @@ void UIKeyboardHandler::loadSettings()
     /* Extra data settings: */
     {
         /* CAD settings: */
-        QString passCAD = session().GetConsole().GetMachine().GetExtraData(VBoxDefs::GUI_PassCAD);
+        QString passCAD = session().GetConsole().GetMachine().GetExtraData(GUI_PassCAD);
         if (!passCAD.isEmpty() && passCAD != "false" && passCAD != "no")
             m_fPassCAD = true;
     }
@@ -696,6 +822,10 @@ void UIKeyboardHandler::loadSettings()
 void UIKeyboardHandler::cleanupCommon()
 {
 #if defined(Q_WS_WIN)
+    /* Cleanup AltGR monitor: */
+    delete m_pAltGrMonitor;
+    m_pAltGrMonitor = 0;
+
     /* Cleaning keyboard-hook: */
     if (m_keyboardHook)
     {
@@ -707,7 +837,7 @@ void UIKeyboardHandler::cleanupCommon()
      * is released when closing this view. */
     if (m_fKeyboardGrabbed)
         darwinGrabKeyboardEvents(false);
-#endif
+#endif /* Q_WS_MAC */
 }
 
 /* Machine-logic getter: */
@@ -778,36 +908,6 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                 }
                 break;
             }
-#elif defined(Q_WS_MAC)
-            case QEvent::WindowActivate:
-            {
-                /* If keyboard event handler is NOT currently installed;
-                 * Or installed but NOT for that window: */
-                if (m_iKeyboardGrabViewIndex != (int)uScreenId)
-                {
-                    /* If keyboard event handler is NOT currently installed: */
-                    if (m_iKeyboardGrabViewIndex == -1)
-                    {
-                        /* Install the keyboard event handler: */
-                        darwinGrabKeyboardEvents(true);
-                    }
-                    /* Update the id: */
-                    m_iKeyboardGrabViewIndex = uScreenId;
-                }
-                break;
-            }
-            case QEvent::WindowDeactivate:
-            {
-                /* If keyboard event handler is installed exactly for that window: */
-                if (m_iKeyboardGrabViewIndex == (int)uScreenId)
-                {
-                    /* Remove the keyboard event handler: */
-                    darwinGrabKeyboardEvents(false);
-                    /* Update the id: */
-                    m_iKeyboardGrabViewIndex = -1;
-                }
-                break;
-            }
 #endif
             default:
                 break;
@@ -826,6 +926,23 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
         switch (pEvent->type())
         {
             case QEvent::FocusIn:
+            {
+#ifdef Q_WS_MAC
+                /* If keyboard-event handler is NOT currently installed;
+                 * Or installed but NOT for that view: */
+                if (m_iKeyboardGrabViewIndex != (int)uScreenId)
+                {
+                    /* If keyboard-event handler is NOT currently installed: */
+                    if (m_iKeyboardGrabViewIndex == -1)
+                    {
+                        /* Install the keyboard-event handler: */
+                        darwinGrabKeyboardEvents(true);
+                    }
+                    /* Update the id: */
+                    m_iKeyboardGrabViewIndex = uScreenId;
+                }
+#endif /* Q_WS_MAC */
+
                 if (isSessionRunning())
                 {
                     /* Capture keyboard: */
@@ -841,13 +958,27 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                         setAutoCaptureDisabled(false);
                 }
                 break;
+            }
             case QEvent::FocusOut:
+            {
+#ifdef Q_WS_MAC
+                /* If keyboard-event handler is installed for that view: */
+                if (m_iKeyboardGrabViewIndex == (int)uScreenId)
+                {
+                    /* Remove the keyboard-event handler: */
+                    darwinGrabKeyboardEvents(false);
+                    /* Update the id: */
+                    m_iKeyboardGrabViewIndex = -1;
+                }
+#endif /* Q_WS_MAC */
+
                 /* Release keyboard: */
                 if (isSessionRunning())
                     releaseKeyboard();
                 /* And all pressed keys: */
                 releaseAllPressedKeys(true);
                 break;
+            }
             case QEvent::KeyPress:
             case QEvent::KeyRelease:
             {
@@ -884,12 +1015,7 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
                 {
                     /* Show a possible warning on key release which seems to be more expected by the end user: */
                     if (uisession()->isPaused())
-                    {
-                        /* If the reminder is disabled we pass the event to Qt to enable normal
-                         * keyboard functionality (for example, menu access with Alt+Letter): */
-                        if (!msgCenter().remindAboutPausedVMInput())
-                            break;
-                    }
+                        popupCenter().remindAboutPausedVMInput(machineLogic()->activeMachineWindow());
                 }
                 break;
             }
@@ -918,41 +1044,30 @@ bool UIKeyboardHandler::winLowKeyboardEvent(UINT msg, const KBDLLHOOKSTRUCT &eve
     if (!m_views.contains(m_iKeyboardHookViewIndex))
         return false;
 
-    /* Sometimes it happens that Win inserts additional events on some key
-     * press/release. For example, it prepends ALT_GR in German layout with
-     * the VK_LCONTROL vkey with curious 0x21D scan code (seems to be necessary
-     * to specially treat ALT_GR to enter additional chars to regular apps).
-     * These events are definitely unwanted in VM, so filter them out. */
-    /* Note (michael): it also sometimes sends the VK_CAPITAL vkey with scan
-     * code 0x23a. If this is not passed through then it is impossible to
-     * cancel CapsLock on a French keyboard.  I didn't find any other examples
-     * of these strange events.  Let's hope we are not missing anything else
-     * of importance! */
-    if (m_views[m_iKeyboardHookViewIndex]->hasFocus() && (event.scanCode & ~0xFF))
-    {
-        if (event.vkCode == VK_CAPITAL)
-            return false;
-        else
-            return true;
-    }
+    /* It's possible that a key has been pressed while the keyboard was not
+     * captured, but is being released under the capture. Detect this situation
+     * and do not pass on the key press to the virtual machine. */
+    uint8_t what_pressed =      (event.flags & 0x01)
+                             && (event.vkCode != VK_RSHIFT)
+                           ? IsExtKeyPressed : IsKeyPressed;
+    if (   (event.flags & 0x80) /* released */
+        && (   (   UIHostCombo::toKeyCodeList(m_globalSettings.hostCombo()).contains(event.vkCode)
+                && !m_bIsHostkeyInCapture)
+            ||    (  m_pressedKeys[event.scanCode]
+                   & (IsKbdCaptured | what_pressed))
+               == what_pressed))
+        return false;
 
-    /** @todo this needs to be after the preceding check so that
-     *        we ignore those spurious key events even when the
-     *        keyboard is not captured.  However, that is probably a
-     *        hint that that filtering should be done somewhere else,
-     *        and not in the keyboard capture handler. */
     if (!m_fIsKeyboardCaptured)
         return false;
 
-    /* It's possible that a key has been pressed while the keyboard was not
-     * captured, but is being released under the capture. Detect this situation
-     * and return false to let Windows process the message normally and update
-     * its key state table (to avoid the stuck key effect). */
-    uint8_t what_pressed = (event.flags & 0x01) && (event.vkCode != VK_RSHIFT) ? IsExtKeyPressed : IsKeyPressed;
-    if ((event.flags & 0x80) /* released */ &&
-        ((UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo()).contains(event.vkCode) && !m_bIsHostkeyInCapture) ||
-         (m_pressedKeys[event.scanCode] & (IsKbdCaptured | what_pressed)) == what_pressed))
-        return false;
+    /* For normal user applications, Windows defines AltGr to be the same as
+     * LControl + RAlt.  Without a low-level hook it is hard to recognise the
+     * additional LControl event inserted, but in a hook we recognise it by
+     * its special 0x21D scan code. */
+    if (   m_views[m_iKeyboardHookViewIndex]->hasFocus()
+        && ((event.scanCode & ~0x80) == 0x21D))
+        return true;
 
     MSG message;
     message.hwnd = m_views[m_iKeyboardHookViewIndex]->winId();
@@ -980,6 +1095,12 @@ void UIKeyboardHandler::darwinGrabKeyboardEvents(bool fGrab)
         /* Disable mouse and keyboard event compression/delaying to make sure we *really* get all of the events. */
         ::CGSetLocalEventsSuppressionInterval(0.0);
         ::darwinSetMouseCoalescingEnabled(false);
+
+        /* Bring the caps lock state up to date, otherwise e.g. a later Shift
+         * key press will accidentally inject a CapsLock key press and release,
+         * see UIKeyboardHandler::darwinKeyboardEvent for the code handling
+         * modifier key state changes */
+        m_darwinKeyModifiers ^= (m_darwinKeyModifiers ^ ::GetCurrentEventKeyModifiers()) & alphaLock;
 
         /* Register the event callback/hook and grab the keyboard. */
         UICocoaApplication::instance()->registerForNativeEvents(RT_BIT_32(10) | RT_BIT_32(11) | RT_BIT_32(12) /* NSKeyDown  | NSKeyUp | | NSFlagsChanged */,
@@ -1150,7 +1271,7 @@ bool UIKeyboardHandler::keyEventCADHandled(uint8_t uScan)
 bool UIKeyboardHandler::keyEventHandleNormal(int iKey, uint8_t uScan, int fFlags, LONG *pCodes, uint *puCodesCount)
 {
     /* Get host-combo key list: */
-    QSet<int> allHostComboKeys = UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo()).toSet();
+    QSet<int> allHostComboKeys = UIHostCombo::toKeyCodeList(m_globalSettings.hostCombo()).toSet();
     /* Get the type of key - simple or extended: */
     uint8_t uWhatPressed = fFlags & KeyExtended ? IsExtKeyPressed : IsKeyPressed;
 
@@ -1158,11 +1279,11 @@ bool UIKeyboardHandler::keyEventHandleNormal(int iKey, uint8_t uScan, int fFlags
      * we are updating the list of pressed keys and preparing scancodes: */
     if ((fFlags & KeyPressed) || (m_pressedKeys[uScan] & uWhatPressed))
     {
-        /* Check if the guest has the same view on the modifier keys
-         * (NumLock, CapsLock, ScrollLock) as the X server.
-         * If not, send KeyPress events to synchronize the state: */
-        if (fFlags & KeyPressed)
-            fixModifierState(pCodes, puCodesCount);
+        /* If HID LEDs sync is disabled or not supported, check if the guest has the
+         * same view on the modifier keys (NumLock, CapsLock, ScrollLock) as the host. */
+        if (!machineLogic()->isHidLedsSyncEnabled())
+            if (fFlags & KeyPressed)
+                fixModifierState(pCodes, puCodesCount);
 
         /* Prepend 'extended' scancode if needed: */
         if (fFlags & KeyExtended)
@@ -1255,7 +1376,7 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                      * defined by the dialog result itself: */
                     setAutoCaptureDisabled(true);
                     bool fIsAutoConfirmed = false;
-                    ok = msgCenter().confirmInputCapture(&fIsAutoConfirmed);
+                    ok = msgCenter().confirmInputCapture(fIsAutoConfirmed);
                     if (fIsAutoConfirmed)
                         setAutoCaptureDisabled(false);
                     /* Otherwise, the disable flag will be reset in the next
@@ -1277,7 +1398,11 @@ void UIKeyboardHandler::keyEventHandleHostComboRelease(ulong uScreenId)
                         qApp->processEvents();
 #endif /* Q_WS_X11 */
                         if (m_fIsKeyboardCaptured)
-                            machineLogic()->mouseHandler()->captureMouse(uScreenId);
+                        {
+                            if (uisession()->mouseCapturePolicy() == MouseCapturePolicy_Default ||
+                                uisession()->mouseCapturePolicy() == MouseCapturePolicy_HostComboOnly)
+                                machineLogic()->mouseHandler()->captureMouse(uScreenId);
+                        }
                         else
                             machineLogic()->mouseHandler()->releaseMouse();
                     }
@@ -1314,7 +1439,7 @@ void UIKeyboardHandler::keyEventReleaseHostComboKeys(CKeyboard keyboard)
 bool UIKeyboardHandler::keyEvent(int iKey, uint8_t uScan, int fFlags, ulong uScreenId, wchar_t *pUniKey /* = 0 */)
 {
     /* Get host-combo key list: */
-    QSet<int> allHostComboKeys = UIHotKeyCombination::toKeyCodeList(m_globalSettings.hostCombo()).toSet();
+    QSet<int> allHostComboKeys = UIHostCombo::toKeyCodeList(m_globalSettings.hostCombo()).toSet();
 
     /* Update the map of pressed host-combo keys: */
     if (allHostComboKeys.contains(iKey))
@@ -1354,12 +1479,14 @@ bool UIKeyboardHandler::keyEvent(int iKey, uint8_t uScan, int fFlags, ulong uScr
      * 2. if currently released key releases host-combo too.
      * Using that rule, we are NOT sending to the guest:
      * 1. the last key-press of host-combo,
-     * 2. all keys pressed while the host-combo being held. */
+     * 2. all keys pressed while the host-combo being held (but we still send releases). */
     LONG aCodesBuffer[16];
     LONG *pCodes = aCodesBuffer;
     uint uCodesCount = 0;
+    uint8_t uWhatPressed = fFlags & KeyExtended ? IsExtKeyPressed : IsKeyPressed;
     if ((!m_bIsHostComboPressed && !isHostComboStateChanged) ||
-        ( m_bIsHostComboPressed &&  isHostComboStateChanged))
+        ( m_bIsHostComboPressed &&  isHostComboStateChanged) ||
+        (!(fFlags & KeyPressed) && (m_pressedKeys[uScan] & uWhatPressed)))
     {
         /* Special flags handling (KeyPrint): */
         if (fFlags & KeyPrint)
@@ -1471,11 +1598,10 @@ bool UIKeyboardHandler::processHotKey(int iHotKey, wchar_t *pHotKey)
 #ifdef Q_WS_X11
     Q_UNUSED(pHotKey);
     Display *pDisplay = QX11Info::display();
-    int iKeysymsPerKeycode = getKeysymsPerKeycode();
     KeyCode keyCode = XKeysymToKeycode(pDisplay, iHotKey);
-    for (int i = 0; i < iKeysymsPerKeycode && !fWasProcessed; i += 2)
+    for (int i = 0; i < 4 && !fWasProcessed; ++i) /* Up to four groups. */
     {
-        KeySym ks = XKeycodeToKeysym(pDisplay, keyCode, i);
+        KeySym ks = wrapXkbKeycodeToKeysym(pDisplay, keyCode, i, 0);
         char symbol = 0;
         if (!XkbTranslateKeySym(pDisplay, &ks, 0, &symbol, 1, NULL) == 1)
             symbol = 0;
@@ -1506,20 +1632,15 @@ void UIKeyboardHandler::fixModifierState(LONG *piCodes, uint *puCount)
     Window   wDummy1, wDummy2;
     int      iDummy3, iDummy4, iDummy5, iDummy6;
     unsigned uMask;
-    unsigned uKeyMaskNum = 0, uKeyMaskCaps = 0, uKeyMaskScroll = 0;
+    unsigned uKeyMaskNum = 0, uKeyMaskCaps = 0;
 
     uKeyMaskCaps          = LockMask;
     XModifierKeymap* map  = XGetModifierMapping(QX11Info::display());
     KeyCode keyCodeNum    = XKeysymToKeycode(QX11Info::display(), XK_Num_Lock);
-    KeyCode keyCodeScroll = XKeysymToKeycode(QX11Info::display(), XK_Scroll_Lock);
 
     for (int i = 0; i < 8; ++ i)
-    {
         if (keyCodeNum != NoSymbol && map->modifiermap[map->max_keypermod * i] == keyCodeNum)
             uKeyMaskNum = 1 << i;
-        else if (keyCodeScroll != NoSymbol && map->modifiermap[map->max_keypermod * i] == keyCodeScroll)
-            uKeyMaskScroll = 1 << i;
-    }
     XQueryPointer(QX11Info::display(), DefaultRootWindow(QX11Info::display()), &wDummy1, &wDummy2,
                   &iDummy3, &iDummy4, &iDummy5, &iDummy6, &uMask);
     XFreeModifiermap(map);
@@ -1629,7 +1750,7 @@ void UIKeyboardHandler::setAutoCaptureDisabled(bool fIsAutoCaptureDisabled)
 
 bool UIKeyboardHandler::autoCaptureSetGlobally()
 {
-    return m_globalSettings.autoCapture();
+    return m_globalSettings.autoCapture() && !m_fDebuggerActive;
 }
 
 bool UIKeyboardHandler::viewHasFocus(ulong uScreenId)
@@ -1649,7 +1770,7 @@ UIMachineWindow* UIKeyboardHandler::isItListenedWindow(QObject *pWatchedObject) 
     while (!pResultWindow && i != m_windows.constEnd())
     {
         UIMachineWindow *pIteratedWindow = i.value();
-        if (pIteratedWindow->machineWindow() == pWatchedObject)
+        if (pIteratedWindow == pWatchedObject)
         {
             pResultWindow = pIteratedWindow;
             continue;

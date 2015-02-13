@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,10 +46,15 @@
  *   Daryll Strauss <daryll@precisioninsight.com>
  */
 
+#include "xf86.h"
 #include "vboxvideo.h"
 #ifndef PCIACCESS
 # include "xf86Pci.h"
 #endif
+#include <dri.h>
+#include <GL/glxtokens.h>
+#include <GL/glxint.h>
+#include <drm.h>
 
 static Bool
 VBOXCreateContext(ScreenPtr pScreen, VisualPtr visual,
@@ -155,11 +160,10 @@ VBOXDoBlockHandler(int screenNum, pointer blockData, pointer pTimeout,
 }
 #endif
 
-Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
+Bool VBOXDRIScreenInit(ScrnInfoPtr pScrn, ScreenPtr pScreen, VBOXPtr pVBox)
 {
     DRIInfoPtr pDRIInfo = NULL;
     Bool rc = TRUE;
-    ScrnInfoPtr pScrn = xf86Screens[scrnIndex];
 
     TRACE_ENTRY();
     pVBox->drmFD = -1;
@@ -246,7 +250,7 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         pDRIInfo->busIdString = alloc(64);
         sprintf(pDRIInfo->busIdString, "PCI:%d:%d:%d",
             ((pciConfigPtr)pVBox->pciInfo->thisCard)->busnum,
-	        ((pciConfigPtr)pVBox->pciInfo->thisCard)->devnum,
+            ((pciConfigPtr)pVBox->pciInfo->thisCard)->devnum,
             ((pciConfigPtr)pVBox->pciInfo->thisCard)->funcnum);
 #endif
         pDRIInfo->ddxDriverMajorVersion = VBOX_VIDEO_MAJOR;
@@ -266,10 +270,16 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
         pDRIInfo->bufferRequests = DRI_ALL_WINDOWS;
         TRACE_LOG("Calling DRIScreenInit\n");
         if (!DRIScreenInit(pScreen, pDRIInfo, &pVBox->drmFD))
+        {
             rc = FALSE;
-        if (!rc)
             xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                        "DRIScreenInit failed, disabling DRI.\n");
+            if (pVBox->drmFD)
+            {
+                drmClose(pVBox->drmFD);
+                pVBox->drmFD = -1;
+            }
+        }
     }
     if (rc && !VBOXInitVisualConfigs(pScrn, pVBox))
     {
@@ -277,7 +287,8 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
                    "VBOXInitVisualConfigs failed, disabling DRI.\n");
         rc = FALSE;
     }
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "visual configurations initialized\n");
+    else
+        xf86DrvMsg(pScrn->scrnIndex, X_INFO, "visual configurations initialized\n");
 
     /* Check the DRM version */
     if (rc)
@@ -300,12 +311,12 @@ Bool VBOXDRIScreenInit(int scrnIndex, ScreenPtr pScreen, VBOXPtr pVBox)
     /* Clean up on failure. */
     if (!rc)
     {
-        if (pVBox->pDRIInfo)
-            DRIDestroyInfoRec(pVBox->pDRIInfo);
-        pVBox->pDRIInfo = NULL;
         if (pVBox->drmFD >= 0)
            VBOXDRICloseScreen(pScreen, pVBox);
         pVBox->drmFD = -1;
+        if (pVBox->pDRIInfo)
+            DRIDestroyInfoRec(pVBox->pDRIInfo);
+        pVBox->pDRIInfo = NULL;
     }
     TRACE_LOG("returning %s\n", BOOL_STR(rc));
     return rc;

@@ -1,10 +1,10 @@
-/* $Revision: 76652 $ */
+/* $Revision: 97150 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,8 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#define LOG_GROUP LOG_GROUP_HGCM
+
 #include "VBGLInternal.h"
 #include <iprt/alloca.h>
 #include <iprt/asm.h>
@@ -40,7 +42,6 @@
 #include <iprt/thread.h>
 #include <iprt/time.h>
 
-
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
@@ -48,9 +49,10 @@
 #define VBGLR0_MAX_HGCM_USER_PARM       (24*_1M)
 /** The max parameter buffer size for a kernel request. */
 #define VBGLR0_MAX_HGCM_KERNEL_PARM     (16*_1M)
-#ifdef RT_OS_LINUX
+#if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
 /** Linux needs to use bounce buffers since RTR0MemObjLockUser has unwanted
- *  side effects. */
+ * side effects.
+ * Darwin 32bit & 64bit also needs this because of 4GB/4GB user/kernel space. */
 # define USE_BOUNCE_BUFFERS
 #endif
 
@@ -258,9 +260,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
             case VMMDevHGCMParmType_LinAddr_Locked:
                 if (fIsUser)
                     return VERR_INVALID_PARAMETER;
-                /* always perform it as !VBGLR0_CAN_USE_PHYS_PAGE_LIST() since otherwise
-                 * we end up creating a RTR0MEMOBJ and doing page lock again, which leads to undefined behavior and possible BSOD on Win */
-                //if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST())
+                if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ true))
                 {
                     cb = pSrcParm->u.Pointer.size;
                     AssertMsgReturn(cb <= VBGLR0_MAX_HGCM_KERNEL_PARM, ("%#x > %#x\n", cb, VBGLR0_MAX_HGCM_KERNEL_PARM),
@@ -336,7 +336,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
                          */
                         /** @todo A more efficient strategy would be to combine buffers. However it
                          *        is probably going to be more massive than the current code, so
-                         *        it can wait till later.   */
+                         *        it can wait till later. */
                         bool fCopyIn = pSrcParm->type != VMMDevHGCMParmType_LinAddr_Out
                                     && pSrcParm->type != VMMDevHGCMParmType_LinAddr_Locked_Out;
                         if (cb <= PAGE_SIZE / 2 - 16)
@@ -399,7 +399,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
 #endif
                     pParmInfo->cLockBufs = iLockBuf + 1;
 
-                    if (VBGLR0_CAN_USE_PHYS_PAGE_LIST())
+                    if (VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ false))
                     {
                         size_t const cPages = RTR0MemObjSize(hObj) >> PAGE_SHIFT;
                         *pcbExtra += RT_OFFSETOF(HGCMPageListInfo, aPages[cPages]);
@@ -537,9 +537,7 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, VBoxGuestHGCMC
             case VMMDevHGCMParmType_LinAddr_Locked_In:
             case VMMDevHGCMParmType_LinAddr_Locked_Out:
             case VMMDevHGCMParmType_LinAddr_Locked:
-                /* always perform it as !VBGLR0_CAN_USE_PHYS_PAGE_LIST() since otherwise
-                 * we end up creating a RTR0MEMOBJ and doing page lock again, which leads to undefined behavior and possible BSOD on Win */
-//                if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST())
+                if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ true))
                 {
                     *pDstParm = *pSrcParm;
                     pDstParm->type = vbglR0HGCMInternalConvertLinAddrType(pSrcParm->type);
@@ -558,7 +556,7 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, VBoxGuestHGCMC
                     RTR0MEMOBJ hObj       = pParmInfo->aLockBufs[iLockBuf].hObj;
                     Assert(iParm == pParmInfo->aLockBufs[iLockBuf].iParm);
 
-                    if (VBGLR0_CAN_USE_PHYS_PAGE_LIST())
+                    if (VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ false))
                     {
                         HGCMPageListInfo   *pDstPgLst = (HGCMPageListInfo *)((uint8_t *)pHGCMCall + offExtra);
                         size_t const        cPages    = RTR0MemObjSize(hObj) >> PAGE_SHIFT;
@@ -803,9 +801,7 @@ static int vbglR0HGCMInternalCopyBackResult(VBoxGuestHGCMCallInfo *pCallInfo, VM
 
             case VMMDevHGCMParmType_LinAddr_Locked_Out:
             case VMMDevHGCMParmType_LinAddr_Locked:
-                /* always perform it as !VBGLR0_CAN_USE_PHYS_PAGE_LIST() since otherwise
-                 * we end up creating a RTR0MEMOBJ and doing page lock again, which leads to undefined behavior and possible BSOD on Win */
-//                if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST())
+                if (!VBGLR0_CAN_USE_PHYS_PAGE_LIST(/*a_fLocked =*/ true))
                 {
                     pDstParm->u.Pointer.size = pSrcParm->u.Pointer.size;
                     break;

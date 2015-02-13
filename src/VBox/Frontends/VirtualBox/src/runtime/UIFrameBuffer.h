@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIFrameBuffer class and subclasses declarations
+ * VBox Qt GUI - UIFrameBuffer class declaration.
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +17,20 @@
 #ifndef ___UIFrameBuffer_h___
 #define ___UIFrameBuffer_h___
 
-/* Global includes */
+/* Qt includes: */
 #include <QRegion>
 #include <QPaintEvent>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
+#include "UIDefs.h"
+
+/* COM includes: */
+#include "CFramebuffer.h"
+
+/* Other VBox includes: */
 #include <iprt/critsect.h>
 
+/* Forward declarations: */
 class UIMachineView;
 
 /**
@@ -39,7 +43,7 @@ public:
     UIResizeEvent(ulong uPixelFormat, uchar *pVRAM,
                   ulong uBitsPerPixel, ulong uBytesPerLine,
                   ulong uWidth, ulong uHeight)
-        : QEvent((QEvent::Type)VBoxDefs::ResizeEventType)
+        : QEvent((QEvent::Type)ResizeEventType)
         , m_uPixelFormat(uPixelFormat), m_pVRAM(pVRAM), m_uBitsPerPixel(uBitsPerPixel)
         , m_uBytesPerLine(uBytesPerLine), m_uWidth(uWidth), m_uHeight(uHeight) {}
     ulong pixelFormat() { return m_uPixelFormat; }
@@ -57,43 +61,6 @@ private:
     ulong m_uBytesPerLine;
     ulong m_uWidth;
     ulong m_uHeight;
-};
-
-/**
- *  Frame buffer repaint event.
- */
-class UIRepaintEvent : public QEvent
-{
-public:
-
-    UIRepaintEvent(int iX, int iY, int iW, int iH)
-        : QEvent((QEvent::Type)VBoxDefs::RepaintEventType)
-        , m_iX(iX), m_iY(iY), m_iW(iW), m_iH(iH) {}
-    int x() { return m_iX; }
-    int y() { return m_iY; }
-    int width() { return m_iW; }
-    int height() { return m_iH; }
-
-private:
-
-    int m_iX, m_iY, m_iW, m_iH;
-};
-
-/**
- *  Frame buffer set region event.
- */
-class UISetRegionEvent : public QEvent
-{
-public:
-
-    UISetRegionEvent(const QRegion &region)
-        : QEvent((QEvent::Type)VBoxDefs::SetRegionEventType)
-        , m_region(region) {}
-    QRegion region() { return m_region; }
-
-private:
-
-    QRegion m_region;
 };
 
 /**
@@ -117,18 +84,35 @@ private:
  *
  *  See IFramebuffer documentation for more info.
  */
-class UIFrameBuffer : VBOX_SCRIPTABLE_IMPL(IFramebuffer)
+class UIFrameBuffer : public QObject, VBOX_SCRIPTABLE_IMPL(IFramebuffer)
 {
+    Q_OBJECT;
+
+signals:
+
+    /* Notifiers: EMT<->GUI interthread stuff: */
+    void sigRequestResize(int iPixelFormat, uchar *pVRAM,
+                          int iBitsPerPixel, int iBytesPerLine,
+                          int iWidth, int iHeight);
+    void sigNotifyUpdate(int iX, int iY, int iWidth, int iHeight);
+    void sigSetVisibleRegion(QRegion region);
+    void sigNotifyAbout3DOverlayVisibilityChange(bool fVisible);
+
 public:
 
     UIFrameBuffer(UIMachineView *aView);
     virtual ~UIFrameBuffer();
 
-    void setDeleted(bool fIsDeleted) { m_fIsDeleted = fIsDeleted; }
+    /* API: [Un]used status stuff: */
+    void setMarkAsUnused(bool fIsMarkAsUnused);
+
+    /* API: Auto-enabled stuff: */
+    bool isAutoEnabled() const;
+    void setAutoEnabled(bool fIsAutoEnabled);
 
     NS_DECL_ISUPPORTS
 
-#if defined (Q_OS_WIN32)
+#ifdef Q_OS_WIN
     STDMETHOD_(ULONG, AddRef)()
     {
         return ::InterlockedIncrement(&m_iRefCnt);
@@ -141,7 +125,7 @@ public:
             delete this;
         return cnt;
     }
-#endif
+#endif /* Q_OS_WIN */
 
     VBOX_SCRIPTABLE_DISPATCH_IMPL(IFramebuffer)
 
@@ -165,6 +149,8 @@ public:
                               ULONG uWidth, ULONG uHeight,
                               BOOL *pbFinished);
 
+    STDMETHOD(NotifyUpdate) (ULONG uX, ULONG uY, ULONG uWidth, ULONG uHeight);
+
     STDMETHOD(VideoModeSupported) (ULONG uWidth, ULONG uHeight, ULONG uBPP,
                                    BOOL *pbSupported);
 
@@ -173,8 +159,15 @@ public:
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
 
+    STDMETHOD(Notify3DEvent)(ULONG uType, BYTE *pData);
+
     ulong width() { return m_width; }
     ulong height() { return m_height; }
+
+    inline int convertGuestXTo(int x) const { return m_scaledSize.isValid() ? qRound((double)m_scaledSize.width() / m_width * x) : x; }
+    inline int convertGuestYTo(int y) const { return m_scaledSize.isValid() ? qRound((double)m_scaledSize.height() / m_height * y) : y; }
+    inline int convertHostXTo(int x) const  { return m_scaledSize.isValid() ? qRound((double)m_width / m_scaledSize.width() * x) : x; }
+    inline int convertHostYTo(int y) const  { return m_scaledSize.isValid() ? qRound((double)m_height / m_scaledSize.height() * y) : y; }
 
     virtual QSize scaledSize() const { return m_scaledSize; }
     virtual void setScaledSize(const QSize &size = QSize()) { m_scaledSize = size; }
@@ -189,34 +182,18 @@ public:
         return false;
     }
 
-    void lock() { RTCritSectEnter(&m_critSect); }
-    void unlock() { RTCritSectLeave(&m_critSect); }
+    void lock() const { RTCritSectEnter(&m_critSect); }
+    void unlock() const { RTCritSectLeave(&m_critSect); }
 
     virtual uchar *address() = 0;
     virtual ulong bitsPerPixel() = 0;
     virtual ulong bytesPerLine() = 0;
 
-    /**
-     *  Called on the GUI thread (from VBoxConsoleView) when some part of the
-     *  VM display viewport needs to be repainted on the host screen.
-     */
+    /* API: Event-delegate stuff: */
+    virtual void moveEvent(QMoveEvent* /*pEvent*/) {}
+    virtual void resizeEvent(UIResizeEvent *pEvent) = 0;
     virtual void paintEvent(QPaintEvent *pEvent) = 0;
-
-    /**
-     *  Called on the GUI thread (from VBoxConsoleView) after it gets a
-     *  UIResizeEvent posted from the RequestResize() method implementation.
-     */
-    virtual void resizeEvent(UIResizeEvent *pEvent)
-    {
-        m_width = pEvent->width();
-        m_height = pEvent->height();
-    }
-
-    /**
-     *  Called on the GUI thread (from VBoxConsoleView) when the VM console
-     *  window is moved.
-     */
-    virtual void moveEvent(QMoveEvent * /* pEvent */) {}
+    virtual void applyVisibleRegion(const QRegion &region);
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* this method is called from the GUI thread
@@ -227,25 +204,59 @@ public:
     virtual void viewportResized(QResizeEvent * /* pEvent */) {}
 
     virtual void viewportScrolled(int /* iX */, int /* iY */) {}
+#endif /* VBOX_WITH_VIDEOHWACCEL */
 
     virtual void setView(UIMachineView * pView);
-#endif
+
+    /** Return HiDPI frame-buffer optimization type. */
+    HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
+    /** Define HiDPI frame-buffer optimization type: */
+    void setHiDPIOptimizationType(HiDPIOptimizationType optimizationType);
+
+    /** Return backing scale factor used by HiDPI frame-buffer. */
+    double backingScaleFactor() const { return m_dBackingScaleFactor; }
+    /** Define backing scale factor used by HiDPI frame-buffer. */
+    void setBackingScaleFactor(double dBackingScaleFactor);
 
 protected:
 
     UIMachineView *m_pMachineView;
-    RTCRITSECT m_critSect;
+    mutable RTCRITSECT m_critSect;
     ulong m_width;
     ulong m_height;
     QSize m_scaledSize;
     int64_t m_WinId;
-    bool m_fIsDeleted;
+    bool m_fIsMarkedAsUnused;
+    bool m_fIsAutoEnabled;
 
-#if defined (Q_OS_WIN32)
+    /* To avoid a seamless flicker,
+     * which caused by the latency between the
+     * initial visible-region arriving from EMT thread
+     * and actual visible-region application on GUI thread
+     * it was decided to use two visible-region instances:
+     * 1. 'Sync-one' which being updated synchronously by locking EMT thread,
+     *               and used for immediate manual clipping of the painting operations.
+     * 2. 'Async-one' which updated asynchronously by posting async-event from EMT to GUI thread,
+                      which is used to update viewport parts for visible-region changes,
+                      because NotifyUpdate doesn't take into account these changes. */
+    QRegion m_syncVisibleRegion;
+    QRegion m_asyncVisibleRegion;
+
 private:
 
+    /* Helpers: Prepare/cleanup stuff: */
+    void prepareConnections();
+    void cleanupConnections();
+
+#ifdef Q_OS_WIN
     long m_iRefCnt;
-#endif
+#endif /* Q_OS_WIN */
+
+    /** Holds HiDPI frame-buffer optimization type. */
+    HiDPIOptimizationType m_hiDPIOptimizationType;
+
+    /** Holds backing scale factor used by HiDPI frame-buffer. */
+    double m_dBackingScaleFactor;
 };
 
 #endif // !___UIFrameBuffer_h___

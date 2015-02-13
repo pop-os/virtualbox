@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,10 +17,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
+/* GUI includes: */
 #include "UIApplianceImportEditorWidget.h"
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
+
+/* COM includes: */
+#include "CAppliance.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // ImportSortProxyModel
@@ -63,7 +66,7 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
             if (fResult)
             {
                 /* Show some progress, so the user know whats going on */
-                msgCenter().showModalProgressDialog(progress, tr("Reading Appliance ..."), "", this);
+                msgCenter().showModalProgressDialog(progress, tr("Reading Appliance ..."), ":/sf_32px.png", this);
                 if (!progress.isOk() || progress.GetResultCode() != 0)
                     fResult = false;
                 else
@@ -111,10 +114,10 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
         }
         if (!fResult)
         {
-            if (progress.isNull())
-                msgCenter().cannotImportAppliance(m_pAppliance, this);
-            else
-                msgCenter().cannotImportAppliance(progress, m_pAppliance, this);
+            if (!m_pAppliance->isOk())
+                msgCenter().cannotImportAppliance(*m_pAppliance, this);
+            else if (!progress.isNull() && (!progress.isOk() || progress.GetResultCode() != 0))
+                msgCenter().cannotImportAppliance(progress, m_pAppliance->GetPath(), this);
             /* Delete the appliance in a case of an error */
             delete m_pAppliance;
             m_pAppliance = NULL;
@@ -143,19 +146,19 @@ bool UIApplianceImportEditorWidget::import()
         if (fResult)
         {
             /* Show some progress, so the user know whats going on */
-            msgCenter().showModalProgressDialog(progress, tr("Importing Appliance ..."), ":/progress_import_90px.png", this, true);
+            msgCenter().showModalProgressDialog(progress, tr("Importing Appliance ..."), ":/progress_import_90px.png", this);
             if (progress.GetCanceled())
                 return false;
             if (!progress.isOk() || progress.GetResultCode() != 0)
             {
-                msgCenter().cannotImportAppliance(progress, m_pAppliance, this);
+                msgCenter().cannotImportAppliance(progress, m_pAppliance->GetPath(), this);
                 return false;
             }
             else
                 return true;
         }
         if (!fResult)
-            msgCenter().cannotImportAppliance(m_pAppliance, this);
+            msgCenter().cannotImportAppliance(*m_pAppliance, this);
     }
     return false;
 }

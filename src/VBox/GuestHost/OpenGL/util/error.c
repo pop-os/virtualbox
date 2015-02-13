@@ -1,3 +1,149 @@
+/* $Id: error.c $ */
+/** @file
+ * VBox crOpenGL error logging
+ */
+
+/*
+ * Copyright (C) 2014 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+#if 1
+
+#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+
+#include <iprt/string.h>
+#include <iprt/stream.h>
+#include <iprt/initterm.h>
+#include <VBox/log.h>
+
+#ifdef RT_OS_WINDOWS
+# include <windows.h>
+# include "cr_environment.h"
+#endif
+
+#include <signal.h>
+#include <stdlib.h>
+
+static void logMessageV(const char *pszPrefix, const char *pszFormat, va_list va)
+{
+    va_list vaCopy;
+    if (RTR3InitIsInitialized())
+    {
+        va_copy(vaCopy, va);
+        LogRel(("%s%N\n", pszPrefix, pszFormat, &vaCopy));
+        va_end(vaCopy);
+    }
+
+#ifdef IN_GUEST  /** @todo Could be subject to pre-iprt-init issues, but hopefully not... */
+    va_copy(vaCopy, va);
+    RTStrmPrintf(g_pStdErr, "%s%N\n", pszPrefix, pszFormat, &vaCopy);
+    va_end(vaCopy);
+#endif
+}
+
+static void logMessage(const char *pszPrefix, const char *pszFormat, ...)
+{
+    va_list va;
+
+    va_start(va, pszFormat);
+    logMessageV(pszPrefix, pszFormat, va);
+    va_end(va);
+}
+
+DECLEXPORT(void) crError(const char *pszFormat, ...)
+{
+    va_list va;
+#ifdef WINDOWS
+    DWORD dwLastErr;
+#endif
+
+#ifdef WINDOWS
+    /* Log last error on windows. */
+    dwLastErr = GetLastError();
+    if (dwLastErr != 0 && crGetenv("CR_WINDOWS_ERRORS") != NULL)
+    {
+        LPTSTR pszWindowsMessage;
+
+        SetLastError(0);
+        FormatMessageA(  FORMAT_MESSAGE_ALLOCATE_BUFFER
+                       | FORMAT_MESSAGE_FROM_SYSTEM
+                       | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+                       NULL, dwLastErr,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       (LPTSTR)&pszWindowsMessage, 0, NULL);
+        if (pszWindowsMessage)
+        {
+            logMessage("OpenGL, Windows error: ", "%u\n%s", dwLastErr, pszWindowsMessage);
+            LocalFree(pszWindowsMessage);
+        }
+        else
+            logMessage("OpenGL, Windows error: ", "%u", dwLastErr);
+    }
+#endif
+
+    /* The message. */
+    va_start(va, pszFormat);
+    logMessageV("OpenGL Error: ", pszFormat, va);
+    va_end(va);
+
+    /* Dump core or activate the debugger in debug builds. */
+    AssertFailed();
+
+#ifdef IN_GUEST
+    /* Give things a chance to close down. */
+    raise(SIGTERM);
+    exit(1);
+#endif
+}
+
+DECLEXPORT(void) crWarning(const char *pszFormat, ...)
+{
+    if (RTR3InitIsInitialized())
+    {
+        va_list va;
+
+        va_start(va, pszFormat);
+        logMessageV("OpenGL Warning: ", pszFormat, va);
+        va_end(va);
+    }
+}
+
+DECLEXPORT(void) crInfo(const char *pszFormat, ...)
+{
+    if (RTR3InitIsInitialized())
+    {
+        va_list va;
+
+        va_start(va, pszFormat);
+        logMessageV("OpenGL Info: ", pszFormat, va);
+        va_end(va);
+    }
+}
+
+DECLEXPORT(void) crDebug(const char *pszFormat, ...)
+{
+    if (RTR3InitIsInitialized())
+    {
+        va_list va;
+
+        va_start(va, pszFormat);
+#if defined(DEBUG_vgalitsy) || defined(DEBUG_galitsyn)
+        LogRel(("OpenGL Debug: %N\n", pszFormat, &va));
+#else
+        Log(("OpenGL Debug: %N\n", pszFormat, &va));
+#endif
+        va_end(va);
+    }
+}
+
+#else
 /* Copyright (c) 2001, Stanford University
  * All rights reserved
  *
@@ -24,8 +170,33 @@
 
 #ifndef IN_GUEST
 #define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
+#endif
+#if !defined(IN_GUEST) || defined(CR_DEBUG_BACKDOOR_ENABLE)
 #include <VBox/log.h>
 #endif
+
+#if defined(WINDOWS)
+# define CR_DEBUG_CONSOLE_ENABLE
+
+# include "Shlwapi.h"
+#endif
+
+#if defined(WINDOWS) && defined(IN_GUEST)
+# ifndef CR_DEBUG_BACKDOOR_ENABLE
+#  error "CR_DEBUG_BACKDOOR_ENABLE is expected!"
+# endif
+#else
+# ifdef CR_DEBUG_BACKDOOR_ENABLE
+#  error "CR_DEBUG_BACKDOOR_ENABLE is NOT expected!"
+# endif
+#endif
+
+
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+# include <VBoxDispMpLogger.h>
+# include <iprt/err.h>
+#endif
+
 
 static char my_hostname[256];
 #ifdef WINDOWS
@@ -102,17 +273,12 @@ static void __crCheckAustralia(void)
 
 static void outputChromiumMessage( FILE *output, char *str )
 {
-    fprintf( output, "%s%s%s%s\n", str, 
+    fprintf( output, "%s%s%s%s\n", str,
             swedish_chef ? " BORK BORK BORK!" : "",
             canada ? ", eh?" : "",
             australia ? ", mate!" : ""
             );
     fflush( output );
-
-#if defined(DEBUG) && defined(WINDOWS) /* && (!defined(DEBUG_misha) || !defined(IN_GUEST) ) */
-    OutputDebugString(str);
-    OutputDebugString("\n");
-#endif
 }
 
 #ifdef WINDOWS
@@ -201,7 +367,7 @@ DECLEXPORT(void) crError(const char *format, ... )
         MessageBox( NULL, txt, "Chromium Error", MB_OK );
     }
     else
-    {   
+    {
 #endif
         va_end( args );
 #ifdef WINDOWS
@@ -223,10 +389,13 @@ DECLEXPORT(void) crError(const char *format, ... )
 }
 
 void crEnableWarnings(int onOff)
-{          
+{
     warnings_enabled = onOff;
 }
 
+#ifdef DEBUG_misha
+# undef crWarning
+#endif
 DECLEXPORT(void) crWarning(const char *format, ... )
 {
     if (warnings_enabled) {
@@ -250,7 +419,7 @@ DECLEXPORT(void) crWarning(const char *format, ... )
 #endif
         va_end( args );
 
-#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST)
+#if defined(WINDOWS) && defined(DEBUG) && !defined(IN_GUEST) && defined(DEBUG_misha)
         DebugBreak();
 #endif
     }
@@ -279,6 +448,100 @@ DECLEXPORT(void) crInfo(const char *format, ... )
     va_end( args );
 }
 
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+static DECLCALLBACK(void) crDebugBackdoorRt(char* pcszStr)
+{
+    RTLogBackdoorPrintf("%s", pcszStr);
+}
+
+static DECLCALLBACK(void) crDebugBackdoorDispMp(char* pcszStr)
+{
+    VBoxDispMpLoggerLog(pcszStr);
+}
+#endif
+
+
+#if defined(WINDOWS) /* && (!defined(DEBUG_misha) || !defined(IN_GUEST) ) */
+# define CR_DEBUG_DBGPRINT_ENABLE
+#endif
+
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+static void crDebugDbgPrint(const char *str)
+{
+    OutputDebugString(str);
+    OutputDebugString("\n");
+}
+
+static void crDebugDbgPrintF(const char * szString, ...)
+{
+    char szBuffer[4096] = {0};
+    va_list pArgList;
+    va_start(pArgList, szString);
+    vsprintf( szBuffer, szString, pArgList );
+    va_end(pArgList);
+
+    OutputDebugStringA(szBuffer);
+}
+
+static void crDebugDmlPrint(const char* pszDesc, const char* pszCmd)
+{
+    crDebugDbgPrintF("<?dml?><exec cmd=\"%s\">%s</exec>, ( %s )\n", pszCmd, pszDesc, pszCmd);
+}
+
+
+DECLEXPORT(void) crDbgCmdPrint(const char *description1, const char *description2, const char *cmd, ...)
+{
+    va_list args;
+    char aTxt[8092];
+    char aCmd[8092];
+
+    sprintf( aTxt, "%s%s", description1, description2 );
+
+    va_start( args, cmd );
+
+    vsprintf( aCmd, cmd, args );
+
+    va_end( args );
+
+    crDebugDmlPrint(aTxt, aCmd);
+
+    crDebug("%s: %s", aTxt, aCmd);
+}
+
+DECLEXPORT(void) crDbgCmdSymLoadPrint(const char *modName, const void*pvAddress)
+{
+    static bool fEnable = false;
+    static bool fInitialized = false;
+    const char * pszName;
+    static const char * pszModulePath = NULL;
+
+    if (!fInitialized)
+    {
+#ifndef DEBUG_misha
+        if (crGetenv( "CR_DEBUG_MODULE_ENABLE" ))
+#endif
+        {
+            fEnable = true;
+        }
+
+        fInitialized = true;
+    }
+
+    if (!fEnable)
+        return;
+
+    pszName = PathFindFileNameA(modName);
+
+    if (!pszModulePath)
+        pszModulePath = crGetenv("CR_DEBUG_MODULE_PATH");
+    if (!pszModulePath)
+        pszModulePath = "c:\\Users\\senmk\\Downloads\\Data\\Data";
+
+    crDbgCmdPrint("load modules for ", pszName, ".reload /i /f %s\\%s=%#p", pszModulePath, pszName, pvAddress);
+}
+
+#endif
+
 DECLEXPORT(void) crDebug(const char *format, ... )
 {
     va_list args;
@@ -290,26 +553,61 @@ DECLEXPORT(void) crDebug(const char *format, ... )
     static FILE *output;
     static int first_time = 1;
     static int silent = 0;
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+    typedef DECLCALLBACK(void) FNCRGEDUGBACKDOOR(char* pcszStr);
+    typedef FNCRGEDUGBACKDOOR *PFNCRGEDUGBACKDOOR;
+    static PFNCRGEDUGBACKDOOR pfnLogBackdoor = NULL;
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+    static int dbgPrintEnable = 0;
+#endif
 
     if (first_time)
     {
         const char *fname = crGetenv( "CR_DEBUG_FILE" );
-        char str[1024];
-
-#if defined(Linux) && defined(IN_GUEST) && defined(DEBUG_leo)
-        if (!fname)
+        const char *fnamePrefix = crGetenv( "CR_DEBUG_FILE_PREFIX" );
+        char str[2048];
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+        int logToConsole = 0;
+#endif
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+        if (crGetenv( "CR_DEBUG_BACKDOOR" ))
         {
-            char pname[1024];
-            crGetProcName(pname, 1024);
-            sprintf(str, "/home/leo/crlog_%s.txt", pname);
-            fname = &str[0];
+            int rc = VBoxDispMpLoggerInit();
+            if (RT_SUCCESS(rc))
+                pfnLogBackdoor = crDebugBackdoorDispMp;
+            else
+                pfnLogBackdoor = crDebugBackdoorRt;
         }
 #endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+        if (crGetenv( "CR_DEBUG_DBGPRINT" ))
+        {
+            dbgPrintEnable = 1;
+        }
+#endif
+
+        if (!fname && fnamePrefix)
+        {
+            char pname[1024];
+            if (crStrlen(fnamePrefix) < sizeof (str) - sizeof (pname) - 20)
+            {
+                crGetProcName(pname, 1024);
+                sprintf(str,
+#ifdef RT_OS_WINDOWS
+                "%s_%s_%u.txt", fnamePrefix, pname, GetCurrentProcessId()
+#else
+                "%s_%s_%lu.txt", fnamePrefix, pname, crGetPID()
+#endif
+                );
+                fname = &str[0];
+            }
+        }
 
         first_time = 0;
         if (fname)
         {
-            char debugFile[1000], *p;
+            char debugFile[2048], *p;
             crStrcpy(debugFile, fname);
             p = crStrstr(debugFile, "%p");
             if (p) {
@@ -321,21 +619,36 @@ DECLEXPORT(void) crDebug(const char *format, ... )
             output = fopen( fname, "w" );
             if (!output)
             {
-                crError( "Couldn't open debug log %s", fname ); 
+                crError( "Couldn't open debug log %s", fname );
             }
         }
         else
         {
-#if defined(WINDOWS) && defined(IN_GUEST) && (defined(DEBUG_leo) || defined(DEBUG_ll158262) || defined(DEBUG_misha))
-            crRedirectIOToConsole();
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+            if (crGetenv( "CR_DEBUG_CONSOLE" ))
+            {
+                crRedirectIOToConsole();
+                logToConsole = 1;
+            }
 #endif
             output = stderr;
         }
+
 #if !defined(DEBUG)/* || defined(DEBUG_misha)*/
         /* Release mode: only emit crDebug messages if CR_DEBUG
          * or CR_DEBUG_FILE is set.
          */
-        if (!fname && !crGetenv("CR_DEBUG"))
+        if (!fname && !crGetenv("CR_DEBUG")
+#ifdef CR_DEBUG_CONSOLE_ENABLE
+                    && !logToConsole
+#endif
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+                    && !pfnLogBackdoor
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+                    && !dbgPrintEnable
+#endif
+                )
             silent = 1;
 #endif
     }
@@ -379,31 +692,64 @@ DECLEXPORT(void) crDebug(const char *format, ... )
     }
     else
     {
-        offset = sprintf( txt, "[0x%x] OpenGL Debug: ", crThreadID());
+        offset = sprintf( txt, "[0x%x.0x%x] OpenGL Debug: ", GetCurrentProcessId(), crThreadID());
     }
 #else
-    offset = sprintf( txt, "[0x%lx] OpenGL Debug: ", crThreadID());
+    offset = sprintf( txt, "[0x%lx.0x%lx] OpenGL Debug: ", crGetPID(), crThreadID());
 #endif
     va_start( args, format );
     vsprintf( txt + offset, format, args );
+#ifdef CR_DEBUG_BACKDOOR_ENABLE
+    if (pfnLogBackdoor)
+    {
+        pfnLogBackdoor(txt);
+    }
+#endif
+#ifdef CR_DEBUG_DBGPRINT_ENABLE
+    if (dbgPrintEnable)
+    {
+        crDebugDbgPrint(txt);
+    }
+#endif
 #if defined(IN_GUEST)
     outputChromiumMessage( output, txt );
 #else
-# if defined(DEBUG) && (defined(DEBUG_leo) || defined(DEBUG_ll158262))
-    outputChromiumMessage( output, txt );
-# endif
+    if (!output
 #ifndef DEBUG_misha
-    if (output==stderr)
+            || output==stderr
 #endif
+            )
     {
         LogRel(("%s\n", txt));
     }
-#ifndef DEBUG_misha
     else
-#endif
     {
+        LogRel(("%s\n", txt));
         outputChromiumMessage(output, txt);
     }
 #endif
     va_end( args );
 }
+
+#if defined(DEBUG_misha) && defined(RT_OS_WINDOWS)
+BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
+{
+    (void) lpvReserved;
+
+    switch (fdwReason)
+    {
+        case DLL_PROCESS_ATTACH:
+        {
+            char aName[MAX_PATH];
+             GetModuleFileNameA(hDLLInst, aName, RT_ELEMENTS(aName));
+             crDbgCmdSymLoadPrint(aName, hDLLInst);
+            break;
+        }
+        default:
+            break;
+    }
+
+    return TRUE;
+}
+#endif
+#endif

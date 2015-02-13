@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,15 +20,18 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_FTM
+#include <VBox/vmm/ftm.h>
+#include <VBox/vmm/em.h>
+#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/ssm.h>
+#include <VBox/vmm/vmm.h>
 #include "FTMInternal.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/vmm.h>
+#include <VBox/vmm/uvm.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
-#include <VBox/vmm/ssm.h>
 #include <VBox/log.h>
-#include <VBox/vmm/pgm.h>
-#include <VBox/vmm/pdm.h>
 
 #include <iprt/assert.h>
 #include <iprt/thread.h>
@@ -39,9 +42,8 @@
 #include <iprt/semaphore.h>
 #include <iprt/asm.h>
 
-#include "internal/vm.h"
-#include "internal/em.h"
 #include "internal/pgm.h"
+
 
 /*******************************************************************************
  * Structures and Typedefs                                                     *
@@ -98,9 +100,9 @@ static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNo
  * Initializes the FTM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
-VMMR3DECL(int) FTMR3Init(PVM pVM)
+VMMR3_INT_DECL(int) FTMR3Init(PVM pVM)
 {
     /*
      * Assert alignment and sizes.
@@ -154,9 +156,9 @@ VMMR3DECL(int) FTMR3Init(PVM pVM)
  * the VM itself is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
-VMMR3DECL(int) FTMR3Term(PVM pVM)
+VMMR3_INT_DECL(int) FTMR3Term(PVM pVM)
 {
     if (pVM->ftm.s.hShutdownEvent != NIL_RTSEMEVENT)
     {
@@ -195,7 +197,7 @@ VMMR3DECL(int) FTMR3Term(PVM pVM)
 
 static int ftmR3TcpWriteACK(PVM pVM)
 {
-    int rc = RTTcpWrite(pVM->ftm.s.hSocket, "ACK\n", sizeof("ACK\n") - 1);
+    int rc = RTTcpWrite(pVM->ftm.s.hSocket, RT_STR_TUPLE("ACK\n"));
     if (RT_FAILURE(rc))
     {
         LogRel(("FTSync: RTTcpWrite(,ACK,) -> %Rrc\n", rc));
@@ -269,7 +271,7 @@ static int ftmR3TcpReadLine(PVM pVM, char *pszBuf, size_t cchBuf)
  * Reads an ACK or NACK.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM to operate on.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszWhich            Which ACK is this this?
  * @param   pszNAckMsg          Optional NACK message.
  */
@@ -283,7 +285,7 @@ static int ftmR3TcpReadACK(PVM pVM, const char *pszWhich, const char *pszNAckMsg
     if (!strcmp(szMsg, "ACK"))
         return VINF_SUCCESS;
 
-    if (!strncmp(szMsg, "NACK=", sizeof("NACK=") - 1))
+    if (!strncmp(szMsg, RT_STR_TUPLE("NACK=")))
     {
         char *pszMsgText = strchr(szMsg, ';');
         if (pszMsgText)
@@ -325,13 +327,13 @@ static int ftmR3TcpReadACK(PVM pVM, const char *pszWhich, const char *pszNAckMsg
  *
  * @returns VBox status code.
  *
- * @param   pVM                 The VM to operate on.
+ * @param   pVM                 Pointer to the VM.
  * @param   pszCommand          The command.
  * @param   fWaitForAck         Whether to wait for the ACK.
  */
 static int ftmR3TcpSubmitCommand(PVM pVM, const char *pszCommand, bool fWaitForAck = true)
 {
-    int rc = RTTcpSgWriteL(pVM->ftm.s.hSocket, 2, pszCommand, strlen(pszCommand), "\n", sizeof("\n") - 1);
+    int rc = RTTcpSgWriteL(pVM->ftm.s.hSocket, 2, pszCommand, strlen(pszCommand), RT_STR_TUPLE("\n"));
     if (RT_FAILURE(rc))
         return rc;
     if (!fWaitForAck)
@@ -345,6 +347,7 @@ static int ftmR3TcpSubmitCommand(PVM pVM, const char *pszCommand, bool fWaitForA
 static DECLCALLBACK(int) ftmR3TcpOpWrite(void *pvUser, uint64_t offStream, const void *pvBuf, size_t cbToWrite)
 {
     PVM pVM = (PVM)pvUser;
+    NOREF(offStream);
 
     AssertReturn(cbToWrite > 0, VINF_SUCCESS);
     AssertReturn(cbToWrite < UINT32_MAX, VERR_OUT_OF_RANGE);
@@ -414,6 +417,7 @@ static DECLCALLBACK(int) ftmR3TcpOpRead(void *pvUser, uint64_t offStream, void *
 {
     PVM pVM = (PVM)pvUser;
     AssertReturn(!pVM->fFaultTolerantMaster, VERR_INVALID_HANDLE);
+    NOREF(offStream);
 
     for (;;)
     {
@@ -512,6 +516,7 @@ static DECLCALLBACK(int) ftmR3TcpOpRead(void *pvUser, uint64_t offStream, void *
  */
 static DECLCALLBACK(int) ftmR3TcpOpSeek(void *pvUser, int64_t offSeek, unsigned uMethod, uint64_t *poffActual)
 {
+    NOREF(pvUser); NOREF(offSeek); NOREF(uMethod); NOREF(poffActual);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -531,6 +536,7 @@ static DECLCALLBACK(uint64_t) ftmR3TcpOpTell(void *pvUser)
  */
 static DECLCALLBACK(int) ftmR3TcpOpSize(void *pvUser, uint64_t *pcb)
 {
+    NOREF(pvUser); NOREF(pcb);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -611,7 +617,7 @@ static SSMSTRMOPS const g_ftmR3TcpOps =
 /**
  * VMR3ReqCallWait callback
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  *
  */
 static DECLCALLBACK(void) ftmR3WriteProtectMemory(PVM pVM)
@@ -625,13 +631,13 @@ static DECLCALLBACK(void) ftmR3WriteProtectMemory(PVM pVM)
  * Sync the VM state
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 static int ftmR3PerformFullSync(PVM pVM)
 {
     bool fSuspended = false;
 
-    int rc = VMR3Suspend(pVM);
+    int rc = VMR3Suspend(pVM->pUVM, VMSUSPENDREASON_FTM_SYNC);
     AssertRCReturn(rc, rc);
 
     STAM_REL_COUNTER_INC(&pVM->ftm.s.StatFullSync);
@@ -649,7 +655,7 @@ static int ftmR3PerformFullSync(PVM pVM)
     AssertRC(rc);
 
     pVM->ftm.s.fDeltaLoadSaveActive = false;
-    rc = VMR3SaveFT(pVM, &g_ftmR3TcpOps, pVM, &fSuspended, false /* fSkipStateChanges */);
+    rc = VMR3SaveFT(pVM->pUVM, &g_ftmR3TcpOps, pVM, &fSuspended, false /* fSkipStateChanges */);
     AssertRC(rc);
 
     rc = ftmR3TcpReadACK(pVM, "full-sync-complete");
@@ -661,7 +667,7 @@ static int ftmR3PerformFullSync(PVM pVM)
     rc = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)ftmR3WriteProtectMemory, 1, pVM);
     AssertRCReturn(rc, rc);
 
-    rc = VMR3Resume(pVM);
+    rc = VMR3Resume(pVM->pUVM, VMRESUMEREASON_FTM_SYNC);
     AssertRC(rc);
 
     return rc;
@@ -671,7 +677,7 @@ static int ftmR3PerformFullSync(PVM pVM)
 /**
  * PGMR3PhysEnumDirtyFTPages callback for syncing dirty physical pages
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPhys          GC physical address
  * @param   pRange          HC virtual address of the page(s)
  * @param   cbRange         Size of the dirty range in bytes.
@@ -679,6 +685,7 @@ static int ftmR3PerformFullSync(PVM pVM)
  */
 static DECLCALLBACK(int) ftmR3SyncDirtyPage(PVM pVM, RTGCPHYS GCPhys, uint8_t *pRange, unsigned cbRange, void *pvUser)
 {
+    NOREF(pvUser);
     FTMTCPHDRMEM Hdr;
     Hdr.u32Magic    = FTMTCPHDR_MAGIC;
     Hdr.GCPhys      = GCPhys;
@@ -709,6 +716,7 @@ static DECLCALLBACK(int) ftmR3SyncDirtyPage(PVM pVM, RTGCPHYS GCPhys, uint8_t *p
         break;
 
     case PGMPAGETYPE_MMIO2_ALIAS_MMIO:
+    case PGMPAGETYPE_SPECIAL_ALIAS_MMIO:
         AssertFailed();
         break;
 
@@ -724,15 +732,16 @@ static DECLCALLBACK(int) ftmR3SyncDirtyPage(PVM pVM, RTGCPHYS GCPhys, uint8_t *p
 /**
  * Thread function which starts syncing process for this master VM
  *
- * @param   Thread      The thread id.
- * @param   pvUser      Not used
+ * @param   hThread     The thread handle.
+ * @param   pvUser      Pointer to the VM.
  * @return  VINF_SUCCESS (ignored).
  *
  */
-static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD hThread, void *pvUser)
 {
     int rc  = VINF_SUCCESS;
     PVM pVM = (PVM)pvUser;
+    NOREF(hThread);
 
     for (;;)
     {
@@ -841,7 +850,7 @@ static DECLCALLBACK(int) ftmR3MasterThread(RTTHREAD Thread, void *pvUser)
  * Syncs memory from the master VM
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  */
 static int ftmR3SyncMem(PVM pVM)
 {
@@ -881,7 +890,7 @@ static int ftmR3SyncMem(PVM pVM)
                 pNode->Core.Key = GCPhys;
                 pNode->pPage = (void *)(pNode + 1);
                 bool fRet = RTAvlGCPhysInsert(&pVM->ftm.s.standby.pPhysPageTree, &pNode->Core);
-                Assert(fRet);
+                Assert(fRet); NOREF(fRet);
             }
 
             /* Fetch the page. */
@@ -905,7 +914,7 @@ static int ftmR3SyncMem(PVM pVM)
  *
  * @returns 0 to continue, otherwise stop
  * @param   pBaseNode       Node to destroy
- * @param   pvUser          User parameter
+ * @param   pvUser          Pointer to the VM.
  */
 static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNode, void *pvUser)
 {
@@ -925,14 +934,15 @@ static DECLCALLBACK(int) ftmR3PageTreeDestroyCallback(PAVLGCPHYSNODECORE pBaseNo
 /**
  * Thread function which monitors the health of the master VM
  *
- * @param   Thread      The thread id.
- * @param   pvUser      Not used
+ * @param   hThread     The thread handle.
+ * @param   pvUser      Pointer to the VM.
  * @return  VINF_SUCCESS (ignored).
  *
  */
-static DECLCALLBACK(int) ftmR3StandbyThread(RTTHREAD Thread, void *pvUser)
+static DECLCALLBACK(int) ftmR3StandbyThread(RTTHREAD hThread, void *pvUser)
 {
     PVM pVM = (PVM)pvUser;
+    NOREF(hThread);
 
     for (;;)
     {
@@ -1017,7 +1027,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
     if (RT_FAILURE(rc))
         return VINF_SUCCESS;
 
-    /** todo: verify VM config. */
+    /** @todo verify VM config. */
 
     /*
      * Stop the server.
@@ -1030,7 +1040,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
     /*
      * Command processing loop.
      */
-    bool fDone = false;
+    //bool fDone = false;
     for (;;)
     {
         bool fFullSync = false;
@@ -1081,7 +1091,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
             pVM->ftm.s.syncstate.fEndOfStream = false;
 
             pVM->ftm.s.fDeltaLoadSaveActive = (fFullSync == false);
-            rc = VMR3LoadFromStreamFT(pVM, &g_ftmR3TcpOps, pVM);
+            rc = VMR3LoadFromStreamFT(pVM->pUVM, &g_ftmR3TcpOps, pVM);
             pVM->ftm.s.fDeltaLoadSaveActive = false;
             RTSocketRelease(pVM->ftm.s.hSocket);
             AssertRC(rc);
@@ -1116,7 +1126,7 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pUVM        The user mode VM handle.
  * @param   fMaster     FT master or standby
  * @param   uInterval   FT sync interval
  * @param   pszAddress  Standby VM address
@@ -1127,9 +1137,12 @@ static DECLCALLBACK(int) ftmR3StandbyServeConnection(RTSOCKET Sock, void *pvUser
  * @vmstate     Created
  * @vmstateto   PoweringOn+Running (master), PoweringOn+Running_FT (standby)
  */
-VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const char *pszAddress, unsigned uPort, const char *pszPassword)
+VMMR3DECL(int) FTMR3PowerOn(PUVM pUVM, bool fMaster, unsigned uInterval,
+                            const char *pszAddress, unsigned uPort, const char *pszPassword)
 {
-    int rc = VINF_SUCCESS;
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
     VMSTATE enmVMState = VMR3GetState(pVM);
     AssertMsgReturn(enmVMState == VMSTATE_CREATED,
@@ -1147,7 +1160,7 @@ VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const cha
     if (pszPassword)
         pVM->ftm.s.pszPassword  = RTStrDup(pszPassword);
 
-    rc = RTSemEventCreate(&pVM->ftm.s.hShutdownEvent);
+    int rc = RTSemEventCreate(&pVM->ftm.s.hShutdownEvent);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -1167,36 +1180,35 @@ VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const cha
         }
         /** @todo might need to disable page fusion as well */
 
-        return VMR3PowerOn(pVM);
+        return VMR3PowerOn(pVM->pUVM);
     }
-    else
+
+
+    /* standby */
+    rc = RTThreadCreate(NULL, ftmR3StandbyThread, pVM,
+                        0, RTTHREADTYPE_DEFAULT, 0, "ftmStandby");
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = RTTcpServerCreateEx(pszAddress, uPort, &pVM->ftm.s.standby.hServer);
+    if (RT_FAILURE(rc))
+        return rc;
+    pVM->ftm.s.fIsStandbyNode = true;
+
+    rc = RTTcpServerListen(pVM->ftm.s.standby.hServer, ftmR3StandbyServeConnection, pVM);
+    /** @todo deal with the exit code to check if we should activate this standby VM. */
+    if (pVM->ftm.s.fActivateStandby)
     {
-        /* standby */
-        rc = RTThreadCreate(NULL, ftmR3StandbyThread, pVM,
-                            0, RTTHREADTYPE_DEFAULT, 0, "ftmStandby");
-        if (RT_FAILURE(rc))
-            return rc;
-
-        rc = RTTcpServerCreateEx(pszAddress, uPort, &pVM->ftm.s.standby.hServer);
-        if (RT_FAILURE(rc))
-            return rc;
-        pVM->ftm.s.fIsStandbyNode = true;
-
-        rc = RTTcpServerListen(pVM->ftm.s.standby.hServer, ftmR3StandbyServeConnection, pVM);
-        /** @todo deal with the exit code to check if we should activate this standby VM. */
-        if (pVM->ftm.s.fActivateStandby)
-        {
-            /** @todo fallover. */
-        }
-
-        if (pVM->ftm.s.standby.hServer)
-        {
-            RTTcpServerDestroy(pVM->ftm.s.standby.hServer);
-            pVM->ftm.s.standby.hServer = NULL;
-        }
-        if (rc == VERR_TCP_SERVER_SHUTDOWN)
-            rc = VINF_SUCCESS;  /* ignore this error; the standby process was cancelled. */
+        /** @todo fallover. */
     }
+
+    if (pVM->ftm.s.standby.hServer)
+    {
+        RTTcpServerDestroy(pVM->ftm.s.standby.hServer);
+        pVM->ftm.s.standby.hServer = NULL;
+    }
+    if (rc == VERR_TCP_SERVER_SHUTDOWN)
+        rc = VINF_SUCCESS;  /* ignore this error; the standby process was cancelled. */
     return rc;
 }
 
@@ -1205,10 +1217,13 @@ VMMR3DECL(int) FTMR3PowerOn(PVM pVM, bool fMaster, unsigned uInterval, const cha
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pUVM        The user mode VM handle.
  */
-VMMR3DECL(int) FTMR3CancelStandby(PVM pVM)
+VMMR3DECL(int) FTMR3CancelStandby(PUVM pUVM)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     AssertReturn(!pVM->fFaultTolerantMaster, VERR_NOT_SUPPORTED);
     Assert(pVM->ftm.s.standby.hServer);
 
@@ -1223,22 +1238,24 @@ VMMR3DECL(int) FTMR3CancelStandby(PVM pVM)
  * it to complete this function.
  *
  * @returns VINF_SUCCESS (VBox strict status code).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       The VMCPU for the EMT we're being called on. Unused.
- * @param   pvUser      User parameter
+ * @param   pvUser      Not used.
  */
 static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU pVCpu, void *pvUser)
 {
-    int rc = VINF_SUCCESS;
-    bool fSuspended = false;
+    int     rc         = VINF_SUCCESS;
+    bool    fSuspended = false;
+    NOREF(pVCpu);
+    NOREF(pvUser);
 
-    /** We don't call VMR3Suspend here to avoid the overhead of state changes and notifications. This
-     *  is only a short suspend.
+    /* We don't call VMR3Suspend here to avoid the overhead of state changes and notifications. This
+     * is only a short suspend.
      */
     STAM_PROFILE_START(&pVM->ftm.s.StatCheckpointPause, a);
     PDMR3Suspend(pVM);
 
-    /** Hack alert: as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
+    /* Hack alert: as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
     EMR3NotifySuspend(pVM);
     STAM_PROFILE_STOP(&pVM->ftm.s.StatCheckpointPause, a);
 
@@ -1257,7 +1274,7 @@ static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU p
     AssertRC(rc);
 
     pVM->ftm.s.fDeltaLoadSaveActive = true;
-    rc = VMR3SaveFT(pVM, &g_ftmR3TcpOps, pVM, &fSuspended, true /* fSkipStateChanges */);
+    rc = VMR3SaveFT(pVM->pUVM, &g_ftmR3TcpOps, pVM, &fSuspended, true /* fSkipStateChanges */);
     pVM->ftm.s.fDeltaLoadSaveActive = false;
     AssertRC(rc);
 
@@ -1270,14 +1287,14 @@ static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU p
     rc = PGMR3PhysWriteProtectRAM(pVM);
     AssertRC(rc);
 
-    /** We don't call VMR3Resume here to avoid the overhead of state changes and notifications. This
-     *  is only a short suspend.
+    /* We don't call VMR3Resume here to avoid the overhead of state changes and notifications. This
+     * is only a short suspend.
      */
     STAM_PROFILE_START(&pVM->ftm.s.StatCheckpointResume, b);
     PGMR3ResetNoMorePhysWritesFlag(pVM);
     PDMR3Resume(pVM);
 
-    /** Hack alert as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
+    /* Hack alert as EM is responsible for dealing with the suspend state. We must do this here ourselves, but only for this EMT.*/
     EMR3NotifyResume(pVM);
     STAM_PROFILE_STOP(&pVM->ftm.s.StatCheckpointResume, b);
 
@@ -1289,10 +1306,10 @@ static DECLCALLBACK(VBOXSTRICTRC) ftmR3SetCheckpointRendezvous(PVM pVM, PVMCPU p
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM to operate on.
+ * @param   pVM             Pointer to the VM.
  * @param   enmCheckpoint   Checkpoint type
  */
-VMMR3DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)
+VMMR3_INT_DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)
 {
     int rc;
 
@@ -1301,17 +1318,18 @@ VMMR3DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)
 
     switch (enmCheckpoint)
     {
-    case FTMCHECKPOINTTYPE_NETWORK:
-        STAM_REL_COUNTER_INC(&pVM->ftm.s.StatCheckpointNetwork);
-        break;
+        case FTMCHECKPOINTTYPE_NETWORK:
+            STAM_REL_COUNTER_INC(&pVM->ftm.s.StatCheckpointNetwork);
+            break;
 
-    case FTMCHECKPOINTTYPE_STORAGE:
-        STAM_REL_COUNTER_INC(&pVM->ftm.s.StatCheckpointStorage);
-        break;
+        case FTMCHECKPOINTTYPE_STORAGE:
+            STAM_REL_COUNTER_INC(&pVM->ftm.s.StatCheckpointStorage);
+            break;
 
-    default:
-        break;
+        default:
+            AssertMsgFailedReturn(("%d\n", enmCheckpoint), VERR_INVALID_PARAMETER);
     }
+
     pVM->ftm.s.fCheckpointingActive = true;
     if (VM_IS_EMT(pVM))
     {
@@ -1320,13 +1338,13 @@ VMMR3DECL(int) FTMR3SetCheckpoint(PVM pVM, FTMCHECKPOINTTYPE enmCheckpoint)
         /* We must take special care here as the memory sync is competing with us and requires a responsive EMT. */
         while ((rc = PDMCritSectTryEnter(&pVM->ftm.s.CritSect)) == VERR_SEM_BUSY)
         {
-            if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+            if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
             {
                 rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
                 AssertRC(rc);
             }
 
-            if (VM_FF_ISPENDING(pVM, VM_FF_REQUEST))
+            if (VM_FF_IS_PENDING(pVM, VM_FF_REQUEST))
             {
                 rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
                 AssertRC(rc);

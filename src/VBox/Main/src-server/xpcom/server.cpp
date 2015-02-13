@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2004-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,10 +20,6 @@
 
 #include <nsIComponentRegistrar.h>
 
-#ifdef XPCOM_GLUE
-# include <nsXPCOMGlue.h>
-#endif
-
 #include <nsEventQueueUtils.h>
 #include <nsGenericFactory.h>
 
@@ -35,7 +31,6 @@
 #include "Logging.h"
 
 #include <VBox/param.h>
-#include <VBox/version.h>
 
 #include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
@@ -67,7 +62,7 @@
 #include "AudioAdapterImpl.h"
 #include "BandwidthControlImpl.h"
 #include "BandwidthGroupImpl.h"
-#include "DHCPServerRunner.h"
+#include "NetworkServiceRunner.h"
 #include "DHCPServerImpl.h"
 #include "GuestOSTypeImpl.h"
 #include "HostImpl.h"
@@ -78,7 +73,6 @@
 #include "NATEngineImpl.h"
 #include "NetworkAdapterImpl.h"
 #include "ParallelPortImpl.h"
-#include "ProgressCombinedImpl.h"
 #include "ProgressProxyImpl.h"
 #include "SerialPortImpl.h"
 #include "SharedFolderImpl.h"
@@ -86,6 +80,7 @@
 #include "StorageControllerImpl.h"
 #include "SystemPropertiesImpl.h"
 #include "USBControllerImpl.h"
+#include "USBDeviceFiltersImpl.h"
 #include "VFSExplorerImpl.h"
 #include "VirtualBoxImpl.h"
 #include "VRDEServerImpl.h"
@@ -97,6 +92,8 @@
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
+# include "NATNetworkImpl.h"
+
 
 /* implement nsISupports parts of our objects with support for nsIClassInfo */
 
@@ -127,17 +124,11 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Snapshot, ISnapshot)
 NS_DECL_CLASSINFO(Medium)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Medium, IMedium)
 
-NS_DECL_CLASSINFO(MediumFormat)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MediumFormat, IMediumFormat)
-
 NS_DECL_CLASSINFO(MediumAttachment)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MediumAttachment, IMediumAttachment)
 
 NS_DECL_CLASSINFO(Progress)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Progress, IProgress)
-
-NS_DECL_CLASSINFO(CombinedProgress)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(CombinedProgress, IProgress)
 
 NS_DECL_CLASSINFO(ProgressProxy)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ProgressProxy, IProgress)
@@ -157,6 +148,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HostNetworkInterface, IHostNetworkInterface)
 NS_DECL_CLASSINFO(DHCPServer)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(DHCPServer, IDHCPServer)
 
+NS_DECL_CLASSINFO(NATNetwork)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NATNetwork, INATNetwork)
+
 NS_DECL_CLASSINFO(GuestOSType)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestOSType, IGuestOSType)
 
@@ -175,6 +169,9 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ParallelPort, IParallelPort)
 
 NS_DECL_CLASSINFO(USBController)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(USBController, IUSBController)
+
+NS_DECL_CLASSINFO(USBDeviceFilters)
+NS_IMPL_THREADSAFE_ISUPPORTS1_CI(USBDeviceFilters, IUSBDeviceFilters)
 
 NS_DECL_CLASSINFO(StorageController)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(StorageController, IStorageController)
@@ -225,14 +222,10 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(BandwidthControl, IBandwidthControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-enum
-{
-    /* Delay before shutting down the VirtualBox server after the last
-     * VirtualBox instance is released, in ms */
-    VBoxSVC_ShutdownDelay = 5000
-};
-
 static bool gAutoShutdown = false;
+/** Delay before shutting down the VirtualBox server after the last
+ * VirtualBox instance is released, in ms */
+static uint32_t gShutdownDelayMs = 5000;
 
 static nsIEventQueue  *gEventQ          = nsnull;
 static PRBool volatile gKeepRunning     = PR_TRUE;
@@ -343,14 +336,14 @@ public:
             if (sTimer != NULL)
             {
                 LogFlowFunc(("Last VirtualBox instance was released.\n"));
-                LogFlowFunc(("Scheduling server shutdown in %d ms...\n",
-                             VBoxSVC_ShutdownDelay));
+                LogFlowFunc(("Scheduling server shutdown in %u ms...\n",
+                             gShutdownDelayMs));
 
                 /* make sure the previous timer (if any) is stopped;
                  * otherwise RTTimerStart() will definitely fail. */
                 RTTimerLRStop(sTimer);
 
-                int vrc = RTTimerLRStart(sTimer, uint64_t(VBoxSVC_ShutdownDelay) * 1000000);
+                int vrc = RTTimerLRStart(sTimer, gShutdownDelayMs * RT_NS_1MS_64);
                 AssertRC(vrc);
                 timerStarted = SUCCEEDED(vrc);
             }
@@ -404,7 +397,7 @@ public:
         /* called on the main thread */
         void *handler()
         {
-            LogFlowFunc(("\n"));
+            LogFlowFuncEnter();
 
             Assert(RTCritSectIsInitialized(&sLock));
 
@@ -431,6 +424,8 @@ public:
                     /* make it leave the event loop */
                     gKeepRunning = PR_FALSE;
                 }
+                else
+                    LogFlowFunc(("No automatic shutdown.\n"));
             }
             else
             {
@@ -442,6 +437,7 @@ public:
 
             RTCritSectLeave(&sLock);
 
+            LogFlowFuncLeave();
             return NULL;
         }
     };
@@ -788,14 +784,17 @@ int main(int argc, char **argv)
      * Initialize the VBox runtime without loading
      * the support driver
      */
-    RTR3Init();
+    int vrc = RTR3InitExe(argc, &argv, 0);
+    if (RT_FAILURE(vrc))
+        return RTMsgInitFailure(vrc);
 
     static const RTGETOPTDEF s_aOptions[] =
     {
         { "--automate",         'a', RTGETOPT_REQ_NOTHING },
         { "--auto-shutdown",    'A', RTGETOPT_REQ_NOTHING },
         { "--daemonize",        'd', RTGETOPT_REQ_NOTHING },
-        { "--pidfile",          'p', RTGETOPT_REQ_STRING  },
+        { "--shutdown-delay",   'D', RTGETOPT_REQ_UINT32 },
+        { "--pidfile",          'p', RTGETOPT_REQ_STRING },
         { "--logfile",          'F', RTGETOPT_REQ_STRING },
         { "--logrotate",        'R', RTGETOPT_REQ_UINT32 },
         { "--logsize",          'S', RTGETOPT_REQ_UINT64 },
@@ -810,7 +809,7 @@ int main(int argc, char **argv)
     PRFileDesc      *daemon_pipe_wr = nsnull;
 
     RTGETOPTSTATE   GetOptState;
-    int vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
+    vrc = RTGetOptInit(&GetOptState, argc, argv, &s_aOptions[0], RT_ELEMENTS(s_aOptions), 1, 0 /*fFlags*/);
     AssertRC(vrc);
 
     RTGETOPTUNION   ValueUnion;
@@ -819,33 +818,29 @@ int main(int argc, char **argv)
         switch (vrc)
         {
             case 'a':
-            {
                 /* --automate mode means we are started by XPCOM on
                  * demand. Daemonize ourselves and activate
                  * auto-shutdown. */
                 gAutoShutdown = true;
                 fDaemonize = true;
                 break;
-            }
 
-            /* --auto-shutdown mode means we're already daemonized. */
             case 'A':
-            {
+                /* --auto-shutdown mode means we're already daemonized. */
                 gAutoShutdown = true;
                 break;
-            }
 
             case 'd':
-            {
                 fDaemonize = true;
                 break;
-            }
+
+            case 'D':
+                gShutdownDelayMs = ValueUnion.u32;
+                break;
 
             case 'p':
-            {
                 g_pszPidFile = ValueUnion.psz;
                 break;
-            }
 
             case 'F':
                 pszLogFile = ValueUnion.psz;
@@ -864,16 +859,12 @@ int main(int argc, char **argv)
                 break;
 
             case 'h':
-            {
                 RTPrintf("no help\n");
                 return 1;
-            }
 
             case 'V':
-            {
                 RTPrintf("%sr%s\n", RTBldCfgVersion(), RTBldCfgRevisionStr());
                 return 0;
-            }
 
             default:
                 return RTGetOptPrintError(vrc, &ValueUnion);
@@ -888,20 +879,31 @@ int main(int argc, char **argv)
 
     nsresult rc;
 
+    /** @todo Merge this code with svcmain.cpp (use Logging.cpp?). */
+    char szLogFile[RTPATH_MAX];
     if (!pszLogFile)
     {
-        char szLogFile[RTPATH_MAX] = "";
         vrc = com::GetVBoxUserHomeDirectory(szLogFile, sizeof(szLogFile));
-        if (vrc == VERR_ACCESS_DENIED)
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open global settings directory '%s'", szLogFile);
         if (RT_SUCCESS(vrc))
             vrc = RTPathAppend(szLogFile, sizeof(szLogFile), "VBoxSVC.log");
-        if (RT_SUCCESS(vrc))
-            pszLogFile = RTStrDup(szLogFile);
-        if (RT_FAILURE(vrc))
-            return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to determine release log file (%Rrc)", vrc);
     }
-    VBoxSVCLogRelCreate(pszLogFile, cHistory, uHistoryFileTime, uHistoryFileSize);
+    else
+    {
+        if (!RTStrPrintf(szLogFile, sizeof(szLogFile), "%s", pszLogFile))
+            vrc = VERR_NO_MEMORY;
+    }
+    if (RT_FAILURE(vrc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to create logging file name, rc=%Rrc", vrc);
+
+    char szError[RTPATH_MAX + 128];
+    vrc = com::VBoxLogRelCreate("XPCOM Server", szLogFile,
+                                RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG,
+                                VBOXSVC_LOG_DEFAULT, "VBOXSVC_RELEASE_LOG",
+                                RTLOGDEST_FILE, UINT32_MAX /* cMaxEntriesPerGroup */,
+                                cHistory, uHistoryFileTime, uHistoryFileSize,
+                                szError, sizeof(szError));
+    if (RT_FAILURE(vrc))
+        return RTMsgErrorExit(RTEXITCODE_FAILURE, "failed to open release log (%s, %Rrc)", szError, vrc);
 
     daemon_pipe_wr = PR_GetInheritedFD(VBOXSVC_STARTUP_PIPE_NAME);
     RTEnvUnset("NSPR_INHERIT_FDS");
@@ -1010,7 +1012,7 @@ int main(int argc, char **argv)
             for (int i = iSize; i > 0; i--)
                 putchar('*');
             RTPrintf("\n%s\n", szBuf);
-            RTPrintf("(C) 2008-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+            RTPrintf("(C) 2004-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
                      "All rights reserved.\n");
 #ifdef DEBUG
             RTPrintf("Debug version.\n");

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,11 @@ static void test1(RTTEST hTest)
     do { \
         if (!(Str).equals(szExpect)) \
             RTTestIFailed("line %u: expected \"%s\" got \"%s\"", __LINE__, szExpect, (Str).c_str()); \
+    } while (0)
+#define CHECK_EQUAL_I(iRes, iExpect) \
+    do { \
+        if (iRes != iExpect) \
+            RTTestIFailed("line %u: expected \"%zd\" got \"%zd\"", __LINE__, iExpect, iRes); \
     } while (0)
 
     RTCString empty;
@@ -255,6 +260,14 @@ static void test1(RTTEST hTest)
     size_t pos = strTest.find("ß");
     CHECK_EQUAL(strTest.substr(pos), "ßäbcdef");
 
+    /* check find() */
+    CHECK_EQUAL_I(strTest.find("f"), 5);
+    CHECK_EQUAL_I(strTest.find("f", 0), 5);
+    CHECK_EQUAL_I(strTest.find("f", 3), 5);
+    CHECK_EQUAL_I(strTest.find("f", 6), 14);
+    CHECK_EQUAL_I(strTest.find("f", 9), 14);
+    CHECK_EQUAL_I(strTest.substr(pos).find("d"), 6);
+
     /* split */
     RTCList<RTCString> spList1 = RTCString("##abcdef##abcdef####abcdef##").split("##", RTCString::RemoveEmptyParts);
     RTTESTI_CHECK(spList1.size() == 3);
@@ -358,6 +371,28 @@ static int mymemcmp(const char *psz1, const char *psz2, size_t cch)
     return 0;
 }
 
+#if 0
+/**
+ * Detects a few annoying unicode points with unstable case folding for UTF-8.
+ *
+ * Unicode 4.01, I think, introduces a few codepoints with lower/upper mappings
+ * that has a different length when encoded as UTF-8.  This breaks some
+ * assumptions we used to make.  Since it's just a handful codepoints, we'll
+ * detect them and ignore them here.  The actual case folding functions in
+ * IPRT will of course deal with this in a more robust manner.
+ *
+ * @returns true if problematic, false if not.
+ * @param   uc      The codepoints.
+ */
+static bool isUnevenUtf8FoldingCp(RTUNICP uc)
+{
+    RTUNICP ucLower = RTUniCpToLower(uc);
+    RTUNICP ucUpper = RTUniCpToUpper(uc);
+    //return RTUniCpCalcUtf8Len(ucLower) != RTUniCpCalcUtf8Len(ucUpper);
+    return false;
+}
+#endif
+
 static void test2(RTTEST hTest)
 {
     RTTestSub(hTest, "UTF-8 upper/lower encoding assumption");
@@ -370,8 +405,22 @@ static void test2(RTTEST hTest)
         RTTESTI_CHECK(mymemcmp((str1).c_str(), (str2).c_str(), (str2).length() + 1) == 0); \
     } while (0)
 
-    RTCString strTmp;
+    RTCString strTmp, strExpect;
     char szDst[16];
+
+    /* Some simple ascii stuff. */
+    strTmp    = "abcdefghijklmnopqrstuvwxyz0123456ABCDEFGHIJKLMNOPQRSTUVWXYZ;-+/\\";
+    strExpect = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456ABCDEFGHIJKLMNOPQRSTUVWXYZ;-+/\\";
+    strTmp.toUpper();
+    CHECK_EQUAL(strTmp, strExpect);
+
+    strTmp.toLower();
+    strExpect = "abcdefghijklmnopqrstuvwxyz0123456abcdefghijklmnopqrstuvwxyz;-+/\\";
+    CHECK_EQUAL(strTmp, strExpect);
+
+    strTmp    = "abcdefghijklmnopqrstuvwxyz0123456ABCDEFGHIJKLMNOPQRSTUVWXYZ;-+/\\";
+    strTmp.toLower();
+    CHECK_EQUAL(strTmp, strExpect);
 
     /* Collect all upper and lower case code points. */
     RTCString strLower("");
@@ -382,6 +431,16 @@ static void test2(RTTEST hTest)
 
     for (RTUNICP uc = 1; uc <= 0x10fffd; uc++)
     {
+        /* Unicode 4.01, I think, introduced a few codepoints with lower/upper mappings
+           that aren't up for roundtrips and which case folding has a different UTF-8
+           length.  We'll just skip them here as there are very few:
+            - Dotless small i and dotless capital I folds into ASCII I and i.
+            - The small letter long s folds to ASCII S.
+            - Greek prosgegrammeni folds to iota, which is a letter with both upper
+              and lower case foldings of its own. */
+        if (uc == 0x131 || uc == 0x130 || uc == 0x17f || 0x1fbe)
+            continue;
+
         if (RTUniCpIsLower(uc))
         {
             RTTESTI_CHECK_MSG(uc < 0xd800 || (uc > 0xdfff && uc != 0xfffe && uc != 0xffff), ("%#x\n", uc));
@@ -425,14 +484,15 @@ static void test2(RTTEST hTest)
         RTTESTI_CHECK_MSG(ucUpper2 == ucUpper, ("ucUpper2=%#x ucUpper=%#x\n", ucUpper2, ucUpper));
 
         RTUNICP const       ucLower2  = RTUniCpToLower(ucUpper);
+        RTTESTI_CHECK_MSG(ucLower2 == ucLower, ("ucLower2=%#x ucLower=%#x\n", ucLower2, ucLower));
         RTUNICP const       ucUpper3  = RTUniCpToUpper(ucLower2);
         RTTESTI_CHECK_MSG(ucUpper3 == ucUpper, ("ucUpper3=%#x ucUpper=%#x\n", ucUpper3, ucUpper));
 
         pszDstEnd = RTStrPutCp(szDst, ucLower2);
         size_t const        cchLower2 = pszDstEnd - &szDst[0];
         RTTESTI_CHECK_MSG(cchDst == cchLower2,
-                          ("ucLower2=%#x %u bytes;  ucUpper=%#x %u bytes\n",
-                           ucLower2, cchLower2, ucUpper, cchDst));
+                          ("ucLower2=%#x %u bytes;  ucUpper=%#x %u bytes; ucLower=%#x\n",
+                           ucLower2, cchLower2, ucUpper, cchDst, ucLower));
     }
     RTTESTI_CHECK(strlen(strUpper2.c_str()) == strUpper2.length());
     RTTESTI_CHECK_MSG(cch == strUpper2.length(), ("cch=%u length()=%u\n", cch, strUpper2.length()));
@@ -470,6 +530,7 @@ static void test2(RTTEST hTest)
         RTTESTI_CHECK_MSG(ucLower2 == ucLower, ("ucLower2=%#x ucLower=%#x\n", ucLower2, ucLower));
 
         RTUNICP const       ucUpper2  = RTUniCpToUpper(ucLower);
+        RTTESTI_CHECK_MSG(ucUpper2 == ucUpper, ("ucUpper2=%#x ucUpper=%#x\n", ucUpper2, ucUpper));
         RTUNICP const       ucLower3  = RTUniCpToLower(ucUpper2);
         RTTESTI_CHECK_MSG(ucLower3 == ucLower, ("ucLower3=%#x ucLower=%#x\n", ucLower3, ucLower));
 

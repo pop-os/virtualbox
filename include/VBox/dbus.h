@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,14 +80,23 @@ typedef struct DBusMessageIter DBusMessageIter;
 
 #define DBUS_ERROR_NO_MEMORY                "org.freedesktop.DBus.Error.NoMemory"
 
-/* Primitive types */
+/* Message types. */
+#define DBUS_MESSAGE_TYPE_INVALID           0
+#define DBUS_MESSAGE_TYPE_METHOD_CALL       1
+#define DBUS_MESSAGE_TYPE_METHOD_RETURN     2
+#define DBUS_MESSAGE_TYPE_ERROR             3
+#define DBUS_MESSAGE_TYPE_SIGNAL            4
+
+/* Primitive types. */
 #define DBUS_TYPE_INVALID                   ((int) '\0')
+#define DBUS_TYPE_BOOLEAN                   ((int) 'b')
 #define DBUS_TYPE_INT32                     ((int) 'i')
 #define DBUS_TYPE_UINT32                    ((int) 'u')
 #define DBUS_TYPE_STRING                    ((int) 's')
 #define DBUS_TYPE_STRING_AS_STRING          "s"
 
-/* Compound types */
+/* Compound types. */
+#define DBUS_TYPE_OBJECT_PATH               ((int) 'o')
 #define DBUS_TYPE_ARRAY                     ((int) 'a')
 #define DBUS_TYPE_ARRAY_AS_STRING           "a"
 #define DBUS_TYPE_DICT_ENTRY                ((int) 'e')
@@ -112,5 +121,4 @@ typedef void (* DBusFreeFunction) (void *);
 #undef VBOX_DBUS_GENERATE_HEADER
 
 #endif /* ___VBox_DBus_h not defined */
-/* vi: set tabstop=4 shiftwidth=4 expandtab: */
 

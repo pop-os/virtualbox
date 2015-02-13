@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,12 +31,12 @@ extern "C" {
 
 static WCHAR gachWindowClassName[] = L"VBoxPowerNotifyClass";
 
-HostPowerServiceWin::HostPowerServiceWin(VirtualBox *aVirtualBox) : HostPowerService(aVirtualBox)
+HostPowerServiceWin::HostPowerServiceWin(VirtualBox *aVirtualBox) : HostPowerService(aVirtualBox), mThread(NIL_RTTHREAD)
 {
     mHwnd = 0;
 
-    int rc = RTThreadCreate (&mThread, HostPowerServiceWin::NotificationThread, this, 65536,
-                             RTTHREADTYPE_GUI, RTTHREADFLAGS_WAITABLE, "MainPower");
+    int rc = RTThreadCreate(&mThread, HostPowerServiceWin::NotificationThread, this, 65536,
+                            RTTHREADTYPE_GUI, RTTHREADFLAGS_WAITABLE, "MainPower");
 
     if (RT_FAILURE(rc))
     {
@@ -53,14 +53,16 @@ HostPowerServiceWin::~HostPowerServiceWin()
 
         /* Is this allowed from another thread? */
         SetWindowLongPtr(mHwnd, 0, 0);
-        /* Send the quit message and wait for it be processed. */
-        SendMessage(mHwnd, WM_QUIT, 0, 0);
+        /* Poke the thread out of the event loop and wait for it to clean up. */
+        PostMessage(mHwnd, WM_QUIT, 0, 0);
+        RTThreadWait(mThread, 5000, NULL);
+        mThread = NIL_RTTHREAD;
     }
 }
 
 
 
-DECLCALLBACK(int) HostPowerServiceWin::NotificationThread (RTTHREAD ThreadSelf, void *pInstance)
+DECLCALLBACK(int) HostPowerServiceWin::NotificationThread(RTTHREAD ThreadSelf, void *pInstance)
 {
     HostPowerServiceWin *pPowerObj = (HostPowerServiceWin *)pInstance;
     HWND                 hwnd = 0;
@@ -68,7 +70,7 @@ DECLCALLBACK(int) HostPowerServiceWin::NotificationThread (RTTHREAD ThreadSelf, 
     /* Create a window and make it a power event notification handler. */
     int rc = VINF_SUCCESS;
 
-    HINSTANCE hInstance = (HINSTANCE)GetModuleHandle (NULL);
+    HINSTANCE hInstance = (HINSTANCE)GetModuleHandle(NULL);
 
     /* Register the Window Class. */
     WNDCLASS wc;
@@ -94,10 +96,10 @@ DECLCALLBACK(int) HostPowerServiceWin::NotificationThread (RTTHREAD ThreadSelf, 
     else
     {
         /* Create the window. */
-        hwnd = pPowerObj->mHwnd = CreateWindowEx (WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
-                                                  gachWindowClassName, gachWindowClassName,
-                                                  WS_POPUPWINDOW,
-                                                 -200, -200, 100, 100, NULL, NULL, hInstance, NULL);
+        hwnd = pPowerObj->mHwnd = CreateWindowEx(WS_EX_TOOLWINDOW | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
+                                                 gachWindowClassName, gachWindowClassName,
+                                                 WS_POPUPWINDOW,
+                                                -200, -200, 100, 100, NULL, NULL, hInstance, NULL);
 
         if (hwnd == NULL)
         {
@@ -111,21 +113,30 @@ DECLCALLBACK(int) HostPowerServiceWin::NotificationThread (RTTHREAD ThreadSelf, 
                          SWP_NOACTIVATE | SWP_HIDEWINDOW | SWP_NOCOPYBITS | SWP_NOREDRAW | SWP_NOSIZE);
 
             MSG msg;
-            while (GetMessage(&msg, NULL, 0, 0))
+            BOOL fRet;
+            while ((fRet = GetMessage(&msg, NULL, 0, 0)) != 0)
             {
-                TranslateMessage(&msg);
-                DispatchMessage(&msg);
+                if (fRet != -1)
+                {
+                    TranslateMessage(&msg);
+                    DispatchMessage(&msg);
+                }
+                else
+                {
+                    // handle the error and possibly exit
+                    break;
+                }
             }
         }
     }
 
     Log(("HostPowerServiceWin::NotificationThread: exit thread\n"));
     if (hwnd)
-        DestroyWindow (hwnd);
+        DestroyWindow(hwnd);
 
     if (atomWindowClass != 0)
     {
-        UnregisterClass (gachWindowClassName, hInstance);
+        UnregisterClass(gachWindowClassName, hInstance);
         atomWindowClass = 0;
     }
 
@@ -146,11 +157,11 @@ LRESULT CALLBACK HostPowerServiceWin::WndProc(HWND hwnd, UINT msg, WPARAM wParam
                 switch(wParam)
                 {
                 case PBT_APMSUSPEND:
-                    pPowerObj->notify(HostPowerEvent_Suspend);
+                    pPowerObj->notify(Reason_HostSuspend);
                     break;
 
                 case PBT_APMRESUMEAUTOMATIC:
-                    pPowerObj->notify(HostPowerEvent_Resume);
+                    pPowerObj->notify(Reason_HostResume);
                     break;
 
                 case PBT_APMPOWERSTATUSCHANGE:
@@ -177,27 +188,27 @@ LRESULT CALLBACK HostPowerServiceWin::WndProc(HWND hwnd, UINT msg, WPARAM wParam
                                 if (    rc == 0 /* STATUS_SUCCESS */
                                     &&  BatteryState.EstimatedTime < 60*5)
                                 {
-                                    pPowerObj->notify(HostPowerEvent_BatteryLow);
+                                    pPowerObj->notify(Reason_HostBatteryLow);
                                 }
                             }
                             else
                             /* If the machine has less than 5% battery left (and is not connected to the AC), then we should save the state. */
                             if (SystemPowerStatus.BatteryFlag == 4      /* critical battery status; less than 5% */)
                             {
-                                pPowerObj->notify(HostPowerEvent_BatteryLow);
+                                pPowerObj->notify(Reason_HostBatteryLow);
                             }
                         }
                     }
                     break;
                 }
                 default:
-                    return DefWindowProc (hwnd, msg, wParam, lParam);
+                    return DefWindowProc(hwnd, msg, wParam, lParam);
                 }
             }
             return TRUE;
         }
 
         default:
-            return DefWindowProc (hwnd, msg, wParam, lParam);
+            return DefWindowProc(hwnd, msg, wParam, lParam);
     }
 }

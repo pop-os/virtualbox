@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,9 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/dbgftrace.h>
 #ifdef IN_RING3
-# include <VBox/vmm/rem.h>
+# ifdef VBOX_WITH_REM
+#  include <VBox/vmm/rem.h>
+# endif
 #endif
 #include "TMInternal.h"
 #include <VBox/vmm/vm.h>
@@ -72,18 +74,6 @@
 
 
 /**
- * Gets the current warp drive percent.
- *
- * @returns The warp drive percent.
- * @param   pVM         The VM handle.
- */
-VMMDECL(uint32_t) TMGetWarpDrive(PVM pVM)
-{
-    return pVM->tm.s.u32VirtualWarpDrivePercentage;
-}
-
-
-/**
  * Notification that execution is about to start.
  *
  * This call must always be paired with a TMNotifyEndOfExecution call.
@@ -91,7 +81,7 @@ VMMDECL(uint32_t) TMGetWarpDrive(PVM pVM)
  * The function may, depending on the configuration, resume the TSC and future
  * clocks that only ticks when we're executing guest code.
  *
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
 {
@@ -106,21 +96,21 @@ VMMDECL(void) TMNotifyStartOfExecution(PVMCPU pVCpu)
 
 
 /**
- * Notification that execution is about to start.
+ * Notification that execution has ended.
  *
  * This call must always be paired with a TMNotifyStartOfExecution call.
  *
  * The function may, depending on the configuration, suspend the TSC and future
  * clocks that only ticks when we're executing guest code.
  *
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
     if (pVM->tm.s.fTSCTiedToExecution)
-        tmCpuTickPause(pVM, pVCpu);
+        tmCpuTickPause(pVCpu);
 
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     uint64_t const u64NsTs           = RTTimeNanoTS();
@@ -161,7 +151,7 @@ VMMDECL(void) TMNotifyEndOfExecution(PVMCPU pVCpu)
  * The function may, depending on the configuration, resume the TSC and future
  * clocks that only ticks when we're halted.
  *
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPU pVCpu)
 {
@@ -185,7 +175,7 @@ VMM_INT_DECL(void) TMNotifyStartOfHalt(PVMCPU pVCpu)
  * The function may, depending on the configuration, suspend the TSC and future
  * clocks that only ticks when we're halted.
  *
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
 {
@@ -193,7 +183,7 @@ VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
 
     if (    pVM->tm.s.fTSCTiedToExecution
         &&  !pVM->tm.s.fTSCNotTiedToHalt)
-        tmCpuTickPause(pVM, pVCpu);
+        tmCpuTickPause(pVCpu);
 
 #ifndef VBOX_WITHOUT_NS_ACCOUNTING
     uint64_t const u64NsTs        = RTTimeNanoTS();
@@ -223,17 +213,19 @@ VMM_INT_DECL(void) TMNotifyEndOfHalt(PVMCPU pVCpu)
 /**
  * Raise the timer force action flag and notify the dedicated timer EMT.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 DECLINLINE(void) tmScheduleNotify(PVM pVM)
 {
     PVMCPU pVCpuDst = &pVM->aCpus[pVM->tm.s.idTimerCpu];
-    if (!VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+    if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
     {
         Log5(("TMAll(%u): FF: 0 -> 1\n", __LINE__));
         VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
 #ifdef IN_RING3
+# ifdef VBOX_WITH_REM
         REMR3NotifyTimerPending(pVM, pVCpuDst);
+# endif
         VMR3NotifyCpuFFU(pVCpuDst->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM);
 #endif
         STAM_COUNTER_INC(&pVM->tm.s.StatScheduleSetFF);
@@ -524,7 +516,7 @@ void tmTimerQueueSchedule(PVM pVM, PTMTIMERQUEUE pQueue)
 /**
  * Checks that the timer queues are sane.
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  *
  * @remarks Called while owning the lock.
  */
@@ -643,7 +635,7 @@ void tmTimerQueuesSanityChecks(PVM pVM, const char *pszWhere)
  * EMT is polling.
  *
  * @returns See tmTimerPollInternal.
- * @param   pVM                 Pointer to the shared VM structure.
+ * @param   pVM                 Pointer to the VM.
  * @param   u64Now              Current virtual clock timestamp.
  * @param   u64Delta            The delta to the next even in ticks of the
  *                              virtual clock.
@@ -690,7 +682,7 @@ DECLINLINE(uint64_t) tmTimerPollReturnMiss(PVM pVM, uint64_t u64Now, uint64_t u6
  * than the one dedicated to timer work.
  *
  * @returns See tmTimerPollInternal.
- * @param   pVM                 Pointer to the shared VM structure.
+ * @param   pVM                 Pointer to the VM.
  * @param   u64Now              Current virtual clock timestamp.
  * @param   pu64Delta           Where to return the delta.
  */
@@ -706,7 +698,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollReturnOtherCpu(PVM pVM, uint64_t u64Now, 
  * Worker for tmTimerPollInternal.
  *
  * @returns See tmTimerPollInternal.
- * @param   pVM                 Pointer to the shared VM structure.
+ * @param   pVM                 Pointer to the VM.
  * @param   pVCpu               Pointer to the shared VMCPU structure of the
  *                              caller.
  * @param   pVCpuDst            Pointer to the shared VMCPU structure of the
@@ -733,7 +725,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollReturnHit(PVM pVM, PVMCPU pVCpu, PVMCPU p
  * @returns The GIP timestamp of the next event.
  *          0 if the next event has already expired.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       Pointer to the shared VMCPU structure of the caller.
  * @param   pu64Delta   Where to store the delta.
  *
@@ -750,7 +742,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     /*
      * Return straight away if the timer FF is already set ...
      */
-    if (VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+    if (VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         return tmTimerPollReturnHit(pVM, pVCpu, pVCpuDst, u64Now, pu64Delta, &pVM->tm.s.StatPollAlreadySet);
 
     /*
@@ -769,11 +761,11 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     const int64_t   i64Delta1  = u64Expire1 - u64Now;
     if (i64Delta1 <= 0)
     {
-        if (!VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+        if (!VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#ifdef IN_RING3
+#if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);
 #endif
         }
@@ -815,11 +807,11 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
                 }
 
                 if (    !pVM->tm.s.fRunningQueues
-                    &&  !VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+                    &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
                 {
-                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+                    Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
                     VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#ifdef IN_RING3
+#if defined(IN_RING3) && defined(VBOX_WITH_REM)
                     REMR3NotifyTimerPending(pVM, pVCpuDst);
 #endif
                 }
@@ -890,7 +882,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
             break; /* Got an consistent offset */
 
         /* Repeat the initial checks before iterating. */
-        if (VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+        if (VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
             return tmTimerPollReturnHit(pVM, pVCpu, pVCpuDst, u64Now, pu64Delta, &pVM->tm.s.StatPollAlreadySet);
         if (ASMAtomicUoReadBool(&pVM->tm.s.fRunningQueues))
         {
@@ -914,11 +906,11 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
     if (i64Delta2 <= 0)
     {
         if (    !pVM->tm.s.fRunningQueues
-            &&  !VMCPU_FF_ISSET(pVCpuDst, VMCPU_FF_TIMER))
+            &&  !VMCPU_FF_IS_SET(pVCpuDst, VMCPU_FF_TIMER))
         {
-            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_ISPENDING(pVCpuDst, VMCPU_FF_TIMER)));
+            Log5(("TMAll(%u): FF: %d -> 1\n", __LINE__, VMCPU_FF_IS_PENDING(pVCpuDst, VMCPU_FF_TIMER)));
             VMCPU_FF_SET(pVCpuDst, VMCPU_FF_TIMER);
-#ifdef IN_RING3
+#if defined(IN_RING3) && defined(VBOX_WITH_REM)
             REMR3NotifyTimerPending(pVM, pVCpuDst);
 #endif
         }
@@ -948,7 +940,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerPollInternal(PVM pVM, PVMCPU pVCpu, uint64_t 
  *
  * @returns true if timers are pending, false if not.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       Pointer to the shared VMCPU structure of the caller.
  * @thread  The emulation thread.
  */
@@ -966,7 +958,7 @@ VMMDECL(bool) TMTimerPollBool(PVM pVM, PVMCPU pVCpu)
  *
  * This function is called before FFs are checked in the inner execution EM loops.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       Pointer to the shared VMCPU structure of the caller.
  * @thread  The emulation thread.
  */
@@ -984,7 +976,7 @@ VMM_INT_DECL(void) TMTimerPollVoid(PVM pVM, PVMCPU pVCpu)
  *
  * @returns The GIP timestamp of the next event.
  *          0 if the next event has already expired.
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       Pointer to the shared VMCPU structure of the caller.
  * @param   pu64Delta   Where to store the delta.
  * @thread  The emulation thread.
@@ -1085,7 +1077,7 @@ VMMDECL(bool) TMTimerIsLockOwner(PTMTIMER pTimer)
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pTimer          The timer handle.
  * @param   u64Expire       The new expire time.
  */
@@ -1128,7 +1120,7 @@ static int tmTimerSetOptimizedStart(PVM pVM, PTMTIMER pTimer, uint64_t u64Expire
  * queue lock and bypassing the scheduling list.
  *
  * @returns VBox status code
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pTimer              The timer handle.
  * @param   u64Expire           The expiration time.
  */
@@ -1354,7 +1346,7 @@ VMMDECL(int) TMTimerSet(PTMTIMER pTimer, uint64_t u64Expire)
  * Return the current time for the specified clock, setting pu64Now if not NULL.
  *
  * @returns Current time.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   enmClock        The clock to query.
  * @param   pu64Now         Optional pointer where to store the return time
  */
@@ -1387,7 +1379,7 @@ DECL_FORCE_INLINE(uint64_t) tmTimerSetRelativeNowWorker(PVM pVM, TMCLOCK enmCloc
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pTimer          The timer handle.
  * @param   cTicksToNext    Clock ticks until the next time expiration.
  * @param   pu64Now         Where to return the current time stamp used.
@@ -1426,7 +1418,7 @@ static int tmTimerSetRelativeOptimizedStart(PVM pVM, PTMTIMER pTimer, uint64_t c
  * queue lock and bypassing the scheduling list.
  *
  * @returns VBox status code
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   cTicksToNext        Clock ticks until the next time expiration.
  * @param   pu64Now             Where to return the current time stamp used.
  *                              Optional.
@@ -1755,7 +1747,7 @@ VMMDECL(int) TMTimerSetFrequencyHint(PTMTIMER pTimer, uint32_t uHzHint)
  * queue lock and bypassing the scheduling list.
  *
  * @returns VBox status code
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pTimer              The timer handle.
  */
 static int tmTimerVirtualSyncStop(PVM pVM, PTMTIMER pTimer)
@@ -2102,9 +2094,6 @@ VMMDECL(bool) TMTimerIsActive(PTMTIMER pTimer)
  */
 VMMDECL(int) TMTimerSetMillies(PTMTIMER pTimer, uint32_t cMilliesToNext)
 {
-    PVM    pVM   = pTimer->CTX_SUFF(pVM);
-    PVMCPU pVCpu = &pVM->aCpus[0];  /* just take the first VCPU */
-
     switch (pTimer->enmClock)
     {
         case TMCLOCK_VIRTUAL:
@@ -2135,9 +2124,6 @@ VMMDECL(int) TMTimerSetMillies(PTMTIMER pTimer, uint32_t cMilliesToNext)
  */
 VMMDECL(int) TMTimerSetMicro(PTMTIMER pTimer, uint64_t cMicrosToNext)
 {
-    PVM    pVM   = pTimer->CTX_SUFF(pVM);
-    PVMCPU pVCpu = &pVM->aCpus[0];  /* just take the first VCPU */
-
     switch (pTimer->enmClock)
     {
         case TMCLOCK_VIRTUAL:
@@ -2168,9 +2154,6 @@ VMMDECL(int) TMTimerSetMicro(PTMTIMER pTimer, uint64_t cMicrosToNext)
  */
 VMMDECL(int) TMTimerSetNano(PTMTIMER pTimer, uint64_t cNanosToNext)
 {
-    PVM    pVM   = pTimer->CTX_SUFF(pVM);
-    PVMCPU pVCpu = &pVM->aCpus[0];  /* just take the first VCPU */
-
     switch (pTimer->enmClock)
     {
         case TMCLOCK_VIRTUAL:
@@ -2437,7 +2420,7 @@ const char *tmTimerState(TMTIMERSTATE enmState)
  * Gets the highest frequency hint for all the important timers.
  *
  * @returns The highest frequency.  0 if no timers care.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 static uint32_t tmGetFrequencyHint(PVM pVM)
 {
@@ -2507,7 +2490,7 @@ static uint32_t tmGetFrequencyHint(PVM pVM)
  * the result to adjust the per-cpu preemption timer.
  *
  * @returns The highest frequency.  0 if no important timers around.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       The current CPU.
  */
 VMM_INT_DECL(uint32_t) TMCalcHostTimerFrequency(PVM pVM, PVMCPU pVCpu)

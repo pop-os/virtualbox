@@ -1,10 +1,10 @@
 /* $Id: manifest.cpp $ */
 /** @file
- * IPRT - Manifest file handling.
+ * IPRT - Manifest file handling, old style - deprecated.
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,7 @@ typedef struct RTMANIFESTCALLBACKDATA
 } RTMANIFESTCALLBACKDATA;
 typedef RTMANIFESTCALLBACKDATA* PRTMANIFESTCALLBACKDATA;
 
+
 /*******************************************************************************
 *   Private functions
 *******************************************************************************/
@@ -95,6 +96,7 @@ int rtSHAProgressCallback(unsigned uPercent, void *pvUser)
                                                  / (float)pData->cMaxFiles),
                                       pData->pvUser);
 }
+
 
 /*******************************************************************************
 *   Public functions
@@ -195,7 +197,8 @@ RTR3DECL(int) RTManifestVerifyFiles(const char *pszManifestFile, const char * co
     return rc;
 }
 
-RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * const *papszFiles, size_t cFiles,
+RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, RTDIGESTTYPE enmDigestType,
+                                   const char * const *papszFiles, size_t cFiles,
                                    PFNRTPROGRESS pfnProgressCallback, void *pvUser)
 {
     /* Validate input */
@@ -238,7 +241,7 @@ RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * con
         if (RT_SUCCESS(rc))
         {
             size_t cbSize = 0;
-            rc = RTManifestWriteFilesBuf(&pvBuf, &cbSize, paFiles, cFiles);
+            rc = RTManifestWriteFilesBuf(&pvBuf, &cbSize, enmDigestType, paFiles, cFiles);
             if (RT_FAILURE(rc))
                 break;
 
@@ -251,10 +254,13 @@ RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * con
     /* Cleanup */
     if (pvBuf)
         RTMemFree(pvBuf);
-    for (size_t i = 0; i < cFiles; ++i)
-        if (paFiles[i].pszTestDigest)
-            RTStrFree((char*)paFiles[i].pszTestDigest);
-    RTMemFree(paFiles);
+    if (paFiles)
+    {
+        for (size_t i = 0; i < cFiles; ++i)
+            if (paFiles[i].pszTestDigest)
+                RTStrFree((char*)paFiles[i].pszTestDigest);
+        RTMemFree(paFiles);
+    }
 
     /* Delete the manifest file on failure */
     if (RT_FAILURE(rc))
@@ -262,6 +268,67 @@ RTR3DECL(int) RTManifestWriteFiles(const char *pszManifestFile, const char * con
 
     return rc;
 }
+
+
+RTR3DECL(int) RTManifestVerifyDigestType(void const *pvBuf, size_t cbSize, RTDIGESTTYPE *penmDigestType)
+{
+    /* Validate input */
+    AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
+    AssertReturn(cbSize > 0, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(penmDigestType, VERR_INVALID_POINTER);
+
+    int rc = VINF_SUCCESS;
+
+    char const *pcBuf = (char *)pvBuf;
+    size_t cbRead = 0;
+    /* Parse the manifest file line by line */
+    for (;;)
+    {
+        if (cbRead >= cbSize)
+            return VERR_MANIFEST_UNSUPPORTED_DIGEST_TYPE;
+
+        size_t cch = rtManifestIndexOfCharInBuf(pcBuf, cbSize - cbRead, '\n') + 1;
+
+        /* Skip empty lines (UNIX/DOS format) */
+        if (   (   cch == 1
+                && pcBuf[0] == '\n')
+            || (   cch == 2
+                && pcBuf[0] == '\r'
+                && pcBuf[1] == '\n'))
+        {
+            pcBuf += cch;
+            cbRead += cch;
+            continue;
+        }
+
+/** @todo r=bird: Missing space check here. */
+        /* Check for the digest algorithm */
+        if (   pcBuf[0] == 'S'
+            && pcBuf[1] == 'H'
+            && pcBuf[2] == 'A'
+            && pcBuf[3] == '1')
+        {
+            *penmDigestType = RTDIGESTTYPE_SHA1;
+            break;
+        }
+        if (   pcBuf[0] == 'S'
+            && pcBuf[1] == 'H'
+            && pcBuf[2] == 'A'
+            && pcBuf[3] == '2'
+            && pcBuf[4] == '5'
+            && pcBuf[5] == '6')
+        {
+            *penmDigestType = RTDIGESTTYPE_SHA256;
+            break;
+        }
+
+        pcBuf += cch;
+        cbRead += cch;
+    }
+
+    return rc;
+}
+
 
 RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTEST paTests, size_t cTests, size_t *piFailed)
 {
@@ -306,7 +373,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
 
         /** @todo r=bird:
          *  -# Better deal with this EOF line platform dependency
-         *  -# The SHA1 test should probably include a blank space check.
+         *  -# The SHA1 and SHA256 tests should probably include a blank space check.
          *  -# If there is a specific order to the elements in the string, it would be
          *     good if the delimiter searching checked for it.
          *  -# Deal with filenames containing delimiter characters.
@@ -314,10 +381,19 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
 
         /* Check for the digest algorithm */
         if (   cch < 4
-            || !(   pcBuf[0] == 'S'
-                 && pcBuf[1] == 'H'
-                 && pcBuf[2] == 'A'
-                 && pcBuf[3] == '1'))
+            || (   !(   pcBuf[0] == 'S'
+                     && pcBuf[1] == 'H'
+                     && pcBuf[2] == 'A'
+                     && pcBuf[3] == '1')
+                &&
+                   !(   pcBuf[0] == 'S'
+                     && pcBuf[1] == 'H'
+                     && pcBuf[2] == 'A'
+                     && pcBuf[3] == '2'
+                     && pcBuf[4] == '5'
+                     && pcBuf[5] == '6')
+               )
+            )
         {
             /* Digest unsupported */
             rc = VERR_MANIFEST_UNSUPPORTED_DIGEST_TYPE;
@@ -362,6 +438,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
             pszDigestEnd = rtManifestPosOfCharInBuf(pcBuf, cch, '\n');
         if (!pszDigestEnd)
         {
+            RTMemTmpFree(pszName);
             rc = VERR_MANIFEST_WRONG_FILE_FORMAT;
             break;
         }
@@ -370,6 +447,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
         char *pszDigest = (char *)RTMemTmpAlloc(cchDigest + 1);
         if (!pszDigest)
         {
+            RTMemTmpFree(pszName);
             rc = VERR_NO_MEMORY;
             break;
         }
@@ -380,7 +458,8 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
         bool fFound = false;
         for (size_t i = 0; i < cTests; ++i)
         {
-            if (!RTStrCmp(RTPathFilename(paFiles[i].pTestPattern->pszTestFile), RTStrStrip(pszName)))
+            /** @todo r=bird: Using RTStrStr here looks bogus. */
+            if (RTStrStr(paFiles[i].pTestPattern->pszTestFile, RTStrStrip(pszName)) != NULL)
             {
                 /* Add the data of the manifest file to the file list */
                 paFiles[i].pszManifestFile = RTStrDup(RTStrStrip(pszName));
@@ -417,7 +496,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
                 break;
             }
 
-            /* Do the manifest SHA1 digest match against the actual digest? */
+            /* Do the manifest SHA digest match against the actual digest? */
             if (RTStrICmp(paFiles[i].pszManifestDigest, paFiles[i].pTestPattern->pszTestDigest))
             {
                 if (piFailed)
@@ -441,7 +520,7 @@ RTR3DECL(int) RTManifestVerifyFilesBuf(void *pvBuf, size_t cbSize, PRTMANIFESTTE
     return rc;
 }
 
-RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, PRTMANIFESTTEST paFiles, size_t cFiles)
+RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, RTDIGESTTYPE enmDigestType, PRTMANIFESTTEST paFiles, size_t cFiles)
 {
     /* Validate input */
     AssertPtrReturn(ppvBuf, VERR_INVALID_POINTER);
@@ -449,12 +528,26 @@ RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, PRTMANIFES
     AssertPtrReturn(paFiles, VERR_INVALID_POINTER);
     AssertReturn(cFiles > 0, VERR_INVALID_PARAMETER);
 
+    const char *pcszDigestType;
+    switch (enmDigestType)
+    {
+        case RTDIGESTTYPE_CRC32:  pcszDigestType = "CRC32";  break;
+        case RTDIGESTTYPE_CRC64:  pcszDigestType = "CRC64";  break;
+        case RTDIGESTTYPE_MD5:    pcszDigestType = "MD5";    break;
+        case RTDIGESTTYPE_SHA1:   pcszDigestType = "SHA1";   break;
+        case RTDIGESTTYPE_SHA256: pcszDigestType = "SHA256"; break;
+        default: return VERR_INVALID_PARAMETER;
+    }
+
     /* Calculate the size necessary for the memory buffer. */
     size_t cbSize = 0;
     size_t cbMaxSize = 0;
     for (size_t i = 0; i < cFiles; ++i)
     {
-        size_t cbTmp = strlen(RTPathFilename(paFiles[i].pszTestFile)) + strlen(paFiles[i].pszTestDigest) + 10;
+        size_t cbTmp = strlen(RTPathFilename(paFiles[i].pszTestFile))
+                     + strlen(paFiles[i].pszTestDigest)
+                     + strlen(pcszDigestType)
+                     + 6;
         cbMaxSize = RT_MAX(cbMaxSize, cbTmp);
         cbSize += cbTmp;
     }
@@ -465,11 +558,17 @@ RTR3DECL(int) RTManifestWriteFilesBuf(void **ppvBuf, size_t *pcbSize, PRTMANIFES
         return VERR_NO_MEMORY;
 
     /* Allocate a temporary string buffer. */
-    char * pszTmp = RTStrAlloc(cbMaxSize + 1);
+    char *pszTmp = RTStrAlloc(cbMaxSize + 1);
+    if (!pszTmp)
+    {
+        RTMemFree(pvBuf);
+        return VERR_NO_MEMORY;
+    }
     size_t cbPos = 0;
+
     for (size_t i = 0; i < cFiles; ++i)
     {
-        size_t cch = RTStrPrintf(pszTmp, cbMaxSize + 1, "SHA1 (%s)= %s\n", RTPathFilename(paFiles[i].pszTestFile), paFiles[i].pszTestDigest);
+        size_t cch = RTStrPrintf(pszTmp, cbMaxSize + 1, "%s (%s)= %s\n", pcszDigestType, RTPathFilename(paFiles[i].pszTestFile), paFiles[i].pszTestDigest);
         memcpy(&((char*)pvBuf)[cbPos], pszTmp, cch);
         cbPos += cch;
     }

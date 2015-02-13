@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ public:
         Bstr mGenericDriver;
         settings::StringsMap mGenericProperties;
         ULONG mBootPriority;
-        ComObjPtr<BandwidthGroup> mBandwidthGroup;
+        Utf8Str mBandwidthGroup;
     };
 
     VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(NetworkAdapter, INetworkAdapter)
@@ -89,7 +89,7 @@ public:
 
     // public initializer/uninitializer for internal purposes only
     HRESULT init(Machine *aParent, ULONG aSlot);
-    HRESULT init(Machine *aParent, NetworkAdapter *aThat);
+    HRESULT init(Machine *aParent, NetworkAdapter *aThat, bool aReshare = false);
     HRESULT initCopy(Machine *aParent, NetworkAdapter *aThat);
     void uninit();
 
@@ -123,7 +123,7 @@ public:
     STDMETHOD(COMSETTER(PromiscModePolicy))(NetworkAdapterPromiscModePolicy_T aPromiscModePolicy);
     STDMETHOD(COMGETTER(TraceFile))(BSTR *aTraceFile);
     STDMETHOD(COMSETTER(TraceFile))(IN_BSTR aTraceFile);
-    STDMETHOD(COMGETTER(NatDriver))(INATEngine **aNatDriver);
+    STDMETHOD(COMGETTER(NATEngine))(INATEngine **aNATEngine);
     STDMETHOD(COMGETTER(BootPriority))(ULONG *aBootPriority);
     STDMETHOD(COMSETTER(BootPriority))(ULONG aBootPriority);
     STDMETHOD(COMGETTER(BandwidthGroup))(IBandwidthGroup **aBwGroup);
@@ -147,11 +147,15 @@ public:
     void copyFrom(NetworkAdapter *aThat);
     void applyDefaults(GuestOSType *aOsType);
 
+    ComObjPtr<NetworkAdapter> getPeer();
+
 private:
 
     void generateMACAddress();
     HRESULT updateMacAddress(Utf8Str aMacAddress);
     void updateBandwidthGroup(BandwidthGroup *aBwGroup);
+    HRESULT checkAndSwitchFromNatNetworking(IN_BSTR aNatNetworkName);
+    HRESULT switchToNatNetworking(IN_BSTR aNatNetworkName);
 
     Machine * const     mParent;
     const ComObjPtr<NetworkAdapter> mPeer;

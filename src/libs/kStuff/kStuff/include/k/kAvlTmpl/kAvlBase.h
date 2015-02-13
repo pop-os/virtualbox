@@ -1,4 +1,4 @@
-/* $Id: kAvlBase.h 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kAvlBase.h 36 2009-11-09 22:49:02Z bird $ */
 /** @file
  * kAvlTmpl - Templated AVL Trees, The Mandatory Base Code.
  */
@@ -464,7 +464,7 @@ KAVL_DECL(KBOOL) KAVL_FN(Insert)(KAVLROOT *pRoot, KAVLNODE *pNode)
 
 #ifdef KAVL_RANGE
     if (Key > KeyLast)
-        return false;
+        return K_FALSE;
 #endif
 
     KAVL_WRITE_LOCK(pRoot);

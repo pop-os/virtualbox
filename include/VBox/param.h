@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -135,7 +135,7 @@
 /** Min number of Virtual CPUs. */
 #define VMM_MIN_CPU_COUNT           1
 /** Max number of Virtual CPUs. */
-#define VMM_MAX_CPU_COUNT           32
+#define VMM_MAX_CPU_COUNT           64
 
 /** @} */
 

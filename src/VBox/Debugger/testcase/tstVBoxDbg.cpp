@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,14 +38,15 @@ int main(int argc, char **argv)
 {
     int     cErrors = 0;                  /* error count. */
 
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     RTPrintf(TESTCASE ": TESTING...\n");
 
     /*
      * Create empty VM.
      */
     PVM pVM;
-    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -54,7 +55,7 @@ int main(int argc, char **argv)
         QApplication App(argc, argv);
         PDBGGUI pGui;
         PCDBGGUIVT pGuiVT;
-        rc = DBGGuiCreateForVM(pVM, &pGui, &pGuiVT);
+        rc = DBGGuiCreateForVM(pUVM, &pGui, &pGuiVT);
         if (RT_SUCCESS(rc))
         {
             if (argc <= 1 || argc == 2)
@@ -92,12 +93,13 @@ int main(int argc, char **argv)
         /*
          * Cleanup.
          */
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         if (!RT_SUCCESS(rc))
         {
             RTPrintf(TESTCASE ": error: failed to destroy vm! rc=%Rrc\n", rc);
             cErrors++;
         }
+        VMR3ReleaseUVM(pUVM);
     }
     else
     {

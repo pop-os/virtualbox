@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2005-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,18 +40,39 @@
 #include "VBox/com/Guid.h"
 #include "VBox/com/array.h"
 
+#include <package-generated.h>
+
+#include <iprt/buildconfig.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/env.h>
 #include <iprt/string.h>
+#include <iprt/system.h>
+#include <iprt/process.h>
 
 #include <VBox/err.h>
+#include <VBox/version.h>
 
+#if !defined(RT_OS_DARWIN) && !defined(RT_OS_WINDOWS)
+char szXdgConfigHome[RTPATH_MAX] = "";
+#endif
+
+/**
+ * Possible locations for the VirtualBox user configuration folder,
+ * listed from oldest (as in legacy) to newest.  These can be either
+ * absolute or relative to the home directory.  We use the first entry
+ * of the list which corresponds to a real folder on storage, or
+ * create a folder corresponding to the last in the list (the least
+ * legacy) if none do.
+ */
+const char *const apcszUserHome[] =
 #ifdef RT_OS_DARWIN
-# define VBOX_USER_HOME_SUFFIX   "Library/VirtualBox"
+{ "Library/VirtualBox" };
+#elif defined RT_OS_WINDOWS
+{ ".VirtualBox" };
 #else
-# define VBOX_USER_HOME_SUFFIX   ".VirtualBox"
+{ ".VirtualBox", szXdgConfigHome };
 #endif
 
 #include "Logging.h"
@@ -175,7 +196,25 @@ HRESULT GlueCreateInstance(const CLSID &clsid,
 
 #endif // VBOX_WITH_XPCOM
 
-int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen)
+static int composeHomePath(char *aDir, size_t aDirLen,
+                           const char *pcszBase)
+{
+    int vrc;
+    if (RTPathStartsWithRoot(pcszBase))
+        vrc = RTStrCopy(aDir, aDirLen, pcszBase);
+    else
+    {
+        /* compose the config directory (full path) */
+        /** @todo r=bird: RTPathUserHome doesn't necessarily return a
+         * full (abs) path like the comment above seems to indicate. */
+        vrc = RTPathUserHome(aDir, aDirLen);
+        if (RT_SUCCESS(vrc))
+            vrc = RTPathAppend(aDir, aDirLen, pcszBase);
+    }
+    return vrc;
+}
+
+int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen, bool fCreateDir)
 {
     AssertReturn(aDir, VERR_INVALID_POINTER);
     AssertReturn(aDirLen > 0, VERR_BUFFER_OVERFLOW);
@@ -187,6 +226,7 @@ int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen)
     int vrc = RTEnvGetEx(RTENV_DEFAULT, "VBOX_USER_HOME", szTmp, sizeof(szTmp), NULL);
     if (RT_SUCCESS(vrc) || vrc == VERR_ENV_VAR_NOT_FOUND)
     {
+        bool fFound = false;
         if (RT_SUCCESS(vrc))
         {
             /* get the full path name */
@@ -194,22 +234,166 @@ int GetVBoxUserHomeDirectory(char *aDir, size_t aDirLen)
         }
         else
         {
-            /* compose the config directory (full path) */
-            /** @todo r=bird: RTPathUserHome doesn't necessarily return a full (abs) path
-             *        like the comment above seems to indicate. */
-            vrc = RTPathUserHome(aDir, aDirLen);
-            if (RT_SUCCESS(vrc))
-                vrc = RTPathAppend(aDir, aDirLen, VBOX_USER_HOME_SUFFIX);
+#if !defined(RT_OS_WINDOWS) && !defined(RT_OS_DARWIN)
+            const char *pcszConfigHome = RTEnvGet("XDG_CONFIG_HOME");
+            if (pcszConfigHome && pcszConfigHome[0])
+            {
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                pcszConfigHome);
+                if (RT_SUCCESS(vrc))
+                    vrc = RTPathAppend(szXdgConfigHome,
+                                       sizeof(szXdgConfigHome),
+                                       "VirtualBox");
+            }
+            else
+                vrc = RTStrCopy(szXdgConfigHome,
+                                sizeof(szXdgConfigHome),
+                                ".config/VirtualBox");
+#endif
+            for (unsigned i = 0; i < RT_ELEMENTS(apcszUserHome); ++i)
+            {
+                vrc = composeHomePath(aDir, aDirLen, apcszUserHome[i]);
+                if (   RT_SUCCESS(vrc)
+                    && RTDirExists(aDir))
+                {
+                    fFound = true;
+                    break;
+                }
+            }
         }
 
         /* ensure the home directory exists */
         if (RT_SUCCESS(vrc))
-            if (!RTDirExists(aDir))
+            if (!fFound && fCreateDir)
                 vrc = RTDirCreateFullPath(aDir, 0700);
     }
 
     return vrc;
 }
+
+static const char *g_pszLogEntity = NULL;
+
+static void vboxHeaderFooter(PRTLOGGER pReleaseLogger, RTLOGPHASE enmPhase, PFNRTLOGPHASEMSG pfnLog)
+{
+    /* some introductory information */
+    static RTTIMESPEC s_TimeSpec;
+    char szTmp[256];
+    if (enmPhase == RTLOGPHASE_BEGIN)
+        RTTimeNow(&s_TimeSpec);
+    RTTimeSpecToString(&s_TimeSpec, szTmp, sizeof(szTmp));
+
+    switch (enmPhase)
+    {
+        case RTLOGPHASE_BEGIN:
+        {
+            bool fOldBuffered = RTLogSetBuffering(pReleaseLogger, true /*fBuffered*/);
+            pfnLog(pReleaseLogger,
+                   "VirtualBox %s %s r%u %s (%s %s) release log\n"
+#ifdef VBOX_BLEEDING_EDGE
+                   "EXPERIMENTAL build " VBOX_BLEEDING_EDGE "\n"
+#endif
+                   "Log opened %s\n",
+                   g_pszLogEntity, VBOX_VERSION_STRING, RTBldCfgRevision(),
+                   RTBldCfgTargetDotArch(), __DATE__, __TIME__, szTmp);
+
+            pfnLog(pReleaseLogger, "Build Type: %s\n", KBUILD_TYPE);
+            int vrc = RTSystemQueryOSInfo(RTSYSOSINFO_PRODUCT, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "OS Product: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_RELEASE, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "OS Release: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_VERSION, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "OS Version: %s\n", szTmp);
+            vrc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "OS Service Pack: %s\n", szTmp);
+
+            vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_NAME, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "DMI Product Name: %s\n", szTmp);
+            vrc = RTSystemQueryDmiString(RTSYSDMISTR_PRODUCT_VERSION, szTmp, sizeof(szTmp));
+            if (RT_SUCCESS(vrc) || vrc == VERR_BUFFER_OVERFLOW)
+                pfnLog(pReleaseLogger, "DMI Product Version: %s\n", szTmp);
+
+            uint64_t cbHostRam = 0, cbHostRamAvail = 0;
+            vrc = RTSystemQueryTotalRam(&cbHostRam);
+            if (RT_SUCCESS(vrc))
+                vrc = RTSystemQueryAvailableRam(&cbHostRamAvail);
+            if (RT_SUCCESS(vrc))
+                pfnLog(pReleaseLogger, "Host RAM: %lluMB total, %lluMB available\n",
+                       cbHostRam / _1M, cbHostRamAvail / _1M);
+
+            /* the package type is interesting for Linux distributions */
+            char szExecName[RTPATH_MAX];
+            char *pszExecName = RTProcGetExecutablePath(szExecName, sizeof(szExecName));
+            pfnLog(pReleaseLogger,
+                   "Executable: %s\n"
+                   "Process ID: %u\n"
+                   "Package type: %s"
+#ifdef VBOX_OSE
+                   " (OSE)"
+#endif
+                   "\n",
+                   pszExecName ? pszExecName : "unknown",
+                   RTProcSelf(),
+                   VBOX_PACKAGE_STRING);
+            RTLogSetBuffering(pReleaseLogger, fOldBuffered);
+            break;
+        }
+        case RTLOGPHASE_PREROTATE:
+            pfnLog(pReleaseLogger, "Log rotated - Log started %s\n", szTmp);
+            break;
+
+        case RTLOGPHASE_POSTROTATE:
+            pfnLog(pReleaseLogger, "Log continuation - Log started %s\n", szTmp);
+            break;
+
+        case RTLOGPHASE_END:
+            pfnLog(pReleaseLogger, "End of log file - Log started %s\n", szTmp);
+            break;
+
+        default:
+            /* nothing */;
+    }
+}
+
+int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
+                     uint32_t fFlags, const char *pcszGroupSettings,
+                     const char *pcszEnvVarBase, uint32_t fDestFlags,
+                     uint32_t cMaxEntriesPerGroup, uint32_t cHistory,
+                     uint32_t uHistoryFileTime, uint64_t uHistoryFileSize,
+                     char *pszError, size_t cbError)
+{
+    Assert(cbError >= RTPATH_MAX + 128);
+
+    /* create release logger */
+    PRTLOGGER pReleaseLogger;
+    static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
+#if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
+    fFlags |= RTLOGFLAGS_USECRLF;
+#endif
+    g_pszLogEntity = pcszEntity;
+    int vrc = RTLogCreateEx(&pReleaseLogger, fFlags, pcszGroupSettings,
+                            pcszEnvVarBase, RT_ELEMENTS(s_apszGroups), s_apszGroups, fDestFlags,
+                            vboxHeaderFooter, cHistory, uHistoryFileSize, uHistoryFileTime,
+                            pszError, cbError, pcszLogFile);
+    if (RT_SUCCESS(vrc))
+    {
+        /* make sure that we don't flood logfiles */
+        RTLogSetGroupLimit(pReleaseLogger, cMaxEntriesPerGroup);
+
+        /* explicitly flush the log, to have some info when buffering */
+        RTLogFlush(pReleaseLogger);
+
+        /* register this logger as the release logger */
+        RTLogRelSetDefaultInstance(pReleaseLogger);
+    }
+    return vrc;
+}
+
 
 /* static */
 const Guid Guid::Empty; /* default ctor is OK */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -126,6 +126,13 @@ RTDECL(uint32_t) ASMAtomicAddU32(uint32_t volatile *pu32, uint32_t u32)
     return u32Old;
 }
 
+RTDECL(uint64_t) ASMAtomicAddU64(uint64_t volatile *pu64, uint64_t u64)
+{
+    uint64_t u64Old = *pu64;
+    *pu64 = u64Old + u64;
+    return u64Old;
+}
+
 RTDECL(uint32_t) ASMAtomicIncU32(uint32_t volatile *pu32)
 {
     return *pu32 += 1;
@@ -136,6 +143,16 @@ RTDECL(uint32_t) ASMAtomicDecU32(uint32_t volatile *pu32)
     return *pu32 -= 1;
 }
 
+RTDECL(uint64_t) ASMAtomicIncU64(uint64_t volatile *pu64)
+{
+    return *pu64 += 1;
+}
+
+RTDECL(uint64_t) ASMAtomicDecU64(uint64_t volatile *pu64)
+{
+    return *pu64 -= 1;
+}
+
 RTDECL(void) ASMAtomicOrU32(uint32_t volatile *pu32, uint32_t u32)
 {
     *pu32 |= u32;
@@ -144,6 +161,16 @@ RTDECL(void) ASMAtomicOrU32(uint32_t volatile *pu32, uint32_t u32)
 RTDECL(void) ASMAtomicAndU32(uint32_t volatile *pu32, uint32_t u32)
 {
     *pu32 &= u32;
+}
+
+RTDECL(void) ASMAtomicOrU64(uint64_t volatile *pu64, uint64_t u64)
+{
+    *pu64 |= u64;
+}
+
+RTDECL(void) ASMAtomicAndU64(uint64_t volatile *pu64, uint64_t u64)
+{
+    *pu64 &= u64;
 }
 
 RTDECL(void) ASMSerializeInstruction(void)
@@ -201,8 +228,8 @@ RTDECL(void) ASMNopPause(void)
 
 RTDECL(void) ASMBitSet(volatile void *pvBitmap, int32_t iBit)
 {
-    uint32_t volatile *pau32Bitmap = (uint32_t volatile *)pvBitmap;
-    pau32Bitmap[iBit / 32] |= RT_BIT_32(iBit & 31);
+    uint8_t volatile *pau8Bitmap = (uint8_t volatile *)pvBitmap;
+    pau8Bitmap[iBit / 8] |= (uint8_t)RT_BIT_32(iBit & 7);
 }
 
 RTDECL(void) ASMAtomicBitSet(volatile void *pvBitmap, int32_t iBit)
@@ -212,8 +239,8 @@ RTDECL(void) ASMAtomicBitSet(volatile void *pvBitmap, int32_t iBit)
 
 RTDECL(void) ASMBitClear(volatile void *pvBitmap, int32_t iBit)
 {
-    uint32_t volatile *pau32Bitmap = (uint32_t volatile *)pvBitmap;
-    pau32Bitmap[iBit / 32] &= ~RT_BIT_32(iBit & 31);
+    uint8_t volatile *pau8Bitmap = (uint8_t volatile *)pvBitmap;
+    pau8Bitmap[iBit / 8] &= ~((uint8_t)RT_BIT_32(iBit & 7));
 }
 
 RTDECL(void) ASMAtomicBitClear(volatile void *pvBitmap, int32_t iBit)
@@ -223,8 +250,8 @@ RTDECL(void) ASMAtomicBitClear(volatile void *pvBitmap, int32_t iBit)
 
 RTDECL(void) ASMBitToggle(volatile void *pvBitmap, int32_t iBit)
 {
-    uint32_t volatile *pau32Bitmap = (uint32_t volatile *)pvBitmap;
-    pau32Bitmap[iBit / 32] ^= RT_BIT_32(iBit & 31);
+    uint8_t volatile *pau8Bitmap = (uint8_t volatile *)pvBitmap;
+    pau8Bitmap[iBit / 8] ^= (uint8_t)RT_BIT_32(iBit & 7);
 }
 
 RTDECL(void) ASMAtomicBitToggle(volatile void *pvBitmap, int32_t iBit)
@@ -272,22 +299,23 @@ RTDECL(bool) ASMAtomicBitTestAndToggle(volatile void *pvBitmap, int32_t iBit)
 
 RTDECL(bool) ASMBitTest(const volatile void *pvBitmap, int32_t iBit)
 {
-    uint32_t volatile *pau32Bitmap = (uint32_t volatile *)pvBitmap;
-    return pau32Bitmap[iBit / 32] & RT_BIT_32(iBit & 31) ? true : false;
+    uint8_t volatile *pau8Bitmap = (uint8_t volatile *)pvBitmap;
+    return  pau8Bitmap[iBit / 8] & (uint8_t)RT_BIT_32(iBit & 7) ? true : false;
 }
 
 RTDECL(int) ASMBitFirstClear(const volatile void *pvBitmap, uint32_t cBits)
 {
     uint32_t           iBit = 0;
-    uint32_t volatile *pu32 = (uint32_t volatile *)pvBitmap;
+    uint8_t volatile *pu8 = (uint8_t volatile *)pvBitmap;
+
     while (iBit < cBits)
     {
-        uint32_t u32 = *pu32;
-        if (u32 != UINT32_MAX)
+        uint8_t u8 = *pu8;
+        if (u8 != UINT8_MAX)
         {
-            while (u32 & 1)
+            while (u8 & 1)
             {
-                u32 >>= 1;
+                u8 >>= 1;
                 iBit++;
             }
             if (iBit >= cBits)
@@ -295,28 +323,28 @@ RTDECL(int) ASMBitFirstClear(const volatile void *pvBitmap, uint32_t cBits)
             return iBit;
         }
 
-        iBit += 32;
-        pu32++;
+        iBit += 8;
+        pu8++;
     }
     return -1;
 }
 
 RTDECL(int) ASMBitNextClear(const volatile void *pvBitmap, uint32_t cBits, uint32_t iBitPrev)
 {
-    const volatile uint32_t *pau32Bitmap = (const volatile uint32_t *)pvBitmap;
-    int                      iBit = ++iBitPrev & 31;
+    const volatile uint8_t *pau8Bitmap = (const volatile uint8_t *)pvBitmap;
+    int                      iBit = ++iBitPrev & 7;
     if (iBit)
     {
         /*
-         * Inspect the 32-bit word containing the unaligned bit.
+         * Inspect the byte containing the unaligned bit.
          */
-        uint32_t u32 = ~pau32Bitmap[iBitPrev / 32] >> iBit;
-        if (u32)
+        uint8_t u8 = ~pau8Bitmap[iBitPrev / 8] >> iBit;
+        if (u8)
         {
             iBit = 0;
-            while (!(u32 & 1))
+            while (!(u8 & 1))
             {
-                u32 >>= 1;
+                u8 >>= 1;
                 iBit++;
             }
             return iBitPrev + iBit;
@@ -325,16 +353,16 @@ RTDECL(int) ASMBitNextClear(const volatile void *pvBitmap, uint32_t cBits, uint3
         /*
          * Skip ahead and see if there is anything left to search.
          */
-        iBitPrev |= 31;
+        iBitPrev |= 7;
         iBitPrev++;
-        if (cBits <= (uint32_t)iBitPrev)
+        if (cBits <= iBitPrev)
             return -1;
     }
 
     /*
-     * 32-bit aligned search, let ASMBitFirstClear do the dirty work.
+     * Byte search, let ASMBitFirstClear do the dirty work.
      */
-    iBit = ASMBitFirstClear(&pau32Bitmap[iBitPrev / 32], cBits - iBitPrev);
+    iBit = ASMBitFirstClear(&pau8Bitmap[iBitPrev / 8], cBits - iBitPrev);
     if (iBit >= 0)
         iBit += iBitPrev;
     return iBit;
@@ -343,15 +371,15 @@ RTDECL(int) ASMBitNextClear(const volatile void *pvBitmap, uint32_t cBits, uint3
 RTDECL(int) ASMBitFirstSet(const volatile void *pvBitmap, uint32_t cBits)
 {
     uint32_t           iBit = 0;
-    uint32_t volatile *pu32 = (uint32_t volatile *)pvBitmap;
+    uint8_t volatile *pu8 = (uint8_t volatile *)pvBitmap;
     while (iBit < cBits)
     {
-        uint32_t u32 = *pu32;
-        if (u32 != 0)
+        uint8_t u8 = *pu8;
+        if (u8 != 0)
         {
-            while (!(u32 & 1))
+            while (!(u8 & 1))
             {
-                u32 >>= 1;
+                u8 >>= 1;
                 iBit++;
             }
             if (iBit >= cBits)
@@ -359,28 +387,28 @@ RTDECL(int) ASMBitFirstSet(const volatile void *pvBitmap, uint32_t cBits)
             return iBit;
         }
 
-        iBit += 32;
-        pu32++;
+        iBit += 8;
+        pu8++;
     }
     return -1;
 }
 
 RTDECL(int) ASMBitNextSet(const volatile void *pvBitmap, uint32_t cBits, uint32_t iBitPrev)
 {
-    const volatile uint32_t *pau32Bitmap = (const volatile uint32_t *)pvBitmap;
-    int                      iBit = ++iBitPrev & 31;
+    const volatile uint8_t *pau8Bitmap = (const volatile uint8_t *)pvBitmap;
+    int                      iBit = ++iBitPrev & 7;
     if (iBit)
     {
         /*
-         * Inspect the 32-bit word containing the unaligned bit.
+         * Inspect the byte containing the unaligned bit.
          */
-        uint32_t u32 = pau32Bitmap[iBitPrev / 32] >> iBit;
-        if (u32)
+        uint8_t u8 = pau8Bitmap[iBitPrev / 8] >> iBit;
+        if (u8)
         {
             iBit = 0;
-            while (!(u32 & 1))
+            while (!(u8 & 1))
             {
-                u32 >>= 1;
+                u8 >>= 1;
                 iBit++;
             }
             return iBitPrev + iBit;
@@ -389,16 +417,16 @@ RTDECL(int) ASMBitNextSet(const volatile void *pvBitmap, uint32_t cBits, uint32_
         /*
          * Skip ahead and see if there is anything left to search.
          */
-        iBitPrev |= 31;
+        iBitPrev |= 7;
         iBitPrev++;
-        if (cBits <= (uint32_t)iBitPrev)
+        if (cBits <= iBitPrev)
             return -1;
     }
 
     /*
-     * 32-bit aligned search, let ASMBitFirstSet do the dirty work.
+     * Byte search, let ASMBitFirstSet do the dirty work.
      */
-    iBit = ASMBitFirstSet(&pau32Bitmap[iBitPrev / 32], cBits - iBitPrev);
+    iBit = ASMBitFirstSet(&pau8Bitmap[iBitPrev / 8], cBits - iBitPrev);
     if (iBit >= 0)
         iBit += iBitPrev;
     return iBit;
@@ -430,5 +458,11 @@ RTDECL(uint16_t) ASMByteSwapU16(uint16_t u16)
 RTDECL(uint32_t) ASMByteSwapU32(uint32_t u32)
 {
     return RT_MAKE_U32_FROM_U8(RT_BYTE4(u32), RT_BYTE3(u32), RT_BYTE2(u32), RT_BYTE1(u32));
+}
+
+RTDECL(uint64_t) ASMByteSwapU64(uint64_t u64)
+{
+    return RT_MAKE_U64_FROM_U8(RT_BYTE8(u64), RT_BYTE7(u64), RT_BYTE6(u64), RT_BYTE5(u64),
+                               RT_BYTE4(u64), RT_BYTE3(u64), RT_BYTE2(u64), RT_BYTE1(u64));
 }
 

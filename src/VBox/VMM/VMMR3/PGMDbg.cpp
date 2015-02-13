@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #include <VBox/vmm/stam.h>
 #include "PGMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include "PGMInline.h"
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -48,7 +49,7 @@
  */
 typedef struct PGMR3DUMPHIERARCHYSTATE
 {
-    /** The VM handle. */
+    /** Pointer to the VM. */
     PVM             pVM;
     /** Output helpers. */
     PCDBGFINFOHLP   pHlp;
@@ -102,12 +103,13 @@ typedef PGMR3DUMPHIERARCHYSTATE *PPGMR3DUMPHIERARCHYSTATE;
  * @retval  VINF_SUCCESS on success, *pGCPhys is set.
  * @retval  VERR_INVALID_POINTER if the pointer is not within the GC physical memory.
  *
- * @param   pVM         The VM handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   R3Ptr       The R3 pointer to convert.
  * @param   pGCPhys     Where to store the GC physical address on success.
  */
-VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PVM pVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
+VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PUVM pUVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
 {
+    NOREF(pUVM); NOREF(R3Ptr);
     *pGCPhys = NIL_RTGCPHYS;
     return VERR_NOT_IMPLEMENTED;
 }
@@ -123,12 +125,13 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2GCPhys(PVM pVM, RTR3PTR R3Ptr, PRTGCPHYS pGCPhys)
  * @retval  VERR_PGM_PHYS_PAGE_RESERVED it it's a valid GC physical page but has no physical backing.
  * @retval  VERR_INVALID_POINTER if the pointer is not within the GC physical memory.
  *
- * @param   pVM         The VM handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   R3Ptr       The R3 pointer to convert.
  * @param   pHCPhys     Where to store the HC physical address on success.
  */
-VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
+VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PUVM pUVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
 {
+    NOREF(pUVM); NOREF(R3Ptr);
     *pHCPhys = NIL_RTHCPHYS;
     return VERR_NOT_IMPLEMENTED;
 }
@@ -143,12 +146,15 @@ VMMR3DECL(int) PGMR3DbgR3Ptr2HCPhys(PVM pVM, RTR3PTR R3Ptr, PRTHCPHYS pHCPhys)
  * @retval  VINF_SUCCESS on success, *pGCPhys is set.
  * @retval  VERR_INVALID_POINTER if the HC physical address is not within the GC physical memory.
  *
- * @param   pVM     The VM handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   HCPhys  The HC physical address to convert.
  * @param   pGCPhys Where to store the GC physical address on success.
  */
-VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys)
+VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PUVM pUVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     /*
      * Validate and adjust the input a bit.
      */
@@ -159,7 +165,7 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys
     if (HCPhys == 0)
         return VERR_INVALID_POINTER;
 
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRangesX);
+    for (PPGMRAMRANGE pRam = pUVM->pVM->pgm.s.CTX_SUFF(pRamRangesX);
          pRam;
          pRam = pRam->CTX_SUFF(pNext))
     {
@@ -181,7 +187,7 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pvDst       Where to store what's read.
  * @param   GCPhysDst   Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
@@ -190,7 +196,7 @@ VMMR3DECL(int) PGMR3DbgHCPhys2GCPhys(PVM pVM, RTHCPHYS HCPhys, PRTGCPHYS pGCPhys
  *                      partial reads are unwanted.
  * @todo    Unused?
  */
-VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size_t cb, uint32_t fFlags, size_t *pcbRead)
+VMMR3_INT_DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size_t cb, uint32_t fFlags, size_t *pcbRead)
 {
     /* validate */
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
@@ -203,7 +209,6 @@ VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size
 
     /* partial read that failed, chop it up in pages. */
     *pcbRead = 0;
-    size_t const cbReq = cb;
     rc = VINF_SUCCESS;
     while (cb > 0)
     {
@@ -233,7 +238,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhysDst   Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -242,7 +247,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPhys(PVM pVM, void *pvDst, RTGCPHYS GCPhysSrc, size
  *                      if partial writes are unwanted.
  * @todo    Unused?
  */
-VMMR3DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSrc, size_t cb, uint32_t fFlags, size_t *pcbWritten)
+VMMR3_INT_DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSrc, size_t cb, uint32_t fFlags, size_t *pcbWritten)
 {
     /* validate */
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
@@ -284,7 +289,7 @@ VMMR3DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSr
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pvDst       Where to store what's read.
  * @param   GCPtrDst    Where to start reading from.
  * @param   cb          The number of bytes to attempt reading.
@@ -293,7 +298,7 @@ VMMR3DECL(int) PGMR3DbgWriteGCPhys(PVM pVM, RTGCPHYS GCPhysDst, const void *pvSr
  *                      partial reads are unwanted.
  * @todo    Unused?
  */
-VMMR3DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb, uint32_t fFlags, size_t *pcbRead)
+VMMR3_INT_DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t cb, uint32_t fFlags, size_t *pcbRead)
 {
     /* validate */
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
@@ -340,7 +345,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtrDst    Where to start writing.
  * @param   pvSrc       What to write.
  * @param   cb          The number of bytes to attempt writing.
@@ -349,7 +354,7 @@ VMMR3DECL(int) PGMR3DbgReadGCPtr(PVM pVM, void *pvDst, RTGCPTR GCPtrSrc, size_t 
  *                      if partial writes are unwanted.
  * @todo    Unused?
  */
-VMMR3DECL(int) PGMR3DbgWriteGCPtr(PVM pVM, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, uint32_t fFlags, size_t *pcbWritten)
+VMMR3_INT_DECL(int) PGMR3DbgWriteGCPtr(PVM pVM, RTGCPTR GCPtrDst, void const *pvSrc, size_t cb, uint32_t fFlags, size_t *pcbWritten)
 {
     /* validate */
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
@@ -559,7 +564,7 @@ static bool pgmR3DbgScanPage(const uint8_t *pbPage, int32_t *poff, uint32_t cb, 
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   GCPhys          Where to start searching.
  * @param   cbRange         The number of bytes to search.
  * @param   GCPhysAlign     The alignment of the needle. Must be a power of two
@@ -568,8 +573,8 @@ static bool pgmR3DbgScanPage(const uint8_t *pbPage, int32_t *poff, uint32_t cb, 
  * @param   cbNeedle        The length of the byte string. Max 256 bytes.
  * @param   pGCPhysHit      Where to store the address of the first occurrence on success.
  */
-VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, RTGCPHYS GCPhysAlign,
-                                    const uint8_t *pabNeedle, size_t cbNeedle, PRTGCPHYS pGCPhysHit)
+VMMR3_INT_DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, RTGCPHYS GCPhysAlign,
+                                         const uint8_t *pabNeedle, size_t cbNeedle, PRTGCPHYS pGCPhysHit)
 {
     /*
      * Validate and adjust the input a bit.
@@ -653,10 +658,10 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
             for (;; offPage = 0)
             {
                 PPGMPAGE pPage = &pRam->aPages[iPage];
-                if (    (   !PGM_PAGE_IS_ZERO(pPage)
-                         || fAllZero)
-                    &&  !PGM_PAGE_IS_BALLOONED(pPage)
-                    &&  !PGM_PAGE_IS_MMIO(pPage))
+                if (   (   !PGM_PAGE_IS_ZERO(pPage)
+                        || fAllZero)
+                    && !PGM_PAGE_IS_MMIO_OR_ALIAS(pPage)
+                    && !PGM_PAGE_IS_BALLOONED(pPage))
                 {
                     void const     *pvPage;
                     PGMPAGEMAPLOCK  Lock;
@@ -718,7 +723,7 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
  * @retval  VERR_INVALID_POINTER if any of the pointer arguments are invalid.
  * @retval  VERR_INVALID_ARGUMENT if any other arguments are invalid.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   pVCpu           The CPU context to search in.
  * @param   GCPtr           Where to start searching.
  * @param   GCPtrAlign      The alignment of the needle. Must be a power of two
@@ -728,8 +733,8 @@ VMMR3DECL(int) PGMR3DbgScanPhysical(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cbRange, 
  * @param   cbNeedle        The length of the byte string.
  * @param   pGCPtrHit       Where to store the address of the first occurrence on success.
  */
-VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR cbRange, RTGCPTR GCPtrAlign,
-                                   const uint8_t *pabNeedle, size_t cbNeedle, PRTGCUINTPTR pGCPtrHit)
+VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR cbRange, RTGCPTR GCPtrAlign,
+                                        const uint8_t *pabNeedle, size_t cbNeedle, PRTGCUINTPTR pGCPtrHit)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -769,11 +774,15 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
         cbRange -= Adj;
     }
 
+    /* Only paged protected mode or long mode here, use the physical scan for
+       the other modes. */
+    PGMMODE enmMode   = PGMGetGuestMode(pVCpu);
+    AssertReturn(PGMMODE_WITH_PAGING(enmMode), VERR_PGM_NOT_USED_IN_MODE);
+
     /*
      * Search the memory - ignore MMIO, zero and not-present pages.
      */
     const bool      fAllZero  = ASMMemIsAll8(pabNeedle, cbNeedle, 0) == NULL;
-    PGMMODE         enmMode   = PGMGetGuestMode(pVCpu);
     RTGCPTR         GCPtrMask = PGMMODE_IS_LONG_MODE(enmMode) ? UINT64_MAX : UINT32_MAX;
     uint8_t         abPrev[MAX_NEEDLE_SIZE];
     size_t          cbPrev    = 0;
@@ -788,20 +797,20 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
     GCPtr &= ~(RTGCPTR)PAGE_OFFSET_MASK;
     for (;; offPage = 0)
     {
-        RTGCPHYS GCPhys;
-        int rc = PGMPhysGCPtr2GCPhys(pVCpu, GCPtr, &GCPhys);
-        if (RT_SUCCESS(rc))
+        PGMPTWALKGST Walk;
+        int rc = pgmGstPtWalk(pVCpu, GCPtr, &Walk);
+        if (RT_SUCCESS(rc) && Walk.u.Core.fSucceeded)
         {
-            PPGMPAGE pPage = pgmPhysGetPage(pVM, GCPhys);
-            if (    pPage
-                &&  (   !PGM_PAGE_IS_ZERO(pPage)
-                     || fAllZero)
-                &&  !PGM_PAGE_IS_BALLOONED(pPage)
-                &&  !PGM_PAGE_IS_MMIO(pPage))
+            PPGMPAGE pPage = pgmPhysGetPage(pVM, Walk.u.Core.GCPhys);
+            if (   pPage
+                && (   !PGM_PAGE_IS_ZERO(pPage)
+                    || fAllZero)
+                && !PGM_PAGE_IS_MMIO_OR_ALIAS(pPage)
+                && !PGM_PAGE_IS_BALLOONED(pPage))
             {
                 void const *pvPage;
                 PGMPAGEMAPLOCK Lock;
-                rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, GCPhys, &pvPage, &Lock);
+                rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, Walk.u.Core.GCPhys, &pvPage, &Lock);
                 if (RT_SUCCESS(rc))
                 {
                     int32_t offHit = offPage;
@@ -831,13 +840,70 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
                 cbPrev = 0;
         }
         else
+        {
+            Assert(Walk.enmType != PGMPTWALKGSTTYPE_INVALID);
+            Assert(!Walk.u.Core.fSucceeded);
             cbPrev = 0; /* ignore error. */
+
+            /*
+             * Try skip as much as possible. No need to figure out that a PDE
+             * is not present 512 times!
+             */
+            uint64_t cPagesCanSkip;
+            switch (Walk.u.Core.uLevel)
+            {
+                case 1:
+                    /* page level, use cIncPages */
+                    cPagesCanSkip = 1;
+                    break;
+                case 2:
+                    if (Walk.enmType == PGMPTWALKGSTTYPE_32BIT)
+                    {
+                        cPagesCanSkip = X86_PG_ENTRIES     - ((GCPtr >> X86_PT_SHIFT)     & X86_PT_MASK);
+                        Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT)) & (RT_BIT_64(X86_PD_SHIFT) - 1)));
+                    }
+                    else
+                    {
+                        cPagesCanSkip = X86_PG_PAE_ENTRIES - ((GCPtr >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK);
+                        Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT)) & (RT_BIT_64(X86_PD_PAE_SHIFT) - 1)));
+                    }
+                    break;
+                case 3:
+                    cPagesCanSkip = (X86_PG_PAE_ENTRIES - ((GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK)) * X86_PG_PAE_ENTRIES
+                                  - ((GCPtr >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK);
+                    Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT)) & (RT_BIT_64(X86_PDPT_SHIFT) - 1)));
+                    break;
+                case 4:
+                    cPagesCanSkip =   (X86_PG_PAE_ENTRIES  - ((GCPtr >> X86_PDPT_SHIFT) & X86_PDPT_MASK_AMD64))
+                                    * X86_PG_PAE_ENTRIES * X86_PG_PAE_ENTRIES
+                                  - ((((GCPtr >> X86_PD_PAE_SHIFT) & X86_PD_PAE_MASK)) * X86_PG_PAE_ENTRIES)
+                                  - ((  GCPtr >> X86_PT_PAE_SHIFT) & X86_PT_PAE_MASK);
+                    Assert(!((GCPtr + ((RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT)) & (RT_BIT_64(X86_PML4_SHIFT) - 1)));
+                    break;
+                case 8:
+                    /* The CR3 value is bad, forget the whole search. */
+                    cPagesCanSkip = cPages;
+                    break;
+                default:
+                    AssertMsgFailed(("%d\n", Walk.u.Core.uLevel));
+                    cPagesCanSkip = 0;
+                    break;
+            }
+            if (cPages <= cPagesCanSkip)
+                break;
+            if (cPagesCanSkip >= cIncPages)
+            {
+                cPages -= cPagesCanSkip;
+                GCPtr += (RTGCPTR)cPagesCanSkip << X86_PT_PAE_SHIFT;
+                continue;
+            }
+        }
 
         /* advance to the next page. */
         if (cPages <= cIncPages)
             break;
         cPages -= cIncPages;
-        GCPtr += (RTGCPTR)cIncPages << PAGE_SHIFT;
+        GCPtr += (RTGCPTR)cIncPages << X86_PT_PAE_SHIFT;
     }
     return VERR_DBGF_MEM_NOT_FOUND;
 }
@@ -847,7 +913,7 @@ VMMR3DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RTGCPTR
  * Initializes the dumper state.
  *
  * @param   pState          The state to initialize.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fFlags          The flags.
  * @param   u64FirstAddr    The first address.
  * @param   u64LastAddr     The last address.
@@ -1036,7 +1102,7 @@ static void pgmR3DumpHierarchyShwGuestPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
 {
     char        szPage[80];
     RTGCPHYS    GCPhys;
-    int rc = PGMR3DbgHCPhys2GCPhys(pState->pVM, HCPhys, &GCPhys);
+    int rc = PGMR3DbgHCPhys2GCPhys(pState->pVM->pUVM, HCPhys, &GCPhys);
     if (RT_SUCCESS(rc))
     {
         pgmLock(pState->pVM);
@@ -1058,6 +1124,7 @@ static void pgmR3DumpHierarchyShwGuestPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, 
         else
             pState->pHlp->pfnPrintf(pState->pHlp, " not found");
     }
+    NOREF(cbPage);
 }
 
 
@@ -1323,7 +1390,7 @@ static int  pgmR3DumpHierarchyShwPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   HCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -1400,7 +1467,7 @@ static int pgmR3DumpHierarchyShwPaePML4(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pPT         Pointer to the page table.
  * @param   fMapping    Set if it's a guest mapping.
  */
@@ -1465,7 +1532,7 @@ static int pgmR3DumpHierarchyShw32BitPD(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
     cMaxDepth--;
 
     uint32_t iFirst, iLast;
-    uint64_t u64BaseAddress = pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
+    pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
     for (uint32_t i = iFirst; i <= iLast; i++)
     {
         X86PDE Pde = pPD->a[i];
@@ -1627,7 +1694,7 @@ static int pgmR3DumpHierarchyShwDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   u64FirstAddr    The start address.
@@ -1655,7 +1722,7 @@ VMMR3_INT_DECL(int) PGMR3DumpHierarchyShw(PVM pVM, uint64_t cr3, uint32_t fFlags
  * Dumps a page table hierarchy use only physical addresses and cr4/lm flags.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   cr3         The root of the hierarchy.
  * @param   cr4         The cr4, only PAE and PSE is currently used.
  * @param   fLongMode   Set if long mode, false if not long mode.
@@ -1678,7 +1745,7 @@ VMMR3DECL(int) PGMR3DumpHierarchyHC(PVM pVM, uint64_t cr3, uint64_t cr4, bool fL
     if (fLongMode)
         fFlags |= DBGFPGDMP_FLAGS_LME;
 
-    return DBGFR3PagingDumpEx(pVM, pVCpu->idCpu, fFlags, cr3, 0, fLongMode ? UINT64_MAX : UINT32_MAX, cMaxDepth, pHlp);
+    return DBGFR3PagingDumpEx(pVM->pUVM, pVCpu->idCpu, fFlags, cr3, 0, fLongMode ? UINT64_MAX : UINT32_MAX, cMaxDepth, pHlp);
 }
 
 
@@ -1725,6 +1792,7 @@ static void pgmR3DumpHierarchyGstPageInfo(PPGMR3DUMPHIERARCHYSTATE pState, RTGCP
         strcpy(szPage, " not found");
     pgmUnlock(pState->pVM);
     pState->pHlp->pfnPrintf(pState->pHlp, "%s", szPage);
+    NOREF(cbPage);
 }
 
 
@@ -1995,7 +2063,7 @@ static int  pgmR3DumpHierarchyGstPaePDPT(PPGMR3DUMPHIERARCHYSTATE pState, RTGCPH
  * Dumps a 32-bit shadow page table.
  *
  * @returns VBox status code (VINF_SUCCESS).
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhys      The physical address of the table.
  * @param   cMaxDepth   The maximum depth.
  */
@@ -2142,7 +2210,7 @@ static int pgmR3DumpHierarchyGst32BitPD(PPGMR3DUMPHIERARCHYSTATE pState, RTHCPHY
     cMaxDepth--;
 
     uint32_t iFirst, iLast;
-    uint64_t u64BaseAddress = pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
+    pgmR3DumpHierarchyCalcRange(pState, X86_PD_SHIFT, X86_PG_ENTRIES, &iFirst, &iLast);
     for (uint32_t i = iFirst; i <= iLast; i++)
     {
         X86PDE Pde = pPD->a[i];
@@ -2304,7 +2372,7 @@ static int pgmR3DumpHierarchyGstDoIt(PPGMR3DUMPHIERARCHYSTATE pState, uint64_t c
  * dbgfR3PagingDumpEx worker.
  *
  * @returns VBox status code.
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   cr3             The CR3 register value.
  * @param   fFlags          The flags, DBGFPGDMP_FLAGS_XXX.
  * @param   FirstAddr       The start address.

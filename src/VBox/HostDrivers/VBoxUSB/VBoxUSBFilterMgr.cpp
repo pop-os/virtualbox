@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,11 +45,10 @@
 #ifdef VBOXUSBFILTERMGR_USB_SPINLOCK
 
 # define VBOXUSBFILTERMGR_LOCK() \
-    RTSPINLOCKTMP Tmp = RTSPINLOCKTMP_INITIALIZER; \
-    RTSpinlockAcquireNoInts(g_Spinlock, &Tmp)
+    RTSpinlockAcquire(g_Spinlock)
 
 # define VBOXUSBFILTERMGR_UNLOCK() \
-    RTSpinlockReleaseNoInts(g_Spinlock, &Tmp)
+    RTSpinlockRelease(g_Spinlock)
 
 #else
 
@@ -123,7 +122,7 @@ static VBOXUSBFILTERLIST    g_aLists[USBFILTERTYPE_END];
 int VBoxUSBFilterInit(void)
 {
 #ifdef VBOXUSBFILTERMGR_USB_SPINLOCK
-    int rc = RTSpinlockCreate(&g_Spinlock);
+    int rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxUSBFilter");
 #else
     int rc = RTSemFastMutexCreate(&g_Mtx);
 #endif

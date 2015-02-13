@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,53 +40,41 @@ protected:
 
 private slots:
 
-    /* Slot to perform guest resize: */
-    void sltPerformGuestResize(const QSize &size = QSize());
-
     /* Console callback handlers: */
     void sltAdditionsStateChanged();
-
-    /* Watch dog for desktop resizes: */
-    void sltDesktopResized();
-
-#ifdef Q_WS_X11
-    /* Slot to perform synchronized geometry normalization.
-     * Currently its only required under X11 as of its async nature: */
-    virtual void sltNormalizeGeometry() { normalizeGeometry(true); }
-#endif /* Q_WS_X11 */
 
 private:
 
     /* Event handlers: */
-    bool event(QEvent *pEvent);
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Prepare helpers: */
     void prepareCommon();
     void prepareFilters();
-    void prepareConnections();
     void prepareConsoleConnections();
     //void loadMachineViewSettings();
 
     /* Cleanup helpers: */
     void saveMachineViewSettings();
     //void cleanupConsoleConnections() {}
-    //void prepareConnections() {}
     //void cleanupFilters() {}
     //void cleanupCommon() {}
 
     /* Hidden setters: */
     void setGuestAutoresizeEnabled(bool bEnabled);
 
+    /** Resends guest size-hint if necessary. */
+    void maybeResendSizeHint();
+
+    /** Adjusts guest-screen size to correspond current <i>machine-window</i> size. */
+    void adjustGuestScreenSize();
+
     /* Private helpers: */
-    void normalizeGeometry(bool fAdjustPosition);
-    QRect workingArea();
-    void calculateDesktopGeometry();
-    void maybeRestrictMinimumSize();
+    QRect workingArea() const;
+    QSize calculateMaxGuestSize() const;
 
     /* Private members: */
     bool m_bIsGuestAutoresizeEnabled : 1;
-    bool m_fShouldWeDoResize : 1;
 
     /* Friend classes: */
     friend class UIMachineView;

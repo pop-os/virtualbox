@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2005-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,6 @@
 #define ____H_CONSOLEIMPL
 
 #include "VirtualBoxBase.h"
-#include "SchemaDefs.h"
 #include "VBox/com/array.h"
 #include "EventImpl.h"
 
@@ -33,10 +32,9 @@ class OUSBDevice;
 class RemoteUSBDevice;
 class SharedFolder;
 class VRDEServerInfo;
+class EmulatedUSB;
 class AudioSniffer;
-#ifdef VBOX_WITH_USB_VIDEO
-class UsbWebcamInterface;
-#endif
+class Nvram;
 #ifdef VBOX_WITH_USB_CARDREADER
 class UsbCardReader;
 #endif
@@ -48,7 +46,10 @@ COM_STRUCT_OR_CLASS(IEventListener);
 #ifdef VBOX_WITH_EXTPACK
 class ExtPackManager;
 #endif
+class VMMDevMouseInterface;
+class DisplayMouseInterface;
 
+#include <iprt/memsafer.h>
 #include <VBox/RemoteDesktop/VRDE.h>
 #include <VBox/vmm/pdmdrv.h>
 #ifdef VBOX_WITH_GUEST_PROPS
@@ -63,6 +64,7 @@ struct VUSBIRHCONFIG;
 typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
 
 #include <list>
+#include <vector>
 
 // defines
 ///////////////////////////////////////////////////////////////////////////////
@@ -87,10 +89,21 @@ typedef struct VUSBIRHCONFIG *PVUSBIRHCONFIG;
 // Console
 ///////////////////////////////////////////////////////////////////////////////
 
+class ConsoleMouseInterface
+{
+public:
+    virtual VMMDevMouseInterface  *getVMMDevMouseInterface()  = 0;
+    virtual DisplayMouseInterface *getDisplayMouseInterface() = 0;
+    virtual void onMouseCapabilityChange(BOOL supportsAbsolute,
+                                         BOOL supportsRelative,
+                                         BOOL supportsMT,
+                                         BOOL needsHostCursor) = 0;
+};
+
 /** IConsole implementation class */
 class ATL_NO_VTABLE Console :
     public VirtualBoxBase,
-    VBOX_SCRIPTABLE_IMPL(IConsole)
+    VBOX_SCRIPTABLE_IMPL(IConsole), public ConsoleMouseInterface
 {
     Q_OBJECT
 
@@ -113,7 +126,7 @@ public:
     void FinalRelease();
 
     // public initializers/uninitializers for internal purposes only
-    HRESULT init(IMachine *aMachine, IInternalMachineControl *aControl);
+    HRESULT init(IMachine *aMachine, IInternalMachineControl *aControl, LockType_T aLockType);
     void uninit();
 
     // IConsole properties
@@ -129,9 +142,10 @@ public:
     STDMETHOD(COMGETTER(VRDEServerInfo))(IVRDEServerInfo **aVRDEServerInfo);
     STDMETHOD(COMGETTER(SharedFolders))(ComSafeArrayOut(ISharedFolder *, aSharedFolders));
     STDMETHOD(COMGETTER(EventSource)) (IEventSource ** aEventSource);
-    STDMETHOD(COMGETTER(AttachedPciDevices))(ComSafeArrayOut(IPciDeviceAttachment *, aAttachments));
+    STDMETHOD(COMGETTER(AttachedPCIDevices))(ComSafeArrayOut(IPCIDeviceAttachment *, aAttachments));
     STDMETHOD(COMGETTER(UseHostClipboard))(BOOL *aUseHostClipboard);
     STDMETHOD(COMSETTER(UseHostClipboard))(BOOL aUseHostClipboard);
+    STDMETHOD(COMGETTER(EmulatedUSB))(IEmulatedUSB **aEmulatedUSB);
 
     // IConsole methods
     STDMETHOD(PowerUp)(IProgress **aProgress);
@@ -196,13 +210,18 @@ public:
     HRESULT onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
     HRESULT onCPUChange(ULONG aCPU, BOOL aRemove);
     HRESULT onCPUExecutionCapChange(ULONG aExecutionCap);
+    HRESULT onClipboardModeChange(ClipboardMode_T aClipboardMode);
+    HRESULT onDragAndDropModeChange(DragAndDropMode_T aDragAndDropMode);
     HRESULT onVRDEServerChange(BOOL aRestart);
+    HRESULT onVideoCaptureChange();
     HRESULT onUSBControllerChange();
     HRESULT onSharedFolderChange(BOOL aGlobal);
     HRESULT onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs);
     HRESULT onUSBDeviceDetach(IN_BSTR aId, IVirtualBoxErrorInfo *aError);
     HRESULT onBandwidthGroupChange(IBandwidthGroup *aBandwidthGroup);
-    HRESULT onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove);
+    HRESULT onStorageDeviceChange(IMediumAttachment *aMediumAttachment, BOOL aRemove, BOOL aSilent);
+    HRESULT onExtraDataChange(IN_BSTR aMachineId, IN_BSTR aKey, IN_BSTR aVal);
+
     HRESULT getGuestProperty(IN_BSTR aKey, BSTR *aValue, LONG64 *aTimestamp, BSTR *aFlags);
     HRESULT setGuestProperty(IN_BSTR aKey, IN_BSTR aValue, IN_BSTR aFlags);
     HRESULT enumerateGuestProperties(IN_BSTR aPatterns,
@@ -212,10 +231,8 @@ public:
                                      ComSafeArrayOut(BSTR, aFlags));
     HRESULT onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                               ULONG aSourceIdx, ULONG aTargetIdx,
-                              IMedium *aSource, IMedium *aTarget,
-                              BOOL aMergeForward, IMedium *aParentForTarget,
-                              ComSafeArrayIn(IMedium *, aChildrenToReparent),
                               IProgress *aProgress);
+    int hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName);
     VMMDev *getVMMDev() { return m_pVMMDev; }
     AudioSniffer *getAudioSniffer() { return mAudioSniffer; }
 #ifdef VBOX_WITH_EXTPACK
@@ -235,20 +252,25 @@ public:
     void VRDPInterceptClipboard(uint32_t u32ClientId);
 
     void processRemoteUSBDevices(uint32_t u32ClientId, VRDEUSBDEVICEDESC *pDevList, uint32_t cbDevList, bool fDescExt);
-    void reportGuestStatistics(ULONG aValidStats, ULONG aCpuUser,
+    void reportVmStatistics(ULONG aValidStats, ULONG aCpuUser,
                                ULONG aCpuKernel, ULONG aCpuIdle,
                                ULONG aMemTotal, ULONG aMemFree,
                                ULONG aMemBalloon, ULONG aMemShared,
                                ULONG aMemCache, ULONG aPageTotal,
                                ULONG aAllocVMM, ULONG aFreeVMM,
-                               ULONG aBalloonedVMM, ULONG aSharedVMM)
+                               ULONG aBalloonedVMM, ULONG aSharedVMM,
+                               ULONG aVmNetRx, ULONG aVmNetTx)
     {
-        mControl->ReportGuestStatistics(aValidStats, aCpuUser, aCpuKernel, aCpuIdle,
-                                        aMemTotal, aMemFree, aMemBalloon, aMemShared,
-                                        aMemCache, aPageTotal, aAllocVMM, aFreeVMM,
-                                        aBalloonedVMM, aSharedVMM);
+        mControl->ReportVmStatistics(aValidStats, aCpuUser, aCpuKernel, aCpuIdle,
+                                     aMemTotal, aMemFree, aMemBalloon, aMemShared,
+                                     aMemCache, aPageTotal, aAllocVMM, aFreeVMM,
+                                     aBalloonedVMM, aSharedVMM, aVmNetRx, aVmNetTx);
     }
     void enableVMMStatistics(BOOL aEnable);
+
+    HRESULT pause(Reason_T aReason);
+    HRESULT resume(Reason_T aReason);
+    HRESULT saveState(Reason_T aReason, IProgress **aProgress);
 
     // callback callers (partly; for some events console callbacks are notified
     // directly from IInternalSessionControl event handlers declared above)
@@ -256,7 +278,8 @@ public:
                                    uint32_t xHot, uint32_t yHot,
                                    uint32_t width, uint32_t height,
                                    ComSafeArrayIn(uint8_t, aShape));
-    void onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative, BOOL needsHostCursor);
+    void onMouseCapabilityChange(BOOL supportsAbsolute, BOOL supportsRelative,
+                                 BOOL supportsMT, BOOL needsHostCursor);
     void onStateChange(MachineState_T aMachineState);
     void onAdditionsStateChange();
     void onAdditionsOutdated();
@@ -266,46 +289,68 @@ public:
     void onRuntimeError(BOOL aFatal, IN_BSTR aErrorID, IN_BSTR aMessage);
     HRESULT onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);
     void onVRDEServerInfoChange();
+    HRESULT i_sendACPIMonitorHotPlugEvent();
 
     static const PDMDRVREG DrvStatusReg;
 
     static HRESULT setErrorStatic(HRESULT aResultCode, const char *pcsz, ...);
     HRESULT setInvalidMachineStateError();
 
-    static HRESULT handleUnexpectedExceptions(RT_SRC_POS_DECL);
-
     static const char *convertControllerTypeToDev(StorageControllerType_T enmCtrlType);
     static HRESULT convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
     // Called from event listener
     HRESULT onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
                                  NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort);
+    HRESULT onNATDnsChanged();
+
+    // Mouse interface
+    VMMDevMouseInterface *getVMMDevMouseInterface();
+    DisplayMouseInterface *getDisplayMouseInterface();
+
+    EmulatedUSB *getEmulatedUSB(void) { return mEmulatedUSB; }
+
+    /**
+     * Sets the disk encryption keys.
+     *
+     * @returns COM status code.
+     * @þaram   strCfg    The config for the disks.
+     *
+     * @note: One line in the config string contains all required data for one disk.
+     *        The format for one disk is some sort of comma separated value using
+     *        key=value pairs.
+     *        There are two keys defined at the moment:
+     *            - uuid: The uuid of the base image the key is for (with or without)
+     *                    the curly braces.
+     *            - dek: The data encryption key in base64 encoding
+     */
+    HRESULT setDiskEncryptionKeys(const Utf8Str &strCfg);
 
 private:
 
+    void notifyNatDnsChange(PUVM pUVM, const char *pszDevice, ULONG ulInstanceMax);
+
     /**
-     *  Base template for AutoVMCaller and SaveVMPtr. Template arguments
+     *  Base template for AutoVMCaller and SafeVMPtr. Template arguments
      *  have the same meaning as arguments of Console::addVMCaller().
      */
     template <bool taQuiet = false, bool taAllowNullVM = false>
     class AutoVMCallerBase
     {
     public:
-        AutoVMCallerBase(Console *aThat) : mThat(aThat), mRC(S_OK)
+        AutoVMCallerBase(Console *aThat) : mThat(aThat), mRC(E_FAIL)
         {
             Assert(aThat);
             mRC = aThat->addVMCaller(taQuiet, taAllowNullVM);
         }
         ~AutoVMCallerBase()
         {
-            if (SUCCEEDED(mRC))
-                mThat->releaseVMCaller();
+            doRelease();
         }
         /** Decreases the number of callers before the instance is destroyed. */
         void releaseCaller()
         {
-            AssertReturnVoid(SUCCEEDED(mRC));
-            mThat->releaseVMCaller();
-            mRC = E_FAIL;
+            Assert(SUCCEEDED(mRC));
+            doRelease();
         }
         /** Restores the number of callers after by #release(). #rc() must be
          *  rechecked to ensure the operation succeeded. */
@@ -320,22 +365,30 @@ private:
         bool isOk() const { return SUCCEEDED(mRC); }
     protected:
         Console *mThat;
-        HRESULT mRC;
+        void doRelease()
+        {
+            if (SUCCEEDED(mRC))
+            {
+                mThat->releaseVMCaller();
+                mRC = E_FAIL;
+            }
+        }
     private:
+        HRESULT mRC; /* Whether the caller was added. */
         DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(AutoVMCallerBase)
     };
 
 #if 0
     /**
-     *  Helper class that protects sections of code using the mpVM pointer by
+     *  Helper class that protects sections of code using the mpUVM pointer by
      *  automatically calling addVMCaller() on construction and
      *  releaseVMCaller() on destruction. Intended for Console methods dealing
-     *  with mpVM. The usage pattern is:
+     *  with mpUVM. The usage pattern is:
      *  <code>
      *      AutoVMCaller autoVMCaller(this);
      *      if (FAILED(autoVMCaller.rc())) return autoVMCaller.rc();
      *      ...
-     *      VMR3ReqCall (mpVM, ...
+     *      VMR3ReqCall (mpUVM, ...
      *  </code>
      *
      *  @note Temporarily locks the argument for writing.
@@ -374,56 +427,65 @@ private:
     typedef AutoVMCallerBase<true, true> AutoVMCallerQuietWeak;
 
     /**
-     *  Base template for SaveVMPtr and SaveVMPtrQuiet.
+     *  Base template for SafeVMPtr and SafeVMPtrQuiet.
      */
     template<bool taQuiet = false>
     class SafeVMPtrBase : public AutoVMCallerBase<taQuiet, true>
     {
         typedef AutoVMCallerBase<taQuiet, true> Base;
     public:
-        SafeVMPtrBase(Console *aThat) : Base(aThat), mpVM(NULL), mpUVM(NULL)
+        SafeVMPtrBase(Console *aThat) : Base(aThat), mRC(E_FAIL), mpUVM(NULL)
         {
-            if (SUCCEEDED(Base::mRC))
-                Base::mRC = aThat->safeVMPtrRetainer(&mpVM, &mpUVM, taQuiet);
+            if (Base::isOk())
+                mRC = aThat->safeVMPtrRetainer(&mpUVM, taQuiet);
         }
         ~SafeVMPtrBase()
         {
-            if (SUCCEEDED(Base::mRC))
-                release();
+            doRelease();
         }
-        /** Smart SaveVMPtr to PVM cast operator */
-        operator PVM() const { return mpVM; }
-        /** Direct PVM access for printf()-like functions */
-        PVM raw() const { return mpVM; }
-        /** Direct PUVM access for printf()-like functions */
+        /** Direct PUVM access. */
         PUVM rawUVM() const { return mpUVM; }
         /** Release the handles. */
         void release()
         {
-            AssertReturnVoid(SUCCEEDED(Base::mRC));
-            Base::mThat->safeVMPtrReleaser(&mpVM, &mpUVM);
-            Base::releaseCaller();
+            Assert(SUCCEEDED(mRC));
+            doRelease();
         }
 
+        /** The combined result of Console::addVMCaller() and Console::safeVMPtrRetainer */
+        HRESULT rc() const { return Base::isOk()? mRC: Base::rc(); }
+        /** Shortcut to SUCCEEDED(rc()) */
+        bool isOk() const { return SUCCEEDED(mRC) && Base::isOk(); }
+
     private:
-        PVM     mpVM;
+        void doRelease()
+        {
+            if (SUCCEEDED(mRC))
+            {
+                Base::mThat->safeVMPtrReleaser(&mpUVM);
+                mRC = E_FAIL;
+            }
+            Base::doRelease();
+        }
+        HRESULT mRC; /* Whether the VM ptr was retained. */
         PUVM    mpUVM;
         DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(SafeVMPtrBase)
     };
 
 public:
 
-    /**
-     *  Helper class that safely manages the Console::mpVM pointer
+    /*
+     *  Helper class that safely manages the Console::mpUVM pointer
      *  by calling addVMCaller() on construction and releaseVMCaller() on
      *  destruction. Intended for Console children. The usage pattern is:
      *  <code>
-     *      Console::SaveVMPtr pVM(mParent);
-     *      if (FAILED(pVM.rc())) return pVM.rc();
+     *      Console::SafeVMPtr ptrVM(mParent);
+     *      if (!ptrVM.isOk())
+     *          return ptrVM.rc();
      *      ...
-     *      VMR3ReqCall(pVM, ...
+     *      VMR3ReqCall(ptrVM.rawUVM(), ...
      *      ...
-     *      printf("%p\n", pVM.raw());
+     *      printf("%p\n", ptrVM.rawUVM());
      *  </code>
      *
      *  @note Temporarily locks the argument for writing.
@@ -433,11 +495,11 @@ public:
     typedef SafeVMPtrBase<false> SafeVMPtr;
 
     /**
-     *  A deviation of SaveVMPtr that doesn't set the error info on failure.
+     *  A deviation of SafeVMPtr that doesn't set the error info on failure.
      *  Intended for pieces of code that don't need to return the VM access
      *  failure to the caller. The usage pattern is:
      *  <code>
-     *      Console::SaveVMPtrQuiet pVM(mParent);
+     *      Console::SafeVMPtrQuiet pVM(mParent);
      *      if (pVM.rc())
      *          VMR3ReqCall(pVM, ...
      *      return S_OK;
@@ -475,9 +537,41 @@ public:
         bool m_fAutoMount;
     };
 
+    /**
+     * Class for managing cryptographic keys.
+     * @ŧodo: Replace with a keystore implementation once it is ready.
+     */
+    class SecretKey
+    {
+        public:
+            SecretKey() { }
+
+            SecretKey(void *pvKey, size_t cbKey)
+               : m_cRefs(0),
+                 m_pvKey(pvKey),
+                 m_cbKey(cbKey)
+            { }
+
+            ~SecretKey()
+            {
+                RTMemSaferFree(m_pvKey, m_cbKey);
+                m_cRefs = 0;
+                m_pvKey = NULL;
+                m_cbKey = 0;
+            }
+
+            /** Reference counter of the key. */
+            volatile uint32_t m_cRefs;
+            /** Key material. */
+            void    *m_pvKey;
+            /** Size of the key in bytes. */
+            size_t   m_cbKey;
+    };
+
     typedef std::map<Utf8Str, ComObjPtr<SharedFolder> > SharedFolderMap;
     typedef std::map<Utf8Str, SharedFolderData> SharedFolderDataMap;
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
+    typedef std::map<Utf8Str, SecretKey *> SecretKeyMap;
 
 private:
 
@@ -486,8 +580,8 @@ private:
 
     HRESULT addVMCaller(bool aQuiet = false, bool aAllowNullVM = false);
     void    releaseVMCaller();
-    HRESULT safeVMPtrRetainer(PVM *a_ppVM, PUVM *a_ppUVM, bool aQuiet);
-    void    safeVMPtrReleaser(PVM *a_ppVM, PUVM *a_ppUVM);
+    HRESULT safeVMPtrRetainer(PUVM *a_ppUVM, bool aQuiet);
+    void    safeVMPtrReleaser(PUVM *a_ppUVM);
 
     HRESULT consoleInitReleaseLog(const ComPtr<IMachine> aMachine);
 
@@ -518,10 +612,20 @@ private:
     HRESULT createSharedFolder(const Utf8Str &strName, const SharedFolderData &aData);
     HRESULT removeSharedFolder(const Utf8Str &strName);
 
-    static DECLCALLBACK(int) configConstructor(PVM pVM, void *pvConsole);
-    int configConstructorInner(PVM pVM, AutoWriteLock *pAlock);
-    int configCfgmOverlay(PVM pVM, IVirtualBox *pVirtualBox, IMachine *pMachine);
+    HRESULT suspendBeforeConfigChange(PUVM pUVM, AutoWriteLock *pAlock, bool *pfResume);
+    void    resumeAfterConfigChange(PUVM pUVM);
 
+    static DECLCALLBACK(int) configConstructor(PUVM pUVM, PVM pVM, void *pvConsole);
+    int configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock);
+    int configCfgmOverlay(PCFGMNODE pRoot, IVirtualBox *pVirtualBox, IMachine *pMachine);
+    int configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *pMachine);
+
+    int configGraphicsController(PCFGMNODE pDevices,
+                                 const GraphicsControllerType_T graphicsController,
+                                 BusAssignmentManager *pBusMgr,
+                                 const ComPtr<IMachine> &pMachine,
+                                 const ComPtr<IBIOSSettings> &biosSettings,
+                                 bool fHMEnabled);
     int configMediumAttachment(PCFGMNODE pCtlInst,
                                const char *pcszDevice,
                                unsigned uInstance,
@@ -537,8 +641,9 @@ private:
                                bool fAttachDetach,
                                bool fForceUnmount,
                                bool fHotplug,
-                               PVM pVM,
-                               DeviceType_T *paLedDevType);
+                               PUVM pUVM,
+                               DeviceType_T *paLedDevType,
+                               PCFGMNODE *ppLunL0);
     int configMedium(PCFGMNODE pLunL0,
                      bool fPassthrough,
                      DeviceType_T enmType,
@@ -548,11 +653,13 @@ private:
                      unsigned uMergeSource,
                      unsigned uMergeTarget,
                      const char *pcszBwGroup,
+                     bool fDiscard,
                      IMedium *pMedium,
                      MachineState_T aMachineState,
                      HRESULT *phrc);
-    static DECLCALLBACK(int) reconfigureMediumAttachment(Console *pConsole,
-                                                         PVM pVM,
+    int configMediumProperties(PCFGMNODE pCur, IMedium *pMedium, bool *pfHostIP);
+    static DECLCALLBACK(int) reconfigureMediumAttachment(Console *pThis,
+                                                         PUVM pUVM,
                                                          const char *pcszDevice,
                                                          unsigned uInstance,
                                                          StorageBus_T enmBus,
@@ -565,7 +672,7 @@ private:
                                                          MachineState_T aMachineState,
                                                          HRESULT *phrc);
     static DECLCALLBACK(int) changeRemovableMedium(Console *pThis,
-                                                   PVM pVM,
+                                                   PUVM pUVM,
                                                    const char *pcszDevice,
                                                    unsigned uInstance,
                                                    StorageBus_T enmBus,
@@ -573,7 +680,7 @@ private:
                                                    IMediumAttachment *aMediumAtt,
                                                    bool fForce);
 
-    HRESULT attachRawPciDevices(PVM pVM, BusAssignmentManager *BusMgr, PCFGMNODE pDevices);
+    HRESULT attachRawPCIDevices(PUVM pUVM, BusAssignmentManager *BusMgr, PCFGMNODE pDevices);
     void attachStatusDriver(PCFGMNODE pCtlInst, PPDMLED *papLeds,
                             uint64_t uFirst, uint64_t uLast,
                             Console::MediumAttachmentMap *pmapMediumAttachments,
@@ -584,60 +691,63 @@ private:
                       PCFGMNODE pLunL0, PCFGMNODE pInst,
                       bool fAttachDetach, bool fIgnoreConnectFailure);
 
-    static DECLCALLBACK(int) configGuestProperties(void *pvConsole);
+    static DECLCALLBACK(int) configGuestProperties(void *pvConsole, PUVM pUVM);
     static DECLCALLBACK(int) configGuestControl(void *pvConsole);
-    static DECLCALLBACK(void) vmstateChangeCallback(PVM aVM, VMSTATE aState,
-                                                    VMSTATE aOldState, void *aUser);
-    static DECLCALLBACK(int) unplugCpu(Console *pThis, PVM pVM, unsigned uCpu);
-    static DECLCALLBACK(int) plugCpu(Console *pThis, PVM pVM, unsigned uCpu);
-    HRESULT doMediumChange(IMediumAttachment *aMediumAttachment, bool fForce, PVM pVM);
-    HRESULT doCPURemove(ULONG aCpu, PVM pVM);
-    HRESULT doCPUAdd(ULONG aCpu, PVM pVM);
+    static DECLCALLBACK(void) vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
+    static DECLCALLBACK(int) unplugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu);
+    static DECLCALLBACK(int) plugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu);
+    HRESULT doMediumChange(IMediumAttachment *aMediumAttachment, bool fForce, PUVM pUVM);
+    HRESULT doCPURemove(ULONG aCpu, PUVM pUVM);
+    HRESULT doCPUAdd(ULONG aCpu, PUVM pUVM);
 
-    HRESULT doNetworkAdapterChange(PVM pVM, const char *pszDevice, unsigned uInstance,
+    HRESULT doNetworkAdapterChange(PUVM pUVM, const char *pszDevice, unsigned uInstance,
                                    unsigned uLun, INetworkAdapter *aNetworkAdapter);
-    static DECLCALLBACK(int) changeNetworkAttachment(Console *pThis, PVM pVM, const char *pszDevice,
+    static DECLCALLBACK(int) changeNetworkAttachment(Console *pThis, PUVM pUVM, const char *pszDevice,
                                                      unsigned uInstance, unsigned uLun,
                                                      INetworkAdapter *aNetworkAdapter);
 
+    void changeClipboardMode(ClipboardMode_T aClipboardMode);
+    void changeDragAndDropMode(DragAndDropMode_T aDragAndDropMode);
+
 #ifdef VBOX_WITH_USB
     HRESULT attachUSBDevice(IUSBDevice *aHostDevice, ULONG aMaskedIfs);
-    HRESULT detachUSBDevice(USBDeviceList::iterator &aIt);
+    HRESULT detachUSBDevice(const ComObjPtr<OUSBDevice> &aHostDevice);
 
-    static DECLCALLBACK(int) usbAttachCallback(Console *that, PVM pVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
-                       bool aRemote, const char *aAddress, ULONG aMaskedIfs);
-    static DECLCALLBACK(int) usbDetachCallback(Console *that, PVM pVM, USBDeviceList::iterator *aIt, PCRTUUID aUuid);
+    static DECLCALLBACK(int) usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
+                       bool aRemote, const char *aAddress, void *pvRemoteBackend, USHORT aPortVersion, ULONG aMaskedIfs);
+    static DECLCALLBACK(int) usbDetachCallback(Console *that, PUVM pUVM, PCRTUUID aUuid);
 #endif
 
     static DECLCALLBACK(int) attachStorageDevice(Console *pThis,
-                                                 PVM pVM,
+                                                 PUVM pUVM,
                                                  const char *pcszDevice,
                                                  unsigned uInstance,
                                                  StorageBus_T enmBus,
                                                  bool fUseHostIOCache,
-                                                 IMediumAttachment *aMediumAtt);
+                                                 IMediumAttachment *aMediumAtt,
+                                                 bool fSilent);
     static DECLCALLBACK(int) detachStorageDevice(Console *pThis,
-                                                 PVM pVM,
+                                                 PUVM pUVM,
                                                  const char *pcszDevice,
                                                  unsigned uInstance,
                                                  StorageBus_T enmBus,
-                                                 IMediumAttachment *aMediumAtt);
-    HRESULT doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PVM pVM);
-    HRESULT doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PVM pVM);
+                                                 IMediumAttachment *aMediumAtt,
+                                                 bool fSilent);
+    HRESULT doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent);
+    HRESULT doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent);
 
     static DECLCALLBACK(int)    fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser);
 
-    static DECLCALLBACK(int)    stateProgressCallback(PVM pVM, unsigned uPercent, void *pvUser);
+    static DECLCALLBACK(int)    stateProgressCallback(PUVM pUVM, unsigned uPercent, void *pvUser);
 
-    static DECLCALLBACK(void)   genericVMSetErrorCallback(PVM pVM, void *pvUser, int rc, RT_SRC_POS_DECL,
+    static DECLCALLBACK(void)   genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
                                                           const char *pszErrorFmt, va_list va);
 
-    static void                 setVMRuntimeErrorCallbackF(PVM pVM, void *pvUser, uint32_t fFatal,
-                                                          const char *pszErrorId, const char *pszFormat, ...);
-    static DECLCALLBACK(void)   setVMRuntimeErrorCallback(PVM pVM, void *pvUser, uint32_t fFatal,
+    void                        setVMRuntimeErrorCallbackF(uint32_t fFatal, const char *pszErrorId, const char *pszFormat, ...);
+    static DECLCALLBACK(void)   setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFatal,
                                                           const char *pszErrorId, const char *pszFormat, va_list va);
 
-    HRESULT                     captureUSBDevices(PVM pVM);
+    HRESULT                     captureUSBDevices(PUVM pUVM);
     void                        detachAllUSBDevices(bool aDone);
 
     static DECLCALLBACK(int)   powerUpThread(RTTHREAD Thread, void *pvUser);
@@ -649,12 +759,19 @@ private:
     static DECLCALLBACK(void)   vmm2User_NotifyEmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM, PUVMCPU pUVCpu);
     static DECLCALLBACK(void)   vmm2User_NotifyPdmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM);
     static DECLCALLBACK(void)   vmm2User_NotifyPdmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM);
+    static DECLCALLBACK(void)   vmm2User_NotifyResetTurnedIntoPowerOff(PCVMM2USERMETHODS pThis, PUVM pUVM);
 
     static DECLCALLBACK(void *) drvStatus_QueryInterface(PPDMIBASE pInterface, const char *pszIID);
     static DECLCALLBACK(void)   drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN);
     static DECLCALLBACK(int)    drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, unsigned iLUN);
     static DECLCALLBACK(void)   drvStatus_Destruct(PPDMDRVINS pDrvIns);
     static DECLCALLBACK(int)    drvStatus_Construct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
+
+    static DECLCALLBACK(int)    i_pdmIfSecKey_KeyRetain(PPDMISECKEY pInterface, const char *pszId, const uint8_t **ppbKey,
+                                                        size_t *pcbKey);
+    static DECLCALLBACK(int)    i_pdmIfSecKey_KeyRelease(PPDMISECKEY pInterface, const char *pszId);
+
+    static DECLCALLBACK(int)    i_pdmIfSecKeyHlp_KeyMissingNotify(PPDMISECKEYHLP pInterface);
 
     int mcAudioRefs;
     volatile uint32_t mcVRDPClients;
@@ -684,8 +801,22 @@ private:
     void guestPropertiesVRDPUpdateActiveClient(uint32_t u32ClientId);
     void guestPropertiesVRDPUpdateClientAttach(uint32_t u32ClientId, bool fAttached);
     void guestPropertiesVRDPUpdateNameChange(uint32_t u32ClientId, const char *pszName);
+    void guestPropertiesVRDPUpdateIPAddrChange(uint32_t u32ClientId, const char *pszIPAddr);
+    void guestPropertiesVRDPUpdateLocationChange(uint32_t u32ClientId, const char *pszLocation);
+    void guestPropertiesVRDPUpdateOtherInfoChange(uint32_t u32ClientId, const char *pszOtherInfo);
     void guestPropertiesVRDPUpdateDisconnect(uint32_t u32ClientId);
 #endif
+
+    bool isResetTurnedIntoPowerOff(void);
+
+    /** @name Disk encryption support
+     * @{ */
+    HRESULT consoleParseDiskEncryption(const char *psz, const char **ppszEnd);
+    HRESULT configureEncryptionForDisk(const char *pszUuid);
+    HRESULT clearDiskEncryptionKeysOnAllAttachments(void);
+    int consoleParseKeyValue(const char *psz, const char **ppszEnd,
+                             char **ppszKey, char **ppszVal);
+    /** @} */
 
     /** @name Teleporter support
      * @{ */
@@ -706,6 +837,8 @@ private:
     const ComPtr<IVRDEServer> mVRDEServer;
 
     ConsoleVRDPServer * const mConsoleVRDPServer;
+    bool mfVRDEChangeInProcess;
+    bool mfVRDEChangePending;
 
     const ComObjPtr<Guest> mGuest;
     const ComObjPtr<Keyboard> mKeyboard;
@@ -713,10 +846,14 @@ private:
     const ComObjPtr<Display> mDisplay;
     const ComObjPtr<MachineDebugger> mDebugger;
     const ComObjPtr<VRDEServerInfo> mVRDEServerInfo;
+    /** This can safely be used without holding any locks.
+     * An AutoCaller suffices to prevent it being destroy while in use and
+     * internally there is a lock providing the necessary serialization. */
     const ComObjPtr<EventSource> mEventSource;
 #ifdef VBOX_WITH_EXTPACK
     const ComObjPtr<ExtPackManager> mptrExtPackManager;
 #endif
+    const ComObjPtr<EmulatedUSB> mEmulatedUSB;
 
     USBDeviceList mUSBDevices;
     RemoteUSBDeviceList mRemoteUSBDevices;
@@ -727,13 +864,13 @@ private:
 
     /** The user mode VM handle. */
     PUVM mpUVM;
-    /** Holds the number of "readonly" mpVM callers (users) */
+    /** Holds the number of "readonly" mpUVM callers (users). */
     uint32_t mVMCallers;
-    /** Semaphore posted when the number of mpVM callers drops to zero */
+    /** Semaphore posted when the number of mpUVM callers drops to zero. */
     RTSEMEVENT mVMZeroCallersSem;
-    /** true when Console has entered the mpVM destruction phase */
+    /** true when Console has entered the mpUVM destruction phase. */
     bool mVMDestroying : 1;
-    /** true when power down is initiated by vmstateChangeCallback (EMT) */
+    /** true when power down is initiated by vmstateChangeCallback (EMT). */
     bool mVMPoweredOff : 1;
     /** true when vmstateChangeCallback shouldn't initiate a power down.  */
     bool mVMIsAlreadyPoweringOff : 1;
@@ -743,6 +880,10 @@ private:
     bool mfSnapshotFolderExt4WarningShown : 1;
     /** true if we already listed the disk type of the snapshot folder. */
     bool mfSnapshotFolderDiskTypeShown : 1;
+    /** true if a USB controller is available (i.e. USB devices can be attached). */
+    bool mfVMHasUsbController : 1;
+    /** true if the VM power off was caused by reset. */
+    bool mfPowerOffCausedByReset : 1;
 
     /** Pointer to the VMM -> User (that's us) callbacks. */
     struct MYVMM2USERMETHODS : public VMM2USERMETHODS
@@ -755,13 +896,12 @@ private:
      * NetworkAdapter. This is needed to change the network attachment
      * dynamically.
      */
-    NetworkAttachmentType_T meAttachmentType[SchemaDefs::NetworkAdapterCount];
+    typedef std::vector<NetworkAttachmentType_T> NetworkAttachmentTypeVector;
+    NetworkAttachmentTypeVector meAttachmentType;
 
     VMMDev * m_pVMMDev;
     AudioSniffer * const mAudioSniffer;
-#ifdef VBOX_WITH_USB_VIDEO
-    UsbWebcamInterface * const mUsbWebcamInterface;
-#endif
+    Nvram   * const mNvram;
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader * const mUsbCardReader;
 #endif
@@ -783,11 +923,26 @@ private:
     };
     DeviceType_T maStorageDevType[cLedStorage];
     PPDMLED      mapStorageLeds[cLedStorage];
-    PPDMLED      mapNetworkLeds[SchemaDefs::NetworkAdapterCount];
+    PPDMLED      mapNetworkLeds[36];    /**< @todo adapt this to the maximum network card count */
     PPDMLED      mapSharedFolderLed;
     PPDMLED      mapUSBLed[2];
 
     MediumAttachmentMap mapMediumAttachments;
+
+    /** Map of secret keys used for disk encryption. */
+    SecretKeyMap         m_mapSecretKeys;
+
+    /** Pointer to the key consumer -> provider (that's us) callbacks. */
+    struct MYPDMISECKEY : public PDMISECKEY
+    {
+        Console *pConsole;
+    } *mpIfSecKey;
+
+    /** Pointer to the key helpers -> provider (that's us) callbacks. */
+    struct MYPDMISECKEYHLP : public PDMISECKEYHLP
+    {
+        Console *pConsole;
+    } *mpIfSecKeyHlp;
 
 /* Note: FreeBSD needs this whether netflt is used or not. */
 #if ((defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)) || defined(RT_OS_FREEBSD))
@@ -811,6 +966,10 @@ private:
      * operation before starting. */
     ComObjPtr<Progress> mptrCancelableProgress;
 
+    /* The purpose of caching of some events is probably in order to
+       automatically fire them at new event listeners.  However, there is no
+       (longer?) any code making use of this... */
+#ifdef CONSOLE_WITH_EVENT_CACHE
     struct
     {
         /** OnMousePointerShapeChange() cache */
@@ -824,8 +983,7 @@ private:
             uint32_t width;
             uint32_t height;
             com::SafeArray<BYTE> shape;
-        }
-        mpsc;
+        } mpsc;
 
         /** OnMouseCapabilityChange() cache */
         struct
@@ -834,8 +992,7 @@ private:
             BOOL supportsAbsolute;
             BOOL supportsRelative;
             BOOL needsHostCursor;
-        }
-        mcc;
+        } mcc;
 
         /** OnKeyboardLedsChange() cache */
         struct
@@ -844,20 +1001,20 @@ private:
             bool numLock;
             bool capsLock;
             bool scrollLock;
-        }
-        klc;
+        } klc;
 
         void clear()
         {
-            /* We cannot do memset() on mpsc to avoid cleaning shape's vtable */
+            RT_ZERO(mcc);
+            RT_ZERO(klc);
+
+            /* We cannot RT_ZERO mpsc because of shape's vtable. */
             mpsc.shape.setNull();
             mpsc.valid = mpsc.visible = mpsc.alpha = false;
             mpsc.xHot = mpsc.yHot = mpsc.width = mpsc.height = 0;
-            ::memset(&mcc, 0, sizeof mcc);
-            ::memset(&klc, 0, sizeof klc);
         }
-    }
-    mCallbackData;
+    } mCallbackData;
+#endif
     ComPtr<IEventListener> mVmListener;
 
     friend struct VMTask;

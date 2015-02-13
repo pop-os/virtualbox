@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,25 +63,10 @@ RT_EXPORT_SYMBOL(RTR0MemUserIsValidAddr);
 RTR0DECL(bool) RTR0MemKernelIsValidAddr(void *pv)
 {
     /* Couldn't find a straight forward way of doing this... */
-#ifdef RT_ARCH_X86
-# ifdef CONFIG_X86_HIGH_ENTRY
+#if defined(RT_ARCH_X86) && defined(CONFIG_X86_HIGH_ENTRY)
     return true; /* ?? */
-# else
+#elif defined(RT_ARCH_X86) || defined(RT_ARCH_AMD64)
     return (uintptr_t)pv >= PAGE_OFFSET;
-# endif
-
-#elif defined(RT_ARCH_AMD64)
-# if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
-    /* Linux 2.6.0 ... 2.6.10 set PAGE_OFFSET to 0x0000010000000000.
-     * Linux 2.6.11 sets PAGE_OFFSET to 0xffff810000000000.
-     * Linux 2.6.33 sets PAGE_OFFSET to 0xffff880000000000. */
-    return (uintptr_t)pv >= PAGE_OFFSET;
-# else
-    /* Not correct (KERNEL_TEXT_START=0xffffffff80000000),
-     * VMALLOC_START (0xffffff0000000000) would be better */
-    return (uintptr_t)pv >= KERNEL_TEXT_START;
-# endif
-
 #else
 # error "PORT ME"
     return !access_ok(VERIFY_READ, pv, 1);
@@ -99,4 +84,74 @@ RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void)
 #endif
 }
 RT_EXPORT_SYMBOL(RTR0MemAreKrnlAndUsrDifferent);
+
+
+/**
+ * Treats both source and destination as unsafe buffers.
+ */
+static int rtR0MemKernelCopyLnxWorker(void *pvDst, void const *pvSrc, size_t cb)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 5, 55)
+/* _ASM_EXTABLE was introduced in 2.6.25 from what I can tell. Using #ifndef
+   here since it has to be a macro and you never know what someone might have
+   backported to an earlier kernel release. */
+# ifndef _ASM_EXTABLE
+#  if ARCH_BITS == 32
+#   define _ASM_EXTABLE(a_Instr, a_Resume) \
+    ".section __ex_table,\"a\"\n" \
+    ".balign 4\n" \
+    ".long   " #a_Instr "\n" \
+    ".long   " #a_Resume "\n" \
+    ".previous\n"
+#  else
+#   define _ASM_EXTABLE(a_Instr, a_Resume) \
+    ".section __ex_table,\"a\"\n" \
+    ".balign 8\n" \
+    ".quad   " #a_Instr "\n" \
+    ".quad   " #a_Resume "\n" \
+    ".previous\n"
+#  endif
+# endif /* !_ASM_EXTABLE */
+    int rc;
+    if (!cb)
+        return VINF_SUCCESS;
+
+    __asm__ __volatile__ ("cld\n"
+                          "1:\n\t"
+                          "rep; movsb\n"
+                          "2:\n\t"
+                          ".section .fixup,\"ax\"\n"
+                          "3:\n\t"
+                          "movl %4, %0\n"
+                          ".previous\n"
+                          _ASM_EXTABLE(1b, 3b)
+                          : "=r" (rc),
+                            "=D" (pvDst),
+                            "=S" (pvSrc),
+                            "=c" (cb)
+                          : "i" (VERR_ACCESS_DENIED),
+                            "0" (VINF_SUCCESS),
+                            "1" (pvDst),
+                            "2" (pvSrc),
+                            "3" (cb)
+                          : "memory");
+    return rc;
+#else
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+
+
+RTR0DECL(int) RTR0MemKernelCopyFrom(void *pvDst, void const *pvSrc, size_t cb)
+{
+    return rtR0MemKernelCopyLnxWorker(pvDst, pvSrc, cb);
+}
+RT_EXPORT_SYMBOL(RTR0MemKernelCopyFrom);
+
+
+RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb)
+{
+    return rtR0MemKernelCopyLnxWorker(pvDst, pvSrc, cb);
+}
+RT_EXPORT_SYMBOL(RTR0MemKernelCopyTo);
 

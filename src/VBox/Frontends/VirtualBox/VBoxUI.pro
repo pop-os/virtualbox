@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -22,17 +22,19 @@ LANGUAGE	= C++
 
 FORMS = \
     src/VBoxVMInformationDlg.ui \
-    src/VBoxMediaManagerDlg.ui \
     src/VBoxSnapshotDetailsDlg.ui \
     src/VBoxTakeSnapshotDlg.ui \
-    src/VBoxVMLogViewer.ui \
+    src/UIVMLogViewer.ui \
+    src/medium/UIMediumManager.ui \
     src/settings/UISettingsDialog.ui \
     src/settings/global/UIGlobalSettingsGeneral.ui \
     src/settings/global/UIGlobalSettingsInput.ui \
     src/settings/global/UIGlobalSettingsUpdate.ui \
     src/settings/global/UIGlobalSettingsLanguage.ui \
+    src/settings/global/UIGlobalSettingsDisplay.ui \
     src/settings/global/UIGlobalSettingsNetwork.ui \
-    src/settings/global/UIGlobalSettingsNetworkDetails.ui \
+    src/settings/global/UIGlobalSettingsNetworkDetailsNAT.ui \
+    src/settings/global/UIGlobalSettingsNetworkDetailsHost.ui \
     src/settings/global/UIGlobalSettingsExtension.ui \
     src/settings/global/UIGlobalSettingsProxy.ui \
     src/settings/machine/UIMachineSettingsGeneral.ui \
@@ -47,45 +49,20 @@ FORMS = \
     src/settings/machine/UIMachineSettingsUSBFilterDetails.ui \
     src/settings/machine/UIMachineSettingsSF.ui \
     src/settings/machine/UIMachineSettingsSFDetails.ui \
-    src/wizards/clonevm/UICloneVMWizardPage1.ui \
-    src/wizards/clonevm/UICloneVMWizardPage2.ui \
-    src/wizards/clonevm/UICloneVMWizardPage3.ui \
-    src/wizards/newvm/UINewVMWzdPage1.ui \
-    src/wizards/newvm/UINewVMWzdPage2.ui \
-    src/wizards/newvm/UINewVMWzdPage3.ui \
-    src/wizards/newvm/UINewVMWzdPage4.ui \
-    src/wizards/newvm/UINewVMWzdPage5.ui \
-    src/wizards/newhd/UINewHDWizardPageWelcome.ui \
-    src/wizards/newhd/UINewHDWizardPageFormat.ui \
-    src/wizards/newhd/UINewHDWizardPageVariant.ui \
-    src/wizards/newhd/UINewHDWizardPageOptions.ui \
-    src/wizards/newhd/UINewHDWizardPageSummary.ui \
-    src/wizards/firstrun/UIFirstRunWzdPage1.ui \
-    src/wizards/firstrun/UIFirstRunWzdPage2.ui \
-    src/wizards/firstrun/UIFirstRunWzdPage3.ui \
-    src/wizards/exportappliance/UIExportApplianceWzdPage1.ui \
-    src/wizards/exportappliance/UIExportApplianceWzdPage2.ui \
-    src/wizards/exportappliance/UIExportApplianceWzdPage3.ui \
-    src/wizards/exportappliance/UIExportApplianceWzdPage4.ui \
-    src/wizards/importappliance/UIImportApplianceWzdPage1.ui \
-    src/wizards/importappliance/UIImportApplianceWzdPage2.ui \
-    src/wizards/registration/UIRegistrationWzdPage1.ui \
     src/widgets/UIApplianceEditorWidget.ui \
-    src/selector/VBoxSnapshotsWgt.ui \
-    src/runtime/UIVMCloseDialog.ui
+    src/selector/VBoxSnapshotsWgt.ui
 
 TRANSLATIONS = \
-	nls/VirtualBox_ar.ts \
 	nls/VirtualBox_bg.ts \
 	nls/VirtualBox_ca.ts \
 	nls/VirtualBox_ca_VA.ts \
 	nls/VirtualBox_cs.ts \
 	nls/VirtualBox_da.ts \
 	nls/VirtualBox_de.ts \
-	nls/VirtualBox_el.ts \
 	nls/VirtualBox_en.ts \
 	nls/VirtualBox_es.ts \
 	nls/VirtualBox_eu.ts \
+	nls/VirtualBox_fa_IR.ts \
 	nls/VirtualBox_fi.ts \
 	nls/VirtualBox_fr.ts \
 	nls/VirtualBox_gl_ES.ts \

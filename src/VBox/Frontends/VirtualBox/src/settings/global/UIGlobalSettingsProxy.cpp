@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,6 @@
 
 /* General page constructor: */
 UIGlobalSettingsProxy::UIGlobalSettingsProxy()
-    : m_pValidator(0)
 {
     /* Apply UI decorations: */
     Ui::UIGlobalSettingsProxy::setupUi(this);
@@ -36,18 +35,17 @@ UIGlobalSettingsProxy::UIGlobalSettingsProxy()
     m_pPortEditor->setFixedWidthByText(QString().fill('0', 6));
     m_pHostEditor->setValidator(new QRegExpValidator(QRegExp("\\S+"), m_pHostEditor));
     m_pPortEditor->setValidator(new QRegExpValidator(QRegExp("\\d+"), m_pPortEditor));
-    m_pLoginEditor->setValidator(new QRegExpValidator(QRegExp("\\S+"), m_pLoginEditor));
-    m_pPasswordEditor->setValidator(new QRegExpValidator(QRegExp("\\S+"), m_pPasswordEditor));
 
     /* Setup connections: */
-    connect(m_pProxyCheckbox, SIGNAL(stateChanged(int)), this, SLOT(sltProxyToggled()));
-    connect(m_pAuthCheckbox, SIGNAL(stateChanged(int)), this, SLOT(sltAuthToggled()));
+    connect(m_pCheckboxProxy, SIGNAL(toggled(bool)), this, SLOT(sltProxyToggled()));
+    connect(m_pHostEditor, SIGNAL(textEdited(const QString&)), this, SLOT(revalidate()));
+    connect(m_pPortEditor, SIGNAL(textEdited(const QString&)), this, SLOT(revalidate()));
 
     /* Apply language settings: */
     retranslateUi();
 }
 
-/* Load data to cashe from corresponding external object(s),
+/* Load data to cache from corresponding external object(s),
  * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsProxy::loadToCacheFrom(QVariant &data)
 {
@@ -59,9 +57,6 @@ void UIGlobalSettingsProxy::loadToCacheFrom(QVariant &data)
     m_cache.m_fProxyEnabled = proxyManager.proxyEnabled();
     m_cache.m_strProxyHost = proxyManager.proxyHost();
     m_cache.m_strProxyPort = proxyManager.proxyPort();
-    m_cache.m_fAuthEnabled = proxyManager.authEnabled();
-    m_cache.m_strAuthLogin = proxyManager.authLogin();
-    m_cache.m_strAuthPassword = proxyManager.authPassword();
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);
@@ -72,13 +67,13 @@ void UIGlobalSettingsProxy::loadToCacheFrom(QVariant &data)
 void UIGlobalSettingsProxy::getFromCache()
 {
     /* Fetch from cache: */
-    m_pProxyCheckbox->setChecked(m_cache.m_fProxyEnabled);
+    m_pCheckboxProxy->setChecked(m_cache.m_fProxyEnabled);
     m_pHostEditor->setText(m_cache.m_strProxyHost);
     m_pPortEditor->setText(m_cache.m_strProxyPort);
-    m_pAuthCheckbox->setChecked(m_cache.m_fAuthEnabled);
-    m_pLoginEditor->setText(m_cache.m_strAuthLogin);
-    m_pPasswordEditor->setText(m_cache.m_strAuthPassword);
     sltProxyToggled();
+
+    /* Revalidate: */
+    revalidate();
 }
 
 /* Save data from corresponding widgets to cache,
@@ -86,12 +81,9 @@ void UIGlobalSettingsProxy::getFromCache()
 void UIGlobalSettingsProxy::putToCache()
 {
     /* Upload to cache: */
-    m_cache.m_fProxyEnabled = m_pProxyCheckbox->isChecked();
+    m_cache.m_fProxyEnabled = m_pCheckboxProxy->isChecked();
     m_cache.m_strProxyHost = m_pHostEditor->text();
     m_cache.m_strProxyPort = m_pPortEditor->text();
-    m_cache.m_fAuthEnabled = m_pAuthCheckbox->isChecked();
-    m_cache.m_strAuthLogin = m_pLoginEditor->text();
-    m_cache.m_strAuthPassword = m_pPasswordEditor->text();
 }
 
 /* Save data from cache to corresponding external object(s),
@@ -105,33 +97,54 @@ void UIGlobalSettingsProxy::saveFromCacheTo(QVariant &data)
     proxyManager.setProxyEnabled(m_cache.m_fProxyEnabled);
     proxyManager.setProxyHost(m_cache.m_strProxyHost);
     proxyManager.setProxyPort(m_cache.m_strProxyPort);
-    proxyManager.setAuthEnabled(m_cache.m_fAuthEnabled);
-    proxyManager.setAuthLogin(m_cache.m_strAuthLogin);
-    proxyManager.setAuthPassword(m_cache.m_strAuthPassword);
     m_settings.setProxySettings(proxyManager.toString());
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Validation stuff: */
-void UIGlobalSettingsProxy::setValidator(QIWidgetValidator *pValidator)
+bool UIGlobalSettingsProxy::validate(QList<UIValidationMessage> &messages)
 {
-    m_pValidator = pValidator;
+    /* Pass if proxy is disabled: */
+    if (!m_pCheckboxProxy->isChecked())
+        return true;
+
+    /* Pass by default: */
+    bool fPass = true;
+
+    /* Prepare message: */
+    UIValidationMessage message;
+
+    /* Check for host value: */
+    if (m_pHostEditor->text().trimmed().isEmpty())
+    {
+        message.second << tr("No proxy host is currently specified.");
+        fPass = false;
+    }
+
+    /* Check for port value: */
+    if (m_pPortEditor->text().trimmed().isEmpty())
+    {
+        message.second << tr("No proxy port is currently specified.");
+        fPass = false;
+    }
+
+    /* Serialize message: */
+    if (!message.second.isEmpty())
+        messages << message;
+
+    /* Return result: */
+    return fPass;
 }
 
-/* Navigation stuff: */
 void UIGlobalSettingsProxy::setOrderAfter(QWidget *pWidget)
 {
-    setTabOrder(pWidget, m_pProxyCheckbox);
-    setTabOrder(m_pProxyCheckbox, m_pHostEditor);
+    /* Configure navigation: */
+    setTabOrder(pWidget, m_pCheckboxProxy);
+    setTabOrder(m_pCheckboxProxy, m_pHostEditor);
     setTabOrder(m_pHostEditor, m_pPortEditor);
-    setTabOrder(m_pPortEditor, m_pAuthCheckbox);
-    setTabOrder(m_pAuthCheckbox, m_pLoginEditor);
-    setTabOrder(m_pLoginEditor, m_pPasswordEditor);
 }
 
-/* Translation stuff: */
 void UIGlobalSettingsProxy::retranslateUi()
 {
     /* Translate uic generated strings: */
@@ -141,26 +154,9 @@ void UIGlobalSettingsProxy::retranslateUi()
 void UIGlobalSettingsProxy::sltProxyToggled()
 {
     /* Update widgets availability: */
-    m_pHostLabel->setEnabled(m_pProxyCheckbox->isChecked());
-    m_pHostEditor->setEnabled(m_pProxyCheckbox->isChecked());
-    m_pPortLabel->setEnabled(m_pProxyCheckbox->isChecked());
-    m_pPortEditor->setEnabled(m_pProxyCheckbox->isChecked());
-    m_pAuthCheckbox->setEnabled(m_pProxyCheckbox->isChecked());
+    m_pContainerProxy->setEnabled(m_pCheckboxProxy->isChecked());
 
-    /* Update auth widgets also: */
-    sltAuthToggled();
-}
-
-void UIGlobalSettingsProxy::sltAuthToggled()
-{
-    /* Update widgets availability: */
-    m_pLoginLabel->setEnabled(m_pProxyCheckbox->isChecked() && m_pAuthCheckbox->isChecked());
-    m_pLoginEditor->setEnabled(m_pProxyCheckbox->isChecked() && m_pAuthCheckbox->isChecked());
-    m_pPasswordLabel->setEnabled(m_pProxyCheckbox->isChecked() && m_pAuthCheckbox->isChecked());
-    m_pPasswordEditor->setEnabled(m_pProxyCheckbox->isChecked() && m_pAuthCheckbox->isChecked());
-
-    /* Revalidate if possible: */
-    if (m_pValidator)
-        m_pValidator->revalidate();
+    /* Revalidate: */
+    revalidate();
 }
 

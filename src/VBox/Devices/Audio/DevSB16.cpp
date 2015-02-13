@@ -1145,7 +1145,7 @@ static IO_READ_PROTO (dsp_read)
         retval = (!s->out_data_len || s->highspeed) ? 0 : 0x80;
         if (s->mixer_regs[0x82] & 1) {
             ack = 1;
-            s->mixer_regs[0x82] &= 1;
+            s->mixer_regs[0x82] &= ~1;
 #ifndef VBOX
             qemu_irq_lower (s->pic[s->irq]);
 #else
@@ -1158,7 +1158,7 @@ static IO_READ_PROTO (dsp_read)
         retval = 0xff;
         if (s->mixer_regs[0x82] & 2) {
             ack = 1;
-            s->mixer_regs[0x82] &= 2;
+            s->mixer_regs[0x82] &= ~2;
 #ifndef VBOX
             qemu_irq_lower (s->pic[s->irq]);
 #else
@@ -1234,14 +1234,57 @@ static IO_WRITE_PROTO(mixer_write_indexb)
 
 static IO_WRITE_PROTO(mixer_write_datab)
 {
-    SB16State *s = (SB16State*)opaque;
+    SB16State   *s = (SB16State*)opaque;
+    bool        update_master = false;
+    bool        update_voice  = false;
 
     (void) nport;
     ldebug ("mixer_write [%#x] <- %#x\n", s->mixer_nreg, val);
 
     switch (s->mixer_nreg) {
     case 0x00:
-        reset_mixer (s);
+        reset_mixer(s);
+        /* And update the actual volume, too. */
+        update_master = true;
+        update_voice  = true;
+        break;
+
+    case 0x04:
+        /* Translate from old style voice volume (L/R). */
+        s->mixer_regs[0x32] = val & 0xff;
+        s->mixer_regs[0x33] = val << 4;
+        update_voice = true;
+        break;
+
+    case 0x22:
+        /* Translate from old style master volume (L/R). */
+        s->mixer_regs[0x30] = val & 0xff;
+        s->mixer_regs[0x31] = val << 4;
+        update_master = true;
+        break;
+
+    case 0x30:
+        /* Translate to old style master volume (L). */
+        s->mixer_regs[0x22] = (s->mixer_regs[0x22] & 0x0f) | val;
+        update_master = true;
+        break;
+
+    case 0x31:
+        /* Translate to old style master volume (R). */
+        s->mixer_regs[0x22] = (s->mixer_regs[0x22] & 0xf0) | (val >> 4);
+        update_master = true;
+        break;
+
+    case 0x32:
+        /* Translate to old style voice volume (L). */
+        s->mixer_regs[0x04] = (s->mixer_regs[0x04] & 0x0f) | val;
+        update_voice = true;
+        break;
+
+    case 0x33:
+        /* Translate to old style voice volume (R). */
+        s->mixer_regs[0x04] = (s->mixer_regs[0x04] & 0xf0) | (val >> 4);
+        update_voice = true;
         break;
 
     case 0x80:
@@ -1290,13 +1333,21 @@ static IO_WRITE_PROTO(mixer_write_datab)
     s->mixer_regs[s->mixer_nreg] = val;
 
 #ifdef VBOX
-    /* allow to set the PCM_out volume */
-    if (s->mixer_nreg == 0x30 || s->mixer_nreg == 0x31)
+    /* Update the master (mixer) volume. */
+    if (update_master)
     {
         int     mute = 0;
         uint8_t lvol = s->mixer_regs[0x30];
         uint8_t rvol = s->mixer_regs[0x31];
-        AUD_set_volume (AUD_MIXER_VOLUME, &mute, &lvol, &rvol);
+        AUD_set_volume(AUD_MIXER_VOLUME, &mute, &lvol, &rvol);
+    }
+    /* Update the voice (PCM) volume. */
+    if (update_voice)
+    {
+        int     mute = 0;
+        uint8_t lvol = s->mixer_regs[0x32];
+        uint8_t rvol = s->mixer_regs[0x33];
+        AUD_set_volume(AUD_MIXER_PCM, &mute, &lvol, &rvol);
     }
 #endif /* VBOX */
 
@@ -1938,7 +1989,7 @@ const PDMDEVREG g_DeviceSB16 =
     NULL,
     /* pfnRelocate */
     NULL,
-    /* pfnIOCtl */
+    /* pfnMemSetup */
     NULL,
     /* pfnPowerOn */
     NULL,

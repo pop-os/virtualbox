@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,26 +17,44 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
-#include <iprt/time.h>
+/* Qt includes: */
 #include <QTimer>
+#include <QPainter>
 
-/* Local includes */
+/* GUI includes: */
 #include "UIIndicatorsPool.h"
 #include "VBoxGlobal.h"
-#include "COMDefs.h"
 #include "UIMachineDefs.h"
-#include "QIWithRetranslateUI.h"
+#include "UIConverter.h"
+#include "UIAnimationFramework.h"
+#include "UIMedium.h"
 
-class UIIndicatorHardDisks : public QIWithRetranslateUI<QIStateIndicator>
+/* COM includes: */
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CSystemProperties.h"
+#include "CMachineDebugger.h"
+#include "CGuest.h"
+#include "CStorageController.h"
+#include "CMediumAttachment.h"
+#include "CNetworkAdapter.h"
+#include "CUSBController.h"
+#include "CUSBDeviceFilters.h"
+#include "CUSBDevice.h"
+#include "CSharedFolder.h"
+#include "CVRDEServer.h"
+
+/* Other VBox includes: */
+#include <iprt/time.h>
+
+class UIIndicatorHardDisks : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
     UIIndicatorHardDisks(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+      : m_session(session)
     {
         setStateIcon(KDeviceActivity_Idle, QPixmap(":/hd_16px.png"));
         setStateIcon(KDeviceActivity_Reading, QPixmap(":/hd_read_16px.png"));
@@ -71,8 +89,8 @@ public:
                 if (attachment.GetType() != KDeviceType_HardDisk)
                     continue;
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
-                    .arg(VBoxMedium(attachment.GetMedium(), VBoxDefs::MediumType_HardDisk).location());
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(UIMedium(attachment.GetMedium(), UIMediumType_HardDisk).location());
                 fAttachmentsPresent = true;
             }
             if (!strAttData.isNull())
@@ -95,15 +113,14 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorOpticalDisks : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorOpticalDisks : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
     UIIndicatorOpticalDisks(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+      : m_session(session)
     {
         setStateIcon(KDeviceActivity_Idle, QPixmap(":/cd_16px.png"));
         setStateIcon(KDeviceActivity_Reading, QPixmap(":/cd_read_16px.png"));
@@ -138,9 +155,9 @@ public:
             {
                 if (attachment.GetType() != KDeviceType_DVD)
                     continue;
-                VBoxMedium vboxMedium(attachment.GetMedium(), VBoxDefs::MediumType_DVD);
+                UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_DVD);
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
@@ -166,15 +183,14 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorFloppyDisks : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorFloppyDisks : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
     UIIndicatorFloppyDisks(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+      : m_session(session)
     {
         setStateIcon(KDeviceActivity_Idle, QPixmap(":/fd_16px.png"));
         setStateIcon(KDeviceActivity_Reading, QPixmap(":/fd_read_16px.png"));
@@ -209,9 +225,9 @@ public:
             {
                 if (attachment.GetType() != KDeviceType_Floppy)
                     continue;
-                VBoxMedium vboxMedium(attachment.GetMedium(), VBoxDefs::MediumType_Floppy);
+                UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_Floppy);
                 strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
-                    .arg(vboxGlobal().toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
+                    .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
                 if (!vboxMedium.isNull())
@@ -237,15 +253,14 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorNetworkAdapters : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorNetwork : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorNetworkAdapters(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+    UIIndicatorNetwork(CSession &session)
+      : m_session(session)
       , m_pUpdateTimer(new QTimer(this))
     {
         setStateIcon(KDeviceActivity_Idle, QPixmap(":/nw_16px.png"));
@@ -311,7 +326,7 @@ public:
                 strFullData += QApplication::translate("UIIndicatorsPool",
                                "<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
                     .arg(uSlot + 1)
-                    .arg(vboxGlobal().toString(adapter.GetAttachmentType()))
+                    .arg(gpConverter->toString(adapter.GetAttachmentType()))
                     .arg(strGuestIp.isEmpty() ? "" : "IP " + strGuestIp + ", ")
                     .arg(adapter.GetCableConnected() ?
                          QApplication::translate("UIIndicatorsPool", "connected", "Network adapters tooltip") :
@@ -344,15 +359,14 @@ protected:
     QTimer *m_pUpdateTimer;
 };
 
-class UIIndicatorUSBDevices : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorUSB : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorUSBDevices(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+    UIIndicatorUSB(CSession &session)
+      : m_session(session)
     {
         setStateIcon(KDeviceActivity_Idle, QPixmap(":/usb_16px.png"));
         setStateIcon(KDeviceActivity_Reading, QPixmap(":/usb_read_16px.png"));
@@ -375,9 +389,17 @@ public:
                                 "the attached USB devices:</nobr>%1</p>", "USB device tooltip");
         QString strFullData;
 
-        const CUSBController &usbctl = machine.GetUSBController();
-        setState(!usbctl.isNull() && usbctl.GetEnabled() && usbctl.GetProxyAvailable() ? KDeviceActivity_Idle : KDeviceActivity_Null);
-        if (!usbctl.isNull() && usbctl.GetEnabled())
+
+        /*
+         * Check whether there is at least one OHCI USB controllers with
+         * an available proxy.
+         */
+        const CUSBDeviceFilters &filters = machine.GetUSBDeviceFilters();
+        ULONG cOhciCtls = machine.GetUSBControllerCountByType(KUSBControllerType_OHCI);
+        bool fUSBEnabled = !filters.isNull() && cOhciCtls && machine.GetUSBProxyAvailable();
+
+        setState(fUSBEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
+        if (fUSBEnabled)
         {
             const CConsole &console = m_session.GetConsole();
 
@@ -402,20 +424,19 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorSharedFolders : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorSharedFolders : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
     UIIndicatorSharedFolders(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+      : m_session(session)
     {
-        setStateIcon(KDeviceActivity_Idle, QPixmap(":/shared_folder_16px.png"));
-        setStateIcon(KDeviceActivity_Reading, QPixmap(":/shared_folder_read_16px.png"));
-        setStateIcon(KDeviceActivity_Writing, QPixmap(":/shared_folder_write_16px.png"));
-        setStateIcon(KDeviceActivity_Null, QPixmap(":/shared_folder_disabled_16px.png"));
+        setStateIcon(KDeviceActivity_Idle, QPixmap(":/sf_16px.png"));
+        setStateIcon(KDeviceActivity_Reading, QPixmap(":/sf_read_16px.png"));
+        setStateIcon(KDeviceActivity_Writing, QPixmap(":/sf_write_16px.png"));
+        setStateIcon(KDeviceActivity_Null, QPixmap(":/sf_disabled_16px.png"));
 
         retranslateUi();
     }
@@ -478,61 +499,145 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorVRDEDisks : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorVideoCapture : public QIStateIndicator
 {
     Q_OBJECT;
+    Q_PROPERTY(double rotationAngleStart READ rotationAngleStart);
+    Q_PROPERTY(double rotationAngleFinal READ rotationAngleFinal);
+    Q_PROPERTY(double rotationAngle READ rotationAngle WRITE setRotationAngle);
 
 public:
 
-    UIIndicatorVRDEDisks(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+    /* State enumerator: */
+    enum UIIndicatorStateVideoCapture
     {
-        setStateIcon(0, QPixmap (":/vrdp_disabled_16px.png"));
-        setStateIcon(1, QPixmap (":/vrdp_16px.png"));
+        UIIndicatorStateVideoCapture_Disabled = 0,
+        UIIndicatorStateVideoCapture_Enabled  = 1
+    };
 
+    /* Constructor: */
+    UIIndicatorVideoCapture(CSession &session)
+        : m_session(session)
+        , m_pAnimation(0)
+        , m_dRotationAngle(0)
+    {
+        /* Assign state icons: */
+        setStateIcon(UIIndicatorStateVideoCapture_Disabled, QPixmap(":/video_capture_16px.png"));
+        setStateIcon(UIIndicatorStateVideoCapture_Enabled, QPixmap(":/movie_reel_16px.png"));
+
+        /* Prepare *enabled* state animation: */
+        m_pAnimation = UIAnimationLoop::installAnimationLoop(this, "rotationAngle",
+                                                                   "rotationAngleStart", "rotationAngleFinal",
+                                                                   1000);
+
+        /* Translate finally: */
         retranslateUi();
     }
 
+    /* API: Update stuff: */
+    void updateAppearance()
+    {
+        /* Get machine: */
+        CMachine machine = m_session.GetMachine();
+
+        /* Update LED state: */
+        setState(machine.GetVideoCaptureEnabled());
+
+        /* Update LED tool-tip: */
+        QString strToolTip = QApplication::translate("UIIndicatorsPool", "<nobr>Indicates video capturing activity:</nobr><br>%1");
+        switch (state())
+        {
+            case UIIndicatorStateVideoCapture_Disabled:
+            {
+                strToolTip = strToolTip.arg(QApplication::translate("UIIndicatorsPool", "<nobr><b>Video capture disabled</b></nobr>"));
+                break;
+            }
+            case UIIndicatorStateVideoCapture_Enabled:
+            {
+                strToolTip = strToolTip.arg(QApplication::translate("UIIndicatorsPool", "<nobr><b>Video capture file:</b> %1</nobr>"));
+                strToolTip = strToolTip.arg(machine.GetVideoCaptureFile());
+                break;
+            }
+            default:
+                break;
+        }
+        setToolTip(strToolTip);
+    }
+
+public slots:
+
+    /* Handler: State stuff: */
+    void setState(int iState)
+    {
+        /* Update animation state: */
+        switch (iState)
+        {
+            case UIIndicatorStateVideoCapture_Disabled:
+                m_pAnimation->stop();
+                m_dRotationAngle = 0;
+                break;
+            case UIIndicatorStateVideoCapture_Enabled:
+                m_pAnimation->start();
+                break;
+            default:
+                break;
+        }
+
+        /* Call to base-class: */
+        QIStateIndicator::setState(iState);
+    }
+
+protected:
+
+    /* Handler: Translate stuff: */
     void retranslateUi()
     {
         updateAppearance();
     }
 
-    void updateAppearance()
+    /* Handler: Paint stuff: */
+    void paintEvent(QPaintEvent*)
     {
-        CVRDEServer srv = m_session.GetMachine().GetVRDEServer();
-        if (!srv.isNull())
+        /* Create new painter: */
+        QPainter painter(this);
+        /* Configure painter for *enabled* state: */
+        if (state() == UIIndicatorStateVideoCapture_Enabled)
         {
-            /* update menu&status icon state */
-            bool fEnabled = srv.GetEnabled();
-
-            setState(fEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
-
-            QString tip = QApplication::translate("UIIndicatorsPool", "Indicates whether the Remote Desktop Server "
-                             "is enabled (<img src=:/vrdp_16px.png/>) or not "
-                             "(<img src=:/vrdp_disabled_16px.png/>).");
-            if (srv.GetEnabled())
-                tip += QApplication::translate("UIIndicatorsPool", "<hr>The Remote Desktop Server is listening on port %1").arg(srv.GetVRDEProperty("TCP/Ports"));
-            setToolTip(tip);
+            /* Configure painter for smooth animation: */
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.setRenderHint(QPainter::SmoothPixmapTransform);
+            /* Shift rotation origin according pixmap center: */
+            painter.translate(height() / 2, height() / 2);
+            /* Rotate painter: */
+            painter.rotate(rotationAngle());
+            /* Unshift rotation origin according pixmap center: */
+            painter.translate(- height() / 2, - height() / 2);
         }
+        /* Draw contents: */
+        drawContents(&painter);
     }
 
-protected:
-    /* For compatibility reason we do it here, later this should be moved to
-     * QIStateIndicator. */
+    /* Properties: Rotation stuff: */
+    double rotationAngleStart() const { return 0; }
+    double rotationAngleFinal() const { return 360; }
+    double rotationAngle() const { return m_dRotationAngle; }
+    void setRotationAngle(double dRotationAngle) { m_dRotationAngle = dRotationAngle; update(); }
+
+    /* For compatibility reason we do it here,
+     * later this should be moved to QIStateIndicator. */
     CSession &m_session;
+    UIAnimationLoop *m_pAnimation;
+    double m_dRotationAngle;
 };
 
-class UIIndicatorVirtualization : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorFeatures : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorVirtualization(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+    UIIndicatorFeatures(CSession &session)
+      : m_session(session)
     {
         setStateIcon(0, QPixmap(":/vtx_amdv_disabled_16px.png"));
         setStateIcon(1, QPixmap(":/vtx_amdv_16px.png"));
@@ -562,20 +667,26 @@ public:
 
         bool bNestEnabled = debugger.GetHWVirtExNestedPagingEnabled();
         QString nestedPaging = bNestEnabled ?
-            VBoxGlobal::tr("Enabled", "nested paging") :
-            VBoxGlobal::tr("Disabled", "nested paging");
+            VBoxGlobal::tr("Enabled", "details report (Nested Paging)") :
+            VBoxGlobal::tr("Disabled", "details report (Nested Paging)");
+
+        bool bUXEnabled = debugger.GetHWVirtExUXEnabled();
+        QString unrestrictExec = bUXEnabled ?
+            VBoxGlobal::tr("Enabled", "details report (Unrestricted Execution)") :
+            VBoxGlobal::tr("Disabled", "details report (Unrestricted Execution)");
 
         QString strCPUExecCap = QString::number(console.GetMachine().GetCPUExecutionCap());
 
         QString tip(QApplication::translate("UIIndicatorsPool",
-                                            "Indicates the status of different "
-                                            "features used by this virtual machine:"
+                                            "Additional feature status:"
                                             "<br><nobr><b>%1:</b>&nbsp;%2</nobr>"
                                             "<br><nobr><b>%3:</b>&nbsp;%4</nobr>"
-                                            "<br><nobr><b>%5:</b>&nbsp;%6%</nobr>",
+                                            "<br><nobr><b>%5:</b>&nbsp;%6</nobr>"
+                                            "<br><nobr><b>%7:</b>&nbsp;%8%</nobr>",
                                             "Virtualization Stuff LED")
                     .arg(VBoxGlobal::tr("VT-x/AMD-V", "details report"), virtualization)
                     .arg(VBoxGlobal::tr("Nested Paging"), nestedPaging)
+                    .arg(VBoxGlobal::tr("Unrestricted Execution"), unrestrictExec)
                     .arg(VBoxGlobal::tr("Execution Cap", "details report"), strCPUExecCap));
 
         int cpuCount = console.GetMachine().GetCPUCount();
@@ -593,15 +704,14 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorMouse : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorMouse : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
     UIIndicatorMouse(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+      : m_session(session)
     {
         setStateIcon(0, QPixmap(":/mouse_disabled_16px.png"));
         setStateIcon(1, QPixmap(":/mouse_16px.png"));
@@ -645,15 +755,14 @@ protected:
     CSession &m_session;
 };
 
-class UIIndicatorHostkey : public QIWithRetranslateUI<QIStateIndicator>
+class UIIndicatorKeyboard : public QIStateIndicator
 {
     Q_OBJECT;
 
 public:
 
-    UIIndicatorHostkey(CSession &session)
-      : QIWithRetranslateUI<QIStateIndicator>()
-      , m_session(session)
+    UIIndicatorKeyboard(CSession &session)
+      : m_session(session)
     {
         setStateIcon(0, QPixmap(":/hostkey_16px.png"));
         setStateIcon(1, QPixmap(":/hostkey_captured_16px.png"));
@@ -678,58 +787,65 @@ protected:
 UIIndicatorsPool::UIIndicatorsPool(CSession &session, QObject *pParent)
     : QObject(pParent)
     , m_session(session)
-    , m_IndicatorsPool(UIIndicatorIndex_End, 0)
+    , m_pool(IndicatorType_Max)
 {
+    /* Prepare: */
+    prepare();
 }
 
 UIIndicatorsPool::~UIIndicatorsPool()
 {
-    for (int i = 0; i < m_IndicatorsPool.size(); ++i)
-    {
-        delete m_IndicatorsPool[i];
-        m_IndicatorsPool[i] = 0;
-    }
-    m_IndicatorsPool.clear();
+    /* Cleanup: */
+    cleanup();
 }
 
-QIStateIndicator* UIIndicatorsPool::indicator(UIIndicatorIndex index)
+QIStateIndicator* UIIndicatorsPool::indicator(IndicatorType index)
 {
-    if (!m_IndicatorsPool.at(index))
+    /* Just return what already exists: */
+    return m_pool[index];
+}
+
+void UIIndicatorsPool::prepare()
+{
+    /* Get the list of restricted indicators: */
+    CMachine machine = m_session.GetMachine();
+    QList<IndicatorType> restrictedIndicators = vboxGlobal().restrictedStatusBarIndicators(machine);
+
+    /* Populate indicator-pool: */
+    for (int iIndex = 0; iIndex < IndicatorType_Max; ++iIndex)
     {
+        /* Make sure indicator presence is permitted: */
+        IndicatorType index = static_cast<IndicatorType>(iIndex);
+        if (restrictedIndicators.contains(index))
+            continue;
+
+        /* Prepare indicator: */
         switch (index)
         {
-            case UIIndicatorIndex_HardDisks:
-                m_IndicatorsPool[index] = new UIIndicatorHardDisks(m_session);
-                break;
-            case UIIndicatorIndex_OpticalDisks:
-                m_IndicatorsPool[index] = new UIIndicatorOpticalDisks(m_session);
-                break;
-            case UIIndicatorIndex_FloppyDisks:
-                m_IndicatorsPool[index] = new UIIndicatorFloppyDisks(m_session);
-                break;
-            case UIIndicatorIndex_NetworkAdapters:
-                m_IndicatorsPool[index] = new UIIndicatorNetworkAdapters(m_session);
-                break;
-            case UIIndicatorIndex_USBDevices:
-                m_IndicatorsPool[index] = new UIIndicatorUSBDevices(m_session);
-                break;
-            case UIIndicatorIndex_SharedFolders:
-                m_IndicatorsPool[index] = new UIIndicatorSharedFolders(m_session);
-                break;
-            case UIIndicatorIndex_Virtualization:
-                m_IndicatorsPool[index] = new UIIndicatorVirtualization(m_session);
-                break;
-            case UIIndicatorIndex_Mouse:
-                m_IndicatorsPool[index] = new UIIndicatorMouse(m_session);
-                break;
-            case UIIndicatorIndex_Hostkey:
-                m_IndicatorsPool[index] = new UIIndicatorHostkey(m_session);
-                break;
-            default:
-                break;
+            case IndicatorType_HardDisks:     m_pool[index] = new UIIndicatorHardDisks(m_session); break;
+            case IndicatorType_OpticalDisks:  m_pool[index] = new UIIndicatorOpticalDisks(m_session); break;
+            case IndicatorType_FloppyDisks:   m_pool[index] = new UIIndicatorFloppyDisks(m_session); break;
+            case IndicatorType_Network:       m_pool[index] = new UIIndicatorNetwork(m_session); break;
+            case IndicatorType_USB:           m_pool[index] = new UIIndicatorUSB(m_session); break;
+            case IndicatorType_SharedFolders: m_pool[index] = new UIIndicatorSharedFolders(m_session); break;
+            case IndicatorType_VideoCapture:  m_pool[index] = new UIIndicatorVideoCapture(m_session); break;
+            case IndicatorType_Features:      m_pool[index] = new UIIndicatorFeatures(m_session); break;
+            case IndicatorType_Mouse:         m_pool[index] = new UIIndicatorMouse(m_session); break;
+            case IndicatorType_Keyboard:      m_pool[index] = new UIIndicatorKeyboard(m_session); break;
+            default: break;
         }
     }
-    return m_IndicatorsPool.at(index);
+}
+
+void UIIndicatorsPool::cleanup()
+{
+    /* Wipe-out indicator-pool: */
+    for (int iIndex = 0; iIndex < IndicatorType_Max; ++iIndex)
+    {
+        /* Wipe-out indicator: */
+        delete m_pool[iIndex];
+        m_pool[iIndex] = 0;
+    }
 }
 
 #include "UIIndicatorsPool.moc"

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -87,6 +87,11 @@ RTDECL(RTCPUID) RTMpGetCount(void)
     return mp_maxid + 1;
 }
 
+
+RTDECL(RTCPUID) RTMpGetCoreCount(void)
+{
+    return mp_maxid + 1;
+}
 
 RTDECL(bool) RTMpIsCpuOnline(RTCPUID idCpu)
 {

@@ -5,15 +5,15 @@
  *  A template to generate a MS IDL compatible interface definition file
  *  from the generic interface definition expressed in XML.
 
-     Copyright (C) 2006-2010 Oracle Corporation
+    Copyright (C) 2006-2014 Oracle Corporation
 
-     This file is part of VirtualBox Open Source Edition (OSE), as
-     available from http://www.virtualbox.org. This file is free software;
-     you can redistribute it and/or modify it under the terms of the GNU
-     General Public License (GPL) as published by the Free Software
-     Foundation, in version 2 as it comes in the "COPYING" file of the
-     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+    This file is part of VirtualBox Open Source Edition (OSE), as
+    available from http://www.virtualbox.org. This file is free software;
+    you can redistribute it and/or modify it under the terms of the GNU
+    General Public License (GPL) as published by the Free Software
+    Foundation, in version 2 as it comes in the "COPYING" file of the
+    VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+    hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 -->
 
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -206,7 +206,6 @@
   <xsl:text> : </xsl:text>
   <xsl:choose>
     <xsl:when test="@extends='$unknown'">IDispatch</xsl:when>
-    <xsl:when test="@extends='$dispatched'">IDispatch</xsl:when>
     <xsl:when test="@extends='$errorinfo'">IErrorInfo</xsl:when>
     <xsl:otherwise><xsl:value-of select="@extends"/></xsl:otherwise>
   </xsl:choose>
@@ -287,18 +286,13 @@
     <xsl:call-template name="capitalize">
       <xsl:with-param name="str" select="@name"/>
     </xsl:call-template>
-    <xsl:text> ([in</xsl:text>
-    <xsl:if test="@safearray='yes'">
-      <!-- VB supports only [in, out], [out] and [out, retval] arrays -->
-      <xsl:text>, out</xsl:text>
-    </xsl:if>
-    <xsl:text>] </xsl:text>
+    <xsl:text> ([in] </xsl:text>
     <xsl:if test="@safearray='yes'">
       <xsl:text>SAFEARRAY(</xsl:text>
     </xsl:if>
     <xsl:apply-templates select="@type"/>
     <xsl:if test="@safearray='yes'">
-      <xsl:text>) *</xsl:text>
+      <xsl:text>)</xsl:text>
     </xsl:if>
     <xsl:text> a</xsl:text>
     <xsl:call-template name="capitalize">

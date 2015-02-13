@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -650,9 +650,10 @@ RT_EXPORT_SYMBOL(RTNetIPv4IsTCPValid);
  */
 RTDECL(bool) RTNetIPv4IsDHCPValid(PCRTNETUDP pUdpHdr, PCRTNETBOOTP pDhcp, size_t cbDhcp, uint8_t *pMsgType)
 {
-    ssize_t cbLeft;
-    uint8_t MsgType;
-    PCRTNETDHCPOPT pOpt;
+    ssize_t         cbLeft;
+    uint8_t         MsgType;
+    PCRTNETDHCPOPT  pOpt;
+    NOREF(pUdpHdr); /** @todo rainy-day: Why isn't the UDP header used? */
 
     AssertPtrNull(pMsgType);
     if (pMsgType)

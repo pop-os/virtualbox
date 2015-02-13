@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,7 +100,7 @@ int main()
     uint64_t    u64MaxTS;
     unsigned    i;
 
-    RTR3Init();
+    RTR3InitExeNoArguments(0);
     RTPrintf("tstPrfRT: TESTING...\n");
 
     /*

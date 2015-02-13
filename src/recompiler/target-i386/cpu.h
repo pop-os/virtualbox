@@ -64,6 +64,8 @@
 # include <iprt/asm.h>
 # include <VBox/vmm/vmm.h>
 # include <VBox/vmm/stam.h>
+# include <VBox/vmm/cpumctx.h>
+# undef MSR_IA32_APICBASE_BSP
 #endif /* VBOX */
 
 #define R_EAX 0
@@ -114,6 +116,10 @@
 #define DESC_W_MASK     (1 << 9)  /* data: writable */
 
 #define DESC_TSS_BUSY_MASK (1 << 9)
+#ifdef VBOX
+# define DESC_INTEL_UNUSABLE    RT_BIT_32(16+8)      /**< Internal VT-x bit for NULL sectors. */
+# define DESC_RAW_FLAG_BITS     UINT32_C(0x00ffffff) /**< Flag bits we load from the descriptor. */
+#endif
 
 /* eflags masks */
 #define CC_C   	0x0001
@@ -531,13 +537,14 @@ typedef float64 CPU86_LDouble;
 
 typedef struct SegmentCache {
     uint32_t selector;
+#ifdef VBOX
+    /** The new selector is saved here when we are unable to sync it before invoking the recompiled code. */
+    uint16_t newselector;
+    uint16_t fVBoxFlags;
+#endif
     target_ulong base;
     uint32_t limit;
     uint32_t flags;
-#ifdef VBOX
-    /** The new selector is saved here when we are unable to sync it before invoking the recompiled code. */
-    uint32_t newselector;
-#endif
 } SegmentCache;
 
 typedef union {
@@ -907,7 +914,7 @@ typedef struct CPUX86State_Ver16 {
 # define CPU_RAW_RING0            0x0002 /* Set after first time RawR0 is executed, never cleared. */
 # define CPU_EMULATE_SINGLE_INSTR 0x0040 /* Execute a single instruction in emulation mode */
 # define CPU_EMULATE_SINGLE_STEP  0x0080 /* go into single step mode */
-# define CPU_RAW_HWACC            0x0100 /* Set after first time HWACC is executed, never cleared. */
+# define CPU_RAW_HM            0x0100 /* Set after first time HWACC is executed, never cleared. */
 /** @} */
 #endif /* !VBOX */
 
@@ -928,11 +935,19 @@ void cpu_set_ferr(CPUX86State *s);
 
 /* this function must always be used to load data in the segment
    cache: it synchronizes the hflags with the segment cache values */
+#ifndef VBOX
 static inline void cpu_x86_load_seg_cache(CPUX86State *env,
                                           int seg_reg, unsigned int selector,
                                           target_ulong base,
                                           unsigned int limit,
                                           unsigned int flags)
+#else
+static inline void cpu_x86_load_seg_cache_with_clean_flags(CPUX86State *env,
+                                                           int seg_reg, unsigned int selector,
+                                                           target_ulong base,
+                                                           unsigned int limit,
+                                                           unsigned int flags)
+#endif
 {
     SegmentCache *sc;
     unsigned int new_hflags;
@@ -944,6 +959,7 @@ static inline void cpu_x86_load_seg_cache(CPUX86State *env,
     sc->flags = flags;
 #ifdef VBOX
     sc->newselector = 0;
+    sc->fVBoxFlags  = CPUMSELREG_FLAGS_VALID;
 #endif
 
     /* update the hidden flags */
@@ -987,6 +1003,23 @@ static inline void cpu_x86_load_seg_cache(CPUX86State *env,
                        ~(HF_SS32_MASK | HF_ADDSEG_MASK)) | new_hflags;
     }
 }
+
+#ifdef VBOX
+/* Raw input, adjust the flags adding the stupid intel flag when applicable. */
+static inline void cpu_x86_load_seg_cache(CPUX86State *env,
+                                          int seg_reg, unsigned int selector,
+                                          target_ulong base,
+                                          unsigned int limit,
+                                          unsigned int flags)
+{
+    flags &= DESC_RAW_FLAG_BITS;
+    if (flags & DESC_P_MASK)
+        flags |= DESC_A_MASK;           /* Make sure the A bit is set to avoid trouble. */
+    else if (selector < 4U)
+        flags |= DESC_INTEL_UNUSABLE;
+    cpu_x86_load_seg_cache_with_clean_flags(env, seg_reg, selector, base, limit, flags);
+}
+#endif
 
 static inline void cpu_x86_load_seg_cache_sipi(CPUX86State *env,
                                                int sipi_vector)

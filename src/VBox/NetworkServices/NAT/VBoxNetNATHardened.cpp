@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
 
 #include <VBox/sup.h>
 
+#ifndef SERVICE_NAME
+# error "Please define SERVICE_NAME"
+#endif
 
 int main(int argc, char **argv, char **envp)
 {
-    return SUPR3HardenedMain("VBoxNetNAT", 0 /* fFlags */, argc, argv, envp);
+    return SUPR3HardenedMain(SERVICE_NAME, 0 /* fFlags */, argc, argv, envp);
 }

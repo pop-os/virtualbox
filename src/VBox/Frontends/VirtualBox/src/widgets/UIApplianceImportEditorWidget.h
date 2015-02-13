@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #ifndef __UIApplianceImportEditorWidget_h__
 #define __UIApplianceImportEditorWidget_h__
 
-/* VBox includes */
+/* GUI includes: */
 #include "UIApplianceEditorWidget.h"
 
 class UIApplianceImportEditorWidget: public UIApplianceEditorWidget

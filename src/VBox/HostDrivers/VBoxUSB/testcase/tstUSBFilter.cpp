@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -77,7 +77,7 @@ static const char g_szString256[256+1] =
 int main()
 {
     unsigned cErrors = 0;
-    RTR3Init();
+    RTR3InitExeNoArguments(0);
 
     /*
      * Basic property setting and simple matching.

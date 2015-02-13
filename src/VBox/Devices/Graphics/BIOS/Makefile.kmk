@@ -1,10 +1,10 @@
 # $Id: Makefile.kmk $
 ## @file
-# VGA BIOS Sub-Makefile
+# Sub-Makefile for the New VGA BIOS ROM.
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -16,94 +16,109 @@
 #
 
 SUB_DEPTH = ../../../../..
-include	$(KBUILD_PATH)/subheader.kmk
+include $(KBUILD_PATH)/subheader.kmk
 
-#
-# Globals
-#
-VBOX_PATH_DEVICES_SRC ?= $(PATH_ROOT)/src/VBox/Devices
 
-#
-# Build program for calculating the VGA BIOS checksums.
-#
-BLDPROGS += vbetables-gen
-vbetables-gen_TEMPLATE = VBOXBLDPROG
-vbetables-gen_SOURCES  = vbetables-gen.c
+ifdef VBOX_WITH_OPEN_WATCOM
+
+ #
+ # VBoxVgaBios - The VGA BIOS.
+ #
+ MISCBINS += VBoxVgaBios
+ VBoxVgaBios_TEMPLATE = VBoxBios
+ VBoxVgaBios_ASFLAGS = -0
+ VBoxVgaBios_DEFS = VBE
+ VBoxVgaBios_SOURCES = \
+ 	vgarom.asm \
+ 	vberom.asm \
+ 	vgabios.c \
+ 	vbe.c
+ VBoxVgaBios_LDFLAGS = \
+ 	output raw offset=0xC0000 \
+ 	order \
+ 	 clname CODE  \
+	  segment VGAROM segaddr=0xC000 \
+ 	  segment _TEXT  segaddr=0xC000 offset=0xA00 \
+ 	  segment VBE32  segaddr=0xC000 offset=0x4600 \
+ 	 clname DATA \
+ 	  segment _DATA  segaddr=0xC000 offset=0x4800 \
+
+ #
+ # Updates the alternative source file.
+ #
+ update-vgabios-source +| $(PATH_SUB_CURRENT)/VBoxVgaBiosAlternative.asm $(PATH_SUB_CURRENT)/VBoxVgaBiosAlternative.md5sum: \
+ 		$$(VBoxVgaBios_1_TARGET) \
+ 		$(VBOX_MAKE_ALTERNATIVE_SOURCE) \
+		$(VBOX_VBOXCMP)
+ if1of ($(KBUILD_TYPE), release)
+	$(VBOX_MAKE_ALTERNATIVE_SOURCE) \
+		--bios-image $< \
+		--bios-map $(basename $<).map \
+		--bios-sym $(basename $<).sym \
+               --bios-type vga \
+		--output $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.asm
+	$(QUIET)yasm -f bin -o $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.bin $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.asm
+	$(VBOX_VBOXCMP) $< $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.bin
+	$(CP) --changed -- $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.asm $(PATH_ROOT)/src/VBox/Devices/Graphics/BIOS/VBoxVgaBiosAlternative.asm
+	$(REDIRECT) -C $(dir $(VBoxVgaBios_1_TARGET)) -- \
+		$(MD5SUM_EXT) -bo $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.md5sum $(notdir $(VBoxVgaBios_1_TARGET))
+	$(CP) --changed -- $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.md5sum $(PATH_ROOT)/src/VBox/Devices/Graphics/BIOS/VBoxVgaBiosAlternative.md5sum
+	$(RM) -f -- $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.asm $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.bin $(VBoxVgaBios_0_OUTDIR)/VBoxVgaBiosAlternative.md5sum
+ else
+	$(QUIET)$(ECHO) "Fatal error: Can only update VBoxVgaBiosAlternative.asm/md5sum with a release build."
+	$(QUIET)exit 1
+ endif
+
+endif # VBOX_WITH_OPEN_WATCOM
+
 
 #
 # The library containing the VGA BIOS image.
 #
 LIBRARIES += VgaBiosBin
-VgaBiosBin_TEMPLATE = VBOXR3
-VgaBiosBin_DEFS     = IN_VBOXDD2
-VgaBiosBin_INCS     = $(VBOX_PATH_DEVICES_SRC)
-VgaBiosBin_SOURCES  = $(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c
-VgaBiosBin_CLEAN    = \
-	$(VgaBiosBin_0_OUTDIR)/vbetables.h \
-	\
-	$(VgaBiosBin_0_OUTDIR)/_vgabios_.c \
-	$(VgaBiosBin_0_OUTDIR)/vgabios0.s \
-	$(VgaBiosBin_0_OUTDIR)/vgabios1.s \
-	$(VgaBiosBin_0_OUTDIR)/vgabios.tmp \
-	$(VgaBiosBin_0_OUTDIR)/vgabios.lst \
-	$(VgaBiosBin_0_OUTDIR)/vgabios.bin \
+VgaBiosBin_TEMPLATE  = VBOXR3
+VgaBiosBin_DEFS      = IN_VBOXDD2
+VgaBiosBin_SOURCES   = \
+	$(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c
+VgaBiosBin_DEPS      = \
+	$(VgaBiosBin_0_OUTDIR)/vbetables.h
+VgaBiosBin_CLEAN     = \
 	$(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c \
-	$(VgaBiosBin_0_OUTDIR)/VgaDefBiosLogo.c \
-	\
-	$(VgaBiosBin_0_OUTDIR)/_vgabios-cirrus_.c \
-	$(VgaBiosBin_0_OUTDIR)/vgabios-cirrus0.s \
-	$(VgaBiosBin_0_OUTDIR)/vgabios-cirrus1.s \
-	$(VgaBiosBin_0_OUTDIR)/vgabios-cirrus.tmp \
-	$(VgaBiosBin_0_OUTDIR)/vgabios-cirrus.lst \
-	$(VgaBiosBin_0_OUTDIR)/vgabios-cirrus.bin
+	$(VgaBiosBin_0_OUTDIR)/vbetables.h
 
-#
-# Rule for making the bios.
-#
-$$(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c: $$(VgaBiosBin_0_OUTDIR)/vgabios.bin $(VBOX_BIN2C)
+ifdef VBOX_WITH_OPEN_WATCOM
+ $$(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c: $$(VBoxVgaBios_1_TARGET) $(VBOX_BIN2C) | $$(dir $$@)
 	$(call MSG_TOOL,bin2c,VgaBiosBin,$<,$@)
-	$(QUIET)$(VBOX_BIN2C) -min 36 -max 36 -mask 0x0fff -ascii -export VgaBiosBinary $< $@
+	$(QUIET)$(VBOX_BIN2C) -min 32 -max 36 -mask 0x0fff -ascii -export VgaBiosBinary $< $@
+else
+ VgaBiosBin_CLEAN    += $(VgaBiosBin_0_OUTDIR)/VBoxVgaBios.rom
 
-#
-# vgabios
-#
+ $$(VgaBiosBin_0_OUTDIR)/VgaBiosBin.c + $$(VgaBiosBin_0_OUTDIR)/VBoxVgaBios.rom: \
+		$(PATH_SUB_CURRENT)/VBoxVgaBiosAlternative.asm \
+		$(PATH_SUB_CURRENT)/VBoxVgaBiosAlternative.md5sum \
+		$(VBOX_BIN2C) | $$(dir $$@)
+	$(call MSG_TOOL,bin2c,VgaBiosBin,$<,$@)
+	$(QUIET)yasm -f bin -o $(VgaBiosBin_0_OUTDIR)/VBoxVgaBios.rom $<
+	$(QUIET)$(REDIRECT) -C $(VgaBiosBin_0_OUTDIR) -- \
+		$(MD5SUM_EXT) -c $(basename $<).md5sum
+	$(QUIET)$(VBOX_BIN2C) -min 32 -max 36 -mask 0x0fff -ascii -export VgaBiosBinary $(VgaBiosBin_0_OUTDIR)/VBoxVgaBios.rom $@
+	$(QUIET)$(RM) -f -- $$(VgaBiosBin_0_OUTDIR)/VBoxVgaBios.rom
+endif
 
-# 1. create vbetables.h
+
+# Rule for making the vbetables.h that DevVGA uses.
 $$(VgaBiosBin_0_OUTDIR)/vbetables.h: $(MAKEFILE_CURRENT) $$(vbetables-gen_1_TARGET) | $$(dir $$@)
 	$(QUIET)$(REDIRECT) -wo $@ -- $(vbetables-gen_1_TARGET)
 
-# 2. precompile
-# WARNING! DEBUG is undefined here to keep the image size stable between debug and release builds.
-$$(VgaBiosBin_0_OUTDIR)/_vgabios_.c: $(addprefix $(PATH_SUB_CURRENT)/,vgabios.c vgabios.h vbe.h vgatables.h vgafonts.h vbe.c clext.c) $$(VgaBiosBin_0_OUTDIR)/vbetables.h $(PATH_ROOT)/include/VBox/Hardware/VBoxVideoVBE.h $(VBOX_VERSION_STAMP)
-	$(call MSG_TOOL,cpp,VgaBiosBin,$<,$@)
-	$(QUIET)$(TOOL_$(VBOX_GCC_TOOL)_CC) -E -P \
-		-DVBOX -DVBOX_VERSION_STRING=\"$(VBOX_VERSION_STRING)\" \
-		-DVBOX_VENDOR='"$(VBOX_VENDOR)"' -DVBOX_PRODUCT='"$(VBOX_PRODUCT)"' \
-		-DVBE -DVGABIOS_DATE="''" $(addprefix -D,$(DEFS) $(DEFS.$(KBUILD_TYPE))) -UDEBUG \
-		-I$(PATH_ROOT)/include \
-		-o $@ $<
 
-# 3. compile
-# BCC tempfile clashes, order the BCC jobs to make sure they don't interfere with one another.
-$$(VgaBiosBin_0_OUTDIR)/vgabios0.s: $$(VgaBiosBin_0_OUTDIR)/_vgabios_.c | $(VBOX_BCC_JOBS)
-	$(call MSG_COMPILE,VgaBiosBin,$<,$@,C)
-	$(QUIET)$(VBOX_BCC) -o $@ -C-c -D__i86__ -0 -S $^
-VBOX_BCC_JOBS += $(VgaBiosBin_0_OUTDIR)/vgabios0.s
+#
+# The VBE tables.
+#
+BLDPROGS += vbetables-gen
+vbetables-gen_TEMPLATE = VBoxBldProg
+vbetables-gen_SOURCES  = vbetables-gen.c
+vbetables-gen_CLEAN    = $(vbetables-gen)
 
-# 4. preprocess intermediate assembly.
-$$(VgaBiosBin_0_OUTDIR)/vgabios1.s: $$(VgaBiosBin_0_OUTDIR)/vgabios0.s
-	$(call MSG_TOOL,Adjusting BCC Assembly,VgaBiosBin,$<,$@)
-	$(QUIET)$(SED) -e 's/^\.text//' -e 's/^\.data//' --output $@ $^
-
-# 5. assemble
-$$(VgaBiosBin_0_OUTDIR)/vgabios.tmp $$(VgaBiosBin_0_OUTDIR)/vgabios.lst: $$(VgaBiosBin_0_OUTDIR)/vgabios1.s
-	$(call MSG_COMPILE,VgaBiosBin,$<,$@,AS)
-	$(QUIET)$(REDIRECT) -ri $^ -- $(VBOX_AS86) -b $(VgaBiosBin_0_OUTDIR)/vgabios.tmp -u- -w- -g -0 -j -O -l $(VgaBiosBin_0_OUTDIR)/vgabios.lst
-
-# 6. checksums
-$$(VgaBiosBin_0_OUTDIR)/vgabios.bin: $$(VgaBiosBin_0_OUTDIR)/vgabios.tmp $$(VBOX_BIOSSUMS)
-	$(call MSG_TOOL,biossums,VgaBiosBin,$<,$@)
-	$(QUIET)$(VBOX_BIOSSUMS) $< $@
 
 #
 # The VGA BIOS Logo.
@@ -111,15 +126,23 @@ $$(VgaBiosBin_0_OUTDIR)/vgabios.bin: $$(VgaBiosBin_0_OUTDIR)/vgabios.tmp $$(VBOX
 LIBRARIES += VgaDefBiosLogo
 VgaDefBiosLogo_TEMPLATE  = VBOXR3
 VgaDefBiosLogo_INCS      = $(VBOX_PATH_DEVICES_SRC)
-VgaDefBiosLogo_SOURCES   = $(VgaBiosBin_0_OUTDIR)/VgaDefBiosLogo.c
+VgaDefBiosLogo_SOURCES   = $(VgaDefBiosLogo_0_OUTDIR)/VgaDefBiosLogo.c
+VgaDefBiosLogo_CLEAN     = $(VgaDefBiosLogo_0_OUTDIR)/VgaDefBiosLogo.c
 
-#
 # Rule for making the bios logo.
-#
-$$(VgaBiosBin_0_OUTDIR)/VgaDefBiosLogo.c: $(VBOX_BRAND_BIOS_LOGO) $(VBOX_BIN2C)
-	$(call MSG_TOOL,bin2c,VgaBiosBin,$<,$@)
+$$(VgaDefBiosLogo_0_OUTDIR)/VgaDefBiosLogo.c: $(VBOX_BRAND_BIOS_LOGO) $(VBOX_BIN2C) | $$(dir $$@)
+	$(call MSG_TOOL,bin2c,VgaDefBiosLogo,$<,$@)
 	$(QUIET)$(VBOX_BIN2C) VgaDefBiosLogo $< $@
 
 
-include	$(KBUILD_PATH)/subfooter.kmk
+ifdef VBOX_WITH_OPEN_WATCOM
+ #
+ # Install the symbol file for the BIOS.
+ #
+ INSTALLS += VBoxVgaBiosSym
+ VBoxVgaBiosSym_TEMPLATE = VBoxDbgSyms
+ VBoxVgaBiosSym_SOURCES = $(basename $(VBoxVgaBios_1_TARGET)).sym
+endif
+
+include $(FILE_KBUILD_SUB_FOOTER)
 

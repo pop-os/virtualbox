@@ -1,11 +1,10 @@
+/* $Id: DisasmInternal.h $ */
 /** @file
- *
- * VBox disassembler:
- * Internal header
+ * VBox disassembler - Internal header.
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,14 +18,17 @@
 #ifndef ___DisasmInternal_h___
 #define ___DisasmInternal_h___
 
-#include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/dis.h>
 
-#define ExceptionMemRead          0x666
-#define ExceptionInvalidModRM     0x667
-#define ExceptionInvalidParameter 0x668
 
+/** @defgroup grp_dis_int Internals.
+ * @ingroup grp_dis
+ * @{
+ */
+
+/** @name Index into g_apfnCalcSize and g_apfnFullDisasm.
+ * @{ */
 #define IDX_ParseNop                0
 #define IDX_ParseModRM              1
 #define IDX_UseModRM                2
@@ -67,102 +69,110 @@
 #define IDX_ParseImmZ               37
 #define IDX_ParseThreeByteEsc4      38
 #define IDX_ParseThreeByteEsc5      39
-#define IDX_ParseMax                (IDX_ParseThreeByteEsc5+1)
+#define IDX_ParseImmAddrF           40
+#define IDX_ParseInvOpModRM         41
+#define IDX_ParseMax                (IDX_ParseInvOpModRM+1)
+/** @}  */
 
-#if defined(IN_RING0) || defined(IN_RC)
-#define DIS_THROW(a)                /* Not available. */
-#elif  __L4ENV__
-#define DIS_THROW(a)                longjmp(*pCpu->pJumpBuffer, a)
+
+/** @name Opcode maps.
+ * @{ */
+extern const DISOPCODE g_InvalidOpcode[1];
+
+extern const DISOPCODE g_aOneByteMapX86[256];
+extern const DISOPCODE g_aOneByteMapX64[256];
+extern const DISOPCODE g_aTwoByteMapX86[256];
+
+/** Two byte opcode map with prefix 0x66 */
+extern const DISOPCODE g_aTwoByteMapX86_PF66[256];
+
+/** Two byte opcode map with prefix 0xF2 */
+extern const DISOPCODE g_aTwoByteMapX86_PFF2[256];
+
+/** Two byte opcode map with prefix 0xF3 */
+extern const DISOPCODE g_aTwoByteMapX86_PFF3[256];
+
+/** Three byte opcode map (0xF 0x38) */
+extern PCDISOPCODE const g_apThreeByteMapX86_0F38[16];
+
+/** Three byte opcode map with prefix 0x66 (0xF 0x38) */
+extern PCDISOPCODE const g_apThreeByteMapX86_660F38[16];
+
+/** Three byte opcode map with prefix 0xF2 (0xF 0x38) */
+extern PCDISOPCODE const g_apThreeByteMapX86_F20F38[16];
+
+/** Three byte opcode map with prefix 0x66 (0xF 0x3A) */
+extern PCDISOPCODE const g_apThreeByteMapX86_660F3A[16];
+/** @} */
+
+/** @name Opcode extensions (Group tables)
+ * @{ */
+extern const DISOPCODE g_aMapX86_Group1[8*4];
+extern const DISOPCODE g_aMapX86_Group2[8*6];
+extern const DISOPCODE g_aMapX86_Group3[8*2];
+extern const DISOPCODE g_aMapX86_Group4[8];
+extern const DISOPCODE g_aMapX86_Group5[8];
+extern const DISOPCODE g_aMapX86_Group6[8];
+extern const DISOPCODE g_aMapX86_Group7_mem[8];
+extern const DISOPCODE g_aMapX86_Group7_mod11_rm000[8];
+extern const DISOPCODE g_aMapX86_Group7_mod11_rm001[8];
+extern const DISOPCODE g_aMapX86_Group8[8];
+extern const DISOPCODE g_aMapX86_Group9[8];
+extern const DISOPCODE g_aMapX86_Group10[8];
+extern const DISOPCODE g_aMapX86_Group11[8*2];
+extern const DISOPCODE g_aMapX86_Group12[8*2];
+extern const DISOPCODE g_aMapX86_Group13[8*2];
+extern const DISOPCODE g_aMapX86_Group14[8*2];
+extern const DISOPCODE g_aMapX86_Group15_mem[8];
+extern const DISOPCODE g_aMapX86_Group15_mod11_rm000[8];
+extern const DISOPCODE g_aMapX86_Group16[8];
+extern const DISOPCODE g_aMapX86_NopPause[2];
+/** @} */
+
+/** 3DNow! map (0x0F 0x0F prefix) */
+extern const DISOPCODE g_aTwoByteMapX86_3DNow[256];
+
+/** Floating point opcodes starting with escape byte 0xDF
+ * @{ */
+extern const DISOPCODE g_aMapX86_EscF0_Low[8];
+extern const DISOPCODE g_aMapX86_EscF0_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF1_Low[8];
+extern const DISOPCODE g_aMapX86_EscF1_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF2_Low[8];
+extern const DISOPCODE g_aMapX86_EscF2_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF3_Low[8];
+extern const DISOPCODE g_aMapX86_EscF3_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF4_Low[8];
+extern const DISOPCODE g_aMapX86_EscF4_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF5_Low[8];
+extern const DISOPCODE g_aMapX86_EscF5_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF6_Low[8];
+extern const DISOPCODE g_aMapX86_EscF6_High[16*4];
+extern const DISOPCODE g_aMapX86_EscF7_Low[8];
+extern const DISOPCODE g_aMapX86_EscF7_High[16*4];
+
+extern const PCDISOPCODE g_apMapX86_FP_Low[8];
+extern const PCDISOPCODE g_apMapX86_FP_High[8];
+/** @} */
+
+/** @def OP
+ * Wrapper which initializes an OPCODE.
+ * We must use this so that we can exclude unused fields in order
+ * to save precious bytes in the GC version.
+ *
+ * @internal
+ */
+#ifndef DIS_CORE_ONLY
+# define OP(pszOpcode, idxParse1, idxParse2, idxParse3, opcode, param1, param2, param3, optype) \
+    { pszOpcode, idxParse1, idxParse2, idxParse3, 0, opcode, param1, param2, param3, optype }
 #else
-#define DIS_THROW(a)                throw(a)
+# define OP(pszOpcode, idxParse1, idxParse2, idxParse3, opcode, param1, param2, param3, optype) \
+    { idxParse1, idxParse2, idxParse3, 0, opcode, param1, param2, param3, optype }
 #endif
 
 
-extern PFNDISPARSE  pfnFullDisasm[IDX_ParseMax];
-extern PFNDISPARSE  pfnCalcSize[IDX_ParseMax];
+size_t disFormatBytes(PCDISSTATE pDis, char *pszDst, size_t cchDst, uint32_t fFlags);
 
-
-unsigned ParseInstruction(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, PDISCPUSTATE pCpu);
-
-unsigned ParseIllegal(RTUINTPTR lpszCodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseModRM(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseModRM_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned UseModRM(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmByte(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmByte_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmByteSX(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmByteSX_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmBRel(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmBRel_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmUshort(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmUshort_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmV(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmV_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmVRel(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmVRel_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmZ(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmZ_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-
-unsigned ParseImmAddr(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmAddr_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseFixedReg(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmUlong(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmUlong_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmQword(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmQword_SizeOnly(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-
-unsigned ParseTwoByteEsc(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseThreeByteEsc4(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseThreeByteEsc5(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseImmGrpl(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseShiftGrp2(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp3(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp4(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp5(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned Parse3DNow(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp6(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp7(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp8(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp9(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp10(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp12(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp13(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp14(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp15(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseGrp16(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseModFence(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseNopPause(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-
-unsigned ParseYv(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseYb(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseXv(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-unsigned ParseXb(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-
-/* Floating point parsing */
-unsigned ParseEscFP(RTUINTPTR pu8CodeBlock, PCOPCODE pOp, POP_PARAMETER pParam, PDISCPUSTATE pCpu);
-
-void disValidateLockSequence(PDISCPUSTATE pCpu);
-
-/* Disassembler printf */
-void disasmSprintf(char *pszOutput, RTUINTPTR pu8Instruction, PDISCPUSTATE pCpu, POP_PARAMETER pParam1, POP_PARAMETER pParam2, POP_PARAMETER pParam3 = NULL);
-void disasmGetPtrString(PDISCPUSTATE pCpu, PCOPCODE pOp, POP_PARAMETER pParam);
-void disasmModRMReg(PDISCPUSTATE pCpu, PCOPCODE pOp, unsigned idx, POP_PARAMETER pParam, int fRegAddr);
-void disasmModRMReg16(PDISCPUSTATE pCpu, PCOPCODE pOp, unsigned idx, POP_PARAMETER pParam);
-void disasmModRMSReg(PDISCPUSTATE pCpu, PCOPCODE pOp, unsigned idx, POP_PARAMETER pParam);
-void disasmPrintAbs32(POP_PARAMETER pParam);
-void disasmPrintDisp32(POP_PARAMETER pParam);
-void disasmPrintDisp64(POP_PARAMETER pParam);
-void disasmPrintDisp8(POP_PARAMETER pParam);
-void disasmPrintDisp16(POP_PARAMETER pParam);
-
-
-/* Read functions */
-uint8_t  DISReadByte(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
-uint16_t DISReadWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
-uint32_t DISReadDWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
-uint64_t DISReadQWord(PDISCPUSTATE pCpu, RTUINTPTR pAddress);
-
-size_t disFormatBytes(PCDISCPUSTATE pCpu, char *pszDst, size_t cchDst, uint32_t fFlags);
-
-#endif /* !___DisasmInternal_h___ */
+/** @} */
+#endif
 

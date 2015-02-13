@@ -13,6 +13,8 @@
 #include "packspu.h"
 #include "packspu_proto.h"
 
+uint32_t g_u32VBoxHostCaps = 0;
+
 static void
 packspuWriteback( const CRMessageWriteback *wb )
 {
@@ -128,6 +130,9 @@ void packspuFlush(void *arg )
     buf = &(thread->buffer);
     CRASSERT(buf);
 
+    if (ctx && ctx->fCheckZerroVertAttr)
+        crStateCurrentRecoverNew(ctx->clientState, &thread->packer->current);
+
     /* We're done packing into the current buffer, unbind it */
     crPackReleaseBuffer( thread->packer );
 
@@ -229,8 +234,49 @@ void packspuHuge( CROpcode opcode, void *buf )
     crNetSend( thread->netServer.conn, NULL, src, len );
 }
 
-void packspuConnectToServer( CRNetServer *server )
+static void packspuFirstConnectToServer( CRNetServer *server
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+        )
 {
     crNetInit( packspuReceiveData, NULL );
-    crNetServerConnect( server );
+    crNetServerConnect( server
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+            );
+    if (server->conn)
+    {
+        g_u32VBoxHostCaps = crNetHostCapsGet();
+        crPackCapsSet(g_u32VBoxHostCaps);
+    }
+}
+
+void packspuConnectToServer( CRNetServer *server
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , struct VBOXUHGSMI *pHgsmi
+#endif
+        )
+{
+    if (pack_spu.numThreads == 0) {
+        packspuFirstConnectToServer( server
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+                );
+        if (!server->conn) {
+            crError("packspuConnectToServer: no connection on first create!");
+            return;
+        }
+        pack_spu.swap = server->conn->swap;
+    }
+    else {
+        /* a new pthread */
+        crNetNewClient(server
+#if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
+                , pHgsmi
+#endif
+        );
+    }
 }

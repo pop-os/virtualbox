@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,6 +54,7 @@ typedef int socklen_t;
 #include <iprt/string.h>
 #include <iprt/dir.h>
 #include <iprt/rand.h>
+#include <iprt/net.h>
 #include <VBox/types.h>
 
 #undef malloc
@@ -86,6 +87,9 @@ typedef int socklen_t;
 #  undef EHOSTUNREACH
 #  undef ENETUNREACH
 #  undef ECONNREFUSED
+#  undef ECONNRESET
+#  undef EHOSTDOWN
+#  undef ENETDOWN
 # endif
 # define EWOULDBLOCK WSAEWOULDBLOCK
 # define EINPROGRESS WSAEINPROGRESS
@@ -93,6 +97,9 @@ typedef int socklen_t;
 # define EHOSTUNREACH WSAEHOSTUNREACH
 # define ENETUNREACH WSAENETUNREACH
 # define ECONNREFUSED WSAECONNREFUSED
+# define ECONNRESET WSAECONNRESET
+# define EHOSTDOWN WSAEHOSTDOWN
+# define ENETDOWN WSAENETDOWN
 
 typedef uint8_t u_int8_t;
 typedef uint16_t u_int16_t;
@@ -267,6 +274,7 @@ int inet_aton (const char *cp, struct in_addr *ia);
 #include "tftp.h"
 
 #include "slirp_state.h"
+#include "slirp_dns.h"
 
 #undef PVM /* XXX Mac OS X hack */
 
@@ -292,7 +300,7 @@ void if_start (PNATState);
 
 #define DEFAULT_BAUD 115200
 
-int get_dns_addr(PNATState pData, struct in_addr *pdns_addr);
+int get_dns_addr(PNATState pData);
 
 /* cksum.c */
 typedef uint16_t u_short;
@@ -318,6 +326,7 @@ int ip_output0 (PNATState, struct socket *, struct mbuf *, int urg);
 /* tcp_input.c */
 int tcp_reass (PNATState, struct tcpcb *, struct tcphdr *, int *, struct mbuf *);
 void tcp_input (PNATState, register struct mbuf *, int, struct socket *);
+void tcp_fconnect_failed(PNATState, struct socket *, int);
 void tcp_dooptions (PNATState, struct tcpcb *, u_char *, int, struct tcpiphdr *);
 void tcp_xmit_timer (PNATState, register struct tcpcb *, int);
 int tcp_mss (PNATState, register struct tcpcb *, u_int);
@@ -390,6 +399,8 @@ int sscanf(const char *s, const char *format, ...);
 # define bcopy(src, dst, len) memcpy((dst), (src), (len))
 # define bcmp(a1, a2, len) memcmp((a1), (a2), (len))
 # define NO_FW_PUNCH
+/* Two wrongs don't make a right, but this at least averts harm. */
+# define NO_USE_SOCKETS
 
 # ifdef alias_addr
 #  ifndef VBOX_SLIRP_BSD
@@ -476,6 +487,7 @@ static inline size_t slirp_size(PNATState pData)
 static inline bool slirpMbufTagService(PNATState pData, struct mbuf *m, uint8_t u8ServiceId)
 {
     struct m_tag * t = NULL;
+    NOREF(pData);
     /* if_encap assumes that all packets goes through aliased address(gw) */
     if (u8ServiceId == CTL_ALIAS)
         return true;
@@ -512,6 +524,16 @@ static inline struct mbuf *slirpTftpMbufAlloc(PNATState pData)
 static inline struct mbuf *slirpDnsMbufAlloc(PNATState pData)
 {
     return slirpServiceMbufAlloc(pData, CTL_DNS);
+}
+
+DECLINLINE(bool) slirpIsWideCasting(PNATState pData, uint32_t u32Addr)
+{
+    bool fWideCasting = false;
+    LogFlowFunc(("Enter: u32Addr:%RTnaipv4\n", u32Addr));
+    fWideCasting =  (   u32Addr == INADDR_BROADCAST
+                    || (u32Addr & RT_H2N_U32_C(~pData->netmask)) == RT_H2N_U32_C(~pData->netmask));
+    LogFlowFunc(("Leave: %RTbool\n", fWideCasting));
+    return fWideCasting;
 }
 #endif
 

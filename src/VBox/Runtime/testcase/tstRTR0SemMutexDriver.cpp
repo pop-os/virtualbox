@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -168,7 +168,10 @@ static bool tstDoThreadedTest(TSTRTR0SEMMUTEX enmSetup, TSTRTR0SEMMUTEX enmDo, T
 }
 
 
-int main(int argc, char **argv)
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
 #ifndef VBOX
     RTPrintf("tstSup: SKIPPED\n");
@@ -237,8 +240,8 @@ int main(int argc, char **argv)
                                              TSTRTR0SEMMUTEX_SANITY_FAILURE, 0, &Req.Hdr), VINF_SUCCESS);
     if (RT_FAILURE(rc))
         return RTTestSummaryAndDestroy(hTest);
-    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1), ("%s", Req.szMsg));
-    if (strncmp(Req.szMsg, "!42failure42", sizeof("!42failure42") - 1))
+    RTTESTI_CHECK_MSG(!strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")), ("%s", Req.szMsg));
+    if (strncmp(Req.szMsg, RT_STR_TUPLE("!42failure42")))
         return RTTestSummaryAndDestroy(hTest);
 
     /*
@@ -287,4 +290,15 @@ int main(int argc, char **argv)
     return RTTestSummaryAndDestroy(hTest);
 #endif
 }
+
+
+#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
+/**
+ * Main entry point.
+ */
+int main(int argc, char **argv, char **envp)
+{
+    return TrustedMain(argc, argv, envp);
+}
+#endif
 

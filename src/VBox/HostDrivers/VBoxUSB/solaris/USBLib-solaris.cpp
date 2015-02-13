@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifdef DEBUG_ramshankar
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #include <VBox/usblib.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -39,13 +42,6 @@
 # include <limits.h>
 # include <strings.h>
 
-/** -XXX- Remove this hackery eventually */
-#ifdef DEBUG_ramshankar
-# undef Log
-# undef LogFlow
-# define Log        LogRel
-# define LogFlow    LogRel
-#endif
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -60,14 +56,8 @@
 /** Reference counter. */
 static uint32_t volatile g_cUsers = 0;
 /** VBoxUSB Device handle. */
-static RTFILE g_File = NIL_RTFILE;
-/** List of tasks handled by the USB helper. */
-typedef enum USBHELPER_OP
-{
-    ADD_ALIAS = 0,
-    DEL_ALIAS,
-    RESET
-};
+static RTFILE g_hFile = NIL_RTFILE;
+
 
 /*******************************************************************************
 *   Internal Functions                                                         *
@@ -93,10 +83,10 @@ USBLIB_DECL(int) USBLibInit(void)
     int rc = RTFileOpen(&File, VBOXUSB_DEVICE_NAME, RTFILE_O_READWRITE | RTFILE_O_OPEN | RTFILE_O_DENY_NONE);
     if (RT_FAILURE(rc))
     {
-        LogRel((USBLIBR3 ":RTFileOpen failed to open VBoxUSB device.rc=%d\n", rc));
+        LogRel((USBLIBR3 ":failed to open the VBoxUSB monitor device node '%s' rc=%Rrc\n", VBOXUSB_DEVICE_NAME, rc));
         return rc;
     }
-    g_File = File;
+    g_hFile = File;
 
     ASMAtomicIncU32(&g_cUsers);
     /*
@@ -115,7 +105,7 @@ USBLIB_DECL(int) USBLibInit(void)
                         Req.u32Major, Req.u32Minor, VBOXUSBMON_VERSION_MAJOR, VBOXUSBMON_VERSION_MINOR));
 
             RTFileClose(File);
-            g_File = NIL_RTFILE;
+            g_hFile = NIL_RTFILE;
             ASMAtomicDecU32(&g_cUsers);
             return rc;
         }
@@ -124,7 +114,7 @@ USBLIB_DECL(int) USBLibInit(void)
     {
         LogRel((USBLIBR3 ":USBMonitor driver version query failed. rc=%Rrc\n", rc));
         RTFileClose(File);
-        g_File = NIL_RTFILE;
+        g_hFile = NIL_RTFILE;
         ASMAtomicDecU32(&g_cUsers);
         return rc;
     }
@@ -145,8 +135,8 @@ USBLIB_DECL(int) USBLibTerm(void)
     /*
      * We're the last guy, close down the connection.
      */
-    RTFILE File = g_File;
-    g_File = NIL_RTFILE;
+    RTFILE File = g_hFile;
+    g_hFile = NIL_RTFILE;
     if (File == NIL_RTFILE)
         return VERR_INTERNAL_ERROR;
 
@@ -241,7 +231,7 @@ USBLIB_DECL(int) USBLibResetDevice(char *pszDevicePath, bool fReattach)
 
 static int usblibDoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
 {
-    if (g_File == NIL_RTFILE)
+    if (g_hFile == NIL_RTFILE)
     {
         LogRel((USBLIBR3 ":IOCtl failed, device not open.\n"));
         return VERR_FILE_NOT_FOUND;
@@ -252,11 +242,11 @@ static int usblibDoIOCtl(unsigned iFunction, void *pvData, size_t cbData)
     Hdr.cbData = cbData;    /* Don't include full size because the header size is fixed. */
     Hdr.pvDataR3 = pvData;
 
-    int rc = ioctl((int)g_File, iFunction, &Hdr);
+    int rc = ioctl(RTFileToNative(g_hFile), iFunction, &Hdr);
     if (rc < 0)
     {
         rc = errno;
-        LogRel((USBLIBR3 ":IOCtl failed iFunction=%x errno=%d g_file=%d\n", iFunction, rc, (int)g_File));
+        LogRel((USBLIBR3 ":IOCtl failed iFunction=%x errno=%d g_file=%d\n", iFunction, rc, RTFileToNative(g_hFile)));
         return RTErrConvertFromErrno(rc);
     }
 

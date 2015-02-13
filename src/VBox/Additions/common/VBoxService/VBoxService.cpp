@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2011 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,6 +56,9 @@
 #include <VBox/log.h>
 
 #include "VBoxServiceInternal.h"
+#ifdef VBOX_WITH_GUEST_CONTROL
+# include "VBoxServiceControl.h"
+#endif
 
 
 /*******************************************************************************
@@ -65,6 +68,7 @@
 char                *g_pszProgName =  (char *)"";
 /** The current verbosity level. */
 int                  g_cVerbosity = 0;
+char                 g_szLogFile[RTPATH_MAX + 128] = "";
 /** Logging parameters. */
 /** @todo Make this configurable later. */
 static PRTLOGGER     g_pLoggerRelease = NULL;
@@ -126,7 +130,7 @@ static struct
 # endif
     { &g_VMStatistics,  NIL_RTTHREAD, false, false, false, false, true },
 #endif
-#if defined(VBOX_WITH_PAGE_SHARING) && defined(RT_OS_WINDOWS)
+#if defined(VBOXSERVICE_PAGE_SHARING)
     { &g_PageSharing,   NIL_RTTHREAD, false, false, false, false, true },
 #endif
 #ifdef VBOX_WITH_SHARED_FOLDERS
@@ -134,6 +138,37 @@ static struct
 #endif
 };
 
+/* Default call-backs for services which do not need special behaviour. */
+
+/** @copydoc VBOXSERVICE::pfnPreInit */
+DECLCALLBACK(int) VBoxServiceDefaultPreInit(void)
+{
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VBOXSERVICE::pfnOption */
+DECLCALLBACK(int) VBoxServiceDefaultOption(const char **ppszShort, int argc,
+                                           char **argv, int *pi)
+{
+    NOREF(ppszShort);
+    NOREF(argc);
+    NOREF(argv);
+    NOREF(pi);
+
+    return -1;
+}
+
+/** @copydoc VBOXSERVICE::pfnInit */
+DECLCALLBACK(int) VBoxServiceDefaultInit(void)
+{
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VBOXSERVICE::pfnTerm */
+DECLCALLBACK(void) VBoxServiceDefaultTerm(void)
+{
+    return;
+}
 
 /**
  * Release logger callback.
@@ -211,11 +246,12 @@ static void VBoxServiceLogHeaderFooter(PRTLOGGER pLoggerRelease, RTLOGPHASE enmP
 
 /**
  * Creates the default release logger outputting to the specified file.
+ * Pass NULL for disabled logging.
  *
  * @return  IPRT status code.
  * @param   pszLogFile              Filename for log output.  Optional.
  */
-static int VBoxServiceLogCreate(const char *pszLogFile)
+int VBoxServiceLogCreate(const char *pszLogFile)
 {
     /* Create release logger (stdout + file). */
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
@@ -226,7 +262,7 @@ static int VBoxServiceLogCreate(const char *pszLogFile)
     char szError[RTPATH_MAX + 128] = "";
     int rc = RTLogCreateEx(&g_pLoggerRelease, fFlags, "all",
                            "VBOXSERVICE_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
-                           RTLOGDEST_STDOUT,
+                           RTLOGDEST_STDOUT | RTLOGDEST_USER,
                            VBoxServiceLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
                            szError, sizeof(szError), pszLogFile);
     if (RT_SUCCESS(rc))
@@ -241,7 +277,8 @@ static int VBoxServiceLogCreate(const char *pszLogFile)
     return rc;
 }
 
-static void VBoxServiceLogDestroy(void)
+
+void VBoxServiceLogDestroy(void)
 {
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
 }
@@ -588,6 +625,11 @@ int VBoxServiceStartServices(void)
          * the thread's actual worker loop. If the thread decides
          * to exit the loop before we skipped the fShutdown check
          * below the service will fail to start! */
+        /** @todo This presumably means either a one-shot service or that
+         * something has gone wrong.  In the second case treating it as failure
+         * to start is probably right, so we need a way to signal the first
+         * rather than leaving the idle thread hanging around.  A flag in the
+         * service description? */
         RTThreadUserWait(g_aServices[j].Thread, 60 * 1000);
         if (g_aServices[j].fShutdown)
         {
@@ -632,6 +674,8 @@ int VBoxServiceStopServices(void)
             VBoxServiceVerbose(3, "Calling stop function for service '%s' ...\n", g_aServices[j].pDesc->pszName);
             g_aServices[j].pDesc->pfnStop();
         }
+
+    VBoxServiceVerbose(3, "All stop functions for services called\n");
 
     /*
      * Wait for all the service threads to complete.
@@ -745,11 +789,12 @@ void VBoxServiceMainWait(void)
 int main(int argc, char **argv)
 {
     RTEXITCODE rcExit;
+    bool fUserSession = false;
 
     /*
      * Init globals and such.
      */
-    int rc = RTR3Init();
+    int rc = RTR3InitExe(argc, &argv, 0);
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
     g_pszProgName = RTPathFilename(argv[0]);
@@ -769,14 +814,32 @@ int main(int argc, char **argv)
         return rcExit;
 #endif
 
+#ifdef VBOX_WITH_GUEST_CONTROL
+    /*
+     * Check if we're the specially spawned VBoxService.exe process that
+     * handles a guest control session.
+     */
+    if (   argc >= 2
+        && !RTStrICmp(argv[1], "guestsession"))
+        fUserSession = true;
+#endif
+
     /*
      * Connect to the kernel part before daemonizing so we can fail and
      * complain if there is some kind of problem.  We need to initialize the
      * guest lib *before* we do the pre-init just in case one of services needs
      * do to some initial stuff with it.
      */
-    VBoxServiceVerbose(2, "Calling VbgR3Init()\n");
-    rc = VbglR3Init();
+    if (fUserSession)
+    {
+        VBoxServiceVerbose(2, "Calling VbgR3InitUser()\n");
+        rc = VbglR3InitUser();
+    }
+    else
+    {
+        VBoxServiceVerbose(2, "Calling VbgR3Init()\n");
+        rc = VbglR3Init();
+    }
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_ACCESS_DENIED)
@@ -790,12 +853,19 @@ int main(int argc, char **argv)
      * Check if we're the specially spawned VBoxService.exe process that
      * handles page fusion.  This saves an extra executable.
      */
-    if (    argc == 2
-        &&  !strcmp(argv[1], "--pagefusionfork"))
+    if (   argc == 2
+        && !RTStrICmp(argv[1], "pagefusion"))
         return VBoxServicePageSharingInitFork();
 #endif
 
-    char szLogFile[RTPATH_MAX + 128] = "";
+#ifdef VBOX_WITH_GUEST_CONTROL
+    /*
+     * Check if we're the specially spawned VBoxService.exe process that
+     * handles a guest control session.
+     */
+    if (fUserSession)
+        return VBoxServiceControlSessionForkInit(argc, argv);
+#endif
 
     /*
      * Parse the arguments.
@@ -845,17 +915,17 @@ int main(int argc, char **argv)
             {
                 bool fFound = false;
 
-                if (cch > sizeof("enable-") && !memcmp(psz, "enable-", sizeof("enable-") - 1))
+                if (cch > sizeof("enable-") && !memcmp(psz, RT_STR_TUPLE("enable-")))
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
                         if ((fFound = !RTStrICmp(psz + sizeof("enable-") - 1, g_aServices[j].pDesc->pszName)))
                             g_aServices[j].fEnabled = true;
 
-                if (cch > sizeof("disable-") && !memcmp(psz, "disable-", sizeof("disable-") - 1))
+                if (cch > sizeof("disable-") && !memcmp(psz, RT_STR_TUPLE("disable-")))
                     for (unsigned j = 0; !fFound && j < RT_ELEMENTS(g_aServices); j++)
                         if ((fFound = !RTStrICmp(psz + sizeof("disable-") - 1, g_aServices[j].pDesc->pszName)))
                             g_aServices[j].fEnabled = false;
 
-                if (cch > sizeof("only-") && !memcmp(psz, "only-", sizeof("only-") - 1))
+                if (cch > sizeof("only-") && !memcmp(psz, RT_STR_TUPLE("only-")))
                     for (unsigned j = 0; j < RT_ELEMENTS(g_aServices); j++)
                     {
                         g_aServices[j].fEnabled = !RTStrICmp(psz + sizeof("only-") - 1, g_aServices[j].pDesc->pszName);
@@ -925,7 +995,7 @@ int main(int argc, char **argv)
                 case 'l':
                 {
                     rc = VBoxServiceArgString(argc, argv, psz + 1, &i,
-                                              szLogFile, sizeof(szLogFile));
+                                              g_szLogFile, sizeof(g_szLogFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -960,10 +1030,10 @@ int main(int argc, char **argv)
     if (vboxServiceCountEnabledServices() == 0)
         return RTMsgErrorExit(RTEXITCODE_SYNTAX, "At least one service must be enabled\n");
 
-    rc = VBoxServiceLogCreate(strlen(szLogFile) ? szLogFile : NULL);
+    rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
-                              strlen(szLogFile) ? szLogFile : "<None>", rc);
+                              strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     /* Call pre-init if we didn't do it already. */
     rcExit = vboxServiceLazyPreInit();
@@ -998,11 +1068,11 @@ int main(int argc, char **argv)
         if (   dwErr == ERROR_ALREADY_EXISTS
             || dwErr == ERROR_ACCESS_DENIED)
         {
-            VBoxServiceError("%s is already running! Terminating.", g_pszProgName);
+            VBoxServiceError("%s is already running! Terminating.\n", g_pszProgName);
             return RTEXITCODE_FAILURE;
         }
 
-        VBoxServiceError("CreateMutex failed with last error %u! Terminating", GetLastError());
+        VBoxServiceError("CreateMutex failed with last error %u! Terminating.\n", GetLastError());
         return RTEXITCODE_FAILURE;
     }
 
@@ -1023,7 +1093,8 @@ int main(int argc, char **argv)
         rcExit = VBoxServiceWinEnterCtrlDispatcher();
 #else
         VBoxServiceVerbose(1, "Daemonizing...\n");
-        rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */);
+        rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */,
+                             false /* fRespawn */, NULL /* pcRespawn */);
         if (RT_FAILURE(rc))
             return VBoxServiceError("Daemon failed: %Rrc\n", rc);
         /* in-child */

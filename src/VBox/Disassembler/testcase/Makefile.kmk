@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,18 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 ifdef VBOX_WITH_TESTCASES
 
+
+PROGRAMS               += tstDisasm-1
+tstDisasm-1_TEMPLATE    = VBOXR3TSTEXE
+tstDisasm-1_DEFS        = IN_DIS
+tstDisasm-1_SOURCES     = \
+	tstDisasm-1.cpp \
+	tstDisasm-1A.asm
+tstDisasm-1_LIBS        = \
+	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB) \
+	$(LIB_RUNTIME)
+
+
 PROGRAMS += tstDisasm-2
 tstDisasm-2_TEMPLATE    = VBOXR3TSTEXE
 tstDisasm-2_DEFS        = IN_DIS
@@ -32,12 +44,14 @@ tstDisasm-2_LIBS        = \
 VBOX_DISAS_TESTS_BUILD = \
 	tstAsmFnstsw-1.asm \
 	tstAsmLock-1.asm \
+	tstAsmMovFixedReg-1.asm \
 	tstAsmMovSeg-1.asm \
 	tstAsmMovzx-1.asm \
 	tstAsmPop-1.asm \
 	tstAsmPush-1.asm \
 	tstAsmSignExtend-1.asm \
 	tstAsmRegs-1.asm \
+	tstAsm3DNow-1.asm \
 
 # Tests that only contains invalid/undefined instructions.
 VBOX_DISAS_TESTS_INVALID = \
@@ -59,6 +73,10 @@ VBOX_DISAS_TESTS_BINARIES += \
 	tstBin-6.bin
 #	$(PATH_STAGE_BIN)/testcase/tstDisasm-2$(SUFF_EXEC)
 endif
+VBOX_DISAS_TESTS_BINARIES_NOT_16BIT := \
+	tstBinFnstsw-1.bin
+VBOX_DISAS_TESTS_BINARIES_NOT_32BIT :=
+VBOX_DISAS_TESTS_BINARIES_NOT_64BIT :=
 
 
 #
@@ -194,8 +212,9 @@ $(eval $(def_vbox_disas_binary_rules))
 endef # def_vbox_disas_binary
 
 ## @todo 64-bit is problematic because of bugs like POP RDI ending up as POP EDI (incorrect default opmode).
-#$(foreach bits, 32 16 64, $(foreach binary, $(VBOX_DISAS_TESTS_BINARIES), $(evalvalctx def_vbox_disas_binary)))
-$(foreach bits, 32 16, $(foreach binary, $(VBOX_DISAS_TESTS_BINARIES), $(evalvalctx def_vbox_disas_binary)))
+#$(foreach bits, 64, $(foreach binary, $(VBOX_DISAS_TESTS_BINARIES), $(evalvalctx def_vbox_disas_binary)))
+$(foreach bits, 32 16, $(foreach binary, $(filter-out $(VBOX_DISAS_TESTS_BINARIES_NOT_$(bits)BIT), $(VBOX_DISAS_TESTS_BINARIES)) \
+	, $(evalvalctx def_vbox_disas_binary)))
 
 
 # Add the .tst to the clean up.
@@ -233,5 +252,5 @@ endef
 $(foreach test,$(VBOX_DISAS_TESTS),$(evalvalctx def_vbox_test_aliases))
 
 endif # VBOX_WITH_TESTCASES
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

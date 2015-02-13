@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,29 +49,27 @@
  */
 
 #ifdef XORG_7X
-# include "xorg-server.h"
+/* We include <unistd.h> for Solaris below, and the ANSI C emulation layer
+ * interferes with that. */
+# define _XF86_ANSIC_H
+# define XF86_LIBC_H
 # include <string.h>
 #endif
 #include "vboxvideo.h"
-#include <iprt/asm-math.h>
 #include "version-generated.h"
 #include "product-generated.h"
-#include <xf86.h>
-#include <misc.h>
-
-/* All drivers initialising the SW cursor need this */
-#include "mipointer.h"
-
-/* Colormap handling */
-#include "micmap.h"
-#include "xf86cmap.h"
-
-/* DPMS */
-/* #define DPMS_SERVER
-#include "extensions/dpms.h" */
+#include "xf86.h"
 
 /* VGA hardware functions for setting and restoring text mode */
 #include "vgaHW.h"
+
+#ifdef RT_OS_SOLARIS
+# include <sys/vuid_event.h>
+# include <sys/msio.h>
+# include <errno.h>
+# include <fcntl.h>
+# include <unistd.h>
+#endif
 
 /** Clear the virtual framebuffer in VRAM.  Optionally also clear up to the
  * size of a new framebuffer.  Framebuffer sizes larger than available VRAM
@@ -101,13 +99,12 @@ Bool VBOXSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth,
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     uint32_t offStart, cwReal = cWidth;
+    bool fEnabled;
+    uint16_t fFlags;
+    int rc;
 
     TRACE_LOG("cDisplay=%u, cWidth=%u, cHeight=%u, x=%d, y=%d, displayWidth=%d\n",
               cDisplay, cWidth, cHeight, x, y, pScrn->displayWidth);
-    pVBox->aScreenLocation[cDisplay].cx = cWidth;
-    pVBox->aScreenLocation[cDisplay].cy = cHeight;
-    pVBox->aScreenLocation[cDisplay].x = x;
-    pVBox->aScreenLocation[cDisplay].y = y;
     offStart = y * pVBox->cbLine + x * vboxBPP(pScrn) / 8;
     /* Deactivate the screen if the mode - specifically the virtual width - is
      * too large for VRAM as we sometimes have to do this - see comments in
@@ -121,25 +118,26 @@ Bool VBOXSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth,
         return FALSE;
     else
         cwReal = RT_MIN((int) cWidth, pScrn->displayWidth - x);
-    TRACE_LOG("pVBox->afDisabled[cDisplay]=%d\n",
-              (int)pVBox->afDisabled[cDisplay]);
-    /* Don't fiddle with the hardware if we are switched
-     * to a virtual terminal. */
-    if (pVBox->vtSwitch)
-        return TRUE;
+    TRACE_LOG("pVBox->pScreens[%u].fCrtcEnabled=%d, fOutputEnabled=%d\n",
+              cDisplay, (int)pVBox->pScreens[cDisplay].fCrtcEnabled,
+              (int)pVBox->pScreens[cDisplay].fOutputEnabled);
     if (cDisplay == 0)
         VBoxVideoSetModeRegisters(cwReal, cHeight, pScrn->displayWidth,
                                   vboxBPP(pScrn), 0, x, y);
-    /* Tell the host we support graphics */
-    if (vbox_device_available(pVBox))
-        vboxEnableGraphicsCap(pVBox);
-    if (pVBox->fHaveHGSMI)
+    fEnabled =    pVBox->pScreens[cDisplay].fCrtcEnabled
+               && pVBox->pScreens[cDisplay].fOutputEnabled;
+    fFlags = VBVA_SCREEN_F_ACTIVE;
+    fFlags |= (pVBox->pScreens[cDisplay].afConnected ? 0
+                                                     : VBVA_SCREEN_F_DISABLED);
+    VBoxHGSMIProcessDisplayInfo(&pVBox->guestCtx, cDisplay, x, y,
+                                offStart, pVBox->cbLine, cwReal, cHeight,
+                                fEnabled ? vboxBPP(pScrn) : 0, fFlags);
+    if (cDisplay == 0)
     {
-        uint16_t fFlags = VBVA_SCREEN_F_ACTIVE;
-        fFlags |= (pVBox->afDisabled[cDisplay] ? VBVA_SCREEN_F_DISABLED : 0);
-        VBoxHGSMIProcessDisplayInfo(&pVBox->guestCtx, cDisplay, x, y,
-                                    offStart, pVBox->cbLine, cwReal, cHeight,
-                                    vboxBPP(pScrn), fFlags);
+        rc = VBoxHGSMIUpdateInputMapping(&pVBox->guestCtx, 0 - pVBox->pScreens[0].aScreenLocation.x,
+                                         0 - pVBox->pScreens[0].aScreenLocation.y, pScrn->virtualX, pScrn->virtualY);
+        if (RT_FAILURE(rc))
+            FatalError("Failed to update the input mapping.\n");
     }
     return TRUE;
 }
@@ -153,8 +151,14 @@ Bool VBOXAdjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
     PixmapPtr pPixmap = pScreen->GetScreenPixmap(pScreen);
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     uint64_t cbLine = vboxLineLength(pScrn, width);
+    int displayWidth = vboxDisplayPitch(pScrn, cbLine);
+    int rc;
 
     TRACE_LOG("width=%d, height=%d\n", width, height);
+    if (   width == pScrn->virtualX
+        && height == pScrn->virtualY
+        && displayWidth == pScrn->displayWidth)
+        return TRUE;
     if (!pPixmap) {
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Failed to get the screen pixmap.\n");
@@ -173,21 +177,42 @@ Bool VBOXAdjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
     vboxClearVRAM(pScrn, width, height);
     pScrn->virtualX = width;
     pScrn->virtualY = height;
-    pScrn->displayWidth = vboxDisplayPitch(pScrn, cbLine);
+    pScrn->displayWidth = displayWidth;
     pVBox->cbLine = cbLine;
-#ifdef VBOX_DRI
+#ifdef VBOX_DRI_OLD
     if (pVBox->useDRI)
         VBOXDRIUpdateStride(pScrn, pVBox);
 #endif
 #ifdef VBOXVIDEO_13
     /* Write the new values to the hardware */
+    /** @todo why is this only for VBOXVIDEO_13? */
     {
         unsigned i;
         for (i = 0; i < pVBox->cScreens; ++i)
-            VBOXSetMode(pScrn, i, pVBox->aScreenLocation[i].cx,
-                            pVBox->aScreenLocation[i].cy,
-                            pVBox->aScreenLocation[i].x,
-                            pVBox->aScreenLocation[i].y);
+            VBOXSetMode(pScrn, i, pVBox->pScreens[i].aScreenLocation.cx,
+                            pVBox->pScreens[i].aScreenLocation.cy,
+                            pVBox->pScreens[i].aScreenLocation.x,
+                            pVBox->pScreens[i].aScreenLocation.y);
+    }
+#else
+    rc = VBoxHGSMIUpdateInputMapping(&pVBox->guestCtx, 0 - pVBox->pScreens[0].aScreenLocation.x,
+                                     0 - pVBox->pScreens[0].aScreenLocation.y, pScrn->virtualX, pScrn->virtualY);
+    if (RT_FAILURE(rc))
+        FatalError("Failed to update the input mapping.\n");
+#endif
+#ifdef RT_OS_SOLARIS
+    /* Tell the virtual mouse device about the new virtual desktop size. */
+    {
+        int rc;
+        int hMouse = open("/dev/mouse", O_RDWR);
+        if (hMouse >= 0)
+        {
+            do {
+                Ms_screen_resolution Res = { height, width };
+                rc = ioctl(hMouse, MSIOSRESOLUTION, &Res);
+            } while ((rc != 0) && (errno == EINTR));
+            close(hMouse);
+        }
     }
 #endif
     return TRUE;

@@ -1,11 +1,11 @@
 #!/bin/sh
+# $Id: makepackage.sh $
 ## @file
-#
 # VirtualBox package creation script, Solaris hosts.
 #
 
 #
-# Copyright (C) 2007-2011 Oracle Corporation
+# Copyright (C) 2007-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -113,18 +113,17 @@ cd "$VBOX_INSTALLED_DIR"
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxManage
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxSDL
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxBalloonCtrl
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxAutostart
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/vboxwebsrv
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/webtest
 ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxZoneAccess
+ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxSVC
 if test -f $VBOX_INSTALLED_DIR/amd64/VBoxTestOGL || test -f $VBOX_INSTALLED_DIR/i386/VBoxTestOGL; then
     ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxTestOGL
 fi
 
 if test -f $VBOX_INSTALLED_DIR/amd64/VirtualBox || test -f $VBOX_INSTALLED_DIR/i386/VirtualBox; then
     ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VirtualBox
-fi
-if test -f $VBOX_INSTALLED_DIR/amd64/VBoxBFE || test -f $VBOX_INSTALLED_DIR/i386/VBoxBFE; then
-    ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxBFE
 fi
 if test -f $VBOX_INSTALLED_DIR/amd64/VBoxHeadless || test -f $VBOX_INSTALLED_DIR/i386/VBoxHeadless; then
     ln -f ./VBoxISAExec $VBOX_INSTALLED_DIR/VBoxHeadless
@@ -191,12 +190,10 @@ if test -n "$HARDENED"; then
             ||  $3 == "opt/VirtualBox/amd64/VirtualBox3" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxSDL" \
-            ||  $3 == "opt/VirtualBox/amd64/VBoxBFE" \
             ||  $3 == "opt/VirtualBox/i386/VirtualBox" \
             ||  $3 == "opt/VirtualBox/i386/VirtualBox3" \
             ||  $3 == "opt/VirtualBox/i386/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/i386/VBoxSDL" \
-            ||  $3 == "opt/VirtualBox/i386/VBoxBFE" \
             ) \
        { $4 = "4755" } { print }' prototype > prototype2
     mv -f prototype2 prototype
@@ -208,6 +205,8 @@ $VBOX_AWK 'NF == 6 \
         ||  $3 == "opt/VirtualBox/i386/VBoxNetAdpCtl" \
         ||  $3 == "opt/VirtualBox/amd64/VBoxNetDHCP" \
         ||  $3 == "opt/VirtualBox/i386/VBoxNetDHCP" \
+        ||  $3 == "opt/VirtualBox/amd64/VBoxNetNAT" \
+        ||  $3 == "opt/VirtualBox/i386/VBoxNetNAT" \
         ) \
    { $4 = "4755" } { print }' prototype > prototype2
 mv -f prototype2 prototype

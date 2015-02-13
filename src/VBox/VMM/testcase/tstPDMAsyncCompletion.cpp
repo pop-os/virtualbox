@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,13 +72,15 @@ void pfnAsyncTaskCompleted(PVM pVM, void *pvUser, void *pvUser2, int rc)
     }
 }
 
-int main(int argc, char *argv[])
+/**
+ *  Entry point.
+ */
+extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 {
     int rcRet = 0; /* error count */
-    int rc = VINF_SUCCESS;
     PPDMASYNCCOMPLETIONENDPOINT pEndpointSrc, pEndpointDst;
 
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
 
     if (argc != 3)
     {
@@ -87,11 +89,10 @@ int main(int argc, char *argv[])
     }
 
     PVM pVM;
-    rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM);
+    PUVM pUVM;
+    int rc = VMR3Create(1, NULL, NULL, NULL, NULL, NULL, &pVM, &pUVM);
     if (RT_SUCCESS(rc))
     {
-        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
-
         /*
          * Little hack to avoid the VM_ASSERT_EMT assertion.
          */
@@ -102,6 +103,7 @@ int main(int argc, char *argv[])
         /*
          * Create the template.
          */
+        PPDMASYNCCOMPLETIONTEMPLATE pTemplate;
         rc = PDMR3AsyncCompletionTemplateCreateInternal(pVM, &pTemplate, pfnAsyncTaskCompleted, NULL, "Test");
         if (RT_FAILURE(rc))
         {
@@ -236,8 +238,9 @@ int main(int argc, char *argv[])
             PDMR3AsyncCompletionEpClose(pEndpointSrc);
         }
 
-        rc = VMR3Destroy(pVM);
+        rc = VMR3Destroy(pUVM);
         AssertMsg(rc == VINF_SUCCESS, ("%s: Destroying VM failed rc=%Rrc!!\n", __FUNCTION__, rc));
+        VMR3ReleaseUVM(pUVM);
 
         /*
          * Clean up.
@@ -255,4 +258,15 @@ int main(int argc, char *argv[])
 
     return rcRet;
 }
+
+
+#if !defined(VBOX_WITH_HARDENING) || !defined(RT_OS_WINDOWS)
+/**
+ * Main entry point.
+ */
+int main(int argc, char **argv, char **envp)
+{
+    return TrustedMain(argc, argv, envp);
+}
+#endif
 

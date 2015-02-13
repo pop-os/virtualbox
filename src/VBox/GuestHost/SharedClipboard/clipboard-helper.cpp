@@ -4,7 +4,9 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Includes contributions from François Revol
+ *
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +17,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <VBox/log.h>
 #include <VBox/GuestHost/clipboard-helper.h>
@@ -260,6 +263,74 @@ int vboxClipboardUtf16WinToLin(PRTUTF16 pwszSrc, size_t cwSrc, PRTUTF16 pu16Dest
     }
     pu16Dest[cwDestPos] = 0;
     LogFlowFunc(("set string %ls.  Returning\n", pu16Dest + 1));
+    return VINF_SUCCESS;
+}
+
+int vboxClipboardDibToBmp(const void *pvSrc, size_t cbSrc, void **ppvDest, size_t *pcbDest)
+{
+    size_t        cb            = sizeof(BMFILEHEADER) + cbSrc;
+    PBMFILEHEADER pFileHeader   = NULL;
+    void         *pvDest        = NULL;
+    size_t        offPixel      = 0;
+
+    AssertPtrReturn(pvSrc,   VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppvDest, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbDest, VERR_INVALID_PARAMETER);
+
+    PBMINFOHEADER pBitmapInfoHeader = (PBMINFOHEADER)pvSrc;
+    /** @todo Support all the many versions of the DIB headers. */
+    if (   cbSrc < sizeof(BMINFOHEADER)
+        || RT_LE2H_U32(pBitmapInfoHeader->u32Size) < sizeof(BMINFOHEADER)
+        || RT_LE2H_U32(pBitmapInfoHeader->u32Size) != sizeof(BMINFOHEADER))
+    {
+        Log(("vboxClipboardDibToBmp: invalid or unsupported bitmap data.\n"));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    offPixel = sizeof(BMFILEHEADER)
+                + RT_LE2H_U32(pBitmapInfoHeader->u32Size)
+                + RT_LE2H_U32(pBitmapInfoHeader->u32ClrUsed) * sizeof(uint32_t);
+    if (cbSrc < offPixel)
+    {
+        Log(("vboxClipboardDibToBmp: invalid bitmap data.\n"));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    pvDest = RTMemAlloc(cb);
+    if (!pvDest)
+    {
+        Log(("writeToPasteboard: cannot allocate memory for bitmap.\n"));
+        return VERR_NO_MEMORY;
+    }
+
+    pFileHeader = (PBMFILEHEADER)pvDest;
+    pFileHeader->u16Type        = BITMAPHEADERMAGIC;
+    pFileHeader->u32Size        = RT_H2LE_U32(cb);
+    pFileHeader->u16Reserved1   = pFileHeader->u16Reserved2 = 0;
+    pFileHeader->u32OffBits     = RT_H2LE_U32(offPixel);
+    memcpy((uint8_t *)pvDest + sizeof(BMFILEHEADER), pvSrc, cbSrc);
+    *ppvDest = pvDest;
+    *pcbDest = cb;
+    return VINF_SUCCESS;
+}
+
+int vboxClipboardBmpGetDib(const void *pvSrc, size_t cbSrc, const void **ppvDest, size_t *pcbDest)
+{
+    AssertPtrReturn(pvSrc,   VERR_INVALID_PARAMETER);
+    AssertPtrReturn(ppvDest, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(pcbDest, VERR_INVALID_PARAMETER);
+
+    PBMFILEHEADER pFileHeader = (PBMFILEHEADER)pvSrc;
+    if (   cbSrc < sizeof(BMFILEHEADER)
+        || pFileHeader->u16Type != BITMAPHEADERMAGIC
+        || RT_LE2H_U32(pFileHeader->u32Size) != cbSrc)
+    {
+        Log(("vboxClipboardBmpGetDib: invalid bitmap data.\n"));
+        return VERR_INVALID_PARAMETER;
+    }
+
+    *ppvDest = ((uint8_t *)pvSrc) + sizeof(BMFILEHEADER);
+    *pcbDest = cbSrc - sizeof(BMFILEHEADER);
     return VINF_SUCCESS;
 }
 

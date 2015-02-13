@@ -5,7 +5,7 @@
 
 /*
  * Contributed by Renzo Davoli. VirtualSquare. University of Bologna, 2010
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -480,12 +480,19 @@ static DECLCALLBACK(void) drvVDEDestruct(PPDMDRVINS pDrvIns)
     /*
      * Terminate the control pipe.
      */
-    RTPipeClose(pThis->hPipeWrite);
-    pThis->hPipeWrite = NIL_RTPIPE;
-    RTPipeClose(pThis->hPipeRead);
-    pThis->hPipeRead = NIL_RTPIPE;
+    if (pThis->hPipeWrite != NIL_RTPIPE)
+    {
+        RTPipeClose(pThis->hPipeWrite);
+        pThis->hPipeWrite = NIL_RTPIPE;
+    }
+    if (pThis->hPipeRead != NIL_RTPIPE)
+    {
+        RTPipeClose(pThis->hPipeRead);
+        pThis->hPipeRead = NIL_RTPIPE;
+    }
 
     MMR3HeapFree(pThis->pszDeviceName);
+    pThis->pszDeviceName = NULL;
 
     /*
      * Kill the xmit lock.
@@ -493,8 +500,11 @@ static DECLCALLBACK(void) drvVDEDestruct(PPDMDRVINS pDrvIns)
     if (RTCritSectIsInitialized(&pThis->XmitLock))
         RTCritSectDelete(&pThis->XmitLock);
 
-    vde_close(pThis->pVdeConn);
-    pThis->pVdeConn = NULL;
+    if (pThis->pVdeConn)
+    {
+        vde_close(pThis->pVdeConn);
+        pThis->pVdeConn = NULL;
+    }
 
 #ifdef VBOX_WITH_STATISTICS
     /*

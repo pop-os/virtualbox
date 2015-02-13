@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,11 @@
 #define LOG_GROUP LOG_GROUP_PDM_DEVICE
 #include "PDMInternal.h"
 #include <VBox/vmm/pdm.h>
-#include <VBox/vmm/rem.h>
+#include <VBox/vmm/pgm.h>
+#include <VBox/vmm/hm.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/vmm.h>
 
@@ -31,6 +35,10 @@
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/thread.h>
+
+
+#include "PDMInline.h"
+#include "dtrace/VBoxVMM.h"
 
 
 
@@ -56,10 +64,12 @@ static DECLCALLBACK(void) pdmR3PicHlp_SetInterruptFF(PPDMDEVINS pDevIns)
     PVMCPU pVCpu = &pVM->aCpus[0];  /* for PIC we always deliver to CPU 0, MP use APIC */
 
     LogFlow(("pdmR3PicHlp_SetInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_PIC %d -> 1\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+             pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+#ifdef VBOX_WITH_REM
     REMR3NotifyInterruptSet(pVM, pVCpu);
+#endif
     VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM | VMNOTIFYFF_FLAGS_POKE);
 }
 
@@ -82,10 +92,12 @@ static DECLCALLBACK(void) pdmR3PicHlp_ClearInterruptFF(PPDMDEVINS pDevIns)
     }
 
     LogFlow(("pdmR3PicHlp_ClearInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_PIC %d -> 0\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
+             pDevIns->pReg->szName, pDevIns->iInstance, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_PIC)));
 
     VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_PIC);
+#ifdef VBOX_WITH_REM
     REMR3NotifyInterruptClear(pVM, pVCpu);
+#endif
 }
 
 
@@ -109,11 +121,17 @@ static DECLCALLBACK(void) pdmR3PicHlp_Unlock(PPDMDEVINS pDevIns)
 static DECLCALLBACK(PCPDMPICHLPRC) pdmR3PicHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    RTRCPTR pRCHelpers = 0;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCPicHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPicHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3PicHlp_GetRCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -124,9 +142,10 @@ static DECLCALLBACK(PCPDMPICHLPRC) pdmR3PicHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 static DECLCALLBACK(PCPDMPICHLPR0) pdmR3PicHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMPICHLPR0 pR0Helpers = 0;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0PicHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0PicHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3PicHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
@@ -169,7 +188,7 @@ static DECLCALLBACK(void) pdmR3ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
     AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR3ApicHlp_SetInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_APIC(%d) %d -> 1\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
+             pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
 
     switch (enmType)
     {
@@ -189,7 +208,9 @@ static DECLCALLBACK(void) pdmR3ApicHlp_SetInterruptFF(PPDMDEVINS pDevIns, PDMAPI
             AssertMsgFailed(("enmType=%d\n", enmType));
             break;
     }
+#ifdef VBOX_WITH_REM
     REMR3NotifyInterruptSet(pVM, pVCpu);
+#endif
     VMR3NotifyCpuFFU(pVCpu->pUVCpu, VMNOTIFYFF_FLAGS_DONE_REM | VMNOTIFYFF_FLAGS_POKE);
 }
 
@@ -204,7 +225,7 @@ static DECLCALLBACK(void) pdmR3ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
     AssertReturnVoid(idCpu < pVM->cCpus);
 
     LogFlow(("pdmR3ApicHlp_ClearInterruptFF: caller='%s'/%d: VMCPU_FF_INTERRUPT_APIC(%d) %d -> 0\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_ISSET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
+             pDevIns->pReg->szName, pDevIns->iInstance, idCpu, VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC)));
 
     /* Note: NMI/SMI can't be cleared. */
     switch (enmType)
@@ -219,7 +240,32 @@ static DECLCALLBACK(void) pdmR3ApicHlp_ClearInterruptFF(PPDMDEVINS pDevIns, PDMA
             AssertMsgFailed(("enmType=%d\n", enmType));
             break;
     }
+#ifdef VBOX_WITH_REM
     REMR3NotifyInterruptClear(pVM, pVCpu);
+#endif
+}
+
+
+/** @interface_method_impl{PDMAPICHLPR3,pfnCalcIrqTag} */
+static DECLCALLBACK(uint32_t) pdmR3ApicHlp_CalcIrqTag(PPDMDEVINS pDevIns, uint8_t u8Level)
+{
+    PDMDEV_ASSERT_DEVINS(pDevIns);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    Assert(u8Level == PDM_IRQ_LEVEL_HIGH || u8Level == PDM_IRQ_LEVEL_FLIP_FLOP);
+
+    pdmLock(pVM);
+
+    uint32_t uTagSrc = pdmCalcIrqTag(pVM, pDevIns->idTracing);
+    if (u8Level == PDM_IRQ_LEVEL_HIGH)
+        VBOXVMM_PDM_IRQ_HIGH(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    else
+        VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+
+
+    pdmUnlock(pVM);
+    LogFlow(("pdmR3ApicHlp_CalcIrqTag: caller='%s'/%d: returns %#x (u8Level=%d)\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, uTagSrc, u8Level));
+    return uTagSrc;
 }
 
 
@@ -277,11 +323,17 @@ static DECLCALLBACK(void) pdmR3ApicHlp_SendInitIpi(PPDMDEVINS pDevIns, VMCPUID i
 static DECLCALLBACK(PCPDMAPICHLPRC) pdmR3ApicHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    RTRCPTR pRCHelpers = 0;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCApicHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCApicHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3ApicHlp_GetRCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -292,9 +344,10 @@ static DECLCALLBACK(PCPDMAPICHLPRC) pdmR3ApicHlp_GetRCHelpers(PPDMDEVINS pDevIns
 static DECLCALLBACK(PCPDMAPICHLPR0) pdmR3ApicHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMAPICHLPR0 pR0Helpers = 0;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0ApicHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0ApicHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3ApicHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
@@ -343,6 +396,7 @@ const PDMAPICHLPR3 g_pdmR3DevApicHlp =
     PDM_APICHLPR3_VERSION,
     pdmR3ApicHlp_SetInterruptFF,
     pdmR3ApicHlp_ClearInterruptFF,
+    pdmR3ApicHlp_CalcIrqTag,
     pdmR3ApicHlp_ChangeFeature,
     pdmR3ApicHlp_GetCpuId,
     pdmR3ApicHlp_SendSipi,
@@ -366,14 +420,14 @@ const PDMAPICHLPR3 g_pdmR3DevApicHlp =
 
 /** @interface_method_impl{PDMIOAPICHLPR3,pfnApicBusDeliver} */
 static DECLCALLBACK(int) pdmR3IoApicHlp_ApicBusDeliver(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                        uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode)
+                                                        uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     PVM pVM = pDevIns->Internal.s.pVMR3;
-    LogFlow(("pdmR3IoApicHlp_ApicBusDeliver: caller='%s'/%d: u8Dest=%RX8 u8DestMode=%RX8 u8DeliveryMode=%RX8 iVector=%RX8 u8Polarity=%RX8 u8TriggerMode=%RX8\n",
-             pDevIns->pReg->szName, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode));
+    LogFlow(("pdmR3IoApicHlp_ApicBusDeliver: caller='%s'/%d: u8Dest=%RX8 u8DestMode=%RX8 u8DeliveryMode=%RX8 iVector=%RX8 u8Polarity=%RX8 u8TriggerMode=%RX8 uTagSrc=%#x\n",
+             pDevIns->pReg->szName, pDevIns->iInstance, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode, uTagSrc));
     if (pVM->pdm.s.Apic.pfnBusDeliverR3)
-        return pVM->pdm.s.Apic.pfnBusDeliverR3(pVM->pdm.s.Apic.pDevInsR3, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode);
+        return pVM->pdm.s.Apic.pfnBusDeliverR3(pVM->pdm.s.Apic.pDevInsR3, u8Dest, u8DestMode, u8DeliveryMode, iVector, u8Polarity, u8TriggerMode, uTagSrc);
     return VINF_SUCCESS;
 }
 
@@ -400,11 +454,17 @@ static DECLCALLBACK(void) pdmR3IoApicHlp_Unlock(PPDMDEVINS pDevIns)
 static DECLCALLBACK(PCPDMIOAPICHLPRC) pdmR3IoApicHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    RTRCPTR pRCHelpers = 0;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCIoApicHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCIoApicHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3IoApicHlp_GetRCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -415,9 +475,10 @@ static DECLCALLBACK(PCPDMIOAPICHLPRC) pdmR3IoApicHlp_GetRCHelpers(PPDMDEVINS pDe
 static DECLCALLBACK(PCPDMIOAPICHLPR0) pdmR3IoApicHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMIOAPICHLPR0 pR0Helpers = 0;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0IoApicHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0IoApicHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3IoApicHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
@@ -450,27 +511,28 @@ const PDMIOAPICHLPR3 g_pdmR3DevIoApicHlp =
  */
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIsaSetIrq} */
-static DECLCALLBACK(void) pdmR3PciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
+static DECLCALLBACK(void) pdmR3PciHlp_IsaSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR3PciHlp_IsaSetIrq: iIrq=%d iLevel=%d\n", iIrq, iLevel));
-    PDMIsaSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel);
+    Log4(("pdmR3PciHlp_IsaSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    PDMIsaSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel, uTagSrc);
 }
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIoApicSetIrq} */
-static DECLCALLBACK(void) pdmR3PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel)
+static DECLCALLBACK(void) pdmR3PciHlp_IoApicSetIrq(PPDMDEVINS pDevIns, int iIrq, int iLevel, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR3PciHlp_IoApicSetIrq: iIrq=%d iLevel=%d\n", iIrq, iLevel));
-    PDMIoApicSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel);
+    Log4(("pdmR3PciHlp_IoApicSetIrq: iIrq=%d iLevel=%d uTagSrc=%#x\n", iIrq, iLevel, uTagSrc));
+    PDMIoApicSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel, uTagSrc);
 }
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIoApicSendMsi} */
-static DECLCALLBACK(void) pdmR3PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue)
+static DECLCALLBACK(void) pdmR3PciHlp_IoApicSendMsi(PPDMDEVINS pDevIns, RTGCPHYS GCAddr, uint32_t uValue, uint32_t uTagSrc)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    Log4(("pdmR3PciHlp_IoApicSendMsi: address=%p value=%x\n", GCAddr, uValue));
-    PDMIoApicSendMsi(pDevIns->Internal.s.pVMR3, GCAddr, uValue);
+    Log4(("pdmR3PciHlp_IoApicSendMsi: address=%p value=%x uTagSrc=%#x\n", GCAddr, uValue, uTagSrc));
+    PDMIoApicSendMsi(pDevIns->Internal.s.pVMR3, GCAddr, uValue, uTagSrc);
 }
 
 /** @interface_method_impl{PDMPCIHLPR3,pfnIsMMIO2Base} */
@@ -506,11 +568,17 @@ static DECLCALLBACK(void) pdmR3PciHlp_Unlock(PPDMDEVINS pDevIns)
 static DECLCALLBACK(PCPDMPCIHLPRC) pdmR3PciHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    RTRCPTR pRCHelpers = 0;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCPciHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPciHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3IoApicHlp_GetGCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -521,9 +589,10 @@ static DECLCALLBACK(PCPDMPCIHLPRC) pdmR3PciHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 static DECLCALLBACK(PCPDMPCIHLPR0) pdmR3PciHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMPCIHLPR0 pR0Helpers = 0;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0PciHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0PciHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3IoApicHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
@@ -574,7 +643,7 @@ static DECLCALLBACK(int) pdmR3HpetHlp_SetLegacyMode(PPDMDEVINS pDevIns, bool fAc
     for (i = 0; i < RT_ELEMENTS(s_apszDevsToNotify); i++)
     {
         PPDMIBASE pBase;
-        rc = PDMR3QueryDevice(pDevIns->Internal.s.pVMR3, "i8254", 0, &pBase);
+        rc = PDMR3QueryDevice(pDevIns->Internal.s.pVMR3->pUVM, "i8254", 0, &pBase);
         if (RT_SUCCESS(rc))
         {
             PPDMIHPETLEGACYNOTIFY pPort = PDMIBASE_QUERY_INTERFACE(pBase, PDMIHPETLEGACYNOTIFY);
@@ -600,7 +669,26 @@ static DECLCALLBACK(int) pdmR3HpetHlp_SetIrq(PPDMDEVINS pDevIns, int iIrq, int i
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
     LogFlow(("pdmR3HpetHlp_SetIrq: caller='%s'/%d: iIrq=%d iLevel=%d\n", pDevIns->pReg->szName, pDevIns->iInstance, iIrq, iLevel));
-    PDMIsaSetIrq(pDevIns->Internal.s.pVMR3, iIrq, iLevel);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+
+    pdmLock(pVM);
+    uint32_t uTagSrc;
+    if (iLevel & PDM_IRQ_LEVEL_HIGH)
+    {
+        pDevIns->Internal.s.uLastIrqTag = uTagSrc = pdmCalcIrqTag(pVM, pDevIns->idTracing);
+        if (iLevel == PDM_IRQ_LEVEL_HIGH)
+            VBOXVMM_PDM_IRQ_HIGH(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+        else
+            VBOXVMM_PDM_IRQ_HILO(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    }
+    else
+        uTagSrc = pDevIns->Internal.s.uLastIrqTag;
+
+    PDMIsaSetIrq(pVM, iIrq, iLevel, uTagSrc); /* (The API takes the lock recursively.) */
+
+    if (iLevel == PDM_IRQ_LEVEL_LOW)
+        VBOXVMM_PDM_IRQ_LOW(VMMGetCpu(pVM), RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc));
+    pdmUnlock(pVM);
     return 0;
 }
 
@@ -609,11 +697,17 @@ static DECLCALLBACK(int) pdmR3HpetHlp_SetIrq(PPDMDEVINS pDevIns, int iIrq, int i
 static DECLCALLBACK(PCPDMHPETHLPRC) pdmR3HpetHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
-    RTRCPTR pRCHelpers = 0;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCHpetHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
+    RTRCPTR pRCHelpers = NIL_RTRCPTR;
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCHpetHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3HpetHlp_GetGCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -624,9 +718,10 @@ static DECLCALLBACK(PCPDMHPETHLPRC) pdmR3HpetHlp_GetRCHelpers(PPDMDEVINS pDevIns
 static DECLCALLBACK(PCPDMHPETHLPR0) pdmR3HpetHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMHPETHLPR0 pR0Helpers = 0;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0HpetHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0HpetHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3HpetHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",
@@ -659,11 +754,17 @@ const PDMHPETHLPR3 g_pdmR3DevHpetHlp =
 static DECLCALLBACK(PCPDMPCIRAWHLPRC) pdmR3PciRawHlp_GetRCHelpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
+
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    int rc = PDMR3LdrGetSymbolRC(pDevIns->Internal.s.pVMR3, NULL, "g_pdmRCPciRawHlp", &pRCHelpers);
-    AssertReleaseRC(rc);
-    AssertRelease(pRCHelpers);
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPciRawHlp", &pRCHelpers);
+        AssertReleaseRC(rc);
+        AssertRelease(pRCHelpers);
+    }
+
     LogFlow(("pdmR3PciRawHlp_GetGCHelpers: caller='%s'/%d: returns %RRv\n",
              pDevIns->pReg->szName, pDevIns->iInstance, pRCHelpers));
     return pRCHelpers;
@@ -674,9 +775,10 @@ static DECLCALLBACK(PCPDMPCIRAWHLPRC) pdmR3PciRawHlp_GetRCHelpers(PPDMDEVINS pDe
 static DECLCALLBACK(PCPDMPCIRAWHLPR0) pdmR3PciRawHlp_GetR0Helpers(PPDMDEVINS pDevIns)
 {
     PDMDEV_ASSERT_DEVINS(pDevIns);
-    VM_ASSERT_EMT(pDevIns->Internal.s.pVMR3);
+    PVM pVM = pDevIns->Internal.s.pVMR3;
+    VM_ASSERT_EMT(pVM);
     PCPDMHPETHLPR0 pR0Helpers = NIL_RTR0PTR;
-    int rc = PDMR3LdrGetSymbolR0(pDevIns->Internal.s.pVMR3, NULL, "g_pdmR0PciRawHlp", &pR0Helpers);
+    int rc = PDMR3LdrGetSymbolR0(pVM, NULL, "g_pdmR0PciRawHlp", &pR0Helpers);
     AssertReleaseRC(rc);
     AssertRelease(pR0Helpers);
     LogFlow(("pdmR3PciRawHlp_GetR0Helpers: caller='%s'/%d: returns %RHv\n",

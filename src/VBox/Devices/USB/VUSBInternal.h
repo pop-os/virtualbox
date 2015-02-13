@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,10 @@
 #include <VBox/vusb.h>
 #include <VBox/vmm/stam.h>
 #include <iprt/assert.h>
+#include <iprt/queueatomic.h>
+#include <iprt/req.h>
+
+#include "VUSBSniffer.h"
 
 RT_C_DECLS_BEGIN
 
@@ -110,6 +114,8 @@ typedef struct vusb_ctrl_extra
 void vusbMsgFreeExtraData(PVUSBCTRLEXTRA pExtra);
 void vusbMsgResetExtraData(PVUSBCTRLEXTRA pExtra);
 
+/** Opaque VUSB read ahead buffer management handle. */
+typedef struct VUSBREADAHEADINT *VUSBREADAHEAD;
 
 /**
  * A VUSB pipe
@@ -120,20 +126,12 @@ typedef struct vusb_pipe
     PCVUSBDESCENDPOINTEX out;
     /** Pointer to the extra state data required to run a control pipe. */
     PVUSBCTRLEXTRA      pCtrl;
+    /** Critical section serializing access to the extra state data for a control pipe. */
+    RTCRITSECT          CritSectCtrl;
     /** Count of active async transfers. */
-    uint8_t             async;
-    /** The periodic read-ahead buffer thread. */
-    RTTHREAD            ReadAheadThread;
-    /** Pointer to the reset thread arguments. */
-    void               *pvReadAheadArgs;
-    /** Pointer to the first buffered URB. */
-    PVUSBURB            pBuffUrbHead;
-    /** Pointer to the last buffered URB. */
-    PVUSBURB            pBuffUrbTail;
-    /** Count of URBs in read-ahead buffer. */
-    uint32_t            cBuffered;
-    /** Count of URBs submitted for read-ahead but not yet reaped. */
-    uint32_t            cSubmitted;
+    volatile uint32_t   async;
+    /** Read ahead handle. */
+    VUSBREADAHEAD       hReadAhead;
 } VUSBPIPE;
 /** Pointer to a VUSB pipe structure. */
 typedef VUSBPIPE *PVUSBPIPE;
@@ -173,8 +171,7 @@ typedef struct VUSBDEV
     PVUSBDEV            pNextHash;
     /** Pointer to the hub this device is attached to. */
     PVUSBHUB            pHub;
-    /** The device state.
-     * Only EMT changes this value. */
+    /** The device state. */
     VUSBDEVICESTATE volatile enmState;
 
     /** The device address. */
@@ -199,6 +196,10 @@ typedef struct VUSBDEV
 
     /** Pipe/direction -> endpoint descriptor mapping */
     VUSBPIPE            aPipes[VUSB_PIPE_MAX];
+    /** Critical section protecting the active URB list. */
+    RTCRITSECT          CritSectAsyncUrbs;
+    /** List of active async URBs. */
+    PVUSBURB            pAsyncUrbHead;
 
     /** Dumper state. */
     union VUSBDEVURBDUMPERSTATE
@@ -207,14 +208,25 @@ typedef struct VUSBDEV
         uint8_t             u8ScsiCmd;
     } Urb;
 
-    /** The reset thread. */
-    RTTHREAD            hResetThread;
-    /** Pointer to the reset thread arguments. */
-    void               *pvResetArgs;
     /** The reset timer handle. */
     PTMTIMER            pResetTimer;
+    /** Reset handler arguments. */
+    void               *pvArgs;
+    /** URB submit and reap thread. */
+    RTTHREAD            hUrbIoThread;
+    /** Request queue for executing tasks on the I/O thread which should be done
+     * synchronous and without any other thread accessing the USB device. */
+    RTREQQUEUE          hReqQueueSync;
+    /** Flag whether the URB I/O thread should terminate. */
+    bool volatile       fTerminate;
+    /** Flag whether the I/O thread was woken up. */
+    bool volatile       fWokenUp;
+#if HC_ARCH_BITS == 32
+    /** Align the size to a 8 byte boundary. */
+    bool                afAlignment0[6];
+#endif
 } VUSBDEV;
-
+AssertCompileSizeAlignment(VUSBDEV, 8);
 
 
 /** Pointer to the virtual method table for a kind of USB devices. */
@@ -252,10 +264,6 @@ int vusbDevDetach(PVUSBDEV pDev);
 DECLINLINE(PVUSBROOTHUB) vusbDevGetRh(PVUSBDEV pDev);
 size_t vusbDevMaxInterfaces(PVUSBDEV dev);
 
-DECLCALLBACK(int) vusbDevReset(PVUSBIDEVICE pDevice, bool fResetOnLinux, PFNVUSBRESETDONE pfnDone, void *pvUser, PVM pVM);
-DECLCALLBACK(int) vusbDevPowerOn(PVUSBIDEVICE pInterface);
-DECLCALLBACK(int) vusbDevPowerOff(PVUSBIDEVICE pInterface);
-DECLCALLBACK(VUSBDEVICESTATE) vusbDevGetState(PVUSBIDEVICE pInterface);
 void vusbDevSetAddress(PVUSBDEV pDev, uint8_t u8Address);
 bool vusbDevStandardRequest(PVUSBDEV pDev, int EndPt, PVUSBSETUP pSetup, void *pvBuf, uint32_t *pcbBuf);
 
@@ -296,6 +304,7 @@ typedef struct VUSBHUB
     /** Name of the hub. Used for logging. */
     char               *pszName;
 } VUSBHUB;
+AssertCompileSizeAlignment(VUSBHUB, 8);
 
 /** @} */
 
@@ -339,13 +348,8 @@ typedef struct VUSBROOTHUB
     /** The HUB.
      * @todo remove this? */
     VUSBHUB                 Hub;
-#if HC_ARCH_BITS == 32
-    uint32_t                Alignment0;
-#endif
     /** Address hash table. */
     PVUSBDEV                apAddrHash[VUSB_ADDR_HASHSZ];
-    /** List of async URBs. */
-    PVUSBURB                pAsyncUrbHead;
     /** The default address. */
     PVUSBDEV                pDefaultAddress;
 
@@ -356,23 +360,33 @@ typedef struct VUSBROOTHUB
     /** Connector interface exposed upwards. */
     VUSBIROOTHUBCONNECTOR   IRhConnector;
 
+#if HC_ARCH_BITS == 32
+    uint32_t                Alignment0;
+#endif
+
+    /** Critical section protecting the device list. */
+    RTCRITSECT              CritSectDevices;
     /** Chain of devices attached to this hub. */
     PVUSBDEV                pDevices;
+
+#if HC_ARCH_BITS == 32
+    uint32_t                Alignment1;
+#endif
+
     /** Availability Bitmap. */
     VUSBPORTBITMAP          Bitmap;
 
     /** Critical section protecting the free list. */
-    RTCRITSECT              CritSect;
+    RTCRITSECT              CritSectFreeUrbs;
     /** Chain of free URBs. (Singly linked) */
     PVUSBURB                pFreeUrbs;
+    /** Sniffer instance for the root hub. */
+    VUSBSNIFFER             hSniffer;
     /** The number of URBs in the pool. */
     uint32_t                cUrbsInPool;
     /** Version of the attached Host Controller. */
     uint32_t                fHcVersions;
 #ifdef VBOX_WITH_STATISTICS
-#if HC_ARCH_BITS == 32
-    uint32_t                Alignment1; /**< Counters must be 64-bit aligned. */
-#endif
     VUSBROOTHUBTYPESTATS    Total;
     VUSBROOTHUBTYPESTATS    aTypes[VUSBXFERTYPE_MSG];
     STAMCOUNTER             StatIsocReqPkts;
@@ -400,7 +414,8 @@ typedef struct VUSBROOTHUB
 } VUSBROOTHUB;
 AssertCompileMemberAlignment(VUSBROOTHUB, IRhConnector, 8);
 AssertCompileMemberAlignment(VUSBROOTHUB, Bitmap, 8);
-AssertCompileMemberAlignment(VUSBROOTHUB, CritSect, 8);
+AssertCompileMemberAlignment(VUSBROOTHUB, CritSectDevices, 8);
+AssertCompileMemberAlignment(VUSBROOTHUB, CritSectFreeUrbs, 8);
 #ifdef VBOX_WITH_STATISTICS
 AssertCompileMemberAlignment(VUSBROOTHUB, Total, 8);
 #endif
@@ -428,25 +443,40 @@ typedef enum CANCELMODE
 int  vusbUrbSubmit(PVUSBURB pUrb);
 void vusbUrbTrace(PVUSBURB pUrb, const char *pszMsg, bool fComplete);
 void vusbUrbDoReapAsync(PVUSBURB pHead, RTMSINTERVAL cMillies);
+void vusbUrbDoReapAsyncDev(PVUSBDEV pDev, RTMSINTERVAL cMillies);
 void vusbUrbCancel(PVUSBURB pUrb, CANCELMODE mode);
+void vusbUrbCancelAsync(PVUSBURB pUrb, CANCELMODE mode);
 void vusbUrbRipe(PVUSBURB pUrb);
 void vusbUrbCompletionRh(PVUSBURB pUrb);
+int vusbUrbSubmitHardError(PVUSBURB pUrb);
+int vusbUrbErrorRh(PVUSBURB pUrb);
+int vusbDevUrbIoThreadWakeup(PVUSBDEV pDev);
+int vusbDevUrbIoThreadCreate(PVUSBDEV pDev);
+int vusbDevUrbIoThreadDestroy(PVUSBDEV pDev);
+DECLHIDDEN(int) vusbDevIoThreadExecV(PVUSBDEV pDev, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, va_list Args);
+DECLHIDDEN(int) vusbDevIoThreadExec(PVUSBDEV pDev, uint32_t fFlags, PFNRT pfnFunction, unsigned cArgs, ...);
+DECLHIDDEN(int) vusbDevIoThreadExecSync(PVUSBDEV pDev, PFNRT pfnFunction, unsigned cArgs, ...);
+DECLHIDDEN(int) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode);
 
 void vusbUrbCompletionReadAhead(PVUSBURB pUrb);
-void vusbReadAheadStart(PVUSBDEV pDev, PVUSBPIPE pPipe);
-void vusbReadAheadStop(void *pvReadAheadArgs);
+VUSBREADAHEAD vusbReadAheadStart(PVUSBDEV pDev, PVUSBPIPE pPipe);
+void vusbReadAheadStop(VUSBREADAHEAD hReadAhead);
 int  vusbUrbQueueAsyncRh(PVUSBURB pUrb);
-int  vusbUrbSubmitBufferedRead(PVUSBURB pUrb, PVUSBPIPE pPipe);
+int  vusbUrbSubmitBufferedRead(PVUSBURB pUrb, VUSBREADAHEAD hReadAhead);
 PVUSBURB vusbRhNewUrb(PVUSBROOTHUB pRh, uint8_t DstAddress, uint32_t cbData, uint32_t cTds);
 
 
 DECLINLINE(void) vusbUrbUnlink(PVUSBURB pUrb)
 {
+    PVUSBDEV pDev = pUrb->VUsb.pDev;
+
+    RTCritSectEnter(&pDev->CritSectAsyncUrbs);
     *pUrb->VUsb.ppPrev = pUrb->VUsb.pNext;
     if (pUrb->VUsb.pNext)
         pUrb->VUsb.pNext->VUsb.ppPrev = pUrb->VUsb.ppPrev;
     pUrb->VUsb.pNext = NULL;
     pUrb->VUsb.ppPrev = NULL;
+    RTCritSectLeave(&pDev->CritSectAsyncUrbs);
 }
 
 /** @def vusbUrbAssert
@@ -462,6 +492,16 @@ DECLINLINE(void) vusbUrbUnlink(PVUSBURB pUrb)
 #else
 # define vusbUrbAssert(pUrb) do {} while (0)
 #endif
+
+/**
+ * @def VUSBDEV_ASSERT_VALID_STATE
+ * Asserts that the give device state is valid.
+ */
+#define VUSBDEV_ASSERT_VALID_STATE(enmState) \
+    AssertMsg((enmState) > VUSB_DEVICE_STATE_INVALID && (enmState) < VUSB_DEVICE_STATE_DESTROYED, ("enmState=%#x\n", enmState));
+
+/** Executes a function synchronously. */
+#define VUSB_DEV_IO_THREAD_EXEC_FLAGS_SYNC RT_BIT_32(0)
 
 /** @} */
 
@@ -496,6 +536,51 @@ DECLINLINE(PVUSBROOTHUB) vusbDevGetRh(PVUSBDEV pDev)
 }
 
 
+/**
+ * Returns the state of the USB device.
+ *
+ * @returns State of the USB device.
+ * @param   pDev    Pointer to the device.
+ */
+DECLINLINE(VUSBDEVICESTATE) vusbDevGetState(PVUSBDEV pDev)
+{
+    VUSBDEVICESTATE enmState = (VUSBDEVICESTATE)ASMAtomicReadU32((volatile uint32_t *)&pDev->enmState);
+    VUSBDEV_ASSERT_VALID_STATE(enmState);
+    return enmState;
+}
+
+
+/**
+ * Sets the given state for the USB device.
+ *
+ * @returns The old state of the device.
+ * @param   pDev     Pointer to the device.
+ * @param   enmState The new state to set.
+ */
+DECLINLINE(VUSBDEVICESTATE) vusbDevSetState(PVUSBDEV pDev, VUSBDEVICESTATE enmState)
+{
+    VUSBDEV_ASSERT_VALID_STATE(enmState);
+    VUSBDEVICESTATE enmStateOld = (VUSBDEVICESTATE)ASMAtomicXchgU32((volatile uint32_t *)&pDev->enmState, enmState);
+    VUSBDEV_ASSERT_VALID_STATE(enmStateOld);
+    return enmStateOld;
+}
+
+
+/**
+ * Compare and exchange the states for the given USB device.
+ *
+ * @returns true if the state was changed.
+ * @returns false if the state wasn't changed.
+ * @param   pDev           Pointer to the device.
+ * @param   enmStateNew    The new state to set.
+ * @param   enmStateOld    The old state to compare with.
+ */
+DECLINLINE(bool) vusbDevSetStateCmp(PVUSBDEV pDev, VUSBDEVICESTATE enmStateNew, VUSBDEVICESTATE enmStateOld)
+{
+    VUSBDEV_ASSERT_VALID_STATE(enmStateNew);
+    VUSBDEV_ASSERT_VALID_STATE(enmStateOld);
+    return ASMAtomicCmpXchgU32((volatile uint32_t *)&pDev->enmState, enmStateNew, enmStateOld);
+}
 
 /** Strings for the CTLSTAGE enum values. */
 extern const char * const g_apszCtlStates[4];

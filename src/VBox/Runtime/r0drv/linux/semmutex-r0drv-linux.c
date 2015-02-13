@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,7 +73,7 @@ typedef struct RTSEMMUTEXINTERNAL
     /** The number of recursions. */
     uint32_t                    cRecursions;
     /** The list of waiting threads. */
-    RTLISTNODE                  WaiterList;
+    RTLISTANCHOR                WaiterList;
     /** The current owner, NULL if none. */
     struct task_struct         *pOwnerTask;
     /** The number of references to this piece of memory.  This is used to

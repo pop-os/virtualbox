@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifdef DEBUG_ramshankar
+# define LOG_INSTANCE       RTLogRelDefaultInstance()
+#endif
 #undef offsetof     /* This gets redefined in drmP.h */
 #include "include/drmP.h"
 #include "include/drm.h"
@@ -37,12 +40,6 @@
 #include <VBox/log.h>
 #include <VBox/version.h>
 
-#ifdef DEBUG_ramshankar
-# undef LogFlow
-# undef Log
-# define LogFlow LogRel
-# define Log     LogRel
-#endif
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *

@@ -9,8 +9,9 @@ import apiutil
 
 apiutil.CopyrightDef()
 
-print "LIBRARY VBoxOGL"
-print "DESCRIPTION \"\""
+# NOTE: if we need a LIBRARY statement, we would need to create a defs-x86.py to generate a .def file for VBoxOGL-x86 library
+#print "LIBRARY VBoxOGL"
+#print "DESCRIPTION \"\"" - warning LNK4017: DESCRIPTION statement not supported for the target platform; ignored
 print "EXPORTS"
 
 # XXX can't these values be automatically computed by analyzing parameters?
@@ -454,7 +455,7 @@ for func_name in ( "wglChoosePixelFormat",
            "wglGetPixelFormatAttribivEXT",
            "wglGetPixelFormatAttribfvEXT",
            "wglGetExtensionsStringEXT"):
-    print "%s@%d = %s_prox" % (func_name,stack_sizes[func_name],func_name)
+    print "%s = %s_prox" % (func_name,func_name)
 
 """
 for func_name in ( "CopyContext",
@@ -494,5 +495,10 @@ DrvSetPixelFormat@8 = DrvSetPixelFormat"""
 print """crCreateContext
 crMakeCurrent
 crSwapBuffers
-crGetProcAddress"""
+crGetProcAddress
+VBoxCreateContext
+VBoxCtxChromiumParameteriCR
+VBoxGetWindowId
+VBoxGetContextId
+VBoxFlushToHost"""
 #print "DllMain"

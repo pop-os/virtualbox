@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -96,5 +96,17 @@ RTR0DECL(bool) RTR0MemAreKrnlAndUsrDifferent(void)
 #else
     return true;
 #endif
+}
+
+
+RTR0DECL(int) RTR0MemKernelCopyFrom(void *pvDst, void const *pvSrc, size_t cb)
+{
+    return VERR_NOT_SUPPORTED;
+}
+
+
+RTR0DECL(int) RTR0MemKernelCopyTo(void *pvDst, void const *pvSrc, size_t cb)
+{
+    return VERR_NOT_SUPPORTED;
 }
 

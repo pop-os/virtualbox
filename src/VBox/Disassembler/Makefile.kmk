@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,10 @@ DisasmR3_SOURCES        = \
 	DisasmFormatBytes.cpp \
 	DisasmFormatYasm.cpp
 
+LIBRARIES              += DisasmBldProg
+DisasmBldProg_TEMPLATE  = VBoxBldProg
+DisasmBldProg_EXTENDS   = DisasmR3
+
 LIBRARIES              += DisasmCoreR3
 DisasmCoreR3_TEMPLATE   = VBOXR3
 DisasmCoreR3_DEFS       = IN_DIS DIS_CORE_ONLY
@@ -65,25 +69,5 @@ DisasmR0_SOURCES        = \
 	DisasmTables.cpp \
 	DisasmTablesX64.cpp
 
-
-ifdef VBOX_WITH_TESTCASES
- # testcase that hasn't been moved yet.
- PROGRAMS              += tstDisasm
- tstDisasm_TEMPLATE     = VBOXR3TSTEXE
- tstDisasm_DEFS         = IN_DIS
- tstDisasm_SOURCES      = DisasmTest.cpp DisasmTestA.asm
- tstDisasm_LIBS         = \
- 	$(PATH_STAGE_LIB)/DisasmR3$(VBOX_SUFF_LIB) \
- 	$(LIB_RUNTIME)
-
- PROGRAMS              += tstDisasmCore
- tstDisasmCore_TEMPLATE = VBOXR3TSTEXE
- tstDisasmCore_DEFS     = IN_DIS DIS_CORE_ONLY
- tstDisasmCore_SOURCES  = DisasmTestCore.cpp
- tstDisasmCore_LIBS     = \
- 	$(PATH_STAGE_LIB)/DisasmCoreR3$(VBOX_SUFF_LIB) \
- 	$(LIB_RUNTIME)
-endif # VBOX_WITH_TESTCASES
-
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

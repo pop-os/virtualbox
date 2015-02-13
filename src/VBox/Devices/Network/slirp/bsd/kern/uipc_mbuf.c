@@ -331,7 +331,7 @@ mb_free_ext(PNATState pData, struct mbuf *m)
 }
 
 /*
- * Attach the the cluster from *m to *n, set up m_ext in *n
+ * Attach the cluster from *m to *n, set up m_ext in *n
  * and bump the refcount of the cluster.
  */
 static void
@@ -1100,7 +1100,7 @@ m_adj(PNATState pData, struct mbuf *mp, int req_len)
 				break;
 			m = m->m_next;
 		}
-		if (m->m_len >= len) {
+		if (m->m_len > len || (m->m_len == len && m == mp)) {
 			m->m_len -= len;
 			if (mp->m_flags & M_PKTHDR)
 				mp->m_pkthdr.len -= len;

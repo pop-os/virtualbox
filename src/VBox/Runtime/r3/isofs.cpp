@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -316,26 +316,27 @@ static int rtIsoFsFindEntry(PRTISOFSFILE pFile, const char *pszFileName,
     {
         rc = VERR_FILE_NOT_FOUND;
 
-        uint8_t uBuffer[RTISOFS_SECTOR_SIZE];
+        uint8_t abBuffer[RTISOFS_SECTOR_SIZE];
         size_t cbLeft = cbExtent;
         while (!RT_SUCCESS(rc) && cbLeft > 0)
         {
-            size_t cbRead;
-            int rc2 = RTFileRead(pFile->file, (void*)&uBuffer, sizeof(uBuffer), &cbRead);
-            Assert(RT_SUCCESS(rc2) && cbRead == RTISOFS_SECTOR_SIZE);
+            size_t cbRead = 0;
+            int rc2 = RTFileRead(pFile->file, &abBuffer[0], sizeof(abBuffer), &cbRead);
+            AssertRC(rc2);
+            Assert(cbRead == RTISOFS_SECTOR_SIZE);
             cbLeft -= cbRead;
 
             uint32_t idx = 0;
             while (idx < cbRead)
             {
-                PRTISOFSDIRRECORD pCurRecord = (PRTISOFSDIRRECORD)&uBuffer[idx];
+                PRTISOFSDIRRECORD pCurRecord = (PRTISOFSDIRRECORD)&abBuffer[idx];
                 if (pCurRecord->record_length == 0)
                     break;
 
                 char *pszName = RTStrAlloc(pCurRecord->name_len + 1);
                 AssertPtr(pszName);
                 Assert(idx + sizeof(RTISOFSDIRRECORD) < cbRead);
-                memcpy(pszName, &uBuffer[idx + sizeof(RTISOFSDIRRECORD)], pCurRecord->name_len);
+                memcpy(pszName, &abBuffer[idx + sizeof(RTISOFSDIRRECORD)], pCurRecord->name_len);
                 pszName[pCurRecord->name_len] = '\0'; /* Force string termination. */
 
                 if (   pCurRecord->name_len == 1

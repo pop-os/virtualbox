@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -513,6 +513,23 @@ DECLINLINE(bool) RTTimeSpecIsEqual(PCRTTIMESPEC pTime1, PCRTTIMESPEC pTime2)
     return pTime1->i64NanosecondsRelativeToUnixEpoch == pTime2->i64NanosecondsRelativeToUnixEpoch;
 }
 
+
+/**
+ * Compare two time specs.
+ *
+ * @returns 0 if equal, -1 if @a pLeft is smaller, 1 if @a pLeft is larger.
+ * @returns false they are not equal.
+ * @param   pLeft       The 1st time spec.
+ * @param   pRight      The 2nd time spec.
+ */
+DECLINLINE(int) RTTimeSpecCompare(PCRTTIMESPEC pLeft, PCRTTIMESPEC pRight)
+{
+    if (pLeft->i64NanosecondsRelativeToUnixEpoch == pRight->i64NanosecondsRelativeToUnixEpoch)
+        return 0;
+    return pLeft->i64NanosecondsRelativeToUnixEpoch < pRight->i64NanosecondsRelativeToUnixEpoch ? -1 : 1;
+}
+
+
 /**
  * Converts a time spec to a ISO date string.
  *
@@ -523,6 +540,19 @@ DECLINLINE(bool) RTTimeSpecIsEqual(PCRTTIMESPEC pTime1, PCRTTIMESPEC pTime2)
  * @param   cb          The size of the buffer.
  */
 RTDECL(char *) RTTimeSpecToString(PCRTTIMESPEC pTime, char *psz, size_t cb);
+
+/**
+ * Attempts to convert an ISO date string to a time structure.
+ *
+ * We're a little forgiving with zero padding, unspecified parts, and leading
+ * and trailing spaces.
+ *
+ * @retval  pTime on success,
+ * @retval  NULL on failure.
+ * @param   pTime       The time spec.
+ * @param   pszString   The ISO date string to convert.
+ */
+RTDECL(PRTTIMESPEC) RTTimeSpecFromString(PRTTIMESPEC pTime, const char *pszString);
 
 /** @} */
 
@@ -707,6 +737,19 @@ RTDECL(PRTTIME) RTTimeLocalNormalize(PRTTIME pTime);
  * @param   cb          The size of the buffer.
  */
 RTDECL(char *) RTTimeToString(PCRTTIME pTime, char *psz, size_t cb);
+
+/**
+ * Attempts to convert an ISO date string to a time structure.
+ *
+ * We're a little forgiving with zero padding, unspecified parts, and leading
+ * and trailing spaces.
+ *
+ * @retval  pTime on success,
+ * @retval  NULL on failure.
+ * @param   pTime       Where to store the time on success.
+ * @param   pszString   The ISO date string to convert.
+ */
+RTDECL(PRTTIME) RTTimeFromString(PRTTIME pTime, const char *pszString);
 
 /**
  * Checks if a year is a leap year or not.

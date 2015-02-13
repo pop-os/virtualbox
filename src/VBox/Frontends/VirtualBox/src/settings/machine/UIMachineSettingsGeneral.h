@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,9 +19,9 @@
 #ifndef __UIMachineSettingsGeneral_h__
 #define __UIMachineSettingsGeneral_h__
 
+/* Local includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsGeneral.gen.h"
-#include "COMDefs.h"
 
 /* Machine settings / General page / Data: */
 struct UIDataSettingsMachineGeneral
@@ -36,6 +36,7 @@ struct UIDataSettingsMachineGeneral
         , m_strSnapshotsFolder(QString())
         , m_strSnapshotsHomeDir(QString())
         , m_clipboardMode(KClipboardMode_Disabled)
+        , m_dragAndDropMode(KDragAndDropMode_Disabled)
         , m_strDescription(QString()) {}
     /* Functions: */
     bool equal(const UIDataSettingsMachineGeneral &other) const
@@ -48,6 +49,7 @@ struct UIDataSettingsMachineGeneral
                (m_strSnapshotsFolder == other.m_strSnapshotsFolder) &&
                (m_strSnapshotsHomeDir == other.m_strSnapshotsHomeDir) &&
                (m_clipboardMode == other.m_clipboardMode) &&
+               (m_dragAndDropMode == other.m_dragAndDropMode) &&
                (m_strDescription == other.m_strDescription);
     }
     /* Operators: */
@@ -62,6 +64,7 @@ struct UIDataSettingsMachineGeneral
     QString m_strSnapshotsFolder;
     QString m_strSnapshotsHomeDir;
     KClipboardMode m_clipboardMode;
+    KDragAndDropMode m_dragAndDropMode;
     QString m_strDescription;
 };
 typedef UISettingsCache<UIDataSettingsMachineGeneral> UICacheSettingsMachineGeneral;
@@ -85,7 +88,7 @@ public:
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -102,8 +105,8 @@ protected:
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate(QString &strWarning, QString &strTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     void setOrderAfter (QWidget *aWidget);
 
@@ -111,12 +114,13 @@ protected:
 
 private:
 
+    /* Helper: Prepare stuff: */
+    void prepareValidation();
+
     void polishPage();
 
-    QIWidgetValidator *mValidator;
-    bool m_fHWVirtExEnabled;
-
     /* Cache: */
+    bool m_fHWVirtExEnabled;
     UICacheSettingsMachineGeneral m_cache;
 };
 

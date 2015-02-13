@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,6 +64,16 @@ int main()
 
     rc = RTSystemQueryOSInfo(RTSYSOSINFO_SERVICE_PACK, szInfo, sizeof(szInfo));
     RTTestIPrintf(RTTESTLVL_ALWAYS, "SERVICE_PACK: \"%s\", rc=%Rrc\n", szInfo, rc);
+
+    uint64_t cbTotal;
+    rc = RTSystemQueryTotalRam(&cbTotal);
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "Total RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB)\n",
+                  cbTotal, cbTotal / _1K, cbTotal / _1M);
+
+    uint64_t cbAvailable;
+    rc = RTSystemQueryAvailableRam(&cbAvailable);
+    RTTestIPrintf(RTTESTLVL_ALWAYS, "Available RAM: %'RU64 Bytes (%RU64 KB, %RU64 MB)\n",
+                  cbAvailable, cbAvailable / _1K, cbAvailable / _1M);
 
     /*
      * Check that unsupported stuff is terminated correctly.

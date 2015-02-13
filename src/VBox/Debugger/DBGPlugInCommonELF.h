@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,13 +34,13 @@
 #define DBG_DIGGER_ELF_MASK                 UINT32_C(0x00000003)
 /* @} */
 
-int DBGDiggerCommonParseElf32Mod(PVM pVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
+int DBGDiggerCommonParseElf32Mod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                  Elf32_Ehdr const *pEhdr, Elf32_Shdr const *paShdrs,
                                  Elf32_Sym const *paSyms, size_t cMaxSyms,
                                  char const *pbStrings, size_t cbMaxStrings,
                                  RTGCPTR MinAddr, RTGCPTR MaxAddr, uint64_t uModTag);
 
-int DBGDiggerCommonParseElf64Mod(PVM pVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
+int DBGDiggerCommonParseElf64Mod(PUVM pUVM, const char *pszModName, const char *pszFilename, uint32_t fFlags,
                                  Elf64_Ehdr const *pEhdr, Elf64_Shdr const *paShdrs,
                                  Elf64_Sym const *paSyms, size_t cMaxSyms,
                                  char const *pbStrings, size_t cbMaxStrings,

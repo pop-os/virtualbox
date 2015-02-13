@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/gvmm.h>
 #include <VBox/vmm/gmm.h>
+#include <iprt/list.h>
 #include <iprt/semaphore.h>
 
 
@@ -35,13 +36,51 @@ RT_C_DECLS_BEGIN
  * @{
  */
 
+/** Enables the lookup tree.
+ * This is an optimization for speeding up registration as well as query. */
+#define STAM_WITH_LOOKUP_TREE
+
+
+/** Pointer to sample descriptor. */
+typedef struct STAMDESC    *PSTAMDESC;
+/** Pointer to a sample lookup node. */
+typedef struct STAMLOOKUP  *PSTAMLOOKUP;
+
+/**
+ * Sample lookup node.
+ */
+typedef struct STAMLOOKUP
+{
+    /** The parent lookup record. This is NULL for the root node. */
+    PSTAMLOOKUP         pParent;
+    /** Array of children (using array for binary searching). */
+    PSTAMLOOKUP        *papChildren;
+    /** Pointer to the description node, if any. */
+    PSTAMDESC           pDesc;
+    /** Number of decentants with descriptors. (Use for freeing up sub-trees.) */
+    uint32_t            cDescsInTree;
+    /** The number of children. */
+    uint16_t            cChildren;
+    /** The index in the parent paChildren array. UINT16_MAX for the root node. */
+    uint16_t            iParent;
+    /** The path offset. */
+    uint16_t            off;
+    /** The size of the path component. */
+    uint16_t            cch;
+    /** The name (variable size). */
+    char                szName[1];
+} STAMLOOKUP;
+
+
 /**
  * Sample descriptor.
  */
 typedef struct STAMDESC
 {
-    /** Pointer to the next sample. */
-    struct STAMDESC    *pNext;
+    /** Our entry in the big linear list. */
+    RTLISTNODE          ListEntry;
+    /** Pointer to our lookup node. */
+    PSTAMLOOKUP         pLookup;
     /** Sample name. */
     const char         *pszName;
     /** Sample type. */
@@ -87,10 +126,6 @@ typedef struct STAMDESC
     /** Description. */
     const char         *pszDesc;
 } STAMDESC;
-/** Pointer to sample descriptor. */
-typedef STAMDESC        *PSTAMDESC;
-/** Pointer to const sample descriptor. */
-typedef const STAMDESC  *PCSTAMDESC;
 
 
 /**
@@ -98,9 +133,12 @@ typedef const STAMDESC  *PCSTAMDESC;
  */
 typedef struct STAMUSERPERVM
 {
-    /** Pointer to the first sample. */
-    R3PTRTYPE(PSTAMDESC)    pHead;
-    /** RW Lock for the list. */
+    /** List of samples. */
+    RTLISTANCHOR            List;
+    /** Root of the lookup tree. */
+    PSTAMLOOKUP             pRoot;
+
+    /** RW Lock for the list and tree. */
     RTSEMRW                 RWSem;
 
     /** The copy of the GVMM statistics. */
@@ -113,7 +151,9 @@ typedef struct STAMUSERPERVM
     /** The copy of the GMM statistics. */
     GMMSTATS                GMMStats;
 } STAMUSERPERVM;
+#ifdef IN_RING3
 AssertCompileMemberAlignment(STAMUSERPERVM, GMMStats, 8);
+#endif
 
 /** Pointer to the STAM data kept in the UVM. */
 typedef STAMUSERPERVM *PSTAMUSERPERVM;
@@ -127,6 +167,8 @@ typedef STAMUSERPERVM *PSTAMUSERPERVM;
 #define STAM_UNLOCK_RD(pUVM)    do { int rcSem = RTSemRWReleaseRead(pUVM->stam.s.RWSem);  AssertRC(rcSem); } while (0)
 /** UnLocks the sample descriptors after writing. */
 #define STAM_UNLOCK_WR(pUVM)    do { int rcSem = RTSemRWReleaseWrite(pUVM->stam.s.RWSem); AssertRC(rcSem); } while (0)
+/** Lazy initialization */
+#define STAM_LAZY_INIT(pUVM)    do { } while (0)
 
 /** @} */
 

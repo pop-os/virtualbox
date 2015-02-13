@@ -281,6 +281,7 @@ crPackAreProgramsResidentNV(GLsizei n, const GLuint * programs,
     WRITE_NETWORK_POINTER(12 + n * sizeof(*programs),   (void *) residences);
     WRITE_NETWORK_POINTER(20 + n * sizeof(*programs), (void *) writeback);
     WRITE_OPCODE(pc, CR_EXTEND_OPCODE);
+    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -299,6 +300,7 @@ void PACK_APIENTRY crPackGetProgramNamedParameterfvNV( GLuint id, GLsizei len, c
     WRITE_NETWORK_POINTER( 16 + len, (void *) params );
     WRITE_NETWORK_POINTER( 16 + len + 8, (void *) writeback );
     WRITE_OPCODE( pc, CR_EXTEND_OPCODE );
+    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -316,6 +318,7 @@ void PACK_APIENTRY crPackGetProgramNamedParameterdvNV( GLuint id, GLsizei len, c
     WRITE_NETWORK_POINTER( 16 + len, (void *) params );
     WRITE_NETWORK_POINTER( 16 + len + 8, (void *) writeback );
     WRITE_OPCODE( pc, CR_EXTEND_OPCODE );
+    CR_CMDBLOCK_CHECK_FLUSH(pc);
     CR_UNLOCK_PACKER_CONTEXT(pc);
 }
 
@@ -365,7 +368,7 @@ void PACK_APIENTRY crPackVertexAttrib4NbvARB( GLuint index, const GLbyte *v )
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 8 );
-    pc->current.c.vertexAttrib.b4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.b4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLbyte, v[0] );
@@ -381,7 +384,7 @@ void PACK_APIENTRY crPackVertexAttrib4NivARB( GLuint index, const GLint *v )
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 20 );
-    pc->current.c.vertexAttrib.i4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.i4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLint, v[0] );
@@ -397,7 +400,7 @@ void PACK_APIENTRY crPackVertexAttrib4NsvARB( GLuint index, const GLshort *v )
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 12 );
-    pc->current.c.vertexAttrib.s4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.s4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLshort, v[0] );
@@ -413,7 +416,7 @@ void PACK_APIENTRY crPackVertexAttrib4NubvARB(GLuint index, const GLubyte * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 8 );
-    pc->current.c.vertexAttrib.ub4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.ub4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLubyte, v[0] );
@@ -429,7 +432,7 @@ void PACK_APIENTRY crPackVertexAttrib4NuivARB(GLuint index, const GLuint * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 20 );
-    pc->current.c.vertexAttrib.ui4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.ui4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLuint, v[0] );
@@ -445,7 +448,7 @@ void PACK_APIENTRY crPackVertexAttrib4NusvARB(GLuint index, const GLushort * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 12 );
-    pc->current.c.vertexAttrib.s4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.s4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLushort, v[0] );
@@ -461,7 +464,7 @@ void PACK_APIENTRY crPackVertexAttrib4bvARB(GLuint index, const GLbyte * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 8 );
-    pc->current.c.vertexAttrib.b4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.b4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLbyte, v[0] );
@@ -477,7 +480,7 @@ void PACK_APIENTRY crPackVertexAttrib4ivARB(GLuint index, const GLint * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 20 );
-    pc->current.c.vertexAttrib.i4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.i4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLint, v[0] );
@@ -493,7 +496,7 @@ void PACK_APIENTRY crPackVertexAttrib4uivARB(GLuint index, const GLuint * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 20 );
-    pc->current.c.vertexAttrib.ui4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.ui4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLuint, v[0] );
@@ -509,7 +512,7 @@ void PACK_APIENTRY crPackVertexAttrib4usvARB(GLuint index, const GLushort * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 12 );
-    pc->current.c.vertexAttrib.s4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.s4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLushort, v[0] );
@@ -526,7 +529,7 @@ void PACK_APIENTRY crPackVertexAttrib4ubvARB(GLuint index, const GLubyte * v)
     CR_GET_PACKER_CONTEXT(pc);
     unsigned char *data_ptr;
     CR_GET_BUFFERED_POINTER( pc, 8 );
-    pc->current.c.vertexAttrib.ub4[index] = data_ptr + 12;
+    pc->current.c.vertexAttrib.ub4[index] = data_ptr + 4;
     pc->current.attribsUsedMask |= (1 << index);
     WRITE_DATA( 0, GLuint, index );
     WRITE_DATA( 4, GLubyte, v[0] );

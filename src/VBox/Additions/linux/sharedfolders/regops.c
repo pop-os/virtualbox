@@ -1,11 +1,10 @@
+/* $Id: regops.c $ */
 /** @file
- *
- * vboxsf -- VirtualBox Guest Additions for Linux:
- * Regular file inode and file operations
+ * vboxsf - VBox Linux Shared Folders, Regular file inode and file operations.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +21,7 @@
 
 #include "vfsmod.h"
 
-static void *alloc_bounch_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
+static void *alloc_bounce_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
                                  xfer_size, const char *caller)
 {
     size_t tmp_size;
@@ -50,7 +49,7 @@ static void *alloc_bounch_buffer(size_t *tmp_sizep, PRTCCPHYS physp, size_t
     return tmp;
 }
 
-static void free_bounch_buffer(void *tmp)
+static void free_bounce_buffer(void *tmp)
 {
     kfree (tmp);
 }
@@ -109,7 +108,7 @@ static ssize_t sf_reg_read(struct file *file, char *buf, size_t size, loff_t *of
     size_t tmp_size;
     size_t left = size;
     ssize_t total_bytes_read = 0;
-    struct inode *inode = file->f_dentry->d_inode;
+    struct inode *inode = GET_F_DENTRY(file)->d_inode;
     struct sf_glob_info *sf_g = GET_GLOB_INFO(inode->i_sb);
     struct sf_reg_info *sf_r = file->private_data;
     loff_t pos = *off;
@@ -126,7 +125,7 @@ static ssize_t sf_reg_read(struct file *file, char *buf, size_t size, loff_t *of
     if (!size)
         return 0;
 
-    tmp = alloc_bounch_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+    tmp = alloc_bounce_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
     if (!tmp)
         return -ENOMEM;
 
@@ -159,11 +158,11 @@ static ssize_t sf_reg_read(struct file *file, char *buf, size_t size, loff_t *of
     }
 
     *off += total_bytes_read;
-    free_bounch_buffer(tmp);
+    free_bounce_buffer(tmp);
     return total_bytes_read;
 
 fail:
-    free_bounch_buffer(tmp);
+    free_bounce_buffer(tmp);
     return err;
 }
 
@@ -184,7 +183,7 @@ static ssize_t sf_reg_write(struct file *file, const char *buf, size_t size, lof
     size_t tmp_size;
     size_t left = size;
     ssize_t total_bytes_written = 0;
-    struct inode *inode = file->f_dentry->d_inode;
+    struct inode *inode = GET_F_DENTRY(file)->d_inode;
     struct sf_inode_info *sf_i = GET_INODE_INFO(inode);
     struct sf_glob_info *sf_g = GET_GLOB_INFO(inode->i_sb);
     struct sf_reg_info *sf_r = file->private_data;
@@ -213,7 +212,7 @@ static ssize_t sf_reg_write(struct file *file, const char *buf, size_t size, lof
     if (!size)
         return 0;
 
-    tmp = alloc_bounch_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
+    tmp = alloc_bounce_buffer(&tmp_size, &tmp_phys, size, __PRETTY_FUNCTION__);
     if (!tmp)
         return -ENOMEM;
 
@@ -259,11 +258,11 @@ static ssize_t sf_reg_write(struct file *file, const char *buf, size_t size, lof
         inode->i_size = *off;
 
     sf_i->force_restat = 1;
-    free_bounch_buffer(tmp);
+    free_bounce_buffer(tmp);
     return total_bytes_written;
 
 fail:
-    free_bounch_buffer(tmp);
+    free_bounce_buffer(tmp);
     return err;
 }
 
@@ -455,7 +454,7 @@ static int sf_reg_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 static struct page *sf_reg_nopage(struct vm_area_struct *vma, unsigned long vaddr, int *type)
 # define SET_TYPE(t) *type = (t)
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION (2, 6, 0) */
+#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 0) */
 static struct page *sf_reg_nopage(struct vm_area_struct *vma, unsigned long vaddr, int unused)
 # define SET_TYPE(t)
 #endif
@@ -466,7 +465,7 @@ static struct page *sf_reg_nopage(struct vm_area_struct *vma, unsigned long vadd
     uint32_t nread = PAGE_SIZE;
     int err;
     struct file *file = vma->vm_file;
-    struct inode *inode = file->f_dentry->d_inode;
+    struct inode *inode = GET_F_DENTRY(file)->d_inode;
     struct sf_glob_info *sf_g = GET_GLOB_INFO(inode->i_sb);
     struct sf_reg_info *sf_r = file->private_data;
 
@@ -575,8 +574,13 @@ struct file_operations sf_reg_fops =
 # else
     .sendfile    = generic_file_sendfile,
 # endif
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
+    .read_iter   = generic_file_read_iter,
+    .write_iter  = generic_file_write_iter,
+# else
     .aio_read    = generic_file_aio_read,
     .aio_write   = generic_file_aio_write,
+# endif
 # if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 35)
     .fsync       = noop_fsync,
 # else
@@ -601,7 +605,7 @@ struct inode_operations sf_reg_iops =
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
 static int sf_readpage(struct file *file, struct page *page)
 {
-    struct inode *inode = file->f_dentry->d_inode;
+    struct inode *inode = GET_F_DENTRY(file)->d_inode;
     struct sf_glob_info *sf_g = GET_GLOB_INFO(inode->i_sb);
     struct sf_reg_info *sf_r = file->private_data;
     uint32_t nread = PAGE_SIZE;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <VBox/vmm/cpum.h>
 #include "DBGFInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/param.h>
@@ -34,9 +35,9 @@
  * Wrapper around CPUMGetGuestMode.
  *
  * @returns VINF_SUCCESS.
- * @param   pVM                 The VM handle.
- * @param   idCpu               The current CPU ID.
- * @param   penmMode            Where to return the mode.
+ * @param   pVM         Pointer to the VM.
+ * @param   idCpu       The current CPU ID.
+ * @param   penmMode    Where to return the mode.
  */
 static DECLCALLBACK(int) dbgfR3CpuGetMode(PVM pVM, VMCPUID idCpu, CPUMMODE *penmMode)
 {
@@ -51,18 +52,70 @@ static DECLCALLBACK(int) dbgfR3CpuGetMode(PVM pVM, VMCPUID idCpu, CPUMMODE *penm
  * Get the current CPU mode.
  *
  * @returns The CPU mode on success, CPUMMODE_INVALID on failure.
- * @param   pVM                 The VM handle.
- * @param   idCpu               The target CPU ID.
+ * @param   pUVM        The user mode VM handle.
+ * @param   idCpu       The target CPU ID.
  */
-VMMR3DECL(CPUMMODE) DBGFR3CpuGetMode(PVM pVM, VMCPUID idCpu)
+VMMR3DECL(CPUMMODE) DBGFR3CpuGetMode(PUVM pUVM, VMCPUID idCpu)
 {
-    VM_ASSERT_VALID_EXT_RETURN(pVM, CPUMMODE_INVALID);
-    AssertReturn(idCpu < pVM->cCpus, CPUMMODE_INVALID);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, CPUMMODE_INVALID);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, CPUMMODE_INVALID);
+    AssertReturn(idCpu < pUVM->pVM->cCpus, CPUMMODE_INVALID);
 
     CPUMMODE enmMode;
-    int rc = VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3CpuGetMode, 3, pVM, idCpu, &enmMode);
+    int rc = VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3CpuGetMode, 3, pUVM->pVM, idCpu, &enmMode);
     if (RT_FAILURE(rc))
         return CPUMMODE_INVALID;
     return enmMode;
+}
+
+
+/**
+ * Wrapper around CPUMIsGuestIn64BitCode.
+ *
+ * @returns VINF_SUCCESS.
+ * @param   pVM             Pointer to the VM.
+ * @param   idCpu           The current CPU ID.
+ * @param   pfIn64BitCode   Where to return the result.
+ */
+static DECLCALLBACK(int) dbgfR3CpuIn64BitCode(PVM pVM, VMCPUID idCpu, bool *pfIn64BitCode)
+{
+    Assert(idCpu == VMMGetCpuId(pVM));
+    PVMCPU pVCpu = VMMGetCpuById(pVM, idCpu);
+    *pfIn64BitCode = CPUMIsGuestIn64BitCode(pVCpu);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Checks if the given CPU is executing 64-bit code or not.
+ *
+ * @returns true / false accordingly.
+ * @param   pUVM        The user mode VM handle.
+ * @param   idCpu       The target CPU ID.
+ */
+VMMR3DECL(bool) DBGFR3CpuIsIn64BitCode(PUVM pUVM, VMCPUID idCpu)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, false);
+    AssertReturn(idCpu < pUVM->pVM->cCpus, false);
+
+    bool fIn64BitCode;
+    int rc = VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3CpuIn64BitCode, 3, pUVM->pVM, idCpu, &fIn64BitCode);
+    if (RT_FAILURE(rc))
+        return false;
+    return fIn64BitCode;
+}
+
+
+/**
+ * Get the number of CPUs (or threads if you insist).
+ *
+ * @returns The number of CPUs
+ * @param   pUVM        The user mode VM handle.
+ */
+VMMR3DECL(VMCPUID) DBGFR3CpuGetCount(PUVM pUVM)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, 1);
+    return pUVM->cCpus;
 }
 

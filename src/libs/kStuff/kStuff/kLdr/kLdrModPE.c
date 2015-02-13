@@ -1,4 +1,4 @@
-/* $Id: kLdrModPE.c 29 2009-07-01 20:30:29Z bird $ */
+/* $Id: kLdrModPE.c 54 2013-10-09 19:52:48Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Portable Executable (PE) Format.
  */
@@ -1192,7 +1192,7 @@ static int kldrModPEEnumDbgInfo(PKLDRMOD pMod, const void *pvBits, PFNKLDRENUMDB
         }
 
         rc = pfnCallback(pMod, iDbgInfo,
-                         enmDbgInfoType, pDbgDir->MajorVersion, pDbgDir->MinorVersion,
+                         enmDbgInfoType, pDbgDir->MajorVersion, pDbgDir->MinorVersion, NULL,
                          pDbgDir->PointerToRawData ? (KLDRFOFF)pDbgDir->PointerToRawData : -1,
                          pDbgDir->AddressOfRawData ? pDbgDir->AddressOfRawData : NIL_KLDRADDR,
                          pDbgDir->SizeOfData,
@@ -1978,6 +1978,7 @@ KLDRMODOPS g_kLdrModPEOps =
     NULL /* can execute one is optional */,
     kldrModPEGetStackInfo,
     kldrModPEQueryMainEntrypoint,
+    NULL /* pfnQueryImageUuid */,
     NULL, /** @todo resources */
     NULL, /** @todo resources */
     kldrModPEEnumDbgInfo,

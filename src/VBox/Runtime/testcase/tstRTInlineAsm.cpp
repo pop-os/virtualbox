@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -191,6 +191,16 @@ void tstASMCpuId(void)
     CHECKVAL(uECX2, s.uECX, "%x");
     CHECKVAL(uEDX2, s.uEDX, "%x");
 
+    uint32_t uEAX2 = s.uEAX - 1;
+    uint32_t uEBX2 = s.uEBX - 1;
+    uECX2 = s.uECX - 1;
+    uEDX2 = s.uEDX - 1;
+    ASMCpuIdExSlow(0, 0, 0, 0, &uEAX2, &uEBX2, &uECX2, &uEDX2);
+    CHECKVAL(uEAX2, s.uEAX, "%x");
+    CHECKVAL(uEBX2, s.uEBX, "%x");
+    CHECKVAL(uECX2, s.uECX, "%x");
+    CHECKVAL(uEDX2, s.uEDX, "%x");
+
     /*
      * Done testing, dump the information.
      */
@@ -209,24 +219,54 @@ void tstASMCpuId(void)
         RTTestIPrintf(RTTESTLVL_ALWAYS, "%08x  %08x %08x %08x %08x%s\n",
                       iStd, s.uEAX, s.uEBX, s.uECX, s.uEDX, iStd <= cFunctions ? "" : "*");
 
-        if (iStd == 0x04 || iStd == 0x0b || iStd == 0x0d || iStd > cFunctions)
-            continue; /* Leaf 04 and leaf 0d output depend on the initial value of ECX
-                       * The same seems to apply to invalid standard functions */
+        /* Leaf 04 and leaf 0d output depend on the initial value of ECX
+         * The same seems to apply to invalid standard functions */
+        if (iStd > cFunctions)
+            continue;
+        if (iStd != 0x04 && iStd != 0x0b && iStd != 0x0d)
+        {
+            u32 = ASMCpuId_EAX(iStd);
+            CHECKVAL(u32, s.uEAX, "%x");
 
-        u32 = ASMCpuId_EAX(iStd);
-        CHECKVAL(u32, s.uEAX, "%x");
-        u32 = ASMCpuId_EBX(iStd);
-        CHECKVAL(u32, s.uEBX, "%x");
-        u32 = ASMCpuId_ECX(iStd);
-        CHECKVAL(u32, s.uECX, "%x");
-        u32 = ASMCpuId_EDX(iStd);
-        CHECKVAL(u32, s.uEDX, "%x");
+            uint32_t u32EbxMask = UINT32_MAX;
+            if (iStd == 1)
+                u32EbxMask = UINT32_C(0x00ffffff); /* Omit the local apic ID in case we're rescheduled. */
+            u32 = ASMCpuId_EBX(iStd);
+            CHECKVAL(u32 & u32EbxMask, s.uEBX & u32EbxMask, "%x");
 
-        uECX2 = s.uECX - 1;
-        uEDX2 = s.uEDX - 1;
-        ASMCpuId_ECX_EDX(iStd, &uECX2, &uEDX2);
-        CHECKVAL(uECX2, s.uECX, "%x");
-        CHECKVAL(uEDX2, s.uEDX, "%x");
+            u32 = ASMCpuId_ECX(iStd);
+            CHECKVAL(u32, s.uECX, "%x");
+            u32 = ASMCpuId_EDX(iStd);
+            CHECKVAL(u32, s.uEDX, "%x");
+
+            uECX2 = s.uECX - 1;
+            uEDX2 = s.uEDX - 1;
+            ASMCpuId_ECX_EDX(iStd, &uECX2, &uEDX2);
+            CHECKVAL(uECX2, s.uECX, "%x");
+            CHECKVAL(uEDX2, s.uEDX, "%x");
+        }
+
+        if (iStd == 0x04)
+            for (uint32_t uECX = 1; s.uEAX & 0x1f; uECX++)
+            {
+                ASMCpuId_Idx_ECX(iStd, uECX, &s.uEAX, &s.uEBX, &s.uECX, &s.uEDX);
+                RTTestIPrintf(RTTESTLVL_ALWAYS, "    [%02x]  %08x %08x %08x %08x\n", uECX, s.uEAX, s.uEBX, s.uECX, s.uEDX);
+                RTTESTI_CHECK_BREAK(uECX < 128);
+            }
+        else if (iStd == 0x0b)
+            for (uint32_t uECX = 1; (s.uEAX & 0x1f) && (s.uEBX & 0xffff); uECX++)
+            {
+                ASMCpuId_Idx_ECX(iStd, uECX, &s.uEAX, &s.uEBX, &s.uECX, &s.uEDX);
+                RTTestIPrintf(RTTESTLVL_ALWAYS, "    [%02x]  %08x %08x %08x %08x\n", uECX, s.uEAX, s.uEBX, s.uECX, s.uEDX);
+                RTTESTI_CHECK_BREAK(uECX < 128);
+            }
+        else if (iStd == 0x0d)
+            for (uint32_t uECX = 1; s.uEAX != 0 || s.uEBX != 0 || s.uECX != 0 || s.uEDX != 0; uECX++)
+            {
+                ASMCpuId_Idx_ECX(iStd, uECX, &s.uEAX, &s.uEBX, &s.uECX, &s.uEDX);
+                RTTestIPrintf(RTTESTLVL_ALWAYS, "    [%02x]  %08x %08x %08x %08x\n", uECX, s.uEAX, s.uEBX, s.uECX, s.uEDX);
+                RTTESTI_CHECK_BREAK(uECX < 128);
+            }
     }
 
     /*
@@ -338,6 +378,8 @@ void tstASMCpuId(void)
 
         if (iExt > cExtFunctions)
             continue;   /* Invalid extended functions seems change the value if ECX changes */
+        if (iExt == 0x8000001d)
+            continue;   /* Takes cache level in ecx. */
 
         u32 = ASMCpuId_EAX(iExt);
         CHECKVAL(u32, s.uEAX, "%x");
@@ -1519,6 +1561,7 @@ int main(int argc, char *argv[])
 #if !defined(GCC44_32BIT_PIC) && (defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86))
     tstASMCpuId();
 #endif
+#if 1
     tstASMAtomicXchgU8();
     tstASMAtomicXchgU16();
     tstASMAtomicXchgU32();
@@ -1549,6 +1592,7 @@ int main(int argc, char *argv[])
     tstASMByteSwap();
 
     tstASMBench();
+#endif
 
     /*
      * Show the result.

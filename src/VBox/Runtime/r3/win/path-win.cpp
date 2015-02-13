@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@
 #include "internal/fs.h"
 
 /* Needed for lazy loading SHGetFolderPathW in RTPathUserDocuments(). */
-typedef HRESULT FNSHGETFOLDERPATHW(HWND, int, HANDLE, DWORD, LPWSTR);
+typedef HRESULT WINAPI FNSHGETFOLDERPATHW(HWND, int, HANDLE, DWORD, LPWSTR);
 typedef FNSHGETFOLDERPATHW *PFNSHGETFOLDERPATHW;
 
 /**
@@ -88,7 +88,7 @@ RTDECL(int) RTPathReal(const char *pszPath, char *pszRealPath, size_t cchRealPat
     return rc;
 }
 
-
+#if 0
 /**
  * Get the absolute path (no symlinks, no . or .. components), doesn't have to exit.
  *
@@ -124,6 +124,7 @@ RTDECL(int) RTPathAbs(const char *pszPath, char *pszAbsPath, size_t cchAbsPath)
         rc = RTUtf16ToUtf8Ex(&wsz[0], RTSTR_MAX, &pszAbsPath, cchAbsPath, &cch);
         if (RT_SUCCESS(rc))
         {
+# if 1 /** @todo This code is completely bonkers. */
             /*
              * Remove trailing slash if the path may be pointing to a directory.
              * (See posix variant.)
@@ -133,6 +134,7 @@ RTDECL(int) RTPathAbs(const char *pszPath, char *pszAbsPath, size_t cchAbsPath)
                 &&  !RTPATH_IS_VOLSEP(pszAbsPath[cch - 2])
                 &&  !RTPATH_IS_SLASH(pszAbsPath[cch - 2]))
                 pszAbsPath[cch - 1] = '\0';
+# endif
         }
     }
     else if (rc <= 0)
@@ -143,6 +145,7 @@ RTDECL(int) RTPathAbs(const char *pszPath, char *pszAbsPath, size_t cchAbsPath)
     RTUtf16Free(pwszPath);
     return rc;
 }
+#endif
 
 
 /**
@@ -154,16 +157,40 @@ RTDECL(int) RTPathAbs(const char *pszPath, char *pszAbsPath, size_t cchAbsPath)
  */
 RTDECL(int) RTPathUserHome(char *pszPath, size_t cchPath)
 {
+    /*
+     * Validate input
+     */
+    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
+    AssertReturn(cchPath, VERR_INVALID_PARAMETER);
+
     RTUTF16 wszPath[RTPATH_MAX];
-    DWORD   dwAttr;
+    bool    fValidFolderPath = false;
 
     /*
-     * There are multiple definitions for what WE think of as user home...
+     * Try with Windows XP+ functionality first.
      */
-    if (    !GetEnvironmentVariableW(L"HOME", &wszPath[0], RTPATH_MAX)
+    RTLDRMOD hShell32;
+    int rc = RTLdrLoadSystem("Shell32.dll", true /*fNoUnload*/, &hShell32);
+    if (RT_SUCCESS(rc))
+    {
+        PFNSHGETFOLDERPATHW pfnSHGetFolderPathW;
+        rc = RTLdrGetSymbol(hShell32, "SHGetFolderPathW", (void**)&pfnSHGetFolderPathW);
+        if (RT_SUCCESS(rc))
+        {
+            HRESULT hrc = pfnSHGetFolderPathW(0, CSIDL_PROFILE, NULL, SHGFP_TYPE_CURRENT, wszPath);
+            fValidFolderPath = (hrc == S_OK);
+        }
+        RTLdrClose(hShell32);
+    }
+
+    DWORD   dwAttr;
+    if (    !fValidFolderPath
         ||  (dwAttr = GetFileAttributesW(&wszPath[0])) == INVALID_FILE_ATTRIBUTES
         ||  !(dwAttr & FILE_ATTRIBUTE_DIRECTORY))
     {
+        /*
+         * Fall back to Windows specific environment variables. HOME is not used.
+         */
         if (    !GetEnvironmentVariableW(L"USERPROFILE", &wszPath[0], RTPATH_MAX)
             ||  (dwAttr = GetFileAttributesW(&wszPath[0])) == INVALID_FILE_ATTRIBUTES
             ||  !(dwAttr & FILE_ATTRIBUTE_DIRECTORY))
@@ -195,7 +222,7 @@ RTDECL(int) RTPathUserDocuments(char *pszPath, size_t cchPath)
     AssertReturn(cchPath, VERR_INVALID_PARAMETER);
 
     RTLDRMOD hShell32;
-    int rc = RTLdrLoad("Shell32.dll", &hShell32);
+    int rc = RTLdrLoadSystem("Shell32.dll", true /*fNoUnload*/, &hShell32);
     if (RT_SUCCESS(rc))
     {
         PFNSHGETFOLDERPATHW pfnSHGetFolderPathW;
@@ -578,6 +605,12 @@ RTR3DECL(int) RTPathRename(const char *pszSrc, const char *pszDst, unsigned fRen
 }
 
 
+RTR3DECL(int) RTPathUnlink(const char *pszPath, uint32_t fUnlink)
+{
+    return VERR_NOT_IMPLEMENTED;
+}
+
+
 RTDECL(bool) RTPathExists(const char *pszPath)
 {
     return RTPathExistsEx(pszPath, RTPATH_F_FOLLOW_LINK);
@@ -674,6 +707,23 @@ RTDECL(int) RTPathSetCurrent(const char *pszPath)
 
         RTUtf16Free(pwszPath);
     }
+    return rc;
+}
+
+
+RTDECL(int) RTPathGetCurrentOnDrive(char chDrive, char *pszPath, size_t cbPath)
+{
+    WCHAR wszInput[4];
+    wszInput[0] = chDrive;
+    wszInput[1] = ':';
+    wszInput[2] = '\0';
+
+    int rc;
+    RTUTF16 wszFullPath[RTPATH_MAX];
+    if (GetFullPathNameW(wszInput, RTPATH_MAX, wszFullPath, NULL))
+        rc = RTUtf16ToUtf8Ex(&wszFullPath[0], RTSTR_MAX, &pszPath, cbPath, NULL);
+    else
+        rc = RTErrConvertFromWin32(GetLastError());
     return rc;
 }
 

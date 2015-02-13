@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,6 +94,8 @@ public:
     STDMETHOD(SetVisibleRegion)(BYTE *aRectangles, ULONG aCount);
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand);
+
+    STDMETHOD(Notify3DEvent)(ULONG uType, BYTE *pReserved);
 
     // internal public methods
     bool initialized() { return mfInitialized; }

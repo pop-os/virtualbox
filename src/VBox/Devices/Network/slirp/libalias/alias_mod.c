@@ -54,7 +54,7 @@ __FBSDID("$FreeBSD: src/sys/netinet/libalias/alias_mod.c,v 1.3.8.1 2009/04/15 03
 
 /* Protocol and userland module handlers chains. */
 LIST_HEAD(handler_chain, proto_handler) handler_chain = LIST_HEAD_INITIALIZER(foo);
-#else /* !VBOX */
+#else  /* VBOX */
 # include <slirp.h>
 # include "alias_local.h"
 # include "alias_mod.h"
@@ -112,16 +112,14 @@ _handler_chain_destroy(void)
         LIBALIAS_RWLOCK_DESTROY();
 }
 
-#else
-#define LIBALIAS_RWLOCK_INIT() ;
-#define LIBALIAS_RWLOCK_DESTROY()   ;
-#define LIBALIAS_WLOCK_ASSERT() ;
-#define LIBALIAS_RLOCK() ;
-#define LIBALIAS_RUNLOCK() ;
-#define LIBALIAS_WLOCK() ;
-#define LIBALIAS_WUNLOCK() ;
-#define _handler_chain_init() ;
-#define _handler_chain_destroy() ;
+#else /* VBOX */
+# define LIBALIAS_WLOCK_ASSERT() ;
+# define LIBALIAS_RLOCK() ;
+# define LIBALIAS_RUNLOCK() ;
+# define LIBALIAS_WLOCK() ;
+# define LIBALIAS_WUNLOCK() ;
+# define _handler_chain_init() ;
+# define _handler_chain_destroy() ;
 #endif
 
 void
@@ -143,7 +141,7 @@ _attach_handler(PNATState pData, struct proto_handler *p)
 _attach_handler(struct proto_handler *p)
 #endif
 {
-    struct proto_handler *b = NULL;
+    struct proto_handler *b = NULL, *handler_chain_tail = NULL;
 
     LIBALIAS_WLOCK_ASSERT();
     LIST_FOREACH(b, &handler_chain, entries) {
@@ -155,10 +153,14 @@ _attach_handler(struct proto_handler *p)
             LIST_INSERT_BEFORE(b, p, entries);
             return (0);
         }
+
+        /* If the conditions above do not work, we should keep the last
+         * element of the list in order to insert *p right after it. */
+        handler_chain_tail = b;
     }
     /* End of list or found right position, inserts here. */
-    if (b)
-        LIST_INSERT_AFTER(b, p, entries);
+    if (handler_chain_tail)
+        LIST_INSERT_AFTER(handler_chain_tail, p, entries);
     else
         LIST_INSERT_HEAD(&handler_chain, p, entries);
     return (0);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 knut st. osmundsen (bird-src-spam@anduin.net)
+ * Copyright (C) 2006-2010 knut st. osmundsen (bird-src-spam@anduin.net)
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,7 @@ static const char szFileId[] = "Id: kAVLULInt.c,v 1.4 2003/02/13 02:02:38 bird E
 *******************************************************************************/
 #include <iprt/avl.h>
 #include <iprt/assert.h>
+#include <iprt/err.h>
 
 /*
  * Include the code.

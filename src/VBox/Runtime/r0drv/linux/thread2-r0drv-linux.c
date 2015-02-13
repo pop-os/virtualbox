@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,7 @@ DECLHIDDEN(int) rtThreadNativeInit(void)
 
 DECLHIDDEN(int) rtThreadNativeSetPriority(PRTTHREADINT pThread, RTTHREADTYPE enmType)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,11)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 11)
     /* See comment near MAX_RT_PRIO in linux/sched.h for details on
        sched_priority. */
     int                 iSchedClass = SCHED_NORMAL;

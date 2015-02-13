@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2009-2011 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,14 +17,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* VBox includes */
-#include "UIApplianceEditorWidget.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "VBoxOSTypeSelectorButton.h"
-#include "UILineTextEdit.h"
-
-/* Qt includes */
+/* Qt includes: */
 #include <QItemDelegate>
 #include <QSortFilterProxyModel>
 #include <QHeaderView>
@@ -32,6 +25,18 @@
 #include <QTextEdit>
 #include <QSpinBox>
 #include <QComboBox>
+#include <QDir>
+
+/* GUI includes: */
+#include "UIApplianceEditorWidget.h"
+#include "VBoxGlobal.h"
+#include "UIMessageCenter.h"
+#include "VBoxOSTypeSelectorButton.h"
+#include "UILineTextEdit.h"
+#include "UIConverter.h"
+
+/* COM includes: */
+#include "CSystemProperties.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // ModelItem
@@ -234,8 +239,8 @@ QVariant HardwareItem::data(int column, int role) const
                     }
                     case KVirtualSystemDescriptionType_OS:             v = vboxGlobal().vmGuestOSTypeDescription(m_strConfigValue); break;
                     case KVirtualSystemDescriptionType_Memory:         v = m_strConfigValue + " " + VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"); break;
-                    case KVirtualSystemDescriptionType_SoundCard:      v = vboxGlobal().toString(static_cast<KAudioControllerType>(m_strConfigValue.toInt())); break;
-                    case KVirtualSystemDescriptionType_NetworkAdapter: v = vboxGlobal().toString(static_cast<KNetworkAdapterType>(m_strConfigValue.toInt())); break;
+                    case KVirtualSystemDescriptionType_SoundCard:      v = gpConverter->toString(static_cast<KAudioControllerType>(m_strConfigValue.toInt())); break;
+                    case KVirtualSystemDescriptionType_NetworkAdapter: v = gpConverter->toString(static_cast<KNetworkAdapterType>(m_strConfigValue.toInt())); break;
                     default:                                           v = m_strConfigValue; break;
                 }
             }
@@ -431,24 +436,24 @@ QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem
             case KVirtualSystemDescriptionType_SoundCard:
             {
                 QComboBox *e = new QComboBox(pParent);
-                e->addItem(vboxGlobal().toString(KAudioControllerType_AC97), KAudioControllerType_AC97);
-                e->addItem(vboxGlobal().toString(KAudioControllerType_SB16), KAudioControllerType_SB16);
-                e->addItem(vboxGlobal().toString(KAudioControllerType_HDA),  KAudioControllerType_HDA);
+                e->addItem(gpConverter->toString(KAudioControllerType_AC97), KAudioControllerType_AC97);
+                e->addItem(gpConverter->toString(KAudioControllerType_SB16), KAudioControllerType_SB16);
+                e->addItem(gpConverter->toString(KAudioControllerType_HDA),  KAudioControllerType_HDA);
                 editor = e;
                 break;
             }
             case KVirtualSystemDescriptionType_NetworkAdapter:
             {
                 QComboBox *e = new QComboBox(pParent);
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_Am79C970A), KNetworkAdapterType_Am79C970A);
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_Am79C973), KNetworkAdapterType_Am79C973);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_Am79C970A), KNetworkAdapterType_Am79C970A);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_Am79C973), KNetworkAdapterType_Am79C973);
 #ifdef VBOX_WITH_E1000
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_I82540EM), KNetworkAdapterType_I82540EM);
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_I82543GC), KNetworkAdapterType_I82543GC);
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_I82545EM), KNetworkAdapterType_I82545EM);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_I82540EM), KNetworkAdapterType_I82540EM);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_I82543GC), KNetworkAdapterType_I82543GC);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_I82545EM), KNetworkAdapterType_I82545EM);
 #endif /* VBOX_WITH_E1000 */
 #ifdef VBOX_WITH_VIRTIO
-                e->addItem(vboxGlobal().toString(KNetworkAdapterType_Virtio), KNetworkAdapterType_Virtio);
+                e->addItem(gpConverter->toString(KNetworkAdapterType_Virtio), KNetworkAdapterType_Virtio);
 #endif /* VBOX_WITH_VIRTIO */
                 editor = e;
                 break;
@@ -456,9 +461,9 @@ QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem
             case KVirtualSystemDescriptionType_HardDiskControllerIDE:
             {
                 QComboBox *e = new QComboBox(pParent);
-                e->addItem(vboxGlobal().toString(KStorageControllerType_PIIX3), "PIIX3");
-                e->addItem(vboxGlobal().toString(KStorageControllerType_PIIX4), "PIIX4");
-                e->addItem(vboxGlobal().toString(KStorageControllerType_ICH6),  "ICH6");
+                e->addItem(gpConverter->toString(KStorageControllerType_PIIX3), "PIIX3");
+                e->addItem(gpConverter->toString(KStorageControllerType_PIIX4), "PIIX4");
+                e->addItem(gpConverter->toString(KStorageControllerType_ICH6),  "ICH6");
                 editor = e;
                 break;
             }
@@ -616,7 +621,11 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
                 QModelIndex c0Index = pModel->index(idx.row(), 0, idx.parent());
                 /* Query all items with the type HardDiskImage and which
                  * are child's of this item. */
-                QModelIndexList list = pModel->match(c0Index, HardwareItem::TypeRole, KVirtualSystemDescriptionType_HardDiskImage, -1, Qt::MatchExactly | Qt::MatchWrap | Qt::MatchRecursive);
+                QModelIndexList list = pModel->match(c0Index,
+                                                     HardwareItem::TypeRole,
+                                                     KVirtualSystemDescriptionType_HardDiskImage,
+                                                     -1,
+                                                     Qt::MatchExactly | Qt::MatchWrap | Qt::MatchRecursive);
                 for (int i = 0; i < list.count(); ++i)
                 {
                     /* Get the index for the config value column. */
@@ -625,7 +634,21 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
                     if (!hdIndex.data(ModifiedRole).toBool())
                         /* Replace any occurrence of the old VM name with
                          * the new VM name. */
-                        pModel->setData(hdIndex, hdIndex.data(Qt::EditRole).toString().replace(m_strConfigValue, e->text()), Qt::EditRole);
+                    {
+                        QStringList splittedOriginalPath = hdIndex.data(Qt::EditRole).toString().split(QDir::separator());
+                        QStringList splittedNewPath;
+
+                        foreach (QString a, splittedOriginalPath)
+                        {
+                            (a.compare(m_strConfigValue) == 0) ? splittedNewPath << e->text() : splittedNewPath << a;
+                        }
+
+                        QString newPath = splittedNewPath.join(QDir::separator());
+
+                        pModel->setData(hdIndex,
+                                        newPath,
+                                        Qt::EditRole);
+                    }
                 }
                 m_strConfigValue = e->text();
                 fDone = true;
@@ -921,6 +944,10 @@ QWidget *VirtualSystemDelegate::createEditor(QWidget *pParent, const QStyleOptio
 
     ModelItem *item = static_cast<ModelItem*>(index.internalPointer());
     QWidget *editor = item->createEditor(pParent, styleOption, index);
+
+    /* Allow UILineTextEdit to commit data early: */
+    if (editor && qobject_cast<UILineTextEdit*>(editor))
+        connect(editor, SIGNAL(sigFinished(QWidget*)), this, SIGNAL(commitData(QWidget*)));
 
     if (editor == NULL)
         return QItemDelegate::createEditor(pParent, styleOption, index);

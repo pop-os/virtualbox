@@ -590,7 +590,7 @@ to
         <translation>Затваря прозореца</translation>
     </message>
     <message>
-        <source>Displays the name of the window and contains controls to manipulate it</source>
+        <source>Holds the name of the window and contains controls to manipulate it</source>
         <translation>Показва името на прозореца и съдържа контроли за управлението му</translation>
     </message>
 </context>
@@ -701,7 +701,7 @@ to
     <name>QApplication</name>
     <message>
         <source>Activate</source>
-        <translation>Ацтивиране</translation>
+        <translation>Активиране</translation>
     </message>
     <message>
         <source>Executable &apos;%1&apos; requires Qt %2, found Qt %3.</source>
@@ -725,7 +725,7 @@ to
     <name>QCheckBox</name>
     <message>
         <source>Uncheck</source>
-        <translation>Демаркиране</translation>
+        <translation>Размаркиране</translation>
     </message>
     <message>
         <source>Check</source>
@@ -1900,7 +1900,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Could not mmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>Plugin verification data mismatch in &apos;%1&apos;</source>
@@ -1908,7 +1908,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Could not unmap &apos;%1&apos;: %2</translation>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (%2.%3.%4) [%5]</source>
@@ -1932,7 +1932,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
-        <translation>Добавката &apos;%1&apos; използва несъместима Qt библиотека. (Не могат да се смесват дебъгващи и издаващи библиотеки.)</translation>
+        <translation>Добавката &apos;%1&apos; използва несъвместима Qt библиотека. (Не могат да се смесват дебъгващи и издаващи библиотеки.)</translation>
     </message>
 </context>
 <context>
@@ -3148,27 +3148,27 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>bad lookahead syntax</source>
-        <translation type="unfinished"></translation>
+        <translation>лош lookahead синтаксис</translation>
     </message>
     <message>
         <source>bad repetition syntax</source>
-        <translation type="unfinished"></translation>
+        <translation>лош синтакс на повторение</translation>
     </message>
     <message>
         <source>invalid octal value</source>
-        <translation type="unfinished"></translation>
+        <translation>невалидна осмична стойност</translation>
     </message>
     <message>
         <source>missing left delim</source>
-        <translation type="unfinished"></translation>
+        <translation>изпуснат ляв делимитер</translation>
     </message>
     <message>
         <source>unexpected end</source>
-        <translation type="unfinished"></translation>
+        <translation>неочакван край</translation>
     </message>
     <message>
         <source>met internal limit</source>
-        <translation type="unfinished"></translation>
+        <translation>достигнат вътрешен лимит</translation>
     </message>
 </context>
 <context>
@@ -3872,7 +3872,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Cannot provide a certificate with no key, %1</source>
-        <translation>Не може да се осигури сертифкат без ключ, %1</translation>
+        <translation>Не може да се осигури сертификат без ключ, %1</translation>
     </message>
     <message>
         <source>Error loading local certificate, %1</source>

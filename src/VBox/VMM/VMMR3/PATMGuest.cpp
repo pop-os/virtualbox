@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -80,7 +80,7 @@ static uint8_t uFnOpenBSDHandlerPrefix2[6] = { 0x0E, 0x56, 0x6A, 0x00, 0x6A, 0x0
  * Check Windows XP sysenter heuristics and install patch
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pInstrGC    GC Instruction pointer for sysenter
  * @param   pPatchRec   Patch structure
  *
@@ -169,7 +169,7 @@ int PATMPatchSysenterXP(PVM pVM, RTGCPTR32 pInstrGC, PPATMPATCHREC pPatchRec)
  * Patch OpenBSD interrupt handler prefix
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on
+ * @param   pVM         Pointer to the VM.
  * @param   pCpu        Disassembly state of instruction.
  * @param   pInstrGC    GC Instruction pointer for instruction
  * @param   pInstrHC    GC Instruction pointer for instruction
@@ -194,14 +194,14 @@ int PATMPatchOpenBSDHandlerPrefix(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstrGC
     }
     /* Found it; patch the push cs */
     pPatchRec->patch.flags &= ~(PATMFL_GUEST_SPECIFIC);  /* prevent a breakpoint from being triggered */
-    return PATMR3PatchInstrInt3(pVM, pInstrGC, pInstrHC, pCpu, &pPatchRec->patch);
+    return patmR3PatchInstrInt3(pVM, pInstrGC, pInstrHC, pCpu, &pPatchRec->patch);
 }
 
 /**
  * Install guest OS specific patch
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on
+ * @param   pVM         Pointer to the VM.
  * @param   pCpu        Disassembly state of instruction.
  * @param   pInstrGC    GC Instruction pointer for instruction
  * @param   pInstrHC    GC Instruction pointer for instruction
@@ -209,12 +209,12 @@ int PATMPatchOpenBSDHandlerPrefix(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstrGC
  * @param   pPatchRec   Patch structure
  *
  */
-int PATMInstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstrGC, uint8_t *pInstrHC, PPATMPATCHREC pPatchRec)
+int patmR3InstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstrGC, uint8_t *pInstrHC, PPATMPATCHREC pPatchRec)
 {
     int rc;
 
     /** @todo might have to check if the patch crosses a page boundary. Currently not necessary, but that might change in the future!! */
-    switch (pCpu->pCurInstr->opcode)
+    switch (pCpu->pCurInstr->uOpcode)
     {
     case OP_SYSENTER:
         pPatchRec->patch.flags |= PATMFL_SYSENTER_XP | PATMFL_USER_MODE | PATMFL_GUEST_SPECIFIC;
@@ -234,13 +234,13 @@ int PATMInstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTGCPTR32 pInstrGC
          *  push esi
          *  cli
          */
-        if (pCpu->pCurInstr->param1 == OP_PARM_REG_CS)
+        if (pCpu->pCurInstr->fParam1 == OP_PARM_REG_CS)
             return PATMPatchOpenBSDHandlerPrefix(pVM, pCpu, pInstrGC, pInstrHC, pPatchRec);
 
         return VERR_PATCHING_REFUSED;
 
     default:
-        AssertMsgFailed(("PATMInstallGuestSpecificPatch: unknown opcode %d\n", pCpu->pCurInstr->opcode));
+        AssertMsgFailed(("PATMInstallGuestSpecificPatch: unknown opcode %d\n", pCpu->pCurInstr->uOpcode));
         return VERR_PATCHING_REFUSED;
     }
     return VERR_PATCHING_REFUSED;

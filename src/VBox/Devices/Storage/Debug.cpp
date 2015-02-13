@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,6 +18,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/types.h>
+#include <iprt/string.h>
 #include <VBox/scsi.h>
 #include "ide.h"
 
@@ -32,7 +33,7 @@ static const char * const g_apszATACmdNames[256] =
     "CFA REQUEST EXTENDED ERROR CODE",     /* 0x03 */
     "",                                    /* 0x04 */
     "",                                    /* 0x05 */
-    "",                                    /* 0x06 */
+    "DATA SET MANAGEMENT",                 /* 0x06 */
     "",                                    /* 0x07 */
     "DEVICE RESET",                        /* 0x08 */
     "",                                    /* 0x09 */
@@ -937,3 +938,199 @@ const char * SCSISenseExtText(uint8_t uASC, uint8_t uASCQ)
     }
     return "(Unknown extended sense code)";
 }
+
+/**
+ * Log the write parameters mode page into a given buffer.
+ */
+static int scsiLogWriteParamsModePage(char *pszBuffer, size_t cchBuffer,
+                                      uint8_t *pbModePage, size_t cbModePage)
+{
+    size_t cch = 0;
+    const char *pcsz = NULL;
+
+    switch (pbModePage[2] & 0x0f)
+    {
+        case 0x00: pcsz = "Packet/Incremental"; break;
+        case 0x01: pcsz = "Track At Once"; break;
+        case 0x02: pcsz = "Session At Once"; break;
+        case 0x03: pcsz = "RAW"; break;
+        case 0x04: pcsz = "Layer Jump Recording"; break;
+        default : pcsz = "Unknown/Reserved Write Type"; break;
+    }
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "BUFE=%d LS_V=%d TestWrite=%d WriteType=%s\n",
+                      pbModePage[2] & RT_BIT(6) ? 1 : 0,
+                      pbModePage[2] & RT_BIT(5) ? 1 : 0,
+                      pbModePage[2] & RT_BIT(4) ? 1 : 0,
+                      pcsz);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    switch ((pbModePage[3] & 0xc0) >> 6)
+    {
+        case 0x00: pcsz = "No B0 pointer, no next session"; break;
+        case 0x01: pcsz = "B0 pointer=FF:FF:FF, no next session"; break;
+        case 0x02: pcsz = "Reserved"; break;
+        case 0x03: pcsz = "Next session allowed"; break;
+        default: pcsz = "Impossible multi session field value"; break;
+    }
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "MultiSession=%s FP=%d Copy=%d TrackMode=%d\n",
+                      pcsz,
+                      pbModePage[3] & RT_BIT(5) ? 1 : 0,
+                      pbModePage[3] & RT_BIT(4) ? 1 : 0,
+                      pbModePage[3] & 0x0f);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    switch (pbModePage[4] & 0x0f)
+    {
+        case  0: pcsz = "Raw data (2352)"; break;
+        case  1: pcsz = "Raw data with P and Q Sub-channel (2368)"; break;
+        case  2: pcsz = "Raw data with P-W Sub-channel (2448)"; break;
+        case  3: pcsz = "Raw data with raw P-W Sub-channel (2448)"; break;
+        case  8: pcsz = "Mode 1 (ISO/IEC 10149) (2048)"; break;
+        case  9: pcsz = "Mode 2 (ISO/IEC 10149) (2336)"; break;
+        case 10: pcsz = "Mode 2 (CD-ROM XA, form 1) (2048)"; break;
+        case 11: pcsz = "Mode 2 (CD-ROM XA, form 1) (2056)"; break;
+        case 12: pcsz = "Mode 2 (CD-ROM XA, form 2) (2324)"; break;
+        case 13: pcsz = "Mode 2 (CD-ROM XA, form 1, form 2 or mixed form) (2332)"; break;
+        default: pcsz = "Reserved or vendor specific Data Block Type Code"; break;
+    }
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "DataBlockType=%d (%s)\n",
+                      pbModePage[4] & 0x0f,
+                      pcsz);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "LinkSize=%d\n", pbModePage[5]);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "HostApplicationCode=%d\n",
+                      pbModePage[7] & 0x3f);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    switch (pbModePage[8])
+    {
+        case 0x00: pcsz = "CD-DA or CD-ROM or other data discs"; break;
+        case 0x10: pcsz = "CD-I Disc"; break;
+        case 0x20: pcsz = "CD-ROM XA Disc"; break;
+        default: pcsz = "Reserved"; break;
+    }
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "SessionFormat=%d (%s)\n",
+                      pbModePage[8], pcsz);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Log a mode page in a human readable form.
+ *
+ * @returns VBox status code.
+ * @retval VERR_BUFFER_OVERFLOW if the given buffer is not large enough.
+ *         The buffer might contain valid data though.
+ * @param  pszBuffer     The buffer to log into.
+ * @param  cchBuffer     Size of the buffer in characters.
+ * @param  pbModePage    The mode page buffer.
+ * @param  cbModePage    Size of the mode page buffer in bytes.
+ */
+int SCSILogModePage(char *pszBuffer, size_t cchBuffer, uint8_t *pbModePage,
+                    size_t cbModePage)
+{
+    int rc = VINF_SUCCESS;
+    uint8_t uModePage;
+    const char *pcszModePage = NULL;
+    size_t cch = 0;
+
+    uModePage = pbModePage[0] & 0x3f;
+    switch (uModePage)
+    {
+        case 0x05: pcszModePage = "Write Parameters"; break;
+        default:
+            pcszModePage = "Unknown mode page";
+    }
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "Byte 0: PS=%d, Page code=%d (%s)\n",
+                      pbModePage[0] & 0x80 ? 1 : 0, uModePage, pcszModePage);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    cch = RTStrPrintf(pszBuffer, cchBuffer, "Byte 1: Page length=%u\n", pbModePage[1]);
+    pszBuffer += cch;
+    cchBuffer -= cch;
+    if (!cchBuffer)
+        return VERR_BUFFER_OVERFLOW;
+
+    switch (uModePage)
+    {
+        case 0x05:
+            rc = scsiLogWriteParamsModePage(pszBuffer, cchBuffer, pbModePage, cbModePage);
+            break;
+        default:
+            break;
+    }
+
+    return rc;
+}
+
+/**
+ * Log a cue sheet in a human readable form.
+ *
+ * @returns VBox status code.
+ * @retval VERR_BUFFER_OVERFLOW if the given buffer is not large enough.
+ *         The buffer might contain valid data though.
+ * @param  pszBuffer     The buffer to log into.
+ * @param  cchBuffer     Size of the buffer in characters.
+ * @param  pbCueSheet    The cue sheet buffer.
+ * @param  cbCueSheet    Size of the cue sheet buffer in bytes.
+ */
+int SCSILogCueSheet(char *pszBuffer, size_t cchBuffer, uint8_t *pbCueSheet,
+                    size_t cbCueSheet)
+{
+    int rc = VINF_SUCCESS;
+    size_t cch = 0;
+    unsigned cCueSheetEntries = cbCueSheet / 8;
+
+    AssertReturn(cbCueSheet % 8 == 0, VERR_INVALID_PARAMETER);
+
+    for (unsigned i = 0; i < cCueSheetEntries; i++)
+    {
+        cch = RTStrPrintf(pszBuffer, cchBuffer,
+                          "CTL/ADR=%#x TNO=%#x INDEX=%#x DATA=%#x SCMS=%#x TIME=%u:%u:%u\n",
+                          pbCueSheet[0], pbCueSheet[1], pbCueSheet[2], pbCueSheet[3],
+                          pbCueSheet[4], pbCueSheet[5], pbCueSheet[6], pbCueSheet[7]);
+        pszBuffer += cch;
+        cchBuffer -= cch;
+        if (!cchBuffer)
+        {
+            rc = VERR_BUFFER_OVERFLOW;
+            break;
+        }
+
+        pbCueSheet += 8;
+        cbCueSheet -= 8;
+    }
+
+    return rc;
+}
+

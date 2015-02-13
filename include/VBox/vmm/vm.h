@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,19 @@
 #ifndef ___VBox_vmm_vm_h
 #define ___VBox_vmm_vm_h
 
-#include <VBox/types.h>
-#include <VBox/vmm/cpum.h>
-#include <VBox/vmm/stam.h>
-#include <VBox/vmm/vmapi.h>
-#include <VBox/vmm/vmm.h>
-#include <VBox/sup.h>
+#ifndef VBOX_FOR_DTRACE_LIB
+# include <VBox/types.h>
+# include <VBox/vmm/cpum.h>
+# include <VBox/vmm/stam.h>
+# include <VBox/vmm/vmapi.h>
+# include <VBox/vmm/vmm.h>
+# include <VBox/sup.h>
+#else
+# pragma D depends_on library vbox-types.d
+# pragma D depends_on library CPUMInternal.d
+# define ___CPUMInternal_h
+#endif
+
 
 
 /** @defgroup grp_vm    The Virtual Machine
@@ -45,8 +52,8 @@
  * addition, there are sub-states when started for assisting scheduling (GVMM
  * mostly).
  *
- * The transision out of the STOPPED state is done by a vmR3PowerOn.
- * The transision back to the STOPPED state is done by vmR3PowerOff.
+ * The transition out of the STOPPED state is done by a vmR3PowerOn.
+ * The transition back to the STOPPED state is done by vmR3PowerOff.
  *
  * (Alternatively we could let vmR3PowerOn start CPU 0 only and let the SPIP
  * handling switch on the other CPUs. Then vmR3Reset would stop all but CPU 0.)
@@ -61,7 +68,9 @@ typedef enum VMCPUSTATE
 
     /** CPU started. */
     VMCPUSTATE_STARTED,
-    /** Executing guest code and can be poked. */
+    /** CPU started in HM context. */
+    VMCPUSTATE_STARTED_HM,
+    /** Executing guest code and can be poked (RC or STI bits of HM). */
     VMCPUSTATE_STARTED_EXEC,
     /** Executing guest code in the recompiler. */
     VMCPUSTATE_STARTED_EXEC_REM,
@@ -77,50 +86,52 @@ typedef enum VMCPUSTATE
 
 
 /**
- * Per virtual CPU data.
+ * The cross context virtual CPU structure.
+ *
+ * Run 'kmk run-struct-tests' (from src/VBox/VMM if you like) after updating!
  */
 typedef struct VMCPU
 {
     /** Per CPU forced action.
      * See the VMCPU_FF_* \#defines. Updated atomically. */
-    uint32_t volatile       fLocalForcedActions;
+    uint32_t volatile       fLocalForcedActions;                    /* 0 */
     /** The CPU state. */
-    VMCPUSTATE volatile     enmState;
+    VMCPUSTATE volatile     enmState;                               /* 4 */
 
     /** Pointer to the ring-3 UVMCPU structure. */
-    PUVMCPU                 pUVCpu;
+    PUVMCPU                 pUVCpu;                                 /* 8 */
     /** Ring-3 Host Context VM Pointer. */
-    PVMR3                   pVMR3;
+    PVMR3                   pVMR3;                                  /* 16 / 12 */
     /** Ring-0 Host Context VM Pointer. */
-    PVMR0                   pVMR0;
-    /** Alignment padding. */
-    RTR0PTR                 pvR0Padding;
+    PVMR0                   pVMR0;                                  /* 24 / 16 */
     /** Raw-mode Context VM Pointer. */
-    PVMRC                   pVMRC;
+    PVMRC                   pVMRC;                                  /* 32 / 20 */
     /** The CPU ID.
      * This is the index into the VM::aCpu array. */
-    VMCPUID                 idCpu;
+    VMCPUID                 idCpu;                                  /* 36 / 24 */
     /** The native thread handle. */
-    RTNATIVETHREAD          hNativeThread;
+    RTNATIVETHREAD          hNativeThread;                          /* 40 / 28 */
     /** The native R0 thread handle. (different from the R3 handle!) */
-    RTNATIVETHREAD          hNativeThreadR0;
+    RTNATIVETHREAD          hNativeThreadR0;                        /* 48 / 32 */
     /** Which host CPU ID is this EMT running on.
-     * Only valid when in RC or HWACCMR0 with scheduling disabled. */
-    RTCPUID volatile        idHostCpu;
-    /** State data for use by ad hoc profiling. */
-    uint32_t                uAdHoc;
-    /** Profiling samples for use by ad hoc profiling. */
-    STAMPROFILEADV          aStatAdHoc[8];
+     * Only valid when in RC or HMR0 with scheduling disabled. */
+    RTCPUID volatile        idHostCpu;                              /* 56 / 36 */
 
-    /** Align the next bit on a 64-byte boundary and make sure it starts at the same
-     *  offset in both 64-bit and 32-bit builds.
+    /** Trace groups enable flags.  */
+    uint32_t                fTraceGroups;                           /* 60 / 40 */
+    /** Align the structures below bit on a 64-byte boundary and make sure it starts
+     * at the same offset in both 64-bit and 32-bit builds.
      *
      * @remarks The alignments of the members that are larger than 48 bytes should be
      *          64-byte for cache line reasons. structs containing small amounts of
      *          data could be lumped together at the end with a < 64 byte padding
      *          following it (to grow into and align the struct size).
      *   */
-    uint8_t                 abAlignment1[HC_ARCH_BITS == 32 ? 16+64 : 56];
+    uint8_t                 abAlignment1[HC_ARCH_BITS == 64 ? 60 : 16+64];
+    /** State data for use by ad hoc profiling. */
+    uint32_t                uAdHoc;
+    /** Profiling samples for use by ad hoc profiling. */
+    STAMPROFILEADV          aStatAdHoc[8];                          /* size: 40*8 = 320 */
 
     /** CPUM part. */
     union
@@ -128,17 +139,17 @@ typedef struct VMCPU
 #ifdef ___CPUMInternal_h
         struct CPUMCPU      s;
 #endif
-        uint8_t             padding[3456];      /* multiple of 64 */
+        uint8_t             padding[3584];      /* multiple of 64 */
     } cpum;
 
-    /** HWACCM part. */
+    /** HM part. */
     union
     {
-#ifdef ___HWACCMInternal_h
-        struct HWACCMCPU    s;
+#ifdef ___HMInternal_h
+        struct HMCPU    s;
 #endif
-        uint8_t             padding[5312];      /* multiple of 64 */
-    } hwaccm;
+        uint8_t             padding[5568];      /* multiple of 64 */
+    } hm;
 
     /** EM part. */
     union
@@ -155,7 +166,7 @@ typedef struct VMCPU
 #ifdef ___IEMInternal_h
         struct IEMCPU       s;
 #endif
-        uint8_t             padding[1024];      /* multiple of 64 */
+        uint8_t             padding[3072];      /* multiple of 64 */
     } iem;
 
     /** TRPM part. */
@@ -182,7 +193,7 @@ typedef struct VMCPU
 #ifdef ___VMMInternal_h
         struct VMMCPU       s;
 #endif
-        uint8_t             padding[384];       /* multiple of 64 */
+        uint8_t             padding[704];       /* multiple of 64 */
     } vmm;
 
     /** PDM part. */
@@ -191,7 +202,7 @@ typedef struct VMCPU
 #ifdef ___PDMInternal_h
         struct PDMCPU       s;
 #endif
-        uint8_t             padding[128];       /* multiple of 64 */
+        uint8_t             padding[256];       /* multiple of 64 */
     } pdm;
 
     /** IOM part. */
@@ -214,7 +225,7 @@ typedef struct VMCPU
     } dbgf;
 
     /** Align the following members on page boundary. */
-    uint8_t                 abAlignment2[3072];
+    uint8_t                 abAlignment2[192];
 
     /** PGM part. */
     union
@@ -228,6 +239,8 @@ typedef struct VMCPU
 } VMCPU;
 
 
+#ifndef VBOX_FOR_DTRACE_LIB
+
 /** @name Operations on VMCPU::enmState
  * @{ */
 /** Gets the VMCPU state. */
@@ -239,13 +252,17 @@ typedef struct VMCPU
 #define VMCPU_CMPXCHG_STATE(pVCpu, enmNewState, enmOldState) \
     ASMAtomicCmpXchgU32((uint32_t volatile *)&(pVCpu)->enmState, (enmNewState), (enmOldState))
 /** Checks the VMCPU state. */
-#define VMCPU_ASSERT_STATE(pVCpu, enmExpectedState) \
+#ifdef VBOX_STRICT
+# define VMCPU_ASSERT_STATE(pVCpu, enmExpectedState) \
     do { \
         VMCPUSTATE enmState = VMCPU_GET_STATE(pVCpu); \
         AssertMsg(enmState == (enmExpectedState), \
                   ("enmState=%d  enmExpectedState=%d idCpu=%u\n", \
                   enmState, enmExpectedState, (pVCpu)->idCpu)); \
     } while (0)
+#else
+# define VMCPU_ASSERT_STATE(pVCpu, enmExpectedState) do { } while (0)
+#endif
 /** Tests if the state means that the CPU is started. */
 #define VMCPUSTATE_IS_STARTED(enmState)     ( (enmState) > VMCPUSTATE_STOPPED )
 /** Tests if the state means that the CPU is stopped. */
@@ -257,6 +274,16 @@ typedef struct VMCPU
 #define VMMGC_MAIN_MODULE_NAME          "VMMGC.gc"
 /** The name of the Ring 0 Context VMM Core module. */
 #define VMMR0_MAIN_MODULE_NAME          "VMMR0.r0"
+
+/**
+ * Wrapper macro for avoiding too much \#ifdef VBOX_WITH_RAW_MODE.
+ */
+#ifdef VBOX_WITH_RAW_MODE
+# define VM_WHEN_RAW_MODE(a_WithExpr, a_WithoutExpr)    a_WithExpr
+#else
+# define VM_WHEN_RAW_MODE(a_WithExpr, a_WithoutExpr)    a_WithoutExpr
+#endif
+
 
 /** VM Forced Action Flags.
  *
@@ -334,6 +361,12 @@ typedef struct VMCPU
 /** This action forces the VM to service pending requests from other
  * thread or requests which must be executed in another context. */
 #define VMCPU_FF_REQUEST                    RT_BIT_32(9)
+/** This action forces the VM to service any pending updates to CR3 (used only
+ *  by HM). */
+#define VMCPU_FF_HM_UPDATE_CR3              RT_BIT_32(12)
+/** This action forces the VM to service any pending updates to PAE PDPEs (used
+ *  only by HM). */
+#define VMCPU_FF_HM_UPDATE_PAE_PDPES        RT_BIT_32(13)
 /** This action forces the VM to resync the page tables before going
  * back to execute guest code. (GLOBAL FLUSH) */
 #define VMCPU_FF_PGM_SYNC_CR3               RT_BIT_32(16)
@@ -341,29 +374,33 @@ typedef struct VMCPU
  * (NON-GLOBAL FLUSH) */
 #define VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL    RT_BIT_32(17)
 /** Check for pending TLB shootdown actions.
- * Consumer: HWACCM
- * @todo rename to VMCPU_FF_HWACCM_TLB_SHOOTDOWN  */
+ * Consumer: HM
+ * @todo rename to VMCPU_FF_HM_TLB_SHOOTDOWN  */
 #define VMCPU_FF_TLB_SHOOTDOWN              RT_BIT_32(18)
 /** Check for pending TLB flush action.
- * Consumer: HWACCM
- * @todo rename to VMCPU_FF_HWACCM_TLB_FLUSH  */
+ * Consumer: HM
+ * @todo rename to VMCPU_FF_HM_TLB_FLUSH  */
 #define VMCPU_FF_TLB_FLUSH                  RT_BIT_32(VMCPU_FF_TLB_FLUSH_BIT)
 /** The bit number for VMCPU_FF_TLB_FLUSH. */
 #define VMCPU_FF_TLB_FLUSH_BIT              19
+#ifdef VBOX_WITH_RAW_MODE
 /** Check the interrupt and trap gates */
-#define VMCPU_FF_TRPM_SYNC_IDT              RT_BIT_32(20)
+# define VMCPU_FF_TRPM_SYNC_IDT             RT_BIT_32(20)
 /** Check Guest's TSS ring 0 stack */
-#define VMCPU_FF_SELM_SYNC_TSS              RT_BIT_32(21)
+# define VMCPU_FF_SELM_SYNC_TSS             RT_BIT_32(21)
 /** Check Guest's GDT table */
-#define VMCPU_FF_SELM_SYNC_GDT              RT_BIT_32(22)
+# define VMCPU_FF_SELM_SYNC_GDT             RT_BIT_32(22)
 /** Check Guest's LDT table */
-#define VMCPU_FF_SELM_SYNC_LDT              RT_BIT_32(23)
+# define VMCPU_FF_SELM_SYNC_LDT             RT_BIT_32(23)
+#endif /* VBOX_WITH_RAW_MODE */
 /** Inhibit interrupts pending. See EMGetInhibitInterruptsPC(). */
 #define VMCPU_FF_INHIBIT_INTERRUPTS         RT_BIT_32(24)
+#ifdef VBOX_WITH_RAW_MODE
 /** CSAM needs to scan the page that's being executed */
-#define VMCPU_FF_CSAM_SCAN_PAGE             RT_BIT_32(26)
+# define VMCPU_FF_CSAM_SCAN_PAGE            RT_BIT_32(26)
 /** CSAM needs to do some homework. */
-#define VMCPU_FF_CSAM_PENDING_ACTION        RT_BIT_32(27)
+# define VMCPU_FF_CSAM_PENDING_ACTION       RT_BIT_32(27)
+#endif /* VBOX_WITH_RAW_MODE */
 /** Force return to Ring-3. */
 #define VMCPU_FF_TO_R3                      RT_BIT_32(28)
 
@@ -376,45 +413,67 @@ typedef struct VMCPU
 #define VM_FF_EXTERNAL_HALTED_MASK              (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF | VM_FF_REQUEST \
                                                  | VM_FF_PDM_QUEUES | VM_FF_PDM_DMA | VM_FF_EMT_RENDEZVOUS)
 /** Externally forced VMCPU actions. Used to quit the idle/wait loop. */
-#define VMCPU_FF_EXTERNAL_HALTED_MASK           (VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_REQUEST | VMCPU_FF_TIMER)
+#define VMCPU_FF_EXTERNAL_HALTED_MASK           (  VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_REQUEST \
+                                                 | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_TIMER)
 
 /** High priority VM pre-execution actions. */
 #define VM_FF_HIGH_PRIORITY_PRE_MASK            (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF | VM_FF_TM_VIRTUAL_SYNC \
-                                                 | VM_FF_DEBUG_SUSPEND | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY | VM_FF_EMT_RENDEZVOUS)
+                                                 | VM_FF_DEBUG_SUSPEND | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY \
+                                                 | VM_FF_EMT_RENDEZVOUS)
 /** High priority VMCPU pre-execution actions. */
-#define VMCPU_FF_HIGH_PRIORITY_PRE_MASK         (  VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_PGM_SYNC_CR3 \
-                                                 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT \
-                                                 | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_INHIBIT_INTERRUPTS)
+#define VMCPU_FF_HIGH_PRIORITY_PRE_MASK         (  VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC \
+                                                 | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL \
+                                                 | VMCPU_FF_INHIBIT_INTERRUPTS \
+                                                 | VM_WHEN_RAW_MODE(  VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT \
+                                                                    | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0 ) )
 
 /** High priority VM pre raw-mode execution mask. */
 #define VM_FF_HIGH_PRIORITY_PRE_RAW_MASK        (VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY)
 /** High priority VMCPU pre raw-mode execution mask. */
-#define VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK     (  VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT \
-                                                 | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_INHIBIT_INTERRUPTS)
+#define VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK     (  VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL \
+                                                 | VMCPU_FF_INHIBIT_INTERRUPTS \
+                                                 | VM_WHEN_RAW_MODE( VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT \
+                                                                    | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0) )
 
 /** High priority post-execution actions. */
 #define VM_FF_HIGH_PRIORITY_POST_MASK           (VM_FF_PGM_NO_MEMORY)
 /** High priority post-execution actions. */
-#define VMCPU_FF_HIGH_PRIORITY_POST_MASK        (VMCPU_FF_PDM_CRITSECT|VMCPU_FF_CSAM_PENDING_ACTION)
+#define VMCPU_FF_HIGH_PRIORITY_POST_MASK        (  VMCPU_FF_PDM_CRITSECT | VM_WHEN_RAW_MODE(VMCPU_FF_CSAM_PENDING_ACTION, 0) \
+                                                 | VMCPU_FF_HM_UPDATE_CR3 | VMCPU_FF_HM_UPDATE_PAE_PDPES)
 
 /** Normal priority VM post-execution actions. */
 #define VM_FF_NORMAL_PRIORITY_POST_MASK         (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF | VM_FF_RESET \
                                                  | VM_FF_PGM_NO_MEMORY | VM_FF_EMT_RENDEZVOUS)
 /** Normal priority VMCPU post-execution actions. */
-#define VMCPU_FF_NORMAL_PRIORITY_POST_MASK      (VMCPU_FF_CSAM_SCAN_PAGE)
+#define VMCPU_FF_NORMAL_PRIORITY_POST_MASK      VM_WHEN_RAW_MODE(VMCPU_FF_CSAM_SCAN_PAGE, 0)
 
 /** Normal priority VM actions. */
-#define VM_FF_NORMAL_PRIORITY_MASK              (VM_FF_REQUEST | VM_FF_PDM_QUEUES | VM_FF_PDM_DMA | VM_FF_REM_HANDLER_NOTIFY | VM_FF_EMT_RENDEZVOUS)
+#define VM_FF_NORMAL_PRIORITY_MASK              (  VM_FF_REQUEST | VM_FF_PDM_QUEUES | VM_FF_PDM_DMA | VM_FF_REM_HANDLER_NOTIFY \
+                                                 | VM_FF_EMT_RENDEZVOUS)
 /** Normal priority VMCPU actions. */
 #define VMCPU_FF_NORMAL_PRIORITY_MASK           (VMCPU_FF_REQUEST)
 
 /** Flags to clear before resuming guest execution. */
 #define VMCPU_FF_RESUME_GUEST_MASK              (VMCPU_FF_TO_R3)
 
-/** VM Flags that cause the HWACCM loops to go back to ring-3. */
-#define VM_FF_HWACCM_TO_R3_MASK                 (VM_FF_TM_VIRTUAL_SYNC | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY | VM_FF_PDM_QUEUES | VM_FF_EMT_RENDEZVOUS)
-/** VMCPU Flags that cause the HWACCM loops to go back to ring-3. */
-#define VMCPU_FF_HWACCM_TO_R3_MASK              (VMCPU_FF_TO_R3 | VMCPU_FF_TIMER | VMCPU_FF_PDM_CRITSECT)
+/** VM Flags that cause the HM loops to go back to ring-3. */
+#define VM_FF_HM_TO_R3_MASK                     (  VM_FF_TM_VIRTUAL_SYNC | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY \
+                                                 | VM_FF_PDM_QUEUES | VM_FF_EMT_RENDEZVOUS)
+/** VMCPU Flags that cause the HM loops to go back to ring-3. */
+#define VMCPU_FF_HM_TO_R3_MASK                  (VMCPU_FF_TO_R3 | VMCPU_FF_TIMER | VMCPU_FF_PDM_CRITSECT)
+
+/** High priority ring-0 VM pre HM-mode execution mask. */
+#define VM_FF_HP_R0_PRE_HM_MASK                 (VM_FF_HM_TO_R3_MASK | VM_FF_REQUEST | VM_FF_PGM_POOL_FLUSH_PENDING | VM_FF_PDM_DMA)
+/** High priority ring-0 VMCPU pre HM-mode execution mask. */
+#define VMCPU_FF_HP_R0_PRE_HM_MASK              ( VMCPU_FF_HM_TO_R3_MASK | VMCPU_FF_PGM_SYNC_CR3 \
+                                                 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_REQUEST)
+/** High priority ring-0 VM pre HM-mode execution mask, single stepping. */
+#define VM_FF_HP_R0_PRE_HM_STEP_MASK            (VM_FF_HP_R0_PRE_HM_MASK & ~(  VM_FF_TM_VIRTUAL_SYNC | VM_FF_PDM_QUEUES  \
+                                                                             | VM_FF_EMT_RENDEZVOUS | VM_FF_REQUEST \
+                                                                             | VM_FF_PDM_DMA) )
+/** High priority ring-0 VMCPU pre HM-mode execution mask, single stepping. */
+#define VMCPU_FF_HP_R0_PRE_HM_STEP_MASK         (VMCPU_FF_HP_R0_PRE_HM_MASK & ~(  VMCPU_FF_TO_R3 | VMCPU_FF_TIMER \
+                                                                                | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_REQUEST) )
 
 /** All the forced VM flags. */
 #define VM_FF_ALL_MASK                          (~0U)
@@ -426,14 +485,15 @@ typedef struct VMCPU
 #define VM_FF_ALL_REM_MASK                      (~(VM_FF_HIGH_PRIORITY_PRE_RAW_MASK) | VM_FF_PGM_NO_MEMORY)
 /** All the forced VMCPU flags except those related to raw-mode and hardware
  * assisted execution. */
-#define VMCPU_FF_ALL_REM_MASK                   (~(VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK | VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_PDM_CRITSECT | VMCPU_FF_TLB_FLUSH | VMCPU_FF_TLB_SHOOTDOWN))
-
+#define VMCPU_FF_ALL_REM_MASK                   (~(  VMCPU_FF_HIGH_PRIORITY_PRE_RAW_MASK | VMCPU_FF_PDM_CRITSECT \
+                                                   | VMCPU_FF_TLB_FLUSH | VMCPU_FF_TLB_SHOOTDOWN \
+                                                   | VM_WHEN_RAW_MODE(VMCPU_FF_CSAM_PENDING_ACTION, 0) ))
 /** @} */
 
 /** @def VM_FF_SET
  * Sets a force action flag.
  *
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fFlag   The flag to set.
  */
 #if 1
@@ -448,15 +508,15 @@ typedef struct VMCPU
 /** @def VMCPU_FF_SET
  * Sets a force action flag for the given VCPU.
  *
- * @param   pVCpu     VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   fFlag   The flag to set.
  */
-#define VMCPU_FF_SET(pVCpu, fFlag)    ASMAtomicOrU32(&(pVCpu)->fLocalForcedActions, (fFlag))
+#define VMCPU_FF_SET(pVCpu, fFlag)          ASMAtomicOrU32(&(pVCpu)->fLocalForcedActions, (fFlag))
 
 /** @def VM_FF_CLEAR
  * Clears a force action flag.
  *
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fFlag   The flag to clear.
  */
 #if 1
@@ -471,68 +531,68 @@ typedef struct VMCPU
 /** @def VMCPU_FF_CLEAR
  * Clears a force action flag for the given VCPU.
  *
- * @param   pVCpu     VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   fFlag   The flag to clear.
  */
-#define VMCPU_FF_CLEAR(pVCpu, fFlag)  ASMAtomicAndU32(&(pVCpu)->fLocalForcedActions, ~(fFlag))
+#define VMCPU_FF_CLEAR(pVCpu, fFlag)        ASMAtomicAndU32(&(pVCpu)->fLocalForcedActions, ~(fFlag))
 
-/** @def VM_FF_ISSET
+/** @def VM_FF_IS_SET
  * Checks if a force action flag is set.
  *
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fFlag   The flag to check.
  */
-#define VM_FF_ISSET(pVM, fFlag)             (((pVM)->fGlobalForcedActions & (fFlag)) == (fFlag))
+#define VM_FF_IS_SET(pVM, fFlag)            (((pVM)->fGlobalForcedActions & (fFlag)) == (fFlag))
 
-/** @def VMCPU_FF_ISSET
+/** @def VMCPU_FF_IS_SET
  * Checks if a force action flag is set for the given VCPU.
  *
- * @param   pVCpu   VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   fFlag   The flag to check.
  */
-#define VMCPU_FF_ISSET(pVCpu, fFlag)        (((pVCpu)->fLocalForcedActions & (fFlag)) == (fFlag))
+#define VMCPU_FF_IS_SET(pVCpu, fFlag)       (((pVCpu)->fLocalForcedActions & (fFlag)) == (fFlag))
 
-/** @def VM_FF_ISPENDING
+/** @def VM_FF_IS_PENDING
  * Checks if one or more force action in the specified set is pending.
  *
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fFlags  The flags to check for.
  */
-#define VM_FF_ISPENDING(pVM, fFlags)        ((pVM)->fGlobalForcedActions & (fFlags))
+#define VM_FF_IS_PENDING(pVM, fFlags)       RT_BOOL((pVM)->fGlobalForcedActions & (fFlags))
 
 /** @def VM_FF_TESTANDCLEAR
  * Checks if one (!) force action in the specified set is pending and clears it atomically
  *
  * @returns true if the bit was set.
  * @returns false if the bit was clear.
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   iBit    Bit position to check and clear
  */
-#define VM_FF_TESTANDCLEAR(pVM, iBit)        (ASMAtomicBitTestAndClear(&(pVM)->fGlobalForcedActions, iBit##_BIT))
+#define VM_FF_TEST_AND_CLEAR(pVM, iBit)     (ASMAtomicBitTestAndClear(&(pVM)->fGlobalForcedActions, iBit##_BIT))
 
 /** @def VMCPU_FF_TESTANDCLEAR
  * Checks if one (!) force action in the specified set is pending and clears it atomically
  *
  * @returns true if the bit was set.
  * @returns false if the bit was clear.
- * @param   pVCpu   VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   iBit    Bit position to check and clear
  */
-#define VMCPU_FF_TESTANDCLEAR(pVCpu, iBit)    (ASMAtomicBitTestAndClear(&(pVCpu)->fLocalForcedActions, iBit##_BIT))
+#define VMCPU_FF_TEST_AND_CLEAR(pVCpu, iBit) (ASMAtomicBitTestAndClear(&(pVCpu)->fLocalForcedActions, iBit##_BIT))
 
-/** @def VMCPU_FF_ISPENDING
+/** @def VMCPU_FF_IS_PENDING
  * Checks if one or more force action in the specified set is pending for the given VCPU.
  *
- * @param   pVCpu   VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   fFlags  The flags to check for.
  */
-#define VMCPU_FF_ISPENDING(pVCpu, fFlags) ((pVCpu)->fLocalForcedActions & (fFlags))
+#define VMCPU_FF_IS_PENDING(pVCpu, fFlags)  RT_BOOL((pVCpu)->fLocalForcedActions & (fFlags))
 
-/** @def VM_FF_ISPENDING
+/** @def VM_FF_IS_PENDING_EXCEPT
  * Checks if one or more force action in the specified set is pending while one
  * or more other ones are not.
  *
- * @param   pVM     VM Handle.
+ * @param   pVM     Pointer to the VM.
  * @param   fFlags  The flags to check for.
  * @param   fExcpt  The flags that should not be set.
  */
@@ -542,7 +602,7 @@ typedef struct VMCPU
  * Checks if one or more force action in the specified set is pending for the given
  * VCPU while one or more other ones are not.
  *
- * @param   pVCpu     VMCPU Handle.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @param   fFlags  The flags to check for.
  * @param   fExcpt  The flags that should not be set.
  */
@@ -590,7 +650,10 @@ typedef struct VMCPU
 #ifdef IN_RC
 # define VMCPU_ASSERT_EMT(pVCpu)            Assert(VMCPU_IS_EMT(pVCpu))
 #elif defined(IN_RING0)
-# define VMCPU_ASSERT_EMT(pVCpu)            Assert(VMCPU_IS_EMT(pVCpu))
+# define VMCPU_ASSERT_EMT(pVCpu)            AssertMsg(VMCPU_IS_EMT(pVCpu), \
+                                                      ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%u\n", \
+                                                      RTThreadNativeSelf(), (pVCpu) ? (pVCpu)->hNativeThreadR0 : 0, \
+                                                      (pVCpu) ? (pVCpu)->idCpu : 0))
 #else
 # define VMCPU_ASSERT_EMT(pVCpu) \
     AssertMsg(VMCPU_IS_EMT(pVCpu), \
@@ -621,10 +684,10 @@ typedef struct VMCPU
 # define VMCPU_ASSERT_EMT_RETURN(pVCpu, rc) AssertReturn(VMCPU_IS_EMT(pVCpu), (rc))
 #else
 # define VMCPU_ASSERT_EMT_RETURN(pVCpu, rc) \
-    AssertMsg(VMCPU_IS_EMT(pVCpu), \
-              ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
-               RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu), \
-              (rc))
+    AssertMsgReturn(VMCPU_IS_EMT(pVCpu), \
+                    ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
+                     RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu), \
+                    (rc))
 #endif
 
 /** @def VMCPU_ASSERT_EMT_OR_GURU
@@ -698,15 +761,21 @@ typedef struct VMCPU
                         ("state %s, expected %s\n", VMGetStateName((pVM)->enmVMState), VMGetStateName(_enmState)), \
                         (rc))
 
+/** @def VM_IS_VALID_EXT
+ * Asserts a the VM handle is valid for external access, i.e. not being destroy
+ * or terminated. */
+#define VM_IS_VALID_EXT(pVM) \
+        (    RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
+         &&  (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
+              || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
+                  && VM_IS_EMT(pVM))) )
+
 /** @def VM_ASSERT_VALID_EXT_RETURN
  * Asserts a the VM handle is valid for external access, i.e. not being
  * destroy or terminated.
  */
 #define VM_ASSERT_VALID_EXT_RETURN(pVM, rc) \
-        AssertMsgReturn(    RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
-                        &&  (   (unsigned)(pVM)->enmVMState < (unsigned)VMSTATE_DESTROYING \
-                             || (   (unsigned)(pVM)->enmVMState == (unsigned)VMSTATE_DESTROYING \
-                                 && VM_IS_EMT(pVM))), \
+        AssertMsgReturn(VM_IS_VALID_EXT(pVM), \
                         ("pVM=%p state %s\n", (pVM), RT_VALID_ALIGNED_PTR(pVM, PAGE_SIZE) \
                          ? VMGetStateName(pVM->enmVMState) : ""), \
                         (rc))
@@ -724,18 +793,21 @@ typedef struct VMCPU
                          ? VMGetStateName((pVCpu)->pVMR3->enmVMState) : ""), \
                         (rc))
 
+#endif /* !VBOX_FOR_DTRACE_LIB */
 
-/** This is the VM structure.
+
+
+/**
+ * The cross context VM structure.
  *
- * It contains (nearly?) all the VM data which have to be available in all
- * contexts. Even if it contains all the data the idea is to use APIs not
- * to modify all the members all around the place. Therefore we make use of
- * unions to hide everything which isn't local to the current source module.
- * This means we'll have to pay a little bit of attention when adding new
- * members to structures in the unions and make sure to keep the padding sizes
- * up to date.
+ * It contains all the VM data which have to be available in all contexts.
+ * Even if it contains all the data the idea is to use APIs not to modify all
+ * the members all around the place.  Therefore we make use of unions to hide
+ * everything which isn't local to the current source module.  This means we'll
+ * have to pay a little bit of attention when adding new members to structures
+ * in the unions and make sure to keep the padding sizes up to date.
  *
- * Run tstVMStructSize after update!
+ * Run 'kmk run-struct-tests' (from src/VBox/VMM if you like) after updating!
  */
 typedef struct VM
 {
@@ -772,58 +844,34 @@ typedef struct VM
     /** Offset to the VMCPU array starting from beginning of this structure. */
     uint32_t                    offVMCPU;
 
-    /** Reserved; alignment. */
-    uint32_t                    u32Reserved[5];
-
-    /** @name Public VMM Switcher APIs
-     * @{ */
     /**
-     * Assembly switch entry point for returning to host context.
-     * This function will clean up the stack frame.
+     * VMMSwitcher assembly entry point returning to host context.
      *
-     * @param   eax         The return code, register.
-     * @param   Ctx         The guest core context.
-     * @remark  Assume interrupts disabled.
-     */
-    RTRCPTR                     pfnVMMGCGuestToHostAsmGuestCtx/*(int32_t eax, CPUMCTXCORE Ctx)*/;
-
-    /**
-     * Assembly switch entry point for returning to host context.
+     * Depending on how the host handles the rc status given in @a eax, this may
+     * return and let the caller resume whatever it was doing prior to the call.
      *
-     * This is an alternative entry point which we'll be using when the we have the
-     * hypervisor context and need to save  that before going to the host.
-     *
-     * This is typically useful when abandoning the hypervisor because of a trap
-     * and want the trap state to be saved.
-     *
-     * @param   eax         The return code, register.
-     * @param   ecx         Pointer to the  hypervisor core context, register.
-     * @remark  Assume interrupts disabled.
-     */
-    RTRCPTR                     pfnVMMGCGuestToHostAsmHyperCtx/*(int32_t eax, PCPUMCTXCORE ecx)*/;
-
-    /**
-     * Assembly switch entry point for returning to host context.
-     *
-     * This is an alternative to the two *Ctx APIs and implies that the context has already
-     * been saved, or that it's just a brief return to HC and that the caller intends to resume
-     * whatever it is doing upon 'return' from this call.
      *
      * @param   eax         The return code, register.
      * @remark  Assume interrupts disabled.
+     * @remark  This method pointer lives here because TRPM needs it.
      */
-    RTRCPTR                     pfnVMMGCGuestToHostAsm/*(int32_t eax)*/;
-    /** @} */
+    RTRCPTR                     pfnVMMRCToHostAsm/*(int32_t eax)*/;
 
-
-    /** @name Various VM data owned by VM.
-     * @{ */
-    RTTHREAD                    uPadding1;
-    /** The native handle of ThreadEMT. Getting the native handle
-     * is generally faster than getting the IPRT one (except on OS/2 :-). */
-    RTNATIVETHREAD              uPadding2;
-    /** @} */
-
+    /**
+     * VMMSwitcher assembly entry point returning to host context without saving the
+     * raw-mode context (hyper) registers.
+     *
+     * Unlike pfnVMMRC2HCAsm, this will not return to the caller.  Instead it
+     * expects the caller to save a RC context in CPUM where one might return if the
+     * return code indicate that this is possible.
+     *
+     * This method pointer lives here because TRPM needs it.
+     *
+     * @param   eax         The return code, register.
+     * @remark  Assume interrupts disabled.
+     * @remark  This method pointer lives here because TRPM needs it.
+     */
+    RTRCPTR                     pfnVMMRCToHostAsmNoReturn/*(int32_t eax)*/;
 
     /** @name Various items that are frequently accessed.
      * @{ */
@@ -831,6 +879,8 @@ typedef struct VM
     bool                        fRecompileUser;
     /** Whether to recompile supervisor mode code or run it raw/hm. */
     bool                        fRecompileSupervisor;
+    /** Whether raw mode supports ring-1 code or not. */
+    bool                        fRawRing1Enabled;
     /** PATM enabled flag.
      * This is placed here for performance reasons. */
     bool                        fPATMEnabled;
@@ -838,23 +888,31 @@ typedef struct VM
      * This is placed here for performance reasons. */
     bool                        fCSAMEnabled;
     /** Hardware VM support is available and enabled.
+     * Determined very early during init.
      * This is placed here for performance reasons. */
-    bool                        fHWACCMEnabled;
-    /** Hardware VM support is required and non-optional.
-     * This is initialized together with the rest of the VM structure. */
-    bool                        fHwVirtExtForced;
-    /** Set when this VM is the master FT node. */
+    bool                        fHMEnabled;
+    /** For asserting on fHMEnable usage. */
+    bool                        fHMEnabledFixed;
+    /** Hardware VM support requires a minimal raw-mode context.
+     * This is never set on 64-bit hosts, only 32-bit hosts requires it. */
+    bool                        fHMNeedRawModeCtx;
+    /** Set when this VM is the master FT node.
+     * @todo This doesn't need to be here, FTM should store it in it's own
+     *       structures instead. */
     bool                        fFaultTolerantMaster;
-    /** Large page enabled flag. */
+    /** Large page enabled flag.
+     * @todo This doesn't need to be here, PGM should store it in it's own
+     *       structures instead. */
     bool                        fUseLargePages;
     /** @} */
+
+    /** Alignment padding.. */
+    uint8_t                     uPadding1[2];
 
     /** @name Debugging
      * @{ */
     /** Raw-mode Context VM Pointer. */
     RCPTRTYPE(RTTRACEBUF)       hTraceBufRC;
-    /** Alignment padding */
-    uint32_t                    uPadding3;
     /** Ring-3 Host Context VM Pointer. */
     R3PTRTYPE(RTTRACEBUF)       hTraceBufR3;
     /** Ring-0 Host Context VM Pointer. */
@@ -863,7 +921,7 @@ typedef struct VM
 
 #if HC_ARCH_BITS == 32
     /** Alignment padding.. */
-    uint32_t                    uPadding4;
+    uint32_t                    uPadding2;
 #endif
 
     /** @name Switcher statistics (remove)
@@ -893,11 +951,9 @@ typedef struct VM
     STAMPROFILEADV              StatSwitcherTSS;
     /** @} */
 
-#if HC_ARCH_BITS != 64
     /** Padding - the unions must be aligned on a 64 bytes boundary and the unions
      *  must start at the same offset on both 64-bit and 32-bit hosts. */
-    uint8_t                     abAlignment1[HC_ARCH_BITS == 32 ? 32 : 0];
-#endif
+    uint8_t                     abAlignment3[(HC_ARCH_BITS == 32 ? 24 : 0) + 40];
 
     /** CPUM part. */
     union
@@ -905,7 +961,7 @@ typedef struct VM
 #ifdef ___CPUMInternal_h
         struct CPUM s;
 #endif
-        uint8_t     padding[1472];      /* multiple of 64 */
+        uint8_t     padding[1536];      /* multiple of 64 */
     } cpum;
 
     /** VMM part. */
@@ -926,14 +982,14 @@ typedef struct VM
         uint8_t     padding[4096*2+6080];      /* multiple of 64 */
     } pgm;
 
-    /** HWACCM part. */
+    /** HM part. */
     union
     {
-#ifdef ___HWACCMInternal_h
-        struct HWACCM s;
+#ifdef ___HMInternal_h
+        struct HM s;
 #endif
-        uint8_t     padding[5376];      /* multiple of 64 */
-    } hwaccm;
+        uint8_t     padding[5440];      /* multiple of 64 */
+    } hm;
 
     /** TRPM part. */
     union
@@ -941,7 +997,7 @@ typedef struct VM
 #ifdef ___TRPMInternal_h
         struct TRPM s;
 #endif
-        uint8_t     padding[5184];      /* multiple of 64 */
+        uint8_t     padding[5248];      /* multiple of 64 */
     } trpm;
 
     /** SELM part. */
@@ -950,7 +1006,7 @@ typedef struct VM
 #ifdef ___SELMInternal_h
         struct SELM s;
 #endif
-        uint8_t     padding[576];       /* multiple of 64 */
+        uint8_t     padding[768];       /* multiple of 64 */
     } selm;
 
     /** MM part. */
@@ -977,7 +1033,7 @@ typedef struct VM
 #ifdef ___IOMInternal_h
         struct IOM s;
 #endif
-        uint8_t     padding[832];       /* multiple of 64 */
+        uint8_t     padding[896];       /* multiple of 64 */
     } iom;
 
     /** PATM part. */
@@ -1013,7 +1069,7 @@ typedef struct VM
 #ifdef ___TMInternal_h
         struct TM   s;
 #endif
-        uint8_t     padding[2432];      /* multiple of 64 */
+        uint8_t     padding[2496];      /* multiple of 64 */
     } tm;
 
     /** DBGF part. */
@@ -1074,7 +1130,7 @@ typedef struct VM
 
 
     /** Padding for aligning the cpu array on a page boundary. */
-    uint8_t         abAlignment2[862];
+    uint8_t         abAlignment2[350];
 
     /* ---- end small stuff ---- */
 

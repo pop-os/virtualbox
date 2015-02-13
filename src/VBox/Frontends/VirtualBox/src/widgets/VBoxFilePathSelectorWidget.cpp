@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,7 @@
 
 /* Local includes */
 #include "QIFileDialog.h"
+#include "QIToolButton.h"
 #include "QILabel.h"
 #include "QILineEdit.h"
 #include "UIIconPool.h"
@@ -34,7 +35,6 @@
 #include <QFocusEvent>
 #include <QHBoxLayout>
 #include <QLineEdit>
-#include <QPushButton>
 #include <QTimer>
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,7 +130,8 @@ void VBoxFilePathSelectorWidget::setEditable (bool aOn)
 
         /* Installing necessary event filters */
         lineEdit()->installEventFilter (this);
-    }else
+    }
+    else
     {
         if (lineEdit())
         {
@@ -281,7 +282,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
     {
         mNoneStr = tr ("<reset to default>");
         mNoneTip = tr ("The actual default path value will be displayed after "
-                       "accepting the changes and opening this dialog again.");
+                       "accepting the changes and opening this window again.");
     }
     else
     {
@@ -310,7 +311,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
     {
         case Mode_Folder:
             setItemData (SelectId,
-                         tr ("Opens a dialog to select a different folder."),
+                         tr ("Opens a window to select a different folder."),
                          Qt::ToolTipRole);
             setItemData (ResetId,
                          tr ("Resets the folder path to the default value."),
@@ -319,7 +320,7 @@ void VBoxFilePathSelectorWidget::retranslateUi()
         case Mode_File_Open:
         case Mode_File_Save:
             setItemData (SelectId,
-                         tr ("Opens a dialog to select a different file."),
+                         tr ("Opens a window to select a different file."),
                          Qt::ToolTipRole);
             setItemData (ResetId,
                          tr ("Resets the file path to the default value."),
@@ -565,17 +566,17 @@ VBoxEmptyFileSelector::VBoxEmptyFileSelector (QWidget *aParent /* = NULL */)
     , mLabel (NULL)
     , mMode (VBoxFilePathSelectorWidget::Mode_File_Open)
     , mLineEdit (NULL)
+    , m_fButtonToolTipSet(false)
     , mHomeDir (QDir::current().absolutePath())
     , mIsModified (false)
 {
     mMainLayout = new QHBoxLayout (this);
     mMainLayout->setMargin (0);
 
-    mSelectButton = new QPushButton (this);
-    connect (mSelectButton, SIGNAL (clicked()),
-             this, SLOT (choose()));
-
-    mMainLayout->addWidget (mSelectButton);
+    mSelectButton = new QIToolButton(this);
+    mSelectButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
+    connect(mSelectButton, SIGNAL(clicked()), this, SLOT(choose()));
+    mMainLayout->addWidget(mSelectButton);
 
     setEditable (false);
 
@@ -677,6 +678,17 @@ QString VBoxEmptyFileSelector::defaultSaveExt() const
     return mDefaultSaveExt;
 }
 
+void VBoxEmptyFileSelector::setChooseButtonToolTip(const QString &strToolTip)
+{
+    m_fButtonToolTipSet = !strToolTip.isEmpty();
+    mSelectButton->setToolTip(strToolTip);
+}
+
+QString VBoxEmptyFileSelector::chooseButtonToolTip() const
+{
+    return mSelectButton->toolTip();
+}
+
 void VBoxEmptyFileSelector::setFileDialogTitle (const QString& aTitle)
 {
     mFileDialogTitle = aTitle;
@@ -709,7 +721,8 @@ QString VBoxEmptyFileSelector::homeDir() const
 
 void VBoxEmptyFileSelector::retranslateUi()
 {
-    mSelectButton->setText (tr ("&Choose..."));
+    if (!m_fButtonToolTipSet)
+        mSelectButton->setToolTip(tr("Choose..."));
 }
 
 void VBoxEmptyFileSelector::choose()

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/mm.h>
+#include <VBox/vmm/hm.h>
 #include "DBGFInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/uvm.h>
+
 #include <VBox/param.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
@@ -35,14 +38,17 @@
 
 /**
  * Checks if an address is in the HMA or not.
- * @returns true if it's inside the HMA.
- * @returns flase if it's not inside the HMA.
- * @param   pVM         The VM handle.
- * @param   FlatPtr     The address in question.
+ *
+ * @retval  true if it's inside the HMA.
+ * @retval  flase if it's not inside the HMA.
+ *
+ * @param   pUVM            The user mode VM handle.
+ * @param   FlatPtr         The address in question.
  */
-DECLINLINE(bool) dbgfR3IsHMA(PVM pVM, RTGCUINTPTR FlatPtr)
+DECLINLINE(bool) dbgfR3IsHMA(PUVM pUVM, RTGCUINTPTR FlatPtr)
 {
-    return MMHyperIsInsideArea(pVM, FlatPtr);
+    return !HMIsEnabled(pUVM->pVM)
+        && MMHyperIsInsideArea(pUVM->pVM, FlatPtr);
 }
 
 
@@ -91,36 +97,43 @@ static int dbgfR3AddrFromSelInfoOffWorker(PDBGFADDRESS pAddress, PCDBGFSELINFO p
  * Creates a mixed address from a Sel:off pair.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
- * @param   idCpu       The CPU ID.
- * @param   pAddress    Where to store the mixed address.
- * @param   Sel         The selector part.
- * @param   off         The offset part.
+ * @param   pUVM            The user mode VM handle.
+ * @param   idCpu           The CPU ID.
+ * @param   pAddress        Where to store the mixed address.
+ * @param   Sel             The selector part.
+ * @param   off             The offset part.
  */
-VMMR3DECL(int) DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off)
+VMMR3DECL(int) DBGFR3AddrFromSelOff(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off)
 {
-    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_PARAMETER);
 
     pAddress->Sel = Sel;
     pAddress->off = off;
     if (Sel != DBGF_SEL_FLAT)
     {
         DBGFSELINFO SelInfo;
-        int rc = DBGFR3SelQueryInfo(pVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE, &SelInfo);
+        int rc = DBGFR3SelQueryInfo(pUVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_GUEST | DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE, &SelInfo);
+        if (RT_FAILURE(rc) && !HMIsEnabled(pUVM->pVM))
+            rc = DBGFR3SelQueryInfo(pUVM, idCpu, Sel, DBGFSELQI_FLAGS_DT_SHADOW, &SelInfo);
         if (RT_FAILURE(rc))
             return rc;
         rc = dbgfR3AddrFromSelInfoOffWorker(pAddress, &SelInfo, off);
         if (RT_FAILURE(rc))
             return rc;
+        if (   (SelInfo.fFlags & DBGFSELINFO_FLAGS_HYPER)
+            || dbgfR3IsHMA(pUVM, pAddress->FlatPtr))
+            pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
     }
     else
     {
         pAddress->FlatPtr = off;
         pAddress->fFlags = DBGFADDRESS_FLAGS_FLAT;
+        if (dbgfR3IsHMA(pUVM, pAddress->FlatPtr))
+            pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
     }
     pAddress->fFlags |= DBGFADDRESS_FLAGS_VALID;
-    if (dbgfR3IsHMA(pVM, pAddress->FlatPtr))
-        pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
 
     return VINF_SUCCESS;
 }
@@ -131,22 +144,27 @@ VMMR3DECL(int) DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddres
  * described by it.
  *
  * @returns VBox status code.
- * @param   pVM         The VM handle.
- * @param   idCpu       The CPU ID.
- * @param   pAddress    Where to store the mixed address.
- * @param   pSelInfo    The selector info.
- * @param   off         The offset part.
+ * @param   pUVM            The user mode VM handle.
+ * @param   idCpu           The CPU ID.
+ * @param   pAddress        Where to store the mixed address.
+ * @param   pSelInfo        The selector info.
+ * @param   off             The offset part.
  */
-VMMR3DECL(int) DBGFR3AddrFromSelInfoOff(PVM pVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off)
+VMMR3DECL(int) DBGFR3AddrFromSelInfoOff(PUVM pUVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, VERR_INVALID_VM_HANDLE);
+
     pAddress->Sel = pSelInfo->Sel;
     pAddress->off = off;
     int rc = dbgfR3AddrFromSelInfoOffWorker(pAddress, pSelInfo, off);
     if (RT_FAILURE(rc))
         return rc;
+
     pAddress->fFlags |= DBGFADDRESS_FLAGS_VALID;
-    if (dbgfR3IsHMA(pVM, pAddress->FlatPtr))
+    if (dbgfR3IsHMA(pUVM, pAddress->FlatPtr))
         pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
+
     return VINF_SUCCESS;
 }
 
@@ -155,17 +173,19 @@ VMMR3DECL(int) DBGFR3AddrFromSelInfoOff(PVM pVM, PDBGFADDRESS pAddress, PCDBGFSE
  * Creates a mixed address from a flat address.
  *
  * @returns pAddress.
- * @param   pVM         The VM handle.
- * @param   pAddress    Where to store the mixed address.
- * @param   FlatPtr     The flat pointer.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pAddress        Where to store the mixed address.
+ * @param   FlatPtr         The flat pointer.
  */
-VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr)
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PUVM pUVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, NULL);
     pAddress->Sel     = DBGF_SEL_FLAT;
     pAddress->off     = FlatPtr;
     pAddress->FlatPtr = FlatPtr;
     pAddress->fFlags  = DBGFADDRESS_FLAGS_FLAT | DBGFADDRESS_FLAGS_VALID;
-    if (dbgfR3IsHMA(pVM, pAddress->FlatPtr))
+    if (dbgfR3IsHMA(pUVM, pAddress->FlatPtr))
         pAddress->fFlags |= DBGFADDRESS_FLAGS_HMA;
     return pAddress;
 }
@@ -175,12 +195,13 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCU
  * Creates a mixed address from a guest physical address.
  *
  * @returns pAddress.
- * @param   pVM         The VM handle.
- * @param   pAddress    Where to store the mixed address.
- * @param   PhysAddr    The guest physical address.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pAddress        Where to store the mixed address.
+ * @param   PhysAddr        The guest physical address.
  */
-VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr)
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PUVM pUVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
     pAddress->Sel     = DBGF_SEL_FLAT;
     pAddress->off     = PhysAddr;
     pAddress->FlatPtr = PhysAddr;
@@ -194,11 +215,12 @@ VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCP
  *
  * @returns true if valid.
  * @returns false if invalid.
- * @param   pVM         The VM handle.
- * @param   pAddress    The address to validate.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pAddress        The address to validate.
  */
-VMMR3DECL(bool) DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress)
+VMMR3DECL(bool) DBGFR3AddrIsValid(PUVM pUVM, PCDBGFADDRESS pAddress)
 {
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, false);
     if (!VALID_PTR(pAddress))
         return false;
     if (!DBGFADDRESS_IS_VALID(pAddress))
@@ -212,7 +234,7 @@ VMMR3DECL(bool) DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress)
  * Called on the EMT for the VCpu.
  *
  * @returns VBox status code.
- * @param   pVCpu           The virtual CPU handle.
+ * @param   pVCpu           Pointer to the VMCPU.
  * @param   pAddress        The address.
  * @param   pGCPhys         Where to return the physical address.
  */
@@ -238,13 +260,13 @@ static DECLCALLBACK(int) dbgfR3AddrToPhysOnVCpu(PVMCPU pVCpu, PDBGFADDRESS pAddr
  * @retval  VERR_PAGE_DIRECTORY_PTR_NOT_PRESENT
  * @retval  VERR_PAGE_MAP_LEVEL4_NOT_PRESENT
  *
- * @param   pVM             The VM handle.
+ * @param   pUVM            The user mode VM handle.
  * @param   idCpu           The ID of the CPU context to convert virtual
  *                          addresses.
  * @param   pAddress        The address.
  * @param   pGCPhys         Where to return the physical address.
  */
-VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys)
+VMMR3DECL(int)  DBGFR3AddrToPhys(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys)
 {
     /*
      * Parameter validation.
@@ -253,8 +275,10 @@ VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, 
     *pGCPhys = NIL_RTGCPHYS;
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_STATE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert by address type.
@@ -273,8 +297,8 @@ VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, 
         if (VMCPU_IS_EMT(pVCpu))
             rc = dbgfR3AddrToPhysOnVCpu(pVCpu, pAddress, pGCPhys);
         else
-            rc = VMR3ReqPriorityCallWait(pVCpu->pVMR3, pVCpu->idCpu,
-                                         (PFNRT)dbgfR3AddrToPhysOnVCpu, 3, pVCpu, pAddress, pGCPhys);
+            rc = VMR3ReqPriorityCallWaitU(pUVM, pVCpu->idCpu,
+                                          (PFNRT)dbgfR3AddrToPhysOnVCpu, 3, pVCpu, pAddress, pGCPhys);
     }
     return rc;
 }
@@ -296,13 +320,13 @@ VMMR3DECL(int)  DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, 
  * @retval  VERR_PGM_PHYS_PAGE_RESERVED
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS
  *
- * @param   pVM             The VM handle.
+ * @param   pUVM            The user mode VM handle.
  * @param   idCpu           The ID of the CPU context to convert virtual
  *                          addresses.
  * @param   pAddress        The address.
  * @param   pHCPhys         Where to return the physical address.
  */
-VMMR3DECL(int)  DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTHCPHYS pHCPhys)
+VMMR3DECL(int)  DBGFR3AddrToHostPhys(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTHCPHYS pHCPhys)
 {
     /*
      * Parameter validation.
@@ -311,8 +335,10 @@ VMMR3DECL(int)  DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddre
     *pHCPhys = NIL_RTHCPHYS;
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_STATE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert it if we can.
@@ -323,7 +349,7 @@ VMMR3DECL(int)  DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddre
     else
     {
         RTGCPHYS GCPhys;
-        rc = DBGFR3AddrToPhys(pVM, idCpu, pAddress, &GCPhys);
+        rc = DBGFR3AddrToPhys(pUVM, idCpu, pAddress, &GCPhys);
         if (RT_SUCCESS(rc))
             rc = PGMPhysGCPhys2HCPhys(pVM, pAddress->FlatPtr, pHCPhys);
     }
@@ -336,14 +362,17 @@ VMMR3DECL(int)  DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddre
  *
  * @returns VBox status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pUVM            The user mode VM handle.
  * @param   idCpu           The ID of the CPU context.
  * @param   pAddress        The address.
  * @param   fReadOnly       Whether returning a read-only page is fine or not.
  * @param   ppvR3Ptr        Where to return the address.
  */
-static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr)
+static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly,
+                                                         void **ppvR3Ptr)
 {
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     Assert(idCpu == VMMGetCpuId(pVM));
 
     int rc;
@@ -351,7 +380,8 @@ static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PVM pVM, VMCPUID idCpu,
     {
         rc = VERR_NOT_SUPPORTED; /** @todo create some dedicated errors for this stuff. */
         /** @todo this may assert, create a debug version of this which doesn't. */
-        if (MMHyperIsInsideArea(pVM, pAddress->FlatPtr))
+        if (   !HMIsEnabled(pVM)
+            && MMHyperIsInsideArea(pVM, pAddress->FlatPtr))
         {
             void *pv = MMHyperRCToCC(pVM, (RTRCPTR)pAddress->FlatPtr);
             if (pv)
@@ -407,7 +437,7 @@ static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PVM pVM, VMCPUID idCpu,
  * @retval  VERR_PGM_PHYS_PAGE_RESERVED
  * @retval  VERR_PGM_INVALID_GC_PHYSICAL_ADDRESS
  *
- * @param   pVM             The VM handle.
+ * @param   pUVM            The user mode VM handle.
  * @param   idCpu           The ID of the CPU context to convert virtual
  *                          addresses.
  * @param   pAddress        The address.
@@ -416,7 +446,7 @@ static DECLCALLBACK(int) dbgfR3AddrToVolatileR3PtrOnVCpu(PVM pVM, VMCPUID idCpu,
  *                          before we return.
  * @param   ppvR3Ptr        Where to return the address.
  */
-VMMR3DECL(int)  DBGFR3AddrToVolatileR3Ptr(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr)
+VMMR3DECL(int)  DBGFR3AddrToVolatileR3Ptr(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr)
 {
     /*
      * Parameter validation.
@@ -425,13 +455,14 @@ VMMR3DECL(int)  DBGFR3AddrToVolatileR3Ptr(PVM pVM, VMCPUID idCpu, PDBGFADDRESS p
     *ppvR3Ptr = NULL;
     AssertPtr(pAddress);
     AssertReturn(DBGFADDRESS_IS_VALID(pAddress), VERR_INVALID_PARAMETER);
-    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_STATE);
-    AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_PARAMETER);
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_STATE);
+    AssertReturn(idCpu < pUVM->cCpus, VERR_INVALID_PARAMETER);
 
     /*
      * Convert it.
      */
-    return VMR3ReqPriorityCallWait(pVM, idCpu, (PFNRT)dbgfR3AddrToVolatileR3PtrOnVCpu, 5, pVM, idCpu, pAddress, fReadOnly, ppvR3Ptr);
+    return VMR3ReqPriorityCallWaitU(pUVM, idCpu, (PFNRT)dbgfR3AddrToVolatileR3PtrOnVCpu, 5,
+                                    pUVM, idCpu, pAddress, fReadOnly, ppvR3Ptr);
 }
 
 

@@ -1,10 +1,9 @@
 /** @file
- * MS COM / XPCOM Abstraction Layer:
- * Smart COM pointer classes declaration
+ * MS COM / XPCOM Abstraction Layer - Smart COM pointer classes declaration.
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -382,7 +381,8 @@ public:
 protected:
     void copyFrom(T* p)
     {
-        if ((m_p = p))
+        m_p = p;
+        if (m_p)
             m_p->AddRef();
     }
 
@@ -490,3 +490,4 @@ public:
     }
 };
 #endif
+

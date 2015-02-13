@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,9 +61,13 @@ public:
     STDMETHOD(COMGETTER(USBDevices))(ComSafeArrayOut(IHostUSBDevice *, aUSBDevices));
     STDMETHOD(COMGETTER(USBDeviceFilters))(ComSafeArrayOut(IHostUSBDeviceFilter *, aUSBDeviceFilters));
     STDMETHOD(COMGETTER(NetworkInterfaces))(ComSafeArrayOut(IHostNetworkInterface *, aNetworkInterfaces));
+    STDMETHOD(COMGETTER(NameServers))(ComSafeArrayOut(BSTR, aNameServers));
+    STDMETHOD(COMGETTER(DomainName))(BSTR *aDomainName);
+    STDMETHOD(COMGETTER(SearchStrings))(ComSafeArrayOut(BSTR, aSearchStrings));
     STDMETHOD(COMGETTER(ProcessorCount))(ULONG *count);
     STDMETHOD(COMGETTER(ProcessorOnlineCount))(ULONG *count);
     STDMETHOD(COMGETTER(ProcessorCoreCount))(ULONG *count);
+    STDMETHOD(COMGETTER(ProcessorOnlineCoreCount))(ULONG *count);
     STDMETHOD(GetProcessorSpeed)(ULONG cpuId, ULONG *speed);
     STDMETHOD(GetProcessorDescription)(ULONG cpuId, BSTR *description);
     STDMETHOD(GetProcessorFeature)(ProcessorFeature_T feature, BOOL *supported);
@@ -74,6 +78,7 @@ public:
     STDMETHOD(COMGETTER(OSVersion))(BSTR *version);
     STDMETHOD(COMGETTER(UTCTime))(LONG64 *aUTCTime);
     STDMETHOD(COMGETTER(Acceleration3DAvailable))(BOOL *aSupported);
+    STDMETHOD(COMGETTER(VideoInputDevices))(ComSafeArrayOut(IHostVideoInputDevice*, aVideoInputDevices));
 
     // IHost methods
     STDMETHOD(CreateHostOnlyNetworkInterface)(IHostNetworkInterface **aHostNetworkInterface,
@@ -106,7 +111,7 @@ public:
     HRESULT loadSettings(const settings::Host &data);
     HRESULT saveSettings(settings::Host &data);
 
-    HRESULT getDrives(DeviceType_T mediumType, bool fRefresh, MediaList *&pll);
+    HRESULT getDrives(DeviceType_T mediumType, bool fRefresh, MediaList *&pll, AutoWriteLock &treeLock);
     HRESULT findHostDriveById(DeviceType_T mediumType, const Guid &uuid, bool fRefresh, ComObjPtr<Medium> &pMedium);
     HRESULT findHostDriveByName(DeviceType_T mediumType, const Utf8Str &strLocationFull, bool fRefresh, ComObjPtr<Medium> &pMedium);
 
@@ -144,8 +149,17 @@ private:
     bool validateDevice(const char *deviceNode, bool isCDROM);
 #endif
 
+    HRESULT updateNetIfList();
+
+#ifndef RT_OS_WINDOWS
+    HRESULT parseResolvConf();
+#else
+    HRESULT fetchNameResolvingInformation();
+#endif
+
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
     void registerMetrics(PerformanceCollector *aCollector);
+    void registerDiskMetrics(PerformanceCollector *aCollector);
     void unregisterMetrics(PerformanceCollector *aCollector);
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 

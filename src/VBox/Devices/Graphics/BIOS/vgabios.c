@@ -47,7 +47,7 @@
 //   - techt@pikeonline.net
 //
 // ============================================================================================
-#include "vgabios.h"
+
 
 /*
  * Oracle LGPL Disclaimer: For the avoidance of doubt, except that if any license choice
@@ -58,102 +58,39 @@
  * of the LGPL is applied is otherwise unspecified.
  */
 
+#include <inttypes.h>
+#include "vgabios.h"
+
 #ifdef VBE
 #include "vbe.h"
 #endif
 
-/* Declares */
-static Bit8u          read_byte();
-static Bit16u         read_word();
-static void           write_byte();
-static void           write_word();
-static Bit8u          inb();
-static Bit16u         inw();
-static void           outb();
-static void           outw();
+#include "inlines.h"
 
-static Bit16u         get_SS();
+/* Declares */
+extern void vgabios_int10_handler(void);
+#pragma aux vgabios_int10_handler "*";
 
 // Output
-static void           printf();
-static void           unimplemented();
-static void           unknown();
+void __cdecl          unimplemented(void);
+void __cdecl          unknown(void);
 
-static Bit8u find_vga_entry();
+static uint8_t find_vga_entry();
 
-static void memsetb();
-static void memsetw();
-static void memcpyb();
-static void memcpyw();
+#ifdef VBE
+extern uint16_t __cdecl vbe_has_vbe_display(void);
+extern void             vbe_init(void);
+#endif
 
-static void biosfn_set_video_mode();
-static void biosfn_set_cursor_shape();
-static void biosfn_set_cursor_pos();
-static void biosfn_get_cursor_pos();
-static void biosfn_set_active_page();
-static void biosfn_scroll();
-static void biosfn_read_char_attr();
-static void biosfn_write_char_attr();
-static void biosfn_write_char_only();
-static void biosfn_write_pixel();
-static void biosfn_read_pixel();
-static void biosfn_write_teletype();
-static void biosfn_perform_gray_scale_summing();
-static void biosfn_load_text_user_pat();
-static void biosfn_load_text_8_14_pat();
-static void biosfn_load_text_8_8_pat();
-static void biosfn_load_text_8_16_pat();
-static void biosfn_load_gfx_8_8_chars();
-static void biosfn_load_gfx_user_chars();
-static void biosfn_load_gfx_8_14_chars();
-static void biosfn_load_gfx_8_8_dd_chars();
-static void biosfn_load_gfx_8_16_chars();
-static void biosfn_get_font_info();
-static void biosfn_alternate_prtsc();
-static void biosfn_switch_video_interface();
-static void biosfn_enable_video_refresh_control();
-static void biosfn_write_string();
-static void biosfn_read_state_info();
-static void biosfn_read_video_state_size();
-static Bit16u biosfn_save_video_state();
-static Bit16u biosfn_restore_video_state();
-extern Bit8u video_save_pointer_table[];
+void set_int_vector(uint8_t int_vec, void *offset)
+{
+    void __far * __far *ivt = 0;
 
-// This is for compiling with gcc2 and gcc3
-#define ASM_START #asm
-#define ASM_END   #endasm
+    ivt[int_vec] = 0xC000 :> offset;
+}
 
-ASM_START
-
-MACRO SET_INT_VECTOR
-  push ds
-  xor ax, ax
-  mov ds, ax
-  mov ax, ?3
-  mov ?1*4, ax
-  mov ax, ?2
-  mov ?1*4+2, ax
-  pop ds
-MEND
-
-ASM_END
-
-ASM_START
-.text
-.rom
-.org 0
-
-use16 386
-
-vgabios_start:
-.byte   0x55, 0xaa      /* BIOS signature, required for BIOS extensions */
-
-.byte   0x40            /* BIOS extension length in units of 512 bytes */
-
-
-vgabios_entry_point:
-
-  jmp vgabios_init_func
+//@todo!!
+#if 0
 
 vgabios_name:
 #ifdef VBOX
@@ -162,11 +99,6 @@ vgabios_name:
 .ascii  "Plex86/Bochs VGABios"
 #endif
 .ascii  " "
-.byte   0x00
-
-// Info from Bart Oldeman
-.org 0x1e
-.ascii  "IBM"
 .byte   0x00
 
 #ifndef VBOX
@@ -185,336 +117,120 @@ vgabios_date:
 #endif
 
 #ifndef VBOX
-vgabios_copyright:
-.ascii  "(C) 2003 the LGPL VGABios developers Team"
-.byte   0x0a,0x0d
-.byte   0x00
+char vgabios_copyright[] = "(C) 2003 the LGPL VGABios developers Team\r\n";
+char vgabios_license[]   = "This VGA/VBE Bios is released under the GNU LGPL\r\n\r\n";
+char vgabios_website[]   = "Please visit :\r\n" \
+                           " . http://www.plex86.org\r\n" \
+                           " . http://bochs.sourceforge.net\r\n" \
+                           " . http://www.nongnu.org/vgabios\r\n\r\n"
 #endif
 
-#ifndef VBOX
-vgabios_license:
-.ascii  "This VGA/VBE Bios is released under the GNU LGPL"
-.byte   0x0a,0x0d
-.byte   0x0a,0x0d
-.byte   0x00
-
-vgabios_website:
-.ascii  "Please visit :"
-.byte   0x0a,0x0d
-;;.ascii  " . http://www.plex86.org"
-;;.byte 0x0a,0x0d
-.ascii  " . http://bochs.sourceforge.net"
-.byte   0x0a,0x0d
-.ascii  " . http://www.nongnu.org/vgabios"
-.byte   0x0a,0x0d
-.byte   0x0a,0x0d
-.byte   0x00
 #endif
 
+extern void set_mode(int mode);
+#pragma aux set_mode =  \
+    "xor    ah, ah"     \
+    "int    10h"        \
+    parm [ax];
 
-;; ============================================================================================
-;;
-;; Init Entry point
-;;
-;; ============================================================================================
-vgabios_init_func:
-
-;; init vga card
-  call init_vga_card
-
-;; init basic bios vars
-  call init_bios_area
-
-#ifdef VBE
-;; init vbe functions
-  call vbe_init
-#endif
-
-;; set int10 vect
-  SET_INT_VECTOR(0x10, #0xC000, #vgabios_int10_handler)
-
-#ifdef CIRRUS
-  call cirrus_init
-#endif
-
-#ifndef VBOX
-;; display splash screen
-  call _display_splash_screen
-
-;; init video mode and clear the screen
-;; @@AS: Do not remove this init, because it will break VESA graphics
-  mov ax,#0x0003
-  int #0x10
-
-
-;; show info
-  call _display_info
-
-#ifdef VBE
-;; show vbe info
-  call vbe_display_info
-#endif
-
-#ifdef CIRRUS
-;; show cirrus info
-  call cirrus_display_info
-#endif
-
-#else /* VBOX */
-
-#ifdef DEBUG_bird
-;; init video mode and clear the screen
-  mov ax,#0x0003
-  int #0x10
-#endif
-#endif /* VBOX */
-
-  retf
-ASM_END
-
-/*
- *  int10 handled here
- */
-ASM_START
-vgabios_int10_handler:
-  pushf
-#ifdef DEBUG
-  push es
-  push ds
-  pusha
-  mov   bx, #0xc000
-  mov   ds, bx
-  call _int10_debugmsg
-  popa
-  pop ds
-  pop es
-#endif
-  cmp   ah, #0x0f
-  jne   int10_test_1A
-  call  biosfn_get_video_mode
-  jmp   int10_end
-int10_test_1A:
-  cmp   ah, #0x1a
-  jne   int10_test_0B
-  call  biosfn_group_1A
-  jmp   int10_end
-int10_test_0B:
-  cmp   ah, #0x0b
-  jne   int10_test_1103
-  call  biosfn_group_0B
-  jmp   int10_end
-int10_test_1103:
-  cmp   ax, #0x1103
-  jne   int10_test_12
-  call  biosfn_set_text_block_specifier
-  jmp   int10_end
-int10_test_12:
-  cmp   ah, #0x12
-  jne   int10_test_101B
-  cmp   bl, #0x10
-  jne   int10_test_BL30
-  call  biosfn_get_ega_info
-  jmp   int10_end
-int10_test_BL30:
-  cmp   bl, #0x30
-  jne   int10_test_BL31
-  call  biosfn_select_vert_res
-  jmp   int10_end
-int10_test_BL31:
-  cmp   bl, #0x31
-  jne   int10_test_BL32
-  call  biosfn_enable_default_palette_loading
-  jmp   int10_end
-int10_test_BL32:
-  cmp   bl, #0x32
-  jne   int10_test_BL33
-  call  biosfn_enable_video_addressing
-  jmp   int10_end
-int10_test_BL33:
-  cmp   bl, #0x33
-  jne   int10_test_BL34
-  call  biosfn_enable_grayscale_summing
-  jmp   int10_end
-int10_test_BL34:
-  cmp   bl, #0x34
-  jne   int10_normal
-  call  biosfn_enable_cursor_emulation
-  jmp   int10_end
-int10_test_101B:
-  cmp   ax, #0x101b
-  je    int10_normal
-  cmp   ah, #0x10
-#ifndef VBE
-  jne   int10_normal
-#else
-  jne   int10_test_4F
-#endif
-  call  biosfn_group_10
-  jmp   int10_end
-#ifdef VBE
-int10_test_4F:
-  cmp   ah, #0x4f
-  jne   int10_normal
-  cmp   al, #0x03
-  jne   int10_test_vbe_05
-  call  vbe_biosfn_return_current_mode
-  jmp   int10_end
-int10_test_vbe_05:
-  cmp   al, #0x05
-  jne   int10_test_vbe_06
-  call  vbe_biosfn_display_window_control
-  jmp   int10_end
-int10_test_vbe_06:
-  cmp   al, #0x06
-  jne   int10_test_vbe_07
-  call  vbe_biosfn_set_get_logical_scan_line_length
-  jmp   int10_end
-int10_test_vbe_07:
-  cmp   al, #0x07
-  jne   int10_test_vbe_08
-  call  vbe_biosfn_set_get_display_start
-  jmp   int10_end
-int10_test_vbe_08:
-  cmp   al, #0x08
-  jne   int10_test_vbe_09
-  call  vbe_biosfn_set_get_dac_palette_format
-  jmp   int10_end
-int10_test_vbe_09:
-  cmp   al, #0x09
-  jne   int10_test_vbe_0A
-  call  vbe_biosfn_set_get_palette_data
-  jmp   int10_end
-int10_test_vbe_0A:
-  cmp   al, #0x0A
-  jne   int10_normal
-  call  vbe_biosfn_return_protected_mode_interface
-  jmp   int10_end
-#endif
-
-int10_normal:
-  push es
-  push ds
-  pusha
-
-;; We have to set ds to access the right data segment
-  mov   bx, #0xc000
-  mov   ds, bx
-  call _int10_func
-
-  popa
-  pop ds
-  pop es
-int10_end:
-  popf
-  iret
-ASM_END
-
-#include "vgatables.h"
-#include "vgafonts.h"
+char msg_vga_init[] = "Oracle VM VirtualBox Version " VBOX_VERSION_STRING " VGA BIOS\r\n";
 
 /*
  * Boot time harware inits
  */
-ASM_START
-init_vga_card:
-;; switch to color mode and enable CPU access 480 lines
-  mov dx, #0x3C2
-  mov al, #0xC3
-  outb dx,al
+void init_vga_card(void)
+{
+    /* Switch to color mode and enable CPU access 480 lines. */
+    outb(0x3C2, 0xC3);
+    /* More than 64k 3C4/04. */
+    //@todo: 16-bit write
+    outb(0x3C4, 0x04);
+    outb(0x3C5, 0x02);
 
-;; more than 64k 3C4/04
-  mov dx, #0x3C4
-  mov al, #0x04
-  outb dx,al
-  mov dx, #0x3C5
-  mov al, #0x02
-  outb dx,al
+#ifdef DEBUG_VGA
+    printf(msg_vga_init);
+#endif
+}
 
-  mov  bx, #msg_vga_init
-  push bx
-  call _printf
-  inc  sp
-  inc  sp
-  ret
-
-msg_vga_init:
-.ascii "Oracle VM VirtualBox Version "
-.ascii VBOX_VERSION_STRING
-.ascii " VGA BIOS"
-.byte 0x0d,0x0a,0x00
-ASM_END
+#include "vgatables.h"
+#include "vgadefs.h"
 
 // --------------------------------------------------------------------------------------------
 /*
  *  Boot time bios area inits
  */
-ASM_START
-init_bios_area:
-  push  ds
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
+void init_bios_area(void)
+{
+    uint8_t __far   *bda;
 
-;; init detected hardware BIOS Area
-  mov   bx, # BIOSMEM_INITIAL_MODE
-  mov   ax, [bx]
-  and   ax, #0xffcf
-;; set 80x25 color (not clear from RBIL but usual)
-  or    ax, #0x0020
-  mov   [bx], ax
+    bda = 0x40 :> 0;
 
-;; Just for the first int10 find its children
+    /* Indicate 80x25 color was detected. */
+    bda[BIOSMEM_INITIAL_MODE] = (bda[BIOSMEM_INITIAL_MODE] & 0xcf) | 0x20;
+    /* Just for the first int10 find its children. */
 
-;; the default char height
-  mov   bx, # BIOSMEM_CHAR_HEIGHT
-  mov   al, #0x10
-  mov   [bx], al
+    /* The default char height. */
+    bda[BIOSMEM_CHAR_HEIGHT] = 16;
+    /* Clear the screen. */
+    bda[BIOSMEM_VIDEO_CTL]   = 0x60;
+    /* Set the basic screen we have. */
+    bda[BIOSMEM_SWITCHES]    = 0xf9;
+    /* Set the basic mode set options. */
+    bda[BIOSMEM_MODESET_CTL] = 0x51;
+    /* Set the default MSR. */
+    bda[BIOSMEM_CURRENT_MSR] = 0x09;
+}
 
-;; Clear the screen
-  mov   bx, # BIOSMEM_VIDEO_CTL
-  mov   al, #0x60
-  mov   [bx], al
+void __far *video_save_pointer_table[7] = {
+    &video_param_table
+};
 
-;; Set the basic screen we have
-  mov   bx, # BIOSMEM_SWITCHES
-  mov   al, #0xf9
-  mov   [bx], al
+// ============================================================================================
+//
+// Init Entry point
+//
+// ============================================================================================
+void __far __cdecl vgabios_init_func(void)
+{
+    init_vga_card();
+    init_bios_area();
+#ifdef VBE
+    vbe_init();
+#endif
+    set_int_vector(0x10, vgabios_int10_handler);
+#ifdef CIRRUS
+    cirrus_init();
+#endif
 
-;; Set the basic modeset options
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   al, #0x51
-  mov   [bx], al
+#ifndef VBOX
+    display_splash_screen();
 
-;; Set the  default MSR
-  mov   bx, # BIOSMEM_CURRENT_MSR
-  mov   al, #0x09
-  mov   [bx], al
+    // init video mode and clear the screen
+    // @@AS: Do not remove this init, because it will break VESA graphics
+    set_mode(3);
 
-  pop ds
-  ret
+    display_info();
 
-_video_save_pointer_table:
-  .word _video_param_table
-  .word 0xc000
+#ifdef VBE
+    vbe_display_info();
+#endif
 
-  .word 0 /* XXX: fill it */
-  .word 0
+#ifdef CIRRUS
+    cirrus_display_info();
+#endif
 
-  .word 0 /* XXX: fill it */
-  .word 0
+#else /* VBOX */
 
-  .word 0 /* XXX: fill it */
-  .word 0
+//#ifdef DEBUG_bird
+    /* Init video mode and clear the screen */
+    set_mode(3);
+//#endif
+#endif /* VBOX */
+}
 
-  .word 0 /* XXX: fill it */
-  .word 0
+#include "vgafonts.h"
 
-  .word 0 /* XXX: fill it */
-  .word 0
-
-  .word 0 /* XXX: fill it */
-  .word 0
-ASM_END
-
+#ifndef VBOX
 // --------------------------------------------------------------------------------------------
 /*
  *  Boot time Splash screen
@@ -523,36 +239,12 @@ static void display_splash_screen()
 {
 }
 
-#ifndef VBOX
 // --------------------------------------------------------------------------------------------
 /*
  *  Tell who we are
  */
 
-static void display_info()
-{
-ASM_START
- mov ax,#0xc000
- mov ds,ax
- mov si,#vgabios_name
- call _display_string
-
- mov si,#vgabios_version
- call _display_string
-
- ;;mov si,#vgabios_copyright
- ;;call _display_string
- ;;mov si,#crlf
- ;;call _display_string
-
- mov si,#vgabios_license
- call _display_string
- mov si,#vgabios_website
- call _display_string
-ASM_END
-}
-
-static void display_string()
+static void display_string(void)
 {
  // Get length of string
 ASM_START
@@ -580,250 +272,339 @@ ASM_START
  int #0x10
 ASM_END
 }
+
+static void display_info(void)
+{
+    display_string(vgabios_name);
+    display_string(vgabios_version);
+    display_string(vgabios_copyright);
+    display_string(vgabios_license);
+    display_string(vgabios_website);
+}
+
 #endif
 
 // --------------------------------------------------------------------------------------------
-#ifdef DEBUG
-static void int10_debugmsg(DI, SI, BP, SP, BX, DX, CX, AX, DS, ES, FLAGS)
-  Bit16u DI, SI, BP, SP, BX, DX, CX, AX, ES, DS, FLAGS;
+#ifdef VGA_DEBUG
+void __cdecl int10_debugmsg(uint16_t DI, uint16_t SI, uint16_t BP, uint16_t SP, uint16_t BX,
+                            uint16_t DX, uint16_t CX, uint16_t AX, uint16_t DS, uint16_t ES, uint16_t FLAGS)
 {
- // 0E is write char...
- if(GET_AH()!=0x0E)
-  printf("vgabios call ah%02x al%02x bx%04x cx%04x dx%04x\n",GET_AH(),GET_AL(),BX,CX,DX);
+    /* Function 0Eh is write char and would generate way too much output. */
+    if (GET_AH() != 0x0E)
+        printf("vgabios call ah%02x al%02x bx%04x cx%04x dx%04x\n", GET_AH(), GET_AL(), BX, CX, DX);
 }
 #endif
 
-// --------------------------------------------------------------------------------------------
-/*
- * int10 main dispatcher
- */
-static void int10_func(DI, SI, BP, SP, BX, DX, CX, AX, DS, ES, FLAGS)
-  Bit16u DI, SI, BP, SP, BX, DX, CX, AX, ES, DS, FLAGS;
+static void vga_get_cursor_pos(uint8_t page, uint16_t STACK_BASED *scans, uint16_t STACK_BASED *loc)
 {
+    if (page > 7) {
+        *scans = 0;
+        *loc   = 0;
+    } else {
+        // FIXME should handle VGA 14/16 lines
+        *scans = read_word(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE);
+        *loc   = read_word(BIOSMEM_SEG,BIOSMEM_CURSOR_POS + page * 2);
+    }
+}
 
- // BIOS functions
- switch(GET_AH())
-  {
-   case 0x00:
-     biosfn_set_video_mode(GET_AL());
-     switch(GET_AL()&0x7F)
-      {case 6:
-        SET_AL(0x3F);
-        break;
-       case 0:
-       case 1:
-       case 2:
-       case 3:
-       case 4:
-       case 5:
-       case 7:
-        SET_AL(0x30);
-        break;
-      default:
-        SET_AL(0x20);
-      }
-     break;
-   case 0x01:
-     biosfn_set_cursor_shape(GET_CH(),GET_CL());
-     break;
-   case 0x02:
-     biosfn_set_cursor_pos(GET_BH(),DX);
-     break;
-   case 0x03:
-     biosfn_get_cursor_pos(GET_BH(),&CX,&DX);
-     break;
-   case 0x04:
-     // Read light pen pos (unimplemented)
-#ifdef DEBUG
-     unimplemented();
-#endif
-     AX=0x00;
-     BX=0x00;
-     CX=0x00;
-     DX=0x00;
-     break;
-   case 0x05:
-     biosfn_set_active_page(GET_AL());
-     break;
-   case 0x06:
-     biosfn_scroll(GET_AL(),GET_BH(),GET_CH(),GET_CL(),GET_DH(),GET_DL(),0xFF,SCROLL_UP);
-     break;
-   case 0x07:
-     biosfn_scroll(GET_AL(),GET_BH(),GET_CH(),GET_CL(),GET_DH(),GET_DL(),0xFF,SCROLL_DOWN);
-     break;
-   case 0x08:
-     biosfn_read_char_attr(GET_BH(),&AX);
-     break;
-   case 0x09:
-     biosfn_write_char_attr(GET_AL(),GET_BH(),GET_BL(),CX);
-     break;
-   case 0x0A:
-     biosfn_write_char_only(GET_AL(),GET_BH(),GET_BL(),CX);
-     break;
-   case 0x0C:
-     biosfn_write_pixel(GET_BH(),GET_AL(),CX,DX);
-     break;
-   case 0x0D:
-     biosfn_read_pixel(GET_BH(),CX,DX,&AX);
-     break;
-   case 0x0E:
-     // Ralf Brown Interrupt list is WRONG on bh(page)
-     // We do output only on the current page !
-#ifdef DEBUG
-     printf("write_teletype %02x\n", GET_AL());
-#endif
 
-     biosfn_write_teletype(GET_AL(),0xff,GET_BL(),NO_ATTR);
-     break;
-   case 0x10:
-     // All other functions of group AH=0x10 rewritten in assembler
-     biosfn_perform_gray_scale_summing(BX,CX);
-     break;
-   case 0x11:
-     switch(GET_AL())
-      {
-       case 0x00:
-       case 0x10:
-        biosfn_load_text_user_pat(GET_AL(),ES,BP,CX,DX,GET_BL(),GET_BH());
-        break;
-       case 0x01:
-       case 0x11:
-        biosfn_load_text_8_14_pat(GET_AL(),GET_BL());
-        break;
-       case 0x02:
-       case 0x12:
-        biosfn_load_text_8_8_pat(GET_AL(),GET_BL());
-        break;
-       case 0x04:
-       case 0x14:
-        biosfn_load_text_8_16_pat(GET_AL(),GET_BL());
-        break;
-       case 0x20:
-        biosfn_load_gfx_8_8_chars(ES,BP);
-        break;
-       case 0x21:
-        biosfn_load_gfx_user_chars(ES,BP,CX,GET_BL(),GET_DL());
-        break;
-       case 0x22:
-        biosfn_load_gfx_8_14_chars(GET_BL());
-        break;
-       case 0x23:
-        biosfn_load_gfx_8_8_dd_chars(GET_BL());
-        break;
-       case 0x24:
-        biosfn_load_gfx_8_16_chars(GET_BL());
-        break;
-       case 0x30:
-        biosfn_get_font_info(GET_BH(),&ES,&BP,&CX,&DX);
-        break;
-#ifdef DEBUG
-       default:
-        unknown();
-#endif
-      }
+static void vga_read_char_attr(uint8_t page, uint16_t STACK_BASED *chr_atr)
+{
+    uint8_t     xcurs, ycurs, mode, line;
+    uint16_t    nbcols, nbrows, address;
+    uint16_t    cursor, dummy;
 
-     break;
-   case 0x12:
-     switch(GET_BL())
-      {
-       case 0x20:
-        biosfn_alternate_prtsc();
-        break;
-       case 0x35:
-        biosfn_switch_video_interface(GET_AL(),ES,DX);
-        SET_AL(0x12);
-        break;
-       case 0x36:
-        biosfn_enable_video_refresh_control(GET_AL());
-        SET_AL(0x12);
-        break;
-#ifdef DEBUG
-       default:
-        unknown();
-#endif
-      }
-     break;
-   case 0x13:
-     biosfn_write_string(GET_AL(),GET_BH(),GET_BL(),CX,GET_DH(),GET_DL(),ES,BP);
-     break;
-   case 0x1B:
-     biosfn_read_state_info(BX,ES,DI);
-     SET_AL(0x1B);
-     break;
-   case 0x1C:
-     switch(GET_AL())
-      {
-       case 0x00:
-        biosfn_read_video_state_size(CX,&BX);
-        break;
-       case 0x01:
-        biosfn_save_video_state(CX,ES,BX);
-        break;
-       case 0x02:
-        biosfn_restore_video_state(CX,ES,BX);
-        break;
-#ifdef DEBUG
-       default:
-        unknown();
-#endif
-      }
-     SET_AL(0x1C);
-     break;
+    // Get the mode
+    mode = read_byte(BIOSMEM_SEG, BIOSMEM_CURRENT_MODE);
+    line = find_vga_entry(mode);
+    if (line == 0xFF)
+        return;
 
-#ifdef VBE
-   case 0x4f:
-     if (vbe_has_vbe_display()) {
-       switch(GET_AL())
-       {
-         case 0x00:
-          vbe_biosfn_return_controller_information(&AX,ES,DI);
-          break;
-         case 0x01:
-          vbe_biosfn_return_mode_information(&AX,CX,ES,DI);
-          break;
-         case 0x02:
-          vbe_biosfn_set_mode(&AX,BX,ES,DI);
-          break;
-         case 0x04:
-          vbe_biosfn_save_restore_state(&AX, CX, DX, ES, &BX);
-          break;
-         case 0x09:
-          //FIXME
-#ifdef DEBUG
-          unimplemented();
+    // Get the cursor pos for the page
+    vga_get_cursor_pos(page, &dummy, &cursor);
+    xcurs = cursor & 0x00ff;
+    ycurs = (cursor & 0xff00) >> 8;
+
+    // Get the dimensions
+    nbrows = read_byte(BIOSMEM_SEG, BIOSMEM_NB_ROWS) + 1;
+    nbcols = read_word(BIOSMEM_SEG, BIOSMEM_NB_COLS);
+
+    if (vga_modes[line].class == TEXT) {
+        // Compute the address
+        address  = SCREEN_MEM_START(nbcols, nbrows, page) + (xcurs + ycurs * nbcols) * 2;
+        *chr_atr = read_word(vga_modes[line].sstart, address);
+    } else {
+        //@todo: graphics modes (not so easy - or useful!)
+#ifdef VGA_DEBUG
+        unimplemented();
 #endif
-          // function failed
-          AX=0x100;
-          break;
-         case 0x0A:
-          //FIXME
-#ifdef DEBUG
-          unimplemented();
+    }
+}
+
+static void vga_get_font_info (uint16_t func, uint16_t STACK_BASED *u_seg, uint16_t STACK_BASED *u_ofs,
+                               uint16_t STACK_BASED *c_height, uint16_t STACK_BASED *max_row)
+{
+    void    __far   *ptr;
+
+    switch (func) {
+    case 0x00:
+        ptr = (void __far *)read_dword(0x00, 0x1f * 4);
+        break;
+    case 0x01:
+        ptr = (void __far *)read_dword(0x00, 0x43 * 4);
+        break;
+    case 0x02:
+        ptr = 0xC000 :> vgafont14;
+        break;
+    case 0x03:
+        ptr = 0xC000 :> vgafont8;
+        break;
+    case 0x04:
+        ptr = 0xC000 :> (vgafont8 + 128 * 8);
+        break;
+    case 0x05:
+        ptr = 0xC000 :> vgafont14alt;
+        break;
+    case 0x06:
+        ptr = 0xC000 :> vgafont16;
+        break;
+    case 0x07:
+        ptr = 0xC000 :> vgafont16alt;
+        break;
+    default:
+#ifdef VGA_DEBUG
+        printf("Get font info subfn(%02x) not implemented\n", func);
 #endif
-          // function failed
-          AX=0x100;
-          break;
-         default:
-#ifdef DEBUG
-          unknown();
-#endif
-          // function failed
-          AX=0x100;
-          }
+        return;
+    }
+    /* Split the far pointer and write it back. */
+    *u_ofs = (uint16_t)ptr;
+    *u_seg = (uint32_t)ptr >> 16;
+
+    /* The character height (effectively bytes per glyph). */
+    *c_height = read_byte(BIOSMEM_SEG, BIOSMEM_CHAR_HEIGHT);
+
+    /* The highest row number. */
+    *max_row = read_byte(BIOSMEM_SEG, BIOSMEM_NB_ROWS);
+}
+
+static void vga_read_pixel(uint8_t page, uint16_t col, uint16_t row, uint16_t STACK_BASED *pixel)
+{
+    uint8_t     mode, line, mask, attr, data, i;
+    uint16_t    addr;
+
+    /* Determine current mode characteristics. */
+    mode = read_byte(BIOSMEM_SEG, BIOSMEM_CURRENT_MODE);
+    line = find_vga_entry(mode);
+    if (line == 0xFF)
+        return;
+    if (vga_modes[line].class == TEXT)
+        return;
+
+    /* Read data depending on memory model. */
+    switch (vga_modes[line].memmodel) {
+    case PLANAR4:
+    case PLANAR1:
+        addr = col / 8 + row * read_word(BIOSMEM_SEG, BIOSMEM_NB_COLS);
+        mask = 0x80 >> (col & 0x07);
+        attr = 0x00;
+        for (i = 0; i < 4; i++) {
+            outw(VGAREG_GRDC_ADDRESS, (i << 8) | 0x04);
+            data = read_byte(0xa000,addr) & mask;
+            if (data > 0)
+                attr |= (0x01 << i);
         }
-        else {
-          // No VBE display
-          AX=0x0100;
-          }
         break;
+    case CGA:
+        addr = (col >> 2) + (row >> 1) * 80;
+        if (row & 1)
+            addr += 0x2000;
+        data = read_byte(0xb800, addr);
+        if (vga_modes[line].pixbits == 2)
+            attr = (data >> ((3 - (col & 0x03)) * 2)) & 0x03;
+        else
+            attr = (data >> (7 - (col & 0x07))) & 0x01;
+        break;
+    case LINEAR8:
+        addr = col + row * (read_word(BIOSMEM_SEG, BIOSMEM_NB_COLS) * 8);
+        attr = read_byte(0xa000, addr);
+        break;
+    default:
+#ifdef VGA_DEBUG
+       unimplemented();
 #endif
+        attr = 0;
+    }
+    *(uint8_t STACK_BASED *)pixel = attr;
+}
 
-#ifdef DEBUG
-   default:
-     unknown();
-#endif
+
+
+// --------------------------------------------------------------------------------------------
+/*static*/ void biosfn_perform_gray_scale_summing(uint16_t start, uint16_t count)
+{uint8_t r,g,b;
+ uint16_t i;
+ uint16_t index;
+
+ inb(VGAREG_ACTL_RESET);
+ outb(VGAREG_ACTL_ADDRESS,0x00);
+
+ for( index = 0; index < count; index++ )
+  {
+   // set read address and switch to read mode
+   outb(VGAREG_DAC_READ_ADDRESS,start);
+   // get 6-bit wide RGB data values
+   r=inb( VGAREG_DAC_DATA );
+   g=inb( VGAREG_DAC_DATA );
+   b=inb( VGAREG_DAC_DATA );
+
+   // intensity = ( 0.3 * Red ) + ( 0.59 * Green ) + ( 0.11 * Blue )
+   i = ( ( 77*r + 151*g + 28*b ) + 0x80 ) >> 8;
+
+   if(i>0x3f)i=0x3f;
+
+   // set write address and switch to write mode
+   outb(VGAREG_DAC_WRITE_ADDRESS,start);
+   // write new intensity value
+   outb( VGAREG_DAC_DATA, i&0xff );
+   outb( VGAREG_DAC_DATA, i&0xff );
+   outb( VGAREG_DAC_DATA, i&0xff );
+   start++;
+  }
+ inb(VGAREG_ACTL_RESET);
+ outb(VGAREG_ACTL_ADDRESS,0x20);
+#ifdef VBOX
+ inb(VGAREG_ACTL_RESET);
+#endif /* VBOX */
+}
+
+// --------------------------------------------------------------------------------------------
+static void biosfn_set_cursor_shape(uint8_t CH, uint8_t CL)
+{uint16_t cheight,curs,crtc_addr;
+ uint8_t modeset_ctl;
+
+ CH&=0x3f;
+ CL&=0x1f;
+
+ curs=(CH<<8)+CL;
+ write_word(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE,curs);
+
+ modeset_ctl=read_byte(BIOSMEM_SEG,BIOSMEM_MODESET_CTL);
+ cheight = read_word(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT);
+ if((modeset_ctl&0x01) && (cheight>8) && (CL<8) && (CH<0x20))
+  {
+   if(CL!=(CH+1))
+    {
+     CH = ((CH+1) * cheight / 8) -1;
+    }
+   else
+    {
+     CH = ((CL+1) * cheight / 8) - 2;
+    }
+   CL = ((CL+1) * cheight / 8) - 1;
+  }
+
+ // CTRC regs 0x0a and 0x0b
+ crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
+ outb(crtc_addr,0x0a);
+ outb(crtc_addr+1,CH);
+ outb(crtc_addr,0x0b);
+ outb(crtc_addr+1,CL);
+}
+
+// --------------------------------------------------------------------------------------------
+static void biosfn_set_cursor_pos (uint8_t page, uint16_t cursor)
+{
+ uint8_t xcurs,ycurs,current;
+ uint16_t nbcols,nbrows,address,crtc_addr;
+
+ // Should not happen...
+ if(page>7)return;
+
+ // Bios cursor pos
+ write_word(BIOSMEM_SEG, BIOSMEM_CURSOR_POS+2*page, cursor);
+
+ // Set the hardware cursor
+ current=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
+ if(page==current)
+  {
+   // Get the dimensions
+   nbcols=read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
+   nbrows=read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1;
+
+   xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
+
+   // Calculate the address knowing nbcols nbrows and page num
+   address=SCREEN_IO_START(nbcols,nbrows,page)+xcurs+ycurs*nbcols;
+
+   // CRTC regs 0x0e and 0x0f
+   crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
+   outb(crtc_addr,0x0e);
+   outb(crtc_addr+1,(address&0xff00)>>8);
+   outb(crtc_addr,0x0f);
+   outb(crtc_addr+1,address&0x00ff);
   }
 }
+
+// --------------------------------------------------------------------------------------------
+static void biosfn_set_active_page(uint8_t page)
+{
+ uint16_t cursor,dummy,crtc_addr;
+ uint16_t nbcols,nbrows,address;
+ uint8_t mode,line;
+
+ if(page>7)return;
+
+ // Get the mode
+ mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
+ line=find_vga_entry(mode);
+ if(line==0xFF)return;
+
+ // Get pos curs pos for the right page
+ vga_get_cursor_pos(page,&dummy,&cursor);
+
+ if(vga_modes[line].class==TEXT)
+  {
+   // Get the dimensions
+   nbcols=read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
+   nbrows=read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1;
+
+   // Calculate the address knowing nbcols nbrows and page num
+   address=SCREEN_MEM_START(nbcols,nbrows,page);
+   write_word(BIOSMEM_SEG,BIOSMEM_CURRENT_START,address);
+
+   // Start address
+   address=SCREEN_IO_START(nbcols,nbrows,page);
+  }
+ else
+  {
+   address = page * (*(uint16_t *)&video_param_table[line_to_vpti[line]].slength_l);
+  }
+
+ // CRTC regs 0x0c and 0x0d
+ crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
+ outb(crtc_addr,0x0c);
+ outb(crtc_addr+1,(address&0xff00)>>8);
+ outb(crtc_addr,0x0d);
+ outb(crtc_addr+1,address&0x00ff);
+
+ // And change the BIOS page
+ write_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE,page);
+
+#ifdef VGA_DEBUG
+ printf("Set active page %02x address %04x\n",page,address);
+#endif
+
+ // Display the cursor, now the page is active
+ biosfn_set_cursor_pos(page,cursor);
+}
+
+//@todo: Evaluate whether executing INT 10h is the right thing here
+extern void vga_font_set(uint8_t function, uint8_t data);
+#pragma aux vga_font_set =  \
+    "mov    ah, 11h"        \
+    "int    10h"            \
+    parm [al] [bl];
 
 // ============================================================================================
 //
@@ -831,19 +612,21 @@ static void int10_func(DI, SI, BP, SP, BX, DX, CX, AX, DS, ES, FLAGS)
 //
 // ============================================================================================
 
-static void biosfn_set_video_mode(mode) Bit8u mode;
+void biosfn_set_video_mode(uint8_t mode)
 {// mode: Bit 7 is 1 if no clear screen
 
  // Should we clear the screen ?
- Bit8u noclearmem=mode&0x80;
- Bit8u line,mmask,*palette,vpti;
- Bit16u i,twidth,theightm1,cheight;
- Bit8u modeset_ctl,video_ctl,vga_switches;
- Bit16u crtc_addr;
+ uint8_t  noclearmem=mode&0x80;
+ uint8_t  line,mmask,*palette,vpti;
+ uint16_t i,twidth,theightm1,cheight;
+ uint8_t  modeset_ctl,video_ctl,vga_switches;
+ uint16_t crtc_addr;
 
 #ifdef VBE
  if (vbe_has_vbe_display()) {
-   dispi_set_enable(VBE_DISPI_DISABLED);
+   // Force controller into VGA mode
+   outb(VGAREG_SEQU_ADDRESS,7);
+   outb(VGAREG_SEQU_DATA,0x00);
   }
 #endif // def VBE
 
@@ -853,7 +636,7 @@ static void biosfn_set_video_mode(mode) Bit8u mode;
  // find the entry in the video modes
  line=find_vga_entry(mode);
 
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  printf("mode search %02x found line %02x\n",mode,line);
 #endif
 
@@ -888,16 +671,16 @@ static void biosfn_set_video_mode(mode) Bit8u mode;
    // From which palette
    switch(vga_modes[line].dacmodel)
     {case 0:
-      palette=&palette0;
+      palette=&palette0[0];
       break;
      case 1:
-      palette=&palette1;
+      palette=&palette1[0];
       break;
      case 2:
-      palette=&palette2;
+      palette=&palette2[0];
       break;
      case 3:
-      palette=&palette3;
+      palette=&palette3[0];
       break;
     }
    // Always 256*3 values
@@ -988,7 +771,7 @@ static void biosfn_set_video_mode(mode) Bit8u mode;
  // Set the BIOS mem
  write_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE,mode);
  write_word(BIOSMEM_SEG,BIOSMEM_NB_COLS,twidth);
- write_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE,*(Bit16u *)&video_param_table[vpti].slength_l);
+ write_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE,*(uint16_t *)&video_param_table[vpti].slength_l);
  write_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS,crtc_addr);
  write_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS,theightm1);
  write_word(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT,cheight);
@@ -998,8 +781,7 @@ static void biosfn_set_video_mode(mode) Bit8u mode;
 
  // FIXME We nearly have the good tables. to be reworked
  write_byte(BIOSMEM_SEG,BIOSMEM_DCC_INDEX,0x08);    // 8 is VGA should be ok for now
- write_word(BIOSMEM_SEG,BIOSMEM_VS_POINTER, video_save_pointer_table);
- write_word(BIOSMEM_SEG,BIOSMEM_VS_POINTER+2, 0xc000);
+ write_dword(BIOSMEM_SEG,BIOSMEM_VS_POINTER, (uint32_t)(void __far *)video_save_pointer_table);
 
  // FIXME
  write_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MSR,0x00); // Unavailable on vanilla vga, but...
@@ -1021,187 +803,32 @@ static void biosfn_set_video_mode(mode) Bit8u mode;
  // Write the fonts in memory
  if(vga_modes[line].class==TEXT)
   {
-ASM_START
-  ;; copy and activate 8x16 font
-  mov ax, #0x1104
-  mov bl, #0x00
-  int #0x10
-  mov ax, #0x1103
-  mov bl, #0x00
-  int #0x10
-ASM_END
+     vga_font_set(0x04, 0);     /* Load 8x16 font into page 0. */
+     vga_font_set(0x03, 0);     /* Select font page mode 0. */
   }
 
  // Set the ints 0x1F and 0x43
-ASM_START
- SET_INT_VECTOR(0x1f, #0xC000, #_vgafont8+128*8)
-ASM_END
+ set_int_vector(0x1f, vgafont8+128*8);
 
   switch(cheight)
    {case 8:
-ASM_START
-     SET_INT_VECTOR(0x43, #0xC000, #_vgafont8)
-ASM_END
+     set_int_vector(0x43, vgafont8);
      break;
     case 14:
-ASM_START
-     SET_INT_VECTOR(0x43, #0xC000, #_vgafont14)
-ASM_END
+     set_int_vector(0x43, vgafont14);
      break;
     case 16:
-ASM_START
-     SET_INT_VECTOR(0x43, #0xC000, #_vgafont16)
-ASM_END
+     set_int_vector(0x43, vgafont16);
      break;
    }
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_set_cursor_shape (CH,CL)
-Bit8u CH;Bit8u CL;
-{Bit16u cheight,curs,crtc_addr;
- Bit8u modeset_ctl;
-
- CH&=0x3f;
- CL&=0x1f;
-
- curs=(CH<<8)+CL;
- write_word(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE,curs);
-
- modeset_ctl=read_byte(BIOSMEM_SEG,BIOSMEM_MODESET_CTL);
- cheight = read_word(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT);
- if((modeset_ctl&0x01) && (cheight>8) && (CL<8) && (CH<0x20))
-  {
-   if(CL!=(CH+1))
-    {
-     CH = ((CH+1) * cheight / 8) -1;
-    }
-   else
-    {
-     CH = ((CL+1) * cheight / 8) - 2;
-    }
-   CL = ((CL+1) * cheight / 8) - 1;
-  }
-
- // CTRC regs 0x0a and 0x0b
- crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
- outb(crtc_addr,0x0a);
- outb(crtc_addr+1,CH);
- outb(crtc_addr,0x0b);
- outb(crtc_addr+1,CL);
-}
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_set_cursor_pos (page, cursor)
-Bit8u page;Bit16u cursor;
+static void vgamem_copy_pl4(uint8_t xstart, uint8_t ysrc, uint8_t ydest,
+                            uint8_t cols, uint8_t nbcols, uint8_t cheight)
 {
- Bit8u xcurs,ycurs,current;
- Bit16u nbcols,nbrows,address,crtc_addr;
-
- // Should not happen...
- if(page>7)return;
-
- // Bios cursor pos
- write_word(BIOSMEM_SEG, BIOSMEM_CURSOR_POS+2*page, cursor);
-
- // Set the hardware cursor
- current=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE);
- if(page==current)
-  {
-   // Get the dimensions
-   nbcols=read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
-   nbrows=read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1;
-
-   xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
-
-   // Calculate the address knowing nbcols nbrows and page num
-   address=SCREEN_IO_START(nbcols,nbrows,page)+xcurs+ycurs*nbcols;
-
-   // CRTC regs 0x0e and 0x0f
-   crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
-   outb(crtc_addr,0x0e);
-   outb(crtc_addr+1,(address&0xff00)>>8);
-   outb(crtc_addr,0x0f);
-   outb(crtc_addr+1,address&0x00ff);
-  }
-}
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_get_cursor_pos (page,shape, pos)
-Bit8u page;Bit16u *shape;Bit16u *pos;
-{
- Bit16u ss=get_SS();
-
- // Default
- write_word(ss, shape, 0);
- write_word(ss, pos, 0);
-
- if(page>7)return;
- // FIXME should handle VGA 14/16 lines
- write_word(ss,shape,read_word(BIOSMEM_SEG,BIOSMEM_CURSOR_TYPE));
- write_word(ss,pos,read_word(BIOSMEM_SEG,BIOSMEM_CURSOR_POS+page*2));
-}
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_set_active_page (page)
-Bit8u page;
-{
- Bit16u cursor,dummy,crtc_addr;
- Bit16u nbcols,nbrows,address;
- Bit8u mode,line;
-
- if(page>7)return;
-
- // Get the mode
- mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
- line=find_vga_entry(mode);
- if(line==0xFF)return;
-
- // Get pos curs pos for the right page
- biosfn_get_cursor_pos(page,&dummy,&cursor);
-
- if(vga_modes[line].class==TEXT)
-  {
-   // Get the dimensions
-   nbcols=read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
-   nbrows=read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1;
-
-   // Calculate the address knowing nbcols nbrows and page num
-   address=SCREEN_MEM_START(nbcols,nbrows,page);
-   write_word(BIOSMEM_SEG,BIOSMEM_CURRENT_START,address);
-
-   // Start address
-   address=SCREEN_IO_START(nbcols,nbrows,page);
-  }
- else
-  {
-   address = page * (*(Bit16u *)&video_param_table[line_to_vpti[line]].slength_l);
-  }
-
- // CRTC regs 0x0c and 0x0d
- crtc_addr=read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
- outb(crtc_addr,0x0c);
- outb(crtc_addr+1,(address&0xff00)>>8);
- outb(crtc_addr,0x0d);
- outb(crtc_addr+1,address&0x00ff);
-
- // And change the BIOS page
- write_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_PAGE,page);
-
-#ifdef DEBUG
- printf("Set active page %02x address %04x\n",page,address);
-#endif
-
- // Display the cursor, now the page is active
- biosfn_set_cursor_pos(page,cursor);
-}
-
-// --------------------------------------------------------------------------------------------
-static void vgamem_copy_pl4(xstart,ysrc,ydest,cols,nbcols,cheight)
-Bit8u xstart;Bit8u ysrc;Bit8u ydest;Bit8u cols;Bit8u nbcols;Bit8u cheight;
-{
- Bit16u src,dest;
- Bit8u i;
+ uint16_t src,dest;
+ uint8_t i;
 
  src=ysrc*cheight*nbcols+xstart;
  dest=ydest*cheight*nbcols+xstart;
@@ -1214,11 +841,11 @@ Bit8u xstart;Bit8u ysrc;Bit8u ydest;Bit8u cols;Bit8u nbcols;Bit8u cheight;
 }
 
 // --------------------------------------------------------------------------------------------
-static void vgamem_fill_pl4(xstart,ystart,cols,nbcols,cheight,attr)
-Bit8u xstart;Bit8u ystart;Bit8u cols;Bit8u nbcols;Bit8u cheight;Bit8u attr;
+static void vgamem_fill_pl4(uint8_t xstart, uint8_t ystart, uint8_t cols,
+                            uint8_t nbcols, uint8_t cheight, uint8_t attr)
 {
- Bit16u dest;
- Bit8u i;
+ uint16_t dest;
+ uint8_t i;
 
  dest=ystart*cheight*nbcols+xstart;
  outw(VGAREG_GRDC_ADDRESS, 0x0205);
@@ -1230,11 +857,11 @@ Bit8u xstart;Bit8u ystart;Bit8u cols;Bit8u nbcols;Bit8u cheight;Bit8u attr;
 }
 
 // --------------------------------------------------------------------------------------------
-static void vgamem_copy_cga(xstart,ysrc,ydest,cols,nbcols,cheight)
-Bit8u xstart;Bit8u ysrc;Bit8u ydest;Bit8u cols;Bit8u nbcols;Bit8u cheight;
+static void vgamem_copy_cga(uint8_t xstart, uint8_t ysrc, uint8_t ydest,
+                            uint8_t cols, uint8_t nbcols, uint8_t cheight)
 {
- Bit16u src,dest;
- Bit8u i;
+ uint16_t src,dest;
+ uint8_t i;
 
  src=((ysrc*cheight*nbcols)>>1)+xstart;
  dest=((ydest*cheight*nbcols)>>1)+xstart;
@@ -1248,11 +875,11 @@ Bit8u xstart;Bit8u ysrc;Bit8u ydest;Bit8u cols;Bit8u nbcols;Bit8u cheight;
 }
 
 // --------------------------------------------------------------------------------------------
-static void vgamem_fill_cga(xstart,ystart,cols,nbcols,cheight,attr)
-Bit8u xstart;Bit8u ystart;Bit8u cols;Bit8u nbcols;Bit8u cheight;Bit8u attr;
+static void vgamem_fill_cga(uint8_t xstart, uint8_t ystart, uint8_t cols,
+                            uint8_t nbcols, uint8_t cheight, uint8_t attr)
 {
- Bit16u dest;
- Bit8u i;
+ uint16_t dest;
+ uint8_t i;
 
  dest=((ystart*cheight*nbcols)>>1)+xstart;
  for(i=0;i<cheight;i++)
@@ -1265,14 +892,14 @@ Bit8u xstart;Bit8u ystart;Bit8u cols;Bit8u nbcols;Bit8u cheight;Bit8u attr;
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_scroll (nblines,attr,rul,cul,rlr,clr,page,dir)
-Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8u dir;
+static void biosfn_scroll(uint8_t nblines, uint8_t attr, uint8_t rul, uint8_t cul,
+                          uint8_t rlr, uint8_t clr, uint8_t page, uint8_t dir)
 {
  // page == 0xFF if current
 
- Bit8u mode,line,cheight,bpp,cols;
- Bit16u nbcols,nbrows,i;
- Bit16u address;
+ uint8_t mode,line,cheight,bpp,cols;
+ uint16_t nbcols,nbrows,i;
+ uint16_t address;
 
  if(rul>rlr)return;
  if(cul>clr)return;
@@ -1299,13 +926,13 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
   {
    // Compute the address
    address=SCREEN_MEM_START(nbcols,nbrows,page);
-#ifdef DEBUG
+#ifdef VGA_DEBUG
    printf("Scroll, address %04x (%04x %04x %02x)\n",address,nbrows,nbcols,page);
 #endif
 
    if(nblines==0&&rul==0&&cul==0&&rlr==nbrows-1&&clr==nbcols-1)
     {
-     memsetw(vga_modes[line].sstart,address,(Bit16u)attr*0x100+' ',nbrows*nbcols);
+     memsetw(vga_modes[line].sstart,address,(uint16_t)attr*0x100+' ',nbrows*nbcols);
     }
    else
     {// if Scroll up
@@ -1313,7 +940,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
       {for(i=rul;i<=rlr;i++)
         {
          if((i+nblines>rlr)||(nblines==0))
-          memsetw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,(Bit16u)attr*0x100+' ',cols);
+          memsetw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,(uint16_t)attr*0x100+' ',cols);
          else
           memcpyw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,vga_modes[line].sstart,((i+nblines)*nbcols+cul)*2,cols);
         }
@@ -1322,7 +949,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
       {for(i=rlr;i>=rul;i--)
         {
          if((i<rul+nblines)||(nblines==0))
-          memsetw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,(Bit16u)attr*0x100+' ',cols);
+          memsetw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,(uint16_t)attr*0x100+' ',cols);
          else
           memcpyw(vga_modes[line].sstart,address+(i*nbcols+cul)*2,vga_modes[line].sstart,((i-nblines)*nbcols+cul)*2,cols);
          if (i>rlr) break;
@@ -1403,7 +1030,7 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
           }
         }
        break;
-#ifdef DEBUG
+#ifdef VGA_DEBUG
      default:
        printf("Scroll in graphics mode ");
        unimplemented();
@@ -1413,49 +1040,12 @@ Bit8u nblines;Bit8u attr;Bit8u rul;Bit8u cul;Bit8u rlr;Bit8u clr;Bit8u page;Bit8
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_read_char_attr (page,car)
-Bit8u page;Bit16u *car;
-{Bit16u ss=get_SS();
- Bit8u xcurs,ycurs,mode,line;
- Bit16u nbcols,nbrows,address;
- Bit16u cursor,dummy;
-
- // Get the mode
- mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
- line=find_vga_entry(mode);
- if(line==0xFF)return;
-
- // Get the cursor pos for the page
- biosfn_get_cursor_pos(page,&dummy,&cursor);
- xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
-
- // Get the dimensions
- nbrows=read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS)+1;
- nbcols=read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
-
- if(vga_modes[line].class==TEXT)
-  {
-   // Compute the address
-   address=SCREEN_MEM_START(nbcols,nbrows,page)+(xcurs+ycurs*nbcols)*2;
-
-   write_word(ss,car,read_word(vga_modes[line].sstart,address));
-  }
- else
-  {
-   // FIXME gfx mode
-#ifdef DEBUG
-   unimplemented();
-#endif
-  }
-}
-
-// --------------------------------------------------------------------------------------------
-static void write_gfx_char_pl4(car,attr,xcurs,ycurs,nbcols,cheight)
-Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;Bit8u cheight;
+static void write_gfx_char_pl4(uint8_t car, uint8_t attr, uint8_t xcurs,
+                               uint8_t ycurs, uint8_t nbcols, uint8_t cheight)
 {
- Bit8u i,j,mask;
- Bit8u *fdata;
- Bit16u addr,dest,src;
+ uint8_t i,j,mask;
+ uint8_t *fdata;
+ uint16_t addr,dest,src;
 
  switch(cheight)
   {case 14:
@@ -1497,24 +1087,18 @@ Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;Bit8u cheight;
       }
     }
   }
-ASM_START
-  mov dx, # VGAREG_GRDC_ADDRESS
-  mov ax, #0xff08
-  out dx, ax
-  mov ax, #0x0005
-  out dx, ax
-  mov ax, #0x0003
-  out dx, ax
-ASM_END
+  outw(VGAREG_GRDC_ADDRESS, 0xff08);
+  outw(VGAREG_GRDC_ADDRESS, 0x0005);
+  outw(VGAREG_GRDC_ADDRESS, 0x0003);
 }
 
 // --------------------------------------------------------------------------------------------
-static void write_gfx_char_cga(car,attr,xcurs,ycurs,nbcols,bpp)
-Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;Bit8u bpp;
+static void write_gfx_char_cga(uint8_t car, uint8_t attr, uint8_t xcurs,
+                               uint8_t ycurs, uint8_t nbcols, uint8_t bpp)
 {
- Bit8u i,j,mask,data;
- Bit8u *fdata;
- Bit16u addr,dest,src;
+ uint8_t i,j,mask,data;
+ uint8_t *fdata;
+ uint16_t addr,dest,src;
 
  fdata = &vgafont8;
  addr=(xcurs*bpp)+ycurs*320;
@@ -1586,12 +1170,12 @@ Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;Bit8u bpp;
 }
 
 // --------------------------------------------------------------------------------------------
-static void write_gfx_char_lin(car,attr,xcurs,ycurs,nbcols)
-Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;
+static void write_gfx_char_lin(uint8_t car, uint8_t attr, uint8_t xcurs,
+                               uint8_t ycurs, uint8_t nbcols)
 {
- Bit8u i,j,mask,data;
- Bit8u *fdata;
- Bit16u addr,dest,src;
+ uint8_t i,j,mask,data;
+ uint8_t *fdata;
+ uint16_t addr,dest,src;
 
  fdata = &vgafont8;
  addr=xcurs*8+ycurs*nbcols*64;
@@ -1614,12 +1198,11 @@ Bit8u car;Bit8u attr;Bit8u xcurs;Bit8u ycurs;Bit8u nbcols;
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_write_char_attr (car,page,attr,count)
-Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
+static void biosfn_write_char_attr(uint8_t car, uint8_t page, uint8_t attr, uint16_t count)
 {
- Bit8u cheight,xcurs,ycurs,mode,line,bpp;
- Bit16u nbcols,nbrows,address;
- Bit16u cursor,dummy;
+ uint8_t cheight,xcurs,ycurs,mode,line,bpp;
+ uint16_t nbcols,nbrows,address;
+ uint16_t cursor,dummy;
 
  // Get the mode
  mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
@@ -1627,7 +1210,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
  if(line==0xFF)return;
 
  // Get the cursor pos for the page
- biosfn_get_cursor_pos(page,&dummy,&cursor);
+ vga_get_cursor_pos(page,&dummy,&cursor);
  xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
 
  // Get the dimensions
@@ -1639,7 +1222,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
    // Compute the address
    address=SCREEN_MEM_START(nbcols,nbrows,page)+(xcurs+ycurs*nbcols)*2;
 
-   dummy=((Bit16u)attr<<8)+car;
+   dummy=((uint16_t)attr<<8)+car;
    memsetw(vga_modes[line].sstart,address,dummy,count);
   }
  else
@@ -1661,7 +1244,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
        case LINEAR8:
          write_gfx_char_lin(car,attr,xcurs,ycurs,nbcols);
          break;
-#ifdef DEBUG
+#ifdef VGA_DEBUG
        default:
          unimplemented();
 #endif
@@ -1672,12 +1255,11 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_write_char_only (car,page,attr,count)
-Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
+static void biosfn_write_char_only(uint8_t car, uint8_t page, uint8_t attr, uint16_t count)
 {
- Bit8u cheight,xcurs,ycurs,mode,line,bpp;
- Bit16u nbcols,nbrows,address;
- Bit16u cursor,dummy;
+ uint8_t cheight,xcurs,ycurs,mode,line,bpp;
+ uint16_t nbcols,nbrows,address;
+ uint16_t cursor,dummy;
 
  // Get the mode
  mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
@@ -1685,7 +1267,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
  if(line==0xFF)return;
 
  // Get the cursor pos for the page
- biosfn_get_cursor_pos(page,&dummy,&cursor);
+ vga_get_cursor_pos(page,&dummy,&cursor);
  xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
 
  // Get the dimensions
@@ -1721,7 +1303,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
        case LINEAR8:
          write_gfx_char_lin(car,attr,xcurs,ycurs,nbcols);
          break;
-#ifdef DEBUG
+#ifdef VGA_DEBUG
        default:
          unimplemented();
 #endif
@@ -1732,99 +1314,10 @@ Bit8u car;Bit8u page;Bit8u attr;Bit16u count;
 }
 
 // --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_group_0B:
-  cmp   bh, #0x00
-  je    biosfn_set_border_color
-  cmp   bh, #0x01
-  je    biosfn_set_palette
-#ifdef DEBUG
-  call  _unknown
-#endif
-  ret
-biosfn_set_border_color:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x00
-  out   dx, al
-  mov   al, bl
-  and   al, #0x0f
-  test  al, #0x08
-  jz    set_low_border
-  add   al, #0x08
-set_low_border:
-  out   dx, al
-  mov   cl, #0x01
-  and   bl, #0x10
-set_intensity_loop:
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, cl
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  and   al, #0xef
-  or    al, bl
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  out   dx, al
-  inc   cl
-  cmp   cl, #0x04
-  jne   set_intensity_loop
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-biosfn_set_palette:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   cl, #0x01
-  and   bl, #0x01
-set_cga_palette_loop:
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, cl
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  and   al, #0xfe
-  or    al, bl
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  out   dx, al
-  inc   cl
-  cmp   cl, #0x04
-  jne   set_cga_palette_loop
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_write_pixel (BH,AL,CX,DX) Bit8u BH;Bit8u AL;Bit16u CX;Bit16u DX;
+static void biosfn_write_pixel(uint8_t BH, uint8_t AL, uint16_t CX, uint16_t DX)
 {
- Bit8u mode,line,mask,attr,data;
- Bit16u addr;
+ uint8_t mode,line,mask,attr,data;
+ uint16_t addr;
 
  // Get the mode
  mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
@@ -1846,15 +1339,9 @@ static void biosfn_write_pixel (BH,AL,CX,DX) Bit8u BH;Bit8u AL;Bit16u CX;Bit16u 
        outw(VGAREG_GRDC_ADDRESS, 0x1803);
       }
      write_byte(0xa000,addr,AL);
-ASM_START
-     mov dx, # VGAREG_GRDC_ADDRESS
-     mov ax, #0xff08
-     out dx, ax
-     mov ax, #0x0005
-     out dx, ax
-     mov ax, #0x0003
-     out dx, ax
-ASM_END
+     outw(VGAREG_GRDC_ADDRESS, 0xff08);
+     outw(VGAREG_GRDC_ADDRESS, 0x0005);
+     outw(VGAREG_GRDC_ADDRESS, 0x0003);
      break;
    case CGA:
      if(vga_modes[line].pixbits==2)
@@ -1892,7 +1379,7 @@ ASM_END
      addr=CX+DX*(read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS)*8);
      write_byte(0xa000,addr,AL);
      break;
-#ifdef DEBUG
+#ifdef VGA_DEBUG
    default:
      unimplemented();
 #endif
@@ -1900,66 +1387,12 @@ ASM_END
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_read_pixel (BH,CX,DX,AX) Bit8u BH;Bit16u CX;Bit16u DX;Bit16u *AX;
-{
- Bit8u mode,line,mask,attr,data,i;
- Bit16u addr;
- Bit16u ss=get_SS();
-
- // Get the mode
- mode=read_byte(BIOSMEM_SEG,BIOSMEM_CURRENT_MODE);
- line=find_vga_entry(mode);
- if(line==0xFF)return;
- if(vga_modes[line].class==TEXT)return;
-
- switch(vga_modes[line].memmodel)
-  {
-   case PLANAR4:
-   case PLANAR1:
-     addr = CX/8+DX*read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS);
-     mask = 0x80 >> (CX & 0x07);
-     attr = 0x00;
-     for(i=0;i<4;i++)
-      {
-       outw(VGAREG_GRDC_ADDRESS, (i << 8) | 0x04);
-       data = read_byte(0xa000,addr) & mask;
-       if (data > 0) attr |= (0x01 << i);
-      }
-     break;
-   case CGA:
-     addr=(CX>>2)+(DX>>1)*80;
-     if (DX & 1) addr += 0x2000;
-     data = read_byte(0xb800,addr);
-     if(vga_modes[line].pixbits==2)
-      {
-       attr = (data >> ((3 - (CX & 0x03)) * 2)) & 0x03;
-      }
-     else
-      {
-       attr = (data >> (7 - (CX & 0x07))) & 0x01;
-      }
-     break;
-   case LINEAR8:
-     addr=CX+DX*(read_word(BIOSMEM_SEG,BIOSMEM_NB_COLS)*8);
-     attr=read_byte(0xa000,addr);
-     break;
-   default:
-#ifdef DEBUG
-     unimplemented();
-#endif
-     attr = 0;
-  }
- write_word(ss,AX,(read_word(ss,AX) & 0xff00) | attr);
-}
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_write_teletype (car, page, attr, flag)
-Bit8u car;Bit8u page;Bit8u attr;Bit8u flag;
+static void biosfn_write_teletype(uint8_t car, uint8_t page, uint8_t attr, uint8_t flag)
 {// flag = WITH_ATTR / NO_ATTR
 
- Bit8u cheight,xcurs,ycurs,mode,line,bpp;
- Bit16u nbcols,nbrows,address;
- Bit16u cursor,dummy;
+ uint8_t cheight,xcurs,ycurs,mode,line,bpp;
+ uint16_t nbcols,nbrows,address;
+ uint16_t cursor,dummy;
 
  // special case if page is 0xff, use current page
  if(page==0xff)
@@ -1971,7 +1404,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit8u flag;
  if(line==0xFF)return;
 
  // Get the cursor pos for the page
- biosfn_get_cursor_pos(page,&dummy,&cursor);
+ vga_get_cursor_pos(page,&dummy,&cursor);
  xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
 
  // Get the dimensions
@@ -2000,7 +1433,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit8u flag;
     do
      {
       biosfn_write_teletype(' ',page,attr,flag);
-      biosfn_get_cursor_pos(page,&dummy,&cursor);
+      vga_get_cursor_pos(page,&dummy,&cursor);
       xcurs=cursor&0x00ff;ycurs=(cursor&0xff00)>>8;
      }while(xcurs%8==0);
     break;
@@ -2035,7 +1468,7 @@ Bit8u car;Bit8u page;Bit8u attr;Bit8u flag;
         case LINEAR8:
           write_gfx_char_lin(car,attr,xcurs,ycurs,nbcols);
           break;
-#ifdef DEBUG
+#ifdef VGA_DEBUG
         default:
           unimplemented();
 #endif
@@ -2072,629 +1505,32 @@ Bit8u car;Bit8u page;Bit8u attr;Bit8u flag;
 }
 
 // --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_get_video_mode:
-  push  ds
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  push  bx
-  mov   bx, # BIOSMEM_CURRENT_PAGE
-  mov   al, [bx]
-  pop   bx
-  mov   bh, al
-  push  bx
-  mov   bx, # BIOSMEM_VIDEO_CTL
-  mov   ah, [bx]
-  and   ah, #0x80
-  mov   bx, # BIOSMEM_CURRENT_MODE
-  mov   al, [bx]
-  or    al, ah
-  mov   bx, # BIOSMEM_NB_COLS
-  mov   ah, [bx]
-  pop   bx
-  pop   ds
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_group_10:
-  cmp   al, #0x00
-  jne   int10_test_1001
-  jmp   biosfn_set_single_palette_reg
-int10_test_1001:
-  cmp   al, #0x01
-  jne   int10_test_1002
-  jmp   biosfn_set_overscan_border_color
-int10_test_1002:
-  cmp   al, #0x02
-  jne   int10_test_1003
-  jmp   biosfn_set_all_palette_reg
-int10_test_1003:
-  cmp   al, #0x03
-  jne   int10_test_1007
-  jmp   biosfn_toggle_intensity
-int10_test_1007:
-  cmp   al, #0x07
-  jne   int10_test_1008
-  jmp   biosfn_get_single_palette_reg
-int10_test_1008:
-  cmp   al, #0x08
-  jne   int10_test_1009
-  jmp   biosfn_read_overscan_border_color
-int10_test_1009:
-  cmp   al, #0x09
-  jne   int10_test_1010
-  jmp   biosfn_get_all_palette_reg
-int10_test_1010:
-  cmp   al, #0x10
-  jne   int10_test_1012
-  jmp  biosfn_set_single_dac_reg
-int10_test_1012:
-  cmp   al, #0x12
-  jne   int10_test_1013
-  jmp   biosfn_set_all_dac_reg
-int10_test_1013:
-  cmp   al, #0x13
-  jne   int10_test_1015
-  jmp   biosfn_select_video_dac_color_page
-int10_test_1015:
-  cmp   al, #0x15
-  jne   int10_test_1017
-  jmp   biosfn_read_single_dac_reg
-int10_test_1017:
-  cmp   al, #0x17
-  jne   int10_test_1018
-  jmp   biosfn_read_all_dac_reg
-int10_test_1018:
-  cmp   al, #0x18
-  jne   int10_test_1019
-  jmp   biosfn_set_pel_mask
-int10_test_1019:
-  cmp   al, #0x19
-  jne   int10_test_101A
-  jmp   biosfn_read_pel_mask
-int10_test_101A:
-  cmp   al, #0x1a
-  jne   int10_group_10_unknown
-  jmp   biosfn_read_video_dac_state
-int10_group_10_unknown:
-#ifdef DEBUG
-  call  _unknown
-#endif
-  ret
-
-biosfn_set_single_palette_reg:
-  cmp   bl, #0x14
-  ja    no_actl_reg1
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, bl
-  out   dx, al
-  mov   al, bh
-  out   dx, al
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   ax
-no_actl_reg1:
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_overscan_border_color:
-  push  bx
-  mov   bl, #0x11
-  call  biosfn_set_single_palette_reg
-  pop   bx
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_all_palette_reg:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   bx, dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   cl, #0x00
-  mov   dx, # VGAREG_ACTL_ADDRESS
-set_palette_loop:
-  mov   al, cl
-  out   dx, al
-  seg   es
-  mov   al, [bx]
-  out   dx, al
-  inc   bx
-  inc   cl
-  cmp   cl, #0x10
-  jne   set_palette_loop
-  mov   al, #0x11
-  out   dx, al
-  seg   es
-  mov   al, [bx]
-  out   dx, al
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_toggle_intensity:
-  push  ax
-  push  bx
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x10
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  and   al, #0xf7
-  and   bl, #0x01
-  shl   bl, 3
-  or    al, bl
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  out   dx, al
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_get_single_palette_reg:
-  cmp   bl, #0x14
-  ja    no_actl_reg2
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, bl
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  mov   bh, al
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   ax
-no_actl_reg2:
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_read_overscan_border_color:
-  push  ax
-  push  bx
-  mov   bl, #0x11
-  call  biosfn_get_single_palette_reg
-  mov   al, bh
-  pop   bx
-  mov   bh, al
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_get_all_palette_reg:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   bx, dx
-  mov   cl, #0x00
-get_palette_loop:
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, cl
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  seg   es
-  mov   [bx], al
-  inc   bx
-  inc   cl
-  cmp   cl, #0x10
-  jne   get_palette_loop
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x11
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  seg   es
-  mov   [bx], al
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_single_dac_reg:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_DAC_WRITE_ADDRESS
-  mov   al, bl
-  out   dx, al
-  mov   dx, # VGAREG_DAC_DATA
-  pop   ax
-  push  ax
-  mov   al, ah
-  out   dx, al
-  mov   al, ch
-  out   dx, al
-  mov   al, cl
-  out   dx, al
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_all_dac_reg:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   dx, # VGAREG_DAC_WRITE_ADDRESS
-  mov   al, bl
-  out   dx, al
-  pop   dx
-  push  dx
-  mov   bx, dx
-  mov   dx, # VGAREG_DAC_DATA
-set_dac_loop:
-  seg   es
-  mov   al, [bx]
-  out   dx, al
-  inc   bx
-  seg   es
-  mov   al, [bx]
-  out   dx, al
-  inc   bx
-  seg   es
-  mov   al, [bx]
-  out   dx, al
-  inc   bx
-  dec   cx
-  jnz   set_dac_loop
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_select_video_dac_color_page:
-  push  ax
-  push  bx
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x10
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  and   bl, #0x01
-  jnz   set_dac_page
-  and   al, #0x7f
-  shl   bh, 7
-  or    al, bh
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  out   dx, al
-  jmp   set_actl_normal
-set_dac_page:
-  push  ax
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x14
-  out   dx, al
-  pop   ax
-  and   al, #0x80
-  jnz   set_dac_16_page
-  shl   bh, 2
-set_dac_16_page:
-  and   bh, #0x0f
-  mov   al, bh
-  out   dx, al
-set_actl_normal:
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_read_single_dac_reg:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_DAC_READ_ADDRESS
-  mov   al, bl
-  out   dx, al
-  pop   ax
-  mov   ah, al
-  mov   dx, # VGAREG_DAC_DATA
-  in    al, dx
-  xchg  al, ah
-  push  ax
-  in    al, dx
-  mov   ch, al
-  in    al, dx
-  mov   cl, al
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_read_all_dac_reg:
-  push  ax
-  push  bx
-  push  cx
-  push  dx
-  mov   dx, # VGAREG_DAC_READ_ADDRESS
-  mov   al, bl
-  out   dx, al
-  pop   dx
-  push  dx
-  mov   bx, dx
-  mov   dx, # VGAREG_DAC_DATA
-read_dac_loop:
-  in    al, dx
-  seg   es
-  mov   [bx], al
-  inc   bx
-  in    al, dx
-  seg   es
-  mov   [bx], al
-  inc   bx
-  in    al, dx
-  seg   es
-  mov   [bx], al
-  inc   bx
-  dec   cx
-  jnz   read_dac_loop
-  pop   dx
-  pop   cx
-  pop   bx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_pel_mask:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_PEL_MASK
-  mov   al, bl
-  out   dx, al
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_read_pel_mask:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_PEL_MASK
-  in    al, dx
-  mov   bl, al
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_read_video_dac_state:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x10
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  mov   bl, al
-  shr   bl, 7
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x14
-  out   dx, al
-  mov   dx, # VGAREG_ACTL_READ_DATA
-  in    al, dx
-  mov   bh, al
-  and   bh, #0x0f
-  test  bl, #0x01
-  jnz   get_dac_16_page
-  shr   bh, 2
-get_dac_16_page:
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-  mov   dx, # VGAREG_ACTL_ADDRESS
-  mov   al, #0x20
-  out   dx, al
-#ifdef VBOX
-  mov   dx, # VGAREG_ACTL_RESET
-  in    al, dx
-#endif /* VBOX */
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_perform_gray_scale_summing (start,count)
-Bit16u start;Bit16u count;
-{Bit8u r,g,b;
- Bit16u i;
- Bit16u index;
-
- inb(VGAREG_ACTL_RESET);
- outb(VGAREG_ACTL_ADDRESS,0x00);
-
- for( index = 0; index < count; index++ )
-  {
-   // set read address and switch to read mode
-   outb(VGAREG_DAC_READ_ADDRESS,start);
-   // get 6-bit wide RGB data values
-   r=inb( VGAREG_DAC_DATA );
-   g=inb( VGAREG_DAC_DATA );
-   b=inb( VGAREG_DAC_DATA );
-
-   // intensity = ( 0.3 * Red ) + ( 0.59 * Green ) + ( 0.11 * Blue )
-   i = ( ( 77*r + 151*g + 28*b ) + 0x80 ) >> 8;
-
-   if(i>0x3f)i=0x3f;
-
-   // set write address and switch to write mode
-   outb(VGAREG_DAC_WRITE_ADDRESS,start);
-   // write new intensity value
-   outb( VGAREG_DAC_DATA, i&0xff );
-   outb( VGAREG_DAC_DATA, i&0xff );
-   outb( VGAREG_DAC_DATA, i&0xff );
-   start++;
-  }
- inb(VGAREG_ACTL_RESET);
- outb(VGAREG_ACTL_ADDRESS,0x20);
-#ifdef VBOX
- inb(VGAREG_ACTL_RESET);
-#endif /* VBOX */
+static void get_font_access(void)
+{
+    outw(VGAREG_SEQU_ADDRESS, 0x0100);
+    outw(VGAREG_SEQU_ADDRESS, 0x0402);
+    outw(VGAREG_SEQU_ADDRESS, 0x0704);
+    outw(VGAREG_SEQU_ADDRESS, 0x0300);
+    outw(VGAREG_GRDC_ADDRESS, 0x0204);
+    outw(VGAREG_GRDC_ADDRESS, 0x0005);
+    outw(VGAREG_GRDC_ADDRESS, 0x0406);
 }
 
-// --------------------------------------------------------------------------------------------
-static void get_font_access()
+static void release_font_access(void)
 {
-ASM_START
- mov dx, # VGAREG_SEQU_ADDRESS
- mov ax, #0x0100
- out dx, ax
- mov ax, #0x0402
- out dx, ax
- mov ax, #0x0704
- out dx, ax
- mov ax, #0x0300
- out dx, ax
- mov dx, # VGAREG_GRDC_ADDRESS
- mov ax, #0x0204
- out dx, ax
- mov ax, #0x0005
- out dx, ax
- mov ax, #0x0406
- out dx, ax
-ASM_END
+    outw(VGAREG_SEQU_ADDRESS, 0x0100);
+    outw(VGAREG_SEQU_ADDRESS, 0x0302);
+    outw(VGAREG_SEQU_ADDRESS, 0x0304);
+    outw(VGAREG_SEQU_ADDRESS, 0x0300);
+    outw(VGAREG_GRDC_ADDRESS, (((0x0a | ((inb(VGAREG_READ_MISC_OUTPUT) & 0x01) << 2)) << 8) | 0x06));
+    outw(VGAREG_GRDC_ADDRESS, 0x0004);
+    outw(VGAREG_GRDC_ADDRESS, 0x1005);
 }
 
-static void release_font_access()
+static void set_scan_lines(uint8_t lines)
 {
-ASM_START
- mov dx, # VGAREG_SEQU_ADDRESS
- mov ax, #0x0100
- out dx, ax
- mov ax, #0x0302
- out dx, ax
- mov ax, #0x0304
- out dx, ax
- mov ax, #0x0300
- out dx, ax
- mov dx, # VGAREG_READ_MISC_OUTPUT
- in  al, dx
- and al, #0x01
- shl al, 2
- or  al, #0x0a
- mov ah, al
- mov al, #0x06
- mov dx, # VGAREG_GRDC_ADDRESS
- out dx, ax
- mov ax, #0x0004
- out dx, ax
- mov ax, #0x1005
- out dx, ax
-ASM_END
-}
-
-ASM_START
-idiv_u:
-  xor dx,dx
-  div bx
-  ret
-ASM_END
-
-static void set_scan_lines(lines) Bit8u lines;
-{
- Bit16u crtc_addr,cols,page,vde;
- Bit8u crtc_r9,ovl,rows;
+ uint16_t crtc_addr,cols,vde;
+ uint8_t crtc_r9,ovl,rows;
 
  crtc_addr = read_word(BIOSMEM_SEG,BIOSMEM_CRTC_ADDRESS);
  outb(crtc_addr, 0x09);
@@ -2721,9 +1557,10 @@ static void set_scan_lines(lines) Bit8u lines;
  write_word(BIOSMEM_SEG,BIOSMEM_PAGE_SIZE, rows * cols * 2);
 }
 
-static void biosfn_load_text_user_pat (AL,ES,BP,CX,DX,BL,BH) Bit8u AL;Bit16u ES;Bit16u BP;Bit16u CX;Bit16u DX;Bit8u BL;Bit8u BH;
+static void biosfn_load_text_user_pat(uint8_t AL, uint16_t ES, uint16_t BP, uint16_t CX,
+                                      uint16_t DX, uint8_t BL, uint8_t BH)
 {
- Bit16u blockaddr,dest,i,src;
+ uint16_t blockaddr,dest,i,src;
 
  get_font_access();
  blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
@@ -2740,9 +1577,9 @@ static void biosfn_load_text_user_pat (AL,ES,BP,CX,DX,BL,BH) Bit8u AL;Bit16u ES;
   }
 }
 
-static void biosfn_load_text_8_14_pat (AL,BL) Bit8u AL;Bit8u BL;
+static void biosfn_load_text_8_14_pat(uint8_t AL, uint8_t BL)
 {
- Bit16u blockaddr,dest,i,src;
+ uint16_t blockaddr,dest,i,src;
 
  get_font_access();
  blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
@@ -2750,7 +1587,7 @@ static void biosfn_load_text_8_14_pat (AL,BL) Bit8u AL;Bit8u BL;
   {
    src = i * 14;
    dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, vgafont14+src, 14);
+   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont14+src, 14);
   }
  release_font_access();
  if(AL>=0x10)
@@ -2759,9 +1596,9 @@ static void biosfn_load_text_8_14_pat (AL,BL) Bit8u AL;Bit8u BL;
   }
 }
 
-static void biosfn_load_text_8_8_pat (AL,BL) Bit8u AL;Bit8u BL;
+static void biosfn_load_text_8_8_pat(uint8_t AL, uint8_t BL)
 {
- Bit16u blockaddr,dest,i,src;
+ uint16_t blockaddr,dest,i,src;
 
  get_font_access();
  blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
@@ -2769,7 +1606,7 @@ static void biosfn_load_text_8_8_pat (AL,BL) Bit8u AL;Bit8u BL;
   {
    src = i * 8;
    dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, vgafont8+src, 8);
+   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont8+src, 8);
   }
  release_font_access();
  if(AL>=0x10)
@@ -2779,23 +1616,9 @@ static void biosfn_load_text_8_8_pat (AL,BL) Bit8u AL;Bit8u BL;
 }
 
 // --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_set_text_block_specifier:
-  push  ax
-  push  dx
-  mov   dx, # VGAREG_SEQU_ADDRESS
-  mov   ah, bl
-  mov   al, #0x03
-  out   dx, ax
-  pop   dx
-  pop   ax
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_load_text_8_16_pat (AL,BL) Bit8u AL;Bit8u BL;
+static void biosfn_load_text_8_16_pat(uint8_t AL, uint8_t BL)
 {
- Bit16u blockaddr,dest,i,src;
+ uint16_t blockaddr,dest,i,src;
 
  get_font_access();
  blockaddr = ((BL & 0x03) << 14) + ((BL & 0x04) << 11);
@@ -2803,7 +1626,7 @@ static void biosfn_load_text_8_16_pat (AL,BL) Bit8u AL;Bit8u BL;
   {
    src = i * 16;
    dest = blockaddr + i * 32;
-   memcpyb(0xA000, dest, 0xC000, vgafont16+src, 16);
+   memcpyb(0xA000, dest, 0xC000, (uint16_t)vgafont16+src, 16);
   }
  release_font_access();
  if(AL>=0x10)
@@ -2812,302 +1635,68 @@ static void biosfn_load_text_8_16_pat (AL,BL) Bit8u AL;Bit8u BL;
   }
 }
 
-static void biosfn_load_gfx_8_8_chars (ES,BP) Bit16u ES;Bit16u BP;
+static void biosfn_load_gfx_8_8_chars(uint16_t ES, uint16_t BP)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
-static void biosfn_load_gfx_user_chars (ES,BP,CX,BL,DL) Bit16u ES;Bit16u BP;Bit16u CX;Bit8u BL;Bit8u DL;
+static void biosfn_load_gfx_user_chars(uint16_t ES, uint16_t BP, uint16_t CX,
+                                       uint8_t BL, uint8_t DL)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
-static void biosfn_load_gfx_8_14_chars (BL) Bit8u BL;
+static void biosfn_load_gfx_8_14_chars(uint8_t BL)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
-static void biosfn_load_gfx_8_8_dd_chars (BL) Bit8u BL;
+static void biosfn_load_gfx_8_8_dd_chars(uint8_t BL)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
-static void biosfn_load_gfx_8_16_chars (BL) Bit8u BL;
+static void biosfn_load_gfx_8_16_chars(uint8_t BL)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
 // --------------------------------------------------------------------------------------------
-static void biosfn_get_font_info (BH,ES,BP,CX,DX)
-Bit8u BH;Bit16u *ES;Bit16u *BP;Bit16u *CX;Bit16u *DX;
-{Bit16u ss=get_SS();
-
- switch(BH)
-  {case 0x00:
-    write_word(ss,ES,read_word(0x00,0x1f*4));
-    write_word(ss,BP,read_word(0x00,(0x1f*4)+2));
-    break;
-   case 0x01:
-    write_word(ss,ES,read_word(0x00,0x43*4));
-    write_word(ss,BP,read_word(0x00,(0x43*4)+2));
-    break;
-   case 0x02:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont14);
-    break;
-   case 0x03:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont8);
-    break;
-   case 0x04:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont8+128*8);
-    break;
-   case 0x05:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont14alt);
-    break;
-   case 0x06:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont16);
-    break;
-   case 0x07:
-    write_word(ss,ES,0xC000);
-    write_word(ss,BP,vgafont16alt);
-    break;
-   default:
-    #ifdef DEBUG
-     printf("Get font info BH(%02x) was discarded\n",BH);
-    #endif
-    return;
-  }
- // Set byte/char of on screen font
- write_word(ss,CX,(Bit16u)read_byte(BIOSMEM_SEG,BIOSMEM_CHAR_HEIGHT));
-
- // Set Highest char row
- write_word(ss,DX,(Bit16u)read_byte(BIOSMEM_SEG,BIOSMEM_NB_ROWS));
-}
-
-// --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_get_ega_info:
-  push  ds
-  push  ax
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  xor   ch, ch
-  mov   bx, # BIOSMEM_SWITCHES
-  mov   cl, [bx]
-  and   cl, #0x0f
-  mov   bx, # BIOSMEM_CRTC_ADDRESS
-  mov   ax, [bx]
-  mov   bx, #0x0003
-  cmp   ax, # VGAREG_MDA_CRTC_ADDRESS
-  jne   mode_ega_color
-  mov   bh, #0x01
-mode_ega_color:
-  pop   ax
-  pop   ds
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_alternate_prtsc()
+static void biosfn_alternate_prtsc(void)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
 
 // --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_select_vert_res:
-
-; res : 00 200 lines, 01 350 lines, 02 400 lines
-
-  push  ds
-  push  bx
-  push  dx
-  mov   dl, al
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   al, [bx]
-  mov   bx, # BIOSMEM_SWITCHES
-  mov   ah, [bx]
-  cmp   dl, #0x01
-  je    vert_res_350
-  jb    vert_res_200
-  cmp   dl, #0x02
-  je    vert_res_400
-#ifdef DEBUG
-  mov   al, dl
-  xor   ah, ah
-  push  ax
-  mov   bx, #msg_vert_res
-  push  bx
-  call  _printf
-  add   sp, #4
-#endif
-  jmp   set_retcode
-vert_res_400:
-
-  ; reset modeset ctl bit 7 and set bit 4
-  ; set switches bit 3-0 to 0x09
-
-  and   al, #0x7f
-  or    al, #0x10
-  and   ah, #0xf0
-  or    ah, #0x09
-  jnz   set_vert_res
-vert_res_350:
-
-  ; reset modeset ctl bit 7 and bit 4
-  ; set switches bit 3-0 to 0x09
-
-  and   al, #0x6f
-  and   ah, #0xf0
-  or    ah, #0x09
-  jnz   set_vert_res
-vert_res_200:
-
-  ; set modeset ctl bit 7 and reset bit 4
-  ; set switches bit 3-0 to 0x08
-
-  and   al, #0xef
-  or    al, #0x80
-  and   ah, #0xf0
-  or    ah, #0x08
-set_vert_res:
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   [bx], al
-  mov   bx, # BIOSMEM_SWITCHES
-  mov   [bx], ah
-set_retcode:
-  mov   ax, #0x1212
-  pop   dx
-  pop   bx
-  pop   ds
-  ret
-
-#ifdef DEBUG
-msg_vert_res:
-.ascii "Select vert res (%02x) was discarded"
-.byte 0x0d,0x0a,0x00
-#endif
-
-
-biosfn_enable_default_palette_loading:
-  push  ds
-  push  bx
-  push  dx
-  mov   dl, al
-  and   dl, #0x01
-  shl   dl, 3
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   al, [bx]
-  and   al, #0xf7
-  or    al, dl
-  mov   [bx], al
-  mov   ax, #0x1212
-  pop   dx
-  pop   bx
-  pop   ds
-  ret
-
-
-biosfn_enable_video_addressing:
-  push  bx
-  push  dx
-  mov   bl, al
-  and   bl, #0x01
-  xor   bl, #0x01
-  shl   bl, 1
-  mov   dx, # VGAREG_READ_MISC_OUTPUT
-  in    al, dx
-  and   al, #0xfd
-  or    al, bl
-  mov   dx, # VGAREG_WRITE_MISC_OUTPUT
-  out   dx, al
-  mov   ax, #0x1212
-  pop   dx
-  pop   bx
-  ret
-
-
-biosfn_enable_grayscale_summing:
-  push  ds
-  push  bx
-  push  dx
-  mov   dl, al
-  and   dl, #0x01
-  xor   dl, #0x01
-  shl   dl, 1
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   al, [bx]
-  and   al, #0xfd
-  or    al, dl
-  mov   [bx], al
-  mov   ax, #0x1212
-  pop   dx
-  pop   bx
-  pop   ds
-  ret
-
-
-biosfn_enable_cursor_emulation:
-  push  ds
-  push  bx
-  push  dx
-  mov   dl, al
-  and   dl, #0x01
-  xor   dl, #0x01
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   bx, # BIOSMEM_MODESET_CTL
-  mov   al, [bx]
-  and   al, #0xfe
-  or    al, dl
-  mov   [bx], al
-  mov   ax, #0x1212
-  pop   dx
-  pop   bx
-  pop   ds
-  ret
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_switch_video_interface (AL,ES,DX) Bit8u AL;Bit16u ES;Bit16u DX;
+static void biosfn_switch_video_interface (AL,ES,DX) uint8_t AL;uint16_t ES;uint16_t DX;
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
-static void biosfn_enable_video_refresh_control (AL) Bit8u AL;
+static void biosfn_enable_video_refresh_control(uint8_t AL)
 {
-#ifdef DEBUG
+#ifdef VGA_DEBUG
  unimplemented();
 #endif
 }
 
 // --------------------------------------------------------------------------------------------
-static void biosfn_write_string (flag,page,attr,count,row,col,seg,offset)
-Bit8u flag;Bit8u page;Bit8u attr;Bit16u count;Bit8u row;Bit8u col;Bit16u seg;Bit16u offset;
+static void biosfn_write_string(uint8_t flag, uint8_t page, uint8_t attr, uint16_t count,
+                                uint8_t row, uint8_t col, uint16_t seg, uint16_t offset)
 {
- Bit16u newcurs,oldcurs,dummy;
- Bit8u car,carattr;
+ uint16_t newcurs,oldcurs,dummy;
+ uint8_t car;
 
  // Read curs info for the page
- biosfn_get_cursor_pos(page,&dummy,&oldcurs);
+ vga_get_cursor_pos(page,&dummy,&oldcurs);
 
  // if row=0xff special case : use current cursor position
  if(row==0xff)
@@ -3133,67 +1722,10 @@ Bit8u flag;Bit8u page;Bit8u attr;Bit16u count;Bit8u row;Bit8u col;Bit16u seg;Bit
 }
 
 // --------------------------------------------------------------------------------------------
-ASM_START
-biosfn_group_1A:
-  cmp   al, #0x00
-  je    biosfn_read_display_code
-  cmp   al, #0x01
-  je    biosfn_set_display_code
-#ifdef DEBUG
-  call  _unknown
-#endif
-  ret
-biosfn_read_display_code:
-  push  ds
-  push  ax
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   bx, # BIOSMEM_DCC_INDEX
-  mov   al, [bx]
-  mov   bl, al
-  xor   bh, bh
-  pop   ax
-  mov   al, ah
-  pop   ds
-  ret
-biosfn_set_display_code:
-  push  ds
-  push  ax
-  push  bx
-  mov   ax, # BIOSMEM_SEG
-  mov   ds, ax
-  mov   ax, bx
-  mov   bx, # BIOSMEM_DCC_INDEX
-  mov   [bx], al
-#ifdef DEBUG
-  mov   al, ah
-  xor   ah, ah
-  push  ax
-  mov   bx, #msg_alt_dcc
-  push  bx
-  call  _printf
-  add   sp, #4
-#endif
-  pop   bx
-  pop   ax
-  mov   al, ah
-  pop   ds
-  ret
-
-#ifdef DEBUG
-msg_alt_dcc:
-.ascii "Alternate Display code (%02x) was discarded"
-.byte 0x0d,0x0a,0x00
-#endif
-ASM_END
-
-// --------------------------------------------------------------------------------------------
-static void biosfn_read_state_info (BX,ES,DI)
-Bit16u BX;Bit16u ES;Bit16u DI;
+static void biosfn_read_state_info(uint16_t BX, uint16_t ES, uint16_t DI)
 {
  // Address of static functionality table
- write_word(ES,DI+0x00,&static_functionality);
- write_word(ES,DI+0x02,0xC000);
+ write_dword(ES,DI+0x00, (uint32_t)(void __far *)static_functionality);
 
  // Hard coded copy from BIOS area. Should it be cleaner ?
  memcpyb(ES,DI+0x04,BIOSMEM_SEG,0x49,30);
@@ -3214,32 +1746,32 @@ Bit16u BX;Bit16u ES;Bit16u DI;
 }
 
 // --------------------------------------------------------------------------------------------
-static Bit16u biosfn_read_video_state_size2 (CX)
-     Bit16u CX;
+uint16_t biosfn_read_video_state_size2(uint16_t state)
 {
-    Bit16u size;
+    uint16_t    size;
+
     size = 0;
-    if (CX & 1) {
+    if (state & 1)
         size += 0x46;
-    }
-    if (CX & 2) {
+
+    if (state & 2)
         size += (5 + 8 + 5) * 2 + 6;
-    }
-    if (CX & 4) {
+
+    if (state & 4)
         size += 3 + 256 * 3 + 1;
-    }
+
+    //@todo: Is this supposed to be in 1-byte or 64-byte units?
     return size;
 }
-static void biosfn_read_video_state_size (CX, BX)
-     Bit16u CX; Bit16u *BX;
+
+static void vga_get_video_state_size(uint16_t state, uint16_t STACK_BASED *size)
 {
-    Bit16u ss=get_SS();
-    write_word(ss, BX, biosfn_read_video_state_size2(CX));
+    *size = biosfn_read_video_state_size2(state);
 }
-static Bit16u biosfn_save_video_state (CX,ES,BX)
-     Bit16u CX;Bit16u ES;Bit16u BX;
+
+uint16_t biosfn_save_video_state(uint16_t CX, uint16_t ES, uint16_t BX)
 {
-    Bit16u i, v, crtc_addr, ar_index;
+    uint16_t i, crtc_addr, ar_index;
 
     crtc_addr = read_word(BIOSMEM_SEG, BIOSMEM_CRTC_ADDRESS);
     if (CX & 1) {
@@ -3321,10 +1853,9 @@ static Bit16u biosfn_save_video_state (CX,ES,BX)
     return BX;
 }
 
-static Bit16u biosfn_restore_video_state (CX,ES,BX)
-     Bit16u CX;Bit16u ES;Bit16u BX;
+uint16_t biosfn_restore_video_state(uint16_t CX, uint16_t ES, uint16_t BX)
 {
-    Bit16u i, crtc_addr, v, addr1, ar_index;
+    uint16_t i, crtc_addr, v, addr1, ar_index;
 
     if (CX & 1) {
         // Reset Attribute Ctl flip-flop
@@ -3353,7 +1884,7 @@ static Bit16u biosfn_restore_video_state (CX,ES,BX)
         }
         // select crtc base address
         v = inb(VGAREG_READ_MISC_OUTPUT) & ~0x01;
-        if (crtc_addr = 0x3d4)
+        if (crtc_addr == 0x3d4)
             v |= 0x01;
         outb(VGAREG_WRITE_MISC_OUTPUT, v);
 
@@ -3429,10 +1960,9 @@ static Bit16u biosfn_restore_video_state (CX,ES,BX)
 // ============================================================================================
 
 // --------------------------------------------------------------------------------------------
-static Bit8u find_vga_entry(mode)
-Bit8u mode;
+static uint8_t find_vga_entry(uint8_t mode)
 {
- Bit8u i,line=0xFF;
+ uint8_t i,line=0xFF;
  for(i=0;i<=MODE_MAX;i++)
   if(vga_modes[i].svgamode==mode)
    {line=i;
@@ -3447,437 +1977,339 @@ Bit8u mode;
 */
 /* =========================================================== */
 
-// --------------------------------------------------------------------------------------------
-static void memsetb(seg,offset,value,count)
-  Bit16u seg;
-  Bit16u offset;
-  Bit16u value;
-  Bit16u count;
+uint8_t read_byte(uint16_t seg, uint16_t offset)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push cx
-    push es
-    push di
-
-    mov  cx, 10[bp] ; count
-    cmp  cx, #0x00
-    je   memsetb_end
-    mov  ax, 4[bp] ; segment
-    mov  es, ax
-    mov  ax, 6[bp] ; offset
-    mov  di, ax
-    mov  al, 8[bp] ; value
-    cld
-    rep
-     stosb
-
-memsetb_end:
-    pop di
-    pop es
-    pop cx
-    pop ax
-
-  pop bp
-ASM_END
+    return( *(seg:>(uint8_t *)offset) );
 }
 
-// --------------------------------------------------------------------------------------------
-static void memsetw(seg,offset,value,count)
-  Bit16u seg;
-  Bit16u offset;
-  Bit16u value;
-  Bit16u count;
+void write_byte(uint16_t seg, uint16_t offset, uint8_t data)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push cx
-    push es
-    push di
-
-    mov  cx, 10[bp] ; count
-    cmp  cx, #0x00
-    je   memsetw_end
-    mov  ax, 4[bp] ; segment
-    mov  es, ax
-    mov  ax, 6[bp] ; offset
-    mov  di, ax
-    mov  ax, 8[bp] ; value
-    cld
-    rep
-     stosw
-
-memsetw_end:
-    pop di
-    pop es
-    pop cx
-    pop ax
-
-  pop bp
-ASM_END
+    *(seg:>(uint8_t *)offset) = data;
 }
 
-// --------------------------------------------------------------------------------------------
-static void memcpyb(dseg,doffset,sseg,soffset,count)
-  Bit16u dseg;
-  Bit16u doffset;
-  Bit16u sseg;
-  Bit16u soffset;
-  Bit16u count;
+uint16_t read_word(uint16_t seg, uint16_t offset)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push cx
-    push es
-    push di
-    push ds
-    push si
-
-    mov  cx, 12[bp] ; count
-    cmp  cx, #0x0000
-    je   memcpyb_end
-    mov  ax, 4[bp] ; dsegment
-    mov  es, ax
-    mov  ax, 6[bp] ; doffset
-    mov  di, ax
-    mov  ax, 8[bp] ; ssegment
-    mov  ds, ax
-    mov  ax, 10[bp] ; soffset
-    mov  si, ax
-    cld
-    rep
-     movsb
-
-memcpyb_end:
-    pop si
-    pop ds
-    pop di
-    pop es
-    pop cx
-    pop ax
-
-  pop bp
-ASM_END
+    return( *(seg:>(uint16_t *)offset) );
 }
 
-// --------------------------------------------------------------------------------------------
-static void memcpyw(dseg,doffset,sseg,soffset,count)
-  Bit16u dseg;
-  Bit16u doffset;
-  Bit16u sseg;
-  Bit16u soffset;
-  Bit16u count;
+void write_word(uint16_t seg, uint16_t offset, uint16_t data)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push cx
-    push es
-    push di
-    push ds
-    push si
-
-    mov  cx, 12[bp] ; count
-    cmp  cx, #0x0000
-    je   memcpyw_end
-    mov  ax, 4[bp] ; dsegment
-    mov  es, ax
-    mov  ax, 6[bp] ; doffset
-    mov  di, ax
-    mov  ax, 8[bp] ; ssegment
-    mov  ds, ax
-    mov  ax, 10[bp] ; soffset
-    mov  si, ax
-    cld
-    rep
-     movsw
-
-memcpyw_end:
-    pop si
-    pop ds
-    pop di
-    pop es
-    pop cx
-    pop ax
-
-  pop bp
-ASM_END
+    *(seg:>(uint16_t *)offset) = data;
 }
 
-/* =========================================================== */
-/*
- * These functions where ripped from Kevin's rombios.c
-*/
-/* =========================================================== */
-
-// --------------------------------------------------------------------------------------------
-static Bit8u
-read_byte(seg, offset)
-  Bit16u seg;
-  Bit16u offset;
+uint32_t read_dword(uint16_t seg, uint16_t offset)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push bx
-    push ds
-    mov  ax, 4[bp] ; segment
-    mov  ds, ax
-    mov  bx, 6[bp] ; offset
-    mov  al, [bx]
-    ;; al = return value (byte)
-    pop  ds
-    pop  bx
-
-  pop  bp
-ASM_END
+    return( *(seg:>(uint32_t *)offset) );
 }
 
-// --------------------------------------------------------------------------------------------
-static Bit16u
-read_word(seg, offset)
-  Bit16u seg;
-  Bit16u offset;
+void write_dword(uint16_t seg, uint16_t offset, uint32_t data)
 {
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push bx
-    push ds
-    mov  ax, 4[bp] ; segment
-    mov  ds, ax
-    mov  bx, 6[bp] ; offset
-    mov  ax, [bx]
-    ;; ax = return value (word)
-    pop  ds
-    pop  bx
-
-  pop  bp
-ASM_END
+    *(seg:>(uint32_t *)offset) = data;
 }
 
-// --------------------------------------------------------------------------------------------
-static void
-write_byte(seg, offset, data)
-  Bit16u seg;
-  Bit16u offset;
-  Bit8u  data;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push bx
-    push ds
-    mov  ax, 4[bp] ; segment
-    mov  ds, ax
-    mov  bx, 6[bp] ; offset
-    mov  al, 8[bp] ; data byte
-    mov  [bx], al  ; write data byte
-    pop  ds
-    pop  bx
-    pop  ax
-
-  pop  bp
-ASM_END
-}
-
-// --------------------------------------------------------------------------------------------
-static void
-write_word(seg, offset, data)
-  Bit16u seg;
-  Bit16u offset;
-  Bit16u data;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push bx
-    push ds
-    mov  ax, 4[bp] ; segment
-    mov  ds, ax
-    mov  bx, 6[bp] ; offset
-    mov  ax, 8[bp] ; data word
-    mov  [bx], ax  ; write data word
-    pop  ds
-    pop  bx
-    pop  ax
-
-  pop  bp
-ASM_END
-}
-
-// --------------------------------------------------------------------------------------------
- Bit8u
-inb(port)
-  Bit16u port;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push dx
-    mov  dx, 4[bp]
-    in   al, dx
-    pop  dx
-
-  pop  bp
-ASM_END
-}
-
-  Bit16u
-inw(port)
-  Bit16u port;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push dx
-    mov  dx, 4[bp]
-    in   ax, dx
-    pop  dx
-
-  pop  bp
-ASM_END
-}
-
-// --------------------------------------------------------------------------------------------
-  void
-outb(port, val)
-  Bit16u port;
-  Bit8u  val;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push dx
-    mov  dx, 4[bp]
-    mov  al, 6[bp]
-    out  dx, al
-    pop  dx
-    pop  ax
-
-  pop  bp
-ASM_END
-}
-
-// --------------------------------------------------------------------------------------------
-  void
-outw(port, val)
-  Bit16u port;
-  Bit16u  val;
-{
-ASM_START
-  push bp
-  mov  bp, sp
-
-    push ax
-    push dx
-    mov  dx, 4[bp]
-    mov  ax, 6[bp]
-    out  dx, ax
-    pop  dx
-    pop  ax
-
-  pop  bp
-ASM_END
-}
-
-Bit16u get_SS()
-{
-ASM_START
-  mov  ax, ss
-ASM_END
-}
-
-#ifdef DEBUG
-void unimplemented()
+#ifdef VGA_DEBUG
+void __cdecl unimplemented()
 {
  printf("--> Unimplemented\n");
 }
 
-void unknown()
+void __cdecl unknown()
 {
  printf("--> Unknown int10\n");
 }
-#endif
+
+#undef VBE_PRINTF_PORT
+#define VBE_PRINTF_PORT 0x504
 
 // --------------------------------------------------------------------------------------------
-void printf(s)
-  Bit8u *s;
+void __cdecl printf(char *s, ...)
 {
-#ifdef VBE
-  Bit8u c, format_char;
-  Boolean  in_format;
-  unsigned format_width, i;
-  Bit16u  *arg_ptr;
-  Bit16u   arg_seg, arg, digit, nibble, shift_count;
+    char        c;
+    Boolean     in_format;
+    unsigned    format_width, i;
+    uint16_t    arg, digit, nibble;
+    uint16_t STACK_BASED *arg_ptr;
 
-  arg_ptr = &s;
-  arg_seg = get_SS();
+    arg_ptr = (uint16_t STACK_BASED *)&s;
 
-  in_format = 0;
-  format_width = 0;
+    in_format    = 0;
+    format_width = 0;
 
-  while (c = read_byte(0xc000, s)) {
-    if ( c == '%' ) {
-      in_format = 1;
-      format_width = 0;
-      }
-    else if (in_format) {
-      if ( (c>='0') && (c<='9') ) {
-        format_width = (format_width * 10) + (c - '0');
+    while (c = *s) {
+        if (c == '%') {
+            in_format    = 1;
+            format_width = 0;
+        } else if (in_format) {
+            if ((c >= '0') && (c <= '9')) {
+                format_width = (format_width * 10) + (c - '0');
+            } else if (c == 'x') {
+                arg_ptr++; // increment to next arg
+                arg = *arg_ptr;
+                if (format_width == 0)
+                    format_width = 4;
+                i = 0;
+                digit = format_width - 1;
+                for (i = 0; i < format_width; i++) {
+                    nibble = (arg >> (4 * digit)) & 0x000f;
+                    if (nibble <= 9)
+                        outb(VBE_PRINTF_PORT, nibble + '0');
+                    else
+                        outb(VBE_PRINTF_PORT, (nibble - 10) + 'A');
+                    digit--;
+                }
+                in_format = 0;
+            }
+            //else if (c == 'd') {
+            //  in_format = 0;
+            //  }
+        } else {
+            outb(VBE_PRINTF_PORT, c);
         }
-      else if (c == 'x') {
-        arg_ptr++; // increment to next arg
-        arg = read_word(arg_seg, arg_ptr);
-        if (format_width == 0)
-          format_width = 4;
-        i = 0;
-        digit = format_width - 1;
-        for (i=0; i<format_width; i++) {
-          nibble = (arg >> (4 * digit)) & 0x000f;
-          if (nibble <= 9)
-            outb(VBE_PRINTF_PORT, nibble + '0');
-          else
-            outb(VBE_PRINTF_PORT, (nibble - 10) + 'A');
-          digit--;
-          }
-        in_format = 0;
-        }
-      //else if (c == 'd') {
-      //  in_format = 0;
-      //  }
-      }
-    else {
-      outb(VBE_PRINTF_PORT, c);
-      }
-    s ++;
+        ++s;
     }
+}
 #endif
+
+//@todo: rearrange, call only from VBE module?
+extern void vbe_biosfn_return_controller_information(uint16_t STACK_BASED *AX, uint16_t ES, uint16_t DI);
+extern void vbe_biosfn_return_mode_information(uint16_t STACK_BASED *AX, uint16_t CX, uint16_t ES, uint16_t DI);
+extern void vbe_biosfn_set_mode(uint16_t STACK_BASED *AX, uint16_t BX, uint16_t ES, uint16_t DI);
+extern void vbe_biosfn_save_restore_state(uint16_t STACK_BASED *AX, uint16_t CX, uint16_t DX, uint16_t ES, uint16_t STACK_BASED *BX);
+
+// --------------------------------------------------------------------------------------------
+/*
+ * int10 main dispatcher
+ */
+void __cdecl int10_func(uint16_t DI, uint16_t SI, uint16_t BP, uint16_t SP, uint16_t BX,
+                        uint16_t DX, uint16_t CX, uint16_t AX, uint16_t DS, uint16_t ES, uint16_t FLAGS)
+{
+
+ // BIOS functions
+ switch(GET_AH())
+  {
+   case 0x00:
+     biosfn_set_video_mode(GET_AL());
+     switch(GET_AL()&0x7F)
+      {case 6:
+        SET_AL(0x3F);
+        break;
+       case 0:
+       case 1:
+       case 2:
+       case 3:
+       case 4:
+       case 5:
+       case 7:
+        SET_AL(0x30);
+        break;
+      default:
+        SET_AL(0x20);
+      }
+     break;
+   case 0x01:
+     biosfn_set_cursor_shape(GET_CH(),GET_CL());
+     break;
+   case 0x02:
+     biosfn_set_cursor_pos(GET_BH(),DX);
+     break;
+   case 0x03:
+     vga_get_cursor_pos(GET_BH(), &CX, &DX);
+     break;
+   case 0x04:
+     // Read light pen pos (unimplemented)
+#ifdef VGA_DEBUG
+     unimplemented();
+#endif
+     AX=0x00;
+     BX=0x00;
+     CX=0x00;
+     DX=0x00;
+     break;
+   case 0x05:
+     biosfn_set_active_page(GET_AL());
+     break;
+   case 0x06:
+     biosfn_scroll(GET_AL(),GET_BH(),GET_CH(),GET_CL(),GET_DH(),GET_DL(),0xFF,SCROLL_UP);
+     break;
+   case 0x07:
+     biosfn_scroll(GET_AL(),GET_BH(),GET_CH(),GET_CL(),GET_DH(),GET_DL(),0xFF,SCROLL_DOWN);
+     break;
+   case 0x08:
+     vga_read_char_attr(GET_BH(), &AX);
+     break;
+   case 0x09:
+     biosfn_write_char_attr(GET_AL(),GET_BH(),GET_BL(),CX);
+     break;
+   case 0x0A:
+     biosfn_write_char_only(GET_AL(),GET_BH(),GET_BL(),CX);
+     break;
+   case 0x0C:
+     biosfn_write_pixel(GET_BH(),GET_AL(),CX,DX);
+     break;
+   case 0x0D:
+     vga_read_pixel(GET_BH(), CX, DX, &AX);
+     break;
+   case 0x0E:
+     // Ralf Brown Interrupt list is WRONG on bh(page)
+     // We do output only on the current page !
+#ifdef VGA_DEBUG
+     printf("write_teletype %02x\n", GET_AL());
+#endif
+
+     biosfn_write_teletype(GET_AL(),0xff,GET_BL(),NO_ATTR);
+     break;
+   case 0x10:
+     // All other functions of group AH=0x10 rewritten in assembler
+     biosfn_perform_gray_scale_summing(BX,CX);
+     break;
+   case 0x11:
+     switch(GET_AL())
+      {
+       case 0x00:
+       case 0x10:
+        biosfn_load_text_user_pat(GET_AL(),ES,BP,CX,DX,GET_BL(),GET_BH());
+        break;
+       case 0x01:
+       case 0x11:
+        biosfn_load_text_8_14_pat(GET_AL(),GET_BL());
+        break;
+       case 0x02:
+       case 0x12:
+        biosfn_load_text_8_8_pat(GET_AL(),GET_BL());
+        break;
+       case 0x04:
+       case 0x14:
+        biosfn_load_text_8_16_pat(GET_AL(),GET_BL());
+        break;
+       case 0x20:
+        biosfn_load_gfx_8_8_chars(ES,BP);
+        break;
+       case 0x21:
+        biosfn_load_gfx_user_chars(ES,BP,CX,GET_BL(),GET_DL());
+        break;
+       case 0x22:
+        biosfn_load_gfx_8_14_chars(GET_BL());
+        break;
+       case 0x23:
+        biosfn_load_gfx_8_8_dd_chars(GET_BL());
+        break;
+       case 0x24:
+        biosfn_load_gfx_8_16_chars(GET_BL());
+        break;
+       case 0x30:
+        vga_get_font_info(GET_BH(), &ES, &BP, &CX, &DX);
+        break;
+#ifdef VGA_DEBUG
+       default:
+        unknown();
+#endif
+      }
+
+     break;
+   case 0x12:
+     switch(GET_BL())
+      {
+       case 0x20:
+        biosfn_alternate_prtsc();
+        break;
+       case 0x35:
+        biosfn_switch_video_interface(GET_AL(),ES,DX);
+        SET_AL(0x12);
+        break;
+       case 0x36:
+        biosfn_enable_video_refresh_control(GET_AL());
+        SET_AL(0x12);
+        break;
+#ifdef VGA_DEBUG
+       default:
+        unknown();
+#endif
+      }
+     break;
+   case 0x13:
+     biosfn_write_string(GET_AL(),GET_BH(),GET_BL(),CX,GET_DH(),GET_DL(),ES,BP);
+     break;
+   case 0x1B:
+     biosfn_read_state_info(BX,ES,DI);
+     SET_AL(0x1B);
+     break;
+   case 0x1C:
+     switch(GET_AL())
+      {
+       case 0x00:
+        vga_get_video_state_size(CX,&BX);
+        break;
+       case 0x01:
+        biosfn_save_video_state(CX,ES,BX);
+        break;
+       case 0x02:
+        biosfn_restore_video_state(CX,ES,BX);
+        break;
+#ifdef VGA_DEBUG
+       default:
+        unknown();
+#endif
+      }
+     SET_AL(0x1C);
+     break;
+
+#ifdef VBE
+   case 0x4f:
+     if (vbe_has_vbe_display()) {
+       switch(GET_AL())
+       {
+         case 0x00:
+          vbe_biosfn_return_controller_information(&AX,ES,DI);
+          break;
+         case 0x01:
+          vbe_biosfn_return_mode_information(&AX,CX,ES,DI);
+          break;
+         case 0x02:
+          vbe_biosfn_set_mode(&AX,BX,ES,DI);
+          break;
+         case 0x04:
+          vbe_biosfn_save_restore_state(&AX, CX, DX, ES, &BX);
+          break;
+         case 0x09:
+          //FIXME
+#ifdef VGA_DEBUG
+          unimplemented();
+#endif
+          // function failed
+          AX=0x100;
+          break;
+         case 0x0A:
+          //FIXME
+#ifdef VGA_DEBUG
+          unimplemented();
+#endif
+          // function failed
+          AX=0x100;
+          break;
+         default:
+#ifdef VGA_DEBUG
+          unknown();
+#endif
+          // function failed
+          AX=0x100;
+          }
+        }
+        else {
+          // No VBE display
+          AX=0x0100;
+          }
+        break;
+#endif
+
+#ifdef VGA_DEBUG
+   default:
+     unknown();
+#endif
+  }
 }
 
 #ifdef VBE
-#include "vbe.c"
+//#include "vbe.c"
 #endif
 
 #ifdef CIRRUS
@@ -3886,14 +2318,3 @@ void printf(s)
 
 // --------------------------------------------------------------------------------------------
 
-ASM_START
-;; DATA_SEG_DEFS_HERE
-ASM_END
-
-ASM_START
-.ascii "vgabios ends here"
-.byte  0x00
-vgabios_end:
-.byte 0xCB
-;; BLOCK_STRINGS_BEGIN
-ASM_END

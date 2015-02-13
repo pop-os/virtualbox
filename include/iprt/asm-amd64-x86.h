@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,6 +67,10 @@
 # ifdef RT_ARCH_AMD64
 #  pragma intrinsic(__readcr8)
 #  pragma intrinsic(__writecr8)
+# endif
+# if RT_INLINE_ASM_USES_INTRIN >= 15
+#  pragma intrinsic(__readeflags)
+#  pragma intrinsic(__writeeflags)
 # endif
 #endif
 
@@ -350,10 +354,75 @@ DECLINLINE(RTSEL) ASMGetTR(void)
 
 
 /**
+ * Get the LDTR register.
+ * @returns LDTR.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(RTSEL) ASMGetLDTR(void);
+#else
+DECLINLINE(RTSEL) ASMGetLDTR(void)
+{
+    RTSEL SelLDTR;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("sldt %w0\n\t" : "=r" (SelLDTR));
+# else
+    __asm
+    {
+        sldt    ax
+        mov     [SelLDTR], ax
+    }
+# endif
+    return SelLDTR;
+}
+#endif
+
+
+/**
+ * Get the access rights for the segment selector.
+ *
+ * @returns The access rights on success or ~0U on failure.
+ * @param   uSel        The selector value.
+ *
+ * @remarks Using ~0U for failure is chosen because valid access rights always
+ *          have bits 0:7 as 0 (on both Intel & AMD).
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(uint32_t) ASMGetSegAttr(uint32_t uSel);
+#else
+DECLINLINE(uint32_t) ASMGetSegAttr(uint32_t uSel)
+{
+    uint32_t uAttr;
+    /* LAR only accesses 16-bit of the source operand, but eax for the
+       destination operand is required for getting the full 32-bit access rights. */
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("lar %1, %%eax\n\t"
+                         "jz done%=\n\t"
+                         "movl $0xffffffff, %%eax\n\t"
+                         "done%=:\n\t"
+                         "movl %%eax, %0\n\t"
+                         : "=r" (uAttr)
+                         : "r" (uSel)
+                         : "cc", "%eax");
+# else
+    __asm
+    {
+        lar     eax, [uSel]
+        jz      done
+        mov     eax, 0ffffffffh
+        done:
+        mov     [uAttr], eax
+    }
+# endif
+    return uAttr;
+}
+#endif
+
+
+/**
  * Get the [RE]FLAGS register.
  * @returns [RE]FLAGS.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
 DECLASM(RTCCUINTREG) ASMGetFlags(void);
 #else
 DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
@@ -369,6 +438,8 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
                          "popl  %0\n\t"
                          : "=r" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    uFlags = __readeflags();
 # else
     __asm
     {
@@ -390,7 +461,7 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
  * Set the [RE]FLAGS register.
  * @param   uFlags      The new [RE]FLAGS value.
  */
-#if RT_INLINE_ASM_EXTERNAL
+#if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
 DECLASM(void) ASMSetFlags(RTCCUINTREG uFlags);
 #else
 DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
@@ -405,6 +476,8 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
                          "popfl\n\t"
                          : : "g" (uFlags));
 #  endif
+# elif RT_INLINE_ASM_USES_INTRIN >= 15
+    __writeeflags(uFlags);
 # else
     __asm
     {
@@ -474,7 +547,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
                             "=b" (uRBX),
                             "=c" (uRCX),
                             "=d" (uRDX)
-             : "0" (uOperator));
+             : "0" (uOperator), "2" (0));
     *(uint32_t *)pvEAX = (uint32_t)uRAX;
     *(uint32_t *)pvEBX = (uint32_t)uRBX;
     *(uint32_t *)pvECX = (uint32_t)uRCX;
@@ -487,7 +560,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
                            "=r" (*(uint32_t *)pvEBX),
                            "=c" (*(uint32_t *)pvECX),
                            "=d" (*(uint32_t *)pvEDX)
-                         : "0" (uOperator));
+                         : "0" (uOperator), "2" (0));
 #  endif
 
 # elif RT_INLINE_ASM_USES_INTRIN
@@ -524,8 +597,8 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
 
 
 /**
- * Performs the cpuid instruction returning all registers.
- * Some subfunctions of cpuid take ECX as additional parameter (currently known for EAX=4)
+ * Performs the CPUID instruction with EAX and ECX input returning ALL output
+ * registers.
  *
  * @param   uOperator   CPUID operation (eax).
  * @param   uIdxECX     ecx index
@@ -535,7 +608,7 @@ DECLINLINE(void) ASMCpuId(uint32_t uOperator, void *pvEAX, void *pvEBX, void *pv
  * @param   pvEDX       Where to store edx.
  * @remark  We're using void pointers to ease the use of special bitfield structures and such.
  */
-#if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
+#if RT_INLINE_ASM_EXTERNAL || RT_INLINE_ASM_USES_INTRIN
 DECLASM(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
 #else
 DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX)
@@ -568,8 +641,7 @@ DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pv
 
 # elif RT_INLINE_ASM_USES_INTRIN
     int aInfo[4];
-    /* ??? another intrinsic ??? */
-    __cpuid(aInfo, uOperator);
+    __cpuidex(aInfo, uOperator, uIdxECX);
     *(uint32_t *)pvEAX = aInfo[0];
     *(uint32_t *)pvEBX = aInfo[1];
     *(uint32_t *)pvECX = aInfo[2];
@@ -599,6 +671,23 @@ DECLINLINE(void) ASMCpuId_Idx_ECX(uint32_t uOperator, uint32_t uIdxECX, void *pv
 # endif
 }
 #endif
+
+
+/**
+ * CPUID variant that initializes all 4 registers before the CPUID instruction.
+ *
+ * @returns The EAX result value.
+ * @param   uOperator   CPUID operation (eax).
+ * @param   uInitEBX    The value to assign EBX prior to the CPUID instruction.
+ * @param   uInitECX    The value to assign ECX prior to the CPUID instruction.
+ * @param   uInitEDX    The value to assign EDX prior to the CPUID instruction.
+ * @param   pvEAX       Where to store eax. Optional.
+ * @param   pvEBX       Where to store ebx. Optional.
+ * @param   pvECX       Where to store ecx. Optional.
+ * @param   pvEDX       Where to store edx. Optional.
+ */
+DECLASM(uint32_t) ASMCpuIdExSlow(uint32_t uOperator, uint32_t uInitEBX, uint32_t uInitECX, uint32_t uInitEDX,
+                                 void *pvEAX, void *pvEBX, void *pvECX, void *pvEDX);
 
 
 /**
@@ -979,7 +1068,7 @@ DECLINLINE(bool) ASMIsIntelCpu(void)
 
 
 /**
- * Tests if it a authentic AMD CPU based on the ASMCpuId(0) output.
+ * Tests if it an authentic AMD CPU based on the ASMCpuId(0) output.
  *
  * @returns true/false.
  * @param   uEBX    EBX return from ASMCpuId(0)
@@ -1005,6 +1094,71 @@ DECLINLINE(bool) ASMIsAmdCpu(void)
     uint32_t uEAX, uEBX, uECX, uEDX;
     ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
     return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Tests if it a centaur hauling VIA CPU based on the ASMCpuId(0) output.
+ *
+ * @returns true/false.
+ * @param   uEBX    EBX return from ASMCpuId(0).
+ * @param   uECX    ECX return from ASMCpuId(0).
+ * @param   uEDX    EDX return from ASMCpuId(0).
+ */
+DECLINLINE(bool) ASMIsViaCentaurCpuEx(uint32_t uEBX, uint32_t uECX, uint32_t uEDX)
+{
+    return uEBX == UINT32_C(0x746e6543)
+        && uECX == UINT32_C(0x736c7561)
+        && uEDX == UINT32_C(0x48727561);
+}
+
+
+/**
+ * Tests if this is a centaur hauling VIA CPU.
+ *
+ * @returns true/false.
+ * @remarks ASSUMES that cpuid is supported by the CPU.
+ */
+DECLINLINE(bool) ASMIsViaCentaurCpu(void)
+{
+    uint32_t uEAX, uEBX, uECX, uEDX;
+    ASMCpuId(0, &uEAX, &uEBX, &uECX, &uEDX);
+    return ASMIsAmdCpuEx(uEBX, uECX, uEDX);
+}
+
+
+/**
+ * Checks whether ASMCpuId_EAX(0x00000000) indicates a valid range.
+ *
+ *
+ * @returns true/false.
+ * @param   uEAX    The EAX value of CPUID leaf 0x00000000.
+ *
+ * @note    This only succeeds if there are at least two leaves in the range.
+ * @remarks The upper range limit is just some half reasonable value we've
+ *          picked out of thin air.
+ */
+DECLINLINE(bool) ASMIsValidStdRange(uint32_t uEAX)
+{
+    return uEAX >= UINT32_C(0x00000001) && uEAX <= UINT32_C(0x000fffff);
+}
+
+
+/**
+ * Checks whether ASMCpuId_EAX(0x80000000) indicates a valid range.
+ *
+ * This only succeeds if there are at least two leaves in the range.
+ *
+ * @returns true/false.
+ * @param   uEAX    The EAX value of CPUID leaf 0x80000000.
+ *
+ * @note    This only succeeds if there are at least two leaves in the range.
+ * @remarks The upper range limit is just some half reasonable value we've
+ *          picked out of thin air.
+ */
+DECLINLINE(bool) ASMIsValidExtRange(uint32_t uEAX)
+{
+    return uEAX >= UINT32_C(0x80000001) && uEAX <= UINT32_C(0x800fffff);
 }
 
 
@@ -1609,6 +1763,82 @@ DECLINLINE(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val)
 # endif
 }
 #endif
+
+
+/**
+ * Reads a machine specific register, extended version (for AMD).
+ *
+ * @returns Register content.
+ * @param   uRegister   Register to read.
+ * @param   uXDI        RDI/EDI value.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI);
+#else
+DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTREG uXDI)
+{
+    RTUINT64U u;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("rdmsr\n\t"
+                         : "=a" (u.s.Lo),
+                           "=d" (u.s.Hi)
+                         : "c" (uRegister),
+                           "D" (uXDI));
+
+# else
+    __asm
+    {
+        mov     ecx, [uRegister]
+        xchg    edi, [uXDI]
+        rdmsr
+        mov     [u.s.Lo], eax
+        mov     [u.s.Hi], edx
+        xchg    edi, [uXDI]
+    }
+# endif
+
+    return u.u;
+}
+#endif
+
+
+/**
+ * Writes a machine specific register, extended version (for AMD).
+ *
+ * @returns Register content.
+ * @param   uRegister   Register to write to.
+ * @param   uXDI        RDI/EDI value.
+ * @param   u64Val      Value to write.
+ */
+#if RT_INLINE_ASM_EXTERNAL
+DECLASM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val);
+#else
+DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTREG uXDI, uint64_t u64Val)
+{
+    RTUINT64U u;
+
+    u.u = u64Val;
+# if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__("wrmsr\n\t"
+                         ::"a" (u.s.Lo),
+                           "d" (u.s.Hi),
+                           "c" (uRegister),
+                           "D" (uXDI));
+
+# else
+    __asm
+    {
+        mov     ecx, [uRegister]
+        xchg    edi, [uXDI]
+        mov     edx, [u.s.Hi]
+        mov     eax, [u.s.Lo]
+        wrmsr
+        xchg    edi, [uXDI]
+    }
+# endif
+}
+#endif
+
 
 
 /**

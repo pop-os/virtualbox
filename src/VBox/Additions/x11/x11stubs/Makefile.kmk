@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2009 Oracle Corporation
+# Copyright (C) 2009-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@ include $(KBUILD_PATH)/subheader.kmk
 # libXcomposite import library.
 #
 IMPORT_LIBS += libXcomposite
-libXcomposite_TEMPLATE   = VBOXR3
+libXcomposite_TEMPLATE   = VBoxGuestR3Dll
 libXcomposite_INST       = $(INST_LIB)
 # This may need fixing later.
 libXcomposite_SONAME     = libXcomposite.so.1
@@ -33,7 +33,7 @@ libXcomposite_SOURCES    = libXcomposite-1.0.0/libXcomposite.c
 # libXdamage import library.
 #
 IMPORT_LIBS += libXdamage
-libXdamage_TEMPLATE   = VBOXR3
+libXdamage_TEMPLATE   = VBoxGuestR3Dll
 libXdamage_INST       = $(INST_LIB)
 # This may need fixing later.
 libXdamage_SONAME     = libXdamage.so.1
@@ -43,7 +43,7 @@ libXdamage_SOURCES    = libXdamage-1.1.0/libXdamage.c
 # libXfixes import library.
 #
 IMPORT_LIBS += libXfixes
-libXfixes_TEMPLATE   = VBOXR3
+libXfixes_TEMPLATE   = VBoxGuestR3Dll
 libXfixes_INST       = $(INST_LIB)
 # This may need fixing later.
 libXfixes_SONAME.linux      = libXfixes.so.3
@@ -54,12 +54,12 @@ libXfixes_SOURCES    = libXfixes-3.1.0/libXfixes.c
 # libXfixes import library.
 #
 IMPORT_LIBS += libXext
-libXext_TEMPLATE   = VBOXR3
+libXext_TEMPLATE   = VBoxGuestR3Dll
 libXext_INST       = $(INST_LIB)
 # This may need fixing later.
 libXext_SONAME.linux       = libXext.so.6
 libXext_SONAME.solaris     = libXext.so.0
 libXext_SOURCES    = libXext-6.4.0/libXext.c
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

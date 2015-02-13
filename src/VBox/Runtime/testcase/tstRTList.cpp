@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -108,7 +108,7 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
     RTTestISubF("Creating and moving - %u elements", cElements);
     Assert(cElements > 0);
 
-    RTLISTNODE ListHead;
+    RTLISTANCHOR ListHead;
 
     RTListInit(&ListHead);
     RTTEST_CHECK(hTest, RTListIsEmpty(&ListHead) == true);
@@ -129,7 +129,7 @@ static void tstRTListCreate(RTTEST hTest, unsigned cElements)
     tstRTListOrder(hTest, &ListHead, cElements, 0, cElements-1, 1);
 
     /* Move the list to a new one. */
-    RTLISTNODE ListHeadNew;
+    RTLISTANCHOR ListHeadNew;
 
     RTListInit(&ListHeadNew);
     RTListMove(&ListHeadNew, &ListHead);

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 
 #include <VBox/HGSMI/HGSMI.h>
 #include <VBox/HGSMI/HGSMIChSetup.h>
+#include <VBox/VBoxVideo.h>
 
 #ifdef VBOX_XPDM_MINIPORT
 RT_C_DECLS_BEGIN
@@ -38,6 +39,8 @@ RT_C_DECLS_BEGIN
 # include "ntddvdeo.h"
 # include <Video.h>
 RT_C_DECLS_END
+#elif defined VBOX_GUESTR3XORGMOD
+# include <compiler.h>
 #else
 # include <iprt/asm-amd64-x86.h>
 #endif
@@ -123,6 +126,8 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUchar(RTIOPORT Port, uint8_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUchar((PUCHAR)Port, Value);
+#elif defined VBOX_GUESTR3XORGMOD
+    outb(Port, Value);
 #else  /** @todo make these explicit */
     ASMOutU8(Port, Value);
 #endif
@@ -133,6 +138,8 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUshort(RTIOPORT Port, uint16_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUshort((PUSHORT)Port,Value);
+#elif defined VBOX_GUESTR3XORGMOD
+    outw(Port, Value);
 #else
     ASMOutU16(Port, Value);
 #endif
@@ -143,6 +150,8 @@ DECLINLINE(void) VBoxVideoCmnPortWriteUlong(RTIOPORT Port, uint32_t Value)
 {
 #ifdef VBOX_XPDM_MINIPORT
     VideoPortWritePortUlong((PULONG)Port,Value);
+#elif defined VBOX_GUESTR3XORGMOD
+    outl(Port, Value);
 #else
     ASMOutU32(Port, Value);
 #endif
@@ -153,6 +162,8 @@ DECLINLINE(uint8_t) VBoxVideoCmnPortReadUchar(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUchar((PUCHAR)Port);
+#elif defined VBOX_GUESTR3XORGMOD
+    return inb(Port);
 #else
     return ASMInU8(Port);
 #endif
@@ -163,6 +174,8 @@ DECLINLINE(uint16_t) VBoxVideoCmnPortReadUshort(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUshort((PUSHORT)Port);
+#elif defined VBOX_GUESTR3XORGMOD
+    return inw(Port);
 #else
     return ASMInU16(Port);
 #endif
@@ -173,6 +186,8 @@ DECLINLINE(uint32_t) VBoxVideoCmnPortReadUlong(RTIOPORT Port)
 {
 #ifdef VBOX_XPDM_MINIPORT
     return VideoPortReadPortUlong((PULONG)Port);
+#elif defined VBOX_GUESTR3XORGMOD
+    return inl(Port);
 #else
     return ASMInU32(Port);
 #endif
@@ -207,6 +222,8 @@ RTDECL(void)     VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
                                              uint32_t *poffGuestHeapMemory,
                                              uint32_t *pcbGuestHeapMemory,
                                              uint32_t *poffHostFlags);
+RTDECL(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                       uint32_t fCaps);
 /** @todo we should provide a cleanup function too as part of the API */
 RTDECL(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                             void *pvGuestHeapMemory,
@@ -230,7 +247,7 @@ RTDECL(int)      VBoxHGSMISendHostCtxInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                           uint32_t cbHostArea);
 RTDECL(int)      VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                     uint32_t u32Index, uint32_t *pulValue);
-RTDECL(bool)     VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+RTDECL(int)      VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t fFlags,
                                              uint32_t cHotX,
                                              uint32_t cHotY,
@@ -238,6 +255,8 @@ RTDECL(bool)     VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cHeight,
                                              uint8_t *pPixels,
                                              uint32_t cbLength);
+RTDECL(int)      VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReportPosition, uint32_t x, uint32_t y,
+                                         uint32_t *pxHost, uint32_t *pyHost);
 
 /** @}  */
 
@@ -310,6 +329,10 @@ RTDECL(void)     VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cHeight,
                                              uint16_t cBPP,
                                              uint16_t fFlags);
+RTDECL(int)      VBoxHGSMIUpdateInputMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx, int32_t  cOriginX, int32_t  cOriginY,
+                                             uint32_t cWidth, uint32_t cHeight);
+RTDECL(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                  unsigned cScreens, VBVAMODEHINT *paHints);
 
 /** @}  */
 

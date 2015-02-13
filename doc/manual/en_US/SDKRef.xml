@@ -307,8 +307,8 @@
       other words, if the web service is run under the user account of
       <computeroutput>user1</computeroutput>, it will see and manipulate the
       virtual machines and other data represented by the VirtualBox data of
-      that user (e.g., on a Linux machine, under
-      <computeroutput>/home/user1/.VirtualBox</computeroutput>; see the
+      that user (for example, on a Linux machine, under
+      <computeroutput>/home/user1/.config/VirtualBox</computeroutput>; see the
       VirtualBox User Manual for details on where this data is stored).</para>
 
       <sect2 id="vboxwebsrv-ref">
@@ -789,8 +789,8 @@
             <para>See <ulink
             url="http://sourceforge.net/project/showfiles.php?group_id=78018">http://sourceforge.net/project/showfiles.php?group_id=78018</ulink>.</para>
           </footnote> is installed. Version of Python Win32 extensions earlier than 2.16 are known to have bugs,
-          leading to issues with VirtualBox Python bindings, and also some early builds of Python 2.5 for Windows have issues with 
-          reporting platform name on some Windows versions, so please make sure to use latest available Python 
+          leading to issues with VirtualBox Python bindings, and also some early builds of Python 2.5 for Windows have issues with
+          reporting platform name on some Windows versions, so please make sure to use latest available Python
           and Win32 extensions.</para>
 
         <para>The VirtualBox OOWS for Python relies on the Python ZSI SOAP
@@ -1542,7 +1542,7 @@ for m in mgr.getArray(vbox, 'machines'):
 print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
         </screen>
 
-        <para>Code above demonstartes cross-platform access to array properties
+        <para>Code above demonstrates cross-platform access to array properties
         (certain limitations prevent one from using
         <computeroutput>vbox.machines</computeroutput> to access a list of
         available virtual machines in case of XPCOM), and a mechanism of
@@ -1718,157 +1718,210 @@ print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
       </sect2>
 
       <sect2 id="cbinding">
-        <title>C binding to XPCOM API</title>
+        <title>C binding to VirtualBox API</title>
 
-        <note>
-          <para>This section currently applies to Linux hosts only.</para>
-        </note>
+        <para>The VirtualBox API originally is designed as object oriented,
+        using XPCOM or COM as the middleware, which translates natively to C++.
+        This means that in order to use it from C there needs to be some
+        helper code to bridge the language differences and reduce the
+        differences between platforms.</para>
 
-        <para>Starting with version 2.2, VirtualBox offers a C binding for the
-        XPCOM API.</para>
+        <sect3 id="capi_glue">
+          <title>Cross-platform C binding to VirtualBox API</title>
 
-        <para>The C binding provides a layer enabling object creation, method
-        invocation and attribute access from C.</para>
+            <para>Starting with version 4.3, VirtualBox offers a C binding
+            which allows using the same C client sources for all platforms,
+            covering Windows, Linux, Mac OS X and Solaris. It is the
+            preferred way to write API clients, even though the old style
+            is still available.</para>
+
+        </sect3>
 
         <sect3 id="c-gettingstarted">
           <title>Getting started</title>
 
-          <para>The following sections describe how to use the C binding in a
-          C program.</para>
+          <para>The following sections describe how to use the VirtualBox API
+          in a C program. The necessary files are included in the SDK, in the
+          directories <computeroutput>sdk/bindings/c/include</computeroutput>
+          and <computeroutput>sdk/bindings/c/glue</computeroutput>.</para>
 
-          <para>For Linux, a sample program is provided which demonstrates use
-          of the C binding to initialize XPCOM, get handles for VirtualBox and
-          Session objects, make calls to list and start virtual machines, and
-          uninitialize resources when done. The program uses the VBoxGlue
-          library to open the C binding layer during runtime.</para>
+          <para>As part of the SDK, a sample program
+          <computeroutput>tstCAPIGlue.c</computeroutput> is provided in the
+          directory <computeroutput>sdk/bindings/c/samples</computeroutput>
+          which demonstrates
+          using the C binding to initialize the API, get handles for
+          VirtualBox and Session objects, make calls to list and start virtual
+          machines, monitor events, and uninitialize resources when done. The
+          sample program is trying to illustrate all relevant concepts, so it
+          is a great source of detail information. Among many other generally
+          useful code sequences it contains a function which shows how to
+          retrieve error details in C code if they are available from the API
+          call.</para>
 
-          <para>The sample program
-          <computeroutput>tstXPCOMCGlue</computeroutput> is located in the bin
-          directory and can be run without arguments. It lists registered
-          machines on the host along with some additional information and ask
-          for a machine to start. The source for this program is available in
-          <computeroutput>sdk/bindings/xpcom/cbinding/samples/</computeroutput>
-          directory. The source for the VBoxGlue library is available in the
-          <computeroutput>sdk/bindings/xpcom/cbinding/</computeroutput>
-          directory.</para>
+          <para>The sample program <computeroutput>tstCAPIGlue</computeroutput>
+          can be built using the provided <computeroutput>Makefile</computeroutput>
+          and can be run without arguments.</para>
+          
+          <para>It uses the VBoxCAPIGlue library (source code is in directory
+          <computeroutput>sdk/bindings/c/glue</computeroutput>, to be used in
+          your API client code) to open the C binding layer during runtime,
+          which is preferred to other means as it isolates the code which
+          locates the necessary dynamic library, using a known working way
+          which works on all platforms. If you encounter problems with this
+          glue code in <computeroutput>VBoxCAPIGlue.c</computeroutput>, let the
+          VirtualBox developers know, rather than inventing incompatible
+          solutions.</para>
+
+          <para>The following sections document the important concepts needed
+          to correctly use the C binding, as it is vital for developing API
+          client code which manages memory correctly, updates the reference
+          counters correctly, avoiding crashes and memory leaks. Often API
+          clients need to handle events, so the C API specifics are also
+          described below.</para>
         </sect3>
 
         <sect3 id="c-initialization">
-          <title>XPCOM initialization</title>
+          <title>VirtualBox C API initialization</title>
 
-          <para>Just like in C++, XPCOM needs to be initialized before it can
-          be used. The <computeroutput>VBoxCAPI_v2_5.h</computeroutput> header
-          provides the interface to the C binding. Here's how to initialize
-          XPCOM:</para>
-
-          <screen>#include "VBoxCAPI_v2_5.h"
+          <para>Just like in C++, the API and the underlying middleware needs
+          to be initialized before it can be used. The
+          <computeroutput>VBoxCAPI_v4_3.h</computeroutput> header provides the
+          interface to the C binding, but you can alternatively and more
+          conveniently also include <computeroutput>VBoxCAPIGlue.h</computeroutput>,
+          as this avoids the VirtualBox version dependent header file name and
+          makes sure the global variable <code>g_pVBoxFuncs</code> contains a
+          pointer to the structure which contains the helper function pointers.
+          Here's how to initialize the C API:<screen>#include "VBoxCAPIGlue.h"
 ...
-PCVBOXXPCOM g_pVBoxFuncs = NULL;
-IVirtualBox *vbox        = NULL;
-ISession *session        = NULL;
+IVirtualBoxClient *vboxclient   = NULL;
+IVirtualBox *vbox               = NULL;
+ISession *session               = NULL;
+HRESULT rc;
+ULONG revision;
 
 /*
- * VBoxGetXPCOMCFunctions() is the only function exported by
- * VBoxXPCOMC.so and the only one needed to make virtualbox
- * work with C. This functions gives you the pointer to the
- * function table (g_pVBoxFuncs).
+ * VBoxCGlueInit() loads the necessary dynamic library, handles errors
+ * (producing an error message hinting what went wrong) and gives you
+ * the pointer to the function table (g_pVBoxFuncs).
  *
  * Once you get the function table, then how and which functions
  * to use is explained below.
  *
- * g_pVBoxFuncs-&gt;pfnComInitialize does all the necessary startup
- * action and provides us with pointers to vbox and session handles.
- * It should be matched by a call to g_pVBoxFuncs-&gt;pfnComUninitialize()
+ * g_pVBoxFuncs-&gt;pfnClientInitialize does all the necessary startup
+ * action and provides us with pointers to an IVirtualBoxClient instance.
+ * It should be matched by a call to g_pVBoxFuncs-&gt;pfnClientUninitialize()
  * when done.
  */
 
-g_pVBoxFuncs = VBoxGetXPCOMCFunctions(VBOX_XPCOMC_VERSION);
-g_pVBoxFuncs-&gt;pfnComInitialize(&amp;vbox, &amp;session);</screen>
+if (VBoxCGlueInit())
+{
+    fprintf(stderr, "s: FATAL: VBoxCGlueInit failed: %s\n",
+            argv[0], g_szVBoxErrMsg);
+    return EXIT_FAILURE;
+}
+    
+g_pVBoxFuncs-&gt;pfnClientInitialize(NULL, &amp;vboxclient);
+if (!vboxclient)
+{
+    fprintf(stderr, "%s: FATAL: could not get VirtualBoxClient reference\n",
+            argv[0]);
+    return EXIT_FAILURE;
+}</screen></para>
 
-          <para>If either <computeroutput>vbox</computeroutput> or
-          <computeroutput>session</computeroutput> is still
-          <computeroutput>NULL</computeroutput>, initialization failed and the
-          XPCOM API cannot be used.</para>
+          <para>If <computeroutput>vboxclient</computeroutput> is still
+          <computeroutput>NULL</computeroutput> this means the initializationi
+          failed and the VirtualBox C API cannot be used.</para>
+
+          <para>It is possible to write C applications using multiple threads
+          which all use the VirtualBox API, as long as you're initializing
+          the C API in each thread which your application creates. This is done
+          with <code>g_pVBoxFuncs->pfnClientThreadInitialize()</code> and
+          likewise before the thread is terminated the API must be
+          uninitialized with
+          <code>g_pVBoxFuncs->pfnClientThreadUninitialize()</code>. You don't
+          have to use these functions in worker threads created by COM/XPCOM
+          (which you might observe if your code uses active event handling),
+          everything is initialized correctly already. On Windows the C
+          bindings create a marshaller which supports a wide range of COM
+          threading models, from STA to MTA, so you don't have to worry about
+          these details unless you plan to use active event handlers. See
+          the sample code how to get this to work reliably (in other words
+          think twice if passive event handling isn't the better solution after
+          you looked at the sample code).</para>
         </sect3>
 
         <sect3 id="c-invocation">
-          <title>XPCOM method invocation</title>
+          <title>C API attribute and method invocation</title>
 
           <para>Method invocation is straightforward. It looks pretty much
-          like the C++ way, augmented with an extra indirection due to
-          accessing the vtable and passing a pointer to the object as the
-          first argument to serve as the <computeroutput>this</computeroutput>
-          pointer.</para>
+          like the C++ way, by using a macro which internally accesses the
+          vtable, and additionally needs to be passed a pointer to the objecti
+          as the first argument to serve as the
+          <computeroutput>this</computeroutput> pointer.</para>
 
           <para>Using the C binding, all method invocations return a numeric
-          result code.</para>
+          result code of type <code>HRESULT</code> (with a few exceptions
+          which normally are not relevant).</para>
 
           <para>If an interface is specified as returning an object, a pointer
           to a pointer to the appropriate object must be passed as the last
           argument. The method will then store an object pointer in that
           location.</para>
 
-          <para>In other words, to call an object's method what you need
-          is</para>
+          <para>Likewise, attributes (properties) can be queried or set using
+          method invocations, using specially named methods. For each
+          attribute there exists a getter method, the name of which is composed
+          of <computeroutput>get_</computeroutput> followed by the capitalized
+          attribute name. Unless the attribute is read-only, an analogous
+          <computeroutput>set_</computeroutput> method exists. Let's apply
+          these rules to get the <computeroutput>IVirtualBox</computeroutput>
+          reference, an <computeroutput>ISession</computeroutput> instance 
+          reference and read the <xref linkend="IVirtualBox__revision"
+          xreflabel="IVirtualBox::revision" /> attribute:<screen>rc = IVirtualBoxClient_get_VirtualBox(vboxclient, &amp;vbox);
+if (FAILED(rc) || !vbox)
+{
+    PrintErrorInfo(argv[0], "FATAL: could not get VirtualBox reference", rc);
+    return EXIT_FAILURE;
+}
+rc = IVirtualBoxClient_get_Session(vboxclient, &amp;session);
+if (FAILED(rc) || !session)
+{
+    PrintErrorInfo(argv[0], "FATAL: could not get Session reference", rc);
+    return EXIT_FAILURE;
+}
 
-          <screen>IObject *object;
-nsresult rc;
+rc = IVirtualBox_get_Revision(vbox, &amp;revision);
+if (SUCCEEDED(rc))
+{
+    printf("Revision: %u\n", revision);
+}</screen></para>
+
+          <para>The convenience macros for calling a method are named by
+          prepending the method name with the interface name (using
+          <code>_</code>as the separator).</para>
+
+          <para>So far only attribute getters were illustrated, but generic
+          method calls are straightforward, too:<screen>IMachine *machine = NULL;
+BSTR vmname = ...;
 ...
 /*
- * Calling void IObject::method(arg, ...)
+ * Calling IMachine::findMachine(...)
  */
-rc = object-&gt;vtbl-&gt;Method(object, arg, ...);
+rc = IVirtualBox_FindMachine(vbox, vmname, &amp;machine);</screen></para>
 
-...
-IFoo *foo;
-/*
- * Calling IFoo IObject::method(arg, ...)
- */
-rc = object-&gt;vtbl-&gt;Method(object, args, ..., &amp;foo);</screen>
-
-          <para>As a real-world example of a method invocation, let's call
-          <xref linkend="IMachine__launchVMProcess"
+          <para>As a more complicated example of a method invocation, let's
+          call <xref linkend="IMachine__launchVMProcess"
           xreflabel="IMachine::launchVMProcess" /> which returns an
           IProgress object. Note again that the method name is
-          capitalized.</para>
-
-          <screen>IProgress *progress;
+          capitalized:<screen>IProgress *progress;
 ...
-rc = vbox-&gt;vtbl-&gt;LaunchVMProcess(
+rc = IMachine_LaunchVMProcess(
     machine,       /* this  */
     session,       /* arg 1 */
     sessionType,   /* arg 2 */
     env,           /* arg 3 */
     &amp;progress      /* Out   */
-);
-</screen>
-        </sect3>
-
-        <sect3 id="c-attributes">
-          <title>XPCOM attribute access</title>
-
-          <para>A construct similar to calling non-void methods is used to
-          access object attributes. For each attribute there exists a getter
-          method, the name of which is composed of
-          <computeroutput>Get</computeroutput> followed by the capitalized
-          attribute name. Unless the attribute is read-only, an analogous
-          <computeroutput>Set</computeroutput> method exists. Let's apply
-          these rules to read the <xref linkend="IVirtualBox__revision"
-          xreflabel="IVirtualBox::revision" /> attribute.</para>
-
-          <para>Using the <computeroutput>IVirtualBox</computeroutput> handle
-          <computeroutput>vbox</computeroutput> obtained above, calling its
-          <computeroutput>GetRevision</computeroutput> method looks like
-          this:</para>
-
-          <screen>PRUint32   rev;
-
-rc = vbox-&gt;vtbl-&gt;GetRevision(vbox, &amp;rev);
-if (NS_SUCCEEDED(rc))
-{
-    printf("Revision: %u\n", (unsigned)rev);
-}
-</screen>
+);</screen></para>
 
           <para>All objects with their methods and attributes are documented
           in <xref linkend="sdkref_classes" />.</para>
@@ -1880,65 +1933,173 @@ if (NS_SUCCEEDED(rc))
           <para>When dealing with strings you have to be aware of a string's
           encoding and ownership.</para>
 
-          <para>Internally, XPCOM uses UTF-16 encoded strings. A set of
+          <para>Internally, the API uses UTF-16 encoded strings. A set of
           conversion functions is provided to convert other encodings to and
           from UTF-16. The type of a UTF-16 character is
-          <computeroutput>PRUnichar</computeroutput>. Strings of UTF-16
-          characters are arrays of that type. Most string handling functions
-          take pointers to that type. Prototypes for the following conversion
-          functions are declared in
-          <computeroutput>VBoxCAPI_v2_5.h</computeroutput>.</para>
+          <computeroutput>BSTR</computeroutput> (or its constant counterpart
+          <computeroutput>CBSTR</computeroutput>), which is an array type,
+          represented by a pointer to the start of the zero-terminated string.
+          There are functions for converting between UTF-8 and UTF-16 strings
+          available through <code>g_pVBoxFuncs</code>:<screen>int (*pfnUtf16ToUtf8)(CBSTR pwszString, char **ppszString);
+int (*pfnUtf8ToUtf16)(const char *pszString, BSTR *ppwszString);</screen></para>
 
-          <sect4>
-            <title>Conversion of UTF-16 to and from UTF-8</title>
+          <para>The ownership of a string determines who is responsible for
+          releasing resources associated with the string. Whenever the API
+          creates a string (essentially for output parameters), ownership is
+          transferred to the caller. To avoid resource leaks, the caller
+          should release resources once the string is no longer needed.
+          There are plenty of examples in the sample code.</para>
+        </sect3>
 
-            <screen>int (*pfnUtf16ToUtf8)(const PRUnichar *pwszString, char **ppszString);
-int (*pfnUtf8ToUtf16)(const char *pszString, PRUnichar **ppwszString);
-</screen>
-          </sect4>
+        <sect3 id="c-safearray">
+          <title>Array handling</title>
 
-          <sect4>
-            <title>Ownership</title>
+          <para>Arrays are handled somewhat similarly to strings, with the
+          additional information of the number of elements in the array. The
+          exact details of string passing depends on the platform middleware
+          (COM/XPCOM), and therefore the C binding offers helper functions to
+          gloss over these differences.</para>
 
-            <para>The ownership of a string determines who is responsible for
-            releasing resources associated with the string. Whenever XPCOM
-            creates a string, ownership is transferred to the caller. To avoid
-            resource leaks, the caller should release resources once the
-            string is no longer needed.</para>
-          </sect4>
+          <para>Passing arrays as input parameters to API methods is usually
+          done by the following sequence, calling a hypothetical
+          <code>IArrayDemo_PassArray</code> API method:<screen>static const ULONG aElements[] = { 1, 2, 3, 4 };
+ULONG cElements = sizeof(aElements) / sizeof(aElements[0]);
+SAFEARRAY *psa = NULL;
+psa = g_pVBoxFuncs->pfnSafeArrayCreateVector(VT_I4, 0, cElements);
+g_pVBoxFuncs->pfnSafeArrayCopyInParamHelper(psa, aElements, sizeof(aElements));
+IArrayDemo_PassArray(pThis, ComSafeArrayAsInParam(psa));
+g_pVBoxFuncs->pfnSafeArrayDestroy(psa);</screen></para>
+
+          <para>Likewise, getting arrays results from output parameters is done
+          using helper functions which manage memory allocations as part of
+          their other functionality:<screen>SAFEARRAY *psa = g_pVBoxFuncs->pfnSafeArrayOutParamAlloc();
+ULONG *pData;
+ULONG cElements;
+IArrayDemo_ReturnArray(pThis, ComSafeArrayAsOutTypeParam(psa, ULONG));
+g_pVBoxFuncs->pfnSafeArrayCopyOutParamHelper((void **)&amp;pData, &amp;cElements, VT_I4, psa);
+g_pVBoxFuncs->pfnSafeArrayDestroy(psa);</screen></para>
+
+          <para>This covers the necessary functionality for all array element
+          types except interface references. These need special helpers to
+          manage the reference counting correctly. The following code snippet
+          gets the list of VMs, and passes the first IMachine reference to
+          another API function (assuming that there is at least one element
+          in the array, to simplify the example):<screen>SAFEARRAY psa = g_pVBoxFuncs->pfnSafeArrayOutParamAlloc();
+IMachine **machines = NULL;
+ULONG machineCnt = 0;
+ULONG i;
+IVirtualBox_get_Machines(virtualBox, ComSafeArrayAsOutIfaceParam(machinesSA, IMachine *));
+g_pVBoxFuncs->pfnSafeArrayCopyOutIfaceParamHelper((IUnknown ***)&amp;machines, &amp;machineCnt, machinesSA);
+g_pVBoxFuncs->pfnSafeArrayDestroy(machinesSA);
+/* Now "machines" contains the IMachine references, and machineCnt the
+ * number of elements in the array. */
+...
+SAFEARRAY *psa = g_pVBoxFuncs->pfnSafeArrayCreateVector(VT_IUNKNOWN, 0, 1);
+g_pVBoxFuncs->pfnSafeArrayCopyInParamHelper(psa, (void *)&amp;machines[0], sizeof(machines[0]));
+IVirtualBox_GetMachineStates(ComSafeArrayAsInParam(psa), ...);
+...
+g_pVBoxFuncs->pfnSafeArrayDestroy(psa);
+for (i = 0; i &lt; machineCnt; ++i)
+{
+    IMachine *machine = machines[i];
+    IMachine_Release(machine);
+}
+free(machines);</screen></para>
+
+          <para>Handling output parameters needs more special effort than
+          input parameters, thus only for the former there are special helpers,
+          and the latter is handled through the generic array support.</para>
+        </sect3>
+
+        <sect3 id="c-eventhandling">
+          <title>Event handling</title>
+
+          <para>The VirtualBox API offers two types of event handling, active
+          and passive, and consequently there is support for both with the
+          C API binding. Active event handling (based on asynchronous
+          callback invocation for event delivery) is more difficult, as it
+          requires the construction of valid C++ objects in C, which is
+          inherently platform and compiler dependent. Passive event handling
+          is much simpler, it relies on an event loop, fetching events and
+          triggering the necessary handlers explicitly in the API client code.
+          Both approaches depend on an event loop to make sure that events
+          get delivered in a timely manner, with differences what exactly needs
+          to be done.</para>
+
+          <para>The C API sample contains code for both event handling styles,
+          and one has to modify the appropriate <code>#define</code> to select
+          which style is actually used by the compiled program. It allows a
+          good comparison between the two variants, and the code sequences are
+          probably worth reusing without much change in other API clients
+          with only minor adaptions.</para>
+
+          <para>Active event handling needs to ensure that the following helper
+          function is called frequently enough in the primary thread:
+          <screen>g_pVBoxFuncs->pfnProcessEventQueue(cTimeoutMS);</screen></para>
+
+          <para>The actual event handler implementation is quite tedious, as
+          it has to implement a complete API interface. Especially on Windows
+          it is a lot of work to implement the complicated <code>IDispatch</code>
+          interface, requiring to load COM type information and using it
+          in the <code>IDispatch</code> method implementation. Overall this is
+          quite tedious compared to passive event handling.</para>
+
+          <para>Passive event handling uses a similar event loop structure,
+          which requires calling the following function in a loop, and
+          processing the returned event appropriately:
+          <screen>rc = IEventSource_GetEvent(pEventSource, pListener, cTimeoutMS, &amp;pEvent);</screen></para>
+
+          <para>After processing the event it needs to be marked as processed
+          with the following method call:
+          <screen>rc = IEventSource_EventProcessed(pEventSource, pListener, pEvent);</screen></para>
+
+          <para>This is vital for vetoable events, as they would be stuck
+          otherwise, waiting whether the veto comes or not. It does not do any
+          harm for other event types, and in the end is cheaper than checking
+          if the event at hand is vetoable or not.</para>
+
+          <para>The general event handling concepts are described in the API
+          specification (see <xref linkend="events" />), including how to
+          aggregate multiple event sources for processing in one event loop.
+          As mentioned, the sample illustrates the practical aspects of how to
+          use both types of event handling, active and passive, from a C
+          application. Additional hints are in the comments documenting
+          the helper methods in <computeroutput>VBoxCAPI_v4_3.h</computeroutput>.
+          The code complexity of active event handling (and its inherenly
+          platform/compiler specific aspects) should be motivation to use
+          passive event handling whereever possible.</para>
         </sect3>
 
         <sect3 id="c-uninitialization">
-          <title>XPCOM uninitialization</title>
+          <title>C API uninitialization</title>
 
           <para>Uninitialization is performed by
-          <computeroutput>g_pVBoxFuncs-&gt;pfnComUninitialize().</computeroutput>
+          <computeroutput>g_pVBoxFuncs-&gt;pfnClientUninitialize().</computeroutput>
           If your program can exit from more than one place, it is a good idea
           to install this function as an exit handler with Standard C's
           <computeroutput>atexit()</computeroutput> just after calling
-          <computeroutput>g_pVBoxFuncs-&gt;pfnComInitialize()</computeroutput>
+          <computeroutput>g_pVBoxFuncs-&gt;pfnClientInitialize()</computeroutput>
           , e.g. <screen>#include &lt;stdlib.h&gt;
 #include &lt;stdio.h&gt;
 
 ...
 
 /*
- * Make sure g_pVBoxFuncs-&gt;pfnComUninitialize() is called at exit, no
+ * Make sure g_pVBoxFuncs-&gt;pfnClientUninitialize() is called at exit, no
  * matter if we return from the initial call to main or call exit()
  * somewhere else. Note that atexit registered functions are not
  * called upon abnormal termination, i.e. when calling abort() or
- * signal(). Separate provisions must be taken for these cases.
+ * signal().
  */
 
-if (atexit(g_pVBoxFuncs-&gt;pfnComUninitialize()) != 0) {
-    fprintf(stderr, "failed to register g_pVBoxFuncs-&gt;pfnComUninitialize()\n");
+if (atexit(g_pVBoxFuncs-&gt;pfnClientUninitialize()) != 0) {
+    fprintf(stderr, "failed to register g_pVBoxFuncs-&gt;pfnClientUninitialize()\n");
     exit(EXIT_FAILURE);
-}
-</screen></para>
+}</screen></para>
 
           <para>Another idea would be to write your own <computeroutput>void
           myexit(int status)</computeroutput> function, calling
-          <computeroutput>g_pVBoxFuncs-&gt;pfnComUninitialize()</computeroutput>
+          <computeroutput>g_pVBoxFuncs-&gt;pfnClientUninitialize()</computeroutput>
           followed by the real <computeroutput>exit()</computeroutput>, and
           use it instead of <computeroutput>exit()</computeroutput> throughout
           your program and at the end of
@@ -1948,15 +2109,14 @@ if (atexit(g_pVBoxFuncs-&gt;pfnComUninitialize()) != 0) {
           user types CTRL-C sending SIGINT) you might want to install a signal
           handler setting a flag noting that a signal was sent and then
           calling
-          <computeroutput>g_pVBoxFuncs-&gt;pfnComUninitialize()</computeroutput>
-          later on (usually <emphasis>not</emphasis> from the handler itself
-          .)</para>
+          <computeroutput>g_pVBoxFuncs-&gt;pfnClientUninitialize()</computeroutput>
+          later on, <emphasis>not</emphasis> from the handler itself.</para>
 
           <para>That said, if a client program forgets to call
-          <computeroutput>g_pVBoxFuncs-&gt;pfnComUninitialize()</computeroutput>
+          <computeroutput>g_pVBoxFuncs-&gt;pfnClientUninitialize()</computeroutput>
           before it terminates, there is a mechanism in place which will
-          eventually release references held by the client. You should not
-          rely on this, however.</para>
+          eventually release references held by the client. On Windows it can
+          take quite a while, in the order of 6-7 minutes.</para>
         </sect3>
 
         <sect3 id="c-linking">
@@ -1964,27 +2124,101 @@ if (atexit(g_pVBoxFuncs-&gt;pfnComUninitialize()) != 0) {
 
           <para>A program using the C binding has to open the library during
           runtime using the help of glue code provided and as shown in the
-          example <computeroutput>tstXPCOMCGlue.c</computeroutput>.
-          Compilation and linking can be achieved, e.g., with a makefile
-          fragment similar to</para>
+          example <computeroutput>tstCAPIGlue.c</computeroutput>.
+          Compilation and linking can be achieved with a makefile fragment
+          similar to:<screen># Where is the SDK directory?
+PATH_SDK      = ../../..
+CAPI_INC      = -I$(PATH_SDK)/bindings/c/include
+ifeq ($(BUILD_PLATFORM),win)
+PLATFORM_INC  = -I$(PATH_SDK)/bindings/mscom/include
+PLATFORM_LIB  = $(PATH_SDK)/bindings/mscom/lib
+else
+PLATFORM_INC  = -I$(PATH_SDK)/bindings/xpcom/include
+PLATFORM_LIB  = $(PATH_SDK)/bindings/xpcom/lib
+endif
+GLUE_DIR      = $(PATH_SDK)/bindings/c/glue
+GLUE_INC      = -I$(GLUE_DIR)
 
-          <screen># Where is the XPCOM include directory?
-INCS_XPCOM    = -I../../include
-# Where is the glue code directory?
-GLUE_DIR      = ..
-GLUE_INC      = -I..
+# Compile Glue Library
+VBoxCAPIGlue.o: $(GLUE_DIR)/VBoxCAPIGlue.c
+    $(CC) $(CFLAGS) $(CAPI_INC) $(PLATFORM_INC) $(GLUE_INC) -o $@ -c $&lt;
 
-#Compile Glue Library
-VBoxXPCOMCGlue.o: $(GLUE_DIR)/VBoxXPCOMCGlue.c
-    $(CC) $(CFLAGS) $(INCS_XPCOM) $(GLUE_INC) -o $@ -c $&lt;
+# Compile interface ID list
+VirtualBox_i.o: $(PLATFORM_LIB)/VirtualBox_i.c
+    $(CC) $(CFLAGS) $(CAPI_INC) $(PLATFORM_INC) $(GLUE_INC) -o $@ -c $&lt;
 
-# Compile.
-program.o: program.c VBoxCAPI_v2_5.h
-    $(CC) $(CFLAGS) $(INCS_XPCOM) $(GLUE_INC) -o $@ -c $&lt;
+# Compile program code
+program.o: program.c
+    $(CC) $(CFLAGS) $(CAPI_INC) $(PLATFORM_INC) $(GLUE_INC) -o $@ -c $&lt;
 
-# Link.
-program: program.o VBoxXPCOMCGlue.o
-    $(CC) -o $@ $^ -ldl</screen>
+# Link program.
+program: program.o VBoxCAPICGlue.o VirtualBox_i.o
+    $(CC) -o $@ $^ -ldl -lpthread</screen></para>
+        </sect3>
+
+        <sect3 id="capi_conversion">
+          <title>Conversion of code using legacy C binding</title>
+
+          <para>This section aims to make the task of converting code using
+          the legacy C binding to the new style a breeze, by pointing out some
+          key steps.</para>
+
+          <para>One necessary change is adjusting your Makefile to reflect the
+          different include paths. See above. There are now 3 relevant include
+          directories, and most of it is pointing to the C binding directory.
+          The XPCOM include directory is still relevant for platforms where
+          the XPCOM middleware is used, but most of the include files live
+          elsewhere now, so it's good to have it last. Additionally the
+          <computeroutput>VirtualBox_i.c</computeroutput> file needs to be
+          compiled and linked to the program, it contains the IIDs relevant
+          for the VirtualBox API, making sure they are not replicated endlessly
+          if the code refers to them frequently.</para>
+
+          <para>The C API client code should include <computeroutput>VBoxCAPIGlue.h</computeroutput>
+          instead of <computeroutput>VBoxXPCOMCGlue.h</computeroutput> or
+          <computeroutput>VBoxCAPI_v4_3.h</computeroutput>, as this makes sure
+          the correct macros and internal translations are selected.</para>
+
+          <para>All API method calls (anything mentioning <code>vtbl</code>)
+          should be rewritten using the convenience macros for calling methods,
+          as these hide the internal details, are generally easier to use and
+          shorter to type. You should remove as many as possible
+          <code>(nsISupports **)</code> or similar typecasts, as the new style
+          should use the correct type in most places, increasing the type
+          safety in case of an error in the source code.</para>
+
+          <para>To gloss over the platform differences, API client code should
+          no longer rely on XPCOM specific interface names such as
+          <code>nsISupports</code>, <code>nsIException</code> and
+          <code>nsIEventQueue</code>, and replace them by the platform
+          independent interface names <code>IUnknown</code> and
+          <code>IErrorInfo</code> for the first two respectively. Event queue
+          handling should be replaced by using the platform independent way
+          described in <xref linkend="c-eventhandling" />.</para>
+
+          <para>Finally adjust the string and array handling to use the new
+          helpers, as these make sure the code works without changes with
+          both COM and XPCOM, which are significantly different in this area.
+          The code should be double checked if it uses the correct way to
+          manage memory, and is freeing it only after the last use.</para>
+        </sect3>
+
+        <sect3 id="xpcom_cbinding">
+          <title>Legacy C binding to VirtualBox API for XPCOM</title>
+
+          <note>
+            <para>This section applies to Linux, Mac OS X and Solaris
+            hosts only and describes deprecated use of the API from C.</para>
+          </note>
+
+          <para>Starting with version 2.2, VirtualBox offers a C binding for
+          its API which works only on platforms using XPCOM. Refer to the
+          old SDK documentation (included in the SDK packages for version 4.3.6
+          or earlier), it still applies unchanged. The fundamental concepts are
+          similar (but the syntactical details are quite different) to the
+          newer cross-platform C binding which should be used for all new code,
+          as the support for the old C binding will go away in a major release
+          after version 4.3.</para>
         </sect3>
       </sect2>
     </sect1>
@@ -2133,7 +2367,7 @@ if (prog.getResultCode() != 0)  // check success
       stopped, snapshotted or other things.</para>
     </sect1>
 
-    <sect1>
+    <sect1 id="events">
       <title>VirtualBox events</title>
 
       <para>In VirtualBox, "events" provide a uniform mechanism to register
@@ -2216,8 +2450,8 @@ es.unregisterListener(listener); </screen></para>
     three COM/XPCOM/WS styles of the API.</para>
 
     <para>You can easily extend this shell with your own commands. Create a
-    subdirectory named <computeroutput>.VirtualBox/shexts</computeroutput>
-    below your home directory and put a Python file implementing your shell
+    subdirectory named <computeroutput>.config/VirtualBox/shexts</computeroutput>
+    below your home directory (respectively <computeroutput>.VirtualBox/shexts</computeroutput> on a Windows system and <computeroutput>Library/VirtualBox/shexts</computeroutput> on OS X) and put a Python file implementing your shell
     extension commands in this directory. This file must contain an array
     named <computeroutput>commands</computeroutput> containing your command
     definitions: <screen>
@@ -2245,7 +2479,7 @@ es.unregisterListener(listener); </screen></para>
         # Call VirtualBox API, using context's fields
         hdd = ctx['vb'].createHardDisk(format, loc)
         # Access constants using ctx['global'].constants
-        progress = hdd.createBaseStorage(size, ctx['global'].constants.HardDiskVariant_Standard)
+        progress = hdd.createBaseStorage(size, (ctx['global'].constants.MediumVariant_Standard, ))
         # use standard progress bar mechanism
         ctx['progressBar'](progress)
 
@@ -2266,7 +2500,7 @@ es.unregisterListener(listener); </screen></para>
         }
       </screen> Just store the above text in the file
     <computeroutput>createHdd</computeroutput> (or any other meaningful name)
-    in <computeroutput>.VirtualBox/shexts/</computeroutput>. Start the
+    in <computeroutput>.config/VirtualBox/shexts/</computeroutput>. Start the
     VirtualBox shell, or just issue the
     <computeroutput>reloadExts</computeroutput> command, if the shell is
     already running. Your new command will now be available.</para>
@@ -3447,7 +3681,7 @@ AuthResult AUTHCALL AuthEntry(
       setup phase (see <computeroutput>ws</computeroutput> variable). In the
       SOAP case it's possible to create several VirtualBoxManager instances to
       communicate with multiple VirtualBox hosts. <programlisting>
-          import org.virtualbox_3_3.*;
+          import org.virtualbox_4_3.*;
           ....
           VirtualBoxManager mgr = VirtualBoxManager.createInstance(null);
           boolean ws = false; // or true, if we need the SOAP version
@@ -3472,7 +3706,8 @@ AuthResult AUTHCALL AuthEntry(
           mgr.cleanup();
         </programlisting> For more a complete example, see
       <computeroutput>TestVBox.java</computeroutput>, shipped with the
-      SDK.</para>
+      SDK. It contains exception handling and error printing code, which
+      is important for reliable larger scale projects.</para>
     </sect1>
   </chapter>
 
@@ -3523,6 +3758,507 @@ AuthResult AUTHCALL AuthEntry(
     interfaces and similar). In other words, the list does not contain new
     interfaces, methods or attributes or other changes that do not affect
     existing client code.</para>
+
+    <sect1>
+      <title>Incompatible API changes with version 4.3</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>The explicit medium locking methods 
+            <xref linkend="IMedium__lockRead" xreflabel="IMedium::lockRead()" />
+            and <xref linkend="IMedium__lockWrite" xreflabel="IMedium::lockWrite()" />
+            have been redesigned. They return a lock token object reference
+            now, and calling the <xref linkend="IToken__abandon"
+              xreflabel="IToken::abandon()" /> method (or letting the reference
+            count to this object drop to 0) will unlock it. This eliminates
+            the rather common problem that an API client crash left behind
+            locks, and also improves the safety (API clients can't release
+            locks they didn't obtain).</para>
+        </listitem>
+
+        <listitem>
+          <para>The parameter list of <xref linkend="IAppliance__write"
+          xreflabel="IAppliance::write()" /> has been changed slightly, to
+          allow multiple flags to be passed.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IMachine::delete</computeroutput>
+          has been renamed to <xref linkend="IMachine__deleteConfig"
+          xreflabel="IMachine::deleteConfig()" />, to improve API client
+          binding compatibility.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IMachine::export</computeroutput>
+          has been renamed to <xref linkend="IMachine__exportTo"
+          xreflabel="IMachine::exportTo()" />, to improve API client binding
+          compatibility.</para>
+        </listitem>
+
+        <listitem>
+          <para>For <xref linkend="IMachine__launchVMProcess"
+          xreflabel="IMachine::launchVMProcess()"/> the meaning of the
+          <computeroutput>type</computeroutput> parameter has changed slightly.
+          Empty string now means that the per-VM or global default frontend
+          is launched. Most callers of this method should use the empty string
+          now, unless they really want to override the default and launch a
+          particular frontend.</para>
+        </listitem>
+
+        <listitem>
+          <para>Medium management APIs were changed as follows:<itemizedlist>
+
+            <listitem>
+              <para>The type of attribute
+              <xref linkend="IMedium__variant" xreflabel="IMedium::variant()"/>
+              changed from <computeroutput>unsigned long</computeroutput>
+              to <computeroutput>safe-array MediumVariant</computeroutput>.
+              It is an array of flags instead of a set of flags which were stored inside one variable.
+              </para>
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__cloneTo"
+              xreflabel="IMedium::cloneTo()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__createBaseStorage"
+              xreflabel="IMedium::createBaseStorage()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__createDiffStorage"
+              xreflabel="IMedium::createDiffStorage()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+
+            <listitem>
+              <para>The parameter list for <xref
+              linkend="IMedium__cloneToBase"
+              xreflabel="IMedium::cloneToBase()" /> was modified.</para>
+              The type of parameter variant was changed from unsigned long to safe-array MediumVariant.
+            </listitem>
+          </itemizedlist></para>
+        </listitem>
+
+        <listitem>
+          <para>The type of attribute
+          <xref linkend="IMediumFormat__capabilities"
+          xreflabel="IMediumFormat::capabilities()"/>
+          changed from <computeroutput>unsigned long</computeroutput>
+          to <computeroutput>safe-array MediumFormatCapabilities</computeroutput>.
+          It is an array of flags instead of a set of flags which were stored inside one variable.
+          </para>
+        </listitem>
+
+        <listitem>
+          <para>The attribute <xref linkend="IMedium__logicalSize"
+          xreflabel="IMedium::logicalSize()" /> now returns the logical
+          size of exactly this medium object (whether it is a base or diff
+          image). The old behavior was no longer acceptable, as each image
+          can have a different capacity.</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest control APIs - such as <xref linkend="IGuest"
+            xreflabel="IGuest" />, <xref linkend="IGuestSession"
+            xreflabel="IGuestSession" />, <xref linkend="IGuestProcess"
+            xreflabel="IGuestProcess" /> and so on - now emit own events to provide
+            clients much finer control and the ability to write own frontends for
+            guest operations. The event <xref linkend="IGuestSessionEvent"
+            xreflabel="IGuestSessionEvent" /> acts as an abstract base class
+            for all guest control events. Certain guest events contain a
+            <xref linkend="IVirtualBoxErrorInfo" xreflabel="IVirtualBoxErrorInfo" /> member
+            to provide more information in case of an error happened on the
+            guest side.</para>
+        </listitem>
+
+        <listitem>
+          <para>Guest control sessions on the guest started by <xref
+            linkend="IGuest__createSession" xreflabel="IGuest::createSession()" />
+            now are dedicated guest processes to provide more safety and performance
+            for certain operations. Also, the <xref linkend="IGuest__createSession"
+            xreflabel="IGuest::createSession()" /> call does not wait for the
+            guest session being created anymore due to the dedicated guest session
+            processes just mentioned. This also will enable webservice clients to
+            handle guest session creation more gracefully. To wait for a guest
+            session being started, use the newly added attribute <xref
+            linkend="IGuestSession__status" xreflabel="IGuestSession::status()" />
+            to query the current guest session status.</para>
+        </listitem>
+
+        <listitem>
+          <para>The <xref linkend="IGuestFile" xreflabel="IGuestFile" />
+            APIs are now implemented to provide native guest file access from
+            the host.</para>
+        </listitem>
+
+        <listitem>
+          <para>The parameter list for <xref
+          linkend="IGuest__updateGuestAdditions"
+          xreflabel="IMedium::updateGuestAdditions()" /> was modified.</para>
+          It now supports specifying optional command line arguments for the
+          Guest Additions installer performing the actual update on the guest.
+        </listitem>
+
+        <listitem>
+          <para>A new event <xref linkend="IGuestUserStateChangedEvent"
+          xreflabel="IGuestUserStateChangedEvent" /> was introduced to provide
+          guest user status updates to the host via event listeners. To use this
+          event there needs to be at least the 4.3 Guest Additions installed on
+          the guest. At the moment only the states "Idle" and "InUse" of the
+          <xref linkend="GuestUserState"
+          xreflabel="GuestUserState" /> enum are supported on
+          Windows guests, starting at Windows 2000 SP2.</para>
+        </listitem>
+
+        <listitem>
+          <para>
+            The attribute <xref linkend="IGuestSession__protocolVersion"
+            xreflabel="IGuestSession::protocolVersion"/> was added to provide a
+            convenient way to lookup the guest session's protocol version it
+            uses to communicate with the installed Guest Additions on the guest.
+            Older Guest Additions will set the protocol version to 1, whereas
+            Guest Additions 4.3 will set the protocol version to 2. This might
+            change in the future as new features arise.</para>
+        </listitem>
+
+        <listitem>
+          <para><computeroutput>IDisplay::getScreenResolution</computeroutput>
+          has been extended to return the display position in the guest.</para>
+        </listitem>
+
+        <listitem>
+          <para>
+            The <xref linkend="IUSBController" xreflabel="IUSBController"/>
+            class is not a singleton of <xref linkend="IMachine" xreflabel="IMachine"/>
+            anymore but <xref linkend="IMachine" xreflabel="IMachine"/> contains
+            a list of USB controllers present in the VM. The USB device filter
+            handling was moved to <xref linkend="IUSBDeviceFilters" xreflabel="IUSBDeviceFilters"/>.
+          </para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
+
+    <sect1>
+      <title>Incompatible API changes with version 4.2</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>Guest control APIs for executing guest processes, working with
+          guest files or directories have been moved to the newly introduced
+          <xref linkend="IGuestSession" xreflabel="IGuestSession" /> interface which
+          can be created by calling <xref linkend="IGuest__createSession"
+          xreflabel="IGuest::createSession()" />.</para>
+
+          <para>A guest session will act as a
+          guest user's impersonation so that the guest credentials only have to
+          be provided when creating a new guest session. There can be up to 32
+          guest sessions at once per VM, each session serving up to 2048 guest
+          processes running or files opened.</para>
+
+          <para>Instead of working with process or directory handles before
+          version 4.2, there now are the dedicated interfaces
+          <xref linkend="IGuestProcess" xreflabel="IGuestProcess" />,
+          <xref linkend="IGuestDirectory" xreflabel="IGuestDirectory" /> and
+          <xref linkend="IGuestFile" xreflabel="IGuestFile" />. To retrieve more
+          information of a file system object the new interface
+          <xref linkend="IGuestFsObjInfo" xreflabel="IGuestFsObjInfo" /> has been
+          introduced.</para>
+
+          <para>Even though the guest control API was changed it is backwards
+          compatible so that it can be used with older installed Guest
+          Additions. However, to use upcoming features like process termination
+          or waiting for input / output new Guest Additions must be installed when
+          these features got implemented.</para>
+
+          <para>The following limitations apply:
+            <itemizedlist>
+              <listitem><para>The <xref linkend="IGuestFile" xreflabel="IGuestFile" />
+                interface is not fully implemented yet.</para>
+              </listitem>
+              <listitem><para>The symbolic link APIs
+                <xref linkend="IGuestSession__symlinkCreate"
+                xreflabel="IGuestSession::symlinkCreate()" />,
+                <xref linkend="IGuestSession__symlinkExists"
+                xreflabel="IGuestSession::symlinkExists()" />,
+                <xref linkend="IGuestSession__symlinkRead"
+                xreflabel="IGuestSession::symlinkRead()" />,
+                <xref linkend="IGuestSession__symlinkRemoveDirectory"
+                xreflabel="IGuestSession::symlinkRemoveDirectory()" /> and
+                <xref linkend="IGuestSession__symlinkRemoveFile"
+                xreflabel="IGuestSession::symlinkRemoveFile()" /> are not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>The directory APIs
+                <xref linkend="IGuestSession__directoryRemove"
+                xreflabel="IGuestSession::directoryRemove()" />,
+                <xref linkend="IGuestSession__directoryRemoveRecursive"
+                xreflabel="IGuestSession::directoryRemoveRecursive()" />,
+                <xref linkend="IGuestSession__directoryRename"
+                xreflabel="IGuestSession::directoryRename()" /> and
+                <xref linkend="IGuestSession__directorySetACL"
+                xreflabel="IGuestSession::directorySetACL()" /> are not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>The temporary file creation API
+                <xref linkend="IGuestSession__fileCreateTemp"
+                xreflabel="IGuestSession::fileCreateTemp()" /> is not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>Guest process termination via
+                <xref linkend="IProcess__terminate"
+                xreflabel="IProcess::terminate()" /> is not
+                implemented yet.</para>
+              </listitem>
+              <listitem><para>Waiting for guest process output via
+                <xref linkend="ProcessWaitForFlag__StdOut" xreflabel="ProcessWaitForFlag::StdOut" />
+                and <xref linkend="ProcessWaitForFlag__StdErr" xreflabel="ProcessWaitForFlag::StdErr" />
+                is not implemented yet.</para><para>To wait for process output, <xref linkend="IProcess__read"
+                xreflabel="IProcess::read()" /> with appropriate flags still can be used to periodically
+                check for new output data to arrive. Note that <xref linkend="ProcessCreateFlag__WaitForStdOut"
+                xreflabel="ProcessCreateFlag::WaitForStdOut" /> and / or
+                <xref linkend="ProcessCreateFlag__WaitForStdErr" xreflabel="ProcessCreateFlag::WaitForStdErr" />
+                need to be specified when creating a guest process via <xref linkend="IGuestSession__processCreate"
+                xreflabel="IGuestSession::processCreate()" /> or <xref linkend="IGuestSession__processCreateEx"
+                xreflabel="IGuestSession::processCreateEx()" />.</para>
+              </listitem>
+              <listitem>
+                <para>ACL (Access Control List) handling in general is not implemented yet.</para>
+              </listitem>
+            </itemizedlist>
+          </para>
+        </listitem>
+
+        <listitem>
+          <para>The <xref linkend="LockType" xreflabel="LockType" />
+          enumeration now has an additional value <computeroutput>VM</computeroutput>
+          which tells <xref linkend="IMachine__lockMachine"
+          xreflabel="IMachine::lockMachine()" /> to create a full-blown
+          object structure for running a VM. This was the previous behavior
+          with <computeroutput>Write</computeroutput>, which now only creates
+          the minimal object structure to save time and resources (at the
+          moment the Console object is still created, but all sub-objects
+          such as Display, Keyboard, Mouse, Guest are not.</para>
+        </listitem>
+
+        <listitem>
+          <para>Machines can be put in groups (actually an array of groups).
+          The primary group affects the default placement of files belonging
+          to a VM. <xref linkend="IVirtualBox__createMachine"
+          xreflabel="IVirtualBox::createMachine()"/> and
+          <xref linkend="IVirtualBox__composeMachineFilename"
+          xreflabel="IVirtualBox::composeMachineFilename()"/> have been
+          adjusted accordingly, the former taking an array of groups as an
+          additional parameter and the latter taking a group as an additional
+          parameter. The create option handling has been changed for those two
+          methods, too.</para>
+        </listitem>
+
+        <listitem>
+          <para>The method IVirtualBox::findMedium() has been removed, since
+          it provides a subset of the functionality of <xref linkend="IVirtualBox__openMedium"
+          xreflabel="IVirtualBox::openMedium()" />.</para>
+        </listitem>
+
+        <listitem>
+          <para>The use of acronyms in API enumeration, interface, attribute
+          and method names has been made much more consistent, previously they
+          sometimes were lowercase and sometimes mixed case. They are now
+          consistently all caps:<table>
+          <title>Renamed identifiers in VirtualBox 4.2</title>
+
+          <tgroup cols="2" style="verywide">
+            <tbody>
+              <row>
+                <entry><emphasis role="bold">Old name</emphasis></entry>
+
+                <entry><emphasis role="bold">New name</emphasis></entry>
+              </row>
+              <row>
+                <entry>PointingHidType</entry>
+                <entry><xref linkend="PointingHIDType" xreflabel="PointingHIDType"/></entry>
+              </row>
+              <row>
+                <entry>KeyboardHidType</entry>
+                <entry><xref linkend="KeyboardHIDType" xreflabel="KeyboardHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IPciAddress</entry>
+                <entry><xref linkend="IPCIAddress" xreflabel="IPCIAddress"/></entry>
+              </row>
+              <row>
+                <entry>IPciDeviceAttachment</entry>
+                <entry><xref linkend="IPCIDeviceAttachment" xreflabel="IPCIDeviceAttachment"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::pointingHidType</entry>
+                <entry><xref linkend="IMachine__pointingHIDType" xreflabel="IMachine::pointingHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::keyboardHidType</entry>
+                <entry><xref linkend="IMachine__keyboardHIDType" xreflabel="IMachine::keyboardHIDType"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::hpetEnabled</entry>
+                <entry><xref linkend="IMachine__HPETEnabled" xreflabel="IMachine::HPETEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::sessionPid</entry>
+                <entry><xref linkend="IMachine__sessionPID" xreflabel="IMachine::sessionPID"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::ioCacheEnabled</entry>
+                <entry><xref linkend="IMachine__IOCacheEnabled" xreflabel="IMachine::IOCacheEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::ioCacheSize</entry>
+                <entry><xref linkend="IMachine__IOCacheSize" xreflabel="IMachine::IOCacheSize"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::pciDeviceAssignments</entry>
+                <entry><xref linkend="IMachine__PCIDeviceAssignments" xreflabel="IMachine::PCIDeviceAssignments"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::attachHostPciDevice()</entry>
+                <entry><xref linkend="IMachine__attachHostPCIDevice" xreflabel="IMachine::attachHostPCIDevice"/></entry>
+              </row>
+              <row>
+                <entry>IMachine::detachHostPciDevice()</entry>
+                <entry><xref linkend="IMachine__detachHostPCIDevice" xreflabel="IMachine::detachHostPCIDevice()"/></entry>
+              </row>
+              <row>
+                <entry>IConsole::attachedPciDevices</entry>
+                <entry><xref linkend="IConsole__attachedPCIDevices" xreflabel="IConsole::attachedPCIDevices"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::dhcpEnabled</entry>
+                <entry><xref linkend="IHostNetworkInterface__DHCPEnabled" xreflabel="IHostNetworkInterface::DHCPEnabled"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableStaticIpConfig()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableStaticIPConfig" xreflabel="IHostNetworkInterface::enableStaticIPConfig()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableStaticIpConfigV6()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableStaticIPConfigV6" xreflabel="IHostNetworkInterface::enableStaticIPConfigV6()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::enableDynamicIpConfig()</entry>
+                <entry><xref linkend="IHostNetworkInterface__enableDynamicIPConfig" xreflabel="IHostNetworkInterface::enableDynamicIPConfig()"/></entry>
+              </row>
+              <row>
+                <entry>IHostNetworkInterface::dhcpRediscover()</entry>
+                <entry><xref linkend="IHostNetworkInterface__DHCPRediscover" xreflabel="IHostNetworkInterface::DHCPRediscover()"/></entry>
+              </row>
+              <row>
+                <entry>IHost::Acceleration3DAvailable</entry>
+                <entry><xref linkend="IHost__acceleration3DAvailable" xreflabel="IHost::acceleration3DAvailable"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedPae</entry>
+                <entry><xref linkend="IGuestOSType__recommendedPAE" xreflabel="IGuestOSType::recommendedPAE"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedDvdStorageController</entry>
+                <entry><xref linkend="IGuestOSType__recommendedDVDStorageController" xreflabel="IGuestOSType::recommendedDVDStorageController"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedDvdStorageBus</entry>
+                <entry><xref linkend="IGuestOSType__recommendedDVDStorageBus" xreflabel="IGuestOSType::recommendedDVDStorageBus"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHdStorageController</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHDStorageController" xreflabel="IGuestOSType::recommendedHDStorageController"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHdStorageBus</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHDStorageBus" xreflabel="IGuestOSType::recommendedHDStorageBus"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsbHid</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSBHID" xreflabel="IGuestOSType::recommendedUSBHID"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedHpet</entry>
+                <entry><xref linkend="IGuestOSType__recommendedHPET" xreflabel="IGuestOSType::recommendedHPET"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsbTablet</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSBTablet" xreflabel="IGuestOSType::recommendedUSBTablet"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedRtcUseUtc</entry>
+                <entry><xref linkend="IGuestOSType__recommendedRTCUseUTC" xreflabel="IGuestOSType::recommendedRTCUseUTC"/></entry>
+              </row>
+              <row>
+                <entry>IGuestOSType::recommendedUsb</entry>
+                <entry><xref linkend="IGuestOSType__recommendedUSB" xreflabel="IGuestOSType::recommendedUSB"/></entry>
+              </row>
+              <row>
+                <entry>INetworkAdapter::natDriver</entry>
+                <entry><xref linkend="INetworkAdapter__NATEngine" xreflabel="INetworkAdapter::NATEngine"/></entry>
+              </row>
+              <row>
+                <entry>IUSBController::enabledEhci</entry>
+                <entry>IUSBController::enabledEHCI"</entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpPrefix</entry>
+                <entry><xref linkend="INATEngine__TFTPPrefix" xreflabel="INATEngine::TFTPPrefix"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpBootFile</entry>
+                <entry><xref linkend="INATEngine__TFTPBootFile" xreflabel="INATEngine::TFTPBootFile"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::tftpNextServer</entry>
+                <entry><xref linkend="INATEngine__TFTPNextServer" xreflabel="INATEngine::TFTPNextServer"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsPassDomain</entry>
+                <entry><xref linkend="INATEngine__DNSPassDomain" xreflabel="INATEngine::DNSPassDomain"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsProxy</entry>
+                <entry><xref linkend="INATEngine__DNSProxy" xreflabel="INATEngine::DNSProxy"/></entry>
+              </row>
+              <row>
+                <entry>INATEngine::dnsUseHostResolver</entry>
+                <entry><xref linkend="INATEngine__DNSUseHostResolver" xreflabel="INATEngine::DNSUseHostResolver"/></entry>
+              </row>
+              <row>
+                <entry>VBoxEventType::OnHostPciDevicePlug</entry>
+                <entry><xref linkend="VBoxEventType__OnHostPCIDevicePlug" xreflabel="VBoxEventType::OnHostPCIDevicePlug"/></entry>
+              </row>
+              <row>
+                <entry>ICPUChangedEvent::cpu</entry>
+                <entry><xref linkend="ICPUChangedEvent__CPU" xreflabel="ICPUChangedEvent::CPU"/></entry>
+              </row>
+              <row>
+                <entry>INATRedirectEvent::hostIp</entry>
+                <entry><xref linkend="INATRedirectEvent__hostIP" xreflabel="INATRedirectEvent::hostIP"/></entry>
+              </row>
+              <row>
+                <entry>INATRedirectEvent::guestIp</entry>
+                <entry><xref linkend="INATRedirectEvent__guestIP" xreflabel="INATRedirectEvent::guestIP"/></entry>
+              </row>
+              <row>
+                <entry>IHostPciDevicePlugEvent</entry>
+                <entry><xref linkend="IHostPCIDevicePlugEvent" xreflabel="IHostPCIDevicePlugEvent"/></entry>
+              </row>
+            </tbody>
+          </tgroup></table></para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
 
     <sect1>
       <title>Incompatible API changes with version 4.1</title>
@@ -3719,8 +4455,7 @@ AuthResult AUTHCALL AuthEntry(
                 <para>To reduce code duplication, the APIs
                 IVirtualBox::findHardDisk(), getHardDisk(), findDVDImage(),
                 getDVDImage(), findFloppyImage() and getFloppyImage() have all
-                been merged into <xref linkend="IVirtualBox__findMedium"
-                xreflabel="IVirtualBox::findMedium()" />, and
+                been merged into IVirtualBox::findMedium(), and
                 IVirtualBox::openHardDisk(), openDVDImage() and
                 openFloppyImage() have all been merged into <xref
                 linkend="IVirtualBox__openMedium"
@@ -3731,8 +4466,7 @@ AuthResult AUTHCALL AuthEntry(
                 <para>The rare use case of changing the UUID and parent UUID
                 of a medium previously handled by
                 <computeroutput>openHardDisk()</computeroutput> is now in a
-                separate <xref linkend="IMedium__setIDs"
-                xreflabel="IMedium::setIDs" /> method.</para>
+                separate IMedium::setIDs method.</para>
               </listitem>
 
               <listitem>
@@ -3782,6 +4516,16 @@ AuthResult AUTHCALL AuthEntry(
                 was replaced with <xref linkend="IMachine__unregister"
                 xreflabel="IMachine::unregister()" /> with additional
                 functionality for cleaning up machine files.</para>
+              </listitem>
+
+              <listitem>
+                <para><computeroutput>IMachine::deleteSettings</computeroutput>
+                has been replaced by IMachine::delete, which allows specifying
+                which disk images are to be deleted as part of the deletion,
+                and because it can take a while it also returns a
+                <computeroutput>IProgress</computeroutput> object reference,
+                so that the completion of the asynchronous activities can be
+                monitored.</para>
               </listitem>
 
               <listitem>
@@ -3844,8 +4588,8 @@ AuthResult AUTHCALL AuthEntry(
           <para>The appliance (OVF) APIs were enhanced as
           follows:<itemizedlist>
               <listitem>
-                <para><xref linkend="IMachine__export"
-                xreflabel="IMachine::export()" /> received an extra parameter
+                <para><computeroutput>IMachine::export</computeroutput>
+                received an extra parameter
                 <computeroutput>location</computeroutput>, which is used to
                 decide for the disk naming.</para>
               </listitem>
@@ -4154,7 +4898,7 @@ AuthResult AUTHCALL AuthEntry(
 
         <listitem>
           <para>Reading the <xref linkend="IMedium__state"
-          xreflabel="IMedium::state" xrefstyle="" /> attribute no longer
+          xreflabel="IMedium::state" /> attribute no longer
           automatically performs an accessibility check; a new method <xref
           linkend="IMedium__refreshState"
           xreflabel="IMedium::refreshState()" /> does this. The attribute only

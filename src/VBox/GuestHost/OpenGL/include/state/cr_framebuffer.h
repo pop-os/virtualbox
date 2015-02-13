@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,8 @@ typedef struct {
 #ifdef IN_GUEST
     GLenum                  status;
 #endif
+    /* bitfield representing the object usage. 1 means the object is used by the context with the given bitid */
+    CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
 } CRFramebufferObject;
 
 typedef struct {
@@ -56,6 +58,8 @@ typedef struct {
     GLsizei  width, height;
     GLenum   internalformat;
     GLuint   redBits, greenBits, blueBits, alphaBits, depthBits, stencilBits;
+    /* bitfield representing the object usage. 1 means the object is used by the context with the given bitid */
+    CRbitvalue             ctxUsage[CR_MAX_BITARRAY];
 } CRRenderbufferObject;
 
 typedef struct {
@@ -67,8 +71,8 @@ DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectInit(CRContext *ctx);
 DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDestroy(CRContext *ctx);
 DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectSwitch(CRContext *from, CRContext *to);
 
-DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDisableHW(CRContext *ctx);
-DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx);
+DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectDisableHW(CRContext *ctx, GLuint idDrawFBO, GLuint idReadFBO);
+DECLEXPORT(void) STATE_APIENTRY crStateFramebufferObjectReenableHW(CRContext *fromCtx, CRContext *toCtx, GLuint idDrawFBO, GLuint idReadFBO);
 
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetFramebufferHWID(GLuint id);
 DECLEXPORT(GLuint) STATE_APIENTRY crStateGetRenderbufferHWID(GLuint id);
@@ -88,6 +92,9 @@ DECLEXPORT(void) STATE_APIENTRY crStateGenerateMipmapEXT(GLenum target);
 
 DECLEXPORT(GLuint) STATE_APIENTRY crStateFBOHWIDtoID(GLuint hwid);
 DECLEXPORT(GLuint) STATE_APIENTRY crStateRBOHWIDtoID(GLuint hwid);
+
+DECLEXPORT(void) crStateRegFramebuffers(GLsizei n, GLuint *buffers);
+DECLEXPORT(void) crStateRegRenderbuffers(GLsizei n, GLuint *buffers);
 
 #ifdef IN_GUEST
 DECLEXPORT(GLenum) STATE_APIENTRY crStateCheckFramebufferStatusEXT(GLenum target);

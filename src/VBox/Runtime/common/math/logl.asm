@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2007 Oracle Corporation
+; Copyright (C) 2006-2010 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -31,14 +31,14 @@ BEGINCODE
 ;;
 ; compute the natural logarithm of lrd
 ; @returns st(0)
-; @param    lrd     [rbp + xS*2]
+; @param    lrd     [rbp + xCB*2]
 BEGINPROC RT_NOCRT(logl)
     push    xBP
     mov     xBP, xSP
     sub     xSP, 10h
 
     fldln2                              ; st0=log(2)
-    fld     tword [xBP + xS*2]          ; st1=log(2) st0=lrd
+    fld     tword [xBP + xCB*2]         ; st1=log(2) st0=lrd
     fld     st0                         ; st1=log(2) st0=lrd st0=lrd
     fsub    qword [.one xWrtRIP]        ; st2=log(2) st1=lrd st0=lrd-1.0
     fld     st0                         ; st3=log(2) st2=lrd st1=lrd-1.0 st0=lrd-1.0

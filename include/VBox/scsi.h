@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -90,6 +90,7 @@ typedef enum SCSICMD
     SCSI_SET_READ_AHEAD                 = 0xa7,
     SCSI_SET_STREAMING                  = 0xb6,
     SCSI_START_STOP_UNIT                = 0x1b,
+    SCSI_LOAD_UNLOAD                    = 0x1b,
     SCSI_STOP_PLAY_SCAN                 = 0x4e,
     /** Synchronize Cache command. */
     SCSI_SYNCHRONIZE_CACHE              = 0x35,
@@ -110,16 +111,23 @@ typedef enum SCSICMD
     SCSI_REPORT_DENSITY                 = 0x44,
     /** Rezero Unit command. Obsolete for ages now, but used by cdrecord. */
     SCSI_REZERO_UNIT                    = 0x01,
+    SCSI_REWIND                         = 0x01,
     SCSI_SERVICE_ACTION_IN_16           = 0x9e,
     SCSI_READ_16                        = 0x88,
     SCSI_WRITE_16                       = 0x8a,
     SCSI_READ_6                         = 0x08,
     SCSI_WRITE_6                        = 0x0a,
-    SCSI_LOG_SENSE                      = 0x4d
+    SCSI_LOG_SENSE                      = 0x4d,
+    SCSI_UNMAP                          = 0x42,
+    SCSI_RESERVE_6                      = 0x16,
+    SCSI_RELEASE_6                      = 0x17,
+    SCSI_RESERVE_10                     = 0x56,
+    SCSI_RELEASE_10                     = 0x57,
+    SCSI_READ_BLOCK_LIMITS              = 0x05
 } SCSICMD;
 
 /**
- * Service action in opcoe identifiers
+ * Service action in opcode identifiers
  */
 typedef enum SCSISVCACTIONIN
 {
@@ -175,20 +183,37 @@ typedef enum SCSISVCACTIONIN
 #define SCSI_SENSE_VOLUME_OVERFLOW  13
 #define SCSI_SENSE_MISCOMPARE       14
 
+/* Additional sense bit flags (to be ORed with sense key). */
+#define SCSI_SENSE_FLAG_FILEMARK    0x80
+#define SCSI_SENSE_FLAG_EOM         0x40
+#define SCSI_SENSE_FLAG_ILI         0x20
 
-/* additional sense keys */
-#define SCSI_ASC_NONE                               0x00
-#define SCSI_ASC_WRITE_ERROR                        0x0c
-#define SCSI_ASC_READ_ERROR                         0x11
-#define SCSI_ASC_ILLEGAL_OPCODE                     0x20
-#define SCSI_ASC_LOGICAL_BLOCK_OOR                  0x21
-#define SCSI_ASC_INV_FIELD_IN_CMD_PACKET            0x24
-#define SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED            0x28
-#define SCSI_ASC_MEDIUM_NOT_PRESENT                 0x3a
-#define SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED    0x39
-#define SCSI_ASC_INVALID_MESSAGE                    0x49
-#define SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED         0x53
+/* Additional sense keys */
+#define SCSI_ASC_NONE                                       0x00
+#define SCSI_ASC_WRITE_ERROR                                0x0c
+#define SCSI_ASC_READ_ERROR                                 0x11
+#define SCSI_ASC_ILLEGAL_OPCODE                             0x20
+#define SCSI_ASC_LOGICAL_BLOCK_OOR                          0x21
+#define SCSI_ASC_INV_FIELD_IN_CMD_PACKET                    0x24
+#define SCSI_ASC_WRITE_PROTECTED                            0x27
+#define SCSI_ASC_MEDIUM_MAY_HAVE_CHANGED                    0x28
+#define SCSI_ASC_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED   0x29
+#define SCSI_ASC_MEDIUM_NOT_PRESENT                         0x3a
+#define SCSI_ASC_SAVING_PARAMETERS_NOT_SUPPORTED            0x39
+#define SCSI_ASC_INVALID_MESSAGE                            0x49
+#define SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED                 0x53
 #define SCSI_ASC_LOGICAL_UNIT_DOES_NOT_RESPOND_TO_SELECTION 0x00
+#define SCSI_ASC_SYSTEM_RESOURCE_FAILURE                    0x55
+
+/** Additional sense code qualifiers (ASCQ). */
+/* NB: The ASC/ASCQ combination determines the full meaning. */
+#define SCSI_ASCQ_SYSTEM_BUFFER_FULL                        0x01
+#define SCSI_ASCQ_POWER_ON_RESET_BUS_DEVICE_RESET_OCCURRED  0x00
+#define SCSI_ASCQ_END_OF_DATA_DETECTED                      0x05
+#define SCSI_ASCQ_FILEMARK_DETECTED                         0x01
+#define SCSI_ASCQ_EOP_EOM_DETECTED                          0x02
+#define SCSI_ASCQ_SETMARK_DETECTED                          0x03
+#define SCSI_ASCQ_BOP_BOM_DETECTED                          0x04
 
 /** @name SCSI_INQUIRY
  * @{
@@ -262,6 +287,10 @@ typedef const SCSIINQUIRYDATA *PCSCSIINQUIRYDATA;
 const char * SCSICmdText(uint8_t uCmd);
 const char * SCSISenseText(uint8_t uSense);
 const char * SCSISenseExtText(uint8_t uASC, uint8_t uASCQ);
+int SCSILogModePage(char *pszBuf, size_t cchBuffer, uint8_t *pbModePage,
+                    size_t cbModePage);
+int SCSILogCueSheet(char *pszBuf, size_t cchBuffer, uint8_t *pbCueSheet,
+                    size_t cbCueSheet);
 #endif
 
 #endif

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,8 +69,7 @@ public:
     HRESULT init(VirtualBox *aVirtualBox,
                  const Utf8Str &aFormat,
                  const Utf8Str &aLocation,
-                 const Guid &uuidMachineRegistry,
-                 GuidList *pllRegistriesThatNeedSaving);
+                 const Guid &uuidMachineRegistry);
 
     // initializer for opening existing media
     // (VirtualBox::OpenMedium(); Machine::AttachDevice())
@@ -104,9 +103,8 @@ public:
     STDMETHOD(COMGETTER(Description))(BSTR *aDescription);
     STDMETHOD(COMSETTER(Description))(IN_BSTR aDescription);
     STDMETHOD(COMGETTER(State))(MediumState_T *aState);
-    STDMETHOD(COMGETTER(Variant))(ULONG *aVariant);
+    STDMETHOD(COMGETTER(Variant))(ComSafeArrayOut(MediumVariant_T, aVariant));
     STDMETHOD(COMGETTER(Location))(BSTR *aLocation);
-    STDMETHOD(COMSETTER(Location))(IN_BSTR aLocation);
     STDMETHOD(COMGETTER(Name))(BSTR *aName);
     STDMETHOD(COMGETTER(DeviceType))(DeviceType_T *aDeviceType);
     STDMETHOD(COMGETTER(HostDrive))(BOOL *aHostDrive);
@@ -127,15 +125,13 @@ public:
     STDMETHOD(COMGETTER(MachineIds))(ComSafeArrayOut(BSTR, aMachineIds));
 
     // IMedium methods
-    STDMETHOD(SetIDs)(BOOL aSetImageId, IN_BSTR aImageId,
+    STDMETHOD(SetIds)(BOOL aSetImageId, IN_BSTR aImageId,
                       BOOL aSetParentId, IN_BSTR aParentId);
     STDMETHOD(RefreshState)(MediumState_T *aState);
     STDMETHOD(GetSnapshotIds)(IN_BSTR aMachineId,
                               ComSafeArrayOut(BSTR, aSnapshotIds));
-    STDMETHOD(LockRead)(MediumState_T *aState);
-    STDMETHOD(UnlockRead)(MediumState_T *aState);
-    STDMETHOD(LockWrite)(MediumState_T *aState);
-    STDMETHOD(UnlockWrite)(MediumState_T *aState);
+    STDMETHOD(LockRead)(IToken **aToken);
+    STDMETHOD(LockWrite)(IToken **aToken);
     STDMETHOD(Close)();
     STDMETHOD(GetProperty)(IN_BSTR aName, BSTR *aValue);
     STDMETHOD(SetProperty)(IN_BSTR aName, IN_BSTR aValue);
@@ -145,15 +141,18 @@ public:
     STDMETHOD(SetProperties)(ComSafeArrayIn(IN_BSTR, aNames),
                              ComSafeArrayIn(IN_BSTR, aValues));
     STDMETHOD(CreateBaseStorage)(LONG64 aLogicalSize,
-                                 ULONG aVariant,
+                                 ComSafeArrayIn(MediumVariant_T, aVariant),
                                  IProgress **aProgress);
     STDMETHOD(DeleteStorage)(IProgress **aProgress);
     STDMETHOD(CreateDiffStorage)(IMedium *aTarget,
-                                 ULONG aVariant,
+                                 ComSafeArrayIn(MediumVariant_T, aVariant),
                                  IProgress **aProgress);
     STDMETHOD(MergeTo)(IMedium *aTarget, IProgress **aProgress);
-    STDMETHOD(CloneTo)(IMedium *aTarget, ULONG aVariant,
+    STDMETHOD(CloneTo)(IMedium *aTarget, ComSafeArrayIn(MediumVariant_T, aVariant),
                         IMedium *aParent, IProgress **aProgress);
+    STDMETHOD(CloneToBase)(IMedium *aTarget, ComSafeArrayIn(MediumVariant_T, aVariant),
+                           IProgress **aProgress);
+    STDMETHOD(SetLocation)(IN_BSTR aLocation, IProgress **aProgress);
     STDMETHOD(Compact)(IProgress **aProgress);
     STDMETHOD(Resize)(LONG64 aLogicalSize, IProgress **aProgress);
     STDMETHOD(Reset)(IProgress **aProgress);
@@ -182,12 +181,15 @@ public:
     bool removeRegistry(const Guid& id, bool fRecurse);
     bool isInRegistry(const Guid& id);
     bool getFirstRegistryMachineId(Guid &uuid) const;
-    HRESULT addToRegistryIDList(GuidList &llRegistryIDs);
+    void markRegistriesModified();
+
+    HRESULT setPropertyDirect(const Utf8Str &aName, const Utf8Str &aValue);
 
     HRESULT addBackReference(const Guid &aMachineId,
                              const Guid &aSnapshotId = Guid::Empty);
     HRESULT removeBackReference(const Guid &aMachineId,
                                 const Guid &aSnapshotId = Guid::Empty);
+
 
     const Guid* getFirstMachineBackrefId() const;
     const Guid* getAnyMachineBackref() const;
@@ -217,16 +219,20 @@ public:
                               MediumVariant_T aVariant,
                               MediumLockList *pMediumLockList,
                               ComObjPtr<Progress> *aProgress,
-                              bool aWait,
-                              GuidList *pllRegistriesThatNeedSaving);
+                              bool aWait);
     Utf8Str getPreferredDiffFormat();
 
-    HRESULT close(GuidList *pllRegistriesThatNeedSaving, AutoCaller &autoCaller);
-    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait, GuidList *pllRegistriesThatNeedSaving);
+    HRESULT close(AutoCaller &autoCaller);
+    HRESULT unlockRead(MediumState_T *aState);
+    HRESULT unlockWrite(MediumState_T *aState);
+    HRESULT deleteStorage(ComObjPtr<Progress> *aProgress, bool aWait);
     HRESULT markForDeletion();
     HRESULT unmarkForDeletion();
     HRESULT markLockedForDeletion();
     HRESULT unmarkLockedForDeletion();
+
+    HRESULT queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
+                                         bool &fMergeForward);
 
     HRESULT prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                            const Guid *aMachineId,
@@ -234,30 +240,29 @@ public:
                            bool fLockMedia,
                            bool &fMergeForward,
                            ComObjPtr<Medium> &pParentForTarget,
-                           MediaList &aChildrenToReparent,
+                           MediumLockList * &aChildrenToReparent,
                            MediumLockList * &aMediumLockList);
     HRESULT mergeTo(const ComObjPtr<Medium> &pTarget,
                     bool fMergeForward,
                     const ComObjPtr<Medium> &pParentForTarget,
-                    const MediaList &aChildrenToReparent,
+                    MediumLockList *aChildrenToReparent,
                     MediumLockList *aMediumLockList,
                     ComObjPtr<Progress> *aProgress,
-                    bool aWait,
-                    GuidList *pllRegistriesThatNeedSaving);
-    void cancelMergeTo(const MediaList &aChildrenToReparent,
+                    bool aWait);
+    void cancelMergeTo(MediumLockList *aChildrenToReparent,
                        MediumLockList *aMediumLockList);
 
-    HRESULT fixParentUuidOfChildren(const MediaList &childrenToReparent);
+    HRESULT fixParentUuidOfChildren(MediumLockList *pChildrenToReparent);
 
     HRESULT exportFile(const char *aFilename,
                        const ComObjPtr<MediumFormat> &aFormat,
                        MediumVariant_T aVariant,
-                       void *aVDImageIOCallbacks, void *aVDImageIOUser,
+                       PVDINTERFACEIO aVDImageIOIf, void *aVDImageIOUser,
                        const ComObjPtr<Progress> &aProgress);
     HRESULT importFile(const char *aFilename,
                        const ComObjPtr<MediumFormat> &aFormat,
                        MediumVariant_T aVariant,
-                       void *aVDImageIOCallbacks, void *aVDImageIOUser,
+                       PVDINTERFACEIO aVDImageIOIf, void *aVDImageIOUser,
                        const ComObjPtr<Medium> &aParent,
                        const ComObjPtr<Progress> &aProgress);
 
@@ -267,10 +272,10 @@ public:
 
 private:
 
-    HRESULT queryInfo(bool fSetImageId, bool fSetParentId);
+    HRESULT queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &autoCaller);
 
     HRESULT canClose();
-    HRESULT unregisterWithVirtualBox(GuidList *pllRegistriesThatNeedSaving);
+    HRESULT unregisterWithVirtualBox();
 
     HRESULT setStateError();
 
@@ -281,6 +286,8 @@ private:
     DeviceType_T convertToDeviceType(VDTYPE enmType);
 
     Utf8Str vdError(int aVRC);
+
+    bool    isPropertyForFilter(const com::Utf8Str &aName);
 
     static DECLCALLBACK(void) vdErrorCall(void *pvUser, int rc, RT_SRC_POS_DECL,
                                           const char *pszFormat, va_list va);
@@ -294,7 +301,8 @@ private:
 
     static DECLCALLBACK(int) vdTcpSocketCreate(uint32_t fFlags, PVDSOCKET pSock);
     static DECLCALLBACK(int) vdTcpSocketDestroy(VDSOCKET Sock);
-    static DECLCALLBACK(int) vdTcpClientConnect(VDSOCKET Sock, const char *pszAddress, uint32_t uPort);
+    static DECLCALLBACK(int) vdTcpClientConnect(VDSOCKET Sock, const char *pszAddress, uint32_t uPort,
+                                                RTMSINTERVAL cMillies);
     static DECLCALLBACK(int) vdTcpClientClose(VDSOCKET Sock);
     static DECLCALLBACK(bool) vdTcpIsClientConnected(VDSOCKET Sock);
     static DECLCALLBACK(int) vdTcpSelectOne(VDSOCKET Sock, RTMSINTERVAL cMillies);
@@ -330,7 +338,7 @@ private:
     friend class ImportTask;
 
     HRESULT startThread(Medium::Task *pTask);
-    HRESULT runNow(Medium::Task *pTask, GuidList *pllRegistriesThatNeedSaving);
+    HRESULT runNow(Medium::Task *pTask);
 
     HRESULT taskCreateBaseHandler(Medium::CreateBaseTask &task);
     HRESULT taskCreateDiffHandler(Medium::CreateDiffTask &task);

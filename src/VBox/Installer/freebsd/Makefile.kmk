@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2007 Oracle Corporation
+# Copyright (C) 2006-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -91,6 +91,7 @@ VBOX_FBSD_STRIP_BIN = \
 	$(if $(VBOX_WITH_SHARED_FOLDERS), VBoxSharedFolders.so,) \
 	$(if $(VBOX_WITH_GUEST_PROPS),VBoxGuestPropSvc.so,) \
 	$(if $(VBOX_WITH_GUEST_CONTROL),VBoxGuestControlSvc.so,) \
+	VBoxHostChannel.so \
 	$(if $(VBOX_WITH_MAIN), \
 		VBoxManage \
 		VBoxNetDHCP $(if $(VBOX_WITH_HARDENING),VBoxNetDHCP.so,) \
@@ -199,15 +200,6 @@ ifdef VBOX_WITH_HEADLESS
 	$(if $(VBOX_WITH_HARDENING),VBoxHeadless.so)
  VBOX_FBSD_SYMLINKS += \
 	VBoxHeadless
-endif
-
-# BFE
-ifdef VBOX_WITH_VBOXBFE
- VBOX_FBSD_STRIP_BIN += \
-	VBoxBFE \
-	$(if $(VBOX_WITH_HARDENING),VBoxBFE.so)
- VBOX_FBSD_SYMLINKS += \
-	VBoxBFE
 endif
 
 # Webservices
@@ -324,5 +316,5 @@ $(VBOX_FBSD_INST_OUT_DIR)/pkg_plist: \
 		--output $@ \
 		$<
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

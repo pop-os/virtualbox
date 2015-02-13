@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2011 Oracle Corporation
+ * Copyright (C) 2008-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,21 +19,23 @@
 #ifndef __UIMachineSettingsSystem_h__
 #define __UIMachineSettingsSystem_h__
 
-#include "COMDefs.h"
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsSystem.gen.h"
 
-/* Machine settings / System page / Boot item: */
+/* Machine settings / System page / Data / Boot item: */
 struct UIBootItemData
 {
-    /* Default constructor: */
+    /* Constructor: */
     UIBootItemData() : m_type(KDeviceType_Null), m_fEnabled(false) {}
+
     /* Operator==: */
     bool operator==(const UIBootItemData &other) const
     {
         return (m_type == other.m_type) &&
                (m_fEnabled == other.m_fEnabled);
     }
+
     /* Variables: */
     KDeviceType m_type;
     bool m_fEnabled;
@@ -42,136 +44,172 @@ struct UIBootItemData
 /* Machine settings / System page / Data: */
 struct UIDataSettingsMachineSystem
 {
-    /* Default constructor: */
+    /* Constructor: */
     UIDataSettingsMachineSystem()
-        : m_bootItems(QList<UIBootItemData>())
+        /* Support flags: */
+        : m_fSupportedPAE(false)
+        , m_fSupportedHwVirtEx(false)
+        /* Motherboard data: */
+        , m_iMemorySize(-1)
+        , m_bootItems(QList<UIBootItemData>())
         , m_chipsetType(KChipsetType_Null)
-        , m_fPFHwVirtExSupported(false)
-        , m_fPFPAESupported(false)
-        , m_fIoApicEnabled(false)
-        , m_fEFIEnabled(false)
-        , m_fUTCEnabled(false)
-        , m_fUseAbsHID(false)
-        , m_fPAEEnabled(false)
-        , m_fHwVirtExEnabled(false)
-        , m_fNestedPagingEnabled(false)
-        , m_iRAMSize(-1)
+        , m_pointingHIDType(KPointingHIDType_None)
+        , m_fEnabledIoApic(false)
+        , m_fEnabledEFI(false)
+        , m_fEnabledUTC(false)
+        /* CPU data: */
         , m_cCPUCount(-1)
-        , m_cCPUExecCap(-1) {}
+        , m_iCPUExecCap(-1)
+        , m_fEnabledPAE(false)
+        /* Acceleration data: */
+        , m_fEnabledHwVirtEx(false)
+        , m_fEnabledNestedPaging(false)
+    {}
+
     /* Functions: */
     bool equal(const UIDataSettingsMachineSystem &other) const
     {
-        return (m_bootItems == other.m_bootItems) &&
+        return /* Support flags: */
+               (m_fSupportedPAE == other.m_fSupportedPAE) &&
+               (m_fSupportedHwVirtEx == other.m_fSupportedHwVirtEx) &&
+               /* Motherboard data: */
+               (m_iMemorySize == other.m_iMemorySize) &&
+               (m_bootItems == other.m_bootItems) &&
                (m_chipsetType == other.m_chipsetType) &&
-               (m_fPFHwVirtExSupported == other.m_fPFHwVirtExSupported) &&
-               (m_fPFPAESupported == other.m_fPFPAESupported) &&
-               (m_fIoApicEnabled == other.m_fIoApicEnabled) &&
-               (m_fEFIEnabled == other.m_fEFIEnabled) &&
-               (m_fUTCEnabled == other.m_fUTCEnabled) &&
-               (m_fUseAbsHID == other.m_fUseAbsHID) &&
-               (m_fPAEEnabled == other.m_fPAEEnabled) &&
-               (m_fHwVirtExEnabled == other.m_fHwVirtExEnabled) &&
-               (m_fNestedPagingEnabled == other.m_fNestedPagingEnabled) &&
-               (m_iRAMSize == other.m_iRAMSize) &&
+               (m_pointingHIDType == other.m_pointingHIDType) &&
+               (m_fEnabledIoApic == other.m_fEnabledIoApic) &&
+               (m_fEnabledEFI == other.m_fEnabledEFI) &&
+               (m_fEnabledUTC == other.m_fEnabledUTC) &&
+               /* CPU data: */
                (m_cCPUCount == other.m_cCPUCount) &&
-               (m_cCPUExecCap == other.m_cCPUExecCap);
+               (m_iCPUExecCap == other.m_iCPUExecCap) &&
+               (m_fEnabledPAE == other.m_fEnabledPAE) &&
+                /* Acceleration data: */
+               (m_fEnabledHwVirtEx == other.m_fEnabledHwVirtEx) &&
+               (m_fEnabledNestedPaging == other.m_fEnabledNestedPaging);
     }
+
     /* Operators: */
     bool operator==(const UIDataSettingsMachineSystem &other) const { return equal(other); }
     bool operator!=(const UIDataSettingsMachineSystem &other) const { return !equal(other); }
-    /* Variables: */
+
+    /* Variables: Support flags: */
+    bool m_fSupportedPAE;
+    bool m_fSupportedHwVirtEx;
+
+    /* Variables: Motherboard data: */
+    int m_iMemorySize;
     QList<UIBootItemData> m_bootItems;
     KChipsetType m_chipsetType;
-    bool m_fPFHwVirtExSupported;
-    bool m_fPFPAESupported;
-    bool m_fIoApicEnabled;
-    bool m_fEFIEnabled;
-    bool m_fUTCEnabled;
-    bool m_fUseAbsHID;
-    bool m_fPAEEnabled;
-    bool m_fHwVirtExEnabled;
-    bool m_fNestedPagingEnabled;
-    int m_iRAMSize;
+    KPointingHIDType m_pointingHIDType;
+    bool m_fEnabledIoApic;
+    bool m_fEnabledEFI;
+    bool m_fEnabledUTC;
+    /* Variables: CPU data: */
     int m_cCPUCount;
-    int m_cCPUExecCap;
+    int m_iCPUExecCap;
+    bool m_fEnabledPAE;
+    /* Variables: Acceleration data: */
+    bool m_fEnabledHwVirtEx;
+    bool m_fEnabledNestedPaging;
 };
 typedef UISettingsCache<UIDataSettingsMachineSystem> UICacheSettingsMachineSystem;
 
 /* Machine settings / System page: */
 class UIMachineSettingsSystem : public UISettingsPageMachine,
-                             public Ui::UIMachineSettingsSystem
+                                public Ui::UIMachineSettingsSystem
 {
     Q_OBJECT;
 
 public:
 
+    /* Constructor: */
     UIMachineSettingsSystem();
 
+    /* API: Correlation stuff: */
     bool isHWVirtExEnabled() const;
     bool isHIDEnabled() const;
     KChipsetType chipsetType() const;
     void setOHCIEnabled(bool fEnabled);
 
-signals:
-
-    void tableChanged();
-
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* API: Cache stuff: */
+    bool changed() const { return m_cache.wasChanged(); }
+
+    /* API: Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
+    /* API: Load data to corresponding widgets from cache,
      * this task SHOULD be performed in GUI thread only: */
     void getFromCache();
 
-    /* Save data from corresponding widgets to cache,
+    /* API: Save data from corresponding widgets to cache,
      * this task SHOULD be performed in GUI thread only: */
     void putToCache();
-    /* Save data from cache to corresponding external object(s),
+    /* API: Save data from cache to corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void saveFromCacheTo(QVariant &data);
 
-    /* Page changed: */
-    bool changed() const { return m_cache.wasChanged(); }
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate (QString &aWarning, QString &aTitle);
+    /* Helper: Navigation stuff: */
+    void setOrderAfter(QWidget *pWidget);
 
-    void setOrderAfter (QWidget *aWidget);
-
+    /* Helper: Translation stuff: */
     void retranslateUi();
+
+    /* Helper: Polishing stuff: */
+    void polishPage();
 
 private slots:
 
-    void valueChangedRAM (int aVal);
-    void textChangedRAM (const QString &aText);
+    /* Handlers: Memory-size stuff: */
+    void sltHandleMemorySizeSliderChange();
+    void sltHandleMemorySizeEditorChange();
 
-    void onCurrentBootItemChanged (int);
+    /* Handler: Boot-table stuff: */
+    void sltCurrentBootItemChanged(int iCurrentIndex);
 
-    void valueChangedCPU (int aVal);
-    void textChangedCPU (const QString &aText);
-    void sltValueChangedCPUExecCap(int iValue);
-    void sltTextChangedCPUExecCap(const QString &strText);
+    /* Handlers: CPU stuff: */
+    void sltHandleCPUCountSliderChange();
+    void sltHandleCPUCountEditorChange();
+    void sltHandleCPUExecCapSliderChange();
+    void sltHandleCPUExecCapEditorChange();
 
 private:
 
-    bool eventFilter (QObject *aObject, QEvent *aEvent);
+    /* Helpers: Prepare stuff: */
+    void prepare();
+    void prepareTabMotherboard();
+    void prepareTabProcessor();
+    void prepareValidation();
 
+    /* Helper: Pointing HID type combo stuff: */
+    void repopulateComboPointingHIDType();
+
+    /* Helpers: Translation stuff: */
+    void retranslateComboPointingChipsetType();
+    void retranslateComboPointingHIDType();
+
+    /* Helper: Boot-table stuff: */
     void adjustBootOrderTWSize();
 
-    void polishPage();
+    /* Handler: Event-filtration stuff: */
+    bool eventFilter(QObject *aObject, QEvent *aEvent);
 
-    QIWidgetValidator *mValidator;
-
-    uint mMinGuestCPU;
-    uint mMaxGuestCPU;
-    uint mMinGuestCPUExecCap;
-    uint mMedGuestCPUExecCap;
-    uint mMaxGuestCPUExecCap;
-
+    /* Variable: Boot-table stuff: */
     QList<KDeviceType> m_possibleBootItems;
 
+    /* Variables: CPU stuff: */
+    uint m_uMinGuestCPU;
+    uint m_uMaxGuestCPU;
+    uint m_uMinGuestCPUExecCap;
+    uint m_uMedGuestCPUExecCap;
+    uint m_uMaxGuestCPUExecCap;
+
+    /* Variable: Correlation stuff: */
     bool m_fOHCIEnabled;
 
     /* Cache: */
@@ -179,4 +217,3 @@ private:
 };
 
 #endif // __UIMachineSettingsSystem_h__
-

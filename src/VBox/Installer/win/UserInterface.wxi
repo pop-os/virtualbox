@@ -2,7 +2,7 @@
 <!--
     User interface include for VirtualBox WiX script.
 
-    Copyright (C) 2006-2011 Oracle Corporation
+    Copyright (C) 2006-2012 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -53,12 +53,14 @@
             </Control>
 
             <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.ButtonText_Next)">
+                <!-- Set the install mode -->
+                <Publish Property="InstallMode" Value="!(loc.InstallModeCustom)">1</Publish>
         <?if $(env.VBOX_WITH_LICENSE_DISPLAY) = "yes" ?>
                 <!-- Next dialog is the license agreement -->
                 <Publish Event="NewDialog" Value="VBoxLicenseAgreementDlg">1</Publish>
         <?else ?>
                 <!-- Decide which dialog to show next: The serial number dialog (if this is a branded build)
-                     or directly proceed to the customization dialog (Vbox not installed yet) -->
+                     or directly proceed to the customization dialog (VBox not installed yet) -->
                 <?if $(env.VBOX_WITH_SERIALNUMBER_INSTALL) = "yes" ?>
                     <Publish Event="NewDialog" Value="VBoxCheckSerialDlg">1</Publish>
                 <?else ?>
@@ -122,11 +124,9 @@
             <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.ButtonText_Next)">
                 <!-- 'Next' button is only enabled when 'I agree' radio button is selected -->
                 <Condition Action="disable"><![CDATA[IAgree <> "Yes"]]></Condition>
-                <Condition Action="enable">IAgree = "Yes"</Condition>
-                <Publish Property="InstallMode" Value="!(loc.InstallModeCustom)">1</Publish>
-
+                <Condition Action="enable"><![CDATA[IAgree = "Yes"]]></Condition>
                 <!-- Decide which dialog to show next: The serial number dialog (if this is a branded build)
-                     or directly proceed to the customization dialog (Vbox not installed yet) -->
+                     or directly proceed to the customization dialog (VBox not installed yet) -->
             <?if $(env.VBOX_WITH_SERIALNUMBER_INSTALL) = "yes" ?>
                 <Publish Event="NewDialog" Value="VBoxCheckSerialDlg">1</Publish>
             <?else ?>
@@ -293,7 +293,11 @@
         <?endif ?>
             </Control>
             <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.ButtonText_Next)">
+        <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
                 <Publish Event="NewDialog" Value="VBoxCustomize2Dlg">1</Publish>
+        <?else ?>
+                <Publish Event="NewDialog" Value="VBoxVerifyReadyDlg">1</Publish>
+        <?endif ?>
                 <Subscribe Event="SelectionNoItems" Attribute="Enabled" />
             </Control>
             <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.ButtonText_Cancel)">
@@ -327,22 +331,25 @@
                  change their Windows color scheme.
                  Also see: http://osdir.com/ml/windows.devel.wix.user/2005-02/msg00300.html -->
             <Control Id="DesktopShortcutCheckBox" Type="CheckBox" X="25" Y="95" Width="200" Height="17"
-                Property="INSTALLDESKTOPSHORTCUT" CheckBoxValue="1">
+                Property="VBOX_INSTALLDESKTOPSHORTCUT" CheckBoxValue="1">
                 <Text>!(loc.Customize2Dlg_CreateShortcut)</Text>
             </Control>
             <Control Id="QuicklaunchShortcutCheckBox" Type="CheckBox" X="25" Y="115" Width="200" Height="17"
-                     Property="INSTALLQUICKLAUNCHSHORTCUT" CheckBoxValue="1">
+                     Property="VBOX_INSTALLQUICKLAUNCHSHORTCUT" CheckBoxValue="1">
                 <Text>!(loc.Customize2Dlg_CreateQuickLaunch)</Text>
             </Control>
-
+            <Control Id="RegisterFileExtensionsCheckBox" Type="CheckBox" X="25" Y="135" Width="200" Height="17"
+                     Property="VBOX_REGISTERFILEEXTENSIONS" CheckBoxValue="1">
+                <Text>!(loc.Customize2Dlg_RegisterFileExtensions)</Text>
+            </Control>
             <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17"
                 Default="yes" Cancel="yes" Text="!(loc.ButtonText_Next)">
-<?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
+            <?if $(env.VBOX_WITH_NETFLT) = "yes" ?>
                 <Publish Event="NewDialog" Value="VBoxWarnDisconNetIfacesDlg"><![CDATA[(&VBoxNetworkFlt=3) AND NOT(!VBoxNetworkFlt=3)]]></Publish>
                 <Publish Event="NewDialog" Value="VBoxVerifyReadyDlg"><![CDATA[(&VBoxNetworkFlt<3)]]></Publish>
-<?else ?>
+            <?else ?>
                 <Publish Event="NewDialog" Value="VBoxVerifyReadyDlg">1</Publish>
-<?endif?>
+            <?endif?>
             </Control>
             <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17"
                 Text="!(loc.ButtonText_Back)">
@@ -489,7 +496,11 @@
                 <Publish Event="SpawnDialog" Value="VBoxOutOfDiskDlg"><![CDATA[(OutOfDiskSpace = 1 AND OutOfNoRbDiskSpace = 1) OR (OutOfDiskSpace = 1 AND PROMPTROLLBACKCOST="F")]]></Publish>
             </Control>
             <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.ButtonText_Back)">
+        <?if $(env.VBOX_WITH_QTGUI) = "yes" ?>
                 <Publish Event="NewDialog" Value="VBoxCustomize2Dlg"><![CDATA[InstallMode = "!(loc.InstallModeCustom)"]]></Publish>
+        <?else ?>
+                <Publish Event="NewDialog" Value="VBoxCustomizeDlg">1</Publish>
+        <?endif ?>
             </Control>
             <Control Id="Cancel" Type="PushButton" X="304" Y="243" Width="56" Height="17" Cancel="yes" Text="!(loc.ButtonText_Cancel)">
                 <Publish Event="SpawnDialog" Value="VBoxCancelDlg">1</Publish>
@@ -504,7 +515,7 @@
         <!-- This dialog is called after successful installation -->
         <Dialog Id="VBoxExitDlg" Width="370" Height="270" Title="[ProductName] !(loc.Setup)" NoMinimize="yes">
             <Control Id="Finish" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.ButtonText_Finish)">
-                <Publish Event="DoAction" Value="ca_StartVBox"><![CDATA[STARTVBOX]]></Publish>
+                <Publish Event="DoAction" Value="ca_StartVBox"><![CDATA[VBOX_STARTVBOX]]></Publish>
                 <Publish Event="EndDialog" Value="Return">1</Publish>
             </Control>
 
@@ -528,7 +539,7 @@
                  change their Windows color scheme.
                  Also see: http://osdir.com/ml/windows.devel.wix.user/2005-02/msg00300.html -->
             <Control Id="StartVBoxCheckBox" Type="CheckBox" X="135" Y="115" Width="200" Height="17"
-                Property="STARTVBOX" CheckBoxValue="1">
+                Property="VBOX_STARTVBOX" CheckBoxValue="1">
                 <Text>!(loc.ExitDlg_StartVBox)</Text>
                 <Condition Action="hide">
                     <![CDATA[(InstallMode="Repair") OR (InstallMode="Remove") OR

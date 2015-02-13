@@ -2,15 +2,15 @@
  <comment>
  VBox frontends: Qt4 GUI ("VirtualBox"):
 
-     Copyright (C) 2008 Oracle Corporation
+ Copyright (C) 2008-2012 Oracle Corporation
 
-     This file is part of VirtualBox Open Source Edition (OSE), as
-     available from http://www.virtualbox.org. This file is free software;
-     you can redistribute it and/or modify it under the terms of the GNU
-     General Public License (GPL) as published by the Free Software
-     Foundation, in version 2 as it comes in the "COPYING" file of the
-     VirtualBox OSE distribution. VirtualBox OSE is distributed in the
-     hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ This file is part of VirtualBox Open Source Edition (OSE), as
+ available from http://www.virtualbox.org. This file is free software;
+ you can redistribute it and/or modify it under the terms of the GNU
+ General Public License (GPL) as published by the Free Software
+ Foundation, in version 2 as it comes in the "COPYING" file of the
+ VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  </comment>
  <class>UIMachineSettingsParallel</class>
  <widget class="QWidget" name="UIMachineSettingsParallel" >
@@ -83,7 +83,7 @@
       <item row="0" column="1" >
        <widget class="QComboBox" name="mCbNumber" >
         <property name="whatsThis" >
-         <string>Displays the parallel port number. You can choose one of the standard parallel ports or select &lt;b>User-defined&lt;/b> and specify port parameters manually.</string>
+         <string>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b>User-defined&lt;/b> and specify port parameters manually.</string>
         </property>
        </widget>
       </item>
@@ -106,7 +106,7 @@
          </sizepolicy>
         </property>
         <property name="whatsThis" >
-         <string>Displays the IRQ number of this parallel port. This should be a whole number between &lt;tt>0&lt;/tt> and &lt;tt>255&lt;/tt>. Values greater than &lt;tt>15&lt;/tt> may only be used if the &lt;b>IO APIC&lt;/b> setting is enabled for this virtual machine.</string>
+         <string>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt>0&lt;/tt> and &lt;tt>255&lt;/tt>. Values greater than &lt;tt>15&lt;/tt> may only be used if the &lt;b>I/O APIC&lt;/b> setting is enabled for this virtual machine.</string>
         </property>
        </widget>
       </item>
@@ -129,7 +129,7 @@
          </sizepolicy>
         </property>
         <property name="whatsThis" >
-         <string>Displays the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt>0&lt;/tt> to &lt;tt>0xFFFF&lt;/tt>.</string>
+         <string>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt>0&lt;/tt> to &lt;tt>0xFFFF&lt;/tt>.</string>
         </property>
        </widget>
       </item>
@@ -149,7 +149,7 @@
       <item row="1" column="1" colspan="5" >
        <widget class="QLineEdit" name="mLePath" >
         <property name="whatsThis" >
-         <string>Displays the host parallel device name.</string>
+         <string>Holds the host parallel device name.</string>
         </property>
        </widget>
       </item>

@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,18 +106,43 @@ static int sf_glob_alloc(struct vbsf_mount_info_new *info, struct sf_glob_info *
     str_name->u16Size = name_len + 1;
     memcpy(str_name->String.utf8, info->name, name_len + 1);
 
-    if (info->nls_name[0] && strcmp(info->nls_name, "utf8"))
+#define _IS_UTF8(_str) \
+    (strcmp(_str, "utf8") == 0)
+#define _IS_EMPTY(_str) \
+    (strcmp(_str, "") == 0)
+
+    /* Check if NLS charset is valid and not points to UTF8 table */
+    if (info->nls_name[0])
     {
-        sf_g->nls = load_nls(info->nls_name);
-        if (!sf_g->nls)
+        if (_IS_UTF8(info->nls_name))
+            sf_g->nls = NULL;
+        else
         {
-            err = -EINVAL;
-            LogFunc(("failed to load nls %s\n", info->nls_name));
-            goto fail1;
+            sf_g->nls = load_nls(info->nls_name);
+            if (!sf_g->nls)
+            {
+                err = -EINVAL;
+                LogFunc(("failed to load nls %s\n", info->nls_name));
+                goto fail1;
+            }
         }
     }
     else
+    {
+#ifdef CONFIG_NLS_DEFAULT
+        /* If no NLS charset specified, try to load the default
+         * one if it's not points to UTF8. */
+        if (!_IS_UTF8(CONFIG_NLS_DEFAULT) && !_IS_EMPTY(CONFIG_NLS_DEFAULT))
+            sf_g->nls = load_nls_default();
+        else
+            sf_g->nls = NULL;
+#else
         sf_g->nls = NULL;
+#endif
+
+#undef _IS_UTF8
+#undef _IS_EMPTY
+    }
 
     rc = vboxCallMapFolder(&client_handle, str_name, &sf_g->map);
     kfree(str_name);
@@ -428,8 +453,46 @@ static int sf_statfs(struct dentry *dentry, STRUCT_STATFS *stat)
 
 static int sf_remount_fs(struct super_block *sb, int *flags, char *data)
 {
-    TRACE();
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 23)
+    struct sf_glob_info *sf_g;
+    struct sf_inode_info *sf_i;
+    struct inode *iroot;
+    SHFLFSOBJINFO fsinfo;
+    int err;
+
+    sf_g = GET_GLOB_INFO(sb);
+    BUG_ON(!sf_g);
+    if (data && data[0] != 0)
+    {
+        struct vbsf_mount_info_new *info =
+            (struct vbsf_mount_info_new *)data;
+        if (   info->signature[0] == VBSF_MOUNT_SIGNATURE_BYTE_0
+            && info->signature[1] == VBSF_MOUNT_SIGNATURE_BYTE_1
+            && info->signature[2] == VBSF_MOUNT_SIGNATURE_BYTE_2)
+        {
+            sf_g->uid = info->uid;
+            sf_g->gid = info->gid;
+            sf_g->ttl = info->ttl;
+            sf_g->dmode = info->dmode;
+            sf_g->fmode = info->fmode;
+            sf_g->dmask = info->dmask;
+            sf_g->fmask = info->fmask;
+        }
+    }
+
+    iroot = ilookup(sb, 0);
+    if (!iroot)
+        return -ENOSYS;
+
+    sf_i = GET_INODE_INFO(iroot);
+    err = sf_stat(__func__, sf_g, sf_i->path, &fsinfo, 0);
+    BUG_ON(err != 0);
+    sf_init_inode(sf_g, iroot, &fsinfo);
+    /*unlock_new_inode(iroot);*/
+    return 0;
+#else
     return -ENOSYS;
+#endif
 }
 
 static struct super_operations sf_super_ops =

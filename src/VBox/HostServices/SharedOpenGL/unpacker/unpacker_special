@@ -168,6 +168,7 @@ DeleteRenderbuffersEXT
 LockArraysEXT
 UnlockArraysEXT
 GetUniformsLocations
+GetAttribsLocations
 GetTexImage
 GetCompressedTexImageARB
 GetPolygonStipple
@@ -180,3 +181,4 @@ UniformMatrix2x4fv
 UniformMatrix4x2fv
 UniformMatrix3x4fv
 UniformMatrix4x3fv
+VBoxTexPresent

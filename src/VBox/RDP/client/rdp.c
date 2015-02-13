@@ -37,11 +37,28 @@
 
 #ifdef HAVE_ICONV
 #ifdef HAVE_ICONV_H
+
+#if defined(RT_OS_SOLARIS) && !defined(_XPG6)
+# define VBOX_XPG6_TMP_DEF
+# define _XPG6
+#endif
+#if defined(RT_OS_SOLARIS) && defined(__USE_LEGACY_PROTOTYPES__)
+# define VBOX_LEGACY_PROTO_TMP_DEF
+# undef __USE_LEGACY_PROTOTYPES__
+#endif
 #include <iconv.h>
+#if defined(VBOX_XPG6_TMP_DEF)
+# undef _XPG6
+# undef VBOX_XPG6_TMP_DEF
+#endif
+#if defined(VBOX_LEGACY_PROTO_TMP_DEF)
+# define  __USE_LEGACY_PROTOTYPES__
+# undef VBOX_LEGACY_PROTO_TMP_DEF
 #endif
 
 #ifndef ICONV_CONST
 #define ICONV_CONST ""
+#endif
 #endif
 #endif
 
@@ -810,6 +827,7 @@ rdp_out_pointer_caps(STREAM s)
 	out_uint16_le(s, 20);	/* Cache size */
 }
 
+#ifndef VBOX
 /* Output new pointer capability set */
 static void
 rdp_out_newpointer_caps(STREAM s)
@@ -821,6 +839,7 @@ rdp_out_newpointer_caps(STREAM s)
 	out_uint16_le(s, 20);	/* Cache size */
 	out_uint16_le(s, 20);	/* Cache size for new pointers */
 }
+#endif
 
 /* Output share capability set */
 static void
@@ -908,7 +927,11 @@ rdp_send_confirm_active(void)
 	if (g_use_rdp5)
 	{
 		caplen += RDP_CAPLEN_BMPCACHE2;
+#ifdef VBOX
+		caplen += RDP_CAPLEN_POINTER;
+#else
 		caplen += RDP_CAPLEN_NEWPOINTER;
+#endif
 	}
 	else
 	{
@@ -937,7 +960,11 @@ rdp_send_confirm_active(void)
 	if (g_use_rdp5)
 	{
 		rdp_out_bmpcache2_caps(s);
+#ifdef VBOX
+		rdp_out_pointer_caps(s);
+#else
 		rdp_out_newpointer_caps(s);
+#endif
 	}
 	else
 	{

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -296,14 +296,16 @@ typedef struct PDMIMOUSEPORT
      * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
      *          event now and want it to be repeated at a later point.
      *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   iDeltaX             The X delta.
-     * @param   iDeltaY             The Y delta.
-     * @param   iDeltaZ             The Z delta.
-     * @param   iDeltaW             The W (horizontal scroll button) delta.
-     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
+     * @param   pInterface     Pointer to this interface structure.
+     * @param   dx             The X delta.
+     * @param   dy             The Y delta.
+     * @param   dz             The Z delta.
+     * @param   dw             The W (horizontal scroll button) delta.
+     * @param   fButtons       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface, int32_t iDeltaX, int32_t iDeltaY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEvent,(PPDMIMOUSEPORT pInterface,
+                                           int32_t dx, int32_t dy, int32_t dz,
+                                           int32_t dw, uint32_t fButtons));
     /**
      * Puts an absolute mouse event.
      *
@@ -313,17 +315,45 @@ typedef struct PDMIMOUSEPORT
      * @returns VBox status code.  Return VERR_TRY_AGAIN if you cannot process the
      *          event now and want it to be repeated at a later point.
      *
-     * @param   pInterface          Pointer to this interface structure.
-     * @param   uX                  The X value, in the range 0 to 0xffff.
-     * @param   uY                  The Y value, in the range 0 to 0xffff.
-     * @param   iDeltaZ             The Z delta.
-     * @param   iDeltaW             The W (horizontal scroll button) delta.
-     * @param   fButtonStates       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
+     * @param   pInterface     Pointer to this interface structure.
+     * @param   x              The X value, in the range 0 to 0xffff.
+     * @param   z              The Y value, in the range 0 to 0xffff.
+     * @param   dz             The Z delta.
+     * @param   dw             The W (horizontal scroll button) delta.
+     * @param   fButtons       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface, uint32_t uX, uint32_t uY, int32_t iDeltaZ, int32_t iDeltaW, uint32_t fButtonStates));
+    DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface,
+                                              uint32_t x, uint32_t z,
+                                              int32_t dz, int32_t dw,
+                                              uint32_t fButtons));
+    /**
+     * Puts a multi-touch event.
+     *
+     * @returns VBox status code. Return VERR_TRY_AGAIN if you cannot process the
+     *          event now and want it to be repeated at a later point.
+     *
+     * @param   pInterface          Pointer to this interface structure.
+     * @param   cContacts           How many touch contacts in this event.
+     * @param   pau64Contacts       Pointer to array of packed contact information.
+     *                              Each 64bit element contains:
+     *                              Bits 0..15:  X coordinate in pixels (signed).
+     *                              Bits 16..31: Y coordinate in pixels (signed).
+     *                              Bits 32..39: contact identifier.
+     *                              Bit 40:      "in contact" flag, which indicates that
+     *                                           there is a contact with the touch surface.
+     *                              Bit 41:      "in range" flag, the contact is close enough
+     *                                           to the touch surface.
+     *                              All other bits are reserved for future use and must be set to 0.
+     * @param   u32ScanTime         Timestamp of this event in milliseconds. Only relative
+     *                              time between event is important.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPutEventMultiTouch,(PPDMIMOUSEPORT pInterface,
+                                                     uint8_t cContacts,
+                                                     const uint64_t *pau64Contacts,
+                                                     uint32_t u32ScanTime));
 } PDMIMOUSEPORT;
 /** PDMIMOUSEPORT interface ID. */
-#define PDMIMOUSEPORT_IID                       "442136fe-6f3c-49ec-9964-259b378ffa64"
+#define PDMIMOUSEPORT_IID                       "359364f0-9fa3-4490-a6b4-7ed771901c93"
 
 /** Mouse button defines for PDMIMOUSEPORT::pfnPutEvent.
  * @{ */
@@ -350,8 +380,9 @@ typedef struct PDMIMOUSECONNECTOR
      * @param   pInterface      Pointer to the this interface.
      * @param   fRelative       Whether relative mode is currently supported.
      * @param   fAbsolute       Whether absolute mode is currently supported.
+     * @param   fAbsolute       Whether multi-touch mode is currently supported.
      */
-    DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute));
+    DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute, bool fMultiTouch));
 
 } PDMIMOUSECONNECTOR;
 /** PDMIMOUSECONNECTOR interface ID.  */
@@ -585,9 +616,68 @@ typedef struct PDMIDISPLAYPORT
         const uint8_t *pbSrc, int32_t xSrc, int32_t ySrc, uint32_t cxSrc, uint32_t cySrc, uint32_t cbSrcLine, uint32_t cSrcBitsPerPixel,
         uint8_t       *pbDst, int32_t xDst, int32_t yDst, uint32_t cxDst, uint32_t cyDst, uint32_t cbDstLine, uint32_t cDstBitsPerPixel));
 
+#ifdef VBOX_WITH_VMSVGA
+    /**
+     * Inform the VGA device of viewport changes (as a result of e.g. scrolling)
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   uScreenId           The screen updates are for.
+     * @param   x                   The upper left corner x coordinate of the new viewport rectangle
+     * @param   y                   The upper left corner y coordinate of the new viewport rectangle
+     * @param   cx                  The width of the new viewport rectangle
+     * @param   cy                  The height of the new viewport rectangle
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnSetViewPort,(PPDMIDISPLAYPORT pInterface, uint32_t uScreenId, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy));
+#endif
+
+    /**
+     * Send a video mode hint to the VGA device.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   cx                  The X resolution.
+     * @param   cy                  The Y resolution.
+     * @param   cBPP                The bit count.
+     * @param   iDisplay            The screen number.
+     * @param   dx                  X offset into the virtual framebuffer or ~0.
+     * @param   dy                  Y offset into the virtual framebuffer or ~0.
+     * @param   fEnabled            Is this screen currently enabled?
+     * @param   fNotifyGuest        Should the device send the guest an IRQ?
+     *                              Set for the last hint of a series.
+     * @thread  Schedules on the emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSendModeHint,
+                         (PPDMIDISPLAYPORT pInterface, uint32_t cx, uint32_t cy,
+                          uint32_t cBPP, uint32_t iDisplay, uint32_t dx,
+                          uint32_t dy, uint32_t fEnabled, uint32_t fNotifyGuest));
+
+    /**
+     * Send the guest a notification about host cursor capabilities changes.
+     *
+     * @param   pInterface            Pointer to this interface.
+     * @param   fCapabilitiesAdded    New supported capabilities.
+     * @param   fCapabilitiesRemoved  No longer supported capabilities.
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorCapabilities, (PPDMIDISPLAYPORT pInterface, uint32_t fCapabilitiesAdded,
+                                                                 uint32_t fCapabilitiesRemoved));
+
+    /**
+     * Tell the graphics device about the host cursor position.
+     *
+     * @param   pInterface  Pointer to this interface.
+     * @param   x           X offset into the cursor range.
+     * @param   y           Y offset into the cursor range.
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorPosition, (PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y));
 } PDMIDISPLAYPORT;
 /** PDMIDISPLAYPORT interface ID. */
-#define PDMIDISPLAYPORT_IID                     "22d3d93d-3407-487a-8308-85367eae00bb"
+#ifdef VBOX_WITH_VMSVGA
+#define PDMIDISPLAYPORT_IID                     "e8da6d7e-8490-11e4-91d8-ab609a010f13"
+#else
+#define PDMIDISPLAYPORT_IID                     "db067c60-8490-11e4-8424-032afeb83818"
+#endif
 
 
 typedef struct VBOXVHWACMD *PVBOXVHWACMD; /**< @todo r=bird: A line what it is to make doxygen happy. */
@@ -595,11 +685,13 @@ typedef struct VBVACMDHDR *PVBVACMDHDR;
 typedef struct VBVAINFOSCREEN *PVBVAINFOSCREEN;
 typedef struct VBVAINFOVIEW *PVBVAINFOVIEW;
 typedef struct VBVAHOSTFLAGS *PVBVAHOSTFLAGS;
-typedef struct VBOXVDMACMD_CHROMIUM_CMD *PVBOXVDMACMD_CHROMIUM_CMD; /* <- chromium [hgsmi] command */
-typedef struct VBOXVDMACMD_CHROMIUM_CTL *PVBOXVDMACMD_CHROMIUM_CTL; /* <- chromium [hgsmi] command */
+struct VBOXVDMACMD_CHROMIUM_CMD; /* <- chromium [hgsmi] command */
+struct VBOXVDMACMD_CHROMIUM_CTL; /* <- chromium [hgsmi] command */
 
 /** Pointer to a display connector interface. */
 typedef struct PDMIDISPLAYCONNECTOR *PPDMIDISPLAYCONNECTOR;
+struct VBOXCRCMDCTL;
+typedef DECLCALLBACKPTR(void, PFNCRCTLCOMPLETION)(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion);
 /**
  * Display connector interface (up).
  * Pair with PDMIDISPLAYPORT.
@@ -703,9 +795,12 @@ typedef struct PDMIDISPLAYCONNECTOR
      *
      * @param   pInterface          Pointer to this interface.
      * @param   pCmd                Video HW Acceleration Command to be processed.
+     * @returns VINF_SUCCESS - command is completed,
+     * VINF_CALLBACK_RETURN - command will by asynchronously completed via complete callback
+     * VERR_INVALID_STATE - the command could not be processed (most likely because the framebuffer was disconnected) - the post should be retried later
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnVHWACommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCmd));
+    DECLR3CALLBACKMEMBER(int, pfnVHWACommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCmd));
 
     /**
      * Process the guest chromium command.
@@ -714,7 +809,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   pCmd                Video HW Acceleration Command to be processed.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiCommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd));
+    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiCommandProcess, (PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CMD* pCmd, uint32_t cbCmd));
 
     /**
      * Process the guest chromium control command.
@@ -723,24 +818,43 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   pCmd                Video HW Acceleration Command to be processed.
      * @thread  The emulation thread.
      */
-    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiControlProcess, (PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl));
+    DECLR3CALLBACKMEMBER(void, pfnCrHgsmiControlProcess, (PPDMIDISPLAYCONNECTOR pInterface, struct VBOXVDMACMD_CHROMIUM_CTL* pCtl, uint32_t cbCtl));
 
+    /**
+     * Process the guest chromium control command.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pCmd                Video HW Acceleration Command to be processed.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnCrHgcmCtlSubmit, (PPDMIDISPLAYCONNECTOR pInterface,
+                                            struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
+                                            PFNCRCTLCOMPLETION pfnCompletion,
+                                            void *pvCompletion));
 
     /**
      * The specified screen enters VBVA mode.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   uScreenId           The screen updates are for.
-     * @thread  The emulation thread.
+     * @param   fRenderThreadMode   if true - the graphics device has a separate thread that does all rendering.
+     *                              This means that:
+     *                              1. most pfnVBVAXxx callbacks (see the individual documentation for each one)
+     *                                 will be called in the context of the render thread rather than the emulation thread
+     *                              2. PDMIDISPLAYCONNECTOR implementor (i.e. DisplayImpl) must NOT notify crogl backend
+     *                                 about vbva-originated events (e.g. resize), because crogl is working in CrCmd mode,
+     *                                 in the context of the render thread as part of the Graphics device, and gets notified about those events directly
+     * @thread  if fRenderThreadMode is TRUE - the render thread, otherwise - the emulation thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags));
+    DECLR3CALLBACKMEMBER(int, pfnVBVAEnable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags, bool fRenderThreadMode));
 
     /**
      * The specified screen leaves VBVA mode.
      *
      * @param   pInterface          Pointer to this interface.
      * @param   uScreenId           The screen updates are for.
-     * @thread  The emulation thread.
+     * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
+     *          otherwise - the emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVBVADisable,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId));
 
@@ -749,7 +863,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      *
      * @param   pInterface          Pointer to this interface.
      * @param   uScreenId           The screen updates are for.
-     * @thread  The emulation thread.
+     * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
+     *          otherwise - the emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateBegin,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId));
 
@@ -758,7 +873,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      *
      * @param   pInterface          Pointer to this interface.
      * @param   pCmd                Video HW Acceleration Command to be processed.
-     * @thread  The emulation thread.
+     * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
+     *          otherwise - the emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateProcess,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, const PVBVACMDHDR pCmd, size_t cbCmd));
 
@@ -771,7 +887,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   y                   The upper left corner y coordinate of the rectangle.
      * @param   cx                  The width of the rectangle.
      * @param   cy                  The height of the rectangle.
-     * @thread  The emulation thread.
+     * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
+     *          otherwise - the emulation thread.
      */
     DECLR3CALLBACKMEMBER(void, pfnVBVAUpdateEnd,(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy));
 
@@ -790,7 +907,8 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   pView               The description of VRAM block for this screen.
      * @param   pScreen             The data of screen being resized.
      * @param   pvVRAM              Address of the guest VRAM.
-     * @thread  The emulation thread.
+     * @thread  if render thread mode is on (fRenderThreadMode that was passed to pfnVBVAEnable is TRUE) - the render thread pfnVBVAEnable was called in,
+     *          otherwise - the emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnVBVAResize,(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM));
 
@@ -817,6 +935,15 @@ typedef struct PDMIDISPLAYCONNECTOR
                                                         uint32_t cx, uint32_t cy,
                                                         const void *pvShape));
 
+    /**
+     * The guest capabilities were updated.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   fCapabilities       The new capability flag state.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAGuestCapabilityUpdate,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fCapabilities));
+
     /** Read-only attributes.
      * For preformance reasons some readonly attributes are kept in the interface.
      * We trust the interface users to respect the readonlyness of these.
@@ -833,9 +960,21 @@ typedef struct PDMIDISPLAYCONNECTOR
     /** The display height. */
     uint32_t        cy;
     /** @} */
+
+    /**
+     * The guest display input mapping rectangle was updated.
+     *
+     * @param   pInterface  Pointer to this interface.
+     * @param   xOrigin     Upper left X co-ordinate relative to the first screen.
+     * @param   yOrigin     Upper left Y co-ordinate relative to the first screen.
+     * @param   cx          Rectangle width.
+     * @param   cy          Rectangle height.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAInputMappingUpdate,(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy));
 } PDMIDISPLAYCONNECTOR;
 /** PDMIDISPLAYCONNECTOR interface ID. */
-#define PDMIDISPLAYCONNECTOR_IID                "c7a1b36d-8dfc-421d-b71f-3a0eeaf733e6"
+#define PDMIDISPLAYCONNECTOR_IID                "e883a720-85fb-11e4-a307-0b06689c9661"
 
 
 /** Pointer to a block port interface. */
@@ -892,6 +1031,12 @@ typedef enum PDMBLOCKTYPE
     PDMBLOCKTYPE_FLOPPY_1_44,
     /** 2.88MB 3 1/2" floppy drive. */
     PDMBLOCKTYPE_FLOPPY_2_88,
+    /** Fake drive that can take up to 15.6 MB images.
+     * C=255, H=2, S=63.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_15_6,
+    /** Fake drive that can take up to 63.5 MB images.
+     * C=255, H=2, S=255.  */
+    PDMBLOCKTYPE_FLOPPY_FAKE_63_5,
     /** CDROM drive. */
     PDMBLOCKTYPE_CDROM,
     /** DVD drive. */
@@ -900,6 +1045,8 @@ typedef enum PDMBLOCKTYPE
     PDMBLOCKTYPE_HARD_DISK
 } PDMBLOCKTYPE;
 
+/** Check if the given block type is a floppy. */
+#define PDMBLOCKTYPE_IS_FLOPPY(a_enmType) ( (a_enmType) >= PDMBLOCKTYPE_FLOPPY_360 && (a_enmType) <= PDMBLOCKTYPE_FLOPPY_2_88 )
 
 /**
  * Block raw command data transfer direction.
@@ -931,6 +1078,21 @@ typedef struct PDMIBLOCK
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIBLOCK pInterface, uint64_t off, void *pvBuf, size_t cbRead));
 
     /**
      * Write bits.
@@ -1000,6 +1162,15 @@ typedef struct PDMIBLOCK
     DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIBLOCK pInterface));
 
     /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIBLOCK pInterface));
+
+    /**
      * Gets the block drive type.
      *
      * @returns block drive type.
@@ -1018,9 +1189,42 @@ typedef struct PDMIBLOCK
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIBLOCK pInterface, PRTUUID pUuid));
+
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIBLOCK pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIBLOCK pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIBLOCK::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIBLOCK::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIBLOCK pInterface, void *pv, size_t cb));
+
 } PDMIBLOCK;
 /** PDMIBLOCK interface ID. */
-#define PDMIBLOCK_IID                           "0a5f3156-8b21-4cf5-83fd-e097281d2900"
+#define PDMIBLOCK_IID                           "4e804e8e-3c01-4f20-98d9-a30ece8ec9f5"
 
 
 /** Pointer to a mount interface. */
@@ -1127,6 +1331,63 @@ typedef struct PDMIMOUNT
 /** PDMIMOUNT interface ID. */
 #define PDMIMOUNT_IID                           "34fc7a4c-623a-4806-a6bf-5be1be33c99f"
 
+/** Pointer to a secret key interface. */
+typedef struct PDMISECKEY *PPDMISECKEY;
+
+/**
+ * Secret key interface to retrieve secret keys.
+ */
+typedef struct PDMISECKEY
+{
+    /**
+     * Retains a key identified by the ID. The caller will only hold a reference
+     * to the key and must not modify the key buffer in any way.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pszId           The alias/id for the key to retrieve.
+     * @param   ppbKey          Where to store the pointer to the key buffer on success.
+     * @param   pcbKey          Where to store the size of the key in bytes on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyRetain, (PPDMISECKEY pInterface, const char *pszId,
+                                             const uint8_t **pbKey, size_t *pcbKey));
+
+    /**
+     * Releases one reference of the key identified by the given identifier.
+     * The caller must not access the key buffer after calling this operation.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     * @param   pszId          The alias/id for the key to release.
+     *
+     * @note: It is advised to release the key whenever it is not used anymore so the entity
+     *        storing the key can do anything to make retrieving the key from memory more
+     *        difficult like scrambling the memory buffer for instance.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyRelease, (PPDMISECKEY pInterface, const char *pszId));
+} PDMISECKEY;
+/** PDMISECKEY interface ID. */
+#define PDMISECKEY_IID                           "a7336c4a-2ca0-489d-ad2d-f740f215a1e6"
+
+/** Pointer to a secret key helper interface. */
+typedef struct PDMISECKEYHLP *PPDMISECKEYHLP;
+
+/**
+ * Secret key helper interface for non critical functionality.
+ */
+typedef struct PDMISECKEYHLP
+{
+    /**
+     * Notifies the interface provider that a key couldn't be retrieved from the key store.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyMissingNotify, (PPDMISECKEYHLP pInterface));
+
+} PDMISECKEYHLP;
+/** PDMISECKEY interface ID. */
+#define PDMISECKEYHLP_IID                        "7be96168-4156-40ac-86d2-3073bf8b318e"
 
 /**
  * Media geometry structure.
@@ -1173,7 +1434,8 @@ typedef struct PDMIMEDIAPORT
 typedef struct PDMIMEDIA *PPDMIMEDIA;
 /**
  * Media interface (up).
- * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.  No interface pair.
+ * Makes up the foundation for PDMIBLOCK and PDMIBLOCKBIOS.
+ * Pairs with PDMIMEDIAPORT.
  */
 typedef struct PDMIMEDIA
 {
@@ -1188,6 +1450,21 @@ typedef struct PDMIMEDIA
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
+
+    /**
+     * Read bits - version for DevPcBios.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   off             Offset to start reading from. The offset must be aligned to a sector boundary.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
+     * @thread  Any thread.
+     *
+     * @note: Special version of pfnRead which doesn't try to suspend the VM when the DEKs for encrypted disks
+     *        are missing but just returns an error.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReadPcBios,(PPDMIMEDIA pInterface, uint64_t off, void *pvBuf, size_t cbRead));
 
     /**
      * Write bits.
@@ -1224,6 +1501,20 @@ typedef struct PDMIMEDIA
     DECLR3CALLBACKMEMBER(int, pfnMerge,(PPDMIMEDIA pInterface, PFNSIMPLEPROGRESS pfnProgress, void *pvUser));
 
     /**
+     * Sets the secret key retrieval interface to use to get secret keys.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pIfSecKey       The secret key interface to use.
+     *                          Use NULL to clear the currently set interface and clear all secret
+     *                          keys from the user.
+     * @param   pIfSecKeyHlp    The secret key helper interface to use.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey,
+                                              PPDMISECKEYHLP pIfSecKeyHlp));
+
+    /**
      * Get the media size in bytes.
      *
      * @returns Media size in bytes.
@@ -1231,6 +1522,15 @@ typedef struct PDMIMEDIA
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize,(PPDMIMEDIA pInterface));
+
+    /**
+     * Gets the media sector size in bytes.
+     *
+     * @returns Media sector size in bytes.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize,(PPDMIMEDIA pInterface));
 
     /**
      * Check if the media is readonly or not.
@@ -1306,9 +1606,41 @@ typedef struct PDMIMEDIA
      */
     DECLR3CALLBACKMEMBER(int, pfnGetUuid,(PPDMIMEDIA pInterface, PRTUUID pUuid));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges));
+
+    /**
+     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
+     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   cb              Amount of memory to allocate.
+     * @param   ppvNew          Where to store the pointer to the buffer on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIMEDIA pInterface, size_t cb, void **ppvNew));
+
+    /**
+     * Free memory allocated with PDMIMEDIA::pfnIoBufAlloc().
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pv              Pointer to the memory to free.
+     * @param   cb              Amount of bytes given in PDMIMEDIA::pfnIoBufAlloc().
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIMEDIA pInterface, void *pv, size_t cb));
+
 } PDMIMEDIA;
 /** PDMIMEDIA interface ID. */
-#define PDMIMEDIA_IID                           "f5bb07c9-2843-46f8-a56f-cc090b6e5bac"
+#define PDMIMEDIA_IID                           "d8997ad8-4dda-4352-aa99-99bf87d54102"
 
 
 /** Pointer to a block BIOS interface. */
@@ -1488,9 +1820,21 @@ typedef struct PDMIBLOCKASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIBLOCKASYNC pInterface, void *pvUser));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIBLOCKASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
 } PDMIBLOCKASYNC;
 /** PDMIBLOCKASYNC interface ID. */
-#define PDMIBLOCKASYNC_IID                      "78302d0d-4978-498c-be3c-8989cb5ff5c8"
+#define PDMIBLOCKASYNC_IID                      "a921dd96-1748-4ecd-941e-d5f3cd4c8fe4"
 
 
 /** Pointer to an asynchronous notification interface. */
@@ -1562,9 +1906,21 @@ typedef struct PDMIMEDIAASYNC
      */
     DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
 
+    /**
+     * Discards the given range.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   paRanges        Array of ranges to discard.
+     * @param   cRanges         Number of entries in the array.
+     * @param   pvUser          User argument which is returned in completion callback.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIMEDIAASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
+
 } PDMIMEDIAASYNC;
 /** PDMIMEDIAASYNC interface ID. */
-#define PDMIMEDIAASYNC_IID                      "3553227d-714d-4d28-b993-59f4e671588e"
+#define PDMIMEDIAASYNC_IID                      "4be209d3-ccb5-4297-82fe-7d8018bc6ab4"
 
 
 /** Pointer to a char port interface. */
@@ -1721,9 +2077,18 @@ typedef struct PDMISTREAM
 /** Mode of the parallel port */
 typedef enum PDMPARALLELPORTMODE
 {
-    PDM_PARALLEL_PORT_MODE_COMPAT,
-    PDM_PARALLEL_PORT_MODE_EPP,
-    PDM_PARALLEL_PORT_MODE_ECP
+    /** First invalid mode. */
+    PDM_PARALLEL_PORT_MODE_INVALID = 0,
+    /** SPP (Compatibility mode). */
+    PDM_PARALLEL_PORT_MODE_SPP,
+    /** EPP Data mode. */
+    PDM_PARALLEL_PORT_MODE_EPP_DATA,
+    /** EPP Address mode. */
+    PDM_PARALLEL_PORT_MODE_EPP_ADDR,
+    /** ECP mode (not implemented yet). */
+    PDM_PARALLEL_PORT_MODE_ECP,
+    /** 32bit hack. */
+    PDM_PARALLEL_PORT_MODE_32BIT_HACK = 0x7fffffff
 } PDMPARALLELPORTMODE;
 
 /** Pointer to a host parallel port interface. */
@@ -1735,17 +2100,6 @@ typedef struct PDMIHOSTPARALLELPORT *PPDMIHOSTPARALLELPORT;
 typedef struct PDMIHOSTPARALLELPORT
 {
     /**
-     * Deliver data read to the device/driver.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvBuf           Where the read bits are stored.
-     * @param   pcbRead         Number of bytes available for reading/having been read.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnNotifyRead,(PPDMIHOSTPARALLELPORT pInterface, const void *pvBuf, size_t *pcbRead));
-
-    /**
      * Notify device/driver that an interrupt has occurred.
      *
      * @returns VBox status code.
@@ -1755,7 +2109,7 @@ typedef struct PDMIHOSTPARALLELPORT
     DECLR3CALLBACKMEMBER(int, pfnNotifyInterrupt,(PPDMIHOSTPARALLELPORT pInterface));
 } PDMIHOSTPARALLELPORT;
 /** PDMIHOSTPARALLELPORT interface ID. */
-#define PDMIHOSTPARALLELPORT_IID                "ac13e437-cd30-47ac-a271-6120571f3a22"
+#define PDMIHOSTPARALLELPORT_IID                "f24b8668-e7f6-4eaa-a14c-4aa2a5f7048e"
 
 
 
@@ -1773,10 +2127,13 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the write bits.
-     * @param   pcbWrite        Number of bytes to write/bytes actually written.
+     * @param   cbWrite         Number of bytes to write.
+     * @param   enmMode         Mode to write the data.
      * @thread  Any thread.
+     * @todo r=klaus cbWrite only defines buffer length, method needs a way top return actually written amount of data.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIHOSTPARALLELCONNECTOR pInterface, const void *pvBuf, size_t *pcbWrite));
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMIHOSTPARALLELCONNECTOR pInterface, const void *pvBuf,
+                                        size_t cbWrite, PDMPARALLELPORTMODE enmMode));
 
     /**
      * Read bits.
@@ -1784,10 +2141,23 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the read bits.
-     * @param   pcbRead         Number of bytes to read/bytes actually read.
+     * @param   cbRead          Number of bytes to read.
+     * @param   enmMode         Mode to read the data.
+     * @thread  Any thread.
+     * @todo r=klaus cbRead only defines buffer length, method needs a way top return actually read amount of data.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIHOSTPARALLELCONNECTOR pInterface, void *pvBuf,
+                                       size_t cbRead, PDMPARALLELPORTMODE enmMode));
+
+    /**
+     * Set data direction of the port (forward/reverse).
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   fForward        Flag whether to indicate whether the port is operated in forward or reverse mode.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMIHOSTPARALLELCONNECTOR pInterface, void *pvBuf, size_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnSetPortDirection,(PPDMIHOSTPARALLELCONNECTOR pInterface, bool fForward));
 
     /**
      * Write control register bits.
@@ -1819,18 +2189,9 @@ typedef struct PDMIHOSTPARALLELCONNECTOR
      */
     DECLR3CALLBACKMEMBER(int, pfnReadStatus,(PPDMIHOSTPARALLELCONNECTOR pInterface, uint8_t *pfReg));
 
-    /**
-     * Set mode of the host parallel port.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   enmMode         The mode of the host parallel port.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnSetMode,(PPDMIHOSTPARALLELCONNECTOR pInterface, PDMPARALLELPORTMODE enmMode));
 } PDMIHOSTPARALLELCONNECTOR;
 /** PDMIHOSTPARALLELCONNECTOR interface ID. */
-#define PDMIHOSTPARALLELCONNECTOR_IID           "a03567ca-b29e-4a1b-b2f3-a12435fa2982"
+#define PDMIHOSTPARALLELCONNECTOR_IID           "7c532602-7438-4fbc-9265-349d9f0415f9"
 
 
 /** ACPI power source identifier */
@@ -1915,9 +2276,18 @@ typedef struct PDMIACPIPORT
      * @param   pfLocked        Is set to true if the CPU is still locked by the guest, false otherwise.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetCpuStatus,(PPDMIACPIPORT pInterface, unsigned uCpu, bool *pfLocked));
+
+    /**
+     * Send an ACPI monitor hot-plug event.
+     *
+     * @returns VBox status code
+     * @param   pInterface      Pointer to the interface structure containing
+     *                          the called function pointer.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMonitorHotPlugEvent,(PPDMIACPIPORT pInterface));
 } PDMIACPIPORT;
 /** PDMIACPIPORT interface ID. */
-#define PDMIACPIPORT_IID                        "30d3dc4c-6a73-40c8-80e9-34309deacbb3"
+#define PDMIACPIPORT_IID                        "d64233e3-7bb0-4ef1-a313-2bcfafbe6260"
 
 
 /** Pointer to an ACPI connector interface. */
@@ -2013,8 +2383,19 @@ typedef struct PDMIVMMDEVPORT
      * @param   cy              Vertical pixel resolution (0 = do not change).
      * @param   cBits           Bits per pixel (0 = do not change).
      * @param   idxDisplay      The display index.
+     * @param   xOrigin         The X coordinate of the lower left
+     *                          corner of the secondary display with
+     *                          ID = idxDisplay
+     * @param   yOrigin         The Y coordinate of the lower left
+     *                          corner of the secondary display with
+     *                          ID = idxDisplay
+     * @param   fEnabled        Whether the display is enabled or not. (Guessing
+     *                          again.)
+     * @param   fChangeOrigin   Whether the display origin point changed. (Guess)
      */
-    DECLR3CALLBACKMEMBER(int, pfnRequestDisplayChange,(PPDMIVMMDEVPORT pInterface, uint32_t cx, uint32_t cy, uint32_t cBits, uint32_t idxDisplay));
+    DECLR3CALLBACKMEMBER(int, pfnRequestDisplayChange,(PPDMIVMMDEVPORT pInterface, uint32_t cx,
+                         uint32_t cy, uint32_t cBits, uint32_t idxDisplay,
+                         int32_t xOrigin, int32_t yOrigin, bool fEnabled, bool fChangeOrigin));
 
     /**
      * Pass credentials to guest.
@@ -2183,6 +2564,23 @@ typedef struct PDMIVMMDEVCONNECTOR
      */
     DECLR3CALLBACKMEMBER(void, pfnUpdateGuestStatus,(PPDMIVMMDEVCONNECTOR pInterface, uint32_t uFacility, uint16_t uStatus,
                                                      uint32_t fFlags, PCRTTIMESPEC pTimeSpecTS));
+
+    /**
+     * Updates a guest user state.
+     *
+     * Called in response to VMMDevReq_ReportGuestUserState.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   pszUser             Guest user name to update status for.
+     * @param   pszDomain           Domain the guest user is bound to. Optional.
+     * @param   uState              New guest user state to notify host about.
+     * @param   puDetails           Pointer to optional state data.
+     * @param   cbDetails           Size (in bytes) of optional state data.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnUpdateGuestUserState,(PPDMIVMMDEVCONNECTOR pInterface, const char *pszUser, const char *pszDomain,
+                                                        uint32_t uState,
+                                                        const uint8_t *puDetails, uint32_t cbDetails));
 
     /**
      * Reports the guest API and OS version.
@@ -2902,21 +3300,26 @@ typedef struct PDMIDISPLAYVBVACALLBACKS
      * @param   pInterface          Pointer to this interface.
      * @param   pCmd                The Video HW Acceleration Command that was
      *                              completed.
-     * @todo r=bird: if async means asynchronous; then
-     *                   s/pfnVHWACommandCompleteAsynch/pfnVHWACommandCompleteAsync/;
-     *               fi
      */
-    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsynch, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+    DECLR3CALLBACKMEMBER(int, pfnVHWACommandCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
                                                              PVBOXVHWACMD pCmd));
 
     DECLR3CALLBACKMEMBER(int, pfnCrHgsmiCommandCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                               PVBOXVDMACMD_CHROMIUM_CMD pCmd, int rc));
+                                                               struct VBOXVDMACMD_CHROMIUM_CMD* pCmd, int rc));
 
     DECLR3CALLBACKMEMBER(int, pfnCrHgsmiControlCompleteAsync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
-                                                               PVBOXVDMACMD_CHROMIUM_CTL pCmd, int rc));
+                                                               struct VBOXVDMACMD_CHROMIUM_CTL* pCmd, int rc));
+
+    DECLR3CALLBACKMEMBER(int, pfnCrCtlSubmit, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                                   struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
+                                                                   PFNCRCTLCOMPLETION pfnCompletion,
+                                                                   void *pvCompletion));
+
+    DECLR3CALLBACKMEMBER(int, pfnCrCtlSubmitSync, (PPDMIDISPLAYVBVACALLBACKS pInterface,
+                                                                   struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd));
 } PDMIDISPLAYVBVACALLBACKS;
 /** PDMIDISPLAYVBVACALLBACKS  */
-#define PDMIDISPLAYVBVACALLBACKS_IID            "b78b81d2-c821-4e66-96ff-dbafa76343a5"
+#define PDMIDISPLAYVBVACALLBACKS_IID            "ddac0bd0-332d-4671-8853-732921a80216"
 
 /** Pointer to a PCI raw connector interface. */
 typedef struct PDMIPCIRAWCONNECTOR *PPDMIPCIRAWCONNECTOR;

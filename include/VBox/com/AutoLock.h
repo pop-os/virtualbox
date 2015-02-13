@@ -1,10 +1,9 @@
 /** @file
- *
  * Automatic locks, implementation
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ____H_AUTOLOCK
-#define ____H_AUTOLOCK
+#ifndef ___VBox_com_AutoLock_h
+#define ___VBox_com_AutoLock_h
 
 #include <iprt/types.h>
 
@@ -73,11 +72,10 @@ enum VBoxLockingClass
     LOCKCLASS_SNAPSHOTOBJECT = 6,           // snapshot object locks
                                             // (the snapshots tree, including the child pointers in Snapshot,
                                             // is protected by the normal Machine object lock)
-    LOCKCLASS_LISTOFMEDIA = 7,              // list of media (hard disks, DVDs, floppies) in VirtualBox object
-    LOCKCLASS_LISTOFOTHEROBJECTS = 8,       // any other list of objects
-    LOCKCLASS_OTHEROBJECT = 9,              // any regular object member variable lock
-    LOCKCLASS_USBLIST = 10,                 // temporary hack to avoid having to clean up the USB filters
-                                            // too much @todo r=dj get rid of this!
+    LOCKCLASS_MEDIUMQUERY = 7,              // lock used to protect Machine::queryInfo
+    LOCKCLASS_LISTOFMEDIA = 8,              // list of media (hard disks, DVDs, floppies) in VirtualBox object
+    LOCKCLASS_LISTOFOTHEROBJECTS = 9,       // any other list of objects
+    LOCKCLASS_OTHEROBJECT = 10,             // any regular object member variable lock
     LOCKCLASS_PROGRESSLIST = 11,            // list of progress objects in VirtualBox; no other object lock
                                             // may be held after this!
     LOCKCLASS_OBJECTSTATE = 12              // object state lock (handled by AutoCaller classes)
@@ -399,9 +397,7 @@ public:
  * This cannot be used directly. Use AutoWriteLock or AutoMultiWriteLock2/3
  * which derive from this.
  *
- * In addition to utility methods for subclasses, this implements the public
- * leave/enter methods, which are common to all
- * write locks.
+ * It has some utility methods for subclasses.
  */
 class AutoWriteLockBase : public AutoLockBase
 {
@@ -425,10 +421,6 @@ protected:
 
     virtual void callLockImpl(LockHandle &l);
     virtual void callUnlockImpl(LockHandle &l);
-
-public:
-    void leave();
-    void enter();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,6 +513,14 @@ public:
     }
 
     /**
+     * Constructs a new instance that will start managing the given read/write
+     * semaphore by requesting a write lock.
+     */
+    AutoWriteLock(uint32_t cHandles,
+                  LockHandle** pHandles
+                  COMMA_LOCKVAL_SRC_POS_DECL);
+
+    /**
      * Release all write locks acquired by this instance through the #lock()
      * call and destroys the instance.
      *
@@ -606,8 +606,32 @@ public:
     }
 };
 
+/**
+ * A multi-write-lock containing four other write locks.
+ *
+ */
+class AutoMultiWriteLock4 : public AutoWriteLockBase
+{
+public:
+    AutoMultiWriteLock4(Lockable *pl1,
+                        Lockable *pl2,
+                        Lockable *pl3,
+                        Lockable *pl4
+                        COMMA_LOCKVAL_SRC_POS_DECL);
+    AutoMultiWriteLock4(LockHandle *pl1,
+                        LockHandle *pl2,
+                        LockHandle *pl3,
+                        LockHandle *pl4
+                        COMMA_LOCKVAL_SRC_POS_DECL);
+
+    virtual ~AutoMultiWriteLock4()
+    {
+        cleanup();
+    }
+};
+
 } /* namespace util */
 
-#endif // ____H_AUTOLOCK
+#endif
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

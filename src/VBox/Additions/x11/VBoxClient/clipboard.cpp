@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,6 @@
 #include <VBox/GuestHost/SharedClipboard.h>
 
 #include "VBoxClient.h"
-#include "clipboard.h"
 
 /****************************************************************************
 *   Global Variables                                                        *
@@ -278,29 +277,58 @@ int vboxClipboardMain(void)
     return rc;
 }
 
-class ClipboardService : public VBoxClient::Service
+static const char *getPidFilePath()
 {
-public:
-    virtual const char *getPidFilePath()
-    {
-        return ".vboxclient-clipboard.pid";
-    }
-    virtual int run(bool fDaemonised /* = false */)
-    {
-        int rc = vboxClipboardConnect();
-        if (RT_SUCCESS(rc))
-            rc = vboxClipboardMain();
-        if (RT_FAILURE(rc))
-            LogRelFunc(("guest clipboard service terminated abnormally: return code %Rrc\n", rc));
-        return rc;
-    }
-    virtual void cleanup()
-    {
-        /* Nothing to do. */
-    }
+    return ".vboxclient-clipboard.pid";
+}
+
+static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
+{
+    int rc;
+
+    NOREF(ppInterface);
+    /* Initialise the guest library. */
+    rc = VbglR3InitUser();
+    if (RT_FAILURE(rc))
+        VBClFatalError(("Failed to connect to the VirtualBox kernel service, rc=%Rrc\n", rc));
+    rc = vboxClipboardConnect();
+    if (RT_SUCCESS(rc))
+        rc = vboxClipboardMain();
+    if (rc == VERR_NOT_SUPPORTED)
+        rc = VINF_SUCCESS;  /* Prevent automatic restart. */
+    if (RT_FAILURE(rc))
+        LogRelFunc(("guest clipboard service terminated abnormally: return code %Rrc\n", rc));
+    return rc;
+}
+
+static void cleanup(struct VBCLSERVICE **ppInterface)
+{
+    NOREF(ppInterface);
+    VbglR3Term();
+}
+
+struct VBCLSERVICE vbclClipboardInterface =
+{
+    getPidFilePath,
+    VBClServiceDefaultHandler, /* init */
+    run,
+    VBClServiceDefaultHandler, /* pause */
+    VBClServiceDefaultHandler, /* resume */
+    cleanup
 };
 
-VBoxClient::Service *VBoxClient::GetClipboardService()
+struct CLIPBOARDSERVICE
 {
-    return new ClipboardService;
+    struct VBCLSERVICE *pInterface;
+};
+
+struct VBCLSERVICE **VBClGetClipboardService()
+{
+    struct CLIPBOARDSERVICE *pService =
+        (struct CLIPBOARDSERVICE *)RTMemAlloc(sizeof(*pService));
+
+    if (!pService)
+        VBClFatalError(("Out of memory\n"));
+    pService->pInterface = &vbclClipboardInterface;
+    return &pService->pInterface;
 }

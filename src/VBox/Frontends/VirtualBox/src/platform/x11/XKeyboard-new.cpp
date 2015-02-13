@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,11 +21,16 @@
 
 #include <QString>
 #include <QStringList>
+#include <X11/XKBlib.h>
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <XKeyboard.h>
 #include <VBox/log.h>
 #include <VBox/VBoxKeyboard.h>
+
+/* VBoxKeyboard uses the deprecated XKeycodeToKeysym(3) API, but uses it safely.
+ */
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
 static unsigned gfByLayoutOK = 1;
 static unsigned gfByTypeOK = 1;
@@ -83,9 +88,9 @@ static void printKey(Display *display, int keyc)
 static void dumpLayout(Display *display)
 {
     LogRel(("Your keyboard layout does not appear to be fully supported by\n"
-            "VirtualBox. If you would like to help us improve the product,\n"
-            "please submit a bug report and attach this logfile.\n"
-            "(Note: please ignore this if you are using a custom layout.)\n\n"
+            "VirtualBox. If you are experiencing keyboard problems this.\n"
+            "information may help us to resolve them.\n"
+            "(Note: please tell us if you are using a custom layout.)\n\n"
             "The correct table for your layout is:\n"));
     /* First, build up a table of scan-to-key code mappings */
     unsigned scanToKeycode[512] = { 0 };
@@ -142,8 +147,8 @@ static void dumpLayout(Display *display)
 static void dumpType(Display *display)
 {
     LogRel(("Your keyboard type does not appear to be known to VirtualBox. If\n"
-            "you would like to help us improve the product, please submit a bug\n"
-            "report, attach this logfile and provide information about what type\n"
+            "you are experiencing keyboard problems this information may help us\n"
+            "to resolve them.  Please also provide information about what type\n"
             "of keyboard you have and whether you are using a remote X server or\n"
             "something similar.\n\n"
             "The tables for your keyboard are:\n"));
@@ -207,11 +212,10 @@ void doXKeyboardLogging(Display *dpy)
     {
         LogRel(("Failed to recognize the keyboard mapping or to guess it based on\n"
                 "the keyboard layout.  It is very likely that some keys will not\n"
-                "work correctly in the guest.  If you would like to help us improve\n"
-                "the product, please submit a bug report, giving us information\n"
-                "about your keyboard type, its layout and other relevant\n"
-                "information such as whether you are using a remote X server or\n"
-                "something similar. \n"));
+                "work correctly in the guest.  If this is the case, please submit\n"
+                "a bug report, giving us information about your keyboard type,\n"
+                "its layout and other relevant information such as whether you\n"
+                "are using a remote X server or something similar. \n"));
         unsigned *keyc2scan = X11DRV_getKeyc2scan();
 
         LogRel(("The keycode-to-scancode table is: %d=%d",0,keyc2scan[0]));
@@ -235,19 +239,6 @@ unsigned handleXKeyEvent(XEvent *event)
     LogRel3(("VBoxKeyboard: converting keycode %d to scancode %s0x%x\n",
           event->xkey.keycode, key > 0x100 ? "0xe0 " : "", key & 0xff));
     return key;
-}
-
-/**
- * Return the maximum number of symbols which can be associated with a key
- * in the current layout.  This is needed so that Dmitry can use keyboard
- * shortcuts without switching to Latin layout, by looking at all symbols
- * which a given key can produce and seeing if any of them match the shortcut.
- */
-int getKeysymsPerKeycode()
-{
-    /* This can never be higher than 8, and returning too high a value is
-       completely harmless. */
-    return 8;
 }
 
 /**
@@ -285,3 +276,11 @@ void initMappedX11Keyboard(Display *pDisplay, QString remapScancodes)
         delete scancodes;
 }
 
+unsigned long wrapXkbKeycodeToKeysym(Display *pDisplay, unsigned char cCode,
+                                     unsigned int cGroup, unsigned int cIndex)
+{
+    KeySym cSym = XkbKeycodeToKeysym(pDisplay, cCode, cGroup, cIndex);
+    if (cSym != NoSymbol)
+        return cSym;
+    return XKeycodeToKeysym(pDisplay, cCode, cGroup * 2 + cIndex % 2);
+}

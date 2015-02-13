@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,16 +54,62 @@ public:
      * unless the previous char was a newline ('\n').
      *
      * @param   rStr        The text string to append.
+     * @param   fClearSelection     Whether to clear selected text before appending.
+     *                              If @c false the selection and window position
+     *                              are preserved.
      */
-    virtual void appendText(const QString &rStr);
+    virtual void appendText(const QString &rStr, bool fClearSelection);
+
+    /** The action to switch to black-on-white color scheme. */
+    QAction *m_pBlackOnWhiteAction;
+    /** The action to switch to green-on-black color scheme. */
+    QAction *m_pGreenOnBlackAction;
+
+    /** The action to switch to Courier font. */
+    QAction *m_pCourierFontAction;
+    /** The action to switch to Monospace font. */
+    QAction *m_pMonospaceFontAction;
 
 protected:
+    typedef enum  { kGreenOnBlack, kBlackOnWhite } VBoxDbgConsoleColor;
+
+    /**
+     * Context menu event.
+     * This adds custom menu items for the output view.
+     *
+     * @param pEvent   Pointer to the event.
+     */
+    virtual void contextMenuEvent(QContextMenuEvent *pEvent);
+
     /** The current line (paragraph) number. */
     unsigned m_uCurLine;
     /** The position in the current line. */
     unsigned m_uCurPos;
     /** The handle to the GUI thread. */
     RTNATIVETHREAD m_hGUIThread;
+    /** The current color scheme (foreground on background). */
+    VBoxDbgConsoleColor m_enmColorScheme;
+
+private slots:
+    /**
+     * The green-on-black color scheme context-menu item was triggered.
+     */
+    void        setColorGreenOnBlack();
+
+    /**
+     * The black-on-white color scheme context-menu item was triggered.
+     */
+    void        setColorBlackOnWhite();
+
+    /**
+     * The courier font family context-menu item was triggered.
+     */
+    void        setFontCourier();
+
+    /**
+     * The monospace font family context-menu item was triggered.
+     */
+    void        setFontMonospace();
 };
 
 
@@ -114,8 +160,6 @@ private slots:
     void returnPressed();
 
 protected:
-    /** The current blank entry. */
-    int m_iBlankItem;
     /** The handle to the GUI thread. */
     RTNATIVETHREAD m_hGUIThread;
 };

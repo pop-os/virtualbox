@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,65 +17,39 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* Qt includes: */
+#include <QMutex>
+
+/* GUI includes: */
 #include "UIExtraDataEventHandler.h"
 #include "UIMainEventListener.h"
 #include "VBoxGlobal.h"
 #include "VBoxGlobalSettings.h"
+#include "UIActionPool.h"
 
-/* Global includes */
-//#include <iprt/thread.h>
-//#include <iprt/stream.h>
-#include <QMutex>
+/* COM includes: */
+#include "COMEnums.h"
+#include "CEventSource.h"
 
 class UIExtraDataEventHandlerPrivate: public QObject
 {
     Q_OBJECT;
 
 public:
+
     UIExtraDataEventHandlerPrivate(QObject *pParent = 0)
-      : QObject(pParent)
-      , m_fIsRegDlgOwner(false)
-      , m_fIsUpdDlgOwner(false)
-#ifdef VBOX_GUI_WITH_SYSTRAY
-      , m_fIsTrayIconOwner(false)
-#endif /* VBOX_GUI_WITH_SYSTRAY */
+        : QObject(pParent)
     {}
 
 public slots:
 
     void sltExtraDataCanChange(QString strId, QString strKey, QString strValue, bool &fVeto, QString &strVetoReason)
     {
-        if (strId.isEmpty())
+        if (QUuid(strId).isNull())
         {
             /* it's a global extra data key someone wants to change */
             if (strKey.startsWith("GUI/"))
             {
-                if (strKey == VBoxDefs::GUI_RegistrationDlgWinID)
-                {
-                    if (m_fIsRegDlgOwner)
-                    {
-                        if (!(strValue.isEmpty() ||
-                              strValue == QString("%1")
-                              .arg((qulonglong)vboxGlobal().mainWindow()->winId())))
-                            fVeto = true;
-                    }
-                    return;
-                }
-
-#ifdef VBOX_GUI_WITH_SYSTRAY
-                if (strKey == VBoxDefs::GUI_TrayIconWinID)
-                {
-                    if (m_fIsTrayIconOwner)
-                    {
-                        if (!(strValue.isEmpty() ||
-                              strValue == QString("%1")
-                              .arg((qulonglong)vboxGlobal().mainWindow()->winId())))
-                            fVeto = true;
-                    }
-                    return;
-                }
-#endif
                 /* Try to set the global setting to check its syntax */
                 VBoxGlobalSettings gs(false /* non-null */);
                 if (gs.setPublicProperty (strKey, strValue))
@@ -93,108 +67,77 @@ public slots:
         }
     }
 
-   void sltExtraDataChange(QString strId, QString strKey, QString strValue)
-   {
-       if (strId.isEmpty())
-       {
-           if (strKey.startsWith ("GUI/"))
-           {
-               if (strKey == VBoxDefs::GUI_RegistrationDlgWinID)
-               {
-                   if (strValue.isEmpty())
-                   {
-                       m_fIsRegDlgOwner = false;
-                       emit sigCanShowRegistrationDlg(true);
-                   }
-                   else if (strValue == QString("%1")
-                            .arg((qulonglong)vboxGlobal().mainWindow()->winId()))
-                   {
-                       m_fIsRegDlgOwner = true;
-                       emit sigCanShowRegistrationDlg(true);
-                   }
-                   else
-                       emit sigCanShowRegistrationDlg(false);
-               }
-               if (strKey == VBoxDefs::GUI_LanguageId)
-                       emit sigGUILanguageChange(strValue);
-#ifdef VBOX_GUI_WITH_SYSTRAY
-               if (strKey == VBoxDefs::GUI_MainWindowCount)
-                   emit sigMainWindowCountChange(strValue.toInt());
-               if (strKey == VBoxDefs::GUI_TrayIconWinID)
-               {
-                   if (strValue.isEmpty())
-                   {
-                       m_fIsTrayIconOwner = false;
-                       emit sigCanShowTrayIcon(true);
-                   }
-                   else if (strValue == QString("%1")
-                            .arg((qulonglong)vboxGlobal().mainWindow()->winId()))
-                   {
-                       m_fIsTrayIconOwner = true;
-                       emit sigCanShowTrayIcon(true);
-                   }
-                   else
-                       emit sigCanShowTrayIcon(false);
-               }
-               if (strKey == VBoxDefs::GUI_TrayIconEnabled)
-                   emit sigTrayIconChange((strValue.toLower() == "true") ? true : false);
-#endif /* VBOX_GUI_WITH_SYSTRAY */
+    void sltExtraDataChange(QString strId, QString strKey, QString strValue)
+    {
+        if (QUuid(strId).isNull())
+        {
+            if (strKey.startsWith ("GUI/"))
+            {
+                if (strKey == GUI_LanguageId)
+                    emit sigGUILanguageChange(strValue);
+                if (strKey == GUI_Input_SelectorShortcuts && gActionPool->type() == UIActionPoolType_Selector)
+                    emit sigSelectorShortcutsChanged();
+                if (strKey == GUI_Input_MachineShortcuts && gActionPool->type() == UIActionPoolType_Runtime)
+                    emit sigMachineShortcutsChanged();
 #ifdef Q_WS_MAC
-               if (strKey == VBoxDefs::GUI_PresentationModeEnabled)
-               {
-                   /* Default to true if it is an empty value */
-                   QString testStr = strValue.toLower();
-                   bool f = (testStr.isEmpty() || testStr == "false");
-                   emit sigPresentationModeChange(f);
-               }
+                if (strKey == GUI_PresentationModeEnabled)
+                {
+                    /* Default to true if it is an empty value */
+                    QString testStr = strValue.toLower();
+                    bool f = (testStr.isEmpty() || testStr == "false");
+                    emit sigPresentationModeChange(f);
+                }
 #endif /* Q_WS_MAC */
 
-               m_mutex.lock();
-               vboxGlobal().settings().setPublicProperty(strKey, strValue);
-               m_mutex.unlock();
-               Assert(!!vboxGlobal().settings());
-           }
-       }
+                m_mutex.lock();
+                vboxGlobal().settings().setPublicProperty(strKey, strValue);
+                m_mutex.unlock();
+                Assert(!!vboxGlobal().settings());
+            }
+        }
+        else if (vboxGlobal().isVMConsoleProcess())
+        {
+            /* Take care about HID LEDs sync */
+            if (strKey == GUI_HidLedsSync)
+            {
+                /* If extra data GUI/HidLedsSync is not present in VM config or set
+                 * to 1 then sync is enabled. Otherwise, it is disabled. */
+
+                /* (temporary disabled by default) */
+                bool f = (strValue == "1") ? true : false;
+                emit sigHidLedsSyncStateChanged(f);
+            }
+
 #ifdef Q_WS_MAC
-       else if (vboxGlobal().isVMConsoleProcess())
-       {
-           /* Check for the currently running machine */
-           if (strId == vboxGlobal().managedVMUuid())
-           {
-               if (   strKey == VBoxDefs::GUI_RealtimeDockIconUpdateEnabled
-                   || strKey == VBoxDefs::GUI_RealtimeDockIconUpdateMonitor)
-               {
-                   bool f = strValue.toLower() == "false" ? false : true;
-                   emit sigDockIconAppearanceChange(f);
-               }
-           }
-       }
+            /* Check for the currently running machine */
+            if (strId == vboxGlobal().managedVMUuid())
+            {
+                if (   strKey == GUI_RealtimeDockIconUpdateEnabled
+                    || strKey == GUI_RealtimeDockIconUpdateMonitor)
+                {
+                    bool f = strValue.toLower() == "false" ? false : true;
+                    emit sigDockIconAppearanceChange(f);
+                }
+            }
 #endif /* Q_WS_MAC */
-   }
+        }
+    }
 
 signals:
-    void sigCanShowRegistrationDlg(bool fEnabled);
+
     void sigGUILanguageChange(QString strLang);
-#ifdef VBOX_GUI_WITH_SYSTRAY
-    void sigMainWindowCountChange(int count);
-    void sigCanShowTrayIcon(bool fEnabled);
-    void sigTrayIconChange(bool fEnabled);
-#endif /* VBOX_GUI_WITH_SYSTRAY */
+    void sigSelectorShortcutsChanged();
+    void sigMachineShortcutsChanged();
+    void sigHidLedsSyncStateChanged(bool fEnabled);
 #ifdef RT_OS_DARWIN
     void sigPresentationModeChange(bool fEnabled);
     void sigDockIconAppearanceChange(bool fEnabled);
 #endif /* RT_OS_DARWIN */
 
 private:
+
     /** protects #OnExtraDataChange() */
     QMutex m_mutex;
-
-    /* Private member vars */
-    bool m_fIsRegDlgOwner;
-    bool m_fIsUpdDlgOwner;
-#ifdef VBOX_GUI_WITH_SYSTRAY
-    bool m_fIsTrayIconOwner;
-#endif /* VBOX_GUI_WITH_SYSTRAY */
 };
 
 /* static */
@@ -247,27 +190,21 @@ UIExtraDataEventHandler::UIExtraDataEventHandler()
             Qt::DirectConnection);
 
     /* UI signals */
-    connect(m_pHandler, SIGNAL(sigCanShowRegistrationDlg(bool)),
-            this, SIGNAL(sigCanShowRegistrationDlg(bool)),
-            Qt::QueuedConnection);
-
     connect(m_pHandler, SIGNAL(sigGUILanguageChange(QString)),
             this, SIGNAL(sigGUILanguageChange(QString)),
             Qt::QueuedConnection);
 
-#ifdef VBOX_GUI_WITH_SYSTRAY
-    connect(m_pHandler, SIGNAL(sigMainWindowCountChange(int)),
-            this, SIGNAL(sigMainWindowCountChange(int)),
+    connect(m_pHandler, SIGNAL(sigSelectorShortcutsChanged()),
+            this, SIGNAL(sigSelectorShortcutsChanged()),
             Qt::QueuedConnection);
 
-    connect(m_pHandler, SIGNAL(sigCanShowTrayIcon(bool)),
-            this, SIGNAL(sigCanShowTrayIcon(bool)),
+    connect(m_pHandler, SIGNAL(sigMachineShortcutsChanged()),
+            this, SIGNAL(sigMachineShortcutsChanged()),
             Qt::QueuedConnection);
 
-    connect(m_pHandler, SIGNAL(sigTrayIconChange(bool)),
-            this, SIGNAL(sigTrayIconChange(bool)),
+    connect(m_pHandler, SIGNAL(sigHidLedsSyncStateChanged(bool)),
+            this, SIGNAL(sigHidLedsSyncStateChanged(bool)),
             Qt::QueuedConnection);
-#endif /* VBOX_GUI_WITH_SYSTRAY */
 
 #ifdef Q_WS_MAC
     connect(m_pHandler, SIGNAL(sigPresentationModeChange(bool)),

@@ -106,9 +106,9 @@ dat libgstreamer-plugins-base is geïnstalleerd.</translation>
     <message numerus="yes">
         <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
         <translatorcomment>RL - kan nog niet goed vertaald worden omdat %n als single/plural place marker niet in source is opgenomen. Ticket #10400 aangemaakt bij virtualbox, afwachten tot bug hersteld is. RL - Ticket gesloten - is string van derde (Phonon) in Qt source, geen VirtualBox issue.</translatorcomment>
-        <translation type="unfinished">
-            <numerusform>Een noodzakelijke codec mist. U moet de volgende codec installeren om deze inhoud af te spelen: %0</numerusform>
-            <numerusform>Noodzakelijke codecs missen. U moet de volgende codecs installeren om deze inhoud af te spelen: %0</numerusform>
+        <translation>
+            <numerusform>Een noodzakelijke codec ontbreekt. U moet de volgende codec installeren om dit bestand af te kunnen spelen: %0</numerusform>
+            <numerusform>Noodzakelijke codecs ontbreken. U moet de volgende codecs installeren om dit bestand af te kunnen spelen: %0</numerusform>
         </translation>
     </message>
     <message>
@@ -599,7 +599,7 @@ niet hernoemen naar
         <translation>Sluit het venster</translation>
     </message>
     <message>
-        <source>Displays the name of the window and contains controls to manipulate it</source>
+        <source>Holds the name of the window and contains controls to manipulate it</source>
         <translation>Geeft de naam van venster weer en bevat knoppen om deze te bewerken</translation>
     </message>
 </context>

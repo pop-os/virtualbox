@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -182,11 +182,7 @@ void QILabel::mouseMoveEvent (QMouseEvent *aEvent)
         mimeData->setText (removeHtmlTags (mText));
         drag->setMimeData (mimeData);
         /* Start the dragging */
-#if QT_VERSION >= 0x040300
         drag->exec();
-#else /* QT_VERSION >= 0x040300 */
-        drag->start (Qt::MoveAction);
-#endif /* QT_VERSION >= 0x040300 */
     }
     else
         QLabel::mouseMoveEvent (aEvent);
@@ -236,12 +232,6 @@ void QILabel::paintEvent (QPaintEvent *aEvent)
         option.initFrom (this);
         style()->drawPrimitive (QStyle::PE_FrameFocusRect, &option, &painter, this);
     }
-}
-
-void QILabel::showEvent(QShowEvent *pEvent)
-{
-    QLabel::showEvent(pEvent);
-    emit shown();
 }
 
 void QILabel::init()

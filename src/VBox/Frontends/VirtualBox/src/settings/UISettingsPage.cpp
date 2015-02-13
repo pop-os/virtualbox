@@ -17,8 +17,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
+/* GUI includes: */
+#include "UIConverter.h"
 #include "UISettingsPage.h"
+#include "QIWidgetValidator.h"
 
 /* Settings page constructor, hidden: */
 UISettingsPage::UISettingsPage(UISettingsPageType pageType)
@@ -28,13 +30,48 @@ UISettingsPage::UISettingsPage(UISettingsPageType pageType)
     , m_fProcessed(false)
     , m_fFailed(false)
     , m_pFirstWidget(0)
+    , m_pValidator(0)
+    , m_fIsValidatorBlocked(true)
 {
+}
+
+void UISettingsPage::setValidator(UIPageValidator *pValidator)
+{
+    /* Make sure validator is not yet assigned: */
+    AssertMsg(!m_pValidator, ("Validator already assigned!\n"));
+    if (m_pValidator)
+        return;
+
+    /* Assign validator: */
+    m_pValidator = pValidator;
+}
+
+void UISettingsPage::revalidate()
+{
+    /* Revalidate if possible: */
+    if (m_pValidator && !m_fIsValidatorBlocked)
+        m_pValidator->revalidate();
 }
 
 /* Global settings page constructor, hidden: */
 UISettingsPageGlobal::UISettingsPageGlobal()
     : UISettingsPage(UISettingsPageType_Global)
 {
+}
+
+GlobalSettingsPageType UISettingsPageGlobal::internalID() const
+{
+    return static_cast<GlobalSettingsPageType>(id());
+}
+
+QString UISettingsPageGlobal::internalName() const
+{
+    return gpConverter->toInternalString(internalID());
+}
+
+QPixmap UISettingsPageGlobal::warningPixmap() const
+{
+    return gpConverter->toWarningPixmap(internalID());
 }
 
 /* Fetch data to m_properties & m_settings: */
@@ -54,6 +91,21 @@ void UISettingsPageGlobal::uploadData(QVariant &data) const
 UISettingsPageMachine::UISettingsPageMachine()
     : UISettingsPage(UISettingsPageType_Machine)
 {
+}
+
+MachineSettingsPageType UISettingsPageMachine::internalID() const
+{
+    return static_cast<MachineSettingsPageType>(id());
+}
+
+QString UISettingsPageMachine::internalName() const
+{
+    return gpConverter->toInternalString(internalID());
+}
+
+QPixmap UISettingsPageMachine::warningPixmap() const
+{
+    return gpConverter->toWarningPixmap(internalID());
 }
 
 /* Fetch data to m_machine & m_console: */

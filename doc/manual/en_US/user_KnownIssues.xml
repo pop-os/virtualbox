@@ -80,6 +80,13 @@
           experience this, do not attempt to execute 64-bit guests. Refer to the
           VirtualBox user forum for additional information.</para>
         </listitem>
+
+        <listitem>
+          <para><emphasis role="bold">NX (no execute, data execution
+          prevention)</emphasis> only works for guests running on 64-bit hosts
+          or guests running on 32-bit hosts with PAE enabled and requires that
+          hardware virtualization be enabled.</para>
+        </listitem>
     
         <listitem>
           <para>For <emphasis role="bold">basic Direct3D support in Windows
@@ -154,6 +161,12 @@
         </listitem>
     
         <listitem>
+          <para>The RDP server in the VirtualBox extension pack supports only
+          audio streams in format 22.05kHz stereo 16 bit. If the RDP client
+          requests any other audio format there will be no audio.</para>
+        </listitem>
+    
+        <listitem>
           <para>Preserving the aspect ratio in scale mode works only on Windows
           hosts and on Mac OS X hosts.</para>
         </listitem>
@@ -178,52 +191,51 @@
         </listitem>
     
         <listitem>
-          <para><emphasis role="bold">Mac OS X Server guests:</emphasis>
+          <para><emphasis role="bold">Mac OS X guests:</emphasis>
           <itemizedlist>
               <listitem>
-                <para>Mac OS X Server guests can only run on a certain host
-                hardware. For details about license and host hardware limitations,
-                please see <xref linkend="intro-macosxguests" />.</para>
+                <para>Mac OS X guests can only run on a certain host hardware.
+                For details about license and host hardware limitations, please
+                see <xref linkend="intro-macosxguests" /> and check the Apple
+                software license conditions.</para>
               </listitem>
     
               <listitem>
                 <para>VirtualBox does not provide Guest Additions for Mac OS X
-                Server at this time.</para>
+                at this time.</para>
               </listitem>
     
               <listitem>
                 <para>The graphics resolution currently defaults to 1024x768 as
-                Mac OS X Server falls back to the built-in EFI display support.
-                See <xref linkend="efividmode" /> for more information on how to
+                Mac OS X falls back to the built-in EFI display support. See
+                <xref linkend="efividmode" /> for more information on how to
                 change EFI video modes.</para>
               </listitem>
     
               <listitem>
-                <para>Even when idle, Mac OS X Server guests currently burn 100%
-                CPU. This is a power management issue that will be addressed in a
-                future release.</para>
+                <para>Mac OS X guests only work with one CPU assigned to the
+                VM. Support for SMP will be provided in a future release.</para>
               </listitem>
     
               <listitem>
-                <para>Mac OS X Server guests only work with one CPU assigned to
-                the VM. Support for SMP will be provided in a future
-                release.</para>
-              </listitem>
-    
-              <listitem>
-                <para>Depending on your system and version of Mac OS X Server, you
-                might experience guest hangs after some time. This can be fixed by
-                turning off energy saving (set timeout to "Never") in the system
-                preferences.</para>
+                <para>Depending on your system and version of Mac OS X, you
+                might experience guest hangs after some time. This can be fixed
+                by turning off energy saving (set timeout to "Never") in the
+                system preferences.</para>
               </listitem>
     
               <listitem>
                 <para>By default, the VirtualBox EFI enables debug output of the
-                Mac OS X Server kernel to help you diagnose boot problems. Note
-                that there is a lot of output and not all errors are fatal (they
+                Mac OS X kernel to help you diagnose boot problems. Note that
+                there is a lot of output and not all errors are fatal (they
                 would also show on your physical Mac). You can turn off these
                 messages by issuing this command:<screen>VBoxManage setextradata "VM name" "VBoxInternal2/EfiBootArgs" "  "</screen>To
                 revert to the previous behavior, use:<screen>VBoxManage setextradata "VM name" "VBoxInternal2/EfiBootArgs" ""</screen></para>
+              </listitem>
+
+              <listitem>
+                <para>It is currently not possible to start a Mac OS X guest in safe mode by specifying "-x" option
+                in "VBoxInternal2/EfiBootArgs" extradata.</para>
               </listitem>
             </itemizedlist></para>
         </listitem>
@@ -252,12 +264,11 @@
               </listitem>
     
               <listitem>
-                <para>Crossbow based bridged networking on Solaris 11 hosts does
+                <para>Crossbow-based bridged networking on Solaris 11 hosts does
                 not work directly with aggregate links. However, you can manually
                 create a VNIC (using <computeroutput>dladm</computeroutput>) over
                 the aggregate link and use that with a VM. This technical
-                limitation between VirtualBox and Solaris will be addressed in a
-                future release.</para>
+                limitation will be addressed in a future Solaris 11 release.</para>
               </listitem>
             </itemizedlist></para>
         </listitem>
@@ -273,11 +284,20 @@
           </note>
           To solve this problem, one should uninstall the VirtualBox WDDM Video driver manually.
           To do that open Device Manager, and check whether the Display Adapter is named 
-          "VirtualBox Graphics Adapter ..". If no - there is nothing to be done. If yes - right-clik 
+          "VirtualBox Graphics Adapter ..". If no - there is nothing to be done. If yes - right-click 
           the VirtualBox Graphics Adapter in Device Manager, select "Uninstall", check "Delete the driver software for this device"
           and click "OK". Once uninstallation is done - in Device Manager go to menu "Action" and select 
           "Scan for hardware changes" to make the propper (Windows default) driver be picked up for the Graphics adapter.
           </para>
+        </listitem>
+    
+        <listitem>
+          <para>Neither <emphasis>virtio</emphasis> nor <emphasis>Intel PRO/1000
+            </emphasis> drivers for <emphasis role="bold">Windows XP guests
+            </emphasis> support segmentation offloading. Therefore
+            Windows XP guests have slower transmission rates comparing to other
+            guest types. Refer to MS Knowledge base article 842264 for additional
+            information.</para>
         </listitem>
     
         <listitem>

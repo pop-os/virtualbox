@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,7 @@
  * THE SOFTWARE.
  */
 #include <slirp.h>
+#include <libslirp.h>
 
 /** Entry in the table of known DHCP clients. */
 typedef struct
@@ -70,7 +71,10 @@ static uint8_t *dhcp_find_option(uint8_t *vend, uint8_t tag)
     while(*q != RFC1533_END)
     {
         if (*q == RFC1533_PAD)
+        {
+            q++;
             continue;
+        }
         if (*q == tag)
             return q;
         q++;
@@ -83,6 +87,7 @@ static uint8_t *dhcp_find_option(uint8_t *vend, uint8_t tag)
 static BOOTPClient *bc_alloc_client(PNATState pData)
 {
     int i;
+    LogFlowFuncEnter();
     for (i = 0; i < NB_ADDR; i++)
     {
         if (!bootp_clients[i].allocated)
@@ -93,21 +98,25 @@ static BOOTPClient *bc_alloc_client(PNATState pData)
             memset(bc, 0, sizeof(BOOTPClient));
             bc->allocated = 1;
             bc->number = i;
+            LogFlowFunc(("LEAVE: bc:%d\n", bc->number));
             return bc;
         }
     }
+    LogFlowFunc(("LEAVE: NULL\n"));
     return NULL;
 }
 
 static BOOTPClient *get_new_addr(PNATState pData, struct in_addr *paddr)
 {
     BOOTPClient *bc;
+    LogFlowFuncEnter();
     bc = bc_alloc_client(pData);
     if (!bc)
         return NULL;
 
     paddr->s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | (bc->number + START_ADDR));
     bc->addr.s_addr = paddr->s_addr;
+    LogFlowFunc(("LEAVE: paddr:%RTnaipv4, bc:%d\n", paddr->s_addr, bc->number));
     return bc;
 }
 
@@ -177,18 +186,22 @@ static BOOTPClient *find_addr(PNATState pData, struct in_addr *paddr, const uint
 {
     int i;
 
+    LogFlowFunc(("macaddr:%RTmac\n", macaddr));
     for (i = 0; i < NB_ADDR; i++)
     {
-        if (!memcmp(macaddr, bootp_clients[i].macaddr, 6))
+        if (   memcmp(macaddr, bootp_clients[i].macaddr, ETH_ALEN) == 0
+            && bootp_clients[i].allocated != 0)
         {
             BOOTPClient *bc;
 
             bc = &bootp_clients[i];
             bc->allocated = 1;
             paddr->s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | (i + START_ADDR));
+            LogFlowFunc(("LEAVE: paddr:%RTnaipv4 bc:%d\n", paddr->s_addr, bc->number));
             return bc;
         }
     }
+    LogFlowFunc(("LEAVE: NULL\n"));
     return NULL;
 }
 
@@ -262,11 +275,7 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
     {
         rbp->bp_ciaddr.s_addr = bc->addr.s_addr; /* Client IP address */
     }
-#ifndef VBOX_WITH_NAT_SERVICE
     saddr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
-#else
-    saddr.s_addr = pData->special_addr.s_addr;
-#endif
     Log(("NAT: DHCP: s_addr:%RTnaipv4\n", saddr));
 
 #define FILL_BOOTP_EXT(q, tag, len, pvalue)                     \
@@ -295,24 +304,21 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
     {
         uint32_t addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_DNS);
         FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &addr);
-        goto skip_dns_servers;
     }
-
-    if (!TAILQ_EMPTY(&pData->pDnsList))
+    else if (!TAILQ_EMPTY(&pData->pDnsList))
     {
         de = TAILQ_LAST(&pData->pDnsList, dns_list_head);
         q_dns_header = q;
         FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &de->de_addr.s_addr);
+
+        TAILQ_FOREACH_REVERSE(de, &pData->pDnsList, dns_list_head, de_list)
+        {
+            if (TAILQ_LAST(&pData->pDnsList, dns_list_head) == de)
+                continue; /* first value with head we've ingected before */
+            FILL_BOOTP_APP(q_dns_header, q, RFC1533_DNS, 4, &de->de_addr.s_addr);
+        }
     }
 
-    TAILQ_FOREACH_REVERSE(de, &pData->pDnsList, dns_list_head, de_list)
-    {
-        if (TAILQ_LAST(&pData->pDnsList, dns_list_head) == de)
-            continue; /* first value with head we've ingected before */
-        FILL_BOOTP_APP(q_dns_header, q, RFC1533_DNS, 4, &de->de_addr.s_addr);
-    }
-
-skip_dns_servers:
     if (pData->fPassDomain && !pData->fUseHostResolver)
     {
         LIST_FOREACH(dd, &pData->pDomainList, dd_list)
@@ -337,15 +343,15 @@ skip_dns_servers:
         val = (int)strlen(slirp_hostname);
         FILL_BOOTP_EXT(q, RFC1533_HOSTNAME, val, slirp_hostname);
     }
-    slirp_arp_cache_update_or_add(pData, rbp->bp_yiaddr.s_addr, bc->macaddr);
+    /* Temporary fix: do not pollute ARP cache from BOOTP because it may result
+       in network loss due to cache entry override w/ invalid MAC address. */
+    //slirp_arp_cache_update_or_add(pData, rbp->bp_yiaddr.s_addr, bc->macaddr);
     return q - rbp->bp_vend; /*return offset */
 }
 
 static int dhcp_send_nack(PNATState pData, struct bootp_t *bp, BOOTPClient *bc, struct mbuf *m)
 {
-    struct bootp_t *rbp;
-    uint8_t *q = NULL;
-    rbp = mtod(m, struct bootp_t *);
+    NOREF(bc);
 
     dhcp_create_msg(pData, bp, m, DHCPNAK);
     return 7;
@@ -391,7 +397,7 @@ enum DHCP_REQUEST_STATES
     NONE
 };
 
-static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, const uint8_t *buf, int size, struct mbuf *m)
+static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, struct mbuf *m)
 {
     BOOTPClient *bc = NULL;
     struct in_addr daddr;
@@ -526,11 +532,15 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, const uint8_
                 return offReply;
             }
 
-            bc = bc_alloc_client(pData);
+            /* find_addr() got some result? */
             if (!bc)
             {
-                LogRel(("NAT: can't alloc address. RENEW has been silently ignored\n"));
-                return -1;
+                bc = bc_alloc_client(pData);
+                if (!bc)
+                {
+                    LogRel(("NAT: can't alloc address. RENEW has been silently ignored\n"));
+                    return -1;
+                }
             }
             Assert((bp->bp_hlen == ETH_ALEN));
             memcpy(bc->macaddr, bp->bp_hwaddr, bp->bp_hlen);
@@ -554,7 +564,7 @@ static int dhcp_decode_request(PNATState pData, struct bootp_t *bp, const uint8_
     return offReply;
 }
 
-static int dhcp_decode_discover(PNATState pData, struct bootp_t *bp, const uint8_t *buf, int size, int fDhcpDiscover, struct mbuf *m)
+static int dhcp_decode_discover(PNATState pData, struct bootp_t *bp, int fDhcpDiscover, struct mbuf *m)
 {
     BOOTPClient *bc;
     struct in_addr daddr;
@@ -597,7 +607,7 @@ static int dhcp_decode_discover(PNATState pData, struct bootp_t *bp, const uint8
     return -1;
 }
 
-static int dhcp_decode_release(PNATState pData, struct bootp_t *bp, const uint8_t *buf, int size)
+static int dhcp_decode_release(PNATState pData, struct bootp_t *bp)
 {
     int rc = release_addr(pData, &bp->bp_ciaddr);
     LogRel(("NAT: %s %RTnaipv4\n",
@@ -672,34 +682,44 @@ static int dhcp_decode_release(PNATState pData, struct bootp_t *bp, const uint8_
  */
 static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf, int size)
 {
-    const uint8_t *p, *p_end;
+    const uint8_t *pu8RawDhcpObject;
     int rc;
-    int pmsg_type;
     struct in_addr req_ip;
     int fDhcpDiscover = 0;
     uint8_t *parameter_list = NULL;
     struct mbuf *m = NULL;
 
-    pmsg_type = 0;
-    p = buf;
-    p_end = buf + size;
+    pu8RawDhcpObject = buf;
     if (size < 5)
         return;
 
-    if (memcmp(p, rfc1533_cookie, 4) != 0)
+    if (memcmp(pu8RawDhcpObject, rfc1533_cookie, 4) != 0)
         return;
 
-    p = dhcp_find_option(bp->bp_vend, RFC2132_MSG_TYPE);
-    Assert(p);
-    if (!p)
+    /* note: pu8RawDhcpObject doesn't point to parameter buf */
+    pu8RawDhcpObject = dhcp_find_option(bp->bp_vend, RFC2132_MSG_TYPE);
+    Assert(pu8RawDhcpObject);
+    if (!pu8RawDhcpObject)
         return;
-    /*
+    /**
      * We're going update dns list at least once per DHCP transaction (!not on every operation
      * within transaction), assuming that transaction can't be longer than 1 min.
+     *
+     * @note: if we have notification update (HAVE_NOTIFICATION_FOR_DNS_UPDATE)
+     * provided by host, we don't need implicitly re-initialize dns list.
+     *
+     * @note: NATState::fUseHostResolver became (r89055) the flag signalling that Slirp
+     * wasn't able to fetch fresh host DNS info and fall down to use host-resolver, on one
+     * of the previous attempts to proxy dns requests to Host's name-resolving API
+     *
+     * @note: Checking NATState::fUseHostResolver == true, we want to try restore behaviour initialy
+     * wanted by user ASAP (P here when host serialize its  configuration in files parsed by Slirp).
      */
-    if (   !pData->fUseHostResolver
+    if (   !HAVE_NOTIFICATION_FOR_DNS_UPDATE
+        && !pData->fUseHostResolverPermanent
         && (   pData->dnsLastUpdate == 0
-            || curtime - pData->dnsLastUpdate > 60 * 1000)) /* one minute*/
+            || curtime - pData->dnsLastUpdate > 60 * 1000 /* one minute */
+            || pData->fUseHostResolver))
     {
         uint8_t i = 2; /* i = 0 - tag, i == 1 - length */
         parameter_list = dhcp_find_option(&bp->bp_vend[0], RFC2132_PARAM_LIST);
@@ -707,8 +727,9 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
         {
             if (parameter_list[i] == RFC1533_DNS)
             {
-                slirp_release_dns_list(pData);
-                slirp_init_dns_list(pData);
+                /* XXX: How differs it from host Suspend/Resume? */
+                slirpReleaseDnsSettings(pData);
+                slirpInitializeDnsSettings(pData);
                 pData->dnsLastUpdate = curtime;
                 break;
             }
@@ -722,36 +743,39 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
         return;
     }
 
-    switch (*(p+2))
+    switch (*(pu8RawDhcpObject + 2))
     {
         case DHCPDISCOVER:
             fDhcpDiscover = 1;
             /* fall through */
         case DHCPINFORM:
-            rc = dhcp_decode_discover(pData, bp, buf, size, fDhcpDiscover, m);
+            rc = dhcp_decode_discover(pData, bp, fDhcpDiscover, m);
             if (rc > 0)
                 goto reply;
             break;
 
         case DHCPREQUEST:
-            rc = dhcp_decode_request(pData, bp, buf, size, m);
+            rc = dhcp_decode_request(pData, bp, m);
             if (rc > 0)
                 goto reply;
             break;
 
         case DHCPRELEASE:
-            rc = dhcp_decode_release(pData, bp, buf, size);
+            dhcp_decode_release(pData, bp);
             /* no reply required */
             break;
 
         case DHCPDECLINE:
-            p = dhcp_find_option(&bp->bp_vend[0], RFC2132_REQ_ADDR);
-            if (!p)
+            /* note: pu8RawDhcpObject doesn't point to DHCP header, now it's expected it points
+             * to Dhcp Option RFC2132_REQ_ADDR
+             */
+            pu8RawDhcpObject = dhcp_find_option(&bp->bp_vend[0], RFC2132_REQ_ADDR);
+            if (!pu8RawDhcpObject)
             {
                 Log(("NAT: RFC2132_REQ_ADDR not found\n"));
                 break;
             }
-            req_ip.s_addr = *(uint32_t *)(p + 2);
+            req_ip.s_addr = *(uint32_t *)(pu8RawDhcpObject + 2);
             rc = bootp_cache_lookup_ether_by_ip(pData, req_ip.s_addr, NULL);
             if (RT_FAILURE(rc))
             {
@@ -795,11 +819,7 @@ static void bootp_reply(PNATState pData, struct mbuf *m, int offReply, uint16_t 
     nack = (q[6] == DHCPNAK);
     q += offReply;
 
-#ifndef VBOX_WITH_NAT_SERVICE
     saddr.sin_addr.s_addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_ALIAS);
-#else
-    saddr.sin_addr.s_addr = pData->special_addr.s_addr;
-#endif
 
     FILL_BOOTP_EXT(q, RFC2132_SRV_ID, 4, &saddr.sin_addr);
 

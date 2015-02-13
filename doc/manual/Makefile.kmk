@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2011 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -64,14 +64,8 @@ BLDDIRS += $(VBOX_PATH_MANUAL_OUTBASE)
 #  Main targets
 #
 ##########################################################################################
+
 ifdef VBOX_WITH_DOCS
- # Default language
- VBOX_MANUAL_LANGUAGES = en_US
-
- ifdef VBOX_WITH_DOCS_TRANSLATIONS
-  VBOX_MANUAL_ADD_LANGUAGES = fr_FR
- endif
-
  if defined(VBOX_ONLY_SDK) || defined(VBOX_WITH_DOCS_SDKREF)
   ## @todo make this an install target, drop the BLDDIRS.
   OTHERS += \
@@ -239,8 +233,17 @@ VBOXMANAGEPATH       ?= $(PATH_STAGE_BIN)/VBoxManageHelp$(SUFF_EXE)
  #                                        without catting the log a million times.
  PDFLATEX_INTERACTION ?= batchmode
 ifeq ($(KBUILD_HOST),win)
- # tell MiKTeX to automatically download packages
- PDFLATEX             = pdflatex -halt-on-error -interaction $(PDFLATEX_INTERACTION) --enable-installer
+ ifndef VBOX_PDFLATEX
+  VBOX_PDFLATEX      := $(firstword $(rsort $(wildcard $(PATH_DEVTOOLS)/win.x86/miktex-portable/*/miktex/bin/pdflatex.exe)))
+  ifneq ($(VBOX_PDFLATEX),)
+   PDFLATEX           = $(VBOX_PDFLATEX) -halt-on-error -interaction $(PDFLATEX_INTERACTION)
+  endif
+ endif
+ ifndef PDFLATEX
+  # Tell MiKTeX to automatically download packages if system wide install.
+  VBOX_PDFLATEX      := pdflatex
+  PDFLATEX            = $(VBOX_PDFLATEX) -halt-on-error -interaction $(PDFLATEX_INTERACTION) --enable-installer
+ endif
 else
  PDFLATEX_HALT        = $(shell \
  	( pdflatex -version | head -1 | grep 141592 > /dev/null ) && echo -halt-on-error )
@@ -308,7 +311,11 @@ $(foreach f,$(VBOX_MANUAL_LANGUAGES),$(VBOX_PATH_MANUAL_OUTBASE)/$f/user_ChangeL
 	$(QUIET)$(SED) -e '1,/<!--\$$VIRTUALBOX_CHANGELOG_IMPL-->/!d' \
 	               -e 's/<!--\$$VIRTUALBOX_CHANGELOG_IMPL-->//' \
 	               --output $@ $@.tmp
-	$(QUIET)$(SED) -e 's/<?xml version=\"1.0\" encoding=\"UTF-8\"?>//g' --append $@ $(VBOX_PATH_MANUAL_SRC)/user_ChangeLogImpl.xml
+	$(QUIET)var=`$(SED) -n '/!--\$$VIRTUALBOX_CHANGELOG_IMPL-->/p' $<`; \
+	               test -n "$${var}" && \
+	               $(SED) -e 's/<?xml version=\"1.0\" encoding=\"UTF-8\"?>//g' \
+	                       --append $@ $(VBOX_PATH_MANUAL_SRC)/user_ChangeLogImpl.xml; \
+                       true
 	$(QUIET)$(SED) -e '/<!--\$$VIRTUALBOX_CHANGELOG_IMPL-->/,$$!d' \
 	               -e 's/<!--\$$VIRTUALBOX_CHANGELOG_IMPL-->//' --append $@ $@.tmp
 
@@ -738,5 +745,5 @@ $(VBOX_PATH_MANUAL_OUTBASE)/en_US/ChangeLog.html: \
 
 cl-html: $(VBOX_PATH_MANUAL_OUTBASE)/en_US/ChangeLog.html
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)
 

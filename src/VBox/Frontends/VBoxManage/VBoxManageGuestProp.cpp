@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,9 +28,7 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-
 #include <VBox/com/VirtualBox.h>
-#include <VBox/com/EventQueue.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -52,24 +50,28 @@ using namespace com;
 
 #endif /* !VBOX_ONLY_DOCS */
 
-void usageGuestProperty(PRTSTREAM pStrm)
+void usageGuestProperty(PRTSTREAM pStrm, const char *pcszSep1, const char *pcszSep2)
 {
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    get <vmname>|<uuid>\n"
+                       "%s guestproperty %s   get <uuid|vmname>\n"
                  "                            <property> [--verbose]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    set <vmname>|<uuid>\n"
+                       "%s guestproperty %s   set <uuid|vmname>\n"
                  "                            <property> [<value> [--flags <flags>]]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    enumerate <vmname>|<uuid>\n"
+                       "%s guestproperty %s   delete|unset <uuid|vmname>\n"
+                 "                            <property>\n"
+                 "\n", pcszSep1, pcszSep2);
+    RTStrmPrintf(pStrm,
+                       "%s guestproperty %s   enumerate <uuid|vmname>\n"
                  "                            [--patterns <patterns>]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
     RTStrmPrintf(pStrm,
-                 "VBoxManage guestproperty    wait <vmname>|<uuid> <patterns>\n"
+                       "%s guestproperty %s   wait <uuid|vmname> <patterns>\n"
                  "                            [--timeout <msec>] [--fail-on-timeout]\n"
-                 "\n");
+                 "\n", pcszSep1, pcszSep2);
 }
 
 #ifndef VBOX_ONLY_DOCS
@@ -106,11 +108,11 @@ static int handleGetGuestProperty(HandlerArg *a)
         if (value.isEmpty())
             RTPrintf("No value set!\n");
         else
-            RTPrintf("Value: %lS\n", value.raw());
+            RTPrintf("Value: %ls\n", value.raw());
         if (!value.isEmpty() && verbose)
         {
             RTPrintf("Timestamp: %lld\n", i64Timestamp);
-            RTPrintf("Flags: %lS\n", flags.raw());
+            RTPrintf("Flags: %ls\n", flags.raw());
         }
     }
     return SUCCEEDED(rc) ? 0 : 1;
@@ -158,16 +160,51 @@ static int handleSetGuestProperty(HandlerArg *a)
         /* get the mutable session machine */
         a->session->COMGETTER(Machine)(machine.asOutParam());
 
-        if (!pszValue && !pszFlags)
-            CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
-                                                       Bstr().raw()));
-        else if (!pszFlags)
+        if (!pszFlags)
             CHECK_ERROR(machine, SetGuestPropertyValue(Bstr(pszName).raw(),
                                                        Bstr(pszValue).raw()));
         else
             CHECK_ERROR(machine, SetGuestProperty(Bstr(pszName).raw(),
                                                   Bstr(pszValue).raw(),
                                                   Bstr(pszFlags).raw()));
+
+        if (SUCCEEDED(rc))
+            CHECK_ERROR(machine, SaveSettings());
+
+        a->session->UnlockMachine();
+    }
+    return SUCCEEDED(rc) ? 0 : 1;
+}
+
+static int handleDeleteGuestProperty(HandlerArg *a)
+{
+    HRESULT rc = S_OK;
+
+    /*
+     * Check the syntax.  We can deduce the correct syntax from the number of
+     * arguments.
+     */
+    bool usageOK = true;
+    const char *pszName = NULL;
+    if (a->argc != 2)
+        usageOK = false;
+    if (!usageOK)
+        return errorSyntax(USAGE_GUESTPROPERTY, "Incorrect parameters");
+    /* This is always needed. */
+    pszName = a->argv[1];
+
+    ComPtr<IMachine> machine;
+    CHECK_ERROR(a->virtualBox, FindMachine(Bstr(a->argv[0]).raw(),
+                                           machine.asOutParam()));
+    if (machine)
+    {
+        /* open a session for the VM - new or existing */
+        CHECK_ERROR_RET(machine, LockMachine(a->session, LockType_Shared), 1);
+
+        /* get the mutable session machine */
+        a->session->COMGETTER(Machine)(machine.asOutParam());
+
+        CHECK_ERROR(machine, DeleteGuestProperty(Bstr(pszName).raw()));
 
         if (SUCCEEDED(rc))
             CHECK_ERROR(machine, SaveSettings());
@@ -232,7 +269,7 @@ static int handleEnumGuestProperty(HandlerArg *a)
             if (names.size() == 0)
                 RTPrintf("No properties found.\n");
             for (unsigned i = 0; i < names.size(); ++i)
-                RTPrintf("Name: %lS, value: %lS, timestamp: %lld, flags: %lS\n",
+                RTPrintf("Name: %ls, value: %ls, timestamp: %lld, flags: %ls\n",
                          names[i], values[i], timestamps[i], flags[i]);
         }
     }
@@ -336,7 +373,7 @@ static int handleWaitGuestProperty(HandlerArg *a)
                         Bstr aNextValue, aNextFlags;
                         gpcev->COMGETTER(Value)(aNextValue.asOutParam());
                         gpcev->COMGETTER(Flags)(aNextFlags.asOutParam());
-                        RTPrintf("Name: %lS, value: %lS, flags: %lS\n",
+                        RTPrintf("Name: %ls, value: %ls, flags: %ls\n",
                                  aNextName.raw(), aNextValue.raw(), aNextFlags.raw());
                         fSignalled = true;
                     }
@@ -385,6 +422,8 @@ int handleGuestProperty(HandlerArg *a)
         return handleGetGuestProperty(&arg);
     if (strcmp(a->argv[0], "set") == 0)
         return handleSetGuestProperty(&arg);
+    if (strcmp(a->argv[0], "delete") == 0 || strcmp(a->argv[0], "unset") == 0)
+        return handleDeleteGuestProperty(&arg);
     if (strcmp(a->argv[0], "enumerate") == 0)
         return handleEnumGuestProperty(&arg);
     if (strcmp(a->argv[0], "wait") == 0)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,9 @@
 #include "internal-r0drv-nt.h"
 #include "internal/magics.h"
 
+/** This seems to provide better accuracy. */
+#define RTR0TIMER_NT_MANUAL_RE_ARM 1
+
 
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
@@ -70,6 +73,8 @@ typedef struct RTTIMER
      * This is RTTIMER_MAGIC, but changes to something else before the timer
      * is destroyed to indicate clearly that thread should exit. */
     uint32_t volatile       u32Magic;
+    /** Suspend count down for single shot omnit timers. */
+    int32_t volatile        cOmniSuspendCountDown;
     /** Flag indicating the timer is suspended. */
     bool volatile           fSuspended;
     /** Whether the timer must run on one specific CPU or not. */
@@ -85,6 +90,10 @@ typedef struct RTTIMER
     void                   *pvUser;
     /** The timer interval. 0 if one-shot. */
     uint64_t                u64NanoInterval;
+#ifdef RTR0TIMER_NT_MANUAL_RE_ARM
+    /** The NT start time . */
+    uint64_t                uNtStartTime;
+#endif
     /** The Nt timer object. */
     KTIMER                  NtTimer;
     /** The number of sub-timers. */
@@ -97,12 +106,67 @@ typedef struct RTTIMER
 } RTTIMER;
 
 
+#ifdef RTR0TIMER_NT_MANUAL_RE_ARM
+/**
+ * Get current NT interrupt time.
+ * @return NT interrupt time
+ */
+static uint64_t rtTimerNtQueryInterruptTime(void)
+{
+# ifdef RT_ARCH_AMD64
+    return KeQueryInterruptTime(); /* macro */
+# else
+    if (g_pfnrtKeQueryInterruptTime)
+        return g_pfnrtKeQueryInterruptTime();
+
+    /* NT4 */
+    ULARGE_INTEGER InterruptTime;
+    do
+    {
+        InterruptTime.HighPart = ((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.High1Time;
+        InterruptTime.LowPart  = ((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.LowPart;
+    } while (((KUSER_SHARED_DATA volatile *)SharedUserData)->InterruptTime.High2Time != InterruptTime.HighPart);
+    return InterruptTime.QuadPart;
+# endif
+}
+#endif /* RTR0TIMER_NT_MANUAL_RE_ARM */
+
+
+/**
+ * Manually re-arms an internval timer.
+ *
+ * Turns out NT doesn't necessarily do a very good job at re-arming timers
+ * accurately.
+ *
+ * @param   pTimer              The timer.
+ * @param   iTick               The current timer tick.
+ * @param   pMasterDpc          The master DPC.
+ */
+DECLINLINE(void) rtTimerNtRearmInternval(PRTTIMER pTimer, uint64_t iTick, PKDPC pMasterDpc)
+{
+#ifdef RTR0TIMER_NT_MANUAL_RE_ARM
+    Assert(pTimer->u64NanoInterval);
+
+    uint64_t uNtNext = (iTick * pTimer->u64NanoInterval) / 100 - 10; /* 1us fudge */
+    LARGE_INTEGER DueTime;
+    DueTime.QuadPart = rtTimerNtQueryInterruptTime() - pTimer->uNtStartTime;
+    if (DueTime.QuadPart < 0)
+        DueTime.QuadPart = 0;
+    if ((uint64_t)DueTime.QuadPart < uNtNext)
+        DueTime.QuadPart -= uNtNext;
+    else
+        DueTime.QuadPart = -2500; /* 0.25ms */
+
+    KeSetTimerEx(&pTimer->NtTimer, DueTime, 0, &pTimer->aSubTimers[0].NtDpc);
+#endif
+}
+
 
 /**
  * Timer callback function for the non-omni timers.
  *
  * @returns HRTIMER_NORESTART or HRTIMER_RESTART depending on whether it's a one-shot or interval timer.
- * @param   pDpc                Pointer to the the DPC.
+ * @param   pDpc                Pointer to the DPC.
  * @param   pvUser              Pointer to our internal timer structure.
  * @param   SystemArgument1     Some system argument.
  * @param   SystemArgument2     Some system argument.
@@ -121,7 +185,14 @@ static void _stdcall rtTimerNtSimpleCallback(IN PKDPC pDpc, IN PVOID pvUser, IN 
      */
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
-        pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pTimer->aSubTimers[0].iTick);
+    {
+        if (!pTimer->u64NanoInterval)
+            ASMAtomicWriteBool(&pTimer->fSuspended, true);
+        uint64_t iTick = ++pTimer->aSubTimers[0].iTick;
+        if (pTimer->u64NanoInterval)
+            rtTimerNtRearmInternval(pTimer, iTick, &pTimer->aSubTimers[0].NtDpc);
+        pTimer->pfnTimer(pTimer, pTimer->pvUser, iTick);
+    }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
 }
@@ -154,7 +225,13 @@ static void _stdcall rtTimerNtOmniSlaveCallback(IN PKDPC pDpc, IN PVOID pvUser, 
      */
     if (    !ASMAtomicUoReadBool(&pTimer->fSuspended)
         &&  pTimer->u32Magic == RTTIMER_MAGIC)
+    {
+        if (!pTimer->u64NanoInterval)
+            if (ASMAtomicDecS32(&pTimer->cOmniSuspendCountDown) <= 0)
+                ASMAtomicWriteBool(&pTimer->fSuspended, true);
+
         pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
+    }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
 }
@@ -194,12 +271,43 @@ static void _stdcall rtTimerNtOmniMasterCallback(IN PKDPC pDpc, IN PVOID pvUser,
     {
         RTCPUSET    OnlineSet;
         RTMpGetOnlineSet(&OnlineSet);
-        for (int iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
-            if (    RTCpuSetIsMemberByIndex(&OnlineSet, iCpu)
-                &&  iCpuSelf != iCpu)
-                KeInsertQueueDpc(&pTimer->aSubTimers[iCpu].NtDpc, 0, 0);
 
-        pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
+        if (pTimer->u64NanoInterval)
+        {
+            /*
+             * Recurring timer.
+             */
+            for (int iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
+                if (    RTCpuSetIsMemberByIndex(&OnlineSet, iCpu)
+                    &&  iCpuSelf != iCpu)
+                    KeInsertQueueDpc(&pTimer->aSubTimers[iCpu].NtDpc, 0, 0);
+
+            uint64_t iTick = ++pSubTimer->iTick;
+            rtTimerNtRearmInternval(pTimer, iTick, &pTimer->aSubTimers[RTMpCpuIdToSetIndex(pTimer->idCpu)].NtDpc);
+            pTimer->pfnTimer(pTimer, pTimer->pvUser, iTick);
+        }
+        else
+        {
+            /*
+             * Single shot timers gets complicated wrt to fSuspended maintance.
+             */
+            uint32_t cCpus = 0;
+            for (int iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
+                if (RTCpuSetIsMemberByIndex(&OnlineSet, iCpu))
+                    cCpus++;
+            ASMAtomicAddS32(&pTimer->cOmniSuspendCountDown, cCpus);
+
+            for (int iCpu = 0; iCpu < RTCPUSET_MAX_CPUS; iCpu++)
+                if (    RTCpuSetIsMemberByIndex(&OnlineSet, iCpu)
+                    &&  iCpuSelf != iCpu)
+                    if (!KeInsertQueueDpc(&pTimer->aSubTimers[iCpu].NtDpc, 0, 0))
+                        ASMAtomicDecS32(&pTimer->cOmniSuspendCountDown); /* already queued and counted. */
+
+            if (ASMAtomicDecS32(&pTimer->cOmniSuspendCountDown) <= 0)
+                ASMAtomicWriteBool(&pTimer->fSuspended, true);
+
+            pTimer->pfnTimer(pTimer, pTimer->pvUser, ++pSubTimer->iTick);
+        }
     }
 
     NOREF(pDpc); NOREF(SystemArgument1); NOREF(SystemArgument2);
@@ -228,20 +336,31 @@ RTDECL(int) RTTimerStart(PRTTIMER pTimer, uint64_t u64First)
                      ? &pTimer->aSubTimers[RTMpCpuIdToSetIndex(pTimer->idCpu)].NtDpc
                      : &pTimer->aSubTimers[0].NtDpc;
 
+#ifndef RTR0TIMER_NT_MANUAL_RE_ARM
     uint64_t u64Interval = pTimer->u64NanoInterval / 1000000; /* This is ms, believe it or not. */
     ULONG ulInterval = (ULONG)u64Interval;
     if (ulInterval != u64Interval)
         ulInterval = MAXLONG;
     else if (!ulInterval && pTimer->u64NanoInterval)
         ulInterval = 1;
+#endif
 
     LARGE_INTEGER DueTime;
     DueTime.QuadPart = -(int64_t)(u64First / 100); /* Relative, NT time. */
-    if (DueTime.QuadPart)
+    if (!DueTime.QuadPart)
         DueTime.QuadPart = -1;
 
+    unsigned cSubTimers = pTimer->fOmniTimer ? pTimer->cSubTimers : 1;
+    for (unsigned iCpu = 0; iCpu < cSubTimers; iCpu++)
+        pTimer->aSubTimers[iCpu].iTick = 0;
+    ASMAtomicWriteS32(&pTimer->cOmniSuspendCountDown, 0);
     ASMAtomicWriteBool(&pTimer->fSuspended, false);
+#ifdef RTR0TIMER_NT_MANUAL_RE_ARM
+    pTimer->uNtStartTime = rtTimerNtQueryInterruptTime();
+    KeSetTimerEx(&pTimer->NtTimer, DueTime, 0, pMasterDpc);
+#else
     KeSetTimerEx(&pTimer->NtTimer, DueTime, ulInterval, pMasterDpc);
+#endif
     return VINF_SUCCESS;
 }
 
@@ -355,6 +474,7 @@ RTDECL(int) RTTimerCreateEx(PRTTIMER *ppTimer, uint64_t u64NanoInterval, uint32_
      * Initialize it.
      */
     pTimer->u32Magic = RTTIMER_MAGIC;
+    pTimer->cOmniSuspendCountDown = 0;
     pTimer->fSuspended = true;
     pTimer->fSpecificCpu = (fFlags & RTTIMER_FLAGS_CPU_SPECIFIC) && (fFlags & RTTIMER_FLAGS_CPU_ALL) != RTTIMER_FLAGS_CPU_ALL;
     pTimer->fOmniTimer = (fFlags & RTTIMER_FLAGS_CPU_ALL) == RTTIMER_FLAGS_CPU_ALL;

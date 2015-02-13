@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/em.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/mm.h>
@@ -37,27 +38,28 @@
 #include <VBox/dbg.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
-#include <iprt/assert.h>
 #include <VBox/dis.h>
 #include <VBox/disopcode.h>
-#include <iprt/string.h>
+#include <iprt/assert.h>
 #include <iprt/asm.h>
+#include <iprt/string.h>
 
 /**
  * Check if this page needs to be analysed by CSAM
  *
  * @returns VBox status code
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pvFault     Fault address
  */
-VMMDECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
+VMM_INT_DECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
 {
-    if(!CSAMIsEnabled(pVM))
+    Assert(!HMIsEnabled(pVM));
+    if (!CSAMIsEnabled(pVM))
         return VINF_SUCCESS;
 
     LogFlow(("CSAMGCExecFault: for page %08X scanned=%d\n", pvFault, CSAMIsPageScanned(pVM, pvFault)));
 
-    if(CSAMIsPageScanned(pVM, pvFault))
+    if (CSAMIsPageScanned(pVM, pvFault))
     {
         // Already checked!
         STAM_COUNTER_ADD(&pVM->csam.s.StatNrKnownPagesGC, 1);
@@ -74,13 +76,14 @@ VMMDECL(int) CSAMExecFault(PVM pVM, RTRCPTR pvFault)
  * Check if this page was previously scanned by CSAM
  *
  * @returns true -> scanned, false -> not scanned
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPage       GC page address
  */
-VMMDECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
+VMM_INT_DECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
 {
     int pgdir, bit;
     uintptr_t page;
+    Assert(!HMIsEnabled(pVM));
 
     page  = (uintptr_t)pPage;
     pgdir = page >> X86_PAGE_4M_SHIFT;
@@ -100,12 +103,12 @@ VMMDECL(bool) CSAMIsPageScanned(PVM pVM, RTRCPTR pPage)
  * @note: we always mark it as scanned, even if we haven't completely done so
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPage       GC page address (not necessarily aligned)
  * @param   fScanned    Mark as scanned or not scanned
  *
  */
-VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
+VMM_INT_DECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
 {
     int pgdir, bit;
     uintptr_t page;
@@ -115,8 +118,9 @@ VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
        Log(("CSAMMarkPage %RRv\n", pPage));
 #endif
 
-    if(!CSAMIsEnabled(pVM))
+    if (!CSAMIsEnabled(pVM))
         return VINF_SUCCESS;
+    Assert(!HMIsEnabled(pVM));
 
     page  = (uintptr_t)pPage;
     pgdir = page >> X86_PAGE_4M_SHIFT;
@@ -171,13 +175,14 @@ VMMDECL(int) CSAMMarkPage(PVM pVM, RTRCUINTPTR pPage, bool fScanned)
  * @returns true if the page should be marked not present because
  *          CSAM want need to scan it.
  * @returns false if the page was already scanned.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       GC pointer of page
  */
-VMMDECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
+VMM_INT_DECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
 {
-    if(!CSAMIsEnabled(pVM))
+    if (!CSAMIsEnabled(pVM))
         return false;
+    Assert(!HMIsEnabled(pVM));
 
     if(CSAMIsPageScanned(pVM, (RTRCPTR)GCPtr))
     {
@@ -194,11 +199,12 @@ VMMDECL(bool) CSAMDoesPageNeedScanning(PVM pVM, RTRCUINTPTR GCPtr)
  * Remember a possible code page for later inspection
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       GC pointer of page
  */
-VMMDECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
+VMM_INT_DECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
 {
+    Assert(!HMIsEnabled(pVM));
     if (pVM->csam.s.cPossibleCodePages < RT_ELEMENTS(pVM->csam.s.pvPossibleCodePage))
     {
         pVM->csam.s.pvPossibleCodePage[pVM->csam.s.cPossibleCodePages++] = (RTRCPTR)GCPtr;
@@ -212,10 +218,11 @@ VMMDECL(void) CSAMMarkPossibleCodePage(PVM pVM, RTRCPTR GCPtr)
  * Turn on code scanning
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
-VMMDECL(int) CSAMEnableScanning(PVM pVM)
+VMM_INT_DECL(int) CSAMEnableScanning(PVM pVM)
 {
+    AssertReturn(!HMIsEnabled(pVM), VERR_CSAM_HM_IPE);
     pVM->fCSAMEnabled = true;
     return VINF_SUCCESS;
 }
@@ -224,9 +231,9 @@ VMMDECL(int) CSAMEnableScanning(PVM pVM)
  * Turn off code scanning
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
-VMMDECL(int) CSAMDisableScanning(PVM pVM)
+VMM_INT_DECL(int) CSAMDisableScanning(PVM pVM)
 {
     pVM->fCSAMEnabled = false;
     return VINF_SUCCESS;
@@ -241,11 +248,13 @@ VMMDECL(int) CSAMDisableScanning(PVM pVM)
  * tree lookup is likely to be more expensive. (as it would also have to be offset based)
  *
  * @returns boolean
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       GC pointer of page table entry
  */
-VMMDECL(bool) CSAMIsKnownDangerousInstr(PVM pVM, RTRCUINTPTR GCPtr)
+VMM_INT_DECL(bool) CSAMIsKnownDangerousInstr(PVM pVM, RTRCUINTPTR GCPtr)
 {
+    Assert(!HMIsEnabled(pVM));
+
     for (uint32_t i=0;i<pVM->csam.s.cDangerousInstr;i++)
     {
         if (pVM->csam.s.aDangerousInstr[i] == (RTRCPTR)GCPtr)

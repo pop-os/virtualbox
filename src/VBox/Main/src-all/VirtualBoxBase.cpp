@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,9 @@
 
 #include <iprt/semaphore.h>
 #include <iprt/asm.h>
+#include <iprt/cpp/exception.h>
+
+#include <typeinfo>
 
 #if !defined (VBOX_WITH_XPCOM)
 #include <windows.h>
@@ -208,9 +211,9 @@ HRESULT VirtualBoxBase::addCaller(State *aState /* = NULL */,
 
             LogFlowThisFunc(("Waiting for AutoInitSpan/AutoReinitSpan to finish...\n"));
 
-            stateLock.leave();
+            stateLock.release();
             RTSemEventMultiWait (mInitUninitSem, RT_INDEFINITE_WAIT);
-            stateLock.enter();
+            stateLock.acquire();
 
             if (-- mInitUninitWaiters == 0)
             {
@@ -294,6 +297,69 @@ void VirtualBoxBase::releaseCaller()
 }
 
 /**
+ * Handles unexpected exceptions by turning them into COM errors in release
+ * builds or by hitting a breakpoint in the release builds.
+ *
+ * Usage pattern:
+ * @code
+        try
+        {
+            // ...
+        }
+        catch (LaLalA)
+        {
+            // ...
+        }
+        catch (...)
+        {
+            rc = VirtualBox::handleUnexpectedExceptions(this, RT_SRC_POS);
+        }
+ * @endcode
+ *
+ * @param aThis             object where the exception happened
+ * @param RT_SRC_POS_DECL   "RT_SRC_POS" macro instantiation.
+ *  */
+/* static */
+HRESULT VirtualBoxBase::handleUnexpectedExceptions(VirtualBoxBase *const aThis, RT_SRC_POS_DECL)
+{
+    try
+    {
+        /* re-throw the current exception */
+        throw;
+    }
+    catch (const RTCError &err)      // includes all XML exceptions
+    {
+        return setErrorInternal(E_FAIL, aThis->getClassIID(), aThis->getComponentName(),
+                                Utf8StrFmt(tr("%s.\n%s[%d] (%s)"),
+                                           err.what(),
+                                           pszFile, iLine, pszFunction).c_str(),
+                                false /* aWarning */,
+                                true /* aLogIt */);
+    }
+    catch (const std::exception &err)
+    {
+        return setErrorInternal(E_FAIL, aThis->getClassIID(), aThis->getComponentName(),
+                                Utf8StrFmt(tr("Unexpected exception: %s [%s]\n%s[%d] (%s)"),
+                                           err.what(), typeid(err).name(),
+                                           pszFile, iLine, pszFunction).c_str(),
+                                false /* aWarning */,
+                                true /* aLogIt */);
+    }
+    catch (...)
+    {
+        return setErrorInternal(E_FAIL, aThis->getClassIID(), aThis->getComponentName(),
+                                Utf8StrFmt(tr("Unknown exception\n%s[%d] (%s)"),
+                                           pszFile, iLine, pszFunction).c_str(),
+                                false /* aWarning */,
+                                true /* aLogIt */);
+    }
+
+    /* should not get here */
+    AssertFailed();
+    return E_FAIL;
+}
+
+/**
  *  Sets error info for the current thread. This is an internal function that
  *  gets eventually called by all public variants.  If @a aWarning is
  *  @c true, then the highest (31) bit in the @a aResultCode value which
@@ -305,7 +371,7 @@ void VirtualBoxBase::releaseCaller()
 HRESULT VirtualBoxBase::setErrorInternal(HRESULT aResultCode,
                                          const GUID &aIID,
                                          const char *pcszComponent,
-                                         const Utf8Str &aText,
+                                         Utf8Str aText,
                                          bool aWarning,
                                          bool aLogIt)
 {
@@ -327,13 +393,42 @@ HRESULT VirtualBoxBase::setErrorInternal(HRESULT aResultCode,
     AssertReturn((!aWarning && FAILED(aResultCode)) ||
                   (aWarning && aResultCode != S_OK),
                   E_FAIL);
-    AssertReturn(!aText.isEmpty(), E_FAIL);
 
     /* reset the error severity bit if it's a warning */
     if (aWarning)
         aResultCode &= ~0x80000000;
 
     HRESULT rc = S_OK;
+
+    if (aText.isEmpty())
+    {
+        /* Some default info */
+        switch (aResultCode)
+        {
+            case E_INVALIDARG:                 aText = "A parameter has an invalid value"; break;
+            case E_POINTER:                    aText = "A parameter is an invalid pointer"; break;
+            case E_UNEXPECTED:                 aText = "The result of the operation is unexpected"; break;
+            case E_ACCESSDENIED:               aText = "The access to an object is not allowed"; break;
+            case E_OUTOFMEMORY:                aText = "The allocation of new memory failed"; break;
+            case E_NOTIMPL:                    aText = "The requested operation is not implemented"; break;
+            case E_NOINTERFACE:                aText = "The requested interface is not implemented"; break;
+            case E_FAIL:                       aText = "A general error occurred"; break;
+            case E_ABORT:                      aText = "The operation was canceled"; break;
+            case VBOX_E_OBJECT_NOT_FOUND:      aText = "Object corresponding to the supplied arguments does not exist"; break;
+            case VBOX_E_INVALID_VM_STATE:      aText = "Current virtual machine state prevents the operation"; break;
+            case VBOX_E_VM_ERROR:              aText = "Virtual machine error occurred attempting the operation"; break;
+            case VBOX_E_FILE_ERROR:            aText = "File not accessible or erroneous file contents"; break;
+            case VBOX_E_IPRT_ERROR:            aText = "Runtime subsystem error"; break;
+            case VBOX_E_PDM_ERROR:             aText = "Pluggable Device Manager error"; break;
+            case VBOX_E_INVALID_OBJECT_STATE:  aText = "Current object state prohibits operation"; break;
+            case VBOX_E_HOST_ERROR:            aText = "Host operating system related error"; break;
+            case VBOX_E_NOT_SUPPORTED:         aText = "Requested operation is not supported"; break;
+            case VBOX_E_XML_ERROR:             aText = "Invalid XML found"; break;
+            case VBOX_E_INVALID_SESSION_STATE: aText = "Current session state prohibits operation"; break;
+            case VBOX_E_OBJECT_IN_USE:         aText = "Object being in use prohibits operation"; break;
+            default:                           aText = "Unknown error"; break;
+        }
+    }
 
     do
     {
@@ -455,6 +550,24 @@ HRESULT VirtualBoxBase::setErrorInternal(HRESULT aResultCode,
  * @param pcsz
  * @return
  */
+HRESULT VirtualBoxBase::setError(HRESULT aResultCode)
+{
+    return setErrorInternal(aResultCode,
+                            this->getClassIID(),
+                            this->getComponentName(),
+                            "",
+                            false /* aWarning */,
+                            true /* aLogIt */);
+}
+
+/**
+ * Shortcut instance method to calling the static setErrorInternal with the
+ * class interface ID and component name inserted correctly. This uses the
+ * virtual getClassIID() and getComponentName() methods which are automatically
+ * defined by the VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT macro.
+ * @param aResultCode
+ * @return
+ */
 HRESULT VirtualBoxBase::setError(HRESULT aResultCode, const char *pcsz, ...)
 {
     va_list args;
@@ -467,6 +580,132 @@ HRESULT VirtualBoxBase::setError(HRESULT aResultCode, const char *pcsz, ...)
                                   true /* aLogIt */);
     va_end(args);
     return rc;
+}
+
+/**
+ * Shortcut instance method to calling the static setErrorInternal with the
+ * class interface ID and component name inserted correctly. This uses the
+ * virtual getClassIID() and getComponentName() methods which are automatically
+ * defined by the VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT macro.
+ * @param ei
+ * @return
+ */
+HRESULT VirtualBoxBase::setError(const com::ErrorInfo &ei)
+{
+    /* whether multi-error mode is turned on */
+    bool preserve = MultiResult::isMultiEnabled();
+
+    HRESULT rc = S_OK;
+
+    do
+    {
+        ComObjPtr<VirtualBoxErrorInfo> info;
+        rc = info.createObject();
+        if (FAILED(rc)) break;
+
+#if !defined (VBOX_WITH_XPCOM)
+
+        ComPtr<IVirtualBoxErrorInfo> curInfo;
+        if (preserve)
+        {
+            /* get the current error info if any */
+            ComPtr<IErrorInfo> err;
+            rc = ::GetErrorInfo (0, err.asOutParam());
+            if (FAILED(rc)) break;
+            rc = err.queryInterfaceTo(curInfo.asOutParam());
+            if (FAILED(rc))
+            {
+                /* create a IVirtualBoxErrorInfo wrapper for the native
+                 * IErrorInfo object */
+                ComObjPtr<VirtualBoxErrorInfo> wrapper;
+                rc = wrapper.createObject();
+                if (SUCCEEDED(rc))
+                {
+                    rc = wrapper->init (err);
+                    if (SUCCEEDED(rc))
+                        curInfo = wrapper;
+                }
+            }
+        }
+        /* On failure, curInfo will stay null */
+        Assert(SUCCEEDED(rc) || curInfo.isNull());
+
+        /* set the current error info and preserve the previous one if any */
+        rc = info->init(ei, curInfo);
+        if (FAILED(rc)) break;
+
+        ComPtr<IErrorInfo> err;
+        rc = info.queryInterfaceTo(err.asOutParam());
+        if (SUCCEEDED(rc))
+            rc = ::SetErrorInfo (0, err);
+
+#else // !defined (VBOX_WITH_XPCOM)
+
+        nsCOMPtr <nsIExceptionService> es;
+        es = do_GetService (NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
+        if (NS_SUCCEEDED(rc))
+        {
+            nsCOMPtr <nsIExceptionManager> em;
+            rc = es->GetCurrentExceptionManager (getter_AddRefs (em));
+            if (FAILED(rc)) break;
+
+            ComPtr<IVirtualBoxErrorInfo> curInfo;
+            if (preserve)
+            {
+                /* get the current error info if any */
+                ComPtr<nsIException> ex;
+                rc = em->GetCurrentException (ex.asOutParam());
+                if (FAILED(rc)) break;
+                rc = ex.queryInterfaceTo(curInfo.asOutParam());
+                if (FAILED(rc))
+                {
+                    /* create a IVirtualBoxErrorInfo wrapper for the native
+                     * nsIException object */
+                    ComObjPtr<VirtualBoxErrorInfo> wrapper;
+                    rc = wrapper.createObject();
+                    if (SUCCEEDED(rc))
+                    {
+                        rc = wrapper->init (ex);
+                        if (SUCCEEDED(rc))
+                            curInfo = wrapper;
+                    }
+                }
+            }
+            /* On failure, curInfo will stay null */
+            Assert(SUCCEEDED(rc) || curInfo.isNull());
+
+            /* set the current error info and preserve the previous one if any */
+            rc = info->init(ei, curInfo);
+            if (FAILED(rc)) break;
+
+            ComPtr<nsIException> ex;
+            rc = info.queryInterfaceTo(ex.asOutParam());
+            if (SUCCEEDED(rc))
+                rc = em->SetCurrentException (ex);
+        }
+        else if (rc == NS_ERROR_UNEXPECTED)
+        {
+            /*
+             *  It is possible that setError() is being called by the object
+             *  after the XPCOM shutdown sequence has been initiated
+             *  (for example, when XPCOM releases all instances it internally
+             *  references, which can cause object's FinalConstruct() and then
+             *  uninit()). In this case, do_GetService() above will return
+             *  NS_ERROR_UNEXPECTED and it doesn't actually make sense to
+             *  set the exception (nobody will be able to read it).
+             */
+            LogWarningFunc(("Will not set an exception because nsIExceptionService is not available "
+                            "(NS_ERROR_UNEXPECTED). XPCOM is being shutdown?\n"));
+            rc = NS_OK;
+        }
+
+#endif // !defined (VBOX_WITH_XPCOM)
+    }
+    while (0);
+
+    AssertComRC (rc);
+
+    return SUCCEEDED(rc) ? ei.getResultCode() : rc;
 }
 
 /**
@@ -565,7 +804,7 @@ AutoInitSpan::AutoInitSpan(VirtualBoxBase *aObj,
 }
 
 /**
- * Places the managed VirtualBoxBase object to  Ready/Limited state if the
+ * Places the managed VirtualBoxBase object to Ready/Limited state if the
  * initialization succeeded or partly succeeded, or places it to InitFailed
  * state and calls the object's uninit() method.
  *
@@ -602,8 +841,8 @@ AutoInitSpan::~AutoInitSpan()
     else
     {
         mObj->setState(VirtualBoxBase::InitFailed);
-        /* leave the lock to prevent nesting when uninit() is called */
-        stateLock.leave();
+        /* release the lock to prevent nesting when uninit() is called */
+        stateLock.release();
         /* call uninit() to let the object uninit itself after failed init() */
         mObj->uninit();
         /* Note: the object may no longer exist here (for example, it can call
@@ -732,9 +971,9 @@ AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj)
             LogFlowFunc(("{%p}: Waiting for AutoUninitSpan to finish...\n",
                          mObj));
 
-            stateLock.leave();
+            stateLock.release();
             RTSemEventMultiWait(mObj->mInitUninitSem, RT_INDEFINITE_WAIT);
-            stateLock.enter();
+            stateLock.acquire();
 
             if (--mObj->mInitUninitWaiters == 0)
             {
@@ -761,7 +1000,7 @@ AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj)
         LogFlowFunc(("{%p}: Waiting for callers (%d) to drop to zero...\n",
                      mObj, mObj->mCallers));
 
-        stateLock.leave();
+        stateLock.release();
         RTSemEventWait(mObj->mZeroCallersSem, RT_INDEFINITE_WAIT);
     }
 }
@@ -780,6 +1019,23 @@ AutoUninitSpan::~AutoUninitSpan()
     Assert(mObj->mState == VirtualBoxBase::InUninit);
 
     mObj->setState(VirtualBoxBase::NotReady);
+}
+
+/**
+ * Immediately complete the span, object is NotReady now
+ */
+void AutoUninitSpan::setSucceeded()
+{
+    /* do nothing if already uninitialized */
+    if (mUninitDone)
+        return;
+
+    AutoWriteLock stateLock(mObj->mStateLock COMMA_LOCKVAL_SRC_POS);
+
+    Assert(mObj->mState == VirtualBoxBase::InUninit);
+
+    mObj->setState(VirtualBoxBase::NotReady);
+    mUninitDone = true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -218,8 +218,8 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
     VDGEOMETRY       PCHS = { 0, 0, 0 };
     VDGEOMETRY       LCHS = { 0, 0, 0 };
     PVDINTERFACE     pVDIfs = NULL;
-    VDINTERFACE      VDIError;
-    VDINTERFACEERROR VDIErrorCallbacks;
+    VDINTERFACEERROR VDIfError;
+
     /** Buffer storing the random test pattern. */
     uint8_t *pbTestPattern = NULL;
     /** Number of disk segments */
@@ -228,6 +228,21 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
     PVDDISKSEG paDiskSeg = NULL;
     unsigned   cDiffs = 0;
     unsigned   idDiff = 0; /* Diff ID counter for the filename */
+
+    /* Delete all images from a previous run. */
+    RTFileDelete(pTest->pcszBaseImage);
+    for (unsigned i = 0; i < pTest->cIterations; i++)
+    {
+        char *pszDiffFilename = NULL;
+
+        rc = RTStrAPrintf(&pszDiffFilename, "tstVDSnapDiff%u.%s", i, pTest->pcszDiffSuff);
+        if (RT_SUCCESS(rc))
+        {
+            if (RTFileExists(pszDiffFilename))
+                RTFileDelete(pszDiffFilename);
+            RTStrFree(pszDiffFilename);
+        }
+    }
 
     /* Create the virtual disk test data */
     pbTestPattern = (uint8_t *)RTMemAlloc(pTest->cbTestPattern);
@@ -260,18 +275,29 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
             if (pbTestPattern) \
                 RTMemFree(pbTestPattern); \
             VDDestroy(pVD); \
+            g_cErrors++; \
             return rc; \
         } \
     } while (0)
 
-    /* Create error interface. */
-    VDIErrorCallbacks.cbSize = sizeof(VDINTERFACEERROR);
-    VDIErrorCallbacks.enmInterface = VDINTERFACETYPE_ERROR;
-    VDIErrorCallbacks.pfnError = tstVDError;
-    VDIErrorCallbacks.pfnMessage = tstVDMessage;
+#define CHECK_BREAK(str) \
+    do \
+    { \
+        RTPrintf("%s rc=%Rrc\n", str, rc); \
+        if (RT_FAILURE(rc)) \
+        { \
+            g_cErrors++; \
+            break; \
+        } \
+    } while (0)
 
-    rc = VDInterfaceAdd(&VDIError, "tstVD_Error", VDINTERFACETYPE_ERROR, &VDIErrorCallbacks,
-                        NULL, &pVDIfs);
+    /* Create error interface. */
+    /* Create error interface. */
+    VDIfError.pfnError = tstVDError;
+    VDIfError.pfnMessage = tstVDMessage;
+
+    rc = VDInterfaceAdd(&VDIfError.Core, "tstVD_Error", VDINTERFACETYPE_ERROR,
+                        NULL, sizeof(VDINTERFACEERROR), &pVDIfs);
     AssertRC(rc);
 
 
@@ -293,7 +319,7 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
     {
         /* Write */
         rc = tstVDSnapWrite(pVD, paDiskSeg, cDiskSegments, cbDisk, fInit);
-        CHECK("tstVDSnapWrite()");
+        CHECK_BREAK("tstVDSnapWrite()");
 
         fInit = false;
 
@@ -314,7 +340,7 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
             rc = VDCreateDiff(pVD, pTest->pcszBackend, pszDiffFilename,
                               VD_IMAGE_FLAGS_NONE, "Test diff image", NULL, NULL,
                               VD_OPEN_FLAGS_NORMAL, NULL, NULL);
-            CHECK("VDCreateDiff()");
+            CHECK_BREAK("VDCreateDiff()");
 
             RTStrFree(pszDiffFilename);
             VDDumpImages(pVD);
@@ -334,7 +360,7 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
                 rc = VDMerge(pVD, uStartMerge, uEndMerge, NULL);
             else
                 rc = VDMerge(pVD, uEndMerge, uStartMerge, NULL);
-            CHECK("VDMerge()");
+            CHECK_BREAK("VDMerge()");
 
             cDiffs -= uEndMerge - uStartMerge;
 
@@ -352,7 +378,7 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
 
             /* Now compare the result with our test pattern */
             rc = tstVDSnapReadVerify(pVD, paDiskSeg, cDiskSegments, cbDisk);
-            CHECK("tstVDSnapReadVerify()");
+            CHECK_BREAK("tstVDSnapReadVerify()");
         }
         cIteration++;
     }
@@ -373,12 +399,12 @@ static int tstVDOpenCreateWriteMerge(PVDSNAPTEST pTest)
         RTStrFree(pszDiffFilename);
     }
 #undef CHECK
-    return 0;
+    return rc;
 }
 
 int main(int argc, char *argv[])
 {
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
     int rc;
     VDSNAPTEST Test;
 

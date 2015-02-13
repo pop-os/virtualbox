@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -234,6 +234,21 @@ static int vboxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     else
         rc = VERR_NO_MEMORY;
     return rc;
+}
+
+
+/**
+ * Notify the host of HGSMI-related guest capabilities via an HGSMI command.
+ * @returns  IPRT status value.
+ * @returns  VERR_NOT_IMPLEMENTED  if the host does not support the command.
+ * @returns  VERR_NO_MEMORY        if a heap allocation fails.
+ * @param    pCtx                  the context of the guest heap to use.
+ * @param    fCaps                 the capabilities to report, see VBVACAPS.
+ */
+RTDECL(int) VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                  uint32_t fCaps)
+{
+    return vboxHGSMISendCapsInfo(pCtx, fCaps);
 }
 
 
@@ -495,7 +510,6 @@ RTDECL(int) VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
  * Pass the host a new mouse pointer shape via an HGSMI command.
  *
  * @returns  success or failure
- * @todo  why not return an iprt status code?
  * @param  fFlags    cursor flags, @see VMMDevReqMousePointer::fFlags
  * @param  cHotX     horizontal position of the hot spot
  * @param  cHotY     vertical position of the hot spot
@@ -504,7 +518,7 @@ RTDECL(int) VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
  * @param  pPixels   pixel data, @see VMMDevReqMousePointer for the format
  * @param  cbLength  size in bytes of the pixel data
  */
-RTDECL(bool) VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+RTDECL(int)  VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                          uint32_t fFlags,
                                          uint32_t cHotX,
                                          uint32_t cHotY,
@@ -532,7 +546,7 @@ RTDECL(bool) VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     {
         LogFunc(("calculated pointer data size is too big (%d bytes, limit %d)\n",
                  cbData, cbLength));
-        return false;
+        return VERR_INVALID_PARAMETER;
     }
     /* Allocate the IO buffer. */
     p = (VBVAMOUSEPOINTERSHAPE *)VBoxHGSMIBufferAlloc(pCtx,
@@ -563,7 +577,54 @@ RTDECL(bool) VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
     else
         rc = VERR_NO_MEMORY;
     LogFlowFunc(("rc %d\n", rc));
-    return RT_SUCCESS(rc);
+    return rc;
+}
+
+
+/** 
+ * Report the guest cursor position.  The host may wish to use this information
+ * to re-position its own cursor (though this is currently unlikely).  The
+ * current host cursor position is returned.
+ * @param  pCtx             The context containing the heap used.
+ * @param  fReportPosition  Are we reporting a position?
+ * @param  x                Guest cursor X position.
+ * @param  y                Guest cursor Y position.
+ * @param  pxHost           Host cursor X position is stored here.  Optional.
+ * @param  pyHost           Host cursor Y position is stored here.  Optional.
+ * @returns  iprt status code.
+ * @returns  VERR_NO_MEMORY      HGSMI heap allocation failed.
+ */
+RTDECL(int) VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReportPosition, uint32_t x, uint32_t y,
+                                    uint32_t *pxHost, uint32_t *pyHost)
+{
+    int rc = VINF_SUCCESS;
+    VBVACURSORPOSITION *p;
+    Log(("%s: x=%u, y=%u\n", __PRETTY_FUNCTION__, (unsigned)x, (unsigned)y));
+
+    /* Allocate the IO buffer. */
+    p = (VBVACURSORPOSITION *)VBoxHGSMIBufferAlloc(pCtx, sizeof(VBVACURSORPOSITION), HGSMI_CH_VBVA, VBVA_CURSOR_POSITION);
+    if (p)
+    {
+        /* Prepare data to be sent to the host. */
+        p->fReportPosition = fReportPosition ? 1 : 0;
+        p->x = x;
+        p->y = y;
+        rc = VBoxHGSMIBufferSubmit(pCtx, p);
+        if (RT_SUCCESS(rc))
+        {
+            if (pxHost)
+                *pxHost = p->x;
+            if (pyHost)
+                *pyHost = p->y;
+            Log(("%s: return: x=%u, y=%u\n", __PRETTY_FUNCTION__, (unsigned)x, (unsigned)y));
+        }
+        /* Free the IO buffer. */
+        VBoxHGSMIBufferFree(pCtx, p);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+    LogFunc(("rc = %d\n", rc));
+    return rc;
 }
 
 

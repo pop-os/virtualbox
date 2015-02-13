@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,7 @@ RTDECL(RTNATIVETHREAD) RTThreadNativeSelf(void)
 RT_EXPORT_SYMBOL(RTThreadNativeSelf);
 
 
-RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
+static int rtR0ThreadLnxSleepCommon(RTMSINTERVAL cMillies)
 {
     long cJiffies = msecs_to_jiffies(cMillies);
     set_current_state(TASK_INTERRUPTIBLE);
@@ -66,7 +66,20 @@ RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
         return VINF_SUCCESS;
     return VERR_INTERRUPTED;
 }
+
+
+RTDECL(int) RTThreadSleep(RTMSINTERVAL cMillies)
+{
+    return rtR0ThreadLnxSleepCommon(cMillies);
+}
 RT_EXPORT_SYMBOL(RTThreadSleep);
+
+
+RTDECL(int) RTThreadSleepNoLog(RTMSINTERVAL cMillies)
+{
+    return rtR0ThreadLnxSleepCommon(cMillies);
+}
+RT_EXPORT_SYMBOL(RTThreadSleepNoLog);
 
 
 RTDECL(bool) RTThreadYield(void)
@@ -74,6 +87,7 @@ RTDECL(bool) RTThreadYield(void)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 4, 20)
     yield();
 #else
+    /** @todo r=ramshankar: Can we use cond_resched() instead?  */
     set_current_state(TASK_RUNNING);
     sys_sched_yield();
     schedule();
@@ -146,6 +160,8 @@ RT_EXPORT_SYMBOL(RTThreadPreemptIsPendingTrusty);
 
 RTDECL(bool) RTThreadPreemptIsPossible(void)
 {
+    /** @todo r=ramshankar: What about CONFIG_PREEMPT_VOLUNTARY? That can preempt
+     *        too but does so in voluntarily in explicit preemption points. */
 #ifdef CONFIG_PREEMPT
     return true;    /* yes, kernel preemption is possible. */
 #else
@@ -161,6 +177,7 @@ RTDECL(void) RTThreadPreemptDisable(PRTTHREADPREEMPTSTATE pState)
     AssertPtr(pState);
     Assert(pState->u32Reserved == 0);
     pState->u32Reserved = 42;
+    /* This ASSUMES that CONFIG_PREEMPT_COUNT is always defined with CONFIG_PREEMPT. */
     preempt_disable();
     RT_ASSERT_PREEMPT_CPUID_DISABLE(pState);
 

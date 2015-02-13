@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2009-2010 Oracle Corporation
+ * Copyright (C) 2009-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,10 @@
 /* For the keyboard stuff */
 #include <Carbon/Carbon.h>
 #include "DarwinKeyboard.h"
+
+/** Easy way of dynamical call for 10.7 AppKit functionality we do not yet support. */
+#define NSWindowCollectionBehaviorFullScreenPrimary (1 << 7)
+#define NSFullScreenWindowMask (1 << 14)
 
 NativeNSWindowRef darwinToNativeWindowImpl(NativeNSViewRef pView)
 {
@@ -90,6 +94,11 @@ NativeNSImageRef darwinToNSImageRef(const char *pczSource)
 NativeNSStringRef darwinToNativeString(const char* pcszString)
 {
     return [NSString stringWithUTF8String: pcszString];
+}
+
+QString darwinFromNativeString(NativeNSStringRef pString)
+{
+    return [pString cStringUsingEncoding :NSASCIIStringEncoding];
 }
 
 void darwinSetShowsToolbarButtonImpl(NativeNSWindowRef pWindow, bool fEnabled)
@@ -174,6 +183,70 @@ void darwinMinaturizeWindow(NativeNSWindowRef pWindow)
 //    [pWindow miniaturize:pWindow];
 //    [[NSApplication sharedApplication] deactivate];
 //    [pWindow performMiniaturize:nil];
+}
+
+void darwinEnableFullscreenSupport(NativeNSWindowRef pWindow)
+{
+    [pWindow setCollectionBehavior :NSWindowCollectionBehaviorFullScreenPrimary];
+}
+
+void darwinEnableTransienceSupport(NativeNSWindowRef pWindow)
+{
+    [pWindow setCollectionBehavior :NSWindowCollectionBehaviorTransient];
+}
+
+void darwinToggleFullscreenMode(NativeNSWindowRef pWindow)
+{
+    /* Toggle native fullscreen mode for passed pWindow. This method is available since 10.7 only. */
+    if ([pWindow respondsToSelector: @selector(toggleFullScreen:)])
+        [pWindow performSelector: @selector(toggleFullScreen:) withObject: (id)nil];
+}
+
+bool darwinIsInFullscreenMode(NativeNSWindowRef pWindow)
+{
+    /* Check whether passed pWindow is in native fullscreen mode. */
+    return [pWindow styleMask] & NSFullScreenWindowMask;
+}
+
+bool darwinIsOnActiveSpace(NativeNSWindowRef pWindow)
+{
+    /* Check whether passed pWindow is on active space. */
+    return [pWindow isOnActiveSpace];
+}
+
+bool darwinScreensHaveSeparateSpaces()
+{
+    /* Check whether screens have separate spaces.
+     * This method is available since 10.9 only. */
+    if ([NSScreen respondsToSelector: @selector(screensHaveSeparateSpaces)])
+        return [NSScreen performSelector: @selector(screensHaveSeparateSpaces)];
+    else
+        return false;
+}
+
+double darwinBackingScaleFactor(NativeNSWindowRef pWindow)
+{
+    /* If host window responds to 'backingScaleFactor' selector: */
+    if ([pWindow respondsToSelector :@selector(backingScaleFactor)])
+    {
+        /* Default scale-factor still '1': */
+        CGFloat dScaleFactor = 1.0;
+        /* Compose dynamical invocation: */
+        SEL selector = @selector(backingScaleFactor);
+        NSMethodSignature *signature = [pWindow methodSignatureForSelector :selector];
+        NSInvocation *invocation = [NSInvocation invocationWithMethodSignature :signature];
+        /* Configure invocation: */
+        [invocation setTarget :pWindow];
+        [invocation setSelector :selector];
+        /* Call for invocation: */
+        [invocation invoke];
+        /* And acquire invocation result finally: */
+        [invocation getReturnValue :&dScaleFactor];
+        /* Return scale-factor we have: */
+        return dScaleFactor;
+    }
+    /* Default scale-factor is '1': */
+    return 1.0;
 }
 
 void darwinSetDockIconMenu(QMenu* pMenu)

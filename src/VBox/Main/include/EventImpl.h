@@ -1,10 +1,10 @@
+/* $Id: EventImpl.h $ */
 /** @file
- *
  * VirtualBox COM IEvent implementation
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -144,7 +144,7 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(IUnknown *aParent);
+    HRESULT init();
     void uninit();
 
     // IEventSource methods

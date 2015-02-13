@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2009 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -173,8 +173,8 @@ public:
 
     void registerBaseMetric (pm::BaseMetric *baseMetric);
     void registerMetric (pm::Metric *metric);
-    void unregisterBaseMetricsFor (const ComPtr<IUnknown> &object);
-    void unregisterMetricsFor (const ComPtr<IUnknown> &object);
+    void unregisterBaseMetricsFor (const ComPtr<IUnknown> &object, const Utf8Str name = "*");
+    void unregisterMetricsFor (const ComPtr<IUnknown> &object, const Utf8Str name = "*");
     void registerGuest(pm::CollectorGuest* pGuest);
     void unregisterGuest(pm::CollectorGuest* pGuest);
 

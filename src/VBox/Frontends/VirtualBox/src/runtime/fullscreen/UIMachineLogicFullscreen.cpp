@@ -1,12 +1,10 @@
 /* $Id: UIMachineLogicFullscreen.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineLogicFullscreen class implementation
+ * VBox Qt GUI - UIMachineLogicFullscreen class implementation.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,90 +15,63 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
+/* Qt includes: */
 #include <QDesktopWidget>
 
-/* Local includes */
-#include "COMDefs.h"
+/* GUI includes: */
 #include "VBoxGlobal.h"
 #include "UIMessageCenter.h"
-
 #include "UISession.h"
 #include "UIActionPoolRuntime.h"
 #include "UIMachineLogicFullscreen.h"
 #include "UIMachineWindowFullscreen.h"
 #include "UIMultiScreenLayout.h"
-
 #ifdef Q_WS_MAC
+# include "UIMachineView.h"
 # include "UIExtraDataEventHandler.h"
+# include "UICocoaApplication.h"
 # include "VBoxUtils.h"
+# include "UIFrameBuffer.h"
 # include <Carbon/Carbon.h>
 #endif /* Q_WS_MAC */
 
 UIMachineLogicFullscreen::UIMachineLogicFullscreen(QObject *pParent, UISession *pSession)
     : UIMachineLogic(pParent, pSession, UIVisualStateType_Fullscreen)
+#ifdef Q_WS_MAC
+    , m_fScreensHaveSeparateSpaces(darwinScreensHaveSeparateSpaces())
+    , m_fadeToken(kCGDisplayFadeReservationInvalidToken)
+#endif /* Q_WS_MAC */
 {
+    /* Create multiscreen layout: */
     m_pScreenLayout = new UIMultiScreenLayout(this);
 }
 
 UIMachineLogicFullscreen::~UIMachineLogicFullscreen()
 {
-#ifdef Q_WS_MAC
-    /* Cleanup the dock stuff before the machine window(s): */
-    cleanupDock();
-#endif /* Q_WS_MAC */
-
-    /* Cleanup machine window(s): */
-    cleanupMachineWindows();
-
-    /* Cleanup handlers: */
-    cleanupHandlers();
-
-    /* Cleanup action related stuff */
-    cleanupActionGroups();
-
+    /* Delete multiscreen layout: */
     delete m_pScreenLayout;
 }
 
 bool UIMachineLogicFullscreen::checkAvailability()
 {
-    /* Base class availability: */
-    if (!UIMachineLogic::checkAvailability())
-        return false;
-
     /* Temporary get a machine object: */
     const CMachine &machine = uisession()->session().GetMachine();
 
-    int cHostScreens = m_pScreenLayout->hostScreenCount();
-    int cGuestScreens = m_pScreenLayout->guestScreenCount();
-    /* Check that there are enough physical screens are connected: */
-    if (cHostScreens < cGuestScreens)
+    /* Check if there is enough physical memory to enter fullscreen: */
+    if (uisession()->isGuestSupportsGraphics())
     {
-        msgCenter().cannotEnterFullscreenMode();
-        return false;
-    }
-
-    // TODO_NEW_CORE: this is how it looked in the old version
-    // bool VBoxConsoleView::isAutoresizeGuestActive() { return mGuestSupportsGraphics && mAutoresizeGuest; }
-//    if (uisession()->session().GetConsole().isAutoresizeGuestActive())
-    if (uisession()->isGuestAdditionsActive())
-    {
-        quint64 availBits = machine.GetVRAMSize() /* VRAM */
-                            * _1M /* MiB to bytes */
-                            * 8; /* to bits */
+        quint64 availBits = machine.GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
         if (availBits < usedBits)
         {
-            int result = msgCenter().cannotEnterFullscreenMode(0, 0, 0,
-                                                                 (((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M);
-            if (result == QIMessageBox::Cancel)
+            if (!msgCenter().cannotEnterFullscreenMode(0, 0, 0, (((usedBits + 7) / 8 + _1M - 1) / _1M) * _1M))
                 return false;
         }
     }
 
-    /* Take the toggle hot key from the menu item. Since
-     * VBoxGlobal::extractKeyFromActionText gets exactly the
-     * linked key without the 'Host+' part we are adding it here. */
+    /* Take the toggle hot key from the menu item.
+     * Since VBoxGlobal::extractKeyFromActionText gets exactly
+     * the linked key without the 'Host+' part we are adding it here. */
     QString hotKey = QString("Host+%1")
         .arg(VBoxGlobal::extractKeyFromActionText(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen)->text()));
     Assert(!hotKey.isEmpty());
@@ -112,137 +83,294 @@ bool UIMachineLogicFullscreen::checkAvailability()
     return true;
 }
 
-void UIMachineLogicFullscreen::initialize()
+void UIMachineLogicFullscreen::adjustMachineWindowsGeometry()
 {
-    /* Prepare required features: */
-    prepareRequiredFeatures();
+    LogRel(("UIMachineLogicFullscreen::adjustMachineWindowsGeometry\n"));
+
+    /* Rebuild multi-screen layout: */
+    m_pScreenLayout->rebuild();
 
 #ifdef Q_WS_MAC
-    /* Prepare common connections: */
-    prepareCommonConnections();
-#endif /* Q_WS_MAC */
-
-    /* Prepare console connections: */
-    prepareSessionConnections();
-
-    /* Prepare action groups:
-     * Note: This has to be done before prepareActionConnections
-     * cause here actions/menus are recreated. */
-    prepareActionGroups();
-
-    /* Prepare action connections: */
-    prepareActionConnections();
-
-    /* Prepare handlers: */
-    prepareHandlers();
-
-    /* Prepare machine window: */
-    prepareMachineWindows();
-
-#ifdef Q_WS_MAC
-    /* Prepare dock: */
-    prepareDock();
-#endif /* Q_WS_MAC */
-
-    /* Power up machine: */
-    uisession()->powerUp();
-
-    /* Initialization: */
-    sltMachineStateChanged();
-    sltAdditionsStateChanged();
-    sltMouseCapabilityChanged();
-
-#ifdef VBOX_WITH_DEBUGGER_GUI
-    prepareDebugger();
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-
-    /* Retranslate logic part: */
-    retranslateUi();
-}
-
-int UIMachineLogicFullscreen::hostScreenForGuestScreen(int screenId) const
-{
-    return m_pScreenLayout->hostScreenForGuestScreen(screenId);
-}
-
-#ifdef Q_WS_MAC
-void UIMachineLogicFullscreen::prepareCommonConnections()
-{
-    /* Presentation mode connection */
-    connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
-            this, SLOT(sltChangePresentationMode(bool)));
-}
-#endif /* Q_WS_MAC */
-
-void UIMachineLogicFullscreen::prepareActionGroups()
-{
-    /* Base class action groups: */
-    UIMachineLogic::prepareActionGroups();
-
-    /* Adjust-window action isn't allowed in fullscreen: */
-    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
-
-    /* Add the view menu: */
-    QMenu *pMenu = gActionPool->action(UIActionIndexRuntime_Menu_View)->menu();
-    m_pScreenLayout->initialize(pMenu);
-}
-
-void UIMachineLogicFullscreen::prepareMachineWindows()
-{
-    /* Do not create window(s) if they created already: */
-    if (isMachineWindowsCreated())
-        return;
-
-#ifdef Q_WS_MAC // TODO: Is that "darwinSetFrontMostProcess" really need here?
-    /* We have to make sure that we are getting the front most process.
-     * This is necessary for Qt versions > 4.3.3: */
-    ::darwinSetFrontMostProcess();
-#endif /* Q_WS_MAC */
-
-    /* Update the multi screen layout: */
-    m_pScreenLayout->update();
-
-    /* Create machine window(s): */
-    for (int cScreenId = 0; cScreenId < m_pScreenLayout->guestScreenCount(); ++cScreenId)
-        addMachineWindow(UIMachineWindow::create(this, visualStateType(), cScreenId));
-
-    /* Connect screen-layout change handler: */
-    for (int i = 0; i < machineWindows().size(); ++i)
-        connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-                static_cast<UIMachineWindowFullscreen*>(machineWindows()[i]), SLOT(sltPlaceOnScreen()));
-
-#ifdef Q_WS_MAC
-    /* If the user change the screen, we have to decide again if the
-     * presentation mode should be changed. */
-    connect(m_pScreenLayout, SIGNAL(screenLayoutChanged()),
-            this, SLOT(sltScreenLayoutChanged()));
-    /* Note: Presentation mode has to be set *after* the windows are created. */
-    setPresentationModeEnabled(true);
-#endif /* Q_WS_MAC */
-
-    /* Remember what machine window(s) created: */
-    setMachineWindowsCreated(true);
-}
-
-void UIMachineLogicFullscreen::cleanupMachineWindows()
-{
-    /* Do not cleanup machine window(s) if not present: */
-    if (!isMachineWindowsCreated())
-        return;
-
-    /* Cleanup machine window(s): */
+    /* For Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+    {
+        /* Make sure all machine-window(s) have proper geometry: */
+        foreach (UIMachineWindow *pMachineWindow, machineWindows())
+            pMachineWindow->showInNecessaryMode();
+    }
+    /* For ML and next revalidate native fullscreen: */
+    else revalidateNativeFullScreen();
+#else /* !Q_WS_MAC */
+    /* Make sure all machine-window(s) have proper geometry: */
     foreach (UIMachineWindow *pMachineWindow, machineWindows())
-        UIMachineWindow::destroy(pMachineWindow);
-
-#ifdef Q_WS_MAC
-    setPresentationModeEnabled(false);
-#endif/* Q_WS_MAC */
+        pMachineWindow->showInNecessaryMode();
+#endif /* !Q_WS_MAC */
 }
 
-void UIMachineLogicFullscreen::cleanupActionGroups()
+int UIMachineLogicFullscreen::hostScreenForGuestScreen(int iScreenId) const
 {
-    /* Reenable adjust-window action: */
-    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
+    return m_pScreenLayout->hostScreenForGuestScreen(iScreenId);
+}
+
+bool UIMachineLogicFullscreen::hasHostScreenForGuestScreen(int iScreenId) const
+{
+    return m_pScreenLayout->hasHostScreenForGuestScreen(iScreenId);
+}
+
+#ifdef RT_OS_DARWIN
+void UIMachineLogicFullscreen::sltHandleNativeFullscreenWillEnter()
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Get sender machine-window: */
+    UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(sender());
+    AssertPtrReturnVoid(pMachineWindow);
+    LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenWillEnter: "
+            "Machine-window #%d will enter native fullscreen.\n",
+            (int)pMachineWindow->screenId()));
+
+    /* Fade to black: */
+    fadeToBlack();
+}
+
+void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidEnter()
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Get sender machine-window: */
+    UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(sender());
+    AssertPtrReturnVoid(pMachineWindow);
+    LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenDidEnter: "
+            "Machine-window #%d did enter native fullscreen.\n",
+            (int)pMachineWindow->screenId()));
+
+    /* Add machine-window to corresponding set: */
+    m_fullscreenMachineWindows.insert(pMachineWindow);
+    AssertReturnVoid(m_fullscreenMachineWindows.contains(pMachineWindow));
+
+    /* Fade to normal: */
+    fadeToNormal();
+
+    /* Rebuild multi-screen layout: */
+    m_pScreenLayout->rebuild();
+    /* Revalidate native fullscreen: */
+    revalidateNativeFullScreen();
+}
+
+void UIMachineLogicFullscreen::sltHandleNativeFullscreenWillExit()
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Get sender machine-window: */
+    UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(sender());
+    AssertPtrReturnVoid(pMachineWindow);
+    LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenWillExit: "
+            "Machine-window #%d will exit native fullscreen.\n",
+            (int)pMachineWindow->screenId()));
+
+    /* Fade to black: */
+    fadeToBlack();
+}
+
+void UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit()
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Get sender machine-window: */
+    UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(sender());
+    AssertPtrReturnVoid(pMachineWindow);
+
+    /* Remove machine-window from corresponding set: */
+    bool fResult = m_fullscreenMachineWindows.remove(pMachineWindow);
+    AssertReturnVoid(!m_fullscreenMachineWindows.contains(pMachineWindow));
+
+    /* We have same signal if window did fail to enter native fullscreen.
+     * In that case window missed in m_fullscreenMachineWindows,
+     * ignore this signal silently: */
+    if (!fResult)
+        return;
+
+    /* If that window was invalidated: */
+    if (m_invalidFullscreenMachineWindows.contains(pMachineWindow))
+    {
+        LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit: "
+                "Machine-window #%d exited invalidated native fullscreen, revalidate it.\n",
+                (int)pMachineWindow->screenId()));
+
+        /* Exclude machine-window from invalidation set: */
+        m_invalidFullscreenMachineWindows.remove(pMachineWindow);
+        AssertReturnVoid(!m_invalidFullscreenMachineWindows.contains(pMachineWindow));
+
+        /* Rebuild multi-screen layout: */
+        m_pScreenLayout->rebuild();
+        /* Revalidate native fullscreen: */
+        revalidateNativeFullScreen();
+    }
+    /* If there are no invalidated windows: */
+    else if (m_invalidFullscreenMachineWindows.isEmpty())
+    {
+        /* If there are 'fullscreen' windows: */
+        if (!m_fullscreenMachineWindows.isEmpty())
+        {
+            LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit: "
+                    "Machine-window #%d exited native fullscreen, asking others to exit too...\n",
+                    (int)pMachineWindow->screenId()));
+
+            /* Ask window(s) to exit 'fullscreen' mode: */
+            emit sigNotifyAboutNativeFullscreenShouldBeExited();
+        }
+        /* If there are no 'fullscreen' windows: */
+        else
+        {
+            LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenDidExit: "
+                    "Machine-window #%d exited native fullscreen, changing visual-state to requested...\n",
+                    (int)pMachineWindow->screenId()));
+
+            /* Change visual-state to requested: */
+            UIVisualStateType type = uisession()->requestedVisualState();
+            if (type == UIVisualStateType_Invalid)
+                type = UIVisualStateType_Normal;
+            uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+            uisession()->changeVisualState(type);
+
+            /* Fade to normal: */
+            fadeToNormal();
+        }
+    }
+}
+
+void UIMachineLogicFullscreen::sltHandleNativeFullscreenFailToEnter()
+{
+    /* Make sure this method is only used for ML and next: */
+    AssertReturnVoid(vboxGlobal().osRelease() > MacOSXRelease_Lion);
+
+    /* Get sender machine-window: */
+    UIMachineWindow *pMachineWindow = qobject_cast<UIMachineWindow*>(sender());
+    AssertReturnVoid(pMachineWindow);
+
+    /* Make sure this window is not registered somewhere: */
+    AssertReturnVoid(!m_fullscreenMachineWindows.remove(pMachineWindow));
+    AssertReturnVoid(!m_invalidFullscreenMachineWindows.remove(pMachineWindow));
+
+    /* If there are 'fullscreen' windows: */
+    if (!m_fullscreenMachineWindows.isEmpty())
+    {
+        LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenFailToEnter: "
+                "Machine-window #%d failed to enter native fullscreen, asking others to exit...\n",
+                (int)pMachineWindow->screenId()));
+
+        /* Ask window(s) to exit 'fullscreen' mode: */
+        emit sigNotifyAboutNativeFullscreenShouldBeExited();
+    }
+    /* If there are no 'fullscreen' windows: */
+    else
+    {
+        LogRel(("UIMachineLogicFullscreen::sltHandleNativeFullscreenFailToEnter: "
+                "Machine-window #%d failed to enter native fullscreen, requesting change visual-state to normal...\n",
+                (int)pMachineWindow->screenId()));
+
+        /* Ask session to change 'fullscreen' mode to 'normal': */
+        uisession()->setRequestedVisualState(UIVisualStateType_Normal);
+
+        /* If session started already => push mode-change directly: */
+        if (uisession()->isStarted())
+            sltCheckForRequestedVisualStateType();
+    }
+}
+
+void UIMachineLogicFullscreen::sltChangeVisualStateToNormal()
+{
+    /* Base-class handling for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        UIMachineLogic::sltChangeVisualStateToNormal();
+    /* Special handling for ML and next: */
+    else
+    {
+        /* Request 'normal' (window) visual-state: */
+        uisession()->setRequestedVisualState(UIVisualStateType_Normal);
+        /* Ask window(s) to exit 'fullscreen' mode: */
+        emit sigNotifyAboutNativeFullscreenShouldBeExited();
+    }
+}
+
+void UIMachineLogicFullscreen::sltChangeVisualStateToSeamless()
+{
+    /* Base-class handling for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        UIMachineLogic::sltChangeVisualStateToSeamless();
+    /* Special handling for ML and next: */
+    else
+    {
+        /* Request 'seamless' visual-state: */
+        uisession()->setRequestedVisualState(UIVisualStateType_Seamless);
+        /* Ask window(s) to exit 'fullscreen' mode: */
+        emit sigNotifyAboutNativeFullscreenShouldBeExited();
+    }
+}
+
+void UIMachineLogicFullscreen::sltChangeVisualStateToScale()
+{
+    /* Base-class handling for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        UIMachineLogic::sltChangeVisualStateToScale();
+    /* Special handling for ML and next: */
+    else
+    {
+        /* Request 'scale' visual-state: */
+        uisession()->setRequestedVisualState(UIVisualStateType_Scale);
+        /* Ask window(s) to exit 'fullscreen' mode: */
+        emit sigNotifyAboutNativeFullscreenShouldBeExited();
+    }
+}
+
+void UIMachineLogicFullscreen::sltCheckForRequestedVisualStateType()
+{
+    LogRel(("UIMachineLogicFullscreen::sltCheckForRequestedVisualStateType: Requested-state=%d, Machine-state=%d\n",
+            uisession()->requestedVisualState(), uisession()->machineState()));
+
+    /* Do not try to change visual-state type if machine was not started yet: */
+    if (!uisession()->isRunning() && !uisession()->isPaused())
+        return;
+
+    /* Check requested visual-state types: */
+    switch (uisession()->requestedVisualState())
+    {
+        /* If 'normal' visual-state type is requested: */
+        case UIVisualStateType_Normal:
+        {
+            LogRel(("UIMachineLogicFullscreen::sltCheckForRequestedVisualStateType: "
+                    "Going 'normal' as requested...\n"));
+            uisession()->setRequestedVisualState(UIVisualStateType_Invalid);
+            uisession()->changeVisualState(UIVisualStateType_Normal);
+            break;
+        }
+        default:
+            break;
+    }
+}
+#endif /* RT_OS_DARWIN */
+
+void UIMachineLogicFullscreen::sltMachineStateChanged()
+{
+    /* Call to base-class: */
+    UIMachineLogic::sltMachineStateChanged();
+
+    /* If machine-state changed from 'paused' to 'running': */
+    if (uisession()->isRunning() && uisession()->wasPaused())
+    {
+        LogRel(("UIMachineLogicFullscreen::sltMachineStateChanged:"
+                "Machine-state changed from 'paused' to 'running': "
+                "Adjust machine-window geometry...\n"));
+
+        /* Make sure further code will be called just once: */
+        uisession()->forgetPreviousMachineState();
+        /* Adjust machine-window geometry if necessary: */
+        adjustMachineWindowsGeometry();
+    }
 }
 
 #ifdef Q_WS_MAC
@@ -250,29 +378,561 @@ void UIMachineLogicFullscreen::sltChangePresentationMode(bool /* fEnabled */)
 {
     setPresentationModeEnabled(true);
 }
+#endif /* Q_WS_MAC */
 
 void UIMachineLogicFullscreen::sltScreenLayoutChanged()
 {
-    setPresentationModeEnabled(true);
+    LogRel(("UIMachineLogicFullscreen::sltScreenLayoutChanged: Multi-screen layout changed.\n"));
+
+#ifdef Q_WS_MAC
+    /* For Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+    {
+        /* Make sure all machine-window(s) have proper geometry: */
+        foreach (UIMachineWindow *pMachineWindow, machineWindows())
+            pMachineWindow->showInNecessaryMode();
+        /* Update 'presentation mode': */
+        setPresentationModeEnabled(true);
+    }
+    /* Revalidate native fullscreen for ML and next: */
+    else revalidateNativeFullScreen();
+#else /* !Q_WS_MAC */
+    /* Make sure all machine-window(s) have proper geometry: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        pMachineWindow->showInNecessaryMode();
+#endif /* !Q_WS_MAC */
 }
 
+void UIMachineLogicFullscreen::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
+{
+    LogRel(("UIMachineLogicFullscreen: Guest-screen count changed.\n"));
+
+    /* Rebuild multi-screen layout: */
+    m_pScreenLayout->rebuild();
+
+#ifdef Q_WS_MAC
+    /* Call to base-class for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
+    /* Revalidate native fullscreen for ML and next: */
+    else revalidateNativeFullScreen();
+#else /* !Q_WS_MAC */
+    /* Call to base-class: */
+    UIMachineLogic::sltGuestMonitorChange(changeType, uScreenId, screenGeo);
+#endif /* !Q_WS_MAC */
+}
+
+void UIMachineLogicFullscreen::sltHostScreenCountChange()
+{
+    LogRel(("UIMachineLogicFullscreen: Host-screen count changed.\n"));
+
+    /* Rebuild multi-screen layout: */
+    m_pScreenLayout->rebuild();
+
+#ifdef Q_WS_MAC
+    /* Call to base-class for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        UIMachineLogic::sltHostScreenCountChange();
+    /* Revalidate native fullscreen for ML and next: */
+    else revalidateNativeFullScreen();
+#else /* !Q_WS_MAC */
+    /* Call to base-class: */
+    UIMachineLogic::sltHostScreenCountChange();
+#endif /* !Q_WS_MAC */
+}
+
+void UIMachineLogicFullscreen::sltHostScreenAvailableAreaChange()
+{
+    LogRel(("UIMachineLogicFullscreen: Host-screen available-area change ignored.\n"));
+}
+
+void UIMachineLogicFullscreen::prepareActionGroups()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionGroups();
+
+    /* Adjust-window action isn't allowed in fullscreen: */
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(false);
+
+    /* Take care of view-action toggle state: */
+    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    if (!pActionFullscreen->isChecked())
+    {
+        pActionFullscreen->blockSignals(true);
+        pActionFullscreen->setChecked(true);
+        pActionFullscreen->blockSignals(false);
+        pActionFullscreen->update();
+    }
+}
+
+void UIMachineLogicFullscreen::prepareActionConnections()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionConnections();
+
+    /* "View" actions connections: */
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+            this, SLOT(sltChangeVisualStateToNormal()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+            this, SLOT(sltChangeVisualStateToSeamless()));
+    connect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+            this, SLOT(sltChangeVisualStateToScale()));
+}
+
+#ifdef Q_WS_MAC
+void UIMachineLogicFullscreen::prepareOtherConnections()
+{
+    /* Make sure 'presentation mode' preference handling
+     * is updated at runtime for Lion and previous: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        connect(gEDataEvents, SIGNAL(sigPresentationModeChange(bool)),
+                this, SLOT(sltChangePresentationMode(bool)));
+}
+#endif /* Q_WS_MAC */
+
+void UIMachineLogicFullscreen::prepareMachineWindows()
+{
+    /* Do not create machine-window(s) if they created already: */
+    if (isMachineWindowsCreated())
+        return;
+
+#ifdef Q_WS_MAC
+    /* For ML and next: */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
+    {
+        /* Register to native notifications: */
+        UICocoaApplication::instance()->registerToNotificationOfWorkspace("NSWorkspaceDidActivateApplicationNotification", this,
+                                                                          UIMachineLogicFullscreen::nativeHandlerForApplicationActivation);
+        UICocoaApplication::instance()->registerToNotificationOfWorkspace("NSWorkspaceActiveSpaceDidChangeNotification", this,
+                                                                          UIMachineLogicFullscreen::nativeHandlerForActiveSpaceChange);
+    }
+
+    /* We have to make sure that we are getting the front most process.
+     * This is necessary for Qt versions > 4.3.3: */
+    darwinSetFrontMostProcess();
+
+    /* Fade to black: */
+    fadeToBlack();
+#endif /* Q_WS_MAC */
+
+    /* Update the multi-screen layout: */
+    m_pScreenLayout->update();
+
+    /* Create machine-window(s): */
+    for (uint cScreenId = 0; cScreenId < session().GetMachine().GetMonitorCount(); ++cScreenId)
+        addMachineWindow(UIMachineWindow::create(this, cScreenId));
+
+    /* Connect multi-screen layout change handler: */
+    connect(m_pScreenLayout, SIGNAL(sigScreenLayoutChanged()),
+            this, SLOT(sltScreenLayoutChanged()));
+
+#ifdef Q_WS_MAC
+    /* Activate 'presentation mode': */
+    setPresentationModeEnabled(true);
+
+    /* For Lion and previous fade to normal: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        fadeToNormal();
+
+    /* For ML and next: */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
+    {
+        /* Enable native fullscreen support: */
+        foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        {
+            /* Logic => window signals: */
+            connect(this, SIGNAL(sigNotifyAboutNativeFullscreenShouldBeEntered(UIMachineWindow*)),
+                    pMachineWindow, SLOT(sltEnterNativeFullscreen(UIMachineWindow*)));
+            connect(this, SIGNAL(sigNotifyAboutNativeFullscreenShouldBeExited(UIMachineWindow*)),
+                    pMachineWindow, SLOT(sltExitNativeFullscreen(UIMachineWindow*)));
+            /* Window => logic signals: */
+            connect(pMachineWindow, SIGNAL(sigNotifyAboutNativeFullscreenWillEnter()),
+                    this, SLOT(sltHandleNativeFullscreenWillEnter()),
+                    Qt::QueuedConnection);
+            connect(pMachineWindow, SIGNAL(sigNotifyAboutNativeFullscreenDidEnter()),
+                    this, SLOT(sltHandleNativeFullscreenDidEnter()),
+                    Qt::QueuedConnection);
+            connect(pMachineWindow, SIGNAL(sigNotifyAboutNativeFullscreenWillExit()),
+                    this, SLOT(sltHandleNativeFullscreenWillExit()),
+                    Qt::QueuedConnection);
+            connect(pMachineWindow, SIGNAL(sigNotifyAboutNativeFullscreenDidExit()),
+                    this, SLOT(sltHandleNativeFullscreenDidExit()),
+                    Qt::QueuedConnection);
+            connect(pMachineWindow, SIGNAL(sigNotifyAboutNativeFullscreenFailToEnter()),
+                    this, SLOT(sltHandleNativeFullscreenFailToEnter()),
+                    Qt::QueuedConnection);
+        }
+        /* Revalidate native fullscreen: */
+        revalidateNativeFullScreen();
+    }
+#endif /* Q_WS_MAC */
+
+    /* Mark machine-window(s) created: */
+    setMachineWindowsCreated(true);
+}
+
+void UIMachineLogicFullscreen::prepareMenu()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareMenu();
+
+    /* Finally update view-menu, if necessary: */
+    if (uisession()->allowedActionsMenuView() & RuntimeMenuViewActionType_Multiscreen)
+        m_pScreenLayout->setViewMenu(gActionPool->action(UIActionIndexRuntime_Menu_View)->menu());
+}
+
+void UIMachineLogicFullscreen::cleanupMachineWindows()
+{
+    /* Do not destroy machine-window(s) if they destroyed already: */
+    if (!isMachineWindowsCreated())
+        return;
+
+#ifdef Q_WS_MAC
+    /* For ML and next: */
+    if (vboxGlobal().osRelease() > MacOSXRelease_Lion)
+    {
+        /* Unregister from native notifications: */
+        UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceDidActivateApplicationNotification", this);
+        UICocoaApplication::instance()->unregisterFromNotificationOfWorkspace("NSWorkspaceActiveSpaceDidChangeNotification", this);
+    }
+
+    /* For Lion and previous fade to black: */
+    if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        fadeToBlack();
+#endif/* Q_WS_MAC */
+
+    /* Mark machine-window(s) destroyed: */
+    setMachineWindowsCreated(false);
+
+    /* Destroy machine-window(s): */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        UIMachineWindow::destroy(pMachineWindow);
+
+#ifdef Q_WS_MAC
+    /* Deactivate 'presentation mode': */
+    setPresentationModeEnabled(false);
+
+    /* Fade to normal: */
+    fadeToNormal();
+#endif/* Q_WS_MAC */
+}
+
+void UIMachineLogicFullscreen::cleanupActionConnections()
+{
+    /* "View" actions disconnections: */
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen), SIGNAL(triggered(bool)),
+               this, SLOT(sltChangeVisualStateToNormal()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Seamless), SIGNAL(triggered(bool)),
+               this, SLOT(sltChangeVisualStateToSeamless()));
+    disconnect(gActionPool->action(UIActionIndexRuntime_Toggle_Scale), SIGNAL(triggered(bool)),
+               this, SLOT(sltChangeVisualStateToScale()));
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionConnections();
+}
+
+void UIMachineLogicFullscreen::cleanupActionGroups()
+{
+    /* Take care of view-action toggle state: */
+    UIAction *pActionFullscreen = gActionPool->action(UIActionIndexRuntime_Toggle_Fullscreen);
+    if (pActionFullscreen->isChecked())
+    {
+        pActionFullscreen->blockSignals(true);
+        pActionFullscreen->setChecked(false);
+        pActionFullscreen->blockSignals(false);
+        pActionFullscreen->update();
+    }
+
+    /* Reenable adjust-window action: */
+    gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow)->setVisible(true);
+
+    /* Call to base-class: */
+    UIMachineLogic::cleanupActionGroups();
+}
+
+#ifdef Q_WS_MAC
 void UIMachineLogicFullscreen::setPresentationModeEnabled(bool fEnabled)
 {
-    /* First check if we are on a screen which contains the Dock or the
-     * Menubar (which hasn't to be the same), only than the
-     * presentation mode have to be changed. */
-    if (   fEnabled
-        && m_pScreenLayout->isHostTaskbarCovert())
+    /* Should we enable it? */
+    if (fEnabled)
     {
-        QString testStr = vboxGlobal().virtualBox().GetExtraData(VBoxDefs::GUI_PresentationModeEnabled).toLower();
-        /* Default to false if it is an empty value */
-        if (testStr.isEmpty() || testStr == "false")
-            SetSystemUIMode(kUIModeAllHidden, 0);
+        /* For Lion and previous: */
+        if (vboxGlobal().osRelease() <= MacOSXRelease_Lion)
+        {
+            /* Check if we have screen which contains the Dock or the Menubar (which hasn't to be the same),
+             * only than the 'presentation mode' have to be changed. */
+            if (m_pScreenLayout->isHostTaskbarCovert())
+            {
+                /* Load 'presentation mode' preference: */
+                QString strPresentationMode = vboxGlobal().virtualBox().GetExtraData(GUI_PresentationModeEnabled).toLower();
+                /* Default to 'false' if it is an empty value: */
+                if (strPresentationMode.isEmpty() || strPresentationMode == "false")
+                    SetSystemUIMode(kUIModeAllHidden, 0);
+                else
+                    SetSystemUIMode(kUIModeAllSuppressed, 0);
+            }
+        }
+        /* For ML and next: */
         else
+        {
+            /* I am not sure we have to check anything here.
+             * Without 'presentation mode' native fullscreen works pretty bad,
+             * so we have to enable it anyway: */
             SetSystemUIMode(kUIModeAllSuppressed, 0);
+        }
     }
+    /* Should we disable it? */
+    else SetSystemUIMode(kUIModeNormal, 0);
+}
+
+void UIMachineLogicFullscreen::fadeToBlack()
+{
+    /* Make sure fade-token invalid: */
+    if (m_fadeToken != kCGDisplayFadeReservationInvalidToken)
+        return;
+
+    /* Acquire fade-token: */
+    LogRel(("UIMachineLogicFullscreen::fadeToBlack\n"));
+    CGAcquireDisplayFadeReservation(kCGMaxDisplayReservationInterval, &m_fadeToken);
+    CGDisplayFade(m_fadeToken, 0.3, kCGDisplayBlendNormal, kCGDisplayBlendSolidColor, 0.0, 0.0, 0.0, true);
+}
+
+void UIMachineLogicFullscreen::fadeToNormal()
+{
+    /* Make sure fade-token valid: */
+    if (m_fadeToken == kCGDisplayFadeReservationInvalidToken)
+        return;
+
+    /* Release fade-token: */
+    LogRel(("UIMachineLogicFullscreen::fadeToNormal\n"));
+    CGDisplayFade(m_fadeToken, 0.5, kCGDisplayBlendSolidColor, kCGDisplayBlendNormal, 0.0, 0.0, 0.0, false);
+    CGReleaseDisplayFadeReservation(m_fadeToken);
+    m_fadeToken = kCGDisplayFadeReservationInvalidToken;
+}
+
+void UIMachineLogicFullscreen::revalidateNativeFullScreen(UIMachineWindow *pMachineWindow)
+{
+    /* Make sure that is full-screen machine-window: */
+    UIMachineWindowFullscreen *pMachineWindowFullscreen = qobject_cast<UIMachineWindowFullscreen*>(pMachineWindow);
+    AssertPtrReturnVoid(pMachineWindowFullscreen);
+
+    /* Make sure window is not already invalidated: */
+    if (m_invalidFullscreenMachineWindows.contains(pMachineWindow))
+        return;
+
+    /* Ignore window if it is in 'fullscreen transition': */
+    if (pMachineWindowFullscreen->isInFullscreenTransition())
+        return;
+
+    /* Get screen ID: */
+    const ulong uScreenID = pMachineWindow->screenId();
+    LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: For machine-window #%d.\n",
+            (int)uScreenID));
+
+    /* Validate window which can't be fullscreen: */
+    if (uScreenID != 0 && !screensHaveSeparateSpaces())
+    {
+        /* We are hiding transient window if:
+         * 1. primary window is not on active user-space
+         * 2. there is no fullscreen window or it's invalidated. */
+        if (   !darwinIsOnActiveSpace(machineWindows().first())
+            || m_fullscreenMachineWindows.isEmpty() || !m_invalidFullscreenMachineWindows.isEmpty())
+        {
+            LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                    "Ask transient machine-window #%d to hide.\n", (int)uScreenID));
+
+            /* Make sure mini-toolbar hidden: */
+            pMachineWindowFullscreen->setMiniToolbarVisible(false);
+            /* Make sure window hidden: */
+            pMachineWindow->hide();
+        }
+        /* If there is valid fullscreen window: */
+        else
+        {
+            LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                    "Ask transient machine-window #%d to show/normalize.\n", (int)uScreenID));
+
+            /* Make sure window have proper geometry and shown: */
+            pMachineWindow->showInNecessaryMode();
+            /* Make sure mini-toolbar shown: */
+            pMachineWindowFullscreen->setMiniToolbarVisible(true);
+        }
+    }
+    /* Validate window which can be fullscreen: */
     else
-        SetSystemUIMode(kUIModeNormal, 0);
+    {
+        /* Validate window which is not in fullscreen: */
+        if (!darwinIsInFullscreenMode(pMachineWindow))
+        {
+            /* If that window
+             * 1. should really be shown and
+             * 2. is mapped to some host-screen: */
+            if (   uisession()->isScreenVisible(uScreenID)
+                && hasHostScreenForGuestScreen(uScreenID))
+            {
+                LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                        "Ask machine-window #%d to enter native fullscreen.\n", (int)uScreenID));
+
+                /* Fade to black: */
+                fadeToBlack();
+
+                /* Update 'presentation mode': */
+                setPresentationModeEnabled(true);
+
+                /* Make sure mini-toolbar hidden: */
+                pMachineWindowFullscreen->setMiniToolbarVisible(false);
+                /* Make sure window have proper geometry and shown: */
+                pMachineWindow->showInNecessaryMode();
+
+                /* Ask window to enter 'fullscreen' mode: */
+                emit sigNotifyAboutNativeFullscreenShouldBeEntered(pMachineWindow);
+            }
+            /* If that window
+             * is shown while shouldn't: */
+            else if (pMachineWindow->isVisible())
+            {
+                LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                        "Ask machine-window #%d to hide.\n", (int)uScreenID));
+
+                /* Make sure mini-toolbar hidden: */
+                pMachineWindowFullscreen->setMiniToolbarVisible(false);
+                /* Make sure window hidden: */
+                pMachineWindow->hide();
+
+                /* Fade to normal: */
+                fadeToNormal();
+            }
+        }
+        /* Validate window which is in fullscreen: */
+        else
+        {
+            /* Variables to compare: */
+            const int iWantedHostScreenIndex = hostScreenForGuestScreen((int)uScreenID);
+            const int iCurrentHostScreenIndex = QApplication::desktop()->screenNumber(pMachineWindow);
+            const QSize frameBufferSize((int)uisession()->frameBuffer(uScreenID)->width(), (int)uisession()->frameBuffer(uScreenID)->height());
+            const QSize screenSize = QApplication::desktop()->screenGeometry(iWantedHostScreenIndex).size();
+
+            /* If that window
+             * 1. shouldn't really be shown or
+             * 2. isn't mapped to some host-screen or
+             * 3. should be located on another host-screen than currently. */
+            if (   !uisession()->isScreenVisible(uScreenID)
+                || !hasHostScreenForGuestScreen(uScreenID)
+                || iWantedHostScreenIndex != iCurrentHostScreenIndex)
+            {
+                LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                        "Ask machine-window #%d to exit native fullscreen.\n", (int)uScreenID));
+
+                /* Fade to black: */
+                fadeToBlack();
+
+                /* Mark window as invalidated: */
+                m_invalidFullscreenMachineWindows << pMachineWindow;
+
+                /* Make sure mini-toolbar hidden: */
+                pMachineWindowFullscreen->setMiniToolbarVisible(false);
+                /* Ask window to exit 'fullscreen' mode: */
+                emit sigNotifyAboutNativeFullscreenShouldBeExited(pMachineWindow);
+                return;
+            }
+
+            /* If that window
+             * 1. have another frame-buffer size than actually should. */
+            else if (frameBufferSize != screenSize)
+            {
+                LogRel(("UIMachineLogicFullscreen::revalidateNativeFullScreen: "
+                        "Ask machine-window #%d to adjust guest geometry.\n", (int)uScreenID));
+
+                /* Make sure mini-toolbar shown: */
+                pMachineWindowFullscreen->setMiniToolbarVisible(true);
+                /* Just adjust machine-view size if necessary: */
+                pMachineWindow->adjustMachineViewSize();
+                return;
+            }
+
+            /* Make sure mini-toolbar shown: */
+            pMachineWindowFullscreen->setMiniToolbarVisible(true);
+        }
+    }
+}
+
+void UIMachineLogicFullscreen::revalidateNativeFullScreen()
+{
+    /* Revalidate all fullscreen windows: */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        revalidateNativeFullScreen(pMachineWindow);
+}
+
+/* static */
+void UIMachineLogicFullscreen::nativeHandlerForApplicationActivation(QObject *pObject, const QMap<QString, QString> &userInfo)
+{
+    /* Handle arrived notification: */
+    UIMachineLogicFullscreen *pLogic = qobject_cast<UIMachineLogicFullscreen*>(pObject);
+    AssertPtrReturnVoid(pLogic);
+    {
+        /* Redirect arrived notification: */
+        pLogic->nativeHandlerForApplicationActivation(userInfo);
+    }
+}
+
+void UIMachineLogicFullscreen::nativeHandlerForApplicationActivation(const QMap<QString, QString> &userInfo)
+{
+    /* Make sure we have BundleIdentifier key: */
+    AssertReturnVoid(userInfo.contains("BundleIdentifier"));
+    /* Skip other applications: */
+    QStringList ourBundleIdentifiers;
+    ourBundleIdentifiers << "org.virtualbox.app.VirtualBox";
+    ourBundleIdentifiers << "org.virtualbox.app.VirtualBoxVM";
+    ourBundleIdentifiers << "com.citrix.DesktopPlayerVM";
+    if (!ourBundleIdentifiers.contains(userInfo.value("BundleIdentifier")))
+        return;
+
+    /* Skip if 'screen have separate spaces': */
+    if (screensHaveSeparateSpaces())
+        return;
+
+    /* Skip if there is another than needed user-space is active: */
+    if (!darwinIsOnActiveSpace(machineWindows().first()))
+        return;
+
+    LogRel(("UIMachineLogicFullscreen::nativeHandlerForApplicationActivation: "
+            "Full-screen application activated.\n"));
+
+    /* Revalidate full-screen mode for transient machine-window(s): */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        if (pMachineWindow->screenId() > 0)
+            revalidateNativeFullScreen(pMachineWindow);
+}
+
+/* static */
+void UIMachineLogicFullscreen::nativeHandlerForActiveSpaceChange(QObject *pObject, const QMap<QString, QString> &userInfo)
+{
+    /* Handle arrived notification: */
+    UIMachineLogicFullscreen *pLogic = qobject_cast<UIMachineLogicFullscreen*>(pObject);
+    AssertPtrReturnVoid(pLogic);
+    {
+        /* Redirect arrived notification: */
+        pLogic->nativeHandlerForActiveSpaceChange(userInfo);
+    }
+}
+
+void UIMachineLogicFullscreen::nativeHandlerForActiveSpaceChange(const QMap<QString, QString>&)
+{
+    /* Skip if 'screen have separate spaces': */
+    if (screensHaveSeparateSpaces())
+        return;
+
+    /* Skip if there is another than needed user-space is active: */
+    if (!darwinIsOnActiveSpace(machineWindows().first()))
+        return;
+
+    LogRel(("UIMachineLogicFullscreen::nativeHandlerForActiveSpaceChange: "
+            "Full-screen user-space activated.\n"));
+
+    /* Revalidate full-screen mode for transient machine-window(s): */
+    foreach (UIMachineWindow *pMachineWindow, machineWindows())
+        if (pMachineWindow->screenId() > 0)
+            revalidateNativeFullScreen(pMachineWindow);
 }
 #endif /* Q_WS_MAC */
 

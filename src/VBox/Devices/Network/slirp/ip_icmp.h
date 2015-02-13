@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -201,5 +201,13 @@ LIST_HEAD(icmp_storage, icmp_msg);
 int icmp_init (PNATState , int);
 void icmp_finit (PNATState );
 struct icmp_msg * icmp_find_original_mbuf (PNATState , struct ip *);
+
+#ifdef RT_OS_WINDOWS
+/* Windows ICMP API code in ip_icmpwin.c */
+int icmpwin_init (PNATState);
+void icmpwin_finit (PNATState);
+void icmpwin_ping(PNATState, struct mbuf *, int);
+void icmpwin_process(PNATState);
+#endif
 
 #endif

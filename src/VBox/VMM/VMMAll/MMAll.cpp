@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include <VBox/vmm/vmm.h>
 #include "MMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -35,7 +36,7 @@
  *
  * @returns Pointer to the corresponding lookup record.
  * @returns NULL on failure.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   R3Ptr   The host context ring-3 address to lookup.
  * @param   poff    Where to store the offset into the HMA memory chunk.
  */
@@ -95,7 +96,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmHyperLookupR3(PVM pVM, RTR3PTR R3Ptr, uint32_t *pof
  *
  * @returns Pointer to the corresponding lookup record.
  * @returns NULL on failure.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   R0Ptr   The host context ring-0 address to lookup.
  * @param   poff    Where to store the offset into the HMA memory chunk.
  */
@@ -157,7 +158,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmHyperLookupR0(PVM pVM, RTR0PTR R0Ptr, uint32_t *pof
  *
  * @returns Pointer to the corresponding lookup record.
  * @returns NULL on failure.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   RCPtr   The raw-mode context address to lookup.
  * @param   poff    Where to store the offset into the HMA memory chunk.
  */
@@ -202,7 +203,7 @@ DECLINLINE(PMMLOOKUPHYPER) mmHyperLookupRC(PVM pVM, RTRCPTR RCPtr, uint32_t *pof
  *
  * @returns Pointer to the corresponding lookup record.
  * @returns NULL on failure.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  * @param   pv      The current context address to lookup.
  * @param   poff    Where to store the offset into the HMA memory chunk.
  */
@@ -244,7 +245,7 @@ DECLINLINE(RTR3PTR) mmHyperLookupCalcR3(PMMLOOKUPHYPER pLookup, uint32_t off)
  * Calculate the host context ring-0 address of an offset into the HMA memory chunk.
  *
  * @returns the host context ring-0 address.
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  * @param   pLookup     The HMA lookup record.
  * @param   off         The offset into the HMA memory chunk.
  */
@@ -256,9 +257,9 @@ DECLINLINE(RTR0PTR) mmHyperLookupCalcR0(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_
             if (pLookup->u.Locked.pvR0)
                 return (RTR0PTR)((RTR0UINTPTR)pLookup->u.Locked.pvR0 + off);
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
-            AssertMsg(!VMMIsHwVirtExtForced(pVM), ("%s\n", R3STRING(pLookup->pszDesc)));
+            AssertMsg(!HMIsEnabled(pVM), ("%s\n", R3STRING(pLookup->pszDesc)));
 #else
-            AssertMsgFailed(("%s\n", R3STRING(pLookup->pszDesc)));
+            AssertMsgFailed(("%s\n", R3STRING(pLookup->pszDesc))); NOREF(pVM);
 #endif
             return NIL_RTR0PTR;
 
@@ -279,7 +280,7 @@ DECLINLINE(RTR0PTR) mmHyperLookupCalcR0(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_
  * Calculate the raw-mode context address of an offset into the HMA memory chunk.
  *
  * @returns the raw-mode context base address.
- * @param   pVM         The the VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pLookup     The HMA lookup record.
  * @param   off         The offset into the HMA memory chunk.
  */
@@ -293,7 +294,7 @@ DECLINLINE(RTRCPTR) mmHyperLookupCalcRC(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_
  * Calculate the guest context address of an offset into the HMA memory chunk.
  *
  * @returns the guest context base address.
- * @param   pVM         The the VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pLookup     The HMA lookup record.
  * @param   off         The offset into the HMA memory chunk.
  */
@@ -304,6 +305,7 @@ DECLINLINE(void *) mmHyperLookupCalcCC(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_t
 #elif defined(IN_RING0)
     return mmHyperLookupCalcR0(pVM, pLookup, off);
 #else
+    NOREF(pVM);
     return mmHyperLookupCalcR3(pLookup, off);
 #endif
 }
@@ -313,7 +315,7 @@ DECLINLINE(void *) mmHyperLookupCalcCC(PVM pVM, PMMLOOKUPHYPER pLookup, uint32_t
  * Converts a ring-0 host context address in the Hypervisor memory region to a ring-3 host context address.
  *
  * @returns ring-3 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R0Ptr       The ring-0 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -332,7 +334,7 @@ VMMDECL(RTR3PTR) MMHyperR0ToR3(PVM pVM, RTR0PTR R0Ptr)
  * Converts a ring-0 host context address in the Hypervisor memory region to a raw-mode context address.
  *
  * @returns raw-mode context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R0Ptr       The ring-0 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -352,7 +354,7 @@ VMMDECL(RTRCPTR) MMHyperR0ToRC(PVM pVM, RTR0PTR R0Ptr)
  * Converts a ring-0 host context address in the Hypervisor memory region to a current context address.
  *
  * @returns current context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R0Ptr       The ring-0 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -372,7 +374,7 @@ VMMDECL(void *) MMHyperR0ToCC(PVM pVM, RTR0PTR R0Ptr)
  * Converts a ring-3 host context address in the Hypervisor memory region to a ring-0 host context address.
  *
  * @returns ring-0 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R3Ptr       The ring-3 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -392,7 +394,7 @@ VMMDECL(RTR0PTR) MMHyperR3ToR0(PVM pVM, RTR3PTR R3Ptr)
  * Converts a ring-3 host context address in the Hypervisor memory region to a guest context address.
  *
  * @returns guest context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R3Ptr       The ring-3 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -413,7 +415,7 @@ VMMDECL(RTRCPTR) MMHyperR3ToRC(PVM pVM, RTR3PTR R3Ptr)
  * Converts a ring-3 host context address in the Hypervisor memory region to a current context address.
  *
  * @returns current context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   R3Ptr       The ring-3 host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -433,7 +435,7 @@ VMMDECL(void *) MMHyperR3ToCC(PVM pVM, RTR3PTR R3Ptr)
  * Converts a raw-mode context address in the Hypervisor memory region to a ring-3 context address.
  *
  * @returns ring-3 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       The raw-mode context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -452,7 +454,7 @@ VMMDECL(RTR3PTR) MMHyperRCToR3(PVM pVM, RTRCPTR RCPtr)
  * Converts a raw-mode context address in the Hypervisor memory region to a ring-0 host context address.
  *
  * @returns ring-0 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   RCPtr       The raw-mode context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -471,7 +473,7 @@ VMMDECL(RTR0PTR) MMHyperRCToR0(PVM pVM, RTRCPTR RCPtr)
  * Converts a raw-mode context address in the Hypervisor memory region to a current context address.
  *
  * @returns current context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   RCPtr       The raw-mode host context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -491,7 +493,7 @@ VMMDECL(void *) MMHyperRCToCC(PVM pVM, RTRCPTR RCPtr)
  * Converts a current context address in the Hypervisor memory region to a ring-3 host context address.
  *
  * @returns ring-3 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pv          The current context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -511,7 +513,7 @@ VMMDECL(RTR3PTR) MMHyperCCToR3(PVM pVM, void *pv)
  * Converts a current context address in the Hypervisor memory region to a ring-0 host context address.
  *
  * @returns ring-0 host context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pv          The current context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -532,7 +534,7 @@ VMMDECL(RTR0PTR) MMHyperCCToR0(PVM pVM, void *pv)
  * Converts a current context address in the Hypervisor memory region to a raw-mode context address.
  *
  * @returns guest context address.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pv          The current context address.
  *                      You'll be damned if this is not in the HMA! :-)
  * @thread  The Emulation Thread.
@@ -564,6 +566,10 @@ const char *mmGetTagName(MMTAG enmTag)
         TAG2STR(CFGM_BYTES);
         TAG2STR(CFGM_STRING);
         TAG2STR(CFGM_USER);
+
+        TAG2STR(CPUM_CTX);
+        TAG2STR(CPUM_CPUID);
+        TAG2STR(CPUM_MSRS);
 
         TAG2STR(CSAM);
         TAG2STR(CSAM_PATCH);
@@ -610,6 +616,9 @@ const char *mmGetTagName(MMTAG enmTag)
         TAG2STR(PDM_QUEUE);
         TAG2STR(PDM_THREAD);
         TAG2STR(PDM_ASYNC_COMPLETION);
+#ifdef VBOX_WITH_NETSHAPER
+        TAG2STR(PDM_NET_SHAPER);
+#endif /* VBOX_WITH_NETSHAPER */
 
         TAG2STR(PGM);
         TAG2STR(PGM_CHUNK_MAPPING);
@@ -635,7 +644,7 @@ const char *mmGetTagName(MMTAG enmTag)
 
         TAG2STR(VMM);
 
-        TAG2STR(HWACCM);
+        TAG2STR(HM);
 
         #undef TAG2STR
 

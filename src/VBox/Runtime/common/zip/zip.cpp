@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -315,6 +315,7 @@ static DECLCALLBACK(int) rtZipStoreCompFinish(PRTZIPCOMP pZip)
  */
 static DECLCALLBACK(int) rtZipStoreCompDestroy(PRTZIPCOMP pZip)
 {
+    NOREF(pZip);
     return VINF_SUCCESS;
 }
 
@@ -327,6 +328,7 @@ static DECLCALLBACK(int) rtZipStoreCompDestroy(PRTZIPCOMP pZip)
  */
 static DECLCALLBACK(int) rtZipStoreCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
 {
+    NOREF(enmLevel);
     pZip->pfnCompress = rtZipStoreCompress;
     pZip->pfnFinish   = rtZipStoreCompFinish;
     pZip->pfnDestroy  = rtZipStoreCompDestroy;
@@ -393,6 +395,7 @@ static DECLCALLBACK(int) rtZipStoreDecompress(PRTZIPDECOMP pZip, void *pvBuf, si
  */
 static DECLCALLBACK(int) rtZipStoreDecompDestroy(PRTZIPDECOMP pZip)
 {
+    NOREF(pZip);
     return VINF_SUCCESS;
 }
 
@@ -416,6 +419,18 @@ static DECLCALLBACK(int) rtZipStoreDecompInit(PRTZIPDECOMP pZip)
 
 
 #ifdef RTZIP_USE_ZLIB
+
+/*
+ * Missing definitions from zutil.h. We need these constants for calling
+ * inflateInit2() / deflateInit2().
+ */
+# ifndef Z_DEF_WBITS
+#  define Z_DEF_WBITS        MAX_WBITS
+# endif
+# ifndef Z_DEF_MEM_LEVEL
+#  define Z_DEF_MEM_LEVEL    8
+# endif
+
 /**
  * Convert from zlib errno to iprt status code.
  * @returns iprt status code.
@@ -539,8 +554,9 @@ static DECLCALLBACK(int) rtZipZlibCompDestroy(PRTZIPCOMP pZip)
  * @returns iprt status code.
  * @param   pZip        The compressor instance.
  * @param   enmLevel    The desired compression level.
+ * @param   fZlibHeader If true, write the Zlib header.
  */
-static DECLCALLBACK(int) rtZipZlibCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
+static DECLCALLBACK(int) rtZipZlibCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel, bool fZlibHeader)
 {
     pZip->pfnCompress = rtZipZlibCompress;
     pZip->pfnFinish   = rtZipZlibCompFinish;
@@ -560,7 +576,8 @@ static DECLCALLBACK(int) rtZipZlibCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
     pZip->u.Zlib.avail_out = sizeof(pZip->abBuffer) - 1;
     pZip->u.Zlib.opaque    = pZip;
 
-    int rc = deflateInit(&pZip->u.Zlib, enmLevel);
+    int rc = deflateInit2(&pZip->u.Zlib, iLevel, Z_DEFLATED, fZlibHeader ? Z_DEF_WBITS : -Z_DEF_WBITS,
+                          Z_DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY);
     return rc >= 0 ? rc = VINF_SUCCESS : zipErrConvertFromZlib(rc, true /*fCompressing*/);
 }
 
@@ -571,7 +588,8 @@ static DECLCALLBACK(int) rtZipZlibCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
 static DECLCALLBACK(int) rtZipZlibDecompress(PRTZIPDECOMP pZip, void *pvBuf, size_t cbBuf, size_t *pcbWritten)
 {
     pZip->u.Zlib.next_out = (Bytef *)pvBuf;
-    pZip->u.Zlib.avail_out = (uInt)cbBuf;                   Assert(pZip->u.Zlib.avail_out == cbBuf);
+    pZip->u.Zlib.avail_out = (uInt)cbBuf;
+    Assert(pZip->u.Zlib.avail_out == cbBuf);
 
     /*
      * Be greedy reading input, even if no output buffer is left. It's possible
@@ -631,8 +649,9 @@ static DECLCALLBACK(int) rtZipZlibDecompDestroy(PRTZIPDECOMP pZip)
  * Initialize the decompressor instance.
  * @returns iprt status code.
  * @param   pZip        The decompressor instance.
+ * @param   fZlibHeader If true, expect the Zlib header.
  */
-static DECLCALLBACK(int) rtZipZlibDecompInit(PRTZIPDECOMP pZip)
+static DECLCALLBACK(int) rtZipZlibDecompInit(PRTZIPDECOMP pZip, bool fZlibHeader)
 {
     pZip->pfnDecompress = rtZipZlibDecompress;
     pZip->pfnDestroy = rtZipZlibDecompDestroy;
@@ -640,7 +659,7 @@ static DECLCALLBACK(int) rtZipZlibDecompInit(PRTZIPDECOMP pZip)
     memset(&pZip->u.Zlib, 0, sizeof(pZip->u.Zlib));
     pZip->u.Zlib.opaque    = pZip;
 
-    int rc = inflateInit(&pZip->u.Zlib);
+    int rc = inflateInit2(&pZip->u.Zlib, fZlibHeader ? Z_DEF_WBITS : -Z_DEF_WBITS);
     return rc >= 0 ? VINF_SUCCESS : zipErrConvertFromZlib(rc, false /*fCompressing*/);
 }
 
@@ -1041,6 +1060,7 @@ static DECLCALLBACK(int) rtZipLZFCompFinish(PRTZIPCOMP pZip)
  */
 static DECLCALLBACK(int) rtZipLZFCompDestroy(PRTZIPCOMP pZip)
 {
+    NOREF(pZip);
     return VINF_SUCCESS;
 }
 
@@ -1053,6 +1073,7 @@ static DECLCALLBACK(int) rtZipLZFCompDestroy(PRTZIPCOMP pZip)
  */
 static DECLCALLBACK(int) rtZipLZFCompInit(PRTZIPCOMP pZip, RTZIPLEVEL enmLevel)
 {
+    NOREF(enmLevel);
     pZip->pfnCompress = rtZipLZFCompress;
     pZip->pfnFinish   = rtZipLZFCompFinish;
     pZip->pfnDestroy  = rtZipLZFCompDestroy;
@@ -1303,6 +1324,7 @@ static DECLCALLBACK(int) rtZipLZFDecompress(PRTZIPDECOMP pZip, void *pvBuf, size
  */
 static DECLCALLBACK(int) rtZipLZFDecompDestroy(PRTZIPDECOMP pZip)
 {
+    NOREF(pZip);
     return VINF_SUCCESS;
 }
 
@@ -1398,8 +1420,9 @@ RTDECL(int)     RTZipCompCreate(PRTZIPCOMP *ppZip, void *pvUser, PFNRTZIPOUT pfn
             break;
 
         case RTZIPTYPE_ZLIB:
+        case RTZIPTYPE_ZLIB_NO_HEADER:
 #ifdef RTZIP_USE_ZLIB
-            rc = rtZipZlibCompInit(pZip, enmLevel);
+            rc = rtZipZlibCompInit(pZip, enmLevel, enmType == RTZIPTYPE_ZLIB /*fZlibHeader*/);
 #endif
             break;
 
@@ -1492,6 +1515,7 @@ RT_EXPORT_SYMBOL(RTZipCompDestroy);
  */
 static DECLCALLBACK(int) rtZipStubDecompress(PRTZIPDECOMP pZip, void *pvBuf, size_t cbBuf, size_t *pcbWritten)
 {
+    NOREF(pZip); NOREF(pvBuf); NOREF(cbBuf); NOREF(pcbWritten);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -1501,6 +1525,7 @@ static DECLCALLBACK(int) rtZipStubDecompress(PRTZIPDECOMP pZip, void *pvBuf, siz
  */
 static DECLCALLBACK(int) rtZipStubDecompDestroy(PRTZIPDECOMP pZip)
 {
+    NOREF(pZip);
     return VINF_SUCCESS;
 }
 
@@ -1574,8 +1599,9 @@ static int rtzipDecompInit(PRTZIPDECOMP pZip)
             break;
 
         case RTZIPTYPE_ZLIB:
+        case RTZIPTYPE_ZLIB_NO_HEADER:
 #ifdef RTZIP_USE_ZLIB
-            rc = rtZipZlibDecompInit(pZip);
+            rc = rtZipZlibDecompInit(pZip, pZip->enmType == RTZIPTYPE_ZLIB /*fHeader*/);
 #else
             AssertMsgFailed(("Zlib is not include in this build!\n"));
 #endif
@@ -1907,6 +1933,46 @@ RTDECL(int) RTZipBlockDecompress(RTZIPTYPE enmType, uint32_t fFlags,
         }
 
         case RTZIPTYPE_ZLIB:
+        {
+#ifdef RTZIP_USE_ZLIB
+            AssertReturn(cbSrc == (uInt)cbSrc, VERR_TOO_MUCH_DATA);
+            AssertReturn(cbDst == (uInt)cbDst, VERR_OUT_OF_RANGE);
+
+            z_stream ZStrm;
+            RT_ZERO(ZStrm);
+            ZStrm.next_in   = (Bytef *)pvSrc;
+            ZStrm.avail_in  = (uInt)cbSrc;
+            ZStrm.next_out  = (Bytef *)pvDst;
+            ZStrm.avail_out = (uInt)cbDst;
+
+            int rc = inflateInit(&ZStrm);
+            if (RT_UNLIKELY(rc != Z_OK))
+                return zipErrConvertFromZlib(rc, false /*fCompressing*/);
+            rc = inflate(&ZStrm, Z_FINISH);
+            if (rc != Z_STREAM_END)
+            {
+                inflateEnd(&ZStrm);
+                if ((rc == Z_BUF_ERROR && ZStrm.avail_in == 0) || rc == Z_NEED_DICT)
+                    return VERR_ZIP_CORRUPTED;
+                if (rc == Z_BUF_ERROR)
+                    return VERR_BUFFER_OVERFLOW;
+                AssertReturn(rc < Z_OK, VERR_GENERAL_FAILURE);
+                return zipErrConvertFromZlib(rc, false /*fCompressing*/);
+            }
+            rc = inflateEnd(&ZStrm);
+            if (rc != Z_OK)
+                return zipErrConvertFromZlib(rc, false /*fCompressing*/);
+
+            if (pcbSrcActual)
+                *pcbSrcActual = ZStrm.avail_in - cbSrc;
+            if (pcbDstActual)
+                *pcbDstActual = ZStrm.total_out;
+            break;
+#else
+            return VERR_NOT_SUPPORTED;
+#endif
+        }
+
         case RTZIPTYPE_BZLIB:
             return VERR_NOT_SUPPORTED;
 

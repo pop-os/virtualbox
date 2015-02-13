@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2010 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,6 +40,7 @@
 #include <sys/ddi.h>
 #include <sys/sunddi.h>
 #include <sys/dirent.h>
+#include <sys/file.h>
 #include "vboxfs_prov.h"
 #ifdef u
 #undef u
@@ -54,6 +55,8 @@ static int sfprov_vbox2errno(int rc)
 {
 	if (rc == VERR_ACCESS_DENIED)
 		return (EACCES);
+	if (rc == VERR_INVALID_NAME)
+	    return (ENOENT);
 	return (RTErrConvertToErrno(rc));
 }
 
@@ -121,13 +124,6 @@ sfprov_disconnect(sfp_connection_t *conn)
 }
 
 
-/*
- * representation of an active mount point
- */
-struct sfp_mount {
-	VBSFMAP	map;
-};
-
 int
 sfprov_mount(sfp_connection_t *conn, char *path, sfp_mount_t **mnt)
 {
@@ -140,7 +136,7 @@ sfprov_mount(sfp_connection_t *conn, char *path, sfp_mount_t **mnt)
 	str = sfprov_string(path, &size);
 	rc = vboxCallMapFolder(&vbox_client, str, &m->map);
 	if (RT_FAILURE(rc)) {
-		cmn_err(CE_WARN, "sfprov_mount: vboxCallMapFolder() failed rc=%d\n", rc);
+		cmn_err(CE_WARN, "sfprov_mount: vboxCallMapFolder() failed. path=%s rc=%d\n", path, rc);
 		kmem_free(m, sizeof (*m));
 		*mnt = NULL;
 		rc = EINVAL;
@@ -199,19 +195,23 @@ sfprov_fmode_from_mode(RTFMODE *fMode, mode_t mode)
 {
 	RTFMODE m = 0;
 
-#define mode_set(r) ((mode & (S_##r)) ? RTFS_UNIX_##r : 0)
+#define mode_set(r) ((mode) & (S_##r)) ? RTFS_UNIX_##r : 0
 	m  = mode_set (ISUID);
 	m |= mode_set (ISGID);
 	m |= (mode & S_ISVTX) ? RTFS_UNIX_ISTXT : 0;
+
 	m |= mode_set (IRUSR);
 	m |= mode_set (IWUSR);
 	m |= mode_set (IXUSR);
+
 	m |= mode_set (IRGRP);
 	m |= mode_set (IWGRP);
 	m |= mode_set (IXGRP);
+
 	m |= mode_set (IROTH);
 	m |= mode_set (IWOTH);
 	m |= mode_set (IXOTH);
+#undef mode_set
 
 	if (S_ISDIR(mode))
 		m |= RTFS_TYPE_DIRECTORY;
@@ -234,49 +234,53 @@ sfprov_fmode_from_mode(RTFMODE *fMode, mode_t mode)
 }
 
 static void
-sfprov_mode_from_fmode(mode_t *mode, RTFMODE fMode)
+sfprov_mode_from_fmode(sfp_mount_t *mnt, mode_t *mode, RTFMODE fMode)
 {
 	mode_t m = 0;
 
-	if (RTFS_IS_DIRECTORY(fMode))
-		m |= S_IFDIR;
-	else if (RTFS_IS_FILE(fMode))
-		m |= S_IFREG;
-	else if (RTFS_IS_FIFO(fMode))
-		m |= S_IFIFO;
-	else if (RTFS_IS_DEV_CHAR(fMode))
-		m |= S_IFCHR;
-	else if (RTFS_IS_DEV_BLOCK(fMode))
-		m |= S_IFBLK;
-	else if (RTFS_IS_SYMLINK(fMode))
-		m |= S_IFLNK;
-	else if (RTFS_IS_SOCKET(fMode))
-		m |= S_IFSOCK;
+#define mode_set_from_rt(r) ((fMode) & (RTFS_UNIX_##r)) ? (S_##r) : 0;
+	m  = mode_set_from_rt(ISUID);
+	m |= mode_set_from_rt(ISGID);
+	m |= (fMode & RTFS_UNIX_ISTXT) ? S_ISVTX : 0;
 
-	if (fMode & RTFS_UNIX_IRUSR)
-		m |= S_IRUSR;
-	if (fMode & RTFS_UNIX_IWUSR)
-		m |= S_IWUSR;
-	if (fMode & RTFS_UNIX_IXUSR)
-		m |= S_IXUSR;
-	if (fMode & RTFS_UNIX_IRGRP)
-		m |= S_IRGRP;
-	if (fMode & RTFS_UNIX_IWGRP)
-		m |= S_IWGRP;
-	if (fMode & RTFS_UNIX_IXGRP)
-		m |= S_IXGRP;
-	if (fMode & RTFS_UNIX_IROTH)
-		m |= S_IROTH;
-	if (fMode & RTFS_UNIX_IWOTH)
-		m |= S_IWOTH;
-	if (fMode & RTFS_UNIX_IXOTH)
-		m |= S_IXOTH;
-	if (fMode & RTFS_UNIX_ISUID)
-		m |= S_ISUID;
-	if (fMode & RTFS_UNIX_ISGID)
-		m |= S_ISGID;
-	if (fMode & RTFS_UNIX_ISTXT)
-		m |= S_ISVTX;
+	m |= mode_set_from_rt(IRUSR);
+	m |= mode_set_from_rt(IWUSR);
+	m |= mode_set_from_rt(IXUSR);
+
+	m |= mode_set_from_rt(IRGRP);
+	m |= mode_set_from_rt(IWGRP);
+	m |= mode_set_from_rt(IXGRP);
+
+	m |= mode_set_from_rt(IROTH);
+	m |= mode_set_from_rt(IWOTH);
+	m |= mode_set_from_rt(IXOTH);
+#undef mode_set_from_rt
+
+	if (RTFS_IS_DIRECTORY(fMode))
+	{
+		m = mnt->sf_dmode != ~0U ? (mnt->sf_dmode & PERMMASK) : m;
+		m &= ~mnt->sf_dmask;
+		m |= S_IFDIR;
+	}
+	else
+	{
+		m = mnt->sf_fmode != ~0U ? (mnt->sf_fmode & PERMMASK) : m;
+		m &= ~mnt->sf_fmask;
+
+		if (RTFS_IS_FILE(fMode))
+			m |= S_IFREG;
+		else if (RTFS_IS_SYMLINK(fMode))
+			m |= S_IFLNK;
+		else if (RTFS_IS_FIFO(fMode))
+			m |= S_IFIFO;
+		else if (RTFS_IS_DEV_CHAR(fMode))
+			m |= S_IFCHR;
+		else if (RTFS_IS_DEV_BLOCK(fMode))
+			m |= S_IFBLK;
+		else if (RTFS_IS_SOCKET(fMode))
+			m |= S_IFSOCK;
+	}
+
 	*mode = m;
 }
 
@@ -289,9 +293,9 @@ sfprov_ftime_from_timespec(timestruc_t *time, RTTIMESPEC *ts)
 }
 
 static void
-sfprov_stat_from_info(sffs_stat_t *stat, SHFLFSOBJINFO *info)
+sfprov_stat_from_info(sfp_mount_t *mnt, sffs_stat_t *stat, SHFLFSOBJINFO *info)
 {
-	sfprov_mode_from_fmode(&stat->sf_mode, info->Attr.fMode);
+	sfprov_mode_from_fmode(mnt, &stat->sf_mode, info->Attr.fMode);
 	stat->sf_size  = info->cbObject;
 	stat->sf_alloc = info->cbAllocated;
 	sfprov_ftime_from_timespec(&stat->sf_atime, &info->AccessTime);
@@ -349,12 +353,12 @@ sfprov_create(
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
 	*fp = newfp;
-	sfprov_stat_from_info(stat, &parms.Info);
+	sfprov_stat_from_info(mnt, stat, &parms.Info);
 	return (0);
 }
 
 int
-sfprov_open(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
+sfprov_diropen(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 {
 	int rc;
 	SHFLCREATEPARMS parms;
@@ -362,40 +366,34 @@ sfprov_open(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 	int size;
 	sfp_file_t *newfp;
 
-	/*
-	 * First we attempt to open it read/write. If that fails we
-	 * try read only.
-	 */
 	bzero(&parms, sizeof(parms));
 	str = sfprov_string(path, &size);
 	parms.Handle = SHFL_HANDLE_NIL;
 	parms.Info.cbObject = 0;
-	parms.CreateFlags = SHFL_CF_ACT_FAIL_IF_NEW | SHFL_CF_ACCESS_READWRITE;
+	parms.CreateFlags =   SHFL_CF_DIRECTORY
+						| SHFL_CF_ACCESS_READ
+						| SHFL_CF_ACT_OPEN_IF_EXISTS
+						| SHFL_CF_ACT_FAIL_IF_NEW;
+
+	/*
+	 * Open the host directory.
+	 */
 	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
-	if (RT_FAILURE(rc) && rc != VERR_ACCESS_DENIED) {
+
+	/*
+	 * Our VBoxFS interface here isn't very clear regarding failure and informational status.
+	 * Check the file-handle as well as the return code to make sure the operation succeeded.
+	 */
+	if (RT_FAILURE(rc)) {
 		kmem_free(str, size);
 		return (sfprov_vbox2errno(rc));
 	}
+
 	if (parms.Handle == SHFL_HANDLE_NIL) {
-		if (parms.Result == SHFL_PATH_NOT_FOUND ||
-		    parms.Result == SHFL_FILE_NOT_FOUND) {
-			kmem_free(str, size);
-			return (ENOENT);
-		}
-		parms.CreateFlags =
-		    SHFL_CF_ACT_FAIL_IF_NEW | SHFL_CF_ACCESS_READ;
-		rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
-		if (RT_FAILURE(rc)) {
-			kmem_free(str, size);
-			return (sfprov_vbox2errno(rc));
-		}
-		if (parms.Handle == SHFL_HANDLE_NIL) {
-			kmem_free(str, size);
-			return (ENOENT);
-		}
-	}
-	else
 		kmem_free(str, size);
+		return (ENOENT);
+	}
+
 	newfp = kmem_alloc(sizeof(sfp_file_t), KM_SLEEP);
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
@@ -404,28 +402,62 @@ sfprov_open(sfp_mount_t *mnt, char *path, sfp_file_t **fp)
 }
 
 int
-sfprov_trunc(sfp_mount_t *mnt, char *path)
+sfprov_open(sfp_mount_t *mnt, char *path, sfp_file_t **fp, int flag)
 {
 	int rc;
 	SHFLCREATEPARMS parms;
 	SHFLSTRING *str;
 	int size;
+	sfp_file_t *newfp;
+
+	bzero(&parms, sizeof(parms));
+	str = sfprov_string(path, &size);
+	parms.Handle = SHFL_HANDLE_NIL;
+	parms.Info.cbObject = 0;
 
 	/*
-	 * open it read/write.
+	 * Translate file modes.
 	 */
-	str = sfprov_string(path, &size);
-	parms.Handle = 0;
-	parms.Info.cbObject = 0;
-	parms.CreateFlags = SHFL_CF_ACT_FAIL_IF_NEW | SHFL_CF_ACCESS_READWRITE |
-	    SHFL_CF_ACT_OVERWRITE_IF_EXISTS;
-	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
-	kmem_free(str, size);
-
-	if (RT_FAILURE(rc)) {
-		return (EINVAL);
+	if (flag & FCREAT) {
+		parms.CreateFlags |= SHFL_CF_ACT_CREATE_IF_NEW;
+		if (!(flag & FTRUNC))
+			parms.CreateFlags |= SHFL_CF_ACT_OPEN_IF_EXISTS;
 	}
-	(void)vboxCallClose(&vbox_client, &mnt->map, parms.Handle);
+	else
+		parms.CreateFlags |= SHFL_CF_ACT_FAIL_IF_NEW;
+
+	if (flag & FTRUNC)
+		parms.CreateFlags |= SHFL_CF_ACT_OVERWRITE_IF_EXISTS | SHFL_CF_ACCESS_WRITE;
+	if (flag & FWRITE)
+		parms.CreateFlags |= SHFL_CF_ACCESS_WRITE;
+	if (flag & FREAD)
+		parms.CreateFlags |= SHFL_CF_ACCESS_READ;
+    if (flag & FAPPEND)
+		parms.CreateFlags |= SHFL_CF_ACCESS_APPEND;
+
+	/*
+	 * Open/create the host file.
+	 */
+	rc = vboxCallCreate(&vbox_client, &mnt->map, str, &parms);
+
+	/*
+	 * Our VBoxFS interface here isn't very clear regarding failure and informational status.
+	 * Check the file-handle as well as the return code to make sure the operation succeeded.
+	 */
+	if (RT_FAILURE(rc)) {
+		kmem_free(str, size);
+		return (sfprov_vbox2errno(rc));
+	}
+
+	if (parms.Handle == SHFL_HANDLE_NIL) {
+		kmem_free(str, size);
+		return (ENOENT);
+	}
+
+	newfp = kmem_alloc(sizeof(sfp_file_t), KM_SLEEP);
+	newfp->handle = parms.Handle;
+	newfp->map = mnt->map;
+	*fp = newfp;
 	return (0);
 }
 
@@ -510,7 +542,7 @@ sfprov_get_mode(sfp_mount_t *mnt, char *path, mode_t *mode)
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
 		return (rc);
-	sfprov_mode_from_fmode(mode, info.Attr.fMode);
+	sfprov_mode_from_fmode(mnt, mode, info.Attr.fMode);
 	return (0);
 }
 
@@ -576,7 +608,7 @@ sfprov_get_attr(sfp_mount_t *mnt, char *path, sffs_stat_t *attr)
 	rc = sfprov_getinfo(mnt, path, &info);
 	if (rc)
 		return (rc);
-	sfprov_stat_from_info(attr, &info);
+	sfprov_stat_from_info(mnt, attr, &info);
 	return (0);
 }
 
@@ -752,7 +784,7 @@ sfprov_mkdir(
 	newfp->handle = parms.Handle;
 	newfp->map = mnt->map;
 	*fp = newfp;
-	sfprov_stat_from_info(stat, &parms.Info);
+	sfprov_stat_from_info(mnt, stat, &parms.Info);
 	return (0);
 }
 
@@ -828,7 +860,7 @@ sfprov_symlink(
 	}
 
 	if (stat != NULL)
-		sfprov_stat_from_info(stat, &info);
+		sfprov_stat_from_info(mnt, stat, &info);
 
 done:
 	kmem_free(lnk, lnk_size);
@@ -887,7 +919,8 @@ int
 sfprov_readdir(
 	sfp_mount_t *mnt,
 	char *path,
-	sffs_dirents_t **dirents)
+	sffs_dirents_t **dirents,
+	int flag)
 {
 	int error;
 	char *cp;
@@ -908,7 +941,7 @@ sfprov_readdir(
 
 	*dirents = NULL;
 
-	error = sfprov_open(mnt, path, &fp);
+	error = sfprov_diropen(mnt, path, &fp);
 	if (error != 0)
 		return (ENOENT);
 
@@ -996,7 +1029,7 @@ sfprov_readdir(
 			dirent->sf_entry.d_off = offset;
 
 			/* save the stats */
-			sfprov_stat_from_info(&dirent->sf_stat, &info->Info);
+			sfprov_stat_from_info(mnt, &dirent->sf_stat, &info->Info);
 
 			/* next info */
 			cur_buf->sf_len += entlen;

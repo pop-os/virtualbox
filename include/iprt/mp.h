@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,6 +116,13 @@ RTDECL(PRTCPUSET) RTMpGetSet(PRTCPUSET pSet);
  */
 RTDECL(RTCPUID) RTMpGetCount(void);
 
+/**
+ * Get the count of physical CPU cores present in the system plus any that may
+ * possibly be hotplugged later.
+ *
+ * @returns The number of cores.
+ */
+RTDECL(RTCPUID) RTMpGetCoreCount(void);
 
 /**
  * Gets set of the CPUs present that are currently online.
@@ -131,6 +138,14 @@ RTDECL(PRTCPUSET) RTMpGetOnlineSet(PRTCPUSET pSet);
  * @return The count.
  */
 RTDECL(RTCPUID) RTMpGetOnlineCount(void);
+
+/**
+ * Get the count of physical CPU cores in the system with one or more online
+ * threads.
+ *
+ * @returns The number of online cores.
+ */
+RTDECL(RTCPUID) RTMpGetOnlineCoreCount(void);
 
 /**
  * Checks if a CPU is online or not.
@@ -155,6 +170,13 @@ RTDECL(PRTCPUSET) RTMpGetPresentSet(PRTCPUSET pSet);
  * @return The count.
  */
 RTDECL(RTCPUID) RTMpGetPresentCount(void);
+
+/**
+ * Get the count of physical CPU cores present in the system.
+ *
+ * @returns The number of cores.
+ */
+RTDECL(RTCPUID) RTMpGetPresentCoreCount(void);
 
 /**
  * Checks if a CPU is present in the system.

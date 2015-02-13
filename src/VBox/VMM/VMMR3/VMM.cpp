@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,8 +51,8 @@
  * sub-components.  We'll list some of them here.
  *
  * On 64-bit hosts:
- *      - Max 1023 VMs.  Imposed by GVMM's handle allocation
- *        (GVMM_MAX_HANDLES), can be increased up to 64K.
+ *      - Max 8191 VMs.  Imposed by GVMM's handle allocation (GVMM_MAX_HANDLES),
+ *        can be increased up to 64K - 1.
  *      - Max 16TB - 64KB of the host memory can be used for backing VM RAM and
  *        ROM pages.  The limit is imposed by the 32-bit page ID used by GMM.
  *      - A VM can be assigned all the memory we can use (16TB), however, the
@@ -80,6 +80,7 @@
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/pdmqueue.h>
 #include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pdmcritsectrw.h>
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/mm.h>
@@ -91,18 +92,21 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/ssm.h>
+#include <VBox/vmm/ftm.h>
 #include <VBox/vmm/tm.h>
 #include "VMMInternal.h"
 #include "VMMSwitcher.h"
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/ftm.h>
+#include <VBox/vmm/uvm.h>
 
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/version.h>
-#include <VBox/vmm/hwaccm.h>
+#include <VBox/vmm/hm.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/asm.h>
@@ -142,7 +146,7 @@ static DECLCALLBACK(void)   vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char 
  * Initializes the VMM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
 {
@@ -207,9 +211,6 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
     rc = RTSemEventCreate(&pVM->vmm.s.hEvtRendezvousDoneCaller);
     AssertRCReturn(rc, rc);
 
-    /* GC switchers are enabled by default. Turned off by HWACCM. */
-    pVM->vmm.s.fSwitcherDisabled = false;
-
     /*
      * Register the saved state data unit.
      */
@@ -253,8 +254,9 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
                 /*
                  * Debug info and statistics.
                  */
-                DBGFR3InfoRegisterInternal(pVM, "ff", "Displays the current Forced actions Flags.", vmmR3InfoFF);
+                DBGFR3InfoRegisterInternal(pVM, "fflags", "Displays the current Forced actions Flags.", vmmR3InfoFF);
                 vmmR3InitRegisterStats(pVM);
+                vmmInitFormatTypes();
 
                 return VINF_SUCCESS;
             }
@@ -279,7 +281,7 @@ VMMR3_INT_DECL(int) VMMR3Init(PVM pVM)
  * The stacks are also used for long jumps in Ring-0.
  *
  * @returns VBox status code.
- * @param   pVM     Pointer to the shared VM structure.
+ * @param   pVM     Pointer to the VM.
  *
  * @remarks The optional guard page gets it protection setup up during R3 init
  *          completion because of init order issues.
@@ -310,7 +312,7 @@ static int vmmR3InitStacks(PVM pVM)
 #endif
 #ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
             /* MMHyperR3ToR0 returns R3 when not doing hardware assisted virtualization. */
-            if (!VMMIsHwVirtExtForced(pVM))
+            if (!HMIsEnabled(pVM))
                 pVCpu->vmm.s.CallRing3JmpBufR0.pvSavedStack = NIL_RTR0PTR;
             else
 #endif
@@ -331,7 +333,7 @@ static int vmmR3InitStacks(PVM pVM)
  * Initialize the loggers.
  *
  * @returns VBox status code.
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  */
 static int vmmR3InitLoggers(PVM pVM)
 {
@@ -345,11 +347,14 @@ static int vmmR3InitLoggers(PVM pVM)
     PRTLOGGER pLogger = RTLogDefaultInstance();
     if (pLogger)
     {
-        pVM->vmm.s.cbRCLogger = RT_OFFSETOF(RTLOGGERRC, afGroups[pLogger->cGroups]);
-        rc = MMR3HyperAllocOnceNoRel(pVM, pVM->vmm.s.cbRCLogger, 0, MM_TAG_VMM, (void **)&pVM->vmm.s.pRCLoggerR3);
-        if (RT_FAILURE(rc))
-            return rc;
-        pVM->vmm.s.pRCLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCLoggerR3);
+        if (!HMIsEnabled(pVM))
+        {
+            pVM->vmm.s.cbRCLogger = RT_OFFSETOF(RTLOGGERRC, afGroups[pLogger->cGroups]);
+            rc = MMR3HyperAllocOnceNoRel(pVM, pVM->vmm.s.cbRCLogger, 0, MM_TAG_VMM, (void **)&pVM->vmm.s.pRCLoggerR3);
+            if (RT_FAILURE(rc))
+                return rc;
+            pVM->vmm.s.pRCLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCLoggerR3);
+        }
 
 # ifdef VBOX_WITH_R0_LOGGING
         size_t const cbLogger = RTLogCalcSizeForR0(pLogger->cGroups, 0);
@@ -373,14 +378,17 @@ static int vmmR3InitLoggers(PVM pVM)
     /*
      * Allocate RC release logger instances (finalized in the relocator).
      */
-    PRTLOGGER pRelLogger = RTLogRelDefaultInstance();
-    if (pRelLogger)
+    if (!HMIsEnabled(pVM))
     {
-        pVM->vmm.s.cbRCRelLogger = RT_OFFSETOF(RTLOGGERRC, afGroups[pRelLogger->cGroups]);
-        rc = MMR3HyperAllocOnceNoRel(pVM, pVM->vmm.s.cbRCRelLogger, 0, MM_TAG_VMM, (void **)&pVM->vmm.s.pRCRelLoggerR3);
-        if (RT_FAILURE(rc))
-            return rc;
-        pVM->vmm.s.pRCRelLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCRelLoggerR3);
+        PRTLOGGER pRelLogger = RTLogRelDefaultInstance();
+        if (pRelLogger)
+        {
+            pVM->vmm.s.cbRCRelLogger = RT_OFFSETOF(RTLOGGERRC, afGroups[pRelLogger->cGroups]);
+            rc = MMR3HyperAllocOnceNoRel(pVM, pVM->vmm.s.cbRCRelLogger, 0, MM_TAG_VMM, (void **)&pVM->vmm.s.pRCRelLoggerR3);
+            if (RT_FAILURE(rc))
+                return rc;
+            pVM->vmm.s.pRCRelLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCRelLoggerR3);
+        }
     }
 #endif /* VBOX_WITH_RC_RELEASE_LOGGING */
     return VINF_SUCCESS;
@@ -409,11 +417,11 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetEmulate,             STAMTYPE_COUNTER, "/VMM/RZRet/Emulate",             STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetIOBlockEmulate,      STAMTYPE_COUNTER, "/VMM/RZRet/EmulateIOBlock",      STAMUNIT_OCCURENCES, "Number of VINF_EM_RAW_EMULATE_IO_BLOCK returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchEmulate,        STAMTYPE_COUNTER, "/VMM/RZRet/PatchEmulate",        STAMUNIT_OCCURENCES, "Number of VINF_PATCH_EMULATE_INSTR returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetIORead,              STAMTYPE_COUNTER, "/VMM/RZRet/IORead",              STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_IOPORT_READ returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetIOWrite,             STAMTYPE_COUNTER, "/VMM/RZRet/IOWrite",             STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_IOPORT_WRITE returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIORead,            STAMTYPE_COUNTER, "/VMM/RZRet/MMIORead",            STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_READ returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOWrite,           STAMTYPE_COUNTER, "/VMM/RZRet/MMIOWrite",           STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_WRITE returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOReadWrite,       STAMTYPE_COUNTER, "/VMM/RZRet/MMIOReadWrite",       STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_READ_WRITE returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetIORead,              STAMTYPE_COUNTER, "/VMM/RZRet/IORead",              STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_IOPORT_READ returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetIOWrite,             STAMTYPE_COUNTER, "/VMM/RZRet/IOWrite",             STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_IOPORT_WRITE returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIORead,            STAMTYPE_COUNTER, "/VMM/RZRet/MMIORead",            STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_MMIO_READ returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOWrite,           STAMTYPE_COUNTER, "/VMM/RZRet/MMIOWrite",           STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_MMIO_WRITE returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOReadWrite,       STAMTYPE_COUNTER, "/VMM/RZRet/MMIOReadWrite",       STAMUNIT_OCCURENCES, "Number of VINF_IOM_R3_MMIO_READ_WRITE returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOPatchRead,       STAMTYPE_COUNTER, "/VMM/RZRet/MMIOPatchRead",       STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_PATCH_READ returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetMMIOPatchWrite,      STAMTYPE_COUNTER, "/VMM/RZRet/MMIOPatchWrite",      STAMUNIT_OCCURENCES, "Number of VINF_IOM_HC_MMIO_PATCH_WRITE returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetLDTFault,            STAMTYPE_COUNTER, "/VMM/RZRet/LDTFault",            STAMUNIT_OCCURENCES, "Number of VINF_EM_EXECUTE_INSTRUCTION_GDT_FAULT returns.");
@@ -444,7 +452,7 @@ static void vmmR3InitRegisterStats(PVM pVM)
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPGMChangeMode,       STAMTYPE_COUNTER, "/VMM/RZRet/PGMChangeMode",       STAMUNIT_OCCURENCES, "Number of VINF_PGM_CHANGE_MODE returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPGMFlushPending,     STAMTYPE_COUNTER, "/VMM/RZRet/PGMFlushPending",     STAMUNIT_OCCURENCES, "Number of VINF_PGM_POOL_FLUSH_PENDING returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetPendingRequest,      STAMTYPE_COUNTER, "/VMM/RZRet/PendingRequest",      STAMUNIT_OCCURENCES, "Number of VINF_EM_PENDING_REQUEST returns.");
-    STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchTPR,            STAMTYPE_COUNTER, "/VMM/RZRet/PatchTPR",            STAMUNIT_OCCURENCES, "Number of VINF_EM_HWACCM_PATCH_TPR_INSTR returns.");
+    STAM_REG(pVM, &pVM->vmm.s.StatRZRetPatchTPR,            STAMTYPE_COUNTER, "/VMM/RZRet/PatchTPR",            STAMUNIT_OCCURENCES, "Number of VINF_EM_HM_PATCH_TPR_INSTR returns.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZRetCallRing3,           STAMTYPE_COUNTER, "/VMM/RZCallR3/Misc",             STAMUNIT_OCCURENCES, "Number of Other ring-3 calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallPDMLock,            STAMTYPE_COUNTER, "/VMM/RZCallR3/PDMLock",          STAMUNIT_OCCURENCES, "Number of VMMCALLRING3_PDM_LOCK calls.");
     STAM_REG(pVM, &pVM->vmm.s.StatRZCallPDMCritSectEnter,   STAMTYPE_COUNTER, "/VMM/RZCallR3/PDMCritSectEnter", STAMUNIT_OCCURENCES, "Number of VMMCALLRING3_PDM_CRITSECT_ENTER calls.");
@@ -472,7 +480,7 @@ static void vmmR3InitRegisterStats(PVM pVM)
  * Initializes the R0 VMM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) VMMR3InitR0(PVM pVM)
 {
@@ -502,7 +510,8 @@ VMMR3_INT_DECL(int) VMMR3InitR0(PVM pVM)
         //rc = VERR_GENERAL_FAILURE;
         rc = VINF_SUCCESS;
 #else
-        rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_VMMR0_INIT, VMMGetSvnRev(), NULL);
+        rc = SUPR3CallVMMR0Ex(pVM->pVMR0, 0 /*idCpu*/, VMMR0_DO_VMMR0_INIT,
+                              RT_MAKE_U64(VMMGetSvnRev(), vmmGetBuildType()), NULL);
 #endif
         /*
          * Flush the logs.
@@ -526,15 +535,23 @@ VMMR3_INT_DECL(int) VMMR3InitR0(PVM pVM)
         if (RT_SUCCESS(rc))
             rc = VERR_IPE_UNEXPECTED_INFO_STATUS;
     }
+
+    /* Log whether thread-context hooks are used (on Linux this can depend on how the kernel is configured). */
+    if (pVM->aCpus[0].vmm.s.hR0ThreadCtx != NIL_RTTHREADCTX)
+        LogRel(("VMM: Thread-context hooks enabled!\n"));
+    else
+        LogRel(("VMM: Thread-context hooks unavailable.\n"));
+
     return rc;
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE
 /**
  * Initializes the RC VMM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
 {
@@ -542,7 +559,7 @@ VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
     Assert(pVCpu && pVCpu->idCpu == 0);
 
     /* In VMX mode, there's no need to init RC. */
-    if (pVM->vmm.s.fSwitcherDisabled)
+    if (HMIsEnabled(pVM))
         return VINF_SUCCESS;
 
     AssertReturn(pVM->cCpus == 1, VERR_RAW_MODE_INVALID_SMP);
@@ -557,15 +574,15 @@ VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
     int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "VMMGCEntry", &RCPtrEP);
     if (RT_SUCCESS(rc))
     {
-        CPUMHyperSetCtxCore(pVCpu, NULL);
         CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC); /* Clear the stack. */
         uint64_t u64TS = RTTimeProgramStartNanoTS();
-        CPUMPushHyper(pVCpu, (uint32_t)(u64TS >> 32));    /* Param 3: The program startup TS - Hi. */
-        CPUMPushHyper(pVCpu, (uint32_t)u64TS);            /* Param 3: The program startup TS - Lo. */
+        CPUMPushHyper(pVCpu, (uint32_t)(u64TS >> 32));    /* Param 4: The program startup TS - Hi. */
+        CPUMPushHyper(pVCpu, (uint32_t)u64TS);            /* Param 4: The program startup TS - Lo. */
+        CPUMPushHyper(pVCpu, vmmGetBuildType());          /* Param 3: Version argument. */
         CPUMPushHyper(pVCpu, VMMGetSvnRev());             /* Param 2: Version argument. */
         CPUMPushHyper(pVCpu, VMMGC_DO_VMMGC_INIT);        /* Param 1: Operation. */
         CPUMPushHyper(pVCpu, pVM->pVMRC);                 /* Param 0: pVM */
-        CPUMPushHyper(pVCpu, 5 * sizeof(RTRCPTR));        /* trampoline param: stacksize.  */
+        CPUMPushHyper(pVCpu, 6 * sizeof(RTRCPTR));        /* trampoline param: stacksize.  */
         CPUMPushHyper(pVCpu, RCPtrEP);                    /* Call EIP. */
         CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
         Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
@@ -606,13 +623,14 @@ VMMR3_INT_DECL(int) VMMR3InitRC(PVM pVM)
     }
     return rc;
 }
+#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
  * Called when an init phase completes.
  *
  * @returns VBox status code.
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   enmWhat             Which init phase.
  */
 VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
@@ -623,6 +641,12 @@ VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
     {
         case VMINITCOMPLETED_RING3:
         {
+            /*
+             * CPUM's post-initialization (APIC base MSR caching).
+             */
+            rc = CPUMR3InitCompleted(pVM);
+            AssertRCReturn(rc, rc);
+
             /*
              * Set page attributes to r/w for stack pages.
              */
@@ -671,16 +695,21 @@ VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
             break;
         }
 
-        case VMINITCOMPLETED_RING0:
+        case VMINITCOMPLETED_HM:
         {
             /*
              * Disable the periodic preemption timers if we can use the
              * VMX-preemption timer instead.
              */
             if (   pVM->vmm.s.fUsePeriodicPreemptionTimers
-                && HWACCMR3IsVmxPreemptionTimerUsed(pVM))
+                && HMR3IsVmxPreemptionTimerUsed(pVM))
                 pVM->vmm.s.fUsePeriodicPreemptionTimers = false;
             LogRel(("VMM: fUsePeriodicPreemptionTimers=%RTbool\n", pVM->vmm.s.fUsePeriodicPreemptionTimers));
+
+            /*
+             * CPUM's post-initialization (print CPUIDs).
+             */
+            CPUMR3LogCpuIds(pVM);
             break;
         }
 
@@ -696,7 +725,7 @@ VMMR3_INT_DECL(int) VMMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
  * Terminate the VMM bits.
  *
  * @returns VINF_SUCCESS.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) VMMR3Term(PVM pVM)
 {
@@ -721,7 +750,7 @@ VMMR3_INT_DECL(int) VMMR3Term(PVM pVM)
 #ifdef LOG_ENABLED
         if (    pVCpu->vmm.s.pR0LoggerR3
             &&  pVCpu->vmm.s.pR0LoggerR3->Logger.offScratch > 0)
-            RTLogFlushToLogger(&pVCpu->vmm.s.pR0LoggerR3->Logger, NULL);
+            RTLogFlushR0(NULL, &pVCpu->vmm.s.pR0LoggerR3->Logger);
 #endif
         if (rc != VINF_VMM_CALL_HOST)
             break;
@@ -766,6 +795,8 @@ VMMR3_INT_DECL(int) VMMR3Term(PVM pVM)
         pVM->vmm.s.fStackGuardsStationed = false;
     }
 #endif
+
+    vmmTermFormatTypes();
     return rc;
 }
 
@@ -777,7 +808,7 @@ VMMR3_INT_DECL(int) VMMR3Term(PVM pVM)
  *
  * The VMM will need to apply relocations to the core code.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   offDelta    The relocation delta.
  */
 VMMR3_INT_DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
@@ -812,11 +843,14 @@ VMMR3_INT_DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     /*
      * Get other RC entry points.
      */
-    int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuest", &pVM->vmm.s.pfnCPUMRCResumeGuest);
-    AssertReleaseMsgRC(rc, ("CPUMGCResumeGuest not found! rc=%Rra\n", rc));
+    if (!HMIsEnabled(pVM))
+    {
+        int rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuest", &pVM->vmm.s.pfnCPUMRCResumeGuest);
+        AssertReleaseMsgRC(rc, ("CPUMGCResumeGuest not found! rc=%Rra\n", rc));
 
-    rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuestV86", &pVM->vmm.s.pfnCPUMRCResumeGuestV86);
-    AssertReleaseMsgRC(rc, ("CPUMGCResumeGuestV86 not found! rc=%Rra\n", rc));
+        rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "CPUMGCResumeGuestV86", &pVM->vmm.s.pfnCPUMRCResumeGuestV86);
+        AssertReleaseMsgRC(rc, ("CPUMGCResumeGuestV86 not found! rc=%Rra\n", rc));
+    }
 
     /*
      * Update the logger.
@@ -829,7 +863,7 @@ VMMR3_INT_DECL(void) VMMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  * Updates the settings for the RC and R0 loggers.
  *
  * @returns VBox status code.
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
 {
@@ -839,18 +873,20 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
     int rc = VINF_SUCCESS;
     RTRCPTR RCPtrLoggerFlush = 0;
 
-    if (pVM->vmm.s.pRCLoggerR3
+    if (   pVM->vmm.s.pRCLoggerR3
 #ifdef VBOX_WITH_RC_RELEASE_LOGGING
         || pVM->vmm.s.pRCRelLoggerR3
 #endif
        )
     {
+        Assert(!HMIsEnabled(pVM));
         rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCLoggerFlush", &RCPtrLoggerFlush);
         AssertReleaseMsgRC(rc, ("vmmGCLoggerFlush not found! rc=%Rra\n", rc));
     }
 
     if (pVM->vmm.s.pRCLoggerR3)
     {
+        Assert(!HMIsEnabled(pVM));
         RTRCPTR RCPtrLoggerWrapper = 0;
         rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCLoggerWrapper", &RCPtrLoggerWrapper);
         AssertReleaseMsgRC(rc, ("vmmGCLoggerWrapper not found! rc=%Rra\n", rc));
@@ -864,6 +900,7 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
 #ifdef VBOX_WITH_RC_RELEASE_LOGGING
     if (pVM->vmm.s.pRCRelLoggerR3)
     {
+        Assert(!HMIsEnabled(pVM));
         RTRCPTR RCPtrLoggerWrapper = 0;
         rc = PDMR3LdrGetSymbolRC(pVM, VMMGC_MAIN_MODULE_NAME, "vmmGCRelLoggerWrapper", &RCPtrLoggerWrapper);
         AssertReleaseMsgRC(rc, ("vmmGCRelLoggerWrapper not found! rc=%Rra\n", rc));
@@ -897,7 +934,8 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
                 rc = PDMR3LdrGetSymbolR0(pVM, VMMR0_MAIN_MODULE_NAME, "vmmR0LoggerFlush", &pfnLoggerFlush);
                 AssertReleaseMsgRCReturn(rc, ("vmmR0LoggerFlush not found! rc=%Rra\n", rc), rc);
 
-                rc = RTLogCreateForR0(&pR0LoggerR3->Logger, pR0LoggerR3->cbLogger, pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger),
+                rc = RTLogCreateForR0(&pR0LoggerR3->Logger, pR0LoggerR3->cbLogger,
+                                      pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger),
                                       pfnLoggerWrapper, pfnLoggerFlush,
                                       RTLOGFLAGS_BUFFERED, RTLOGDEST_DUMMY);
                 AssertReleaseMsgRCReturn(rc, ("RTLogCreateForR0 failed! rc=%Rra\n", rc), rc);
@@ -905,7 +943,9 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
                 RTR0PTR pfnLoggerPrefix = NIL_RTR0PTR;
                 rc = PDMR3LdrGetSymbolR0(pVM, VMMR0_MAIN_MODULE_NAME, "vmmR0LoggerPrefix", &pfnLoggerPrefix);
                 AssertReleaseMsgRCReturn(rc, ("vmmR0LoggerPrefix not found! rc=%Rra\n", rc), rc);
-                rc = RTLogSetCustomPrefixCallbackForR0(&pR0LoggerR3->Logger, pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger), pfnLoggerPrefix, NIL_RTR0PTR);
+                rc = RTLogSetCustomPrefixCallbackForR0(&pR0LoggerR3->Logger,
+                                                       pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger),
+                                                       pfnLoggerPrefix, NIL_RTR0PTR);
                 AssertReleaseMsgRCReturn(rc, ("RTLogSetCustomPrefixCallback failed! rc=%Rra\n", rc), rc);
 
                 pR0LoggerR3->idCpu = i;
@@ -914,8 +954,8 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
 
             }
 
-            rc = RTLogCopyGroupsAndFlagsForR0(&pR0LoggerR3->Logger, pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger), pDefault,
-                                              RTLOGFLAGS_BUFFERED, UINT32_MAX);
+            rc = RTLogCopyGroupsAndFlagsForR0(&pR0LoggerR3->Logger, pVCpu->vmm.s.pR0LoggerR0 + RT_OFFSETOF(VMMR0LOGGER, Logger),
+                                              pDefault, RTLOGFLAGS_BUFFERED, UINT32_MAX);
             AssertRC(rc);
         }
     }
@@ -928,11 +968,11 @@ VMMR3_INT_DECL(int) VMMR3UpdateLoggers(PVM pVM)
  * Gets the pointer to a buffer containing the R0/RC RTAssertMsg1Weak output.
  *
  * @returns Pointer to the buffer.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM)
 {
-    if (HWACCMIsEnabled(pVM))
+    if (HMIsEnabled(pVM))
         return pVM->vmm.s.szRing0AssertMsg1;
 
     RTRCPTR RCPtr;
@@ -945,14 +985,31 @@ VMMR3DECL(const char *) VMMR3GetRZAssertMsg1(PVM pVM)
 
 
 /**
+ * Returns the VMCPU of the specified virtual CPU.
+ *
+ * @returns The VMCPU pointer. NULL if @a idCpu or @a pUVM is invalid.
+ *
+ * @param   pUVM        The user mode VM handle.
+ * @param   idCpu       The ID of the virtual CPU.
+ */
+VMMR3DECL(PVMCPU) VMMR3GetCpuByIdU(PUVM pUVM, RTCPUID idCpu)
+{
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, NULL);
+    AssertReturn(idCpu < pUVM->cCpus, NULL);
+    VM_ASSERT_VALID_EXT_RETURN(pUVM->pVM, NULL);
+    return &pUVM->pVM->aCpus[idCpu];
+}
+
+
+/**
  * Gets the pointer to a buffer containing the R0/RC RTAssertMsg2Weak output.
  *
  * @returns Pointer to the buffer.
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM)
 {
-    if (HWACCMIsEnabled(pVM))
+    if (HMIsEnabled(pVM))
         return pVM->vmm.s.szRing0AssertMsg2;
 
     RTRCPTR RCPtr;
@@ -968,7 +1025,7 @@ VMMR3DECL(const char *) VMMR3GetRZAssertMsg2(PVM pVM)
  * Execute state save operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  */
 static DECLCALLBACK(int) vmmR3Save(PVM pVM, PSSMHANDLE pSSM)
@@ -990,7 +1047,7 @@ static DECLCALLBACK(int) vmmR3Save(PVM pVM, PSSMHANDLE pSSM)
  * Execute state load operation.
  *
  * @returns VBox status code.
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pSSM            SSM operation handle.
  * @param   uVersion        Data layout version.
  * @param   uPass           The data pass.
@@ -1058,13 +1115,14 @@ static DECLCALLBACK(int) vmmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE
 /**
  * Resolve a builtin RC symbol.
  *
  * Called by PDM when loading or relocating RC modules.
  *
  * @returns VBox status
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pszSymbol       Symbol to resolv
  * @param   pRCPtrValue     Where to store the symbol value.
  *
@@ -1080,24 +1138,25 @@ VMMR3_INT_DECL(int) VMMR3GetImportRC(PVM pVM, const char *pszSymbol, PRTRCPTR pR
     }
     else if (!strcmp(pszSymbol, "g_RelLogger"))
     {
-#ifdef VBOX_WITH_RC_RELEASE_LOGGING
+# ifdef VBOX_WITH_RC_RELEASE_LOGGING
         if (pVM->vmm.s.pRCRelLoggerR3)
             pVM->vmm.s.pRCRelLoggerRC = MMHyperR3ToRC(pVM, pVM->vmm.s.pRCRelLoggerR3);
         *pRCPtrValue = pVM->vmm.s.pRCRelLoggerRC;
-#else
+# else
         *pRCPtrValue = NIL_RTRCPTR;
-#endif
+# endif
     }
     else
         return VERR_SYMBOL_NOT_FOUND;
     return VINF_SUCCESS;
 }
+#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
  * Suspends the CPU yielder.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMR3_INT_DECL(void) VMMR3YieldSuspend(PVM pVM)
 {
@@ -1119,7 +1178,7 @@ VMMR3_INT_DECL(void) VMMR3YieldSuspend(PVM pVM)
 /**
  * Stops the CPU yielder.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMR3_INT_DECL(void) VMMR3YieldStop(PVM pVM)
 {
@@ -1133,7 +1192,7 @@ VMMR3_INT_DECL(void) VMMR3YieldStop(PVM pVM)
 /**
  * Resumes the CPU yielder when it has been a suspended or stopped.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  */
 VMMR3_INT_DECL(void) VMMR3YieldResume(PVM pVM)
 {
@@ -1154,6 +1213,8 @@ VMMR3_INT_DECL(void) VMMR3YieldResume(PVM pVM)
  */
 static DECLCALLBACK(void) vmmR3YieldEMT(PVM pVM, PTMTIMER pTimer, void *pvUser)
 {
+    NOREF(pvUser);
+
     /*
      * This really needs some careful tuning. While we shouldn't be too greedy since
      * that'll cause the rest of the system to stop up, we shouldn't be too nice either
@@ -1185,11 +1246,12 @@ static DECLCALLBACK(void) vmmR3YieldEMT(PVM pVM, PTMTIMER pTimer, void *pvUser)
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE
 /**
  * Executes guest code in the raw-mode context.
  *
- * @param   pVM         VM handle.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
 {
@@ -1198,12 +1260,16 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
     AssertReturn(pVM->cCpus == 1, VERR_RAW_MODE_INVALID_SMP);
 
     /*
-     * Set the EIP and ESP.
+     * Set the hypervisor to resume executing a CPUM resume function
+     * in CPUMRCA.asm.
      */
-    CPUMSetHyperEIP(pVCpu, CPUMGetGuestEFlags(pVCpu) & X86_EFL_VM
-                    ? pVM->vmm.s.pfnCPUMRCResumeGuestV86
-                    : pVM->vmm.s.pfnCPUMRCResumeGuest);
-    CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC);
+    CPUMSetHyperState(pVCpu,
+                        CPUMGetGuestEFlags(pVCpu) & X86_EFL_VM
+                      ? pVM->vmm.s.pfnCPUMRCResumeGuestV86
+                      : pVM->vmm.s.pfnCPUMRCResumeGuest,  /* eip */
+                      pVCpu->vmm.s.pbEMTStackBottomRC,    /* esp */
+                      0,                                  /* eax */
+                      VM_RC_ADDR(pVM, &pVCpu->cpum)       /* edx */);
 
     /*
      * We hide log flushes (outer) and hypervisor interrupts (inner).
@@ -1214,6 +1280,9 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
         if (RT_UNLIKELY(!CPUMGetHyperCR3(pVCpu) || CPUMGetHyperCR3(pVCpu) != PGMGetHyperCR3(pVCpu)))
             EMR3FatalError(pVCpu, VERR_VMM_HYPER_CR3_MISMATCH);
         PGMMapCheck(pVM);
+# ifdef VBOX_WITH_SAFE_STR
+        SELMR3CheckShadowTR(pVM);
+# endif
 #endif
         int rc;
         do
@@ -1252,17 +1321,18 @@ VMMR3_INT_DECL(int) VMMR3RawRunGC(PVM pVM, PVMCPU pVCpu)
         /* Resume GC */
     }
 }
+#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
  * Executes guest code (Intel VT-x and AMD-V).
  *
- * @param   pVM         VM handle.
- * @param   pVCpu       The VMCPU to operate on.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
-VMMR3_INT_DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
+VMMR3_INT_DECL(int) VMMR3HmRunGC(PVM pVM, PVMCPU pVCpu)
 {
-    Log2(("VMMR3HwAccRunGC: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
+    Log2(("VMMR3HmRunGC: (cs:eip=%04x:%08x)\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 
     for (;;)
     {
@@ -1272,14 +1342,14 @@ VMMR3_INT_DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
 #ifdef NO_SUPCALLR0VMM
             rc = VERR_GENERAL_FAILURE;
 #else
-            rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_HWACC_RUN, pVCpu->idCpu);
+            rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_HM_RUN, pVCpu->idCpu);
             if (RT_LIKELY(rc == VINF_SUCCESS))
                 rc = pVCpu->vmm.s.iLastGZRc;
 #endif
         } while (rc == VINF_EM_RAW_INTERRUPT_HYPER);
 
 #if 0 /* todo triggers too often */
-        Assert(!VMCPU_FF_ISSET(pVCpu, VMCPU_FF_TO_R3));
+        Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TO_R3));
 #endif
 
 #ifdef LOG_ENABLED
@@ -1293,7 +1363,7 @@ VMMR3_INT_DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
 #endif /* !LOG_ENABLED */
         if (rc != VINF_VMM_CALL_HOST)
         {
-            Log2(("VMMR3HwAccRunGC: returns %Rrc (cs:eip=%04x:%08x)\n", rc, CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
+            Log2(("VMMR3HmRunGC: returns %Rrc (cs:eip=%04x:%08x)\n", rc, CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
             return rc;
         }
         rc = vmmR3ServiceCallRing3Request(pVM, pVCpu);
@@ -1306,7 +1376,7 @@ VMMR3_INT_DECL(int) VMMR3HwAccRunGC(PVM pVM, PVMCPU pVCpu)
 /**
  * VCPU worker for VMMSendSipi.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   idCpu       Virtual CPU to perform SIPI on
  * @param   uVector     SIPI vector
  */
@@ -1322,12 +1392,14 @@ DECLCALLBACK(int) vmmR3SendSipi(PVM pVM, VMCPUID idCpu, uint32_t uVector)
 
     PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
-    pCtx->cs                        = uVector << 8;
-    pCtx->csHid.u64Base             = uVector << 12;
-    pCtx->csHid.u32Limit            = 0x0000ffff;
-    pCtx->rip                       = 0;
+    pCtx->cs.Sel        = uVector << 8;
+    pCtx->cs.ValidSel   = uVector << 8;
+    pCtx->cs.fFlags     = CPUMSELREG_FLAGS_VALID;
+    pCtx->cs.u64Base    = uVector << 12;
+    pCtx->cs.u32Limit   = UINT32_C(0x0000ffff);
+    pCtx->rip           = 0;
 
-    Log(("vmmR3SendSipi for VCPU %d with vector %x\n", uVector));
+    Log(("vmmR3SendSipi for VCPU %d with vector %x\n", idCpu, uVector));
 
 # if 1 /* If we keep the EMSTATE_WAIT_SIPI method, then move this to EM.cpp. */
     EMSetState(pVCpu, EMSTATE_HALTED);
@@ -1345,7 +1417,10 @@ DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
     VMCPU_ASSERT_EMT(pVCpu);
 
     Log(("vmmR3SendInitIpi for VCPU %d\n", idCpu));
-    CPUMR3ResetCpu(pVCpu);
+
+    PGMR3ResetCpu(pVM, pVCpu);
+    CPUMR3ResetCpu(pVM, pVCpu);
+
     return VINF_EM_WAIT_SIPI;
 }
 
@@ -1353,7 +1428,7 @@ DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
  * Sends SIPI to the virtual CPU by setting CS:EIP into vector-dependent state
  * and unhalting processor
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   idCpu       Virtual CPU to perform SIPI on
  * @param   uVector     SIPI vector
  */
@@ -1368,7 +1443,7 @@ VMMR3_INT_DECL(void) VMMR3SendSipi(PVM pVM, VMCPUID idCpu,  uint32_t uVector)
 /**
  * Sends init IPI to the virtual CPU.
  *
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   idCpu       Virtual CPU to perform int IPI on
  */
 VMMR3_INT_DECL(void) VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu)
@@ -1383,15 +1458,15 @@ VMMR3_INT_DECL(void) VMMR3SendInitIpi(PVM pVM, VMCPUID idCpu)
  * Registers the guest memory range that can be used for patching
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPatchMem   Patch memory range
  * @param   cbPatchMem  Size of the memory range
  */
 VMMR3DECL(int) VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem)
 {
     VM_ASSERT_EMT(pVM);
-    if (HWACCMIsEnabled(pVM))
-        return HWACMMR3EnablePatching(pVM, pPatchMem, cbPatchMem);
+    if (HMIsEnabled(pVM))
+        return HMR3EnablePatching(pVM, pPatchMem, cbPatchMem);
 
     return VERR_NOT_SUPPORTED;
 }
@@ -1400,14 +1475,14 @@ VMMR3DECL(int) VMMR3RegisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbP
  * Deregisters the guest memory range that can be used for patching
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pPatchMem   Patch memory range
  * @param   cbPatchMem  Size of the memory range
  */
 VMMR3DECL(int) VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned cbPatchMem)
 {
-    if (HWACCMIsEnabled(pVM))
-        return HWACMMR3DisablePatching(pVM, pPatchMem, cbPatchMem);
+    if (HMIsEnabled(pVM))
+        return HMR3DisablePatching(pVM, pPatchMem, cbPatchMem);
 
     return VINF_SUCCESS;
 }
@@ -1419,7 +1494,7 @@ VMMR3DECL(int) VMMR3DeregisterPatchMemory(PVM pVM, RTGCPTR pPatchMem, unsigned c
  * @returns VBox strict informational status code for EM scheduling. No failures
  *          will be returned here, those are for the caller only.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  */
 DECL_FORCE_INLINE(int) vmmR3EmtRendezvousNonCallerReturn(PVM pVM)
 {
@@ -1446,7 +1521,7 @@ DECL_FORCE_INLINE(int) vmmR3EmtRendezvousNonCallerReturn(PVM pVM)
  *          will be returned here, those are for the caller only.  When
  *          fIsCaller is set, VINF_SUCCESS is always returned.
  *
- * @param   pVM                 The VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pVCpu               The VMCPU structure for the calling EMT.
  * @param   fIsCaller           Whether we're the VMMR3EmtRendezvous caller or
  *                              not.
@@ -1618,7 +1693,7 @@ static int vmmR3EmtRendezvousCommon(PVM pVM, PVMCPU pVCpu, bool fIsCaller,
  * @returns VBox strict status code - EM scheduling.  No errors will be returned
  *          here, nor will any non-EM scheduling status codes be returned.
  *
- * @param   pVM         The VM handle
+ * @param   pVM         Pointer to the VM.
  * @param   pVCpu       The handle of the calling EMT.
  *
  * @thread  EMT
@@ -1640,10 +1715,10 @@ VMMR3_INT_DECL(int) VMMR3EmtRendezvousFF(PVM pVM, PVMCPU pVCpu)
  * Gathers all the EMTs and execute some code on each of them, either in a one
  * by one fashion or all at once.
  *
- * @returns VBox strict status code.  This will be the the first error,
+ * @returns VBox strict status code.  This will be the first error,
  *          VINF_SUCCESS, or an EM scheduling status code.
  *
- * @param   pVM             The VM handle.
+ * @param   pVM             Pointer to the VM.
  * @param   fFlags          Flags indicating execution methods. See
  *                          grp_VMMR3EmtRendezvous_fFlags.
  * @param   pfnRendezvous   The callback.
@@ -1656,6 +1731,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
     /*
      * Validate input.
      */
+    AssertReturn(pVM, VERR_INVALID_VM_HANDLE);
     AssertMsg(   (fFlags & VMMEMTRENDEZVOUS_FLAGS_TYPE_MASK) != VMMEMTRENDEZVOUS_FLAGS_TYPE_INVALID
               && (fFlags & VMMEMTRENDEZVOUS_FLAGS_TYPE_MASK) <= VMMEMTRENDEZVOUS_FLAGS_TYPE_DESCENDING
               && !(fFlags & ~VMMEMTRENDEZVOUS_FLAGS_VALID_MASK), ("%#x\n", fFlags));
@@ -1696,7 +1772,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
 
             while (!ASMAtomicCmpXchgU32(&pVM->vmm.s.u32RendezvousLock, 0x77778888, 0))
             {
-                if (VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+                if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
                 {
                     rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
                     if (    rc != VINF_SUCCESS
@@ -1708,7 +1784,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
                 ASMNopPause();
             }
         }
-        Assert(!VM_FF_ISPENDING(pVM, VM_FF_EMT_RENDEZVOUS));
+        Assert(!VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS));
         Assert(!pVCpu->vmm.s.fInRendezvous);
         pVCpu->vmm.s.fInRendezvous = true;
 
@@ -1779,11 +1855,11 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
 
 
 /**
- * Disables/enables EMT rendezvous. 
- *  
- * This is used to make sure EMT rendezvous does not take place while 
+ * Disables/enables EMT rendezvous.
+ *
+ * This is used to make sure EMT rendezvous does not take place while
  * processing a priority request.
- *  
+ *
  * @returns Old rendezvous-disabled state.
  * @param   pVCpu           The handle of the calling EMT.
  * @param   fDisabled       True if disabled, false if enabled.
@@ -1802,7 +1878,7 @@ VMMR3_INT_DECL(bool) VMMR3EmtRendezvousSetDisabled(PVMCPU pVCpu, bool fDisabled)
  *
  * @returns VBox status code.
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  * @param   idCpu           The ID of the source CPU context (for the address).
  * @param   R0Addr          Where to start reading.
  * @param   pvBuf           Where to store the data we've read.
@@ -1826,11 +1902,12 @@ VMMR3_INT_DECL(int) VMMR3ReadR0Stack(PVM pVM, VMCPUID idCpu, RTHCUINTPTR R0Addr,
     return VINF_SUCCESS;
 }
 
+#ifdef VBOX_WITH_RAW_MODE
 
 /**
  * Calls a RC function.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   RCPtrEntry  The address of the RC function.
  * @param   cArgs       The number of arguments in the ....
  * @param   ...         Arguments to the function.
@@ -1848,7 +1925,7 @@ VMMR3DECL(int) VMMR3CallRC(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, ...)
 /**
  * Calls a RC function.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   RCPtrEntry  The address of the RC function.
  * @param   cArgs       The number of arguments in the ....
  * @param   args        Arguments to the function.
@@ -1864,9 +1941,16 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
     /*
      * Setup the call frame using the trampoline.
      */
-    CPUMHyperSetCtxCore(pVCpu, NULL);
+    CPUMSetHyperState(pVCpu,
+                      pVM->vmm.s.pfnCallTrampolineRC, /* eip */
+                      pVCpu->vmm.s.pbEMTStackBottomRC - cArgs * sizeof(RTGCUINTPTR32),  /* esp */
+                      RCPtrEntry,  /* eax */
+                      cArgs        /* edx */
+                      );
+
+#if 0
     memset(pVCpu->vmm.s.pbEMTStackR3, 0xaa, VMM_STACK_SIZE); /* Clear the stack. */
-    CPUMSetHyperESP(pVCpu, pVCpu->vmm.s.pbEMTStackBottomRC - cArgs * sizeof(RTGCUINTPTR32));
+#endif
     PRTGCUINTPTR32 pFrame = (PRTGCUINTPTR32)(pVCpu->vmm.s.pbEMTStackR3 + VMM_STACK_SIZE) - cArgs;
     int i = cArgs;
     while (i-- > 0)
@@ -1874,7 +1958,6 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
 
     CPUMPushHyper(pVCpu, cArgs * sizeof(RTGCUINTPTR32));                          /* stack frame size */
     CPUMPushHyper(pVCpu, RCPtrEntry);                                             /* what to call */
-    CPUMSetHyperEIP(pVCpu, pVM->vmm.s.pfnCallTrampolineRC);
 
     /*
      * We hide log flushes (outer) and hypervisor interrupts (inner).
@@ -1895,7 +1978,7 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
         } while (rc == VINF_EM_RAW_INTERRUPT_HYPER);
 
         /*
-         * Flush the logs.
+         * Flush the loggers.
          */
 #ifdef LOG_ENABLED
         PRTLOGGERRC pLogger = pVM->vmm.s.pRCLoggerR3;
@@ -1921,12 +2004,13 @@ VMMR3DECL(int) VMMR3CallRCV(PVM pVM, RTRCPTR RCPtrEntry, unsigned cArgs, va_list
     }
 }
 
+#endif /* VBOX_WITH_RAW_MODE */
 
 /**
  * Wrapper for SUPR3CallVMMR0Ex which will deal with VINF_VMM_CALL_HOST returns.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   uOperation  Operation to execute.
  * @param   u64Arg      Constant argument.
  * @param   pReqHdr     Pointer to a request header. See SUPR3CallVMMR0Ex for
@@ -1971,13 +2055,14 @@ VMMR3DECL(int) VMMR3CallR0(PVM pVM, uint32_t uOperation, uint64_t u64Arg, PSUPVM
 }
 
 
+#ifdef VBOX_WITH_RAW_MODE
 /**
  * Resumes executing hypervisor code when interrupted by a queue flush or a
  * debug event.
  *
  * @returns VBox status code.
- * @param   pVM         VM handle.
- * @param   pVCpu       VMCPU handle.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
 VMMR3DECL(int) VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu)
 {
@@ -1993,29 +2078,29 @@ VMMR3DECL(int) VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu)
         Assert(CPUMGetHyperCR3(pVCpu) && CPUMGetHyperCR3(pVCpu) == PGMGetHyperCR3(pVCpu));
         do
         {
-#ifdef NO_SUPCALLR0VMM
+# ifdef NO_SUPCALLR0VMM
             rc = VERR_GENERAL_FAILURE;
-#else
+# else
             rc = SUPR3CallVMMR0Fast(pVM->pVMR0, VMMR0_DO_RAW_RUN, 0);
             if (RT_LIKELY(rc == VINF_SUCCESS))
                 rc = pVCpu->vmm.s.iLastGZRc;
-#endif
+# endif
         } while (rc == VINF_EM_RAW_INTERRUPT_HYPER);
 
         /*
-         * Flush the loggers,
+         * Flush the loggers.
          */
-#ifdef LOG_ENABLED
+# ifdef LOG_ENABLED
         PRTLOGGERRC pLogger = pVM->vmm.s.pRCLoggerR3;
         if (    pLogger
             &&  pLogger->offScratch > 0)
             RTLogFlushRC(NULL, pLogger);
-#endif
-#ifdef VBOX_WITH_RC_RELEASE_LOGGING
+# endif
+# ifdef VBOX_WITH_RC_RELEASE_LOGGING
         PRTLOGGERRC pRelLogger = pVM->vmm.s.pRCRelLoggerR3;
         if (RT_UNLIKELY(pRelLogger && pRelLogger->offScratch > 0))
             RTLogFlushRC(RTLogRelDefaultInstance(), pRelLogger);
-#endif
+# endif
         if (rc == VERR_TRPM_PANIC || rc == VERR_TRPM_DONT_PANIC)
             VMMR3FatalDump(pVM, pVCpu, rc);
         if (rc != VINF_VMM_CALL_HOST)
@@ -2028,14 +2113,15 @@ VMMR3DECL(int) VMMR3ResumeHyper(PVM pVM, PVMCPU pVCpu)
             return rc;
     }
 }
+#endif /* VBOX_WITH_RAW_MODE */
 
 
 /**
  * Service a call to the ring-3 host code.
  *
  * @returns VBox status code.
- * @param   pVM     VM handle.
- * @param   pVCpu   VMCPU handle
+ * @param   pVM     Pointer to the VM.
+ * @param   pVCpu   Pointer to the VMCPU.
  * @remark  Careful with critsects.
  */
 static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
@@ -2044,8 +2130,8 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
      * We must also check for pending critsect exits or else we can deadlock
      * when entering other critsects here.
      */
-    if (VMCPU_FF_ISPENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
-        PDMCritSectFF(pVCpu);
+    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
+        PDMCritSectBothFF(pVCpu);
 
     switch (pVCpu->vmm.s.enmCallRing3Operation)
     {
@@ -2056,6 +2142,26 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
         {
             pVCpu->vmm.s.rcCallRing3 = PDMR3CritSectEnterEx((PPDMCRITSECT)(uintptr_t)pVCpu->vmm.s.u64CallRing3Arg,
                                                             true /*fCallRing3*/);
+            break;
+        }
+
+        /*
+         * Enter a r/w critical section exclusively.
+         */
+        case VMMCALLRING3_PDM_CRIT_SECT_RW_ENTER_EXCL:
+        {
+            pVCpu->vmm.s.rcCallRing3 = PDMR3CritSectRwEnterExclEx((PPDMCRITSECTRW)(uintptr_t)pVCpu->vmm.s.u64CallRing3Arg,
+                                                                    true /*fCallRing3*/);
+            break;
+        }
+
+        /*
+         * Enter a r/w critical section shared.
+         */
+        case VMMCALLRING3_PDM_CRIT_SECT_RW_ENTER_SHARED:
+        {
+            pVCpu->vmm.s.rcCallRing3 = PDMR3CritSectRwEnterSharedEx((PPDMCRITSECTRW)(uintptr_t)pVCpu->vmm.s.u64CallRing3Arg,
+                                                                    true /*fCallRing3*/);
             break;
         }
 
@@ -2122,6 +2228,7 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
             break;
         }
 
+#ifdef VBOX_WITH_REM
         /*
          * Flush REM handler notifications.
          */
@@ -2131,6 +2238,7 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
             pVCpu->vmm.s.rcCallRing3 = VINF_SUCCESS;
             break;
         }
+#endif
 
         /*
          * This is a noop. We just take this route to avoid unnecessary
@@ -2171,8 +2279,8 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
 #ifdef VMM_R0_SWITCH_STACK
             *(uint64_t *)pVCpu->vmm.s.pbEMTStackR3 = 0; /* clear marker  */
 #endif
-            LogRel((pVM->vmm.s.szRing0AssertMsg1));
-            LogRel((pVM->vmm.s.szRing0AssertMsg2));
+            LogRel(("%s", pVM->vmm.s.szRing0AssertMsg1));
+            LogRel(("%s", pVM->vmm.s.szRing0AssertMsg2));
             return VERR_VMM_RING0_ASSERTION;
 
         /*
@@ -2199,7 +2307,7 @@ static int vmmR3ServiceCallRing3Request(PVM pVM, PVMCPU pVCpu)
 /**
  * Displays the Force action Flags.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The output helpers.
  * @param   pszArgs     The additional arguments (ignored).
  */
@@ -2207,6 +2315,8 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
 {
     int         c;
     uint32_t    f;
+    NOREF(pszArgs);
+
 #define PRINT_FLAG(prf,flag) do { \
         if (f & (prf##flag)) \
         { \
@@ -2291,18 +2401,23 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3);
         PRINT_FLAG(VMCPU_FF_,PGM_SYNC_CR3_NON_GLOBAL);
         PRINT_FLAG(VMCPU_FF_,TLB_FLUSH);
+        PRINT_FLAG(VMCPU_FF_,INHIBIT_INTERRUPTS);
+        PRINT_FLAG(VMCPU_FF_,TO_R3);
+#ifdef VBOX_WITH_RAW_MODE
         PRINT_FLAG(VMCPU_FF_,TRPM_SYNC_IDT);
         PRINT_FLAG(VMCPU_FF_,SELM_SYNC_TSS);
         PRINT_FLAG(VMCPU_FF_,SELM_SYNC_GDT);
         PRINT_FLAG(VMCPU_FF_,SELM_SYNC_LDT);
-        PRINT_FLAG(VMCPU_FF_,INHIBIT_INTERRUPTS);
         PRINT_FLAG(VMCPU_FF_,CSAM_SCAN_PAGE);
         PRINT_FLAG(VMCPU_FF_,CSAM_PENDING_ACTION);
-        PRINT_FLAG(VMCPU_FF_,TO_R3);
+#endif
         if (f)
             pHlp->pfnPrintf(pHlp, "%s\n    Unknown bits: %#RX32\n", c ? "," : "", f);
         else
             pHlp->pfnPrintf(pHlp, "\n");
+
+        if (fLocalForcedActions & VMCPU_FF_INHIBIT_INTERRUPTS)
+            pHlp->pfnPrintf(pHlp, "    intr inhibit RIP: %RGp\n", EMGetInhibitInterruptsPC(&pVM->aCpus[i]));
 
         /* the groups */
         c = 0;
@@ -2315,7 +2430,7 @@ static DECLCALLBACK(void) vmmR3InfoFF(PVM pVM, PCDBGFINFOHLP pHlp, const char *p
         PRINT_GROUP(VMCPU_FF_,NORMAL_PRIORITY_POST,_MASK);
         PRINT_GROUP(VMCPU_FF_,NORMAL_PRIORITY,_MASK);
         PRINT_GROUP(VMCPU_FF_,RESUME_GUEST,_MASK);
-        PRINT_GROUP(VMCPU_FF_,HWACCM_TO_R3,_MASK);
+        PRINT_GROUP(VMCPU_FF_,HM_TO_R3,_MASK);
         PRINT_GROUP(VMCPU_FF_,ALL_REM,_MASK);
         if (c)
             pHlp->pfnPrintf(pHlp, "\n");

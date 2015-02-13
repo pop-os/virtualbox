@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -56,7 +56,7 @@ typedef struct RTR0SEMSOLWAIT
     /** The native timeout value. */
     union
     {
-        /** The timeout (abs lbolt) when fHighRes is false.  */
+        /** The timeout (in ticks) when fHighRes is false.  */
         clock_t     lTimeout;
     } u;
     /** Set if we use high resolution timeouts. */
@@ -107,8 +107,8 @@ DECLINLINE(int) rtR0SemSolWaitInit(PRTR0SEMSOLWAIT pWait, uint32_t fFlags, uint6
     if (!(fFlags & RTSEMWAIT_FLAGS_INDEFINITE))
     {
         if (fFlags & RTSEMWAIT_FLAGS_MILLISECS)
-            uTimeout = uTimeout < UINT64_MAX / UINT32_C(1000000) * UINT32_C(1000000)
-                     ? uTimeout * UINT32_C(1000000)
+            uTimeout = uTimeout < UINT64_MAX / RT_NS_1MS
+                     ? uTimeout * RT_NS_1MS
                      : UINT64_MAX;
         if (uTimeout == UINT64_MAX)
             fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
@@ -155,7 +155,7 @@ DECLINLINE(int) rtR0SemSolWaitInit(PRTR0SEMSOLWAIT pWait, uint32_t fFlags, uint6
                 fFlags |= RTSEMWAIT_FLAGS_INDEFINITE;
             else
             {
-                pWait->u.lTimeout = ddi_get_lbolt() + cTicks;
+                pWait->u.lTimeout = cTicks;
                 pWait->fHighRes = false;
             }
         }
@@ -228,7 +228,7 @@ static void rtR0SemSolWaitTimeout(void *pvUser)
 {
     PRTR0SEMSOLWAIT pWait   = (PRTR0SEMSOLWAIT)pvUser;
     kthread_t      *pThread = pWait->pThread;
-    kmutex_t       *pMtx    = (kmutex_t *)ASMAtomicReadPtr(&pWait->pvMtx);
+    kmutex_t       *pMtx    = (kmutex_t *)ASMAtomicReadPtr((void * volatile *)&pWait->pvMtx);
     if (VALID_PTR(pMtx))
     {
         /* Enter the mutex here to make sure the thread has gone to sleep
@@ -444,7 +444,7 @@ DECLINLINE(void) rtR0SemSolWaitDelete(PRTR0SEMSOLWAIT pWait)
  * we're on an interrupt thread.
  *
  * The unpinning is done to prevent a deadlock, see s this could lead to a
- * deadlock (see #4259 for the full explanation)
+ * deadlock (see @bugref{4259} for the full explanation)
  *
  * @param   pMtx            The mutex to enter.
  */
@@ -486,4 +486,5 @@ DECLINLINE(uint32_t) rtR0SemSolWaitGetResolution(void)
          : cyclic_getres();
 }
 
-#endif
+#endif /* ___r0drv_solaris_semeventwait_r0drv_solaris_h */
+

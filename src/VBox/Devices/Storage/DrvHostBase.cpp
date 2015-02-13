@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -122,6 +122,7 @@ NTSTATUS __stdcall NtQueryVolumeInformationFile(
 #include <iprt/asm.h>
 #include <iprt/critsect.h>
 #include <iprt/ctype.h>
+#include <iprt/mem.h>
 
 #include "DrvHostBase.h"
 
@@ -322,6 +323,42 @@ static DECLCALLBACK(int) drvHostBaseGetUuid(PPDMIBLOCK pInterface, PRTUUID pUuid
     LogFlow(("%s-%d: drvHostBaseGetUuid: returns VINF_SUCCESS *pUuid=%RTuuid\n", pThis->pDrvIns->pReg->szName, pThis->pDrvIns->iInstance, pUuid));
     return VINF_SUCCESS;
 }
+
+
+/** @copydoc PDMIBLOCK::pfnIoBufAlloc */
+static DECLCALLBACK(int) drvHostBaseIoBufAlloc(PPDMIBLOCK pInterface, size_t cb, void **ppvNew)
+{
+    LogFlowFunc(("\n"));
+    int rc;
+    PDRVHOSTBASE pThis = PDMIBLOCK_2_DRVHOSTBASE(pInterface);
+
+    void *pvNew = RTMemAlloc(cb);
+    if (RT_LIKELY(pvNew))
+    {
+        *ppvNew = pvNew;
+        rc = VINF_SUCCESS;
+    }
+    else
+        rc = VERR_NO_MEMORY;
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/** @copydoc PDMIBLOCK::pfnIoBufFree */
+static DECLCALLBACK(int) drvHostBaseIoBufFree(PPDMIBLOCK pInterface, void *pv, size_t cb)
+{
+    LogFlowFunc(("\n"));
+    int rc = VINF_SUCCESS;
+    PDRVHOSTBASE pThis = PDMIBLOCK_2_DRVHOSTBASE(pInterface);
+
+    NOREF(cb);
+    RTMemFree(pv);
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
 
 
 /* -=-=-=-=- IBlockBios -=-=-=-=- */
@@ -793,15 +830,13 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
     AssertReturn(krc == KERN_SUCCESS, VERR_GENERAL_FAILURE);
 
     /*
-     * Create a matching dictionary for searching for DVD services in the IOKit.
+     * Create a matching dictionary for searching for CD, DVD and BlueRay services in the IOKit.
      *
-     * [If I understand this correctly, plain CDROMs doesn't show up as
-     * IODVDServices. Too keep things simple, we will only support DVDs
-     * until somebody complains about it and we get hardware to test it on.
-     * (Unless I'm much mistaken, there aren't any (orignal) intel macs with
-     * plain cdroms.)]
+     * The idea is to find all the devices which are of class IOCDBlockStorageDevice.
+     * CD devices are represented by IOCDBlockStorageDevice class itself, while DVD and BlueRay ones
+     * have it as a parent class.
      */
-    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching("IODVDServices");
+    CFMutableDictionaryRef RefMatchingDict = IOServiceMatching("IOCDBlockStorageDevice");
     AssertReturn(RefMatchingDict, NULL);
 
     /*
@@ -813,8 +848,8 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
     RefMatchingDict = NULL; /* the reference is consumed by IOServiceGetMatchingServices. */
 
     /*
-     * Enumerate the DVD drives (services).
-     * (This enumeration must be identical to the one performed in DrvHostBase.cpp.)
+     * Enumerate the matching drives (services).
+     * (This enumeration must be identical to the one performed in Main/src-server/darwin/iokit.cpp.)
      */
     int rc = VERR_FILE_NOT_FOUND;
     unsigned i = 0;
@@ -872,7 +907,7 @@ static int drvHostBaseOpen(PDRVHOSTBASE pThis, PRTFILE pFileDevice, bool fReadOn
                     else
                     {
                         strcpy(szName1, *pszVendor ? pszVendor : pszProduct);
-                        RTStrPrintf(szName2, sizeof(szName2), "%s %s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
+                        RTStrPrintf(szName2, sizeof(szName2), "%s (#%u)", *pszVendor ? pszVendor : pszProduct, i);
                     }
                 }
                 else
@@ -1486,7 +1521,7 @@ static LRESULT CALLBACK DeviceChangeWindowProc(HWND hwnd, UINT uMsg, WPARAM wPar
     Log2(("DeviceChangeWindowProc: hwnd=%08x uMsg=%08x\n", hwnd, uMsg));
     if (uMsg == WM_DESTROY)
     {
-        PDRVHOSTBASE pThis = (PDRVHOSTBASE)GetWindowLong(hwnd, GWLP_USERDATA);
+        PDRVHOSTBASE pThis = (PDRVHOSTBASE)GetWindowLongPtr(hwnd, GWLP_USERDATA);
         if (pThis)
             ASMAtomicXchgSize(&pThis->hwndDeviceChange, NULL);
         PostQuitMessage(0);
@@ -1560,7 +1595,7 @@ static DECLCALLBACK(int) drvHostBaseMediaThread(RTTHREAD ThreadSelf, void *pvUse
         memset(&s_classDeviceChange, 0, sizeof(s_classDeviceChange));
         s_classDeviceChange.lpfnWndProc   = DeviceChangeWindowProc;
         s_classDeviceChange.lpszClassName = "VBOX_DeviceChangeClass";
-        s_classDeviceChange.hInstance     = GetModuleHandle("VBOXDD.DLL");
+        s_classDeviceChange.hInstance     = GetModuleHandle("VBoxDD.dll");
         Assert(s_classDeviceChange.hInstance);
         s_hAtomDeviceChange = RegisterClassA(&s_classDeviceChange);
         Assert(s_hAtomDeviceChange);
@@ -1877,6 +1912,7 @@ int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMBLOCKTYPE enmType
 #endif
     pThis->enmType                          = enmType;
     //pThis->cErrors                          = 0;
+    pThis->fAttachFailError                 = true; /* It's an error until we've read the config. */
 
     pThis->pfnGetMediaSize                  = drvHostBaseGetMediaSize;
 
@@ -1891,6 +1927,8 @@ int DRVHostBaseInitData(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, PDMBLOCKTYPE enmType
     pThis->IBlock.pfnGetSize                = drvHostBaseGetSize;
     pThis->IBlock.pfnGetType                = drvHostBaseGetType;
     pThis->IBlock.pfnGetUuid                = drvHostBaseGetUuid;
+    pThis->IBlock.pfnIoBufAlloc             = drvHostBaseIoBufAlloc;
+    pThis->IBlock.pfnIoBufFree              = drvHostBaseIoBufFree;
 
     /* IBlockBios. */
     pThis->IBlockBios.pfnGetPCHSGeometry    = drvHostBaseGetPCHSGeometry;
@@ -2078,6 +2116,8 @@ int DRVHostBaseInitFinish(PDRVHOSTBASE pThis)
         case PDMBLOCKTYPE_FLOPPY_1_20:
         case PDMBLOCKTYPE_FLOPPY_1_44:
         case PDMBLOCKTYPE_FLOPPY_2_88:
+        case PDMBLOCKTYPE_FLOPPY_FAKE_15_6:
+        case PDMBLOCKTYPE_FLOPPY_FAKE_63_5:
             if (uDriveType != DRIVE_REMOVABLE)
             {
                 AssertMsgFailed(("Configuration error: '%s' is not a floppy (type=%d)\n",

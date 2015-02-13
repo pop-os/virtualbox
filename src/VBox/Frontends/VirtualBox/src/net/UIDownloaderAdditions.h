@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,63 +20,36 @@
 #define __UIDownloaderAdditions_h__
 
 /* Local includes: */
-#include "QIWithRetranslateUI.h"
 #include "UIDownloader.h"
 
-class UIMiniProgressWidgetAdditions : public QIWithRetranslateUI<UIMiniProgressWidget>
-{
-    Q_OBJECT;
-
-public:
-
-    UIMiniProgressWidgetAdditions(const QString &strSource, QWidget *pParent = 0)
-        : QIWithRetranslateUI<UIMiniProgressWidget>(pParent)
-    {
-        sltSetSource(strSource);
-        retranslateUi();
-    }
-
-protected:
-
-    void retranslateUi()
-    {
-        setCancelButtonToolTip(tr("Cancel the VirtualBox Guest Additions CD image download"));
-        setProgressBarToolTip(tr("Downloading the VirtualBox Guest Additions CD image from <nobr><b>%1</b>...</nobr>")
-                                .arg(source()));
-    }
-};
-
+/* UIDownloader extension for background additions downloading. */
 class UIDownloaderAdditions : public UIDownloader
 {
     Q_OBJECT;
 
+signals:
+
+    /* Notifies listeners about downloading finished: */
+    void sigDownloadFinished(const QString &strFile);
+
 public:
 
+    /* Static stuff: */
     static UIDownloaderAdditions* create();
     static UIDownloaderAdditions* current();
 
-    void setAction(QAction *pAction);
-    QAction *action() const;
-
-signals:
-
-    void sigDownloadFinished(const QString &strFile);
-
 private:
 
+    /* Constructor/destructor: */
     UIDownloaderAdditions();
     ~UIDownloaderAdditions();
 
-    UIMiniProgressWidget* createProgressWidgetFor(QWidget *pParent) const;
-    bool askForDownloadingConfirmation(QNetworkReply *pReply);
-    void handleDownloadedObject(QNetworkReply *pReply);
-    void warnAboutNetworkError(const QString &strError);
+    /* Virtual stuff reimplementations: */
+    bool askForDownloadingConfirmation(UINetworkReply *pReply);
+    void handleDownloadedObject(UINetworkReply *pReply);
 
-    /* Private member variables: */
-    static UIDownloaderAdditions *m_pInstance;
-
-    /* Action to be blocked: */
-    QPointer<QAction> m_pAction;
+    /* Variables: */
+    static UIDownloaderAdditions *m_spInstance;
 };
 
 #endif // __UIDownloaderAdditions_h__

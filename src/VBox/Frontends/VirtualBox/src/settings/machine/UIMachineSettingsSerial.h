@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,9 +19,9 @@
 #ifndef __UIMachineSettingsSerial_h__
 #define __UIMachineSettingsSerial_h__
 
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsSerial.gen.h"
-#include "COMDefs.h"
 
 /* Forward declarations */
 class UIMachineSettingsSerialPage;
@@ -89,8 +89,6 @@ public:
     void fetchPortData(const UICacheSettingsMachineSerialPort &data);
     void uploadPortData(UICacheSettingsMachineSerialPort &data);
 
-    void setValidator (QIWidgetValidator *aVal);
-
     QWidget* setOrderAfter (QWidget *aAfter);
 
     QString pageTitle() const;
@@ -108,8 +106,10 @@ private slots:
 
 private:
 
+    /* Helper: Prepare stuff: */
+    void prepareValidation();
+
     UIMachineSettingsSerialPage *m_pParent;
-    QIWidgetValidator *mValidator;
     int m_iSlot;
 };
 
@@ -124,7 +124,7 @@ public:
 
 protected:
 
-    /* Load data to cashe from corresponding external object(s),
+    /* Load data to cache from corresponding external object(s),
      * this task COULD be performed in other than GUI thread: */
     void loadToCacheFrom(QVariant &data);
     /* Load data to corresponding widgets from cache,
@@ -141,8 +141,8 @@ protected:
     /* Page changed: */
     bool changed() const { return m_cache.wasChanged(); }
 
-    void setValidator (QIWidgetValidator *aVal);
-    bool revalidate (QString &aWarning, QString &aTitle);
+    /* API: Validation stuff: */
+    bool validate(QList<UIValidationMessage> &messages);
 
     void retranslateUi();
 
@@ -150,7 +150,6 @@ private:
 
     void polishPage();
 
-    QIWidgetValidator *mValidator;
     QITabWidget *mTabWidget;
 
     /* Cache: */

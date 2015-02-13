@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007 Oracle Corporation
+ * Copyright (C) 2007-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,18 @@
 
 static RTSEMEVENT eventSem;
 
+/** Exit with a fatal error. */
+void vbclFatalError(char *pszMessage)
+{
+    RTPrintf("Fatal error: %s", pszMessage);
+    exit(1);
+}
+
+int VBClStartVTMonitor()
+{
+    return VINF_SUCCESS;
+}
+
 int VbglR3SeamlessSendRects(uint32_t cRects, PRTRECT pRects)
 {
     RTPrintf("Received rectangle update (%u rectangles):\n", cRects);
@@ -34,21 +46,21 @@ int VbglR3SeamlessSendRects(uint32_t cRects, PRTRECT pRects)
                  pRects[i].xLeft, pRects[i].yTop, pRects[i].xRight,
                  pRects[i].yBottom);
     }
-    return true;
+    return VINF_SUCCESS;
 }
 
 int VbglR3SeamlessSetCap(bool bState)
 {
     RTPrintf("%s\n", bState ? "Seamless capability set"
                             : "Seamless capability unset");
-    return true;
+    return VINF_SUCCESS;
 }
 
 int VbglR3CtlFilterMask(uint32_t u32OrMask, uint32_t u32NotMask)
 {
     RTPrintf("IRQ filter mask changed.  Or mask: 0x%x.  Not mask: 0x%x\n",
              u32OrMask, u32NotMask);
-    return true;
+    return VINF_SUCCESS;
 }
 
 int VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode)
@@ -62,20 +74,22 @@ int VbglR3SeamlessWaitEvent(VMMDevSeamlessMode *pMode)
         *pMode = VMMDev_Seamless_Visible_Region;
     }
     else
-    {
         rc = RTSemEventWait(eventSem, RT_INDEFINITE_WAIT);
-        if (RT_SUCCESS(rc))
-        {
-            rc = VERR_INTERRUPTED;
-        }
-    }
-    return true;
+    return rc;
+}
+
+int VbglR3WaitEvent(uint32_t , uint32_t cMillies, uint32_t *)
+{
+    return RTSemEventWait(eventSem, cMillies);
 }
 
 int VbglR3InterruptEventWaits(void)
 {
     return RTSemEventSignal(eventSem);
 }
+
+VBGLR3DECL(int)     VbglR3InitUser(void) { return VINF_SUCCESS; }
+VBGLR3DECL(void)    VbglR3Term(void) {}
 
 /**
  * Xlib error handler for certain errors that we can't avoid.
@@ -106,7 +120,7 @@ int main( int argc, char **argv)
     int rc = VINF_SUCCESS;
     char ach[2];
 
-    RTR3Init();
+    RTR3InitExe(argc, &argv, 0);
     RTPrintf("VirtualBox guest additions X11 seamless mode testcase\n");
     if (0 == XInitThreads())
     {
@@ -115,17 +129,20 @@ int main( int argc, char **argv)
     }
     /* Set an X11 error handler, so that we don't die when we get unavoidable errors. */
     XSetErrorHandler(vboxClientXLibErrorHandler);
-    RTPrintf("\nPress <Enter> to exit...\n");
+    RTPrintf("\nType Ctrl-C to exit...\n");
     RTSemEventCreate(&eventSem);
     /** Our instance of the seamless class. */
-    VBoxGuestSeamless seamless;
+    SeamlessMain seamless;
     LogRel(("Starting seamless Guest Additions...\n"));
     rc = seamless.init();
     if (rc != VINF_SUCCESS)
     {
-        RTPrintf("Failed to initialise seamless Additions, rc = %d\n", rc);
+        RTPrintf("Failed to initialise seamless Additions, rc = %Rrc\n", rc);
     }
-    RTStrmGetLine(g_pStdIn, ach, sizeof(ach));
-    seamless.uninit();
+    rc = seamless.run();
+    if (rc != VINF_SUCCESS)
+    {
+        RTPrintf("Failed to run seamless Additions, rc = %Rrc\n", rc);
+    }
     return rc;
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -317,6 +317,7 @@ static DECLCALLBACK(int) rtManifestPtIos_Read(void *pvThis, RTFOFF off, PCRTSGBU
     int rc = RTVfsIoStrmSgRead(pThis->hVfsIos, pSgBuf, fBlocking, pcbRead);
     if (RT_SUCCESS(rc))
         rtManifestPtIos_UpdateHashes(pThis, pSgBuf, pcbRead ? *pcbRead : ~(size_t)0);
+    Assert(off == -1); NOREF(off);
     return rc;
 }
 
@@ -330,6 +331,7 @@ static DECLCALLBACK(int) rtManifestPtIos_Write(void *pvThis, RTFOFF off, PCRTSGB
     int rc = RTVfsIoStrmSgWrite(pThis->hVfsIos, pSgBuf, fBlocking, pcbWritten);
     if (RT_SUCCESS(rc))
         rtManifestPtIos_UpdateHashes(pThis, pSgBuf, pcbWritten ? *pcbWritten : ~(size_t)0);
+    Assert(off == -1); NOREF(off);
     return rc;
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,11 +29,16 @@
 #include <VBox/log.h>
 
 
-
-#define PATM_SSM_VERSION                    55
+/** @name Saved state version numbers.
+ * @{ */
+/** Uses normal structure serialization with markers and everything. */
+#define PATM_SSM_VERSION                    56
+/** Last version which saves structures as raw memory. */
+#define PATM_SSM_VERSION_MEM                55
 #define PATM_SSM_VERSION_FIXUP_HACK         54
 #define PATM_SSM_VERSION_FIXUP_HACK         54
 #define PATM_SSM_VERSION_VER16              53
+/** @}  */
 
 /* Enable for call patching. */
 #define PATM_ENABLE_CALL
@@ -272,7 +277,7 @@ typedef struct _PATCHINFO
     uint32_t                    opcode;
     /** Size of the patch jump in the guest code. */
     uint32_t                    cbPatchJump;
-    /* Only valid for PATMFL_JUMP_CONFLICT patches */
+    /** Only valid for PATMFL_JUMP_CONFLICT patches */
     RTRCPTR                     pPatchJumpDestGC;
     /** Offset of the patch code from the beginning of the patch memory area. */
     RTGCUINTPTR32               pPatchBlockOffset;
@@ -373,7 +378,7 @@ typedef struct PATMPATCHPAGE
     /** Maximum nr of pointers in the array. */
     uint32_t                    cMaxPatches;
     /** Array of patch pointers for this page. */
-    R3PTRTYPE(PPATCHINFO *)     aPatch;
+    R3PTRTYPE(PPATCHINFO *)     papPatch;
 } PATMPATCHPAGE, *PPATMPATCHPAGE;
 
 #define PATM_PATCHREC_FROM_COREOFFSET(a)  (PPATMPATCHREC)((uintptr_t)a - RT_OFFSETOF(PATMPATCHREC, CoreOffset))
@@ -424,11 +429,13 @@ typedef struct PATM
     /** Delta to the new relocated HMA area.
      * Used only during PATMR3Relocate(). */
     int32_t                     deltaReloc;
-    /* GC PATM state pointer - HC pointer. */
+    /** GC PATM state pointer - HC pointer. */
     R3PTRTYPE(PPATMGCSTATE)     pGCStateHC;
-    /* GC PATM state pointer - GC pointer. */
+    /** GC PATM state pointer - RC pointer. */
     RCPTRTYPE(PPATMGCSTATE)     pGCStateGC;
-    /** PATM stack page for call instruction execution. (2 parts: one for our private stack and one to store the original return address */
+    /** PATM stack page for call instruction execution.
+     * 2 parts: one for our private stack and one to store the original return
+     * address. */
     RCPTRTYPE(RTRCPTR *)        pGCStackGC;
     /** HC pointer of the PATM stack page. */
     R3PTRTYPE(RTRCPTR *)        pGCStackHC;
@@ -484,6 +491,14 @@ typedef struct PATM
         uint32_t                Alignment0; /**< Align the structure size on a 8-byte boundary. */
 #endif
     } savedstate;
+
+    /** Debug module for the patch memory. */
+    RTDBGMOD                    hDbgModPatchMem;
+
+#if HC_ARCH_BITS == 32
+    /** Align statistics on a 8 byte boundary. */
+    uint32_t                    u32Alignment1;
+#endif
 
     STAMCOUNTER                 StatNrOpcodeRead;
     STAMCOUNTER                 StatDisabled;
@@ -553,65 +568,22 @@ DECLCALLBACK(int) patmR3Save(PVM pVM, PSSMHANDLE pSSM);
 DECLCALLBACK(int) patmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass);
 
 #ifdef IN_RING3
-RTRCPTR patmPatchGCPtr2GuestGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pPatchGC);
-RTRCPTR patmGuestGCPtrToPatchGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t*) pInstrGC);
-RTRCPTR patmGuestGCPtrToClosestPatchGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t*) pInstrGC);
+RTRCPTR         patmPatchGCPtr2GuestGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t *) pPatchGC);
+RTRCPTR         patmGuestGCPtrToPatchGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t*) pInstrGC);
+RTRCPTR         patmGuestGCPtrToClosestPatchGCPtr(PVM pVM, PPATCHINFO pPatch, RCPTRTYPE(uint8_t*) pInstrGC);
 #endif
 
-/* Add a patch to guest lookup record
- *
- * @param   pVM             The VM to operate on.
- * @param   pPatch          Patch structure ptr
- * @param   pPatchInstrHC   Guest context pointer to patch block
- * @param   pInstrGC        Guest context pointer to privileged instruction
- * @param   enmType         Lookup type
- * @param   fDirty          Dirty flag
- *
- */
-void patmr3AddP2GLookupRecord(PVM pVM, PPATCHINFO pPatch, uint8_t *pPatchInstrHC, RTRCPTR pInstrGC, PATM_LOOKUP_TYPE enmType, bool fDirty=false);
-
-/**
- * Insert page records for all guest pages that contain instructions that were recompiled for this patch
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pPatch      Patch record
- */
-int patmInsertPatchPages(PVM pVM, PPATCHINFO pPatch);
-
-/**
- * Remove page records for all guest pages that contain instructions that were recompiled for this patch
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pPatch      Patch record
- */
-int patmRemovePatchPages(PVM pVM, PPATCHINFO pPatch);
-
-/**
- * Returns the GC address of the corresponding patch statistics counter
- *
- * @returns Stat address
- * @param   pVM         The VM to operate on.
- * @param   pPatch      Patch structure
- */
-RTRCPTR patmPatchQueryStatAddress(PVM pVM, PPATCHINFO pPatch);
-
-/**
- * Remove patch for privileged instruction at specified location
- *
- * @returns VBox status code.
- * @param   pVM             The VM to operate on.
- * @param   pPatchRec       Patch record
- * @param   fForceRemove    Remove *all* patches
- */
-int PATMRemovePatch(PVM pVM, PPATMPATCHREC pPatchRec, bool fForceRemove);
+void            patmR3AddP2GLookupRecord(PVM pVM, PPATCHINFO pPatch, uint8_t *pPatchInstrHC, RTRCPTR pInstrGC,
+                                         PATM_LOOKUP_TYPE enmType, bool fDirty = false);
+int             patmInsertPatchPages(PVM pVM, PPATCHINFO pPatch);
+RTRCPTR         patmPatchQueryStatAddress(PVM pVM, PPATCHINFO pPatch);
+int             patmR3RemovePatch(PVM pVM, PPATMPATCHREC pPatchRec, bool fForceRemove);
 
 /**
  * Call for analysing the instructions following the privileged instr. for compliance with our heuristics
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pCpu        CPU disassembly state
  * @param   pInstrHC    Guest context pointer to privileged instruction
  * @param   pCurInstrHC Guest context pointer to current instruction
@@ -620,113 +592,21 @@ int PATMRemovePatch(PVM pVM, PPATMPATCHREC pPatchRec, bool fForceRemove);
  */
 typedef int (VBOXCALL *PFN_PATMR3ANALYSE)(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PPATMP2GLOOKUPREC pCacheRec);
 
-/**
- * Install guest OS specific patch
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on
- * @param   pCpu        Disassembly state of instruction.
- * @param   pInstrGC    GC Instruction pointer for instruction
- * @param   pInstrHC    GC Instruction pointer for instruction
- * @param   pPatchRec   Patch structure
- *
- */
-int PATMInstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTRCPTR pInstrGC, uint8_t *pInstrHC, PPATMPATCHREC pPatchRec);
+int             patmR3InstallGuestSpecificPatch(PVM pVM, PDISCPUSTATE pCpu, RTRCPTR pInstrGC, uint8_t *pInstrHC, PPATMPATCHREC pPatchRec);
+PPATMPATCHREC   patmQueryFunctionPatch(PVM pVM, RTRCPTR pInstrGC);
+const char     *patmGetInstructionString(uint32_t opcode, uint32_t fPatchFlags);
 
-
-/**
- * Check if the instruction is patched as a duplicated function
- *
- * @returns patch record
- * @param   pVM         The VM to operate on.
- * @param   pInstrGC    Guest context point to the instruction
- *
- */
-VMMDECL(PPATMPATCHREC) PATMQueryFunctionPatch(PVM pVM, RTRCPTR pInstrGC);
-
-
-/**
- * Empty the specified tree (PV tree, MMR3 heap)
- *
- * @param   pVM             The VM to operate on.
- * @param   ppTree          Tree to empty
- */
-void patmEmptyTree(PVM pVM, PPAVLPVNODECORE ppTree);
-
-
-/**
- * Empty the specified tree (U32 tree, MMR3 heap)
- *
- * @param   pVM             The VM to operate on.
- * @param   ppTree          Tree to empty
- */
-void patmEmptyTreeU32(PVM pVM, PPAVLU32NODECORE ppTree);
-
-
-/**
- * Return the name of the patched instruction
- *
- * @returns instruction name
- *
- * @param   opcode      DIS instruction opcode
- * @param   fPatchFlags Patch flags
- */
-VMMDECL(const char *) patmGetInstructionString(uint32_t opcode, uint32_t fPatchFlags);
-
-
-/**
- * Read callback for disassembly function; supports reading bytes that cross a page boundary
- *
- * @returns VBox status code.
- * @param   pSrc        GC source pointer
- * @param   pDest       HC destination pointer
- * @param   size        Number of bytes to read
- * @param   pvUserdata  Callback specific user data (pCpu)
- *
- */
-int patmReadBytes(RTUINTPTR pSrc, uint8_t *pDest, unsigned size, void *pvUserdata);
-
-
-#ifndef IN_RC
-
-#define PATMREAD_RAWCODE        1  /* read code as-is */
-#define PATMREAD_ORGCODE        2  /* read original guest opcode bytes; not the patched bytes */
-#define PATMREAD_NOCHECK        4  /* don't check for patch conflicts */
-
-/*
- * Private structure used during disassembly
- */
-typedef struct
-{
-    PVM                  pVM;
-    PPATCHINFO           pPatchInfo;
-    R3PTRTYPE(uint8_t *) pInstrHC;
-    RTRCPTR              pInstrGC;
-    uint32_t             fReadFlags;
-} PATMDISASM, *PPATMDISASM;
-
-inline bool PATMR3DISInstr(PVM pVM, PPATCHINFO pPatch, DISCPUSTATE *pCpu, RTRCPTR InstrGC,
-                           uint8_t *InstrHC, uint32_t *pOpsize, char *pszOutput,
-                           uint32_t fReadFlags = PATMREAD_ORGCODE)
-{
-    PATMDISASM disinfo;
-    disinfo.pVM         = pVM;
-    disinfo.pPatchInfo  = pPatch;
-    disinfo.pInstrHC    = InstrHC;
-    disinfo.pInstrGC    = InstrGC;
-    disinfo.fReadFlags  = fReadFlags;
-    (pCpu)->pfnReadBytes = patmReadBytes;
-    (pCpu)->apvUserData[0] = &disinfo;
-    return RT_SUCCESS(DISInstr(pCpu, InstrGC, 0, pOpsize, pszOutput));
-}
-#endif /* !IN_RC */
+PPATCHINFO      patmFindActivePatchByEntrypoint(PVM pVM, RTRCPTR pInstrGC, bool fIncludeHints = false);
+int             patmR3PatchInstrInt3(PVM pVM, RTRCPTR pInstrGC, R3PTRTYPE(uint8_t *) pInstrHC, DISCPUSTATE *pCpu, PPATCHINFO pPatch);
+int             patmAddBranchToLookupCache(PVM pVM, RTRCPTR pJumpTableGC, RTRCPTR pBranchTarget, RTRCUINTPTR pRelBranchPatch);
+R3PTRTYPE(uint8_t *) patmR3GCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, RCPTRTYPE(uint8_t *) pGCPtr);
 
 RT_C_DECLS_BEGIN
 /**
  * #PF Virtual Handler callback for Guest access a page monitored by PATM
  *
  * @returns VBox status code (appropriate for trap handling and GC return).
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   uErrorCode   CPU Error code.
  * @param   pRegFrame   Trap register frame.
  * @param   pvFault     The fault address (cr2).
@@ -736,63 +616,7 @@ RT_C_DECLS_BEGIN
  */
 VMMRCDECL(int) PATMGCMonitorPage(PVM pVM, RTGCUINT uErrorCode, PCPUMCTXCORE pRegFrame, RTGCPTR pvFault, RTGCPTR pvRange, uintptr_t offRange);
 
-/**
- * Find patch for privileged instruction at specified location
- *
- * @returns Patch structure pointer if found; else NULL
- * @param   pVM           The VM to operate on.
- * @param   pInstr        Guest context point to instruction that might lie within 5 bytes of an existing patch jump
- * @param   fIncludeHints Include hinted patches or not
- *
- */
-PPATCHINFO PATMFindActivePatchByEntrypoint(PVM pVM, RTRCPTR pInstrGC, bool fIncludeHints=false);
-
-/**
- * Patch cli/sti pushf/popf instruction block at specified location
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pInstrGC    Guest context point to privileged instruction
- * @param   pInstrHC    Host context point to privileged instruction
- * @param   uOpcode     Instruction opcodee
- * @param   uOpSize     Size of starting instruction
- * @param   pPatchRec   Patch record
- *
- * @note    returns failure if patching is not allowed or possible
- *
- */
-VMMR3DECL(int) PATMR3PatchBlock(PVM pVM, RTRCPTR pInstrGC, R3PTRTYPE(uint8_t *) pInstrHC,
-                                 uint32_t uOpcode, uint32_t uOpSize, PPATMPATCHREC pPatchRec);
-
-
-/**
- * Replace an instruction with a breakpoint (0xCC), that is handled dynamically in the guest context.
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pInstrGC    Guest context point to privileged instruction
- * @param   pInstrHC    Host context point to privileged instruction
- * @param   pCpu        Disassembly CPU structure ptr
- * @param   pPatch      Patch record
- *
- * @note    returns failure if patching is not allowed or possible
- *
- */
-VMMR3DECL(int) PATMR3PatchInstrInt3(PVM pVM, RTRCPTR pInstrGC, R3PTRTYPE(uint8_t *) pInstrHC, DISCPUSTATE *pCpu, PPATCHINFO pPatch);
-
-/**
- * Mark patch as dirty
- *
- * @returns VBox status code.
- * @param   pVM         The VM to operate on.
- * @param   pPatch      Patch record
- *
- * @note    returns failure if patching is not allowed or possible
- *
- */
-VMMR3DECL(int) PATMR3MarkDirtyPatch(PVM pVM, PPATCHINFO pPatch);
-
-R3PTRTYPE(uint8_t *) PATMGCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, RCPTRTYPE(uint8_t *) pGCPtr);
+RT_C_DECLS_END
 
 /**
  * Calculate the branch destination
@@ -801,40 +625,44 @@ R3PTRTYPE(uint8_t *) PATMGCVirtToHCVirt(PVM pVM, PPATMP2GLOOKUPREC pCacheRec, RC
  * @param   pCpu            Disassembly state of instruction.
  * @param   pBranchInstrGC  GC pointer of branch instruction
  */
-inline RTRCPTR PATMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
+DECLINLINE(RTRCPTR) PATMResolveBranch(PDISCPUSTATE pCpu, RTRCPTR pBranchInstrGC)
 {
     uint32_t disp;
-    if (pCpu->param1.flags & USE_IMMEDIATE8_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE8_REL)
     {
-        disp = (int32_t)(char)pCpu->param1.parval;
+        disp = (int32_t)(char)pCpu->Param1.uValue;
     }
     else
-    if (pCpu->param1.flags & USE_IMMEDIATE16_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE16_REL)
     {
-        disp = (int32_t)(uint16_t)pCpu->param1.parval;
+        disp = (int32_t)(uint16_t)pCpu->Param1.uValue;
     }
     else
-    if (pCpu->param1.flags & USE_IMMEDIATE32_REL)
+    if (pCpu->Param1.fUse & DISUSE_IMMEDIATE32_REL)
     {
-        disp = (int32_t)pCpu->param1.parval;
+        disp = (int32_t)pCpu->Param1.uValue;
     }
     else
     {
-        Log(("We don't support far jumps here!! (%08X)\n", pCpu->param1.flags));
+        Log(("We don't support far jumps here!! (%08X)\n", pCpu->Param1.fUse));
         return 0;
     }
 #ifdef IN_RC
-    return (RTRCPTR)((uint8_t *)pBranchInstrGC + pCpu->opsize + disp);
+    return (RTRCPTR)((uint8_t *)pBranchInstrGC + pCpu->cbInstr + disp);
 #else
-    return pBranchInstrGC + pCpu->opsize + disp;
+    return pBranchInstrGC + pCpu->cbInstr + disp;
 #endif
 }
-
-RT_C_DECLS_END
 
 #ifdef LOG_ENABLED
 int patmr3DisasmCallback(PVM pVM, DISCPUSTATE *pCpu, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PPATMP2GLOOKUPREC pCacheRec);
 int patmr3DisasmCodeStream(PVM pVM, RCPTRTYPE(uint8_t *) pInstrGC, RCPTRTYPE(uint8_t *) pCurInstrGC, PFN_PATMR3ANALYSE pfnPATMR3Analyse, PPATMP2GLOOKUPREC pCacheRec);
 #endif
+
+
+void patmR3DbgInit(PVM pVM);
+void patmR3DbgTerm(PVM pVM);
+void patmR3DbgReset(PVM pVM);
+void patmR3DbgAddPatch(PVM pVM, PPATMPATCHREC pPatchRec);
 
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2009 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,13 +34,13 @@ struct BackupableBandwidthGroupData
 {
     BackupableBandwidthGroupData()
         : enmType(BandwidthGroupType_Null),
-          aMaxMbPerSec(0),
+          aMaxBytesPerSec(0),
           cReferences(0)
     { }
 
     Utf8Str                 strName;
     BandwidthGroupType_T    enmType;
-    ULONG                   aMaxMbPerSec;
+    LONG64                  aMaxBytesPerSec;
     ULONG                   cReferences;
 };
 
@@ -80,13 +80,14 @@ void BandwidthGroup::FinalRelease()
  *
  * @returns COM result indicator.
  * @param aParent       Pointer to our parent object.
- * @param aName         Name of the storage controller.
- * @param aInstance     Instance number of the storage controller.
+ * @param aName         Name of the bandwidth group.
+ * @param aType         Type of the bandwidth group (net, disk).
+ * @param aMaxBytesPerSec Maximum bandwidth for the bandwidth group.
  */
 HRESULT BandwidthGroup::init(BandwidthControl *aParent,
                              const Utf8Str &aName,
                              BandwidthGroupType_T aType,
-                             ULONG aMaxMbPerSec)
+                             LONG64 aMaxBytesPerSec)
 {
     LogFlowThisFunc(("aParent=%p aName=\"%s\"\n",
                      aParent, aName.c_str()));
@@ -110,7 +111,7 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
     m->bd->strName = aName;
     m->bd->enmType = aType;
     m->bd->cReferences = 0;
-    m->bd->aMaxMbPerSec = aMaxMbPerSec;
+    m->bd->aMaxBytesPerSec = aMaxBytesPerSec;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -175,7 +176,7 @@ HRESULT BandwidthGroup::init(BandwidthControl *aParent,
 }
 
 /**
- *  Initializes the storage controller object given another guest object
+ *  Initializes the bandwidth group object given another guest object
  *  (a kind of copy constructor). This object makes a private copy of data
  *  of the original object passed as an argument.
  */
@@ -267,33 +268,37 @@ STDMETHODIMP BandwidthGroup::COMGETTER(Reference)(ULONG *aReferences)
     return S_OK;
 }
 
-STDMETHODIMP BandwidthGroup::COMGETTER(MaxMbPerSec)(ULONG *aMaxMbPerSec)
+STDMETHODIMP BandwidthGroup::COMGETTER(MaxBytesPerSec)(LONG64 *aMaxBytesPerSec)
 {
-    CheckComArgOutPointerValid(aMaxMbPerSec);
+    CheckComArgOutPointerValid(aMaxBytesPerSec);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aMaxMbPerSec = m->bd->aMaxMbPerSec;
+    *aMaxBytesPerSec = m->bd->aMaxBytesPerSec;
 
     return S_OK;
 }
 
-STDMETHODIMP BandwidthGroup::COMSETTER(MaxMbPerSec)(ULONG aMaxMbPerSec)
+STDMETHODIMP BandwidthGroup::COMSETTER(MaxBytesPerSec)(LONG64 aMaxBytesPerSec)
 {
+    if (aMaxBytesPerSec < 0)
+        return setError(E_INVALIDARG,
+                        tr("Bandwidth group limit cannot be negative"));
+
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     m->bd.backup();
-    m->bd->aMaxMbPerSec = aMaxMbPerSec;
+    m->bd->aMaxBytesPerSec = aMaxBytesPerSec;
 
     /* inform direct session if any. */
     ComObjPtr<Machine> pMachine = m->pParent->getMachine();
-    alock.leave();
+    alock.release();
     pMachine->onBandwidthGroupChange(this);
 
     return S_OK;
@@ -391,9 +396,9 @@ BandwidthGroupType_T BandwidthGroup::getType() const
     return m->bd->enmType;
 }
 
-ULONG BandwidthGroup::getMaxMbPerSec() const
+LONG64 BandwidthGroup::getMaxBytesPerSec() const
 {
-    return m->bd->aMaxMbPerSec;
+    return m->bd->aMaxBytesPerSec;
 }
 
 ULONG BandwidthGroup::getReferences() const

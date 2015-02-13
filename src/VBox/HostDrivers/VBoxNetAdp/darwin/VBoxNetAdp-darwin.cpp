@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,8 @@
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 #include <iprt/alloca.h>
+
+#include "../../darwin/VBoxNetSend.h"
 
 #include <sys/systm.h>
 RT_C_DECLS_BEGIN /* Buggy 10.4 headers, fixed in 10.5. */
@@ -232,6 +234,7 @@ static errno_t vboxNetAdpDarwinBpfSend(ifnet_t pIface, u_int32_t uLinkType, mbuf
     return 0;
 }
 
+
 int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
 {
     int rc;
@@ -294,6 +297,7 @@ int vboxNetAdpOsCreate(PVBOXNETADP pThis, PCRTMAC pMACAddress)
             if (!err)
             {
                 ifnet_set_mtu(pThis->u.s.pIface, VBOXNETADP_MTU);
+                VBoxNetSendDummy(pThis->u.s.pIface);
                 return VINF_SUCCESS;
             }
             else
@@ -404,7 +408,7 @@ static int VBoxNetAdpDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFla
                                   pReq->szName[0] && RTStrEnd(pReq->szName, RT_MIN(cbReq, sizeof(pReq->szName))) ?
                                   pReq->szName : NULL);
             if (RT_FAILURE(rc))
-                return EINVAL;
+                return rc == VERR_OUT_OF_RESOURCES ? ENOMEM : EINVAL;
 
             Assert(strlen(pReq->szName) < sizeof(pReq->szName));
             strncpy(pReq->szName, pNew->szName, sizeof(pReq->szName) - 1);

@@ -221,15 +221,18 @@
       use the command line version of the installer application.</para>
 
       <para>Mount the disk image (dmg) file as described in the normal
-      installation. Then open a terminal session and execute:</para>
+      installation or use the following command line:</para>
 
-      <screen>sudo installer -pkg /Volumes/VirtualBox/VirtualBox.mpkg \
-      -target /Volumes/Macintosh\ HD</screen>
+      <screen>hdiutil attach /path/to/VirtualBox-xyz.dmg</screen>
+
+      <para>Then open a terminal session and execute:</para>
+
+      <screen>sudo installer -pkg /Volumes/VirtualBox/VirtualBox.pkg -target /Volumes/Macintosh\ HD</screen>
     </sect2>
   </sect1>
 
-  <sect1>
-    <title id="install-linux-host">Installing on Linux hosts</title>
+  <sect1 id="install-linux-host">
+    <title>Installing on Linux hosts</title>
 
     <sect2>
       <title>Prerequisites</title>
@@ -244,7 +247,7 @@
 
       <itemizedlist>
         <listitem>
-          <para>Qt 4.4.0 or higher;</para>
+          <para>Qt 4.6.2 or higher;</para>
         </listitem>
 
         <listitem>
@@ -280,8 +283,8 @@
 
       <para>The VirtualBox kernel module is automatically installed on your
       system when you install VirtualBox. To maintain it with future kernel
-      updates, for those Linux distributions which provide it -- most
-      current ones -- we recommend installing Dynamic Kernel Module Support
+      updates, for those Linux distributions which provide it -- most current
+      ones -- we recommend installing Dynamic Kernel Module Support
       (DKMS)<footnote>
           <para>See <ulink
           url="http://en.wikipedia.org/wiki/Dynamic_Kernel_Module_Support">http://en.wikipedia.org/wiki/Dynamic_Kernel_Module_Support</ulink>
@@ -389,10 +392,10 @@
 
         <para>First, download the appropriate package for your distribution.
         The following examples assume that you are installing to a 32-bit
-        Ubuntu Karmic system. Use <computeroutput>dpkg</computeroutput> to
+        Ubuntu Raring system. Use <computeroutput>dpkg</computeroutput> to
         install the Debian package:</para>
 
-        <screen>sudo dpkg -i VirtualBox-3.2_$VBOX_VERSION_STRING_Ubuntu_karmic_i386.deb</screen>
+        <screen>sudo dpkg -i VirtualBox-3.2_$VBOX_VERSION_STRING_Ubuntu_raring_i386.deb</screen>
 
         <para>You will be asked to accept the VirtualBox Personal Use and
         Evaluation License. Unless you answer "yes" here, the installation
@@ -466,7 +469,7 @@
 
           <listitem>
             <para>It creates
-            <computeroutput>/etc/udev/rules.d/10-vboxdrv.rules</computeroutput>,
+            <computeroutput>/etc/udev/rules.d/60-vboxdrv.rules</computeroutput>,
             a description file for udev, if that is present, which makes the
             USB devices accessible to all users in the
             <computeroutput>vboxusers</computeroutput> group.</para>
@@ -625,8 +628,8 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
         installation options provided by VirtualBox.</para>
       </sect3>
 
-      <sect3>
-        <title id="linux_install_opts">Automatic installation options</title>
+      <sect3 id="linux_install_opts">
+        <title>Automatic installation options</title>
 
         <para>To configure the installation process of our .deb and .rpm
         packages, you can create a response file named
@@ -652,10 +655,6 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       management or at the command line with</para>
 
       <screen>sudo usermod -a -G vboxusers username</screen>
-
-      <para>Note that adding an active user to that group will require that
-      user to log out and back in again. This should be done manually after
-      successful installation of the package.</para>
     </sect2>
 
     <sect2 id="startingvboxonlinux">
@@ -696,8 +695,8 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
     </sect2>
   </sect1>
 
-  <sect1>
-    <title id="install-solaris-host">Installing on Solaris hosts</title>
+  <sect1 id="install-solaris-host">
+    <title>Installing on Solaris hosts</title>
 
     <para>For the specific versions of Solaris that we support as host
     operating systems, please refer to <xref
@@ -705,14 +704,14 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
 
     <para>If you have a previously installed instance of VirtualBox on your
     Solaris host, please uninstall it first before installing a new instance.
-    Refer to <xref linkend="uninstallsolhost" /> for uninstall
+    Refer to <xref linkend="uninstall-solaris-host" /> for uninstall
     instructions.</para>
 
     <sect2>
       <title>Performing the installation</title>
 
       <para>VirtualBox is available as a standard Solaris package. Download
-      the VirtualBox SunOS package which includes both the 32-bit and 64-bit
+      the VirtualBox SunOS package which includes the 64-bit
       versions of VirtualBox. <emphasis>The installation must be performed as
       root and from the global zone</emphasis> as the VirtualBox installer
       loads kernel drivers which cannot be done from non-global zones. To
@@ -733,7 +732,7 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
         the current zone and not into any other zone, use
         <computeroutput>pkgadd -G</computeroutput>. For more information refer
         to the <computeroutput>pkgadd</computeroutput> manual; see also <xref
-        linkend="solariszones" />.</para>
+        linkend="solaris-zones" />.</para>
       </note>
 
       <para>The installer will then prompt you to enter the package you wish
@@ -755,17 +754,17 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
 
       <para>Starting with VirtualBox 4.1, the installer creates the system
       user group <computeroutput>vboxuser</computeroutput> during installation
-      for Solaris hosts that support the required USB features for VirtualBox.
+      for Solaris hosts that support the USB features required by VirtualBox.
       Any system user who is going to use USB devices from VirtualBox guests
-      must be a member of that group. A user can be made a member of this
+      must be a member of this group. A user can be made a member of this
       group through the GUI user/group management or at the command line by
       executing as root:</para>
 
       <screen>usermod -G vboxuser username</screen>
 
-      <para>Adding an active user to the group will require that user to log
-      out and back in again. This must be done manually after installing
-      VirtualBox.</para>
+      <para>Note that adding an active user to that group will require that
+      user to log out and back in again. This should be done manually after
+      successful installation of the package.</para>
     </sect2>
 
     <sect2>
@@ -789,8 +788,8 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       the terminal.</para>
     </sect2>
 
-    <sect2>
-      <title id="uninstallsolhost">Uninstallation</title>
+    <sect2 id="uninstall-solaris-host">
+      <title>Uninstallation</title>
 
       <para>Uninstallation of VirtualBox on Solaris requires root permissions.
       To perform the uninstallation, start a root terminal session and
@@ -826,9 +825,8 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       <screen>pkgrm -n -a /opt/VirtualBox/autoresponse SUNWvbox</screen>
     </sect2>
 
-    <sect2>
-      <title id="solariszones">Configuring a zone for running
-      VirtualBox</title>
+    <sect2 id="solaris-zones">
+      <title>Configuring a zone for running VirtualBox</title>
 
       <para>Starting with VirtualBox 1.6 it is possible to run VirtualBox from
       within Solaris zones. For an introduction of Solaris zones, please refer

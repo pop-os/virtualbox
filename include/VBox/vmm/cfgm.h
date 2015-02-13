@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,19 +74,20 @@ typedef enum CFGMCONFIGTYPE
  * can make any necessary per-thread initializations at this point.
  *
  * @returns VBox status code.
- * @param   pVM             VM handle.
+ * @param   pUVM            The user mode VM handle.
+ * @param   pVM             The shared VM handle.
  * @param   pvUser          The argument supplied to VMR3Create().
  */
-typedef DECLCALLBACK(int) FNCFGMCONSTRUCTOR(PVM pVM, void *pvUser);
+typedef DECLCALLBACK(int) FNCFGMCONSTRUCTOR(PUVM pUVM, PVM pVM, void *pvUser);
 /** Pointer to a FNCFGMCONSTRUCTOR(). */
 typedef FNCFGMCONSTRUCTOR *PFNCFGMCONSTRUCTOR;
 
 VMMR3DECL(int)          CFGMR3Init(PVM pVM, PFNCFGMCONSTRUCTOR pfnCFGMConstructor, void *pvUser);
 VMMR3DECL(int)          CFGMR3Term(PVM pVM);
-
-
-VMMR3DECL(PCFGMNODE)    CFGMR3CreateTree(PVM pVM);
 VMMR3DECL(int)          CFGMR3ConstructDefaultTree(PVM pVM);
+
+VMMR3DECL(PCFGMNODE)    CFGMR3CreateTree(PUVM pUVM);
+VMMR3DECL(int)          CFGMR3DestroyTree(PCFGMNODE pRoot);
 VMMR3DECL(void)         CFGMR3Dump(PCFGMNODE pRoot);
 VMMR3DECL(int)          CFGMR3DuplicateSubTree(PCFGMNODE pRoot, PCFGMNODE *ppCopy);
 VMMR3DECL(int)          CFGMR3ReplaceSubTree(PCFGMNODE pRoot, PCFGMNODE pNewRoot);
@@ -185,6 +186,7 @@ VMMR3DECL(int)          CFGMR3QueryStringAllocDef(PCFGMNODE pNode, const char *p
  * @{
  */
 VMMR3DECL(PCFGMNODE)    CFGMR3GetRoot(PVM pVM);
+VMMR3DECL(PCFGMNODE)    CFGMR3GetRootU(PUVM pUVM);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetParent(PCFGMNODE pNode);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetParentEx(PVM pVM, PCFGMNODE pNode);
 VMMR3DECL(PCFGMNODE)    CFGMR3GetChild(PCFGMNODE pNode, const char *pszPath);

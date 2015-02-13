@@ -1,11 +1,11 @@
-# $Revision: 75015 $
+# $Id: Makefile $
 ## @file
 # Makefile for the VirtualBox Linux Host Driver.
 #
 
 #
 #
-# Copyright (C) 2006-2010 Oracle Corporation
+# Copyright (C) 2006-2012 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -73,6 +73,7 @@ OBJS   = \
 	linux/SUPDrv-linux.o \
 	SUPDrv.o \
 	SUPDrvSem.o \
+	SUPDrvTracer.o \
 	r0drv/alloc-r0drv.o \
 	r0drv/initterm-r0drv.o \
 	r0drv/memobj-r0drv.o \
@@ -93,6 +94,7 @@ OBJS   = \
 	r0drv/linux/spinlock-r0drv-linux.o \
 	r0drv/linux/thread-r0drv-linux.o \
 	r0drv/linux/thread2-r0drv-linux.o \
+	r0drv/linux/threadctxhooks-r0drv-linux.o \
 	r0drv/linux/time-r0drv-linux.o \
 	r0drv/linux/timer-r0drv-linux.o \
 	r0drv/generic/semspinmutex-r0drv-generic.o \
@@ -119,7 +121,12 @@ OBJS   = \
 	common/misc/handletable.o \
 	common/misc/handletablectx.o \
 	common/misc/thread.o \
+	common/string/RTStrCopy.o \
+	common/string/RTStrCopyEx.o \
 	common/string/RTStrCopyP.o \
+	common/string/RTStrNCmp.o \
+	common/string/RTStrNLen.o \
+	common/string/stringalloc.o \
 	common/string/strformat.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
@@ -133,6 +140,7 @@ OBJS   = \
 	generic/RTLogWriteStdOut-stub-generic.o \
 	generic/RTLogWriteUser-generic.o \
 	generic/RTMpGetArraySize-generic.o \
+	generic/RTMpGetCoreCount-generic.o \
 	generic/RTSemEventWait-2-ex-generic.o \
 	generic/RTSemEventWaitNoResume-2-ex-generic.o \
 	generic/RTSemEventMultiWait-2-ex-generic.o \
@@ -152,6 +160,9 @@ OBJS += math/gcc/divdi3.o \
 endif
 ifeq ($(BUILD_TARGET_ARCH),amd64)
 OBJS += common/alloc/heapsimple.o
+endif
+ifdef VBOX_WITH_NATIVE_DTRACE
+OBJS += SUPDrvDTrace.o
 endif
 
 ifneq ($(MAKECMDGOALS),clean)
@@ -238,12 +249,16 @@ else
  MANGLING := $(KBUILD_EXTMOD)/include/VBox/SUPDrvMangling.h
 endif
 KFLAGS   := -D__KERNEL__ -DMODULE -DRT_OS_LINUX -DIN_RING0 -DIN_RT_R0 \
-	    -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING
+	    -DIN_SUP_R0 -DVBOX -DRT_WITH_VBOX -DVBOX_WITH_HARDENING \
+	    -Wno-declaration-after-statement
 ifdef VBOX_REDHAT_KABI
  KFLAGS  += -DVBOX_REDHAT_KABI
 endif
 ifndef CONFIG_VBOXDRV_FIXEDMAJOR
  KFLAGS  += -DCONFIG_VBOXDRV_AS_MISC
+endif
+ifdef VBOX_WITH_NATIVE_DTRACE
+ KFLAGS  += -DVBOX_WITH_NATIVE_DTRACE
 endif
 ifeq ($(BUILD_TARGET_ARCH),amd64)
  KFLAGS  += -DRT_ARCH_AMD64

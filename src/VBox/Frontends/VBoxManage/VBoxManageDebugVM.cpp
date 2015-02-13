@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,6 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
-#include <VBox/com/EventQueue.h>
-
 #include <VBox/com/VirtualBox.h>
 
 #include <iprt/ctype.h>
@@ -168,11 +166,14 @@ static RTEXITCODE handleDebugVM_LogXXXX(HandlerArg *pArgs, IMachineDebugger *pDe
 
     RTGETOPTSTATE               GetState;
     RTGETOPTUNION               ValueUnion;
+
+    /** @todo Put short options into enum / defines! */
     static const RTGETOPTDEF    s_aOptions[] =
     {
-        { "--release",      'r', RTGETOPT_REQ_NOTHING },
+        { "--debug",        'd', RTGETOPT_REQ_NOTHING },
+        { "--release",      'r', RTGETOPT_REQ_NOTHING }
     };
-    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, 0 /*fFlags*/);
+    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, RTGETOPTINIT_FLAGS_OPTS_FIRST);
     AssertRCReturn(rc, RTEXITCODE_FAILURE);
 
     while ((rc = RTGetOpt(&GetState, &ValueUnion)) != 0)
@@ -187,7 +188,10 @@ static RTEXITCODE handleDebugVM_LogXXXX(HandlerArg *pArgs, IMachineDebugger *pDe
                 fRelease = false;
                 break;
 
-            case VINF_GETOPT_NOT_OPTION:
+            /* Because log strings can start with "-" (like "-all+dev_foo")
+             * we have to take everything we got as a setting and apply it.
+             * IPRT will take care of the validation afterwards. */
+            default:
                 if (strSettings.length() == 0)
                     strSettings = ValueUnion.psz;
                 else
@@ -196,9 +200,6 @@ static RTEXITCODE handleDebugVM_LogXXXX(HandlerArg *pArgs, IMachineDebugger *pDe
                     strSettings.append(ValueUnion.psz);
                 }
                 break;
-
-            default:
-                return errorGetOpt(USAGE_DEBUGVM, rc, &ValueUnion);
         }
     }
 
@@ -403,6 +404,155 @@ static RTEXITCODE handleDebugVM_SetRegisters(HandlerArg *pArgs, IMachineDebugger
     return RTEXITCODE_SUCCESS;
 }
 
+/** @name debugvm show flags
+ * @{ */
+#define DEBUGVM_SHOW_FLAGS_HUMAN_READABLE   UINT32_C(0x00000000)
+#define DEBUGVM_SHOW_FLAGS_SH_EXPORT        UINT32_C(0x00000001)
+#define DEBUGVM_SHOW_FLAGS_SH_EVAL          UINT32_C(0x00000002)
+#define DEBUGVM_SHOW_FLAGS_CMD_SET          UINT32_C(0x00000003)
+#define DEBUGVM_SHOW_FLAGS_FMT_MASK         UINT32_C(0x00000003)
+/** @} */
+
+/**
+ * Prints a variable according to the @a fFlags.
+ *
+ * @param   pszVar              The variable name.
+ * @param   pbstrValue          The variable value.
+ * @param   fFlags              The debugvm show flags.
+ */
+static void handleDebugVM_Show_PrintVar(const char *pszVar, com::Bstr const *pbstrValue, uint32_t fFlags)
+{
+    switch (fFlags & DEBUGVM_SHOW_FLAGS_FMT_MASK)
+    {
+        case DEBUGVM_SHOW_FLAGS_HUMAN_READABLE: RTPrintf(" %27s=%ls\n", pszVar, pbstrValue->raw()); break;
+        case DEBUGVM_SHOW_FLAGS_SH_EXPORT:      RTPrintf("export %s='%ls'\n", pszVar, pbstrValue->raw()); break;
+        case DEBUGVM_SHOW_FLAGS_SH_EVAL:        RTPrintf("%s='%ls'\n", pszVar, pbstrValue->raw()); break;
+        case DEBUGVM_SHOW_FLAGS_CMD_SET:        RTPrintf("set %s=%ls\n", pszVar, pbstrValue->raw()); break;
+        default: AssertFailed();
+    }
+}
+
+/**
+ * Handles logdbg-settings.
+ *
+ * @returns Exit code.
+ * @param   pDebugger           The debugger interface.
+ * @param   fFlags              The debugvm show flags.
+ */
+static RTEXITCODE handleDebugVM_Show_LogDbgSettings(IMachineDebugger *pDebugger, uint32_t fFlags)
+{
+    if ((fFlags & DEBUGVM_SHOW_FLAGS_FMT_MASK) == DEBUGVM_SHOW_FLAGS_HUMAN_READABLE)
+        RTPrintf("Debug logger settings:\n");
+
+    com::Bstr bstr;
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_LOG", &bstr, fFlags);
+
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_LOG_FLAGS", &bstr, fFlags);
+
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogDbgDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_LOG_DEST", &bstr, fFlags);
+    return RTEXITCODE_SUCCESS;
+}
+
+/**
+ * Handles logrel-settings.
+ *
+ * @returns Exit code.
+ * @param   pDebugger           The debugger interface.
+ * @param   fFlags              The debugvm show flags.
+ */
+static RTEXITCODE handleDebugVM_Show_LogRelSettings(IMachineDebugger *pDebugger, uint32_t fFlags)
+{
+    if ((fFlags & DEBUGVM_SHOW_FLAGS_FMT_MASK) == DEBUGVM_SHOW_FLAGS_HUMAN_READABLE)
+        RTPrintf("Release logger settings:\n");
+
+    com::Bstr bstr;
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelFlags)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG", &bstr, fFlags);
+
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelGroups)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG_FLAGS", &bstr, fFlags);
+
+    CHECK_ERROR2_RET(pDebugger, COMGETTER(LogRelDestinations)(bstr.asOutParam()), RTEXITCODE_FAILURE);
+    handleDebugVM_Show_PrintVar("VBOX_RELEASE_LOG_DEST", &bstr, fFlags);
+    return RTEXITCODE_SUCCESS;
+}
+
+/**
+ * Handles the show sub-command.
+ *
+ * @returns Suitable exit code.
+ * @param   pArgs               The handler arguments.
+ * @param   pDebugger           Pointer to the debugger interface.
+ */
+static RTEXITCODE handleDebugVM_Show(HandlerArg *pArgs, IMachineDebugger *pDebugger)
+{
+    /*
+     * Parse arguments and what to show.  Order dependent.
+     */
+    uint32_t                    fFlags = DEBUGVM_SHOW_FLAGS_HUMAN_READABLE;
+
+    RTGETOPTSTATE               GetState;
+    RTGETOPTUNION               ValueUnion;
+    static const RTGETOPTDEF    s_aOptions[] =
+    {
+        { "--human-readable", 'H', RTGETOPT_REQ_NOTHING },
+        { "--sh-export",      'e', RTGETOPT_REQ_NOTHING },
+        { "--sh-eval",        'E', RTGETOPT_REQ_NOTHING },
+        { "--cmd-set",        's', RTGETOPT_REQ_NOTHING  },
+    };
+    int rc = RTGetOptInit(&GetState, pArgs->argc, pArgs->argv, s_aOptions, RT_ELEMENTS(s_aOptions), 2, 0 /*fFlags*/);
+    AssertRCReturn(rc, RTEXITCODE_FAILURE);
+
+    while ((rc = RTGetOpt(&GetState, &ValueUnion)) != 0)
+    {
+        switch (rc)
+        {
+            case 'H':
+                fFlags = (fFlags & ~DEBUGVM_SHOW_FLAGS_FMT_MASK) | DEBUGVM_SHOW_FLAGS_HUMAN_READABLE;
+                break;
+
+            case 'e':
+                fFlags = (fFlags & ~DEBUGVM_SHOW_FLAGS_FMT_MASK) | DEBUGVM_SHOW_FLAGS_SH_EXPORT;
+                break;
+
+            case 'E':
+                fFlags = (fFlags & ~DEBUGVM_SHOW_FLAGS_FMT_MASK) | DEBUGVM_SHOW_FLAGS_SH_EVAL;
+                break;
+
+            case 's':
+                fFlags = (fFlags & ~DEBUGVM_SHOW_FLAGS_FMT_MASK) | DEBUGVM_SHOW_FLAGS_CMD_SET;
+                break;
+
+            case VINF_GETOPT_NOT_OPTION:
+            {
+                RTEXITCODE rcExit;
+                if (!strcmp(ValueUnion.psz, "log-settings"))
+                {
+                    rcExit = handleDebugVM_Show_LogDbgSettings(pDebugger, fFlags);
+                    if (rcExit == RTEXITCODE_SUCCESS)
+                        rcExit = handleDebugVM_Show_LogRelSettings(pDebugger, fFlags);
+                }
+                else if (!strcmp(ValueUnion.psz, "logdbg-settings"))
+                    rcExit = handleDebugVM_Show_LogDbgSettings(pDebugger, fFlags);
+                else if (!strcmp(ValueUnion.psz, "logrel-settings"))
+                    rcExit = handleDebugVM_Show_LogRelSettings(pDebugger, fFlags);
+                else
+                    rcExit = errorSyntax(USAGE_DEBUGVM, "The show sub-command has no idea what '%s' might be", ValueUnion.psz);
+                if (rcExit != RTEXITCODE_SUCCESS)
+                    return rcExit;
+                break;
+            }
+
+            default:
+                return errorGetOpt(USAGE_DEBUGVM, rc, &ValueUnion);
+        }
+    }
+    return RTEXITCODE_SUCCESS;
+}
+
 /**
  * Handles the statistics sub-command.
  *
@@ -526,6 +676,8 @@ int handleDebugVM(HandlerArg *pArgs)
                 rcExit = handleDebugVM_OSInfo(pArgs, ptrDebugger);
             else if (!strcmp(pszSubCmd, "setregisters"))
                 rcExit = handleDebugVM_SetRegisters(pArgs, ptrDebugger);
+            else if (!strcmp(pszSubCmd, "show"))
+                rcExit = handleDebugVM_Show(pArgs, ptrDebugger);
             else if (!strcmp(pszSubCmd, "statistics"))
                 rcExit = handleDebugVM_Statistics(pArgs, ptrDebugger);
             else

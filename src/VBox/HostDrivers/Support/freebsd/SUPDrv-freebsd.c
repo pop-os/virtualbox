@@ -69,10 +69,10 @@
 static int VBoxDrvFreeBSDModuleEvent(struct module *pMod, int enmEventType, void *pvArg);
 static int VBoxDrvFreeBSDLoad(void);
 static int VBoxDrvFreeBSDUnload(void);
-static void VBoxDrvFreeBSDClone(void *pvArg, struct ucred *pCred, char *pachName, int cchName, struct cdev **ppDev);
 
-static d_fdopen_t   VBoxDrvFreeBSDOpen;
-static d_close_t    VBoxDrvFreeBSDClose;
+static d_open_t     VBoxDrvFreeBSDOpenUsr;
+static d_open_t     VBoxDrvFreeBSDOpenSys;
+static void         VBoxDrvFreeBSDDtr(void *pData);
 static d_ioctl_t    VBoxDrvFreeBSDIOCtl;
 static int          VBoxDrvFreeBSDIOCtlSlow(PSUPDRVSESSION pSession, u_long ulCmd, caddr_t pvData, struct thread *pTd);
 
@@ -97,24 +97,29 @@ MODULE_VERSION(vboxdrv, 1);
 /**
  * The /dev/vboxdrv character device entry points.
  */
-static struct cdevsw        g_VBoxDrvFreeBSDChrDevSW =
+static struct cdevsw        g_VBoxDrvFreeBSDChrDevSwSys =
 {
     .d_version =        D_VERSION,
-#if __FreeBSD_version > 800061
-    .d_flags =          D_PSEUDO | D_TRACKCLOSE | D_NEEDMINOR,
-#else
-    .d_flags =          D_PSEUDO | D_TRACKCLOSE,
-#endif
-    .d_fdopen =         VBoxDrvFreeBSDOpen,
-    .d_close =          VBoxDrvFreeBSDClose,
+    .d_open =           VBoxDrvFreeBSDOpenSys,
     .d_ioctl =          VBoxDrvFreeBSDIOCtl,
     .d_name =           "vboxdrv"
 };
+/** The /dev/vboxdrv character device. */
+static struct cdev         *g_pVBoxDrvFreeBSDChrDevSys;
 
-/** List of cloned device. Managed by the kernel. */
-static struct clonedevs    *g_pVBoxDrvFreeBSDClones;
-/** The dev_clone event handler tag. */
-static eventhandler_tag     g_VBoxDrvFreeBSDEHTag;
+/**
+ * The /dev/vboxdrvu character device entry points.
+ */
+static struct cdevsw        g_VBoxDrvFreeBSDChrDevSwUsr =
+{
+    .d_version =        D_VERSION,
+    .d_open =           VBoxDrvFreeBSDOpenUsr,
+    .d_ioctl =          VBoxDrvFreeBSDIOCtl,
+    .d_name =           "vboxdrvu"
+};
+/** The /dev/vboxdrvu character device. */
+static struct cdev         *g_pVBoxDrvFreeBSDChrDevUsr;
+
 /** Reference counter. */
 static volatile uint32_t    g_cUsers;
 
@@ -176,23 +181,14 @@ static int VBoxDrvFreeBSDLoad(void)
         if (RT_SUCCESS(rc))
         {
             /*
-             * Configure device cloning.
+             * Configure character devices. Add symbolic links for compatibility.
              */
-            clone_setup(&g_pVBoxDrvFreeBSDClones);
-            g_VBoxDrvFreeBSDEHTag = EVENTHANDLER_REGISTER(dev_clone, VBoxDrvFreeBSDClone, 0, 1000);
-            if (g_VBoxDrvFreeBSDEHTag)
-            {
-                Log(("VBoxDrvFreeBSDLoad: returns successfully\n"));
-                return VINF_SUCCESS;
-            }
-
-            printf("vboxdrv: EVENTHANDLER_REGISTER(dev_clone,,,) failed\n");
-            clone_cleanup(&g_pVBoxDrvFreeBSDClones);
-            rc = VERR_ALREADY_LOADED;
-            supdrvDeleteDevExt(&g_VBoxDrvFreeBSDDevExt);
+            g_pVBoxDrvFreeBSDChrDevSys = make_dev(&g_VBoxDrvFreeBSDChrDevSwSys, 0, UID_ROOT, GID_WHEEL, VBOXDRV_PERM, "vboxdrv");
+            g_pVBoxDrvFreeBSDChrDevUsr = make_dev(&g_VBoxDrvFreeBSDChrDevSwUsr, 1, UID_ROOT, GID_WHEEL, 0666,         "vboxdrvu");
+            return VINF_SUCCESS;
         }
-        else
-            printf("vboxdrv: supdrvInitDevExt failed, rc=%d\n", rc);
+
+        printf("vboxdrv: supdrvInitDevExt failed, rc=%d\n", rc);
         RTR0Term();
     }
     else
@@ -205,138 +201,76 @@ static int VBoxDrvFreeBSDUnload(void)
     Log(("VBoxDrvFreeBSDUnload:\n"));
 
     if (g_cUsers > 0)
-        return EBUSY;
+        return VERR_RESOURCE_BUSY;
 
     /*
      * Reserve what we did in VBoxDrvFreeBSDInit.
      */
-    EVENTHANDLER_DEREGISTER(dev_clone, g_VBoxDrvFreeBSDEHTag);
-    clone_cleanup(&g_pVBoxDrvFreeBSDClones);
+    destroy_dev(g_pVBoxDrvFreeBSDChrDevUsr);
+    destroy_dev(g_pVBoxDrvFreeBSDChrDevSys);
 
     supdrvDeleteDevExt(&g_VBoxDrvFreeBSDDevExt);
 
-    RTR0Term();
+    RTR0TermForced();
 
     memset(&g_VBoxDrvFreeBSDDevExt, 0, sizeof(g_VBoxDrvFreeBSDDevExt));
-
-    Log(("VBoxDrvFreeBSDUnload: returns\n"));
     return VINF_SUCCESS;
 }
-
-
-/**
- * DEVFS event handler.
- */
-static void VBoxDrvFreeBSDClone(void *pvArg, struct ucred *pCred, char *pszName, int cchName, struct cdev **ppDev)
-{
-    int iUnit;
-    int rc;
-
-    Log(("VBoxDrvFreeBSDClone: pszName=%s ppDev=%p\n", pszName, ppDev));
-
-    /*
-     * One device node per user, si_drv1 points to the session.
-     * /dev/vboxdrv<N> where N = {0...255}.
-     */
-    if (!ppDev)
-        return;
-    if (dev_stdclone(pszName, NULL, "vboxdrv", &iUnit) != 1)
-        return;
-    if (iUnit >= 256 || iUnit < 0)
-    {
-        Log(("VBoxDrvFreeBSDClone: iUnit=%d >= 256 - rejected\n", iUnit));
-        return;
-    }
-
-    Log(("VBoxDrvFreeBSDClone: pszName=%s iUnit=%d\n", pszName, iUnit));
-
-    rc = clone_create(&g_pVBoxDrvFreeBSDClones, &g_VBoxDrvFreeBSDChrDevSW, &iUnit, ppDev, 0);
-    Log(("VBoxDrvFreeBSDClone: clone_create -> %d; iUnit=%d\n", rc, iUnit));
-    if (rc)
-    {
-#if __FreeBSD_version > 800061
-        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, iUnit, UID_ROOT, GID_WHEEL, VBOXDRV_PERM, "vboxdrv%d", iUnit);
-#else
-        *ppDev = make_dev(&g_VBoxDrvFreeBSDChrDevSW, unit2minor(iUnit), UID_ROOT, GID_WHEEL, VBOXDRV_PERM, "vboxdrv%d", iUnit);
-#endif
-        if (*ppDev)
-        {
-            dev_ref(*ppDev);
-            (*ppDev)->si_flags |= SI_CHEAPCLONE;
-            Log(("VBoxDrvFreeBSDClone: Created *ppDev=%p iUnit=%d si_drv1=%p si_drv2=%p\n",
-                 *ppDev, iUnit, (*ppDev)->si_drv1, (*ppDev)->si_drv2));
-            (*ppDev)->si_drv1 = (*ppDev)->si_drv2 = NULL;
-        }
-        else
-            OSDBGPRINT(("VBoxDrvFreeBSDClone: make_dev iUnit=%d failed\n", iUnit));
-    }
-    else
-        Log(("VBoxDrvFreeBSDClone: Existing *ppDev=%p iUnit=%d si_drv1=%p si_drv2=%p\n",
-             *ppDev, iUnit, (*ppDev)->si_drv1, (*ppDev)->si_drv2));
-}
-
 
 
 /**
  *
  * @returns 0 on success, errno on failure.
  *          EBUSY if the device is used by someone else.
- * @param   pDev    The device node.
- * @param   fOpen   The open flags.
- * @param   pTd     The thread.
- * @param   pFd     The file descriptor. FreeBSD 7.0 and later.
- * @param   iFd     The file descriptor index(?). Pre FreeBSD 7.0.
+ * @param   pDev        The device node.
+ * @param   fOpen       The open flags.
+ * @param   pTd         The thread.
+ * @param   iDevType    ???
  */
-#if __FreeBSD__ >= 7
-static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, struct file *pFd)
-#else
-static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, int iFd)
-#endif
+static int vboxdrvFreeBSDOpenCommon(struct cdev *pDev, int fOpen, int iDevtype, struct thread *pTd, bool fUnrestricted)
 {
     PSUPDRVSESSION pSession;
     int rc;
 
-#if __FreeBSD_version < 800062
-    Log(("VBoxDrvFreeBSDOpen: fOpen=%#x iUnit=%d\n", fOpen, minor2unit(minor(pDev))));
-#else
-    Log(("VBoxDrvFreeBSDOpen: fOpen=%#x iUnit=%d\n", fOpen, minor(dev2udev(pDev))));
-#endif
-
     /*
      * Let's be a bit picky about the flags...
      */
-    if (fOpen != (FREAD|FWRITE /*=O_RDWR*/))
+    if (fOpen != (FREAD | FWRITE /*=O_RDWR*/))
     {
         Log(("VBoxDrvFreeBSDOpen: fOpen=%#x expected %#x\n", fOpen, O_RDWR));
         return EINVAL;
     }
 
     /*
-     * Try grab it (we don't grab the giant, remember).
-     */
-    if (!ASMAtomicCmpXchgPtr(&pDev->si_drv1, (void *)0x42, NULL))
-        return EBUSY;
-
-    /*
      * Create a new session.
      */
-    rc = supdrvCreateSession(&g_VBoxDrvFreeBSDDevExt, true /* fUser */, &pSession);
+    rc = supdrvCreateSession(&g_VBoxDrvFreeBSDDevExt, true /* fUser */, fUnrestricted, &pSession);
     if (RT_SUCCESS(rc))
     {
         /** @todo get (r)uid and (r)gid.
         pSession->Uid = stuff;
         pSession->Gid = stuff; */
-        if (ASMAtomicCmpXchgPtr(&pDev->si_drv1, pSession, (void *)0x42))
-        {
-            ASMAtomicIncU32(&g_cUsers);
-            return 0;
-        }
-
-        OSDBGPRINT(("VBoxDrvFreeBSDOpen: si_drv1=%p, expected 0x42!\n", pDev->si_drv1));
-        supdrvCloseSession(&g_VBoxDrvFreeBSDDevExt, pSession);
+        devfs_set_cdevpriv(pSession, VBoxDrvFreeBSDDtr);
+        Log(("VBoxDrvFreeBSDOpen: pSession=%p\n", pSession));
+        ASMAtomicIncU32(&g_cUsers);
+        return 0;
     }
 
     return RTErrConvertToErrno(rc);
+}
+
+
+/** For vboxdrv. */
+static int VBoxDrvFreeBSDOpenSys(struct cdev *pDev, int fOpen, int iDevtype, struct thread *pTd)
+{
+    return vboxdrvFreeBSDOpenCommon(pDev, fOpen, iDevtype, pTd, true);
+}
+
+
+/** For vboxdrvu. */
+static int VBoxDrvFreeBSDOpenUsr(struct cdev *pDev, int fOpen, int iDevtype, struct thread *pTd)
+{
+    return vboxdrvFreeBSDOpenCommon(pDev, fOpen, iDevtype, pTd, false);
 }
 
 
@@ -349,30 +283,16 @@ static int VBoxDrvFreeBSDOpen(struct cdev *pDev, int fOpen, struct thread *pTd, 
  * @param   DevType     The device type (CHR.
  * @param   pTd         The calling thread.
  */
-static int VBoxDrvFreeBSDClose(struct cdev *pDev, int fFile, int DevType, struct thread *pTd)
+static void VBoxDrvFreeBSDDtr(void *pData)
 {
-    PSUPDRVSESSION pSession = (PSUPDRVSESSION)pDev->si_drv1;
-#if __FreeBSD_version < 800062
-    Log(("VBoxDrvFreeBSDClose: fFile=%#x iUnit=%d pSession=%p\n", fFile, minor2unit(minor(pDev)), pSession));
-#else
-    Log(("VBoxDrvFreeBSDClose: fFile=%#x iUnit=%d pSession=%p\n", fFile, minor(dev2udev(pDev)), pSession));
-#endif
+    PSUPDRVSESSION pSession = pData;
+    Log(("VBoxDrvFreeBSDDtr: pSession=%p\n", pSession));
 
     /*
-     * Close the session if it's still hanging on to the device...
+     * Close the session.
      */
-    if (VALID_PTR(pSession))
-    {
-        supdrvCloseSession(&g_VBoxDrvFreeBSDDevExt, pSession);
-        if (!ASMAtomicCmpXchgPtr(&pDev->si_drv1, NULL, pSession))
-            OSDBGPRINT(("VBoxDrvFreeBSDClose: si_drv1=%p expected %p!\n", pDev->si_drv1, pSession));
-        ASMAtomicDecU32(&g_cUsers);
-        /* Don't use destroy_dev here because it may sleep resulting in a hanging user process. */
-        destroy_dev_sched(pDev);
-    }
-    else
-        OSDBGPRINT(("VBoxDrvFreeBSDClose: si_drv1=%p!\n", pSession));
-    return 0;
+    supdrvSessionRelease(pSession);
+    ASMAtomicDecU32(&g_cUsers);
 }
 
 
@@ -388,19 +308,16 @@ static int VBoxDrvFreeBSDClose(struct cdev *pDev, int fFile, int DevType, struct
  */
 static int VBoxDrvFreeBSDIOCtl(struct cdev *pDev, u_long ulCmd, caddr_t pvData, int fFile, struct thread *pTd)
 {
-    /*
-     * Validate the input.
-     */
-    PSUPDRVSESSION pSession = (PSUPDRVSESSION)pDev->si_drv1;
-    if (RT_UNLIKELY(!VALID_PTR(pSession)))
-        return EINVAL;
+    PSUPDRVSESSION pSession;
+    devfs_get_cdevpriv((void **)&pSession);
 
     /*
      * Deal with the fast ioctl path first.
      */
-    if (    ulCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-        ||  ulCmd == SUP_IOCTL_FAST_DO_HWACC_RUN
-        ||  ulCmd == SUP_IOCTL_FAST_DO_NOP)
+    if (   (   ulCmd == SUP_IOCTL_FAST_DO_RAW_RUN
+            || ulCmd == SUP_IOCTL_FAST_DO_HM_RUN
+            || ulCmd == SUP_IOCTL_FAST_DO_NOP)
+        && pSession->fUnrestricted == true)
         return supdrvIOCtlFast(ulCmd, *(uint32_t *)pvData, &g_VBoxDrvFreeBSDDevExt, pSession);
 
     return VBoxDrvFreeBSDIOCtlSlow(pSession, ulCmd, pvData, pTd);
@@ -493,6 +410,8 @@ static int VBoxDrvFreeBSDIOCtlSlow(PSUPDRVSESSION pSession, u_long ulCmd, caddr_
             RTMemTmpFree(pHdr);
             return rc;
         }
+        if (Hdr.cbIn < cbReq)
+            RT_BZERO((uint8_t *)pHdr + Hdr.cbIn, cbReq - Hdr.cbIn);
     }
     else
     {
@@ -503,7 +422,7 @@ static int VBoxDrvFreeBSDIOCtlSlow(PSUPDRVSESSION pSession, u_long ulCmd, caddr_
     /*
      * Process the IOCtl.
      */
-    int rc = supdrvIOCtl(ulCmd, &g_VBoxDrvFreeBSDDevExt, pSession, pHdr);
+    int rc = supdrvIOCtl(ulCmd, &g_VBoxDrvFreeBSDDevExt, pSession, pHdr, cbReq);
     if (RT_LIKELY(!rc))
     {
         /*
@@ -578,6 +497,25 @@ int VBOXCALL SUPDrvFreeBSDIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
 }
 
 
+void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
+{
+    NOREF(pDevExt);
+    NOREF(pSession);
+}
+
+
+void VBOXCALL supdrvOSSessionHashTabInserted(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
+{
+    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
+}
+
+
+void VBOXCALL supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, void *pvUser)
+{
+    NOREF(pDevExt); NOREF(pSession); NOREF(pvUser);
+}
+
+
 void VBOXCALL   supdrvOSObjInitCreator(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession)
 {
     NOREF(pObj);
@@ -605,6 +543,12 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
     return VERR_NOT_SUPPORTED;
+}
+
+
+void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
+{
+    NOREF(pDevExt); NOREF(pImage);
 }
 
 
@@ -641,5 +585,14 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
     printf("%s", szMsg);
 
     return cch;
+}
+
+
+/**
+ * Returns configuration flags of the host kernel.
+ */
+SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
+{
+    return 0;
 }
 

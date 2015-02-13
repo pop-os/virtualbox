@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,6 +37,7 @@
 # include <iprt/asm-amd64-x86.h>
 #endif
 #include <iprt/assert.h>
+#include <iprt/thread.h>
 
 
 
@@ -44,14 +45,22 @@ RTDECL(void) RTLogWriteDebugger(const char *pch, size_t cb)
 {
     if (pch[cb] != '\0')
         AssertBreakpoint();
-    if (    !g_frtSolarisSplSetsEIF
+
+    /* cmn_err() acquires adaptive mutexes. Not preemption safe, see @bugref{6657}. */
+    if (!RTThreadPreemptIsEnabled(NIL_RTTHREAD))
+        return;
+
+    if (    !g_frtSolSplSetsEIF
 #if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
         ||  ASMIntAreEnabled()
 #else
 /* PORTME: Check if interrupts are enabled, if applicable. */
 #endif
         )
+    {
         cmn_err(CE_CONT, pch);
+    }
+
     return;
 }
 

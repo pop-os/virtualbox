@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,7 +20,9 @@
 *   Header Files                                                               *
 *******************************************************************************/
 #define LOG_GROUP LOG_GROUP_REM
-#include <VBox/vmm/rem.h>
+#ifdef VBOX_WITH_REM
+# include <VBox/vmm/rem.h>
+#endif
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/vmm.h>
 #include "REMInternal.h"
@@ -37,7 +39,7 @@
 /**
  * Records a invlpg instruction for replaying upon REM entry.
  *
- * @param   pVM         The VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtrPage   The
  */
 VMMDECL(void) REMNotifyInvalidatePage(PVM pVM, RTGCPTR GCPtrPage)
@@ -77,7 +79,7 @@ VMMDECL(void) REMNotifyInvalidatePage(PVM pVM, RTGCPTR GCPtrPage)
 /**
  * Insert pending notification
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   pRec            Notification record to insert
  */
 static void remNotifyHandlerInsert(PVM pVM, PREMHANDLERNOTIFICATION pRec)
@@ -129,7 +131,7 @@ static void remNotifyHandlerInsert(PVM pVM, PREMHANDLERNOTIFICATION pRec)
 /**
  * Notification about a successful PGMR3HandlerPhysicalRegister() call.
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
@@ -150,7 +152,7 @@ VMMDECL(void) REMNotifyHandlerPhysicalRegister(PVM pVM, PGMPHYSHANDLERTYPE enmTy
 /**
  * Notification about a successful PGMR3HandlerPhysicalDeregister() operation.
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   enmType         Handler type.
  * @param   GCPhys          Handler range address.
  * @param   cb              Size of the handler range.
@@ -173,7 +175,7 @@ VMMDECL(void) REMNotifyHandlerPhysicalDeregister(PVM pVM, PGMPHYSHANDLERTYPE enm
 /**
  * Notification about a successful PGMR3HandlerPhysicalModify() call.
  *
- * @param   pVM             VM Handle.
+ * @param   pVM             Pointer to the VM.
  * @param   enmType         Handler type.
  * @param   GCPhysOld       Old handler range address.
  * @param   GCPhysNew       New handler range address.
@@ -202,12 +204,12 @@ VMMDECL(void) REMNotifyHandlerPhysicalModify(PVM pVM, PGMPHYSHANDLERTYPE enmType
  *
  * This is for avoiding trouble in RC when changing CR3.
  *
- * @param   pVM         The VM handle.
- * @param   pVCpu       The virtual CPU handle of the calling EMT.
+ * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU of the calling EMT.
  */
 VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
 {
-    Assert(pVM->cCpus == 1);
+    Assert(pVM->cCpus == 1); NOREF(pVCpu);
 
     /*
      * Less than 48 items means we should flush.
@@ -221,7 +223,7 @@ VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
         if (++cFree >= 48)
             return;
     }
-    AssertRelease(VM_FF_ISSET(pVM, VM_FF_REM_HANDLER_NOTIFY));
+    AssertRelease(VM_FF_IS_SET(pVM, VM_FF_REM_HANDLER_NOTIFY));
     AssertRelease(pVM->rem.s.idxPendingList != UINT32_MAX);
 
     /* Ok, we gotta flush them. */
@@ -236,7 +238,7 @@ VMMDECL(void) REMNotifyHandlerPhysicalFlushIfAlmostFull(PVM pVM, PVMCPU pVCpu)
 /**
  * Make REM flush all translation block upon the next call to REMR3State().
  *
- * @param   pVM             Pointer to the shared VM structure.
+ * @param   pVM             Pointer to the VM.
  */
 VMMDECL(void) REMFlushTBs(PVM pVM)
 {

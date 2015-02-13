@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -103,6 +103,15 @@ void VBoxAboutDlg::retranslateUi()
 {
     setWindowTitle(tr("VirtualBox - About"));
     QString strAboutText =  tr("VirtualBox Graphical User Interface");
+#ifdef DEBUG
+    QString strRenderingInfo(" (%1)");
+    QString strRenderingMode("QImage");
+# ifdef VBOX_GUI_USE_QUARTZ2D
+    if (vboxGlobal().vmRenderMode() == Quartz2DMode)
+        strRenderingMode = "Quartz2D";
+# endif /* VBOX_GUI_USE_QUARTZ2D */
+    strAboutText += strRenderingInfo.arg(strRenderingMode);
+#endif /* DEBUG */
 #ifdef VBOX_BLEEDING_EDGE
     QString strVersionText = "EXPERIMENTAL build %1 - " + QString(VBOX_BLEEDING_EDGE);
 #else

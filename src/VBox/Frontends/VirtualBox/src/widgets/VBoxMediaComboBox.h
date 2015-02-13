@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,10 +39,10 @@ public:
 
     QString id (int = -1) const;
     QString location (int = -1) const;
-    VBoxDefs::MediumType type() const { return mType; }
+    UIMediumType type() const { return mType; }
 
     void setCurrentItem (const QString &aItemId);
-    void setType (VBoxDefs::MediumType aMediumType);
+    void setType (UIMediumType aMediumType);
     void setMachineId (const QString &aMachineId = QString::null);
     void setNullItemPresent (bool aNullItemPresent);
 
@@ -51,12 +51,13 @@ public:
 
 protected slots:
 
-    void mediumEnumStarted();
-    void mediumEnumerated (const VBoxMedium &);
+    /* Handlers: Medium-processing stuff: */
+    void sltHandleMediumCreated(const QString &strMediumID);
+    void sltHandleMediumEnumerated(const QString &strMediumID);
+    void sltHandleMediumDeleted(const QString &strMediumID);
 
-    void mediumAdded (const VBoxMedium &);
-    void mediumUpdated (const VBoxMedium &);
-    void mediumRemoved (VBoxDefs::MediumType, const QString &);
+    /* Handler: Medium-enumeration stuff: */
+    void sltHandleMediumEnumerationStart();
 
     void processActivated (int aIndex);
 //    void processIndexChanged (int aIndex);
@@ -67,14 +68,14 @@ protected:
 
     void updateToolTip (int);
 
-    void appendItem (const VBoxMedium &);
-    void replaceItem (int, const VBoxMedium &);
+    void appendItem (const UIMedium &);
+    void replaceItem (int, const UIMedium &);
 
     bool findMediaIndex (const QString &aId, int &aIndex);
 
-    VBoxDefs::MediumType mType;
+    UIMediumType mType;
 
-    /** Obtruncated VBoxMedium structure. */
+    /** Obtruncated UIMedium structure. */
     struct Medium
     {
         Medium() {}

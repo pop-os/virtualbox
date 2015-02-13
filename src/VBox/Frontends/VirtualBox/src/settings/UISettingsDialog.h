@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,11 +26,11 @@
 #include "UISettingsDefs.h"
 
 /* Forward declarations: */
-class QIWidgetValidator;
+class UIPageValidator;
 class QProgressBar;
 class QStackedWidget;
 class QTimer;
-class VBoxWarningPane;
+class UIWarningPane;
 class VBoxSettingsSelector;
 class UISettingsPage;
 
@@ -52,9 +52,6 @@ public:
     void execute();
 
 protected slots:
-
-    /* Validation handler: */
-    virtual void sltRevalidate(QIWidgetValidator *pValidator);
 
     /* Category-change slot: */
     virtual void sltCategoryChanged(int cId);
@@ -85,18 +82,16 @@ protected:
     /* Dialog title extension: */
     virtual QString titleExtension() const;
 
-    /* Setters for error/warning: */
-    void setError(const QString &strError);
-    void setWarning(const QString &strWarning);
-
     /* Add settings page: */
     void addItem(const QString &strBigIcon, const QString &strBigIconDisabled,
                  const QString &strSmallIcon, const QString &strSmallIconDisabled,
                  int cId, const QString &strLink,
                  UISettingsPage* pSettingsPage = 0, int iParentId = -1);
 
-    /* Settings page correlator: */
+    /* Helpers: Validation stuff: */
     virtual void recorrelate(UISettingsPage *pSettingsPage) { Q_UNUSED(pSettingsPage); }
+    void revalidate(UIPageValidator *pValidator);
+    void revalidate();
 
     /* Protected variables: */
     VBoxSettingsSelector *m_pSelector;
@@ -104,8 +99,10 @@ protected:
 
 private slots:
 
-    /* Slot to handle validity-changes: */
-    void sltHandleValidityChanged(const QIWidgetValidator *pValidator);
+    /* Handlers: Validation stuff: */
+    void sltHandleValidityChange(UIPageValidator *pValidator);
+    void sltHandleWarningPaneHovered(UIPageValidator *pValidator);
+    void sltHandleWarningPaneUnhovered(UIPageValidator *pValidator);
 
     /* Slot to update whats-this: */
     void sltUpdateWhatsThis(bool fGotFocus = false);
@@ -118,8 +115,8 @@ private:
     /* Event-handlers: */
     bool eventFilter(QObject *pObject, QEvent *pEvent);
     void showEvent(QShowEvent *pEvent);
-    void closeEvent(QCloseEvent *pEvent);
 
+    /* Helper: Validation stuff: */
     void assignValidator(UISettingsPage *pPage);
 
     /* Global Flags: */
@@ -137,15 +134,10 @@ private:
     QProgressBar *m_pProcessBar;
 
     /* Error & Warning stuff: */
+    UIWarningPane *m_pWarningPane;
     bool m_fValid;
     bool m_fSilent;
-    QString m_strErrorHint;
     QString m_strWarningHint;
-    QString m_strErrorString;
-    QString m_strWarningString;
-    QPixmap m_errorIcon;
-    QPixmap m_warningIcon;
-    VBoxWarningPane *m_pWarningPane;
 
     /* Whats-This stuff: */
     QTimer *m_pWhatsThisTimer;

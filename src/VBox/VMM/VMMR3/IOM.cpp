@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,8 +32,8 @@
  * IOPL is 0 regardless of what the guest IOPL is. The \#GP handler use the
  * disassembler (DIS) to figure which instruction caused it (there are a number
  * of instructions in addition to the I/O ones) and if it's an I/O port access
- * it will hand it to IOMGCIOPortHandler (via EMInterpretPortIO).
- * IOMGCIOPortHandler will lookup the port in the AVL tree of registered
+ * it will hand it to IOMRCIOPortHandler (via EMInterpretPortIO).
+ * IOMRCIOPortHandler will lookup the port in the AVL tree of registered
  * handlers. If found, the handler will be called otherwise default action is
  * taken. (Default action is to write into the void and read all set bits.)
  *
@@ -52,7 +52,7 @@
  * execution.
  *
  *
- * @section sec_iom_hwaccm     Hardware Assisted Virtualization Mode
+ * @section sec_iom_hm     Hardware Assisted Virtualization Mode
  *
  * When running in hardware assisted virtualization mode we'll be doing much the
  * same things as in raw-mode. The main difference is that we're running in the
@@ -88,6 +88,13 @@
  *
  */
 
+/** @todo MMIO - simplifying the device end.
+ * - Add a return status for doing DBGFSTOP on access where there are no known
+ *   registers.
+ * -
+ *
+ *   */
+
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -97,6 +104,7 @@
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/sup.h>
+#include <VBox/vmm/hm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/dbgf.h>
@@ -137,7 +145,7 @@ static const char *iomR3IOPortGetStandardName(RTIOPORT Port);
  * Initializes the IOM.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
 {
@@ -158,7 +166,11 @@ VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
     /*
      * Initialize the REM critical section.
      */
+#ifdef IOM_WITH_CRIT_SECT_RW
+    int rc = PDMR3CritSectRwInit(pVM, &pVM->iom.s.CritSect, RT_SRC_POS, "IOM Lock");
+#else
     int rc = PDMR3CritSectInit(pVM, &pVM->iom.s.CritSect, RT_SRC_POS, "IOM Lock");
+#endif
     AssertRCReturn(rc, rc);
 
     /*
@@ -226,40 +238,48 @@ VMMR3_INT_DECL(int) IOMR3Init(PVM pVM)
  */
 static void iomR3FlushCache(PVM pVM)
 {
-    IOM_LOCK(pVM);
-
     /*
-     * Caching of port and statistics (saves some time in rep outs/ins instruction emulation)
+     * Since all relevant (1) cache use requires at least read access to the
+     * critical section, we can exclude all other EMTs by grabbing exclusive
+     * access to the critical section and then safely update the caches of
+     * other EMTs.
+     * (1) The irrelvant access not holding the lock is in assertion code.
      */
-    pVM->iom.s.pRangeLastReadR0  = NIL_RTR0PTR;
-    pVM->iom.s.pRangeLastWriteR0 = NIL_RTR0PTR;
-    pVM->iom.s.pStatsLastReadR0  = NIL_RTR0PTR;
-    pVM->iom.s.pStatsLastWriteR0 = NIL_RTR0PTR;
-    pVM->iom.s.pMMIORangeLastR0  = NIL_RTR0PTR;
-    pVM->iom.s.pMMIOStatsLastR0  = NIL_RTR0PTR;
+    IOM_LOCK_EXCL(pVM);
+    VMCPUID iCpu = pVM->cCpus;
+    while (iCpu-- > 0)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[iCpu];
+        pVCpu->iom.s.pRangeLastReadR0  = NIL_RTR0PTR;
+        pVCpu->iom.s.pRangeLastWriteR0 = NIL_RTR0PTR;
+        pVCpu->iom.s.pStatsLastReadR0  = NIL_RTR0PTR;
+        pVCpu->iom.s.pStatsLastWriteR0 = NIL_RTR0PTR;
+        pVCpu->iom.s.pMMIORangeLastR0  = NIL_RTR0PTR;
+        pVCpu->iom.s.pMMIOStatsLastR0  = NIL_RTR0PTR;
 
-    pVM->iom.s.pRangeLastReadR3  = NULL;
-    pVM->iom.s.pRangeLastWriteR3 = NULL;
-    pVM->iom.s.pStatsLastReadR3  = NULL;
-    pVM->iom.s.pStatsLastWriteR3 = NULL;
-    pVM->iom.s.pMMIORangeLastR3  = NULL;
-    pVM->iom.s.pMMIOStatsLastR3  = NULL;
+        pVCpu->iom.s.pRangeLastReadR3  = NULL;
+        pVCpu->iom.s.pRangeLastWriteR3 = NULL;
+        pVCpu->iom.s.pStatsLastReadR3  = NULL;
+        pVCpu->iom.s.pStatsLastWriteR3 = NULL;
+        pVCpu->iom.s.pMMIORangeLastR3  = NULL;
+        pVCpu->iom.s.pMMIOStatsLastR3  = NULL;
 
-    pVM->iom.s.pRangeLastReadRC  = NIL_RTRCPTR;
-    pVM->iom.s.pRangeLastWriteRC = NIL_RTRCPTR;
-    pVM->iom.s.pStatsLastReadRC  = NIL_RTRCPTR;
-    pVM->iom.s.pStatsLastWriteRC = NIL_RTRCPTR;
-    pVM->iom.s.pMMIORangeLastRC  = NIL_RTRCPTR;
-    pVM->iom.s.pMMIOStatsLastRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pRangeLastReadRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pRangeLastWriteRC = NIL_RTRCPTR;
+        pVCpu->iom.s.pStatsLastReadRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pStatsLastWriteRC = NIL_RTRCPTR;
+        pVCpu->iom.s.pMMIORangeLastRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pMMIOStatsLastRC  = NIL_RTRCPTR;
+    }
 
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
 }
 
 
 /**
  * The VM is being reset.
  *
- * @param   pVM     VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 VMMR3_INT_DECL(void) IOMR3Reset(PVM pVM)
 {
@@ -288,24 +308,23 @@ VMMR3_INT_DECL(void) IOMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     RTAvlroIOPortDoWithAll(&pVM->iom.s.pTreesR3->IOPortTreeRC, true, iomR3RelocateIOPortCallback, &offDelta);
     RTAvlroGCPhysDoWithAll(&pVM->iom.s.pTreesR3->MMIOTree,     true, iomR3RelocateMMIOCallback,   &offDelta);
 
-    if (pVM->iom.s.pfnMMIOHandlerRC)
+    if (pVM->iom.s.pfnMMIOHandlerRC != NIL_RTRCPTR)
         pVM->iom.s.pfnMMIOHandlerRC += offDelta;
 
     /*
-     * Apply relocations to the cached GC handlers
+     * Reset the raw-mode cache (don't bother relocating it).
      */
-    if (pVM->iom.s.pRangeLastReadRC)
-        pVM->iom.s.pRangeLastReadRC  += offDelta;
-    if (pVM->iom.s.pRangeLastWriteRC)
-        pVM->iom.s.pRangeLastWriteRC += offDelta;
-    if (pVM->iom.s.pStatsLastReadRC)
-        pVM->iom.s.pStatsLastReadRC  += offDelta;
-    if (pVM->iom.s.pStatsLastWriteRC)
-        pVM->iom.s.pStatsLastWriteRC += offDelta;
-    if (pVM->iom.s.pMMIORangeLastRC)
-        pVM->iom.s.pMMIORangeLastRC  += offDelta;
-    if (pVM->iom.s.pMMIOStatsLastRC)
-        pVM->iom.s.pMMIOStatsLastRC  += offDelta;
+    VMCPUID iCpu = pVM->cCpus;
+    while (iCpu-- > 0)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[iCpu];
+        pVCpu->iom.s.pRangeLastReadRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pRangeLastWriteRC = NIL_RTRCPTR;
+        pVCpu->iom.s.pStatsLastReadRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pStatsLastWriteRC = NIL_RTRCPTR;
+        pVCpu->iom.s.pMMIORangeLastRC  = NIL_RTRCPTR;
+        pVCpu->iom.s.pMMIOStatsLastRC  = NIL_RTRCPTR;
+    }
 }
 
 
@@ -373,7 +392,7 @@ static DECLCALLBACK(int) iomR3RelocateMMIOCallback(PAVLROGCPHYSNODECORE pNode, v
  * the VM it self is at this point powered off or suspended.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  */
 VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
 {
@@ -381,6 +400,7 @@ VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
      * IOM is not owning anything but automatically freed resources,
      * so there's nothing to do here.
      */
+    NOREF(pVM);
     return VINF_SUCCESS;
 }
 
@@ -391,17 +411,21 @@ VMMR3_INT_DECL(int) IOMR3Term(PVM pVM)
  *
  * @returns Pointer to new stats node.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   Port        Port.
  * @param   pszDesc     Description.
  */
-PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc)
+static PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDesc)
 {
-    Assert(IOMIsLockOwner(pVM));
+    IOM_LOCK_EXCL(pVM);
+
     /* check if it already exists. */
     PIOMIOPORTSTATS pPort = (PIOMIOPORTSTATS)RTAvloIOPortGet(&pVM->iom.s.pTreesR3->IOPortStatTree, Port);
     if (pPort)
+    {
+        IOM_UNLOCK_EXCL(pVM);
         return pPort;
+    }
 
     /* allocate stats node. */
     int rc = MMHyperAlloc(pVM, sizeof(*pPort), 0, MM_TAG_IOM_STATS, (void **)&pPort);
@@ -412,6 +436,8 @@ PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDe
         pPort->Core.Key = Port;
         if (RTAvloIOPortInsert(&pVM->iom.s.pTreesR3->IOPortStatTree, &pPort->Core))
         {
+            IOM_UNLOCK_EXCL(pVM);
+
             /* put a name on common ports. */
             if (!pszDesc)
                 pszDesc = iomR3IOPortGetStandardName(Port);
@@ -432,9 +458,11 @@ PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDe
 
             return pPort;
         }
+
         AssertMsgFailed(("what! Port=%d\n", Port));
         MMHyperFree(pVM, pPort);
     }
+    IOM_UNLOCK_EXCL(pVM);
     return NULL;
 }
 
@@ -444,20 +472,21 @@ PIOMIOPORTSTATS iomR3IOPortStatsCreate(PVM pVM, RTIOPORT Port, const char *pszDe
  *
  * @returns Pointer to new stats node.
  *
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPhys      The address.
  * @param   pszDesc     Description.
  */
 PIOMMMIOSTATS iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc)
 {
-    Assert(IOMIsLockOwner(pVM));
-#ifdef DEBUG_sandervl
-    AssertGCPhys32(GCPhys);
-#endif
+    IOM_LOCK_EXCL(pVM);
+
     /* check if it already exists. */
     PIOMMMIOSTATS pStats = (PIOMMMIOSTATS)RTAvloGCPhysGet(&pVM->iom.s.pTreesR3->MmioStatTree, GCPhys);
     if (pStats)
+    {
+        IOM_UNLOCK_EXCL(pVM);
         return pStats;
+    }
 
     /* allocate stats node. */
     int rc = MMHyperAlloc(pVM, sizeof(*pStats), 0, MM_TAG_IOM_STATS, (void **)&pStats);
@@ -468,6 +497,8 @@ PIOMMMIOSTATS iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc
         pStats->Core.Key = GCPhys;
         if (RTAvloGCPhysInsert(&pVM->iom.s.pTreesR3->MmioStatTree, &pStats->Core))
         {
+            IOM_UNLOCK_EXCL(pVM);
+
             rc = STAMR3RegisterF(pVM, &pStats->Accesses,    STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,     pszDesc, "/IOM/MMIO/%RGp",              GCPhys); AssertRC(rc);
             rc = STAMR3RegisterF(pVM, &pStats->ProfReadR3,  STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, pszDesc, "/IOM/MMIO/%RGp/Read-R3",      GCPhys); AssertRC(rc);
             rc = STAMR3RegisterF(pVM, &pStats->ProfWriteR3, STAMTYPE_PROFILE, STAMVISIBILITY_USED, STAMUNIT_TICKS_PER_CALL, pszDesc, "/IOM/MMIO/%RGp/Write-R3",     GCPhys); AssertRC(rc);
@@ -481,6 +512,7 @@ PIOMMMIOSTATS iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc
         AssertMsgFailed(("what! GCPhys=%RGp\n", GCPhys));
         MMHyperFree(pVM, pStats);
     }
+    IOM_UNLOCK_EXCL(pVM);
     return NULL;
 }
 
@@ -496,7 +528,7 @@ PIOMMMIOSTATS iomR3MMIOStatsCreate(PVM pVM, RTGCPHYS GCPhys, const char *pszDesc
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -562,20 +594,20 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         /*
          * Try Insert it.
          */
-        IOM_LOCK(pVM);
+        IOM_LOCK_EXCL(pVM);
         if (RTAvlroIOPortInsert(&pVM->iom.s.pTreesR3->IOPortTreeR3, &pRange->Core))
         {
 #ifdef VBOX_WITH_STATISTICS
             for (unsigned iPort = 0; iPort < cPorts; iPort++)
                 iomR3IOPortStatsCreate(pVM, PortStart + iPort, pszDesc);
 #endif
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VINF_SUCCESS;
         }
-        IOM_UNLOCK(pVM);
+        IOM_UNLOCK_EXCL(pVM);
 
         /* conflict. */
-        DBGFR3Info(pVM, "ioport", NULL, NULL);
+        DBGFR3Info(pVM->pUVM, "ioport", NULL, NULL);
         AssertMsgFailed(("Port range %#x-%#x (%s) conflicts with existing range(s)!\n", PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
         MMHyperFree(pVM, pRange);
         rc = VERR_IOM_IOPORT_RANGE_CONFLICT;
@@ -594,7 +626,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -609,8 +641,9 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
                                           RCPTRTYPE(PFNIOMIOPORTOUT) pfnOutCallback, RCPTRTYPE(PFNIOMIOPORTIN) pfnInCallback,
                                           RCPTRTYPE(PFNIOMIOPORTOUTSTRING) pfnOutStrCallback, RCPTRTYPE(PFNIOMIOPORTINSTRING) pfnInStrCallback, const char *pszDesc)
 {
-    LogFlow(("IOMR3IOPortRegisterRC: pDevIns=%p PortStart=%#x cPorts=%#x pvUser=%RRv pfnOutCallback=%RRv pfnInCallback=%RRv pfnOutStrCallback=%RRv  pfnInStrCallback=%RRv pszDesc=%s\n",
+    LogFlow(("IOMR3IOPortRegisterRC: pDevIns=%p PortStart=%#x cPorts=%#x pvUser=%RRv pfnOutCallback=%RRv pfnInCallback=%RRv pfnOutStrCallback=%RRv pfnInStrCallback=%RRv pszDesc=%s\n",
              pDevIns, PortStart, cPorts, pvUser, pfnOutCallback, pfnInCallback, pfnOutStrCallback, pfnInStrCallback, pszDesc));
+    AssertReturn(!HMIsEnabled(pVM), VERR_IOM_HM_IPE);
 
     /*
      * Validate input.
@@ -628,7 +661,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         return VERR_INVALID_PARAMETER;
     }
 
-    IOM_LOCK(pVM);
+    IOM_LOCK_EXCL(pVM);
 
     /*
      * Validate that there are ring-3 ranges for the ports.
@@ -640,8 +673,8 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         if (!pRange)
         {
             AssertMsgFailed(("No R3! Port=#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
-            IOM_UNLOCK(pVM);
-            return VERR_IOM_NO_HC_IOPORT_RANGE;
+            IOM_UNLOCK_EXCL(pVM);
+            return VERR_IOM_NO_R3_IOPORT_RANGE;
         }
 #ifndef IOM_NO_PDMINS_CHECKS
 # ifndef IN_RC
@@ -651,7 +684,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
 # endif
         {
             AssertMsgFailed(("Not owner! Port=%#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VERR_IOM_NOT_IOPORT_RANGE_OWNER;
         }
 #endif
@@ -685,7 +718,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
          */
         if (RTAvlroIOPortInsert(&pVM->iom.s.CTX_SUFF(pTrees)->IOPortTreeRC, &pRange->Core))
         {
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VINF_SUCCESS;
         }
 
@@ -694,7 +727,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         MMHyperFree(pVM, pRange);
         rc = VERR_IOM_IOPORT_RANGE_CONFLICT;
     }
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
     return rc;
 }
 
@@ -708,7 +741,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the port range.
  * @param   PortStart           First port number in the range.
  * @param   cPorts              Number of ports to register.
@@ -743,7 +776,8 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         return VERR_INVALID_PARAMETER;
     }
 
-    IOM_LOCK(pVM);
+    IOM_LOCK_EXCL(pVM);
+
     /*
      * Validate that there are ring-3 ranges for the ports.
      */
@@ -754,8 +788,8 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         if (!pRange)
         {
             AssertMsgFailed(("No R3! Port=#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
-            IOM_UNLOCK(pVM);
-            return VERR_IOM_NO_HC_IOPORT_RANGE;
+            IOM_UNLOCK_EXCL(pVM);
+            return VERR_IOM_NO_R3_IOPORT_RANGE;
         }
 #ifndef IOM_NO_PDMINS_CHECKS
 # ifndef IN_RC
@@ -765,7 +799,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
 # endif
         {
             AssertMsgFailed(("Not owner! Port=%#x %#x-%#x! (%s)\n", Port, PortStart, (unsigned)PortStart + cPorts - 1, pszDesc));
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VERR_IOM_NOT_IOPORT_RANGE_OWNER;
         }
 #endif
@@ -799,7 +833,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
          */
         if (RTAvlroIOPortInsert(&pVM->iom.s.CTX_SUFF(pTrees)->IOPortTreeR0, &pRange->Core))
         {
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VINF_SUCCESS;
         }
 
@@ -808,7 +842,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         MMHyperFree(pVM, pRange);
         rc = VERR_IOM_IOPORT_RANGE_CONFLICT;
     }
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
     return rc;
 }
 
@@ -846,7 +880,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
         return VERR_IOM_INVALID_IOPORT_RANGE;
     }
 
-    IOM_LOCK(pVM);
+    IOM_LOCK_EXCL(pVM);
 
     /* Flush the IO port lookup cache */
     iomR3FlushCache(pVM);
@@ -867,7 +901,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
             {
                 AssertMsgFailed(("Removal of ports in range %#x-%#x rejected because not owner of %#x-%#x (%s)\n",
                                  PortStart, PortLast, pRange->Core.Key, pRange->Core.KeyLast, pRange->pszDesc));
-                IOM_UNLOCK(pVM);
+                IOM_UNLOCK_EXCL(pVM);
                 return VERR_IOM_NOT_IOPORT_RANGE_OWNER;
             }
 #endif /* !IOM_NO_PDMINS_CHECKS */
@@ -931,7 +965,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
                 int rc2 = MMHyperAlloc(pVM, sizeof(*pRangeNew), 0, MM_TAG_IOM, (void **)&pRangeNew);
                 if (RT_FAILURE(rc2))
                 {
-                    IOM_UNLOCK(pVM);
+                    IOM_UNLOCK_EXCL(pVM);
                     return rc2;
                 }
                 *pRangeNew = *pRange;
@@ -1014,7 +1048,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
                 int rc2 = MMHyperAlloc(pVM, sizeof(*pRangeNew), 0, MM_TAG_IOM, (void **)&pRangeNew);
                 if (RT_FAILURE(rc2))
                 {
-                    IOM_UNLOCK(pVM);
+                    IOM_UNLOCK_EXCL(pVM);
                     return rc2;
                 }
                 *pRangeNew = *pRange;
@@ -1096,7 +1130,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
                 int rc2 = MMHyperAlloc(pVM, sizeof(*pRangeNew), 0, MM_TAG_IOM, (void **)&pRangeNew);
                 if (RT_FAILURE(rc2))
                 {
-                    IOM_UNLOCK(pVM);
+                    IOM_UNLOCK_EXCL(pVM);
                     return rc2;
                 }
                 *pRangeNew = *pRange;
@@ -1125,7 +1159,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
     } /* for all ports - ring-3. */
 
     /* done */
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
     return rc;
 }
 
@@ -1143,6 +1177,7 @@ VMMR3_INT_DECL(int) IOMR3IOPortDeregister(PVM pVM, PPDMDEVINS pDevIns, RTIOPORT 
  */
 static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port);
     switch (cb)
     {
         case 1: *pu32 = 0xff; break;
@@ -1168,8 +1203,10 @@ static DECLCALLBACK(int) iomR3IOPortDummyIn(PPDMDEVINS pDevIns, void *pvUser, RT
  * @param   pcTransfer  Pointer to the number of transfer units to read, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  */
-static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst, PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrDst,
+                                               PRTGCUINTREG pcTransfer, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrDst); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1187,6 +1224,7 @@ static DECLCALLBACK(int) iomR3IOPortDummyInStr(PPDMDEVINS pDevIns, void *pvUser,
  */
 static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(u32); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1203,8 +1241,10 @@ static DECLCALLBACK(int) iomR3IOPortDummyOut(PPDMDEVINS pDevIns, void *pvUser, R
  * @param   pcTransfer  Pointer to the number of transfer units to write, on return remaining transfer units.
  * @param   cb          Size of the transfer unit (1, 2 or 4 bytes).
  */
-static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc, PRTGCUINTREG pcTransfer, unsigned cb)
+static DECLCALLBACK(int) iomR3IOPortDummyOutStr(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, RTGCPTR *pGCPtrSrc,
+                                                PRTGCUINTREG pcTransfer, unsigned cb)
 {
+    NOREF(pDevIns); NOREF(pvUser); NOREF(Port); NOREF(pGCPtrSrc); NOREF(pcTransfer); NOREF(cb);
     return VINF_SUCCESS;
 }
 
@@ -1260,7 +1300,7 @@ static DECLCALLBACK(int) iomR3IOPortInfoOneRC(PAVLROIOPORTNODECORE pNode, void *
 /**
  * Display all registered I/O port ranges.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */
@@ -1296,84 +1336,6 @@ static DECLCALLBACK(void) iomR3IOPortInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
                     sizeof(RTRCPTR) * 2,      "Out             ",
                     sizeof(RTRCPTR) * 2,      "pvUser          ");
     RTAvlroIOPortDoWithAll(&pVM->iom.s.pTreesR3->IOPortTreeRC, true, iomR3IOPortInfoOneRC, (void *)pHlp);
-
-    if (pVM->iom.s.pRangeLastReadRC)
-    {
-        PIOMIOPORTRANGERC pRange = (PIOMIOPORTRANGERC)MMHyperRCToCC(pVM, pVM->iom.s.pRangeLastReadRC);
-        pHlp->pfnPrintf(pHlp, "RC Read  Ports: %#04x-%#04x %RRv %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pVM->iom.s.pRangeLastReadRC, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastReadRC)
-    {
-        PIOMIOPORTSTATS pRange = (PIOMIOPORTSTATS)MMHyperRCToCC(pVM, pVM->iom.s.pStatsLastReadRC);
-        pHlp->pfnPrintf(pHlp, "RC Read  Stats: %#04x %RRv\n",
-                        pRange->Core.Key, pVM->iom.s.pStatsLastReadRC);
-    }
-
-    if (pVM->iom.s.pRangeLastWriteRC)
-    {
-        PIOMIOPORTRANGERC pRange = (PIOMIOPORTRANGERC)MMHyperRCToCC(pVM, pVM->iom.s.pRangeLastWriteRC);
-        pHlp->pfnPrintf(pHlp, "RC Write Ports: %#04x-%#04x %RRv %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pVM->iom.s.pRangeLastWriteRC, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastWriteRC)
-    {
-        PIOMIOPORTSTATS pRange = (PIOMIOPORTSTATS)MMHyperRCToCC(pVM, pVM->iom.s.pStatsLastWriteRC);
-        pHlp->pfnPrintf(pHlp, "RC Write Stats: %#04x %RRv\n",
-                        pRange->Core.Key, pVM->iom.s.pStatsLastWriteRC);
-    }
-
-    if (pVM->iom.s.pRangeLastReadR3)
-    {
-        PIOMIOPORTRANGER3 pRange = pVM->iom.s.pRangeLastReadR3;
-        pHlp->pfnPrintf(pHlp, "R3 Read  Ports: %#04x-%#04x %p %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pRange, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastReadR3)
-    {
-        PIOMIOPORTSTATS pRange = pVM->iom.s.pStatsLastReadR3;
-        pHlp->pfnPrintf(pHlp, "R3 Read  Stats: %#04x %p\n",
-                        pRange->Core.Key, pRange);
-    }
-
-    if (pVM->iom.s.pRangeLastWriteR3)
-    {
-        PIOMIOPORTRANGER3 pRange = pVM->iom.s.pRangeLastWriteR3;
-        pHlp->pfnPrintf(pHlp, "R3 Write Ports: %#04x-%#04x %p %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pRange, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastWriteR3)
-    {
-        PIOMIOPORTSTATS pRange = pVM->iom.s.pStatsLastWriteR3;
-        pHlp->pfnPrintf(pHlp, "R3 Write Stats: %#04x %p\n",
-                        pRange->Core.Key, pRange);
-    }
-
-    if (pVM->iom.s.pRangeLastReadR0)
-    {
-        PIOMIOPORTRANGER0 pRange = (PIOMIOPORTRANGER0)MMHyperR0ToCC(pVM, pVM->iom.s.pRangeLastReadR0);
-        pHlp->pfnPrintf(pHlp, "R0 Read  Ports: %#04x-%#04x %p %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pRange, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastReadR0)
-    {
-        PIOMIOPORTSTATS pRange = (PIOMIOPORTSTATS)MMHyperR0ToCC(pVM, pVM->iom.s.pStatsLastReadR0);
-        pHlp->pfnPrintf(pHlp, "R0 Read  Stats: %#04x %p\n",
-                        pRange->Core.Key, pRange);
-    }
-
-    if (pVM->iom.s.pRangeLastWriteR0)
-    {
-        PIOMIOPORTRANGER0 pRange = (PIOMIOPORTRANGER0)MMHyperR0ToCC(pVM, pVM->iom.s.pRangeLastWriteR0);
-        pHlp->pfnPrintf(pHlp, "R0 Write Ports: %#04x-%#04x %p %s\n",
-                        pRange->Port, pRange->Port + pRange->cPorts, pRange, pRange->pszDesc);
-    }
-    if (pVM->iom.s.pStatsLastWriteR0)
-    {
-        PIOMIOPORTSTATS pRange = (PIOMIOPORTSTATS)MMHyperR0ToCC(pVM, pVM->iom.s.pStatsLastWriteR0);
-        pHlp->pfnPrintf(pHlp, "R0 Write Stats: %#04x %p\n",
-                        pRange->Core.Key, pRange);
-    }
 }
 
 
@@ -1385,7 +1347,7 @@ static DECLCALLBACK(void) iomR3IOPortInfo(PVM pVM, PCDBGFINFOHLP pHlp, const cha
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1410,8 +1372,8 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
     AssertMsgReturn(GCPhysStart + (cbRange - 1) >= GCPhysStart,("Wrapped! %RGp %#x bytes\n", GCPhysStart, cbRange),
                     VERR_IOM_INVALID_MMIO_RANGE);
     AssertMsgReturn(   !(fFlags & ~IOMMMIO_FLAGS_VALID_MASK)
-                    || (fFlags & IOMMMIO_FLAGS_READ_MODE) == IOMMMIO_FLAGS_READ_MODE
-                    || (fFlags & IOMMMIO_FLAGS_WRITE_MODE) > IOMMMIO_FLAGS_WRITE_DWORD_QWORD_READ_MISSING,
+                    && (fFlags & IOMMMIO_FLAGS_READ_MODE)  <= IOMMMIO_FLAGS_READ_DWORD_QWORD
+                    && (fFlags & IOMMMIO_FLAGS_WRITE_MODE) <= IOMMMIO_FLAGS_WRITE_ONLY_DWORD_QWORD,
                     ("%#x\n", fFlags),
                     VERR_INVALID_PARAMETER);
 
@@ -1420,8 +1382,11 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
      */
     if (pVM->iom.s.pfnMMIOHandlerR0 == NIL_RTR0PTR)
     {
-        rc = PDMR3LdrGetSymbolRC(pVM, NULL, "IOMMMIOHandler", &pVM->iom.s.pfnMMIOHandlerRC);
-        AssertLogRelRCReturn(rc, rc);
+        if (!HMIsEnabled(pVM))
+        {
+            rc = PDMR3LdrGetSymbolRC(pVM, NULL, "IOMMMIOHandler", &pVM->iom.s.pfnMMIOHandlerRC);
+            AssertLogRelRCReturn(rc, rc);
+        }
         rc = PDMR3LdrGetSymbolR0(pVM, NULL, "IOMMMIOHandler", &pVM->iom.s.pfnMMIOHandlerR0);
         AssertLogRelRCReturn(rc, rc);
     }
@@ -1463,28 +1428,26 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
         /*
          * Try register it with PGM and then insert it into the tree.
          */
-        IOM_LOCK(pVM);
-        iomR3FlushCache(pVM);
         rc = PGMR3PhysMMIORegister(pVM, GCPhysStart, cbRange,
                                    IOMR3MMIOHandler, pRange,
                                    pVM->iom.s.pfnMMIOHandlerR0, MMHyperR3ToR0(pVM, pRange),
                                    pVM->iom.s.pfnMMIOHandlerRC, MMHyperR3ToRC(pVM, pRange), pszDesc);
         if (RT_SUCCESS(rc))
         {
+            IOM_LOCK_EXCL(pVM);
             if (RTAvlroGCPhysInsert(&pVM->iom.s.pTreesR3->MMIOTree, &pRange->Core))
             {
-                IOM_UNLOCK(pVM);
+                iomR3FlushCache(pVM);
+                IOM_UNLOCK_EXCL(pVM);
                 return VINF_SUCCESS;
             }
 
             /* bail out */
-            IOM_UNLOCK(pVM);
-            DBGFR3Info(pVM, "mmio", NULL, NULL);
+            IOM_UNLOCK_EXCL(pVM);
+            DBGFR3Info(pVM->pUVM, "mmio", NULL, NULL);
             AssertMsgFailed(("This cannot happen!\n"));
             rc = VERR_IOM_IOPORT_IPE_3;
         }
-        else
-            IOM_UNLOCK(pVM);
 
         MMHyperFree(pVM, pRange);
     }
@@ -1503,7 +1466,7 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1511,6 +1474,7 @@ IOMR3MmioRegisterR3(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  * @param   pfnWriteCallback    Pointer to function which is gonna handle Write operations.
  * @param   pfnReadCallback     Pointer to function which is gonna handle Read operations.
  * @param   pfnFillCallback     Pointer to function which is gonna handle Fill/memset operations.
+ * @thread  EMT
  */
 VMMR3_INT_DECL(int)
 IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange, RTGCPTR pvUser,
@@ -1519,6 +1483,7 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
 {
     LogFlow(("IOMR3MmioRegisterRC: pDevIns=%p GCPhysStart=%RGp cbRange=%#x pvUser=%RGv pfnWriteCallback=%#x pfnReadCallback=%#x pfnFillCallback=%#x\n",
              pDevIns, GCPhysStart, cbRange, pvUser, pfnWriteCallback, pfnReadCallback, pfnFillCallback));
+    AssertReturn(!HMIsEnabled(pVM), VERR_IOM_HM_IPE);
 
     /*
      * Validate input.
@@ -1528,23 +1493,24 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
         AssertMsgFailed(("No callbacks! %RGp LB%#x %s\n", GCPhysStart, cbRange));
         return VERR_INVALID_PARAMETER;
     }
+    PVMCPU pVCpu = VMMGetCpu(pVM); Assert(pVCpu);
 
     /*
      * Find the MMIO range and check that the input matches.
      */
-    IOM_LOCK(pVM);
-    PIOMMMIORANGE pRange = iomMmioGetRange(pVM, GCPhysStart);
-    AssertReturnStmt(pRange, IOM_UNLOCK(pVM), VERR_IOM_MMIO_RANGE_NOT_FOUND);
-    AssertReturnStmt(pRange->pDevInsR3 == pDevIns, IOM_UNLOCK(pVM), VERR_IOM_NOT_MMIO_RANGE_OWNER);
-    AssertReturnStmt(pRange->GCPhys == GCPhysStart, IOM_UNLOCK(pVM), VERR_IOM_INVALID_MMIO_RANGE);
-    AssertReturnStmt(pRange->cb == cbRange, IOM_UNLOCK(pVM), VERR_IOM_INVALID_MMIO_RANGE);
+    IOM_LOCK_EXCL(pVM);
+    PIOMMMIORANGE pRange = iomMmioGetRange(pVM, pVCpu, GCPhysStart);
+    AssertReturnStmt(pRange, IOM_UNLOCK_EXCL(pVM), VERR_IOM_MMIO_RANGE_NOT_FOUND);
+    AssertReturnStmt(pRange->pDevInsR3 == pDevIns, IOM_UNLOCK_EXCL(pVM), VERR_IOM_NOT_MMIO_RANGE_OWNER);
+    AssertReturnStmt(pRange->GCPhys == GCPhysStart, IOM_UNLOCK_EXCL(pVM), VERR_IOM_INVALID_MMIO_RANGE);
+    AssertReturnStmt(pRange->cb == cbRange, IOM_UNLOCK_EXCL(pVM), VERR_IOM_INVALID_MMIO_RANGE);
 
     pRange->pvUserRC          = pvUser;
     pRange->pfnReadCallbackRC = pfnReadCallback;
     pRange->pfnWriteCallbackRC= pfnWriteCallback;
     pRange->pfnFillCallbackRC = pfnFillCallback;
     pRange->pDevInsRC         = MMHyperCCToRC(pVM, pDevIns);
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
 
     return VINF_SUCCESS;
 }
@@ -1559,7 +1525,7 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  *
  * @returns VBox status code.
  *
- * @param   pVM                 VM handle.
+ * @param   pVM                 Pointer to the VM.
  * @param   pDevIns             PDM device instance owning the MMIO range.
  * @param   GCPhysStart         First physical address in the range.
  * @param   cbRange             The size of the range (in bytes).
@@ -1567,6 +1533,7 @@ IOMR3MmioRegisterRC(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
  * @param   pfnWriteCallback    Pointer to function which is gonna handle Write operations.
  * @param   pfnReadCallback     Pointer to function which is gonna handle Read operations.
  * @param   pfnFillCallback     Pointer to function which is gonna handle Fill/memset operations.
+ * @thread  EMT
  */
 VMMR3_INT_DECL(int)
 IOMR3MmioRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t cbRange, RTR0PTR pvUser,
@@ -1585,23 +1552,24 @@ IOMR3MmioRegisterR0(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GCPhysStart, uint32_t 
         AssertMsgFailed(("No callbacks! %RGp LB%#x %s\n", GCPhysStart, cbRange));
         return VERR_INVALID_PARAMETER;
     }
+    PVMCPU pVCpu = VMMGetCpu(pVM); Assert(pVCpu);
 
     /*
      * Find the MMIO range and check that the input matches.
      */
-    IOM_LOCK(pVM);
-    PIOMMMIORANGE pRange = iomMmioGetRange(pVM, GCPhysStart);
-    AssertReturnStmt(pRange, IOM_UNLOCK(pVM), VERR_IOM_MMIO_RANGE_NOT_FOUND);
-    AssertReturnStmt(pRange->pDevInsR3 == pDevIns, IOM_UNLOCK(pVM), VERR_IOM_NOT_MMIO_RANGE_OWNER);
-    AssertReturnStmt(pRange->GCPhys == GCPhysStart, IOM_UNLOCK(pVM), VERR_IOM_INVALID_MMIO_RANGE);
-    AssertReturnStmt(pRange->cb == cbRange, IOM_UNLOCK(pVM), VERR_IOM_INVALID_MMIO_RANGE);
+    IOM_LOCK_EXCL(pVM);
+    PIOMMMIORANGE pRange = iomMmioGetRange(pVM, pVCpu, GCPhysStart);
+    AssertReturnStmt(pRange, IOM_UNLOCK_EXCL(pVM), VERR_IOM_MMIO_RANGE_NOT_FOUND);
+    AssertReturnStmt(pRange->pDevInsR3 == pDevIns, IOM_UNLOCK_EXCL(pVM), VERR_IOM_NOT_MMIO_RANGE_OWNER);
+    AssertReturnStmt(pRange->GCPhys == GCPhysStart, IOM_UNLOCK_EXCL(pVM), VERR_IOM_INVALID_MMIO_RANGE);
+    AssertReturnStmt(pRange->cb == cbRange, IOM_UNLOCK_EXCL(pVM), VERR_IOM_INVALID_MMIO_RANGE);
 
     pRange->pvUserR0          = pvUser;
     pRange->pfnReadCallbackR0 = pfnReadCallback;
     pRange->pfnWriteCallbackR0= pfnWriteCallback;
     pRange->pfnFillCallbackR0 = pfnFillCallback;
     pRange->pDevInsR0         = MMHyperCCToR0(pVM, pDevIns);
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
 
     return VINF_SUCCESS;
 }
@@ -1635,8 +1603,9 @@ VMMR3_INT_DECL(int) IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GC
         AssertMsgFailed(("Wrapped! %#x LB%#x\n", GCPhysStart, cbRange));
         return VERR_IOM_INVALID_MMIO_RANGE;
     }
+    PVMCPU pVCpu = VMMGetCpu(pVM); Assert(pVCpu);
 
-    IOM_LOCK(pVM);
+    IOM_LOCK_EXCL(pVM);
 
     /*
      * Check ownership and such for the entire area.
@@ -1644,19 +1613,19 @@ VMMR3_INT_DECL(int) IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GC
     RTGCPHYS GCPhys = GCPhysStart;
     while (GCPhys <= GCPhysLast && GCPhys >= GCPhysStart)
     {
-        PIOMMMIORANGE pRange = iomMmioGetRange(pVM, GCPhys);
+        PIOMMMIORANGE pRange = iomMmioGetRange(pVM, pVCpu, GCPhys);
         if (!pRange)
         {
-            IOM_UNLOCK(pVM);
+            IOM_UNLOCK_EXCL(pVM);
             return VERR_IOM_MMIO_RANGE_NOT_FOUND;
         }
         AssertMsgReturnStmt(pRange->pDevInsR3 == pDevIns,
                             ("Not owner! GCPhys=%RGp %RGp LB%#x %s\n", GCPhys, GCPhysStart, cbRange, pRange->pszDesc),
-                            IOM_UNLOCK(pVM),
+                            IOM_UNLOCK_EXCL(pVM),
                             VERR_IOM_NOT_MMIO_RANGE_OWNER);
         AssertMsgReturnStmt(pRange->Core.KeyLast <= GCPhysLast,
                             ("Incomplete R3 range! GCPhys=%RGp %RGp LB%#x %s\n", GCPhys, GCPhysStart, cbRange, pRange->pszDesc),
-                            IOM_UNLOCK(pVM),
+                            IOM_UNLOCK_EXCL(pVM),
                             VERR_IOM_INCOMPLETE_MMIO_RANGE);
 
         /* next */
@@ -1675,13 +1644,13 @@ VMMR3_INT_DECL(int) IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GC
         PIOMMMIORANGE pRange = (PIOMMMIORANGE)RTAvlroGCPhysRemove(&pVM->iom.s.pTreesR3->MMIOTree, GCPhys);
         Assert(pRange);
         Assert(pRange->Core.Key == GCPhys && pRange->Core.KeyLast <= GCPhysLast);
-        IOM_UNLOCK(pVM); /** @todo r=bird: Why are we leaving the lock here? We don't leave it when registering the range above... */
+        IOM_UNLOCK_EXCL(pVM); /* Lock order fun. */
 
         /* remove it from PGM */
         int rc = PGMR3PhysMMIODeregister(pVM, GCPhys, pRange->cb);
         AssertRC(rc);
 
-        IOM_LOCK(pVM);
+        IOM_LOCK_EXCL(pVM);
 
         /* advance and free. */
         GCPhys = pRange->Core.KeyLast + 1;
@@ -1693,7 +1662,7 @@ VMMR3_INT_DECL(int) IOMR3MmioDeregister(PVM pVM, PPDMDEVINS pDevIns, RTGCPHYS GC
         iomMmioReleaseRange(pVM, pRange);
     }
 
-    IOM_UNLOCK(pVM);
+    IOM_UNLOCK_EXCL(pVM);
     return VINF_SUCCESS;
 }
 
@@ -1742,7 +1711,7 @@ static DECLCALLBACK(int) iomR3MMIOInfoOne(PAVLROGCPHYSNODECORE pNode, void *pvUs
 /**
  * Display registered MMIO ranges to the log.
  *
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pHlp        The info helpers.
  * @param   pszArgs     Arguments, ignored.
  */

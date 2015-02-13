@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -318,6 +318,7 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     /*
      * Validate input.
      */
+    int rc = VINF_SUCCESS;
     struct RTSEMEVENTMULTIINTERNAL *pThis = hEventMultiSem;
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     uint32_t u32 = pThis->u32State;
@@ -326,11 +327,11 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     /*
      * Lock the mutex semaphore.
      */
-    int rc = pthread_mutex_lock(&pThis->Mutex);
-    if (rc)
+    int rcPosix = pthread_mutex_lock(&pThis->Mutex);
+    if (RT_UNLIKELY(rcPosix))
     {
-        AssertMsgFailed(("Failed to lock event multi sem %p, rc=%d.\n", hEventMultiSem, rc));
-        return RTErrConvertFromErrno(rc);
+        AssertMsgFailed(("Failed to lock event multi sem %p, rc=%d.\n", hEventMultiSem, rcPosix));
+        return RTErrConvertFromErrno(rcPosix);
     }
 
     /*
@@ -344,15 +345,14 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     /*
      * Release the mutex and return.
      */
-    rc = pthread_mutex_unlock(&pThis->Mutex);
-    if (rc)
+    rcPosix = pthread_mutex_unlock(&pThis->Mutex);
+    if (RT_UNLIKELY(rcPosix))
     {
-        AssertMsgFailed(("Failed to unlock event multi sem %p, rc=%d.\n", hEventMultiSem, rc));
-        return RTErrConvertFromErrno(rc);
+        AssertMsgFailed(("Failed to unlock event multi sem %p, rc=%d.\n", hEventMultiSem, rcPosix));
+        return RTErrConvertFromErrno(rcPosix);
     }
 
-    return VINF_SUCCESS;
-
+    return rc;
 }
 
 
@@ -428,6 +428,7 @@ static int rtSemEventMultiPosixWaitIndefinite(struct RTSEMEVENTMULTIINTERNAL *pT
         RTTHREAD hThreadSelf = RTThreadSelf();
 #endif
         RTThreadBlocking(hThreadSelf, RTTHREADSTATE_EVENT_MULTI, true);
+        /** @todo interruptible wait is not implementable... */ NOREF(fFlags);
         rc = pthread_cond_wait(&pThis->Cond, &pThis->Mutex);
         RTThreadUnblocked(hThreadSelf, RTTHREADSTATE_EVENT_MULTI);
         if (RT_UNLIKELY(rc))
@@ -480,7 +481,7 @@ static int rtSemEventMultiPosixWaitTimed(struct RTSEMEVENTMULTIINTERNAL *pThis, 
     struct timespec     ts = {0,0};
     if (!pThis->fMonotonicClock)
     {
-#ifdef RT_OS_DARWIN
+#if defined(RT_OS_DARWIN) || defined(RT_OS_HAIKU)
         struct timeval  tv = {0,0};
         gettimeofday(&tv, NULL);
         ts.tv_sec = tv.tv_sec;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008 Oracle Corporation
+ * Copyright (C) 2008-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,46 +30,17 @@
  *
  * @returns The number of output bytes.
  *
- * @param   pCpu    Pointer to the disassembler cpu state.
+ * @param   pDis    Pointer to the disassembler state.
  * @param   pszDst  The output buffer.
  * @param   cchDst  The size of the output buffer.
  * @param   fFlags  The flags passed to the formatter.
  */
-size_t disFormatBytes(PCDISCPUSTATE pCpu, char *pszDst, size_t cchDst, uint32_t fFlags)
+size_t disFormatBytes(PCDISSTATE pDis, char *pszDst, size_t cchDst, uint32_t fFlags)
 {
-    /*
-     * Read the bytes first.
-     */
-    uint8_t     ab[16];
-    uint32_t    cb = pCpu->opsize;
-    Assert(cb <= 16);
-    if (cb > 16)
-        cb = 16;
+    size_t      cchOutput = 0;
+    uint32_t    cb        = pDis->cbInstr;
+    AssertStmt(cb <= 16, cb = 16);
 
-    if (pCpu->pfnReadBytes)
-    {
-        int rc = pCpu->pfnReadBytes(pCpu->opaddr, &ab[0], cb, (void *)pCpu);
-        if (RT_FAILURE(rc))
-        {
-            for (uint32_t i = 0; i < cb; i++)
-            {
-                int rc2 = pCpu->pfnReadBytes(pCpu->opaddr + i, &ab[i], 1, (void *)pCpu);
-                if (RT_FAILURE(rc2))
-                    ab[i] = 0xcc;
-            }
-        }
-    }
-    else
-    {
-        uint8_t const *pabSrc = (uint8_t const *)(uintptr_t)pCpu->opaddr;
-        for (uint32_t i = 0; i < cb; i++)
-            ab[i] = pabSrc[i];
-    }
-
-    /*
-     * Now for the output.
-     */
-    size_t cchOutput = 0;
 #define PUT_C(ch) \
             do { \
                 cchOutput++; \
@@ -97,9 +68,9 @@ size_t disFormatBytes(PCDISCPUSTATE pCpu, char *pszDst, size_t cchDst, uint32_t 
     for (uint32_t i = 0; i < cb; i++)
     {
         if (i != 0 && (fFlags & DIS_FMT_FLAGS_BYTES_SPACED))
-            PUT_NUM(3, " %02x", ab[i]);
+            PUT_NUM(3, " %02x", pDis->abInstr[i]);
         else
-            PUT_NUM(2, "%02x", ab[i]);
+            PUT_NUM(2, "%02x", pDis->abInstr[i]);
     }
 
     if (fFlags & DIS_FMT_FLAGS_BYTES_BRACKETS)

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,30 +19,45 @@
 #define __VBoxFBOverlay_h__
 #if defined (VBOX_GUI_USE_QGL) || defined(VBOX_WITH_VIDEOHWACCEL)
 
+/* Defines: */
 //#define VBOXQGL_PROF_BASE 1
 //#define VBOXQGL_DBG_SURF 1
-
 //#define VBOXVHWADBG_RENDERCHECK
+#define VBOXVHWA_ALLOW_PRIMARY_AND_OVERLAY_ONLY 1
 
-#include "COMDefs.h"
+/* Qt includes: */
 #include <QGLWidget>
+
+/* GUI includes: */
+#include "UIDefs.h"
+#include "VBoxFBOverlayCommon.h"
+
+/* COM includes: */
+#include "COMEnums.h"
+
+#include "CDisplay.h"
+
+/* Other VBox includes: */
 #include <iprt/assert.h>
 #include <iprt/critsect.h>
 #include <iprt/asm.h>
 #include <iprt/err.h>
-
+#include <iprt/list.h>
 #include <VBox/VBoxGL2D.h>
-#include "VBoxFBOverlayCommon.h"
+#ifdef VBOXVHWA_PROFILE_FPS
+# include <iprt/stream.h>
+#endif /* VBOXVHWA_PROFILE_FPS */
 
-#define VBOXVHWA_ALLOW_PRIMARY_AND_OVERLAY_ONLY 1
+#ifndef S_FALSE
+# define S_FALSE ((HRESULT)1L)
+#endif
 
 #ifdef DEBUG_misha
 # define VBOXVHWA_PROFILE_FPS
-#endif
+#endif /* DEBUG_misha */
 
-#ifdef VBOXVHWA_PROFILE_FPS
-# include <iprt/stream.h>
-#endif
+/* Forward declarations: */
+class CSession;
 
 #ifdef DEBUG
 class VBoxVHWADbgTimer
@@ -63,7 +78,7 @@ private:
     uint32_t miPeriod;
 };
 
-#endif
+#endif /* DEBUG */
 
 class VBoxVHWASettings
 {
@@ -1000,6 +1015,18 @@ class VBoxVHWASurfList
 public:
 
     VBoxVHWASurfList() : mCurrent(NULL) {}
+
+    void moveTo(VBoxVHWASurfList *pDst)
+    {
+        for (SurfList::iterator it = mSurfaces.begin();
+             it != mSurfaces.end(); it = mSurfaces.begin())
+        {
+            pDst->add((*it));
+        }
+
+        Assert(empty());
+    }
+
     void add(VBoxVHWASurfaceBase *pSurf)
     {
         VBoxVHWASurfList * pOld = pSurf->getComplexList();
@@ -1010,7 +1037,7 @@ public:
         mSurfaces.push_back(pSurf);
         pSurf->setComplexList(this);
     }
-
+/*
     void clear()
     {
         for (SurfList::iterator it = mSurfaces.begin();
@@ -1021,7 +1048,7 @@ public:
         mSurfaces.clear();
         mCurrent = NULL;
     }
-
+*/
     size_t size() const {return mSurfaces.size(); }
 
     void remove(VBoxVHWASurfaceBase *pSurf)
@@ -1062,7 +1089,12 @@ public:
     {
         VBoxVHWASurfaceBase * old = mSurfVGA;
         mSurfVGA = pVga;
-        mPrimary.clear();
+        if (!mPrimary.empty())
+        {
+            VBoxVHWASurfList *pNewList = new VBoxVHWASurfList();
+            mPrimary.moveTo(pNewList);
+            Assert(mPrimary.empty());
+        }
         if(pVga)
         {
             Assert(!pVga->getComplexList());
@@ -1180,10 +1212,6 @@ typedef struct VBOXVHWAFUNCCALLBACKINFO
 class VBoxVHWACommandElement
 {
 public:
-    VBoxVHWACommandElement() :
-        bNewEvent(false)
-    {}
-
     void setVHWACmd(struct VBOXVHWACMD * pCmd)
     {
         mType = VBOXVHWA_PIPECMD_VHWA;
@@ -1221,15 +1249,12 @@ public:
         }
     }
 
-    void setNewEvent(bool bNew) {bNewEvent = bNew;}
-    bool isNewEvent() const { return bNewEvent; }
-
     VBOXVHWA_PIPECMD_TYPE type() const {return mType;}
     const QRect & rect() const {return mRect;}
     struct VBOXVHWACMD * vhwaCmd() const {return u.mpCmd;}
     const VBOXVHWAFUNCCALLBACKINFO & func() const {return u.mFuncCallback; }
 
-    VBoxVHWACommandElement * mpNext;
+    RTLISTNODE ListNode;
 private:
     VBOXVHWA_PIPECMD_TYPE mType;
     union
@@ -1238,141 +1263,6 @@ private:
         VBOXVHWAFUNCCALLBACKINFO mFuncCallback;
     }u;
     QRect                 mRect;
-    bool bNewEvent;
-};
-
-class VBoxVHWACommandElementPipe
-{
-public:
-    VBoxVHWACommandElementPipe() :
-        mpFirst(NULL),
-        mpLast(NULL)
-    {}
-
-    void put(VBoxVHWACommandElement *pCmd)
-    {
-        if (mpLast)
-        {
-            Assert(mpFirst);
-            mpLast->mpNext = pCmd;
-            mpLast = pCmd;
-        }
-        else
-        {
-            Assert(!mpFirst);
-            mpFirst = pCmd;
-            mpLast = pCmd;
-        }
-        pCmd->mpNext= NULL;
-
-    }
-
-    void setFrom(VBoxVHWACommandElementPipe *pOther)
-    {
-        mpFirst = pOther->detachList(&mpLast);
-    }
-
-    void set(VBoxVHWACommandElement *pFirst, VBoxVHWACommandElement *pLast)
-    {
-        mpFirst = pFirst;
-        mpLast = pLast;
-        if (mpLast)
-            mpLast->mpNext = NULL;
-    }
-
-    void prepend(VBoxVHWACommandElement *pFirst, VBoxVHWACommandElement *pLast)
-    {
-        if (!mpFirst)
-            set(pFirst, pLast);
-        else if (pLast)
-        {
-            pLast->mpNext = mpFirst;
-            mpFirst = pFirst;
-        }
-    }
-
-    void prependFrom(VBoxVHWACommandElementPipe *pOther)
-    {
-        VBoxVHWACommandElement *pFirst;
-        VBoxVHWACommandElement *pLast;
-        pFirst = pOther->detachList(&pLast);
-        prepend(pFirst, pLast);
-    }
-
-    void append(VBoxVHWACommandElement *pFirst, VBoxVHWACommandElement *pLast)
-    {
-        if (!mpLast)
-            set(pFirst, pLast);
-        else if (pLast)
-        {
-            mpLast->mpNext = pFirst;
-            mpLast = pLast;
-            pLast->mpNext = NULL;
-        }
-    }
-
-    VBoxVHWACommandElement * detachList(VBoxVHWACommandElement **ppLast)
-    {
-        if (mpLast)
-        {
-            VBoxVHWACommandElement * pHead = mpFirst;
-            if (ppLast)
-                *ppLast = mpLast;
-            mpFirst = NULL;
-            mpLast = NULL;
-            return pHead;
-        }
-        if (ppLast)
-            *ppLast = NULL;
-        return NULL;
-    }
-
-
-
-    const VBoxVHWACommandElement * contentsRo (const VBoxVHWACommandElement **ppLast) const
-    {
-        if (ppLast)
-            *ppLast = mpLast;
-        return mpFirst;
-    }
-
-    bool isEmpty() const { return !mpLast; }
-
-private:
-    VBoxVHWACommandElement *mpFirst;
-    VBoxVHWACommandElement *mpLast;
-};
-
-class VBoxVHWACommandElementStack
-{
-public:
-    VBoxVHWACommandElementStack() :
-        mpFirst(NULL) {}
-
-    void push(VBoxVHWACommandElement *pCmd)
-    {
-        pCmd->mpNext = mpFirst;
-        mpFirst = pCmd;
-    }
-
-    void pusha(VBoxVHWACommandElement *pFirst, VBoxVHWACommandElement *pLast)
-    {
-        pLast->mpNext = mpFirst;
-        mpFirst = pFirst;
-    }
-
-    VBoxVHWACommandElement * pop()
-    {
-        if(mpFirst)
-        {
-            VBoxVHWACommandElement * ret = mpFirst;
-            mpFirst = ret->mpNext;
-            return ret;
-        }
-        return NULL;
-    }
-private:
-    VBoxVHWACommandElement *mpFirst;
 };
 
 class VBoxVHWARefCounter
@@ -1416,20 +1306,15 @@ private:
     volatile uint32_t m_cRefs;
 };
 
-#define VBOXVHWACMDPIPEC_NEWEVENT      0x00000001
-#define VBOXVHWACMDPIPEC_COMPLETEEVENT 0x00000002
 class VBoxVHWACommandElementProcessor
 {
 public:
     VBoxVHWACommandElementProcessor(QObject *pNotifyObject);
     ~VBoxVHWACommandElementProcessor();
-    void postCmd(VBOXVHWA_PIPECMD_TYPE aType, void * pvData, uint32_t flags);
-    bool completeCurrentEvent();
-    class VBoxVHWACommandElement * detachCmdList(class VBoxVHWACommandElement ** ppLast,
-            class VBoxVHWACommandElement * pFirst2Free, VBoxVHWACommandElement * pLast2Free);
-    void putBack(class VBoxVHWACommandElement * pFirst2Put, VBoxVHWACommandElement * pLast2Put,
-            class VBoxVHWACommandElement * pFirst2Free, VBoxVHWACommandElement * pLast2Free);
-    void reset(class VBoxVHWACommandElement ** ppHead, class VBoxVHWACommandElement ** ppTail);
+    void postCmd(VBOXVHWA_PIPECMD_TYPE aType, void * pvData);
+    VBoxVHWACommandElement *getCmd();
+    void doneCmd();
+    void reset(CDisplay *pDisplay);
     void setNotifyObject(QObject *pNotifyObject);
     int loadExec (struct SSMHANDLE * pSSM, uint32_t u32Version, void *pvVRAM);
     void saveExec (struct SSMHANDLE * pSSM, void *pvVRAM);
@@ -1437,19 +1322,14 @@ public:
     void enable();
     void lock();
     void unlock();
-#ifdef DEBUG_misha
-    void checkConsistence(uint32_t cEvents2Submit = 0, const VBoxVHWACommandElementPipe *pPipe = NULL);
-#endif
 private:
     RTCRITSECT mCritSect;
-    VBoxVHWACommandElementPipe m_CmdPipe;
+    RTLISTNODE mCommandList;
     QObject *m_pNotifyObject;
     VBoxVHWARefCounter m_NotifyObjectRefs;
-    bool mbNewEvent;
-    bool mbProcessingList;
+    VBoxVHWACommandElement *mpCurCmd;
+    bool mbResetting;
     uint32_t mcDisabled;
-    VBoxVHWACommandElementStack mFreeElements;
-    VBoxVHWACommandElement mElementsBuffer[2048];
 };
 
 /* added to workaround this ** [VBox|UI] duplication */
@@ -1568,7 +1448,7 @@ public:
             double fps = mFPSCounter.fps();
             if(!(mFPSCounter.frames() % 31))
             {
-                RTPrintf("fps: %f\n", fps);
+                LogRel(("fps: %f\n", fps));
             }
             mbNewFrame = false;
         }
@@ -1810,32 +1690,14 @@ public:
     bool onNotifyUpdate (ULONG aX, ULONG aY,
                              ULONG aW, ULONG aH);
 
-    /**
-     * to be called on RequestResize framebuffer call
-     * @return true if the request was processed & should not be forwarded to the framebuffer
-     * false - otherwise */
-    bool onRequestResize (ULONG aScreenId, ULONG uPixelFormat,
-                          BYTE * pVRAM, ULONG uBitsPerPixel, ULONG uBytesPerLine,
-                          ULONG uWidth, ULONG uHeight,
-                          HRESULT *pResult,
-                          BOOL * pbFinished)
+    void onNotifyUpdateIgnore (ULONG aX, ULONG aY,
+                             ULONG aW, ULONG aH)
     {
-        Q_UNUSED(aScreenId);
-        Q_UNUSED(uPixelFormat);
-        Q_UNUSED(pVRAM);
-        Q_UNUSED(uBitsPerPixel);
-        Q_UNUSED(uBytesPerLine);
-        Q_UNUSED(uWidth);
-        Q_UNUSED(uHeight);
-        Q_UNUSED(pbFinished);
-
-        if (mCmdPipe.completeCurrentEvent())
-            return false;
-
-        /* TODO: more graceful resize handling */
-        *pResult = E_FAIL;
-
-        return true;
+        Q_UNUSED(aX);
+        Q_UNUSED(aY);
+        Q_UNUSED(aW);
+        Q_UNUSED(aH);
+        /* @todo: we actually should not miss notify updates, since we need to update the texture on it */
     }
 
     void onResizeEventPostprocess (const VBoxFBSizeInfo &re, const QPoint & topLeft);
@@ -1913,7 +1775,7 @@ private:
     void vboxDoVHWACmd (void *cmd);
     void addMainDirtyRect (const QRect & aRect);
     void vboxCheckUpdateOverlay (const QRect & rect);
-    VBoxVHWACommandElement * processCmdList (VBoxVHWACommandElement * pCmd, bool bFirst);
+    void processCmd (VBoxVHWACommandElement * pCmd);
 
     int vhwaConstruct (struct VBOXVHWACMD_HH_CONSTRUCT *pCmd);
 
@@ -1971,7 +1833,26 @@ public:
 
     STDMETHOD(ProcessVHWACommand)(BYTE *pCommand)
     {
-        return mOverlay.onVHWACommand ((struct VBOXVHWACMD*)pCommand);
+        int rc;
+        T::lock();
+        /* Make sure frame-buffer is used: */
+        if (T::m_fIsMarkedAsUnused)
+        {
+            LogRel2(("ProcessVHWACommand: Postponed!\n"));
+            /* Unlock access to frame-buffer: */
+            T::unlock();
+            /* tell client to pend ProcessVHWACommand */
+            return E_ACCESSDENIED;
+        }
+        rc = mOverlay.onVHWACommand ((struct VBOXVHWACMD*)pCommand);
+        T::unlock();
+        if (rc == VINF_CALLBACK_RETURN)
+            return S_OK;
+        else if (RT_SUCCESS(rc))
+            return S_FALSE;
+        else if (rc == VERR_INVALID_STATE)
+            return E_ACCESSDENIED;
+        return E_FAIL;
     }
 
     void doProcessVHWACommand (QEvent * pEvent)
@@ -1979,53 +1860,27 @@ public:
         mOverlay.onVHWACommandEvent (pEvent);
     }
 
-    STDMETHOD(RequestResize) (ULONG aScreenId, ULONG aPixelFormat,
-                              BYTE *aVRAM, ULONG aBitsPerPixel, ULONG aBytesPerLine,
-                              ULONG aWidth, ULONG aHeight,
-                              BOOL *aFinished)
-   {
-        HRESULT result;
-        if (mOverlay.onRequestResize (aScreenId, aPixelFormat,
-                aVRAM, aBitsPerPixel, aBytesPerLine,
-                aWidth, aHeight,
-                &result,
-                aFinished))
-        {
-            return result;
-        }
-        return T::RequestResize (aScreenId, aPixelFormat,
-                aVRAM, aBitsPerPixel, aBytesPerLine,
-                aWidth, aHeight,
-                aFinished);
-   }
-
     STDMETHOD(NotifyUpdate) (ULONG aX, ULONG aY,
                              ULONG aW, ULONG aH)
     {
-        if (mOverlay.onNotifyUpdate (aX, aY, aW, aH))
-            return S_OK;
-        return T::NotifyUpdate (aX, aY, aW, aH);
-    }
-
-    STDMETHOD(VideoModeSupported) (ULONG uWidth, ULONG uHeight, ULONG uBPP,
-                                       BOOL *pbSupported)
-    {
-        /* TODO: tmp workaround: the lock should be moved to the calling code??
-         * otherwise we may end up calling a null View */
-        /* Todo: can we call VideoModeSupported with the lock held?
-         * if not we can introduce a ref counting for the mpView usage
-         * to ensure it stays alive till we need it*/
-        HRESULT hr = T::Lock();
-        HRESULT retHr = S_OK;
-        Assert(hr == S_OK);
-        if (SUCCEEDED(hr))
+        HRESULT hr = S_OK;
+        T::lock();
+        /* Make sure frame-buffer is used: */
+        if (T::m_fIsMarkedAsUnused)
         {
-            if (mpView)
-                retHr = T::VideoModeSupported(uWidth, uHeight, uBPP, pbSupported);
-            hr = T::Unlock();
-            Assert(hr == S_OK);
+            LogRel2(("NotifyUpdate: Ignored!\n"));
+            mOverlay.onNotifyUpdateIgnore (aX, aY, aW, aH);
+            /* Unlock access to frame-buffer: */
+            T::unlock();
+            /*can we actually ignore the notify update?*/
+            /* Ignore NotifyUpdate: */
+            return E_FAIL;
         }
-        return retHr;
+
+        if (!mOverlay.onNotifyUpdate (aX, aY, aW, aH))
+            hr = T::NotifyUpdate (aX, aY, aW, aH);
+        T::unlock();
+        return hr;
     }
 
     void resizeEvent (R *re)
@@ -2050,17 +1905,13 @@ public:
     void setView(V * pView)
     {
         /* lock to ensure we do not collide with the EMT thread passing commands to us */
-        HRESULT hr = T::Lock();
-        Assert(hr == S_OK);
-        if (SUCCEEDED(hr))
-        {
-            T::setView(pView);
-            mpView = pView;
-            mOverlay.updateAttachment(pView ? pView->viewport() : NULL, pView);
-            hr = T::Unlock();
-            Assert(hr == S_OK);
-        }
+        T::lock();
+        T::setView(pView);
+        mpView = pView;
+        mOverlay.updateAttachment(pView ? pView->viewport() : NULL, pView);
+        T::unlock();
     }
+
 private:
     VBoxQGLOverlay mOverlay;
     V *mpView;

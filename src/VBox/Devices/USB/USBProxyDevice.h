@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,22 +24,6 @@
 RT_C_DECLS_BEGIN
 
 
-/**
- * Arguments passed to the USB proxy device constructor.
- */
-typedef struct USBPROXYDEVARGS
-{
-    /** Whether this is a remote (VRDP) or local (Host) device. */
-    bool        fRemote;
-    /** Host specific USB device address. */
-    const char *pszAddress;
-    /** Pointer to backend specific data. */
-    void       *pvBackend;
-} USBPROXYDEVARGS;
-/** Pointer to proxy device creation structure. */
-typedef USBPROXYDEVARGS *PUSBPROXYDEVARGS;
-
-
 /** Pointer to a USB proxy device. */
 typedef struct USBPROXYDEV *PUSBPROXYDEV;
 
@@ -50,6 +34,8 @@ typedef struct USBPROXYBACK
 {
     /** Name of the backend. */
     const char *pszName;
+    /** Size of the backend specific data. */
+    size_t      cbBackend;
 
     /**
      * Opens the USB device specfied by pszAddress.
@@ -63,22 +49,23 @@ typedef struct USBPROXYBACK
      * @param   pszAddress  Host specific USB device address.
      * @param   pvBackend   Pointer to backend specific data.
      */
-    int  (* pfnOpen)(PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend);
+    DECLR3CALLBACKMEMBER(int, pfnOpen, (PUSBPROXYDEV pProxyDev, const char *pszAddress, void *pvBackend));
 
     /**
      * Optional callback for initializing the device after the configuration
      * has been established.
      *
      * @returns VBox status code.
-     * @param   pProxyDev   The USB Proxy Device instance.
+     * @param   pProxyDev       The USB Proxy Device instance.
      */
-    int  (* pfnInit)(PUSBPROXYDEV pProxyDev);
+    DECLR3CALLBACKMEMBER(int, pfnInit, (PUSBPROXYDEV pProxyDev));
 
-    /**         Closes handle to the host USB device.
+    /**
+     * Closes handle to the host USB device.
      *
-     * @param   pDev        The USB Proxy Device instance.
+     * @param   pProxyDev       The USB Proxy Device instance.
      */
-    void (* pfnClose)(PUSBPROXYDEV pProxyDev);
+    DECLR3CALLBACKMEMBER(void, pfnClose, (PUSBPROXYDEV pProxyDev));
 
     /**
      * Reset a device.
@@ -86,48 +73,94 @@ typedef struct USBPROXYBACK
      * The backend must update iActualCfg and fIgnoreEqualSetConfig.
      *
      * @returns VBox status code.
-     * @param   pDev            The device to reset.
+     * @param   pProxyDev       The USB Proxy Device instance.
      * @param   fResetOnLinux   It's safe to do reset on linux, we can deal with devices
      *                          being logically reconnected.
      */
-    int  (* pfnReset)(PUSBPROXYDEV pProxyDev, bool fResetOnLinux);
+    DECLR3CALLBACKMEMBER(int, pfnReset, (PUSBPROXYDEV pProxyDev, bool fResetOnLinux));
 
-    /** @todo make it return a VBox status code! */
-    int  (* pfnSetConfig)(PUSBPROXYDEV pProxyDev, int iCfg);
+    /**
+     * Sets the given configuration of the device.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   iCfg            The configuration to set.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetConfig, (PUSBPROXYDEV pProxyDev, int iCfg));
 
-    /** @todo make it return a VBox status code! */
-    int  (* pfnClaimInterface)(PUSBPROXYDEV pProxyDev, int iIf);
+    /**
+     * Claim an interface for use by the prox device.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   iIf             Interface number to claim.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnClaimInterface, (PUSBPROXYDEV pProxyDev, int iIf));
 
-    /** @todo make it return a VBox status code! */
-    int  (* pfnReleaseInterface)(PUSBPROXYDEV pProxyDev, int iIf);
+    /**
+     * Releases an interface which was claimed before.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   iIf             Interface number to release.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnReleaseInterface, (PUSBPROXYDEV pProxyDev, int iIf));
 
-    /** @todo make it return a VBox status code! */
-    int  (* pfnSetInterface)(PUSBPROXYDEV pProxyDev, int iIf, int setting);
+    /**
+     * Sets the given alternate interface for the device.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   iIf             Interface to use.
+     * @param   iSetting        The alternate setting to use.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSetInterface, (PUSBPROXYDEV pProxyDev, int iIf, int iSetting));
 
-    /** @todo make it return a VBox status code! */
-    bool (* pfnClearHaltedEndpoint)(PUSBPROXYDEV  pDev, unsigned int iEp);
+    /**
+     * Clears the given halted endpoint.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   iEp             The endpoint to clear.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnClearHaltedEndpoint, (PUSBPROXYDEV  pDev, unsigned int iEp));
 
-    /** @todo make it return a VBox status code! Add pDev. */
-    int  (* pfnUrbQueue)(PVUSBURB pUrb);
+    /**
+     * Queue a new URB.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   pUrb            The URB to queue.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnUrbQueue, (PUSBPROXYDEV pProxyDev, PVUSBURB pUrb));
 
     /**
      * Cancel an in-flight URB.
      *
-     * @param   pUrb        The URB to cancel.
-     * @todo make it return a VBox status code! Add pDev.
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   pUrb            The URB to cancel.
      */
-    void (* pfnUrbCancel)(PVUSBURB pUrb);
+    DECLR3CALLBACKMEMBER(int, pfnUrbCancel, (PUSBPROXYDEV pProxyDev, PVUSBURB pUrb));
 
     /**
      * Reap URBs in-flight on a device.
      *
      * @returns Pointer to a completed URB.
      * @returns NULL if no URB was completed.
-     * @param   pDev        The device.
-     * @param   cMillies    Number of milliseconds to wait. Use 0 to not
-     *                      wait at all.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     * @param   cMillies        Number of milliseconds to wait. Use 0 to not
+     *                          wait at all.
      */
-    PVUSBURB (* pfnUrbReap)(PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies);
+    DECLR3CALLBACKMEMBER(PVUSBURB, pfnUrbReap, (PUSBPROXYDEV pProxyDev, RTMSINTERVAL cMillies));
+
+    /**
+     * Kicks the thread waiting in pfnUrbReap to make it return.
+     *
+     * @returns VBox status code.
+     * @param   pProxyDev       The USB Proxy Device instance.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnWakeup, (PUSBPROXYDEV pProxyDev));
 
     /** Dummy entry for making sure we've got all members initialized. */
     uint32_t uDummy;
@@ -162,7 +195,7 @@ typedef struct USBPROXYDEV
     /** The previous device in rdesktop-vrdp's linked list */
     PUSBPROXYDEV        pPrev;
     /** The vrdp device ID */
-    uint32_t devid;
+    uint32_t            devid;
     /** Linked list of in-flight URBs */
     PVUSBURB            pUrbs;
 #endif
@@ -200,21 +233,14 @@ typedef struct USBPROXYDEV
     /** Whether the device has been detached.
      * This is hack for making PDMUSBREG::pfnUsbQueue return the right status code. */
     bool                fDetached;
-    /** Backend specific data */
-    union USBPROXYBACKENDDATA
-    {
-        /** Pointer to some backend data.
-         * The Linux and Darwin backends are making use of this. */
-        void *pv;
-        RTFILE hFile;
-        int fd;
-        struct vrdp_priv
-        {
-            void *pCallback;
-            void *pDevice;
-        } vrdp;
-    } Backend;
+    /** Backend specific data, the size is stored in pOps::cbBackend. */
+    void                *pvInstanceDataR3;
 } USBPROXYDEV;
+
+/** @def USBPROXYDEV_2_DATA
+ * Converts a USB proxy Device, pointer to a pointer to the backend specific instance data.
+ */
+#define USBPROXYDEV_2_DATA(a_pProxyDev, a_Type)   ( (a_Type)(a_pProxyDev)->pvInstanceDataR3 )
 
 static inline char *usbProxyGetName(PUSBPROXYDEV pProxyDev)
 {

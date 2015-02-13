@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,7 +42,7 @@
 
 /** @def REM_MONITOR_CODE_PAGES
  * Enable to monitor code pages that have been translated by the recompiler. */
-/** Currently broken and interferes with CSAM monitoring (see #2784) */
+/** Currently broken and interferes with CSAM monitoring (see @bugref{2784}) */
 ////#define REM_MONITOR_CODE_PAGES
 #ifdef DOXYGEN_RUNNING
 # define REM_MONITOR_CODE_PAGES
@@ -234,7 +234,9 @@ typedef REM *PREM;
 #ifdef REM_INCLUDE_CPU_H
 bool    remR3CanExecuteRaw(CPUState *env, RTGCPTR eip, unsigned fFlags, int *piException);
 void    remR3CSAMCheckEIP(CPUState *env, RTGCPTR GCPtrCode);
+# ifdef VBOX_WITH_RAW_MODE
 bool    remR3GetOpcode(CPUState *env, RTGCPTR GCPtrInstr, uint8_t *pu8Byte);
+# endif
 bool    remR3DisasInstr(CPUState *env, int f32BitCode, char *pszPrefix);
 void    remR3FlushPage(CPUState *env, RTGCPTR GCPtr);
 void    remR3FlushTLB(CPUState *env, bool fGlobal);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2008 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,26 +41,26 @@
     { \
      AssertMsg(RTCritSectIsOwner(&Cache->CritSect), \
                ("Thread does not own critical section\n"));\
-    } while(0)
+    } while (0)
 
 # define PDMACFILECACHE_EP_IS_SEMRW_WRITE_OWNER(pEpCache) \
     do \
     { \
         AssertMsg(RTSemRWIsWriteOwner(pEpCache->SemRWEntries), \
                   ("Thread is not exclusive owner of the per endpoint RW semaphore\n")); \
-    } while(0)
+    } while (0)
 
 # define PDMACFILECACHE_EP_IS_SEMRW_READ_OWNER(pEpCache) \
     do \
     { \
         AssertMsg(RTSemRWIsReadOwner(pEpCache->SemRWEntries), \
                   ("Thread is not read owner of the per endpoint RW semaphore\n")); \
-    } while(0)
+    } while (0)
 
 #else
-# define PDMACFILECACHE_IS_CRITSECT_OWNER(Cache) do { } while(0)
-# define PDMACFILECACHE_EP_IS_SEMRW_WRITE_OWNER(pEpCache) do { } while(0)
-# define PDMACFILECACHE_EP_IS_SEMRW_READ_OWNER(pEpCache) do { } while(0)
+# define PDMACFILECACHE_IS_CRITSECT_OWNER(Cache) do { } while (0)
+# define PDMACFILECACHE_EP_IS_SEMRW_WRITE_OWNER(pEpCache) do { } while (0)
+# define PDMACFILECACHE_EP_IS_SEMRW_READ_OWNER(pEpCache) do { } while (0)
 #endif
 
 #define PDM_BLK_CACHE_SAVED_STATE_VERSION 1
@@ -360,7 +360,7 @@ static size_t pdmBlkCacheEvictPagesFrom(PPDMBLKCACHEGLOBAL pCache, size_t cbData
             {
                 LogFlow(("Evicting entry %#p (%u bytes)\n", pCurr, pCurr->cbData));
 
-                if (fReuseBuffer && (pCurr->cbData == cbData))
+                if (fReuseBuffer && pCurr->cbData == cbData)
                 {
                     STAM_COUNTER_INC(&pCache->StatBuffersReused);
                     *ppbBuffer = pCurr->pbData;
@@ -381,7 +381,7 @@ static size_t pdmBlkCacheEvictPagesFrom(PPDMBLKCACHEGLOBAL pCache, size_t cbData
                     PPDMBLKCACHEENTRY pGhostEntFree = pGhostListDst->pTail;
 
                     /* We have to remove the last entries from the paged out list. */
-                    while (   ((pGhostListDst->cbCached + pCurr->cbData) > pCache->cbRecentlyUsedOutMax)
+                    while (   pGhostListDst->cbCached + pCurr->cbData > pCache->cbRecentlyUsedOutMax
                            && pGhostEntFree)
                     {
                         PPDMBLKCACHEENTRY pFree = pGhostEntFree;
@@ -655,13 +655,12 @@ static void pdmBlkCacheCommit(PPDMBLKCACHE pBlkCache)
     RTSemRWRequestWrite(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
 
     /* The list is moved to a new header to reduce locking overhead. */
-    RTLISTNODE ListDirtyNotCommitted;
-    RTSPINLOCKTMP Tmp;
+    RTLISTANCHOR ListDirtyNotCommitted;
 
     RTListInit(&ListDirtyNotCommitted);
-    RTSpinlockAcquire(pBlkCache->LockList, &Tmp);
+    RTSpinlockAcquire(pBlkCache->LockList);
     RTListMove(&ListDirtyNotCommitted, &pBlkCache->ListDirtyNotCommitted);
-    RTSpinlockRelease(pBlkCache->LockList, &Tmp);
+    RTSpinlockRelease(pBlkCache->LockList);
 
     if (!RTListIsEmpty(&ListDirtyNotCommitted))
     {
@@ -680,6 +679,7 @@ static void pdmBlkCacheCommit(PPDMBLKCACHE pBlkCache)
         /* Commit the last endpoint */
         Assert(RTListNodeIsLast(&ListDirtyNotCommitted, &pEntry->NodeNotCommitted));
         pdmBlkCacheEntryCommit(pEntry);
+        cbCommitted += pEntry->cbData;
         RTListNodeRemove(&pEntry->NodeNotCommitted);
         AssertMsg(RTListIsEmpty(&ListDirtyNotCommitted),
                   ("Committed all entries but list is not empty\n"));
@@ -753,10 +753,9 @@ static bool pdmBlkCacheAddDirtyEntry(PPDMBLKCACHE pBlkCache, PPDMBLKCACHEENTRY p
     {
         pEntry->fFlags |= PDMBLKCACHE_ENTRY_IS_DIRTY;
 
-        RTSPINLOCKTMP Tmp;
-        RTSpinlockAcquire(pBlkCache->LockList, &Tmp);
+        RTSpinlockAcquire(pBlkCache->LockList);
         RTListAppend(&pBlkCache->ListDirtyNotCommitted, &pEntry->NodeNotCommitted);
-        RTSpinlockRelease(pBlkCache->LockList, &Tmp);
+        RTSpinlockRelease(pBlkCache->LockList);
 
         uint32_t cbDirty = ASMAtomicAddU32(&pCache->cbDirty, pEntry->cbData);
 
@@ -793,9 +792,10 @@ static PPDMBLKCACHE pdmR3BlkCacheFindById(PPDMBLKCACHEGLOBAL pBlkCacheGlobal, co
 /**
  * Commit timer callback.
  */
-static void pdmBlkCacheCommitTimerCallback(PVM pVM, PTMTIMER pTimer, void *pvUser)
+static DECLCALLBACK(void) pdmBlkCacheCommitTimerCallback(PVM pVM, PTMTIMER pTimer, void *pvUser)
 {
     PPDMBLKCACHEGLOBAL pCache = (PPDMBLKCACHEGLOBAL)pvUser;
+    NOREF(pVM); NOREF(pTimer);
 
     LogFlowFunc(("Commit interval expired, commiting dirty entries\n"));
 
@@ -824,7 +824,7 @@ static DECLCALLBACK(int) pdmR3BlkCacheSaveExec(PVM pVM, PSSMHANDLE pSSM)
         PPDMBLKCACHEENTRY pEntry;
 
         RTSemRWRequestRead(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
-        SSMR3PutU32(pSSM, strlen(pBlkCache->pszId));
+        SSMR3PutU32(pSSM, (uint32_t)strlen(pBlkCache->pszId));
         SSMR3PutStrZ(pSSM, pBlkCache->pszId);
 
         /* Count the number of entries to safe. */
@@ -866,10 +866,10 @@ static DECLCALLBACK(int) pdmR3BlkCacheSaveExec(PVM pVM, PSSMHANDLE pSSM)
 
 static DECLCALLBACK(int) pdmR3BlkCacheLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
 {
-    int rc = VINF_SUCCESS;
-    uint32_t cRefs;
     PPDMBLKCACHEGLOBAL pBlkCacheGlobal = pVM->pUVM->pdm.s.pBlkCacheGlobal;
+    uint32_t           cRefs;
 
+    NOREF(uPass);
     AssertPtr(pBlkCacheGlobal);
 
     pdmBlkCacheLockEnter(pBlkCacheGlobal);
@@ -883,94 +883,94 @@ static DECLCALLBACK(int) pdmR3BlkCacheLoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_
      * Fewer users in the saved state than in the current VM are allowed
      * because that means that there are only new ones which don't have any saved state
      * which can get lost.
-     * More saved entries that current ones are not allowed because this could result in
-     * lost data.
+     * More saved state entries than registered cache users are only allowed if the
+     * missing users don't have any data saved in the cache.
      */
-    if (cRefs <= pBlkCacheGlobal->cRefs)
+    int rc = VINF_SUCCESS;
+    char *pszId = NULL;
+
+    while (   cRefs > 0
+           && RT_SUCCESS(rc))
     {
-        char *pszId = NULL;
+        PPDMBLKCACHE pBlkCache = NULL;
+        uint32_t cbId = 0;
 
-        while (   cRefs > 0
-               && RT_SUCCESS(rc))
+        SSMR3GetU32(pSSM, &cbId);
+        Assert(cbId > 0);
+
+        cbId++; /* Include terminator */
+        pszId = (char *)RTMemAllocZ(cbId * sizeof(char));
+        if (!pszId)
         {
-            PPDMBLKCACHE pBlkCache = NULL;
-            uint32_t cbId = 0;
+            rc = VERR_NO_MEMORY;
+            break;
+        }
 
-            SSMR3GetU32(pSSM, &cbId);
-            Assert(cbId > 0);
+        rc = SSMR3GetStrZ(pSSM, pszId, cbId);
+        AssertRC(rc);
 
-            cbId++; /* Include terminator */
-            pszId = (char *)RTMemAllocZ(cbId * sizeof(char));
-            if (!pszId)
+        /* Search for the block cache with the provided id. */
+        pBlkCache = pdmR3BlkCacheFindById(pBlkCacheGlobal, pszId);
+
+        /* Get the entries */
+        uint32_t cEntries;
+        SSMR3GetU32(pSSM, &cEntries);
+
+        if (!pBlkCache && (cEntries > 0))
+        {
+            rc = SSMR3SetCfgError(pSSM, RT_SRC_POS,
+                                  N_("The VM is missing a block device and there is data in the cache. Please make sure the source and target VMs have compatible storage configurations"));
+            break;
+        }
+
+        RTStrFree(pszId);
+        pszId = NULL;
+
+        while (cEntries > 0)
+        {
+            PPDMBLKCACHEENTRY pEntry;
+            uint64_t off;
+            uint32_t cbEntry;
+
+            SSMR3GetU64(pSSM, &off);
+            SSMR3GetU32(pSSM, &cbEntry);
+
+            pEntry = pdmBlkCacheEntryAlloc(pBlkCache, off, cbEntry, NULL);
+            if (!pEntry)
             {
                 rc = VERR_NO_MEMORY;
                 break;
             }
 
-            rc = SSMR3GetStrZ(pSSM, pszId, cbId);
-            AssertRC(rc);
-
-            /* Search for the block cache with the provided id. */
-            pBlkCache = pdmR3BlkCacheFindById(pBlkCacheGlobal, pszId);
-            if (!pBlkCache)
+            rc = SSMR3GetMem(pSSM, pEntry->pbData, cbEntry);
+            if (RT_FAILURE(rc))
             {
-                rc = SSMR3SetCfgError(pSSM, RT_SRC_POS,
-                                      N_("The VM is missing a block device. Please make sure the source and target VMs have compatible storage configurations"));
+                RTMemFree(pEntry->pbData);
+                RTMemFree(pEntry);
                 break;
             }
 
-            RTStrFree(pszId);
-            pszId = NULL;
+            /* Insert into the tree. */
+            bool fInserted = RTAvlrU64Insert(pBlkCache->pTree, &pEntry->Core);
+            Assert(fInserted); NOREF(fInserted);
 
-            /* Get the entries */
-            uint32_t cEntries;
-            SSMR3GetU32(pSSM, &cEntries);
-
-            while (cEntries > 0)
-            {
-                PPDMBLKCACHEENTRY pEntry;
-                uint64_t off;
-                uint32_t cbEntry;
-
-                SSMR3GetU64(pSSM, &off);
-                SSMR3GetU32(pSSM, &cbEntry);
-
-                pEntry = pdmBlkCacheEntryAlloc(pBlkCache, off, cbEntry, NULL);
-                if (!pEntry)
-                {
-                    rc = VERR_NO_MEMORY;
-                    break;
-                }
-
-                rc = SSMR3GetMem(pSSM, pEntry->pbData, cbEntry);
-                if (RT_FAILURE(rc))
-                {
-                    RTMemFree(pEntry->pbData);
-                    RTMemFree(pEntry);
-                    break;
-                }
-
-                /* Insert into the tree. */
-                bool fInserted = RTAvlrU64Insert(pBlkCache->pTree, &pEntry->Core);
-                Assert(fInserted);
-
-                /* Add to the dirty list. */
-                pdmBlkCacheAddDirtyEntry(pBlkCache, pEntry);
-                pdmBlkCacheEntryAddToList(&pBlkCacheGlobal->LruRecentlyUsedIn, pEntry);
-                pdmBlkCacheAdd(pBlkCacheGlobal, cbEntry);
-                pdmBlkCacheEntryRelease(pEntry);
-                cEntries--;
-            }
-
-            cRefs--;
+            /* Add to the dirty list. */
+            pdmBlkCacheAddDirtyEntry(pBlkCache, pEntry);
+            pdmBlkCacheEntryAddToList(&pBlkCacheGlobal->LruRecentlyUsedIn, pEntry);
+            pdmBlkCacheAdd(pBlkCacheGlobal, cbEntry);
+            pdmBlkCacheEntryRelease(pEntry);
+            cEntries--;
         }
 
-        if (pszId)
-            RTStrFree(pszId);
+        cRefs--;
     }
-    else
+
+    if (pszId)
+        RTStrFree(pszId);
+
+    if (cRefs && RT_SUCCESS(rc))
         rc = SSMR3SetCfgError(pSSM, RT_SRC_POS,
-                              N_("The VM is missing a block device. Please make sure the source and target VMs have compatible storage configurations"));
+                              N_("Unexpected error while restoring state. Please make sure the source and target VMs have compatible storage configurations"));
 
     pdmBlkCacheLockLeave(pBlkCacheGlobal);
 
@@ -1216,7 +1216,7 @@ static int pdmR3BlkCacheRetain(PVM pVM, PPPDMBLKCACHE ppBlkCache, const char *pc
             pBlkCache->pCache = pBlkCacheGlobal;
             RTListInit(&pBlkCache->ListDirtyNotCommitted);
 
-            rc = RTSpinlockCreate(&pBlkCache->LockList);
+            rc = RTSpinlockCreate(&pBlkCache->LockList, RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, "pdmR3BlkCacheRetain");
             if (RT_SUCCESS(rc))
             {
                 rc = RTSemRWCreate(&pBlkCache->SemRWEntries);
@@ -1241,9 +1241,8 @@ static int pdmR3BlkCacheRetain(PVM pVM, PPPDMBLKCACHE ppBlkCache, const char *pc
                         LogFlowFunc(("returns success\n"));
                         return VINF_SUCCESS;
                     }
-                    else
-                        rc = VERR_NO_MEMORY;
 
+                    rc = VERR_NO_MEMORY;
                     RTSemRWDestroy(pBlkCache->SemRWEntries);
                 }
 
@@ -1270,6 +1269,7 @@ static int pdmR3BlkCacheRetain(PVM pVM, PPPDMBLKCACHE ppBlkCache, const char *pc
 VMMR3DECL(int) PDMR3BlkCacheRetainDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMBLKCACHE ppBlkCache,
                                          PFNPDMBLKCACHEXFERCOMPLETEDRV pfnXferComplete,
                                          PFNPDMBLKCACHEXFERENQUEUEDRV pfnXferEnqueue,
+                                         PFNPDMBLKCACHEXFERENQUEUEDISCARDDRV pfnXferEnqueueDiscard,
                                          const char *pcszId)
 {
     int rc = VINF_SUCCESS;
@@ -1278,10 +1278,11 @@ VMMR3DECL(int) PDMR3BlkCacheRetainDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMBLKCA
     rc = pdmR3BlkCacheRetain(pVM, &pBlkCache, pcszId);
     if (RT_SUCCESS(rc))
     {
-        pBlkCache->enmType = PDMBLKCACHETYPE_DRV;
-        pBlkCache->u.Drv.pfnXferComplete = pfnXferComplete;
-        pBlkCache->u.Drv.pfnXferEnqueue  = pfnXferEnqueue;
-        pBlkCache->u.Drv.pDrvIns         = pDrvIns;
+        pBlkCache->enmType                      = PDMBLKCACHETYPE_DRV;
+        pBlkCache->u.Drv.pfnXferComplete        = pfnXferComplete;
+        pBlkCache->u.Drv.pfnXferEnqueue         = pfnXferEnqueue;
+        pBlkCache->u.Drv.pfnXferEnqueueDiscard  = pfnXferEnqueueDiscard;
+        pBlkCache->u.Drv.pDrvIns                = pDrvIns;
         *ppBlkCache = pBlkCache;
     }
 
@@ -1292,6 +1293,7 @@ VMMR3DECL(int) PDMR3BlkCacheRetainDriver(PVM pVM, PPDMDRVINS pDrvIns, PPPDMBLKCA
 VMMR3DECL(int) PDMR3BlkCacheRetainDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMBLKCACHE ppBlkCache,
                                          PFNPDMBLKCACHEXFERCOMPLETEDEV pfnXferComplete,
                                          PFNPDMBLKCACHEXFERENQUEUEDEV pfnXferEnqueue,
+                                         PFNPDMBLKCACHEXFERENQUEUEDISCARDDEV pfnXferEnqueueDiscard,
                                          const char *pcszId)
 {
     int rc = VINF_SUCCESS;
@@ -1300,10 +1302,11 @@ VMMR3DECL(int) PDMR3BlkCacheRetainDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMBLKCA
     rc = pdmR3BlkCacheRetain(pVM, &pBlkCache, pcszId);
     if (RT_SUCCESS(rc))
     {
-        pBlkCache->enmType = PDMBLKCACHETYPE_DEV;
-        pBlkCache->u.Dev.pfnXferComplete = pfnXferComplete;
-        pBlkCache->u.Dev.pfnXferEnqueue  = pfnXferEnqueue;
-        pBlkCache->u.Dev.pDevIns         = pDevIns;
+        pBlkCache->enmType                      = PDMBLKCACHETYPE_DEV;
+        pBlkCache->u.Dev.pfnXferComplete        = pfnXferComplete;
+        pBlkCache->u.Dev.pfnXferEnqueue         = pfnXferEnqueue;
+        pBlkCache->u.Dev.pfnXferEnqueueDiscard  = pfnXferEnqueueDiscard;
+        pBlkCache->u.Dev.pDevIns                = pDevIns;
         *ppBlkCache = pBlkCache;
     }
 
@@ -1315,6 +1318,7 @@ VMMR3DECL(int) PDMR3BlkCacheRetainDevice(PVM pVM, PPDMDEVINS pDevIns, PPPDMBLKCA
 VMMR3DECL(int) PDMR3BlkCacheRetainUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMBLKCACHE ppBlkCache,
                                       PFNPDMBLKCACHEXFERCOMPLETEUSB pfnXferComplete,
                                       PFNPDMBLKCACHEXFERENQUEUEUSB pfnXferEnqueue,
+                                      PFNPDMBLKCACHEXFERENQUEUEDISCARDUSB pfnXferEnqueueDiscard,
                                       const char *pcszId)
 {
     int rc = VINF_SUCCESS;
@@ -1323,10 +1327,11 @@ VMMR3DECL(int) PDMR3BlkCacheRetainUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMBLKCACHE
     rc = pdmR3BlkCacheRetain(pVM, &pBlkCache, pcszId);
     if (RT_SUCCESS(rc))
     {
-        pBlkCache->enmType = PDMBLKCACHETYPE_USB;
-        pBlkCache->u.Usb.pfnXferComplete = pfnXferComplete;
-        pBlkCache->u.Usb.pfnXferEnqueue  = pfnXferEnqueue;
-        pBlkCache->u.Usb.pUsbIns         = pUsbIns;
+        pBlkCache->enmType                      = PDMBLKCACHETYPE_USB;
+        pBlkCache->u.Usb.pfnXferComplete        = pfnXferComplete;
+        pBlkCache->u.Usb.pfnXferEnqueue         = pfnXferEnqueue;
+        pBlkCache->u.Usb.pfnXferEnqueueDiscard  = pfnXferEnqueueDiscard;
+        pBlkCache->u.Usb.pUsbIns                = pUsbIns;
         *ppBlkCache = pBlkCache;
     }
 
@@ -1338,6 +1343,7 @@ VMMR3DECL(int) PDMR3BlkCacheRetainUsb(PVM pVM, PPDMUSBINS pUsbIns, PPPDMBLKCACHE
 VMMR3DECL(int) PDMR3BlkCacheRetainInt(PVM pVM, void *pvUser, PPPDMBLKCACHE ppBlkCache,
                                       PFNPDMBLKCACHEXFERCOMPLETEINT pfnXferComplete,
                                       PFNPDMBLKCACHEXFERENQUEUEINT pfnXferEnqueue,
+                                      PFNPDMBLKCACHEXFERENQUEUEDISCARDINT pfnXferEnqueueDiscard,
                                       const char *pcszId)
 {
     int rc = VINF_SUCCESS;
@@ -1346,10 +1352,11 @@ VMMR3DECL(int) PDMR3BlkCacheRetainInt(PVM pVM, void *pvUser, PPPDMBLKCACHE ppBlk
     rc = pdmR3BlkCacheRetain(pVM, &pBlkCache, pcszId);
     if (RT_SUCCESS(rc))
     {
-        pBlkCache->enmType = PDMBLKCACHETYPE_INTERNAL;
-        pBlkCache->u.Int.pfnXferComplete = pfnXferComplete;
-        pBlkCache->u.Int.pfnXferEnqueue  = pfnXferEnqueue;
-        pBlkCache->u.Int.pvUser          = pvUser;
+        pBlkCache->enmType                      = PDMBLKCACHETYPE_INTERNAL;
+        pBlkCache->u.Int.pfnXferComplete        = pfnXferComplete;
+        pBlkCache->u.Int.pfnXferEnqueue         = pfnXferEnqueue;
+        pBlkCache->u.Int.pfnXferEnqueueDiscard  = pfnXferEnqueueDiscard;
+        pBlkCache->u.Int.pvUser                 = pvUser;
         *ppBlkCache = pBlkCache;
     }
 
@@ -1437,7 +1444,7 @@ VMMR3DECL(void) PDMR3BlkCacheRelease(PPDMBLKCACHE pBlkCache)
     RTSemRWDestroy(pBlkCache->SemRWEntries);
 
 #ifdef VBOX_WITH_STATISTICS
-    STAMR3Deregister(pCache->pVM, &pBlkCache->StatWriteDeferred);
+    STAMR3DeregisterF(pCache->pVM->pUVM, "/PDM/BlkCache/%s/Cache/DeferredWrites", pBlkCache->pszId);
 #endif
 
     RTStrFree(pBlkCache->pszId);
@@ -1536,18 +1543,15 @@ VMMR3DECL(void) PDMR3BlkCacheReleaseUsb(PVM pVM, PPDMUSBINS pUsbIns)
 
 static PPDMBLKCACHEENTRY pdmBlkCacheGetCacheEntryByOffset(PPDMBLKCACHE pBlkCache, uint64_t off)
 {
-    PPDMBLKCACHEGLOBAL pCache = pBlkCache->pCache;
-    PPDMBLKCACHEENTRY pEntry = NULL;
-
-    STAM_PROFILE_ADV_START(&pCache->StatTreeGet, Cache);
+    STAM_PROFILE_ADV_START(&pBlkCache->pCache->StatTreeGet, Cache);
 
     RTSemRWRequestRead(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
-    pEntry = (PPDMBLKCACHEENTRY)RTAvlrU64RangeGet(pBlkCache->pTree, off);
+    PPDMBLKCACHEENTRY pEntry = (PPDMBLKCACHEENTRY)RTAvlrU64RangeGet(pBlkCache->pTree, off);
     if (pEntry)
         pdmBlkCacheEntryRef(pEntry);
     RTSemRWReleaseRead(pBlkCache->SemRWEntries);
 
-    STAM_PROFILE_ADV_STOP(&pCache->StatTreeGet, Cache);
+    STAM_PROFILE_ADV_STOP(&pBlkCache->pCache->StatTreeGet, Cache);
 
     return pEntry;
 }
@@ -1564,9 +1568,7 @@ static PPDMBLKCACHEENTRY pdmBlkCacheGetCacheEntryByOffset(PPDMBLKCACHE pBlkCache
 static void pdmBlkCacheGetCacheBestFitEntryByOffset(PPDMBLKCACHE pBlkCache, uint64_t off,
                                                     PPDMBLKCACHEENTRY *ppEntryAbove)
 {
-    PPDMBLKCACHEGLOBAL pCache = pBlkCache->pCache;
-
-    STAM_PROFILE_ADV_START(&pCache->StatTreeGet, Cache);
+    STAM_PROFILE_ADV_START(&pBlkCache->pCache->StatTreeGet, Cache);
 
     RTSemRWRequestRead(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
     if (ppEntryAbove)
@@ -1578,18 +1580,16 @@ static void pdmBlkCacheGetCacheBestFitEntryByOffset(PPDMBLKCACHE pBlkCache, uint
 
     RTSemRWReleaseRead(pBlkCache->SemRWEntries);
 
-    STAM_PROFILE_ADV_STOP(&pCache->StatTreeGet, Cache);
+    STAM_PROFILE_ADV_STOP(&pBlkCache->pCache->StatTreeGet, Cache);
 }
 
 static void pdmBlkCacheInsertEntry(PPDMBLKCACHE pBlkCache, PPDMBLKCACHEENTRY pEntry)
 {
-    PPDMBLKCACHEGLOBAL pCache = pBlkCache->pCache;
-
-    STAM_PROFILE_ADV_START(&pCache->StatTreeInsert, Cache);
+    STAM_PROFILE_ADV_START(&pBlkCache->pCache->StatTreeInsert, Cache);
     RTSemRWRequestWrite(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
     bool fInserted = RTAvlrU64Insert(pBlkCache->pTree, &pEntry->Core);
-    AssertMsg(fInserted, ("Node was not inserted into tree\n"));
-    STAM_PROFILE_ADV_STOP(&pCache->StatTreeInsert, Cache);
+    AssertMsg(fInserted, ("Node was not inserted into tree\n")); NOREF(fInserted);
+    STAM_PROFILE_ADV_STOP(&pBlkCache->pCache->StatTreeInsert, Cache);
     RTSemRWReleaseWrite(pBlkCache->SemRWEntries);
 }
 
@@ -1608,6 +1608,7 @@ static void pdmBlkCacheInsertEntry(PPDMBLKCACHE pBlkCache, PPDMBLKCACHEENTRY pEn
 static PPDMBLKCACHEENTRY pdmBlkCacheEntryAlloc(PPDMBLKCACHE pBlkCache,
                                                uint64_t off, size_t cbData, uint8_t *pbBuffer)
 {
+    AssertReturn(cbData <= UINT32_MAX, NULL);
     PPDMBLKCACHEENTRY pEntryNew = (PPDMBLKCACHEENTRY)RTMemAllocZ(sizeof(PDMBLKCACHEENTRY));
 
     if (RT_UNLIKELY(!pEntryNew))
@@ -1619,7 +1620,7 @@ static PPDMBLKCACHEENTRY pdmBlkCacheEntryAlloc(PPDMBLKCACHE pBlkCache,
     pEntryNew->fFlags        = 0;
     pEntryNew->cRefs         = 1; /* We are using it now. */
     pEntryNew->pList         = NULL;
-    pEntryNew->cbData        = cbData;
+    pEntryNew->cbData        = (uint32_t)cbData;
     pEntryNew->pWaitingHead  = NULL;
     pEntryNew->pWaitingTail  = NULL;
     if (pbBuffer)
@@ -1738,31 +1739,25 @@ static int pdmBlkCacheEntryWaitersAdd(PPDMBLKCACHEENTRY pEntry,
 }
 
 /**
- * Calculate aligned offset and size for a new cache entry
- * which do not intersect with an already existing entry and the
- * file end.
+ * Calculate aligned offset and size for a new cache entry which do not
+ * intersect with an already existing entry and the file end.
  *
  * @returns The number of bytes the entry can hold of the requested amount
- *          of byte.
- * @param   pEndpoint        The endpoint.
- * @param   pBlkCache   The endpoint cache.
- * @param   off              The start offset.
- * @param   cb               The number of bytes the entry needs to hold at least.
- * @param   uAlignment       Alignment of the boundary sizes.
- * @param   poffAligned      Where to store the aligned offset.
- * @param   pcbAligned       Where to store the aligned size of the entry.
+ *          of bytes.
+ * @param   pEndpoint       The endpoint.
+ * @param   pBlkCache       The endpoint cache.
+ * @param   off             The start offset.
+ * @param   cb              The number of bytes the entry needs to hold at
+ *                          least.
+ * @param   pcbEntry        Where to store the number of bytes the entry can hold.
+ *                          Can be less than given because of other entries.
  */
-static size_t pdmBlkCacheEntryBoundariesCalc(PPDMBLKCACHE pBlkCache,
-                                             uint64_t off, size_t cb,
-                                             unsigned uAlignment,
-                                             uint64_t *poffAligned, size_t *pcbAligned)
+static uint32_t pdmBlkCacheEntryBoundariesCalc(PPDMBLKCACHE pBlkCache,
+                                               uint64_t off, uint32_t cb,
+                                               uint32_t *pcbEntry)
 {
-    size_t cbAligned;
-    size_t cbInEntry = 0;
-    uint64_t offAligned;
-    PPDMBLKCACHEENTRY pEntryAbove = NULL;
-
     /* Get the best fit entries around the offset */
+    PPDMBLKCACHEENTRY pEntryAbove = NULL;
     pdmBlkCacheGetCacheBestFitEntryByOffset(pBlkCache, off, &pEntryAbove);
 
     /* Log the info */
@@ -1773,32 +1768,31 @@ static size_t pdmBlkCacheEntryBoundariesCalc(PPDMBLKCACHE pBlkCache,
              pEntryAbove ? pEntryAbove->Core.KeyLast : 0,
              pEntryAbove ? pEntryAbove->cbData : 0));
 
-    offAligned = off;
-
+    uint32_t cbNext;
+    uint32_t cbInEntry;
     if (    pEntryAbove
         &&  off + cb > pEntryAbove->Core.Key)
     {
-        cbInEntry = pEntryAbove->Core.Key - off;
-        cbAligned = pEntryAbove->Core.Key - offAligned;
+        cbInEntry = (uint32_t)(pEntryAbove->Core.Key - off);
+        cbNext = (uint32_t)(pEntryAbove->Core.Key - off);
     }
     else
     {
-        cbAligned = cb;
         cbInEntry = cb;
+        cbNext    = cb;
     }
 
     /* A few sanity checks */
-    AssertMsg(!pEntryAbove || (offAligned + cbAligned) <= pEntryAbove->Core.Key,
+    AssertMsg(!pEntryAbove || off + cbNext <= pEntryAbove->Core.Key,
               ("Aligned size intersects with another cache entry\n"));
-    Assert(cbInEntry <= cbAligned);
+    Assert(cbInEntry <= cbNext);
 
     if (pEntryAbove)
         pdmBlkCacheEntryRelease(pEntryAbove);
 
-    LogFlow(("offAligned=%llu cbAligned=%u\n", offAligned, cbAligned));
+    LogFlow(("off=%llu cbNext=%u\n", off, cbNext));
 
-    *poffAligned = offAligned;
-    *pcbAligned  = cbAligned;
+    *pcbEntry  = cbNext;
 
     return cbInEntry;
 }
@@ -1812,33 +1806,30 @@ static size_t pdmBlkCacheEntryBoundariesCalc(PPDMBLKCACHE pBlkCache,
  * @param   pBlkCache    The endpoint cache.
  * @param   off               The offset.
  * @param   cb                Number of bytes the cache entry should have.
- * @param   uAlignment        Alignment the size of the entry should have.
  * @param   pcbData           Where to store the number of bytes the new
  *                            entry can hold. May be lower than actually requested
  *                            due to another entry intersecting the access range.
  */
 static PPDMBLKCACHEENTRY pdmBlkCacheEntryCreate(PPDMBLKCACHE pBlkCache,
                                                 uint64_t off, size_t cb,
-                                                unsigned uAlignment,
                                                 size_t *pcbData)
 {
-    uint64_t offStart = 0;
-    size_t cbEntry = 0;
-    PPDMBLKCACHEENTRY pEntryNew = NULL;
+    uint32_t cbEntry  = 0;
+
+    *pcbData = pdmBlkCacheEntryBoundariesCalc(pBlkCache, off, (uint32_t)cb, &cbEntry);
+    AssertReturn(cb <= UINT32_MAX, NULL);
+
     PPDMBLKCACHEGLOBAL pCache = pBlkCache->pCache;
-    uint8_t *pbBuffer = NULL;
-
-    *pcbData = pdmBlkCacheEntryBoundariesCalc(pBlkCache, off, cb, uAlignment,
-                                              &offStart, &cbEntry);
-
     pdmBlkCacheLockEnter(pCache);
-    bool fEnough = pdmBlkCacheReclaim(pCache, cbEntry, true, &pbBuffer);
 
+    PPDMBLKCACHEENTRY pEntryNew = NULL;
+    uint8_t          *pbBuffer  = NULL;
+    bool fEnough = pdmBlkCacheReclaim(pCache, cbEntry, true, &pbBuffer);
     if (fEnough)
     {
         LogFlow(("Evicted enough bytes (%u requested). Creating new cache entry\n", cbEntry));
 
-        pEntryNew = pdmBlkCacheEntryAlloc(pBlkCache, offStart, cbEntry, pbBuffer);
+        pEntryNew = pdmBlkCacheEntryAlloc(pBlkCache, off, cbEntry, pbBuffer);
         if (RT_LIKELY(pEntryNew))
         {
             pdmBlkCacheEntryAddToList(&pCache->LruRecentlyUsedIn, pEntryNew);
@@ -1849,8 +1840,7 @@ static PPDMBLKCACHEENTRY pdmBlkCacheEntryCreate(PPDMBLKCACHE pBlkCache,
 
             AssertMsg(   (off >= pEntryNew->Core.Key)
                       && (off + *pcbData <= pEntryNew->Core.KeyLast + 1),
-                      ("Overflow in calculation off=%llu OffsetAligned=%llu\n",
-                       off, pEntryNew->Core.Key));
+                      ("Overflow in calculation off=%llu\n", off));
         }
         else
             pdmBlkCacheLockLeave(pCache);
@@ -2083,7 +2073,6 @@ VMMR3DECL(int) PDMR3BlkCacheRead(PPDMBLKCACHE pBlkCache, uint64_t off,
             /* No entry found for this offset. Create a new entry and fetch the data to the cache. */
             PPDMBLKCACHEENTRY pEntryNew = pdmBlkCacheEntryCreate(pBlkCache,
                                                                  off, cbRead,
-                                                                 PAGE_SIZE,
                                                                  &cbToRead);
 
             cbRead -= cbToRead;
@@ -2179,7 +2168,6 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
         size_t cbToWrite;
 
         pEntry = pdmBlkCacheGetCacheEntryByOffset(pBlkCache, off);
-
         if (pEntry)
         {
             /* Write the data into the entry and mark it as dirty */
@@ -2212,10 +2200,7 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
                 {
                     /* If it is already dirty but not in progress just update the data. */
                     if (!(pEntry->fFlags & PDMBLKCACHE_ENTRY_IO_IN_PROGRESS))
-                    {
-                        RTSgBufCopyToBuf(&SgBuf, pEntry->pbData + offDiff,
-                                         cbToWrite);
-                    }
+                        RTSgBufCopyToBuf(&SgBuf, pEntry->pbData + offDiff, cbToWrite);
                     else
                     {
                         /* The data isn't written to the file yet */
@@ -2233,9 +2218,9 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
                      * Check if a read is in progress for this entry.
                      * We have to defer processing in that case.
                      */
-                    if(pdmBlkCacheEntryFlagIsSetClearAcquireLock(pBlkCache, pEntry,
-                                                                 PDMBLKCACHE_ENTRY_IO_IN_PROGRESS,
-                                                                 0))
+                    if (pdmBlkCacheEntryFlagIsSetClearAcquireLock(pBlkCache, pEntry,
+                                                                  PDMBLKCACHE_ENTRY_IO_IN_PROGRESS,
+                                                                  0))
                     {
                         pdmBlkCacheEntryWaitersAdd(pEntry, pReq,
                                                    &SgBuf, offDiff, cbToWrite,
@@ -2319,7 +2304,7 @@ VMMR3DECL(int) PDMR3BlkCacheWrite(PPDMBLKCACHE pBlkCache, uint64_t off,
              */
             PPDMBLKCACHEENTRY pEntryNew = pdmBlkCacheEntryCreate(pBlkCache,
                                                                  off, cbWrite,
-                                                                 512, &cbToWrite);
+                                                                 &cbToWrite);
 
             cbWrite -= cbToWrite;
 
@@ -2407,6 +2392,156 @@ VMMR3DECL(int) PDMR3BlkCacheFlush(PPDMBLKCACHE pBlkCache, void *pvUser)
     return VINF_AIO_TASK_PENDING;
 }
 
+VMMR3DECL(int) PDMR3BlkCacheDiscard(PPDMBLKCACHE pBlkCache, PCRTRANGE paRanges,
+                                    unsigned cRanges, void *pvUser)
+{
+    int rc = VINF_SUCCESS;
+    PPDMBLKCACHEGLOBAL pCache = pBlkCache->pCache;
+    PPDMBLKCACHEENTRY pEntry;
+    PPDMBLKCACHEREQ pReq;
+
+    LogFlowFunc((": pBlkCache=%#p{%s} paRanges=%#p cRanges=%u pvUser=%#p\n",
+                 pBlkCache, pBlkCache->pszId, paRanges, cRanges, pvUser));
+
+    AssertPtrReturn(pBlkCache, VERR_INVALID_POINTER);
+    AssertReturn(!pBlkCache->fSuspended, VERR_INVALID_STATE);
+
+    /* Allocate new request structure. */
+    pReq = pdmBlkCacheReqAlloc(pvUser);
+    if (RT_UNLIKELY(!pReq))
+        return VERR_NO_MEMORY;
+
+    /* Increment data transfer counter to keep the request valid while we access it. */
+    ASMAtomicIncU32(&pReq->cXfersPending);
+
+    for (unsigned i = 0; i < cRanges; i++)
+    {
+        uint64_t offCur = paRanges[i].offStart;
+        size_t cbLeft = paRanges[i].cbRange;
+
+        while (cbLeft)
+        {
+            size_t cbThisDiscard = 0;
+
+            pEntry = pdmBlkCacheGetCacheEntryByOffset(pBlkCache, offCur);
+
+            if (pEntry)
+            {
+                /* Write the data into the entry and mark it as dirty */
+                AssertPtr(pEntry->pList);
+
+                uint64_t offDiff = offCur - pEntry->Core.Key;
+
+                AssertMsg(offCur >= pEntry->Core.Key,
+                          ("Overflow in calculation offCur=%llu OffsetAligned=%llu\n",
+                          offCur, pEntry->Core.Key));
+
+                cbThisDiscard = RT_MIN(pEntry->cbData - offDiff, cbLeft);
+
+                /* Ghost lists contain no data. */
+                if (   (pEntry->pList == &pCache->LruRecentlyUsedIn)
+                    || (pEntry->pList == &pCache->LruFrequentlyUsed))
+                {
+                    /* Check if the entry is dirty. */
+                    if (pdmBlkCacheEntryFlagIsSetClearAcquireLock(pBlkCache, pEntry,
+                                                                  PDMBLKCACHE_ENTRY_IS_DIRTY,
+                                                                  0))
+                    {
+                        /* If it is dirty but not yet in progress remove it. */
+                        if (!(pEntry->fFlags & PDMBLKCACHE_ENTRY_IO_IN_PROGRESS))
+                        {
+                            pdmBlkCacheLockEnter(pCache);
+                            pdmBlkCacheEntryRemoveFromList(pEntry);
+
+                            STAM_PROFILE_ADV_START(&pCache->StatTreeRemove, Cache);
+                            RTAvlrU64Remove(pBlkCache->pTree, pEntry->Core.Key);
+                            STAM_PROFILE_ADV_STOP(&pCache->StatTreeRemove, Cache);
+
+                            pdmBlkCacheLockLeave(pCache);
+
+                            RTMemFree(pEntry);
+                        }
+                        else
+                        {
+#if 0
+                            /* The data isn't written to the file yet */
+                            pdmBlkCacheEntryWaitersAdd(pEntry, pReq,
+                                                       &SgBuf, offDiff, cbToWrite,
+                                                       true /* fWrite */);
+                            STAM_COUNTER_INC(&pBlkCache->StatWriteDeferred);
+#endif
+                        }
+
+                        RTSemRWReleaseWrite(pBlkCache->SemRWEntries);
+                        pdmBlkCacheEntryRelease(pEntry);
+                    }
+                    else /* Dirty bit not set */
+                    {
+                        /*
+                         * Check if a read is in progress for this entry.
+                         * We have to defer processing in that case.
+                         */
+                        if(pdmBlkCacheEntryFlagIsSetClearAcquireLock(pBlkCache, pEntry,
+                                                                     PDMBLKCACHE_ENTRY_IO_IN_PROGRESS,
+                                                                     0))
+                        {
+#if 0
+                            pdmBlkCacheEntryWaitersAdd(pEntry, pReq,
+                                                       &SgBuf, offDiff, cbToWrite,
+                                                       true /* fWrite */);
+#endif
+                            STAM_COUNTER_INC(&pBlkCache->StatWriteDeferred);
+                            RTSemRWReleaseWrite(pBlkCache->SemRWEntries);
+                            pdmBlkCacheEntryRelease(pEntry);
+                        }
+                        else /* I/O in progress flag not set */
+                        {
+                            pdmBlkCacheLockEnter(pCache);
+                            pdmBlkCacheEntryRemoveFromList(pEntry);
+
+                            RTSemRWRequestWrite(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
+                            STAM_PROFILE_ADV_START(&pCache->StatTreeRemove, Cache);
+                            RTAvlrU64Remove(pBlkCache->pTree, pEntry->Core.Key);
+                            STAM_PROFILE_ADV_STOP(&pCache->StatTreeRemove, Cache);
+                            RTSemRWReleaseWrite(pBlkCache->SemRWEntries);
+
+                            pdmBlkCacheLockLeave(pCache);
+
+                            RTMemFree(pEntry);
+                        }
+                    } /* Dirty bit not set */
+                }
+                else /* Entry is on the ghost list just remove cache entry. */
+                {
+                    pdmBlkCacheLockEnter(pCache);
+                    pdmBlkCacheEntryRemoveFromList(pEntry);
+
+                    RTSemRWRequestWrite(pBlkCache->SemRWEntries, RT_INDEFINITE_WAIT);
+                    STAM_PROFILE_ADV_START(&pCache->StatTreeRemove, Cache);
+                    RTAvlrU64Remove(pBlkCache->pTree, pEntry->Core.Key);
+                    STAM_PROFILE_ADV_STOP(&pCache->StatTreeRemove, Cache);
+                    RTSemRWReleaseWrite(pBlkCache->SemRWEntries);
+
+                    pdmBlkCacheLockLeave(pCache);
+
+                    RTMemFree(pEntry);
+                }
+            }
+            /* else: no entry found. */
+
+            offCur += cbThisDiscard;
+            cbLeft -= cbThisDiscard;
+        }
+    }
+
+    if (!pdmBlkCacheReqUpdate(pBlkCache, pReq, rc, false))
+        rc = VINF_AIO_TASK_PENDING;
+
+    LogFlowFunc((": Leave rc=%Rrc\n", rc));
+
+    return rc;
+}
+
 /**
  * Completes a task segment freeing all resources and completes the task handle
  * if everything was transferred.
@@ -2422,7 +2557,7 @@ static PPDMBLKCACHEWAITER pdmBlkCacheWaiterComplete(PPDMBLKCACHE pBlkCache,
     PPDMBLKCACHEWAITER pNext = pWaiter->pNext;
     PPDMBLKCACHEREQ pReq = pWaiter->pReq;
 
-    pdmBlkCacheReqUpdate(pBlkCache, pWaiter->pReq, rc, true);
+    pdmBlkCacheReqUpdate(pBlkCache, pReq, rc, true);
 
     RTMemFree(pWaiter);
 
@@ -2546,8 +2681,9 @@ VMMR3DECL(void) PDMR3BlkCacheIoXferComplete(PPDMBLKCACHE pBlkCache, PPDMBLKCACHE
  */
 static int pdmBlkCacheEntryQuiesce(PAVLRU64NODECORE pNode, void *pvUser)
 {
-    PPDMBLKCACHEENTRY  pEntry = (PPDMBLKCACHEENTRY)pNode;
-    PPDMBLKCACHE pBlkCache = pEntry->pBlkCache;
+    PPDMBLKCACHEENTRY   pEntry    = (PPDMBLKCACHEENTRY)pNode;
+    PPDMBLKCACHE        pBlkCache = pEntry->pBlkCache;
+    NOREF(pvUser);
 
     while (ASMAtomicReadU32(&pEntry->fFlags) & PDMBLKCACHE_ENTRY_IO_IN_PROGRESS)
     {

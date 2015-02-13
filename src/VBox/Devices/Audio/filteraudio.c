@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -293,8 +293,6 @@ static void caReinitOutput(HWVoiceOut *hw);
 
 static int fltInitOutput(filterVoiceOut *pVoice)
 {
-    uint32_t uSize = 0; /* temporary size of properties */
-    uint32_t uFlag = 0; /* for setting flags */
     uint32_t cFrames; /* default frame count */
     uint32_t cSamples; /* samples count */
 

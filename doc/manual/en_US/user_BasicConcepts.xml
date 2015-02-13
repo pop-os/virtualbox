@@ -18,8 +18,8 @@
   card, and, if you so choose, give the host system, other guests, or
   computers on the Internet access to the guest system.</para>
 
-  <sect1>
-    <title id="guestossupport">Supported guest operating systems</title>
+  <sect1 id="guestossupport">
+    <title>Supported guest operating systems</title>
 
     <para>Since VirtualBox is designed to provide a generic virtualization
     environment for x86 systems, it may run operating systems of any kind,
@@ -40,7 +40,7 @@
 
         <glossentry>
           <glossterm>Windows 2000 / XP / Server 2003 / Vista / Server 2008 /
-          Windows 7</glossterm>
+            Windows 7 / Windows 8 / Server 2012</glossterm>
 
           <glossdef>
             <para>All versions, editions and service packs are fully supported
@@ -84,7 +84,17 @@
         </glossentry>
 
         <glossentry>
-          <glossterm>Solaris 10, OpenSolaris</glossterm>
+          <glossterm>Linux 3.x</glossterm>
+
+          <glossdef>
+            <para>All versions/editions are fully supported (32 bits and 64
+            bits). Guest Additions are available.</para>
+          </glossdef>
+        </glossentry>
+
+        <glossentry>
+          <glossterm>Solaris 10 (u6 and higher), Solaris 11 (including Solaris
+          11 Express)</glossterm>
 
           <glossdef>
             <para>Fully supported (32 bits and 64 bits). Guest Additions are
@@ -125,65 +135,57 @@
         </glossentry>
 
         <glossentry>
-          <glossterm>Mac OS X Server</glossterm>
+          <glossterm>Mac OS X</glossterm>
 
           <glossdef>
             <para>VirtualBox 3.2 added experimental support for Mac OS X
-            Server guests, but this comes with restrictions. Please see the
-            following section as well as <xref
-            linkend="KnownIssues" />.</para>
+            guests, but this comes with restrictions. Please see the following
+            section as well as <xref linkend="KnownIssues" />.</para>
           </glossdef>
         </glossentry>
       </glosslist></para>
 
     <sect2 id="intro-macosxguests">
-      <title>Mac OS X Server guests</title>
+      <title>Mac OS X guests</title>
 
       <para>Starting with version 3.2, VirtualBox has experimental support for
-      Mac OS X Server guests. This allows you to install and execute
-      unmodified versions of Mac OS X Server on supported host
-      hardware.</para>
+      Mac OS X guests. This allows you to install and execute unmodified
+      versions of Mac OS X on supported host hardware.</para>
 
       <para>Whereas competing solutions perform modifications to the Mac OS X
-      Server install DVDs (e.g. different boot loader and replaced files),
-      VirtualBox is the first product to provide the modern PC architecture
-      expected by OS X without requiring any "hacks".</para>
+      install DVDs (e.g. different boot loader and replaced files), VirtualBox
+      is the first product to provide the modern PC architecture expected by
+      OS X without requiring any "hacks".</para>
 
       <para>You should be aware of a number of <emphasis role="bold">important
-      issues</emphasis> before attempting to install a Mac OS X Server
-      guest:<orderedlist>
+      issues</emphasis> before attempting to install a Mac OS X guest:<orderedlist>
           <listitem>
             <para>Mac OS X is commercial, licensed software and contains
-            <emphasis role="bold">both license and technical
-            restrictions</emphasis> that limit its use to certain hardware and
-            usage scenarios. It is important that you understand and obey
-            these restrictions.</para>
+            <emphasis role="bold">both license and technical restrictions</emphasis>
+            that limit its use to certain hardware and usage scenarios. It is
+            important that you understand and obey these restrictions.</para>
 
-            <para>In particular, for most versions of Mac OS X Server, Apple
-            prohibits installing them on non-Apple hardware. Also, only the
-            server versions of Mac OS X are designed to be used in a virtual
-            environment; as a result, VirtualBox does not support client
-            versions of Mac OS X as a guest.</para>
+            <para>In particular, for most versions of Mac OS X, Apple prohibits
+            installing them on non-Apple hardware.</para>
 
             <para>These license restrictions are also enforced on a technical
-            level. Mac OS X Server verifies whether it is running on Apple
-            hardware, and most DVDs that that come with Apple hardware even
-            check for an exact model. These restrictions are
-            <emphasis>not</emphasis> circumvented by VirtualBox and continue
-            to apply.</para>
+            level. Mac OS X verifies whether it is running on Apple hardware,
+            and most DVDs that that come with Apple hardware even check for an
+            exact model. These restrictions are <emphasis>not</emphasis>
+            circumvented by VirtualBox and continue to apply.</para>
           </listitem>
 
           <listitem>
             <para>Only <emphasis role="bold">CPUs</emphasis> known and tested
             by Apple are supported. As a result, if your Intel CPU is newer
-            than the build of Mac OS X Server, or if you have a non-Intel CPU,
-            it will most likely panic during bootup with an "Unsupported CPU"
-            exception. It is generally best to use the Mac OS X Server DVD
-            that came with your Apple hardware.</para>
+            than the build of Mac OS X, or if you have a non-Intel CPU, it will
+            most likely panic during bootup with an "Unsupported CPU"
+            exception. It is generally best to use the Mac OS X DVD that came
+            with your Apple hardware.</para>
           </listitem>
 
           <listitem>
-            <para>The Mac OS X Server installer expects the harddisk to be
+            <para>The Mac OS X installer expects the harddisk to be
             <emphasis role="bold">partitioned</emphasis> so when it does not
             offer a selection, you have to launch the Disk Utility from the
             "Tools" menu and partition the hard disk. Then close the Disk
@@ -191,9 +193,8 @@
           </listitem>
 
           <listitem>
-            <para>In addition, as Mac OS X Server support in VirtualBox is
-            currently still experimental, please refer also to <xref
-            linkend="KnownIssues" />.</para>
+            <para>In addition, as Mac OS X support in VirtualBox is currently
+            still experimental, please refer also to <xref linkend="KnownIssues" />.</para>
           </listitem>
         </orderedlist></para>
     </sect2>
@@ -393,6 +394,24 @@
               Additions be installed. As a result, this setting has no effect
               otherwise; see <xref linkend="guestadditions" /> for
               details.</para>
+
+            <para>The shared clipboard is disabled by default. See
+              <xref linkend="security_clipboard"/> for an explanation. This
+              setting can be changed at any time using the "Shared Clipboard"
+              menu item in the "Devices" menu of the virtual machine.</para>
+            </glossdef>
+          </glossentry>
+
+          <glossentry>
+            <glossterm>Drag'n'Drop</glossterm>
+            <glossdef>
+              <para>This setting allows to enable Drag and Drop: Select a file
+                on the desktop, click the left mouse button, move the mouse
+                to the VM window and release the mouse button. The file is
+                copied from the host to the guest. This feature is currently
+                only implemented for Linux guests and only for copying files
+                from the host to the guest.<footnote><para>Support
+                for Drag'n'Drop was added with VirtualBox 4.2</para></footnote></para>
             </glossdef>
           </glossentry>
 
@@ -418,6 +437,8 @@
               seamless mode, control machine execution or enable certain
               devices. If you don't want to see the toolbar, disable this
               setting.</para>
+              <para>The second setting allows to show the toolbar at the top
+              of the screen instead of showing it at the bottom.</para>
             </glossdef>
           </glossentry>
         </glosslist></para>
@@ -431,6 +452,8 @@
       you may find this space useful to note down things like the
       configuration of a virtual machine and the software that has been
       installed into it.</para>
+      <para>To insert a line break into the description text field, press
+      <emphasis>Shift+Enter</emphasis>.</para>
     </sect2>
   </sect1>
 
@@ -496,17 +519,42 @@
               <para>Here you can select which chipset will be presented to the
               virtual machine. Before VirtualBox 4.0, PIIX3 was the only
               available option here. For modern guest operating systems such
-              as Mac OS X server, that old chipset is no longer well
-              supported. As a result, VirtualBox 4.0 introduced an emulation
-              of the more modern ICH9 chipset, which supports PCI express,
-              three PCI buses, PCI-to-PCI bridges and Message Signalled
-              Interrupts (MSI). This allows modern operating systems to
-              address more PCI devices and no longer requires IRQ sharing.
-	      Note that the ICH9 support is experimental and not recommended
-	      for guest operating systems which do not require it.</para>
+              as Mac OS X, that old chipset is no longer well supported. As a
+              result, VirtualBox 4.0 introduced an emulation of the more
+              modern ICH9 chipset, which supports PCI express, three PCI
+              buses, PCI-to-PCI bridges and Message Signaled Interrupts
+              (MSI). This allows modern operating systems to address more PCI
+              devices and no longer requires IRQ sharing. Note that the ICH9
+              support is experimental and not recommended for guest operating
+              systems which do not require it.</para>
             </glossdef>
           </glossentry>
 
+          <glossentry>
+            <glossterm>Pointing Device</glossterm>
+
+            <glossdef>
+              <para>The default virtual pointing devices for older guests is the
+              traditional PS/2 mouse. If set to <emphasis>USB tablet</emphasis>,
+              VirtualBox reports to the virtual machine that a USB tablet
+              device is present and communicates mouse events to
+              the virtual machine through this device. The third setting is
+              a <emphasis>USB Multi-Touch Tablet</emphasis> which is suited
+              for recent Windows guests.</para>
+
+              <para>Using the virtual USB tablet has the advantage that
+              movements are reported in absolute coordinates (instead of as
+              relative position changes), which allows VirtualBox to translate
+              mouse events over the VM window into tablet events without
+              having to "capture" the mouse in the guest as described in <xref
+              linkend="keyb_mouse_normal" />. This makes using the VM less
+              tedious even if Guest Additions are not installed.<footnote>
+                  <para>The virtual USB tablet was added with VirtualBox 3.2.
+                  Depending on the guest operating system selected, this is
+                  now enabled by default for new virtual machines.</para>
+                </footnote></para>
+            </glossdef>
+          </glossentry>
           <glossentry>
             <glossterm>Enable I/O APIC</glossterm>
 
@@ -561,29 +609,6 @@
             </glossdef>
           </glossentry>
 
-          <glossentry>
-            <glossterm>Enable absolute pointing device</glossterm>
-
-            <glossdef>
-              <para>If enabled, VirtualBox reports to the virtual machine that
-              a USB tablet device is present and communicates mouse events to
-              the virtual machine through this device. If disabled, mouse
-              events are communicated through a traditional PS/2 virtual mouse
-              device.</para>
-
-              <para>Using the virtual USB tablet has the advantage that
-              movements are reported in absolute coordinates (instead of as
-              relative position changes), which allows VirtualBox to translate
-              mouse events over the VM window into tablet events without
-              having to "capture" the mouse in the guest as described in <xref
-              linkend="keyb_mouse_normal" />. This makes using the VM less
-              tedious even if Guest Additions are not installed.<footnote>
-                  <para>The virtual USB tablet was added with VirtualBox 3.2.
-                  Depending on the guest operating system selected, this is
-                  now enabled by default for new virtual machines.</para>
-                </footnote></para>
-            </glossdef>
-          </glossentry>
         </glosslist></para>
 
       <para>In addition, you can turn off the <emphasis role="bold">Advanced
@@ -613,13 +638,14 @@
       virtual machine.</para>
 
       <para>You should not, however, configure virtual machines to use more
-      CPU cores than you have available physically.</para>
+      CPU cores than you have available physically (real cores, no hyperthreads).</para>
 
-      <para>On this tab you can also set the CPU execution cap. This setting
+      <para>On this tab you can also set the <emphasis role="bold">"CPU execution
+      cap"</emphasis>. This setting
       limits the amount of time a host CPU spents to emulate a virtual CPU.
       The default setting is 100% meaning that there is no limitation. A setting
       of 50% implies a single virtual CPU can use up to 50% of a single host
-      CPU. Notet that limiting the execution time of the virtual CPUs may induce
+      CPU. Note that limiting the execution time of the virtual CPUs may induce
       guest timing problems.</para>
 
       <para>In addition, the <emphasis role="bold">"Enable PAE/NX"</emphasis>
@@ -684,6 +710,18 @@
           memory, the specified amount will be allocated from the host's
           resident memory. Based on the amount of video memory, higher
           resolutions and color depths may be available.</para>
+          <para>The GUI will show a warning if the amount of video memory
+          is too small to be able to switch the VM into full screen mode.
+          The minimum value depends on the number of virtual monitors, the
+          screen resolution and the color depth of the host display as well
+          as of the activation of <emphasis>3D acceleration</emphasis> and
+          <emphasis>2D video acceleration</emphasis>. A rough estimate
+          is (<emphasis>color depth</emphasis> / 8) x 
+          <emphasis>vertical pixels</emphasis> x
+          <emphasis>horizontal pixels</emphasis> x
+          <emphasis>number of screens</emphasis> = <emphasis>number of bytes</emphasis>.
+          Like said above, there might be extra memory required for any
+          activated display acceleration setting.</para>
         </glossdef>
       </glossentry>
 
@@ -750,6 +788,16 @@
           standard open-source <computeroutput>rdesktop</computeroutput>
           program. These features are described in detail in
           <xref linkend="vrde" />.</para>
+        </glossdef>
+      </glossentry>
+
+      <glossentry>
+        <glossterm>Video Capture</glossterm>
+
+        <glossdef>
+          <para>Under the "Video Capture" tab you can enable video capturing
+          for this VM. Note that this feature can also be enabled/disabled
+          while the VM is executed.</para>
         </glossdef>
       </glossentry>
     </glosslist>
@@ -937,7 +985,7 @@
 
     <para>On a Linux host, depending on your host configuration, you can also
     select between the OSS, ALSA or the PulseAudio subsystem. On newer Linux
-    distributions (Fedora 8 and above, Ubuntu 8.04 and above) the PulseAudio
+    distributions (Fedora 8 and above, Ubuntu 8.04 and above), the PulseAudio
     subsystem should be preferred.</para>
   </sect1>
 
@@ -1300,9 +1348,9 @@
     Alternatively, use the <computeroutput>VBoxManage</computeroutput> command
     line interface like this: <screen>VBoxManage modifyvm "VM name" --firmware efi</screen>
     To switch back to using the BIOS, use: <screen>VBoxManage modifyvm "VM name" --firmware bios</screen>One
-    notable user of EFI is Apple's Mac OS X, but recent Linuxes (such as
-    Fedora 11) and Windows (starting with Vista) offer special versions that can
-    be booted using EFI as well.</para>
+    notable user of EFI is Apple's Mac OS X, but recent Linuxes (such as Fedora
+    11) and Windows (starting with Vista) offer special versions that can be
+    booted using EFI as well.</para>
 
     <para>Another possible use of EFI in VirtualBox is development and testing
     of EFI applications, without booting any OS.</para>
@@ -1322,8 +1370,8 @@
 
       <para>To control GOP, use the following
       <computeroutput>VBoxManage</computeroutput> command: <screen>VBoxManage setextradata "VM name" VBoxInternal2/EfiGopMode N</screen>
-      Where N can be one of 0,1,2,3,4 referring to the 640x480, 800x600,
-      1024x768, 1280x1024, 1440x900 screen resolution respectively.</para>
+      Where N can be one of 0,1,2,3,4,5 referring to the 640x480, 800x600,
+      1024x768, 1280x1024, 1440x900, 1920x1200 screen resolution respectively.</para>
 
       <para>To change the UGA resolution: <screen>VBoxManage setextradata "VM name" VBoxInternal2/UgaHorizontalResolution 1440
 VBoxManage setextradata "VM name" VBoxInternal2/UgaVerticalResolution    900</screen></para>
@@ -1331,5 +1379,17 @@ VBoxManage setextradata "VM name" VBoxInternal2/UgaVerticalResolution    900</sc
       <para>The video mode for both GOP and UGA can only be changed when the
       VM is powered off and remains persistent until changed.</para>
     </sect2>
+
+    <sect2 id="efibootargs">
+      <title>Specifying boot arguments</title>
+
+      <para>It is currently not possible to manipulate EFI variables from within a running guest
+      (e.g., setting the "boot-args" variable by running the <computeroutput>nvram</computeroutput> tool in a Mac OS X guest will not work).
+      As an alternative way, "VBoxInternal2/EfiBootArgs" extradata can be passed to a VM in order to set
+      the "boot-args" variable. To change the "boot-args" EFI variable:
+      <screen>VBoxManage setextradata "VM name" VBoxInternal2/EfiBootArgs &lt;value&gt;</screen>
+      </para>
+    </sect2>
+
   </sect1>
 </chapter>

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,8 +46,8 @@ RT_C_DECLS_BEGIN
  * @ingroup grp_dbgf
  * @{
  */
-VMMRZDECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6);
-VMMRZDECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
+VMMRZ_INT_DECL(int) DBGFRZTrap01Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, RTGCUINTREG uDr6, bool fAltStepping);
+VMMRZ_INT_DECL(int) DBGFRZTrap03Handler(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame);
 /** @} */
 #endif
 
@@ -114,14 +114,14 @@ typedef const DBGFADDRESS *PCDBGFADDRESS;
 #define DBGFADDRESS_IS_HMA(pAddress)     ( !!((pAddress)->fFlags & DBGFADDRESS_FLAGS_HMA) )
 /** @} */
 
-VMMR3DECL(int)          DBGFR3AddrFromSelOff(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off);
-VMMR3DECL(int)          DBGFR3AddrFromSelInfoOff(PVM pVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off);
-VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PVM pVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr);
-VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PVM pVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr);
-VMMR3DECL(bool)         DBGFR3AddrIsValid(PVM pVM, PCDBGFADDRESS pAddress);
-VMMR3DECL(int)          DBGFR3AddrToPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys);
-VMMR3DECL(int)          DBGFR3AddrToHostPhys(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTHCPHYS pHCPhys);
-VMMR3DECL(int)          DBGFR3AddrToVolatileR3Ptr(PVM pVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr);
+VMMR3DECL(int)          DBGFR3AddrFromSelOff(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, RTSEL Sel, RTUINTPTR off);
+VMMR3DECL(int)          DBGFR3AddrFromSelInfoOff(PUVM pUVM, PDBGFADDRESS pAddress, PCDBGFSELINFO pSelInfo, RTUINTPTR off);
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromFlat(PUVM pUVM, PDBGFADDRESS pAddress, RTGCUINTPTR FlatPtr);
+VMMR3DECL(PDBGFADDRESS) DBGFR3AddrFromPhys(PUVM pUVM, PDBGFADDRESS pAddress, RTGCPHYS PhysAddr);
+VMMR3DECL(bool)         DBGFR3AddrIsValid(PUVM pUVM, PCDBGFADDRESS pAddress);
+VMMR3DECL(int)          DBGFR3AddrToPhys(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTGCPHYS pGCPhys);
+VMMR3DECL(int)          DBGFR3AddrToHostPhys(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, PRTHCPHYS pHCPhys);
+VMMR3DECL(int)          DBGFR3AddrToVolatileR3Ptr(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddress, bool fReadOnly, void **ppvR3Ptr);
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrAdd(PDBGFADDRESS pAddress, RTGCUINTPTR uAddend);
 VMMR3DECL(PDBGFADDRESS) DBGFR3AddrSub(PDBGFADDRESS pAddress, RTGCUINTPTR uSubtrahend);
 
@@ -179,10 +179,10 @@ typedef enum DBGFEVENTTYPE
      * to bring up the debugger at a specific place.
      */
     DBGFEVENT_DEV_STOP,
-    /** The VM is terminating.
+    /** The VM is powering off.
      * When this notification is received, the debugger thread should detach ASAP.
      */
-    DBGFEVENT_TERMINATING,
+    DBGFEVENT_POWERING_OFF,
 
     /** The usual 32-bit hack. */
     DBGFEVENT_32BIT_HACK = 0x7fffffff
@@ -201,7 +201,7 @@ typedef enum DBGFEVENTCTX
     /** Recompiled mode. */
     DBGFEVENTCTX_REM,
     /** VMX / AVT mode. */
-    DBGFEVENTCTX_HWACCL,
+    DBGFEVENTCTX_HM,
     /** Hypervisor context. */
     DBGFEVENTCTX_HYPER,
     /** Other mode */
@@ -281,24 +281,29 @@ typedef const DBGFEVENT *PCDBGFEVENT;
 #  define DBGFSTOP(pVM)  VINF_SUCCESS
 # endif
 
-VMMR3DECL(int)  DBGFR3Init(PVM pVM);
-VMMR3DECL(int)  DBGFR3Term(PVM pVM);
-VMMR3DECL(void) DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta);
-VMMR3DECL(int)  DBGFR3VMMForcedAction(PVM pVM);
-VMMR3DECL(int)  DBGFR3Event(PVM pVM, DBGFEVENTTYPE enmEvent);
-VMMR3DECL(int)  DBGFR3EventSrc(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine, const char *pszFunction, const char *pszFormat, ...);
-VMMR3DECL(int)  DBGFR3EventSrcV(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine, const char *pszFunction, const char *pszFormat, va_list args);
-VMMR3DECL(int)  DBGFR3EventAssertion(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszMsg1, const char *pszMsg2);
-VMMR3DECL(int)  DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent);
-VMMR3DECL(int)  DBGFR3Attach(PVM pVM);
-VMMR3DECL(int)  DBGFR3Detach(PVM pVM);
-VMMR3DECL(int)  DBGFR3EventWait(PVM pVM, RTMSINTERVAL cMillies, PCDBGFEVENT *ppEvent);
-VMMR3DECL(int)  DBGFR3Halt(PVM pVM);
-VMMR3DECL(bool) DBGFR3IsHalted(PVM pVM);
-VMMR3DECL(bool) DBGFR3CanWait(PVM pVM);
-VMMR3DECL(int)  DBGFR3Resume(PVM pVM);
-VMMR3DECL(int)  DBGFR3Step(PVM pVM, VMCPUID idCpu);
-VMMR3DECL(int)  DBGFR3PrgStep(PVMCPU pVCpu);
+VMMR3_INT_DECL(int)     DBGFR3Init(PVM pVM);
+VMMR3_INT_DECL(int)     DBGFR3Term(PVM pVM);
+VMMR3_INT_DECL(void)    DBGFR3PowerOff(PVM pVM);
+VMMR3_INT_DECL(void)    DBGFR3Relocate(PVM pVM, RTGCINTPTR offDelta);
+VMMR3_INT_DECL(int)     DBGFR3VMMForcedAction(PVM pVM);
+VMMR3DECL(int)          DBGFR3Event(PVM pVM, DBGFEVENTTYPE enmEvent);
+VMMR3DECL(int)          DBGFR3EventSrc(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine,
+                                       const char *pszFunction, const char *pszFormat, ...);
+VMMR3DECL(int)          DBGFR3EventSrcV(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszFile, unsigned uLine,
+                                        const char *pszFunction, const char *pszFormat, va_list args);
+VMMR3_INT_DECL(int)     DBGFR3EventAssertion(PVM pVM, DBGFEVENTTYPE enmEvent, const char *pszMsg1, const char *pszMsg2);
+VMMR3_INT_DECL(int)     DBGFR3EventBreakpoint(PVM pVM, DBGFEVENTTYPE enmEvent);
+VMMR3_INT_DECL(int)     DBGFR3PrgStep(PVMCPU pVCpu);
+
+VMMR3DECL(int)          DBGFR3Attach(PUVM pUVM);
+VMMR3DECL(int)          DBGFR3Detach(PUVM pUVM);
+VMMR3DECL(int)          DBGFR3EventWait(PUVM pUVM, RTMSINTERVAL cMillies, PCDBGFEVENT *ppEvent);
+VMMR3DECL(int)          DBGFR3Halt(PUVM pUVM);
+VMMR3DECL(bool)         DBGFR3IsHalted(PUVM pUVM);
+VMMR3DECL(int)          DBGFR3QueryWaitable(PUVM pUVM);
+VMMR3DECL(int)          DBGFR3Resume(PUVM pUVM);
+VMMR3DECL(int)          DBGFR3Step(PUVM pUVM, VMCPUID idCpu);
+VMMR3DECL(int)          DBGFR3InjectNMI(PUVM pUVM, VMCPUID idCpu);
 
 #endif /* IN_RING3 */
 
@@ -336,7 +341,7 @@ typedef struct DBGFBP
      * (PC register value if REM type?) */
     RTGCUINTPTR     GCPtr;
     /** The breakpoint id. */
-    RTUINT          iBp;
+    uint32_t        iBp;
     /** The breakpoint status - enabled or disabled. */
     bool            fEnabled;
 
@@ -384,39 +389,44 @@ typedef DBGFBP *PDBGFBP;
 typedef const DBGFBP *PCDBGFBP;
 
 #ifdef IN_RING3 /* The breakpoint management API is only available in ring-3. */
-VMMR3DECL(int)  DBGFR3BpSet(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
-VMMR3DECL(int)  DBGFR3BpSetReg(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable,
+VMMR3DECL(int)  DBGFR3BpSet(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
+VMMR3DECL(int)  DBGFR3BpSetReg(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable,
                                uint8_t fType, uint8_t cb, uint32_t *piBp);
-VMMR3DECL(int)  DBGFR3BpSetREM(PVM pVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
-VMMR3DECL(int)  DBGFR3BpClear(PVM pVM, uint32_t iBp);
-VMMR3DECL(int)  DBGFR3BpEnable(PVM pVM, uint32_t iBp);
-VMMR3DECL(int)  DBGFR3BpDisable(PVM pVM, uint32_t iBp);
+VMMR3DECL(int)  DBGFR3BpSetREM(PUVM pUVM, PCDBGFADDRESS pAddress, uint64_t iHitTrigger, uint64_t iHitDisable, uint32_t *piBp);
+VMMR3DECL(int)  DBGFR3BpClear(PUVM pUVM, uint32_t iBp);
+VMMR3DECL(int)  DBGFR3BpEnable(PUVM pUVM, uint32_t iBp);
+VMMR3DECL(int)  DBGFR3BpDisable(PUVM pUVM, uint32_t iBp);
 
 /**
  * Breakpoint enumeration callback function.
  *
  * @returns VBox status code. Any failure will stop the enumeration.
- * @param   pVM         The VM handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   pvUser      The user argument.
  * @param   pBp         Pointer to the breakpoint information. (readonly)
  */
-typedef DECLCALLBACK(int) FNDBGFBPENUM(PVM pVM, void *pvUser, PCDBGFBP pBp);
+typedef DECLCALLBACK(int) FNDBGFBPENUM(PUVM pUVM, void *pvUser, PCDBGFBP pBp);
 /** Pointer to a breakpoint enumeration callback function. */
 typedef FNDBGFBPENUM *PFNDBGFBPENUM;
 
-VMMR3DECL(int)          DBGFR3BpEnum(PVM pVM, PFNDBGFBPENUM pfnCallback, void *pvUser);
+VMMR3DECL(int)              DBGFR3BpEnum(PUVM pUVM, PFNDBGFBPENUM pfnCallback, void *pvUser);
 #endif /* IN_RING3 */
 
-VMMDECL(RTGCUINTREG)    DBGFBpGetDR7(PVM pVM);
-VMMDECL(RTGCUINTREG)    DBGFBpGetDR0(PVM pVM);
-VMMDECL(RTGCUINTREG)    DBGFBpGetDR1(PVM pVM);
-VMMDECL(RTGCUINTREG)    DBGFBpGetDR2(PVM pVM);
-VMMDECL(RTGCUINTREG)    DBGFBpGetDR3(PVM pVM);
-VMMDECL(bool)           DBGFIsStepping(PVMCPU pVCpu);
+VMM_INT_DECL(RTGCUINTREG)   DBGFBpGetDR7(PVM pVM);
+VMM_INT_DECL(RTGCUINTREG)   DBGFBpGetDR0(PVM pVM);
+VMM_INT_DECL(RTGCUINTREG)   DBGFBpGetDR1(PVM pVM);
+VMM_INT_DECL(RTGCUINTREG)   DBGFBpGetDR2(PVM pVM);
+VMM_INT_DECL(RTGCUINTREG)   DBGFBpGetDR3(PVM pVM);
+VMM_INT_DECL(bool)          DBGFBpIsHwArmed(PVM pVM);
+VMM_INT_DECL(bool)          DBGFBpIsHwIoArmed(PVM pVM);
+VMM_INT_DECL(bool)          DBGFIsStepping(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  DBGFBpCheckIo(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, RTIOPORT uIoPort, uint8_t cbValue);
 
 
 #ifdef IN_RING3 /* The CPU mode API only works in ring-3. */
-VMMR3DECL(CPUMMODE)     DBGFR3CpuGetMode(PVM pVM, VMCPUID idCpu);
+VMMR3DECL(CPUMMODE)         DBGFR3CpuGetMode(PUVM pUVM, VMCPUID idCpu);
+VMMR3DECL(VMCPUID)          DBGFR3CpuGetCount(PUVM pUVM);
+VMMR3DECL(bool)             DBGFR3CpuIsIn64BitCode(PUVM pUVM, VMCPUID idCpu);
 #endif
 
 
@@ -510,37 +520,37 @@ typedef FNDBGFHANDLEREXT  *PFNDBGFHANDLEREXT;
 #define DBGFINFO_FLAGS_RUN_ON_EMT       RT_BIT(0)
 /** @} */
 
-VMMR3DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns);
-VMMR3DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler, PPDMDRVINS pDrvIns);
-VMMR3DECL(int) DBGFR3InfoRegisterInternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler);
-VMMR3DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler, uint32_t fFlags);
-VMMR3DECL(int) DBGFR3InfoRegisterExternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLEREXT pfnHandler, void *pvUser);
-VMMR3DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName);
-VMMR3DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName);
-VMMR3DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName);
-VMMR3DECL(int) DBGFR3InfoDeregisterExternal(PVM pVM, const char *pszName);
-VMMR3DECL(int) DBGFR3Info(PVM pVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp);
-VMMR3DECL(int) DBGFR3InfoEx(PVM pVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp);
-VMMR3DECL(int) DBGFR3InfoLogRel(PVM pVM, const char *pszName, const char *pszArgs);
-VMMR3DECL(int) DBGFR3InfoStdErr(PVM pVM, const char *pszName, const char *pszArgs);
-VMMR3DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *pszExcludePat,
-                               const char *pszSepFmt, PCDBGFINFOHLP pHlp);
+VMMR3_INT_DECL(int) DBGFR3InfoRegisterDevice(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDEV pfnHandler, PPDMDEVINS pDevIns);
+VMMR3_INT_DECL(int) DBGFR3InfoRegisterDriver(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERDRV pfnHandler, PPDMDRVINS pDrvIns);
+VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternal(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler);
+VMMR3_INT_DECL(int) DBGFR3InfoRegisterInternalEx(PVM pVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLERINT pfnHandler, uint32_t fFlags);
+VMMR3DECL(int)      DBGFR3InfoRegisterExternal(PUVM pUVM, const char *pszName, const char *pszDesc, PFNDBGFHANDLEREXT pfnHandler, void *pvUser);
+VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDevice(PVM pVM, PPDMDEVINS pDevIns, const char *pszName);
+VMMR3_INT_DECL(int) DBGFR3InfoDeregisterDriver(PVM pVM, PPDMDRVINS pDrvIns, const char *pszName);
+VMMR3_INT_DECL(int) DBGFR3InfoDeregisterInternal(PVM pVM, const char *pszName);
+VMMR3DECL(int)      DBGFR3InfoDeregisterExternal(PUVM pUVM, const char *pszName);
+VMMR3DECL(int)      DBGFR3Info(PUVM pUVM, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp);
+VMMR3DECL(int)      DBGFR3InfoEx(PUVM pUVM, VMCPUID idCpu, const char *pszName, const char *pszArgs, PCDBGFINFOHLP pHlp);
+VMMR3DECL(int)      DBGFR3InfoLogRel(PUVM pUVM, const char *pszName, const char *pszArgs);
+VMMR3DECL(int)      DBGFR3InfoStdErr(PUVM pUVM, const char *pszName, const char *pszArgs);
+VMMR3_INT_DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *pszExcludePat,
+                                    const char *pszSepFmt, PCDBGFINFOHLP pHlp);
 
 /** @def DBGFR3InfoLog
  * Display a piece of info writing to the log if enabled.
  *
- * @param   pVM         VM handle.
- * @param   pszName     The identifier of the info to display.
- * @param   pszArgs     Arguments to the info handler.
+ * @param   a_pVM       The shared VM handle.
+ * @param   a_pszName   The identifier of the info to display.
+ * @param   a_pszArgs   Arguments to the info handler.
  */
 #ifdef LOG_ENABLED
-#define DBGFR3InfoLog(pVM, pszName, pszArgs) \
+# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) \
     do { \
         if (LogIsEnabled()) \
-            DBGFR3Info(pVM, pszName, pszArgs, NULL); \
+            DBGFR3Info((a_pVM)->pUVM, a_pszName, a_pszArgs, NULL); \
     } while (0)
 #else
-#define DBGFR3InfoLog(pVM, pszName, pszArgs) do { } while (0)
+# define DBGFR3_INFO_LOG(a_pVM, a_pszName, a_pszArgs) do { } while (0)
 #endif
 
 /**
@@ -549,15 +559,15 @@ VMMR3DECL(int) DBGFR3InfoMulti(PVM pVM, const char *pszIncludePat, const char *p
  * @returns VBox status code.
  *          A status code indicating failure will end the enumeration
  *          and DBGFR3InfoEnum will return with that status code.
- * @param   pVM         VM handle.
+ * @param   pUVM        The user mode VM handle.
  * @param   pszName     Info identifier name.
  * @param   pszDesc     The description.
  */
-typedef DECLCALLBACK(int) FNDBGFINFOENUM(PVM pVM, const char *pszName, const char *pszDesc, void *pvUser);
+typedef DECLCALLBACK(int) FNDBGFINFOENUM(PUVM pUVM, const char *pszName, const char *pszDesc, void *pvUser);
 /** Pointer to a FNDBGFINFOENUM function. */
 typedef FNDBGFINFOENUM *PFNDBGFINFOENUM;
 
-VMMR3DECL(int)              DBGFR3InfoEnum(PVM pVM, PFNDBGFINFOENUM pfnCallback, void *pvUser);
+VMMR3DECL(int)              DBGFR3InfoEnum(PUVM pUVM, PFNDBGFINFOENUM pfnCallback, void *pvUser);
 VMMR3DECL(PCDBGFINFOHLP)    DBGFR3InfoLogHlp(void);
 VMMR3DECL(PCDBGFINFOHLP)    DBGFR3InfoLogRelHlp(void);
 
@@ -565,9 +575,9 @@ VMMR3DECL(PCDBGFINFOHLP)    DBGFR3InfoLogRelHlp(void);
 
 
 #ifdef IN_RING3 /* The log contrl API only works in ring-3. */
-VMMR3DECL(int) DBGFR3LogModifyGroups(PVM pVM, const char *pszGroupSettings);
-VMMR3DECL(int) DBGFR3LogModifyFlags(PVM pVM, const char *pszFlagSettings);
-VMMR3DECL(int) DBGFR3LogModifyDestinations(PVM pVM, const char *pszDestSettings);
+VMMR3DECL(int) DBGFR3LogModifyGroups(PUVM pUVM, const char *pszGroupSettings);
+VMMR3DECL(int) DBGFR3LogModifyFlags(PUVM pUVM, const char *pszFlagSettings);
+VMMR3DECL(int) DBGFR3LogModifyDestinations(PUVM pUVM, const char *pszDestSettings);
 #endif /* IN_RING3 */
 
 #ifdef IN_RING3 /* The debug information management APIs only works in ring-3. */
@@ -650,33 +660,32 @@ typedef const DBGFLINE *PCDBGFLINE;
 
 /** @} */
 
-VMMR3DECL(int)          DBGFR3AsAdd(PVM pVM, RTDBGAS hDbgAs, RTPROCESS ProcId);
-VMMR3DECL(int)          DBGFR3AsDelete(PVM pVM, RTDBGAS hDbgAs);
-VMMR3DECL(int)          DBGFR3AsSetAlias(PVM pVM, RTDBGAS hAlias, RTDBGAS hAliasFor);
-VMMR3DECL(RTDBGAS)      DBGFR3AsResolve(PVM pVM, RTDBGAS hAlias);
-VMMR3DECL(RTDBGAS)      DBGFR3AsResolveAndRetain(PVM pVM, RTDBGAS hAlias);
-VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByName(PVM pVM, const char *pszName);
-VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByPid(PVM pVM, RTPROCESS ProcId);
+VMMR3DECL(RTDBGCFG)     DBGFR3AsGetConfig(PUVM pUVM);
 
-VMMR3DECL(int)          DBGFR3AsLoadImage(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
-VMMR3DECL(int)          DBGFR3AsLoadMap(PVM pVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, RTGCUINTPTR uSubtrahend, uint32_t fFlags);
-VMMR3DECL(int)          DBGFR3AsLinkModule(PVM pVM, RTDBGAS hDbgAs, RTDBGMOD hMod, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsAdd(PUVM pUVM, RTDBGAS hDbgAs, RTPROCESS ProcId);
+VMMR3DECL(int)          DBGFR3AsDelete(PUVM pUVM, RTDBGAS hDbgAs);
+VMMR3DECL(int)          DBGFR3AsSetAlias(PUVM pUVM, RTDBGAS hAlias, RTDBGAS hAliasFor);
+VMMR3DECL(RTDBGAS)      DBGFR3AsResolve(PUVM pUVM, RTDBGAS hAlias);
+VMMR3DECL(RTDBGAS)      DBGFR3AsResolveAndRetain(PUVM pUVM, RTDBGAS hAlias);
+VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByName(PUVM pUVM, const char *pszName);
+VMMR3DECL(RTDBGAS)      DBGFR3AsQueryByPid(PUVM pUVM, RTPROCESS ProcId);
 
-VMMR3DECL(int)          DBGFR3AsSymbolByAddr(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, PRTGCINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
-VMMR3DECL(PRTDBGSYMBOL) DBGFR3AsSymbolByAddrA(PVM pVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, PRTGCINTPTR poffDisp, PRTDBGMOD phMod);
-VMMR3DECL(int)          DBGFR3AsSymbolByName(PVM pVM, RTDBGAS hDbgAs, const char *pszSymbol, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
+VMMR3DECL(int)          DBGFR3AsLoadImage(PUVM pUVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName,
+                                          RTLDRARCH enmArch, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsLoadMap(PUVM pUVM, RTDBGAS hDbgAs, const char *pszFilename, const char *pszModName, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, RTGCUINTPTR uSubtrahend, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsLinkModule(PUVM pUVM, RTDBGAS hDbgAs, RTDBGMOD hMod, PCDBGFADDRESS pModAddress, RTDBGSEGIDX iModSeg, uint32_t fFlags);
+VMMR3DECL(int)          DBGFR3AsUnlinkModuleByName(PUVM pUVM, RTDBGAS hDbgAs, const char *pszModName);
 
-/* The following are soon to be obsoleted: */
-VMMR3DECL(int)          DBGFR3ModuleLoad(PVM pVM, const char *pszFilename, RTGCUINTPTR AddressDelta, const char *pszName, RTGCUINTPTR ModuleAddress, unsigned cbImage);
-VMMR3DECL(void)         DBGFR3ModuleRelocate(PVM pVM, RTGCUINTPTR OldImageBase, RTGCUINTPTR NewImageBase, RTGCUINTPTR cbImage,
-                                             const char *pszFilename, const char *pszName);
-VMMR3DECL(int)          DBGFR3SymbolAdd(PVM pVM, RTGCUINTPTR ModuleAddress, RTGCUINTPTR SymbolAddress, RTUINT cbSymbol, const char *pszSymbol);
-VMMR3DECL(int)          DBGFR3SymbolByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement, PDBGFSYMBOL pSymbol);
-VMMR3DECL(int)          DBGFR3SymbolByName(PVM pVM, const char *pszSymbol, PDBGFSYMBOL pSymbol);
+VMMR3DECL(int)          DBGFR3AsSymbolByAddr(PUVM pUVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, uint32_t fFlags,
+                                             PRTGCINTPTR poffDisp, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
+VMMR3DECL(PRTDBGSYMBOL) DBGFR3AsSymbolByAddrA(PUVM pUVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress, uint32_t Flags,
+                                              PRTGCINTPTR poffDisp, PRTDBGMOD phMod);
+VMMR3DECL(int)          DBGFR3AsSymbolByName(PUVM pUVM, RTDBGAS hDbgAs, const char *pszSymbol, PRTDBGSYMBOL pSymbol, PRTDBGMOD phMod);
 
-VMMR3DECL(int)          DBGFR3LineByAddr(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement, PDBGFLINE pLine);
-VMMR3DECL(PDBGFLINE)    DBGFR3LineByAddrAlloc(PVM pVM, RTGCUINTPTR Address, PRTGCINTPTR poffDisplacement);
-VMMR3DECL(void)         DBGFR3LineFree(PDBGFLINE pLine);
+VMMR3DECL(int)          DBGFR3AsLineByAddr(PUVM pUVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress,
+                                           PRTGCINTPTR poffDisp, PRTDBGLINE pLine, PRTDBGMOD phMod);
+VMMR3DECL(PRTDBGLINE)   DBGFR3AsLineByAddrA(PUVM pUVM, RTDBGAS hDbgAs, PCDBGFADDRESS pAddress,
+                                            PRTGCINTPTR poffDisp, PRTDBGMOD phMod);
 
 #endif /* IN_RING3 */
 
@@ -769,7 +778,7 @@ typedef struct DBGFSTACKFRAME
     /** Pointer to the symbol nearest the program counter (PC). NULL if not found. */
     PRTDBGSYMBOL    pSymPC;
     /** Pointer to the linnumber nearest the program counter (PC). NULL if not found. */
-    PDBGFLINE       pLinePC;
+    PRTDBGLINE      pLinePC;
 
     /** The return frame address.
      * The off member is [e|r]bp and the Sel member is ss. */
@@ -786,7 +795,7 @@ typedef struct DBGFSTACKFRAME
     /** Pointer to the symbol nearest the return PC. NULL if not found. */
     PRTDBGSYMBOL    pSymReturnPC;
     /** Pointer to the linnumber nearest the return PC. NULL if not found. */
-    PDBGFLINE       pLineReturnPC;
+    PRTDBGLINE      pLineReturnPC;
 
     /** 32-bytes of stack arguments. */
     union
@@ -846,8 +855,9 @@ typedef enum DBGFCODETYPE
 } DBGFCODETYPE;
 /** @} */
 
-VMMR3DECL(int)              DBGFR3StackWalkBegin(PVM pVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType, PCDBGFSTACKFRAME *ppFirstFrame);
-VMMR3DECL(int)              DBGFR3StackWalkBeginEx(PVM pVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType, PCDBGFADDRESS pAddrFrame,
+VMMR3DECL(int)              DBGFR3StackWalkBegin(PUVM pUVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType,
+                                                 PCDBGFSTACKFRAME *ppFirstFrame);
+VMMR3DECL(int)              DBGFR3StackWalkBeginEx(PUVM pUVM, VMCPUID idCpu, DBGFCODETYPE enmCodeType, PCDBGFADDRESS pAddrFrame,
                                                    PCDBGFADDRESS pAddrStack,PCDBGFADDRESS pAddrPC,
                                                    DBGFRETURNTYPE enmReturnType, PCDBGFSTACKFRAME *ppFirstFrame);
 VMMR3DECL(PCDBGFSTACKFRAME) DBGFR3StackWalkNext(PCDBGFSTACKFRAME pCurrent);
@@ -872,9 +882,12 @@ VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 #define DBGF_DISAS_FLAGS_NO_BYTES           RT_BIT(4)
 /** No address in the output. */
 #define DBGF_DISAS_FLAGS_NO_ADDRESS         RT_BIT(5)
-/** Set if the hidden selector registers are known to be valid. (REM hack to
- *  avoid assertions.) */
-#define DBGF_DISAS_FLAGS_HID_SEL_REGS_VALID RT_BIT(6)
+/** Probably a hypervisor instruction. */
+#define DBGF_DISAS_FLAGS_HYPER              RT_BIT(6)
+/** Disassemble original unpatched bytes (PATM). */
+#define DBGF_DISAS_FLAGS_UNPATCHED_BYTES    RT_BIT(7)
+/** Annotate patched instructions. */
+#define DBGF_DISAS_FLAGS_ANNOTATE_PATCHED   RT_BIT(8)
 /** Disassemble in the default mode of the specific context. */
 #define DBGF_DISAS_FLAGS_DEFAULT_MODE       UINT32_C(0x00000000)
 /** Disassemble in 16-bit mode. */
@@ -888,32 +901,32 @@ VMMR3DECL(void)             DBGFR3StackWalkEnd(PCDBGFSTACKFRAME pFirstFrame);
 /** The disassembly mode mask. */
 #define DBGF_DISAS_FLAGS_MODE_MASK          UINT32_C(0x70000000)
 /** Mask containing the valid flags. */
-#define DBGF_DISAS_FLAGS_VALID_MASK         UINT32_C(0x7000007f)
+#define DBGF_DISAS_FLAGS_VALID_MASK         UINT32_C(0x700001ff)
 /** @} */
 
 /** Special flat selector. */
 #define DBGF_SEL_FLAT                       1
 
-VMMR3DECL(int) DBGFR3DisasInstrEx(PVM pVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCPtr, uint32_t fFlags,
-                                  char *pszOutput, uint32_t cbOutput, uint32_t *pcbInstr);
-VMMR3DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t cbOutput);
-VMMR3DECL(int) DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix);
+VMMR3DECL(int)      DBGFR3DisasInstrEx(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, RTGCPTR GCPtr, uint32_t fFlags,
+                                       char *pszOutput, uint32_t cbOutput, uint32_t *pcbInstr);
+VMMR3_INT_DECL(int) DBGFR3DisasInstrCurrent(PVMCPU pVCpu, char *pszOutput, uint32_t cbOutput);
+VMMR3DECL(int)      DBGFR3DisasInstrCurrentLogInternal(PVMCPU pVCpu, const char *pszPrefix);
 
 /** @def DBGFR3DisasInstrCurrentLog
  * Disassembles the current guest context instruction and writes it to the log.
  * All registers and data will be displayed. Addresses will be attempted resolved to symbols.
  */
 #ifdef LOG_ENABLED
-# define DBGFR3DisasInstrCurrentLog(pVCpu, pszPrefix) \
+# define DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix) \
     do { \
         if (LogIsEnabled()) \
             DBGFR3DisasInstrCurrentLogInternal(pVCpu, pszPrefix); \
     } while (0)
 #else
-# define DBGFR3DisasInstrCurrentLog(pVCpu, pszPrefix) do { } while (0)
+# define DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, pszPrefix) do { } while (0)
 #endif
 
-VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr);
+VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPtr, const char *pszPrefix);
 
 /** @def DBGFR3DisasInstrLog
  * Disassembles the specified guest context instruction and writes it to the log.
@@ -921,23 +934,23 @@ VMMR3DECL(int) DBGFR3DisasInstrLogInternal(PVMCPU pVCpu, RTSEL Sel, RTGCPTR GCPt
  * @thread Any EMT.
  */
 # ifdef LOG_ENABLED
-#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) \
+#  define DBGFR3_DISAS_INSTR_LOG(pVCpu, Sel, GCPtr, pszPrefix) \
     do { \
         if (LogIsEnabled()) \
-            DBGFR3DisasInstrLogInternal(pVCpu, Sel, GCPtr); \
+            DBGFR3DisasInstrLogInternal(pVCpu, Sel, GCPtr, pszPrefix); \
     } while (0)
 # else
-#  define DBGFR3DisasInstrLog(pVCpu, Sel, GCPtr) do { } while (0)
+#  define DBGFR3_DISAS_INSTR_LOG(pVCpu, Sel, GCPtr, pszPrefix) do { } while (0)
 # endif
 #endif
 
 
 #ifdef IN_RING3
-VMMR3DECL(int) DBGFR3MemScan(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
+VMMR3DECL(int) DBGFR3MemScan(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, RTGCUINTPTR cbRange, RTGCUINTPTR uAlign,
                              const void *pvNeedle, size_t cbNeedle, PDBGFADDRESS pHitAddress);
-VMMR3DECL(int) DBGFR3MemRead(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead);
-VMMR3DECL(int) DBGFR3MemReadString(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cbBuf);
-VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbRead);
+VMMR3DECL(int) DBGFR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void *pvBuf, size_t cbRead);
+VMMR3DECL(int) DBGFR3MemReadString(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, char *pszBuf, size_t cbBuf);
+VMMR3DECL(int) DBGFR3MemWrite(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, void const *pvBuf, size_t cbRead);
 #endif
 
 
@@ -982,7 +995,7 @@ VMMR3DECL(int) DBGFR3MemWrite(PVM pVM, VMCPUID idCpu, PCDBGFADDRESS pAddress, vo
 /** The mask of bits controlling the paging mode. */
 #define DBGFPGDMP_FLAGS_MODE_MASK       UINT32_C(0x00000f32)
 /** @}  */
-VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_t cr3, uint64_t u64FirstAddr,
+VMMDECL(int) DBGFR3PagingDumpEx(PUVM pUVM, VMCPUID idCpu, uint32_t fFlags, uint64_t cr3, uint64_t u64FirstAddr,
                                 uint64_t u64LastAddr, uint32_t cMaxDepth, PCDBGFINFOHLP pHlp);
 
 
@@ -996,7 +1009,7 @@ VMMDECL(int) DBGFR3PagingDumpEx(PVM pVM, VMCPUID idCpu, uint32_t fFlags, uint64_
 /** If currently executing in in 64-bit mode, blow up data selectors. */
 #define DBGFSELQI_FLAGS_DT_ADJ_64BIT_MODE   UINT32_C(2)
 /** @} */
-VMMR3DECL(int) DBGFR3SelQueryInfo(PVM pVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo);
+VMMR3DECL(int) DBGFR3SelQueryInfo(PUVM pUVM, VMCPUID idCpu, RTSEL Sel, uint32_t fFlags, PDBGFSELINFO pSelInfo);
 
 
 /**
@@ -1272,12 +1285,18 @@ typedef DBGFREGVALTYPE *PDBGFREGVALTYPE;
  */
 typedef union DBGFREGVAL
 {
+    uint64_t    au64[2];        /**< The 64-bit array view. First because of the initializer. */
+    uint32_t    au32[4];        /**< The 32-bit array view. */
+    uint16_t    au16[8];        /**< The 16-bit array view. */
+    uint8_t     au8[16];        /**< The 8-bit array view. */
+
     uint8_t     u8;             /**< The 8-bit view. */
     uint16_t    u16;            /**< The 16-bit view. */
     uint32_t    u32;            /**< The 32-bit view. */
     uint64_t    u64;            /**< The 64-bit view. */
     RTUINT128U  u128;           /**< The 128-bit view. */
-    RTFLOAT80U2 r80;            /**< The 80-bit floating point view. */
+    RTFLOAT80U  r80;            /**< The 80-bit floating point view. */
+    RTFLOAT80U2 r80Ex;          /**< The 80-bit floating point view v2. */
     /** GDTR or LDTR (DBGFREGVALTYPE_DTR). */
     struct
     {
@@ -1287,16 +1306,18 @@ typedef union DBGFREGVAL
         uint32_t u32Limit;
     }           dtr;
 
-    uint8_t     au8[16];        /**< The 8-bit array view.  */
-    uint16_t    au16[8];        /**< The 16-bit array view.  */
-    uint32_t    au32[4];        /**< The 32-bit array view.  */
-    uint64_t    au64[2];        /**< The 64-bit array view.  */
     RTUINT128U  u;
 } DBGFREGVAL;
 /** Pointer to a generic register value type. */
 typedef DBGFREGVAL *PDBGFREGVAL;
 /** Pointer to a const generic register value type. */
 typedef DBGFREGVAL const *PCDBGFREGVAL;
+
+/** Initialize a DBGFREGVAL variable to all zeros.  */
+#define DBGFREGVAL_INITIALIZE_ZERO { { 0, 0 } }
+/** Initialize a DBGFREGVAL variable to all bits set .  */
+#define DBGFREGVAL_INITIALIZE_FFFF { { UINT64_MAX, UINT64_MAX } }
+
 
 VMMDECL(ssize_t) DBGFR3RegFormatValue(char *pszBuf, size_t cbBuf, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType, bool fSpecial);
 VMMDECL(ssize_t) DBGFR3RegFormatValueEx(char *pszBuf, size_t cbBuf, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType,
@@ -1318,9 +1339,13 @@ typedef struct DBGFREGSUBFIELD
     int8_t          cShift;
     /** Sub-field flags, DBGFREGSUBFIELD_FLAGS_XXX.  */
     uint8_t         fFlags;
-    /** Getter (optional). */
+    /** Getter (optional).
+     * @remarks Does not take the device lock or anything like that.
+     */
     DECLCALLBACKMEMBER(int, pfnGet)(void *pvUser, struct DBGFREGSUBFIELD const *pSubField, PRTUINT128U puValue);
-    /** Setter (optional). */
+    /** Setter (optional).
+     * @remarks Does not take the device lock or anything like that.
+     */
     DECLCALLBACKMEMBER(int, pfnSet)(void *pvUser, struct DBGFREGSUBFIELD const *pSubField, RTUINT128U uValue, RTUINT128U fMask);
 } DBGFREGSUBFIELD;
 /** Pointer to a const register sub-field descriptor. */
@@ -1338,6 +1363,9 @@ typedef DBGFREGSUBFIELD const *PCDBGFREGSUBFIELD;
 /** Macro for creating a read-write sub-field entry with getters. */
 #define DBGFREGSUBFIELD_RW_SG(a_szName, a_cBits, a_cShift, a_pfnGet, a_pfnSet) \
     { a_szName, 0 /*iFirstBit*/, a_cBits, a_cShift, 0 /*fFlags*/, a_pfnGet, a_pfnSet }
+/** Macro for creating a read-only sub-field entry without getters. */
+#define DBGFREGSUBFIELD_RO(a_szName, a_iFirstBit, a_cBits, a_cShift) \
+    { a_szName, a_iFirstBit, a_cBits, a_cShift, DBGFREGSUBFIELD_FLAGS_READ_ONLY, NULL /*pfnGet*/, NULL /*pfnSet*/ }
 /** Macro for creating a terminator sub-field entry.  */
 #define DBGFREGSUBFIELD_TERMINATOR() \
     { NULL, 0, 0, 0, 0, NULL, NULL }
@@ -1372,9 +1400,13 @@ typedef struct DBGFREGDESC
      * For CPU registers this is the offset into the CPUMCTX structure,
      * thuse the 'off' prefix. */
     uint32_t                offRegister;
-    /** Getter. */
+    /** Getter.
+     * @remarks Does not take the device lock or anything like that.
+     */
     DECLCALLBACKMEMBER(int, pfnGet)(void *pvUser, struct DBGFREGDESC const *pDesc, PDBGFREGVAL pValue);
-    /** Setter. */
+    /** Setter.
+     * @remarks Does not take the device lock or anything like that.
+     */
     DECLCALLBACKMEMBER(int, pfnSet)(void *pvUser, struct DBGFREGDESC const *pDesc, PCDBGFREGVAL pValue, PCDBGFREGVAL pfMask);
     /** Aliases (optional). */
     PCDBGFREGALIAS          paAliases;
@@ -1432,30 +1464,31 @@ typedef DBGFREGENTRY const *PCDBGFREGENTRY;
  *  guest. */
 #define DBGFREG_HYPER_VMCPUID       UINT32_C(0x01000000)
 
-VMMR3DECL(int) DBGFR3RegCpuQueryU8(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8);
-VMMR3DECL(int) DBGFR3RegCpuQueryU16( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    *pu16);
-VMMR3DECL(int) DBGFR3RegCpuQueryU32( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    *pu32);
-VMMR3DECL(int) DBGFR3RegCpuQueryU64( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    *pu64);
-VMMR3DECL(int) DBGFR3RegCpuQueryU128(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   *pu128);
-VMMR3DECL(int) DBGFR3RegCpuQueryLrd( PVM pVM, VMCPUID idCpu, DBGFREG enmReg, long double *plrd);
-VMMR3DECL(int) DBGFR3RegCpuQueryXdtr(PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t *pu64Base, uint16_t *pu16Limit);
+VMMR3DECL(int) DBGFR3RegCpuQueryU8(  PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     *pu8);
+VMMR3DECL(int) DBGFR3RegCpuQueryU16( PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    *pu16);
+VMMR3DECL(int) DBGFR3RegCpuQueryU32( PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    *pu32);
+VMMR3DECL(int) DBGFR3RegCpuQueryU64( PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    *pu64);
+VMMR3DECL(int) DBGFR3RegCpuQueryU128(PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   *pu128);
+VMMR3DECL(int) DBGFR3RegCpuQueryLrd( PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, long double *plrd);
+VMMR3DECL(int) DBGFR3RegCpuQueryXdtr(PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t *pu64Base, uint16_t *pu16Limit);
 #if 0
-VMMR3DECL(int) DBGFR3RegCpuQueryBatch(PVM pVM,VMCPUID idCpu, PDBGFREGENTRY paRegs, size_t cRegs);
-VMMR3DECL(int) DBGFR3RegCpuQueryAll( PVM pVM, VMCPUID idCpu, PDBGFREGENTRY paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegCpuQueryBatch(PUVM pUVM,VMCPUID idCpu, PDBGFREGENTRY paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegCpuQueryAll( PUVM pUVM, VMCPUID idCpu, PDBGFREGENTRY paRegs, size_t cRegs);
 
-VMMR3DECL(int) DBGFR3RegCpuSetU8(    PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     u8);
-VMMR3DECL(int) DBGFR3RegCpuSetU16(   PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    u16);
-VMMR3DECL(int) DBGFR3RegCpuSetU32(   PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    u32);
-VMMR3DECL(int) DBGFR3RegCpuSetU64(   PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    u64);
-VMMR3DECL(int) DBGFR3RegCpuSetU128(  PVM pVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   u128);
-VMMR3DECL(int) DBGFR3RegCpuSetLrd(   PVM pVM, VMCPUID idCpu, DBGFREG enmReg, long double lrd);
-VMMR3DECL(int) DBGFR3RegCpuSetBatch( PVM pVM, VMCPUID idCpu, PCDBGFREGENTRY paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegCpuSetU8(    PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint8_t     u8);
+VMMR3DECL(int) DBGFR3RegCpuSetU16(   PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint16_t    u16);
+VMMR3DECL(int) DBGFR3RegCpuSetU32(   PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint32_t    u32);
+VMMR3DECL(int) DBGFR3RegCpuSetU64(   PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint64_t    u64);
+VMMR3DECL(int) DBGFR3RegCpuSetU128(  PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, uint128_t   u128);
+VMMR3DECL(int) DBGFR3RegCpuSetLrd(   PUVM pUVM, VMCPUID idCpu, DBGFREG enmReg, long double lrd);
+VMMR3DECL(int) DBGFR3RegCpuSetBatch( PUVM pUVM, VMCPUID idCpu, PCDBGFREGENTRY paRegs, size_t cRegs);
 #endif
 
-VMMR3DECL(const char *) DBGFR3RegCpuName(PVM pVM, DBGFREG enmReg, DBGFREGVALTYPE enmType);
+VMMR3DECL(const char *) DBGFR3RegCpuName(PUVM pUVM, DBGFREG enmReg, DBGFREGVALTYPE enmType);
 
 VMMR3_INT_DECL(int) DBGFR3RegRegisterCpu(PVM pVM, PVMCPU pVCpu, PCDBGFREGDESC paRegisters, bool fGuestRegs);
-VMMR3DECL(int)      DBGFR3RegRegisterDevice(PVM pVM, PCDBGFREGDESC paRegisters, PPDMDEVINS pDevIns, const char *pszPrefix, uint32_t iInstance);
+VMMR3_INT_DECL(int) DBGFR3RegRegisterDevice(PVM pVM, PCDBGFREGDESC paRegisters, PPDMDEVINS pDevIns,
+                                            const char *pszPrefix, uint32_t iInstance);
 
 /**
  * Entry in a named batch query or set operation.
@@ -1474,31 +1507,33 @@ typedef DBGFREGENTRYNM *PDBGFREGENTRYNM;
 /** Pointer to a const named register entry in a batch operation. */
 typedef DBGFREGENTRYNM const *PCDBGFREGENTRYNM;
 
-VMMR3DECL(int) DBGFR3RegNmQuery(    PVM pVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType);
-VMMR3DECL(int) DBGFR3RegNmQueryU8(  PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint8_t     *pu8);
-VMMR3DECL(int) DBGFR3RegNmQueryU16( PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint16_t    *pu16);
-VMMR3DECL(int) DBGFR3RegNmQueryU32( PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint32_t    *pu32);
-VMMR3DECL(int) DBGFR3RegNmQueryU64( PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint64_t    *pu64);
-VMMR3DECL(int) DBGFR3RegNmQueryU128(PVM pVM, VMCPUID idDefCpu, const char *pszReg, PRTUINT128U  pu128);
-/*VMMR3DECL(int) DBGFR3RegNmQueryLrd( PVM pVM, VMCPUID idDefCpu, const char *pszReg, long double *plrd);*/
-VMMR3DECL(int) DBGFR3RegNmQueryXdtr(PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint64_t *pu64Base, uint16_t *pu16Limit);
-VMMR3DECL(int) DBGFR3RegNmQueryBatch(PVM pVM,VMCPUID idDefCpu, PDBGFREGENTRYNM paRegs, size_t cRegs);
-VMMR3DECL(int) DBGFR3RegNmQueryAllCount(PVM pVM, size_t *pcRegs);
-VMMR3DECL(int) DBGFR3RegNmQueryAll( PVM pVM,                   PDBGFREGENTRYNM paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegNmValidate( PUVM pUVM, VMCPUID idDefCpu, const char *pszReg);
 
-VMMR3DECL(int) DBGFR3RegNmSet(      PVM pVM, VMCPUID idDefCpu, const char *pszReg, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType);
-VMMR3DECL(int) DBGFR3RegNmSetU8(    PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint8_t     u8);
-VMMR3DECL(int) DBGFR3RegNmSetU16(   PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint16_t    u16);
-VMMR3DECL(int) DBGFR3RegNmSetU32(   PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint32_t    u32);
-VMMR3DECL(int) DBGFR3RegNmSetU64(   PVM pVM, VMCPUID idDefCpu, const char *pszReg, uint64_t    u64);
-VMMR3DECL(int) DBGFR3RegNmSetU128(  PVM pVM, VMCPUID idDefCpu, const char *pszReg, RTUINT128U  u128);
-VMMR3DECL(int) DBGFR3RegNmSetLrd(   PVM pVM, VMCPUID idDefCpu, const char *pszReg, long double lrd);
-VMMR3DECL(int) DBGFR3RegNmSetBatch( PVM pVM, VMCPUID idDefCpu, PCDBGFREGENTRYNM paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegNmQuery(    PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, PDBGFREGVAL pValue, PDBGFREGVALTYPE penmType);
+VMMR3DECL(int) DBGFR3RegNmQueryU8(  PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint8_t     *pu8);
+VMMR3DECL(int) DBGFR3RegNmQueryU16( PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint16_t    *pu16);
+VMMR3DECL(int) DBGFR3RegNmQueryU32( PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint32_t    *pu32);
+VMMR3DECL(int) DBGFR3RegNmQueryU64( PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint64_t    *pu64);
+VMMR3DECL(int) DBGFR3RegNmQueryU128(PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, PRTUINT128U  pu128);
+/*VMMR3DECL(int) DBGFR3RegNmQueryLrd( PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, long double *plrd);*/
+VMMR3DECL(int) DBGFR3RegNmQueryXdtr(PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint64_t *pu64Base, uint16_t *pu16Limit);
+VMMR3DECL(int) DBGFR3RegNmQueryBatch(PUVM pUVM,VMCPUID idDefCpu, PDBGFREGENTRYNM paRegs, size_t cRegs);
+VMMR3DECL(int) DBGFR3RegNmQueryAllCount(PUVM pUVM, size_t *pcRegs);
+VMMR3DECL(int) DBGFR3RegNmQueryAll( PUVM pUVM,                   PDBGFREGENTRYNM paRegs, size_t cRegs);
+
+VMMR3DECL(int) DBGFR3RegNmSet(      PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, PCDBGFREGVAL pValue, DBGFREGVALTYPE enmType);
+VMMR3DECL(int) DBGFR3RegNmSetU8(    PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint8_t     u8);
+VMMR3DECL(int) DBGFR3RegNmSetU16(   PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint16_t    u16);
+VMMR3DECL(int) DBGFR3RegNmSetU32(   PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint32_t    u32);
+VMMR3DECL(int) DBGFR3RegNmSetU64(   PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, uint64_t    u64);
+VMMR3DECL(int) DBGFR3RegNmSetU128(  PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, RTUINT128U  u128);
+VMMR3DECL(int) DBGFR3RegNmSetLrd(   PUVM pUVM, VMCPUID idDefCpu, const char *pszReg, long double lrd);
+VMMR3DECL(int) DBGFR3RegNmSetBatch( PUVM pUVM, VMCPUID idDefCpu, PCDBGFREGENTRYNM paRegs, size_t cRegs);
 
 /** @todo add enumeration methods.  */
 
-VMMR3DECL(int) DBGFR3RegPrintf( PVM pVM, VMCPUID idDefCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, ...);
-VMMR3DECL(int) DBGFR3RegPrintfV(PVM pVM, VMCPUID idDefCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, va_list va);
+VMMR3DECL(int) DBGFR3RegPrintf( PUVM pUVM, VMCPUID idDefCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, ...);
+VMMR3DECL(int) DBGFR3RegPrintfV(PUVM pUVM, VMCPUID idDefCpu, char *pszBuf, size_t cbBuf, const char *pszFormat, va_list va);
 
 
 /**
@@ -1546,18 +1581,18 @@ typedef struct DBGFOSREG
      * Constructs the instance.
      *
      * @returns VBox status code.
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(int, pfnConstruct)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(int, pfnConstruct)(PUVM pUVM, void *pvData);
 
     /**
      * Destroys the instance.
      *
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(void, pfnDestruct)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(void, pfnDestruct)(PUVM pUVM, void *pvData);
 
     /**
      * Probes the guest memory for OS finger prints.
@@ -1566,10 +1601,10 @@ typedef struct DBGFOSREG
      * or pfnRefresh that should take care of that.
      *
      * @returns true if is an OS handled by this module, otherwise false.
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(bool, pfnProbe)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(bool, pfnProbe)(PUVM pUVM, void *pvData);
 
     /**
      * Initializes a fresly detected guest, loading symbols and such useful stuff.
@@ -1577,10 +1612,10 @@ typedef struct DBGFOSREG
      * This is called after pfnProbe.
      *
      * @returns VBox status code.
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(int, pfnInit)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(int, pfnInit)(PUVM pUVM, void *pvData);
 
     /**
      * Refreshes symbols and stuff following a redetection of the same OS.
@@ -1588,10 +1623,10 @@ typedef struct DBGFOSREG
      * This is called after pfnProbe.
      *
      * @returns VBox status code.
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(int, pfnRefresh)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(int, pfnRefresh)(PUVM pUVM, void *pvData);
 
     /**
      * Terminates an OS when a new (or none) OS has been detected,
@@ -1599,10 +1634,10 @@ typedef struct DBGFOSREG
      *
      * This is called after pfnProbe and if needed before pfnDestruct.
      *
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      */
-    DECLCALLBACKMEMBER(void, pfnTerm)(PVM pVM, void *pvData);
+    DECLCALLBACKMEMBER(void, pfnTerm)(PUVM pUVM, void *pvData);
 
     /**
      * Queries the version of the running OS.
@@ -1610,12 +1645,12 @@ typedef struct DBGFOSREG
      * This is only called after pfnInit().
      *
      * @returns VBox status code.
-     * @param   pVM         Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData      Pointer to the instance data.
      * @param   pszVersion  Where to store the version string.
      * @param   cchVersion  The size of the version string buffer.
      */
-    DECLCALLBACKMEMBER(int, pfnQueryVersion)(PVM pVM, void *pvData, char *pszVersion, size_t cchVersion);
+    DECLCALLBACKMEMBER(int, pfnQueryVersion)(PUVM pUVM, void *pvData, char *pszVersion, size_t cchVersion);
 
     /**
      * Queries the pointer to a interface.
@@ -1623,11 +1658,11 @@ typedef struct DBGFOSREG
      * This is called after pfnProbe.
      *
      * @returns Pointer to the interface if available, NULL if not available.
-     * @param   pVM     Pointer to the shared VM structure.
+     * @param   pUVM    The user mode VM handle.
      * @param   pvData  Pointer to the instance data.
      * @param   enmIf   The interface identifier.
      */
-    DECLCALLBACKMEMBER(void *, pfnQueryInterface)(PVM pVM, void *pvData, DBGFOSINTERFACE enmIf);
+    DECLCALLBACKMEMBER(void *, pfnQueryInterface)(PUVM pUVM, void *pvData, DBGFOSINTERFACE enmIf);
 
     /** Trailing magic (DBGFOSREG_MAGIC). */
     uint32_t u32EndMagic;
@@ -1640,14 +1675,14 @@ typedef DBGFOSREG const *PCDBGFOSREG;
 /** Magic value for DBGFOSREG::u32Magic and DBGFOSREG::u32EndMagic. (Hitomi Kanehara) */
 #define DBGFOSREG_MAGIC     0x19830808
 
-VMMR3DECL(int)      DBGFR3OSRegister(PVM pVM, PCDBGFOSREG pReg);
-VMMR3DECL(int)      DBGFR3OSDeregister(PVM pVM, PCDBGFOSREG pReg);
-VMMR3DECL(int)      DBGFR3OSDetect(PVM pVM, char *pszName, size_t cchName);
-VMMR3DECL(int)      DBGFR3OSQueryNameAndVersion(PVM pVM, char *pszName, size_t cchName, char *pszVersion, size_t cchVersion);
-VMMR3DECL(void *)   DBGFR3OSQueryInterface(PVM pVM, DBGFOSINTERFACE enmIf);
+VMMR3DECL(int)      DBGFR3OSRegister(PUVM pUVM, PCDBGFOSREG pReg);
+VMMR3DECL(int)      DBGFR3OSDeregister(PUVM pUVM, PCDBGFOSREG pReg);
+VMMR3DECL(int)      DBGFR3OSDetect(PUVM pUVM, char *pszName, size_t cchName);
+VMMR3DECL(int)      DBGFR3OSQueryNameAndVersion(PUVM pUVM, char *pszName, size_t cchName, char *pszVersion, size_t cchVersion);
+VMMR3DECL(void *)   DBGFR3OSQueryInterface(PUVM pUVM, DBGFOSINTERFACE enmIf);
 
 
-VMMR3DECL(int)      DBGFR3CoreWrite(PVM pVM, const char *pszFilename, bool fReplaceFile);
+VMMR3DECL(int)      DBGFR3CoreWrite(PUVM pUVM, const char *pszFilename, bool fReplaceFile);
 
 /** @} */
 

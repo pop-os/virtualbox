@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2011 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,6 @@ RT_C_DECLS_BEGIN
 extern const unsigned char  g_abVgaDefBiosLogo[];
 /** The size of the default BIOS logo data. */
 extern const unsigned       g_cbVgaDefBiosLogo;
-#ifdef VBOX_WITH_EFI
-/** The EFI thunk binary. */
-extern const unsigned char  g_abEfiThunkBinary[];
-/** The size of the EFI thunk binary. */
-extern const unsigned       g_cbEfiThunkBinary;
-#endif
 
 
 extern const PDMDEVREG g_DevicePCI;
@@ -42,6 +36,7 @@ extern const PDMDEVREG g_DevicePS2KeyboardMouse;
 extern const PDMDEVREG g_DeviceI8254;
 extern const PDMDEVREG g_DeviceI8259;
 extern const PDMDEVREG g_DeviceHPET;
+extern const PDMDEVREG g_DeviceSmc;
 extern const PDMDEVREG g_DeviceMC146818;
 extern const PDMDEVREG g_DevicePIIX3IDE;
 extern const PDMDEVREG g_DeviceFloppyController;
@@ -86,6 +81,10 @@ extern const PDMDEVREG g_DeviceEFI;
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
 extern const PDMDEVREG g_DevicePciRaw;
 #endif
+extern const PDMDEVREG g_DeviceGIMDev;
+#ifdef VBOX_WITH_VIRTUALKD
+extern const PDMDEVREG g_DeviceVirtualKD;
+#endif
 
 extern const PDMDRVREG g_DrvMouseQueue;
 extern const PDMDRVREG g_DrvKeyboardQueue;
@@ -110,11 +109,17 @@ extern const PDMDRVREG g_DrvVDE;
 extern const PDMDRVREG g_DrvIntNet;
 extern const PDMDRVREG g_DrvDedicatedNic;
 extern const PDMDRVREG g_DrvNAT;
+#ifdef VBOX_WITH_NETSHAPER
+extern const PDMDRVREG g_DrvNetShaper;
+#endif /* VBOX_WITH_NETSHAPER */
 extern const PDMDRVREG g_DrvNetSniffer;
 extern const PDMDRVREG g_DrvAUDIO;
 extern const PDMDRVREG g_DrvACPI;
 extern const PDMDRVREG g_DrvAcpiCpu;
 extern const PDMDRVREG g_DrvVUSBRootHub;
+#ifdef VBOX_WITH_USB_VIDEO_IMPL
+extern const PDMDRVREG g_DrvHostWebcam;
+#endif
 extern const PDMDRVREG g_DrvChar;
 extern const PDMDRVREG g_DrvNamedPipe;
 extern const PDMDRVREG g_DrvRawFile;
@@ -136,6 +141,9 @@ extern const PDMUSBREG g_UsbHid;
 extern const PDMUSBREG g_UsbHidKbd;
 extern const PDMUSBREG g_UsbHidMou;
 #endif
+#ifdef VBOX_WITH_USB_VIDEO_IMPL
+extern const PDMUSBREG g_DevWebcam;
+#endif
 
 #ifdef VBOX_WITH_SCSI
 extern const PDMDRVREG g_DrvSCSI;
@@ -144,6 +152,14 @@ extern const PDMDRVREG g_DrvSCSIHost;
 # endif
 #endif
 
+
+/* VBoxAcpi.cpp */
+int acpiPrepareDsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbDsdt);
+int acpiCleanupDsdt(PPDMDEVINS pDevIns, void *pvPtr);
+int acpiPrepareSsdt(PPDMDEVINS pDevIns, void **ppvPtr, size_t *pcbSsdt);
+int acpiCleanupSsdt(PPDMDEVINS pDevIns, void *pvPtr);
+
 RT_C_DECLS_END
 
 #endif
+

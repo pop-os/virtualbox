@@ -1,10 +1,9 @@
 /** @file
- *
  * VirtualBox OpenGL Cocoa Window System implementation
  */
 
 /*
- * Copyright (C) 2009 Oracle Corporation
+ * Copyright (C) 2009-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,6 +21,9 @@
 #include <iprt/string.h>
 #include <iprt/path.h>
 
+#include <cr_string.h>
+#include <cr_mem.h>
+
 GLboolean renderspu_SystemInitVisual(VisualInfo *pVisInfo)
 {
     CRASSERT(pVisInfo);
@@ -31,14 +33,14 @@ GLboolean renderspu_SystemInitVisual(VisualInfo *pVisInfo)
     return GL_TRUE;
 }
 
-GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pShharedCtxInfo)
+GLboolean renderspu_SystemCreateContext(VisualInfo *pVisInfo, ContextInfo *pCtxInfo, ContextInfo *pSharedCtxInfo)
 {
     CRASSERT(pVisInfo);
     CRASSERT(pCtxInfo);
 
     pCtxInfo->currentWindow = NULL;
 
-    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs);
+    cocoaGLCtxCreate(&pCtxInfo->context, pVisInfo->visAttribs, pSharedCtxInfo ? pSharedCtxInfo->context : NULL);
 
     return GL_TRUE;
 }
@@ -83,7 +85,7 @@ GLboolean renderspu_SystemVBoxCreateWindow(VisualInfo *pVisInfo, GLboolean fShow
     NativeNSViewRef pParentWin = (NativeNSViewRef)(uint32_t)render_spu_parent_window_id;
 #endif /* __LP64__ */
 
-    cocoaViewCreate(&pWinInfo->window, pParentWin, pVisInfo->visAttribs);
+    cocoaViewCreate(&pWinInfo->window, pWinInfo, pParentWin, pVisInfo->visAttribs);
 
     if (fShowIt)
         renderspu_SystemShowWindow(pWinInfo, fShowIt);
@@ -152,15 +154,22 @@ void renderspu_SystemShowWindow(WindowInfo *pWinInfo, GLboolean fShowIt)
     cocoaViewShow(pWinInfo->window, fShowIt);
 }
 
+void renderspu_SystemVBoxPresentComposition( WindowInfo *window, const struct VBOXVR_SCR_COMPOSITOR_ENTRY *pChangedEntry )
+{
+    cocoaViewPresentComposition(window->window, pChangedEntry);
+}
+
 void renderspu_SystemMakeCurrent(WindowInfo *pWinInfo, GLint nativeWindow, ContextInfo *pCtxInfo)
 {
-    CRASSERT(pWinInfo);
-    CRASSERT(pCtxInfo);
-
 /*    if(pWinInfo->visual != pCtxInfo->visual)*/
 /*        printf ("visual mismatch .....................\n");*/
 
-    cocoaViewMakeCurrentContext(pWinInfo->window, pCtxInfo->context);
+    nativeWindow = 0;
+
+    if (pWinInfo && pCtxInfo)
+        cocoaViewMakeCurrentContext(pWinInfo->window, pCtxInfo->context);
+    else
+        cocoaViewMakeCurrentContext(NULL, NULL);
 }
 
 void renderspu_SystemSwapBuffers(WindowInfo *pWinInfo, GLint flags)
@@ -170,53 +179,313 @@ void renderspu_SystemSwapBuffers(WindowInfo *pWinInfo, GLint flags)
     cocoaViewDisplay(pWinInfo->window);
 }
 
-void renderspu_SystemWindowVisibleRegion(WindowInfo *pWinInfo, GLint cRects, GLint* paRects)
+GLboolean renderspu_SystemWindowNeedEmptyPresent(WindowInfo *pWinInfo)
+{
+    return cocoaViewNeedsEmptyPresent(pWinInfo->window);
+}
+
+void renderspu_SystemWindowVisibleRegion(WindowInfo *pWinInfo, GLint cRects, const GLint* paRects)
 {
     CRASSERT(pWinInfo);
 
     cocoaViewSetVisibleRegion(pWinInfo->window, cRects, paRects);
 }
 
-void renderspu_SystemSetRootVisibleRegion(GLint cRects, GLint *paRects)
-{
-}
-
 void renderspu_SystemWindowApplyVisibleRegion(WindowInfo *pWinInfo)
 {
 }
 
-void renderspu_SystemFlush()
+int renderspu_SystemInit()
 {
-    cocoaFlush();
+    return VINF_SUCCESS;
 }
 
-void renderspu_SystemFinish()
+int renderspu_SystemTerm()
 {
-    cocoaFinish();
+    CrGlslTerm(&render_spu.GlobalShaders);
+    return VINF_SUCCESS;
 }
 
-void renderspu_SystemBindFramebufferEXT(GLenum target, GLuint framebuffer)
+static SPUNamedFunctionTable * renderspuFindEntry(SPUNamedFunctionTable *aFunctions, const char *pcszName)
 {
-    cocoaBindFramebufferEXT(target, framebuffer);
+    SPUNamedFunctionTable *pCur;
+
+    for (pCur = aFunctions ; pCur->name != NULL ; pCur++)
+    {
+        if (!crStrcmp( pcszName, pCur->name ) )
+        {
+            return pCur;
+        }
+    }
+
+    AssertFailed();
+
+    return NULL;
 }
 
-void renderspu_SystemCopyPixels(GLint x, GLint y, GLsizei width, GLsizei height, GLenum type)
+typedef struct CR_RENDER_CTX_INFO
 {
-    cocoaCopyPixels(x, y, width, height, type);
+    ContextInfo * pContext;
+    WindowInfo * pWindow;
+} CR_RENDER_CTX_INFO;
+
+void renderspuCtxInfoInitCurrent(CR_RENDER_CTX_INFO *pInfo)
+{
+    GET_CONTEXT(pCurCtx);
+    pInfo->pContext = pCurCtx;
+    pInfo->pWindow = pCurCtx ? pCurCtx->currentWindow : NULL;
 }
 
-void renderspu_SystemGetIntegerv(GLenum pname, GLint * params)
+void renderspuCtxInfoRestoreCurrent(CR_RENDER_CTX_INFO *pInfo)
 {
-    cocoaGetIntegerv(pname, params);
+    GET_CONTEXT(pCurCtx);
+    if (pCurCtx == pInfo->pContext && (!pCurCtx || pCurCtx->currentWindow == pInfo->pWindow))
+        return;
+    renderspuPerformMakeCurrent(pInfo->pWindow, 0, pInfo->pContext);
 }
 
-void renderspu_SystemReadBuffer(GLenum mode)
+GLboolean renderspuCtxSetCurrentWithAnyWindow(ContextInfo * pContext, CR_RENDER_CTX_INFO *pInfo)
 {
-    cocoaReadBuffer(mode);
+    WindowInfo * window;
+    renderspuCtxInfoInitCurrent(pInfo);
+
+    if (pInfo->pContext == pContext)
+        return GL_TRUE;
+
+    window = pContext->currentWindow;
+    if (!window)
+    {
+        window = renderspuGetDummyWindow(pContext->BltInfo.Base.visualBits);
+        if (!window)
+        {
+            WARN(("renderspuGetDummyWindow failed"));
+            return GL_FALSE;
+        }
+    }
+
+    Assert(window);
+
+    renderspuPerformMakeCurrent(window, 0, pContext);
+    return GL_TRUE;
 }
 
-void renderspu_SystemDrawBuffer(GLenum mode)
+void renderspu_SystemDefaultSharedContextChanged(ContextInfo *fromContext, ContextInfo *toContext)
 {
-    cocoaDrawBuffer(mode);
+    CRASSERT(fromContext != toContext);
+
+    if (!CrGlslIsInited(&render_spu.GlobalShaders))
+    {
+        CrGlslInit(&render_spu.GlobalShaders, &render_spu.blitterDispatch);
+    }
+
+    if (fromContext)
+    {
+        if (CrGlslNeedsCleanup(&render_spu.GlobalShaders))
+        {
+            CR_RENDER_CTX_INFO Info;
+            if (renderspuCtxSetCurrentWithAnyWindow(fromContext, &Info))
+            {
+                CrGlslCleanup(&render_spu.GlobalShaders);
+                renderspuCtxInfoRestoreCurrent(&Info);
+            }
+            else
+                WARN(("renderspuCtxSetCurrentWithAnyWindow failed!"));
+        }
+    }
+    else
+    {
+        CRASSERT(!CrGlslNeedsCleanup(&render_spu.GlobalShaders));
+    }
+
+    CRASSERT(!CrGlslNeedsCleanup(&render_spu.GlobalShaders));
+
+    if (toContext)
+    {
+        CR_RENDER_CTX_INFO Info;
+        if (renderspuCtxSetCurrentWithAnyWindow(toContext, &Info))
+        {
+            int rc = CrGlslProgGenAllNoAlpha(&render_spu.GlobalShaders);
+            if (!RT_SUCCESS(rc))
+                WARN(("CrGlslProgGenAllNoAlpha failed, rc %d", rc));
+
+            renderspuCtxInfoRestoreCurrent(&Info);
+        }
+        else
+            crWarning("renderspuCtxSetCurrentWithAnyWindow failed!");
+    }
 }
 
+AssertCompile(sizeof (GLhandleARB) == sizeof (void*));
+
+static VBoxGLhandleARB crHndlSearchVBox(GLhandleARB hNative)
+{
+    CRASSERT(!(((uintptr_t)hNative) >> 32));
+    return (VBoxGLhandleARB)((uintptr_t)hNative);
+}
+
+static GLhandleARB crHndlSearchNative(VBoxGLhandleARB hVBox)
+{
+    return (GLhandleARB)((uintptr_t)hVBox);
+}
+
+static VBoxGLhandleARB crHndlAcquireVBox(GLhandleARB hNative)
+{
+    CRASSERT(!(((uintptr_t)hNative) >> 32));
+    return (VBoxGLhandleARB)((uintptr_t)hNative);
+}
+
+static GLhandleARB crHndlReleaseVBox(VBoxGLhandleARB hVBox)
+{
+    return (GLhandleARB)((uintptr_t)hVBox);
+}
+
+static void SPU_APIENTRY renderspu_SystemDeleteObjectARB(VBoxGLhandleARB obj)
+{
+    GLhandleARB hNative = crHndlReleaseVBox(obj);
+    if (!hNative)
+    {
+        crWarning("no native for %d", obj);
+        return;
+    }
+
+    render_spu.pfnDeleteObject(hNative);
+}
+
+static void SPU_APIENTRY renderspu_SystemGetAttachedObjectsARB( VBoxGLhandleARB containerObj, GLsizei maxCount, GLsizei * pCount, VBoxGLhandleARB * obj )
+{
+    GLhandleARB *paAttachments;
+    GLhandleARB hNative = crHndlSearchNative(containerObj);
+    GLsizei count, i;
+
+    if (pCount)
+        *pCount = 0;
+
+    if (!hNative)
+    {
+        crWarning("no native for %d", obj);
+        return;
+    }
+
+    paAttachments = crCalloc(maxCount * sizeof (*paAttachments));
+    if (!paAttachments)
+    {
+        crWarning("crCalloc failed");
+        return;
+    }
+
+    render_spu.pfnGetAttachedObjects(hNative, maxCount, &count, paAttachments);
+    if (pCount)
+        *pCount = count;
+    if (count > maxCount)
+    {
+        crWarning("count too big");
+        count = maxCount;
+    }
+
+    for (i = 0; i < count; ++i)
+    {
+        obj[i] = crHndlSearchVBox(paAttachments[i]);
+        CRASSERT(obj[i]);
+    }
+
+    crFree(paAttachments);
+}
+
+static VBoxGLhandleARB SPU_APIENTRY renderspu_SystemGetHandleARB(GLenum pname)
+{
+    GLhandleARB hNative = render_spu.pfnGetHandle(pname);
+    VBoxGLhandleARB hVBox;
+    if (!hNative)
+    {
+        crWarning("pfnGetHandle failed");
+        return 0;
+    }
+    hVBox = crHndlAcquireVBox(hNative);
+    CRASSERT(hVBox);
+    return hVBox;
+}
+
+static void SPU_APIENTRY renderspu_SystemGetInfoLogARB( VBoxGLhandleARB obj, GLsizei maxLength, GLsizei * length, GLcharARB * infoLog )
+{
+    GLhandleARB hNative = crHndlSearchNative(obj);
+    if (!hNative)
+    {
+        crWarning("invalid handle!");
+        return;
+    }
+
+    render_spu.pfnGetInfoLog(hNative, maxLength, length, infoLog);
+}
+
+static void SPU_APIENTRY renderspu_SystemGetObjectParameterfvARB( VBoxGLhandleARB obj, GLenum pname, GLfloat * params )
+{
+    GLhandleARB hNative = crHndlSearchNative(obj);
+    if (!hNative)
+    {
+        crWarning("invalid handle!");
+        return;
+    }
+
+    render_spu.pfnGetObjectParameterfv(hNative, pname, params);
+}
+
+static void SPU_APIENTRY renderspu_SystemGetObjectParameterivARB( VBoxGLhandleARB obj, GLenum pname, GLint * params )
+{
+    GLhandleARB hNative = crHndlSearchNative(obj);
+    if (!hNative)
+    {
+        crWarning("invalid handle!");
+        return;
+    }
+
+    render_spu.pfnGetObjectParameteriv(hNative, pname, params);
+}
+
+uint32_t renderspu_SystemPostprocessFunctions(SPUNamedFunctionTable *aFunctions, uint32_t cFunctions, uint32_t cTable)
+{
+    SPUNamedFunctionTable * pEntry;
+
+    pEntry = renderspuFindEntry(aFunctions, "DeleteObjectARB");
+    if (pEntry)
+    {
+        render_spu.pfnDeleteObject = (PFNDELETE_OBJECT)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemDeleteObjectARB;
+    }
+
+    pEntry = renderspuFindEntry(aFunctions, "GetAttachedObjectsARB");
+    if (pEntry)
+    {
+        render_spu.pfnGetAttachedObjects = (PFNGET_ATTACHED_OBJECTS)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemGetAttachedObjectsARB;
+    }
+
+    pEntry = renderspuFindEntry(aFunctions, "GetHandleARB");
+    if (pEntry)
+    {
+        render_spu.pfnGetHandle = (PFNGET_HANDLE)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemGetHandleARB;
+    }
+
+    pEntry = renderspuFindEntry(aFunctions, "GetInfoLogARB");
+    if (pEntry)
+    {
+        render_spu.pfnGetInfoLog = (PFNGET_INFO_LOG)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemGetInfoLogARB;
+    }
+
+    pEntry = renderspuFindEntry(aFunctions, "GetObjectParameterfvARB");
+    if (pEntry)
+    {
+        render_spu.pfnGetObjectParameterfv = (PFNGET_OBJECT_PARAMETERFV)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemGetObjectParameterfvARB;
+    }
+
+    pEntry = renderspuFindEntry(aFunctions, "GetObjectParameterivARB");
+    if (pEntry)
+    {
+        render_spu.pfnGetObjectParameteriv = (PFNGET_OBJECT_PARAMETERIV)pEntry->fn;
+        pEntry->fn = (SPUGenericFunction)renderspu_SystemGetObjectParameterivARB;
+    }
+
+    return cFunctions;
+}

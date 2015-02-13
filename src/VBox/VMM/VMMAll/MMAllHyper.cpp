@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2012 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -153,7 +153,7 @@ static void mmHyperHeapCheck(PMMHYPERHEAP pHeap);
  * Locks the hypervisor heap.
  * This might call back to Ring-3 in order to deal with lock contention in GC and R3.
  *
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 static int mmHyperLock(PVM pVM)
 {
@@ -178,7 +178,7 @@ static int mmHyperLock(PVM pVM)
 /**
  * Unlocks the hypervisor heap.
  *
- * @param   pVM     The VM handle.
+ * @param   pVM     Pointer to the VM.
  */
 static void mmHyperUnlock(PVM pVM)
 {
@@ -197,7 +197,7 @@ static void mmHyperUnlock(PVM pVM)
  * The returned memory is of course zeroed.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   cb          Number of bytes to allocate.
  * @param   uAlignment  Required memory alignment in bytes.
  *                      Values are 0,8,16,32,64 and PAGE_SIZE.
@@ -321,14 +321,13 @@ static int mmHyperAllocInternal(PVM pVM, size_t cb, unsigned uAlignment, MMTAG e
     return VERR_MM_HYPER_NO_MEMORY;
 }
 
+
 /**
  * Wrapper for mmHyperAllocInternal
  */
 VMMDECL(int) MMHyperAlloc(PVM pVM, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
 {
-    int rc;
-
-    rc = mmHyperLock(pVM);
+    int rc = mmHyperLock(pVM);
     AssertRCReturn(rc, rc);
 
     LogFlow(("MMHyperAlloc %x align=%x tag=%s\n", cb, uAlignment, mmGetTagName(enmTag)));
@@ -338,6 +337,19 @@ VMMDECL(int) MMHyperAlloc(PVM pVM, size_t cb, unsigned uAlignment, MMTAG enmTag,
     mmHyperUnlock(pVM);
     return rc;
 }
+
+
+/**
+ * Duplicates a block of memory.
+ */
+VMMDECL(int) MMHyperDupMem(PVM pVM, const void *pvSrc, size_t cb, unsigned uAlignment, MMTAG enmTag, void **ppv)
+{
+    int rc = MMHyperAlloc(pVM, cb, uAlignment, enmTag, ppv);
+    if (RT_SUCCESS(rc))
+        memcpy(*ppv, pvSrc, cb);
+    return rc;
+}
+
 
 /**
  * Allocates a chunk of memory from the specified heap.
@@ -756,7 +768,7 @@ static void mmR3HyperStatRegisterOne(PVM pVM, PMMHYPERSTAT pStat)
  * The caller validates the parameters of this request.
  *
  * @returns VBox status code.
- * @param   pVM         The VM to operate on.
+ * @param   pVM         Pointer to the VM.
  * @param   pv          The memory to free.
  * @remark  Try avoid free hyper memory.
  */
@@ -1186,7 +1198,7 @@ static void mmHyperHeapCheck(PMMHYPERHEAP pHeap)
  * Performs consistency checks on the heap if MMHYPER_HEAP_STRICT was
  * defined at build time.
  *
- * @param   pVM         Pointer to the shared VM structure.
+ * @param   pVM         Pointer to the VM.
  */
 VMMDECL(void) MMHyperHeapCheck(PVM pVM)
 {
@@ -1204,7 +1216,7 @@ VMMDECL(void) MMHyperHeapCheck(PVM pVM)
 #ifdef DEBUG
 /**
  * Dumps the hypervisor heap to Log.
- * @param pVM       VM Handle.
+ * @param pVM       Pointer to the VM.
  */
 VMMDECL(void) MMHyperHeapDump(PVM pVM)
 {
@@ -1250,7 +1262,7 @@ VMMDECL(size_t) MMHyperHeapGetSize(PVM pVM)
  * Query the address and size the hypervisor memory area.
  *
  * @returns Base address of the hypervisor area.
- * @param   pVM         VM Handle.
+ * @param   pVM         Pointer to the VM.
  * @param   pcb         Where to store the size of the hypervisor area. (out)
  */
 VMMDECL(RTGCPTR) MMHyperGetArea(PVM pVM, size_t *pcb)
@@ -1266,7 +1278,7 @@ VMMDECL(RTGCPTR) MMHyperGetArea(PVM pVM, size_t *pcb)
  *
  * @returns true if inside.
  * @returns false if outside.
- * @param   pVM         VM handle.
+ * @param   pVM         Pointer to the VM.
  * @param   GCPtr       The pointer to check.
  */
 VMMDECL(bool) MMHyperIsInsideArea(PVM pVM, RTGCPTR GCPtr)

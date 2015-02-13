@@ -6,7 +6,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2007-2013 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -151,6 +151,9 @@ BLDDIRS += $(VBOXWEB_OUT_DIR)
 # The webservice location
 VBOX_PATH_WEBSERVICE          := $(PATH_SUB_CURRENT)
 
+# The IDL subdirectory (contains some XSLT files)
+VBOX_PATH_IDL                 := $(abspath $(PATH_SUB_CURRENT)/../idl)
+
 # If this is set, all webservice files are considered out-of-date every time
 # this makefile is touched. Otherwise, set this to empty.
 RECOMPILE_ON_MAKEFILE_CURRENT := $(MAKEFILE_CURRENT)
@@ -162,11 +165,13 @@ PATH_TARGET_WEBTEST           := $(VBOXWEB_OUT_DIR)/webtest
 
 # the original XIDL file (has to include documentation as we need it):
 VBOXWEB_IDL_SRC_ORIG          := $(VBOX_XIDL_FILE_SRC)
-# platform-specific XIDL file generated from $(VBOXWEB_IDL_SRC):
+# the original XIDL file without documentation
+VBOXWEB_IDL_SRC_STRIPPED      := $(VBOX_XIDL_FILE)
+# platform-specific XIDL file generated from $(VBOXWEB_IDL_SRC_STRIPPED):
 VBOXWEB_IDL_SRC               := $(VBOXWEB_OUT_DIR)/VirtualBox.xidl
 
-VBOXWEB_WSDL                   = $(VBOX_PATH_SDK)/bindings/webservice/vboxweb.wsdl
-VBOXWEBSERVICE_WSDL            = $(VBOX_PATH_SDK)/bindings/webservice/vboxwebService.wsdl
+VBOXWEB_WSDL                   = $(VBOXWEB_OUT_DIR)/vboxweb.wsdl
+VBOXWEBSERVICE_WSDL            = $(VBOXWEB_OUT_DIR)/vboxwebService.wsdl
 
 VBOXWEB_TYPEMAP               := $(VBOXWEB_OUT_DIR)/typemap.dat
 
@@ -206,9 +211,7 @@ ifdef VBOX_GSOAP_INSTALLED
  #
  LIBRARIES += vboxsoap
  vboxsoap_TEMPLATE = VBOXWEBR3EXE
- ifdef VBOX_USE_VCC80
-  vboxsoap_CXXFLAGS.win += -bigobj
- endif
+ vboxsoap_CXXFLAGS.win += -bigobj
  ifn1of ($(KBUILD_TARGET), win)
   vboxsoap_CXXFLAGS += -Wno-shadow
  endif
@@ -225,7 +228,7 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOXWEB_OUT_DIR)/soapC.cpp
  else
   BLDPROGS += split-soapC
-  split-soapC_TEMPLATE = VBOXBLDPROG
+  split-soapC_TEMPLATE = VBoxBldProg
   split-soapC_SOURCES = split-soapC.cpp
 
   vboxsoap_SOURCES = \
@@ -249,6 +252,8 @@ ifdef VBOX_GSOAP_INSTALLED
 	$(VBOXWEB_OUT_DIR)/soapC-18.cpp \
 	$(VBOXWEB_OUT_DIR)/soapC-19.cpp \
 	$(VBOXWEB_OUT_DIR)/soapC-20.cpp
+  vboxsoap_CXXFLAGS += \
+	$(VBOX_GCC_Wno-vla)
  endif
  vboxsoap_CLEAN := $(vboxsoap_SOURCES) # lazy bird
  vboxsoap_SOURCES += \
@@ -291,9 +296,7 @@ endif
 	$(VBOX_GSOAP_INCS) \
 	$(VBOXWEB_OUT_DIR) \
 	.
- ifdef VBOX_USE_VCC80
-  vboxwebsrv_CXXFLAGS.win += -bigobj
- endif
+ vboxwebsrv_CXXFLAGS.win += -bigobj
  ifn1of ($(KBUILD_TARGET), win)
   vboxwebsrv_CXXFLAGS += -Wno-shadow
  endif
@@ -311,13 +314,14 @@ endif
 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
 	$(VBOXWEB_OUT_DIR)/soapServer.cpp \
     $(VBOXWEB_OUT_DIR)/vboxweb-wsdl.c
+ vboxwebsrv_SOURCES.win = \
+	VBoxWebSrv.rc
  vboxwebsrv_CLEAN = \
 	$(VBOXWEB_OUT_DIR)/methodmaps.cpp \
 	$(VBOXWEB_OUT_DIR)/soapServer.cpp \
     $(VBOXWEB_OUT_DIR)/vboxweb-wsdl.c
 
  vboxweb.cpp_DEFS = \
-	VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
 	$(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
 
  vboxwebsrv_ORDERDEPS = $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts
@@ -334,6 +338,7 @@ VBOX_JWSDOC_JAR  = $(VBoxJWs-inst-jar_0_OUTDIR)/vboxjws-doc.jar
 VBOX_JWSSRC_JAR  = $(VBoxJWs-inst-jar_0_OUTDIR)/vboxjws-src.jar
 VBOX_JWS_TARGET := $(PATH_TARGET)/vboxjws-gen
 VBOX_JWS_GEN     = $(VBOX_JWS_TARGET)/jwsgen
+VBOX_JWS_GEN_RAWSRC = $(VBOX_JWS_GEN)/merged.file
 VBOX_JWS_JDEST  := $(VBOX_JWS_TARGET)/jdest
 VBOX_JWSDOC_JDEST  := $(VBOX_JWS_TARGET)/jdest-doc
 VBOX_GLUE_XSLT_DIR := $(PATH_ROOT)/src/VBox/Main/glue
@@ -353,7 +358,7 @@ VBoxJWs-inst-jar_CLEAN = \
 	$(VBOX_JWSDOC_JDEST)/package-list \
 	$(wildcard \
 		$(VBOX_JWS_GEN)/java/*/*/*.java \
-	    $(VBOX_JWS_GEN)/java/*/*/*/*.java \
+		$(VBOX_JWS_GEN)/java/*/*/*/*.java \
 		$(VBOX_JWS_JDEST)/*.class \
 		$(VBOX_JWS_JDEST)/*/*.class \
 		$(VBOX_JWS_JDEST)/*/*/*.class \
@@ -365,27 +370,58 @@ VBoxJWs-inst-jar_CLEAN = \
 		$(VBOX_JWSDOC_JDEST)/*/*/*/*.html \
 	)
 VBoxJWs-inst-jar_BLDDIRS += $(VBOX_JWS_GEN)/java
+VBoxJWs-inst-jar_GENERATEDSOURCES = $(addprefix $(VBoxJWs-inst-jar_BLDDIRS)/,$(VBoxJWS_VBOX_JWSGLUEFILES))
 
-$(VBOX_JWS_GEN)/jwsglue.list: \
-		$(VBOXWEB_IDL_SRC_ORIG) \
-		$(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
-		$(VBOX_FILESPLIT) \
-		$(VBOXWEBSERVICE_WSDL) \
-		$(VBOXWEB_WSDL) \
-		| $(VBOX_JWS_GEN)/java/
-	$(call MSG_L1,Generating JAX-WS Java glue files from XIDL)
-	$(RM) -f $(wildcard $(VBOX_JWS_GEN)/java/*/*/*.java) $(wildcard $(VBOX_JWS_GEN)/java/*/*/*/*.java)
+VBoxJWSGlue_KMK = $(PATH_OUT)/vboxjwsglue.kmk
+include $(VBoxJWSGlue_KMK)
+
+$(VBoxJWSGlue_KMK).ts +| $(VBoxJWSGlue_KMK): $(VBOXWEB_IDL_SRC_ORIG) $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl
+	$(call MSG_GENERATE,,$(VBoxJWSGlue_KMK))
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(VBOX_XSLTPROC) \
+              --stringparam filelistonly VBoxJWS_VBOX_JWSGLUEFILES \
               --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
               --stringparam G_vboxGlueStyle jaxws              \
               --stringparam G_vboxDirPrefix org/virtualbox$(VBOX_API_SUFFIX)/ \
-              -o $(VBOX_JWS_GEN)/merged.file $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
+              -o $@ $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
+	$(QUIET)$(CP) --changed -fv $@ $(VBoxJWSGlue_KMK)
+
+$(VBOX_JWS_GEN_RAWSRC) \
++| $(VBoxJWs-inst-jar_GENERATEDSOURCES): \
+		$(VBOXWEB_IDL_SRC_ORIG) \
+		$(VBOX_GLUE_XSLT_DIR)/glue-java.xsl \
+		$(VBOX_FILESPLIT)
+	$(call MSG_L1,Generating JAX-WS Java glue files from XIDL)
+	$(QUIET)$(RM) -f $(filter-out $(VBoxJWs-inst-jar_GENERATEDSOURCES),$(wildcard $(VBOX_JWS_GEN)/java/*/*/*.java))
+	$(QUIET)$(MKDIR) -p $(@D)
+	$(QUIET)$(VBOX_XSLTPROC) \
+              --stringparam filelistonly "" \
+              --stringparam G_vboxApiSuffix $(VBOX_API_SUFFIX) \
+              --stringparam G_vboxGlueStyle jaxws              \
+              --stringparam G_vboxDirPrefix org/virtualbox$(VBOX_API_SUFFIX)/ \
+              -o $(VBOX_JWS_GEN_RAWSRC) $(VBOX_GLUE_XSLT_DIR)/glue-java.xsl $<
 	$(QUIET)$(MKDIR) -p $(VBOX_JWS_GEN)/java/org/virtualbox$(VBOX_API_SUFFIX)
-	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JWS_GEN)/merged.file $(VBOX_JWS_GEN)/java
-	$(call MSG_GENERATE,,$@,JAX-WS for Java 1.6 bindings using $(VBOXWEBSERVICE_WSDL))
+	$(QUIET)$(VBOX_FILESPLIT) $(VBOX_JWS_GEN_RAWSRC) $(VBOX_JWS_GEN)/java
+
+## @todo somehow also find out the authoritative list of files generated by
+# wsimport (before running it), then we could rely on proper dependencies
+# instead of creating jwsglue.list. Would allow avoiding a lot of unnecessary
+# compilation with incremental builds, when almost nothing changed in the IDL
+# file. Currently everything is recompiled if only one file is changed.
+$(VBOX_JWS_GEN)/jwsglue.list.ts +| $(VBOX_JWS_GEN)/jwsglue.list: \
+		$(VBOXWEB_IDL_SRC) \
+		$(VBOX_FILESPLIT) \
+		$(VBOXWEBSERVICE_WSDL) \
+		$(VBOXWEB_WSDL) \
+		$(VBoxJWs-inst-jar_GENERATEDSOURCES) \
+		| $(VBOX_JWS_GEN)/java/
+	$(QUIET)$(RM) -f -- $(wildcard $(VBOX_JWS_GEN)/java/*/*/*/*.java)
+	$(call MSG_GENERATE,,$(VBOX_JWS_GEN)/jwsglue.list,JAX-WS for Java 1.6 bindings using $(VBOXWEBSERVICE_WSDL))
 	$(VBOX_WSIMPORT) -Xnocompile -p $(VBOX_JAVA_PACKAGE).jaxws -d $(VBOX_JWS_GEN)/java $(VBOXWEBSERVICE_WSDL)
-	$(QUIET)echo $(VBOX_JWS_GEN)/java/*/*/*.java > $@
+	$(QUIET)echo $(VBoxJWs-inst-jar_GENERATEDSOURCES) > $@
 	$(QUIET)echo $(VBOX_JWS_GEN)/java/*/*/*/*.java >> $@
+	$(QUIET)$(CP) --changed -fv $@ $(VBOX_JWS_GEN)/jwsglue.list
 
 $$(VBOX_JWS_JAR): $(VBOX_JWS_GEN)/jwsglue.list $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL) $(VBOX_JWS_GEN)/MANIFEST.MF | $$(dir $$@)
 	$(call MSG_TOOL,javac,$(notdir $@),jwsgen.list,)
@@ -398,7 +434,7 @@ $$(VBOX_JWS_JAR): $(VBOX_JWS_GEN)/jwsglue.list $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_
 	$(QUIET)$(SED) -e "s/vboxweb.wsdl/vboxweb$(VBOX_API_SUFFIX).wsdl/" <  $(VBOXWEBSERVICE_WSDL) > $(VBOX_JWS_JDEST)/vboxwebService$(VBOX_API_SUFFIX).wsdl
 	$(QUIET)$(CP) -f $(VBOXWEB_WSDL) $(VBOX_JWS_JDEST)/vboxweb$(VBOX_API_SUFFIX).wsdl
 	$(call MSG_LINK,$(notdir $@),$@)
-	$(VBOX_JAR) cf $@ $(VBOX_JWS_GEN)/MANIFEST.MF -C $(VBOX_JWS_JDEST) .
+	$(VBOX_JAR) cfm $@ $(VBOX_JWS_GEN)/MANIFEST.MF -C $(VBOX_JWS_JDEST) .
 
 $(VBOX_JWS_GEN)/MANIFEST.MF: $(VBOX_PATH_WEBSERVICE)/MANIFEST.MF.in
 	$(QUIET)$(RM) -f -- $@
@@ -435,9 +471,7 @@ $$(VBOX_JWSSRC_JAR): $$(VBOX_JWS_JAR) | $$(dir $$@)
  #
  PROGRAMS += webtest
  webtest_TEMPLATE = VBOXWEBR3EXE
- ifdef VBOX_USE_VCC80
-  webtest_CXXFLAGS.win += -bigobj
- endif
+ webtest_CXXFLAGS.win += -bigobj
  ifn1of ($(KBUILD_TARGET), win)
   webtest_CXXFLAGS += -Wno-shadow
  endif
@@ -488,7 +522,7 @@ $$(VBOX_JWSSRC_JAR): $$(VBOX_JWS_JAR) | $$(dir $$@)
 endif # VBOX_GSOAP_INSTALLED
 
 
-ifdef VBOX_ONLY_SDK
+if defined(VBOX_ONLY_SDK) && "$(KBUILD_TARGET)" != "win"
  #
  # Globals relevant to the SDK.
  #
@@ -499,12 +533,6 @@ ifdef VBOX_ONLY_SDK
  VBOXWEB_SAMPLES_JAXWS_DIR     = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/samples
  VBOXWEB_JAXWSSAMPLE           = $(VBOXWEB_SAMPLES_JAXWS_DIR)/clienttest.java
  VBOXWEB_METRICSAMPLE          = $(VBOXWEB_SAMPLES_JAXWS_DIR)/metrictest.java
-
- VBOXWEB_GLUE_JAVA_TMP         = $(VBOXWEB_OUT_DIR)/glue-jaxws.java.tmp
- VBOXWEB_PATH_SDK_GLUE_JAVA    = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/src
- VBOXWEB_JAVALIB               = $(VBOX_PATH_SDK)/bindings/webservice/java/jax-ws/lib
- VBOXWEB_JAVA15_JAR            = $(VBOXWEB_JAVALIB)/vboxws_java15.jar
- VBOXWEB_JAVA16_JAR            = $(VBOXWEB_JAVALIB)/vboxws_java16.jar
 
  define find_java_files
   $(shell find $(1) -name \*.java)
@@ -538,12 +566,14 @@ ifdef VBOX_ONLY_SDK
 	samples/python/Makefile.glue=>python/lib/Makefile \
 	$(PATH_ROOT)/COPYING.LIB=>java/jax-ws/COPYING.LIB
 
-endif # VBOX_ONLY_SDK
+ INSTALLS += vboxwebinst_wsdl
+ vboxwebinst_wsdl_INST = $(INST_SDK)bindings/webservice/
+ vboxwebinst_wsdl_MODE = a+r,u+w
+ vboxwebinst_wsdl_SOURCES = \
+	$(VBOXWEB_WSDL)=>vboxweb.wsdl \
+	$(VBOXWEBSERVICE_WSDL)=>vboxwebService.wsdl
 
-## @todo VBOXWEB_WSDL and VBOXWEBSERVICE_WSDL should be an install target.
-VBOXWEB_OTHERS += \
-	$(VBOXWEB_WSDL) \
-	$(VBOXWEBSERVICE_WSDL)
+endif # VBOX_ONLY_SDK
 
 #
 # Update the OTHERS and OTHER_CLEAN lists with VBOXWEB_OTHERS and some more stuff.
@@ -554,26 +584,26 @@ VBOXWEB_OTHERS += \
 OTHERS += $(VBOXWEB_OTHERS)
 OTHER_CLEAN += \
 	$(VBOXWEB_OTHERS) \
+	$(VBOXWEB_WSDL) \
+	$(VBOXWEBSERVICE_WSDL) \
 	$(VBOXWEB_TYPEMAP) \
 	$(VBOXWEB_IDL_SRC)
 
 # generate platform-specific XIDL file from original XIDL file
-$(VBOXWEB_IDL_SRC): $(VBOXWEB_IDL_SRC_ORIG) $(VBOX_PATH_WEBSERVICE)/platform-xidl.xsl | $$(dir $$@)
+$(VBOXWEB_IDL_SRC): $(VBOXWEB_IDL_SRC_STRIPPED) $(VBOX_PATH_WEBSERVICE)/platform-xidl.xsl | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using platform-xidl.xsl)
 	$(QUIET)$(RM) -f -- $@
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/platform-xidl.xsl $<
 
 # generate WSDL from main XIDL file
-$(VBOXWEB_WSDL): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) ## @todo | $$(dir $$@)
+$(VBOXWEB_WSDL): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-wsdl.xsl)
 	$(QUIET)$(RM) -f -- $@
-	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-wsdl.xsl $<
 
-$(VBOXWEBSERVICE_WSDL): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl-service.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) ## @todo | $$(dir $$@)
+$(VBOXWEBSERVICE_WSDL): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl-service.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-wsdl-service.xsl)
 	$(QUIET)$(RM) -f -- $@
-	$(QUIET)$(MKDIR) -p $(@D)
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-wsdl-service.xsl $<
 
 ifdef VBOX_ONLY_SDK
@@ -589,7 +619,7 @@ $(VBOXWEB_WS_PYTHON): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
 	$(QUIET)$(RM) -f -- $@
 	$(QUIET)$(MKDIR) -p $(@D)
 # Try both w/o and with --file option
-	$(QUIET)$(REDIRECT) -C $(@D) -- bash -c "$(VBOX_WSDL2PY) -b $(VBOXWEBSERVICE_WSDL) || $(VBOX_WSDL2PY) -b  --file $(VBOXWEBSERVICE_WSDL)"
+	$(QUIET)$(REDIRECT) -C $(@D) -- $(SHELL) -c "$(VBOX_WSDL2PY) -b $(VBOXWEBSERVICE_WSDL) || $(VBOX_WSDL2PY) -b  --file $(VBOXWEBSERVICE_WSDL)"
 	$(QUIET)$(APPEND) $@ ''
 
 $(VBOXWEB_WS_PERL): $(VBOXWEB_WSDL) $(VBOXWEBSERVICE_WSDL)
@@ -610,19 +640,19 @@ $(VBOXWEB_WS_PHP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-php.xsl
 endif # VBOX_ONLY_SDK
 
 # generate typemap.dat (used by wsdl2h) from main XIDL file
-$(VBOXWEB_TYPEMAP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-typemap.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
+$(VBOXWEB_TYPEMAP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-typemap.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-typemap.xsl)
 	$(QUIET)$(RM) -f -- $@
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-typemap.xsl $<
 
 # generate gsoap pseudo-C header file from that WSDL; once via XSLT...
-$(VBOXWEB_GSOAPH_FROM_XSLT): $(VBOXWEB_WSDL) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl2gsoapH.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
+$(VBOXWEB_GSOAPH_FROM_XSLT): $(VBOXWEB_WSDL) $(VBOX_PATH_WEBSERVICE)/websrv-wsdl2gsoapH.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_WSDL) using websrv-wsdl2gsoapH.xsl)
 	$(QUIET)$(RM) -f -- $@
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-wsdl2gsoapH.xsl $<
 
 VBOX_NSMAP = $(VBOXWEB_OUT_DIR)/vboxwebsrv.nsmap
-$(VBOX_NSMAP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-nsmap.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
+$(VBOX_NSMAP): $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-nsmap.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-nsmap.xsl)
 	$(QUIET)$(RM) -f -- $@
 	$(QUIET)$(VBOX_XSLTPROC) $(VBOXWEB_XSLTPROC_VERBOSE) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-nsmap.xsl $<
@@ -658,16 +688,17 @@ $(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts \
 	$(REDIRECT) -C $(VBOXWEB_OUT_DIR) -- $(VBOX_SOAPCPP2) $(VBOXWEB_SOAPCPP2_SKIP_FILES) -L -2 -w -I$(VBOX_PATH_GSOAP_IMPORT) $(GSOAPH_RELEVANT)
 	$(APPEND) $@ done
 
-# copy the generated headers and stuff. This has to be a separate rule if we
-# want to use wildcard (all commands are expaned when the rule is evaluated).
+# Copy the generated headers and stuff.  This was split into a separate rule
+# way back because we thought we could use $(wildcard ) and avoid the shell,
+# however we cannot as it is subject to caching.  Let the shell do the globbing.
 $(VBOXWEB_OUT_DIR)/gsoap_copy_all_ts: $(VBOXWEB_OUT_DIR)/gsoap_generate_all_ts | $$(dir $$@)
 	$(RM) -f $@
 	$(MKDIR) -p $(PATH_TARGET_SOAPDEMOXML) $(PATH_TARGET_SOAPDEMOHEADERS) $(PATH_TARGET_SOAPDEMONSMAPS)
 ifdef VBOX_GSOAP_VERBOSE
-	$(MV) -f $(wildcard $(VBOXWEB_OUT_DIR)/*.req.xml $(VBOXWEB_OUT_DIR)/*.res.xml) $(PATH_TARGET_SOAPDEMOXML)
+	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/*.req.xml $(VBOXWEB_OUT_DIR)/*.res.xml $(PATH_TARGET_SOAPDEMOXML)/
 endif
-	$(MV) -f $(wildcard $(VBOXWEB_OUT_DIR)/soapvbox*.h) $(PATH_TARGET_SOAPDEMOHEADERS)
-	$(MV) -f $(VBOXWEB_OUT_DIR)/vboxBinding.nsmap $(PATH_TARGET_SOAPDEMONSMAPS)
+	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/soapvbox*.h $(PATH_TARGET_SOAPDEMOHEADERS)/
+	$(MV_EXT) -f -- $(VBOXWEB_OUT_DIR)/vboxBinding.nsmap $(PATH_TARGET_SOAPDEMONSMAPS)/
 	$(APPEND) $@ done
 
 $(PATH_TARGET_SOAPDEMONSMAPS) \
@@ -706,7 +737,7 @@ $(VBOXWEB_OUT_DIR)/soapC-1.cpp \
 + $(VBOXWEB_OUT_DIR)/soapC-19.cpp \
 + $(VBOXWEB_OUT_DIR)/soapC-20.cpp \
 : $(VBOXWEB_OUT_DIR)/soapC.cpp $$(split-soapC_1_TARGET) | $$(dir $$@)
-	$(RM) -f $(wildcard $(VBOXWEB_OUT_DIR)/soapC-?.cpp $(VBOXWEB_OUT_DIR)/soapC-??.cpp)
+	$(RM) -f -- $(wildcard $(VBOXWEB_OUT_DIR)/soapC-?.cpp $(VBOXWEB_OUT_DIR)/soapC-??.cpp)
 	$(split-soapC_1_TARGET) $(VBOXWEB_OUT_DIR)/soapC.cpp $(VBOXWEB_OUT_DIR) 20
 endif # !VBOX_WITHOUT_SPLIT_SOAPC
 
@@ -715,14 +746,14 @@ endif # VBOX_GSOAP_INSTALLED
 
 
 # generate method maps in server: map wsdl operations to com/xpcom method calls
-$(VBOXWEB_OUT_DIR)/methodmaps.cpp: $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-cpp.xsl $(VBOX_PATH_WEBSERVICE)/websrv-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
+$(VBOXWEB_OUT_DIR)/methodmaps.cpp: $(VBOXWEB_IDL_SRC) $(VBOX_PATH_WEBSERVICE)/websrv-cpp.xsl $(VBOX_PATH_IDL)/typemap-shared.inc.xsl $(RECOMPILE_ON_MAKEFILE_CURRENT) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$(VBOXWEB_IDL_SRC) using websrv-cpp.xsl)
 	$(QUIET)$(VBOX_XSLTPROC) -o $@ $(VBOX_PATH_WEBSERVICE)/websrv-cpp.xsl $<
 
 # generate C file which contains vboxweb.wsdl
 $$(VBOXWEB_OUT_DIR)/vboxweb-wsdl.c: $(VBOXWEB_WSDL) $(VBOX_BIN2C)
 	$(call MSG_TOOL,bin2c,vboxweb-wsdl,$<,$@)
-	$(QUIET)$(VBOX_BIN2C) -export -ascii VBoxWebWSDL $< $@
+	$(QUIET)$(VBOX_BIN2C) -ascii VBoxWebWSDL $< $@
 
 
 ifdef VBOX_ONLY_SDK
@@ -739,4 +770,4 @@ $(VBOXWEB_METRICSAMPLE): $(VBOX_PATH_WEBSERVICE)/samples/java/jax-ws/metrictest.
 
 endif # VBOX_ONLY_SDK
 
-include $(KBUILD_PATH)/subfooter.kmk
+include $(FILE_KBUILD_SUB_FOOTER)

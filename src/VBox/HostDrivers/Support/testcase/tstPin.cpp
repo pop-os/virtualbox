@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2011 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     int         rcRet = 0;
     RTHCPHYS    HCPhys;
 
-    RTR3InitAndSUPLib();
+    RTR3InitExe(argc, &argv, RTR3INIT_FLAGS_SUPLIB);
     rc = SUPR3Init(NULL);
     RTPrintf("SUPR3Init -> rc=%d\n", rc);
     rcRet += rc != 0;

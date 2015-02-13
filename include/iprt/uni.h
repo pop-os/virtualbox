@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2007 Oracle Corporation
+ * Copyright (C) 2006-2010 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,8 +46,8 @@
 RT_C_DECLS_BEGIN
 
 
-
 #ifndef RTUNI_USE_WCTYPE
+
 /**
  * A unicode flags range.
  * @internal
@@ -157,6 +157,20 @@ DECLINLINE(bool) RTUniCpIsUpper(RTUNICP CodePoint)
 DECLINLINE(bool) RTUniCpIsLower(RTUNICP CodePoint)
 {
     return (rtUniCpFlags(CodePoint) & RTUNI_LOWER) != 0;
+}
+
+
+/**
+ * Checks if a unicode code point is case foldable.
+ *
+ * @returns true if it is.
+ * @returns false if it isn't.
+ * @param   CodePoint       The code point.
+ */
+DECLINLINE(bool) RTUniCpIsFoldable(RTUNICP CodePoint)
+{
+    /* Right enough. */
+    return (rtUniCpFlags(CodePoint) & (RTUNI_LOWER | RTUNI_UPPER)) != 0;
 }
 
 
@@ -303,6 +317,20 @@ DECLINLINE(bool) RTUniCpIsLower(RTUNICP CodePoint)
 
 
 /**
+ * Checks if a unicode code point is case foldable.
+ *
+ * @returns true if it is.
+ * @returns false if it isn't.
+ * @param   CodePoint       The code point.
+ */
+DECLINLINE(bool) RTUniCpIsFoldable(RTUNICP CodePoint)
+{
+    /* Right enough. */
+    return iswupper(CodePoint) || iswlower(CodePoint);
+}
+
+
+/**
  * Checks if a unicode code point is alphabetic.
  *
  * @returns true if it is.
@@ -387,6 +415,59 @@ DECLINLINE(RTUNICP) RTUniCpToLower(RTUNICP CodePoint)
  * @param   pusz        The string to free.
  */
 RTDECL(void) RTUniFree(PRTUNICP pusz);
+
+
+/**
+ * Checks if a code point valid.
+ *
+ * Any code point (defined or not) within the 17 unicode planes (0 thru 16),
+ * except surrogates will be considered valid code points by this function.
+ *
+ * @returns true if in range, false if not.
+ * @param   CodePoint       The unicode code point to validate.
+ */
+DECLINLINE(bool) RTUniCpIsValid(RTUNICP CodePoint)
+{
+    return CodePoint <= 0x00d7ff
+        || (   CodePoint <= 0x10ffff
+            && CodePoint >= 0x00e000);
+}
+
+
+/**
+ * Checks if the given code point is in the BMP range.
+ *
+ * Surrogates are not considered in the BMP range by this function.
+ *
+ * @returns true if in BMP, false if not.
+ * @param   CodePoint       The unicode code point to consider.
+ */
+DECLINLINE(bool) RTUniCpIsBMP(RTUNICP CodePoint)
+{
+    return CodePoint <= 0xd7ff
+        || (   CodePoint <= 0xffff
+            && CodePoint >= 0xe000);
+}
+
+
+/**
+ * Folds a unicode code point to lower case.
+ *
+ * @returns Folded code point.
+ * @param   CodePoint       The unicode code point to fold.
+ */
+DECLINLINE(size_t) RTUniCpCalcUtf8Len(RTUNICP CodePoint)
+{
+    if (CodePoint < 0x80)
+        return 1;
+    return 2
+        + (CodePoint >= 0x00000800)
+        + (CodePoint >= 0x00010000)
+        + (CodePoint >= 0x00200000)
+        + (CodePoint >= 0x04000000)
+        + (CodePoint >= 0x80000000) /* illegal */;
+}
+
 
 
 RT_C_DECLS_END
