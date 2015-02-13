@@ -1,0 +1,67 @@
+#!/bin/sh
+# (C) 2012 Felix Geyer <fgeyer@debian@org>
+
+### BEGIN INIT INFO
+# Provides:          virtualbox-guest-x11
+# Short-Description: VirtualBox Linux X11 Additions
+# Required-Start:    $remote_fs
+# Required-Stop:
+# Default-Start:     S
+# Default-Stop:
+### END INIT INFO
+
+PATH=$PATH:/bin:/sbin:/usr/sbin
+
+. /lib/lsb/init-functions
+
+test -e /usr/lib/VBoxOGL.so || exit 0
+
+in_virtual_machine()
+{
+	if [ -z "$(lspci -d 80ee:beef)" ]; then
+		log_warning_msg "VirtualBox Additions disabled, not in a Virtual Machine"
+		return 1
+	fi
+
+	return 0
+}
+
+running()
+{
+    lsmod | grep -q "$1[^_-]"
+}
+
+case "$1" in
+  start)
+	in_virtual_machine || exit 0
+	log_begin_msg "Loading VirtualBox video kernel module"
+
+	if ! running vboxvideo; then
+		if ! modprobe vboxvideo > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxvideo\.*" 2>/dev/null|grep -q vboxvideo; then
+				log_failure_msg "No suitable module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxvideo failed. Please use 'dmesg' to find out why"
+			fi
+			log_end_msg 1
+			exit 1
+		fi
+	fi
+
+	log_end_msg 0
+	;;
+
+  stop)
+	;;
+
+  restart|force-reload)
+	$0 start
+	;;
+
+  *)
+	echo "Usage: $0 {start|stop|restart|force-reload}"
+	exit 1
+	;;
+esac
+
+exit 0

@@ -1,11 +1,3 @@
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDD2.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxDDU.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxREM.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxRT.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/VBoxVMM.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxC.so
-virtualbox: shlib-with-non-pic-code usr/lib/virtualbox/components/VBoxSVCM.so
 virtualbox: unstripped-binary-or-object usr/lib/virtualbox/VBoxDD2GC.gc
 virtualbox: unstripped-binary-or-object usr/lib/virtualbox/VBoxDD2R0.r0
 virtualbox: unstripped-binary-or-object usr/lib/virtualbox/VBoxDDGC.gc
@@ -16,3 +8,9 @@ virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxHeadless 6755 root/root
 virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxNetAdpCtl 6755 root/root
 virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxNetDHCP 6755 root/root
 virtualbox: setuid-gid-binary usr/lib/virtualbox/VBoxSDL 6755 root/root
+virtualbox: jar-not-in-usr-share usr/lib/virtualbox/sdk/bindings/xpcom/java/vboxjxpcom.jar
+virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxNetDHCP
+virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxNetAdpCtl
+virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxHeadless
+virtualbox: executable-not-elf-or-script usr/lib/virtualbox/VBoxSDL
+virtualbox: embedded-library usr/lib/virtualbox/VBoxXPCOM.so: nspr

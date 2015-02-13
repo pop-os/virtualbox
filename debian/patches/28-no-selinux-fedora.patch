@@ -1,17 +1,16 @@
 Description: Don't install the selinux-fedora modules.
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
-diff -Nur virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk virtualbox-ose-4.0.0-dfsg/src/VBox/Additions/linux/Makefile.kmk
---- virtualbox-ose-4.0.0-dfsg.orig/src/VBox/Additions/linux/Makefile.kmk	2010-12-05 19:17:42.000000000 +0100
-+++ virtualbox-ose-4.0.0-dfsg/src/VBox/Additions/linux/Makefile.kmk	2011-01-02 11:02:43.379712209 +0100
-@@ -323,9 +323,7 @@
- lnx_add_inst-noexec_INSTTYPE = stage
+--- a/src/VBox/Additions/linux/Makefile.kmk
++++ b/src/VBox/Additions/linux/Makefile.kmk
+@@ -347,9 +347,7 @@ lnx_add_inst-noexec_INST     = $(VBOX_LN
  lnx_add_inst-noexec_SOURCES  = \
  	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
--	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
+ 	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
+-	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,) \
 -	selinux-fedora/vbox_x11.pp \
 -	selinux-fedora/vbox_accel.pp
-+	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop
++	$(if $(VBOX_WITH_LIGHTDM_GREETER_PACKING),lightdm-greeter/vbox-greeter.desktop,)
  
  INSTALLS += lnx_add_inst-license
  lnx_add_inst-license_INST     = $(VBOX_LNX_ADD_INST_OUT_DIR)

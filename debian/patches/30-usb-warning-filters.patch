@@ -1,16 +1,16 @@
 Description: Only display warnings about broken USB support when it's actually
  used (i.e. the machine has USB device filters).
-Author: Felix Geyer <debfx-pkg@fobos.de>
+Author: Felix Geyer <fgeyer@debian.org>
 
-diff --git a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
---- a/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-+++ b/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -1096,7 +1096,7 @@ bool UISettingsDialogMachine::isPageAvailable(int iPageId)
-             /* Get the USB controller object: */
-             CUSBController controller = m_machine.GetUSBController();
-             /* Show the machine error message if any: */
--            if (!m_machine.isReallyOk() && !controller.isNull() && controller.GetEnabled())
-+            if (!m_machine.isReallyOk() && !controller.isNull() && controller.GetEnabled() && (controller.GetDeviceFilters().size() != 0))
-                 msgCenter().cannotAccessUSB(m_machine);
-             /* Check if USB is implemented: */
-             if (controller.isNull() || !controller.GetProxyAvailable())
+Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2013-11-19 04:39:58.033640079 -0500
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2013-11-19 04:39:58.029640078 -0500
+@@ -55,6 +55,7 @@
+ 
+ /* COM includes: */
+ #include "CUSBController.h"
++#include "CUSBDeviceFilter.h"
+ 
+ #if 0 /* Global USB filters are DISABLED now: */
+ # define ENABLE_GLOBAL_USB

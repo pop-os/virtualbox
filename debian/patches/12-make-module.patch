@@ -1,10 +1,11 @@
 Description: Fix ARCH setting in modules Makefiles.
 Author: Michael Meskes <meskes@debian.org>
 
-diff --git a/src/VBox/HostDrivers/Support/linux/Makefile b/src/VBox/HostDrivers/Support/linux/Makefile
---- a/src/VBox/HostDrivers/Support/linux/Makefile
-+++ b/src/VBox/HostDrivers/Support/linux/Makefile
-@@ -44,9 +44,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+Index: virtualbox/src/VBox/HostDrivers/Support/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/Support/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
++++ virtualbox/src/VBox/HostDrivers/Support/linux/Makefile	2013-11-19 03:41:05.817476025 -0500
+@@ -44,9 +44,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -28,10 +29,11 @@ diff --git a/src/VBox/HostDrivers/Support/linux/Makefile b/src/VBox/HostDrivers/
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
---- a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
-+++ b/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
-@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+Index: virtualbox/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
++++ virtualbox/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile	2013-11-19 03:41:05.817476025 -0500
+@@ -35,9 +35,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -55,10 +57,11 @@ diff --git a/src/VBox/HostDrivers/VBoxNetAdp/linux/Makefile b/src/VBox/HostDrive
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
---- a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
-+++ b/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
-@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
++++ virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
+@@ -35,9 +35,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -82,10 +85,11 @@ diff --git a/src/VBox/HostDrivers/VBoxNetFlt/linux/Makefile b/src/VBox/HostDrive
    endif
   endif
  else
-diff --git a/src/VBox/HostDrivers/VBoxPci/linux/Makefile b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
---- a/src/VBox/HostDrivers/VBoxPci/linux/Makefile
-+++ b/src/VBox/HostDrivers/VBoxPci/linux/Makefile
-@@ -35,9 +35,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+Index: virtualbox/src/VBox/HostDrivers/VBoxPci/linux/Makefile
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/VBoxPci/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
++++ virtualbox/src/VBox/HostDrivers/VBoxPci/linux/Makefile	2013-11-19 03:41:05.821476025 -0500
+@@ -35,9 +35,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)
@@ -109,10 +113,11 @@ diff --git a/src/VBox/HostDrivers/VBoxPci/linux/Makefile b/src/VBox/HostDrivers/
    endif
   endif
  else
-diff --git a/src/VBox/Installer/linux/Makefile.include.header b/src/VBox/Installer/linux/Makefile.include.header
---- a/src/VBox/Installer/linux/Makefile.include.header
-+++ b/src/VBox/Installer/linux/Makefile.include.header
-@@ -54,9 +54,21 @@ ifeq ($(BUILD_TARGET_ARCH),)
+Index: virtualbox/src/VBox/Installer/linux/Makefile.include.header
+===================================================================
+--- virtualbox.orig/src/VBox/Installer/linux/Makefile.include.header	2013-11-19 03:41:05.821476025 -0500
++++ virtualbox/src/VBox/Installer/linux/Makefile.include.header	2013-11-19 03:41:05.821476025 -0500
+@@ -54,9 +54,21 @@
    BUILD_TARGET_ARCH := amd64
   else
    ifeq ($(ARCH),i386)

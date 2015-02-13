@@ -3,7 +3,7 @@ Section: misc
 Priority: optional
 Maintainer: Debian Virtualbox Team <pkg-virtualbox-devel@lists.alioth.debian.org>
 Uploaders: Michael Meskes <meskes@debian.org>,
-           Felix Geyer <debfx-pkg@fobos.de>
+           Felix Geyer <fgeyer@debian.org>
 Build-Depends: debhelper (>= 5), kbuild
 Standards-Version: 3.8.3
 Homepage: http://www.virtualbox.org/
@@ -15,9 +15,7 @@ Section: kernel
 Architecture: amd64 i386
 Depends: linux-modules-_KVERS_ | linux-image-_KVERS_
 Recommends: virtualbox-guest-utils
-Provides: virtualbox-guest-modules, virtualbox-ose-guest-modules-_KVERS_
-Conflicts: virtualbox-ose-guest-modules-_KVERS_
-Replaces: virtualbox-ose-guest-modules-_KVERS_
+Provides: virtualbox-guest-modules
 Description: VirtualBox guest addition modules for Linux (kernel _KVERS_)
  This package contains the set of loadable kernel modules for VirtualBox Guest Additions.
  .

@@ -26,10 +26,39 @@ in_virtual_machine()
 	return 0
 }
 
+running()
+{
+    lsmod | grep -q "$1[^_-]"
+}
+
 case "$1" in
   start)
 	in_virtual_machine || exit 0
 	log_begin_msg "Starting VirtualBox Additions"
+
+	if ! running vboxguest; then
+		if ! modprobe vboxguest > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxguest\.*" 2>/dev/null|grep -q vboxguest; then
+				log_failure_msg "No suitable module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxguest failed. Please use 'dmesg' to find out why"
+			fi
+			log_end_msg 1
+			return 1
+		fi
+	fi
+
+	if ! running vboxsf; then
+		if ! modprobe vboxsf > /dev/null 2>&1; then
+			if ! find /lib/modules/`uname -r` -name "vboxsf\.*" 2>/dev/null|grep -q vboxsf; then
+				log_failure_msg "No suitable module for running kernel found"
+			else
+				log_failure_msg "modprobe vboxsf failed. Please use 'dmesg' to find out why"
+			fi
+			log_end_msg 1
+			return 1
+		fi
+	fi
 
 	start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/VBoxService
 	if [ $? -ne 0 ]; then

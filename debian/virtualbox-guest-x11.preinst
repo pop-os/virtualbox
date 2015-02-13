@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e
+
+#DEBHELPER#
+
+case "$1" in
+  install|upgrade)
+	if dpkg --compare-versions "$2" gt "4.1.22-dfsg" && dpkg --compare-versions "$2" lt "4.2.10-dfsg"; then
+		# hack to change runlevels from default to S
+		update-rc.d -f virtualbox-guest-x11 remove > /dev/null || true
+	fi
+  ;;
+esac

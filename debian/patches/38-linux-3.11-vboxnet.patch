@@ -1,0 +1,17 @@
+Fix vbox network interface error in linux 3.11. Patch taken from upstream at ticket #12001
+Index: virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c
+===================================================================
+--- virtualbox.orig/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2013-09-13 13:16:20.016285000 -0400
++++ virtualbox/src/VBox/HostDrivers/VBoxNetFlt/linux/VBoxNetFlt-linux.c	2013-09-13 13:22:15.460285000 -0400
+@@ -1804,7 +1804,11 @@
+ 
+ {
+     PVBOXNETFLTINS      pThis = VBOX_FLT_NB_TO_INST(self);
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
++    struct net_device  *pDev  = netdev_notifier_info_to_dev(ptr);
++#else
+     struct net_device  *pDev  = (struct net_device *)ptr;
++#endif
+     int                 rc    = NOTIFY_OK;
+ 
+     Log(("VBoxNetFlt: got event %s(0x%lx) on %s, pDev=%p pThis=%p pThis->u.s.pDev=%p\n",

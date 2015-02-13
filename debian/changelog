@@ -1,19 +1,186 @@
-virtualbox (4.1.18-dfsg-2+deb7u3) wheezy-security; urgency=high
+virtualbox (4.3.20-dfsg-1) experimental; urgency=medium
 
-  * Fix memory corruption vulnerabilities in 3D acceleration. (Closes: #741602)
-    - CVE-2014-0981, CVE-2014-0983
-    - Backport fixes from version 4.1.32 in debian/patches/CVE-2014-0981.patch
-      and debian/patches/CVE-2014-0983.patch
+  [ Gianfranco Costamagna ]
+  * Imported Upstream release.
 
- -- Felix Geyer <fgeyer@debian.org>  Mon, 14 Apr 2014 11:19:01 +0200
+  [ Ritesh Raj Sarraf ]
+  * Flip build dependency to libcurl4-gnutls-dev
 
-virtualbox (4.1.18-dfsg-2+deb7u2) wheezy-security; urgency=high
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Wed, 03 Dec 2014 09:37:08 +0100
 
-  * Apply fixes from the January 2014 security advisory. (Closes: #735410)
-    - Add debian/patches/38-security-fixes-2014-01.patch
-    - CVE-2013-5892, CVE-2014-0407, CVE-2014-0406, CVE-2014-0404
+virtualbox (4.3.18-dfsg-1) unstable; urgency=medium
 
- -- Felix Geyer <fgeyer@debian.org>  Sun, 09 Mar 2014 19:46:52 +0100
+  [ Gianfranco Costamagna ]
+  * Imported Upstream release.
+  * Add myself to uploaders.
+  * Patch refresh.
+  * Bump Standards-Version to 3.9.6, no changes needed.
+  * Wrap-and-sort control file.
+  * Fix lintian warnings:
+    - Remove old hardening-wrapper
+    - Remove broken symlinks.
+
+  [ Felix Geyer ]
+  * Remove myself from uploaders.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 17 Oct 2014 11:54:01 +0200
+
+virtualbox (4.3.14-dfsg-1) unstable; urgency=medium
+
+  [ Gianfranco Costamagna ]
+  * New upstream release (Closes: #754220)
+    thanks Mateusz Łukasik for the patch.
+  * Rebuild against the new xorg-video-abi-18 (Closes: #755067)
+  * Tweak README.source to show how to upgrade the package with
+    uscan (Closes: #699141), thanks Dmitry!
+  * Removing some binary files from the source tarball,
+    spotted by lintian.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Sat, 26 Jul 2014 15:25:37 +0200
+
+virtualbox (4.3.12-dfsg-1) unstable; urgency=medium
+
+  [ Gianfranco Costamagna ]
+  * New upstream release.
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 04 Jun 2014 09:43:11 -0400
+
+virtualbox (4.3.10-dfsg-1) unstable; urgency=high
+
+  * New upstream release.
+    - Fixes multiple memory corruption vulnerabilities in the 3D acceleration
+      code. (Closes: #741602)
+      CVE-2014-0981, CVE-2014-0983
+
+  [ Gianfranco Costamagna ]
+  * Patch refresh.
+  * d/control, enforcing gsoap min required version.
+  * Add module-assistant as dependency, fixing broken symlink
+  * disabled some old unused lintian overrides.
+
+  [ Felix Geyer ]
+  * Override embedded-library nspr lintian warning, it's a locally modified
+    version.
+
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 06 Apr 2014 15:31:09 +0200
+
+virtualbox (4.3.6-dfsg-2) unstable; urgency=medium
+
+  * Disable bindnow in hardening-wrapper. This fixes loading the x11 driver.
+    (LP: #1280292)
+
+ -- Felix Geyer <fgeyer@debian.org>  Sat, 15 Feb 2014 11:02:21 +0100
+
+virtualbox (4.3.6-dfsg-1) unstable; urgency=medium
+
+  * New upstream release. (Closes: #733263)
+    - Fixes build against Linux 3.13. (Closes: #734340)
+    - Fixes several vulnerabilities. (Closes: #735410)
+      CVE-2013-5892, CVE-2014-0407, CVE-2014-0406, CVE-2014-0404
+  * Drop compatibility with old X11 server packages.
+  * Enable hardened build flags using hardening-wrapper. The upstream build
+    system ignores the *FLAGS env variables. (Closes: #736459)
+  * Refresh 16-no-update.patch.
+
+ -- Felix Geyer <fgeyer@debian.org>  Mon, 10 Feb 2014 21:41:40 +0100
+
+virtualbox (4.3.2-dfsg-1) unstable; urgency=low
+
+  [ Ritesh Raj Sarraf ]
+  * [a4d35eb] Drop patch 30-usb-warning-filters.patch
+  * [84b99a4] Refresh patch 27-hide-host-cache-warning.patch
+  * [55f29e6] Add virtualbox-guest-x11.postrm and call ldconfig in postrm
+  * [9bbe020] Don't ship .debug files, when we already are stripping dwarf
+    symbols from its libraries
+  * Fix VBox network interface error on Linux 3.11
+    - Add 38-linux-3.11-vboxnet.patch 
+  * [8e73a12] Imported Upstream version 4.3.2-dfsg
+  * [9b2bc93] Fix VBox network interface error on Linux 3.11
+  * [516aa9a] Refresh patches and drop patch 37 and 38 for linux 3.11
+  * [ab699e4] bump versioned build-dep on kbuild to r2695
+  * [5913c87] Add myself to Uploaders
+  * [8e53496] Add libvpx-dev to build-deps
+  * [caeed37] Add patch 02-gsoap-build-fix.patch to fix build
+    incompatibilities with gsoap > 2.8.13
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Tue, 10 Dec 2013 10:15:34 -0500
+
+virtualbox (4.2.16-dfsg-3) unstable; urgency=low
+
+  [ Ritesh Raj Sarraf ]
+  * Fix VBox network interface error on Linux 3.11. (Closes: #721786)
+    - Extend 37-linux-3.11.patch
+
+ -- Felix Geyer <fgeyer@debian.org>  Thu, 19 Sep 2013 21:52:12 +0200
+
+virtualbox (4.2.16-dfsg-2) unstable; urgency=low
+
+  [ Whoopie ]
+  * Add VNC plugin module.
+    - debian/patches/36-fix-vnc-version-string.patch: fix version string.
+
+  [ Felix Geyer ]
+  * Fix compilation of guest additions with linux 3.11.
+    - Add 37-linux-3.11.patch.
+
+ -- Felix Geyer <fgeyer@debian.org>  Wed, 28 Aug 2013 22:15:25 +0200
+
+virtualbox (4.2.16-dfsg-1) unstable; urgency=high
+
+  [ Felix Geyer ]
+  * New upstream release.
+    - Fixes CVE-2013-3792: virtio-net host DoS vulnerability. (Closes: #715327)
+  * Drop 36-python-multiarch.patch and 37-wheezy-kernel-drm.patch,
+    fixed upstream.
+  * Explicity load the vboxguest and vboxsf kernel modules in the
+    virtualbox-guest-utils init script.
+    This makes sure that shared folders can be mounted. (Closes: #712438)
+
+  [ Gianfranco Costamagna ]
+  * Patch refresh.
+
+ -- Felix Geyer <fgeyer@debian.org>  Sun, 21 Jul 2013 23:25:44 +0200
+
+virtualbox (4.2.10-dfsg-1) unstable; urgency=low
+
+  * New upstream release. (Closes: #691148)
+    - Fixes compatibility with kernel 3.8. (Closes: #700823; LP: #1101867)
+  * Switch to my @debian.org email address.
+  * Move package to contrib as virtualbox 4.2 needs a non-free compiler to
+    build the BIOS.
+  * Build-depend on libdevmapper-dev.
+  * Refresh patches.
+    - Drop 36-fix-ftbfs-xserver-112.patch, cve-2012-3221.patch,
+      CVE-2013-0420.patch 37-kcompat-3.6.patch and 38-kcompat-3.7.patch.
+  * Drop all virtualbox-ose transitional packages.
+  * Drop the virtualbox-fuse package as vdfuse fails to build with
+    virtualbox 4.2.
+  * Update install files and VBox.sh.
+  * Bump required kbuild version to 0.1.9998svn2577.
+  * Fix path to VBoxCreateUSBNode.sh in virtualbox.postinst. (Closes: #700479)
+  * Add an init script to virtuabox-guest-x11 which loads the vboxvideo
+    kernel module. The X Server 1.13 doesn't load it anymore. (Closes: #686994)
+  * Update man pages. (Closes: #680053)
+  * Add 36-python-multiarch.patch from Rico Tzschichholz to fix detection of
+    python in multiarch paths using pkg-config.
+  * Fix build failure with the Debian wheezy kernel which backports the drm
+    subsystem from Linux 3.4. (Closes: #703358)
+  * Drop build-dependency on bcc as it's not needed anymore.
+  * Link VBoxOGL against the X libraries it requires.
+    - Update 18-system-xorg.patch
+  * Use canonical URIs for Vcs-* fields.
+  * Bump Standards-Version to 3.9.4, no changes needed.
+
+ -- Felix Geyer <fgeyer@debian.org>  Thu, 09 May 2013 11:30:42 +0200
+
+virtualbox (4.1.18-dfsg-2.1) experimental; urgency=low
+
+  [ Stefan Lippers-Hollmann ]
+  * Non-maintainer upload.
+  * fix kernel module compilation against v3.6 and v3.7
+    (closes: #691169, #696011, #696667, #696953, #698607)
+
+ -- Daniel Baumann <daniel.baumann@progress-technologies.net>  Sat, 26 Jan 2013 17:55:16 +0100
 
 virtualbox (4.1.18-dfsg-2+deb7u1) unstable; urgency=high
 
