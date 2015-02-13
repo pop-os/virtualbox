@@ -14,89 +14,136 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifdef VBOX
+#if 1
+
+#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
 
 #include <iprt/string.h>
 #include <iprt/stream.h>
-#ifndef IN_GUEST
-#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
-#endif
+#include <iprt/initterm.h>
 #include <VBox/log.h>
 
-bool fWarningsEnabled = true;
-
-static void logMessage(const char *pszPrefix, const char *pszFormat, va_list va)
-{
-    char *pszMessage;
-    int rc = RTStrAPrintfV(&pszMessage, pszFormat, va);
-    if (RT_SUCCESS(rc))
-    {
-        LogRel(("%s%s\n", pszPrefix, pszMessage));
-#ifdef IN_GUEST
-        RTStrmPrintf(g_pStdErr, "%s%s\n", pszPrefix, pszMessage);
+#ifdef RT_OS_WINDOWS
+# include <windows.h>
+# include "cr_environment.h"
 #endif
-        RTStrFree(pszMessage);
-    }
-}
 
-static void logDebug(const char *pszPrefix, const char *pszFormat, va_list va)
+#include <signal.h>
+#include <stdlib.h>
+
+static void logMessageV(const char *pszPrefix, const char *pszFormat, va_list va)
 {
-    char *pszMessage;
-    int rc = RTStrAPrintfV(&pszMessage, pszFormat, va);
-    if (RT_SUCCESS(rc))
+    va_list vaCopy;
+    if (RTR3InitIsInitialized())
     {
-        Log(("%s%s\n", pszPrefix, pszMessage));
-        RTStrFree(pszMessage);
+        va_copy(vaCopy, va);
+        LogRel(("%s%N\n", pszPrefix, pszFormat, &vaCopy));
+        va_end(vaCopy);
     }
+
+#ifdef IN_GUEST  /** @todo Could be subject to pre-iprt-init issues, but hopefully not... */
+    va_copy(vaCopy, va);
+    RTStrmPrintf(g_pStdErr, "%s%N\n", pszPrefix, pszFormat, &vaCopy);
+    va_end(vaCopy);
+#endif
 }
 
-DECLEXPORT(void) crError(const char *pszFormat, ... )
+static void logMessage(const char *pszPrefix, const char *pszFormat, ...)
 {
     va_list va;
 
     va_start(va, pszFormat);
-    logMessage("OpenGL Error: ", pszFormat, va);
+    logMessageV(pszPrefix, pszFormat, va);
     va_end(va);
-    AssertLogRelFailed();
 }
 
-DECLEXPORT(void) crEnableWarnings(int fEnabled)
+DECLEXPORT(void) crError(const char *pszFormat, ...)
 {
-    fWarningsEnabled = RT_BOOL(fEnabled);
+    va_list va;
+#ifdef WINDOWS
+    DWORD dwLastErr;
+#endif
+
+#ifdef WINDOWS
+    /* Log last error on windows. */
+    dwLastErr = GetLastError();
+    if (dwLastErr != 0 && crGetenv("CR_WINDOWS_ERRORS") != NULL)
+    {
+        LPTSTR pszWindowsMessage;
+
+        SetLastError(0);
+        FormatMessageA(  FORMAT_MESSAGE_ALLOCATE_BUFFER
+                       | FORMAT_MESSAGE_FROM_SYSTEM
+                       | FORMAT_MESSAGE_MAX_WIDTH_MASK,
+                       NULL, dwLastErr,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       (LPTSTR)&pszWindowsMessage, 0, NULL);
+        if (pszWindowsMessage)
+        {
+            logMessage("OpenGL, Windows error: ", "%u\n%s", dwLastErr, pszWindowsMessage);
+            LocalFree(pszWindowsMessage);
+        }
+        else
+            logMessage("OpenGL, Windows error: ", "%u", dwLastErr);
+    }
+#endif
+
+    /* The message. */
+    va_start(va, pszFormat);
+    logMessageV("OpenGL Error: ", pszFormat, va);
+    va_end(va);
+
+    /* Dump core or activate the debugger in debug builds. */
+    AssertFailed();
+
+#ifdef IN_GUEST
+    /* Give things a chance to close down. */
+    raise(SIGTERM);
+    exit(1);
+#endif
 }
 
-DECLEXPORT(void) crWarning(const char *pszFormat, ... )
+DECLEXPORT(void) crWarning(const char *pszFormat, ...)
 {
-    if (fWarningsEnabled)
+    if (RTR3InitIsInitialized())
     {
         va_list va;
 
         va_start(va, pszFormat);
-        logMessage("OpenGL Warning: ", pszFormat, va);
+        logMessageV("OpenGL Warning: ", pszFormat, va);
         va_end(va);
     }
 }
 
-DECLEXPORT(void) crInfo(const char *pszFormat, ... )
+DECLEXPORT(void) crInfo(const char *pszFormat, ...)
 {
-    va_list va;
+    if (RTR3InitIsInitialized())
+    {
+        va_list va;
 
-    va_start(va, pszFormat);
-    logMessage("OpenGL Info: ", pszFormat, va);
-    va_end(va);
+        va_start(va, pszFormat);
+        logMessageV("OpenGL Info: ", pszFormat, va);
+        va_end(va);
+    }
 }
 
-DECLEXPORT(void) crDebug(const char *pszFormat, ... )
+DECLEXPORT(void) crDebug(const char *pszFormat, ...)
 {
-    va_list va;
+    if (RTR3InitIsInitialized())
+    {
+        va_list va;
 
-    va_start(va, pszFormat);
-    logDebug("OpenGL Debug: ", pszFormat, va);
-    va_end(va);
+        va_start(va, pszFormat);
+#if defined(DEBUG_vgalitsy) || defined(DEBUG_galitsyn)
+        LogRel(("OpenGL Debug: %N\n", pszFormat, &va));
+#else
+        Log(("OpenGL Debug: %N\n", pszFormat, &va));
+#endif
+        va_end(va);
+    }
 }
 
 #else
-
 /* Copyright (c) 2001, Stanford University
  * All rights reserved
  *
@@ -705,5 +752,4 @@ BOOL WINAPI DllMain(HINSTANCE hDLLInst, DWORD fdwReason, LPVOID lpvReserved)
     return TRUE;
 }
 #endif
-
-#endif /* !VBOX */
+#endif

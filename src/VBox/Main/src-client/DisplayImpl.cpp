@@ -19,6 +19,7 @@
 #include "DisplayUtils.h"
 #include "ConsoleImpl.h"
 #include "ConsoleVRDPServer.h"
+#include "GuestImpl.h"
 #include "VMMDev.h"
 
 #include "AutoCaller.h"
@@ -95,7 +96,7 @@ static int g_stam = 0;
 /////////////////////////////////////////////////////////////////////////////
 
 Display::Display()
-    : mParent(NULL)
+    : mParent(NULL), mfIsCr3DEnabled(false)
 {
 }
 
@@ -143,6 +144,9 @@ HRESULT Display::FinalConstruct()
 
 #ifdef VBOX_WITH_HGSMI
     mu32UpdateVBVAFlags = 0;
+    mfVMMDevSupportsGraphics = false;
+    mfGuestVBVACapabilities = 0;
+    mfHostCursorCapabilities = 0;
 #endif
 #ifdef VBOX_WITH_VPX
     mpVideoRecCtx = NULL;
@@ -327,9 +331,9 @@ Display::displaySSMSaveScreenshot(PSSMHANDLE pSSM, void *pvUser)
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
         BOOL f3DSnapshot = FALSE;
-        BOOL is3denabled;
-        that->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-        if (is3denabled && that->mCrOglCallbacks.pfnHasData())
+        if (   that->mfIsCr3DEnabled
+            && that->mCrOglCallbacks.pfnHasData
+            && that->mCrOglCallbacks.pfnHasData())
         {
             VMMDev *pVMMDev = that->mParent->getVMMDev();
             if (pVMMDev)
@@ -528,6 +532,12 @@ Display::displaySSMSave(PSSMHANDLE pSSM, void *pvUser)
         SSMR3PutS32(pSSM, that->maFramebuffers[i].yOrigin);
         SSMR3PutU32(pSSM, that->maFramebuffers[i].flags);
     }
+    SSMR3PutS32(pSSM, that->xInputMappingOrigin);
+    SSMR3PutS32(pSSM, that->yInputMappingOrigin);
+    SSMR3PutU32(pSSM, that->cxInputMapping);
+    SSMR3PutU32(pSSM, that->cyInputMapping);
+    SSMR3PutU32(pSSM, that->mfGuestVBVACapabilities);
+    SSMR3PutU32(pSSM, that->mfHostCursorCapabilities);
 }
 
 DECLCALLBACK(int)
@@ -535,9 +545,11 @@ Display::displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32
 {
     Display *that = static_cast<Display*>(pvUser);
 
-    if (!(   uVersion == sSSMDisplayVer
-          || uVersion == sSSMDisplayVer2
-          || uVersion == sSSMDisplayVer3))
+    if (   uVersion != sSSMDisplayVer
+        && uVersion != sSSMDisplayVer2
+        && uVersion != sSSMDisplayVer3
+        && uVersion != sSSMDisplayVer4
+        && uVersion != sSSMDisplayVer5)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
     Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
 
@@ -552,7 +564,9 @@ Display::displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32
         SSMR3GetU32(pSSM, &that->maFramebuffers[i].u32MaxFramebufferSize);
         SSMR3GetU32(pSSM, &that->maFramebuffers[i].u32InformationSize);
         if (   uVersion == sSSMDisplayVer2
-            || uVersion == sSSMDisplayVer3)
+            || uVersion == sSSMDisplayVer3
+            || uVersion == sSSMDisplayVer4
+            || uVersion == sSSMDisplayVer5)
         {
             uint32_t w;
             uint32_t h;
@@ -561,7 +575,9 @@ Display::displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32
             that->maFramebuffers[i].w = w;
             that->maFramebuffers[i].h = h;
         }
-        if (uVersion == sSSMDisplayVer3)
+        if (   uVersion == sSSMDisplayVer3
+            || uVersion == sSSMDisplayVer4
+            || uVersion == sSSMDisplayVer5)
         {
             int32_t xOrigin;
             int32_t yOrigin;
@@ -574,6 +590,19 @@ Display::displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32
             that->maFramebuffers[i].flags = (uint16_t)flags;
             that->maFramebuffers[i].fDisabled = (that->maFramebuffers[i].flags & VBVA_SCREEN_F_DISABLED) != 0;
         }
+    }
+    if (   uVersion == sSSMDisplayVer4
+        || uVersion == sSSMDisplayVer5)
+    {
+        SSMR3GetS32(pSSM, &that->xInputMappingOrigin);
+        SSMR3GetS32(pSSM, &that->yInputMappingOrigin);
+        SSMR3GetU32(pSSM, &that->cxInputMapping);
+        SSMR3GetU32(pSSM, &that->cyInputMapping);
+    }
+    if (uVersion == sSSMDisplayVer5)
+    {
+        SSMR3GetU32(pSSM, &that->mfGuestVBVACapabilities);
+        SSMR3GetU32(pSSM, &that->mfHostCursorCapabilities);
     }
 
     return VINF_SUCCESS;
@@ -653,6 +682,13 @@ HRESULT Display::init(Console *aParent)
         es->RegisterListener(this, ComSafeArrayAsInParam(eventTypes), true);
     }
 
+    /* Cache the 3D settings. */
+    BOOL fIs3DEnabled = FALSE;
+    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&fIs3DEnabled);
+    GraphicsControllerType_T enmGpuType = (GraphicsControllerType_T)GraphicsControllerType_VBoxVGA;
+    mParent->machine()->COMGETTER(GraphicsControllerType)(&enmGpuType);
+    mfIsCr3DEnabled = fIs3DEnabled && enmGpuType == GraphicsControllerType_VBoxVGA;
+
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
 
@@ -700,9 +736,11 @@ void Display::uninit()
 int Display::registerSSM(PUVM pUVM)
 {
     /* Version 2 adds width and height of the framebuffer; version 3 adds
-     * the framebuffer offset in the virtual desktop and the framebuffer flags.
+     * the framebuffer offset in the virtual desktop and the framebuffer flags;
+     * version 4 adds guest to host input event mapping and version 5 adds
+     * guest VBVA and host cursor capabilities.
      */
-    int rc = SSMR3RegisterExternal(pUVM, "DisplayData", 0, sSSMDisplayVer3,
+    int rc = SSMR3RegisterExternal(pUVM, "DisplayData", 0, sSSMDisplayVer5,
                                    mcMonitors * sizeof(uint32_t) * 8 + sizeof(uint32_t),
                                    NULL, NULL, NULL,
                                    NULL, displaySSMSave, NULL,
@@ -750,12 +788,8 @@ int Display::crOglWindowsShow(bool fShow)
 
     if (!mhCrOglSvc)
     {
-        /* no 3D */
-#ifdef DEBUG
-        BOOL is3denabled;
-        mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-        Assert(!is3denabled);
-#endif
+        /* No 3D or the VMSVGA3d kind. */
+        Assert(!mfIsCr3DEnabled);
         return VERR_INVALID_STATE;
     }
 
@@ -872,10 +906,7 @@ int Display::notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN 
     if (maFramebuffers[pScreen->u32ViewIndex].fRenderThreadMode)
         return VINF_SUCCESS; /* nop it */
 
-    BOOL is3denabled;
-    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
-    if (is3denabled)
+    if (mfIsCr3DEnabled)
     {
         int rc = VERR_INVALID_STATE;
         if (mhCrOglSvc)
@@ -883,8 +914,8 @@ int Display::notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN 
             VMMDev *pVMMDev = mParent->getVMMDev();
             if (pVMMDev)
             {
-                VBOXCRCMDCTL_HGCM *pCtl =
-                    (VBOXCRCMDCTL_HGCM*)RTMemAlloc(sizeof (CRVBOXHGCMDEVRESIZE) + sizeof (VBOXCRCMDCTL_HGCM));
+                VBOXCRCMDCTL_HGCM *pCtl;
+                pCtl = (VBOXCRCMDCTL_HGCM*)RTMemAlloc(sizeof(CRVBOXHGCMDEVRESIZE) + sizeof(VBOXCRCMDCTL_HGCM));
                 if (pCtl)
                 {
                     CRVBOXHGCMDEVRESIZE *pData = (CRVBOXHGCMDEVRESIZE*)(pCtl+1);
@@ -898,7 +929,7 @@ int Display::notifyCroglResize(const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN 
                     pCtl->aParms[0].u.pointer.size = sizeof (*pData);
 
                     rc = crCtlSubmit(&pCtl->Hdr, sizeof (*pCtl), displayCrCmdFree, pCtl);
-                    if (!RT_SUCCESS(rc))
+                    if (RT_FAILURE(rc))
                     {
                         AssertMsgFailed(("crCtlSubmit failed rc %d\n", rc));
                         RTMemFree(pCtl);
@@ -1271,6 +1302,61 @@ void Display::handleDisplayUpdate (unsigned uScreenId, int x, int y, int w, int 
     }
 }
 
+void Display::i_updateGuestGraphicsFacility(void)
+{
+    Guest* pGuest = mParent->getGuest();
+    AssertPtrReturnVoid(pGuest);
+    /* The following is from GuestImpl.cpp. */
+    /** @todo A nit: The timestamp is wrong on saved state restore. Would be better
+     *  to move the graphics and seamless capability -> facility translation to
+     *  VMMDev so this could be saved.  */
+    RTTIMESPEC TimeSpecTS;
+    RTTimeNow(&TimeSpecTS);
+
+    if (   mfVMMDevSupportsGraphics
+        || (mfGuestVBVACapabilities & VBVACAPS_VIDEO_MODE_HINTS) != 0)
+        pGuest->setAdditionsStatus(VBoxGuestFacilityType_Graphics,
+                                   VBoxGuestFacilityStatus_Active,
+                                   0 /*fFlags*/, &TimeSpecTS);
+    else
+        pGuest->setAdditionsStatus(VBoxGuestFacilityType_Graphics,
+                                   VBoxGuestFacilityStatus_Inactive,
+                                   0 /*fFlags*/, &TimeSpecTS);
+}
+
+void Display::i_handleUpdateVMMDevSupportsGraphics(bool fSupportsGraphics)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    if (mfVMMDevSupportsGraphics == fSupportsGraphics)
+        return;
+    mfVMMDevSupportsGraphics = fSupportsGraphics;
+    i_updateGuestGraphicsFacility();
+    /* The VMMDev interface notifies the console. */
+}
+
+void Display::i_handleUpdateGuestVBVACapabilities(uint32_t fNewCapabilities)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    bool fNotify = (fNewCapabilities & VBVACAPS_VIDEO_MODE_HINTS) != 0;
+
+    mfGuestVBVACapabilities = fNewCapabilities;
+    if (!fNotify)
+        return;
+    i_updateGuestGraphicsFacility();
+    /* Tell the console about it */
+    mParent->onAdditionsStateChange();
+}
+
+void Display::i_handleUpdateVBVAInputMapping(int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    xInputMappingOrigin = xOrigin;
+    yInputMappingOrigin = yOrigin;
+    cxInputMapping      = cx;
+    cyInputMapping      = cy;
+}
+
 /**
  * Returns the upper left and lower right corners of the virtual framebuffer.
  * The lower right is "exclusive" (i.e. first pixel beyond the framebuffer),
@@ -1299,22 +1385,65 @@ void Display::getFramebufferDimensions(int32_t *px1, int32_t *py1,
         x2 = mpDrv->IConnector.cx + (int32_t)maFramebuffers[0].xOrigin;
         y2 = mpDrv->IConnector.cy + (int32_t)maFramebuffers[0].yOrigin;
     }
-    for (unsigned i = 1; i < mcMonitors; ++i)
+    if (cxInputMapping && cyInputMapping)
     {
-        if (!maFramebuffers[i].fDisabled)
-        {
-            x1 = RT_MIN(x1, maFramebuffers[i].xOrigin);
-            y1 = RT_MIN(y1, maFramebuffers[i].yOrigin);
-            x2 = RT_MAX(x2,   maFramebuffers[i].xOrigin
-                            + (int32_t)maFramebuffers[i].w);
-            y2 = RT_MAX(y2,   maFramebuffers[i].yOrigin
-                            + (int32_t)maFramebuffers[i].h);
-        }
+        x1 = xInputMappingOrigin;
+        y1 = yInputMappingOrigin;
+        x2 = xInputMappingOrigin + cxInputMapping;
+        y2 = xInputMappingOrigin + cyInputMapping;
     }
+    else
+        for (unsigned i = 1; i < mcMonitors; ++i)
+        {
+            if (!maFramebuffers[i].fDisabled)
+            {
+                x1 = RT_MIN(x1, maFramebuffers[i].xOrigin);
+                y1 = RT_MIN(y1, maFramebuffers[i].yOrigin);
+                x2 = RT_MAX(x2, maFramebuffers[i].xOrigin + (int32_t)maFramebuffers[i].w);
+                y2 = RT_MAX(y2, maFramebuffers[i].yOrigin + (int32_t)maFramebuffers[i].h);
+            }
+        }
     *px1 = x1;
     *py1 = y1;
     *px2 = x2;
     *py2 = y2;
+}
+
+HRESULT Display::i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved)
+{
+    /* Do we need this to access mParent?  I presume that the safe VM pointer
+     * ensures that mpDrv will remain valid. */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    uint32_t fHostCursorCapabilities =   (mfHostCursorCapabilities | fCapabilitiesAdded)
+                                       & ~fCapabilitiesRemoved;
+
+    Console::SafeVMPtr ptrVM(mParent);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+    if (mfHostCursorCapabilities == fHostCursorCapabilities)
+        return S_OK;
+    CHECK_CONSOLE_DRV(mpDrv);
+    alock.release();  /* Release before calling up for lock order reasons. */
+    mpDrv->pUpPort->pfnReportHostCursorCapabilities (mpDrv->pUpPort, fCapabilitiesAdded, fCapabilitiesRemoved);
+    mfHostCursorCapabilities = fHostCursorCapabilities;
+    return S_OK;
+}
+
+HRESULT Display::i_reportHostCursorPosition(int32_t x, int32_t y)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    uint32_t xAdj = (uint32_t)RT_MAX(x - xInputMappingOrigin, 0);
+    uint32_t yAdj = (uint32_t)RT_MAX(y - yInputMappingOrigin, 0);
+    xAdj = RT_MIN(xAdj, cxInputMapping);
+    yAdj = RT_MIN(yAdj, cyInputMapping);
+
+    Console::SafeVMPtr ptrVM(mParent);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+    CHECK_CONSOLE_DRV(mpDrv);
+    alock.release();  /* Release before calling up for lock order reasons. */
+    mpDrv->pUpPort->pfnReportHostCursorPosition(mpDrv->pUpPort, xAdj, yAdj);
+    return S_OK;
 }
 
 static bool displayIntersectRect(RTRECT *prectResult,
@@ -1444,17 +1573,13 @@ int Display::handleSetVisibleRegion(uint32_t cRect, PRTRECT pRect)
     }
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-    BOOL is3denabled = FALSE;
-
-    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
     VMMDev *vmmDev = mParent->getVMMDev();
-    if (is3denabled && vmmDev)
+    if (mfIsCr3DEnabled && vmmDev)
     {
         if (mhCrOglSvc)
         {
-            VBOXCRCMDCTL_HGCM *pCtl = (VBOXCRCMDCTL_HGCM*)RTMemAlloc(RT_MAX(cRect, 1) * sizeof (RTRECT)
-                    + sizeof (VBOXCRCMDCTL_HGCM));
+            VBOXCRCMDCTL_HGCM *pCtl;
+            pCtl = (VBOXCRCMDCTL_HGCM*)RTMemAlloc(RT_MAX(cRect, 1) * sizeof(RTRECT) + sizeof(VBOXCRCMDCTL_HGCM));
             if (pCtl)
             {
                 RTRECT *pRectsCopy = (RTRECT*)(pCtl+1);
@@ -2418,10 +2543,7 @@ STDMETHODIMP Display::SetFramebuffer(ULONG aScreenId, IFramebuffer *aFramebuffer
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
         {
-            BOOL is3denabled;
-            mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
-            if (is3denabled)
+            if (mfIsCr3DEnabled)
             {
                 VBOXCRCMDCTL_HGCM data;
                 data.Hdr.enmType = VBOXCRCMDCTL_TYPE_HGCM;
@@ -2522,6 +2644,27 @@ STDMETHODIMP Display::SetVideoModeHint(ULONG aDisplay, BOOL aEnabled,
      * will call EMT.  */
     alock.release();
 
+    /* We always send the hint to the graphics card in case the guest enables
+     * support later.  For now we notify exactly when support is enabled. */
+    mpDrv->pUpPort->pfnSendModeHint(mpDrv->pUpPort, aWidth, aHeight,
+                                    aBitsPerPixel, aDisplay,
+                                    aChangeOrigin ? aOriginX : ~0,
+                                    aChangeOrigin ? aOriginY : ~0,
+                                    RT_BOOL(aEnabled),
+                                      mfGuestVBVACapabilities
+                                    & VBVACAPS_VIDEO_MODE_HINTS);
+    if (   mfGuestVBVACapabilities & VBVACAPS_VIDEO_MODE_HINTS
+        && !(mfGuestVBVACapabilities & VBVACAPS_IRQ))
+    {
+        HRESULT hrc = mParent->i_sendACPIMonitorHotPlugEvent();
+        if (FAILED(hrc))
+            return hrc;
+    }
+
+    /* We currently never suppress the VMMDev hint if the guest has requested
+     * it.  Specifically the video graphics driver may not be responsible for
+     * screen positioning in the guest virtual desktop, and the component
+     * responsible may want to get the hint from VMMDev. */
     VMMDev *pVMMDev = mParent->getVMMDev();
     if (pVMMDev)
     {
@@ -2555,12 +2698,8 @@ STDMETHODIMP Display::SetSeamlessMode (BOOL enabled)
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     if (!enabled)
     {
-        BOOL is3denabled = FALSE;
-
-        mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
         VMMDev *vmmDev = mParent->getVMMDev();
-        if (is3denabled && vmmDev)
+        if (mfIsCr3DEnabled && vmmDev)
         {
             VBOXCRCMDCTL_HGCM *pData = (VBOXCRCMDCTL_HGCM*)RTMemAlloc(sizeof (VBOXCRCMDCTL_HGCM));
             if (!pData)
@@ -2592,9 +2731,9 @@ STDMETHODIMP Display::SetSeamlessMode (BOOL enabled)
 BOOL Display::displayCheckTakeScreenshotCrOgl(Display *pDisplay, ULONG aScreenId, uint8_t *pu8Data,
                                               uint32_t u32Width, uint32_t u32Height)
 {
-    BOOL is3denabled;
-    pDisplay->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-    if (is3denabled && pDisplay->mCrOglCallbacks.pfnHasData())
+    if (   pDisplay->mfIsCr3DEnabled
+        && pDisplay->mCrOglCallbacks.pfnHasData
+        && pDisplay->mCrOglCallbacks.pfnHasData())
     {
         VMMDev *pVMMDev = pDisplay->mParent->getVMMDev();
         if (pVMMDev)
@@ -3485,18 +3624,10 @@ STDMETHODIMP Display::CompleteVHWACommand(BYTE *pCommand)
 
 STDMETHODIMP Display::ViewportChanged(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height)
 {
+    AssertMsgReturn(aScreenId < mcMonitors, ("aScreendId=%d mcMonitors=%d\n", aScreenId, mcMonitors), E_INVALIDARG);
+
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-
-    if (mcMonitors <= aScreenId)
-    {
-        AssertMsgFailed(("invalid screen id\n"));
-        return E_INVALIDARG;
-    }
-
-    BOOL is3denabled;
-    mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-
-    if (is3denabled)
+    if (mfIsCr3DEnabled)
     {
         int rc = crViewportNotify(aScreenId, x, y, width, height);
         if (RT_FAILURE(rc))
@@ -3514,9 +3645,7 @@ STDMETHODIMP Display::ViewportChanged(ULONG aScreenId, ULONG x, ULONG y, ULONG w
 #ifdef VBOX_WITH_VMSVGA
     /* The driver might not have been constructed yet */
     if (mpDrv)
-    {
         mpDrv->pUpPort->pfnSetViewPort(mpDrv->pUpPort, aScreenId, x, y, width, height);
-    }
 #endif
 
     return S_OK;
@@ -3684,7 +3813,7 @@ void Display::destructCrHgsmiData(void)
     mhCrOglSvc = NULL;
     RTCritSectRwLeaveExcl(&mCrOglLock);
 }
-#endif
+#endif /* VBOX_WITH_CRHGSMI */
 
 /**
  *  Changes the current frame buffer. Called on EMT to avoid both
@@ -3804,7 +3933,7 @@ DECLCALLBACK(void) Display::displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterfa
  * @see PDMIDISPLAYCONNECTOR::pfnRefresh
  * @thread EMT
  */
-DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface)
+/*static */DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterface)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
@@ -3898,13 +4027,12 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
     {
         do {
 # if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
-            BOOL is3denabled;
-            pDisplay->mParent->machine()->COMGETTER(Accelerate3DEnabled)(&is3denabled);
-            if (is3denabled)
+            if (pDisplay->mfIsCr3DEnabled)
             {
                 if (ASMAtomicCmpXchgU32(&pDisplay->mfCrOglVideoRecState, CRVREC_STATE_SUBMITTED, CRVREC_STATE_IDLE))
                 {
-                    if (pDisplay->mCrOglCallbacks.pfnHasData())
+                    if (   pDisplay->mCrOglCallbacks.pfnHasData
+                        && pDisplay->mCrOglCallbacks.pfnHasData())
                     {
                         /* submit */
                         VBOXCRCMDCTL_HGCM *pData = &pDisplay->mCrOglScreenshotCtl;
@@ -3918,8 +4046,7 @@ DECLCALLBACK(void) Display::displayRefreshCallback(PPDMIDISPLAYCONNECTOR pInterf
                         int rc = pDisplay->crCtlSubmit(&pData->Hdr, sizeof (*pData), Display::displayVRecCompletion, pDisplay);
                         if (RT_SUCCESS(rc))
                             break;
-                        else
-                            AssertMsgFailed(("crCtlSubmit failed rc %d\n", rc));
+                        AssertMsgFailed(("crCtlSubmit failed rc %d\n", rc));
                     }
 
                     /* no 3D data available, or error has occured,
@@ -4512,7 +4639,8 @@ int Display::crCtlSubmitSyncIfHasDataForScreen(uint32_t u32ScreenID, struct VBOX
     int rc = RTCritSectRwEnterShared(&mCrOglLock);
     AssertRCReturn(rc, rc);
 
-    if (mCrOglCallbacks.pfnHasDataForScreen && mCrOglCallbacks.pfnHasDataForScreen(u32ScreenID))
+    if (   mCrOglCallbacks.pfnHasDataForScreen
+        && mCrOglCallbacks.pfnHasDataForScreen(u32ScreenID))
         rc = crCtlSubmitSync(pCmd, cbCmd);
     else
         rc = crCtlSubmitAsyncCmdCopy(pCmd, cbCmd);
@@ -4997,6 +5125,11 @@ DECLCALLBACK(int) Display::displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, c
 
     pFBInfo->flags = pScreen->u16Flags;
 
+    pThis->xInputMappingOrigin = 0;
+    pThis->yInputMappingOrigin = 0;
+    pThis->cxInputMapping = 0;
+    pThis->cyInputMapping = 0;
+
     if (fNewOrigin)
     {
         fireGuestMonitorChangedEvent(pThis->mParent->getEventSource(),
@@ -5058,6 +5191,28 @@ DECLCALLBACK(int) Display::displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pI
 
     return VINF_SUCCESS;
 }
+
+DECLCALLBACK(void) Display::i_displayVBVAGuestCapabilityUpdate(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fCapabilities)
+{
+    LogFlowFunc(("\n"));
+
+    PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
+    Display *pThis = pDrv->pDisplay;
+
+    pThis->i_handleUpdateGuestVBVACapabilities(fCapabilities);
+}
+
+DECLCALLBACK(void) Display::i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin,
+                                                            uint32_t cx, uint32_t cy)
+{
+    LogFlowFunc(("\n"));
+
+    PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
+    Display *pThis = pDrv->pDisplay;
+
+    pThis->i_handleUpdateVBVAInputMapping(xOrigin, yOrigin, cx, cy);
+}
+
 #endif /* VBOX_WITH_HGSMI */
 
 /**
@@ -5155,6 +5310,8 @@ DECLCALLBACK(int) Display::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
     pThis->IConnector.pfnVBVAUpdateEnd         = Display::displayVBVAUpdateEnd;
     pThis->IConnector.pfnVBVAResize            = Display::displayVBVAResize;
     pThis->IConnector.pfnVBVAMousePointerShape = Display::displayVBVAMousePointerShape;
+    pThis->IConnector.pfnVBVAGuestCapabilityUpdate = Display::i_displayVBVAGuestCapabilityUpdate;
+    pThis->IConnector.pfnVBVAInputMappingUpdate = Display::i_displayVBVAInputMappingUpdate;
 #endif
 
     /*

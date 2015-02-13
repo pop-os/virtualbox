@@ -289,6 +289,7 @@ public:
     void onRuntimeError(BOOL aFatal, IN_BSTR aErrorID, IN_BSTR aMessage);
     HRESULT onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId);
     void onVRDEServerInfoChange();
+    HRESULT i_sendACPIMonitorHotPlugEvent();
 
     static const PDMDRVREG DrvStatusReg;
 
@@ -300,6 +301,7 @@ public:
     // Called from event listener
     HRESULT onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
                                  NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort);
+    HRESULT onNATDnsChanged();
 
     // Mouse interface
     VMMDevMouseInterface *getVMMDevMouseInterface();
@@ -324,6 +326,8 @@ public:
     HRESULT setDiskEncryptionKeys(const Utf8Str &strCfg);
 
 private:
+
+    void notifyNatDnsChange(PUVM pUVM, const char *pszDevice, ULONG ulInstanceMax);
 
     /**
      *  Base template for AutoVMCaller and SafeVMPtr. Template arguments
@@ -653,6 +657,7 @@ private:
                      IMedium *pMedium,
                      MachineState_T aMachineState,
                      HRESULT *phrc);
+    int configMediumProperties(PCFGMNODE pCur, IMedium *pMedium, bool *pfHostIP);
     static DECLCALLBACK(int) reconfigureMediumAttachment(Console *pThis,
                                                          PUVM pUVM,
                                                          const char *pcszDevice,
@@ -765,6 +770,8 @@ private:
     static DECLCALLBACK(int)    i_pdmIfSecKey_KeyRetain(PPDMISECKEY pInterface, const char *pszId, const uint8_t **ppbKey,
                                                         size_t *pcbKey);
     static DECLCALLBACK(int)    i_pdmIfSecKey_KeyRelease(PPDMISECKEY pInterface, const char *pszId);
+
+    static DECLCALLBACK(int)    i_pdmIfSecKeyHlp_KeyMissingNotify(PPDMISECKEYHLP pInterface);
 
     int mcAudioRefs;
     volatile uint32_t mcVRDPClients;
@@ -930,6 +937,12 @@ private:
     {
         Console *pConsole;
     } *mpIfSecKey;
+
+    /** Pointer to the key helpers -> provider (that's us) callbacks. */
+    struct MYPDMISECKEYHLP : public PDMISECKEYHLP
+    {
+        Console *pConsole;
+    } *mpIfSecKeyHlp;
 
 /* Note: FreeBSD needs this whether netflt is used or not. */
 #if ((defined(RT_OS_LINUX) && !defined(VBOX_WITH_NETFLT)) || defined(RT_OS_FREEBSD))

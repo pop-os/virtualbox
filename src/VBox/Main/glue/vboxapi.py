@@ -6,7 +6,7 @@ VirtualBox Python API Glue.
 
 __copyright__ = \
 """
-Copyright (C) 2009-2013 Oracle Corporation
+Copyright (C) 2009-2015 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 91042 $"
+__version__ = "$Revision: 98155 $"
 
 
 # Note! To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'
@@ -875,9 +875,9 @@ class PlatformWEBSERVICE(PlatformBase):
 
     def deinit(self):
         try:
-           disconnect()
+            self.disconnect()
         except:
-           pass
+            pass
 
     def queryInterface(self, oIUnknown, sClassName):
         d = {}
@@ -990,10 +990,6 @@ class VirtualBoxManager(object):
                 self.vbox = None
             else:
                 raise e
-        ## @deprecated
-        # This used to refer to a session manager class with only one method
-        # called getSessionObject.  The method has moved into this call.
-        self.mgr = self;
 
     def __del__(self):
         self.deinit()
@@ -1005,6 +1001,13 @@ class VirtualBoxManager(object):
         """
         return 3;
 
+    @property
+    def mgr(self):
+        """
+        This used to be an attribute referring to a session manager class with
+        only one method called getSessionObject. It moved into this class.
+        """
+        return self;
 
     #
     # Wrappers for self.platform methods.
@@ -1071,11 +1074,11 @@ class VirtualBoxManager(object):
 
     def openMachineSession(self, oIMachine, fPermitSharing = True):
         """
-        Attemts to open the a session to the machine.
+        Attempts to open the a session to the machine.
         Returns a session object on success.
         Raises exception on failure.
         """
-        oSession = self.mgr.getSessionObject(self.vbox);
+        oSession = self.getSessionObject(self.vbox);
         if fPermitSharing:
             type = self.constants.LockType_Shared;
         else:

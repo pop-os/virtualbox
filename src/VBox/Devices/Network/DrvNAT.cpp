@@ -81,7 +81,7 @@ extern "C" {
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                    (pthis)->pDrvIns->iInstance);                                    \
 } while (0)
 
@@ -89,7 +89,7 @@ do {                                                                            
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var));                                               \
     if (RT_FAILURE((rc)))                                                                           \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                   (pthis)->pDrvIns->iInstance);                                     \
 } while (0)
 
@@ -97,7 +97,7 @@ do {                                                                            
 do {                                                                                                \
     (rc) = CFGMR3Query ## type((node), name, &(var), var_size);                                     \
     if (RT_FAILURE((rc)) && (rc) != VERR_CFGM_VALUE_NOT_FOUND)                                      \
-        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \""name"\" " #type_name " failed"), \
+        return PDMDrvHlpVMSetError((pthis)->pDrvIns, (rc), RT_SRC_POS, N_("NAT#%d: configuration query for \"" name "\" " #type_name " failed"), \
                                   (pthis)->pDrvIns->iInstance);                                     \
 } while (0)
 
@@ -175,6 +175,9 @@ typedef struct DRVNAT
     RTPIPE                  hPipeWrite;
     /** The read end of the control pipe. */
     RTPIPE                  hPipeRead;
+# if HC_ARCH_BITS == 32
+    uint32_t                u32Padding;
+# endif
 #else
     /** for external notification */
     HANDLE                  hWakeupEvent;
@@ -220,9 +223,7 @@ typedef DRVNAT *PDRVNAT;
 *   Internal Functions                                                         *
 *******************************************************************************/
 static void drvNATNotifyNATThread(PDRVNAT pThis, const char *pszWho);
-DECLINLINE(void) drvNATHostNetworkConfigurationChangeEventStrategySelector(
-  PDRVNAT pThis,
-  bool fHostNetworkConfigurationEventListener);
+DECLINLINE(void) drvNATUpdateDNS(PDRVNAT pThis, bool fFlapLink);
 static DECLCALLBACK(int) drvNATReinitializeHostNameResolving(PDRVNAT pThis);
 
 
@@ -834,9 +835,9 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         slirp_select_fill(pThis->pNATState, &nFDs);
         DWORD dwEvent = WSAWaitForMultipleEvents(nFDs, phEvents, FALSE,
                                                  slirp_get_timeout_ms(pThis->pNATState),
-                                                 FALSE);
+                                                 /* :fAlertable */ TRUE);
         if (   (dwEvent < WSA_WAIT_EVENT_0 || dwEvent > WSA_WAIT_EVENT_0 + nFDs - 1)
-            && dwEvent != WSA_WAIT_TIMEOUT)
+            && dwEvent != WSA_WAIT_TIMEOUT && dwEvent != WSA_WAIT_IO_COMPLETION)
         {
             int error = WSAGetLastError();
             LogRel(("NAT: WSAWaitForMultipleEvents returned %d (error %d)\n", dwEvent, error));
@@ -846,12 +847,12 @@ static DECLCALLBACK(int) drvNATAsyncIoThread(PPDMDRVINS pDrvIns, PPDMTHREAD pThr
         if (dwEvent == WSA_WAIT_TIMEOUT)
         {
             /* only check for slow/fast timers */
-            slirp_select_poll(pThis->pNATState, /* fTimeout=*/true, /*fIcmp=*/false);
+            slirp_select_poll(pThis->pNATState, /* fTimeout=*/true);
             continue;
         }
         /* poll the sockets in any case */
         Log2(("%s: poll\n", __FUNCTION__));
-        slirp_select_poll(pThis->pNATState, /* fTimeout=*/false, /* fIcmp=*/(dwEvent == WSA_WAIT_EVENT_0));
+        slirp_select_poll(pThis->pNATState, /* fTimeout=*/false);
         /* process _all_ outstanding requests but don't wait */
         RTReqQueueProcess(pThis->hSlirpReqQueue, 0);
 # ifdef VBOX_NAT_DELAY_HACK
@@ -938,8 +939,8 @@ void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
     PDRVNAT pThis = (PDRVNAT)pvUser;
     Assert(pThis);
 
-    LogFlow(("slirp_output BEGIN %x %d\n", pu8Buf, cb));
-    Log2(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
+    LogFlow(("slirp_output BEGIN %p %d\n", pu8Buf, cb));
+    Log6(("slirp_output: pu8Buf=%p cb=%#x (pThis=%p)\n%.*Rhxd\n", pu8Buf, cb, pThis, cb, pu8Buf));
 
     PRTREQ pReq = NULL;
 
@@ -954,6 +955,20 @@ void slirp_output(void *pvUser, struct mbuf *m, const uint8_t *pu8Buf, int cb)
     drvNATRecvWakeup(pThis->pDrvIns, pThis->pRecvThread);
     STAM_COUNTER_INC(&pThis->StatQueuePktSent);
     LogFlowFuncLeave();
+}
+
+
+/**
+ * @interface_method_impl{PDMINETWORKNATCONFIG,pfnNotifyDnsChanged}
+ *
+ * We are notified that host's resolver configuration has changed.  In
+ * the current setup we don't get any details and just reread that
+ * information ourselves.
+ */
+static DECLCALLBACK(void) drvNATNotifyDnsChanged(PPDMINETWORKNATCONFIG pInterface)
+{
+    PDRVNAT pThis = RT_FROM_MEMBER(pInterface, DRVNAT, INetworkNATCfg);
+    drvNATUpdateDNS(pThis, /* fFlapLink */ true);
 }
 
 
@@ -1006,7 +1021,7 @@ static DECLCALLBACK(void) drvNatDnsChanged(SCDynamicStoreRef hDynStor, CFArrayRe
             else
                 LogRel(("NAT: DNS server list is empty (2)\n"));
 #endif
-            drvNATHostNetworkConfigurationChangeEventStrategySelector(pThis, /* RT_OS_DARWIN */ true);
+            drvNATUpdateDNS(pThis, /* fFlapLink */ true);
         }
         else
             Log2(("NAT: No DNS changes detected\n"));
@@ -1082,11 +1097,15 @@ static DECLCALLBACK(void) drvNATResume(PPDMDRVINS pDrvIns)
     switch (enmReason)
     {
         case VMRESUMEREASON_HOST_RESUME:
-#if RT_OS_DARWIN
-            drvNATHostNetworkConfigurationChangeEventStrategySelector(pThis, false);
+            bool fFlapLink;
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE
+            /* let event handler do it if necessary */
+            fFlapLink = false;
 #else
-            drvNATHostNetworkConfigurationChangeEventStrategySelector(pThis, true);
+            /* XXX: when in doubt, use brute force */
+            fFlapLink = true;
 #endif
+            drvNATUpdateDNS(pThis, fFlapLink);
             return;
         default: /* Ignore every other resume reason. */
             /* do nothing */
@@ -1107,51 +1126,55 @@ static DECLCALLBACK(int) drvNATReinitializeHostNameResolving(PDRVNAT pThis)
  * - drvNATResume (EMT?)
  * - drvNatDnsChanged (darwin, GUI or main) "listener"
  * When Main's interface IHost will support host network configuration change event on every host,
- * we won't call it from drvNATResume, but from listener of Main event in the similar way it done 
+ * we won't call it from drvNATResume, but from listener of Main event in the similar way it done
  * for port-forwarding, and it wan't be on GUI/main thread, but on EMT thread only.
  *
- * Thread here is important, because we need to change DNS server list and domain name (+ perhaps, 
+ * Thread here is important, because we need to change DNS server list and domain name (+ perhaps,
  * search string) at runtime (VBOX_NAT_ENFORCE_INTERNAL_DNS_UPDATE), we can do it safely on NAT thread,
- * so with changing other variables (place where we handle update) the main mechanism of update 
- * _won't_ be changed, the only thing will change is drop of fHostNetworkConfigurationEventListener parameter. 
+ * so with changing other variables (place where we handle update) the main mechanism of update
+ * _won't_ be changed, the only thing will change is drop of fFlapLink parameter.
  */
-DECLINLINE(void) drvNATHostNetworkConfigurationChangeEventStrategySelector(PDRVNAT pThis,
-                                                                        bool fHostNetworkConfigurationEventListener)
+DECLINLINE(void) drvNATUpdateDNS(PDRVNAT pThis, bool fFlapLink)
 {
     int strategy = slirp_host_network_configuration_change_strategy_selector(pThis->pNATState);
     switch (strategy)
     {
-                 
-        case VBOX_NAT_HNCE_DNSPROXY:
+
+        case VBOX_NAT_DNS_DNSPROXY:
             {
                 /**
+                 * XXX: Here or in _strategy_selector we should deal with network change
+                 * in "network change" scenario domain name change we have to update guest lease
+                 * forcibly.
+                 * Note at that built-in dhcp also updates DNS information on NAT thread.
+                 */
+                /**
                  * It's unsafe to to do it directly on non-NAT thread
-                 * so we schedule the worker and kick the NAT thread. 
+                 * so we schedule the worker and kick the NAT thread.
                  */
                 RTREQQUEUE hQueue = pThis->hSlirpReqQueue;
-                
-                int rc = RTReqQueueCallEx(hQueue, NULL /*ppReq*/, 0 /*cMillies*/, 
+
+                int rc = RTReqQueueCallEx(hQueue, NULL /*ppReq*/, 0 /*cMillies*/,
                                           RTREQFLAGS_VOID | RTREQFLAGS_NO_WAIT,
                                           (PFNRT)drvNATReinitializeHostNameResolving, 1, pThis);
                 if (RT_SUCCESS(rc))
-                    drvNATNotifyNATThread(pThis, "drvNATNetworkUp_SendBuf");
-
+                    drvNATNotifyNATThread(pThis, "drvNATUpdateDNS");
 
                 return;
-
             }
-        case VBOX_NAT_HNCE_EXSPOSED_NAME_RESOLUTION_INFO:
-        case VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY:
+
+        case VBOX_NAT_DNS_EXTERNAL:
             /*
              * Host resumed from a suspend and the network might have changed.
              * Disconnect the guest from the network temporarily to let it pick up the changes.
              */
 
-            if (fHostNetworkConfigurationEventListener)
+            if (fFlapLink)
                 pThis->pIAboveConfig->pfnSetLinkState(pThis->pIAboveConfig,
                                                       PDMNETWORKLINKSTATE_DOWN_RESUME);
             return;
-        case VBOX_NAT_HNCE_HOSTRESOLVER:
+
+        case VBOX_NAT_DNS_HOSTRESOLVER:
         default:
             return;
     }
@@ -1395,6 +1418,18 @@ static DECLCALLBACK(int) drvNATConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
 
     /* NAT engine configuration */
     pThis->INetworkNATCfg.pfnRedirectRuleCommand = drvNATNetworkNatConfig_RedirectRuleCommand;
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE && !defined(RT_OS_DARWIN)
+    /* 
+     * On OS X we stick to the old OS X specific notifications for
+     * now.  Elsewhere use IHostNameResolutionConfigurationChangeEvent
+     * by enbaling HAVE_NOTIFICATION_FOR_DNS_UPDATE in libslirp.h.
+     * This code is still in a bit of flux and is implemented and
+     * enabled in steps to simplify more conservative backporting.
+     */
+    pThis->INetworkNATCfg.pfnNotifyDnsChanged = drvNATNotifyDnsChanged;
+#else
+    pThis->INetworkNATCfg.pfnNotifyDnsChanged = NULL;
+#endif
 
     /*
      * Validate the config.

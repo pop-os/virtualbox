@@ -29,7 +29,7 @@
         <?if $(env.VBOX_WITH_MSM_INSTALL) = "yes" ?>
             <![CDATA[NOT Installed]]>
         <?else ?>
-            <![CDATA[&VBoxNetworkAdp=3]]>
+            <![CDATA[(NOT Installed)AND (&VBoxNetworkAdp=3)]]>
         <?endif ?>
     </Custom>
     <!-- Don't remove the host-only interfaces on update, only on uninstall -->
@@ -38,8 +38,14 @@
     </Custom>
     <!-- First stop the existing host-only interfaces on update ... -->
     <Custom Action="ca_StopHostOnlyInterfaces" After="InstallInitialize" >
-        <![CDATA[(UPGRADINGPRODUCTCODE) OR (REMOVE="ALL")]]>
+        <![CDATA[(UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]>
     </Custom>
+    <Custom Action="ca_UninstallNetAdpArgs" Before="ca_UninstallNetAdp" >
+        <![CDATA[(UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]>
+    </Custom> 
+    <Custom Action="ca_UninstallNetAdp" After="ca_StopHostOnlyInterfaces" > 
+        <![CDATA[(UPGRADINGPRODUCTCODE) AND (REMOVE="ALL")]]> 
+    </Custom> 
 <?endif ?>
 
 </Include>

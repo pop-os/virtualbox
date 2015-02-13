@@ -855,6 +855,12 @@ typedef struct VBVABUFFER
 #define VBVA_CMDVBVA_SUBMIT  16 /* inform host about VBVA Command submission */
 #define VBVA_CMDVBVA_FLUSH   17 /* inform host about VBVA Command submission */
 #define VBVA_CMDVBVA_CTL     18 /* G->H DMA command             */
+#define VBVA_QUERY_MODE_HINTS 19 /* Query most recent mode hints sent. */
+/** Report the guest virtual desktop position and size for mapping host and
+ * guest pointer positions. */
+#define VBVA_REPORT_INPUT_MAPPING 20
+/** Report the guest cursor position and query the host position. */
+#define VBVA_CURSOR_POSITION 21
 
 /* host->guest commands */
 #define VBVAHG_EVENT              1
@@ -910,6 +916,16 @@ typedef struct VBVAHOSTCMD
 /* VBVACONF32::u32Index */
 #define VBOX_VBVA_CONF32_MONITOR_COUNT  0
 #define VBOX_VBVA_CONF32_HOST_HEAP_SIZE 1
+/** Returns VINF_SUCCESS if the host can report mode hints via VBVA.
+ * Set value to VERR_NOT_SUPPORTED before calling. */
+#define VBOX_VBVA_CONF32_MODE_HINT_REPORTING  2
+/** Returns VINF_SUCCESS if the host can receive guest cursor information via
+ * VBVA.  Set value to VERR_NOT_SUPPORTED before calling. */
+#define VBOX_VBVA_CONF32_GUEST_CURSOR_REPORTING  3
+/** Returns the currently available host cursor capabilities.  Available if
+ * VBVACONF32::VBOX_VBVA_CONF32_GUEST_CURSOR_REPORTING returns success.
+ * @see VMMDevReqMouseStatus::mouseFeatures. */
+#define VBOX_VBVA_CONF32_CURSOR_CAPABILITIES  4
 
 typedef struct VBVACONF32
 {
@@ -1076,6 +1092,10 @@ typedef struct VBVAMOUSEPOINTERSHAPE
 #define VBVACAPS_COMPLETEGCMD_BY_IOREAD 0x00000001
 /* the guest driver can handle video adapter IRQs */
 #define VBVACAPS_IRQ                    0x00000002
+/** The guest can read video mode hints sent via VBVA. */
+#define VBVACAPS_VIDEO_MODE_HINTS       0x00000004
+/** The guest can switch to a software cursor on demand. */
+#define VBVACAPS_DISABLE_CURSOR_INTEGRATION 0x00000008
 typedef struct VBVACAPS
 {
     int32_t rc;
@@ -1108,6 +1128,62 @@ typedef struct VBVASCANLINEINFO
     uint32_t u32InVBlank;
     uint32_t u32ScanLine;
 } VBVASCANLINEINFO;
+
+/** Query the most recent mode hints received from the host. */
+typedef struct VBVAQUERYMODEHINTS
+{
+    /** The maximum number of screens to return hints for. */
+    uint16_t cHintsQueried;
+    /** The size of the mode hint structures directly following this one. */
+    uint16_t cbHintStructureGuest;
+    /** The return code for the operation.  Initialise to VERR_NOT_SUPPORTED. */
+    int32_t  rc;
+} VBVAQUERYMODEHINTS;
+
+/** Structure in which a mode hint is returned.  The guest allocates an array
+ *  of these immediately after the VBVAQUERYMODEHINTS structure.  To accomodate
+ *  future extensions, the VBVAQUERYMODEHINTS structure specifies the size of
+ *  the VBVAMODEHINT structures allocated by the guest, and the host only fills
+ *  out structure elements which fit into that size.  The host should fill any
+ *  unused members (e.g. dx, dy) or structure space on the end with ~0.  The
+ *  whole structure can legally be set to ~0 to skip a screen. */
+typedef struct VBVAMODEHINT
+{
+    uint32_t magic;
+    uint32_t cx;
+    uint32_t cy;
+    uint32_t cBPP;  /* Which has never been used... */
+    uint32_t cDisplay;
+    uint32_t dx;  /**< X offset into the virtual frame-buffer. */
+    uint32_t dy;  /**< Y offset into the virtual frame-buffer. */
+    uint32_t fEnabled;  /* Not fFlags.  Add new members for new flags. */
+} VBVAMODEHINT;
+
+#define VBVAMODEHINT_MAGIC UINT32_C(0x0801add9)
+
+/** Report the rectangle relative to which absolute pointer events should be
+ *  expressed.  This information remains valid until the next VBVA resize event
+ *  for any screen, at which time it is reset to the bounding rectangle of all
+ *  virtual screens. 
+ *  @see VBVA_REPORT_INPUT_MAPPING. */
+typedef struct VBVAREPORTINPUTMAPPING
+{
+    int32_t x;    /**< Upper left X co-ordinate relative to the first screen. */
+    int32_t y;    /**< Upper left Y co-ordinate relative to the first screen. */
+    uint32_t cx;  /**< Rectangle width. */
+    uint32_t cy;  /**< Rectangle height. */
+} VBVAREPORTINPUTMAPPING;
+
+/** Report the guest cursor position and query the host one.  The host may wish
+ *  to use the guest information to re-position its own cursor (though this is
+ *  currently unlikely).
+ *  @see VBVA_CURSOR_POSITION */
+typedef struct VBVACURSORPOSITION
+{
+    uint32_t fReportPosition;  /**< Are we reporting a position? */
+    uint32_t x;                /**< Guest cursor X position */
+    uint32_t y;                /**< Guest cursor Y position */
+} VBVACURSORPOSITION;
 
 #pragma pack()
 

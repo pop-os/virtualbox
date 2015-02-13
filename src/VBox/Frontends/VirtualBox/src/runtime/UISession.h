@@ -192,7 +192,9 @@ public:
 
     /* Guest additions state getters: */
     bool isGuestAdditionsActive() const { return (m_ulGuestAdditionsRunLevel > AdditionsRunLevelType_None); }
-    bool isGuestSupportsGraphics() const { return isGuestAdditionsActive() && m_fIsGuestSupportsGraphics; }
+    bool isGuestSupportsGraphics() const { return m_fIsGuestSupportsGraphics; }
+    /* The double check below is correct, even though it is an implementation
+     * detail of the Additions which the GUI should not ideally have to know. */
     bool isGuestSupportsSeamless() const { return isGuestSupportsGraphics() && m_fIsGuestSupportsSeamless; }
 
     /* Keyboard getters: */
@@ -254,6 +256,7 @@ signals:
     void sigKeyboardLedsChange();
     void sigMachineStateChange();
     void sigAdditionsStateChange();
+    void sigAdditionsStateActualChange();
     void sigNetworkAdapterChange(const CNetworkAdapter &networkAdapter);
     void sigMediumChange(const CMediumAttachment &mediumAttachment);
     void sigVRDEChange();

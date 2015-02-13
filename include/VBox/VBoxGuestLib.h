@@ -432,7 +432,7 @@ VBGLR3DECL(int)     VbglR3GetHostTime(PRTTIMESPEC pTime);
 VBGLR3DECL(int)     VbglR3InterruptEventWaits(void);
 VBGLR3DECL(int)     VbglR3WriteLog(const char *pch, size_t cch);
 VBGLR3DECL(int)     VbglR3CtlFilterMask(uint32_t fOr, uint32_t fNot);
-VBGLR3DECL(int)     VbglR3Daemonize(bool fNoChDir, bool fNoClose);
+VBGLR3DECL(int)     VbglR3Daemonize(bool fNoChDir, bool fNoClose, bool fRespawn, unsigned *pcRespawn);
 VBGLR3DECL(int)     VbglR3PidFile(const char *pszPath, PRTFILE phFile);
 VBGLR3DECL(void)    VbglR3ClosePidFile(const char *pszPath, RTFILE hFile);
 VBGLR3DECL(int)     VbglR3SetGuestCaps(uint32_t fOr, uint32_t fNot);
@@ -480,13 +480,28 @@ VBGLR3DECL(int)     VbglR3SetPointerShapeReq(struct VMMDevReqMousePointer *pReq)
 
 /** @name Display
  * @{ */
-VBGLR3DECL(int)     VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits, uint32_t *piDisplay, bool fAck);
-VBGLR3DECL(int)     VbglR3GetDisplayChangeRequestEx(uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits,
-                                                    uint32_t *piDisplay, uint32_t *pcOriginX, uint32_t *pcOriginY,
-                                                    bool *pfEnabled, bool fAck);
+/** The folder for saving video mode hints to between sessions. */
+#define VBGLR3HOSTDISPSAVEDMODEPATH "/var/lib/VBoxGuestAdditions"
+/** The path to the file for saving video mode hints to between sessions. */
+#define VBGLR3HOSTDISPSAVEDMODE     VBGLR3HOSTDISPSAVEDMODEPATH \
+    "/SavedVideoModes"
+
+VBGLR3DECL(int)     VbglR3GetDisplayChangeRequest(uint32_t *pcx, uint32_t *pcy,
+                                                  uint32_t *pcBits,
+                                                  uint32_t *piDisplay,
+                                                  uint32_t *pdx, uint32_t *pdy,
+                                                  bool *pfEnabled,
+                                                  bool *pfChangeOrigin,
+                                                  bool fAck);
 VBGLR3DECL(bool)    VbglR3HostLikesVideoMode(uint32_t cx, uint32_t cy, uint32_t cBits);
-VBGLR3DECL(int)     VbglR3SaveVideoMode(const char *pszName, uint32_t cx, uint32_t cy, uint32_t cBits);
-VBGLR3DECL(int)     VbglR3RetrieveVideoMode(const char *pszName, uint32_t *pcx, uint32_t *pcy, uint32_t *pcBits);
+VBGLR3DECL(int)     VbglR3VideoModeGetHighestSavedScreen(unsigned *pcScreen);
+VBGLR3DECL(int)     VbglR3SaveVideoMode(unsigned cScreen, unsigned cx,
+                                        unsigned cy, unsigned cBits, unsigned x,
+                                        unsigned y, bool fEnabled);
+VBGLR3DECL(int)     VbglR3RetrieveVideoMode(unsigned cScreen, unsigned *pcx,
+                                            unsigned *pcy, unsigned *pcBits,
+                                            unsigned *px, unsigned *py,
+                                            bool *pfEnabled);
 /** @}  */
 
 /** @name VM Statistics
@@ -753,6 +768,16 @@ VBGLR3DECL(int)  VbglR3HostChannelEventCancel(uint32_t u32ChannelHandle, uint32_
 VBGLR3DECL(int)  VbglR3HostChannelQuery(const char *pszName, uint32_t u32HGCMClientId, uint32_t u32Code,
                                         void *pvParm, uint32_t cbParm, void *pvData, uint32_t cbData,
                                         uint32_t *pu32SizeDataReturned);
+
+/** @name Mode hint storage
+ * @{ */
+VBGLR3DECL(int) VbglR3ReadVideoMode(unsigned cDisplay, unsigned *cx,
+                                    unsigned *cy, unsigned *cBPP, unsigned *x,
+                                    unsigned *y, unsigned *fEnabled);
+VBGLR3DECL(int) VbglR3WriteVideoMode(unsigned cDisplay, unsigned cx,
+                                     unsigned cy, unsigned cBPP, unsigned x,
+                                     unsigned y, unsigned fEnabled);
+/** @} */
 
 #endif /* IN_RING3 */
 /** @} */

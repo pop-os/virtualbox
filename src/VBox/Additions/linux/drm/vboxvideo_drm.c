@@ -144,6 +144,12 @@ static struct drm_driver driver =
     .get_map_ofs = drm_core_get_map_ofs,
     .get_reg_ofs = drm_core_get_reg_ofs,
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
+    /* If this is missing a warning gets printed to dmesg.  We will not
+     * attempt to make kernels work to which the change (915b4d11b) got back-
+     * ported, as the problem is only cosmetic. */
+    .set_busid = drm_pci_set_busid,
+#endif
 # if LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0) && !defined(DRM_FOPS_AS_POINTER)
     .fops =
     {

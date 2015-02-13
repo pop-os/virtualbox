@@ -991,9 +991,10 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
         /* Expose CMPXCHG16B. Currently a hack. */
         if (   osTypeId == "Windows81_64"
-            || osTypeId == "Windows2012_64")
+            || osTypeId == "Windows2012_64"
+            || osTypeId == "Windows10_64")
         {
-            LogRel(("Enabling CMPXCHG16B for Windows 8.1 / 2k12 guests\n"));
+            LogRel(("Enabling CMPXCHG16B for Windows 8.1 / 2k12 or newer guests\n"));
             InsertConfigInteger(pCPUM, "CMPXCHG16B", true);
         }
 
@@ -1511,9 +1512,9 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         /*
          * VGA.
          */
-        GraphicsControllerType_T graphicsController;
-        hrc = pMachine->COMGETTER(GraphicsControllerType)(&graphicsController);             H();
-        switch (graphicsController)
+        GraphicsControllerType_T enmGraphicsController;
+        hrc = pMachine->COMGETTER(GraphicsControllerType)(&enmGraphicsController);          H();
+        switch (enmGraphicsController)
         {
             case GraphicsControllerType_Null:
                 break;
@@ -1521,15 +1522,15 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 #ifdef VBOX_WITH_VMSVGA
             case GraphicsControllerType_VMSVGA:
 #endif
-                rc = configGraphicsController(pDevices, graphicsController, pBusMgr, pMachine, biosSettings,
+                rc = configGraphicsController(pDevices, enmGraphicsController, pBusMgr, pMachine, biosSettings,
                                               RT_BOOL(fHMEnabled));
                 if (FAILED(rc))
                     return rc;
                 break;
             default:
-                AssertMsgFailed(("Invalid graphicsController=%d\n", graphicsController));
+                AssertMsgFailed(("Invalid enmGraphicsController=%d\n", enmGraphicsController));
                 return VMR3SetError(pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS,
-                                    N_("Invalid graphics controller type '%d'"), graphicsController);
+                                    N_("Invalid graphics controller type '%d'"), enmGraphicsController);
         }
 
         /*
@@ -2749,7 +2750,11 @@ int Console::configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             BOOL fEnabled3D = false;
             hrc = pMachine->COMGETTER(Accelerate3DEnabled)(&fEnabled3D); H();
 
-            if (fEnabled3D)
+            if (   fEnabled3D
+# ifdef VBOX_WITH_VMSVGA3D
+                && enmGraphicsController == GraphicsControllerType_VBoxVGA
+# endif
+                )
             {
                 BOOL fSupports3D = VBoxOglIs3DAccelerationSupported();
                 if (!fSupports3D)
@@ -3237,7 +3242,7 @@ int Console::configDumpAPISettingsTweaks(IVirtualBox *pVirtualBox, IMachine *pMa
 }
 
 int Console::configGraphicsController(PCFGMNODE pDevices,
-                                      const GraphicsControllerType_T graphicsController,
+                                      const GraphicsControllerType_T enmGraphicsController,
                                       BusAssignmentManager *pBusMgr,
                                       const ComPtr<IMachine> &pMachine,
                                       const ComPtr<IBIOSSettings> &biosSettings,
@@ -3271,7 +3276,7 @@ int Console::configGraphicsController(PCFGMNODE pDevices,
 #endif
 
 #ifdef VBOX_WITH_VMSVGA
-        if (graphicsController == GraphicsControllerType_VMSVGA)
+        if (enmGraphicsController == GraphicsControllerType_VMSVGA)
         {
             InsertConfigInteger(pCfg, "VMSVGAEnabled", true);
 #ifdef VBOX_WITH_VMSVGA3D
@@ -3774,6 +3779,22 @@ int Console::configMediumAttachment(PCFGMNODE pCtlInst,
                                    fHotplug ? 0 : PDM_TACH_FLAGS_NOT_HOT_PLUG, NULL /*ppBase*/);
             AssertRCReturn(rc, rc);
 
+            /*
+             * Make the secret key helper interface known to the VD driver if it is attached,
+             * so we can get notified about missing keys.
+             */
+            PPDMIBASE pIBase = NULL;
+            rc = PDMR3QueryDriverOnLun(pUVM, pcszDevice, uInstance, uLUN, "VD", &pIBase);
+            if (RT_SUCCESS(rc) && pIBase)
+            {
+                PPDMIMEDIA pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
+                if (pIMedium)
+                {
+                    rc = pIMedium->pfnSetSecKeyIf(pIMedium, NULL, mpIfSecKeyHlp);
+                    Assert(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED);
+                }
+            }
+
             /* There is no need to handle removable medium mounting, as we
              * unconditionally replace everthing including the block driver level.
              * This means the new medium will be picked up automatically. */
@@ -4014,49 +4035,7 @@ int Console::configMedium(PCFGMNODE pLunL0,
 
                 /* Pass all custom parameters. */
                 bool fHostIP = true;
-                SafeArray<BSTR> names;
-                SafeArray<BSTR> values;
-                hrc = pMedium->GetProperties(Bstr().raw(),
-                                             ComSafeArrayAsOutParam(names),
-                                             ComSafeArrayAsOutParam(values));               H();
-
-                if (names.size() != 0)
-                {
-                    PCFGMNODE pVDC;
-                    InsertConfigNode(pCfg, "VDConfig", &pVDC);
-                    for (size_t ii = 0; ii < names.size(); ++ii)
-                    {
-                        if (values[ii] && *values[ii])
-                        {
-                            /* Put properties of filters in a separate config node. */
-                            Utf8Str name = names[ii];
-                            Utf8Str value = values[ii];
-                            size_t offSlash = name.find("/", 0);
-                            if (   offSlash != name.npos
-                                && !name.startsWith("Special/"))
-                            {
-                                com::Utf8Str strFilter;
-                                com::Utf8Str strKey;
-
-                                hrc = strFilter.assignEx(name, 0, offSlash); H();
-                                hrc = strKey.assignEx(name, offSlash + 1, name.length() - offSlash - 1); /* Skip slash */ H();
-
-                                PCFGMNODE pCfgFilterConfig = CFGMR3GetChild(pVDC, strFilter.c_str());
-                                if (!pCfgFilterConfig)
-                                    InsertConfigNode(pVDC, strFilter.c_str(), &pCfgFilterConfig);
-
-                                InsertConfigString(pCfgFilterConfig, strKey.c_str(), value);
-                            }
-                            else
-                            {
-                                InsertConfigString(pVDC, name.c_str(), value);
-                                if (    name.compare("HostIPStack") == 0
-                                    &&  value.compare("0") == 0)
-                                    fHostIP = false;
-                            }
-                        }
-                    }
-                }
+                hrc = configMediumProperties(pCfg, pMedium, &fHostIP); H();
 
                 /* Create an inverted list of parents. */
                 uImage--;
@@ -4083,30 +4062,8 @@ int Console::configMedium(PCFGMNODE pLunL0,
                             InsertConfigInteger(pCur, "MergeTarget", 1);
                     }
 
-                    /* Pass all custom parameters. */
-                    SafeArray<BSTR> aNames;
-                    SafeArray<BSTR> aValues;
-                    hrc = pMedium->GetProperties(NULL,
-                                                ComSafeArrayAsOutParam(aNames),
-                                                ComSafeArrayAsOutParam(aValues));           H();
-
-                    if (aNames.size() != 0)
-                    {
-                        PCFGMNODE pVDC;
-                        InsertConfigNode(pCur, "VDConfig", &pVDC);
-                        for (size_t ii = 0; ii < aNames.size(); ++ii)
-                        {
-                            if (aValues[ii] && *aValues[ii])
-                            {
-                                Utf8Str name = aNames[ii];
-                                Utf8Str value = aValues[ii];
-                                InsertConfigString(pVDC, name.c_str(), value);
-                                if (    name.compare("HostIPStack") == 0
-                                    &&  value.compare("0") == 0)
-                                    fHostIP = false;
-                            }
-                        }
-                    }
+                    /* Configure medium properties. */
+                    hrc = configMediumProperties(pCur, pMedium, &fHostIP); H();
 
                     /* next */
                     pParent = pCur;
@@ -4128,6 +4085,68 @@ int Console::configMedium(PCFGMNODE pLunL0,
     }
 
     return VINF_SUCCESS;
+}
+
+/**
+ * Adds the medium properties to the CFGM tree.
+ *
+ * @returns VBox status code.
+ * @param   pCur       The current CFGM node.
+ * @param   pMedium    The medium object to configure.
+ * @param   pfHostIP   Where to return the value of the \"HostIPStack\" property if found.
+ */
+int Console::configMediumProperties(PCFGMNODE pCur, IMedium *pMedium, bool *pfHostIP)
+{
+    /* Pass all custom parameters. */
+    SafeArray<BSTR> aNames;
+    SafeArray<BSTR> aValues;
+    HRESULT hrc = pMedium->GetProperties(NULL, ComSafeArrayAsOutParam(aNames),
+                                         ComSafeArrayAsOutParam(aValues));
+
+    if (   SUCCEEDED(hrc)
+        && aNames.size() != 0)
+    {
+        PCFGMNODE pVDC;
+        InsertConfigNode(pCur, "VDConfig", &pVDC);
+        for (size_t ii = 0; ii < aNames.size(); ++ii)
+        {
+            if (aValues[ii] && *aValues[ii])
+            {
+                Utf8Str name = aNames[ii];
+                Utf8Str value = aValues[ii];
+                size_t offSlash = name.find("/", 0);
+                if (   offSlash != name.npos
+                    && !name.startsWith("Special/"))
+                {
+                    com::Utf8Str strFilter;
+                    com::Utf8Str strKey;
+
+                    hrc = strFilter.assignEx(name, 0, offSlash);
+                    if (FAILED(hrc))
+                        break;
+
+                    hrc = strKey.assignEx(name, offSlash + 1, name.length() - offSlash - 1); /* Skip slash */
+                    if (FAILED(hrc))
+                        break;
+
+                    PCFGMNODE pCfgFilterConfig = CFGMR3GetChild(pVDC, strFilter.c_str());
+                    if (!pCfgFilterConfig)
+                        InsertConfigNode(pVDC, strFilter.c_str(), &pCfgFilterConfig);
+
+                    InsertConfigString(pCfgFilterConfig, strKey.c_str(), value);
+                }
+                else
+                {
+                    InsertConfigString(pVDC, name.c_str(), value);
+                    if (    name.compare("HostIPStack") == 0
+                        &&  value.compare("0") == 0)
+                        *pfHostIP = false;
+                }
+            }
+        }
+    }
+
+    return hrc;
 }
 
 /**

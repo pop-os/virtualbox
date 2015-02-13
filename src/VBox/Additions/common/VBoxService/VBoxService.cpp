@@ -138,6 +138,37 @@ static struct
 #endif
 };
 
+/* Default call-backs for services which do not need special behaviour. */
+
+/** @copydoc VBOXSERVICE::pfnPreInit */
+DECLCALLBACK(int) VBoxServiceDefaultPreInit(void)
+{
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VBOXSERVICE::pfnOption */
+DECLCALLBACK(int) VBoxServiceDefaultOption(const char **ppszShort, int argc,
+                                           char **argv, int *pi)
+{
+    NOREF(ppszShort);
+    NOREF(argc);
+    NOREF(argv);
+    NOREF(pi);
+
+    return -1;
+}
+
+/** @copydoc VBOXSERVICE::pfnInit */
+DECLCALLBACK(int) VBoxServiceDefaultInit(void)
+{
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VBOXSERVICE::pfnTerm */
+DECLCALLBACK(void) VBoxServiceDefaultTerm(void)
+{
+    return;
+}
 
 /**
  * Release logger callback.
@@ -231,7 +262,7 @@ int VBoxServiceLogCreate(const char *pszLogFile)
     char szError[RTPATH_MAX + 128] = "";
     int rc = RTLogCreateEx(&g_pLoggerRelease, fFlags, "all",
                            "VBOXSERVICE_RELEASE_LOG", RT_ELEMENTS(s_apszGroups), s_apszGroups,
-                           RTLOGDEST_STDOUT,
+                           RTLOGDEST_STDOUT | RTLOGDEST_USER,
                            VBoxServiceLogHeaderFooter, g_cHistory, g_uHistoryFileSize, g_uHistoryFileTime,
                            szError, sizeof(szError), pszLogFile);
     if (RT_SUCCESS(rc))
@@ -594,6 +625,11 @@ int VBoxServiceStartServices(void)
          * the thread's actual worker loop. If the thread decides
          * to exit the loop before we skipped the fShutdown check
          * below the service will fail to start! */
+        /** @todo This presumably means either a one-shot service or that
+         * something has gone wrong.  In the second case treating it as failure
+         * to start is probably right, so we need a way to signal the first
+         * rather than leaving the idle thread hanging around.  A flag in the
+         * service description? */
         RTThreadUserWait(g_aServices[j].Thread, 60 * 1000);
         if (g_aServices[j].fShutdown)
         {
@@ -1032,11 +1068,11 @@ int main(int argc, char **argv)
         if (   dwErr == ERROR_ALREADY_EXISTS
             || dwErr == ERROR_ACCESS_DENIED)
         {
-            VBoxServiceError("%s is already running! Terminating.", g_pszProgName);
+            VBoxServiceError("%s is already running! Terminating.\n", g_pszProgName);
             return RTEXITCODE_FAILURE;
         }
 
-        VBoxServiceError("CreateMutex failed with last error %u! Terminating", GetLastError());
+        VBoxServiceError("CreateMutex failed with last error %u! Terminating.\n", GetLastError());
         return RTEXITCODE_FAILURE;
     }
 
@@ -1057,7 +1093,8 @@ int main(int argc, char **argv)
         rcExit = VBoxServiceWinEnterCtrlDispatcher();
 #else
         VBoxServiceVerbose(1, "Daemonizing...\n");
-        rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */);
+        rc = VbglR3Daemonize(false /* fNoChDir */, false /* fNoClose */,
+                             false /* fRespawn */, NULL /* pcRespawn */);
         if (RT_FAILURE(rc))
             return VBoxServiceError("Daemon failed: %Rrc\n", rc);
         /* in-child */

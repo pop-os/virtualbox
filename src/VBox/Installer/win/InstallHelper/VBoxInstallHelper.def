@@ -29,4 +29,5 @@ EXPORTS
     StopHostOnlyInterfaces
     UpdateHostOnlyInterfaces
     RemoveHostOnlyInterfaces
+    UninstallNetAdp
 

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2014 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -80,6 +80,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Storage/VSCSI/VSCSIIoReq.cpp \
  	Storage/VSCSI/VSCSIVpdPagePool.cpp \
  	build/VBoxDDUDeps.cpp
+ VBoxDDU_SOURCES.win      = \
+	build/VBoxDDU.rc
  ifdef VBOX_WITH_USB
   VBoxDDU_INCS.os2       += \
  	$(PATH_ROOT)/src/VBox/HostDrivers/VBoxUSB/os2
@@ -175,9 +177,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Serial/DrvNamedPipe.cpp \
  	Serial/DrvRawFile.cpp \
  	Storage/DrvBlock.cpp \
- 	Storage/DrvHostBase.cpp \
- 	Storage/DrvHostDVD.cpp \
- 	Storage/DrvHostFloppy.cpp \
  	Storage/DrvMediaISO.cpp \
  	Storage/DrvRawImage.cpp \
  	Storage/Debug.cpp \
@@ -185,6 +184,18 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Storage/ATAPIPassthrough.cpp \
  	Network/DrvNetSniffer.cpp \
  	Network/Pcap.cpp
+ VBoxDD_SOURCES.win      = \
+        build/VBoxDD.rc
+ ifn1of ($(KBUILD_TARGET), os2)
+  VBoxDD_SOURCES += Storage/DrvHostBase.cpp
+ endif
+ ifn1of ($(KBUILD_TARGET), os2)
+  VBoxDD_SOURCES += Storage/DrvHostDVD.cpp
+ endif
+ ifn1of ($(KBUILD_TARGET), darwin freebsd os2 solaris)
+  VBoxDD_SOURCES += Storage/DrvHostFloppy.cpp
+ endif
+
  VBoxDD_LIBS             = # more later.
  VBoxDD_LDFLAGS.darwin   = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDD.dylib \
  	-framework CoreAudio \
@@ -244,17 +255,33 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES        += Graphics/DevVGA-SVGA3d-shared.cpp
   ifeq ($(KBUILD_TARGET),win) # (Disable this to work with OpenGL on Windows.)
    VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-win.cpp
-   VBoxDD_LIBS.win      += d3d9.lib
+   VBoxDD_LIBS.win      += d3d9.lib $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
+   VBoxDD_LDFLAGS.win   += /DELAYLOAD:d3d9.dll
   else
-   VBoxDD_SOURCES       += Graphics/DevVGA-SVGA3d-ogl.cpp
-   if1of ($(KBUILD_TARGET),win)
-    VBoxDD_LIBS         += $(PATH_STAGE_LIB)/VBoxSVGA3D$(VBOX_SUFF_LIB)
-   else
-    VBoxDD_LIBS         += $(PATH_STAGE_BIN)/VBoxSVGA3D$(VBOX_SUFF_DLL)
-   endif
+   VBoxDD_SOURCES       += \
+   	Graphics/DevVGA-SVGA3d-ogl.cpp \
+   	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
+   VBoxDD_SOURCES.darwin += \
+   	$(VBoxDD_0_OUTDIR)/VBoxSVGA3DObjCLazyLoad.asm
+   VBoxDD_CLEAN         += $(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm
+   $$(VBoxDD_0_OUTDIR)/VBoxSVGA3DLazyLoad.asm: $(PATH_SUB_CURRENT)/Graphics/VBoxSVGA3D.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(call MSG_TOOL,VBoxDef2LazyLoad,VBoxDD,$(filter %.def, $^),$@)
+	$(QUIET)$(RM) -f -- "$@"
+	$(VBOX_DEF_2_LAZY_LOAD) --explicit-load-function --library VBoxSVGA3D --output "$@" $(filter %.def, $^)
+   $$(VBoxDD_0_OUTDIR)/VBoxSVGA3DObjCLazyLoad.asm: $(PATH_SUB_CURRENT)/Graphics/VBoxSVGA3DObjC.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(call MSG_TOOL,VBoxDef2LazyLoad,VBoxDD,$(filter %.def, $^),$@)
+	$(QUIET)$(RM) -f -- "$@"
+	$(VBOX_DEF_2_LAZY_LOAD) --explicit-load-function --library VBoxSVGA3DObjC --output "$@" $(filter %.def, $^)
+
    VBoxDD_LIBS.linux    += GL X11
    VBoxDD_LIBS.win      += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
    VBoxDD_LDFLAGS.darwin += -framework OpenGL
+   VBoxDD_DEFS.darwin    += VBOX_VMSVGA3D_DUAL_OPENGL_PROFILE
+   if 0 # Use the OpenGL 3.2 Core profile (see also VBoxSVGA3D_DEFS.darwin and VBoxSVGA3DObjC_DEFS.darwin).
+    VBoxDD_DEFS.darwin   += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=3.2 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=2.1
+   else
+    VBoxDD_DEFS.darwin   += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=2.1 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=3.2
+   endif
   endif
   Graphics/DevVGA-SVGA3d-ogl.cpp_CXXFLAGS.darwin = -F$(VBOX_PATH_MACOSX_SDK_10_7)/System/Library/Frameworks/
  endif
@@ -541,6 +568,19 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Network/slirp/dnsproxy/hash.c \
  	Network/slirp/tftp.c \
  	Network/slirp/dnsproxy/dnsproxy.c
+
+ ifeq ($(KBUILD_TARGET), win)
+  VBOX_SLIRP_SOURCES += Network/slirp/ip_icmpwin.c
+ else ifneq ($(KBUILD_TARGET),darwin)
+  # helper for debugging unprivileged
+#  Network/slirp/ip_icmp.c_DEFS += VBOX_RAWSOCK_DEBUG_HELPER
+#  VBOX_SLIRP_SOURCES += ../NetworkServices/NAT/getrawsock.c
+ endif
+
+ ifneq ($(KBUILD_TARGET), win)
+  VBOX_SLIRP_SOURCES +=  	Network/slirp/resolv_conf_parser.c
+ endif
+
  ifdef VBOX_WITH_SLIRP_BSD_SBUF
   VBOX_SLIRP_SOURCES += Network/slirp/bsd/kern/subr_sbuf.c
  endif
@@ -622,37 +662,22 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  # --- OS specific driver hacks. ---
 
  ifeq ($(KBUILD_TARGET),darwin)
-  VBoxDD_SOURCES        := \
-  	$(filter-out Storage/DrvHostRaw% Storage/DrvHostFloppy%, $(VBoxDD_SOURCES)) \
-  	Audio/coreaudio.c
-  VBoxDD_SOURCES.darwin += \
-  	Serial/DrvHostSerial.cpp
+  VBoxDD_SOURCES.darwin += Serial/DrvHostSerial.cpp Audio/coreaudio.c
  endif # darwin
 
  ifeq ($(KBUILD_TARGET),freebsd)
-  VBoxDD_SOURCES        := \
-  	$(filter-out Storage/DrvHostFloppy%, $(VBoxDD_SOURCES)) \
-  	Audio/ossaudio.c \
-  	Serial/DrvHostSerial.cpp
-  VBoxDD_SOURCES.freebsd += \
- 	Network/DrvTAP.cpp
+  VBoxDD_SOURCES += Serial/DrvHostSerial.cpp Audio/ossaudio.c
+  VBoxDD_SOURCES.freebsd += Network/DrvTAP.cpp
  endif # freebsd
 
- VBoxDD_SOURCES.linux  += \
+ VBoxDD_SOURCES.linux += \
  	Network/DrvTAP.cpp \
  	Audio/ossaudio.c \
  	Parallel/DrvHostParallel.cpp \
  	Serial/DrvHostSerial.cpp
 
- ifeq ($(KBUILD_TARGET),os2)
- VBoxDD_SOURCES        := $(filter-out Storage/DrvHost%, $(VBoxDD_SOURCES))
- endif
-
  ifeq ($(KBUILD_TARGET),solaris)
- VBoxDD_SOURCES        := $(filter-out Storage/DrvHostFloppy%, $(VBoxDD_SOURCES))
- VBoxDD_SOURCES.solaris += \
- 	Audio/solaudio.c \
- 	Serial/DrvHostSerial.cpp
+  VBoxDD_SOURCES.solaris += Serial/DrvHostSerial.cpp Audio/solaudio.c
   ifdef VBOX_WITH_SOLARIS_OSS
    VBoxDD_SOURCES += Audio/ossaudio.c
    VBoxDD_DEFS += VBOX_WITH_SOLARIS_OSS
@@ -662,11 +687,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   endif
  endif
 
- VBoxDD_DEFS.win       += VBOX_WITH_WIN_PARPORT_SUP
- VBoxDD_SOURCES.win    += \
+ VBoxDD_DEFS.win += VBOX_WITH_WIN_PARPORT_SUP
+ VBoxDD_SOURCES.win += \
  	Audio/dsoundaudio.c \
  	Serial/DrvHostSerial.cpp \
-	Parallel/DrvHostParallel.cpp
+ 	Parallel/DrvHostParallel.cpp
 
  ifdef VBOX_WITH_VIRTUALKD
   VBoxDD_DEFS.win     += VBOX_WITH_VIRTUALKD
@@ -675,9 +700,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
 
  if defined(VBOX_WITH_NETFLT)
-  VBoxDD_DEFS          += VBOX_WITH_NETFLT
+  VBoxDD_DEFS += VBOX_WITH_NETFLT
   if defined(VBOX_NETFLT_ONDEMAND_BIND)
-   VBoxDD_DEFS.win     += VBOX_NETFLT_ONDEMAND_BIND
+   VBoxDD_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
   endif
  endif
 
@@ -925,6 +950,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	PC/DevAPIC.cpp \
  	PC/DevIoApic.cpp \
  	PC/DevLPC.cpp
+ VBoxDD2_SOURCES.win     = \
+	build/VBoxDD2.rc
  VBoxDD2_LIBS            = \
  	$(PATH_STAGE_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
  	$(PATH_STAGE_LIB)/VgaBiosBin$(VBOX_SUFF_LIB) \
@@ -1209,6 +1236,8 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
   DLLS += VBoxEhciR3
   VBoxEhciR3_TEMPLATE = VBoxR3ExtPackPuel
   VBoxEhciR3_SOURCES  = USB/DevEHCI.cpp
+  VBoxEhciR3_SOURCES.win = \
+ 	build/VBoxEhciR3.rc
 
   SYSMODS += VBoxEhciR0
   VBoxEhciR0_TEMPLATE = VBoxR0ExtPackPuel
@@ -1223,18 +1252,20 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
 
  if defined(VBOX_WITH_PCI_PASSTHROUGH)
   DLLS += VBoxPciRawR3
-  VBoxPciRawR3_TEMPLATE = VBoxR3ExtPackPuel
-  VBoxPciRawR3_SOURCES  = Bus/DevPciRaw.cpp
+  VBoxPciRawR3_TEMPLATE     = VBoxR3ExtPackPuel
+  VBoxPciRawR3_SOURCES      = Bus/DevPciRaw.cpp
+  VBoxPciRawR3_SOURCES.win  = build/VBoxPciRawR3.rc
 
   DLLS += VBoxPciRawDrv
-  VBoxPciRawDrv_TEMPLATE = VBoxR3ExtPackPuel
-  VBoxPciRawDrv_SOURCES = Bus/DrvPciRaw.cpp
+  VBoxPciRawDrv_TEMPLATE    = VBoxR3ExtPackPuel
+  VBoxPciRawDrv_SOURCES     = Bus/DrvPciRaw.cpp
+  VBoxPciRawDrv_SOURCES.win = build/VBoxPciRawDrv.rc
 
   SYSMODS += VBoxPciRawR0
-  VBoxPciRawR0_TEMPLATE = VBoxR0ExtPackPuel
-  VBoxPciRawR0_SOURCES  = Bus/DevPciRaw.cpp
+  VBoxPciRawR0_TEMPLATE     = VBoxR0ExtPackPuel
+  VBoxPciRawR0_SOURCES      = Bus/DevPciRaw.cpp
 
-  Bus/DevPciRaw.cpp_INCS   = Bus
+  Bus/DevPciRaw.cpp_INCS    = Bus
  endif
 
 
@@ -1251,16 +1282,14 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  #
  # Template used for VBoxSVGA3D.  (Stips away compiler options.)
  #
- TEMPLATE_VBoxSVGA3D         = VBoxSVGA3D
- TEMPLATE_VBoxSVGA3D_EXTENDS = VBOXR3
- TEMPLATE_VBoxSVGA3D_CFLAGS  = \
- 	$(filter-out -pedantic -fno-common -Wstrict-prototypes,$(TEMPLATE_VBOXR3_CFLAGS))
- TEMPLATE_VBoxSVGA3D_CXXFLAG = \
- 	$(filter-out -pedantic -fno-common,$(TEMPLATE_VBOXR3_CXXFLAGS))
- TEMPLATE_VBoxSVGA3D_CFLAGS.darwin  = \
- 	$(filter-out -fno-common,$(TEMPLATE_VBOXR3_CFLAGS.darwin))
- TEMPLATE_VBoxSVGA3D_LDFLAGS.darwin = \
- 	-framework AppKit -framework OpenGL
+ TEMPLATE_VBoxSVGA3D         := VBoxSVGA3D
+ TEMPLATE_VBoxSVGA3D_EXTENDS := $(if-expr "$(KBUILD_TARGET)" == "darwin",VBoxR3DllOsX107,VBOXR3)
+ TEMPLATE_VBoxSVGA3D_CFLAGS      = $(filter-out -pedantic -Wstrict-prototypes,$(TEMPLATE_$(TEMPLATE_VBoxSVGA3D_EXTENDS)_CFLAGS))
+ TEMPLATE_VBoxSVGA3D_CXXFLAGS    = $(filter-out -pedantic,$(TEMPLATE_$(TEMPLATE_VBoxSVGA3D_EXTENDS)_CXXFLAGS))
+ TEMPLATE_VBoxSVGA3D_OBJCFLAGS   = $(filter-out -pedantic,$(TEMPLATE_$(TEMPLATE_VBoxSVGA3D_EXTENDS)_OBJCFLAGS))
+ TEMPLATE_VBoxSVGA3D_OBJCXXFLAGS = $(filter-out -pedantic,$(TEMPLATE_$(TEMPLATE_VBoxSVGA3D_EXTENDS)_OBJCXXFLAGS))
+ TEMPLATE_VBoxSVGA3D_LDFLAGS.darwin  = $(TEMPLATE_VBoxR3DllOsX107_LDFLAGS.darwin) \
+  	-framework AppKit -framework OpenGL -framework IOKit
 
  #
  # The shader library used by the SVGA3D implementation.
@@ -1286,6 +1315,7 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  	VBOX_USING_WINDDK_W7_OR_LATER \
  	VBOX_WINE_WITH_SINGLE_SWAPCHAIN_CONTEXT \
  	IN_vmsvgashader_STATIC \
+ 	IN_VMSVGA3D \
  	VBOX_WINE_WITH_IPRT
  if "$(KBUILD_TYPE)" != "debug" || defined(VBOX_WINE_NO_DEBUG_MSGS)
   VBoxSVGA3D_DEFS       += WINE_NO_DEBUG_MSGS
@@ -1295,19 +1325,24 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  VBoxSVGA3D_DEFS.win    += \
  	USE_WIN32_OPENGL \
  	VBOX_WINE_WITHOUT_LIBWINE
+ VBoxSVGA3D_DEFS.darwin  += VBOX_VMSVGA3D_DUAL_OPENGL_PROFILE
+ if 0 # Use the OpenGL 3.2 Core profile (VBoxSVGA3D_DEFS.darwin).
+  VBoxSVGA3D_DEFS.darwin += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=3.2 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=2.1
+ else
+  VBoxSVGA3D_DEFS.darwin += VBOX_VMSVGA3D_DEFAULT_OGL_PROFILE=2.1 VBOX_VMSVGA3D_OTHER_OGL_PROFILE=3.2
+ endif
+
  # WINE relies on a gcc 4.4 feature but we have 4.2 on Darwin
  VBoxSVGA3D_DEFS.darwin += \
  	__builtin_ms_va_list=va_list \
  	__stdcall= \
  	ms_abi=
- # WTF IS THIS? -fno-pic?? doubt it.
- VBoxSVGA3D_CFLAGS = \
- 	$(filter-out -pedantic -Wattributes,$(VBoxR3DllWarnNoPic_CFLAGS))
  VBoxSVGA3D_INCS.win    := \
  	Graphics/shaderlib/libWineStub/include
  VBoxSVGA3D_INCS.linux  := \
  	Graphics/shaderlib/wine/include
  VBoxSVGA3D_INCS.darwin := \
+ 	Graphics/ \
  	Graphics/shaderlib/wine/include
  VBoxSVGA3D_SOURCES     := \
  	Graphics/shaderlib/glsl_shader.c \
@@ -1319,16 +1354,47 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  	Graphics/shaderlib/stateblock.c \
  	Graphics/shaderlib/directx.c \
  	Graphics/shaderlib/libWineStub/debug.c
- VBoxSVGA3D_SOURCES.darwin  += \
- 	Graphics/DevVGA-SVGA3d-cocoa.m
- VBoxSVGA3D_LIBS        = \
- 	$(LIB_RUNTIME)
- VBoxSVGA3D_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+ VBoxSVGA3D_SOURCES.win := \
+ 	Graphics/VBoxSVGA3D.rc
+ VBoxSVGA3D_LIBS        = $(LIB_RUNTIME)
+ VBoxSVGA3D_LIBS.win   += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
  if1of ($(KBUILD_TARGET), solaris linux freebsd)
-  VBoxSVGA3D_LIBS += GL
+  VBoxSVGA3D_LIBS      += GL
  endif
  VBoxSVGA3D_LDFLAGS.darwin += \
  	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSVGA3D.dylib
+
+ #
+ # The Objective C code needs to be separate since the shaderlib redefines most
+ # GL functions as pointers, making it impossible to mix with code calling OpenGL
+ # functions directly.  This module must be compiled for 10.7 or later, thus it
+ # needs to be separate from VBoxDD.dylib, or at least that's our belief...
+ #
+ DLLS.darwin += VBoxSVGA3DObjC
+ VBoxSVGA3DObjC_TEMPLATE    = VBoxSVGA3D
+ VBoxSVGA3DObjC_DEFS        = $(VBoxSVGA3D_DEFS)
+ VBoxSVGA3DObjC_DEFS.x86    = __i386__
+ VBoxSVGA3DObjC_DEFS.amd64  = __x86_64__
+ VBoxSVGA3DObjC_DEFS.darwin = $(VBoxSVGA3D_DEFS.darwin)
+ VBoxSVGA3DObjC_INCS        = $(VBoxSVGA3D_INCS)
+ VBoxSVGA3DObjC_INCS.darwin = $(VBoxSVGA3D_INCS.darwin)
+ VBoxSVGA3DObjC_LIBS        = $(LIB_RUNTIME)
+ VBoxSVGA3DObjC_LDFLAGS.darwin = \
+ 	-install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxSVGA3DObjC.dylib \
+ 	-framework OpenGL
+ if 0
+ VBoxSVGA3DObjC_SOURCES.darwin += \
+ 	Graphics/DevVGA-SVGA3d-cocoa.m
+ else
+ VBoxSVGA3DObjC_SOURCES.darwin += \
+ 	../HostServices/SharedOpenGL/render/renderspu_cocoa_helper.m \
+ 	../GuestHost/OpenGL/util/vreg.cpp \
+ 	../GuestHost/OpenGL/util/blitter.cpp \
+ 	../GuestHost/OpenGL/util/compositor.cpp \
+ 	../HostServices/SharedOpenGL/OpenGLTest/OpenGLTestDarwin.cpp
+ endif
+
+
 
 endif # defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
 

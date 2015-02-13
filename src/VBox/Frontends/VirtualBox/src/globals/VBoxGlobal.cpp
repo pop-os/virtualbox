@@ -1668,7 +1668,7 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(UIMediumType mediumType, QWidge
             break;
     }
     QString strHomeFolder = fUseLastFolder && !strLastFolder.isEmpty() ? strLastFolder :
-                            strDefaultFolder.isEmpty() ? vboxGlobal().virtualBox().GetHomeFolder() : strDefaultFolder;
+                            strDefaultFolder.isEmpty() ? vboxGlobal().homeFolder() : strDefaultFolder;
 
     /* Prepare filters and backends: */
     for (int i = 0; i < filters.count(); ++i)
@@ -3309,6 +3309,7 @@ bool VBoxGlobal::isWddmCompatibleOsType(const QString &strGuestOSTypeId)
            || strGuestOSTypeId.startsWith("Windows7")
            || strGuestOSTypeId.startsWith("Windows8")
            || strGuestOSTypeId.startsWith("Windows81")
+           || strGuestOSTypeId.startsWith("Windows10")
            || strGuestOSTypeId.startsWith("Windows2008")
            || strGuestOSTypeId.startsWith("Windows2012");
 }
@@ -4075,6 +4076,7 @@ void VBoxGlobal::prepare()
         return;
     }
     mHost = virtualBox().GetHost();
+    mHomeFolder = virtualBox().GetHomeFolder();
 
     /* create default non-null global settings */
     gset = VBoxGlobalSettings (false);
@@ -4150,9 +4152,11 @@ void VBoxGlobal::prepare()
         {"Windows7_64",     ":/os_win7_64.png"},
         {"Windows8",        ":/os_win8.png"},
         {"Windows8_64",     ":/os_win8_64.png"},
-        {"Windows81",       ":/os_win8.png"},
-        {"Windows81_64",    ":/os_win8_64.png"},
+        {"Windows81",       ":/os_win81.png"},
+        {"Windows81_64",    ":/os_win81_64.png"},
         {"Windows2012_64",  ":/os_win2k12_64.png"},
+        {"Windows10",       ":/os_win10.png"},
+        {"Windows10_64",    ":/os_win10_64.png"},
         {"WindowsNT",       ":/os_win_other.png"},
         {"WindowsNT_64",    ":/os_win_other.png"}, /// @todo os_win_other_64.png
         {"OS2Warp3",        ":/os_os2warp3.png"},

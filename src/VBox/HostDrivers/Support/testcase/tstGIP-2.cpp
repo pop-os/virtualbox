@@ -31,6 +31,8 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <iprt/asm.h>
+#include <iprt/x86.h>
+#include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/alloc.h>
 #include <iprt/thread.h>
@@ -38,6 +40,28 @@
 #include <iprt/string.h>
 #include <iprt/initterm.h>
 #include <iprt/getopt.h>
+
+
+/**
+ * Checks whether the CPU advertises an invariant TSC or not.
+ *
+ * @returns true if invariant, false otherwise.
+ */
+bool tstIsInvariantTsc(void)
+{
+    if (ASMHasCpuId())
+    {
+        uint32_t uEax, uEbx, uEcx, uEdx;
+        ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
+        if (uEax >= 0x80000007)
+        {
+            ASMCpuId(0x80000007, &uEax, &uEbx, &uEcx, &uEdx);
+            if (uEdx & X86_CPUID_AMD_ADVPOWER_EDX_TSCINVAR)
+                return true;
+        }
+    }
+    return false;
+}
 
 
 int main(int argc, char **argv)
@@ -63,6 +87,7 @@ int main(int argc, char **argv)
     int ch;
     uint64_t uCpuHzRef = 0;
     uint64_t uCpuHzOverallDeviation = 0;
+    int64_t  iCpuHzMaxDeviation = 0;
     uint32_t cCpuHzOverallDevCnt = 0;
     RTGETOPTUNION ValueUnion;
     RTGETOPTSTATE GetState;
@@ -144,14 +169,16 @@ int main(int argc, char **argv)
                                 RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%17s  ", "?");
                             else
                             {
-                                if (pCpu->u32TransactionId > 7)
+                                if (pCpu->u32TransactionId > 23 + (8 * 2) + 1) /* Wait until the history validation code takes effect. */
                                 {
+                                    if (RT_ABS(iCpuHzDeviation) > RT_ABS(iCpuHzMaxDeviation))
+                                        iCpuHzMaxDeviation = iCpuHzDeviation;
                                     uCpuHzOverallDeviation += uCpuHzDeviation;
                                     cCpuHzOverallDevCnt++;
                                 }
                                 uint32_t uPct = (uint32_t)(uCpuHzDeviation * 100000 / uCpuHzRef + 5);
                                 RTStrPrintf(szCpuHzDeviation, sizeof(szCpuHzDeviation), "%10RI64%3d.%02d%%  ",
-                                            iCpuHzDeviation, uPct / 1000, (uPct % 1000) / 10);
+                                                iCpuHzDeviation, uPct / 1000, (uPct % 1000) / 10);
                             }
                         }
                         else
@@ -198,10 +225,14 @@ int main(int argc, char **argv)
                         RTThreadSleep(1);
                 }
             }
-            if (uCpuHzRef)
+            RTPrintf("CPUID.Invariant-TSC: %RTbool\n", tstIsInvariantTsc());
+            if (   uCpuHzRef
+                && cCpuHzOverallDevCnt)
             {
-                uint32_t uPct = (uint32_t)(uCpuHzOverallDeviation * 100000 / cCpuHzOverallDevCnt / uCpuHzRef + 5);
-                RTPrintf("Overall CpuHz deviation: %d.%02d%%\n", uPct / 1000, (uPct % 1000) / 10);
+                uint32_t uPct    = (uint32_t)(uCpuHzOverallDeviation * 100000 / cCpuHzOverallDevCnt / uCpuHzRef + 5);
+                uint32_t uMaxPct = (uint32_t)(RT_ABS(iCpuHzMaxDeviation) * 100000 / uCpuHzRef + 5);
+                RTPrintf("Average CpuHz deviation: %d.%02d%%\n", uPct / 1000, (uPct % 1000) / 10);
+                RTPrintf("Maximum CpuHz deviation: %d.%02d%% (%RI64 ticks)\n", uMaxPct / 1000, (uMaxPct % 1000) / 10, iCpuHzMaxDeviation);
             }
         }
         else

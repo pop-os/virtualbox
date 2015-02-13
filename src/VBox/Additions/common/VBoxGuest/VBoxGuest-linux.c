@@ -1,4 +1,4 @@
-/* $Rev: 88900 $ */
+/* $Rev: 97220 $ */
 /** @file
  * VBoxGuest - Linux specifics.
  *
@@ -128,17 +128,6 @@ static char                     g_szDbgLogFlags[128];
 /** Debug logger destination settings. */
 static char                     g_szDbgLogDst[128];
 # endif
-#endif
-
-/** Our file node major id.
- * Either set dynamically at run time or statically at compile time. */
-#ifdef CONFIG_VBOXGUEST_MAJOR
-static unsigned int             g_iModuleMajor = CONFIG_VBOXGUEST_MAJOR;
-#else
-static unsigned int             g_iModuleMajor = 0;
-#endif
-#ifdef CONFIG_VBOXADD_MAJOR
-# error "CONFIG_VBOXADD_MAJOR -> CONFIG_VBOXGUEST_MAJOR"
 #endif
 
 /** The input device handle */
@@ -485,10 +474,11 @@ static int __init vboxguestLinuxCreateInputDevice(void)
 static void vboxguestLinuxTermInputDevice(void)
 {
     VbglGRFree(&g_pMouseStatusReq->header);
+    /* See documentation of input_register_device(): input_free_device()
+     * should not be called after a device has been registered. */
     input_unregister_device(g_pInputDevice);
-    input_free_device(g_pInputDevice);
 }
-#endif
+#endif /* VBOXGUEST_WITH_INPUT_DRIVER */
 
 
 /**
@@ -503,23 +493,11 @@ static int __init vboxguestLinuxInitDeviceNodes(void)
     /*
      * The full feature device node.
      */
-    if (g_iModuleMajor > 0)
+    rc = misc_register(&g_MiscDevice);
+    if (rc)
     {
-        rc = register_chrdev(g_iModuleMajor, DEVICE_NAME, &g_FileOps);
-        if (rc < 0)
-        {
-            LogRel((DEVICE_NAME ": register_chrdev failed: g_iModuleMajor: %d, rc: %d\n", g_iModuleMajor, rc));
-            return rc;
-        }
-    }
-    else
-    {
-        rc = misc_register(&g_MiscDevice);
-        if (rc)
-        {
-            LogRel((DEVICE_NAME ": misc_register failed for %s (rc=%d)\n", DEVICE_NAME, rc));
-            return rc;
-        }
+        LogRel((DEVICE_NAME ": misc_register failed for %s (rc=%d)\n", DEVICE_NAME, rc));
+        return rc;
     }
 
     /*
@@ -529,10 +507,7 @@ static int __init vboxguestLinuxInitDeviceNodes(void)
     if (rc)
     {
         LogRel((DEVICE_NAME ": misc_register failed for %s (rc=%d)\n", DEVICE_NAME_USER, rc));
-        if (g_iModuleMajor > 0)
-            unregister_chrdev(g_iModuleMajor, DEVICE_NAME);
-        else
-            misc_deregister(&g_MiscDevice);
+        misc_deregister(&g_MiscDevice);
         return rc;
     }
 
@@ -545,10 +520,7 @@ static int __init vboxguestLinuxInitDeviceNodes(void)
  */
 static void vboxguestLinuxTermDeviceNodes(void)
 {
-    if (g_iModuleMajor > 0)
-        unregister_chrdev(g_iModuleMajor, DEVICE_NAME);
-    else
-        misc_deregister(&g_MiscDevice);
+    misc_deregister(&g_MiscDevice);
     misc_deregister(&g_MiscDeviceUser);
 }
 
@@ -652,8 +624,8 @@ static int __init vboxguestLinuxModInit(void)
                         if (rc >= 0)
                         {
                             /* some useful information for the user but don't show this on the console */
-                            LogRel((DEVICE_NAME ": major %d, IRQ %d, I/O port %RTiop, MMIO at %RHp (size 0x%x)\n",
-                                    g_iModuleMajor, g_pPciDev->irq, g_IOPortBase, g_MMIOPhysAddr, g_cbMMIO));
+                            LogRel((DEVICE_NAME ": misc device minor %d, IRQ %d, I/O port %RTiop, MMIO at %RHp (size 0x%x)\n",
+                                    g_MiscDevice.minor, g_pPciDev->irq, g_IOPortBase, g_MMIOPhysAddr, g_cbMMIO));
                             printk(KERN_DEBUG DEVICE_NAME ": Successfully loaded version "
                                    VBOX_VERSION_STRING " (interface " RT_XSTR(VMMDEV_VERSION) ")\n");
                             return rc;
@@ -734,7 +706,11 @@ static int vboxguestLinuxOpen(struct inode *pInode, struct file *pFilp)
      */
     rc = VBoxGuestCreateUserSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
+    {
         pFilp->private_data = pSession;
+        if (MINOR(pInode->i_rdev) == g_MiscDeviceUser.minor)
+            pSession->fUserSession = true;
+    }
 
     Log(("vboxguestLinuxOpen: g_DevExt=%p pSession=%p rc=%d/%d (pid=%d/%d %s)\n",
          &g_DevExt, pSession, rc, vboxguestLinuxConvertToNegErrno(rc),

@@ -2142,6 +2142,64 @@ static bool ohciHasUrbBeenCanceled(POHCI pThis, PVUSBURB pUrb, PCOHCIED pEd)
 
 
 /**
+ * Calculate frame timer variables given a frame rate (1,000 Hz is the full speed).
+ */
+static void ohciCalcTimerIntervals(POHCI pThis, uint32_t u32FrameRate)
+{
+    Assert(u32FrameRate <= OHCI_DEFAULT_TIMER_FREQ);
+
+    pThis->cTicksPerFrame = pThis->u64TimerHz / u32FrameRate;
+    if (!pThis->cTicksPerFrame)
+        pThis->cTicksPerFrame = 1;
+    pThis->cTicksPerUsbTick   = pThis->u64TimerHz >= VUSB_BUS_HZ ? pThis->u64TimerHz / VUSB_BUS_HZ : 1;
+    pThis->nsWait             = RT_NS_1SEC / u32FrameRate;
+    pThis->uFrameRate         = u32FrameRate;
+}
+
+
+/**
+ * Calculates the new frame rate based on the idle detection and number of idle
+ * cycles.
+ *
+ * @returns nothing.
+ * @param   pThis    The OHCI device data.
+ */
+static void ohciFramerateCalcNew(POHCI pThis)
+{
+    uint32_t uNewFrameRate = pThis->uFrameRate;
+
+    /*
+     * Adjust the frame timer interval based on idle detection.
+     */
+    if (pThis->fIdle)
+    {
+        pThis->cIdleCycles++;
+        /* Set the new frame rate based on how long we've been idle. Tunable. */
+        switch (pThis->cIdleCycles)
+        {
+            case 4: uNewFrameRate = 500;    break;  /*  2ms interval */
+            case 16:uNewFrameRate = 125;    break;  /*  8ms interval */
+            case 24:uNewFrameRate = 50;     break;  /* 20ms interval */
+            default:    break;
+        }
+        /* Avoid overflow. */
+        if (pThis->cIdleCycles > 60000)
+            pThis->cIdleCycles = 20000;
+    }
+    else
+    {
+        if (pThis->cIdleCycles)
+        {
+            pThis->cIdleCycles = 0;
+            uNewFrameRate      = OHCI_DEFAULT_TIMER_FREQ;
+        }
+    }
+    if (uNewFrameRate != pThis->uFrameRate)
+        ohciCalcTimerIntervals(pThis, uNewFrameRate);
+}
+
+
+/**
  * Returns the OHCI_CC_* corresponding to the VUSB status code.
  *
  * @returns OHCI_CC_* value.
@@ -2526,6 +2584,10 @@ static DECLCALLBACK(void) ohciRhXferCompletion(PVUSBIROOTHUBPORT pInterface, PVU
 
     /* finally write back the endpoint descriptor. */
     ohciWriteEd(pThis, pUrb->Hci.EdAddr, &Ed);
+
+    /* Calculate new frame rate and wakeup the . */
+    ohciFramerateCalcNew(pThis);
+    RTSemEventSignal(pThis->hSemEventFrame);
     RTCritSectLeave(&pThis->CritSect);
 }
 
@@ -3569,21 +3631,6 @@ static void ohciUpdateHCCA(POHCI pThis)
 
 
 /**
- * Calculate frame timer variables given a frame rate (1,000 Hz is the full speed).
- */
-static void ohciCalcTimerIntervals(POHCI pThis, uint32_t u32FrameRate)
-{
-    Assert(u32FrameRate <= OHCI_DEFAULT_TIMER_FREQ);
-
-    pThis->cTicksPerFrame = pThis->u64TimerHz / u32FrameRate;
-    if (!pThis->cTicksPerFrame)
-        pThis->cTicksPerFrame = 1;
-    pThis->cTicksPerUsbTick   = pThis->u64TimerHz >= VUSB_BUS_HZ ? pThis->u64TimerHz / VUSB_BUS_HZ : 1;
-    pThis->nsWait             = RT_NS_1SEC / u32FrameRate;
-    pThis->uFrameRate         = u32FrameRate;
-}
-
-/**
  * Go over the in-flight URB list and cancel any URBs that are no longer in use.
  * This occurs when the host removes EDs or TDs from the lists and we don't notice
  * the sKip bit. Such URBs must be promptly canceled, otherwise there is a risk
@@ -3682,7 +3729,6 @@ static void ohciCancelOrphanedURBs(POHCI pThis)
  */
 static void ohciStartOfFrame(POHCI pThis)
 {
-    uint32_t    uNewFrameRate = pThis->uFrameRate;
 #ifdef LOG_ENABLED
     const uint32_t status_old = pThis->status;
 #endif
@@ -3784,31 +3830,7 @@ static void ohciStartOfFrame(POHCI pThis)
     /*
      * Adjust the frame timer interval based on idle detection.
      */
-    if (pThis->fIdle)
-    {
-        pThis->cIdleCycles++;
-        /* Set the new frame rate based on how long we've been idle. Tunable. */
-        switch (pThis->cIdleCycles)
-        {
-        case 4: uNewFrameRate = 500;    break;  /*  2ms interval */
-        case 16:uNewFrameRate = 125;    break;  /*  8ms interval */
-        case 24:uNewFrameRate = 50;     break;  /* 20ms interval */
-        default:    break;
-        }
-        /* Avoid overflow. */
-        if (pThis->cIdleCycles > 60000)
-            pThis->cIdleCycles = 20000;
-    }
-    else
-    {
-        if (pThis->cIdleCycles)
-        {
-            pThis->cIdleCycles = 0;
-            uNewFrameRate      = OHCI_DEFAULT_TIMER_FREQ;
-        }
-    }
-    if (uNewFrameRate != pThis->uFrameRate)
-        ohciCalcTimerIntervals(pThis, uNewFrameRate);
+    ohciFramerateCalcNew(pThis);
 }
 
 /**

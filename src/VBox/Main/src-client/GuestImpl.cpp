@@ -1251,8 +1251,5 @@ void Guest::setSupportedFeatures(uint32_t aCaps)
                    aCaps & VMMDEV_GUEST_SUPPORTS_SEAMLESS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
                    0 /*fFlags*/, &TimeSpecTS);
     /** @todo Add VMMDEV_GUEST_SUPPORTS_GUEST_HOST_WINDOW_MAPPING */
-    facilityUpdate(VBoxGuestFacilityType_Graphics,
-                   aCaps & VMMDEV_GUEST_SUPPORTS_GRAPHICS ? VBoxGuestFacilityStatus_Active : VBoxGuestFacilityStatus_Inactive,
-                   0 /*fFlags*/, &TimeSpecTS);
 }
 

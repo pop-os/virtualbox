@@ -55,11 +55,11 @@
 
 #include "slirp.h"
 #include "ip_icmp.h"
-#ifdef RT_OS_WINDOWS
-# include <Icmpapi.h>
-# include <Iphlpapi.h>
-# include <iprt/ldr.h>
+
+#ifdef VBOX_RAWSOCK_DEBUG_HELPER
+int getrawsock(int type);
 #endif
+
 
 /* The message sent when emulating PING */
 /* Be nice and tell them it's just a psuedo-ping packet */
@@ -96,13 +96,14 @@ icmp_init(PNATState pData, int iIcmpCacheLimit)
 {
     pData->icmp_socket.so_type = IPPROTO_ICMP;
     pData->icmp_socket.so_state = SS_ISFCONNECTED;
+
+#ifndef RT_OS_WINDOWS
     if (iIcmpCacheLimit < 0)
     {
         LogRel(("NAT: iIcmpCacheLimit is invalid %d, will be alter to default value 100\n", iIcmpCacheLimit));
         iIcmpCacheLimit = 100;
     }
     pData->iIcmpCacheLimit = iIcmpCacheLimit;
-#ifndef RT_OS_WINDOWS
 # ifndef RT_OS_DARWIN
     pData->icmp_socket.s = socket(PF_INET, SOCK_RAW, IPPROTO_ICMP);
 # else /* !RT_OS_DARWIN */
@@ -111,58 +112,30 @@ icmp_init(PNATState pData, int iIcmpCacheLimit)
     if (pData->icmp_socket.s == -1)
     {
         int rc = RTErrConvertFromErrno(errno);
+#  if defined(RT_OS_DARWIN) || !defined(VBOX_RAWSOCK_DEBUG_HELPER)
         LogRel(("NAT: ICMP/ping not available (could not open ICMP socket, error %Rrc)\n", rc));
         return 1;
+#  else
+        /* try to get it from privileged helper */
+        LogRel(("NAT: ICMP/ping raw socket error %Rrc, asking helper...\n", rc));
+        pData->icmp_socket.s = getrawsock(AF_INET);
+        if (pData->icmp_socket.s == -1)
+        {
+            LogRel(("NAT: ICMP/ping not available\n"));
+            return 1;
+        }
+#  endif /* !RT_OS_DARWIN && VBOX_RAWSOCK_DEBUG_HELPER */
     }
     fd_nonblock(pData->icmp_socket.s);
     NSOCK_INC();
 
+    LIST_INIT(&pData->icmp_msg_head);
+
 #else /* RT_OS_WINDOWS */
-    /* Resolve symbols we need. */
-    {
-        RTLDRMOD hLdrMod;
-        int rc = RTLdrLoadSystem("Iphlpapi.dll", true /*fNoUnload*/, &hLdrMod);
-        if (RT_SUCCESS(rc))
-        {
-            pData->pfIcmpParseReplies = (long (WINAPI *)(void *, long))RTLdrGetFunction(hLdrMod, "IcmpParseReplies");
-            pData->pfIcmpCloseHandle = (BOOL (WINAPI *)(HANDLE))RTLdrGetFunction(hLdrMod, "IcmpCloseHandle");
-            rc = RTLdrGetSymbol(hLdrMod, "GetAdaptersAddresses", (void **)&pData->pfGetAdaptersAddresses);
-            if (RT_FAILURE(rc))
-                LogRel(("NAT: Can't find GetAdapterAddresses in Iphlpapi.dll\n"));
-            RTLdrClose(hLdrMod);
-        }
-
-        if (pData->pfIcmpParseReplies == NULL)
-        {
-            int rc = RTLdrLoadSystem("Icmp.dll", true /*fNoUnload*/, &hLdrMod);
-            if (RT_FAILURE(rc))
-            {
-                LogRel(("NAT: Icmp.dll could not be loaded: %Rrc\n", rc));
-                return 1;
-            }
-            pData->pfIcmpParseReplies = (long (WINAPI *)(void *, long))RTLdrGetFunction(hLdrMod, "IcmpParseReplies");
-            pData->pfIcmpCloseHandle = (BOOL (WINAPI *)(HANDLE))RTLdrGetFunction(hLdrMod, "IcmpCloseHandle");
-            RTLdrClose(hLdrMod);
-        }
-    }
-    if (pData->pfIcmpParseReplies == NULL)
-    {
-        LogRel(("NAT: Can't find IcmpParseReplies symbol\n"));
+    if (icmpwin_init(pData) != 0)
         return 1;
-    }
-    if (pData->pfIcmpCloseHandle == NULL)
-    {
-        LogRel(("NAT: Can't find IcmpCloseHandle symbol\n"));
-        return 1;
-    }
-
-    pData->icmp_socket.sh = IcmpCreateFile();
-    pData->phEvents[VBOX_ICMP_EVENT_INDEX] = CreateEvent(NULL, FALSE, FALSE, NULL);
-    pData->cbIcmpBuffer = sizeof(ICMP_ECHO_REPLY) * 10;
-    pData->pvIcmpBuffer = RTMemAlloc(pData->cbIcmpBuffer);
 #endif /* RT_OS_WINDOWS */
 
-    LIST_INIT(&pData->icmp_msg_head);
     return 0;
 }
 
@@ -172,15 +145,15 @@ icmp_init(PNATState pData, int iIcmpCacheLimit)
 void
 icmp_finit(PNATState pData)
 {
-    icmp_cache_clean(pData, -1);
 #ifdef RT_OS_WINDOWS
-    pData->pfIcmpCloseHandle(pData->icmp_socket.sh);
-    RTMemFree(pData->pvIcmpBuffer);
+    icmpwin_finit(pData);
 #else
+    icmp_cache_clean(pData, -1);
     closesocket(pData->icmp_socket.s);
 #endif
 }
 
+#if !defined(RT_OS_WINDOWS)
 /*
  * ip here is ip header + 64bytes readed from ICMP packet
  */
@@ -379,6 +352,7 @@ icmp_attach(PNATState pData, struct mbuf *m)
         icmp_cache_clean(pData, pData->iIcmpCacheLimit/2);
     return 0;
 }
+#endif /* !RT_OS_WINDOWS */
 
 /*
  * Process a received ICMP message.
@@ -386,15 +360,11 @@ icmp_attach(PNATState pData, struct mbuf *m)
 void
 icmp_input(PNATState pData, struct mbuf *m, int hlen)
 {
-    register struct icmp *icp;
-    void *icp_buf = NULL;
     register struct ip *ip = mtod(m, struct ip *);
     int icmplen = ip->ip_len;
-    int status;
+    uint8_t icmp_type;
+    void *icp_buf = NULL;
     uint32_t dst;
-#if !defined(RT_OS_WINDOWS)
-    int ttl;
-#endif
 
     /* int code; */
 
@@ -422,19 +392,8 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
         goto end_error_free_m;
     }
 
-    if (m->m_next)
-    {
-        icp_buf = RTMemAlloc(icmplen);
-        if (!icp_buf)
-        {
-            Log(("NAT: not enought memory to allocate the buffer\n"));
-            goto end_error_free_m;
-        }
-        m_copydata(m, 0, icmplen, icp_buf);
-        icp = (struct icmp *)icp_buf;
-    }
-    else
-        icp = mtod(m, struct icmp *);
+    /* are we guaranteed to have ICMP header in first mbuf? be safe. */
+    m_copydata(m, 0, sizeof(icmp_type), (caddr_t)&icmp_type);
 
     m->m_len += hlen;
     m->m_data -= hlen;
@@ -442,29 +401,36 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
     /* icmpstat.icps_inhist[icp->icmp_type]++; */
     /* code = icp->icmp_code; */
 
-    LogFlow(("icmp_type = %d\n", icp->icmp_type));
-    switch (icp->icmp_type)
+    LogFlow(("icmp_type = %d\n", icmp_type));
+    switch (icmp_type)
     {
         case ICMP_ECHO:
             ip->ip_len += hlen;              /* since ip_input subtracts this */
             dst = ip->ip_dst.s_addr;
             if (   CTL_CHECK(dst, CTL_ALIAS)
-		|| CTL_CHECK(dst, CTL_DNS)
-		|| CTL_CHECK(dst, CTL_TFTP))
+                || CTL_CHECK(dst, CTL_DNS)
+                || CTL_CHECK(dst, CTL_TFTP))
             {
-                icp->icmp_type = ICMP_ECHOREPLY;
+                uint8_t echo_reply = ICMP_ECHOREPLY;
+                m_copyback(pData, m, hlen + RT_OFFSETOF(struct icmp, icmp_type),
+                           sizeof(echo_reply), (caddr_t)&echo_reply);
                 ip->ip_dst.s_addr = ip->ip_src.s_addr;
                 ip->ip_src.s_addr = dst;
                 icmp_reflect(pData, m);
                 goto done;
             }
-            else
-            {
-                struct sockaddr_in addr;
+
 #ifdef RT_OS_WINDOWS
-                IP_OPTION_INFORMATION ipopt;
-                int error;
-#endif
+            {
+                icmpwin_ping(pData, m, hlen);
+                break;          /* free mbuf */
+            }
+#else
+            {
+                struct icmp *icp;
+                struct sockaddr_in addr;
+
+                /* XXX: FIXME: this is bogus, see CTL_CHECKs above */
                 addr.sin_family = AF_INET;
                 if ((ip->ip_dst.s_addr & RT_H2N_U32(pData->netmask)) == pData->special_addr.s_addr)
                 {
@@ -480,11 +446,28 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
                 }
                 else
                     addr.sin_addr.s_addr = ip->ip_dst.s_addr;
-#ifndef RT_OS_WINDOWS
+
+                if (m->m_next)
+                {
+                    icp_buf = RTMemAlloc(icmplen);
+                    if (!icp_buf)
+                    {
+                        Log(("NAT: not enought memory to allocate the buffer\n"));
+                        goto end_error_free_m;
+                    }
+                    m_copydata(m, hlen, icmplen, icp_buf);
+                    icp = (struct icmp *)icp_buf;
+                }
+                else
+                    icp = (struct icmp *)(mtod(m, char *) + hlen);
+
                 if (pData->icmp_socket.s != -1)
                 {
-                    ssize_t rc;
                     static bool fIcmpSocketErrorReported;
+                    int ttl;
+                    int status;
+                    ssize_t rc;
+
                     ttl = ip->ip_ttl;
                     Log(("NAT/ICMP: try to set TTL(%d)\n", ttl));
                     status = setsockopt(pData->icmp_socket.s, IPPROTO_IP, IP_TTL,
@@ -511,54 +494,8 @@ icmp_input(PNATState pData, struct mbuf *m, int hlen)
                     }
                     icmp_error(pData, m, ICMP_UNREACH, ICMP_UNREACH_NET, 0, strerror(errno));
                 }
-#else /* RT_OS_WINDOWS */
-                pData->icmp_socket.so_laddr.s_addr = ip->ip_src.s_addr; /* XXX: hack*/
-                pData->icmp_socket.so_icmp_id = icp->icmp_id;
-                pData->icmp_socket.so_icmp_seq = icp->icmp_seq;
-                memset(&ipopt, 0, sizeof(IP_OPTION_INFORMATION));
-                ipopt.Ttl = ip->ip_ttl;
-                status = IcmpSendEcho2(pData->icmp_socket.sh /*=handle*/,
-                                       pData->phEvents[VBOX_ICMP_EVENT_INDEX] /*=Event*/,
-                                       NULL /*=ApcRoutine*/,
-                                       NULL /*=ApcContext*/,
-                                       addr.sin_addr.s_addr /*=DestinationAddress*/,
-                                       icp->icmp_data /*=RequestData*/,
-                                       icmplen - ICMP_MINLEN /*=RequestSize*/,
-                                       &ipopt /*=RequestOptions*/,
-                                       pData->pvIcmpBuffer /*=ReplyBuffer*/,
-                                       pData->cbIcmpBuffer /*=ReplySize*/,
-                                       1 /*=Timeout in ms*/);
-                error = GetLastError();
-                if (   status != 0
-                    || error == ERROR_IO_PENDING)
-                {
-                    /* no error! */
-                    m->m_so = &pData->icmp_socket;
-                    icmp_attach(pData, m);
-                    /* don't let m_freem at the end free atached buffer */
-                    goto done;
-                }
-                Log(("NAT: Error (%d) occurred while sending ICMP (", error));
-                switch (error)
-                {
-                    case ERROR_INVALID_PARAMETER:
-                        Log(("icmp_socket:%lx is invalid)\n", pData->icmp_socket.s));
-                        break;
-                    case ERROR_NOT_SUPPORTED:
-                        Log(("operation is unsupported)\n"));
-                        break;
-                    case ERROR_NOT_ENOUGH_MEMORY:
-                        Log(("OOM!!!)\n"));
-                        break;
-                    case IP_BUF_TOO_SMALL:
-                        Log(("Buffer too small)\n"));
-                        break;
-                    default:
-                        Log(("Other error!!!)\n"));
-                        break;
-                }
-#endif /* RT_OS_WINDOWS */
-            } /* if ip->ip_dst.s_addr == alias_addr.s_addr */
+            }
+#endif  /* !RT_OS_WINDOWS */
             break;
         case ICMP_UNREACH:
         case ICMP_TIMXCEED:

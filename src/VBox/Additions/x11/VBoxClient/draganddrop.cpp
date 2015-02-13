@@ -417,7 +417,7 @@ public:
  *
  ******************************************************************************/
 
-class DragAndDropService : public VBoxClient::Service
+class DragAndDropService
 {
 public:
     DragAndDropService()
@@ -428,18 +428,7 @@ public:
       , m_pCurDnD(0)
     {}
 
-    virtual const char *getPidFilePath() { return ".vboxclient-draganddrop.pid"; }
-
-    /** @todo Move this part in VbglR3 and just provide a callback for the platform-specific
-              notification stuff, since this is very similar to the VBoxTray code. */
-    virtual int run(bool fDaemonised = false);
-
-    virtual void cleanup()
-    {
-        /* Nothing to do, everything should be cleaned up automatically when the
-         * user process/X11 client exits. */
-        VbglR3DnDTerm();
-    };
+    int run(bool fDaemonised = false);
 
 private:
     int x11DragAndDropInit();
@@ -1550,6 +1539,10 @@ int DragAndDropService::run(bool fDaemonised /* = false */)
 
     do
     {
+        /* Initialise the guest library. */
+        rc = VbglR3InitUser();
+        if (RT_FAILURE(rc))
+            VBClFatalError(("Failed to connect to the VirtualBox kernel service, rc=%Rrc\n", rc));
         /* Initialize our service */
         rc = VbglR3DnDInit();
         if (RT_FAILURE(rc))
@@ -1776,8 +1769,62 @@ int DragAndDropService::x11EventThread(RTTHREAD hThread, void *pvUser)
     return VINF_SUCCESS;
 }
 
-/* Static factory */
-VBoxClient::Service *VBoxClient::GetDragAndDropService()
+/** Drag and drop magic number, start of a UUID. */
+#define DRAGANDDROPSERVICE_MAGIC 0x67c97173
+
+/** VBoxClient service class wrapping the logic for the service while
+ *  the main VBoxClient code provides the daemon logic needed by all services.
+ */
+struct DRAGANDDROPSERVICE
 {
-    return new(DragAndDropService);
+    /** The service interface. */
+    struct VBCLSERVICE *pInterface;
+    /** Magic number for sanity checks. */
+    uint32_t magic;
+    /** Service object. */
+    DragAndDropService mDragAndDrop;
+};
+
+static const char *getPidFilePath()
+{
+    return ".vboxclient-draganddrop.pid";
+}
+
+static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
+{
+    struct DRAGANDDROPSERVICE *pSelf = (struct DRAGANDDROPSERVICE *)ppInterface;
+
+    if (pSelf->magic != DRAGANDDROPSERVICE_MAGIC)
+        VBClFatalError(("Bad display service object!\n"));
+    return pSelf->mDragAndDrop.run(fDaemonised);
+}
+
+static void cleanup(struct VBCLSERVICE **ppInterface)
+{
+    NOREF(ppInterface);
+    VbglR3Term();
+}
+
+struct VBCLSERVICE vbclDragAndDropInterface =
+{
+    getPidFilePath,
+    VBClServiceDefaultHandler, /* init */
+    run,
+    VBClServiceDefaultHandler, /* pause */
+    VBClServiceDefaultHandler, /* resume */
+    cleanup
+};
+
+/* Static factory */
+struct VBCLSERVICE **VBClGetDragAndDropService(void)
+{
+    struct DRAGANDDROPSERVICE *pService =
+        (struct DRAGANDDROPSERVICE *)RTMemAlloc(sizeof(*pService));
+
+    if (!pService)
+        VBClFatalError(("Out of memory\n"));
+    pService->pInterface = &vbclDragAndDropInterface;
+    pService->magic = DRAGANDDROPSERVICE_MAGIC;
+    new(&pService->mDragAndDrop) DragAndDropService();
+    return &pService->pInterface;
 }

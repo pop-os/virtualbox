@@ -114,6 +114,7 @@ static int                  supdrvMemRelease(PSUPDRVSESSION pSession, RTHCUINTPT
 static int                  supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDROPEN pReq);
 static int                  supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRLOAD pReq);
 static int                  supdrvIOCtl_LdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRFREE pReq);
+static int                  supdrvIOCtl_LdrLockDown(PSUPDRVDEVEXT pDevExt);
 static int                  supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRGETSYMBOL pReq);
 static int                  supdrvIDC_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQGETSYM pReq);
 static int                  supdrvLdrSetVMMR0EPs(PSUPDRVDEVEXT pDevExt, void *pvVMMR0, void *pvVMMR0EntryInt, void *pvVMMR0EntryFast, void *pvVMMR0EntryEx);
@@ -130,7 +131,7 @@ static DECLCALLBACK(void)   supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, ui
 static DECLCALLBACK(void)   supdrvGipAsyncTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
 static DECLCALLBACK(void)   supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, void *pvUser);
 static void                 supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPHYS HCPhys,
-                                          uint64_t u64NanoTS, unsigned uUpdateHz, unsigned cCpus);
+                                          uint64_t u64NanoTS, unsigned uUpdateHz, unsigned uUpdateIntervalNS, unsigned cCpus);
 static DECLCALLBACK(void)   supdrvGipInitOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2);
 static void                 supdrvGipTerm(PSUPGLOBALINFOPAGE pGip);
 static void                 supdrvGipUpdate(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t u64TSC, RTCPUID idCpu, uint64_t iTick);
@@ -144,6 +145,9 @@ static int                  supdrvIOCtl_ResumeSuspendedKbds(void);
 *   Global Variables                                                           *
 *******************************************************************************/
 DECLEXPORT(PSUPGLOBALINFOPAGE) g_pSUPGlobalInfoPage = NULL;
+
+/** Whether the host system has an invariant TSC or not */
+static bool g_fIsInvariantTsc;
 
 /**
  * Array of the R0 SUP API.
@@ -1667,6 +1671,16 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
 
             /* execute */
             pReq->Hdr.rc = supdrvIOCtl_LdrFree(pDevExt, pSession, pReq);
+            return 0;
+        }
+
+        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_LDR_LOCK_DOWN):
+        {
+            /* validate */
+            REQ_CHECK_SIZES(SUP_IOCTL_LDR_LOCK_DOWN);
+
+            /* execute */
+            pReqHdr->rc = supdrvIOCtl_LdrLockDown(pDevExt);
             return 0;
         }
 
@@ -3843,6 +3857,49 @@ static DECLCALLBACK(void) supdrvGipReInitCpuCallback(RTCPUID idCpu, void *pvUser
 
 
 /**
+ * Increase the timer freqency on hosts where this is possible (NT).
+ *
+ * The idea is that more interrupts is better for us... Also, it's better than
+ * we increase the timer frequence, because we might end up getting inaccuract
+ * callbacks if someone else does it.
+ *
+ * @param   pDevExt   Sets u32SystemTimerGranularityGrant if increased.
+ */
+static void supdrvGipRequestHigherTimerFrequencyFromSystem(PSUPDRVDEVEXT pDevExt)
+{
+    if (pDevExt->u32SystemTimerGranularityGrant == 0)
+    {
+        uint32_t u32SystemResolution;
+        if (   RT_SUCCESS_NP(RTTimerRequestSystemGranularity(  976563 /* 1024 HZ */, &u32SystemResolution))
+            || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 1000000 /* 1000 HZ */, &u32SystemResolution))
+            || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 1953125 /*  512 HZ */, &u32SystemResolution))
+            || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 2000000 /*  500 HZ */, &u32SystemResolution))
+           )
+        {
+            Assert(RTTimerGetSystemGranularity() <= u32SystemResolution);
+            pDevExt->u32SystemTimerGranularityGrant = u32SystemResolution;
+        }
+    }
+}
+
+
+/**
+ * Undoes supdrvGipRequestHigherTimerFrequencyFromSystem.
+ *
+ * @param   pDevExt     Clears u32SystemTimerGranularityGrant.
+ */
+static void supdrvGipReleaseHigherTimerFrequencyFromSystem(PSUPDRVDEVEXT pDevExt)
+{
+    if (pDevExt->u32SystemTimerGranularityGrant)
+    {
+        int rc2 = RTTimerReleaseSystemGranularity(pDevExt->u32SystemTimerGranularityGrant);
+        AssertRC(rc2);
+        pDevExt->u32SystemTimerGranularityGrant = 0;
+    }
+}
+
+
+/**
  * Maps the GIP into userspace and/or get the physical address of the GIP.
  *
  * @returns IPRT status code.
@@ -3906,27 +3963,14 @@ SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS 
             {
                 PSUPGLOBALINFOPAGE pGipR0 = pDevExt->pGip;
                 uint64_t u64NanoTS;
-                uint32_t u32SystemResolution;
-                unsigned i;
 
                 LogFlow(("SUPR0GipMap: Resumes GIP updating\n"));
 
-                /*
-                 * Try bump up the system timer resolution.
-                 * The more interrupts the better...
-                 */
-                if (   RT_SUCCESS_NP(RTTimerRequestSystemGranularity(  976563 /* 1024 HZ */, &u32SystemResolution))
-                    || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 1000000 /* 1000 HZ */, &u32SystemResolution))
-                    || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 1953125 /*  512 HZ */, &u32SystemResolution))
-                    || RT_SUCCESS_NP(RTTimerRequestSystemGranularity( 2000000 /*  500 HZ */, &u32SystemResolution))
-                   )
-                {
-                    Assert(RTTimerGetSystemGranularity() <= u32SystemResolution);
-                    pDevExt->u32SystemTimerGranularityGrant = u32SystemResolution;
-                }
+                supdrvGipRequestHigherTimerFrequencyFromSystem(pDevExt);
 
                 if (pGipR0->aCPUs[0].u32TransactionId != 2 /* not the first time */)
                 {
+                    unsigned i;
                     for (i = 0; i < RT_ELEMENTS(pGipR0->aCPUs); i++)
                         ASMAtomicUoWriteU32(&pGipR0->aCPUs[i].u32TransactionId,
                                             (pGipR0->aCPUs[i].u32TransactionId + GIP_UPDATEHZ_RECALC_FREQ * 2)
@@ -4027,13 +4071,7 @@ SUPR0DECL(int) SUPR0GipUnmap(PSUPDRVSESSION pSession)
 #ifndef DO_NOT_START_GIP
             rc = RTTimerStop(pDevExt->pGipTimer); AssertRC(rc); rc = VINF_SUCCESS;
 #endif
-
-            if (pDevExt->u32SystemTimerGranularityGrant)
-            {
-                int rc2 = RTTimerReleaseSystemGranularity(pDevExt->u32SystemTimerGranularityGrant);
-                AssertRC(rc2);
-                pDevExt->u32SystemTimerGranularityGrant = 0;
-            }
+            supdrvGipReleaseHigherTimerFrequencyFromSystem(pDevExt);
         }
     }
 
@@ -4443,6 +4481,14 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
     }
     /* (not found - add it!) */
 
+    /* If the loader interface is locked down, make userland fail early */
+    if (pDevExt->fLdrLockedDown)
+    {
+        supdrvLdrUnlock(pDevExt);
+        Log(("supdrvIOCtl_LdrOpen: Not adding '%s' to image list, loader interface is locked down!\n", pReq->u.In.szName));
+        return VERR_PERMISSION_DENIED;
+    }
+
     /*
      * Allocate memory.
      */
@@ -4606,6 +4652,14 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
         if (uState != SUP_IOCTL_LDR_LOAD)
             AssertMsgFailed(("SUP_IOCTL_LDR_LOAD: invalid image state %d (%#x)!\n", uState, uState));
         return VERR_ALREADY_LOADED;
+    }
+
+    /* If the loader interface is locked down, don't load new images */
+    if (pDevExt->fLdrLockedDown)
+    {
+        supdrvLdrUnlock(pDevExt);
+        Log(("SUP_IOCTL_LDR_LOAD: Not loading '%s' image bits, loader interface is locked down!\n", pImage->szName));
+        return VERR_PERMISSION_DENIED;
     }
 
     switch (pReq->u.In.eEPType)
@@ -4865,6 +4919,28 @@ static int supdrvIOCtl_LdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
 
     supdrvLdrUnlock(pDevExt);
     return rc;
+}
+
+
+/**
+ * Lock down the image loader interface.
+ *
+ * @returns IPRT status code.
+ * @param   pDevExt     Device globals.
+ */
+static int supdrvIOCtl_LdrLockDown(PSUPDRVDEVEXT pDevExt)
+{
+    LogFlow(("supdrvIOCtl_LdrLockDown:\n"));
+
+    supdrvLdrLock(pDevExt);
+    if (!pDevExt->fLdrLockedDown)
+    {
+        pDevExt->fLdrLockedDown = true;
+        Log(("supdrvIOCtl_LdrLockDown: Image loader interface locked down\n"));
+    }
+    supdrvLdrUnlock(pDevExt);
+
+    return VINF_SUCCESS;
 }
 
 
@@ -5137,6 +5213,13 @@ static void supdrvLdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     PSUPDRVLDRIMAGE pImagePrev;
     LogFlow(("supdrvLdrFree: pImage=%p\n", pImage));
+
+    /*
+     * Warn if we're releasing images while the image loader interface is
+     * locked down -- we won't be able to reload them!
+     */
+    if (pDevExt->fLdrLockedDown)
+        Log(("supdrvLdrFree: Warning: unloading '%s' image, while loader interface is locked down!\n", pImage->szName));
 
     /* find it - arg. should've used doubly linked list. */
     Assert(pDevExt->pLdrImages);
@@ -5436,6 +5519,28 @@ static int supdrvIOCtl_LoggerSettings(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSes
 
 
 /**
+ * Determines whether the host system has an invariant TSC.
+ *
+ * @remarks Once, called use g_fIsInvariantTsc. It is not
+ *          expected to change at runtime.
+ */
+static void supdrvDetermineInvariantTsc(void)
+{
+    if (ASMHasCpuId())
+    {
+        uint32_t uEax, uEbx, uEcx, uEdx;
+        ASMCpuId(0x80000000, &uEax, &uEbx, &uEcx, &uEdx);
+        if (uEax >= 0x80000007)
+        {
+            ASMCpuId(0x80000007, &uEax, &uEbx, &uEcx, &uEdx);
+            if (uEdx & X86_CPUID_AMD_ADVPOWER_EDX_TSCINVAR)
+                g_fIsInvariantTsc = true;
+        }
+    }
+}
+
+
+/**
  * Creates the GIP.
  *
  * @returns VBox status code.
@@ -5481,14 +5586,17 @@ static int supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
     pGip = (PSUPGLOBALINFOPAGE)RTR0MemObjAddress(pDevExt->GipMemObj); AssertPtr(pGip);
     HCPhysGip = RTR0MemObjGetPagePhysAddr(pDevExt->GipMemObj, 0); Assert(HCPhysGip != NIL_RTHCPHYS);
 
+    supdrvDetermineInvariantTsc();
+
     /*
      * Find a reasonable update interval and initialize the structure.
      */
+    supdrvGipRequestHigherTimerFrequencyFromSystem(pDevExt);
     u32Interval = u32SystemResolution = RTTimerGetSystemGranularity();
     while (u32Interval < 10000000 /* 10 ms */)
         u32Interval += u32SystemResolution;
 
-    supdrvGipInit(pDevExt, pGip, HCPhysGip, RTTimeSystemNanoTS(), 1000000000 / u32Interval /*=Hz*/, cCpus);
+    supdrvGipInit(pDevExt, pGip, HCPhysGip, RTTimeSystemNanoTS(), RT_NS_1SEC / u32Interval /*=Hz*/, u32Interval, cCpus);
 
     /*
      * Create the timer.
@@ -5517,6 +5625,8 @@ static int supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
                  * We're good.
                  */
                 Log(("supdrvGipCreate: %u ns interval.\n", u32Interval));
+                supdrvGipReleaseHigherTimerFrequencyFromSystem(pDevExt);
+
                 g_pSUPGlobalInfoPage = pGip;
                 return VINF_SUCCESS;
             }
@@ -5533,7 +5643,7 @@ static int supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
         OSDBGPRINT(("supdrvGipCreate: failed create GIP timer at %u ns interval. rc=%Rrc\n", u32Interval, rc));
         Assert(!pDevExt->pGipTimer);
     }
-    supdrvGipDestroy(pDevExt);
+    supdrvGipDestroy(pDevExt); /* Releases timer frequency increase too. */
     return rc;
 }
 
@@ -5581,11 +5691,7 @@ static void supdrvGipDestroy(PSUPDRVDEVEXT pDevExt)
      * Finally, make sure we've release the system timer resolution request
      * if one actually succeeded and is still pending.
      */
-    if (pDevExt->u32SystemTimerGranularityGrant)
-    {
-        rc = RTTimerReleaseSystemGranularity(pDevExt->u32SystemTimerGranularityGrant); AssertRC(rc);
-        pDevExt->u32SystemTimerGranularityGrant = 0;
-    }
+    supdrvGipReleaseHigherTimerFrequencyFromSystem(pDevExt);
 }
 
 
@@ -5596,10 +5702,14 @@ static void supdrvGipDestroy(PSUPDRVDEVEXT pDevExt)
  */
 static DECLCALLBACK(void) supdrvGipSyncTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
 {
-    RTCCUINTREG     fOldFlags = ASMIntDisableFlags(); /* No interruptions please (real problem on S10). */
-    PSUPDRVDEVEXT   pDevExt   = (PSUPDRVDEVEXT)pvUser;
-    uint64_t        u64TSC    = ASMReadTSC();
-    uint64_t        NanoTS    = RTTimeSystemNanoTS();
+    RTCCUINTREG     fOldFlags;
+    uint64_t        u64TSC;
+    uint64_t        NanoTS;
+    PSUPDRVDEVEXT   pDevExt = (PSUPDRVDEVEXT)pvUser;
+
+    fOldFlags = ASMIntDisableFlags(); /* No interruptions please (real problem on S10). */
+    u64TSC    = ASMReadTSC();
+    NanoTS    = RTTimeSystemNanoTS();
 
     supdrvGipUpdate(pDevExt, NanoTS, u64TSC, NIL_RTCPUID, iTick);
 
@@ -6029,15 +6139,16 @@ static void supdrvGipInitCpu(PSUPGLOBALINFOPAGE pGip, PSUPGIPCPU pCpu, uint64_t 
 /**
  * Initializes the GIP data.
  *
- * @param   pDevExt     Pointer to the device instance data.
- * @param   pGip        Pointer to the read-write kernel mapping of the GIP.
- * @param   HCPhys      The physical address of the GIP.
- * @param   u64NanoTS   The current nanosecond timestamp.
- * @param   uUpdateHz   The update frequency.
- * @param   cCpus       The CPU count.
+ * @param   pDevExt             Pointer to the device instance data.
+ * @param   pGip                Pointer to the read-write kernel mapping of the GIP.
+ * @param   HCPhys              The physical address of the GIP.
+ * @param   u64NanoTS           The current nanosecond timestamp.
+ * @param   uUpdateHz           The update frequency.
+ * @param   uUpdateIntervalNS   The update interval in nanoseconds.
+ * @param   cCpus               The CPU count.
  */
 static void supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPHYS HCPhys,
-                          uint64_t u64NanoTS, unsigned uUpdateHz, unsigned cCpus)
+                          uint64_t u64NanoTS, unsigned uUpdateHz, unsigned uUpdateIntervalNS, unsigned cCpus)
 {
     size_t const    cbGip = RT_ALIGN_Z(RT_OFFSETOF(SUPGLOBALINFOPAGE, aCPUs[cCpus]), PAGE_SIZE);
     unsigned        i;
@@ -6057,8 +6168,8 @@ static void supdrvGipInit(PSUPDRVDEVEXT pDevExt, PSUPGLOBALINFOPAGE pGip, RTHCPH
     pGip->cCpus                 = (uint16_t)cCpus;
     pGip->cPages                = (uint16_t)(cbGip / PAGE_SIZE);
     pGip->u32UpdateHz           = uUpdateHz;
-    pGip->u32UpdateIntervalNS   = 1000000000 / uUpdateHz;
-    pGip->u64NanoTSLastUpdateHz = u64NanoTS;
+    pGip->u32UpdateIntervalNS   = uUpdateIntervalNS;
+    pGip->u64NanoTSLastUpdateHz = 0;
     RTCpuSetEmpty(&pGip->OnlineCpuSet);
     RTCpuSetEmpty(&pGip->PresentCpuSet);
     RTMpGetSet(&pGip->PossibleCpuSet);
@@ -6149,7 +6260,6 @@ static void supdrvGipDoUpdateCpu(PSUPDRVDEVEXT pDevExt, PSUPGIPCPU pGipCpu, uint
     /*
      * Calc TSC delta.
      */
-    /** @todo validate the NanoTS delta, don't trust the OS to call us when it should... */
     u64TSCDelta = u64TSC - pGipCpu->u64TSC;
     ASMAtomicWriteU64(&pGipCpu->u64TSC, u64TSC);
 
@@ -6174,6 +6284,36 @@ static void supdrvGipDoUpdateCpu(PSUPDRVDEVEXT pDevExt, PSUPGIPCPU pGipCpu, uint
         unsigned i;
         for (i = 0; i < RT_ELEMENTS(pGipCpu->au32TSCHistory); i++)
             ASMAtomicUoWriteU32(&pGipCpu->au32TSCHistory[i], (uint32_t)u64TSCDelta);
+    }
+
+    /*
+     * Validate the NanoTS deltas between timer fires with an arbitrary threshold of 0.5%.
+     * Wait until we have at least one full history since the above history reset. The
+     * assumption is that the majority of the previous history values will be tolerable.
+     * See @bugref{6710} comment #67.
+     */
+    if (   u32TransactionId > 23 /* 7 + (8 * 2) */
+        && g_fIsInvariantTsc
+        && pGip->u32Mode == SUPGIPMODE_SYNC_TSC)
+    {
+        uint32_t uNanoTsThreshold = pGip->u32UpdateIntervalNS / 200;
+        if (   pGipCpu->u32PrevUpdateIntervalNS > pGip->u32UpdateIntervalNS + uNanoTsThreshold
+            || pGipCpu->u32PrevUpdateIntervalNS < pGip->u32UpdateIntervalNS - uNanoTsThreshold)
+        {
+            uint32_t u32;
+            u32  = pGipCpu->au32TSCHistory[0];
+            u32 += pGipCpu->au32TSCHistory[1];
+            u32 += pGipCpu->au32TSCHistory[2];
+            u32 += pGipCpu->au32TSCHistory[3];
+            u32 >>= 2;
+            u64TSCDelta  = pGipCpu->au32TSCHistory[4];
+            u64TSCDelta += pGipCpu->au32TSCHistory[5];
+            u64TSCDelta += pGipCpu->au32TSCHistory[6];
+            u64TSCDelta += pGipCpu->au32TSCHistory[7];
+            u64TSCDelta >>= 2;
+            u64TSCDelta += u32;
+            u64TSCDelta >>= 1;
+        }
     }
 
     /*
@@ -6227,7 +6367,8 @@ static void supdrvGipDoUpdateCpu(PSUPDRVDEVEXT pDevExt, PSUPGIPCPU pGipCpu, uint
     /*
      * CpuHz.
      */
-    u64CpuHz = ASMMult2xU32RetU64(u32UpdateIntervalTSC, pGip->u32UpdateHz);
+    u64CpuHz = ASMMult2xU32RetU64(u32UpdateIntervalTSC, RT_NS_1SEC);
+    u64CpuHz /= pGip->u32UpdateIntervalNS;
     ASMAtomicWriteU64(&pGipCpu->u64CpuHz, u64CpuHz);
 }
 
@@ -6283,15 +6424,16 @@ static void supdrvGipUpdate(PSUPDRVDEVEXT pDevExt, uint64_t u64NanoTS, uint64_t 
         {
 #ifdef RT_ARCH_AMD64 /** @todo fix 64-bit div here to work on x86 linux. */
             uint64_t u64Delta = u64NanoTS - pGip->u64NanoTSLastUpdateHz;
-            uint32_t u32UpdateHz = (uint32_t)((UINT64_C(1000000000) * GIP_UPDATEHZ_RECALC_FREQ) / u64Delta);
+            uint32_t u32UpdateHz = (uint32_t)((RT_NS_1SEC_64 * GIP_UPDATEHZ_RECALC_FREQ) / u64Delta);
             if (u32UpdateHz <= 2000 && u32UpdateHz >= 30)
             {
+                uint64_t u64Interval = u64Delta / GIP_UPDATEHZ_RECALC_FREQ;
                 ASMAtomicWriteU32(&pGip->u32UpdateHz, u32UpdateHz);
-                ASMAtomicWriteU32(&pGip->u32UpdateIntervalNS, 1000000000 / u32UpdateHz);
+                ASMAtomicWriteU32(&pGip->u32UpdateIntervalNS, (uint32_t)u64Interval);
             }
 #endif
         }
-        ASMAtomicWriteU64(&pGip->u64NanoTSLastUpdateHz, u64NanoTS);
+        ASMAtomicWriteU64(&pGip->u64NanoTSLastUpdateHz, u64NanoTS | 1);
     }
 
     /*

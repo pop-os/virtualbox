@@ -1451,6 +1451,7 @@ STDMETHODIMP SessionMachine::BeginTakingSnapshot(IConsole *aInitiator,
                                                  BOOL fTakingSnapshotOnline,
                                                  BSTR *aStateFilePath)
 {
+    NOREF(aInitiator);
     LogFlowThisFuncEnter();
 
     AssertReturn(aInitiator && aName, E_INVALIDARG);

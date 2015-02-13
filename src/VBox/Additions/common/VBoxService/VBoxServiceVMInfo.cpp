@@ -553,13 +553,13 @@ static int vboxserviceVMInfoWriteUsers(void)
     while (   (ut_user = getutxent())
            && RT_SUCCESS(rc))
     {
-#ifdef RT_OS_DARWIN /* No ut_user->ut_session on Darwin */
+# ifdef RT_OS_DARWIN /* No ut_user->ut_session on Darwin */
         VBoxServiceVerbose(4, "Found entry \"%s\" (type: %d, PID: %RU32)\n",
                            ut_user->ut_user, ut_user->ut_type, ut_user->ut_pid);
-#else
+# else
         VBoxServiceVerbose(4, "Found entry \"%s\" (type: %d, PID: %RU32, session: %RU32)\n",
                            ut_user->ut_user, ut_user->ut_type, ut_user->ut_pid, ut_user->ut_session);
-#endif
+# endif
         if (cUsersInList > cListSize)
         {
             cListSize += 32;
@@ -589,16 +589,17 @@ static int vboxserviceVMInfoWriteUsers(void)
         }
     }
 
-#ifdef VBOX_WITH_DBUS
-# if defined(RT_OS_LINUX) /* Not yet for Solaris/FreeBSB. */
+# ifdef VBOX_WITH_DBUS
+#  if defined(RT_OS_LINUX) /* Not yet for Solaris/FreeBSB. */
     DBusError dbErr;
     DBusConnection *pConnection = NULL;
     int rc2 = RTDBusLoadLib();
+    bool fHaveLibDbus = false;
     if (RT_SUCCESS(rc2))
     {
         /* Handle desktop sessions using ConsoleKit. */
         VBoxServiceVerbose(4, "Checking ConsoleKit sessions ...\n");
-
+        fHaveLibDbus = true;
         dbus_error_init(&dbErr);
         pConnection = dbus_bus_get(DBUS_BUS_SYSTEM, &dbErr);
     }
@@ -734,9 +735,16 @@ static int vboxserviceVMInfoWriteUsers(void)
                                 dbus_message_unref(pReplyUnixUser);
                         }
                         else
-                            VBoxServiceError("ConsoleKit: unable to retrieve user for session '%s' (msg type=%d): %s",
-                                             *ppszCurSession, dbus_message_get_type(pMsgUnixUser),
-                                             dbus_error_is_set(&dbErr) ? dbErr.message : "No error information available");
+                        {
+                            static int s_iBitchedAboutConsoleKit = 0;
+                            if (s_iBitchedAboutConsoleKit < 1)
+                            {
+                                s_iBitchedAboutConsoleKit++;
+                                VBoxServiceError("ConsoleKit: unable to retrieve user for session '%s' (msg type=%d): %s\n",
+                                                 *ppszCurSession, dbus_message_get_type(pMsgUnixUser),
+                                                 dbus_error_is_set(&dbErr) ? dbErr.message : "No error information available");
+                            }
+                        }
 
                         if (pMsgUnixUser)
                             dbus_message_unref(pMsgUnixUser);
@@ -746,7 +754,7 @@ static int vboxserviceVMInfoWriteUsers(void)
                 }
                 else
                 {
-                    VBoxServiceError("ConsoleKit: unable to retrieve session parameters (msg type=%d): %s",
+                    VBoxServiceError("ConsoleKit: unable to retrieve session parameters (msg type=%d): %s\n",
                                      dbus_message_get_type(pMsgSessions),
                                      dbus_error_is_set(&dbErr) ? dbErr.message : "No error information available");
                 }
@@ -762,10 +770,13 @@ static int vboxserviceVMInfoWriteUsers(void)
         else
         {
             static int s_iBitchedAboutConsoleKit = 0;
-            if (s_iBitchedAboutConsoleKit++ < 3)
+            if (s_iBitchedAboutConsoleKit < 3)
+            {
+                s_iBitchedAboutConsoleKit++;
                 VBoxServiceError("Unable to invoke ConsoleKit (%d/3) -- maybe not installed / used? Error: %s\n",
                                  s_iBitchedAboutConsoleKit,
                                  dbus_error_is_set(&dbErr) ? dbErr.message : "No error information available");
+            }
         }
 
         if (pMsgSessions)
@@ -774,16 +785,19 @@ static int vboxserviceVMInfoWriteUsers(void)
     else
     {
         static int s_iBitchedAboutDBus = 0;
-        if (s_iBitchedAboutDBus++ < 3)
+        if (s_iBitchedAboutDBus < 3)
+        {
+            s_iBitchedAboutDBus++;
             VBoxServiceError("Unable to connect to system D-Bus (%d/3): %s\n", s_iBitchedAboutDBus,
-                             pConnection && dbus_error_is_set(&dbErr) ? dbErr.message : "D-Bus not installed");
+                             fHaveLibDbus && dbus_error_is_set(&dbErr) ? dbErr.message : "D-Bus not installed");
+        }
     }
 
-    if (   pConnection
+    if (   fHaveLibDbus
         && dbus_error_is_set(&dbErr))
         dbus_error_free(&dbErr);
-# endif /* RT_OS_LINUX */
-#endif /* VBOX_WITH_DBUS */
+#  endif /* RT_OS_LINUX */
+# endif /* VBOX_WITH_DBUS */
 
     /** @todo Fedora/others: Handle systemd-loginctl. */
 
@@ -821,7 +835,8 @@ static int vboxserviceVMInfoWriteUsers(void)
     RTMemFree(papszUsers);
 
     endutxent(); /* Close utmpx file. */
-#endif
+#endif /* !RT_OS_WINDOWS && !RT_OS_FREEBSD && !RT_OS_HAIKU && !RT_OS_OS2 */
+
     Assert(RT_FAILURE(rc) || cUsersInList == 0 || (pszUserList && *pszUserList));
 
     /* If the user enumeration above failed, reset the user count to 0 except
@@ -1351,8 +1366,11 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
                     else
                     {
                         static int s_iBitchedAboutLAClientInfo = 0;
-                        if (s_iBitchedAboutLAClientInfo++ < 10)
+                        if (s_iBitchedAboutLAClientInfo < 10)
+                        {
+                            s_iBitchedAboutLAClientInfo++;
                             VBoxServiceError("Error getting active location awareness client info, rc=%Rrc\n", rc2);
+                        }
                     }
                 }
                 else if (RT_FAILURE(rc2))
@@ -1373,8 +1391,11 @@ DECLCALLBACK(int) VBoxServiceVMInfoWorker(bool volatile *pfShutdown)
         {
             static int s_iBitchedAboutLAClient = 0;
             if (   (rc2 != VERR_NOT_FOUND) /* No location awareness installed, skip. */
-                && s_iBitchedAboutLAClient++ < 3)
+                && s_iBitchedAboutLAClient < 3)
+            {
+                s_iBitchedAboutLAClient++;
                 VBoxServiceError("VRDP: Querying connected location awareness client failed with rc=%Rrc\n", rc2);
+            }
         }
 
         VBoxServiceVerbose(3, "VRDP: Handling location awareness done\n");

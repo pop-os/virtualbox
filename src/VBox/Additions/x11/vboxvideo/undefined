@@ -1,3 +1,5 @@
+ChangeWindowProperty
+CheckExtension
 DRI2CloseScreen
 DRI2ScreenInit
 DRICloseScreen
@@ -13,11 +15,16 @@ ErrorF
 FatalError
 GlxSetVisualConfigs
 LoaderRefSymLists
+LookupWindow
 MakeAtom
 PixmapWidthPaddingInfo
+ProcVector
 RRChangeOutputProperty
+SecurityLookupWindow
+SwappedProcVector
 ShadowFBInit2
 VErrorF
+WindowTable
 XNFcalloc
 XNFstrdup
 Xalloc
@@ -173,6 +180,7 @@ xf86OutputUseScreenMonitor
 xf86PrintChipsets
 xf86PrintDepthBpp
 xf86PrintModes
+xf86RegisterRootWindowProperty
 xf86SaveScreen
 xf86ScreenToScrn
 xf86Screens

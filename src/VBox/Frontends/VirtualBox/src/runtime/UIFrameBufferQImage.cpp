@@ -141,7 +141,9 @@ void UIFrameBufferQImage::resizeEvent(UIResizeEvent *pEvent)
     }
 
     /* Remind if requested: */
-    if (bRemind && m_pMachineView->uisession()->isGuestAdditionsActive())
+    /* This check (supports graphics) is not quite right due to past mistakes
+     * in the Guest Additions protocol, but in practice it should be fine. */
+    if (bRemind && m_pMachineView->uisession()->isGuestSupportsGraphics())
         popupCenter().remindAboutWrongColorDepth(m_pMachineView->machineWindow(),
                                                       pEvent->bitsPerPixel(), 32);
     else

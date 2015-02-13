@@ -267,7 +267,7 @@ void UIMultiScreenLayout::sltScreenLayoutChanged(QAction *pAction)
     /* Check the memory requirements first: */
     bool fSuccess = true;
     CMachine machine = m_pMachineLogic->session().GetMachine();
-    if (m_pMachineLogic->uisession()->isGuestAdditionsActive())
+    if (m_pMachineLogic->uisession()->isGuestSupportsGraphics())
     {
         quint64 availBits = machine.GetVRAMSize() * _1M * 8;
         quint64 usedBits = memoryRequirements(tmpMap);

@@ -25,6 +25,10 @@
 #include <iprt/asm.h>
 #include <iprt/log.h>
 
+#ifndef VBOX_GUESTR3XF86MOD
+# include <string.h>
+#endif
+
 /**
  * Gets the count of virtual monitors attached to the guest via an HGSMI
  * command
@@ -273,4 +277,87 @@ RTDECL(void) VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
 
         VBoxHGSMIBufferFree(pCtx, p);
     }
+}
+
+
+/** Report the rectangle relative to which absolute pointer events should be
+ *  expressed.  This information remains valid until the next VBVA resize event
+ *  for any screen, at which time it is reset to the bounding rectangle of all
+ *  virtual screens. 
+ * @param  pCtx      The context containing the heap to use.
+ * @param  cOriginX  Upper left X co-ordinate relative to the first screen.
+ * @param  cOriginY  Upper left Y co-ordinate relative to the first screen.
+ * @param  cWidth    Rectangle width.
+ * @param  cHeight   Rectangle height.
+ * @returns  iprt status code.
+ * @returns  VERR_NO_MEMORY      HGSMI heap allocation failed.
+ */
+RTDECL(int)      VBoxHGSMIUpdateInputMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx, int32_t  cOriginX, int32_t  cOriginY,
+                                             uint32_t cWidth, uint32_t cHeight)
+{
+    int rc = VINF_SUCCESS;
+    VBVAREPORTINPUTMAPPING *p;
+    Log(("%s: cOriginX=%u, cOriginY=%u, cWidth=%u, cHeight=%u\n", __PRETTY_FUNCTION__, (unsigned)cOriginX, (unsigned)cOriginX,
+         (unsigned)cWidth, (unsigned)cHeight));
+
+    /* Allocate the IO buffer. */
+    p = (VBVAREPORTINPUTMAPPING *)VBoxHGSMIBufferAlloc(pCtx, sizeof(VBVAREPORTINPUTMAPPING), HGSMI_CH_VBVA,
+                                                       VBVA_REPORT_INPUT_MAPPING);
+    if (p)
+    {
+        /* Prepare data to be sent to the host. */
+        p->x  = cOriginX;
+        p->y  = cOriginY;
+        p->cx = cWidth;
+        p->cy = cHeight;
+        rc = VBoxHGSMIBufferSubmit(pCtx, p);
+        /* Free the IO buffer. */
+        VBoxHGSMIBufferFree(pCtx, p);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+    LogFunc(("rc = %d\n", rc));
+    return rc;
+}
+
+
+/**
+ * Get most recent video mode hints.
+ * @param  pCtx      the context containing the heap to use
+ * @param  cScreens  the number of screens to query hints for, starting at 0.
+ * @param  pHints    array of VBVAMODEHINT structures for receiving the hints.
+ * @returns  iprt status code
+ * @returns  VERR_NO_MEMORY      HGSMI heap allocation failed.
+ * @returns  VERR_NOT_SUPPORTED  Host does not support this command.
+ */
+RTDECL(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                  unsigned cScreens, VBVAMODEHINT *paHints)
+{
+    int rc;
+    AssertPtrReturn(paHints, VERR_INVALID_POINTER);
+    void *p = VBoxHGSMIBufferAlloc(pCtx,   sizeof(VBVAQUERYMODEHINTS)
+                                         + cScreens * sizeof(VBVAMODEHINT),
+                                   HGSMI_CH_VBVA, VBVA_QUERY_MODE_HINTS);
+    if (!p)
+    {
+        LogFunc(("HGSMIHeapAlloc failed\n"));
+        return VERR_NO_MEMORY;
+    }
+    else
+    {
+        VBVAQUERYMODEHINTS *pQuery   = (VBVAQUERYMODEHINTS *)p;
+
+        pQuery->cHintsQueried        = cScreens;
+        pQuery->cbHintStructureGuest = sizeof(VBVAMODEHINT);
+        pQuery->rc                   = VERR_NOT_SUPPORTED;
+
+        VBoxHGSMIBufferSubmit(pCtx, p);
+        rc = pQuery->rc;
+        if (RT_SUCCESS(rc))
+            memcpy(paHints, ((uint8_t *)p) + sizeof(VBVAQUERYMODEHINTS),
+                   cScreens * sizeof(VBVAMODEHINT));
+
+        VBoxHGSMIBufferFree(pCtx, p);
+    }
+    return rc;
 }

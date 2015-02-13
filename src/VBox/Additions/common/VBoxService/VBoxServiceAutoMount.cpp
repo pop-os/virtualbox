@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,24 +67,6 @@ RT_C_DECLS_END
 static RTSEMEVENTMULTI  g_AutoMountEvent = NIL_RTSEMEVENTMULTI;
 /** The Shared Folders service client ID. */
 static uint32_t         g_SharedFoldersSvcClientID = 0;
-
-/** @copydoc VBOXSERVICE::pfnPreInit */
-static DECLCALLBACK(int) VBoxServiceAutoMountPreInit(void)
-{
-    return VINF_SUCCESS;
-}
-
-
-/** @copydoc VBOXSERVICE::pfnOption */
-static DECLCALLBACK(int) VBoxServiceAutoMountOption(const char **ppszShort, int argc, char **argv, int *pi)
-{
-    NOREF(ppszShort);
-    NOREF(argc);
-    NOREF(argv);
-    NOREF(pi);
-
-    return -1;
-}
 
 
 /** @copydoc VBOXSERVICE::pfnInit */
@@ -618,8 +600,8 @@ VBOXSERVICE g_AutoMount =
     /* pszOptions. */
     NULL,
     /* methods */
-    VBoxServiceAutoMountPreInit,
-    VBoxServiceAutoMountOption,
+    VBoxServiceDefaultPreInit,
+    VBoxServiceDefaultOption,
     VBoxServiceAutoMountInit,
     VBoxServiceAutoMountWorker,
     VBoxServiceAutoMountStop,

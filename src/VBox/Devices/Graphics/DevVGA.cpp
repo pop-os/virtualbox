@@ -111,7 +111,7 @@
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pgm.h>
 #ifdef IN_RING3
-# include <iprt/alloc.h>
+# include <iprt/mem.h>
 # include <iprt/ctype.h>
 #endif /* IN_RING3 */
 #include <iprt/assert.h>
@@ -2031,7 +2031,7 @@ static int vga_resize_graphic(PVGASTATE pThis, int cx, int cy,
     AssertReturn(pThis->line_offset, VERR_INTERNAL_ERROR);
 
 #if 0 //def VBOX_WITH_VDMA
-    /* @todo: we get a second resize here when VBVA is on, while we actually should not */
+    /** @todo: we get a second resize here when VBVA is on, while we actually should not */
     /* do not do pfnResize in case VBVA is on since all mode changes are performed over VBVA
      * we are checking for VDMA state here to ensure this code works only for WDDM driver,
      * although we should avoid calling pfnResize for XPDM as well, since pfnResize is actually an extra resize
@@ -2094,7 +2094,7 @@ int vgaR3UpdateDisplay(VGAState *s, unsigned xStart, unsigned yStart, unsigned w
         s->pDrv->pfnUpdateRect(s->pDrv, xStart, yStart, width, height);
         return VINF_SUCCESS;
     }
-    /* @todo might crash if a blit follows a resolution change very quickly (seen this many times!) */
+    /** @todo might crash if a blit follows a resolution change very quickly (seen this many times!) */
 
     if (    s->svga.uWidth  == VMSVGA_VAL_UNINITIALIZED
         ||  s->svga.uHeight == VMSVGA_VAL_UNINITIALIZED
@@ -5767,7 +5767,8 @@ static DECLCALLBACK(int) vgaR3Destruct(PPDMDEVINS pDevIns)
     LogFlow(("vgaR3Destruct:\n"));
 
 # ifdef VBOX_WITH_VDMA
-    vboxVDMADestruct(pThis->pVdma);
+    if (pThis->pVdma)
+        vboxVDMADestruct(pThis->pVdma);
 # endif
 
 #ifdef VBOX_WITH_VMSVGA
@@ -5998,6 +5999,11 @@ static DECLCALLBACK(int)   vgaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 #ifdef VBOX_WITH_VMSVGA
     pThis->IPort.pfnSetViewPort         = vmsvgaPortSetViewPort;
 #endif
+    pThis->IPort.pfnSendModeHint        = vbvaPortSendModeHint;
+    pThis->IPort.pfnReportHostCursorCapabilities
+                                        = vbvaPortReportHostCursorCapabilities;
+    pThis->IPort.pfnReportHostCursorPosition
+                                        = vbvaPortReportHostCursorPosition;
 
 #if defined(VBOX_WITH_HGSMI)
 # if defined(VBOX_WITH_VIDEOHWACCEL)

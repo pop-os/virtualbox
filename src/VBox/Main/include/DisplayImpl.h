@@ -126,6 +126,8 @@ public:
                                     ULONG *pcy, ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin) = 0;
     virtual void getFramebufferDimensions(int32_t *px1, int32_t *py1,
                                           int32_t *px2, int32_t *py2) = 0;
+    virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved) = 0;
+    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y) = 0;
 };
 
 class VMMDev;
@@ -163,6 +165,9 @@ public:
     int  handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags);
     void handleDisplayUpdateLegacy(int x, int y, int cx, int cy);
     void handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int h);
+    void i_handleUpdateVMMDevSupportsGraphics(bool fSupportsGraphics);
+    void i_handleUpdateGuestVBVACapabilities(uint32_t fNewCapabilities);
+    void i_handleUpdateVBVAInputMapping(int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     int handleVHWACommandProcess(PVBOXVHWACMD pCommand);
 #endif
@@ -227,6 +232,8 @@ public:
     STDMETHOD(SetSeamlessMode)(BOOL enabled);
 
     STDMETHOD(CompleteVHWACommand)(BYTE *pCommand);
+    virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved);
+    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y);
 
     STDMETHOD(ViewportChanged)(ULONG aScreenId, ULONG x, ULONG y, ULONG width, ULONG height);
 
@@ -285,6 +292,10 @@ private:
     static DECLCALLBACK(void)  displayVBVAUpdateEnd(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, int32_t x, int32_t y, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(int)   displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface, const PVBVAINFOVIEW pView, const PVBVAINFOSCREEN pScreen, void *pvVRAM);
     static DECLCALLBACK(int)   displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha, uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, const void *pvShape);
+    static DECLCALLBACK(void)  i_displayVBVAGuestCapabilityUpdate(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fCapabilities);
+
+    static DECLCALLBACK(void)  i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin,
+                                                               uint32_t cx, uint32_t cy);
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -314,7 +325,20 @@ private:
     bool                    mfVMMDevInited;
 
     unsigned mcMonitors;
+    /** Input mapping rectangle top left X relative to the first screen. */
+    int32_t     xInputMappingOrigin;
+    /** Input mapping rectangle top left Y relative to the first screen. */
+    int32_t     yInputMappingOrigin;
+    uint32_t    cxInputMapping;  /**< Input mapping rectangle width. */
+    uint32_t    cyInputMapping;  /**< Input mapping rectangle height. */
     DISPLAYFBINFO maFramebuffers[SchemaDefs::MaxGuestMonitors];
+    /** Does the VMM device have the "supports graphics" capability set?
+     *  Does not go into the saved state as it is refreshed on restore. */
+    bool        mfVMMDevSupportsGraphics;
+    /** Mirror of the current guest VBVA capabilities. */
+    uint32_t    mfGuestVBVACapabilities;
+    /** Mirror of the current host cursor capabilities. */
+    uint32_t    mfHostCursorCapabilities;
 
     /* arguments of the last handleDisplayResize() call */
     void       *mLastAddress;
@@ -334,6 +358,10 @@ private:
     VBVAMEMORY *mpPendingVbvaMemory;
     bool        mfPendingVideoAccelEnable;
     bool        mfMachineRunning;
+
+    /** Accelerate3DEnabled = true && GraphicsControllerType == VBoxVGA. */
+    bool        mfIsCr3DEnabled;
+
 #ifdef VBOX_WITH_CROGL
     bool        mfCrOglDataHidden;
 #endif
@@ -397,6 +425,8 @@ private:
     /* Functions run under VBVA lock. */
     int  videoAccelEnable(bool fEnable, VBVAMEMORY *pVbvaMemory);
     void videoAccelFlush(void);
+
+    void i_updateGuestGraphicsFacility(void);
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
     int crOglWindowsShow(bool fShow);

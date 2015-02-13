@@ -1796,6 +1796,7 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
      */
     NTSTATUS        rcNtResolve     = STATUS_SUCCESS;
     bool            fSkipValidation = false;
+    bool            fCheckIfLoaded  = false;
     WCHAR           wszPath[260];
     static UNICODE_STRING const s_DefaultSuffix = RTNT_CONSTANT_UNISTR(L".dll");
     UNICODE_STRING  UniStrStatic   = { 0, (USHORT)sizeof(wszPath) - sizeof(WCHAR), wszPath };
@@ -1932,6 +1933,8 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
             /*
              * Search for the DLL.  Only System32 is allowed as the target of
              * a search on the API level, all VBox calls will have full paths.
+             * If the DLL is not in System32, we will resort to check if it's
+             * refering to an already loaded DLL (fCheckIfLoaded).
              */
             AssertCompile(sizeof(g_System32WinPath.awcBuffer) <= sizeof(wszPath));
             cwc = g_System32WinPath.UniStr.Length / sizeof(RTUTF16); Assert(cwc > 2);
@@ -1954,6 +1957,7 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
                 memcpy(&wszPath[cwc], L".dll", 5 * sizeof(WCHAR));
                 cwc += 4;
             }
+            fCheckIfLoaded = true;
         }
 
         ResolvedName.Buffer = wszPath;
@@ -2030,9 +2034,27 @@ supR3HardenedMonitor_LdrLoadDll(PWSTR pwszSearchPath, PULONG pfFlags, PUNICODE_S
         else
         {
             DWORD dwErr = RtlGetLastWin32Error();
-            SUP_DPRINTF(("supR3HardenedMonitor_LdrLoadDll: error opening '%ls': %u (NtPath=%.*ls; Input=%.*ls)\n",
+
+            /*
+             * Deal with special case where the caller (first case was MS LifeCam)
+             * is using LoadLibrary instead of GetModuleHandle to find a loaded DLL.
+             */
+            NTSTATUS rcNtGetDll = STATUS_SUCCESS;
+            if (   fCheckIfLoaded
+                 && (   rcNt == STATUS_OBJECT_NAME_NOT_FOUND
+                     || rcNt == STATUS_OBJECT_PATH_NOT_FOUND))
+            {
+                rcNtGetDll = LdrGetDllHandle(NULL /*DllPath*/, NULL /*pfFlags*/, pOrgName, phMod);
+                if (NT_SUCCESS(rcNtGetDll))
+                {
+                    RtlRestoreLastWin32Error(dwSavedLastError);
+                    return rcNtGetDll;
+                }
+            }
+
+            SUP_DPRINTF(("supR3HardenedMonitor_LdrLoadDll: error opening '%ls': %u (NtPath=%.*ls; Input=%.*ls; rcNtGetDll=%#x\n",
                          wszPath, dwErr, NtPathUniStr.Length / sizeof(RTUTF16), NtPathUniStr.Buffer,
-                         pOrgName->Length / sizeof(WCHAR), pOrgName->Buffer));
+                         pOrgName->Length / sizeof(WCHAR), pOrgName->Buffer, rcNtGetDll));
         }
         RTNtPathFree(&NtPathUniStr, &hRootDir);
     }
@@ -4085,11 +4107,17 @@ static void supR3HardenedWinDoReSpawn(int iWhich)
     /*
      * Apply anti debugger notification trick to the thread.  (Also done in
      * supR3HardenedWinInit.)  This may fail with STATUS_ACCESS_DENIED and
-     * maybe other errors.
+     * maybe other errors.  (Unfortunately, recent (SEP 12.1) of symantec's
+     * sysplant.sys driver will cause process deadlocks and a shutdown/reboot
+     * denial of service problem if we hide the initial thread, so we postpone
+     * this action if we've detected SEP.)
      */
-    rcNt = NtSetInformationThread(This.hThread, ThreadHideFromDebugger, NULL, 0);
-    if (!NT_SUCCESS(rcNt))
-        SUP_DPRINTF(("supR3HardenedWinReSpawn: NtSetInformationThread/ThreadHideFromDebugger failed: %#x (harmless)\n", rcNt));
+    if (!(g_fSupAdversaries & (SUPHARDNT_ADVERSARY_SYMANTEC_SYSPLANT | SUPHARDNT_ADVERSARY_SYMANTEC_N360)))
+    {
+        rcNt = NtSetInformationThread(This.hThread, ThreadHideFromDebugger, NULL, 0);
+        if (!NT_SUCCESS(rcNt))
+            SUP_DPRINTF(("supR3HardenedWinReSpawn: NtSetInformationThread/ThreadHideFromDebugger failed: %#x (harmless)\n", rcNt));
+    }
 #endif
 
     /*
@@ -5078,6 +5106,8 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         const char *pszDriver;
     } s_aDrivers[] =
     {
+        { SUPHARDNT_ADVERSARY_SYMANTEC_SYSPLANT,    "SysPlant" },
+
         { SUPHARDNT_ADVERSARY_SYMANTEC_N360,        "SRTSPX" },
         { SUPHARDNT_ADVERSARY_SYMANTEC_N360,        "SymDS" },
         { SUPHARDNT_ADVERSARY_SYMANTEC_N360,        "SymEvent" },
@@ -5164,9 +5194,9 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
         PCRTUTF16   pwszFile;
     } s_aFiles[] =
     {
-        { SUPHARDNT_ADVERSARY_SYMANTEC_N360, L"\\SystemRoot\\System32\\drivers\\SysPlant.sys" },
-        { SUPHARDNT_ADVERSARY_SYMANTEC_N360, L"\\SystemRoot\\System32\\sysfer.dll" },
-        { SUPHARDNT_ADVERSARY_SYMANTEC_N360, L"\\SystemRoot\\System32\\sysferThunk.dll" },
+        { SUPHARDNT_ADVERSARY_SYMANTEC_SYSPLANT, L"\\SystemRoot\\System32\\drivers\\SysPlant.sys" },
+        { SUPHARDNT_ADVERSARY_SYMANTEC_SYSPLANT, L"\\SystemRoot\\System32\\sysfer.dll" },
+        { SUPHARDNT_ADVERSARY_SYMANTEC_SYSPLANT, L"\\SystemRoot\\System32\\sysferThunk.dll" },
 
         { SUPHARDNT_ADVERSARY_SYMANTEC_N360, L"\\SystemRoot\\System32\\drivers\\N360x64\\1505000.013\\ccsetx64.sys" },
         { SUPHARDNT_ADVERSARY_SYMANTEC_N360, L"\\SystemRoot\\System32\\drivers\\N360x64\\1505000.013\\ironx64.sys" },

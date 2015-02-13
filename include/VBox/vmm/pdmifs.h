@@ -630,12 +630,53 @@ typedef struct PDMIDISPLAYPORT
      */
     DECLR3CALLBACKMEMBER(void, pfnSetViewPort,(PPDMIDISPLAYPORT pInterface, uint32_t uScreenId, uint32_t x, uint32_t y, uint32_t cx, uint32_t cy));
 #endif
+
+    /**
+     * Send a video mode hint to the VGA device.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   cx                  The X resolution.
+     * @param   cy                  The Y resolution.
+     * @param   cBPP                The bit count.
+     * @param   iDisplay            The screen number.
+     * @param   dx                  X offset into the virtual framebuffer or ~0.
+     * @param   dy                  Y offset into the virtual framebuffer or ~0.
+     * @param   fEnabled            Is this screen currently enabled?
+     * @param   fNotifyGuest        Should the device send the guest an IRQ?
+     *                              Set for the last hint of a series.
+     * @thread  Schedules on the emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnSendModeHint,
+                         (PPDMIDISPLAYPORT pInterface, uint32_t cx, uint32_t cy,
+                          uint32_t cBPP, uint32_t iDisplay, uint32_t dx,
+                          uint32_t dy, uint32_t fEnabled, uint32_t fNotifyGuest));
+
+    /**
+     * Send the guest a notification about host cursor capabilities changes.
+     *
+     * @param   pInterface            Pointer to this interface.
+     * @param   fCapabilitiesAdded    New supported capabilities.
+     * @param   fCapabilitiesRemoved  No longer supported capabilities.
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorCapabilities, (PPDMIDISPLAYPORT pInterface, uint32_t fCapabilitiesAdded,
+                                                                 uint32_t fCapabilitiesRemoved));
+
+    /**
+     * Tell the graphics device about the host cursor position.
+     *
+     * @param   pInterface  Pointer to this interface.
+     * @param   x           X offset into the cursor range.
+     * @param   y           Y offset into the cursor range.
+     * @thread  Any.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnReportHostCursorPosition, (PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y));
 } PDMIDISPLAYPORT;
 /** PDMIDISPLAYPORT interface ID. */
 #ifdef VBOX_WITH_VMSVGA
-#define PDMIDISPLAYPORT_IID                     "f7ed5b9a-3940-4862-9310-1de7e3d118a4"
+#define PDMIDISPLAYPORT_IID                     "e8da6d7e-8490-11e4-91d8-ab609a010f13"
 #else
-#define PDMIDISPLAYPORT_IID                     "22d3d93d-3407-487a-8308-85367eae00bb"
+#define PDMIDISPLAYPORT_IID                     "db067c60-8490-11e4-8424-032afeb83818"
 #endif
 
 
@@ -798,7 +839,7 @@ typedef struct PDMIDISPLAYCONNECTOR
      * @param   uScreenId           The screen updates are for.
      * @param   fRenderThreadMode   if true - the graphics device has a separate thread that does all rendering.
      *                              This means that:
-     *                              1. all pfnVBVAXxx callbacks (including the current pfnVBVAEnable call), except displayVBVAMousePointerShape
+     *                              1. most pfnVBVAXxx callbacks (see the individual documentation for each one)
      *                                 will be called in the context of the render thread rather than the emulation thread
      *                              2. PDMIDISPLAYCONNECTOR implementor (i.e. DisplayImpl) must NOT notify crogl backend
      *                                 about vbva-originated events (e.g. resize), because crogl is working in CrCmd mode,
@@ -894,6 +935,15 @@ typedef struct PDMIDISPLAYCONNECTOR
                                                         uint32_t cx, uint32_t cy,
                                                         const void *pvShape));
 
+    /**
+     * The guest capabilities were updated.
+     *
+     * @param   pInterface          Pointer to this interface.
+     * @param   fCapabilities       The new capability flag state.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAGuestCapabilityUpdate,(PPDMIDISPLAYCONNECTOR pInterface, uint32_t fCapabilities));
+
     /** Read-only attributes.
      * For preformance reasons some readonly attributes are kept in the interface.
      * We trust the interface users to respect the readonlyness of these.
@@ -910,9 +960,21 @@ typedef struct PDMIDISPLAYCONNECTOR
     /** The display height. */
     uint32_t        cy;
     /** @} */
+
+    /**
+     * The guest display input mapping rectangle was updated.
+     *
+     * @param   pInterface  Pointer to this interface.
+     * @param   xOrigin     Upper left X co-ordinate relative to the first screen.
+     * @param   yOrigin     Upper left Y co-ordinate relative to the first screen.
+     * @param   cx          Rectangle width.
+     * @param   cy          Rectangle height.
+     * @thread  The emulation thread.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnVBVAInputMappingUpdate,(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin, uint32_t cx, uint32_t cy));
 } PDMIDISPLAYCONNECTOR;
 /** PDMIDISPLAYCONNECTOR interface ID. */
-#define PDMIDISPLAYCONNECTOR_IID                "906d0c25-091f-497e-908c-1d70cb7e6114"
+#define PDMIDISPLAYCONNECTOR_IID                "e883a720-85fb-11e4-a307-0b06689c9661"
 
 
 /** Pointer to a block port interface. */
@@ -1307,6 +1369,26 @@ typedef struct PDMISECKEY
 /** PDMISECKEY interface ID. */
 #define PDMISECKEY_IID                           "a7336c4a-2ca0-489d-ad2d-f740f215a1e6"
 
+/** Pointer to a secret key helper interface. */
+typedef struct PDMISECKEYHLP *PPDMISECKEYHLP;
+
+/**
+ * Secret key helper interface for non critical functionality.
+ */
+typedef struct PDMISECKEYHLP
+{
+    /**
+     * Notifies the interface provider that a key couldn't be retrieved from the key store.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to this interface.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyMissingNotify, (PPDMISECKEYHLP pInterface));
+
+} PDMISECKEYHLP;
+/** PDMISECKEY interface ID. */
+#define PDMISECKEYHLP_IID                        "7be96168-4156-40ac-86d2-3073bf8b318e"
+
 /**
  * Media geometry structure.
  */
@@ -1426,9 +1508,11 @@ typedef struct PDMIMEDIA
      * @param   pIfSecKey       The secret key interface to use.
      *                          Use NULL to clear the currently set interface and clear all secret
      *                          keys from the user.
+     * @param   pIfSecKeyHlp    The secret key helper interface to use.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey));
+    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey,
+                                              PPDMISECKEYHLP pIfSecKeyHlp));
 
     /**
      * Get the media size in bytes.
@@ -1556,7 +1640,7 @@ typedef struct PDMIMEDIA
 
 } PDMIMEDIA;
 /** PDMIMEDIA interface ID. */
-#define PDMIMEDIA_IID                           "b4acf420-c9e3-4333-9ed5-e86f6b2d5f1a"
+#define PDMIMEDIA_IID                           "d8997ad8-4dda-4352-aa99-99bf87d54102"
 
 
 /** Pointer to a block BIOS interface. */
@@ -2192,9 +2276,18 @@ typedef struct PDMIACPIPORT
      * @param   pfLocked        Is set to true if the CPU is still locked by the guest, false otherwise.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetCpuStatus,(PPDMIACPIPORT pInterface, unsigned uCpu, bool *pfLocked));
+
+    /**
+     * Send an ACPI monitor hot-plug event.
+     *
+     * @returns VBox status code
+     * @param   pInterface      Pointer to the interface structure containing
+     *                          the called function pointer.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMonitorHotPlugEvent,(PPDMIACPIPORT pInterface));
 } PDMIACPIPORT;
 /** PDMIACPIPORT interface ID. */
-#define PDMIACPIPORT_IID                        "30d3dc4c-6a73-40c8-80e9-34309deacbb3"
+#define PDMIACPIPORT_IID                        "d64233e3-7bb0-4ef1-a313-2bcfafbe6260"
 
 
 /** Pointer to an ACPI connector interface. */

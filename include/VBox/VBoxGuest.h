@@ -78,6 +78,10 @@
 /** Fictive start address of the hypervisor physical memory for MmMapIoSpace. */
 #define VBOXGUEST_HYPERVISOR_PHYSICAL_START     UINT32_C(0xf8000000)
 
+#ifdef RT_OS_DARWIN
+/** Cookie used to fend off some unwanted clients to the IOService. */
+#define VBOXGUEST_DARWIN_IOSERVICE_COOKIE   0x56426F78 /* 'VBox' */
+#endif
 
 #if !defined(IN_RC) && !defined(IN_RING0_AGNOSTIC) && !defined(IPRT_NO_CRT)
 /** @name VBoxGuest IOCTL codes and structures.
@@ -377,7 +381,26 @@ AssertCompileSize(VBoxGuestWriteCoreDump, 4);
 #endif
 
 /** IOCTL to for setting the mouse driver callback. (kernel only) */
+/** @note The callback will be called in interrupt context with the VBoxGuest
+ * device event spinlock held. */
 #define VBOXGUEST_IOCTL_SET_MOUSE_NOTIFY_CALLBACK   VBOXGUEST_IOCTL_CODE(31, sizeof(VBoxGuestMouseSetNotifyCallback))
+
+typedef DECLCALLBACK(void) FNVBOXGUESTMOUSENOTIFY(void *pfnUser);
+typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY;
+
+/** Input buffer for VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK. */
+typedef struct VBoxGuestMouseSetNotifyCallback
+{
+    /**
+     * Mouse notification callback.
+     *
+     * @param   pvUser      The callback argument.
+     */
+    PFNVBOXGUESTMOUSENOTIFY      pfnNotify;
+    /** The callback argument*/
+    void                       *pvUser;
+} VBoxGuestMouseSetNotifyCallback;
+
 
 typedef enum VBOXGUESTCAPSACQUIRE_FLAGS
 {
@@ -419,23 +442,17 @@ typedef struct VBoxGuestCapsAquire
  **/
 #define VBOXGUEST_IOCTL_GUEST_CAPS_ACQUIRE          VBOXGUEST_IOCTL_CODE(32, sizeof(VBoxGuestCapsAquire))
 
+/** IOCTL to VBoxGuest to set guest capabilities. */
+#define VBOXGUEST_IOCTL_SET_GUEST_CAPABILITIES      VBOXGUEST_IOCTL_CODE_(33, sizeof(VBoxGuestSetCapabilitiesInfo))
 
-
-typedef DECLCALLBACK(void) FNVBOXGUESTMOUSENOTIFY(void *pfnUser);
-typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY;
-
-/** Input buffer for VBOXGUEST_IOCTL_INTERNAL_SET_MOUSE_NOTIFY_CALLBACK. */
-typedef struct VBoxGuestMouseSetNotifyCallback
+/** Input and output buffer layout of the VBOXGUEST_IOCTL_SET_GUEST_CAPABILITIES
+ *  IOCtl. */
+typedef struct VBoxGuestSetCapabilitiesInfo
 {
-    /**
-     * Mouse notification callback.
-     *
-     * @param   pvUser      The callback argument.
-     */
-    PFNVBOXGUESTMOUSENOTIFY      pfnNotify;
-    /** The callback argument*/
-    void                       *pvUser;
-} VBoxGuestMouseSetNotifyCallback;
+    uint32_t u32OrMask;
+    uint32_t u32NotMask;
+} VBoxGuestSetCapabilitiesInfo;
+AssertCompileSize(VBoxGuestSetCapabilitiesInfo, 8);
 
 
 #ifdef RT_OS_OS2

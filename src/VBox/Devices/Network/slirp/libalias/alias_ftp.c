@@ -147,7 +147,7 @@ struct proto_handler handlers[] = {
     },
     { EOH }
 };
-#else /* !VBOX */
+#else  /* VBOX */
 #define handlers pData->ftp_module
 #endif /* VBOX */
 
@@ -216,7 +216,7 @@ static
 moduledata_t alias_mod = {
        "alias_ftp", mod_handler, NULL
 };
-#endif /*!VBOX*/
+#endif /* !VBOX */
 
 #ifdef  _KERNEL
 DECLARE_MODULE(alias_ftp, alias_mod, SI_SUB_DRIVERS, SI_ORDER_SECOND);
@@ -541,8 +541,11 @@ ParseFtp227Reply(struct libalias *la, char *sptr, int dlen)
     }
 
     if (state == 13) {
+        if (addr != INADDR_LOOPBACK)
+            la->true_addr.s_addr = htonl(addr);
+        else
+            la->true_addr.s_addr = la->pData->alias_addr.s_addr;
         la->true_port = port;
-        la->true_addr.s_addr = htonl(addr);
         return (1);
     } else
         return (0);

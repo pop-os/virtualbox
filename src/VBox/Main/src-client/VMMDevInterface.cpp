@@ -312,6 +312,15 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
     pGuest->setSupportedFeatures(newCapabilities);
 
     /*
+     * Tell the Display, so that it can update the "supports graphics"
+     * capability if the graphics card has not asserted it.
+     */
+    Display* pDisplay = pConsole->getDisplay();
+    AssertPtrReturnVoid(pDisplay);
+    pDisplay->i_handleUpdateVMMDevSupportsGraphics(newCapabilities
+                                             & VMMDEV_GUEST_SUPPORTS_GRAPHICS);
+
+    /*
      * Tell the console interface about the event
      * so that it can notify its consumers.
      */

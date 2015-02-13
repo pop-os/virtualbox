@@ -5710,19 +5710,22 @@ HRESULT Machine::deleteTaskWorker(DeleteTask &task)
                 if (FAILED(rc)) throw rc;
                 LogFunc(("Deleting file %s\n", strLocation.c_str()));
             }
-            ComPtr<IProgress> pProgress2;
-            rc = pMedium->DeleteStorage(pProgress2.asOutParam());
-            if (FAILED(rc)) throw rc;
-            rc = task.pProgress->WaitForAsyncProgressCompletion(pProgress2);
-            if (FAILED(rc)) throw rc;
-            /* Check the result of the asynchronous process. */
-            LONG iRc;
-            rc = pProgress2->COMGETTER(ResultCode)(&iRc);
-            if (FAILED(rc)) throw rc;
-            /* If the thread of the progress object has an error, then
-             * retrieve the error info from there, or it'll be lost. */
-            if (FAILED(iRc))
-                throw setError(ProgressErrorInfo(pProgress2));
+            if (pMedium->isMediumFormatFile())
+            {
+                ComPtr<IProgress> pProgress2;
+                rc = pMedium->DeleteStorage(pProgress2.asOutParam());
+                if (FAILED(rc)) throw rc;
+                rc = task.pProgress->WaitForAsyncProgressCompletion(pProgress2);
+                if (FAILED(rc)) throw rc;
+                /* Check the result of the asynchronous process. */
+                LONG iRc;
+                rc = pProgress2->COMGETTER(ResultCode)(&iRc);
+                if (FAILED(rc)) throw rc;
+                /* If the thread of the progress object has an error, then
+                 * retrieve the error info from there, or it'll be lost. */
+                if (FAILED(iRc))
+                    throw setError(ProgressErrorInfo(pProgress2));
+            }
 
             /* Close the medium, deliberately without checking the return
              * code, and without leaving any trace in the error info, as
@@ -11785,6 +11788,9 @@ HRESULT Machine::detachAllMedia(AutoWriteLock &writeLock,
             {
                 llMedia.push_back(pMedium);
                 ComObjPtr<Medium> pParent = pMedium->getParent();
+                /* Not allowed to keep this lock as below we need the parent
+                 * medium lock, and the lock order is parent to child. */
+                lock.release();
                 /*
                  * Search for medias which are not attached to any machine, but
                  * in the chain to an attached disk. Mediums are only consided
@@ -11882,9 +11888,6 @@ void Machine::commitMedia(bool aOnline /*= false*/)
                  && pAttach->getType() == DeviceType_HardDisk
                )
             {
-                ComObjPtr<Medium> parent = pMedium->getParent();
-                AutoWriteLock parentLock(parent COMMA_LOCKVAL_SRC_POS);
-
                 /* update the appropriate lock list */
                 MediumLockList *pMediumLockList;
                 rc = mData->mSession.mLockedMedia.Get(pAttach, pMediumLockList);
@@ -11898,7 +11901,7 @@ void Machine::commitMedia(bool aOnline /*= false*/)
                         AssertComRC(rc);
                         fMediaNeedsLocking = true;
                     }
-                    rc = pMediumLockList->Update(parent, false);
+                    rc = pMediumLockList->Update(pMedium->getParent(), false);
                     AssertComRC(rc);
                     rc = pMediumLockList->Append(pMedium, true);
                     AssertComRC(rc);

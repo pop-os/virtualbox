@@ -301,7 +301,8 @@ private:
 
     static DECLCALLBACK(int) vdTcpSocketCreate(uint32_t fFlags, PVDSOCKET pSock);
     static DECLCALLBACK(int) vdTcpSocketDestroy(VDSOCKET Sock);
-    static DECLCALLBACK(int) vdTcpClientConnect(VDSOCKET Sock, const char *pszAddress, uint32_t uPort);
+    static DECLCALLBACK(int) vdTcpClientConnect(VDSOCKET Sock, const char *pszAddress, uint32_t uPort,
+                                                RTMSINTERVAL cMillies);
     static DECLCALLBACK(int) vdTcpClientClose(VDSOCKET Sock);
     static DECLCALLBACK(bool) vdTcpIsClientConnected(VDSOCKET Sock);
     static DECLCALLBACK(int) vdTcpSelectOne(VDSOCKET Sock, RTMSINTERVAL cMillies);

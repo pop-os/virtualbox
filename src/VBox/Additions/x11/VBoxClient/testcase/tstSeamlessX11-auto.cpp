@@ -296,19 +296,22 @@ int XFlush(Display *display)
     AssertFailedReturn(0);
 }
 
-/** Dummy observer class */
-class testObserver: public VBoxGuestSeamlessObserver
+/** Global "received a notification" flag. */
+static bool g_fNotified = false;
+
+/** Dummy host call-back. */
+static void sendRegionUpdate(RTRECT *pRects, size_t cRects)
 {
-    bool mfNotified;
-public:
-    testObserver() : mfNotified(false) {}
-    virtual void notify(void)
-    {
-        mfNotified = true;
-    }
-    virtual ~testObserver() {}
-    bool isNotified(void) { return mfNotified; }
-};
+    g_fNotified = true;
+}
+
+static bool gotNotification(void)
+{
+    if (!g_fNotified)
+        return false;
+    g_fNotified = false;
+    return true;
+}
 
 /*****************************
 * The actual tests to be run *
@@ -371,6 +374,8 @@ struct SMLSFIXTURE
     unsigned cReportedRects;
     /** The onscreen positions of those windows. */
     RTRECT *paReportedRects;
+    /** Do we expect notification after the event? */
+    bool fExpectNotification;
 };
 
 /*** Test fixture to test the code against X11 configure (move) events ***/
@@ -418,7 +423,8 @@ static SMLSFIXTURE g_testMove =
     ConfigureNotify,
     20,
     RT_ELEMENTS(g_aRects1),
-    g_aRects1
+    g_aRects1,
+    true
 };
 
 /*** Test fixture to test the code against X11 configure (resize) events ***/
@@ -453,7 +459,8 @@ static SMLSFIXTURE g_testResize =
     ConfigureNotify,
     20,
     RT_ELEMENTS(g_aRects1),
-    g_aRects1
+    g_aRects1,
+    true
 };
 
 /*** Test fixture to test the code against X11 map events ***/
@@ -483,7 +490,8 @@ static SMLSFIXTURE g_testMap =
     MapNotify,
     20,
     RT_ELEMENTS(g_aRects1),
-    g_aRects1
+    g_aRects1,
+    true
 };
 
 /*** Test fixtures to test the code against X11 unmap events ***/
@@ -513,7 +521,8 @@ static SMLSFIXTURE g_testUnmap =
     UnmapNotify,
     20,
     0,
-    NULL
+    NULL,
+    true
 };
 
 /*** A window we are not monitoring has been unmapped.  Nothing should
@@ -544,7 +553,8 @@ static SMLSFIXTURE g_testUnmapOther =
     UnmapNotify,
     21,
     RT_ELEMENTS(g_aRects2),
-    g_aRects2
+    g_aRects2,
+    false
 };
 
 /*** Test fixture to test the code against X11 shape events ***/
@@ -573,7 +583,8 @@ static SMLSFIXTURE g_testShape =
     VBoxShapeNotify,
     20,
     RT_ELEMENTS(g_aRects1),
-    g_aRects1
+    g_aRects1,
+    true
 };
 
 /*** And the test code proper ***/
@@ -597,11 +608,10 @@ static void smlsPrintDiffRects(RTRECT *pExp, RTRECT *pGot)
 /** Run through a test fixture */
 static unsigned smlsDoFixture(SMLSFIXTURE *pFixture, const char *pszDesc)
 {
-    VBoxGuestSeamlessX11 subject;
-    testObserver observer;
+    SeamlessX11 subject;
     unsigned cErrs = 0;
 
-    subject.init(&observer);
+    subject.init(sendRegionUpdate);
     smlsSetWindowAttributes(pFixture->paAttribsBefore,
                             pFixture->pahWindowsBefore,
                             pFixture->cWindowsBefore,
@@ -618,22 +628,22 @@ static unsigned smlsDoFixture(SMLSFIXTURE *pFixture, const char *pszDesc)
                            pFixture->cShapeRectsAfter,
                            pFixture->paShapeRectsAfter);
     smlsSetNextEvent(pFixture->x11EventType, pFixture->hEventWindow);
-    if (observer.isNotified())  /* Initial window tree rebuild */
+    if (gotNotification())  /* Initial window tree rebuild */
     {
         RTPrintf("%s: fixture: %s.  Notification was set before the first event!!!\n",
                  g_pszTestName, pszDesc);
         ++cErrs;
     }
-    subject.nextEvent();
-    if (!observer.isNotified())
+    subject.nextConfigurationEvent();
+    if (!gotNotification())
     {
         RTPrintf("%s: fixture: %s.  No notification was sent for the initial window tree rebuild.\n",
                  g_pszTestName, pszDesc);
         ++cErrs;
     }
     smlsSetNextEvent(0, 0);
-    subject.nextEvent();
-    if (!observer.isNotified())
+    subject.nextConfigurationEvent();
+    if (pFixture->fExpectNotification && !gotNotification())
     {
         RTPrintf("%s: fixture: %s.  No notification was sent after the event.\n",
                  g_pszTestName, pszDesc);

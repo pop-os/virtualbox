@@ -1,4 +1,4 @@
-/* $Revision: 96490 $ */
+/* $Revision: 98021 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
@@ -210,7 +210,7 @@ typedef SUPREQHDR *PSUPREQHDR;
  * @todo Pending work on next major version change:
  *          - Remove RTSpinlockReleaseNoInts.
  */
-#define SUPDRV_IOC_VERSION                              0x001a0008
+#define SUPDRV_IOC_VERSION                              0x001a0009
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -472,6 +472,17 @@ typedef struct SUPLDRFREE
         } In;
     } u;
 } SUPLDRFREE, *PSUPLDRFREE;
+/** @} */
+
+
+/** @name SUP_IOCTL_LDR_LOCK_DOWN
+ * Lock down the image loader interface.
+ * @{
+ */
+#define SUP_IOCTL_LDR_LOCK_DOWN                         SUP_CTL_CODE_SIZE(38, SUP_IOCTL_LDR_LOCK_DOWN_SIZE)
+#define SUP_IOCTL_LDR_LOCK_DOWN_SIZE                    sizeof(SUPREQHDR)
+#define SUP_IOCTL_LDR_LOCK_DOWN_SIZE_IN                 sizeof(SUPREQHDR)
+#define SUP_IOCTL_LDR_LOCK_DOWN_SIZE_OUT                sizeof(SUPREQHDR)
 /** @} */
 
 

@@ -157,30 +157,26 @@ typedef struct VBOXGUESTDEVEXT
 
     /** Spinlock various items in the VBOXGUESTSESSION. */
     RTSPINLOCK                  SessionSpinlock;
+    /** List of guest sessions (VBOXGUESTSESSION).  We currently traverse this
+     * but do not search it, so a list data type should be fine.  Use under the
+     * #SessionSpinlock lock. */
+    RTLISTANCHOR                SessionList;
     /** Flag indicating whether logging to the release log
      *  is enabled. */
     bool                        fLoggingEnabled;
     /** Memory balloon information for RTR0MemObjAllocPhysNC(). */
     VBOXGUESTMEMBALLOON         MemBalloon;
-    /** For each mouse status feature the number of sessions which have
-     * enabled it.  A feature is enabled globally if at least one session has
-     * requested it. */
-    /** @todo can we programmatically determine the size of the array and
-     * still get the following alignment right? */
-    uint32_t volatile           acMouseFeatureUsage[32];
-    /** The mouse feature status matching the counts above.  These are updated
-     * together inside the session spinlock. */
-    uint32_t volatile           fMouseStatus;
-    /** Counter of number of active ISRs.  Currently used for safely removing
-     * the mouse handler callback. */
-    uint32_t volatile           cISR;
     /** Callback and user data for a kernel mouse handler. */
     VBoxGuestMouseSetNotifyCallback MouseNotifyCallback;
-    /* list of caps used in acquire mode */
+    /** Guest capabilities which have been set to "acquire" mode.  This means
+     * that only one session can use them at a time, and that they will be
+     * automatically cleaned up if that session exits without doing so. */
     uint32_t                    u32AcquireModeGuestCaps;
-    /* list of caps used in set mode */
+    /** Guest capabilities which have been set to "set" mode.  This just means
+     * that they have been blocked from ever being set to "acquire" mode. */
     uint32_t                    u32SetModeGuestCaps;
-    /* currently acquired (and reported) guest caps */
+    /** Mask of all capabilities which are currently acquired by some session
+     * and as such reported to the host. */
     uint32_t                    u32GuestCaps;
 } VBOXGUESTDEVEXT;
 /** Pointer to the VBoxGuest driver data. */
@@ -196,6 +192,8 @@ typedef VBOXGUESTDEVEXT *PVBOXGUESTDEVEXT;
  */
 typedef struct VBOXGUESTSESSION
 {
+    /** The list node. */
+    RTLISTNODE                  ListNode;
 #if defined(RT_OS_DARWIN) || defined(RT_OS_FREEBSD) || defined(RT_OS_OS2) || defined(RT_OS_SOLARIS)
     /** Pointer to the next session with the same hash. */
     PVBOXGUESTSESSION           pNextHash;
@@ -222,17 +220,39 @@ typedef struct VBOXGUESTSESSION
     /** The last consumed VMMDEV_EVENT_MOUSE_POSITION_CHANGED sequence number.
      * Used to implement polling.  */
     uint32_t volatile           u32MousePosChangedSeq;
+    /** VMMDev events requested.  An event type requested in any guest session
+     * will be added to the host filter.
+     * Use under the VBOXGUESTDEVEXT#SessionSpinlock lock. */
+    uint32_t                    fFilterMask;
+    /** Capabilities supported.  A capability enabled in any guest session will
+     * be enabled for the host.
+     * Use under the VBOXGUESTDEVEXT#SessionSpinlock lock. */
+    uint32_t                    fCapabilities;
     /** Mouse features supported.  A feature enabled in any guest session will
-     * be enabled for the host. */
-    uint32_t volatile           fMouseStatus;
+     * be enabled for the host.
+     * @note We invert the VMMDEV_MOUSE_GUEST_NEEDS_HOST_CURSOR feature in this
+     * bitmap.  The logic of this is that the real feature is when the host
+     * cursor is not needed, and we tell the host it is not needed if any
+     * session explicitly fails to assert it.  Storing it inverted simplifies
+     * the checks.
+     * Use under the VBOXGUESTDEVEXT#SessionSpinlock lock. */
+    uint32_t                    fMouseStatus;
 #ifdef RT_OS_DARWIN
     /** Pointer to the associated org_virtualbox_VBoxGuestClient object. */
     void                       *pvVBoxGuestClient;
     /** Whether this session has been opened or not. */
     bool                        fOpened;
 #endif
-    /* Guest Caps Acquired & Reported by this session */
+    /** Mask of guest capabilities acquired by this session.  These will all be
+     *  reported to the host. */
     uint32_t                    u32AquiredGuestCaps;
+    /** Whether a CANCEL_ALL_WAITEVENTS is pending.  This happens when
+     * CANCEL_ALL_WAITEVENTS is called, but no call to WAITEVENT is in process
+     * in the current session.  In that case the next call will be interrupted
+     * at once. */
+    bool volatile               fPendingCancelWaitEvents;
+    /** Does this session belong to a root process or a user one? */
+    bool                        fUserSession;
 } VBOXGUESTSESSION;
 
 RT_C_DECLS_BEGIN

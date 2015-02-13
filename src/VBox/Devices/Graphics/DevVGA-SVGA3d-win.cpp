@@ -502,7 +502,13 @@ int vmsvga3dPowerOn(PVGASTATE pThis)
     pState->pD3D9 = Direct3DCreate9(D3D_SDK_VERSION);
     AssertReturn(pState->pD3D9, VERR_INTERNAL_ERROR);
 #else
-    hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &pState->pD3D9);
+    /* Direct3DCreate9Ex was introduced in Vista, so resolve it dynamically. */
+    typedef HRESULT (WINAPI *PFNDIRECT3DCREATE9EX)(UINT, IDirect3D9Ex **);
+    PFNDIRECT3DCREATE9EX pfnDirect3dCreate9Ex = (PFNDIRECT3DCREATE9EX)RTLdrGetSystemSymbol("d3d9.dll", "Direct3DCreate9Ex");
+    if (!pfnDirect3dCreate9Ex)
+        return PDMDevHlpVMSetError(pThis->CTX_SUFF(pDevIns), VERR_SYMBOL_NOT_FOUND, RT_SRC_POS,
+                                   "vmsvga3d: Unable to locate Direct3DCreate9Ex. This feature requires Vista and later.");
+    hr = pfnDirect3dCreate9Ex(D3D_SDK_VERSION, &pState->pD3D9);
     AssertReturn(hr == D3D_OK, VERR_INTERNAL_ERROR);
 #endif
     hr = pState->pD3D9->GetDeviceCaps(D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &pState->caps);
@@ -2298,7 +2304,8 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId dest, SVGA3d
     return VINF_SUCCESS;
 }
 
-int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceImageId host, SVGA3dTransferType transfer, uint32_t cCopyBoxes, SVGA3dCopyBox *pBoxes)
+int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceImageId host, SVGA3dTransferType transfer,
+                       uint32_t cCopyBoxes, SVGA3dCopyBox *pBoxes)
 {
     PVMSVGA3DSTATE          pState = (PVMSVGA3DSTATE)pThis->svga.p3dState;
     PVMSVGA3DSURFACE        pSurface;
@@ -2363,7 +2370,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
                                     pBoxes[i].w * pSurface->cbBlock,
                                     pBoxes[i].d * pBoxes[i].h);
 
-            LogFlow(("first line:\n%.*Rhxd\n", pMipLevel->cbSurfacePitch, pMipLevel->pSurfaceData));
+            Log4(("first line:\n%.*Rhxd\n", pMipLevel->cbSurfacePitch, pMipLevel->pSurfaceData));
 
             AssertRC(rc);
         }
@@ -2500,7 +2507,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
                                        pBoxes[i].h);
                 AssertRC(rc);
 
-                LogFlow(("first line:\n%.*Rhxd\n", pBoxes[i].w * pSurface->cbBlock, LockedRect.pBits));
+                Log4(("first line:\n%.*Rhxd\n", pBoxes[i].w * pSurface->cbBlock, LockedRect.pBits));
 
                 if (fTexture)
                 {
@@ -2552,7 +2559,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
                 uDestOffset = pBoxes[i].x * pSurface->cbBlock + pBoxes[i].y * pSurface->pMipmapLevels[host.mipmap].cbSurfacePitch;
                 AssertReturn(uDestOffset + pBoxes[i].w * pSurface->cbBlock + (pBoxes[i].h - 1) * pSurface->pMipmapLevels[host.mipmap].cbSurfacePitch <= pSurface->pMipmapLevels[host.mipmap].cbSurface, VERR_INTERNAL_ERROR);
 
-                /* @todo lock only as much as we really need */
+                /** @todo lock only as much as we really need */
                 if (fVertex)
                     hr = pSurface->u.pVertexBuffer->Lock(0, 0, (void **)&pData, dwFlags);
                 else        
@@ -2572,7 +2579,7 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
                                        pBoxes[i].h);
                 AssertRC(rc);
 
-                LogFlow(("first line:\n%.*Rhxd\n", cbSrcPitch, pData));
+                Log4(("first line:\n%.*Rhxd\n", cbSrcPitch, pData));
 
                 if (fVertex)
                     hr = pSurface->u.pVertexBuffer->Unlock();
@@ -2895,8 +2902,9 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
  * @returns VBox status code.
  * @param   pThis           VGA device instance data.
  * @param   cid             Context id
+ * @param   fOtherProfile   OpenGL(+darwin) specific argument, ignored.
  */
-int vmsvga3dContextDefine(PVGASTATE pThis, uint32_t cid)
+int vmsvga3dContextDefine(PVGASTATE pThis, uint32_t cid, bool fOtherProfile)
 {
     int                     rc;
     PVMSVGA3DCONTEXT        pContext;
@@ -2906,6 +2914,7 @@ int vmsvga3dContextDefine(PVGASTATE pThis, uint32_t cid)
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(cid < SVGA3D_MAX_CONTEXT_IDS, VERR_INVALID_PARAMETER);
+    NOREF(fOtherProfile);
 
     Log(("vmsvga3dContextDefine id %x\n", cid));
 
@@ -5347,7 +5356,9 @@ int vmsvga3dDrawPrimitivesProcessVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
     return VINF_SUCCESS;
 }
 
-int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecls, SVGA3dVertexDecl *pVertexDecl, uint32_t numRanges, SVGA3dPrimitiveRange *pRange, uint32_t cVertexDivisor, SVGA3dVertexDivisor *pVertexDivisor)
+int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecls, SVGA3dVertexDecl *pVertexDecl,
+                           uint32_t numRanges, SVGA3dPrimitiveRange *pRange,
+                           uint32_t cVertexDivisor, SVGA3dVertexDivisor *pVertexDivisor)
 {
     PVMSVGA3DCONTEXT             pContext;
     PVMSVGA3DSTATE               pState = (PVMSVGA3DSTATE)pThis->svga.p3dState;
@@ -5688,7 +5699,7 @@ int vmsvga3dShaderDefine(PVGASTATE pThis, uint32_t cid, uint32_t shid, SVGA3dSha
     AssertReturn(pState, VERR_NO_MEMORY);
 
     Log(("vmsvga3dShaderDefine %x shid=%x type=%s cbData=%x\n", cid, shid, (type == SVGA3D_SHADERTYPE_VS) ? "VERTEX" : "PIXEL", cbData));
-    LogFlow(("shader code:\n%.*Rhxd\n", cbData, pShaderData));
+    Log3(("shader code:\n%.*Rhxd\n", cbData, pShaderData));
 
     if (    cid >= pState->cContexts
         ||  pState->paContext[cid].id != cid)
@@ -5997,6 +6008,8 @@ int vmsvga3dQueryWait(PVGASTATE pThis, uint32_t cid, SVGA3dQueryType type, SVGAG
 
 static void vmsvgaDumpD3DCaps(D3DCAPS9 *pCaps)
 {
+    bool const fBufferingSaved = RTLogRelSetBuffering(true /*fBuffered*/);
+
     LogRel(("\nD3D device caps: DevCaps2:\n"));
     if (pCaps->DevCaps2 & D3DDEVCAPS2_ADAPTIVETESSRTPATCH)
         LogRel((" - D3DDEVCAPS2_ADAPTIVETESSRTPATCH\n"));
@@ -6281,5 +6294,13 @@ static void vmsvgaDumpD3DCaps(D3DCAPS9 *pCaps)
     if (pCaps->TextureOpCaps & D3DTEXOPCAPS_LERP)
         LogRel((" - D3DTEXOPCAPS_LERP\n"));
 
+    LogRel(("\n"));
+    LogRel(("PixelShaderVersion:  %#x (%u.%u)\n", pCaps->PixelShaderVersion,
+            D3DSHADER_VERSION_MAJOR(pCaps->PixelShaderVersion), D3DSHADER_VERSION_MINOR(pCaps->PixelShaderVersion)));
+    LogRel(("VertexShaderVersion: %#x (%u.%u)\n", pCaps->VertexShaderVersion,
+            D3DSHADER_VERSION_MAJOR(pCaps->VertexShaderVersion), D3DSHADER_VERSION_MINOR(pCaps->VertexShaderVersion)));
+
+    LogRel(("\n"));
+    RTLogRelSetBuffering(fBufferingSaved);
 }
 

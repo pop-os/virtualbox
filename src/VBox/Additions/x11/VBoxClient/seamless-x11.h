@@ -22,8 +22,6 @@
 #include <VBox/log.h>
 #include <iprt/avl.h>
 
-#include "seamless-guest.h"
-
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/shape.h>
@@ -33,6 +31,14 @@
 
 /* This is defined wrong in my X11 header files! */
 #define VBoxShapeNotify 64
+
+/**
+ * Callback which provides the interface for notifying the host of changes to
+ * the X11 window configuration, mainly split out from @a VBoxGuestSeamlessHost
+ * to simplify the unit test.
+ */
+typedef void FNSENDREGIONUPDATE(RTRECT *pRects, size_t cRects);
+typedef FNSENDREGIONUPDATE *PFNSENDREGIONUPDATE;
 
 /** Structure containing information about a guest window's position and visible area.
     Used inside of VBoxGuestWindowList. */
@@ -145,18 +151,16 @@ public:
     }
 };
 
-class VBoxGuestSeamlessX11;
-
-class VBoxGuestSeamlessX11 : public VBoxGuestSeamlessGuest
+class SeamlessX11
 {
 private:
     // We don't want a copy constructor or assignment operator
-    VBoxGuestSeamlessX11(const VBoxGuestSeamlessX11&);
-    VBoxGuestSeamlessX11& operator=(const VBoxGuestSeamlessX11&);
+    SeamlessX11(const SeamlessX11&);
+    SeamlessX11& operator=(const SeamlessX11&);
 
     // Private member variables
-    /** Pointer to the observer class. */
-    VBoxGuestSeamlessObserver *mObserver;
+    /** Pointer to the host callback. */
+    PFNSENDREGIONUPDATE mHostCallback;
     /** Our connection to the X11 display we are running on. */
     Display *mDisplay;
     /** Class to keep track of visible guest windows. */
@@ -196,22 +200,24 @@ private:
 public:
     /**
      * Initialise the guest and ensure that it is capable of handling seamless mode
-     * @param   pObserver Observer class to connect host and guest interfaces
+     * @param   pHost Host interface callback to notify of window configuration
+     *                changes.
      *
      * @returns iprt status code
      */
-    int init(VBoxGuestSeamlessObserver *pObserver);
+    int init(PFNSENDREGIONUPDATE pHostCallback);
 
     /**
      * Shutdown seamless event monitoring.
      */
     void uninit(void)
     {
-        if (0 != mObserver)
-        {
+        if (mHostCallback)
             stop();
-        }
-        mObserver = 0;
+        mHostCallback = NULL;
+        if (mDisplay)
+            XCloseDisplay(mDisplay);
+        mDisplay = NULL;
     }
 
     /**
@@ -228,9 +234,9 @@ public:
     size_t getRectCount(void);
 
     /** Process next event in the guest event queue - called by the event thread. */
-    void nextEvent(void);
+    void nextConfigurationEvent(void);
     /** Wake up the event thread if it is waiting for an event so that it can exit. */
-    bool interruptEvent(void);
+    bool interruptEventWait(void);
 
     /* Methods to handle X11 events.  These are public so that the unit test
      * can call them. */
@@ -239,18 +245,14 @@ public:
     void doUnmapEvent(Window hWin);
     void doShapeEvent(Window hWin);
 
-    VBoxGuestSeamlessX11(void)
-        : mObserver(0), mDisplay(NULL), mpRects(NULL), mcRects(0),
+    SeamlessX11(void)
+        : mHostCallback(NULL), mDisplay(NULL), mpRects(NULL), mcRects(0),
           mSupportsShape(false), mEnabled(false), mChanged(false) {}
 
-    ~VBoxGuestSeamlessX11()
+    ~SeamlessX11()
     {
         uninit();
-        if (mDisplay)
-            XCloseDisplay(mDisplay);
     }
 };
-
-typedef VBoxGuestSeamlessX11 VBoxGuestSeamlessGuestImpl;
 
 #endif /* __Additions_linux_seamless_x11_h not defined */

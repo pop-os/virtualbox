@@ -4168,7 +4168,7 @@ static int atapiReadDVDStructureSS(PAHCIREQ pAhciReq, PAHCIPort pAhciPort, size_
     int media = pAhciReq->aATAPICmd[1];
     int format = pAhciReq->aATAPICmd[7];
 
-    uint16_t max_len = ataBE2H_U16(&pAhciReq->aATAPICmd[8]);
+    uint16_t max_len = RT_MIN(ataBE2H_U16(&pAhciReq->aATAPICmd[8]), sizeof(aBuf));
 
     memset(buf, 0, max_len);
 
@@ -6635,6 +6635,14 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         ASMAtomicWriteBool(&pAhciPort->fWrkThreadSleeping, false);
         ASMAtomicIncU32(&pAhci->cThreadsActive);
 
+        /* Check whether the thread should be suspended. */
+        if (pAhci->fSignalIdle)
+        {
+            if (!ASMAtomicDecU32(&pAhci->cThreadsActive))
+                PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
+            continue;
+        }
+
         /*
          * Check whether the global host controller bit is set and go to sleep immediately again
          * if it is set.
@@ -6644,6 +6652,8 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             && !ASMAtomicDecU32(&pAhci->cThreadsActive))
         {
             ahciHBAReset(pAhci);
+            if (pAhci->fSignalIdle)
+                PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
             continue;
         }
 
@@ -6860,6 +6870,9 @@ static DECLCALLBACK(int) ahciAsyncIOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         if (   (u32RegHbaCtrl & AHCI_HBA_CTRL_HR)
             && !cThreadsActive)
             ahciHBAReset(pAhci);
+
+        if (!cThreadsActive && pAhci->fSignalIdle)
+            PDMDevHlpAsyncNotificationCompleted(pAhciPort->pDevInsR3);
     } /* While running */
 
     ahciLog(("%s: Port %d async IO thread exiting\n", __FUNCTION__, pAhciPort->iLUN));
@@ -8100,14 +8113,8 @@ static DECLCALLBACK(int) ahciR3Destruct(PPDMDEVINS pDevIns)
             }
 
 #ifdef VBOX_STRICT
-            /* Check that all cached tasks were freed at this point. */
-            for (unsigned iPort = 0; iPort < pThis->cPortsImpl; iPort++)
-            {
-                PAHCIPort pAhciPort = &pThis->ahciPort[iPort];
-
-                for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
-                    Assert(!pAhciPort->aCachedTasks[i]);
-            }
+            for (uint32_t i = 0; i < AHCI_NR_COMMAND_SLOTS; i++)
+                Assert(!pAhciPort->aCachedTasks[i]);
 #endif
         }
 

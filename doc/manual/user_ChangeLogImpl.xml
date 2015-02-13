@@ -1,6 +1,169 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.22 (2014-02-12)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: refined measurement of TSC frequency on the host, improves
+          timekeeping for guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: decreased CPU load resulting from guest MMIO writes to the
+          virtual APIC</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed interception of debug exceptions, observed while using
+          the dbx debugger on Solaris guests (VT-x only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: 3D overlay window positioning code improved, fixed potential
+          misplacement of 3D accelerated guest graphics content</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed accident SSL authentication failures during update
+          check on Windows hosts (bug #12969)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: never send the "ACPI power" keyboard scancode to the guest,
+          we have the ACPI power button for that</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: was unable to properly restore seamless mode VM from
+          snapshot/saved-state under some circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxHeadless: don't crash if 3D is enabled in the VM settings
+          (bug #10250)</para>
+      </listitem>
+
+      <listitem>
+        <para>ATA: fixed several passthrough issues (bugs #12310, #1360)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed DirectSound failure when the the host has no audio
+          input device (Windows hosts only; bug #9205)</para>
+      </listitem>
+
+      <listitem>
+        <para>SB16: fixed compatibility issue (bug #13769)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed broken CD/DVD passthrough when using the
+          IDE controller (bug #12310)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: new ping proxy for Windows hosts (bug #11871)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: Properly report outbound connect(2) failures to
+          guest with TCP RST or ICMP (bug #10525)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: no need for frequent wakeups in VBoxNetDHCP
+          and VBoxNetNAT (bug #11681)</para>
+      </listitem>
+
+      <listitem>
+        <para>Host-only adapter: prevent Windows from creating an "Unidentified
+          network" (bug #9688)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged Networking: don't leak host-to-guest traffic to
+          the wireless network when bridging to a wireless interface
+          (bug #13714)</para>
+      </listitem>
+
+      <listitem>
+        <para>Main: fixed a possible race when changing the medium leading
+          to a deadlock under rare conditions (bug #13722)</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: fixed return code if starting a VM failed
+          (bug #13773)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed 2 deadlock opportunities related to medium handling
+          (bugs #13789, #13801, thank you Alexander Urakov)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed bug in XPCOM which created too few worker threads,
+          sporadically resulting in a deadlock (bug #13802, thank you Alexander
+          Urakov)</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: fixed a garbage collection leak in the Python VirtualBox
+          webservice API binding (bug #13817)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixes for activated SMAP (Broadwell and later,
+          bug #13820)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: prevent unwanted hiding of guest screens
+          on multi-monitor guests (bug #13287)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 guests: added support for X.Org Server 1.17</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: fixed a memory leak in VBoxService if libdbus
+          is available but dbus-daemon isn't running (bug #13770)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: prevent VBox WDDM driver from loading if host
+          reports weak OpenGL capabilities. 3D content now can be shown over
+          Remote Desktop connection.</para>
+      </listitem>
+
+      <listitem>
+        <para>Winodws Additions: some fixes for recent Windows 10 Previews</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed a compatibility issue with 64-bit
+          Linux 2.4 kernels</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed a potential use-after-free when unloading
+          the VBoxGuest module</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: Linux 3.19 fixes (bug #13741)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.20 (2014-11-21)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -9,7 +172,7 @@
     <itemizedlist>
 
       <listitem>
-        <para>VMM: fixed reboot hang of 32-bit Windows SMP guests (bug #13319,
+        <para>VMM: fixed reboot hang of 32-bit Windows SMP guests (bugs #13319,
           #13462)</para>
       </listitem>
 
@@ -17,7 +180,7 @@
         <para>VMM: proper <emphasis>Math Fault</emphasis> handling with certain
           legacy guests (bug #9042, AMD hosts)</para>
       </listitem>
-      
+
       <listitem>
         <para>VMM: fixed a Guru Meditation <emphasis>VINF_EM_TRIPLE_FAULT</emphasis>
           on older CPUs that don't support MSR-bitmaps (VT-x only;
@@ -3029,7 +3192,7 @@
       <listitem>
         <para>Shared Folders: if the host folder of a shared folder mapping does
           not exist, keep it active but mark it as invalid to prevent
-          inconsitent saved states (bug #11147)</para>
+          inconsistent saved states (bug #11147)</para>
       </listitem>
 
       <listitem>
@@ -3159,7 +3322,7 @@
       </listitem>
 
       <listitem>
-        <para>EFI: fixed video mode selection loss on VM reboot (#10983)</para>
+        <para>EFI: fixed video mode selection loss on VM reboot (bug #10983)</para>
       </listitem>
 
       <listitem>
@@ -3629,7 +3792,7 @@
 
       <listitem>
         <para>AHCI: fixed a rare bug which can cause a guest memory corruption
-          after the guest storage controler has been reset</para>
+          after the guest storage controller has been reset</para>
       </listitem>
 
       <listitem>
@@ -4077,7 +4240,7 @@
 
       <listitem>
         <para>NAT: increase maximum number of parallel connections making
-          connections with port forwarding more robust (#8471)</para>
+          connections with port forwarding more robust (bug #8471)</para>
       </listitem>
 
       <listitem>
@@ -4618,7 +4781,7 @@
 
       <listitem>
         <para>Windows Vista and 7 guests: WDDM driver fixes and performance enhancements,
-          fixed WinSAT crashes (#9267)</para>
+          fixed WinSAT crashes (bug #9267)</para>
       </listitem>
 
       <listitem>

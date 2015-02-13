@@ -279,7 +279,7 @@ SUPR3DECL(int) SUPR3InitEx(bool fUnrestricted, PSUPDRVSESSION *ppSession)
         strcpy(CookieReq.u.In.szMagic, SUPCOOKIE_MAGIC);
         CookieReq.u.In.u32ReqVersion = SUPDRV_IOC_VERSION;
         const uint32_t uMinVersion = (SUPDRV_IOC_VERSION & 0xffff0000) == 0x001a0000
-                                   ? 0x001a0008
+                                   ? 0x001a0009
                                    : SUPDRV_IOC_VERSION & 0xffff0000;
         CookieReq.u.In.u32MinVersion = uMinVersion;
         rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_COOKIE, &CookieReq, SUP_IOCTL_COOKIE_SIZE);
@@ -1035,6 +1035,31 @@ SUPR3DECL(int) supR3PageUnlock(void *pvStart)
     if (RT_SUCCESS(rc))
         rc = Req.Hdr.rc;
     return rc;
+}
+
+
+SUPR3DECL(int) SUPR3LockDownLoader(PRTERRINFO pErrInfo)
+{
+    /* fake */
+    if (RT_UNLIKELY(g_u32FakeMode))
+        return VINF_SUCCESS;
+
+    /*
+     * Lock down the module loader interface.
+     */
+    SUPREQHDR ReqHdr;
+    ReqHdr.u32Cookie = g_u32Cookie;
+    ReqHdr.u32SessionCookie = g_u32SessionCookie;
+    ReqHdr.cbIn = SUP_IOCTL_LDR_LOCK_DOWN_SIZE_IN;
+    ReqHdr.cbOut = SUP_IOCTL_LDR_LOCK_DOWN_SIZE_OUT;
+    ReqHdr.fFlags = SUPREQHDR_FLAGS_DEFAULT;
+    ReqHdr.rc = VERR_INTERNAL_ERROR;
+    int rc = suplibOsIOCtl(&g_supLibData, SUP_IOCTL_LDR_LOCK_DOWN, &ReqHdr, SUP_IOCTL_LDR_LOCK_DOWN_SIZE);
+    if (RT_FAILURE(rc))
+        return RTErrInfoSetF(pErrInfo, rc,
+                             "SUPR3LockDownLoader: SUP_IOCTL_LDR_LOCK_DOWN ioctl returned %Rrc", rc);
+
+    return ReqHdr.rc;
 }
 
 

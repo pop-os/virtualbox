@@ -47,6 +47,9 @@ class TestDisplay : public DisplayMouseInterface
                                   int32_t *px2, int32_t *py2);
     int getScreenResolution(uint32_t cScreen, ULONG *pcx, ULONG *pcy,
                             ULONG *pcBPP, LONG *pXOrigin, LONG *pYOrigin);
+    virtual HRESULT i_reportHostCursorCapabilities(uint32_t fCapabilitiesAdded, uint32_t fCapabilitiesRemoved)
+    { return S_OK; }
+    virtual HRESULT i_reportHostCursorPosition(int32_t x, int32_t y) { return S_OK; }
 };
 
 class TestConsole : public ConsoleMouseInterface

@@ -498,6 +498,22 @@ UINT __stdcall InstallBranding(MSIHANDLE hModule)
 
 static MSIHANDLE g_hCurrentModule = NULL;
 
+static VOID vboxDrvLoggerCallback(VBOXDRVCFG_LOG_SEVERITY enmSeverity, char * msg, void * pvContext)
+{
+    switch (enmSeverity)
+    {
+        case VBOXDRVCFG_LOG_SEVERITY_FLOW:
+        case VBOXDRVCFG_LOG_SEVERITY_REGULAR:
+            break;
+        case VBOXDRVCFG_LOG_SEVERITY_REL:
+            if (g_hCurrentModule)
+                logString(g_hCurrentModule, (LPCSTR)msg);
+            break;
+        default:
+            break;
+    }
+}
+
 static VOID netCfgLoggerCallback(LPCSTR szString)
 {
     if (g_hCurrentModule)
@@ -523,6 +539,8 @@ static VOID netCfgLoggerEnable(MSIHANDLE hModule)
     g_hCurrentModule = hModule;
 
     VBoxNetCfgWinSetLogging((LOG_ROUTINE)netCfgLoggerCallback);
+    /* uncomment next line if you want to add logging information from VBoxDrvCfg.cpp */
+    VBoxDrvCfgLoggerSet(vboxDrvLoggerCallback, NULL);
 }
 
 static UINT errorConvertFromHResult(MSIHANDLE hModule, HRESULT hr)
@@ -949,11 +967,13 @@ UINT __stdcall RemoveHostOnlyInterfaces(MSIHANDLE hModule)
     HRESULT hr = VBoxNetCfgWinRemoveAllNetDevicesOfId(NETADP_ID);
     if (SUCCEEDED(hr))
     {
-        hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, NETADP_ID, L"Net", 0/* could be SUOI_FORCEDELETE */);
+        hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, L"Net", NETADP_ID, SUOI_FORCEDELETE/* could be SUOI_FORCEDELETE */);
         if (FAILED(hr))
         {
             logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstalled successfully, but failed to remove INF files");
         }
+        else
+            logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstalled successfully");
     }
     else
         logStringW(hModule, L"RemoveHostOnlyInterfaces: NetAdp uninstall failed, hr = 0x%x", hr);
@@ -980,11 +1000,7 @@ UINT __stdcall StopHostOnlyInterfaces(MSIHANDLE hModule)
 
     HRESULT hr = VBoxNetCfgWinPropChangeAllNetDevicesOfId(NETADP_ID, VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE);
     if (SUCCEEDED(hr))
-    {
-        hr = VBoxDrvCfgInfUninstallAllSetupDi(&GUID_DEVCLASS_NET, NETADP_ID, L"Net", 0/* could be SUOI_FORCEDELETE */);
-        if (FAILED(hr))
-            logStringW(hModule, L"StopHostOnlyInterfaces: VBoxDrvCfgInfUninstallAllSetupDi failed, hr = 0x%x", hr);
-    }
+        logStringW(hModule, L"StopHostOnlyInterfaces: Disabling host interfaces was successful, hr = 0x%x", hr);
     else
         logStringW(hModule, L"StopHostOnlyInterfaces: Disabling host interfaces failed, hr = 0x%x", hr);
 
@@ -1069,6 +1085,51 @@ UINT __stdcall UpdateHostOnlyInterfaces(MSIHANDLE hModule)
         SetupSetNonInteractiveMode(bSetupModeInteractive);
 
     netCfgLoggerDisable();
+#endif /* VBOX_WITH_NETFLT */
+
+    /* Never fail the install even if we did not succeed. */
+    return ERROR_SUCCESS;
+}
+
+UINT __stdcall UninstallNetAdp(MSIHANDLE hModule)
+{
+#ifdef VBOX_WITH_NETFLT
+    INetCfg *pNetCfg;
+    UINT uErr;
+
+    netCfgLoggerEnable(hModule);
+
+    BOOL bOldIntMode = SetupSetNonInteractiveMode(FALSE);
+
+    __try
+    {
+        logStringW(hModule, L"Uninstalling NetAdp");
+
+        uErr = doNetCfgInit(hModule, &pNetCfg, TRUE);
+        if (uErr == ERROR_SUCCESS)
+        {
+            HRESULT hr = VBoxNetCfgWinNetAdpUninstall(pNetCfg);
+            if (hr != S_OK)
+                logStringW(hModule, L"UninstallNetAdp: VBoxNetCfgWinUninstallComponent failed, error = 0x%x", hr);
+
+            uErr = errorConvertFromHResult(hModule, hr);
+
+            VBoxNetCfgWinReleaseINetCfg(pNetCfg, TRUE);
+
+            logStringW(hModule, L"Uninstalling NetAdp done, error = 0x%x", uErr);
+        }
+        else
+            logStringW(hModule, L"UninstallNetAdp: doNetCfgInit failed, error = 0x%x", uErr);
+    }
+    __finally
+    {
+        if (bOldIntMode)
+        {
+            /* The prev mode != FALSE, i.e. non-interactive. */
+            SetupSetNonInteractiveMode(bOldIntMode);
+        }
+        netCfgLoggerDisable();
+    }
 #endif /* VBOX_WITH_NETFLT */
 
     /* Never fail the install even if we did not succeed. */

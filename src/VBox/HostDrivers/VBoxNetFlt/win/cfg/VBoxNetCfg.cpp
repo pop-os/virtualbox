@@ -239,16 +239,20 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinGetComponentByGuid(IN INetCfg *pNc,
 
 static HRESULT vboxNetCfgWinQueryInstaller(IN INetCfg *pNetCfg, IN const GUID *pguidClass, INetCfgClassSetup **ppSetup)
 {
+    NonStandardLogFlow(("vboxNetCfgWinQueryInstaller: enter \n"));
     HRESULT hr = pNetCfg->QueryNetCfgClass(pguidClass, IID_INetCfgClassSetup, (void**)ppSetup);
     if (FAILED(hr))
         NonStandardLogFlow(("QueryNetCfgClass failed, hr (0x%x)\n", hr));
+    NonStandardLogFlow(("vboxNetCfgWinQueryInstaller: leave \n"));
     return hr;
 }
 
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, IN LPCWSTR pszwComponentId, IN const GUID *pguidClass,
                                                           OUT INetCfgComponent **ppComponent)
 {
+    NonStandardLogFlow(("VBoxNetCfgWinInstallComponent: enter \n"));
     INetCfgClassSetup *pSetup;
+
     HRESULT hr = vboxNetCfgWinQueryInstaller(pNetCfg, pguidClass, &pSetup);
     if (FAILED(hr))
     {
@@ -278,6 +282,8 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinInstallComponent(IN INetCfg *pNetCfg, I
         NonStandardLogFlow(("Install failed, hr (0x%x)\n", hr));
 
     pSetup->Release();
+
+    NonStandardLogFlow(("VBoxNetCfgWinInstallComponent: leave \n"));
     return hr;
 }
 
@@ -285,6 +291,7 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
                                                    IN LPCWSTR const *apInfPaths, IN UINT cInfPaths,
                                                    OUT INetCfgComponent **ppComponent)
 {
+    NonStandardLogFlow(("vboxNetCfgWinInstallInfAndComponent: enter \n"));
     HRESULT hr = S_OK;
     UINT cFilesProcessed = 0;
 
@@ -299,6 +306,7 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
             NonStandardLogFlow(("VBoxNetCfgWinInfInstall failed, hr (0x%x)\n", hr));
             break;
         }
+        NonStandardLogFlow(("Installing INF file \"%ws\" has been done \n", apInfPaths[cFilesProcessed]));
     }
 
     if (SUCCEEDED(hr))
@@ -325,6 +333,7 @@ static HRESULT vboxNetCfgWinInstallInfAndComponent(IN INetCfg *pNetCfg, IN LPCWS
         NonStandardLogFlow(("Rollback complete\n"));
     }
 
+    NonStandardLogFlow(("vboxNetCfgWinInstallInfAndComponent: leave \n"));
     return hr;
 }
 
@@ -547,9 +556,11 @@ static BOOL vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback(HDEVINFO hDevInfo, 
     {
         case VBOXNECTFGWINPROPCHANGE_TYPE_DISABLE:
             PcParams.StateChange = DICS_DISABLE;
+            NonStandardLogFlow(("vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback: Change type (DICS_DISABLE): %d\n", pPc->enmPcType));
             break;
         case VBOXNECTFGWINPROPCHANGE_TYPE_ENABLE:
             PcParams.StateChange = DICS_ENABLE;
+            NonStandardLogFlow(("vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback: Change type (DICS_ENABLE): %d\n", pPc->enmPcType));
             break;
         default:
             NonStandardLogFlow(("vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback: Unexpected prop change type: %d\n", pPc->enmPcType));
@@ -683,6 +694,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinEnumNetDevices(LPCWSTR pwszPnPId,
 
             if (cCurId >= cPnPId)
             {
+                NonStandardLogFlow(("!wcsnicmp(pCurId = (%S), pwszPnPId = (%S), cPnPId = (%d))", pCurId, pwszPnPId, cPnPId));
                 pCurId += cCurId - cPnPId;
                 if (!wcsnicmp(pCurId, pwszPnPId, cPnPId))
                 {
@@ -722,6 +734,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinPropChangeAllNetDevicesOfId(IN LPCWSTR 
     VBOXNECTFGWINPROPCHANGE Pc;
     Pc.enmPcType = enmPcType;
     Pc.hr = S_OK;
+    NonStandardLogFlow(("Calling VBoxNetCfgWinEnumNetDevices with lpszPnPId =(%S) and vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback", lpszPnPId));
     HRESULT hr = VBoxNetCfgWinEnumNetDevices(lpszPnPId, vboxNetCfgWinPropChangeAllNetDevicesOfIdCallback, &Pc);
     if (!SUCCEEDED(hr))
     {
@@ -2052,7 +2065,7 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltUninstall(IN INetCfg *pNc)
 VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltInstall(IN INetCfg *pNc,
                                                        IN LPCWSTR const *apInfFullPaths, IN UINT cInfFullPaths)
 {
-    HRESULT hr = vboxNetCfgWinNetFltUninstall(pNc, SUOI_FORCEDELETE);
+    HRESULT hr = S_OK;
     if (SUCCEEDED(hr))
     {
         NonStandardLog("NetFlt will be installed ...\n");
@@ -2063,6 +2076,22 @@ VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetFltInstall(IN INetCfg *pNc,
                                                  NULL);
     }
     return hr;
+}
+
+#define VBOXNETCFGWIN_NETADP_ID L"sun_VBoxNetAdp"
+static HRESULT vboxNetCfgWinNetAdpUninstall(IN INetCfg *pNc, DWORD InfRmFlags)
+{
+    HRESULT hr = S_OK;
+    NonStandardLog("Finding NetAdp driver package and trying to uninstall it ...\n");
+
+    VBoxDrvCfgInfUninstallAllF(L"Net", VBOXNETCFGWIN_NETADP_ID, InfRmFlags);
+    NonStandardLog("NetAdp driver package has been uninstalled \n");
+    return hr;
+}
+
+VBOXNETCFGWIN_DECL(HRESULT) VBoxNetCfgWinNetAdpUninstall(IN INetCfg *pNc)
+{
+    return vboxNetCfgWinNetAdpUninstall(pNc, SUOI_FORCEDELETE);
 }
 
 #define VBOX_CONNECTION_NAME L"VirtualBox Host-Only Network"

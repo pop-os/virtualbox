@@ -97,7 +97,7 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 {
     NTSTATUS rc = STATUS_SUCCESS;
 
-    Log(("VBoxGuest::DriverEntry. Driver built: %s %s\n", __DATE__, __TIME__));
+    LogFunc(("Driver built: %s %s\n", __DATE__, __TIME__));
 
     /*
      * Check if the the NT version is supported and initializing
@@ -107,14 +107,28 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
     ULONG ulMinorVer;
     ULONG ulBuildNo;
     BOOLEAN fCheckedBuild = PsGetVersion(&ulMajorVer, &ulMinorVer, &ulBuildNo, NULL);
-    Log(("VBoxGuest::DriverEntry: Running on Windows NT version %u.%u, build %u\n", ulMajorVer, ulMinorVer, ulBuildNo));
+
+    /* Use RTLogBackdoorPrintf to make sure that this goes to VBox.log */
+    RTLogBackdoorPrintf("VBoxGuest: Windows version %u.%u, build %u\n", ulMajorVer, ulMinorVer, ulBuildNo);
     if (fCheckedBuild)
-        Log(("VBoxGuest::DriverEntry: Running on a Windows checked build (debug)!\n"));
+        RTLogBackdoorPrintf("VBoxGuest: Windows checked build\n");
+
 #ifdef DEBUG
     vbgdNtDoTests();
 #endif
     switch (ulMajorVer)
     {
+        case 10:
+            switch (ulMinorVer)
+            {
+                case 0:
+                    /* Windows 10 Preview builds starting with 9926. */
+                default:
+                    /* Also everything newer. */
+                    g_enmVbgdNtVer = VBGDNTVER_WIN10;
+                    break;
+            }
+            break;
         case 6: /* Windows Vista or Windows 7 (based on minor ver) */
             switch (ulMinorVer)
             {
@@ -131,17 +145,17 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
                     g_enmVbgdNtVer = VBGDNTVER_WIN81;
                     break;
                 case 4:
-                    g_enmVbgdNtVer = VBGDNTVER_WIN10;
-                    break;
+                    /* Windows 10 Preview builds. */
                 default:
-                    Log(("VBoxGuest::DriverEntry: Unknown version of Windows (%u.%u), refusing!\n", ulMajorVer, ulMinorVer));
-                    rc = STATUS_DRIVER_UNABLE_TO_LOAD;
+                    /* Also everything newer. */
+                    g_enmVbgdNtVer = VBGDNTVER_WIN10;
                     break;
             }
             break;
         case 5:
             switch (ulMinorVer)
             {
+                default:
                 case 2:
                     g_enmVbgdNtVer = VBGDNTVER_WIN2K3;
                     break;
@@ -151,20 +165,25 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
                 case 0:
                     g_enmVbgdNtVer = VBGDNTVER_WIN2K;
                     break;
-                default:
-                    Log(("VBoxGuest::DriverEntry: Unknown version of Windows (%u.%u), refusing!\n", ulMajorVer, ulMinorVer));
-                    rc = STATUS_DRIVER_UNABLE_TO_LOAD;
             }
             break;
         case 4:
             g_enmVbgdNtVer = VBGDNTVER_WINNT4;
             break;
         default:
-            if (ulMajorVer < 4)
-                Log(("VBoxGuest::DriverEntry: At least Windows NT4 required! (%u.%u)\n", ulMajorVer, ulMinorVer));
+            if (ulMajorVer > 6)
+            {
+                /* "Windows 10 mode" for Windows 8.1+. */
+                g_enmVbgdNtVer = VBGDNTVER_WIN10;
+            }
             else
-                Log(("VBoxGuest::DriverEntry: Too new version %u.%u!\n", ulMajorVer, ulMinorVer));
-            rc = STATUS_DRIVER_UNABLE_TO_LOAD;
+            {
+                if (ulMajorVer < 4)
+                    LogRelFunc(("At least Windows NT4 required! (%u.%u)\n", ulMajorVer, ulMinorVer));
+                else
+                    LogRelFunc(("Unknown version %u.%u!\n", ulMajorVer, ulMinorVer));
+                rc = STATUS_DRIVER_UNABLE_TO_LOAD;
+            }
             break;
     }
 
@@ -191,7 +210,7 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 #endif
     }
 
-    Log(("VBoxGuest::DriverEntry returning %#x\n", rc));
+    LogFlowFunc(("Returning %#x\n", rc));
     return rc;
 }
 
@@ -207,7 +226,7 @@ ULONG DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 static NTSTATUS vbgdNtAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj)
 {
     NTSTATUS rc;
-    Log(("VBoxGuest::vbgdNtGuestAddDevice\n"));
+    LogFlowFuncEnter();
 
     /*
      * Create device.
@@ -255,7 +274,7 @@ static NTSTATUS vbgdNtAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj)
 
                     /* Driver is ready now. */
                     pDeviceObject->Flags &= ~DO_DEVICE_INITIALIZING;
-                    Log(("VBoxGuest::vbgdNtGuestAddDevice: returning with rc = 0x%x (success)\n", rc));
+                    LogFlowFunc(("Returning with rc=0x%x (success)\n", rc));
                     return rc;
                 }
 
@@ -263,7 +282,7 @@ static NTSTATUS vbgdNtAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj)
             }
             else
             {
-                Log(("VBoxGuest::vbgdNtGuestAddDevice: IoAttachDeviceToDeviceStack did not give a nextLowerDriver!\n"));
+                LogFlowFunc(("IoAttachDeviceToDeviceStack did not give a nextLowerDriver!\n"));
                 rc = STATUS_DEVICE_NOT_CONNECTED;
             }
 
@@ -271,12 +290,13 @@ static NTSTATUS vbgdNtAddDevice(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj)
             IoDeleteSymbolicLink(&DosName);
         }
         else
-            Log(("VBoxGuest::vbgdNtGuestAddDevice: IoCreateSymbolicLink failed with rc=%#x!\n", rc));
+            LogFlowFunc(("IoCreateSymbolicLink failed with rc=%#x!\n", rc));
         IoDeleteDevice(pDeviceObject);
     }
     else
-        Log(("VBoxGuest::vbgdNtGuestAddDevice: IoCreateDevice failed with rc=%#x!\n", rc));
-    Log(("VBoxGuest::vbgdNtGuestAddDevice: returning with rc = 0x%x\n", rc));
+        LogFlowFunc(("IoCreateDevice failed with rc=%#x!\n", rc));
+
+    LogFlowFunc(("Returning with rc=0x%x\n", rc));
     return rc;
 }
 #endif
@@ -310,31 +330,31 @@ static void vbgdNtShowDeviceResources(PCM_PARTIAL_RESOURCE_LIST pResourceList)
             "CmResourceTypeSubAllocateFrom",
         };
 
-        Log(("VBoxGuest::vbgdNtShowDeviceResources: Type %s",
-             uType < RT_ELEMENTS(s_apszName) ? s_apszName[uType] : "Unknown"));
+        LogFlowFunc(("Type=%s",
+                     uType < RT_ELEMENTS(s_apszName) ? s_apszName[uType] : "Unknown"));
 
         switch (uType)
         {
             case CmResourceTypePort:
             case CmResourceTypeMemory:
-                Log(("VBoxGuest::vbgdNtShowDeviceResources: Start %8X%8.8lX length %X\n",
-                     pResource->u.Port.Start.HighPart, pResource->u.Port.Start.LowPart,
-                     pResource->u.Port.Length));
+                LogFlowFunc(("Start %8X%8.8lX, length=%X\n",
+                             pResource->u.Port.Start.HighPart, pResource->u.Port.Start.LowPart,
+                             pResource->u.Port.Length));
                 break;
 
             case CmResourceTypeInterrupt:
-                Log(("VBoxGuest::vbgdNtShowDeviceResources: Level %X, Vector %X, Affinity %X\n",
-                     pResource->u.Interrupt.Level, pResource->u.Interrupt.Vector,
-                     pResource->u.Interrupt.Affinity));
+                LogFlowFunc(("Level=%X, vector=%X, affinity=%X\n",
+                             pResource->u.Interrupt.Level, pResource->u.Interrupt.Vector,
+                             pResource->u.Interrupt.Affinity));
                 break;
 
             case CmResourceTypeDma:
-                Log(("VBoxGuest::vbgdNtShowDeviceResources: Channel %d, Port %X\n",
-                     pResource->u.Dma.Channel, pResource->u.Dma.Port));
+                LogFlowFunc(("Channel %d, Port %X\n",
+                             pResource->u.Dma.Channel, pResource->u.Dma.Port));
                 break;
 
             default:
-                Log(("\n"));
+                LogFlowFunc(("\n"));
                 break;
         }
     }
@@ -359,14 +379,14 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
     PIO_STACK_LOCATION  pStack  = IoGetCurrentIrpStackLocation(pIrp);
 #endif
 
-    Log(("VBoxGuest::vbgdNtInit\n"));
+    LogFlowFuncEnter();
 
     int rc = STATUS_SUCCESS;
 #ifdef TARGET_NT4
     /*
      * Let's have a look at what our PCI adapter offers.
      */
-    Log(("VBoxGuest::vbgdNtInit: Starting to scan PCI resources of VBoxGuest ...\n"));
+    LogFlowFunc(("Starting to scan PCI resources of VBoxGuest ...\n"));
 
     /* Assign the PCI resources. */
     PCM_RESOURCE_LIST pResourceList = NULL;
@@ -403,8 +423,8 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
         {
             pDevExt->Core.pVMMDevMemory = (VMMDevMemory *)pvMMIOBase;
 
-            Log(("VBoxGuest::vbgdNtInit: pvMMIOBase = 0x%p, pDevExt = 0x%p, pDevExt->Core.pVMMDevMemory = 0x%p\n",
-                 pvMMIOBase, pDevExt, pDevExt ? pDevExt->Core.pVMMDevMemory : NULL));
+            LogFlowFunc(("pvMMIOBase=0x%p, pDevExt=0x%p, pDevExt->Core.pVMMDevMemory=0x%p\n",
+                         pvMMIOBase, pDevExt, pDevExt ? pDevExt->Core.pVMMDevMemory : NULL));
 
             int vrc = VBoxGuestInitDevExt(&pDevExt->Core,
                                           pDevExt->Core.IOPortBase,
@@ -413,12 +433,12 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
                                           VMMDEV_EVENT_MOUSE_POSITION_CHANGED);
             if (RT_FAILURE(vrc))
             {
-                Log(("VBoxGuest::vbgdNtInit: Could not init device extension, rc = %Rrc!\n", vrc));
+                LogFlowFunc(("Could not init device extension, rc=%Rrc\n", vrc));
                 rc = STATUS_DEVICE_CONFIGURATION_ERROR;
             }
         }
         else
-            Log(("VBoxGuest::vbgdNtInit: Could not map physical address of VMMDev, rc = 0x%x!\n", rc));
+            LogFlowFunc(("Could not map physical address of VMMDev, rc=0x%x\n", rc));
     }
 
     if (NT_SUCCESS(rc))
@@ -427,7 +447,7 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
                               sizeof(VMMDevPowerStateRequest), VMMDevReq_SetPowerStatus);
         if (RT_FAILURE(vrc))
         {
-            Log(("VBoxGuest::vbgdNtInit: Alloc for pPowerStateRequest failed, rc = %Rrc\n", vrc));
+            LogFlowFunc(("Alloc for pPowerStateRequest failed, rc=%Rrc\n", vrc));
             rc = STATUS_UNSUCCESSFUL;
         }
     }
@@ -437,7 +457,7 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
         /*
          * Register DPC and ISR.
          */
-        Log(("VBoxGuest::vbgdNtInit: Initializing DPC/ISR ...\n"));
+        LogFlowFunc(("Initializing DPC/ISR ...\n"));
 
         IoInitializeDpcRequest(pDevExt->pDeviceObject, vbgdNtDpcHandler);
 #ifdef TARGET_NT4
@@ -448,8 +468,8 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
         if (   pDevExt->interruptLevel
             || pDevExt->interruptVector)
         {
-            Log(("VBoxGuest::vbgdNtInit: Getting interrupt vector (HAL): Bus: %u, IRQL: %u, Vector: %u\n",
-                 pDevExt->busNumber, pDevExt->interruptLevel, pDevExt->interruptVector));
+            LogFlowFunc(("Getting interrupt vector (HAL): Bus=%u, IRQL=%u, Vector=%u\n",
+                         pDevExt->busNumber, pDevExt->interruptLevel, pDevExt->interruptVector));
 
             uInterruptVector = HalGetInterruptVector(PCIBus,
                                                      pDevExt->busNumber,
@@ -457,16 +477,16 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
                                                      pDevExt->interruptVector,
                                                      &irqLevel,
                                                      &pDevExt->interruptAffinity);
-            Log(("VBoxGuest::vbgdNtInit: HalGetInterruptVector returns vector %u\n", uInterruptVector));
+            LogFlowFunc(("HalGetInterruptVector returns vector=%u\n", uInterruptVector));
             if (uInterruptVector == 0)
-                Log(("VBoxGuest::vbgdNtInit: No interrupt vector found!\n"));
+                LogFunc(("No interrupt vector found!\n"));
         }
         else
-            Log(("VBoxGuest::vbgdNtInit: Device does not provide an interrupt!\n"));
+            LogFlowFunc(("Device does not provide an interrupt!\n"));
 #endif
         if (pDevExt->interruptVector)
         {
-            Log(("VBoxGuest::vbgdNtInit: Connecting interrupt ...\n"));
+            LogFlowFunc(("Connecting interrupt ...\n"));
 
             rc = IoConnectInterrupt(&pDevExt->pInterruptObject,                 /* Out: interrupt object. */
                                     (PKSERVICE_ROUTINE)vbgdNtIsrHandler,        /* Our ISR handler. */
@@ -486,19 +506,19 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
                                     pDevExt->interruptAffinity,                 /* CPU affinity. */
                                     FALSE);                                     /* Don't save FPU stack. */
             if (NT_ERROR(rc))
-                Log(("VBoxGuest::vbgdNtInit: Could not connect interrupt, rc = 0x%x\n", rc));
+                LogFlowFunc(("Could not connect interrupt, rc=0x%x\n", rc));
         }
         else
-            Log(("VBoxGuest::vbgdNtInit: No interrupt vector found!\n"));
+            LogFlowFunc(("No interrupt vector found!\n"));
     }
 
 
 #ifdef VBOX_WITH_HGCM
-    Log(("VBoxGuest::vbgdNtInit: Allocating kernel session data ...\n"));
+    LogFunc(("Allocating kernel session data ...\n"));
     int vrc = VBoxGuestCreateKernelSession(&pDevExt->Core, &pDevExt->pKernelSession);
     if (RT_FAILURE(vrc))
     {
-        Log(("VBoxGuest::vbgdNtInit: Failed to allocated kernel session data! rc = %Rrc\n", rc));
+        LogFlowFunc(("Failed to allocated kernel session data, rc=%Rrc\n", rc));
         rc = STATUS_UNSUCCESSFUL;
     }
 #endif
@@ -506,16 +526,17 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
     if (RT_SUCCESS(rc))
     {
         ULONG ulValue = 0;
-        NTSTATUS rcNt = vbgdNtRegistryReadDWORD(RTL_REGISTRY_SERVICES, L"VBoxGuest", L"LoggingEnabled", &ulValue);
+        NTSTATUS rcNt = vbgdNtRegistryReadDWORD(RTL_REGISTRY_SERVICES,
+                                                L"VBoxGuest", L"LoggingEnabled", &ulValue);
         if (NT_SUCCESS(rcNt))
         {
             pDevExt->Core.fLoggingEnabled = ulValue >= 0xFF;
             if (pDevExt->Core.fLoggingEnabled)
-                Log(("Logging to release log enabled (0x%x)", ulValue));
+                LogRelFunc(("Logging to host log enabled (0x%x)", ulValue));
         }
 
         /* Ready to rumble! */
-        Log(("VBoxGuest::vbgdNtInit: Device is ready!\n"));
+        LogRelFunc(("Device is ready!\n"));
         VBOXGUEST_UPDATE_DEVSTATE(pDevExt, WORKING);
     }
     else
@@ -524,7 +545,7 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
     /** @todo r=bird: The error cleanup here is completely missing. We'll leak a
      *        whole bunch of things... */
 
-    Log(("VBoxGuest::vbgdNtInit: Returned with rc = 0x%x\n", rc));
+    LogFlowFunc(("Returned with rc=0x%x\n", rc));
     return rc;
 }
 
@@ -537,7 +558,7 @@ NTSTATUS vbgdNtInit(PDRIVER_OBJECT pDrvObj, PDEVICE_OBJECT pDevObj, PUNICODE_STR
  */
 NTSTATUS vbgdNtCleanup(PDEVICE_OBJECT pDevObj)
 {
-    Log(("VBoxGuest::vbgdNtCleanup\n"));
+    LogFlowFuncEnter();
 
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
     if (pDevExt)
@@ -568,6 +589,7 @@ NTSTATUS vbgdNtCleanup(PDEVICE_OBJECT pDevObj)
         /* According to MSDN we have to unmap previously mapped memory. */
         vbgdNtUnmapVMMDevMemory(pDevExt);
     }
+
     return STATUS_SUCCESS;
 }
 
@@ -579,7 +601,8 @@ NTSTATUS vbgdNtCleanup(PDEVICE_OBJECT pDevObj)
  */
 static void vbgdNtUnload(PDRIVER_OBJECT pDrvObj)
 {
-    Log(("VBoxGuest::vbgdNtGuestUnload\n"));
+    LogFlowFuncEnter();
+
 #ifdef TARGET_NT4
     vbgdNtCleanup(pDrvObj->DeviceObject);
 
@@ -602,7 +625,7 @@ static void vbgdNtUnload(PDRIVER_OBJECT pDrvObj)
      * so don't do anything here (yet). */
 #endif /* !TARGET_NT4 */
 
-    Log(("VBoxGuest::vbgdNtGuestUnload: returning\n"));
+    LogFlowFunc(("Returning\n"));
 }
 
 
@@ -623,7 +646,7 @@ static NTSTATUS vbgdNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
     if (pDevExt->devState != WORKING)
     {
-        Log(("VBoxGuest::vbgdNtGuestCreate: device is not working currently: %d!\n", pDevExt->devState));
+        LogFlowFunc(("Device is not working currently, state=%d\n", pDevExt->devState));
         rc = STATUS_UNSUCCESSFUL;
     }
     else if (pStack->Parameters.Create.Options & FILE_DIRECTORY_FILE)
@@ -632,7 +655,7 @@ static NTSTATUS vbgdNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
          * We are not remotely similar to a directory...
          * (But this is possible.)
          */
-        Log(("VBoxGuest::vbgdNtGuestCreate: Uhm, we're not a directory!\n"));
+        LogFlowFunc(("Uhm, we're not a directory!\n"));
         rc = STATUS_NOT_A_DIRECTORY;
     }
     else
@@ -640,8 +663,7 @@ static NTSTATUS vbgdNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 #ifdef VBOX_WITH_HGCM
         if (pFileObj)
         {
-            Log(("VBoxGuest::vbgdNtGuestCreate: File object type = %d\n",
-                 pFileObj->Type));
+            LogFlowFunc(("File object type=%d\n", pFileObj->Type));
 
             int vrc;
             PVBOXGUESTSESSION pSession;
@@ -669,7 +691,7 @@ static NTSTATUS vbgdNtCreate(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     pIrp->IoStatus.Status = rc;
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
 
-    Log(("VBoxGuest::vbgdNtGuestCreate: Returning 0x%x\n", rc));
+    LogFlowFunc(("Returning rc=0x%x\n", rc));
     return rc;
 }
 
@@ -686,8 +708,8 @@ static NTSTATUS vbgdNtClose(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     PIO_STACK_LOCATION  pStack   = IoGetCurrentIrpStackLocation(pIrp);
     PFILE_OBJECT        pFileObj = pStack->FileObject;
 
-    Log(("VBoxGuest::vbgdNtGuestClose: pDevExt=0x%p pFileObj=0x%p FsContext=0x%p\n",
-         pDevExt, pFileObj, pFileObj->FsContext));
+    LogFlowFunc(("pDevExt=0x%p, pFileObj=0x%p, FsContext=0x%p\n",
+                 pDevExt, pFileObj, pFileObj->FsContext));
 
 #ifdef VBOX_WITH_HGCM
     /* Close both, R0 and R3 sessions. */
@@ -728,8 +750,8 @@ static NTSTATUS vbgdNtIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
     if (pFileObj) /* ... then we might have a session object as well! */
         pSession = (PVBOXGUESTSESSION)pFileObj->FsContext;
 
-    Log(("VBoxGuest::vbgdNtIOCtl: uCmd=%u, pDevExt=0x%p, pSession=0x%p\n",
-         uCmd, pDevExt, pSession));
+    LogFlowFunc(("uCmd=%u, pDevExt=0x%p, pSession=0x%p\n",
+                 uCmd, pDevExt, pSession));
 
     /* We don't have a session associated with the file object? So this seems
      * to be a kernel call then. */
@@ -737,7 +759,7 @@ static NTSTATUS vbgdNtIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
      *        shall have its own context of course, no hacks, pleeease. */
     if (pSession == NULL)
     {
-        Log(("VBoxGuest::vbgdNtIOCtl: Using kernel session data ...\n"));
+        LogFlowFunc(("Using kernel session data ...\n"));
         pSession = pDevExt->pKernelSession;
     }
 
@@ -788,7 +810,7 @@ static NTSTATUS vbgdNtIOCtl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
     IoCompleteRequest(pIrp, IO_NO_INCREMENT);
 
-    //Log(("VBoxGuest::vbgdNtGuestDeviceControl: returned cbOut=%d rc=%#x\n", cbOut, Status));
+    //LogFlowFunc(("Returned cbOut=%d rc=%#x\n", cbOut, Status));
     return Status;
 }
 
@@ -867,7 +889,7 @@ NTSTATUS vbgdNtSystemControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
 
-    Log(("VBoxGuest::vbgdNtGuestSystemControl\n"));
+    LogFlowFuncEnter();
 
     /* Always pass it on to the next driver. */
     IoSkipCurrentIrpStackLocation(pIrp);
@@ -887,7 +909,7 @@ NTSTATUS vbgdNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
 
-    Log(("VBoxGuest::vbgdNtGuestShutdown\n"));
+    LogFlowFuncEnter();
 
     VMMDevPowerStateRequest *pReq = pDevExt->pPowerStateRequest;
     if (pReq)
@@ -897,11 +919,9 @@ NTSTATUS vbgdNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
         int rc = VbglGRPerform(&pReq->header);
         if (RT_FAILURE(rc))
-        {
-            Log(("VBoxGuest::vbgdNtGuestShutdown: Error performing request to VMMDev! "
-                     "rc = %Rrc\n", rc));
-        }
+            LogFlowFunc(("Error performing request to VMMDev, rc=%Rrc\n", rc));
     }
+
     return STATUS_SUCCESS;
 }
 
@@ -915,7 +935,7 @@ NTSTATUS vbgdNtShutdown(PDEVICE_OBJECT pDevObj, PIRP pIrp)
  */
 NTSTATUS vbgdNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 {
-    Log(("VBoxGuest::vbgdNtGuestNotSupportedStub\n"));
+    LogFlowFuncEnter();
 
     pIrp->IoStatus.Information = 0;
     pIrp->IoStatus.Status = STATUS_NOT_SUPPORTED;
@@ -936,9 +956,11 @@ NTSTATUS vbgdNtNotSupportedStub(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 void vbgdNtDpcHandler(PKDPC pDPC, PDEVICE_OBJECT pDevObj, PIRP pIrp, PVOID pContext)
 {
     PVBOXGUESTDEVEXTWIN pDevExt = (PVBOXGUESTDEVEXTWIN)pDevObj->DeviceExtension;
-    Log(("VBoxGuest::vbgdNtGuestDpcHandler: pDevExt=0x%p\n", pDevExt));
+#ifndef DEBUG_andy
+    LogFlowFunc(("pDevExt=0x%p\n", pDevExt));
+#endif
 
-    /* test & reset the counter */
+    /* Test & reset the counter. */
     if (ASMAtomicXchgU32(&pDevExt->Core.u32MousePosChangedSeq, 0))
     {
         /* we need a lock here to avoid concurrency with the set event ioctl handler thread,
@@ -971,8 +993,8 @@ BOOLEAN vbgdNtIsrHandler(PKINTERRUPT pInterrupt, PVOID pServiceContext)
     if (pDevExt == NULL)
         return FALSE;
 
-    /*Log(("VBoxGuest::vbgdNtGuestIsrHandler: pDevExt = 0x%p, pVMMDevMemory = 0x%p\n",
-             pDevExt, pDevExt ? pDevExt->pVMMDevMemory : NULL));*/
+    /*LogFlowFunc(("pDevExt=0x%p, pVMMDevMemory=0x%p\n",
+                   pDevExt, pDevExt ? pDevExt->pVMMDevMemory : NULL));*/
 
     /* Enter the common ISR routine and do the actual work. */
     BOOLEAN fIRQTaken = VBoxGuestCommonISR(&pDevExt->Core);
@@ -981,11 +1003,16 @@ BOOLEAN vbgdNtIsrHandler(PKINTERRUPT pInterrupt, PVOID pServiceContext)
      * sure we're called at the right IRQL. */
     if (fIRQTaken)
     {
-        Log(("VBoxGuest::vbgdNtGuestIsrHandler: IRQ was taken! pInterrupt = 0x%p, pDevExt = 0x%p\n",
-             pInterrupt, pDevExt));
-        if (ASMAtomicUoReadU32(&pDevExt->Core.u32MousePosChangedSeq) || !RTListIsEmpty(&pDevExt->Core.WakeUpList))
+#ifndef DEBUG_andy
+        LogFlowFunc(("IRQ was taken! pInterrupt=0x%p, pDevExt=0x%p\n",
+                     pInterrupt, pDevExt));
+#endif
+        if (ASMAtomicUoReadU32(   &pDevExt->Core.u32MousePosChangedSeq)
+                               || !RTListIsEmpty(&pDevExt->Core.WakeUpList))
         {
-            Log(("VBoxGuest::vbgdNtGuestIsrHandler: Requesting DPC ...\n"));
+#ifndef DEBUG_andy
+            LogFlowFunc(("Requesting DPC ...\n"));
+#endif
             IoRequestDpc(pDevExt->pDeviceObject, pDevExt->pCurrentIrp, NULL);
         }
     }
@@ -1052,8 +1079,8 @@ NTSTATUS vbgdNtRegistryReadDWORD(ULONG ulRoot, PCWSTR pwszPath, PWSTR pwszName, 
 NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTWIN pDevExt)
 {
     /* Enumerate the resource list. */
-    Log(("VBoxGuest::vbgdNtScanPCIResourceList: Found %d resources\n",
-         pResList->List->PartialResourceList.Count));
+    LogFlowFunc(("Found %d resources\n",
+                 pResList->List->PartialResourceList.Count));
 
     NTSTATUS rc = STATUS_SUCCESS;
     PCM_PARTIAL_RESOURCE_DESCRIPTOR pPartialData = NULL;
@@ -1070,10 +1097,10 @@ NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTW
                 /* Overflow protection. */
                 if (rangeCount < PCI_TYPE0_ADDRESSES)
                 {
-                    Log(("VBoxGuest::vbgdNtScanPCIResourceList: I/O range: Base = %08x:%08x, Length = %08x\n",
-                         pPartialData->u.Port.Start.HighPart,
-                         pPartialData->u.Port.Start.LowPart,
-                         pPartialData->u.Port.Length));
+                    LogFlowFunc(("I/O range: Base=%08x:%08x, length=%08x\n",
+                                 pPartialData->u.Port.Start.HighPart,
+                                 pPartialData->u.Port.Start.LowPart,
+                                 pPartialData->u.Port.Length));
 
                     /* Save the IO port base. */
                     /** @todo Not so good.
@@ -1086,10 +1113,10 @@ NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTW
                     pBaseAddress->RangeInMemory  = FALSE;
                     pBaseAddress->ResourceMapped = FALSE;
 
-                    Log(("VBoxGuest::vbgdNtScanPCIResourceList: I/O range for VMMDev found! Base = %08x:%08x, Length = %08x\n",
-                         pPartialData->u.Port.Start.HighPart,
-                         pPartialData->u.Port.Start.LowPart,
-                         pPartialData->u.Port.Length));
+                    LogFlowFunc(("I/O range for VMMDev found! Base=%08x:%08x, length=%08x\n",
+                                 pPartialData->u.Port.Start.HighPart,
+                                 pPartialData->u.Port.Start.LowPart,
+                                 pPartialData->u.Port.Length));
 
                     /* Next item ... */
                     rangeCount++; pBaseAddress++;
@@ -1099,10 +1126,10 @@ NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTW
 
             case CmResourceTypeInterrupt:
             {
-                Log(("VBoxGuest::vbgdNtScanPCIResourceList: Interrupt: Level = %x, Vector = %x, Mode = %x\n",
-                     pPartialData->u.Interrupt.Level,
-                     pPartialData->u.Interrupt.Vector,
-                     pPartialData->Flags));
+                LogFlowFunc(("Interrupt: Level=%x, vector=%x, mode=%x\n",
+                             pPartialData->u.Interrupt.Level,
+                             pPartialData->u.Interrupt.Vector,
+                             pPartialData->Flags));
 
                 /* Save information. */
                 pDevExt->interruptLevel    = pPartialData->u.Interrupt.Level;
@@ -1122,10 +1149,10 @@ NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTW
                 /* Overflow protection. */
                 if (rangeCount < PCI_TYPE0_ADDRESSES)
                 {
-                    Log(("VBoxGuest::vbgdNtScanPCIResourceList: Memory range: Base = %08x:%08x, Length = %08x\n",
-                         pPartialData->u.Memory.Start.HighPart,
-                         pPartialData->u.Memory.Start.LowPart,
-                         pPartialData->u.Memory.Length));
+                    LogFlowFunc(("Memory range: Base=%08x:%08x, length=%08x\n",
+                                 pPartialData->u.Memory.Start.HighPart,
+                                 pPartialData->u.Memory.Start.LowPart,
+                                 pPartialData->u.Memory.Length));
 
                     /* We only care about read/write memory. */
                     /** @todo Reconsider memory type. */
@@ -1142,26 +1169,23 @@ NTSTATUS vbgdNtScanPCIResourceList(PCM_RESOURCE_LIST pResList, PVBOXGUESTDEVEXTW
                         pBaseAddress->RangeInMemory  = TRUE;
                         pBaseAddress->ResourceMapped = FALSE;
 
-                        Log(("VBoxGuest::vbgdNtScanPCIResourceList: Memory range for VMMDev found! Base = %08x:%08x, Length = %08x\n",
-                             pPartialData->u.Memory.Start.HighPart,
-                             pPartialData->u.Memory.Start.LowPart,
-                             pPartialData->u.Memory.Length));
+                        LogFlowFunc(("Memory range for VMMDev found! Base = %08x:%08x, Length = %08x\n",
+                                     pPartialData->u.Memory.Start.HighPart,
+                                     pPartialData->u.Memory.Start.LowPart,
+                                     pPartialData->u.Memory.Length));
 
                         /* Next item ... */
                         rangeCount++; pBaseAddress++; cMMIORange++;
                     }
                     else
-                    {
-                        Log(("VBoxGuest::vbgdNtScanPCIResourceList: Ignoring memory: Flags = %08x\n",
-                             pPartialData->Flags));
-                    }
+                        LogFlowFunc(("Ignoring memory: Flags=%08x\n", pPartialData->Flags));
                 }
                 break;
             }
 
             default:
             {
-                Log(("VBoxGuest::vbgdNtScanPCIResourceList: Unhandled resource found, type = %d\n", pPartialData->Type));
+                LogFlowFunc(("Unhandled resource found, type=%d\n", pPartialData->Type));
                 break;
             }
         }
@@ -1195,11 +1219,11 @@ NTSTATUS vbgdNtMapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt, PHYSICAL_ADDRESS Phy
     if (PhysAddr.LowPart > 0) /* We're mapping below 4GB. */
     {
          VMMDevMemory *pVMMDevMemory = (VMMDevMemory *)MmMapIoSpace(PhysAddr, cbToMap, MmNonCached);
-         Log(("VBoxGuest::vbgdNtMapVMMDevMemory: pVMMDevMemory = 0x%x\n", pVMMDevMemory));
+         LogFlowFunc(("pVMMDevMemory = 0x%x\n", pVMMDevMemory));
          if (pVMMDevMemory)
          {
-             Log(("VBoxGuest::vbgdNtMapVMMDevMemory: VMMDevMemory: Version = 0x%x, Size = %d\n",
-                  pVMMDevMemory->u32Version, pVMMDevMemory->u32Size));
+             LogFlowFunc(("VMMDevMemory: Version = 0x%x, Size = %d\n",
+                          pVMMDevMemory->u32Version, pVMMDevMemory->u32Size));
 
              /* Check version of the structure; do we have the right memory version? */
              if (pVMMDevMemory->u32Version == VMMDEV_MEMORY_VERSION)
@@ -1209,13 +1233,14 @@ NTSTATUS vbgdNtMapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt, PHYSICAL_ADDRESS Phy
                  if (pcbMMIO) /* Optional. */
                      *pcbMMIO = pVMMDevMemory->u32Size;
 
-                 Log(("VBoxGuest::vbgdNtMapVMMDevMemory: VMMDevMemory found and mapped! pvMMIOBase = 0x%p\n",
-                      *ppvMMIOBase));
+                 LogFlowFunc(("VMMDevMemory found and mapped! pvMMIOBase = 0x%p\n",
+                              *ppvMMIOBase));
              }
              else
              {
                  /* Not our version, refuse operation and unmap the memory. */
-                 Log(("VBoxGuest::vbgdNtMapVMMDevMemory: Wrong version (%u), refusing operation!\n", pVMMDevMemory->u32Version));
+                 LogFlowFunc(("Wrong version (%u), refusing operation!\n", pVMMDevMemory->u32Version));
+
                  vbgdNtUnmapVMMDevMemory(pDevExt);
                  rc = STATUS_UNSUCCESSFUL;
              }
@@ -1234,7 +1259,7 @@ NTSTATUS vbgdNtMapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt, PHYSICAL_ADDRESS Phy
  */
 void vbgdNtUnmapVMMDevMemory(PVBOXGUESTDEVEXTWIN pDevExt)
 {
-    Log(("VBoxGuest::vbgdNtUnmapVMMDevMemory: pVMMDevMemory = 0x%x\n", pDevExt->Core.pVMMDevMemory));
+    LogFlowFunc(("pVMMDevMemory = 0x%x\n", pDevExt->Core.pVMMDevMemory));
     if (pDevExt->Core.pVMMDevMemory)
     {
         MmUnmapIoSpace((void*)pDevExt->Core.pVMMDevMemory, pDevExt->vmmDevPhysMemoryLength);
@@ -1324,7 +1349,6 @@ VBOXOSTYPE vbgdNtVersionToOSType(VBGDNTVER enmNtVer)
 }
 
 #ifdef DEBUG
-
 /**
  * A quick implementation of AtomicTestAndClear for uint32_t and multiple bits.
  */
@@ -1373,7 +1397,6 @@ static void vbgdNtDoTests(void)
     vbgdNtTestAtomicTestAndClearBitsU32(0x11, 0x32, 0x10);
     vbgdNtTestAtomicTestAndClearBitsU32(0x22, 0x23, 0x22);
 }
-
 #endif /* DEBUG */
 
 #ifdef VBOX_WITH_DPC_LATENCY_CHECKER
@@ -1522,6 +1545,5 @@ int VbgdNtIOCtl_DpcLatencyChecker(void)
     ExFreePoolWithTag(pData, VBOXGUEST_DPC_TAG);
     return VINF_SUCCESS;
 }
-
 #endif /* VBOX_WITH_DPC_LATENCY_CHECKER */
 

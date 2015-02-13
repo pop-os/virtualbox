@@ -200,7 +200,7 @@ void UINetworkReplyPrivateThread::run()
 /* static */
 QString UINetworkReplyPrivateThread::fullCertificateFileName()
 {
-    const QDir homeDir(QDir::toNativeSeparators(vboxGlobal().virtualBox().GetHomeFolder()));
+    const QDir homeDir(QDir::toNativeSeparators(vboxGlobal().homeFolder()));
     return QDir::toNativeSeparators(homeDir.absoluteFilePath(m_strCertificateFileName));
 }
 
@@ -237,7 +237,7 @@ int UINetworkReplyPrivateThread::applyCertificates(RTHTTP pHttp, const QString &
         return VERR_INVALID_POINTER;
 
     /* Apply HTTPs certificates: */
-    return RTHttpSetCAFile(pHttp, strFullCertificateFileName.toAscii().constData());
+    return RTHttpSetCAFile(pHttp, strFullCertificateFileName.toUtf8().constData());
 }
 
 /* static */

@@ -1,3 +1,20 @@
+/* $Id: HostDnsServiceResolvConf.cpp $ */
+/** @file
+ * Base class for Host DNS & Co services.
+ */
+
+/*
+ * Copyright (C) 2014 Oracle Corporation
+ *
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
 /* -*- indent-tabs-mode: nil; -*- */
 #include <VBox/com/string.h>
 #include <VBox/com/ptr.h>
@@ -64,8 +81,8 @@ HRESULT HostDnsServiceResolvConf::init(const char *aResolvConfFileName)
 HRESULT HostDnsServiceResolvConf::readResolvConf()
 {
     struct rcp_state st;
-    
-    st.rcps_flags = RCPSF_NO_STR2IPCONV; 
+
+    st.rcps_flags = RCPSF_NO_STR2IPCONV;
     int rc = rcp_parse(&st, m->resolvConfFilename.c_str());
     if (rc == -1)
         return S_OK;
@@ -76,7 +93,7 @@ HRESULT HostDnsServiceResolvConf::readResolvConf()
         AssertBreak(st.rcps_str_nameserver[i]);
         info.servers.push_back(st.rcps_str_nameserver[i]);
     }
-    
+
     if (st.rcps_domain)
         info.domain = st.rcps_domain;
 

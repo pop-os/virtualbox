@@ -253,8 +253,11 @@ typedef struct
     uint32_t                    fEnabled;
     /** SVGA memory area configured status. */
     uint32_t                    fConfigured;
-    /** Device is busy handling FIFO requests. */
-    uint32_t                    fBusy;
+    /** Device is busy handling FIFO requests (VMSVGA_BUSY_F_FIFO,
+     *  VMSVGA_BUSY_F_EMT_FORCE). */
+    uint32_t volatile           fBusy;
+#define VMSVGA_BUSY_F_FIFO          RT_BIT_32(0) /**< The normal true/false busy FIFO bit. */
+#define VMSVGA_BUSY_F_EMT_FORCE     RT_BIT_32(1) /**< Bit preventing race status flickering when EMT kicks the FIFO thread. */
     /** Traces (dirty page detection) enabled or not. */
     uint32_t                    fTraces;
     /** Guest OS identifier. */
@@ -278,10 +281,12 @@ typedef struct
     RTIOPORT                    BasePort;
     /** Port io index register. */
     uint32_t                    u32IndexReg;
+    /** The support driver session handle for use with FIFORequestSem. */
+    R3R0PTRTYPE(PSUPDRVSESSION) pSupDrvSession;
     /** FIFO request semaphore. */
-    RTSEMEVENT                  FIFORequestSem;
+    SUPSEMEVENT                 FIFORequestSem;
     /** FIFO external command semaphore. */
-    RTSEMEVENT                  FIFOExtCmdSem;
+    R3PTRTYPE(RTSEMEVENT)       FIFOExtCmdSem;
     /** FIFO IO Thread. */
     R3PTRTYPE(PPDMTHREAD)       pFIFOIOThread;
     uint32_t                    uWidth;
@@ -308,7 +313,7 @@ typedef struct
     bool                        fVRAMTracking;
     /** External command to be executed in the FIFO thread. */
     uint8_t                     u8FIFOExtCommand;
-    bool                        Padding6[HC_ARCH_BITS == 64 ? 1 : 5];
+    bool                        Padding6;
 } VMSVGAState;
 #endif /* VBOX_WITH_VMSVGA */
 
@@ -391,6 +396,9 @@ typedef struct VGAState {
     PDMIBASE                    IBase;
     /** LUN\#0: The display port interface. */
     PDMIDISPLAYPORT             IPort;
+# if HC_ARCH_BITS == 32
+    uint32_t                    PaddingIPort;
+# endif
 # if defined(VBOX_WITH_HGSMI) && (defined(VBOX_WITH_VIDEOHWACCEL) || defined(VBOX_WITH_CRHGSMI))
     /** LUN\#0: VBVA callbacks interface */
     PDMIDISPLAYVBVACALLBACKS    IVBVACallbacks;
@@ -543,7 +551,7 @@ typedef struct VGAState {
      * adapter, the way it can handle async HGSMI command completion, etc. */
     uint32_t                    fGuestCaps;
     uint32_t                    fScanLineCfg;
-    uint8_t                     Padding10[4];
+    uint32_t                    fHostCursorCapabilities;
 #  else
     uint8_t                     Padding10[14];
 #  endif
@@ -673,6 +681,14 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
 int vboxVBVALoadStateDone (PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 
 int vgaUpdateDisplayAll(PVGASTATE pThis);
+DECLCALLBACK(int) vbvaPortSendModeHint(PPDMIDISPLAYPORT pInterface, uint32_t cx,
+                                       uint32_t cy, uint32_t cBPP,
+                                       uint32_t cDisplay, uint32_t dx,
+                                       uint32_t dy, uint32_t fEnabled,
+                                       uint32_t fNotifyGuest);
+DECLCALLBACK(void) vbvaPortReportHostCursorCapabilities(PPDMIDISPLAYPORT pInterface, uint32_t fCapabilitiesAdded,
+                                                        uint32_t fCapabilitiesRemoved);
+DECLCALLBACK(void) vbvaPortReportHostCursorPosition(PPDMIDISPLAYPORT pInterface, uint32_t x, uint32_t y);
 
 # ifdef VBOX_WITH_VDMA
 typedef struct VBOXVDMAHOST *PVBOXVDMAHOST;

@@ -162,13 +162,18 @@ HRESULT Mouse::updateVMMDevMouseCaps(uint32_t fCapsAdded,
     if (!pVMMDev)
         return E_FAIL;  /* No assertion, as the front-ends can send events
                          * at all sorts of inconvenient times. */
+    DisplayMouseInterface *pDisplay = mParent->getDisplayMouseInterface();
+    if (pDisplay == NULL)
+        return E_FAIL;
     PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
     if (!pVMMDevPort)
         return E_FAIL;  /* same here */
 
     int rc = pVMMDevPort->pfnUpdateMouseCapabilities(pVMMDevPort, fCapsAdded,
                                                      fCapsRemoved);
-    return RT_SUCCESS(rc) ? S_OK : E_FAIL;
+    if (RT_FAILURE(rc))
+        return E_FAIL;
+    return pDisplay->i_reportHostCursorCapabilities(fCapsAdded, fCapsRemoved);
 }
 
 /**
@@ -432,9 +437,8 @@ HRESULT Mouse::reportAbsEventToVMMDev(int32_t x, int32_t y)
  *
  * @returns   COM status code
  */
-HRESULT Mouse::reportAbsEvent(int32_t x, int32_t y,
-                              int32_t dz, int32_t dw, uint32_t fButtons,
-                              bool fUsesVMMDevEvent)
+HRESULT Mouse::i_reportAbsEventToInputDevices(int32_t x, int32_t y, int32_t dz, int32_t dw, uint32_t fButtons,
+                                              bool fUsesVMMDevEvent)
 {
     HRESULT rc;
     /** If we are using the VMMDev to report absolute position but without
@@ -461,6 +465,28 @@ HRESULT Mouse::reportAbsEvent(int32_t x, int32_t y,
     mcLastY = y;
     return rc;
 }
+
+
+/**
+ * Send an absolute position event to the display device.
+ * @note all calls out of this object are made with no locks held!
+ * @param  x  Cursor X position in pixels relative to the first screen, where
+ *            (1, 1) is the upper left corner.
+ * @param  y  Cursor Y position in pixels relative to the first screen, where
+ *            (1, 1) is the upper left corner.
+ */
+HRESULT Mouse::i_reportAbsEventToDisplayDevice(int32_t x, int32_t y)
+{
+    DisplayMouseInterface *pDisplay = mParent->getDisplayMouseInterface();
+    ComAssertRet(pDisplay, E_FAIL);
+
+    if (x != mcLastX || y != mcLastY)
+    {
+        pDisplay->i_reportHostCursorPosition(x - 1, y - 1);
+    }
+    return S_OK;
+}
+
 
 void Mouse::fireMouseEvent(bool fAbsolute, LONG x, LONG y, LONG dz, LONG dw,
                            LONG fButtons)
@@ -654,12 +680,13 @@ STDMETHODIMP Mouse::PutMouseEventAbsolute(LONG x, LONG y, LONG dz, LONG dw,
     updateVMMDevMouseCaps(VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE, 0);
     if (fValid)
     {
-        rc = reportAbsEvent(xAdj, yAdj, dz, dw, fButtonsAdj,
-                            RT_BOOL(  mfVMMDevGuestCaps
-                                    & VMMDEV_MOUSE_NEW_PROTOCOL));
+        rc = i_reportAbsEventToInputDevices(xAdj, yAdj, dz, dw, fButtonsAdj,
+                                            RT_BOOL(mfVMMDevGuestCaps & VMMDEV_MOUSE_NEW_PROTOCOL));
+        if (FAILED(rc)) return rc;
 
         fireMouseEvent(true, x, y, dz, dw, fButtons);
     }
+    rc = i_reportAbsEventToDisplayDevice(x, y);
 
     return rc;
 }
@@ -923,22 +950,15 @@ bool Mouse::supportsMT(void)
  */
 void Mouse::sendMouseCapsNotifications(void)
 {
-    bool fAbsDev, fRelDev, fMTDev, fCanAbs, fNeedsHostCursor;
+    bool fRelDev, fMTDev, fCanAbs, fNeedsHostCursor;
 
     {
         AutoReadLock aLock(this COMMA_LOCKVAL_SRC_POS);
 
-        getDeviceCaps(&fAbsDev, &fRelDev, &fMTDev);
+        getDeviceCaps(NULL, &fRelDev, &fMTDev);
         fCanAbs = supportsAbs();
         fNeedsHostCursor = guestNeedsHostCursor();
     }
-    if (fAbsDev)
-        updateVMMDevMouseCaps(VMMDEV_MOUSE_HOST_HAS_ABS_DEV, 0);
-    else
-        updateVMMDevMouseCaps(0, VMMDEV_MOUSE_HOST_HAS_ABS_DEV);
-    /** @todo this call takes the Console lock in order to update the cached
-     * callback data atomically.  However I can't see any sign that the cached
-     * data is ever used again. */
     mParent->onMouseCapabilityChange(fCanAbs, fRelDev, fMTDev, fNeedsHostCursor);
 }
 

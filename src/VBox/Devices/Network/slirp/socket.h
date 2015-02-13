@@ -58,6 +58,7 @@ struct socket
                                   * PING reply's */
     struct tcpiphdr *so_ti;      /* Pointer to the original ti within
                                   * so_mconn, for non-blocking connections */
+    uint8_t         *so_ohdr;    /* unmolested IP header of the datagram in so_m */
     int             so_urgc;
     struct in_addr  so_faddr;    /* foreign host table entry */
     struct in_addr  so_laddr;    /* local host table entry */
@@ -100,10 +101,7 @@ struct socket
     /* storage of source ether address */
     unsigned char so_ethaddr[6];
 #endif
-    /* required for port-forwarding */
-    struct libalias *so_la;
-    /* libalias might attach the socket and we want to notify libalias we're freeing it */
-    void *so_pvLnk;
+
 #ifdef VBOX_WITH_NAT_UDP_SOCKET_CLONE
     struct socket *so_cloneOf; /* pointer to master instance */
     int so_cCloneCounter;      /* number of clones */
@@ -131,10 +129,6 @@ struct socket
      */
     int fShouldBeRemoved;
 };
-
-/* this function inform libalias about socket close */
-void slirpDeleteLinkSocket(void *pvLnk);
-
 
 # define SOCKET_LOCK(so) do {} while (0)
 # define SOCKET_UNLOCK(so) do {} while (0)

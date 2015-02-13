@@ -23,7 +23,7 @@
 #include <iprt/vector.h>
 #include <VBox/log.h>
 
-#include "seamless-guest.h"
+#include "seamless-x11.h"
 
 #include <X11/Xatom.h>
 #include <X11/Xmu/WinUtil.h>
@@ -70,12 +70,12 @@ static unsigned char *XXGetProperty (Display *aDpy, Window aWnd, Atom aPropType,
   *
   * @returns true if it can handle seamless, false otherwise
   */
-int VBoxGuestSeamlessX11::init(VBoxGuestSeamlessObserver *pObserver)
+int SeamlessX11::init(PFNSENDREGIONUPDATE pHostCallback)
 {
     int rc = VINF_SUCCESS;
 
     LogRelFlowFunc(("\n"));
-    if (0 != mObserver)  /* Assertion */
+    if (mHostCallback != NULL)  /* Assertion */
     {
         LogRel(("VBoxClient: ERROR: attempt to initialise seamless guest object twice!\n"));
         return VERR_INTERNAL_ERROR;
@@ -85,7 +85,7 @@ int VBoxGuestSeamlessX11::init(VBoxGuestSeamlessObserver *pObserver)
         LogRel(("VBoxClient: seamless guest object failed to acquire a connection to the display.\n"));
         return VERR_ACCESS_DENIED;
     }
-    mObserver = pObserver;
+    mHostCallback = pHostCallback;
     LogRelFlowFunc(("returning %Rrc\n", rc));
     return rc;
 }
@@ -95,10 +95,10 @@ int VBoxGuestSeamlessX11::init(VBoxGuestSeamlessObserver *pObserver)
  * events about changes to this information.
  *
  * @note This class does not contain its own event thread, so an external thread must
- *       call nextEvent() for as long as events are wished.
+ *       call nextConfigurationEvent() for as long as events are wished.
  * @todo This function should switch the guest to fullscreen mode.
  */
-int VBoxGuestSeamlessX11::start(void)
+int SeamlessX11::start(void)
 {
     int rc = VINF_SUCCESS;
     /** Dummy values for XShapeQueryExtension */
@@ -115,7 +115,7 @@ int VBoxGuestSeamlessX11::start(void)
 
 /** Stop reporting seamless events to the host.  Free information about guest windows
     and stop requesting updates. */
-void VBoxGuestSeamlessX11::stop(void)
+void SeamlessX11::stop(void)
 {
     LogRelFlowFunc(("\n"));
     mEnabled = false;
@@ -124,13 +124,13 @@ void VBoxGuestSeamlessX11::stop(void)
     LogRelFlowFunc(("returning\n"));
 }
 
-void VBoxGuestSeamlessX11::monitorClientList(void)
+void SeamlessX11::monitorClientList(void)
 {
     LogRelFlowFunc(("called\n"));
     XSelectInput(mDisplay, DefaultRootWindow(mDisplay), SubstructureNotifyMask);
 }
 
-void VBoxGuestSeamlessX11::unmonitorClientList(void)
+void SeamlessX11::unmonitorClientList(void)
 {
     LogRelFlowFunc(("called\n"));
     XSelectInput(mDisplay, DefaultRootWindow(mDisplay), 0);
@@ -140,7 +140,7 @@ void VBoxGuestSeamlessX11::unmonitorClientList(void)
  * Recreate the table of toplevel windows of clients on the default root window of the
  * X server.
  */
-void VBoxGuestSeamlessX11::rebuildWindowTree(void)
+void SeamlessX11::rebuildWindowTree(void)
 {
     LogRelFlowFunc(("called\n"));
     freeWindowTree();
@@ -155,7 +155,7 @@ void VBoxGuestSeamlessX11::rebuildWindowTree(void)
  *
  * @param hRoot the virtual root window to be examined
  */
-void VBoxGuestSeamlessX11::addClients(const Window hRoot)
+void SeamlessX11::addClients(const Window hRoot)
 {
     /** Unused out parameters of XQueryTree */
     Window hRealRoot, hParent;
@@ -177,7 +177,7 @@ void VBoxGuestSeamlessX11::addClients(const Window hRoot)
 }
 
 
-void VBoxGuestSeamlessX11::addClientWindow(const Window hWin)
+void SeamlessX11::addClientWindow(const Window hWin)
 {
     LogRelFlowFunc(("\n"));
     XWindowAttributes winAttrib;
@@ -240,7 +240,7 @@ void VBoxGuestSeamlessX11::addClientWindow(const Window hWin)
  * @returns true if it is, false otherwise
  * @param hWin the window to be examined
  */
-bool VBoxGuestSeamlessX11::isVirtualRoot(Window hWin)
+bool SeamlessX11::isVirtualRoot(Window hWin)
 {
     unsigned char *windowTypeRaw = NULL;
     Atom *windowType;
@@ -274,7 +274,7 @@ DECLCALLBACK(int) VBoxGuestWinFree(VBoxGuestWinInfo *pInfo, void *pvParam)
 /**
  * Free all information in the tree of visible windows
  */
-void VBoxGuestSeamlessX11::freeWindowTree(void)
+void SeamlessX11::freeWindowTree(void)
 {
     /* We use post-increment in the operation to prevent the iterator from being invalidated. */
     LogRelFlowFunc(("\n"));
@@ -288,7 +288,7 @@ void VBoxGuestSeamlessX11::freeWindowTree(void)
  *
  * @note Called from the guest event thread.
  */
-void VBoxGuestSeamlessX11::nextEvent(void)
+void SeamlessX11::nextConfigurationEvent(void)
 {
     XEvent event;
 
@@ -298,7 +298,7 @@ void VBoxGuestSeamlessX11::nextEvent(void)
     if (mChanged)
     {
         updateRects();
-        mObserver->notify();
+        mHostCallback(mpRects, mcRects);
     }
     mChanged = false;
     XNextEvent(mDisplay, &event);
@@ -344,7 +344,7 @@ void VBoxGuestSeamlessX11::nextEvent(void)
  *
  * @param event the X11 event structure
  */
-void VBoxGuestSeamlessX11::doConfigureEvent(Window hWin)
+void SeamlessX11::doConfigureEvent(Window hWin)
 {
     VBoxGuestWinInfo *pInfo = mGuestWindows.find(hWin);
     if (pInfo)
@@ -380,7 +380,7 @@ void VBoxGuestSeamlessX11::doConfigureEvent(Window hWin)
  *
  * @param event the X11 event structure
  */
-void VBoxGuestSeamlessX11::doMapEvent(Window hWin)
+void SeamlessX11::doMapEvent(Window hWin)
 {
     LogRelFlowFunc(("\n"));
     VBoxGuestWinInfo *pInfo = mGuestWindows.find(hWin);
@@ -398,7 +398,7 @@ void VBoxGuestSeamlessX11::doMapEvent(Window hWin)
  *
  * @param event the X11 event structure
  */
-void VBoxGuestSeamlessX11::doShapeEvent(Window hWin)
+void SeamlessX11::doShapeEvent(Window hWin)
 {
     LogRelFlowFunc(("\n"));
     VBoxGuestWinInfo *pInfo = mGuestWindows.find(hWin);
@@ -426,7 +426,7 @@ void VBoxGuestSeamlessX11::doShapeEvent(Window hWin)
  *
  * @param event the X11 event structure
  */
-void VBoxGuestSeamlessX11::doUnmapEvent(Window hWin)
+void SeamlessX11::doUnmapEvent(Window hWin)
 {
     LogRelFlowFunc(("\n"));
     VBoxGuestWinInfo *pInfo = mGuestWindows.removeWindow(hWin);
@@ -441,7 +441,7 @@ void VBoxGuestSeamlessX11::doUnmapEvent(Window hWin)
 /**
  * Gets the list of visible rectangles
  */
-RTRECT *VBoxGuestSeamlessX11::getRects(void)
+RTRECT *SeamlessX11::getRects(void)
 {
     return mpRects;
 }
@@ -449,7 +449,7 @@ RTRECT *VBoxGuestSeamlessX11::getRects(void)
 /**
  * Gets the number of rectangles in the visible rectangle list
  */
-size_t VBoxGuestSeamlessX11::getRectCount(void)
+size_t SeamlessX11::getRectCount(void)
 {
     return mcRects;
 }
@@ -500,7 +500,7 @@ DECLCALLBACK(int) getRectsCallback(VBoxGuestWinInfo *pInfo,
 /**
  * Updates the list of seamless rectangles
  */
-int VBoxGuestSeamlessX11::updateRects(void)
+int SeamlessX11::updateRects(void)
 {
     LogRelFlowFunc(("\n"));
     unsigned cRects = 0;
@@ -527,7 +527,7 @@ int VBoxGuestSeamlessX11::updateRects(void)
  *
  * @note This function should only be called from the host event thread.
  */
-bool VBoxGuestSeamlessX11::interruptEvent(void)
+bool SeamlessX11::interruptEventWait(void)
 {
     bool rc = false;
 
@@ -535,8 +535,8 @@ bool VBoxGuestSeamlessX11::interruptEvent(void)
     /* Message contents set to zero. */
     XClientMessageEvent clientMessage = { ClientMessage, 0, 0, 0, 0, 0, 8 };
 
-    if (0 != XSendEvent(mDisplay, DefaultRootWindow(mDisplay), false, PropertyChangeMask,
-                   reinterpret_cast<XEvent *>(&clientMessage)))
+    if (XSendEvent(mDisplay, DefaultRootWindow(mDisplay), false,
+                   SubstructureNotifyMask, (XEvent *)&clientMessage))
     {
         XFlush(mDisplay);
         rc = true;

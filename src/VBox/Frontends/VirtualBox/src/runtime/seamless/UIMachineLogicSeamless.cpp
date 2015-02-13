@@ -50,7 +50,7 @@ bool UIMachineLogicSeamless::checkAvailability()
     const CMachine &machine = uisession()->session().GetMachine();
 
     /* Check if there is enough physical memory to enter seamless: */
-    if (uisession()->isGuestAdditionsActive())
+    if (uisession()->isGuestSupportsSeamless())
     {
         quint64 availBits = machine.GetVRAMSize() /* VRAM */ * _1M /* MiB to bytes */ * 8 /* to bits */;
         quint64 usedBits = m_pScreenLayout->memoryRequirements();
@@ -112,6 +112,9 @@ void UIMachineLogicSeamless::notifyAbout3DOverlayVisibilityChange(bool)
 
 void UIMachineLogicSeamless::sltCheckForRequestedVisualStateType()
 {
+    LogRel(("UIMachineLogicSeamless::sltCheckForRequestedVisualStateType: Requested-state=%d, Machine-state=%d\n",
+            uisession()->requestedVisualState(), uisession()->machineState()));
+
     /* Do not try to change visual-state type if machine was not started yet: */
     if (!uisession()->isRunning() && !uisession()->isPaused())
         return;

@@ -63,7 +63,15 @@
 #include <alias.h>
 
 #ifndef RT_OS_WINDOWS
+/**
+ * XXX: It shouldn't be non-Windows specific.
+ * resolv_conf_parser.h client's structure isn't OS specific, it's just need to be generalized a
+ * a bit to replace slirp_state.h DNS server (domain) lists with rcp_state like structure.
+ */
+# include "resolv_conf_parser.h"
+#endif
 
+#ifndef RT_OS_WINDOWS
 # define DO_ENGAGE_EVENT1(so, fdset, label)                        \
    do {                                                            \
        if (   so->so_poll_index != -1                              \
@@ -192,7 +200,7 @@
 # define closefds_win_bit FD_CLOSE_BIT
 
 # define DO_CHECK_FD_SET(so, events, fdset)  \
-    (((events).lNetworkEvents & fdset ## _win) && ((events).iErrorCode[fdset ## _win_bit] == 0))
+    ((events).lNetworkEvents & fdset ## _win)
 
 # define DO_WIN_CHECK_FD_SET(so, events, fdset) DO_CHECK_FD_SET((so), (events), fdset)
 # define DO_UNIX_CHECK_FD_SET(so, events, fdset) 1 /*specific for Unix API */
@@ -323,7 +331,19 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
 #ifdef RT_OS_WINDOWS
     {
         WSADATA Data;
+        RTLDRMOD hLdrMod;
+
         WSAStartup(MAKEWORD(2, 0), &Data);
+
+        rc = RTLdrLoadSystem("Iphlpapi.dll", /* :fNoUnload */ true, &hLdrMod);
+        if (RT_SUCCESS(rc))
+        {
+            rc = RTLdrGetSymbol(hLdrMod, "GetAdaptersAddresses", (void **)&pData->pfGetAdaptersAddresses);
+            if (RT_FAILURE(rc))
+                LogRel(("NAT: Can't find GetAdapterAddresses in Iphlpapi.dll\n"));
+
+            RTLdrClose(hLdrMod);
+        }
     }
     pData->phEvents[VBOX_SOCKET_EVENT_INDEX] = CreateEvent(NULL, FALSE, FALSE, NULL);
 #endif
@@ -870,7 +890,7 @@ static bool slirpConnectOrWrite(PNATState pData, struct socket *so, bool fConnec
 }
 
 #if defined(RT_OS_WINDOWS)
-void slirp_select_poll(PNATState pData, int fTimeout, int fIcmp)
+void slirp_select_poll(PNATState pData, int fTimeout)
 #else /* RT_OS_WINDOWS */
 void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
 #endif /* !RT_OS_WINDOWS */
@@ -920,11 +940,7 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
     if (!link_up)
         goto done;
 #if defined(RT_OS_WINDOWS)
-    /*XXX: before renaming please make see define
-     * fIcmp in slirp_state.h
-     */
-    if (fIcmp)
-        sorecvfrom(pData, &pData->icmp_socket);
+    icmpwin_process(pData);
 #else
     if (   (pData->icmp_socket.s != -1)
         && CHECK_FD_SET(&pData->icmp_socket, ignored, readfds))
@@ -957,6 +973,61 @@ void slirp_select_poll(PNATState pData, struct pollfd *polls, int ndfs)
 
         LOG_NAT_SOCK(so, TCP, &NetworkEvents, readfds, writefds, xfds);
 
+        if (so->so_state & SS_ISFCONNECTING)
+        {
+            int sockerr = 0;
+#if !defined(RT_OS_WINDOWS)
+            {
+                int revents = 0;
+
+                /*
+                 * Failed connect(2) is reported by poll(2) on
+                 * different OSes with different combinations of
+                 * POLLERR, POLLHUP, and POLLOUT.
+                 */
+                if (   CHECK_FD_SET(so, NetworkEvents, closefds) /* POLLHUP */
+                    || CHECK_FD_SET(so, NetworkEvents, rderr))   /* POLLERR */
+                {
+                    revents = POLLHUP; /* squash to single "failed" flag */
+                }
+#if defined(RT_OS_SOLARIS) || defined(RT_OS_NETBSD)
+                /* Solaris and NetBSD report plain POLLOUT even on error */
+                else if (CHECK_FD_SET(so, NetworkEvents, writefds)) /* POLLOUT */
+                {
+                    revents = POLLOUT;
+                }
+#endif
+
+                if (revents != 0)
+                {
+                    socklen_t optlen = (socklen_t)sizeof(sockerr);
+                    ret = getsockopt(so->s, SOL_SOCKET, SO_ERROR, &sockerr, &optlen);
+
+                    if (   RT_UNLIKELY(ret < 0)
+                        || (   (revents & POLLHUP)
+                            && RT_UNLIKELY(sockerr == 0)))
+                        sockerr = ETIMEDOUT;
+                }
+            }
+#else  /* RT_OS_WINDOWS */
+            {
+                if (NetworkEvents.lNetworkEvents & FD_CONNECT)
+                    sockerr = NetworkEvents.iErrorCode[FD_CONNECT_BIT];
+            }
+#endif
+            if (sockerr != 0)
+            {
+                tcp_fconnect_failed(pData, so, sockerr);
+                ret = slirpVerifyAndFreeSocket(pData, so);
+                Assert(ret == 1); /* freed */
+                CONTINUE(tcp);
+            }
+
+            /*
+             * XXX: For now just fall through to the old code to
+             * handle successful connect(2).
+             */
+        }
 
         /*
          * Check for URG data
@@ -1372,6 +1443,8 @@ void if_encap(PNATState pData, uint16_t eth_proto, struct mbuf *m, int flags)
                 pData, eth_proto, m, flags));
 
     M_ASSERTPKTHDR(m);
+
+    Assert(M_LEADINGSPACE(m) >= ETH_HLEN);
     m->m_data -= ETH_HLEN;
     m->m_len += ETH_HLEN;
     eh = mtod(m, struct ethhdr *);
@@ -1460,13 +1533,9 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
     LIST_FOREACH_SAFE(rule, &pData->port_forward_rule_head, list, tmp)
     {
         struct socket *so;
-        struct alias_link *alias_link;
-        struct libalias *lib;
-        int flags;
         struct sockaddr sa;
         struct sockaddr_in *psin;
         socklen_t socketlen;
-        struct in_addr alias;
         int rc;
         uint32_t guest_addr; /* need to understand if we already give address to guest */
 
@@ -1496,8 +1565,10 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
             rule->guest_addr.s_addr = guest_addr;
 #endif
 
-        LogRel(("NAT: set redirect %s host port %d => guest port %d @ %RTnaipv4\n",
-               rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, guest_addr));
+        LogRel(("NAT: set redirect %s host %RTnaipv4:%d => guest %RTnaipv4:%d\n",
+                rule->proto == IPPROTO_UDP ? "UDP" : "TCP",
+                rule->bind_ip.s_addr, rule->host_port,
+                guest_addr, rule->guest_port));
 
         if (rule->proto == IPPROTO_UDP)
             so = udp_listen(pData, rule->bind_ip.s_addr, RT_H2N_U16(rule->host_port), guest_addr,
@@ -1519,31 +1590,16 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
         if (rc < 0 || sa.sa_family != AF_INET)
             goto remove_port_forwarding;
 
-        psin = (struct sockaddr_in *)&sa;
-
-        lib = LibAliasInit(pData, NULL);
-        flags = LibAliasSetMode(lib, 0, 0);
-        flags |= pData->i32AliasMode;
-        flags |= PKT_ALIAS_REVERSE; /* set reverse  */
-        flags = LibAliasSetMode(lib, flags, ~0);
-
-        alias.s_addr = RT_H2N_U32(RT_N2H_U32(guest_addr) | CTL_ALIAS);
-        alias_link = LibAliasRedirectPort(lib, psin->sin_addr, RT_H2N_U16(rule->host_port),
-                                          alias, RT_H2N_U16(rule->guest_port),
-                                          pData->special_addr,  -1, /* not very clear for now */
-                                          rule->proto);
-        if (!alias_link)
-            goto remove_port_forwarding;
-
-        so->so_la = lib;
         rule->activated = 1;
         rule->so = so;
         pData->cRedirectionsActive++;
         continue;
 
     remove_port_forwarding:
-        LogRel(("NAT: failed to redirect %s %d => %d\n",
-                (rule->proto == IPPROTO_UDP?"UDP":"TCP"), rule->host_port, rule->guest_port));
+        LogRel(("NAT: failed to redirect %s %RTnaipv4:%d => %RTnaipv4:%d\n",
+                (rule->proto == IPPROTO_UDP ? "UDP" : "TCP"),
+                rule->bind_ip.s_addr, rule->host_port,
+                guest_addr, rule->guest_port));
         LIST_REMOVE(rule, list);
         pData->cRedirectionsStored--;
         RTMemFree(rule);
@@ -1611,10 +1667,11 @@ int slirp_remove_redirect(PNATState pData, int is_udp, struct in_addr host_addr,
             && rule->guest_addr.s_addr == guest_addr.s_addr
             && rule->activated)
         {
-            LogRel(("NAT: remove redirect %s host port %d => guest port %d @ %RTnaipv4\n",
-                   rule->proto == IPPROTO_UDP ? "UDP" : "TCP", rule->host_port, rule->guest_port, guest_addr.s_addr));
+            LogRel(("NAT: remove redirect %s host %RTnaipv4:%d => guest %RTnaipv4:%d\n",
+                    rule->proto == IPPROTO_UDP ? "UDP" : "TCP",
+                    rule->bind_ip.s_addr, rule->host_port,
+                    guest_addr.s_addr, rule->guest_port));
 
-            LibAliasUninit(rule->so->so_la);
             if (is_udp)
                 udp_detach(pData, rule->so);
             else
@@ -1940,9 +1997,9 @@ static inline int slirp_arp_cache_update(PNATState pData, uint32_t dst, const ui
             && memcmp(mac, zerro_ethaddr, ETH_ALEN)));
     LIST_FOREACH(ac, &pData->arp_cache, list)
     {
-        if (!memcmp(ac->ether, mac, ETH_ALEN))
+        if (ac->ip == dst)
         {
-            ac->ip = dst;
+            memcpy(ac->ether, mac, ETH_ALEN);
             return 0;
         }
     }
@@ -2046,11 +2103,41 @@ void slirp_info(PNATState pData, const void *pvArg, const char *pszArgs)
     }
 }
 
-
+/**
+ * @note: NATState::fUseHostResolver could be changed in bootp.c::dhcp_decode
+ * @note: this function is executed on GUI/VirtualBox or main/VBoxHeadless thread.
+ * @note: this function can potentially race with bootp.c::dhcp_decode (except Darwin)
+ */
 int slirp_host_network_configuration_change_strategy_selector(const PNATState pData)
 {
-    if (pData->fUseHostResolverPermanent) return VBOX_NAT_HNCE_HOSTRESOLVER;
-    if (pData->fUseHostResolver) return VBOX_NAT_HNCE_HOSTRESOLVER_TEMPORARY;
-    if (pData->fUseDnsProxy) return VBOX_NAT_HNCE_DNSPROXY;
-    return VBOX_NAT_HNCE_EXSPOSED_NAME_RESOLUTION_INFO;
+    if (pData->fUseHostResolverPermanent)
+        return VBOX_NAT_DNS_HOSTRESOLVER;
+
+    if (pData->fUseDnsProxy) {
+#if HAVE_NOTIFICATION_FOR_DNS_UPDATE /* XXX */ && !defined(RT_OS_WINDOWS)
+        /* We dont conflict with bootp.c::dhcp_decode */
+        struct rcp_state rcp_state;
+        int rc;
+
+        rcp_state.rcps_flags |= RCPSF_IGNORE_IPV6;
+        rc = rcp_parse(&rcp_state, RESOLV_CONF_FILE);
+        LogRelFunc(("NAT: rcp_parse:%Rrc old domain:%s new domain:%s\n",
+                    rc, LIST_FIRST(&pData->pDomainList)->dd_pszDomain,
+                    rcp_state.rcps_domain));
+        if (   RT_FAILURE(rc)
+            || LIST_EMPTY(&pData->pDomainList))
+            return VBOX_NAT_DNS_DNSPROXY;
+
+        if (   rcp_state.rcps_domain
+            && strcmp(rcp_state.rcps_domain, LIST_FIRST(&pData->pDomainList)->dd_pszDomain) == 0)
+            return VBOX_NAT_DNS_DNSPROXY;
+        else
+            return VBOX_NAT_DNS_EXTERNAL;
+#else
+        /* copy domain name */
+        /* domain only compare with coy version */
+        return VBOX_NAT_DNS_DNSPROXY;
+#endif
+    }
+    return VBOX_NAT_DNS_EXTERNAL;
 }

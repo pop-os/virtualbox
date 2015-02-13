@@ -41,6 +41,7 @@
  * THE SOFTWARE.
  */
 #include <slirp.h>
+#include <libslirp.h>
 
 /** Entry in the table of known DHCP clients. */
 typedef struct
@@ -304,14 +305,11 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
         uint32_t addr = RT_H2N_U32(RT_N2H_U32(pData->special_addr.s_addr) | CTL_DNS);
         FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &addr);
     }
-    else
+    else if (!TAILQ_EMPTY(&pData->pDnsList))
     {
-        if (!TAILQ_EMPTY(&pData->pDnsList))
-        {
-            de = TAILQ_LAST(&pData->pDnsList, dns_list_head);
-            q_dns_header = q;
-            FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &de->de_addr.s_addr);
-        }
+        de = TAILQ_LAST(&pData->pDnsList, dns_list_head);
+        q_dns_header = q;
+        FILL_BOOTP_EXT(q, RFC1533_DNS, 4, &de->de_addr.s_addr);
 
         TAILQ_FOREACH_REVERSE(de, &pData->pDnsList, dns_list_head, de_list)
         {
@@ -320,6 +318,7 @@ static int dhcp_do_ack_offer(PNATState pData, struct mbuf *m, BOOTPClient *bc, i
             FILL_BOOTP_APP(q_dns_header, q, RFC1533_DNS, 4, &de->de_addr.s_addr);
         }
     }
+
     if (pData->fPassDomain && !pData->fUseHostResolver)
     {
         LIST_FOREACH(dd, &pData->pDomainList, dd_list)
@@ -702,14 +701,25 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
     Assert(pu8RawDhcpObject);
     if (!pu8RawDhcpObject)
         return;
-    /*
+    /**
      * We're going update dns list at least once per DHCP transaction (!not on every operation
      * within transaction), assuming that transaction can't be longer than 1 min.
+     *
+     * @note: if we have notification update (HAVE_NOTIFICATION_FOR_DNS_UPDATE)
+     * provided by host, we don't need implicitly re-initialize dns list.
+     *
+     * @note: NATState::fUseHostResolver became (r89055) the flag signalling that Slirp
+     * wasn't able to fetch fresh host DNS info and fall down to use host-resolver, on one
+     * of the previous attempts to proxy dns requests to Host's name-resolving API
+     *
+     * @note: Checking NATState::fUseHostResolver == true, we want to try restore behaviour initialy
+     * wanted by user ASAP (P here when host serialize its  configuration in files parsed by Slirp).
      */
-    if (   !pData->fUseHostResolverPermanent
+    if (   !HAVE_NOTIFICATION_FOR_DNS_UPDATE
+        && !pData->fUseHostResolverPermanent
         && (   pData->dnsLastUpdate == 0
-            || curtime - pData->dnsLastUpdate > 60 * 1000
-            || pData->fUseHostResolver)) /* one minute*/
+            || curtime - pData->dnsLastUpdate > 60 * 1000 /* one minute */
+            || pData->fUseHostResolver))
     {
         uint8_t i = 2; /* i = 0 - tag, i == 1 - length */
         parameter_list = dhcp_find_option(&bp->bp_vend[0], RFC2132_PARAM_LIST);
@@ -717,6 +727,7 @@ static void dhcp_decode(PNATState pData, struct bootp_t *bp, const uint8_t *buf,
         {
             if (parameter_list[i] == RFC1533_DNS)
             {
+                /* XXX: How differs it from host Suspend/Resume? */
                 slirpReleaseDnsSettings(pData);
                 slirpInitializeDnsSettings(pData);
                 pData->dnsLastUpdate = curtime;

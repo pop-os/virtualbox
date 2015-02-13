@@ -342,6 +342,12 @@ public:
             }
             break;
 
+            case VBoxEventType_OnHostNameResolutionConfigurationChange:
+            {
+                mConsole->onNATDnsChanged();
+                break;
+            }
+
             case VBoxEventType_OnHostPCIDevicePlug:
             {
                 // handle if needed
@@ -412,6 +418,7 @@ Console::Console()
 #endif
     , mBusMgr(NULL)
     , mpIfSecKey(NULL)
+    , mpIfSecKeyHlp(NULL)
     , mVMStateChangeCallbackDisabled(false)
     , mfUseHostClipboard(true)
     , mMachineState(MachineState_PoweredOff)
@@ -455,6 +462,13 @@ HRESULT Console::FinalConstruct()
     pIfSecKey->pfnKeyRelease            = Console::i_pdmIfSecKey_KeyRelease;
     pIfSecKey->pConsole                 = this;
     mpIfSecKey = pIfSecKey;
+
+    MYPDMISECKEYHLP *pIfSecKeyHlp = (MYPDMISECKEYHLP *)RTMemAllocZ(sizeof(*mpIfSecKeyHlp) + sizeof(Console *));
+    if (!pIfSecKeyHlp)
+        return E_OUTOFMEMORY;
+    pIfSecKeyHlp->pfnKeyMissingNotify   = Console::i_pdmIfSecKeyHlp_KeyMissingNotify;
+    pIfSecKeyHlp->pConsole              = this;
+    mpIfSecKeyHlp = pIfSecKeyHlp;
 
     return BaseFinalConstruct();
 }
@@ -604,6 +618,7 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
             mVmListener = aVmListener;
             com::SafeArray<VBoxEventType_T> eventTypes;
             eventTypes.push_back(VBoxEventType_OnNATRedirect);
+            eventTypes.push_back(VBoxEventType_OnHostNameResolutionConfigurationChange);
             eventTypes.push_back(VBoxEventType_OnHostPCIDevicePlug);
             eventTypes.push_back(VBoxEventType_OnExtraDataChanged);
             rc = pES->RegisterListener(aVmListener, ComSafeArrayAsInParam(eventTypes), true);
@@ -684,6 +699,12 @@ void Console::uninit()
     {
         RTMemFree((void *)mpIfSecKey);
         mpIfSecKey = NULL;
+    }
+
+    if (mpIfSecKeyHlp)
+    {
+        RTMemFree((void *)mpIfSecKeyHlp);
+        mpIfSecKeyHlp = NULL;
     }
 
     if (mNvram)
@@ -2313,7 +2334,7 @@ STDMETHODIMP Console::Reset()
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
+    /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
     int vrc = VMR3Reset(ptrVM.rawUVM());
@@ -2419,13 +2440,15 @@ HRESULT Console::doCPURemove(ULONG aCpu, PUVM pUVM)
         vrc = VMR3ReqCallU(pUVM, 0, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
                            (PFNRT)unplugCpu, 3,
                            this, pUVM, (VMCPUID)aCpu);
-        if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-        {
+    
+        /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
+        alock.release();
+
+        if (vrc == VERR_TIMEOUT)
             vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-            AssertRC(vrc);
-            if (RT_SUCCESS(vrc))
-                vrc = pReq->iStatus;
-        }
+        AssertRC(vrc);
+        if (RT_SUCCESS(vrc))
+            vrc = pReq->iStatus;
         VMR3ReqFree(pReq);
 
         if (RT_SUCCESS(vrc))
@@ -2526,22 +2549,15 @@ HRESULT Console::doCPUAdd(ULONG aCpu, PUVM pUVM)
                            (PFNRT)plugCpu, 3,
                            this, pUVM, aCpu);
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
+    /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
-    if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-    {
+    if (vrc == VERR_TIMEOUT)
         vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertRC(vrc);
-        if (RT_SUCCESS(vrc))
-            vrc = pReq->iStatus;
-    }
+    AssertRC(vrc);
+    if (RT_SUCCESS(vrc))
+        vrc = pReq->iStatus;
     VMR3ReqFree(pReq);
-
-    rc = RT_SUCCESS(vrc) ? S_OK :
-        setError(VBOX_E_VM_ERROR,
-                 tr("Could not add CPU to the machine (%Rrc)"),
-                 vrc);
 
     if (RT_SUCCESS(vrc))
     {
@@ -2552,6 +2568,10 @@ HRESULT Console::doCPUAdd(ULONG aCpu, PUVM pUVM)
             vrc = pDevPort->pfnCpuHotPlug(pDevPort, idCpuCore, idCpuPackage);
         /** @todo warning if the guest doesn't support it */
     }
+    else
+        rc = setError(VBOX_E_VM_ERROR,
+                      tr("Could not add CPU to the machine (%Rrc)"),
+                      vrc);
 
     LogFlowThisFunc(("mMachineState=%d, rc=%Rhrc\n", mMachineState, rc));
     LogFlowThisFuncLeave();
@@ -3692,16 +3712,14 @@ HRESULT Console::doMediumChange(IMediumAttachment *aMediumAttachment, bool fForc
                            (PFNRT)changeRemovableMedium, 8,
                            this, pUVM, pszDevice, uInstance, enmBus, fUseHostIOCache, aMediumAttachment, fForce);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
+    /* release the lock before waiting for a result (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
-    if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-    {
+    if (vrc == VERR_TIMEOUT)
         vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertRC(vrc);
-        if (RT_SUCCESS(vrc))
-            vrc = pReq->iStatus;
-    }
+    AssertRC(vrc);
+    if (RT_SUCCESS(vrc))
+        vrc = pReq->iStatus;
     VMR3ReqFree(pReq);
 
     if (fResume)
@@ -3885,16 +3903,14 @@ HRESULT Console::doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUV
                            (PFNRT)attachStorageDevice, 8,
                            this, pUVM, pszDevice, uInstance, enmBus, fUseHostIOCache, aMediumAttachment, fSilent);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
+    /* release the lock before waiting for a result (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
-    if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-    {
+    if (vrc == VERR_TIMEOUT)
         vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertRC(vrc);
-        if (RT_SUCCESS(vrc))
-            vrc = pReq->iStatus;
-    }
+    AssertRC(vrc);
+    if (RT_SUCCESS(vrc))
+        vrc = pReq->iStatus;
     VMR3ReqFree(pReq);
 
     if (fResume)
@@ -4068,16 +4084,14 @@ HRESULT Console::doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUV
                            (PFNRT)detachStorageDevice, 7,
                            this, pUVM, pszDevice, uInstance, enmBus, aMediumAttachment, fSilent);
 
-    /* release the lock before waiting for a result (EMT will call us back!) */
+    /* release the lock before waiting for a result (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
-    if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-    {
+    if (vrc == VERR_TIMEOUT)
         vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertRC(vrc);
-        if (RT_SUCCESS(vrc))
-            vrc = pReq->iStatus;
-    }
+    AssertRC(vrc);
+    if (RT_SUCCESS(vrc))
+        vrc = pReq->iStatus;
     VMR3ReqFree(pReq);
 
     if (fResume)
@@ -4388,6 +4402,98 @@ HRESULT Console::onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
     return rc;
 }
 
+
+/*
+ * IHostNameResolutionConfigurationChangeEvent
+ *
+ * Currently this event doesn't carry actual resolver configuration,
+ * so we have to go back to VBoxSVC and ask...  This is not ideal.
+ */
+HRESULT Console::onNATDnsChanged()
+{
+    HRESULT hrc;
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+#if 0 /* XXX: We don't yet pass this down to pfnNotifyDnsChanged */
+    ComPtr<IVirtualBox> pVirtualBox;
+    hrc = mMachine->COMGETTER(Parent)(pVirtualBox.asOutParam());
+    if (FAILED(hrc))
+        return S_OK;
+
+    ComPtr<IHost> pHost;
+    hrc = pVirtualBox->COMGETTER(Host)(pHost.asOutParam());
+    if (FAILED(hrc))
+        return S_OK;
+
+    SafeArray<BSTR> aNameServers;
+    hrc = pHost->COMGETTER(NameServers)(ComSafeArrayAsOutParam(aNameServers));
+    if (FAILED(hrc))
+        return S_OK;
+
+    const size_t cNameServers = aNameServers.size();
+    Log(("DNS change - %zu nameservers\n", cNameServers));
+
+    for (size_t i = 0; i < cNameServers; ++i)
+    {
+        com::Utf8Str strNameServer(aNameServers[i]);
+        Log(("- nameserver[%zu] = \"%s\"\n", i, strNameServer.c_str()));
+    }
+
+    com::Bstr domain;
+    pHost->COMGETTER(DomainName)(domain.asOutParam());
+    Log(("domain name = \"%s\"\n", com::Utf8Str(domain).c_str()));
+#endif /* 0 */
+
+    ChipsetType_T enmChipsetType;
+    hrc = mMachine->COMGETTER(ChipsetType)(&enmChipsetType);
+    if (!FAILED(hrc))
+    {
+        SafeVMPtrQuiet ptrVM(this);
+        if (ptrVM.isOk())
+        {
+            ULONG ulInstanceMax = (ULONG)Global::getMaxNetworkAdapters(enmChipsetType);
+
+            notifyNatDnsChange(ptrVM.rawUVM(), "pcnet", ulInstanceMax);
+            notifyNatDnsChange(ptrVM.rawUVM(), "e1000", ulInstanceMax);
+            notifyNatDnsChange(ptrVM.rawUVM(), "virtio-net", ulInstanceMax);
+        }
+    }
+
+    return S_OK;
+}
+
+
+/*
+ * This routine walks over all network device instances, checking if
+ * device instance has DrvNAT attachment and triggering DrvNAT DNS
+ * change callback.
+ */
+void Console::notifyNatDnsChange(PUVM pUVM, const char *pszDevice, ULONG ulInstanceMax)
+{
+    Log(("notifyNatDnsChange: looking for DrvNAT attachment on %s device instances\n", pszDevice));
+    for (ULONG ulInstance = 0; ulInstance < ulInstanceMax; ulInstance++)
+    {
+        PPDMIBASE pBase;
+        int rc = PDMR3QueryDriverOnLun(pUVM, pszDevice, ulInstance, 0 /* iLun */, "NAT", &pBase);
+        if (RT_FAILURE(rc))
+            continue;
+
+        Log(("Instance %s#%d has DrvNAT attachment; do actual notify\n", pszDevice, ulInstance));
+        if (pBase)
+        {
+            PPDMINETWORKNATCONFIG pNetNatCfg = NULL;
+            pNetNatCfg = (PPDMINETWORKNATCONFIG)pBase->pfnQueryInterface(pBase, PDMINETWORKNATCONFIG_IID);
+            if (pNetNatCfg && pNetNatCfg->pfnNotifyDnsChanged)
+                pNetNatCfg->pfnNotifyDnsChanged(pNetNatCfg);
+        }
+    }
+}
+
+
 VMMDevMouseInterface *Console::getVMMDevMouseInterface()
 {
     return m_pVMMDev;
@@ -4534,7 +4640,7 @@ HRESULT Console::clearDiskEncryptionKeysOnAllAttachments(void)
                 pIMedium = (PPDMIMEDIA)pIBase->pfnQueryInterface(pIBase, PDMIMEDIA_IID);
                 if (pIMedium)
                 {
-                    rc = pIMedium->pfnSetSecKeyIf(pIMedium, NULL);
+                    rc = pIMedium->pfnSetSecKeyIf(pIMedium, NULL, mpIfSecKeyHlp);
                     Assert(RT_SUCCESS(rc) || rc == VERR_NOT_SUPPORTED);
                 }
             }
@@ -4651,7 +4757,7 @@ HRESULT Console::configureEncryptionForDisk(const char *pszUuid)
                         return setError(E_FAIL, tr("could not query medium interface of controller"));
                     else
                     {
-                        rc = pIMedium->pfnSetSecKeyIf(pIMedium, mpIfSecKey);
+                        rc = pIMedium->pfnSetSecKeyIf(pIMedium, mpIfSecKey, mpIfSecKeyHlp);
                         if (RT_FAILURE(rc))
                             return setError(E_FAIL, tr("Failed to set the encryption key (%Rrc)"), rc);
                     }
@@ -4737,6 +4843,11 @@ HRESULT Console::consoleParseDiskEncryption(const char *psz, const char **ppszEn
                     /* Add the key to the map */
                     m_mapSecretKeys.insert(std::make_pair(Utf8Str(pszUuid), pKey));
                     hrc = configureEncryptionForDisk(pszUuid);
+                    if (FAILED(hrc))
+                    {
+                        /* Delete the key from the map. */
+                        m_mapSecretKeys.erase(Utf8Str(pszUuid));
+                    }
                 }
                 else
                     hrc = setError(E_FAIL,
@@ -4822,18 +4933,9 @@ HRESULT Console::doNetworkAdapterChange(PUVM pUVM,
      * here to make requests from under the lock in order to serialize them.
      */
     PVMREQ pReq;
-    int vrc = VMR3ReqCallU(pUVM, 0 /*idDstCpu*/, &pReq, 0 /* no wait! */, VMREQFLAGS_VBOX_STATUS,
-                           (PFNRT)changeNetworkAttachment, 6,
-                           this, pUVM, pszDevice, uInstance, uLun, aNetworkAdapter);
-
-    if (vrc == VERR_TIMEOUT || RT_SUCCESS(vrc))
-    {
-        vrc = VMR3ReqWait(pReq, RT_INDEFINITE_WAIT);
-        AssertRC(vrc);
-        if (RT_SUCCESS(vrc))
-            vrc = pReq->iStatus;
-    }
-    VMR3ReqFree(pReq);
+    int vrc = VMR3ReqCallWaitU(pUVM, 0 /*idDstCpu*/,
+                               (PFNRT)changeNetworkAttachment, 6,
+                               this, pUVM, pszDevice, uInstance, uLun, aNetworkAdapter);
 
     if (fResume)
         resumeAfterConfigChange(pUVM);
@@ -5240,6 +5342,47 @@ void Console::onVRDEServerInfoChange()
     AssertComRCReturnVoid(autoCaller.rc());
 
     fireVRDEServerInfoChangedEvent(mEventSource);
+}
+
+HRESULT Console::i_sendACPIMonitorHotPlugEvent()
+{
+    LogFlowThisFuncEnter();
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (   mMachineState != MachineState_Running
+        && mMachineState != MachineState_Teleporting
+        && mMachineState != MachineState_LiveSnapshotting)
+        return setInvalidMachineStateError();
+
+    /* get the VM handle. */
+    SafeVMPtr ptrVM(this);
+    if (!ptrVM.isOk())
+        return ptrVM.rc();
+
+    // no need to release lock, as there are no cross-thread callbacks
+
+    /* get the acpi device interface and press the sleep button. */
+    PPDMIBASE pBase;
+    int vrc = PDMR3QueryDeviceLun(ptrVM.rawUVM(), "acpi", 0, 0, &pBase);
+    if (RT_SUCCESS(vrc))
+    {
+        Assert(pBase);
+        PPDMIACPIPORT pPort = PDMIBASE_QUERY_INTERFACE(pBase, PDMIACPIPORT);
+        if (pPort)
+            vrc = pPort->pfnMonitorHotPlugEvent(pPort);
+        else
+            vrc = VERR_PDM_MISSING_INTERFACE;
+    }
+
+    HRESULT rc = RT_SUCCESS(vrc) ? S_OK :
+        setError(VBOX_E_PDM_ERROR,
+            tr("Sending monitor hot-plug event failed (%Rrc)"),
+            vrc);
+
+    LogFlowThisFunc(("rc=%Rhrc\n", rc));
+    LogFlowThisFuncLeave();
+    return rc;
 }
 
 HRESULT Console::onVideoCaptureChange()
@@ -6115,7 +6258,7 @@ HRESULT Console::pause(Reason_T aReason)
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
+    /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
     LogFlowThisFunc(("Sending PAUSE request...\n"));
@@ -6174,7 +6317,7 @@ HRESULT Console::resume(Reason_T aReason)
     if (!ptrVM.isOk())
         return ptrVM.rc();
 
-    /* release the lock before a VMR3* call (EMT will call us back)! */
+    /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
     alock.release();
 
     LogFlowThisFunc(("Sending RESUME request...\n"));
@@ -6253,7 +6396,7 @@ HRESULT Console::saveState(Reason_T aReason, IProgress **aProgress)
         if (!ptrVM.isOk())
             return ptrVM.rc();
 
-        /* release the lock before a VMR3* call (EMT will call us back)! */
+        /* release the lock before a VMR3* call (EMT might wait for it, @bugref{7648})! */
         alock.release();
         VMSUSPENDREASON enmReason = VMSUSPENDREASON_USER;
         if (aReason == Reason_HostSuspend)
@@ -7478,7 +7621,7 @@ HRESULT Console::powerDown(IProgress *aProgress /*= NULL*/)
     {
         LogFlowThisFunc(("Shutdown HGCM...\n"));
 
-        /* Leave the lock since EMT will call us back as addVMCaller() */
+        /* Leave the lock since EMT might wait for it and will call us back as addVMCaller() */
         alock.release();
 
         m_pVMMDev->hgcmShutdown();
@@ -8348,6 +8491,16 @@ DECLCALLBACK(void) Console::vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, V
             break;
         }
 
+        case VMSTATE_POWERING_ON:
+        {
+            /*
+             * We have to set the secret key helper interface for the VD drivers to
+             * get notified about missing keys.
+             */
+            that->clearDiskEncryptionKeysOnAllAttachments();
+            break;
+        }
+
         default: /* shut up gcc */
             break;
     }
@@ -8807,7 +8960,7 @@ HRESULT Console::attachToTapInterface(INetworkAdapter *networkAdapter)
         rc = setError(E_FAIL,
             tr("General failure attaching to host interface"));
     }
-    LogFlowThisFunc(("rc=%d\n", rc));
+    LogFlowThisFunc(("rc=%Rhrc\n", rc));
     return rc;
 }
 
@@ -9008,16 +9161,6 @@ Console::setVMRuntimeErrorCallback(PUVM pUVM, void *pvUser, uint32_t fFlags,
 
     LogRel(("Console: VM runtime error: fatal=%RTbool, errorID=%s message=\"%s\"\n",
             fFatal, pszErrorId, message.c_str()));
-
-    /* Set guest property if the reason of the error is a missing DEK for a disk. */
-    if (!RTStrCmp(pszErrorId, "DrvVD_DEKMISSING"))
-    {
-        that->mMachine->DeleteGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw());
-        that->mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw(),
-                                         Bstr("1").raw(), Bstr("RDONLYGUEST").raw());
-        that->mMachine->SaveSettings();
-    }
-
 
     that->onRuntimeError(BOOL(fFatal), Bstr(pszErrorId).raw(), Bstr(message).raw());
 
@@ -9979,6 +10122,9 @@ DECLCALLBACK(int) Console::fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser)
                  * don't release the lock since reconfigureMediumAttachment
                  * isn't going to need the Console lock.
                  */
+
+                /* TODO: do alock.release here as EMT might wait on it! See other places
+                 * where we do VMR3ReqCall requests. See @bugref{7648}. */
                 vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
                                        (PFNRT)reconfigureMediumAttachment, 13,
                                        that, ptrVM.rawUVM(), pcszDevice, lInstance, enmBus, fUseHostIOCache,
@@ -10366,6 +10512,22 @@ Console::i_pdmIfSecKey_KeyRelease(PPDMISECKEY pInterface, const char *pszId)
     return VERR_NOT_FOUND;
 }
 
+/**
+ * @interface_method_impl{PDMISECKEYHLP,pfnKeyMissingNotify}
+ */
+/*static*/ DECLCALLBACK(int)
+Console::i_pdmIfSecKeyHlp_KeyMissingNotify(PPDMISECKEYHLP pInterface)
+{
+    Console *pConsole = ((MYPDMISECKEYHLP *)pInterface)->pConsole;
+
+    /* Set guest property only, the VM is paused in the media driver calling us. */
+    pConsole->mMachine->DeleteGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw());
+    pConsole->mMachine->SetGuestProperty(Bstr("/VirtualBox/HostInfo/DekMissing").raw(),
+                                         Bstr("1").raw(), Bstr("RDONLYGUEST").raw());
+    pConsole->mMachine->SaveSettings();
+
+    return VINF_SUCCESS;
+}
 
 
 

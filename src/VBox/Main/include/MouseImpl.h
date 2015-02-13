@@ -98,8 +98,9 @@ private:
                                     uint32_t fContact);
     HRESULT reportMultiTouchEventToDevice(uint8_t cContacts, const uint64_t *pau64Contacts, uint32_t u32ScanTime);
     HRESULT reportAbsEventToVMMDev(int32_t x, int32_t y);
-    HRESULT reportAbsEvent(int32_t x, int32_t y, int32_t dz, int32_t dw,
-                           uint32_t fButtons, bool fUsesVMMDevEvent);
+    HRESULT i_reportAbsEventToInputDevices(int32_t x, int32_t y, int32_t dz, int32_t dw, uint32_t fButtons,
+                                           bool fUsesVMMDevEvent);
+    HRESULT i_reportAbsEventToDisplayDevice(int32_t x, int32_t y);
     HRESULT convertDisplayRes(LONG x, LONG y, int32_t *pxAdj, int32_t *pyAdj,
                               bool *pfValid);
     HRESULT putEventMultiTouch(LONG aCount, LONG64 *paContacts, ULONG aScanTime);

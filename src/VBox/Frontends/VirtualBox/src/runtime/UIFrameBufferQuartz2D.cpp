@@ -234,7 +234,9 @@ void UIFrameBufferQuartz2D::resizeEvent(UIResizeEvent *aEvent)
     setImageRef(m_image);
 #endif
 
-    if (remind && m_pMachineView->uisession()->isGuestAdditionsActive())
+    /* This check (supports graphics) is not quite right due to past mistakes
+     * in the Guest Additions protocol, but in practice it should be fine. */
+    if (remind && m_pMachineView->uisession()->isGuestSupportsGraphics())
         popupCenter().remindAboutWrongColorDepth(m_pMachineView->machineWindow(),
                                                       aEvent->bitsPerPixel(), 32);
     else

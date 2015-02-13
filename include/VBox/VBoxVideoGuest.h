@@ -31,6 +31,7 @@
 
 #include <VBox/HGSMI/HGSMI.h>
 #include <VBox/HGSMI/HGSMIChSetup.h>
+#include <VBox/VBoxVideo.h>
 
 #ifdef VBOX_XPDM_MINIPORT
 RT_C_DECLS_BEGIN
@@ -221,6 +222,8 @@ RTDECL(void)     VBoxHGSMIGetBaseMappingInfo(uint32_t cbVRAM,
                                              uint32_t *poffGuestHeapMemory,
                                              uint32_t *pcbGuestHeapMemory,
                                              uint32_t *poffHostFlags);
+RTDECL(int)      VBoxHGSMISendCapsInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                       uint32_t fCaps);
 /** @todo we should provide a cleanup function too as part of the API */
 RTDECL(int)      VBoxHGSMISetupGuestContext(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                             void *pvGuestHeapMemory,
@@ -244,7 +247,7 @@ RTDECL(int)      VBoxHGSMISendHostCtxInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                           uint32_t cbHostArea);
 RTDECL(int)      VBoxQueryConfHGSMI(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                     uint32_t u32Index, uint32_t *pulValue);
-RTDECL(bool)     VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+RTDECL(int)      VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t fFlags,
                                              uint32_t cHotX,
                                              uint32_t cHotY,
@@ -252,6 +255,8 @@ RTDECL(bool)     VBoxHGSMIUpdatePointerShape(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cHeight,
                                              uint8_t *pPixels,
                                              uint32_t cbLength);
+RTDECL(int)      VBoxHGSMICursorPosition(PHGSMIGUESTCOMMANDCONTEXT pCtx, bool fReportPosition, uint32_t x, uint32_t y,
+                                         uint32_t *pxHost, uint32_t *pyHost);
 
 /** @}  */
 
@@ -324,6 +329,10 @@ RTDECL(void)     VBoxHGSMIProcessDisplayInfo(PHGSMIGUESTCOMMANDCONTEXT pCtx,
                                              uint32_t cHeight,
                                              uint16_t cBPP,
                                              uint16_t fFlags);
+RTDECL(int)      VBoxHGSMIUpdateInputMapping(PHGSMIGUESTCOMMANDCONTEXT pCtx, int32_t  cOriginX, int32_t  cOriginY,
+                                             uint32_t cWidth, uint32_t cHeight);
+RTDECL(int) VBoxHGSMIGetModeHints(PHGSMIGUESTCOMMANDCONTEXT pCtx,
+                                  unsigned cScreens, VBVAMODEHINT *paHints);
 
 /** @}  */
 

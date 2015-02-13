@@ -57,7 +57,7 @@ int rtSocketCreate(PRTSOCKET phSocket, int iDomain, int iType, int iProtocol);
 int rtSocketBind(RTSOCKET hSocket, PCRTNETADDR pAddr);
 int rtSocketListen(RTSOCKET hSocket, int cMaxPending);
 int rtSocketAccept(RTSOCKET hSocket, PRTSOCKET phClient, struct sockaddr *pAddr, size_t *pcbAddr);
-int rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr);
+int rtSocketConnect(RTSOCKET hSocket, PCRTNETADDR pAddr, RTMSINTERVAL cMillies);
 int rtSocketSetOpt(RTSOCKET hSocket, int iLevel, int iOption, void const *pvValue, int cbValue);
 #endif /* IPRT_INTERNAL_SOCKET_POLLING_ONLY */
 

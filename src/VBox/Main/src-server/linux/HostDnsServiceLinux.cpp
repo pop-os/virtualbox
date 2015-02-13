@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -145,6 +145,7 @@ int HostDnsServiceLinux::monitorWorker()
         {
             RT_ZERO(combo);
             ssize_t r = read(polls[0].fd, static_cast<void *>(&combo), sizeof(combo));
+            NOREF(r);
 
             if (combo.e.wd == wd[0])
             {

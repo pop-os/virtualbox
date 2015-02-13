@@ -87,6 +87,9 @@ typedef int socklen_t;
 #  undef EHOSTUNREACH
 #  undef ENETUNREACH
 #  undef ECONNREFUSED
+#  undef ECONNRESET
+#  undef EHOSTDOWN
+#  undef ENETDOWN
 # endif
 # define EWOULDBLOCK WSAEWOULDBLOCK
 # define EINPROGRESS WSAEINPROGRESS
@@ -94,6 +97,9 @@ typedef int socklen_t;
 # define EHOSTUNREACH WSAEHOSTUNREACH
 # define ENETUNREACH WSAENETUNREACH
 # define ECONNREFUSED WSAECONNREFUSED
+# define ECONNRESET WSAECONNRESET
+# define EHOSTDOWN WSAEHOSTDOWN
+# define ENETDOWN WSAENETDOWN
 
 typedef uint8_t u_int8_t;
 typedef uint16_t u_int16_t;
@@ -320,6 +326,7 @@ int ip_output0 (PNATState, struct socket *, struct mbuf *, int urg);
 /* tcp_input.c */
 int tcp_reass (PNATState, struct tcpcb *, struct tcphdr *, int *, struct mbuf *);
 void tcp_input (PNATState, register struct mbuf *, int, struct socket *);
+void tcp_fconnect_failed(PNATState, struct socket *, int);
 void tcp_dooptions (PNATState, struct tcpcb *, u_char *, int, struct tcpiphdr *);
 void tcp_xmit_timer (PNATState, register struct tcpcb *, int);
 int tcp_mss (PNATState, register struct tcpcb *, u_int);

@@ -739,8 +739,19 @@ static SSMFIELD const g_aCodecNodeFieldsV1[] =
     SSMFIELD_ENTRY_TERM()
 };
 
+static DECLCALLBACK(void) dbgNodes(PHDACODEC pThis, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    for (int i = 1; i < 12; i++)
+    {
+        PCODECNODE pNode = &pThis->paNodes[i];
+        AMPLIFIER *pAmp = &pNode->dac.B_params;
 
+        uint8_t lVol = AMPLIFIER_REGISTER(*pAmp, AMPLIFIER_OUT, AMPLIFIER_LEFT, 0) & 0x7f;
+        uint8_t rVol = AMPLIFIER_REGISTER(*pAmp, AMPLIFIER_OUT, AMPLIFIER_RIGHT, 0) & 0x7f;
 
+        pHlp->pfnPrintf(pHlp, "0x%x: lVol=%RU8, rVol=%RU8\n", i, lVol, rVol);
+    }
+}
 
 static int stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCODECNODE pNode)
 {
@@ -761,8 +772,8 @@ static int stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCODECNODE pNode)
                                             | CODEC_F00_0C_CAP_TRIGGER_REQUIRED
                                             | CODEC_F00_0C_CAP_IMPENDANCE_SENSE;//(17 << 8)|RT_BIT(6)|RT_BIT(5)|RT_BIT(2)|RT_BIT(1)|RT_BIT(0);
             pNode->node.au32F00_param[0x0B] = CODEC_F00_0B_PCM;
-            pNode->node.au32F00_param[0x0D] = CODEC_MAKE_F00_0D(1, 0x5, 0xE, 0);//RT_BIT(31)|(0x5 << 16)|(0xE)<<8;
-            pNode->node.au32F00_param[0x12] = RT_BIT(31)|(0x2 << 16)|(0x7f << 8)|0x7f;
+            pNode->node.au32F00_param[0x0D] = CODEC_MAKE_F00_0D(1, 0x0, 0x7F, 0x7F);
+            pNode->node.au32F00_param[0x12] = CODEC_MAKE_F00_12(1, 0x0, 0x7F, 0x7F);
             pNode->node.au32F00_param[0x11] = CODEC_MAKE_F00_11(1, 1, 0, 0, 4);//0xc0000004;
             pNode->node.au32F00_param[0x0F] = CODEC_F00_0F_D3|CODEC_F00_0F_D2|CODEC_F00_0F_D1|CODEC_F00_0F_D0;
             pNode->afg.u32F05_param = CODEC_MAKE_F05(0, 0, 0, CODEC_F05_D2, CODEC_F05_D2);//0x2 << 4| 0x2; /* PS-Act: D3, PS->Set D3  */
@@ -999,7 +1010,6 @@ static int stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCODECNODE pNode)
                                          | CODEC_F00_09_CAP_OUT_AMP_PRESENT
                                          | CODEC_F00_09_CAP_LSB;//(3<<20)|RT_BIT(8)|RT_BIT(3)|RT_BIT(2)|RT_BIT(0);
             pNode->node.au32F00_param[0xe] = CODEC_MAKE_F00_0E(0, 0x7);
-            pNode->node.au32F00_param[0x12] = (0x27 << 16)|(0x4 << 8);
             /* STAC 9220 v10 6.21-22.{4,5} both(left and right) out amplefiers inited with 0*/
             memset(pNode->adcmux.B_params, 0, AMPLIFIER_SIZE);
             pNode->node.au32F02_param[0] = RT_MAKE_U32_FROM_U8(0xe, 0x15, 0xf, 0xb);
@@ -1009,7 +1019,6 @@ static int stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCODECNODE pNode)
             pNode->node.au32F00_param[9] = CODEC_MAKE_F00_09(CODEC_F00_09_TYPE_BEEP_GEN, 0, 0)
                                          | CODEC_F00_09_CAP_AMP_FMT_OVERRIDE
                                          | CODEC_F00_09_CAP_OUT_AMP_PRESENT;//(7 << 20) | RT_BIT(3) | RT_BIT(2);
-            pNode->node.au32F00_param[0x12] = (0x17 << 16)|(0x3 << 8)| 0x3;
             pNode->pcbeep.u32F0a_param = 0;
             memset(pNode->pcbeep.B_params, 0, AMPLIFIER_SIZE);
             break;
@@ -1087,6 +1096,7 @@ static int stac9220Construct(PHDACODEC pThis)
 {
     unconst(pThis->cTotalNodes) = 0x1C;
     pThis->pfnCodecNodeReset = stac9220ResetNode;
+    pThis->pfnCodecDbgListNodes = dbgNodes;
     pThis->u16VendorId = 0x8384;
     pThis->u16DeviceId = 0x7680;
     pThis->u8BSKU = 0x76;
@@ -1179,6 +1189,9 @@ static int hdaCodecToAudVolume(AMPLIFIER *pAmp, audmixerctl_t mt)
     mute &= 0x1;
     uint8_t lVol = AMPLIFIER_REGISTER(*pAmp, dir, AMPLIFIER_LEFT, 0) & 0x7f;
     uint8_t rVol = AMPLIFIER_REGISTER(*pAmp, dir, AMPLIFIER_RIGHT, 0) & 0x7f;
+
+    LogFlowFunc(("mt=%ld, lVol=%RU8, rVol=%RU8\n", mt, lVol, rVol));
+
     AUD_set_volume(mt, &mute, &lVol, &rVol);
     return VINF_SUCCESS;
 }
@@ -1318,6 +1331,8 @@ static DECLCALLBACK(int) vrbProcSetAmplifier(PHDACODEC pThis, uint32_t cmd, uint
             hdaCodecSetRegisterU8(&AMPLIFIER_REGISTER(*pAmplifier, AMPLIFIER_IN, AMPLIFIER_LEFT, u8Index), cmd, 0);
         if (fIsRight)
             hdaCodecSetRegisterU8(&AMPLIFIER_REGISTER(*pAmplifier, AMPLIFIER_IN, AMPLIFIER_RIGHT, u8Index), cmd, 0);
+
+        hdaCodecToAudVolume(pAmplifier, AUD_MIXER_LINE_IN);
     }
     if (fIsOut)
     {
@@ -1325,11 +1340,10 @@ static DECLCALLBACK(int) vrbProcSetAmplifier(PHDACODEC pThis, uint32_t cmd, uint
             hdaCodecSetRegisterU8(&AMPLIFIER_REGISTER(*pAmplifier, AMPLIFIER_OUT, AMPLIFIER_LEFT, u8Index), cmd, 0);
         if (fIsRight)
             hdaCodecSetRegisterU8(&AMPLIFIER_REGISTER(*pAmplifier, AMPLIFIER_OUT, AMPLIFIER_RIGHT, u8Index), cmd, 0);
-    }
-    if (CODEC_NID(cmd) == pThis->u8DacLineOut)
+
         hdaCodecToAudVolume(pAmplifier, AUD_MIXER_VOLUME);
-    if (CODEC_NID(cmd) == pThis->u8AdcVolsLineIn) /* Microphone */
-        hdaCodecToAudVolume(pAmplifier, AUD_MIXER_LINE_IN);
+    }
+
     return VINF_SUCCESS;
 }
 
