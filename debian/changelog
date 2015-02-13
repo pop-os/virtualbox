@@ -1,6 +1,7 @@
 virtualbox (4.3.22-dfsg-1) UNRELEASED; urgency=medium
 
   * Imported Upstream release.
+  * Update copyright year.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 13 Feb 2015 10:53:56 +0100
 
