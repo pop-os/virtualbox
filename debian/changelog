@@ -5,6 +5,7 @@ virtualbox (4.3.22-dfsg-1) UNRELEASED; urgency=medium
   * d/p/37-fix-build.patch fix build, following upstream change in
     xorg driver build (thanks to Michael Thayer for the hint and
     the help).
+  * Remove old patches.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 13 Feb 2015 10:53:56 +0100
 
