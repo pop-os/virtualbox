@@ -1,5 +1,6 @@
-virtualbox (4.3.22-dfsg-1) UNRELEASED; urgency=medium
+virtualbox (4.3.22-dfsg-1) experimental; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * Imported Upstream release.
   * Update copyright year.
   * d/p/37-fix-build.patch fix build, following upstream change in
@@ -7,7 +8,10 @@ virtualbox (4.3.22-dfsg-1) UNRELEASED; urgency=medium
     the help).
   * Remove old patches.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 13 Feb 2015 10:53:56 +0100
+  [ Ritesh Raj Sarraf ]
+  * [1413631] Build with gcc 4 only
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sun, 15 Feb 2015 00:12:15 +0530
 
 virtualbox (4.3.20-dfsg-1) experimental; urgency=medium
 
