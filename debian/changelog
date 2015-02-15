@@ -12,8 +12,9 @@ virtualbox (4.3.22-dfsg-1) experimental; urgency=medium
 
   [ Ritesh Raj Sarraf ]
   * [1413631] Build with gcc 4 only
+  * [f34c886] Add versioned dependency on g++-multilib
 
- -- Ritesh Raj Sarraf <rrs@debian.org>  Sun, 15 Feb 2015 00:12:15 +0530
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Sun, 15 Feb 2015 16:56:09 +0530
 
 virtualbox (4.3.20-dfsg-1) experimental; urgency=medium
 
