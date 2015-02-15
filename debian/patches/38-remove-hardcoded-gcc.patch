@@ -1,0 +1,15 @@
+diff --git a/configure b/configure
+index 83fa74c..b2da518 100755
+--- a/configure
++++ b/configure
+@@ -101,10 +101,8 @@ BUILD_LIBCURL=
+ BUILD_LIBSSL=
+ BUILD_LIBVPX=
+ PASSIVE_MESA=0
+-CC="gcc"
+ CC32=""
+ CC64=""
+-CXX="g++"
+ CXX32=""
+ CXX64=""
+ YASM="yasm"
