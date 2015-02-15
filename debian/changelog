@@ -7,6 +7,8 @@ virtualbox (4.3.22-dfsg-1) experimental; urgency=medium
     xorg driver build (thanks to Michael Thayer for the hint and
     the help).
   * Remove old patches.
+  * d/p/38-remove-hardcoded-gcc.patch use CC and CXX from d/rules
+    until virtualbox is gcc-5 ready.
 
   [ Ritesh Raj Sarraf ]
   * [1413631] Build with gcc 4 only
