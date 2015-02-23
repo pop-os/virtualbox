@@ -1,7 +1,5 @@
 #!/usr/bin/make -f
 
-export CC=gcc-4.9
-export CXX=g++-4.9
 # Name of the source packages
 psource:=virtualbox-source
 gsource:=virtualbox-guest-source
@@ -53,7 +51,9 @@ endif
 	    --disable-kmods \
 	    --enable-webservice \
 	    --enable-vde \
-	    --enable-vnc
+	    --enable-vnc \
+	    --with-gcc=gcc-4.9 \
+	    --with-g++=g++-4.9
 
 override_dh_auto_build:
 	# Building package
