@@ -107,7 +107,7 @@ HRESULT DHCPServer::init(VirtualBox *aVirtualBox, IN_BSTR aName)
 
     unconst(mName) = aName;
     m->IPAddress = "0.0.0.0";
-    m->GlobalDhcpOptions.insert(DhcpOptValuePair(DhcpOpt_SubnetMask, Bstr("0.0.0.0")));
+    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = DhcpOptValue("0.0.0.0");
     m->enabled = FALSE;
 
     m->lowerIP = "0.0.0.0";
@@ -183,8 +183,9 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkName) (BSTR *aName)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    mName.cloneTo(aName);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    mName.cloneTo(aName);
     return S_OK;
 }
 
@@ -196,8 +197,9 @@ STDMETHODIMP DHCPServer::COMGETTER(Enabled) (BOOL *aEnabled)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    *aEnabled = m->enabled;
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    *aEnabled = m->enabled;
     return S_OK;
 }
 
@@ -226,8 +228,9 @@ STDMETHODIMP DHCPServer::COMGETTER(IPAddress) (BSTR *aIPAddress)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    m->IPAddress.cloneTo(aIPAddress);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    m->IPAddress.cloneTo(aIPAddress);
     return S_OK;
 }
 
@@ -239,8 +242,9 @@ STDMETHODIMP DHCPServer::COMGETTER(NetworkMask) (BSTR *aNetworkMask)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    m->GlobalDhcpOptions[DhcpOpt_SubnetMask].cloneTo(aNetworkMask);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text.cloneTo(aNetworkMask);
     return S_OK;
 }
 
@@ -252,8 +256,9 @@ STDMETHODIMP DHCPServer::COMGETTER(LowerIP) (BSTR *aIPAddress)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    m->lowerIP.cloneTo(aIPAddress);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    m->lowerIP.cloneTo(aIPAddress);
     return S_OK;
 }
 
@@ -265,8 +270,9 @@ STDMETHODIMP DHCPServer::COMGETTER(UpperIP) (BSTR *aIPAddress)
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    m->upperIP.cloneTo(aIPAddress);
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+    m->upperIP.cloneTo(aIPAddress);
     return S_OK;
 }
 
@@ -283,7 +289,7 @@ STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkM
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
     m->IPAddress = aIPAddress;
-    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = aNetworkMask;
+    m->GlobalDhcpOptions[DhcpOpt_SubnetMask] = DhcpOptValue(aNetworkMask);
 
     m->lowerIP = aLowerIP;
     m->upperIP = aUpperIP;
@@ -292,6 +298,118 @@ STDMETHODIMP DHCPServer::SetConfiguration (IN_BSTR aIPAddress, IN_BSTR aNetworkM
     alock.release();
     AutoWriteLock vboxLock(mVirtualBox COMMA_LOCKVAL_SRC_POS);
     return mVirtualBox->saveSettings();
+}
+
+
+HRESULT DHCPServer::encodeOption(com::Utf8Str &aEncoded,
+                                 uint32_t aOptCode, const DhcpOptValue &aOptValue)
+{
+    switch (aOptValue.encoding)
+    {
+        case DhcpOptValue::LEGACY:
+        {
+            /*
+             * This is original encoding which assumed that for each
+             * option we know its format and so we know how option
+             * "value" text is to be interpreted.
+             *
+             *   "2:10800"           # integer 32
+             *   "6:1.2.3.4 8.8.8.8" # array of ip-address
+             */
+            aEncoded = Utf8StrFmt("%d:%s", aOptCode, aOptValue.text.c_str());
+            break;
+        }
+
+        case DhcpOptValue::HEX:
+        {
+            /*
+             * This is a bypass for any option - preformatted value as
+             * hex string with no semantic involved in formatting the
+             * value for the DHCP reply.
+             *
+             *   234=68:65:6c:6c:6f:2c:20:77:6f:72:6c:64
+             */
+            aEncoded = Utf8StrFmt("%d=%s", aOptCode, aOptValue.text.c_str());
+            break;
+        }
+
+        default:
+        {
+            /*
+             * Try to be forward compatible.
+             *
+             *   "254@42=i hope you know what this means"
+             */
+            aEncoded = Utf8StrFmt("%d@%d=%s", aOptCode, (int)aOptValue.encoding,
+                                  aOptValue.text.c_str());
+            break;
+        }
+    }
+
+    return S_OK;
+}
+
+
+int DHCPServer::addOption(DhcpOptionMap &aMap,
+                          DhcpOpt_T aOption, const com::Utf8Str &aValue)
+{
+    DhcpOptValue OptValue;
+
+    if (aOption != 0)
+    {
+        OptValue = DhcpOptValue(aValue, DhcpOptValue::LEGACY);
+    }
+    /*
+     * This is a kludge to sneak in option encoding information
+     * through existing API.  We use option 0 and supply the real
+     * option/value in the same format that encodeOption() above
+     * produces for getter methods.
+     */
+    else
+    {
+        uint8_t u8Code;
+        uint32_t u32Enc;
+        char *pszNext;
+        int rc;
+
+        rc = RTStrToUInt8Ex(aValue.c_str(), &pszNext, 10, &u8Code);
+        if (!RT_SUCCESS(rc))
+            return VERR_PARSE_ERROR;
+
+        switch (*pszNext)
+        {
+            case ':':           /* support legacy format too */
+            {
+                u32Enc = DhcpOptValue::LEGACY;
+                break;
+            }
+
+            case '=':
+            {
+                u32Enc = DhcpOptValue::HEX;
+                break;
+            }
+
+            case '@':
+            {
+                rc = RTStrToUInt32Ex(pszNext + 1, &pszNext, 10, &u32Enc);
+                if (!RT_SUCCESS(rc))
+                    return VERR_PARSE_ERROR;
+                if (*pszNext != '=')
+                    return VERR_PARSE_ERROR;
+                break;
+            }
+
+            default:
+                return VERR_PARSE_ERROR;
+        }
+
+        aOption = (DhcpOpt_T)u8Code;
+        OptValue = DhcpOptValue(pszNext + 1, (DhcpOptValue::Encoding)u32Enc);
+    }
+
+    aMap[aOption] = OptValue;
+    return VINF_SUCCESS;
 }
 
 
@@ -304,8 +422,9 @@ STDMETHODIMP DHCPServer::AddGlobalOption(DhcpOpt_T aOption, IN_BSTR aValue)
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    m->GlobalDhcpOptions.insert(
-      DhcpOptValuePair(aOption, Utf8Str(aValue)));
+    int rc = addOption(m->GlobalDhcpOptions, aOption, aValue);
+    if (!RT_SUCCESS(rc))
+        return E_INVALIDARG;
 
     /* Indirect way to understand that we're on NAT network */
     if (aOption == DhcpOpt_Router)
@@ -318,9 +437,9 @@ STDMETHODIMP DHCPServer::AddGlobalOption(DhcpOpt_T aOption, IN_BSTR aValue)
 }
 
 
-STDMETHODIMP DHCPServer::COMGETTER(GlobalOptions)(ComSafeArrayOut(BSTR, aValue))
+STDMETHODIMP DHCPServer::COMGETTER(GlobalOptions)(ComSafeArrayOut(BSTR, aValues))
 {
-    CheckComArgOutSafeArrayPointerValid(aValue);
+    CheckComArgOutSafeArrayPointerValid(aValues);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -333,19 +452,24 @@ STDMETHODIMP DHCPServer::COMGETTER(GlobalOptions)(ComSafeArrayOut(BSTR, aValue))
     for (DhcpOptIterator it = m->GlobalDhcpOptions.begin();
          it != m->GlobalDhcpOptions.end(); ++it)
     {
-        Bstr(Utf8StrFmt("%d:%s", (*it).first, (*it).second.c_str())).detachTo(&sf[i]);
+        uint32_t OptCode = (*it).first;
+        const DhcpOptValue &OptValue = (*it).second;
+
+        com::Utf8Str value;
+        encodeOption(value, OptCode, OptValue);
+        Bstr(value).detachTo(&sf[i]);
         i++;
     }
 
-    sf.detachTo(ComSafeArrayOutArg(aValue));
+    sf.detachTo(ComSafeArrayOutArg(aValues));
 
     return S_OK;
 }
 
 
-STDMETHODIMP DHCPServer::COMGETTER(VmConfigs)(ComSafeArrayOut(BSTR, aValue))
+STDMETHODIMP DHCPServer::COMGETTER(VmConfigs)(ComSafeArrayOut(BSTR, aValues))
 {
-    CheckComArgOutSafeArrayPointerValid(aValue);
+    CheckComArgOutSafeArrayPointerValid(aValues);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -363,7 +487,7 @@ STDMETHODIMP DHCPServer::COMGETTER(VmConfigs)(ComSafeArrayOut(BSTR, aValue))
         i++;
     }
 
-    sf.detachTo(ComSafeArrayOutArg(aValue));
+    sf.detachTo(ComSafeArrayOutArg(aValues));
 
     return S_OK;
 }
@@ -375,10 +499,10 @@ STDMETHODIMP DHCPServer::AddVmSlotOption(IN_BSTR aVmName, LONG aSlot, DhcpOpt_T 
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    m->VmSlot2Options[settings::VmNameSlotKey(
-          com::Utf8Str(aVmName),
-          aSlot)][aOption] = com::Utf8Str(aValue);
-
+    DhcpOptionMap &map = m->VmSlot2Options[VmNameSlotKey(com::Utf8Str(aVmName), aSlot)];
+    int rc = addOption(map, aOption, aValue);
+    if (!RT_SUCCESS(rc))
+        return E_INVALIDARG;
 
     alock.release();
 
@@ -425,7 +549,12 @@ STDMETHODIMP DHCPServer::GetVmSlotOptions(IN_BSTR aVmName,
     for (DhcpOptIterator it = map.begin();
          it != map.end(); ++it)
     {
-        Bstr(Utf8StrFmt("%d:%s", (*it).first, (*it).second.c_str())).detachTo(&sf[i]);
+        uint32_t OptCode = (*it).first;
+        const DhcpOptValue &OptValue = (*it).second;
+
+        com::Utf8Str value;
+        encodeOption(value, OptCode, OptValue);
+        Bstr(value).detachTo(&sf[i]);
         i++;
     }
 
@@ -519,7 +648,7 @@ STDMETHODIMP DHCPServer::Start(IN_BSTR aNetworkName, IN_BSTR aTrunkName, IN_BSTR
                  guid.raw()->au8[2]);
     m->dhcp.setOption(NetworkServiceRunner::kNsrMacAddress, strMAC);
     m->dhcp.setOption(NetworkServiceRunner::kNsrIpAddress,  Utf8Str(m->IPAddress).c_str());
-    m->dhcp.setOption(NetworkServiceRunner::kNsrIpNetmask, Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask]).c_str());
+    m->dhcp.setOption(NetworkServiceRunner::kNsrIpNetmask, Utf8Str(m->GlobalDhcpOptions[DhcpOpt_SubnetMask].text).c_str());
     m->dhcp.setOption(DHCPServerRunner::kDsrKeyLowerIp, Utf8Str(m->lowerIP).c_str());
     m->dhcp.setOption(DHCPServerRunner::kDsrKeyUpperIp, Utf8Str(m->upperIP).c_str());
 

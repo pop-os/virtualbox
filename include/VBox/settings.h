@@ -311,7 +311,24 @@ struct MachineRegistryEntry
 };
 typedef std::list<MachineRegistryEntry> MachinesRegistry;
 
-typedef std::map<DhcpOpt_T, com::Utf8Str> DhcpOptionMap;
+struct DhcpOptValue
+{
+    enum Encoding {
+	LEGACY,
+	HEX
+    };
+
+    com::Utf8Str text;
+    Encoding encoding;
+
+    DhcpOptValue()
+      : text(), encoding(LEGACY) {}
+
+    DhcpOptValue(const com::Utf8Str &aText, Encoding aEncoding = LEGACY)
+      : text(aText), encoding(aEncoding) {}
+};
+
+typedef std::map<DhcpOpt_T, DhcpOptValue> DhcpOptionMap;
 typedef DhcpOptionMap::value_type DhcpOptValuePair;
 typedef DhcpOptionMap::iterator DhcpOptIterator;
 typedef DhcpOptionMap::const_iterator DhcpOptConstIterator;
@@ -345,7 +362,7 @@ struct DHCPServer
                     strIPLower,
                     strIPUpper;
     bool            fEnabled;
-    std::map<DhcpOpt_T, com::Utf8Str>  GlobalDhcpOptions;
+    DhcpOptionMap     GlobalDhcpOptions;
     VmSlot2OptionsMap VmSlot2OptionsM;
 };
 typedef std::list<DHCPServer> DHCPServersList;
@@ -958,6 +975,8 @@ struct AttachedDevice
           fPassThrough(false),
           fTempEject(false),
           fNonRotational(false),
+          fDiscard(false),
+          fHotPluggable(false),
           lPort(0),
           lDevice(0)
     {}

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -317,10 +317,6 @@ void RTSpinlockAcquire(RTSPINLOCK Spinlock)
 void RTSpinlockRelease(RTSPINLOCK Spinlock)
 {
     g_VBoxGuest->_RTSpinlockRelease(Spinlock);
-}
-void RTSpinlockReleaseNoInts(RTSPINLOCK Spinlock)
-{
-    g_VBoxGuest->_RTSpinlockReleaseNoInts(Spinlock);
 }
 void* RTMemTmpAllocTag(size_t cb, const char *pszTag)
 {

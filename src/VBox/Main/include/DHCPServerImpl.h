@@ -21,16 +21,12 @@
 #define ____H_H_DHCPSERVERIMPL
 
 #include "VirtualBoxBase.h"
+#include <VBox/settings.h>
 
 #ifdef VBOX_WITH_HOSTNETIF_API
 struct NETIFINFO;
 #endif
 
-namespace settings
-{
-    struct DHCPServer;
-    struct VmNameSlotKey;
-}
 #ifdef RT_OS_WINDOWS
 # define DHCP_EXECUTABLE_NAME "VBoxNetDHCP.exe"
 #else
@@ -61,14 +57,16 @@ public:
  *  the middle.
  */
 
-typedef std::map<DhcpOpt_T, com::Utf8Str> DhcpOptionMap;
-typedef DhcpOptionMap::value_type DhcpOptValuePair;
-typedef DhcpOptionMap::const_iterator DhcpOptConstIterator;
-typedef DhcpOptionMap::iterator DhcpOptIterator;
+using settings::DhcpOptValue;
+using settings::DhcpOptionMap;
+using settings::DhcpOptValuePair;
+using settings::DhcpOptConstIterator;
+using settings::DhcpOptIterator;
 
-typedef std::map<settings::VmNameSlotKey, DhcpOptionMap> VmSlot2OptionsMap;
-typedef VmSlot2OptionsMap::value_type VmSlot2OptionsPair;
-typedef VmSlot2OptionsMap::iterator VmSlot2OptionsIterator;
+using settings::VmNameSlotKey;
+using settings::VmSlot2OptionsMap;
+using settings::VmSlot2OptionsPair;
+using settings::VmSlot2OptionsIterator;
 
 
 class ATL_NO_VTABLE DHCPServer :
@@ -110,8 +108,8 @@ public:
     STDMETHOD(COMGETTER(UpperIP))(BSTR *aIPAddress);
 
     STDMETHOD(AddGlobalOption)(DhcpOpt_T aOption, IN_BSTR aValue);
-    STDMETHOD(COMGETTER(GlobalOptions))(ComSafeArrayOut(BSTR, aValue));
-    STDMETHOD(COMGETTER(VmConfigs))(ComSafeArrayOut(BSTR, aValue));
+    STDMETHOD(COMGETTER(GlobalOptions))(ComSafeArrayOut(BSTR, aValues));
+    STDMETHOD(COMGETTER(VmConfigs))(ComSafeArrayOut(BSTR, aValues));
     STDMETHOD(AddVmSlotOption)(IN_BSTR aVmName, LONG aSlot, DhcpOpt_T aOption, IN_BSTR aValue);
     STDMETHOD(RemoveVmSlotOptions)(IN_BSTR aVmName, LONG aSlot);
     STDMETHOD(GetVmSlotOptions)(IN_BSTR aVmName, LONG aSlot, ComSafeArrayOut(BSTR, aValues));
@@ -132,6 +130,10 @@ private:
 
     DhcpOptionMap& findOptMapByVmNameSlot(const com::Utf8Str& aVmName,
                                           LONG Slot);
+    HRESULT encodeOption(com::Utf8Str &aEncoded,
+			 uint32_t aOptCode, const DhcpOptValue &aOptValue);
+    int addOption(DhcpOptionMap &aMap,
+		  DhcpOpt_T aOption, const com::Utf8Str &aValue);
 };
 
 #endif // ____H_H_DHCPSERVERIMPL
