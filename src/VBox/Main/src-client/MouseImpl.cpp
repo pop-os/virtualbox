@@ -605,7 +605,7 @@ HRESULT Mouse::convertDisplayRes(LONG x, LONG y, int32_t *pxAdj, int32_t *pyAdj,
 
     if (pfValid)
         *pfValid = true;
-    if (!(mfVMMDevGuestCaps & VMMDEV_MOUSE_NEW_PROTOCOL))
+    if (!(mfVMMDevGuestCaps & VMMDEV_MOUSE_NEW_PROTOCOL) && !pDisplay->i_isInputMappingSet())
     {
         ULONG displayWidth, displayHeight;
         /* Takes the display lock */

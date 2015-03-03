@@ -736,9 +736,8 @@ static RTEXITCODE generateOutputInner(FILE *pOutput)
                 "    "
                 "\n"
                 ".return:\n"
-                "    lea    xSP, [xBP - xCB * 3]\n"
-                "    pop    pszCurStr\n"
-                "    pop    xBX\n"
+                "    mov    pszCurStr, [xBP - xCB * 2]\n"
+                "    mov    xBX,       [xBP - xCB * 1]\n"
                 "    leave\n"
                 "    ret\n"
                 "ENDPROC   ExplicitlyLoad%.*s\n"
@@ -844,7 +843,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 98182 $\n");
+                printf("$Revision: 98272 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

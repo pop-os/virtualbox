@@ -8,7 +8,10 @@
 
 #include <iprt/asm-math.h>
 #include <iprt/cpp/utils.h>
+
+#include <VBox/com/ptr.h>
 #include <VBox/com/string.h>
+#include <VBox/com/VirtualBox.h>
 
 #include "../NetLib/cpp/utils.h"
 
@@ -477,7 +480,7 @@ private:
 class NetworkManager
 {
 public:
-    static NetworkManager *getNetworkManager();
+    static NetworkManager *getNetworkManager(ComPtr<IDHCPServer> aDhcpServer = ComPtr<IDHCPServer>());
 
     const RTNETADDRIPV4& getOurAddress() const;
     const RTNETADDRIPV4& getOurNetmask() const;
@@ -504,6 +507,9 @@ private:
     int prepareReplyPacket4Client(const Client& client, uint32_t u32Xid);
     int doReply(const Client& client, const std::vector<RawOption>& extra);
     int processParameterReqList(const Client& client, const uint8_t *pu8ReqList, int cReqList, std::vector<RawOption>& extra);
+
+private:
+    static NetworkManager *g_NetworkManager;
 
 private:
     struct Data;

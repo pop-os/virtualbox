@@ -8058,7 +8058,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
     cbString = (bstrHostPath.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
         return setError(E_INVALIDARG, tr("The name is too long"));
-    pFolderName = (SHFLSTRING*)RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
+    pFolderName = (SHFLSTRING*)RTMemAllocZ(SHFLSTRING_HEADER_SIZE + cbString);
     Assert(pFolderName);
     memcpy(pFolderName->String.ucs2, bstrHostPath.raw(), cbString);
 
@@ -8067,7 +8067,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
 
     parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
     parms[0].u.pointer.addr = pFolderName;
-    parms[0].u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
+    parms[0].u.pointer.size = ShflStringSizeOfBuffer(pFolderName);
 
     cbString = (bstrName.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
@@ -8075,7 +8075,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
         RTMemFree(pFolderName);
         return setError(E_INVALIDARG, tr("The host path is too long"));
     }
-    pMapName = (SHFLSTRING*)RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
+    pMapName = (SHFLSTRING*)RTMemAllocZ(SHFLSTRING_HEADER_SIZE + cbString);
     Assert(pMapName);
     memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
@@ -8084,7 +8084,7 @@ HRESULT Console::createSharedFolder(const Utf8Str &strName, const SharedFolderDa
 
     parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
     parms[1].u.pointer.addr = pMapName;
-    parms[1].u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
+    parms[1].u.pointer.size = ShflStringSizeOfBuffer(pMapName);
 
     parms[2].type = VBOX_HGCM_SVC_PARM_32BIT;
     parms[2].u.uint32 = (aData.m_fWritable ? SHFL_ADD_MAPPING_F_WRITABLE : 0)
@@ -8138,7 +8138,7 @@ HRESULT Console::removeSharedFolder(const Utf8Str &strName)
     cbString = (bstrName.length() + 1) * sizeof(RTUTF16);
     if (cbString >= UINT16_MAX)
         return setError(E_INVALIDARG, tr("The name is too long"));
-    pMapName = (SHFLSTRING *) RTMemAllocZ(sizeof(SHFLSTRING) + cbString);
+    pMapName = (SHFLSTRING *) RTMemAllocZ(SHFLSTRING_HEADER_SIZE + cbString);
     Assert(pMapName);
     memcpy(pMapName->String.ucs2, bstrName.raw(), cbString);
 
@@ -8147,7 +8147,7 @@ HRESULT Console::removeSharedFolder(const Utf8Str &strName)
 
     parms.type = VBOX_HGCM_SVC_PARM_PTR;
     parms.u.pointer.addr = pMapName;
-    parms.u.pointer.size = sizeof(SHFLSTRING) + (uint16_t)cbString;
+    parms.u.pointer.size = ShflStringSizeOfBuffer(pMapName);
 
     int vrc = m_pVMMDev->hgcmHostCall("VBoxSharedFolders",
                                       SHFL_FN_REMOVE_MAPPING,

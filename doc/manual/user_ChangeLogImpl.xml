@@ -1,7 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
-    <title>Version 4.3.22 (2014-02-12)</title>
+    <title>Version 4.3.24 (2015-03-02)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: emulation fix for the <emphasis>ENTER</emphasis> instruction
+          under certain conditions; fixes Solaris 10 guests (VT-x without
+          unrestricted guest execution)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fix for handling NMIs on Linux hosts with X2APIC enabled</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT/NAT Network: fix connection drops when the host's DHCP lease
+          was renewed (4.3.22 regression; Windows hosts only; bug #13839)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't crash on an empty domain list when switching the
+          DNS host configuration (4.3.22 regression; Mac OS X hosts only;
+          bug #13874)</para>
+      </listitem>
+
+      <listitem>
+        <para>PXE: re-enable it on Windows hosts (4.3.22 regression; Windows hosts
+          only; bug #13842)
+        </para>
+      </listitem>
+
+      <listitem>
+        <para>Shared Folders: fixed a problem with Windows guests (4.3.22 regression;
+          bug #13786)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: improved record quality when using the DirectSound audio
+          backend</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: when executing the <emphasis>controlvm</emphasis> command
+          take care that the corresponding VM runtime changes are saved permanently
+          (bug #13892)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Installer: properly install the 32-bit version of VBoxRes.dll
+          on 32-bit hosts (bug #13876)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: Linux 4.0 fixes (bug #13835)</para>
+      </listitem>
+
+      <listitem>
+        <para>OS/2 Additions: fixed mouse integration (4.3.22 regression;
+          bug #13825)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+    <title>Version 4.3.22 (2015-02-12)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
       added:</para>
@@ -99,6 +167,12 @@
       <listitem>
         <para>VBoxManage: fixed return code if starting a VM failed
           (bug #13773)</para>
+      </listitem>
+
+      <listitem>
+        <para>Settings: on Windows host, do not use environment variable HOME
+          at all, the settings location is derived from the user profile
+          directory (bug #7689)</para>
       </listitem>
 
       <listitem>
