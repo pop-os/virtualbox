@@ -1,7 +1,8 @@
-virtualbox (4.3.22-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (4.3.24-dfsg-1) experimental; urgency=medium
 
   * Remove d/p/38-remove-hardcoded-gcc.patch, use --with-gcc and
     --with-g++ configure flags.
+  * Remove d/p/37-fix-build.patch, merged upstream.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 23 Feb 2015 13:49:58 +0100
 
