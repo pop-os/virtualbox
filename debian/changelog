@@ -1,5 +1,6 @@
 virtualbox (4.3.24-dfsg-1) experimental; urgency=medium
 
+  * Imported upstream release (Closes: #779025).
   * Remove d/p/38-remove-hardcoded-gcc.patch, use --with-gcc and
     --with-g++ configure flags.
   * Remove d/p/37-fix-build.patch, merged upstream.
