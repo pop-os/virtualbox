@@ -1,11 +1,15 @@
 virtualbox (4.3.24-dfsg-1) experimental; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * Imported upstream release (Closes: #779025).
   * Remove d/p/38-remove-hardcoded-gcc.patch, use --with-gcc and
     --with-g++ configure flags.
   * Remove d/p/37-fix-build.patch, merged upstream.
 
- -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 23 Feb 2015 13:49:58 +0100
+  [ Ritesh Raj Sarraf ]
+  * [3bf4cdd] Add back versioned dependency on gcc multilib
+
+ -- Ritesh Raj Sarraf <rrs@debian.org>  Wed, 04 Mar 2015 17:35:40 +0530
 
 virtualbox (4.3.22-dfsg-1) experimental; urgency=medium
 
