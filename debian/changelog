@@ -1,3 +1,10 @@
+virtualbox (4.3.24-dfsg-2) UNRELEASED; urgency=medium
+
+   * Conflict with upstream proprietary packages 4.3 series.
+     (LP: #1371287, LP: #1375018, LP: #1385931, LP: #1386328, LP: #1421926)
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Sun, 08 Mar 2015 12:09:26 +0100
+
 virtualbox (4.3.24-dfsg-1) experimental; urgency=medium
 
   [ Gianfranco Costamagna ]
