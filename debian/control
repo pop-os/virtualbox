@@ -100,6 +100,10 @@ Conflicts: virtualbox-2.0,
            virtualbox-2.1,
            virtualbox-2.2,
            virtualbox-3.0,
+           virtualbox-3.1,
+           virtualbox-3.2,
+           virtualbox-4.0,
+           virtualbox-4.1,
            virtualbox-4.2,
            virtualbox-4.3
 Description: x86 virtualization solution - base binaries
