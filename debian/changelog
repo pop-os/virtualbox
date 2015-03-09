@@ -1,3 +1,10 @@
+virtualbox (4.3.18-dfsg-3) unstable; urgency=medium
+
+  * Conflict with upstream proprietary packages 4.3 series.
+    (LP: #1371287, LP: #1375018, LP: #1385931, LP: #1386328, LP: #1421926)
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 09 Mar 2015 10:12:44 +0100
+
 virtualbox (4.3.18-dfsg-2) unstable; urgency=high
 
   [ Frank Mehnert ]
