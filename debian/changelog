@@ -1,4 +1,4 @@
-virtualbox (4.3.24-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (4.3.24-dfsg-2) experimental; urgency=medium
 
    * Conflict with upstream proprietary packages 4.3 series.
      (LP: #1371287, LP: #1375018, LP: #1385931, LP: #1386328, LP: #1421926)
@@ -45,6 +45,23 @@ virtualbox (4.3.20-dfsg-1) experimental; urgency=medium
   * Flip build dependency to libcurl4-gnutls-dev
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Wed, 03 Dec 2014 09:37:08 +0100
+
+virtualbox (4.3.18-dfsg-3) unstable; urgency=medium
+
+  * Conflict with upstream proprietary packages 4.3 series.
+    (LP: #1371287, LP: #1375018, LP: #1385931, LP: #1386328, LP: #1421926)
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Mon, 09 Mar 2015 10:12:44 +0100
+
+virtualbox (4.3.18-dfsg-2) unstable; urgency=high
+
+  [ Frank Mehnert ]
+  * d/rules: Disable experimental code by exporting
+    VBOX_WITH_VMSVGA= VBOX_WITH_VMSVGA3D=
+    this fixes CVE-2014-6595, CVE-2014-6590, CVE-2014-6589,
+    CVE-2014-6588 and CVE-2015-0427. (Closes: #775888)
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Thu, 22 Jan 2015 10:51:40 +0100
 
 virtualbox (4.3.18-dfsg-1) unstable; urgency=medium
 
