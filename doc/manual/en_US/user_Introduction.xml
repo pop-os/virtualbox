@@ -324,7 +324,7 @@
 
       <listitem>
         <para><emphasis role="bold">VM groups.</emphasis> VirtualBox provides a
-        groups feature that enables the user to organize virtual machines
+        groups feature that enables the user to organize and control virtual machines
         collectively, as well as individually. In addition to basic groups, it
         is also possible for any VM to be in more than one group, and for
         groups to be nested in a hierarchy -- i.e. groups of groups. In
@@ -813,7 +813,8 @@
           large enough to hold the contents of your operating system and the
           applications you want to install -- for a modern Windows or Linux
           guest, you will probably need several gigabytes for any serious
-          use:</para>
+          use. The limit of the image file size can be changed later (see <xref
+          linkend="vboxmanage-modifyvdi"/> for details).</para>
 
           <mediaobject>
             <imageobject>
@@ -1273,24 +1274,30 @@
         </listitem>
         <listitem>
           <para>
-            Command line option 1) Create group and assign VM:
+            Command line option 1) Create a group and assign a VM:
             <screen>VBoxManage modifyvm "Fred" --groups "/TestGroup"</screen>
+            creates a group "TestGroup" and attaches the VM "Fred" to that group.
           </para>
           <para>
-            Command line option 2) Detach VM from group, and delete group if
-            empty: <screen>VBoxManage modifyvm "Fred" --groups ""</screen>
+            Command line option 2) Detach a VM from the group, and delete the group
+            if empty: <screen>VBoxManage modifyvm "Fred" --groups ""</screen>
+            It detaches all groups from the VM "Fred" and deletes the empty group.
           </para>
         </listitem>
         <listitem>
           <para>
             Multiple groups e.g.:
             <screen>VBoxManage modifyvm "Fred" --groups "/TestGroup,/TestGroup2"</screen>
+            It creates the groups "TestGroup" and "TestGroup2" (if they don't exist yet)
+            and attaches the VM "Fred" to both of them.
           </para>
         </listitem>
         <listitem>
           <para>
             Nested groups -- hierarchy of groups e.g.:
             <screen>VBoxManage modifyvm "Fred" --groups "/TestGroup/TestGroup2"</screen>
+            It attaches the VM "Fred" to the subgroup "TestGroup2" of the "TestGroup"
+            group.
           </para>
         </listitem>
         <listitem>

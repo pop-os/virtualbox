@@ -92,13 +92,11 @@ inline static void detachVectorOfString(const std::vector<std::string>& v,
 struct HostDnsMonitor::Data
 {
     Data(bool aThreaded) :
-        fInfoModified(false),
         fThreaded(aThreaded)
     {}
 
     std::vector<PCHostDnsMonitorProxy> proxies;
     HostDnsInformation info;
-    bool fInfoModified;
     const bool fThreaded;
     RTTHREAD hMonitoringThread;
     RTSEMEVENT hDnsInitEvent;
@@ -203,30 +201,18 @@ const HostDnsInformation &HostDnsMonitor::getInfo() const
     return m->info;
 }
 
-void HostDnsMonitor::notifyAll() const
-{
-    ALock l(this);
-    if (m->fInfoModified)
-    {
-        m->fInfoModified = false;
-        std::vector<PCHostDnsMonitorProxy>::const_iterator it;
-        for (it = m->proxies.begin(); it != m->proxies.end(); ++it)
-            (*it)->notify();
-    }
-}
-
 void HostDnsMonitor::setInfo(const HostDnsInformation &info)
 {
     ALock l(this);
-    // Check for actual modifications, as the Windows specific code seems to
-    // often set the same information as before, without any change to the
-    // previous state. Here we have the previous state, so make sure we don't
-    // ever tell our clients about unchanged info.
+
     if (info.equals(m->info))
-    {
-        m->info = info;
-        m->fInfoModified = true;
-    }
+        return;
+
+    m->info = info;
+
+    std::vector<PCHostDnsMonitorProxy>::const_iterator it;
+    for (it = m->proxies.begin(); it != m->proxies.end(); ++it)
+        (*it)->notify();
 }
 
 HRESULT HostDnsMonitor::init()
@@ -299,7 +285,7 @@ HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
         updateInfo();
 
     LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
-    dumpHostDnsStrVector("Name Server", m->info->servers);
+    dumpHostDnsStrVector("name server", m->info->servers);
 
     detachVectorOfString(m->info->servers, ComSafeArrayOutArg(aNameServers));
 
@@ -314,7 +300,8 @@ HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
     if (m->fModified)
         updateInfo();
 
-    LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n", m->info->domain.c_str()));
+    LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n",
+            m->info->domain.empty() ? "no domain set" : m->info->domain.c_str()));
 
     Utf8Str(m->info->domain.c_str()).cloneTo(aDomainName);
 
@@ -330,7 +317,7 @@ HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrin
         updateInfo();
 
     LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
-    dumpHostDnsStrVector("Search String", m->info->searchList);
+    dumpHostDnsStrVector("search string", m->info->searchList);
 
     detachVectorOfString(m->info->searchList, ComSafeArrayOutArg(aSearchStrings));
 
@@ -371,11 +358,13 @@ void HostDnsMonitorProxy::updateInfo()
 
 static void dumpHostDnsInformation(const HostDnsInformation& info)
 {
-    dumpHostDnsStrVector("DNS server", info.servers);
-    dumpHostDnsStrVector("SearchString", info.searchList);
+    dumpHostDnsStrVector("server", info.servers);
+    dumpHostDnsStrVector("search string", info.searchList);
 
     if (!info.domain.empty())
-        LogRel(("DNS domain: %s\n", info.domain.c_str()));
+        LogRel(("  domain: %s\n", info.domain.c_str()));
+    else
+        LogRel(("  no domain set\n"));
 }
 
 
@@ -385,5 +374,7 @@ static void dumpHostDnsStrVector(const std::string& prefix, const std::vector<st
     for (std::vector<std::string>::const_iterator it = v.begin();
          it != v.end();
          ++it, ++i)
-        LogRel(("%s %d: %s\n", prefix.c_str(), i, it->c_str()));
+        LogRel(("  %s %d: %s\n", prefix.c_str(), i, it->c_str()));
+    if (v.empty())
+        LogRel(("  no %s entries\n", prefix.c_str()));
 }

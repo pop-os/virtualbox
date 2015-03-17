@@ -627,6 +627,10 @@ HRESULT Display::init(Console *aParent)
     ULONG ul;
     mParent->machine()->COMGETTER(MonitorCount)(&ul);
     mcMonitors = ul;
+    xInputMappingOrigin = 0;
+    yInputMappingOrigin = 0;
+    cxInputMapping = 0;
+    cyInputMapping = 0;
 
     for (ul = 0; ul < mcMonitors; ul++)
     {

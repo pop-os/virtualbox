@@ -2099,7 +2099,6 @@ static void *vmsvgaFIFOGetCmdPayload(uint32_t cbPayloadReq, uint32_t volatile *p
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoErrors);
             LogRelMax(16, ("vmsvgaFIFOGetCmdPayload: Invalid offNextCmd=%#x (offFifoMin=%#x offFifoMax=%#x)\n",
                            offNextCmd, offFifoMin, offFifoMax));
-            /** @todo release counter.   */
             cbAfter = offFifoMax - offCurrentCmd;
         }
         cbBefore = 0;
@@ -2114,7 +2113,6 @@ static void *vmsvgaFIFOGetCmdPayload(uint32_t cbPayloadReq, uint32_t volatile *p
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoErrors);
             LogRelMax(16, ("vmsvgaFIFOGetCmdPayload: Invalid offNextCmd=%#x (offFifoMin=%#x offFifoMax=%#x)\n",
                            offNextCmd, offFifoMin, offFifoMax));
-            /** @todo release counter.   */
             cbBefore = 0;
         }
     }
@@ -2169,7 +2167,7 @@ static void *vmsvgaFIFOGetCmdPayload(uint32_t cbPayloadReq, uint32_t volatile *p
             memcpy(pbBounceBuf + cbAlreadyRead,
                    (uint8_t *)pFIFO + offCurrentCmd + cbAlreadyRead,
                    cbAfter - cbAlreadyRead);
-            cbAlreadyRead += cbAfter - cbAlreadyRead;
+            cbAlreadyRead = cbAfter;
         }
         memcpy(pbBounceBuf + cbAlreadyRead,
                (uint8_t *)pFIFO + offFifoMin + cbAlreadyRead - cbAfter,
@@ -2932,7 +2930,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                         SVGA3dCmdDefineContext *pCmd = (SVGA3dCmdDefineContext *)(pHdr + 1);
                         VMSVGAFIFO_CHECK_3D_CMD_MIN_SIZE_BREAK(sizeof(*pCmd));
 
-                        rc = vmsvga3dContextDefine(pThis, pCmd->cid, false /*fOtherProfile*/);
+                        rc = vmsvga3dContextDefine(pThis, pCmd->cid);
                         break;
                     }
 

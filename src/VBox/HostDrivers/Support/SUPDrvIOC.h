@@ -1,4 +1,4 @@
-/* $Revision: 98021 $ */
+/* $Revision: 98806 $ */
 /** @file
  * VirtualBox Support Driver - IOCtl definitions.
  */
@@ -210,7 +210,7 @@ typedef SUPREQHDR *PSUPREQHDR;
  * @todo Pending work on next major version change:
  *          - Remove RTSpinlockReleaseNoInts.
  */
-#define SUPDRV_IOC_VERSION                              0x001a0009
+#define SUPDRV_IOC_VERSION                              0x001a000a
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE

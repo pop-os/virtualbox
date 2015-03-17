@@ -48,10 +48,10 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
         {
             uint32_t cPixelShaderConst, cVertexShaderConst, cPixelShaders, cVertexShaders;
 
-            rc = vmsvga3dContextDefine(pThis, cid, false /*fOtherProfile*/);
+            rc = vmsvga3dContextDefine(pThis, cid);
             AssertRCReturn(rc, rc);
 
-            pContext = &pState->paContext[i];
+            pContext = pState->papContexts[i];
             AssertReturn(pContext->id == cid, VERR_INTERNAL_ERROR);
 
             rc = SSMR3GetStructEx(pSSM, pContext, sizeof(*pContext), 0, g_aVMSVGA3DCONTEXTFields, NULL);
@@ -245,7 +245,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
     /* Reinitialize all active contexts. */
     for (uint32_t i = 0; i < pState->cContexts; i++)
     {
-        PVMSVGA3DCONTEXT pContext = &pState->paContext[i];
+        PVMSVGA3DCONTEXT pContext = pState->papContexts[i];
         uint32_t cid = pContext->id;
 
         if (cid != SVGA3D_INVALID_ID)
@@ -356,7 +356,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
     /* Save all active contexts. */
     for (uint32_t i = 0; i < pState->cContexts; i++)
     {
-        PVMSVGA3DCONTEXT pContext = &pState->paContext[i];
+        PVMSVGA3DCONTEXT pContext = pState->papContexts[i];
         uint32_t cid = pContext->id;
 
         /* Save the id first. */
@@ -538,12 +538,12 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                                         /* @todo stricter checks for associated context */
                                         uint32_t cid = pSurface->idAssociatedContext;
                                         if (    cid >= pState->cContexts
-                                            ||  pState->paContext[cid].id != cid)
+                                            ||  pState->papContexts[cid]->id != cid)
                                         {
-                                            Log(("vmsvga3dSaveExec invalid context id (%x - %x)!\n", cid, (cid >= pState->cContexts) ? -1 : pState->paContext[cid].id));
+                                            Log(("vmsvga3dSaveExec invalid context id (%x - %x)!\n", cid, (cid >= pState->cContexts) ? -1 : pState->papContexts[cid]->id));
                                             AssertFailedReturn(VERR_INVALID_PARAMETER);
                                         }
-                                        PVMSVGA3DCONTEXT pContext = &pState->paContext[cid];
+                                        PVMSVGA3DCONTEXT pContext = pState->papContexts[cid];
 
                                         hr = pSurface->bounce.pTexture->GetSurfaceLevel(i, &pDest);
                                         AssertMsgReturn(hr == D3D_OK, ("vmsvga3dSaveExec: GetSurfaceLevel failed with %x\n", hr), VERR_INTERNAL_ERROR);
@@ -647,16 +647,21 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
 #elif defined(VMSVGA3D_OPENGL)
                         void *pData = NULL;
 
+# ifdef VMSVGA3D_OGL_WITH_SHARED_CTX
+                        PVMSVGA3DCONTEXT pContext = &pState->SharedCtx;
+                        VMSVGA3D_SET_CURRENT_CONTEXT(pState, pContext);
+# else
                         /* @todo stricter checks for associated context */
                         uint32_t cid = pSurface->idAssociatedContext;
                         if (    cid >= pState->cContexts
-                            ||  pState->paContext[cid].id != cid)
+                            ||  pState->papContexts[cid]->id != cid)
                         {
-                            Log(("vmsvga3dSaveExec: invalid context id (%x - %x)!\n", cid, (cid >= pState->cContexts) ? -1 : pState->paContext[cid].id));
+                            Log(("vmsvga3dSaveExec: invalid context id (%x - %x)!\n", cid, (cid >= pState->cContexts) ? -1 : pState->papContexts[cid]->id));
                             AssertFailedReturn(VERR_INVALID_PARAMETER);
                         }
-                        PVMSVGA3DCONTEXT pContext = &pState->paContext[cid];
+                        PVMSVGA3DCONTEXT pContext = pState->papContexts[cid];
                         VMSVGA3D_SET_CURRENT_CONTEXT(pState, pContext);
+# endif
 
                         Assert(pMipmapLevel->cbSurface);
 
@@ -688,12 +693,18 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                             glBindTexture(GL_TEXTURE_2D, pSurface->oglId.texture);
                             VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 
+                            /* Set row length and alignment of the output data. */
+                            VMSVGAPACKPARAMS SavedParams;
+                            vmsvga3dSetPackParams(pState, pContext, pSurface, &SavedParams);
+
                             glGetTexImage(GL_TEXTURE_2D,
                                           i,
                                           pSurface->formatGL, 
                                           pSurface->typeGL, 
                                           pData);
                             VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
+
+                            vmsvga3dRestorePackParams(pState, pContext, pSurface, &SavedParams);
 
                             /* Data follows */
                             rc = SSMR3PutBool(pSSM, true);

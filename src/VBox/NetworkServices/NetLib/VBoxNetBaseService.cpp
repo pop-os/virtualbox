@@ -182,7 +182,7 @@ VBoxNetBaseService::~VBoxNetBaseService()
             CloseReq.pSession = m->m_pSession;
             CloseReq.hIf = m->m_hIf;
             m->m_hIf = INTNET_HANDLE_INVALID;
-            int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_RTCPUID, VMMR0_DO_INTNET_IF_CLOSE, 0, &CloseReq.Hdr);
+            int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_CLOSE, 0, &CloseReq.Hdr);
             AssertRC(rc);
         }
 
@@ -455,20 +455,27 @@ int VBoxNetBaseService::tryGoOnline(void)
 void VBoxNetBaseService::shutdown(void)
 {
     syncEnter();
-    m->fShutdown = true;
-    if (m->m_hThrRecv != NIL_RTTHREAD)
+    if (! m->fShutdown)
     {
-        int rc = m->m_EventQ->interruptEventQueueProcessing();
-        if (RT_SUCCESS(rc))
+        m->fShutdown = true;
+        if (m->m_hThrRecv != NIL_RTTHREAD)
         {
-            rc = RTThreadWait(m->m_hThrRecv, 60000, NULL);
-            if (RT_FAILURE(rc))
-                LogWarningFunc(("RTThreadWait(%RTthrd) -> %Rrc\n", m->m_hThrRecv, rc));
-        }
-        else
-        {
-            AssertMsgFailed(("interruptEventQueueProcessing() failed\n"));
-            RTThreadWait(m->m_hThrRecv , 0, NULL);
+            int rc = abortWait();
+            Assert(rc == VINF_SUCCESS || rc == VERR_SEM_DESTROYED);
+            rc = m->m_EventQ->interruptEventQueueProcessing();
+#if 0 /* this will not work as long as we don't set RTTHREADFLAGS_WAITABLE */
+            if (RT_SUCCESS(rc))
+            {
+                rc = RTThreadWait(m->m_hThrRecv, 60000, NULL);
+                if (RT_FAILURE(rc))
+                    LogWarningFunc(("RTThreadWait(%RTthrd) -> %Rrc\n", m->m_hThrRecv, rc));
+            }
+            else
+            {
+                AssertMsgFailed(("interruptEventQueueProcessing() failed\n"));
+                RTThreadWait(m->m_hThrRecv , 0, NULL);
+            }
+#endif
         }
     }
     syncLeave();
@@ -489,7 +496,6 @@ int VBoxNetBaseService::syncLeave()
 
 int VBoxNetBaseService::waitForIntNetEvent(int cMillis)
 {
-    int rc = VINF_SUCCESS;
     INTNETIFWAITREQ WaitReq;
     LogFlowFunc(("ENTER:cMillis: %d\n", cMillis));
     WaitReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
@@ -498,10 +504,27 @@ int VBoxNetBaseService::waitForIntNetEvent(int cMillis)
     WaitReq.hIf = m->m_hIf;
     WaitReq.cMillies = cMillis;
 
-    rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_WAIT, 0, &WaitReq.Hdr);
+    int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_WAIT, 0, &WaitReq.Hdr);
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
+
+
+int VBoxNetBaseService::abortWait()
+{
+    INTNETIFABORTWAITREQ AbortReq;
+    LogFlowFunc(("ENTER:\n"));
+    AbortReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
+    AbortReq.Hdr.cbReq = sizeof(AbortReq);
+    AbortReq.pSession = m->m_pSession;
+    AbortReq.hIf = m->m_hIf;
+    AbortReq.fNoMoreWaits = true;
+
+    int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_ABORT_WAIT, 0, &AbortReq.Hdr);
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
 
 /* S/G API */
 int VBoxNetBaseService::sendBufferOnWire(PCINTNETSEG pcSg, int cSg, size_t cbFrame)
@@ -533,13 +556,12 @@ int VBoxNetBaseService::sendBufferOnWire(PCINTNETSEG pcSg, int cSg, size_t cbFra
  */
 void VBoxNetBaseService::flushWire()
 {
-    int rc = VINF_SUCCESS;
     INTNETIFSENDREQ SendReq;
     SendReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     SendReq.Hdr.cbReq    = sizeof(SendReq);
     SendReq.pSession     = m->m_pSession;
     SendReq.hIf          = m->m_hIf;
-    rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SEND, 0, &SendReq.Hdr);
+    int rc = SUPR3CallVMMR0Ex(NIL_RTR0PTR, NIL_VMCPUID, VMMR0_DO_INTNET_IF_SEND, 0, &SendReq.Hdr);
     AssertRCReturnVoid(rc);
     LogFlowFuncLeave();
 
@@ -671,6 +693,8 @@ void VBoxNetBaseService::doReceiveLoop()
          */
         /* 2. waiting for request for */
         rc = waitForIntNetEvent(2000);
+        if (rc == VERR_SEM_DESTROYED)
+            break;
         if (RT_FAILURE(rc))
         {
             if (rc == VERR_TIMEOUT || rc == VERR_INTERRUPTED)
@@ -732,7 +756,6 @@ void VBoxNetBaseService::doReceiveLoop()
 
         } /* loop */
     }
-
 }
 
 

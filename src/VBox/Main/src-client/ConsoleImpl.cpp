@@ -10625,7 +10625,10 @@ DECLCALLBACK(int) Console::drvStatus_MediumEjected(PPDMIMEDIANOTIFY pInterface, 
                     ComPtr<IMediumAttachment> pNewMediumAtt;
                     rc = pThis->pConsole->mControl->EjectMedium(pMediumAtt, pNewMediumAtt.asOutParam());
                     if (SUCCEEDED(rc))
+                    {
+                        pThis->pConsole->mMachine->SaveSettings();
                         fireMediumChangedEvent(pThis->pConsole->mEventSource, pNewMediumAtt);
+                    }
 
                     alock.acquire();
                     if (pNewMediumAtt != pMediumAtt)

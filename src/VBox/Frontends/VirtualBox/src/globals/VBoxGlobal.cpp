@@ -4844,7 +4844,8 @@ bool VBoxGlobal::switchToMachine(CMachine &machine)
 bool VBoxGlobal::launchMachine(CMachine &machine, bool fHeadless /* = false */)
 {
     /* Switch to machine window(s) if possible: */
-    if (machine.CanShowConsoleWindow())
+    if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
+        && machine.CanShowConsoleWindow())
         return VBoxGlobal::switchToMachine(machine);
 
     /* Make sure machine-state is one of required: */
