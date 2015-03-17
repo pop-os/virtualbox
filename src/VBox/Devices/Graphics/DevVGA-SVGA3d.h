@@ -37,7 +37,7 @@ int vmsvga3dSendThreadMessage(RTTHREAD pWindowThread, RTSEMEVENT WndRequestSem, 
 #endif
 
 /** Arbitrary limit */
-#define SVGA3D_MAX_SHADER_IDS                   0x100
+#define SVGA3D_MAX_SHADER_IDS                   0x800
 /** D3D allows up to 8 texture stages. */
 #define SVGA3D_MAX_TEXTURE_STAGE                8
 /** Arbitrary upper limit; seen 8 so far. */
@@ -62,7 +62,7 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId dest, SVGA3d
 int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceImageId host, SVGA3dTransferType transfer, uint32_t cCopyBoxes, SVGA3dCopyBox *pBoxes);
 int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t dest, SVGASignedRect destRect, SVGA3dSurfaceImageId src, SVGASignedRect srcRect, uint32_t cRects, SVGASignedRect *pRect);
 
-int vmsvga3dContextDefine(PVGASTATE pThis, uint32_t cid, bool fOtherProfile);
+int vmsvga3dContextDefine(PVGASTATE pThis, uint32_t cid);
 int vmsvga3dContextDestroy(PVGASTATE pThis, uint32_t cid);
 
 int vmsvga3dChangeMode(PVGASTATE pThis);

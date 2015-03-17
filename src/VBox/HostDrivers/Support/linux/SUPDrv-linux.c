@@ -1,4 +1,4 @@
-/* $Rev: 98176 $ */
+/* $Rev: 98806 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -65,6 +65,7 @@ static inline void stac(void) { }
 #ifdef VBOX_WITH_SUSPEND_NOTIFICATION
 # include <linux/platform_device.h>
 #endif
+#include <iprt/asm-amd64-x86.h>
 
 
 /*******************************************************************************
@@ -794,6 +795,26 @@ int VBOXCALL SUPDrvLinuxIDC(uint32_t uReq, PSUPDRVIDCREQHDR pReq)
 }
 
 EXPORT_SYMBOL(SUPDrvLinuxIDC);
+
+
+RTCCUINTREG VBOXCALL supdrvOSChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 20, 0)
+    RTCCUINTREG uOld = this_cpu_read(cpu_tlbstate.cr4);
+    RTCCUINTREG uNew = (uOld & fAndMask) | fOrMask;
+    if (uNew != uOld)
+    {
+        this_cpu_write(cpu_tlbstate.cr4, uNew);
+        __write_cr4(uNew);
+    }
+#else
+    RTCCUINTREG uOld = ASMGetCR4();
+    RTCCUINTREG uNew = (uOld & fAndMask) | fOrMask;
+    if (uNew != uOld)
+        ASMSetCR4(uNew);
+#endif
+    return uOld;
+}
 
 
 void VBOXCALL supdrvOSCleanupSession(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)

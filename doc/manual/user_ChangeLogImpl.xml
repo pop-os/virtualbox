@@ -1,6 +1,74 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.26 (2015-03-16)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: in the snapshots pane, protect the age of snapshots against
+          wrong host time (bug #13955)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: fixed a bug which prevented to propagate any DNS
+          name server / domain / search string information to the NAT network
+          (4.3.24 regression; bugs #13915, #13918)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: don't delay the shutdown of VBoxSVC on
+          Windows hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>Mouse support: the mouse could not be moved under rare
+          conditions if no Guest Additions are installed (4.3.24 regression;
+          bug #13935)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: if the guest ejects a virtual CD/DVD medium, make the
+          change permanent (bugs #9858, #12885)</para>
+      </listitem>
+
+      <listitem>
+        <para>VGA: made saving secondary screen sizes possible in X11 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>SDK: fixed the VirtualBox.tlb file (4.3.20 regression; bug #13943)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: make it work with USB devices again
+          (4.3.14 regression; bug #13901)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: fixed a possible BSOD on Windows hosts under rare conditions</para>
+      </listitem>
+
+      <listitem>
+        <para>iPXE: enable the HTTP download protocol on non-Linux hosts (bug #13628)</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: don't panic on hosts with activated SMAP (Broadwell
+          and later; bug #13951)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: don't crash Linux 4.0 hosts (bug #13835)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.24 (2015-03-02)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
