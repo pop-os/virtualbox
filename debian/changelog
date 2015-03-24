@@ -1,6 +1,9 @@
 virtualbox (4.3.26-dfsg-2) UNRELEASED; urgency=medium
 
+  [ Gianfranco Costamagna ]
   * remove obsolete lintian overrides.
+  [ Ritesh Raj Sarraf ]
+  * Remove Michael Meskes from uploaders.
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 20 Mar 2015 12:02:04 +0100
 
