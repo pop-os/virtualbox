@@ -5,9 +5,9 @@ Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>
 diff a/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp b/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 Index: virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 ===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2013-11-19 03:42:12.725479132 -0500
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2013-11-19 03:42:12.721479132 -0500
-@@ -440,6 +440,8 @@
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2015-04-02 15:44:20.879669066 +0200
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp	2015-04-02 15:44:20.879669066 +0200
+@@ -428,6 +428,8 @@
  
  void UIUpdateManager::sltForceCheck()
  {
@@ -18,58 +18,52 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
  }
 Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 ===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2013-11-19 03:42:12.725479132 -0500
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2013-11-19 03:42:12.721479132 -0500
-@@ -658,7 +658,6 @@
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2015-04-02 15:44:20.879669066 +0200
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp	2015-04-02 15:44:20.879669066 +0200
+@@ -928,7 +928,6 @@
      m_pool[UIActionIndex_Simple_ResetWarnings] = new UIActionSimpleResetWarnings(this);
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      m_pool[UIActionIndex_Simple_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
 -    m_pool[UIActionIndex_Simple_CheckForUpdates] = new UIActionSimpleCheckForUpdates(this);
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+ #ifndef RT_OS_DARWIN
      m_pool[UIActionIndex_Simple_About] = new UIActionSimpleAbout(this);
- }
+@@ -961,8 +960,6 @@
+ #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+     connect(action(UIActionIndex_Simple_NetworkAccessManager), SIGNAL(triggered()),
+             gNetworkManager, SLOT(show()), Qt::UniqueConnection);
+-    connect(action(UIActionIndex_Simple_CheckForUpdates), SIGNAL(triggered()),
+-            gUpdateManager, SLOT(sltForceCheck()), Qt::UniqueConnection);
+ #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+ #ifdef RT_OS_DARWIN
+     connect(action(UIActionIndex_M_Application_S_About), SIGNAL(triggered()),
+@@ -1129,9 +1126,6 @@
+ #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+     /* 'Network Manager' action: */
+     fSeparator = addAction(pMenu, action(UIActionIndex_Simple_NetworkAccessManager));
+-    /* 'Check for Updates' action (only for Selector pool): */
+-    if (type() == UIActionPoolType_Selector)
+-        fSeparator = addAction(pMenu, action(UIActionIndex_Simple_CheckForUpdates));
+ 
+     /* Separator? */
+     if (fSeparator)
 Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h
 ===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h	2013-11-19 03:42:12.725479132 -0500
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h	2013-11-19 03:42:12.721479132 -0500
-@@ -59,7 +59,6 @@
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h	2015-04-02 15:44:20.879669066 +0200
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.h	2015-04-02 15:44:20.879669066 +0200
+@@ -70,7 +70,6 @@
      UIActionIndex_Simple_ResetWarnings,
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      UIActionIndex_Simple_NetworkAccessManager,
 -    UIActionIndex_Simple_CheckForUpdates,
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+ #ifndef RT_OS_DARWIN
      UIActionIndex_Simple_About,
- 
-Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp	2013-11-19 03:42:12.725479132 -0500
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp	2013-11-19 04:34:19.701624365 -0500
-@@ -1331,12 +1331,6 @@
-     pMenu->addSeparator();
-     m_pNetworkAccessManager = gActionPool->action(UIActionIndex_Simple_NetworkAccessManager);
-     pMenu->addAction(m_pNetworkAccessManager);
--    m_pUpdateAction = gActionPool->action(UIActionIndex_Simple_CheckForUpdates);
--    CVirtualBox vbox = vboxGlobal().virtualBox();
--    if (VBoxGlobal::shouldWeAllowApplicationUpdate(vbox))
--        pMenu->addAction(m_pUpdateAction);
--    else
--        m_pUpdateAction->setEnabled(false);
- #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
- #ifndef Q_WS_MAC
-     pMenu->addSeparator();
-@@ -1473,7 +1467,6 @@
-     connect(m_pResetWarningsAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltResetSuppressedMessages()));
- #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-     connect(m_pNetworkAccessManager, SIGNAL(triggered()), gNetworkManager, SLOT(show()));
--    connect(m_pUpdateAction, SIGNAL(triggered()), gUpdateManager, SLOT(sltForceCheck()));
- #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-     connect(m_pAboutAction, SIGNAL(triggered()), &msgCenter(), SLOT(sltShowHelpAboutDialog()));
- 
 Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 ===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2013-11-19 03:42:12.725479132 -0500
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2013-11-19 03:42:12.725479132 -0500
-@@ -545,6 +545,10 @@
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2015-04-02 15:44:20.879669066 +0200
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp	2015-04-02 15:44:20.879669066 +0200
+@@ -295,6 +295,10 @@
  #endif /* !VBOX_WITH_NETFLT */
              break;
          }

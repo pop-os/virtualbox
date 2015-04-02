@@ -3,11 +3,11 @@ Author: Michael Meskes <meskes@debian.org>, Felix Geyer <fgeyer@debian.org>
 
 Index: virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
 ===================================================================
---- virtualbox.orig/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
-+++ virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2013-11-19 04:36:33.913630598 -0500
+--- virtualbox.orig/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
++++ virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
 @@ -40,8 +40,6 @@
  	VBoxGuestR3LibShared
- ifndef VBOX_ONLY_TESTSUITE
+ ifndef VBOX_ONLY_VALIDATIONKIT
   if1of ($(KBUILD_TARGET), freebsd linux netbsd openbsd)
 -  LIBRARIES += \
 -  	VBoxGuestR3LibXFree86
@@ -16,9 +16,9 @@ Index: virtualbox/src/VBox/Additions/common/VBoxGuestLib/Makefile.kmk
    LIBRARIES += \
 Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
 ===================================================================
---- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
-+++ virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2013-11-19 04:35:17.181627034 -0500
-@@ -74,18 +74,12 @@
+--- virtualbox.orig/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
++++ virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk	2015-04-02 15:44:24.955670965 +0200
+@@ -67,18 +67,12 @@
  VBoxOGL_INCS           = .
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_INCS     += \
@@ -42,7 +42,7 @@ Index: virtualbox/src/VBox/Additions/common/crOpenGL/Makefile.kmk
   VBoxOGL_DEFS     += VBOX_NO_NATIVEGL
  endif
  
-@@ -215,10 +209,10 @@
+@@ -208,10 +202,10 @@
  	$(PATH_STAGE_LIB)/additions/VBoxOGLspuload$(VBOX_SUFF_LIB)
  if1of ($(KBUILD_TARGET), linux solaris freebsd)
   VBoxOGL_LIBS += \

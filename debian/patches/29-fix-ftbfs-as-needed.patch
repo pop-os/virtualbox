@@ -3,9 +3,9 @@ Origin: vendor, http://sources.gentoo.org/cgi-bin/viewvc.cgi/gentoo-x86/app-emul
 
 Index: virtualbox/Config.kmk
 ===================================================================
---- virtualbox.orig/Config.kmk	2013-11-19 04:39:48.053639615 -0500
-+++ virtualbox/Config.kmk	2013-11-19 04:39:48.049639615 -0500
-@@ -5039,7 +5039,7 @@
+--- virtualbox.orig/Config.kmk	2015-04-02 15:46:59.611743003 +0200
++++ virtualbox/Config.kmk	2015-04-02 15:46:59.611743003 +0200
+@@ -5272,7 +5272,7 @@
  TEMPLATE_VBoxBldProg_LDFLAGS.amd64       = -m64
  TEMPLATE_VBoxBldProg_LDFLAGS.sparc64     = -m64
   ifeq ($(KBUILD_HOST),linux)

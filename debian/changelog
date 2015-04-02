@@ -1,6 +1,8 @@
-virtualbox (4.3.26-dfsg-2) UNRELEASED; urgency=medium
+virtualbox (5.0.0~beta1-dfsg-1) UNRELEASED; urgency=medium
 
   [ Gianfranco Costamagna ]
+  * Imported upstream snapshot release.
+  * Patch refresh.
   * remove obsolete lintian overrides.
   [ Ritesh Raj Sarraf ]
   * Remove Michael Meskes from uploaders.
