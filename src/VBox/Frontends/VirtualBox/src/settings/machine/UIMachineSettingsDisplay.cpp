@@ -1,12 +1,10 @@
 /* $Id: UIMachineSettingsDisplay.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsDisplay class implementation
+ * VBox Qt GUI - UIMachineSettingsDisplay class implementation.
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,20 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDesktopWidget>
+# include <QDesktopWidget>
 
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIMachineSettingsDisplay.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIConverter.h"
+# include "QIWidgetValidator.h"
+# include "UIMachineSettingsDisplay.h"
+# include "UIMessageCenter.h"
+# include "UIConverter.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
-#include "CVRDEServer.h"
-#include "CExtPackManager.h"
-#include "CExtPack.h"
+# include "CVRDEServer.h"
+# include "CExtPackManager.h"
+# include "CExtPack.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIMachineSettingsDisplay::UIMachineSettingsDisplay()
     : m_iMinVRAM(0)
@@ -184,7 +189,7 @@ void UIMachineSettingsDisplay::getFromCache()
  * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsDisplay::putToCache()
 {
-    /* Prepare audio data: */
+    /* Prepare display data: */
     UIDataSettingsMachineDisplay displayData = m_cache.base();
 
     /* Gather Video data from page: */
@@ -427,7 +432,7 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
 
 void UIMachineSettingsDisplay::setOrderAfter(QWidget *pWidget)
 {
-    /* Video tab-order */
+    /* Video tab-order: */
     setTabOrder(pWidget, m_pTabWidget->focusProxy());
     setTabOrder(m_pTabWidget->focusProxy(), m_pSliderVideoMemorySize);
     setTabOrder(m_pSliderVideoMemorySize, m_pEditorVideoMemorySize);
@@ -461,7 +466,7 @@ void UIMachineSettingsDisplay::setOrderAfter(QWidget *pWidget)
 
 void UIMachineSettingsDisplay::retranslateUi()
 {
-    /* Translate uic generated strings */
+    /* Translate uic generated strings: */
     Ui::UIMachineSettingsDisplay::retranslateUi(this);
 
     /* Video stuff: */
@@ -485,6 +490,8 @@ void UIMachineSettingsDisplay::retranslateUi()
     m_pLabelVideoCaptureQualityMed->setText(tr("medium", "quality"));
     m_pLabelVideoCaptureQualityMax->setText(tr("high", "quality"));
     m_pLabelVideoCaptureBitRateUnits->setText(tr("kbps"));
+
+    updateVideoCaptureSizeHint();
 }
 
 void UIMachineSettingsDisplay::polishPage()
@@ -597,6 +604,7 @@ void UIMachineSettingsDisplay::sltHandleVideoCaptureCheckboxToggle()
     m_pLabelVideoCaptureBitRateUnits->setEnabled(fIsVideoCaptureOptionsEnabled);
 
     m_pLabelVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled);
+    m_pLabelVideoCaptureSizeHint->setEnabled(fIsVideoCaptureScreenOptionEnabled);
     m_pScrollerVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled);
 }
 
@@ -660,6 +668,7 @@ void UIMachineSettingsDisplay::sltHandleVideoCaptureQualitySliderChange()
                                                             m_pEditorVideoCaptureFrameRate->value(),
                                                             m_pSliderVideoCaptureQuality->value()));
     m_pEditorVideoCaptureBitRate->blockSignals(false);
+    updateVideoCaptureSizeHint();
 }
 
 void UIMachineSettingsDisplay::sltHandleVideoCaptureBitRateEditorChange()
@@ -671,6 +680,7 @@ void UIMachineSettingsDisplay::sltHandleVideoCaptureBitRateEditorChange()
                                                             m_pEditorVideoCaptureFrameRate->value(),
                                                             m_pEditorVideoCaptureBitRate->value()));
     m_pSliderVideoCaptureQuality->blockSignals(false);
+    updateVideoCaptureSizeHint();
 }
 
 void UIMachineSettingsDisplay::prepare()
@@ -938,6 +948,11 @@ void UIMachineSettingsDisplay::updateVideoCaptureScreenCount()
     QVector<BOOL> screens = m_cache.base().m_screens;
     screens.resize(m_pEditorVideoScreenCount->value());
     m_pScrollerVideoCaptureScreens->setValue(screens);
+}
+
+void UIMachineSettingsDisplay::updateVideoCaptureSizeHint()
+{
+    m_pLabelVideoCaptureSizeHint->setText(tr("<i>About %1MB per 5 minute video</i>").arg(m_pEditorVideoCaptureBitRate->value() * 300 / 8 / 1024));
 }
 
 /* static */

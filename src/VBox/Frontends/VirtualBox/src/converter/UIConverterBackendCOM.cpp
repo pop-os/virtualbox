@@ -1,12 +1,10 @@
 /* $Id: UIConverterBackendCOM.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIConverterBackend implementation
+ * VBox Qt GUI - UIConverterBackend implementation.
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,23 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QHash>
+# include <QApplication>
+# include <QHash>
 
 /* GUI includes: */
-#include "UIConverterBackend.h"
+# include "UIConverterBackend.h"
+# include "UIIconPool.h"
 
 /* COM includes: */
-#include "COMEnums.h"
+# include "COMEnums.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* Determines if <Object of type X> can be converted to object of other type.
  * These functions returns 'true' for all allowed conversions. */
 template<> bool canConvert<KMachineState>() { return true; }
 template<> bool canConvert<KSessionState>() { return true; }
+template<> bool canConvert<KParavirtProvider>() { return true; }
 template<> bool canConvert<KDeviceType>() { return true; }
 template<> bool canConvert<KClipboardMode>() { return true; }
-template<> bool canConvert<KDragAndDropMode>() { return true; }
+template<> bool canConvert<KDnDMode>() { return true; }
 template<> bool canConvert<KPointingHIDType>() { return true; }
 template<> bool canConvert<KMediumType>() { return true; }
 template<> bool canConvert<KMediumVariant>() { return true; }
@@ -86,39 +93,39 @@ template<> QColor toColor(const KMachineState &state)
     return QColor();
 }
 
-/* QPixmap <= KMachineState: */
-template<> QPixmap toPixmap(const KMachineState &state)
+/* QIcon <= KMachineState: */
+template<> QIcon toIcon(const KMachineState &state)
 {
     switch (state)
     {
-        case KMachineState_PoweredOff:             return QPixmap(":/state_powered_off_16px.png");
-        case KMachineState_Saved:                  return QPixmap(":/state_saved_16px.png");
-        case KMachineState_Aborted:                return QPixmap(":/state_aborted_16px.png");
-        case KMachineState_Teleported:             return QPixmap(":/state_saved_16px.png");
-        case KMachineState_Running:                return QPixmap(":/state_running_16px.png");
-        case KMachineState_Paused:                 return QPixmap(":/state_paused_16px.png");
-        case KMachineState_Stuck:                  return QPixmap(":/state_stuck_16px.png");
-        case KMachineState_Teleporting:            return QPixmap(":/state_running_16px.png");
-        case KMachineState_LiveSnapshotting:       return QPixmap(":/state_running_16px.png");
-        case KMachineState_Starting:               return QPixmap(":/state_running_16px.png");
-        case KMachineState_Stopping:               return QPixmap(":/state_running_16px.png");
-        case KMachineState_Saving:                 return QPixmap(":/state_saving_16px.png");
-        case KMachineState_Restoring:              return QPixmap(":/state_restoring_16px.png");
-        case KMachineState_TeleportingPausedVM:    return QPixmap(":/state_saving_16px.png");
-        case KMachineState_TeleportingIn:          return QPixmap(":/state_restoring_16px.png");
+        case KMachineState_PoweredOff:             return UIIconPool::iconSet(":/state_powered_off_16px.png");
+        case KMachineState_Saved:                  return UIIconPool::iconSet(":/state_saved_16px.png");
+        case KMachineState_Aborted:                return UIIconPool::iconSet(":/state_aborted_16px.png");
+        case KMachineState_Teleported:             return UIIconPool::iconSet(":/state_saved_16px.png");
+        case KMachineState_Running:                return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_Paused:                 return UIIconPool::iconSet(":/state_paused_16px.png");
+        case KMachineState_Stuck:                  return UIIconPool::iconSet(":/state_stuck_16px.png");
+        case KMachineState_Teleporting:            return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_LiveSnapshotting:       return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_Starting:               return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_Stopping:               return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_Saving:                 return UIIconPool::iconSet(":/state_saving_16px.png");
+        case KMachineState_Restoring:              return UIIconPool::iconSet(":/state_restoring_16px.png");
+        case KMachineState_TeleportingPausedVM:    return UIIconPool::iconSet(":/state_saving_16px.png");
+        case KMachineState_TeleportingIn:          return UIIconPool::iconSet(":/state_restoring_16px.png");
         // case KMachineState_FaultTolerantSyncing:
-        case KMachineState_DeletingSnapshotOnline: return QPixmap(":/state_discarding_16px.png");
-        case KMachineState_DeletingSnapshotPaused: return QPixmap(":/state_discarding_16px.png");
-        case KMachineState_RestoringSnapshot:      return QPixmap(":/state_discarding_16px.png");
-        case KMachineState_DeletingSnapshot:       return QPixmap(":/state_discarding_16px.png");
-        case KMachineState_SettingUp:              return QPixmap(":/vm_settings_16px.png"); // TODO: Change icon!
+        case KMachineState_DeletingSnapshotOnline: return UIIconPool::iconSet(":/state_discarding_16px.png");
+        case KMachineState_DeletingSnapshotPaused: return UIIconPool::iconSet(":/state_discarding_16px.png");
+        case KMachineState_RestoringSnapshot:      return UIIconPool::iconSet(":/state_discarding_16px.png");
+        case KMachineState_DeletingSnapshot:       return UIIconPool::iconSet(":/state_discarding_16px.png");
+        case KMachineState_SettingUp:              return UIIconPool::iconSet(":/vm_settings_16px.png"); // TODO: Change icon!
         // case KMachineState_FirstOnline:
         // case KMachineState_LastOnline:
         // case KMachineState_FirstTransient:
         // case KMachineState_LastTransient:
-        default: AssertMsgFailed(("No pixmap for %d", state)); break;
+        default: AssertMsgFailed(("No icon for %d", state)); break;
     }
-    return QPixmap();
+    return QIcon();
 }
 
 /* QString <= KMachineState: */
@@ -170,6 +177,22 @@ template<> QString toString(const KSessionState &state)
     return QString();
 }
 
+/* QString <= KParavirtProvider: */
+template<> QString toString(const KParavirtProvider &type)
+{
+    switch (type)
+    {
+        case KParavirtProvider_None:    return QApplication::translate("VBoxGlobal", "None", "ParavirtProvider");
+        case KParavirtProvider_Default: return QApplication::translate("VBoxGlobal", "Default", "ParavirtProvider");
+        case KParavirtProvider_Legacy:  return QApplication::translate("VBoxGlobal", "Legacy", "ParavirtProvider");
+        case KParavirtProvider_Minimal: return QApplication::translate("VBoxGlobal", "Minimal", "ParavirtProvider");
+        case KParavirtProvider_HyperV:  return QApplication::translate("VBoxGlobal", "Hyper-V", "ParavirtProvider");
+        case KParavirtProvider_KVM:     return QApplication::translate("VBoxGlobal", "KVM", "ParavirtProvider");
+        default: AssertMsgFailed(("No text for %d", type)); break;
+    }
+    return QString();
+}
+
 /* QString <= KDeviceType: */
 template<> QString toString(const KDeviceType &type)
 {
@@ -177,7 +200,7 @@ template<> QString toString(const KDeviceType &type)
     {
         case KDeviceType_Null:         return QApplication::translate("VBoxGlobal", "None", "DeviceType");
         case KDeviceType_Floppy:       return QApplication::translate("VBoxGlobal", "Floppy", "DeviceType");
-        case KDeviceType_DVD:          return QApplication::translate("VBoxGlobal", "CD/DVD", "DeviceType");
+        case KDeviceType_DVD:          return QApplication::translate("VBoxGlobal", "Optical", "DeviceType");
         case KDeviceType_HardDisk:     return QApplication::translate("VBoxGlobal", "Hard Disk", "DeviceType");
         case KDeviceType_Network:      return QApplication::translate("VBoxGlobal", "Network", "DeviceType");
         case KDeviceType_USB:          return QApplication::translate("VBoxGlobal", "USB", "DeviceType");
@@ -201,15 +224,15 @@ template<> QString toString(const KClipboardMode &mode)
     return QString();
 }
 
-/* QString <= KDragAndDropMode: */
-template<> QString toString(const KDragAndDropMode &mode)
+/* QString <= KDnDMode: */
+template<> QString toString(const KDnDMode &mode)
 {
     switch (mode)
     {
-        case KDragAndDropMode_Disabled:      return QApplication::translate("VBoxGlobal", "Disabled", "DragAndDropType");
-        case KDragAndDropMode_HostToGuest:   return QApplication::translate("VBoxGlobal", "Host To Guest", "DragAndDropType");
-        case KDragAndDropMode_GuestToHost:   return QApplication::translate("VBoxGlobal", "Guest To Host", "DragAndDropType");
-        case KDragAndDropMode_Bidirectional: return QApplication::translate("VBoxGlobal", "Bidirectional", "DragAndDropType");
+        case KDnDMode_Disabled:      return QApplication::translate("VBoxGlobal", "Disabled", "DragAndDropType");
+        case KDnDMode_HostToGuest:   return QApplication::translate("VBoxGlobal", "Host To Guest", "DragAndDropType");
+        case KDnDMode_GuestToHost:   return QApplication::translate("VBoxGlobal", "Guest To Host", "DragAndDropType");
+        case KDnDMode_Bidirectional: return QApplication::translate("VBoxGlobal", "Bidirectional", "DragAndDropType");
         default: AssertMsgFailed(("No text for %d", mode)); break;
     }
     return QString();
@@ -254,6 +277,8 @@ template<> QString toString(const KMediumVariant &variant)
     {
         case KMediumVariant_Standard:
             return QApplication::translate("VBoxGlobal", "Dynamically allocated storage", "MediumVariant");
+        case (KMediumVariant)(KMediumVariant_Standard | KMediumVariant_VdiZeroExpand):
+            return QApplication::translate("VBoxGlobal", "New dynamically allocated storage", "MediumVariant");
         case (KMediumVariant)(KMediumVariant_Standard | KMediumVariant_Diff):
             return QApplication::translate("VBoxGlobal", "Dynamically allocated differencing storage", "MediumVariant");
         case (KMediumVariant)(KMediumVariant_Standard | KMediumVariant_Fixed):
@@ -445,6 +470,7 @@ template<> QString toString(const KStorageControllerType &type)
         case KStorageControllerType_ICH6:        return QApplication::translate("VBoxGlobal", "ICH6", "StorageControllerType");
         case KStorageControllerType_I82078:      return QApplication::translate("VBoxGlobal", "I82078", "StorageControllerType");
         case KStorageControllerType_LsiLogicSas: return QApplication::translate("VBoxGlobal", "LsiLogic SAS", "StorageControllerType");
+        case KStorageControllerType_USB:         return QApplication::translate("VBoxGlobal", "USB", "StorageControllerType");
         AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
@@ -597,6 +623,7 @@ template<> KStorageControllerType fromString<KStorageControllerType>(const QStri
     list.insert(QApplication::translate("VBoxGlobal", "ICH6", "StorageControllerType"),         KStorageControllerType_ICH6);
     list.insert(QApplication::translate("VBoxGlobal", "I82078", "StorageControllerType"),       KStorageControllerType_I82078);
     list.insert(QApplication::translate("VBoxGlobal", "LsiLogic SAS", "StorageControllerType"), KStorageControllerType_LsiLogicSas);
+    list.insert(QApplication::translate("VBoxGlobal", "USB", "StorageControllerType"),          KStorageControllerType_USB);
     if (!list.contains(strType))
     {
         AssertMsgFailed(("No value for '%s'", strType.toAscii().constData()));

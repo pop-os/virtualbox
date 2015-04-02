@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -563,14 +563,14 @@ static int vmdkFileOpen(PVMDKIMAGE pImage, PVMDKFILE *ppVmdkFile,
 
     /* If we get here, there's no matching entry in the cache. */
     pVmdkFile = (PVMDKFILE)RTMemAllocZ(sizeof(VMDKFILE));
-    if (!VALID_PTR(pVmdkFile))
+    if (!pVmdkFile)
     {
         *ppVmdkFile = NULL;
         return VERR_NO_MEMORY;
     }
 
     pVmdkFile->pszFilename = RTStrDup(pszFilename);
-    if (!VALID_PTR(pVmdkFile->pszFilename))
+    if (!pVmdkFile->pszFilename)
     {
         RTMemFree(pVmdkFile);
         *ppVmdkFile = NULL;
@@ -640,6 +640,8 @@ static int vmdkFileClose(PVMDKIMAGE pImage, PVMDKFILE *ppVmdkFile, bool fDelete)
     return rc;
 }
 
+/*#define VMDK_USE_BLOCK_DECOMP_API - test and enable */
+#ifndef VMDK_USE_BLOCK_DECOMP_API
 static DECLCALLBACK(int) vmdkFileInflateHelper(void *pvUser, void *pvBuf, size_t cbBuf, size_t *pcbBuf)
 {
     VMDKCOMPRESSIO *pInflateState = (VMDKCOMPRESSIO *)pvUser;
@@ -669,6 +671,7 @@ static DECLCALLBACK(int) vmdkFileInflateHelper(void *pvUser, void *pvBuf, size_t
     *pcbBuf = cbBuf + cbInjected;
     return VINF_SUCCESS;
 }
+#endif
 
 /**
  * Internal: read from a file and inflate the compressed data,
@@ -680,7 +683,9 @@ DECLINLINE(int) vmdkFileInflateSync(PVMDKIMAGE pImage, PVMDKEXTENT pExtent,
                                     uint64_t *puLBA, uint32_t *pcbMarkerData)
 {
     int rc;
+#ifndef VMDK_USE_BLOCK_DECOMP_API
     PRTZIPDECOMP pZip = NULL;
+#endif
     VMDKMARKER *pMarker = (VMDKMARKER *)pExtent->pvCompGrain;
     size_t cbCompSize, cbActuallyRead;
 
@@ -728,6 +733,11 @@ DECLINLINE(int) vmdkFileInflateSync(PVMDKIMAGE pImage, PVMDKEXTENT pExtent,
                                   + RT_OFFSETOF(VMDKMARKER, uType),
                                   512);
 
+#ifdef VMDK_USE_BLOCK_DECOMP_API
+    rc = RTZipBlockDecompress(RTZIPTYPE_ZLIB, 0 /*fFlags*/,
+                              pExtent->pvCompGrain, cbCompSize + RT_OFFSETOF(VMDKMARKER, uType), NULL,
+                              pvBuf, cbToRead, &cbActuallyRead);
+#else
     VMDKCOMPRESSIO InflateState;
     InflateState.pImage = pImage;
     InflateState.iOffset = -1;
@@ -739,6 +749,7 @@ DECLINLINE(int) vmdkFileInflateSync(PVMDKIMAGE pImage, PVMDKEXTENT pExtent,
         return rc;
     rc = RTZipDecompress(pZip, pvBuf, cbToRead, &cbActuallyRead);
     RTZipDecompDestroy(pZip);
+#endif /* !VMDK_USE_BLOCK_DECOMP_API */
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_ZIP_CORRUPTED)
@@ -3430,15 +3441,15 @@ static int vmdkCreateRawImage(PVMDKIMAGE pImage, const PVBOXHDDRAW pRaw,
         /** @todo remove fixed buffer without creating memory leaks. */
         char pszPartition[1024];
         const char *pszBase = RTPathFilename(pImage->pszFilename);
-        const char *pszExt = RTPathExt(pszBase);
-        if (pszExt == NULL)
+        const char *pszSuff = RTPathSuffix(pszBase);
+        if (pszSuff == NULL)
             return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VMDK: invalid filename '%s'"), pImage->pszFilename);
         char *pszBaseBase = RTStrDup(pszBase);
         if (!pszBaseBase)
             return VERR_NO_MEMORY;
-        RTPathStripExt(pszBaseBase);
+        RTPathStripSuffix(pszBaseBase);
         RTStrPrintf(pszPartition, sizeof(pszPartition), "%s-pt%s",
-                    pszBaseBase, pszExt);
+                    pszBaseBase, pszSuff);
         RTStrFree(pszBaseBase);
 
         /* Second pass over the partitions, now define all extents. */
@@ -3628,23 +3639,23 @@ static int vmdkCreateRegularImage(PVMDKIMAGE pImage, uint64_t cbSize,
         }
         else
         {
-            char *pszBasenameExt = RTPathExt(pszBasenameSubstr);
+            char *pszBasenameSuff = RTPathSuffix(pszBasenameSubstr);
             char *pszBasenameBase = RTStrDup(pszBasenameSubstr);
-            RTPathStripExt(pszBasenameBase);
+            RTPathStripSuffix(pszBasenameBase);
             char *pszTmp;
             size_t cbTmp;
             if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
             {
                 if (cExtents == 1)
                     RTStrAPrintf(&pszTmp, "%s-flat%s", pszBasenameBase,
-                                 pszBasenameExt);
+                                 pszBasenameSuff);
                 else
                     RTStrAPrintf(&pszTmp, "%s-f%03d%s", pszBasenameBase,
-                                 i+1, pszBasenameExt);
+                                 i+1, pszBasenameSuff);
             }
             else
                 RTStrAPrintf(&pszTmp, "%s-s%03d%s", pszBasenameBase, i+1,
-                             pszBasenameExt);
+                             pszBasenameSuff);
             RTStrFree(pszBasenameBase);
             if (!pszTmp)
                 return VERR_NO_STR_MEMORY;
@@ -5252,9 +5263,11 @@ static int vmdkOpen(const char *pszFilename, unsigned uOpenFlags,
                     PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                     VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
     int rc;
     PVMDKIMAGE pImage;
+
+    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
 
     /* Check open flags. All valid flags are supported. */
     if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
@@ -5305,9 +5318,11 @@ static int vmdkCreate(const char *pszFilename, uint64_t cbSize,
                       PCRTUUID pUuid, unsigned uOpenFlags,
                       unsigned uPercentStart, unsigned uPercentSpan,
                       PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
-                      PVDINTERFACE pVDIfsOperation, void **ppBackendData)
+                      PVDINTERFACE pVDIfsOperation, VDTYPE enmType,
+                      void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p ppBackendData=%#p\n", pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, ppBackendData));
+    LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p\n",
+                 pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc;
     PVMDKIMAGE pImage;
 
@@ -5322,6 +5337,13 @@ static int vmdkCreate(const char *pszFilename, uint64_t cbSize,
 
     /* Check the image flags. */
     if ((uImageFlags & ~VD_VMDK_IMAGE_FLAGS_MASK) != 0)
+    {
+        rc = VERR_VD_INVALID_TYPE;
+        goto out;
+    }
+
+    /* Check the VD container type. */
+    if (enmType != VDTYPE_HDD)
     {
         rc = VERR_VD_INVALID_TYPE;
         goto out;
@@ -5492,14 +5514,14 @@ static int vmdkRename(void *pBackendData, const char *pszFilename)
 
     /* Prepare both old and new base names used for string replacement. */
     pszNewBaseName = RTStrDup(RTPathFilename(pszFilename));
-    RTPathStripExt(pszNewBaseName);
+    RTPathStripSuffix(pszNewBaseName);
     pszOldBaseName = RTStrDup(RTPathFilename(pImage->pszFilename));
-    RTPathStripExt(pszOldBaseName);
+    RTPathStripSuffix(pszOldBaseName);
     /* Prepare both old and new full names used for string replacement. */
     pszNewFullName = RTStrDup(pszFilename);
-    RTPathStripExt(pszNewFullName);
+    RTPathStripSuffix(pszNewFullName);
     pszOldFullName = RTStrDup(pImage->pszFilename);
-    RTPathStripExt(pszOldFullName);
+    RTPathStripSuffix(pszOldFullName);
 
     /* --- Up to this point we have not done any damage yet. --- */
 

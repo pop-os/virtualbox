@@ -51,7 +51,6 @@
 #include <iprt/alloc.h>
 #include <iprt/power.h>
 #include <iprt/dbg.h>
-#include <iprt/x86.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
@@ -78,6 +77,11 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #endif
 
+/* Temporary debugging. */
+#define VBOX_PROC_SELFNAME_LEN  (20)
+#define VBOX_RETRIEVE_CUR_PROC_NAME(_name)    char _name[VBOX_PROC_SELFNAME_LEN]; \
+                                              proc_selfname(pszProcName, VBOX_PROC_SELFNAME_LEN)
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -100,7 +104,6 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
 static int              VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess);
 static int              VBoxDrvDarwinClose(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess);
 static int              VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags, struct proc *pProcess);
-static int              VBoxDrvDarwinIOCtlSMAP(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags, struct proc *pProcess);
 static int              VBoxDrvDarwinIOCtlSlow(PSUPDRVSESSION pSession, u_long iCmd, caddr_t pData, struct proc *pProcess);
 
 static int              VBoxDrvDarwinErr2DarwinErr(int rc);
@@ -109,7 +112,6 @@ static IOReturn         VBoxDrvDarwinSleepHandler(void *pvTarget, void *pvRefCon
 RT_C_DECLS_END
 
 static void             vboxdrvDarwinResolveSymbols(void);
-static bool             vboxdrvDarwinCpuHasSMAP(void);
 
 
 /*******************************************************************************
@@ -233,6 +235,15 @@ static PFNRT            g_pfnVmxResume = NULL;
 /** Pointer to vmx_use_count. */
 static int volatile    *g_pVmxUseCount = NULL;
 
+#ifdef SUPDRV_WITH_MSR_PROBER
+/** Pointer to rdmsr_carefully if found. Returns 0 on success. */
+static int             (*g_pfnRdMsrCarefully)(uint32_t uMsr, uint32_t *puLow, uint32_t *puHigh) = NULL;
+/** Pointer to rdmsr64_carefully if found. Returns 0 on success. */
+static int             (*g_pfnRdMsr64Carefully)(uint32_t uMsr, uint64_t *uValue) = NULL;
+/** Pointer to wrmsr[64]_carefully if found. Returns 0 on success. */
+static int             (*g_pfnWrMsr64Carefully)(uint32_t uMsr, uint64_t uValue) = NULL;
+#endif
+
 
 /**
  * Start the kernel module.
@@ -263,12 +274,6 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
             rc = RTSpinlockCreate(&g_Spinlock, RTSPINLOCK_FLAGS_INTERRUPT_SAFE, "VBoxDrvDarwin");
             if (RT_SUCCESS(rc))
             {
-                if (vboxdrvDarwinCpuHasSMAP())
-                {
-                    LogRel(("disabling SMAP for VBoxDrvDarwinIOCtl\n"));
-                    g_DevCW.d_ioctl = VBoxDrvDarwinIOCtlSMAP;
-                }
-
                 /*
                  * Registering ourselves as a character device.
                  */
@@ -357,6 +362,25 @@ static void vboxdrvDarwinResolveSymbols(void)
             g_pfnVmxSuspend = NULL;
             g_pVmxUseCount  = NULL;
         }
+
+#ifdef SUPDRV_WITH_MSR_PROBER
+        /* MSR prober stuff. */
+        int rc = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "rdmsr_carefully", (void **)&g_pfnRdMsrCarefully);
+        if (RT_FAILURE(rc))
+            g_pfnRdMsrCarefully = NULL;
+        rc = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "rdmsr64_carefully", (void **)&g_pfnRdMsr64Carefully);
+        if (RT_FAILURE(rc))
+            g_pfnRdMsr64Carefully = NULL;
+# ifdef RT_ARCH_AMD64 /* Missing 64 in name, so if implemented on 32-bit it could have different signature. */
+        rc = RTR0DbgKrnlInfoQuerySymbol(hKrnlInfo, NULL, "wrmsr_carefully", (void **)&g_pfnWrMsr64Carefully);
+        if (RT_FAILURE(rc))
+# endif
+            g_pfnWrMsr64Carefully = NULL;
+
+        LogRel(("VBoxDrv: g_pfnRdMsrCarefully=%p g_pfnRdMsr64Carefully=%p g_pfnWrMsr64Carefully=%p\n",
+                g_pfnRdMsrCarefully, g_pfnRdMsr64Carefully, g_pfnWrMsr64Carefully));
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
 
         RTR0DbgKrnlInfoRelease(hKrnlInfo);
     }
@@ -480,7 +504,7 @@ static int VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *p
         else
             rc = VERR_GENERAL_FAILURE;
 
-        RTSpinlockReleaseNoInts(g_Spinlock);
+        RTSpinlockRelease(g_Spinlock);
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1050
         kauth_cred_unref(&pCred);
 #else  /* 10.4 */
@@ -546,7 +570,7 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
     if (RT_LIKELY(pSession))
         supdrvSessionRetain(pSession);
 
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockRelease(g_Spinlock);
     if (RT_UNLIKELY(!pSession))
     {
         OSDBGPRINT(("VBoxDrvDarwinIOCtl: WHAT?!? pSession == NULL! This must be a mistake... pid=%d iCmd=%#lx\n",
@@ -568,30 +592,6 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
         rc = VBoxDrvDarwinIOCtlSlow(pSession, iCmd, pData, pProcess);
 
     supdrvSessionRelease(pSession);
-    return rc;
-}
-
-
-/**
- * Alternative Device I/O Control entry point on hosts with SMAP support.
- *
- * @returns Darwin for slow IOCtls and VBox status code for the fast ones.
- * @param   Dev         The device number (major+minor).
- * @param   iCmd        The IOCtl command.
- * @param   pData       Pointer to the data (if any it's a SUPDRVIOCTLDATA (kernel copy)).
- * @param   fFlags      Flag saying we're a character device (like we didn't know already).
- * @param   pProcess    The process issuing this request.
- */
-static int VBoxDrvDarwinIOCtlSMAP(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags, struct proc *pProcess)
-{
-    /*
-     * Allow VBox R0 code to touch R3 memory. Setting the AC bit disables the
-     * SMAP check.
-     */
-    RTCCUINTREG uFlags = ASMGetFlags();
-    ASMSetAC();
-    int rc = VBoxDrvDarwinIOCtl(Dev, iCmd, pData, fFlags, pProcess);
-    ASMSetFlags(uFlags);
     return rc;
 }
 
@@ -953,6 +953,18 @@ bool VBOXCALL supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+bool VBOXCALL supdrvOSAreCpusOfflinedOnSuspend(void)
+{
+    /** @todo verify this. */
+    return false;
+}
+
+
+bool VBOXCALL supdrvOSAreTscDeltasInSync(void)
+{
+    return false;
+}
+
 void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
 #if 1
@@ -1006,6 +1018,181 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
     NOREF(pDevExt); NOREF(pImage);
 }
 
+
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+typedef struct SUPDRVDARWINMSRARGS
+{
+    RTUINT64U       uValue;
+    uint32_t        uMsr;
+    int             rc;
+} SUPDRVDARWINMSRARGS, *PSUPDRVDARWINMSRARGS;
+
+/**
+ * On CPU worker for supdrvOSMsrProberRead.
+ *
+ * @param   idCpu           Ignored.
+ * @param   pvUser1         Pointer to a SUPDRVDARWINMSRARGS.
+ * @param   pvUser2         Ignored.
+ */
+static DECLCALLBACK(void) supdrvDarwinMsrProberReadOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPDRVDARWINMSRARGS pArgs = (PSUPDRVDARWINMSRARGS)pvUser1;
+    if (g_pfnRdMsr64Carefully)
+        pArgs->rc = g_pfnRdMsr64Carefully(pArgs->uMsr, &pArgs->uValue.u);
+    else if (g_pfnRdMsrCarefully)
+        pArgs->rc = g_pfnRdMsrCarefully(pArgs->uMsr, &pArgs->uValue.s.Lo, &pArgs->uValue.s.Hi);
+    else
+        pArgs->rc = 2;
+    NOREF(idCpu); NOREF(pvUser2);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
+{
+    if (!g_pfnRdMsr64Carefully && !g_pfnRdMsrCarefully)
+        return VERR_NOT_SUPPORTED;
+
+    SUPDRVDARWINMSRARGS Args;
+    Args.uMsr     = uMsr;
+    Args.uValue.u = 0;
+    Args.rc       = -1;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvDarwinMsrProberReadOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvDarwinMsrProberReadOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.rc)
+        return VERR_ACCESS_DENIED;
+    *puValue = Args.uValue.u;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * On CPU worker for supdrvOSMsrProberWrite.
+ *
+ * @param   idCpu           Ignored.
+ * @param   pvUser1         Pointer to a SUPDRVDARWINMSRARGS.
+ * @param   pvUser2         Ignored.
+ */
+static DECLCALLBACK(void) supdrvDarwinMsrProberWriteOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPDRVDARWINMSRARGS pArgs = (PSUPDRVDARWINMSRARGS)pvUser1;
+    if (g_pfnWrMsr64Carefully)
+        pArgs->rc = g_pfnWrMsr64Carefully(pArgs->uMsr, pArgs->uValue.u);
+    else
+        pArgs->rc = 2;
+    NOREF(idCpu); NOREF(pvUser2);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
+{
+    if (!g_pfnWrMsr64Carefully)
+        return VERR_NOT_SUPPORTED;
+
+    SUPDRVDARWINMSRARGS Args;
+    Args.uMsr     = uMsr;
+    Args.uValue.u = uValue;
+    Args.rc       = -1;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvDarwinMsrProberWriteOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvDarwinMsrProberWriteOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.rc)
+        return VERR_ACCESS_DENIED;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Worker for supdrvOSMsrProberModify.
+ */
+static DECLCALLBACK(void) supdrvDarwinMsrProberModifyOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPMSRPROBER               pReq    = (PSUPMSRPROBER)pvUser1;
+    register uint32_t           uMsr    = pReq->u.In.uMsr;
+    bool const                  fFaster = pReq->u.In.enmOp == SUPMSRPROBEROP_MODIFY_FASTER;
+    uint64_t                    uBefore;
+    uint64_t                    uWritten;
+    uint64_t                    uAfter;
+    int                         rcBefore, rcWrite, rcAfter, rcRestore;
+    RTCCUINTREG                 fOldFlags;
+
+    /* Initialize result variables. */
+    uBefore = uWritten = uAfter    = 0;
+    rcWrite = rcAfter  = rcRestore = -1;
+
+    /*
+     * Do the job.
+     */
+    fOldFlags = ASMIntDisableFlags();
+    ASMCompilerBarrier(); /* paranoia */
+    if (!fFaster)
+        ASMWriteBackAndInvalidateCaches();
+
+    rcBefore = g_pfnRdMsr64Carefully(uMsr, &uBefore);
+    if (rcBefore >= 0)
+    {
+        register uint64_t uRestore = uBefore;
+        uWritten  = uRestore;
+        uWritten &= pReq->u.In.uArgs.Modify.fAndMask;
+        uWritten |= pReq->u.In.uArgs.Modify.fOrMask;
+
+        rcWrite   = g_pfnWrMsr64Carefully(uMsr, uWritten);
+        rcAfter   = g_pfnRdMsr64Carefully(uMsr, &uAfter);
+        rcRestore = g_pfnWrMsr64Carefully(uMsr, uRestore);
+
+        if (!fFaster)
+        {
+            ASMWriteBackAndInvalidateCaches();
+            ASMReloadCR3();
+            ASMNopPause();
+        }
+    }
+
+    ASMCompilerBarrier(); /* paranoia */
+    ASMSetFlags(fOldFlags);
+
+    /*
+     * Write out the results.
+     */
+    pReq->u.Out.uResults.Modify.uBefore    = uBefore;
+    pReq->u.Out.uResults.Modify.uWritten   = uWritten;
+    pReq->u.Out.uResults.Modify.uAfter     = uAfter;
+    pReq->u.Out.uResults.Modify.fBeforeGp  = rcBefore  != 0;
+    pReq->u.Out.uResults.Modify.fModifyGp  = rcWrite   != 0;
+    pReq->u.Out.uResults.Modify.fAfterGp   = rcAfter   != 0;
+    pReq->u.Out.uResults.Modify.fRestoreGp = rcRestore != 0;
+    RT_ZERO(pReq->u.Out.uResults.Modify.afReserved);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
+{
+    if (!g_pfnWrMsr64Carefully || !g_pfnRdMsr64Carefully)
+        return VERR_NOT_SUPPORTED;
+    if (idCpu == NIL_RTCPUID)
+    {
+        supdrvDarwinMsrProberModifyOnCpu(idCpu, pReq, NULL);
+        return VINF_SUCCESS;
+    }
+    return RTMpOnSpecific(idCpu, supdrvDarwinMsrProberModifyOnCpu, pReq, NULL);
+}
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
 
 /**
  * Resume Bluetooth keyboard.
@@ -1098,22 +1285,6 @@ static int VBoxDrvDarwinErr2DarwinErr(int rc)
     return EPERM;
 }
 
-/**
- * Check if the CPU has SMAP support.
- */
-static bool vboxdrvDarwinCpuHasSMAP(void)
-{
-    uint32_t uMaxId, uEAX, uEBX, uECX, uEDX;
-    ASMCpuId(0, &uMaxId, &uEBX, &uECX, &uEDX);
-    if (   ASMIsValidStdRange(uMaxId)
-        && uMaxId >= 0x00000007)
-    {
-        ASMCpuId_Idx_ECX(0x00000007, 0, &uEAX, &uEBX, &uECX, &uEDX);
-        if (uEBX & X86_CPUID_STEXT_FEATURE_EBX_SMAP)
-            return true;
-    }
-    return false;
-}
 
 RTDECL(int) SUPR0Printf(const char *pszFormat, ...)
 {
@@ -1248,6 +1419,17 @@ bool org_virtualbox_SupDrvClient::initWithTask(task_t OwningTask, void *pvSecuri
 
     if (!OwningTask)
         return false;
+
+    VBOX_RETRIEVE_CUR_PROC_NAME(pszProcName);
+
+    if (u32Type != SUP_DARWIN_IOSERVICE_COOKIE)
+    {
+        LogRel(("org_virtualbox_SupDrvClient::initWithTask: Bad cookie %#x (%s)\n", u32Type, pszProcName));
+        return false;
+    }
+    else
+        LogRel(("org_virtualbox_SupDrvClient::initWithTask: Expected cookie %#x (%s)\n", u32Type, pszProcName));
+
     if (IOUserClient::initWithTask(OwningTask, pvSecurityId , u32Type))
     {
         m_Task = OwningTask;
@@ -1307,7 +1489,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
                 else
                     rc = VERR_ALREADY_LOADED;
 
-                RTSpinlockReleaseNoInts(g_Spinlock);
+                RTSpinlockRelease(g_Spinlock);
                 if (RT_SUCCESS(rc))
                 {
                     Log(("org_virtualbox_SupDrvClient::start: created session %p for pid %d\n", m_pSession, (int)RTProcSelf()));
@@ -1370,7 +1552,7 @@ bool org_virtualbox_SupDrvClient::start(IOService *pProvider)
             }
         }
     }
-    RTSpinlockReleaseNoInts(g_Spinlock);
+    RTSpinlockRelease(g_Spinlock);
     if (!pSession)
     {
         Log(("SupDrvClient::sessionClose: pSession == NULL, pid=%d; freed already?\n", (int)Process));

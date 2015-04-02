@@ -124,9 +124,11 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceICH6_HDA);
     if (RT_FAILURE(rc))
         return rc;
+#ifndef VBOX_WITH_PDM_AUDIO_DRIVER
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceAudioSniffer);
     if (RT_FAILURE(rc))
         return rc;
+#endif
 #ifdef VBOX_WITH_VUSB
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceOHCI);
     if (RT_FAILURE(rc))
@@ -134,6 +136,11 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
 #endif
 #ifdef VBOX_WITH_EHCI_IMPL
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceEHCI);
+    if (RT_FAILURE(rc))
+        return rc;
+#endif
+#ifdef VBOX_WITH_XHCI_IMPL
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceXHCI);
     if (RT_FAILURE(rc))
         return rc;
 #endif
@@ -183,6 +190,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     if (RT_FAILURE(rc))
         return rc;
 #endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceGIMDev);
+    if (RT_FAILURE(rc))
+        return rc;
 #ifdef VBOX_WITH_VIRTUALKD
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceVirtualKD);
     if (RT_FAILURE(rc))
@@ -268,6 +278,46 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvAUDIO);
     if (RT_FAILURE(rc))
         return rc;
+#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostNullAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+# if defined(RT_OS_WINDOWS)
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostDSound);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+# if defined(RT_OS_LINUX)
+#  ifdef VBOX_WITH_PULSE
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostPulseAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+#  endif
+#  ifdef VBOX_WITH_ALSA
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostALSAAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+#  endif
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+# if defined(RT_OS_FREEBSD)
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+# if defined(RT_OS_DARWIN)
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostCoreAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+# if defined(RT_OS_SOLARIS)
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvHostOSSAudio);
+    if (RT_FAILURE(rc))
+        return rc;
+# endif
+#endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvACPI);
     if (RT_FAILURE(rc))
         return rc;

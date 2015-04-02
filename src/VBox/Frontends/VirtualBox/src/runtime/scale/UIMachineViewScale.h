@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineViewScale class declaration
+ * VBox Qt GUI - UIMachineViewScale class declaration.
  */
 
 /*
@@ -38,18 +36,10 @@ protected:
     /* Scale machine-view destructor: */
     virtual ~UIMachineViewScale();
 
-    virtual void takePauseShotLive();
-    virtual void takePauseShotSnapshot();
-    virtual void resetPauseShot();
-    void scalePauseShot();
-
 private slots:
 
     /* Slot to perform guest resize: */
     void sltPerformGuestScale();
-
-    /* Handler: Frame-buffer NotifyUpdate stuff: */
-    void sltHandleNotifyUpdate(int iX, int iY, int iW, int iH);
 
 private:
 
@@ -62,6 +52,9 @@ private:
     /* Cleanup helpers: */
     void saveMachineViewSettings();
 
+    /** Applies machine-view scale-factor. */
+    void applyMachineViewScaleFactor();
+
     /** Resends guest size-hint if necessary. */
     void maybeResendSizeHint();
 
@@ -70,9 +63,6 @@ private:
     QRect workingArea() const;
     QSize calculateMaxGuestSize() const;
     void updateSliders();
-
-    /* Private members: */
-    QImage *m_pPauseImage;
 
     /* Friend classes: */
     friend class UIMachineView;

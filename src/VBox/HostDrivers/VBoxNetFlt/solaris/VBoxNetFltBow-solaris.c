@@ -81,7 +81,7 @@
  *  @todo move this define into a common header. */
 #define VBOXBOW_VNIC_NAME               "vboxvnic"
 /** The VirtualBox VNIC template name (hardcoded in NetIf-solaris.cpp).
- *   *  @todo move this define into a common header. */
+ *  @todo move this define into a common header. */
 #define VBOXBOW_VNIC_TEMPLATE_NAME      "vboxvnic_template"
 /** Debugging switch for using symbols in kmdb */
 # define LOCAL                          static
@@ -244,12 +244,10 @@ typedef struct VBOXNETFLTVNIC *PVBOXNETFLTVNIC;
 *******************************************************************************/
 /** Global Device handle we only support one instance. */
 static dev_info_t *g_pVBoxNetFltSolarisDip = NULL;
-/** Global Mutex (actually an rw lock). */
-static RTSEMFASTMUTEX g_VBoxNetFltSolarisMtx = NIL_RTSEMFASTMUTEX;
 /** The (common) global data. */
 static VBOXNETFLTGLOBALS g_VBoxNetFltSolarisGlobals;
 /** Global next-free VNIC Id (never decrements). */
-static volatile uint64_t g_VBoxNetFltSolarisVNICId = 0;
+static volatile uint64_t g_VBoxNetFltSolarisVNICId;
 
 
 /*******************************************************************************
@@ -283,7 +281,7 @@ int _init(void)
     if (pModCtl)
         pModCtl->mod_loadflags |= MOD_NOAUTOUNLOAD;
     else
-        LogRel((DEVICE_NAME ":failed to disable autounloading!\n"));
+        cmn_err(CE_NOTE, ":failed to disable autounloading!\n");
 
     /*
      * Initialize IPRT.
@@ -292,39 +290,29 @@ int _init(void)
     if (RT_SUCCESS(rc))
     {
         /*
-         * Initialize Solaris specific globals here.
+         * Initialize the globals and connect to the support driver.
+         *
+         * This will call back vboxNetFltOsOpenSupDrv (and maybe vboxNetFltOsCloseSupDrv)
+         * for establishing the connect to the support driver.
          */
-        rc = RTSemFastMutexCreate(&g_VBoxNetFltSolarisMtx);
+        memset(&g_VBoxNetFltSolarisGlobals, 0, sizeof(g_VBoxNetFltSolarisGlobals));
+        rc = vboxNetFltInitGlobalsAndIdc(&g_VBoxNetFltSolarisGlobals);
         if (RT_SUCCESS(rc))
         {
-            /*
-             * Initialize the globals and connect to the support driver.
-             *
-             * This will call back vboxNetFltOsOpenSupDrv (and maybe vboxNetFltOsCloseSupDrv)
-             * for establishing the connect to the support driver.
-             */
-            memset(&g_VBoxNetFltSolarisGlobals, 0, sizeof(g_VBoxNetFltSolarisGlobals));
-            rc = vboxNetFltInitGlobalsAndIdc(&g_VBoxNetFltSolarisGlobals);
-            if (RT_SUCCESS(rc))
-            {
-                rc = mod_install(&g_VBoxNetFltSolarisModLinkage);
-                if (!rc)
-                    return rc;
+            rc = mod_install(&g_VBoxNetFltSolarisModLinkage);
+            if (!rc)
+                return rc;
 
-                LogRel((DEVICE_NAME ":mod_install failed. rc=%d\n", rc));
-                vboxNetFltTryDeleteIdcAndGlobals(&g_VBoxNetFltSolarisGlobals);
-            }
-            else
-                LogRel((DEVICE_NAME ":failed to initialize globals.\n"));
-
-            RTSemFastMutexDestroy(g_VBoxNetFltSolarisMtx);
-            g_VBoxNetFltSolarisMtx = NIL_RTSEMFASTMUTEX;
+            LogRel((DEVICE_NAME ":mod_install failed. rc=%d\n", rc));
+            vboxNetFltTryDeleteIdcAndGlobals(&g_VBoxNetFltSolarisGlobals);
         }
+        else
+            LogRel((DEVICE_NAME ":failed to initialize globals.\n"));
 
         RTR0Term();
     }
     else
-        LogRel((DEVICE_NAME ":failed to initialize IPRT (rc=%d)\n", rc));
+        cmn_err(CE_NOTE, "failed to initialize IPRT (rc=%d)\n", rc);
 
     memset(&g_VBoxNetFltSolarisGlobals, 0, sizeof(g_VBoxNetFltSolarisGlobals));
     return RTErrConvertToErrno(rc);
@@ -348,15 +336,7 @@ int _fini(void)
 
     rc = mod_remove(&g_VBoxNetFltSolarisModLinkage);
     if (!rc)
-    {
-        if (g_VBoxNetFltSolarisMtx != NIL_RTSEMFASTMUTEX)
-        {
-            RTSemFastMutexDestroy(g_VBoxNetFltSolarisMtx);
-            g_VBoxNetFltSolarisMtx = NIL_RTSEMFASTMUTEX;
-        }
-
         RTR0Term();
-    }
 
     return rc;
 }
@@ -364,11 +344,8 @@ int _fini(void)
 
 int _info(struct modinfo *pModInfo)
 {
-    Log((DEVICE_NAME ":_info\n"));
-
+    /* _info() can be called before _init() so RTR0Init() might not be called at this point. */
     int rc = mod_info(&g_VBoxNetFltSolarisModLinkage, pModInfo);
-
-    Log((DEVICE_NAME ":_info returns %d\n", rc));
     return rc;
 }
 
@@ -870,7 +847,7 @@ LOCAL int vboxNetFltSolarisInitVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
         else
         {
             LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNIC mac_client_set_resources failed. rc=%d\n", rc));
-            rc = VERR_INTNET_FLT_VNIC_CREATE_FAILED;
+            rc = VERR_INTNET_FLT_VNIC_INIT_FAILED;
         }
 
         mac_client_close(pVNIC->hClient, 0 /* flags */);
@@ -879,7 +856,46 @@ LOCAL int vboxNetFltSolarisInitVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC pVNIC)
     else
         LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNIC failed to open mac client for '%s' rc=%d\n", pThis->szName, rc));
 
-    return rc;
+    return VERR_INTNET_FLT_VNIC_OPEN_FAILED;
+}
+
+
+
+/**
+ * Get the underlying link name for a VNIC (template).
+ *
+ * @return VBox status code.
+ * @param   hVNICMacHandle      The handle to the VNIC.
+ * @param   pszLowerLinkName    Where to store the lower-mac linkname, must be
+ *                              at least MAXLINKNAMELEN in size.
+ */
+LOCAL int vboxNetFltSolarisGetLowerLinkName(mac_handle_t hVNICMacHandle, char *pszLowerLinkName)
+{
+    Assert(mac_is_vnic(hVNICMacHandle));
+    mac_handle_t hPhysLinkHandle = mac_get_lower_mac_handle(hVNICMacHandle);
+    if (RT_LIKELY(hPhysLinkHandle))
+    {
+        datalink_id_t PhysLinkId;
+        const char *pszMacName = mac_name(hPhysLinkHandle);
+        int rc = vboxNetFltSolarisGetLinkId(pszMacName, &PhysLinkId);
+        if (RT_SUCCESS(rc))
+        {
+            rc = dls_mgmt_get_linkinfo(PhysLinkId, pszLowerLinkName, NULL /*class*/, NULL /*media*/, NULL /*flags*/);
+            if (RT_LIKELY(!rc))
+                return VINF_SUCCESS;
+
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisGetLowerLinkName failed to get link info. pszMacName=%s pszLowerLinkName=%s\n",
+                    pszMacName, pszLowerLinkName));
+            return VERR_INTNET_FLT_LOWER_LINK_INFO_NOT_FOUND;
+        }
+
+        LogRel((DEVICE_NAME ":vboxNetFltSolarisGetLowerLinkName failed to get link id. pszMacName=%s pszLowerLinkName=%s\n",
+                pszMacName, pszLowerLinkName));
+        return VERR_INTNET_FLT_LOWER_LINK_ID_NOT_FOUND;
+    }
+
+    LogRel((DEVICE_NAME ":vboxNetFltSolarisGetLowerLinkName failed to get lower-mac. pszLowerLinkName=%s\n", pszLowerLinkName));
+    return VERR_INTNET_FLT_LOWER_LINK_OPEN_FAILED;
 }
 
 
@@ -916,51 +932,39 @@ LOCAL int vboxNetFltSolarisInitVNICTemplate(PVBOXNETFLTINS pThis, PVBOXNETFLTVNI
             /*
              * Get the underlying linkname.
              */
-            mac_handle_t hPhysLinkHandle = mac_get_lower_mac_handle(hInterface);
-            if (RT_LIKELY(hPhysLinkHandle))
+            AssertCompile(sizeof(pVNICTemplate->szLinkName) >= MAXLINKNAMELEN);
+            rc = vboxNetFltSolarisGetLowerLinkName(hInterface, pVNICTemplate->szLinkName);
+            if (RT_SUCCESS(rc))
             {
-                const char *pszLinkName = mac_name(hPhysLinkHandle);
-                rc = RTStrCopy(pVNICTemplate->szLinkName, sizeof(pVNICTemplate->szLinkName), pszLinkName);
-                if (RT_SUCCESS(rc))
+                /*
+                 * Now open the VNIC template to retrieve the VLAN Id & resources.
+                 */
+                mac_client_handle_t hClient;
+                rc = mac_client_open(hInterface, &hClient,
+                                     NULL,                                   /* name of this client */
+                                     MAC_OPEN_FLAGS_USE_DATALINK_NAME |      /* client name same as underlying NIC */
+                                     MAC_OPEN_FLAGS_MULTI_PRIMARY            /* allow multiple primary unicasts */
+                                     );
+                if (RT_LIKELY(!rc))
                 {
-                    /*
-                     * Now open the VNIC template to retrieve the VLAN Id & resources.
-                     */
-                    mac_client_handle_t hClient;
-                    rc = mac_client_open(hInterface, &hClient,
-                                         NULL,                                   /* name of this client */
-                                         MAC_OPEN_FLAGS_USE_DATALINK_NAME |      /* client name same as underlying NIC */
-                                         MAC_OPEN_FLAGS_MULTI_PRIMARY            /* allow multiple primary unicasts */
-                                         );
-                    if (RT_LIKELY(!rc))
-                    {
-                        pVNICTemplate->uVLANId = mac_client_vid(hClient);
-                        mac_client_get_resources(hClient, &pVNICTemplate->Resources);
-                        mac_client_close(hClient, 0 /* fFlags */);
-                        mac_close(hInterface);
+                    pVNICTemplate->uVLANId = mac_client_vid(hClient);
+                    mac_client_get_resources(hClient, &pVNICTemplate->Resources);
+                    mac_client_close(hClient, 0 /* fFlags */);
+                    mac_close(hInterface);
 
-                        Log((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate successfully init. VNIC template. szLinkName=%s\n",
-                                    pVNICTemplate->szLinkName));
-                        return VINF_SUCCESS;
-                    }
-                    else
-                    {
-                        LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate failed to open VNIC template. rc=%d\n", rc));
-                        rc = VERR_INTNET_FLT_IF_FAILED;
-                    }
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate successfully init. VNIC template. szLinkName=%s "
+                            "VLAN Id=%u\n", pVNICTemplate->szLinkName, pVNICTemplate->uVLANId));
+                    return VINF_SUCCESS;
                 }
                 else
                 {
-                    LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate failed to copy link name of underlying interface"
-                            ". rc=%d\n", rc));
+                    LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate failed to open VNIC template. rc=%d\n", rc));
+                    rc = VERR_INTNET_FLT_IF_FAILED;
                 }
             }
             else
-            {
-                LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate failed to get lower handle for VNIC template '%s'.\n",
+                LogRel((DEVICE_NAME ":vboxNetFltSolarisInitVNICTemplate failed to get lower linkname for VNIC template '%s'.\n",
                         pThis->szName));
-                rc = VERR_INTNET_FLT_IF_FAILED;
-            }
 
             mac_close(hInterface);
         }
@@ -1143,18 +1147,31 @@ LOCAL int vboxNetFltSolarisCreateVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC *ppV
     }
 
     /*
+     * Make sure the dynamic VNIC we're creating doesn't already exists, if so pick a new instance.
+     * This is to avoid conflicts with users manually creating VNICs whose name starts with VBOXBOW_VNIC_NAME.
+     */
+    do
+    {
+        AssertCompile(sizeof(pVNIC->szName) > sizeof(VBOXBOW_VNIC_NAME "18446744073709551615" /* UINT64_MAX */));
+        RTStrPrintf(pVNIC->szName, sizeof(pVNIC->szName), "%s%RU64", VBOXBOW_VNIC_NAME, g_VBoxNetFltSolarisVNICId);
+        mac_handle_t hTmpMacHandle;
+        rc = mac_open_by_linkname(pVNIC->szName, &hTmpMacHandle);
+        if (rc)
+            break;
+        mac_close(hTmpMacHandle);
+        ASMAtomicIncU64(&g_VBoxNetFltSolarisVNICId);
+    } while (1);
+
+    /*
      * Create the VNIC under 'pszLinkName', which can be the one from the VNIC template or can
      * be a physical interface.
      */
-    rc = RTSemFastMutexRequest(g_VBoxNetFltSolarisMtx); AssertRC(rc);
-    RTStrPrintf(pVNIC->szName, sizeof(pVNIC->szName), "%s%RU64", VBOXBOW_VNIC_NAME, g_VBoxNetFltSolarisVNICId);
     rc = vnic_create(pVNIC->szName, pszLinkName, &AddrType, &MacLen, GuestMac.au8, &MacSlot, 0 /* Mac-Prefix Length */, uVLANId,
                         fFlags, &pVNIC->hLinkId, &Diag, NULL /* Reserved */);
     if (!rc)
     {
         pVNIC->fCreated = true;
         ASMAtomicIncU64(&g_VBoxNetFltSolarisVNICId);
-        RTSemFastMutexRelease(g_VBoxNetFltSolarisMtx);
 
         /*
          * Now try opening the created VNIC.
@@ -1169,29 +1186,26 @@ LOCAL int vboxNetFltSolarisCreateVNIC(PVBOXNETFLTINS pThis, PVBOXNETFLTVNIC *ppV
             if (RT_SUCCESS(rc))
             {
                 Log((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC created VNIC '%s' over '%s' with random mac %.6Rhxs\n",
-                         pVNIC->szName, pszLinkName, &GuestMac));
+                     pVNIC->szName, pszLinkName, &GuestMac));
                 *ppVNIC = pVNIC;
                 return VINF_SUCCESS;
             }
-            else
-                LogRel((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC vboxNetFltSolarisInitVNIC failed. rc=%d\n", rc));
 
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC vboxNetFltSolarisInitVNIC failed. rc=%d\n", rc));
             mac_close(pVNIC->hInterface);
             pVNIC->hInterface = NULL;
         }
         else
         {
-            LogRel((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC failed to open VNIC '%s' over '%s'. rc=%d\n", pVNIC->szName,
-                        pThis->szName, rc));
+            LogRel((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC logrel failed to open VNIC '%s' over '%s'. rc=%d\n", pVNIC->szName,
+                    pThis->szName, rc));
+            rc = VERR_INTNET_FLT_VNIC_LINK_ID_NOT_FOUND;
         }
 
         vboxNetFltSolarisDestroyVNIC(pVNIC);
-        rc = VERR_INTNET_FLT_VNIC_CREATE_FAILED;
     }
     else
     {
-        RTSemFastMutexRelease(g_VBoxNetFltSolarisMtx);
-
         LogRel((DEVICE_NAME ":vboxNetFltSolarisCreateVNIC failed to create VNIC '%s' over '%s' rc=%d Diag=%d\n", pVNIC->szName,
                     pszLinkName, rc, Diag));
         rc = VERR_INTNET_FLT_VNIC_CREATE_FAILED;
@@ -1649,24 +1663,31 @@ int vboxNetFltPortOsDisconnectInterface(PVBOXNETFLTINS pThis, void *pvIfData)
 {
     Log((DEVICE_NAME ":vboxNetFltPortOsDisconnectInterface pThis=%p\n", pThis));
 
-    PVBOXNETFLTVNIC pVNIC = pvIfData;
-    AssertMsgReturn(VALID_PTR(pVNIC) && pVNIC->u32Magic == VBOXNETFLTVNIC_MAGIC,
-                    ("Invalid pvIfData=%p magic=%#x (expected %#x)\n", pvIfData,
-                     pVNIC ? pVNIC->u32Magic : 0, VBOXNETFLTVNIC_MAGIC), VERR_INVALID_POINTER);
-
     /*
-     * If the underlying interface is a physical interface or a VNIC template, we need to delete the created VNIC.
+     * It is possible we get called when vboxNetFltPortOsConnectInterface() didn't succeed
+     * in which case pvIfData will be NULL. See intnetR0NetworkCreateIf() pfnConnectInterface call
+     * through reference counting in SUPR0ObjRelease() for the "pIf" object.
      */
-    if (   !pThis->u.s.fIsVNIC
-        || pThis->u.s.fIsVNICTemplate)
+    PVBOXNETFLTVNIC pVNIC = pvIfData;
+    if (RT_LIKELY(pVNIC))
     {
+        AssertMsgReturn(pVNIC->u32Magic == VBOXNETFLTVNIC_MAGIC,
+                        ("Invalid magic=%#x (expected %#x)\n", pVNIC->u32Magic, VBOXNETFLTVNIC_MAGIC), VERR_INVALID_POINTER);
+
         /*
-         * Remove the VNIC from the list, destroy and free it.
+         * If the underlying interface is a physical interface or a VNIC template, we need to delete the created VNIC.
          */
-        list_remove(&pThis->u.s.hVNICs, pVNIC);
-        Log((DEVICE_NAME ":vboxNetFltPortOsDisconnectInterface destroying pVNIC=%p\n", pVNIC));
-        vboxNetFltSolarisDestroyVNIC(pVNIC);
-        vboxNetFltSolarisFreeVNIC(pVNIC);
+        if (   !pThis->u.s.fIsVNIC
+            || pThis->u.s.fIsVNICTemplate)
+        {
+            /*
+             * Remove the VNIC from the list, destroy and free it.
+             */
+            list_remove(&pThis->u.s.hVNICs, pVNIC);
+            Log((DEVICE_NAME ":vboxNetFltPortOsDisconnectInterface destroying pVNIC=%p\n", pVNIC));
+            vboxNetFltSolarisDestroyVNIC(pVNIC);
+            vboxNetFltSolarisFreeVNIC(pVNIC);
+        }
     }
 
     return VINF_SUCCESS;

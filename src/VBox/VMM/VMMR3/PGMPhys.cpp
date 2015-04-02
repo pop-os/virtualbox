@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1568,7 +1568,9 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
     RTR0PTR      R0PtrChunk   = NIL_RTR0PTR;
     void        *pvChunk      = NULL;
     int rc = SUPR3PageAllocEx(cChunkPages, 0 /*fFlags*/, &pvChunk,
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
+                              &R0PtrChunk,
+#elif defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
                               HMIsEnabled(pVM) ? &R0PtrChunk : NULL,
 #else
                               NULL,
@@ -1576,7 +1578,9 @@ static int pgmR3PhysRegisterHighRamChunk(PVM pVM, RTGCPHYS GCPhys, uint32_t cRam
                               paChunkPages);
     if (RT_SUCCESS(rc))
     {
-#ifdef VBOX_WITH_2X_4GB_ADDR_SPACE
+#if defined(VBOX_WITH_MORE_RING0_MEM_MAPPINGS)
+        Assert(R0PtrChunk != NIL_RTR0PTR);
+#elif defined(VBOX_WITH_2X_4GB_ADDR_SPACE)
         if (!HMIsEnabled(pVM))
             R0PtrChunk = NIL_RTR0PTR;
 #else
@@ -2476,7 +2480,7 @@ DECLINLINE(PPGMMMIO2RANGE) pgmR3PhysMMIO2Find(PVM pVM, PPDMDEVINS pDevIns, uint3
  * A MMIO2 range may overlap with base memory if a lot of RAM is configured for
  * the VM, in which case we'll drop the base memory pages.  Presently we will
  * make no attempt to preserve anything that happens to be present in the base
- * memory that is replaced, this is of course incorrectly but it's too much
+ * memory that is replaced, this is of course incorrect but it's too much
  * effort.
  *
  * @returns VBox status code.
@@ -2746,6 +2750,8 @@ VMMR3DECL(int) PGMR3PhysMMIO2Deregister(PVM pVM, PPDMDEVINS pDevIns, uint32_t iR
  *
  * @param   pVM             Pointer to the VM.
  * @param   pDevIns         The device instance owning the region.
+ * @param   iRegion         The index of the registered region.
+ * @param   GCPhys          The guest-physical address to be remapped.
  */
 VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, RTGCPHYS GCPhys)
 {
@@ -2839,6 +2845,8 @@ VMMR3DECL(int) PGMR3PhysMMIO2Map(PVM pVM, PPDMDEVINS pDevIns, uint32_t iRegion, 
             AssertLogRelRCReturn(rc, rc); /* We're done for if this goes wrong. */
 
             RTHCPHYS const HCPhys = PGM_PAGE_GET_HCPHYS(pPageSrc);
+            uint32_t const idPage = PGM_PAGE_GET_PAGEID(pPageSrc);
+            PGM_PAGE_SET_PAGEID(pVM, pPageDst, idPage);
             PGM_PAGE_SET_HCPHYS(pVM, pPageDst, HCPhys);
             PGM_PAGE_SET_TYPE(pVM, pPageDst, PGMPAGETYPE_MMIO2);
             PGM_PAGE_SET_STATE(pVM, pPageDst, PGM_PAGE_STATE_ALLOCATED);
@@ -4042,7 +4050,7 @@ static DECLCALLBACK(VBOXSTRICTRC) pgmR3PhysUnmapChunkRendezvous(PVM pVM, PVMCPU 
                 /*
                  * Flush dangling PGM pointers (R3 & R0 ptrs to GC physical addresses).
                  */
-                /** todo: we should not flush chunks which include cr3 mappings. */
+                /** @todo We should not flush chunks which include cr3 mappings. */
                 for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
                 {
                     PPGMCPU pPGM = &pVM->aCpus[idCpu].pgm.s;

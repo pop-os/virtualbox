@@ -50,6 +50,9 @@
 #define SHCRGL_HOST_FN_TAKE_SCREENSHOT (24)
 #define SHCRGL_HOST_FN_WINDOWS_SHOW (25)
 #define SHCRGL_HOST_FN_CTL          (26)
+#define SHCRGL_HOST_FN_SET_SCALE_FACTOR (27)
+#define SHCRGL_HOST_FN_SET_UNSCALED_HIDPI (28)
+
 /* crOpenGL guest functions */
 #define SHCRGL_GUEST_FN_WRITE       (2)
 #define SHCRGL_GUEST_FN_READ        (3)
@@ -408,5 +411,17 @@ typedef struct
     PFNCRSCREENSHOTREPORT pfnScreenshotPerform;
     PFNCRSCREENSHOTEND pfnScreenshotEnd;
 } CRVBOXHGCMTAKESCREENSHOT;
+
+typedef struct
+{
+    uint32_t u32Screen;
+    uint32_t u32ScaleFactorWMultiplied;
+    uint32_t u32ScaleFactorHMultiplied;
+} CRVBOXHGCMSETSCALEFACTOR;
+
+typedef struct
+{
+    bool     fUnscaledHiDPI;
+} CRVBOXHGCMSETUNSCALEDHIDPIOUTPUT;
 
 #endif

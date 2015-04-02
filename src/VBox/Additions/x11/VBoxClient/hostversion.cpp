@@ -208,7 +208,7 @@ struct VBCLSERVICE vbclHostVersionInterface =
     run,
     VBClServiceDefaultHandler, /* pause */
     VBClServiceDefaultHandler, /* resume */
-    VBClServiceDefaultCleanup    
+    VBClServiceDefaultCleanup
 };
 
 struct HOSTVERSIONSERVICE

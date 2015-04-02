@@ -41,20 +41,52 @@ private slots:
     /** Checks if some visual-state type was requested. */
     void sltCheckForRequestedVisualStateType();
 
-    /* Windowed mode functionality: */
-    void sltPrepareSharedFoldersMenu();
-    void sltPrepareVideoCaptureMenu();
-    void sltPrepareMouseIntegrationMenu();
+#ifndef RT_OS_DARWIN
+    /** Invokes popup-menu. */
+    void sltInvokePopupMenu();
+#endif /* RT_OS_DARWIN */
+
+    /** Opens menu-bar editor.*/
+    void sltOpenMenuBarSettings();
+    /** Handles menu-bar editor closing.*/
+    void sltMenuBarSettingsClosed();
+#ifndef RT_OS_DARWIN
+    /** Toggles menu-bar presence.*/
+    void sltToggleMenuBar();
+#endif /* !RT_OS_DARWIN */
+
+    /** Opens status-bar editor.*/
+    void sltOpenStatusBarSettings();
+    /** Handles status-bar editor closing.*/
+    void sltStatusBarSettingsClosed();
+    /** Toggles status-bar presence.*/
+    void sltToggleStatusBar();
+
+    /** Handles guest-screen toggle requests. */
+    void sltHandleActionTriggerViewScreenToggle(int iIndex, bool fEnabled);
+    /** Handles guest-screen resize requests. */
+    void sltHandleActionTriggerViewScreenResize(int iIndex, const QSize &size);
 
 private:
 
     /* Prepare helpers: */
     void prepareActionConnections();
     void prepareMachineWindows();
+#ifndef Q_WS_MAC
+    void prepareMenu();
+#endif /* !Q_WS_MAC */
 
     /* Cleanup helpers: */
+#ifndef Q_WS_MAC
+    void cleanupMenu();
+#endif /* !Q_WS_MAC */
     void cleanupMachineWindows();
     void cleanupActionConnections();
+
+#ifndef Q_WS_MAC
+    /** Holds the popup-menu instance. */
+    QMenu *m_pPopupMenu;
+#endif /* !Q_WS_MAC */
 
     /* Friend classes: */
     friend class UIMachineLogic;

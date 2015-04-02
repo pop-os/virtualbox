@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,10 @@
 /**
  * CPUID leaves for AMD Athlon(tm) 64 Processor 3200+.
  */
-static CPUMCPUIDLEAF const g_aCpuIdLeaves_AMD_Athlon_64_3200[] = 
+static CPUMCPUIDLEAF const g_aCpuIdLeaves_AMD_Athlon_64_3200[] =
 {
     { 0x00000000, 0x00000000, 0x00000000, 0x00000001, 0x68747541, 0x444d4163, 0x69746e65, 0 },
-    { 0x00000001, 0x00000000, 0x00000000, 0x00000f48, 0x00000800, 0x00000000, 0x078bfbff, 0 },
+    { 0x00000001, 0x00000000, 0x00000000, 0x00000f48, 0x00000800, 0x00000000, 0x078bfbff, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID },
     { 0x80000000, 0x00000000, 0x00000000, 0x80000018, 0x68747541, 0x444d4163, 0x69746e65, 0 },
     { 0x80000001, 0x00000000, 0x00000000, 0x00000f48, 0x0000010a, 0x00000000, 0xe1d3fbff, 0 },
     { 0x80000002, 0x00000000, 0x00000000, 0x20444d41, 0x6c687441, 0x74286e6f, 0x3620296d, 0 },
@@ -62,7 +62,7 @@ static CPUMCPUIDLEAF const g_aCpuIdLeaves_AMD_Athlon_64_3200[] =
 /**
  * MSR ranges for AMD Athlon(tm) 64 Processor 3200+.
  */
-static CPUMMSRRANGE const g_aMsrRanges_AMD_Athlon_64_3200[] = 
+static CPUMMSRRANGE const g_aMsrRanges_AMD_Athlon_64_3200[] =
 {
     MAL(0x00000000, "IA32_P5_MC_ADDR", 0x00000402),
     MAL(0x00000001, "IA32_P5_MC_TYPE", 0x00000401),
@@ -195,7 +195,7 @@ static CPUMMSRRANGE const g_aMsrRanges_AMD_Athlon_64_3200[] =
 /**
  * Database entry for AMD Athlon(tm) 64 Processor 3200+.
  */
-static CPUMDBENTRY const g_Entry_AMD_Athlon_64_3200 = 
+static CPUMDBENTRY const g_Entry_AMD_Athlon_64_3200 =
 {
     /*.pszName          = */ "AMD Athlon 64 3200+",
     /*.pszFullName      = */ "AMD Athlon(tm) 64 Processor 3200+",
@@ -209,7 +209,7 @@ static CPUMDBENTRY const g_Entry_AMD_Athlon_64_3200 =
     /*.cMaxPhysAddrWidth= */ 40,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_AMD_Athlon_64_3200),
     /*.cCpuIdLeaves     = */ ZERO_ALONE(RT_ELEMENTS(g_aCpuIdLeaves_AMD_Athlon_64_3200)),
-    /*.enmUnknownCpuId  = */ CPUMUKNOWNCPUID_DEFAULTS,
+    /*.enmUnknownCpuId  = */ CPUMUNKNOWNCPUID_DEFAULTS,
     /*.DefUnknownCpuId  = */ { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
     /*.fMsrMask         = */ UINT32_MAX,
     /*.cMsrRanges       = */ ZERO_ALONE(RT_ELEMENTS(g_aMsrRanges_AMD_Athlon_64_3200)),

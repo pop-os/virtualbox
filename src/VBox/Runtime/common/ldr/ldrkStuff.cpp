@@ -110,7 +110,6 @@ static int rtkldrConvertError(int krc)
         case KERR_NO_MEMORY:                                return VERR_NO_MEMORY;
         case KLDR_ERR_CPU_ARCH_MISMATCH:                    return VERR_LDR_ARCH_MISMATCH;
 
-
         case KLDR_ERR_UNKNOWN_FORMAT:
         case KLDR_ERR_MZ_NOT_SUPPORTED:                     return VERR_MZ_EXE_NOT_SUPPORTED;
         case KLDR_ERR_NE_NOT_SUPPORTED:                     return VERR_NE_EXE_NOT_SUPPORTED;
@@ -844,19 +843,15 @@ static DECLCALLBACK(int) rtkldr_QueryProp(PRTLDRMODINTERNAL pMod, RTLDRPROP enmP
                                           void *pvBuf, size_t cbBuf, size_t *pcbRet)
 {
     PRTLDRMODKLDR pThis = (PRTLDRMODKLDR)pMod;
-#if 0
     int           rc;
-#endif
     switch (enmProp)
     {
         case RTLDRPROP_UUID:
-#if 0 /* Requires neewer kStuff version. */
             rc = kLdrModQueryImageUuid(pThis->pMod, /*pvBits*/ NULL, (uint8_t *)pvBuf, cbBuf);
             if (rc == KLDR_ERR_NO_IMAGE_UUID)
                 return VERR_NOT_FOUND;
             AssertReturn(rc == 0, VERR_INVALID_PARAMETER);
             break;
-#endif
 
         default:
             return VERR_NOT_FOUND;

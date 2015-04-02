@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1258,9 +1258,16 @@ static DECLCALLBACK(int) gstcntlSessionThread(RTTHREAD ThreadSelf, void *pvUser)
 
         if (!fProcessAlive)
         {
-            VBoxServiceVerbose(2, "Guest session ID=%RU32 process terminated with rc=%Rrc, reason=%ld, status=%d\n",
+            VBoxServiceVerbose(2, "Guest session process (ID=%RU32) terminated with rc=%Rrc, reason=%ld, status=%d\n",
                                uSessionID, rcWait,
                                ProcessStatus.enmReason, ProcessStatus.iStatus);
+            if (ProcessStatus.iStatus == RTEXITCODE_INIT)
+            {
+                VBoxServiceError("Guest session process (ID=%RU32) failed to initialize. Here some hints:\n",
+                                 uSessionID);
+                VBoxServiceError("- Is logging enabled and the output directory is read-only by the guest session user?\n");
+                /** @todo Add more here. */
+            }
         }
     }
 
@@ -1914,20 +1921,21 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     char *pszLogFile = RTStrDup(g_szLogFile);
                     if (pszLogFile)
                     {
-                        char *pszLogExt = NULL;
-                        if (RTPathHasExt(pszLogFile))
-                            pszLogExt = RTStrDup(RTPathExt(pszLogFile));
-                        RTPathStripExt(pszLogFile);
-                        char *pszLogSuffix;
+                        char *pszLogSuff = NULL;
+                        if (RTPathHasSuffix(pszLogFile))
+                            pszLogSuff = RTStrDup(RTPathSuffix(pszLogFile));
+                        RTPathStripSuffix(pszLogFile);
+                        char *pszLogNewSuffix;
 #ifndef DEBUG
-                        if (RTStrAPrintf(&pszLogSuffix, "-%RU32-%s",
+                        if (RTStrAPrintf(&pszLogNewSuffix, "-%RU32-%s",
                                          pSessionStartupInfo->uSessionID,
                                          pSessionStartupInfo->szUser) < 0)
                         {
                             rc2 = VERR_NO_MEMORY;
                         }
 #else
-                        if (RTStrAPrintf(&pszLogSuffix, "-%RU32-%RU32-%s",
+                        /* Include the session thread ID in the log file name. */
+                        if (RTStrAPrintf(&pszLogNewSuffix, "-%RU32-%RU32-%s",
                                          pSessionStartupInfo->uSessionID,
                                          s_uCtrlSessionThread,
                                          pSessionStartupInfo->szUser) < 0)
@@ -1937,9 +1945,9 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
 #endif /* DEBUG */
                         else
                         {
-                            rc2 = RTStrAAppend(&pszLogFile, pszLogSuffix);
-                            if (RT_SUCCESS(rc2) && pszLogExt)
-                                rc2 = RTStrAAppend(&pszLogFile, pszLogExt);
+                            rc2 = RTStrAAppend(&pszLogFile, pszLogNewSuffix);
+                            if (RT_SUCCESS(rc2) && pszLogSuff)
+                                rc2 = RTStrAAppend(&pszLogFile, pszLogSuff);
                             if (RT_SUCCESS(rc2))
                             {
                                 if (!RTStrPrintf(szParmLogFile, sizeof(szParmLogFile),
@@ -1948,13 +1956,13 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                                     rc2 = VERR_BUFFER_OVERFLOW;
                                 }
                             }
-                            RTStrFree(pszLogSuffix);
+                            RTStrFree(pszLogNewSuffix);
                         }
                         if (RT_FAILURE(rc2))
                             VBoxServiceError("Error building session logfile string for session %RU32 (user %s), rc=%Rrc\n",
                                              pSessionStartupInfo->uSessionID, pSessionStartupInfo->szUser, rc2);
-                        if (pszLogExt)
-                            RTStrFree(pszLogExt);
+                        if (pszLogSuff)
+                            RTStrFree(pszLogSuff);
                         RTStrFree(pszLogFile);
                     }
                     if (RT_SUCCESS(rc2))
@@ -2000,6 +2008,19 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                 uint32_t uProcFlags = RTPROC_FLAGS_SERVICE
                                     | RTPROC_FLAGS_HIDDEN; /** @todo More flags from startup info? */
 
+                /*
+                 * Create the session process' environment block.
+                 */
+                RTENV hEnv = NIL_RTENV;
+                if (RT_SUCCESS(rc))
+                {
+                    /** @todo At the moment a session process does not have the ability to use the
+                     *        per-session environment variables itself, only the session's guest
+                     *        processes do so. Implement that later, also needs tweaking of
+                     *        VbglR3GuestCtrlSessionGetOpen(). */
+                    rc = RTEnvClone(&hEnv, RTENV_DEFAULT);
+                }
+
 #if 0 /* Pipe handling not needed (yet). */
                 /* Setup pipes. */
                 rc = GstcntlProcessSetupPipe("|", 0 /*STDIN_FILENO*/,
@@ -2027,15 +2048,11 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                         }
 
                         if (RT_SUCCESS(rc))
-                        {
-                            /* Fork the thing. */
-                            /** @todo Do we need a custom environment block? */
-                            rc = RTProcCreateEx(pszExeName, papszArgs, RTENV_DEFAULT, uProcFlags,
+                            rc = RTProcCreateEx(pszExeName, papszArgs, hEnv, uProcFlags,
                                                 pSession->StdIn.phChild, pSession->StdOut.phChild, pSession->StdErr.phChild,
                                                 !fAnonymous ? pSession->StartupInfo.szUser : NULL,
                                                 !fAnonymous ? pSession->StartupInfo.szPassword : NULL,
                                                 &pSession->hProcess);
-                        }
 
                         if (RT_SUCCESS(rc))
                         {
@@ -2065,8 +2082,7 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     {
                         hStdOutAndErr.enmType = RTHANDLETYPE_FILE;
 
-                        /** @todo Set custom/cloned guest session environment block. */
-                        rc = RTProcCreateEx(pszExeName, papszArgs, RTENV_DEFAULT, uProcFlags,
+                        rc = RTProcCreateEx(pszExeName, papszArgs, hEnv, uProcFlags,
                                             &hStdIn, &hStdOutAndErr, &hStdOutAndErr,
                                             !fAnonymous ? pSessionThread->StartupInfo.szUser : NULL,
                                             !fAnonymous ? pSessionThread->StartupInfo.szPassword : NULL,
@@ -2078,6 +2094,8 @@ int GstCntlSessionThreadCreate(PRTLISTANCHOR pList,
                     RTFileClose(hStdIn.u.hFile);
                 }
 #endif
+                if (hEnv != NIL_RTENV)
+                    RTEnvDestroy(hEnv);
             }
         }
         else
@@ -2349,11 +2367,11 @@ RTEXITCODE VBoxServiceControlSessionForkInit(int argc, char **argv)
     /* Init the session object. */
     rc = GstCntlSessionInit(&g_Session, uSessionFlags);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to initialize session object, rc=%Rrc\n", rc);
+        return RTMsgErrorExit(RTEXITCODE_INIT, "Failed to initialize session object, rc=%Rrc\n", rc);
 
     rc = VBoxServiceLogCreate(strlen(g_szLogFile) ? g_szLogFile : NULL);
     if (RT_FAILURE(rc))
-        return RTMsgErrorExit(RTEXITCODE_FAILURE, "Failed to create release log (%s, %Rrc)",
+        return RTMsgErrorExit(RTEXITCODE_INIT, "Failed to create log file \"%s\", rc=%Rrc\n",
                               strlen(g_szLogFile) ? g_szLogFile : "<None>", rc);
 
     RTEXITCODE rcExit = gstcntlSessionForkWorker(&g_Session);

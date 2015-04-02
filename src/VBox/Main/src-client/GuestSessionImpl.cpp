@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -203,7 +203,7 @@ int GuestSession::init(Guest *pGuest, const GuestSessionStartupInfo &ssInfo,
 
     HRESULT hr;
 
-    int rc = queryInfo();
+    int rc = i_queryInfo();
     if (RT_SUCCESS(rc))
     {
         hr = unconst(mEventSource).createObject();
@@ -292,7 +292,7 @@ void GuestSession::uninit(void)
     {
         Assert(mData.mNumObjects);
         mData.mNumObjects--;
-        itDirs->second->onRemove();
+        itDirs->second->i_onRemove();
         itDirs->second->uninit();
     }
     mData.mDirectories.clear();
@@ -304,7 +304,7 @@ void GuestSession::uninit(void)
     {
         Assert(mData.mNumObjects);
         mData.mNumObjects--;
-        itFiles->second->onRemove();
+        itFiles->second->i_onRemove();
         itFiles->second->uninit();
     }
     mData.mFiles.clear();
@@ -316,7 +316,7 @@ void GuestSession::uninit(void)
     {
         Assert(mData.mNumObjects);
         mData.mNumObjects--;
-        itProcs->second->onRemove();
+        itProcs->second->i_onRemove();
         itProcs->second->uninit();
     }
     mData.mProcesses.clear();
@@ -332,80 +332,61 @@ void GuestSession::uninit(void)
 // implementation of public getters/setters for attributes
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP GuestSession::COMGETTER(User)(BSTR *aUser)
+HRESULT GuestSession::getUser(com::Utf8Str &aUser)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
+
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aUser);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mCredentials.mUser.cloneTo(aUser);
+    aUser = mData.mCredentials.mUser;
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Domain)(BSTR *aDomain)
+HRESULT GuestSession::getDomain(com::Utf8Str &aDomain)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aDomain);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mCredentials.mDomain.cloneTo(aDomain);
+    aDomain = mData.mCredentials.mDomain;
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Name)(BSTR *aName)
+HRESULT GuestSession::getName(com::Utf8Str &aName)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aName);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mSession.mName.cloneTo(aName);
+    aName = mData.mSession.mName;
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Id)(ULONG *aId)
+HRESULT GuestSession::getId(ULONG *aId)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aId);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -416,17 +397,12 @@ STDMETHODIMP GuestSession::COMGETTER(Id)(ULONG *aId)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Status)(GuestSessionStatus_T *aStatus)
+HRESULT GuestSession::getStatus(GuestSessionStatus_T *aStatus)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aStatus);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -437,17 +413,12 @@ STDMETHODIMP GuestSession::COMGETTER(Status)(GuestSessionStatus_T *aStatus)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Timeout)(ULONG *aTimeout)
+HRESULT GuestSession::getTimeout(ULONG *aTimeout)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aTimeout);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -458,15 +429,12 @@ STDMETHODIMP GuestSession::COMGETTER(Timeout)(ULONG *aTimeout)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMSETTER(Timeout)(ULONG aTimeout)
+HRESULT GuestSession::setTimeout(ULONG aTimeout)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -477,79 +445,58 @@ STDMETHODIMP GuestSession::COMSETTER(Timeout)(ULONG aTimeout)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(ProtocolVersion)(ULONG *aVersion)
+HRESULT GuestSession::getProtocolVersion(ULONG *aProtocolVersion)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aVersion);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    *aVersion = mData.mProtocolVersion;
+    *aProtocolVersion = mData.mProtocolVersion;
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Environment)(ComSafeArrayOut(BSTR, aEnvironment))
+HRESULT GuestSession::getEnvironment(std::vector<com::Utf8Str> &aEnvironment)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutSafeArrayPointerValid(aEnvironment);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     size_t cEnvVars = mData.mEnvironment.Size();
+    aEnvironment.resize(cEnvVars);
+
     LogFlowThisFunc(("[%s]: cEnvVars=%RU32\n",
                      mData.mSession.mName.c_str(), cEnvVars));
-    com::SafeArray<BSTR> environment(cEnvVars);
 
     for (size_t i = 0; i < cEnvVars; i++)
-    {
-        Bstr strEnv(mData.mEnvironment.Get(i));
-        strEnv.cloneTo(&environment[i]);
-    }
-    environment.detachTo(ComSafeArrayOutArg(aEnvironment));
+        aEnvironment[i] = mData.mEnvironment.Get(i);
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMSETTER(Environment)(ComSafeArrayIn(IN_BSTR, aValues))
+HRESULT GuestSession::setEnvironment(const std::vector<com::Utf8Str> &aEnvironment)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    com::SafeArray<IN_BSTR> environment(ComSafeArrayInArg(aValues));
-
     int rc = VINF_SUCCESS;
-    for (size_t i = 0; i < environment.size() && RT_SUCCESS(rc); i++)
-    {
-        Utf8Str strEnv(environment[i]);
-        if (!strEnv.isEmpty()) /* Silently skip empty entries. */
-            rc = mData.mEnvironment.Set(strEnv);
-    }
+    for (size_t i = 0; i < aEnvironment.size() && RT_SUCCESS(rc); ++i)
+        if (!aEnvironment[i].isEmpty()) /* Silently skip empty entries. */
+            rc = mData.mEnvironment.Set(aEnvironment[i]);
 
     HRESULT hr = RT_SUCCESS(rc) ? S_OK : VBOX_E_IPRT_ERROR;
     LogFlowFuncLeaveRC(hr);
@@ -557,86 +504,81 @@ STDMETHODIMP GuestSession::COMSETTER(Environment)(ComSafeArrayIn(IN_BSTR, aValue
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Processes)(ComSafeArrayOut(IGuestProcess *, aProcesses))
+HRESULT GuestSession::getProcesses(std::vector<ComPtr<IGuestProcess> > &aProcesses)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutSafeArrayPointerValid(aProcesses);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    SafeIfaceArray<IGuestProcess> collection(mData.mProcesses);
-    collection.detachTo(ComSafeArrayOutArg(aProcesses));
+    aProcesses.resize(mData.mProcesses.size());
+    size_t i = 0;
+    for(SessionProcesses::iterator it  = mData.mProcesses.begin();
+                                   it != mData.mProcesses.end();
+                                   ++it, ++i)
+    {
+        it->second.queryInterfaceTo(aProcesses[i].asOutParam());
+    }
 
-    LogFlowFunc(("mProcesses=%zu\n", collection.size()));
+    LogFlowFunc(("mProcesses=%zu\n", aProcesses.size()));
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Directories)(ComSafeArrayOut(IGuestDirectory *, aDirectories))
+HRESULT GuestSession::getDirectories(std::vector<ComPtr<IGuestDirectory> > &aDirectories)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutSafeArrayPointerValid(aDirectories);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    SafeIfaceArray<IGuestDirectory> collection(mData.mDirectories);
-    collection.detachTo(ComSafeArrayOutArg(aDirectories));
+    aDirectories.resize(mData.mDirectories.size());
+    size_t i = 0;
+    for(SessionDirectories::iterator it  = mData.mDirectories.begin();
+                                     it != mData.mDirectories.end();
+                                     ++it, ++i)
+    {
+        it->second.queryInterfaceTo(aDirectories[i].asOutParam());
+    }
 
-    LogFlowFunc(("mDirectories=%zu\n", collection.size()));
+    LogFlowFunc(("mDirectories=%zu\n", aDirectories.size()));
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(Files)(ComSafeArrayOut(IGuestFile *, aFiles))
+HRESULT GuestSession::getFiles(std::vector<ComPtr<IGuestFile> > &aFiles)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutSafeArrayPointerValid(aFiles);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    SafeIfaceArray<IGuestFile> collection(mData.mFiles);
-    collection.detachTo(ComSafeArrayOutArg(aFiles));
+    aFiles.resize(mData.mFiles.size());
+    size_t i = 0;
+    for(SessionFiles::iterator it = mData.mFiles.begin(); it != mData.mFiles.end(); ++it, ++i)
+        it->second.queryInterfaceTo(aFiles[i].asOutParam());
 
-    LogFlowFunc(("mFiles=%zu\n", collection.size()));
+    LogFlowFunc(("mDirectories=%zu\n", aFiles.size()));
+
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::COMGETTER(EventSource)(IEventSource ** aEventSource)
+HRESULT GuestSession::getEventSource(ComPtr<IEventSource> &aEventSource)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aEventSource);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     // no need to lock - lifetime constant
-    mEventSource.queryInterfaceTo(aEventSource);
+    mEventSource.queryInterfaceTo(aEventSource.asOutParam());
 
     LogFlowThisFuncLeave();
     return S_OK;
@@ -646,7 +588,7 @@ STDMETHODIMP GuestSession::COMGETTER(EventSource)(IEventSource ** aEventSource)
 // private methods
 ///////////////////////////////////////////////////////////////////////////////
 
-int GuestSession::closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc)
+int GuestSession::i_closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc)
 {
     LogFlowThisFunc(("uFlags=%x, uTimeoutMS=%RU32\n", uFlags, uTimeoutMS));
 
@@ -698,9 +640,9 @@ int GuestSession::closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuest
 
     alock.release(); /* Drop the write lock before waiting. */
 
-    vrc = sendCommand(HOST_SESSION_CLOSE, i, paParms);
+    vrc = i_sendCommand(HOST_SESSION_CLOSE, i, paParms);
     if (RT_SUCCESS(vrc))
-        vrc = waitForStatusChange(pEvent, GuestSessionWaitForFlag_Terminate, uTimeoutMS,
+        vrc = i_waitForStatusChange(pEvent, GuestSessionWaitForFlag_Terminate, uTimeoutMS,
                                   NULL /* Session status */, pGuestRc);
 
     unregisterWaitEvent(pEvent);
@@ -709,7 +651,7 @@ int GuestSession::closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuest
     return vrc;
 }
 
-int GuestSession::directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode,
+int GuestSession::i_directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode,
                                           uint32_t uFlags, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s, uMode=%x, uFlags=%x\n",
@@ -752,13 +694,13 @@ int GuestSession::directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode
     }
 
     if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::Run(this, procInfo, pGuestRc);
+        vrc = GuestProcessTool::i_run(this, procInfo, pGuestRc);
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
-inline bool GuestSession::directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir)
+inline bool GuestSession::i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir)
 {
     SessionDirectories::const_iterator it = mData.mDirectories.find(uDirID);
     if (it != mData.mDirectories.end())
@@ -770,11 +712,11 @@ inline bool GuestSession::directoryExists(uint32_t uDirID, ComObjPtr<GuestDirect
     return false;
 }
 
-int GuestSession::directoryQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
+int GuestSession::i_directoryQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
-    int vrc = fsQueryInfoInternal(strPath, objData, pGuestRc);
+    int vrc = i_fsQueryInfoInternal(strPath, objData, pGuestRc);
     if (RT_SUCCESS(vrc))
     {
         vrc = objData.mType == FsObjType_Directory
@@ -785,7 +727,7 @@ int GuestSession::directoryQueryInfoInternal(const Utf8Str &strPath, GuestFsObjD
     return vrc;
 }
 
-int GuestSession::directoryRemoveFromList(GuestDirectory *pDirectory)
+int GuestSession::i_directoryRemoveFromList(GuestDirectory *pDirectory)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -809,7 +751,7 @@ int GuestSession::directoryRemoveFromList(GuestDirectory *pDirectory)
             LogFlowFunc(("Removing directory \"%s\" (Session: %RU32) (now total %zu processes, %RU32 objects)\n",
                          Utf8Str(strName).c_str(), mData.mSession.mID, mData.mDirectories.size() - 1, mData.mNumObjects - 1));
 
-            rc = pDirectory->onRemove();
+            rc = pDirectory->i_onRemove();
             mData.mDirectories.erase(itDirs);
             mData.mNumObjects--;
 
@@ -824,8 +766,8 @@ int GuestSession::directoryRemoveFromList(GuestDirectory *pDirectory)
     return rc;
 }
 
-int GuestSession::directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags,
-                                          int *pGuestRc)
+int GuestSession::i_directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags,
+                                            int *pGuestRc)
 {
     AssertReturn(!(uFlags & ~DIRREMOVE_FLAG_VALID_MASK), VERR_INVALID_PARAMETER);
 
@@ -849,7 +791,7 @@ int GuestSession::directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlag
 
     alock.release(); /* Drop write lock before sending. */
 
-    vrc = sendCommand(HOST_DIR_REMOVE, i, paParms);
+    vrc = i_sendCommand(HOST_DIR_REMOVE, i, paParms);
     if (RT_SUCCESS(vrc))
     {
         vrc = pEvent->Wait(30 * 1000);
@@ -864,8 +806,8 @@ int GuestSession::directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlag
     return vrc;
 }
 
-int GuestSession::objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath,
-                                           bool fDirectory, Utf8Str &strName, int *pGuestRc)
+int GuestSession::i_objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath,
+                                             bool fDirectory, Utf8Str &strName, int *pGuestRc)
 {
     LogFlowThisFunc(("strTemplate=%s, strPath=%s, fDirectory=%RTbool\n",
                      strTemplate.c_str(), strPath.c_str(), fDirectory));
@@ -897,9 +839,9 @@ int GuestSession::objectCreateTempInternal(const Utf8Str &strTemplate, const Utf
      *        we now can run in a user-dedicated session. */
     int guestRc; GuestCtrlStreamObjects stdOut;
     if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::RunEx(this, procInfo,
-                                      &stdOut, 1 /* cStrmOutObjects */,
-                                      &guestRc);
+        vrc = GuestProcessTool::i_runEx(this, procInfo,
+                                        &stdOut, 1 /* cStrmOutObjects */,
+                                        &guestRc);
     if (   RT_SUCCESS(vrc)
         && RT_SUCCESS(guestRc))
     {
@@ -927,8 +869,8 @@ int GuestSession::objectCreateTempInternal(const Utf8Str &strTemplate, const Utf
     return vrc;
 }
 
-int GuestSession::directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
-                                        ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc)
+int GuestSession::i_directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
+                                          ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s, strPath=%s, uFlags=%x\n",
                      openInfo.mPath.c_str(), openInfo.mFilter.c_str(), openInfo.mFlags));
@@ -946,7 +888,7 @@ int GuestSession::directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
     for (;;)
     {
         /* Is the directory ID already used? */
-        if (!directoryExists(uNewDirID, NULL /* pDirectory */))
+        if (!i_directoryExists(uNewDirID, NULL /* pDirectory */))
         {
             /* Callback with context ID was not found. This means
              * we can use this context ID for our new callback we want
@@ -970,7 +912,7 @@ int GuestSession::directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
     if (FAILED(hr))
         return VERR_COM_UNEXPECTED;
 
-    Console *pConsole = mParent->getConsole();
+    Console *pConsole = mParent->i_getConsole();
     AssertPtr(pConsole);
 
     int vrc = pDirectory->init(pConsole, this /* Parent */,
@@ -1015,7 +957,7 @@ int GuestSession::directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
     return vrc;
 }
 
-int GuestSession::dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestSession::i_dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
 
@@ -1042,7 +984,7 @@ int GuestSession::dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUEST
 
         alock.release();
 
-        rc = pDirectory->callbackDispatcher(pCtxCb, pSvcCb);
+        rc = pDirectory->i_callbackDispatcher(pCtxCb, pSvcCb);
     }
     else
         rc = VERR_NOT_FOUND;
@@ -1051,7 +993,7 @@ int GuestSession::dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUEST
     return rc;
 }
 
-int GuestSession::dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestSession::i_dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
 
@@ -1075,7 +1017,7 @@ int GuestSession::dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLH
 
         alock.release();
 
-        rc = pFile->callbackDispatcher(pCtxCb, pSvcCb);
+        rc = pFile->i_callbackDispatcher(pCtxCb, pSvcCb);
     }
     else
         rc = VERR_NOT_FOUND;
@@ -1084,7 +1026,7 @@ int GuestSession::dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLH
     return rc;
 }
 
-int GuestSession::dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestSession::i_dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
 
@@ -1107,7 +1049,7 @@ int GuestSession::dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTR
         {
             alock.release();
 
-            rc = dispatchToFile(pCtxCb, pSvcCb);
+            rc = i_dispatchToFile(pCtxCb, pSvcCb);
         }
         else
         {
@@ -1116,7 +1058,7 @@ int GuestSession::dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTR
             {
                 alock.release();
 
-                rc = dispatchToDirectory(pCtxCb, pSvcCb);
+                rc = i_dispatchToDirectory(pCtxCb, pSvcCb);
             }
             else
                 rc = VERR_NOT_FOUND;
@@ -1126,14 +1068,14 @@ int GuestSession::dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTR
     {
         alock.release();
 
-        rc = dispatchToProcess(pCtxCb, pSvcCb);
+        rc = i_dispatchToProcess(pCtxCb, pSvcCb);
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
-int GuestSession::dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestSession::i_dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     LogFlowFunc(("pCtxCb=%p, pSvcCb=%p\n", pCtxCb, pSvcCb));
 
@@ -1166,7 +1108,7 @@ int GuestSession::dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCT
         pCtxCb->uProtocol = mData.mProtocolVersion;
 
         alock.release();
-        rc = pProcess->callbackDispatcher(pCtxCb, pSvcCb);
+        rc = pProcess->i_callbackDispatcher(pCtxCb, pSvcCb);
     }
     else
         rc = VERR_NOT_FOUND;
@@ -1175,7 +1117,7 @@ int GuestSession::dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCT
     return rc;
 }
 
-int GuestSession::dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestSession::i_dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     AssertPtrReturn(pCbCtx, VERR_INVALID_POINTER);
     AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
@@ -1197,7 +1139,7 @@ int GuestSession::dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLH
 
         case GUEST_SESSION_NOTIFY: /* Guest Additions >= 4.3.0. */
         {
-            rc = onSessionStatusChange(pCbCtx, pSvcCb);
+            rc = i_onSessionStatusChange(pCbCtx, pSvcCb);
             break;
         }
 
@@ -1211,7 +1153,7 @@ int GuestSession::dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLH
     return rc;
 }
 
-inline bool GuestSession::fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile)
+inline bool GuestSession::i_fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile)
 {
     SessionFiles::const_iterator it = mData.mFiles.find(uFileID);
     if (it != mData.mFiles.end())
@@ -1223,7 +1165,7 @@ inline bool GuestSession::fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFi
     return false;
 }
 
-int GuestSession::fileRemoveFromList(GuestFile *pFile)
+int GuestSession::i_fileRemoveFromList(GuestFile *pFile)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1246,7 +1188,7 @@ int GuestSession::fileRemoveFromList(GuestFile *pFile)
             LogFlowThisFunc(("Removing guest file \"%s\" (Session: %RU32) (now total %zu files, %RU32 objects)\n",
                              Utf8Str(strName).c_str(), mData.mSession.mID, mData.mFiles.size() - 1, mData.mNumObjects - 1));
 
-            rc = pFile->onRemove();
+            rc = pFile->i_onRemove();
             mData.mFiles.erase(itFiles);
             mData.mNumObjects--;
 
@@ -1265,7 +1207,7 @@ int GuestSession::fileRemoveFromList(GuestFile *pFile)
     return rc;
 }
 
-int GuestSession::fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc)
+int GuestSession::i_fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
@@ -1288,14 +1230,14 @@ int GuestSession::fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc)
     }
 
     if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::Run(this, procInfo, pGuestRc);
+        vrc = GuestProcessTool::i_run(this, procInfo, pGuestRc);
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
-int GuestSession::fileOpenInternal(const GuestFileOpenInfo &openInfo,
-                                   ComObjPtr<GuestFile> &pFile, int *pGuestRc)
+int GuestSession::i_fileOpenInternal(const GuestFileOpenInfo &openInfo,
+                                     ComObjPtr<GuestFile> &pFile, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s, strOpenMode=%s, strDisposition=%s, uCreationMode=%x, uOffset=%RU64\n",
                      openInfo.mFileName.c_str(), openInfo.mOpenMode.c_str(), openInfo.mDisposition.c_str(),
@@ -1322,7 +1264,7 @@ int GuestSession::fileOpenInternal(const GuestFileOpenInfo &openInfo,
     for (;;)
     {
         /* Is the file ID already used? */
-        if (!fileExists(uNewFileID, NULL /* pFile */))
+        if (!i_fileExists(uNewFileID, NULL /* pFile */))
         {
             /* Callback with context ID was not found. This means
              * we can use this context ID for our new callback we want
@@ -1346,7 +1288,7 @@ int GuestSession::fileOpenInternal(const GuestFileOpenInfo &openInfo,
     if (FAILED(hr))
         return VERR_COM_UNEXPECTED;
 
-    Console *pConsole = mParent->getConsole();
+    Console *pConsole = mParent->i_getConsole();
     AssertPtr(pConsole);
 
     rc = pFile->init(pConsole, this /* GuestSession */,
@@ -1384,7 +1326,7 @@ int GuestSession::fileOpenInternal(const GuestFileOpenInfo &openInfo,
     if (RT_SUCCESS(rc))
     {
         int guestRc;
-        rc = pFile->openFile(30 * 1000 /* 30s timeout */, &guestRc);
+        rc = pFile->i_openFile(30 * 1000 /* 30s timeout */, &guestRc);
         if (   rc == VERR_GSTCTL_GUEST_ERROR
             && pGuestRc)
         {
@@ -1396,11 +1338,11 @@ int GuestSession::fileOpenInternal(const GuestFileOpenInfo &openInfo,
     return rc;
 }
 
-int GuestSession::fileQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
+int GuestSession::i_fileQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
-    int vrc = fsQueryInfoInternal(strPath, objData, pGuestRc);
+    int vrc = i_fsQueryInfoInternal(strPath, objData, pGuestRc);
     if (RT_SUCCESS(vrc))
     {
         vrc = objData.mType == FsObjType_File
@@ -1411,19 +1353,19 @@ int GuestSession::fileQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &
     return vrc;
 }
 
-int GuestSession::fileQuerySizeInternal(const Utf8Str &strPath, int64_t *pllSize, int *pGuestRc)
+int GuestSession::i_fileQuerySizeInternal(const Utf8Str &strPath, int64_t *pllSize, int *pGuestRc)
 {
     AssertPtrReturn(pllSize, VERR_INVALID_POINTER);
 
     GuestFsObjData objData;
-    int vrc = fileQueryInfoInternal(strPath, objData, pGuestRc);
+    int vrc = i_fileQueryInfoInternal(strPath, objData, pGuestRc);
     if (RT_SUCCESS(vrc))
         *pllSize = objData.mObjectSize;
 
     return vrc;
 }
 
-int GuestSession::fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
+int GuestSession::i_fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &objData, int *pGuestRc)
 {
     LogFlowThisFunc(("strPath=%s\n", strPath.c_str()));
 
@@ -1447,9 +1389,9 @@ int GuestSession::fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &ob
 
     int guestRc; GuestCtrlStreamObjects stdOut;
     if (RT_SUCCESS(vrc))
-        vrc = GuestProcessTool::RunEx(this, procInfo,
-                                      &stdOut, 1 /* cStrmOutObjects */,
-                                      &guestRc);
+        vrc = GuestProcessTool::i_runEx(this, procInfo,
+                                        &stdOut, 1 /* cStrmOutObjects */,
+                                        &guestRc);
     if (   RT_SUCCESS(vrc)
         && RT_SUCCESS(guestRc))
     {
@@ -1468,23 +1410,23 @@ int GuestSession::fsQueryInfoInternal(const Utf8Str &strPath, GuestFsObjData &ob
     return vrc;
 }
 
-const GuestCredentials& GuestSession::getCredentials(void)
+const GuestCredentials& GuestSession::i_getCredentials(void)
 {
     return mData.mCredentials;
 }
 
-const GuestEnvironment& GuestSession::getEnvironment(void)
+const GuestEnvironment& GuestSession::i_getEnvironment(void)
 {
     return mData.mEnvironment;
 }
 
-Utf8Str GuestSession::getName(void)
+Utf8Str GuestSession::i_getName(void)
 {
     return mData.mSession.mName;
 }
 
 /* static */
-Utf8Str GuestSession::guestErrorToString(int guestRc)
+Utf8Str GuestSession::i_guestErrorToString(int guestRc)
 {
     Utf8Str strError;
 
@@ -1541,7 +1483,7 @@ Utf8Str GuestSession::guestErrorToString(int guestRc)
  * Only used by official API methods. Will set an external
  * error when not ready.
  */
-HRESULT GuestSession::isReadyExternal(void)
+HRESULT GuestSession::i_isReadyExternal(void)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1556,7 +1498,7 @@ HRESULT GuestSession::isReadyExternal(void)
  * Called by IGuest right before this session gets removed from
  * the public session list.
  */
-int GuestSession::onRemove(void)
+int GuestSession::i_onRemove(void)
 {
     LogFlowThisFuncEnter();
 
@@ -1581,7 +1523,7 @@ int GuestSession::onRemove(void)
 }
 
 /** No locking! */
-int GuestSession::onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData)
+int GuestSession::i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData)
 {
     AssertPtrReturn(pCbCtx, VERR_INVALID_POINTER);
     /* pCallback is optional. */
@@ -1645,7 +1587,7 @@ int GuestSession::onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUE
 
     /* Set the session status. */
     if (RT_SUCCESS(vrc))
-        vrc = setSessionStatus(sessionStatus, guestRc);
+        vrc = i_setSessionStatus(sessionStatus, guestRc);
 
     LogFlowThisFunc(("ID=%RU32, guestRc=%Rrc\n", mData.mSession.mID, guestRc));
 
@@ -1653,7 +1595,7 @@ int GuestSession::onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUE
     return vrc;
 }
 
-int GuestSession::startSessionInternal(int *pGuestRc)
+int GuestSession::i_startSessionInternal(int *pGuestRc)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1714,12 +1656,12 @@ int GuestSession::startSessionInternal(int *pGuestRc)
 
     alock.release(); /* Drop write lock before sending. */
 
-    vrc = sendCommand(HOST_SESSION_CREATE, i, paParms);
+    vrc = i_sendCommand(HOST_SESSION_CREATE, i, paParms);
     if (RT_SUCCESS(vrc))
     {
-        vrc = waitForStatusChange(pEvent, GuestSessionWaitForFlag_Start,
-                                  30 * 1000 /* 30s timeout */,
-                                  NULL /* Session status */, pGuestRc);
+        vrc = i_waitForStatusChange(pEvent, GuestSessionWaitForFlag_Start,
+                                    30 * 1000 /* 30s timeout */,
+                                    NULL /* Session status */, pGuestRc);
     }
     else
     {
@@ -1739,7 +1681,7 @@ int GuestSession::startSessionInternal(int *pGuestRc)
     return vrc;
 }
 
-int GuestSession::startSessionAsync(void)
+int GuestSession::i_startSessionAsync(void)
 {
     LogFlowThisFuncEnter();
 
@@ -1752,7 +1694,7 @@ int GuestSession::startSessionAsync(void)
         std::auto_ptr<GuestSessionTaskInternalOpen> pTask(new GuestSessionTaskInternalOpen(this));
         AssertReturn(pTask->isOk(), pTask->rc());
 
-        vrc = RTThreadCreate(NULL, GuestSession::startSessionThread,
+        vrc = RTThreadCreate(NULL, GuestSession::i_startSessionThread,
                              (void *)pTask.get(), 0,
                              RTTHREADTYPE_MAIN_WORKER, 0,
                              "gctlSesStart");
@@ -1772,7 +1714,7 @@ int GuestSession::startSessionAsync(void)
 }
 
 /* static */
-DECLCALLBACK(int) GuestSession::startSessionThread(RTTHREAD Thread, void *pvUser)
+DECLCALLBACK(int) GuestSession::i_startSessionThread(RTTHREAD Thread, void *pvUser)
 {
     LogFlowFunc(("pvUser=%p\n", pvUser));
 
@@ -1785,14 +1727,14 @@ DECLCALLBACK(int) GuestSession::startSessionThread(RTTHREAD Thread, void *pvUser
     AutoCaller autoCaller(pSession);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    int vrc = pSession->startSessionInternal(NULL /* Guest rc, ignored */);
+    int vrc = pSession->i_startSessionInternal(NULL /* Guest rc, ignored */);
     /* Nothing to do here anymore. */
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
-int GuestSession::pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest,
+int GuestSession::i_pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest,
                                      uint32_t uFlags, int *pGuestRc)
 {
     AssertReturn(!(uFlags & ~PATHRENAME_FLAG_VALID_MASK), VERR_INVALID_PARAMETER);
@@ -1820,7 +1762,7 @@ int GuestSession::pathRenameInternal(const Utf8Str &strSource, const Utf8Str &st
 
     alock.release(); /* Drop write lock before sending. */
 
-    vrc = sendCommand(HOST_PATH_RENAME, i, paParms);
+    vrc = i_sendCommand(HOST_PATH_RENAME, i, paParms);
     if (RT_SUCCESS(vrc))
     {
         vrc = pEvent->Wait(30 * 1000);
@@ -1835,7 +1777,7 @@ int GuestSession::pathRenameInternal(const Utf8Str &strSource, const Utf8Str &st
     return vrc;
 }
 
-int GuestSession::processRemoveFromList(GuestProcess *pProcess)
+int GuestSession::i_processRemoveFromList(GuestProcess *pProcess)
 {
     AssertPtrReturn(pProcess, VERR_INVALID_POINTER);
 
@@ -1874,7 +1816,7 @@ int GuestSession::processRemoveFromList(GuestProcess *pProcess)
             LogFlowFunc(("Removing process ID=%RU32 (Session: %RU32), guest PID=%RU32 (now total %zu processes, %RU32 objects)\n",
                          pProcess->getObjectID(), mData.mSession.mID, uPID, mData.mProcesses.size() - 1, mData.mNumObjects - 1));
 
-            rc = pProcess->onRemove();
+            rc = pProcess->i_onRemove();
             mData.mProcesses.erase(itProcs);
             mData.mNumObjects--;
 
@@ -1901,7 +1843,7 @@ int GuestSession::processRemoveFromList(GuestProcess *pProcess)
  * @param   procInfo
  * @param   pProcess
  */
-int GuestSession::processCreateExInteral(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProcess)
+int GuestSession::i_processCreateExInteral(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProcess)
 {
     LogFlowFunc(("mCmd=%s, mFlags=%x, mTimeoutMS=%RU32\n",
                  procInfo.mCommand.c_str(), procInfo.mFlags, procInfo.mTimeoutMS));
@@ -1962,7 +1904,7 @@ int GuestSession::processCreateExInteral(GuestProcessStartupInfo &procInfo, ComO
     for (;;)
     {
         /* Is the context ID already used? */
-        if (!processExists(uNewProcessID, NULL /* pProcess */))
+        if (!i_processExists(uNewProcessID, NULL /* pProcess */))
         {
             /* Callback with context ID was not found. This means
              * we can use this context ID for our new callback we want
@@ -1986,7 +1928,7 @@ int GuestSession::processCreateExInteral(GuestProcessStartupInfo &procInfo, ComO
     if (FAILED(hr))
         return VERR_COM_UNEXPECTED;
 
-    rc = pProcess->init(mParent->getConsole() /* Console */, this /* Session */,
+    rc = pProcess->init(mParent->i_getConsole() /* Console */, this /* Session */,
                         uNewProcessID, procInfo);
     if (RT_FAILURE(rc))
         return rc;
@@ -2014,7 +1956,7 @@ int GuestSession::processCreateExInteral(GuestProcessStartupInfo &procInfo, ComO
     return rc;
 }
 
-inline bool GuestSession::processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess)
+inline bool GuestSession::i_processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess)
 {
     SessionProcesses::const_iterator it = mData.mProcesses.find(uProcessID);
     if (it != mData.mProcesses.end())
@@ -2026,7 +1968,7 @@ inline bool GuestSession::processExists(uint32_t uProcessID, ComObjPtr<GuestProc
     return false;
 }
 
-inline int GuestSession::processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess)
+inline int GuestSession::i_processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess)
 {
     AssertReturn(uPID, false);
     /* pProcess is optional. */
@@ -2054,17 +1996,17 @@ inline int GuestSession::processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pP
     return VERR_NOT_FOUND;
 }
 
-int GuestSession::sendCommand(uint32_t uFunction,
-                              uint32_t uParms, PVBOXHGCMSVCPARM paParms)
+int GuestSession::i_sendCommand(uint32_t uFunction,
+                                uint32_t uParms, PVBOXHGCMSVCPARM paParms)
 {
     LogFlowThisFuncEnter();
 
 #ifndef VBOX_GUESTCTRL_TEST_CASE
-    ComObjPtr<Console> pConsole = mParent->getConsole();
+    ComObjPtr<Console> pConsole = mParent->i_getConsole();
     Assert(!pConsole.isNull());
 
     /* Forward the information to the VMM device. */
-    VMMDev *pVMMDev = pConsole->getVMMDev();
+    VMMDev *pVMMDev = pConsole->i_getVMMDev();
     AssertPtr(pVMMDev);
 
     LogFlowThisFunc(("uFunction=%RU32, uParms=%RU32\n", uFunction, uParms));
@@ -2082,16 +2024,16 @@ int GuestSession::sendCommand(uint32_t uFunction,
 }
 
 /* static */
-HRESULT GuestSession::setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
+HRESULT GuestSession::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
 {
     AssertPtr(pInterface);
     AssertMsg(RT_FAILURE(guestRc), ("Guest rc does not indicate a failure when setting error\n"));
 
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestSession::guestErrorToString(guestRc).c_str());
+    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestSession::i_guestErrorToString(guestRc).c_str());
 }
 
 /* Does not do locking; caller is responsible for that! */
-int GuestSession::setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc)
+int GuestSession::i_setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc)
 {
     LogFlowThisFunc(("oldStatus=%RU32, newStatus=%RU32, sessionRc=%Rrc\n",
                      mData.mStatus, sessionStatus, sessionRc));
@@ -2116,7 +2058,7 @@ int GuestSession::setSessionStatus(GuestSessionStatus_T sessionStatus, int sessi
         ComAssertComRC(hr);
         int rc2 = errorInfo->initEx(VBOX_E_IPRT_ERROR, sessionRc,
                                     COM_IIDOF(IGuestSession), getComponentName(),
-                                    guestErrorToString(sessionRc));
+                                    i_guestErrorToString(sessionRc));
         AssertRC(rc2);
 
         fireGuestSessionStateChangedEvent(mEventSource, this,
@@ -2126,7 +2068,7 @@ int GuestSession::setSessionStatus(GuestSessionStatus_T sessionStatus, int sessi
     return VINF_SUCCESS;
 }
 
-int GuestSession::signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */)
+int GuestSession::i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */)
 {
     /*LogFlowThisFunc(("enmWaitResult=%d, rc=%Rrc, mWaitCount=%RU32, mWaitEvent=%p\n",
                      enmWaitResult, rc, mData.mWaitCount, mData.mWaitEvent));*/
@@ -2140,8 +2082,8 @@ int GuestSession::signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /
     return vrc;
 }
 
-int GuestSession::startTaskAsync(const Utf8Str &strTaskDesc,
-                                 GuestSessionTask *pTask, ComObjPtr<Progress> &pProgress)
+int GuestSession::i_startTaskAsync(const Utf8Str &strTaskDesc,
+                                   GuestSessionTask *pTask, ComObjPtr<Progress> &pProgress)
 {
     LogFlowThisFunc(("strTaskDesc=%s, pTask=%p\n", strTaskDesc.c_str(), pTask));
 
@@ -2179,7 +2121,7 @@ int GuestSession::startTaskAsync(const Utf8Str &strTaskDesc,
  *
  * @return  IPRT status code.
  */
-int GuestSession::queryInfo(void)
+int GuestSession::i_queryInfo(void)
 {
     /*
      * Try querying the guest control protocol version running on the guest.
@@ -2188,7 +2130,7 @@ int GuestSession::queryInfo(void)
     ComObjPtr<Guest> pGuest = mParent;
     Assert(!pGuest.isNull());
 
-    uint32_t uVerAdditions = pGuest->getAdditionsVersion();
+    uint32_t uVerAdditions = pGuest->i_getAdditionsVersion();
     uint32_t uVBoxMajor    = VBOX_FULL_VERSION_GET_MAJOR(uVerAdditions);
     uint32_t uVBoxMinor    = VBOX_FULL_VERSION_GET_MINOR(uVerAdditions);
 
@@ -2210,16 +2152,15 @@ int GuestSession::queryInfo(void)
                      uVerAdditions, uVBoxMajor, uVBoxMinor, mData.mProtocolVersion));
 
     /* Tell the user but don't bitch too often. */
-    static short s_gctrlLegacyWarning = 0;
-    if (   mData.mProtocolVersion < 2
-        && s_gctrlLegacyWarning++ < 3) /** @todo Find a bit nicer text. */
-        LogRel((tr("Warning: Guest Additions are older (%ld.%ld) than host capabilities for guest control, please upgrade them. Using protocol version %ld now\n"),
-                uVBoxMajor, uVBoxMinor, mData.mProtocolVersion));
+    /** @todo Find a bit nicer text. */
+    if (mData.mProtocolVersion < 2)
+        LogRelMax(3, (tr("Warning: Guest Additions are older (%ld.%ld) than host capabilities for guest control, please upgrade them. Using protocol version %ld now\n"),
+                    uVBoxMajor, uVBoxMinor, mData.mProtocolVersion));
 
     return VINF_SUCCESS;
 }
 
-int GuestSession::waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc)
+int GuestSession::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWaitResult_T &waitResult, int *pGuestRc)
 {
     LogFlowThisFuncEnter();
 
@@ -2346,8 +2287,8 @@ int GuestSession::waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWai
     alock.release(); /* Release lock before waiting. */
 
     GuestSessionStatus_T sessionStatus;
-    vrc = waitForStatusChange(pEvent, fWaitFlags,
-                              uTimeoutMS, &sessionStatus, pGuestRc);
+    vrc = i_waitForStatusChange(pEvent, fWaitFlags,
+                                uTimeoutMS, &sessionStatus, pGuestRc);
     if (RT_SUCCESS(vrc))
     {
         switch (sessionStatus)
@@ -2385,8 +2326,8 @@ int GuestSession::waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS, GuestSessionWai
     return vrc;
 }
 
-int GuestSession::waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
-                                      GuestSessionStatus_T *pSessionStatus, int *pGuestRc)
+int GuestSession::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlags, uint32_t uTimeoutMS,
+                                        GuestSessionStatus_T *pSessionStatus, int *pGuestRc)
 {
     AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
 
@@ -2430,7 +2371,7 @@ int GuestSession::waitForStatusChange(GuestWaitEvent *pEvent, uint32_t fWaitFlag
 // implementation of public methods
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP GuestSession::Close(void)
+HRESULT GuestSession::close()
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
@@ -2442,13 +2383,13 @@ STDMETHODIMP GuestSession::Close(void)
 
     /* Close session on guest. */
     int guestRc = VINF_SUCCESS;
-    int rc = closeSession(0 /* Flags */, 30 * 1000 /* Timeout */,
-                          &guestRc);
+    int rc = i_closeSession(0 /* Flags */, 30 * 1000 /* Timeout */,
+                            &guestRc);
     /* On failure don't return here, instead do all the cleanup
      * work first and then return an error. */
 
     /* Remove ourselves from the session list. */
-    int rc2 = mParent->sessionRemove(this);
+    int rc2 = mParent->i_sessionRemove(this);
     if (rc2 == VERR_NOT_FOUND) /* Not finding the session anymore isn't critical. */
         rc2 = VINF_SUCCESS;
 
@@ -2460,7 +2401,7 @@ STDMETHODIMP GuestSession::Close(void)
     if (RT_FAILURE(rc))
     {
         if (rc == VERR_GSTCTL_GUEST_ERROR)
-            return GuestSession::setErrorExternal(this, guestRc);
+            return GuestSession::i_setErrorExternal(this, guestRc);
 
         return setError(VBOX_E_IPRT_ERROR,
                         tr("Closing guest session failed with %Rrc"), rc);
@@ -2470,31 +2411,26 @@ STDMETHODIMP GuestSession::Close(void)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::CopyFrom(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(CopyFileFlag_T, aFlags), IProgress **aProgress)
+HRESULT GuestSession::copyFrom(const com::Utf8Str &aSource, const com::Utf8Str &aDest,
+                               const std::vector<CopyFileFlag_T> &aFlags,
+                               ComPtr<IProgress> &aProgress)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
-    CheckComArgStrNotEmptyOrNull(aSource);
-    CheckComArgStrNotEmptyOrNull(aDest);
-    CheckComArgOutPointerValid(aProgress);
 
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aSource) == NULL || *(aSource) == '\0'))
+    if (RT_UNLIKELY((aSource.c_str()) == NULL || *(aSource.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No source specified"));
-    if (RT_UNLIKELY((aDest) == NULL || *(aDest) == '\0'))
+    if (RT_UNLIKELY((aDest.c_str()) == NULL || *(aDest.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No destination specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     uint32_t fFlags = CopyFileFlag_None;
-    if (aFlags)
+    if (aFlags.size())
     {
-        com::SafeArray<CopyFileFlag_T> flags(ComSafeArrayInArg(aFlags));
-        for (size_t i = 0; i < flags.size(); i++)
-            fFlags |= flags[i];
+        for (size_t i = 0; i < aFlags.size(); i++)
+            fFlags |= aFlags[i];
     }
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -2505,17 +2441,15 @@ STDMETHODIMP GuestSession::CopyFrom(IN_BSTR aSource, IN_BSTR aDest, ComSafeArray
     {
         ComObjPtr<Progress> pProgress;
         SessionTaskCopyFrom *pTask = new SessionTaskCopyFrom(this /* GuestSession */,
-                                                             Utf8Str(aSource), Utf8Str(aDest), fFlags);
-        int rc = startTaskAsync(Utf8StrFmt(tr("Copying \"%ls\" from guest to \"%ls\" on the host"), aSource, aDest),
-                                pTask, pProgress);
+                                                             aSource, aDest, fFlags);
+        int rc = i_startTaskAsync(Utf8StrFmt(tr("Copying \"%s\" from guest to \"%s\" on the host"), aSource.c_str(),
+                                  aDest.c_str()), pTask, pProgress);
         if (RT_SUCCESS(rc))
-        {
             /* Return progress to the caller. */
-            hr = pProgress.queryInterfaceTo(aProgress);
-        }
+            hr = pProgress.queryInterfaceTo(aProgress.asOutParam());
         else
             hr = setError(VBOX_E_IPRT_ERROR,
-                          tr("Starting task for copying file \"%ls\" from guest to \"%ls\" on the host failed: %Rrc"), rc);
+                          tr("Starting task for copying file \"%s\" from guest to \"%s\" on the host failed: %Rrc"), rc);
     }
     catch(std::bad_alloc &)
     {
@@ -2526,31 +2460,25 @@ STDMETHODIMP GuestSession::CopyFrom(IN_BSTR aSource, IN_BSTR aDest, ComSafeArray
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::CopyTo(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(CopyFileFlag_T, aFlags), IProgress **aProgress)
+HRESULT GuestSession::copyTo(const com::Utf8Str &aSource, const com::Utf8Str &aDest, const std::vector<CopyFileFlag_T> &aFlags,
+                             ComPtr<IProgress> &aProgress)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
-    CheckComArgStrNotEmptyOrNull(aSource);
-    CheckComArgStrNotEmptyOrNull(aDest);
-    CheckComArgOutPointerValid(aProgress);
 
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aSource) == NULL || *(aSource) == '\0'))
+    if (RT_UNLIKELY((aSource.c_str()) == NULL || *(aSource.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No source specified"));
-    if (RT_UNLIKELY((aDest) == NULL || *(aDest) == '\0'))
+    if (RT_UNLIKELY((aDest.c_str()) == NULL || *(aDest.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No destination specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     uint32_t fFlags = CopyFileFlag_None;
-    if (aFlags)
+    if (aFlags.size())
     {
-        com::SafeArray<CopyFileFlag_T> flags(ComSafeArrayInArg(aFlags));
-        for (size_t i = 0; i < flags.size(); i++)
-            fFlags |= flags[i];
+        for (size_t i = 0; i < aFlags.size(); i++)
+            fFlags |= aFlags[i];
     }
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -2561,18 +2489,18 @@ STDMETHODIMP GuestSession::CopyTo(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn
     {
         ComObjPtr<Progress> pProgress;
         SessionTaskCopyTo *pTask = new SessionTaskCopyTo(this /* GuestSession */,
-                                                         Utf8Str(aSource), Utf8Str(aDest), fFlags);
+                                                         aSource, aDest, fFlags);
         AssertPtrReturn(pTask, E_OUTOFMEMORY);
-        int rc = startTaskAsync(Utf8StrFmt(tr("Copying \"%ls\" from host to \"%ls\" on the guest"), aSource, aDest),
-                                pTask, pProgress);
+        int rc = i_startTaskAsync(Utf8StrFmt(tr("Copying \"%s\" from host to \"%s\" on the guest"), aSource.c_str(),
+                                  aDest.c_str()), pTask, pProgress);
         if (RT_SUCCESS(rc))
         {
             /* Return progress to the caller. */
-            hr = pProgress.queryInterfaceTo(aProgress);
+            hr = pProgress.queryInterfaceTo(aProgress.asOutParam());
         }
         else
             hr = setError(VBOX_E_IPRT_ERROR,
-                          tr("Starting task for copying file \"%ls\" from host to \"%ls\" on the guest failed: %Rrc"), rc);
+                          tr("Starting task for copying file \"%s\" from host to \"%s\" on the guest failed: %Rrc"), rc);
     }
     catch(std::bad_alloc &)
     {
@@ -2583,38 +2511,32 @@ STDMETHODIMP GuestSession::CopyTo(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryCreate(IN_BSTR aPath, ULONG aMode,
-                                           ComSafeArrayIn(DirectoryCreateFlag_T, aFlags))
+HRESULT GuestSession::directoryCreate(const com::Utf8Str &aPath, ULONG aMode,
+                                      const std::vector<DirectoryCreateFlag_T> &aFlags)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to create specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     uint32_t fFlags = DirectoryCreateFlag_None;
-    if (aFlags)
+    if (aFlags.size())
     {
-        com::SafeArray<DirectoryCreateFlag_T> flags(ComSafeArrayInArg(aFlags));
-        for (size_t i = 0; i < flags.size(); i++)
-            fFlags |= flags[i];
+        for (size_t i = 0; i < aFlags.size(); i++)
+            fFlags |= aFlags[i];
 
         if (fFlags)
-        {
             if (!(fFlags & DirectoryCreateFlag_Parents))
                 return setError(E_INVALIDARG, tr("Unknown flags (%#x)"), fFlags);
-        }
     }
 
     HRESULT hr = S_OK;
 
     ComObjPtr <GuestDirectory> pDirectory; int guestRc;
-    int rc = directoryCreateInternal(Utf8Str(aPath), (uint32_t)aMode, fFlags, &guestRc);
+    int rc = i_directoryCreateInternal(aPath, (uint32_t)aMode, fFlags, &guestRc);
     if (RT_FAILURE(rc))
     {
         switch (rc)
@@ -2642,43 +2564,36 @@ STDMETHODIMP GuestSession::DirectoryCreate(IN_BSTR aPath, ULONG aMode,
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryCreateTemp(IN_BSTR aTemplate, ULONG aMode, IN_BSTR aPath, BOOL aSecure, BSTR *aDirectory)
+HRESULT GuestSession::directoryCreateTemp(const com::Utf8Str &aTemplateName, ULONG aMode, const com::Utf8Str &aPath,
+                                          BOOL aSecure, com::Utf8Str &aDirectory)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aTemplate) == NULL || *(aTemplate) == '\0'))
+    if (RT_UNLIKELY((aTemplateName.c_str()) == NULL || *(aTemplateName.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No template specified"));
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory name specified"));
-    CheckComArgOutPointerValid(aDirectory);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
-    Utf8Str strName; int guestRc;
-    int rc = objectCreateTempInternal(Utf8Str(aTemplate),
-                                      Utf8Str(aPath),
-                                      true /* Directory */, strName, &guestRc);
-    if (RT_SUCCESS(rc))
-    {
-        strName.cloneTo(aDirectory);
-    }
-    else
+    int guestRc;
+    int rc = i_objectCreateTempInternal(aTemplateName,
+                                        aPath,
+                                        true /* Directory */, aDirectory, &guestRc);
+    if (!RT_SUCCESS(rc))
     {
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                hr = setError(VBOX_E_IPRT_ERROR, tr("Temporary directory creation \"%s\" with template \"%s\" failed: %Rrc"),
-                             Utf8Str(aPath).c_str(), Utf8Str(aTemplate).c_str(), rc);
+                             aPath.c_str(), aTemplateName.c_str(), rc);
                break;
         }
     }
@@ -2687,39 +2602,33 @@ STDMETHODIMP GuestSession::DirectoryCreateTemp(IN_BSTR aTemplate, ULONG aMode, I
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryExists(IN_BSTR aPath, BOOL *aExists)
+HRESULT GuestSession::directoryExists(const com::Utf8Str &aPath, BOOL *aExists)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to check existence for specified"));
-    CheckComArgOutPointerValid(aExists);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
     GuestFsObjData objData; int guestRc;
-    int rc = directoryQueryInfoInternal(Utf8Str(aPath), objData, &guestRc);
+    int rc = i_directoryQueryInfoInternal(aPath, objData, &guestRc);
     if (RT_SUCCESS(rc))
-    {
         *aExists = objData.mType == FsObjType_Directory;
-    }
     else
     {
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                hr = setError(VBOX_E_IPRT_ERROR, tr("Querying directory existence \"%s\" failed: %Rrc"),
-                             Utf8Str(aPath).c_str(), rc);
+                             aPath.c_str(), rc);
                break;
         }
     }
@@ -2728,28 +2637,24 @@ STDMETHODIMP GuestSession::DirectoryExists(IN_BSTR aPath, BOOL *aExists)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryOpen(IN_BSTR aPath, IN_BSTR aFilter, ComSafeArrayIn(DirectoryOpenFlag_T, aFlags), IGuestDirectory **aDirectory)
+HRESULT GuestSession::directoryOpen(const com::Utf8Str &aPath, const com::Utf8Str &aFilter,
+                                    const std::vector<DirectoryOpenFlag_T> &aFlags, ComPtr<IGuestDirectory> &aDirectory)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to open specified"));
-    if (RT_UNLIKELY((aFilter) != NULL && *(aFilter) != '\0'))
+    if (RT_UNLIKELY((aFilter.c_str()) != NULL && *(aFilter.c_str()) != '\0'))
         return setError(E_INVALIDARG, tr("Directory filters are not implemented yet"));
-    CheckComArgOutPointerValid(aDirectory);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     uint32_t fFlags = DirectoryOpenFlag_None;
-    if (aFlags)
+    if (aFlags.size())
     {
-        com::SafeArray<DirectoryOpenFlag_T> flags(ComSafeArrayInArg(aFlags));
-        for (size_t i = 0; i < flags.size(); i++)
-            fFlags |= flags[i];
+        for (size_t i = 0; i < aFlags.size(); i++)
+            fFlags |= aFlags[i];
 
         if (fFlags)
             return setError(E_INVALIDARG, tr("Open flags (%#x) not implemented yet"), fFlags);
@@ -2758,16 +2663,16 @@ STDMETHODIMP GuestSession::DirectoryOpen(IN_BSTR aPath, IN_BSTR aFilter, ComSafe
     HRESULT hr = S_OK;
 
     GuestDirectoryOpenInfo openInfo;
-    openInfo.mPath = Utf8Str(aPath);
-    openInfo.mFilter = Utf8Str(aFilter);
+    openInfo.mPath = aPath;
+    openInfo.mFilter = aFilter;
     openInfo.mFlags = fFlags;
 
     ComObjPtr <GuestDirectory> pDirectory; int guestRc;
-    int rc = directoryOpenInternal(openInfo, pDirectory, &guestRc);
+    int rc = i_directoryOpenInternal(openInfo, pDirectory, &guestRc);
     if (RT_SUCCESS(rc))
     {
         /* Return directory object to the caller. */
-        hr = pDirectory.queryInterfaceTo(aDirectory);
+        hr = pDirectory.queryInterfaceTo(aDirectory.asOutParam());
     }
     else
     {
@@ -2775,16 +2680,16 @@ STDMETHODIMP GuestSession::DirectoryOpen(IN_BSTR aPath, IN_BSTR aFilter, ComSafe
         {
             case VERR_INVALID_PARAMETER:
                hr = setError(VBOX_E_IPRT_ERROR, tr("Opening directory \"%s\" failed; invalid parameters given"),
-                                                   Utf8Str(aPath).c_str());
+                                                   aPath.c_str());
                break;
 
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestDirectory::setErrorExternal(this, guestRc);
+                hr = GuestDirectory::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                hr = setError(VBOX_E_IPRT_ERROR, tr("Opening directory \"%s\" failed: %Rrc"),
-                             Utf8Str(aPath).c_str(),rc);
+                             aPath.c_str(),rc);
                break;
         }
     }
@@ -2793,24 +2698,20 @@ STDMETHODIMP GuestSession::DirectoryOpen(IN_BSTR aPath, IN_BSTR aFilter, ComSafe
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **aInfo)
+HRESULT GuestSession::directoryQueryInfo(const com::Utf8Str &aPath, ComPtr<IGuestFsObjInfo> &aInfo)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to query information for specified"));
-    CheckComArgOutPointerValid(aInfo);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
     GuestFsObjData objData; int guestRc;
-    int vrc = directoryQueryInfoInternal(Utf8Str(aPath), objData, &guestRc);
+    int vrc = i_directoryQueryInfoInternal(aPath, objData, &guestRc);
     if (RT_SUCCESS(vrc))
     {
         if (objData.mType == FsObjType_Directory)
@@ -2822,7 +2723,7 @@ STDMETHODIMP GuestSession::DirectoryQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **a
             vrc = pFsObjInfo->init(objData);
             if (RT_SUCCESS(vrc))
             {
-                hr = pFsObjInfo.queryInterfaceTo(aInfo);
+                hr = pFsObjInfo.queryInterfaceTo(aInfo.asOutParam());
                 if (FAILED(hr)) return hr;
             }
         }
@@ -2833,17 +2734,17 @@ STDMETHODIMP GuestSession::DirectoryQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **a
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             case VERR_NOT_A_DIRECTORY:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Element \"%s\" exists but is not a directory"),
-                                                    Utf8Str(aPath).c_str());
+                                                    aPath.c_str());
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Querying directory information for \"%s\" failed: %Rrc"),
-                              Utf8Str(aPath).c_str(), vrc);
+                              aPath.c_str(), vrc);
                 break;
         }
     }
@@ -2852,20 +2753,17 @@ STDMETHODIMP GuestSession::DirectoryQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **a
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryRemove(IN_BSTR aPath)
+HRESULT GuestSession::directoryRemove(const com::Utf8Str &aPath)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to remove specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
@@ -2873,7 +2771,7 @@ STDMETHODIMP GuestSession::DirectoryRemove(IN_BSTR aPath)
     uint32_t uFlags = 0;
 
     int guestRc;
-    int vrc = directoryRemoveInternal(Utf8Str(aPath), uFlags, &guestRc);
+    int vrc = i_directoryRemoveInternal(aPath, uFlags, &guestRc);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
@@ -2884,12 +2782,12 @@ STDMETHODIMP GuestSession::DirectoryRemove(IN_BSTR aPath)
                 break;
 
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestDirectory::setErrorExternal(this, guestRc);
+                hr = GuestDirectory::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Removing guest directory \"%s\" failed: %Rrc"),
-                              Utf8Str(aPath).c_str(), vrc);
+                              aPath.c_str(), vrc);
                 break;
         }
     }
@@ -2898,20 +2796,18 @@ STDMETHODIMP GuestSession::DirectoryRemove(IN_BSTR aPath)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryRemoveRecursive(IN_BSTR aPath, ComSafeArrayIn(DirectoryRemoveRecFlag_T, aFlags), IProgress **aProgress)
+HRESULT GuestSession::directoryRemoveRecursive(const com::Utf8Str &aPath, const std::vector<DirectoryRemoveRecFlag_T> &aFlags,
+                                               ComPtr<IProgress> &aProgress)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No directory to remove recursively specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
@@ -2928,7 +2824,7 @@ STDMETHODIMP GuestSession::DirectoryRemoveRecursive(IN_BSTR aPath, ComSafeArrayI
      *       deleting a guest directory recursively. So just complete
      *       the progress object right now. */
      /** @todo Implement progress reporting on guest directory deletion! */
-    hr = pProgress->notifyComplete(S_OK);
+    hr = pProgress->i_notifyComplete(S_OK);
     if (FAILED(hr))
         return hr;
 
@@ -2936,7 +2832,7 @@ STDMETHODIMP GuestSession::DirectoryRemoveRecursive(IN_BSTR aPath, ComSafeArrayI
     uint32_t uFlags = DIRREMOVE_FLAG_RECURSIVE
                     | DIRREMOVE_FLAG_CONTENT_AND_DIR;
     int guestRc;
-    int vrc = directoryRemoveInternal(Utf8Str(aPath), uFlags, &guestRc);
+    int vrc = i_directoryRemoveInternal(aPath, uFlags, &guestRc);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
@@ -2947,41 +2843,40 @@ STDMETHODIMP GuestSession::DirectoryRemoveRecursive(IN_BSTR aPath, ComSafeArrayI
                 break;
 
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestFile::setErrorExternal(this, guestRc);
+                hr = GuestFile::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Recursively removing guest directory \"%s\" failed: %Rrc"),
-                              Utf8Str(aPath).c_str(), vrc);
+                              aPath.c_str(), vrc);
                 break;
         }
     }
     else
     {
-        pProgress.queryInterfaceTo(aProgress);
+        pProgress.queryInterfaceTo(aProgress.asOutParam());
     }
 
     return hr;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectoryRename(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(PathRenameFlag_T, aFlags))
+HRESULT GuestSession::directoryRename(const com::Utf8Str &aSource,
+                                      const com::Utf8Str &aDest,
+                                      const std::vector<PathRenameFlag_T> &aFlags)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aSource) == NULL || *(aSource) == '\0'))
+    if (RT_UNLIKELY((aSource.c_str()) == NULL || *(aSource.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No source directory to rename specified"));
 
-    if (RT_UNLIKELY((aDest) == NULL || *(aDest) == '\0'))
+    if (RT_UNLIKELY((aDest.c_str()) == NULL || *(aDest.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No destination directory to rename the source to specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
@@ -2989,7 +2884,7 @@ STDMETHODIMP GuestSession::DirectoryRename(IN_BSTR aSource, IN_BSTR aDest, ComSa
     uint32_t uFlags = 0;
 
     int guestRc;
-    int vrc = pathRenameInternal(Utf8Str(aSource), Utf8Str(aDest), uFlags, &guestRc);
+    int vrc = i_pathRenameInternal(aSource, aDest, uFlags, &guestRc);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
@@ -3006,7 +2901,7 @@ STDMETHODIMP GuestSession::DirectoryRename(IN_BSTR aSource, IN_BSTR aDest, ComSa
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Renaming guest directory \"%s\" failed: %Rrc"),
-                              Utf8Str(aSource).c_str(), vrc);
+                              aSource.c_str(), vrc);
                 break;
         }
     }
@@ -3015,29 +2910,23 @@ STDMETHODIMP GuestSession::DirectoryRename(IN_BSTR aSource, IN_BSTR aDest, ComSa
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::DirectorySetACL(IN_BSTR aPath, IN_BSTR aACL)
+HRESULT GuestSession::directorySetACL(const com::Utf8Str &aPath, const com::Utf8Str &aAcl)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::EnvironmentClear(void)
+HRESULT GuestSession::environmentClear()
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -3048,47 +2937,38 @@ STDMETHODIMP GuestSession::EnvironmentClear(void)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::EnvironmentGet(IN_BSTR aName, BSTR *aValue)
+HRESULT GuestSession::environmentGet(const com::Utf8Str &aName, com::Utf8Str &aValue)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aName) == NULL || *(aName) == '\0'))
+    if (RT_UNLIKELY(aName.c_str() == NULL) || *(aName.c_str()) == '\0')
         return setError(E_INVALIDARG, tr("No value name specified"));
-
-    CheckComArgOutPointerValid(aValue);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    Bstr strValue(mData.mEnvironment.Get(Utf8Str(aName)));
-    strValue.cloneTo(aValue);
+    aValue =  mData.mEnvironment.Get(aName);
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::EnvironmentSet(IN_BSTR aName, IN_BSTR aValue)
+HRESULT GuestSession::environmentSet(const com::Utf8Str &aName, const com::Utf8Str &aValue)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aName) == NULL || *(aName) == '\0'))
+    if (RT_UNLIKELY((aName.c_str() == NULL) || *(aName.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No value name specified"));
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    int rc = mData.mEnvironment.Set(Utf8Str(aName), Utf8Str(aValue));
+    int rc = mData.mEnvironment.Set(aName, aValue);
 
     HRESULT hr = RT_SUCCESS(rc) ? S_OK : VBOX_E_IPRT_ERROR;
     LogFlowFuncLeaveRC(hr);
@@ -3096,55 +2976,47 @@ STDMETHODIMP GuestSession::EnvironmentSet(IN_BSTR aName, IN_BSTR aValue)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::EnvironmentUnset(IN_BSTR aName)
+HRESULT GuestSession::environmentUnset(const com::Utf8Str &aName)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mEnvironment.Unset(Utf8Str(aName));
+    mData.mEnvironment.Unset(aName);
 
     LogFlowThisFuncLeave();
     return S_OK;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileCreateTemp(IN_BSTR aTemplate, ULONG aMode, IN_BSTR aPath, BOOL aSecure, IGuestFile **aFile)
+HRESULT GuestSession::fileCreateTemp(const com::Utf8Str &aTemplateName, ULONG aMode, const com::Utf8Str &aPath, BOOL aSecure,
+                                     ComPtr<IGuestFile> &aFile)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileExists(IN_BSTR aPath, BOOL *aExists)
+HRESULT GuestSession::fileExists(const com::Utf8Str &aPath, BOOL *aExists)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No file to check existence for specified"));
-    CheckComArgOutPointerValid(aExists);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     GuestFsObjData objData; int guestRc;
-    int vrc = fileQueryInfoInternal(Utf8Str(aPath), objData, &guestRc);
+    int vrc = i_fileQueryInfoInternal(aPath, objData, &guestRc);
     if (RT_SUCCESS(vrc))
     {
         *aExists = TRUE;
@@ -3156,7 +3028,7 @@ STDMETHODIMP GuestSession::FileExists(IN_BSTR aPath, BOOL *aExists)
     switch (vrc)
     {
         case VERR_GSTCTL_GUEST_ERROR:
-            hr = GuestProcess::setErrorExternal(this, guestRc);
+            hr = GuestProcess::i_setErrorExternal(this, guestRc);
             break;
 
         case VERR_NOT_A_FILE:
@@ -3165,7 +3037,7 @@ STDMETHODIMP GuestSession::FileExists(IN_BSTR aPath, BOOL *aExists)
 
         default:
             hr = setError(VBOX_E_IPRT_ERROR, tr("Querying file information for \"%s\" failed: %Rrc"),
-                          Utf8Str(aPath).c_str(), vrc);
+                          aPath.c_str(), vrc);
             break;
     }
 
@@ -3173,34 +3045,31 @@ STDMETHODIMP GuestSession::FileExists(IN_BSTR aPath, BOOL *aExists)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileRemove(IN_BSTR aPath)
+HRESULT GuestSession::fileRemove(const com::Utf8Str &aPath)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No file to remove specified"));
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
     int guestRc;
-    int vrc = fileRemoveInternal(Utf8Str(aPath), &guestRc);
+    int vrc = i_fileRemoveInternal(aPath, &guestRc);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Removing file \"%s\" failed: %Rrc"),
-                              Utf8Str(aPath).c_str(), vrc);
+                              aPath.c_str(), vrc);
                 break;
         }
     }
@@ -3209,42 +3078,40 @@ STDMETHODIMP GuestSession::FileRemove(IN_BSTR aPath)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileOpen(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, ULONG aCreationMode, IGuestFile **aFile)
+HRESULT GuestSession::fileOpen(const com::Utf8Str &aPath, const com::Utf8Str &aOpenMode, const com::Utf8Str &aDisposition,
+                               ULONG aCreationMode, ComPtr<IGuestFile> &aFile)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    Bstr strSharingMode = ""; /* Sharing mode is ignored. */
+    Utf8Str strSharingMode = ""; /* Sharing mode is ignored. */
 
-    return FileOpenEx(aPath, aOpenMode, aDisposition, strSharingMode.raw(), aCreationMode,
+    return fileOpenEx(aPath, aOpenMode, aDisposition, strSharingMode, aCreationMode,
                       0 /* aOffset */, aFile);
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileOpenEx(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR aDisposition, IN_BSTR aSharingMode,
-                                      ULONG aCreationMode, LONG64 aOffset, IGuestFile **aFile)
+HRESULT GuestSession::fileOpenEx(const com::Utf8Str &aPath, const com::Utf8Str &aOpenMode, const com::Utf8Str &aDisposition,
+                                 const com::Utf8Str &aSharingMode, ULONG aCreationMode, LONG64 aOffset,
+                                 ComPtr<IGuestFile> &aFile)
+
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No file to open specified"));
-    if (RT_UNLIKELY((aOpenMode) == NULL || *(aOpenMode) == '\0'))
+    if (RT_UNLIKELY((aOpenMode.c_str()) == NULL || *(aOpenMode.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No open mode specified"));
-    if (RT_UNLIKELY((aDisposition) == NULL || *(aDisposition) == '\0'))
+    if (RT_UNLIKELY((aDisposition.c_str()) == NULL || *(aDisposition.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No disposition mode specified"));
     /* aSharingMode is optional. */
 
-    CheckComArgOutPointerValid(aFile);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
@@ -3252,10 +3119,10 @@ STDMETHODIMP GuestSession::FileOpenEx(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR 
     uint32_t uCreationMode = 0;
 
     GuestFileOpenInfo openInfo;
-    openInfo.mFileName = Utf8Str(aPath);
-    openInfo.mOpenMode = Utf8Str(aOpenMode);
-    openInfo.mDisposition = Utf8Str(aDisposition);
-    openInfo.mSharingMode = Utf8Str(aSharingMode);
+    openInfo.mFileName = aPath;
+    openInfo.mOpenMode = aOpenMode;
+    openInfo.mDisposition = aDisposition;
+    openInfo.mSharingMode = aSharingMode;
     openInfo.mCreationMode = aCreationMode;
     openInfo.mInitialOffset = aOffset;
 
@@ -3268,12 +3135,10 @@ STDMETHODIMP GuestSession::FileOpenEx(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR 
         return setError(E_INVALIDARG, tr("Invalid open mode / disposition / sharing mode specified"));
 
     ComObjPtr <GuestFile> pFile; int guestRc;
-    vrc = fileOpenInternal(openInfo, pFile, &guestRc);
+    vrc = i_fileOpenInternal(openInfo, pFile, &guestRc);
     if (RT_SUCCESS(vrc))
-    {
         /* Return directory object to the caller. */
-        hr = pFile.queryInterfaceTo(aFile);
-    }
+        hr = pFile.queryInterfaceTo(aFile.asOutParam());
     else
     {
         switch (vrc)
@@ -3284,12 +3149,12 @@ STDMETHODIMP GuestSession::FileOpenEx(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR 
                 break;
 
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestFile::setErrorExternal(this, guestRc);
+                hr = GuestFile::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Opening guest file \"%s\" failed: %Rrc"),
-                              Utf8Str(aPath).c_str(), vrc);
+                              aPath.c_str(), vrc);
                 break;
         }
     }
@@ -3298,24 +3163,21 @@ STDMETHODIMP GuestSession::FileOpenEx(IN_BSTR aPath, IN_BSTR aOpenMode, IN_BSTR 
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **aInfo)
+HRESULT GuestSession::fileQueryInfo(const com::Utf8Str &aPath, ComPtr<IGuestFsObjInfo> &aInfo)
+
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No file to query information for specified"));
-    CheckComArgOutPointerValid(aInfo);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
     GuestFsObjData objData; int guestRc;
-    int vrc = fileQueryInfoInternal(Utf8Str(aPath), objData, &guestRc);
+    int vrc = i_fileQueryInfoInternal(aPath, objData, &guestRc);
     if (RT_SUCCESS(vrc))
     {
         ComObjPtr<GuestFsObjInfo> pFsObjInfo;
@@ -3325,7 +3187,7 @@ STDMETHODIMP GuestSession::FileQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **aInfo)
         vrc = pFsObjInfo->init(objData);
         if (RT_SUCCESS(vrc))
         {
-            hr = pFsObjInfo.queryInterfaceTo(aInfo);
+            hr = pFsObjInfo.queryInterfaceTo(aInfo.asOutParam());
             if (FAILED(hr)) return hr;
         }
     }
@@ -3335,7 +3197,7 @@ STDMETHODIMP GuestSession::FileQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **aInfo)
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             case VERR_NOT_A_FILE:
@@ -3352,34 +3214,28 @@ STDMETHODIMP GuestSession::FileQueryInfo(IN_BSTR aPath, IGuestFsObjInfo **aInfo)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileQuerySize(IN_BSTR aPath, LONG64 *aSize)
+HRESULT GuestSession::fileQuerySize(const com::Utf8Str &aPath, LONG64 *aSize)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aPath) == NULL || *(aPath) == '\0'))
+    if (RT_UNLIKELY((aPath.c_str()) == NULL || *(aPath.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No file to query size for specified"));
-    CheckComArgOutPointerValid(aSize);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT hr = S_OK;
 
     int64_t llSize; int guestRc;
-    int vrc = fileQuerySizeInternal(Utf8Str(aPath), &llSize, &guestRc);
+    int vrc = i_fileQuerySizeInternal(aPath, &llSize, &guestRc);
     if (RT_SUCCESS(vrc))
-    {
         *aSize = llSize;
-    }
     else
     {
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             default:
@@ -3392,23 +3248,21 @@ STDMETHODIMP GuestSession::FileQuerySize(IN_BSTR aPath, LONG64 *aSize)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::FileRename(IN_BSTR aSource, IN_BSTR aDest, ComSafeArrayIn(PathRenameFlag_T, aFlags))
+HRESULT GuestSession::fileRename(const com::Utf8Str &aSource, const com::Utf8Str &aDest,
+                                 const std::vector<PathRenameFlag_T> &aFlags)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aSource) == NULL || *(aSource) == '\0'))
+    if (RT_UNLIKELY((aSource.c_str()) == NULL || *(aSource.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No source file to rename specified"));
 
-    if (RT_UNLIKELY((aDest) == NULL || *(aDest) == '\0'))
+    if (RT_UNLIKELY((aDest.c_str()) == NULL || *(aDest.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No destination file to rename the source to specified"));
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
@@ -3416,7 +3270,7 @@ STDMETHODIMP GuestSession::FileRename(IN_BSTR aSource, IN_BSTR aDest, ComSafeArr
     uint32_t uFlags = 0;
 
     int guestRc;
-    int vrc = pathRenameInternal(Utf8Str(aSource), Utf8Str(aDest), uFlags, &guestRc);
+    int vrc = i_pathRenameInternal(aSource, aDest, uFlags, &guestRc);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
@@ -3434,7 +3288,7 @@ STDMETHODIMP GuestSession::FileRename(IN_BSTR aSource, IN_BSTR aDest, ComSafeArr
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR, tr("Renaming guest file \"%s\" failed: %Rrc"),
-                              Utf8Str(aSource).c_str(), vrc);
+                              aSource.c_str(), vrc);
                 break;
         }
     }
@@ -3442,66 +3296,58 @@ STDMETHODIMP GuestSession::FileRename(IN_BSTR aSource, IN_BSTR aDest, ComSafeArr
     return hr;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
-
-STDMETHODIMP GuestSession::FileSetACL(IN_BSTR aPath, IN_BSTR aACL)
+HRESULT GuestSession::fileSetACL(const com::Utf8Str &aFile, const com::Utf8Str &aAcl)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::ProcessCreate(IN_BSTR aCommand, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                                         ComSafeArrayIn(ProcessCreateFlag_T, aFlags), ULONG aTimeoutMS, IGuestProcess **aProcess)
+HRESULT GuestSession::processCreate(const com::Utf8Str &aCommand, const std::vector<com::Utf8Str> &aArguments,
+                                    const std::vector<com::Utf8Str> &aEnvironment,
+                                    const std::vector<ProcessCreateFlag_T> &aFlags,
+                                    ULONG aTimeoutMS, ComPtr<IGuestProcess> &aGuestProcess)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    com::SafeArray<LONG> affinityIgnored;
+    std::vector<LONG> affinityIgnored;
 
-    return ProcessCreateEx(aCommand, ComSafeArrayInArg(aArguments), ComSafeArrayInArg(aEnvironment),
-                           ComSafeArrayInArg(aFlags), aTimeoutMS, ProcessPriority_Default, ComSafeArrayAsInParam(affinityIgnored), aProcess);
+    return processCreateEx(aCommand, aArguments, aEnvironment, aFlags, aTimeoutMS, ProcessPriority_Default,
+                           affinityIgnored, aGuestProcess);
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::ProcessCreateEx(IN_BSTR aCommand, ComSafeArrayIn(IN_BSTR, aArguments), ComSafeArrayIn(IN_BSTR, aEnvironment),
-                                           ComSafeArrayIn(ProcessCreateFlag_T, aFlags), ULONG aTimeoutMS,
-                                           ProcessPriority_T aPriority, ComSafeArrayIn(LONG, aAffinity),
-                                           IGuestProcess **aProcess)
+HRESULT GuestSession::processCreateEx(const com::Utf8Str &aCommand, const std::vector<com::Utf8Str> &aArguments,
+                                      const std::vector<com::Utf8Str> &aEnvironment,
+                                      const std::vector<ProcessCreateFlag_T> &aFlags, ULONG aTimeoutMS,
+                                      ProcessPriority_T aPriority, const std::vector<LONG> &aAffinity,
+                                      ComPtr<IGuestProcess> &aGuestProcess)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    if (RT_UNLIKELY((aCommand) == NULL || *(aCommand) == '\0'))
+    if (RT_UNLIKELY((aCommand.c_str()) == NULL || *(aCommand.c_str()) == '\0'))
         return setError(E_INVALIDARG, tr("No command to execute specified"));
-    CheckComArgOutPointerValid(aProcess);
 
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    HRESULT hr = isReadyExternal();
+    HRESULT hr = i_isReadyExternal();
     if (FAILED(hr))
         return hr;
 
     GuestProcessStartupInfo procInfo;
-    procInfo.mCommand = Utf8Str(aCommand);
+    procInfo.mCommand = aCommand;
 
-    if (aArguments)
-    {
-        com::SafeArray<IN_BSTR> arguments(ComSafeArrayInArg(aArguments));
-        for (size_t i = 0; i < arguments.size(); i++)
-            procInfo.mArguments.push_back(Utf8Str(arguments[i]));
-    }
+    if (aArguments.size())
+        for (size_t i = 0; i < aArguments.size(); i++)
+            procInfo.mArguments.push_back(aArguments[i]);
 
     int rc = VINF_SUCCESS;
 
@@ -3513,47 +3359,36 @@ STDMETHODIMP GuestSession::ProcessCreateEx(IN_BSTR aCommand, ComSafeArrayIn(IN_B
      */
     procInfo.mEnvironment = mData.mEnvironment; /* Apply original session environment. */
 
-    if (aEnvironment)
-    {
-        com::SafeArray<IN_BSTR> environment(ComSafeArrayInArg(aEnvironment));
-        for (size_t i = 0; i < environment.size() && RT_SUCCESS(rc); i++)
-            rc = procInfo.mEnvironment.Set(Utf8Str(environment[i]));
-    }
+    if (aEnvironment.size())
+        for (size_t i = 0; i < aEnvironment.size() && RT_SUCCESS(rc); i++)
+            rc = procInfo.mEnvironment.Set(aEnvironment[i]);
 
     if (RT_SUCCESS(rc))
     {
-        if (aFlags)
-        {
-            com::SafeArray<ProcessCreateFlag_T> flags(ComSafeArrayInArg(aFlags));
-            for (size_t i = 0; i < flags.size(); i++)
-                procInfo.mFlags |= flags[i];
-        }
+        if (aFlags.size())
+            for (size_t i = 0; i < aFlags.size(); i++)
+                procInfo.mFlags |= aFlags[i];
 
         procInfo.mTimeoutMS = aTimeoutMS;
 
-        if (aAffinity)
-        {
-            com::SafeArray<LONG> affinity(ComSafeArrayInArg(aAffinity));
-            for (size_t i = 0; i < affinity.size(); i++)
-            {
-                if (affinity[i])
+        if (aAffinity.size())
+            for (size_t i = 0; i < aAffinity.size(); i++)
+                if (aAffinity[i])
                     procInfo.mAffinity |= (uint64_t)1 << i;
-            }
-        }
 
         procInfo.mPriority = aPriority;
 
         ComObjPtr<GuestProcess> pProcess;
-        rc = processCreateExInteral(procInfo, pProcess);
+        rc = i_processCreateExInteral(procInfo, pProcess);
         if (RT_SUCCESS(rc))
         {
             /* Return guest session to the caller. */
-            HRESULT hr2 = pProcess.queryInterfaceTo(aProcess);
+            HRESULT hr2 = pProcess.queryInterfaceTo(aGuestProcess.asOutParam());
             if (FAILED(hr2))
                 rc = VERR_COM_OBJECT_NOT_FOUND;
 
             if (RT_SUCCESS(rc))
-                rc = pProcess->startProcessAsync();
+                rc = pProcess->i_startProcessAsync();
         }
     }
 
@@ -3579,120 +3414,99 @@ STDMETHODIMP GuestSession::ProcessCreateEx(IN_BSTR aCommand, ComSafeArrayIn(IN_B
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::ProcessGet(ULONG aPID, IGuestProcess **aProcess)
+HRESULT GuestSession::processGet(ULONG aPid, ComPtr<IGuestProcess> &aGuestProcess)
+
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
-    LogFlowThisFunc(("PID=%RU32\n", aPID));
+    LogFlowThisFunc(("PID=%RU32\n", aPid));
 
-    CheckComArgOutPointerValid(aProcess);
-    if (aPID == 0)
+    if (aPid == 0)
         return setError(E_INVALIDARG, tr("No valid process ID (PID) specified"));
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT hr = S_OK;
 
     ComObjPtr<GuestProcess> pProcess;
-    int rc = processGetByPID(aPID, &pProcess);
+    int rc = i_processGetByPID(aPid, &pProcess);
     if (RT_FAILURE(rc))
-        hr = setError(E_INVALIDARG, tr("No process with PID %RU32 found"), aPID);
+        hr = setError(E_INVALIDARG, tr("No process with PID %RU32 found"), aPid);
 
     /* This will set (*aProcess) to NULL if pProgress is NULL. */
-    HRESULT hr2 = pProcess.queryInterfaceTo(aProcess);
+    HRESULT hr2 = pProcess.queryInterfaceTo(aGuestProcess.asOutParam());
     if (SUCCEEDED(hr))
         hr = hr2;
 
-    LogFlowThisFunc(("aProcess=%p, hr=%Rhrc\n", *aProcess, hr));
+    LogFlowThisFunc(("aProcess=%p, hr=%Rhrc\n", (IGuestProcess*)aGuestProcess, hr));
     return hr;
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::SymlinkCreate(IN_BSTR aSource, IN_BSTR aTarget, SymlinkType_T aType)
+HRESULT GuestSession::symlinkCreate(const com::Utf8Str &aSource, const com::Utf8Str &aTarget, SymlinkType_T aType)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::SymlinkExists(IN_BSTR aSymlink, BOOL *aExists)
+HRESULT GuestSession::symlinkExists(const com::Utf8Str &aSymlink, BOOL *aExists)
+
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::SymlinkRead(IN_BSTR aSymlink, ComSafeArrayIn(SymlinkReadFlag_T, aFlags), BSTR *aTarget)
+HRESULT GuestSession::symlinkRead(const com::Utf8Str &aSymlink, const std::vector<SymlinkReadFlag_T> &aFlags,
+                                  com::Utf8Str &aTarget)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::SymlinkRemoveDirectory(IN_BSTR aPath)
+HRESULT GuestSession::symlinkRemoveDirectory(const com::Utf8Str &aPath)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::SymlinkRemoveFile(IN_BSTR aFile)
+HRESULT GuestSession::symlinkRemoveFile(const com::Utf8Str &aFile)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     ReturnComNotImplemented();
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::WaitFor(ULONG aWaitFlags, ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason)
+HRESULT GuestSession::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
-
-    CheckComArgOutPointerValid(aReason);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /*
      * Note: Do not hold any locks here while waiting!
@@ -3700,17 +3514,15 @@ STDMETHODIMP GuestSession::WaitFor(ULONG aWaitFlags, ULONG aTimeoutMS, GuestSess
     HRESULT hr = S_OK;
 
     int guestRc; GuestSessionWaitResult_T waitResult;
-    int vrc = waitFor(aWaitFlags, aTimeoutMS, waitResult, &guestRc);
+    int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &guestRc);
     if (RT_SUCCESS(vrc))
-    {
         *aReason = waitResult;
-    }
     else
     {
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestSession::setErrorExternal(this, guestRc);
+                hr = GuestSession::i_setErrorExternal(this, guestRc);
                 break;
 
             case VERR_TIMEOUT:
@@ -3733,25 +3545,20 @@ STDMETHODIMP GuestSession::WaitFor(ULONG aWaitFlags, ULONG aTimeoutMS, GuestSess
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestSession::WaitForArray(ComSafeArrayIn(GuestSessionWaitForFlag_T, aFlags), ULONG aTimeoutMS, GuestSessionWaitResult_T *aReason)
+HRESULT GuestSession::waitForArray(const std::vector<GuestSessionWaitForFlag_T> &aWaitFor, ULONG aTimeoutMS,
+                                   GuestSessionWaitResult_T *aReason)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aReason);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     /*
      * Note: Do not hold any locks here while waiting!
      */
     uint32_t fWaitFor = GuestSessionWaitForFlag_None;
-    com::SafeArray<GuestSessionWaitForFlag_T> flags(ComSafeArrayInArg(aFlags));
-    for (size_t i = 0; i < flags.size(); i++)
-        fWaitFor |= flags[i];
+    for (size_t i = 0; i < aWaitFor.size(); i++)
+        fWaitFor |= aWaitFor[i];
 
     return WaitFor(fWaitFor, aTimeoutMS, aReason);
 #endif /* VBOX_WITH_GUEST_CONTROL */

@@ -1,8 +1,6 @@
 /* $Id: UIBootTable.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIBootTable class implementation
+ * VBox Qt GUI - UIBootTable class implementation.
  */
 
 /*
@@ -17,12 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global include */
-#include <QScrollBar>
+# include <QScrollBar>
 
 /* Local includes */
-#include "UIBootTable.h"
-#include "UIConverter.h"
+# include "UIBootTable.h"
+# include "UIConverter.h"
+# include "UIIconPool.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIBootTableItem::UIBootTableItem(KDeviceType type)
   : m_type(type)
@@ -30,26 +36,10 @@ UIBootTableItem::UIBootTableItem(KDeviceType type)
     setCheckState(Qt::Unchecked);
     switch(type)
     {
-        case KDeviceType_Floppy:
-        {
-            setIcon(QIcon(":fd_16px.png"));
-            break;
-        }
-        case KDeviceType_DVD:
-        {
-            setIcon(QIcon(":cd_16px.png"));
-            break;
-        }
-        case KDeviceType_HardDisk:
-        {
-            setIcon(QIcon(":hd_16px.png"));
-            break;
-        }
-        case KDeviceType_Network:
-        {
-            setIcon(QIcon(":nw_16px.png"));
-            break;
-        }
+        case KDeviceType_Floppy:   setIcon(UIIconPool::iconSet(":/fd_16px.png")); break;
+        case KDeviceType_DVD:      setIcon(UIIconPool::iconSet(":/cd_16px.png")); break;
+        case KDeviceType_HardDisk: setIcon(UIIconPool::iconSet(":/hd_16px.png")); break;
+        case KDeviceType_Network:  setIcon(UIIconPool::iconSet(":/nw_16px.png")); break;
     }
     retranslateUi();
 }

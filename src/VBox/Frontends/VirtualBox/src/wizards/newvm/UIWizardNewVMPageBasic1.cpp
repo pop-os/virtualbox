@@ -1,8 +1,6 @@
 /* $Id: UIWizardNewVMPageBasic1.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardNewVMPageBasic1 class implementation
+ * VBox Qt GUI - UIWizardNewVMPageBasic1 class implementation.
  */
 
 /*
@@ -17,21 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDir>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QLineEdit>
+# include <QDir>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
+# include <QLineEdit>
 
 /* GUI includes: */
-#include "UIWizardNewVMPageBasic1.h"
-#include "UIWizardNewVM.h"
-#include "UIMessageCenter.h"
-#include "UINameAndSystemEditor.h"
-#include "QIRichTextLabel.h"
+# include "UIWizardNewVMPageBasic1.h"
+# include "UIWizardNewVM.h"
+# include "UIMessageCenter.h"
+# include "UINameAndSystemEditor.h"
+# include "QIRichTextLabel.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
+# include "CSystemProperties.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* Defines some patterns to guess the right OS type. Should be in sync with
  * VirtualBox-settings-common.xsd in Main. The list is sorted by priority. The
@@ -87,6 +92,7 @@ static const osTypePattern gs_OSTypePattern[] =
     { QRegExp( "OS[/|!-]{,1}2.*W",          Qt::CaseInsensitive), "OS2Warp3" },
     { QRegExp("(OS[/|!-]{,1}2.*e)|(eCS.*)", Qt::CaseInsensitive), "OS2eCS" },
     { QRegExp( "OS[/|!-]{,1}2",             Qt::CaseInsensitive), "OS2" },
+    { QRegExp( "eComS.*",                   Qt::CaseInsensitive), "OS2eCS" },
 
     /* Other: Must come before Ubuntu/Maverick and before Linux??? */
     { QRegExp("QN", Qt::CaseInsensitive), "QNX" },
@@ -168,8 +174,9 @@ UIWizardNewVMPage1::UIWizardNewVMPage1(const QString &strGroup)
 
 void UIWizardNewVMPage1::onNameChanged(QString strNewName)
 {
-    /* Do not forget about achitecture bits: */
-    strNewName += ARCH_BITS == 64 && m_fSupportsHWVirtEx && m_fSupportsLongMode ? "64" : "32";
+    /* Do not forget about achitecture bits, if not yet specified: */
+    if (!strNewName.contains("32") && !strNewName.contains("64"))
+        strNewName += ARCH_BITS == 64 && m_fSupportsHWVirtEx && m_fSupportsLongMode ? "64" : "32";
 
     /* Search for a matching OS type based on the string the user typed already. */
     for (size_t i = 0; i < RT_ELEMENTS(gs_OSTypePattern); ++i)

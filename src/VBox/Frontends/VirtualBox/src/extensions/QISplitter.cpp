@@ -1,8 +1,6 @@
 /* $Id: QISplitter.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QISplitter class implementation
+ * VBox Qt GUI - VirtualBox Qt extensions: QISplitter class implementation.
  */
 
 /*
@@ -17,14 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QEvent>
-#include <QPainter>
-#include <QPaintEvent>
+# include <QApplication>
+# include <QEvent>
+# include <QPainter>
+# include <QPaintEvent>
 
 /* GUI includes: */
-#include "QISplitter.h"
+# include "QISplitter.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* A simple shaded line: */
 class QIShadeSplitterHandle: public QSplitterHandle

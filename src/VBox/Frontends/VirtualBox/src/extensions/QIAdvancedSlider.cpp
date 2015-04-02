@@ -1,8 +1,6 @@
 /* $Id: QIAdvancedSlider.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QIAdvancedSlider class implementation
+ * VBox Qt GUI - VirtualBox Qt extensions: QIAdvancedSlider class implementation.
  */
 
 /*
@@ -17,18 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "QIAdvancedSlider.h"
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+# include "QIAdvancedSlider.h"
 
 /* Qt includes */
-#include <QVBoxLayout>
-#include <QPainter>
-#include <QStyle>
+# include <QVBoxLayout>
+# include <QPainter>
+# include <QStyle>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 #include <QStyleOptionSlider>
 
 /* System includes */
 #include <math.h>
 
-class CPrivateSlider: public QSlider
+
+
+class CPrivateSlider : public QSlider
 {
 public:
     CPrivateSlider(Qt::Orientation fOrientation, QWidget *pParent = 0)

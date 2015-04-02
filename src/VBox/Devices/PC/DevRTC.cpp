@@ -189,6 +189,11 @@ typedef struct RTCSTATE
 
     /** HPET legacy mode notification interface. */
     PDMIHPETLEGACYNOTIFY  IHpetLegacyNotify;
+
+    /** Number of IRQs that's been raised. */
+    STAMCOUNTER             StatRTCIrq;
+    /** Number of times the timer callback handler ran. */
+    STAMCOUNTER             StatRTCTimerCB;
 } RTCSTATE;
 /** Pointer to the RTC device state. */
 typedef RTCSTATE *PRTCSTATE;
@@ -249,7 +254,11 @@ static void rtc_timer_update(PRTCSTATE pThis, int64_t current_time)
 static void rtc_raise_irq(PRTCSTATE pThis, uint32_t iLevel)
 {
     if (!pThis->fDisabledByHpet)
+    {
         PDMDevHlpISASetIrq(pThis->CTX_SUFF(pDevIns), pThis->irq, iLevel);
+        if (iLevel)
+            STAM_COUNTER_INC(&pThis->StatRTCIrq);
+    }
 }
 
 
@@ -276,9 +285,12 @@ static void rtc_set_time(PRTCSTATE pThis)
     tm->tm_sec  = from_bcd(pThis, pThis->cmos_data[RTC_SECONDS]);
     tm->tm_min  = from_bcd(pThis, pThis->cmos_data[RTC_MINUTES]);
     tm->tm_hour = from_bcd(pThis, pThis->cmos_data[RTC_HOURS] & 0x7f);
-    if (   !(pThis->cmos_data[RTC_REG_B] & 0x02)
-        && (pThis->cmos_data[RTC_HOURS] & 0x80))
-        tm->tm_hour += 12;
+    if (!(pThis->cmos_data[RTC_REG_B] & 0x02))
+    {
+        tm->tm_hour %= 12;
+        if (pThis->cmos_data[RTC_HOURS] & 0x80)
+            tm->tm_hour += 12;
+    }
     tm->tm_wday = from_bcd(pThis, pThis->cmos_data[RTC_DAY_OF_WEEK]);
     tm->tm_mday = from_bcd(pThis, pThis->cmos_data[RTC_DAY_OF_MONTH]);
     tm->tm_mon  = from_bcd(pThis, pThis->cmos_data[RTC_MONTH]) - 1;
@@ -542,6 +554,7 @@ static DECLCALLBACK(void) rtcTimerPeriodic(PPDMDEVINS pDevIns, PTMTIMER pTimer, 
     Assert(PDMCritSectIsOwner(pThis->CTX_SUFF(pDevIns)->CTX_SUFF(pCritSectRo)));
 
     rtc_timer_update(pThis, pThis->next_periodic_time);
+    STAM_COUNTER_INC(&pThis->StatRTCTimerCB);
     pThis->cmos_data[RTC_REG_C] |= 0xc0;
 
     rtc_raise_irq(pThis, 1);
@@ -660,7 +673,8 @@ static void rtc_copy_date(PRTCSTATE pThis)
     else
     {
         /* 12 hour format */
-        pThis->cmos_data[RTC_HOURS] = to_bcd(pThis, tm->tm_hour % 12);
+        int h = tm->tm_hour % 12;
+        pThis->cmos_data[RTC_HOURS] = to_bcd(pThis, h ? h : 12);
         if (tm->tm_hour >= 12)
             pThis->cmos_data[RTC_HOURS] |= 0x80;
     }
@@ -1218,6 +1232,13 @@ static DECLCALLBACK(int)  rtcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
     PDMDevHlpDBGFInfoRegister(pDevIns, "cmos1", "Display CMOS Bank 1 Info (0x0e-0x7f). No arguments. See also rtc.", rtcCmosBankInfo);
     PDMDevHlpDBGFInfoRegister(pDevIns, "cmos2", "Display CMOS Bank 2 Info (0x0e-0x7f). No arguments.", rtcCmosBank2Info);
     PDMDevHlpDBGFInfoRegister(pDevIns, "rtc",   "Display CMOS RTC (0x00-0x0d). No arguments. See also cmos1 & cmos2", rtcCmosClockInfo);
+
+    /*
+     * Register statistics.
+     */
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatRTCIrq,      STAMTYPE_COUNTER, "/TM/RTC/Irq",      STAMUNIT_OCCURENCES,  "The number of times a RTC interrupt was triggered.");
+    PDMDevHlpSTAMRegister(pDevIns, &pThis->StatRTCTimerCB,  STAMTYPE_COUNTER, "/TM/RTC/TimerCB",  STAMUNIT_OCCURENCES,  "The number of times the RTC timer callback ran.");
+
     return VINF_SUCCESS;
 }
 

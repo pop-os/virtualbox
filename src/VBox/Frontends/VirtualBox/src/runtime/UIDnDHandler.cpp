@@ -1,12 +1,10 @@
 /* $Id: UIDnDHandler.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIDnDHandler class implementation
+ * VBox Qt GUI - UIDnDHandler class implementation.
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,95 +15,140 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QKeyEvent>
-#include <QMimeData>
-#include <QStringList>
-#include <QTimer>
+# include <QApplication>
+# include <QKeyEvent>
+# include <QStringList>
+# include <QTimer>
+# include <QUrl>
 
 /* GUI includes: */
-#include "UIDnDHandler.h"
-#include "UIMessageCenter.h"
+# include "UIDnDHandler.h"
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+# include "CDnDSource.h"
+# include "UIDnDDrag.h"
+#endif
+# include "UIMessageCenter.h"
 
 /* COM includes: */
-#include "CSession.h"
-#include "CConsole.h"
-#include "CGuest.h"
+# include "CConsole.h"
+# include "CDnDTarget.h"
+# include "CGuest.h"
+# include "CSession.h"
 
-UIDnDHandler *UIDnDHandler::m_pInstance = 0;
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-UIDnDHandler::UIDnDHandler()
+#undef LOG_GROUP
+#define LOG_GROUP LOG_GROUP_GUEST_DND
+#include <VBox/log.h>
+
+
+
+UIDnDHandler *UIDnDHandler::m_pInstance = NULL;
+
+UIDnDHandler::UIDnDHandler(void)
 {
 }
 
 /*
- * Host -> Guest
+ * Frontend -> Target.
  */
 
-Qt::DropAction UIDnDHandler::dragHGEnter(CGuest &guest, ulong screenId, int x, int y, Qt::DropAction proposedAction, Qt::DropActions possibleActions, const QMimeData *pMimeData, QWidget * /* pParent = 0 */)
+Qt::DropAction UIDnDHandler::dragEnter(CDnDTarget &dndTarget, ulong screenId, int x, int y,
+                                       Qt::DropAction proposedAction, Qt::DropActions possibleActions,
+                                       const QMimeData *pMimeData, QWidget * /* pParent = NULL */)
 {
+    LogFlowFunc(("screenId=%RU32, x=%d, y=%d, action=%ld\n",
+                 screenId, x, y, toVBoxDnDAction(proposedAction)));
+
     /* Ask the guest for starting a DnD event. */
-    KDragAndDropAction result = guest.DragHGEnter(screenId,
-                                                  x,
-                                                  y,
-                                                  toVBoxDnDAction(proposedAction),
-                                                  toVBoxDnDActions(possibleActions),
-                                                  pMimeData->formats().toVector());
+    KDnDAction result = dndTarget.Enter(screenId,
+                                        x,
+                                        y,
+                                        toVBoxDnDAction(proposedAction),
+                                        toVBoxDnDActions(possibleActions),
+                                        pMimeData->formats().toVector());
+
     /* Set the DnD action returned by the guest. */
     return toQtDnDAction(result);
 }
 
-Qt::DropAction UIDnDHandler::dragHGMove(CGuest &guest, ulong screenId, int x, int y, Qt::DropAction proposedAction, Qt::DropActions possibleActions, const QMimeData *pMimeData, QWidget * /* pParent = 0 */)
+Qt::DropAction UIDnDHandler::dragMove(CDnDTarget &dndTarget, ulong screenId, int x, int y,
+                                      Qt::DropAction proposedAction, Qt::DropActions possibleActions,
+                                      const QMimeData *pMimeData, QWidget * /* pParent = NULL */)
 {
-    /* Ask the guest for starting a DnD event. */
-    KDragAndDropAction result = guest.DragHGMove(screenId,
-                                                 x,
-                                                 y,
-                                                 toVBoxDnDAction(proposedAction),
-                                                 toVBoxDnDActions(possibleActions),
-                                                 pMimeData->formats().toVector());
+#ifdef DEBUG_andy
+    LogFlowFunc(("screenId=%RU32, x=%d, y=%d, action=%ld\n",
+                 screenId, x, y, toVBoxDnDAction(proposedAction)));
+#endif
+
+    /* Notify the guest that the mouse has been moved while doing
+     * a drag'n drop operation. */
+    KDnDAction result = dndTarget.Move(screenId,
+                                       x,
+                                       y,
+                                       toVBoxDnDAction(proposedAction),
+                                       toVBoxDnDActions(possibleActions),
+                                       pMimeData->formats().toVector());
     /* Set the DnD action returned by the guest. */
     return toQtDnDAction(result);
 }
 
-Qt::DropAction UIDnDHandler::dragHGDrop(CGuest &guest, ulong screenId, int x, int y, Qt::DropAction proposedAction, Qt::DropActions possibleActions, const QMimeData *pMimeData, QWidget *pParent /* = 0 */)
+Qt::DropAction UIDnDHandler::dragDrop(CSession &session, CDnDTarget &dndTarget,
+                                      ulong screenId, int x, int y,
+                                      Qt::DropAction proposedAction, Qt::DropActions possibleActions,
+                                      const QMimeData *pMimeData, QWidget *pParent /* = NULL */)
 {
+    CGuest guest = session.GetConsole().GetGuest();
+
+    LogFlowFunc(("screenId=%RU32, x=%d, y=%d, action=%ld\n",
+                 screenId, x, y, toVBoxDnDAction(proposedAction)));
+
     /* The format the guest requests. */
     QString format;
     /* Ask the guest for dropping data. */
-    KDragAndDropAction result = guest.DragHGDrop(screenId,
-                                                 x,
-                                                 y,
-                                                 toVBoxDnDAction(proposedAction),
-                                                 toVBoxDnDActions(possibleActions),
-                                                 pMimeData->formats().toVector(), format);
+    KDnDAction result = dndTarget.Drop(screenId,
+                                       x,
+                                       y,
+                                       toVBoxDnDAction(proposedAction),
+                                       toVBoxDnDActions(possibleActions),
+                                       pMimeData->formats().toVector(), format);
     /* Has the guest accepted the drop event? */
-    if (result != KDragAndDropAction_Ignore)
+    if (result != KDnDAction_Ignore)
     {
-        /* Get the actually data */
+        /* Get the actual MIME data in the requested format. */
+        AssertPtr(pMimeData);
         const QByteArray &d = pMimeData->data(format);
         if (   !d.isEmpty()
             && !format.isEmpty())
         {
-            /* We need the data in the vector format. */
+            /* Convert the actual MIME data to a vector (needed
+             * for the COM wrapper). */
             QVector<uint8_t> dv(d.size());
             memcpy(dv.data(), d.constData(), d.size());
 
-            CProgress progress = guest.DragHGPutData(screenId, format, dv);
+            CProgress progress = dndTarget.SendData(screenId, format, dv);
             if (guest.isOk())
             {
-                msgCenter().showModalProgressDialog(progress, tr("Dropping data ..."), ":/progress_dnd_hg_90px.png", pParent);
-                if (!progress.GetCanceled() && (!progress.isOk() || progress.GetResultCode() != 0))
+                msgCenter().showModalProgressDialog(progress,
+                                                    tr("Dropping data ..."), ":/progress_dnd_hg_90px.png",
+                                                    pParent);
+                if (   !progress.GetCanceled()
+                    && (   !progress.isOk()
+                        ||  progress.GetResultCode() != 0))
                 {
                     msgCenter().cannotDropData(progress, pParent);
-                    result = KDragAndDropAction_Ignore;
+                    result = KDnDAction_Ignore;
                 }
             }
             else
             {
                 msgCenter().cannotDropData(guest, pParent);
-                result = KDragAndDropAction_Ignore;
+                result = KDnDAction_Ignore;
             }
         }
     }
@@ -113,235 +156,183 @@ Qt::DropAction UIDnDHandler::dragHGDrop(CGuest &guest, ulong screenId, int x, in
     return toQtDnDAction(result);
 }
 
-void UIDnDHandler::dragHGLeave(CGuest &guest, ulong screenId, QWidget * /* pParent = 0 */)
+void UIDnDHandler::dragLeave(CDnDTarget &dndTarget,
+                             ulong screenId, QWidget * /* pParent = NULL */)
 {
-    guest.DragHGLeave(screenId);
+    LogFlowFunc(("screenId=%RU32\n", screenId));
+    dndTarget.Leave(screenId);
 }
 
 /*
- * Guest -> Host
+ * Source -> Frontend.
  */
 
-class UIDnDMimeData: public QMimeData
+int UIDnDHandler::dragIsPending(CSession &session, CDnDSource &dndSource,
+                                ulong screenId, QWidget *pParent /* = NULL */)
 {
-    Q_OBJECT;
-
-    enum State
-    {
-        Dragging,
-        Dropped,
-        Finished,
-        Canceled
-    };
-
-public:
-    UIDnDMimeData(CSession &session, QStringList formats, Qt::DropAction defAction, Qt::DropActions actions, QWidget *pParent)
-      : m_pParent(pParent)
-      , m_session(session)
-      , m_formats(formats)
-      , m_defAction(defAction)
-      , m_actions(actions)
-      , m_fState(Dragging)
-    {
-        /* This is unbelievable hacky, but I didn't found another way. Stupid
-         * Qt QDrag interface is so less verbose, that we in principle know
-         * nothing about what happens when the user drag something around. It
-         * is possible that the target request data (s. retrieveData) while the
-         * mouse button is still pressed. This isn't something we can support,
-         * cause it would mean transferring the data from the guest while the
-         * mouse is still moving (thing of a 2GB file ...). So the idea is to
-         * detect the mouse release event and only after this happened, allow
-         * data to be retrieved. Unfortunately the QDrag object eats all events
-         * while a drag is going on (see QDragManager in the Qt src's). So what
-         * we do, is installing an event filter after the QDrag::exec is called
-         * to be last in the event filter queue and therefore called before the
-         * one installed by the QDrag object.
-         *
-         * Todo: test this on all supported platforms (X11 works) */
-        QTimer::singleShot(0, this, SLOT(sltInstallEventFilter()));
-    }
-
-    virtual QStringList formats() const { return m_formats; }
-    virtual bool hasFormat(const QString &mimeType) const { return m_formats.contains(mimeType); }
-
-public slots:
-    void sltActionChanged(Qt::DropAction action) { m_defAction = action; }
-
-protected:
-    virtual QVariant retrieveData(const QString &mimeType, QVariant::Type type) const
-    {
-        /* Mouse button released? */
-        if (m_fState != Dropped)
-            return m_data;
-
-        /* Supported types. See below in the switch statement. */
-        if (!(   type == QVariant::String
-              || type == QVariant::ByteArray))
-            return QVariant();
-
-        CGuest guest = m_session.GetConsole().GetGuest();
-        /* No, start getting the data from the guest. First inform the guest we
-         * want the data in the specified mime-type. */
-        CProgress progress = guest.DragGHDropped(mimeType, UIDnDHandler::toVBoxDnDAction(m_defAction));
-        if (guest.isOk())
-        {
-            msgCenter().showModalProgressDialog(progress, tr("Dropping data ..."), ":/progress_dnd_gh_90px.png", m_pParent);
-            if (!progress.GetCanceled())
-            {
-                if (progress.isOk() && progress.GetResultCode() == 0)
-                {
-                    /* After the data is successfully arrived from the guest, we query it from Main. */
-                    QVector<uint8_t> data = guest.DragGHGetData();
-                    if (!data.isEmpty())
-                    {
-                        /* Todo: not sure what to add here more: needs more testing. */
-                        switch (type)
-                        {
-                            case QVariant::String:
-                            {
-                                m_data = QVariant(QString(reinterpret_cast<const char*>(data.data())));
-                                break;
-                            }
-                            case QVariant::ByteArray:
-                            {
-                                QByteArray ba(reinterpret_cast<const char*>(data.constData()), data.size());
-                                m_data = QVariant(ba);
-                                break;
-                            }
-                            default: break;
-                        }
-                    }
-                    m_fState = Finished;
-                }
-                else
-                    msgCenter().cannotDropData(progress, m_pParent);
-            }
-            else
-                m_fState = Canceled;
-        }
-        else
-            msgCenter().cannotDropData(guest, m_pParent);
-        return m_data;
-    }
-
-    bool eventFilter(QObject * /* pObject */, QEvent *pEvent)
-    {
-        switch (pEvent->type())
-        {
-            case QEvent::MouseButtonRelease: m_fState = Dropped; break;
-            case QEvent::KeyPress:
-            {
-                if (static_cast<QKeyEvent*>(pEvent)->key() == Qt::Key_Escape)
-                    m_fState = Canceled;
-                break;
-            }
-        }
-
-        /* Propagate the event further. */
-        return false;
-    }
-
-private slots:
-    void sltInstallEventFilter() { qApp->installEventFilter(this); }
-
-private:
-    /* Private members. */
-    QWidget          *m_pParent;
-    CSession          m_session;
-    QStringList       m_formats;
-    Qt::DropAction    m_defAction;
-    Qt::DropActions   m_actions;
-    mutable State     m_fState;
-    mutable QVariant  m_data;
-};
-
-void UIDnDHandler::dragGHPending(CSession &session, ulong screenId, QWidget *pParent /* = 0 */)
-{
-    /* How does this work: Host is asking the guest if there is any DnD
-     * operation pending, when the mouse leaves the guest window
-     * (DragGHPending). On return there is some info about a running DnD
-     * operation (or defaultAction is KDragAndDropAction_Ignore if not). With
+    int rc;
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+    /*
+     * How this works: Source is asking the target if there is any DnD
+     * operation pending, when the mouse leaves the guest window. On
+     * return there is some info about a running DnD operation
+     * (or defaultAction is KDnDAction_Ignore if not). With
      * this information we create a Qt QDrag object with our own QMimeType
      * implementation and call exec. Please note, this *blocks* until the DnD
-     * operation has finished. */
+     * operation has finished.
+     */
     CGuest guest = session.GetConsole().GetGuest();
-    QVector<QString> formats;
-    QVector<KDragAndDropAction> actions;
-    KDragAndDropAction defaultAction = guest.DragGHPending(screenId, formats, actions);
+    QVector<QString> vecFmtGuest;
+    QVector<KDnDAction> vecActions;
+    KDnDAction defaultAction = dndSource.DragIsPending(screenId, vecFmtGuest, vecActions);
+    LogFlowFunc(("defaultAction=%d, numFormats=%d\n", defaultAction, vecFmtGuest.size()));
 
-    if (    defaultAction != KDragAndDropAction_Ignore
-        && !formats.isEmpty())
+    QStringList lstFmtNative;
+    if (defaultAction != KDnDAction_Ignore)
     {
-        QDrag *pDrag = new QDrag(pParent);
-        /* pMData is transfered to the QDrag object, so no need for deletion. */
-        UIDnDMimeData *pMData = new UIDnDMimeData(session, formats.toList(), toQtDnDAction(defaultAction), toQtDnDActions(actions), pParent);
-        /* Inform the mime data object of any changes in the current action. */
-        connect(pDrag, SIGNAL(actionChanged(Qt::DropAction)),
-                pMData, SLOT(sltActionChanged(Qt::DropAction)));
-        pDrag->setMimeData(pMData);
-        /* Fire it up. */
-        pDrag->exec(toQtDnDActions(actions), toQtDnDAction(defaultAction));
+        /*
+         * Do guest -> host format conversion, if needed.
+         * On X11 this already maps to the Xdnd protocol.
+         ** @todo What about the MacOS Carbon Drag Manager? Needs testing.
+         *
+         * See: https://www.iana.org/assignments/media-types/media-types.xhtml
+         */
+        LogFlowFunc(("Number of guest formats: %d\n", vecFmtGuest.size()));
+        for (int i = 0; i < vecFmtGuest.size(); i++)
+        {
+            const QString &strFmtGuest = vecFmtGuest.at(i);
+            LogFlowFunc(("\tFormat %d: %s\n", i,
+                         strFmtGuest.toAscii().constData()));
+# ifdef RT_OS_WINDOWS
+            /* CF_TEXT */
+            if (   strFmtGuest.contains("text/plain", Qt::CaseInsensitive)
+                && !lstFmtNative.contains("text/plain"))
+            {
+                lstFmtNative << "text/plain";
+            }
+            /* CF_HDROP */
+            else if (   strFmtGuest.contains("text/uri-list", Qt::CaseInsensitive)
+                     && !lstFmtNative.contains("text/uri-list"))
+            {
+                lstFmtNative << "text/uri-list";
+            }
+# else
+            /* On non-Windows just do a 1:1 mapping. */
+            lstFmtNative << strFmtGuest;
+#  ifdef RT_OS_MACOS
+            /** @todo Does the mapping apply here? Don't think so ... */
+#  endif
+# endif /* !RT_OS_WINDOWS */
+        }
+
+        LogFlowFunc(("Number of native formats: %d\n", lstFmtNative.size()));
+# ifdef DEBUG
+        for (int i = 0; i < lstFmtNative.size(); i++)
+            LogFlowFunc(("\tFormat %d: %s\n", i, lstFmtNative.at(i).toAscii().constData()));
+# endif
     }
+
+    if (!lstFmtNative.isEmpty())
+    {
+        UIDnDDrag *pDrag = new UIDnDDrag(session, dndSource, lstFmtNative,
+                                         toQtDnDAction(defaultAction),
+                                         toQtDnDActions(vecActions), pParent);
+        if (pDrag)
+        {
+            rc = pDrag->DoDragDrop();
+            delete pDrag;
+        }
+        else
+            rc = VERR_NO_MEMORY;
+    }
+    else /* No format data from the guest arrived yet. */
+        rc = VERR_NO_DATA;
+#else /* !VBOX_WITH_DRAG_AND_DROP_GH */
+    NOREF(session);
+    NOREF(screenId);
+    NOREF(pParent);
+
+    rc = VERR_NOT_SUPPORTED;
+#endif /* VBOX_WITH_DRAG_AND_DROP_GH */
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
 }
 
 /*
  * Drag and Drop helper methods
  */
 
-KDragAndDropAction UIDnDHandler::toVBoxDnDAction(Qt::DropAction action)
+/* static */
+KDnDAction UIDnDHandler::toVBoxDnDAction(Qt::DropAction action)
 {
     if (action == Qt::CopyAction)
-        return KDragAndDropAction_Copy;
+        return KDnDAction_Copy;
     if (action == Qt::MoveAction)
-        return KDragAndDropAction_Move;
+        return KDnDAction_Move;
     if (action == Qt::LinkAction)
-        return KDragAndDropAction_Link;
+        return KDnDAction_Link;
 
-    return KDragAndDropAction_Ignore;
+    return KDnDAction_Ignore;
 }
 
-QVector<KDragAndDropAction> UIDnDHandler::toVBoxDnDActions(Qt::DropActions actions)
+/* static */
+QVector<KDnDAction> UIDnDHandler::toVBoxDnDActions(Qt::DropActions actions)
 {
-    QVector<KDragAndDropAction> vbActions;
+    QVector<KDnDAction> vbActions;
     if (actions.testFlag(Qt::IgnoreAction))
-        vbActions << KDragAndDropAction_Ignore;
+        vbActions << KDnDAction_Ignore;
     if (actions.testFlag(Qt::CopyAction))
-        vbActions << KDragAndDropAction_Copy;
+        vbActions << KDnDAction_Copy;
     if (actions.testFlag(Qt::MoveAction))
-        vbActions << KDragAndDropAction_Move;
+        vbActions << KDnDAction_Move;
     if (actions.testFlag(Qt::LinkAction))
-        vbActions << KDragAndDropAction_Link;
+        vbActions << KDnDAction_Link;
 
     return vbActions;
 }
 
-Qt::DropAction UIDnDHandler::toQtDnDAction(KDragAndDropAction action)
+/* static */
+Qt::DropAction UIDnDHandler::toQtDnDAction(KDnDAction action)
 {
-    if (action == KDragAndDropAction_Copy)
-        return Qt::CopyAction;
-    if (action == KDragAndDropAction_Move)
-        return Qt::MoveAction;
-    if (action == KDragAndDropAction_Link)
-        return Qt::LinkAction;
+    Qt::DropAction dropAct = Qt::IgnoreAction;
+    if (action == KDnDAction_Copy)
+        dropAct = Qt::CopyAction;
+    if (action == KDnDAction_Move)
+        dropAct = Qt::MoveAction;
+    if (action == KDnDAction_Link)
+        dropAct = Qt::LinkAction;
 
-    return Qt::IgnoreAction;
+    LogFlowFunc(("dropAct=0x%x\n", dropAct));
+    return dropAct;
 }
 
-Qt::DropActions UIDnDHandler::toQtDnDActions(const QVector<KDragAndDropAction> &actions)
+/* static */
+Qt::DropActions UIDnDHandler::toQtDnDActions(const QVector<KDnDAction> &vecActions)
 {
-    Qt::DropActions a = 0;
-    for (int i = 0; i < actions.size(); ++i)
+    Qt::DropActions dropActs = Qt::IgnoreAction;
+    for (int i = 0; i < vecActions.size(); i++)
     {
-        switch (actions.at(i))
+        switch (vecActions.at(i))
         {
-            case KDragAndDropAction_Ignore: a |= Qt::IgnoreAction; break;
-            case KDragAndDropAction_Copy:   a |= Qt::CopyAction; break;
-            case KDragAndDropAction_Move:   a |= Qt::MoveAction; break;
-            case KDragAndDropAction_Link:   a |= Qt::LinkAction; break;
+            case KDnDAction_Ignore:
+                dropActs |= Qt::IgnoreAction;
+                break;
+            case KDnDAction_Copy:
+                dropActs |= Qt::CopyAction;
+                break;
+            case KDnDAction_Move:
+                dropActs |= Qt::MoveAction;
+                break;
+            case KDnDAction_Link:
+                dropActs |= Qt::LinkAction;
+                break;
+            default:
+                break;
         }
     }
-    return a;
-}
 
-#include "UIDnDHandler.moc"
+    LogFlowFunc(("dropActions=0x%x\n", int(dropActs)));
+    return dropActs;
+}
 

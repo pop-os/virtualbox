@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,7 +69,7 @@ typedef enum VDINTERFACETYPE
     VDINTERFACETYPE_QUERYRANGEUSE,
     /** Interface for the metadata traverse callback. Per-operation. */
     VDINTERFACETYPE_TRAVERSEMETADATA,
-    /** Interface for crypto opertions. Per-disk. */
+    /** Interface for crypto operations. Per-filter. */
     VDINTERFACETYPE_CRYPTO,
     /** invalid interface. */
     VDINTERFACETYPE_INVALID
@@ -794,6 +794,21 @@ DECLINLINE(bool) VDCFGAreKeysValid(PVDINTERFACECONFIG pCfgIf, const char *pszzVa
 }
 
 /**
+ * Checks whether a given key is existing.
+ *
+ * @return  true if the key exists.
+ * @return  false if the key does not exist.
+ * @param   pCfgIf      Pointer to configuration callback table.
+ * @param   pszName     Name of the key.
+ */
+DECLINLINE(bool) VDCFGIsKeyExisting(PVDINTERFACECONFIG pCfgIf, const char *pszName)
+{
+    size_t cb = 0;
+    int rc = pCfgIf->pfnQuerySize(pCfgIf->Core.pvUser, pszName, &cb);
+    return rc == VERR_CFGM_VALUE_NOT_FOUND ? false : true;
+}
+
+/**
  * Query configuration, unsigned 64-bit integer value with default.
  *
  * @return  VBox status code.
@@ -817,6 +832,27 @@ DECLINLINE(int) VDCFGQueryU64Def(PVDINTERFACECONFIG pCfgIf,
         rc = VINF_SUCCESS;
         *pu64 = u64Def;
     }
+    return rc;
+}
+
+/**
+ * Query configuration, unsigned 64-bit integer value.
+ *
+ * @return  VBox status code.
+ * @param   pCfgIf      Pointer to configuration callback table.
+ * @param   pszName     Name of an integer value
+ * @param   pu64        Where to store the value.
+ */
+DECLINLINE(int) VDCFGQueryU64(PVDINTERFACECONFIG pCfgIf, const char *pszName,
+                              uint64_t *pu64)
+{
+    char aszBuf[32];
+    int rc = pCfgIf->pfnQuery(pCfgIf->Core.pvUser, pszName, aszBuf, sizeof(aszBuf));
+    if (RT_SUCCESS(rc))
+    {
+        rc = RTStrToUInt64Full(aszBuf, 0, pu64);
+    }
+
     return rc;
 }
 
@@ -860,6 +896,24 @@ DECLINLINE(int) VDCFGQueryBoolDef(PVDINTERFACECONFIG pCfgIf,
 {
     uint64_t u64;
     int rc = VDCFGQueryU64Def(pCfgIf, pszName, &u64, fDef);
+    if (RT_SUCCESS(rc))
+        *pf = u64 ? true : false;
+    return rc;
+}
+
+/**
+ * Query configuration, bool value.
+ *
+ * @return  VBox status code.
+ * @param   pCfgIf      Pointer to configuration callback table.
+ * @param   pszName     Name of an integer value
+ * @param   pf          Where to store the value.
+ */
+DECLINLINE(int) VDCFGQueryBool(PVDINTERFACECONFIG pCfgIf, const char *pszName,
+                               bool *pf)
+{
+    uint64_t u64;
+    int rc = VDCFGQueryU64(pCfgIf, pszName, &u64);
     if (RT_SUCCESS(rc))
         *pf = u64 ? true : false;
     return rc;
@@ -1390,6 +1444,58 @@ typedef struct VDINTERFACECRYPTO
      */
     DECLR3CALLBACKMEMBER(int, pfnKeyRelease, (void *pvUser, const char *pszId));
 
+    /**
+     * Gets a reference to the password identified by the given ID to open a key store supplied through the config interface.
+     *
+     * @returns VBox status code.
+     * @param   pvUser          The opaque user data associated with this interface.
+     * @param   pszId           The alias/id for the password to retain.
+     * @param   ppszPassword    Where to store the password to unlock the key store on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyStorePasswordRetain, (void *pvUser, const char *pszId, const char **ppszPassword));
+
+    /**
+     * Releases a reference of the password previously acquired with VDINTERFACECRYPTO::pfnKeyStorePasswordRetain()
+     * identified by the given ID.
+     *
+     * @returns VBox status code.
+     * @param   pvUser          The opaque user data associated with this interface.
+     * @param   pszId           The alias/id for the password to release.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyStorePasswordRelease, (void *pvUser, const char *pszId));
+
+    /**
+     * Saves a key store.
+     *
+     * @returns VBox status code.
+     * @param   pvUser          The opaque user data associated with this interface.
+     * @param   pvKeyStore      The key store to save.
+     * @param   cbKeyStore      Size of the key store in bytes.
+     *
+     * @note The format is filter specific and should be treated as binary data.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyStoreSave, (void *pvUser, const void *pvKeyStore, size_t cbKeyStore));
+
+    /**
+     * Returns the parameters after the key store was loaded successfully.
+     *
+     * @returns VBox status code.
+     * @param   pvUser          The opaque user data associated with this interface.
+     * @param   pszCipher       The cipher identifier the DEK is used for.
+     * @param   pbDek           The raw DEK which was contained in the key store loaded by
+     *                          VDINTERFACECRYPTO::pfnKeyStoreLoad().
+     * @param   cbDek           The size of the DEK.
+     *
+     * @note The provided pointer to the DEK is only valid until this call returns.
+     *       The content might change afterwards with out notice (when scrambling the key
+     *       for further protection for example) or might be even freed.
+     *
+     * @note This method is optional and can be NULL if the caller does not require the
+     *       parameters.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnKeyStoreReturnParameters, (void *pvUser, const char *pszCipher,
+                                                            const uint8_t *pbDek, size_t cbDek));
+
 } VDINTERFACECRYPTO, *PVDINTERFACECRYPTO;
 
 
@@ -1413,7 +1519,7 @@ DECLINLINE(PVDINTERFACECRYPTO) VDIfCryptoGet(PVDINTERFACE pVDIfs)
 }
 
 /**
- * @copydoc VDINTERFACECRYPTOKEYS::pfnKeyRetain
+ * @copydoc VDINTERFACECRYPTO::pfnKeyRetain
  */
 DECLINLINE(int) vdIfCryptoKeyRetain(PVDINTERFACECRYPTO pIfCrypto, const char *pszId, const uint8_t **ppbKey, size_t *pcbKey)
 {
@@ -1421,12 +1527,49 @@ DECLINLINE(int) vdIfCryptoKeyRetain(PVDINTERFACECRYPTO pIfCrypto, const char *ps
 }
 
 /**
- * @copydoc VDINTERFACECRYPTOKEYS::pfnKeyRelease
+ * @copydoc VDINTERFACECRYPTO::pfnKeyRelease
  */
 DECLINLINE(int) vdIfCryptoKeyRelease(PVDINTERFACECRYPTO pIfCrypto, const char *pszId)
 {
     return pIfCrypto->pfnKeyRelease(pIfCrypto->Core.pvUser, pszId);
 }
+
+/**
+ * @copydoc VDINTERFACECRYPTO::pfnKeyStorePasswordRetain
+ */
+DECLINLINE(int) vdIfCryptoKeyStorePasswordRetain(PVDINTERFACECRYPTO pIfCrypto, const char *pszId, const char **ppszPassword)
+{
+    return pIfCrypto->pfnKeyStorePasswordRetain(pIfCrypto->Core.pvUser, pszId, ppszPassword);
+}
+
+/**
+ * @copydoc VDINTERFACECRYPTO::pfnKeyStorePasswordRelease
+ */
+DECLINLINE(int) vdIfCryptoKeyStorePasswordRelease(PVDINTERFACECRYPTO pIfCrypto, const char *pszId)
+{
+    return pIfCrypto->pfnKeyStorePasswordRelease(pIfCrypto->Core.pvUser, pszId);
+}
+
+/**
+ * @copydoc VDINTERFACECRYPTO::pfnKeyStoreSave
+ */
+DECLINLINE(int) vdIfCryptoKeyStoreSave(PVDINTERFACECRYPTO pIfCrypto, const void *pvKeyStore, size_t cbKeyStore)
+{
+    return pIfCrypto->pfnKeyStoreSave(pIfCrypto->Core.pvUser, pvKeyStore, cbKeyStore);
+}
+
+/**
+ * @copydoc VDINTERFACECRYPTO::pfnKeyStoreReturnParameters
+ */
+DECLINLINE(int) vdIfCryptoKeyStoreReturnParameters(PVDINTERFACECRYPTO pIfCrypto, const char *pszCipher,
+                                                   const uint8_t *pbDek, size_t cbDek)
+{
+    if (pIfCrypto->pfnKeyStoreReturnParameters)
+        return pIfCrypto->pfnKeyStoreReturnParameters(pIfCrypto->Core.pvUser, pszCipher, pbDek, cbDek);
+
+    return VINF_SUCCESS;
+}
+
 
 RT_C_DECLS_END
 

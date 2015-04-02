@@ -207,8 +207,14 @@ pxping_recv4(void *arg, struct pbuf *p)
         goto out;
     }
 
-    bufsize = sizeof(ICMP_ECHO_REPLY) + p->tot_len;
-    pong = (struct pong4 *)malloc(sizeof(*pong) - sizeof(pong->buf) + bufsize);
+    bufsize = sizeof(ICMP_ECHO_REPLY);
+    if (p->tot_len < sizeof(IO_STATUS_BLOCK) + sizeof(struct icmp_echo_hdr))
+        bufsize += sizeof(IO_STATUS_BLOCK) + sizeof(struct icmp_echo_hdr);
+    else
+        bufsize += p->tot_len;
+    bufsize += 16; /* whatever that is; empirically at least XP needs it */
+
+    pong = (struct pong4 *)malloc(RT_OFFSETOF(struct pong4, buf) + bufsize);
     if (RT_UNLIKELY(pong == NULL)) {
         goto out;
     }
@@ -484,8 +490,15 @@ pxping_recv6(void *arg, struct pbuf *p)
         goto out;
     }
 
-    bufsize = sizeof(ICMPV6_ECHO_REPLY) + p->tot_len;
-    pong = (struct pong6 *)malloc(sizeof(*pong) - sizeof(pong->buf) + bufsize);
+    /* XXX: parrotted from IPv4 version, not tested all os version/bitness */
+    bufsize = sizeof(ICMPV6_ECHO_REPLY);
+    if (p->tot_len < sizeof(IO_STATUS_BLOCK) + sizeof(struct icmp6_echo_hdr))
+        bufsize += sizeof(IO_STATUS_BLOCK) + sizeof(struct icmp6_echo_hdr);
+    else
+        bufsize += p->tot_len;
+    bufsize += 16;
+
+    pong = (struct pong6 *)malloc(RT_OFFSETOF(struct pong6, buf) + bufsize);
     if (RT_UNLIKELY(pong == NULL)) {
         goto out;
     }
@@ -549,7 +562,7 @@ pxping_recv6(void *arg, struct pbuf *p)
         }
         goto out;
     }
-    
+
     pong = NULL;                /* callback owns it now */
   out:
     if (pong != NULL) {

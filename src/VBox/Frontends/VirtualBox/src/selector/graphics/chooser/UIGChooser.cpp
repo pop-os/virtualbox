@@ -1,8 +1,6 @@
 /* $Id: UIGChooser.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGChooser class implementation
+ * VBox Qt GUI - UIGChooser class implementation.
  */
 
 /*
@@ -17,18 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QVBoxLayout>
-#include <QStatusBar>
+# include <QVBoxLayout>
+# include <QStatusBar>
 
 /* GUI includes: */
-#include "UIGChooser.h"
-#include "UIGChooserModel.h"
-#include "UIGChooserView.h"
-#include "VBoxGlobal.h"
+# include "UIGChooser.h"
+# include "UIGChooserModel.h"
+# include "UIGChooserView.h"
+# include "UISelectorWindow.h"
+# include "VBoxGlobal.h"
 
-UIGChooser::UIGChooser(QWidget *pParent)
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+UIGChooser::UIGChooser(UISelectorWindow *pParent)
     : QWidget(pParent)
+    , m_pSelectorWindow(pParent)
     , m_pMainLayout(0)
     , m_pChooserModel(0)
     , m_pChooserView(0)
@@ -57,6 +64,11 @@ UIGChooser::~UIGChooser()
 {
     /* Save: */
     save();
+}
+
+UIActionPool* UIGChooser::actionPool() const
+{
+    return selector()->actionPool();
 }
 
 UIVMItem* UIGChooser::currentItem() const

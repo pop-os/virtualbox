@@ -46,6 +46,7 @@ BIN_IFCONFIG=/sbin/ifconfig
 BIN_SVCS=/usr/bin/svcs
 BIN_ID=/usr/bin/id
 BIN_PKILL=/usr/bin/pkill
+BIN_PGREP=/usr/bin/pgrep
 
 # "vboxdrv" is also used in sed lines here (change those as well if it ever changes)
 MOD_VBOXDRV=vboxdrv
@@ -203,6 +204,10 @@ find_bins()
     if test ! -x "$BIN_PKILL"; then
         BIN_PKILL=`find_bin_path "$BIN_PKILL"`
     fi
+
+    if test ! -x "$BIN_PGREP"; then
+        BIN_PGREP=`find_bin_path "$BIN_PGREP"`
+    fi
 }
 
 # check_root()
@@ -239,7 +244,8 @@ get_sysinfo()
             # The format is "pkg://solaris/system/kernel@0.5.11,5.11-0.161:20110315T070332Z"
             #            or "pkg://solaris/system/kernel@5.12,5.11-5.12.0.0.0.4.1:20120908T030246Z"
             #            or "pkg://solaris/system/kernel@0.5.11,5.11-0.175.0.0.0.1.0:20111012T032837Z"
-            #            or "pkg://solaris/system/kernel@5.12-5.12.0.0.0.9.1.3.0:20121012T032837Z"
+            #            or "pkg://solaris/system/kernel@5.12-5.12.0.0.0.9.1.3.0:20121012T032837Z" [1]
+	    # [1]: The sed below doesn't handle this. It's instead parsed below in the PSARC/2012/240 case.
             STR_KERN_MAJOR=`echo "$PKGFMRI" | sed 's/^.*\@//;s/\,.*//'`
             if test ! -z "$STR_KERN_MAJOR"; then
                 # The format is "0.5.11" or "5.12"
@@ -835,9 +841,9 @@ is_process_running()
         exit 1
     fi
 
-    procname=$1
-    procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
-    if test ! -z "$procpid" && test "$procpid" -ge 0; then
+    procname="$1"
+    $BIN_PGREP "$procname" > /dev/null 2>&1
+    if test "$?" -eq 0; then
         return 1
     fi
     return 0
@@ -853,14 +859,13 @@ stop_process()
         exit 1
     fi
 
-    # @todo use is_process_running()
-    procname=$1
-    procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
-    if test ! -z "$procpid" && test "$procpid" -ge 0; then
+    procname="$1"
+    is_process_running "$procname"
+    if test "$?" -eq 1; then
         $BIN_PKILL "$procname"
         sleep 2
-        procpid=`ps -eo pid,fname | grep $procname | grep -v grep | awk '{ print $1 }'`
-        if test ! -z "$procpid" && test "$procpid" -ge 0; then
+        is_process_running "$procname"
+        if test "$?" -eq 1; then
             subprint "Terminating: $procname  ...FAILED!"
             if test "$fatal" = "$FATALOP"; then
                 exit 1
@@ -901,10 +906,10 @@ start_service()
     if test "$success" -eq 0; then
         $BIN_SVCADM enable -s "$3"
         if test "$?" -eq 0; then
-            subprint "Loaded: $1"
+            subprint "Enabled: $1"
             return 0
         else
-            warnprint "Loading $1  ...FAILED."
+            warnprint "Enabling $1  ...FAILED."
             warnprint "Refer $4 for details."
         fi
     else
@@ -929,9 +934,9 @@ stop_service()
         # Don't delete the manifest, this is handled by the manifest class action
         # $BIN_SVCCFG delete "$3"
         if test "$?" -eq 0; then
-            subprint "Unloaded: $1"
+            subprint "Disabled: $1"
         else
-            subprint "Unloading: $1  ...ERROR(S)."
+            subprint "Disabling: $1  ...ERROR(S)."
         fi
     fi
 }
@@ -953,6 +958,13 @@ cleanup_install()
     stop_service "Balloon control service" "virtualbox/balloonctrl" "svc:/application/virtualbox/balloonctrl:default"
     stop_service "Autostart service" "virtualbox/autostart" "svc:/application/virtualbox/autostart:default"
     stop_service "Zone access service" "virtualbox/zoneaccess" "svc:/application/virtualbox/zoneaccess:default"
+
+    # DEBUG x4600b: verify that the ZoneAccess process is really gone
+    is_process_running "VBoxZoneAccess"
+    if test "$?" -eq 1; then
+        warnprint "VBoxZoneAccess is alive despite its service being dead. Killing..."
+        stop_process "VBoxZoneAccess"
+    fi
 
     # unplumb all vboxnet instances for non-remote installs
     inst=0

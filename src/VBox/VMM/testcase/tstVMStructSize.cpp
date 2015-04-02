@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 #include "HMInternal.h"
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
+#include "GIMInternal.h"
 #include "STAMInternal.h"
 #include "VMInternal.h"
 #include "EMInternal.h"
@@ -225,6 +226,7 @@ int main()
     CHECK_PADDING_VM(64, tm);
     PRINT_OFFSET(VM, tm.s.VirtualSyncLock);
     CHECK_PADDING_VM(64, dbgf);
+    CHECK_PADDING_VM(64, gim);
     CHECK_PADDING_VM(64, ssm);
     CHECK_PADDING_VM(64, rem);
     CHECK_PADDING_VM(8, vm);
@@ -241,6 +243,7 @@ int main()
     CHECK_PADDING_VMCPU(64, pdm);
     CHECK_PADDING_VMCPU(64, iom);
     CHECK_PADDING_VMCPU(64, dbgf);
+    CHECK_PADDING_VMCPU(64, gim);
 #if 0
     PRINT_OFFSET(VMCPU, abAlignment2);
 #endif
@@ -294,7 +297,6 @@ int main()
     CHECK_SIZE_ALIGNMENT(VMCPU, 4096);
 
     /* cpumctx */
-    CHECK_MEMBER_ALIGNMENT(CPUMCTX, fpu, 32);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, rax, 32);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, idtr.pIdt, 8);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, gdtr.pGdt, 8);
@@ -404,14 +406,21 @@ int main()
 
     /* hm - 32-bit gcc won't align uint64_t naturally, so check. */
     CHECK_MEMBER_ALIGNMENT(HM, uMaxAsid, 8);
-    CHECK_MEMBER_ALIGNMENT(HM, vmx.u64HostCr4, 8);
-    CHECK_MEMBER_ALIGNMENT(HM, vmx.Msrs.u64FeatureCtrl, 8);
-    CHECK_MEMBER_ALIGNMENT(HM, StatTprPatchSuccess, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, StatEntry, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.HCPhysVmcs, sizeof(RTHCPHYS));
-    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.u32PinCtls, 8);
-    CHECK_MEMBER_ALIGNMENT(HMCPU, DisState, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, vmx, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, vmx.Msrs, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, svm, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, PatchTree, 8);
+    CHECK_MEMBER_ALIGNMENT(HM, aPatches, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.pfnStartVM, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.HCPhysVmcs, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, vmx.LastError, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, svm, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, svm.pfnVMRun, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, Event, 8);
     CHECK_MEMBER_ALIGNMENT(HMCPU, Event.u64IntInfo, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, DisState, 8);
+    CHECK_MEMBER_ALIGNMENT(HMCPU, StatEntry, 8);
 
     /* Make sure the set is large enough and has the correct size. */
     CHECK_SIZE(VMCPUSET, 32);

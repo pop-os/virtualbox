@@ -1,12 +1,10 @@
 /* $Id: UIWizardNewVD.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardNewVD class implementation
+ * VBox Qt GUI - UIWizardNewVD class implementation.
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,27 +15,34 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QVariant>
+# include <QVariant>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIWizardNewVD.h"
-#include "UIWizardNewVDPageBasic1.h"
-#include "UIWizardNewVDPageBasic2.h"
-#include "UIWizardNewVDPageBasic3.h"
-#include "UIWizardNewVDPageExpert.h"
-#include "UIMessageCenter.h"
-#include "UIMedium.h"
+# include "VBoxGlobal.h"
+# include "UIWizardNewVD.h"
+# include "UIWizardNewVDPageBasic1.h"
+# include "UIWizardNewVDPageBasic2.h"
+# include "UIWizardNewVDPageBasic3.h"
+# include "UIWizardNewVDPageExpert.h"
+# include "UIMessageCenter.h"
+# include "UIMedium.h"
 
 /* COM includes: */
-#include "CMediumFormat.h"
+# include "CMediumFormat.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardNewVD::UIWizardNewVD(QWidget *pParent,
                              const QString &strDefaultName, const QString &strDefaultPath,
                              qulonglong uDefaultSize,
-                             UIWizardMode mode)
-    : UIWizard(pParent, UIWizardType_NewVD, mode)
+                             WizardMode mode)
+    : UIWizard(pParent, WizardType_NewVD, mode)
     , m_strDefaultName(strDefaultName)
     , m_strDefaultPath(strDefaultPath)
     , m_uDefaultSize(uDefaultSize)
@@ -66,7 +71,7 @@ bool UIWizardNewVD::createVirtualDisk()
     CVirtualBox vbox = vboxGlobal().virtualBox();
 
     /* Create new virtual hard-disk: */
-    CMedium virtualDisk = vbox.CreateHardDisk(mediumFormat.GetName(), strMediumPath);
+    CMedium virtualDisk = vbox.CreateMedium(mediumFormat.GetName(), strMediumPath, KAccessMode_ReadWrite, KDeviceType_HardDisk);
     if (!vbox.isOk())
     {
         msgCenter().cannotCreateHardDiskStorage(vbox, strMediumPath, this);
@@ -124,14 +129,14 @@ void UIWizardNewVD::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case UIWizardMode_Basic:
+        case WizardMode_Basic:
         {
             setPage(Page1, new UIWizardNewVDPageBasic1);
             setPage(Page2, new UIWizardNewVDPageBasic2);
             setPage(Page3, new UIWizardNewVDPageBasic3(m_strDefaultName, m_strDefaultPath, m_uDefaultSize));
             break;
         }
-        case UIWizardMode_Expert:
+        case WizardMode_Expert:
         {
             setPage(PageExpert, new UIWizardNewVDPageExpert(m_strDefaultName, m_strDefaultPath, m_uDefaultSize));
             break;

@@ -21,45 +21,10 @@
 
 <xsl:strip-space elements="*"/>
 
+<!-- Whether to generate proxy code and type library ('yes'), or just the type-library. -->
+<xsl:param name="g_fGenProxy" select="'no'"/>
 
-<!--
-//  helper definitions
-/////////////////////////////////////////////////////////////////////////////
--->
-
-<!--
- *  capitalizes the first letter
--->
-<xsl:template name="capitalize">
-  <xsl:param name="str" select="."/>
-  <xsl:value-of select="
-    concat(
-      translate(substring($str,1,1),'abcdefghijklmnopqrstuvwxyz','ABCDEFGHIJKLMNOPQRSTUVWXYZ'),
-      substring($str,2)
-    )
-  "/>
-</xsl:template>
-
-<!--
- *  uncapitalizes the first letter only if the second one is not capital
- *  otherwise leaves the string unchanged
--->
-<xsl:template name="uncapitalize">
-  <xsl:param name="str" select="."/>
-  <xsl:choose>
-    <xsl:when test="not(contains('ABCDEFGHIJKLMNOPQRSTUVWXYZ', substring($str,2,1)))">
-      <xsl:value-of select="
-        concat(
-          translate(substring($str,1,1),'ABCDEFGHIJKLMNOPQRSTUVWXYZ','abcdefghijklmnopqrstuvwxyz'),
-          substring($str,2)
-        )
-      "/>
-    </xsl:when>
-    <xsl:otherwise>
-      <xsl:value-of select="string($str)"/>
-    </xsl:otherwise>
-  </xsl:choose>
-</xsl:template>
+<xsl:include href="typemap-shared.inc.xsl"/>
 
 
 <!--
@@ -143,7 +108,22 @@
 <!--
  *  libraries
 -->
-<xsl:template match="library">[
+<xsl:template match="library">
+  <xsl:if test="$g_fGenProxy = 'yes'">
+    <!-- Declare everything outside the library and then reference these
+         from inside the library statement.  See:
+         http://msdn.microsoft.com/en-us/library/windows/desktop/aa366841(v=vs.85).aspx -->
+    <xsl:text>&#x0A;</xsl:text>
+    <!-- forward declarations -->
+    <xsl:apply-templates select="if | interface" mode="forward"/>
+    <xsl:text>&#x0A;</xsl:text>
+    <!-- all enums go first -->
+    <xsl:apply-templates select="enum | if/enum"/>
+    <!-- declare the interfaces -->
+    <xsl:apply-templates select="if | interface"/>
+  </xsl:if>
+
+[
     uuid(<xsl:value-of select="@uuid"/>),
     version(<xsl:value-of select="@version"/>),
     helpstring("<xsl:value-of select="@desc"/>")
@@ -157,14 +137,25 @@
     <xsl:apply-templates select="."/>
   </xsl:for-each>
   <xsl:text>&#x0A;</xsl:text>
-  <!-- forward declarations -->
-  <xsl:apply-templates select="if | interface" mode="forward"/>
   <xsl:text>&#x0A;</xsl:text>
-  <!-- all enums go first -->
-  <xsl:apply-templates select="enum | if/enum"/>
-  <!-- everything else but result codes and enums -->
-  <xsl:apply-templates select="*[not(self::result or self::enum) and
-                                 not(self::if[result] or self::if[enum])]"/>
+  <xsl:choose>
+    <xsl:when test="$g_fGenProxy = 'yes'">
+      <!-- reference enums and interfaces -->
+      <xsl:apply-templates select="if | interface" mode="forward"/>
+      <xsl:apply-templates select="enum | if/enum" mode="forward"/>
+      <!-- the modules (i.e. everything else) -->
+      <xsl:apply-templates select="module | if/module"/>
+    </xsl:when>
+    <xsl:otherwise>
+      <!-- forward declarations -->
+      <xsl:apply-templates select="if | interface" mode="forward"/>
+      <!-- all enums go first -->
+      <xsl:apply-templates select="enum | if/enum"/>
+      <!-- everything else but result codes and enums -->
+      <xsl:apply-templates select="*[not(self::result or self::enum) and
+                                     not(self::if[result] or self::if[enum])]"/>
+    </xsl:otherwise>
+  </xsl:choose>
   <!-- -->
   <xsl:text>}; /* library </xsl:text>
   <xsl:value-of select="@name"/>
@@ -192,6 +183,13 @@
 </xsl:template>
 
 
+<xsl:template match="enum" mode="forward">
+  <xsl:text>enum </xsl:text>
+  <xsl:value-of select="@name"/>
+  <xsl:text>;&#x0A;&#x0A;</xsl:text>
+</xsl:template>
+
+
 <!--
  *  interfaces
 -->
@@ -207,9 +205,13 @@
   <xsl:choose>
     <xsl:when test="@extends='$unknown'">IDispatch</xsl:when>
     <xsl:when test="@extends='$errorinfo'">IErrorInfo</xsl:when>
+    <!-- TODO/FIXME/BUGBUG: The above $errorinfo value causes the following warning (/W4):
+warning MIDL2460 : dual interface should be derived from IDispatch : IVirtualBoxErrorInfo [ Interface 'IVirtualBoxErrorInfo'  ]
+    -->
     <xsl:otherwise><xsl:value-of select="@extends"/></xsl:otherwise>
   </xsl:choose>
-  <xsl:text>&#x0A;{&#x0A;</xsl:text>
+  <xsl:call-template name="xsltprocNewlineOutputHack"/>
+  <xsl:text>{&#x0A;</xsl:text>
   <!-- attributes (properties) -->
   <xsl:apply-templates select="attribute"/>
   <!-- methods -->

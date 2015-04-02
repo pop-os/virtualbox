@@ -1,8 +1,6 @@
 /* $Id: UIAnimationFramework.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIAnimationFramework class implementation
+ * VBox Qt GUI - UIAnimationFramework class implementation.
  */
 
 /*
@@ -17,14 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QWidget>
-#include <QStateMachine>
-#include <QPropertyAnimation>
-#include <QSignalTransition>
+# include <QWidget>
+# include <QStateMachine>
+# include <QPropertyAnimation>
+# include <QSignalTransition>
 
 /* GUI includes: */
-#include "UIAnimationFramework.h"
+# include "UIAnimationFramework.h"
+
+/* Other VBox includes: */
+# include "iprt/assert.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* static */
 UIAnimation* UIAnimation::installPropertyAnimation(QWidget *pTarget, const char *pszPropertyName,
@@ -68,13 +76,18 @@ UIAnimation::UIAnimation(QWidget *pParent, const char *pszPropertyName,
 
 void UIAnimation::prepare()
 {
+    /* Make sure parent asigned: */
+    AssertPtrReturnVoid(parent());
+
     /* Prepare animation-machine: */
     m_pAnimationMachine = new QStateMachine(this);
     /* Create 'start' state: */
     m_pStateStart = new QState(m_pAnimationMachine);
+    m_pStateStart->assignProperty(parent(), "AnimationState", QString("Start"));
     connect(m_pStateStart, SIGNAL(propertiesAssigned()), this, SIGNAL(sigStateEnteredStart()));
     /* Create 'final' state: */
     m_pStateFinal = new QState(m_pAnimationMachine);
+    m_pStateFinal->assignProperty(parent(), "AnimationState", QString("Final"));
     connect(m_pStateFinal, SIGNAL(propertiesAssigned()), this, SIGNAL(sigStateEnteredFinal()));
 
     /* Prepare 'forward' animation: */

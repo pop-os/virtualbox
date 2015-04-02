@@ -49,6 +49,7 @@
 #include <VBox/err.h>
 
 #include <VBox/log.h>
+#include <iprt/alloca.h>
 #include <iprt/semaphore.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -197,7 +198,7 @@ CPUWriteMemoryFunc *g_apfnHandlerWrite[3] =
 };
 
 
-#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
+#ifdef VBOX_WITH_DEBUGGER
 /*
  * Debugger commands.
  */
@@ -320,8 +321,8 @@ REMR3DECL(int) REMR3Init(PVM pVM)
         return VERR_GENERAL_FAILURE;
     }
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-    CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext3_features, &pVM->rem.s.Env.cpuid_ext2_features);
+    CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+    CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext3_features, &pVM->rem.s.Env.cpuid_ext2_features);
 
     EMRemLock(pVM);
     cpu_reset(&pVM->rem.s.Env);
@@ -360,7 +361,7 @@ REMR3DECL(int) REMR3Init(PVM pVM)
     if (RT_FAILURE(rc))
         return rc;
 
-#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
+#ifdef VBOX_WITH_DEBUGGER
     /*
      * Debugger commands.
      */
@@ -734,8 +735,8 @@ static DECLCALLBACK(int) remR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
      * Get the CPUID features.
      */
     PVMCPU pVCpu = VMMGetCpu(pVM);
-    CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-    CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
+    CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+    CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
 
     /*
      * Stop ignoring ignorable notifications.
@@ -1388,7 +1389,12 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
 
     if (HMIsEnabled(env->pVM))
     {
+#ifdef RT_OS_WINDOWS
+        PCPUMCTX pCtx = alloca(sizeof(*pCtx));
+#else
         CPUMCTX Ctx;
+        PCPUMCTX pCtx = &Ctx;
+#endif
 
         env->state |= CPU_RAW_HM;
 
@@ -1401,84 +1407,84 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         /*
          * Create partial context for HMR3CanExecuteGuest
          */
-        Ctx.cr0            = env->cr[0];
-        Ctx.cr3            = env->cr[3];
-        Ctx.cr4            = env->cr[4];
+        pCtx->cr0            = env->cr[0];
+        pCtx->cr3            = env->cr[3];
+        pCtx->cr4            = env->cr[4];
 
-        Ctx.tr.Sel         = env->tr.selector;
-        Ctx.tr.ValidSel    = env->tr.selector;
-        Ctx.tr.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.tr.u64Base     = env->tr.base;
-        Ctx.tr.u32Limit    = env->tr.limit;
-        Ctx.tr.Attr.u      = (env->tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->tr.Sel         = env->tr.selector;
+        pCtx->tr.ValidSel    = env->tr.selector;
+        pCtx->tr.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->tr.u64Base     = env->tr.base;
+        pCtx->tr.u32Limit    = env->tr.limit;
+        pCtx->tr.Attr.u      = (env->tr.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.ldtr.Sel       = env->ldt.selector;
-        Ctx.ldtr.ValidSel  = env->ldt.selector;
-        Ctx.ldtr.fFlags    = CPUMSELREG_FLAGS_VALID;
-        Ctx.ldtr.u64Base   = env->ldt.base;
-        Ctx.ldtr.u32Limit  = env->ldt.limit;
-        Ctx.ldtr.Attr.u    = (env->ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->ldtr.Sel       = env->ldt.selector;
+        pCtx->ldtr.ValidSel  = env->ldt.selector;
+        pCtx->ldtr.fFlags    = CPUMSELREG_FLAGS_VALID;
+        pCtx->ldtr.u64Base   = env->ldt.base;
+        pCtx->ldtr.u32Limit  = env->ldt.limit;
+        pCtx->ldtr.Attr.u    = (env->ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.idtr.cbIdt     = env->idt.limit;
-        Ctx.idtr.pIdt      = env->idt.base;
+        pCtx->idtr.cbIdt     = env->idt.limit;
+        pCtx->idtr.pIdt      = env->idt.base;
 
-        Ctx.gdtr.cbGdt     = env->gdt.limit;
-        Ctx.gdtr.pGdt      = env->gdt.base;
+        pCtx->gdtr.cbGdt     = env->gdt.limit;
+        pCtx->gdtr.pGdt      = env->gdt.base;
 
-        Ctx.rsp            = env->regs[R_ESP];
-        Ctx.rip            = env->eip;
+        pCtx->rsp            = env->regs[R_ESP];
+        pCtx->rip            = env->eip;
 
-        Ctx.eflags.u32     = env->eflags;
+        pCtx->eflags.u32     = env->eflags;
 
-        Ctx.cs.Sel         = env->segs[R_CS].selector;
-        Ctx.cs.ValidSel    = env->segs[R_CS].selector;
-        Ctx.cs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.cs.u64Base     = env->segs[R_CS].base;
-        Ctx.cs.u32Limit    = env->segs[R_CS].limit;
-        Ctx.cs.Attr.u      = (env->segs[R_CS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->cs.Sel         = env->segs[R_CS].selector;
+        pCtx->cs.ValidSel    = env->segs[R_CS].selector;
+        pCtx->cs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->cs.u64Base     = env->segs[R_CS].base;
+        pCtx->cs.u32Limit    = env->segs[R_CS].limit;
+        pCtx->cs.Attr.u      = (env->segs[R_CS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.ds.Sel         = env->segs[R_DS].selector;
-        Ctx.ds.ValidSel    = env->segs[R_DS].selector;
-        Ctx.ds.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.ds.u64Base     = env->segs[R_DS].base;
-        Ctx.ds.u32Limit    = env->segs[R_DS].limit;
-        Ctx.ds.Attr.u      = (env->segs[R_DS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->ds.Sel         = env->segs[R_DS].selector;
+        pCtx->ds.ValidSel    = env->segs[R_DS].selector;
+        pCtx->ds.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->ds.u64Base     = env->segs[R_DS].base;
+        pCtx->ds.u32Limit    = env->segs[R_DS].limit;
+        pCtx->ds.Attr.u      = (env->segs[R_DS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.es.Sel         = env->segs[R_ES].selector;
-        Ctx.es.ValidSel    = env->segs[R_ES].selector;
-        Ctx.es.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.es.u64Base     = env->segs[R_ES].base;
-        Ctx.es.u32Limit    = env->segs[R_ES].limit;
-        Ctx.es.Attr.u      = (env->segs[R_ES].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->es.Sel         = env->segs[R_ES].selector;
+        pCtx->es.ValidSel    = env->segs[R_ES].selector;
+        pCtx->es.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->es.u64Base     = env->segs[R_ES].base;
+        pCtx->es.u32Limit    = env->segs[R_ES].limit;
+        pCtx->es.Attr.u      = (env->segs[R_ES].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.fs.Sel         = env->segs[R_FS].selector;
-        Ctx.fs.ValidSel    = env->segs[R_FS].selector;
-        Ctx.fs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.fs.u64Base     = env->segs[R_FS].base;
-        Ctx.fs.u32Limit    = env->segs[R_FS].limit;
-        Ctx.fs.Attr.u      = (env->segs[R_FS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->fs.Sel         = env->segs[R_FS].selector;
+        pCtx->fs.ValidSel    = env->segs[R_FS].selector;
+        pCtx->fs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->fs.u64Base     = env->segs[R_FS].base;
+        pCtx->fs.u32Limit    = env->segs[R_FS].limit;
+        pCtx->fs.Attr.u      = (env->segs[R_FS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.gs.Sel         = env->segs[R_GS].selector;
-        Ctx.gs.ValidSel    = env->segs[R_GS].selector;
-        Ctx.gs.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.gs.u64Base     = env->segs[R_GS].base;
-        Ctx.gs.u32Limit    = env->segs[R_GS].limit;
-        Ctx.gs.Attr.u      = (env->segs[R_GS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->gs.Sel         = env->segs[R_GS].selector;
+        pCtx->gs.ValidSel    = env->segs[R_GS].selector;
+        pCtx->gs.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->gs.u64Base     = env->segs[R_GS].base;
+        pCtx->gs.u32Limit    = env->segs[R_GS].limit;
+        pCtx->gs.Attr.u      = (env->segs[R_GS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.ss.Sel         = env->segs[R_SS].selector;
-        Ctx.ss.ValidSel    = env->segs[R_SS].selector;
-        Ctx.ss.fFlags      = CPUMSELREG_FLAGS_VALID;
-        Ctx.ss.u64Base     = env->segs[R_SS].base;
-        Ctx.ss.u32Limit    = env->segs[R_SS].limit;
-        Ctx.ss.Attr.u      = (env->segs[R_SS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
+        pCtx->ss.Sel         = env->segs[R_SS].selector;
+        pCtx->ss.ValidSel    = env->segs[R_SS].selector;
+        pCtx->ss.fFlags      = CPUMSELREG_FLAGS_VALID;
+        pCtx->ss.u64Base     = env->segs[R_SS].base;
+        pCtx->ss.u32Limit    = env->segs[R_SS].limit;
+        pCtx->ss.Attr.u      = (env->segs[R_SS].flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
 
-        Ctx.msrEFER        = env->efer;
+        pCtx->msrEFER        = env->efer;
 
         /* Hardware accelerated raw-mode:
          *
          * Typically only 32-bits protected mode, with paging enabled, code is allowed here.
          */
-        if (HMR3CanExecuteGuest(env->pVM, &Ctx) == true)
+        if (HMR3CanExecuteGuest(env->pVM, pCtx) == true)
         {
             *piException = EXCP_EXECUTE_HM;
             return true;
@@ -2236,6 +2242,11 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
         }
     }
 
+    /* Update the inhibit NMI mask. */
+    pVM->rem.s.Env.hflags2 &= ~HF2_NMI_MASK;
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+        pVM->rem.s.Env.hflags2 |= HF2_NMI_MASK;
+
     /*
      * Sync the A20 gate.
      */
@@ -2340,13 +2351,13 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
             /*
              * Get the CPUID features.
              */
-            CPUMGetGuestCpuId(pVCpu,          1, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
-            CPUMGetGuestCpuId(pVCpu, 0x80000001, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
+            CPUMGetGuestCpuId(pVCpu,          1, 0, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext_features, &pVM->rem.s.Env.cpuid_features);
+            CPUMGetGuestCpuId(pVCpu, 0x80000001, 0, &u32Dummy, &u32Dummy, &u32Dummy, &pVM->rem.s.Env.cpuid_ext2_features);
         }
 
         /* Sync FPU state after CR4, CPUID and EFER (!). */
         if (fFlags & CPUM_CHANGED_FPU_REM)
-            save_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu); /* 'save' is an excellent name. */
+            save_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->pXStateR3->x87); /* 'save' is an excellent name. */
     }
 
     /*
@@ -2539,7 +2550,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     /** @todo DS */
 
     /** @todo check if FPU/XMM was actually used in the recompiler */
-    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu);
+    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->pXStateR3->x87);
 ////    dprintf2(("FPU state CW=%04X TT=%04X SW=%04X (%04X)\n", env->fpuc, env->fpstt, env->fpus, pVMCtx->fpu.FSW));
 
 #ifdef TARGET_X86_64
@@ -2724,6 +2735,18 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS);
     }
 
+    /* Inhibit NMI flag. */
+    if (pVM->rem.s.Env.hflags2 & HF2_NMI_MASK)
+    {
+        Log(("Settings VMCPU_FF_BLOCK_NMIS at %RGv (REM)\n", (RTGCPTR)pCtx->rip));
+        VMCPU_FF_SET(pVCpu, VMCPU_FF_BLOCK_NMIS);
+    }
+    else if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+    {
+        Log(("Clearing VMCPU_FF_BLOCK_NMIS at %RGv (REM)\n", (RTGCPTR)pCtx->rip));
+        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_BLOCK_NMIS);
+    }
+
     remR3TrapClear(pVM);
 
     /*
@@ -2792,17 +2815,18 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
      * This is done in the order they are declared in the CPUMCTX structure.
      */
 
+    PX86FXSTATE pFpuCtx = &pCtx->pXStateR3->x87;
     /** @todo FOP */
     /** @todo FPUIP */
     /** @todo CS */
     /** @todo FPUDP */
     /** @todo DS */
     /** @todo Fix MXCSR support in QEMU so we don't overwrite MXCSR with 0 when we shouldn't! */
-    pCtx->fpu.MXCSR         = 0;
-    pCtx->fpu.MXCSR_MASK    = 0;
+    pFpuCtx->MXCSR       = 0;
+    pFpuCtx->MXCSR_MASK  = 0;
 
     /** @todo check if FPU/XMM was actually used in the recompiler */
-    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)&pCtx->fpu);
+    restore_raw_fp_state(&pVM->rem.s.Env, (uint8_t *)pFpuCtx);
 ////    dprintf2(("FPU state CW=%04X TT=%04X SW=%04X (%04X)\n", env->fpuc, env->fpstt, env->fpus, pVMCtx->fpu.FSW));
 
 #ifdef TARGET_X86_64
@@ -3950,11 +3974,12 @@ REMR3DECL(int) REMR3DisasEnableStepping(PVM pVM, bool fEnable)
 }
 
 
-#if defined(VBOX_WITH_DEBUGGER) && !(defined(RT_OS_WINDOWS) && defined(RT_ARCH_AMD64))
+#ifdef VBOX_WITH_DEBUGGER
 /**
  * External Debugger Command: .remstep [on|off|1|0]
  */
-static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM,
+                                                     PCDBGCVAR paArgs, unsigned cArgs)
 {
     int rc;
     PVM pVM = pUVM->pVM;
@@ -3985,7 +4010,7 @@ static DECLCALLBACK(int) remR3CmdDisasEnableStepping(PCDBGCCMD pCmd, PDBGCCMDHLP
     }
     return rc;
 }
-#endif /* VBOX_WITH_DEBUGGER && !win.amd64 */
+#endif /* VBOX_WITH_DEBUGGER */
 
 
 /**
@@ -4495,13 +4520,13 @@ void cpu_set_apic_base(CPUX86State *env, uint64_t val)
 uint64_t cpu_get_apic_base(CPUX86State *env)
 {
     uint64_t u64;
-    int rc = CPUMQueryGuestMsr(env->pVCpu, MSR_IA32_APICBASE, &u64);
-    if (RT_SUCCESS(rc))
+    VBOXSTRICTRC rcStrict = CPUMQueryGuestMsr(env->pVCpu, MSR_IA32_APICBASE, &u64);
+    if (RT_SUCCESS(rcStrict))
     {
         LogFlow(("cpu_get_apic_base: returns %#llx \n", u64));
         return u64;
     }
-    LogFlow(("cpu_get_apic_base: returns 0 (rc=%Rrc)\n", rc));
+    LogFlow(("cpu_get_apic_base: returns 0 (rc=%Rrc)\n", VBOXSTRICTRC_VAL(rcStrict)));
     return 0;
 }
 
@@ -4688,7 +4713,7 @@ void cpu_x86_cpuid(CPUX86State *env, uint32_t idx, uint32_t idxSub,
                    uint32_t *pEAX, uint32_t *pEBX, uint32_t *pECX, uint32_t *pEDX)
 {
     NOREF(idxSub);
-    CPUMGetGuestCpuId(env->pVCpu, idx, pEAX, pEBX, pECX, pEDX);
+    CPUMGetGuestCpuId(env->pVCpu, idx, idxSub, pEAX, pEBX, pECX, pEDX);
 }
 
 

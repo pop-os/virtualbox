@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,6 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBO
 
 SRCS = \
 	VBoxGuest.c \
-	VBoxGuest2.c \
 	VBoxGuest-freebsd.c \
 	GenericRequest.c \
 	HGCMInternal.c \
@@ -150,7 +149,8 @@ SRCS += \
 	spinlock-r0drv-freebsd.c \
 	thread-r0drv-freebsd.c \
 	thread2-r0drv-freebsd.c \
-	time-r0drv-freebsd.c
+	time-r0drv-freebsd.c \
+	timer-r0drv-freebsd.c
 
 .PATH:	${.CURDIR}/r0drv/generic
 SRCS += \

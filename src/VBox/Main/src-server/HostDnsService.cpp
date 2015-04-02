@@ -75,18 +75,12 @@ bool HostDnsInformation::equals(const HostDnsInformation &info) const
 }
 
 inline static void detachVectorOfString(const std::vector<std::string>& v,
-                                        ComSafeArrayOut(BSTR, aBstrArray))
+                                        std::vector<com::Utf8Str> &aArray)
 {
-    com::SafeArray<BSTR> aBstr(v.size());
-
-    std::vector<std::string>::const_iterator it;
-
-    int i = 0;
-    it = v.begin();
-    for (; it != v.end(); ++it, ++i)
-        Utf8Str(it->c_str()).cloneTo(&aBstr[i]);
-
-    aBstr.detachTo(ComSafeArrayOutArg(aBstrArray));
+    aArray.resize(v.size());
+    size_t i = 0;
+    for (std::vector<std::string>::const_iterator it = v.begin(); it != v.end(); ++it, ++i)
+        aArray[i] = Utf8Str(it->c_str());
 }
 
 struct HostDnsMonitor::Data
@@ -208,6 +202,11 @@ void HostDnsMonitor::setInfo(const HostDnsInformation &info)
     if (info.equals(m->info))
         return;
 
+    LogRel(("HostDnsMonitor: old information\n"));
+    dumpHostDnsInformation(m->info);
+    LogRel(("HostDnsMonitor: new information\n"));
+    dumpHostDnsInformation(info);
+
     m->info = info;
 
     std::vector<PCHostDnsMonitorProxy>::const_iterator it;
@@ -273,10 +272,10 @@ void HostDnsMonitorProxy::notify() const
 {
     LogRel(("HostDnsMonitorProxy::notify\n"));
     m->fModified = true;
-    const_cast<VirtualBox *>(m->virtualbox)->onHostNameResolutionConfigurationChange();
+    const_cast<VirtualBox *>(m->virtualbox)->i_onHostNameResolutionConfigurationChange();
 }
 
-HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
+HRESULT HostDnsMonitorProxy::GetNameServers(std::vector<com::Utf8Str> &aNameServers)
 {
     AssertReturn(m && m->info, E_FAIL);
     ALock l(this);
@@ -287,12 +286,12 @@ HRESULT HostDnsMonitorProxy::GetNameServers(ComSafeArrayOut(BSTR, aNameServers))
     LogRel(("HostDnsMonitorProxy::GetNameServers:\n"));
     dumpHostDnsStrVector("name server", m->info->servers);
 
-    detachVectorOfString(m->info->servers, ComSafeArrayOutArg(aNameServers));
+    detachVectorOfString(m->info->servers, aNameServers);
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
+HRESULT HostDnsMonitorProxy::GetDomainName(com::Utf8Str *pDomainName)
 {
     AssertReturn(m && m->info, E_FAIL);
     ALock l(this);
@@ -303,12 +302,12 @@ HRESULT HostDnsMonitorProxy::GetDomainName(BSTR *aDomainName)
     LogRel(("HostDnsMonitorProxy::GetDomainName: %s\n",
             m->info->domain.empty() ? "no domain set" : m->info->domain.c_str()));
 
-    Utf8Str(m->info->domain.c_str()).cloneTo(aDomainName);
+    *pDomainName = m->info->domain.c_str();
 
     return S_OK;
 }
 
-HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrings))
+HRESULT HostDnsMonitorProxy::GetSearchStrings(std::vector<com::Utf8Str> &aSearchStrings)
 {
     AssertReturn(m && m->info, E_FAIL);
     ALock l(this);
@@ -319,7 +318,7 @@ HRESULT HostDnsMonitorProxy::GetSearchStrings(ComSafeArrayOut(BSTR, aSearchStrin
     LogRel(("HostDnsMonitorProxy::GetSearchStrings:\n"));
     dumpHostDnsStrVector("search string", m->info->searchList);
 
-    detachVectorOfString(m->info->searchList, ComSafeArrayOutArg(aSearchStrings));
+    detachVectorOfString(m->info->searchList, aSearchStrings);
 
     return S_OK;
 }
@@ -340,15 +339,9 @@ void HostDnsMonitorProxy::updateInfo()
     HostDnsInformation *info = new HostDnsInformation(m->monitor->getInfo());
     HostDnsInformation *old = m->info;
 
-    LogRel(("HostDnsMonitorProxy: Host's DNS information updated:\n"));
-    dumpHostDnsInformation(*info);
-
     m->info = info;
     if (old)
     {
-        LogRel(("HostDnsMonitorProxy: Old host information:\n"));
-        dumpHostDnsInformation(*old);
-
         delete old;
     }
 

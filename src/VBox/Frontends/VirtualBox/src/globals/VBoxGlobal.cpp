@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,197 +15,178 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QProgressDialog>
+# include <QFileDialog>
+# include <QToolTip>
+# include <QTranslator>
+# include <QDesktopWidget>
+# include <QDesktopServices>
+# include <QMutex>
+# include <QToolButton>
+# include <QProcess>
+# include <QThread>
+# include <QPainter>
+# include <QTimer>
+# include <QDir>
+# include <QLocale>
+# include <QSpinBox>
+
+# ifdef Q_WS_WIN
+#  include <QEventLoop>
+# endif /* Q_WS_WIN */
+
+# ifdef Q_WS_X11
+#  include <QTextBrowser>
+#  include <QScrollBar>
+#  include <QX11Info>
+# endif /* Q_WS_X11 */
+
+# ifdef VBOX_GUI_WITH_PIDFILE
+#  include <QTextStream>
+# endif /* VBOX_GUI_WITH_PIDFILE */
+
+/* GUI includes: */
+# include "VBoxGlobal.h"
+# include "VBoxUtils.h"
+# include "UISelectorWindow.h"
+# include "UIMessageCenter.h"
+# include "UIPopupCenter.h"
+# include "QIMessageBox.h"
+# include "QIDialogButtonBox.h"
+# include "UIIconPool.h"
+# include "UIShortcutPool.h"
+# include "UIExtraDataManager.h"
+# include "QIFileDialog.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UINetworkManager.h"
+#  include "UIUpdateManager.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+# include "UIMachine.h"
+# include "UISession.h"
+# include "UIConverter.h"
+# include "UIMediumEnumerator.h"
+# include "UIMedium.h"
+# include "UIModalWindowManager.h"
+# include "UIIconPool.h"
+# include "UIVirtualBoxEventHandler.h"
+
+# ifdef Q_WS_X11
+#  include "UIHostComboEditor.h"
+#  ifndef VBOX_OSE
+#  include "VBoxLicenseViewer.h"
+#  endif /* VBOX_OSE */
+# endif /* Q_WS_X11 */
+
+# ifdef Q_WS_MAC
+#  include "VBoxUtils-darwin.h"
+#  include "UIMachineWindowFullscreen.h"
+#  include "UIMachineWindowSeamless.h"
+# endif /* Q_WS_MAC */
+
+# ifdef VBOX_WITH_VIDEOHWACCEL
+#  include "VBoxFBOverlay.h"
+# endif /* VBOX_WITH_VIDEOHWACCEL */
+
+/* COM includes: */
+# include "CMachine.h"
+# include "CSystemProperties.h"
+# include "CUSBDevice.h"
+# include "CUSBDeviceFilters.h"
+# include "CUSBDeviceFilter.h"
+# include "CBIOSSettings.h"
+# include "CVRDEServer.h"
+# include "CStorageController.h"
+# include "CMediumAttachment.h"
+# include "CAudioAdapter.h"
+# include "CNetworkAdapter.h"
+# include "CSerialPort.h"
+# include "CParallelPort.h"
+# include "CUSBController.h"
+# include "CHostUSBDevice.h"
+# include "CHostVideoInputDevice.h"
+# include "CMediumFormat.h"
+# include "CSharedFolder.h"
+# include "CConsole.h"
+# include "CSnapshot.h"
+
+/* Other VBox includes: */
+# include <iprt/asm.h>
+# include <iprt/param.h>
+# include <iprt/path.h>
+# include <iprt/env.h>
+# include <iprt/ldr.h>
+# include <iprt/system.h>
+# include <iprt/stream.h>
+# ifdef Q_WS_X11
+#  include <iprt/mem.h>
+# endif /* Q_WS_X11 */
+
+# include <VBox/sup.h>
+# include <VBox/com/Guid.h>
+
+# ifdef Q_WS_WIN
+#  include "shlobj.h"
+# endif /* Q_WS_WIN */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* VirtualBox interface declarations: */
+#ifndef VBOX_WITH_XPCOM
+# include "VirtualBox.h"
+#else /* !VBOX_WITH_XPCOM */
+# include "VirtualBox_XPCOM.h"
+#endif /* VBOX_WITH_XPCOM */
+
 #include <QLibraryInfo>
-#include <QFileDialog>
-#include <QToolTip>
-#include <QTranslator>
-#include <QDesktopWidget>
-#include <QDesktopServices>
-#include <QMutex>
-#include <QReadLocker>
-#include <QToolButton>
-#include <QProcess>
-#include <QThread>
-#include <QPainter>
-#include <QSettings>
-#include <QTimer>
-#include <QDir>
-#include <QLocale>
+#include <QProgressDialog>
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
 # include <QNetworkProxy>
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#include <QSpinBox>
+#include <QReadLocker>
+#include <QSettings>
 #include <QStyleOptionSpinBox>
 
-#ifdef Q_WS_WIN
-# include <QEventLoop>
-#endif /* Q_WS_WIN */
+#include <VBox/VBoxOGL.h>
+#include <VBox/vd.h>
 
-#ifdef Q_WS_X11
-# include <QTextBrowser>
-# include <QScrollBar>
-# include <QX11Info>
-#endif /* Q_WS_X11 */
-
-#ifdef VBOX_GUI_WITH_PIDFILE
-# include <QTextStream>
-#endif /* VBOX_GUI_WITH_PIDFILE */
-
-/* GUI includes: */
-#include "VBoxGlobal.h"
-#include "VBoxUtils.h"
-#include "UISelectorWindow.h"
-#include "UIMessageCenter.h"
-#include "UIPopupCenter.h"
-#include "QIMessageBox.h"
-#include "QIDialogButtonBox.h"
-#include "UIIconPool.h"
-#include "UIShortcutPool.h"
-#include "UIActionPoolSelector.h"
-#include "UIActionPoolRuntime.h"
-#include "UIExtraDataEventHandler.h"
-#include "QIFileDialog.h"
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include "UINetworkManager.h"
-# include "UIUpdateManager.h"
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#include "UIMachine.h"
-#include "UISession.h"
-#include "UIConverter.h"
-#include "UIMediumEnumerator.h"
-#include "UIMedium.h"
-
-#ifdef Q_WS_X11
-# include "UIHostComboEditor.h"
-# ifndef VBOX_OSE
-#  include "VBoxLicenseViewer.h"
-# endif /* VBOX_OSE */
-# include "VBoxX11Helper.h"
-#endif /* Q_WS_X11 */
-
-#ifdef Q_WS_MAC
-# include "VBoxUtils-darwin.h"
-# include "UIMachineWindowFullscreen.h"
-# include "UIMachineWindowSeamless.h"
-#endif /* Q_WS_MAC */
-
-#ifdef VBOX_WITH_VIDEOHWACCEL
-# include "VBoxFBOverlay.h"
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
-/* COM includes: */
-#include "CMachine.h"
-#include "CSystemProperties.h"
-#include "CUSBDevice.h"
-#include "CUSBDeviceFilters.h"
-#include "CUSBDeviceFilter.h"
-#include "CBIOSSettings.h"
-#include "CVRDEServer.h"
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
-#include "CAudioAdapter.h"
-#include "CNetworkAdapter.h"
-#include "CSerialPort.h"
-#include "CParallelPort.h"
-#include "CUSBController.h"
-#include "CHostUSBDevice.h"
-#include "CHostVideoInputDevice.h"
-#include "CMediumFormat.h"
-#include "CSharedFolder.h"
-#include "CConsole.h"
-#include "CSnapshot.h"
-
-/* Other VBox includes: */
-#include <iprt/asm.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
-#include <iprt/param.h>
-#include <iprt/path.h>
-#include <iprt/env.h>
 #include <iprt/file.h>
-#include <iprt/ldr.h>
-#include <iprt/system.h>
-#include <iprt/stream.h>
-
-#include <VBox/vd.h>
-#include <VBox/sup.h>
-#include <VBox/com/Guid.h>
-#include <VBox/VBoxOGLTest.h>
-
-#ifdef Q_WS_X11
-#include <iprt/mem.h>
-#endif /* Q_WS_X11 */
 
 #ifdef Q_WS_MAC
-#include <sys/utsname.h>
+# include <sys/utsname.h>
 #endif /* Q_WS_MAC */
 
 /* External includes: */
-#include <math.h>
-
-#ifdef Q_WS_WIN
-#include "shlobj.h"
-#endif /* Q_WS_WIN */
+# include <math.h>
 
 #ifdef Q_WS_X11
-#undef BOOL /* typedef CARD8 BOOL in Xmd.h conflicts with #define BOOL PRBool
-             * in COMDefs.h. A better fix would be to isolate X11-specific
-             * stuff by placing XX* helpers below to a separate source file. */
-#include <X11/X.h>
-#include <X11/Xmd.h>
-#include <X11/Xlib.h>
-#include <X11/Xatom.h>
-#include <X11/extensions/Xinerama.h>
-#define BOOL PRBool
+# undef BOOL /* typedef CARD8 BOOL in Xmd.h conflicts with #define BOOL PRBool
+              * in COMDefs.h. A better fix would be to isolate X11-specific
+              * stuff by placing XX* helpers below to a separate source file. */
+# include <X11/X.h>
+# include <X11/Xmd.h>
+# include <X11/Xlib.h>
+# include <X11/Xatom.h>
+# include <X11/extensions/Xinerama.h>
+
+# define BOOL PRBool
+# include "VBoxX11Helper.h"
 #endif /* Q_WS_X11 */
+
 
 //#define VBOX_WITH_FULL_DETAILS_REPORT /* hidden for now */
 
-//#warning "port me: check this"
-/// @todo bird: Use (U)INT_PTR, (U)LONG_PTR, DWORD_PTR, or (u)intptr_t.
-#if defined(Q_OS_WIN64)
-typedef __int64 Q_LONG;             /* word up to 64 bit signed */
-typedef unsigned __int64 Q_ULONG;   /* word up to 64 bit unsigned */
-#else
-typedef long Q_LONG;                /* word up to 64 bit signed */
-typedef unsigned long Q_ULONG;      /* word up to 64 bit unsigned */
-#endif
+/* Namespaces: */
+using namespace UIExtraDataDefs;
+
 
 // VBoxGlobal
 ////////////////////////////////////////////////////////////////////////////////
-
-/** @internal
- *
- *  Determines the rendering mode from the argument. Sets the appropriate
- *  default rendering mode if the argument is NULL.
- */
-static RenderMode vboxGetRenderMode (const char *aModeStr)
-{
-    RenderMode mode = InvalidRenderMode;
-
-#ifdef VBOX_GUI_USE_QIMAGE
-    mode = QImageMode;
-#else /* !VBOX_GUI_USE_QIMAGE */
-# error "Cannot determine the default render mode!"
-#endif /* !VBOX_GUI_USE_QIMAGE */
-
-    if (aModeStr)
-    {
-        if (0) ;
-#ifdef VBOX_GUI_USE_QIMAGE
-        else if (::strcmp(aModeStr, "image") == 0)
-            mode = QImageMode;
-#endif /* VBOX_GUI_USE_QIMAGE */
-#ifdef VBOX_GUI_USE_QUARTZ2D
-        else if (::strcmp(aModeStr, "quartz2d") == 0)
-            mode = Quartz2DMode;
-#endif /* VBOX_GUI_USE_QUARTZ2D */
-    }
-
-    return mode;
-}
 
 /* static */
 bool VBoxGlobal::m_sfCleanupInProgress = false;
@@ -246,8 +227,9 @@ void VBoxGlobal::destroy()
 
 VBoxGlobal::VBoxGlobal()
     : mValid (false)
+    , m_fVBoxSVCAvailable(true)
     , mSelectorWnd (NULL)
-    , m_pVirtualMachine(0)
+    , m_fSeparateProcess(false)
     , m_pMediumEnumerator(0)
     , mIsKWinManaged (false)
 #if defined(DEBUG_bird)
@@ -265,6 +247,7 @@ VBoxGlobal::VBoxGlobal()
     , mVerString("1.0")
     , m3DAvailable(-1)
     , mSettingsPwSet(false)
+    , m_pIconPool(0)
 {
     /* Assign instance: */
     m_spInstance = this;
@@ -308,17 +291,17 @@ uint VBoxGlobal::qtCTVersion()
 
 QString VBoxGlobal::vboxVersionString() const
 {
-    return mVBox.GetVersion();
+    return m_vbox.GetVersion();
 }
 
 QString VBoxGlobal::vboxVersionStringNormalized() const
 {
-    return mVBox.GetVersionNormalized();
+    return m_vbox.GetVersionNormalized();
 }
 
 bool VBoxGlobal::isBeta() const
 {
-    return mVBox.GetVersion().contains("BETA", Qt::CaseInsensitive);
+    return m_vbox.GetVersion().contains("BETA", Qt::CaseInsensitive);
 }
 
 #ifdef Q_WS_MAC
@@ -355,11 +338,11 @@ MacOSXRelease VBoxGlobal::osRelease()
  */
 bool VBoxGlobal::setSettings (VBoxGlobalSettings &gs)
 {
-    gs.save (mVBox);
+    gs.save(m_vbox);
 
-    if (!mVBox.isOk())
+    if (!m_vbox.isOk())
     {
-        msgCenter().cannotSaveGlobalConfig (mVBox);
+        msgCenter().cannotSaveGlobalConfig(m_vbox);
         return false;
     }
 
@@ -398,62 +381,17 @@ UISelectorWindow &VBoxGlobal::selectorWnd()
     return *mSelectorWnd;
 }
 
-bool VBoxGlobal::startMachine(const QString &strMachineId)
+UIMachine* VBoxGlobal::virtualMachine() const
 {
-    /* Some restrictions: */
-    AssertMsg(mValid, ("VBoxGlobal is invalid"));
-    AssertMsg(!m_pVirtualMachine, ("Machine already started"));
-
-    /* Restore current snapshot if asked to do so: */
-    if (mRestoreCurrentSnapshot)
-    {
-        CSession session = vboxGlobal().openSession(strMachineId, KLockType_VM);
-        if (session.isNull())
-            return false;
-
-        CConsole  console  = session.GetConsole();
-        CMachine  machine  = session.GetMachine();
-        CSnapshot snapshot = machine.GetCurrentSnapshot();
-        CProgress progress = console.RestoreSnapshot(snapshot);
-        if (!console.isOk())
-            return msgCenter().cannotRestoreSnapshot(console, snapshot.GetName(), machine.GetName());
-
-        /* Show the snapshot-discard progress: */
-        msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_discard_90px.png");
-        if (progress.GetResultCode() != 0)
-            return msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName(), machine.GetName());
-        session.UnlockMachine();
-
-        /* Clear the restore flag so media enum can be started, should be safe now. */
-        mRestoreCurrentSnapshot = false;
-    }
-
-    /* Create VM session: */
-    CSession session = vboxGlobal().openSession(strMachineId, KLockType_VM);
-    if (session.isNull())
-        return false;
-
-    /* Start virtual machine: */
-    UIMachine *pVirtualMachine = new UIMachine(&m_pVirtualMachine, session);
-    Assert(pVirtualMachine == m_pVirtualMachine);
-    Q_UNUSED(pVirtualMachine);
-    return true;
+    return gpMachine;
 }
 
-UIMachine* VBoxGlobal::virtualMachine()
+QWidget* VBoxGlobal::activeMachineWindow() const
 {
-    return m_pVirtualMachine;
+    if (isVMConsoleProcess() && gpMachine && gpMachine->activeWindow())
+        return gpMachine->activeWindow();
+    return 0;
 }
-
-QWidget* VBoxGlobal::activeMachineWindow()
-{
-    /* Null if that is NOT console-process or machine not yet created: */
-    if (!isVMConsoleProcess() || !m_pVirtualMachine)
-        return 0;
-    /* Active machine-window otherwise: */
-    return m_pVirtualMachine->activeWindow();
-}
-
 
 /**
  * Inner worker that for lazily querying for 3D support.
@@ -665,15 +603,16 @@ QList<CGuestOSType> VBoxGlobal::vmGuestOSTypeList(const QString &aFamilyId) cons
            mTypes[mFamilyIDs.indexOf(aFamilyId)] : QList<CGuestOSType>();
 }
 
-/**
- *  Returns the icon corresponding to the given guest OS type id.
- */
-QPixmap VBoxGlobal::vmGuestOSTypeIcon(const QString &aTypeId) const
+QPixmap VBoxGlobal::vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize /* = 0 */) const
 {
-    static const QPixmap none;
-    QPixmap *p = mOsTypeIcons.value(aTypeId);
-    AssertMsg(p, ("Icon for type '%s' must be defined.", aTypeId.toLatin1().constData()));
-    return p ? *p : none;
+    /* Prepare fallback pixmap: */
+    static QPixmap nullPixmap;
+
+    /* Make sure general icon-pool initialized: */
+    AssertReturn(m_pIconPool, nullPixmap);
+
+    /* Redirect to general icon-pool: */
+    return m_pIconPool->guestOSTypeIcon(strOSTypeID, pLogicalSize);
 }
 
 /**
@@ -1018,12 +957,12 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     static const char *sTableTpl =
         "<table border=0 cellspacing=1 cellpadding=0>%1</table>";
     static const char *sSectionHrefTpl =
-        "<tr><td width=22 rowspan=%1 align=left><img src='%2'></td>"
+        "<tr><td width=22 rowspan=%1 align=left><img width=16 height=16 src='%2'></td>"
             "<td colspan=3><b><a href='%3'><nobr>%4</nobr></a></b></td></tr>"
             "%5"
         "<tr><td colspan=3><font size=1>&nbsp;</font></td></tr>";
     static const char *sSectionBoldTpl =
-        "<tr><td width=22 rowspan=%1 align=left><img src='%2'></td>"
+        "<tr><td width=22 rowspan=%1 align=left><img width=16 height=16 src='%2'></td>"
             "<td colspan=3><!-- %3 --><b><nobr>%4</nobr></b></td></tr>"
             "%5"
         "<tr><td colspan=3><font size=1>&nbsp;</font></td></tr>";
@@ -1056,15 +995,17 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
 
     /* System */
     {
+#ifdef VBOX_WITH_FULL_DETAILS_REPORT
         /* BIOS Settings holder */
         CBIOSSettings biosSettings = aMachine.GetBIOSSettings();
+#endif /* VBOX_WITH_FULL_DETAILS_REPORT */
 
         /* System details row count: */
         int iRowCount = 2; /* Memory & CPU details rows initially. */
 
         /* Boot order */
         QString bootOrder;
-        for (ulong i = 1; i <= mVBox.GetSystemProperties().GetMaxBootPosition(); ++ i)
+        for (ulong i = 1; i <= m_vbox.GetSystemProperties().GetMaxBootPosition(); ++ i)
         {
             KDeviceType device = aMachine.GetBootOrder (i);
             if (device == KDeviceType_Null)
@@ -1113,6 +1054,11 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
         if (fVTxAMDVSupported)
             iRowCount += 2; /* VT-x/AMD-V items. */
 
+        /* Paravirtualization Interface: */
+        const QString strParavirtProvider = gpConverter->toString(aMachine.GetParavirtProvider());
+
+        iRowCount += 1; /* Paravirtualization Interface. */
+
         QString item = QString (sSectionItemTpl2).arg (tr ("Base Memory", "details report"),
                                                        tr ("<nobr>%1 MB</nobr>", "details report"))
                        .arg (aMachine.GetMemorySize())
@@ -1133,6 +1079,8 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
         if (fVTxAMDVSupported)
                 item += QString (sSectionItemTpl2).arg (tr ("VT-x/AMD-V", "details report"), virt)
                      +  QString (sSectionItemTpl2).arg (tr ("Nested Paging", "details report"), nested);
+
+        item += QString(sSectionItemTpl2).arg(tr("Paravirtualization Interface", "details report"), strParavirtProvider);
 
         report += sectionTpl
                   .arg (2 + iRowCount) /* rows */
@@ -1231,8 +1179,8 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
                 const CMediumAttachment &attachment = attachments[j];
                 /* Prepare current storage slot: */
                 StorageSlot attachmentSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
-                /* Append 'device slot name' with 'device type name' for CD/DVD devices only: */
-                QString strDeviceType = attachment.GetType() == KDeviceType_DVD ? tr("(CD/DVD)") : QString();
+                /* Append 'device slot name' with 'device type name' for optical devices only: */
+                QString strDeviceType = attachment.GetType() == KDeviceType_DVD ? tr("(Optical Drive)") : QString();
                 if (!strDeviceType.isNull())
                     strDeviceType.prepend(' ');
                 /* Prepare current medium object: */
@@ -1305,7 +1253,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     {
         QString item;
 
-        ulong count = mVBox.GetSystemProperties().GetMaxNetworkAdapters(KChipsetType_PIIX3);
+        ulong count = m_vbox.GetSystemProperties().GetMaxNetworkAdapters(KChipsetType_PIIX3);
         int rows = 2; /* including section header and footer */
         for (ulong slot = 0; slot < count; slot ++)
         {
@@ -1362,7 +1310,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     {
         QString item;
 
-        ulong count = mVBox.GetSystemProperties().GetSerialPortCount();
+        ulong count = m_vbox.GetSystemProperties().GetSerialPortCount();
         int rows = 2; /* including section header and footer */
         for (ulong slot = 0; slot < count; slot ++)
         {
@@ -1407,7 +1355,7 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
     {
         QString item;
 
-        ulong count = mVBox.GetSystemProperties().GetParallelPortCount();
+        ulong count = m_vbox.GetSystemProperties().GetParallelPortCount();
         int rows = 2; /* including section header and footer */
         for (ulong slot = 0; slot < count; slot ++)
         {
@@ -1450,11 +1398,10 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
         if (   !flts.isNull()
             && aMachine.GetUSBProxyAvailable())
         {
-            /* the USB controller may be unavailable (i.e. in VirtualBox OSE) */
-
-            ULONG cOhciCtls = aMachine.GetUSBControllerCountByType(KUSBControllerType_OHCI);
-
-            if (cOhciCtls)
+            /* The USB controller may be unavailable (i.e. in VirtualBox OSE): */
+            if (aMachine.GetUSBControllers().isEmpty())
+                item = QString(sSectionItemTpl1).arg(tr("Disabled", "details report (USB)"));
+            else
             {
                 CUSBDeviceFilterVector coll = flts.GetDeviceFilters();
                 uint active = 0;
@@ -1467,9 +1414,6 @@ QString VBoxGlobal::detailsReport (const CMachine &aMachine, bool aWithLinks)
                              tr ("%1 (%2 active)", "details report (USB)")
                                  .arg (coll.size()).arg (active));
             }
-            else
-                item = QString (sSectionItemTpl1)
-                       .arg (tr ("Disabled", "details report (USB)"));
 
             report += sectionTpl
                 .arg (2 + 1) /* rows */
@@ -1524,10 +1468,10 @@ CSession VBoxGlobal::openSession(const QString &strId, KLockType lockType /* = K
         }
 
         /* Search for the corresponding machine: */
-        CMachine machine = mVBox.FindMachine(strId);
+        CMachine machine = m_vbox.FindMachine(strId);
         if (machine.isNull())
         {
-            msgCenter().cannotFindMachineById(mVBox, strId);
+            msgCenter().cannotFindMachineById(m_vbox, strId);
             break;
         }
 
@@ -1633,11 +1577,11 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(UIMediumType mediumType, QWidge
             filters = vboxGlobal().HDDBackends();
             strTitle = tr("Please choose a virtual hard drive file");
             allType = tr("All virtual hard drive files (%1)");
-            strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderHD);
+            strLastFolder = gEDataManager->recentFolderForHardDrives();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderCD);
+                strLastFolder = gEDataManager->recentFolderForOpticalDisks();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderFD);
+                strLastFolder = gEDataManager->recentFolderForFloppyDisks();
             break;
         }
         case UIMediumType_DVD:
@@ -1645,11 +1589,11 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(UIMediumType mediumType, QWidge
             filters = vboxGlobal().DVDBackends();
             strTitle = tr("Please choose a virtual optical disk file");
             allType = tr("All virtual optical disk files (%1)");
-            strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderCD);
+            strLastFolder = gEDataManager->recentFolderForOpticalDisks();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderHD);
+                strLastFolder = gEDataManager->recentFolderForFloppyDisks();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderFD);
+                strLastFolder = gEDataManager->recentFolderForHardDrives();
             break;
         }
         case UIMediumType_Floppy:
@@ -1657,11 +1601,11 @@ QString VBoxGlobal::openMediumWithFileOpenDialog(UIMediumType mediumType, QWidge
             filters = vboxGlobal().FloppyBackends();
             strTitle = tr("Please choose a virtual floppy disk file");
             allType = tr("All virtual floppy disk files (%1)");
-            strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderFD);
+            strLastFolder = gEDataManager->recentFolderForFloppyDisks();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderCD);
+                strLastFolder = gEDataManager->recentFolderForOpticalDisks();
             if (strLastFolder.isEmpty())
-                strLastFolder = virtualBox().GetExtraData(GUI_RecentFolderHD);
+                strLastFolder = gEDataManager->recentFolderForHardDrives();
             break;
         }
         default:
@@ -1701,26 +1645,37 @@ QString VBoxGlobal::openMedium(UIMediumType mediumType, QString strMediumLocatio
     strMediumLocation = QDir::toNativeSeparators(strMediumLocation);
 
     /* Initialize variables: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
+    CVirtualBox vbox = virtualBox();
 
     /* Remember the path of the last chosen medium: */
-    QString strRecentFolderKey = mediumType == UIMediumType_HardDisk ? GUI_RecentFolderHD :
-                                 mediumType == UIMediumType_DVD ? GUI_RecentFolderCD :
-                                 mediumType == UIMediumType_Floppy ? GUI_RecentFolderFD :
-                                 QString();
-    vbox.SetExtraData(strRecentFolderKey, QFileInfo(strMediumLocation).absolutePath());
+    switch (mediumType)
+    {
+        case UIMediumType_HardDisk: gEDataManager->setRecentFolderForHardDrives(QFileInfo(strMediumLocation).absolutePath()); break;
+        case UIMediumType_DVD:      gEDataManager->setRecentFolderForOpticalDisks(QFileInfo(strMediumLocation).absolutePath()); break;
+        case UIMediumType_Floppy:   gEDataManager->setRecentFolderForFloppyDisks(QFileInfo(strMediumLocation).absolutePath()); break;
+        default: break;
+    }
 
     /* Update recently used list: */
-    QString strRecentListKey = mediumType == UIMediumType_HardDisk ? GUI_RecentListHD :
-                               mediumType == UIMediumType_DVD ? GUI_RecentListCD :
-                               mediumType == UIMediumType_Floppy ? GUI_RecentListFD :
-                               QString();
-    QStringList recentMediumList = vbox.GetExtraData(strRecentListKey).split(';');
+    QStringList recentMediumList;
+    switch (mediumType)
+    {
+        case UIMediumType_HardDisk: recentMediumList = gEDataManager->recentListOfHardDrives(); break;
+        case UIMediumType_DVD:      recentMediumList = gEDataManager->recentListOfOpticalDisks(); break;
+        case UIMediumType_Floppy:   recentMediumList = gEDataManager->recentListOfFloppyDisks(); break;
+        default: break;
+    }
     if (recentMediumList.contains(strMediumLocation))
         recentMediumList.removeAll(strMediumLocation);
     recentMediumList.prepend(strMediumLocation);
     while(recentMediumList.size() > 5) recentMediumList.removeLast();
-    vbox.SetExtraData(strRecentListKey, recentMediumList.join(";"));
+    switch (mediumType)
+    {
+        case UIMediumType_HardDisk: gEDataManager->setRecentListOfHardDrives(recentMediumList); break;
+        case UIMediumType_DVD:      gEDataManager->setRecentListOfOpticalDisks(recentMediumList); break;
+        case UIMediumType_Floppy:   gEDataManager->setRecentListOfFloppyDisks(recentMediumList); break;
+        default: break;
+    }
 
     /* Open corresponding medium: */
     CMedium cmedium = vbox.OpenMedium(strMediumLocation, mediumTypeToGlobal(mediumType), KAccessMode_ReadWrite, false);
@@ -1804,6 +1759,314 @@ QList<QString> VBoxGlobal::mediumIDs() const
     return QList<QString>();
 }
 
+void VBoxGlobal::prepareStorageMenu(QMenu &menu,
+                                    QObject *pListener, const char *pszSlotName,
+                                    const CMachine &machine, const QString &strControllerName, const StorageSlot &storageSlot)
+{
+    /* Current attachment attributes: */
+    const CMediumAttachment currentAttachment = machine.GetMediumAttachment(strControllerName, storageSlot.port, storageSlot.device);
+    const CMedium currentMedium = currentAttachment.GetMedium();
+    const QString strCurrentID = currentMedium.isNull() ? QString() : currentMedium.GetId();
+    const QString strCurrentLocation = currentMedium.isNull() ? QString() : currentMedium.GetLocation();
+
+    /* Other medium-attachments of same machine: */
+    const CMediumAttachmentVector attachments = machine.GetMediumAttachments();
+
+    /* Determine device & medium types: */
+    const UIMediumType mediumType = mediumTypeToLocal(currentAttachment.GetType());
+    AssertMsgReturnVoid(mediumType != UIMediumType_Invalid, ("Incorrect storage medium type!\n"));
+
+
+    /* Prepare open-existing-medium action: */
+    QAction *pActionOpenExistingMedium = menu.addAction(QIcon(":/select_file_16px.png"), QString(), pListener, pszSlotName);
+    pActionOpenExistingMedium->setData(QVariant::fromValue(UIMediumTarget(strControllerName, currentAttachment.GetPort(), currentAttachment.GetDevice(),
+                                                                          mediumType)));
+    switch (mediumType)
+    {
+        case UIMediumType_HardDisk:
+            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual hard disk file..."));
+            break;
+        case UIMediumType_DVD:
+            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual optical disk file..."));
+            break;
+        case UIMediumType_Floppy:
+            pActionOpenExistingMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Choose a virtual floppy disk file..."));
+            break;
+        default:
+            break;
+    }
+
+
+    /* Insert separator: */
+    menu.addSeparator();
+
+
+    /* Get existing-host-drive vector: */
+    CMediumVector mediums;
+    switch (mediumType)
+    {
+        case UIMediumType_DVD:    mediums = vboxGlobal().host().GetDVDDrives(); break;
+        case UIMediumType_Floppy: mediums = vboxGlobal().host().GetFloppyDrives(); break;
+        default: break;
+    }
+    /* Prepare choose-existing-host-drive actions: */
+    foreach (const CMedium &medium, mediums)
+    {
+        /* Make sure host-drive usage is unique: */
+        bool fIsHostDriveUsed = false;
+        foreach (const CMediumAttachment &otherAttachment, attachments)
+        {
+            if (otherAttachment != currentAttachment)
+            {
+                const CMedium &otherMedium = otherAttachment.GetMedium();
+                if (!otherMedium.isNull() && otherMedium.GetId() == medium.GetId())
+                {
+                    fIsHostDriveUsed = true;
+                    break;
+                }
+            }
+        }
+        /* If host-drives usage is unique: */
+        if (!fIsHostDriveUsed)
+        {
+            QAction *pActionChooseHostDrive = menu.addAction(UIMedium(medium, mediumType).name(), pListener, pszSlotName);
+            pActionChooseHostDrive->setCheckable(true);
+            pActionChooseHostDrive->setChecked(!currentMedium.isNull() && medium.GetId() == strCurrentID);
+            pActionChooseHostDrive->setData(QVariant::fromValue(UIMediumTarget(strControllerName, currentAttachment.GetPort(), currentAttachment.GetDevice(),
+                                                                               mediumType, UIMediumTarget::UIMediumTargetType_WithID, medium.GetId())));
+        }
+    }
+
+
+    /* Get recent-medium list: */
+    QStringList recentMediumList;
+    switch (mediumType)
+    {
+        case UIMediumType_HardDisk: recentMediumList = gEDataManager->recentListOfHardDrives(); break;
+        case UIMediumType_DVD:      recentMediumList = gEDataManager->recentListOfOpticalDisks(); break;
+        case UIMediumType_Floppy:   recentMediumList = gEDataManager->recentListOfFloppyDisks(); break;
+        default: break;
+    }
+    /* Prepare choose-recent-medium actions: */
+    foreach (const QString &strRecentMediumLocationBase, recentMediumList)
+    {
+        /* Convert separators to native: */
+        const QString strRecentMediumLocation = QDir::toNativeSeparators(strRecentMediumLocationBase);
+        /* Confirm medium presence: */
+        if (!QFile::exists(strRecentMediumLocation))
+            continue;
+        /* Make sure recent-medium usage is unique: */
+        bool fIsRecentMediumUsed = false;
+        foreach (const CMediumAttachment &otherAttachment, attachments)
+        {
+            if (otherAttachment != currentAttachment)
+            {
+                const CMedium &otherMedium = otherAttachment.GetMedium();
+                if (!otherMedium.isNull() && otherMedium.GetLocation() == strRecentMediumLocation)
+                {
+                    fIsRecentMediumUsed = true;
+                    break;
+                }
+            }
+        }
+        /* If recent-medium usage is unique: */
+        if (!fIsRecentMediumUsed)
+        {
+            QAction *pActionChooseRecentMedium = menu.addAction(QFileInfo(strRecentMediumLocation).fileName(), pListener, pszSlotName);
+            pActionChooseRecentMedium->setCheckable(true);
+            pActionChooseRecentMedium->setChecked(!currentMedium.isNull() && strRecentMediumLocation == strCurrentLocation);
+            pActionChooseRecentMedium->setData(QVariant::fromValue(UIMediumTarget(strControllerName, currentAttachment.GetPort(), currentAttachment.GetDevice(),
+                                                                                  mediumType, UIMediumTarget::UIMediumTargetType_WithLocation, strRecentMediumLocation)));
+            pActionChooseRecentMedium->setToolTip(strRecentMediumLocation);
+        }
+    }
+
+
+    /* Last action for optical/floppy attachments only: */
+    if (mediumType == UIMediumType_DVD || mediumType == UIMediumType_Floppy)
+    {
+        /* Insert separator: */
+        menu.addSeparator();
+
+        /* Prepare unmount-current-medium action: */
+        QAction *pActionUnmountMedium = menu.addAction(QString(), pListener, pszSlotName);
+        pActionUnmountMedium->setEnabled(!currentMedium.isNull());
+        pActionUnmountMedium->setData(QVariant::fromValue(UIMediumTarget(strControllerName, currentAttachment.GetPort(), currentAttachment.GetDevice())));
+        pActionUnmountMedium->setText(QApplication::translate("UIMachineSettingsStorage", "Remove disk from virtual drive"));
+        if (mediumType == UIMediumType_DVD)
+            pActionUnmountMedium->setIcon(UIIconPool::iconSet(":/cd_unmount_16px.png", ":/cd_unmount_disabled_16px.png"));
+        else if (mediumType == UIMediumType_Floppy)
+            pActionUnmountMedium->setIcon(UIIconPool::iconSet(":/fd_unmount_16px.png", ":/fd_unmount_disabled_16px.png"));
+    }
+}
+
+void VBoxGlobal::updateMachineStorage(const CMachine &constMachine, const UIMediumTarget &target)
+{
+    /* Mount (by default): */
+    bool fMount = true;
+    /* Null medium (by default): */
+    CMedium cmedium;
+    /* With null ID (by default): */
+    QString strActualID;
+
+    /* Current mount-target attributes: */
+    const CStorageController currentController = constMachine.GetStorageControllerByName(target.name);
+    const KStorageBus currentStorageBus = currentController.GetBus();
+    const CMediumAttachment currentAttachment = constMachine.GetMediumAttachment(target.name, target.port, target.device);
+    const CMedium currentMedium = currentAttachment.GetMedium();
+    const QString strCurrentID = currentMedium.isNull() ? QString() : currentMedium.GetId();
+    const QString strCurrentLocation = currentMedium.isNull() ? QString() : currentMedium.GetLocation();
+
+    /* Which additional info do we have? */
+    switch (target.type)
+    {
+        /* Do we have an exact ID? */
+        case UIMediumTarget::UIMediumTargetType_WithID:
+        {
+            /* New mount-target attributes: */
+            QString strNewID;
+
+            /* Invoke file-open dialog to choose medium ID: */
+            if (target.mediumType != UIMediumType_Invalid && target.data.isNull())
+            {
+                /* Keyboard can be captured by machine-view.
+                 * So we should clear machine-view focus to let file-open dialog get it.
+                 * That way the keyboard will be released too.. */
+                QWidget *pLastFocusedWidget = 0;
+                if (QApplication::focusWidget())
+                {
+                    pLastFocusedWidget = QApplication::focusWidget();
+                    pLastFocusedWidget->clearFocus();
+                }
+                /* Call for file-open dialog: */
+                const QString strMachineFolder(QFileInfo(constMachine.GetSettingsFilePath()).absolutePath());
+                const QString strMediumID = vboxGlobal().openMediumWithFileOpenDialog(target.mediumType, windowManager().mainWindowShown(),
+                                                                                      strMachineFolder);
+                /* Return focus back: */
+                if (pLastFocusedWidget)
+                    pLastFocusedWidget->setFocus();
+                /* Accept new medium ID: */
+                if (!strMediumID.isNull())
+                    strNewID = strMediumID;
+                /* Else just exit: */
+                else return;
+            }
+            /* Use medium ID which was passed: */
+            else if (!target.data.isNull() && target.data != strCurrentID)
+                strNewID = target.data;
+
+            /* Should we mount or unmount? */
+            fMount = !strNewID.isEmpty();
+
+            /* Prepare target medium: */
+            const UIMedium uimedium = vboxGlobal().medium(strNewID);
+            cmedium = uimedium.medium();
+            strActualID = fMount ? strNewID : strCurrentID;
+            break;
+        }
+        /* Do we have a resent location? */
+        case UIMediumTarget::UIMediumTargetType_WithLocation:
+        {
+            /* Open medium by location and get new medium ID if any: */
+            const QString strNewID = vboxGlobal().openMedium(target.mediumType, target.data);
+            /* Else just exit: */
+            if (strNewID.isEmpty())
+                return;
+
+            /* Should we mount or unmount? */
+            fMount = strNewID != strCurrentID;
+
+            /* Prepare target medium: */
+            const UIMedium uimedium = fMount ? vboxGlobal().medium(strNewID) : UIMedium();
+            cmedium = fMount ? uimedium.medium() : CMedium();
+            strActualID = fMount ? strNewID : strCurrentID;
+            break;
+        }
+    }
+
+    /* Do not unmount hard-drives: */
+    if (target.mediumType == UIMediumType_HardDisk && !fMount)
+        return;
+
+    /* Get editable machine: */
+    CSession session;
+    CMachine machine = constMachine;
+    KSessionState sessionState = machine.GetSessionState();
+    /* Session state unlocked? */
+    if (sessionState == KSessionState_Unlocked)
+    {
+        /* Open own 'write' session: */
+        session = openSession(machine.GetId());
+        AssertReturnVoid(!session.isNull());
+        machine = session.GetMachine();
+    }
+    /* Is it Selector UI call? */
+    else if (!isVMConsoleProcess())
+    {
+        /* Open existing 'shared' session: */
+        session = openExistingSession(machine.GetId());
+        AssertReturnVoid(!session.isNull());
+        machine = session.GetMachine();
+    }
+    /* Else this is Runtime UI call
+     * which has session locked for itself. */
+
+    /* Remount medium to the predefined port/device: */
+    bool fWasMounted = false;
+    /* Hard drive case: */
+    if (target.mediumType == UIMediumType_HardDisk)
+    {
+        /* Detaching: */
+        machine.DetachDevice(target.name, target.port, target.device);
+        fWasMounted = machine.isOk();
+        if (!fWasMounted)
+            msgCenter().cannotDetachDevice(machine, UIMediumType_HardDisk, strCurrentLocation,
+                                           StorageSlot(currentStorageBus, target.port, target.device));
+        else
+        {
+            /* Attaching: */
+            machine.AttachDevice(target.name, target.port, target.device, KDeviceType_HardDisk, cmedium);
+            fWasMounted = machine.isOk();
+            if (!fWasMounted)
+                msgCenter().cannotAttachDevice(machine, UIMediumType_HardDisk, strCurrentLocation,
+                                               StorageSlot(currentStorageBus, target.port, target.device));
+        }
+    }
+    /* Optical/floppy drive case: */
+    else
+    {
+        /* Remounting: */
+        machine.MountMedium(target.name, target.port, target.device, cmedium, false /* force? */);
+        fWasMounted = machine.isOk();
+        if (!fWasMounted)
+        {
+            /* Ask for force remounting: */
+            if (msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(strActualID),
+                                                fMount, true /* retry? */))
+            {
+                /* Force remounting: */
+                machine.MountMedium(target.name, target.port, target.device, cmedium, true /* force? */);
+                fWasMounted = machine.isOk();
+                if (!fWasMounted)
+                    msgCenter().cannotRemountMedium(machine, vboxGlobal().medium(strActualID),
+                                                    fMount, false /* retry? */);
+            }
+        }
+    }
+
+    /* Save settings: */
+    if (fWasMounted)
+    {
+        machine.SaveSettings();
+        if (!machine.isOk())
+            msgCenter().cannotSaveMachineSettings(machine, activeMachineWindow());
+    }
+
+    /* Close session to editable machine if necessary: */
+    if (!session.isNull())
+        session.UnlockMachine();
+}
+
 /**
  *  Native language name of the currently installed translation.
  *  Returns "English" if no translation is installed
@@ -1874,10 +2137,10 @@ void VBoxGlobal::retranslateUi()
 
     mUserDefinedPortName = tr ("User-defined", "serial port");
 
-    mWarningIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxWarningIcon).pixmap (16, 16);
+    mWarningIcon = UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_MessageBoxWarning).pixmap (16, 16);
     Assert (!mWarningIcon.isNull());
 
-    mErrorIcon = UIIconPool::defaultIcon(UIIconPool::MessageBoxCriticalIcon).pixmap (16, 16);
+    mErrorIcon = UIIconPool::defaultIcon(UIIconPool::UIDefaultIconType_MessageBoxCritical).pixmap (16, 16);
     Assert (!mErrorIcon.isNull());
 
     /* Re-enumerate uimedium since they contain some translations too: */
@@ -3059,6 +3322,14 @@ bool VBoxGlobal::setFullScreenMonitorX11(QWidget *pWidget, ulong uScreenId)
                                uScreenId, uScreenId, uScreenId, uScreenId,
                                1 /* Source indication (1 = normal application) */);
 }
+
+/* static */
+void VBoxGlobal::setTransientFor(QWidget *pWidget, QWidget *pPropWidget)
+{
+    XSetTransientForHint(pWidget->x11Info().display(),
+                         pWidget->window()->winId(),
+                         pPropWidget->window()->winId());
+}
 #endif /* Q_WS_X11 */
 
 /**
@@ -3111,20 +3382,6 @@ QString VBoxGlobal::insertKeyToActionText(const QString &strText, const QString 
         return strText;
     else
         return pattern.arg(strText).arg(QKeySequence(strKey).toString(QKeySequence::NativeText));
-}
-
-/* static */
-QString VBoxGlobal::extractKeyFromActionText (const QString &aText)
-{
-    QString key;
-#ifdef Q_WS_MAC
-    QRegExp re (".* \\(Host\\+(.+)\\)");
-#else
-    QRegExp re (".* \\t\\Host\\+(.+)");
-#endif
-    if (re.exactMatch (aText))
-        key = re.cap (1);
-    return key;
 }
 
 /**
@@ -3237,7 +3494,7 @@ QList <QPair <QString, QString> > VBoxGlobal::HDDBackends()
 }
 
 /**
- * Figures out which CD/DVD disk formats are currently supported by VirtualBox.
+ * Figures out which optical disk formats are currently supported by VirtualBox.
  * Returned is a list of pairs with the form
  *   <tt>{"Backend Name", "*.suffix1 .suffix2 ..."}</tt>.
  */
@@ -3331,455 +3588,6 @@ QString VBoxGlobal::fullMediumFormatName(const QString &strBaseMediumFormatName)
     else if (strBaseMediumFormatName == "QCOW")
         return tr("QCOW (QEMU Copy-On-Write)");
     return strBaseMediumFormatName;
-}
-
-/* static */
-bool VBoxGlobal::isApprovedByExtraData(CVirtualBox &vbox, const QString &strExtraDataKey, bool fApprovedByDefault /* = false */)
-{
-    /* Load corresponding extra-data value: */
-    QString strExtraDataValue(vbox.GetExtraData(strExtraDataKey));
-
-    /* 'false' if value was not set: */
-    if (strExtraDataValue.isEmpty())
-        return fApprovedByDefault;
-
-    /* Handle particular values: */
-    return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
-           || strExtraDataValue.compare("yes", Qt::CaseInsensitive) == 0
-           || strExtraDataValue.compare("on", Qt::CaseInsensitive) == 0
-           || strExtraDataValue == "1";
-}
-
-/* static */
-bool VBoxGlobal::isApprovedByExtraData(CMachine &machine, const QString &strExtraDataKey, bool fApprovedByDefault /* = false */)
-{
-    /* Load corresponding extra-data value: */
-    QString strExtraDataValue(machine.GetExtraData(strExtraDataKey));
-
-    /* 'false' if value was not set: */
-    if (strExtraDataValue.isEmpty())
-        return fApprovedByDefault;
-
-    /* Handle particular values: */
-    return    strExtraDataValue.compare("true", Qt::CaseInsensitive) == 0
-           || strExtraDataValue.compare("yes", Qt::CaseInsensitive) == 0
-           || strExtraDataValue.compare("on", Qt::CaseInsensitive) == 0
-           || strExtraDataValue == "1";
-}
-
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-/* static */
-bool VBoxGlobal::shouldWeAllowApplicationUpdate(CVirtualBox &vbox)
-{
-    /* 'true' if disabling is not approved by the extra-data: */
-    return !isApprovedByExtraData(vbox, GUI_PreventApplicationUpdate);
-}
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
-#ifdef Q_WS_X11
-/* static */
-bool VBoxGlobal::legacyFullscreenModeRequested(CVirtualBox vbox)
-{
-    /* 'False' unless feature requested through the extra-data: */
-    return isApprovedByExtraData(vbox, GUI_Fullscreen_LegacyMode);
-}
-#endif /* Q_WS_X11 */
-
-/* static */
-bool VBoxGlobal::shouldWeShowMachine(CMachine &machine)
-{
-    /* 'false' for null machines: */
-    if (machine.isNull())
-        return false;
-
-    /* 'true' for inaccessible machines,
-     * because we can't verify anything in that case: */
-    if (!machine.GetAccessible())
-        return true;
-
-    /* 'true' if hiding is not approved by the extra-data: */
-    return !isApprovedByExtraData(machine, GUI_HideFromManager);
-}
-
-/* static */
-bool VBoxGlobal::shouldWeAllowMachineReconfiguration(CMachine &machine,
-                                                     bool fIncludingMachineGeneralCheck /* = false*/,
-                                                     bool fIncludingMachineStateCheck /* = false*/)
-{
-    /* Should we perform machine general check? */
-    if (fIncludingMachineGeneralCheck)
-    {
-        /* 'false' for null machines: */
-        if (machine.isNull())
-            return false;
-
-        /* 'false' for inaccessible machines,
-         * because we can't configure anything in that case: */
-        if (!machine.GetAccessible())
-            return true;
-    }
-
-    /* Should we perform machine state check? */
-    if (fIncludingMachineStateCheck)
-    {
-        /* 'false' for machines in [stuck] state: */
-        if (machine.GetState() == KMachineState_Stuck)
-            return false;
-    }
-
-    /* 'true' if reconfiguration is not restricted by the extra-data: */
-    return !isApprovedByExtraData(machine, GUI_PreventReconfiguration);
-}
-
-/* static */
-bool VBoxGlobal::shouldWeShowDetails(CMachine &machine,
-                                     bool fIncludingMachineGeneralCheck /* = false*/)
-{
-    /* Should we perform machine general check? */
-    if (fIncludingMachineGeneralCheck)
-    {
-        /* 'false' for null machines: */
-        if (machine.isNull())
-            return false;
-
-        /* 'true' for inaccessible machines,
-         * because we can't verify anything in that case: */
-        if (!machine.GetAccessible())
-            return true;
-    }
-
-    /* 'true' if hiding is not approved by the extra-data: */
-    return !isApprovedByExtraData(machine, GUI_HideDetails);
-}
-
-/* static */
-bool VBoxGlobal::shouldWeAutoMountGuestScreens(CMachine &machine,
-                                               bool fIncludingSanityCheck /* = true*/)
-{
-    if (fIncludingSanityCheck)
-    {
-        /* 'false' for null machines,
-         * there is nothing to start anyway: */
-        if (machine.isNull())
-            return false;
-
-        /* 'false' for inaccessible machines,
-         * we can't start them anyway: */
-        if (!machine.GetAccessible())
-            return false;
-    }
-
-    /* 'true' if guest-screen auto-mounting approved by the extra-data: */
-    return isApprovedByExtraData(machine, GUI_AutomountGuestScreens);
-}
-
-/* static */
-bool VBoxGlobal::shouldWeAllowSnapshotOperations(CMachine &machine,
-                                                 bool fIncludingSanityCheck /* = true*/)
-{
-    if (fIncludingSanityCheck)
-    {
-        /* 'false' for null machines,
-         * we can't operate snapshot in that case: */
-        if (machine.isNull())
-            return false;
-
-        /* 'false' for inaccessible machines,
-         * we can't operate snapshot in that case: */
-        if (!machine.GetAccessible())
-            return false;
-    }
-
-    /* 'true' if snapshot operations are not restricted by the extra-data: */
-    return !isApprovedByExtraData(machine, GUI_PreventSnapshotOperations);
-}
-
-/** Returns default machine close action for passed @a machine. */
-MachineCloseAction VBoxGlobal::defaultMachineCloseAction(CMachine &machine)
-{
-    return gpConverter->fromInternalString<MachineCloseAction>(machine.GetExtraData(GUI_DefaultCloseAction));
-}
-
-/* static */
-RuntimeMenuType VBoxGlobal::restrictedRuntimeMenuTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuType result = RuntimeMenuType_Invalid;
-    /* Load restricted runtime-menu-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeMenus));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuType value = gpConverter->fromInternalString<RuntimeMenuType>(strValue);
-        if (value != RuntimeMenuType_Invalid)
-            result = static_cast<RuntimeMenuType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-#ifdef Q_WS_MAC
-/* static */
-RuntimeMenuApplicationActionType VBoxGlobal::restrictedRuntimeMenuApplicationActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuApplicationActionType result = RuntimeMenuApplicationActionType_Invalid;
-    /* Load restricted runtime-application-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeApplicationMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuApplicationActionType value = gpConverter->fromInternalString<RuntimeMenuApplicationActionType>(strValue);
-        if (value != RuntimeMenuApplicationActionType_Invalid)
-            result = static_cast<RuntimeMenuApplicationActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-#endif /* Q_WS_MAC */
-
-/* static */
-RuntimeMenuMachineActionType VBoxGlobal::restrictedRuntimeMenuMachineActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuMachineActionType result = RuntimeMenuMachineActionType_Invalid;
-    /* Load restricted runtime-machine-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeMachineMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuMachineActionType value = gpConverter->fromInternalString<RuntimeMenuMachineActionType>(strValue);
-        if (value != RuntimeMenuMachineActionType_Invalid)
-            result = static_cast<RuntimeMenuMachineActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-RuntimeMenuViewActionType VBoxGlobal::restrictedRuntimeMenuViewActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuViewActionType result = RuntimeMenuViewActionType_Invalid;
-    /* Load restricted runtime-view-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeViewMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuViewActionType value = gpConverter->fromInternalString<RuntimeMenuViewActionType>(strValue);
-        if (value != RuntimeMenuViewActionType_Invalid)
-            result = static_cast<RuntimeMenuViewActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-RuntimeMenuDevicesActionType VBoxGlobal::restrictedRuntimeMenuDevicesActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuDevicesActionType result = RuntimeMenuDevicesActionType_Invalid;
-    /* Load restricted runtime-devices-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeDevicesMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuDevicesActionType value = gpConverter->fromInternalString<RuntimeMenuDevicesActionType>(strValue);
-        if (value != RuntimeMenuDevicesActionType_Invalid)
-            result = static_cast<RuntimeMenuDevicesActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-#ifdef VBOX_WITH_DEBUGGER_GUI
-/* static */
-RuntimeMenuDebuggerActionType VBoxGlobal::restrictedRuntimeMenuDebuggerActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuDebuggerActionType result = RuntimeMenuDebuggerActionType_Invalid;
-    /* Load restricted runtime-debugger-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeDebuggerMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuDebuggerActionType value = gpConverter->fromInternalString<RuntimeMenuDebuggerActionType>(strValue);
-        if (value != RuntimeMenuDebuggerActionType_Invalid)
-            result = static_cast<RuntimeMenuDebuggerActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-#endif /* VBOX_WITH_DEBUGGER_GUI */
-
-/* static */
-RuntimeMenuHelpActionType VBoxGlobal::restrictedRuntimeMenuHelpActionTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    RuntimeMenuHelpActionType result = RuntimeMenuHelpActionType_Invalid;
-    /* Load restricted runtime-help-menu action-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedRuntimeHelpMenuActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        RuntimeMenuHelpActionType value = gpConverter->fromInternalString<RuntimeMenuHelpActionType>(strValue);
-        if (value != RuntimeMenuHelpActionType_Invalid)
-            result = static_cast<RuntimeMenuHelpActionType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-UIVisualStateType VBoxGlobal::restrictedVisualStateTypes(CMachine &machine)
-{
-    /* Prepare result: */
-    UIVisualStateType result = UIVisualStateType_Invalid;
-    /* Load restricted visual-state-types: */
-    QString strList(machine.GetExtraData(GUI_RestrictedVisualStates));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        UIVisualStateType value = gpConverter->fromInternalString<UIVisualStateType>(strValue);
-        if (value != UIVisualStateType_Invalid)
-            result = static_cast<UIVisualStateType>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-QList<IndicatorType> VBoxGlobal::restrictedStatusBarIndicators(CMachine &machine)
-{
-    /* Prepare result: */
-    QList<IndicatorType> result;
-    /* Load restricted status-bar-indicators: */
-    QString strList(machine.GetExtraData(GUI_RestrictedStatusBarIndicators));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        IndicatorType value = gpConverter->fromInternalString<IndicatorType>(strValue);
-        if (value != IndicatorType_Invalid)
-            result << value;
-    }
-    /* Return result: */
-    return result;
-}
-
-/** Returns merged restricted machine close actions for passed @a machine. */
-MachineCloseAction VBoxGlobal::restrictedMachineCloseActions(CMachine &machine)
-{
-    /* Prepare result: */
-    MachineCloseAction result = MachineCloseAction_Invalid;
-    /* Load restricted machine-close-actions: */
-    QString strList(machine.GetExtraData(GUI_RestrictedCloseActions));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        MachineCloseAction value = gpConverter->fromInternalString<MachineCloseAction>(strValue);
-        if (value != MachineCloseAction_Invalid)
-            result = static_cast<MachineCloseAction>(result | value);
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-QList<GlobalSettingsPageType> VBoxGlobal::restrictedGlobalSettingsPages(CVirtualBox &vbox)
-{
-    /* Prepare result: */
-    QList<GlobalSettingsPageType> result;
-    /* Load restricted global-settings-pages: */
-    QString strList(vbox.GetExtraData(GUI_RestrictedGlobalSettingsPages));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        GlobalSettingsPageType value = gpConverter->fromInternalString<GlobalSettingsPageType>(strValue);
-        if (value != GlobalSettingsPageType_Invalid)
-            result << value;
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-QList<MachineSettingsPageType> VBoxGlobal::restrictedMachineSettingsPages(CMachine &machine)
-{
-    /* Prepare result: */
-    QList<MachineSettingsPageType> result;
-    /* Load restricted machine-settings-pages: */
-    QString strList(machine.GetExtraData(GUI_RestrictedMachineSettingsPages));
-    QStringList list = strList.split(',');
-    /* Convert list into appropriate values: */
-    foreach (const QString &strValue, list)
-    {
-        MachineSettingsPageType value = gpConverter->fromInternalString<MachineSettingsPageType>(strValue);
-        if (value != MachineSettingsPageType_Invalid)
-            result << value;
-    }
-    /* Return result: */
-    return result;
-}
-
-/* static */
-bool VBoxGlobal::activateHoveredMachineWindow(CVirtualBox &vbox)
-{
-    /* 'true' if activating is approved by the extra-data: */
-    return isApprovedByExtraData(vbox, GUI_ActivateHoveredMachineWindow, true);
-}
-
-/* static */
-void VBoxGlobal::setActivateHoveredMachineWindow(CVirtualBox &vbox, bool fActivate)
-{
-    /* "false" if activating is restricted, null-string otherwise: */
-    vbox.SetExtraData(GUI_ActivateHoveredMachineWindow, fActivate ? QString() : QString("false"));
-}
-
-#ifndef Q_WS_MAC
-/* static */
-QStringList VBoxGlobal::machineWindowIconNames(CMachine &machine)
-{
-    /* Return result: */
-    return machine.GetExtraDataStringList(GUI_MachineWindowIcons);
-}
-
-/* static */
-QString VBoxGlobal::machineWindowNamePostfix(CMachine &machine)
-{
-    return machine.GetExtraData(GUI_MachineWindowNamePostfix);
-}
-#endif /* !Q_WS_MAC */
-
-/* static */
-MouseCapturePolicy VBoxGlobal::mouseCapturePolicy(CMachine &machine)
-{
-    /* Return result: */
-    return gpConverter->fromInternalString<MouseCapturePolicy>(machine.GetExtraData(GUI_MouseCapturePolicy));
-}
-
-/* static */
-GuruMeditationHandlerType VBoxGlobal::guruMeditationHandlerType(CMachine &machine)
-{
-    /* Return result: */
-    return gpConverter->fromInternalString<GuruMeditationHandlerType>(machine.GetExtraData(GUI_GuruMeditationHandler));
-}
-
-/* static */
-HiDPIOptimizationType VBoxGlobal::hiDPIOptimizationType(CMachine &machine)
-{
-    /* Return result: */
-    return gpConverter->fromInternalString<HiDPIOptimizationType>(machine.GetExtraData(GUI_HiDPIOptimization));
 }
 
 #ifdef RT_OS_LINUX
@@ -3964,24 +3772,24 @@ bool VBoxGlobal::eventFilter (QObject *aObject, QEvent *aEvent)
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 
-bool VBoxGlobal::isDebuggerEnabled(CMachine &aMachine)
+bool VBoxGlobal::isDebuggerEnabled() const
 {
-    return isDebuggerWorker(&mDbgEnabled, aMachine, GUI_DbgEnabled);
+    return isDebuggerWorker(&m_fDbgEnabled, GUI_Dbg_Enabled);
 }
 
-bool VBoxGlobal::isDebuggerAutoShowEnabled(CMachine &aMachine)
+bool VBoxGlobal::isDebuggerAutoShowEnabled() const
 {
-    return isDebuggerWorker(&mDbgAutoShow, aMachine, GUI_DbgAutoShow);
+    return isDebuggerWorker(&m_fDbgAutoShow, GUI_Dbg_AutoShow);
 }
 
-bool VBoxGlobal::isDebuggerAutoShowCommandLineEnabled(CMachine &aMachine)
+bool VBoxGlobal::isDebuggerAutoShowCommandLineEnabled() const
 {
-    return isDebuggerWorker(&mDbgAutoShowCommandLine, aMachine, GUI_DbgAutoShow);
+    return isDebuggerWorker(&m_fDbgAutoShowCommandLine, GUI_Dbg_AutoShow);
 }
 
-bool VBoxGlobal::isDebuggerAutoShowStatisticsEnabled(CMachine &aMachine)
+bool VBoxGlobal::isDebuggerAutoShowStatisticsEnabled() const
 {
-    return isDebuggerWorker(&mDbgAutoShowStatistics, aMachine, GUI_DbgAutoShow);
+    return isDebuggerWorker(&m_fDbgAutoShowStatistics, GUI_Dbg_AutoShow);
 }
 
 #endif /* VBOX_WITH_DEBUGGER_GUI */
@@ -4016,7 +3824,7 @@ bool VBoxGlobal::processArgs()
             const QString& strFile = list.at(i).toLocalFile();
             if (VBoxGlobal::hasAllowedExtension(strFile, VBoxFileExts))
             {
-                CVirtualBox vbox = vboxGlobal().virtualBox();
+                CVirtualBox vbox = virtualBox();
                 CMachine machine = vbox.FindMachine(strFile);
                 if (!machine.isNull())
                 {
@@ -4046,6 +3854,9 @@ void VBoxGlobal::prepare()
     /* Create popup-center: */
     UIPopupCenter::create();
 
+    /* Prepare general icon-pool: */
+    m_pIconPool = new UIIconPoolGeneral;
+
     /* Load translation based on the current locale: */
     loadLanguage();
 
@@ -4069,23 +3880,31 @@ void VBoxGlobal::prepare()
         return;
     }
 
-    mVBox.createInstance (CLSID_VirtualBox);
-    if (!mVBox.isOk())
+    /* Create VirtualBox client instance: */
+    m_client.createInstance(CLSID_VirtualBoxClient);
+    /* And make sure it was created: */
+    if (!m_client.isOk())
     {
-        msgCenter().cannotCreateVirtualBox (mVBox);
+        msgCenter().cannotCreateVirtualBoxClient(m_client);
         return;
     }
-    mHost = virtualBox().GetHost();
-    mHomeFolder = virtualBox().GetHomeFolder();
+    /* Fetch corresponding objects/values: */
+    m_vbox = virtualBoxClient().GetVirtualBox();
+    m_host = virtualBox().GetHost();
+    m_strHomeFolder = virtualBox().GetHomeFolder();
+
+    /* Watch for the VBoxSVC availability changes: */
+    connect(gVBoxEvents, SIGNAL(sigVBoxSVCAvailabilityChange(bool)),
+            this, SLOT(sltHandleVBoxSVCAvailabilityChange(bool)));
 
     /* create default non-null global settings */
     gset = VBoxGlobalSettings (false);
 
     /* try to load global settings */
-    gset.load (mVBox);
-    if (!mVBox.isOk() || !gset)
+    gset.load(m_vbox);
+    if (!m_vbox.isOk() || !gset)
     {
-        msgCenter().cannotLoadGlobalConfig (mVBox, gset.lastError());
+        msgCenter().cannotLoadGlobalConfig(m_vbox, gset.lastError());
         return;
     }
 
@@ -4096,11 +3915,11 @@ void VBoxGlobal::prepare()
 
     retranslateUi();
 
-    connect(gEDataEvents, SIGNAL(sigGUILanguageChange(QString)),
+    connect(gEDataManager, SIGNAL(sigLanguageChange(QString)),
             this, SLOT(sltGUILanguageChange(QString)));
 
     /* Initialize guest OS Type list. */
-    CGuestOSTypeVector coll = mVBox.GetGuestOSTypes();
+    CGuestOSTypeVector coll = m_vbox.GetGuestOSTypes();
     int osTypeCount = coll.size();
     AssertMsg(osTypeCount > 0, ("Number of OS types must not be zero"));
     if (osTypeCount > 0)
@@ -4126,112 +3945,11 @@ void VBoxGlobal::prepare()
         }
     }
 
-    /* Fill in OS type icon dictionary. */
-    static const char * const s_kOSTypeIcons[][2] =
-    {
-        {"Other",           ":/os_other.png"},
-        {"Other_64",        ":/os_other_64.png"},
-        {"DOS",             ":/os_dos.png"},
-        {"Netware",         ":/os_netware.png"},
-        {"L4",              ":/os_l4.png"},
-        {"Windows31",       ":/os_win31.png"},
-        {"Windows95",       ":/os_win95.png"},
-        {"Windows98",       ":/os_win98.png"},
-        {"WindowsMe",       ":/os_winme.png"},
-        {"WindowsNT4",      ":/os_winnt4.png"},
-        {"Windows2000",     ":/os_win2k.png"},
-        {"WindowsXP",       ":/os_winxp.png"},
-        {"WindowsXP_64",    ":/os_winxp_64.png"},
-        {"Windows2003",     ":/os_win2k3.png"},
-        {"Windows2003_64",  ":/os_win2k3_64.png"},
-        {"WindowsVista",    ":/os_winvista.png"},
-        {"WindowsVista_64", ":/os_winvista_64.png"},
-        {"Windows2008",     ":/os_win2k8.png"},
-        {"Windows2008_64",  ":/os_win2k8_64.png"},
-        {"Windows7",        ":/os_win7.png"},
-        {"Windows7_64",     ":/os_win7_64.png"},
-        {"Windows8",        ":/os_win8.png"},
-        {"Windows8_64",     ":/os_win8_64.png"},
-        {"Windows81",       ":/os_win81.png"},
-        {"Windows81_64",    ":/os_win81_64.png"},
-        {"Windows2012_64",  ":/os_win2k12_64.png"},
-        {"Windows10",       ":/os_win10.png"},
-        {"Windows10_64",    ":/os_win10_64.png"},
-        {"WindowsNT",       ":/os_win_other.png"},
-        {"WindowsNT_64",    ":/os_win_other.png"}, /// @todo os_win_other_64.png
-        {"OS2Warp3",        ":/os_os2warp3.png"},
-        {"OS2Warp4",        ":/os_os2warp4.png"},
-        {"OS2Warp45",       ":/os_os2warp45.png"},
-        {"OS2eCS",          ":/os_os2ecs.png"},
-        {"OS2",             ":/os_os2_other.png"},
-        {"Linux22",         ":/os_linux22.png"},
-        {"Linux24",         ":/os_linux24.png"},
-        {"Linux24_64",      ":/os_linux24_64.png"},
-        {"Linux26",         ":/os_linux26.png"},
-        {"Linux26_64",      ":/os_linux26_64.png"},
-        {"ArchLinux",       ":/os_archlinux.png"},
-        {"ArchLinux_64",    ":/os_archlinux_64.png"},
-        {"Debian",          ":/os_debian.png"},
-        {"Debian_64",       ":/os_debian_64.png"},
-        {"OpenSUSE",        ":/os_opensuse.png"},
-        {"OpenSUSE_64",     ":/os_opensuse_64.png"},
-        {"Fedora",          ":/os_fedora.png"},
-        {"Fedora_64",       ":/os_fedora_64.png"},
-        {"Gentoo",          ":/os_gentoo.png"},
-        {"Gentoo_64",       ":/os_gentoo_64.png"},
-        {"Mandriva",        ":/os_mandriva.png"},
-        {"Mandriva_64",     ":/os_mandriva_64.png"},
-        {"RedHat",          ":/os_redhat.png"},
-        {"RedHat_64",       ":/os_redhat_64.png"},
-        {"Turbolinux",      ":/os_turbolinux.png"},
-        {"Turbolinux_64",   ":/os_turbolinux_64.png"},
-        {"Ubuntu",          ":/os_ubuntu.png"},
-        {"Ubuntu_64",       ":/os_ubuntu_64.png"},
-        {"Xandros",         ":/os_xandros.png"},
-        {"Xandros_64",      ":/os_xandros_64.png"},
-        {"Oracle",          ":/os_oracle.png"},
-        {"Oracle_64",       ":/os_oracle_64.png"},
-        {"Linux",           ":/os_linux_other.png"},
-        {"Linux_64",        ":/os_linux_other.png"}, /// @todo os_linux_other_64.png
-        {"FreeBSD",         ":/os_freebsd.png"},
-        {"FreeBSD_64",      ":/os_freebsd_64.png"},
-        {"OpenBSD",         ":/os_openbsd.png"},
-        {"OpenBSD_64",      ":/os_openbsd_64.png"},
-        {"NetBSD",          ":/os_netbsd.png"},
-        {"NetBSD_64",       ":/os_netbsd_64.png"},
-        {"Solaris",         ":/os_solaris.png"},
-        {"Solaris_64",      ":/os_solaris_64.png"},
-        {"OpenSolaris",     ":/os_oraclesolaris.png"},
-        {"OpenSolaris_64",  ":/os_oraclesolaris_64.png"},
-        {"Solaris11_64",    ":/os_oraclesolaris_64.png"},
-        {"QNX",             ":/os_qnx.png"},
-        {"MacOS",           ":/os_macosx.png"},
-        {"MacOS_64",        ":/os_macosx_64.png"},
-        {"MacOS106",        ":/os_macosx.png"},
-        {"MacOS106_64",     ":/os_macosx_64.png"},
-        {"MacOS107_64",     ":/os_macosx_64.png"},
-        {"MacOS108_64",     ":/os_macosx_64.png"},
-        {"MacOS109_64",     ":/os_macosx_64.png"},
-        {"JRockitVE",       ":/os_jrockitve.png"},
-    };
-    for (uint n = 0; n < SIZEOF_ARRAY(s_kOSTypeIcons); ++ n)
-    {
-        mOsTypeIcons.insert(s_kOSTypeIcons[n][0], new QPixmap(s_kOSTypeIcons[n][1]));
-    }
-
-    /* online/offline snapshot icons */
-    mOfflineSnapshotIcon = QPixmap (":/snapshot_offline_16px.png");
-    mOnlineSnapshotIcon = QPixmap (":/snapshot_online_16px.png");
-
     qApp->installEventFilter (this);
 
     /* process command line */
 
-    bool bForceSeamless = false;
-    bool bForceFullscreen = false;
-
-    vm_render_mode_str = RTStrDup (virtualBox()
-            .GetExtraData (GUI_RenderMode).toAscii().constData());
+    UIVisualStateType visualStateType = UIVisualStateType_Invalid;
 
 #ifdef Q_WS_X11
     mIsKWinManaged = X11IsWindowManagerKWin();
@@ -4239,17 +3957,18 @@ void VBoxGlobal::prepare()
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
 # ifdef VBOX_WITH_DEBUGGER_GUI_MENU
-    initDebuggerVar(&mDbgEnabled, "VBOX_GUI_DBG_ENABLED", GUI_DbgEnabled, true);
+    initDebuggerVar(&m_fDbgEnabled, "VBOX_GUI_DBG_ENABLED", GUI_Dbg_Enabled, true);
 # else
-    initDebuggerVar(&mDbgEnabled, "VBOX_GUI_DBG_ENABLED", GUI_DbgEnabled, false);
+    initDebuggerVar(&m_fDbgEnabled, "VBOX_GUI_DBG_ENABLED", GUI_Dbg_Enabled, false);
 # endif
-    initDebuggerVar(&mDbgAutoShow, "VBOX_GUI_DBG_AUTO_SHOW", GUI_DbgAutoShow, false);
-    mDbgAutoShowCommandLine = mDbgAutoShowStatistics = mDbgAutoShow;
+    initDebuggerVar(&m_fDbgAutoShow, "VBOX_GUI_DBG_AUTO_SHOW", GUI_Dbg_AutoShow, false);
+    m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = m_fDbgAutoShow;
     mStartPaused = false;
 #endif
 
     mShowStartVMErrors = true;
     bool startVM = false;
+    bool fSeparateProcess = false;
     QString vmNameOrUuid;
 
     int argc = qApp->argc();
@@ -4269,6 +3988,10 @@ void VBoxGlobal::prepare()
                 startVM = true;
             }
         }
+        else if (!::strcmp (arg, "-separate") || !::strcmp (arg, "--separate"))
+        {
+            fSeparateProcess = true;
+        }
 #ifdef VBOX_GUI_WITH_PIDFILE
         else if (!::strcmp(arg, "-pidfile") || !::strcmp(arg, "--pidfile"))
         {
@@ -4276,22 +3999,25 @@ void VBoxGlobal::prepare()
                 m_strPidfile = QString(qApp->argv()[i]);
         }
 #endif /* VBOX_GUI_WITH_PIDFILE */
-        else if (!::strcmp(arg, "-seamless") || !::strcmp(arg, "--seamless"))
+        else if (!::strcmp(arg, "-normal") || !::strcmp(arg, "--normal"))
         {
-            bForceSeamless = true;
+            visualStateType = UIVisualStateType_Normal;
         }
         else if (!::strcmp(arg, "-fullscreen") || !::strcmp(arg, "--fullscreen"))
         {
-            bForceFullscreen = true;
+            visualStateType = UIVisualStateType_Fullscreen;
+        }
+        else if (!::strcmp(arg, "-seamless") || !::strcmp(arg, "--seamless"))
+        {
+            visualStateType = UIVisualStateType_Seamless;
+        }
+        else if (!::strcmp(arg, "-scale") || !::strcmp(arg, "--scale"))
+        {
+            visualStateType = UIVisualStateType_Scale;
         }
         else if (!::strcmp (arg, "-comment") || !::strcmp (arg, "--comment"))
         {
             ++i;
-        }
-        else if (!::strcmp (arg, "-rmode") || !::strcmp (arg, "--rmode"))
-        {
-            if (++i < argc)
-                vm_render_mode_str = qApp->argv() [i];
         }
         else if (!::strcmp (arg, "--settingspw"))
         {
@@ -4362,35 +4088,35 @@ void VBoxGlobal::prepare()
         }
 #ifdef VBOX_WITH_DEBUGGER_GUI
         else if (!::strcmp(arg, "-dbg") || !::strcmp (arg, "--dbg"))
-            setDebuggerVar(&mDbgEnabled, true);
+            setDebuggerVar(&m_fDbgEnabled, true);
         else if (!::strcmp( arg, "-debug") || !::strcmp (arg, "--debug"))
         {
-            setDebuggerVar(&mDbgEnabled, true);
-            setDebuggerVar(&mDbgAutoShow, true);
-            setDebuggerVar(&mDbgAutoShowCommandLine, true);
-            setDebuggerVar(&mDbgAutoShowStatistics, true);
+            setDebuggerVar(&m_fDbgEnabled, true);
+            setDebuggerVar(&m_fDbgAutoShow, true);
+            setDebuggerVar(&m_fDbgAutoShowCommandLine, true);
+            setDebuggerVar(&m_fDbgAutoShowStatistics, true);
             mStartPaused = true;
         }
         else if (!::strcmp(arg, "--debug-command-line"))
         {
-            setDebuggerVar(&mDbgEnabled, true);
-            setDebuggerVar(&mDbgAutoShow, true);
-            setDebuggerVar(&mDbgAutoShowCommandLine, true);
+            setDebuggerVar(&m_fDbgEnabled, true);
+            setDebuggerVar(&m_fDbgAutoShow, true);
+            setDebuggerVar(&m_fDbgAutoShowCommandLine, true);
             mStartPaused = true;
         }
         else if (!::strcmp(arg, "--debug-statistics"))
         {
-            setDebuggerVar(&mDbgEnabled, true);
-            setDebuggerVar(&mDbgAutoShow, true);
-            setDebuggerVar(&mDbgAutoShowStatistics, true);
+            setDebuggerVar(&m_fDbgEnabled, true);
+            setDebuggerVar(&m_fDbgAutoShow, true);
+            setDebuggerVar(&m_fDbgAutoShowStatistics, true);
             mStartPaused = true;
         }
         else if (!::strcmp(arg, "-no-debug") || !::strcmp(arg, "--no-debug"))
         {
-            setDebuggerVar(&mDbgEnabled, false);
-            setDebuggerVar(&mDbgAutoShow, false);
-            setDebuggerVar(&mDbgAutoShowCommandLine, false);
-            setDebuggerVar(&mDbgAutoShowStatistics, false);
+            setDebuggerVar(&m_fDbgEnabled, false);
+            setDebuggerVar(&m_fDbgAutoShow, false);
+            setDebuggerVar(&m_fDbgAutoShowCommandLine, false);
+            setDebuggerVar(&m_fDbgAutoShowStatistics, false);
         }
         /* Not quite debug options, but they're only useful with the debugger bits. */
         else if (!::strcmp(arg, "--start-paused"))
@@ -4404,22 +4130,23 @@ void VBoxGlobal::prepare()
 
     if (startVM)
     {
+        /* m_fSeparateProcess makes sense only if a VM is started. */
+        m_fSeparateProcess = fSeparateProcess;
+
+        /* Search for corresponding VM: */
         QUuid uuid = QUuid(vmNameOrUuid);
+        const CMachine machine = m_vbox.FindMachine(vmNameOrUuid);
         if (!uuid.isNull())
         {
-            vmUuid = vmNameOrUuid;
+            if (machine.isNull() && showStartVMErrors())
+                return msgCenter().cannotFindMachineById(m_vbox, vmNameOrUuid);
         }
         else
         {
-            CMachine m = mVBox.FindMachine (vmNameOrUuid);
-            if (m.isNull())
-            {
-                if (showStartVMErrors())
-                    msgCenter().cannotFindMachineByName (mVBox, vmNameOrUuid);
-                return;
-            }
-            vmUuid = m.GetId();
+            if (machine.isNull() && showStartVMErrors())
+                return msgCenter().cannotFindMachineByName(m_vbox, vmNameOrUuid);
         }
+        vmUuid = machine.GetId();
     }
 
     /* After initializing *vmUuid* we already know if that is VM process or not: */
@@ -4448,32 +4175,24 @@ void VBoxGlobal::prepare()
     }
 
     if (mSettingsPwSet)
-        mVBox.SetSettingsSecret(mSettingsPw);
+        m_vbox.SetSettingsSecret(mSettingsPw);
 
-    if (bForceSeamless && !vmUuid.isEmpty())
-    {
-        mVBox.FindMachine(vmUuid).SetExtraData(GUI_Seamless, "on");
-    }
-    else if (bForceFullscreen && !vmUuid.isEmpty())
-    {
-        mVBox.FindMachine(vmUuid).SetExtraData(GUI_Fullscreen, "on");
-    }
-
-    vm_render_mode = vboxGetRenderMode (vm_render_mode_str);
+    if (visualStateType != UIVisualStateType_Invalid && !vmUuid.isEmpty())
+        gEDataManager->setRequestedVisualState(visualStateType, vmUuid);
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* setup the debugger gui. */
     if (RTEnvExist("VBOX_GUI_NO_DEBUGGER"))
-        mDbgEnabled = mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
-    if (mDbgEnabled)
+        m_fDbgEnabled = m_fDbgAutoShow =  m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = false;
+    if (m_fDbgEnabled)
     {
         RTERRINFOSTATIC ErrInfo;
         RTErrInfoInitStatic(&ErrInfo);
-        int vrc = SUPR3HardenedLdrLoadAppPriv("VBoxDbg", &mhVBoxDbg, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
+        int vrc = SUPR3HardenedLdrLoadAppPriv("VBoxDbg", &m_hVBoxDbg, RTLDRLOAD_FLAGS_LOCAL, &ErrInfo.Core);
         if (RT_FAILURE(vrc))
         {
-            mhVBoxDbg = NIL_RTLDRMOD;
-            mDbgAutoShow =  mDbgAutoShowCommandLine = mDbgAutoShowStatistics = false;
+            m_hVBoxDbg = NIL_RTLDRMOD;
+            m_fDbgAutoShow =  m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = false;
             LogRel(("Failed to load VBoxDbg, rc=%Rrc - %s\n", vrc, ErrInfo.Core.pszMsg));
         }
     }
@@ -4513,18 +4232,6 @@ void VBoxGlobal::prepare()
     /* Create shortcut pool: */
     UIShortcutPool::create();
 
-    /* Create action pool: */
-    if (isVMConsoleProcess())
-    {
-        UIActionPool::create(UIActionPoolType_Runtime);
-        UIActionPool::createTemporary(UIActionPoolType_Selector);
-    }
-    else
-    {
-        UIActionPool::create(UIActionPoolType_Selector);
-        UIActionPool::createTemporary(UIActionPoolType_Runtime);
-    }
-
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* Create network manager: */
     UINetworkManager::create();
@@ -4548,18 +4255,12 @@ void VBoxGlobal::cleanup()
     UINetworkManager::destroy();
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
-    /* Destroy action pool: */
-    UIActionPool::destroy();
-
     /* Destroy shortcut pool: */
     UIShortcutPool::destroy();
 
 #ifdef VBOX_GUI_WITH_PIDFILE
     deletePidfile();
 #endif
-
-    /* Destroy our event handlers */
-    UIExtraDataEventHandler::destroy();
 
     /* Destroy the GUI root windows _BEFORE_ the media-mess, because there is
        code in the GUI that's using the media code an will be racing us! */
@@ -4568,12 +4269,8 @@ void VBoxGlobal::cleanup()
         delete mSelectorWnd;
         mSelectorWnd = NULL;
     }
-
-    if (m_pVirtualMachine)
-    {
-        delete m_pVirtualMachine;
-        m_pVirtualMachine = NULL;
-    }
+    if (gpMachine)
+        UIMachine::destroy();
 
     /* Cleanup medium-enumerator: */
     m_mediumEnumeratorDtorRwLock.lockForWrite();
@@ -4581,19 +4278,24 @@ void VBoxGlobal::cleanup()
     m_pMediumEnumerator = 0;
     m_mediumEnumeratorDtorRwLock.unlock();
 
+    /* Destroy extra-data manager: */
+    UIExtraDataManager::destroy();
+
     /* Destroy whatever this converter stuff is: */
     UIConverter::cleanup();
 
-    /* Ensure mOsTypeIcons is cleaned up: */
-    qDeleteAll(mOsTypeIcons);
+    /* Cleanup general icon-pool: */
+    delete m_pIconPool;
+    m_pIconPool = 0;
 
     /* ensure CGuestOSType objects are no longer used */
     mFamilyIDs.clear();
     mTypes.clear();
 
     /* the last steps to ensure we don't use COM any more */
-    mHost.detach();
-    mVBox.detach();
+    m_host.detach();
+    m_vbox.detach();
+    m_client.detach();
 
     /* There may be UIMedium(s)EnumeratedEvent instances still in the message
      * queue which reference COM objects. Remove them to release those objects
@@ -4608,6 +4310,19 @@ void VBoxGlobal::cleanup()
     UIMessageCenter::destroy();
 
     mValid = false;
+}
+
+void VBoxGlobal::sltHandleVBoxSVCAvailabilityChange(bool fAvailable)
+{
+    /* Make sure the VBoxSVC availability changed: */
+    if (m_fVBoxSVCAvailable == fAvailable)
+        return;
+
+    /* Cache the new VBoxSVC availability value: */
+    m_fVBoxSVCAvailable = fAvailable;
+
+    /* Notify listeners about the VBoxSVC availability change: */
+    emit sigVBoxSVCAvailabilityChange();
 }
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -4641,7 +4356,7 @@ void VBoxGlobal::initDebuggerVar(int *piDbgCfgVar, const char *pszEnvVar, const 
     else if (rc != VERR_ENV_VAR_NOT_FOUND)
         strEnvValue = "veto";
 
-    QString     strExtraValue = mVBox.GetExtraData(pszExtraDataName).toLower().trimmed();
+    QString strExtraValue = m_vbox.GetExtraData(pszExtraDataName).toLower().trimmed();
     if (strExtraValue.isEmpty())
         strExtraValue = QString();
 
@@ -4692,14 +4407,13 @@ void VBoxGlobal::setDebuggerVar(int *piDbgCfgVar, bool fState)
  *
  * @returns true / false.
  * @param   piDbgCfgVar         The debugger config variable to consult.
- * @param   rMachine            Reference to the machine object.
  * @param   pszExtraDataName    The extra data name relating to this variable.
  */
-bool VBoxGlobal::isDebuggerWorker(int *piDbgCfgVar, CMachine &rMachine, const char *pszExtraDataName)
+bool VBoxGlobal::isDebuggerWorker(int *piDbgCfgVar, const char *pszExtraDataName) const
 {
-    if (!(*piDbgCfgVar & VBOXGLOBAL_DBG_CFG_VAR_DONE) && !rMachine.isNull())
+    if (!(*piDbgCfgVar & VBOXGLOBAL_DBG_CFG_VAR_DONE))
     {
-        QString str = mVBox.GetExtraData(pszExtraDataName).toLower().trimmed();
+        const QString str = gEDataManager->debugFlagValue(pszExtraDataName);
         if (str.contains("veto"))
             *piDbgCfgVar = VBOXGLOBAL_DBG_CFG_VAR_DONE | VBOXGLOBAL_DBG_CFG_VAR_FALSE;
         else if (str.isEmpty() || (*piDbgCfgVar & VBOXGLOBAL_DBG_CFG_VAR_CMD_LINE))
@@ -4841,20 +4555,23 @@ bool VBoxGlobal::switchToMachine(CMachine &machine)
 #endif
 }
 
-bool VBoxGlobal::launchMachine(CMachine &machine, bool fHeadless /* = false */)
+bool VBoxGlobal::launchMachine(CMachine &machine, LaunchMode enmLaunchMode /* = LaunchMode_Default */)
 {
-    /* Switch to machine window(s) if possible: */
-    if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
-        && machine.CanShowConsoleWindow())
-        return VBoxGlobal::switchToMachine(machine);
+    if (enmLaunchMode != LaunchMode_Separate)
+    {
+        /* Switch to machine window(s) if possible: */
+        if (   machine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
+            && machine.CanShowConsoleWindow())
+            return VBoxGlobal::switchToMachine(machine);
 
-    /* Make sure machine-state is one of required: */
-    KMachineState state = machine.GetState(); NOREF(state);
-    AssertMsg(   state == KMachineState_PoweredOff
-              || state == KMachineState_Saved
-              || state == KMachineState_Teleported
-              || state == KMachineState_Aborted
-              , ("Machine must be PoweredOff/Saved/Teleported/Aborted (%d)", state));
+        /* Make sure machine-state is one of required: */
+        KMachineState state = machine.GetState(); NOREF(state);
+        AssertMsg(   state == KMachineState_PoweredOff
+                  || state == KMachineState_Saved
+                  || state == KMachineState_Teleported
+                  || state == KMachineState_Aborted
+                  , ("Machine must be PoweredOff/Saved/Teleported/Aborted (%d)", state));
+    }
 
     /* Create empty session instance: */
     CSession session;
@@ -4880,20 +4597,39 @@ bool VBoxGlobal::launchMachine(CMachine &machine, bool fHeadless /* = false */)
     if (pXauth)
         strEnv.append(QString("XAUTHORITY=%1\n").arg(pXauth));
 #endif /* Q_WS_X11 */
-    const QString strType = fHeadless ? "headless" : "";
+    QString strType;
+    switch (enmLaunchMode)
+    {
+        case LaunchMode_Default:  strType = ""; break;
+        case LaunchMode_Separate:
+        case LaunchMode_Headless: strType = "headless"; break;
+    }
 
     /* Prepare "VM spawning" progress: */
     CProgress progress = machine.LaunchVMProcess(session, strType, strEnv);
     if (!machine.isOk())
     {
+        /* If the VM is started separately and the VM process is already running, then it is OK. */
+        if (enmLaunchMode == LaunchMode_Separate)
+        {
+            KMachineState state = machine.GetState();
+            if (   state >= KMachineState_FirstOnline
+                && state <= KMachineState_LastOnline)
+            {
+                /* Already running. */
+                return true;
+            }
+        }
+
         msgCenter().cannotOpenSession(machine);
         return false;
     }
 
     /* Postpone showing "VM spawning" progress.
      * Hope 1 minute will be enough to spawn any running VM silently,
-     * otherwise we better show the progress... */
-    int iSpawningDuration = 60000;
+     * otherwise we better show the progress...
+     * If starting separately, then show the progress now. */
+    int iSpawningDuration = enmLaunchMode == LaunchMode_Separate ? 0 : 60000;
     msgCenter().showModalProgressDialog(progress, machine.GetName(),
                                         ":/progress_start_90px.png", 0, iSpawningDuration);
     if (!progress.isOk() || progress.GetResultCode() != 0)

@@ -1,6 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 5.0.0 Beta 1 (2015-04-01)</title>
+
+    <para>This is a major update. The following major new features
+      were added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Drag'n drop support (bidirectional) for Windows, Linux and Solaris guests</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Support hotplugging for SATA disks</para>
+      </listitem>
+
+      <listitem>
+        <para>New, modular audio architecture for providing a better abstraction of the host
+          audio backends</para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>In addition, the following items were fixed and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: improved timing on Solaris hosts with older VT-x hosts
+          without preemption timers</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: when exporting an appliance, support the suppression
+           of MAC addresses, which means they will be always recreated on
+           import, avoiding duplicate MAC addresses for VMs which are imported
+           several times</para>
+      </listitem>
+
+      <listitem>
+        <para>API: block the removal of the current snapshot if it has child
+           snapshots (only relevant for VMs without snapshottable hard disks,
+           their presence always prevented removal), which resulted in VM
+           config corruption</para>
+      </listitem>
+
+      <listitem>
+        <para>API: mark VM configs with snapshots but without current snapshot
+           as inaccessible, as this combination is nonsense</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix information for some automatically generated events
+           (only with XPCOM, Windows host was not affected), which caused
+           errors when getting some of the attributes over the webservice
+           (bug #12379)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fix crashes in Java API clients using the XPCOM binding,
+          happened with output parameters only (bug #11232)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: a number of settings (e.g. network settings) can now also
+          be changed when the VM is in saved state</para>
+      </listitem>
+
+    </itemizedlist>
+
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.26 (2015-03-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -506,7 +578,7 @@
       </listitem>
 
       <listitem>
-        <para>Storage: fixed broken iSCSI authentication (4.3.14 regression, bugs #13386,
+        <para>Storage: fixed broken iSCSI authentication (4.3.14 regression; bugs #13386,
           #13435)</para>
       </listitem>
 
@@ -632,7 +704,7 @@
       </listitem>
 
       <listitem>
-        <para>3D: fixed white window appearing on entering FullScreen mode on OSX host</para>
+        <para>3D: fixed white window appearing on entering FullScreen mode on Mac OS X host</para>
       </listitem>
 
       <listitem>
@@ -695,7 +767,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: made the HDA sound emulation work with certain OSX guests
+        <para>Audio: made the HDA sound emulation work with certain Mac OS X guests
           (e.g. Mountain Lion)</para>
       </listitem>
 
@@ -1209,8 +1281,7 @@
 
       <listitem>
         <para>VMM: experimental support for SSE 4.1 / SSE 4.2 passthrough, see
-          <xref linkend="sse412passthrough" xreflabel="here"/> how to
-          enable it (bug #8651)</para>
+          the user manual how to enable it (bug #8651)</para>
       </listitem>
 
       <listitem>
@@ -3442,7 +3513,7 @@
 
       <listitem>
         <para>GUI: fixed crash with multiple guest screens on certain
-          conditions (OS X hosts only)</para>
+          conditions (Mac OS X hosts only)</para>
       </listitem>
 
       <listitem>
@@ -3702,7 +3773,7 @@
       </listitem>
 
       <listitem>
-        <para>Added experimental support for Drag'n'drop from the host to
+        <para>Added experimental support for drag'n'drop from the host to
           Linux guests. Support for more guests and for guest-to-host is
           planned. (bug #81)</para>
       </listitem>
@@ -4957,8 +5028,8 @@
       </listitem>
 
       <listitem>
-        <para>GUI: keep the aspect ratio in scale mode (Windows and OSX hosts only;
-          bug #7822)</para>
+        <para>GUI: keep the aspect ratio in scale mode (Windows and Mac OS X hosts
+          only; bug #7822)</para>
       </listitem>
 
       <listitem>
@@ -10712,7 +10783,7 @@
       </listitem>
 
       <listitem>
-        <para>Shared Folders: respect umask settings on Linux, OSX and Solaris
+        <para>Shared Folders: respect umask settings on Linux, Mac OS X and Solaris
         hosts when creating files</para>
       </listitem>
 

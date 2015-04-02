@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,6 +91,7 @@
 # define supR3HardenedOpenLog              supR3HardenedStaticOpenLog
 # define supR3HardenedLogV                 supR3HardenedStaticLogV
 # define supR3HardenedLog                  supR3HardenedStaticLog
+# define supR3HardenedLogFlush             supR3HardenedStaticLogFlush
 # define supR3HardenedVerifyAll            supR3HardenedStaticVerifyAll
 # define supR3HardenedVerifyFixedDir       supR3HardenedStaticVerifyFixedDir
 # define supR3HardenedVerifyFixedFile      supR3HardenedStaticVerifyFixedFile
@@ -331,9 +332,14 @@ typedef enum SUPR3HARDENEDMAINSTATE
 /*******************************************************************************
 *   Global Variables                                                           *
 *******************************************************************************/
-extern DECLHIDDEN(uint32_t)     g_u32Cookie;
-extern DECLHIDDEN(uint32_t)     g_u32SessionCookie;
-extern DECLHIDDEN(SUPLIBDATA)   g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_u32Cookie;
+extern DECLHIDDEN(uint32_t)             g_u32SessionCookie;
+extern DECLHIDDEN(SUPLIBDATA)           g_supLibData;
+extern DECLHIDDEN(uint32_t)             g_uSupFakeMode;
+extern DECLHIDDEN(PSUPGLOBALINFOPAGE)   g_pSUPGlobalInfoPageR0;
+#ifdef ___SUPDrvIOC_h___
+extern DECLHIDDEN(PSUPQUERYFUNCS)       g_pSupFunctions;
+#endif
 extern DECLHIDDEN(SUPR3HARDENEDMAINSTATE) g_enmSupR3HardenedMainState;
 #ifdef RT_OS_WINDOWS
 extern DECLHIDDEN(bool)                 g_fSupEarlyProcessInit;
@@ -427,6 +433,11 @@ DECLHIDDEN(void)    supR3HardenedLogV(const char *pszFormat, va_list va);
  * Write to the startup log file.
  */
 DECLHIDDEN(void)    supR3HardenedLog(const char *pszFormat, ...);
+
+/**
+ * Flushes the log file.
+ */
+DECLHIDDEN(void)    supR3HardenedLogFlush(void);
 
 
 DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName);

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,8 @@ RT_C_DECLS_BEGIN
  */
 
 /**
- * Creates a generic URI.
+ * Creates a generic URI. The returned pointer must be freed
+ * using RTStrFree().
  *
  * @returns the new URI on success, NULL otherwise.
  * @param   pszScheme           The URI scheme.
@@ -107,7 +108,6 @@ RTR3DECL(char *) RTUriFragment(const char *pszUri);
 /** @defgroup grp_rt_uri_file   RTUriFile - Uri file parsing and creation
  * Adds file: scheme support to the generic RTUri interface. This is partly
  * documented in http://datatracker.ietf.org/doc/rfc1738/.
- * @ingroup grp_rt_uri
  * @{
  */
 
@@ -119,7 +119,8 @@ RTR3DECL(char *) RTUriFragment(const char *pszUri);
 #define URI_FILE_FORMAT_WIN   UINT32_C(2)
 
 /**
- * Creates a file URI.
+ * Creates a file URI. The returned pointer must be freed
+ * using RTStrFree().
  *
  * @see RTUriCreate
  *

@@ -1,8 +1,6 @@
 /* $Id: UIShortcutPool.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIShortcutPool class implementation
+ * VBox Qt GUI - UIShortcutPool class implementation.
  */
 
 /*
@@ -17,10 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIShortcutPool.h"
-#include "UIActionPool.h"
-#include "UIExtraDataEventHandler.h"
+# include "UIShortcutPool.h"
+# include "UIActionPool.h"
+# include "UIExtraDataManager.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/* Namespaces: */
+using namespace UIExtraDataDefs;
+
 
 void UIShortcut::setDescription(const QString &strDescription)
 {
@@ -223,8 +232,8 @@ void UIShortcutPool::prepare()
 void UIShortcutPool::prepareConnections()
 {
     /* Connect to extra-data signals: */
-    connect(gEDataEvents, SIGNAL(sigSelectorShortcutsChanged()), this, SLOT(sltReloadSelectorShortcuts()));
-    connect(gEDataEvents, SIGNAL(sigMachineShortcutsChanged()), this, SLOT(sltReloadMachineShortcuts()));
+    connect(gEDataManager, SIGNAL(sigSelectorUIShortcutChange()), this, SLOT(sltReloadSelectorShortcuts()));
+    connect(gEDataManager, SIGNAL(sigRuntimeUIShortcutChange()), this, SLOT(sltReloadMachineShortcuts()));
 }
 
 void UIShortcutPool::retranslateUi()
@@ -255,7 +264,7 @@ void UIShortcutPool::loadOverridesFor(const QString &strPoolExtraDataID)
     /* Compose shortcut key template: */
     const QString strShortcutKeyTemplate(m_sstrShortcutKeyTemplate.arg(strPoolExtraDataID));
     /* Iterate over all the overrides: */
-    const QStringList overrides = vboxGlobal().virtualBox().GetExtraDataStringList(strPoolExtraDataID);
+    const QStringList overrides = gEDataManager->shortcutOverrides(strPoolExtraDataID);
     foreach (const QString &strKeyValuePair, overrides)
     {
         /* Make sure override structure is valid: */
@@ -264,8 +273,12 @@ void UIShortcutPool::loadOverridesFor(const QString &strPoolExtraDataID)
             continue;
 
         /* Get shortcut ID/sequence: */
-        const QString strShortcutExtraDataID = strKeyValuePair.left(iDelimiterPosition);
+        QString strShortcutExtraDataID = strKeyValuePair.left(iDelimiterPosition);
         const QString strShortcutSequence = strKeyValuePair.right(strKeyValuePair.length() - iDelimiterPosition - 1);
+
+        // Hack for handling "Save" as "SaveState":
+        if (strShortcutExtraDataID == "Save")
+            strShortcutExtraDataID = "SaveState";
 
         /* Compose corresponding shortcut key: */
         const QString strShortcutKey(strShortcutKeyTemplate.arg(strShortcutExtraDataID));

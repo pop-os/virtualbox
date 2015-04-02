@@ -2234,7 +2234,7 @@ Do you want to delete it anyway?</source>
     </message>
     <message>
         <source>&lt;h3&gt;About Qt&lt;/h3&gt;%1&lt;p&gt;Qt is a C++ toolkit for cross-platform application development.&lt;/p&gt;&lt;p&gt;Qt provides single-source portability across MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, and all major commercial Unix variants. Qt is also available for embedded devices as Qt for Embedded Linux and Qt for Windows CE.&lt;/p&gt;&lt;p&gt;Qt is a Nokia product. See &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; for more information.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;关于 Qt&lt;/h3&gt;%1&lt;p&gt;Qt 是一种开发跨平台应用的 C++ 工具包。&lt;/p&gt;&lt;p&gt;Qt 提供单一代码移植性，适用于MS&amp;nbsp;Windows, Mac&amp;nbsp;OS&amp;nbsp;X, Linux, 及主要的商业Unix。 Qt 亦可用于嵌入式设备，有 Qt Linux 嵌入版和 Qt Windows CE 版。&lt;/p&gt;&lt;p&gt;Qt 为 Nokia 产品。 访问 &lt;a href=&quot;http://www.trolltech.com/qt/&quot;&gt;www.trolltech.com/qt/&lt;/a&gt; 获取更多信息。&lt;b&gt;注意&lt;/b&gt;Qt新版位于 &lt;a href=&quot;http://qt-project.org/&quot;&gt;qt-project.org/&lt;/a&gt; &lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2512,7 +2512,7 @@ Do you want to delete it anyway?</source>
     <name>QODBCResult</name>
     <message>
         <source>QODBCResult::reset: Unable to set &apos;SQL_CURSOR_STATIC&apos; as statement attribute. Please check your ODBC driver configuration</source>
-        <translation>QODBCResult::reset: 不能把“SQL_CURSOR_STATIC”设置为语句属性。请检查你的ODBC驱动程序设置</translation>
+        <translation>QODBCResult::reset: 不能把“SQL_CURSOR_STATIC”设置为语句属性。请检查你的ODBC驱动程序设置。</translation>
     </message>
     <message>
         <source>Unable to execute statement</source>
@@ -2851,8 +2851,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>Executive</source>
-        <translatorcomment>TODO</translatorcomment>
-        <translation>决策文书</translation>
+        <translation type="unfinished">决策文书</translation>
     </message>
     <message>
         <source>Folio</source>
@@ -5262,7 +5261,7 @@ Please choose a different file name.</source>
     </message>
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>用户定义的函数的命名空间不能为空(请试试预定义的前缀 %1，它就是用于这种情况的)</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

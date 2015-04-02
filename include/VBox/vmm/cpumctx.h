@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -246,11 +246,6 @@ typedef struct CPUMCTXCORE
 #pragma pack(1) /* for VBOXIDTR / VBOXGDTR. */
 typedef struct CPUMCTX
 {
-    /** FPU state. (16-byte alignment)
-     * @todo This doesn't have to be in X86FXSTATE on CPUs without fxsr - we need a type for the
-     *       actual format or convert it (waste of time).  */
-    X86FXSTATE      fpu;
-
     /** CPUMCTXCORE Part.
      * @{ */
 
@@ -403,12 +398,20 @@ typedef struct CPUMCTX
     uint64_t        msrApicBase;        /**< The local APIC base (IA32_APIC_BASE MSR). */
     /** @} */
 
+    /** Pointer to the FPU/SSE/AVX/XXXX state ring-0 mapping. */
+    R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
+    /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
+    R3PTRTYPE(PX86XSAVEAREA)    pXStateR3;
+    /** Pointer to the FPU/SSE/AVX/XXXX state raw-mode mapping. */
+    RCPTRTYPE(PX86XSAVEAREA)    pXStateRC;
+
     /** Size padding. */
-    uint32_t        au32SizePadding[6];
+    uint32_t        au32SizePadding[HC_ARCH_BITS == 32 ? 3 : 1];
 } CPUMCTX;
 #pragma pack()
 
 #ifndef VBOX_FOR_DTRACE_LIB
+AssertCompileSizeAlignment(CPUMCTX, 64);
 
 /**
  * Gets the CPUMCTXCORE part of a CPUMCTX.
@@ -467,10 +470,10 @@ typedef const CPUMCTXMSRS *PCCPUMCTXMSRS;
  */
 typedef struct CPUMCPUID
 {
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
+    uint32_t uEax;
+    uint32_t uEbx;
+    uint32_t uEcx;
+    uint32_t uEdx;
 } CPUMCPUID;
 /** Pointer to a CPUID leaf. */
 typedef CPUMCPUID *PCPUMCPUID;

@@ -1,8 +1,6 @@
 /* $Id: UIConverter.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIConverter implementation
+ * VBox Qt GUI - UIConverter implementation.
  */
 
 /*
@@ -17,8 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else
 /* GUI includes: */
-#include "UIConverter.h"
+# include "UIConverter.h"
+#endif
+
 
 /* static */
 UIConverter* UIConverter::m_spInstance = 0;

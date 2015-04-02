@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsInput class declaration
+ * VBox Qt GUI - UIGlobalSettingsInput class declaration.
  */
 
 /*
@@ -241,7 +239,7 @@ class UIHotKeyTable : public QTableView
 public:
 
     /* Constructor: */
-    UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel);
+    UIHotKeyTable(QWidget *pParent, UIHotKeyTableModel *pModel, const QString &strObjectName);
 
 private slots:
 

@@ -206,7 +206,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                 RTMemFree(pMipmapLevel);
             }
 
-            PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+            PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
             Assert(pSurface->id == sid);
 
             pSurface->fDirty = false;
@@ -220,7 +220,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                 Assert(pMipmapLevel->cbSurface);
                 pMipmapLevel->pSurfaceData = RTMemAllocZ(pMipmapLevel->cbSurface);
                 AssertReturn(pMipmapLevel->pSurfaceData, VERR_NO_MEMORY);
-                
+
                 /* Fetch the data present boolean first. */
                 rc = SSMR3GetBool(pSSM, &fDataPresent);
                 AssertRCReturn(rc, rc);
@@ -435,7 +435,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
     /* Save all active surfaces. */
     for (uint32_t sid = 0; sid < pState->cSurfaces; sid++)
     {
-        PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+        PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
 
         /* Save the id first. */
         rc = SSMR3PutU32(pSSM, pSurface->id);
@@ -574,7 +574,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                                                                     NULL,
                                                                     D3DLOCK_READONLY);
                             AssertMsgReturn(hr == D3D_OK, ("vmsvga3dSaveExec: LockRect failed with %x\n", hr), VERR_INTERNAL_ERROR);
-               
+
                             /* Copy the data one line at a time in case the internal pitch is different. */
                             for (uint32_t j = 0; j < pMipmapLevel->size.height; j++)
                             {
@@ -607,7 +607,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
 
                             if (fVertex)
                                 hr = pSurface->u.pVertexBuffer->Lock(0, 0, (void **)&pD3DData, D3DLOCK_READONLY);
-                            else        
+                            else
                                 hr = pSurface->u.pIndexBuffer->Lock(0, 0, (void **)&pD3DData, D3DLOCK_READONLY);
                             AssertMsg(hr == D3D_OK, ("vmsvga3dSaveExec: Lock %s failed with %x\n", (fVertex) ? "vertex" : "index", hr));
 
@@ -699,8 +699,8 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
 
                             glGetTexImage(GL_TEXTURE_2D,
                                           i,
-                                          pSurface->formatGL, 
-                                          pSurface->typeGL, 
+                                          pSurface->formatGL,
+                                          pSurface->typeGL,
                                           pData);
                             VMSVGA3D_CHECK_LAST_ERROR_WARN(pState, pContext);
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,34 +15,43 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QGraphicsLinearLayout>
-#include <QTimer>
-#include <QDir>
+# include <QTimer>
+# include <QDir>
 
 /* GUI includes: */
-#include "UIGDetailsElements.h"
-#include "UIGDetailsModel.h"
-#include "UIGMachinePreview.h"
-#include "UIGraphicsRotatorButton.h"
-#include "VBoxGlobal.h"
-#include "UIIconPool.h"
-#include "UIConverter.h"
+# include "UIGDetailsElements.h"
+# include "UIGDetailsModel.h"
+# include "UIGMachinePreview.h"
+# include "UIGraphicsRotatorButton.h"
+# include "VBoxGlobal.h"
+# include "UIIconPool.h"
+# include "UIConverter.h"
+# include "UIGraphicsTextPane.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
-#include "CVRDEServer.h"
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
-#include "CAudioAdapter.h"
-#include "CNetworkAdapter.h"
-#include "CSerialPort.h"
-#include "CParallelPort.h"
-#include "CUSBController.h"
-#include "CUSBDeviceFilters.h"
-#include "CUSBDeviceFilter.h"
-#include "CSharedFolder.h"
-#include "CMedium.h"
+# include "CSystemProperties.h"
+# include "CVRDEServer.h"
+# include "CStorageController.h"
+# include "CMediumAttachment.h"
+# include "CAudioAdapter.h"
+# include "CNetworkAdapter.h"
+# include "CSerialPort.h"
+# include "CParallelPort.h"
+# include "CUSBController.h"
+# include "CUSBDeviceFilters.h"
+# include "CUSBDeviceFilter.h"
+# include "CSharedFolder.h"
+# include "CMedium.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QGraphicsLinearLayout>
+
 
 /* Constructor: */
 UIGDetailsUpdateThread::UIGDetailsUpdateThread(const CMachine &machine)
@@ -185,11 +194,21 @@ UIGDetailsElementPreview::UIGDetailsElementPreview(UIGDetailsSet *pParent, bool 
 
     /* Create preview: */
     m_pPreview = new UIGMachinePreview(this);
+    connect(m_pPreview, SIGNAL(sigSizeHintChanged()),
+            this, SLOT(sltPreviewSizeHintChanged()));
     pLayout->addItem(m_pPreview);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 
     /* Translate: */
     retranslateUi();
+}
+
+void UIGDetailsElementPreview::sltPreviewSizeHintChanged()
+{
+    /* Recursively update size-hints: */
+    updateGeometry();
+    /* Update whole model layout: */
+    model()->updateLayout();
 }
 
 void UIGDetailsElementPreview::retranslateUi()
@@ -330,6 +349,13 @@ void UIGDetailsUpdateThreadSystem::run()
             }
             if (machine().GetCPUProperty(KCPUPropertyType_PAE))
                 acceleration << QApplication::translate("UIGDetails", "PAE/NX", "details (system)");
+            switch (machine().GetEffectiveParavirtProvider())
+            {
+                case KParavirtProvider_Minimal: acceleration << QApplication::translate("UIGDetails", "Minimal Paravirtualization", "details (system)"); break;
+                case KParavirtProvider_HyperV:  acceleration << QApplication::translate("UIGDetails", "Hyper-V Paravirtualization", "details (system)"); break;
+                case KParavirtProvider_KVM:     acceleration << QApplication::translate("UIGDetails", "KVM Paravirtualization", "details (system)"); break;
+                default: break;
+            }
             if (!acceleration.isEmpty())
                 m_text << UITextTableLine(QApplication::translate("UIGDetails", "Acceleration", "details (system)"),
                                           acceleration.join(", "));
@@ -504,14 +530,28 @@ void UIGDetailsUpdateThreadStorage::run()
                         QString strBoldInaccessibleString(QString("<b>%1</b>").arg(strInaccessibleString));
                         strAttachmentInfo.replace(strInaccessibleString, strBoldInaccessibleString);
                     } // hack
-                    /* Append 'device slot name' with 'device type name' for CD/DVD devices only: */
-                    QString strDeviceType = attachment.GetType() == KDeviceType_DVD ?
-                                QApplication::translate("UIGDetails", "[CD/DVD]", "details (storage)") : QString();
+                    /* Append 'device slot name' with 'device type name' for optical devices only: */
+                    KDeviceType deviceType = attachment.GetType();
+                    QString strDeviceType = deviceType == KDeviceType_DVD ?
+                                QApplication::translate("UIGDetails", "[Optical Drive]", "details (storage)") : QString();
                     if (!strDeviceType.isNull())
                         strDeviceType.append(' ');
                     /* Insert that attachment information into the map: */
                     if (!strAttachmentInfo.isNull())
-                        attachmentsMap.insert(attachmentSlot, strDeviceType + strAttachmentInfo);
+                    {
+                        /* Configure hovering anchors: */
+                        const QString strAnchorType = deviceType == KDeviceType_DVD || deviceType == KDeviceType_Floppy ? QString("mount") :
+                                                      deviceType == KDeviceType_HardDisk ? QString("attach") : QString();
+                        const CMedium medium = attachment.GetMedium();
+                        const QString strMediumLocation = medium.isNull() ? QString() : medium.GetLocation();
+                        attachmentsMap.insert(attachmentSlot,
+                                              QString("<a href=#%1,%2,%3,%4>%5</a>")
+                                                      .arg(strAnchorType,
+                                                           controller.GetName(),
+                                                           gpConverter->toString(attachmentSlot),
+                                                           strMediumLocation,
+                                                           strDeviceType + strAttachmentInfo));
+                    }
                 }
                 /* Iterate over the sorted map: */
                 QList<StorageSlot> storageSlots = attachmentsMap.keys();
@@ -897,7 +937,7 @@ void UIGDetailsUpdateThreadUSB::run()
             if (!filters.isNull() && machine().GetUSBProxyAvailable())
             {
                 const CUSBDeviceFilters &flts = machine().GetUSBDeviceFilters();
-                if (!flts.isNull() && machine().GetUSBControllerCountByType(KUSBControllerType_OHCI))
+                if (!flts.isNull() && !machine().GetUSBControllers().isEmpty())
                 {
                     const CUSBDeviceFilterVector &coll = flts.GetDeviceFilters();
                     uint uActive = 0;
@@ -996,6 +1036,124 @@ void UIGDetailsElementSF::retranslateUi()
 UIGDetailsUpdateThread* UIGDetailsElementSF::createUpdateThread()
 {
     return new UIGDetailsUpdateThreadSF(machine());
+}
+
+
+UIGDetailsUpdateThreadUI::UIGDetailsUpdateThreadUI(const CMachine &machine)
+    : UIGDetailsUpdateThread(machine)
+{
+}
+
+void UIGDetailsUpdateThreadUI::run()
+{
+    COMBase::InitializeCOM(false);
+
+    if (!machine().isNull())
+    {
+        /* Prepare table: */
+        UITextTable m_text;
+
+        /* Gather information: */
+        if (machine().GetAccessible())
+        {
+            /* Damn GetExtraData should be const already :( */
+            CMachine localMachine = machine();
+
+            /* Get scale-factor value: */
+            const QString strScaleFactor = localMachine.GetExtraData(UIExtraDataDefs::GUI_ScaleFactor);
+            {
+                /* Try to convert loaded data to double: */
+                bool fOk = false;
+                double dValue = strScaleFactor.toDouble(&fOk);
+                /* Invent the default value: */
+                if (!fOk || !dValue)
+                    dValue = 1.0;
+                /* Append information: */
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Scale-factor", "details (user interface)"), QString::number(dValue, 'f', 2));
+            }
+
+#ifdef Q_WS_MAC
+            /* Get 'Unscaled HiDPI Video Output' mode value: */
+            const QString strUnscaledHiDPIMode = localMachine.GetExtraData(UIExtraDataDefs::GUI_HiDPI_UnscaledOutput);
+            {
+                /* Try to convert loaded data to bool: */
+                const bool fEnabled  = strUnscaledHiDPIMode.compare("true", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode.compare("yes", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode.compare("on", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode == "1";
+                /* Append information: */
+                if (fEnabled)
+                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "Unscaled HiDPI Video Output", "details (user interface)"),
+                                              QApplication::translate("UIGDetails", "Enabled", "details (user interface/Unscaled HiDPI Video Output)"));
+            }
+#endif /* Q_WS_MAC */
+
+#ifndef Q_WS_MAC
+            /* Get mini-toolbar availability status: */
+            const QString strMiniToolbarEnabled = localMachine.GetExtraData(UIExtraDataDefs::GUI_ShowMiniToolBar);
+            {
+                /* Try to convert loaded data to bool: */
+                const bool fEnabled = !(strMiniToolbarEnabled.compare("false", Qt::CaseInsensitive) == 0 ||
+                                        strMiniToolbarEnabled.compare("no", Qt::CaseInsensitive) == 0 ||
+                                        strMiniToolbarEnabled.compare("off", Qt::CaseInsensitive) == 0 ||
+                                        strMiniToolbarEnabled == "0");
+                /* Append information: */
+                if (fEnabled)
+                {
+                    /* Get mini-toolbar position: */
+                    const QString &strMiniToolbarPosition = localMachine.GetExtraData(UIExtraDataDefs::GUI_MiniToolBarAlignment);
+                    {
+                        /* Try to convert loaded data to alignment: */
+                        switch (gpConverter->fromInternalString<MiniToolbarAlignment>(strMiniToolbarPosition))
+                        {
+                            /* Append information: */
+                            case MiniToolbarAlignment_Top:
+                                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Mini-toolbar Position", "details (user interface)"),
+                                                          QApplication::translate("UIGDetails", "Top", "details (user interface/mini-toolbar position)"));
+                                break;
+                            /* Append information: */
+                            case MiniToolbarAlignment_Bottom:
+                                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Mini-toolbar Position", "details (user interface)"),
+                                                          QApplication::translate("UIGDetails", "Bottom", "details (user interface/mini-toolbar position)"));
+                                break;
+                        }
+                    }
+                }
+                /* Append information: */
+                else
+                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "Mini-toolbar", "details (user interface)"),
+                                              QApplication::translate("UIGDetails", "Disabled", "details (user interface/mini-toolbar)"));
+            }
+#endif /* !Q_WS_MAC */
+        }
+        else
+            m_text << UITextTableLine(QApplication::translate("UIGDetails", "Information Inaccessible", "details"), QString());
+
+        /* Send information into GUI thread: */
+        emit sigComplete(m_text);
+    }
+
+    COMBase::CleanupCOM();
+}
+
+UIGDetailsElementUI::UIGDetailsElementUI(UIGDetailsSet *pParent, bool fOpened)
+    : UIGDetailsElementInterface(pParent, DetailsElementType_UI, fOpened)
+{
+    /* Icon: */
+    setIcon(UIIconPool::iconSet(":/interface_16px.png"));
+
+    /* Translate: */
+    retranslateUi();
+}
+
+void UIGDetailsElementUI::retranslateUi()
+{
+    setName(gpConverter->toString(DetailsElementType_UI));
+}
+
+UIGDetailsUpdateThread* UIGDetailsElementUI::createUpdateThread()
+{
+    return new UIGDetailsUpdateThreadUI(machine());
 }
 
 

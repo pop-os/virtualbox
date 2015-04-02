@@ -28,8 +28,8 @@
 
 /** custom SDL event for display update handling */
 #define SDL_USER_EVENT_UPDATERECT         (SDL_USEREVENT + 4)
-/** custom SDL event for resize handling */
-#define SDL_USER_EVENT_RESIZE             (SDL_USEREVENT + 5)
+/** custom SDL event for changing the guest resolution */
+#define SDL_USER_EVENT_NOTIFYCHANGE       (SDL_USEREVENT + 5)
 /** custom SDL for XPCOM event queue processing */
 #define SDL_USER_EVENT_XPCOM_EVENTQUEUE   (SDL_USEREVENT + 6)
 /** custom SDL event for updating the titlebar */

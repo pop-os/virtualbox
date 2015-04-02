@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2011 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,8 +82,7 @@ HRESULT ProgressProxy::init(
                           1 /* cOperations */,
                           1 /* ulTotalOperationsWeight */,
                           bstrDescription /* bstrFirstOperationDescription */,
-                          1 /* ulFirstOperationWeight */,
-                          NULL /* pId */);
+                          1 /* ulFirstOperationWeight */);
 }
 
 /**
@@ -123,8 +122,7 @@ HRESULT ProgressProxy::init(
                           1 + cOtherProgressObjectOperations /* cOperations */,
                           uTotalOperationsWeight,
                           bstrFirstOperationDescription,
-                          uFirstOperationWeight,
-                          NULL);
+                          uFirstOperationWeight);
 }
 
 void ProgressProxy::FinalRelease()
@@ -157,7 +155,7 @@ HRESULT ProgressProxy::notifyComplete(HRESULT aResultCode)
     clearOtherProgressObjectInternal(true /* fEarly */);
     HRESULT hrc = S_OK;
     if (!mCompleted)
-         hrc = Progress::notifyComplete(aResultCode);
+         hrc = Progress::i_notifyComplete(aResultCode);
     return hrc;
 }
 
@@ -177,7 +175,7 @@ HRESULT ProgressProxy::notifyComplete(HRESULT aResultCode,
     {
         va_list va;
         va_start(va, aText);
-        hrc = Progress::notifyCompleteV(aResultCode, aIID, pcszComponent, aText, va);
+        hrc = Progress::i_notifyCompleteV(aResultCode, aIID, pcszComponent, aText, va);
         va_end(va);
     }
     return hrc;
@@ -375,18 +373,18 @@ void ProgressProxy::copyProgressInfo(IProgress *pOtherProgress, bool fEarly)
 
                         Utf8Str strText(bstrText);
                         LogFlowThisFunc(("Got ErrorInfo(%s); hrcResult=%Rhrc\n", strText.c_str(), hrcResult));
-                        Progress::notifyComplete((HRESULT)hrcResult,
-                                                 Guid(bstrIID).ref(),
-                                                 Utf8Str(bstrComponent).c_str(),
-                                                 "%s", strText.c_str());
+                        Progress::i_notifyComplete((HRESULT)hrcResult,
+                                                   Guid(bstrIID).ref(),
+                                                   Utf8Str(bstrComponent).c_str(),
+                                                   "%s", strText.c_str());
                     }
                     else
                     {
                         LogFlowThisFunc(("ErrorInfo failed with hrc=%Rhrc; hrcResult=%Rhrc\n", hrc, hrcResult));
-                        Progress::notifyComplete((HRESULT)hrcResult,
-                                                 COM_IIDOF(IProgress),
-                                                 "ProgressProxy",
-                                                 tr("No error info"));
+                        Progress::i_notifyComplete((HRESULT)hrcResult,
+                                                   COM_IIDOF(IProgress),
+                                                   "ProgressProxy",
+                                                   tr("No error info"));
                     }
                 }
             }
@@ -466,7 +464,8 @@ STDMETHODIMP ProgressProxy::COMGETTER(Percent)(ULONG *aPercent)
             {
                 double rdPercent = ((double)uPct / 100 * muOtherProgressWeight + muOtherProgressStartWeight)
                                  / m_ulTotalOperationsWeight * 100;
-                *aPercent = RT_MIN((ULONG)rdPercent, 99); /* mptrOtherProgress is cleared when its completed, so we can never return 100%. */
+                *aPercent = RT_MIN((ULONG)rdPercent, 99); /* mptrOtherProgress is cleared when its completed,
+                                                             so we can never return 100%. */
             }
         }
     }

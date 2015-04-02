@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,10 +29,11 @@
 #include "MachineImpl.h"
 
 #include <iprt/mem.h>
+#include <iprt/cpp/utils.h>
 
 HostPowerService::HostPowerService(VirtualBox *aVirtualBox)
 {
-    Assert(aVirtualBox != NULL);
+    AssertPtr(aVirtualBox);
     mVirtualBox = aVirtualBox;
 }
 
@@ -55,12 +56,12 @@ void HostPowerService::notify(Reason_T aReason)
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
             /* Suspend performance sampling to avoid unnecessary callbacks due to jumps in time. */
-            PerformanceCollector *perfcollector = mVirtualBox->performanceCollector();
+            PerformanceCollector *perfcollector = mVirtualBox->i_performanceCollector();
 
             if (perfcollector)
                 perfcollector->suspendSampling();
 #endif
-            mVirtualBox->getOpenedMachines(machines, &controls);
+            mVirtualBox->i_getOpenedMachines(machines, &controls);
 
             /* pause running VMs */
             for (VirtualBox::InternalControlList::const_iterator it = controls.begin();
@@ -107,7 +108,7 @@ void HostPowerService::notify(Reason_T aReason)
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
             /* Resume the performance sampling. */
-            PerformanceCollector *perfcollector = mVirtualBox->performanceCollector();
+            PerformanceCollector *perfcollector = mVirtualBox->i_performanceCollector();
 
             if (perfcollector)
                 perfcollector->resumeSampling();
@@ -133,7 +134,7 @@ void HostPowerService::notify(Reason_T aReason)
                     fGlobal = -1;
             }
 
-            mVirtualBox->getOpenedMachines(machines, &controls);
+            mVirtualBox->i_getOpenedMachines(machines, &controls);
             size_t saved = 0;
 
             /* save running VMs */
@@ -166,7 +167,7 @@ void HostPowerService::notify(Reason_T aReason)
                     rc = pControl->SaveStateWithReason(Reason_HostBatteryLow, progress.asOutParam());
                     if (FAILED(rc))
                     {
-                        LogRel(("SaveState '%s' failed with %Rhrc\n", pMachine->getName().c_str(), rc));
+                        LogRel(("SaveState '%s' failed with %Rhrc\n", pMachine->i_getName().c_str(), rc));
                         continue;
                     }
 
@@ -183,7 +184,7 @@ void HostPowerService::notify(Reason_T aReason)
 
                     if (SUCCEEDED(rc))
                     {
-                        LogRel(("SaveState '%s' succeeded\n", pMachine->getName().c_str()));
+                        LogRel(("SaveState '%s' succeeded\n", pMachine->i_getName().c_str()));
                         ++saved;
                     }
                 }

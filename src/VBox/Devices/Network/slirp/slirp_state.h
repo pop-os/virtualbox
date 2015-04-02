@@ -155,9 +155,7 @@ typedef struct NATState
     struct in_addr loopback_addr;
     uint32_t dnsLastUpdate;
     uint32_t netmask;
-#ifndef VBOX_WITH_NAT_SERVICE
     uint8_t client_ethaddr[6];
-#endif
     const uint8_t *slirp_ethaddr;
     char slirp_hostname[33];
     bool fPassDomain;
@@ -297,6 +295,8 @@ typedef struct NATState
     int    i32AliasMode;
     struct libalias *proxy_alias;
     LIST_HEAD(handler_chain, proto_handler) handler_chain;
+    /** Critical R/W section to protect the handler chain list. */
+    RTCRITSECTRW CsRwHandlerChain;
     struct port_forward_rule_list port_forward_rule_head;
     int cRedirectionsActive;
     int cRedirectionsStored;

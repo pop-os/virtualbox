@@ -1,10 +1,10 @@
-# $Revision: 97163 $
+# $Revision: 98752 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,6 @@ MOD_NAME = vboxguest
 MOD_OBJS   = \
 	VBoxGuest-linux.o \
 	VBoxGuest.o \
-	VBoxGuest2.o \
 	GenericRequest.o \
 	HGCMInternal.o \
 	Init.o \
@@ -52,6 +51,7 @@ MOD_OBJS   = \
 	r0drv/linux/thread-r0drv-linux.o \
 	r0drv/linux/thread2-r0drv-linux.o \
 	r0drv/linux/time-r0drv-linux.o \
+	r0drv/linux/timer-r0drv-linux.o \
 	r0drv/linux/RTLogWriteDebugger-r0drv-linux.o \
 	r0drv/generic/semspinmutex-r0drv-generic.o \
 	common/alloc/alloc.o \
@@ -85,11 +85,13 @@ MOD_OBJS   = \
 	generic/RTAssertShouldPanic-generic.o \
         generic/RTLogWriteStdErr-stub-generic.o \
         generic/RTLogWriteStdOut-stub-generic.o \
+	generic/RTMpGetCoreCount-generic.o \
 	generic/RTSemEventWait-2-ex-generic.o \
 	generic/RTSemEventWaitNoResume-2-ex-generic.o \
 	generic/RTSemEventMultiWait-2-ex-generic.o \
 	generic/RTSemEventMultiWaitNoResume-2-ex-generic.o \
 	generic/errvars-generic.o \
+	generic/mppresent-generic.o \
 	VBox/log-vbox.o \
 	VBox/logbackdoor.o
 ifeq ($(BUILD_TARGET_ARCH),x86)

@@ -28,6 +28,13 @@
 
 <xsl:variable name="G_lowerCase" select="'abcdefghijklmnopqrstuvwxyz'" />
 <xsl:variable name="G_upperCase" select="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'" />
+<xsl:variable name="G_sNewLine">
+  <xsl:text>
+</xsl:text>
+</xsl:variable>
+
+<!-- List of white space characters that the strip functions will remove -->
+<xsl:variable name="G_sWhiteSpace" select="' &#10;&#13;&#09;'"/>
 
 <!-- target namespace; this must match the xmlns:vbox in stylesheet opening tags! -->
 <xsl:variable name="G_targetNamespace"
@@ -162,19 +169,19 @@
               select='"StructCom2Soap_"' />
 
 <xsl:variable name="G_aSharedTypes">
-  <type idlname="octet"              xmlname="unsignedByte"  cname="unsigned char"    gluename="BYTE"    gluefmt="%RU8"      javaname="byte" />
-  <type idlname="boolean"            xmlname="boolean"       cname="bool"             gluename="BOOL"    gluefmt="%RTbool"   javaname="Boolean" />
-  <type idlname="short"              xmlname="short"         cname="short"            gluename="SHORT"   gluefmt="%RI16"     javaname="Short" />
-  <type idlname="unsigned short"     xmlname="unsignedShort" cname="unsigned short"   gluename="USHORT"  gluefmt="%RU16"     javaname="Integer" />
-  <type idlname="long"               xmlname="int"           cname="int"              gluename="LONG"    gluefmt="%RI32"     javaname="Integer" />
-  <type idlname="unsigned long"      xmlname="unsignedInt"   cname="unsigned int"     gluename="ULONG"   gluefmt="%RU32"     javaname="Long" />
-  <type idlname="long long"          xmlname="long"          cname="LONG64"           gluename="LONG64"  gluefmt="%RI64"     javaname="Long" />
-  <type idlname="unsigned long long" xmlname="unsignedLong"  cname="ULONG64"          gluename="ULONG64" gluefmt="%RU64"     javaname="BigInteger" />
-  <type idlname="double"             xmlname="double"        cname="double"           gluename="DOUBLE"  gluefmt="%#RX64"    javaname="Double" />
-  <type idlname="float"              xmlname="float"         cname="float"            gluename="FLOAT"   gluefmt="%#RX32"    javaname="Float" />
-  <type idlname="wstring"            xmlname="string"        cname="std::string"      gluename="BSTR"    gluefmt="%ls"       javaname="String" />
-  <type idlname="uuid"               xmlname="string"        cname="std::string"      gluename="BSTR"    gluefmt="%ls"       javaname="String" />
-  <type idlname="result"             xmlname="unsignedInt"   cname="unsigned int"     gluename="HRESULT" gluefmt="%Rhrc"     javaname="Long" />
+  <type idlname="octet"              xmlname="unsignedByte"  cname="unsigned char"    gluename="BYTE"    gluefmt="%RU8"      javaname="byte"       dtracename="uint8_t"     />
+  <type idlname="boolean"            xmlname="boolean"       cname="bool"             gluename="BOOL"    gluefmt="%RTbool"   javaname="Boolean"    dtracename="int8_t"      />
+  <type idlname="short"              xmlname="short"         cname="short"            gluename="SHORT"   gluefmt="%RI16"     javaname="Short"      dtracename="int16_t"     />
+  <type idlname="unsigned short"     xmlname="unsignedShort" cname="unsigned short"   gluename="USHORT"  gluefmt="%RU16"     javaname="Integer"    dtracename="uint16_t"    />
+  <type idlname="long"               xmlname="int"           cname="int"              gluename="LONG"    gluefmt="%RI32"     javaname="Integer"    dtracename="int32_t"     />
+  <type idlname="unsigned long"      xmlname="unsignedInt"   cname="unsigned int"     gluename="ULONG"   gluefmt="%RU32"     javaname="Long"       dtracename="uint32_t"    />
+  <type idlname="long long"          xmlname="long"          cname="LONG64"           gluename="LONG64"  gluefmt="%RI64"     javaname="Long"       dtracename="int64_t"     />
+  <type idlname="unsigned long long" xmlname="unsignedLong"  cname="ULONG64"          gluename="ULONG64" gluefmt="%RU64"     javaname="BigInteger" dtracename="uint64_t"    />
+  <type idlname="double"             xmlname="double"        cname="double"           gluename="DOUBLE"  gluefmt="%#RX64"    javaname="Double"     dtracename="double"      />
+  <type idlname="float"              xmlname="float"         cname="float"            gluename="FLOAT"   gluefmt="%#RX32"    javaname="Float"      dtracename="float"       />
+  <type idlname="wstring"            xmlname="string"        cname="std::string"      gluename="BSTR"    gluefmt="%ls"       javaname="String"     dtracename="const char *"/>
+  <type idlname="uuid"               xmlname="string"        cname="std::string"      gluename="BSTR"    gluefmt="%ls"       javaname="String"     dtracename="const char *"/>
+  <type idlname="result"             xmlname="unsignedInt"   cname="unsigned int"     gluename="HRESULT" gluefmt="%Rhrc"     javaname="Long"       dtracename="int32_t"     />
 </xsl:variable>
 
 <!--
@@ -355,6 +362,199 @@
   </xsl:if>
   <xsl:if test="not(contains($string, '_'))"><xsl:value-of select="$string" />
   </xsl:if>
+</xsl:template>
+
+<!--
+     xsltprocNewlineOutputHack - emits a single new line.
+
+     Hack Alert! This template helps xsltproc split up the output text elements
+                 and avoid reallocating them into the MB range. Calls to this
+                 template is made occationally while generating larger output
+                 file.  It's not necessary for small stuff like header.
+
+                 The trick we're playing on xsltproc has to do with CDATA
+                 and/or the escape setting of the xsl:text element.  It forces
+                 xsltproc to allocate a new output element, thus preventing
+                 things from growing out of proportions and slowing us down.
+
+                 This was successfully employed to reduce a 18+ seconds run to
+                 around one second (possibly less due to kmk overhead).
+ -->
+<xsl:template name="xsltprocNewlineOutputHack">
+    <xsl:text disable-output-escaping="yes"><![CDATA[
+]]></xsl:text>
+</xsl:template>
+
+
+<!--
+    string-to-upper - translates the string to uppercase.
+    -->
+<xsl:template name="string-to-upper">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="translate($str, $G_lowerCase, $G_upperCase)"/>
+</xsl:template>
+
+<!--
+    string-to-lower - translates the string to lowercase.
+    -->
+<xsl:template name="string-to-lower">
+  <xsl:param name="str" select="."/>
+  <xsl:value-of select="translate($str, $G_upperCase, $G_lowerCase)"/>
+</xsl:template>
+
+<!--
+    string-replace - Replace all occurencees of needle in haystack.
+    -->
+<xsl:template name="string-replace">
+  <xsl:param name="haystack"/>
+  <xsl:param name="needle"/>
+  <xsl:param name="replacement"/>
+  <xsl:param name="onlyfirst" select="false"/>
+  <xsl:choose>
+    <xsl:when test="contains($haystack, $needle)">
+      <xsl:value-of select="substring-before($haystack, $needle)"/>
+      <xsl:value-of select="$replacement"/>
+      <xsl:call-template name="string-replace">
+        <xsl:with-param name="haystack" select="substring-after($haystack, $needle)"/>
+        <xsl:with-param name="needle" select="$needle"/>
+        <xsl:with-param name="replacement" select="$replacement"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$haystack"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+    string-replace-first - Replace the _first_ occurence of needle in haystack.
+    -->
+<xsl:template name="string-replace-first">
+  <xsl:param name="haystack"/>
+  <xsl:param name="needle"/>
+  <xsl:param name="replacement"/>
+  <xsl:choose>
+    <xsl:when test="contains($haystack, $needle)">
+      <xsl:value-of select="substring-before($haystack, $needle)"/>
+      <xsl:value-of select="$replacement"/>
+      <xsl:value-of select="substring-after($haystack, $needle)"/>
+    </xsl:when>
+    <xsl:otherwise>
+      <xsl:value-of select="$haystack"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+    strip-string-right - String trailing white space from a string.
+    -->
+<xsl:template name="strip-string-right">
+  <xsl:param name="text"/>
+
+  <!-- Check for trailing whitespace. -->
+  <xsl:choose>
+    <xsl:when test="contains($G_sWhiteSpace, substring($text, string-length($text), 1))">
+      <xsl:call-template name="strip-string-right">
+        <xsl:with-param name="text" select="substring($text, 1, string-length($text) - 1)"/>
+      </xsl:call-template>
+    </xsl:when>
+
+    <!-- No trailing white space. Return the string. -->
+    <xsl:otherwise>
+      <xsl:value-of select="$text"/>
+    </xsl:otherwise>
+  </xsl:choose>
+</xsl:template>
+
+<!--
+    strip-string-left - String leading white space from a string.
+    -->
+<xsl:template name="strip-string-left">
+  <xsl:param name="text"/>
+
+  <!-- Check for leading white space.  To optimize for speed, we check a couple
+       of longer space sequences first. -->
+  <xsl:choose>
+    <xsl:when test="starts-with($text, '        ')">  <!-- 8 leading spaces -->
+      <xsl:call-template name="strip-string-left">
+        <xsl:with-param name="text" select="substring($text, 9)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="starts-with($text, '    ')">      <!-- 4 leading spaces -->
+      <xsl:call-template name="strip-string-left">
+        <xsl:with-param name="text" select="substring($text, 5)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="starts-with($text, '  ')">        <!-- 2 leading spaces -->
+      <xsl:call-template name="strip-string-left">
+        <xsl:with-param name="text" select="substring($text, 3)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="contains($G_sWhiteSpace, substring($text, 1, 1))">
+      <xsl:if test="string-length($text) > 0">
+        <xsl:call-template name="strip-string">
+          <xsl:with-param name="text" select="substring($text, 2)"/>
+        </xsl:call-template>
+      </xsl:if>
+    </xsl:when>
+
+    <!-- No leading white space. Return the string. -->
+    <xsl:otherwise>
+      <xsl:value-of select="$text"/>
+    </xsl:otherwise>
+  </xsl:choose>
+
+</xsl:template>
+
+<!--
+    strip-string - String leading and trailing white space from a string.
+    -->
+<xsl:template name="strip-string">
+  <xsl:param name="text"/>
+
+  <!-- Check for leading white space.  To optimize for speed, we check a couple
+       of longer space sequences first. -->
+  <xsl:choose>
+    <xsl:when test="starts-with($text, '        ')">  <!-- 8 leading spaces -->
+      <xsl:call-template name="strip-string">
+        <xsl:with-param name="text" select="substring($text, 9)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="starts-with($text, '    ')">      <!-- 4 leading spaces -->
+      <xsl:call-template name="strip-string">
+        <xsl:with-param name="text" select="substring($text, 5)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="starts-with($text, '  ')">        <!-- 2 leading spaces -->
+      <xsl:call-template name="strip-string">
+        <xsl:with-param name="text" select="substring($text, 3)"/>
+      </xsl:call-template>
+    </xsl:when>
+    <xsl:when test="contains($G_sWhiteSpace, substring($text, 1, 1))">
+      <xsl:if test="string-length($text) > 0">
+        <xsl:call-template name="strip-string">
+          <xsl:with-param name="text" select="substring($text, 2)"/>
+        </xsl:call-template>
+      </xsl:if>
+    </xsl:when>
+
+    <!-- Then check for trailing whitespace. -->
+    <xsl:otherwise>
+      <xsl:choose>
+        <xsl:when test="contains($G_sWhiteSpace, substring($text, string-length($text), 1))">
+          <xsl:call-template name="strip-string-right">
+            <xsl:with-param name="text" select="substring($text, 1, string-length($text) - 1)"/>
+          </xsl:call-template>
+        </xsl:when>
+
+        <!-- No leading or trailing white space. Return the string. -->
+        <xsl:otherwise>
+          <xsl:value-of select="$text"/>
+        </xsl:otherwise>
+      </xsl:choose>
+    </xsl:otherwise>
+  </xsl:choose>
+
 </xsl:template>
 
 </xsl:stylesheet>

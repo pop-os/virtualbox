@@ -352,8 +352,8 @@
         <translation type="obsolete">Oturum &amp;Bilgileri Penceresi</translation>
     </message>
     <message>
-        <source>Show Session Information Window</source>
-        <translation>Oturum Bilgisi Penceresi Göster</translation>
+        <source>Show Session Information Dialog</source>
+        <translation type="obsolete">Oturum Bilgileri İletisi Göster</translation>
     </message>
     <message>
         <source>&amp;Pause</source>
@@ -440,12 +440,12 @@
         <translation type="obsolete">Bu makineye yapılan uzak masaüstü (RDP) bağlantılarını etkinleştir ya da pasifleştir</translation>
     </message>
     <message>
-        <source>&amp;Insert Guest Additions CD image...</source>
-        <translation>Misafir Eklentileri CD kalıbını &amp;ekle...</translation>
+        <source>&amp;Install Guest Additions...</source>
+        <translation type="obsolete">&amp;Misafir Eklentilerini Yükle...</translation>
     </message>
     <message>
-        <source>Insert the Guest Additions disk file into the virtual drive</source>
-        <translation>Misafir Eklentileri diski dosyasını sanal sürücüye ekle</translation>
+        <source>Mount the Guest Additions installation image</source>
+        <translation type="obsolete">Misafir Eklentileri kurulum kalıbını bağla</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -537,7 +537,7 @@
     </message>
     <message>
         <source>&amp;Contents...</source>
-        <translation>İçin&amp;dekiler...</translation>
+        <translation>&amp;İçerikler...</translation>
     </message>
     <message>
         <source>Show help contents</source>
@@ -907,12 +907,138 @@
         <translation>Açılır Menü</translation>
     </message>
     <message>
+        <source>Show Session Information Window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>&amp;Webcams</source>
-        <translation>&amp;Web kameraları</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Menu Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Menu Bar Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens window to configure menu-bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Menu &amp;Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle menu-bar visibility for this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Status Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Status Bar Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens window to configure status-bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Status &amp;Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle status-bar visibility for this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Input</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Keyboard</source>
+        <translation type="unfinished">&amp;Klavye</translation>
+    </message>
+    <message>
+        <source>&amp;Keyboard Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the global settings window to configure shortcuts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Mouse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drives</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drive Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the settings of hard drives</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Network</source>
-        <translation>Ağ</translation>
+        <translation type="unfinished">Ağ</translation>
+    </message>
+    <message>
+        <source>&amp;USB Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the settings of USB devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>E&amp;xtra Data Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the Extra Data Manager window</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIActionPoolRuntime</name>
+    <message>
+        <source>Enable</source>
+        <comment>Virtual Screen</comment>
+        <translation type="unfinished">Etkinleştir</translation>
+    </message>
+    <message>
+        <source>Resize to %1x%2</source>
+        <comment>Virtual Screen</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1522,6 +1648,13 @@
     </message>
 </context>
 <context>
+    <name>UIDnDDrag</name>
+    <message>
+        <source>Retrieving data ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDnDHandler</name>
     <message>
         <source>Dropping data ...</source>
@@ -1532,7 +1665,7 @@
     <name>UIDnDMimeData</name>
     <message>
         <source>Dropping data ...</source>
-        <translation>Veri kaldırılıyor...</translation>
+        <translation type="obsolete">Veri kaldırılıyor...</translation>
     </message>
 </context>
 <context>
@@ -2162,6 +2295,16 @@
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
         <translation>Kare Boyutu: %1x%2, Kare Oranı: %3fps, Bit Oranı: %4kbps</translation>
     </message>
+    <message>
+        <source>Minimal Paravirtualization</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hyper-V Paravirtualization</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIGDetailsUpdateThreadAudio</name>
@@ -2390,6 +2533,18 @@
     <message>
         <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
         <translation>Misafire en fazla ekran boyutunu önerir. Misafir eklentileri yüklendiğinde misafir sadece bu öneriyi görecektir.</translation>
+    </message>
+    <message>
+        <source>Machine Windows:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Raise Window Under Mouse</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3651,7 +3806,7 @@
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Denetleyicisi etkisizleştirildi&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Denetleyicisi etkisizleştirildi&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
@@ -3714,6 +3869,10 @@
         <comment>Virtualization Stuff LED</comment>
         <translation>İlave özellik durumu:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UILineTextEdit</name>
@@ -3766,19 +3925,19 @@
     </message>
     <message>
         <source>No Webcams Connected</source>
-        <translation>Bağlanmış Web Kameraları Yok</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No supported webcams connected to the host PC</source>
-        <translation>Anamakineye bağlanmış desteklenen web kameraları yok</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connect Network Adapter</source>
-        <translation>Ağ Bağdaştırıcısı Bağla</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connect Network Adapter %1</source>
-        <translation>%1 Ağ Bağdaştırıcısını Bağla</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4058,8 +4217,44 @@
         <translation>Ekran %1 için görüntü kaydını etkinleştir.</translation>
     </message>
     <message>
+        <source>Machine &amp;Window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Allows to modify VM menu-bar contents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mini ToolBar:</source>
+        <translation type="unfinished">Küçük Araç Çubuğu:</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
+        <translation type="unfinished">Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
+    </message>
+    <message>
+        <source>Show in &amp;Fullscreen/Seamless</source>
+        <translation type="unfinished">&amp;Tam Ekran/Özgün İçinde Göster</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation type="unfinished">Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
+    </message>
+    <message>
+        <source>Show at &amp;Top of Screen</source>
+        <translation type="unfinished">Ekranın En Üstünde &amp;Göster</translation>
+    </message>
+    <message>
+        <source>Allows to modify VM status-bar contents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
-        <translation>Uzak Görüntü bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin aksi halde VM&apos;iniz etkisizleştirilmiş Uzak Görüntü ile başlatılacaktır.</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4073,7 +4268,7 @@
         <translation>Bu sanal makinenin anlık görüntülerinin saklanacağı yeri gösterir. Anlık görüntülerin oldukça disk alanı kaplayabileceğinden haberiniz olsun.</translation>
     </message>
     <message>
-        <source>&amp;Basic</source>
+        <source>Basi&amp;c</source>
         <translation>&amp;Temel</translation>
     </message>
     <message>
@@ -4121,7 +4316,7 @@
         <translation type="obsolete">Sanal makineye sağlanan video belleği miktarını kontrol eder.</translation>
     </message>
     <message>
-        <source>&amp;Advanced</source>
+        <source>A&amp;dvanced</source>
         <translation>&amp;Gelişmiş</translation>
     </message>
     <message>
@@ -4189,7 +4384,7 @@
         <translation>A&amp;nlık Görüntü Klasörü:</translation>
     </message>
     <message>
-        <source>&amp;Description</source>
+        <source>D&amp;escription</source>
         <translation>&amp;Açıklama</translation>
     </message>
     <message>
@@ -4202,7 +4397,7 @@
     </message>
     <message>
         <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
-        <translation>Eğer işaretlenmişse, makine çalışırken sanal sürücülerden kaldırılan ya da yerleştirilen herhangi bir CD/DVD disk ya da disket hatırlanacaktır.</translation>
+        <translation type="obsolete">Eğer işaretlenmişse, makine çalışırken sanal sürücülerden kaldırılan ya da yerleştirilen herhangi bir CD/DVD disk ya da disket hatırlanacaktır.</translation>
     </message>
     <message>
         <source>&amp;Remember Mounted Media</source>
@@ -4218,38 +4413,38 @@
     </message>
     <message>
         <source>Removable Media:</source>
-        <translation>Kaldırılabilir Ortam:</translation>
+        <translation type="obsolete">Kaldırılabilir Ortam:</translation>
     </message>
     <message>
         <source>&amp;Remember Runtime Changes</source>
-        <translation>Çalışma Zamanı Değişikliklerini &amp;hatırla</translation>
+        <translation type="obsolete">Çalışma Zamanı Değişikliklerini &amp;Hatırla</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
-        <translation>Küçük Araç Çubuğu:</translation>
+        <translation type="obsolete">Küçük Araç Çubuğu:</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation>Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
+        <translation type="obsolete">Eğer işaretlenmişse, Tam Ekran ve Özgün kiplerinde Küçük Araç Çubuğunu gösterir.</translation>
     </message>
     <message>
         <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation>&amp;Tam Ekran/Özgün içinde göster</translation>
+        <translation type="obsolete">&amp;Tam Ekran/Özgün İçinde Göster</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation>Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
+        <translation type="obsolete">Eğer işaretlenmişse, ekranın en altındaki varsayılan konumu yerine, ekranın en üstünde Küçük Araç Çubuğunu gösterir.</translation>
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
-        <translation>Ekranın En Üstünde &amp;göster</translation>
+        <translation type="obsolete">Ekranın En Üstünde &amp;Göster</translation>
     </message>
     <message>
         <source>you have selected a 64-bit guest OS type for this VM. As such guests require hardware virtualization (VT-x/AMD-V), this feature will be enabled automatically.</source>
         <translation type="obsolete">bu VM için 64-bit misafir İS türü seçtiniz. Bu gibi misafirler donanım sanallaştırma (VT-x/AMD-V) gerektirir, bu özellik otomatik olarak etkinleştirilecektir.</translation>
     </message>
     <message>
-        <source>&amp;Drag&apos;n&apos;Drop:</source>
+        <source>D&amp;rag&apos;n&apos;Drop:</source>
         <translation>&amp;Sürükle&apos;v&apos;Bırak:</translation>
     </message>
     <message>
@@ -4726,11 +4921,11 @@
     <name>UIMachineSettingsSFDetails</name>
     <message>
         <source>Add Share</source>
-        <translation>Paylaşım Ekle</translation>
+        <translation>Paylaşım ekle</translation>
     </message>
     <message>
         <source>Edit Share</source>
-        <translation>Paylaşımı Düzenle</translation>
+        <translation>Paylaşımı düzenle</translation>
     </message>
     <message>
         <source>Dialog</source>
@@ -4771,10 +4966,6 @@
     <message>
         <source>If checked, this shared folder will be permanent.</source>
         <translation>Eğer işaretlenmişse, bu paylaşılan klasör kalıcı olacaktır.</translation>
-    </message>
-    <message>
-        <source>Window</source>
-        <translation>Pencere</translation>
     </message>
 </context>
 <context>
@@ -5252,6 +5443,18 @@
         <source>The machine currently has more storage controllers assigned than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2</source>
         <translation>Makine şu anda %1 yonga setinin desteklediğinden daha fazla depolama denetleyicisine atanmış. Lütfen Sistem ayarları sayfasındaki yonga seti türünü değiştirin ya da Depolama ayarları sayfasında belirtilen depolama denetleyicilerinin sayısını azaltın: %2</translation>
     </message>
+    <message>
+        <source>Add USB Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked the guest system will see the virtual disk as a hot-pluggable device.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hot-pluggable</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -5469,11 +5672,11 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
-        <translation>G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, ICH9 türü bir yonga setini desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation type="obsolete">G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, ICH9 türü bir yonga setini desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
-        <translation>USB denetleyicisi uyarlama şu anda USB sayfasında etkin değil. Bu, bir uyarlanmış USB girdi aygıtı desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation type="obsolete">USB denetleyicisi uyarlama şu anda USB sayfasında etkin değil. Bu, bir uyarlanmış USB girdi aygıtı desteklemek için gereklidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
@@ -5485,15 +5688,39 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation>G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation type="obsolete">G/Ç APIC özelliği şu anda Sistem sayfasının Anakart bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation>Donanım hızlandırma şu anda Sistem sayfasının Hızlandırma bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
+        <translation type="obsolete">Donanım hızlandırma şu anda Sistem sayfasının Hızlandırma bölümünde etkin değil. Bu, birden fazla sanal işlemciyi desteklemek için gerelidir. Eğer değişiklikleri onaylarsanız, bu otomatik olarak yapılacaktır.</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
         <translation>İşlemci çalıştırılma üst sınırı düşük bir değere ayarlı. Bu, makinenin yavaş yanıt vermesini hissettirebilir.</translation>
+    </message>
+    <message>
+        <source>&amp;Paravirtualization Interface:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the paravirtualization guest interface provider to be used by this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5565,7 +5792,7 @@
     </message>
     <message>
         <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
-        <translation>USB 2.0 (E&amp;HCI) Denetleyicisi etkin</translation>
+        <translation type="obsolete">USB 2.0 (E&amp;HCI) Denetleyicisi etkin</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>
@@ -5625,7 +5852,27 @@
     </message>
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
-        <translation>USB 2.0 bu sanal makine için şu an etkinleştirildi. Ancak bu, &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sayfasından Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
+        <translation>USB 2.0 şu anda bu sanal makine için etkinleştirildi. Ancak, bu &lt;b&gt;%1&lt;/b&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin ya da makineyi başlatmak için USB 2.0&apos;ı etkisizleştirin.</translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;1.1 (OHCI) Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;2.0 (EHCI) Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;3.0 (xHCI) Controller</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5764,7 +6011,11 @@
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>K&amp;apat</translation>
+        <translation type="obsolete">K&amp;apat</translation>
+    </message>
+    <message>
+        <source>Removing medium...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5780,6 +6031,21 @@
     <message>
         <source>Choose mode:</source>
         <translation>Kipi seçin:</translation>
+    </message>
+</context>
+<context>
+    <name>UIMenuBarEditorWidget</name>
+    <message>
+        <source>Virtual Screen Resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual Screen Mapping</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Kapat</translation>
     </message>
 </context>
 <context>
@@ -6094,15 +6360,15 @@
         <translation type="obsolete">&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; dil dosyası yüklenemedi.&lt;/p&gt;&lt;p&gt;Dil geçici olarak varsayılan İngilizce (bütünleşik) diline sıfırlanacak. Lütfen VirtualBox ana penceresinin &lt;b&gt;Dosya&lt;/b&gt; menüsünden açabileceğiniz &lt;b&gt;Tercihler&lt;/b&gt; iletisine gidin ve &lt;b&gt;Dil&lt;/b&gt; sayfasındaki mecut dillerden birini seçin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too old: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) will most likely stop working properly.&lt;/p&gt;&lt;p&gt;Please update the Guest Additions to the current version by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions çok eski: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerini güncelleyin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are outdated: the installed version is %1, the expected version is %2. Some features that require Guest Additions (mouse integration, guest display auto-resize) may not work as expected.&lt;/p&gt;&lt;p&gt;It is recommended to update the Guest Additions to the current version  by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions sürümü güncelliğini yitirmiş durumda: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerinin güncel sürümünü yükleyin.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
+        <source>&lt;p&gt;The VirtualBox Guest Additions installed in the Guest OS are too recent for this version of VirtualBox: the installed version is %1, the expected version is %2.&lt;/p&gt;&lt;p&gt;Using a newer version of Additions with an older version of VirtualBox is not supported. Please install the current version of the Guest Additions by choosing &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu.&lt;/p&gt;</source>
         <translation type="obsolete">&lt;p&gt;Misafir işletim sistemine kurulan VirtualBox Guest Additions sürümü çok yeni: kurulu sürüm %1, beklenen sürüm ise %2. Bazı Misafir Eklentileri özellikleri düzgün çalışmayabilir.&lt;/p&gt;&lt;p&gt;Lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini (Guest Additions) Yükle...&lt;/b&gt; ögesini seçerek Misafir Eklentilerinin güncel sürümünü yükleyin.&lt;/p&gt;</translation>
     </message>
     <message>
@@ -6222,9 +6488,9 @@
         <translation type="obsolete">İndir</translation>
     </message>
     <message>
-        <source>Insert</source>
+        <source>Mount</source>
         <comment>additions</comment>
-        <translation>Ekle</translation>
+        <translation type="obsolete">Bağla</translation>
     </message>
     <message>
         <source>&lt;p&gt;The host key is currently defined as &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
@@ -6848,8 +7114,8 @@
         <translation>&lt;p&gt;Bu ortamın depolama biriminin silinmeyeceğini ve de daha sonra tekrar kullanmanın mümkün olacağını unutmayın.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede kullanılabilir görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentileri CD kalıbını ekle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede mevcut görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini Yükle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -7352,26 +7618,33 @@
         <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; NAT ağını kaldırmak istiyor musunuz?&lt;/p&gt;&lt;p&gt;Eğer bu ağ bir ya da daha fazla sanal makine ağ bağdaştırıcıları tarafından kullanımdaysa, bu bağdaştırıcılar, siz ya farklı bir ağ adı ya da farklı bir bağdaştırıcı ekleme türü seçerek ayarlarını düzeltene kadar artık kullanılabilir olmayacak.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <comment>new</comment>
-        <translation type="obsolete">&lt;p&gt;VirtualBox Misafir Eklentileri bu sanal makinede mevcut görünmüyor ve paylaşılan klasörler onlar olmadan kullanılamaz. Paylaşılan klasörleri sanal makine içerisinde kullanmak için lütfen &lt;b&gt;Aygıtlar&lt;/b&gt; menüsünden &lt;b&gt;Misafir Eklentilerini Yükle&lt;/b&gt;&apos;yi seçerek, yüklü değillerse Misafir Eklentilerini yükleyin veya düzgün olarak çalışmıyorlarsa, yeniden yükleyin. Eğer yüklü ama makine tam olarak henüz başlatılmadıysa o zaman paylaşılan klasörler o seferlik kullanılabilir olacaktır.&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>Insert</source>
-        <comment>additions-new</comment>
-        <translation type="obsolete">Bağla</translation>
-    </message>
-    <message>
         <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesine &lt;b&gt;%1&lt;/b&gt; web kamerasını takma başarısız.</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>&lt;b&gt;%2&lt;/b&gt; sanal makinesinden &lt;b&gt;%1&lt;/b&gt; web kamerasını çıkartma başarısız.</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <comment>additions</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sanal ekran şu anda &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; renk kipine ayarlı. Daha iyi performans için lütfen bunu &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt; olarak değiştirin. Bu genelde misafir işletim sisteminin Denetim Masasının ya da Sistem Ayarlarının &lt;b&gt;Görüntü&lt;/b&gt; bölümünden yapılabilir.&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. Rule names should be unique.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. Few rules have same host ports and conflicting IP addresses.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7429,7 +7702,7 @@
 <context>
     <name>UINameAndSystemEditor</name>
     <message>
-        <source>&amp;Name:</source>
+        <source>N&amp;ame:</source>
         <translation>&amp;Adı:</translation>
     </message>
     <message>
@@ -8266,11 +8539,11 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>&lt;b&gt;%1&lt;/b&gt; page:</source>
-        <translation>&lt;b&gt;%1&lt;/b&gt; sayfası:</translation>
+        <translation>&lt;b&gt;%1&lt;/b&gt; sayfa:</translation>
     </message>
     <message>
         <source>&lt;b&gt;%1: %2&lt;/b&gt; page:</source>
-        <translation>&lt;b&gt;%1: %2&lt;/b&gt; sayfası:</translation>
+        <translation>&lt;b&gt;%1: %2&lt;/b&gt; sayfa:</translation>
     </message>
 </context>
 <context>
@@ -8365,6 +8638,20 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>%1 - %2</source>
         <translation>%1 - %2</translation>
+    </message>
+</context>
+<context>
+    <name>UIStatusBarEditorButton</name>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Click&lt;/b&gt; to toggle indicator presence.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Drag&amp;Drop&lt;/b&gt; to change indicator position.&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIStatusBarEditorWidget</name>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">Kapat</translation>
     </message>
 </context>
 <context>
@@ -8522,6 +8809,14 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
         <translation>Şu anki &apos;%1&apos; anlık görüntüsünü geri &amp;yükle</translation>
     </message>
+    <message>
+        <source>&amp;Continue running in the background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Close the virtual machine windows but keep the virtual machine running.&lt;/p&gt;&lt;p&gt;You can use the VirtualBox Manager to return to running the virtual machine in a window.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIVMDesktop</name>
@@ -8532,6 +8827,176 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <message>
         <source>&amp;Snapshots</source>
         <translation>Anlık Gör&amp;üntüler</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMInfoDialog</name>
+    <message>
+        <source>Session Information Dialog</source>
+        <translation type="obsolete">Oturum Bilgileri Penceresi</translation>
+    </message>
+    <message>
+        <source>&amp;Close</source>
+        <translation type="obsolete">&amp;Kapat</translation>
+    </message>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - Oturum Bilgisi</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation type="obsolete">&amp;Ayrıntılar</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime</source>
+        <translation type="obsolete">Çalışma &amp;Zamanı</translation>
+    </message>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA Aktarımları</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO Aktarımları</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>Okunan Veri</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>Yazılan Veri</translation>
+    </message>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>Aktarılan Veri</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>Alınan Veri</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <translation type="obsolete">Etkin</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <translation type="obsolete">Pasifleştirilmiş</translation>
+    </message>
+    <message>
+        <source>Runtime Attributes</source>
+        <translation>Çalışma Zamanı Öznitelikleri</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>Ekran Çözünürlüğü</translation>
+    </message>
+    <message>
+        <source>CD/DVD Statistics</source>
+        <translation type="obsolete">CD/DVD İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Network Adapter Statistics</source>
+        <translation type="obsolete">Ağ Bağdaştırıcısı İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Not attached</source>
+        <translation type="obsolete">Eklenmedi</translation>
+    </message>
+    <message>
+        <source>Version %1.%2</source>
+        <comment>guest additions</comment>
+        <translation type="obsolete">Sürüm %1.%2</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>Algılanmamış</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>Algılanmamış</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Misafir Eklentileri</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <translation>Misafir İS Türü</translation>
+    </message>
+    <message>
+        <source>Hard Disk Statistics</source>
+        <translation type="obsolete">Sabit Disk İstatistikleri</translation>
+    </message>
+    <message>
+        <source>No Hard Disks</source>
+        <translation type="obsolete">Sabit Disk Yok</translation>
+    </message>
+    <message>
+        <source>No Network Adapters</source>
+        <translation>Ağ Bağdaştırıcıları Yok</translation>
+    </message>
+    <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Etkin</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">Pasifleştirilmiş</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <translation type="obsolete">Yerleşik Sayfalama</translation>
+    </message>
+    <message>
+        <source>UIVMInfoDialog</source>
+        <translation type="obsolete">VBoxSMBilgiİletisi</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation>Depolama İstatistikleri</translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation>Depolama Aygıtları Yok</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation>Ağ İstatistikleri</translation>
+    </message>
+    <message>
+        <source>Nested Paging</source>
+        <comment>details report</comment>
+        <translation type="obsolete">Yerleşik Sayfalama</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>Mevcut Değil</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>Pano Kipi</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation>Sürükle&apos;v&apos;Bırak Kipi</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>Yapılandırma &amp;Ayrıntıları</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>Çalışma &amp;Zamanı Bilgisi</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -8685,11 +9150,27 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UIWizard</name>
     <message>
         <source>Hide Description</source>
-        <translation>Açıklamayı Gizle</translation>
+        <translation type="obsolete">Açıklamayı Gizle</translation>
     </message>
     <message>
         <source>Show Description</source>
-        <translation>Açıklamayı Göster</translation>
+        <translation type="obsolete">Açıklamayı Göster</translation>
+    </message>
+    <message>
+        <source>&amp;Expert Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to &lt;nobr&gt;&lt;b&gt;Expert Mode&lt;/b&gt;&lt;/nobr&gt;, a one-page dialog for experienced users.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Guided Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to &lt;nobr&gt;&lt;b&gt;Guided Mode&lt;/b&gt;&lt;/nobr&gt;, a step-by-step dialog with detailed explanations.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -9658,11 +10139,11 @@ Version %1</source>
         <translation type="obsolete">Paylaşılan dizinler üzerinde işlem yapmak için pencereyi aç</translation>
     </message>
     <message>
-        <source>&amp;Insert Guest Additions CD image...</source>
+        <source>&amp;Install Guest Additions...</source>
         <translation type="obsolete">&amp;Misafir Eklentilerini (Guest Additions) Yükle...</translation>
     </message>
     <message>
-        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <source>Mount the Guest Additions installation image</source>
         <translation type="obsolete">Misafir Eklentilerini yükleyici kalıbı bağla</translation>
     </message>
     <message>
@@ -9933,7 +10414,7 @@ Version %1</source>
         <translation type="obsolete">Oturum &amp;Bilgileri Penceresi</translation>
     </message>
     <message>
-        <source>Show Session Information Window</source>
+        <source>Show Session Information Dialog</source>
         <translation type="obsolete">Oturum Bilgileri Penceresini Göster</translation>
     </message>
     <message>
@@ -10240,8 +10721,8 @@ Version %1</source>
         <translation>&lt;varsayılana sıfırla&gt;</translation>
     </message>
     <message>
-        <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu pencere tekrar açıldıktan sonra görüntülenecektir.</translation>
+        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
+        <translation type="obsolete">Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu ileti tekrar açıldıktan sonra görüntülenecektir.</translation>
     </message>
     <message>
         <source>&lt;not selected&gt;</source>
@@ -10289,8 +10770,7 @@ Version %1</source>
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <comment>new</comment>
-        <translation type="obsolete">Gerçek varsayılan yol değeri, değişiklikler kabul edildikten ve bu ileti tekrar açıldıktan sonra görüntülenecektir.</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -11938,7 +12418,7 @@ Version %1</source>
     </message>
     <message>
         <source>QED (QEMU enhanced disk)</source>
-        <translation>QED (QEMU Geliştirilmiş Disk)</translation>
+        <translation>QED (QEMU geliştirilmiş disk)</translation>
     </message>
     <message>
         <source>QCOW (QEMU Copy-On-Write)</source>
@@ -12015,6 +12495,56 @@ Version %1</source>
     <message>
         <source>You can create or add disk image files in the virtual machine settings.</source>
         <translation>Sanal makine ayarlarında disk kalıbı dosyalarını oluşturabilir ya da ekleyebilirsiniz.</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>off</source>
+        <comment>guest monitor status</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Legacy</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hyper-V</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -12288,11 +12818,11 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">Varsayılan VDI klasörüne yolu gösterir. Eğer açıkça aksi hali belirtilmemişse daha önceden var olan ya da yeni oluşturulmuş sabit diskleri eklemek için bu klasör kullanılır.</translation>
     </message>
     <message>
-        <source>Resets the virtual machine folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
+        <source>Resets the virtual machine folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
         <translation type="obsolete">Sanal makine dizin yolunu ön tanımlı değerlerine geri döndürür. Şu anki ön tanımlı yol, değişiklikleri onayladıktan ve bu diyaloğu yeniden açtığınızda görüntülenir.</translation>
     </message>
     <message>
-        <source>Resets the VDI folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
+        <source>Resets the VDI folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
         <translation type="obsolete">VDI dizinini ön tanımlı değerlerine tekrar döndürür. Şu anki ön tanımlı yol, değişiklikler onaylandıktan ve bu diyaloğu tekrar açtıktan sonra görüntülenecektir.</translation>
     </message>
     <message>
@@ -12336,7 +12866,7 @@ to the system default language.&lt;/qt&gt;
         <translation type="obsolete">VRDP kimlik doğrulama kütüphanesi dosyasını seçmek için bir pencere açar.</translation>
     </message>
     <message>
-        <source>Resets the authentication library file to the default value. The actual default library file will be displayed after accepting the changes and opening this window again.</source>
+        <source>Resets the authentication library file to the default value. The actual default library file will be displayed after accepting the changes and opening this dialog again.</source>
         <translation type="obsolete">Kimlik doğrulama kütüphanesi dosyasını öntanımlı değerine döndürür. Değişiklikler kabul edildikten sonra geçerli öntanımlı kütüphane dosyası gösterilir ve bu pencere yeniden açılır.</translation>
     </message>
     <message>
@@ -13878,172 +14408,6 @@ eşleşebilir.&lt;/qt&gt;</translation>
     </message>
 </context>
 <context>
-    <name>VBoxVMInformationDlg</name>
-    <message>
-        <source>Session Information Dialog</source>
-        <translation type="obsolete">Oturum Bilgileri Penceresi</translation>
-    </message>
-    <message>
-        <source>&amp;Close</source>
-        <translation type="obsolete">&amp;Kapat</translation>
-    </message>
-    <message>
-        <source>%1 - Session Information</source>
-        <translation>%1 - Oturum Bilgisi</translation>
-    </message>
-    <message>
-        <source>&amp;Details</source>
-        <translation type="obsolete">&amp;Ayrıntılar</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime</source>
-        <translation type="obsolete">Çalışma &amp;Zamanı</translation>
-    </message>
-    <message>
-        <source>DMA Transfers</source>
-        <translation>DMA Aktarımları</translation>
-    </message>
-    <message>
-        <source>PIO Transfers</source>
-        <translation>PIO Aktarımları</translation>
-    </message>
-    <message>
-        <source>Data Read</source>
-        <translation>Okunan Veri</translation>
-    </message>
-    <message>
-        <source>Data Written</source>
-        <translation>Yazılan Veri</translation>
-    </message>
-    <message>
-        <source>Data Transmitted</source>
-        <translation>Aktarılan Veri</translation>
-    </message>
-    <message>
-        <source>Data Received</source>
-        <translation>Alınan Veri</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <translation type="obsolete">Etkin</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <translation type="obsolete">Pasifleştirilmiş</translation>
-    </message>
-    <message>
-        <source>Runtime Attributes</source>
-        <translation>Çalışma Zamanı Öznitelikleri</translation>
-    </message>
-    <message>
-        <source>Screen Resolution</source>
-        <translation>Ekran Çözünürlüğü</translation>
-    </message>
-    <message>
-        <source>CD/DVD Statistics</source>
-        <translation type="obsolete">CD/DVD İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Network Adapter Statistics</source>
-        <translation type="obsolete">Ağ Bağdaştırıcısı İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Not attached</source>
-        <translation type="obsolete">Eklenmedi</translation>
-    </message>
-    <message>
-        <source>Version %1.%2</source>
-        <comment>guest additions</comment>
-        <translation type="obsolete">Sürüm %1.%2</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest additions</comment>
-        <translation>Algılanmamış</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest os type</comment>
-        <translation>Algılanmamış</translation>
-    </message>
-    <message>
-        <source>Guest Additions</source>
-        <translation>Misafir Eklentileri</translation>
-    </message>
-    <message>
-        <source>Guest OS Type</source>
-        <translation>Misafir İS Türü</translation>
-    </message>
-    <message>
-        <source>Hard Disk Statistics</source>
-        <translation type="obsolete">Sabit Disk İstatistikleri</translation>
-    </message>
-    <message>
-        <source>No Hard Disks</source>
-        <translation type="obsolete">Sabit Disk Yok</translation>
-    </message>
-    <message>
-        <source>No Network Adapters</source>
-        <translation>Ağ Bağdaştırıcıları Yok</translation>
-    </message>
-    <message>
-        <source>Enabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Etkin</translation>
-    </message>
-    <message>
-        <source>Disabled</source>
-        <comment>nested paging</comment>
-        <translation type="obsolete">Pasifleştirilmiş</translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <translation type="obsolete">Yerleşik Sayfalama</translation>
-    </message>
-    <message>
-        <source>VBoxVMInformationDlg</source>
-        <translation>VBoxSMBilgiİletisi</translation>
-    </message>
-    <message>
-        <source>Storage Statistics</source>
-        <translation>Depolama İstatistikleri</translation>
-    </message>
-    <message>
-        <source>No Storage Devices</source>
-        <translation>Depolama Aygıtları Yok</translation>
-    </message>
-    <message>
-        <source>Network Statistics</source>
-        <translation>Ağ İstatistikleri</translation>
-    </message>
-    <message>
-        <source>Nested Paging</source>
-        <comment>details report</comment>
-        <translation type="obsolete">Yerleşik Sayfalama</translation>
-    </message>
-    <message>
-        <source>Not Available</source>
-        <comment>details report (VRDE server port)</comment>
-        <translation>Mevcut Değil</translation>
-    </message>
-    <message>
-        <source>Clipboard Mode</source>
-        <translation>Pano Kipi</translation>
-    </message>
-    <message>
-        <source>Drag&apos;n&apos;Drop Mode</source>
-        <translation>Sürükle&apos;v&apos;Bırak Kipi</translation>
-    </message>
-    <message>
-        <source>Configuration &amp;Details</source>
-        <translation>Yapılandırma &amp;Ayrıntıları</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime Information</source>
-        <translation>Çalışma &amp;Zamanı Bilgisi</translation>
-    </message>
-</context>
-<context>
     <name>VBoxVMListBox</name>
     <message>
         <source>&lt;nobr&gt;%1&lt;br&gt;&lt;/nobr&gt;&lt;nobr&gt;%2 since %3&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;Session %4&lt;/nobr&gt;</source>
@@ -14836,7 +15200,7 @@ işletim sistemi yükledikten sonra bunu pasifleştirmeyin!&lt;/qt&gt;</translat
         <translation type="obsolete">Bu sanal makinenin anlık görüntülerinin nereye kaydedileceğini tanımlar. Anlık görüntülerin çok yer kaplayabileceğini unutmayın.</translation>
     </message>
     <message>
-        <source>Resets the snapshot folder path to the default value. The actual default path will be displayed after accepting the changes and opening this window again.</source>
+        <source>Resets the snapshot folder path to the default value. The actual default path will be displayed after accepting the changes and opening this dialog again.</source>
         <translation type="obsolete">Anlık görüntü dizinini öntanımlı ayarlarına döndürür. Güncel öntanımlı yol bu ayarlar kabul edildikten sonra bu pencere yeniden açılarak gösterilecektir.</translation>
     </message>
     <message>

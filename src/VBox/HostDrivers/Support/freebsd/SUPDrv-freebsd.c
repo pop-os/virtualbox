@@ -539,6 +539,19 @@ bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+bool VBOXCALL  supdrvOSAreCpusOfflinedOnSuspend(void)
+{
+    /** @todo verify this. */
+    return false;
+}
+
+
+bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
+{
+    return false;
+}
+
+
 int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
 {
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
@@ -570,6 +583,31 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }
+
+
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
+{
+    NOREF(uMsr); NOREF(idCpu); NOREF(puValue);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
+{
+    NOREF(uMsr); NOREF(idCpu); NOREF(uValue);
+    return VERR_NOT_SUPPORTED;
+}
+
+
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
+{
+    NOREF(idCpu); NOREF(pReq);
+    return VERR_NOT_SUPPORTED;
+}
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
 
 
 SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)

@@ -1,8 +1,6 @@
 /* $Id: UINetworkManager.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UINetworkManager stuff implementation
+ * VBox Qt GUI - UINetworkManager stuff implementation.
  */
 
 /*
@@ -17,16 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes: */
-#include <QWidget>
+# include <QWidget>
 
 /* Local includes: */
-#include "UINetworkManager.h"
-#include "UINetworkManagerDialog.h"
-#include "UINetworkManagerIndicator.h"
-#include "UINetworkRequest.h"
-#include "UINetworkCustomer.h"
-#include "VBoxGlobal.h"
+# include "UINetworkManager.h"
+# include "UINetworkManagerDialog.h"
+# include "UINetworkManagerIndicator.h"
+# include "UINetworkRequest.h"
+# include "UINetworkCustomer.h"
+# include "VBoxGlobal.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UINetworkManager* UINetworkManager::m_pInstance = 0;
 
@@ -114,7 +119,7 @@ void UINetworkManager::prepare()
     if (!vboxGlobal().isVMConsoleProcess())
     {
         m_pNetworkManagerIndicator = new UINetworkManagerIndicator;
-        connect(m_pNetworkManagerIndicator, SIGNAL(mouseDoubleClicked(QIStateIndicator *, QMouseEvent *)), this, SLOT(show()));
+        connect(m_pNetworkManagerIndicator, SIGNAL(sigMouseDoubleClick(QIStatusBarIndicator*, QMouseEvent*)), this, SLOT(show()));
     }
 }
 

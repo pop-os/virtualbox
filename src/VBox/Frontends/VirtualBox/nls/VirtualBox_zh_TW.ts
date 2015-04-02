@@ -87,6 +87,10 @@
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
         <translation>未載入 VirtualBox Linux 核心驅動程式 (vboxdrv) 或是 /dev/vboxdrv 的權限問題。 請以 root 執行 &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/etc/init.d/vboxdrv setup&apos; 來重新安裝核心模組。 如果在您的發行中可以使用，您應先安裝 DKMS 套件。 這個套件保留 Linux 核心變更的追蹤並在需要時重新編譯 vboxdrv 核心模組。</translation>
     </message>
+    <message>
+        <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
+        <translation type="obsolete">框架大小: %1x%2，畫面播放速率: %3fps，位元率: %4kbps</translation>
+    </message>
 </context>
 <context>
     <name>QIArrowSplitter</name>
@@ -195,6 +199,10 @@
         <translation>取得虛擬機器的快照</translation>
     </message>
     <message>
+        <source>Show Session Information Dialog</source>
+        <translation type="obsolete">顯示工作階段資訊視窗</translation>
+    </message>
+    <message>
         <source>&amp;Pause</source>
         <translation>暫停(&amp;P)</translation>
     </message>
@@ -253,6 +261,14 @@
     <message>
         <source>Create or modify shared folders</source>
         <translation>建立或修改共用資料夾</translation>
+    </message>
+    <message>
+        <source>&amp;Install Guest Additions...</source>
+        <translation type="obsolete">安裝 Guest Additions(&amp;I)...</translation>
+    </message>
+    <message>
+        <source>Mount the Guest Additions installation image</source>
+        <translation type="obsolete">掛載 Guest Additions 安裝映像</translation>
     </message>
     <message>
         <source>De&amp;bug</source>
@@ -693,24 +709,145 @@
         <translation>Popup Menu</translation>
     </message>
     <message>
-        <source>Insert the Guest Additions disk file into the virtual drive</source>
-        <translation>插入 Guest Additions 磁碟檔案到虛擬磁碟機</translation>
-    </message>
-    <message>
-        <source>&amp;Insert Guest Additions CD image...</source>
-        <translation>插入 Guest Additions CD 映像(&amp;I)...</translation>
-    </message>
-    <message>
         <source>Show Session Information Window</source>
-        <translation>顯示工作階段資訊視窗</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&amp;Webcams</source>
-        <translation>Webcams(&amp;W)</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Insert Guest Additions CD image...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert the Guest Additions disk file into the virtual drive</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;VirtualBox</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Menu Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Menu Bar Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens window to configure menu-bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Menu &amp;Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle menu-bar visibility for this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Status Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Status Bar Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opens window to configure status-bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Status &amp;Bar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toggle status-bar visibility for this machine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Input</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Keyboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Keyboard Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the global settings window to configure shortcuts</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Mouse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drives</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hard Drive Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the settings of hard drives</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Network</source>
         <translation type="unfinished">網路</translation>
+    </message>
+    <message>
+        <source>&amp;USB Settings...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Change the settings of USB devices</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Shared Folders</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show &amp;Log...</source>
+        <comment>debug action</comment>
+        <translation type="unfinished">顯示日誌(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>E&amp;xtra Data Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Display the Extra Data Manager window</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIActionPoolRuntime</name>
+    <message>
+        <source>Enable</source>
+        <comment>Virtual Screen</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Resize to %1x%2</source>
+        <comment>Virtual Screen</comment>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIActonPool</name>
+    <message>
+        <source>Popup Menu</source>
+        <translation type="obsolete">Popup Menu</translation>
     </message>
 </context>
 <context>
@@ -847,6 +984,13 @@
     </message>
 </context>
 <context>
+    <name>UIDnDDrag</name>
+    <message>
+        <source>Retrieving data ...</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIDnDHandler</name>
     <message>
         <source>Dropping data ...</source>
@@ -857,7 +1001,7 @@
     <name>UIDnDMimeData</name>
     <message>
         <source>Dropping data ...</source>
-        <translation>正在拖放資料 ...</translation>
+        <translation type="obsolete">正在拖放資料 ...</translation>
     </message>
 </context>
 <context>
@@ -1225,7 +1369,17 @@
     </message>
     <message>
         <source>Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps</source>
-        <translation>框架大小: %1x%2，畫面播放率: %3fps，位元率: %4kbps</translation>
+        <translation>框架大小: %1x%2，畫面播放速率: %3fps，位元率: %4kbps</translation>
+    </message>
+    <message>
+        <source>Minimal Paravirtualization</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hyper-V Paravirtualization</source>
+        <comment>details (system)</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -1288,7 +1442,7 @@
     </message>
     <message>
         <source>Suggest a reasonable maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
-        <translation>建議合理的客體最大畫面大小。 Guest Additions 安裝時客體才能看到此建議。</translation>
+        <translation>建議合理的客體最大畫面大小。 Guest Additions 元件安裝時客體才能看到此建議。</translation>
     </message>
     <message>
         <source>None</source>
@@ -1306,7 +1460,19 @@
     </message>
     <message>
         <source>Suggest a maximum screen size to the guest. The guest will only see this suggestion when guest additions are installed.</source>
-        <translation>建議客體最大畫面大小。 Guest Additions 安裝時客體才能看到此建議。</translation>
+        <translation>建議客體最大畫面大小。 Guest Additions 元件安裝時客體才能看到此建議。</translation>
+    </message>
+    <message>
+        <source>Machine Windows:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>If checked, machine windows will be raised when the mouse pointer moves over them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Raise Window Under Mouse</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -2170,7 +2336,7 @@
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB Controller is disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB 控制器已停用&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="obsolete">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;USB 控制器已停用&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
@@ -2212,6 +2378,10 @@
         <comment>Virtualization Stuff LED</comment>
         <translation>額外功能狀態:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
     </message>
+    <message>
+        <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UILineTextEdit</name>
@@ -2244,11 +2414,11 @@
     </message>
     <message>
         <source>No Webcams Connected</source>
-        <translation>未連接 Webcams</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>No supported webcams connected to the host PC</source>
-        <translation>未連接支援的 Webcams 在主機電腦</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Connect Network Adapter</source>
@@ -2512,7 +2682,43 @@
         <translation>啟用畫面 %1 的視訊錄製。</translation>
     </message>
     <message>
+        <source>Machine &amp;Window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Allows to modify VM menu-bar contents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mini ToolBar:</source>
+        <translation type="unfinished">迷你工具列:</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
+        <translation type="unfinished">如果勾選，在全螢幕及無縫模式顯示迷你工具列。</translation>
+    </message>
+    <message>
+        <source>Show in &amp;Fullscreen/Seamless</source>
+        <translation type="unfinished">在全螢幕/無縫模式顯示(&amp;F)</translation>
+    </message>
+    <message>
+        <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
+        <translation type="unfinished">如果勾選，在螢幕上方顯示迷你工具列，而不是它的預設位置在螢幕的下方。</translation>
+    </message>
+    <message>
+        <source>Show at &amp;Top of Screen</source>
+        <translation type="unfinished">顯示在螢幕上方(&amp;T)</translation>
+    </message>
+    <message>
+        <source>Allows to modify VM status-bar contents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -2523,11 +2729,11 @@
         <translation>將儲存這部虛擬機器快照所使用的路徑。 注意，快照可能需要相當多的磁碟空間。</translation>
     </message>
     <message>
-        <source>&amp;Basic</source>
+        <source>Basi&amp;c</source>
         <translation>基本(&amp;B)</translation>
     </message>
     <message>
-        <source>&amp;Advanced</source>
+        <source>A&amp;dvanced</source>
         <translation>進階(&amp;A)</translation>
     </message>
     <message>
@@ -2543,7 +2749,7 @@
         <translation>快照資料夾(&amp;N):</translation>
     </message>
     <message>
-        <source>&amp;Description</source>
+        <source>D&amp;escription</source>
         <translation>描述(&amp;D)</translation>
     </message>
     <message>
@@ -2552,38 +2758,38 @@
     </message>
     <message>
         <source>If checked, any CD/DVD or floppy disks inserted into or removed from the virtual drives while the machine is running will be remembered.</source>
-        <translation>如果勾選，將記住機器執行時所放入或從虛擬磁碟移除的任何 CD/DVD 或軟體。</translation>
+        <translation type="obsolete">如果勾選，將記住機器執行時所放入或從虛擬磁碟移除的任何 CD/DVD 或軟體。</translation>
     </message>
     <message>
         <source>Removable Media:</source>
-        <translation>卸除式媒體:</translation>
+        <translation type="obsolete">卸除式媒體:</translation>
     </message>
     <message>
         <source>&amp;Remember Runtime Changes</source>
-        <translation>記住執行階段變更(&amp;R)</translation>
+        <translation type="obsolete">記住執行階段變更(&amp;R)</translation>
     </message>
     <message>
         <source>Mini ToolBar:</source>
-        <translation>迷你工具列:</translation>
+        <translation type="obsolete">迷你工具列:</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar in Fullscreen and Seamless modes.</source>
-        <translation>如果勾選，在全螢幕及無縫模式顯示迷你工具列。</translation>
+        <translation type="obsolete">如果勾選，在全螢幕及無縫模式顯示迷你工具列。</translation>
     </message>
     <message>
         <source>Show in &amp;Fullscreen/Seamless</source>
-        <translation>在全螢幕/無縫模式顯示(&amp;F)</translation>
+        <translation type="obsolete">在全螢幕/無縫模式顯示(&amp;F)</translation>
     </message>
     <message>
         <source>If checked, show the Mini ToolBar at the top of the screen, rather than in its default position at the bottom of the screen.</source>
-        <translation>如果勾選，在螢幕上方顯示迷你工具列，而不是它的預設位置在螢幕的下方。</translation>
+        <translation type="obsolete">如果勾選，在螢幕上方顯示迷你工具列，而不是它的預設位置在螢幕的下方。</translation>
     </message>
     <message>
         <source>Show at &amp;Top of Screen</source>
-        <translation>顯示在螢幕上方(&amp;T)</translation>
+        <translation type="obsolete">顯示在螢幕上方(&amp;T)</translation>
     </message>
     <message>
-        <source>&amp;Drag&apos;n&apos;Drop:</source>
+        <source>D&amp;rag&apos;n&apos;Drop:</source>
         <translation>拖放(&amp;D):</translation>
     </message>
     <message>
@@ -2919,6 +3125,10 @@
         <translation>編輯共用</translation>
     </message>
     <message>
+        <source>Dialog</source>
+        <translation type="obsolete">Dialog</translation>
+    </message>
+    <message>
         <source>Folder Path:</source>
         <translation>資料夾路徑:</translation>
     </message>
@@ -2940,7 +3150,7 @@
     </message>
     <message>
         <source>&amp;Make Permanent</source>
-        <translation>設為永久(&amp;M)</translation>
+        <translation>永久性(&amp;M)</translation>
     </message>
     <message>
         <source>When checked, the guest OS will try to automatically mount the shared folder on startup.</source>
@@ -2954,10 +3164,6 @@
         <source>If checked, this shared folder will be permanent.</source>
         <translation>如果勾選，這個共用資料夾將永久存在。</translation>
     </message>
-    <message>
-        <source>Window</source>
-        <translation>視窗</translation>
-    </message>
 </context>
 <context>
     <name>UIMachineSettingsSerial</name>
@@ -2968,7 +3174,7 @@
     </message>
     <message>
         <source>When checked, enables the given serial port of the virtual machine.</source>
-        <translation>勾選時，虛擬機器啟用給予的序列埠。</translation>
+        <translation>勾選時，表示啟用給予的虛擬機器序列埠。</translation>
     </message>
     <message>
         <source>&amp;Enable Serial Port</source>
@@ -2980,7 +3186,7 @@
     </message>
     <message>
         <source>Selects the serial port number. You can choose one of the standard serial ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
-        <translation>選取序列埠號。 您可以選擇標準序列埠之一，或是選擇&lt;b&gt;使用者定義&lt;/b&gt;並手動指定連接埠參數。</translation>
+        <translation>選取序列埠號。您可以選擇標準序列埠之一，或是選擇&lt;b&gt;使用者定義&lt;/b&gt;並手動指定連接埠參數。</translation>
     </message>
     <message>
         <source>&amp;IRQ:</source>
@@ -2996,11 +3202,11 @@
     </message>
     <message>
         <source>Controls the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation>控制這個序列埠的工作模式。 如果您選取&lt;b&gt;已中斷連接&lt;/b&gt;，客體作業系統將偵測到序列埠但無法操作。</translation>
+        <translation>控制這個序列埠的工作模式。如果您選取&lt;b&gt;已中斷連接&lt;/b&gt;，客體作業系統將會偵測到序列埠但無法操作它。</translation>
     </message>
     <message>
         <source>If checked, the pipe specified in the &lt;b&gt;Port Path&lt;/b&gt; field will be created by the virtual machine when it starts. Otherwise, the virtual machine will assume that the pipe exists and try to use it.</source>
-        <translation>如果勾選，虛擬機器於啟動時將建立&lt;b&gt;連接埠路徑&lt;/b&gt;欄位中指定的管線。 否則，虛擬機器將假設管線存在並嘗試使用。</translation>
+        <translation>如果勾選，在&lt;b&gt;連接埠路徑&lt;/b&gt;欄位中指定的管線將由虛擬機器於啟動時建立。 否則，虛擬機器將假設管線存在並嘗試使用它。</translation>
     </message>
     <message>
         <source>&amp;Create Pipe</source>
@@ -3016,7 +3222,7 @@
     </message>
     <message>
         <source>Holds the IRQ number of this serial port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>這個序列埠所使用的 IRQ 號碼。這應該是介於 &lt;tt&gt;0&lt;/tt&gt; 與 &lt;tt&gt;255&lt;/tt&gt; 之間的整數。 除非這部虛擬機器啟用 &lt;b&gt;I/O APIC&lt;/b&gt; 時，才會使用大於 &lt;tt&gt;15&lt;/tt&gt; 的值。</translation>
+        <translation>這個序列埠所使用的 IRQ 號碼。這應該是介於 &lt;tt&gt;0&lt;/tt&gt; 與 &lt;tt&gt;255&lt;/tt&gt; 之間的整數。 只有這部虛擬機器啟用 &lt;b&gt;I/O APIC&lt;/b&gt; 時，才會使用大於 &lt;tt&gt;15&lt;/tt&gt; 的值。</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this serial port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
@@ -3118,7 +3324,7 @@
     </message>
     <message>
         <source>Removes the controller highlighted in the Storage Tree.</source>
-        <translation>移除存放裝置樹中反白顯示的控制器。</translation>
+        <translation>移除存放裝置樹中反白的控制器。</translation>
     </message>
     <message>
         <source>Adds a new attachment to the Storage Tree using currently selected controller as parent.</source>
@@ -3126,7 +3332,7 @@
     </message>
     <message>
         <source>Removes the attachment highlighted in the Storage Tree.</source>
-        <translation>移除存放裝置樹中反白顯示的附件。</translation>
+        <translation>移除存放裝置樹中反白的附件。</translation>
     </message>
     <message>
         <source>Hard &amp;Disk:</source>
@@ -3342,6 +3548,18 @@
         <source>The machine currently has more storage controllers assigned than a %1 chipset supports. Please change the chipset type on the System settings page or reduce the number of the following storage controllers on the Storage settings page: %2</source>
         <translation>機器目前指派超過 %1 晶片組所支援的存放控制器。 請在 [系統] 設定頁中變更晶片組類型或在 [存放] 設定頁中減少以下存放控制器的數量: %2。</translation>
     </message>
+    <message>
+        <source>Add USB Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked the guest system will see the virtual disk as a hot-pluggable device.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Hot-pluggable</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIMachineSettingsSystem</name>
@@ -3515,11 +3733,11 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9. It will be done automatically if you confirm your changes.</source>
-        <translation>目前未在 [系統] 頁的 [主機板] 區啟用 /IO APIC 功能。 這是需要的以便支援 ICH9 類型的晶片組。 如果您確認變更將會自動完成。</translation>
+        <translation type="obsolete">目前未在 [系統] 頁的 [主機板] 區啟用 /IO APIC 功能。 這是需要的以便支援 ICH9 類型的晶片組。 如果您確認變更將會自動完成。</translation>
     </message>
     <message>
         <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device. It will be done automatically if you confirm your changes.</source>
-        <translation>目前沒有在 USB 頁面啟用 USB 控制器模擬。 這是需要的以支援模擬的 USB 輸入裝置。 如果您確認變更將會自動完成。</translation>
+        <translation type="obsolete">目前沒有在 USB 頁面啟用 USB 控制器模擬。 這是需要的以支援模擬的 USB 輸入裝置。 如果您確認變更將會自動完成。</translation>
     </message>
     <message>
         <source>For performance reasons, the number of virtual CPUs attached to the virtual machine may not be more than twice the number of physical CPUs on the host (&lt;b&gt;%1&lt;/b&gt;). Please reduce the number of virtual CPUs.</source>
@@ -3531,15 +3749,39 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation>目前未在 [系統] 頁的 [主機板] 區啟用 /IO APIC 功能。 這是需要的以便支援一個以上的虛擬處理器。 如果您確認變更將會自動完成。</translation>
+        <translation type="obsolete">目前未在 [系統] 頁的 [主機板] 區啟用 /IO APIC 功能。 這是需要的以便支援一個以上的虛擬處理器。 如果您確認變更將會自動完成。</translation>
     </message>
     <message>
         <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor. It will be done automatically if you confirm your changes.</source>
-        <translation>硬體虛擬化目前未在 [系統] 頁的 [加速] 區啟用。 這是需要的以便支援一個以上的虛擬處理器。 如果您確認變更將會自動完成。</translation>
+        <translation type="obsolete">硬體虛擬化目前未在 [系統] 頁的 [加速] 區啟用。 這是需要的以便支援一個以上的虛擬處理器。 如果您確認變更將會自動完成。</translation>
     </message>
     <message>
         <source>The processor execution cap is set to a low value. This may make the machine feel slow to respond.</source>
         <translation>處理器執行上限設定成低的值。 這會使機器回應感覺變慢。</translation>
+    </message>
+    <message>
+        <source>&amp;Paravirtualization Interface:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selects the paravirtualization guest interface provider to be used by this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3611,7 +3853,7 @@
     </message>
     <message>
         <source>Enable USB 2.0 (E&amp;HCI) Controller</source>
-        <translation>啟用 USB 2.0 (EHCI) 控制器(&amp;H)</translation>
+        <translation type="obsolete">啟用 USB 2.0 (EHCI) 控制器(&amp;H)</translation>
     </message>
     <message>
         <source>USB Device &amp;Filters</source>
@@ -3668,6 +3910,26 @@
     <message>
         <source>USB 2.0 is currently enabled for this virtual machine. However, this requires the &lt;b&gt;%1&lt;/b&gt; to be installed. Please install the Extension Pack from the VirtualBox download site or disable USB 2.0 to be able to start the machine.</source>
         <translation>USB 2.0 目前在這部虛擬機器啟用。 然而這需要安裝 &lt;b&gt;%1&lt;/b&gt;。 請從 VirtualBox 下載網站安裝擴充包或停用 USB 2.0 使能夠啟動機器。</translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB OHCI controller of this machine. The USB OHCI controller provides USB 1.0 support.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;1.1 (OHCI) Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;2.0 (EHCI) Controller</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, enables the virtual USB xHCI controller of this machine. The USB xHCI controller provides USB 3.0 support.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>USB &amp;3.0 (xHCI) Controller</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3794,7 +4056,11 @@
     </message>
     <message>
         <source>C&amp;lose</source>
-        <translation>關閉(&amp;L)</translation>
+        <translation type="obsolete">關閉(&amp;L)</translation>
+    </message>
+    <message>
+        <source>Removing medium...</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -3810,6 +4076,21 @@
     <message>
         <source>Choose mode:</source>
         <translation>選擇模式:</translation>
+    </message>
+</context>
+<context>
+    <name>UIMenuBarEditorWidget</name>
+    <message>
+        <source>Virtual Screen Resize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Virtual Screen Mapping</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">關閉</translation>
     </message>
 </context>
 <context>
@@ -4003,6 +4284,10 @@
         <translation>&lt;p&gt;從虛擬機器 &lt;b&gt;%3&lt;/b&gt; 移除共用資料夾 &lt;b&gt;%1&lt;/b&gt; (指向 &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) 時失敗。&lt;/p&gt;&lt;p&gt;請關閉客體作業系統中所有可能會用到這個共用資料夾的程式，並且再試一次。&lt;/p&gt;</translation>
     </message>
     <message>
+        <source>&lt;p&gt;The virtual machine window is optimized to work in &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode but the virtual display is currently set to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please open the display properties dialog of the guest OS and select a &lt;b&gt;%3&amp;nbsp;bit&lt;/b&gt; color mode, if it is available, for best possible performance of the virtual video subsystem.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Note&lt;/b&gt;. Some operating systems, like OS/2, may actually work in 32&amp;nbsp;bit mode but report it as 24&amp;nbsp;bit (16 million colors). You may try to select a different color mode to see if this message disappears or you can simply disable the message now if you are sure the required color mode (%4&amp;nbsp;bit) is not available in the guest OS.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;虛擬機器視窗最佳化在 &lt;b&gt;%1&amp;nbsp;位元&lt;/b&gt; 的色彩模式中工作，但是目前虛擬顯示設定為 &lt;b&gt;%2&amp;nbsp;位元&lt;/b&gt;。&lt;/p&gt;&lt;p&gt;如果可用，請開啟客體作業系統的顯示內容對話方塊，並且選取 &lt;b&gt;%3&amp;nbsp;位元&lt;/b&gt; 的色彩模式，作為虛擬視訊子系統的最佳效能。&lt;/p&gt;&lt;p&gt;&lt;b&gt;請注意&lt;/b&gt;，某些像是 OS/2 的作業系統，可能實際上作用於 32&amp;nbsp;位元模式，卻回報為 24&amp;nbsp;位元 (16 萬色) 。 您可以試著選取不同的色彩模式來查看這個訊息是否消失，如果您確定所要求的色彩模式 (%4&amp;nbsp;位元) 在客體作業系統中不可用，您可以現在簡單的停用訊息。&lt;/p&gt;</translation>
+    </message>
+    <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
         <translation>開啟授權檔案 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; 失敗。 請檢查檔案權限。</translation>
     </message>
@@ -4026,6 +4311,11 @@
         <source>Discard</source>
         <comment>saved state</comment>
         <translation>捨棄</translation>
+    </message>
+    <message>
+        <source>Mount</source>
+        <comment>additions</comment>
+        <translation type="obsolete">掛載</translation>
     </message>
     <message>
         <source>&lt;p&gt;The host key is currently defined as &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
@@ -4341,6 +4631,10 @@
     <message>
         <source>&lt;p&gt;Note that the storage unit of this medium will not be deleted and that it will be possible to use it later again.&lt;/p&gt;</source>
         <translation>&lt;p&gt;請注意，這個媒體的存放單元將不會刪除且可以稍後再次使用。&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Install Guest Additions&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="obsolete">&lt;p&gt;VirtualBox Guest Additions 似乎在這部虛擬機器不可使用，因此共用資料夾無法使用。 若要在虛擬機器內使用共用資料夾，如果是未安裝請安裝 Guest Additions ，或如果是未正常動作則重新安裝，從&lt;b&gt;裝置&lt;/b&gt;功能表選取&lt;b&gt;安裝 Guest Additions&lt;/b&gt;。 如果已安裝但機器尚未完全啟動，則共用資料夾將在啟動後可以使用。&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;fullscreen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in fullscreen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
@@ -4797,25 +5091,33 @@
         <translation>&lt;p&gt;您確定要移除 NAT 網路 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt; 嗎?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;如果一個或數個虛擬機器網路卡正在使用此網路，除非選擇不同的網路名稱或以不同的網路卡附加類型來修正其設定，否則這些網路卡將不再能使用。&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>Insert</source>
-        <comment>additions</comment>
-        <translation>插入</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox Guest Additions 似乎在這部虛擬機器不可使用，因此共用資料夾無法使用。 若要在虛擬機器內使用共用資料夾，如果未安裝則請安裝 Guest Additions ，或者如果是未正常動作則請重新安裝，從&lt;b&gt;裝置&lt;/b&gt;功能表選取&lt;b&gt;插入 Guest Additions CD 映像&lt;/b&gt;。 如果已安裝但機器尚未完全啟動，則共用資料夾將在啟動後可以使用。&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>附加 Webcam &lt;b&gt;%1&lt;/b&gt; 到虛擬機器 &lt;b&gt;%2&lt;/b&gt; 失敗。</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Failed to detach the webcam &lt;b&gt;%1&lt;/b&gt; from the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation>從虛擬機器 &lt;b&gt;%2&lt;/b&gt; 附加 Webcam &lt;b&gt;%1&lt;/b&gt; 失敗。</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The VirtualBox Guest Additions do not appear to be available on this virtual machine, and shared folders cannot be used without them. To use shared folders inside the virtual machine, please install the Guest Additions if they are not installed, or re-install them if they are not working correctly, by selecting &lt;b&gt;Insert Guest Additions CD image&lt;/b&gt; from the &lt;b&gt;Devices&lt;/b&gt; menu. If they are installed but the machine is not yet fully started then shared folders will be available once it is.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Insert</source>
+        <comment>additions</comment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>&lt;p&gt;The virtual screen is currently set to a &lt;b&gt;%1&amp;nbsp;bit&lt;/b&gt; color mode. For better performance please change this to &lt;b&gt;%2&amp;nbsp;bit&lt;/b&gt;. This can usually be done from the &lt;b&gt;Display&lt;/b&gt; section of the guest operating system&apos;s Control Panel or System Settings.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;虛擬螢幕目前設成 &lt;b&gt;%1&amp;nbsp;位元&lt;/b&gt;色彩模式。 為了更好的效能，請變更此為 &lt;b&gt;%2&amp;nbsp;位元&lt;/b&gt;。 這通常能從客體作業系統的控制台或系統設定中的&lt;b&gt;顯示&lt;/b&gt;區段完成。&lt;/p&gt;</translation>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. Rule names should be unique.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The current port forwarding rules are not valid. Few rules have same host ports and conflicting IP addresses.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -4851,7 +5153,7 @@
 <context>
     <name>UINameAndSystemEditor</name>
     <message>
-        <source>&amp;Name:</source>
+        <source>N&amp;ame:</source>
         <translation>名稱(&amp;N):</translation>
     </message>
     <message>
@@ -4907,7 +5209,7 @@
     </message>
     <message>
         <source>The network operation failed with the following error: %1.</source>
-        <translation>網路操作失敗，錯誤如下: %1。</translation>
+        <translation>網路操作失敗，錯誤: %1。</translation>
     </message>
 </context>
 <context>
@@ -5169,6 +5471,20 @@
     </message>
 </context>
 <context>
+    <name>UIStatusBarEditorButton</name>
+    <message>
+        <source>&lt;nobr&gt;&lt;b&gt;Click&lt;/b&gt; to toggle indicator presence.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Drag&amp;Drop&lt;/b&gt; to change indicator position.&lt;/nobr&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UIStatusBarEditorWidget</name>
+    <message>
+        <source>Close</source>
+        <translation type="unfinished">關閉</translation>
+    </message>
+</context>
+<context>
     <name>UITextEditor</name>
     <message>
         <source>Edit text</source>
@@ -5291,6 +5607,14 @@
         <source>&amp;Restore current snapshot &apos;%1&apos;</source>
         <translation>還原目前快照「%1」(&amp;R)</translation>
     </message>
+    <message>
+        <source>&amp;Continue running in the background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;Close the virtual machine windows but keep the virtual machine running.&lt;/p&gt;&lt;p&gt;You can use the VirtualBox Manager to return to running the virtual machine in a window.&lt;/p&gt;</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>UIVMDesktop</name>
@@ -5301,6 +5625,108 @@
     <message>
         <source>&amp;Snapshots</source>
         <translation>快照(&amp;S)</translation>
+    </message>
+</context>
+<context>
+    <name>UIVMInfoDialog</name>
+    <message>
+        <source>%1 - Session Information</source>
+        <translation>%1 - 工作階段資訊</translation>
+    </message>
+    <message>
+        <source>DMA Transfers</source>
+        <translation>DMA 傳輸</translation>
+    </message>
+    <message>
+        <source>PIO Transfers</source>
+        <translation>PIO 傳輸</translation>
+    </message>
+    <message>
+        <source>Data Read</source>
+        <translation>資料讀取</translation>
+    </message>
+    <message>
+        <source>Data Written</source>
+        <translation>資料寫入</translation>
+    </message>
+    <message>
+        <source>Data Transmitted</source>
+        <translation>資料已傳送</translation>
+    </message>
+    <message>
+        <source>Data Received</source>
+        <translation>資料已接收</translation>
+    </message>
+    <message>
+        <source>Runtime Attributes</source>
+        <translation>執行階段屬性</translation>
+    </message>
+    <message>
+        <source>Screen Resolution</source>
+        <translation>螢幕解析度</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest additions</comment>
+        <translation>未偵測到</translation>
+    </message>
+    <message>
+        <source>Not Detected</source>
+        <comment>guest os type</comment>
+        <translation>未偵測到</translation>
+    </message>
+    <message>
+        <source>Guest Additions</source>
+        <translation>Guest Additions</translation>
+    </message>
+    <message>
+        <source>Guest OS Type</source>
+        <translation>客體作業系統類型</translation>
+    </message>
+    <message>
+        <source>No Network Adapters</source>
+        <translation>沒有網路卡</translation>
+    </message>
+    <message>
+        <source>UIVMInfoDialog</source>
+        <translation type="obsolete">UIVMInfoDialog</translation>
+    </message>
+    <message>
+        <source>Storage Statistics</source>
+        <translation>存放裝置統計</translation>
+    </message>
+    <message>
+        <source>No Storage Devices</source>
+        <translation>沒有存放裝置</translation>
+    </message>
+    <message>
+        <source>Network Statistics</source>
+        <translation>網路統計</translation>
+    </message>
+    <message>
+        <source>Not Available</source>
+        <comment>details report (VRDE server port)</comment>
+        <translation>不可用</translation>
+    </message>
+    <message>
+        <source>Clipboard Mode</source>
+        <translation>剪貼簿模式</translation>
+    </message>
+    <message>
+        <source>Drag&apos;n&apos;Drop Mode</source>
+        <translation>拖放模式</translation>
+    </message>
+    <message>
+        <source>Configuration &amp;Details</source>
+        <translation>組態詳細資料(&amp;D)</translation>
+    </message>
+    <message>
+        <source>&amp;Runtime Information</source>
+        <translation>執行階段資訊(&amp;R)</translation>
+    </message>
+    <message>
+        <source>VM Uptime</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -5391,11 +5817,27 @@
     <name>UIWizard</name>
     <message>
         <source>Hide Description</source>
-        <translation>隱藏描述</translation>
+        <translation type="obsolete">隱藏描述</translation>
     </message>
     <message>
         <source>Show Description</source>
-        <translation>顯示描述</translation>
+        <translation type="obsolete">顯示描述</translation>
+    </message>
+    <message>
+        <source>&amp;Expert Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to &lt;nobr&gt;&lt;b&gt;Expert Mode&lt;/b&gt;&lt;/nobr&gt;, a one-page dialog for experienced users.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Guided Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to &lt;nobr&gt;&lt;b&gt;Guided Mode&lt;/b&gt;&lt;/nobr&gt;, a step-by-step dialog with detailed explanations.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6011,6 +6453,10 @@
         <translation>&lt;重設為預設值&gt;</translation>
     </message>
     <message>
+        <source>The actual default path value will be displayed after accepting the changes and opening this dialog again.</source>
+        <translation type="obsolete">接受變更並重新開啟這個對話方塊後，將顯示實際的預設路徑值。</translation>
+    </message>
+    <message>
         <source>&lt;not selected&gt;</source>
         <translation>&lt;未選取&gt;</translation>
     </message>
@@ -6056,7 +6502,7 @@
     </message>
     <message>
         <source>The actual default path value will be displayed after accepting the changes and opening this window again.</source>
-        <translation>接受變更並重新開啟這個視窗後，將顯示實際的預設路徑值。</translation>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -6936,6 +7382,16 @@
         <translation>PB</translation>
     </message>
     <message>
+        <source>Enabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">啟用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>nested paging</comment>
+        <translation type="obsolete">停用</translation>
+    </message>
+    <message>
         <source>Nested Paging</source>
         <translation>Nested Paging</translation>
     </message>
@@ -7355,6 +7811,16 @@
         <translation>PS/2 和 USB 滑鼠</translation>
     </message>
     <message>
+        <source>Enabled</source>
+        <comment>unrestricted execution</comment>
+        <translation type="obsolete">啟用</translation>
+    </message>
+    <message>
+        <source>Disabled</source>
+        <comment>unrestricted execution</comment>
+        <translation type="obsolete">停用</translation>
+    </message>
+    <message>
         <source>Unrestricted Execution</source>
         <translation>無限制的執行</translation>
     </message>
@@ -7381,6 +7847,56 @@
     <message>
         <source>You can create or add disk image files in the virtual machine settings.</source>
         <translation>您可以使用虛擬機器設定建立或加入磁碟映像檔案。</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>StorageControllerType</comment>
+        <translation type="unfinished">USB</translation>
+    </message>
+    <message>
+        <source>USB Port %1</source>
+        <comment>StorageSlot</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>off</source>
+        <comment>guest monitor status</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Paravirtualization Interface</source>
+        <comment>details report</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished">無</translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished">預設值</translation>
+    </message>
+    <message>
+        <source>Legacy</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hyper-V</source>
+        <comment>ParavirtProvider</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New dynamically allocated storage</source>
+        <comment>MediumVariant</comment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7694,104 +8210,6 @@
         <source>No supported devices connected to the host PC</source>
         <comment>USB device tooltip</comment>
         <translation>沒有已支援的裝置連接到主機 PC</translation>
-    </message>
-</context>
-<context>
-    <name>VBoxVMInformationDlg</name>
-    <message>
-        <source>%1 - Session Information</source>
-        <translation>%1 - 工作階段資訊</translation>
-    </message>
-    <message>
-        <source>DMA Transfers</source>
-        <translation>DMA 傳輸</translation>
-    </message>
-    <message>
-        <source>PIO Transfers</source>
-        <translation>PIO 傳輸</translation>
-    </message>
-    <message>
-        <source>Data Read</source>
-        <translation>資料讀取</translation>
-    </message>
-    <message>
-        <source>Data Written</source>
-        <translation>資料寫入</translation>
-    </message>
-    <message>
-        <source>Data Transmitted</source>
-        <translation>資料已傳送</translation>
-    </message>
-    <message>
-        <source>Data Received</source>
-        <translation>資料已接收</translation>
-    </message>
-    <message>
-        <source>Runtime Attributes</source>
-        <translation>執行階段屬性</translation>
-    </message>
-    <message>
-        <source>Screen Resolution</source>
-        <translation>螢幕解析度</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest additions</comment>
-        <translation>未偵測到</translation>
-    </message>
-    <message>
-        <source>Not Detected</source>
-        <comment>guest os type</comment>
-        <translation>未偵測到</translation>
-    </message>
-    <message>
-        <source>Guest Additions</source>
-        <translation>Guest Additions</translation>
-    </message>
-    <message>
-        <source>Guest OS Type</source>
-        <translation>客體作業系統類型</translation>
-    </message>
-    <message>
-        <source>No Network Adapters</source>
-        <translation>沒有網路卡</translation>
-    </message>
-    <message>
-        <source>VBoxVMInformationDlg</source>
-        <translation>VBoxVMInformationDlg</translation>
-    </message>
-    <message>
-        <source>Storage Statistics</source>
-        <translation>存放裝置統計</translation>
-    </message>
-    <message>
-        <source>No Storage Devices</source>
-        <translation>沒有存放裝置</translation>
-    </message>
-    <message>
-        <source>Network Statistics</source>
-        <translation>網路統計</translation>
-    </message>
-    <message>
-        <source>Not Available</source>
-        <comment>details report (VRDE server port)</comment>
-        <translation>不可用</translation>
-    </message>
-    <message>
-        <source>Clipboard Mode</source>
-        <translation>剪貼簿模式</translation>
-    </message>
-    <message>
-        <source>Drag&apos;n&apos;Drop Mode</source>
-        <translation>拖放模式</translation>
-    </message>
-    <message>
-        <source>Configuration &amp;Details</source>
-        <translation>組態詳細資料(&amp;D)</translation>
-    </message>
-    <message>
-        <source>&amp;Runtime Information</source>
-        <translation>執行階段資訊(&amp;R)</translation>
     </message>
 </context>
 </TS>

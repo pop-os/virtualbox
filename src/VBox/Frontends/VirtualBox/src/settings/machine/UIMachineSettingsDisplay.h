@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIMachineSettingsDisplay class declaration
+ * VBox Qt GUI - UIMachineSettingsDisplay class declaration.
  */
 
 /*
- * Copyright (C) 2008-2013 Oracle Corporation
+ * Copyright (C) 2008-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +23,9 @@
 
 /* COM includes: */
 #include "CGuestOSType.h"
+
+/* Forward declarations: */
+class UIActionPool;
 
 /* Machine settings / Display page / Data: */
 struct UIDataSettingsMachineDisplay
@@ -116,7 +117,7 @@ class UIMachineSettingsDisplay : public UISettingsPageMachine,
 
 public:
 
-    /* Constructor: */
+    /** Constructor. */
     UIMachineSettingsDisplay();
 
     /* API: Correlation stuff: */
@@ -176,11 +177,15 @@ private slots:
 
 private:
 
-    /* Helpers: Prepare stuff: */
+    /** Prepare routine. */
     void prepare();
+    /** Prepare routine: Video tab. */
     void prepareVideoTab();
+    /** Prepare routine: Remote Display tab. */
     void prepareRemoteDisplayTab();
+    /** Prepare routine: Video Capture tab. */
     void prepareVideoCaptureTab();
+    /** Prepare routine: Validation. */
     void prepareValidation();
 
     /* Helpers: Video stuff: */
@@ -191,6 +196,7 @@ private:
     /* Helpers: Video Capture stuff: */
     void lookForCorrespondingSizePreset();
     void updateVideoCaptureScreenCount();
+    void updateVideoCaptureSizeHint();
     static void lookForCorrespondingPreset(QComboBox *pWhere, const QVariant &whichData);
     static int calculateBitRate(int iFrameWidth, int iFrameHeight, int iFrameRate, int iQuality);
     static int calculateQuality(int iFrameWidth, int iFrameHeight, int iFrameRate, int iBitRate);

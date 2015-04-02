@@ -1,8 +1,6 @@
 /* $Id: UIWizardCloneVM.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardCloneVM class implementation
+ * VBox Qt GUI - UIWizardCloneVM class implementation.
  */
 
 /*
@@ -17,20 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIWizardCloneVM.h"
-#include "UIWizardCloneVMPageBasic1.h"
-#include "UIWizardCloneVMPageBasic2.h"
-#include "UIWizardCloneVMPageBasic3.h"
-#include "UIWizardCloneVMPageExpert.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
+# include "UIWizardCloneVM.h"
+# include "UIWizardCloneVMPageBasic1.h"
+# include "UIWizardCloneVMPageBasic2.h"
+# include "UIWizardCloneVMPageBasic3.h"
+# include "UIWizardCloneVMPageExpert.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
 
 /* COM includes: */
-#include "CConsole.h"
+# include "CConsole.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardCloneVM::UIWizardCloneVM(QWidget *pParent, const CMachine &machine, CSnapshot snapshot /* = CSnapshot() */)
-    : UIWizard(pParent, UIWizardType_CloneVM)
+    : UIWizard(pParent, WizardType_CloneVM)
     , m_machine(machine)
     , m_snapshot(snapshot)
 {
@@ -52,8 +57,8 @@ bool UIWizardCloneVM::cloneVM()
     /* Should we create linked clone? */
     bool fLinked = field("linkedClone").toBool();
     /* Get clone mode: */
-    KCloneMode cloneMode = (mode() == UIWizardMode_Basic && page(Page3)) ||
-                           (mode() == UIWizardMode_Expert && page(PageExpert)) ?
+    KCloneMode cloneMode = (mode() == WizardMode_Basic && page(Page3)) ||
+                           (mode() == WizardMode_Expert && page(PageExpert)) ?
                            field("cloneMode").value<KCloneMode>() : KCloneMode_MachineState;
 
     /* Get VBox object: */
@@ -171,7 +176,7 @@ void UIWizardCloneVM::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case UIWizardMode_Basic:
+        case WizardMode_Basic:
         {
             setPage(Page1, new UIWizardCloneVMPageBasic1(m_machine.GetName()));
             setPage(Page2, new UIWizardCloneVMPageBasic2(m_snapshot.isNull()));
@@ -179,7 +184,7 @@ void UIWizardCloneVM::prepare()
                 setPage(Page3, new UIWizardCloneVMPageBasic3(m_snapshot.isNull() ? false : m_snapshot.GetChildrenCount() > 0));
             break;
         }
-        case UIWizardMode_Expert:
+        case WizardMode_Expert:
         {
             setPage(PageExpert, new UIWizardCloneVMPageExpert(m_machine.GetName(),
                                                               m_snapshot.isNull(),

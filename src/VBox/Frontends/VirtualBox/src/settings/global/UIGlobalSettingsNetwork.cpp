@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsNetwork.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsNetwork class implementation
+ * VBox Qt GUI - UIGlobalSettingsNetwork class implementation.
  */
 
 /*
@@ -17,26 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHeaderView>
-#include <QHostAddress>
+# include <QHeaderView>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIIconPool.h"
-#include "UIConverter.h"
-#include "UIMessageCenter.h"
-#include "UIGlobalSettingsNetwork.h"
-#include "UIGlobalSettingsNetworkDetailsNAT.h"
-#include "UIGlobalSettingsNetworkDetailsHost.h"
+# include "VBoxGlobal.h"
+# include "UIIconPool.h"
+# include "UIConverter.h"
+# include "UIMessageCenter.h"
+# include "UIGlobalSettingsNetwork.h"
+# include "UIGlobalSettingsNetworkDetailsNAT.h"
+# include "UIGlobalSettingsNetworkDetailsHost.h"
 
 /* COM includes: */
-#include "CNATNetwork.h"
-#include "CHostNetworkInterface.h"
-#include "CDHCPServer.h"
+# include "CNATNetwork.h"
+# include "CHostNetworkInterface.h"
 
 /* Other VBox includes: */
-#include "iprt/cidr.h"
+# include <iprt/cidr.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QHostAddress>
+
+#include "CDHCPServer.h"
+
 
 
 /* Global settings / Network page / NAT network item: */
@@ -450,7 +457,6 @@ UIGlobalSettingsNetwork::UIGlobalSettingsNetwork()
 
     /* Prepare NAT network toolbar: */
     {
-        m_pToolbarNetworkNAT->setUsesTextLabel(false);
         m_pToolbarNetworkNAT->setIconSize(QSize(16, 16));
         m_pToolbarNetworkNAT->setOrientation(Qt::Vertical);
         m_pToolbarNetworkNAT->addAction(m_pActionAddNetworkNAT);
@@ -459,13 +465,19 @@ UIGlobalSettingsNetwork::UIGlobalSettingsNetwork()
     }
     /* Prepare Host network toolbar: */
     {
-        m_pToolbarNetworkHost->setUsesTextLabel(false);
         m_pToolbarNetworkHost->setIconSize(QSize(16, 16));
         m_pToolbarNetworkHost->setOrientation(Qt::Vertical);
         m_pToolbarNetworkHost->addAction(m_pActionAddNetworkHost);
         m_pToolbarNetworkHost->addAction(m_pActionDelNetworkHost);
         m_pToolbarNetworkHost->addAction(m_pActionEditNetworkHost);
     }
+
+#ifndef Q_WS_WIN
+    /* On Windows host that looks ugly, but
+     * On Mac OS X and X11 that deserves it's place. */
+    m_pLayoutNAT->setContentsMargins(0, 0, 0, 0);
+    m_pLayoutHostOnly->setContentsMargins(0, 0, 0, 0);
+#endif /* !Q_WS_WIN */
 
     /* Apply language settings: */
     retranslateUi();
@@ -775,7 +787,7 @@ void UIGlobalSettingsNetwork::sltAddNetworkHost()
     CProgress progress = host.CreateHostOnlyNetworkInterface(iface);
     if (!host.isOk())
         return msgCenter().cannotCreateHostInterface(host, this);
-    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/nw_32px.png", this, 0); // TODO: Change icon!
+    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/progress_network_interface_90px.png", this, 0);
     if (!progress.isOk() || progress.GetResultCode() != 0)
         return msgCenter().cannotCreateHostInterface(progress, this);
 
@@ -827,7 +839,7 @@ void UIGlobalSettingsNetwork::sltDelNetworkHost()
     CProgress progress = host.RemoveHostOnlyNetworkInterface(iface.GetId());
     if (!host.isOk())
         return msgCenter().cannotRemoveHostInterface(host, strInterfaceName, this);
-    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/nw_32px.png", this, 0); // TODO: Change icon!
+    msgCenter().showModalProgressDialog(progress, tr("Networking"), ":/progress_network_interface_90px.png", this, 0);
     if (!progress.isOk() || progress.GetResultCode() != 0)
         return msgCenter().cannotRemoveHostInterface(progress, strInterfaceName, this);
 

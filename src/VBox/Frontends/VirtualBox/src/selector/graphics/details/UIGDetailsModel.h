@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsModel class declaration
+ * VBox Qt GUI - UIGDetailsModel class declaration.
  */
 
 /*
@@ -26,7 +24,7 @@
 #include <QSet>
 
 /* GUI includes: */
-#include "UIDefs.h"
+#include "UIExtraDataDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -72,6 +70,9 @@ public:
     /* API: Current-item(s) stuff: */
     void setItems(const QList<UIVMItem*> &items);
 
+    /** Returns the details settings. */
+    const QMap<DetailsElementType, bool>& settings() const { return m_settings; }
+
 private slots:
 
     /* Handler: Details-view stuff: */
@@ -102,8 +103,10 @@ private:
     /* Helpers: Prepare stuff: */
     void prepareScene();
     void prepareRoot();
+    void loadSettings();
 
     /* Helpers: Cleanup stuff: */
+    void saveSettings();
     void cleanupRoot();
     void cleanupScene();
 
@@ -117,6 +120,8 @@ private:
     QGraphicsScene *m_pScene;
     UIGDetailsGroup *m_pRoot;
     UIGDetailsElementAnimationCallback *m_pAnimationCallback;
+    /** Holds the details settings. */
+    QMap<DetailsElementType, bool> m_settings;
 };
 
 /* Details-element animation callback: */

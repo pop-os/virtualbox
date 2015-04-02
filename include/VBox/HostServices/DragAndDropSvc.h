@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,16 +42,36 @@
 #define DND_MOVE_ACTION       RT_BIT_32(1)
 #define DND_LINK_ACTION       RT_BIT_32(2)
 
-#define hasDnDCopyAction(a)   ((a) && DND_COPY_ACTION)
-#define hasDnDMoveAction(a)   ((a) && DND_MOVE_ACTION)
-#define hasDnDLinkAction(a)   ((a) && DND_LINK_ACTION)
+#define hasDnDCopyAction(a)   ((a) & DND_COPY_ACTION)
+#define hasDnDMoveAction(a)   ((a) & DND_MOVE_ACTION)
+#define hasDnDLinkAction(a)   ((a) & DND_LINK_ACTION)
 
 #define isDnDIgnoreAction(a)  ((a) == DND_IGNORE_ACTION)
 #define isDnDCopyAction(a)    ((a) == DND_COPY_ACTION)
 #define isDnDMoveAction(a)    ((a) == DND_MOVE_ACTION)
 #define isDnDLinkAction(a)    ((a) == DND_LINK_ACTION)
 
-/* Everything defined in this file lives in this namespace. */
+/** @def VBOX_DND_FORMATS_DEFAULT
+ * Default drag'n drop formats.
+ * Note: If you add new entries here, make sure you test those
+ *       with all supported guest OSes!
+ */
+#define VBOX_DND_FORMATS_DEFAULT                                                                \
+    "text/uri-list",                                                                            \
+    /* Text. */                                                                                 \
+    "text/html",                                                                                \
+    "text/plain;charset=utf-8",                                                                 \
+    "text/plain;charset=utf-16",                                                                \
+    "text/plain",                                                                               \
+    "text/richtext",                                                                            \
+    "UTF8_STRING",                                                                              \
+    "TEXT",                                                                                     \
+    "STRING",                                                                                   \
+    /* OpenOffice formats. */                                                                   \
+    /* See: https://wiki.openoffice.org/wiki/Documentation/DevGuide/OfficeDev/Common_Application_Features#OpenOffice.org_Clipboard_Data_Formats */ \
+    "application/x-openoffice-embed-source-xml;windows_formatname=\"Star Embed Source (XML)\""  \
+    "application/x-openoffice;windows_formatname=\"Bitmap\""
+
 namespace DragAndDropSvc {
 
 /******************************************************************************
@@ -60,47 +80,89 @@ namespace DragAndDropSvc {
 
 /**
  * The service functions which are callable by host.
+ * Note: When adding new functions to this table, make sure that the actual ID
+ *       does *not* overlap with the eGuestFn enumeration below!
  */
 enum eHostFn
 {
     HOST_DND_SET_MODE                  = 100,
 
-    /* H->G */
-    HOST_DND_HG_EVT_ENTER              = 200,
-    HOST_DND_HG_EVT_MOVE,
-    HOST_DND_HG_EVT_LEAVE,
-    HOST_DND_HG_EVT_DROPPED,
-    HOST_DND_HG_EVT_CANCEL,
-    HOST_DND_HG_SND_DATA,
-    HOST_DND_HG_SND_MORE_DATA,
-    HOST_DND_HG_SND_DIR,
-    HOST_DND_HG_SND_FILE,
+    /*
+     * Host -> Guest messages
+     */
 
-    /* G->H */
-    HOST_DND_GH_REQ_PENDING            = 300,
-    HOST_DND_GH_EVT_DROPPED
+    HOST_DND_HG_EVT_ENTER              = 200,
+    HOST_DND_HG_EVT_MOVE               = 201,
+    HOST_DND_HG_EVT_LEAVE              = 202,
+    HOST_DND_HG_EVT_DROPPED            = 203,
+    HOST_DND_HG_EVT_CANCEL             = 204,
+    /** Gets the actual MIME data, based on
+     *  the format(s) specified by HOST_DND_HG_EVT_ENTER. */
+    HOST_DND_HG_SND_DATA               = 205,
+    /** Sent when the actual buffer for HOST_DND_HG_SND_DATA
+     *  was too small, issued by the DnD host service. */
+    HOST_DND_HG_SND_MORE_DATA          = 206,
+    /** Directory entry to be handled on the guest. */
+    HOST_DND_HG_SND_DIR                = 207,
+    /** File entry to be handled on the guest. */
+    HOST_DND_HG_SND_FILE               = 208,
+
+    /*
+     * Guest -> Host messages
+     */
+
+    /** The host asks the guest whether a DnD operation
+     *  is in progress when the mouse leaves the guest window. */
+    HOST_DND_GH_REQ_PENDING            = 600,
+    /** The host informs the guest that a DnD drop operation
+     *  has been started and that the host wants the data in
+     *  a specific MIME type. */
+    HOST_DND_GH_EVT_DROPPED,
+
+    HOST_DND_GH_RECV_DIR               = 650,
+    HOST_DND_GH_RECV_FILE              = 670
 };
 
 /**
  * The service functions which are called by guest.
+ * Note: When adding new functions to this table, make sure that the actual ID
+ *       does *not* overlap with the eGuestFn enumeration above!
  */
 enum eGuestFn
 {
     /**
-     * Guest waits for a new message the host wants to process on the guest side.
-     * This is a blocking call and can be deferred.
+     * Guest waits for a new message the host wants to process
+     * on the guest side. This can be a blocking call.
      */
     GUEST_DND_GET_NEXT_HOST_MSG        = 300,
 
     /* H->G */
+    /** The guest acknowledges that the pending DnD data from
+     *  the host can be dropped on the currently selected source
+     *  on the guest. */
     GUEST_DND_HG_ACK_OP                = 400,
-    GUEST_DND_HG_REQ_DATA,
-    GUEST_DND_HG_EVT_PROGRESS,
+    /** The guest requests the actual DnD data to be sent
+     *  from the host. */
+    GUEST_DND_HG_REQ_DATA              = 401,
+    GUEST_DND_HG_EVT_PROGRESS          = 402,
 
     /* G->H */
+    /**
+     * The guests acknowledges that it currently has a drag'n drop
+     * operation in progress on the guest, which eventually could be
+     * dragged over to the host.
+     */
     GUEST_DND_GH_ACK_PENDING           = 500,
-    GUEST_DND_GH_SND_DATA,
-    GUEST_DND_GH_EVT_ERROR
+    /**
+     * Sends data of the requested format to the host. There can
+     * be more than one message if the actual data does not fit
+     * into one.
+     */
+    GUEST_DND_GH_SND_DATA              = 501,
+    GUEST_DND_GH_EVT_ERROR             = 502,
+
+    GUEST_DND_GH_SND_DIR               = 700,
+    GUEST_DND_GH_SND_FILE              = 701
 };
 
 /**
@@ -178,7 +240,7 @@ typedef struct VBOXDNDHGSENDDATAMSG
     HGCMFunctionParameter pvFormat;     /* OUT ptr */
     HGCMFunctionParameter cFormat;      /* OUT uint32_t */
     HGCMFunctionParameter pvData;       /* OUT ptr */
-    HGCMFunctionParameter cData;        /* OUT uint32_t */
+    HGCMFunctionParameter cbData;       /* OUT uint32_t */
 } VBOXDNDHGSENDDATAMSG;
 
 typedef struct VBOXDNDHGSENDMOREDATAMSG
@@ -192,7 +254,7 @@ typedef struct VBOXDNDHGSENDMOREDATAMSG
      * HOST_DND_HG_SND_MORE_DATA
      */
     HGCMFunctionParameter pvData;       /* OUT ptr */
-    HGCMFunctionParameter cData;        /* OUT uint32_t */
+    HGCMFunctionParameter cbData;       /* OUT uint32_t */
 } VBOXDNDHGSENDMOREDATAMSG;
 
 typedef struct VBOXDNDHGSENDDIRMSG
@@ -206,7 +268,7 @@ typedef struct VBOXDNDHGSENDDIRMSG
      * HOST_DND_HG_SND_DIR
      */
     HGCMFunctionParameter pvName;       /* OUT ptr */
-    HGCMFunctionParameter cName;        /* OUT uint32_t */
+    HGCMFunctionParameter cbName;       /* OUT uint32_t */
     HGCMFunctionParameter fMode;        /* OUT uint32_t */
 } VBOXDNDHGSENDDIRMSG;
 
@@ -221,9 +283,9 @@ typedef struct VBOXDNDHGSENDFILEMSG
      * HOST_DND_HG_SND_FILE
      */
     HGCMFunctionParameter pvName;       /* OUT ptr */
-    HGCMFunctionParameter cName;        /* OUT uint32_t */
+    HGCMFunctionParameter cbName;       /* OUT uint32_t */
     HGCMFunctionParameter pvData;       /* OUT ptr */
-    HGCMFunctionParameter cData;        /* OUT uint32_t */
+    HGCMFunctionParameter cbData;       /* OUT uint32_t */
     HGCMFunctionParameter fMode;        /* OUT uint32_t */
 } VBOXDNDHGSENDFILEMSG;
 
@@ -273,6 +335,8 @@ typedef struct VBOXDNDNEXTMSGMSG
     HGCMFunctionParameter msg;          /* OUT uint32_t */
     /** Number of parameters the message needs. */
     HGCMFunctionParameter num_parms;    /* OUT uint32_t */
+    /** Whether or not to block (wait) for a
+     *  new message to arrive. */
     HGCMFunctionParameter block;        /* OUT uint32_t */
 
 } VBOXDNDNEXTMSGMSG;
@@ -328,19 +392,54 @@ typedef struct VBOXDNDGHSENDDATAMSG
      * Used by:
      * GUEST_DND_GH_SND_DATA
      */
-    HGCMFunctionParameter pData;        /* OUT ptr */
-    HGCMFunctionParameter uSize;        /* OUT uint32_t */
+    HGCMFunctionParameter pvData;       /* OUT ptr */
+    /** Total bytes to send. This can be more than
+     *  the data block specified in pvData above, e.g.
+     *  when sending over file objects afterwards. */
+    HGCMFunctionParameter cbTotalBytes; /* OUT uint32_t */
 } VBOXDNDGHSENDDATAMSG;
+
+typedef struct VBOXDNDGHSENDDIRMSG
+{
+    VBoxGuestHGCMCallInfo hdr;
+
+    /**
+     * GH Directory event.
+     *
+     * Used by:
+     * GUEST_DND_HG_SND_DIR
+     */
+    HGCMFunctionParameter pvName;       /* OUT ptr */
+    HGCMFunctionParameter cbName;       /* OUT uint32_t */
+    HGCMFunctionParameter fMode;        /* OUT uint32_t */
+} VBOXDNDGHSENDDIRMSG;
+
+typedef struct VBOXDNDGHSENDFILEMSG
+{
+    VBoxGuestHGCMCallInfo hdr;
+
+    /**
+     * GH File event.
+     *
+     * Used by:
+     * GUEST_DND_HG_SND_FILE
+     */
+    HGCMFunctionParameter pvName;       /* OUT ptr */
+    HGCMFunctionParameter cbName;       /* OUT uint32_t */
+    HGCMFunctionParameter pvData;       /* OUT ptr */
+    HGCMFunctionParameter cbData;       /* OUT uint32_t */
+    HGCMFunctionParameter fMode;        /* OUT uint32_t */
+} VBOXDNDGHSENDFILEMSG;
 
 typedef struct VBOXDNDGHEVTERRORMSG
 {
     VBoxGuestHGCMCallInfo hdr;
 
     /**
-     * GH Cancel Data event.
+     * GH Error event.
      *
      * Used by:
-     * GUEST_DND_GH_EVT_CANCEL
+     * GUEST_DND_GH_EVT_ERROR
      */
     HGCMFunctionParameter uRC;          /* OUT uint32_t */
 } VBOXDNDGHEVTERRORMSG;
@@ -348,7 +447,7 @@ typedef struct VBOXDNDGHEVTERRORMSG
 #pragma pack()
 
 /*
- * Callback handler
+ * Callback data magics.
  */
 enum
 {
@@ -357,6 +456,8 @@ enum
     CB_MAGIC_DND_HG_EVT_PROGRESS = 0x8c8a6956,
     CB_MAGIC_DND_GH_ACK_PENDING  = 0xbe975a14,
     CB_MAGIC_DND_GH_SND_DATA     = 0x4eb61bff,
+    CB_MAGIC_DND_GH_SND_DIR      = 0x411ca754,
+    CB_MAGIC_DND_GH_SND_FILE     = 0x65e35eaf,
     CB_MAGIC_DND_GH_EVT_ERROR    = 0x117a87c4
 };
 
@@ -391,8 +492,9 @@ typedef struct VBOXDNDCBHGEVTPROGRESSDATA
     VBOXDNDCBHEADERDATA hdr;
     uint32_t uPercentage;
     uint32_t uState;
+    int rc;
 } VBOXDNDCBHGEVTPROGRESSDATA;
-typedef VBOXDNDCBHGEVTPROGRESSDATA *PVBOXDNDCBHGEVTPROGRESSDATA ;
+typedef VBOXDNDCBHGEVTPROGRESSDATA *PVBOXDNDCBHGEVTPROGRESSDATA;
 
 typedef struct VBOXDNDCBGHACKPENDINGDATA
 {
@@ -410,18 +512,41 @@ typedef struct VBOXDNDCBSNDDATADATA
     VBOXDNDCBHEADERDATA hdr;
     void     *pvData;
     uint32_t  cbData;
-    uint32_t  cbAllSize;
+    /** Total metadata size (in bytes). This is transmitted
+     *  with every message because the size can change. */
+    uint32_t  cbTotalSize;
 } VBOXDNDCBSNDDATADATA;
 typedef VBOXDNDCBSNDDATADATA *PVBOXDNDCBSNDDATADATA;
+
+typedef struct VBOXDNDCBSNDDIRDATA
+{
+    /** Callback data header. */
+    VBOXDNDCBHEADERDATA hdr;
+    char     *pszPath;
+    uint32_t  cbPath;
+    uint32_t  fMode;
+} VBOXDNDCBSNDDIRDATA;
+typedef VBOXDNDCBSNDDIRDATA *PVBOXDNDCBSNDDIRDATA;
+
+typedef struct VBOXDNDCBSNDFILEDATA
+{
+    /** Callback data header. */
+    VBOXDNDCBHEADERDATA hdr;
+    char     *pszFilePath;
+    uint32_t  cbFilePath;
+    uint32_t  fMode;
+    void     *pvData;
+    uint32_t  cbData;
+} VBOXDNDCBSNDFILEDATA;
+typedef VBOXDNDCBSNDFILEDATA *PVBOXDNDCBSNDFILEDATA;
 
 typedef struct VBOXDNDCBEVTERRORDATA
 {
     /** Callback data header. */
     VBOXDNDCBHEADERDATA hdr;
-    int32_t  rc;
+    int32_t rc;
 } VBOXDNDCBEVTERRORDATA;
 typedef VBOXDNDCBEVTERRORDATA *PVBOXDNDCBEVTERRORDATA;
-
 
 } /* namespace DragAndDropSvc */
 

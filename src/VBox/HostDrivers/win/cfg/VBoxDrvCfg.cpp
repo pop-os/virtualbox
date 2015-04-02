@@ -348,6 +348,8 @@ static HRESULT vboxDrvCfgInfQueryModelsSectionName(HINF hInf, LPWSTR *lppszValue
 
 static HRESULT vboxDrvCfgInfQueryFirstPnPId(HINF hInf, LPWSTR *lppszPnPId)
 {
+    *lppszPnPId = NULL;
+
     LPWSTR lpszModels;
     LPWSTR lpszPnPId;
     HRESULT hr = vboxDrvCfgInfQueryModelsSectionName(hInf, &lpszModels, NULL);
@@ -368,17 +370,14 @@ static HRESULT vboxDrvCfgInfQueryFirstPnPId(HINF hInf, LPWSTR *lppszPnPId)
     {
         hr = vboxDrvCfgInfQueryKeyValue(&InfCtx, 2, &lpszPnPId, NULL);
         NonStandardLogRelCrap((__FUNCTION__ ": vboxDrvCfgRegQueryKeyValue for models (%S) returned lpszPnPId (%S) \n", lpszModels, lpszPnPId));
+
         if (hr != S_OK)
-        {
             NonStandardLogRelCrap((__FUNCTION__ ": vboxDrvCfgRegQueryKeyValue for models (%S) failed, hr=0x%x\n", lpszModels, hr));
-        }
     }
     /* free models string right away */
     free(lpszModels);
     if (hr != S_OK)
-    {
         return hr;
-    }
 
     *lppszPnPId = lpszPnPId;
     return S_OK;
@@ -393,45 +392,22 @@ static HRESULT vboxDrvCfgInfCopyEx(IN LPCWSTR lpszInfPath, IN DWORD fCopyStyle, 
     WCHAR aMediaLocation[_MAX_DIR];
     WCHAR aDir[_MAX_DIR];
 
-    NonStandardLogRelCrap((__FUNCTION__ ":enter"));
-    NonStandardLogRelCrap((__FUNCTION__ ": lpszInfPath=%S \n", lpszInfPath));
-
-
-    NonStandardLogRelCrap((__FUNCTION__ ": call _wsplitpath(%S, aMediaLocation, aDir, NULL, NULL)\n", lpszInfPath));
     _wsplitpath(lpszInfPath, aMediaLocation, aDir, NULL, NULL);
-    NonStandardLogRelCrap((__FUNCTION__ ": after _wsplitpath(...) aMediaLocation=%S and aDir=%S\n", aMediaLocation, aDir));
-
-    NonStandardLogRelCrap((__FUNCTION__ ": call wcscat(%S, %S)", aMediaLocation, aDir));
     wcscat(aMediaLocation, aDir);
 
-    NonStandardLogRelCrap((__FUNCTION__ ": before call SetupCopyOEMInfW(lpszInfPath, aMediaLocation, SPOST_PATH, fCopyStyle,\
- lpszDstName, cbDstName, pcbDstNameSize, lpszDstNameComponent)\n"));
-    bool b = SetupCopyOEMInfW(lpszInfPath, aMediaLocation, SPOST_PATH, fCopyStyle,
-                              lpszDstName, cbDstName, pcbDstNameSize,
-                              lpszDstNameComponent);
-    NonStandardLogRelCrap((__FUNCTION__ ": after call SetupCopyOEMInfW(lpszInfPath, aMediaLocation, SPOST_PATH, fCopyStyle,\
- lpszDstName, cbDstName, pcbDstNameSize, lpszDstNameComponent)\n"));
-    NonStandardLogRelCrap((__FUNCTION__ ": lpszInfPath=%S \
-            fCopyStyle=%ld \
-            lpszDstName=%S \
-            cbDstName=%ld \
-            pcbDstNameSize=%ld \
-            \n", lpszInfPath,fCopyStyle,lpszDstName,cbDstName,pcbDstNameSize));
-
-    if (!b)
+    if (!SetupCopyOEMInfW(lpszInfPath, aMediaLocation, SPOST_PATH, fCopyStyle,
+            lpszDstName, cbDstName, pcbDstNameSize,
+            lpszDstNameComponent))
     {
         DWORD dwErr = GetLastError();
         HRESULT hr = HRESULT_FROM_WIN32(dwErr);
-        NonStandardLogRelCrap((__FUNCTION__ ": SetupCopyOEMInf fail dwErr=%ld\n", dwErr));
         if (fCopyStyle != SP_COPY_REPLACEONLY || hr != VBOXDRVCFG_S_INFEXISTS)
         {
-            NonStandardLogRelCrap((__FUNCTION__ ": SetupCopyOEMInf fail (with \"fCopyStyle != SP_COPY_REPLACEONLY || hr != VBOXDRVCFG_S_INFEXISTS)\" dwErr=%ld\n", dwErr));
+            NonStandardLogRelCrap((__FUNCTION__ ": SetupCopyOEMInf fail dwErr=%ld\n", dwErr));
         }
-        NonStandardLogRelCrap((__FUNCTION__ ":return error dwErr=%ld\n", dwErr));
         return hr;
     }
 
-    NonStandardLogRelCrap((__FUNCTION__ ":return S_OK\n"));
     return S_OK;
 }
 
@@ -662,7 +638,6 @@ static bool vboxDrvCfgInfEnumerationCallback(LPCWSTR lpszFileName, PVOID pCtxt)
     DWORD dwErr;
     NonStandardLogRelCrap((__FUNCTION__": lpszFileName (%S)\n", lpszFileName));
     NonStandardLogRelCrap((__FUNCTION__ ": pContext->InfInfo.lpszClassName = (%S)", pContext->InfInfo.lpszClassName));
-
     HINF hInf = SetupOpenInfFileW(lpszFileName, pContext->InfInfo.lpszClassName, INF_STYLE_WIN4, NULL /*__in PUINT ErrorLine */);
     if (hInf == INVALID_HANDLE_VALUE)
     {

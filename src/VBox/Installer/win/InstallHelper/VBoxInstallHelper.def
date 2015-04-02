@@ -24,10 +24,15 @@ EXPORTS
     UninstallBranding
     InstallNetFlt
     UninstallNetFlt
+	UninstallNetAdp
+	InstallNetLwf
+    UninstallNetLwf
     UninstallTAPInstances
     CreateHostOnlyInterface
     StopHostOnlyInterfaces
     UpdateHostOnlyInterfaces
     RemoveHostOnlyInterfaces
-    UninstallNetAdp
+    Ndis6CreateHostOnlyInterface
+    Ndis6UpdateHostOnlyInterfaces
+
 

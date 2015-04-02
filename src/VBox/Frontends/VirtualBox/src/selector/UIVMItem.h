@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIVMItem class declarations
+ * VBox Qt GUI - UIVMItem class declarations.
  */
 
 /*
@@ -23,10 +21,16 @@
 #include <QDateTime>
 #include <QMimeData>
 
+/* GUI includes: */
+#include "UISettingsDefs.h"
+
 /* COM includes: */
 #include "COMEnums.h"
 #include "CVirtualBoxErrorInfo.h"
 #include "CMachine.h"
+
+/* Using declarations: */
+using namespace UISettingsDefs;
 
 class UIVMItem
 {
@@ -38,7 +42,7 @@ public:
     CMachine machine() const { return m_machine; }
 
     QString name() const { return m_strName; }
-    QIcon osIcon() const;
+    QPixmap osPixmap(QSize *pLogicalSize = 0) const;
     QString osTypeId() const { return m_strOSTypeId; }
     QString id() const { return m_strId; }
 
@@ -64,8 +68,10 @@ public:
     bool canSwitchTo() const;
     bool switchTo();
 
-    bool reconfigurable() const { return m_fReconfigurable; }
     bool hasDetails() const { return m_fHasDetails; }
+
+    /** Returns configuration access level. */
+    ConfigurationAccessLevel configurationAccessLevel() const { return m_configurationAccessLevel; }
 
     static bool isItemEditable(UIVMItem *pItem);
     static bool isItemSaved(UIVMItem *pItem);
@@ -97,8 +103,10 @@ private:
 
     ULONG m_pid;
 
-    bool m_fReconfigurable;
     bool m_fHasDetails;
+
+    /** Holds configuration access level. */
+    ConfigurationAccessLevel m_configurationAccessLevel;
 };
 
 /* Make the pointer of this class public to the QVariant framework */

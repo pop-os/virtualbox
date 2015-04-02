@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsUpdate.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsUpdate class implementation
+ * VBox Qt GUI - UIGlobalSettingsUpdate class implementation.
  */
 
 /*
@@ -17,9 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIGlobalSettingsUpdate.h"
-#include "VBoxGlobal.h"
+# include "UIGlobalSettingsUpdate.h"
+# include "UIExtraDataManager.h"
+# include "VBoxGlobal.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGlobalSettingsUpdate::UIGlobalSettingsUpdate()
     : m_pLastChosenRadio(0)
@@ -47,7 +53,7 @@ void UIGlobalSettingsUpdate::loadToCacheFrom(QVariant &data)
     UISettingsPageGlobal::fetchData(data);
 
     /* Fill internal variables with corresponding values: */
-    VBoxUpdateData updateData(vboxGlobal().virtualBox().GetExtraData(GUI_UpdateDate));
+    VBoxUpdateData updateData(gEDataManager->applicationUpdateData());
     m_cache.m_fCheckEnabled = !updateData.isNoNeedToCheck();
     m_cache.m_periodIndex = updateData.periodIndex();
     m_cache.m_branchIndex = updateData.branchIndex();
@@ -102,7 +108,7 @@ void UIGlobalSettingsUpdate::saveFromCacheTo(QVariant &data)
 
     /* Gather corresponding values from internal variables: */
     VBoxUpdateData newData(m_cache.m_periodIndex, m_cache.m_branchIndex);
-    vboxGlobal().virtualBox().SetExtraData(GUI_UpdateDate, newData.data());
+    gEDataManager->setApplicationUpdateData(newData.data());
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);

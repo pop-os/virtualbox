@@ -610,6 +610,20 @@ VMMR3DECL(bool) CFGMR3AreValuesValid(PCFGMNODE pNode, const char *pszzValid)
 }
 
 
+/**
+ * Checks if the given value exists.
+ *
+ * @returns true if it exists, false if not.
+ * @param   pNode           Which node to search for pszName in.
+ * @param   pszName         The name of the value we seek.
+ */
+VMMR3DECL(bool) CFGMR3Exists(PCFGMNODE pNode, const char *pszName)
+{
+    PCFGMLEAF pLeaf;
+    int rc = cfgmR3ResolveLeaf(pNode, pszName, &pLeaf);
+    return RT_SUCCESS_NP(rc);
+}
+
 
 /**
  * Query value type.
@@ -878,7 +892,7 @@ VMMR3DECL(int) CFGMR3ValidateConfig(PCFGMNODE pNode, const char *pszNode,
     if (pNode)
     {
         /*
-         * Enumerate the leafs and check them against pszValidValues.
+         * Enumerate the leaves and check them against pszValidValues.
          */
         for (PCFGMLEAF pLeaf = pNode->pFirstLeaf; pLeaf; pLeaf = pLeaf->pNext)
         {
@@ -886,10 +900,10 @@ VMMR3DECL(int) CFGMR3ValidateConfig(PCFGMNODE pNode, const char *pszNode,
                                               pLeaf->szName, pLeaf->cchName,
                                               NULL))
             {
-                AssertLogRelMsgFailed(("%s/%u: Value '%s/%s' didn't match '%s'\n",
+                AssertLogRelMsgFailed(("%s/%u: Value '%s%s' didn't match '%s'\n",
                                        pszWho, uInstance, pszNode, pLeaf->szName, pszValidValues));
                 return VMSetError(pNode->pVM, VERR_CFGM_CONFIG_UNKNOWN_VALUE, RT_SRC_POS,
-                                  N_("Unknown configuration value '%s/%s' found in the configuration of %s instance #%u"),
+                                  N_("Unknown configuration value '%s%s' found in the configuration of %s instance #%u"),
                                   pszNode, pLeaf->szName, pszWho, uInstance);
             }
 
@@ -904,10 +918,10 @@ VMMR3DECL(int) CFGMR3ValidateConfig(PCFGMNODE pNode, const char *pszNode,
                                               pChild->szName, pChild->cchName,
                                               NULL))
             {
-                AssertLogRelMsgFailed(("%s/%u: Node '%s/%s' didn't match '%s'\n",
+                AssertLogRelMsgFailed(("%s/%u: Node '%s%s' didn't match '%s'\n",
                                        pszWho, uInstance, pszNode, pChild->szName, pszValidNodes));
                 return VMSetError(pNode->pVM, VERR_CFGM_CONFIG_UNKNOWN_NODE, RT_SRC_POS,
-                                  N_("Unknown configuration node '%s/%s' found in the configuration of %s instance #%u"),
+                                  N_("Unknown configuration node '%s%s' found in the configuration of %s instance #%u"),
                                   pszNode, pChild->szName, pszWho, uInstance);
             }
         }
@@ -1455,7 +1469,7 @@ VMMR3DECL(int) CFGMR3InsertSubTree(PCFGMNODE pNode, const char *pszName, PCFGMNO
 
     /*
      * Use CFGMR3InsertNode to create a new node and then
-     * re-attach the children and leafs of the subtree to it.
+     * re-attach the children and leaves of the subtree to it.
      */
     PCFGMNODE pNewChild;
     int rc = CFGMR3InsertNode(pNode, pszName, &pNewChild);
@@ -1925,7 +1939,7 @@ VMMR3DECL(void) CFGMR3RemoveNode(PCFGMNODE pNode)
             CFGMR3RemoveNode(pNode->pFirstChild);
 
         /*
-         * Free leafs.
+         * Free leaves.
          */
         while (pNode->pFirstLeaf)
             cfgmR3RemoveLeaf(pNode, pNode->pFirstLeaf);

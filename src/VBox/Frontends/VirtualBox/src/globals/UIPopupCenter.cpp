@@ -1,8 +1,6 @@
 /* $Id: UIPopupCenter.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIPopupCenter class implementation
+ * VBox Qt GUI - UIPopupCenter class implementation.
  */
 
 /*
@@ -17,16 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIPopupCenter.h"
-#include "UIPopupStack.h"
-#include "UIMachineWindow.h"
-#include "QIMessageBox.h"
-#include "VBoxGlobal.h"
-#include "UIHostComboEditor.h"
+# include "UIPopupCenter.h"
+# include "UIPopupStack.h"
+# include "UIMachineWindow.h"
+# include "QIMessageBox.h"
+# include "VBoxGlobal.h"
+# include "UIHostComboEditor.h"
+# include "UIExtraDataManager.h"
 
 /* Other VBox includes: */
-#include <VBox/sup.h>
+# include <VBox/sup.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* static */
 UIPopupCenter* UIPopupCenter::m_spInstance = 0;
@@ -245,7 +251,7 @@ void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strPopupPaneI
     /* Check if popup-pane was auto-confirmed before: */
     if ((iButton1 || iButton2) && fProposeAutoConfirmation)
     {
-        QStringList confirmedPopupList = vboxGlobal().virtualBox().GetExtraData(GUI_SuppressMessages).split(',');
+        const QStringList confirmedPopupList = gEDataManager->suppressedMessages();
         if (   confirmedPopupList.contains(strPopupPaneID)
             || confirmedPopupList.contains("allPopupPanes")
             || confirmedPopupList.contains("all") )
@@ -325,14 +331,9 @@ void UIPopupCenter::hidePopupPane(QWidget *pParent, const QString &strPopupPaneI
 
 void UIPopupCenter::sltPopupPaneDone(QString strPopupPaneID, int iResultCode)
 {
-    /* Was the result auto-confirmated? */
+    /* Remember auto-confirmation fact (if necessary): */
     if (iResultCode & AlertOption_AutoConfirmed)
-    {
-        /* Remember auto-confirmation fact: */
-        QStringList confirmedPopupList = vboxGlobal().virtualBox().GetExtraData(GUI_SuppressMessages).split(',');
-        confirmedPopupList << strPopupPaneID;
-        vboxGlobal().virtualBox().SetExtraData(GUI_SuppressMessages, confirmedPopupList.join(","));
-    }
+        gEDataManager->setSuppressedMessages(gEDataManager->suppressedMessages() << strPopupPaneID);
 
     /* Notify listeners: */
     emit sigPopupPaneDone(strPopupPaneID, iResultCode);

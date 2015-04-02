@@ -66,10 +66,10 @@ INSTALLS += linux-bin
 linux-bin_INST = bin/
 linux-bin_MODE = a+rx,u+w
 linux-bin_SOURCES = \
-        scripts/install.sh=>scripts/install.sh \
-        scripts/VBoxHeadlessXOrg.sh=>scripts/VBoxHeadlessXOrg.sh \
-        VBoxSysInfo.sh \
-        VBoxCreateUSBNode.sh \
+	scripts/install.sh=>scripts/install.sh \
+	scripts/VBoxHeadlessXOrg.sh=>scripts/VBoxHeadlessXOrg.sh \
+	VBoxSysInfo.sh \
+	VBoxCreateUSBNode.sh \
 	VBox.sh=>VBox.sh \
 	$(if $(VBOX_WITH_PYTHON),$(PATH_ROOT)/src/VBox/Frontends/VBoxShell/vboxshell.py=>vboxshell.py,)
 
@@ -77,26 +77,26 @@ INSTALLS += linux-scripts
 linux-scripts_INST = $(VBOX_LNX_INST_STAGE_DIR_REL)/
 linux-scripts_MODE = a+rx,u+w
 linux-scripts_SOURCES = \
-		deffiles \
-		routines.sh \
-		uninstall.sh \
-        vboxautostart-service.sh \
-		vboxballoonctrl-service.sh \
-		vboxdrv-pardus.py \
-		vboxweb-service.sh
+	deffiles \
+	routines.sh \
+	uninstall.sh \
+	vboxautostart-service.sh \
+	vboxballoonctrl-service.sh \
+	vboxdrv-pardus.py \
+	vboxweb-service.sh
 
 INSTALLS += linux-misc
 linux-misc_INST = bin/
 linux-misc_MODE = a+r,u+w
 linux-misc_SOURCES = \
 	$(PATH_ROOT)/src/VBox/Frontends/VirtualBox/images/$(if $(VBOX_OSE),OSE,NonOSE)/VirtualBox_32px.png=>VBox.png \
-	$(PATH_ROOT)/src/VBox/Installer/common/virtualbox.xml \
+	$(VBOX_PATH_INST_COMMON_SRC)/virtualbox.xml \
 	$(if $(VBOX_OSE),,$(VBOX_BRAND_LICENSE_TXT)=>LICENSE) \
 	$(linux-misc_0_OUTDIR)/generated.sh=>scripts/generated.sh \
 	$(if $(VBOX_WITH_QTGUI),$(linux-misc_0_OUTDIR)/virtualbox.desktop,)
 linux-misc_CLEAN = \
-    $(linux-misc_0_OUTDIR)/generated.sh \
-    $(linux-misc_0_OUTDIR)/virtualbox.desktop
+	$(linux-misc_0_OUTDIR)/generated.sh \
+	$(linux-misc_0_OUTDIR)/virtualbox.desktop
 
 $$(linux-misc_0_OUTDIR)/generated.sh: $(VBOX_VERSION_STAMP) $(VBOX_LNX_INST_DEP_ON_MAKEFILE) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
@@ -106,7 +106,7 @@ $$(linux-misc_0_OUTDIR)/generated.sh: $(VBOX_VERSION_STAMP) $(VBOX_LNX_INST_DEP_
 	$(QUIET)$(APPEND) '$@' 'VBOX_C_YEAR="$(VBOX_C_YEAR)"'
 	$(QUIET)$(APPEND) '$@' 'VBOX_VENDOR="$(VBOX_VENDOR)"'
 
-$$(linux-misc_0_OUTDIR)/virtualbox.desktop: $(PATH_ROOT)/src/VBox/Installer/common/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
+$$(linux-misc_0_OUTDIR)/virtualbox.desktop: $(VBOX_PATH_INST_COMMON_SRC)/virtualbox.desktop.in $(VBOX_VERSION_STAMP) | $$(dir $$@)
 	$(call MSG_GENERATE,,$@,$<)
 ifdef VBOX_PATH_PACKAGE_DOCS
 	$(QUIET)$(SED) -e "s+@VBOX_DOC_PATH@+$(VBOX_PATH_PACKAGE_DOCS)+" \
@@ -172,6 +172,7 @@ VBOX_LNX_STRIP_BIN = \
 	$(if $(and $(VBOX_WITH_EXTPACK_VNC),$(VBOX_WITHOUT_EXTPACK_VNC_PACKING)), \
 		ExtensionPacks/VNC/$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/VBoxVNC.so \
 		ExtensionPacks/VNC/$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)/VBoxVNCMain.so,) \
+	$(if $(VBOX_WITH_DTRACE),VBoxDTrace,)\
 	VBoxTunctl \
 	helpers/generate_service_file
 
@@ -273,17 +274,8 @@ endif
 # Python XPCOM glue
 ifdef VBOX_WITH_PYTHON
  VBOX_LNX_NO_STRIP += \
- 	$(foreach f,$(notdir $(wildcard $(PATH_STAGE_BIN)/sdk/bindings/xpcom/python/xpcom/*.py)),sdk/bindings/xpcom/python/xpcom/$(f)) \
- 	sdk/bindings/xpcom/python/xpcom/client/__init__.py \
- 	sdk/bindings/xpcom/python/xpcom/server/__init__.py \
- 	sdk/bindings/xpcom/python/xpcom/server/enumerator.py \
- 	sdk/bindings/xpcom/python/xpcom/server/factory.py \
- 	sdk/bindings/xpcom/python/xpcom/server/loader.py \
- 	sdk/bindings/xpcom/python/xpcom/server/module.py \
- 	sdk/bindings/xpcom/python/xpcom/server/policy.py \
- 	sdk/installer/vboxapisetup.py \
- 	sdk/installer/vboxapi/__init__.py \
- 	sdk/installer/vboxapi/VirtualBox_constants.py
+ 	$(VBOXINST_SDK_BINDINGS_XPCOM_PYTHON_FILES) \
+ 	$(VBOXINST_SDK_INSTALLER_PYTHON_FILES)
 endif
 
 # Java XPCOM bridge
@@ -306,6 +298,12 @@ ifdef VBOX_WITH_WEBSERVICES
  	webtest
 endif
 
+# vbox-img
+if defined(VBOX_WITH_TESTCASES) || defined(VBOX_WITH_VBOX_IMG)
+  VBOX_LNX_STRIP_BIN += \
+	vbox-img
+endif
+
 # EFI firmware
 ifdef VBOX_WITH_EFIFW_PACKING
  VBOX_LNX_NO_STRIP += \
@@ -313,6 +311,15 @@ ifdef VBOX_WITH_EFIFW_PACKING
  	VBoxEFI64.fd
 endif
 
+# DTrace library and scripts.
+ifdef VBOX_WITH_DTRACE
+ VBOX_LNX_NO_STRIP += \
+ 	$(addprefix dtrace/lib/$(KBUILD_TARGET_ARCH)/,$(VBOXINST_DTRACE_LIB_ARCH_FILES)) \
+ 	$(addprefix dtrace/testcase/$(KBUILD_TARGET_ARCH)/,$(VBOXINST_DTRACE_TESTCASE_ARCH_FILES)) \
+ 	$(addprefix dtrace/scripts/,$(VBOXINST_DTRACE_SCRIPTS_FILES))
+endif
+
+# Icons
 VBOX_MIME_ICONS = \
 	$(addprefix $(PATH_ROOT)/src/VBox/Resources/other/,\
 	    $(foreach f,ova ovf vbox vbox-extpack vdi vmdk vhd hdd, \
@@ -490,7 +497,14 @@ BLDDIRS += $(foreach d,\
 	  archive/ExtensionPacks/VNC \
 	  archive/ExtensionPacks/VNC/$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),) \
 	archive/additions \
-	install\
+	install \
+       $(if $(VBOX_WITH_DTRACE),\
+	  archive/dtrace \
+	  archive/dtrace/lib \
+	  archive/dtrace/lib/$(KBUILD_TARGET_ARCH) \
+	  archive/dtrace/testcase/ \
+	  archive/dtrace/testcase/$(KBUILD_TARGET_ARCH) \
+	  archive/dtrace/scripts,) \
 ,$(VBOX_LNX_INST_OUT_DIR)/$(d)/)
 
 

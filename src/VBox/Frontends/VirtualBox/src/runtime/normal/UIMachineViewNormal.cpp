@@ -1,8 +1,6 @@
 /* $Id: UIMachineViewNormal.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineViewNormal class implementation
+ * VBox Qt GUI - UIMachineViewNormal class implementation.
  */
 
 /*
@@ -17,22 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
-#include <QApplication>
-#include <QDesktopWidget>
-#include <QMainWindow>
-#include <QMenuBar>
-#include <QScrollBar>
-#include <QTimer>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Local includes */
-#include "VBoxGlobal.h"
-#include "UISession.h"
-#include "UIActionPoolRuntime.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIMachineViewNormal.h"
-#include "UIFrameBuffer.h"
+/* Qt includes: */
+# include <QApplication>
+# include <QDesktopWidget>
+# include <QMainWindow>
+# include <QMenuBar>
+# include <QScrollBar>
+# include <QTimer>
+
+/* GUI includes: */
+# include "VBoxGlobal.h"
+# include "UISession.h"
+# include "UIActionPoolRuntime.h"
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIMachineViewNormal.h"
+# include "UIExtraDataManager.h"
+# include "UIFrameBuffer.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
                                          , ulong uScreenId
@@ -46,7 +52,7 @@ UIMachineViewNormal::UIMachineViewNormal(  UIMachineWindow *pMachineWindow
                     , bAccelerate2DVideo
 #endif
                     )
-    , m_bIsGuestAutoresizeEnabled(gActionPool->action(UIActionIndexRuntime_Toggle_GuestAutoresize)->isChecked())
+    , m_bIsGuestAutoresizeEnabled(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize)->isChecked())
 {
     /* Resend the last resize hint if necessary: */
     maybeResendSizeHint();
@@ -85,26 +91,6 @@ bool UIMachineViewNormal::eventFilter(QObject *pWatched, QEvent *pEvent)
                 break;
         }
     }
-
-#ifdef Q_WS_WIN
-    else if (pWatched != 0 && pWatched == machineWindow()->menuBar())
-    {
-        /* Due to windows host uses separate 'focus set' to let menubar to
-         * operate while popped up (see UIMachineViewNormal::event() for details),
-         * it also requires backward processing: */
-        switch (pEvent->type())
-        {
-            /* If menubar gets the focus while not popped up => give it back: */
-            case QEvent::FocusIn:
-            {
-                if (!QApplication::activePopupWidget())
-                    setFocus();
-            }
-            default:
-                break;
-        }
-    }
-#endif /* Q_WS_WIN */
 
     return UIMachineView::eventFilter(pWatched, pEvent);
 }
@@ -162,14 +148,8 @@ void UIMachineViewNormal::maybeResendSizeHint()
 {
     if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
     {
-        /* Get the current machine: */
-        CMachine machine = session().GetMachine();
-
-        /* We send a guest size hint if needed to reverse a transition
-         * to fullscreen or seamless. */
-        QString strKey = makeExtraDataKeyPerMonitor(GUI_LastGuestSizeHintWasFullscreen);
-        QString strHintSent = machine.GetExtraData(strKey);
-        if (!strHintSent.isEmpty())
+        /* Send guest-screen size-hint if needed to reverse a transition to fullscreen or seamless: */
+        if (gEDataManager->wasLastGuestSizeHintForFullScreen(m_uScreenId, vboxGlobal().managedVMUuid()))
         {
             const QSize sizeHint = guestSizeHint();
             LogRel(("UIMachineViewNormal::maybeResendSizeHint: "
@@ -187,10 +167,14 @@ void UIMachineViewNormal::maybeResendSizeHint()
 
 void UIMachineViewNormal::adjustGuestScreenSize()
 {
-    /* Check if we should adjust guest-screen to new size: */
+    /* Acquire central-widget size: */
     const QSize centralWidgetSize = machineWindow()->centralWidget()->size();
-    if ((int)frameBuffer()->width() != centralWidgetSize.width() ||
-        (int)frameBuffer()->height() != centralWidgetSize.height())
+    /* Acquire frame-buffer size: */
+    QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
+    /* Take the scale-factor(s) into account: */
+    frameBufferSize = scaledForward(frameBufferSize);
+    /* Check if we should adjust guest-screen to new size: */
+    if (frameBufferSize != centralWidgetSize)
         if (m_bIsGuestAutoresizeEnabled && uisession()->isGuestSupportsGraphics())
             sltPerformGuestResize(centralWidgetSize);
 }
