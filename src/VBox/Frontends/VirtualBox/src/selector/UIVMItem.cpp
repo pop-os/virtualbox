@@ -1,8 +1,6 @@
 /* $Id: UIVMItem.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIVMItem class implementation
+ * VBox Qt GUI - UIVMItem class implementation.
  */
 
 /*
@@ -18,25 +16,27 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QFileInfo>
-#include <QIcon>
+# include <QFileInfo>
+# include <QIcon>
 
 /* GUI includes: */
-#include "UIVMItem.h"
-#include "VBoxGlobal.h"
-#include "UIConverter.h"
-#ifdef Q_WS_MAC
-# include <ApplicationServices/ApplicationServices.h>
-#endif /* Q_WS_MAC */
+# include "UIVMItem.h"
+# include "VBoxGlobal.h"
+# include "UIConverter.h"
+# include "UIExtraDataManager.h"
+# ifdef Q_WS_MAC
+#  include <ApplicationServices/ApplicationServices.h>
+# endif /* Q_WS_MAC */
 
 /* COM includes: */
-#include "CSnapshot.h"
+# include "CSnapshot.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 // Helpers
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,10 +152,10 @@ UIVMItem::~UIVMItem()
 // public members
 ////////////////////////////////////////////////////////////////////////////////
 
-QIcon UIVMItem::osIcon() const
+QPixmap UIVMItem::osPixmap(QSize *pLogicalSize /* = 0 */) const
 {
-    return m_fAccessible ? vboxGlobal().vmGuestOSTypeIcon(m_strOSTypeId) :
-                           QPixmap(":/os_other.png");
+    return m_fAccessible ? vboxGlobal().vmGuestOSTypeIcon(m_strOSTypeId, pLogicalSize) :
+                           vboxGlobal().vmGuestOSTypeIcon("Other", pLogicalSize);
 }
 
 QString UIVMItem::machineStateName() const
@@ -166,8 +166,8 @@ QString UIVMItem::machineStateName() const
 
 QIcon UIVMItem::machineStateIcon() const
 {
-    return m_fAccessible ? gpConverter->toPixmap(m_machineState) :
-                           QPixmap(":/state_aborted_16px.png");
+    return m_fAccessible ? gpConverter->toIcon(m_machineState) :
+                           gpConverter->toIcon(KMachineState_Aborted);
 }
 
 QString UIVMItem::sessionStateName() const
@@ -256,12 +256,15 @@ bool UIVMItem::recache()
 #endif
         }
 
-        /* Should we allow reconfiguration for this item? */
-        m_fReconfigurable = m_machineState != KMachineState_Stuck &&
-                            VBoxGlobal::shouldWeAllowMachineReconfiguration(m_machine);
+        /* Determine configuration access level: */
+        m_configurationAccessLevel = ::configurationAccessLevel(m_sessionState, m_machineState);
+        /* Also take restrictions into account: */
+        if (   m_configurationAccessLevel != ConfigurationAccessLevel_Null
+            && !gEDataManager->machineReconfigurationEnabled(m_strId))
+            m_configurationAccessLevel = ConfigurationAccessLevel_Null;
 
         /* Should we show details for this item? */
-        m_fHasDetails = VBoxGlobal::shouldWeShowDetails(m_machine);
+        m_fHasDetails = gEDataManager->showMachineInSelectorDetails(m_strId);
     }
     else
     {
@@ -286,8 +289,8 @@ bool UIVMItem::recache()
         mWinId = (WId) ~0;
 #endif
 
-        /* Should we allow reconfiguration for this item? */
-        m_fReconfigurable = false;
+        /* Set configuration access level to NULL: */
+        m_configurationAccessLevel = ConfigurationAccessLevel_Null;
 
         /* Should we show details for this item? */
         m_fHasDetails = true;

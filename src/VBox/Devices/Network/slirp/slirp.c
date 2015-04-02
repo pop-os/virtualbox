@@ -316,6 +316,10 @@ int slirp_init(PNATState *ppData, uint32_t u32NetAddr, uint32_t u32Netmask,
     pData->pvUser = pvUser;
     pData->netmask = u32Netmask;
 
+    rc = RTCritSectRwInit(&pData->CsRwHandlerChain);
+    if (RT_FAILURE(rc))
+        return rc;
+
     /* sockets & TCP defaults */
     pData->socket_rcv = 64 * _1K;
     pData->socket_snd = 64 * _1K;
@@ -490,8 +494,7 @@ void slirp_link_down(PNATState pData)
     if (link_up == 0)
         return;
 
-    if (!pData->fUseHostResolverPermanent)
-        slirpReleaseDnsSettings(pData);
+    slirpReleaseDnsSettings(pData);
 
     while ((so = tcb.so_next) != &tcb)
     {
@@ -529,9 +532,6 @@ void slirp_term(PNATState pData)
         return;
     icmp_finit(pData);
 
-    /* Signal to slirp_link_down() to release DNS data. */
-    pData->fUseHostResolverPermanent = 0;
-
     slirp_link_down(pData);
     ftp_alias_unload(pData);
     nbt_alias_unload(pData);
@@ -566,7 +566,6 @@ void slirp_term(PNATState pData)
 #ifdef RT_OS_WINDOWS
     WSACleanup();
 #endif
-#ifndef VBOX_WITH_SLIRP_BSD_SBUF
 #ifdef LOG_ENABLED
     Log(("\n"
          "NAT statistics\n"
@@ -582,7 +581,7 @@ void slirp_term(PNATState pData)
          "\n"
          "\n"));
 #endif
-#endif
+    RTCritSectRwDelete(&pData->CsRwHandlerChain);
     RTMemFree(pData);
 }
 
@@ -1542,28 +1541,18 @@ static void activate_port_forwarding(PNATState pData, const uint8_t *h_source)
         if (rule->activated)
             continue;
 
-#ifdef VBOX_WITH_NAT_SERVICE
-        /**
-         * case when guest ip is INADDR_ANY shouldn't appear in NAT service
-         */
-        Assert((rule->guest_addr.s_addr != INADDR_ANY));
-        guest_addr = rule->guest_addr.s_addr;
-#else /* VBOX_WITH_NAT_SERVICE */
         guest_addr = find_guest_ip(pData, pu8EthSource);
-#endif /* !VBOX_WITH_NAT_SERVICE */
         if (guest_addr == INADDR_ANY)
         {
             /* the address wasn't granted */
             return;
         }
 
-#if !defined(VBOX_WITH_NAT_SERVICE)
         if (   rule->guest_addr.s_addr != guest_addr
             && rule->guest_addr.s_addr != INADDR_ANY)
             continue;
         if (rule->guest_addr.s_addr == INADDR_ANY)
             rule->guest_addr.s_addr = guest_addr;
-#endif
 
         LogRel(("NAT: set redirect %s host %RTnaipv4:%d => guest %RTnaipv4:%d\n",
                 rule->proto == IPPROTO_UDP ? "UDP" : "TCP",
@@ -1688,9 +1677,7 @@ int slirp_remove_redirect(PNATState pData, int is_udp, struct in_addr host_addr,
 
 void slirp_set_ethaddr_and_activate_port_forwarding(PNATState pData, const uint8_t *ethaddr, uint32_t GuestIP)
 {
-#ifndef VBOX_WITH_NAT_SERVICE
     memcpy(client_ethaddr, ethaddr, ETH_ALEN);
-#endif
     if (GuestIP != INADDR_ANY)
     {
         slirp_arp_cache_update_or_add(pData, GuestIP, ethaddr);

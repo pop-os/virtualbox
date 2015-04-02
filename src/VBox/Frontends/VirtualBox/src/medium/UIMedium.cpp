@@ -1,8 +1,6 @@
 /* $Id: UIMedium.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMedium class implementation
+ * VBox Qt GUI - UIMedium class implementation.
  */
 
 /*
@@ -18,23 +16,26 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QDir>
+# include <QDir>
 
 /* GUI includes: */
-#include "UIMedium.h"
-#include "VBoxGlobal.h"
-#include "UIConverter.h"
-#include "UIMessageCenter.h"
+# include "UIMedium.h"
+# include "VBoxGlobal.h"
+# include "UIConverter.h"
+# include "UIMessageCenter.h"
+# include "UIExtraDataManager.h"
+# include "UIIconPool.h"
 
 /* COM includes: */
-#include "CMachine.h"
-#include "CSnapshot.h"
+# include "CMachine.h"
+# include "CSnapshot.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 QString UIMedium::m_sstrNullID = QUuid().toString().remove('{').remove('}');
 QString UIMedium::m_sstrTable = QString("<table>%1</table>");
@@ -275,7 +276,7 @@ void UIMedium::refresh()
                 }
 
                 /* Finally, we are checking if current machine overrides this flag: */
-                if (m_fAttachedToHiddenMachinesOnly && vboxGlobal().shouldWeShowMachine(machine))
+                if (m_fAttachedToHiddenMachinesOnly && gEDataManager->showMachineInSelectorChooser(strMachineID))
                     m_fAttachedToHiddenMachinesOnly = false;
 
                 QString strName = machine.GetName();
@@ -448,7 +449,10 @@ QPixmap UIMedium::icon(bool fNoDiffs /* = false */, bool fCheckRO /* = false */)
         pixmap = result(fNoDiffs).isOk() ? vboxGlobal().warningIcon() : vboxGlobal().errorIcon();
 
     if (fCheckRO && m_fReadOnly)
-        pixmap = VBoxGlobal::joinPixmaps(pixmap, QPixmap(":/hd_new_16px.png"));
+    {
+        QIcon icon = UIIconPool::iconSet(":/hd_new_16px.png");
+        pixmap = VBoxGlobal::joinPixmaps(pixmap, icon.pixmap(icon.availableSizes().first()));
+    }
 
     return pixmap;
 }

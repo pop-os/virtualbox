@@ -70,6 +70,7 @@ RT_C_DECLS_BEGIN
 #define VD_IMAGE_CONTENT_UNKNOWN    0xffffffffU
 
 /** @name VBox HDD container image flags
+ * Same values as MediumVariant API enum.
  * @{
  */
 /** No flags. */
@@ -239,6 +240,21 @@ typedef struct VBOXHDDRAW
 /** Mask of valid flags. */
 #define VD_OPEN_FLAGS_MASK          (VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_HONOR_ZEROES | VD_OPEN_FLAGS_HONOR_SAME | VD_OPEN_FLAGS_INFO | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_DISCARD | VD_OPEN_FLAGS_IGNORE_FLUSH | VD_OPEN_FLAGS_INFORM_ABOUT_ZERO_BLOCKS | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)
 /** @}*/
+
+/** @name VBox HDD container filter flags
+ * @{
+ */
+/** The filter is applied during writes. */
+#define VD_FILTER_FLAGS_WRITE RT_BIT(0)
+/** The filter is applied during reads. */
+#define VD_FILTER_FLAGS_READ  RT_BIT(1)
+/** Open the filter in info mode. */
+#define VD_FILTER_FLAGS_INFO  RT_BIT(2)
+/** Default set of filter flags. */
+#define VD_FILTER_FLAGS_DEFAULT (VD_FILTER_FLAGS_WRITE | VD_FILTER_FLAGS_READ)
+/** Mask of valid flags. */
+#define VD_FILTER_FLAGS_MASK    (VD_FILTER_FLAGS_WRITE | VD_FILTER_FLAGS_READ | VD_FILTER_FLAGS_INFO)
+/** @} */
 
 /**
  * Helper functions to handle open flags.
@@ -639,9 +655,11 @@ VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
  * @returns VBox status code.
  * @param   pDisk           Pointer to the HDD container which should use the filter.
  * @param   pszFilter       Name of the filter backend to use (case insensitive).
+ * @param   fFlags          Flags which apply to the filter, combination of VD_FILTER_FLAGS_*
+ *                          defines.
  * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
  */
-VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter,
+VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter, uint32_t fFlags,
                               PVDINTERFACE pVDIfsFilter);
 
 /**
@@ -878,7 +896,7 @@ VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage,
  *
  * @return  VBox status
  * @return  VERR_VD_IMAGE_READ_ONLY if image is not writable.
- * @return  VERR_NOT_SUPPORTED if this kind of image can be compacted, but
+ * @return  VERR_NOT_SUPPORTED if this kind of image can't be compacted.
  *
  * @param   pDisk           Pointer to the HDD container.
  * @param   cbSize          New size of the image.
@@ -890,6 +908,17 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
                            PCVDGEOMETRY pPCHSGeometry,
                            PCVDGEOMETRY pLCHSGeometry,
                            PVDINTERFACE pVDIfsOperation);
+
+/**
+ * Prepares the given disk for use by the added filters. This applies to all
+ * opened images in the chain which might be opened read/write temporary.
+ *
+ * @return  VBox status code.
+ *
+ * @param   pDisk           Pointer to the HDD container.
+ * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
+ */
+VBOXDDU_DECL(int) VDPrepareWithFilters(PVBOXHDD pDisk, PVDINTERFACE pVDIfsOperation);
 
 /**
  * Closes the last opened image file in HDD container.
@@ -905,13 +934,14 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
 VBOXDDU_DECL(int) VDClose(PVBOXHDD pDisk, bool fDelete);
 
 /**
- * Removes the last added filter in the HDD container.
+ * Removes the last added filter in the HDD container from the specified chain.
  *
  * @return  VBox status code.
  * @retval  VERR_VD_NOT_OPENED if no filter is present for the disk.
  * @param   pDisk           Pointer to HDD container.
+ * @param   fFlags          Combination of VD_FILTER_FLAGS_* defines.
  */
-VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk, uint32_t fFlags);
 
 /**
  * Closes the currently opened cache image file in HDD container.

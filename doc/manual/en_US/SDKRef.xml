@@ -835,7 +835,8 @@ export VBOX_SDK_PATH=/home/youruser/vbox-sdk
         <para>VirtualBox also comes with object-oriented web service (OOWS)
         wrappers for PHP5. These wrappers rely on the PHP SOAP
         Extension<footnote>
-            <para>See <ulink url="???">http://www.php.net/soap</ulink>.</para>
+            <para>See
+            <ulink url="https://www.php.net/soap">https://www.php.net/soap</ulink>.</para>
           </footnote>, which can be installed by configuring PHP with
         <computeroutput>--enable-soap</computeroutput>.</para>
       </sect2>
@@ -1215,20 +1216,19 @@ print version;</screen></para>
                 xreflabel="IWebsessionManager::logon()" />.</para>
 
                 <para>Upon logon, the websession manager creates one instance
-                of <xref linkend="IVirtualBox" xreflabel="IVirtualBox" /> and
-                another object of <xref linkend="ISession"
-                xreflabel="ISession" /> representing the web service session.
-                This can be retrieved using <xref
+                of <xref linkend="IVirtualBox" xreflabel="IVirtualBox" />,
+                which can be used for directly performing calls to its
+                methods, or used as a parameter for calling some methods of
+                <xref linkend="IWebsessionManager" xreflabel="IWebsessionManager" />.
+                Creating Main API session objects is performed using <xref
                 linkend="IWebsessionManager__getSessionObject"
                 xreflabel="IWebsessionManager::getSessionObject()" />.</para>
 
                 <para>(Technically, there is always only one <xref
                 linkend="IVirtualBox" xreflabel="IVirtualBox" /> object, which
-                is shared between all sessions and clients, as it is a COM
+                is shared between all websessions and clients, as it is a COM
                 singleton. However, each session receives its own managed
-                object reference to it. The <xref linkend="ISession"
-                xreflabel="ISession" /> object, however, is created and
-                destroyed for each session.)</para>
+                object reference to it.)</para>
               </listitem>
 
               <listitem>
@@ -1526,7 +1526,7 @@ mgr = VirtualBoxManager(None, None)
 vbox = mgr.vbox
 name = "Linux"
 mach = vbox.findMachine(name)
-session = mgr.mgr.getSessionObject(vbox)
+session = mgr.getSessionObject(vbox)
 progress = mach.launchVMProcess(session, "gui", "")
 progress.waitForCompletion(-1)
 mgr.closeMachineSession(session)
@@ -1547,7 +1547,7 @@ print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
         <computeroutput>vbox.machines</computeroutput> to access a list of
         available virtual machines in case of XPCOM), and a mechanism of
         uniform session creation and closing
-        (<computeroutput>mgr.mgr.getSessionObject()</computeroutput>).</para>
+        (<computeroutput>mgr.getSessionObject()</computeroutput>).</para>
 
         <para>In case you want to use the glue layer with a different Python
         installation, use these steps in a shell to add the necessary
@@ -1761,7 +1761,7 @@ print "Machine '%s' logs in '%s'" %(m.name, m.logFolder)
           <para>The sample program <computeroutput>tstCAPIGlue</computeroutput>
           can be built using the provided <computeroutput>Makefile</computeroutput>
           and can be run without arguments.</para>
-          
+
           <para>It uses the VBoxCAPIGlue library (source code is in directory
           <computeroutput>sdk/bindings/c/glue</computeroutput>, to be used in
           your API client code) to open the C binding layer during runtime,
@@ -1819,7 +1819,7 @@ if (VBoxCGlueInit())
             argv[0], g_szVBoxErrMsg);
     return EXIT_FAILURE;
 }
-    
+
 g_pVBoxFuncs-&gt;pfnClientInitialize(NULL, &amp;vboxclient);
 if (!vboxclient)
 {
@@ -1875,7 +1875,7 @@ if (!vboxclient)
           attribute name. Unless the attribute is read-only, an analogous
           <computeroutput>set_</computeroutput> method exists. Let's apply
           these rules to get the <computeroutput>IVirtualBox</computeroutput>
-          reference, an <computeroutput>ISession</computeroutput> instance 
+          reference, an <computeroutput>ISession</computeroutput> instance
           reference and read the <xref linkend="IVirtualBox__revision"
           xreflabel="IVirtualBox::revision" /> attribute:<screen>rc = IVirtualBoxClient_get_VirtualBox(vboxclient, &amp;vbox);
 if (FAILED(rc) || !vbox)
@@ -2266,7 +2266,7 @@ String name = machine.getName();</screen>Boolean attribute getters can
     </sect1>
 
     <sect1>
-      <title>Changing machine settings. Sessions</title>
+      <title>Changing machine settings: Sessions</title>
 
       <para>As said in the previous section, to read a machine's attribute,
       one invokes the corresponding "get" method. One would think that to
@@ -2290,11 +2290,11 @@ String name = machine.getName();</screen>Boolean attribute getters can
       "sessions", in particular, the <xref linkend="ISession"
       xreflabel="ISession" /> interface. Each process which talks to
       VirtualBox needs its own instance of ISession. In the web service, you
-      cannot create such an object, but
-      <computeroutput>vboxwebsrv</computeroutput> creates one for you when you
-      log on, which you can obtain by calling <xref
+      can request the creation of such an object by calling <xref
       linkend="IWebsessionManager__getSessionObject"
-      xreflabel="IWebsessionManager::getSessionObject()" />.</para>
+      xreflabel="IWebsessionManager::getSessionObject()" />. More complex
+      management tasks might need multiple instances of ISession, and each call
+      returns a new one.</para>
 
       <para>This session object must then be used like a mutex semaphore in
       common programming environments. Before you can change machine settings,
@@ -2477,7 +2477,8 @@ es.unregisterListener(listener); </screen></para>
             format = "vdi"
 
         # Call VirtualBox API, using context's fields
-        hdd = ctx['vb'].createHardDisk(format, loc)
+        hdd = ctx['vb'].createMedium(format, loc, ctx['global'].constants.AccessMode_ReadWrite, \
+                                     ctx['global'].constants.DeviceType_HardDisk)
         # Access constants using ctx['global'].constants
         progress = hdd.createBaseStorage(size, (ctx['global'].constants.MediumVariant_Standard, ))
         # use standard progress bar mechanism
@@ -3489,6 +3490,97 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
     </sect1>
   </chapter>
 
+  <chapter id="dnd">
+    <title>Drag'n Drop</title>
+
+    <para>Since VirtualBox 4.2 it's possible to transfer files from host to the
+    Linux guests by dragging files, directories or text from the host into the
+    guest's screen. This is called <emphasis>drag'n drop (DnD)</emphasis>.</para>
+
+    <para>In version 4.4 support for Windows guests has been added, as well as
+    the ability to transfer data the other way around, that is, from the guest
+    to the host.</para>
+
+    <note><para>Currently only the VirtualBox Manager frontend supports drag'n
+      drop.</para></note>
+
+    <para>This chapter will show how to use the required interfaces provided
+    by VirtualBox for adding drag'n drop functionality to third-party
+    frontends.</para>
+
+    <sect1>
+      <title>Basic concepts</title>
+
+      <para>In order to use the interfaces provided by VirtualBox, some basic
+      concepts needs to be understood first: To successfully initiate a
+      drag'n drop operation at least two sides needs to be involved, a
+      <emphasis>source</emphasis> and a <emphasis>target</emphasis>:</para>
+
+      <para>The <emphasis>source</emphasis> is the side which provides the data,
+      e.g. is the origin of data. This data can be stored within the source directly
+      or can be retrieved on-demand by the source itself. Other interfaces don't
+      care where the data from this source actually came from.</para>
+
+      <para>The <emphasis>target</emphasis> on the other hand is the side which
+      provides the source a visual representation where the user can drop the
+      data the source offers. This representation can be a window (or just a certain
+      part of it), for example.</para>
+
+      <para>The source and the target have abstract interfaces called
+      <xref linkend="IDnDSource" xreflabel="IDnDSource" /> and
+      <xref linkend="IDnDTarget" xreflabel="IDnDTarget" />. VirtualBox also
+      provides implementations of both interfaces, called
+      <xref linkend="IGuestDnDSource" xreflabel="IGuestDnDSource" /> and
+      <xref linkend="IGuestDnDTarget" xreflabel="IGuestDnDTarget" />. Both
+      implementations are also used in the VirtualBox Manager frontend.</para>
+    </sect1>
+
+    <sect1>
+      <title>Supported formats</title>
+
+      <para>As the target needs to perform specific actions depending on the data
+      the source provided, the target first needs to know what type of data it
+      actually is going to retrieve. It might be that the source offers data the
+      target cannot (or intentionally does not want to) support.</para>
+
+      <para>VirtualBox handles those data types by providing so-called
+      <emphasis>MIME types</emphasis> -- these MIME types were originally defined
+      in <ulink url="https://tools.ietf.org/html/rfc2046">RFC 2046</ulink> and
+      are also called <emphasis>Content-types</emphasis>.
+      <xref linkend="IGuestDnDSource" xreflabel="IGuestDnDSource" /> and
+      <xref linkend="IGuestDnDTarget" xreflabel="IGuestDnDTarget" /> support
+      the following MIME types by default:<itemizedlist>
+          <listitem>
+            <para><emphasis role="bold">text/uri-list</emphasis> - A list of URIs
+            (Uniform Resource Identifier, see
+            <ulink url="https://tools.ietf.org/html/rfc3986">RFC 3986</ulink>)
+            pointing to the file and/or directory paths already transferred from
+            the source to the target.</para>
+          </listitem>
+          <listitem>
+            <para><emphasis role="bold">text/plain;charset=utf-8</emphasis> and
+            <emphasis role="bold">UTF8_STRING</emphasis> - text in UTF8 format.</para>
+          </listitem>
+          <listitem>
+            <para><emphasis role="bold">text/plain, TEXT</emphasis>
+            and <emphasis role="bold">STRING</emphasis> - plain ASCII text, depending
+            on the source's active ANSI page (if any).</para>
+          </listitem>
+        </itemizedlist>
+      </para>
+
+      <para>If, for whatever reason, a certain default format should not be supported
+      or a new format should be registered,
+      <xref linkend="IDnDSource" xreflabel="IDnDSource" /> and
+      <xref linkend="IDnDTarget" xreflabel="IDnDTarget" /> have methods derived from
+      <xref linkend="IDnDBase" xreflabel="IDnDBase" /> which provide adding,
+      removing and enumerating specific formats.
+      <note><para>Registering new or removing default formats on the guest side
+      currently is not implemented.</para></note></para>
+    </sect1>
+
+  </chapter>
+
   <chapter id="vbox-auth">
     <title>VirtualBox external authentication modules</title>
 
@@ -3621,7 +3713,7 @@ AuthResult AUTHCALL AuthEntry(
       the package is named <computeroutput>org.virtualbox_3_2</computeroutput>
       for VirtualBox version 3.2. <itemizedlist>
           <listitem>
-            <para><emphasis role="bold">XPCOM:</emphasis> - for all platforms,
+            <para><emphasis role="bold">XPCOM</emphasis> - for all platforms,
             but Microsoft Windows. A Java bridge based on JavaXPCOM is shipped
             with VirtualBox. The classpath must contain
             <computeroutput>vboxjxpcom.jar</computeroutput> and the
@@ -3636,7 +3728,7 @@ AuthResult AUTHCALL AuthEntry(
           </listitem>
 
           <listitem>
-            <para><emphasis role="bold">COM:</emphasis> - for Microsoft
+            <para><emphasis role="bold">COM</emphasis> - for Microsoft
             Windows. We rely on <computeroutput>Jacob</computeroutput> - a
             generic Java to COM bridge - which has to be installed seperately.
             See <ulink
@@ -3760,11 +3852,91 @@ AuthResult AUTHCALL AuthEntry(
     existing client code.</para>
 
     <sect1>
+      <title>Incompatible API changes with version 4.4</title>
+
+      <itemizedlist>
+        <listitem>
+          <para>The method <xref linkend="IVirtualBox__createMedium"
+          xreflabel="IVirtualBox::createMedium()" /> replaces
+          <computeroutput>VirtualBox::createHardDisk()</computeroutput>.
+          Adjusting existing code needs adding two parameters with
+          value <computeroutput>AccessMode_ReadWrite</computeroutput>
+          and <computeroutput>DeviceType_HardDisk</computeroutput>
+          respectively. The new method supports creating floppy and
+          DVD images, and (less obviously) further API functionality
+          such as cloning floppy images.</para>
+        </listitem>
+
+        <listitem><para>Drag'n drop APIs were changed as follows:<itemizedlist>
+
+          <listitem>
+            <para>Methods for providing host to guest drag'n drop functionality,
+              such as <computeroutput>IGuest::dragHGEnter</computeroutput>,
+              <computeroutput>IGuest::dragHGMove()</computeroutput>,
+              <computeroutput>IGuest::dragHGLeave()</computeroutput>,
+              <computeroutput>IGuest::dragHGDrop()</computeroutput> and
+              <computeroutput>IGuest::dragHGPutData()</computeroutput>,
+              have been moved to an abstract base class called
+              <xref linkend="IDnDTarget" xreflabel="IDnDTarget" />. VirtualBox implements
+              this base class in the <xref linkend="IGuestDnDTarget" xreflabel="IGuestDnDTarget" />
+              interface. The implementation can be used by using the
+              <xref linkend="IGuest__dnDTarget" xreflabel="IGuest::dnDTarget()" /> method.</para>
+            <para>Methods for providing guest to host drag'n drop functionality,
+              such as <computeroutput>IGuest::dragGHPending()</computeroutput>,
+              <computeroutput>IGuest::dragGHDropped()</computeroutput> and
+              <computeroutput>IGuest::dragGHGetData()</computeroutput>,
+              have been moved to an abstract base class called
+              <xref linkend="IDnDSource" xreflabel="IDnDSource" />. VirtualBox implements
+              this base class in the <xref linkend="IGuestDnDSource" xreflabel="IGuestDnDSource" />
+              interface. The implementation can be used by using the
+              <xref linkend="IGuest__dnDSource" xreflabel="IGuest::dnDSource()" /> method.</para>
+          </listitem>
+
+          <listitem>
+            <para>The <computeroutput>DragAndDropAction</computeroutput> enumeration has been
+              renamed to <xref linkend="DnDAction" xreflabel="DnDAction" />.</para>
+          </listitem>
+
+          <listitem>
+            <para>The <computeroutput>DragAndDropMode</computeroutput> enumeration has been
+              renamed to <xref linkend="DnDMode" xreflabel="DnDMode" />.</para>
+          </listitem>
+
+          <listitem>
+            <para>The attribute <computeroutput>IMachine::dragAndDropMode</computeroutput>
+              has been renamed to <xref linkend="IMachine__dnDMode" xreflabel="IMachine::dnDMode()" />.</para>
+          </listitem>
+
+          <listitem>
+            <para>The event <computeroutput>IDragAndDropModeChangedEvent</computeroutput>
+              has been renamed to <xref linkend="IDnDModeChangedEvent" xreflabel="IDnDModeChangedEvent" />.</para>
+          </listitem>
+
+          <listitem>
+            <para>The callback method <computeroutput>IInternalSessionControl::onDragAndDropModeChange</computeroutput>
+              has been renamed to <xref linkend="IInternalSessionControl__onDnDModeChange" xreflabel="IInternalSessionControl::onDnDModeChange()" />.</para>
+          </listitem>
+
+          </itemizedlist></para>
+        </listitem>
+
+        <listitem>
+          <para>The method <xref linkend="IWebsessionManager__getSessionObject"
+          xreflabel="IWebsessionManager::getSessionObject()" /> now returns
+          a new <xref linkend="ISession" xreflabel="ISession" /> instance for
+          every invocation. This puts the behavior in line with other binding
+          styles, which never forced the equivalent of establishing another
+          connection and logging in again to get another instance.</para>
+        </listitem>
+      </itemizedlist>
+    </sect1>
+
+    <sect1>
       <title>Incompatible API changes with version 4.3</title>
 
       <itemizedlist>
         <listitem>
-          <para>The explicit medium locking methods 
+          <para>The explicit medium locking methods
             <xref linkend="IMedium__lockRead" xreflabel="IMedium::lockRead()" />
             and <xref linkend="IMedium__lockWrite" xreflabel="IMedium::lockWrite()" />
             have been redesigned. They return a lock token object reference
@@ -3915,7 +4087,7 @@ AuthResult AUTHCALL AuthEntry(
           event there needs to be at least the 4.3 Guest Additions installed on
           the guest. At the moment only the states "Idle" and "InUse" of the
           <xref linkend="GuestUserState"
-          xreflabel="GuestUserState" /> enum are supported on
+          xreflabel="GuestUserState" /> enumeration are supported on
           Windows guests, starting at Windows 2000 SP2.</para>
         </listitem>
 
@@ -4431,9 +4603,9 @@ AuthResult AUTHCALL AuthEntry(
           result, a number of media-related APIs had to be modified again.
           <itemizedlist>
               <listitem>
-                <para>Neither <xref linkend="IVirtualBox__createHardDisk"
-                xreflabel="IVirtualBox::createHardDisk()" /> nor <xref
-                linkend="IVirtualBox__openMedium"
+                <para>Neither
+                <computeroutput>IVirtualBox::createHardDisk()</computeroutput>
+                nor <xref linkend="IVirtualBox__openMedium"
                 xreflabel="IVirtualBox::openMedium()" /> register media
                 automatically any more.</para>
               </listitem>

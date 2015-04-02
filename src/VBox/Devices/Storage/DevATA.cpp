@@ -2485,7 +2485,7 @@ static uint32_t atapiGetConfigurationFillFeatureListProfiles(ATADevState *s, uin
         return 0;
 
     ataH2BE_U16(pbBuf, 0x0); /* feature 0: list of profiles supported */
-    pbBuf[2] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
+    pbBuf[2] = (0 << 2) | (1 << 1) | (1 << 0); /* version 0, persistent, current */
     pbBuf[3] = 8; /* additional bytes for profiles */
     /* The MMC-3 spec says that DVD-ROM read capability should be reported
      * before CD-ROM read capability. */
@@ -5900,10 +5900,10 @@ PDMBOTHCBDECL(int) ataIOPortRead1(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Por
     if (Port == pCtl->IOPortBase1)
     {
         /* Reads from the data register may be 16-bit or 32-bit. */
-        Assert(cb == 2 || cb == 4);
-        rc = ataDataRead(pCtl, Port, cb, (uint8_t *)pu32);
-        if (cb == 2)
-            *pu32 &= 0xffff;
+        Assert(cb == 1 || cb == 2 || cb == 4);
+        rc = ataDataRead(pCtl, Port, cb == 1 ? 2 : cb, (uint8_t *)pu32);
+        if (cb <= 2)
+            *pu32 &= 0xffff >> (16 - cb * 8);
     }
     else
     {

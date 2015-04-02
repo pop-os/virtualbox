@@ -54,7 +54,7 @@
  */
 
 /*
- * Copyright (C) 2007-2014 Oracle Corporation
+ * Copyright (C) 2007-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -119,6 +119,9 @@ using namespace settings;
 
 /** VirtualBox XML settings full version string ("x.y-platform") */
 #define VBOX_XML_VERSION_FULL   VBOX_XML_VERSION "-" VBOX_XML_PLATFORM
+
+const struct Snapshot settings::g_SnapshotEmpty; /* default ctor is OK */
+const struct Medium settings::g_MediumEmpty; /* default ctor is OK */
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -329,7 +332,9 @@ ConfigFileBase::ConfigFileBase(const com::Utf8Str *pstrFilename)
                     m->sv = SettingsVersion_v1_13;
                 else if (ulMinor == 14)
                     m->sv = SettingsVersion_v1_14;
-                else if (ulMinor > 14)
+                else if (ulMinor == 15)
+                    m->sv = SettingsVersion_v1_15;
+                else if (ulMinor > 15)
                     m->sv = SettingsVersion_Future;
             }
             else if (ulMajor > 1)
@@ -370,6 +375,27 @@ ConfigFileBase::~ConfigFileBase()
     {
         delete m;
         m = NULL;
+    }
+}
+
+/**
+ * Helper function to convert a MediaType enum value into string from.
+ * @param t
+ */
+/*static*/
+const char *ConfigFileBase::stringifyMediaType(MediaType t)
+{
+    switch (t)
+    {
+        case HardDisk:
+            return "hard disk";
+        case DVDImage:
+            return "DVD";
+        case FloppyImage:
+            return "floppy";
+        default:
+            AssertMsgFailed(("media type %d\n", t));
+            return "UNKNOWN";
     }
 }
 
@@ -463,7 +489,7 @@ void ConfigFileBase::parseTimestamp(RTTIMESPEC &timestamp,
  * @param stamp
  * @return
  */
-com::Utf8Str ConfigFileBase::makeString(const RTTIMESPEC &stamp)
+com::Utf8Str ConfigFileBase::stringifyTimestamp(const RTTIMESPEC &stamp) const
 {
     RTTIME time;
     if (!RTTimeExplode(&time, &stamp))
@@ -563,15 +589,14 @@ void ConfigFileBase::readUSBDeviceFilters(const xml::ElementNode &elmDeviceFilte
  *
  * @param t
  * @param elmMedium
- * @param llMedia
+ * @param med
  */
-void ConfigFileBase::readMedium(MediaType t,
-                                const xml::ElementNode &elmMedium,  // HardDisk node if root; if recursing,
-                                                                    // child HardDisk node or DiffHardDisk node for pre-1.4
-                                MediaList &llMedia)     // list to append medium to (root disk or child list)
+void ConfigFileBase::readMediumOne(MediaType t,
+                                   const xml::ElementNode &elmMedium,
+                                   Medium &med)
 {
     // <HardDisk uuid="{5471ecdb-1ddb-4012-a801-6d98e226868b}" location="/mnt/innotek-unix/vdis/Windows XP.vdi" format="VDI" type="Normal">
-    settings::Medium med;
+
     Utf8Str strUUID;
     if (!elmMedium.getAttributeValue("uuid", strUUID))
         throw ConfigFileError(this, &elmMedium, N_("Required %s/@uuid attribute is missing"), elmMedium.getName());
@@ -723,34 +748,61 @@ void ConfigFileBase::readMedium(MediaType t,
 
     elmMedium.getAttributeValue("Description", med.strDescription);       // optional
 
-    // recurse to handle children
-    xml::NodesLoop nl2(elmMedium);
+    // handle medium properties
+    xml::NodesLoop nl2(elmMedium, "Property");
     const xml::ElementNode *pelmHDChild;
     while ((pelmHDChild = nl2.forAllNodes()))
     {
-        if (    t == HardDisk
-             && (    pelmHDChild->nameEquals("HardDisk")
-                  || (    (m->sv < SettingsVersion_v1_4)
-                       && (pelmHDChild->nameEquals("DiffHardDisk"))
-                     )
-                )
-           )
-            // recurse with this element and push the child onto our current children list
-            readMedium(t,
-                        *pelmHDChild,
-                        med.llChildren);
-        else if (pelmHDChild->nameEquals("Property"))
-        {
-            Utf8Str strPropName, strPropValue;
-            if (   pelmHDChild->getAttributeValue("name", strPropName)
-                && pelmHDChild->getAttributeValue("value", strPropValue) )
-                med.properties[strPropName] = strPropValue;
-            else
-                throw ConfigFileError(this, pelmHDChild, N_("Required HardDisk/Property/@name or @value attribute is missing"));
-        }
+        Utf8Str strPropName, strPropValue;
+        if (   pelmHDChild->getAttributeValue("name", strPropName)
+            && pelmHDChild->getAttributeValue("value", strPropValue) )
+            med.properties[strPropName] = strPropValue;
+        else
+            throw ConfigFileError(this, pelmHDChild, N_("Required HardDisk/Property/@name or @value attribute is missing"));
     }
+}
 
-    llMedia.push_back(med);
+/**
+ * Reads a media registry entry from the main VirtualBox.xml file and recurses
+ * into children where applicable.
+ *
+ * @param t
+ * @param depth
+ * @param elmMedium
+ * @param med
+ */
+void ConfigFileBase::readMedium(MediaType t,
+                                uint32_t depth,
+                                const xml::ElementNode &elmMedium,  // HardDisk node if root; if recursing,
+                                                                    // child HardDisk node or DiffHardDisk node for pre-1.4
+                                Medium &med)                        // medium settings to fill out
+{
+    if (depth > SETTINGS_MEDIUM_DEPTH_MAX)
+        throw ConfigFileError(this, &elmMedium, N_("Maximum medium tree depth of %u exceeded"), SETTINGS_MEDIUM_DEPTH_MAX);
+
+    // Do not inline this method call, as the purpose of having this separate
+    // is to save on stack size. Less local variables are the key for reaching
+    // deep recursion levels with small stack (XPCOM/g++ without optimization).
+    readMediumOne(t, elmMedium, med);
+
+    if (t != HardDisk)
+        return;
+
+    // recurse to handle children
+    MediaList &llSettingsChildren = med.llChildren;
+    xml::NodesLoop nl2(elmMedium, m->sv >= SettingsVersion_v1_4 ? "HardDisk" : "DiffHardDisk");
+    const xml::ElementNode *pelmHDChild;
+    while ((pelmHDChild = nl2.forAllNodes()))
+    {
+        // recurse with this element and put the child at the end of the list.
+        // XPCOM has very small stack, avoid big local variables and use the
+        // list element.
+        llSettingsChildren.push_back(g_MediumEmpty);
+        readMedium(t,
+                   depth + 1,
+                   *pelmHDChild,
+                   llSettingsChildren.back());
+    }
 }
 
 /**
@@ -785,24 +837,24 @@ void ConfigFileBase::readMediaRegistry(const xml::ElementNode &elmMediaRegistry,
         const xml::ElementNode *pelmMedium;
         while ((pelmMedium = nl2.forAllNodes()))
         {
-            if (    t == HardDisk
-                 && (pelmMedium->nameEquals("HardDisk"))
-               )
-                readMedium(t,
-                           *pelmMedium,
-                           mr.llHardDisks);      // list to append hard disk data to: the root list
-            else if (    t == DVDImage
-                      && (pelmMedium->nameEquals("Image"))
-                    )
-                readMedium(t,
-                           *pelmMedium,
-                           mr.llDvdImages);      // list to append dvd images to: the root list
-            else if (    t == FloppyImage
-                      && (pelmMedium->nameEquals("Image"))
-                    )
-                readMedium(t,
-                           *pelmMedium,
-                           mr.llFloppyImages);      // list to append floppy images to: the root list
+            if (   t == HardDisk
+                && (pelmMedium->nameEquals("HardDisk")))
+            {
+                mr.llHardDisks.push_back(g_MediumEmpty);
+                readMedium(t, 1, *pelmMedium, mr.llHardDisks.back());
+            }
+            else if (   t == DVDImage
+                     && (pelmMedium->nameEquals("Image")))
+            {
+                mr.llDvdImages.push_back(g_MediumEmpty);
+                readMedium(t, 1, *pelmMedium, mr.llDvdImages.back());
+            }
+            else if (   t == FloppyImage
+                     && (pelmMedium->nameEquals("Image")))
+            {
+                mr.llFloppyImages.push_back(g_MediumEmpty);
+                readMedium(t, 1, *pelmMedium, mr.llFloppyImages.back());
+            }
         }
     }
 }
@@ -888,17 +940,35 @@ void ConfigFileBase::setVersionAttribute(xml::ElementNode &elm)
             pcszVersion = "1.14";
             break;
 
-        case SettingsVersion_Future:
-            // can be set if this code runs on XML files that were created by a future version of VBox;
-            // in that case, downgrade to current version when writing since we can't write future versions...
-            pcszVersion = "1.14";
-            m->sv = SettingsVersion_v1_14;
+        case SettingsVersion_v1_15:
+            pcszVersion = "1.15";
             break;
 
         default:
+            // catch human error: the assertion below will trigger in debug
+            // or dbgopt builds, so hopefully this will get noticed sooner in
+            // the future, because it's easy to forget top update something.
+            AssertMsg(m->sv <= SettingsVersion_v1_7, ("Settings.cpp: unexpected settings version %d, unhandled future version?\n", m->sv));
             // silently upgrade if this is less than 1.7 because that's the oldest we can write
-            pcszVersion = "1.7";
-            m->sv = SettingsVersion_v1_7;
+            if (m->sv <= SettingsVersion_v1_7)
+            {
+                pcszVersion = "1.7";
+                m->sv = SettingsVersion_v1_7;
+            }
+            else
+            {
+                // This is reached for SettingsVersion_Future and forgotten
+                // settings version after SettingsVersion_v1_7, which should
+                // not happen (see assertion above). Set the version to the
+                // latest known version, to minimize loss of information, but
+                // as we can't predict the future we have to use some format
+                // we know, and latest should be the best choice. Note that
+                // for "forgotten settings" this may not be the best choice,
+                // but as it's an omission of someone who changed this file
+                // it's the only generic possibility.
+                pcszVersion = "1.15";
+                m->sv = SettingsVersion_v1_15;
+            }
             break;
     }
 
@@ -1065,18 +1135,22 @@ void ConfigFileBase::buildUSBDeviceFilters(xml::ElementNode &elmParent,
  * and recurses to write the child hard disks underneath. Called from
  * MainConfigFile::write().
  *
+ * @param t
+ * @param depth
  * @param elmMedium
- * @param m
- * @param level
+ * @param mdm
  */
-void ConfigFileBase::buildMedium(xml::ElementNode &elmMedium,
-                                 DeviceType_T devType,
-                                 const Medium &mdm,
-                                 uint32_t level)          // 0 for "root" call, incremented with each recursion
+void ConfigFileBase::buildMedium(MediaType t,
+                                 uint32_t depth,
+                                 xml::ElementNode &elmMedium,
+                                 const Medium &mdm)
 {
+    if (depth > SETTINGS_MEDIUM_DEPTH_MAX)
+        throw ConfigFileError(this, &elmMedium, N_("Maximum medium tree depth of %u exceeded"), SETTINGS_MEDIUM_DEPTH_MAX);
+
     xml::ElementNode *pelmMedium;
 
-    if (devType == DeviceType_HardDisk)
+    if (t == HardDisk)
         pelmMedium = elmMedium.createChild("HardDisk");
     else
         pelmMedium = elmMedium.createChild("Image");
@@ -1085,9 +1159,9 @@ void ConfigFileBase::buildMedium(xml::ElementNode &elmMedium,
 
     pelmMedium->setAttributePath("location", mdm.strLocation);
 
-    if (devType == DeviceType_HardDisk || RTStrICmp(mdm.strFormat.c_str(), "RAW"))
+    if (t == HardDisk || RTStrICmp(mdm.strFormat.c_str(), "RAW"))
         pelmMedium->setAttribute("format", mdm.strFormat);
-    if (   devType == DeviceType_HardDisk
+    if (   t == HardDisk
         && mdm.fAutoReset)
         pelmMedium->setAttribute("autoReset", mdm.fAutoReset);
     if (mdm.strDescription.length())
@@ -1103,13 +1177,13 @@ void ConfigFileBase::buildMedium(xml::ElementNode &elmMedium,
     }
 
     // only for base hard disks, save the type
-    if (level == 0)
+    if (depth == 1)
     {
         // no need to save the usual DVD/floppy medium types
-        if (   (   devType != DeviceType_DVD
+        if (   (   t != DVDImage
                 || (   mdm.hdType != MediumType_Writethrough // shouldn't happen
                     && mdm.hdType != MediumType_Readonly))
-            && (   devType != DeviceType_Floppy
+            && (   t != FloppyImage
                 || mdm.hdType != MediumType_Writethrough))
         {
             const char *pcszType =
@@ -1129,10 +1203,10 @@ void ConfigFileBase::buildMedium(xml::ElementNode &elmMedium,
          ++it)
     {
         // recurse for children
-        buildMedium(*pelmMedium, // parent
-                    devType,     // device type
-                    *it,         // settings::Medium
-                    ++level);    // recursion level
+        buildMedium(t,              // device type
+                    depth + 1,      // depth
+                    *pelmMedium,    // parent
+                    *it);           // settings::Medium
     }
 }
 
@@ -1157,7 +1231,7 @@ void ConfigFileBase::buildMediaRegistry(xml::ElementNode &elmParent,
          it != mr.llHardDisks.end();
          ++it)
     {
-        buildMedium(*pelmHardDisks, DeviceType_HardDisk, *it, 0);
+        buildMedium(HardDisk, 1, *pelmHardDisks, *it);
     }
 
     xml::ElementNode *pelmDVDImages = pelmMediaRegistry->createChild("DVDImages");
@@ -1165,7 +1239,7 @@ void ConfigFileBase::buildMediaRegistry(xml::ElementNode &elmParent,
          it != mr.llDvdImages.end();
          ++it)
     {
-        buildMedium(*pelmDVDImages, DeviceType_DVD, *it, 0);
+        buildMedium(DVDImage, 1, *pelmDVDImages, *it);
     }
 
     xml::ElementNode *pelmFloppyImages = pelmMediaRegistry->createChild("FloppyImages");
@@ -1173,7 +1247,7 @@ void ConfigFileBase::buildMediaRegistry(xml::ElementNode &elmParent,
          it != mr.llFloppyImages.end();
          ++it)
     {
-        buildMedium(*pelmFloppyImages, DeviceType_Floppy, *it, 0);
+        buildMedium(FloppyImage, 1, *pelmFloppyImages, *it);
     }
 }
 
@@ -1584,7 +1658,7 @@ void MainConfigFile::write(const com::Utf8Str strFilename)
         pelmThis->setAttribute("upperIP", d.strIPUpper);
         pelmThis->setAttribute("enabled", (d.fEnabled) ? 1 : 0);        // too bad we chose 1 vs. 0 here
         /* We assume that if there're only 1 element it means that */
-        int cOpt = d.GlobalDhcpOptions.size();
+        size_t cOpt = d.GlobalDhcpOptions.size();
         /* We don't want duplicate validation check of networkMask here*/
         if (   (   itOpt == d.GlobalDhcpOptions.end()
                 && cOpt > 0)
@@ -1906,6 +1980,8 @@ Hardware::Hardware()
           ulVideoCaptureVertRes(768),
           ulVideoCaptureRate(512),
           ulVideoCaptureFPS(25),
+          ulVideoCaptureMaxTime(0),
+          ulVideoCaptureMaxSize(0),
           fVideoCaptureEnabled(false),
           u64VideoCaptureScreens(UINT64_C(0xffffffffffffffff)),
           strVideoCaptureFile(""),
@@ -1913,9 +1989,10 @@ Hardware::Hardware()
           pointingHIDType(PointingHIDType_PS2Mouse),
           keyboardHIDType(KeyboardHIDType_PS2Keyboard),
           chipsetType(ChipsetType_PIIX3),
+          paravirtProvider(ParavirtProvider_Legacy),
           fEmulatedUSBCardReader(false),
           clipboardMode(ClipboardMode_Disabled),
-          dragAndDropMode(DragAndDropMode_Disabled),
+          dndMode(DnDMode_Disabled),
           ulMemoryBalloonSize(0),
           fPageFusionEnabled(false)
 {
@@ -1983,10 +2060,13 @@ bool Hardware::operator==(const Hardware& h) const
                   && (ulVideoCaptureVertRes     == h.ulVideoCaptureVertRes)
                   && (ulVideoCaptureRate        == h.ulVideoCaptureRate)
                   && (ulVideoCaptureFPS         == h.ulVideoCaptureFPS)
+                  && (ulVideoCaptureMaxTime     == h.ulVideoCaptureMaxTime)
+                  && (ulVideoCaptureMaxSize     == h.ulVideoCaptureMaxTime)
                   && (firmwareType              == h.firmwareType)
                   && (pointingHIDType           == h.pointingHIDType)
                   && (keyboardHIDType           == h.keyboardHIDType)
                   && (chipsetType               == h.chipsetType)
+                  && (paravirtProvider          == h.paravirtProvider)
                   && (fEmulatedUSBCardReader    == h.fEmulatedUSBCardReader)
                   && (vrdeSettings              == h.vrdeSettings)
                   && (biosSettings              == h.biosSettings)
@@ -1997,7 +2077,7 @@ bool Hardware::operator==(const Hardware& h) const
                   && (audioAdapter              == h.audioAdapter)
                   && (llSharedFolders           == h.llSharedFolders)
                   && (clipboardMode             == h.clipboardMode)
-                  && (dragAndDropMode           == h.dragAndDropMode)
+                  && (dndMode           == h.dndMode)
                   && (ulMemoryBalloonSize       == h.ulMemoryBalloonSize)
                   && (fPageFusionEnabled        == h.fPageFusionEnabled)
                   && (llGuestProperties         == h.llGuestProperties)
@@ -2814,6 +2894,30 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                                           strChipsetType.c_str());
             }
         }
+        else if (pelmHwChild->nameEquals("Paravirt"))
+        {
+            Utf8Str strProvider;
+            if (pelmHwChild->getAttributeValue("provider", strProvider))
+            {
+                if (strProvider == "None")
+                    hw.paravirtProvider = ParavirtProvider_None;
+                else if (strProvider == "Default")
+                    hw.paravirtProvider = ParavirtProvider_Default;
+                else if (strProvider == "Legacy")
+                    hw.paravirtProvider = ParavirtProvider_Legacy;
+                else if (strProvider == "Minimal")
+                    hw.paravirtProvider = ParavirtProvider_Minimal;
+                else if (strProvider == "HyperV")
+                    hw.paravirtProvider = ParavirtProvider_HyperV;
+                else if (strProvider == "KVM")
+                    hw.paravirtProvider = ParavirtProvider_KVM;
+                else
+                    throw ConfigFileError(this,
+                                          pelmHwChild,
+                                          N_("Invalid value '%s' in Paravirt/@provider attribute"),
+                                          strProvider.c_str());
+            }
+        }
         else if (pelmHwChild->nameEquals("HPET"))
         {
             pelmHwChild->getAttributeValue("enabled", hw.fHPETEnabled);
@@ -2899,6 +3003,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             pelmHwChild->getAttributeValue("vertRes",   hw.ulVideoCaptureVertRes);
             pelmHwChild->getAttributeValue("rate",      hw.ulVideoCaptureRate);
             pelmHwChild->getAttributeValue("fps",       hw.ulVideoCaptureFPS);
+            pelmHwChild->getAttributeValue("maxTime",   hw.ulVideoCaptureMaxTime);
+            pelmHwChild->getAttributeValue("maxSize",   hw.ulVideoCaptureMaxSize);
         }
         else if (pelmHwChild->nameEquals("RemoteDisplay"))
         {
@@ -3085,6 +3191,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                             ctrl.enmType = USBControllerType_OHCI;
                         else if (strCtrlType == "EHCI")
                             ctrl.enmType = USBControllerType_EHCI;
+                        else if (strCtrlType == "XHCI")
+                            ctrl.enmType = USBControllerType_XHCI;
                         else
                             throw ConfigFileError(this, pelmCtrl, N_("Invalid value '%s' for Controller/@type attribute"), strCtrlType.c_str());
                     }
@@ -3168,13 +3276,13 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             if (pelmHwChild->getAttributeValue("mode", strTemp))
             {
                 if (strTemp == "Disabled")
-                    hw.dragAndDropMode = DragAndDropMode_Disabled;
+                    hw.dndMode = DnDMode_Disabled;
                 else if (strTemp == "HostToGuest")
-                    hw.dragAndDropMode = DragAndDropMode_HostToGuest;
+                    hw.dndMode = DnDMode_HostToGuest;
                 else if (strTemp == "GuestToHost")
-                    hw.dragAndDropMode = DragAndDropMode_GuestToHost;
+                    hw.dndMode = DnDMode_GuestToHost;
                 else if (strTemp == "Bidirectional")
-                    hw.dragAndDropMode = DragAndDropMode_Bidirectional;
+                    hw.dndMode = DnDMode_Bidirectional;
                 else
                     throw ConfigFileError(this, pelmHwChild, N_("Invalid value '%s' in DragAndDrop/@mode attribute"), strTemp.c_str());
             }
@@ -3430,6 +3538,11 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
             sctl.storageBus = StorageBus_SAS;
             sctl.controllerType = StorageControllerType_LsiLogicSas;
         }
+        else if (strType == "USB")
+        {
+            sctl.storageBus = StorageBus_USB;
+            sctl.controllerType = StorageControllerType_USB;
+        }
         else
             throw ConfigFileError(this, pelmController, N_("Invalid value '%s' for StorageController/@type attribute"), strType.c_str());
 
@@ -3445,6 +3558,7 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
 
             att.fDiscard = false;
             att.fNonRotational = false;
+            att.fHotPluggable = false;
 
             if (strTemp == "HardDisk")
             {
@@ -3494,7 +3608,12 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
                 if (!pelmAttached->getAttributeValue("device", att.lDevice))
                     throw ConfigFileError(this, pelmImage, N_("Required AttachedDevice/@device attribute is missing"));
 
-                pelmAttached->getAttributeValue("hotpluggable", att.fHotPluggable);
+                /* AHCI controller ports are hotpluggable by default, keep compatibility with existing settings. */
+                if (m->sv >= SettingsVersion_v1_15)
+                    pelmAttached->getAttributeValue("hotpluggable", att.fHotPluggable);
+                else if (sctl.controllerType == StorageControllerType_IntelAhci)
+                    att.fHotPluggable = true;
+
                 pelmAttached->getAttributeValue("bandwidthGroup", att.strBwGroup);
                 sctl.llAttachedDevices.push_back(att);
             }
@@ -3701,7 +3820,7 @@ bool MachineConfigFile::readSnapshot(const Guid &curSnapshotUuid,
                                      Snapshot &snap)
 {
     if (depth > SETTINGS_SNAPSHOT_DEPTH_MAX)
-        throw ConfigFileError(this, &elmSnapshot, N_("Maximum snapshot tree depth of %u exceeded"), depth);
+        throw ConfigFileError(this, &elmSnapshot, N_("Maximum snapshot tree depth of %u exceeded"), SETTINGS_SNAPSHOT_DEPTH_MAX);
 
     Utf8Str strTemp;
 
@@ -3748,15 +3867,12 @@ bool MachineConfigFile::readSnapshot(const Guid &curSnapshotUuid,
             {
                 if (pelmChildSnapshot->nameEquals("Snapshot"))
                 {
-                    // Use the heap to reduce the stack footprint. Each
-                    // recursion needs over 1K, and there can be VMs with
-                    // deeply nested snapshots. The stack can be quite
-                    // small, especially with XPCOM.
-                    Snapshot *child = new Snapshot();
-                    bool found = readSnapshot(curSnapshotUuid, depth + 1, *pelmChildSnapshot, *child);
+                    // recurse with this element and put the child at the
+                    // end of the list. XPCOM has very small stack, avoid
+                    // big local variables and use the list element.
+                    snap.llChildSnapshots.push_back(g_SnapshotEmpty);
+                    bool found = readSnapshot(curSnapshotUuid, depth + 1, *pelmChildSnapshot, snap.llChildSnapshots.back());
                     foundCurrentSnapshot = foundCurrentSnapshot || found;
-                    snap.llChildSnapshots.push_back(*child);
-                    delete child;
                 }
             }
         }
@@ -4103,6 +4219,26 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
          pelmChipset->setAttribute("type", pcszChipset);
     }
 
+    if (    (m->sv >= SettingsVersion_v1_15)
+        && !hw.areParavirtDefaultSettings()
+       )
+    {
+        const char *pcszParavirtProvider;
+        switch (hw.paravirtProvider)
+        {
+            case ParavirtProvider_None:         pcszParavirtProvider = "None";     break;
+            case ParavirtProvider_Default:      pcszParavirtProvider = "Default";  break;
+            case ParavirtProvider_Legacy:       pcszParavirtProvider = "Legacy";   break;
+            case ParavirtProvider_Minimal:      pcszParavirtProvider = "Minimal";  break;
+            case ParavirtProvider_HyperV:       pcszParavirtProvider = "HyperV";   break;
+            case ParavirtProvider_KVM:          pcszParavirtProvider = "KVM";      break;
+            default:            Assert(false);  pcszParavirtProvider = "None";     break;
+        }
+
+        xml::ElementNode *pelmParavirt = pelmHardware->createChild("Paravirt");
+        pelmParavirt->setAttribute("provider", pcszParavirtProvider);
+    }
+
     xml::ElementNode *pelmBoot = pelmHardware->createChild("Boot");
     for (BootOrderMap::const_iterator it = hw.mapBootOrder.begin();
          it != hw.mapBootOrder.end();
@@ -4157,6 +4293,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         pelmVideoCapture->setAttribute("vertRes",   hw.ulVideoCaptureVertRes);
         pelmVideoCapture->setAttribute("rate",      hw.ulVideoCaptureRate);
         pelmVideoCapture->setAttribute("fps",       hw.ulVideoCaptureFPS);
+        pelmVideoCapture->setAttribute("maxTime",   hw.ulVideoCaptureMaxTime);
+        pelmVideoCapture->setAttribute("maxSize",   hw.ulVideoCaptureMaxSize);
     }
 
     xml::ElementNode *pelmVRDE = pelmHardware->createChild("RemoteDisplay");
@@ -4379,6 +4517,9 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                     break;
                 case USBControllerType_EHCI:
                     strType = "EHCI";
+                    break;
+                case USBControllerType_XHCI:
+                    strType = "XHCI";
                     break;
                 default:
                     AssertMsgFailed(("Unknown USB controller type %d\n", ctrl.enmType));
@@ -4609,12 +4750,12 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
 
     xml::ElementNode *pelmDragAndDrop = pelmHardware->createChild("DragAndDrop");
     const char *pcszDragAndDrop;
-    switch (hw.dragAndDropMode)
+    switch (hw.dndMode)
     {
-        default: /*case DragAndDropMode_Disabled:*/ pcszDragAndDrop = "Disabled"; break;
-        case DragAndDropMode_HostToGuest: pcszDragAndDrop = "HostToGuest"; break;
-        case DragAndDropMode_GuestToHost: pcszDragAndDrop = "GuestToHost"; break;
-        case DragAndDropMode_Bidirectional: pcszDragAndDrop = "Bidirectional"; break;
+        default: /*case DnDMode_Disabled:*/ pcszDragAndDrop = "Disabled"; break;
+        case DnDMode_HostToGuest: pcszDragAndDrop = "HostToGuest"; break;
+        case DnDMode_GuestToHost: pcszDragAndDrop = "GuestToHost"; break;
+        case DnDMode_Bidirectional: pcszDragAndDrop = "Bidirectional"; break;
     }
     pelmDragAndDrop->setAttribute("mode", pcszDragAndDrop);
 
@@ -4867,6 +5008,7 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
             case StorageControllerType_ICH6: pcszType = "ICH6"; break;
             case StorageControllerType_I82078: pcszType = "I82078"; break;
             case StorageControllerType_LsiLogicSas: pcszType = "LsiLogicSas"; break;
+            case StorageControllerType_USB: pcszType = "USB"; break;
             default: /*case StorageControllerType_PIIX3:*/ pcszType = "PIIX3"; break;
         }
         pelmController->setAttribute("type", pcszType);
@@ -4933,7 +5075,7 @@ void MachineConfigFile::buildStorageControllersXML(xml::ElementNode &elmParent,
 
             pelmDevice->setAttribute("type", pcszType);
 
-            if (att.fHotPluggable)
+            if (m->sv >= SettingsVersion_v1_15)
                 pelmDevice->setAttribute("hotpluggable", att.fHotPluggable);
 
             pelmDevice->setAttribute("port", att.lPort);
@@ -5057,7 +5199,7 @@ void MachineConfigFile::buildSnapshotXML(uint32_t depth,
 
     pelmSnapshot->setAttribute("uuid", snap.uuid.toStringCurly());
     pelmSnapshot->setAttribute("name", snap.strName);
-    pelmSnapshot->setAttribute("timeStamp", makeString(snap.timestamp));
+    pelmSnapshot->setAttribute("timeStamp", stringifyTimestamp(snap.timestamp));
 
     if (snap.strStateFile.length())
         pelmSnapshot->setAttributePath("stateFile", snap.strStateFile);
@@ -5164,7 +5306,7 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
         elmMachine.setAttributePath("snapshotFolder", machineUserData.strSnapshotFolder);
     if (!fCurrentStateModified)
         elmMachine.setAttribute("currentStateModified", fCurrentStateModified);
-    elmMachine.setAttribute("lastStateChange", makeString(timeLastStateChange));
+    elmMachine.setAttribute("lastStateChange", stringifyTimestamp(timeLastStateChange));
     if (fAborted)
         elmMachine.setAttribute("aborted", fAborted);
     // Please keep the icon last so that one doesn't have to check if there
@@ -5348,6 +5490,51 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
  */
 void MachineConfigFile::bumpSettingsVersionIfNeeded()
 {
+    if (m->sv < SettingsVersion_v1_15)
+    {
+        /*
+         * Check whether a paravirtualization provider other than "Legacy" is used, if so bump the version.
+         */
+        if (hardwareMachine.paravirtProvider != ParavirtProvider_Legacy)
+            m->sv = SettingsVersion_v1_15;
+        else
+        {
+            /*
+             * Check whether the hotpluggable flag of all storage devices differs
+             * from the default for old settings.
+             * AHCI ports are hotpluggable by default every other device is not.
+             */
+            for (StorageControllersList::const_iterator it = storageMachine.llStorageControllers.begin();
+                 it != storageMachine.llStorageControllers.end();
+                 ++it)
+            {
+                bool fSettingsBumped = false;
+                const StorageController &sctl = *it;
+
+                for (AttachedDevicesList::const_iterator it2 = sctl.llAttachedDevices.begin();
+                     it2 != sctl.llAttachedDevices.end();
+                     ++it2)
+                {
+                    const AttachedDevice &att = *it2;
+
+                    if (   (   att.fHotPluggable
+                            && sctl.controllerType != StorageControllerType_IntelAhci)
+                        || (   !att.fHotPluggable
+                            && sctl.controllerType == StorageControllerType_IntelAhci))
+                    {
+                        m->sv = SettingsVersion_v1_15;
+                        fSettingsBumped = true;
+                        break;
+                    }
+                }
+
+                /* Abort early if possible. */
+                if (fSettingsBumped)
+                    break;
+            }
+        }
+    }
+
     if (m->sv < SettingsVersion_v1_14)
     {
         // VirtualBox 4.3 adds default frontend setting, graphics controller
@@ -5399,7 +5586,8 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
                         fNonStdName = true;
                     break;
                 default:
-                    AssertMsgFailed(("Unknown USB controller type %d\n", ctrl.enmType));
+                    /* Anything unknown forces a bump. */
+                    fNonStdName = true;
             }
 
             /* Skip checking other controllers if the settings bump is necessary. */

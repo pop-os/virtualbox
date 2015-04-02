@@ -1,8 +1,6 @@
 /* $Id: UIGDetailsSet.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsSet class implementation
+ * VBox Qt GUI - UIGDetailsSet class implementation.
  */
 
 /*
@@ -17,23 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIGDetailsSet.h"
-#include "UIGDetailsModel.h"
-#include "UIGDetailsElements.h"
-#include "UIVMItem.h"
-#include "UIConverter.h"
-#include "UIVirtualBoxEventHandler.h"
-#include "VBoxGlobal.h"
+# include "UIGDetailsSet.h"
+# include "UIGDetailsModel.h"
+# include "UIGDetailsElements.h"
+# include "UIVMItem.h"
+# include "UIVirtualBoxEventHandler.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
-#include "CUSBController.h"
-#include "CUSBDeviceFilters.h"
+# include "CUSBController.h"
+# include "CUSBDeviceFilters.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIGDetailsSet::UIGDetailsSet(UIGDetailsItem *pParent)
     : UIGDetailsItem(pParent)
-    , m_fElementNameHoverable(false)
+    , m_pMachineItem(0)
     , m_fHasDetails(false)
+    , m_configurationAccessLevel(ConfigurationAccessLevel_Null)
     , m_fFullSet(true)
     , m_pBuildStep(0)
     , m_iLastStepNumber(-1)
@@ -57,12 +62,12 @@ UIGDetailsSet::~UIGDetailsSet()
     parentItem()->removeItem(this);
 }
 
-void UIGDetailsSet::buildSet(UIVMItem *pMachineItem, bool fFullSet, const QStringList &settings)
+void UIGDetailsSet::buildSet(UIVMItem *pMachineItem, bool fFullSet, const QMap<DetailsElementType, bool> &settings)
 {
     /* Remember passed arguments: */
-    m_machine = pMachineItem->machine();
-    m_fElementNameHoverable = pMachineItem->reconfigurable();
-    m_fHasDetails = pMachineItem->hasDetails();
+    m_pMachineItem = pMachineItem;
+    m_machine = m_pMachineItem->machine();
+    m_fHasDetails = m_pMachineItem->hasDetails();
     m_fFullSet = fFullSet;
     m_settings = settings;
 
@@ -98,12 +103,7 @@ void UIGDetailsSet::buildSet(UIVMItem *pMachineItem, bool fFullSet, const QStrin
     /* Fetch USB controller restrictions: */
     const CUSBDeviceFilters &filters = m_machine.GetUSBDeviceFilters();
     if (filters.isNull() || !m_machine.GetUSBProxyAvailable())
-    {
-        QString strElementTypeOpened = gpConverter->toInternalString(DetailsElementType_USB);
-        QString strElementTypeClosed = strElementTypeOpened + "Closed";
-        m_settings.removeAll(strElementTypeOpened);
-        m_settings.removeAll(strElementTypeClosed);
-    }
+        m_settings.remove(DetailsElementType_USB);
 
     /* Start building set: */
     rebuildSet();
@@ -124,12 +124,10 @@ void UIGDetailsSet::sltBuildStep(QString strStepId, int iStepNumber)
     {
         /* Load details settings: */
         DetailsElementType elementType = (DetailsElementType)iStepNumber;
-        QString strElementTypeOpened = gpConverter->toInternalString(elementType);
-        QString strElementTypeClosed = strElementTypeOpened + "Closed";
         /* Should the element be visible? */
-        bool fVisible = m_settings.contains(strElementTypeOpened) || m_settings.contains(strElementTypeClosed);
+        bool fVisible = m_settings.contains(elementType);
         /* Should the element be opened? */
-        bool fOpen = m_settings.contains(strElementTypeOpened);
+        bool fOpen = fVisible && m_settings[elementType];
 
         /* Check if element is present already: */
         UIGDetailsElement *pElement = element(elementType);
@@ -385,6 +383,7 @@ int UIGDetailsSet::minimumWidthHint() const
 #endif /* VBOX_WITH_PARALLEL_PORTS */
             case DetailsElementType_USB:
             case DetailsElementType_SF:
+            case DetailsElementType_UI:
             case DetailsElementType_Description:
             {
                 iMinimumWidthHint = qMax(iMinimumWidthHint, pItem->minimumWidthHint());
@@ -444,6 +443,7 @@ int UIGDetailsSet::minimumHeightHint() const
 #endif /* VBOX_WITH_PARALLEL_PORTS */
             case DetailsElementType_USB:
             case DetailsElementType_SF:
+            case DetailsElementType_UI:
             case DetailsElementType_Description:
             {
                 iMinimumHeightHint += (pItem->minimumHeightHint() + iSpacing);
@@ -498,6 +498,7 @@ void UIGDetailsSet::updateLayout()
 #endif /* VBOX_WITH_PARALLEL_PORTS */
             case DetailsElementType_USB:
             case DetailsElementType_SF:
+            case DetailsElementType_UI:
             case DetailsElementType_Description:
             {
                 /* Move element: */
@@ -514,8 +515,6 @@ void UIGDetailsSet::updateLayout()
                 {
                     /* Resize element to required width: */
                     pElement->resize(iWidth, pElement->geometry().height());
-                    /* Update minimum-height-hint: */
-                    pElement->updateMinimumTextHeight();
                 }
                 /* Acquire required height: */
                 int iHeight = pElement->minimumHeightHint();
@@ -556,6 +555,9 @@ void UIGDetailsSet::rebuildSet()
     if (!m_fHasDetails)
         return;
 
+    /* Recache properties: */
+    m_configurationAccessLevel = m_pMachineItem->configurationAccessLevel();
+
     /* Cleanup build-step: */
     delete m_pBuildStep;
     m_pBuildStep = 0;
@@ -585,6 +587,7 @@ UIGDetailsElement* UIGDetailsSet::createElement(DetailsElementType elementType, 
 #endif /* VBOX_WITH_PARALLEL_PORTS */
         case DetailsElementType_USB:         return new UIGDetailsElementUSB(this, fOpen);
         case DetailsElementType_SF:          return new UIGDetailsElementSF(this, fOpen);
+        case DetailsElementType_UI:          return new UIGDetailsElementUI(this, fOpen);
         case DetailsElementType_Description: return new UIGDetailsElementDescription(this, fOpen);
     }
     return 0;

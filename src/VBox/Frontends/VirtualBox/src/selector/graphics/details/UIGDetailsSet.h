@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsSet class declaration
+ * VBox Qt GUI - UIGDetailsSet class declaration.
  */
 
 /*
@@ -21,7 +19,8 @@
 
 /* GUI includes: */
 #include "UIGDetailsItem.h"
-#include "UIDefs.h"
+#include "UIExtraDataDefs.h"
+#include "UISettingsDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -29,6 +28,9 @@
 
 /* Forward declarations: */
 class UIVMItem;
+
+/* Using declarations: */
+using namespace UISettingsDefs;
 
 /* Details set
  * for graphics details model/view architecture: */
@@ -47,12 +49,14 @@ public:
     ~UIGDetailsSet();
 
     /* API: Build stuff: */
-    void buildSet(UIVMItem *pMachineItem, bool fFullSet, const QStringList &settings);
+    void buildSet(UIVMItem *pMachineItem, bool fFullSet, const QMap<DetailsElementType, bool> &settings);
 
     /* API: Machine stuff: */
     const CMachine& machine() const { return m_machine; }
-    bool elementNameHoverable() const { return m_fElementNameHoverable; }
     bool hasDetails() const { return m_fHasDetails; }
+
+    /** Returns configuration access level. */
+    ConfigurationAccessLevel configurationAccessLevel() const { return m_configurationAccessLevel; }
 
 private slots:
 
@@ -100,18 +104,23 @@ private:
     void rebuildSet();
     UIGDetailsElement* createElement(DetailsElementType elementType, bool fOpen);
 
+    /** Machine-item this set built for. */
+    UIVMItem *m_pMachineItem;
+
     /* Main variables: */
     CMachine m_machine;
     QMap<int, UIGDetailsItem*> m_elements;
-    bool m_fElementNameHoverable;
     bool m_fHasDetails;
+
+    /** Holds configuration access level. */
+    ConfigurationAccessLevel m_configurationAccessLevel;
 
     /* Prepare variables: */
     bool m_fFullSet;
     UIBuildStep *m_pBuildStep;
     int m_iLastStepNumber;
     QString m_strSetId;
-    QStringList m_settings;
+    QMap<DetailsElementType, bool> m_settings;
 };
 
 #endif /* __UIGDetailsSet_h__ */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2013 Oracle Corporation
+ * Copyright (C) 2004-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -94,104 +94,28 @@
 #endif
 # include "NATNetworkImpl.h"
 
+// This needs to stay - it is needed by the service registration below, and
+// is defined in the automatically generated VirtualBoxWrap.cpp
+extern nsIClassInfo *NS_CLASSINFO_NAME(VirtualBoxWrap);
+NS_DECL_CI_INTERFACE_GETTER(VirtualBoxWrap)
+
+// The declarations/implementations of the various XPCOM helper data structures
+// and functions have to be removed bit by bit, as the conversion to the
+// automatically generated wrappers makes them obsolete.
 
 /* implement nsISupports parts of our objects with support for nsIClassInfo */
-
-NS_DECL_CLASSINFO(VirtualBox)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualBox, IVirtualBox)
-
-NS_DECL_CLASSINFO(Machine)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Machine, IMachine)
-
-NS_DECL_CLASSINFO(VFSExplorer)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VFSExplorer, IVFSExplorer)
-
-NS_DECL_CLASSINFO(Appliance)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Appliance, IAppliance)
-
-NS_DECL_CLASSINFO(VirtualSystemDescription)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VirtualSystemDescription, IVirtualSystemDescription)
-
 NS_DECL_CLASSINFO(SessionMachine)
 NS_IMPL_THREADSAFE_ISUPPORTS2_CI(SessionMachine, IMachine, IInternalMachineControl)
 
 NS_DECL_CLASSINFO(SnapshotMachine)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SnapshotMachine, IMachine)
 
-NS_DECL_CLASSINFO(Snapshot)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Snapshot, ISnapshot)
-
-NS_DECL_CLASSINFO(Medium)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Medium, IMedium)
-
-NS_DECL_CLASSINFO(MediumAttachment)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(MediumAttachment, IMediumAttachment)
-
-NS_DECL_CLASSINFO(Progress)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Progress, IProgress)
-
 NS_DECL_CLASSINFO(ProgressProxy)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ProgressProxy, IProgress)
 
-NS_DECL_CLASSINFO(SharedFolder)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SharedFolder, ISharedFolder)
-
-NS_DECL_CLASSINFO(VRDEServer)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(VRDEServer, IVRDEServer)
-
-NS_DECL_CLASSINFO(Host)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(Host, IHost)
-
-NS_DECL_CLASSINFO(HostNetworkInterface)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(HostNetworkInterface, IHostNetworkInterface)
-
-NS_DECL_CLASSINFO(DHCPServer)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(DHCPServer, IDHCPServer)
-
-NS_DECL_CLASSINFO(NATNetwork)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NATNetwork, INATNetwork)
-
-NS_DECL_CLASSINFO(GuestOSType)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(GuestOSType, IGuestOSType)
-
-NS_DECL_CLASSINFO(NetworkAdapter)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NetworkAdapter, INetworkAdapter)
-
-NS_DECL_CLASSINFO(NATEngine)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(NATEngine, INATEngine)
-
-
-NS_DECL_CLASSINFO(SerialPort)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SerialPort, ISerialPort)
-
-NS_DECL_CLASSINFO(ParallelPort)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ParallelPort, IParallelPort)
-
-NS_DECL_CLASSINFO(USBController)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(USBController, IUSBController)
-
-NS_DECL_CLASSINFO(USBDeviceFilters)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(USBDeviceFilters, IUSBDeviceFilters)
-
-NS_DECL_CLASSINFO(StorageController)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(StorageController, IStorageController)
-
 #ifdef VBOX_WITH_USB
-NS_DECL_CLASSINFO(USBDeviceFilter)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(USBDeviceFilter, IUSBDeviceFilter)
 
-NS_DECL_CLASSINFO(HostUSBDevice)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(HostUSBDevice, IUSBDevice, IHostUSBDevice)
-
-NS_DECL_CLASSINFO(HostUSBDeviceFilter)
-NS_IMPL_THREADSAFE_ISUPPORTS2_CI(HostUSBDeviceFilter, IUSBDeviceFilter, IHostUSBDeviceFilter)
 #endif
-
-NS_DECL_CLASSINFO(AudioAdapter)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(AudioAdapter, IAudioAdapter)
-
-NS_DECL_CLASSINFO(SystemProperties)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(SystemProperties, ISystemProperties)
 
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
 NS_DECL_CLASSINFO(PerformanceCollector)
@@ -199,26 +123,6 @@ NS_IMPL_THREADSAFE_ISUPPORTS1_CI(PerformanceCollector, IPerformanceCollector)
 NS_DECL_CLASSINFO(PerformanceMetric)
 NS_IMPL_THREADSAFE_ISUPPORTS1_CI(PerformanceMetric, IPerformanceMetric)
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
-
-NS_DECL_CLASSINFO(BIOSSettings)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(BIOSSettings, IBIOSSettings)
-
-#ifdef VBOX_WITH_EXTPACK
-NS_DECL_CLASSINFO(ExtPackFile)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPackFile, IExtPackFile)
-
-NS_DECL_CLASSINFO(ExtPack)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPack, IExtPack)
-
-NS_DECL_CLASSINFO(ExtPackManager)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(ExtPackManager, IExtPackManager)
-#endif
-
-NS_DECL_CLASSINFO(BandwidthGroup)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(BandwidthGroup, IBandwidthGroup)
-
-NS_DECL_CLASSINFO(BandwidthControl)
-NS_IMPL_THREADSAFE_ISUPPORTS1_CI(BandwidthControl, IBandwidthControl)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -526,7 +430,7 @@ public:
 
         if (sInstance == NULL)
         {
-            LogFlowFunc (("Creating new VirtualBox object...\n"));
+            LogFlowFunc(("Creating new VirtualBox object...\n"));
             sInstance = new VirtualBoxClassFactory();
             if (sInstance != NULL)
             {
@@ -916,9 +820,9 @@ int main(int argc, char **argv)
         NULL, // registration function
         NULL, // deregistration function
         VirtualBoxClassFactory::FactoryDestructor, // factory destructor function
-        NS_CI_INTERFACE_GETTER_NAME(VirtualBox),
+        NS_CI_INTERFACE_GETTER_NAME(VirtualBoxWrap),
         NULL, // language helper
-        &NS_CLASSINFO_NAME(VirtualBox),
+        &NS_CLASSINFO_NAME(VirtualBoxWrap),
         0 // flags
     };
 
@@ -938,7 +842,7 @@ int main(int argc, char **argv)
             break;
         }
 
-        nsCOMPtr <nsIComponentRegistrar> registrar;
+        nsCOMPtr<nsIComponentRegistrar> registrar;
         rc = NS_GetComponentRegistrar(getter_AddRefs(registrar));
         if (NS_FAILED(rc))
         {
@@ -965,7 +869,7 @@ int main(int argc, char **argv)
             break;
         }
 
-        nsCOMPtr<ipcIService> ipcServ (do_GetService(IPC_SERVICE_CONTRACTID, &rc));
+        nsCOMPtr<ipcIService> ipcServ(do_GetService(IPC_SERVICE_CONTRACTID, &rc));
         if (NS_FAILED(rc))
         {
             RTMsgError("Failed to get IPC service! (rc=%Rhrc)", rc);
@@ -1079,8 +983,7 @@ int main(int argc, char **argv)
 
         /* process any remaining events. These events may include
          * CreateInstance() requests received right before we called
-         * StopAcceptingEvents() above. We will detect this case below,
-         * restore gKeepRunning and continue to serve. */
+         * StopAcceptingEvents() above, and those will fail. */
         gEventQ->ProcessPendingEvents();
 
         RTPrintf("Terminated event loop.\n");

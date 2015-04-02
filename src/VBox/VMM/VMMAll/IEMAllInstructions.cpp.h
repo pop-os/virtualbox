@@ -1222,6 +1222,7 @@ FNIEMOP_DEF_1(iemOpCommonLarLsl_Gv_Ew, bool, fIsLar)
 
                 IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
                 IEMOP_HLP_DECODED_NL_2(fIsLar ? OP_LAR : OP_LSL, IEMOPFORM_RM_MEM, OP_PARM_Gv, OP_PARM_Ew, DISOPTYPE_DANGEROUS | DISOPTYPE_PRIVILEGED_NOTRAP);
+/** @todo testcase: make sure it's a 16-bit read. */
 
                 IEM_MC_FETCH_MEM_U16(u16Sel, pIemCpu->iEffSeg, GCPtrEffSrc);
                 IEM_MC_REF_GREG_U64(pu64Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pIemCpu->uRexReg);
@@ -1329,7 +1330,7 @@ FNIEMOP_DEF(iemOp_nop_Ev_GrpP)
         case 6: /* Aliased to /0 for the time being. */
         case 7: /* Aliased to /0 for the time being. */
         case 0: IEMOP_MNEMONIC("prefetch"); break;
-        case 1: IEMOP_MNEMONIC("prefetchw "); break;
+        case 1: IEMOP_MNEMONIC("prefetchw"); break;
         case 3: IEMOP_MNEMONIC("prefetchw"); break;
         IEM_NOT_REACHED_DEFAULT_CASE_RET();
     }
@@ -4457,6 +4458,8 @@ FNIEMOP_DEF_1(iemOpCommonBit_Ev_Gv, PCIEMOPBINSIZES, pImpl)
             IEMOP_HLP_NO_LOCK_PREFIX();
             fAccess = IEM_ACCESS_DATA_R;
         }
+
+        NOREF(fAccess);
 
         /** @todo test negative bit offsets! */
         switch (pIemCpu->enmEffOpSize)
@@ -8092,7 +8095,7 @@ FNIEMOP_DEF(iemOp_popa)
 
 
 /** Opcode 0x62. */
-FNIEMOP_STUB(iemOp_bound_Gv_Ma);
+FNIEMOP_STUB(iemOp_bound_Gv_Ma_evex);
 
 
 /** Opcode 0x63 - non-64-bit modes. */
@@ -10258,9 +10261,13 @@ FNIEMOP_DEF_1(iemOp_pop_Ev, uint8_t, bRm)
 FNIEMOP_DEF(iemOp_Grp1A)
 {
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
-    if ((bRm & X86_MODRM_REG_MASK) != (0 << X86_MODRM_REG_SHIFT)) /* only pop Ev in this group. */
-        return IEMOP_RAISE_INVALID_OPCODE();
-    return FNIEMOP_CALL_1(iemOp_pop_Ev, bRm);
+    if ((bRm & X86_MODRM_REG_MASK) == (0 << X86_MODRM_REG_SHIFT)) /* /0 */
+        return FNIEMOP_CALL_1(iemOp_pop_Ev, bRm);
+
+    /* AMD has defined /1 thru /7 as XOP prefix (similar to three byte VEX). */
+    /** @todo XOP decoding. */
+    IEMOP_MNEMONIC("3-byte-xop");
+    return IEMOP_RAISE_INVALID_OPCODE();
 }
 
 
@@ -11966,7 +11973,7 @@ FNIEMOP_DEF(iemOp_retn)
 
 
 /** Opcode 0xc4. */
-FNIEMOP_DEF(iemOp_les_Gv_Mp)
+FNIEMOP_DEF(iemOp_les_Gv_Mp_vex2)
 {
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
     if (   pIemCpu->enmCpuMode == IEMMODE_64BIT
@@ -11988,23 +11995,41 @@ FNIEMOP_DEF(iemOp_les_Gv_Mp)
 
 
 /** Opcode 0xc5. */
-FNIEMOP_DEF(iemOp_lds_Gv_Mp)
+FNIEMOP_DEF(iemOp_lds_Gv_Mp_vex3)
 {
+    /* The LDS instruction is invalid 64-bit mode. In legacy and
+       compatability mode it is invalid with MOD=3.
+       The use as a VEX prefix is made possible by assigning the inverted
+       REX.R and REX.X to the two MOD bits, since the REX bits are ignored
+       outside of 64-bit mode.  VEX is not available in real or v86 mode. */
     uint8_t bRm; IEM_OPCODE_GET_NEXT_U8(&bRm);
-    if (   pIemCpu->enmCpuMode == IEMMODE_64BIT
-        || (bRm & X86_MODRM_MOD_MASK) == (3 << X86_MODRM_MOD_SHIFT))
+    if (pIemCpu->enmCpuMode != IEMMODE_64BIT)
     {
-        IEMOP_MNEMONIC("3-byte-vex");
-        /* The LDS instruction is invalid 64-bit mode. In legacy and
-           compatability mode it is invalid with MOD=3.
-           The use as a VEX prefix is made possible by assigning the inverted
-           REX.R and REX.X to the two MOD bits, since the REX bits are ignored
-           outside of 64-bit mode. */
-        /** @todo VEX: Just use new tables for it. */
-        return IEMOP_RAISE_INVALID_OPCODE();
+        if ((bRm & X86_MODRM_MOD_MASK) != (3 << X86_MODRM_MOD_SHIFT))
+        {
+            IEMOP_MNEMONIC("lds Gv,Mp");
+            return FNIEMOP_CALL_2(iemOpCommonLoadSRegAndGreg, X86_SREG_DS, bRm);
+        }
+        IEMOP_HLP_NO_REAL_OR_V86_MODE();
     }
-    IEMOP_MNEMONIC("lds Gv,Mp");
-    return FNIEMOP_CALL_2(iemOpCommonLoadSRegAndGreg, X86_SREG_DS, bRm);
+
+    IEMOP_MNEMONIC("3-byte-vex");
+    /** @todo Test when exctly the VEX conformance checks kick in during
+     * instruction decoding and fetching (using \#PF). */
+    uint8_t bVex1;   IEM_OPCODE_GET_NEXT_U8(&bVex1);
+    uint8_t bVex2;   IEM_OPCODE_GET_NEXT_U8(&bVex2);
+    uint8_t bOpcode; IEM_OPCODE_GET_NEXT_U8(&bOpcode);
+#if 0 /* will make sense of this next week... */
+    if (   !(pIemCpu->fPrefixes & (IEM_OP_PRF_REPNZ | IEM_OP_PRF_REPZ | IEM_OP_PRF_REPZ | IEM_OP_PRF_SIZE_OP | IEM_OP_PRF_REX))
+        &&
+        )
+    {
+
+    }
+#endif
+
+    /** @todo VEX: Just use new tables for it. */
+    return IEMOP_RAISE_INVALID_OPCODE();
 }
 
 
@@ -12186,6 +12211,9 @@ FNIEMOP_DEF(iemOp_int_Ib)
 /** Opcode 0xce. */
 FNIEMOP_DEF(iemOp_into)
 {
+    IEMOP_MNEMONIC("into");
+    IEMOP_HLP_NO_64BIT();
+
     IEM_MC_BEGIN(2, 0);
     IEM_MC_ARG_CONST(uint8_t,   u8Int,      /*=*/ X86_XCPT_OF, 0);
     IEM_MC_ARG_CONST(bool,      fIsBpInstr, /*=*/ false, 1);
@@ -12609,6 +12637,26 @@ FNIEMOP_DEF(iemOp_aad_Ib)
     IEMOP_HLP_NO_LOCK_PREFIX();
     IEMOP_HLP_NO_64BIT();
     return IEM_MC_DEFER_TO_CIMPL_1(iemCImpl_aad, bImm);
+}
+
+
+/** Opcode 0xd6. */
+FNIEMOP_DEF(iemOp_salc)
+{
+    IEMOP_MNEMONIC("salc");
+    uint8_t bImm; IEM_OPCODE_GET_NEXT_U8(&bImm);
+    IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+    IEMOP_HLP_NO_64BIT();
+
+    IEM_MC_BEGIN(0, 0);
+    IEM_MC_IF_EFL_BIT_SET(X86_EFL_CF) {
+        IEM_MC_STORE_GREG_U8_CONST(X86_GREG_xAX, 0xff);
+    } IEM_MC_ELSE() {
+        IEM_MC_STORE_GREG_U8_CONST(X86_GREG_xAX, 0x00);
+    } IEM_MC_ENDIF();
+    IEM_MC_ADVANCE_RIP();
+    IEM_MC_END();
+    return VINF_SUCCESS;
 }
 
 
@@ -13189,7 +13237,7 @@ FNIEMOP_DEF_1(iemOp_fnstcw, uint8_t, bRm)
 }
 
 
-/** Opcode 0xd9 0xc9, 0xd9 0xd8-0xdf, ++?.  */
+/** Opcode 0xd9 0xd0, 0xd9 0xd8-0xdf, ++?.  */
 FNIEMOP_DEF(iemOp_fnop)
 {
     IEMOP_MNEMONIC("fnop");
@@ -13759,7 +13807,7 @@ FNIEMOP_DEF(iemOp_EscF1)
             case 0: return FNIEMOP_CALL_1(iemOp_fld_stN, bRm);
             case 1: return FNIEMOP_CALL_1(iemOp_fxch_stN, bRm);
             case 2:
-                if (bRm == 0xc9)
+                if (bRm == 0xd0)
                     return FNIEMOP_CALL(iemOp_fnop);
                 return IEMOP_RAISE_INVALID_OPCODE();
             case 3: return FNIEMOP_CALL_1(iemOp_fstp_stN, bRm); /* Reserved. Intel behavior seems to be FSTP ST(i) though. */
@@ -15487,7 +15535,36 @@ FNIEMOP_DEF_1(iemOp_fcomip_st0_stN,  uint8_t, bRm)
 
 
 /** Opcode 0xdf !11/0. */
-FNIEMOP_STUB_1(iemOp_fild_m16i,   uint8_t, bRm);
+FNIEMOP_DEF_1(iemOp_fild_m16i, uint8_t, bRm)
+{
+    IEMOP_MNEMONIC("fild m16i");
+
+    IEM_MC_BEGIN(2, 3);
+    IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+    IEM_MC_LOCAL(IEMFPURESULT,              FpuRes);
+    IEM_MC_LOCAL(int16_t,                   i16Val);
+    IEM_MC_ARG_LOCAL_REF(PIEMFPURESULT,     pFpuRes,    FpuRes, 0);
+    IEM_MC_ARG_LOCAL_REF(int16_t const *,   pi16Val,    i16Val, 1);
+
+    IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+    IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+
+    IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE();
+    IEM_MC_MAYBE_RAISE_FPU_XCPT();
+    IEM_MC_FETCH_MEM_I16(i16Val, pIemCpu->iEffSeg, GCPtrEffSrc);
+
+    IEM_MC_IF_FPUREG_IS_EMPTY(7)
+        IEM_MC_CALL_FPU_AIMPL_2(iemAImpl_fild_i16_to_r80, pFpuRes, pi16Val);
+        IEM_MC_PUSH_FPU_RESULT_MEM_OP(FpuRes, pIemCpu->iEffSeg, GCPtrEffSrc);
+    IEM_MC_ELSE()
+        IEM_MC_FPU_STACK_PUSH_OVERFLOW_MEM_OP(pIemCpu->iEffSeg, GCPtrEffSrc);
+    IEM_MC_ENDIF();
+    IEM_MC_USED_FPU();
+    IEM_MC_ADVANCE_RIP();
+
+    IEM_MC_END();
+    return VINF_SUCCESS;
+}
 
 
 /** Opcode 0xdf !11/1. */
@@ -15601,8 +15678,39 @@ FNIEMOP_DEF_1(iemOp_fistp_m16i,  uint8_t, bRm)
 /** Opcode 0xdf !11/4. */
 FNIEMOP_STUB_1(iemOp_fbld_m80d,   uint8_t, bRm);
 
+
 /** Opcode 0xdf !11/5. */
-FNIEMOP_STUB_1(iemOp_fild_m64i,   uint8_t, bRm);
+FNIEMOP_DEF_1(iemOp_fild_m64i,   uint8_t, bRm)
+{
+    IEMOP_MNEMONIC("fild m64i");
+
+    IEM_MC_BEGIN(2, 3);
+    IEM_MC_LOCAL(RTGCPTR,                   GCPtrEffSrc);
+    IEM_MC_LOCAL(IEMFPURESULT,              FpuRes);
+    IEM_MC_LOCAL(int64_t,                   i64Val);
+    IEM_MC_ARG_LOCAL_REF(PIEMFPURESULT,     pFpuRes,    FpuRes, 0);
+    IEM_MC_ARG_LOCAL_REF(int64_t const *,   pi64Val,    i64Val, 1);
+
+    IEM_MC_CALC_RM_EFF_ADDR(GCPtrEffSrc, bRm, 0);
+    IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX();
+
+    IEM_MC_MAYBE_RAISE_DEVICE_NOT_AVAILABLE();
+    IEM_MC_MAYBE_RAISE_FPU_XCPT();
+    IEM_MC_FETCH_MEM_I64(i64Val, pIemCpu->iEffSeg, GCPtrEffSrc);
+
+    IEM_MC_IF_FPUREG_IS_EMPTY(7)
+        IEM_MC_CALL_FPU_AIMPL_2(iemAImpl_fild_i64_to_r80, pFpuRes, pi64Val);
+        IEM_MC_PUSH_FPU_RESULT_MEM_OP(FpuRes, pIemCpu->iEffSeg, GCPtrEffSrc);
+    IEM_MC_ELSE()
+        IEM_MC_FPU_STACK_PUSH_OVERFLOW_MEM_OP(pIemCpu->iEffSeg, GCPtrEffSrc);
+    IEM_MC_ENDIF();
+    IEM_MC_USED_FPU();
+    IEM_MC_ADVANCE_RIP();
+
+    IEM_MC_END();
+    return VINF_SUCCESS;
+}
+
 
 /** Opcode 0xdf !11/6. */
 FNIEMOP_STUB_1(iemOp_fbstp_m80d,  uint8_t, bRm);
@@ -16077,6 +16185,15 @@ FNIEMOP_DEF(iemOp_lock)
 
     uint8_t b; IEM_OPCODE_GET_NEXT_U8(&b);
     return FNIEMOP_CALL(g_apfnOneByteMap[b]);
+}
+
+
+/** Opcode 0xf1. */
+FNIEMOP_DEF(iemOp_int_1)
+{
+    IEMOP_MNEMONIC("int1"); /* icebp */
+    /** @todo testcase! */
+    return IEM_MC_DEFER_TO_CIMPL_2(iemCImpl_int, X86_XCPT_DB, false /*fIsBpInstr*/);
 }
 
 
@@ -17205,7 +17322,7 @@ const PFNIEMOP g_apfnOneByteMap[256] =
     /* 0x54 */  iemOp_push_eSP,         iemOp_push_eBP,         iemOp_push_eSI,         iemOp_push_eDI,
     /* 0x58 */  iemOp_pop_eAX,          iemOp_pop_eCX,          iemOp_pop_eDX,          iemOp_pop_eBX,
     /* 0x5c */  iemOp_pop_eSP,          iemOp_pop_eBP,          iemOp_pop_eSI,          iemOp_pop_eDI,
-    /* 0x60 */  iemOp_pusha,            iemOp_popa,             iemOp_bound_Gv_Ma,      iemOp_arpl_Ew_Gw_movsx_Gv_Ev,
+    /* 0x60 */  iemOp_pusha,            iemOp_popa,             iemOp_bound_Gv_Ma_evex, iemOp_arpl_Ew_Gw_movsx_Gv_Ev,
     /* 0x64 */  iemOp_seg_FS,           iemOp_seg_GS,           iemOp_op_size,          iemOp_addr_size,
     /* 0x68 */  iemOp_push_Iz,          iemOp_imul_Gv_Ev_Iz,    iemOp_push_Ib,          iemOp_imul_Gv_Ev_Ib,
     /* 0x6c */  iemOp_insb_Yb_DX,       iemOp_inswd_Yv_DX,      iemOp_outsb_Yb_DX,      iemOp_outswd_Yv_DX,
@@ -17230,18 +17347,18 @@ const PFNIEMOP g_apfnOneByteMap[256] =
     /* 0xb8 */  iemOp_eAX_Iv,           iemOp_eCX_Iv,           iemOp_eDX_Iv,           iemOp_eBX_Iv,
     /* 0xbc */  iemOp_eSP_Iv,           iemOp_eBP_Iv,           iemOp_eSI_Iv,           iemOp_eDI_Iv,
     /* 0xc0 */  iemOp_Grp2_Eb_Ib,       iemOp_Grp2_Ev_Ib,       iemOp_retn_Iw,          iemOp_retn,
-    /* 0xc4 */  iemOp_les_Gv_Mp,        iemOp_lds_Gv_Mp,        iemOp_Grp11_Eb_Ib,      iemOp_Grp11_Ev_Iz,
+    /* 0xc4 */  iemOp_les_Gv_Mp_vex2,   iemOp_lds_Gv_Mp_vex3,   iemOp_Grp11_Eb_Ib,      iemOp_Grp11_Ev_Iz,
     /* 0xc8 */  iemOp_enter_Iw_Ib,      iemOp_leave,            iemOp_retf_Iw,          iemOp_retf,
     /* 0xcc */  iemOp_int_3,            iemOp_int_Ib,           iemOp_into,             iemOp_iret,
     /* 0xd0 */  iemOp_Grp2_Eb_1,        iemOp_Grp2_Ev_1,        iemOp_Grp2_Eb_CL,       iemOp_Grp2_Ev_CL,
-    /* 0xd4 */  iemOp_aam_Ib,           iemOp_aad_Ib,           iemOp_Invalid,          iemOp_xlat,
+    /* 0xd4 */  iemOp_aam_Ib,           iemOp_aad_Ib,           iemOp_salc,             iemOp_xlat,
     /* 0xd8 */  iemOp_EscF0,            iemOp_EscF1,            iemOp_EscF2,            iemOp_EscF3,
     /* 0xdc */  iemOp_EscF4,            iemOp_EscF5,            iemOp_EscF6,            iemOp_EscF7,
     /* 0xe0 */  iemOp_loopne_Jb,        iemOp_loope_Jb,         iemOp_loop_Jb,          iemOp_jecxz_Jb,
     /* 0xe4 */  iemOp_in_AL_Ib,         iemOp_in_eAX_Ib,        iemOp_out_Ib_AL,        iemOp_out_Ib_eAX,
     /* 0xe8 */  iemOp_call_Jv,          iemOp_jmp_Jv,           iemOp_jmp_Ap,           iemOp_jmp_Jb,
     /* 0xec */  iemOp_in_AL_DX,         iemOp_eAX_DX,           iemOp_out_DX_AL,        iemOp_out_DX_eAX,
-    /* 0xf0 */  iemOp_lock,             iemOp_Invalid,          iemOp_repne,            iemOp_repe, /** @todo 0xf1 is INT1 / ICEBP. */
+    /* 0xf0 */  iemOp_lock,             iemOp_int_1,            iemOp_repne,            iemOp_repe,
     /* 0xf4 */  iemOp_hlt,              iemOp_cmc,              iemOp_Grp3_Eb,          iemOp_Grp3_Ev,
     /* 0xf8 */  iemOp_clc,              iemOp_stc,              iemOp_cli,              iemOp_sti,
     /* 0xfc */  iemOp_cld,              iemOp_std,              iemOp_Grp4,             iemOp_Grp5,

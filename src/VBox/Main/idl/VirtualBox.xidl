@@ -2,7 +2,7 @@
 
 <!--
 
-    Copyright (C) 2006-2014 Oracle Corporation
+    Copyright (C) 2006-2015 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,14 @@
    7. src/VBox/Runtime/common/err/errmsgvboxcom.xsl =>
       out/<platform>/obj/Runtime/errmsgvboxcomdata.h
       (<result> extraction for the %Rhrc format specifier)
+
+
+   Note! SlickEdit users can use the 'xml_validate' command on the SlickEdit
+         command line to verify the document against the DTD.  Uncomment the
+         DOCTYPE below first (java doesn't seem to like it).
 -->
+
+<!-- <!DOCTYPE idl SYSTEM "VirtualBox.dtd"> -->
 
 <idl>
 
@@ -418,6 +425,12 @@
     </desc>
   </result>
 
+  <result name="VBOX_E_PASSWORD_INCORRECT" value="0x80BB000D">
+    <desc>
+      A provided password was incorrect.
+    </desc>
+  </result>
+
   <!--
     Note that src/VBox/Runtime/common/err/errmsgvboxcom.xsl will ignore
     everything in <result>/<desc> after (and including) the first dot, so express
@@ -547,9 +560,15 @@
           Machine changes: default frontend, USB rework.
       -->
     </const>
+    <const name="v1_15" value="17">
+      <desc>Settings version "1.15", written by VirtualBox 5.0.x.</desc>
+      <!--
+          Machine changes: hot-plug flag for storage devices.
+      -->
+    </const>
 
     <const name="Future" value="99999">
-      <desc>Settings version greater than "1.13", written by a future VirtualBox version.</desc>
+      <desc>Settings version greater than "1.15", written by a future VirtualBox version.</desc>
     </const>
   </enum>
 
@@ -731,7 +750,8 @@
           For whoever decides to touch this enum: In order to keep the
           comparisons in the old source code valid, this state must immediately
           precede the Paused state.
-          TODO: Lift this spectacularly wonderful restriction.
+
+          @todo Lift this spectacularly wonderful restriction.
         </note>
       </desc>
     </const>
@@ -742,7 +762,8 @@
           For whoever decides to touch this enum: In order to keep the
           comparisons in the old source code valid, this state must immediately
           follow the Running state.
-          TODO: Lift this spectacularly wonderful restriction.
+
+          @todo Lift this spectacularly wonderful restriction.
         </note>
       </desc>
     </const>
@@ -1004,6 +1025,35 @@
   </enum>
 
   <enum
+    name="ParavirtProvider"
+    uuid="696453ec-3742-4a05-bead-658ccbf2c944"
+    >
+    <desc>
+      The paravirtualized guest interface provider. This enumeration represents possible
+      values for the <link to="IMachine::paravirtProvider"/> attribute.
+    </desc>
+    <const name="None"     value="0">
+      <desc>No provider is used.</desc>
+    </const>
+    <const name="Default"  value="1">
+      <desc>A default provider is automatically chosen according to the guest OS type.</desc>
+    </const>
+    <const name="Legacy"   value="2">
+      <desc>Used for VMs which didn't used to have any provider settings. Usually
+        interpreted as @c None for most VMs.</desc>
+    </const>
+    <const name="Minimal"  value="3">
+      <desc>A minimal set of features to expose to the paravirtualized guest.</desc>
+    </const>
+    <const name="HyperV"   value="4">
+      <desc>Microsoft Hyper-V.</desc>
+    </const>
+	<const name="KVM"      value="5">
+	  <desc>Linux KVM.</desc>
+	</const>
+  </enum>
+
+  <enum
     name="FaultToleranceState"
     uuid="5124f7ec-6b67-493c-9dee-ee45a44114e1"
     >
@@ -1080,7 +1130,7 @@
 
   <enum
     name="DeviceType"
-    uuid="6d9420f7-0b56-4636-99f9-7346f1b01e57"
+    uuid="cb977be1-d1fb-41f8-ad7e-951736c6cb3e"
     >
     <desc>
       Device type.
@@ -1108,6 +1158,9 @@
     </const>
     <const name="SharedFolder"      value="6">
       <desc>Shared folder device.</desc>
+    </const>
+    <const name="Graphics3D"          value="7">
+      <desc>Graphics device 3D activity.</desc>
     </const>
   </enum>
 
@@ -1140,11 +1193,11 @@
   </enum>
 
   <enum
-    name="DragAndDropMode"
-    uuid="b618ea0e-b6fb-4f8d-97f7-5e237e49b547"
+    name="DnDMode"
+    uuid="07af8800-f936-4b33-9172-cd400e83c148"
     >
     <desc>
-      Drag'n'Drop interchange mode.
+      Drag and drop interchange mode.
     </desc>
 
     <const name="Disabled"          value="0"/>
@@ -1274,6 +1327,63 @@
     <const name="ComboKeyboard"     value="4">
       <desc>Combined device, working as PS/2 or USB keyboard, depending on guest behavior.
       Using of such device can have negative performance implications.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="BitmapFormat"
+    uuid="afb2bf39-8b1e-4f9f-8948-d1b887f83eb0"
+    >
+    <desc>
+      Format of a bitmap. Generic values for formats used by
+      the source bitmap, the screen shot or image update APIs.
+    </desc>
+
+    <const name="Opaque"          value="0">
+      <desc>
+        Unknown buffer format (the user may not assume any particular format of
+        the buffer).
+      </desc>
+    </const>
+    <const name="BGR"             value="0x20524742">
+      <desc>
+        Generic BGR format without alpha channel.
+        Pixel layout depends on the number of bits per pixel:
+        <ul>
+          <li>
+            <b>32</b> - bits 31:24 undefined, bits 23:16 R, bits 15:8 G, bits 7:0 B.
+          </li>
+
+          <li>
+            <b>16</b> - bits 15:11 R, bits 10:5 G, bits 4:0 B.
+          </li>
+        </ul>
+      </desc>
+    </const>
+    <const name="BGR0"            value="0x30524742">
+      <desc>
+        4 bytes per pixel: B, G, R, 0.
+      </desc>
+    </const>
+    <const name="BGRA"            value="0x41524742">
+      <desc>
+        4 bytes per pixel: B, G, R, A.
+      </desc>
+    </const>
+    <const name="RGBA"            value="0x41424752">
+      <desc>
+        4 bytes per pixel: R, G, B, A.
+      </desc>
+    </const>
+    <const name="PNG"             value="0x20474E50">
+      <desc>
+        PNG image.
+      </desc>
+    </const>
+    <const name="JPEG"            value="0x4745504A">
+      <desc>
+        JPEG image.
+      </desc>
     </const>
   </enum>
 
@@ -1427,7 +1537,7 @@
         IPv6Enabled is false.
       </desc>
     </attribute>
-    <attribute name="advertiseDefaultIPv6RouteEnabled" type="boolean"/>
+    <attribute name="advertiseDefaultIPv6RouteEnabled" type="boolean" dtracename="advertiseDefaultIPv6Route"/>
     <attribute name="needDhcpServer" type="boolean"/>
     <attribute name="eventSource" type="IEventSource" readonly="yes"/>
     <attribute name="portForwardRules4" type="wstring" readonly="yes" safearray="yes">
@@ -1563,6 +1673,13 @@
     <const name="Option_119" value="119"/>
   </enum>
 
+  <enum
+      name="DhcpOptEncoding"
+      uuid="88ea6d70-8648-4871-ba30-1f49c61cfaa2">
+    <const name="Legacy" value="0"/>
+    <const name="Hex" value="1"/>
+  </enum>
+
   <interface
     name="IDHCPServer" extends="$unknown"
     uuid="ff0774c5-1f62-4bc3-919c-7fc942bf1d25"
@@ -1624,24 +1741,24 @@
     <attribute name="vmConfigs" type="wstring" safearray="yes" readonly="yes"/>
 
     <!-- VM-slot settings
-     It's corresponds to dhcpd.conf entries, like:
+         It's corresponds to dhcpd.conf entries, like:
 
-     host ncd1 { hardware ethernet 0:c0:c3:11:90:23; }
+         host ncd1 { hardware ethernet 0:c0:c3:11:90:23; }
 
-     - in Main we can match (vm name, slot) to ethernet address
-     that why it's easy to configure dhcp server in such way,
-     then ask user to to enter valid name,
+         - in Main we can match (vm name, slot) to ethernet address
+         that why it's easy to configure dhcp server in such way,
+         then ask user to to enter valid name,
 
-     - mac address might change because of adapter type (e1k <-> pcnet) or because
-     of import/export
+         - mac address might change because of adapter type (e1k <-> pcnet) or because
+         of import/export
 
-     - it's easy to provide vm-name.rom in boot filename VM with network boot.
+         - it's easy to provide vm-name.rom in boot filename VM with network boot.
 
-     XXX: do we need classic getOptionValueByMAC?
+         XXX: do we need classic getOptionValueByMAC?
 
-     XML: O-o-oh, this settings are per VM, so perhaps they should be stored in
-          VM configuration files. And we haven't got the attachment type for
-          NATNetwork.
+         XML: O-o-oh, this settings are per VM, so perhaps they should be stored in
+         VM configuration files. And we haven't got the attachment type for
+         NATNetwork.
     -->
     <method name="addVmSlotOption">
       <param name="vmname" type="wstring" dir="in"/>
@@ -1733,7 +1850,7 @@
 
   <interface
     name="IVirtualBox" extends="$unknown"
-    uuid="fafa4e17-1ee2-4905-a10e-fe7c18bf5554"
+    uuid="3afa096e-2cad-4cb0-aba2-47fe3fc62bd8"
     wsmap="managed"
     >
     <desc>
@@ -2204,7 +2321,7 @@
       </param>
     </method>
 
-    <method name="createHardDisk">
+    <method name="createMedium">
       <desc>
         Creates a new base medium object that will use the given storage
         format and location for medium data.
@@ -2222,16 +2339,30 @@
         remain uninitialized until the medium storage unit is successfully
         created by one of the above methods.
 
-        After the storage unit is successfully created, it will be
-        accessible through the <link to="#openMedium"/> method and can
-        be found in the <link to="#hardDisks"/> array.
+        Depending on the given device type, the file at the storage location
+        must be in one of the media formats understood by VirtualBox:
+
+        <ul>
+          <li>With a "HardDisk" device type, the file must be a hard disk image
+            in one of the formats supported by VirtualBox (see
+            <link to="ISystemProperties::mediumFormats" />).
+            After the storage unit is successfully created and this method succeeds, 
+            if the medium is a base medium, it
+            will be added to the <link to="#hardDisks"/> array attribute. </li>
+          <li>With a "DVD" device type, the file must be an ISO 9960 CD/DVD image.
+            After this method succeeds, the medium will be added to the
+            <link to="#DVDImages"/> array attribute.</li>
+          <li>With a "Floppy" device type, the file must be an RAW floppy image.
+            After this method succeeds, the medium will be added to the
+            <link to="#floppyImages"/> array attribute.</li>
+        </ul>
 
         The list of all storage formats supported by this VirtualBox
         installation can be obtained using
         <link to="ISystemProperties::mediumFormats"/>. If the @a format
         attribute is empty or @c null then the default storage format
         specified by <link to="ISystemProperties::defaultHardDiskFormat"/> will
-        be used for creating a storage unit of the medium.
+        be used for disks r creating a storage unit of the medium.
 
         Note that the format of the location string is storage format specific.
         See <link to="IMedium::location"/> and IMedium for more details.
@@ -2252,6 +2383,15 @@
       <param name="location" type="wstring" dir="in">
         <desc>
           Location of the storage unit for the new medium.
+        </desc>
+      </param>
+      <param name="accessMode" type="AccessMode" dir="in">
+        <desc>Whether to open the image in read/write or read-only mode. For
+        a "DVD" device type, this is ignored and read-only mode is always assumed.</desc>
+      </param>
+      <param name="aDeviceTypeType" type="DeviceType" dir="in">
+        <desc>
+          Must be one of "HardDisk", "DVD" or "Floppy".
         </desc>
       </param>
       <param name="medium" type="IMedium" dir="return">
@@ -2375,7 +2515,7 @@
         </result>
 
       </desc>
-      <param name="id" type="uuid" mod="string" dir="in">
+      <param name="id" type="wstring" dir="in">
         <desc>Guest OS type ID string.</desc>
       </param>
       <param name="type" type="IGuestOSType" dir="return">
@@ -2798,6 +2938,10 @@
     </const>
     <const name="KeepNATMACs"       value="2">
       <desc>Don't generate new MAC addresses of the attached network adapters when they are using NAT.</desc>
+    </const>
+
+    <const name="ImportToVDI"       value="3">
+      <desc>Import all disks to VDI format</desc>
     </const>
 
   </enum>
@@ -3415,7 +3559,7 @@
 
   <interface
     name="IInternalMachineControl" extends="$unknown"
-    uuid="2d9ce4b7-0ab2-4931-ac4a-e45aa66465ef"
+    uuid="1470ff16-d7fa-448e-9c38-0352a36053bf"
     internal="yes"
     wsmap="suppress"
     >
@@ -3525,6 +3669,7 @@
         notification.
       </desc>
       <param name="id" type="uuid" mod="string" dir="in"/>
+      <param name="captureFilename" type="wstring" dir="in"/>
     </method>
 
     <method name="detachUSBDevice">
@@ -4169,8 +4314,10 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="480cf695-2d8d-4256-9c7c-cce4184fa048"
+    uuid="2280b3f8-0c33-4641-8bd5-ccecd1071b49"
     wsmap="managed"
+    wrap-hint-server-addinterfaces="IInternalMachineControl"
+    wrap-hint-server="manualaddinterfaces"
     >
     <desc>
       The IMachine interface represents a virtual machine, or guest, created
@@ -4208,7 +4355,7 @@
       <see><link to="ISession"/>, <link to="IConsole"/></see>
     </desc>
 
-    <attribute name="parent" type="IVirtualBox" readonly="yes">
+    <attribute name="parent" type="IVirtualBox" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>Associated parent object.</desc>
     </attribute>
 
@@ -4216,7 +4363,7 @@
       <desc>Overridden VM Icon details.</desc>
     </attribute>
 
-    <attribute name="accessible" type="boolean" readonly="yes">
+    <attribute name="accessible" type="boolean" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>
         Whether this virtual machine is currently accessible or not.
 
@@ -4260,7 +4407,7 @@
       </desc>
     </attribute>
 
-    <attribute name="accessError" type="IVirtualBoxErrorInfo" readonly="yes">
+    <attribute name="accessError" type="IVirtualBoxErrorInfo" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>
         Error information describing the reason of machine
         inaccessibility.
@@ -4323,7 +4470,7 @@
       </desc>
     </attribute>
 
-    <attribute name="id" type="uuid" mod="string" readonly="yes">
+    <attribute name="id" type="uuid" mod="string" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>UUID of the virtual machine.</desc>
     </attribute>
 
@@ -4489,6 +4636,33 @@
       </desc>
     </attribute>
 
+    <attribute name="videoCaptureMaxTime" type="unsigned long" default="0">
+      <desc>
+        This setting determines the maximal number of time video capture
+        will work for. The capture stops as the defined time interval
+        has elapsed. If this value is zero the capturing will not be limited
+        by time. This setting cannot be changed while video capturing is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoCaptureMaxFileSize" type="unsigned long" default="0">
+      <desc>
+        This setting determines the maximal number of captured video file
+        size in MB. The capture stops as the captured video file size
+        has reached the defined. If this value is zero the capturing
+        will not be limited by file size. This setting cannot be changed
+        while video capturing is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoCaptureOptions" type="wstring">
+      <desc>
+        This setting contains any additional video capture options
+        required in comma-separated key=value format. This setting
+        cannot be changed while video capturing is enabled.
+      </desc>
+    </attribute>
+
     <attribute name="BIOSSettings" type="IBIOSSettings" readonly="yes">
       <desc>Object containing all BIOS settings.</desc>
     </attribute>
@@ -4595,7 +4769,7 @@
       <desc>Array of storage controllers attached to this machine.</desc>
     </attribute>
 
-    <attribute name="settingsFilePath" type="wstring" readonly="yes">
+    <attribute name="settingsFilePath" type="wstring" readonly="yes" wrap-hint-server="limitedcaller">
       <desc>
         Full name of the file containing machine settings data.
       </desc>
@@ -4753,9 +4927,9 @@
       </desc>
     </attribute>
 
-    <attribute name="dragAndDropMode" type="DragAndDropMode">
+    <attribute name="dnDMode" type="DnDMode">
       <desc>
-        Which mode is allowed for drag'n'drop.
+        Sets or retrieves the current drag'n drop mode.
       </desc>
     </attribute>
 
@@ -4804,6 +4978,12 @@
 
         Note that you SET a plain text password while reading back a HASHED
         password. Setting a hashed password is currently not supported.
+      </desc>
+    </attribute>
+
+    <attribute name="paravirtProvider" type="ParavirtProvider">
+      <desc>
+        The paravirtualized guest interface provider.
       </desc>
     </attribute>
 
@@ -6471,7 +6651,7 @@
       </desc>
     </method>
 
-    <method name="unregister">
+    <method name="unregister" wrap-hint-server="limitedcaller">
       <desc>
         Unregisters a machine previously registered with
         <link to="IVirtualBox::registerMachine"/> and optionally do additional
@@ -7013,17 +7193,16 @@
 
     <method name="readSavedThumbnailToArray">
       <desc>
-        Thumbnail is retrieved to an array of bytes in uncompressed 32-bit BGRA or RGBA format.
+        Thumbnail is retrieved to an array of bytes in the requested format.
       </desc>
       <param name="screenId" type="unsigned long" dir="in">
         <desc>
           Saved guest screen to read from.
         </desc>
       </param>
-      <param name="BGR" type="boolean" dir="in">
+      <param name="bitmapFormat" type="BitmapFormat" dir="in">
         <desc>
-          How to order bytes in the pixel. A pixel consists of 4 bytes. If this parameter is true, then
-          bytes order is: B, G, R, 0xFF. If this parameter is false, then bytes order is: R, G, B, 0xFF.
+          The requested format.
         </desc>
       </param>
       <param name="width" type="unsigned long" dir="out">
@@ -7039,32 +7218,6 @@
       <param name="data" type="octet" safearray="yes" dir="return">
         <desc>
           Array with resulting bitmap data.
-        </desc>
-      </param>
-    </method>
-
-    <method name="readSavedThumbnailPNGToArray">
-      <desc>
-        Thumbnail in PNG format is retrieved to an array of bytes.
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>
-          Saved guest screen to read from.
-        </desc>
-      </param>
-      <param name="width" type="unsigned long" dir="out">
-        <desc>
-          Image width.
-        </desc>
-      </param>
-      <param name="height" type="unsigned long" dir="out">
-        <desc>
-          Image height.
-        </desc>
-      </param>
-      <param name="data" type="octet" dir="return" safearray="yes">
-        <desc>
-          Array with resulting PNG data.
         </desc>
       </param>
     </method>
@@ -7155,6 +7308,17 @@
       <param name="attached" type="boolean" dir="return">
         <desc>
           Status of the CPU.
+        </desc>
+      </param>
+    </method>
+
+    <method name="getEffectiveParavirtProvider"  const="yes">
+      <desc>
+        Returns the effective paravirtualization provider for this VM.
+      </desc>
+      <param name="paravirtProvider" type="ParavirtProvider" dir="return">
+        <desc>
+          The effective paravirtualization provider for this VM.
         </desc>
       </param>
     </method>
@@ -7393,7 +7557,7 @@
 
   <interface
     name="IConsole" extends="$unknown"
-    uuid="8ab7c520-2442-4b66-8d74-4ff1e195d2b6"
+    uuid="080505f4-bca9-45aa-ab95-030036b665e6"
     wsmap="managed"
     >
     <desc>
@@ -7806,13 +7970,13 @@
 
     <method name="getDeviceActivity">
       <desc>
-        Gets the current activity type of a given device or device group.
+        Gets the current activity type of given devices or device groups.
         <result name="E_INVALIDARG">
           Invalid device type.
         </result>
       </desc>
-      <param name="type" type="DeviceType" dir="in"/>
-      <param name="activity" type="DeviceActivity" dir="return"/>
+      <param name="type" type="DeviceType" safearray="yes" dir="in"/>
+      <param name="activity" type="DeviceActivity" safearray="yes" dir="return"/>
     </method>
 
     <method name="attachUSBDevice">
@@ -7841,6 +8005,9 @@
       </desc>
       <param name="id" type="uuid" mod="string" dir="in">
         <desc>UUID of the host USB device to attach.</desc>
+      </param>
+      <param name="captureFilename" type="wstring" dir="in">
+        <desc>Filename to capture the USB traffic to.</desc>
       </param>
     </method>
 
@@ -8179,7 +8346,7 @@
       <desc>
         Teleport the VM to a different host machine or process.
 
-        TODO explain the details.
+        @todo Explain the details.
 
         <result name="VBOX_E_INVALID_VM_STATE">
           Virtual machine not running or paused.
@@ -8214,6 +8381,76 @@
       </param>
     </method>
 
+    <method name="addDiskEncryptionPassword">
+      <desc>
+        Adds a password used for hard disk encryption/decryption.
+
+        <result name="VBOX_E_PASSWORD_INCORRECT">
+          The password provided wasn't correct for at least one disk using the provided
+          ID.
+        </result>
+      </desc>
+      <param name="id" type="wstring" dir="in">
+        <desc>
+          The identifier used for the password. Must match the identifier
+          used when the encrypted medium was created.
+        </desc>
+      </param>
+      <param name="password" type="wstring" dir="in">
+        <desc>The password.</desc>
+      </param>
+      <param name="clearOnSuspend" type="boolean" dir="in">
+        <desc>
+          Flag whether to clear the password on VM suspend (due to a suspending host
+          for example). The password must be supplied again before the VM can resume.
+        </desc>
+      </param>
+    </method>
+
+    <method name="addDiskEncryptionPasswords">
+      <desc>
+        Adds a password used for hard disk encryption/decryption.
+
+        <result name="VBOX_E_PASSWORD_INCORRECT">
+          The password provided wasn't correct for at least one disk using the provided
+          ID.
+        </result>
+      </desc>
+      <param name="ids" type="wstring" dir="in" safearray="yes">
+        <desc>
+          List of identifiers for the passwords. Must match the identifier
+          used when the encrypted medium was created.
+        </desc>
+      </param>
+      <param name="passwords" type="wstring" dir="in" safearray="yes">
+        <desc>List of passwords.</desc>
+      </param>
+      <param name="clearOnSuspend" type="boolean" dir="in">
+        <desc>
+          Flag whether to clear the given passwords on VM suspend (due to a suspending host
+          for example). The passwords must be supplied again before the VM can resume.
+        </desc>
+      </param>
+    </method>
+
+    <method name="removeDiskEncryptionPassword">
+      <desc>
+        Removes a password used for hard disk encryption/decryption from
+        the running VM. As soon as the medium requiring this password
+        is accessed the VM is paused with an error and the password must be
+        provided again.
+      </desc>
+      <param name="id" type="wstring" dir="in">
+        <desc>
+          The identifier used for the password. Must match the identifier
+          used when the encrypted medium was created.
+        </desc>
+      </param>
+    </method>
+
+    <method name="clearAllDiskEncryptionPasswords">
+      <desc>Clears all provided supplied disk encryption passwords.</desc>
+    </method>
   </interface>
 
   <!--
@@ -8893,7 +9130,7 @@
   <interface
     name="ISystemProperties"
     extends="$unknown"
-    uuid="1254a96a-ae57-4484-946a-22d86c1f98af"
+    uuid="2dc77d62-27e7-4e6e-87eb-b41ae0d555da"
     wsmap="managed"
     >
     <desc>
@@ -9008,7 +9245,7 @@
 
         Keep in mind that the medium format identifier
         (<link to="IMediumFormat::id"/>) used in other API calls like
-        <link to="IVirtualBox::createHardDisk"/> to refer to a particular
+        <link to="IVirtualBox::createMedium"/> to refer to a particular
         medium format is a case-insensitive string. This means that, for
         example, all of the following strings:
         <pre>
@@ -9031,7 +9268,7 @@
 
         The medium format set by this attribute is used by VirtualBox
         when the medium format was not specified explicitly. One example is
-        <link to="IVirtualBox::createHardDisk"/> with the empty
+        <link to="IVirtualBox::createMedium"/> with the empty
         format argument. A more complex example is implicit creation of
         differencing media when taking a snapshot of a virtual machine:
         this operation will try to use a format of the parent medium first
@@ -9055,7 +9292,7 @@
         <see>
           <link to="#mediumFormats"/>,
           <link to="IMediumFormat::id"/>,
-          <link to="IVirtualBox::createHardDisk"/>
+          <link to="IVirtualBox::createMedium"/>
         </see>
       </desc>
     </attribute>
@@ -9187,6 +9424,13 @@
       </desc>
     </attribute>
 
+    <attribute name="screenShotFormats" type="BitmapFormat" safearray="yes" readonly="yes">
+      <desc>
+        Supported bitmap formats which can be used with takeScreenShot
+        and takeScreenShotToArray methods.
+      </desc>
+    </attribute>
+
     <method name="getMaxNetworkAdapters">
       <desc>
         Maximum total number of network adapters associated with every
@@ -9297,7 +9541,7 @@
       </param>
     </method>
 
-    <method name="getDefaultIoCacheSettingForStorageController">
+    <method name="getDefaultIoCacheSettingForStorageController" dtracename="getDefaultStorageCtrlCacheSetting">
       <desc>Returns the default I/O cache setting for the
         given storage controller</desc>
 
@@ -9307,6 +9551,19 @@
 
       <param name="enabled" type="boolean" dir="return">
         <desc>Returned flag indicating the default value</desc>
+      </param>
+    </method>
+
+    <method name="getStorageControllerHotplugCapable">
+      <desc>Returns whether the given storage controller supports
+        hot-plugging devices.</desc>
+
+      <param name="controllerType" type="StorageControllerType" dir="in">
+        <desc>The storage controller to check for.</desc>
+      </param>
+
+      <param name="hotplugCapable" type="boolean" dir="return">
+        <desc>Returned flag indicating whether the controller is hotplug capable</desc>
       </param>
     </method>
 
@@ -9337,7 +9594,7 @@
 
   <interface
     name="IGuestOSType" extends="$unknown"
-    uuid="6d968f9a-858b-4c50-bf17-241f069e94c2"
+    uuid="ced74f7e-4c08-4d19-883a-017496ada2e1"
     wsmap="struct"
     >
     <desc>
@@ -9449,6 +9706,10 @@
 
     <attribute name="recommendedUSB" type="boolean" readonly="yes">
       <desc>Returns @c true a USB controller is recommended for this OS type.</desc>
+    </attribute>
+
+    <attribute name="recommendedTFReset" type="boolean" readonly="yes">
+      <desc>Returns @c true if using VCPU reset on triple fault is recommended for this OS type.</desc>
     </attribute>
 
   </interface>
@@ -10291,11 +10552,11 @@
   </enum>
 
   <enum
-    name="DragAndDropAction"
-    uuid="47f3b162-c107-4fcd-bfa7-54b8135c441e"
+    name="DnDAction"
+    uuid="17609e74-778e-4d0e-8827-35f5230f287b"
   >
     <desc>
-      Possible actions within an Drag and Drop operation.
+      Possible actions of a drag'n drop operation.
     </desc>
 
     <const name="Ignore"                value="0">
@@ -10329,6 +10590,283 @@
       <desc>Don't allow symbolic links as part of the path.</desc>
     </const>
   </enum>
+
+  <interface
+    name="IDnDBase" extends="$unknown"
+    uuid="b15cf9ca-4078-4786-a1be-af773a36e19f"
+    wsmap="managed"
+    >
+    <desc>Base abstract interface for drag'n drop.</desc>
+
+    <method name="isFormatSupported" >
+      <desc>
+        Checks if a specific drag'n drop MIME / Content-type format is supported.
+      </desc>
+      <param name="format" type="wstring" dir="in">
+        <desc>Format to check for.</desc>
+      </param>
+      <param name="supported" type="boolean" dir="return">
+        <desc>Returns @c true if the specified format is supported, @c false if not.</desc>
+      </param>
+    </method>
+
+    <method name="addFormats" >
+      <desc>
+        Adds MIME / Content-type formats to the supported formats.
+      </desc>
+      <param name="formats" type="wstring" safearray="yes" dir="in">
+        <desc>Collection of formats to add.</desc>
+      </param>
+    </method>
+
+    <method name="removeFormats" >
+      <desc>
+        Removes MIME / Content-type formats from the supported formats.
+      </desc>
+      <param name="formats" type="wstring" safearray="yes" dir="in">
+        <desc>Collection of formats to remove.</desc>
+      </param>
+    </method>
+
+    <attribute name="formats" type="wstring" safearray="yes" readonly="yes">
+      <desc>Returns all supported drag'n drop formats.</desc>
+    </attribute>
+
+  </interface>
+
+  <interface
+    name="IDnDSource" extends="IDnDBase"
+    uuid="b69c400d-be63-4255-898a-e706d66b1637"
+    wsmap="managed"
+    >
+    <desc>Abstract interface for handling drag'n drop sources.</desc>
+
+    <method name="dragIsPending">
+      <desc>
+        Ask the source if there is any drag and drop operation pending.
+        If no drag and drop operation is pending currently, DnDAction_Ignore is returned.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the drag and drop event occurred.</desc>
+      </param>
+      <param name="formats" type="wstring" dir="out" safearray="yes">
+        <desc>On return the supported mime types.</desc>
+      </param>
+      <param name="allowedActions" type="DnDAction" dir="out" safearray="yes">
+        <desc>On return the actions which are allowed.</desc>
+      </param>
+      <param name="defaultAction" type="DnDAction" dir="return">
+        <desc>On return the default action to use.</desc>
+      </param>
+    </method>
+
+    <method name="drop">
+      <desc>
+        Informs the source that a drop event occurred for a pending
+        drag and drop operation.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+      </desc>
+
+      <param name="format" type="wstring" dir="in">
+        <desc>The mime type the data must be in.</desc>
+      </param>
+      <param name="action" type="DnDAction" dir="in">
+        <desc>The action to use.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="receiveData">
+      <desc>
+        Receive the data of a previously drag and drop event from the source.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+
+      </desc>
+
+      <param name="data" type="octet" safearray="yes" dir="return">
+        <desc>The actual data.</desc>
+      </param>
+    </method>
+
+  </interface>
+
+  <interface
+    name="IGuestDnDSource" extends="IDnDSource"
+    uuid="280955c0-de67-4297-8179-6274a82a2fc0"
+    wsmap="managed"
+    >
+
+    <desc>
+      Implementation of the <link to="IDnDSource" /> object
+      for source drag'n drop operations on the guest.
+    </desc>
+  </interface>
+
+  <interface
+    name="IDnDTarget" extends="IDnDBase"
+    uuid="2366c45c-4633-41a1-9fa6-0ef9f244434c"
+    wsmap="managed"
+    >
+    <desc>Abstract interface for handling drag'n drop targets.</desc>
+
+    <method name="enter">
+      <desc>
+        Informs the target about a drag and drop enter event.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the drag and drop event occurred.</desc>
+      </param>
+      <param name="y" type="unsigned long" dir="in">
+        <desc>Y-position of the event.</desc>
+      </param>
+      <param name="x" type="unsigned long" dir="in">
+        <desc>X-position of the event.</desc>
+      </param>
+      <param name="defaultAction" type="DnDAction" dir="in">
+        <desc>The default action to use.</desc>
+      </param>
+      <param name="allowedActions" type="DnDAction" dir="in" safearray="yes">
+        <desc>The actions which are allowed.</desc>
+      </param>
+      <param name="formats" type="wstring" dir="in" safearray="yes">
+        <desc>The supported MIME types.</desc>
+      </param>
+      <param name="resultAction" type="DnDAction" dir="return">
+        <desc>The resulting action of this event.</desc>
+      </param>
+    </method>
+
+    <method name="move">
+      <desc>
+        Informs the target about a drag and drop move event.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the drag and drop event occurred.</desc>
+      </param>
+      <param name="x" type="unsigned long" dir="in">
+        <desc>X-position of the event.</desc>
+      </param>
+      <param name="y" type="unsigned long" dir="in">
+        <desc>Y-position of the event.</desc>
+      </param>
+      <param name="defaultAction" type="DnDAction" dir="in">
+        <desc>The default action to use.</desc>
+      </param>
+      <param name="allowedActions" type="DnDAction" dir="in" safearray="yes">
+        <desc>The actions which are allowed.</desc>
+      </param>
+      <param name="formats" type="wstring" dir="in" safearray="yes">
+        <desc>The supported MIME types.</desc>
+      </param>
+      <param name="resultAction" type="DnDAction" dir="return">
+        <desc>The resulting action of this event.</desc>
+      </param>
+    </method>
+
+    <method name="leave">
+      <desc>
+        Informs the target about a drag and drop leave event.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the drag and drop event occurred.</desc>
+      </param>
+    </method>
+
+    <method name="drop">
+      <desc>
+        Informs the target about a drop event.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the Drag and Drop event occurred.</desc>
+      </param>
+      <param name="x" type="unsigned long" dir="in">
+        <desc>X-position of the event.</desc>
+      </param>
+      <param name="y" type="unsigned long" dir="in">
+        <desc>Y-position of the event.</desc>
+      </param>
+      <param name="defaultAction" type="DnDAction" dir="in">
+        <desc>The default action to use.</desc>
+      </param>
+      <param name="allowedActions" type="DnDAction" dir="in" safearray="yes">
+        <desc>The actions which are allowed.</desc>
+      </param>
+      <param name="formats" type="wstring" dir="in" safearray="yes">
+        <desc>The supported MIME types.</desc>
+      </param>
+      <param name="format" type="wstring" dir="out">
+        <desc>The resulting format of this event.</desc>
+      </param>
+      <param name="resultAction" type="DnDAction" dir="return">
+        <desc>The resulting action of this event.</desc>
+      </param>
+    </method>
+
+    <method name="sendData">
+      <desc>
+        Sends data to the target.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>The screen ID where the drag and drop event occurred.</desc>
+      </param>
+      <param name="format" type="wstring" dir="in">
+        <desc>The MIME type the data is in.</desc>
+      </param>
+      <param name="data" type="octet" dir="in" safearray="yes">
+        <desc>The actual data.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+  </interface>
+
+  <interface
+    name="IGuestDnDTarget" extends="IDnDTarget"
+    uuid="50ce4b51-0ff7-46b7-a138-3c6e5ac946b4"
+    wsmap="managed"
+    >
+
+    <desc>
+      Implementation of the <link to="IDnDTarget" /> object
+      for target drag'n drop operations on the guest.
+    </desc>
+  </interface>
 
   <interface
     name="IGuestSession" extends="$unknown"
@@ -10997,12 +11535,13 @@
       </param>
       <param name="environment" type="wstring" dir="in" safearray="yes">
         <desc>
-          <para>Environment variables that can be set while the command is being
+          Environment variables that can be set while the command is being
           executed, in form of "NAME=VALUE"; one pair per entry. To unset a
-          variable just set its name ("NAME") without a value.</para>
-          <para>This parameter can be used to override environment variables set by
+          variable just set its name ("NAME") without a value.
+
+          This parameter can be used to override environment variables set by
           the guest session, which will be applied to the newly started process
-          in any case.</para>
+          in any case.
         </desc>
       </param>
       <param name="flags" type="ProcessCreateFlag" dir="in" safearray="yes">
@@ -11026,11 +11565,10 @@
 
     <method name="processCreateEx">
       <desc>
-        <para>Creates a new process running on the guest. Extended version for
-          also setting the process priority and affinity.</para>
+        Creates a new process running on the guest. Extended version for
+        also setting the process priority and affinity.
 
-        <para>See <link to="IGuestSession::processCreate"/> for more
-          information.</para>
+        See <link to="IGuestSession::processCreate"/> for more information.
       </desc>
       <param name="command" type="wstring" dir="in">
         <desc>
@@ -11043,12 +11581,13 @@
       </param>
       <param name="environment" type="wstring" dir="in" safearray="yes">
         <desc>
-          <para>Environment variables that can be set while the command is being
+          Environment variables that can be set while the command is being
           executed, in form of "NAME=VALUE"; one pair per entry. To unset a
-          variable just set its name ("NAME") without a value.</para>
-          <para>This parameter can be used to override environment variables set by
+          variable just set its name ("NAME") without a value.
+
+          This parameter can be used to override environment variables set by
           the guest session, which will be applied to the newly started process
-          in any case.</para>
+          in any case.
         </desc>
       </param>
       <param name="flags" type="ProcessCreateFlag" dir="in" safearray="yes">
@@ -11182,7 +11721,7 @@
 
     <method name="waitFor">
       <desc>
-        Waits for one more events to happen.
+        Waits for one or more events to happen.
       </desc>
       <param name="waitFor" type="unsigned long" dir="in">
         <desc>
@@ -11206,7 +11745,7 @@
 
     <method name="waitForArray">
       <desc>
-        Waits for one more events to happen.
+        Waits for one or more events to happen.
         Scriptable version of <link to="#waitFor" />.
       </desc>
       <param name="waitFor" type="GuestSessionWaitForFlag" dir="in" safearray="yes">
@@ -11283,7 +11822,7 @@
 
     <method name="waitFor">
       <desc>
-        Waits for one more events to happen.
+        Waits for one or more events to happen.
       </desc>
       <param name="waitFor" type="unsigned long" dir="in">
         <desc>
@@ -11307,7 +11846,7 @@
 
     <method name="waitForArray">
       <desc>
-        Waits for one more events to happen.
+        Waits for one or more events to happen.
         Scriptable version of <link to="#waitFor" />.
       </desc>
       <param name="waitFor" type="ProcessWaitForFlag" dir="in" safearray="yes">
@@ -11822,7 +12361,7 @@
 
   <interface
     name="IGuest" extends="$unknown"
-    uuid="8011a1b1-6adb-4ffb-a37e-20abdaee4650"
+    uuid="97927199-7e1f-4094-97ab-92333e727843"
     wsmap="managed"
     >
     <desc>
@@ -11851,22 +12390,37 @@
 
     <attribute name="additionsRunLevel" type="AdditionsRunLevelType" readonly="yes">
       <desc>
-        Current run level of the Guest Additions.
+        Current run level of the installed Guest Additions.
       </desc>
     </attribute>
 
     <attribute name="additionsVersion" type="wstring" readonly="yes">
       <desc>
-        Version of the Guest Additions in the same format as
+        Version of the installed Guest Additions in the same format as
         <link to="IVirtualBox::version"/>.
       </desc>
     </attribute>
 
     <attribute name="additionsRevision" type="unsigned long" readonly="yes">
       <desc>
-        The internal build revision number of the additions.
+        The internal build revision number of the installed Guest Additions.
 
         See also <link to="IVirtualBox::revision"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="dnDSource" type="IGuestDnDSource" readonly="yes">
+      <desc>
+        Retrieves the drag'n drop source implementation for the guest side, that
+        is, handling and retrieving drag'n drop data from the guest.
+      </desc>
+    </attribute>
+
+    <attribute name="dnDTarget" type="IGuestDnDTarget" readonly="yes">
+      <desc>
+        Retrieves the drag'n drop source implementation for the host side. This
+        will allow the host to handle and initiate a drag'n drop operation to copy
+        data from the host to the guest.
       </desc>
     </attribute>
 
@@ -11878,8 +12432,8 @@
 
     <attribute name="facilities" type="IAdditionsFacility" readonly="yes" safearray="yes">
       <desc>
-        Array of current known facilities. Only returns facilities where a status is known,
-        e.g. facilities with an unknown status will not be returned.
+        Returns a collection of current known facilities. Only returns facilities where
+        a status is known, e.g. facilities with an unknown status will not be returned.
       </desc>
     </attribute>
 
@@ -12000,219 +12554,6 @@
           interactively specify different credentials. This flag might
           not be supported by all versions of the Additions.
         </desc>
-      </param>
-    </method>
-
-    <method name="dragHGEnter">
-      <desc>
-        Informs the guest about a Drag and Drop enter event.
-
-        This is used in Host - Guest direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-      <param name="y" type="unsigned long" dir="in">
-        <desc>y-position of the event.</desc>
-      </param>
-      <param name="x" type="unsigned long" dir="in">
-        <desc>x-position of the event.</desc>
-      </param>
-      <param name="defaultAction" type="DragAndDropAction" dir="in">
-        <desc>The default action to use.</desc>
-      </param>
-      <param name="allowedActions" type="DragAndDropAction" dir="in" safearray="yes">
-        <desc>The actions which are allowed.</desc>
-      </param>
-      <param name="formats" type="wstring" dir="in" safearray="yes">
-        <desc>The supported mime types.</desc>
-      </param>
-      <param name="resultAction" type="DragAndDropAction" dir="return">
-        <desc>The resulting action of this event.</desc>
-      </param>
-    </method>
-
-    <method name="dragHGMove">
-      <desc>
-        Informs the guest about a Drag and Drop move event.
-
-        This is used in Host - Guest direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-      <param name="x" type="unsigned long" dir="in">
-        <desc>x-position of the event.</desc>
-      </param>
-      <param name="y" type="unsigned long" dir="in">
-        <desc>y-position of the event.</desc>
-      </param>
-      <param name="defaultAction" type="DragAndDropAction" dir="in">
-        <desc>The default action to use.</desc>
-      </param>
-      <param name="allowedActions" type="DragAndDropAction" dir="in" safearray="yes">
-        <desc>The actions which are allowed.</desc>
-      </param>
-      <param name="formats" type="wstring" dir="in" safearray="yes">
-        <desc>The supported mime types.</desc>
-      </param>
-      <param name="resultAction" type="DragAndDropAction" dir="return">
-        <desc>The resulting action of this event.</desc>
-      </param>
-    </method>
-
-    <method name="dragHGLeave">
-      <desc>
-        Informs the guest about a Drag and Drop leave event.
-
-        This is used in Host - Guest direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-    </method>
-
-    <method name="dragHGDrop">
-      <desc>
-        Informs the guest about a drop event.
-
-        This is used in Host - Guest direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-      <param name="x" type="unsigned long" dir="in">
-        <desc>x-position of the event.</desc>
-      </param>
-      <param name="y" type="unsigned long" dir="in">
-        <desc>y-position of the event.</desc>
-      </param>
-      <param name="defaultAction" type="DragAndDropAction" dir="in">
-        <desc>The default action to use.</desc>
-      </param>
-      <param name="allowedActions" type="DragAndDropAction" dir="in" safearray="yes">
-        <desc>The actions which are allowed.</desc>
-      </param>
-      <param name="formats" type="wstring" dir="in" safearray="yes">
-        <desc>The supported mime types.</desc>
-      </param>
-      <param name="format" type="wstring" dir="out">
-        <desc>The resulting format of this event.</desc>
-      </param>
-      <param name="resultAction" type="DragAndDropAction" dir="return">
-        <desc>The resulting action of this event.</desc>
-      </param>
-    </method>
-
-    <method name="dragHGPutData">
-      <desc>
-        Informs the guest about a drop data event.
-
-        This is used in Host - Guest direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-      <param name="format" type="wstring" dir="in">
-        <desc>The mime type the data is in.</desc>
-      </param>
-      <param name="data" type="octet" dir="in" safearray="yes">
-        <desc>The actual data.</desc>
-      </param>
-      <param name="progress" type="IProgress" dir="return">
-        <desc>Progress object to track the operation completion.</desc>
-      </param>
-    </method>
-
-    <method name="dragGHPending">
-      <desc>
-        Ask the guest if there is any Drag and Drop operation pending in the guest.
-
-        If no Drag and Drop operation is pending currently, Ignore is returned.
-
-        This is used in Guest - Host direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>The screen id where the Drag and Drop event occurred.</desc>
-      </param>
-      <param name="formats" type="wstring" dir="out" safearray="yes">
-        <desc>On return the supported mime types.</desc>
-      </param>
-      <param name="allowedActions" type="DragAndDropAction" dir="out" safearray="yes">
-        <desc>On return the actions which are allowed.</desc>
-      </param>
-      <param name="defaultAction" type="DragAndDropAction" dir="return">
-        <desc>On return the default action to use.</desc>
-      </param>
-    </method>
-
-    <method name="dragGHDropped">
-      <desc>
-        Informs the guest that a drop event occurred for a pending Drag and Drop event.
-
-        This is used in Guest - Host direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-
-      <param name="format" type="wstring" dir="in">
-        <desc>The mime type the data must be in.</desc>
-      </param>
-      <param name="action" type="DragAndDropAction" dir="in">
-        <desc>The action to use.</desc>
-      </param>
-      <param name="progress" type="IProgress" dir="return">
-        <desc>Progress object to track the operation completion.</desc>
-      </param>
-    </method>
-
-    <method name="dragGHGetData">
-      <desc>
-        Fetch the data of a previously Drag and Drop event from the guest.
-
-        This is used in Guest - Host direction.
-
-        <result name="VBOX_E_VM_ERROR">
-          VMM device is not available.
-        </result>
-
-      </desc>
-
-      <param name="data" type="octet" safearray="yes" dir="return">
-        <desc>The actual data.</desc>
       </param>
     </method>
 
@@ -12880,7 +13221,7 @@
 
   <enum
     name="MediumVariant"
-    uuid="80685b6b-e42f-497d-8271-e77bf3c61ada"
+    uuid="0282e97f-4ef3-4411-a8e0-47c384803cb6"
     >
     <desc>
       Virtual medium image variant. More than one flag may be set.
@@ -12911,6 +13252,11 @@
     <const name="VmdkESX"               value="0x08">
       <desc>
         VMDK format variant used on ESX products.
+      </desc>
+    </const>
+    <const name="VdiZeroExpand"         value="0x100">
+      <desc>
+        Fill new blocks with zeroes while expanding image file.
       </desc>
     </const>
     <const name="Fixed"                 value="0x10000">
@@ -13175,7 +13521,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMedium" extends="$unknown"
-    uuid="05f2bbb6-a3a6-4fb9-9b49-6d0dda7142ac"
+    uuid="9680d99b-3550-4e14-8fc4-82ad1426cbde"
     wsmap="managed"
     >
     <desc>
@@ -13215,7 +13561,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
       Existing media are opened using <link to="IVirtualBox::openMedium"/>;
       new hard disk media can be created with the VirtualBox API using the
-      <link to="IVirtualBox::createHardDisk"/> method. Differencing hard
+      <link to="IVirtualBox::createMedium"/> method. Differencing hard
       disks (see below) are usually implicitly created by VirtualBox as
       needed, but may also be created explicitly using <link to="#createDiffStorage"/>.
       VirtualBox cannot create CD/DVD or floppy images (ISO and RAW files); these
@@ -13506,7 +13852,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="parent" type="IMedium" readonly="yes">
+    <attribute name="parent" type="IMedium" readonly="yes" wrap-hint-server="passcaller">
       <desc>
         Parent of this medium (the medium this medium is directly based
         on).
@@ -13516,7 +13862,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="children" type="IMedium" safearray="yes" readonly="yes">
+    <attribute name="children" type="IMedium" safearray="yes" readonly="yes" wrap-hint-server="passcaller">
       <desc>
         Children of this medium (all differencing media directly based
         on this medium). A @c null array is returned if this medium
@@ -13524,7 +13870,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="base" type="IMedium" readonly="yes">
+    <attribute name="base" type="IMedium" readonly="yes" wrap-hint-server="passcaller">
       <desc>
         Base medium of this medium.
 
@@ -13638,7 +13984,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <method name="setIds">
+    <method name="setIds" wrap-hint-server="passcaller">
       <desc>
         Changes the UUID and parent UUID for a hard disk medium.
       </desc>
@@ -13674,7 +14020,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </result>
     </method>
 
-    <method name="refreshState">
+    <method name="refreshState" wrap-hint-server="passcaller">
       <desc>
         If the current medium state (see <link to="MediumState"/>) is one of
         "Created", "Inaccessible" or "LockedRead", then this performs an
@@ -13853,7 +14199,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
-    <method name="close">
+    <method name="close" wrap-hint-server="passcaller">
       <desc>
         Closes this medium.
 
@@ -14423,6 +14769,81 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
+    <method name="changeEncryption">
+      <desc>
+        Starts encryption of this medium. This means that the stored data in the
+        medium is encrypted.
+
+        This medium will be placed to <link to="MediumState_LockedWrite"/>
+        state.
+
+        Please note that the results can be either returned straight away,
+        or later as the result of the background operation via the object
+        returned via the @a progress parameter.
+
+        <result name="VBOX_E_NOT_SUPPORTED">
+          Encryption is not supported for this medium because it is attached to more than one VM
+          or has children.
+        </result>
+      </desc>
+      <param name="currentPassword" type="wstring" dir="in">
+        <desc>
+          The olcurrentd password the medium is protected with. Use an empty string to indicate
+          that the medium isn't encrypted.
+        </desc>
+      </param>
+      <param name="cipher" type="wstring" dir="in">
+        <desc>
+          The cipher to use for encryption. An empty string indicates no encryption for the
+          result.
+        </desc>
+      </param>
+      <param name="newPassword" type="wstring" dir="in">
+        <desc>
+          The new password the medium should be protected with. An empty password and password ID
+          will result in the medium being encrypted with the current password.
+        </desc>
+      </param>
+      <param name="newPasswordId" type="wstring" dir="in">
+        <desc>The ID of the new password when unlocking the medium.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="getEncryptionSettings" const="yes">
+      <desc>
+        Returns the encryption settings for this medium.
+
+        <result name="VBOX_E_NOT_SUPPORTED">
+          Encryption is not configured for this medium.
+        </result>
+      </desc>
+      <param name="cipher" type="wstring" dir="out">
+        <desc>The cipher used for encryption.</desc>
+      </param>
+      <param name="passwordId" type="wstring" dir="return">
+        <desc>The ID of the password when unlocking the medium.</desc>
+      </param>
+    </method>
+
+    <method name="checkEncryptionPassword" const="yes">
+      <desc>
+        Checks whether the supplied password is correct for the medium.
+
+        <result name="VBOX_E_NOT_SUPPORTED">
+          Encryption is not configured for this medium.
+        </result>
+        <result name="VBOX_E_PASSWORD_INCORRECT">
+          The given password is incorrect.
+        </result>
+      </desc>
+      <param name="password" type="wstring" dir="in">
+        <desc>The password to check.</desc>
+      </param>
+    </method>
+
   </interface>
 
 
@@ -14543,7 +14964,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
         Each medium format is identified by a string represented by the
         <link to="#id"/> attribute. This string is used in calls like
-        <link to="IVirtualBox::createHardDisk"/> to specify the desired
+        <link to="IVirtualBox::createMedium"/> to specify the desired
         format.
 
         The list of all supported medium formats can be obtained using
@@ -14567,7 +14988,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
         This string is used in methods of other interfaces where it is necessary
         to specify a medium format, such as
-        <link to="IVirtualBox::createHardDisk"/>.
+        <link to="IVirtualBox::createMedium"/>.
       </desc>
     </attribute>
 
@@ -14689,9 +15110,22 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   /////////////////////////////////////////////////////////////////////////
   -->
 
+  <enum
+    name="KeyboardLED"
+    uuid="ef29ea38-409b-49c7-a817-c858d426dfba"
+    >
+    <desc>
+      Keyboard LED indicators.
+    </desc>
+
+    <const name="NumLock" value="0x01"/>
+    <const name="CapsLock" value="0x02"/>
+    <const name="ScrollLock" value="0x04"/>
+  </enum>
+
   <interface
     name="IKeyboard" extends="$unknown"
-    uuid="f6916ec5-a881-4237-898f-7de58cf88672"
+    uuid="585cc5e8-349c-41c6-899d-d9a38e3f4126"
     wsmap="managed"
     >
     <desc>
@@ -14701,6 +15135,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Use this interface to send keystrokes or the Ctrl-Alt-Del sequence
       to the virtual machine.
     </desc>
+
+    <attribute name="keyboardLEDs" type="KeyboardLED" safearray="yes" readonly="yes">
+      <desc>
+        Current status of the guest keyboard LEDs.
+      </desc>
+    </attribute>
 
     <method name="putScancode">
       <desc>Sends a scancode to the keyboard.
@@ -14732,6 +15172,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
         <result name="VBOX_E_IPRT_ERROR">
           Could not send all scan codes to virtual keyboard.
+        </result>
+
+      </desc>
+    </method>
+
+    <method name="releaseKeys">
+      <desc>Causes the virtual keyboard to release any keys which are
+      currently pressed. Useful when host and guest keyboard may be out
+      of sync.
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Could not release some or all keys.
         </result>
 
       </desc>
@@ -14792,8 +15244,81 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   </enum>
 
   <interface
+    name="IMousePointerShape" extends="$unknown"
+    uuid="4609f3e1-839a-4edd-b57f-cc4584b39173"
+    wsmap="managed"
+    >
+    <desc>
+      The guest mouse pointer description.
+    </desc>
+
+    <attribute name="visible" type="boolean" readonly="yes">
+      <desc>
+        Flag whether the pointer is visible.
+      </desc>
+    </attribute>
+    <attribute name="alpha" type="boolean" readonly="yes">
+      <desc>
+        Flag whether the pointer has an alpha channel.
+      </desc>
+    </attribute>
+    <attribute name="hotX" type="unsigned long" readonly="yes">
+      <desc>
+        The pointer hot spot X coordinate.
+      </desc>
+    </attribute>
+    <attribute name="hotY" type="unsigned long" readonly="yes">
+      <desc>
+        The pointer hot spot Y coordinate.
+      </desc>
+    </attribute>
+    <attribute name="width" type="unsigned long" readonly="yes">
+      <desc>
+        Width of the pointer shape in pixels.
+      </desc>
+    </attribute>
+    <attribute name="height" type="unsigned long" readonly="yes">
+      <desc>
+        Height of the pointer shape in pixels.
+      </desc>
+    </attribute>
+    <attribute name="shape" type="octet" safearray="yes" readonly="yes">
+      <desc>
+        Shape bitmaps.
+
+        The @a shape buffer contains a 1bpp (bits per pixel) AND mask
+        followed by a 32bpp XOR (color) mask.
+
+        For pointers without alpha channel the XOR mask pixels are
+        32 bit values: (lsb)BGR0(msb). For pointers with alpha channel
+        the XOR mask consists of (lsb)BGRA(msb) 32 bit values.
+
+        An AND mask is provided for pointers with alpha channel, so if the
+        client does not support alpha, the pointer could be
+        displayed as a normal color pointer.
+
+        The AND mask is a 1bpp bitmap with byte aligned scanlines. The
+        size of the AND mask therefore is <tt>cbAnd = (width + 7) / 8 *
+          height</tt>. The padding bits at the end of each scanline are
+        undefined.
+
+        The XOR mask follows the AND mask on the next 4-byte aligned
+        offset: <tt>uint8_t *pu8Xor = pu8And + (cbAnd + 3) &amp; ~3</tt>.
+        Bytes in the gap between the AND and the XOR mask are undefined.
+        The XOR mask scanlines have no gap between them and the size of
+        the XOR mask is: <tt>cbXor = width * 4 * height</tt>.
+
+        <note>
+          If @a shape size is 0, then the shape is not known or did not change.
+          This can happen if only the pointer visibility is changed.
+        </note>
+      </desc>
+    </attribute>
+  </interface>
+
+  <interface
     name="IMouse" extends="$unknown"
-    uuid="ee770393-415f-4421-b2d5-28b73cacf86a"
+    uuid="4c3fa51c-7b9a-4ecf-97f0-d75a945bd26c"
     wsmap="managed"
     >
     <desc>
@@ -14852,6 +15377,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           during virtual machine execution.
         </note>
         <see><link to="#putMouseEvent"/></see>
+      </desc>
+    </attribute>
+
+    <attribute name="pointerShape" type="IMousePointerShape" readonly="yes">
+      <desc>
+        The current mouse pointer used by the guest.
       </desc>
     </attribute>
 
@@ -15055,41 +15586,55 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   /////////////////////////////////////////////////////////////////////////
   -->
 
+  <interface
+    name="IDisplaySourceBitmap" extends="$unknown" wsmap="suppress"
+    uuid="0b78daeb-f52f-43b9-99e8-4a3c226cbe2d"
+    >
+    <attribute name="screenId" type="unsigned long" readonly="yes"/>
+    <method name="queryBitmapInfo">
+      <desc>Information about the screen bitmap.</desc>
+      <param name="address" type="octet" mod="ptr" dir="out"/>
+      <param name="width" type="unsigned long" dir="out"/>
+      <param name="height" type="unsigned long" dir="out"/>
+      <param name="bitsPerPixel" type="unsigned long" dir="out"/>
+      <param name="bytesPerLine" type="unsigned long" dir="out"/>
+      <param name="bitmapFormat" type="BitmapFormat" dir="out"/>
+    </method>
+
+  </interface>
+
   <enum
-    name="FramebufferPixelFormat"
-    uuid="7acfd5ed-29e3-45e3-8136-73c9224f3d2d"
+    name="FramebufferCapabilities"
+    uuid="cc395839-30fa-4ca5-ae65-e6360e3edd7a"
     >
     <desc>
-      Format of the video memory buffer. Constants represented by this enum can
-      be used to test for particular values of <link
-      to="IFramebuffer::pixelFormat"/>.
-
-      See also www.fourcc.org for more information about FOURCC pixel formats.
+      Framebuffer capability flags.
     </desc>
 
-    <const name="Opaque"                value="0">
+    <const name="UpdateImage" value="0x01">
       <desc>
-        Unknown buffer format (the user may not assume any particular format of
-        the buffer).
+        Requires NotifyUpdateImage. NotifyUpdate must not be called.
       </desc>
     </const>
-    <const name="FOURCC_RGB"            value="0x32424752">
+
+    <const name="VHWA" value="0x02">
       <desc>
-        Basic RGB format (<link to="IFramebuffer::bitsPerPixel"/> determines the
-        bit layout).
+        Supports VHWA interface. If set, then IFramebuffer::processVHWACommand can be called.
+      </desc>
+    </const>
+
+    <const name="VisibleRegion" value="0x04">
+      <desc>
+        Supports visible region. If set, then IFramebuffer::setVisibleRegion can be called.
       </desc>
     </const>
   </enum>
 
   <interface
     name="IFramebuffer" extends="$unknown"
-    uuid="e3f122c0-adab-4fc9-a8dc-da112fb48428"
+    uuid="dd07f843-be2e-4cae-83fe-8bf5d33c80e9"
     wsmap="managed"
     >
-    <attribute name="address" type="octet" mod="ptr" readonly="yes" wsmap="suppress">
-      <desc>Address of the start byte of the frame buffer.</desc>
-    </attribute>
-
     <attribute name="width" type="unsigned long" readonly="yes">
       <desc>Frame buffer width, in pixels.</desc>
     </attribute>
@@ -15100,36 +15645,25 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <attribute name="bitsPerPixel" type="unsigned long" readonly="yes">
       <desc>
-        Color depth, in bits per pixel. When <link to="#pixelFormat"/> is <link
-        to="FramebufferPixelFormat_FOURCC_RGB">FOURCC_RGB</link>, valid values
-        are: 8, 15, 16, 24 and 32.
+        Color depth, in bits per pixel.
       </desc>
     </attribute>
 
     <attribute name="bytesPerLine" type="unsigned long" readonly="yes">
       <desc>
-        Scan line size, in bytes. When <link to="#pixelFormat"/> is <link
-        to="FramebufferPixelFormat_FOURCC_RGB">FOURCC_RGB</link>, the
-        size of the scan line must be aligned to 32 bits.
+        Scan line size, in bytes.
       </desc>
     </attribute>
 
-    <attribute name="pixelFormat" type="unsigned long" readonly="yes">
+    <attribute name="pixelFormat" type="BitmapFormat" readonly="yes">
       <desc>
-        Frame buffer pixel format. It's either one of the values defined by <link
-        to="FramebufferPixelFormat"/> or a raw FOURCC code.
+        Frame buffer pixel format. It's one of the values defined by <link
+        to="BitmapFormat"/>.
         <note>
           This attribute must never (and will never) return <link
-          to="FramebufferPixelFormat_Opaque"/> -- the format of the frame
+          to="BitmapFormat_Opaque"/> -- the format of the frame
           buffer must be always known.
         </note>
-      </desc>
-    </attribute>
-
-    <attribute name="usesGuestVRAM" type="boolean" readonly="yes">
-      <desc>
-        Defines whether this frame buffer uses the virtual video card's memory
-        buffer (guest VRAM) directly or not.
       </desc>
     </attribute>
 
@@ -15165,23 +15699,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <method name="lock" wsmap="suppress">
-      <desc>
-        Locks the frame buffer.
-        Gets called by the IDisplay object where this frame buffer is
-        bound to.
-      </desc>
-    </method>
-
-    <method name="unlock" wsmap="suppress">
-      <desc>
-        Unlocks the frame buffer.
-        Gets called by the IDisplay object where this frame buffer is
-        bound to.
-      </desc>
-    </method>
-
-    <method name="notifyUpdate" wsmap="suppress">
+    <method name="notifyUpdate">
       <desc>
         Informs about an update.
         Gets called by the display object where this buffer is
@@ -15193,122 +15711,41 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="height" type="unsigned long" dir="in"/>
     </method>
 
-    <method name="requestResize" wsmap="suppress">
+    <method name="notifyUpdateImage">
       <desc>
-        Requests a size and pixel format change.
+        Informs about an update and provides 32bpp bitmap.
+      </desc>
+      <param name="x" type="unsigned long" dir="in"/>
+      <param name="y" type="unsigned long" dir="in"/>
+      <param name="width" type="unsigned long" dir="in"/>
+      <param name="height" type="unsigned long" dir="in"/>
+      <param name="image" type="octet" dir="in" safearray="yes">
+        <desc>
+          Array with 32BPP image data.
+        </desc>
+      </param>
+    </method>
 
-        There are two modes of working with the video buffer of the virtual
-        machine. The <i>indirect</i> mode implies that the IFramebuffer
-        implementation allocates a memory buffer for the requested display mode
-        and provides it to the virtual machine. In <i>direct</i> mode, the
-        IFramebuffer implementation uses the memory buffer allocated and owned
-        by the virtual machine. This buffer represents the video memory of the
-        emulated video adapter (so called <i>guest VRAM</i>). The direct mode is
-        usually faster because the implementation gets a raw pointer to the
-        guest VRAM buffer which it can directly use for visualizing the contents
-        of the virtual display, as opposed to the indirect mode where the
-        contents of guest VRAM are copied to the memory buffer provided by
-        the implementation every time a display update occurs.
-
-        It is important to note that the direct mode is really fast only when
-        the implementation uses the given guest VRAM buffer directly, for
-        example, by blitting it to the window representing the virtual machine's
-        display, which saves at least one copy operation comparing to the
-        indirect mode. However, using the guest VRAM buffer directly is not
-        always possible: the format and the color depth of this buffer may be
-        not supported by the target window, or it may be unknown (opaque) as in
-        case of text or non-linear multi-plane VGA video modes. In this case,
-        the indirect mode (that is always available) should be used as a
-        fallback: when the guest VRAM contents are copied to the
-        implementation-provided memory buffer, color and format conversion is
-        done automatically by the underlying code.
-
-        The @a pixelFormat parameter defines whether the direct mode is
-        available or not. If @a pixelFormat is <link
-        to="FramebufferPixelFormat_Opaque"/> then direct access to the guest
-        VRAM buffer is not available -- the @a VRAM, @a bitsPerPixel and
-        @a bytesPerLine parameters must be ignored and the implementation must use
-        the indirect mode (where it provides its own buffer in one of the
-        supported formats). In all other cases, @a pixelFormat together with
-        @a bitsPerPixel and @a bytesPerLine define the format of the video memory
-        buffer pointed to by the @a VRAM parameter and the implementation is
-        free to choose which mode to use. To indicate that this frame buffer uses
-        the direct mode, the implementation of the <link to="#usesGuestVRAM"/>
-        attribute must return @c true and <link to="#address"/> must
-        return exactly the same address that is passed in the @a VRAM parameter
-        of this method; otherwise it is assumed that the indirect strategy is
-        chosen.
-
-        The @a width and @a height parameters represent the size of the
-        requested display mode in both modes. In case of indirect mode, the
-        provided memory buffer should be big enough to store data of the given
-        display mode. In case of direct mode, it is guaranteed that the given
-        @a VRAM buffer contains enough space to represent the display mode of the
-        given size. Note that this frame buffer's <link to="#width"/> and <link
-        to="#height"/> attributes must return exactly the same values as
-        passed to this method after the resize is completed (see below).
-
-        The @a finished output parameter determines if the implementation has
-        finished resizing the frame buffer or not. If, for some reason, the
-        resize cannot be finished immediately during this call, @a finished
-        must be set to @c false, and the implementation must call
-        <link to="IDisplay::resizeCompleted"/> after it has returned from
-        this method as soon as possible. If @a finished is @c false, the
-        machine will not call any frame buffer methods until
-        <link to="IDisplay::resizeCompleted"/> is called.
-
-        Note that if the direct mode is chosen, the <link to="#bitsPerPixel"/>,
-        <link to="#bytesPerLine"/> and <link to="#pixelFormat"/> attributes of
-        this frame buffer must return exactly the same values as specified in the
-        parameters of this method, after the resize is completed. If the
-        indirect mode is chosen, these attributes must return values describing
-        the format of the implementation's own memory buffer <link
-        to="#address"/> points to. Note also that the <link to="#bitsPerPixel"/>
-        value must always correlate with <link to="#pixelFormat"/>. Note that
-        the <link to="#pixelFormat"/> attribute must never return <link
-        to="FramebufferPixelFormat_Opaque"/> regardless of the selected mode.
-
-        <note>
-          This method is called by the IDisplay object under the
-          <link to="#lock"/> provided by this IFramebuffer
-          implementation. If this method returns @c false in @a finished, then
-          this lock is not released until
-          <link to="IDisplay::resizeCompleted"/> is called.
-        </note>
+    <method name="notifyChange">
+      <desc>
+        Requests a size change.
       </desc>
       <param name="screenId" type="unsigned long" dir="in">
         <desc>
-          Logical screen number. Must be used in the corresponding call to
-          <link to="IDisplay::resizeCompleted"/> if this call is made.
+          Logical guest screen number.
         </desc>
       </param>
-      <param name="pixelFormat" type="unsigned long" dir="in">
-        <desc>
-          Pixel format of the memory buffer pointed to by @a VRAM.
-          See also <link to="FramebufferPixelFormat"/>.
-        </desc>
+      <param name="xOrigin" type="unsigned long" dir="in">
+        <desc>Location of the screen in the guest.</desc>
       </param>
-      <param name="VRAM" type="octet" mod="ptr" dir="in">
-        <desc>Pointer to the virtual video card's VRAM (may be @c null).</desc>
-      </param>
-      <param name="bitsPerPixel" type="unsigned long" dir="in">
-        <desc>Color depth, bits per pixel.</desc>
-      </param>
-      <param name="bytesPerLine" type="unsigned long" dir="in">
-        <desc>Size of one scan line, in bytes.</desc>
+      <param name="yOrigin" type="unsigned long" dir="in">
+        <desc>Location of the screen in the guest.</desc>
       </param>
       <param name="width" type="unsigned long" dir="in">
         <desc>Width of the guest display, in pixels.</desc>
       </param>
       <param name="height" type="unsigned long" dir="in">
         <desc>Height of the guest display, in pixels.</desc>
-      </param>
-      <param name="finished" type="boolean" dir="return">
-        <desc>
-          Can the VM start using the new frame buffer immediately
-          after this method returns or it should wait for
-          <link to="IDisplay::resizeCompleted"/>.
-        </desc>
       </param>
     </method>
 
@@ -15415,10 +15852,19 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="type" type="unsigned long" dir="in">
         <desc>event type. Currently only VBOX3D_NOTIFY_EVENT_TYPE_VISIBLE_3DDATA is supported.</desc>
       </param>
-      <param name="data" type="octet" mod="ptr" dir="in">
+      <param name="data" type="octet" dir="in" safearray="yes">
         <desc>event-specific data, depends on the supplied event type</desc>
       </param>
     </method>
+
+    <attribute name="capabilities" type="FramebufferCapabilities" safearray="yes" readonly="yes">
+      <desc>
+        Capabilities of the framebuffer instance.
+
+        For the meaning of individual capability flags see
+        <link to="FramebufferCapabilities"/>.
+      </desc>
+    </attribute>
 
   </interface>
 
@@ -15468,10 +15914,32 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   </interface>
 
+  <enum
+    name="GuestMonitorStatus"
+    uuid="a0001cb1-97c9-496d-82bc-616c19a9e212"
+    >
+    <desc>
+      The current status of the guest display.
+    </desc>
+
+    <const name="Disabled" value="0">
+      <desc>
+        The guest monitor is disabled in the guest.
+      </desc>
+    </const>
+
+    <const name="Enabled" value="1">
+      <desc>
+        The guest monitor is enabled in the guest.
+      </desc>
+    </const>
+  </enum>
+
   <interface
     name="IDisplay" extends="$unknown"
-    uuid="480b372c-c0b5-4c23-9bd7-dcbb85b1594c"
+    uuid="04AA5E91-3816-4990-8C52-59939307E5EF"
     wsmap="managed"
+    wrap-hint-server-addinterfaces="IEventListener"
     >
     <desc>
       The IDisplay interface represents the virtual machine's display.
@@ -15484,32 +15952,46 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       IFramebuffer interface. Examples of the output target are a window on
       the host computer or an RDP session's display on a remote computer.
     </desc>
+
     <method name="getScreenResolution">
-      <desc>Queries display width, height and color depth for given screen.</desc>
+      <desc>
+        Queries certain attributes such as display width, height, color depth
+        and the X and Y origin for a given guest screen.
+
+        The parameters @a xOrigin and @a yOrigin return the X and Y
+        coordinates of the framebuffer's origin.
+
+        All return parameters are optional.</desc>
       <param name="screenId" type="unsigned long" dir="in"/>
       <param name="width" type="unsigned long" dir="out"/>
       <param name="height" type="unsigned long" dir="out"/>
       <param name="bitsPerPixel" type="unsigned long" dir="out"/>
       <param name="xOrigin" type="long" dir="out"/>
       <param name="yOrigin" type="long" dir="out"/>
+      <param name="guestMonitorStatus" type="GuestMonitorStatus" dir="out"/>
     </method>
 
-    <method name="setFramebuffer">
+    <method name="attachFramebuffer">
       <desc>
-        Sets the framebuffer for given screen.
+        Sets the graphics update target for a screen.
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
       <param name="framebuffer" type="IFramebuffer" dir="in"/>
     </method>
 
-    <method name="getFramebuffer">
+    <method name="detachFramebuffer">
       <desc>
-        Queries the framebuffer for given screen.
+        Removes the graphics updates target for a screen.
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
-      <param name="framebuffer" type="IFramebuffer" dir="out"/>
-      <param name="xOrigin" type="long" dir="out"/>
-      <param name="yOrigin" type="long" dir="out"/>
+    </method>
+
+    <method name="queryFramebuffer">
+      <desc>
+        Queries the graphics updates targets for a screen.
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
+      <param name="framebuffer" type="IFramebuffer" dir="return"/>
     </method>
 
     <method name="setVideoModeHint">
@@ -15583,9 +16065,10 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <method name="takeScreenShot">
       <desc>
-        Takes a screen shot of the requested size and copies it to the
-        32-bpp buffer allocated by the caller and pointed to by @a address.
-        A pixel consists of 4 bytes in order: B, G, R, 0.
+        Takes a screen shot of the requested size and format and copies it to the
+        buffer allocated by the caller and pointed to by @a address.
+        The buffer size must be enough for a 32 bits per pixel bitmap,
+        i.e. width * height * 4 bytes.
 
         <note>This API can be used only locally by a VM process through the
             COM/XPCOM C++ API as it requires pointer support. It is not
@@ -15593,41 +16076,22 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
             Unless you are writing a new VM frontend use
             <link to="#takeScreenShotToArray" />.
         </note>
-
-        <result name="E_NOTIMPL">
-          Feature not implemented.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Could not take a screenshot.
-        </result>
-
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
       <param name="address" type="octet" mod="ptr" dir="in"/>
       <param name="width" type="unsigned long" dir="in"/>
       <param name="height" type="unsigned long" dir="in"/>
+      <param name="bitmapFormat" type="BitmapFormat" dir="in"/>
     </method>
 
     <method name="takeScreenShotToArray">
       <desc>
-        Takes a guest screen shot of the requested size and returns it as
-        an array of bytes in uncompressed 32-bpp RGBA format.
-        A pixel consists of 4 bytes in order: R, G, B, 0xFF.
-
-        This API is slow, but could be the only option to get guest screenshot
-        for scriptable languages not allowed to manipulate with addresses
-        directly.
-
-        <result name="E_NOTIMPL">
-          Feature not implemented.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Could not take a screenshot.
-        </result>
+        Takes a guest screen shot of the requested size and format
+        and returns it as an array of bytes.
       </desc>
       <param name="screenId" type="unsigned long" dir="in">
         <desc>
-          Monitor to take screenshot from.
+          The guest monitor to take screenshot from.
         </desc>
       </param>
       <param name="width" type="unsigned long" dir="in">
@@ -15640,38 +16104,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           Desired image height.
         </desc>
       </param>
-      <param name="screenData" type="octet" dir="return" safearray="yes">
+      <param name="bitmapFormat" type="BitmapFormat" dir="in">
         <desc>
-          Array with resulting screen data.
-        </desc>
-      </param>
-    </method>
-
-    <method name="takeScreenShotPNGToArray">
-      <desc>
-        Takes a guest screen shot of the requested size and returns it as
-        PNG image in array.
-
-        <result name="E_NOTIMPL">
-          Feature not implemented.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Could not take a screenshot.
-        </result>
-      </desc>
-      <param name="screenId" type="unsigned long" dir="in">
-        <desc>
-          Monitor to take the screenshot from.
-        </desc>
-      </param>
-      <param name="width" type="unsigned long" dir="in">
-        <desc>
-          Desired image width.
-        </desc>
-      </param>
-      <param name="height" type="unsigned long" dir="in">
-        <desc>
-          Desired image height.
+          The requested format.
         </desc>
       </param>
       <param name="screenData" type="octet" dir="return" safearray="yes">
@@ -15738,16 +16173,15 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </method>
 
-    <method name="resizeCompleted">
+    <method name="invalidateAndUpdateScreen">
       <desc>
-        Signals that a framebuffer has completed the resize operation.
-
-        <result name="VBOX_E_NOT_SUPPORTED">
-          Operation only valid for external frame buffers.
-        </result>
-
+        Redraw the specified VM screen.
       </desc>
-      <param name="screenId" type="unsigned long" dir="in"/>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>
+          The guest screen to redraw.
+        </desc>
+      </param>
     </method>
 
     <method name="completeVHWACommand">
@@ -15796,6 +16230,31 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         </desc>
       </param>
     </method>
+
+    <method name="querySourceBitmap" wsmap="suppress">
+      <desc>
+         Obtains the guest screen bitmap parameters.
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
+      <param name="displaySourceBitmap" type="IDisplaySourceBitmap" dir="out"/>
+    </method>
+
+    <method name="notifyScaleFactorChange">
+      <desc>
+         Notify OpenGL HGCM host service about graphics content scaling factor change.
+      </desc>
+      <param name="screenId" type="unsigned long" dir="in"/>
+      <param name="u32ScaleFactorWMultiplied" type="unsigned long" dir="in"/>
+      <param name="u32ScaleFactorHMultiplied" type="unsigned long" dir="in"/>
+    </method>
+
+    <method name="notifyHiDPIOutputPolicyChange">
+      <desc>
+         Notify OpenGL HGCM host service about HiDPI monitor scaling policy change.
+      </desc>
+      <param name="fUnscaledHiDPI" type="boolean" dir="in"/>
+    </method>
+
   </interface>
 
   <!--
@@ -16863,7 +17322,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     </const>
     <const name="OHCI"      value="1"/>
     <const name="EHCI"      value="2"/>
-    <const name="Last"      value="3">
+    <const name="XHCI"      value="3"/>
+    <const name="Last"      value="4">
       <desc>Last element (invalid). Used for parameter checks.</desc>
     </const>
   </enum>
@@ -16902,9 +17362,60 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   /////////////////////////////////////////////////////////////////////////
   -->
 
+  <enum
+    name="USBConnectionSpeed"
+    uuid="d2915840-ea26-4fb4-b72a-21eaf6b888ff"
+    >
+    <desc>
+      USB device/port speed state. This enumeration represents speeds at
+      which a USB device can communicate with the host.
+
+      The speed is a function of both the device itself and the port which
+      it is attached to, including hubs and cables in the path.
+
+      <note>
+        Due to differences in USB stack implementations on various hosts,
+        the reported speed may not exactly match the actual speed.
+      </note>
+
+      <see><link to="IHostUSBDevice"/></see>
+    </desc>
+
+    <const name="Null"                  value="0">
+      <desc>
+        @c null value. Never returned by the API.
+      </desc>
+    </const>
+    <const name="Low"                   value="1">
+      <desc>
+        Low speed, 1.5 Mbps.
+      </desc>
+    </const>
+    <const name="Full"                  value="2">
+      <desc>
+        Full speed, 12 Mbps.
+      </desc>
+    </const>
+    <const name="High"                  value="3">
+      <desc>
+        High speed, 480 Mbps.
+      </desc>
+    </const>
+    <const name="Super"                 value="4">
+      <desc>
+        SuperSpeed, 5 Gbps.
+      </desc>
+    </const>
+    <const name="SuperPlus"             value="5">
+      <desc>
+        SuperSpeedPlus, 10 Gbps.
+      </desc>
+    </const>
+  </enum>
+
   <interface
     name="IUSBDevice" extends="$unknown"
-    uuid="f8967b0b-4483-400f-92b5-8b675d98a85b"
+    uuid="8d826296-e04f-4e86-9310-cb85b19becde"
     wsmap="managed"
     >
     <desc>
@@ -16964,15 +17475,21 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <attribute name="version" type="unsigned short" readonly="yes">
       <desc>
-        The major USB version of the device - 1 or 2.
+        The major USB version of the device - 1, 2 or 3.
       </desc>
     </attribute>
 
     <attribute name="portVersion" type="unsigned short" readonly="yes">
       <desc>
         The major USB version of the host USB port the device is
-        physically connected to - 1 or 2. For devices not connected to
+        physically connected to - 1, 2 or 3. For devices not connected to
         anything this will have the same value as the version attribute.
+      </desc>
+    </attribute>
+
+    <attribute name="speed" type="USBConnectionSpeed" readonly="yes">
+      <desc>
+        The speed at which the device is currently communicating.
       </desc>
     </attribute>
 
@@ -17650,7 +18167,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IInternalSessionControl" extends="$unknown"
-    uuid="2d2124a7-0f62-4907-ae21-eee5a559bdde"
+    uuid="fdb5fa71-eddb-4e06-9844-277d22270fe0"
     internal="yes"
     wsmap="suppress"
     >
@@ -17881,12 +18398,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
-    <method name="onDragAndDropModeChange">
+    <method name="onDnDModeChange">
       <desc>
-        Notification when the drag'n'drop mode changes.
+        Notification when the drag'n drop mode changes.
       </desc>
-      <param name="dragAndDropMode" type="DragAndDropMode" dir="in">
-        <desc>The new mode for drag'n'drop.</desc>
+      <param name="dndMode" type="DnDMode" dir="in">
+        <desc>The new mode for drag'n drop.</desc>
       </param>
     </method>
 
@@ -17991,6 +18508,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="device" type="IUSBDevice" dir="in"/>
       <param name="error" type="IVirtualBoxErrorInfo" dir="in"/>
       <param name="maskedInterfaces" type="unsigned long" dir="in"/>
+      <param name="captureFilename" type="wstring" dir="in"/>
     </method>
 
     <method name="onUSBDeviceDetach">
@@ -18057,7 +18575,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="name" type="wstring" dir="in"/>
       <param name="value" type="wstring" dir="in"/>
       <param name="flags" type="wstring" dir="in"/>
-      <param name="isSetter" type="boolean" dir="in"/>
+      <param name="accessMode" type="unsigned long" dir="in">
+        <desc>0 = get, 1 = set, 2 = delete.</desc>
+      </param>
       <param name="retValue" type="wstring" dir="out"/>
       <param name="retTimestamp" type="long long" dir="out"/>
       <param name="retFlags" type="wstring" dir="out"/>
@@ -18225,6 +18745,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     name="ISession" extends="$unknown"
     uuid="12F4DCDB-12B2-4EC1-B7CD-DDD9F6C5BF4D"
     wsmap="managed"
+    wrap-hint-server-addinterfaces="IInternalSessionControl"
     >
     <desc>
       The ISession interface represents a client process and allows for locking
@@ -18341,7 +18862,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <enum
     name="StorageBus"
-    uuid="eee67ab3-668d-4ef5-91e0-7025fe4a0d7a"
+    uuid="2dab9df1-9683-48fd-8c11-caada236fcb0"
     >
     <desc>
       The bus type of the storage controller (IDE, SATA, SCSI, SAS or Floppy);
@@ -18355,11 +18876,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <const name="SCSI"      value="3"/>
     <const name="Floppy"    value="4"/>
     <const name="SAS"       value="5"/>
+    <const name="USB"       value="6"/>
   </enum>
 
   <enum
     name="StorageControllerType"
-    uuid="8a412b8a-f43e-4456-bd37-b474f0879a58"
+    uuid="02e190af-b546-4109-b036-6deaa4ef6e69"
     >
     <desc>
       The exact variant of storage controller hardware presented
@@ -18392,6 +18914,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     </const>
     <const name="LsiLogicSas"   value="8">
       <desc>A variant of the LsiLogic controller using SAS.</desc>
+    </const>
+    <const name="USB"           value="9">
+      <desc>Special USB based storage controller.</desc>
     </const>
   </enum>
 
@@ -18580,7 +19105,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IWebsessionManager" extends="$unknown"
-    uuid="dea1b4c7-2de3-418a-850d-7868617f7733"
+    uuid="930c8fea-453a-4a65-aca9-19ed9a872f88"
     internal="yes"
     wsmap="global"
     wscpp="hardcoded"
@@ -18603,8 +19128,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <method name="getSessionObject">
       <desc>
-        Returns a managed object reference to the internal ISession object that was created
-        for this web service session when the client logged on.
+        Returns a managed object reference to a new ISession object for every
+        call to this method.
 
         <see><link to="ISession"/></see>
       </desc>
@@ -18615,8 +19140,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="logoff">
       <desc>
         Logs off the client who has previously logged on with <link to="IWebsessionManager::logon" />
-        and destroys all resources associated with the session (most importantly, all
-        managed objects created in the server while the session was active).
+        and destroys all resources associated with the websession (most
+        importantly, all managed objects created in the server while the
+        websession was active).
       </desc>
       <param name="refIVirtualBox" type="IVirtualBox" dir="in"/>
     </method>
@@ -19385,8 +19911,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>
       Interface for managing VirtualBox Extension Packs.
 
-      TODO: Describe extension packs, how they are managed and how to create
-            one.
+      @todo Describe extension packs, how they are managed and how to create one.
     </desc>
 
     <attribute name="installedExtPacks" type="IExtPack" safearray="yes" readonly="yes">
@@ -19669,7 +20194,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   -->
   <enum
     name="VBoxEventType"
-    uuid="5248e377-e578-47d7-b07b-84b1db6db8a8"
+    uuid="1622f8d2-6c76-4410-9e78-86e083046efc"
     >
 
     <desc>
@@ -19932,9 +20457,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         See <link to="IClipboardModeChangedEvent">IClipboardModeChangedEvent</link>.
       </desc>
     </const>
-    <const name="OnDragAndDropModeChanged" value="73">
+    <const name="OnDnDModeChanged" value="73">
       <desc>
-        See <link to="IDragAndDropModeChangedEvent">IDragAndDropModeChangedEvent</link>.
+        See <link to="IDnDModeChangedEvent">IDnDModeChangedEvent</link>.
       </desc>
     </const>
     <const name="OnNATNetworkChanged" value="74">
@@ -20528,6 +21053,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       A new snapshot of the machine has been taken.
       <see><link to="ISnapshot"/></see>
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20546,6 +21072,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
       <see><link to="ISnapshot"/></see>
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20557,6 +21084,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Snapshot properties (name and/or description) have been changed.
       <see><link to="ISnapshot"/></see>
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20715,6 +21243,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should query IGuest attributes to
       find out what has changed.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20781,6 +21310,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <link to="IMachine::mediumAttachments">medium attachment</link>
       changes.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20816,16 +21346,16 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   </interface>
 
   <interface
-    name="IDragAndDropModeChangedEvent" extends="IEvent"
-    uuid="e90b8850-ac8e-4dff-8059-4100ae2c3c3d"
-    wsmap="managed" autogen="VBoxEvent" id="OnDragAndDropModeChanged"
+    name="IDnDModeChangedEvent" extends="IEvent"
+    uuid="b55cf856-1f8b-4692-abb4-462429fae5e9"
+    wsmap="managed" autogen="VBoxEvent" id="OnDnDModeChanged"
     >
     <desc>
-      Notification when the drag'n'drop mode changes.
+      Notification when the drag'n drop mode changes.
     </desc>
-    <attribute name="dragAndDropMode" type="DragAndDropMode" readonly="yes">
+    <attribute name="dndMode" type="DnDMode" readonly="yes">
       <desc>
-        The new drag'n'drop mode.
+        The new drag'n drop mode.
       </desc>
     </attribute>
   </interface>
@@ -20887,7 +21417,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <desc>
       The mode (relative, absolute, multi-touch) of a pointer event.
-      TODO: a clear pattern seems to be emerging that we should usually have
+
+      @todo A clear pattern seems to be emerging that we should usually have
       multiple input devices active for different types of reporting, so we
       should really have different event types for relative (including wheel),
       absolute (not including wheel) and multi-touch events.
@@ -21273,6 +21804,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Notification when a guest file changed its current offset.
     </desc>
 
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21301,6 +21833,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Notification when data has been written to a guest file.
     </desc>
 
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21314,6 +21847,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should use IVRDEServer methods and attributes to
       find out what has changed.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21326,6 +21860,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       should use <link to="IConsole::VRDEServerInfo">IVRDEServerInfo</link>
       attributes to find out what is the current status.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21336,6 +21871,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>
       Notification when video capture settings have changed.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21349,6 +21885,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should use IUSBController methods and attributes to
       find out what has changed.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21627,6 +22164,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       remain valid at least until the next
       <link to="IConsole::state">machine state</link> change.
     </desc>
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21971,7 +22509,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <attribute name="enabled" type="boolean" readonly="yes"/>
     <attribute name="network" type="wstring" readonly="yes"/>
     <attribute name="gateway" type="wstring" readonly="yes"/>
-    <attribute name="advertiseDefaultIPv6RouteEnabled" type="boolean" readonly="yes"/>
+    <attribute name="advertiseDefaultIPv6RouteEnabled" type="boolean" readonly="yes" dtracename="advertiseDefIPv6Route"/>
     <attribute name="needDhcpServer" type="boolean" readonly="yes"/>
   </interface>
   <interface name="INATNetworkPortForwardEvent" extends="INATNetworkAlterEvent"
@@ -21991,7 +22529,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     name="IHostNameResolutionConfigurationChangeEvent" extends="IEvent"
     uuid="f9b9e1cf-cb63-47a1-84fb-02c4894b89a9"
     wsmap="managed" autogen="VBoxEvent" id="OnHostNameResolutionConfigurationChange"
+    dtracename="HostNameResCfgChangeEvent"
     >
+    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <module name="VBoxSVC" context="LocalServer">

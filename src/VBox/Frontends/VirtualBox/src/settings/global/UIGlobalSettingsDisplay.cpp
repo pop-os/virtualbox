@@ -1,8 +1,6 @@
 /* $Id: UIGlobalSettingsDisplay.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIGlobalSettingsDisplay class implementation
+ * VBox Qt GUI - UIGlobalSettingsDisplay class implementation.
  */
 
 /*
@@ -17,9 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIGlobalSettingsDisplay.h"
-#include "VBoxGlobal.h"
+# include "UIGlobalSettingsDisplay.h"
+# include "UIExtraDataManager.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /* Display page constructor: */
 UIGlobalSettingsDisplay::UIGlobalSettingsDisplay()
@@ -50,12 +55,9 @@ void UIGlobalSettingsDisplay::loadToCacheFrom(QVariant &data)
     /* Fetch data to properties & settings: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Get VBox instance: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-
     /* Load to cache: */
     m_cache.m_strMaxGuestResolution = m_settings.maxGuestRes();
-    m_cache.m_fActivateHoveredMachineWindow = VBoxGlobal::activateHoveredMachineWindow(vbox);
+    m_cache.m_fActivateHoveredMachineWindow = gEDataManager->activateHoveredMachineWindow();
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);
@@ -125,12 +127,9 @@ void UIGlobalSettingsDisplay::saveFromCacheTo(QVariant &data)
     /* Fetch data to properties & settings: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Get VBox instance: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-
     /* Save from cache: */
     m_settings.setMaxGuestRes(m_cache.m_strMaxGuestResolution);
-    VBoxGlobal::setActivateHoveredMachineWindow(vbox, m_cache.m_fActivateHoveredMachineWindow);
+    gEDataManager->setActivateHoveredMachineWindow(m_cache.m_fActivateHoveredMachineWindow);
 
     /* Upload properties & settings to data: */
     UISettingsPageGlobal::uploadData(data);

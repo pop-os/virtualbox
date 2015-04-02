@@ -378,8 +378,8 @@
           </listitem>
 
           <listitem>
-            <para><computeroutput>ohci/ehci</computeroutput> -- print a subset
-            of the OHCI/EHCI USB controller state</para>
+            <para><computeroutput>ohci/ehci/xhci</computeroutput> -- print a subset
+            of the OHCI/EHCI/xHCI USB controller state</para>
           </listitem>
 
           <listitem>
@@ -1081,6 +1081,24 @@ VBoxClient --seamless</screen> when your X11 user session is started if you
     </sect2>
   </sect1>
 
+  <sect1 id="ts_fbsd-guests">
+    <title>FreeBSD guests</title>
+
+    <sect2>
+        <title>FreeBSD 10.0 may hang with xHCI</title>
+
+        <para>
+            If xHCI (USB 3.0) emulation is enabled for FreeBSD 10.0 guests, the guest
+            OS will hang. This is caused by the guest OS incorrectly handling systems
+            where MSIs (Message Signaled Interrupts) are not used with the xHCI device.
+        </para>
+        <para>
+            The problem does not exist in earlier FreeBSD releases and was fixed in
+            FreeBSD 10.1.
+        </para>
+    </sect2>
+  </sect1>
+
   <sect1 id="ts_win-hosts">
     <title>Windows hosts</title>
 
@@ -1362,7 +1380,7 @@ VirtualBox</screen>
       between different VirtualBox processes and maintains the global
       configuration, i.e. the XML database. When starting a VirtualBox
       component, the processes <computeroutput>VBoxSVC</computeroutput> and
-      <computeroutput>VirtualBoxXPCOMIPCD</computeroutput> are started
+      <computeroutput>VBoxXPCOMIPCD</computeroutput> are started
       automatically. They are only accessible from the user account they are
       running under. <computeroutput>VBoxSVC</computeroutput> owns the
       VirtualBox configuration database which normally resides in

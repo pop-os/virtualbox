@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -663,6 +663,34 @@ static DECLCALLBACK(int) drvvdCryptoKeyRelease(void *pvUser, const char *pszId)
     AssertPtr(pThis->pIfSecKey);
     if (pThis->pIfSecKey)
         rc = pThis->pIfSecKey->pfnKeyRelease(pThis->pIfSecKey, pszId);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
+static DECLCALLBACK(int) drvvdCryptoKeyStorePasswordRetain(void *pvUser, const char *pszId, const char **ppszPassword)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pThis->pIfSecKey);
+    if (pThis->pIfSecKey)
+        rc = pThis->pIfSecKey->pfnPasswordRetain(pThis->pIfSecKey, pszId, ppszPassword);
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    return rc;
+}
+
+static DECLCALLBACK(int) drvvdCryptoKeyStorePasswordRelease(void *pvUser, const char *pszId)
+{
+    PVBOXDISK pThis = (PVBOXDISK)pvUser;
+    int rc = VINF_SUCCESS;
+
+    AssertPtr(pThis->pIfSecKey);
+    if (pThis->pIfSecKey)
+        rc = pThis->pIfSecKey->pfnPasswordRelease(pThis->pIfSecKey, pszId);
     else
         rc = VERR_NOT_SUPPORTED;
 
@@ -1623,7 +1651,7 @@ static DECLCALLBACK(int) drvvdRead(PPDMIMEDIA pInterface,
     return rc;
 }
 
-/** @copydoc PDMIMEDIA::pfnReadPcBios */
+/** @copydoc PDMIMEDIA::pfnRead */
 static DECLCALLBACK(int) drvvdReadPcBios(PPDMIMEDIA pInterface,
                                          uint64_t off, void *pvBuf, size_t cbRead)
 {
@@ -1676,6 +1704,7 @@ static DECLCALLBACK(int) drvvdReadPcBios(PPDMIMEDIA pInterface,
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
+
 
 /** @copydoc PDMIMEDIA::pfnWrite */
 static DECLCALLBACK(int) drvvdWrite(PPDMIMEDIA pInterface,
@@ -1765,7 +1794,7 @@ static DECLCALLBACK(int) drvvdSetSecKeyIf(PPDMIMEDIA pInterface, PPDMISECKEY pIf
             && !pIfSecKey)
         {
             /* Unload the crypto filter first to make sure it doesn't access the keys anymore. */
-            rc = VDFilterRemove(pThis->pDisk);
+            rc = VDFilterRemove(pThis->pDisk, VD_FILTER_FLAGS_DEFAULT);
             AssertRC(rc);
 
             pThis->pIfSecKey = NULL;
@@ -1785,7 +1814,7 @@ static DECLCALLBACK(int) drvvdSetSecKeyIf(PPDMIMEDIA pInterface, PPDMISECKEY pIf
             AssertRC(rc);
 
             /* Load the crypt filter plugin. */
-            rc = VDFilterAdd(pThis->pDisk, "CRYPT", pVDIfFilter);
+            rc = VDFilterAdd(pThis->pDisk, "CRYPT", VD_FILTER_FLAGS_DEFAULT, pVDIfFilter);
             if (RT_FAILURE(rc))
                 pThis->pIfSecKey = NULL;
         }
@@ -2233,7 +2262,7 @@ static int drvvdSetupFilters(PVBOXDISK pThis, PCFGMNODE pCfg)
                                 pCfgFilterConfig, sizeof(VDINTERFACECONFIG), &pVDIfsFilter);
             AssertRC(rc);
 
-            rc = VDFilterAdd(pThis->pDisk, pszFilterName, pVDIfsFilter);
+            rc = VDFilterAdd(pThis->pDisk, pszFilterName, VD_FILTER_FLAGS_DEFAULT, pVDIfsFilter);
 
             MMR3HeapFree(pszFilterName);
         }
@@ -2908,8 +2937,10 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
             pThis->VDIfCfg.pfnQuery         = drvvdCfgQuery;
             pThis->VDIfCfg.pfnQueryBytes    = NULL;
 
-            pThis->VDIfCrypto.pfnKeyRetain  = drvvdCryptoKeyRetain;
-            pThis->VDIfCrypto.pfnKeyRelease = drvvdCryptoKeyRelease;
+            pThis->VDIfCrypto.pfnKeyRetain               = drvvdCryptoKeyRetain;
+            pThis->VDIfCrypto.pfnKeyRelease              = drvvdCryptoKeyRelease;
+            pThis->VDIfCrypto.pfnKeyStorePasswordRetain  = drvvdCryptoKeyStorePasswordRetain;
+            pThis->VDIfCrypto.pfnKeyStorePasswordRelease = drvvdCryptoKeyStorePasswordRelease;
         }
 
         /* Unconditionally insert the TCPNET interface, don't bother to check
@@ -3077,7 +3108,7 @@ static DECLCALLBACK(int) drvvdConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint
         else
         {
            rc = PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS,
-                                    N_("Failed to open image '%s' in %s mode rc=%Rrc"), pszName,
+                                    N_("Failed to open image '%s' in %s mode"), pszName,
                                     (uOpenFlags & VD_OPEN_FLAGS_READONLY) ? "read-only" : "read-write", rc);
            break;
         }

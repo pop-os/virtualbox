@@ -1,4 +1,4 @@
-/* $Id: kErrors.h 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kErrors.h 58 2013-10-12 20:18:21Z bird $ */
 /** @file
  * kErrors - Status Codes.
  */
@@ -207,13 +207,15 @@
 #define KLDR_ERR_FAT_UNSUPPORTED_CPU_SUBTYPE            (KLDR_ERR_BASE + 37)
 /** The image has no UUID. */
 #define KLDR_ERR_NO_IMAGE_UUID                          (KLDR_ERR_BASE + 38)
+/** Duplicate segment name. */
+#define KLDR_ERR_DUPLICATE_SEGMENT_NAME                 (KLDR_ERR_BASE + 39)
 /** @} */
 
 /** @name kLdrModPE Specific
  * @{
  */
 /** The base of the kLdrModPE specific status codes. */
-#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 39)
+#define KLDR_ERR_PE_BASE                                (KLDR_ERR_BASE + 40)
 /** The machine isn't supported by the interpreter. */
 #define KLDR_ERR_PE_UNSUPPORTED_MACHINE                 (KLDR_ERR_PE_BASE + 0)
 /** The file handler isn't valid. */
@@ -302,13 +304,17 @@
 #define KLDR_ERR_MACHO_BAD_SYMBOL                       (KLDR_ERR_MACHO_BASE + 15)
 /** Unsupported fixup type. */
 #define KLDR_ERR_MACHO_UNSUPPORTED_FIXUP_TYPE           (KLDR_ERR_MACHO_BASE + 16)
+/** Both debug and non-debug sections in segment. */
+#define KLDR_ERR_MACHO_MIXED_DEBUG_SECTION_FLAGS        (KLDR_ERR_MACHO_BASE + 17)
+/** The segment bits are non-contiguous in the file. */
+#define KLDR_ERR_MACHO_NON_CONT_SEG_BITS                (KLDR_ERR_MACHO_BASE + 18)
 /** @} */
 
 /** @name kCpu Specific
  * @{
  */
 /** The base of the kCpu specific status codes. */
-#define KCPU_ERR_BASE                                   (KLDR_ERR_MACHO_BASE + 18)
+#define KCPU_ERR_BASE                                   (KLDR_ERR_MACHO_BASE + 19)
 /** The specified ARCH+CPU pairs aren't compatible. */
 #define KCPU_ERR_ARCH_CPU_NOT_COMPATIBLE                (KCPU_ERR_BASE + 0)
 /** @} */

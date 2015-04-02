@@ -179,7 +179,7 @@
 %define X86_CPUID_AMD_FEATURE_ECX_3DNOWPRF  RT_BIT(8)
 %define X86_CPUID_AMD_FEATURE_ECX_OSVW      RT_BIT(9)
 %define X86_CPUID_AMD_FEATURE_ECX_IBS       RT_BIT(10)
-%define X86_CPUID_AMD_FEATURE_ECX_SSE5      RT_BIT(11)
+%define X86_CPUID_AMD_FEATURE_ECX_XOP       RT_BIT(11)
 %define X86_CPUID_AMD_FEATURE_ECX_SKINIT    RT_BIT(12)
 %define X86_CPUID_AMD_FEATURE_ECX_WDT       RT_BIT(13)
 %define X86_CPUID_AMD_ADVPOWER_EDX_TS        RT_BIT(0)
@@ -227,7 +227,7 @@
 %define X86_CR4_MCE                         RT_BIT(6)
 %define X86_CR4_PGE                         RT_BIT(7)
 %define X86_CR4_PCE                         RT_BIT(8)
-%define X86_CR4_OSFSXR                      RT_BIT(9)
+%define X86_CR4_OSFXSR                      RT_BIT(9)
 %define X86_CR4_OSXMMEEXCPT                 RT_BIT(10)
 %define X86_CR4_VMXE                        RT_BIT(13)
 %define X86_CR4_SMXE                        RT_BIT(14)
@@ -260,7 +260,10 @@
 %define X86_DR7_GE                          RT_BIT(9)
 %define X86_DR7_LE_ALL                      0x0000000000000055
 %define X86_DR7_GE_ALL                      0x00000000000000aa
+%define X86_DR7_ICE_IR                      RT_BIT(12)
 %define X86_DR7_GD                          RT_BIT(13)
+%define X86_DR7_ICE_TR1                     RT_BIT(14)
+%define X86_DR7_ICE_TR2                     RT_BIT(15)
 %define X86_DR7_RW0_MASK                    (3 << 16)
 %define X86_DR7_LEN0_MASK                   (3 << 18)
 %define X86_DR7_RW1_MASK                    (3 << 20)
@@ -420,6 +423,7 @@
 %define  MSR_K6_EFER_SVME                    RT_BIT(12)
 %define  MSR_K6_EFER_LMSLE                   RT_BIT(13)
 %define  MSR_K6_EFER_FFXSR                   RT_BIT(14)
+%define  MSR_K6_EFER_TCE                     RT_BIT(15)
 %define MSR_K6_STAR                         0xc0000081
 %define  MSR_K6_STAR_SYSRET_CS_SS_SHIFT     48
 %define  MSR_K6_STAR_SYSCALL_CS_SS_SHIFT    32
@@ -623,26 +627,26 @@
 %define X86_FCW_RC_UP       0x0800
 %define X86_FCW_RC_ZERO     0x0c00
 %define X86_FCW_ZERO_MASK   0xf080
-%define X86_MSXCR_IE          RT_BIT(0)
-%define X86_MSXCR_DE          RT_BIT(1)
-%define X86_MSXCR_ZE          RT_BIT(2)
-%define X86_MSXCR_OE          RT_BIT(3)
-%define X86_MSXCR_UE          RT_BIT(4)
-%define X86_MSXCR_PE          RT_BIT(5)
-%define X86_MSXCR_DAZ         RT_BIT(6)
-%define X86_MSXCR_IM          RT_BIT(7)
-%define X86_MSXCR_DM          RT_BIT(8)
-%define X86_MSXCR_ZM          RT_BIT(9)
-%define X86_MSXCR_OM          RT_BIT(10)
-%define X86_MSXCR_UM          RT_BIT(11)
-%define X86_MSXCR_PM          RT_BIT(12)
-%define X86_MSXCR_RC_MASK     0x6000
-%define X86_MSXCR_RC_NEAREST  0x0000
-%define X86_MSXCR_RC_DOWN     0x2000
-%define X86_MSXCR_RC_UP       0x4000
-%define X86_MSXCR_RC_ZERO     0x6000
-%define X86_MSXCR_FZ          RT_BIT(15)
-%define X86_MSXCR_MM          RT_BIT(16)
+%define X86_MXSCR_IE          RT_BIT(0)
+%define X86_MXSCR_DE          RT_BIT(1)
+%define X86_MXSCR_ZE          RT_BIT(2)
+%define X86_MXSCR_OE          RT_BIT(3)
+%define X86_MXSCR_UE          RT_BIT(4)
+%define X86_MXSCR_PE          RT_BIT(5)
+%define X86_MXSCR_DAZ         RT_BIT(6)
+%define X86_MXSCR_IM          RT_BIT(7)
+%define X86_MXSCR_DM          RT_BIT(8)
+%define X86_MXSCR_ZM          RT_BIT(9)
+%define X86_MXSCR_OM          RT_BIT(10)
+%define X86_MXSCR_UM          RT_BIT(11)
+%define X86_MXSCR_PM          RT_BIT(12)
+%define X86_MXSCR_RC_MASK     0x6000
+%define X86_MXSCR_RC_NEAREST  0x0000
+%define X86_MXSCR_RC_DOWN     0x2000
+%define X86_MXSCR_RC_UP       0x4000
+%define X86_MXSCR_RC_ZERO     0x6000
+%define X86_MXSCR_FZ          RT_BIT(15)
+%define X86_MXSCR_MM          RT_BIT(17)
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %define X86DESCATTR_TYPE            0x0000000f
@@ -746,6 +750,8 @@
 %define X86_DESC_AVL                        RT_BIT(20)
 %define X86_DESC_DB                         RT_BIT(22)
 %define X86_DESC_G                          RT_BIT(23)
+%define X86_SEL_TYPE_SYS_286_TSS_LIMIT_MIN      0x2b
+%define X86_SEL_TYPE_SYS_386_TSS_LIMIT_MIN      0x67
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %ifndef VBOX_FOR_DTRACE_LIB

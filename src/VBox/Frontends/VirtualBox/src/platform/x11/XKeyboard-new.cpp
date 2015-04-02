@@ -1,8 +1,6 @@
 /* $Id: XKeyboard-new.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Implementation of Linux-specific keyboard functions
+ * VBox Qt GUI - Implementation of Linux-specific keyboard functions.
  */
 
 /*
@@ -27,6 +25,7 @@
 #include <XKeyboard.h>
 #include <VBox/log.h>
 #include <VBox/VBoxKeyboard.h>
+
 
 /* VBoxKeyboard uses the deprecated XKeycodeToKeysym(3) API, but uses it safely.
  */

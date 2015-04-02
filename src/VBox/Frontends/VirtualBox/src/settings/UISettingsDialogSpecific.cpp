@@ -1,8 +1,6 @@
 /* $Id: UISettingsDialogSpecific.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UISettingsDialogSpecific class implementation
+ * VBox Qt GUI - UISettingsDialogSpecific class implementation.
  */
 
 /*
@@ -17,304 +15,54 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QStackedWidget>
-#include <QThread>
-#include <QMutex>
-#include <QWaitCondition>
-#include <QTimer>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* GUI includes: */
-#include "UISettingsDialogSpecific.h"
-#include "UISettingsDefs.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "QIWidgetValidator.h"
-#include "VBoxSettingsSelector.h"
-#include "UIVirtualBoxEventHandler.h"
+# include "UISettingsDialogSpecific.h"
+# include "UISettingsSerializer.h"
+# include "UISettingsDefs.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UIExtraDataManager.h"
+# include "QIWidgetValidator.h"
+# include "VBoxSettingsSelector.h"
+# include "UIVirtualBoxEventHandler.h"
 
-#include "UIGlobalSettingsGeneral.h"
-#include "UIGlobalSettingsInput.h"
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include "UIGlobalSettingsUpdate.h"
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-#include "UIGlobalSettingsLanguage.h"
-#include "UIGlobalSettingsDisplay.h"
-#include "UIGlobalSettingsNetwork.h"
-#include "UIGlobalSettingsExtension.h"
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include "UIGlobalSettingsProxy.h"
-#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+# include "UIGlobalSettingsGeneral.h"
+# include "UIGlobalSettingsInput.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UIGlobalSettingsUpdate.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+# include "UIGlobalSettingsLanguage.h"
+# include "UIGlobalSettingsDisplay.h"
+# include "UIGlobalSettingsNetwork.h"
+# include "UIGlobalSettingsExtension.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UIGlobalSettingsProxy.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
-#include "UIMachineSettingsGeneral.h"
-#include "UIMachineSettingsSystem.h"
-#include "UIMachineSettingsDisplay.h"
-#include "UIMachineSettingsStorage.h"
-#include "UIMachineSettingsAudio.h"
-#include "UIMachineSettingsNetwork.h"
-#include "UIMachineSettingsSerial.h"
-#include "UIMachineSettingsParallel.h"
-#include "UIMachineSettingsUSB.h"
-#include "UIMachineSettingsSF.h"
+# include "UIMachineSettingsGeneral.h"
+# include "UIMachineSettingsSystem.h"
+# include "UIMachineSettingsDisplay.h"
+# include "UIMachineSettingsStorage.h"
+# include "UIMachineSettingsAudio.h"
+# include "UIMachineSettingsNetwork.h"
+# include "UIMachineSettingsSerial.h"
+# include "UIMachineSettingsParallel.h"
+# include "UIMachineSettingsUSB.h"
+# include "UIMachineSettingsSF.h"
+# include "UIMachineSettingsInterface.h"
 
 /* COM includes: */
-#include "CUSBController.h"
+# include "CUSBController.h"
 
-#if 0 /* Global USB filters are DISABLED now: */
-# define ENABLE_GLOBAL_USB
-#endif /* Global USB filters are DISABLED now: */
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Settings page list: */
-typedef QList<UISettingsPage*> UISettingsPageList;
-typedef QMap<int, UISettingsPage*> UISettingsPageMap;
-
-/* Serializer direction: */
-enum UISettingsSerializeDirection
-{
-    UISettingsSerializeDirection_Load,
-    UISettingsSerializeDirection_Save
-};
-
-/* QThread reimplementation for loading/saving settings in async mode: */
-class UISettingsSerializer : public QThread
-{
-    Q_OBJECT;
-
-signals:
-
-    /* Signal to notify main GUI thread about process has been started: */
-    void sigNotifyAboutProcessStarted();
-
-    /* Signal to notify main GUI thread about some page was processed: */
-    void sigNotifyAboutPageProcessed(int iPageId);
-
-    /* Signal to notify main GUI thread about all pages were processed: */
-    void sigNotifyAboutPagesProcessed();
-
-public:
-
-    /* Settings serializer instance: */
-    static UISettingsSerializer* instance() { return m_pInstance; }
-
-    /* Settings serializer constructor: */
-    UISettingsSerializer(QObject *pParent, const QVariant &data, UISettingsSerializeDirection direction)
-        : QThread(pParent)
-        , m_direction(direction)
-        , m_data(data)
-        , m_fSavingComplete(m_direction == UISettingsSerializeDirection_Load)
-        , m_fAllowToDestroySerializer(m_direction == UISettingsSerializeDirection_Load)
-        , m_iIdOfHighPriorityPage(-1)
-    {
-        /* Set instance: */
-        m_pInstance = this;
-
-        /* Connecting this signals: */
-        connect(this, SIGNAL(sigNotifyAboutPageProcessed(int)), this, SLOT(sltHandleProcessedPage(int)), Qt::QueuedConnection);
-        connect(this, SIGNAL(sigNotifyAboutPagesProcessed()), this, SLOT(sltHandleProcessedPages()), Qt::QueuedConnection);
-        connect(this, SIGNAL(finished()), this, SLOT(sltDestroySerializer()), Qt::QueuedConnection);
-        /* Connecting parent signals: */
-        connect(this, SIGNAL(sigNotifyAboutProcessStarted()), parent(), SLOT(sltHandleProcessStarted()), Qt::QueuedConnection);
-        connect(this, SIGNAL(sigNotifyAboutPageProcessed(int)), parent(), SLOT(sltHandlePageProcessed()), Qt::QueuedConnection);
-    }
-
-    /* Settings serializer destructor: */
-    ~UISettingsSerializer()
-    {
-        /* If serializer is being destructed by it's parent,
-         * thread could still be running, we have to wait
-         * for it to be finished! */
-        if (isRunning())
-            wait();
-
-        /* Clear instance: */
-        m_pInstance = 0;
-    }
-
-    /* Set pages list: */
-    void setPageList(const UISettingsPageList &pageList)
-    {
-        for (int iPageIndex = 0; iPageIndex < pageList.size(); ++iPageIndex)
-        {
-            UISettingsPage *pPage = pageList[iPageIndex];
-            m_pages.insert(pPage->id(), pPage);
-        }
-    }
-
-    /* Raise priority of page: */
-    void raisePriorityOfPage(int iPageId)
-    {
-        /* If that page is not present or was processed already: */
-        if (!m_pages.contains(iPageId) || m_pages[iPageId]->processed())
-        {
-            /* We just ignoring that request: */
-            return;
-        }
-        else
-        {
-            /* Else remember which page we should be processed next: */
-            m_iIdOfHighPriorityPage = iPageId;
-        }
-    }
-
-    /* Return current m_data content: */
-    QVariant& data() { return m_data; }
-
-public slots:
-
-    void start(Priority priority = InheritPriority)
-    {
-        /* Notify listeners about we are starting: */
-        emit sigNotifyAboutProcessStarted();
-
-        /* If serializer saves settings: */
-        if (m_direction == UISettingsSerializeDirection_Save)
-        {
-            /* We should update internal page cache first: */
-            for (int iPageIndex = 0; iPageIndex < m_pages.values().size(); ++iPageIndex)
-                m_pages.values()[iPageIndex]->putToCache();
-        }
-
-        /* Start async serializing thread: */
-        QThread::start(priority);
-
-        /* If serializer saves settings: */
-        if (m_direction == UISettingsSerializeDirection_Save)
-        {
-            /* We should block calling thread until all pages will be saved: */
-            while (!m_fSavingComplete)
-            {
-                /* Lock mutex initially: */
-                m_mutex.lock();
-                /* Perform idle-processing every 100ms,
-                 * and waiting for direct wake up signal: */
-                m_condition.wait(&m_mutex, 100);
-                /* Process queued signals posted to GUI thread: */
-                qApp->processEvents();
-                /* Unlock mutex finally: */
-                m_mutex.unlock();
-            }
-            m_fAllowToDestroySerializer = true;
-        }
-    }
-
-protected slots:
-
-    /* Slot to handle the fact of some page was processed: */
-    void sltHandleProcessedPage(int iPageId)
-    {
-        /* If serializer loads settings: */
-        if (m_direction == UISettingsSerializeDirection_Load)
-        {
-            /* If such page present we should fetch internal page cache: */
-            if (m_pages.contains(iPageId))
-            {
-                UISettingsPage *pSettingsPage = m_pages[iPageId];
-                pSettingsPage->setValidatorBlocked(true);
-                pSettingsPage->getFromCache();
-                pSettingsPage->setValidatorBlocked(false);
-            }
-        }
-    }
-
-    /* Slot to handle the fact of all pages were processed: */
-    void sltHandleProcessedPages()
-    {
-        /* If serializer saves settings: */
-        if (m_direction == UISettingsSerializeDirection_Save)
-        {
-            /* We should flag GUI thread to unlock itself: */
-            if (!m_fSavingComplete)
-                m_fSavingComplete = true;
-        }
-        /* If serializer loads settings: */
-        else
-        {
-            /* We have to do initial validation finally: */
-            foreach (UISettingsPage *pPage, m_pages.values())
-                pPage->revalidate();
-        }
-    }
-
-    /* Slot to destroy serializer: */
-    void sltDestroySerializer()
-    {
-        /* If not yet all events were processed,
-         * we should postpone destruction for now: */
-        if (!m_fAllowToDestroySerializer)
-            QTimer::singleShot(0, this, SLOT(sltDestroySerializer()));
-        else
-            deleteLater();
-    }
-
-protected:
-
-    /* Settings processor: */
-    void run()
-    {
-        /* Initialize COM for other thread: */
-        COMBase::InitializeCOM(false);
-
-        /* Mark all the pages initially as NOT processed: */
-        QList<UISettingsPage*> pageList = m_pages.values();
-        for (int iPageNumber = 0; iPageNumber < pageList.size(); ++iPageNumber)
-            pageList[iPageNumber]->setProcessed(false);
-
-        /* Iterate over the all left settings pages: */
-        UISettingsPageMap pages(m_pages);
-        while (!pages.empty())
-        {
-            /* Get required page pointer, protect map by mutex while getting pointer: */
-            UISettingsPage *pPage = m_iIdOfHighPriorityPage != -1 && pages.contains(m_iIdOfHighPriorityPage) ?
-                                    pages[m_iIdOfHighPriorityPage] : *pages.begin();
-            /* Reset request of high priority: */
-            if (m_iIdOfHighPriorityPage != -1)
-                m_iIdOfHighPriorityPage = -1;
-            /* Process this page if its enabled: */
-            if (pPage->isEnabled())
-            {
-                if (m_direction == UISettingsSerializeDirection_Load)
-                    pPage->loadToCacheFrom(m_data);
-                if (m_direction == UISettingsSerializeDirection_Save)
-                    pPage->saveFromCacheTo(m_data);
-            }
-            /* Remember what page was processed: */
-            pPage->setProcessed(true);
-            /* Remove processed page from our map: */
-            pages.remove(pPage->id());
-            /* Notify listeners about page was processed: */
-            emit sigNotifyAboutPageProcessed(pPage->id());
-            /* If serializer saves settings => wake up GUI thread: */
-            if (m_direction == UISettingsSerializeDirection_Save)
-                m_condition.wakeAll();
-            /* Break further processing if page had failed: */
-            if (pPage->failed())
-                break;
-        }
-        /* Notify listeners about all pages were processed: */
-        emit sigNotifyAboutPagesProcessed();
-        /* If serializer saves settings => wake up GUI thread: */
-        if (m_direction == UISettingsSerializeDirection_Save)
-            m_condition.wakeAll();
-
-        /* Deinitialize COM for other thread: */
-        COMBase::CleanupCOM();
-    }
-
-    /* Variables: */
-    UISettingsSerializeDirection m_direction;
-    QVariant m_data;
-    UISettingsPageMap m_pages;
-    bool m_fSavingComplete;
-    bool m_fAllowToDestroySerializer;
-    int m_iIdOfHighPriorityPage;
-    QMutex m_mutex;
-    QWaitCondition m_condition;
-    static UISettingsSerializer *m_pInstance;
-};
-
-UISettingsSerializer* UISettingsSerializer::m_pInstance = 0;
-
-UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
+UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent,
+                                               const QString &strCategory /* = QString() */,
+                                               const QString &strControl /* = QString() */)
     : UISettingsDialog(pParent)
 {
     /* Window icon: */
@@ -322,12 +70,8 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
     setWindowIcon(QIcon(":/global_settings_16px.png"));
 #endif /* !Q_WS_MAC */
 
-    /* Assign default dialog type: */
-    setDialogType(SettingsDialogType_Offline);
-
     /* Creating settings pages: */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    QList<GlobalSettingsPageType> restrictedGlobalSettingsPages = vboxGlobal().restrictedGlobalSettingsPages(vbox);
+    QList<GlobalSettingsPageType> restrictedGlobalSettingsPages = gEDataManager->restrictedGlobalSettingsPages();
     for (int iPageIndex = GlobalSettingsPageType_General; iPageIndex < GlobalSettingsPageType_Max; ++iPageIndex)
     {
         /* Make sure page was not restricted: */
@@ -344,8 +88,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_General:
                 {
                     pSettingsPage = new UIGlobalSettingsGeneral;
-                    addItem(":/machine_32px.png", ":/machine_disabled_32px.png",
-                            ":/machine_16px.png", ":/machine_disabled_16px.png",
+                    addItem(":/machine_32px.png", ":/machine_24px.png", ":/machine_16px.png",
                             iPageIndex, "#general", pSettingsPage);
                     break;
                 }
@@ -353,8 +96,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Input:
                 {
                     pSettingsPage = new UIGlobalSettingsInput;
-                    addItem(":/hostkey_32px.png", ":/hostkey_disabled_32px.png",
-                            ":/hostkey_16px.png", ":/hostkey_disabled_16px.png",
+                    addItem(":/keyboard_32px.png", ":/keyboard_24px.png", ":/keyboard_16px.png",
                             iPageIndex, "#input", pSettingsPage);
                     break;
                 }
@@ -363,8 +105,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Update:
                 {
                     pSettingsPage = new UIGlobalSettingsUpdate;
-                    addItem(":/refresh_32px.png", ":/refresh_disabled_32px.png",
-                            ":/refresh_16px.png", ":/refresh_disabled_16px.png",
+                    addItem(":/refresh_32px.png", ":/refresh_24px.png", ":/refresh_16px.png",
                             iPageIndex, "#update", pSettingsPage);
                     break;
                 }
@@ -373,8 +114,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Language:
                 {
                     pSettingsPage = new UIGlobalSettingsLanguage;
-                    addItem(":/site_32px.png", ":/site_disabled_32px.png",
-                            ":/site_16px.png", ":/site_disabled_16px.png",
+                    addItem(":/site_32px.png", ":/site_24px.png", ":/site_16px.png",
                             iPageIndex, "#language", pSettingsPage);
                     break;
                 }
@@ -382,8 +122,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Display:
                 {
                     pSettingsPage = new UIGlobalSettingsDisplay;
-                    addItem(":/vrdp_32px.png", ":/vrdp_disabled_32px.png",
-                            ":/vrdp_16px.png", ":/vrdp_disabled_16px.png",
+                    addItem(":/vrdp_32px.png", ":/vrdp_24px.png", ":/vrdp_16px.png",
                             iPageIndex, "#display", pSettingsPage);
                     break;
                 }
@@ -391,8 +130,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Network:
                 {
                     pSettingsPage = new UIGlobalSettingsNetwork;
-                    addItem(":/nw_32px.png", ":/nw_disabled_32px.png",
-                            ":/nw_16px.png", ":/nw_disabled_16px.png",
+                    addItem(":/nw_32px.png", ":/nw_24px.png", ":/nw_16px.png",
                             iPageIndex, "#network", pSettingsPage);
                     break;
                 }
@@ -400,8 +138,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Extensions:
                 {
                     pSettingsPage = new UIGlobalSettingsExtension;
-                    addItem(":/extension_pack_32px.png", ":/extension_pack_disabled_32px.png",
-                            ":/extension_pack_16px.png", ":/extension_pack_disabled_16px.png",
+                    addItem(":/extension_pack_32px.png", ":/extension_pack_24px.png", ":/extension_pack_16px.png",
                             iPageIndex, "#extensions", pSettingsPage);
                     break;
                 }
@@ -410,8 +147,7 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 case GlobalSettingsPageType_Proxy:
                 {
                     pSettingsPage = new UIGlobalSettingsProxy;
-                    addItem(":/proxy_32px.png", ":/proxy_disabled_32px.png",
-                            ":/proxy_16px.png", ":/proxy_disabled_16px.png",
+                    addItem(":/proxy_32px.png", ":/proxy_24px.png", ":/proxy_16px.png",
                             iPageIndex, "#proxy", pSettingsPage);
                     break;
                 }
@@ -419,65 +155,79 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent)
                 default:
                     break;
             }
-            if (pSettingsPage)
-                pSettingsPage->setDialogType(dialogType());
         }
     }
+
+    /* Assign default (full) configuration access level: */
+    setConfigurationAccessLevel(ConfigurationAccessLevel_Full);
 
     /* Retranslate UI: */
     retranslateUi();
 
-    /* Choose first item by default: */
-    m_pSelector->selectById(GlobalSettingsPageType_General);
+    /* Setup settings window: */
+    if (!strCategory.isNull())
+    {
+        m_pSelector->selectByLink(strCategory);
+        /* Search for a widget with the given name: */
+        if (!strControl.isNull())
+        {
+            if (QWidget *pWidget = m_pStack->findChild<QWidget*>(strControl))
+            {
+                QList<QWidget*> parents;
+                QWidget *pParentWidget = pWidget;
+                while ((pParentWidget = pParentWidget->parentWidget()) != 0)
+                {
+                    if (QTabWidget *pTabWidget = qobject_cast<QTabWidget*>(pParentWidget))
+                    {
+                        /* The tab contents widget is two steps down
+                         * (QTabWidget -> QStackedWidget -> QWidget): */
+                        QWidget *pTabPage = parents[parents.count() - 1];
+                        if (pTabPage)
+                            pTabPage = parents[parents.count() - 2];
+                        if (pTabPage)
+                            pTabWidget->setCurrentWidget(pTabPage);
+                    }
+                    parents.append(pParentWidget);
+                }
+                pWidget->setFocus();
+            }
+        }
+    }
+    /* First item as default: */
+    else
+        m_pSelector->selectById(GlobalSettingsPageType_General);
 }
 
-UISettingsDialogGlobal::~UISettingsDialogGlobal()
+void UISettingsDialogGlobal::loadOwnData()
 {
-    /* Delete serializer early if exists: */
-    if (UISettingsSerializer::instance())
-        delete UISettingsSerializer::instance();
-}
-
-void UISettingsDialogGlobal::loadData()
-{
-    /* Call for base-class: */
-    UISettingsDialog::loadData();
-
-    /* Prepare global data: */
-    qRegisterMetaType<UISettingsDataGlobal>();
-    UISettingsDataGlobal data(vboxGlobal().virtualBox().GetSystemProperties(), vboxGlobal().settings());
-    /* Create global settings loader,
-     * it will load global settings & delete itself in the appropriate time: */
-    UISettingsSerializer *pGlobalSettingsLoader = new UISettingsSerializer(this, QVariant::fromValue(data), UISettingsSerializeDirection_Load);
-    connect(pGlobalSettingsLoader, SIGNAL(destroyed(QObject*)), this, SLOT(sltMarkLoaded()));
-    /* Set pages to be loaded: */
-    pGlobalSettingsLoader->setPageList(m_pSelector->settingPages());
-    /* Start loader: */
-    pGlobalSettingsLoader->start();
-}
-
-void UISettingsDialogGlobal::saveData()
-{
-    /* Call for base-class: */
-    UISettingsDialog::saveData();
-
     /* Get properties and settings: */
     CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
     VBoxGlobalSettings settings = vboxGlobal().settings();
     /* Prepare global data: */
     qRegisterMetaType<UISettingsDataGlobal>();
     UISettingsDataGlobal data(properties, settings);
-    /* Create global settings saver,
-     * it will save global settings & delete itself in the appropriate time: */
-    UISettingsSerializer *pGlobalSettingsSaver = new UISettingsSerializer(this, QVariant::fromValue(data), UISettingsSerializeDirection_Save);
-    /* Set pages to be saved: */
-    pGlobalSettingsSaver->setPageList(m_pSelector->settingPages());
-    /* Start saver: */
-    pGlobalSettingsSaver->start();
+    QVariant varData = QVariant::fromValue(data);
+
+    /* Call to base-class: */
+    UISettingsDialog::loadData(varData);
+}
+
+void UISettingsDialogGlobal::saveOwnData()
+{
+    /* Get properties and settings: */
+    CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
+    VBoxGlobalSettings settings = vboxGlobal().settings();
+    /* Prepare global data: */
+    qRegisterMetaType<UISettingsDataGlobal>();
+    UISettingsDataGlobal data(properties, settings);
+    QVariant varData = QVariant::fromValue(data);
+
+    /* Call to base-class: */
+    UISettingsDialog::saveData(varData);
 
     /* Get updated properties & settings: */
-    CSystemProperties newProperties = pGlobalSettingsSaver->data().value<UISettingsDataGlobal>().m_properties;
-    VBoxGlobalSettings newSettings = pGlobalSettingsSaver->data().value<UISettingsDataGlobal>().m_settings;
+    CSystemProperties newProperties = varData.value<UISettingsDataGlobal>().m_properties;
+    VBoxGlobalSettings newSettings = varData.value<UISettingsDataGlobal>().m_settings;
     /* If properties are not OK => show the error: */
     if (!newProperties.isOk())
         msgCenter().cannotSetSystemProperties(newProperties, this);
@@ -485,7 +235,7 @@ void UISettingsDialogGlobal::saveData()
     else if (!(newSettings == settings))
         vboxGlobal().setSettings(newSettings);
 
-    /* Mark page processed: */
+    /* Mark as saved: */
     sltMarkSaved();
 }
 
@@ -571,11 +321,9 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
     AssertMsg(!m_machine.isNull(), ("Can't find corresponding machine!\n"));
     m_sessionState = m_machine.GetSessionState();
     m_machineState = m_machine.GetState();
-    /* Recalculate current dialog-type: */
-    updateDialogType();
 
     /* Creating settings pages: */
-    QList<MachineSettingsPageType> restrictedMachineSettingsPages = vboxGlobal().restrictedMachineSettingsPages(m_machine);
+    QList<MachineSettingsPageType> restrictedMachineSettingsPages = gEDataManager->restrictedMachineSettingsPages(m_strMachineId);
     for (int iPageIndex = MachineSettingsPageType_General; iPageIndex < MachineSettingsPageType_Max; ++iPageIndex)
     {
         /* Make sure page was not restricted: */
@@ -592,8 +340,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_General:
                 {
                     pSettingsPage = new UIMachineSettingsGeneral;
-                    addItem(":/machine_32px.png", ":/machine_disabled_32px.png",
-                            ":/machine_16px.png", ":/machine_disabled_16px.png",
+                    addItem(":/machine_32px.png", ":/machine_24px.png", ":/machine_16px.png",
                             iPageIndex, "#general", pSettingsPage);
                     break;
                 }
@@ -601,8 +348,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_System:
                 {
                     pSettingsPage = new UIMachineSettingsSystem;
-                    addItem(":/chipset_32px.png", ":/chipset_disabled_32px.png",
-                            ":/chipset_16px.png", ":/chipset_disabled_16px.png",
+                    addItem(":/chipset_32px.png", ":/chipset_24px.png", ":/chipset_16px.png",
                             iPageIndex, "#system", pSettingsPage);
                     break;
                 }
@@ -610,8 +356,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Display:
                 {
                     pSettingsPage = new UIMachineSettingsDisplay;
-                    addItem(":/vrdp_32px.png", ":/vrdp_disabled_32px.png",
-                            ":/vrdp_16px.png", ":/vrdp_disabled_16px.png",
+                    addItem(":/vrdp_32px.png", ":/vrdp_24px.png", ":/vrdp_16px.png",
                             iPageIndex, "#display", pSettingsPage);
                     break;
                 }
@@ -620,8 +365,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 {
                     pSettingsPage = new UIMachineSettingsStorage;
                     connect(pSettingsPage, SIGNAL(storageChanged()), this, SLOT(sltResetFirstRunFlag()));
-                    addItem(":/hd_32px.png", ":/hd_disabled_32px.png",
-                            ":/hd_16px.png", ":/hd_disabled_16px.png",
+                    addItem(":/hd_32px.png", ":/hd_24px.png", ":/hd_16px.png",
                             iPageIndex, "#storage", pSettingsPage);
                     break;
                 }
@@ -629,8 +373,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Audio:
                 {
                     pSettingsPage = new UIMachineSettingsAudio;
-                    addItem(":/sound_32px.png", ":/sound_disabled_32px.png",
-                            ":/sound_16px.png", ":/sound_disabled_16px.png",
+                    addItem(":/sound_32px.png", ":/sound_24px.png", ":/sound_16px.png",
                             iPageIndex, "#audio", pSettingsPage);
                     break;
                 }
@@ -638,16 +381,14 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Network:
                 {
                     pSettingsPage = new UIMachineSettingsNetworkPage;
-                    addItem(":/nw_32px.png", ":/nw_disabled_32px.png",
-                            ":/nw_16px.png", ":/nw_disabled_16px.png",
+                    addItem(":/nw_32px.png", ":/nw_24px.png", ":/nw_16px.png",
                             iPageIndex, "#network", pSettingsPage);
                     break;
                 }
                 /* Ports page: */
                 case MachineSettingsPageType_Ports:
                 {
-                    addItem(":/serial_port_32px.png", ":/serial_port_disabled_32px.png",
-                            ":/serial_port_16px.png", ":/serial_port_disabled_16px.png",
+                    addItem(":/serial_port_32px.png", ":/serial_port_24px.png", ":/serial_port_16px.png",
                             iPageIndex, "#ports");
                     break;
                 }
@@ -655,8 +396,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Serial:
                 {
                     pSettingsPage = new UIMachineSettingsSerialPage;
-                    addItem(":/serial_port_32px.png", ":/serial_port_disabled_32px.png",
-                            ":/serial_port_16px.png", ":/serial_port_disabled_16px.png",
+                    addItem(":/serial_port_32px.png", ":/serial_port_24px.png", ":/serial_port_16px.png",
                             iPageIndex, "#serialPorts", pSettingsPage, MachineSettingsPageType_Ports);
                     break;
                 }
@@ -664,8 +404,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Parallel:
                 {
                     pSettingsPage = new UIMachineSettingsParallelPage;
-                    addItem(":/parallel_port_32px.png", ":/parallel_port_disabled_32px.png",
-                            ":/parallel_port_16px.png", ":/parallel_port_disabled_16px.png",
+                    addItem(":/parallel_port_32px.png", ":/parallel_port_24px.png", ":/parallel_port_16px.png",
                             iPageIndex, "#parallelPorts", pSettingsPage, MachineSettingsPageType_Ports);
                     break;
                 }
@@ -673,8 +412,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_USB:
                 {
                     pSettingsPage = new UIMachineSettingsUSB;
-                    addItem(":/usb_32px.png", ":/usb_disabled_32px.png",
-                            ":/usb_16px.png", ":/usb_disabled_16px.png",
+                    addItem(":/usb_32px.png", ":/usb_24px.png", ":/usb_16px.png",
                             iPageIndex, "#usb", pSettingsPage, MachineSettingsPageType_Ports);
                     break;
                 }
@@ -682,18 +420,26 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_SF:
                 {
                     pSettingsPage = new UIMachineSettingsSF;
-                    addItem(":/sf_32px.png", ":/sf_disabled_32px.png",
-                            ":/sf_16px.png", ":/sf_disabled_16px.png",
+                    addItem(":/sf_32px.png", ":/sf_24px.png", ":/sf_16px.png",
                             iPageIndex, "#sharedFolders", pSettingsPage);
+                    break;
+                }
+                /* Interface page: */
+                case MachineSettingsPageType_Interface:
+                {
+                    pSettingsPage = new UIMachineSettingsInterface(m_machine.GetId());
+                    addItem(":/interface_32px.png", ":/interface_24px.png", ":/interface_16px.png",
+                            iPageIndex, "#userInterface", pSettingsPage);
                     break;
                 }
                 default:
                     break;
             }
-            if (pSettingsPage)
-                pSettingsPage->setDialogType(dialogType());
         }
     }
+
+    /* Recalculate configuration access level: */
+    updateConfigurationAccessLevel();
 
     /* Retranslate UI: */
     retranslateUi();
@@ -705,7 +451,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
         /* Search for a widget with the given name: */
         if (!strControl.isNull())
         {
-            if (QWidget *pWidget = m_pStack->currentWidget()->findChild<QWidget*>(strControl))
+            if (QWidget *pWidget = m_pStack->findChild<QWidget*>(strControl))
             {
                 QList<QWidget*> parents;
                 QWidget *pParentWidget = pWidget;
@@ -732,94 +478,66 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
         m_pSelector->selectById(MachineSettingsPageType_General);
 }
 
-UISettingsDialogMachine::~UISettingsDialogMachine()
-{
-    /* Delete serializer early if exists: */
-    if (UISettingsSerializer::instance())
-        delete UISettingsSerializer::instance();
-}
-
-void UISettingsDialogMachine::loadData()
+void UISettingsDialogMachine::loadOwnData()
 {
     /* Check that session is NOT created: */
     if (!m_session.isNull())
         return;
 
-    /* Call for base-class: */
-    UISettingsDialog::loadData();
-
     /* Disconnect global VBox events from this dialog: */
     gVBoxEvents->disconnect(this);
 
     /* Prepare session: */
-    m_session = dialogType() == SettingsDialogType_Wrong ? CSession() : vboxGlobal().openExistingSession(m_strMachineId);
+    m_session = configurationAccessLevel() == ConfigurationAccessLevel_Null ? CSession() :
+                configurationAccessLevel() == ConfigurationAccessLevel_Full ? vboxGlobal().openSession(m_strMachineId) :
+                                                                              vboxGlobal().openExistingSession(m_strMachineId);
     /* Check that session was created: */
     if (m_session.isNull())
         return;
 
-    /* Get machine from session: */
+    /* Get machine and console: */
     m_machine = m_session.GetMachine();
-    /* Get console from session: */
-    m_console = dialogType() == SettingsDialogType_Offline ? CConsole() : m_session.GetConsole();
-
+    m_console = configurationAccessLevel() == ConfigurationAccessLevel_Full ? CConsole() : m_session.GetConsole();
     /* Prepare machine data: */
     qRegisterMetaType<UISettingsDataMachine>();
     UISettingsDataMachine data(m_machine, m_console);
-    /* Create machine settings loader,
-     * it will load machine settings & delete itself in the appropriate time: */
-    UISettingsSerializer *pMachineSettingsLoader = new UISettingsSerializer(this, QVariant::fromValue(data), UISettingsSerializeDirection_Load);
-    connect(pMachineSettingsLoader, SIGNAL(destroyed(QObject*)), this, SLOT(sltMarkLoaded()));
-    connect(pMachineSettingsLoader, SIGNAL(sigNotifyAboutPagesProcessed()), this, SLOT(sltSetFirstRunFlag()));
-    /* Set pages to be loaded: */
-    pMachineSettingsLoader->setPageList(m_pSelector->settingPages());
-    /* Ask to raise required page priority: */
-    pMachineSettingsLoader->raisePriorityOfPage(m_pSelector->currentId());
-    /* Start page loader: */
-    pMachineSettingsLoader->start();
+    QVariant varData = QVariant::fromValue(data);
+
+    /* Call to base-class: */
+    UISettingsDialog::loadData(varData);
 }
 
-void UISettingsDialogMachine::saveData()
+void UISettingsDialogMachine::saveOwnData()
 {
     /* Check that session is NOT created: */
     if (!m_session.isNull())
         return;
 
-    /* Call for base-class: */
-    UISettingsDialog::saveData();
-
     /* Disconnect global VBox events from this dialog: */
     gVBoxEvents->disconnect(this);
 
     /* Prepare session: */
-    if (dialogType() == SettingsDialogType_Wrong)
-        m_session = CSession();
-    else if (dialogType() != SettingsDialogType_Offline)
-        m_session = vboxGlobal().openExistingSession(m_strMachineId);
-    else
-        m_session = vboxGlobal().openSession(m_strMachineId);
+    m_session = configurationAccessLevel() == ConfigurationAccessLevel_Null ? CSession() :
+                configurationAccessLevel() == ConfigurationAccessLevel_Full ? vboxGlobal().openSession(m_strMachineId) :
+                                                                              vboxGlobal().openExistingSession(m_strMachineId);
     /* Check that session was created: */
     if (m_session.isNull())
         return;
 
-    /* Get machine from session: */
+    /* Get machine and console: */
     m_machine = m_session.GetMachine();
-    /* Get console from session: */
-    m_console = dialogType() == SettingsDialogType_Offline ? CConsole() : m_session.GetConsole();
-
+    m_console = configurationAccessLevel() == ConfigurationAccessLevel_Full ? CConsole() : m_session.GetConsole();
     /* Prepare machine data: */
     qRegisterMetaType<UISettingsDataMachine>();
     UISettingsDataMachine data(m_machine, m_console);
-    /* Create machine settings saver,
-     * it will save machine settings & delete itself in the appropriate time: */
-    UISettingsSerializer *pMachineSettingsSaver = new UISettingsSerializer(this, QVariant::fromValue(data), UISettingsSerializeDirection_Save);
-    /* Set pages to be saved: */
-    pMachineSettingsSaver->setPageList(m_pSelector->settingPages());
-    /* Start saver: */
-    pMachineSettingsSaver->start();
+    QVariant varData = QVariant::fromValue(data);
+
+    /* Call to base-class: */
+    UISettingsDialog::saveData(varData);
 
     /* Get updated machine: */
-    m_machine = pMachineSettingsSaver->data().value<UISettingsDataMachine>().m_machine;
-    /* If machine is ok => perform final operations: */
+    m_machine = varData.value<UISettingsDataMachine>().m_machine;
+    /* If machine is OK => perform final operations: */
     if (m_machine.isOk())
     {
         /* Guest OS type & VT-x/AMD-V option correlation auto-fix: */
@@ -842,28 +560,23 @@ void UISettingsDialogMachine::saveData()
         }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-        /* Enable OHCI controller if HID is enabled: */
-        if (pSystemPage && pSystemPage->isHIDEnabled())
-        {
-            ULONG cOhciCtls = m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI);
-            if (!cOhciCtls)
-                m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
-        }
+        /* Enable OHCI controller if HID is enabled but no USB controllers present: */
+        if (pSystemPage && pSystemPage->isHIDEnabled() && m_machine.GetUSBControllers().isEmpty())
+            m_machine.AddUSBController("OHCI", KUSBControllerType_OHCI);
 
-        /* Clear the "GUI_FirstRun" extra data key in case if
-         * the boot order or disk configuration were changed: */
+        /* Disable First RUN Wizard: */
         if (m_fResetFirstRunFlag)
-            m_machine.SetExtraData(GUI_FirstRun, QString::null);
+            gEDataManager->setMachineFirstTimeStarted(false, m_strMachineId);
 
         /* Save settings finally: */
         m_machine.SaveSettings();
     }
 
-    /* If machine is NOT ok => show the error message: */
+    /* If machine is NOT OK => show the error message: */
     if (!m_machine.isOk())
         msgCenter().cannotSaveMachineSettings(m_machine, this);
 
-    /* Mark page processed: */
+    /* Mark as saved: */
     sltMarkSaved();
 }
 
@@ -912,6 +625,9 @@ void UISettingsDialogMachine::retranslateUi()
 
     /* SFolders page: */
     m_pSelector->setItemText(MachineSettingsPageType_SF, tr("Shared Folders"));
+
+    /* Interface page: */
+    m_pSelector->setItemText(MachineSettingsPageType_Interface, tr("User Interface"));
 
     /* Polish the selector: */
     m_pSelector->polish();
@@ -970,7 +686,7 @@ void UISettingsDialogMachine::recorrelate(UISettingsPage *pSettingsPage)
             UIMachineSettingsUSB *pUsbPage = qobject_cast<UIMachineSettingsUSB*>(pSettingsPage);
             UIMachineSettingsSystem *pSystemPage = qobject_cast<UIMachineSettingsSystem*>(m_pSelector->idToPage(MachineSettingsPageType_System));
             if (pUsbPage && pSystemPage)
-                pSystemPage->setOHCIEnabled(pUsbPage->isOHCIEnabled());
+                pSystemPage->setUSBEnabled(pUsbPage->isUSBEnabled());
             break;
         }
         default:
@@ -982,6 +698,9 @@ void UISettingsDialogMachine::sltMarkLoaded()
 {
     /* Call for base-class: */
     UISettingsDialog::sltMarkLoaded();
+
+    /* No need to reset 'first run' flag: */
+    m_fResetFirstRunFlag = false;
 
     /* Unlock the session if exists: */
     if (!m_session.isNull())
@@ -1029,8 +748,8 @@ void UISettingsDialogMachine::sltSessionStateChanged(QString strMachineId, KSess
     /* Update current session state: */
     m_sessionState = sessionState;
 
-    /* Update dialog-type if necessary: */
-    updateDialogType();
+    /* Recalculate configuration access level: */
+    updateConfigurationAccessLevel();
 }
 
 void UISettingsDialogMachine::sltMachineStateChanged(QString strMachineId, KMachineState machineState)
@@ -1046,8 +765,8 @@ void UISettingsDialogMachine::sltMachineStateChanged(QString strMachineId, KMach
     /* Update current machine state: */
     m_machineState = machineState;
 
-    /* Update dialog-type if necessary: */
-    updateDialogType();
+    /* Recalculate configuration access level: */
+    updateConfigurationAccessLevel();
 }
 
 void UISettingsDialogMachine::sltMachineDataChanged(QString strMachineId)
@@ -1061,13 +780,13 @@ void UISettingsDialogMachine::sltMachineDataChanged(QString strMachineId)
         return;
 
     /* Reload data: */
-    loadData();
+    loadOwnData();
 }
 
 void UISettingsDialogMachine::sltCategoryChanged(int cId)
 {
-    if (UISettingsSerializer::instance())
-        UISettingsSerializer::instance()->raisePriorityOfPage(cId);
+    if (serializeProcess())
+        serializeProcess()->raisePriorityOfPage(cId);
 
     UISettingsDialog::sltCategoryChanged(cId);
 }
@@ -1075,11 +794,6 @@ void UISettingsDialogMachine::sltCategoryChanged(int cId)
 void UISettingsDialogMachine::sltAllowResetFirstRunFlag()
 {
     m_fAllowResetFirstRunFlag = true;
-}
-
-void UISettingsDialogMachine::sltSetFirstRunFlag()
-{
-    m_fResetFirstRunFlag = false;
 }
 
 void UISettingsDialogMachine::sltResetFirstRunFlag()
@@ -1123,7 +837,7 @@ bool UISettingsDialogMachine::isPageAvailable(int iPageId)
             /* Show the machine error message if any: */
             if (   !m_machine.isReallyOk()
                 && controllerColl.size() > 0
-                && m_machine.GetUSBControllerCountByType(KUSBControllerType_OHCI))
+                && !m_machine.GetUSBControllers().isEmpty())
                 msgCenter().warnAboutUnaccessibleUSB(m_machine, parentWidget());
             break;
         }
@@ -1145,25 +859,23 @@ bool UISettingsDialogMachine::isSettingsChanged()
     return fIsSettingsChanged;
 }
 
-void UISettingsDialogMachine::updateDialogType()
+void UISettingsDialogMachine::updateConfigurationAccessLevel()
 {
-    /* Get new dialog type: */
-    SettingsDialogType newDialogType = determineSettingsDialogType(m_sessionState, m_machineState);
+    /* Determine new configuration access level: */
+    ConfigurationAccessLevel newConfigurationAccessLevel = ::configurationAccessLevel(m_sessionState, m_machineState);
 
-    /* Ignore if dialog type was NOT actually changed: */
-    if (dialogType() == newDialogType)
+    /* Make sure someting changed: */
+    if (configurationAccessLevel() == newConfigurationAccessLevel)
         return;
 
-    /* Should we show a warning about leaving 'offline' state? */
-    bool fShouldWe = dialogType() == SettingsDialogType_Offline;
+    /* Should we warn a user about access level decrease? */
+    bool fShouldWeWarn = configurationAccessLevel() == ConfigurationAccessLevel_Full;
 
-    /* Update current dialog type: */
-    setDialogType(newDialogType);
+    /* Apply new configuration access level: */
+    setConfigurationAccessLevel(newConfigurationAccessLevel);
 
-    /* Show a warning about leaving 'offline' state if we should: */
-    if (isSettingsChanged() && fShouldWe)
+    /* Show a warning about access level decrease if we should: */
+    if (isSettingsChanged() && fShouldWeWarn)
         msgCenter().warnAboutStateChange(this);
 }
-
-# include "UISettingsDialogSpecific.moc"
 

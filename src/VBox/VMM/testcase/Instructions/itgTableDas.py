@@ -18,7 +18,7 @@ Foundation, in version 2 as it comes in the "COPYING" file of the
 VirtualBox OSE distribution. VirtualBox OSE is distributed in the
 hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 """
-__version__ = "$Revision: 90928 $";
+__version__ = "$Revision: 90927 $";
 
 
 ## The 32-bit GCC (C99) program that produced the table below.

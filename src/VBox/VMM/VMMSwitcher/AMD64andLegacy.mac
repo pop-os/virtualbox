@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2013 Oracle Corporation
+; Copyright (C) 2006-2014 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,7 @@ BITS 64
 ;;
 ; The C interface.
 ;
-; @param    pVM  GCC: rdi  MSC:rcx  The VM handle.
+; @param    pVM  gcc: rdi  msc:rcx  The VM handle.
 ;
 BEGINPROC vmmR0ToRawMode
 %ifdef DEBUG_STUFF
@@ -130,6 +130,23 @@ gth64_notherm:
     jnc     gth64_nocmci
     and     dword [r8 + APIC_REG_LVT_CMCI], ~APIC_REG_LVT_MASKED
 gth64_nocmci:
+    shr     ecx, 1
+    jnc     gth64_noeilvt0
+    and     dword [r8 + APIC_REG_EILVT0], ~APIC_REG_LVT_MASKED
+gth64_noeilvt0:
+    shr     ecx, 1
+    jnc     gth64_noeilvt1
+    and     dword [r8 + APIC_REG_EILVT1], ~APIC_REG_LVT_MASKED
+gth64_noeilvt1:
+    shr     ecx, 1
+    jnc     gth64_noeilvt2
+    and     dword [r8 + APIC_REG_EILVT2], ~APIC_REG_LVT_MASKED
+gth64_noeilvt2:
+    shr     ecx, 1
+    jnc     gth64_noeilvt3
+    and     dword [r8 + APIC_REG_EILVT3], ~APIC_REG_LVT_MASKED
+gth64_noeilvt3:
+
     jmp     gth64_apic_done
 
     ; x2APIC mode:
@@ -338,7 +355,9 @@ BEGINPROC vmmR0ToRawModeAsm
     cmp     byte [rdx + r8 + CPUMCPU.fX2Apic], 1
     je      htg_x2apic
 
-    ; Legacy xAPIC mode:
+    ; Legacy xAPIC mode. No write completion required when writing to the
+    ; LVT registers as we have mapped the APIC page non-cacheable and the
+    ; MMIO is CPU-local.
     mov     rbx, [rdx + r8 + CPUMCPU.pvApicBase]
     or      rbx, rbx
     jz      htg_apic_done
@@ -351,7 +370,6 @@ BEGINPROC vmmR0ToRawModeAsm
     or      edi, 0x01
     or      eax, APIC_REG_LVT_MASKED
     mov     [rbx + APIC_REG_LVT_LINT0], eax
-    mov     eax, [rbx + APIC_REG_LVT_LINT0] ; write completion
 htg_nolint0:
     mov     eax, [rbx + APIC_REG_LVT_LINT1]
     mov     ecx, eax
@@ -361,7 +379,6 @@ htg_nolint0:
     or      edi, 0x02
     or      eax, APIC_REG_LVT_MASKED
     mov     [rbx + APIC_REG_LVT_LINT1], eax
-    mov     eax, [rbx + APIC_REG_LVT_LINT1] ; write completion
 htg_nolint1:
     mov     eax, [rbx + APIC_REG_LVT_PC]
     mov     ecx, eax
@@ -371,10 +388,10 @@ htg_nolint1:
     or      edi, 0x04
     or      eax, APIC_REG_LVT_MASKED
     mov     [rbx + APIC_REG_LVT_PC], eax
-    mov     eax, [rbx + APIC_REG_LVT_PC] ; write completion
 htg_nopc:
     mov     eax, [rbx + APIC_REG_VERSION]
     shr     eax, 16
+    push    rax
     cmp     al, 5
     jb      htg_notherm
     je      htg_nocmci
@@ -386,7 +403,6 @@ htg_nopc:
     or      edi, 0x10
     or      eax, APIC_REG_LVT_MASKED
     mov     [rbx + APIC_REG_LVT_CMCI], eax
-    mov     eax, [rbx + APIC_REG_LVT_CMCI] ; write completion
 htg_nocmci:
     mov     eax, [rbx + APIC_REG_LVT_THMR]
     mov     ecx, eax
@@ -396,8 +412,33 @@ htg_nocmci:
     or      edi, 0x08
     or      eax, APIC_REG_LVT_MASKED
     mov     [rbx + APIC_REG_LVT_THMR], eax
-    mov     eax, [rbx + APIC_REG_LVT_THMR] ; write completion
 htg_notherm:
+    pop     rax
+    test    ah, ah
+    jns     htg_noeilvt
+
+    ; AMD Extended LVT registers
+    mov     esi, [rbx + 0x400]
+    shr     esi, 16
+    and     esi, 0xff
+    jz      htg_noeilvt
+    mov     ebp, 0x20
+htg_tsteilvtx:
+    mov     eax, [rbx + APIC_REG_EILVT0]
+    mov     ecx, eax
+    and     ecx, (APIC_REG_LVT_MASKED | APIC_REG_LVT_MODE_MASK)
+    cmp     ecx, APIC_REG_LVT_MODE_NMI
+    jne     htg_noeilvtx
+    or      edi, ebp
+    or      eax, APIC_REG_LVT_MASKED
+    mov     [rbx + APIC_REG_EILVT0], eax
+htg_noeilvtx:
+    add     rbx, 0x10                    ; clobbers rbx!
+    shl     ebp, 1
+    dec     esi
+    jnz     htg_tsteilvtx
+
+htg_noeilvt:
     mov     [rdx + r8 + CPUMCPU.fApicDisVectors], edi
     jmp     htg_apic_done
 
@@ -523,7 +564,7 @@ htg_debug_regs_no:
 
     ;
     ; CR4.AndMask and CR4.OrMask are set in CPUMR3Init based on the presence of
-    ; FXSAVE support on the host CPU
+    ; FXSAVE and XSAVE support on the host CPU
     ;
     and     ecx, [rdx + CPUM.CR4.AndMask]
     or      eax, ecx
@@ -1102,8 +1143,10 @@ gth_sysenter_no:
     and     rcx, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, rcx
 
-    fxsave  [rdx + r8 + CPUMCPU.Guest.fpu]  
-    o64 fxrstor [rdx + r8 + CPUMCPU.Host.fpu]       ; Restore 64-bit host FPU state. See @bugref{7138}
+    mov     rax, [rdx + r8 + CPUMCPU.Guest.pXStateR0]
+    fxsave  [rax]
+    mov     rax, [rdx + r8 + CPUMCPU.Host.pXStateR0]
+    fxrstor [rax]                       ; We saved 32-bit state, so only restore 32-bit.
     jmp short gth_fpu_no
 
 ALIGNCODE(16)

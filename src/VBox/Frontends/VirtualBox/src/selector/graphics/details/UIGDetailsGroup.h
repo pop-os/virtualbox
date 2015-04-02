@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGDetailsGroup class declaration
+ * VBox Qt GUI - UIGDetailsGroup class declaration.
  */
 
 /*
@@ -80,7 +78,6 @@ private:
 
     /* Helpers: Prepare stuff: */
     void prepareConnections();
-    void loadSettings();
 
     /* Helpers: Layout stuff: */
     void updateGeometry();
@@ -95,7 +92,6 @@ private:
     QList<UIVMItem*> m_machineItems;
     UIBuildStep *m_pBuildStep;
     QString m_strGroupId;
-    QStringList m_settings;
 
     /* Friends: */
     friend class UIGDetailsModel;

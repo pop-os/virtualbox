@@ -1,8 +1,6 @@
 /* $Id: UIDesktopServices_darwin.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * Qt GUI - Utility Classes and Functions specific to darwin.
+ * VBox Qt GUI - Qt GUI - Utility Classes and Functions specific to darwin..
  */
 
 /*

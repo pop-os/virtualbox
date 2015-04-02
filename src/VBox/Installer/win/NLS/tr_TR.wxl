@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <WixLocalization xmlns="http://schemas.microsoft.com/wix/2006/localization" Codepage="1254" Culture="tr_TR">
 
     <!--
@@ -35,7 +35,7 @@
     <String Id="ButtonText_Ignore">Yok&amp;say</String>
     <String Id="ButtonText_Exit">Çı&amp;kış</String>
 
-	<String Id="InstallModeCustom">Özel</String>
+	  <String Id="InstallModeCustom">Özel</String>
     <String Id="Setup">Kur</String>
 
     <!---->
@@ -50,8 +50,10 @@
     <String Id="VB_Network">Ağ oluşturma desteği için [ProductName] ağ aygıtı sürücüleri.</String>
     <String Id="VB_NetFltDriver">Köprü Ağı Oluşturma için [ProductName] sürücüsü.</String>
     <String Id="VB_NetAdpDriver">Sadece-Anamakine Ağı Oluşturma için [ProductName] sanal ağ bağdaştırıcısı sürücüsü.</String>
+    <String Id="VB_NetLwfDriver">[ProductName] driver for NDIS6 Bridged Networking.</String>
+    <String Id="VB_NetAdp6Driver">[ProductName] virtual network adapter driver for NDIS6 Host-Only Networking.</String>
 
-    <String Id="VB_Python">VirtualBox için Python desteği.</String>
+  <String Id="VB_Python">VirtualBox için Python desteği.</String>
 
 	<!---->
 
@@ -117,12 +119,22 @@
     <String Id="CustomizeDlg_SelItemSize">CustomizeDlgItemSize-CustomizeDlgItemSize</String>
     <String Id="CustomizeDlg_SelItemPath">CustomizeDlgLocation-CustomizeDlgLocation</String>
 
-    <!---->
+	<!---->
 
 	<String Id="Customize2Dlg_Header">Özelleştir</String>
     <String Id="Customize2Dlg_Desc">Lütfen aşağıdaki seçeneklerden seçin:</String>
     <String Id="Customize2Dlg_CreateShortcut">Masaüstüne kısayol oluştur</String>
     <String Id="Customize2Dlg_CreateQuickLaunch">Hızlı Başlat Çubuğuna kısayol oluştur</String>
+
+	<!---->
+
+    <String Id="SelectionNetworkTypeDlg_CommonDescription">Please choose which type of network drivers you will use:</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS5">NDIS5 network drivers.
+This is default for older versions of Windows (pre-Vista).</String>
+    <String Id="SelectionNetworkTypeDlg_DescriptionNDIS6">NDIS6 network drivers.
+This is default for newer versions of Windows (Vista and newer).</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS5">Use NDIS5 network drivers.</String>
+    <String Id="SelectionNetworkTypeDlg_RadioButtonNDIS6">Use NDIS6 network drivers.</String>
 
 	<!---->
 

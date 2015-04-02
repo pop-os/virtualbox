@@ -1858,15 +1858,13 @@ int vboxVBVALoadStateExec (PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t u32Vers
 
             if (u32Version > VGA_SAVEDSTATE_VERSION_WDDM)
             {
-#define VBOX_VHWA_SOLARIS_ARCH "solaris."
-
                 bool fLoadCommands;
 
                 if (u32Version < VGA_SAVEDSTATE_VERSION_FIXED_PENDVHWA)
                 {
                     const char *pcszOsArch = SSMR3HandleHostOSAndArch(pSSM);
                     Assert(pcszOsArch);
-                    fLoadCommands = !pcszOsArch || RTStrNCmp(pcszOsArch, VBOX_VHWA_SOLARIS_ARCH, sizeof (VBOX_VHWA_SOLARIS_ARCH) - 1);
+                    fLoadCommands = !pcszOsArch || RTStrNCmp(pcszOsArch, RT_STR_TUPLE("solaris"));
                 }
                 else
                     fLoadCommands = true;
@@ -2067,6 +2065,7 @@ int VBVAGetInfoViewAndScreen(PVGASTATE pVGAState, uint32_t u32ViewIndex, VBVAINF
     return VINF_SUCCESS;
 }
 
+
 /*
  *
  * New VBVA uses a new interface id: #define VBE_DISPI_ID_VBOX_VIDEO         0xBE01
@@ -2189,6 +2188,10 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             else if (pConf32->u32Index == VBOX_VBVA_CONF32_CURSOR_CAPABILITIES)
             {
                 pConf32->u32Value = pVGAState->fHostCursorCapabilities;
+            }
+            else if (pConf32->u32Index == VBOX_VBVA_CONF32_SCREEN_FLAGS)
+            {
+                pConf32->u32Value = VBVA_SCREEN_F_ACTIVE | VBVA_SCREEN_F_DISABLED | VBVA_SCREEN_F_BLANK;
             }
             else
             {

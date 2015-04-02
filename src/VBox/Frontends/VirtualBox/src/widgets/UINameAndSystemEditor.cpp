@@ -1,8 +1,6 @@
 /* $Id: UINameAndSystemEditor.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UINameAndSystemEditor class implementation
+ * VBox Qt GUI - UINameAndSystemEditor class implementation.
  */
 
 /*
@@ -17,15 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes: */
-#include <QGridLayout>
-#include <QVBoxLayout>
-#include <QLabel>
-#include <QLineEdit>
-#include <QComboBox>
+# include <QGridLayout>
+# include <QVBoxLayout>
+# include <QLabel>
+# include <QLineEdit>
+# include <QComboBox>
 
 /* Local includes: */
-#include "UINameAndSystemEditor.h"
+# include "UINameAndSystemEditor.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 enum
 {
@@ -156,7 +161,7 @@ CGuestOSType UINameAndSystemEditor::type() const
 
 void UINameAndSystemEditor::retranslateUi()
 {
-    m_pNameLabel->setText(tr("&Name:"));
+    m_pNameLabel->setText(tr("N&ame:"));
     m_pNameEditor->setWhatsThis(tr("Holds the name of the virtual machine."));
     m_pFamilyLabel->setText(tr("&Type:"));
     m_pFamilyCombo->setWhatsThis(tr("Selects the operating system family that "

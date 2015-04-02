@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMessageCenter class declaration
+ * VBox Qt GUI - UIMessageCenter class declaration.
  */
 
 /*
@@ -152,13 +150,13 @@ public:
     void warnAboutWrongUSBMounted() const;
 #endif /* RT_OS_LINUX */
     void cannotStartSelector() const;
-    void showBETAWarning() const;
-    void showBEBWarning() const;
+    void showBetaBuildWarning() const;
+    void showExperimentalBuildWarning() const;
 
     /* API: COM startup warnings: */
     void cannotInitUserHome(const QString &strUserHome) const;
     void cannotInitCOM(HRESULT rc) const;
-    void cannotCreateVirtualBox(const CVirtualBox &vbox) const;
+    void cannotCreateVirtualBoxClient(const CVirtualBoxClient &client) const;
 
     /* API: Global warnings: */
     void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
@@ -172,6 +170,8 @@ public:
     void cannotOpenSession(const CProgress &progress, const QString &strMachineName) const;
     void cannotGetMediaAccessibility(const UIMedium &medium) const;
     void cannotOpenURL(const QString &strUrl) const;
+    void cannotSetExtraData(const CVirtualBox &vbox, const QString &strKey, const QString &strValue);
+    void cannotSetExtraData(const CMachine &machine, const QString &strKey, const QString &strValue);
 
     /* API: Selector warnings: */
     void cannotOpenMachine(const CVirtualBox &vbox, const QString &strMachinePath) const;
@@ -231,7 +231,9 @@ public:
     int confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
     int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
     void cannotAttachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
-    void warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool warnAboutIncorrectPort(QWidget *pParent = 0) const;
+    bool warnAboutNameShouldBeUnique(QWidget *pParent = 0) const;
+    bool warnAboutRulesConflict(QWidget *pParent = 0) const;
     bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;
     void cannotCreateSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
     void cannotCreateSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
@@ -241,7 +243,7 @@ public:
 
     /* API: Virtual Medium Manager warnings: */
     void cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent = 0) const;
-    bool confirmMediumRelease(const UIMedium &medium, const QString &strUsage, QWidget *pParent = 0) const;
+    bool confirmMediumRelease(const UIMedium &medium, QWidget *pParent = 0) const;
     bool confirmMediumRemoval(const UIMedium &medium, QWidget *pParent = 0) const;
     int confirmDeleteHardDiskStorage(const QString &strLocation, QWidget *pParent = 0) const;
     void cannotDeleteHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
@@ -277,8 +279,9 @@ public:
     /* API: Runtime UI warnings: */
     void showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const;
     bool remindAboutGuruMeditation(const QString &strLogFolder);
-    bool warnAboutVirtNotEnabled64BitsGuest(bool fHWVirtExSupported) const;
-    bool warnAboutVirtNotEnabledGuestRequired(bool fHWVirtExSupported) const;
+    void warnAboutVBoxSVCUnavailable() const;
+    bool warnAboutVirtExInactiveFor64BitsGuest(bool fHWVirtExSupported) const;
+    bool warnAboutVirtExInactiveForRecommendedGuest(bool fHWVirtExSupported) const;
     bool cannotStartWithoutNetworkIf(const QString &strMachineName, const QString &strIfNames) const;
     void cannotStartMachine(const CConsole &console, const QString &strName) const;
     void cannotStartMachine(const CProgress &progress, const QString &strName) const;
@@ -296,10 +299,12 @@ public:
     void cannotDetachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
     void cannotAttachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
     void cannotDetachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
-    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
     void cannotToggleVideoCapture(const CMachine &machine, bool fEnable);
+    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
+    void cannotToggleNetworkAdapterCable(const CNetworkAdapter &adapter, const QString &strMachineName, bool fConnect);
     void remindAboutGuestAdditionsAreNotActive() const;
     void cannotMountGuestAdditions(const QString &strMachineName) const;
+    void cannotAddDiskEncryptionPassword(const CConsole &console);
 
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* API: Network management warnings: */
@@ -354,6 +359,7 @@ public:
 
     /* API: Static helpers: */
     static QString formatRC(HRESULT rc);
+    static QString formatRCFull(HRESULT rc);
     static QString formatErrorInfo(const CProgress &progress);
     static QString formatErrorInfo(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
     static QString formatErrorInfo(const CVirtualBoxErrorInfo &info);

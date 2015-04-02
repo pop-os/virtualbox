@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,7 +78,7 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
     /*
      * This would work if it didn't flip over every 49 (or so) days.
      */
-    return (uint64_t)GetTickCount() * (uint64_t)1000000;
+    return (uint64_t)GetTickCount() * RT_NS_1MS_64;
 
 #elif defined USE_PERFORMANCE_COUNTER
     /*
@@ -89,7 +89,7 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
     if (!llFreq.QuadPart)
     {
         if (!QueryPerformanceFrequency(&llFreq))
-            return (uint64_t)GetTickCount() * (uint64_t)1000000;
+            return (uint64_t)GetTickCount() * RT_NS_1MS_64;
         llFreq.QuadPart /=    1000;
         uMult            = 1000000;     /* no math genius, but this seemed to help avoiding floating point. */
     }
@@ -97,7 +97,7 @@ DECLINLINE(uint64_t) rtTimeGetSystemNanoTS(void)
     LARGE_INTEGER   ll;
     if (QueryPerformanceCounter(&ll))
         return (ll.QuadPart * uMult) / llFreq.QuadPart;
-    return (uint64_t)GetTickCount() * (uint64_t)1000000;
+    return (uint64_t)GetTickCount() * RT_NS_1MS_64;
 
 #elif defined USE_FILE_TIME
     /*
@@ -148,7 +148,7 @@ RTDECL(uint64_t) RTTimeSystemNanoTS(void)
 
 RTDECL(uint64_t) RTTimeSystemMilliTS(void)
 {
-    return rtTimeGetSystemNanoTS() / 1000000;
+    return rtTimeGetSystemNanoTS() / RT_NS_1MS;
 }
 
 
@@ -158,19 +158,6 @@ RTDECL(PRTTIMESPEC) RTTimeNow(PRTTIMESPEC pTime)
     AssertCompile(sizeof(u64) == sizeof(FILETIME));
     GetSystemTimeAsFileTime((LPFILETIME)&u64);
     return RTTimeSpecSetNtTime(pTime, u64);
-}
-
-
-RTDECL(int) RTTimeSet(PCRTTIMESPEC pTime)
-{
-    FILETIME    FileTime;
-    SYSTEMTIME  SysTime;
-    if (FileTimeToSystemTime(RTTimeSpecGetNtFileTime(pTime, &FileTime), &SysTime))
-    {
-        if (SetSystemTime(&SysTime))
-            return VINF_SUCCESS;
-    }
-    return RTErrConvertFromWin32(GetLastError());
 }
 
 
@@ -195,47 +182,7 @@ RTDECL(int64_t) RTTimeLocalDeltaNano(void)
     TIME_ZONE_INFORMATION Tzi;
     Tzi.Bias = 0;
     if (GetTimeZoneInformation(&Tzi) != TIME_ZONE_ID_INVALID)
-        return -(int64_t)Tzi.Bias * 60*1000*1000*1000;
+        return -(int64_t)Tzi.Bias * 60 * RT_NS_1SEC_64;
     return 0;
-}
-
-
-RTDECL(PRTTIME) RTTimeLocalExplode(PRTTIME pTime, PCRTTIMESPEC pTimeSpec)
-{
-    /*
-     * FileTimeToLocalFileTime does not do the right thing, so we'll have
-     * to convert to system time and SystemTimeToTzSpecificLocalTime instead.
-     */
-    RTTIMESPEC LocalTime;
-    SYSTEMTIME SystemTimeIn;
-    FILETIME FileTime;
-    if (FileTimeToSystemTime(RTTimeSpecGetNtFileTime(pTimeSpec, &FileTime), &SystemTimeIn))
-    {
-        SYSTEMTIME SystemTimeOut;
-        if (SystemTimeToTzSpecificLocalTime(NULL /* use current TZI */,
-                                            &SystemTimeIn,
-                                            &SystemTimeOut))
-        {
-            if (SystemTimeToFileTime(&SystemTimeOut, &FileTime))
-            {
-                RTTimeSpecSetNtFileTime(&LocalTime, &FileTime);
-                pTime = RTTimeExplode(pTime, &LocalTime);
-                if (pTime)
-                    pTime->fFlags = (pTime->fFlags & ~RTTIME_FLAGS_TYPE_MASK) | RTTIME_FLAGS_TYPE_LOCAL;
-                return pTime;
-            }
-        }
-    }
-
-    /*
-     * The fallback is to use the current offset.
-     * (A better fallback would be to use the offset of the same time of the year.)
-     */
-    LocalTime = *pTimeSpec;
-    RTTimeSpecAddNano(&LocalTime, RTTimeLocalDeltaNano());
-    pTime = RTTimeExplode(pTime, &LocalTime);
-    if (pTime)
-        pTime->fFlags = (pTime->fFlags & ~RTTIME_FLAGS_TYPE_MASK) | RTTIME_FLAGS_TYPE_LOCAL;
-    return pTime;
 }
 

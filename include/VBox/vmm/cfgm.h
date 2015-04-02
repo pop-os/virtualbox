@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,7 +54,6 @@ RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
 /** @defgroup   grp_cfgm_r3     The CFGM Host Context Ring-3 API
- * @ingroup grp_cfgm
  * @{
  */
 
@@ -133,6 +132,7 @@ VMMR3DECL(int)          CFGMR3RemoveValue(PCFGMNODE pNode, const char *pszName);
 /** @} */
 VMMR3DECL(int)          CFGMR3CopyTree(PCFGMNODE pDstTree, PCFGMNODE pSrcTree, uint32_t fFlags);
 
+VMMR3DECL(bool)         CFGMR3Exists(           PCFGMNODE pNode, const char *pszName);
 VMMR3DECL(int)          CFGMR3QueryType(        PCFGMNODE pNode, const char *pszName, PCFGMVALUETYPE penmType);
 VMMR3DECL(int)          CFGMR3QuerySize(        PCFGMNODE pNode, const char *pszName, size_t *pcb);
 VMMR3DECL(int)          CFGMR3QueryInteger(     PCFGMNODE pNode, const char *pszName, uint64_t *pu64);

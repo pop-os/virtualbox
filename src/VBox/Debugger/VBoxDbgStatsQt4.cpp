@@ -2166,11 +2166,13 @@ VBoxDbgStatsModel::strValueTimes(PCDBGGUISTATSNODE pNode)
         case STAMTYPE_RATIO_U32:
         case STAMTYPE_RATIO_U32_RESET:
         {
-            formatNumber(sz, pNode->Data.RatioU32.u32A);
-            char *psz = strchr(sz, '\0');
-            *psz++ = ':';
-            formatNumber(psz, pNode->Data.RatioU32.u32B);
-            return psz;
+            char szTmp[64];
+            char *psz  = formatNumber(szTmp, pNode->Data.RatioU32.u32A);
+            size_t off = strlen(psz);
+            memcpy(sz, psz, off);
+            sz[off++] = ':';
+            strcpy(&sz[off], formatNumber(szTmp, pNode->Data.RatioU32.u32B));
+            return sz;
         }
 
         case STAMTYPE_CALLBACK:
@@ -3031,7 +3033,14 @@ VBoxDbgStatsView::actAdjColumns()
 VBoxDbgStats::VBoxDbgStats(VBoxDbgGui *a_pDbgGui, const char *pszPat/* = NULL*/, unsigned uRefreshRate/* = 0*/, QWidget *pParent/* = NULL*/)
     : VBoxDbgBaseWindow(a_pDbgGui, pParent), m_PatStr(pszPat), m_pPatCB(NULL), m_uRefreshRate(0), m_pTimer(NULL), m_pView(NULL)
 {
-    setWindowTitle("VBoxDbg - Statistics");
+    /* Assign window-title: */
+    if (parent())
+    {
+        setWindowTitle(QString("%1 - Statistics").arg(parentWidget()->windowTitle()));
+        parent()->installEventFilter(this);
+    }
+    else
+        setWindowTitle("VBoxDbg - Statistics");
 
     /*
      * On top, a horizontal box with the pattern field, buttons and refresh interval.
@@ -3140,6 +3149,24 @@ VBoxDbgStats::closeEvent(QCloseEvent *a_pCloseEvt)
 {
     a_pCloseEvt->accept();
     delete this;
+}
+
+
+bool VBoxDbgStats::eventFilter(QObject *pWatched, QEvent *pEvent)
+{
+    /* Skip events which are not related to our parent: */
+    if (pWatched != parent())
+        return VBoxDbgBaseWindow::eventFilter(pWatched, pEvent);
+
+    /* Depending on event-type: */
+    switch (pEvent->type())
+    {
+        case QEvent::WindowTitleChange: setWindowTitle(QString("%1 - Statistics").arg(parentWidget()->windowTitle())); break;
+        default: break;
+    }
+
+    /* Call to base-class: */
+    return VBoxDbgBaseWindow::eventFilter(pWatched, pEvent);
 }
 
 

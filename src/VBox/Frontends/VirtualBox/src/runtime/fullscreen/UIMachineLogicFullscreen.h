@@ -59,7 +59,7 @@ protected:
     bool checkAvailability();
 
     /** Returns machine-window flags for 'Fullscreen' machine-logic and passed @a uScreenId. */
-    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const { Q_UNUSED(uScreenId); return Qt::FramelessWindowHint; }
+    virtual Qt::WindowFlags windowFlags(ulong uScreenId) const;
 
     /** Adjusts machine-window geometry if necessary for 'Fullscreen'. */
     virtual void adjustMachineWindowsGeometry();
@@ -96,6 +96,9 @@ private slots:
     /* Handler: Console callback stuff: */
     void sltMachineStateChanged();
 
+    /** Invokes popup-menu. */
+    void sltInvokePopupMenu();
+
 #ifdef RT_OS_DARWIN
     void sltChangePresentationMode(bool fEnabled);
 #endif /* RT_OS_DARWIN */
@@ -122,7 +125,7 @@ private:
     void prepareMenu();
 
     /* Cleanup helpers: */
-    //void cleanupMenu() {}
+    void cleanupMenu();
     void cleanupMachineWindows();
 #ifdef Q_WS_MAC
     //void cleanupOtherConnections() {}
@@ -132,11 +135,6 @@ private:
 
 #ifdef Q_WS_MAC
     void setPresentationModeEnabled(bool fEnabled);
-
-    /** Mac OS X: Performs fade to black if possible. */
-    void fadeToBlack();
-    /** Mac OS X: Performs fade to normal if possible. */
-    void fadeToNormal();
 
     /** Mac OS X: Revalidates 'fullscreen' mode for @a pMachineWindow. */
     void revalidateNativeFullScreen(UIMachineWindow *pMachineWindow);
@@ -154,15 +152,15 @@ private:
     void nativeHandlerForActiveSpaceChange(const QMap<QString, QString> &userInfo);
 #endif /* Q_WS_MAC */
 
+    /** Holds the popup-menu instance. */
+    QMenu *m_pPopupMenu;
+
     /* Variables: */
     UIMultiScreenLayout *m_pScreenLayout;
 
 #ifdef Q_WS_MAC
     /** Mac OS X: Holds whether screens have separate spaces. */
     const bool m_fScreensHaveSeparateSpaces;
-
-    /** Mac OS X: Fade token. */
-    CGDisplayFadeReservationToken m_fadeToken;
 
     /** Mac OS X: Contains machine-window(s) marked as 'fullscreen'. */
     QSet<UIMachineWindow*> m_fullscreenMachineWindows;

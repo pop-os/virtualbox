@@ -1,8 +1,6 @@
 /* $Id: UIVMDesktop.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIVMDesktop class implementation
+ * VBox Qt GUI - UIVMDesktop class implementation.
  */
 
 /*
@@ -17,28 +15,36 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QLabel>
-#include <QStackedLayout>
-#include <QStackedWidget>
-#include <QToolButton>
-#ifdef Q_WS_MAC
-# include <QTimer>
-#endif /* Q_WS_MAC */
+# include <QLabel>
+# include <QStackedWidget>
+# include <QToolButton>
+# ifdef Q_WS_MAC
+#  include <QTimer>
+# endif /* Q_WS_MAC */
 
 /* GUI includes */
-#include "UIBar.h"
-#include "UIIconPool.h"
-#include "UISpacerWidgets.h"
-#include "UISpecialControls.h"
-#include "UIVMDesktop.h"
-#include "UIVMItem.h"
-#include "UIToolBar.h"
-#include "VBoxSnapshotsWgt.h"
-#include "VBoxUtils.h"
+# include "UIBar.h"
+# include "UIIconPool.h"
+# include "UISpacerWidgets.h"
+# include "UISpecialControls.h"
+# include "UIVMDesktop.h"
+# include "UIVMItem.h"
+# include "UIToolBar.h"
+# include "VBoxSnapshotsWgt.h"
+# include "VBoxUtils.h"
 
 /* Other VBox includes: */
-#include <iprt/assert.h>
+# include <iprt/assert.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QStackedLayout>
+
 
 //#ifdef Q_WS_MAC
 # define USE_TOOLBAR
@@ -226,11 +232,28 @@ enum
 UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *pParent)
     : QIWithRetranslateUI<QWidget>(pParent)
 {
-    /* Prepare buttons: */
-    m_pHeaderBtn = new UITexturedSegmentedButton(2);
-    m_pHeaderBtn->setIcon(Dtls, UIIconPool::iconSet(":/vm_settings_16px.png"));
-    m_pHeaderBtn->setIcon(Snap, UIIconPool::iconSet(":/snapshot_take_16px.png",
-                                                    ":/snapshot_take_disabled_16px.png"));
+    /* Create container: */
+    QWidget *pContainer = new QWidget;
+    {
+        /* Create layout: */
+        QHBoxLayout *pLayout = new QHBoxLayout(pContainer);
+        {
+            /* Configure layout: */
+            pLayout->setContentsMargins(0, 0, 0, 0);
+            /* Create segmented-button: */
+            m_pHeaderBtn = new UITexturedSegmentedButton(pContainer, 2);
+            {
+                /* Configure segmented-button: */
+                m_pHeaderBtn->setIcon(Dtls, UIIconPool::iconSet(":/vm_settings_16px.png",
+                                                                ":/vm_settings_disabled_16px.png"));
+                m_pHeaderBtn->setIcon(Snap, UIIconPool::iconSet(":/snapshot_take_16px.png",
+                                                                ":/snapshot_take_disabled_16px.png"));
+                /* Add segmented-buttons into layout: */
+                pLayout->addWidget(m_pHeaderBtn);
+            }
+        }
+    }
+
 #ifdef Q_WS_MAC
     /* Cocoa stuff should be async...
      * Do not ask me why but otherwise
@@ -250,7 +273,7 @@ UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *
     if (pToolBar)
     {
         pToolBar->addWidget(new UIHorizontalSpacerWidget(this));
-        pToolBar->addWidget(m_pHeaderBtn);
+        pToolBar->addWidget(pContainer);
         QWidget *pSpace = new QWidget(this);
         /* We need a little bit more space for the beta label. */
         if (vboxGlobal().isBeta())
@@ -268,7 +291,7 @@ UIVMDesktop::UIVMDesktop(UIToolBar *pToolBar, QAction *pRefreshAction, QWidget *
 #endif /* !USE_TOOLBAR */
     {
         UIBar *pBar = new UIBar(this);
-        pBar->setContentWidget(m_pHeaderBtn);
+        pBar->setContentWidget(pContainer);
         pMainLayout->addWidget(pBar);
     }
 

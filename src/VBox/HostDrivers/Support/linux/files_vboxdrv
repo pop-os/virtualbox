@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2012 Oracle Corporation
+# Copyright (C) 2007-2015 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,7 @@ FILES_VBOXDRV_NOBIN=" \
     ${PATH_ROOT}/include/iprt/time.h=>include/iprt/time.h \
     ${PATH_ROOT}/include/iprt/timer.h=>include/iprt/timer.h \
     ${PATH_ROOT}/include/iprt/types.h=>include/iprt/types.h \
+    ${PATH_ROOT}/include/iprt/uint128.h=>include/iprt/uint128.h \
     ${PATH_ROOT}/include/iprt/uni.h=>include/iprt/uni.h \
     ${PATH_ROOT}/include/iprt/uuid.h=>include/iprt/uuid.h \
     ${PATH_ROOT}/include/iprt/x86.h=>include/iprt/x86.h \
@@ -78,13 +79,15 @@ FILES_VBOXDRV_NOBIN=" \
     ${PATH_ROOT}/include/VBox/vmm/hm_vmx.h=>include/VBox/vmm/hm_vmx.h \
     ${PATH_ROOT}/include/VBox/vmm/hm_svm.h=>include/VBox/vmm/hm_svm.h \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/linux/SUPDrv-linux.c=>linux/SUPDrv-linux.c \
-    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrv.c=>SUPDrv.c \
-    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvSem.c=>SUPDrvSem.c \
+    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrv.cpp=>SUPDrv.c \
+    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvGip.cpp=>SUPDrvGip.c \
+    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvSem.cpp=>SUPDrvSem.c \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvTracer.cpp=>SUPDrvTracer.c \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrv-dtrace.cpp=>SUPDrvDTrace.c \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvIDC.h=>SUPDrvIDC.h \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvIOC.h=>SUPDrvIOC.h \
     ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPDrvInternal.h=>SUPDrvInternal.h \
+    ${PATH_ROOT}/src/VBox/HostDrivers/Support/SUPLibAll.cpp=>SUPLibAll.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/alloc/alloc.cpp=>common/alloc/alloc.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/alloc/heapsimple.cpp=>common/alloc/heapsimple.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/checksum/crc32.cpp=>common/checksum/crc32.c \

@@ -1,4 +1,4 @@
-/* $Id: kLdr.h 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kLdr.h 58 2013-10-12 20:18:21Z bird $ */
 /** @file
  * kLdr - The Dynamic Loader.
  */
@@ -365,6 +365,13 @@ typedef enum KLDRENDIAN
 } KLDRENDIAN;
 
 
+/** @name KLDRMOD::fFlags
+ * @{ */
+/** The link address doesn't form a contiguous image, from the first to the
+ * last segment.   */
+#define KLDRMOD_FLAGS_NON_CONTIGUOUS_LINK_ADDRS         K_BIT32(0)
+/** @} */
+
 /** Pointer to a module interpreter method table. */
 typedef struct KLDRMODOPS *PKLDRMODOPS;
 /** Pointer to const module interpreter methods table. */
@@ -389,6 +396,8 @@ typedef struct KLDRMOD
     KCPU                enmCpu;
     /** The endian used by the module. */
     KLDRENDIAN          enmEndian;
+    /** Module falgs. */
+    KU32                fFlags;
     /** The filename length (bytes). */
     KU32                cchFilename;
     /** The filename. */

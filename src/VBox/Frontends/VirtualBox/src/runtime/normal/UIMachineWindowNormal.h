@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineWindowNormal class declaration
+ * VBox Qt GUI - UIMachineWindowNormal class declaration.
  */
 
 /*
@@ -19,21 +17,22 @@
 #ifndef __UIMachineWindowNormal_h__
 #define __UIMachineWindowNormal_h__
 
-/* Global includes: */
-#include <QLabel>
-
 /* Local includes: */
 #include "UIMachineWindow.h"
 
 /* Forward declarations: */
 class CMediumAttachment;
 class UIIndicatorsPool;
-class QIStateIndicator;
 
 /* Normal machine-window implementation: */
 class UIMachineWindowNormal : public UIMachineWindow
 {
     Q_OBJECT;
+
+signals:
+
+    /** Notifies about geometry change. */
+    void sigGeometryChange(const QRect &rect);
 
 protected:
 
@@ -57,31 +56,39 @@ private slots:
     void sltVideoCaptureChange();
     void sltCPUExecutionCapChange();
 
-    /* LED connections: */
-    void sltUpdateIndicators();
-    void sltShowIndicatorsContextMenu(QIStateIndicator *pIndicator, QContextMenuEvent *pEvent);
-    void sltProcessGlobalSettingChange(const char *aPublicName, const char *aName);
+#ifndef RT_OS_DARWIN
+    /** Handles menu-bar configuration-change. */
+    void sltHandleMenuBarConfigurationChange(const QString &strMachineID);
+    /** Handles menu-bar context-menu-request. */
+    void sltHandleMenuBarContextMenuRequest(const QPoint &position);
+#endif /* !RT_OS_DARWIN */
+
+    /** Handles status-bar configuration-change. */
+    void sltHandleStatusBarConfigurationChange(const QString &strMachineID);
+    /** Handles status-bar context-menu-request. */
+    void sltHandleStatusBarContextMenuRequest(const QPoint &position);
+    /** Handles status-bar indicator context-menu-request. */
+    void sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position);
 
 private:
 
     /* Prepare helpers: */
     void prepareSessionConnections();
+#ifndef Q_WS_MAC
     void prepareMenu();
+#endif /* !Q_WS_MAC */
     void prepareStatusBar();
     void prepareVisualState();
-    void prepareHandlers();
     void loadSettings();
 
     /* Cleanup helpers: */
     void saveSettings();
-    //void cleanupHandlers() {}
     //coid cleanupVisualState() {}
-    void cleanupStatusBar();
+    //void cleanupStatusBar() {}
+#ifndef Q_WS_MAC
     //void cleanupMenu() {}
+#endif /* !Q_WS_MAC */
     //void cleanupConsoleConnections() {}
-
-    /* Translate stuff: */
-    void retranslateUi();
 
     /* Show stuff: */
     void showInNecessaryMode();
@@ -92,20 +99,21 @@ private:
     /* Update stuff: */
     void updateAppearanceOf(int aElement);
 
+#ifndef Q_WS_MAC
+    /** Updates menu-bar content. */
+    void updateMenu();
+#endif /* !Q_WS_MAC */
+
     /* Event handler: */
     bool event(QEvent *pEvent);
 
     /* Helpers: */
-    UIIndicatorsPool* indicatorsPool() { return m_pIndicatorsPool; }
     bool isMaximizedChecked();
-    void updateIndicatorState(QIStateIndicator *pIndicator, KDeviceType deviceType);
 
-    /* Widgets: */
+    /** Holds the indicator-pool instance. */
     UIIndicatorsPool *m_pIndicatorsPool;
-    QLabel *m_pNameHostkey;
 
-    /* Variables: */
-    QTimer *m_pIdleTimer;
+    /** Holds current window geometry. */
     QRect m_normalGeometry;
 
     /* Factory support: */

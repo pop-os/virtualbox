@@ -36,7 +36,6 @@
 #ifdef VMSVGA_USE_EMT_HALT_CODE
 # include <VBox/vmm/vmapi.h>
 # include <VBox/vmm/vmcpuset.h>
-# include <VBox/vmm/vm.h> /* Need VMCPU::idCpu. */
 #endif
 #include <VBox/sup.h>
 
@@ -89,7 +88,7 @@
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /* 64-bit GMR descriptor */
-typedef struct 
+typedef struct
 {
    RTGCPHYS GCPhys;
    uint64_t numPages;
@@ -114,7 +113,7 @@ typedef struct
         uint32_t            bytesPerLine;
         SVGAGMRImageFormat  format;
     } GMRFB;
-    struct 
+    struct
     {
         bool                fActive;
         uint32_t            xHotspot;
@@ -223,7 +222,7 @@ static SSMFIELD const g_aVGAStateSVGAFields[] =
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pSVGAState),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, p3dState),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFrameBufferBackup),
-    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOExtCmdParam),    
+    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOExtCmdParam),
     SSMFIELD_ENTRY_IGN_GCPHYS(      VMSVGAState, GCPhysFIFO),
     SSMFIELD_ENTRY_IGNORE(          VMSVGAState, cbFIFO),
     SSMFIELD_ENTRY(                 VMSVGAState, u32SVGAId),
@@ -508,7 +507,7 @@ static const char *vmsvgaFIFOCmdToString(uint32_t u32Cmd)
  * Inform the VGA device of viewport changes (as a result of e.g. scrolling)
  *
  * @param   pInterface          Pointer to this interface.
- * @param   
+ * @param
  * @param   uScreenId           The screen updates are for.
  * @param   x                   The upper left corner x coordinate of the new viewport rectangle
  * @param   y                   The upper left corner y coordinate of the new viewport rectangle
@@ -801,7 +800,7 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
             PVMSVGASTATE pSVGAState = (PVMSVGASTATE)pThis->svga.pSVGAState;
             STAM_REL_PROFILE_START(&pSVGAState->StatBusyDelayEmts, EmtDelay);
             PVM         pVM   = PDMDevHlpGetVM(pThis->pDevInsR3);
-            VMCPUID     idCpu = PDMDevHlpGetVMCPU(pThis->pDevInsR3)->idCpu; /** @todo add a separate dev helper for this. */
+            VMCPUID     idCpu = PDMDevHlpGetCurrentCpuId(pThis->pDevInsR3);
             VMCPUSET_ATOMIC_ADD(&pSVGAState->BusyDelayedEmts, idCpu);
             ASMAtomicIncU32(&pSVGAState->cBusyDelayedEmts);
             if (pThis->svga.fBusy)
@@ -999,7 +998,7 @@ int vmsvgaChangeMode(PVGASTATE pThis)
     pThis->last_scr_height  = pThis->svga.uHeight;
     pThis->last_width       = pThis->svga.uWidth;
     pThis->last_height      = pThis->svga.uHeight;
-    
+
     ASMAtomicOrU32(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE);
 
     /* vmsvgaPortSetViewPort not called after state load; set sensible defaults. */
@@ -1054,7 +1053,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
     switch (pThis->svga.u32IndexReg)
     {
     case SVGA_REG_ID:
-        if (    u32 == SVGA_ID_0 
+        if (    u32 == SVGA_ID_0
             ||  u32 == SVGA_ID_1
             ||  u32 == SVGA_ID_2)
             pThis->svga.u32SVGAId = u32;
@@ -1072,7 +1071,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
             break;
 
 #ifdef IN_RING3
-        if (    u32 == 1 
+        if (    u32 == 1
             &&  pThis->svga.fEnabled == false)
         {
             /* Make a backup copy of the first 32k in order to save font data etc. */
@@ -1356,7 +1355,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         if (pThis->svga.fTraces == u32)
             break; /* nothing to do */
 
-#ifdef IN_RING3        
+#ifdef IN_RING3
         vmsvgaSetTraces(pThis, !!u32);
 #else
         rc = VINF_IOM_R3_IOPORT_WRITE;
@@ -1516,7 +1515,7 @@ PDMBOTHCBDECL(int) vmsvgaIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
  * @param   fWriteAccess    Read or write access
  */
 static int vmsvgaFIFOAccess(PVM pVM, PVGASTATE pThis, RTGCPHYS GCPhys, bool fWriteAccess)
-{   
+{
     RTGCPHYS GCPhysOffset = GCPhys - pThis->svga.GCPhysFIFO;
     uint32_t *pFIFO = pThis->svga.pFIFOR3;
 
@@ -1907,7 +1906,7 @@ static DECLCALLBACK(int) vmsvgaR3GMRAccessHandler(PVM pVM, RTGCPHYS GCPhys, void
         {
             for (uint32_t j = 0; j < pGMR->numDescriptors; j++)
             {
-                if (    GCPhys >= pGMR->paDesc[j].GCPhys 
+                if (    GCPhys >= pGMR->paDesc[j].GCPhys
                     &&  GCPhys < pGMR->paDesc[j].GCPhys + pGMR->paDesc[j].numPages * PAGE_SIZE)
                 {
                     /*
@@ -1981,7 +1980,7 @@ static DECLCALLBACK(int) vmsvgaResetGMRHandlers(PVGASTATE pThis)
             }
         }
     }
-    return VINF_SUCCESS;   
+    return VINF_SUCCESS;
 }
 
 # endif /* IN_RING3 */
@@ -2392,7 +2391,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 break;
 
             case SVGA_CMD_FENCE:
-            {                
+            {
                 SVGAFifoCmdFence *pCmdFence;
                 VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pCmdFence, SVGAFifoCmdFence, sizeof(*pCmdFence));
                 if (VMSVGA_IS_VALID_FIFO_REG(SVGA_FIFO_FENCE, offFifoMin))
@@ -2812,7 +2811,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pCmd, SVGAFifoCmdAnnotationFill, sizeof(*pCmd));
 
                 Log(("vmsvgaFIFOLoop: SVGA_CMD_ANNOTATION_FILL red=%x green=%x blue=%x\n", pCmd->color.s.r, pCmd->color.s.g, pCmd->color.s.b));
-                pSVGAState->colorAnnotation = pCmd->color; 
+                pSVGAState->colorAnnotation = pCmd->color;
                 break;
             }
 
@@ -2922,7 +2921,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
 
                         cRects = (pHdr->size - sizeof(*pCmd)) / sizeof(SVGASignedRect);
                         rc = vmsvga3dSurfaceBlitToScreen(pThis, pCmd->destScreenId, pCmd->destRect, pCmd->srcImage, pCmd->srcRect, cRects, (SVGASignedRect *)(pCmd + 1));
-                        break;                
+                        break;
                     }
 
                     case SVGA_3D_CMD_CONTEXT_DEFINE:
@@ -3321,7 +3320,7 @@ int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
         }
         else
         {
-            for(uint32_t i = 0; i < cHeight; i++) 
+            for(uint32_t i = 0; i < cHeight; i++)
             {
                 memcpy(pbDst, pSrc, cbWidth);
 
@@ -3345,7 +3344,7 @@ int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
                     ("src.gmrId=%#x src.offset=%#x offSrc=%#x cbSrcPitch=%#x cHeight=%#x cbWidth=%#x cbTotal=%#x\n",
                      src.gmrId, src.offset, offSrc, cbSrcPitch, cHeight, cbWidth, pGMR->cbTotal),
                     VERR_INVALID_PARAMETER);
-    
+
     for (uint32_t i = 0; i < cHeight; i++)
     {
         uint32_t cbCurrentWidth = cbWidth;
@@ -3368,7 +3367,7 @@ int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
             {
                 cbToCopy = cbCurrentWidth;
             }
-            else 
+            else
             {
                 cbToCopy = (offDesc + pDesc->numPages * PAGE_SIZE - offCurrent);
                 AssertReturn(cbToCopy <= cbCurrentWidth, VERR_INVALID_PARAMETER);
@@ -3591,7 +3590,7 @@ int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint3
         PGMR pGMR = &pSVGAState->aGMR[i];
 
         rc = SSMR3GetStructEx(pSSM, pGMR, sizeof(*pGMR), 0, g_aGMRFields, NULL);
-        AssertRCReturn(rc, rc); 
+        AssertRCReturn(rc, rc);
 
         if (pGMR->numDescriptors)
         {
@@ -3620,7 +3619,7 @@ int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint3
         /* Save the 3d state in the FIFO thread. */
         pThis->svga.u8FIFOExtCommand = VMSVGA_FIFO_EXTCMD_LOADSTATE;
         pThis->svga.pFIFOExtCmdParam = (void *)&loadstate;
-        /* Hack alert: resume the IO thread as it has been suspended before the destruct callback. 
+        /* Hack alert: resume the IO thread as it has been suspended before the destruct callback.
          * The PowerOff notification isn't working, so not an option in this case.
          */
         PDMR3ThreadResume(pThis->svga.pFIFOIOThread);
@@ -3711,7 +3710,7 @@ int vmsvgaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         /* Save the 3d state in the FIFO thread. */
         pThis->svga.u8FIFOExtCommand = VMSVGA_FIFO_EXTCMD_SAVESTATE;
         pThis->svga.pFIFOExtCmdParam = (void *)pSSM;
-        /* Hack alert: resume the IO thread as it has been suspended before the destruct callback. 
+        /* Hack alert: resume the IO thread as it has been suspended before the destruct callback.
          * The PowerOff notification isn't working, so not an option in this case.
          */
         PDMR3ThreadResume(pThis->svga.pFIFOIOThread);
@@ -3795,7 +3794,7 @@ int vmsvgaDestruct(PPDMDEVINS pDevIns)
 
     /* Stop the FIFO thread. */
     pThis->svga.u8FIFOExtCommand = VMSVGA_FIFO_EXTCMD_TERMINATE;
-    /* Hack alert: resume the IO thread as it has been suspended before the destruct callback. 
+    /* Hack alert: resume the IO thread as it has been suspended before the destruct callback.
      * The PowerOff notification isn't working, so not an option in this case.
      */
     PDMR3ThreadResume(pThis->svga.pFIFOIOThread);
@@ -3953,7 +3952,7 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
     STAM_REL_REG(pVM, &pSVGAState->StatFifoTodoTimeout, STAMTYPE_COUNTER, "/Devices/VMSVGA/FifoTodoTimeout",  STAMUNIT_OCCURENCES, "Number of times we discovered pending work after a wait timeout.");
     STAM_REL_REG(pVM, &pSVGAState->StatFifoTodoWoken,   STAMTYPE_COUNTER, "/Devices/VMSVGA/FifoTodoWoken",  STAMUNIT_OCCURENCES, "Number of times we discovered pending work after being woken up.");
     STAM_REL_REG(pVM, &pSVGAState->StatFifoStalls,      STAMTYPE_PROFILE, "/Devices/VMSVGA/FifoStalls",  STAMUNIT_TICKS_PER_CALL, "Profiling of FIFO stalls (waiting for guest to finish copying data).");
-   
+
     return VINF_SUCCESS;
 }
 

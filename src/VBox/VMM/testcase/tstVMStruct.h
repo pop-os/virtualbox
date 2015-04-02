@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,19 +28,14 @@
     GEN_CHECK_SIZE(CPUM);    // has .mac
     GEN_CHECK_OFF(CPUM, offCPUMCPU0);
     GEN_CHECK_OFF(CPUM, fHostUseFlags);
-    GEN_CHECK_OFF(CPUM, CPUFeatures);
-    GEN_CHECK_OFF(CPUM, CPUFeaturesExt);
-    GEN_CHECK_OFF(CPUM, CPUFeaturesExt);
     GEN_CHECK_OFF(CPUM, CR4);
 #ifndef VBOX_FOR_DTRACE_LIB
     GEN_CHECK_OFF(CPUM, u8PortableCpuIdLevel);
     GEN_CHECK_OFF(CPUM, fPendingRestore);
 #endif
-    GEN_CHECK_OFF(CPUM, aGuestCpuIdStd);
-    GEN_CHECK_OFF(CPUM, aGuestCpuIdExt);
-    GEN_CHECK_OFF(CPUM, aGuestCpuIdCentaur);
-    GEN_CHECK_OFF(CPUM, aGuestCpuIdHyper);
-    GEN_CHECK_OFF(CPUM, GuestCpuIdDef);
+    GEN_CHECK_OFF(CPUM, aGuestCpuIdPatmStd);
+    GEN_CHECK_OFF(CPUM, aGuestCpuIdPatmExt);
+    GEN_CHECK_OFF(CPUM, aGuestCpuIdPatmCentaur);
 
     GEN_CHECK_SIZE(CPUMCPU); // has .mac
     GEN_CHECK_OFF(CPUMCPU, Hyper);
@@ -64,7 +59,9 @@
     GEN_CHECK_OFF(CPUMCPU, fRemEntered);
 
     GEN_CHECK_SIZE(CPUMHOSTCTX);
-    GEN_CHECK_OFF(CPUMHOSTCTX, fpu);
+    GEN_CHECK_OFF(CPUMHOSTCTX, pXStateR3);
+    GEN_CHECK_OFF(CPUMHOSTCTX, pXStateR0);
+    GEN_CHECK_OFF(CPUMHOSTCTX, pXStateRC);
 #if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
     GEN_CHECK_OFF(CPUMHOSTCTX, rbx);
     GEN_CHECK_OFF(CPUMHOSTCTX, rdi);
@@ -133,7 +130,9 @@
 #endif
 
     GEN_CHECK_SIZE(CPUMCTX);
-    GEN_CHECK_OFF(CPUMCTX, fpu);
+    GEN_CHECK_OFF(CPUMCTX, pXStateR0);
+    GEN_CHECK_OFF(CPUMCTX, pXStateR3);
+    GEN_CHECK_OFF(CPUMCTX, pXStateRC);
     GEN_CHECK_OFF(CPUMCTX, rdi);
     GEN_CHECK_OFF(CPUMCTX, rsi);
     GEN_CHECK_OFF(CPUMCTX, rbp);
@@ -1011,7 +1010,7 @@
     //GEN_CHECK_OFF(TM, pvGIPR0);
     GEN_CHECK_OFF(TM, pvGIPRC);
     GEN_CHECK_OFF(TMCPU, fTSCTicking);
-    GEN_CHECK_OFF(TM, fTSCUseRealTSC);
+    GEN_CHECK_OFF(TM, enmTSCMode);
     GEN_CHECK_OFF(TM, fTSCTiedToExecution);
     GEN_CHECK_OFF(TMCPU, offTSCRawSrc);
     GEN_CHECK_OFF(TMCPU, u64TSC);

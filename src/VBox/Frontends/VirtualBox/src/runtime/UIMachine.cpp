@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,278 +15,298 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes: */
-#include "VBoxGlobal.h"
-#include "UIMachine.h"
-#include "UISession.h"
-#include "UIActionPoolRuntime.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Visual state interface: */
-class UIVisualState : public QObject
+/* GUI includes: */
+# include "VBoxGlobal.h"
+# include "UIExtraDataManager.h"
+# include "UIMachine.h"
+# include "UISession.h"
+# include "UIActionPoolRuntime.h"
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIMessageCenter.h"
+
+/* COM includes: */
+# include "CMachine.h"
+# include "CSession.h"
+# include "CConsole.h"
+# include "CSnapshot.h"
+# include "CProgress.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* static */
+UIMachine* UIMachine::m_spInstance = 0;
+
+/* static */
+bool UIMachine::startMachine(const QString &strID)
 {
-    Q_OBJECT;
+    /* Some restrictions: */
+    AssertMsgReturn(vboxGlobal().isValid(), ("VBoxGlobal is invalid.."), false);
+    AssertMsgReturn(!vboxGlobal().virtualMachine(), ("Machine already started.."), false);
 
-public:
-
-    /* Constructor: */
-    UIVisualState(QObject *pParent, UISession *pSession, UIVisualStateType type)
-        : QObject(pParent)
-        , m_type(type)
-        , m_pSession(pSession)
-        , m_pMachineLogic(0)
+    /* Restore current snapshot if requested: */
+    if (vboxGlobal().shouldRestoreCurrentSnapshot())
     {
+        /* Create temporary session: */
+        CSession session = vboxGlobal().openSession(strID, KLockType_VM);
+        if (session.isNull())
+            return false;
+
+        /* Which VM we operate on? */
+        CMachine machine = session.GetMachine();
+        /* Which snapshot we are restoring? */
+        CSnapshot snapshot = machine.GetCurrentSnapshot();
+
+        /* Open corresponding console: */
+        CConsole console  = session.GetConsole();
+        /* Prepare restore-snapshot progress: */
+        CProgress progress = console.RestoreSnapshot(snapshot);
+        if (!console.isOk())
+            return msgCenter().cannotRestoreSnapshot(console, snapshot.GetName(), machine.GetName());
+
+        /* Show the snapshot-discarding progress: */
+        msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_snapshot_discard_90px.png");
+        if (progress.GetResultCode() != 0)
+            return msgCenter().cannotRestoreSnapshot(progress, snapshot.GetName(), machine.GetName());
+
+        /* Unlock session finally: */
+        session.UnlockMachine();
+
+        /* Clear snapshot-restoring request: */
+        vboxGlobal().setShouldRestoreCurrentSnapshot(false);
     }
 
-    /* Destructor: */
-    ~UIVisualState()
+    /* For separate process we should launch VM before UI: */
+    if (vboxGlobal().isSeparateProcess())
     {
-        /* Cleanup/delete machine logic if exists: */
+        /* Get corresponding machine: */
+        CMachine machine = vboxGlobal().virtualBox().FindMachine(vboxGlobal().managedVMUuid());
+        AssertMsgReturn(!machine.isNull(), ("VBoxGlobal::managedVMUuid() should have filter that case before!\n"), false);
+
+        /* Try to launch corresponding machine: */
+        if (!vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Separate))
+            return false;
+    }
+
+    /* Try to create machine UI: */
+    return create();
+}
+
+/* static */
+bool UIMachine::create()
+{
+    /* Make sure machine is null pointer: */
+    AssertReturn(m_spInstance == 0, false);
+
+    /* Create machine UI: */
+    new UIMachine;
+    /* Make sure it's prepared: */
+    if (!m_spInstance->prepare())
+    {
+        /* Destroy machine UI otherwise: */
+        destroy();
+        /* False in that case: */
+        return false;
+    }
+    /* True by default: */
+    return true;
+}
+
+/* static */
+void UIMachine::destroy()
+{
+    /* Make sure machine is valid pointer: */
+    AssertReturnVoid(m_spInstance != 0);
+
+    /* Cleanup machine UI: */
+    m_spInstance->cleanup();
+    /* Destroy machine UI: */
+    delete m_spInstance;
+    m_spInstance = 0;
+}
+
+QWidget* UIMachine::activeWindow() const
+{
+    if (machineLogic() &&  machineLogic()->activeMachineWindow())
+        return machineLogic()->activeMachineWindow();
+    return 0;
+}
+
+void UIMachine::asyncChangeVisualState(UIVisualStateType visualState)
+{
+    emit sigRequestAsyncVisualStateChange(visualState);
+}
+
+void UIMachine::sltChangeVisualState(UIVisualStateType visualState)
+{
+    /* Create new machine-logic: */
+    UIMachineLogic *pMachineLogic = UIMachineLogic::create(this, m_pSession, visualState);
+
+    /* First we have to check if the selected machine-logic is available at all.
+     * Only then we delete the old machine-logic and switch to the new one. */
+    if (pMachineLogic->checkAvailability())
+    {
+        /* Delete previous machine-logic if exists: */
         if (m_pMachineLogic)
         {
-            /* Cleanup the logic object: */
             m_pMachineLogic->cleanup();
-            /* Destroy the logic object: */
             UIMachineLogic::destroy(m_pMachineLogic);
         }
-    }
 
-    /* Visual state type getter: */
-    UIVisualStateType visualStateType() const { return m_type; }
-
-    /* Machine logic getter: */
-    UIMachineLogic* machineLogic() const { return m_pMachineLogic; }
-
-    /* Method to prepare change one visual state to another: */
-    bool prepareChange()
-    {
-        m_pMachineLogic = UIMachineLogic::create(this, m_pSession, visualStateType());
-        return m_pMachineLogic->checkAvailability();
-    }
-
-    /* Method to change one visual state to another: */
-    void change()
-    {
-        /* Prepare the logic object: */
+        /* Set the new machine-logic as current one: */
+        m_pMachineLogic = pMachineLogic;
         m_pMachineLogic->prepare();
+
+        /* Remember new visual state: */
+        m_visualState = visualState;
+    }
+    else
+    {
+        /* Delete temporary created machine-logic: */
+        pMachineLogic->cleanup();
+        UIMachineLogic::destroy(pMachineLogic);
     }
 
-protected:
+    /* Make sure machine-logic exists: */
+    if (!m_pMachineLogic)
+    {
+        /* Reset initial visual state  to normal: */
+        m_initialVisualState = UIVisualStateType_Normal;
+        /* Enter initial visual state again: */
+        enterInitialVisualState();
+    }
+}
 
-    /* Variables: */
-    UIVisualStateType m_type;
-    UISession *m_pSession;
-    UIMachineLogic *m_pMachineLogic;
-};
-
-UIMachine::UIMachine(UIMachine **ppSelf, const CSession &session)
+UIMachine::UIMachine()
     : QObject(0)
-    , m_ppThis(ppSelf)
-    , initialStateType(UIVisualStateType_Normal)
-    , m_session(session)
     , m_pSession(0)
-    , m_pVisualState(0)
-    , m_allowedVisualStateTypes(UIVisualStateType_Invalid)
+    , m_allowedVisualStates(UIVisualStateType_Invalid)
+    , m_initialVisualState(UIVisualStateType_Normal)
+    , m_visualState(UIVisualStateType_Invalid)
+    , m_pMachineLogic(0)
 {
-    /* Store self pointer: */
-    if (m_ppThis)
-        *m_ppThis = this;
+    m_spInstance = this;
+}
 
-    /* Create UI session: */
-    m_pSession = new UISession(this, m_session);
+UIMachine::~UIMachine()
+{
+    m_spInstance = 0;
+}
 
-    /* Preventing application from closing in case of window(s) closed: */
+bool UIMachine::prepare()
+{
+    /* Try to prepare session UI: */
+    if (!prepareSession())
+        return false;
+
+    /* Prevent application from closing when all window(s) closed: */
     qApp->setQuitOnLastWindowClosed(false);
 
-    /* Cache medium data only if really necessary: */
+    /* Cache medium data if necessary: */
     vboxGlobal().startMediumEnumeration(false /* force start */);
 
-    /* Load machine settings: */
-    loadMachineSettings();
+    /* Prepare machine-logic: */
+    prepareMachineLogic();
 
-    /* Prepare async visual-state change handler: */
+    /* Try to initialize session UI: */
+    if (!uisession()->initialize())
+        return false;
+
+    /* True by default: */
+    return true;
+}
+
+bool UIMachine::prepareSession()
+{
+    /* Try to create session UI: */
+    if (!UISession::create(m_pSession, this))
+        return false;
+
+    /* True by default: */
+    return true;
+}
+
+void UIMachine::prepareMachineLogic()
+{
+    /* Prepare async visual state type change handler: */
     qRegisterMetaType<UIVisualStateType>();
     connect(this, SIGNAL(sigRequestAsyncVisualStateChange(UIVisualStateType)),
             this, SLOT(sltChangeVisualState(UIVisualStateType)),
             Qt::QueuedConnection);
 
-    /* Enter default (normal) state */
+    /* Load restricted visual states: */
+    UIVisualStateType restrictedVisualStates = gEDataManager->restrictedVisualStates(vboxGlobal().managedVMUuid());
+    /* Acquire allowed visual states: */
+    m_allowedVisualStates = static_cast<UIVisualStateType>(UIVisualStateType_All ^ restrictedVisualStates);
+
+    /* Load requested visual state: */
+    UIVisualStateType requestedVisualState = gEDataManager->requestedVisualState(vboxGlobal().managedVMUuid());
+    /* Check if requested visual state is allowed: */
+    if (isVisualStateAllowed(requestedVisualState))
+    {
+        switch (requestedVisualState)
+        {
+            /* Direct transition to scale/fullscreen mode allowed: */
+            case UIVisualStateType_Scale:      m_initialVisualState = UIVisualStateType_Scale; break;
+            case UIVisualStateType_Fullscreen: m_initialVisualState = UIVisualStateType_Fullscreen; break;
+            /* While to seamless is not, so we have to make request to do transition later: */
+            case UIVisualStateType_Seamless:   uisession()->setRequestedVisualState(UIVisualStateType_Seamless); break;
+            default: break;
+        }
+    }
+
+    /* Enter initial visual state: */
     enterInitialVisualState();
 }
 
-UIMachine::~UIMachine()
+void UIMachine::cleanupMachineLogic()
 {
-    /* Save machine settings: */
-    saveMachineSettings();
+    /* Session UI can have requested visual state: */
+    if (uisession())
+    {
+        /* Get requested visual state: */
+        UIVisualStateType requestedVisualState = uisession()->requestedVisualState();
+        /* Or current visual state if requested is invalid: */
+        if (requestedVisualState == UIVisualStateType_Invalid)
+            requestedVisualState = m_visualState;
 
-    /* Delete visual state: */
-    delete m_pVisualState;
-    m_pVisualState = 0;
+        /* Save requested visual state: */
+        gEDataManager->setRequestedVisualState(requestedVisualState, vboxGlobal().managedVMUuid());
+    }
 
-    /* Delete UI session: */
-    delete m_pSession;
-    m_pSession = 0;
+    /* Destroy machine-logic if exists: */
+    if (machineLogic())
+    {
+        m_pMachineLogic->cleanup();
+        UIMachineLogic::destroy(m_pMachineLogic);
+    }
+}
 
-    /* Free session finally: */
-    m_session.UnlockMachine();
-    m_session.detach();
+void UIMachine::cleanupSession()
+{
+    /* Destroy session UI if exists: */
+    if (uisession())
+        UISession::destroy(m_pSession);
+}
 
-    /* Clear self pointer: */
-    *m_ppThis = 0;
+void UIMachine::cleanup()
+{
+    /* Cleanup machine-logic: */
+    cleanupMachineLogic();
+
+    /* Cleanup session UI: */
+    cleanupSession();
 
     /* Quit application: */
     QApplication::quit();
 }
 
-QWidget* UIMachine::activeWindow() const
-{
-    /* Null if machine-logic not yet created: */
-    if (!machineLogic())
-        return 0;
-    /* Active machine-window otherwise: */
-    return machineLogic()->activeMachineWindow();
-}
-
-void UIMachine::asyncChangeVisualState(UIVisualStateType visualStateType)
-{
-    emit sigRequestAsyncVisualStateChange(visualStateType);
-}
-
-void UIMachine::sltChangeVisualState(UIVisualStateType newVisualStateType)
-{
-    /* Create new state: */
-    UIVisualState *pNewVisualState = new UIVisualState(this, m_pSession, newVisualStateType);
-
-    /* First we have to check if the selected mode is available at all.
-     * Only then we delete the old mode and switch to the new mode. */
-    if (pNewVisualState->prepareChange())
-    {
-        /* Delete previous state: */
-        delete m_pVisualState;
-
-        /* Set the new mode as current mode: */
-        m_pVisualState = pNewVisualState;
-        m_pVisualState->change();
-    }
-    else
-    {
-        /* Discard the temporary created new state: */
-        delete pNewVisualState;
-
-        /* If there is no state currently created => we have to exit: */
-        if (!m_pVisualState)
-            deleteLater();
-    }
-}
-
 void UIMachine::enterInitialVisualState()
 {
-    sltChangeVisualState(initialStateType);
+    sltChangeVisualState(m_initialVisualState);
 }
-
-UIMachineLogic* UIMachine::machineLogic() const
-{
-    if (m_pVisualState && m_pVisualState->machineLogic())
-        return m_pVisualState->machineLogic();
-    return 0;
-}
-
-void UIMachine::loadMachineSettings()
-{
-    /* Load machine settings: */
-    CMachine machine = uisession()->session().GetMachine();
-    UIVisualStateType restrictedVisualStateTypes = VBoxGlobal::restrictedVisualStateTypes(machine);
-    m_allowedVisualStateTypes = static_cast<UIVisualStateType>(UIVisualStateType_All ^ restrictedVisualStateTypes);
-
-    /* Load extra-data settings: */
-    {
-        /* Machine while saving own settings will save "on" only for current
-         * visual representation mode if its differs from normal mode of course.
-         * But user can alter extra data manually in machine xml file and set there
-         * more than one visual representation mode flags. Shame on such user!
-         * There is no reason to enter in more than one visual representation mode
-         * at machine start, so we are choosing first of requested modes: */
-        bool fIsSomeExtendedModeChosen = false;
-
-        if (!fIsSomeExtendedModeChosen)
-        {
-            /* Test 'scale' flag: */
-            QString strScaleSettings = machine.GetExtraData(GUI_Scale);
-            if (strScaleSettings == "on" && isVisualStateAllowedScale())
-            {
-                fIsSomeExtendedModeChosen = true;
-                /* We can enter scale mode initially: */
-                initialStateType = UIVisualStateType_Scale;
-            }
-        }
-
-        if (!fIsSomeExtendedModeChosen)
-        {
-            /* Test 'seamless' flag: */
-            QString strSeamlessSettings = machine.GetExtraData(GUI_Seamless);
-            if (strSeamlessSettings == "on" && isVisualStateAllowedSeamless())
-            {
-                fIsSomeExtendedModeChosen = true;
-                /* We can't enter seamless mode initially,
-                 * so we should ask ui-session for that: */
-                uisession()->setRequestedVisualState(UIVisualStateType_Seamless);
-            }
-        }
-
-        if (!fIsSomeExtendedModeChosen)
-        {
-            /* Test 'fullscreen' flag: */
-            QString strFullscreenSettings = machine.GetExtraData(GUI_Fullscreen);
-            if (strFullscreenSettings == "on" && isVisualStateAllowedFullscreen())
-            {
-                fIsSomeExtendedModeChosen = true;
-                /* We can enter fullscreen mode initially: */
-                initialStateType = UIVisualStateType_Fullscreen;
-            }
-        }
-    }
-}
-
-void UIMachine::saveMachineSettings()
-{
-    /* Save machine settings: */
-    CMachine machine = uisession()->session().GetMachine();
-
-    /* Save extra-data settings: */
-    {
-        /* Prepare extra-data values: */
-        QString strFullscreenRequested;
-        QString strSeamlessRequested;
-        QString strScaleRequested;
-        /* Check if some state was requested: */
-        if (uisession()->requestedVisualState() != UIVisualStateType_Invalid)
-        {
-            switch (uisession()->requestedVisualState())
-            {
-                case UIVisualStateType_Fullscreen: strFullscreenRequested = "on"; break;
-                case UIVisualStateType_Seamless: strSeamlessRequested = "on"; break;
-                case UIVisualStateType_Scale: strScaleRequested = "on"; break;
-                default: break;
-            }
-        }
-        /* Check if some state still exists: */
-        else if (m_pVisualState)
-        {
-            switch (m_pVisualState->visualStateType())
-            {
-                case UIVisualStateType_Fullscreen: strFullscreenRequested = "on"; break;
-                case UIVisualStateType_Seamless: strSeamlessRequested = "on"; break;
-                case UIVisualStateType_Scale: strScaleRequested = "on"; break;
-                default: break;
-            }
-        }
-        /* Rewrite extra-data values: */
-        machine.SetExtraData(GUI_Fullscreen, strFullscreenRequested);
-        machine.SetExtraData(GUI_Seamless, strSeamlessRequested);
-        machine.SetExtraData(GUI_Scale, strScaleRequested);
-    }
-}
-
-#include "UIMachine.moc"
 

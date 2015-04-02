@@ -1,8 +1,6 @@
 /* $Id: UIWizardFirstRun.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * UIWizardFirstRun class implementation
+ * VBox Qt GUI - UIWizardFirstRun class implementation.
  */
 
 /*
@@ -17,19 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIWizardFirstRun.h"
-#include "UIWizardFirstRunPageBasic.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIMedium.h"
+# include "UIWizardFirstRun.h"
+# include "UIWizardFirstRunPageBasic.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UIMedium.h"
 
 /* COM includes: */
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
+# include "CStorageController.h"
+# include "CMediumAttachment.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardFirstRun::UIWizardFirstRun(QWidget *pParent, const CMachine &machine)
-    : UIWizard(pParent, UIWizardType_FirstRun)
+    : UIWizard(pParent, WizardType_FirstRun)
     , m_machine(machine)
     , m_fHardDiskWasSet(isBootHardDiskAttached(m_machine))
 {
@@ -102,12 +107,12 @@ void UIWizardFirstRun::prepare()
     /* Create corresponding pages: */
     switch (mode())
     {
-        case UIWizardMode_Basic:
+        case WizardMode_Basic:
         {
             setPage(Page, new UIWizardFirstRunPageBasic(m_machine.GetId(), m_fHardDiskWasSet));
             break;
         }
-        case UIWizardMode_Expert:
+        case WizardMode_Expert:
         {
             AssertMsgFailed(("First-run wizard has no expert-mode!"));
             break;

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -54,373 +54,6 @@ Progress::~Progress()
 }
 
 
-// IProgress properties
-/////////////////////////////////////////////////////////////////////////////
-
-STDMETHODIMP Progress::COMGETTER(Id)(BSTR *aId)
-{
-    CheckComArgOutPointerValid(aId);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* mId is constant during life time, no need to lock */
-    mId.toUtf16().cloneTo(aId);
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Description)(BSTR *aDescription)
-{
-    CheckComArgOutPointerValid(aDescription);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* mDescription is constant during life time, no need to lock */
-    mDescription.cloneTo(aDescription);
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Initiator)(IUnknown **aInitiator)
-{
-    CheckComArgOutPointerValid(aInitiator);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    /* mInitiator/mParent are constant during life time, no need to lock */
-
-#if !defined(VBOX_COM_INPROC)
-    if (mInitiator)
-        mInitiator.queryInterfaceTo(aInitiator);
-    else
-    {
-        ComObjPtr<VirtualBox> pVirtualBox(mParent);
-        pVirtualBox.queryInterfaceTo(aInitiator);
-    }
-#else
-    mInitiator.queryInterfaceTo(aInitiator);
-#endif
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Cancelable)(BOOL *aCancelable)
-{
-    CheckComArgOutPointerValid(aCancelable);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aCancelable = mCancelable;
-
-    return S_OK;
-}
-
-/**
- * Internal helper to compute the total percent value based on the member values and
- * returns it as a "double". This is used both by GetPercent (which returns it as a
- * rounded ULONG) and GetTimeRemaining().
- *
- * Requires locking by the caller!
- *
- * @return fractional percentage as a double value.
- */
-double Progress::calcTotalPercent()
-{
-    // avoid division by zero
-    if (m_ulTotalOperationsWeight == 0)
-        return 0;
-
-    double dPercent = (    (double)m_ulOperationsCompletedWeight                                              // weight of operations that have been completed
-                         + ((double)m_ulOperationPercent * (double)m_ulCurrentOperationWeight / (double)100)  // plus partial weight of the current operation
-                      ) * (double)100 / (double)m_ulTotalOperationsWeight;
-
-    return dPercent;
-}
-
-/**
- * Internal helper for automatically timing out the operation.
- *
- * The caller should hold the object write lock.
- */
-void Progress::checkForAutomaticTimeout(void)
-{
-    if (   m_cMsTimeout
-        && mCancelable
-        && !mCanceled
-        && RTTimeMilliTS() - m_ullTimestamp > m_cMsTimeout
-       )
-        Cancel();
-}
-
-
-STDMETHODIMP Progress::COMGETTER(TimeRemaining)(LONG *aTimeRemaining)
-{
-    CheckComArgOutPointerValid(aTimeRemaining);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mCompleted)
-        *aTimeRemaining = 0;
-    else
-    {
-        double dPercentDone = calcTotalPercent();
-        if (dPercentDone < 1)
-            *aTimeRemaining = -1;       // unreliable, or avoid division by 0 below
-        else
-        {
-            uint64_t ullTimeNow = RTTimeMilliTS();
-            uint64_t ullTimeElapsed = ullTimeNow - m_ullTimestamp;
-            uint64_t ullTimeTotal = (uint64_t)(ullTimeElapsed * 100 / dPercentDone);
-            uint64_t ullTimeRemaining = ullTimeTotal - ullTimeElapsed;
-
-//             Log(("Progress::GetTimeRemaining: dPercentDone %RI32, ullTimeNow = %RI64, ullTimeElapsed = %RI64, ullTimeTotal = %RI64, ullTimeRemaining = %RI64\n",
-//                         (uint32_t)dPercentDone, ullTimeNow, ullTimeElapsed, ullTimeTotal, ullTimeRemaining));
-
-            *aTimeRemaining = (LONG)(ullTimeRemaining / 1000);
-        }
-    }
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Percent)(ULONG *aPercent)
-{
-    CheckComArgOutPointerValid(aPercent);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    checkForAutomaticTimeout();
-
-    /* checkForAutomaticTimeout requires a write lock. */
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mCompleted && SUCCEEDED(mResultCode))
-        *aPercent = 100;
-    else
-    {
-        ULONG ulPercent = (ULONG)calcTotalPercent();
-        // do not report 100% until we're really really done with everything as the Qt GUI dismisses progress dialogs in that case
-        if (    ulPercent == 100
-             && (    m_ulOperationPercent < 100
-                  || (m_ulCurrentOperation < m_cOperations -1)
-                )
-           )
-            *aPercent = 99;
-        else
-            *aPercent = ulPercent;
-    }
-
-    checkForAutomaticTimeout();
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Completed)(BOOL *aCompleted)
-{
-    CheckComArgOutPointerValid(aCompleted);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aCompleted = mCompleted;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Canceled)(BOOL *aCanceled)
-{
-    CheckComArgOutPointerValid(aCanceled);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aCanceled = mCanceled;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(ResultCode)(LONG *aResultCode)
-{
-    CheckComArgOutPointerValid(aResultCode);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!mCompleted)
-        return setError(E_FAIL,
-                        tr("Result code is not available, operation is still in progress"));
-
-    *aResultCode = mResultCode;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(ErrorInfo)(IVirtualBoxErrorInfo **aErrorInfo)
-{
-    CheckComArgOutPointerValid(aErrorInfo);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!mCompleted)
-        return setError(E_FAIL,
-                        tr("Error info is not available, operation is still in progress"));
-
-    mErrorInfo.queryInterfaceTo(aErrorInfo);
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(OperationCount)(ULONG *aOperationCount)
-{
-    CheckComArgOutPointerValid(aOperationCount);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aOperationCount = m_cOperations;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Operation)(ULONG *aOperation)
-{
-    CheckComArgOutPointerValid(aOperation);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aOperation = m_ulCurrentOperation;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(OperationDescription)(BSTR *aOperationDescription)
-{
-    CheckComArgOutPointerValid(aOperationDescription);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    m_bstrOperationDescription.cloneTo(aOperationDescription);
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(OperationPercent)(ULONG *aOperationPercent)
-{
-    CheckComArgOutPointerValid(aOperationPercent);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mCompleted && SUCCEEDED(mResultCode))
-        *aOperationPercent = 100;
-    else
-        *aOperationPercent = m_ulOperationPercent;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(OperationWeight)(ULONG *aOperationWeight)
-{
-    CheckComArgOutPointerValid(aOperationWeight);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aOperationWeight = m_ulCurrentOperationWeight;
-
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMSETTER(Timeout)(ULONG aTimeout)
-{
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (!mCancelable)
-        return setError(VBOX_E_INVALID_OBJECT_STATE,
-                        tr("Operation cannot be canceled"));
-
-    LogThisFunc(("%#x => %#x\n", m_cMsTimeout, aTimeout));
-    m_cMsTimeout = aTimeout;
-    return S_OK;
-}
-
-STDMETHODIMP Progress::COMGETTER(Timeout)(ULONG *aTimeout)
-{
-    CheckComArgOutPointerValid(aTimeout);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    *aTimeout = m_cMsTimeout;
-    return S_OK;
-}
-
-// public methods only for internal purposes
-////////////////////////////////////////////////////////////////////////////////
-
-/**
- * Sets the cancelation callback, checking for cancelation first.
- *
- * @returns Success indicator.
- * @retval  true on success.
- * @retval  false if the progress object has already been canceled or is in an
- *          invalid state
- *
- * @param   pfnCallback     The function to be called upon cancelation.
- * @param   pvUser          The callback argument.
- */
-bool Progress::setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
-{
-    AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    checkForAutomaticTimeout();
-    if (mCanceled)
-        return false;
-
-    m_pvCancelUserArg   = pvUser;
-    m_pfnCancelCallback = pfnCallback;
-    return true;
-}
-
 HRESULT Progress::FinalConstruct()
 {
     mCancelable = FALSE;
@@ -443,13 +76,10 @@ HRESULT Progress::FinalConstruct()
     m_pfnCancelCallback = NULL;
     m_pvCancelUserArg = NULL;
 
-    HRESULT rc = Progress::BaseFinalConstruct();
-    if (FAILED(rc)) return rc;
-
     mCompletedSem = NIL_RTSEMEVENTMULTI;
     mWaitersCount = 0;
 
-    return S_OK;
+    return Progress::BaseFinalConstruct();
 }
 
 void Progress::FinalRelease()
@@ -499,38 +129,37 @@ void Progress::FinalRelease()
  * Even simpler, if you need no sub-operations at all, pass in cOperations =
  * ulTotalOperationsWeight = ulFirstOperationWeight = 1.
  *
- * @param aParent           See Progress::init().
- * @param aInitiator        See Progress::init().
- * @param aDescription      See Progress::init().
- * @param aCancelable       Flag whether the task maybe canceled.
- * @param cOperations       Number of operations within this task (at least 1).
+ * @param aParent       Parent object (only for server-side Progress objects).
+ * @param aInitiator    Initiator of the task (for server-side objects. Can be
+ *                      NULL which means initiator = parent, otherwise must not
+ *                      be NULL).
+ * @param aDescription  Overall task description.
+ * @param aCancelable   Flag whether the task maybe canceled.
+ * @param cOperations   Number of operations within this task (at least 1).
  * @param ulTotalOperationsWeight Total weight of operations; must be the sum of ulFirstOperationWeight and
  *                          what is later passed with each subsequent setNextOperation() call.
  * @param bstrFirstOperationDescription Description of the first operation.
  * @param ulFirstOperationWeight Weight of first sub-operation.
- * @param aId               See Progress::init().
  */
 HRESULT Progress::init(
 #if !defined(VBOX_COM_INPROC)
                        VirtualBox *aParent,
 #endif
                        IUnknown *aInitiator,
-                       CBSTR aDescription,
+                       Utf8Str aDescription,
                        BOOL aCancelable,
                        ULONG cOperations,
                        ULONG ulTotalOperationsWeight,
-                       CBSTR bstrFirstOperationDescription,
-                       ULONG ulFirstOperationWeight,
-                       OUT_GUID aId /* = NULL */)
+                       Utf8Str aFirstOperationDescription,
+                       ULONG ulFirstOperationWeight)
 {
-    LogFlowThisFunc(("aDescription=\"%ls\", cOperations=%d, ulTotalOperationsWeight=%d, bstrFirstOperationDescription=\"%ls\", ulFirstOperationWeight=%d\n",
-                     aDescription,
+    LogFlowThisFunc(("aDescription=\"%s\", cOperations=%d, ulTotalOperationsWeight=%d, aFirstOperationDescription=\"%s\", ulFirstOperationWeight=%d\n",
+                     aDescription.c_str(),
                      cOperations,
                      ulTotalOperationsWeight,
-                     bstrFirstOperationDescription,
+                     aFirstOperationDescription.c_str(),
                      ulFirstOperationWeight));
 
-    AssertReturn(bstrFirstOperationDescription, E_INVALIDARG);
     AssertReturn(ulTotalOperationsWeight >= 1, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
@@ -551,8 +180,6 @@ HRESULT Progress::init(
     AssertReturn(aInitiator, E_INVALIDARG);
 #endif
 
-    AssertReturn(aDescription, E_INVALIDARG);
-
 #if !defined(VBOX_COM_INPROC)
     /* share parent weakly */
     unconst(mParent) = aParent;
@@ -560,8 +187,8 @@ HRESULT Progress::init(
 
 #if !defined(VBOX_COM_INPROC)
     /* assign (and therefore addref) initiator only if it is not VirtualBox
- *      * (to avoid cycling); otherwise mInitiator will remain null which means
- *           * that it is the same as the parent */
+     * (to avoid cycling); otherwise mInitiator will remain null which means
+     * that it is the same as the parent */
     if (aInitiator)
     {
         ComObjPtr<VirtualBox> pVirtualBox(mParent);
@@ -573,13 +200,11 @@ HRESULT Progress::init(
 #endif
 
     unconst(mId).create();
-    if (aId)
-        mId.cloneTo(aId);
 
 #if !defined(VBOX_COM_INPROC)
     /* add to the global collection of progress operations (note: after
- *      * creating mId) */
-    mParent->addProgress(this);
+     * creating mId) */
+    mParent->i_addProgress(this);
 #endif
 
     unconst(mDescription) = aDescription;
@@ -596,7 +221,7 @@ HRESULT Progress::init(
     m_ulTotalOperationsWeight = ulTotalOperationsWeight;
     m_ulOperationsCompletedWeight = 0;
     m_ulCurrentOperation = 0;
-    m_bstrOperationDescription = bstrFirstOperationDescription;
+    m_operationDescription = aFirstOperationDescription;
     m_ulCurrentOperationWeight = ulFirstOperationWeight;
     m_ulOperationPercent = 0;
 
@@ -629,9 +254,9 @@ HRESULT Progress::init(
  */
 HRESULT Progress::init(BOOL aCancelable,
                        ULONG aOperationCount,
-                       CBSTR aOperationDescription)
+                       Utf8Str aOperationDescription)
 {
-    LogFlowThisFunc(("aOperationDescription=\"%ls\"\n", aOperationDescription));
+    LogFlowThisFunc(("aOperationDescription=\"%s\"\n", aOperationDescription.c_str()));
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -651,7 +276,7 @@ HRESULT Progress::init(BOOL aCancelable,
     m_ulTotalOperationsWeight = aOperationCount;
     m_ulOperationsCompletedWeight = 0;
     m_ulCurrentOperation = 0;
-    m_bstrOperationDescription = aOperationDescription;
+    m_operationDescription = aOperationDescription;
     m_ulCurrentOperationWeight = 1;
     m_ulOperationPercent = 0;
 
@@ -685,15 +310,14 @@ void Progress::uninit()
     /* wake up all threads still waiting on occasion */
     if (mWaitersCount > 0)
     {
-        LogFlow(("WARNING: There are still %d threads waiting for '%ls' completion!\n",
-                 mWaitersCount, mDescription.raw()));
+        LogFlow(("WARNING: There are still %d threads waiting for '%s' completion!\n",
+                 mWaitersCount, mDescription.c_str()));
         RTSemEventMultiSignal(mCompletedSem);
     }
 
     RTSemEventMultiDestroy(mCompletedSem);
 
-    /* release initiator (effective only if mInitiator has been assigned in
- *      * init()) */
+    /* release initiator (effective only if mInitiator has been assigned in init()) */
     unconst(mInitiator).setNull();
 
 #if !defined(VBOX_COM_INPROC)
@@ -701,7 +325,7 @@ void Progress::uninit()
     {
         /* remove the added progress on failure to complete the initialization */
         if (autoUninitSpan.initFailed() && mId.isValid() && !mId.isZero())
-            mParent->removeProgress(mId.ref());
+            mParent->i_removeProgress(mId.ref());
 
         unconst(mParent) = NULL;
     }
@@ -709,11 +333,482 @@ void Progress::uninit()
 }
 
 
+// public methods only for internal purposes
+////////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Marks the whole task as complete and sets the result code.
+ *
+ * If the result code indicates a failure (|FAILED(@a aResultCode)|) then this
+ * method will import the error info from the current thread and assign it to
+ * the errorInfo attribute (it will return an error if no info is available in
+ * such case).
+ *
+ * If the result code indicates a success (|SUCCEEDED(@a aResultCode)|) then
+ * the current operation is set to the last.
+ *
+ * Note that this method may be called only once for the given Progress object.
+ * Subsequent calls will assert.
+ *
+ * @param aResultCode   Operation result code.
+ */
+HRESULT Progress::i_notifyComplete(HRESULT aResultCode)
+{
+    HRESULT rc;
+    ComPtr<VirtualBoxErrorInfo> errorInfo;
+    if (FAILED(aResultCode))
+    {
+        /* try to import error info from the current thread */
+#if !defined(VBOX_WITH_XPCOM)
+        ComPtr<IErrorInfo> err;
+        rc = ::GetErrorInfo(0, err.asOutParam());
+        if (rc == S_OK && err)
+            rc = err.queryInterfaceTo(mErrorInfo.asOutParam());
+#else /* !defined(VBOX_WITH_XPCOM) */
+        nsCOMPtr<nsIExceptionService> es;
+        es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
+        if (NS_SUCCEEDED(rc))
+        {
+            nsCOMPtr <nsIExceptionManager> em;
+            rc = es->GetCurrentExceptionManager(getter_AddRefs(em));
+            if (NS_SUCCEEDED(rc))
+            {
+                ComPtr<nsIException> ex;
+                rc = em->GetCurrentException(ex.asOutParam());
+                if (NS_SUCCEEDED(rc) && ex)
+                    rc = ex.queryInterfaceTo(errorInfo.asOutParam());
+            }
+        }
+#endif /* !defined(VBOX_WITH_XPCOM) */
+    }
+
+    return i_notifyCompleteEI(aResultCode, errorInfo);
+}
+
+/**
+ * Wrapper around Progress:notifyCompleteV.
+ */
+HRESULT Progress::i_notifyComplete(HRESULT aResultCode,
+                                   const GUID &aIID,
+                                   const char *pcszComponent,
+                                   const char *aText,
+                                   ...)
+{
+    va_list va;
+    va_start(va, aText);
+    HRESULT hrc = i_notifyCompleteV(aResultCode, aIID, pcszComponent, aText, va);
+    va_end(va);
+    return hrc;
+}
+
+/**
+ * Marks the operation as complete and attaches full error info.
+ *
+ * @param aResultCode   Operation result (error) code, must not be S_OK.
+ * @param aIID          IID of the interface that defines the error.
+ * @param aComponent    Name of the component that generates the error.
+ * @param aText         Error message (must not be null), an RTStrPrintf-like
+ *                      format string in UTF-8 encoding.
+ * @param va            List of arguments for the format string.
+ */
+HRESULT Progress::i_notifyCompleteV(HRESULT aResultCode,
+                                    const GUID &aIID,
+                                    const char *pcszComponent,
+                                    const char *aText,
+                                    va_list va)
+{
+    /* expected to be used only in case of error */
+    Assert(FAILED(aResultCode));
+
+    Utf8Str text(aText, va);
+    ComObjPtr<VirtualBoxErrorInfo> errorInfo;
+    HRESULT rc = errorInfo.createObject();
+    AssertComRCReturnRC(rc);
+    errorInfo->init(aResultCode, aIID, pcszComponent, text);
+
+    return i_notifyCompleteEI(aResultCode, errorInfo);
+}
+
+/**
+ * Marks the operation as complete and attaches full error info.
+ *
+ * This is where the actual work is done, the related methods all end up here.
+ *
+ * @param aResultCode   Operation result (error) code, must not be S_OK.
+ * @param aErrorInfo            List of arguments for the format string.
+ */
+HRESULT Progress::i_notifyCompleteEI(HRESULT aResultCode, const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo)
+{
+    LogThisFunc(("aResultCode=%d\n", aResultCode));
+    /* on failure we expect error info, on success there must be none */
+    AssertMsg(FAILED(aResultCode) ^ aErrorInfo.isNull(),
+              ("No error info but trying to set a failed result (%08X)!\n",
+               aResultCode));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    AssertReturn(mCompleted == FALSE, E_FAIL);
+
+    if (mCanceled && SUCCEEDED(aResultCode))
+        aResultCode = E_FAIL;
+
+    mCompleted = TRUE;
+    mResultCode = aResultCode;
+    if (SUCCEEDED(aResultCode))
+    {
+        m_ulCurrentOperation = m_cOperations - 1; /* last operation */
+        m_ulOperationPercent = 100;
+    }
+    mErrorInfo = aErrorInfo;
+
+#if !defined VBOX_COM_INPROC
+    /* remove from the global collection of pending progress operations */
+    if (mParent)
+        mParent->i_removeProgress(mId.ref());
+#endif
+
+    /* wake up all waiting threads */
+    if (mWaitersCount > 0)
+        RTSemEventMultiSignal(mCompletedSem);
+
+    return S_OK;
+}
+
+/**
+ * Notify the progress object that we're almost at the point of no return.
+ *
+ * This atomically checks for and disables cancelation.  Calls to
+ * IProgress::Cancel() made after a successful call to this method will fail
+ * and the user can be told.  While this isn't entirely clean behavior, it
+ * prevents issues with an irreversible actually operation succeeding while the
+ * user believe it was rolled back.
+ *
+ * @returns Success indicator.
+ * @retval  true on success.
+ * @retval  false if the progress object has already been canceled or is in an
+ *          invalid state
+ */
+bool Progress::i_notifyPointOfNoReturn(void)
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), false);
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mCanceled)
+    {
+        LogThisFunc(("returns false\n"));
+        return false;
+    }
+
+    mCancelable = FALSE;
+    LogThisFunc(("returns true\n"));
+    return true;
+}
+
+/**
+ * Sets the cancelation callback, checking for cancelation first.
+ *
+ * @returns Success indicator.
+ * @retval  true on success.
+ * @retval  false if the progress object has already been canceled or is in an
+ *          invalid state
+ *
+ * @param   pfnCallback     The function to be called upon cancelation.
+ * @param   pvUser          The callback argument.
+ */
+bool Progress::i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
+{
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), false);
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    i_checkForAutomaticTimeout();
+    if (mCanceled)
+        return false;
+
+    m_pvCancelUserArg   = pvUser;
+    m_pfnCancelCallback = pfnCallback;
+    return true;
+}
+
+
 // IProgress properties
 /////////////////////////////////////////////////////////////////////////////
 
+HRESULT Progress::getId(com::Guid &aId)
+{
+    /* mId is constant during life time, no need to lock */
+    aId = mId;
+
+    return S_OK;
+}
+
+HRESULT Progress::getDescription(com::Utf8Str &aDescription)
+{
+    /* mDescription is constant during life time, no need to lock */
+    aDescription = mDescription;
+
+    return S_OK;
+}
+HRESULT Progress::getInitiator(ComPtr<IUnknown> &aInitiator)
+{
+    /* mInitiator/mParent are constant during life time, no need to lock */
+#if !defined(VBOX_COM_INPROC)
+    if (mInitiator)
+        mInitiator.queryInterfaceTo(aInitiator.asOutParam());
+    else
+    {
+        ComObjPtr<VirtualBox> pVirtualBox(mParent);
+        pVirtualBox.queryInterfaceTo(aInitiator.asOutParam());
+    }
+#else
+    mInitiator.queryInterfaceTo(aInitiator.asOutParam());
+#endif
+
+    return S_OK;
+}
+
+HRESULT Progress::getCancelable(BOOL *aCancelable)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aCancelable = mCancelable;
+
+    return S_OK;
+}
+
+HRESULT Progress::getPercent(ULONG *aPercent)
+{
+    /* i_checkForAutomaticTimeout requires a write lock. */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mCompleted && SUCCEEDED(mResultCode))
+        *aPercent = 100;
+    else
+    {
+        ULONG ulPercent = (ULONG)i_calcTotalPercent();
+        // do not report 100% until we're really really done with everything
+        // as the Qt GUI dismisses progress dialogs in that case
+        if (    ulPercent == 100
+             && (    m_ulOperationPercent < 100
+                  || (m_ulCurrentOperation < m_cOperations -1)
+                )
+           )
+            *aPercent = 99;
+        else
+            *aPercent = ulPercent;
+    }
+
+    i_checkForAutomaticTimeout();
+
+    return S_OK;
+}
+
+HRESULT Progress::getTimeRemaining(LONG *aTimeRemaining)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mCompleted)
+        *aTimeRemaining = 0;
+    else
+    {
+        double dPercentDone = i_calcTotalPercent();
+        if (dPercentDone < 1)
+            *aTimeRemaining = -1;       // unreliable, or avoid division by 0 below
+        else
+        {
+            uint64_t ullTimeNow = RTTimeMilliTS();
+            uint64_t ullTimeElapsed = ullTimeNow - m_ullTimestamp;
+            uint64_t ullTimeTotal = (uint64_t)(ullTimeElapsed * 100 / dPercentDone);
+            uint64_t ullTimeRemaining = ullTimeTotal - ullTimeElapsed;
+
+//          LogFunc(("dPercentDone = %RI32, ullTimeNow = %RI64, ullTimeElapsed = %RI64, ullTimeTotal = %RI64, ullTimeRemaining = %RI64\n",
+//                   (uint32_t)dPercentDone, ullTimeNow, ullTimeElapsed, ullTimeTotal, ullTimeRemaining));
+
+            *aTimeRemaining = (LONG)(ullTimeRemaining / 1000);
+        }
+    }
+
+    return S_OK;
+}
+
+HRESULT Progress::getCompleted(BOOL *aCompleted)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aCompleted = mCompleted;
+
+    return S_OK;
+}
+
+HRESULT Progress::getCanceled(BOOL *aCanceled)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aCanceled = mCanceled;
+
+    return S_OK;
+}
+
+HRESULT Progress::getResultCode(LONG *aResultCode)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (!mCompleted)
+        return setError(E_FAIL,
+                        tr("Result code is not available, operation is still in progress"));
+
+    *aResultCode = mResultCode;
+
+    return S_OK;
+}
+
+HRESULT Progress::getErrorInfo(ComPtr<IVirtualBoxErrorInfo> &aErrorInfo)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (!mCompleted)
+        return setError(E_FAIL,
+                        tr("Error info is not available, operation is still in progress"));
+
+    mErrorInfo.queryInterfaceTo(aErrorInfo.asOutParam());
+
+    return S_OK;
+}
+
+HRESULT Progress::getOperationCount(ULONG *aOperationCount)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aOperationCount = m_cOperations;
+
+    return S_OK;
+}
+
+HRESULT Progress::getOperation(ULONG *aOperation)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aOperation = m_ulCurrentOperation;
+
+    return S_OK;
+}
+
+HRESULT Progress::getOperationDescription(com::Utf8Str &aOperationDescription)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    aOperationDescription = m_operationDescription;
+
+    return S_OK;
+}
+
+HRESULT Progress::getOperationPercent(ULONG *aOperationPercent)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mCompleted && SUCCEEDED(mResultCode))
+        *aOperationPercent = 100;
+    else
+        *aOperationPercent = m_ulOperationPercent;
+
+    return S_OK;
+}
+
+HRESULT Progress::getOperationWeight(ULONG *aOperationWeight)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aOperationWeight = m_ulCurrentOperationWeight;
+
+    return S_OK;
+}
+
+HRESULT Progress::getTimeout(ULONG *aTimeout)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aTimeout = m_cMsTimeout;
+
+    return S_OK;
+}
+
+HRESULT Progress::setTimeout(ULONG aTimeout)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (!mCancelable)
+        return setError(VBOX_E_INVALID_OBJECT_STATE,
+                        tr("Operation cannot be canceled"));
+    m_cMsTimeout = aTimeout;
+
+    return S_OK;
+}
+
+
 // IProgress methods
 /////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Updates the percentage value of the current operation.
+ *
+ * @param aPercent  New percentage value of the operation in progress
+ *                  (in range [0, 100]).
+ */
+HRESULT Progress::setCurrentOperationProgress(ULONG aPercent)
+{
+    AssertMsgReturn(aPercent <= 100, ("%u\n", aPercent), E_INVALIDARG);
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    i_checkForAutomaticTimeout();
+    if (mCancelable && mCanceled)
+        AssertReturn(!mCompleted, E_FAIL);
+    AssertReturn(!mCompleted && !mCanceled, E_FAIL);
+
+    m_ulOperationPercent = aPercent;
+
+    return S_OK;
+}
+
+/**
+ * Signals that the current operation is successfully completed and advances to
+ * the next operation. The operation percentage is reset to 0.
+ *
+ * @param aOperationDescription     Description of the next operation.
+ *
+ * @note The current operation must not be the last one.
+ */
+HRESULT Progress::setNextOperation(const com::Utf8Str &aNextOperationDescription, ULONG aNextOperationsWeight)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (mCanceled)
+        return E_FAIL;
+    AssertReturn(!mCompleted, E_FAIL);
+    AssertReturn(m_ulCurrentOperation + 1 < m_cOperations, E_FAIL);
+
+    ++m_ulCurrentOperation;
+    m_ulOperationsCompletedWeight += m_ulCurrentOperationWeight;
+
+    m_operationDescription = aNextOperationDescription;
+    m_ulCurrentOperationWeight = aNextOperationsWeight;
+    m_ulOperationPercent = 0;
+
+    LogThisFunc(("%s: aNextOperationsWeight = %d; m_ulCurrentOperation is now %d, m_ulOperationsCompletedWeight is now %d\n",
+                 m_operationDescription.c_str(), aNextOperationsWeight, m_ulCurrentOperation, m_ulOperationsCompletedWeight));
+
+    /* wake up all waiting threads */
+    if (mWaitersCount > 0)
+        RTSemEventMultiSignal(mCompletedSem);
+
+    return S_OK;
+}
 
 /**
  * @note XPCOM: when this method is not called on the main XPCOM thread, it
@@ -721,13 +816,10 @@ void Progress::uninit()
  *       thread has its own event queue (hmm, what for?) that it must run, then
  *       calling this method will definitely freeze event processing.
  */
-STDMETHODIMP Progress::WaitForCompletion(LONG aTimeout)
+HRESULT Progress::waitForCompletion(LONG aTimeout)
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aTimeout=%d\n", aTimeout));
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -780,13 +872,11 @@ STDMETHODIMP Progress::WaitForCompletion(LONG aTimeout)
  *       thread has its own event queue (hmm, what for?) that it must run, then
  *       calling this method will definitely freeze event processing.
  */
-STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeout)
+HRESULT Progress::waitForOperationCompletion(ULONG aOperation, LONG aTimeout)
+
 {
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aOperation=%d, aTimeout=%d\n", aOperation, aTimeout));
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -838,14 +928,9 @@ STDMETHODIMP Progress::WaitForOperationCompletion(ULONG aOperation, LONG aTimeou
     return S_OK;
 }
 
-STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
+HRESULT Progress::waitForAsyncProgressCompletion(const ComPtr<IProgress> &aPProgressAsync)
 {
     LogFlowThisFuncEnter();
-
-    CheckComArgNotNull(pProgressAsync);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     /* Note: we don't lock here, cause we just using public methods. */
 
@@ -857,10 +942,10 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
     ULONG currentPercent = 0;
     ULONG cOp            = 0;
     /* Is the async process cancelable? */
-    rc = pProgressAsync->COMGETTER(Cancelable)(&fCancelable);
+    rc = aPProgressAsync->COMGETTER(Cancelable)(&fCancelable);
     if (FAILED(rc)) return rc;
     /* Loop as long as the sync process isn't completed. */
-    while (SUCCEEDED(pProgressAsync->COMGETTER(Completed(&fCompleted))))
+    while (SUCCEEDED(aPProgressAsync->COMGETTER(Completed(&fCompleted))))
     {
         /* We can forward any cancel request to the async process only when
          * it is cancelable. */
@@ -870,7 +955,7 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
             if (FAILED(rc)) return rc;
             if (fCanceled)
             {
-                rc = pProgressAsync->Cancel();
+                rc = aPProgressAsync->Cancel();
                 if (FAILED(rc)) return rc;
             }
         }
@@ -887,15 +972,15 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
             ULONG curOp;
             for (;;)
             {
-                rc = pProgressAsync->COMGETTER(Operation(&curOp));
+                rc = aPProgressAsync->COMGETTER(Operation(&curOp));
                 if (FAILED(rc)) return rc;
                 if (cOp != curOp)
                 {
                     Bstr bstr;
                     ULONG currentWeight;
-                    rc = pProgressAsync->COMGETTER(OperationDescription(bstr.asOutParam()));
+                    rc = aPProgressAsync->COMGETTER(OperationDescription(bstr.asOutParam()));
                     if (FAILED(rc)) return rc;
-                    rc = pProgressAsync->COMGETTER(OperationWeight(&currentWeight));
+                    rc = aPProgressAsync->COMGETTER(OperationWeight(&currentWeight));
                     if (FAILED(rc)) return rc;
                     rc = SetNextOperation(bstr.raw(), currentWeight);
                     if (FAILED(rc)) return rc;
@@ -905,7 +990,7 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
                     break;
             }
 
-            rc = pProgressAsync->COMGETTER(OperationPercent(&currentPercent));
+            rc = aPProgressAsync->COMGETTER(OperationPercent(&currentPercent));
             if (FAILED(rc)) return rc;
             if (currentPercent != prevPercent)
             {
@@ -918,7 +1003,7 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
             break;
 
         /* Make sure the loop is not too tight */
-        rc = pProgressAsync->WaitForCompletion(100);
+        rc = aPProgressAsync->WaitForCompletion(100);
         if (FAILED(rc)) return rc;
     }
 
@@ -927,11 +1012,8 @@ STDMETHODIMP Progress::WaitForAsyncProgressCompletion(IProgress *pProgressAsync)
     return rc;
 }
 
-STDMETHODIMP Progress::Cancel()
+HRESULT Progress::cancel()
 {
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     if (!mCancelable)
@@ -952,295 +1034,45 @@ STDMETHODIMP Progress::Cancel()
     return S_OK;
 }
 
-/**
- * Updates the percentage value of the current operation.
- *
- * @param aPercent  New percentage value of the operation in progress
- *                  (in range [0, 100]).
- */
-STDMETHODIMP Progress::SetCurrentOperationProgress(ULONG aPercent)
-{
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    AssertMsgReturn(aPercent <= 100, ("%u\n", aPercent), E_INVALIDARG);
-
-    checkForAutomaticTimeout();
-    if (mCancelable && mCanceled)
-    {
-        Assert(!mCompleted);
-        return E_FAIL;
-    }
-    AssertReturn(!mCompleted && !mCanceled, E_FAIL);
-
-    m_ulOperationPercent = aPercent;
-
-    return S_OK;
-}
-
-/**
- * Signals that the current operation is successfully completed and advances to
- * the next operation. The operation percentage is reset to 0.
- *
- * @param aOperationDescription     Description of the next operation.
- *
- * @note The current operation must not be the last one.
- */
-STDMETHODIMP Progress::SetNextOperation(IN_BSTR bstrNextOperationDescription, ULONG ulNextOperationsWeight)
-{
-    AssertReturn(bstrNextOperationDescription, E_INVALIDARG);
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mCanceled)
-        return E_FAIL;
-    AssertReturn(!mCompleted, E_FAIL);
-    AssertReturn(m_ulCurrentOperation + 1 < m_cOperations, E_FAIL);
-
-    ++m_ulCurrentOperation;
-    m_ulOperationsCompletedWeight += m_ulCurrentOperationWeight;
-
-    m_bstrOperationDescription = bstrNextOperationDescription;
-    m_ulCurrentOperationWeight = ulNextOperationsWeight;
-    m_ulOperationPercent = 0;
-
-    Log(("Progress::setNextOperation(%ls): ulNextOperationsWeight = %d; m_ulCurrentOperation is now %d, m_ulOperationsCompletedWeight is now %d\n",
-         m_bstrOperationDescription.raw(), ulNextOperationsWeight, m_ulCurrentOperation, m_ulOperationsCompletedWeight));
-
-    /* wake up all waiting threads */
-    if (mWaitersCount > 0)
-        RTSemEventMultiSignal(mCompletedSem);
-
-    return S_OK;
-}
-
-// public methods only for internal purposes
+// private internal helpers
 /////////////////////////////////////////////////////////////////////////////
 
 /**
- * Sets the internal result code and attempts to retrieve additional error
- * info from the current thread. Gets called from Progress::notifyComplete(),
- * but can be called again to override a previous result set with
- * notifyComplete().
+ * Internal helper to compute the total percent value based on the member values and
+ * returns it as a "double". This is used both by GetPercent (which returns it as a
+ * rounded ULONG) and GetTimeRemaining().
  *
- * @param aResultCode
+ * Requires locking by the caller!
+ *
+ * @return fractional percentage as a double value.
  */
-HRESULT Progress::setResultCode(HRESULT aResultCode)
+double Progress::i_calcTotalPercent()
 {
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    // avoid division by zero
+    if (m_ulTotalOperationsWeight == 0)
+        return 0.0;
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    double dPercent = (    (double)m_ulOperationsCompletedWeight  // weight of operations that have been completed
+                         + ((double)m_ulOperationPercent *
+                            (double)m_ulCurrentOperationWeight / 100.0)  // plus partial weight of the current operation
+                      ) * 100.0 / (double)m_ulTotalOperationsWeight;
 
-    mResultCode = aResultCode;
-
-    HRESULT rc = S_OK;
-
-    if (FAILED(aResultCode))
-    {
-        /* try to import error info from the current thread */
-
-#if !defined(VBOX_WITH_XPCOM)
-
-        ComPtr<IErrorInfo> err;
-        rc = ::GetErrorInfo(0, err.asOutParam());
-        if (rc == S_OK && err)
-        {
-            rc = err.queryInterfaceTo(mErrorInfo.asOutParam());
-            if (SUCCEEDED(rc) && !mErrorInfo)
-                rc = E_FAIL;
-        }
-
-#else /* !defined(VBOX_WITH_XPCOM) */
-
-        nsCOMPtr<nsIExceptionService> es;
-        es = do_GetService(NS_EXCEPTIONSERVICE_CONTRACTID, &rc);
-        if (NS_SUCCEEDED(rc))
-        {
-            nsCOMPtr <nsIExceptionManager> em;
-            rc = es->GetCurrentExceptionManager(getter_AddRefs(em));
-            if (NS_SUCCEEDED(rc))
-            {
-                ComPtr<nsIException> ex;
-                rc = em->GetCurrentException(ex.asOutParam());
-                if (NS_SUCCEEDED(rc) && ex)
-                {
-                    rc = ex.queryInterfaceTo(mErrorInfo.asOutParam());
-                    if (NS_SUCCEEDED(rc) && !mErrorInfo)
-                        rc = E_FAIL;
-                }
-            }
-        }
-#endif /* !defined(VBOX_WITH_XPCOM) */
-
-        AssertMsg(rc == S_OK, ("Couldn't get error info (rc=%08X) while trying to set a failed result (%08X)!\n",
-                               rc, aResultCode));
-    }
-
-    return rc;
+    return dPercent;
 }
 
 /**
- * Marks the whole task as complete and sets the result code.
+ * Internal helper for automatically timing out the operation.
  *
- * If the result code indicates a failure (|FAILED(@a aResultCode)|) then this
- * method will import the error info from the current thread and assign it to
- * the errorInfo attribute (it will return an error if no info is available in
- * such case).
- *
- * If the result code indicates a success (|SUCCEEDED(@a aResultCode)|) then
- * the current operation is set to the last.
- *
- * Note that this method may be called only once for the given Progress object.
- * Subsequent calls will assert.
- *
- * @param aResultCode   Operation result code.
+ * The caller must hold the object write lock.
  */
-HRESULT Progress::notifyComplete(HRESULT aResultCode)
+void Progress::i_checkForAutomaticTimeout(void)
 {
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    AssertReturnVoid(isWriteLockOnCurrentThread());
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    AssertReturn(mCompleted == FALSE, E_FAIL);
-
-    LogFunc(("aResultCode=%d\n", aResultCode));
-
-    if (mCanceled && SUCCEEDED(aResultCode))
-        aResultCode = E_FAIL;
-
-    HRESULT rc = setResultCode(aResultCode);
-
-    mCompleted = TRUE;
-
-    if (!FAILED(aResultCode))
-    {
-        m_ulCurrentOperation = m_cOperations - 1; /* last operation */
-        m_ulOperationPercent = 100;
-    }
-
-#if !defined VBOX_COM_INPROC
-    /* remove from the global collection of pending progress operations */
-    if (mParent)
-        mParent->removeProgress(mId.ref());
-#endif
-
-    /* wake up all waiting threads */
-    if (mWaitersCount > 0)
-        RTSemEventMultiSignal(mCompletedSem);
-
-    return rc;
+    if (   m_cMsTimeout
+        && mCancelable
+        && !mCanceled
+        && RTTimeMilliTS() - m_ullTimestamp > m_cMsTimeout)
+        Cancel();
 }
-
-/**
- * Wrapper around Progress:notifyCompleteV.
- */
-HRESULT Progress::notifyComplete(HRESULT aResultCode,
-                                 const GUID &aIID,
-                                 const char *pcszComponent,
-                                 const char *aText,
-                                 ...)
-{
-    va_list va;
-    va_start(va, aText);
-    HRESULT hrc = notifyCompleteV(aResultCode, aIID, pcszComponent, aText, va);
-    va_end(va);
-    return hrc;
-}
-
-/**
- * Marks the operation as complete and attaches full error info.
- *
- * See VirtualBoxBase::setError(HRESULT, const GUID &, const wchar_t
- * *, const char *, ...) for more info.
- *
- * @param aResultCode   Operation result (error) code, must not be S_OK.
- * @param aIID          IID of the interface that defines the error.
- * @param aComponent    Name of the component that generates the error.
- * @param aText         Error message (must not be null), an RTStrPrintf-like
- *                      format string in UTF-8 encoding.
- * @param va            List of arguments for the format string.
- */
-HRESULT Progress::notifyCompleteV(HRESULT aResultCode,
-                                  const GUID &aIID,
-                                  const char *pcszComponent,
-                                  const char *aText,
-                                  va_list va)
-{
-    Utf8Str text(aText, va);
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    AssertReturn(mCompleted == FALSE, E_FAIL);
-
-    if (mCanceled && SUCCEEDED(aResultCode))
-        aResultCode = E_FAIL;
-
-    mCompleted = TRUE;
-    mResultCode = aResultCode;
-
-    AssertReturn(FAILED(aResultCode), E_FAIL);
-
-    ComObjPtr<VirtualBoxErrorInfo> errorInfo;
-    HRESULT rc = errorInfo.createObject();
-    AssertComRC(rc);
-    if (SUCCEEDED(rc))
-    {
-        errorInfo->init(aResultCode, aIID, pcszComponent, text);
-        errorInfo.queryInterfaceTo(mErrorInfo.asOutParam());
-    }
-
-#if !defined VBOX_COM_INPROC
-    /* remove from the global collection of pending progress operations */
-    if (mParent)
-        mParent->removeProgress(mId.ref());
-#endif
-
-    /* wake up all waiting threads */
-    if (mWaitersCount > 0)
-        RTSemEventMultiSignal(mCompletedSem);
-
-    return rc;
-}
-
-/**
- * Notify the progress object that we're almost at the point of no return.
- *
- * This atomically checks for and disables cancelation.  Calls to
- * IProgress::Cancel() made after a successful call to this method will fail
- * and the user can be told.  While this isn't entirely clean behavior, it
- * prevents issues with an irreversible actually operation succeeding while the
- * user believe it was rolled back.
- *
- * @returns Success indicator.
- * @retval  true on success.
- * @retval  false if the progress object has already been canceled or is in an
- *          invalid state
- */
-bool Progress::notifyPointOfNoReturn(void)
-{
-    AutoCaller autoCaller(this);
-    AssertComRCReturn(autoCaller.rc(), false);
-
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (mCanceled)
-    {
-        LogThisFunc(("returns false\n"));
-        return false;
-    }
-
-    mCancelable = FALSE;
-    LogThisFunc(("returns true\n"));
-    return true;
-}
-

@@ -27,9 +27,9 @@
 #include <iprt/env.h>
 #include <iprt/log.h>
 
-#include <VBox/VBoxOGLTest.h>
+#include <VBox/VBoxOGL.h>
 
-bool RTCALL VBoxOglIs3DAccelerationSupported()
+bool RTCALL VBoxOglIs3DAccelerationSupported(void)
 {
     if (RTEnvExist("VBOX_CROGL_FORCE_SUPPORTED"))
     {

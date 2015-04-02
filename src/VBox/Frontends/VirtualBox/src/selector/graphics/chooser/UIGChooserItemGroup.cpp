@@ -1,8 +1,6 @@
 /* $Id: UIGChooserItemGroup.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIGChooserItemGroup class implementation
+ * VBox Qt GUI - UIGChooserItemGroup class implementation.
  */
 
 /*
@@ -17,23 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QPainter>
-#include <QStyleOptionGraphicsItem>
-#include <QGraphicsSceneDragDropEvent>
-#include <QLineEdit>
-#include <QGraphicsProxyWidget>
-#include <QGraphicsScene>
-#include <QHBoxLayout>
-#include <QMenu>
+# include <QPainter>
+# include <QStyleOptionGraphicsItem>
+# include <QGraphicsSceneDragDropEvent>
+# include <QLineEdit>
+# include <QGraphicsScene>
+# include <QHBoxLayout>
+# include <QMenu>
 
 /* GUI includes: */
-#include "UIGChooserItemGroup.h"
-#include "UIGChooserItemMachine.h"
-#include "UIGChooserModel.h"
-#include "UIIconPool.h"
-#include "UIGraphicsRotatorButton.h"
-#include "UIGChooserView.h"
+# include "UIGChooserItemGroup.h"
+# include "UIGChooserItemMachine.h"
+# include "UIGChooserModel.h"
+# include "UIIconPool.h"
+# include "UIGraphicsRotatorButton.h"
+# include "UIGChooserView.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QGraphicsProxyWidget>
+
 
 /* static */
 QString UIGChooserItemGroup::className() { return "UIGChooserItemGroup"; }
@@ -1734,8 +1740,8 @@ void UIGChooserItemGroup::paintHeader(QPainter *pPainter, const QRect &rect)
                                   iVerticalMargin : iVerticalMargin + (iFullHeaderHeight - m_pixmapSizeMachines.height()) / 2;
             paintPixmap(/* Painter: */
                         pPainter,
-                        /* Rectangle to paint in: */
-                        QRect(QPoint(iMachinePixmapX, iMachinePixmapY), m_pixmapSizeMachines),
+                        /* Point to paint in: */
+                        QPoint(iMachinePixmapX, iMachinePixmapY),
                         /* Pixmap to paint: */
                         m_machinesPixmap);
         }
@@ -1764,8 +1770,8 @@ void UIGChooserItemGroup::paintHeader(QPainter *pPainter, const QRect &rect)
                                 iVerticalMargin : iVerticalMargin + (iFullHeaderHeight - m_pixmapSizeGroups.height()) / 2;
             paintPixmap(/* Painter: */
                         pPainter,
-                        /* Rectangle to paint in: */
-                        QRect(QPoint(iGroupPixmapX, iGroupPixmapY), m_pixmapSizeGroups),
+                        /* Point to paint in: */
+                        QPoint(iGroupPixmapX, iGroupPixmapY),
                         /* Pixmap to paint: */
                         m_groupsPixmap);
         }

@@ -417,7 +417,7 @@ struct VBCLSERVICE vbclSeamlessInterface =
     run,
     pause,
     resume,
-    cleanup    
+    cleanup
 };
 
 struct VBCLSERVICE **VBClGetSeamlessService()

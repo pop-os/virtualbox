@@ -1,11 +1,9 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIVirtualBoxEventHandler class declaration
+ * VBox Qt GUI - UIVirtualBoxEventHandler class declaration.
  */
 
 /*
- * Copyright (C) 2010-2012 Oracle Corporation
+ * Copyright (C) 2010-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,41 +14,58 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIVirtualBoxEventHandler_h__
-#define __UIVirtualBoxEventHandler_h__
+#ifndef ___UIVirtualBoxEventHandler_h___
+#define ___UIVirtualBoxEventHandler_h___
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CEventListener.h"
 
-class UIVirtualBoxEventHandler: public QObject
+/** Active event handler singleton for the CVirtualBoxClient and CVirtualBox event-sources. */
+class UIVirtualBoxEventHandler : public QObject
 {
     Q_OBJECT;
 
-public:
-    static UIVirtualBoxEventHandler* instance();
-    static void destroy();
-
 signals:
-    /* VirtualBox main signals */
+
+    /** Notifies about the VBoxSVC become @a fAvailable. */
+    void sigVBoxSVCAvailabilityChange(bool fAvailable);
+
+    /** Notifies about @a state change event for the machine with @a strId. */
     void sigMachineStateChange(QString strId, KMachineState state);
+    /** Notifies about data change event for the machine with @a strId. */
     void sigMachineDataChange(QString strId);
+    /** Notifies about machine with @a strId was @a fRegistered. */
     void sigMachineRegistered(QString strId, bool fRegistered);
+    /** Notifies about @a state change event for the session of the machine with @a strId. */
     void sigSessionStateChange(QString strId, KSessionState state);
+    /** Notifies about snapshot with @a strSnapshotId was taken for the machine with @a strId. */
     void sigSnapshotTake(QString strId, QString strSnapshotId);
+    /** Notifies about snapshot with @a strSnapshotId was deleted for the machine with @a strId. */
     void sigSnapshotDelete(QString strId, QString strSnapshotId);
+    /** Notifies about snapshot with @a strSnapshotId was changed for the machine with @a strId. */
     void sigSnapshotChange(QString strId, QString strSnapshotId);
 
+public:
+
+    /** Returns singleton instance created by the factory. */
+    static UIVirtualBoxEventHandler* instance();
+    /** Destroys singleton instance created by the factory. */
+    static void destroy();
+
 private:
+
+    /** Constructor. */
     UIVirtualBoxEventHandler();
+    /** Destructor. */
     ~UIVirtualBoxEventHandler();
 
-    /* Private member vars */
+    /** Holds the static singleton instance. */
     static UIVirtualBoxEventHandler *m_pInstance;
+    /** Holds the COM event-listener instance. */
     CEventListener m_mainEventListener;
 };
 
 #define gVBoxEvents UIVirtualBoxEventHandler::instance()
 
-#endif /* !__UIVirtualBoxEventHandler_h__ */
-
+#endif /* !___UIVirtualBoxEventHandler_h___ */

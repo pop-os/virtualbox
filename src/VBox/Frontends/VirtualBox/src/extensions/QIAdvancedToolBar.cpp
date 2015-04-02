@@ -1,8 +1,6 @@
 /* $Id: QIAdvancedToolBar.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * QIAdvancedToolBar class implementation
+ * VBox Qt GUI - QIAdvancedToolBar class implementation.
  */
 
 /*
@@ -17,13 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHBoxLayout>
-#include <QAction>
-#include <QToolButton>
+# include <QHBoxLayout>
+# include <QAction>
+# include <QToolButton>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* GUI includes: */
 #include "QIAdvancedToolBar.h"
+
 
 /* More configurable tool-button for QIAdvancedToolBar: */
 class QIAdvancedToolButton : public QToolButton

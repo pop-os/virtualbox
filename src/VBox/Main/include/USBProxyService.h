@@ -57,12 +57,12 @@ public:
 
     /** @name Host Interfaces
      * @{ */
-    HRESULT getDeviceCollection(ComSafeArrayOut(IHostUSBDevice *, aUSBDevices));
+    HRESULT getDeviceCollection(std::vector<ComPtr<IHostUSBDevice> > &aUSBDevices);
     /** @} */
 
     /** @name SessionMachine Interfaces
      * @{ */
-    HRESULT captureDeviceForVM(SessionMachine *aMachine, IN_GUID aId);
+    HRESULT captureDeviceForVM(SessionMachine *aMachine, IN_GUID aId, const com::Utf8Str &aCaptureFilename);
     HRESULT detachDeviceFromVM(SessionMachine *aMachine, IN_GUID aId, bool aDone);
     HRESULT autoCaptureDevicesForVM(SessionMachine *aMachine);
     HRESULT detachAllDevicesFromVM(SessionMachine *aMachine, bool aDone, bool aAbnormal);

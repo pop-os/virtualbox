@@ -1,4 +1,4 @@
-# $Revision: 91907 $
+# $Revision: 91752 $
 ## @file makefile.tstCAPIGlue
 # Makefile for sample program illustrating use of C binding for COM/XPCOM.
 #
