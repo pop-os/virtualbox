@@ -1,8 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMiniToolBar class declaration.
- * This is the toolbar shown in fullscreen/seamless modes.
+ * VBox Qt GUI - UIMiniToolBar class declaration (fullscreen/seamless).
  */
 
 /*
@@ -66,13 +63,6 @@ signals:
     /** Notifies listeners about we stole focus. */
     void sigNotifyAboutFocusStolen();
 
-#ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-# ifdef Q_WS_X11
-    /** Notifies about geometry change. */
-    void sigNotifyAboutGeometryChange(const QRect &geo);
-# endif /* Q_WS_X11 */
-#endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
-
 public:
 
     /* Constructor/destructor: */
@@ -121,12 +111,16 @@ private:
     void enterEvent(QEvent *pEvent);
     void leaveEvent(QEvent *pEvent);
 
+#ifdef Q_WS_X11
+    /** X11: Resize event handler. */
+    void resizeEvent(QResizeEvent *pEvent);
+#endif /* Q_WS_X11 */
+
     /** Filters @a pEvent if <i>this</i> object has been
       * installed as an event-filter for the @a pWatched. */
     bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
     /* Helper: Hover stuff: */
-    void updateAutoHideAnimationBounds();
     void simulateToolbarAutoHiding();
 
     /* Property: Hover stuff: */

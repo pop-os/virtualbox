@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,6 +86,8 @@
 #define VERR_SERVICE_DISABLED               (-1020)
 /** The requested feature is not supported in raw-mode. */
 #define VERR_NOT_SUP_IN_RAW_MODE            (-1021)
+/** Invalid CPU index. */
+#define VERR_INVALID_CPU_INDEX              (-1022)
 /** @} */
 
 
@@ -246,6 +248,8 @@
 /** The specified execution engine cannot execute guest code in the current
  *  state. */
 #define VERR_EM_CANNOT_EXEC_GUEST           (-1156)
+/** Reason for leaving RC: Inject a TRPM event. */
+#define VINF_EM_RAW_INJECT_TRPM_EVENT       1157
 /** @} */
 
 
@@ -367,6 +371,8 @@
 #define VINF_PATCH_CONTINUE                 (1430)
 /** The patch manager is not used because we're using HM and VT-x/AMD-V. */
 #define VERR_PATM_HM_IPE                    (-1431)
+/** Unexpected trap in patch code. */
+#define VERR_PATM_IPE_TRAP_IN_PATCH_CODE    (-1432)
 
 /** @} */
 
@@ -620,6 +626,14 @@
 #define VERR_CPUM_DB_CPU_NOT_FOUND              (-1756)
 /** Invalid CPUMCPU offset in MSR range. */
 #define VERR_CPUM_MSR_BAD_CPUMCPU_OFFSET        (-1757)
+/** Return to ring-3 to read the MSR there. */
+#define VINF_CPUM_R3_MSR_READ                   (1758)
+/** Return to ring-3 to write the MSR there. */
+#define VINF_CPUM_R3_MSR_WRITE                  (1759)
+/** Too may CPUID leaves. */
+#define VERR_TOO_MANY_CPUID_LEAVES              (1760)
+/** Invalid config value. */
+#define VERR_CPUM_INVALID_CONFIG_VALUE          (1761)
 /** @} */
 
 
@@ -1085,9 +1099,9 @@
 #define VINF_IOM_R3_IOPORT_READ             2620
 /** Reason for leaving RZ: I/O port write. */
 #define VINF_IOM_R3_IOPORT_WRITE            2621
-/** Reason for leaving RZ: MMIO write. */
-#define VINF_IOM_R3_MMIO_READ               2623
 /** Reason for leaving RZ: MMIO read. */
+#define VINF_IOM_R3_MMIO_READ               2623
+/** Reason for leaving RZ: MMIO write. */
 #define VINF_IOM_R3_MMIO_WRITE              2624
 /** Reason for leaving RZ: MMIO read/write. */
 #define VINF_IOM_R3_MMIO_READ_WRITE         2625
@@ -1528,6 +1542,8 @@
 #define VERR_VD_UNKNOWN_INTERFACE                   (-3213)
 /** The DEK for disk encryption is missing. */
 #define VERR_VD_DEK_MISSING                         (-3214)
+/** The provided password to decrypt the DEK was incorrect. */
+#define VERR_VD_PASSWORD_INCORRECT                  (-3215)
 /** Generic: Invalid image file header. Use this for plugins. */
 #define VERR_VD_GEN_INVALID_HEADER                  (-3220)
 /** VDI: Invalid image file header. */
@@ -1669,6 +1685,18 @@
 #define VERR_INTNET_INCOMPATIBLE_FLAGS              (-3604)
 /** Failed to create a virtual network interface instance. */
 #define VERR_INTNET_FLT_VNIC_CREATE_FAILED          (-3605)
+/** Failed to retrieve a virtual network interface link ID. */
+#define VERR_INTNET_FLT_VNIC_LINK_ID_NOT_FOUND      (-3606)
+/** Failed to initialize a virtual network interface instance. */
+#define VERR_INTNET_FLT_VNIC_INIT_FAILED            (-3607)
+/** Failed to open a virtual network interface instance. */
+#define VERR_INTNET_FLT_VNIC_OPEN_FAILED            (-3608)
+/** Failed to retrieve underlying (lower mac) link. */
+#define VERR_INTNET_FLT_LOWER_LINK_INFO_NOT_FOUND   (-3609)
+/** Failed to open underlying link instance. */
+#define VERR_INTNET_FLT_LOWER_LINK_OPEN_FAILED      (-3610)
+/** Failed to get underlying link ID. */
+#define VERR_INTNET_FLT_LOWER_LINK_ID_NOT_FOUND     (-3611)
 /** @} */
 
 
@@ -1764,6 +1792,17 @@
 #define VERR_SUPDRV_CSRSS_NOT_FOUND                 (-3741)
 /** Type error opening the ApiPort LPC object. */
 #define VERR_SUPDRV_APIPORT_OPEN_ERROR_TYPE         (-3742)
+/** Failed to measure the TSC delta between two CPUs. */
+#define VERR_SUPDRV_TSC_DELTA_MEASUREMENT_FAILED    (-3743)
+/** Failed to calculate the TSC frequency. */
+#define VERR_SUPDRV_TSC_FREQ_MEASUREMENT_FAILED     (-3744)
+/** Failed to get the delta-adjusted TSC value. */
+#define VERR_SUPDRV_TSC_READ_FAILED                 (-3745)
+/** Failed to measure the TSC delta between two CPUs, continue without any
+ *  TSC-delta. */
+#define VWRN_SUPDRV_TSC_DELTA_MEASUREMENT_FAILED     3746
+/** A TSC-delta measurement request is currently being serviced. */
+#define VERR_SUPDRV_TSC_DELTA_MEASUREMENT_BUSY      (-3747)
 /** @} */
 
 
@@ -1963,19 +2002,31 @@
 /** Invalid VMCS pointer passed to VMLAUNCH/VMRESUME. */
 #define VERR_VMX_INVALID_VMCS_PTR_TO_START_VM       (-4022)
 /** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_1                            (-4023)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_2                            (-4024)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_3                            (-4025)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_4                            (-4026)
-/** Internal VMX processing error no 1. */
-#define VERR_HMVMX_IPE_5                            (-4027)
-/** VT-x features for SMX operation disabled by the BIOS. */
-#define VERR_VMX_MSR_SMX_VMXON_DISABLED             (-4028)
+#define VERR_VMX_IPE_1                              (-4023)
+/** Internal VMX processing error no 2. */
+#define VERR_VMX_IPE_2                              (-4024)
+/** Internal VMX processing error no 3. */
+#define VERR_VMX_IPE_3                              (-4025)
+/** Internal VMX processing error no 4. */
+#define VERR_VMX_IPE_4                              (-4026)
+/** Internal VMX processing error no 5. */
+#define VERR_VMX_IPE_5                              (-4027)
+/** VT-x features for all modes (SMX and non-SMX) disabled by the BIOS. */
+#define VERR_VMX_MSR_ALL_VMXON_DISABLED             (-4028)
 /** VT-x features disabled by the BIOS. */
 #define VERR_VMX_MSR_VMXON_DISABLED                 (-4029)
+/** VM-Entry Controls internal cache invalid. */
+#define VERR_VMX_ENTRY_CTLS_CACHE_INVALID           (-4030)
+/** VM-Exit Controls internal cache invalid. */
+#define VERR_VMX_EXIT_CTLS_CACHE_INVALID            (-4031)
+/** VM-Execution Pin-based Controls internal cache invalid. */
+#define VERR_VMX_PIN_EXEC_CTLS_CACHE_INVALID        (-4032)
+/** VM-Execution Primary Processor-based Controls internal cache
+ *  invalid. */
+#define VERR_VMX_PROC_EXEC_CTLS_CACHE_INVALID       (-4033)
+/** VM-Execution Secondary Processor-based Controls internal
+ *  cache invalid. */
+#define VERR_VMX_PROC_EXEC2_CTLS_CACHE_INVALID      (-4034)
 /** @} */
 
 
@@ -2020,12 +2071,12 @@
 #define VERR_HM_CONFIG_MISMATCH                     (-4103)
 /** Internal processing error in the HM init code. */
 #define VERR_HM_ALREADY_ENABLED_IPE                 (-4104)
-/** Unexpected MSR in the load / restore list.  */
+/** Unexpected MSR in the auto-load/store area.  */
 #define VERR_HM_UNEXPECTED_LD_ST_MSR                (-4105)
 /** No 32-bit to 64-bit switcher in place. */
 #define VERR_HM_NO_32_TO_64_SWITCHER                (-4106)
 /** HMR0Leave was called on the wrong CPU. */
-#define VERR_HM_WRONG_CPU_1                         (-4107)
+#define VERR_HM_WRONG_CPU                           (-4107)
 /** Internal processing error \#1 in the HM code.  */
 #define VERR_HM_IPE_1                               (-4108)
 /** Internal processing error \#2 in the HM code.  */
@@ -2038,9 +2089,9 @@
 #define VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO       (-4112)
 /** Internal processing error \#3 in the HM code.  */
 #define VERR_HM_IPE_3                               (-4113)
-/** Internal processing error \#3 in the HM code.  */
+/** Internal processing error \#4 in the HM code.  */
 #define VERR_HM_IPE_4                               (-4114)
-/** Internal processing error \#3 in the HM code.  */
+/** Internal processing error \#5 in the HM code.  */
 #define VERR_HM_IPE_5                               (-4115)
 /** Invalid HM64ON32OP value.  */
 #define VERR_HM_INVALID_HM64ON32OP                  (-4116)
@@ -2140,11 +2191,11 @@
 #define VERR_COM_DONT_CALL_AGAIN                    (VERR_COM_VBOX_LOWEST + 13)
 /** @} */
 
-/** @name VBox CPU hotplug Status codes
+/** @name VBox VMMDev Status codes
  * @{
  */
 /** CPU hotplug events from VMMDev are not monitored by the guest. */
-#define VERR_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST    (-4700)
+#define VERR_VMMDEV_CPU_HOTPLUG_NOT_MONITORED_BY_GUEST      (-4700)
 /** @} */
 
 /** @name VBox async I/O manager Status Codes
@@ -2317,9 +2368,8 @@
 #define VERR_DBGC_PARSE_COMMAND_NOT_FOUND           (VERR_DBGC_PARSE_LOWEST + 24)
 /** Syntax error - buggy parser. */
 #define VERR_DBGC_PARSE_BUG                         (VERR_DBGC_PARSE_LOWEST + 25)
-
-
 /** @} */
+
 
 /** @name Support driver/library shared verfication status codes.
  * @{  */
@@ -2546,6 +2596,33 @@
 /** @} */
 
 
+/** @name GIM Status Codes
+ * @{
+ */
+/** No GIM provider is configured for this VM. */
+#define VERR_GIM_NOT_ENABLED                        (-6300)
+/** GIM internal processing error \#1. */
+#define VERR_GIM_IPE_1                              (-6301)
+/** GIM internal processing error \#2. */
+#define VERR_GIM_IPE_2                              (-6302)
+/** GIM internal processing error \#3. */
+#define VERR_GIM_IPE_3                              (-6303)
+/** The GIM provider does not support any paravirtualized TSC. */
+#define VERR_GIM_PVTSC_NOT_AVAILABLE                (-6304)
+/** The guest has not setup use of the paravirtualized TSC. */
+#define VERR_GIM_PVTSC_NOT_ENABLED                  (-6305)
+/** Unknown or invalid GIM provider. */
+#define VERR_GIM_INVALID_PROVIDER                   (-6306)
+/** GIM generic operation failed. */
+#define VERR_GIM_OPERATION_FAILED                   (-6307)
+/** The GIM provider does not support any hypercalls. */
+#define VERR_GIM_HYPERCALLS_NOT_AVAILABLE           (-6308)
+/** The guest has not setup use of the hypercalls. */
+#define VERR_GIM_HYPERCALLS_NOT_ENABLED             (-6309)
+/** The GIM device is not registered with GIM when it ought to be. */
+#define VERR_GIM_DEVICE_NOT_REGISTERED              (-6310)
+/** @} */
+
 /** @name Main API Status Codes
  * @{
  */
@@ -2556,6 +2633,7 @@
  *  error. Consult the release log of the VM for further details. */
 #define VERR_MAIN_CONFIG_CONSTRUCTOR_IPE            (-6401)
 /** @} */
+
 
 /* SED-END */
 

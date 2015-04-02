@@ -1,8 +1,6 @@
 /* $Id: VBoxSnapshotDetailsDlg.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * VBoxSnapshotDetailsDlg class implementation
+ * VBox Qt GUI - VBoxSnapshotDetailsDlg class implementation.
  */
 
 /*
@@ -18,24 +16,25 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QDateTime>
-#include <QPushButton>
-#include <QScrollArea>
+# include <QDateTime>
+# include <QPushButton>
+# include <QScrollArea>
 
 /* GUI includes: */
-#include <VBoxGlobal.h>
-#include <UIMessageCenter.h>
-#include <VBoxSnapshotDetailsDlg.h>
-#include <VBoxUtils.h>
+# include <VBoxGlobal.h>
+# include <UIMessageCenter.h>
+# include <VBoxSnapshotDetailsDlg.h>
+# include <VBoxUtils.h>
 
 /* COM includes: */
-#include "CMachine.h"
+# include "CMachine.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 VBoxSnapshotDetailsDlg::VBoxSnapshotDetailsDlg (QWidget *aParent)
     : QIWithRetranslateUI <QDialog> (aParent)
@@ -74,7 +73,7 @@ void VBoxSnapshotDetailsDlg::getFromSnapshot (const CSnapshot &aSnapshot)
 
     /* Get thumbnail if present */
     ULONG width = 0, height = 0;
-    QVector <BYTE> thumbData = machine.ReadSavedThumbnailToArray (0, true, width, height);
+    QVector <BYTE> thumbData = machine.ReadSavedThumbnailToArray (0, KBitmapFormat_BGR0, width, height);
     mThumbnail = thumbData.size() != 0 ? QPixmap::fromImage (QImage (thumbData.data(), width, height, QImage::Format_RGB32).copy()) : QPixmap();
     QVector <BYTE> screenData = machine.ReadSavedScreenshotPNGToArray (0, width, height);
     mScreenshot = screenData.size() != 0 ? QPixmap::fromImage (QImage::fromData (screenData.data(), screenData.size(), "PNG")) : QPixmap();

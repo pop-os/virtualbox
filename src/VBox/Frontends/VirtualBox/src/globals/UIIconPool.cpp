@@ -1,12 +1,10 @@
 /* $Id: UIIconPool.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIIconPool class implementation
+ * VBox Qt GUI - UIIconPool class implementation.
  */
 
 /*
- * Copyright (C) 2010 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,14 +15,126 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Local includes */
-#include "UIIconPool.h"
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Global includes */
-#include <iprt/assert.h>
+/* Qt includes: */
+# include <QApplication>
+# include <QWidget>
+# include <QStyle>
 
-#include <QApplication>
-#include <QWidget>
+/* GUI includes: */
+# include "UIIconPool.h"
+
+/* Other VBox includes: */
+# include <iprt/assert.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/* static */
+QPixmap UIIconPool::pixmap(const QString &strName)
+{
+    /* Reuse iconSet API: */
+    QIcon icon = iconSet(strName);
+
+    /* Return pixmap of first available size: */
+    return icon.pixmap(icon.availableSizes().first());
+}
+
+/* static */
+QIcon UIIconPool::iconSet(const QString &strNormal,
+                          const QString &strDisabled /* = QString() */,
+                          const QString &strActive /* = QString() */)
+{
+    /* Prepare fallback icon: */
+    static QIcon nullIcon;
+
+    /* Prepare icon: */
+    QIcon icon;
+
+    /* Add 'normal' pixmap: */
+    AssertReturn(!strNormal.isEmpty(), nullIcon);
+    addName(icon, strNormal, QIcon::Normal);
+
+    /* Add 'disabled' pixmap (if any): */
+    if (!strDisabled.isEmpty())
+        addName(icon, strDisabled, QIcon::Disabled);
+
+    /* Add 'active' pixmap (if any): */
+    if (!strActive.isEmpty())
+        addName(icon, strActive, QIcon::Active);
+
+    /* Return icon: */
+    return icon;
+}
+
+/* static */
+QIcon UIIconPool::iconSetOnOff(const QString &strNormal, const QString strNormalOff,
+                               const QString &strDisabled /* = QString() */, const QString &strDisabledOff /* = QString() */,
+                               const QString &strActive /* = QString() */, const QString &strActiveOff /* = QString() */)
+{
+    /* Prepare fallback icon: */
+    static QIcon nullIcon;
+
+    /* Prepare icon: */
+    QIcon icon;
+
+    /* Add 'normal' on/off pixmaps: */
+    AssertReturn(!strNormal.isEmpty(), nullIcon);
+    addName(icon, strNormal, QIcon::Normal, QIcon::On);
+    AssertReturn(!strNormalOff.isEmpty(), nullIcon);
+    addName(icon, strNormalOff, QIcon::Normal, QIcon::Off);
+
+    /* Add 'disabled' on/off pixmaps (if any): */
+    if (!strDisabled.isEmpty())
+        addName(icon, strDisabled, QIcon::Disabled, QIcon::On);
+    if (!strDisabledOff.isEmpty())
+        addName(icon, strDisabledOff, QIcon::Disabled, QIcon::Off);
+
+    /* Add 'active' on/off pixmaps (if any): */
+    if (!strActive.isEmpty())
+        addName(icon, strActive, QIcon::Active, QIcon::On);
+    if (!strActiveOff.isEmpty())
+        addName(icon, strActiveOff, QIcon::Active, QIcon::Off);
+
+    /* Return icon: */
+    return icon;
+}
+
+/* static */
+QIcon UIIconPool::iconSetFull(const QString &strNormal, const QString &strSmall,
+                              const QString &strNormalDisabled /* = QString() */, const QString &strSmallDisabled /* = QString() */,
+                              const QString &strNormalActive /* = QString() */, const QString &strSmallActive /* = QString() */)
+{
+    /* Prepare fallback icon: */
+    static QIcon nullIcon;
+
+    /* Prepare icon: */
+    QIcon icon;
+
+    /* Add 'normal' & 'small normal' pixmaps: */
+    AssertReturn(!strNormal.isEmpty(), nullIcon);
+    addName(icon, strNormal, QIcon::Normal);
+    AssertReturn(!strSmall.isEmpty(), nullIcon);
+    addName(icon, strSmall, QIcon::Normal);
+
+    /* Add 'disabled' & 'small disabled' pixmaps (if any): */
+    if (!strNormalDisabled.isEmpty())
+        addName(icon, strNormalDisabled, QIcon::Disabled);
+    if (!strSmallDisabled.isEmpty())
+        addName(icon, strSmallDisabled, QIcon::Disabled);
+
+    /* Add 'active' & 'small active' pixmaps (if any): */
+    if (!strNormalActive.isEmpty())
+        addName(icon, strNormalActive, QIcon::Active);
+    if (!strSmallActive.isEmpty())
+        addName(icon, strSmallActive, QIcon::Active);
+
+    /* Return icon: */
+    return icon;
+}
 
 /* static */
 QIcon UIIconPool::iconSet(const QPixmap &normal,
@@ -46,99 +156,23 @@ QIcon UIIconPool::iconSet(const QPixmap &normal,
 }
 
 /* static */
-QIcon UIIconPool::iconSet(const QString &strNormal,
-                          const QString &strDisabled /* = QString() */,
-                          const QString &strActive /* = QString() */)
-{
-    QIcon iconSet;
-
-    Assert(!strNormal.isEmpty());
-    iconSet.addFile(strNormal, QSize(),
-                    QIcon::Normal);
-    if (!strDisabled.isEmpty())
-        iconSet.addFile(strDisabled, QSize(),
-                        QIcon::Disabled);
-    if (!strActive.isEmpty())
-        iconSet.addFile(strActive, QSize(),
-                        QIcon::Active);
-    return iconSet;
-}
-
-/* static */
-QIcon UIIconPool::iconSetOnOff(const QString &strNormal, const QString strNormalOff,
-                               const QString &strDisabled /* = QString() */,
-                               const QString &strDisabledOff /* = QString() */,
-                               const QString &strActive /* = QString() */,
-                               const QString &strActiveOff /* = QString() */)
-{
-    QIcon iconSet;
-
-    Assert(!strNormal.isEmpty());
-    iconSet.addFile(strNormal, QSize(), QIcon::Normal, QIcon::On);
-    if (!strNormalOff.isEmpty())
-        iconSet.addFile(strNormalOff, QSize(), QIcon::Normal, QIcon::Off);
-
-    if (!strDisabled.isEmpty())
-        iconSet.addFile(strDisabled, QSize(), QIcon::Disabled, QIcon::On);
-    if (!strDisabledOff.isEmpty())
-        iconSet.addFile(strDisabledOff, QSize(), QIcon::Disabled, QIcon::Off);
-
-    if (!strActive.isEmpty())
-        iconSet.addFile(strActive, QSize(), QIcon::Active, QIcon::On);
-    if (!strActiveOff.isEmpty())
-        iconSet.addFile(strActive, QSize(), QIcon::Active, QIcon::Off);
-
-    return iconSet;
-}
-
-/* static */
-QIcon UIIconPool::iconSetFull(const QSize &normalSize, const QSize &smallSize,
-                              const QString &strNormal, const QString &strSmallNormal,
-                              const QString &strDisabled /* = QString() */,
-                              const QString &strSmallDisabled /* = QString() */,
-                              const QString &strActive /* = QString() */,
-                              const QString &strSmallActive /* = QString() */)
-{
-    QIcon iconSet;
-
-    Assert(!strNormal.isEmpty());
-    Assert(!strSmallNormal.isEmpty());
-    iconSet.addFile(strNormal, normalSize, QIcon::Normal);
-    iconSet.addFile(strSmallNormal, smallSize, QIcon::Normal);
-
-    if (!strSmallDisabled.isEmpty())
-    {
-        iconSet.addFile(strDisabled, normalSize, QIcon::Disabled);
-        iconSet.addFile(strSmallDisabled, smallSize, QIcon::Disabled);
-    }
-
-    if (!strSmallActive.isEmpty())
-    {
-        iconSet.addFile(strActive, normalSize, QIcon::Active);
-        iconSet.addFile(strSmallActive, smallSize, QIcon::Active);
-    }
-
-    return iconSet;
-}
-
-/* static */
-QIcon UIIconPool::defaultIcon(UIDefaultIcon def, const QWidget *pWidget /* = 0 */)
+QIcon UIIconPool::defaultIcon(UIDefaultIconType defaultIconType, const QWidget *pWidget /* = 0 */)
 {
     QIcon icon;
     QStyle *pStyle = pWidget ? pWidget->style() : QApplication::style();
-    switch (def)
+    switch (defaultIconType)
     {
-        case MessageBoxInformationIcon:
+        case UIDefaultIconType_MessageBoxInformation:
         {
             icon = pStyle->standardIcon(QStyle::SP_MessageBoxInformation, 0, pWidget);
             break;
         }
-        case MessageBoxQuestionIcon:
+        case UIDefaultIconType_MessageBoxQuestion:
         {
             icon = pStyle->standardIcon(QStyle::SP_MessageBoxQuestion, 0, pWidget);
             break;
         }
-        case MessageBoxWarningIcon:
+        case UIDefaultIconType_MessageBoxWarning:
         {
 #ifdef Q_WS_MAC
             /* At least in Qt 4.3.4/4.4 RC1 SP_MessageBoxWarning is the application
@@ -150,26 +184,26 @@ QIcon UIIconPool::defaultIcon(UIDefaultIcon def, const QWidget *pWidget /* = 0 *
 #endif /* !Q_WS_MAC */
             break;
         }
-        case MessageBoxCriticalIcon:
+        case UIDefaultIconType_MessageBoxCritical:
         {
             icon = pStyle->standardIcon(QStyle::SP_MessageBoxCritical, 0, pWidget);
             break;
         }
-        case DialogCancelIcon:
+        case UIDefaultIconType_DialogCancel:
         {
             icon = pStyle->standardIcon(QStyle::SP_DialogCancelButton, 0, pWidget);
             if (icon.isNull())
                 icon = iconSet(":/cancel_16px.png");
             break;
         }
-        case DialogHelpIcon:
+        case UIDefaultIconType_DialogHelp:
         {
             icon = pStyle->standardIcon(QStyle::SP_DialogHelpButton, 0, pWidget);
             if (icon.isNull())
                 icon = iconSet(":/help_16px.png");
             break;
         }
-        case ArrowBackIcon:
+        case UIDefaultIconType_ArrowBack:
         {
             icon = pStyle->standardIcon(QStyle::SP_ArrowBack, 0, pWidget);
             if (icon.isNull())
@@ -177,7 +211,7 @@ QIcon UIIconPool::defaultIcon(UIDefaultIcon def, const QWidget *pWidget /* = 0 *
                                ":/list_moveup_disabled_16px.png");
             break;
         }
-        case ArrowForwardIcon:
+        case UIDefaultIconType_ArrowForward:
         {
             icon = pStyle->standardIcon(QStyle::SP_ArrowForward, 0, pWidget);
             if (icon.isNull())
@@ -192,5 +226,160 @@ QIcon UIIconPool::defaultIcon(UIDefaultIcon def, const QWidget *pWidget /* = 0 *
         }
     }
     return icon;
+}
+
+/* static */
+void UIIconPool::addName(QIcon &icon, const QString &strName,
+                         QIcon::Mode mode /* = QIcon::Normal */, QIcon::State state /* = QIcon::Off */)
+{
+    /* Prepare pixmap on the basis of passed value: */
+    QPixmap pixmap(strName);
+    /* Add pixmap: */
+    icon.addPixmap(pixmap, mode, state);
+
+#ifdef Q_WS_MAC
+# ifdef VBOX_GUI_WITH_HIDPI
+    /* Test if HiDPI icons are enabled. Works only with a patched version of Qt 4.x
+     * with the changes from https://codereview.qt-project.org/#change,54636 applied. */
+    if (qApp->testAttribute(Qt::AA_UseHighDpiPixmaps))
+    {
+        /* Parse name to prefix and suffix: */
+        QString strPrefix = strName.section('.', 0, -2);
+        QString strSuffix = strName.section('.', -1, -1);
+        /* Prepare HiDPI pixmap on the basis of values above: */
+        QPixmap pixmapHiDPI(strPrefix + "_hidpi." + strSuffix);
+        /* Add HiDPI pixmap (if any): */
+        if (!pixmapHiDPI.isNull())
+            icon.addPixmap(pixmapHiDPI, mode, state);
+    }
+# endif /* VBOX_GUI_WITH_HIDPI */
+#endif /* Q_WS_MAC */
+}
+
+
+UIIconPoolGeneral::UIIconPoolGeneral()
+{
+    /* Prepare OS type icon-name hash: */
+    m_guestOSTypeIconNames.insert("Other",           ":/os_other.png");
+    m_guestOSTypeIconNames.insert("Other_64",        ":/os_other_64.png");
+    m_guestOSTypeIconNames.insert("DOS",             ":/os_dos.png");
+    m_guestOSTypeIconNames.insert("Netware",         ":/os_netware.png");
+    m_guestOSTypeIconNames.insert("L4",              ":/os_l4.png");
+    m_guestOSTypeIconNames.insert("Windows31",       ":/os_win31.png");
+    m_guestOSTypeIconNames.insert("Windows95",       ":/os_win95.png");
+    m_guestOSTypeIconNames.insert("Windows98",       ":/os_win98.png");
+    m_guestOSTypeIconNames.insert("WindowsMe",       ":/os_winme.png");
+    m_guestOSTypeIconNames.insert("WindowsNT4",      ":/os_winnt4.png");
+    m_guestOSTypeIconNames.insert("Windows2000",     ":/os_win2k.png");
+    m_guestOSTypeIconNames.insert("WindowsXP",       ":/os_winxp.png");
+    m_guestOSTypeIconNames.insert("WindowsXP_64",    ":/os_winxp_64.png");
+    m_guestOSTypeIconNames.insert("Windows2003",     ":/os_win2k3.png");
+    m_guestOSTypeIconNames.insert("Windows2003_64",  ":/os_win2k3_64.png");
+    m_guestOSTypeIconNames.insert("WindowsVista",    ":/os_winvista.png");
+    m_guestOSTypeIconNames.insert("WindowsVista_64", ":/os_winvista_64.png");
+    m_guestOSTypeIconNames.insert("Windows2008",     ":/os_win2k8.png");
+    m_guestOSTypeIconNames.insert("Windows2008_64",  ":/os_win2k8_64.png");
+    m_guestOSTypeIconNames.insert("Windows7",        ":/os_win7.png");
+    m_guestOSTypeIconNames.insert("Windows7_64",     ":/os_win7_64.png");
+    m_guestOSTypeIconNames.insert("Windows8",        ":/os_win8.png");
+    m_guestOSTypeIconNames.insert("Windows8_64",     ":/os_win8_64.png");
+    m_guestOSTypeIconNames.insert("Windows81",       ":/os_win81.png");
+    m_guestOSTypeIconNames.insert("Windows81_64",    ":/os_win81_64.png");
+    m_guestOSTypeIconNames.insert("Windows2012_64",  ":/os_win2k12_64.png");
+    m_guestOSTypeIconNames.insert("Windows10",       ":/os_win10.png");
+    m_guestOSTypeIconNames.insert("Windows10_64",    ":/os_win10_64.png");
+    m_guestOSTypeIconNames.insert("WindowsNT",       ":/os_win_other.png");
+    m_guestOSTypeIconNames.insert("WindowsNT_64",    ":/os_win_other.png"); /// @todo os_win_other_64
+    m_guestOSTypeIconNames.insert("OS2Warp3",        ":/os_os2warp3.png");
+    m_guestOSTypeIconNames.insert("OS2Warp4",        ":/os_os2warp4.png");
+    m_guestOSTypeIconNames.insert("OS2Warp45",       ":/os_os2warp45.png");
+    m_guestOSTypeIconNames.insert("OS2eCS",          ":/os_os2ecs.png");
+    m_guestOSTypeIconNames.insert("OS21x",           ":/os_os2_other.png");
+    m_guestOSTypeIconNames.insert("OS2",             ":/os_os2_other.png");
+    m_guestOSTypeIconNames.insert("Linux22",         ":/os_linux22.png");
+    m_guestOSTypeIconNames.insert("Linux24",         ":/os_linux24.png");
+    m_guestOSTypeIconNames.insert("Linux24_64",      ":/os_linux24_64.png");
+    m_guestOSTypeIconNames.insert("Linux26",         ":/os_linux26.png");
+    m_guestOSTypeIconNames.insert("Linux26_64",      ":/os_linux26_64.png");
+    m_guestOSTypeIconNames.insert("ArchLinux",       ":/os_archlinux.png");
+    m_guestOSTypeIconNames.insert("ArchLinux_64",    ":/os_archlinux_64.png");
+    m_guestOSTypeIconNames.insert("Debian",          ":/os_debian.png");
+    m_guestOSTypeIconNames.insert("Debian_64",       ":/os_debian_64.png");
+    m_guestOSTypeIconNames.insert("OpenSUSE",        ":/os_opensuse.png");
+    m_guestOSTypeIconNames.insert("OpenSUSE_64",     ":/os_opensuse_64.png");
+    m_guestOSTypeIconNames.insert("Fedora",          ":/os_fedora.png");
+    m_guestOSTypeIconNames.insert("Fedora_64",       ":/os_fedora_64.png");
+    m_guestOSTypeIconNames.insert("Gentoo",          ":/os_gentoo.png");
+    m_guestOSTypeIconNames.insert("Gentoo_64",       ":/os_gentoo_64.png");
+    m_guestOSTypeIconNames.insert("Mandriva",        ":/os_mandriva.png");
+    m_guestOSTypeIconNames.insert("Mandriva_64",     ":/os_mandriva_64.png");
+    m_guestOSTypeIconNames.insert("RedHat",          ":/os_redhat.png");
+    m_guestOSTypeIconNames.insert("RedHat_64",       ":/os_redhat_64.png");
+    m_guestOSTypeIconNames.insert("Turbolinux",      ":/os_turbolinux.png");
+    m_guestOSTypeIconNames.insert("Turbolinux_64",   ":/os_turbolinux_64.png");
+    m_guestOSTypeIconNames.insert("Ubuntu",          ":/os_ubuntu.png");
+    m_guestOSTypeIconNames.insert("Ubuntu_64",       ":/os_ubuntu_64.png");
+    m_guestOSTypeIconNames.insert("Xandros",         ":/os_xandros.png");
+    m_guestOSTypeIconNames.insert("Xandros_64",      ":/os_xandros_64.png");
+    m_guestOSTypeIconNames.insert("Oracle",          ":/os_oracle.png");
+    m_guestOSTypeIconNames.insert("Oracle_64",       ":/os_oracle_64.png");
+    m_guestOSTypeIconNames.insert("Linux",           ":/os_linux_other.png");
+    m_guestOSTypeIconNames.insert("Linux_64",        ":/os_linux_other.png"); /// @todo os_linux_other_64
+    m_guestOSTypeIconNames.insert("FreeBSD",         ":/os_freebsd.png");
+    m_guestOSTypeIconNames.insert("FreeBSD_64",      ":/os_freebsd_64.png");
+    m_guestOSTypeIconNames.insert("OpenBSD",         ":/os_openbsd.png");
+    m_guestOSTypeIconNames.insert("OpenBSD_64",      ":/os_openbsd_64.png");
+    m_guestOSTypeIconNames.insert("NetBSD",          ":/os_netbsd.png");
+    m_guestOSTypeIconNames.insert("NetBSD_64",       ":/os_netbsd_64.png");
+    m_guestOSTypeIconNames.insert("Solaris",         ":/os_solaris.png");
+    m_guestOSTypeIconNames.insert("Solaris_64",      ":/os_solaris_64.png");
+    m_guestOSTypeIconNames.insert("OpenSolaris",     ":/os_oraclesolaris.png");
+    m_guestOSTypeIconNames.insert("OpenSolaris_64",  ":/os_oraclesolaris_64.png");
+    m_guestOSTypeIconNames.insert("Solaris11_64",    ":/os_oraclesolaris_64.png");
+    m_guestOSTypeIconNames.insert("QNX",             ":/os_qnx.png");
+    m_guestOSTypeIconNames.insert("MacOS",           ":/os_macosx.png");
+    m_guestOSTypeIconNames.insert("MacOS_64",        ":/os_macosx_64.png");
+    m_guestOSTypeIconNames.insert("MacOS106",        ":/os_macosx.png");
+    m_guestOSTypeIconNames.insert("MacOS106_64",     ":/os_macosx_64.png");
+    m_guestOSTypeIconNames.insert("MacOS107_64",     ":/os_macosx_64.png");
+    m_guestOSTypeIconNames.insert("MacOS108_64",     ":/os_macosx_64.png");
+    m_guestOSTypeIconNames.insert("MacOS109_64",     ":/os_macosx_64.png");
+    m_guestOSTypeIconNames.insert("JRockitVE",       ":/os_jrockitve.png");
+}
+
+QPixmap UIIconPoolGeneral::guestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize /* = 0 */) const
+{
+    /* Prepare fallback pixmap: */
+    static QPixmap nullPixmap;
+
+    /* If we do NOT have that 'guest OS type' icon cached already: */
+    if (!m_guestOSTypeIcons.contains(strOSTypeID))
+    {
+        /* Compose proper icon if we have that 'guest OS type' known: */
+        if (m_guestOSTypeIconNames.contains(strOSTypeID))
+            m_guestOSTypeIcons[strOSTypeID] = iconSet(m_guestOSTypeIconNames[strOSTypeID]);
+        /* Assign fallback icon if we do NOT have that 'guest OS type' known: */
+        else
+            m_guestOSTypeIcons[strOSTypeID] = iconSet(nullPixmap);
+    }
+
+    /* Retrieve corresponding icon: */
+    const QIcon &icon = m_guestOSTypeIcons[strOSTypeID];
+    AssertMsgReturn(!icon.isNull(),
+                    ("Undefined icon for type '%s'.", strOSTypeID.toLatin1().constData()),
+                    nullPixmap);
+
+    /* Retrieve available sizes for that icon: */
+    const QList<QSize> availableSizes = icon.availableSizes();
+    AssertMsgReturn(!availableSizes.isEmpty(),
+                    ("Undefined icon for type '%s'.", strOSTypeID.toLatin1().constData()),
+                    nullPixmap);
+
+    /* Pass up logical size if necessary: */
+    if (pLogicalSize)
+        *pLogicalSize = availableSizes.first();
+
+    /* Return pixmap of first available size: */
+    return icon.pixmap(availableSizes.first());
 }
 

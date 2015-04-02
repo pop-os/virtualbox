@@ -1,9 +1,6 @@
 /* $Id: UIMiniToolBar.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMiniToolBar class implementation.
- * This is the toolbar shown in fullscreen/seamless modes.
+ * VBox Qt GUI - UIMiniToolBar class implementation (fullscreen/seamless).
  */
 
 /*
@@ -18,26 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QTimer>
-#include <QMdiArea>
-#include <QMdiSubWindow>
-#include <QDesktopWidget>
-#include <QLabel>
-#include <QMenu>
-#include <QToolButton>
-#include <QStateMachine>
-#include <QPainter>
+# include <QApplication>
+# include <QTimer>
+# include <QMdiArea>
+# include <QMdiSubWindow>
+# include <QDesktopWidget>
+# include <QLabel>
+# include <QMenu>
+# include <QToolButton>
+# include <QStateMachine>
+# include <QPainter>
+# ifdef Q_WS_X11
+#  include <QX11Info>
+# endif /* Q_WS_X11 */
 
 /* GUI includes: */
-#include "UIMiniToolBar.h"
-#include "UIAnimationFramework.h"
-#include "UIIconPool.h"
-#include "VBoxGlobal.h"
-#ifdef Q_WS_MAC
-# include "VBoxUtils-darwin.h"
-#endif /* Q_WS_MAC */
+# include "UIMiniToolBar.h"
+# include "UIAnimationFramework.h"
+# include "UIIconPool.h"
+# include "VBoxGlobal.h"
+# ifdef Q_WS_MAC
+#  include "VBoxUtils-darwin.h"
+# endif /* Q_WS_MAC */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIRuntimeMiniToolBar::UIRuntimeMiniToolBar(QWidget *pParent,
@@ -45,13 +51,11 @@ UIRuntimeMiniToolBar::UIRuntimeMiniToolBar(QWidget *pParent,
                                            Qt::Alignment alignment,
                                            bool fAutoHide /* = true */)
     : QWidget(pParent,
-#if   defined (Q_WS_WIN)
+#if   defined(Q_WS_WIN)
               Qt::Tool | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint
-#elif defined (Q_WS_MAC)
+#elif defined(Q_WS_MAC) || defined(Q_WS_X11)
               Qt::Window | Qt::FramelessWindowHint
-#elif defined (Q_WS_X11)
-              Qt::Widget
-#endif /* RT_OS_DARWIN */
+#endif /* Q_WS_MAC || Q_WS_X11 */
               )
     /* Variables: General stuff: */
     , m_geometryType(geometryType)
@@ -79,6 +83,9 @@ UIRuntimeMiniToolBar::~UIRuntimeMiniToolBar()
 
 void UIRuntimeMiniToolBar::setAlignment(Qt::Alignment alignment)
 {
+    /* Make sure toolbar created: */
+    AssertPtrReturnVoid(m_pToolbar);
+
     /* Make sure alignment really changed: */
     if (m_alignment == alignment)
         return;
@@ -95,6 +102,9 @@ void UIRuntimeMiniToolBar::setAlignment(Qt::Alignment alignment)
 
 void UIRuntimeMiniToolBar::setAutoHide(bool fAutoHide, bool fPropagateToChild /* = true */)
 {
+    /* Make sure toolbar created: */
+    AssertPtrReturnVoid(m_pToolbar);
+
     /* Make sure auto-hide really changed: */
     if (m_fAutoHide == fAutoHide)
         return;
@@ -112,18 +122,25 @@ void UIRuntimeMiniToolBar::setAutoHide(bool fAutoHide, bool fPropagateToChild /*
 
 void UIRuntimeMiniToolBar::setText(const QString &strText)
 {
+    /* Make sure toolbar created: */
+    AssertPtrReturnVoid(m_pToolbar);
+
     /* Propagate to child: */
     m_pToolbar->setText(strText);
 }
 
 void UIRuntimeMiniToolBar::addMenus(const QList<QMenu*> &menus)
 {
+    /* Make sure toolbar created: */
+    AssertPtrReturnVoid(m_pToolbar);
+
     /* Propagate to child: */
     m_pToolbar->addMenus(menus);
 }
 
 void UIRuntimeMiniToolBar::adjustGeometry(int iHostScreen /* = -1 */)
 {
+#ifndef Q_WS_X11
     /* This method could be called before parent-widget
      * become visible, we should skip everything in that case: */
     if (QApplication::desktop()->screenNumber(parentWidget()) == -1)
@@ -147,11 +164,6 @@ void UIRuntimeMiniToolBar::adjustGeometry(int iHostScreen /* = -1 */)
         case GeometryType_Full:      screenRect = QApplication::desktop()->screenGeometry(iHostScreen); break;
         default: break;
     }
-#ifdef Q_WS_X11
-    /* Disregard origin under X11,
-     * because this is widget, not window: */
-    screenRect.moveTopLeft(QPoint(0, 0));
-#endif /* Q_WS_X11 */
     iX = screenRect.x() + screenRect.width() / 2 - width() / 2;
     switch (m_alignment)
     {
@@ -162,10 +174,91 @@ void UIRuntimeMiniToolBar::adjustGeometry(int iHostScreen /* = -1 */)
     move(iX, iY);
 
     /* Recalculate auto-hide animation: */
-    updateAutoHideAnimationBounds();
+    m_shownToolbarPosition = m_pEmbeddedToolbar->pos();
+    switch (m_alignment)
+    {
+        case Qt::AlignTop:
+            m_hiddenToolbarPosition = m_shownToolbarPosition - QPoint(0, m_pEmbeddedToolbar->height() - 3);
+            break;
+        case Qt::AlignBottom:
+            m_hiddenToolbarPosition = m_shownToolbarPosition + QPoint(0, m_pEmbeddedToolbar->height() - 3);
+            break;
+    }
+    m_pAnimation->update();
+
+    /* Update toolbar geometry if necessary: */
+    const QString strAnimationState = property("AnimationState").toString();
+    if (strAnimationState == "Start")
+        m_pEmbeddedToolbar->move(m_hiddenToolbarPosition);
+    else if (strAnimationState == "Final")
+        m_pEmbeddedToolbar->move(m_shownToolbarPosition);
 
     /* Simulate toolbar auto-hiding: */
     simulateToolbarAutoHiding();
+
+#else /* Q_WS_X11 */
+
+    /* This method could be called before parent-widget
+     * become visible, we should skip everything in that case: */
+    if (QApplication::desktop()->screenNumber(parentWidget()) == -1)
+        return;
+
+    /* Determine host-screen number if necessary: */
+    bool fMoveToHostScreen = true;
+    if (iHostScreen == -1)
+    {
+        fMoveToHostScreen = false;
+        iHostScreen = QApplication::desktop()->screenNumber(this);
+    }
+
+    /* Choose window geometry: */
+    QRect screenRect;
+    switch (m_geometryType)
+    {
+        case GeometryType_Available: screenRect = QApplication::desktop()->availableGeometry(iHostScreen); break;
+        case GeometryType_Full:      screenRect = QApplication::desktop()->screenGeometry(iHostScreen); break;
+        default: break;
+    }
+
+    /* Move to corresponding host-screen: */
+    if (fMoveToHostScreen)
+        move(screenRect.topLeft());
+
+    /* Resize embedded-toolbar to minimum size: */
+    m_pEmbeddedToolbar->resize(m_pEmbeddedToolbar->sizeHint());
+
+    /* Calculate embedded-toolbar position: */
+    int iX = 0, iY = 0;
+    iX = screenRect.width() / 2 - m_pEmbeddedToolbar->width() / 2;
+    switch (m_alignment)
+    {
+        case Qt::AlignTop:    iY = 0; break;
+        case Qt::AlignBottom: iY = screenRect.height() - m_pEmbeddedToolbar->height(); break;
+        default: break;
+    }
+
+    /* Update auto-hide animation: */
+    m_shownToolbarPosition = QPoint(iX, iY);
+    switch (m_alignment)
+    {
+        case Qt::AlignTop:    m_hiddenToolbarPosition = m_shownToolbarPosition - QPoint(0, m_pEmbeddedToolbar->height() - 3); break;
+        case Qt::AlignBottom: m_hiddenToolbarPosition = m_shownToolbarPosition + QPoint(0, m_pEmbeddedToolbar->height() - 3); break;
+    }
+    m_pAnimation->update();
+
+    /* Update embedded-toolbar geometry if known: */
+    const QString strAnimationState = property("AnimationState").toString();
+    if (strAnimationState == "Start")
+        m_pEmbeddedToolbar->move(m_hiddenToolbarPosition);
+    else if (strAnimationState == "Final")
+        m_pEmbeddedToolbar->move(m_shownToolbarPosition);
+
+    /* Adjust window mask: */
+    setMask(m_pEmbeddedToolbar->geometry());
+
+    /* Simulate toolbar auto-hiding: */
+    simulateToolbarAutoHiding();
+#endif /* Q_WS_X11 */
 }
 
 void UIRuntimeMiniToolBar::sltHandleToolbarResize()
@@ -202,10 +295,10 @@ void UIRuntimeMiniToolBar::sltHoverLeave()
 
 void UIRuntimeMiniToolBar::prepare()
 {
-#ifdef RT_OS_DARWIN
+#if defined(Q_WS_MAC) || defined (Q_WS_X11)
     /* Install own event filter: */
     installEventFilter(this);
-#endif /* RT_OS_DARWIN */
+#endif /* Q_WS_MAC || Q_WS_X11 */
 
 #if defined(Q_WS_MAC) || defined(Q_WS_WIN)
     /* Make sure we have no background
@@ -223,7 +316,11 @@ void UIRuntimeMiniToolBar::prepare()
      * - Under x11 host Qt has broken XComposite support (black background): */
     setAttribute(Qt::WA_TranslucentBackground);
 # endif /* Q_WS_WIN */
-#endif /* Q_WS_MAC || Q_WS_WIN */
+#elif defined(Q_WS_X11)
+    /* Use Qt API to enable translucency if allowed: */
+    if (QX11Info::isCompositingManagerRunning())
+        setAttribute(Qt::WA_TranslucentBackground);
+#endif /* Q_WS_X11 */
 
     /* Make sure we have no focus: */
     setFocusPolicy(Qt::NoFocus);
@@ -232,7 +329,7 @@ void UIRuntimeMiniToolBar::prepare()
     m_pMdiArea = new QMdiArea;
     {
         /* Allow any MDI area size: */
-        m_pMdiArea->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
+        m_pMdiArea->setMinimumSize(QSize(1, 1));
         /* Configure own background: */
         QPalette pal = m_pMdiArea->palette();
         pal.setColor(QPalette::Window, QColor(Qt::transparent));
@@ -272,7 +369,10 @@ void UIRuntimeMiniToolBar::prepare()
         m_pEmbeddedToolbar = m_pMdiArea->addSubWindow(m_pToolbar, Qt::Window | Qt::FramelessWindowHint);
         /* Make sure we have no focus: */
         m_pEmbeddedToolbar->setFocusPolicy(Qt::NoFocus);
+#ifdef Q_WS_WIN
+        /* Install embedded-toolbar event filter: */
         m_pEmbeddedToolbar->installEventFilter(this);
+#endif /* Q_WS_WIN */
     }
 
     /* Prepare hover-enter/leave timers: */
@@ -303,9 +403,9 @@ void UIRuntimeMiniToolBar::prepare()
 void UIRuntimeMiniToolBar::cleanup()
 {
     /* Stop hover-enter/leave timers: */
-    if (m_pHoverEnterTimer->isActive())
+    if (m_pHoverEnterTimer && m_pHoverEnterTimer->isActive())
         m_pHoverEnterTimer->stop();
-    if (m_pHoverLeaveTimer->isActive())
+    if (m_pHoverLeaveTimer && m_pHoverLeaveTimer->isActive())
         m_pHoverLeaveTimer->stop();
 
     /* Destroy animation before mdi-toolbar: */
@@ -320,28 +420,36 @@ void UIRuntimeMiniToolBar::cleanup()
 void UIRuntimeMiniToolBar::enterEvent(QEvent*)
 {
     /* Stop the hover-leave timer if necessary: */
-    if (m_pHoverLeaveTimer->isActive())
+    if (m_pHoverLeaveTimer && m_pHoverLeaveTimer->isActive())
         m_pHoverLeaveTimer->stop();
 
     /* Start the hover-enter timer: */
-    if (m_fAutoHide)
+    if (m_fAutoHide && m_pHoverEnterTimer)
         m_pHoverEnterTimer->start();
 }
 
 void UIRuntimeMiniToolBar::leaveEvent(QEvent*)
 {
     /* Stop the hover-enter timer if necessary: */
-    if (m_pHoverEnterTimer->isActive())
+    if (m_pHoverEnterTimer && m_pHoverEnterTimer->isActive())
         m_pHoverEnterTimer->stop();
 
     /* Start the hover-leave timer: */
-    if (m_fAutoHide)
+    if (m_fAutoHide && m_pHoverLeaveTimer)
         m_pHoverLeaveTimer->start();
 }
 
+#ifdef Q_WS_X11
+void UIRuntimeMiniToolBar::resizeEvent(QResizeEvent*)
+{
+    /* Adjust mini-toolbar on resize: */
+    adjustGeometry();
+}
+#endif /* Q_WS_X11 */
+
 bool UIRuntimeMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
-#ifndef RT_OS_DARWIN
+#if   defined(Q_WS_WIN)
     /* Due to Qt bug QMdiArea can
      * 1. steal focus from current application focus-widget
      * 3. and even request focus stealing if QMdiArea hidden yet.
@@ -349,31 +457,15 @@ bool UIRuntimeMiniToolBar::eventFilter(QObject *pWatched, QEvent *pEvent)
     if (pWatched && m_pEmbeddedToolbar && pWatched == m_pEmbeddedToolbar &&
         pEvent->type() == QEvent::FocusIn)
         emit sigNotifyAboutFocusStolen();
-#else /* RT_OS_DARWIN */
-    /* Due to Qt bug on Mac OS X window will be activated
-     * even if has Qt::WA_ShowWithoutActivating attribute. */
+#elif defined(Q_WS_MAC) || defined(Q_WS_X11)
+    /* Detect if we have window activation stolen. */
     if (pWatched == this &&
         pEvent->type() == QEvent::WindowActivate)
         emit sigNotifyAboutFocusStolen();
-#endif /* RT_OS_DARWIN */
+#endif /* Q_WS_MAC || Q_WS_X11 */
+
     /* Call to base-class: */
     return QWidget::eventFilter(pWatched, pEvent);
-}
-
-void UIRuntimeMiniToolBar::updateAutoHideAnimationBounds()
-{
-    /* Update animation: */
-    m_shownToolbarPosition = m_pEmbeddedToolbar->pos();
-    switch (m_alignment)
-    {
-        case Qt::AlignTop:
-            m_hiddenToolbarPosition = m_shownToolbarPosition - QPoint(0, m_pEmbeddedToolbar->height() - 3);
-            break;
-        case Qt::AlignBottom:
-            m_hiddenToolbarPosition = m_shownToolbarPosition + QPoint(0, m_pEmbeddedToolbar->height() - 3);
-            break;
-    }
-    m_pAnimation->update();
 }
 
 void UIRuntimeMiniToolBar::simulateToolbarAutoHiding()
@@ -397,17 +489,8 @@ void UIRuntimeMiniToolBar::setToolbarPosition(QPoint point)
     m_pEmbeddedToolbar->move(point);
 
 #ifdef Q_WS_X11
-    /* The setMask functionality is excessive under Win/Mac hosts
-     * because there is a Qt composition works properly,
-     * Mac host has native translucency support,
-     * Win host allows to enable it through Qt::WA_TranslucentBackground: */
+    /* Update window mask: */
     setMask(m_pEmbeddedToolbar->geometry());
-
-# ifndef VBOX_WITH_TRANSLUCENT_SEAMLESS
-    /* Notify listeners as well: */
-    const QRect windowGeo = geometry();
-    emit sigNotifyAboutGeometryChange(windowGeo.intersected(m_pEmbeddedToolbar->geometry().translated(windowGeo.topLeft())));
-# endif /* !VBOX_WITH_TRANSLUCENT_SEAMLESS */
 #endif /* Q_WS_X11 */
 }
 
@@ -565,7 +648,12 @@ void UIMiniToolBar::prepare()
     setIconSize(QSize(16, 16));
 
     /* Left margin: */
+#ifdef Q_WS_X11
+    if (QX11Info::isCompositingManagerRunning())
+        m_spacings << widgetForAction(addWidget(new QWidget));
+#else /* !Q_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
+#endif /* !Q_WS_X11 */
 
     /* Prepare push-pin: */
     m_pAutoHideAction = new QAction(this);
@@ -617,7 +705,12 @@ void UIMiniToolBar::prepare()
     addAction(m_pCloseAction);
 
     /* Right margin: */
+#ifdef Q_WS_X11
+    if (QX11Info::isCompositingManagerRunning())
+        m_spacings << widgetForAction(addWidget(new QWidget));
+#else /* !Q_WS_X11 */
     m_spacings << widgetForAction(addWidget(new QWidget));
+#endif /* !Q_WS_X11 */
 
     /* Resize to sizehint: */
     resize(sizeHint());
@@ -625,6 +718,11 @@ void UIMiniToolBar::prepare()
 
 void UIMiniToolBar::rebuildShape()
 {
+#ifdef Q_WS_X11
+    if (!QX11Info::isCompositingManagerRunning())
+        return;
+#endif /* Q_WS_X11 */
+
     /* Rebuild shape: */
     QPainterPath shape;
     switch (m_alignment)

@@ -1660,6 +1660,26 @@ bool VBOXCALL  supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt)
 }
 
 
+/**
+ * Whether the host takes CPUs offline during a suspend/resume operation.
+ */
+bool VBOXCALL  supdrvOSAreCpusOfflinedOnSuspend(void)
+{
+    return false;
+}
+
+
+/**
+ * Whether the hardware TSC has been synchronized by the OS.
+ */
+bool VBOXCALL  supdrvOSAreTscDeltasInSync(void)
+{
+    /* If IPRT didn't find KeIpiGenericCall we pretend windows(, the firmware,
+       or whoever) always configures TSCs perfectly. */
+    return !RTMpOnPairIsConcurrentExecSupported();
+}
+
+
 #define MY_SystemLoadGdiDriverInSystemSpaceInformation  54
 #define MY_SystemUnloadGdiDriverInformation             27
 
@@ -1957,6 +1977,226 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
     }
     NOREF(pDevExt);
 }
+
+
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+#if 1
+/** @todo make this selectable. */
+# define AMD_MSR_PASSCODE 0x9c5a203a
+#else
+# define ASMRdMsrEx(a, b, c) ASMRdMsr(a)
+# define ASMWrMsrEx(a, b, c) ASMWrMsr(a,c)
+#endif
+
+
+/**
+ * Argument package used by supdrvOSMsrProberRead and supdrvOSMsrProberWrite.
+ */
+typedef struct SUPDRVNTMSPROBERARGS
+{
+    uint32_t    uMsr;
+    uint64_t    uValue;
+    bool        fGp;
+} SUPDRVNTMSPROBERARGS;
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberRead.} */
+static DECLCALLBACK(void) supdrvNtMsProberReadOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    /*
+     * rdmsr and wrmsr faults can be caught even with interrupts disabled.
+     * (At least on 32-bit XP.)
+     */
+    SUPDRVNTMSPROBERARGS   *pArgs = (SUPDRVNTMSPROBERARGS *)pvUser1; NOREF(idCpu); NOREF(pvUser2);
+    RTCCUINTREG             fOldFlags = ASMIntDisableFlags();
+    __try
+    {
+        pArgs->uValue = ASMRdMsrEx(pArgs->uMsr, AMD_MSR_PASSCODE);
+        pArgs->fGp    = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        pArgs->fGp    = true;
+        pArgs->uValue = 0;
+    }
+    ASMSetFlags(fOldFlags);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue)
+{
+    SUPDRVNTMSPROBERARGS Args;
+    Args.uMsr   = uMsr;
+    Args.uValue = 0;
+    Args.fGp    = true;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvNtMsProberReadOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberReadOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.fGp)
+        return VERR_ACCESS_DENIED;
+    *puValue = Args.uValue;
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberWrite.} */
+static DECLCALLBACK(void) supdrvNtMsProberWriteOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    /*
+     * rdmsr and wrmsr faults can be caught even with interrupts disabled.
+     * (At least on 32-bit XP.)
+     */
+    SUPDRVNTMSPROBERARGS   *pArgs = (SUPDRVNTMSPROBERARGS *)pvUser1; NOREF(idCpu); NOREF(pvUser2);
+    RTCCUINTREG             fOldFlags = ASMIntDisableFlags();
+    __try
+    {
+        ASMWrMsrEx(pArgs->uMsr, AMD_MSR_PASSCODE, pArgs->uValue);
+        pArgs->fGp = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        pArgs->fGp = true;
+    }
+    ASMSetFlags(fOldFlags);
+}
+
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue)
+{
+    SUPDRVNTMSPROBERARGS Args;
+    Args.uMsr   = uMsr;
+    Args.uValue = uValue;
+    Args.fGp    = true;
+
+    if (idCpu == NIL_RTCPUID)
+        supdrvNtMsProberReadOnCpu(idCpu, &Args, NULL);
+    else
+    {
+        int rc = RTMpOnSpecific(idCpu, supdrvNtMsProberReadOnCpu, &Args, NULL);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
+    if (Args.fGp)
+        return VERR_ACCESS_DENIED;
+    return VINF_SUCCESS;
+}
+
+/** @callback_method_impl{FNRTMPWORKER, Worker for supdrvOSMsrProberModify.} */
+static DECLCALLBACK(void) supdrvNtMsProberModifyOnCpu(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+{
+    PSUPMSRPROBER       pReq        = (PSUPMSRPROBER)pvUser1;
+    register uint32_t   uMsr        = pReq->u.In.uMsr;
+    bool const          fFaster     = pReq->u.In.enmOp == SUPMSRPROBEROP_MODIFY_FASTER;
+    uint64_t            uBefore     = 0;
+    uint64_t            uWritten    = 0;
+    uint64_t            uAfter      = 0;
+    bool                fBeforeGp   = true;
+    bool                fModifyGp   = true;
+    bool                fAfterGp    = true;
+    bool                fRestoreGp  = true;
+    RTCCUINTREG         fOldFlags;
+
+    /*
+     * Do the job.
+     */
+    fOldFlags = ASMIntDisableFlags();
+    ASMCompilerBarrier(); /* paranoia */
+    if (!fFaster)
+        ASMWriteBackAndInvalidateCaches();
+
+    __try
+    {
+        uBefore   = ASMRdMsrEx(uMsr, AMD_MSR_PASSCODE);
+        fBeforeGp = false;
+    }
+    __except(EXCEPTION_EXECUTE_HANDLER)
+    {
+        fBeforeGp = true;
+    }
+    if (!fBeforeGp)
+    {
+        register uint64_t uRestore = uBefore;
+
+        /* Modify. */
+        uWritten  = uRestore;
+        uWritten &= pReq->u.In.uArgs.Modify.fAndMask;
+        uWritten |= pReq->u.In.uArgs.Modify.fOrMask;
+        __try
+        {
+            ASMWrMsrEx(uMsr, AMD_MSR_PASSCODE, uWritten);
+            fModifyGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fModifyGp = true;
+        }
+
+        /* Read modified value. */
+        __try
+        {
+            uAfter   = ASMRdMsrEx(uMsr, AMD_MSR_PASSCODE);
+            fAfterGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fAfterGp = true;
+        }
+
+        /* Restore original value. */
+        __try
+        {
+            ASMWrMsrEx(uMsr, AMD_MSR_PASSCODE, uRestore);
+            fRestoreGp = false;
+        }
+        __except(EXCEPTION_EXECUTE_HANDLER)
+        {
+            fRestoreGp = true;
+        }
+
+        /* Invalid everything we can. */
+        if (!fFaster)
+        {
+            ASMWriteBackAndInvalidateCaches();
+            ASMReloadCR3();
+            ASMNopPause();
+        }
+    }
+
+    ASMCompilerBarrier(); /* paranoia */
+    ASMSetFlags(fOldFlags);
+
+    /*
+     * Write out the results.
+     */
+    pReq->u.Out.uResults.Modify.uBefore    = uBefore;
+    pReq->u.Out.uResults.Modify.uWritten   = uWritten;
+    pReq->u.Out.uResults.Modify.uAfter     = uAfter;
+    pReq->u.Out.uResults.Modify.fBeforeGp  = fBeforeGp;
+    pReq->u.Out.uResults.Modify.fModifyGp  = fModifyGp;
+    pReq->u.Out.uResults.Modify.fAfterGp   = fAfterGp;
+    pReq->u.Out.uResults.Modify.fRestoreGp = fRestoreGp;
+    RT_ZERO(pReq->u.Out.uResults.Modify.afReserved);
+}
+
+
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq)
+{
+    if (idCpu == NIL_RTCPUID)
+    {
+        supdrvNtMsProberModifyOnCpu(idCpu, pReq, NULL);
+        return VINF_SUCCESS;
+    }
+    return RTMpOnSpecific(idCpu, supdrvNtMsProberModifyOnCpu, pReq, NULL);
+}
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
 
 
 /**

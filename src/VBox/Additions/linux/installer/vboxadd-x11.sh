@@ -1,6 +1,6 @@
 #! /bin/sh
 #
-# Linux Additions X11 setup init script ($Revision: 97087 $)
+# Linux Additions X11 setup init script ($Revision: 97014 $)
 #
 
 #
@@ -298,9 +298,12 @@ setup()
         test -c /dev/psaux && nopsaux="";;
     esac
     # Should we use the VMSVGA driver instead of VBoxVideo?
+    if grep 80eebeef /proc/bus/pci/devices > /dev/null; then
     vmsvga=""
-    if ! grep 80eebeef /proc/bus/pci/devices > /dev/null; then
+    elif grep 15ad0405 /proc/bus/pci/devices > /dev/null; then
         vmsvga="--vmsvga"
+    else
+        dox11config=""
     fi
     # The video driver to install for X.Org 6.9+
     vboxvideo_src=
@@ -386,9 +389,12 @@ setup()
             xserver_version="X.Org Server 1.5"
             vboxvideo_src=vboxvideo_drv_15.so
             vboxmouse_src=vboxmouse_drv_15.so
-            # SUSE with X.Org 1.5 is another special case, and is also
-            # handled specially
-            test "$system" = "suse" && automouse=""
+            # Historical note: SUSE with X.Org Server 1.5 disabled automatic
+            # mouse configuration and was handled specially.  However since our
+            # kernel driver seems to have problems with X.Org Server 1.5 anyway
+            # we just create an X.Org configuration file and use the user space
+            # one generally, no longer just for SUSE.
+            automouse=""
             ;;
         1.4.* )
             xserver_version="X.Org Server 1.4"
@@ -509,8 +515,8 @@ $generated
 
 EOF
         cat << EOF
-You may need to restart the hal service and the Window System (or just restart
-the guest system) to enable the Guest Additions.
+You may need to restart the the Window System (or just restart the guest system)
+to enable the Guest Additions.
 
 EOF
     fi

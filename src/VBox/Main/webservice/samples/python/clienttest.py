@@ -17,7 +17,7 @@
 # - If not already done, set the environment variable "VBOX_INSTALL_PATH"
 #   to point to your VirtualBox installation directory (which in turn must have
 #   the "sdk" subfolder")
-# - Install the VirtualBox Python bindings by doing a 
+# - Install the VirtualBox Python bindings by doing a
 #   "[python] vboxapisetup.py install"
 # - Run this sample with "[python] clienttest.py"
 
@@ -100,7 +100,7 @@ def main(argv):
 
                 # Get the VM's current display resolution + bit depth + position
                 screenNum = 0 # From first screen
-                (screenW, screenH, screenBPP, screenX, screenY) = display.getScreenResolution(screenNum)
+                (screenW, screenH, screenBPP, screenX, screenY, _) = display.getScreenResolution(screenNum)
                 print "    Display (%d):     %dx%d, %d BPP at %d,%d"  %(screenNum, screenW, screenH, screenBPP, screenX, screenY)
 
                 # We're done -- don't forget to unlock the machine!

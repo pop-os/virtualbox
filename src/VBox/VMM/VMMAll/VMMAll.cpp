@@ -70,6 +70,8 @@ static DECLCALLBACK(size_t) vmmFormatTypeVmCpuSet(PFNRTSTROUTPUT pfnOutput, void
                                                   int cchWidth, int cchPrecision, unsigned fFlags,
                                                   void *pvUser)
 {
+    NOREF(pszType); NOREF(cchWidth); NOREF(cchPrecision); NOREF(fFlags);
+
     PCVMCPUSET  pSet   = (PCVMCPUSET)pvValue;
     uint32_t    cCpus  = 0;
     uint32_t    iCpu   = RT_ELEMENTS(pSet->au32Bitmap) * 32;
@@ -281,7 +283,8 @@ VMMDECL(PVMCPU) VMMGetCpu(PVM pVM)
     /* RTThreadGetNativeSelf had better be cheap. */
     RTNATIVETHREAD hThread = RTThreadNativeSelf();
 
-    /** @todo optimize for large number of VCPUs when that becomes more common. */
+    /** @todo optimize for large number of VCPUs when that becomes more common.
+     * Use a map like GIP does that's indexed by the host CPU index.  */
     for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
     {
         PVMCPU pVCpu = &pVM->aCpus[idCpu];

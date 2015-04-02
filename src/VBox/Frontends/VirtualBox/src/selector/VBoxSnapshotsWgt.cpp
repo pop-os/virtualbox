@@ -1,8 +1,6 @@
 /* $Id: VBoxSnapshotsWgt.cpp $ */
 /** @file
- *
- * VBox frontends: Qt4 GUI ("VirtualBox"):
- * VBoxSnapshotsWgt class implementation
+ * VBox Qt GUI - VBoxSnapshotsWgt class implementation.
  */
 
 /*
@@ -18,34 +16,36 @@
  */
 
 #ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include "precomp.h"
+# include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QDateTime>
-#include <QHeaderView>
-#include <QMenu>
-#include <QScrollBar>
-#include <QWindowsStyle>
-#include <QPointer>
-#include <QApplication>
+# include <QDateTime>
+# include <QHeaderView>
+# include <QMenu>
+# include <QScrollBar>
+# include <QWindowsStyle>
+# include <QPointer>
+# include <QApplication>
 
 /* GUI includes: */
-#include "UIIconPool.h"
-#include "UIMessageCenter.h"
-#include "VBoxSnapshotDetailsDlg.h"
-#include "VBoxSnapshotsWgt.h"
-#include "VBoxTakeSnapshotDlg.h"
-#include "UIWizardCloneVM.h"
-#include "UIToolBar.h"
-#include "UIVirtualBoxEventHandler.h"
-#include "UIConverter.h"
-#include "UIModalWindowManager.h"
+# include "UIIconPool.h"
+# include "UIMessageCenter.h"
+# include "VBoxSnapshotDetailsDlg.h"
+# include "VBoxSnapshotsWgt.h"
+# include "VBoxTakeSnapshotDlg.h"
+# include "UIWizardCloneVM.h"
+# include "UIToolBar.h"
+# include "UIVirtualBoxEventHandler.h"
+# include "UIConverter.h"
+# include "UIModalWindowManager.h"
+# include "UIExtraDataManager.h"
 
 /* COM includes: */
-#include "CConsole.h"
+# include "CConsole.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 /**
  *  QTreeWidgetItem subclass for snapshots items
@@ -57,24 +57,27 @@ public:
     enum { ItemType = QTreeWidgetItem::UserType + 1 };
 
     /* Normal snapshot item (child of tree-widget) */
-    SnapshotWgtItem (QTreeWidget *aTreeWidget, const CSnapshot &aSnapshot)
+    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidget *aTreeWidget, const CSnapshot &aSnapshot)
         : QTreeWidgetItem (aTreeWidget, ItemType)
+        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
     }
 
     /* Normal snapshot item (child of tree-widget-item) */
-    SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CSnapshot &aSnapshot)
+    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidgetItem *aRootItem, const CSnapshot &aSnapshot)
         : QTreeWidgetItem (aRootItem, ItemType)
+        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (false)
         , mSnapshot (aSnapshot)
     {
     }
 
     /* Current state item (child of tree-widget) */
-    SnapshotWgtItem (QTreeWidget *aTreeWidget, const CMachine &aMachine)
+    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidget *aTreeWidget, const CMachine &aMachine)
         : QTreeWidgetItem (aTreeWidget, ItemType)
+        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (true)
         , mMachine (aMachine)
     {
@@ -82,8 +85,9 @@ public:
     }
 
     /* Current state item (child of tree-widget-item) */
-    SnapshotWgtItem (QTreeWidgetItem *aRootItem, const CMachine &aMachine)
+    SnapshotWgtItem (VBoxSnapshotsWgt *pSnapshotWidget, QTreeWidgetItem *aRootItem, const CMachine &aMachine)
         : QTreeWidgetItem (aRootItem, ItemType)
+        , m_pSnapshotWidget(pSnapshotWidget)
         , mIsCurrentState (true)
         , mMachine (aMachine)
     {
@@ -169,7 +173,7 @@ public:
             mId = mSnapshot.GetId();
             setText (0, mSnapshot.GetName());
             mOnline = mSnapshot.GetOnline();
-            setIcon (0, vboxGlobal().snapshotIcon (mOnline));
+            setIcon(0, m_pSnapshotWidget->snapshotItemIcon(mOnline));
             mDesc = mSnapshot.GetDescription();
             mTimestamp.setTime_t (mSnapshot.GetTimeStamp() / 1000);
             mCurStateModified = false;
@@ -191,7 +195,7 @@ public:
         if (mMachine.isNull())
             return;
 
-        setIcon (0, gpConverter->toPixmap (aState));
+        setIcon(0, gpConverter->toIcon(aState));
         mMachineState = aState;
         mTimestamp.setTime_t (mMachine.GetLastStateChange() / 1000);
     }
@@ -294,6 +298,9 @@ private:
         setToolTip (0, toolTip);
     }
 
+    /** Holds pointer to snapshot-widget 'this' item belongs to. */
+    QPointer<VBoxSnapshotsWgt> m_pSnapshotWidget;
+
     bool mIsCurrentState;
 
     CSnapshot mSnapshot;
@@ -364,9 +371,12 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
     connect (mTreeWidget, SIGNAL (destroyed (QObject *)), treeWidgetStyle, SLOT (deleteLater()));
 // #endif
 
+    /* Cache pixmaps: */
+    m_offlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_offline_16px.png");
+    m_onlineSnapshotIcon = UIIconPool::iconSet(":/snapshot_online_16px.png");
+
     /* ToolBar creation */
     UIToolBar *toolBar = new UIToolBar (this);
-    toolBar->setUsesTextLabel (false);
     toolBar->setIconSize (QSize (22, 22));
     toolBar->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
 
@@ -382,23 +392,18 @@ VBoxSnapshotsWgt::VBoxSnapshotsWgt (QWidget *aParent)
 
     /* Setup actions */
     mRestoreSnapshotAction->setIcon(UIIconPool::iconSetFull(
-        QSize (22, 22), QSize (16, 16),
         ":/snapshot_restore_22px.png", ":/snapshot_restore_16px.png",
         ":/snapshot_restore_disabled_22px.png", ":/snapshot_restore_disabled_16px.png"));
     mDeleteSnapshotAction->setIcon(UIIconPool::iconSetFull(
-        QSize (22, 22), QSize (16, 16),
         ":/snapshot_delete_22px.png", ":/snapshot_delete_16px.png",
         ":/snapshot_delete_disabled_22px.png", ":/snapshot_delete_disabled_16px.png"));
     mShowSnapshotDetailsAction->setIcon(UIIconPool::iconSetFull(
-        QSize (22, 22), QSize (16, 16),
         ":/snapshot_show_details_22px.png", ":/snapshot_show_details_16px.png",
         ":/snapshot_show_details_disabled_22px.png", ":/snapshot_details_show_disabled_16px.png"));
     mTakeSnapshotAction->setIcon(UIIconPool::iconSetFull(
-        QSize (22, 22), QSize (16, 16),
         ":/snapshot_take_22px.png", ":/snapshot_take_16px.png",
         ":/snapshot_take_disabled_22px.png", ":/snapshot_take_disabled_16px.png"));
     mCloneSnapshotAction->setIcon(UIIconPool::iconSetFull(
-        QSize (22, 22), QSize (16, 16),
         ":/vm_clone_22px.png", ":/vm_clone_16px.png",
         ":/vm_clone_disabled_22px.png", ":/vm_clone_disabled_16px.png"));
 
@@ -452,7 +457,7 @@ void VBoxSnapshotsWgt::setMachine (const CMachine &aMachine)
     {
         mMachineId = aMachine.GetId();
         mSessionState = aMachine.GetSessionState();
-        m_fShapshotOperationsAllowed = vboxGlobal().shouldWeAllowSnapshotOperations(mMachine);
+        m_fShapshotOperationsAllowed = gEDataManager->machineSnapshotOperationsEnabled(mMachineId);
     }
 
     refreshAll();
@@ -960,7 +965,7 @@ void VBoxSnapshotsWgt::refreshAll()
         Assert (mCurSnapshotItem);
 
         /* Add the "current state" item */
-        SnapshotWgtItem *csi = new SnapshotWgtItem (mCurSnapshotItem, mMachine);
+        SnapshotWgtItem *csi = new SnapshotWgtItem(this, mCurSnapshotItem, mMachine);
         csi->setBold (true);
         csi->recache();
 
@@ -979,7 +984,7 @@ void VBoxSnapshotsWgt::refreshAll()
         mCurSnapshotItem = 0;
 
         /* Add the "current state" item */
-        SnapshotWgtItem *csi = new SnapshotWgtItem (mTreeWidget, mMachine);
+        SnapshotWgtItem *csi = new SnapshotWgtItem(this, mTreeWidget, mMachine);
         csi->setBold (true);
         csi->recache();
 
@@ -1017,8 +1022,8 @@ SnapshotWgtItem *VBoxSnapshotsWgt::curStateItem()
 
 void VBoxSnapshotsWgt::populateSnapshots (const CSnapshot &aSnapshot, QTreeWidgetItem *aItem)
 {
-    SnapshotWgtItem *item = aItem ? new SnapshotWgtItem (aItem, aSnapshot) :
-                                    new SnapshotWgtItem (mTreeWidget, aSnapshot);
+    SnapshotWgtItem *item = aItem ? new SnapshotWgtItem(this, aItem, aSnapshot) :
+                                    new SnapshotWgtItem(this, mTreeWidget, aSnapshot);
     item->recache();
 
     CSnapshot curSnapshot = mMachine.GetCurrentSnapshot();

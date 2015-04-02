@@ -108,9 +108,11 @@ check_previous() {
     check_binary "/usr/bin/VBoxSDL" "$install_dir" &&
     check_binary "/usr/bin/VBoxVRDP" "$install_dir" &&
     check_binary "/usr/bin/VBoxHeadless" "$install_dir" &&
+    check_binary "/usr/bin/VBoxDTrace" "$install_dir" &&
     check_binary "/usr/bin/VBoxBalloonCtrl" "$install_dir" &&
     check_binary "/usr/bin/VBoxAutostart" "$install_dir" &&
     check_binary "/usr/bin/vboxwebsrv" "$install_dir"
+    check_binary "/usr/bin/vbox-img" "$install_dir"
 }
 
 ##############################################################################
@@ -402,7 +404,11 @@ if [ "$ACTION" = "install" ]; then
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxBalloonCtrl
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxAutostart
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/vboxwebsrv
+    ln -sf $INSTALLATION_DIR/vbox-img /usr/bin/vbox-img
     ln -sf $INSTALLATION_DIR/VBox.png /usr/share/pixmaps/VBox.png
+    if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
+        ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxDTrace
+    fi
     # Unity and Nautilus seem to look here for their icons
     ln -sf $INSTALLATION_DIR/icons/128x128/virtualbox.png /usr/share/pixmaps/virtualbox.png
     ln -sf $INSTALLATION_DIR/virtualbox.desktop /usr/share/applications/virtualbox.desktop
@@ -415,6 +421,9 @@ if [ "$ACTION" = "install" ]; then
     ln -sf VBoxManage /usr/bin/vboxmanage > /dev/null 2>&1
     ln -sf VBoxSDL /usr/bin/vboxsdl > /dev/null 2>&1
     ln -sf VBoxHeadless /usr/bin/vboxheadless > /dev/null 2>&1
+    if [ -f $INSTALLATION_DIR/VBoxDTrace ]; then
+        ln -sf VBoxDTrace /usr/bin/vboxdtrace > /dev/null 2>&1
+    fi
 
     # Icons
     cur=`pwd`

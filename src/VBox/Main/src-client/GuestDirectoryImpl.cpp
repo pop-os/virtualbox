@@ -142,37 +142,27 @@ void GuestDirectory::uninit(void)
     LogFlowThisFuncLeave();
 }
 
-// implementation of public getters/setters for attributes
+// implementation of private wrapped getters/setters for attributes
 /////////////////////////////////////////////////////////////////////////////
 
-STDMETHODIMP GuestDirectory::COMGETTER(DirectoryName)(BSTR *aName)
+HRESULT GuestDirectory::getDirectoryName(com::Utf8Str &aDirectoryName)
 {
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aName);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mOpenInfo.mPath.cloneTo(aName);
+    aDirectoryName = mData.mOpenInfo.mPath;
 
     return S_OK;
 }
 
-STDMETHODIMP GuestDirectory::COMGETTER(Filter)(BSTR *aFilter)
+HRESULT GuestDirectory::getFilter(com::Utf8Str &aFilter)
 {
     LogFlowThisFuncEnter();
 
-    CheckComArgOutPointerValid(aFilter);
-
-    AutoCaller autoCaller(this);
-    if (FAILED(autoCaller.rc())) return autoCaller.rc();
-
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    mData.mOpenInfo.mFilter.cloneTo(aFilter);
+    aFilter = mData.mOpenInfo.mFilter;
 
     return S_OK;
 }
@@ -180,7 +170,7 @@ STDMETHODIMP GuestDirectory::COMGETTER(Filter)(BSTR *aFilter)
 // private methods
 /////////////////////////////////////////////////////////////////////////////
 
-int GuestDirectory::callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
+int GuestDirectory::i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb)
 {
     AssertPtrReturn(pCbCtx, VERR_INVALID_POINTER);
     AssertPtrReturn(pSvcCb, VERR_INVALID_POINTER);
@@ -228,7 +218,7 @@ int GuestDirectory::callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUES
 }
 
 /* static */
-Utf8Str GuestDirectory::guestErrorToString(int guestRc)
+Utf8Str GuestDirectory::i_guestErrorToString(int guestRc)
 {
     Utf8Str strError;
 
@@ -251,7 +241,7 @@ Utf8Str GuestDirectory::guestErrorToString(int guestRc)
  * Called by IGuestSession right before this directory gets
  * removed from the public directory list.
  */
-int GuestDirectory::onRemove(void)
+int GuestDirectory::i_onRemove(void)
 {
     LogFlowThisFuncEnter();
 
@@ -262,18 +252,17 @@ int GuestDirectory::onRemove(void)
 }
 
 /* static */
-HRESULT GuestDirectory::setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
+HRESULT GuestDirectory::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
 {
     AssertPtr(pInterface);
     AssertMsg(RT_FAILURE(guestRc), ("Guest rc does not indicate a failure when setting error\n"));
 
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::guestErrorToString(guestRc).c_str());
+    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestDirectory::i_guestErrorToString(guestRc).c_str());
 }
 
 // implementation of public methods
 /////////////////////////////////////////////////////////////////////////////
-
-STDMETHODIMP GuestDirectory::Close(void)
+HRESULT GuestDirectory::close()
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
@@ -286,13 +275,13 @@ STDMETHODIMP GuestDirectory::Close(void)
     HRESULT hr = S_OK;
 
     int guestRc;
-    int rc = mData.mProcessTool.Terminate(30 * 1000, &guestRc);
+    int rc = mData.mProcessTool.i_terminate(30 * 1000, &guestRc);
     if (RT_FAILURE(rc))
     {
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             case VERR_NOT_SUPPORTED:
@@ -309,7 +298,7 @@ STDMETHODIMP GuestDirectory::Close(void)
     }
 
     AssertPtr(mSession);
-    int rc2 = mSession->directoryRemoveFromList(this);
+    int rc2 = mSession->i_directoryRemoveFromList(this);
     if (RT_SUCCESS(rc))
         rc = rc2;
 
@@ -318,7 +307,7 @@ STDMETHODIMP GuestDirectory::Close(void)
 #endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
-STDMETHODIMP GuestDirectory::Read(IFsObjInfo **aInfo)
+HRESULT GuestDirectory::read(ComPtr<IFsObjInfo> &aObjInfo)
 {
 #ifndef VBOX_WITH_GUEST_CONTROL
     ReturnComNotImplemented();
@@ -331,17 +320,17 @@ STDMETHODIMP GuestDirectory::Read(IFsObjInfo **aInfo)
     GuestProcessStreamBlock curBlock;
     int guestRc;
 
-    int rc = mData.mProcessTool.WaitEx(GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK,
-                                       &curBlock, &guestRc);
+    int rc = mData.mProcessTool.i_waitEx(GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK,
+                                         &curBlock, &guestRc);
 
     /*
      * Note: The guest process can still be around to serve the next
      *       upcoming stream block next time.
      */
     if (   RT_SUCCESS(rc)
-        && !mData.mProcessTool.IsRunning())
+        && !mData.mProcessTool.i_isRunning())
     {
-        rc = mData.mProcessTool.TerminatedOk(NULL /* Exit code */);
+        rc = mData.mProcessTool.i_terminatedOk(NULL /* Exit code */);
         if (rc == VERR_NOT_EQUAL)
             rc = VERR_ACCESS_DENIED;
     }
@@ -369,7 +358,7 @@ STDMETHODIMP GuestDirectory::Read(IFsObjInfo **aInfo)
                 if (RT_SUCCESS(rc))
                 {
                     /* Return info object to the caller. */
-                    hr2 = pFsObjInfo.queryInterfaceTo(aInfo);
+                    hr2 = pFsObjInfo.queryInterfaceTo(aObjInfo.asOutParam());
                     if (FAILED(hr2))
                         rc = VERR_COM_UNEXPECTED;
                 }
@@ -389,7 +378,7 @@ STDMETHODIMP GuestDirectory::Read(IFsObjInfo **aInfo)
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, guestRc);
                 break;
 
             case VERR_ACCESS_DENIED:

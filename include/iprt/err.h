@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,7 +43,6 @@
  */
 
 /** @defgroup grp_rt_err_hlp        Status Code Helpers
- * @ingroup grp_rt_err
  * @{
  */
 
@@ -926,6 +925,10 @@ RT_C_DECLS_END
 #define VWRN_UNABLE_TO_SATISFY_REQUIREMENTS 22406
 /** The requested allocation is too big. */
 #define VERR_ALLOCATION_TOO_BIG             (-22407)
+/** Mismatch. */
+#define VERR_MISMATCH                       (-22408)
+/** Wrong type. */
+#define VERR_WRONG_TYPE                     (-22409)
 /** @} */
 
 
@@ -1013,22 +1016,25 @@ RT_C_DECLS_END
 #define VERR_FILE_AIO_NOT_PREPARED          (-136)
 /** Not all requests could be submitted due to resource shortage. */
 #define VERR_FILE_AIO_INSUFFICIENT_RESSOURCES (-137)
+/** There are not enough events available on the host to create the I/O context.
+ * This exact meaning is host platform dependent. */
+#define VERR_FILE_AIO_INSUFFICIENT_EVENTS   (-138)
 /** Device or resource is busy. */
-#define VERR_RESOURCE_BUSY                  (-138)
+#define VERR_RESOURCE_BUSY                  (-139)
 /** A file operation was attempted on a non-file object. */
-#define VERR_NOT_A_FILE                     (-139)
+#define VERR_NOT_A_FILE                     (-140)
 /** A non-file operation was attempted on a file object. */
-#define VERR_IS_A_FILE                      (-140)
+#define VERR_IS_A_FILE                      (-141)
 /** Unexpected filesystem object type. */
-#define VERR_UNEXPECTED_FS_OBJ_TYPE         (-141)
+#define VERR_UNEXPECTED_FS_OBJ_TYPE         (-142)
 /** A path does not start with a root specification. */
-#define VERR_PATH_DOES_NOT_START_WITH_ROOT  (-142)
+#define VERR_PATH_DOES_NOT_START_WITH_ROOT  (-143)
 /** A path is relative, expected an absolute path. */
-#define VERR_PATH_IS_RELATIVE               (-143)
+#define VERR_PATH_IS_RELATIVE               (-144)
 /** A path is not relative (start with root), expected an relative path. */
-#define VERR_PATH_IS_NOT_RELATIVE           (-144)
+#define VERR_PATH_IS_NOT_RELATIVE           (-145)
 /** Zero length path. */
-#define VERR_PATH_ZERO_LENGTH               (-145)
+#define VERR_PATH_ZERO_LENGTH               (-146)
 /** @} */
 
 
@@ -1602,6 +1608,10 @@ RT_C_DECLS_END
 #define VERR_CPU_OFFLINE                        (-800)
 /** The specified cpu was not found. */
 #define VERR_CPU_NOT_FOUND                      (-801)
+/** Not all of the requested CPUs showed up in the PFNRTMPWORKER. */
+#define VERR_NOT_ALL_CPUS_SHOWED                (-802)
+/** Internal processing error in the RTMp code.*/
+#define VERR_CPU_IPE_1                          (-803)
 /** @} */
 
 /** @name RTGetOpt status codes
@@ -1939,6 +1949,31 @@ RT_C_DECLS_END
 #define VERR_XAR_ARCHIVED_AND_EXTRACTED_SIZES_MISMATCH (-22739)
 /** @} */
 
+/** @name RTX509 status codes
+ * @{ */
+/** Error reading a certificate in PEM format from BIO. */
+#define VERR_X509_READING_CERT_FROM_BIO                  (-23100)
+/** Error extracting a public key from the certificate. */
+#define VERR_X509_EXTRACT_PUBKEY_FROM_CERT               (-23101)
+/** Error extracting RSA from the public key. */
+#define VERR_X509_EXTRACT_RSA_FROM_PUBLIC_KEY            (-23102)
+/** Signature verification failed. */
+#define VERR_X509_RSA_VERIFICATION_FUILURE               (-23103)
+/** Basic constraints were not found. */
+#define VERR_X509_NO_BASIC_CONSTARAINTS                  (-23104)
+/** Error getting extensions from the certificate. */
+#define VERR_X509_GETTING_EXTENSION_FROM_CERT            (-23105)
+/** Error getting a data from the extension. */
+#define VERR_X509_GETTING_DATA_FROM_EXTENSION            (-23106)
+/** Error formatting an extension. */
+#define VERR_X509_PRINT_EXTENSION_TO_BIO                 (-23107)
+/** X509 certificate verification error. */
+#define VERR_X509_CERTIFICATE_VERIFICATION_FAILURE       (-23108)
+/** X509 certificate isn't self signed. */
+#define VERR_X509_NOT_SELFSIGNED_CERTIFICATE             (-23109)
+/** Warning X509 certificate isn't self signed.  */
+#define VINF_X509_NOT_SELFSIGNED_CERTIFICATE             23109
+/** @} */
 
 /** @name RTAsn1 status codes
  * @{ */

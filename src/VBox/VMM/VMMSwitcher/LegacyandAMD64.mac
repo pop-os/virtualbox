@@ -331,7 +331,9 @@ BEGINPROC vmmR0ToRawModeAsm
     cmp     byte [edx + CPUMCPU.fX2Apic], 1
     je      htg_x2apic
 
-    ; Legacy xAPIC mode:
+    ; Legacy xAPIC mode. No write completion required when writing to the
+    ; LVT registers as we have mapped the APIC pages as non-cacheable and
+    ; the MMIO is CPU-local.
     mov     ebx, [edx + CPUMCPU.pvApicBase]
     or      ebx, ebx
     jz      htg_apic_done
@@ -343,7 +345,6 @@ BEGINPROC vmmR0ToRawModeAsm
     or      edi, 0x01
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_LINT0], eax
-    mov     eax, [ebx + APIC_REG_LVT_LINT0] ; write completion
 htg_nolint0:
     mov     eax, [ebx + APIC_REG_LVT_LINT1]
     mov     ecx, eax
@@ -353,7 +354,6 @@ htg_nolint0:
     or      edi, 0x02
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_LINT1], eax
-    mov     eax, [ebx + APIC_REG_LVT_LINT1] ; write completion
 htg_nolint1:
     mov     eax, [ebx + APIC_REG_LVT_PC]
     mov     ecx, eax
@@ -363,7 +363,6 @@ htg_nolint1:
     or      edi, 0x04
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_PC], eax
-    mov     eax, [ebx + APIC_REG_LVT_PC] ; write completion
 htg_nopc:
     mov     eax, [ebx + APIC_REG_VERSION]
     shr     eax, 16
@@ -378,7 +377,6 @@ htg_nopc:
     or      edi, 0x10
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_CMCI], eax
-    mov     eax, [ebx + APIC_REG_LVT_CMCI] ; write completion
 htg_nocmci:
     mov     eax, [ebx + APIC_REG_LVT_THMR]
     mov     ecx, eax
@@ -388,7 +386,6 @@ htg_nocmci:
     or      edi, 0x08
     or      eax, APIC_REG_LVT_MASKED
     mov     [ebx + APIC_REG_LVT_THMR], eax
-    mov     eax, [ebx + APIC_REG_LVT_THMR] ; write completion
 htg_notherm:
     mov     [edx + CPUMCPU.fApicDisVectors], edi
     jmp     htg_apic_done
@@ -501,7 +498,7 @@ htg_apic_done:
     ;; relevant for 32-bit, but whatever) and X86_CR4_VMXE must be cleared.
     ;;
     and     esi, X86_CR4_VME | X86_CR4_PVI | X86_CR4_TSD | X86_CR4_DE | X86_CR4_PSE | X86_CR4_PAE \
-               | X86_CR4_MCE | X86_CR4_OSFSXR | X86_CR4_OSXMMEEXCPT | X86_CR4_SMXE | X86_CR4_OSXSAVE
+               | X86_CR4_MCE | X86_CR4_OSFXSR | X86_CR4_OSXMMEEXCPT | X86_CR4_SMXE | X86_CR4_OSXSAVE
     mov     cr4, esi
 
     ;;
@@ -666,8 +663,8 @@ GLOBALNAME ICEnterTarget
     mov     rcx, rax                    ; save old CR0
     and     rax, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, rax
-    ; Use explicit REX prefix. See @bugref{6398}.
-    o64 fxrstor [rdx + CPUMCPU.Guest.fpu]
+    mov     eax, [rdx + CPUMCPU.Guest.pXStateRC]
+    o64 fxrstor [rax]                   ; (use explicit REX prefix, see @bugref{6398})
     mov     cr0, rcx                    ; and restore old CR0 again
 
     and     dword [rdx + CPUMCPU.fUseFlags], ~CPUM_SYNC_FPU_STATE
@@ -727,7 +724,7 @@ htg_debug_done:
 
     ; parameter for all helper functions (pCtx)
     DEBUG64_CHAR('9')
-    lea     rsi, [rdx + CPUMCPU.Guest.fpu]
+    lea     rsi, [rdx + CPUMCPU.Guest]
     lea     rax, [htg_return wrt rip]
     push    rax                         ; return address
 
@@ -771,25 +768,6 @@ ENDPROC vmmR0ToRawModeAsm
 ; HM code (used to be HMRCA.asm at one point).
 ;
 ;
-
-
-
-; Load the corresponding guest MSR (trashes rdx & rcx)
-%macro LOADGUESTMSR 2
-    mov     rcx, %1
-    mov     edx, dword [rsi + %2 + 4]
-    mov     eax, dword [rsi + %2]
-    wrmsr
-%endmacro
-
-; Save a guest MSR (trashes rdx & rcx)
-; Only really useful for gs kernel base as that one can be changed behind our back (swapgs)
-%macro SAVEGUESTMSR 2
-    mov     rcx, %1
-    rdmsr
-    mov     dword [rsi + %2], eax
-    mov     dword [rsi + %2 + 4], edx
-%endmacro
 
 ;; @def MYPUSHSEGS
 ; Macro saving all segment registers on the stack.
@@ -971,14 +949,6 @@ ALIGN(16)
     ;  - DR7 (reset to 0x400)
     ;  - EFLAGS (reset to RT_BIT(1); not relevant)
 
-%ifndef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
-    ; Load the guest LSTAR, CSTAR, SFMASK & KERNEL_GSBASE MSRs.
-    LOADGUESTMSR MSR_K8_LSTAR,          CPUMCTX.msrLSTAR
-    LOADGUESTMSR MSR_K6_STAR,           CPUMCTX.msrSTAR
-    LOADGUESTMSR MSR_K8_SF_MASK,        CPUMCTX.msrSFMASK
-    LOADGUESTMSR MSR_K8_KERNEL_GS_BASE, CPUMCTX.msrKERNELGSBASE
-%endif
-
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC
     mov     qword [rbx + VMCSCACHE.uPos], 5
 %endif
@@ -1056,13 +1026,6 @@ ALIGNCODE(16)
     mov     qword [rdi + CPUMCTX.edi], rax
 
     pop     rsi         ; pCtx (needed in rsi by the macros below)
-
-%ifndef VBOX_WITH_AUTO_MSR_LOAD_RESTORE
-    SAVEGUESTMSR MSR_K8_KERNEL_GS_BASE, CPUMCTX.msrKERNELGSBASE
-    SAVEGUESTMSR MSR_K8_SF_MASK,        CPUMCTX.msrSFMASK
-    SAVEGUESTMSR MSR_K6_STAR,           CPUMCTX.msrSTAR
-    SAVEGUESTMSR MSR_K8_LSTAR,          CPUMCTX.msrLSTAR
-%endif
 
 %ifdef VMX_USE_CACHED_VMCS_ACCESSES
     pop     rdi         ; Saved pCache
@@ -1294,8 +1257,8 @@ BEGINPROC HMRCSaveGuestFPU64
     and     rax, ~(X86_CR0_TS | X86_CR0_EM)
     mov     cr0, rax
 
-    ; Use explicit REX prefix. See @bugref{6398}.
-    o64 fxsave  [rsi + CPUMCTX.fpu]
+    mov     eax, [rsi + CPUMCTX.pXStateRC]
+    o64 fxsave  [rax]                   ; (use explicit REX prefix, see @bugref{6398})
 
     mov     cr0, rcx                    ; and restore old CR0 again
 

@@ -1,12 +1,10 @@
 /* $Id: UIKeyboardHandlerFullscreen.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIKeyboardHandlerFullscreen class implementation
+ * VBox Qt GUI - UIKeyboardHandlerFullscreen class implementation.
  */
 
 /*
- * Copyright (C) 2010-2013 Oracle Corporation
+ * Copyright (C) 2010-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,28 +15,34 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Global includes */
-#include <QKeyEvent>
-#include <QTimer>
-#include <QWidget>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Local includes */
-#include "UIKeyboardHandlerFullscreen.h"
-#include "UIMachineWindow.h"
-#include "UIShortcutPool.h"
+/* Qt includes: */
+# include <QKeyEvent>
+# include <QTimer>
 
-/* Fullscreen keyboard-handler constructor: */
+/* GUI includes: */
+# include "UIKeyboardHandlerFullscreen.h"
+# include "UIMachineLogic.h"
+# include "UIShortcutPool.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/* Namespaces: */
+using namespace UIExtraDataDefs;
+
 UIKeyboardHandlerFullscreen::UIKeyboardHandlerFullscreen(UIMachineLogic* pMachineLogic)
     : UIKeyboardHandler(pMachineLogic)
 {
 }
 
-/* Fullscreen keyboard-handler destructor: */
 UIKeyboardHandlerFullscreen::~UIKeyboardHandlerFullscreen()
 {
 }
 
-/* Event handler for prepared listener(s): */
 bool UIKeyboardHandlerFullscreen::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
 {
     /* Check if pWatchedObject object is view: */
@@ -58,7 +62,7 @@ bool UIKeyboardHandlerFullscreen::eventFilter(QObject *pWatchedObject, QEvent *p
                 if (isHostKeyPressed() && pKeyEvent->key() == gShortcutPool->shortcut(GUI_Input_MachineShortcuts, QString("PopupMenu")).sequence())
                 {
                     /* Post request to show popup-menu: */
-                    QTimer::singleShot(0, m_windows[uScreenId], SLOT(sltPopupMainMenu()));
+                    QTimer::singleShot(0, m_pMachineLogic, SLOT(sltInvokePopupMenu()));
                     /* Filter-out this event: */
                     return true;
                 }

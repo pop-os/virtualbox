@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,6 +124,7 @@ VMM_INT_DECL(uint64_t)  TMVirtualToMilli(PVM pVM, uint64_t u64VirtualTicks);
 VMM_INT_DECL(uint64_t)  TMVirtualFromNano(PVM pVM, uint64_t u64NanoTS);
 VMM_INT_DECL(uint64_t)  TMVirtualFromMicro(PVM pVM, uint64_t u64MicroTS);
 VMM_INT_DECL(uint64_t)  TMVirtualFromMilli(PVM pVM, uint64_t u64MilliTS);
+VMM_INT_DECL(bool)      TMVirtualIsTicking(PVM pVM);
 /** @} */
 
 
@@ -132,12 +133,13 @@ VMM_INT_DECL(uint64_t)  TMVirtualFromMilli(PVM pVM, uint64_t u64MilliTS);
  */
 VMMDECL(uint64_t)       TMCpuTickGet(PVMCPU pVCpu);
 VMM_INT_DECL(uint64_t)  TMCpuTickGetNoCheck(PVMCPU pVCpu);
-VMM_INT_DECL(bool)      TMCpuTickCanUseRealTSC(PVMCPU pVCpu, uint64_t *poffRealTSC);
-VMM_INT_DECL(uint64_t)  TMCpuTickGetDeadlineAndTscOffset(PVMCPU pVCpu, bool *pfOffsettedTsc, uint64_t *poffRealTSC);
+VMM_INT_DECL(bool)      TMCpuTickCanUseRealTSC(PVM pVM, PVMCPU pVCpu, uint64_t *poffRealTSC, bool *pfParavirtTsc);
+VMM_INT_DECL(uint64_t)  TMCpuTickGetDeadlineAndTscOffset(PVM pVM, PVMCPU pVCpu, uint64_t *poffRealTSC, bool *pfOffsettedTsc, bool *pfParavirtTsc);
 VMM_INT_DECL(int)       TMCpuTickSet(PVM pVM, PVMCPU pVCpu, uint64_t u64Tick);
 VMM_INT_DECL(int)       TMCpuTickSetLastSeen(PVMCPU pVCpu, uint64_t u64LastSeenTick);
 VMM_INT_DECL(uint64_t)  TMCpuTickGetLastSeen(PVMCPU pVCpu);
 VMMDECL(uint64_t)       TMCpuTicksPerSecond(PVM pVM);
+VMM_INT_DECL(bool)      TMCpuTickIsTicking(PVMCPU pVCpu);
 /** @} */
 
 
@@ -239,13 +241,11 @@ VMMDECL(uint64_t)       TMTimerFromMilli(PTMTIMER pTimer, uint64_t cMilliSecs);
 VMMDECL(bool)           TMTimerPollBool(PVM pVM, PVMCPU pVCpu);
 VMM_INT_DECL(void)      TMTimerPollVoid(PVM pVM, PVMCPU pVCpu);
 VMM_INT_DECL(uint64_t)  TMTimerPollGIP(PVM pVM, PVMCPU pVCpu, uint64_t *pu64Delta);
-
 /** @} */
 
 
 #ifdef IN_RING3
 /** @defgroup grp_tm_r3     The TM Host Context Ring-3 API
- * @ingroup grp_tm
  * @{
  */
 VMM_INT_DECL(int)       TMR3Init(PVM pVM);
@@ -269,6 +269,10 @@ VMMR3DECL(int)          TMR3TimerSetCritSect(PTMTIMERR3 pTimer, PPDMCRITSECT pCr
 VMMR3DECL(void)         TMR3TimerQueuesDo(PVM pVM);
 VMMR3_INT_DECL(void)    TMR3VirtualSyncFF(PVM pVM, PVMCPU pVCpu);
 VMMR3_INT_DECL(PRTTIMESPEC) TMR3UtcNow(PVM pVM, PRTTIMESPEC pTime);
+
+VMMR3_INT_DECL(int)     TMR3CpuTickParavirtEnable(PVM pVM);
+VMMR3_INT_DECL(int)     TMR3CpuTickParavirtDisable(PVM pVM);
+VMMR3_INT_DECL(bool)    TMR3CpuTickIsFixedRateMonotonic(PVM pVM, bool fWithParavirtEnabled);
 /** @} */
 #endif /* IN_RING3 */
 

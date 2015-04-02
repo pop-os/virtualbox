@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2013 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -230,7 +230,7 @@ static SUPINSTFILE const    g_aSupInstallFiles[] =
     HARDENED_TESTCASE_ENTRY("tstCFGM"),
     HARDENED_TESTCASE_ENTRY("tstIntNet-1"),
     HARDENED_TESTCASE_ENTRY("tstMMHyperHeap"),
-    HARDENED_TESTCASE_ENTRY("tstR0ThreadPreemptionDriver"),
+    HARDENED_TESTCASE_ENTRY("tstRTR0ThreadPreemptionDriver"),
     HARDENED_TESTCASE_ENTRY("tstRTR0MemUserKernelDriver"),
     HARDENED_TESTCASE_ENTRY("tstRTR0SemMutexDriver"),
     HARDENED_TESTCASE_ENTRY("tstRTR0TimerDriver"),
@@ -1727,7 +1727,7 @@ DECLHIDDEN(int) supR3HardenedVerifyFile(const char *pszFilename, RTHCUINTPTR hNa
         uint32_t fFlags = SUPHNTVI_F_REQUIRE_KERNEL_CODE_SIGNING;
         if (!fMaybe3rdParty)
             fFlags = SUPHNTVI_F_REQUIRE_BUILD_CERT;
-        const char *pszSuffix = RTPathExt(pszFilename);
+        const char *pszSuffix = RTPathSuffix(pszFilename);
         if (   pszSuffix
             &&                   pszSuffix[0]  == '.'
             && (   RT_C_TO_LOWER(pszSuffix[1]) == 'r'

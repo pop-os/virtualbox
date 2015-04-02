@@ -1,4 +1,4 @@
-/* $Revision: 96185 $ */
+/* $Revision: 96182 $ */
 /** @file tstCAPIGlue.c
  * Demonstrator program to illustrate use of C bindings of Main API.
  *

@@ -1,8 +1,6 @@
 /* $Id: QIStatusBar.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VirtualBox Qt extensions: QIStatusBar class implementation
+ * VBox Qt GUI - VirtualBox Qt extensions: QIStatusBar class implementation.
  */
 
 /*
@@ -17,7 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "QIStatusBar.h"
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else
+# include "QIStatusBar.h"
+#endif
+
 
 QIStatusBar::QIStatusBar (QWidget *aParent)
     : QStatusBar (aParent)

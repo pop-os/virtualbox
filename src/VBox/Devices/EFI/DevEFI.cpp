@@ -220,7 +220,7 @@ typedef struct DEVEFI
     uint64_t                u64CpuFrequency;
     /** GOP mode. */
     uint32_t                u32GopMode;
-    /** Uga mode horisontal resolution. */
+    /** Uga mode horizontal resolution. */
     uint32_t                cxUgaResolution;
     /** Uga mode vertical resolution. */
     uint32_t                cyUgaResolution;
@@ -682,10 +682,8 @@ static int nvramWriteVariableOpAdd(PDEVEFI pThis)
         /*
          * Too many variables.
          */
-        static unsigned s_cWarnings = 0;
-        if (s_cWarnings++ < 5)
-            LogRel(("EFI: Too many variables (%RTuuid::'%s' fAttrib=%#x cbValue=%#x)\n", &pThis->NVRAM.VarOpBuf.uuid,
-                    pThis->NVRAM.VarOpBuf.szName, pThis->NVRAM.VarOpBuf.fAttributes, pThis->NVRAM.VarOpBuf.cbValue));
+        LogRelMax(5, ("EFI: Too many variables (%RTuuid::'%s' fAttrib=%#x cbValue=%#x)\n", &pThis->NVRAM.VarOpBuf.uuid,
+                  pThis->NVRAM.VarOpBuf.szName, pThis->NVRAM.VarOpBuf.fAttributes, pThis->NVRAM.VarOpBuf.cbValue));
         pThis->NVRAM.u32Status = EFI_VARIABLE_OP_STATUS_ERROR;
         Log(("nvramWriteVariableOpAdd: Too many variabled.\n"));
     }
@@ -1075,7 +1073,7 @@ static uint32_t efiInfoSize(PDEVEFI pThis)
         case EFI_INFO_INDEX_STACK_SIZE:
         case EFI_INFO_INDEX_GOP_MODE:
         case EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION:
-        case EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION:
+        case EFI_INFO_INDEX_UGA_HORIZONTAL_RESOLUTION:
             return 4;
         case EFI_INFO_INDEX_BOOT_ARGS:
             return (uint32_t)RTStrNLen(pThis->szBootArgs, sizeof(pThis->szBootArgs)) + 1;
@@ -1157,7 +1155,7 @@ static uint8_t efiInfoNextByte(PDEVEFI pThis)
         case EFI_INFO_INDEX_BOOT_ARGS:          return efiInfoNextByteBuf(pThis, pThis->szBootArgs, sizeof(pThis->szBootArgs));
         case EFI_INFO_INDEX_DEVICE_PROPS:       return efiInfoNextByteBuf(pThis, pThis->pbDeviceProps, pThis->cbDeviceProps);
         case EFI_INFO_INDEX_GOP_MODE:           return efiInfoNextByteU32(pThis, pThis->u32GopMode);
-        case EFI_INFO_INDEX_UGA_HORISONTAL_RESOLUTION:  return efiInfoNextByteU32(pThis, pThis->cxUgaResolution);
+        case EFI_INFO_INDEX_UGA_HORIZONTAL_RESOLUTION:  return efiInfoNextByteU32(pThis, pThis->cxUgaResolution);
         case EFI_INFO_INDEX_UGA_VERTICAL_RESOLUTION:    return efiInfoNextByteU32(pThis, pThis->cyUgaResolution);
 
         /* Keep in sync with value in EfiThunk.asm */
@@ -1528,12 +1526,7 @@ static DECLCALLBACK(int) efiIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPO
             if (u32 > EFIDBGPOINT_INVALID && u32 < EFIDBGPOINT_END)
             {
                 /* For now, just log it. */
-                static uint64_t s_cDbgPointLogged = 0;
-                if (s_cDbgPointLogged < 1024)
-                {
-                    s_cDbgPointLogged++;
-                    LogRel(("EFI: debug point %s\n", efiDbgPointName((EFIDBGPOINT)u32)));
-                }
+                LogRelMax(1024, ("EFI: debug point %s\n", efiDbgPointName((EFIDBGPOINT)u32)));
                 rc = VINF_SUCCESS;
             }
             else
@@ -1630,7 +1623,7 @@ static DECLCALLBACK(int) efiLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
     for (uint32_t i = 0; i < pThis->NVRAM.cVariables; i++)
     {
         PEFIVAR pEfiVar = (PEFIVAR)RTMemAllocZ(sizeof(EFIVAR));
-        AssertPtrReturn(pEfiVar, VERR_NO_MEMORY);
+        AssertReturn(pEfiVar, VERR_NO_MEMORY);
 
         rc = SSMR3GetStructEx(pSSM, pEfiVar, sizeof(EFIVAR), 0, g_aEfiVariableDescFields, NULL);
         if (RT_SUCCESS(rc))

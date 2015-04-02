@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineView class declaration
+ * VBox Qt GUI - UIMachineView class declaration.
  */
 
 /*
@@ -24,8 +22,8 @@
 #include <QEventLoop>
 
 /* GUI includes: */
-#include "UIDefs.h"
 #include "UIMachineDefs.h"
+#include "UIExtraDataDefs.h"
 #ifdef Q_WS_MAC
 # include <CoreFoundation/CFBase.h>
 #endif /* Q_WS_MAC */
@@ -33,16 +31,32 @@
 /* COM includes: */
 #include "COMEnums.h"
 
+/* Other VBox includes: */
+#include "VBox/com/ptr.h"
+
 /* Forward declarations: */
 class UISession;
+class UIActionPool;
 class UIMachineLogic;
 class UIMachineWindow;
 class UIFrameBuffer;
+#ifdef VBOX_WITH_DRAG_AND_DROP
+ class CDnDTarget;
+#endif
 class CSession;
+class CMachine;
+class CConsole;
+class CDisplay;
+class CGuest;
 
 class UIMachineView : public QAbstractScrollArea
 {
     Q_OBJECT;
+
+signals:
+
+    /** Notifies about frame-buffer resize. */
+    void sigFrameBufferResize();
 
 public:
 
@@ -79,23 +93,19 @@ public:
       * @note Reimplemented in sub-classes. Base implementation does nothing. */
     virtual void adjustGuestScreenSize() {}
 
+    /** Applies machine-view scale-factor. */
+    virtual void applyMachineViewScaleFactor();
+
     /* Framebuffer aspect ratio: */
     double aspectRatio() const;
-
-signals:
-
-    /* Utility signals: */
-    void resizeHintDone();
 
 protected slots:
 
     /* Slot to perform guest resize: */
     void sltPerformGuestResize(const QSize &aSize = QSize());
 
-    /* Handler: Frame-buffer RequestResize stuff: */
-    virtual void sltHandleRequestResize(int iPixelFormat, uchar *pVRAM,
-                                int iBitsPerPixel, int iBytesPerLine,
-                                int iWidth, int iHeight);
+    /* Handler: Frame-buffer NotifyChange stuff: */
+    virtual void sltHandleNotifyChange(int iWidth, int iHeight);
 
     /* Handler: Frame-buffer NotifyUpdate stuff: */
     virtual void sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeight);
@@ -108,6 +118,12 @@ protected slots:
 
     /* Watch dog for desktop resizes: */
     void sltDesktopResized();
+
+    /** Handles the scale-factor change. */
+    void sltHandleScaleFactorChange(const QString &strMachineID);
+
+    /** Handles the unscaled HiDPI output mode change. */
+    void sltHandleUnscaledHiDPIOutputModeChange(const QString &strMachineID);
 
     /* Console callback handlers: */
     virtual void sltMachineStateChanged();
@@ -141,11 +157,24 @@ protected:
     virtual void cleanupFrameBuffer();
     //virtual void cleanupViewport();
 
+    /** Returns the session UI reference. */
+    UISession* uisession() const;
+
+    /** Returns the session reference. */
+    CSession& session() const;
+    /** Returns the session's machine reference. */
+    CMachine& machine() const;
+    /** Returns the session's console reference. */
+    CConsole& console() const;
+    /** Returns the display's display reference. */
+    CDisplay& display() const;
+    /** Returns the console's guest reference. */
+    CGuest& guest() const;
+
     /* Protected getters: */
     UIMachineWindow* machineWindow() const { return m_pMachineWindow; }
+    UIActionPool* actionPool() const;
     UIMachineLogic* machineLogic() const;
-    UISession* uisession() const;
-    CSession& session();
     QSize sizeHint() const;
     int contentsX() const;
     int contentsY() const;
@@ -155,7 +184,6 @@ protected:
     int visibleHeight() const;
     ulong screenId() const { return m_uScreenId; }
     UIFrameBuffer* frameBuffer() const { return m_pFrameBuffer; }
-    const QPixmap& pauseShot() const { return m_pauseShot; }
     /** Atomically store the maximum guest resolution which we currently wish
      * to handle for @a maxGuestSize() to read.  Should be called if anything
      * happens (e.g. a screen hotplug) which might cause the value to change.
@@ -170,15 +198,27 @@ protected:
      */
     QSize guestSizeHint();
 
+    /** Handles machine-view scale changes. */
+    void handleScaleChange();
+
     /* Protected setters: */
     /** Store a guest size hint value to extra data, called on switching to
      * fullscreen. */
-    void storeGuestSizeHint(const QSize &sizeHint);
+    void storeGuestSizeHint(const QSize &size);
 
-    /* Protected helpers: */
-    virtual void takePauseShotLive();
-    virtual void takePauseShotSnapshot();
-    virtual void resetPauseShot() { m_pauseShot = QPixmap(); }
+    /** Returns the pause-pixmap: */
+    const QPixmap& pausePixmap() const { return m_pausePixmap; }
+    /** Returns the scaled pause-pixmap: */
+    const QPixmap& pausePixmapScaled() const { return m_pausePixmapScaled; }
+    /** Resets the pause-pixmap. */
+    void resetPausePixmap();
+    /** Acquires live pause-pixmap. */
+    void takePausePixmapLive();
+    /** Acquires snapshot pause-pixmap. */
+    void takePausePixmapSnapshot();
+    /** Updates the scaled pause-pixmap. */
+    void updateScaledPausePixmap();
+
     /** The available area on the current screen for application windows. */
     virtual QRect workingArea() const = 0;
     /** Calculate how big the guest desktop can be while still fitting on one
@@ -198,9 +238,6 @@ protected:
     UIVisualStateType visualStateType() const;
     /** Is this a fullscreen-type view? */
     bool isFullscreenOrSeamless() const;
-    /** Return a string consisting of @a base with a suffix for the active
-     * virtual monitor.  Used for storing monitor-specific extra data. */
-    QString makeExtraDataKeyPerMonitor(QString base) const;
 
     /* Cross-platforms event processors: */
     bool event(QEvent *pEvent);
@@ -213,9 +250,8 @@ protected:
     void dragEnterEvent(QDragEnterEvent *pEvent);
     void dragLeaveEvent(QDragLeaveEvent *pEvent);
     void dragMoveEvent(QDragMoveEvent *pEvent);
+    void dragIsPending(void);
     void dropEvent(QDropEvent *pEvent);
-
-    void handleGHDnd();
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
     /* Platform specific event processors: */
@@ -224,6 +260,11 @@ protected:
 #elif defined(Q_WS_X11)
     bool x11Event(XEvent *event);
 #endif
+
+    /** Scales passed size forward. */
+    QSize scaledForward(QSize size) const;
+    /** Scales passed size backward. */
+    QSize scaledBackward(QSize size) const;
 
     /* Protected members: */
     UIMachineWindow *m_pMachineWindow;
@@ -255,18 +296,18 @@ protected:
     bool m_fAccelerate2DVideo : 1;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
-    QPixmap m_pauseShot;
+    /** Holds the pause-pixmap. */
+    QPixmap m_pausePixmap;
+    /** Holds the scaled pause-pixmap. */
+    QPixmap m_pausePixmapScaled;
 
     /* Friend classes: */
     friend class UIKeyboardHandler;
     friend class UIMouseHandler;
     friend class UIMachineLogic;
     friend class UIFrameBuffer;
-    friend class UIFrameBufferQImage;
-#ifdef VBOX_GUI_USE_QUARTZ2D
-    friend class UIFrameBufferQuartz2D;
-#endif /* VBOX_GUI_USE_QUARTZ2D */
-    template<class, class, class> friend class VBoxOverlayFrameBuffer;
+    friend class UIFrameBufferPrivate;
+    friend class VBoxOverlayFrameBuffer;
 };
 
 /* This maintenance class is a part of future roll-back mechanism.

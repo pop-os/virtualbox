@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 54 2013-10-09 19:52:48Z bird $ */
+/* $Id: kLdrModLX.c 58 2013-10-12 20:18:21Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -301,6 +301,7 @@ static int kldrModLXDoCreate(PKRDR pRdr, KLDRFOFF offNewHdr, PKLDRMODLX *ppModLX
     kHlpMemCopy((char *)pMod->pszFilename, kRdrName(pRdr), cchFilename + 1);
     pMod->pszName = NULL; /* finalized further down */
     pMod->cchName = 0;
+    pMod->fFlags = 0;
     switch (Hdr.e32_cpu)
     {
         case E32CPU286:

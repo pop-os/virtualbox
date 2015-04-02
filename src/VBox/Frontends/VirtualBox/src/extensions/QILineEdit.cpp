@@ -15,19 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "QILineEdit.h"
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+# include "QILineEdit.h"
 
 /* Qt includes */
-#include <QStyleOptionFrame>
+# ifdef Q_WS_WIN32
+#  include <QLibrary>
 
-#if defined (Q_WS_WIN32)
+#  include <Windows.h>
+#  include "iprt/ldr.h"
+# endif
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include <QStyleOptionFrame>
+#ifdef Q_WS_WIN32
 # include <QWindowsVistaStyle>
-# include <QLibrary>
 #endif
-#if defined (Q_WS_WIN32)
-# include <Windows.h>
-# include "iprt/ldr.h"
-#endif
+
 
 void QILineEdit::setMinimumWidthByText (const QString &aText)
 {

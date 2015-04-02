@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -215,12 +215,73 @@
      && pDevExt->u32Cookie == BIRD)
 
 
+/** @def SUPDRV_WITH_MSR_PROBER
+ * Enables the SUP_IOCTL_MSR_PROBER function.
+ * By default, only enabled in DEBUG builds as it's a sensitive feature.
+ */
+#if defined(DEBUG) && !defined(SUPDRV_WITH_MSR_PROBER) && !defined(SUPDRV_WITHOUT_MSR_PROBER)
+# define SUPDRV_WITH_MSR_PROBER
+#endif
+
+/** @def SUPDRV_WITHOUT_MSR_PROBER
+ * Executive overide for disabling the SUP_IOCTL_MSR_PROBER function.
+ */
+#ifdef SUPDRV_WITHOUT_MSR_PROBER
+# undef SUPDRV_WITH_MSR_PROBER
+#endif
+
+#if 1
+/**  Use a dedicated kernel thread to service TSC-delta measurement requests.
+ *   @todo Test on servers with many CPUs and sockets. */
+#define SUPDRV_USE_TSC_DELTA_THREAD
+#endif
+
 /*******************************************************************************
 *   Structures and Typedefs                                                    *
 *******************************************************************************/
 /** Pointer to the device extension. */
 typedef struct SUPDRVDEVEXT *PSUPDRVDEVEXT;
 
+#ifdef SUPDRV_USE_TSC_DELTA_THREAD
+/**
+ * TSC-delta measurement thread state machine.
+ */
+typedef enum SUPDRVTSCDELTATHREADSTATE
+{
+    /** Uninitialized/invalid value. */
+    kTscDeltaThreadState_Invalid = 0,
+    /** The thread is being created.
+     * Next state: Listening, Butchered, Terminating  */
+    kTscDeltaThreadState_Creating,
+    /** The thread is listening for events.
+     * Previous state: Creating, Measuring
+     * Next state: WaitAndMeasure, Butchered, Terminated */
+    kTscDeltaThreadState_Listening,
+    /** The thread is sleeping before starting a measurement.
+     * Previous state: Listening, Measuring
+     * Next state:     Measuring, Butchered, Terminating
+     * @remarks The thread won't enter this state on its own, it is put into this
+     *          state by the GIP timer, the CPU online callback and by the
+     *          SUP_IOCTL_TSC_DELTA_MEASURE code. */
+    kTscDeltaThreadState_WaitAndMeasure,
+    /** The thread is currently servicing a measurement request.
+     * Previous state: WaitAndMeasure
+     * Next state:     Listening, WaitAndMeasure, Terminate */
+    kTscDeltaThreadState_Measuring,
+    /** The thread is terminating.
+     * @remarks The thread won't enter this state on its own, is put into this state
+     *          by supdrvTscDeltaTerm. */
+    kTscDeltaThreadState_Terminating,
+    /** The thread is butchered due to an unexpected error.
+     * Previous State: Creating, Listening, WaitAndMeasure  */
+    kTscDeltaThreadState_Butchered,
+    /** The thread is destroyed (final).
+     * Previous state: Terminating */
+    kTscDeltaThreadState_Destroyed,
+    /** The usual 32-bit blowup hack. */
+    kTscDeltaThreadState_32BitHack = 0x7fffffff
+} SUPDRVTSCDELTATHREADSTATE;
+#endif /* SUPDRV_USE_TSC_DELTA_THREAD */
 
 /**
  * Memory reference types.
@@ -588,7 +649,10 @@ typedef struct SUPDRVDEVEXT
     /** If non-zero we've successfully called RTTimerRequestSystemGranularity(). */
     uint32_t                        u32SystemTimerGranularityGrant;
     /** The CPU id of the GIP master.
-     * This CPU is responsible for the updating the common GIP data. */
+     * This CPU is responsible for the updating the common GIP data and it is
+     * the one used to calculate TSC deltas relative to.
+     * (The initial master will have a 0 zero value, but it it goes offline the
+     * new master may have a non-zero value.) */
     RTCPUID volatile                idGipMaster;
 
     /** Component factory mutex.
@@ -632,6 +696,60 @@ typedef struct SUPDRVDEVEXT
     /** The number of open sessions. */
     int32_t                         cSessions;
     /** @} */
+
+    /** @name Invariant TSC frequency refinement.
+     * @{ */
+    /** Nanosecond timestamp at the start of the TSC frequency refinement phase. */
+    uint64_t                        nsStartInvarTscRefine;
+    /** TSC reading at the start of the TSC frequency refinement phase. */
+    uint64_t                        uTscStartInvarTscRefine;
+    /** The CPU id of the CPU that u64TscAnchor was measured on. */
+    RTCPUID                         idCpuInvarTscRefine;
+    /** Pointer to the timer used to refine the TSC frequency. */
+    PRTTIMER                        pInvarTscRefineTimer;
+    /** Stop the timer on the next tick because we saw a power event. */
+    bool volatile                   fInvTscRefinePowerEvent;
+    /** @} */
+
+    /** @name TSC-delta measurement.
+     *  @{ */
+    /** Number of online/offline events, incremented each time a CPU goes online
+     *  or offline. */
+    uint32_t volatile               cMpOnOffEvents;
+    /** TSC-delta measurement mutext.
+     * At the moment, we don't want to have more than one measurement going on at
+     * any one time.  We might be using broadcast IPIs which are heavy and could
+     * perhaps get in each others way. */
+#ifdef SUPDRV_USE_MUTEX_FOR_GIP
+    RTSEMMUTEX                      mtxTscDelta;
+#else
+    RTSEMFASTMUTEX                  mtxTscDelta;
+#endif
+    /** The set of CPUs we need to take measurements for. */
+    RTCPUSET                        TscDeltaCpuSet;
+    /** The set of CPUs we have completed taken measurements for. */
+    RTCPUSET                        TscDeltaObtainedCpuSet;
+    /** @}  */
+
+#ifdef SUPDRV_USE_TSC_DELTA_THREAD
+    /** @name TSC-delta measurement thread.
+     *  @{ */
+    /** Spinlock protecting enmTscDeltaThreadState. */
+    RTSPINLOCK                      hTscDeltaSpinlock;
+    /** TSC-delta measurement thread. */
+    RTTHREAD                        hTscDeltaThread;
+    /** The event signalled during state changes to the TSC-delta thread. */
+    RTSEMEVENT                      hTscDeltaEvent;
+    /** The state of the TSC-delta measurement thread. */
+    SUPDRVTSCDELTATHREADSTATE       enmTscDeltaThreadState;
+    /** Thread timeout time before rechecking state in ms. */
+    RTMSINTERVAL                    cMsTscDeltaTimeout;
+    /** Whether the TSC-delta measurement was successful. */
+    int32_t volatile                rcTscDelta;
+    /** Tell the thread we want TSC-deltas for all CPUs with retries. */
+    bool                            fTscThreadRecomputeAllDeltas;
+    /** @} */
+#endif
 
     /*
      * Note! The non-agnostic bits must be at the very end of the structure!
@@ -686,6 +804,8 @@ void VBOXCALL   supdrvOSSessionHashTabRemoved(PSUPDRVDEVEXT pDevExt, PSUPDRVSESS
 void VBOXCALL   supdrvOSObjInitCreator(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession);
 bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, const char *pszObjName, int *prc);
 bool VBOXCALL   supdrvOSGetForcedAsyncTscMode(PSUPDRVDEVEXT pDevExt);
+bool VBOXCALL   supdrvOSAreCpusOfflinedOnSuspend(void);
+bool VBOXCALL   supdrvOSAreTscDeltasInSync(void);
 int  VBOXCALL   supdrvOSEnableVTx(bool fEnabled);
 RTCCUINTREG VBOXCALL supdrvOSChangeCR4(RTCCUINTREG fOrMask, RTCCUINTREG fAndMask);
 bool VBOXCALL   supdrvOSSuspendVTxOnCpu(void);
@@ -753,10 +873,57 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
 
 
+#ifdef SUPDRV_WITH_MSR_PROBER
+
+/**
+ * Tries to read an MSR.
+ *
+ * @returns One of the listed VBox status codes.
+ * @retval  VINF_SUCCESS if read successfully, value in *puValue.
+ * @retval  VERR_ACCESS_DENIED if we couldn't read it (GP).
+ * @retval  VERR_NOT_SUPPORTED if not supported.
+ *
+ * @param   uMsr                The MSR to read from.
+ * @param   idCpu               The CPU to read the MSR on. NIL_RTCPUID
+ *                              indicates any suitable CPU.
+ * @param   puValue             Where to return the value.
+ */
+int VBOXCALL    supdrvOSMsrProberRead(uint32_t uMsr, RTCPUID idCpu, uint64_t *puValue);
+
+/**
+ * Tries to write an MSR.
+ *
+ * @returns One of the listed VBox status codes.
+ * @retval  VINF_SUCCESS if written successfully.
+ * @retval  VERR_ACCESS_DENIED if we couldn't write the value to it (GP).
+ * @retval  VERR_NOT_SUPPORTED if not supported.
+ *
+ * @param   uMsr                The MSR to write to.
+ * @param   idCpu               The CPU to write the MSR on. NIL_RTCPUID
+ *                              indicates any suitable CPU.
+ * @param   uValue              The value to write.
+ */
+int VBOXCALL    supdrvOSMsrProberWrite(uint32_t uMsr, RTCPUID idCpu, uint64_t uValue);
+
+/**
+ * Tries to modify an MSR value.
+ *
+ * @returns One of the listed VBox status codes.
+ * @retval  VINF_SUCCESS if succeeded.
+ * @retval  VERR_NOT_SUPPORTED if not supported.
+ *
+ * @param   idCpu               The CPU to modify the MSR on. NIL_RTCPUID
+ *                              indicates any suitable CPU.
+ * @param   pReq                The request packet with input arguments and
+ *                              where to store the results.
+ */
+int VBOXCALL    supdrvOSMsrProberModify(RTCPUID idCpu, PSUPMSRPROBER pReq);
+
+#endif /* SUPDRV_WITH_MSR_PROBER */
+
 #if defined(RT_OS_DARWIN)
 int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
 #endif
-
 
 /*******************************************************************************
 *   Shared Functions                                                           *
@@ -775,6 +942,13 @@ PSUPDRVSESSION VBOXCALL supdrvSessionHashTabLookup(PSUPDRVDEVEXT pDevExt, RTPROC
 uint32_t VBOXCALL supdrvSessionRetain(PSUPDRVSESSION pSession);
 uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
 
+/* SUPDrvGip.cpp */
+int  VBOXCALL   supdrvGipCreate(PSUPDRVDEVEXT pDevExt);
+void VBOXCALL   supdrvGipDestroy(PSUPDRVDEVEXT pDevExt);
+int  VBOXCALL   supdrvIOCtl_TscDeltaMeasure(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPTSCDELTAMEASURE pReq);
+int  VBOXCALL   supdrvIOCtl_TscRead(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPTSCREAD pReq);
+
+/* SUPDrvTracer.cpp */
 int  VBOXCALL   supdrvTracerInit(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvTracerTerm(PSUPDRVDEVEXT pDevExt);
 void VBOXCALL   supdrvTracerModuleUnloading(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);

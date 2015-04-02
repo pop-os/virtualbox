@@ -1,8 +1,6 @@
 /* $Id: QIProcess.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * QIProcess class implementation
+ * VBox Qt GUI - QIProcess class implementation.
  */
 
 /*
@@ -17,13 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* GUI includes: */
-#include "QIProcess.h"
+# include "QIProcess.h"
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* External includes: */
 #ifdef Q_WS_X11
 # include <sys/wait.h>
 #endif /* Q_WS_X11 */
+
 
 /* static */
 QByteArray QIProcess::singleShot(const QString &strProcessName, int iTimeout)

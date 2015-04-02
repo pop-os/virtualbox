@@ -1001,6 +1001,7 @@ typedef enum RTLDRPROP
      * @remarks This generally starts with a PKCS \#7 Content structure, the
      *          SignedData bit is found a few levels down into this as per RFC. */
     RTLDRPROP_PKCS7_SIGNED_DATA,
+
     /** Query whether code signature checks are enabled.  */
     RTLDRPROP_SIGNATURE_CHECKS_ENFORCED,
 

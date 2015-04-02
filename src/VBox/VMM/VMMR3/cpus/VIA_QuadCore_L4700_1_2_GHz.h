@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,10 @@
 /**
  * CPUID leaves for VIA QuadCore L4700 @ 1.2+ GHz.
  */
-static CPUMCPUIDLEAF const g_aCpuIdLeaves_VIA_QuadCore_L4700_1_2_GHz[] = 
+static CPUMCPUIDLEAF const g_aCpuIdLeaves_VIA_QuadCore_L4700_1_2_GHz[] =
 {
     { 0x00000000, 0x00000000, 0x00000000, 0x0000000a, 0x746e6543, 0x736c7561, 0x48727561, 0 },
-    { 0x00000001, 0x00000000, 0x00000000, 0x000006fd, 0x06080800, 0x008863a9, 0xbfc9fbff, 0 },
+    { 0x00000001, 0x00000000, 0x00000000, 0x000006fd, 0x06080800, 0x008863a9, 0xbfc9fbff, 0 | CPUMCPUIDLEAF_F_CONTAINS_APIC_ID },
     { 0x00000002, 0x00000000, 0x00000000, 0x02b3b001, 0x00000000, 0x00000000, 0x2c04307d, 0 },
     { 0x00000003, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0 },
     { 0x00000004, 0x00000000, 0x00000000, 0x1c000021, 0x03c0003f, 0x0000003f, 0x00000000, 0 },
@@ -59,7 +59,7 @@ static CPUMCPUIDLEAF const g_aCpuIdLeaves_VIA_QuadCore_L4700_1_2_GHz[] =
 /**
  * MSR ranges for VIA QuadCore L4700 @ 1.2+ GHz.
  */
-static CPUMMSRRANGE const g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz[] = 
+static CPUMMSRRANGE const g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz[] =
 {
     RVI(0x00000000, 0x00000005, "ZERO_0000_0000_THRU_0000_0005", 0),
     MFX(0x00000006, "IA32_MONITOR_FILTER_LINE_SIZE", Ia32MonitorFilterLineSize, Ia32MonitorFilterLineSize, 0, UINT64_C(0xffffffffffff0000), 0), /* value=0x40 */
@@ -375,7 +375,7 @@ static CPUMMSRRANGE const g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz[] =
 /**
  * Database entry for VIA QuadCore L4700 @ 1.2+ GHz.
  */
-static CPUMDBENTRY const g_Entry_VIA_QuadCore_L4700_1_2_GHz = 
+static CPUMDBENTRY const g_Entry_VIA_QuadCore_L4700_1_2_GHz =
 {
     /*.pszName          = */ "VIA QuadCore L4700 1.2+ GHz",
     /*.pszFullName      = */ "VIA QuadCore L4700 @ 1.2+ GHz",
@@ -389,7 +389,7 @@ static CPUMDBENTRY const g_Entry_VIA_QuadCore_L4700_1_2_GHz =
     /*.cMaxPhysAddrWidth= */ 36,
     /*.paCpuIdLeaves    = */ NULL_ALONE(g_aCpuIdLeaves_VIA_QuadCore_L4700_1_2_GHz),
     /*.cCpuIdLeaves     = */ ZERO_ALONE(RT_ELEMENTS(g_aCpuIdLeaves_VIA_QuadCore_L4700_1_2_GHz)),
-    /*.enmUnknownCpuId  = */ CPUMUKNOWNCPUID_DEFAULTS,
+    /*.enmUnknownCpuId  = */ CPUMUNKNOWNCPUID_DEFAULTS,
     /*.DefUnknownCpuId  = */ { 0x00000000, 0x00000000, 0x00000000, 0x00000000 },
     /*.fMsrMask         = */ UINT32_MAX,
     /*.cMsrRanges       = */ ZERO_ALONE(RT_ELEMENTS(g_aMsrRanges_VIA_QuadCore_L4700_1_2_GHz)),

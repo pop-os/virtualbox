@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -51,7 +51,7 @@ typedef struct DRVSCSIHOST
 
     /** Pointer to the SCSI port interface of the device above. */
     PPDMISCSIPORT           pDevScsiPort;
-    /** The SCSI connector interface .   */
+    /** The SCSI connector interface. */
     PDMISCSICONNECTOR       ISCSIConnector;
 
     /** Path to the device file. */
@@ -285,7 +285,7 @@ static int drvscsihostProcessRequestOne(PDRVSCSIHOST pThis, PPDMSCSIREQUEST pReq
                 ScsiIoReq.iovec_count = pRequest->cScatterGatherEntries;
 
                 paSG = (sg_iovec_t *)RTMemAllocZ(pRequest->cScatterGatherEntries * sizeof(sg_iovec_t));
-                AssertPtrReturn(paSG, VERR_NO_MEMORY);
+                AssertReturn(paSG, VERR_NO_MEMORY);
 
                 for (unsigned i = 0; i < pRequest->cScatterGatherEntries; i++)
                 {

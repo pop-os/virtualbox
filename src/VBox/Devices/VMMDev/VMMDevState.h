@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -229,7 +229,7 @@ typedef struct VMMDevState
 
     /* memory balloon change request */
     uint32_t    cMbMemoryBalloon;
-    /** The last balloon size queried by the guest additions.  */
+    /** The last balloon size queried by the guest additions. */
     uint32_t    cMbMemoryBalloonLast;
 
     /* guest ram size */
@@ -272,7 +272,7 @@ typedef struct VMMDevState
     /** Guest Core Dump location. */
     char szGuestCoreDumpDir[RTPATH_MAX];
 
-    /** Number of additional cores to keep around.   */
+    /** Number of additional cores to keep around. */
     uint32_t cGuestCoreDumps;
 
     bool afAlignment7[1];
@@ -358,6 +358,21 @@ typedef struct VMMDevState
     /** Testing instance for dealing with the output. */
     RTTEST                  hTestingTest;
 #endif /* !VBOX_WITHOUT_TESTING_FEATURES */
+
+    /** Timestamp of the last heartbeat from guest in nanosec. */
+    uint64_t volatile   uLastHBTime;
+    /** Indicates whether we missed HB from guest on last check. */
+    bool volatile       fHasMissedHB;
+    /** Indicates whether heartbeat check is active. */
+    bool volatile       fHBCheckEnabled;
+    /** Alignment padding. */
+    bool                afAlignment8[6];
+    /** Guest heartbeat interval in nanoseconds. */
+    uint64_t            u64HeartbeatInterval;
+    /** Guest heartbeat timeout in nanoseconds. */
+    uint64_t            u64HeartbeatTimeout;
+    /** Timer for checking guest heart beat. */
+    PTMTIMERR3          pHBCheckTimer;
 } VMMDevState;
 typedef VMMDevState VMMDEV;
 /** Pointer to the VMM device state. */

@@ -1,4 +1,4 @@
-/* $Revision: 97150 $ */
+/* $Revision: 94149 $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */
@@ -207,7 +207,7 @@ static int vbglR0HGCMInternalPreprocessCall(VBoxGuestHGCMCallInfo const *pCallIn
                 break;
 
             case VMMDevHGCMParmType_64bit:
-                Log4(("GstHGCMCall: parm=%u type=64bit: %#018x\n", iParm, pSrcParm->u.value64));
+                Log4(("GstHGCMCall: parm=%u type=64bit: %#018RX64\n", iParm, pSrcParm->u.value64));
                 break;
 
             case VMMDevHGCMParmType_PageList:

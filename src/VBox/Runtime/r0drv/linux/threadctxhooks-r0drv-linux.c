@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013 Oracle Corporation
+ * Copyright (C) 2013-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,9 @@
 #include <iprt/thread.h>
 #include <iprt/err.h>
 #include <iprt/asm.h>
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# include <iprt/asm-amd64-x86.h>
+#endif
 #include "internal/thread.h"
 
 /*
@@ -68,6 +71,11 @@ typedef struct RTTHREADCTXINT
     struct preempt_ops          hPreemptOps;
     /** The reference count for this object. */
     uint32_t volatile           cRefs;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 19) && defined(RT_ARCH_AMD64)
+    /** Starting with 3.1.19, the linux kernel doesn't restore kernel RFLAGS during
+     * task switch, so we have to do that ourselves. (x86 code is not affected.) */
+    RTCCUINTREG                 fSavedRFlags;
+#endif
 } RTTHREADCTXINT, *PRTTHREADCTXINT;
 
 
@@ -84,12 +92,24 @@ typedef struct RTTHREADCTXINT
 static void rtThreadCtxHooksLnxSchedOut(struct preempt_notifier *pPreemptNotifier, struct task_struct *pNext)
 {
     PRTTHREADCTXINT pThis = RT_FROM_MEMBER(pPreemptNotifier, RTTHREADCTXINT, hPreemptNotifier);
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    RTCCUINTREG fSavedEFlags = ASMGetFlags();
+    stac();
+#endif
+
     AssertPtr(pThis);
     AssertPtr(pThis->pfnThreadCtxHook);
     Assert(pThis->fRegistered);
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
     pThis->pfnThreadCtxHook(RTTHREADCTXEVENT_PREEMPTING, pThis->pvUser);
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    ASMSetFlags(fSavedEFlags);
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 19) && defined(RT_ARCH_AMD64)
+    pThis->fSavedRFlags = fSavedEFlags;
+# endif
+#endif
 }
 
 
@@ -105,11 +125,24 @@ static void rtThreadCtxHooksLnxSchedOut(struct preempt_notifier *pPreemptNotifie
 static void rtThreadCtxHooksLnxSchedIn(struct preempt_notifier *pPreemptNotifier, int iCpu)
 {
     PRTTHREADCTXINT pThis = RT_FROM_MEMBER(pPreemptNotifier, RTTHREADCTXINT, hPreemptNotifier);
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+    RTCCUINTREG fSavedEFlags = ASMGetFlags();
+    stac();
+#endif
+
     AssertPtr(pThis);
     AssertPtr(pThis->pfnThreadCtxHook);
     Assert(pThis->fRegistered);
 
     pThis->pfnThreadCtxHook(RTTHREADCTXEVENT_RESUMED, pThis->pvUser);
+
+#if defined(RT_ARCH_AMD64) || defined(RT_ARCH_X86)
+# if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 19) && defined(RT_ARCH_AMD64)
+    fSavedEFlags &= ~RT_BIT_64(18) /*X86_EFL_AC*/;
+    fSavedEFlags |= pThis->fSavedRFlags & RT_BIT_64(18) /*X86_EFL_AC*/;
+# endif
+    ASMSetFlags(fSavedEFlags);
+#endif
 }
 
 

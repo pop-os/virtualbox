@@ -21,6 +21,7 @@ class VirtualSystemDescription;
 
 #include "ovfreader.h"
 #include <map>
+#include <iprt/vfs.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -79,6 +80,7 @@ struct Appliance::Data
     Utf8Str             strOVFSHADigest;//SHA digest of OVf file. It is stored here after reading OVF file (before import)
 
     bool                fExportISOImages;// when 1 the ISO images are exported
+    bool                fX509;// wether X509 is used or not
 
     RTCList<ImportOptions_T> optListImport;
     RTCList<ExportOptions_T> optListExport;
@@ -127,7 +129,7 @@ struct Appliance::TaskOVF
 
     static int updateProgress(unsigned uPercent, void *pvUser);
 
-    int startThread();
+    HRESULT startThread();
 
     Appliance *pAppliance;
     TaskType taskType;
@@ -182,6 +184,7 @@ struct Appliance::ImportStack
     // and will be cleaned up on errors
     std::list<MyHardDiskAttachment> llHardDiskAttachments;      // disks that were attached
     std::list<STRPAIR>              llSrcDisksDigest;           // Digests of the source disks
+    std::map<Utf8Str , Utf8Str> mapNewUUIDsToOriginalUUIDs;
 
     ImportStack(const LocationInfo &aLocInfo,
                 const ovf::DiskImagesMap &aMapDisks,
@@ -200,6 +203,10 @@ struct Appliance::ImportStack
         strSourceDir = aLocInfo.strPath;
         strSourceDir.stripFilename();
     }
+
+    HRESULT restoreOriginalUUIDOfAttachedDevice(settings::MachineConfigFile *config);
+    HRESULT saveOriginalUUIDOfAttachedDevice(settings::AttachedDevice &device,
+                                                  const Utf8Str &newlyUuid);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -210,8 +217,8 @@ struct Appliance::ImportStack
 
 struct VirtualSystemDescription::Data
 {
-    std::list<VirtualSystemDescriptionEntry>
-                            llDescriptions;     // item descriptions
+    std::vector<VirtualSystemDescriptionEntry>
+                            maDescriptions;     // item descriptions
 
     ComPtr<Machine>         pMachine;           // VirtualBox machine this description was exported from (export only)
 
@@ -242,9 +249,19 @@ typedef struct SHASTORAGE
 
 PVDINTERFACEIO ShaCreateInterface();
 PVDINTERFACEIO FileCreateInterface();
-PVDINTERFACEIO TarCreateInterface();
-int ShaReadBuf(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser);
-int ShaWriteBuf(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser);
+PVDINTERFACEIO tarWriterCreateInterface(void);
+
+/** Pointer to the instance data for the fssRdOnly_ methods. */
+typedef struct FSSRDONLYINTERFACEIO *PFSSRDONLYINTERFACEIO;
+
+int  fssRdOnlyCreateInterfaceForTarFile(const char *pszFilename, PFSSRDONLYINTERFACEIO *pTarIo);
+void fssRdOnlyDestroyInterface(PFSSRDONLYINTERFACEIO pFssIo);
+int  fssRdOnlyGetCurrentName(PFSSRDONLYINTERFACEIO pFssIo, const char **ppszName);
+int  fssRdOnlySkipCurrent(PFSSRDONLYINTERFACEIO pFssIo);
+bool fssRdOnlyIsCurrentDirectory(PFSSRDONLYINTERFACEIO pFssIo);
+
+int readFileIntoBuffer(const char *pcszFilename, void **ppvBuf, size_t *pcbSize, PVDINTERFACEIO pIfIo, void *pvUser);
+int writeBufferToFile(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser);
 int decompressImageAndSave(const char *pcszFullFilenameIn, const char *pcszFullFilenameOut, PVDINTERFACEIO pIfIo, void *pvUser);
 int copyFileAndCalcShaDigest(const char *pcszSourceFilename, const char *pcszTargetFilename, PVDINTERFACEIO pIfIo, void *pvUser);
 #endif // !____H_APPLIANCEIMPLPRIVATE

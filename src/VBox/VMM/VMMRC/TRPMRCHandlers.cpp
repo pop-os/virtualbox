@@ -245,7 +245,7 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
         /* Pending interrupt: dispatch it. */
         else if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
                  && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                 &&  PATMAreInterruptsEnabledByCtxCore(pVM, pRegFrame)
+                 &&  PATMAreInterruptsEnabledByCtx(pVM, CPUMCTX_FROM_CORE(pRegFrame))
            )
         {
             uint8_t u8Interrupt;
@@ -823,7 +823,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
 #ifdef PATM_EMULATE_SYSENTER
         case OP_SYSEXIT:
         case OP_SYSRET:
-            rc = PATMSysCall(pVM, pRegFrame, pCpu);
+            rc = PATMSysCall(pVM, CPUMCTX_FROM_CORE(pRegFrame), pCpu);
             TRPM_EXIT_DBG_HOOK(0xd);
             return trpmGCExitTrap(pVM, pVCpu, rc, pRegFrame);
 #endif
@@ -927,7 +927,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
         case OP_SYSCALL:
         case OP_SYSENTER:
 #ifdef PATM_EMULATE_SYSENTER
-            rc = PATMSysCall(pVM, pRegFrame, pCpu);
+            rc = PATMSysCall(pVM, CPUMCTX_FROM_CORE(pRegFrame), pCpu);
             if (rc == VINF_SUCCESS)
             {
                 TRPM_EXIT_DBG_HOOK(0xd);
@@ -1203,6 +1203,8 @@ DECLASM(int) TRPMGCTrap0dHandler(PTRPMCPU pTrpmCpu, PCPUMCTXCORE pRegFrame)
         case VINF_IOM_R3_MMIO_WRITE:
         case VINF_IOM_R3_MMIO_READ:
         case VINF_IOM_R3_MMIO_READ_WRITE:
+        case VINF_CPUM_R3_MSR_READ:
+        case VINF_CPUM_R3_MSR_WRITE:
         case VINF_PATM_PATCH_INT3:
         case VINF_EM_NO_MEMORY:
         case VINF_EM_RAW_TO_R3:

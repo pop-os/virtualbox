@@ -1,6 +1,6 @@
 /* $Id: VBoxUtils-darwin.cpp $ */
 /** @file
- * Qt GUI - Utility Classes and Functions specific to Darwin.
+ * VBox Qt GUI - Utility Classes and Functions specific to Darwin.
  */
 
 /*
@@ -81,6 +81,11 @@ void darwinSetHidesAllTitleButtons(QWidget *pWidget)
 void darwinSetShowsWindowTransparent(QWidget *pWidget, bool fEnabled)
 {
     ::darwinSetShowsWindowTransparentImpl(::darwinToNativeWindow(pWidget), fEnabled);
+}
+
+void darwinSetWindowHasShadow(QWidget *pWidget, bool fEnabled)
+{
+    ::darwinSetWindowHasShadow(::darwinToNativeWindow(pWidget), fEnabled);
 }
 
 void darwinWindowAnimateResize(QWidget *pWidget, const QRect &aTarget)

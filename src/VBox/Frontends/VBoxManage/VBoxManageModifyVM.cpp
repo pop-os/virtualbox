@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -61,6 +61,7 @@ enum
     MODIFYVM_LONGMODE,
     MODIFYVM_SYNTHCPU,
     MODIFYVM_TFRESET,
+    MODIFYVM_PARAVIRTPROVIDER,
     MODIFYVM_HWVIRTEX,
     MODIFYVM_NESTEDPAGING,
     MODIFYVM_LARGEPAGES,
@@ -160,6 +161,7 @@ enum
     MODIFYVM_VRDE_EXTPACK,
     MODIFYVM_VRDE,
     MODIFYVM_RTCUSEUTC,
+    MODIFYVM_USBXHCI,
     MODIFYVM_USBEHCI,
     MODIFYVM_USB,
     MODIFYVM_SNAPSHOTFOLDER,
@@ -199,6 +201,9 @@ enum
     MODIFYVM_VCP_HEIGHT,
     MODIFYVM_VCP_RATE,
     MODIFYVM_VCP_FPS,
+    MODIFYVM_VCP_MAXTIME,
+    MODIFYVM_VCP_MAXSIZE,
+    MODIFYVM_VCP_OPTIONS,
 #endif
     MODIFYVM_CHIPSET,
     MODIFYVM_DEFAULTFRONTEND
@@ -220,7 +225,8 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--pae",                      MODIFYVM_PAE,                       RTGETOPT_REQ_BOOL_ONOFF },
     { "--longmode",                 MODIFYVM_LONGMODE,                  RTGETOPT_REQ_BOOL_ONOFF },
     { "--synthcpu",                 MODIFYVM_SYNTHCPU,                  RTGETOPT_REQ_BOOL_ONOFF },
-    { "--triplefaultreset",         MODIFYVM_TFRESET,                  RTGETOPT_REQ_BOOL_ONOFF },
+    { "--triplefaultreset",         MODIFYVM_TFRESET,                   RTGETOPT_REQ_BOOL_ONOFF },
+    { "--paravirtprovider",         MODIFYVM_PARAVIRTPROVIDER,          RTGETOPT_REQ_STRING },
     { "--hwvirtex",                 MODIFYVM_HWVIRTEX,                  RTGETOPT_REQ_BOOL_ONOFF },
     { "--nestedpaging",             MODIFYVM_NESTEDPAGING,              RTGETOPT_REQ_BOOL_ONOFF },
     { "--largepages",               MODIFYVM_LARGEPAGES,                RTGETOPT_REQ_BOOL_ONOFF },
@@ -322,6 +328,7 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--vrdevideochannelquality",  MODIFYVM_VRDEVIDEOCHANNELQUALITY,   RTGETOPT_REQ_STRING },
     { "--vrdeextpack",              MODIFYVM_VRDE_EXTPACK,              RTGETOPT_REQ_STRING },
     { "--vrde",                     MODIFYVM_VRDE,                      RTGETOPT_REQ_BOOL_ONOFF },
+    { "--usbxhci",                  MODIFYVM_USBXHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usbehci",                  MODIFYVM_USBEHCI,                   RTGETOPT_REQ_BOOL_ONOFF },
     { "--usb",                      MODIFYVM_USB,                       RTGETOPT_REQ_BOOL_ONOFF },
     { "--snapshotfolder",           MODIFYVM_SNAPSHOTFOLDER,            RTGETOPT_REQ_STRING },
@@ -352,6 +359,9 @@ static const RTGETOPTDEF g_aModifyVMOptions[] =
     { "--vcpheight",                MODIFYVM_VCP_HEIGHT,                RTGETOPT_REQ_UINT32 },
     { "--vcprate",                  MODIFYVM_VCP_RATE,                  RTGETOPT_REQ_UINT32 },
     { "--vcpfps",                   MODIFYVM_VCP_FPS,                   RTGETOPT_REQ_UINT32 },
+    { "--vcpmaxtime",               MODIFYVM_VCP_MAXTIME,               RTGETOPT_REQ_INT32  },
+    { "--vcpmaxsize",               MODIFYVM_VCP_MAXSIZE,               RTGETOPT_REQ_INT32  },
+    { "--vcpoptions",               MODIFYVM_VCP_OPTIONS,               RTGETOPT_REQ_STRING },
 #endif
     { "--autostart-enabled",        MODIFYVM_AUTOSTART_ENABLED,         RTGETOPT_REQ_BOOL_ONOFF },
     { "--autostart-delay",          MODIFYVM_AUTOSTART_DELAY,           RTGETOPT_REQ_UINT32 },
@@ -637,6 +647,29 @@ int handleModifyVM(HandlerArg *a)
                 break;
             }
 
+            case MODIFYVM_PARAVIRTPROVIDER:
+            {
+                if (   !RTStrICmp(ValueUnion.psz, "none")
+                    || !RTStrICmp(ValueUnion.psz, "disabled"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_None));
+                else if (!RTStrICmp(ValueUnion.psz, "default"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_Default));
+                else if (!RTStrICmp(ValueUnion.psz, "legacy"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_Legacy));
+                else if (!RTStrICmp(ValueUnion.psz, "minimal"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_Minimal));
+                else if (!RTStrICmp(ValueUnion.psz, "hyperv"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_HyperV));
+                else if (!RTStrICmp(ValueUnion.psz, "kvm"))
+                    CHECK_ERROR(machine, COMSETTER(ParavirtProvider)(ParavirtProvider_KVM));
+                else
+                {
+                    errorArgument("Invalid --paravirtprovider argument '%s'", ValueUnion.psz);
+                    rc = E_FAIL;
+                }
+                break;
+            }
+
             case MODIFYVM_HWVIRTEX:
             {
                 CHECK_ERROR(machine, SetHWVirtExProperty(HWVirtExPropertyType_Enabled, ValueUnion.f));
@@ -648,7 +681,7 @@ int handleModifyVM(HandlerArg *a)
                 uint32_t id = ValueUnion.u32;
                 uint32_t aValue[4];
 
-                for (unsigned i = 0 ; i < 4 ; i++)
+                for (unsigned i = 0; i < 4; i++)
                 {
                     int vrc = RTGetOptFetchValue(&GetOptState, &ValueUnion, RTGETOPT_REQ_UINT32 | RTGETOPT_FLAG_HEX);
                     if (RT_FAILURE(vrc))
@@ -1085,7 +1118,7 @@ int handleModifyVM(HandlerArg *a)
                     /* nothing to do, NULL object will cause unmount */
                 }
                 /* host drive? */
-                else if (!RTStrNICmp(ValueUnion.psz, "host:", 5))
+                else if (!RTStrNICmp(ValueUnion.psz, RT_STR_TUPLE("host:")))
                 {
                     ComPtr<IHost> host;
                     CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
@@ -1163,7 +1196,7 @@ int handleModifyVM(HandlerArg *a)
                         /* nothing to do, NULL object will cause unmount */
                     }
                     /* host drive? */
-                    else if (!RTStrNICmp(ValueUnion.psz, "host:", 5))
+                    else if (!RTStrNICmp(ValueUnion.psz, RT_STR_TUPLE("host:")))
                     {
                         ComPtr<IHost> host;
                         CHECK_ERROR(a->virtualBox, COMGETTER(Host)(host.asOutParam()));
@@ -1721,28 +1754,27 @@ int handleModifyVM(HandlerArg *a)
             #undef ITERATE_TO_NEXT_TERM
             case MODIFYVM_NATALIASMODE:
             {
-                if (!parseNum(GetOptState.uIndex, NetworkAdapterCount, "NIC"))
-                    break;
-
                 ComPtr<INetworkAdapter> nic;
+                ComPtr<INATEngine> engine;
+                uint32_t aliasMode = 0;
+
                 CHECK_ERROR_BREAK(machine, GetNetworkAdapter(GetOptState.uIndex - 1, nic.asOutParam()));
                 ASSERT(nic);
 
-                ComPtr<INATEngine> engine;
                 CHECK_ERROR(nic, COMGETTER(NATEngine)(engine.asOutParam()));
-
-                uint32_t aliasMode = 0;
-                if (!RTStrCmp(ValueUnion.psz, "default") == 0)
+                if (RTStrCmp(ValueUnion.psz, "default") == 0)
+                    aliasMode = 0;
+                else
                 {
                     char *token = (char *)ValueUnion.psz;
-                    while(token)
+                    while (token)
                     {
-                        if (RTStrNCmp(token, "log", 3) == 0)
-                            aliasMode |= 0x1;
-                        else if (RTStrNCmp(token, "proxyonly", 9) == 0)
-                            aliasMode |= 0x2;
-                        else if (RTStrNCmp(token, "sameports", 9) == 0)
-                            aliasMode |= 0x4;
+                        if (RTStrNCmp(token, RT_STR_TUPLE("log")) == 0)
+                            aliasMode |= NATAliasMode_AliasLog;
+                        else if (RTStrNCmp(token, RT_STR_TUPLE("proxyonly")) == 0)
+                            aliasMode |= NATAliasMode_AliasProxyOnly;
+                        else if (RTStrNCmp(token, RT_STR_TUPLE("sameports")) == 0)
+                            aliasMode |= NATAliasMode_AliasUseSamePorts;
                         token = RTStrStr(token, ",");
                         if (token == NULL)
                             break;
@@ -2216,15 +2248,15 @@ int handleModifyVM(HandlerArg *a)
 
             case MODIFYVM_DRAGANDDROP:
             {
-                DragAndDropMode_T mode;
+                DnDMode_T mode;
                 if (!RTStrICmp(ValueUnion.psz, "disabled"))
-                    mode = DragAndDropMode_Disabled;
+                    mode = DnDMode_Disabled;
                 else if (!RTStrICmp(ValueUnion.psz, "hosttoguest"))
-                    mode = DragAndDropMode_HostToGuest;
+                    mode = DnDMode_HostToGuest;
                 else if (!RTStrICmp(ValueUnion.psz, "guesttohost"))
-                    mode = DragAndDropMode_GuestToHost;
+                    mode = DnDMode_GuestToHost;
                 else if (!RTStrICmp(ValueUnion.psz, "bidirectional"))
-                    mode = DragAndDropMode_Bidirectional;
+                    mode = DnDMode_Bidirectional;
                 else
                 {
                     errorArgument("Invalid --draganddrop argument '%s'", ValueUnion.psz);
@@ -2232,7 +2264,7 @@ int handleModifyVM(HandlerArg *a)
                 }
                 if (SUCCEEDED(rc))
                 {
-                    CHECK_ERROR(machine, COMSETTER(DragAndDropMode)(mode));
+                    CHECK_ERROR(machine, COMSETTER(DnDMode)(mode));
                 }
                 break;
             }
@@ -2431,6 +2463,24 @@ int handleModifyVM(HandlerArg *a)
                 ASSERT(vrdeServer);
 
                 CHECK_ERROR(vrdeServer, COMSETTER(Enabled)(ValueUnion.f));
+                break;
+            }
+
+            case MODIFYVM_USBXHCI:
+            {
+                ULONG cXhciCtrls = 0;
+                rc = machine->GetUSBControllerCountByType(USBControllerType_XHCI, &cXhciCtrls);
+                if (SUCCEEDED(rc))
+                {
+                    if (!cXhciCtrls && ValueUnion.f)
+                    {
+                        ComPtr<IUSBController> UsbCtl;
+                        CHECK_ERROR(machine, AddUSBController(Bstr("XHCI").raw(), USBControllerType_XHCI,
+                                                              UsbCtl.asOutParam()));
+                    }
+                    else if (cXhciCtrls && !ValueUnion.f)
+                        CHECK_ERROR(machine, RemoveUSBController(Bstr("XHCI").raw()));
+                }
                 break;
             }
 
@@ -2680,6 +2730,22 @@ int handleModifyVM(HandlerArg *a)
             case MODIFYVM_VCP_FPS:
             {
                 CHECK_ERROR(machine, COMSETTER(VideoCaptureFPS)(ValueUnion.u32));
+                break;
+            }
+            case MODIFYVM_VCP_MAXTIME:
+            {
+                CHECK_ERROR(machine, COMSETTER(VideoCaptureMaxTime)(ValueUnion.u32));
+                break;
+            }
+            case MODIFYVM_VCP_MAXSIZE:
+            {
+                CHECK_ERROR(machine, COMSETTER(VideoCaptureMaxFileSize)(ValueUnion.u32));
+                break;
+            }
+            case MODIFYVM_VCP_OPTIONS:
+            {
+                Bstr bstr(ValueUnion.psz);
+                CHECK_ERROR(machine, COMSETTER(VideoCaptureOptions)(bstr.raw()));
                 break;
             }
 #endif

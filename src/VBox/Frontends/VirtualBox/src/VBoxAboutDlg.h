@@ -1,7 +1,5 @@
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * VBoxAboutDlg class declaration
+ * VBox Qt GUI - VBoxAboutDlg class declaration.
  */
 
 /*
@@ -54,7 +52,8 @@ private:
     /* Variables: */
     QString m_strAboutText;
     QString m_strVersion;
-    QPixmap m_bgImage;
+    QPixmap m_pixmap;
+    QSize   m_size;
 };
 
 #endif /* __VBoxAboutDlg_h__ */

@@ -1,8 +1,6 @@
 /* $Id: UIMachineViewSeamless.cpp $ */
 /** @file
- *
- * VBox frontends: Qt GUI ("VirtualBox"):
- * UIMachineViewSeamless class implementation
+ * VBox Qt GUI - UIMachineViewSeamless class implementation.
  */
 
 /*
@@ -17,31 +15,40 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QDesktopWidget>
-#include <QMainWindow>
-#include <QTimer>
-#ifdef Q_WS_MAC
-#include <QMenuBar>
-#endif /* Q_WS_MAC */
+# include <QApplication>
+# include <QDesktopWidget>
+# include <QMainWindow>
+# include <QTimer>
+# ifdef Q_WS_MAC
+#  include <QMenuBar>
+# endif /* Q_WS_MAC */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UISession.h"
-#include "UIMachineLogicSeamless.h"
-#include "UIMachineWindow.h"
-#include "UIMachineViewSeamless.h"
-#include "UIFrameBuffer.h"
+# include "VBoxGlobal.h"
+# include "UISession.h"
+# include "UIMachineLogicSeamless.h"
+# include "UIMachineWindow.h"
+# include "UIMachineViewSeamless.h"
+# include "UIFrameBuffer.h"
+# include "UIExtraDataManager.h"
 
 /* COM includes: */
-#include "CConsole.h"
-#include "CDisplay.h"
+# include "CConsole.h"
+# include "CDisplay.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* External includes: */
 #ifdef Q_WS_X11
-#include <limits.h>
+# include <limits.h>
 #endif /* Q_WS_X11 */
+
+
 
 UIMachineViewSeamless::UIMachineViewSeamless(  UIMachineWindow *pMachineWindow
                                              , ulong uScreenId
@@ -77,7 +84,7 @@ void UIMachineViewSeamless::sltAdditionsStateChanged()
 void UIMachineViewSeamless::sltHandleSetVisibleRegion(QRegion region)
 {
     /* Apply new seamless-region: */
-    m_pFrameBuffer->applyVisibleRegion(region);
+    m_pFrameBuffer->handleSetVisibleRegion(region);
 }
 
 bool UIMachineViewSeamless::eventFilter(QObject *pWatched, QEvent *pEvent)
@@ -142,23 +149,27 @@ void UIMachineViewSeamless::prepareConsoleConnections()
 void UIMachineViewSeamless::prepareSeamless()
 {
     /* Set seamless feature flag to the guest: */
-    session().GetConsole().GetDisplay().SetSeamlessMode(true);
+    display().SetSeamlessMode(true);
 }
 
 void UIMachineViewSeamless::cleanupSeamless()
 {
-    /* If machine still running: */
+    /* Reset seamless feature flag if possible: */
     if (uisession()->isRunning())
-        /* Reset seamless feature flag of the guest: */
-        session().GetConsole().GetDisplay().SetSeamlessMode(false);
+        display().SetSeamlessMode(false);
 }
 
 void UIMachineViewSeamless::adjustGuestScreenSize()
 {
+    /* Acquire working-area size: */
+    const QSize workingAreaSize = workingArea().size();
+    /* Acquire frame-buffer size: */
+    QSize frameBufferSize(frameBuffer()->width(), frameBuffer()->height());
+    /* Take the scale-factor(s) into account: */
+    frameBufferSize = scaledForward(frameBufferSize);
     /* Check if we should adjust guest-screen to new size: */
     if (frameBuffer()->isAutoEnabled() ||
-        (int)frameBuffer()->width() != workingArea().size().width() ||
-        (int)frameBuffer()->height() != workingArea().size().height())
+        frameBufferSize != workingAreaSize)
         if (uisession()->isGuestSupportsGraphics() &&
             uisession()->isScreenVisible(screenId()))
         {
