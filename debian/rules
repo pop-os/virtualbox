@@ -174,13 +174,14 @@ override_dh_strip:
 
 	# strip files not handled by dh_strip
 ifeq (,$(filter nostrip,$(DEB_BUILD_OPTIONS)))
-	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.gc debian/$(sname)/usr/lib/virtualbox/*.r0; do \
+	set -e && for file in debian/$(sname)/usr/lib/virtualbox/*.gc debian/$(sname)/usr/lib/virtualbox/*.r0 debian/$(sname)/usr/lib/virtualbox/ExtensionPacks/Oracle_VBoxDTrace_Extension_Pack/linux.*/*.r0; do \
 	    strip --strip-debug --remove-section=.comment --remove-section=.note $${file}; \
 	done
 endif
 	# I don't see a reason to have these. If any user complains, we can try ship it.
 	rm -f debian/$(sname)/usr/lib/virtualbox/VMMGC.debug
 	rm -f debian/$(sname)/usr/lib/virtualbox/VMMR0.debug
+	rm -f debian/$(sname)/usr/lib/virtualbox/ExtensionPacks/Oracle_VBoxDTrace_Extension_Pack/linux.*/VBoxDTraceR0.debug
 
 override_dh_shlibdeps:
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \

@@ -4,6 +4,10 @@ virtualbox (5.0.0~beta1-dfsg-1) UNRELEASED; urgency=medium
   * Imported upstream snapshot release.
   * Patch refresh.
   * remove obsolete lintian overrides.
+  * Add VBoxDTrace not linked against libc lintian override.
+    It seems to really not use libc symbols.
+  * d/rules: remove VBoxDTraceR0.debug and strip VBoxDTraceR0.r0
+    files.
   [ Ritesh Raj Sarraf ]
   * Remove Michael Meskes from uploaders.
 
