@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -104,13 +104,13 @@ void cgDisplayReconfigurationCallback(CGDirectDisplayID display, CGDisplayChange
 
     /* Handle 'display-add' case: */
     if (flags & kCGDisplayAddFlag)
-        LogRelFlow(("UISession::cgDisplayReconfigurationCallback: Display added.\n"));
+        LogRelFlow(("GUI: UISession::cgDisplayReconfigurationCallback: Display added.\n"));
     /* Handle 'display-remove' case: */
     else if (flags & kCGDisplayRemoveFlag)
-        LogRelFlow(("UISession::cgDisplayReconfigurationCallback: Display removed.\n"));
+        LogRelFlow(("GUI: UISession::cgDisplayReconfigurationCallback: Display removed.\n"));
     /* Handle 'mode-set' case: */
     else if (flags & kCGDisplaySetModeFlag)
-        LogRelFlow(("UISession::cgDisplayReconfigurationCallback: Display mode changed.\n"));
+        LogRelFlow(("GUI: UISession::cgDisplayReconfigurationCallback: Display mode changed.\n"));
 
     /* Ask handler to process our callback: */
     if (flags & iHandledFlags)
@@ -223,18 +223,18 @@ bool UISession::initialize()
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Log whether 2D video acceleration is enabled: */
-    LogRel(("2D video acceleration is %s.\n",
+    LogRel(("GUI: 2D video acceleration is %s.\n",
            machine().GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable()
            ? "enabled" : "disabled"));
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
 /* Log whether HID LEDs sync is enabled: */
 #if defined(Q_WS_MAC) || defined(Q_WS_WIN)
-    LogRel(("HID LEDs sync is %s.\n",
+    LogRel(("GUI: HID LEDs sync is %s.\n",
             uimachine()->machineLogic()->isHidLedsSyncEnabled()
             ? "enabled" : "disabled"));
 #else /* !Q_WS_MAC && !Q_WS_WIN */
-    LogRel(("HID LEDs sync is not supported on this platform.\n"));
+    LogRel(("GUI: HID LEDs sync is not supported on this platform.\n"));
 #endif /* !Q_WS_MAC && !Q_WS_WIN */
 
 #ifdef VBOX_GUI_WITH_PIDFILE
@@ -299,8 +299,8 @@ bool UISession::powerUp()
 bool UISession::saveState()
 {
     /* Prepare the saving progress: */
-    CProgress progress = console().SaveState();
-    if (console().isOk())
+    CProgress progress = machine().SaveState();
+    if (machine().isOk())
     {
         /* Show the saving progress: */
         msgCenter().showModalProgressDialog(progress, machineName(), ":/progress_state_save_90px.png");
@@ -314,7 +314,7 @@ bool UISession::saveState()
     else
     {
         /* Failed in console: */
-        msgCenter().cannotSaveMachineState(console());
+        msgCenter().cannotSaveMachineState(machine());
         return false;
     }
     /* Passed: */
@@ -407,30 +407,30 @@ bool UISession::restoreCurrentSnapshot()
         /* Simulate try-catch block: */
         do
         {
-            /* Acquire console for this session: */
-            CConsole cons = sess.GetConsole();
-            if (cons.isNull())
+            /* Acquire machine for this session: */
+            CMachine machine = sess.GetMachine();
+            if (machine.isNull())
             {
-                /* Unable to acquire console: */
+                /* Unable to acquire machine: */
                 break;
             }
 
             /* Prepare the snapshot-discard progress: */
-            const CSnapshot snap = mach.GetCurrentSnapshot();
-            CProgress prog = cons.RestoreSnapshot(snap);
-            if (!cons.isOk() || prog.isNull())
+            const CSnapshot snap = machine.GetCurrentSnapshot();
+            CProgress prog = machine.RestoreSnapshot(snap);
+            if (!machine.isOk() || prog.isNull())
             {
                 /* Unable to restore snapshot: */
-                msgCenter().cannotRestoreSnapshot(cons, snap.GetName(), machineName());
+                msgCenter().cannotRestoreSnapshot(machine, snap.GetName(), machineName());
                 break;
             }
 
             /* Show the snapshot-discard progress: */
-            msgCenter().showModalProgressDialog(prog, mach.GetName(), ":/progress_snapshot_discard_90px.png");
+            msgCenter().showModalProgressDialog(prog, machine.GetName(), ":/progress_snapshot_discard_90px.png");
             if (prog.GetResultCode() != 0)
             {
                 /* Unable to restore snapshot: */
-                msgCenter().cannotRestoreSnapshot(prog, snap.GetName(), mach.GetName());
+                msgCenter().cannotRestoreSnapshot(prog, snap.GetName(), machine.GetName());
                 break;
             }
 
@@ -673,7 +673,7 @@ void UISession::sltMousePointerShapeChange(bool fVisible, bool fAlpha, QPoint ho
 
 void UISession::sltMouseCapabilityChange(bool fSupportsAbsolute, bool fSupportsRelative, bool fSupportsMultiTouch, bool fNeedsHostCursor)
 {
-    LogRelFlow(("UISession::sltMouseCapabilityChange: "
+    LogRelFlow(("GUI: UISession::sltMouseCapabilityChange: "
                 "Supports absolute: %s, Supports relative: %s, "
                 "Supports multi-touch: %s, Needs host cursor: %s\n",
                 fSupportsAbsolute ? "TRUE" : "FALSE", fSupportsRelative ? "TRUE" : "FALSE",
@@ -800,7 +800,7 @@ void UISession::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, 
  */
 void UISession::sltHandleHostDisplayAboutToChange()
 {
-    LogRelFlow(("UISession::sltHandleHostDisplayAboutToChange()\n"));
+    LogRelFlow(("GUI: UISession::sltHandleHostDisplayAboutToChange()\n"));
 
     if (m_pWatchdogDisplayChange->isActive())
         m_pWatchdogDisplayChange->stop();
@@ -815,7 +815,7 @@ void UISession::sltHandleHostDisplayAboutToChange()
  */
 void UISession::sltCheckIfHostDisplayChanged()
 {
-    LogRelFlow(("UISession::sltCheckIfHostDisplayChanged()\n"));
+    LogRelFlow(("GUI: UISession::sltCheckIfHostDisplayChanged()\n"));
 
     /* Acquire desktop wrapper: */
     QDesktopWidget *pDesktop = QApplication::desktop();
@@ -861,7 +861,7 @@ void UISession::sltCheckIfHostDisplayChanged()
 
 void UISession::sltHandleHostScreenCountChange()
 {
-    LogRelFlow(("UISession: Host-screen count changed.\n"));
+    LogRelFlow(("GUI: UISession: Host-screen count changed.\n"));
 
     /* Recache display data: */
     updateHostScreenData();
@@ -872,7 +872,7 @@ void UISession::sltHandleHostScreenCountChange()
 
 void UISession::sltHandleHostScreenGeometryChange()
 {
-    LogRelFlow(("UISession: Host-screen geometry changed.\n"));
+    LogRelFlow(("GUI: UISession: Host-screen geometry changed.\n"));
 
     /* Recache display data: */
     updateHostScreenData();
@@ -883,7 +883,7 @@ void UISession::sltHandleHostScreenGeometryChange()
 
 void UISession::sltHandleHostScreenAvailableAreaChange()
 {
-    LogRelFlow(("UISession: Host-screen available-area changed.\n"));
+    LogRelFlow(("GUI: UISession: Host-screen available-area changed.\n"));
 
     /* Notify current machine-logic: */
     emit sigHostScreenAvailableAreaChange();

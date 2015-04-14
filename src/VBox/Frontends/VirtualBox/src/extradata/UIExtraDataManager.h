@@ -78,6 +78,9 @@ signals:
     /** Notifies about the scale-factor change. */
     void sigScaleFactorChange(const QString &strMachineID);
 
+    /** Notifies about the scaling optimization type change. */
+    void sigScalingOptimizationTypeChange(const QString &strMachineID);
+
     /** Notifies about unscaled HiDPI output mode change. */
     void sigUnscaledHiDPIOutputModeChange(const QString &strMachineID);
 
@@ -311,12 +314,10 @@ public:
         /** Defines restricted Runtime UI menu types. */
         void setRestrictedRuntimeMenuTypes(UIExtraDataMetaDefs::MenuType types, const QString &strID);
 
-#ifdef Q_WS_MAC
-        /** Mac OS X: Returns restricted Runtime UI action types for Application menu. */
+        /** Returns restricted Runtime UI action types for Application menu. */
         UIExtraDataMetaDefs::MenuApplicationActionType restrictedRuntimeMenuApplicationActionTypes(const QString &strID);
-        /** Mac OS X: Defines restricted Runtime UI action types for Application menu. */
+        /** Defines restricted Runtime UI action types for Application menu. */
         void setRestrictedRuntimeMenuApplicationActionTypes(UIExtraDataMetaDefs::MenuApplicationActionType types, const QString &strID);
-#endif /* Q_WS_MAC */
 
         /** Returns restricted Runtime UI action types for Machine menu. */
         UIExtraDataMetaDefs::RuntimeMenuMachineActionType restrictedRuntimeMenuMachineActionTypes(const QString &strID);
@@ -476,6 +477,9 @@ public:
         double scaleFactor(const QString &strID);
         /** Defines the @a dScaleFactor. */
         void setScaleFactor(double dScaleFactor, const QString &strID);
+
+        /** Returns the scaling optimization type. */
+        ScalingOptimizationType scalingOptimizationType(const QString &strID);
     /** @} */
 
     /** @name Virtual Machine: Information dialog

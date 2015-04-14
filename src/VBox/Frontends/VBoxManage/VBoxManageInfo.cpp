@@ -138,20 +138,20 @@ const char *machineStateToName(MachineState_T machineState, bool fShort)
             return fShort ? "poweroff"             : "powered off";
         case MachineState_Saved:
             return "saved";
-        case MachineState_Aborted:
-            return "aborted";
         case MachineState_Teleported:
             return "teleported";
+        case MachineState_Aborted:
+            return "aborted";
         case MachineState_Running:
             return "running";
         case MachineState_Paused:
             return "paused";
         case MachineState_Stuck:
             return fShort ? "gurumeditation"       : "guru meditation";
-        case MachineState_LiveSnapshotting:
-            return fShort ? "livesnapshotting"     : "live snapshotting";
         case MachineState_Teleporting:
             return "teleporting";
+        case MachineState_LiveSnapshotting:
+            return fShort ? "livesnapshotting"     : "live snapshotting";
         case MachineState_Starting:
             return "starting";
         case MachineState_Stopping:
@@ -164,16 +164,22 @@ const char *machineStateToName(MachineState_T machineState, bool fShort)
             return fShort ? "teleportingpausedvm"  : "teleporting paused vm";
         case MachineState_TeleportingIn:
             return fShort ? "teleportingin"        : "teleporting (incoming)";
-        case MachineState_RestoringSnapshot:
-            return fShort ? "restoringsnapshot"    : "restoring snapshot";
-        case MachineState_DeletingSnapshot:
-            return fShort ? "deletingsnapshot"     : "deleting snapshot";
+        case MachineState_FaultTolerantSyncing:
+            return fShort ? "faulttolerantsyncing" : "fault tolerant syncing";
         case MachineState_DeletingSnapshotOnline:
             return fShort ? "deletingsnapshotlive" : "deleting snapshot live";
         case MachineState_DeletingSnapshotPaused:
             return fShort ? "deletingsnapshotlivepaused" : "deleting snapshot live paused";
+        case MachineState_OnlineSnapshotting:
+            return fShort ? "onlinesnapshotting"   : "online snapshotting";
+        case MachineState_RestoringSnapshot:
+            return fShort ? "restoringsnapshot"    : "restoring snapshot";
+        case MachineState_DeletingSnapshot:
+            return fShort ? "deletingsnapshot"     : "deleting snapshot";
         case MachineState_SettingUp:
-            return fShort ? "settingup"           : "setting up";
+            return fShort ? "settingup"            : "setting up";
+        case MachineState_Snapshotting:
+            return fShort ? "snapshotting"         : "offline snapshotting";
         default:
             break;
     }
@@ -1396,11 +1402,19 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                         break;
                     case PortMode_RawFile:
                         if (details == VMINFO_MACHINEREADABLE)
-                            RTPrintf("uartmode%d=\"%ls\"\n", currentUART + 1,
+                            RTPrintf("uartmode%d=\"file,%ls\"\n", currentUART + 1,
                                      path.raw());
                         else
                             RTPrintf(", attached to raw file '%ls'\n",
                                      path.raw());
+                        break;
+                    case PortMode_TCP:
+                        if (details == VMINFO_MACHINEREADABLE)
+                            RTPrintf("uartmode%d=\"%s,%ls\"\n", currentUART + 1,
+                                     fServer ? "tcpserver" : "tcpclient", path.raw());
+                        else
+                            RTPrintf(", attached to tcp (%s) '%ls'\n",
+                                     fServer ? "server" : "client", path.raw());
                         break;
                     case PortMode_HostPipe:
                         if (details == VMINFO_MACHINEREADABLE)
@@ -1617,7 +1631,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
             RTPrintf("Clipboard Mode:  %s\n", psz);
     }
 
-    /* Drag'n'drop */
+    /* Drag and drop */
     {
         const char *psz = "Unknown";
         DnDMode_T enmMode;
@@ -1656,7 +1670,7 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
         if (details == VMINFO_MACHINEREADABLE)
             RTPrintf("draganddrop=\"%s\"\n", psz);
         else
-            RTPrintf("Drag'n'drop Mode: %s\n", psz);
+            RTPrintf("Drag and drop Mode: %s\n", psz);
     }
 
     {

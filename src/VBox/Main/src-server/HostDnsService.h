@@ -20,8 +20,8 @@
 #include "VirtualBoxBase.h"
 
 #include <iprt/cdefs.h>
-#include <iprt/critsect.h>
 #include <iprt/types.h>
+#include <iprt/cpp/lock.h>
 
 #include <list>
 #include <vector>
@@ -32,44 +32,23 @@ typedef Utf8StrList::iterator Utf8StrListIterator;
 class HostDnsMonitorProxy;
 typedef const HostDnsMonitorProxy *PCHostDnsMonitorProxy;
 
-class Lockee
-{
-  public:
-    Lockee();
-    virtual ~Lockee();
-    const RTCRITSECT* lock() const;
-
-  private:
-    RTCRITSECT mLock;
-};
-
-class ALock
-{
-  public:
-    explicit ALock(const Lockee *l);
-    ~ALock();
-
-  private:
-    const Lockee *lockee;
-};
-
 class HostDnsInformation
 {
   public:
     std::vector<std::string> servers;
     std::string domain;
     std::vector<std::string> searchList;
-    bool equals(const HostDnsInformation &) const;
+    bool equals(const HostDnsInformation &, bool fDNSOrderIgnore = false) const;
 };
 
 /**
  * This class supposed to be a real DNS monitor object it should be singleton,
  * it lifecycle starts and ends together with VBoxSVC.
  */
-class HostDnsMonitor : public Lockee
+class HostDnsMonitor
 {
   public:
-    static const HostDnsMonitor *getHostDnsMonitor();
+    static const HostDnsMonitor *getHostDnsMonitor(VirtualBox *virtualbox);
     static void shutdown();
 
     void addMonitorProxy(PCHostDnsMonitorProxy) const;
@@ -77,7 +56,7 @@ class HostDnsMonitor : public Lockee
     const HostDnsInformation &getInfo() const;
     /* @note: method will wait till client call
        HostDnsService::monitorThreadInitializationDone() */
-    virtual HRESULT init();
+    virtual HRESULT init(VirtualBox *virtualbox);
 
   protected:
     explicit HostDnsMonitor(bool fThreaded = false);
@@ -95,6 +74,9 @@ class HostDnsMonitor : public Lockee
     HostDnsMonitor& operator= (const HostDnsMonitor &);
     static int threadMonitoringRoutine(RTTHREAD, void *);
 
+  protected:
+    mutable RTCLockMtx m_LockMtx;
+
   public:
     struct Data;
     Data *m;
@@ -103,12 +85,12 @@ class HostDnsMonitor : public Lockee
 /**
  * This class supposed to be a proxy for events on changing Host Name Resolving configurations.
  */
-class HostDnsMonitorProxy : public Lockee
+class HostDnsMonitorProxy
 {
     public:
     HostDnsMonitorProxy();
     ~HostDnsMonitorProxy();
-    void init(const HostDnsMonitor *aMonitor, const VirtualBox *aParent);
+    void init(const HostDnsMonitor *aMonitor, VirtualBox *virtualbox);
     void notify() const;
 
     HRESULT GetNameServers(std::vector<com::Utf8Str> &aNameServers);
@@ -119,6 +101,9 @@ class HostDnsMonitorProxy : public Lockee
 
     private:
     void updateInfo();
+ 
+  private:
+    mutable RTCLockMtx m_LockMtx;
 
     private:
     struct Data;
@@ -131,7 +116,7 @@ class HostDnsServiceDarwin : public HostDnsMonitor
   public:
     HostDnsServiceDarwin();
     ~HostDnsServiceDarwin();
-    HRESULT init();
+    virtual HRESULT init(VirtualBox *virtualbox);
 
     protected:
     virtual void monitorThreadShutdown();
@@ -150,7 +135,7 @@ class HostDnsServiceWin : public HostDnsMonitor
     public:
     HostDnsServiceWin();
     ~HostDnsServiceWin();
-    HRESULT init();
+    virtual HRESULT init(VirtualBox *virtualbox);
 
     protected:
     virtual void monitorThreadShutdown();
@@ -170,7 +155,7 @@ class HostDnsServiceResolvConf: public HostDnsMonitor
   public:
     explicit HostDnsServiceResolvConf(bool fThreaded = false) : HostDnsMonitor(fThreaded), m(NULL) {}
     virtual ~HostDnsServiceResolvConf();
-    virtual HRESULT init(const char *aResolvConfFileName);
+    virtual HRESULT init(VirtualBox *virtualbox, const char *aResolvConfFileName);
     const std::string& resolvConf() const;
 
   protected:
@@ -194,7 +179,9 @@ class HostDnsServiceSolaris : public HostDnsServiceResolvConf
   public:
     HostDnsServiceSolaris(){}
     ~HostDnsServiceSolaris(){}
-    HRESULT init(){ return HostDnsServiceResolvConf::init("/etc/resolv.conf");}
+    virtual HRESULT init(VirtualBox *virtualbox) {
+	return HostDnsServiceResolvConf::init(virtualbox, "/etc/resolv.conf");
+    }
 };
 
 #  elif defined(RT_OS_LINUX)
@@ -203,7 +190,9 @@ class HostDnsServiceLinux : public HostDnsServiceResolvConf
   public:
     HostDnsServiceLinux():HostDnsServiceResolvConf(true){}
     virtual ~HostDnsServiceLinux();
-    virtual HRESULT init(){ return HostDnsServiceResolvConf::init("/etc/resolv.conf");}
+    virtual HRESULT init(VirtualBox *virtualbox) {
+	return HostDnsServiceResolvConf::init(virtualbox, "/etc/resolv.conf");
+    }
 
   protected:
     virtual void monitorThreadShutdown();
@@ -216,7 +205,9 @@ class HostDnsServiceFreebsd: public HostDnsServiceResolvConf
     public:
     HostDnsServiceFreebsd(){}
     ~HostDnsServiceFreebsd(){}
-    HRESULT init(){ return HostDnsServiceResolvConf::init("/etc/resolv.conf");}
+    virtual HRESULT init(VirtualBox *virtualbox) {
+	return HostDnsServiceResolvConf::init(virtualbox, "/etc/resolv.conf");
+    }
 };
 
 #  elif defined(RT_OS_OS2)
@@ -226,7 +217,9 @@ class HostDnsServiceOs2 : public HostDnsServiceResolvConf
     HostDnsServiceOs2(){}
     ~HostDnsServiceOs2(){}
     /* XXX: \\MPTN\\ETC should be taken from environment variable ETC  */
-    HRESULT init(){ return init("\\MPTN\\ETC\\RESOLV2");}
+    virtual HRESULT init(VirtualBox *virtualbox) {
+	return HostDnsServiceResolvConf::init(virtualbox, "\\MPTN\\ETC\\RESOLV2");
+    }
 };
 
 #  endif

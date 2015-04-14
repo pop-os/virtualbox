@@ -272,6 +272,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--uartmode<1-N> disconnected|\n"
                      "                                             server <pipe>|\n"
                      "                                             client <pipe>|\n"
+                     "                                             tcpserver <port>|\n"
+                     "                                             tcpclient <hostname:port>|\n"
                      "                                             file <file>|\n"
                      "                                             <devicename>]\n"
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
@@ -346,6 +348,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         RTStrmPrintf(pStrm,
                      "                            [--usb on|off]\n"
                      "                            [--usbehci on|off]\n"
+                     "                            [--usbxhci on|off]\n"
                      "                            [--snapshotfolder default|<path>]\n"
                      "                            [--teleporter on|off]\n"
                      "                            [--teleporterport <port>]\n"
@@ -438,7 +441,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--type gui", SEP);
         if (fVBoxSDL)
             RTStrmPrintf(pStrm, "|sdl");
-        RTStrmPrintf(pStrm, "|headless]\n");
+        RTStrmPrintf(pStrm, "|headless|separate]\n");
         RTStrmPrintf(pStrm,
                      "\n");
     }

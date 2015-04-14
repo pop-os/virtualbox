@@ -149,7 +149,7 @@ static Bool VBOXMapVidMem(ScrnInfoPtr pScrn);
 static void VBOXUnmapVidMem(ScrnInfoPtr pScrn);
 static void VBOXSaveMode(ScrnInfoPtr pScrn);
 static void VBOXRestoreMode(ScrnInfoPtr pScrn);
-static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime, bool fVTSwitchTime);
+static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime);
 
 #ifndef XF86_SCRN_INTERFACE
 # define xf86ScreenToScrn(pScreen) xf86Screens[(pScreen)->myNum]
@@ -288,6 +288,9 @@ static Bool adjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
         return TRUE;
     pPixmap = pScreen->GetScreenPixmap(pScreen);
     VBVXASSERT(pPixmap != NULL, ("Failed to get the screen pixmap.\n"));
+    TRACE_LOG("pPixmap=%p adjustedWidth=%d height=%d pScrn->depth=%d pScrn->bitsPerPixel=%d cbLine=%d pVBox->base=%p pPixmap->drawable.width=%d pPixmap->drawable.height=%d\n",
+              pPixmap, adjustedWidth, height, pScrn->depth, pScrn->bitsPerPixel, cbLine, pVBox->base, pPixmap->drawable.width,
+              pPixmap->drawable.height);
     if (   adjustedWidth != pPixmap->drawable.width
         || height != pPixmap->drawable.height)
     {
@@ -1150,17 +1153,17 @@ static void setSizesRandR11(ScrnInfoPtr pScrn, bool fLimitedContext)
 
 #endif
 
-static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime, bool fVTSwitchTime)
+static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     
-    TRACE_LOG("fScreenInitTime=%d, fVTSwitchTime=%d\n", (int)fScreenInitTime, (int)fVTSwitchTime);
+    TRACE_LOG("fScreenInitTime=%d\n", (int)fScreenInitTime);
 #ifdef VBOXVIDEO_13
     setSizesRandR12(pScrn, fScreenInitTime);
 #else
     setSizesRandR11(pScrn, fScreenInitTime);
 #endif
-    if (!fVTSwitchTime)
+    if (pScrn->vtSema)
         vbvxReprobeCursor(pScrn);
 }
 
@@ -1182,7 +1185,7 @@ static void updateSizeHintsBlockHandler(pointer pData, OSTimePtr pTimeout, point
     if (ROOT_WINDOW(pScrn) != NULL)
         vbvxReadSizesAndCursorIntegrationFromProperties(pScrn, &fNeedUpdate);
     if (fNeedUpdate)
-        setSizesAndCursorIntegration(pScrn, false, false);
+        setSizesAndCursorIntegration(pScrn, false);
 }
 
 /*
@@ -1331,7 +1334,7 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
 
 #endif
     /* set first video mode */
-    setSizesAndCursorIntegration(pScrn, true, false);
+    setSizesAndCursorIntegration(pScrn, true);
 
     /* Register block and wake-up handlers for getting new screen size hints. */
     RegisterBlockAndWakeupHandlers(updateSizeHintsBlockHandler, (WakeupHandlerProcPtr)NoopDDA, (pointer)pScrn);
@@ -1400,7 +1403,14 @@ static Bool VBOXEnterVT(ScrnInfoPtr pScrn)
     /* Re-set video mode */
     vbvxReadSizesAndCursorIntegrationFromHGSMI(pScrn, NULL);
     vbvxReadSizesAndCursorIntegrationFromProperties(pScrn, NULL);
-    setSizesAndCursorIntegration(pScrn, false, true);
+    /* This prevents a crash in CentOS 3.  I was unable to debug it to
+     * satisfaction, partly due to the lack of symbols.  My guess is that
+     * pScrn->ModifyPixmapHeader() expects certain things to be set up when
+     * it sees pScrn->vtSema set to true which are not quite done at this
+     * point of the VT switch. */
+    pScrn->vtSema = FALSE;
+    setSizesAndCursorIntegration(pScrn, false);
+    pScrn->vtSema = TRUE;
 #ifdef SET_HAVE_VT_PROPERTY
     updateHasVTProperty(pScrn, TRUE);
 #endif

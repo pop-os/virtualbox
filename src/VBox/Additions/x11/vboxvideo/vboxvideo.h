@@ -94,7 +94,7 @@ if (!(expr)) \
 { \
     vbvxMsg("\nAssertion failed!\n\n"); \
     vbvxMsg("%s\n", #expr); \
-    vbvxMsg("at %s (%s:%d)\n", __PRETTY_FUNCTION__, __FILE__, __LINE__); \
+    vbvxMsg("at %s (%s:%d)\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, __FILE__, __LINE__); \
     vbvxMsg out; \
     vbvxAbortServer(); \
 }
@@ -291,11 +291,6 @@ extern Bool VBOXDRIScreenInit(ScrnInfoPtr pScrn, ScreenPtr pScreen,
 extern Bool VBOXDRIFinishScreenInit(ScreenPtr pScreen);
 extern void VBOXDRIUpdateStride(ScrnInfoPtr pScrn, VBOXPtr pVBox);
 extern void VBOXDRICloseScreen(ScreenPtr pScreen, VBOXPtr pVBox);
-
-/* EDID generation */
-#ifdef VBOXVIDEO_13
-extern Bool VBOXEDIDSet(struct _xf86Output *output, DisplayModePtr pmode);
-#endif
 
 #endif /* _VBOXVIDEO_H_ */
 

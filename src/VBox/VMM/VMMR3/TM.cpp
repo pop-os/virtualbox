@@ -264,9 +264,9 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
                           pGip->u32UpdateIntervalNS, pGip->u32UpdateHz);
 
     /* Log GIP info that may come in handy. */
-    LogRel(("TM: GIP - u32Mode=%d (%s) u32UpdateHz=%u u32UpdateIntervalNS=%u enmUseTscDelta=%d fGetGipCpu=%#x cCpus=%d\n",
+    LogRel(("TM: GIP - u32Mode=%d (%s) u32UpdateHz=%u u32UpdateIntervalNS=%u enmUseTscDelta=%d (%s) fGetGipCpu=%#x cCpus=%d\n",
             pGip->u32Mode, SUPGetGIPModeName(pGip), pGip->u32UpdateHz, pGip->u32UpdateIntervalNS,
-            pGip->enmUseTscDelta, pGip->fGetGipCpu, pGip->cCpus));
+            pGip->enmUseTscDelta, SUPGetGIPTscDeltaModeName(pGip), pGip->fGetGipCpu, pGip->cCpus));
     LogRel(("TM: GIP - u64CpuHz=%'RU64 (%#RX64)  SUPGetCpuHzFromGip => %'RU64\n",
             pGip->u64CpuHz, pGip->u64CpuHz, SUPGetCpuHzFromGip(pGip)));
     for (uint32_t iCpuSet = 0; iCpuSet < RT_ELEMENTS(pGip->aiCpuFromCpuSetIdx); iCpuSet++)
@@ -289,7 +289,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
     pVM->tm.s.VirtualGetRawDataRC.pu64Prev       = MMHyperR3ToRC(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
     pVM->tm.s.VirtualGetRawDataR0.pu64Prev       = MMHyperR3ToR0(pVM, (void *)&pVM->tm.s.u64VirtualRawPrev);
     AssertRelease(pVM->tm.s.VirtualGetRawDataR0.pu64Prev);
-    /* The rest is done in TMR3InitFinalize since it's too early to call PDM. */
+    /* The rest is done in TMR3InitFinalize() since it's too early to call PDM. */
 
     /*
      * Init the locks.
@@ -817,7 +817,7 @@ VMM_INT_DECL(int) TMR3Init(PVM pVM)
  *
  * @returns true if it has, false if it hasn't.
  *
- * @remark  This test doesn't bother with very old CPUs that don't do power
+ * @remarks This test doesn't bother with very old CPUs that don't do power
  *          management or any other stuff that might influence the TSC rate.
  *          This isn't currently relevant.
  */
@@ -882,6 +882,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
              * This test is lacking in the same way and for the same reasons
              * as the AMD test above.
              */
+            /** @todo use ASMGetCpuFamily() and ASMGetCpuModel() here. */
             ASMCpuId(1, &uEAX, &uEBX, &uECX, &uEDX);
             unsigned uModel  = (uEAX >> 4) & 0x0f;
             unsigned uFamily = (uEAX >> 8) & 0x0f;
@@ -901,6 +902,7 @@ static bool tmR3HasFixedTSC(PVM pVM)
              * This only checks for VIA CPU models Nano X2, Nano X3,
              * Eden X2 and QuadCore.
              */
+            /** @todo use ASMGetCpuFamily() and ASMGetCpuModel() here. */
             ASMCpuId(1, &uEAX, &uEBX, &uECX, &uEDX);
             unsigned uStepping = (uEAX & 0x0f);
             unsigned uModel    = (uEAX >> 4) & 0x0f;
@@ -1047,6 +1049,7 @@ VMM_INT_DECL(int) TMR3InitFinalize(PVM pVM)
      * GIM is now initialized. Determine if TSC mode switching is allowed (respecting CFGM override).
      */
     pVM->tm.s.fTSCModeSwitchAllowed &= tmR3HasFixedTSC(pVM) && GIMIsEnabled(pVM) && HMIsEnabled(pVM);
+    LogRel(("TM: TMR3InitFinalize: fTSCModeSwitchAllowed=%RTbool\n", pVM->tm.s.fTSCModeSwitchAllowed));
     return rc;
 }
 
@@ -3136,7 +3139,7 @@ VMMR3_INT_DECL(int) TMR3CpuTickParavirtEnable(PVM pVM)
             rc = VMMR3EmtRendezvous(pVM, VMMEMTRENDEZVOUS_FLAGS_TYPE_ONCE, tmR3CpuTickParavirtEnable, NULL);
     }
     else
-        LogRel(("TM: Host is not suitable for using TSC mode (%d - %s). Request to change TSC mode ignored.\n",
+        LogRel(("TM: Host/VM is not suitable for using TSC mode %d (%s). Request to change TSC mode ignored.\n",
                 TMTSCMODE_REAL_TSC_OFFSET, tmR3GetTSCModeNameEx(TMTSCMODE_REAL_TSC_OFFSET)));
     pVM->tm.s.fParavirtTscEnabled = true;
     return rc;

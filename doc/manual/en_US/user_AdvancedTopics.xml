@@ -1790,18 +1790,18 @@ VBoxManage setextradata "VM name"
       </footnote> A VirtualBox VNIC template is a VNIC whose name starts with
     "vboxvnic_template" (case-sensitive).</para>
  
-    <para>On Solaris 11 hosts (i.e. when the default Crossbow based bridged
-    networking is used), using a VNIC template is the only means of specifying
-    a VLAN ID to use while bridging over a link.</para>
+    <para>On Solaris 11 hosts<footnote><para>When Crossbow based bridged
+    networking is used.</para></footnote>, a VNIC template may be used to
+    specify the VLAN ID to use while bridging over a network link.</para>
 
-    <para>Here is an example of how to use a VNIC template to configure a VLAN
-    for VMs. Create a VirtualBox VNIC template, by executing as root:</para>
+    <para>Here is an example of how to use a VNIC template to configure a VM
+    over a VLAN. Create a VirtualBox VNIC template, by executing as root:</para>
 
     <screen>dladm create-vnic -t -l nge0 -v 23 vboxvnic_template0</screen>
 
-    <para>This will create a temporary VNIC over interface "nge0" with the
-    VLAN ID 23. To create VNIC templates that are persistent across host
-    reboots, skip the <computeroutput>-t</computeroutput> parameter in the
+    <para>This will create a temporary VNIC template over interface "nge0"
+    with the VLAN ID 23. To create VNIC templates that are persistent across
+    host reboots, skip the <computeroutput>-t</computeroutput> parameter in the
     above command. You may check the current state of links using:</para>
 
     <para><screen>$ dladm show-link
@@ -1814,20 +1814,19 @@ $ dladm show-vnic
 LINK         OVER         SPEED  MACADDRESS        MACADDRTYPE         VID
 vboxvnic_template0 nge0   1000   2:8:20:25:12:75   random              23</screen></para>
 
-    <para>In the example above, once the VNIC template is created, any VMs
-    that need to be on VLAN 23 over the physical interface "nge0" can use
-    the VNIC template.</para>
+    <para>Once the VNIC template is created, any VMs that need to be on VLAN
+    23 over the interface "nge0" can be configured to bridge using this VNIC
+    template.</para>
 
-    <para>VNIC templates makes managing VMs on VLANs simpler and efficient, as
-    the VLAN details are not stored as part of every VM's configuration but
-    rather inherited from the VNIC template which can be modified anytime
-    using <computeroutput>dladm</computeroutput>.</para>
+    <para>VNIC templates makes managing VMs on VLANs simpler and efficient.
+    The VLAN details are not stored as part of every VM's configuration but
+    rather inherited from the VNIC template while starting the VM. The VNIC
+    template itself can be modified anytime using <computeroutput>dladm</computeroutput>.</para>
 
-    <para>Apart from the VLAN ID, VNIC templates can be created with
-    additional properties such as bandwidth limits, CPU fanout etc. Refer to
-    your Solaris network documentation on how to accomplish this.
-    These additional properties, if any, are also applied to VMs which use
-    the VNIC template.</para>
+    <para>VNIC templates can be created with additional properties such as
+    bandwidth limits, CPU fanout etc. Refer to your Solaris network
+    documentation on how to accomplish this. These additional properties,
+    if any, are also applied to VMs which bridge using the VNIC template.</para>
   </sect1>
 
   <sect1 id="addhostonlysolaris">
@@ -1941,6 +1940,31 @@ VBoxManage setextradata "VM name" VBoxInternal2/CoreDumpLive 1</screen>At
     <para>Core files produced by the VirtualBox CoreDumper are of the form
     <computeroutput>core.vb.&lt;ProcessName&gt;.&lt;ProcessID&gt;</computeroutput>,
     for example <computeroutput>core.vb.VBoxHeadless.11321</computeroutput>.</para>
+  </sect1>
+
+  <sect1 id="vboxandsolzvmm">
+    <title>VirtualBox and Solaris kernel zones</title>
+
+    <para>Solaris kernel zones on x86-based systems make use of hardware-assisted
+    virtualization features like VirtualBox does. However, for kernel zones and
+    VirtualBox to share this hardware resource, they need to co-operate.</para>
+
+    <para>By default, due to performance reasons, VirtualBox acquires the
+    hardware-assisted virtualization resource (VT-x/AMD-V) globally on the
+    host machine and uses it until the last VirtualBox VM that requires it is
+    powered off. This prevents other software from using VT-x/AMD-V during the
+    time VirtualBox has taken control of it.</para>
+
+    <para>VirtualBox can be instructed to relinquish use of hardware-assisted
+    virtualization features when not executing guest code, thereby allowing
+    kernel zones to make use of them. To do this, shutdown all VirtualBox VMs
+    and execute the following command:</para>
+
+    <screen>VBoxManage setproperty hwvirtexclusive off</screen>
+
+    <para>This command needs to be executed only once as the setting is stored
+    as part of the global VirtualBox settings which will continue to persist
+    across host-reboots and VirtualBox upgrades.</para>
   </sect1>
 
   <sect1 id="guitweaks">
@@ -3606,7 +3630,7 @@ VBoxManage setextradata "foo" "VBoxInternal2/SavestateOnBatteryLow" 0</screen>
      </para>
 
    </sect1>
-   
+
    <sect1 id="sse412passthrough">
      <title>Experimental support for passing through SSE4.1 / SSE4.2 instructions</title>
      <para>
@@ -3636,6 +3660,33 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
       In order to disable it, use the same command but change "1" to "0", or use the VBoxManage
       command to remove the extra data. This is a per-VM setting and it is disabled by default.
     </para>
+
+  </sect1>
+
+  <sect1 id="usbtrafficcapturing">
+    <title>Capturing USB traffic for selected devices</title>
+
+    <para>
+      Starting with VirtualBox 5.0 it is possible to capture USB traffic for
+      single USB devices or on the root hub level which captures the traffic of
+      all USB devices attached to the root hub. VirtualBox stores the traffic
+      in a format which is compatible with Wireshark. To capture the traffic
+      of a specific USB device it must be attached to the VM with VBoxManage
+      using the following command:
+    </para>
+
+    <screen>VBoxManage controlvm "VM name" usbattach "device uuid|address" --capturefile "filename"</screen>
+
+    <para>
+      In order to enable capturing on the root hub use the following command
+      while the VM is not running:
+    </para>
+
+    <screen>VBoxManage setextradata "VM name" VBoxInternal/Devices/usb-ehci/LUN#0/Config/CaptureFilename "filename"</screen>
+
+    The command above enables capturing on the root hub attached to the EHCI controller.
+    To enable it for the OHCI or XHCI controller replace <computeroutput>usb-ehci</computeroutput>
+    with <computeroutput>usb-ohci</computeroutput> or <computeroutput>usb-xhci</computeroutput> respectively.
 
   </sect1>
 

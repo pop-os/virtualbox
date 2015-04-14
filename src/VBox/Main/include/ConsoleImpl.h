@@ -21,6 +21,7 @@
 #include "VirtualBoxBase.h"
 #include "VBox/com/array.h"
 #include "EventImpl.h"
+#include "SecretKeyStore.h"
 #include "ConsoleWrap.h"
 
 class Guest;
@@ -153,6 +154,7 @@ public:
     ConsoleVRDPServer *i_consoleVRDPServer() const { return mConsoleVRDPServer; }
 
     HRESULT i_updateMachineState(MachineState_T aMachineState);
+    HRESULT i_getNominalState(MachineState_T &aNominalState);
 
     // events from IInternalSessionControl
     HRESULT i_onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL changeAdapter);
@@ -186,6 +188,7 @@ public:
     HRESULT i_onlineMergeMedium(IMediumAttachment *aMediumAttachment,
                                 ULONG aSourceIdx, ULONG aTargetIdx,
                                 IProgress *aProgress);
+    HRESULT i_reconfigureMediumAttachments(const std::vector<ComPtr<IMediumAttachment> > &aAttachments);
     int i_hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName);
     VMMDev *i_getVMMDev() { return m_pVMMDev; }
 #ifdef VBOX_WITH_PDM_AUDIO_DRIVER
@@ -228,8 +231,9 @@ public:
     void i_enableVMMStatistics(BOOL aEnable);
 
     HRESULT i_pause(Reason_T aReason);
-    HRESULT i_resume(Reason_T aReason);
-    HRESULT i_saveState(Reason_T aReason, IProgress **aProgress);
+    HRESULT i_resume(Reason_T aReason, AutoWriteLock &alock);
+    HRESULT i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgress, const Utf8Str &aStateFilePath, bool fPauseVM, bool &fLeftPaused);
+    HRESULT i_cancelSaveState();
 
     // callback callers (partly; for some events console callbacks are notified
     // directly from IInternalSessionControl event handlers declared above)
@@ -316,9 +320,6 @@ private:
     HRESULT sleepButton();
     HRESULT getPowerButtonHandled(BOOL *aHandled);
     HRESULT getGuestEnteredACPIMode(BOOL *aEntered);
-    HRESULT saveState(ComPtr<IProgress> &aProgress);
-    HRESULT adoptSavedState(const com::Utf8Str &aSavedStateFile);
-    HRESULT discardSavedState(BOOL aFRemoveFile);
     HRESULT getDeviceActivity(const std::vector<DeviceType_T> &aType,
                               std::vector<DeviceActivity_T> &aActivity);
     HRESULT attachUSBDevice(const com::Guid &aId, const com::Utf8Str &aCaptureFilename);
@@ -333,18 +334,6 @@ private:
                                BOOL aWritable,
                                BOOL aAutomount);
     HRESULT removeSharedFolder(const com::Utf8Str &aName);
-    HRESULT takeSnapshot(const com::Utf8Str &aName,
-                         const com::Utf8Str &aDescription,
-                         ComPtr<IProgress> &aProgress);
-    HRESULT deleteSnapshot(const com::Guid &aId,
-                           ComPtr<IProgress> &aProgress);
-    HRESULT deleteSnapshotAndAllChildren(const com::Guid &aId,
-                                         ComPtr<IProgress> &aProgress);
-    HRESULT deleteSnapshotRange(const com::Guid &aStartId,
-                                const com::Guid &aEndId,
-                                ComPtr<IProgress> &aProgress);
-    HRESULT restoreSnapshot(const ComPtr<ISnapshot> &aSnapshot,
-                            ComPtr<IProgress> &aProgress);
     HRESULT teleport(const com::Utf8Str &aHostname,
                      ULONG aTcpport,
                      const com::Utf8Str &aPassword,
@@ -581,50 +570,10 @@ public:
         LONG     iPort;
     };
 
-    /**
-     * Class for managing cryptographic keys.
-     * @todo: Replace with a keystore implementation once it is ready.
-     */
-    class SecretKey
-    {
-        public:
-            SecretKey() { }
-
-            SecretKey(uint8_t *pbKey, size_t cbKey, bool fRemoveOnSuspend)
-               : m_cRefs(0),
-                 m_pbKey(pbKey),
-                 m_cbKey(cbKey),
-                 m_fRemoveOnSuspend(fRemoveOnSuspend),
-                 m_cDisks(0)
-            { }
-
-            ~SecretKey()
-            {
-                RTMemSaferFree(m_pbKey, m_cbKey);
-                m_cRefs = 0;
-                m_pbKey = NULL;
-                m_cbKey = 0;
-                m_fRemoveOnSuspend = false;
-                m_cDisks = 0;
-            }
-
-            /** Reference counter of the key. */
-            volatile uint32_t m_cRefs;
-            /** Key material. */
-            uint8_t          *m_pbKey;
-            /** Size of the key in bytes. */
-            size_t            m_cbKey;
-            /** Flag whether to remove the key on suspend. */
-            bool              m_fRemoveOnSuspend;
-            /** Number of disks using this key. */
-            uint32_t          m_cDisks;
-    };
-
     typedef std::map<Utf8Str, ComObjPtr<SharedFolder> > SharedFolderMap;
     typedef std::map<Utf8Str, SharedFolderData> SharedFolderDataMap;
     typedef std::map<Utf8Str, ComPtr<IMediumAttachment> > MediumAttachmentMap;
     typedef std::list <USBStorageDevice> USBStorageDeviceList;
-    typedef std::map<Utf8Str, SecretKey *> SecretKeyMap;
 
 private:
 
@@ -789,8 +738,6 @@ private:
     HRESULT i_doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent);
     HRESULT i_doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, PUVM pUVM, bool fSilent);
 
-    static DECLCALLBACK(int)    i_fntTakeSnapshotWorker(RTTHREAD Thread, void *pvUser);
-
     static DECLCALLBACK(int)    i_stateProgressCallback(PUVM pUVM, unsigned uPercent, void *pvUser);
 
     static DECLCALLBACK(void)   i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
@@ -804,7 +751,6 @@ private:
     void                        i_detachAllUSBDevices(bool aDone);
 
     static DECLCALLBACK(int)    i_powerUpThread(RTTHREAD Thread, void *pvUser);
-    static DECLCALLBACK(int)    i_saveStateThread(RTTHREAD Thread, void *pvUser);
     static DECLCALLBACK(int)    i_powerDownThread(RTTHREAD Thread, void *pvUser);
 
     static DECLCALLBACK(int)    i_vmm2User_SaveState(PCVMM2USERMETHODS pThis, PUVM pUVM);
@@ -996,12 +942,12 @@ private:
     /** List of attached USB storage devices. */
     USBStorageDeviceList mUSBStorageDevices;
 
-    /** Map of secret keys used for disk encryption. */
-    SecretKeyMap         m_mapSecretKeys;
+    /** Store for secret keys. */
+    SecretKeyStore * const m_pKeyStore;
     /** Number of disks configured for encryption. */
-    unsigned             m_cDisksEncrypted;
+    unsigned               m_cDisksEncrypted;
     /** Number of disks which have the key in the map. */
-    unsigned             m_cDisksPwProvided;
+    unsigned               m_cDisksPwProvided;
 
     /** Pointer to the key consumer -> provider (that's us) callbacks. */
     struct MYPDMISECKEY : public PDMISECKEY
@@ -1035,7 +981,7 @@ private:
      * Console::PowerDown, which automatically cancels out the running snapshot /
      * teleportation operation, will cancel the teleportation / live snapshot
      * operation before starting. */
-    ComObjPtr<Progress> mptrCancelableProgress;
+    ComPtr<IProgress> mptrCancelableProgress;
 
     ComPtr<IEventListener> mVmListener;
 

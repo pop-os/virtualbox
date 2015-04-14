@@ -2488,7 +2488,7 @@
 #define VERR_SUP_VP_TOO_MANY_MEMORY_REGIONS          (-5645)
 /** Process Verficiation Failure: An image has too many sections. */
 #define VERR_SUP_VP_TOO_MANY_SECTIONS                (-5646)
-/** Process Verficiation Failure: An image is targetting an unexpected
+/** Process Verficiation Failure: An image is targeting an unexpected
  *  machine/CPU. */
 #define VERR_SUP_VP_UNEXPECTED_IMAGE_MACHINE         (-5647)
 /** Process Verficiation Failure: Unexpected section protection flag
@@ -2621,6 +2621,8 @@
 #define VERR_GIM_HYPERCALLS_NOT_ENABLED             (-6309)
 /** The GIM device is not registered with GIM when it ought to be. */
 #define VERR_GIM_DEVICE_NOT_REGISTERED              (-6310)
+/** Hypercall cannot be enabled/performed due to access/permissions/CPL. */
+#define VERR_GIM_HYPERCALL_ACCESS_DENIED            (-6311)
 /** @} */
 
 /** @name Main API Status Codes

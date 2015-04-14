@@ -108,6 +108,15 @@ int scsi_cmd_data_in(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
         status = inb(io_base + VBSCSI_REGISTER_STATUS);
     while (status & VBSCSI_BUSY);
 
+    /* If any error occurred, inform the caller and don't bother reading the data. */
+    if (status & VBSCSI_ERROR) {
+        outb(io_base + VBSCSI_REGISTER_RESET, 0);
+
+        status = inb(io_base + VBSCSI_REGISTER_DEVSTAT);
+        DBG_SCSI("%s: read failed, device status %02X\n", __func__, status);
+        return 4;   /* Sector not found */
+    }
+
     /* Read in the data. The transfer length may be exactly 64K or more,
      * which needs a bit of care when we're using 16-bit 'rep ins'.
      */
@@ -162,6 +171,15 @@ int scsi_cmd_data_out(uint16_t io_base, uint8_t target_id, uint8_t __far *aCDB,
     do
         status = inb(io_base + VBSCSI_REGISTER_STATUS);
     while (status & VBSCSI_BUSY);
+
+    /* If any error occurred, inform the caller. */
+    if (status & VBSCSI_ERROR) {
+        outb(io_base + VBSCSI_REGISTER_RESET, 0);
+
+        status = inb(io_base + VBSCSI_REGISTER_DEVSTAT);
+        DBG_SCSI("%s: write failed, device status %02X\n", __func__, status);
+        return 4;   /* Sector not found */
+    }
 
     return 0;
 }
@@ -398,6 +416,8 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
         if (rc != 0)
             BX_PANIC("%s: SCSI_INQUIRY failed\n", __func__);
 
+        devcount_scsi = bios_dsk->scsi_devcount;
+
         /* Check the attached device. */
         if (   ((buffer[0] & 0xe0) == 0)
             && ((buffer[0] & 0x1f) == 0x00))
@@ -405,7 +425,7 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
             DBG_SCSI("%s: Disk detected at %d\n", __func__, i);
 
             /* We add the disk only if the maximum is not reached yet. */
-            if (bios_dsk->scsi_devcount < BX_MAX_SCSI_DEVICES)
+            if (devcount_scsi < BX_MAX_SCSI_DEVICES)
             {
                 uint32_t    sectors, sector_size, cylinders;
                 uint16_t    heads, sectors_per_track;
@@ -426,6 +446,7 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                           | ((uint32_t)buffer[1] << 16)
                           | ((uint32_t)buffer[2] << 8)
                           | ((uint32_t)buffer[3]);
+                ++sectors;  /* Returned value is the last LBA, zero-based. */
 
                 sector_size =   ((uint32_t)buffer[4] << 24)
                               | ((uint32_t)buffer[5] << 16)
@@ -439,8 +460,6 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                     BX_INFO("Disk %d has an unsupported sector size of %u\n", i, sector_size);
                     continue;
                 }
-
-                devcount_scsi = bios_dsk->scsi_devcount;
 
                 /* Get logical CHS geometry. */
                 switch (devcount_scsi)
@@ -536,7 +555,6 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
                 write_byte(0x40, 0x75, hdcount);
 
                 devcount_scsi++;
-                bios_dsk->scsi_devcount = devcount_scsi;
             }
             else
             {
@@ -571,10 +589,11 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
             bios_dsk->cdcount = cdcount;
 
             devcount_scsi++;
-            bios_dsk->scsi_devcount = devcount_scsi;
         }
         else
             DBG_SCSI("%s: No supported device detected at %d\n", __func__, i);
+
+        bios_dsk->scsi_devcount = devcount_scsi;
     }
 }
 

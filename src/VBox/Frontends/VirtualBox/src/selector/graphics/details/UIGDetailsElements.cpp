@@ -807,7 +807,8 @@ void UIGDetailsUpdateThreadSerial::run()
                 {
                     KPortMode mode = port.GetHostMode();
                     QString data = vboxGlobal().toCOMPortName(port.GetIRQ(), port.GetIOBase()) + ", ";
-                    if (mode == KPortMode_HostPipe || mode == KPortMode_HostDevice || mode == KPortMode_RawFile)
+                    if (mode == KPortMode_HostPipe || mode == KPortMode_HostDevice ||
+                        mode == KPortMode_RawFile || mode == KPortMode_TCP)
                         data += QString("%1 (%2)").arg(gpConverter->toString(mode)).arg(QDir::toNativeSeparators(port.GetPath()));
                     else
                         data += gpConverter->toString(mode);
@@ -936,9 +937,17 @@ void UIGDetailsUpdateThreadUSB::run()
             const CUSBDeviceFilters &filters = machine().GetUSBDeviceFilters();
             if (!filters.isNull() && machine().GetUSBProxyAvailable())
             {
-                const CUSBDeviceFilters &flts = machine().GetUSBDeviceFilters();
-                if (!flts.isNull() && !machine().GetUSBControllers().isEmpty())
+                const CUSBDeviceFilters flts = machine().GetUSBDeviceFilters();
+                const CUSBControllerVector controllers = machine().GetUSBControllers();
+                if (!flts.isNull() && !controllers.isEmpty())
                 {
+                    /* USB Controllers info: */
+                    QStringList controllerList;
+                    foreach (const CUSBController &controller, controllers)
+                        controllerList << gpConverter->toString(controller.GetType());
+                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "USB Controller", "details (usb)"),
+                                              controllerList.join(", "));
+                    /* USB Device Filters info: */
                     const CUSBDeviceFilterVector &coll = flts.GetDeviceFilters();
                     uint uActive = 0;
                     for (int i = 0; i < coll.size(); ++i)
