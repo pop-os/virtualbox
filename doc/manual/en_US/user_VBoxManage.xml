@@ -603,6 +603,27 @@ Statistics update:  disabled</screen></para>
           </listitem>
 
           <listitem>
+            <para><computeroutput>--paravirtprovider
+            none|default|legacy|minimal|hyperv|kvm</computeroutput>: This
+            setting specifies which paravirtualization interface to provide to
+            the guest operating system. Specifying
+            <computeroutput>none</computeroutput> explicitly turns off exposing
+            any paravirtualization interface. The option
+            <computeroutput>default</computeroutput>, will pick an appropriate
+            interface depending on the guest OS type while starting the VM.
+            This is the default option chosen while creating new VMs. The
+            <computeroutput>legacy</computeroutput> option is chosen for VMs
+            which were created with older VirtualBox versions and will pick a
+            paravirtualization interface while starting the VM with VirtualBox
+            5.0 and newer. The <computeroutput>minimal</computeroutput> provider
+            is mandatory for Mac OS X guests, while
+            <computeroutput>kvm</computeroutput> and
+            <computeroutput>hyperv</computeroutput> are recommended for Linux
+            and Windows guests respectively. These options are explained in
+            detail under <xref linkend="gimproviders" />.</para>
+          </listitem>
+
+          <listitem>
             <para><computeroutput>--nestedpaging on|off</computeroutput>: If
             hardware virtualization is enabled, this additional setting
             enables or disables the use of the nested paging feature in the
@@ -712,9 +733,10 @@ Statistics update:  disabled</screen></para>
             &lt;size&gt;</computeroutput> sets the default size of the guest
             memory balloon, that is, memory allocated by the VirtualBox Guest
             Additions from the guest operating system and returned to the
-            hypervisor for re-use by other virtual machines. &lt;size&gt; must
-            be specified in megabytes. The default size is 0 megabytes. For
-            details, see <xref linkend="guestadd-balloon" />.</para>
+            hypervisor for re-use by other virtual machines.
+            <computeroutput>&lt;size&gt;</computeroutput> must be specified in
+            megabytes. The default size is 0 megabytes. For details,
+            see <xref linkend="guestadd-balloon" />.</para>
           </listitem>
 
           <listitem>
@@ -1000,6 +1022,23 @@ Statistics update:  disabled</screen></para>
                   but assumed to exist already.</para>
                 </listitem>
 
+                <listitem>
+                  <para><computeroutput>tcpserver
+                  &lt;port&gt;</computeroutput>: This
+                  tells VirtualBox to create a TCP socket on the host with TCP
+                  <computeroutput>&lt;port&gt;</computeroutput> and
+                  connect the virtual serial device to it. Note that UNIX-like
+                  systems require ports over 1024 for normal users.</para>
+                </listitem>
+
+                <listitem>
+                  <para><computeroutput>tcpclient
+                  &lt;hostname:port&gt;</computeroutput>: This operates just like
+                  <computeroutput>tcpserver ...</computeroutput>, except that the
+                  TCP socket is not created by VirtualBox,
+                  but assumed to exist already.</para>
+                </listitem>
+                
                 <listitem>
                   <para><computeroutput>&lt;devicename&gt;</computeroutput>:
                   If, instead of the above, the device name of a physical
@@ -1446,6 +1485,17 @@ Virtual system 0:
 
         <glossdef>
           <para>Starts a VM with a minimal GUI and limited features.</para>
+        </glossdef>
+      </glossentry>
+
+      <glossentry>
+        <glossterm><computeroutput>separate</computeroutput></glossterm>
+
+        <glossdef>
+          <para>Starts a VM with detachable UI (technically it is a headless VM
+            with user interface in a separate process). This is an experimental
+            feature as it lacks certain functionality at the moment (e.g. 3D
+            acceleration will not work).</para>
         </glossdef>
       </glossentry>
     </glosslist>
@@ -2152,7 +2202,7 @@ Virtual system 0:
                             --name &lt;name&gt;
                             [--add &lt;ide/sata/scsi/floppy&gt;]
                             [--controller &lt;LsiLogic|LSILogicSAS|BusLogic|
-                                          IntelAhci|PIIX3|PIIX4|ICH6|I82078&gt;]
+                                          IntelAhci|PIIX3|PIIX4|ICH6|I82078|usb&gt;]
                             [--sataportcount &lt;1-30&gt;]
                             [--hostiocache on|off]
                             [--bootable on|off]

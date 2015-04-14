@@ -128,6 +128,9 @@ VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
         case GIMPROVIDERID_HYPERV:
             return gimHvIsParavirtTscEnabled(pVM);
 
+        case GIMPROVIDERID_KVM:
+            return gimKvmIsParavirtTscEnabled(pVM);
+
         default:
             break;
     }
@@ -145,20 +148,21 @@ VMM_INT_DECL(bool) GIMIsParavirtTscEnabled(PVM pVM)
  * really required.
  *
  * @returns true if needed, false otherwise.
- * @param   pVM         Pointer to the VM.
+ * @param   pVCpu       Pointer to the VMCPU.
  */
-VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVM pVM)
+VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVMCPU pVCpu)
 {
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (!GIMIsEnabled(pVM))
-        return 0;
+        return false;
 
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_KVM:
-            return gimKvmShouldTrapXcptUD(pVM);
+            return gimKvmShouldTrapXcptUD(pVCpu);
 
         default:
-            return 0;
+            return false;
     }
 }
 
@@ -168,8 +172,10 @@ VMM_INT_DECL(bool) GIMShouldTrapXcptUD(PVM pVM)
  *
  * @param   pVCpu       Pointer to the VMCPU.
  * @param   pCtx        Pointer to the guest-CPU context.
+ * @param   pDis        Pointer to the disassembled instruction state at RIP.
+ *                      Optional, can be NULL.
  */
-VMM_INT_DECL(int) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(int) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     Assert(GIMIsEnabled(pVM));
@@ -177,7 +183,7 @@ VMM_INT_DECL(int) GIMXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx)
     switch (pVM->gim.s.enmProviderId)
     {
         case GIMPROVIDERID_KVM:
-            return gimKvmXcptUD(pVCpu, pCtx);
+            return gimKvmXcptUD(pVCpu, pCtx, pDis);
 
         default:
             return VERR_GIM_OPERATION_FAILED;

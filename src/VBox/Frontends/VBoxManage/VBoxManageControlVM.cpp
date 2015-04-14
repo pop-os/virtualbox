@@ -196,7 +196,7 @@ int handleControlVM(HandlerArg *a)
         {
             if (a->argc <= 1 + 1)
             {
-                errorArgument("Missing argument to '%s'. Expected drag'n'drop mode.", a->argv[1]);
+                errorArgument("Missing argument to '%s'. Expected drag and drop mode.", a->argv[1]);
                 rc = E_FAIL;
                 break;
             }
@@ -261,7 +261,7 @@ int handleControlVM(HandlerArg *a)
             }
 
             ComPtr<IProgress> progress;
-            CHECK_ERROR(console, SaveState(progress.asOutParam()));
+            CHECK_ERROR(sessionMachine, SaveState(progress.asOutParam()));
             if (FAILED(rc))
             {
                 if (!fPaused)

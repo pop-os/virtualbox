@@ -147,113 +147,6 @@ typedef uint64_t STAMCOUNTER;
 /** @} */
 
 
-
-/**
- * CPU features and quirks.
- * This is mostly exploded CPUID info.
- */
-typedef struct CPUMFEATURES
-{
-    /** The CPU vendor (CPUMCPUVENDOR). */
-    uint8_t         enmCpuVendor;
-    /** The CPU family. */
-    uint8_t         uFamily;
-    /** The CPU model. */
-    uint8_t         uModel;
-    /** The CPU stepping. */
-    uint8_t         uStepping;
-    /** The microarchitecture. */
-#ifndef VBOX_FOR_DTRACE_LIB
-    CPUMMICROARCH   enmMicroarch;
-#else
-    uint32_t        enmMicroarch;
-#endif
-    /** The maximum physical address with of the CPU. */
-    uint8_t         cMaxPhysAddrWidth;
-    /** Alignment padding. */
-    uint8_t         abPadding[1];
-    /** Max size of the extended state (or FPU state if no XSAVE). */
-    uint16_t        cbMaxExtendedState;
-
-    /** Supports MSRs. */
-    uint32_t        fMsr : 1;
-    /** Supports the page size extension (4/2 MB pages). */
-    uint32_t        fPse : 1;
-    /** Supports 36-bit page size extension (4 MB pages can map memory above
-     *  4GB). */
-    uint32_t        fPse36 : 1;
-    /** Supports physical address extension (PAE). */
-    uint32_t        fPae : 1;
-    /** Page attribute table (PAT) support (page level cache control). */
-    uint32_t        fPat : 1;
-    /** Supports the FXSAVE and FXRSTOR instructions. */
-    uint32_t        fFxSaveRstor : 1;
-    /** Supports the XSAVE and XRSTOR instructions. */
-    uint32_t        fXSaveRstor : 1;
-    /** Supports MMX. */
-    uint32_t        fMmx : 1;
-    /** Supports SSE. */
-    uint32_t        fSse : 1;
-    /** Supports SSE2. */
-    uint32_t        fSse2 : 1;
-    /** Supports SSE3. */
-    uint32_t        fSse3 : 1;
-    /** Supports SSSE3. */
-    uint32_t        fSsse3 : 1;
-    /** Supports SSE4.1. */
-    uint32_t        fSse41 : 1;
-    /** Supports SSE4.2. */
-    uint32_t        fSse42 : 1;
-    /** Supports AVX. */
-    uint32_t        fAvx : 1;
-    /** Supports AVX2. */
-    uint32_t        fAvx2 : 1;
-    /** Supports AVX512 foundation. */
-    uint32_t        fAvx512Foundation : 1;
-    /** Supports RDTSC. */
-    uint32_t        fTsc : 1;
-    /** Intel SYSENTER/SYSEXIT support */
-    uint32_t        fSysEnter : 1;
-    /** First generation APIC. */
-    uint32_t        fApic : 1;
-    /** Second generation APIC. */
-    uint32_t        fX2Apic : 1;
-    /** Hypervisor present. */
-    uint32_t        fHypervisorPresent : 1;
-    /** MWAIT & MONITOR instructions supported. */
-    uint32_t        fMonitorMWait : 1;
-    /** MWAIT Extensions present. */
-    uint32_t        fMWaitExtensions : 1;
-
-    /** AMD64: Supports long mode. */
-    uint32_t        fLongMode : 1;
-    /** AMD64: SYSCALL/SYSRET support. */
-    uint32_t        fSysCall : 1;
-    /** AMD64: No-execute page table bit. */
-    uint32_t        fNoExecute : 1;
-    /** AMD64: Supports LAHF & SAHF instructions in 64-bit mode. */
-    uint32_t        fLahfSahf : 1;
-    /** AMD64: Supports RDTSCP. */
-    uint32_t        fRdTscP : 1;
-
-    /** Indicates that FPU instruction and data pointers may leak.
-     * This generally applies to recent AMD CPUs, where the FPU IP and DP pointer
-     * is only saved and restored if an exception is pending. */
-    uint32_t        fLeakyFxSR : 1;
-
-    /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 2;
-    uint64_t        auPadding[2];
-} CPUMFEATURES;
-#ifndef VBOX_FOR_DTRACE_LIB
-AssertCompileSize(CPUMFEATURES, 32);
-#endif
-/** Pointer to a CPU feature structure. */
-typedef CPUMFEATURES *PCPUMFEATURES;
-/** Pointer to a const CPU feature structure. */
-typedef CPUMFEATURES const *PCCPUMFEATURES;
-
-
 /**
  * CPU info
  */
@@ -409,7 +302,7 @@ typedef struct CPUMHOSTCTX
     /** @} */
 
     /* padding to get 64byte aligned size */
-    uint8_t         auPadding[16+20];
+    uint8_t         auPadding[20];
 
 #elif HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
 
@@ -455,9 +348,9 @@ typedef struct CPUMHOSTCTX
 
     /* padding to get 32byte aligned size */
 # ifdef VBOX_WITH_HYBRID_32BIT_KERNEL
-    uint8_t         auPadding[4];
+    uint8_t         auPadding[52];
 # else
-    uint8_t         auPadding[8+12];
+    uint8_t         auPadding[4];
 # endif
 
 #else
@@ -470,6 +363,11 @@ typedef struct CPUMHOSTCTX
     R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
     /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
     R3PTRTYPE(PX86XSAVEAREA)    pXStateR3;
+    /** The XCR0 register. */
+    uint64_t                    xcr0;
+    /** The mask to pass to XSAVE/XRSTOR in EDX:EAX.  If zero we use
+     *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
+    uint64_t                    fXStateMask;
 } CPUMHOSTCTX;
 AssertCompileSizeAlignment(CPUMHOSTCTX, 64);
 /** Pointer to the saved host CPU state. */
@@ -501,7 +399,24 @@ typedef struct CPUM
     /** Indicates that a state restore is pending.
      * This is used to verify load order dependencies (PGM). */
     bool                    fPendingRestore;
-    uint8_t                 abPadding[HC_ARCH_BITS == 64 ? 6 : 2];
+    uint8_t                 abPadding0[6];
+
+    /** XSAVE/XRTOR components we can expose to the guest mask. */
+    uint64_t                fXStateGuestMask;
+    /** XSAVE/XRSTOR host mask.  Only state components in this mask can be exposed
+     * to the guest.  This is 0 if no XSAVE/XRSTOR bits can be exposed. */
+    uint64_t                fXStateHostMask;
+    uint8_t                 abPadding1[24];
+
+    /** Host CPU feature information.
+     * Externaly visible via the VM structure, aligned on 64-byte boundrary. */
+    CPUMFEATURES            HostFeatures;
+    /** Guest CPU feature information.
+     * Externaly visible via that VM structure, aligned with HostFeatures. */
+    CPUMFEATURES            GuestFeatures;
+    /** Guest CPU info. */
+    CPUMINFO                GuestInfo;
+
 
     /** The standard set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdPatmStd[6];
@@ -509,17 +424,6 @@ typedef struct CPUM
     CPUMCPUID               aGuestCpuIdPatmExt[10];
     /** The centaur set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdPatmCentaur[4];
-
-#if HC_ARCH_BITS == 32
-    uint8_t                 abPadding2[4];
-#endif
-
-    /** Guest CPU info. */
-    CPUMINFO                GuestInfo;
-    /** Guest CPU feature information. */
-    CPUMFEATURES            GuestFeatures;
-    /** Host CPU feature information. */
-    CPUMFEATURES            HostFeatures;
 
     /** @name MSR statistics.
      * @{ */
@@ -532,6 +436,8 @@ typedef struct CPUM
     STAMCOUNTER             cMsrReadsUnknown;
     /** @} */
 } CPUM;
+AssertCompileMemberOffset(CPUM, HostFeatures, 64);
+AssertCompileMemberOffset(CPUM, GuestFeatures, 96);
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
 typedef CPUM *PCPUM;
 

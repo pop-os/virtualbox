@@ -646,7 +646,24 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     pVM->cpum.s.CR4.OrMask  = X86_CR4_OSFXSR;
 
     /*
-     * Allocate memory for the extended CPU state.
+     * Figure out which XSAVE/XRSTOR features are available on the host.
+     */
+    uint64_t fXStateHostMask = 0;
+    if (   pVM->cpum.s.HostFeatures.fXSaveRstor
+        && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor)
+    {
+        fXStateHostMask = ASMGetXcr0() & (  XSAVE_C_X87 | XSAVE_C_SSE | XSAVE_C_YMM | XSAVE_C_OPMASK
+                                          | XSAVE_C_ZMM_HI256 | XSAVE_C_ZMM_16HI);
+        AssertLogRelMsgStmt((fXStateHostMask & (XSAVE_C_X87 | XSAVE_C_SSE)) == (XSAVE_C_X87 | XSAVE_C_SSE),
+                            ("%#llx\n", fXStateHostMask), fXStateHostMask = 0);
+    }
+    pVM->cpum.s.fXStateHostMask = fXStateHostMask;
+    if (!HMIsEnabled(pVM)) /* For raw-mode, we only use XSAVE/XRSTOR when the guest starts using it (CPUID/CR4 visibility). */
+        fXStateHostMask = 0;
+    LogRel(("CPUM: fXStateHostMask=%#llx; initial: %#llx\n", pVM->cpum.s.fXStateHostMask, fXStateHostMask));
+
+    /*
+     * Allocate memory for the extended CPU state and initialize the host XSAVE/XRSTOR mask.
      */
     uint32_t cbMaxXState = pVM->cpum.s.HostFeatures.cbMaxExtendedState;
     cbMaxXState = RT_ALIGN(cbMaxXState, 128);
@@ -675,6 +692,8 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
         pVCpu->cpum.s.Hyper.pXStateR0 = MMHyperR3ToR0(pVM, pbXStates);
         pVCpu->cpum.s.Hyper.pXStateRC = MMHyperR3ToR0(pVM, pbXStates);
         pbXStates += cbMaxXState;
+
+        pVCpu->cpum.s.Host.fXStateMask = fXStateHostMask;
     }
 
     /*
@@ -897,6 +916,13 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
     pFpuCtx->MXCSR                  = 0x1F80;
     pFpuCtx->MXCSR_MASK             = 0xffff; /** @todo REM always changed this for us. Should probably check if the HW really
                                                         supports all bits, since a zero value here should be read as 0xffbf. */
+    pCtx->aXcr[0]                   = XSAVE_C_X87;
+    if (pVM->cpum.s.HostFeatures.cbMaxExtendedState >= RT_OFFSETOF(X86XSAVEAREA, Hdr))
+    {
+        /* The entire FXSAVE state needs loading when we switch to XSAVE/XRSTOR
+           as we don't know what happened before.  (Bother optimize later?) */
+        pCtx->pXStateR3->Hdr.bmXState = XSAVE_C_X87 | XSAVE_C_SSE;
+    }
 
     /*
      * MSRs.

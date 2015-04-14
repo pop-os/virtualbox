@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -319,19 +319,11 @@ void UISelectorWindow::sltOpenExtraDataManagerWindow()
 
 void UISelectorWindow::sltShowPreferencesDialog()
 {
-#ifdef RT_OS_DARWIN
     /* Check that we do NOT handling that already: */
     if (actionPool()->action(UIActionIndex_M_Application_S_Preferences)->data().toBool())
         return;
     /* Remember that we handling that already: */
     actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(true);
-#else /* !RT_OS_DARWIN */
-    /* Check that we do NOT handling that already: */
-    if (actionPool()->action(UIActionIndex_Simple_Preferences)->data().toBool())
-        return;
-    /* Remember that we handling that already: */
-    actionPool()->action(UIActionIndex_Simple_Preferences)->setData(true);
-#endif /* !RT_OS_DARWIN */
 
     /* Don't show the inaccessible warning
      * if the user tries to open global settings: */
@@ -341,13 +333,8 @@ void UISelectorWindow::sltShowPreferencesDialog()
     UISettingsDialogGlobal dialog(this);
     dialog.execute();
 
-#ifdef RT_OS_DARWIN
     /* Remember that we do NOT handling that already: */
     actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(false);
-#else /* !RT_OS_DARWIN */
-    /* Remember that we do NOT handling that already: */
-    actionPool()->action(UIActionIndex_Simple_Preferences)->setData(false);
-#endif /* !RT_OS_DARWIN */
 }
 
 void UISelectorWindow::sltPerformExit()
@@ -510,11 +497,11 @@ void UISelectorWindow::sltPerformDiscardAction()
         if (session.isNull())
             return;
 
-        /* Get session console: */
-        CConsole console = session.GetConsole();
-        console.DiscardSavedState(true);
-        if (!console.isOk())
-            msgCenter().cannotDiscardSavedState(console);
+        /* Get session machine: */
+        CMachine machine = session.GetMachine();
+        machine.DiscardSavedState(true);
+        if (!machine.isOk())
+            msgCenter().cannotDiscardSavedState(machine);
 
         /* Unlock machine finally: */
         session.UnlockMachine();
@@ -635,22 +622,23 @@ void UISelectorWindow::sltPerformSaveAction()
 
         /* Get session console: */
         CConsole console = session.GetConsole();
+        /* Get session machine: */
+        CMachine machine = session.GetMachine();
         /* Pause VM first: */
         console.Pause();
         if (console.isOk())
         {
             /* Prepare machine state saving: */
-            CProgress progress = console.SaveState();
-            if (console.isOk())
+            CProgress progress = machine.SaveState();
+            if (machine.isOk())
             {
                 /* Show machine state saving progress: */
-                CMachine machine = session.GetMachine();
                 msgCenter().showModalProgressDialog(progress, machine.GetName(), ":/progress_state_save_90px.png");
                 if (!progress.isOk() || progress.GetResultCode() != 0)
                     msgCenter().cannotSaveMachineState(progress, machine.GetName());
             }
             else
-                msgCenter().cannotSaveMachineState(console);
+                msgCenter().cannotSaveMachineState(machine);
         }
         else
             msgCenter().cannotPauseMachine(console);
@@ -1150,22 +1138,28 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
         return;
 
     /* Populate File-menu: */
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
-#ifndef Q_WS_MAC
-    pMenu->addSeparator();
-#endif /* Q_WS_MAC */
-#ifdef DEBUG
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
-#endif /* DEBUG */
 #ifdef Q_WS_MAC
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
-#else /* !Q_WS_MAC */
-    pMenu->addAction(actionPool()->action(UIActionIndex_Simple_Preferences));
-    pMenu->addSeparator();
 #endif /* Q_WS_MAC */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance));
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance));
+    pMenu->addSeparator();
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+#ifdef DEBUG
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
+#endif /* DEBUG */
+#ifndef Q_WS_MAC
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_Preferences));
+#endif /* Q_WS_MAC */
+    pMenu->addSeparator();
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
+    pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
+# ifndef Q_WS_MAC
+    pMenu->addSeparator();
+# endif /* Q_WS_MAC */
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_Close));
 }
 
@@ -1385,11 +1379,7 @@ void UISelectorWindow::prepareConnections()
 #ifdef DEBUG
     connect(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager), SIGNAL(triggered()), this, SLOT(sltOpenExtraDataManagerWindow()));
 #endif /* DEBUG */
-#ifdef RT_OS_DARWIN
     connect(actionPool()->action(UIActionIndex_M_Application_S_Preferences), SIGNAL(triggered()), this, SLOT(sltShowPreferencesDialog()));
-#else /* !RT_OS_DARWIN */
-    connect(actionPool()->action(UIActionIndex_Simple_Preferences), SIGNAL(triggered()), this, SLOT(sltShowPreferencesDialog()));
-#endif /* !RT_OS_DARWIN */
     connect(actionPool()->action(UIActionIndexST_M_File_S_Close), SIGNAL(triggered()), this, SLOT(sltPerformExit()));
 
     /* 'Group' menu connections: */

@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 98539 $"
+__version__ = "$Revision: 99376 $"
 
 
 # Standard Python imports.
@@ -480,7 +480,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 listNames.append('TargetName');
                 listNames.append('LUN');
 
-                if self.fpApiVer >= 4.4:
+                if self.fpApiVer >= 5.0:
                     oHd = oSession.oVBox.createMedium(sDiskFormat, sDiskPath, vboxcon.AccessMode_ReadWrite, \
                                                       vboxcon.DeviceType_HardDisk);
                 else:

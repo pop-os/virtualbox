@@ -4980,8 +4980,8 @@ IEM_CIMPL_DEF_2(iemCImpl_load_CrX, uint8_t, iCrReg, uint64_t, uNewCrX)
                             | X86_CR4_OSXMMEEXCPT;
             //if (xxx)
             //    fValid |= X86_CR4_VMXE;
-            //if (xxx)
-            //    fValid |= X86_CR4_OSXSAVE;
+            if (IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fXSaveRstor)
+                fValid |= X86_CR4_OSXSAVE;
             if (uNewCrX & ~(uint64_t)fValid)
             {
                 Log(("Trying to set reserved CR4 bits: NewCR4=%#llx InvalidBits=%#llx\n", uNewCrX, uNewCrX & ~(uint64_t)fValid));
@@ -5334,7 +5334,7 @@ IEM_CIMPL_DEF_0(iemCImpl_rdtsc)
     /*
      * Check preconditions.
      */
-    if (!IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_TSC))
+    if (!IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fTsc)
         return iemRaiseUndefinedOpcode(pIemCpu);
 
     if (   (pCtx->cr4 & X86_CR4_TSD)
@@ -5369,7 +5369,7 @@ IEM_CIMPL_DEF_0(iemCImpl_rdmsr)
     /*
      * Check preconditions.
      */
-    if (!IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_MSR))
+    if (!IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fMsr)
         return iemRaiseUndefinedOpcode(pIemCpu);
     if (pIemCpu->uCpl != 0)
         return iemRaiseGeneralProtectionFault0(pIemCpu);
@@ -5418,7 +5418,7 @@ IEM_CIMPL_DEF_0(iemCImpl_wrmsr)
     /*
      * Check preconditions.
      */
-    if (!IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_MSR))
+    if (!IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fMsr)
         return iemRaiseUndefinedOpcode(pIemCpu);
     if (pIemCpu->uCpl != 0)
         return iemRaiseGeneralProtectionFault0(pIemCpu);
@@ -5724,7 +5724,7 @@ IEM_CIMPL_DEF_1(iemCImpl_monitor, uint8_t, iEffSeg)
         Log2(("monitor: CPL != 0\n"));
         return iemRaiseUndefinedOpcode(pIemCpu); /** @todo MSR[0xC0010015].MonMwaitUserEn if we care. */
     }
-    if (!IEM_IS_INTEL_CPUID_FEATURE_PRESENT_ECX(X86_CPUID_FEATURE_ECX_MONITOR))
+    if (!IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fMonitorMWait)
     {
         Log2(("monitor: Not in CPUID\n"));
         return iemRaiseUndefinedOpcode(pIemCpu);
@@ -5780,7 +5780,7 @@ IEM_CIMPL_DEF_0(iemCImpl_mwait)
          *        EFLAGS.VM then.) */
         return iemRaiseUndefinedOpcode(pIemCpu);
     }
-    if (!IEM_IS_INTEL_CPUID_FEATURE_PRESENT_ECX(X86_CPUID_FEATURE_ECX_MONITOR))
+    if (!IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fMonitorMWait)
     {
         Log2(("mwait: Not in CPUID\n"));
         return iemRaiseUndefinedOpcode(pIemCpu);
@@ -6043,31 +6043,16 @@ IEM_CIMPL_DEF_1(iemCImpl_finit, bool, fCheckXcpts)
      */
 
     PX86XSAVEAREA pXState = pCtx->CTX_SUFF(pXState);
-    if (iemFRegIsFxSaveFormat(pIemCpu))
-    {
-        pXState->x87.FCW   = 0x37f;
-        pXState->x87.FSW   = 0;
-        pXState->x87.FTW   = 0x00;         /* 0 - empty. */
-        pXState->x87.FPUDP = 0;
-        pXState->x87.DS    = 0; //??
-        pXState->x87.Rsrvd2= 0;
-        pXState->x87.FPUIP = 0;
-        pXState->x87.CS    = 0; //??
-        pXState->x87.Rsrvd1= 0;
-        pXState->x87.FOP   = 0;
-    }
-    else
-    {
-        PX86FPUSTATE pFpu = (PX86FPUSTATE)&pXState->x87;
-        pFpu->FCW       = 0x37f;
-        pFpu->FSW       = 0;
-        pFpu->FTW       = 0xffff;       /* 11 - empty */
-        pFpu->FPUOO     = 0; //??
-        pFpu->FPUOS     = 0; //??
-        pFpu->FPUIP     = 0;
-        pFpu->CS        = 0; //??
-        pFpu->FOP       = 0;
-    }
+    pXState->x87.FCW   = 0x37f;
+    pXState->x87.FSW   = 0;
+    pXState->x87.FTW   = 0x00;         /* 0 - empty. */
+    pXState->x87.FPUDP = 0;
+    pXState->x87.DS    = 0; //??
+    pXState->x87.Rsrvd2= 0;
+    pXState->x87.FPUIP = 0;
+    pXState->x87.CS    = 0; //??
+    pXState->x87.Rsrvd1= 0;
+    pXState->x87.FOP   = 0;
 
     iemHlpUsedFpu(pIemCpu);
     iemRegAddToRipAndClearRF(pIemCpu, cbInstr);
@@ -6103,7 +6088,6 @@ IEM_CIMPL_DEF_3(iemCImpl_fxsave, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, e
             return iemRaiseAlignmentCheckException(pIemCpu);
         return iemRaiseGeneralProtectionFault0(pIemCpu);
     }
-    AssertReturn(iemFRegIsFxSaveFormat(pIemCpu), VERR_IEM_IPE_2);
 
     /*
      * Access the memory.
@@ -6208,7 +6192,6 @@ IEM_CIMPL_DEF_3(iemCImpl_fxrstor, uint8_t, iEffSeg, RTGCPTR, GCPtrEff, IEMMODE, 
             return iemRaiseAlignmentCheckException(pIemCpu);
         return iemRaiseGeneralProtectionFault0(pIemCpu);
     }
-    AssertReturn(iemFRegIsFxSaveFormat(pIemCpu), VERR_IEM_IPE_2);
 
     /*
      * Access the memory.

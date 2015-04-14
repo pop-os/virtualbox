@@ -398,15 +398,23 @@ typedef struct CPUMCTX
     uint64_t        msrApicBase;        /**< The local APIC base (IA32_APIC_BASE MSR). */
     /** @} */
 
+    /** The XCR0..XCR1 registers. */
+    uint64_t                    aXcr[2];
+    /** The mask to pass to XSAVE/XRSTOR in EDX:EAX.  If zero we use
+     *  FXSAVE/FXRSTOR (since bit 0 will always be set, we only need to test it). */
+    uint64_t                    fXStateMask;
+
     /** Pointer to the FPU/SSE/AVX/XXXX state ring-0 mapping. */
     R0PTRTYPE(PX86XSAVEAREA)    pXStateR0;
     /** Pointer to the FPU/SSE/AVX/XXXX state ring-3 mapping. */
     R3PTRTYPE(PX86XSAVEAREA)    pXStateR3;
     /** Pointer to the FPU/SSE/AVX/XXXX state raw-mode mapping. */
     RCPTRTYPE(PX86XSAVEAREA)    pXStateRC;
+    /** State component offsets into pXState, UINT16_MAX if not present. */
+    uint16_t                    aoffXState[64];
 
     /** Size padding. */
-    uint32_t        au32SizePadding[HC_ARCH_BITS == 32 ? 3 : 1];
+    uint32_t        au32SizePadding[HC_ARCH_BITS == 32 ? 13 : 11];
 } CPUMCTX;
 #pragma pack()
 
@@ -419,7 +427,7 @@ AssertCompileSizeAlignment(CPUMCTX, 64);
 # define CPUMCTX2CORE(pCtx) ((PCPUMCTXCORE)(void *)&(pCtx)->rax)
 
 /**
- * Gets the CPUMCTXCORE part of a CPUMCTX.
+ * Gets the CPUMCTX part from a CPUMCTXCORE.
  */
 # define CPUMCTX_FROM_CORE(a_pCtxCore) RT_FROM_MEMBER(a_pCtxCore, CPUMCTX, rax)
 

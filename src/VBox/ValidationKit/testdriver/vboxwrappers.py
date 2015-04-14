@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 99186 $"
+__version__ = "$Revision: 99521 $"
 
 
 # Standard Python imports.
@@ -1711,7 +1711,7 @@ class SessionWrapper(TdTaskBase):
         Returns Medium object on success and None on failure.  Error information is logged.
         """
         try:
-            if self.fpApiVer >= 4.4:
+            if self.fpApiVer >= 5.0:
                 oHd = self.oVBox.createMedium(sFmt, sHd, vboxcon.AccessMode_ReadWrite, vboxcon.DeviceType_HardDisk);
             else:
                 oHd = self.oVBox.createHardDisk(sFmt, sHd);
@@ -1731,7 +1731,7 @@ class SessionWrapper(TdTaskBase):
         Returns Medium object on success and None on failure.  Error information is logged.
         """
         try:
-            if self.fpApiVer >= 4.4:
+            if self.fpApiVer >= 5.0:
                 oHd = self.oVBox.createMedium(sFmt, sHd, vboxcon.AccessMode_ReadWrite, vboxcon.DeviceType_HardDisk);
             else:
                 oHd = self.oVBox.createHardDisk(sFmt, sHd);
@@ -2189,13 +2189,16 @@ class SessionWrapper(TdTaskBase):
         Restores the given snapshot.
 
         Returns True on success.
-        Returns False on IConsole::restoreSnapshot() failure.
+        Returns False on IMachine::restoreSnapshot() failure.
         Returns None if the progress object returns failure.
         """
         try:
-            oProgress = self.o.console.restoreSnapshot(oSnapshot);
+            if self.fpApiVer >= 5.0:
+                oProgress = self.o.machine.restoreSnapshot(oSnapshot);
+            else:
+                oProgress = self.o.console.restoreSnapshot(oSnapshot);
         except:
-            reporter.logXcpt('IConsole::restoreSnapshot failed on %s' % (self.sName));
+            reporter.logXcpt('IMachine::restoreSnapshot failed on %s' % (self.sName));
             if fFudgeOnFailure:
                 self.oTstDrv.waitOnDirectSessionClose(self.oVM, 5000); # fudge
                 self.waitForTask(1000);                                # fudge
@@ -2215,15 +2218,18 @@ class SessionWrapper(TdTaskBase):
         Deletes the given snapshot merging the diff image into the base.
 
         Returns True on success.
-        Returns False on IConsole::deleteSnapshot() failure.
+        Returns False on IMachine::deleteSnapshot() failure.
         """
         try:
-            oProgressCom = self.o.console.deleteSnapshot(oSnapshot);
+            if self.fpApiVer >= 5.0:
+                oProgressCom = self.o.machine.deleteSnapshot(oSnapshot);
+            else:
+                oProgressCom = self.o.console.deleteSnapshot(oSnapshot);
             oProgress = ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oTstDrv, 'Delete Snapshot %s' % (oSnapshot));
             oProgress.wait(cMsTimeout);
             oProgress.logResult();
         except:
-            reporter.logXcpt('IConsole::deleteSnapshot failed on %s' % (self.sName));
+            reporter.logXcpt('IMachine::deleteSnapshot failed on %s' % (self.sName));
             if fFudgeOnFailure:
                 self.oTstDrv.waitOnDirectSessionClose(self.oVM, 5000); # fudge
                 self.waitForTask(1000);                                # fudge
@@ -2236,19 +2242,21 @@ class SessionWrapper(TdTaskBase):
         Takes a snapshot with the given name
 
         Returns True on success.
-        Returns False on IConsole::takeSnapshot() or VM state change failure.
+        Returns False on IMachine::takeSnapshot() or VM state change failure.
         """
         try:
             if     fPause is True \
                and self.oVM.state is vboxcon.MachineState_Running:
                 self.o.console.pause();
-
-            oProgressCom = self.o.console.takeSnapshot(sName, sDescription);
+            if self.fpApiVer >= 5.0:
+                oProgressCom = self.o.machine.takeSnapshot(sName, sDescription);
+            else:
+                oProgressCom = self.o.console.takeSnapshot(sName, sDescription);
             oProgress = ProgressWrapper(oProgressCom, self.oVBoxMgr, self.oTstDrv, 'Take Snapshot %s' % (sName));
             oProgress.wait(cMsTimeout);
             oProgress.logResult();
         except:
-            reporter.logXcpt('IConsole::takeSnapshot failed on %s' % (self.sName));
+            reporter.logXcpt('IMachine::takeSnapshot failed on %s' % (self.sName));
             if fFudgeOnFailure:
                 self.oTstDrv.waitOnDirectSessionClose(self.oVM, 5000); # fudge
                 self.waitForTask(1000);                                # fudge
@@ -2277,7 +2285,7 @@ class SessionWrapper(TdTaskBase):
         Returns False on failure.
         """
         try:
-            if self.fpApiVer >= 4.4:
+            if self.fpApiVer >= 5.0:
                 iWidth, iHeight, _, _, _, _ = self.o.console.display.getScreenResolution(iScreenId)
                 aPngData = self.o.console.display.takeScreenShotToArray(iScreenId, iWidth, iHeight,
                                                                         vboxcon.BitmapFormat_PNG)

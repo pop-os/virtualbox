@@ -71,9 +71,7 @@ template<class X> X fromInternalInteger(const int & /* iData */) { Assert(0); re
 template<> bool canConvert<SizeSuffix>();
 template<> bool canConvert<StorageSlot>();
 template<> bool canConvert<UIExtraDataMetaDefs::MenuType>();
-#ifdef Q_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuApplicationActionType>();
-#endif /* Q_WS_MAC */
 template<> bool canConvert<UIExtraDataMetaDefs::MenuHelpActionType>();
 template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuMachineActionType>();
 template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuViewActionType>();
@@ -95,6 +93,7 @@ template<> bool canConvert<IndicatorType>();
 template<> bool canConvert<MachineCloseAction>();
 template<> bool canConvert<MouseCapturePolicy>();
 template<> bool canConvert<GuruMeditationHandlerType>();
+template<> bool canConvert<ScalingOptimizationType>();
 template<> bool canConvert<HiDPIOptimizationType>();
 #ifndef Q_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>();
@@ -114,6 +113,7 @@ template<> bool canConvert<KNetworkAttachmentType>();
 template<> bool canConvert<KNetworkAdapterType>();
 template<> bool canConvert<KNetworkAdapterPromiscModePolicy>();
 template<> bool canConvert<KPortMode>();
+template<> bool canConvert<KUSBControllerType>();
 template<> bool canConvert<KUSBDeviceState>();
 template<> bool canConvert<KUSBDeviceFilterAction>();
 template<> bool canConvert<KAudioDriverType>();
@@ -131,10 +131,8 @@ template<> QString toString(const StorageSlot &storageSlot);
 template<> StorageSlot fromString<StorageSlot>(const QString &strStorageSlot);
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuType &menuType);
 template<> UIExtraDataMetaDefs::MenuType fromInternalString<UIExtraDataMetaDefs::MenuType>(const QString &strMenuType);
-#ifdef Q_WS_MAC
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuApplicationActionType &menuApplicationActionType);
 template<> UIExtraDataMetaDefs::MenuApplicationActionType fromInternalString<UIExtraDataMetaDefs::MenuApplicationActionType>(const QString &strMenuApplicationActionType);
-#endif /* Q_WS_MAC */
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuHelpActionType &menuHelpActionType);
 template<> UIExtraDataMetaDefs::MenuHelpActionType fromInternalString<UIExtraDataMetaDefs::MenuHelpActionType>(const QString &strMenuHelpActionType);
 template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuMachineActionType &runtimeMenuMachineActionType);
@@ -180,6 +178,8 @@ template<> QString toInternalString(const MouseCapturePolicy &mouseCapturePolicy
 template<> MouseCapturePolicy fromInternalString<MouseCapturePolicy>(const QString &strMouseCapturePolicy);
 template<> QString toInternalString(const GuruMeditationHandlerType &guruMeditationHandlerType);
 template<> GuruMeditationHandlerType fromInternalString<GuruMeditationHandlerType>(const QString &strGuruMeditationHandlerType);
+template<> QString toInternalString(const ScalingOptimizationType &optimizationType);
+template<> ScalingOptimizationType fromInternalString<ScalingOptimizationType>(const QString &strOptimizationType);
 template<> QString toInternalString(const HiDPIOptimizationType &optimizationType);
 template<> HiDPIOptimizationType fromInternalString<HiDPIOptimizationType>(const QString &strOptimizationType);
 #ifndef Q_WS_MAC
@@ -203,6 +203,7 @@ template<> QString toString(const KNetworkAttachmentType &type);
 template<> QString toString(const KNetworkAdapterType &type);
 template<> QString toString(const KNetworkAdapterPromiscModePolicy &policy);
 template<> QString toString(const KPortMode &mode);
+template<> QString toString(const KUSBControllerType &type);
 template<> QString toString(const KUSBDeviceState &state);
 template<> QString toString(const KUSBDeviceFilterAction &action);
 template<> QString toString(const KAudioDriverType &type);

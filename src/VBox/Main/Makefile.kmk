@@ -356,6 +356,7 @@ VBoxSVC_SOURCES = \
 	src-all/PCIDeviceAttachmentImpl.cpp \
 	src-all/ProgressImpl.cpp \
 	src-all/QMTranslatorImpl.cpp \
+	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
 	src-all/AutoCaller.cpp \
 	src-all/VirtualBoxBase.cpp \
@@ -439,7 +440,8 @@ VBoxSVC_SOURCES.os2 = \
 	src-server/HostDnsServiceResolvConf.cpp
 
 VBoxSVC_SOURCES.freebsd = \
-	src-server/freebsd/HostHardwareFreeBSD.cpp
+	src-server/freebsd/HostHardwareFreeBSD.cpp \
+	src-server/HostDnsServiceResolvConf.cpp
 
 
 ifdef VBOX_WITH_USB
@@ -714,6 +716,7 @@ VBoxC_SOURCES = \
 	src-all/Logging.cpp \
 	src-all/PCIDeviceAttachmentImpl.cpp \
 	src-all/ProgressImpl.cpp \
+	src-all/SecretKeyStore.cpp \
 	src-all/SharedFolderImpl.cpp \
 	src-all/AutoCaller.cpp \
 	src-all/VirtualBoxBase.cpp \

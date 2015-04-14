@@ -91,9 +91,7 @@ const char* UIExtraDataDefs::GUI_Geometry_State_Max = "max";
 const char* UIExtraDataDefs::GUI_MenuBar_Enabled = "GUI/MenuBar/Enabled";
 #endif /* !Q_WS_MAC */
 const char* UIExtraDataDefs::GUI_RestrictedRuntimeMenus = "GUI/RestrictedRuntimeMenus";
-#ifdef Q_WS_MAC
 const char* UIExtraDataDefs::GUI_RestrictedRuntimeApplicationMenuActions = "GUI/RestrictedRuntimeApplicationMenuActions";
-#endif /* Q_WS_MAC */
 const char* UIExtraDataDefs::GUI_RestrictedRuntimeMachineMenuActions = "GUI/RestrictedRuntimeMachineMenuActions";
 const char* UIExtraDataDefs::GUI_RestrictedRuntimeViewMenuActions = "GUI/RestrictedRuntimeViewMenuActions";
 const char* UIExtraDataDefs::GUI_RestrictedRuntimeInputMenuActions = "GUI/RestrictedRuntimeInputMenuActions";
@@ -144,6 +142,7 @@ const char* UIExtraDataDefs::GUI_MouseCapturePolicy = "GUI/MouseCapturePolicy";
 const char* UIExtraDataDefs::GUI_GuruMeditationHandler = "GUI/GuruMeditationHandler";
 const char* UIExtraDataDefs::GUI_HidLedsSync = "GUI/HidLedsSync";
 const char* UIExtraDataDefs::GUI_ScaleFactor = "GUI/ScaleFactor";
+const char* UIExtraDataDefs::GUI_Scaling_Optimization = "GUI/Scaling/Optimization";
 
 /* Virtual Machine: Information dialog: */
 const char* UIExtraDataDefs::GUI_InformationWindowGeometry = "GUI/InformationWindowGeometry";
