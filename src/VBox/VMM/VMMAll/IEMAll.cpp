@@ -188,15 +188,6 @@ typedef IEMSELDESC *PIEMSELDESC;
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
-/** @name IEM status codes.
- *
- * Not quite sure how this will play out in the end, just aliasing safe status
- * codes for now.
- *
- * @{ */
-#define VINF_IEM_RAISED_XCPT    VINF_EM_RESCHEDULE
-/** @} */
-
 /** Temporary hack to disable the double execution.  Will be removed in favor
  * of a dedicated execution mode in EM. */
 //#define IEM_VERIFICATION_MODE_NO_REM
@@ -295,39 +286,18 @@ typedef IEMSELDESC *PIEMSELDESC;
 #define IEM_IS_REAL_MODE(a_pIemCpu)         (CPUMIsGuestInRealModeEx((a_pIemCpu)->CTX_SUFF(pCtx)))
 
 /**
- * Tests if an AMD CPUID feature (extended) is marked present - ECX.
+ * Returns a (const) pointer to the CPUMFEATURES for the guest CPU.
+ * @returns PCCPUMFEATURES
+ * @param   a_pIemCpu       The IEM state of the current CPU.
  */
-#define IEM_IS_AMD_CPUID_FEATURE_PRESENT_ECX(a_fEcx)    iemRegIsAmdCpuIdFeaturePresent(pIemCpu, 0, (a_fEcx))
+#define IEM_GET_GUEST_CPU_FEATURES(a_pIemCpu) (&(IEMCPU_TO_VM(a_pIemCpu)->cpum.ro.GuestFeatures))
 
 /**
- * Tests if an AMD CPUID feature (extended) is marked present - EDX.
+ * Returns a (const) pointer to the CPUMFEATURES for the host CPU.
+ * @returns PCCPUMFEATURES
+ * @param   a_pIemCpu       The IEM state of the current CPU.
  */
-#define IEM_IS_AMD_CPUID_FEATURE_PRESENT_EDX(a_fEdx)    iemRegIsAmdCpuIdFeaturePresent(pIemCpu, (a_fEdx), 0)
-
-/**
- * Tests if at least on of the specified AMD CPUID features (extended) are
- * marked present.
- */
-#define IEM_IS_AMD_CPUID_FEATURES_ANY_PRESENT(a_fEdx, a_fEcx)   iemRegIsAmdCpuIdFeaturePresent(pIemCpu, (a_fEdx), (a_fEcx))
-
-/**
- * Checks if an Intel CPUID feature is present.
- */
-#define IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(a_fEdx)  \
-    (   ((a_fEdx) & (X86_CPUID_FEATURE_EDX_TSC | 0)) \
-     || iemRegIsIntelCpuIdFeaturePresent(pIemCpu, (a_fEdx), 0) )
-
-/**
- * Checks if an Intel CPUID feature is present.
- */
-#define IEM_IS_INTEL_CPUID_FEATURE_PRESENT_ECX(a_fEcx)  \
-    ( iemRegIsIntelCpuIdFeaturePresent(pIemCpu, 0, (a_fEcx)) )
-
-/**
- * Checks if an Intel CPUID feature is present in the host CPU.
- */
-#define IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX_ON_HOST(a_fEdx)  \
-    ( (a_fEdx) & pIemCpu->fHostCpuIdStdFeaturesEdx )
+#define IEM_GET_HOST_CPU_FEATURES(a_pIemCpu)  (&(IEMCPU_TO_VM(a_pIemCpu)->cpum.ro.HostFeatures))
 
 /**
  * Evaluates to true if we're presenting an Intel CPU to the guest.
@@ -1126,6 +1096,7 @@ static VBOXSTRICTRC iemOpcodeFetchMoreBytes(PIEMCPU pIemCpu, size_t cbMin)
         cbToTryRead = cbLeftOnPage;
     if (cbToTryRead > sizeof(pIemCpu->abOpcode) - pIemCpu->cbOpcode)
         cbToTryRead = sizeof(pIemCpu->abOpcode) - pIemCpu->cbOpcode;
+/** @todo r=bird: Convert assertion into undefined opcode exception? */
     Assert(cbToTryRead >= cbMin - cbLeft); /* ASSUMPTION based on iemInitDecoderAndPrefetchOpcodes. */
 
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
@@ -1221,12 +1192,13 @@ DECL_NO_INLINE(static, VBOXSTRICTRC) iemOpcodeGetNextU8Slow(PIEMCPU pIemCpu, uin
 DECLINLINE(VBOXSTRICTRC) iemOpcodeGetNextU8(PIEMCPU pIemCpu, uint8_t *pu8)
 {
     uint8_t const offOpcode = pIemCpu->offOpcode;
-    if (RT_UNLIKELY(offOpcode >= pIemCpu->cbOpcode))
-        return iemOpcodeGetNextU8Slow(pIemCpu, pu8);
-
-    *pu8 = pIemCpu->abOpcode[offOpcode];
-    pIemCpu->offOpcode = offOpcode + 1;
-    return VINF_SUCCESS;
+    if (RT_LIKELY(offOpcode < pIemCpu->cbOpcode))
+    {
+        *pu8 = pIemCpu->abOpcode[offOpcode];
+        pIemCpu->offOpcode = offOpcode + 1;
+        return VINF_SUCCESS;
+    }
+    return iemOpcodeGetNextU8Slow(pIemCpu, pu8);
 }
 
 
@@ -3879,6 +3851,10 @@ iemRaiseXcptOrInt(PIEMCPU     pIemCpu,
                   uint64_t    uCr2)
 {
     PCPUMCTX pCtx = pIemCpu->CTX_SUFF(pCtx);
+#ifdef IN_RING0
+    int rc = HMR0EnsureCompleteBasicContext(IEMCPU_TO_VMCPU(pIemCpu), pCtx);
+    AssertRCReturn(rc, rc);
+#endif
 
     /*
      * Perform the V8086 IOPL check and upgrade the fault without nesting.
@@ -4632,24 +4608,6 @@ static uint64_t iemGRegFetchU64(PIEMCPU pIemCpu, uint8_t iReg)
 
 
 /**
- * Is the FPU state in FXSAVE format or not.
- *
- * @returns true if it is, false if it's in FNSAVE.
- * @param   pVCpu               Pointer to the VMCPU.
- */
-DECLINLINE(bool) iemFRegIsFxSaveFormat(PIEMCPU pIemCpu)
-{
-#ifdef RT_ARCH_AMD64
-    NOREF(pIemCpu);
-    return true;
-#else
-    NOREF(pIemCpu); /// @todo return pVCpu->pVMR3->cpum.s.CPUFeatures.edx.u1FXSR;
-    return true;
-#endif
-}
-
-
-/**
  * Adds a 8-bit signed jump offset to RIP/EIP/IP.
  *
  * May raise a \#GP(0) if the new RIP is non-canonical or outside the code
@@ -5125,46 +5083,6 @@ DECLINLINE(RTGCPTR) iemRegGetRspForPopEx(PCIEMCPU pIemCpu, PCCPUMCTX pCtx, PRTUI
         pTmpRsp->Words.w0   += cbItem;
     }
     return GCPtrTop;
-}
-
-
-/**
- * Checks if an Intel CPUID feature bit is set.
- *
- * @returns true / false.
- *
- * @param   pIemCpu             The IEM per CPU data.
- * @param   fEdx                The EDX bit to test, or 0 if ECX.
- * @param   fEcx                The ECX bit to test, or 0 if EDX.
- * @remarks Used via IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX,
- *          IEM_IS_INTEL_CPUID_FEATURE_PRESENT_ECX and others.
- */
-static bool iemRegIsIntelCpuIdFeaturePresent(PIEMCPU pIemCpu, uint32_t fEdx, uint32_t fEcx)
-{
-    uint32_t uEax, uEbx, uEcx, uEdx;
-    CPUMGetGuestCpuId(IEMCPU_TO_VMCPU(pIemCpu), 0x00000001, 0, &uEax, &uEbx, &uEcx, &uEdx);
-    return (fEcx && (uEcx & fEcx))
-        || (fEdx && (uEdx & fEdx));
-}
-
-
-/**
- * Checks if an AMD CPUID feature bit is set.
- *
- * @returns true / false.
- *
- * @param   pIemCpu             The IEM per CPU data.
- * @param   fEdx                The EDX bit to test, or 0 if ECX.
- * @param   fEcx                The ECX bit to test, or 0 if EDX.
- * @remarks Used via IEM_IS_AMD_CPUID_FEATURE_PRESENT_EDX,
- *          IEM_IS_AMD_CPUID_FEATURE_PRESENT_ECX and others.
- */
-static bool iemRegIsAmdCpuIdFeaturePresent(PIEMCPU pIemCpu, uint32_t fEdx, uint32_t fEcx)
-{
-    uint32_t uEax, uEbx, uEcx, uEdx;
-    CPUMGetGuestCpuId(IEMCPU_TO_VMCPU(pIemCpu), 0x80000001, 0, &uEax, &uEbx, &uEcx, &uEdx);
-    return (fEcx && (uEcx & fEcx))
-        || (fEdx && (uEdx & fEdx));
 }
 
 /** @}  */
@@ -8335,7 +8253,7 @@ static VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel)
     do { \
         if (   (pIemCpu->CTX_SUFF(pCtx)->cr0 & X86_CR0_EM) \
             || !(pIemCpu->CTX_SUFF(pCtx)->cr4 & X86_CR4_OSFXSR) \
-            || !IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_SSE2) ) \
+            || !IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fSse2) \
             return iemRaiseUndefinedOpcode(pIemCpu); \
         if (pIemCpu->CTX_SUFF(pCtx)->cr0 & X86_CR0_TS) \
             return iemRaiseDeviceNotAvailable(pIemCpu); \
@@ -8343,7 +8261,7 @@ static VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel)
 #define IEM_MC_MAYBE_RAISE_MMX_RELATED_XCPT() \
     do { \
         if (   ((pIemCpu)->CTX_SUFF(pCtx)->cr0 & X86_CR0_EM) \
-            || !IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_MMX) ) \
+            || !IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fMmx) \
             return iemRaiseUndefinedOpcode(pIemCpu); \
         if (pIemCpu->CTX_SUFF(pCtx)->cr0 & X86_CR0_TS) \
             return iemRaiseDeviceNotAvailable(pIemCpu); \
@@ -8351,8 +8269,8 @@ static VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel)
 #define IEM_MC_MAYBE_RAISE_MMX_RELATED_XCPT_CHECK_SSE_OR_MMXEXT() \
     do { \
         if (   ((pIemCpu)->CTX_SUFF(pCtx)->cr0 & X86_CR0_EM) \
-            || (   !IEM_IS_INTEL_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_FEATURE_EDX_SSE) \
-                && !IEM_IS_AMD_CPUID_FEATURE_PRESENT_EDX(X86_CPUID_AMD_FEATURE_EDX_AXMMX) ) ) \
+            || (   !IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fSse \
+                && !IEM_GET_GUEST_CPU_FEATURES(pIemCpu)->fAmdMmxExts) ) \
             return iemRaiseUndefinedOpcode(pIemCpu); \
         if (pIemCpu->CTX_SUFF(pCtx)->cr0 & X86_CR0_TS) \
             return iemRaiseDeviceNotAvailable(pIemCpu); \
@@ -11312,6 +11230,96 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecStringIoRead(PVMCPU pVCpu, uint8_t cbValue, IE
         }
     }
 
+    return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
+}
+
+
+
+/**
+ * Interface for HM and EM to write to a CRx register.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu       The cross context per virtual CPU structure.
+ * @param   cbInstr     The instruction length in bytes.
+ * @param   iCrReg      The control register number (destination).
+ * @param   iGReg       The general purpose register number (source).
+ *
+ * @remarks In ring-0 not all of the state needs to be synced in.
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxWrite(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iCrReg, uint8_t iGReg)
+{
+    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+    Assert(iCrReg < 16);
+    Assert(iGReg < 16);
+
+    PIEMCPU pIemCpu = &pVCpu->iem.s;
+    iemInitExec(pIemCpu, false /*fBypassHandlers*/);
+    VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_2(iemCImpl_mov_Cd_Rd, iCrReg, iGReg);
+    return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to read from a CRx register.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu       The cross context per virtual CPU structure.
+ * @param   cbInstr     The instruction length in bytes.
+ * @param   iGReg       The general purpose register number (destination).
+ * @param   iCrReg      The control register number (source).
+ *
+ * @remarks In ring-0 not all of the state needs to be synced in.
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iCrReg)
+{
+    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+    Assert(iCrReg < 16);
+    Assert(iGReg < 16);
+
+    PIEMCPU pIemCpu = &pVCpu->iem.s;
+    iemInitExec(pIemCpu, false /*fBypassHandlers*/);
+    VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_2(iemCImpl_mov_Rd_Cd, iGReg, iCrReg);
+    return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to clear the CR0[TS] bit.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu       The cross context per virtual CPU structure.
+ * @param   cbInstr     The instruction length in bytes.
+ *
+ * @remarks In ring-0 not all of the state needs to be synced in.
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr)
+{
+    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+
+    PIEMCPU pIemCpu = &pVCpu->iem.s;
+    iemInitExec(pIemCpu, false /*fBypassHandlers*/);
+    VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_0(iemCImpl_clts);
+    return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to emulate the LMSW instruction (loads CR0).
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu       The cross context per virtual CPU structure.
+ * @param   cbInstr     The instruction length in bytes.
+ * @param   uValue      The value to load into CR0.
+ *
+ * @remarks In ring-0 not all of the state needs to be synced in.
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue)
+{
+    AssertReturn(cbInstr - 3U <= 15U - 3U, VERR_IEM_INVALID_INSTR_LENGTH);
+
+    PIEMCPU pIemCpu = &pVCpu->iem.s;
+    iemInitExec(pIemCpu, false /*fBypassHandlers*/);
+    VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_1(iemCImpl_lmsw, uValue);
     return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
 }
 

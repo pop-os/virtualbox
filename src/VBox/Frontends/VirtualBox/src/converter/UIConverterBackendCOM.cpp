@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2014 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -48,6 +48,7 @@ template<> bool canConvert<KNetworkAttachmentType>() { return true; }
 template<> bool canConvert<KNetworkAdapterType>() { return true; }
 template<> bool canConvert<KNetworkAdapterPromiscModePolicy>() { return true; }
 template<> bool canConvert<KPortMode>() { return true; }
+template<> bool canConvert<KUSBControllerType>() { return true; }
 template<> bool canConvert<KUSBDeviceState>() { return true; }
 template<> bool canConvert<KUSBDeviceFilterAction>() { return true; }
 template<> bool canConvert<KAudioDriverType>() { return true; }
@@ -71,6 +72,8 @@ template<> QColor toColor(const KMachineState &state)
         case KMachineState_Paused:                 return QColor(Qt::darkGreen);
         case KMachineState_Stuck:                  return QColor(Qt::darkMagenta);
         case KMachineState_Teleporting:            return QColor(Qt::blue);
+        case KMachineState_Snapshotting:           return QColor(Qt::green);
+        case KMachineState_OnlineSnapshotting:     return QColor(Qt::green);
         case KMachineState_LiveSnapshotting:       return QColor(Qt::green);
         case KMachineState_Starting:               return QColor(Qt::green);
         case KMachineState_Stopping:               return QColor(Qt::green);
@@ -106,6 +109,8 @@ template<> QIcon toIcon(const KMachineState &state)
         case KMachineState_Paused:                 return UIIconPool::iconSet(":/state_paused_16px.png");
         case KMachineState_Stuck:                  return UIIconPool::iconSet(":/state_stuck_16px.png");
         case KMachineState_Teleporting:            return UIIconPool::iconSet(":/state_running_16px.png");
+        case KMachineState_Snapshotting:           return UIIconPool::iconSet(":/state_saving_16px.png");
+        case KMachineState_OnlineSnapshotting:     return UIIconPool::iconSet(":/state_running_16px.png");
         case KMachineState_LiveSnapshotting:       return UIIconPool::iconSet(":/state_running_16px.png");
         case KMachineState_Starting:               return UIIconPool::iconSet(":/state_running_16px.png");
         case KMachineState_Stopping:               return UIIconPool::iconSet(":/state_running_16px.png");
@@ -141,6 +146,8 @@ template<> QString toString(const KMachineState &state)
         case KMachineState_Paused:                 return QApplication::translate("VBoxGlobal", "Paused", "MachineState");
         case KMachineState_Stuck:                  return QApplication::translate("VBoxGlobal", "Guru Meditation", "MachineState");
         case KMachineState_Teleporting:            return QApplication::translate("VBoxGlobal", "Teleporting", "MachineState");
+        case KMachineState_Snapshotting:           return QApplication::translate("VBoxGlobal", "Taking Snapshot", "MachineState");
+        case KMachineState_OnlineSnapshotting:     return QApplication::translate("VBoxGlobal", "Taking Online Snapshot", "MachineState");
         case KMachineState_LiveSnapshotting:       return QApplication::translate("VBoxGlobal", "Taking Live Snapshot", "MachineState");
         case KMachineState_Starting:               return QApplication::translate("VBoxGlobal", "Starting", "MachineState");
         case KMachineState_Stopping:               return QApplication::translate("VBoxGlobal", "Stopping", "MachineState");
@@ -364,7 +371,21 @@ template<> QString toString(const KPortMode &mode)
         case KPortMode_HostPipe:     return QApplication::translate("VBoxGlobal", "Host Pipe", "PortMode");
         case KPortMode_HostDevice:   return QApplication::translate("VBoxGlobal", "Host Device", "PortMode");
         case KPortMode_RawFile:      return QApplication::translate("VBoxGlobal", "Raw File", "PortMode");
+        case KPortMode_TCP:          return QApplication::translate("VBoxGlobal", "TCP", "PortMode");
         AssertMsgFailed(("No text for %d", mode)); break;
+    }
+    return QString();
+}
+
+/* QString <= KUSBControllerType: */
+template<> QString toString(const KUSBControllerType &type)
+{
+    switch (type)
+    {
+        case KUSBControllerType_OHCI: return QApplication::translate("VBoxGlobal", "OHCI", "USBControllerType");
+        case KUSBControllerType_EHCI: return QApplication::translate("VBoxGlobal", "EHCI", "USBControllerType");
+        case KUSBControllerType_XHCI: return QApplication::translate("VBoxGlobal", "xHCI", "USBControllerType");
+        AssertMsgFailed(("No text for %d", type)); break;
     }
     return QString();
 }
@@ -543,6 +564,7 @@ template<> KPortMode fromString<KPortMode>(const QString &strMode)
     list.insert(QApplication::translate("VBoxGlobal", "Host Pipe", "PortMode"),    KPortMode_HostPipe);
     list.insert(QApplication::translate("VBoxGlobal", "Host Device", "PortMode"),  KPortMode_HostDevice);
     list.insert(QApplication::translate("VBoxGlobal", "Raw File", "PortMode"),     KPortMode_RawFile);
+    list.insert(QApplication::translate("VBoxGlobal", "TCP", "PortMode"),          KPortMode_TCP);
     if (!list.contains(strMode))
     {
         AssertMsgFailed(("No value for '%s'", strMode.toAscii().constData()));

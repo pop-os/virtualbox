@@ -1362,11 +1362,12 @@ static int crVBoxServerFBImageDataInitEx(CRFBData *pData, CRContextInfo *pCtxInf
         return VINF_SUCCESS;
     }
 
+    /* Use GL_DEPTH_STENCIL only in case if both CR_STENCIL_BIT and CR_DEPTH_BIT specified. */
     if (   (pCtxInfo->CreateInfo.requestedVisualBits & CR_STENCIL_BIT)
-        || (pCtxInfo->CreateInfo.requestedVisualBits & CR_DEPTH_BIT))
+        && (pCtxInfo->CreateInfo.requestedVisualBits & CR_DEPTH_BIT))
     {
         pEl = &pData->aElements[pData->cElements];
-        pEl->idFBO = pMural->idDepthStencilRB;
+        pEl->idFBO = pMural && pMural->fRedirected ? pMural->aidFBOs[CR_SERVER_FBO_FB_IDX(pMural)] : 0;
         pEl->enmBuffer = 0; /* we do not care */
         pEl->posX = 0;
         pEl->posY = 0;

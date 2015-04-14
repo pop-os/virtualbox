@@ -158,10 +158,15 @@ public:
     /** Defines whether frame-buffer should use unscaled HiDPI output. */
     void setUseUnscaledHiDPIOutput(bool fUseUnscaledHiDPIOutput) { m_fUseUnscaledHiDPIOutput = fUseUnscaledHiDPIOutput; }
 
-    /** Return HiDPI frame-buffer optimization type. */
+    /** Returns frame-buffer scaling optimization type. */
+    ScalingOptimizationType scalingOptimizationType() const { return m_enmScalingOptimizationType; }
+    /** Defines frame-buffer scaling optimization type: */
+    void setScalingOptimizationType(ScalingOptimizationType type) { m_enmScalingOptimizationType = type; }
+
+    /** Returns HiDPI frame-buffer optimization type. */
     HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
-    /** Define HiDPI frame-buffer optimization type: */
-    void setHiDPIOptimizationType(HiDPIOptimizationType optimizationType) { m_hiDPIOptimizationType = optimizationType; }
+    /** Defines HiDPI frame-buffer optimization type: */
+    void setHiDPIOptimizationType(HiDPIOptimizationType type) { m_hiDPIOptimizationType = type; }
 
     DECLARE_NOT_AGGREGATABLE(UIFrameBufferPrivate)
 
@@ -284,6 +289,9 @@ protected:
     /** Paint routine for seamless mode. */
     void paintSeamless(QPaintEvent *pEvent);
 
+    /** Returns the transformation mode corresponding to the passed ScalingOptimizationType. */
+    static Qt::TransformationMode transformationMode(ScalingOptimizationType type);
+
     /** Erases corresponding @a rect with @a painter. */
     static void eraseImageRect(QPainter &painter, const QRect &rect,
                                bool fUseUnscaledHiDPIOutput,
@@ -292,6 +300,7 @@ protected:
     /** Draws corresponding @a rect of passed @a image with @a painter. */
     static void drawImageRect(QPainter &painter, const QImage &image, const QRect &rect,
                               int iContentsShiftX, int iContentsShiftY,
+                              ScalingOptimizationType enmScalingOptimizationType,
                               bool fUseUnscaledHiDPIOutput,
                               HiDPIOptimizationType hiDPIOptimizationType,
                               double dBackingScaleFactor);
@@ -341,6 +350,8 @@ protected:
      * @{ */
     /** Holds the scale-factor used by the scaled-size. */
     double m_dScaleFactor;
+    /** Holds the scaling optimization type used by the scaling mechanism. */
+    ScalingOptimizationType m_enmScalingOptimizationType;
     /** Holds the coordinate-system for the scale-factor above. */
     QTransform m_transform;
     /** Holds the frame-buffer's scaled-size. */
@@ -380,6 +391,8 @@ private:
 #ifdef Q_OS_WIN
      CComPtr <IUnknown> m_pUnkMarshaler;
 #endif /* Q_OS_WIN */
+     /** Identifier returned by AttachFramebuffer. Used in DetachFramebuffer. */
+     QString m_strFramebufferId;
 };
 
 
@@ -517,10 +530,11 @@ UIFrameBufferPrivate::UIFrameBufferPrivate()
     , m_fPendingSourceBitmap(false)
     , m_pMachineView(NULL)
     , m_iWinId(0)
-    , m_fUpdatesAllowed(true)
+    , m_fUpdatesAllowed(false)
     , m_fUnused(false)
     , m_fAutoEnabled(false)
     , m_dScaleFactor(1.0)
+    , m_enmScalingOptimizationType(ScalingOptimizationType_None)
     , m_dBackingScaleFactor(1.0)
     , m_fUseUnscaledHiDPIOutput(false)
     , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
@@ -598,14 +612,17 @@ void UIFrameBufferPrivate::setView(UIMachineView *pMachineView)
 
 void UIFrameBufferPrivate::attach()
 {
-    display().AttachFramebuffer(m_uScreenId, CFramebuffer(this));
+    m_strFramebufferId = display().AttachFramebuffer(m_uScreenId, CFramebuffer(this));
 }
 
 void UIFrameBufferPrivate::detach()
 {
     CFramebuffer frameBuffer = display().QueryFramebuffer(m_uScreenId);
     if (!frameBuffer.isNull())
-        display().DetachFramebuffer(m_uScreenId);
+    {
+        display().DetachFramebuffer(m_uScreenId, m_strFramebufferId);
+        m_strFramebufferId.clear();
+    }
 }
 
 void UIFrameBufferPrivate::setMarkAsUnused(bool fUnused)
@@ -774,10 +791,11 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdate(ULONG uX, ULONG uY, ULONG uWidth
     /* Make sure frame-buffer is used: */
     if (m_fUnused)
     {
+#ifndef DEBUG_andy
         LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Ignored!\n",
                  (unsigned long)uX, (unsigned long)uY,
                  (unsigned long)uWidth, (unsigned long)uHeight));
-
+#endif
         /* Unlock access to frame-buffer: */
         unlock();
 
@@ -785,11 +803,13 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdate(ULONG uX, ULONG uY, ULONG uWidth
         return E_FAIL;
     }
 
+#ifndef DEBUG_andy
     /* Widget update is NOT thread-safe and *seems* never will be,
      * We have to notify machine-view with the async-signal to perform update operation. */
     LogRel2(("GUI: UIFrameBufferPrivate::NotifyUpdate: Origin=%lux%lu, Size=%lux%lu, Sending to async-handler\n",
              (unsigned long)uX, (unsigned long)uY,
              (unsigned long)uWidth, (unsigned long)uHeight));
+#endif
     emit sigNotifyUpdate(uX, uY, uWidth, uHeight);
 
     /* Unlock access to frame-buffer: */
@@ -822,9 +842,10 @@ STDMETHODIMP UIFrameBufferPrivate::NotifyUpdateImage(ULONG uX, ULONG uY,
         /* Ignore NotifyUpdate: */
         return E_FAIL;
     }
-
-    /* Directly update m_image: */
-    if (m_fUpdatesAllowed)
+    /* Directly update m_image if update fits: */
+    if (   m_fUpdatesAllowed
+        && uX + uWidth <= (ULONG)m_image.width()
+        && uY + uHeight <= (ULONG)m_image.height())
     {
         /* Copy to m_image: */
         uchar *pu8Dst = m_image.bits() + uY * m_image.bytesPerLine() + uX * 4;
@@ -1081,9 +1102,11 @@ void UIFrameBufferPrivate::handleNotifyChange(int iWidth, int iHeight)
 
 void UIFrameBufferPrivate::handlePaintEvent(QPaintEvent *pEvent)
 {
+#ifndef DEBUG_andy
     LogRel2(("GUI: UIFrameBufferPrivate::handlePaintEvent: Origin=%lux%lu, Size=%dx%d\n",
              pEvent->rect().x(), pEvent->rect().y(),
              pEvent->rect().width(), pEvent->rect().height()));
+#endif
 
     /* On mode switch the enqueued paint-event may still come
      * while the machine-view is already null (before the new machine-view set),
@@ -1316,7 +1339,8 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
          * detached during scale process, otherwise we can get a frozen frame-buffer. */
         scaledImage = m_image.copy();
         /* And scaling the image to predefined scaled-factor: */
-        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                         transformationMode(scalingOptimizationType()));
     }
     /* Finally we are choosing image to paint from: */
     const QImage &sourceImage = scaledImage.isNull() ? m_image : scaledImage;
@@ -1342,7 +1366,8 @@ void UIFrameBufferPrivate::paintDefault(QPaintEvent *pEvent)
     /* Draw image rectangle: */
     drawImageRect(painter, sourceImage, paintRect,
                   m_pMachineView->contentsX(), m_pMachineView->contentsY(),
-                  useUnscaledHiDPIOutput(), hiDPIOptimizationType(), backingScaleFactor());
+                  scalingOptimizationType(), useUnscaledHiDPIOutput(),
+                  hiDPIOptimizationType(), backingScaleFactor());
 }
 
 void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
@@ -1356,7 +1381,8 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
          * detached during scale process, otherwise we can get a frozen frame-buffer. */
         scaledImage = m_image.copy();
         /* And scaling the image to predefined scaled-factor: */
-        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+        scaledImage = scaledImage.scaled(m_scaledSize, Qt::IgnoreAspectRatio,
+                                         transformationMode(scalingOptimizationType()));
     }
     /* Finally we are choosing image to paint from: */
     const QImage &sourceImage = scaledImage.isNull() ? m_image : scaledImage;
@@ -1408,7 +1434,19 @@ void UIFrameBufferPrivate::paintSeamless(QPaintEvent *pEvent)
     /* Paint rectangle: */
     drawImageRect(painter, sourceImage, paintRect,
                   m_pMachineView->contentsX(), m_pMachineView->contentsY(),
-                  useUnscaledHiDPIOutput(), hiDPIOptimizationType(), backingScaleFactor());
+                  scalingOptimizationType(), useUnscaledHiDPIOutput(),
+                  hiDPIOptimizationType(), backingScaleFactor());
+}
+
+/* static */
+Qt::TransformationMode UIFrameBufferPrivate::transformationMode(ScalingOptimizationType type)
+{
+    switch (type)
+    {
+        case ScalingOptimizationType_Performance: return Qt::FastTransformation;
+        default: break;
+    }
+    return Qt::SmoothTransformation;
 }
 
 /* static */
@@ -1460,6 +1498,7 @@ void UIFrameBufferPrivate::eraseImageRect(QPainter &painter, const QRect &rect,
 /* static */
 void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image, const QRect &rect,
                                          int iContentsShiftX, int iContentsShiftY,
+                                         ScalingOptimizationType enmScalingOptimizationType,
                                          bool fUseUnscaledHiDPIOutput,
                                          HiDPIOptimizationType hiDPIOptimizationType,
                                          double dBackingScaleFactor)
@@ -1489,7 +1528,7 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
         {
             /* Fast scale sub-pixmap (2nd copy involved): */
             subPixmap = subPixmap.scaled(subPixmap.size() * dBackingScaleFactor,
-                                         Qt::IgnoreAspectRatio, Qt::FastTransformation);
+                                         Qt::IgnoreAspectRatio, transformationMode(enmScalingOptimizationType));
         }
 
 #ifdef Q_WS_MAC
@@ -1659,14 +1698,24 @@ void UIFrameBuffer::setUseUnscaledHiDPIOutput(bool fUseUnscaledHiDPIOutput)
     m_pFrameBuffer->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
 }
 
+ScalingOptimizationType UIFrameBuffer::scalingOptimizationType() const
+{
+    return m_pFrameBuffer->scalingOptimizationType();
+}
+
+void UIFrameBuffer::setScalingOptimizationType(ScalingOptimizationType type)
+{
+    m_pFrameBuffer->setScalingOptimizationType(type);
+}
+
 HiDPIOptimizationType UIFrameBuffer::hiDPIOptimizationType() const
 {
     return m_pFrameBuffer->hiDPIOptimizationType();
 }
 
-void UIFrameBuffer::setHiDPIOptimizationType(HiDPIOptimizationType optimizationType)
+void UIFrameBuffer::setHiDPIOptimizationType(HiDPIOptimizationType type)
 {
-    m_pFrameBuffer->setHiDPIOptimizationType(optimizationType);
+    m_pFrameBuffer->setHiDPIOptimizationType(type);
 }
 
 void UIFrameBuffer::handleNotifyChange(int iWidth, int iHeight)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,7 @@
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/hm_vmx.h>
 #include <VBox/vmm/hm_svm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>
@@ -1210,9 +1211,7 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
     pVM->hm.s.cpuid.u32AMDFeatureECX    = g_HvmR0.cpuid.u32AMDFeatureECX;
     pVM->hm.s.cpuid.u32AMDFeatureEDX    = g_HvmR0.cpuid.u32AMDFeatureEDX;
     pVM->hm.s.lLastError                = g_HvmR0.lLastError;
-
     pVM->hm.s.uMaxAsid                  = g_HvmR0.uMaxAsid;
-
 
     if (!pVM->hm.s.cMaxResumeLoops) /* allow ring-3 overrides */
     {
@@ -1227,8 +1226,9 @@ VMMR0_INT_DECL(int) HMR0InitVM(PVM pVM)
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
-        pVCpu->hm.s.idEnteredCpu = NIL_RTCPUID;
-        pVCpu->hm.s.idLastCpu    = NIL_RTCPUID;
+        pVCpu->hm.s.idEnteredCpu   = NIL_RTCPUID;
+        pVCpu->hm.s.idLastCpu      = NIL_RTCPUID;
+        pVCpu->hm.s.fGIMTrapXcptUD = GIMShouldTrapXcptUD(pVCpu);
 
         /* We'll aways increment this the first time (host uses ASID 0). */
         AssertReturn(!pVCpu->hm.s.uCurrentAsid, VERR_HM_IPE_3);

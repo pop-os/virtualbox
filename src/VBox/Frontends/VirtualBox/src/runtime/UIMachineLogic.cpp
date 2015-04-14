@@ -90,6 +90,7 @@
 
 /* Other VBox includes: */
 # include <iprt/path.h>
+# include <iprt/thread.h>
 # ifdef VBOX_WITH_DEBUGGER_GUI
 #  include <VBox/dbggui.h>
 #  include <iprt/ldr.h>
@@ -558,6 +559,25 @@ void UIMachineLogic::sltMachineStateChanged()
             {
                 /* VM has been powered off, saved, teleported or aborted.
                  * We must close Runtime UI: */
+                if (vboxGlobal().isSeparateProcess())
+                {
+                    /* Hack: The VM process is terminating, so wait a bit to make sure that
+                     * the session is unlocked and the GUI process can save extradata
+                     * in UIMachine::cleanupMachineLogic.
+                     */
+                    /** @todo Probably should wait for the session state change event. */
+                    KSessionState sessionState = uisession()->session().GetState();
+                    int c = 0;
+                    while (   sessionState == KSessionState_Locked
+                           || sessionState == KSessionState_Unlocking)
+                    {
+                         if (++c > 50) break;
+
+                         RTThreadSleep(100);
+                         sessionState = uisession()->session().GetState();
+                    }
+                }
+
                 uisession()->closeRuntimeUI();
                 return;
             }
@@ -992,6 +1012,12 @@ void UIMachineLogic::prepareActionGroups()
 
 void UIMachineLogic::prepareActionConnections()
 {
+    /* 'Application' actions connection: */
+    connect(actionPool()->action(UIActionIndex_M_Application_S_Preferences), SIGNAL(triggered()),
+            this, SLOT(sltShowGlobalPreferences()), Qt::UniqueConnection);
+    connect(actionPool()->action(UIActionIndex_M_Application_S_Close), SIGNAL(triggered()),
+            this, SLOT(sltClose()), Qt::QueuedConnection);
+
     /* 'Machine' actions connections: */
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Settings), SIGNAL(triggered()),
             this, SLOT(sltOpenVMSettingsDialog()));
@@ -1009,13 +1035,6 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltShutdown()));
     connect(actionPool()->action(UIActionIndexRT_M_Machine_S_PowerOff), SIGNAL(triggered()),
             this, SLOT(sltPowerOff()), Qt::QueuedConnection);
-#ifdef RT_OS_DARWIN
-    connect(actionPool()->action(UIActionIndex_M_Application_S_Close), SIGNAL(triggered()),
-            this, SLOT(sltClose()), Qt::QueuedConnection);
-#else /* !RT_OS_DARWIN */
-    connect(actionPool()->action(UIActionIndexRT_M_Machine_S_Close), SIGNAL(triggered()),
-            this, SLOT(sltClose()), Qt::QueuedConnection);
-#endif /* !RT_OS_DARWIN */
 
     /* 'View' actions connections: */
     connect(actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize), SIGNAL(toggled(bool)),
@@ -1077,15 +1096,6 @@ void UIMachineLogic::prepareActionConnections()
     connect(actionPool()->action(UIActionIndex_M_Window_S_Minimize), SIGNAL(triggered()),
             this, SLOT(sltMinimizeActiveMachineWindow()));
 #endif /* Q_WS_MAC */
-
-    /* 'Help' actions connections: */
-#ifdef RT_OS_DARWIN
-    connect(actionPool()->action(UIActionIndex_M_Application_S_Preferences), SIGNAL(triggered()),
-            this, SLOT(sltShowGlobalPreferences()), Qt::UniqueConnection);
-#else /* !RT_OS_DARWIN */
-    connect(actionPool()->action(UIActionIndex_Simple_Preferences), SIGNAL(triggered()),
-            this, SLOT(sltShowGlobalPreferences()), Qt::UniqueConnection);
-#endif /* !RT_OS_DARWIN */
 }
 
 void UIMachineLogic::prepareHandlers()
@@ -1380,16 +1390,6 @@ void UIMachineLogic::sltTakeSnapshot()
     if (!isMachineWindowsCreated())
         return;
 
-    /* Remember the paused state: */
-    bool fWasPaused = uisession()->isPaused();
-    if (!fWasPaused)
-    {
-        /* Suspend the VM and ignore the close event if failed to do so.
-         * pause() will show the error message to the user. */
-        if (!uisession()->pause())
-            return;
-    }
-
     /* Create take-snapshot dialog: */
     QWidget *pDlgParent = windowManager().realParentWindow(activeMachineWindow());
     QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(pDlgParent, machine());
@@ -1422,8 +1422,8 @@ void UIMachineLogic::sltTakeSnapshot()
     if (fDialogAccepted)
     {
         /* Prepare the take-snapshot progress: */
-        CProgress progress = console().TakeSnapshot(strSnapshotName, strSnapshotDescription);
-        if (console().isOk())
+        CProgress progress = machine().TakeSnapshot(strSnapshotName, strSnapshotDescription, true);
+        if (machine().isOk())
         {
             /* Show the take-snapshot progress: */
             msgCenter().showModalProgressDialog(progress, machineName(), ":/progress_snapshot_create_90px.png");
@@ -1431,16 +1431,7 @@ void UIMachineLogic::sltTakeSnapshot()
                 msgCenter().cannotTakeSnapshot(progress, machineName());
         }
         else
-            msgCenter().cannotTakeSnapshot(console(), machineName());
-    }
-
-    /* Restore the running state if needed: */
-    if (!fWasPaused)
-    {
-        /* Make sure machine-state-change callback is processed: */
-        QApplication::sendPostedEvents(uisession(), UIConsoleEventType_StateChange);
-        /* Unpause VM: */
-        uisession()->unpause();
+            msgCenter().cannotTakeSnapshot(machine(), machineName());
     }
 }
 
@@ -2386,19 +2377,11 @@ void UIMachineLogic::showGlobalPreferences(const QString &strCategory /* = QStri
     if (!isMachineWindowsCreated())
         return;
 
-#ifdef RT_OS_DARWIN
     /* Check that we do NOT handling that already: */
     if (actionPool()->action(UIActionIndex_M_Application_S_Preferences)->data().toBool())
         return;
     /* Remember that we handling that already: */
     actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(true);
-#else /* !RT_OS_DARWIN */
-    /* Check that we do NOT handling that already: */
-    if (actionPool()->action(UIActionIndex_Simple_Preferences)->data().toBool())
-        return;
-    /* Remember that we handling that already: */
-    actionPool()->action(UIActionIndex_Simple_Preferences)->setData(true);
-#endif /* !RT_OS_DARWIN */
 
     /* Create and execute global settings window: */
     QPointer<UISettingsDialogGlobal> pDialog = new UISettingsDialogGlobal(activeMachineWindow(),
@@ -2407,13 +2390,8 @@ void UIMachineLogic::showGlobalPreferences(const QString &strCategory /* = QStri
     if (pDialog)
         delete pDialog;
 
-#ifdef RT_OS_DARWIN
     /* Remember that we do NOT handling that already: */
     actionPool()->action(UIActionIndex_M_Application_S_Preferences)->setData(false);
-#else /* !RT_OS_DARWIN */
-    /* Remember that we do NOT handling that already: */
-    actionPool()->action(UIActionIndex_Simple_Preferences)->setData(false);
-#endif /* !RT_OS_DARWIN */
 }
 
 void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
@@ -2439,28 +2417,47 @@ void UIMachineLogic::askUserForTheDiskEncryptionPasswords()
     EncryptionPasswordMap encryptionPasswords;
     if (!encryptedMediums.isEmpty())
     {
-        /* Create corresponding dialog: */
+        /* Create the dialog for acquiring encryption passwords: */
         QWidget *pDlgParent = windowManager().realParentWindow(activeMachineWindow());
         QPointer<UIAddDiskEncryptionPasswordDialog> pDlg =
              new UIAddDiskEncryptionPasswordDialog(pDlgParent,
                                                    machineName(),
                                                    encryptedMediums);
-        /* Execute it and acquire the result: */
+        /* Execute the dialog: */
         if (pDlg->exec() == QDialog::Accepted)
-            encryptionPasswords = pDlg->encryptionPasswords();
-        /* Delete dialog if still valid: */
-        if (pDlg)
-            delete pDlg;
-    }
-
-    /* Add the disk encryption passwords if necessary: */
-    if (!encryptionPasswords.isEmpty())
-    {
-        foreach (const QString &strKey, encryptionPasswords.keys())
         {
-            console().AddDiskEncryptionPassword(strKey, encryptionPasswords.value(strKey), false);
-            if (!console().isOk())
-                msgCenter().cannotAddDiskEncryptionPassword(console());
+            /* Acquire the passwords provided: */
+            encryptionPasswords = pDlg->encryptionPasswords();
+
+            /* Delete the dialog: */
+            delete pDlg;
+
+            /* Make sure the passwords were really provided: */
+            AssertReturnVoid(!encryptionPasswords.isEmpty());
+
+            /* Apply the disk encryption passwords: */
+            foreach (const QString &strKey, encryptionPasswords.keys())
+            {
+                console().AddDiskEncryptionPassword(strKey, encryptionPasswords.value(strKey), false);
+                if (!console().isOk())
+                    msgCenter().cannotAddDiskEncryptionPassword(console());
+            }
+        }
+        else
+        {
+            /* Any modal dialog can be destroyed in own event-loop
+             * as a part of VM power-off procedure which closes GUI.
+             * So we have to check if the dialog still valid.. */
+
+            /* If dialog still valid: */
+            if (pDlg)
+            {
+                /* Delete the dialog: */
+                delete pDlg;
+
+                /* Propose the user to close VM: */
+                QMetaObject::invokeMethod(this, "sltClose", Qt::QueuedConnection);
+            }
         }
     }
 }

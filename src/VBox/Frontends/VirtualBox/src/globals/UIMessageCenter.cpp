@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2014 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -336,7 +336,7 @@ bool UIMessageCenter::showModalProgressDialog(CProgress &progress,
                                               int cMinDuration /* = 2000 */)
 {
     /* Prepare pixmap: */
-    QPixmap *pPixmap = 0;
+    QPixmap *pPixmap = NULL;
     if (!strImage.isEmpty())
         pPixmap = new QPixmap(strImage);
 
@@ -349,17 +349,22 @@ bool UIMessageCenter::showModalProgressDialog(CProgress &progress,
     pProgressDlg->run(350);
 
     /* Make sure progress-dialog still valid: */
-    if (!pProgressDlg)
-        return false;
+    bool fRc;
+    if (pProgressDlg)
+    {
+        /* Delete progress-dialog: */
+        delete pProgressDlg;
 
-    /* Delete progress-dialog: */
-    delete pProgressDlg;
+        fRc = true;
+    }
+    else
+        fRc = false;
 
     /* Cleanup pixmap: */
     if (pPixmap)
         delete pPixmap;
 
-    return true;
+    return fRc;
 }
 
 #ifdef RT_OS_LINUX
@@ -760,20 +765,20 @@ void UIMessageCenter::cannotResumeMachine(const CConsole &console) const
           formatErrorInfo(console));
 }
 
-void UIMessageCenter::cannotDiscardSavedState(const CConsole &console) const
+void UIMessageCenter::cannotDiscardSavedState(const CMachine &machine) const
 {
     error(0, MessageType_Error,
           tr("Failed to discard the saved state of the virtual machine <b>%1</b>.")
-             .arg(CConsole(console).GetMachine().GetName()),
-          formatErrorInfo(console));
+             .arg(machine.GetName()),
+          formatErrorInfo(machine));
 }
 
-void UIMessageCenter::cannotSaveMachineState(const CConsole &console)
+void UIMessageCenter::cannotSaveMachineState(const CMachine &machine)
 {
     error(0, MessageType_Error,
           tr("Failed to save the state of the virtual machine <b>%1</b>.")
-             .arg(CConsole(console).GetMachine().GetName()),
-          formatErrorInfo(console));
+             .arg(machine.GetName()),
+          formatErrorInfo(machine));
 }
 
 void UIMessageCenter::cannotSaveMachineState(const CProgress &progress, const QString &strMachineName)
@@ -860,12 +865,12 @@ bool UIMessageCenter::warnAboutSnapshotRemovalFreeSpace(const QString &strSnapsh
                           tr("Delete"));
 }
 
-void UIMessageCenter::cannotTakeSnapshot(const CConsole &console, const QString &strMachineName, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotTakeSnapshot(const CMachine &machine, const QString &strMachineName, QWidget *pParent /* = 0*/) const
 {
     error(pParent, MessageType_Error,
           tr("Failed to create a snapshot of the virtual machine <b>%1</b>.")
              .arg(strMachineName),
-          formatErrorInfo(console));
+          formatErrorInfo(machine));
 }
 
 void UIMessageCenter::cannotTakeSnapshot(const CProgress &progress, const QString &strMachineName, QWidget *pParent /* = 0*/) const
@@ -876,12 +881,12 @@ void UIMessageCenter::cannotTakeSnapshot(const CProgress &progress, const QStrin
           formatErrorInfo(progress));
 }
 
-bool UIMessageCenter::cannotRestoreSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const
+bool UIMessageCenter::cannotRestoreSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const
 {
     error(0, MessageType_Error,
           tr("Failed to restore the snapshot <b>%1</b> of the virtual machine <b>%2</b>.")
              .arg(strSnapshotName, strMachineName),
-          formatErrorInfo(console));
+          formatErrorInfo(machine));
     return false;
 }
 
@@ -894,12 +899,12 @@ bool UIMessageCenter::cannotRestoreSnapshot(const CProgress &progress, const QSt
     return false;
 }
 
-void UIMessageCenter::cannotRemoveSnapshot(const CConsole &console, const QString &strSnapshotName, const QString &strMachineName) const
+void UIMessageCenter::cannotRemoveSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const
 {
     error(0, MessageType_Error,
           tr("Failed to delete the snapshot <b>%1</b> of the virtual machine <b>%2</b>.")
              .arg(strSnapshotName, strMachineName),
-          formatErrorInfo(console));
+          formatErrorInfo(machine));
 }
 
 void UIMessageCenter::cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const

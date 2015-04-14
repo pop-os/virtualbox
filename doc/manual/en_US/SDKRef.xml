@@ -141,7 +141,7 @@
           <listitem>
             <para>Internally, for portability and easier maintenance, the Main
             API is implemented using the <emphasis role="bold">Component
-            Object Model (COM),</emphasis> an interprocess mechanism for
+            Object Model (COM), </emphasis> an interprocess mechanism for
             software components originally introduced by Microsoft for
             Microsoft Windows. On a Windows host, VirtualBox will use
             Microsoft COM; on other hosts where COM is not present, it ships
@@ -1391,14 +1391,14 @@ string result = service.SayHello("Peter");  // invoke remote procedure</screen>a
 
             <orderedlist>
               <listitem>
-                <para>For <emphasis role="bold">C++,</emphasis> among many
+                <para>For <emphasis role="bold">C++, </emphasis> among many
                 others, the gSOAP toolkit is a good option. Parts of gSOAP are
                 also used in VirtualBox to implement the VirtualBox web
                 service.</para>
               </listitem>
 
               <listitem>
-                <para>For <emphasis role="bold">Java,</emphasis> there are
+                <para>For <emphasis role="bold">Java, </emphasis> there are
                 several implementations already described in this document
                 (see <xref linkend="glue-jax-ws" /> and <xref
                 linkend="webservice-java-sample" />).</para>
@@ -3497,7 +3497,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
     Linux guests by dragging files, directories or text from the host into the
     guest's screen. This is called <emphasis>drag'n drop (DnD)</emphasis>.</para>
 
-    <para>In version 4.4 support for Windows guests has been added, as well as
+    <para>In version 5.0 support for Windows guests has been added, as well as
     the ability to transfer data the other way around, that is, from the guest
     to the host.</para>
 
@@ -3852,9 +3852,85 @@ AuthResult AUTHCALL AuthEntry(
     existing client code.</para>
 
     <sect1>
-      <title>Incompatible API changes with version 4.4</title>
+      <title>Incompatible API changes with version 5.0</title>
 
       <itemizedlist>
+        <listitem>
+          <para>The methods for saving state, adopting a saved state file,
+          discarding a saved state, taking a snapshot, restoring
+          a snapshot and deleting a snapshot have been moved from
+          <computeroutput>IConsole</computeroutput> to
+          <computeroutput>IMachine</computeroutput>. This straightens out the
+          logical placement of methods and was necessary to resolve a
+          long-standing issue, preventing 32 bit API clients from invoking
+          those operations in the case where no VM is running.
+          <itemizedlist>
+            <listitem><xref linkend="IMachine__saveState"
+                xreflabel="IMachine::saveState()" /> replaces
+              <computeroutput>IConsole::saveState()</computeroutput>
+            </listitem>
+            <listitem>
+              <xref linkend="IMachine__adoptSavedState"
+                xreflabel="IMachine::adoptSavedState()" /> replaces
+              <computeroutput>IConsole::adoptSavedState()</computeroutput>
+            </listitem>
+            <listitem>
+              <xref linkend="IMachine__discardSavedState"
+                xreflabel="IMachine::discardSavedState()" /> replaces
+              <computeroutput>IConsole::discardSavedState()</computeroutput>
+            </listitem>
+            <listitem>
+              <xref linkend="IMachine__takeSnapshot"
+                xreflabel="IMachine::takeSnapshot()" /> replaces
+              <computeroutput>IConsole::takeSnapshot()</computeroutput>
+            </listitem>
+            <listitem>
+              <xref linkend="IMachine__deleteSnapshot"
+                xreflabel="IMachine::deleteSnapshot()" /> replaces
+              <computeroutput>IConsole::deleteSnapshot()</computeroutput>
+            </listitem>
+            <listitem>
+              <xref linkend="IMachine__deleteSnapshotAndAllChildren"
+                xreflabel="IMachine::deleteSnapshotAndAllChildren()" /> replaces
+              <computeroutput>IConsole::deleteSnapshotAndAllChildren()</computeroutput>
+            </listitem>
+            <listitem>
+               <xref linkend="IMachine__deleteSnapshotRange"
+                xreflabel="IMachine::deleteSnapshotRange()" /> replaces
+               <computeroutput>IConsole::deleteSnapshotRange()</computeroutput>
+             </listitem>
+             <listitem>
+               <xref linkend="IMachine__restoreSnapshot"
+                xreflabel="IMachine::restoreSnapshot()" /> replaces
+               <computeroutput>IConsole::restoreSnapshot()</computeroutput>
+             </listitem>
+           </itemizedlist>
+          Small adjustments to the parameter lists have been made to reduce
+          the number of API calls when taking online snapshots etc.</para>
+        </listitem>
+
+        <listitem>
+          <para>Two new machine states have been introduced to allow proper
+          distinction between saving state and taking a snapshot.
+          <xref linkend="MachineState__Saving" xreflabel="MachineState::Saving" />
+          now is used exclusively while the VM's state is being saved, without
+          any overlaps with snapshot functionality. The new state
+          <xref linkend="MachineState__Snapshotting" xreflabel="MachineState::Snapshotting" />
+          is used when an offline snapshot is taken and likewise the new state
+          <xref linkend="MachineState__OnlineSnapshotting" xreflabel="MachineState::OnlineSnapshotting" />
+          is used when an online snapshot is taken.</para>
+        </listitem>
+
+        <listitem>
+          <para>A new event has been introduced, which signals when a snapshot has been
+          restored:
+          <xref linkend="ISnapshotRestoredEvent" xreflabel="ISnapshotRestoredEvent"/>.
+          Previously the event
+          <xref linkend="ISnapshotDeletedEvent" xreflabel="ISnapshotDeletedEvent"/> was
+          signalled, which isn't logical (but could be distinguished from actual deletion
+          by the fact that the snapshot was still there).</para>
+        </listitem>
+
         <listitem>
           <para>The method <xref linkend="IVirtualBox__createMedium"
           xreflabel="IVirtualBox::createMedium()" /> replaces
@@ -4702,9 +4778,7 @@ AuthResult AUTHCALL AuthEntry(
 
               <listitem>
                 <para><computeroutput>IConsole::forgetSavedState</computeroutput>
-                has been renamed to <xref
-                linkend="IConsole__discardSavedState"
-                xreflabel="IConsole::discardSavedState()" />.</para>
+                has been renamed to <computeroutput>IConsole::discardSavedState()</computeroutput>.</para>
               </listitem>
             </itemizedlist></para>
         </listitem>
@@ -4965,12 +5039,12 @@ AuthResult AUTHCALL AuthEntry(
         </listitem>
 
         <listitem>
-          <para>Deleting snapshots via <xref
-          linkend="IConsole__deleteSnapshot"
-          xreflabel="IConsole::deleteSnapshot()" /> is now possible while the
-          associated VM is running in almost all cases. The API is unchanged,
-          but client code that verifies machine states to determine whether
-          snapshots can be deleted may need to be adjusted.</para>
+          <para>Deleting snapshots via
+          <computeroutput>IConsole::deleteSnapshot()</computeroutput> is now
+          possible while the associated VM is running in almost all cases.
+          The API is unchanged, but client code that verifies machine states
+          to determine whether snapshots can be deleted may need to be
+          adjusted.</para>
         </listitem>
 
         <listitem>
@@ -5080,18 +5154,15 @@ AuthResult AUTHCALL AuthEntry(
         <listitem>
           <para>There were substantial changes related to snapshots, triggered
           by the "branched snapshots" functionality introduced with version
-          3.1. IConsole::discardSnapshot was renamed to <xref
-          linkend="IConsole__deleteSnapshot"
-          xreflabel="IConsole::deleteSnapshot()" />.
+          3.1. IConsole::discardSnapshot was renamed to
+          <computeroutput>IConsole::deleteSnapshot()</computeroutput>.
           IConsole::discardCurrentState and
           IConsole::discardCurrentSnapshotAndState were removed; corresponding
-          new functionality is in <xref linkend="IConsole__restoreSnapshot"
-          xreflabel="IConsole::restoreSnapshot()" />. Also, when <xref
-          linkend="IConsole__takeSnapshot"
-          xreflabel="IConsole::takeSnapshot()" /> is called on a running
-          virtual machine, a live snapshot will be created. The old behavior
-          was to temporarily pause the virtual machine while creating an
-          online snapshot.</para>
+          new functionality is in <computeroutput>IConsole::restoreSnapshot()</computeroutput>.
+          Also, when <computeroutput>IConsole::takeSnapshot()</computeroutput>
+          is called on a running virtual machine, a live snapshot will be
+          created. The old behavior was to temporarily pause the virtual
+          machine while creating an online snapshot.</para>
         </listitem>
 
         <listitem>

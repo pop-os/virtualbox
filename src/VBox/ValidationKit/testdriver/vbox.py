@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 98764 $"
+__version__ = "$Revision: 99374 $"
 
 
 # Standard Python imports.
@@ -1245,8 +1245,8 @@ class TestDriver(base.TestDriver):                                              
             except:
                 reporter.logXcpt('Failed to get VirtualBox version, assuming 4.0.0');
                 sVer = "4.0.0";
-            if sVer.startswith("4.4") or (sVer.startswith("4.3.5") and len(sVer) == 6):
-                self.fpApiVer = 4.4;
+            if sVer.startswith("5.0") or (sVer.startswith("4.3.5") and len(sVer) == 6):
+                self.fpApiVer = 5.0;
             elif sVer.startswith("4.3") or (sVer.startswith("4.2.5") and len(sVer) == 6):
                 self.fpApiVer = 4.3;
             elif sVer.startswith("4.2."):
