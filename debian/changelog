@@ -13,6 +13,18 @@ virtualbox (5.0.0~beta2-dfsg-1) UNRELEASED; urgency=medium
 
  -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 20 Mar 2015 12:02:04 +0100
 
+virtualbox (4.3.26-dfsg-2) experimental; urgency=medium
+
+  [ Gianfranco Costamagna ]
+  * remove obsolete lintian overrides.
+  * d/p/37-diff_smap_4.patch, cherry-pick upstream patch to fix a kernel
+    paging issue (LP: #1437845).
+
+  [ Ritesh Raj Sarraf ]
+  * Remove Michael Meskes from uploaders.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Fri, 20 Mar 2015 12:02:04 +0100
+
 virtualbox (4.3.26-dfsg-1) experimental; urgency=medium
 
   * Imported upstream release.
