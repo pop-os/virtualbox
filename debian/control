@@ -168,6 +168,7 @@ Architecture: all
 Pre-Depends: dpkg (>= 1.15.6~)
 Depends: virtualbox-guest-utils (>= ${source:Version}), ${misc:Depends}
 XB-Modaliases: ${modaliases}
+Provides: virtualbox-guest-modules
 Description: x86 virtualization solution - guest addition module source for dkms
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -205,6 +206,7 @@ Depends: virtualbox-guest-utils (= ${binary:Version}),
          ${shlibs:Depends},
          ${xserver:Depends}
 Provides: xorg-driver-video
+XB-Modaliases: ${modaliases}
 Description: x86 virtualization solution - X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
  of x86 operating systems such as Windows, DOS, BSD or Linux to run on a
@@ -218,7 +220,7 @@ Package: virtualbox-guest-utils
 Architecture: amd64 i386
 Pre-Depends: dpkg (>= 1.15.6~)
 Depends: adduser, pciutils, ${misc:Depends}, ${shlibs:Depends}
-Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}),
+Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules,
             virtualbox-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
