@@ -101,6 +101,7 @@ override_dh_auto_install:
 
 ifeq ($(DIST_NAME),Ubuntu)
 	echo "modaliases=vboxguest(pci:v000080EEd0000CAFEsv00000000sd00000000bc*sc*i*)" >> debian/$(gdkms).substvars
+	echo "modaliases=vboxx11(pci:v000080EEd0000BEEFsv00000000sd00000000bc*sc*i*)" >> debian/$(uxname).substvars
 endif
 
 override_dh_install:
