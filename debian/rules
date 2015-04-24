@@ -51,9 +51,7 @@ endif
 	    --disable-kmods \
 	    --enable-webservice \
 	    --enable-vde \
-	    --enable-vnc \
-	    --with-gcc=gcc-4.9 \
-	    --with-g++=g++-4.9
+	    --enable-vnc
 
 override_dh_auto_build:
 	# Building package
