@@ -1,4 +1,4 @@
-virtualbox (4.3.26-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (4.3.26-dfsg-3) unstable; urgency=medium
 
   [ Adam Conrad ]
   * Re-work the packaging to account for the kernel modules being shipped in
