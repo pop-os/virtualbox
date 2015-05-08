@@ -146,11 +146,11 @@ int UIDnDDrag::RetrieveData(const CSession &session,
     int rc = VINF_SUCCESS;
     CGuest guest = session.GetConsole().GetGuest();
 
-    /* Start getting the data from the source. First inform the source we
-     * want the data in the specified MIME type. */
+    /* Start getting the data from the source. Request and transfer data
+     * from the source and display a moddal progress dialog while doing this. */
     CProgress progress = dndSource.Drop(strMimeType,
                                         UIDnDHandler::toVBoxDnDAction(dropAction));
-    if (guest.isOk())
+    if (dndSource.isOk())
     {
         msgCenter().showModalProgressDialog(progress,
                                             tr("Retrieving data ..."), ":/progress_dnd_gh_90px.png",
@@ -163,8 +163,7 @@ int UIDnDDrag::RetrieveData(const CSession &session,
 
             if (RT_SUCCESS(rc))
             {
-                /* After we successfully retrieved data from
-                * the source, we query it from Main. */
+                /* After we successfully retrieved data from the source we query it from Main. */
                 QVector<uint8_t> vecData = dndSource.ReceiveData();
                 if (!vecData.isEmpty())
                 {
@@ -201,14 +200,14 @@ int UIDnDDrag::RetrieveData(const CSession &session,
                     rc = VERR_NO_DATA;
             }
             else
-                msgCenter().cannotDropData(progress, pParent);
+                msgCenter().cannotDropDataToHost(progress, pParent);
         }
-        else
+        else /* Don't pop up a message. */
             rc = VERR_CANCELLED;
     }
     else
     {
-        msgCenter().cannotDropData(guest, pParent);
+        msgCenter().cannotDropDataToHost(dndSource, pParent);
         rc = VERR_GENERAL_FAILURE; /** @todo Fudge; do a GetResultCode() to rc translation. */
     }
 

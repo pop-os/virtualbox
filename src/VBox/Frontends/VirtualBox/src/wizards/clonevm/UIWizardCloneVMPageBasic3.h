@@ -1,3 +1,4 @@
+/* $Id: UIWizardCloneVMPageBasic3.h $ */
 /** @file
  * VBox Qt GUI - UIWizardCloneVMPageBasic3 class declaration.
  */

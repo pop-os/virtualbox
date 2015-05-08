@@ -1,3 +1,4 @@
+/* $Id: UINetworkRequest.h $ */
 /** @file
  * VBox Qt GUI - UINetworkRequest stuff declaration.
  */

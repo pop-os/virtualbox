@@ -1,3 +1,4 @@
+/* $Id: UIMachineWindow.h $ */
 /** @file
  * VBox Qt GUI - UIMachineWindow class declaration.
  */

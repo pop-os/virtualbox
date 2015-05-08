@@ -1182,7 +1182,7 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
     if (m_sourceBitmap.isNull())
     {
         LogRel(("GUI: UIFrameBufferPrivate::performResize: "
-                "Using FALLBACK buffer due to source-bitmap is not provided..\n"));
+                "Using fallback buffer since no source-bitmap is provided\n"));
 
         /* Remember new size came from hint: */
         m_iWidth = iWidth;
@@ -1255,6 +1255,9 @@ void UIFrameBufferPrivate::performResize(int iWidth, int iHeight)
                  (unsigned long)m_syncVisibleRegion.rectCount()));
         emit sigSetVisibleRegion(m_syncVisibleRegion);
     }
+
+    /* Make sure that the current screen image is immediately displayed: */
+    m_pMachineView->viewport()->update();
 
     unlock();
 }
@@ -1528,7 +1531,7 @@ void UIFrameBufferPrivate::drawImageRect(QPainter &painter, const QImage &image,
         {
             /* Fast scale sub-pixmap (2nd copy involved): */
             subPixmap = subPixmap.scaled(subPixmap.size() * dBackingScaleFactor,
-                                         Qt::IgnoreAspectRatio, transformationMode(enmScalingOptimizationType));
+                                         Qt::IgnoreAspectRatio, Qt::FastTransformation);
         }
 
 #ifdef Q_WS_MAC

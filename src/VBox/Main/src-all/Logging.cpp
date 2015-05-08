@@ -1,3 +1,4 @@
+/* $Id: Logging.cpp $ */
 /** @file
  *
  * VirtualBox Main Logging

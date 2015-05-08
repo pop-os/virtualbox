@@ -1,3 +1,4 @@
+/* $Id: QILabelSeparator.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QILabelSeparator class declaration.
  */

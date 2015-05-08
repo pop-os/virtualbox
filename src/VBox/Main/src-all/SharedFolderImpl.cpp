@@ -1,3 +1,4 @@
+/* $Id: SharedFolderImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation

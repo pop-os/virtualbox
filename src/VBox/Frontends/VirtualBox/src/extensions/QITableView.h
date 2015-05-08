@@ -1,3 +1,4 @@
+/* $Id: QITableView.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QITableView class declaration.
  */

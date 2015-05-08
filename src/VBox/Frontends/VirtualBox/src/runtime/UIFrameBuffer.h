@@ -1,3 +1,4 @@
+/* $Id: UIFrameBuffer.h $ */
 /** @file
  * VBox Qt GUI - UIFrameBuffer class declaration.
  */

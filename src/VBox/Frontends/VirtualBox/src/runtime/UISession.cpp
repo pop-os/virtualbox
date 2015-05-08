@@ -197,6 +197,12 @@ bool UISession::initialize()
             debugger().SetVirtualTimeRate(vboxGlobal().getWarpPct());
     }
 
+    /* Apply ad-hoc reconfigurations from the command line: */
+    if (vboxGlobal().hasFloppyImageToMount())
+        mountAdHocImage(KDeviceType_Floppy, UIMediumType_Floppy, vboxGlobal().getFloppyImage());
+    if (vboxGlobal().hasDvdImageToMount())
+        mountAdHocImage(KDeviceType_DVD, UIMediumType_DVD, vboxGlobal().getDvdImage());
+
     /* Power UP if this is NOT separate process: */
     if (!vboxGlobal().isSeparateProcess())
         if (!powerUp())
@@ -266,9 +272,11 @@ bool UISession::powerUp()
         return false;
     }
 
-    /* Guard progressbar warnings from auto-closing: */
-    if (uimachine()->machineLogic())
-        uimachine()->machineLogic()->setPreventAutoClose(true);
+    /* Enable 'manual-override',
+     * preventing automatic Runtime UI closing
+     * and visual representation mode changes: */
+    if (machineLogic())
+        machineLogic()->setManualOverrideMode(true);
 
     /* Show "Starting/Restoring" progress dialog: */
     if (isSaved())
@@ -288,9 +296,9 @@ bool UISession::powerUp()
         return false;
     }
 
-    /* Allow further auto-closing: */
-    if (uimachine()->machineLogic())
-        uimachine()->machineLogic()->setPreventAutoClose(false);
+    /* Disable 'manual-override' finally: */
+    if (machineLogic())
+        machineLogic()->setManualOverrideMode(false);
 
     /* True by default: */
     return true;
@@ -930,9 +938,6 @@ UISession::UISession(UIMachine *pMachine)
 #ifndef Q_WS_MAC
     , m_pMachineWindowIcon(0)
 #endif /* !Q_WS_MAC */
-    , m_mouseCapturePolicy(MouseCapturePolicy_Default)
-    , m_guruMeditationHandlerType(GuruMeditationHandlerType_Default)
-    , m_hiDPIOptimizationType(HiDPIOptimizationType_None)
     , m_requestedVisualStateType(UIVisualStateType_Invalid)
 #ifdef Q_WS_WIN
     , m_alphaCursor(0)
@@ -1324,15 +1329,6 @@ void UISession::loadSessionSettings()
         /* Load user's machine-window name postfix: */
         m_strMachineWindowNamePostfix = gEDataManager->machineWindowNamePostfix(strMachineID);
 #endif /* !Q_WS_MAC */
-
-        /* Determine mouse-capture policy: */
-        m_mouseCapturePolicy = gEDataManager->mouseCapturePolicy(strMachineID);
-
-        /* Determine Guru Meditation handler type: */
-        m_guruMeditationHandlerType = gEDataManager->guruMeditationHandlerType(strMachineID);
-
-        /* Determine HiDPI optimization type: */
-        m_hiDPIOptimizationType = gEDataManager->hiDPIOptimizationType(strMachineID);
 
         /* Is there should be First RUN Wizard? */
         m_fIsFirstTimeStarted = gEDataManager->machineFirstTimeStarted(strMachineID);
@@ -1841,6 +1837,56 @@ bool UISession::preprocessInitialization()
     return true;
 }
 
+bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strImage)
+{
+    /* The 'none' image name means ejecting what ever is in the drive,
+     * so leave the image variables null. */
+    CVirtualBox vbox = vboxGlobal().virtualBox();
+    UIMedium uiImage;
+    if (strImage != "none")
+    {
+        /* Open the image: */
+        CVirtualBox vbox = vboxGlobal().virtualBox();
+        CMedium vboxImage = vbox.OpenMedium(strImage, enmDeviceType, KAccessMode_ReadWrite, false /* fForceNewUuid */);
+        if (!vbox.isOk() || vboxImage.isNull())
+        {
+            msgCenter().cannotOpenMedium(vbox, enmMediumType, strImage);
+            return false;
+        }
+
+        /* Work the cache and use the cached image if possible: */
+        uiImage = vboxGlobal().medium(vboxImage.GetId());
+        if (uiImage.isNull())
+        {
+            uiImage = UIMedium(vboxImage, enmMediumType, KMediumState_Created);
+            vboxGlobal().createMedium(uiImage);
+        }
+    }
+    if (vbox.isOk())
+    {
+        /* Find suitable storage controller: */
+        foreach (const CStorageController &controller, machine().GetStorageControllers())
+        {
+            foreach (const CMediumAttachment &attachment, machine().GetMediumAttachmentsOfController(controller.GetName()))
+            {
+                if (attachment.GetType() == enmDeviceType)
+                {
+                    /* Mount the image: */
+                    machine().MountMedium(controller.GetName(), attachment.GetPort(), attachment.GetDevice(), uiImage.medium(), true /* force */);
+                    if (machine().isOk())
+                        return true;
+                    msgCenter().cannotRemountMedium(machine(), uiImage, !uiImage.isNull() /* mount */, false /* retry */);
+                    return false;
+                }
+            }
+        }
+        msgCenter().cannotRemountMedium(machine(), uiImage, !uiImage.isNull() /* mount */, false /* retry */);
+    }
+    else
+        msgCenter().cannotOpenMedium(vbox, enmMediumType, strImage);
+    return false;
+}
+
 bool UISession::postprocessInitialization()
 {
     /* Check if the required virtualization features are active. We get this info only when the session is active. */
@@ -1866,8 +1912,10 @@ bool UISession::postprocessInitialization()
         /* If user asked to close VM: */
         if (fShouldWeClose)
         {
-            /* Prevent auto-closure during power off sequence: */
-            machineLogic()->setPreventAutoClose(true);
+            /* Enable 'manual-override',
+             * preventing automatic Runtime UI closing: */
+            if (machineLogic())
+                machineLogic()->setManualOverrideMode(true);
             /* Power off VM: */
             bool fServerCrashed = false;
             powerOff(false, fServerCrashed);

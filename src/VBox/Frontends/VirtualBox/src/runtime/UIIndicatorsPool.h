@@ -1,3 +1,4 @@
+/* $Id: UIIndicatorsPool.h $ */
 /** @file
  * VBox Qt GUI - UIIndicatorsPool class declaration.
  */

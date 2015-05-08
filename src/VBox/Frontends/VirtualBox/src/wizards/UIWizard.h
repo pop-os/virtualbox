@@ -1,3 +1,4 @@
+/* $Id: UIWizard.h $ */
 /** @file
  * VBox Qt GUI - UIWizard class declaration.
  */

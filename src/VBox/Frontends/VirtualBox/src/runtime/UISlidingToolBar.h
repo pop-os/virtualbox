@@ -1,3 +1,4 @@
+/* $Id: UISlidingToolBar.h $ */
 /** @file
  * VBox Qt GUI - UISlidingToolBar class declaration.
  */

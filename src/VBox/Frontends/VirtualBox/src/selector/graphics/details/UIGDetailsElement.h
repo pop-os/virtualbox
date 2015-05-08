@@ -1,3 +1,4 @@
+/* $Id: UIGDetailsElement.h $ */
 /** @file
  * VBox Qt GUI - UIGDetailsElement class declaration.
  */

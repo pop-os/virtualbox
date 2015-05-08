@@ -1,3 +1,4 @@
+/* $Id: UIThreadPool.h $ */
 /** @file
  * VBox Qt GUI - UIThreadPool and UITask class declaration.
  */

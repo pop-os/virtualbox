@@ -1,3 +1,4 @@
+/* $Id: HGCM.cpp $ */
 /** @file
  *
  * HGCM (Host-Guest Communication Manager)

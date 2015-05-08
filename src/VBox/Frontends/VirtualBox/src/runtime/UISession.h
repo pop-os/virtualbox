@@ -1,3 +1,4 @@
+/* $Id: UISession.h $ */
 /** @file
  * VBox Qt GUI - UISession class declaration.
  */
@@ -25,6 +26,7 @@
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
+#include "UIMediumDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -133,16 +135,6 @@ public:
     QString machineWindowNamePostfix() const { return m_strMachineWindowNamePostfix; }
     /** @} */
 #endif /* !Q_WS_MAC */
-
-    /** @name Runtime workflow stuff.
-     ** @{ */
-    /** Returns the mouse-capture policy. */
-    MouseCapturePolicy mouseCapturePolicy() const { return m_mouseCapturePolicy; }
-    /** Returns Guru Meditation handler type. */
-    GuruMeditationHandlerType guruMeditationHandlerType() const { return m_guruMeditationHandlerType; }
-    /** Returns HiDPI optimization type. */
-    HiDPIOptimizationType hiDPIOptimizationType() const { return m_hiDPIOptimizationType; }
-    /** @} */
 
     /** @name Host-screen configuration variables.
      ** @{ */
@@ -377,6 +369,7 @@ private:
     WId winId() const;
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     bool preprocessInitialization();
+    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strImage);
     bool postprocessInitialization();
     int countOfVisibleWindows();
 
@@ -434,16 +427,6 @@ private:
     QString m_strMachineWindowNamePostfix;
     /** @} */
 #endif /* !Q_WS_MAC */
-
-    /** @name Runtime workflow variables.
-     ** @{ */
-    /** Holds the mouse-capture policy. */
-    MouseCapturePolicy m_mouseCapturePolicy;
-    /** Holds Guru Meditation handler type. */
-    GuruMeditationHandlerType m_guruMeditationHandlerType;
-    /** Holds HiDPI optimization type. */
-    HiDPIOptimizationType m_hiDPIOptimizationType;
-    /** @} */
 
     /** @name Visual-state configuration variables.
      ** @{ */

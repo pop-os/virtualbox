@@ -1777,7 +1777,7 @@ static int hdaSdFmtToAudSettings(uint32_t u32SdFmt, audsettings_t *pCfg)
         pCfg->uHz = u32Hz * u32HzMult / u32HzDiv;
         pCfg->cChannels = (u32SdFmt & 0xf) + 1;
         pCfg->enmFormat = enmFmt;
-        pCfg->enmEndianness = PDMAUDIOHOSTENDIANESS;
+        pCfg->enmEndianness = PDMAUDIOHOSTENDIANNESS;
 #else
         pCfg->nchannels = (u32SdFmt & 0xf) + 1;
         pCfg->fmt = enmFmt;
@@ -2519,13 +2519,30 @@ static DECLCALLBACK(int) hdaOpenOut(PHDASTATE pThis,
     return rc;
 }
 
-static DECLCALLBACK(int) hdaSetVolume(PHDASTATE pThis,
+static DECLCALLBACK(int) hdaSetVolume(PHDASTATE pThis, ENMSOUNDSOURCE enmSource,
                                       bool fMute, uint8_t uVolLeft, uint8_t uVolRight)
 {
-    int rc = VINF_SUCCESS;
+    int             rc = VINF_SUCCESS;
+    PDMAUDIOVOLUME  vol = { fMute, uVolLeft, uVolRight };
+    PAUDMIXSINK     pSink;
 
-    PDMAUDIOVOLUME vol = { fMute, uVolLeft, uVolRight };
-    audioMixerSetMasterVolume(pThis->pMixer, &vol);
+    /* Convert the audio source to corresponding sink. */
+    switch (enmSource) {
+    case PO_INDEX:
+        pSink = pThis->pSinkOutput;
+        break;
+    case PI_INDEX:
+        pSink = pThis->pSinkLineIn;
+        break;
+    case MC_INDEX:
+        pSink = pThis->pSinkMicIn;
+        break;
+    default:
+        AssertFailedReturn(VERR_INVALID_PARAMETER);
+    }
+
+    /* Set the volume. Codec already converted it to the correct range. */
+    audioMixerSetSinkVolume(pSink, &vol);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -2618,7 +2635,6 @@ static DECLCALLBACK(int) hdaTransfer(PHDACODEC pCodec, ENMSOUNDSOURCE enmSrc, ui
     PHDASTATE pThis = pCodec->pHDAState;
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
 #endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
-    int rc;
 
     uint8_t      u8Strm;
     PHDABDLEDESC pBdle;
@@ -2655,6 +2671,7 @@ static DECLCALLBACK(int) hdaTransfer(PHDACODEC pCodec, ENMSOUNDSOURCE enmSrc, ui
     HDASTREAMTRANSFERDESC StreamDesc;
     hdaInitTransferDescriptor(pThis, pBdle, u8Strm, &StreamDesc);
 
+    int rc = VINF_EOF;
     while (cbAvail)
     {
         Assert(   (StreamDesc.u32Ctl & HDA_REG_FIELD_FLAG_MASK(SDCTL, RUN))
@@ -3848,7 +3865,7 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
             streamCfg.uHz           = 41000;
             streamCfg.cChannels     = 2;
             streamCfg.enmFormat     = AUD_FMT_S16;
-            streamCfg.enmEndianness = PDMAUDIOHOSTENDIANESS;
+            streamCfg.enmEndianness = PDMAUDIOHOSTENDIANNESS;
 
             rc = audioMixerSetDeviceFormat(pThis->pMixer, &streamCfg);
             AssertRC(rc);
@@ -3864,6 +3881,11 @@ static DECLCALLBACK(int) hdaConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
 
             rc = audioMixerAddSink(pThis->pMixer, "[Recording] Microphone In",
                                    AUDMIXSINKDIR_INPUT, &pThis->pSinkMicIn);
+            AssertRC(rc);
+
+            /* There is no master volume control. Set the master to max. */
+            PDMAUDIOVOLUME vol = { false, 255, 255 };
+            rc = audioMixerSetMasterVolume(pThis->pMixer, &vol);
             AssertRC(rc);
         }
     }

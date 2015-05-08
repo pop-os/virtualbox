@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2014 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,6 +72,8 @@
 # include "CEmulatedUSB.h"
 # ifdef VBOX_WITH_DRAG_AND_DROP
 #  include "CGuest.h"
+#  include "CDnDSource.h"
+#  include "CDnDTarget.h"
 # endif /* VBOX_WITH_DRAG_AND_DROP */
 
 /* Other VBox includes: */
@@ -915,6 +917,13 @@ void UIMessageCenter::cannotRemoveSnapshot(const CProgress &progress, const QStr
           formatErrorInfo(progress));
 }
 
+void UIMessageCenter::cannotSaveSettings(const QString strDetails, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Failed to save the settings."),
+          strDetails);
+}
+
 bool UIMessageCenter::confirmNATNetworkRemoval(const QString &strName, QWidget *pParent /* = 0*/) const
 {
     return questionBinary(pParent, MessageType_Question,
@@ -1672,6 +1681,13 @@ void UIMessageCenter::cannotFindSnapshotByName(const CMachine &machine, const QS
           formatErrorInfo(machine));
 }
 
+void UIMessageCenter::cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent /* = 0 */)
+{
+    error(pParent, MessageType_Error,
+          tr("Bad password or authentication failure."),
+          formatErrorInfo(appliance));
+}
+
 void UIMessageCenter::showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const
 {
     /* Prepare auto-confirm id: */
@@ -1771,7 +1787,7 @@ bool UIMessageCenter::remindAboutGuruMeditation(const QString &strLogFolder)
                              "machine and the machine execution has been stopped.</p>"
                              ""
                              "<p>For help, please see the Community section on "
-                             "<a href=http://www.virtualbox.org>http://www.virtualbox.org</a> "
+                             "<a href=https://www.virtualbox.org>https://www.virtualbox.org</a> "
                              "or your support contract. Please provide the contents of the "
                              "log file <tt>VBox.log</tt> and the image file <tt>VBox.png</tt>, "
                              "which you can find in the <nobr><b>%1</b></nobr> directory, "
@@ -1797,7 +1813,7 @@ void UIMessageCenter::warnAboutVBoxSVCUnavailable() const
              "machine and the machine execution should be stopped.</p>"
              ""
              "<p>For help, please see the Community section on "
-             "<a href=http://www.virtualbox.org>http://www.virtualbox.org</a> "
+             "<a href=https://www.virtualbox.org>https://www.virtualbox.org</a> "
              "or your support contract. Please provide the contents of the "
              "log file <tt>VBox.log</tt>, "
              "which you can find in the virtual machine log directory, "
@@ -2049,8 +2065,8 @@ void UIMessageCenter::cannotToggleNetworkAdapterCable(const CNetworkAdapter &ada
 {
     error(0, MessageType_Error,
           fConnect ?
-              tr("Failed to connect network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName) :
-              tr("Failed to disconnect network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName),
+              tr("Failed to connect the network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName) :
+              tr("Failed to disconnect the network adapter cable of the virtual machine <b>%1</b>.").arg(strMachineName),
           formatErrorInfo(adapter));
 }
 
@@ -2077,7 +2093,7 @@ void UIMessageCenter::cannotMountGuestAdditions(const QString &strMachineName) c
 void UIMessageCenter::cannotAddDiskEncryptionPassword(const CConsole &console)
 {
     error(0, MessageType_Error,
-          tr("Unable to enter password!"),
+          tr("Bad password or authentication failure."),
           formatErrorInfo(console));
 }
 
@@ -2092,7 +2108,7 @@ void UIMessageCenter::showUpdateSuccess(const QString &strVersion, const QString
 {
     alert(windowManager().networkManagerOrMainWindowShown(), MessageType_Info,
           tr("<p>A new version of VirtualBox has been released! Version <b>%1</b> is available "
-             "at <a href=\"http://www.virtualbox.org/\">virtualbox.org</a>.</p>"
+             "at <a href=\"https://www.virtualbox.org/\">virtualbox.org</a>.</p>"
              "<p>You can download this version using the link:</p>"
              "<p><a href=%2>%3</a></p>")
              .arg(strVersion, strLink, strLink));
@@ -2383,17 +2399,38 @@ void UIMessageCenter::warnAboutExtPackInstalled(const QString &strPackName, QWid
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-void UIMessageCenter::cannotDropData(const CGuest &guest, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotDropDataToGuest(const CDnDTarget &dndTarget, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
-          tr("Failed to drop data."),
-          formatErrorInfo(guest));
+          tr("Drag and drop operation from host to guest failed."),
+          formatErrorInfo(dndTarget));
 }
 
-void UIMessageCenter::cannotDropData(const CProgress &progress, QWidget *pParent /* = 0*/) const
+void UIMessageCenter::cannotDropDataToGuest(const CProgress &progress, QWidget *pParent /* = 0 */) const
 {
     error(pParent, MessageType_Error,
-          tr("Failed to drop data."),
+          tr("Drag and drop operation from host to guest failed."),
+          formatErrorInfo(progress));
+}
+
+void UIMessageCenter::cannotCancelDropToGuest(const CDnDTarget &dndTarget, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Unable to cancel host to guest drag and drop operation."),
+          formatErrorInfo(dndTarget));
+}
+
+void UIMessageCenter::cannotDropDataToHost(const CDnDSource &dndSource, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Drag and drop operation from guest to host failed."),
+          formatErrorInfo(dndSource));
+}
+
+void UIMessageCenter::cannotDropDataToHost(const CProgress &progress, QWidget *pParent /* = 0 */) const
+{
+    error(pParent, MessageType_Error,
+          tr("Drag and drop operation from guest to host failed."),
           formatErrorInfo(progress));
 }
 #endif /* VBOX_WITH_DRAG_AND_DROP */
@@ -2579,7 +2616,7 @@ QString UIMessageCenter::formatErrorInfo(const COMResult &rc)
 
 void UIMessageCenter::sltShowHelpWebDialog()
 {
-    vboxGlobal().openURL("http://www.virtualbox.org");
+    vboxGlobal().openURL("https://www.virtualbox.org");
 }
 
 void UIMessageCenter::sltShowHelpAboutDialog()

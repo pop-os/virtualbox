@@ -562,6 +562,9 @@ typedef R0PTRTYPE(FNHMSVMVMRUN *) PFNHMSVMVMRUN;
 
 /**
  * HM VMCPU Instance data.
+ *
+ * Note! If you change members of this struct, make sure to check if the
+ * assembly counterpart in HMInternal.mac needs to be updated as well.
  */
 typedef struct HMCPU
 {
@@ -581,12 +584,15 @@ typedef struct HMCPU
     bool                        fUsingHyperDR7;
     /** Whether to preload the guest-FPU state to avoid #NM VM-exit overhead. */
     bool                        fPreloadGuestFpu;
+    /** Set if XCR0 needs to be loaded and saved when entering and exiting guest
+     * code execution. */
+    bool                        fLoadSaveGuestXcr0;
 
     /** Whether #UD needs to be intercepted (required by certain GIM providers). */
     bool                        fGIMTrapXcptUD;
     /** Whether paravirt. hypercalls are enabled. */
     bool                        fHypercallsEnabled;
-    uint8_t                     u8Alignment0[6];
+    uint8_t                     u8Alignment0[5];
 
     /** World switch exit counter. */
     volatile uint32_t           cWorldSwitchExits;

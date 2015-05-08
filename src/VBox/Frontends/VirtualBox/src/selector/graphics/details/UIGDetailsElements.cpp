@@ -32,6 +32,7 @@
 # include "UIIconPool.h"
 # include "UIConverter.h"
 # include "UIGraphicsTextPane.h"
+# include "UIMessageCenter.h"
 
 /* COM includes: */
 # include "CSystemProperties.h"
@@ -409,31 +410,65 @@ void UIGDetailsUpdateThreadDisplay::run()
         /* Gather information: */
         if (machine().GetAccessible())
         {
+            /* Damn GetExtraData should be const already :( */
+            CMachine localMachine = machine();
+
             /* Video memory: */
             m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Memory", "details (display)"),
-                                      QApplication::translate("UIGDetails", "%1 MB", "details").arg(machine().GetVRAMSize()));
+                                      QApplication::translate("UIGDetails", "%1 MB", "details").arg(localMachine.GetVRAMSize()));
 
             /* Screen count: */
-            int cGuestScreens = machine().GetMonitorCount();
+            int cGuestScreens = localMachine.GetMonitorCount();
             if (cGuestScreens > 1)
                 m_text << UITextTableLine(QApplication::translate("UIGDetails", "Screens", "details (display)"),
                                           QString::number(cGuestScreens));
 
+            /* Get scale-factor value: */
+            const QString strScaleFactor = localMachine.GetExtraData(UIExtraDataDefs::GUI_ScaleFactor);
+            {
+                /* Try to convert loaded data to double: */
+                bool fOk = false;
+                double dValue = strScaleFactor.toDouble(&fOk);
+                /* Invent the default value: */
+                if (!fOk || !dValue)
+                    dValue = 1.0;
+                /* Append information: */
+                if (dValue != 1.0)
+                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "Scale-factor", "details (display)"),
+                                              QString::number(dValue, 'f', 2));
+            }
+
+#ifdef Q_WS_MAC
+            /* Get 'Unscaled HiDPI Video Output' mode value: */
+            const QString strUnscaledHiDPIMode = localMachine.GetExtraData(UIExtraDataDefs::GUI_HiDPI_UnscaledOutput);
+            {
+                /* Try to convert loaded data to bool: */
+                const bool fEnabled  = strUnscaledHiDPIMode.compare("true", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode.compare("yes", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode.compare("on", Qt::CaseInsensitive) == 0 ||
+                                       strUnscaledHiDPIMode == "1";
+                /* Append information: */
+                if (fEnabled)
+                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "Unscaled HiDPI Video Output", "details (display)"),
+                                              QApplication::translate("UIGDetails", "Enabled", "details (display/Unscaled HiDPI Video Output)"));
+            }
+#endif /* Q_WS_MAC */
+
             QStringList acceleration;
 #ifdef VBOX_WITH_VIDEOHWACCEL
             /* 2D acceleration: */
-            if (machine().GetAccelerate2DVideoEnabled())
+            if (localMachine.GetAccelerate2DVideoEnabled())
                 acceleration << QApplication::translate("UIGDetails", "2D Video", "details (display)");
 #endif /* VBOX_WITH_VIDEOHWACCEL */
             /* 3D acceleration: */
-            if (machine().GetAccelerate3DEnabled())
+            if (localMachine.GetAccelerate3DEnabled())
                 acceleration << QApplication::translate("UIGDetails", "3D", "details (display)");
             if (!acceleration.isEmpty())
                 m_text << UITextTableLine(QApplication::translate("UIGDetails", "Acceleration", "details (display)"),
                                           acceleration.join(", "));
 
             /* VRDE info: */
-            CVRDEServer srv = machine().GetVRDEServer();
+            CVRDEServer srv = localMachine.GetVRDEServer();
             if (!srv.isNull())
             {
                 if (srv.GetEnabled())
@@ -445,14 +480,14 @@ void UIGDetailsUpdateThreadDisplay::run()
             }
 
             /* Video Capture info: */
-            if (machine().GetVideoCaptureEnabled())
+            if (localMachine.GetVideoCaptureEnabled())
             {
                 m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Capture File", "details (display/video capture)"),
-                                          machine().GetVideoCaptureFile());
+                                          localMachine.GetVideoCaptureFile());
                 m_text << UITextTableLine(QApplication::translate("UIGDetails", "Video Capture Attributes", "details (display/video capture)"),
                                           QApplication::translate("UIGDetails", "Frame Size: %1x%2, Frame Rate: %3fps, Bit Rate: %4kbps")
-                                             .arg(machine().GetVideoCaptureWidth()).arg(machine().GetVideoCaptureHeight())
-                                             .arg(machine().GetVideoCaptureFPS()).arg(machine().GetVideoCaptureRate()));
+                                             .arg(localMachine.GetVideoCaptureWidth()).arg(localMachine.GetVideoCaptureHeight())
+                                             .arg(localMachine.GetVideoCaptureFPS()).arg(localMachine.GetVideoCaptureRate()));
             }
             else
             {
@@ -522,6 +557,11 @@ void UIGDetailsUpdateThreadStorage::run()
                 {
                     /* Prepare current storage slot: */
                     StorageSlot attachmentSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
+                    AssertMsg(controller.isOk(),
+                              ("Unable to acquire controller data: %s\n",
+                               msgCenter().formatRC(controller.lastRC()).toAscii().constData()));
+                    if (!controller.isOk())
+                        continue;
                     /* Prepare attachment information: */
                     QString strAttachmentInfo = vboxGlobal().details(attachment.GetMedium(), false, false);
                     /* That temporary hack makes sure 'Inaccessible' word is always bold: */
@@ -1068,34 +1108,35 @@ void UIGDetailsUpdateThreadUI::run()
             /* Damn GetExtraData should be const already :( */
             CMachine localMachine = machine();
 
-            /* Get scale-factor value: */
-            const QString strScaleFactor = localMachine.GetExtraData(UIExtraDataDefs::GUI_ScaleFactor);
-            {
-                /* Try to convert loaded data to double: */
-                bool fOk = false;
-                double dValue = strScaleFactor.toDouble(&fOk);
-                /* Invent the default value: */
-                if (!fOk || !dValue)
-                    dValue = 1.0;
-                /* Append information: */
-                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Scale-factor", "details (user interface)"), QString::number(dValue, 'f', 2));
-            }
-
-#ifdef Q_WS_MAC
-            /* Get 'Unscaled HiDPI Video Output' mode value: */
-            const QString strUnscaledHiDPIMode = localMachine.GetExtraData(UIExtraDataDefs::GUI_HiDPI_UnscaledOutput);
+#ifndef Q_WS_MAC
+            /* Get menu-bar availability status: */
+            const QString strMenubarEnabled = localMachine.GetExtraData(UIExtraDataDefs::GUI_MenuBar_Enabled);
             {
                 /* Try to convert loaded data to bool: */
-                const bool fEnabled  = strUnscaledHiDPIMode.compare("true", Qt::CaseInsensitive) == 0 ||
-                                       strUnscaledHiDPIMode.compare("yes", Qt::CaseInsensitive) == 0 ||
-                                       strUnscaledHiDPIMode.compare("on", Qt::CaseInsensitive) == 0 ||
-                                       strUnscaledHiDPIMode == "1";
+                const bool fEnabled = !(strMenubarEnabled.compare("false", Qt::CaseInsensitive) == 0 ||
+                                        strMenubarEnabled.compare("no", Qt::CaseInsensitive) == 0 ||
+                                        strMenubarEnabled.compare("off", Qt::CaseInsensitive) == 0 ||
+                                        strMenubarEnabled == "0");
                 /* Append information: */
-                if (fEnabled)
-                    m_text << UITextTableLine(QApplication::translate("UIGDetails", "Unscaled HiDPI Video Output", "details (user interface)"),
-                                              QApplication::translate("UIGDetails", "Enabled", "details (user interface/Unscaled HiDPI Video Output)"));
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Menu-bar", "details (user interface)"),
+                                          fEnabled ? QApplication::translate("UIGDetails", "Enabled", "details (user interface/menu-bar)") :
+                                                     QApplication::translate("UIGDetails", "Disabled", "details (user interface/menu-bar)"));
             }
-#endif /* Q_WS_MAC */
+#endif /* !Q_WS_MAC */
+
+            /* Get status-bar availability status: */
+            const QString strStatusbarEnabled = localMachine.GetExtraData(UIExtraDataDefs::GUI_StatusBar_Enabled);
+            {
+                /* Try to convert loaded data to bool: */
+                const bool fEnabled = !(strStatusbarEnabled.compare("false", Qt::CaseInsensitive) == 0 ||
+                                        strStatusbarEnabled.compare("no", Qt::CaseInsensitive) == 0 ||
+                                        strStatusbarEnabled.compare("off", Qt::CaseInsensitive) == 0 ||
+                                        strStatusbarEnabled == "0");
+                /* Append information: */
+                m_text << UITextTableLine(QApplication::translate("UIGDetails", "Status-bar", "details (user interface)"),
+                                          fEnabled ? QApplication::translate("UIGDetails", "Enabled", "details (user interface/status-bar)") :
+                                                     QApplication::translate("UIGDetails", "Disabled", "details (user interface/status-bar)"));
+            }
 
 #ifndef Q_WS_MAC
             /* Get mini-toolbar availability status: */

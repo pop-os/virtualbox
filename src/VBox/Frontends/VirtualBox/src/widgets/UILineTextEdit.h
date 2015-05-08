@@ -1,3 +1,4 @@
+/* $Id: UILineTextEdit.h $ */
 /** @file
  * VBox Qt GUI - UILineTextEdit class declaration.
  */

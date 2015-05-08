@@ -1,3 +1,4 @@
+/* $Id: UIGlobalSettingsProxy.h $ */
 /** @file
  * VBox Qt GUI - UIGlobalSettingsProxy class declaration.
  */

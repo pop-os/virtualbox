@@ -1,3 +1,4 @@
+/* $Id: QIArrowSplitter.h $ */
 /** @file
  * VBox Qt GUI - QIArrowSplitter class declaration.
  */

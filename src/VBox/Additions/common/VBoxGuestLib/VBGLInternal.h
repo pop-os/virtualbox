@@ -1,4 +1,4 @@
-/* Id: 73443 $ */
+/* $Id: VBGLInternal.h $ */
 /** @file
  * VBoxGuestLibR0 - Internal header.
  */

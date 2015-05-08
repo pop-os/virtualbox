@@ -1,3 +1,4 @@
+/* $Id: AutoCaller.h $ */
 /** @file
  *
  * VirtualBox object caller handling definitions

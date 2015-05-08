@@ -1,3 +1,4 @@
+/* $Id: UINetworkDefs.h $ */
 /** @file
  * VBox Qt GUI - Network routine related declarations.
  */

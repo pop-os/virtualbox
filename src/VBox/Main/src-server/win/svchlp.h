@@ -1,3 +1,4 @@
+/* $Id: svchlp.h $ */
 /** @file
  *
  *  Declaration of SVC Helper Process control routines.

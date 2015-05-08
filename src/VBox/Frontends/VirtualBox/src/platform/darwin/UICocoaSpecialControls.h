@@ -1,3 +1,4 @@
+/* $Id: UICocoaSpecialControls.h $ */
 /** @file
  * VBox Qt GUI - VBoxCocoaSpecialControls class declaration.
  */

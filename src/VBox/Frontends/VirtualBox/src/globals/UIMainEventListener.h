@@ -1,3 +1,4 @@
+/* $Id: UIMainEventListener.h $ */
 /** @file
  * VBox Qt GUI - UIMainEventListener class declaration.
  */
@@ -63,6 +64,8 @@ signals:
     void sigSnapshotDelete(QString strId, QString strSnapshotId);
     /** Notifies about snapshot with @a strSnapshotId was changed for the machine with @a strId. */
     void sigSnapshotChange(QString strId, QString strSnapshotId);
+    /** Notifies about snapshot with @a strSnapshotId was restored for the machine with @a strId. */
+    void sigSnapshotRestore(QString strId, QString strSnapshotId);
 
     /** Notifies about extra-data of the machine with @a strId can be changed for the key @a strKey to value @a strValue. */
     void sigExtraDataCanChange(QString strId, QString strKey, QString strValue, bool &fVeto, QString &strVetoReason); /* use Qt::DirectConnection */

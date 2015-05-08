@@ -1,3 +1,4 @@
+/* $Id: VBoxLicenseViewer.h $ */
 /** @file
  * VBox Qt GUI - VBoxLicenseViewer class declaration.
  */

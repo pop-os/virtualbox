@@ -1,3 +1,4 @@
+/* $Id: UIMachineViewFullscreen.h $ */
 /** @file
  * VBox Qt GUI - UIMachineViewFullscreen class declaration.
  */

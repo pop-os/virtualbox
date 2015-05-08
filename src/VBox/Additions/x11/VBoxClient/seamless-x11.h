@@ -1,3 +1,4 @@
+/* $Id: seamless-x11.h $ */
 /** @file
  *
  * Seamless mode:

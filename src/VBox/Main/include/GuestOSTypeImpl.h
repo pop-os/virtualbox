@@ -1,3 +1,4 @@
+/* $Id: GuestOSTypeImpl.h $ */
 /** @file
  *
  * VirtualBox COM class implementation

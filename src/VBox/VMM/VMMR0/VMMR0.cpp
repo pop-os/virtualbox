@@ -564,12 +564,13 @@ static DECLCALLBACK(void) vmmR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void
     {
         case RTTHREADCTXEVENT_RESUMED:
         {
-            /** @todo Linux may call us with preemption enabled (really!) but technically we
+            /*
+             * Linux may call us with preemption enabled (really!) but technically we
              * cannot get preempted here, otherwise we end up in an infinite recursion
-             * scenario (i.e. preempted in resume hook -> preempt hook -> resume hook... ad
-             * infinitum). Let's just disable preemption for now...
+             * scenario (i.e. preempted in resume hook -> preempt hook -> resume hook...
+             * ad infinitum). Let's just disable preemption for now...
              */
-            HM_DISABLE_PREEMPT_IF_NEEDED();
+            HM_DISABLE_PREEMPT();
 
             /* We need to update the VCPU <-> host CPU mapping. */
             RTCPUID idHostCpu;
@@ -587,7 +588,7 @@ static DECLCALLBACK(void) vmmR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, void
             HMR0ThreadCtxCallback(enmEvent, pvUser);
 
             /* Restore preemption. */
-            HM_RESTORE_PREEMPT_IF_NEEDED();
+            HM_RESTORE_PREEMPT();
             break;
         }
 
@@ -1008,7 +1009,7 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                 ASMAtomicWriteU32(&pVCpu->idHostCpu, idHostCpu);
 
                 /*
-                 * Update the periodict preemption timer if it's active.
+                 * Update the periodic preemption timer if it's active.
                  */
                 if (pVM->vmm.s.fUsePeriodicPreemptionTimers)
                     GVMMR0SchedUpdatePeriodicPreemptionTimer(pVM, pVCpu->idHostCpu, TMCalcHostTimerFrequency(pVM, pVCpu));
@@ -1020,7 +1021,7 @@ VMMR0DECL(void) VMMR0EntryFast(PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperati
                 if (pVCpu->idCpu > 0)
                 {
                     PVMMR0LOGGER pR0Logger = pVCpu->vmm.s.pR0LoggerR0;
-                    if (    pR0Logger
+                    if (   pR0Logger
                         && RT_UNLIKELY(!pR0Logger->fRegistered))
                     {
                         RTLogSetDefaultInstanceThread(&pR0Logger->Logger, (uintptr_t)pVM->pSession);

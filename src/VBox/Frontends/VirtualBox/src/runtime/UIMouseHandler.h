@@ -1,3 +1,4 @@
+/* $Id: UIMouseHandler.h $ */
 /** @file
  * VBox Qt GUI - UIMouseHandler class declaration.
  */

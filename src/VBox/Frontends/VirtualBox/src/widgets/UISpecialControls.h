@@ -1,3 +1,4 @@
+/* $Id: UISpecialControls.h $ */
 /** @file
  * VBox Qt GUI - VBoxSpecialButtons declarations.
  */

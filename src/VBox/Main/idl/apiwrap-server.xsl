@@ -509,6 +509,15 @@ public:
         </xsl:call-template>
     </xsl:variable>
 
+    <!-- interface santiy check, prevents crashes -->
+    <xsl:if test="(count(attribute) + count(method)) = 0">
+        <xsl:message terminate="yes">
+            Interface <xsl:value-of select="@name"/> is empty which causes midl generated proxy
+            stubs to crash. Please add a dummy:<xsl:value-of select="$G_sNewLine"/>
+              &lt;attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/&gt;
+        </xsl:message>
+    </xsl:if>
+
     <xsl:choose>
         <xsl:when test="$generating = 'sources'">
             <xsl:if test="(position() mod 2) = $reminder">
@@ -1112,6 +1121,10 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
         </xsl:call-template>
     </xsl:variable>
 
+    <xsl:if test="$attrbasename = 'MidlDoesNotLikeEmptyInterfaces'">
+        <xsl:text>    //</xsl:text>
+    </xsl:if>
+
     <xsl:value-of select="concat('    virtual HRESULT get', $attrbasename, '(')"/>
     <xsl:variable name="passAutoCaller">
         <xsl:call-template name="checkoption">
@@ -1182,7 +1195,12 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
         <xsl:with-param name="dir">out</xsl:with-param>
     </xsl:call-template>
     <xsl:text>)
-{
+{</xsl:text>
+    <xsl:if test="$attrbasename = 'MidlDoesNotLikeEmptyInterfaces'">
+        <xsl:text>
+#if 0 /* This is a dummy attribute */</xsl:text>
+    </xsl:if>
+    <xsl:text>
     LogRelFlow(("{%p} %s: enter </xsl:text>
     <xsl:apply-templates select="@type" mode="logparamtext">
         <xsl:with-param name="dir" select="'out'"/>
@@ -1209,7 +1227,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
     <xsl:apply-templates select="@type" mode="paramvalconversion2tmpvar">
         <xsl:with-param name="dir" select="'out'"/>
     </xsl:apply-templates>
-    <xsl:if test="$attrbasename != 'MidlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="$attrbasename != 'MidlDoesNotLikeEmptyInterfaces'">
         <xsl:text>
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
         </xsl:text>
@@ -1248,7 +1266,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
     </xsl:apply-templates>
     <xsl:text>);
 </xsl:text>
-    <xsl:if test="$attrbasename != 'MidlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="$attrbasename != 'MidlDoesNotLikeEmptyInterfaces'">
         <xsl:text>
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
         </xsl:text>
@@ -1266,7 +1284,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
     catch (HRESULT hrc2)
     {
         hrc = hrc2;</xsl:text>
-    <xsl:if test="$attrbasename != 'MidlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="$attrbasename != 'MidlDoesNotLikeEmptyInterfaces'">
         <xsl:text>
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
         </xsl:text>
@@ -1282,7 +1300,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
     catch (...)
     {
         hrc = VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);</xsl:text>
-    <xsl:if test="$attrbasename != 'MidlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="$attrbasename != 'MidlDoesNotLikeEmptyInterfaces'">
         <xsl:text>
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
         </xsl:text>
@@ -1308,7 +1326,14 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
         <xsl:with-param name="isref" select="''"/>
     </xsl:apply-templates>
     <xsl:text>, hrc));
-    return hrc;
+    return hrc;</xsl:text>
+    <xsl:if test="$attrbasename = 'MidlDoesNotLikeEmptyInterfaces'">
+        <xsl:text>
+#else  /* dummy attribute */
+    return E_FAIL;
+#endif /* dummy attribute */</xsl:text>
+    </xsl:if>
+    <xsl:text>
 }
 </xsl:text>
     <xsl:if test="not(@readonly) or @readonly!='yes'">
@@ -1449,7 +1474,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
         </xsl:choose>
     </xsl:variable>
 
-    <xsl:if test="@name != 'midlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="@name != 'midlDoesNotLikeEmptyInterfaces'">
         <xsl:text>    probe </xsl:text>
         <!-- <xsl:value-of select="concat($dtracetopclass, '__get__', $dtraceattrname, '__enter(struct ', $topclass)"/> -->
         <xsl:value-of select="concat($dtracetopclass, '__get__', $dtraceattrname, '__enter(void')"/>
@@ -1464,7 +1489,7 @@ Returns empty if not needed, non-empty ('yes') if needed. -->
         <xsl:text>);
 </xsl:text>
     </xsl:if>
-    <xsl:if test="(not(@readonly) or @readonly!='yes') and @name != 'midlDoesNotLikEmptyInterfaces'">
+    <xsl:if test="(not(@readonly) or @readonly!='yes') and @name != 'midlDoesNotLikeEmptyInterfaces'">
         <xsl:text>    probe </xsl:text>
         <!-- <xsl:value-of select="concat($topclass, '__set__', $dtraceattrname, '__enter(struct ', $topclass, ' *a_pThis, ')"/>-->
         <xsl:value-of select="concat($topclass, '__set__', $dtraceattrname, '__enter(void *a_pThis, ')"/>

@@ -1,3 +1,4 @@
+/* $Id: UIWizardFirstRun.h $ */
 /** @file
  * VBox Qt GUI - UIWizardFirstRun class declaration.
  */

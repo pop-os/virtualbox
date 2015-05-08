@@ -1,3 +1,4 @@
+/* $Id: UIMessageCenter.h $ */
 /** @file
  * VBox Qt GUI - UIMessageCenter class declaration.
  */
@@ -209,6 +210,9 @@ public:
     void cannotRemoveSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
 
+    /* API: Common settings warnings: */
+    void cannotSaveSettings(const QString strDetails, QWidget *pParent = 0) const;
+
     /* API: Global settings warnings: */
     bool confirmNATNetworkRemoval(const QString &strName, QWidget *pParent = 0) const;
     bool confirmHostOnlyInterfaceRemoval(const QString &strName, QWidget *pParent = 0) const;
@@ -275,6 +279,7 @@ public:
     void cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent = 0) const;
     void cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
     void cannotFindSnapshotByName(const CMachine &machine, const QString &strMachine, QWidget *pParent = 0) const;
+    void cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent = 0);
 
     /* API: Runtime UI warnings: */
     void showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const;
@@ -343,9 +348,12 @@ public:
     void warnAboutExtPackInstalled(const QString &strPackName, QWidget *pParent = 0) const;
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    /* API: Drag&drop warnings: */
-    void cannotDropData(const CGuest &guest, QWidget *pParent = 0) const;
-    void cannotDropData(const CProgress &progress, QWidget *pParent = 0) const;
+    /* API: Drag and drop warnings: */
+    void cannotDropDataToGuest(const CDnDTarget &dndTarget, QWidget *pParent = 0) const;
+    void cannotDropDataToGuest(const CProgress &progress, QWidget *pParent = 0) const;
+    void cannotCancelDropToGuest(const CDnDTarget &dndTarget, QWidget *pParent = 0) const;
+    void cannotDropDataToHost(const CDnDSource &dndSource, QWidget *pParent = 0) const;
+    void cannotDropDataToHost(const CProgress &progress, QWidget *pParent = 0) const;
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
     /* API: License-viewer warnings: */

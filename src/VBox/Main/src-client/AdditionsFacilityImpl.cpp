@@ -1,3 +1,4 @@
+/* $Id: AdditionsFacilityImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation

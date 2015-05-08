@@ -27,6 +27,7 @@
 ;*******************************************************************************
 ;* Header Files                                                                *
 ;*******************************************************************************
+%define RT_ASM_WITH_SEH64
 %include "iprt/asmdefs.mac"
 
 BEGINCODE
@@ -36,6 +37,7 @@ BEGINCODE
 ; @returns XCR0 value in rax (amd64) / edx:eax (x86).
 ;
 BEGINPROC_EXPORTED ASMGetXcr0
+SEH64_END_PROLOGUE
         xor     ecx, ecx                ; XCR0
         xgetbv
 %ifdef RT_ARCH_AMD64

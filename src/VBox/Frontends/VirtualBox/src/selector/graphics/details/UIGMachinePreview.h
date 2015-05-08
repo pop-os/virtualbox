@@ -1,3 +1,4 @@
+/* $Id: UIGMachinePreview.h $ */
 /** @file
  * VBox Qt GUI - UIGMachinePreview class declaration.
  */

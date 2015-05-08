@@ -22,13 +22,6 @@
 #include <iprt/string.h>
 
 #include "xf86.h"
-#include "dixstruct.h"
-#ifdef VBOX_GUESTR3XF86MOD
-# define EXTENSION_PROC_ARGS char *name, GCPtr pGC
-#endif
-#include "extnsionst.h"
-#include "windowstr.h"
-#include <X11/extensions/randrproto.h>
 
 #ifdef XORG_7X
 # include <stdio.h>
@@ -384,4 +377,3 @@ void vbvxCleanUpLinuxACPI(ScreenPtr pScreen)
 }
 # endif /* RT_OS_LINUX */
 #endif /* VBOXVIDEO_13 */
-

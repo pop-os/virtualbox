@@ -1,3 +1,4 @@
+/* $Id: SerialPortImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation

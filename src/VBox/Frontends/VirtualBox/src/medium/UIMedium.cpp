@@ -90,6 +90,7 @@ UIMedium& UIMedium::operator=(const UIMedium &other)
     m_strHardDiskType = other.hardDiskType();
     m_strHardDiskFormat = other.hardDiskFormat();
     m_strStorageDetails = other.storageDetails();
+    m_strEncryptionPasswordID = other.encryptionPasswordID();
 
     m_strUsage = other.usage();
     m_strToolTip = other.tip();
@@ -103,6 +104,7 @@ UIMedium& UIMedium::operator=(const UIMedium &other)
     m_fReadOnly = other.isReadOnly();
     m_fUsedInSnapshots = other.isUsedInSnapshots();
     m_fHostDrive = other.isHostDrive();
+    m_fEncrypted = other.isEncrypted();
 
     return *this;
 }
@@ -141,18 +143,15 @@ void UIMedium::refresh()
     /* Reset cache parameters: */
     //m_strKey = nullID();
 
-    /* Reset name/location parameters: */
+    /* Reset name/location/size parameters: */
     m_strName = VBoxGlobal::tr("Empty", "medium");
     m_strLocation = m_strSize = m_strLogicalSize = QString("--");
-
-    /* Reset size parameters: */
-    m_strSize = QString();
-    m_strLogicalSize = QString();
 
     /* Reset hard drive related parameters: */
     m_strHardDiskType = QString();
     m_strHardDiskFormat = QString();
     m_strStorageDetails = QString();
+    m_strEncryptionPasswordID = QString();
 
     /* Reset data parameters: */
     m_strUsage = QString();
@@ -169,6 +168,7 @@ void UIMedium::refresh()
     m_fReadOnly = false;
     m_fUsedInSnapshots = false;
     m_fHostDrive = false;
+    m_fEncrypted = false;
 
     /* For non NULL medium: */
     if (!m_medium.isNull())
@@ -240,6 +240,24 @@ void UIMedium::refresh()
                 {
                     m_strRootId = parentMedium.GetId();
                     parentMedium = parentMedium.GetParent();
+                }
+
+                /* Refresh encryption attributes: */
+                if (m_strRootId != m_strId)
+                {
+                    m_strEncryptionPasswordID = root().encryptionPasswordID();
+                    m_fEncrypted = root().isEncrypted();
+                }
+                else
+                {
+                    QString strCipher;
+                    CMedium medium(m_medium);
+                    const QString strEncryptionPasswordID = medium.GetEncryptionSettings(strCipher);
+                    if (medium.isOk())
+                    {
+                        m_strEncryptionPasswordID = strEncryptionPasswordID;
+                        m_fEncrypted = true;
+                    }
                 }
             }
         }
@@ -473,6 +491,10 @@ QString UIMedium::details(bool fNoDiffs /* = false */,
         {
             strDetails = QString("%1, ").arg(rootMedium.m_strHardDiskType);
         }
+
+        /* Add encryption status: */
+        if (m_fEncrypted)
+            strDetails += QString("%1, ").arg(VBoxGlobal::tr("Encrypted", "medium"));
     }
 
     // @todo prepend the details with the warning/error icon when not accessible

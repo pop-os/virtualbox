@@ -1,3 +1,4 @@
+/* $Id: dbus.cpp $ */
 /** @file
  *
  * Module to dynamically load libdbus and load all symbols

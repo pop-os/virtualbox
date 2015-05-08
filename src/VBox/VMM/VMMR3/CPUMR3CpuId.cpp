@@ -2102,7 +2102,6 @@ typedef uint8_t CPUMISAEXTCFG;
  */
 typedef struct CPUMCPUIDCONFIG
 {
-    bool            fSyntheticCpu;
     bool            fNt4LeafLimit;
     bool            fInvariantTsc;
 
@@ -3510,21 +3509,12 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
 {
     int rc;
 
-    /** @cfgm{/CPUM/SyntheticCpu, boolean, false}
-     * Enables the Synthetic CPU.  The Vendor ID and Processor Name are
-     * completely overridden by VirtualBox custom strings.  Some
-     * CPUID information is withheld, like the cache info.
-     *
-     * This is obsoleted by PortableCpuIdLevel. */
-    rc = CFGMR3QueryBoolDef(pCpumCfg, "SyntheticCpu", &pConfig->fSyntheticCpu, false);
-    AssertRCReturn(rc, rc);
-
     /** @cfgm{/CPUM/PortableCpuIdLevel, 8-bit, 0, 3, 0}
      * When non-zero CPUID features that could cause portability issues will be
      * stripped.  The higher the value the more features gets stripped.  Higher
      * values should only be used when older CPUs are involved since it may
      * harm performance and maybe also cause problems with specific guests. */
-    rc = CFGMR3QueryU8Def(pCpumCfg, "PortableCpuIdLevel", &pVM->cpum.s.u8PortableCpuIdLevel, pConfig->fSyntheticCpu ? 1 : 0);
+    rc = CFGMR3QueryU8Def(pCpumCfg, "PortableCpuIdLevel", &pVM->cpum.s.u8PortableCpuIdLevel, 0);
     AssertLogRelRCReturn(rc, rc);
 
     /** @cfgm{/CPUM/GuestCpuName, string}
@@ -3642,14 +3632,13 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
     rc = cpumR3CpuIdReadIsaExtCfgLegacy(pVM, pIsaExts, pCpumCfg, "SSE4.2", &pConfig->enmSse42, true);
     AssertLogRelRCReturn(rc, rc);
 
-#if 0 /* Incomplete, so not yet enabled.  */
+    /* Currently excluding older AMDs as we're seeing trouble booting 32-bit windows 7, due to
+       KiTrap07++ assuming the high 128-bit YMM component is in init state. Leading to a page fault. */
     bool const fMayHaveXSave = fNestedPagingAndFullGuestExec
                             && pVM->cpum.s.HostFeatures.fXSaveRstor
                             && pVM->cpum.s.HostFeatures.fOpSysXSaveRstor
-                            && pVM->cpum.s.HostFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL /** @todo test and enable on AMD! */;
-#else
-    bool const fMayHaveXSave = false;
-#endif
+                            //&& !CPUMMICROARCH_IS_AMD_FAM_15H(pVM->cpum.s.HostFeatures.enmMicroarch);
+                            && pVM->cpum.s.HostFeatures.enmCpuVendor != CPUMCPUVENDOR_AMD;
     /** @cfgm{/CPUM/IsaExts/XSAVE, boolean, depends}
      * Expose XSAVE/XRSTOR to the guest if available.  For the time being the
      * default is to only expose this to VMs with nested paging and AMD-V or
@@ -4902,6 +4891,129 @@ int cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion)
 
 
 
+/**
+ * Loads the CPU ID leaves saved by pass 0 in an pre 3.2 saved state.
+ *
+ * @returns VBox status code.
+ * @param   pVM                 Pointer to the VM.
+ * @param   pSSM                The saved state handle.
+ * @param   uVersion            The format version.
+ */
+int cpumR3LoadCpuIdPre32(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion)
+{
+    AssertMsgReturn(uVersion < CPUM_SAVED_STATE_VERSION_VER3_2, ("%u\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
+
+    /*
+     * Restore the CPUID leaves.
+     *
+     * Note that we support restoring less than the current amount of standard
+     * leaves because we've been allowed more is newer version of VBox.
+     */
+    uint32_t cElements;
+    int rc = SSMR3GetU32(pSSM, &cElements); AssertRCReturn(rc, rc);
+    if (cElements > RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmStd))
+        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+    SSMR3GetMem(pSSM, &pVM->cpum.s.aGuestCpuIdPatmStd[0], cElements*sizeof(pVM->cpum.s.aGuestCpuIdPatmStd[0]));
+
+    rc = SSMR3GetU32(pSSM, &cElements); AssertRCReturn(rc, rc);
+    if (cElements != RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmExt))
+        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+    SSMR3GetMem(pSSM, &pVM->cpum.s.aGuestCpuIdPatmExt[0], sizeof(pVM->cpum.s.aGuestCpuIdPatmExt));
+
+    rc = SSMR3GetU32(pSSM, &cElements); AssertRCReturn(rc, rc);
+    if (cElements != RT_ELEMENTS(pVM->cpum.s.aGuestCpuIdPatmCentaur))
+        return VERR_SSM_DATA_UNIT_FORMAT_CHANGED;
+    SSMR3GetMem(pSSM, &pVM->cpum.s.aGuestCpuIdPatmCentaur[0], sizeof(pVM->cpum.s.aGuestCpuIdPatmCentaur));
+
+    SSMR3GetMem(pSSM, &pVM->cpum.s.GuestInfo.DefCpuId, sizeof(pVM->cpum.s.GuestInfo.DefCpuId));
+
+    /*
+     * Check that the basic cpuid id information is unchanged.
+     */
+    /** @todo we should check the 64 bits capabilities too! */
+    uint32_t au32CpuId[8] = {0,0,0,0, 0,0,0,0};
+    ASMCpuIdExSlow(0, 0, 0, 0, &au32CpuId[0], &au32CpuId[1], &au32CpuId[2], &au32CpuId[3]);
+    ASMCpuIdExSlow(1, 0, 0, 0, &au32CpuId[4], &au32CpuId[5], &au32CpuId[6], &au32CpuId[7]);
+    uint32_t au32CpuIdSaved[8];
+    rc = SSMR3GetMem(pSSM, &au32CpuIdSaved[0], sizeof(au32CpuIdSaved));
+    if (RT_SUCCESS(rc))
+    {
+        /* Ignore CPU stepping. */
+        au32CpuId[4]      &=  0xfffffff0;
+        au32CpuIdSaved[4] &=  0xfffffff0;
+
+        /* Ignore APIC ID (AMD specs). */
+        au32CpuId[5]      &= ~0xff000000;
+        au32CpuIdSaved[5] &= ~0xff000000;
+
+        /* Ignore the number of Logical CPUs (AMD specs). */
+        au32CpuId[5]      &= ~0x00ff0000;
+        au32CpuIdSaved[5] &= ~0x00ff0000;
+
+        /* Ignore some advanced capability bits, that we don't expose to the guest. */
+        au32CpuId[6]      &= ~(   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              );
+        au32CpuIdSaved[6] &= ~(   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              );
+
+        /* Make sure we don't forget to update the masks when enabling
+         * features in the future.
+         */
+        AssertRelease(!(pVM->cpum.s.aGuestCpuIdPatmStd[1].uEcx &
+                              (   X86_CPUID_FEATURE_ECX_DTES64
+                               |  X86_CPUID_FEATURE_ECX_VMX
+                               |  X86_CPUID_FEATURE_ECX_SMX
+                               |  X86_CPUID_FEATURE_ECX_EST
+                               |  X86_CPUID_FEATURE_ECX_TM2
+                               |  X86_CPUID_FEATURE_ECX_CNTXID
+                               |  X86_CPUID_FEATURE_ECX_TPRUPDATE
+                               |  X86_CPUID_FEATURE_ECX_PDCM
+                               |  X86_CPUID_FEATURE_ECX_DCA
+                               |  X86_CPUID_FEATURE_ECX_X2APIC
+                              )));
+        /* do the compare */
+        if (memcmp(au32CpuIdSaved, au32CpuId, sizeof(au32CpuIdSaved)))
+        {
+            if (SSMR3HandleGetAfter(pSSM) == SSMAFTER_DEBUG_IT)
+                LogRel(("cpumR3LoadExec: CpuId mismatch! (ignored due to SSMAFTER_DEBUG_IT)\n"
+                        "Saved=%.*Rhxs\n"
+                        "Real =%.*Rhxs\n",
+                        sizeof(au32CpuIdSaved), au32CpuIdSaved,
+                        sizeof(au32CpuId), au32CpuId));
+            else
+            {
+                LogRel(("cpumR3LoadExec: CpuId mismatch!\n"
+                        "Saved=%.*Rhxs\n"
+                        "Real =%.*Rhxs\n",
+                        sizeof(au32CpuIdSaved), au32CpuIdSaved,
+                        sizeof(au32CpuId), au32CpuId));
+                rc = VERR_SSM_LOAD_CPUID_MISMATCH;
+            }
+        }
+    }
+
+    return rc;
+}
+
+
 
 /*
  *
@@ -5068,6 +5180,8 @@ static DBGFREGSUBFIELD const g_aLeaf7Sub0EbxSubFields[] =
 static DBGFREGSUBFIELD const g_aLeaf7Sub0EcxSubFields[] =
 {
     DBGFREGSUBFIELD_RO("PREFETCHWT1\0" "PREFETCHWT1 instruction",                        0, 1, 0),
+    DBGFREGSUBFIELD_RO("PKU\0"          "Protection Key for Usermode pages",             3, 1, 0),
+    DBGFREGSUBFIELD_RO("OSPKU\0"        "CR4.PKU mirror",                                4, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 

@@ -62,7 +62,6 @@
 #include <VBox/log.h>
 
 #include "VBoxDD.h"
-#include "vl_vbox.h"
 
 #include <ctype.h>
 #include <stdlib.h>
@@ -284,8 +283,8 @@ static bool drvAudioStreamCfgIsValid(PPDMAUDIOSTREAMCFG pCfg)
     bool fValid = (   pCfg->cChannels == 1
                    || pCfg->cChannels == 2); /* Either stereo (2) or mono (1), per stream. */
 
-    fValid |= (   pCfg->enmEndianness == PDMAUDIOENDIANESS_LITTLE
-               || pCfg->enmEndianness == PDMAUDIOENDIANESS_BIG);
+    fValid |= (   pCfg->enmEndianness == PDMAUDIOENDIANNESS_LITTLE
+               || pCfg->enmEndianness == PDMAUDIOENDIANNESS_BIG);
 
     if (fValid)
     {
@@ -341,7 +340,7 @@ void audio_pcm_info_clear_buf(PPDMPCMPROPS pPCMInfo, void *pvBuf, int len)
                 short s = INT16_MAX;
 
                 if (pPCMInfo->fSwapEndian)
-                    s = bswap16(s);
+                    s = RT_BSWAP_U16(s);
 
                 for (i = 0; i < len << shift; i++)
                     p[i] = s;
@@ -356,7 +355,7 @@ void audio_pcm_info_clear_buf(PPDMPCMPROPS pPCMInfo, void *pvBuf, int len)
                 int32_t s = INT32_MAX;
 
                 if (pPCMInfo->fSwapEndian)
-                    s = bswap32(s);
+                    s = RT_BSWAP_U32(s);
 
                 for (i = 0; i < len << shift; i++)
                     p[i] = s;
@@ -395,8 +394,8 @@ int drvAudioDestroyHstOut(PDRVAUDIO pThis, PPDMAUDIOHSTSTRMOUT pHstStrmOut)
     }
     else
     {
-        LogFlowFunc(("[%s] Still is being used, rc=%Rrc\n", pHstStrmOut->MixBuf.pszName, rc));
         rc = VERR_ACCESS_DENIED;
+        LogFlowFunc(("[%s] Still is being used, rc=%Rrc\n", pHstStrmOut->MixBuf.pszName, rc));
     }
 
     return rc;
@@ -860,7 +859,7 @@ static int drvAudioAllocHstIn(PDRVAUDIO pThis, const char *pszName, PPDMAUDIOSTR
  * @param   pcbWritten
  */
 int drvAudioWrite(PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMOUT pGstStrmOut,
-                  const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)
+                  const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten)
 {
     PDRVAUDIO pThis = PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface);
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);
@@ -975,8 +974,8 @@ int drvAudioDestroyHstIn(PDRVAUDIO pThis, PPDMAUDIOHSTSTRMIN pHstStrmIn)
     }
     else
     {
-        LogFlowFunc(("[%s] Still is being used, rc=%Rrc\n", pHstStrmIn->MixBuf.pszName, rc));
         rc = VERR_ACCESS_DENIED;
+        LogFlowFunc(("[%s] Still is being used, rc=%Rrc\n", pHstStrmIn->MixBuf.pszName, rc));
     }
 
     return rc;
@@ -1400,7 +1399,7 @@ static DECLCALLBACK(int) drvAudioInitNull(PPDMIAUDIOCONNECTOR pInterface)
 }
 
 static DECLCALLBACK(int) drvAudioRead(PPDMIAUDIOCONNECTOR pInterface, PPDMAUDIOGSTSTRMIN pGstStrmIn,
-                                      void *pvBuf, size_t cbBuf, uint32_t *pcbRead)
+                                      void *pvBuf, uint32_t cbBuf, uint32_t *pcbRead)
 {
     PDRVAUDIO pThis = PDMIAUDIOCONNECTOR_2_DRVAUDIO(pInterface);
     AssertPtrReturn(pThis, VERR_INVALID_POINTER);

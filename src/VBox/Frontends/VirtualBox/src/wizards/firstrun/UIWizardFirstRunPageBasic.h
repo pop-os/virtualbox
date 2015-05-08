@@ -1,3 +1,4 @@
+/* $Id: UIWizardFirstRunPageBasic.h $ */
 /** @file
  * VBox Qt GUI - UIWizardFirstRunPageBasic class declaration.
  */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2013 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,9 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
+#ifndef VBOX_WITH_GUEST_CONTROL
+# error "VBOX_WITH_GUEST_CONTROL must defined in this file"
+#endif
 #include "GuestProcessImpl.h"
 #include "GuestSessionImpl.h"
 #include "GuestCtrlImplPrivate.h"
@@ -161,11 +164,11 @@ void GuestProcess::FinalRelease(void)
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 
-int GuestProcess::init(Console *aConsole, GuestSession *aSession,
-                       ULONG aProcessID, const GuestProcessStartupInfo &aProcInfo)
+int GuestProcess::init(Console *aConsole, GuestSession *aSession, ULONG aProcessID,
+                       const GuestProcessStartupInfo &aProcInfo, const GuestEnvironment *pBaseEnv)
 {
-    LogFlowThisFunc(("aConsole=%p, aSession=%p, aProcessID=%RU32\n",
-                     aConsole, aSession, aProcessID));
+    LogFlowThisFunc(("aConsole=%p, aSession=%p, aProcessID=%RU32 pBaseEnv=%p\n",
+                     aConsole, aSession, aProcessID, pBaseEnv));
 
     AssertPtrReturn(aConsole, VERR_INVALID_POINTER);
     AssertPtrReturn(aSession, VERR_INVALID_POINTER);
@@ -174,10 +177,6 @@ int GuestProcess::init(Console *aConsole, GuestSession *aSession,
     AutoInitSpan autoInitSpan(this);
     AssertReturn(autoInitSpan.isOk(), VERR_OBJECT_DESTROYED);
 
-#ifndef VBOX_WITH_GUEST_CONTROL
-    autoInitSpan.setSucceeded();
-    return VINF_SUCCESS;
-#else
     HRESULT hr;
 
     int vrc = bindToSession(aConsole, aSession, aProcessID /* Object ID */);
@@ -236,6 +235,9 @@ int GuestProcess::init(Console *aConsole, GuestSession *aSession,
     if (RT_SUCCESS(vrc))
     {
         mData.mProcess = aProcInfo;
+        mData.mpSessionBaseEnv = pBaseEnv;
+        if (pBaseEnv)
+            pBaseEnv->retainConst();
         mData.mExitCode = 0;
         mData.mPID = 0;
         mData.mLastError = VINF_SUCCESS;
@@ -250,7 +252,6 @@ int GuestProcess::init(Console *aConsole, GuestSession *aSession,
 
     autoInitSpan.setFailed();
     return vrc;
-#endif
 }
 
 /**
@@ -264,9 +265,7 @@ void GuestProcess::uninit(void)
     if (autoUninitSpan.uninitDone())
         return;
 
-#ifdef VBOX_WITH_GUEST_CONTROL
-    LogFlowThisFunc(("mCmd=%s, PID=%RU32\n",
-                     mData.mProcess.mCommand.c_str(), mData.mPID));
+    LogFlowThisFunc(("mExe=%s, PID=%RU32\n", mData.mProcess.mExecutable.c_str(), mData.mPID));
 
     /* Terminate process if not already done yet. */
     int guestRc = VINF_SUCCESS;
@@ -274,46 +273,63 @@ void GuestProcess::uninit(void)
     /* Note: Don't return here yet; first uninit all other stuff in
      *       case of failure. */
 
+    if (mData.mpSessionBaseEnv)
+    {
+        mData.mpSessionBaseEnv->releaseConst();
+        mData.mpSessionBaseEnv = NULL;
+    }
+
     baseUninit();
 
     LogFlowThisFunc(("Returning rc=%Rrc, guestRc=%Rrc\n",
                      vrc, guestRc));
-#endif
 }
 
 // implementation of public getters/setters for attributes
 /////////////////////////////////////////////////////////////////////////////
 HRESULT GuestProcess::getArguments(std::vector<com::Utf8Str> &aArguments)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     aArguments = mData.mProcess.mArguments;
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getEnvironment(std::vector<com::Utf8Str> &aEnvironment)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
+#ifndef VBOX_WTIH_GUEST_CONTROL
     ReturnComNotImplemented();
 #else
-    LogFlowThisFuncEnter();
-
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    mData.mProcess.mEnvironment.CopyTo(aEnvironment);
-    return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);  /* (Paranoia since both environment objects are immutable.) */
+    HRESULT hrc;
+    if (mData.mpSessionBaseEnv)
+    {
+        int vrc;
+        if (mData.mProcess.mEnvironmentChanges.count() == 0)
+            vrc = mData.mpSessionBaseEnv->queryPutEnvArray(&aEnvironment);
+        else
+        {
+            GuestEnvironment TmpEnv;
+            vrc = TmpEnv.copy(*mData.mpSessionBaseEnv);
+            if (RT_SUCCESS(vrc))
+            {
+                vrc = TmpEnv.applyChanges(mData.mProcess.mEnvironmentChanges);
+                if (RT_SUCCESS(rc))
+                    vrc = TmpEnv.queryPutEnvArray(&aEnvironment);
+            }
+        }
+        hrc = Global::vboxStatusCodeToCOM(vrc);
+    }
+    else
+        hrc = setError(VBOX_E_NOT_SUPPORTED, tr("The base environment feature is not supported by the guest additions"));
+    LogFlowThisFuncLeave();
+    return hrc;
+#endif
 }
 
 HRESULT GuestProcess::getEventSource(ComPtr<IEventSource> &aEventSource)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     // no need to lock - lifetime constant
@@ -321,29 +337,21 @@ HRESULT GuestProcess::getEventSource(ComPtr<IEventSource> &aEventSource)
 
     LogFlowThisFuncLeave();
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getExecutablePath(com::Utf8Str &aExecutablePath)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aExecutablePath = mData.mProcess.mCommand;
+    aExecutablePath = mData.mProcess.mExecutable;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getExitCode(LONG *aExitCode)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -351,14 +359,10 @@ HRESULT GuestProcess::getExitCode(LONG *aExitCode)
     *aExitCode = mData.mExitCode;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getName(com::Utf8Str &aName)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -366,14 +370,10 @@ HRESULT GuestProcess::getName(com::Utf8Str &aName)
     aName = mData.mProcess.mName;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getPID(ULONG *aPID)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -381,14 +381,10 @@ HRESULT GuestProcess::getPID(ULONG *aPID)
     *aPID = mData.mPID;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::getStatus(ProcessStatus_T *aStatus)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -396,7 +392,6 @@ HRESULT GuestProcess::getStatus(ProcessStatus_T *aStatus)
     *aStatus = mData.mStatus;
 
     return S_OK;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 // private methods
@@ -986,8 +981,8 @@ HRESULT GuestProcess::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc
 
 int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
 {
-    LogFlowThisFunc(("uTimeoutMS=%RU32, procCmd=%s, procTimeoutMS=%RU32, procFlags=%x, sessionID=%RU32\n",
-                     uTimeoutMS, mData.mProcess.mCommand.c_str(), mData.mProcess.mTimeoutMS, mData.mProcess.mFlags,
+    LogFlowThisFunc(("uTimeoutMS=%RU32, procExe=%s, procTimeoutMS=%RU32, procFlags=%x, sessionID=%RU32\n",
+                     uTimeoutMS, mData.mProcess.mExecutable.c_str(), mData.mProcess.mTimeoutMS, mData.mProcess.mFlags,
                      mSession->i_getId()));
 
     /* Wait until the caller function (if kicked off by a thread)
@@ -1016,8 +1011,10 @@ int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
 
     GuestSession *pSession = mSession;
     AssertPtr(pSession);
+    uint32_t const uProtocol = pSession->i_getProtocolVersion();
 
     const GuestCredentials &sessionCreds = pSession->i_getCredentials();
+
 
     /* Prepare arguments. */
     char *pszArgs = NULL;
@@ -1028,27 +1025,22 @@ int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
     if (   RT_SUCCESS(vrc)
         && cArgs)
     {
-        char **papszArgv = (char**)RTMemAlloc((cArgs + 1) * sizeof(char*));
+        char const **papszArgv = (char const **)RTMemAlloc((cArgs + 1) * sizeof(papszArgv[0]));
         AssertReturn(papszArgv, VERR_NO_MEMORY);
 
-        for (size_t i = 0; i < cArgs && RT_SUCCESS(vrc); i++)
+        for (size_t i = 0; i < cArgs; i++)
         {
-            const char *pszCurArg = mData.mProcess.mArguments[i].c_str();
-            AssertPtr(pszCurArg);
-            vrc = RTStrDupEx(&papszArgv[i], pszCurArg);
+            papszArgv[i] = mData.mProcess.mArguments[i].c_str();
+            AssertPtr(papszArgv[i]);
         }
         papszArgv[cArgs] = NULL;
 
-        if (RT_SUCCESS(vrc))
-            vrc = RTGetOptArgvToString(&pszArgs, papszArgv, RTGETOPTARGV_CNV_QUOTE_MS_CRT);
+        if (uProtocol < UINT32_C(0xdeadbeef) ) /** @todo implement a way of sending argv[0], best idea is a new command. */
+            vrc = RTGetOptArgvToString(&pszArgs, papszArgv + 1, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
+        else
+            vrc = RTGetOptArgvToString(&pszArgs, papszArgv, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH);
 
-        if (papszArgv)
-        {
-            size_t i = 0;
-            while (papszArgv[i])
-                RTStrFree(papszArgv[i++]);
-            RTMemFree(papszArgv);
-        }
+        RTMemFree(papszArgv);
     }
 
     /* Calculate arguments size (in bytes). */
@@ -1056,36 +1048,34 @@ int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
     if (RT_SUCCESS(vrc))
         cbArgs = pszArgs ? strlen(pszArgs) + 1 : 0; /* Include terminating zero. */
 
-    /* Prepare environment. */
-    void *pvEnv = NULL;
-    size_t cbEnv = 0;
+    /* Prepare environment.  The guest service dislikes the empty string at the end, so drop it. */
+    size_t  cbEnvBlock;
+    char   *pszzEnvBlock;
     if (RT_SUCCESS(vrc))
-        vrc = mData.mProcess.mEnvironment.BuildEnvironmentBlock(&pvEnv, &cbEnv, NULL /* cEnv */);
-
+        vrc = mData.mProcess.mEnvironmentChanges.queryUtf8Block(&pszzEnvBlock, &cbEnvBlock);
     if (RT_SUCCESS(vrc))
     {
-        AssertPtr(mSession);
-        uint32_t uProtocol = mSession->i_getProtocolVersion();
+        Assert(cbEnvBlock > 0);
+        cbEnvBlock--;
 
         /* Prepare HGCM call. */
         VBOXHGCMSVCPARM paParms[16];
         int i = 0;
         paParms[i++].setUInt32(pEvent->ContextID());
-        paParms[i++].setPointer((void*)mData.mProcess.mCommand.c_str(),
-                                (ULONG)mData.mProcess.mCommand.length() + 1);
+        paParms[i++].setCppString(mData.mProcess.mExecutable);
         paParms[i++].setUInt32(mData.mProcess.mFlags);
         paParms[i++].setUInt32((uint32_t)mData.mProcess.mArguments.size());
-        paParms[i++].setPointer((void*)pszArgs, (uint32_t)cbArgs);
-        paParms[i++].setUInt32((uint32_t)mData.mProcess.mEnvironment.Size());
-        paParms[i++].setUInt32((uint32_t)cbEnv);
-        paParms[i++].setPointer((void*)pvEnv, (uint32_t)cbEnv);
+        paParms[i++].setPointer(pszArgs, (uint32_t)cbArgs);
+        paParms[i++].setUInt32(mData.mProcess.mEnvironmentChanges.count());
+        paParms[i++].setUInt32((uint32_t)cbEnvBlock);
+        paParms[i++].setPointer(pszzEnvBlock, (uint32_t)cbEnvBlock);
         if (uProtocol < 2)
         {
             /* In protocol v1 (VBox < 4.3) the credentials were part of the execution
              * call. In newer protocols these credentials are part of the opened guest
              * session, so not needed anymore here. */
-            paParms[i++].setPointer((void*)sessionCreds.mUser.c_str(), (ULONG)sessionCreds.mUser.length() + 1);
-            paParms[i++].setPointer((void*)sessionCreds.mPassword.c_str(), (ULONG)sessionCreds.mPassword.length() + 1);
+            paParms[i++].setCppString(sessionCreds.mUser);
+            paParms[i++].setCppString(sessionCreds.mPassword);
         }
         /*
          * If the WaitForProcessStartOnly flag is set, we only want to define and wait for a timeout
@@ -1104,7 +1094,7 @@ int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
              * so that makes up to 64 CPUs total. This can be more in the future. */
             paParms[i++].setUInt32(1);
             /* The actual CPU affinity blocks. */
-            paParms[i++].setPointer((void*)&mData.mProcess.mAffinity, sizeof(mData.mProcess.mAffinity));
+            paParms[i++].setPointer((void *)&mData.mProcess.mAffinity, sizeof(mData.mProcess.mAffinity));
         }
 
         alock.release(); /* Drop the write lock before sending. */
@@ -1115,9 +1105,10 @@ int GuestProcess::i_startProcess(uint32_t uTimeoutMS, int *pGuestRc)
             int rc2 = i_setProcessStatus(ProcessStatus_Error, vrc);
             AssertRC(rc2);
         }
+
+        mData.mProcess.mEnvironmentChanges.freeUtf8Block(pszzEnvBlock);
     }
 
-    GuestEnvironment::FreeEnvironmentBlock(pvEnv);
     if (pszArgs)
         RTStrFree(pszArgs);
 
@@ -1277,10 +1268,10 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
                     else
                     {
                         /*
-                             * If ProcessCreateFlag_WaitForProcessStartOnly was specified on process creation the
-                             * caller is not interested in getting further process statuses -- so just don't notify
-                             * anything here anymore and return.
-                             */
+                         * If ProcessCreateFlag_WaitForProcessStartOnly was specified on process creation the
+                         * caller is not interested in getting further process statuses -- so just don't notify
+                         * anything here anymore and return.
+                         */
                         if (uProcFlags & ProcessCreateFlag_WaitForProcessStartOnly)
                             waitResult = ProcessWaitResult_Start;
                     }
@@ -1314,7 +1305,8 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
 
     if (newStatus == ProcessStatus_Started)
     {
-        /* Filter out waits which are *not* supported using
+        /**
+         * Filter out waits which are *not* supported using
          * older guest control Guest Additions.
          *
          ** @todo ProcessWaitForFlag_Std* flags are not implemented yet.
@@ -1731,9 +1723,6 @@ int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
 
 HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aData)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     if (aToRead == 0)
@@ -1763,7 +1752,7 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
             default:
                 hr = setError(VBOX_E_IPRT_ERROR,
                               tr("Reading from process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mCommand.c_str(), mData.mPID, vrc);
+                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1772,15 +1761,10 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
 
     LogFlowFuncLeaveRC(vrc);
     return hr;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::terminate()
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-
     HRESULT hr = S_OK;
 
     int guestRc;
@@ -1797,13 +1781,13 @@ HRESULT GuestProcess::terminate()
             case VERR_NOT_SUPPORTED:
                 hr = setError(VBOX_E_IPRT_ERROR,
                               tr("Terminating process \"%s\" (PID %RU32) not supported by installed Guest Additions"),
-                              mData.mProcess.mCommand.c_str(), mData.mPID);
+                              mData.mProcess.mExecutable.c_str(), mData.mPID);
                 break;
 
             default:
                 hr = setError(VBOX_E_IPRT_ERROR,
                               tr("Terminating process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mCommand.c_str(), mData.mPID, vrc);
+                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1817,23 +1801,19 @@ HRESULT GuestProcess::terminate()
 
     LogFlowFuncLeaveRC(vrc);
     return hr;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::waitFor(ULONG aWaitFor,
                               ULONG aTimeoutMS,
                               ProcessWaitResult_T *aReason)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
-
     /*
      * Note: Do not hold any locks here while waiting!
      */
     HRESULT hr = S_OK;
 
-    int guestRc; ProcessWaitResult_T waitResult;
+    int guestRc;
+    ProcessWaitResult_T waitResult;
     int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &guestRc);
     if (RT_SUCCESS(vrc))
     {
@@ -1854,22 +1834,18 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor,
             default:
                 hr = setError(VBOX_E_IPRT_ERROR,
                               tr("Waiting for process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mCommand.c_str(), mData.mPID, vrc);
+                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
 
     LogFlowFuncLeaveRC(vrc);
     return hr;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWaitFor,
                                    ULONG aTimeoutMS, ProcessWaitResult_T *aReason)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     /*
      * Note: Do not hold any locks here while waiting!
      */
@@ -1878,15 +1854,11 @@ HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWai
         fWaitFor |= aWaitFor[i];
 
     return WaitFor(fWaitFor, aTimeoutMS, aReason);
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE> &aData,
                             ULONG aTimeoutMS, ULONG *aWritten)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
@@ -1906,7 +1878,7 @@ HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE>
             default:
                 hr = setError(VBOX_E_IPRT_ERROR,
                               tr("Writing to process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mCommand.c_str(), mData.mPID, vrc);
+                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1917,15 +1889,11 @@ HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE>
 
     LogFlowFuncLeaveRC(vrc);
     return hr;
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 HRESULT GuestProcess::writeArray(ULONG aHandle, const std::vector<ProcessInputFlag_T> &aFlags,
                                  const std::vector<BYTE> &aData, ULONG aTimeoutMS, ULONG *aWritten)
 {
-#ifndef VBOX_WITH_GUEST_CONTROL
-    ReturnComNotImplemented();
-#else
     LogFlowThisFuncEnter();
 
     /*
@@ -1936,7 +1904,6 @@ HRESULT GuestProcess::writeArray(ULONG aHandle, const std::vector<ProcessInputFl
         fWrite |= aFlags[i];
 
     return write(aHandle, fWrite, aData, aTimeoutMS, aWritten);
-#endif /* VBOX_WITH_GUEST_CONTROL */
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1955,8 +1922,8 @@ GuestProcessTool::~GuestProcessTool(void)
 int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartupInfo &startupInfo,
                            bool fAsync, int *pGuestRc)
 {
-    LogFlowThisFunc(("pGuestSession=%p, szCmd=%s, fAsync=%RTbool\n",
-                     pGuestSession, startupInfo.mCommand.c_str(), fAsync));
+    LogFlowThisFunc(("pGuestSession=%p, exe=%s, fAsync=%RTbool\n",
+                     pGuestSession, startupInfo.mExecutable.c_str(), fAsync));
 
     AssertPtrReturn(pGuestSession, VERR_INVALID_POINTER);
 
@@ -1966,7 +1933,7 @@ int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartu
     /* Make sure the process is hidden. */
     mStartupInfo.mFlags |= ProcessCreateFlag_Hidden;
 
-    int vrc = pSession->i_processCreateExInteral(mStartupInfo, pProcess);
+    int vrc = pSession->i_processCreateExInternal(mStartupInfo, pProcess);
     if (RT_SUCCESS(vrc))
         vrc = fAsync
             ? pProcess->i_startProcessAsync()
@@ -2039,6 +2006,14 @@ int GuestProcessTool::i_run(      GuestSession            *pGuestSession,
                    pGuestRc);
 }
 
+/**
+ * <Someone write documentation, pretty please!>
+ *
+ * @param   pGuestRc        Optional.  Will be set to VINF_SUCCESS,
+ *                          VERR_NOT_EQUAL or VERR_INVALID_STATE if the
+ *                          process completed.  Should it fail earlier that,
+ *                          you're feel free to enlighten the rest of us...
+ */
 /* static */
 int GuestProcessTool::i_runEx(      GuestSession            *pGuestSession,
                               const GuestProcessStartupInfo &startupInfo,

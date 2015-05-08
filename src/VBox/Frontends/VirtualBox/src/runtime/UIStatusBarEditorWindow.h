@@ -1,3 +1,4 @@
+/* $Id: UIStatusBarEditorWindow.h $ */
 /** @file
  * VBox Qt GUI - UIStatusBarEditorWindow class declaration.
  */

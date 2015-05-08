@@ -1,3 +1,4 @@
+/* $Id: QIMenu.h $ */
 /** @file
  * VBox Qt GUI - QIMenu class declaration.
  */

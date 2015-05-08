@@ -1,3 +1,4 @@
+/* $Id: server_module.cpp $ */
 /** @file
  *
  * XPCOM server process helper module implementation functions

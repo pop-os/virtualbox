@@ -1,3 +1,4 @@
+/* $Id: UIMediumManager.h $ */
 /** @file
  * VBox Qt GUI - UIMediumManager class declaration.
  */

@@ -46,13 +46,11 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-
 #ifdef Q_WS_MAC
 # if MAC_LEOPARD_STYLE
 #  define VBOX_GUI_WITH_TOOLBAR_SETTINGS
 # endif
 #endif
-
 
 /* Settings Dialog Constructor: */
 UISettingsDialog::UISettingsDialog(QWidget *pParent)
@@ -66,7 +64,6 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     , m_fPolished(false)
     /* Loading/saving stuff: */
     , m_pSerializeProcess(0)
-    , m_pSerializeProgress(0)
     , m_fLoaded(false)
     , m_fSaved(false)
     /* Status-bar stuff: */
@@ -124,6 +121,8 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
 
     /* Prepare process-bar: */
     m_pProcessBar = new QProgressBar;
+    m_pProcessBar->setMaximum(100);
+    m_pProcessBar->setMinimum(0);
 
     /* Prepare warning-pane: */
     m_pWarningPane = new UIWarningPane;
@@ -157,11 +156,6 @@ UISettingsDialog::~UISettingsDialog()
     {
         delete m_pSerializeProcess;
         m_pSerializeProcess = 0;
-    }
-    if (serializeProgress())
-    {
-        delete m_pSerializeProgress;
-        m_pSerializeProgress = 0;
     }
 
     /* Recall popup-pane if any: */
@@ -224,11 +218,6 @@ void UISettingsDialog::sltMarkLoaded()
         delete m_pSerializeProcess;
         m_pSerializeProcess = 0;
     }
-    if (serializeProgress())
-    {
-        delete m_pSerializeProgress;
-        m_pSerializeProgress = 0;
-    }
 
     /* Mark as loaded: */
     m_fLoaded = true;
@@ -242,11 +231,6 @@ void UISettingsDialog::sltMarkSaved()
         delete m_pSerializeProcess;
         m_pSerializeProcess = 0;
     }
-    if (serializeProgress())
-    {
-        delete m_pSerializeProgress;
-        m_pSerializeProgress = 0;
-    }
 
     /* Mark as saved: */
     m_fSaved = true;
@@ -258,9 +242,9 @@ void UISettingsDialog::sltHandleProcessStarted()
     m_pStatusBar->setCurrentWidget(m_pProcessBar);
 }
 
-void UISettingsDialog::sltHandlePageProcessed()
+void UISettingsDialog::sltHandleProcessProgressChange(int iValue)
 {
-    m_pProcessBar->setValue(m_pProcessBar->value() + 1);
+    m_pProcessBar->setValue(iValue);
     if (m_pProcessBar->value() == m_pProcessBar->maximum())
     {
         if (!m_fValid || !m_fSilent)
@@ -282,16 +266,18 @@ void UISettingsDialog::loadData(QVariant &data)
     {
         /* Configure settings loader: */
         connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessStarted()), this, SLOT(sltHandleProcessStarted()));
-        connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutPagePostprocessed(int)), this, SLOT(sltHandlePageProcessed()));
+        connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessProgressChanged(int)), this, SLOT(sltHandleProcessProgressChange(int)));
         connect(m_pSerializeProcess, SIGNAL(sigNotifyAboutProcessFinished()), this, SLOT(sltMarkLoaded()));
+
         /* Raise current page priority: */
         m_pSerializeProcess->raisePriorityOfPage(m_pSelector->currentId());
+
         /* Start settings loader: */
         m_pSerializeProcess->start();
-    }
 
-    /* Upload data finally: */
-    data = m_pSerializeProcess->data();
+        /* Upload data finally: */
+        data = m_pSerializeProcess->data();
+    }
 }
 
 void UISettingsDialog::saveData(QVariant &data)
@@ -299,20 +285,30 @@ void UISettingsDialog::saveData(QVariant &data)
     /* Mark as not saved: */
     m_fSaved = false;
 
-    /* Create settings saver: */
-    QWidget *pDlgParent = windowManager().realParentWindow(window());
-    m_pSerializeProgress = new UISettingsSerializerProgress(pDlgParent, UISettingsSerializer::Save,
-                                                            data, m_pSelector->settingPages());
-    AssertPtrReturnVoid(m_pSerializeProgress);
+    /* Create the 'settings saver': */
+    QPointer<UISettingsSerializerProgress> pDlgSerializeProgress =
+        new UISettingsSerializerProgress(this, UISettingsSerializer::Save,
+                                         data, m_pSelector->settingPages());
+    AssertPtrReturnVoid(static_cast<UISettingsSerializerProgress*>(pDlgSerializeProgress));
     {
-        /* Make setting saver the temporary parent for all the sub-dialogs: */
-        windowManager().registerNewParent(m_pSerializeProgress, pDlgParent);
-        /* Start settings saver: */
-        m_pSerializeProgress->exec();
-    }
+        /* Make the 'settings saver' temporary parent for all sub-dialogs: */
+        windowManager().registerNewParent(pDlgSerializeProgress, windowManager().realParentWindow(this));
 
-    /* Upload data finally: */
-    data = m_pSerializeProgress->data();
+        /* Execute the 'settings saver': */
+        pDlgSerializeProgress->exec();
+
+        /* Any modal dialog can be destroyed in own event-loop
+         * as a part of application termination procedure..
+         * We have to check if the dialog still valid. */
+        if (pDlgSerializeProgress)
+        {
+            /* Upload 'settings saver' data: */
+            data = pDlgSerializeProgress->data();
+
+            /* Delete the 'settings saver': */
+            delete pDlgSerializeProgress;
+        }
+    }
 }
 
 void UISettingsDialog::retranslateUi()
@@ -351,15 +347,6 @@ void UISettingsDialog::setConfigurationAccessLevel(ConfigurationAccessLevel newC
         pPage->setConfigurationAccessLevel(configurationAccessLevel());
 }
 
-QString UISettingsDialog::titleExtension() const
-{
-#ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
-    return m_pSelector->itemText(m_pSelector->currentId());
-#else
-    return tr("Settings");
-#endif
-}
-
 void UISettingsDialog::addItem(const QString &strBigIcon,
                                const QString &strMediumIcon,
                                const QString &strSmallIcon,
@@ -374,9 +361,6 @@ void UISettingsDialog::addItem(const QString &strBigIcon,
     {
         /* Add stack-widget page if created: */
         m_pages[cId] = m_pStack->addWidget(pPage);
-        /* Update process-bar: */
-        m_pProcessBar->setMinimum(0);
-        m_pProcessBar->setMaximum(m_pStack->count());
     }
     /* Assign validator if necessary: */
     if (pSettingsPage)

@@ -1,3 +1,4 @@
+/* $Id: UINetworkCustomer.h $ */
 /** @file
  * VBox Qt GUI - UINetworkCustomer class declaration.
  */

@@ -1,3 +1,4 @@
+/* $Id: BandwidthControlImpl.h $ */
 /** @file
  *
  * VirtualBox COM class implementation

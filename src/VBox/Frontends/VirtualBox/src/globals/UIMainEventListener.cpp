@@ -34,6 +34,7 @@
 # include "CSnapshotTakenEvent.h"
 # include "CSnapshotDeletedEvent.h"
 # include "CSnapshotChangedEvent.h"
+# include "CSnapshotRestoredEvent.h"
 # include "CExtraDataCanChangeEvent.h"
 # include "CExtraDataChangedEvent.h"
 # include "CMousePointerShapeChangedEvent.h"
@@ -116,6 +117,12 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
         {
             CSnapshotChangedEvent es(pEvent);
             emit sigSnapshotChange(es.GetMachineId(), es.GetSnapshotId());
+            break;
+        }
+        case KVBoxEventType_OnSnapshotRestored:
+        {
+            CSnapshotRestoredEvent es(pEvent);
+            emit sigSnapshotRestore(es.GetMachineId(), es.GetSnapshotId());
             break;
         }
 //        case KVBoxEventType_OnMediumRegistered:
@@ -234,13 +241,17 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
             emit sigCanShowWindow(fVeto, strReason);
             if (fVeto)
                 es.AddVeto(strReason);
+            else
+                es.AddApproval(strReason);
             break;
         }
         case KVBoxEventType_OnShowWindow:
         {
             CShowWindowEvent es(pEvent);
             /* Has to be done in place to give an answer: */
-            LONG64 winId;
+            LONG64 winId = es.GetWinId();
+            if (winId != 0)
+                break; /* Already set by some listener. */
             emit sigShowWindow(winId);
             es.SetWinId(winId);
             break;
