@@ -1,3 +1,4 @@
+/* $Id: UIConverterBackend.h $ */
 /** @file
  * VBox Qt GUI - UIConverterBackend declaration.
  */

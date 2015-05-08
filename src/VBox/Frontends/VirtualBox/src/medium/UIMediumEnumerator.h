@@ -1,3 +1,4 @@
+/* $Id: UIMediumEnumerator.h $ */
 /** @file
  * VBox Qt GUI - UIMediumEnumerator class declaration.
  */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1315,7 +1315,7 @@ int vbvaVHWACommandCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PVBOXVHWA
 
             if(RT_SUCCESS(rc))
             {
-                rc = HGSMIHostCommandProcessAndFreeAsynch(pIns, pHostCmd, (pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ) != 0);
+                rc = HGSMIHostCommandSubmitAndFreeAsynch(pIns, pHostCmd, RT_BOOL(pCmd->Flags & VBOXVHWACMD_FLAG_GH_ASYNCH_IRQ));
                 AssertRC(rc);
                 if(RT_SUCCESS(rc))
                 {
@@ -2272,7 +2272,7 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             LogFlowFunc(("VBVA_INFO_HEAP: offset 0x%x, size 0x%x\n",
                          pHeap->u32HeapOffset, pHeap->u32HeapSize));
 
-            rc = HGSMISetupHostHeap (pIns, pHeap->u32HeapOffset, pHeap->u32HeapSize);
+            rc = HGSMIHostHeapSetup(pIns, pHeap->u32HeapOffset, pHeap->u32HeapSize);
         } break;
 
         case VBVA_FLUSH:
@@ -2690,8 +2690,6 @@ DECLCALLBACK(void) vbvaPortReportHostCursorPosition
     PDMCritSectLeave(&pThis->CritSect);
 }
 
-static HGSMICHANNELHANDLER sOldChannelHandler;
-
 int VBVAInit (PVGASTATE pVGAState)
 {
     PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
@@ -2713,8 +2711,7 @@ int VBVAInit (PVGASTATE pVGAState)
          rc = HGSMIHostChannelRegister (pVGAState->pHGSMI,
                                     HGSMI_CH_VBVA,
                                     vbvaChannelHandler,
-                                    pVGAState,
-                                    &sOldChannelHandler);
+                                    pVGAState);
          if (RT_SUCCESS (rc))
          {
              VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pVGAState->pHGSMI);

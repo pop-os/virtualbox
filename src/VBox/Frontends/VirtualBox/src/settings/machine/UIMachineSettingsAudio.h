@@ -1,3 +1,4 @@
+/* $Id: UIMachineSettingsAudio.h $ */
 /** @file
  * VBox Qt GUI - UIMachineSettingsAudio class declaration.
  */

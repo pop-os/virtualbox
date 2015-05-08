@@ -1,3 +1,4 @@
+/* $Id: BandwidthGroupImpl.h $ */
 /** @file
  *
  * VirtualBox COM class implementation

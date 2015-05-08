@@ -1,3 +1,4 @@
+/* $Id: QIRichToolButton.h $ */
 /** @file
  * VBox Qt GUI - QIRichToolButton class declaration.
  */

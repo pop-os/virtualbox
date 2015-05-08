@@ -1,3 +1,4 @@
+/* $Id: DevVGA_VDMA.cpp $ */
 /** @file
  * Video DMA (VDMA) support.
  */
@@ -15,6 +16,7 @@
  */
 #include <VBox/VMMDev.h>
 #include <VBox/vmm/pdmdev.h>
+#include <VBox/vmm/pgm.h>
 #include <VBox/VBoxVideo.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>

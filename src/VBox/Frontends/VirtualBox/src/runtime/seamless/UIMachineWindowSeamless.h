@@ -1,3 +1,4 @@
+/* $Id: UIMachineWindowSeamless.h $ */
 /** @file
  * VBox Qt GUI - UIMachineWindowSeamless class declaration.
  */

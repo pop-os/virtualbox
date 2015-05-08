@@ -1,3 +1,4 @@
+/* $Id: UIGraphicsRotatorButton.h $ */
 /** @file
  * VBox Qt GUI - UIGraphicsRotatorButton class declaration.
  */

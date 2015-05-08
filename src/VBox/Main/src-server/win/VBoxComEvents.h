@@ -1,3 +1,4 @@
+/* $Id: VBoxComEvents.h $ */
 /** @file
  *
  *  Declaration of COM Events Helper routines.

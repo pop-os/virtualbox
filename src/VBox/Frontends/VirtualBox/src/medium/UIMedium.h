@@ -1,3 +1,4 @@
+/* $Id: UIMedium.h $ */
 /** @file
  * VBox Qt GUI - UIMedium class declaration.
  */
@@ -191,6 +192,8 @@ public:
 
     /** Returns the hard drive medium storage details. */
     QString storageDetails() const { return m_strStorageDetails; }
+    /** Returns the hard drive medium encryption password ID. */
+    QString encryptionPasswordID() const { return m_strEncryptionPasswordID; }
 
     /** Returns the medium usage data.
       * @param fNoDiffs @c true to enable user-friendly "don't show diffs" mode.
@@ -262,6 +265,9 @@ public:
     /** Returns whether this medium corresponds to real host drive. */
     bool isHostDrive() const { return m_fHostDrive; }
 
+    /** Returns whether this medium is encrypted. */
+    bool isEncrypted() const { return m_fEncrypted; }
+
     /** Returns whether this medium is attached to any VM (in the current state or in a snapshot) in which case
       * #usage() will contain a string with comma-separated VM names (with snapshot names, if any, in parenthesis). */
     bool isUsed() const { return !m_strUsage.isNull(); }
@@ -331,6 +337,8 @@ private:
     QString m_strHardDiskFormat;
     /** Holds the hard drive medium storage details. */
     QString m_strStorageDetails;
+    /** Holds the hard drive medium encryption password ID. */
+    QString m_strEncryptionPasswordID;
 
     /** Holds the medium usage. */
     QString m_strUsage;
@@ -355,6 +363,8 @@ private:
     bool m_fUsedInSnapshots          : 1;
     /** Holds whether this medium corresponds to real host drive. */
     bool m_fHostDrive                : 1;
+    /** Holds whether this medium is encrypted. */
+    bool m_fEncrypted                : 1;
 
     /** Holds the NULL medium ID. */
     static QString m_sstrNullID;

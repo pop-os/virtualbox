@@ -1,3 +1,4 @@
+/* $Id: QITabWidget.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QITabWidget class declaration/implementation.
  */

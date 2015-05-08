@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2012 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,15 +40,17 @@ namespace HGCM
 
 class Message
 {
+    /* Contains a copy of HGCM parameters. */
 public:
     Message(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
         : m_uMsg(0)
         , m_cParms(0)
         , m_paParms(0)
     {
-        setData(uMsg, cParms, aParms);
+        initData(uMsg, cParms, aParms);
     }
-    ~Message()
+
+    virtual ~Message(void)
     {
         cleanup();
     }
@@ -71,13 +73,60 @@ public:
             return VERR_INVALID_PARAMETER;
         }
 
-        int rc = copyParms(cParms, m_paParms, &aParms[0], false /* fCreatePtrs */);
+        int rc = copyParmsInternal(cParms, m_paParms, &aParms[0], false /* fCreatePtrs */);
 
 //        if (RT_FAILURE(rc))
 //            cleanup(aParms);
         return rc;
     }
-    int setData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
+
+    int getParmU32Info(uint32_t iParm, uint32_t *pu32Info) const
+    {
+        AssertPtrNullReturn(pu32Info, VERR_INVALID_PARAMETER);
+        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
+        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_INVALID_PARAMETER);
+
+        *pu32Info = m_paParms[iParm].u.uint32;
+
+        return VINF_SUCCESS;
+    }
+
+    int getParmU64Info(uint32_t iParm, uint64_t *pu64Info) const
+    {
+        AssertPtrNullReturn(pu64Info, VERR_INVALID_PARAMETER);
+        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
+        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_64BIT, VERR_INVALID_PARAMETER);
+
+        *pu64Info = m_paParms[iParm].u.uint64;
+
+        return VINF_SUCCESS;
+    }
+
+    int getParmPtrInfo(uint32_t iParm, void **ppvAddr, uint32_t *pcSize) const
+    {
+        AssertPtrNullReturn(ppvAddr, VERR_INVALID_PARAMETER);
+        AssertPtrNullReturn(pcSize, VERR_INVALID_PARAMETER);
+        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
+        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_INVALID_PARAMETER);
+
+        *ppvAddr = m_paParms[iParm].u.pointer.addr;
+        *pcSize = m_paParms[iParm].u.pointer.size;
+
+        return VINF_SUCCESS;
+    }
+
+    static int copyParms(uint32_t cParms, PVBOXHGCMSVCPARM paParmsSrc, PVBOXHGCMSVCPARM paParmsDst)
+    {
+        return copyParmsInternal(cParms, paParmsSrc, paParmsDst, false /* fCreatePtrs */);
+    }
+
+private:
+
+    uint32_t m_uMsg;
+    uint32_t m_cParms;
+    PVBOXHGCMSVCPARM m_paParms;
+
+    int initData(uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
     {
         AssertReturn(cParms < 256, VERR_INVALID_PARAMETER);
         AssertPtrNullReturn(aParms, VERR_INVALID_PARAMETER);
@@ -95,7 +144,7 @@ public:
                 return VERR_NO_MEMORY;
         }
 
-        int rc = copyParms(cParms, &aParms[0], m_paParms, true /* fCreatePtrs */);
+        int rc = copyParmsInternal(cParms, &aParms[0], m_paParms, true /* fCreatePtrs */);
 
         if (RT_FAILURE(rc))
             cleanup();
@@ -103,40 +152,7 @@ public:
         return rc;
     }
 
-    int getParmU32Info(uint32_t iParm, uint32_t *pu32Info) const
-    {
-        AssertPtrNullReturn(pu32Info, VERR_INVALID_PARAMETER);
-        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
-        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_32BIT, VERR_INVALID_PARAMETER);
-
-        *pu32Info = m_paParms[iParm].u.uint32;
-
-        return VINF_SUCCESS;
-    }
-    int getParmU64Info(uint32_t iParm, uint64_t *pu64Info) const
-    {
-        AssertPtrNullReturn(pu64Info, VERR_INVALID_PARAMETER);
-        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
-        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_64BIT, VERR_INVALID_PARAMETER);
-
-        *pu64Info = m_paParms[iParm].u.uint64;
-
-        return VINF_SUCCESS;
-    }
-    int getParmPtrInfo(uint32_t iParm, void **ppvAddr, uint32_t *pcSize) const
-    {
-        AssertPtrNullReturn(ppvAddr, VERR_INVALID_PARAMETER);
-        AssertPtrNullReturn(pcSize, VERR_INVALID_PARAMETER);
-        AssertReturn(iParm < m_cParms, VERR_INVALID_PARAMETER);
-        AssertReturn(m_paParms[iParm].type == VBOX_HGCM_SVC_PARM_PTR, VERR_INVALID_PARAMETER);
-
-        *ppvAddr = m_paParms[iParm].u.pointer.addr;
-        *pcSize = m_paParms[iParm].u.pointer.size;
-
-        return VINF_SUCCESS;
-    }
-
-    int copyParms(uint32_t cParms, PVBOXHGCMSVCPARM paParmsSrc, PVBOXHGCMSVCPARM paParmsDst, bool fCreatePtrs) const
+    static int copyParmsInternal(uint32_t cParms, PVBOXHGCMSVCPARM paParmsSrc, PVBOXHGCMSVCPARM paParmsDst, bool fCreatePtrs)
     {
         int rc = VINF_SUCCESS;
         for (uint32_t i = 0; i < cParms; ++i)
@@ -175,14 +191,24 @@ public:
                     {
                         /* No, but we have to check if there is enough room. */
                         if (paParmsDst[i].u.pointer.size < paParmsSrc[i].u.pointer.size)
+                        {
                             rc = VERR_BUFFER_OVERFLOW;
+                            break;
+                        }
                     }
-                    if (   paParmsDst[i].u.pointer.addr
-                        && paParmsSrc[i].u.pointer.size > 0
-                        && paParmsDst[i].u.pointer.size > 0)
-                        memcpy(paParmsDst[i].u.pointer.addr,
-                               paParmsSrc[i].u.pointer.addr,
-                               RT_MIN(paParmsDst[i].u.pointer.size, paParmsSrc[i].u.pointer.size));
+
+                    if (paParmsSrc[i].u.pointer.size) 
+                    {
+                        if (   paParmsDst[i].u.pointer.addr
+                            && paParmsDst[i].u.pointer.size)
+                        {
+                            memcpy(paParmsDst[i].u.pointer.addr,
+                                   paParmsSrc[i].u.pointer.addr,
+                                   RT_MIN(paParmsDst[i].u.pointer.size, paParmsSrc[i].u.pointer.size));
+                        }
+                        else 
+                            rc = VERR_INVALID_POINTER;
+                    }
                     break;
                 }
                 default:
@@ -218,26 +244,32 @@ public:
         m_cParms = 0;
         m_uMsg = 0;
     }
-
-protected:
-    uint32_t m_uMsg;
-    uint32_t m_cParms;
-    PVBOXHGCMSVCPARM m_paParms;
 };
 
 class Client
 {
 public:
-    Client(uint32_t uClientId, VBOXHGCMCALLHANDLE hHandle, uint32_t uMsg, uint32_t cParms, VBOXHGCMSVCPARM aParms[])
+    Client(uint32_t uClientId, VBOXHGCMCALLHANDLE hHandle = NULL,
+           uint32_t uMsg = 0, uint32_t cParms = 0, VBOXHGCMSVCPARM aParms[] = NULL)
       : m_uClientId(uClientId)
+      , m_uProtocol(0)
       , m_hHandle(hHandle)
       , m_uMsg(uMsg)
       , m_cParms(cParms)
       , m_paParms(aParms) {}
 
-    VBOXHGCMCALLHANDLE handle() const { return m_hHandle; }
-    uint32_t message() const { return m_uMsg; }
-    uint32_t clientId() const { return m_uClientId; }
+public:
+
+    VBOXHGCMCALLHANDLE handle(void) const { return m_hHandle; }
+    uint32_t message(void) const { return m_uMsg; }
+    uint32_t clientId(void) const { return m_uClientId; }
+    uint32_t protocol(void) const { return m_uProtocol; }
+
+public:
+
+    int setProtocol(uint32_t uProtocol) { m_uProtocol = uProtocol; return VINF_SUCCESS; }
+
+public:
 
     int addMessageInfo(uint32_t uMsg, uint32_t cParms)
     {
@@ -251,6 +283,7 @@ public:
     }
     int addMessageInfo(const Message *pMessage)
     {
+        AssertPtrReturn(pMessage, VERR_INVALID_POINTER);
         if (m_cParms != 3)
             return VERR_INVALID_PARAMETER;
 
@@ -261,10 +294,15 @@ public:
     }
     int addMessage(const Message *pMessage)
     {
+        AssertPtrReturn(pMessage, VERR_INVALID_POINTER);
         return pMessage->getData(m_uMsg, m_cParms, m_paParms);
     }
+
 private:
+
     uint32_t m_uClientId;
+    /** Optional protocol version the client uses. */
+    uint32_t m_uProtocol;
     VBOXHGCMCALLHANDLE m_hHandle;
     uint32_t m_uMsg;
     uint32_t m_cParms;

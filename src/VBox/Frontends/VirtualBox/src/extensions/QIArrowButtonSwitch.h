@@ -1,3 +1,4 @@
+/* $Id: QIArrowButtonSwitch.h $ */
 /** @file
  * VBox Qt GUI - QIArrowButtonSwitch class declaration.
  */

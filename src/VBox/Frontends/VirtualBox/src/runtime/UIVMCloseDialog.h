@@ -1,3 +1,4 @@
+/* $Id: UIVMCloseDialog.h $ */
 /** @file
  * VBox Qt GUI - UIVMCloseDialog class declaration.
  */

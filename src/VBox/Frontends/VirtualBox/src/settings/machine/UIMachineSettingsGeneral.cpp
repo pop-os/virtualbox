@@ -24,11 +24,14 @@
 /* GUI includes: */
 # include "QIWidgetValidator.h"
 # include "UIMachineSettingsGeneral.h"
- #include "UIModalWindowManager.h"
+# include "UIModalWindowManager.h"
+# include "UIProgressDialog.h"
 # include "UIMessageCenter.h"
 # include "UIConverter.h"
 /* COM includes: */
 # include "CMedium.h"
+# include "CExtPack.h"
+# include "CExtPackManager.h"
 # include "CMediumAttachment.h"
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -327,25 +330,25 @@ void UIMachineSettingsGeneral::saveFromCacheTo(QVariant &data)
                         QString strOldPasswordId = encryptedMedium.key(medium.GetId());
                         QString strOldPassword = encryptionPasswords.value(strOldPasswordId);
 
-//                        printf(" Medium: %s, old password = %s, new cipher = %s, new password = %s, new password id = %s\n",
-//                               medium.GetId().toAscii().constData(),
-//                               strOldPassword.toAscii().constData(),
-//                               strNewCipher.toAscii().constData(),
-//                               strNewPassword.toAscii().constData(),
-//                               strNewPasswordId.toAscii().constData());
-
                         /* Update encryption: */
-                        CProgress progress = medium.ChangeEncryption(strOldPassword,
-                                                                     strNewCipher,
-                                                                     strNewPassword,
-                                                                     strNewPasswordId);
-//                        if (!medium.isOk())
-//                            printf("  Medium API Error, rc = %s\n", msgCenter().formatRC(medium.lastRC()).toAscii().constData());
-                        progress.WaitForCompletion(-1);
-//                        if (!progress.isOk())
-//                            printf("  Progress API Error, rc = %s\n", msgCenter().formatRC(progress.lastRC()).toAscii().constData());
-//                        if (progress.GetResultCode() != 0)
-//                            printf("  Progress Processing Error, rc = %s\n", msgCenter().formatRC(progress.GetResultCode()).toAscii().constData());
+                        CProgress cprogress = medium.ChangeEncryption(strOldPassword,
+                                                                      strNewCipher,
+                                                                      strNewPassword,
+                                                                      strNewPasswordId);
+                        if (!medium.isOk())
+                        {
+                            QMetaObject::invokeMethod(this, "sigOperationProgressError", Qt::BlockingQueuedConnection,
+                                                      Q_ARG(QString, UIMessageCenter::formatErrorInfo(medium)));
+                            continue;
+                        }
+                        UIProgress uiprogress(cprogress);
+                        connect(&uiprogress, SIGNAL(sigProgressChange(ulong, QString, ulong, ulong)),
+                                this, SIGNAL(sigOperationProgressChange(ulong, QString, ulong, ulong)),
+                                Qt::QueuedConnection);
+                        connect(&uiprogress, SIGNAL(sigProgressError(QString)),
+                                this, SIGNAL(sigOperationProgressError(QString)),
+                                Qt::BlockingQueuedConnection);
+                        uiprogress.run(350);
                     }
                 }
             }
@@ -396,6 +399,19 @@ bool UIMachineSettingsGeneral::validate(QList<UIValidationMessage> &messages)
     AssertPtrReturn(m_pCheckBoxEncryption, false);
     if (m_pCheckBoxEncryption->isChecked())
     {
+#ifdef VBOX_WITH_EXTPACK
+        /* Encryption Extension Pack presence test: */
+        const CExtPack extPack = vboxGlobal().virtualBox().GetExtensionPackManager().Find(GUI_ExtPackName);
+        if (extPack.isNull() || !extPack.GetUsable())
+        {
+            message.second << tr("You are trying to encrypt this virtual machine. "
+                                 "However, this requires the <i>%1</i> to be installed. "
+                                 "Please install the Extension Pack from the VirtualBox download site.")
+                                 .arg(GUI_ExtPackName);
+            fPass = false;
+        }
+#endif /* VBOX_WITH_EXTPACK */
+
         /* Cipher should be chosen if once changed: */
         AssertPtrReturn(m_pComboCipher, false);
         if (!m_cache.base().m_fEncryptionEnabled ||
@@ -403,7 +419,9 @@ bool UIMachineSettingsGeneral::validate(QList<UIValidationMessage> &messages)
         {
             if (m_pComboCipher->currentIndex() == 0)
                 message.second << tr("Encryption cipher type not specified.");
+            fPass = false;
         }
+
         /* Password should be entered and confirmed if once changed: */
         AssertPtrReturn(m_pEditorEncryptionPassword, false);
         AssertPtrReturn(m_pEditorEncryptionPasswordConfirm, false);

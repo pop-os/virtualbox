@@ -38,7 +38,6 @@
 #include "SharedFolderImpl.h"
 #include "GuestOSTypeImpl.h"
 #include "VirtualBoxErrorInfoImpl.h"
-#include "GuestImpl.h"
 #include "StorageControllerImpl.h"
 #include "DisplayImpl.h"
 #include "DisplayUtils.h"
@@ -193,9 +192,10 @@ Machine::HWData::HWData()
     mPAEEnabled = false;
 #endif
     mLongMode =  HC_ARCH_BITS == 64 ? settings::Hardware::LongMode_Enabled : settings::Hardware::LongMode_Disabled;
-    mSyntheticCpu = false;
     mTripleFaultReset = false;
     mHPETEnabled = false;
+    mCpuExecutionCap = 100; /* Maximum CPU execution cap by default. */
+    mCpuIdPortabilityLevel = 0;
 
     /* default boot order: floppy - DVD - HDD */
     mBootOrder[0] = DeviceType_Floppy;
@@ -220,9 +220,6 @@ Machine::HWData::HWData()
 
     mIOCacheEnabled = true;
     mIOCacheSize    = 5; /* 5MB */
-
-    /* Maximum CPU execution cap by default. */
-    mCpuExecutionCap = 100;
 }
 
 Machine::HWData::~HWData()
@@ -1585,6 +1582,29 @@ HRESULT Machine::setCPUHotPlugEnabled(BOOL aCPUHotPlugEnabled)
     return rc;
 }
 
+HRESULT Machine::getCPUIDPortabilityLevel(ULONG *aCPUIDPortabilityLevel)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    *aCPUIDPortabilityLevel = mHWData->mCpuIdPortabilityLevel;
+
+    return S_OK;
+}
+
+HRESULT Machine::setCPUIDPortabilityLevel(ULONG aCPUIDPortabilityLevel)
+{
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT hrc = i_checkStateDependency(MutableStateDep);
+    if (SUCCEEDED(hrc))
+    {
+        i_setModified(IsModified_MachineData);
+        mHWData.backup();
+        mHWData->mCpuIdPortabilityLevel = aCPUIDPortabilityLevel;
+    }
+    return hrc;
+}
+
 HRESULT Machine::getEmulatedUSBCardReaderEnabled(BOOL *aEmulatedUSBCardReaderEnabled)
 {
 #ifdef VBOX_WITH_USB_CARDREADER
@@ -2141,10 +2161,6 @@ HRESULT Machine::getCPUProperty(CPUPropertyType_T aProperty, BOOL *aValue)
             *aValue = mHWData->mPAEEnabled;
             break;
 
-        case CPUPropertyType_Synthetic:
-            *aValue = mHWData->mSyntheticCpu;
-            break;
-
         case CPUPropertyType_LongMode:
             if (mHWData->mLongMode == settings::Hardware::LongMode_Enabled)
                 *aValue = TRUE;
@@ -2201,12 +2217,6 @@ HRESULT Machine::setCPUProperty(CPUPropertyType_T aProperty, BOOL aValue)
             i_setModified(IsModified_MachineData);
             mHWData.backup();
             mHWData->mPAEEnabled = !!aValue;
-            break;
-
-        case CPUPropertyType_Synthetic:
-            i_setModified(IsModified_MachineData);
-            mHWData.backup();
-            mHWData->mSyntheticCpu = !!aValue;
             break;
 
         case CPUPropertyType_LongMode:
@@ -3197,7 +3207,6 @@ HRESULT Machine::setIOCacheSize(ULONG aIOCacheSize)
  */
 HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
                              LockType_T aLockType)
-
 {
     /* check the session state */
     SessionState_T state;
@@ -3249,7 +3258,6 @@ HRESULT Machine::lockMachine(const ComPtr<ISession> &aSession,
         // 3) process W: the process which already holds the write lock on the machine (write-locking session)
 
         // copy pointers to W (the write-locking session) before leaving lock (these must not be NULL)
-        ComAssertRet(mData->mSession.mLockType == LockType_Write || mData->mSession.mLockType == LockType_VM, E_FAIL);
         ComPtr<IInternalSessionControl> pSessionW = mData->mSession.mDirectControl;
         ComAssertRet(!pSessionW.isNull(), E_FAIL);
         ComObjPtr<SessionMachine> pSessionMachine = mData->mSession.mMachine;
@@ -4419,7 +4427,7 @@ HRESULT Machine::temporaryEjectDevice(const com::Utf8Str &aName, LONG aControlle
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    HRESULT rc = i_checkStateDependency(MutableStateDep);
+    HRESULT rc = i_checkStateDependency(MutableOrSavedOrRunningStateDep);
     if (FAILED(rc)) return rc;
 
     MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
@@ -8799,12 +8807,12 @@ HRESULT Machine::i_loadHardware(const settings::Hardware &data, const settings::
         mHWData->mHWVirtExUXEnabled           = data.fUnrestrictedExecution;
         mHWData->mHWVirtExForceEnabled        = data.fHardwareVirtForce;
         mHWData->mPAEEnabled                  = data.fPAE;
-        mHWData->mSyntheticCpu                = data.fSyntheticCpu;
         mHWData->mLongMode                    = data.enmLongMode;
         mHWData->mTripleFaultReset            = data.fTripleFaultReset;
         mHWData->mCPUCount                    = data.cCPUs;
         mHWData->mCPUHotPlugEnabled           = data.fCpuHotPlug;
         mHWData->mCpuExecutionCap             = data.ulCpuExecutionCap;
+        mHWData->mCpuIdPortabilityLevel       = data.uCpuIdPortabilityLevel;
 
         // cpu
         if (mHWData->mCPUHotPlugEnabled)
@@ -9994,11 +10002,11 @@ void Machine::i_copyMachineDataToSettings(settings::MachineConfigFile &config)
 
     if (    mData->mMachineState == MachineState_Saved
          || mData->mMachineState == MachineState_Restoring
-            // when deleting a snapshot we may or may not have a saved state in the current state,
-            // so let's not assert here please
-         || (    (   mData->mMachineState == MachineState_DeletingSnapshot
-                  || mData->mMachineState == MachineState_DeletingSnapshotOnline
-                  || mData->mMachineState == MachineState_DeletingSnapshotPaused)
+            // when doing certain snapshot operations we may or may not have
+            // a saved state in the current state, so keep everything as is
+         || (    (   mData->mMachineState == MachineState_Snapshotting
+                  || mData->mMachineState == MachineState_DeletingSnapshot
+                  || mData->mMachineState == MachineState_RestoringSnapshot)
               && (!mSSData->strStateFilePath.isEmpty())
             )
         )
@@ -10126,25 +10134,11 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.fHardwareVirtForce     = !!mHWData->mHWVirtExForceEnabled;
         data.fPAE                   = !!mHWData->mPAEEnabled;
         data.enmLongMode            = mHWData->mLongMode;
-        data.fSyntheticCpu          = !!mHWData->mSyntheticCpu;
         data.fTripleFaultReset      = !!mHWData->mTripleFaultReset;
-
-        /* Standard and Extended CPUID leafs. */
-        data.llCpuIdLeafs.clear();
-        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdStdLeafs); ++idx)
-        {
-            if (mHWData->mCpuIdStdLeafs[idx].ulId != UINT32_MAX)
-                data.llCpuIdLeafs.push_back(mHWData->mCpuIdStdLeafs[idx]);
-        }
-        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdExtLeafs); ++idx)
-        {
-            if (mHWData->mCpuIdExtLeafs[idx].ulId != UINT32_MAX)
-                data.llCpuIdLeafs.push_back(mHWData->mCpuIdExtLeafs[idx]);
-        }
-
-        data.cCPUs             = mHWData->mCPUCount;
-        data.fCpuHotPlug       = !!mHWData->mCPUHotPlugEnabled;
-        data.ulCpuExecutionCap = mHWData->mCpuExecutionCap;
+        data.cCPUs                  = mHWData->mCPUCount;
+        data.fCpuHotPlug            = !!mHWData->mCPUHotPlugEnabled;
+        data.ulCpuExecutionCap      = mHWData->mCpuExecutionCap;
+        data.uCpuIdPortabilityLevel = mHWData->mCpuIdPortabilityLevel;
 
         data.llCpus.clear();
         if (data.fCpuHotPlug)
@@ -10159,6 +10153,15 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
                 }
             }
         }
+
+        /* Standard and Extended CPUID leafs. */
+        data.llCpuIdLeafs.clear();
+        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdStdLeafs); ++idx)
+            if (mHWData->mCpuIdStdLeafs[idx].ulId != UINT32_MAX)
+                data.llCpuIdLeafs.push_back(mHWData->mCpuIdStdLeafs[idx]);
+        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdExtLeafs); ++idx)
+            if (mHWData->mCpuIdExtLeafs[idx].ulId != UINT32_MAX)
+                data.llCpuIdLeafs.push_back(mHWData->mCpuIdExtLeafs[idx]);
 
         // memory
         data.ulMemorySizeMB = mHWData->mMemorySize;
@@ -13370,15 +13373,18 @@ HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 #endif
 }
 
-HRESULT SessionMachine::pushGuestProperty(const  com::Utf8Str &aName,
-                                          const  com::Utf8Str &aValue,
-                                                 LONG64       aTimestamp,
-                                          const  com::Utf8Str &aFlags)
+HRESULT SessionMachine::pushGuestProperty(const com::Utf8Str &aName,
+                                          const com::Utf8Str &aValue,
+                                          LONG64 aTimestamp,
+                                          const com::Utf8Str &aFlags,
+                                          BOOL *aNotify)
 {
     LogFlowThisFunc(("\n"));
 
 #ifdef VBOX_WITH_GUEST_PROPS
     using namespace guestProp;
+
+    *aNotify = FALSE;
 
     try
     {
@@ -13462,6 +13468,7 @@ HRESULT SessionMachine::pushGuestProperty(const  com::Utf8Str &aName,
                                              Bstr(aName).raw(),
                                              Bstr(aValue).raw(),
                                              Bstr(aFlags).raw());
+            *aNotify = TRUE;
         }
     }
     catch (...)
@@ -14704,12 +14711,14 @@ HRESULT Machine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
 HRESULT Machine::pushGuestProperty(const com::Utf8Str &aName,
                                    const com::Utf8Str &aValue,
                                    LONG64 aTimestamp,
-                                   const com::Utf8Str &aFlags)
+                                   const com::Utf8Str &aFlags,
+                                   BOOL *aNotify)
 {
     NOREF(aName);
     NOREF(aValue);
     NOREF(aTimestamp);
     NOREF(aFlags);
+    NOREF(aNotify);
     ReturnComNotImplemented();
 }
 

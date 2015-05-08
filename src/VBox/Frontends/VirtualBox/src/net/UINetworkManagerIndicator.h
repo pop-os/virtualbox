@@ -1,3 +1,4 @@
+/* $Id: UINetworkManagerIndicator.h $ */
 /** @file
  * VBox Qt GUI - UINetworkManagerIndicator stuff declaration.
  */

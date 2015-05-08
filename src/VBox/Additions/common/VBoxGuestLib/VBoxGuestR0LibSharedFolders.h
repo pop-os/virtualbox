@@ -1,3 +1,4 @@
+/* $Id: VBoxGuestR0LibSharedFolders.h $ */
 /** @file
  * VBoxGuestLib - Central calls header.
  */

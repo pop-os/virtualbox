@@ -944,7 +944,7 @@
 
   <enum
     name="CPUPropertyType"
-    uuid="52bc41f4-a279-45da-88ab-3a1d86fb73eb"
+    uuid="ed4094c1-d00e-483a-93e9-7163549ebd6e"
     >
     <desc>
       Virtual CPU property type. This enumeration represents possible values of the
@@ -960,19 +960,13 @@
         is not available, it will not be reported.
       </desc>
     </const>
-    <const name="Synthetic"             value="2">
-      <desc>
-        This setting determines whether VirtualBox will expose a synthetic CPU to the guest to allow
-        teleporting between host systems that differ significantly.
-      </desc>
-    </const>
-    <const name="LongMode"             value="3">
+    <const name="LongMode"              value="2">
       <desc>
         This setting determines whether VirtualBox will advertise long mode
         (i.e. 64-bit guest support) and let the guest enter it.
       </desc>
     </const>
-    <const name="TripleFaultReset"     value="4">
+    <const name="TripleFaultReset"      value="3">
       <desc>
         This setting determines whether a triple fault within a guest will trigger an internal
         error condition and stop the VM (default) or reset the virtual CPU and continue execution.
@@ -2352,7 +2346,7 @@
           <li>With a "HardDisk" device type, the file must be a hard disk image
             in one of the formats supported by VirtualBox (see
             <link to="ISystemProperties::mediumFormats" />).
-            After the storage unit is successfully created and this method succeeds, 
+            After the storage unit is successfully created and this method succeeds,
             if the medium is a base medium, it
             will be added to the <link to="#hardDisks"/> array attribute. </li>
           <li>With a "DVD" device type, the file must be an ISO 9960 CD/DVD image.
@@ -2812,25 +2806,6 @@
     <const name="WebDav" value="4" />
   </enum>
 
-  <enum
-    name="VFSFileType"
-    uuid="714333cd-44e2-415f-a245-d378fa9b1242"
-    >
-    <desc>
-      File types known by VFSExplorer.
-    </desc>
-
-    <const name="Unknown" value="1" />
-    <const name="Fifo" value="2" />
-    <const name="DevChar" value="3" />
-    <const name="Directory" value="4" />
-    <const name="DevBlock" value="5" />
-    <const name="File" value="6" />
-    <const name="SymLink" value="7" />
-    <const name="Socket" value="8" />
-    <const name="WhiteOut" value="9" />
-  </enum>
-
   <interface
     name="IVFSExplorer" extends="$unknown"
     uuid="fb220201-2fd3-47e2-a5dc-2c2431d833cc"
@@ -2891,7 +2866,7 @@
       </param>
 
       <param name="types" type="unsigned long" safearray="yes" dir="out">
-        <desc>The list of types for the entries.</desc>
+        <desc>The list of types for the entries. <link to="FsObjType"/></desc>
       </param>
 
       <param name="sizes" type="long long" safearray="yes" dir="out">
@@ -2992,7 +2967,7 @@
 
   <interface
     name="IAppliance" extends="$unknown"
-    uuid="d9432012-2740-499f-b3b3-0991da3679f3"
+    uuid="a529d52c-cf23-4936-9150-e8a6ce77fdad"
     wsmap="managed"
     >
     <desc>
@@ -3255,7 +3230,20 @@
       </desc>
 
       <param name="identifiers" type="wstring" dir="return" safearray="yes">
-        The list of password identifiers required on success.
+        The list of password identifiers required for export on success.
+      </param>
+    </method>
+
+    <method name="getMediumIdsForPasswordId">
+      <desc>
+        Returns a list of medium identifiers which use the given password identifier.
+      </desc>
+
+      <param name="passwordId" type="wstring" dir="in">
+        The password identifier to get the medium identifiers for.
+      </param>
+      <param name="identifiers" type="uuid" mod="string" dir="return" safearray="yes">
+        The list of medium identifiers returned on success.
       </param>
     </method>
 
@@ -3591,7 +3579,7 @@
 
   <interface
     name="IInternalMachineControl" extends="$unknown"
-    uuid="f0b3bf6e-c609-4d5e-9fd7-77537a52c31b"
+    uuid="2cfec73b-4447-4ff8-bae5-e4306e6197e8"
     internal="yes"
     wsmap="suppress"
     >
@@ -3816,6 +3804,11 @@
       <param name="flags" type="wstring" dir="in">
         <desc>
           The flags of the property.
+        </desc>
+      </param>
+      <param name="notify" type="boolean" dir="return">
+        <desc>
+          Returns if a guest property change notification event should be fired.
         </desc>
       </param>
     </method>
@@ -4061,7 +4054,7 @@
 
     <attribute name="guestAddress" type="long" readonly="yes">
       <desc>
-        Address of device on the guest.
+        Address of device in the guest.
       </desc>
     </attribute>
 
@@ -4176,7 +4169,7 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="bfe5287a-5fbc-4ceb-9f0e-7fb317e78681"
+    uuid="701464d0-7284-42e9-b7b3-894cf31536b7"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
@@ -4391,6 +4384,18 @@
         is percentage of host CPU cycles per second. The valid range
         is 1 - 100. 100 (the default) implies no limit.
       </desc>
+    </attribute>
+
+    <attribute name="CPUIDPortabilityLevel" type="unsigned long">
+      <desc>Virtual CPUID portability level, the higher number the fewer newer
+        or vendor specific CPU feature is reported to the guest (via the CPUID
+        instruction).  The default level of zero (0) means that all virtualized
+        feautres supported by the host is pass thru to the guest.  While the
+        three (3) is currently the level supressing the most features.
+
+        Exactly which of the CPUID features are left out by the VMM at which
+        level is subject to change with each major version.
+        </desc>
     </attribute>
 
     <attribute name="memorySize" type="unsigned long">
@@ -5139,6 +5144,11 @@
         For details on the teleportation progress operation, see
         <link to="IConsole::powerUp"/>.
 
+<!-- TODO/r=bird: What about making @a environment into a smart array?  Guess
+this predates our safe array support by a year or so... Dmitry wrote the text here, right?
+Just rename it to @a environmentChanges and shorten the documentation to say the string
+are applied onto the server environment putenv style, i.e. "VAR=VALUE" for setting/replacing
+and "VAR" for unsetting. -->
         The @a environment argument is a string containing definitions of
         environment variables in the following format:
         <pre>
@@ -9891,7 +9901,7 @@
     <const name="Locked"                  value="3">
       <desc>A guest user has locked its account. This might
         include running a password-protected screensaver
-        on the guest.
+        in the guest.
         <note>This property is not implemented yet!</note>
       </desc>
     </const>
@@ -9914,7 +9924,7 @@
           reporting contiguous idle times up to 49.7 days per user.</note>
         The event will be triggered if a guest user is not active for
         at least 5 seconds. This threshold can be adjusted by either altering
-        VBoxService's command line on the guest to
+        VBoxService's command line in the guest to
         <pre>--vminfo-user-idle-threshold &lt;ms&gt;</pre>
         , or by setting the per-VM guest property
         <pre>/VirtualBox/GuestAdd/VBoxService/--vminfo-user-idle-threshold &lt;ms&gt;</pre>
@@ -9975,18 +9985,22 @@
   </enum>
 
   <enum
-    name="FileSeekType"
-    uuid="1b73f4f3-3515-4073-a506-76878d9e2541"
+    name="FileSeekOrigin"
+    uuid="ad32f789-4279-4530-979c-f16892e1c263"
     >
     <desc>
-      File seeking types.
+      What a file seek (<link to="IFile::seek"/>) is relative to.
     </desc>
 
-    <const name="Set"                   value="0">
-      <desc>Seek from the start of the file.</desc>
+    <const name="Begin"                 value="0">
+      <desc>Seek from the beginning of the file.</desc>
     </const>
     <const name="Current"               value="1">
       <desc>Seek from the current file position.</desc>
+    </const>
+    <const name="End"                   value="2">
+      <desc>Seek relative to the end of the file.  To seek to the position two
+        bytes from the end of the file, specify -2 as the seek offset.</desc>
     </const>
   </enum>
 
@@ -10060,7 +10074,7 @@
 
       To wait for a guest process to terminate after it has been
       created by <link to="IGuestSession::processCreate"/> or <link to="IGuestSession::processCreateEx"/>
-      one would specify ProcessWaitResult_Terminate.
+      one would specify ProcessWaitFor_Terminate.
 
       If a guest process has been started with ProcessCreateFlag_WaitForStdOut
       a client can wait with ProcessWaitResult_StdOut for new data to arrive on
@@ -10088,15 +10102,12 @@
     </const>
     <const name="Timeout"               value="5">
       <desc>
-        The waiting operation timed out. This also will happen
-        when no event has been occurred matching the
-        current waiting flags in a <link to="IProcess::waitFor"/> call.
+        The waiting operation timed out. Also use if the guest process has
+        timed out in the guest side (kill attempted).
       </desc>
     </const>
     <const name="StdIn"                 value="6">
-      <desc>
-        The process signalled that stdin became available for writing
-        and that the process awaits input now.</desc>
+      <desc>The process signalled that stdin became available for writing.</desc>
     </const>
     <const name="StdOut"                value="7">
       <desc>Data on stdout became available for reading.</desc>
@@ -10113,26 +10124,67 @@
   </enum>
 
   <enum
-    name="CopyFileFlag"
-    uuid="23f79fdf-738a-493d-b80b-42d607c9b916"
+    name="FileCopyFlag"
+    uuid="791909d7-4c64-2fa4-4303-adb10658d347"
     >
     <desc>
       File copying flags.
+      <note>Not flags are implemented yet.</note>
     </desc>
     <const name="None"                  value="0">
       <desc>No flag set.</desc>
     </const>
-    <const name="Recursive"             value="1">
-      <desc>Copy directories recursively.
-        This flag is not implemented yet.</desc>
+    <const name="NoReplace"             value="1">
+      <!-- Would make more sense to not replace by default, however we the GAs
+           only supports replacing as of writing, so we currently have no choice. -->
+      <desc>
+        Do not replace the destination file if it exists.
+        <note>This flag is not implemented yet.</note>
+      </desc>
     </const>
-    <const name="Update"                value="2">
-      <desc>Only copy when the source file is newer than the destination file
-        or when the destination file is missing. This flag is not implemented
-        yet.</desc>
+    <const name="FollowLinks"           value="2">
+      <desc>
+        Follow symbolic links.
+        <note>This flag is not implemented yet.</note>
+      </desc>
     </const>
-    <const name="FollowLinks"           value="4">
-      <desc>Follow symbolic links. This flag is not implemented yet.</desc>
+    <const name="Update"                value="4">
+      <desc>
+        Only copy when the source file is newer than the destination file
+        or when the destination file is missing.
+        <note>This flag is not implemented yet.</note>
+      </desc>
+    </const>
+  </enum>
+
+  <enum
+    name="FsObjMoveFlags"
+    uuid="98fdd11f-4063-ac60-5737-e49092aab95f"
+    >
+    <desc>
+      File moving flags.
+    </desc>
+    <const name="None"                  value="0">
+      <desc>No flag set.</desc>
+    </const>
+    <const name="Replace"               value="1">
+      <desc>
+        Replace the destination file, symlink, etc if it exists, however this
+        does not allow replacing any directories.
+      </desc>
+    </const>
+    <const name="FollowLinks"           value="2">
+      <desc>
+        Follow symbolic links in the final components or not (only applied to
+        the given source and target paths, not to anything else).
+      </desc>
+    </const>
+    <const name="AllowDirectoryMoves"   value="4">
+      <desc>
+        Allow moving directories accross file system boundraries. Because it
+        is could be a big undertaking, we require extra assurance that we
+        should do it when requested.
+      </desc>
     </const>
   </enum>
 
@@ -10152,11 +10204,33 @@
   </enum>
 
   <enum
+    name="DirectoryCopyFlags"
+    uuid="cc500f0c-4a54-88c9-56b3-7e9310416da7"
+    >
+    <desc>
+      Directory copying flags.
+      <note>Not flags are implemented yet.</note>
+    </desc>
+    <const name="None"                  value="0">
+      <desc>No flag set.</desc>
+    </const>
+    <const name="CopyIntoExisting"      value="1">
+      <desc>Allow copying into an existing destination directory.</desc>
+    </const>
+    <!-- Later, basically have to see what cp and xcopy offers. -->
+  </enum>
+
+  <enum
     name="DirectoryRemoveRecFlag"
     uuid="455aabf0-7692-48f6-9061-f21579b65769"
     >
     <desc>
       Directory recursive removement flags.
+      <note>
+        WARNING!! THE FLAGS ARE CURRENTLY IGNORED. THE METHOD APPLIES
+                  <link to="DirectoryRemoveRecFlag_ContentAndDir"/> REGARDLESS
+                  OF THE INPUT.
+      </note>
     </desc>
 
     <const name="None"                  value="0">
@@ -10171,33 +10245,32 @@
   </enum>
 
   <enum
-    name="PathRenameFlag"
-    uuid="f3baa09f-c758-453d-b91c-c7787d76351d"
+    name="FsObjRenameFlag"
+    uuid="59bbf3a1-4e23-d7cf-05d5-ccae32080ed2"
     >
     <desc>
-      Path renaming flags.
+      Flags for use when renaming file system objects (files, directories,
+      symlink, etc), see <link to="IGuestSession::fsObjRename"/>.
     </desc>
 
-    <const name="None"                  value="0">
-      <desc>No flag set.</desc>
+    <const name="NoReplace"             value="0">
+      <desc>Do not replace any destination object.</desc>
     </const>
-    <const name="NoReplace"             value="1">
-      <desc>Do not replace anything.</desc>
-    </const>
-    <const name="Replace"               value="2">
-      <desc>This will replace attempt any target which isn't a directory.</desc>
-    </const>
-    <const name="NoSymlinks"            value="4">
-      <desc>Don't allow symbolic links as part of the path.</desc>
+    <const name="Replace"               value="1">
+      <desc>This will attempt to replace any destination object other except
+        directories. (The default is to fail if the destination exists.)</desc>
     </const>
   </enum>
 
   <enum
     name="ProcessCreateFlag"
-    uuid="35192799-bfde-405d-9bea-c735ab9998e4"
+    uuid="be8c8dbd-4a76-e9ac-20df-468e86edf383"
     >
     <desc>
       Guest process execution flags.
+      <note>The values are passed to the guest additions, so its not possible
+            to change (move) or reuse values.here.  See EXECUTEPROCESSFLAG_XXX
+            in GuestControlSvc.h.</note>
     </desc>
 
     <const name="None"                      value="0">
@@ -10223,7 +10296,20 @@
       <desc>The guest process waits until all data from stderr is read out.</desc>
     </const>
     <const name="ExpandArguments"           value="64">
-      <desc>Expands environment variables in process arguments.</desc>
+      <desc>Expands environment variables in process arguments.
+        <note>
+          This is not yet implemented and is currently silently ignored.
+          We will document the protocolVersion number for this feature once it
+          appears, so don't use it till then.
+        </note>
+      </desc>
+    </const>
+    <const name="UnquotedArguments"         value="128">
+      <desc>Work around for Windows and OS/2 applications not following normal
+        argument quoting and escaping rules. The arguments are passed to the
+        application without any extra quoting, just a single space between each.
+        <note>Present since VirtualBox 4.3.28 and 5.0 beta 3.</note>
+      </desc>
     </const>
   </enum>
 
@@ -10248,7 +10334,8 @@
     uuid="37794668-f8f1-4714-98a5-6f8fa2ed0118"
     >
     <desc>
-      Symbolic link types.
+      Symbolic link types.  This is significant when creating links on the
+      Windows platform, ignored elsewhere.
     </desc>
 
     <const name="Unknown"               value="0">
@@ -10258,7 +10345,7 @@
       <desc>The link targets a directory.</desc>
     </const>
     <const name="File"                  value="2">
-      <desc>The link targets a file (or whatever else).</desc>
+      <desc>The link targets a file (or whatever else except directories).</desc>
     </const>
   </enum>
 
@@ -10350,6 +10437,145 @@
   </enum>
 
   <enum
+    name="PathStyle"
+    uuid="97303a5b-42e8-0a55-d16f-d2a92c295261"
+    >
+    <desc>
+      The path style of a system.
+      (Values matches the RTPATH_STR_F_STYLE_XXX defines in iprt/path.h!)
+    </desc>
+    <const name="DOS"     value="1">
+      <desc>DOS-style paths with forward and backward slashes, drive
+      letters and UNC.  Known from DOS, OS/2 and Windows.</desc>
+    </const>
+    <const name="UNIX"    value="2">
+      <desc>UNIX-style paths with forward slashes only.</desc>
+    </const>
+    <const name="Unknown" value="8">
+      <desc>
+        The path style is not known, most likely because the guest additions
+        aren't active yet.
+      </desc>
+    </const>
+  </enum>
+
+  <enum
+    name="FileAccessMode"
+    uuid="231a578f-47fb-ea30-3b3e-8489558227f0"
+    >
+    <desc>
+      File open access mode for use with <link to="IGuestSession::fileOpen"/>
+      and <link to="IGuestSession::fileOpenEx"/>.
+    </desc>
+    <const name="ReadOnly"   value="1">
+      <desc>Open the file only with read access.</desc>
+    </const>
+    <const name="WriteOnly"  value="2">
+      <desc>Open the file only with write access.</desc>
+    </const>
+    <const name="ReadWrite"  value="3">
+      <desc>Open the file with both read and write access.</desc>
+    </const>
+    <const name="AppendOnly" value="4">
+      <desc>Open the file for appending only, no read or seek access.
+        <note>Not yet implemented.</note>
+      </desc>
+    </const>
+    <const name="AppendRead" value="5">
+      <desc>Open the file for appending and read.  Writes always goes to the
+        end of the file while reads are done at the current or specified file
+        position.
+        <note>Not yet implemented.</note>
+      </desc>
+    </const>
+  </enum>
+
+  <enum
+    name="FileOpenAction"
+    uuid="12bc97e2-4fc6-a8b4-4f84-0cbf4ab970d2"
+    >
+    <desc>
+      What action <link to="IGuestSession::fileOpen"/> and <link to="IGuestSession::fileOpenEx"/>
+      should take whether the file being opened exists or not.
+    </desc>
+    <const name="OpenExisting"            value="1">
+      <desc>Opens an existing file, fails if no file exists. (Was "oe".)</desc>
+    </const>
+    <const name="OpenOrCreate"            value="2">
+      <desc>Opens an existing file, creates a new one if no file exists. (Was "oc".)</desc>
+    </const>
+    <const name="CreateNew"               value="3">
+      <desc>Creates a new file is no file exists, fails if there is a file there already. (Was "ce".)</desc>
+    </const>
+    <const name="CreateOrReplace"         value="4">
+      <desc>
+        Creates a new file, replace any existing file. (Was "ca".)
+        <note>
+          Currently undefined whether we will inherit mode and ACLs from the
+          existing file or replace them.
+        </note>
+      </desc>
+    </const>
+    <const name="OpenExistingTruncated"   value="5">
+      <desc>Opens and truncate an existing file, fails if no file exists. (Was "ot".)</desc>
+    </const>
+    <const name="AppendOrCreate"          value="99">
+      <desc>Opens an existing file and places the file pointer at the end of
+        the file, creates the file if it does not exist.  This action implies
+        write access. (Was "oa".)
+        <note>
+          <!-- @todo r=bird: See iprt/file.h, RTFILE_O_APPEND - not an action/disposition!
+              Moving the file pointer to the end, is almost fine, but impliying 'write' access
+              isn't. That is something that is exclusively reserved for the opening mode. -->
+          Deprecated. Only here for historical reasons. Do not use!
+        </note>
+      </desc>
+    </const>
+  </enum>
+
+  <enum
+    name="FileSharingMode"
+    uuid="f87dfe58-425b-c5ba-7d6d-22adeea25de1"
+    >
+    <desc>
+      File sharing mode for <link to="IGuestSession::fileOpenEx"/>.
+    </desc>
+    <const name="Read"        value="1">
+      <desc>Only share read access to the file.</desc>
+    </const>
+    <const name="Write"       value="2">
+      <desc>Only share write access to the file.</desc>
+    </const>
+    <const name="ReadWrite"   value="3">
+      <desc>Share both read and write access to the file, but deny deletion.</desc>
+    </const>
+    <const name="Delete"      value="4">
+      <desc>Only share delete access, denying read and write.</desc>
+    </const>
+    <const name="ReadDelete"  value="5">
+      <desc>Share read and delete access to the file, denying writing.</desc>
+    </const>
+    <const name="WriteDelete" value="6">
+      <desc>Share write and delete access to the file, denying reading.</desc>
+    </const>
+    <const name="All"         value="7">
+      <desc>Share all access, i.e. read, write and delete, to the file.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="FileOpenExFlags"
+    uuid="9d62017b-ddd3-4e5a-a08e-14d1c23bbac1"
+    >
+    <desc>
+      Open flags for <link to="IGuestSession::fileOpenEx"/>.
+    </desc>
+    <const name="None"        value="0">
+      <desc>No flag set.</desc>
+    </const>
+  </enum>
+
+  <enum
     name="FileStatus"
     uuid="8c86468b-b97b-4080-8914-e29f5b0abd2c"
     >
@@ -10382,38 +10608,39 @@
 
   <enum
     name="FsObjType"
-    uuid="a1ed437c-b3c3-4ca2-b19c-4239d658d5e8"
+    uuid="34a0d1aa-491e-e209-e150-84964d6cee5f"
     >
     <desc>
-      File system object type.
+      File system object (file) types.
     </desc>
-
-    <const name="Undefined"             value="0">
-      <desc>Type is undefined / unknown.</desc>
+    <const name="Unknown"   value="1">
+      <desc>Used either if the object has type that is not in this enum, or
+        if the type has not yet been determined or set.</desc>
     </const>
-    <const name="FIFO"                  value="1">
-      <desc>Named pipe.</desc>
+    <const name="Fifo"      value="2">
+      <desc>FIFO or named pipe, depending on the platform/terminology.</desc>
     </const>
-    <const name="DevChar"               value="10">
+    <const name="DevChar"   value="3">
       <desc>Character device.</desc>
     </const>
-    <const name="DevBlock"              value="11">
-      <desc>Block device.</desc>
-    </const>
-    <const name="Directory"             value="50">
+    <const name="Directory" value="4">
       <desc>Directory.</desc>
     </const>
-    <const name="File"                  value="80">
-      <desc>File.</desc>
+    <const name="DevBlock"  value="5">
+      <desc>Block device.</desc>
     </const>
-    <const name="Symlink"               value="100">
-      <desc>Symlink.</desc>
+    <const name="File"      value="6">
+      <desc>Regular file.</desc>
     </const>
-    <const name="Socket"                value="200">
+    <const name="Symlink"   value="7">
+      <desc>Symbolic link.</desc>
+    </const>
+    <const name="Socket"    value="8">
       <desc>Socket.</desc>
     </const>
-    <const name="Whiteout"              value="400">
-      <desc>Whiteout.</desc>
+    <const name="WhiteOut"  value="9">
+      <desc>A white-out file.  Found in union mounts where it is used for
+        hiding files after deletion, I think. </desc>
     </const>
   </enum>
 
@@ -10455,14 +10682,24 @@
     <const name="NoSymlinks"            value="1">
       <desc>Don't allow symbolic links as part of the path.</desc>
     </const>
+<!-- r=bird: need a "NoFollowSymlinks" value here.  IPRT probably needs that too. -->
   </enum>
 
   <interface
     name="IDnDBase" extends="$unknown"
-    uuid="b15cf9ca-4078-4786-a1be-af773a36e19f"
+    uuid="a9630a67-7238-4b0e-9a58-364b1dd3d032"
     wsmap="managed"
     >
     <desc>Base abstract interface for drag'n drop.</desc>
+
+    <attribute name="formats" type="wstring" safearray="yes" readonly="yes">
+      <desc>Returns all supported drag'n drop formats.</desc>
+    </attribute>
+
+    <attribute name="protocolVersion" type="unsigned long" readonly="yes">
+      <desc>Returns the protocol version which is used to communicate
+       with the guest.</desc>
+    </attribute>
 
     <method name="isFormatSupported" >
       <desc>
@@ -10493,10 +10730,6 @@
         <desc>Collection of formats to remove.</desc>
       </param>
     </method>
-
-    <attribute name="formats" type="wstring" safearray="yes" readonly="yes">
-      <desc>Returns all supported drag'n drop formats.</desc>
-    </attribute>
 
   </interface>
 
@@ -10570,19 +10803,19 @@
 
   <interface
     name="IGuestDnDSource" extends="IDnDSource"
-    uuid="280955c0-de67-4297-8179-6274a82a2fc0"
+    uuid="dedfb5d9-4c1b-edf7-fdf3-c1be6827dc28"
     wsmap="managed"
     >
-
     <desc>
       Implementation of the <link to="IDnDSource" /> object
       for source drag'n drop operations on the guest.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
     name="IDnDTarget" extends="IDnDBase"
-    uuid="2366c45c-4633-41a1-9fa6-0ef9f244434c"
+    uuid="25ac16fa-316d-4934-9a7f-fe02f6739bef"
     wsmap="managed"
     >
     <desc>Abstract interface for handling drag'n drop targets.</desc>
@@ -10699,7 +10932,7 @@
 
     <method name="sendData">
       <desc>
-        Sends data to the target.
+        Initiates sending data to the target.
 
         <result name="VBOX_E_VM_ERROR">
           VMM device is not available.
@@ -10720,6 +10953,22 @@
       </param>
     </method>
 
+    <method name="cancel">
+      <desc>
+        Requests cancelling the current operation. The target can veto
+        the request in case the operation is not cancelable at the moment.
+
+        <result name="VBOX_E_VM_ERROR">
+          VMM device is not available.
+        </result>
+
+      </desc>
+
+      <param name="veto" type="boolean" dir="return">
+        <desc>Whether the target has vetoed cancelling the operation.</desc>
+      </param>
+    </method>
+
   </interface>
 
   <interface
@@ -10727,51 +10976,69 @@
     uuid="50ce4b51-0ff7-46b7-a138-3c6e5ac946b4"
     wsmap="managed"
     >
-
     <desc>
       Implementation of the <link to="IDnDTarget" /> object
       for target drag'n drop operations on the guest.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
     name="IGuestSession" extends="$unknown"
-    uuid="5b28703c-07b6-4fcb-afba-ac199b309752"
+    uuid="3cbf62cf-c9cd-48c6-9623-d1dbe54ca557"
     wsmap="managed"
     >
     <desc>
-      A guest session represents one impersonated user account on the guest, so
+      A guest session represents one impersonated user account in the guest, so
       every operation will use the same credentials specified when creating
       the session object via <link to="IGuest::createSession"/>.
 
       There can be a maximum of 32 sessions at once per VM, whereas session 0
-      is reserved for the root session. This root session is controlling all
-      other guest sessions and also is responsible for actions which require
-      system level privileges. Each guest session keeps track of its started
-      guest processes, opened guest files or guest directories.
-      To work on guest files or directories a guest session offers methods to open
-      or create such objects (see <link to="IGuestSession::fileOpen"/> or
-      <link to="IGuestSession::directoryOpen"/> for example).
+      is reserved for the root session.
+<!-- r=bird: Is the root session part of the maximum of 32?? Not really clear. -->
+      This root session is controlling all other guest sessions and also is
+      responsible for actions which require system level privileges.
+
+      Each guest session keeps track of the guest directories and files that
+      it opened as well as guest processes it has created.  To work on guest
+      files or directories a guest session offers methods to open or create
+      such objects (see <link to="IGuestSession::fileOpen"/> or
+      <link to="IGuestSession::directoryOpen"/> for instance).  Similarly,
+      there a methods for creating guest processes.
+
+      There can be up to 2048 objects (guest processes, files and directories)
+      a time per guest session.  Exceeding the limit will result in an error.
+<!-- @todo r=bird: Add specific VBOX_E_XXX error for this and document it here! -->
 
       When done with either of these objects, including the guest session itself,
       use the appropriate close() method to let the object do its cleanup work.
 
-      Every guest session has its own environment variable block which gets
-      automatically applied when starting a new guest process via
-      <link to="IGuestSession::processCreate"/> or <link to="IGuestSession::processCreateEx"/>.
-      To override (or unset) certain environment variables already set by the
-      guest session, one can specify a per-process environment block when using
-      one of the both above mentioned process creation calls.
+      Closing a session via <link to="IGuestSession::close" /> will try to close
+      all the mentioned objects above unless these objects are still used by
+      a client.
+
+      A set of environment variables changes is associated with each session
+      (<link to="IGuestSession::environmentChanges"/>).  These are applied to
+      the base environment of the impersonated guest user when creating a new
+      guest process.  For additional flexibility the <link to="IGuestSession::processCreate"/>
+      and <link to="IGuestSession::processCreateEx"/> methods allows you to
+      specify individual environment changes for each process you create.
+      With newer guest addition versions, the base environment is also made
+      available via <link to="IGuestSession::environmentBase"/>.  (One reason
+      for why we record changes to a base environment instead of working
+      directly on an environment block is that we need to be compatible
+      with older guest additions.  Another reason is that this way it is always
+      possible to undo all the changes you've scheduled.)
     </desc>
 
     <attribute name="user" type="wstring" readonly="yes">
       <desc>Returns the user name used by this session to impersonate
-        users on the guest.
+        users in the guest.
       </desc>
     </attribute>
     <attribute name="domain" type="wstring" readonly="yes">
       <desc>Returns the domain name used by this session to impersonate
-        users on the guest.
+        users in the guest.
       </desc>
     </attribute>
     <attribute name="name" type="wstring" readonly="yes">
@@ -10782,9 +11049,10 @@
     </attribute>
     <attribute name="timeout" type="unsigned long">
       <desc>
+<!-- r=bird: Using 'Returns' for writable attributes is misleading. -->
         Returns the session timeout (in ms).
         <result name="E_NOTIMPL">
-          The method is not implemented yet.
+          This attribute is not implemented yet.
         </result>
       </desc>
     </attribute>
@@ -10795,14 +11063,53 @@
     <attribute name="status" type="GuestSessionStatus" readonly="yes">
       <desc>Returns the current session status.</desc>
     </attribute>
-    <attribute name="environment" type="wstring" safearray="yes">
+    <attribute name="environmentChanges" type="wstring" safearray="yes">
       <desc>
-        Returns the current session environment.
+        The set of scheduled environment changes to the base environment of the
+        session.  They are in putenv format, i.e. "VAR=VALUE" for setting and
+        "VAR" for unsetting.  One entry per variable (change).  The changes are
+        applied when creating new guest processes.
+
+        This is writable, so to undo all the scheduled changes, assign it an
+        empty array.
+      </desc>
+    </attribute>
+    <attribute name="environmentBase" type="wstring" safearray="yes" readonly="yes">
+      <desc>
+        The base environment of the session.  They are on the "VAR=VALUE" form,
+        one array entry per variable.
+        <!-- @todo/TODO/FIXME: This doesn't end up in the PDF.
+        <result name="VBOX_E_NOT_SUPPORTED">If the guest additions does not
+          support the session base environment feature.  Support for this was
+          introduced with protocol version XXX.</result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">If the guest additions has
+          yet to report the session base environment.</result> -->
+
+        Access fails with VBOX_E_NOT_SUPPORTED if the guest additions does not
+        support the session base environment feature.  Support for this was
+        introduced with protocol version XXXX.
+
+        Access fails with VBOX_E_INVALID_OBJECT_STATE if the guest additions
+        has yet to report the session base environment.
       </desc>
     </attribute>
     <attribute name="processes" type="IGuestProcess" readonly="yes" safearray="yes">
       <desc>
         Returns all current guest processes.
+      </desc>
+    </attribute>
+    <attribute name="pathStyle" type="PathStyle" readonly="yes">
+      <desc>
+        The style of paths used by the guest.  Handy for giving the right kind
+        of path specifications to <link to="IGuestSession::fileOpen"/> and similar methods.
+      </desc>
+    </attribute>
+    <attribute name="currentDirectory" type="wstring">
+      <desc>
+        The current directory of the session.  Guest path style.
+        <result name="E_NOTIMPL">
+          This attribute is not implemented yet.
+        </result>
       </desc>
     </attribute>
     <attribute name="directories" type="IGuestDirectory" readonly="yes" safearray="yes">
@@ -10826,76 +11133,113 @@
         Closes this session. All opened guest directories, files and
         processes which are not referenced by clients anymore will be
         closed. Guest processes which fall into this category and still
-        are running on the guest will be terminated automatically.
+        are running in the guest will be terminated automatically.
       </desc>
     </method>
 
-    <method name="copyFrom">
-      <desc>
-        Copies a file from guest to the host.
+    <!-- Directory related methods.  -->
 
-        <result name="VBOX_E_IPRT_ERROR">
-          Error starting the copy operation.
+    <method name="directoryCopy">
+      <desc>
+        Recursively copies a directory from one guest location to another.
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
         </result>
       </desc>
       <param name="source" type="wstring" dir="in">
-        <desc>Source file on the guest to copy to the host.</desc>
+        <desc>The path to the directory to copy (in the guest).  Guest path style.</desc>
       </param>
-      <param name="dest" type="wstring" dir="in">
-        <desc>Destination file name on the host.</desc>
+      <param name="destination" type="wstring" dir="in">
+        <desc>The path to the target directory (in the guest).  Unless the
+          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          directory shall not already exist.  Guest path style.</desc>
       </param>
-      <param name="flags" type="CopyFileFlag" dir="in" safearray="yes">
-        <desc>Copy flags; see <link to="CopyFileFlag"/> for more information.</desc>
+      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
-        <desc>Progress object to track the operation completion.</desc>
+        <desc>Progress object to track the operation to completion.</desc>
       </param>
     </method>
 
-    <method name="copyTo">
+    <method name="directoryCopyFromGuest">
       <desc>
-        Copies a file from host to the guest.
+        Recursively copies a directory from the guest to the host.
 
-        <result name="VBOX_E_IPRT_ERROR">
-          Error starting the copy operation.
+        <result name="E_NOTIMPL">
+          Not yet implemented.
         </result>
       </desc>
       <param name="source" type="wstring" dir="in">
-        <desc>Source file on the host to copy to the guest.</desc>
+        <desc>Path to the directory on the guest side that should be copied to
+          the host.  Guest path style.</desc>
       </param>
-      <param name="dest" type="wstring" dir="in">
-        <desc>Destination file name on the guest.</desc>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the directory on the host.  Unless the
+          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          directory shall not already exist.  Host path style.</desc>
       </param>
-      <param name="flags" type="CopyFileFlag" dir="in" safearray="yes">
-        <desc>Copy flags; see <link to="CopyFileFlag"/> for more information.</desc>
+      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
-        <desc>Progress object to track the operation completion.</desc>
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="directoryCopyToGuest">
+      <desc>
+        Recursively copies a directory from the host to the guest.
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in">
+        <desc>Path to the directory on the host side that should be copied to
+          the guest.  Host path style.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the file in the guest. Unless the
+          <link to="DirectoryCopyFlags::CopyIntoExisting"/> flag is given, the
+          directory shall not already exist.  Guest style path.</desc>
+      </param>
+      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
       </param>
     </method>
 
     <method name="directoryCreate">
       <desc>
-        Create a directory on the guest.
+        Creates a directory in the guest.
 
         <result name="VBOX_E_IPRT_ERROR">
           Error while creating the directory.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path of directory to create.</desc>
+        <desc>Path to the directory directory to be created. Guest path style.</desc>
       </param>
       <param name="mode" type="unsigned long" dir="in">
-        <desc>File creation mode.</desc>
+        <desc>
+          The UNIX-style access mode mask to create the directory with.
+          Whether/how all three access groups and associated access rights are
+          realized is guest OS dependent.  The API does the best it can on each
+          OS.
+        </desc>
       </param>
       <param name="flags" type="DirectoryCreateFlag" dir="in" safearray="yes">
-        <desc>Creation flags; see <link to="DirectoryCreateFlag"/> for more information.</desc>
+        <desc>Zero or more <link to="DirectoryCreateFlag"/> flags.</desc>
       </param>
     </method>
 
     <method name="directoryCreateTemp">
       <desc>
-        Create a temporary directory on the guest.
+        Creates a temporary directory in the guest.
 
         <result name="VBOX_E_NOT_SUPPORTED">
           The operation is not possible as requested on this particular
@@ -10918,36 +11262,53 @@
           alphanumeric string to produce a unique name.</desc>
       </param>
       <param name="mode" type="unsigned long" dir="in">
-        <desc>The mode of the directory to create. Use 0700 unless there are
-          reasons not to. This parameter is ignored if "secure" is specified.
-          </desc>
+        <desc>
+          The UNIX-style access mode mask to create the directory with.
+          Whether/how all three access groups and associated access rights are
+          realized is guest OS dependent.  The API does the best it can on each
+          OS.
+
+          This parameter is ignore if the @a secure parameter is set to @c true.
+          <note>It is strongly recommended to use 0700.</note>
+        </desc>
       </param>
       <param name="path" type="wstring" dir="in">
-        <desc>The absolute path to create the temporary directory in.</desc>
+        <desc>The path to the directory in which the temporary directory should
+          be created. Guest path style.</desc>
       </param>
       <param name="secure" type="boolean" dir="in">
-        <desc>Whether to fail if the directory can not be securely created.
+        <desc>
+          Whether to fail if the directory can not be securely created.
           Currently this means that another unprivileged user cannot
           manipulate the path specified or remove the temporary directory
           after it has been created. Also causes the mode specified to be
-          ignored. May not be supported on all guest types.</desc>
+          ignored. May not be supported on all guest types.
+        </desc>
       </param>
       <param name="directory" type="wstring" dir="return">
-        <desc>On success this will contain the name of the directory created
-          with full path.</desc>
+        <desc>On success this will contain the full path to the created
+          directory. Guest path style.</desc>
       </param>
     </method>
 
     <method name="directoryExists">
       <desc>
-        Checks whether a directory exists on the guest or not.
+        Checks whether a directory exists in the guest or not.
 
         <result name="VBOX_E_IPRT_ERROR">
           Error while checking existence of the directory specified.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Directory to check existence for.</desc>
+        <desc>Path to the directory to check if exists. Guest path style.</desc>
+      </param>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+          If @c true, symbolic links in the final component will be followed
+          and the existance of the symlink target made the question for this method.
+          If @c false, a symbolic link in the final component will make the
+          method return @c false (because a symlink isn't a directory).
+         </desc>
       </param>
       <param name="exists" type="boolean" dir="return">
         <desc>Returns @c true if the directory exists, @c false if not.</desc>
@@ -10956,8 +11317,11 @@
 
     <method name="directoryOpen">
       <desc>
-        Opens a directory and creates a <link to="IGuestDirectory"/> object that
-        can be used for further operations.
+        Opens a directory in the guest and creates a <link to="IGuestDirectory"/>
+        object that can be used for further operations.
+
+        <note>This method follows symbolic links by default at the moment, this
+          may change in the future.</note>
 
         <result name="VBOX_E_OBJECT_NOT_FOUND">
           Directory to open was not found.
@@ -10967,56 +11331,59 @@
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path to file to open.</desc>
+        <desc>Path to the directory to open. Guest path style.</desc>
       </param>
       <param name="filter" type="wstring" dir="in">
-        <desc>Open filter to apply. This can include wildcards like ? and *.</desc>
+        <desc>Optional directory listing filter to apply.  This uses the DOS/NT
+          style wildcard characters '?' and '*'.</desc>
       </param>
       <param name="flags" type="DirectoryOpenFlag" dir="in" safearray="yes">
-        <desc>Open flags; see <link to="DirectoryOpenFlag"/> for more information.</desc>
+        <desc>Zero or more <link to="DirectoryOpenFlag"/> flags.</desc>
       </param>
       <param name="directory" type="IGuestDirectory" dir="return">
         <desc><link to="IGuestDirectory"/> object containing the opened directory.</desc>
       </param>
     </method>
 
-    <method name="directoryQueryInfo">
-      <desc>
-        Queries information of a directory on the guest.
-
-        <result name="VBOX_E_OBJECT_NOT_FOUND">
-          Directory to query information for was not found.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Error querying information.
-        </result>
-      </desc>
-      <param name="path" type="wstring" dir="in">
-        <desc>Directory to query information for.</desc>
-      </param>
-      <param name="info" type="IGuestFsObjInfo" dir="return">
-        <desc><link to="IGuestFsObjInfo"/> object containing the queried information.</desc>
-      </param>
-    </method>
-
     <method name="directoryRemove">
       <desc>
-        Removes a guest directory if not empty.
+        Removes a guest directory if empty.
+
+        <note>Symbolic links in the final component will not be followed,
+          instead an not-a-directory error is reported.</note>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path of directory to remove.</desc>
+        <desc>Path to the directory that should be removed. Guest path style.</desc>
       </param>
     </method>
 
     <method name="directoryRemoveRecursive">
       <desc>
         Removes a guest directory recursively.
+
+<!--  Add this back when the warning can be removed:
+        Unless <link to="DirectoryRemoveRecFlag_ContentAndDir"/> or
+        <link to="DirectoryRemoveRecFlag_ContentOnly"/> is given, only the
+        directory structure is removed.  Which means it will fail if there are
+        directories which are not empty in the directory tree @a path points to.
+-->
+
+        <note> WARNING!! THE FLAGS ARE NOT CURRENTLY IMPLEMENTED.  THE IMPLEMENTATION
+          WORKS AS IF FLAGS WAS SET TO <link to="DirectoryRemoveRecFlag_ContentAndDir"/>.
+        </note>
+
+        <note>If the final path component is a symbolic link, this method will
+          fail as it can only be applied to directories.</note>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path of directory to remove recursively.</desc>
+        <desc>Path of the directory that is to be removed recursively. Guest
+          path style.</desc>
       </param>
       <param name="flags" type="DirectoryRemoveRecFlag" dir="in" safearray="yes">
-        <desc>Remove flags; see <link to="DirectoryRemoveRecFlag"/> for more information.</desc>
+        <desc>Zero or more <link to="DirectoryRemoveRecFlag"/> flags.
+          <note>WARNING! SPECIFYING <link to="DirectoryRemoveRecFlag::ContentAndDir"/> IS
+             MANDATORY AT THE MOMENT!!</note>
+        </desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion. This is not implemented
@@ -11024,102 +11391,168 @@
       </param>
     </method>
 
-    <method name="directoryRename">
+    <!-- Environment related methods.  -->
+
+    <method name="environmentScheduleSet">
       <desc>
-        Renames a directory on the guest.
-      </desc>
-      <param name="source" type="wstring" dir="in">
-        <desc>Source directory to rename.</desc>
-      </param>
-      <param name="dest" type="wstring" dir="in">
-        <desc>Destination directory to rename the source to.</desc>
-      </param>
-      <param name="flags" type="PathRenameFlag" dir="in" safearray="yes">
-        <desc>Rename flags; see <link to="PathRenameFlag"/> for more information.</desc>
-      </param>
-    </method>
-
-    <method name="directorySetACL">
-      <desc>
-        Sets the ACL (Access Control List) of a guest directory.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
-      </desc>
-      <param name="path" type="wstring" dir="in">
-        <desc>Full path of directory to set the ACL for.</desc>
-      </param>
-      <param name="acl" type="wstring" dir="in">
-        <desc>Actual ACL string to set. Must comply with the guest OS.</desc>
-      </param>
-    </method>
-
-    <method name="environmentClear">
-      <desc>
-        Clears (deletes) all session environment variables.
-
-        <result name="VBOX_E_IPRT_ERROR">
-          Error while clearing the session environment variables.
-        </result>
-      </desc>
-    </method>
-
-    <method name="environmentGet">
-      <desc>
-        Gets the value of a session environment variable.
-
-        <result name="VBOX_E_IPRT_ERROR">
-          Error while getting the value of the session environment variable.
-        </result>
+        Schedules setting an environment variable when creating the next guest
+        process.  This affects the <link to="IGuestSession::environmentChanges"/>
+        attribute.
       </desc>
       <param name="name" type="wstring" dir="in">
-        <desc>Name of session environment variable to get the value for.</desc>
-      </param>
-      <param name="value" type="wstring" dir="return">
-        <desc>
-          Value of the session environment variable specified. If this variable
-          does not exist and empty value will be returned.
-        </desc>
-      </param>
-    </method>
-
-    <method name="environmentSet">
-      <desc>
-        Sets a session environment variable.
-
-        <result name="VBOX_E_IPRT_ERROR">
-          Error while setting the session environment variable.
-        </result>
-      </desc>
-      <param name="name" type="wstring" dir="in">
-        <desc>Name of session environment variable to set.</desc>
+        <desc>Name of the environment variable to set.  This cannot be empty
+          nor can it contain any equal signs.</desc>
       </param>
       <param name="value" type="wstring" dir="in">
         <desc>Value to set the session environment variable to.</desc>
       </param>
     </method>
 
-    <method name="environmentUnset">
+    <method name="environmentScheduleUnset">
       <desc>
-        Unsets a session environment variable.
-
-        <result name="VBOX_E_IPRT_ERROR">
-          Error while unsetting the session environment variable.
-        </result>
+        Schedules unsetting (removing) an environment variable when creating
+        the next guest process.  This affects the
+        <link to="IGuestSession::environmentChanges"/> attribute.
       </desc>
       <param name="name" type="wstring" dir="in">
-        <desc>Name of session environment variable to unset (clear).</desc>
+        <desc>Name of the environment variable to unset.  This cannot be empty
+          nor can it contain any equal signs.</desc>
+      </param>
+    </method>
+
+    <method name="environmentGetBaseVariable">
+      <desc>
+        Gets an environment variable from the session's base environment
+        (<link to="IGuestSession::environmentBase"/>).
+
+        <result name="VBOX_E_NOT_SUPPORTED">If the guest additions does not
+          support the session base environment feature.  Support for this was
+          introduced with protocol version XXXX.</result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">If the guest additions has
+          yet to report the session base environment.</result>
+      </desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>Name of the environment variable to   get.This cannot be empty
+          nor can it contain any equal signs.</desc>
+      </param>
+      <param name="value" type="wstring" dir="return">
+        <desc>
+          The value of the variable.  Empty if not found.  To deal with
+          variables that may have empty values, use
+          <link to="IGuestSession::environmentDoesBaseVariableExist"/>.
+        </desc>
+      </param>
+    </method>
+
+    <method name="environmentDoesBaseVariableExist">
+      <desc>
+        Checks if the given environment variable exists in the session's base
+        environment (<link to="IGuestSession::environmentBase"/>).
+
+        <result name="VBOX_E_NOT_SUPPORTED">If the guest additions does not
+          support the session base environment feature.  Support for this was
+          introduced with protocol version XXXX.</result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">If the guest additions has
+          yet to report the session base environment.</result>
+      </desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>Name of the environment variable to look for.  This cannot be
+          empty nor can it contain any equal signs.</desc>
+      </param>
+      <param name="exists" type="boolean" dir="return">
+        <desc>TRUE if the variable exists, FALSE if not.</desc>
+      </param>
+    </method>
+
+    <!-- File related methods. -->
+
+    <method name="fileCopy">
+      <desc>
+        Copies a file from one guest location to another.
+
+        <note>Will overwrite the destination file unless
+          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in">
+        <desc>The path to the file to copy (in the guest).  Guest path style.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>The path to the target file (in the guest).  This cannot be a
+          directory.  Guest path style.</desc>
+      </param>
+      <param name="flags" type="FileCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileCopyFlag"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="fileCopyFromGuest">
+      <desc>
+        Copies a file from the guest to the host.
+
+        <note>Will overwrite the destination file unless
+          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Error starting the copy operation.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in">
+        <desc>Path to the file on the guest side that should be copied to the
+          host.  Guest path style.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the file on the host (file, not directory). Host
+          path style.</desc>
+      </param>
+      <param name="flags" type="FileCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileCopyFlag"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="fileCopyToGuest">
+      <desc>
+        Copies a file from the host to the guest.
+
+        <note>Will overwrite the destination file unless
+          <link to="FileCopyFlag::NoReplace"/> is specified.</note>
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Error starting the copy operation.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in">
+        <desc>Path to the file on the host side that should be copied to the
+          guest.  Host path style.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the file in the guest (file, not directory).  Guest
+          style path.</desc>
+      </param>
+      <param name="flags" type="FileCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileCopyFlag"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
       </param>
     </method>
 
     <method name="fileCreateTemp">
       <desc>
-        Creates a temporary file on the guest.
+        Creates a temporary file in the guest.
 
         <result name="VBOX_E_NOT_SUPPORTED">
           The operation is not possible as requested on this particular
-          guest type.
+          guest OS.
         </result>
         <result name="E_INVALIDARG">
           Invalid argument. This includes an incorrectly formatted template,
@@ -11139,12 +11572,19 @@
          </desc>
       </param>
       <param name="mode" type="unsigned long" dir="in">
-        <desc>The mode of the file to create. Use 0700 unless there are
-          reasons not to. This parameter is ignored if "secure" is specified.
-         </desc>
+        <desc>
+          The UNIX-style access mode mask to create the file with.
+          Whether/how all three access groups and associated access rights are
+          realized is guest OS dependent.  The API does the best it can on each
+          OS.
+
+          This parameter is ignore if the @a secure parameter is set to @c true.
+          <note>It is strongly recommended to use 0600.</note>
+        </desc>
       </param>
       <param name="path" type="wstring" dir="in">
-        <desc>The absolute path to create the temporary file in.</desc>
+        <desc>The path to the directory in which the temporary file should be
+          created.</desc>
       </param>
       <param name="secure" type="boolean" dir="in">
         <desc>Whether to fail if the file can not be securely created.
@@ -11162,33 +11602,26 @@
 
     <method name="fileExists">
       <desc>
-        Checks whether a file exists on the guest or not.
+        Checks whether a regular file exists in the guest or not.
 
         <result name="VBOX_E_IPRT_ERROR">
           Error while checking existence of the file specified.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>File to check existence for.</desc>
+        <desc>Path to the alleged regular file.  Guest path style.</desc>
+      </param>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+          If @c true, symbolic links in the final component will be followed
+          and the existance of the symlink target made the question for this method.
+          If @c false, a symbolic link in the final component will make the
+          method return @c false (because a symlink isn't a regular file).
+         </desc>
       </param>
       <param name="exists" type="boolean" dir="return">
-        <desc>Returns @c true if the file exists, @c false if not.</desc>
-      </param>
-    </method>
-
-    <method name="fileRemove">
-      <desc>
-        Removes a single file on the guest.
-
-        <result name="VBOX_E_OBJECT_NOT_FOUND">
-          File to remove was not found.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Error while removing the file.
-        </result>
-      </desc>
-      <param name="path" type="wstring" dir="in">
-        <desc>Path to the file to remove.</desc>
+        <desc>Returns @c true if the file exists, @c false if not.  @c false is
+          also return if this @a path does not point to a file object.</desc>
       </param>
     </method>
 
@@ -11205,37 +11638,23 @@
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path to file to open.</desc>
+        <desc>Path to file to open.  Guest path style.</desc>
       </param>
-      <param name="openMode" type="wstring" dir="in">
-        <desc>The file opening mode. This describes the wanted access to a file, whereas
-          the parameter must be one of the following:
-          <ul>
-            <li><tt>"r"</tt>: Opens a file for reading.</li>
-            <li><tt>"r+"</tt>: Opens a file for reading and writing.</li>
-            <li><tt>"w"</tt>: Opens a file for writing.</li>
-            <li><tt>"w+"</tt>: Opens a file for writing and reading.</li>
-          </ul>
-        </desc>
+      <param name="accessMode" type="FileAccessMode" dir="in">
+        <desc>The file access mode (read, write and/or append).
+          See <link to="FileAccessMode"/> for details.</desc>
       </param>
-      <param name="disposition" type="wstring" dir="in">
-        <desc>The file disposition. This describes the action to take in case a
-          file exists or does not exist, whereas the parameter must be one of the
-          following:
-          <ul>
-            <li><tt>"ca"</tt>: Creates a new file, always. Overwrites an existing file.</li>
-            <li><tt>"ce"</tt>: Creates a new file if it does not exist. Fail if exist.</li>
-            <li><tt>"oa"</tt>: Opens an existing file and places the file pointer at the
-              end of the file, if opened with write access. Create the file if it does not exist.</li>
-            <li><tt>"oc"</tt>: Opens an existing file or create it if it does not exist.</li>
-            <li><tt>"oe"</tt>: Opens an existing file or fail if it does not exist.</li>
-            <li><tt>"ot"</tt>: Opens and truncate an existing file or fail if it does not exist.</li>
-          </ul>
-        </desc>
+      <param name="openAction" type="FileOpenAction" dir="in">
+        <desc>What action to take depending on whether the file exists or not.
+          See <link to="FileOpenAction"/> for details.</desc>
       </param>
       <param name="creationMode" type="unsigned long" dir="in">
-        <desc>The mode to create the file with. Must be a three-digit octal number which
-          represents the access rights for the file.</desc>
+        <desc>
+          The UNIX-style access mode mask to create the file with if @a openAction
+          requested the file to be created (otherwise ignored).  Whether/how all
+          three access groups and associated access rights are realized is guest
+          OS dependent.  The API does the best it can on each OS.
+        </desc>
       </param>
       <param name="file" type="IGuestFile" dir="return">
         <desc><link to="IGuestFile"/> object representing the opened file.</desc>
@@ -11255,159 +11674,283 @@
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>Full path to file to open.</desc>
+        <desc>Path to file to open.  Guest path style.</desc>
       </param>
-      <param name="openMode" type="wstring" dir="in">
-        <desc>The file opening mode. This describes the wanted access to a file, whereas
-          the parameter must be one of the following:
-          <ul>
-            <li><tt>"r"</tt>: Opens a file for reading.</li>
-            <li><tt>"r+"</tt>: Opens a file for reading and writing.</li>
-            <li><tt>"w"</tt>: Opens a file for writing.</li>
-            <li><tt>"w+"</tt>: Opens a file for writing and reading.</li>
-          </ul>
+      <param name="accessMode" type="FileAccessMode" dir="in">
+        <desc>The file access mode (read, write and/or append).
+          See <link to="FileAccessMode"/> for details.</desc>
+      </param>
+      <param name="openAction" type="FileOpenAction" dir="in">
+        <desc>What action to take depending on whether the file exists or not.
+          See <link to="FileOpenAction"/> for details.</desc>
+      </param>
+      <param name="sharingMode" type="FileSharingMode" dir="in">
+        <desc>The file sharing mode in the guest. This parameter is currently
+          ignore for all guest OSes.  It will in the future be implemented for
+          Windows, OS/2 and maybe Solaris guests only, the others will ignore it.
+          Use <link to="FileSharingMode::All"/>.
         </desc>
-      </param>
-      <param name="disposition" type="wstring" dir="in">
-        <desc>The file disposition. This describes the action to take in case a
-          file exists or does not exist, whereas the parameter must be one of the
-          following:
-          <ul>
-            <li><tt>"ca"</tt>: Creates a new file, always. Overwrites an existing file.</li>
-            <li><tt>"ce"</tt>: Creates a new file if it does not exist. Fail if exist.</li>
-            <li><tt>"oa"</tt>: Opens an existing file and places the file pointer at the
-              end of the file, if opened with write access. Create the file if it does not exist.</li>
-            <li><tt>"oc"</tt>: Opens an existing file or create it if it does not exist.</li>
-            <li><tt>"oe"</tt>: Opens an existing file or fail if it does not exist.</li>
-            <li><tt>"ot"</tt>: Opens and truncate an existing file or fail if it does not exist.</li>
-          </ul>
-        </desc>
-      </param>
-      <param name="sharingMode" type="wstring" dir="in">
-        <desc>The file sharing mode on the guest. This parameter
-          is not implemented yet. Pass an empty string here.</desc>
       </param>
       <param name="creationMode" type="unsigned long" dir="in">
-        <desc>The mode to create the file with. Must be a three-digit octal number which
-          represents the access rights for the file.</desc>
+        <desc>
+          The UNIX-style access mode mask to create the file with if @a openAction
+          requested the file to be created (otherwise ignored).  Whether/how all
+          three access groups and associated access rights are realized is guest
+          OS dependent.  The API does the best it can on each OS.
+        </desc>
       </param>
-      <param name="offset" type="long long" dir="in">
-        <desc>The initial read/write offset (in bytes).</desc>
+      <param name="flags" type="FileOpenExFlags" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileOpenExFlags"/> values. </desc>
       </param>
       <param name="file" type="IGuestFile" dir="return">
         <desc><link to="IGuestFile"/> object representing the opened file.</desc>
       </param>
     </method>
 
-    <method name="fileQueryInfo">
-      <desc>
-        Queries information of a file on the guest.
-
-        <result name="VBOX_E_OBJECT_NOT_FOUND">
-          File to query information for was not found.
-        </result>
-        <result name="VBOX_E_IPRT_ERROR">
-          Error querying information.
-        </result>
-      </desc>
-      <param name="path" type="wstring" dir="in">
-        <desc>File to query information for.</desc>
-      </param>
-      <param name="info" type="IGuestFsObjInfo" dir="return">
-        <desc><link to="IGuestFsObjInfo"/> object containing the queried information.</desc>
-      </param>
-    </method>
-
     <method name="fileQuerySize">
       <desc>
-        Queries the size of a file on the guest.
+        Queries the size of a regular file in the guest.
 
         <result name="VBOX_E_OBJECT_NOT_FOUND">
-          File to rename was not found.
+          File to was not found.
         </result>
         <result name="VBOX_E_IPRT_ERROR">
           Error querying file size.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
-        <desc>File to query the size for.</desc>
+        <desc>Path to the file which size is requested.  Guest path style.</desc>
+      </param>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+           It @c true, symbolic links in the final path component will be
+           followed to their target, and the size of the target is returned.
+           If @c false, symbolic links in the final path component will make
+           the method call fail (symblink is not a regular file).
+         </desc>
       </param>
       <param name="size" type="long long" dir="return">
         <desc>Queried file size.</desc>
       </param>
     </method>
 
-    <method name="fileRename">
+    <!-- File System Object Level -->
+
+    <method name="fsObjExists">
       <desc>
-        Renames a file on the guest.
+        Checks whether a file system object (file, directory, etc) exists in
+        the guest or not.
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Error while checking existence of the file specified.
+        </result>
       </desc>
-      <param name="source" type="wstring" dir="in">
-        <desc>Source file to rename.</desc>
+      <param name="path" type="wstring" dir="in">
+        <desc>Path to the file system object to check the existance of.  Guest
+          path style.</desc>
       </param>
-      <param name="dest" type="wstring" dir="in">
-        <desc>Destination file to rename the source to.</desc>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+           If @c true, symbolic links in the final component will be followed
+           and the method will instead check if the target exists.
+           If @c false, symbolic links in the final component will satisfy the
+           method and it will return @c true in @a exists.
+         </desc>
       </param>
-      <param name="flags" type="PathRenameFlag" dir="in" safearray="yes">
-        <desc>Rename flags; see <link to="PathRenameFlag"/> for more information.</desc>
+      <param name="exists" type="boolean" dir="return">
+        <desc>Returns @c true if the file exists, @c false if not.</desc>
       </param>
     </method>
 
-    <method name="fileSetACL">
+    <method name="fsObjQueryInfo">
       <desc>
-        Sets the ACL (Access Control List) of a file on the guest.
+        Queries information about a file system object (file, directory, etc)
+        in the guest.
+
+        <result name="VBOX_E_OBJECT_NOT_FOUND">
+          The file system object was not found.
+        </result>
+        <result name="VBOX_E_IPRT_ERROR">
+          Error while querying information.
+        </result>
+      </desc>
+      <param name="path" type="wstring" dir="in">
+        <desc>Path to the file system object to gather information about.
+          Guest path style.</desc>
+      </param>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+           Information about symbolic links is returned if @c false.  Otherwise,
+           symbolic links are followed and the returned information concerns
+           itself with the symlink target if @c true.
+         </desc>
+      </param>
+      <param name="info" type="IGuestFsObjInfo" dir="return">
+        <desc><link to="IGuestFsObjInfo"/> object containing the information.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjRemove">
+      <desc>
+        Removes a file system object (file, symlink, etc) in the guest.  Will
+        not work on directories, use <link to="IGuestSession::directoryRemove"/>
+        to remove directories.
+
+        <note>This method will remove symbolic links in the final path
+          component, not follow them.</note>
+
+        <result name="E_NOTIMPL">
+          The method has not been implemented yet.
+        </result>
+        <result name="VBOX_E_OBJECT_NOT_FOUND">
+          The file system object was not found.
+        </result>
+        <result name="VBOX_E_IPRT_ERROR">
+          For most other errors. We know this is unhelpful, will fix shortly...
+        </result>
+      </desc>
+      <param name="path" type="wstring" dir="in">
+        <desc>Path to the file system object to remove.  Guest style path.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjRename">
+      <desc>
+        Renames a file system object (file, directory, symlink, etc) in the
+        guest.
+
+        <result name="VBOX_E_OBJECT_NOT_FOUND">
+          The file system object was not found.
+        </result>
+        <result name="VBOX_E_IPRT_ERROR">
+          For most other errors. We know this is unhelpful, will fix shortly...
+        </result>
+      </desc>
+      <param name="oldPath" type="wstring" dir="in">
+        <desc>The current path to the object.  Guest path style.</desc>
+      </param>
+      <param name="newPath" type="wstring" dir="in">
+        <desc>The new path to the object.  Guest path style.</desc>
+      </param>
+      <param name="flags" type="FsObjRenameFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FsObjRenameFlag"/> values.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjMove">
+      <desc>
+        Moves a file system object (file, directory, symlink, etc) from one
+        guest location to another.
+
+        This differs from <link to="IGuestSession::fsObjRename"/> in that it
+        can move accross file system boundraries.  In that case it will
+        perform a copy and then delete the original.  For directories, this
+        can take a while and is subject to races.
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in">
+        <desc>Path to the file to move.  Guest path style.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to move the file to (file, not directory).  Guest path
+          style.</desc>
+      </param>
+      <param name="flags" type="FsObjMoveFlags" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FsObjMoveFlags"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjSetACL">
+      <desc>
+        Sets the access control list (ACL) of a file system object (file,
+        directory, etc) in the guest.
 
         <result name="E_NOTIMPL">
           The method is not implemented yet.
         </result>
       </desc>
-      <param name="file" type="wstring" dir="in">
-        <desc>Full path of file to set the ACL for.</desc>
+      <param name="path" type="wstring" dir="in">
+        <desc>Full path of the file system object which ACL to set</desc>
+      </param>
+      <param name="followSymlinks" type="boolean" dir="in">
+        <desc>
+          If @c true symbolic links in the final component will be followed,
+          otherwise, if @c false, the method will work directly on a symbolic
+          link in the final component.
+         </desc>
       </param>
       <param name="acl" type="wstring" dir="in">
-        <desc>Actual ACL string to set. Must comply with the guest OS.</desc>
+        <desc>The ACL specification string. To-be-defined.</desc>
+      </param>
+      <param name="mode" type="unsigned long" dir="in">
+        <desc>UNIX-style mode mask to use if @a acl is empty. As mention in
+          <link to="IGuestSession::directoryCreate"/> this is realized on
+          a best effort basis and the exact behavior depends on the Guest OS.
+        </desc>
       </param>
     </method>
 
+    <!-- Process methods -->
+
     <method name="processCreate">
       <desc>
-        Creates a new process running on the guest. The new process will be
+        Creates a new process running in the guest. The new process will be
         started asynchronously, meaning on return of this function it is not
-        guaranteed that the guest process is in a started state. To wait for
+        be guaranteed that the guest process is in a started state. To wait for
         successful startup, use the <link to="IProcess::waitFor"/> call.
 
         <note>
-          Starting at VirtualBox 4.2 guest process execution by default is limited
+          Starting at VirtualBox 4.2 guest process execution by is default limited
           to serve up to 255 guest processes at a time. If all 255 guest processes
-          are still active and running, creating a new guest process will result in an
-          appropriate error message.
+          are active and running, creating a new guest process will result in an
+          error.
 
-          If ProcessCreateFlag_WaitForStdOut and / or respectively ProcessCreateFlag_WaitForStdErr
-          is / are set, the guest process will not exit until all data from the specified
-          stream(s) is / are read out.
+          If ProcessCreateFlag_WaitForStdOut and/or ProcessCreateFlag_WaitForStdErr
+          are set, the guest process will not enter the terminated state until
+          all data from the specified streams have been read read.
         </note>
 
         <result name="VBOX_E_IPRT_ERROR">
           Error creating guest process.
         </result>
       </desc>
-      <param name="command" type="wstring" dir="in">
+      <param name="executable" type="wstring" dir="in">
         <desc>
-          Full path name of the command to execute on the guest; the
-          commands has to exists in the guest VM in order to be executed.
+          Full path to the file to execute in the guest.  The file has to
+          exists in the guest VM with executable right to the session user in
+          order to succeed.  If empty/null, the first entry in the
+          @a arguments array will be used instead (i.e. argv[0]).
         </desc>
       </param>
       <param name="arguments" type="wstring" dir="in" safearray="yes">
-        <desc>Array of arguments passed to the execution command.</desc>
+        <desc>Array of arguments passed to the new process.
+          <note>
+            Starting with VirtualBox 5.0 this array starts with argument 0
+            instead of argument 1 as in previous versions.  Whether the zeroth
+            argument can be passed to the guest depends on the VBoxService
+            version running there.  If you depend on this, check that the
+            <link to="IGuestSession::protocolVersion"/> is 3 or higher.
+          </note>
+        </desc>
       </param>
-      <param name="environment" type="wstring" dir="in" safearray="yes">
+      <param name="environmentChanges" type="wstring" dir="in" safearray="yes">
         <desc>
-          Environment variables that can be set while the command is being
-          executed, in form of "NAME=VALUE"; one pair per entry. To unset a
-          variable just set its name ("NAME") without a value.
+          Set of environment changes to complement
+          <link to="IGuestSession::environmentChanges"/>.  Takes precedence
+          over the session ones.  The changes are in putenv format, i.e.
+          "VAR=VALUE" for setting and "VAR" for unsetting.
 
-          This parameter can be used to override environment variables set by
-          the guest session, which will be applied to the newly started process
-          in any case.
+          The changes are applied to the base environment of the impersonated
+          guest user (<link to="IGuestSession::environmentBase"/>) when
+          creating the process.  (This is done on the guest side of things in
+          order to be compatible with older guest additions.  That is one of
+          the motivations for not passing in the whole environment here.)
         </desc>
       </param>
       <param name="flags" type="ProcessCreateFlag" dir="in" safearray="yes">
@@ -11431,35 +11974,48 @@
 
     <method name="processCreateEx">
       <desc>
-        Creates a new process running on the guest. Extended version for
-        also setting the process priority and affinity.
+        Creates a new process running in the guest with the extended options
+        for setting the process priority and affinity.
 
         See <link to="IGuestSession::processCreate"/> for more information.
       </desc>
-      <param name="command" type="wstring" dir="in">
+      <param name="executable" type="wstring" dir="in">
         <desc>
-          Full path name of the command to execute on the guest; the
-          commands has to exists in the guest VM in order to be executed.
+          Full path to the file to execute in the guest.  The file has to
+          exists in the guest VM with executable right to the session user in
+          order to succeed.  If empty/null, the first entry in the
+          @a arguments array will be used instead (i.e. argv[0]).
         </desc>
       </param>
       <param name="arguments" type="wstring" dir="in" safearray="yes">
-        <desc>Array of arguments passed to the execution command.</desc>
+        <desc>Array of arguments passed to the new process.
+          <note>
+            Starting with VirtualBox 5.0 this array starts with argument 0
+            instead of argument 1 as in previous versions.  Whether the zeroth
+            argument can be passed to the guest depends on the VBoxService
+            version running there.  If you depend on this, check that the
+            <link to="IGuestSession::protocolVersion"/> is 3 or higher.
+          </note>
+        </desc>
       </param>
-      <param name="environment" type="wstring" dir="in" safearray="yes">
+      <param name="environmentChanges" type="wstring" dir="in" safearray="yes">
         <desc>
-          Environment variables that can be set while the command is being
-          executed, in form of "NAME=VALUE"; one pair per entry. To unset a
-          variable just set its name ("NAME") without a value.
+          Set of environment changes to complement
+          <link to="IGuestSession::environmentChanges"/>.  Takes precedence
+          over the session ones.  The changes are in putenv format, i.e.
+          "VAR=VALUE" for setting and "VAR" for unsetting.
 
-          This parameter can be used to override environment variables set by
-          the guest session, which will be applied to the newly started process
-          in any case.
+          The changes are applied to the base environment of the impersonated
+          guest user (<link to="IGuestSession::environmentBase"/>) when
+          creating the process.  (This is done on the guest side of things in
+          order to be compatible with older guest additions.  That is one of
+          the motivations for not passing in the whole environment here.)
         </desc>
       </param>
       <param name="flags" type="ProcessCreateFlag" dir="in" safearray="yes">
         <desc>
-          Process creation flags;
-          see <link to="ProcessCreateFlag"/> for more information.
+          Process creation flags, see <link to="ProcessCreateFlag"/> for
+          detailed description of available flags.
         </desc>
       </param>
       <param name="timeoutMS" type="unsigned long" dir="in">
@@ -11472,13 +12028,20 @@
       </param>
       <param name="priority" type="ProcessPriority" dir="in">
         <desc>
-          Process priority to use for execution;
-          see see <link to="ProcessPriority"/> for more information.</desc>
+          Process priority to use for execution, see <link to="ProcessPriority"/>
+          for available priority levels.
+          <note>This is silently ignored if not supported by guest additions.</note>
+        </desc>
       </param>
       <param name="affinity" type="long" dir="in" safearray="yes">
         <desc>
-          Process affinity to use for execution. This parameter
-          is not implemented yet.
+          Processor affinity to set for the new process.  This is a list of
+          guest CPU numbers the process is allowed to run on.
+          <note>
+            This is silently ignored if the guest does not support setting the
+            affinity of processes, or if the guest additions does not implemet
+            this feature.
+          </note>
         </desc>
       </param>
       <param name="guestProcess" type="IGuestProcess" dir="return">
@@ -11498,92 +12061,76 @@
       </param>
     </method>
 
+    <!-- Symbolic link methods -->
+
     <method name="symlinkCreate">
       <desc>
-        Creates a symbolic link on the guest.
+        Creates a symbolic link in the guest.
 
         <result name="E_NOTIMPL">
           The method is not implemented yet.
         </result>
       </desc>
-      <param name="source" type="wstring" dir="in">
-        <desc>The name of the symbolic link.</desc>
+      <param name="symlink" type="wstring" dir="in">
+        <desc>Path to the symbolic link that should be created.  Guest path
+          style.</desc>
       </param>
       <param name="target" type="wstring" dir="in">
-        <desc>The path to the symbolic link target.</desc>
+        <desc>
+          The path to the symbolic link target.  If not an absolute, this will
+          be relative to the @a symlink location at access time.  Guest path
+          style.
+        </desc>
       </param>
       <param name="type" type="SymlinkType" dir="in">
         <desc>
-          The symbolic link type;
-          see <link to="SymlinkReadFlag"/> for more information.
+          The symbolic link type (mainly for Windows). See <link to="SymlinkType"/>
+          for more information.
         </desc>
       </param>
     </method>
 
     <method name="symlinkExists">
       <desc>
-        Checks whether a symbolic link exists on the guest or not.
+        Checks whether a symbolic link exists in the guest.
 
         <result name="E_NOTIMPL">
           The method is not implemented yet.
         </result>
       </desc>
       <param name="symlink" type="wstring" dir="in">
-        <desc>Symbolic link to check existence for.</desc>
+        <desc>Path to the alleged symbolic link.  Guest path style.</desc>
       </param>
       <param name="exists" type="boolean" dir="return">
-        <desc>Returns @c true if the symbolic link exists, @c false if not.</desc>
+        <desc>
+          Returns @c true if the symbolic link exists.  Returns @c false if it
+          does not exist, if the file system object identified by the path is
+          not a symbolic link, or if the object type is inaccessible to the
+          user, or if the @a symlink argument is empty.
+        </desc>
       </param>
     </method>
 
     <method name="symlinkRead">
       <desc>
-        Reads a symbolic link on the guest.
+        Reads the target value of a symbolic link in the guest.
 
         <result name="E_NOTIMPL">
           The method is not implemented yet.
         </result>
       </desc>
       <param name="symlink" type="wstring" dir="in">
-        <desc>Full path to symbolic link to read.</desc>
+        <desc>Path to the symbolic link to read.</desc>
       </param>
       <param name="flags" type="SymlinkReadFlag" dir="in" safearray="yes">
-        <desc>
-          Read flags; see <link to="SymlinkReadFlag"/> for more information.
-        </desc>
+        <desc>Zero or more <link to="SymlinkReadFlag"/> values.</desc>
       </param>
       <param name="target" type="wstring" dir="return">
-        <desc>
-          Target of the symbolic link pointing to, if found.
-        </desc>
+        <desc>Target value of the symbolic link.  Guest path style.</desc>
       </param>
     </method>
 
-    <method name="symlinkRemoveDirectory">
-      <desc>
-        Removes a symbolic link on the guest if it's a directory.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
-      </desc>
-      <param name="path" type="wstring" dir="in">
-        <desc>Symbolic link to remove.</desc>
-      </param>
-    </method>
-
-    <method name="symlinkRemoveFile">
-      <desc>
-        Removes a symbolic link on the guest if it's a file.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
-      </desc>
-      <param name="file" type="wstring" dir="in">
-        <desc>Symbolic link to remove.</desc>
-      </param>
-    </method>
+    <!-- Session wait methods -->
 
     <method name="waitFor">
       <desc>
@@ -11638,7 +12185,7 @@
 
   <interface
     name="IProcess" extends="$unknown"
-    uuid="5a4fe06d-8cb1-40ff-ac9e-9676e32f706e"
+    uuid="064cf1ca-4c0f-50b5-8f8e-e8b4bfa76c33"
     wsmap="managed"
     >
     <desc>
@@ -11652,12 +12199,12 @@
     </attribute>
     <attribute name="environment" type="wstring" readonly="yes" safearray="yes">
       <desc>
-        The environment block this process is using during execution.
+        The initial process environment.  Not yet implemented.
       </desc>
     </attribute>
     <attribute name="eventSource" type="IEventSource" readonly="yes">
       <desc>
-        Event source for VirtualBox events.
+        Event source for process events.
       </desc>
     </attribute>
     <attribute name="executablePath" type="wstring" readonly="yes">
@@ -11827,13 +12374,14 @@
 
   <interface
     name="IGuestProcess" extends="IProcess"
-    uuid="dfa39a36-5d43-4840-a025-67ea956b3111"
+    uuid="35cf4b3f-4453-4f3e-c9b8-5686939c80b6"
     wsmap="managed"
     >
     <desc>
       Implementation of the <link to="IProcess" /> object
-      for processes on the guest.
+      for processes the host has started in the guest.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -11846,15 +12394,11 @@
     </desc>
 
     <attribute name="directoryName" type="wstring" readonly="yes">
-      <desc>
-        Full path of directory.
-      </desc>
+      <desc>The path specified when opening the directory.</desc>
     </attribute>
 
     <attribute name="filter" type="wstring" readonly="yes">
-      <desc>
-        The open filter.
-      </desc>
+      <desc>Directory listing filter to (specified when opening the directory).</desc>
     </attribute>
 
     <method name="close">
@@ -11876,50 +12420,42 @@
           <link to="IFsObjInfo"/>.</desc>
       </param>
     </method>
+
+    <!-- Would be useful to add queryInfo() and setACL() here later, but at
+         present IPRT isn't doing a race free job with the former and doesn't
+         have the latter.  So, let it be for now. -->
+
   </interface>
 
   <interface
     name="IGuestDirectory" extends="IDirectory"
-    uuid="af4a8ce0-0725-42b7-8826-46e3c7ba7357"
+    uuid="cc830458-4974-a19c-4dc6-cc98c2269626"
     wsmap="managed"
     >
     <desc>
       Implementation of the <link to="IDirectory" /> object
-      for directories on the guest.
+      for directories in the guest.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
     name="IFile" extends="$unknown"
-    uuid="5ec56ea3-b55d-4bdb-8c4f-5f9fb26b894b"
+    uuid="540804bf-4ca6-dd43-800c-bfb9765f96fe"
     wsmap="managed"
     >
     <desc>
       Abstract parent interface for files handled by VirtualBox.
     </desc>
-    <attribute name="creationMode" type="unsigned long" readonly="yes">
-      <desc>
-        The creation mode.
-      </desc>
-    </attribute>
-    <attribute name="disposition" type="wstring" readonly="yes">
-      <desc>
-        The disposition mode.
-      </desc>
-    </attribute>
+
     <attribute name="eventSource" type="IEventSource" readonly="yes">
       <desc>
-        Event source for guest session events.
-      </desc>
-    </attribute>
-    <attribute name="fileName" type="wstring" readonly="yes">
-      <desc>
-        Full path of the actual file name of this file.
+        Event source for file events.
       </desc>
     </attribute>
     <attribute name="id" type="unsigned long" readonly="yes">
       <desc>
-        The file's ID.
+        The ID VirtualBox internally assigned to the open file.
       </desc>
     </attribute>
     <attribute name="initialSize" type="long long" readonly="yes">
@@ -11927,20 +12463,43 @@
         The initial size in bytes when opened.
       </desc>
     </attribute>
-    <attribute name="openMode" type="wstring" readonly="yes">
-      <desc>
-        The open mode.
-      </desc>
-    </attribute>
     <attribute name="offset" type="long long" readonly="yes">
       <desc>
-        Current read/write offset in bytes.
+        The current file position.
+
+        The file current position always applies to the <link to="IFile::read"/>
+        method, which updates it upon return.  Same goes for the <link to="IFile::write"/>
+        method except when <link to="IFile::accessMode"/> is <link to="FileAccessMode::AppendOnly"/>
+        or <link to="FileAccessMode::AppendRead"/>, where it will always write
+        to the end of the file and will leave this attribute unchanged.
+
+        The <link to="IFile::seek"/> is used to change this attribute without
+        transfering any file data like read and write does.
       </desc>
     </attribute>
     <attribute name="status" type="FileStatus" readonly="yes">
       <desc>
         Current file status.
       </desc>
+    </attribute>
+
+    <!-- The following attributes just remembers the fileOpen parameters for you.
+         Nice for introspection and probably doesn't cost us much. -->
+    <attribute name="fileName" type="wstring" readonly="yes">
+      <desc>Full path of the actual file name of this file.
+        <!-- r=bird: The 'actual' file name is too tough, we cannot guarentee
+                     that on unix guests.  Seeing how IGuestDirectory did things,
+                     I'm questioning the 'Full path' part too.   Not urgent to check. -->
+      </desc>
+    </attribute>
+    <attribute name="creationMode" type="unsigned long" readonly="yes">
+      <desc>The UNIX-style creation mode specified when opening the file.</desc>
+    </attribute>
+    <attribute name="openAction" type="FileOpenAction" readonly="yes">
+      <desc>The opening action specified when opening the file.</desc>
+    </attribute>
+    <attribute name="accessMode" type="FileAccessMode" readonly="yes">
+      <desc>The file access mode.</desc>
     </attribute>
 
     <method name="close">
@@ -11961,6 +12520,23 @@
       <param name="objInfo" type="IFsObjInfo" dir="return">
         <desc>Object information of this file. Also see
           <link to="IFsObjInfo"/>.</desc>
+      </param>
+    </method>
+
+    <method name="querySize">
+      <!-- Can also be gotten via seek(Current, 0), but this is easier to us.
+           This is a query method both to match IGuestSession::fileQuerySize to
+           highlight that it is a value that is not cacheable as others may be
+           changing the file concurrently (image reading /var/log/messages). -->
+      <desc>
+        Queries the current file size.
+
+        <result name="E_NOTIMPL">
+          The method is not implemented yet.
+        </result>
+      </desc>
+      <param name="size" type="long long" dir="return">
+        <desc>Queried file size.</desc>
       </param>
     </method>
 
@@ -12013,19 +12589,23 @@
 
     <method name="seek">
       <desc>
-        Changes the read and write position of this file.
+        Changes the current file position of this file.
 
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
+        The file current position always applies to the <link to="IFile::read"/>
+        method.  Same for the <link to="IFile::write"/> method it except when
+        the <link to="IFile::accessMode"/> is <link to="FileAccessMode::AppendOnly"/>
+        or <link to="FileAccessMode::AppendRead"/>.
       </desc>
       <param name="offset" type="long long" dir="in">
-        <desc>Offset to seek.</desc>
+        <desc>Offset to seek relative to the position specified by @a whence.</desc>
       </param>
-      <param name="whence" type="FileSeekType" dir="in">
+      <param name="whence" type="FileSeekOrigin" dir="in">
         <desc>
-          Seek mode; see <link to="FileSeekType"/> for more information.
+          One of the <link to="FileSeekOrigin"/> seek starting points.
         </desc>
+      </param>
+      <param name="newOffset" type="long long" dir="return">
+        <desc>The new file offset after the seek operation.</desc>
       </param>
     </method>
 
@@ -12038,7 +12618,26 @@
         </result>
       </desc>
       <param name="acl" type="wstring" dir="in">
-        <desc>ACL string to set.</desc>
+        <desc>The ACL specification string. To-be-defined.</desc>
+      </param>
+      <param name="mode" type="unsigned long" dir="in">
+        <desc>UNIX-style mode mask to use if @a acl is empty. As mention in
+          <link to="IGuestSession::directoryCreate"/> this is realized on
+          a best effort basis and the exact behavior depends on the Guest OS.
+        </desc>
+      </param>
+    </method>
+
+    <method name="setSize">
+      <desc>
+        Changes the file size.
+
+        <result name="E_NOTIMPL">
+          The method is not implemented yet.
+        </result>
+      </desc>
+      <param name="size" type="long long" dir="in">
+        <desc>The new file size.</desc>
       </param>
     </method>
 
@@ -12095,18 +12694,19 @@
 
   <interface
     name="IGuestFile" extends="IFile"
-    uuid="60661aec-145f-4d11-b80e-8ea151598093"
+    uuid="92f21dc0-44de-1653-b717-2ebf0ca9b664"
     wsmap="managed"
     >
     <desc>
       Implementation of the <link to="IFile" /> object
-      for files on the guest.
+      for files in the guest.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
     name="IFsObjInfo" extends="$unknown"
-    uuid="4047ba30-7006-4966-ae86-94164e5e20eb"
+    uuid="37b30bc6-4506-58e4-bc43-fbbca92b4548"
     wsmap="managed"
     >
     <desc>
@@ -12216,13 +12816,14 @@
 
   <interface
     name="IGuestFsObjInfo" extends="IFsObjInfo"
-    uuid="d5cf678e-3484-4e4a-ac55-329e15462e18"
+    uuid="6620db85-44e0-ca69-e9e0-d4907ceccbe5"
     wsmap="managed"
     >
     <desc>
       Represents the guest implementation of the
       <link to="IFsObjInfo" /> object.
     </desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -12431,35 +13032,23 @@
         To wait for successful startup, use the <link to="IGuestSession::waitFor"/>
         call.
 
-        A guest session represents one impersonated user account on the guest, so
+        A guest session represents one impersonated user account in the guest, so
         every operation will use the same credentials specified when creating
         the session object via <link to="IGuest::createSession"/>. Anonymous
         sessions, that is, sessions without specifying a valid
-        user account on the guest are not allowed due to security reasons.
+        user account in the guest are not allowed reasons of security.
 
-        There can be a maximum of 32 sessions at once per VM. Each session keeps
-        track of its started guest processes, opened guest files or guest directories.
-        To work on guest files or directories a guest session offers methods to open
-        or create such objects (see <link to="IGuestSession::fileOpen"/> or
-        <link to="IGuestSession::directoryOpen"/> for example).
+        There can be a maximum of 32 sessions at once per VM.  An error will
+        be returned if this has been reached. <!-- This should actually read:
+        VBOX_E_IPRT_ERROR will be return if this limit has been reached.
+        However, keep in mind that VBOX_E_IPRT_ERROR can be returned for about
+        88 unrelated reasons, so you don't know what happend unless you parse
+        the error text. (bird) -->
+<!-- @todo r=bird: Seriously, add an dedicated VBOX_E_MAX_GUEST_SESSIONS status
+for this condition.  Do the same for all other maximums and things that could be
+useful to the API client. -->
 
-        There can be up to 2048 objects (guest processes, files or directories)
-        a time per guest session. Exceeding the limit will result in an appropriate
-        error message.
-
-        When done with either of these objects, including the guest session itself,
-        use the appropriate close() method to let the object do its cleanup work.
-
-        Every guest session has its own environment variable block which gets
-        automatically applied when starting a new guest process via
-        <link to="IGuestSession::processCreate"/> or <link to="IGuestSession::processCreateEx"/>.
-        To override (or unset) certain environment variables already set by the
-        guest session, one can specify a per-process environment block when using
-        one of the both above mentioned process creation calls.
-
-        Closing a session via <link to="IGuestSession::close" /> will try to close
-        all the mentioned objects above unless these objects are still used by
-        a client.
+        For more information please consult <link to="IGuestSession"/>
       </desc>
       <param name="user" type="wstring" dir="in">
         <desc>
@@ -12543,7 +13132,7 @@
         <desc>
           Optional command line arguments to use for the Guest Additions
           installer. Useful for retrofitting features which weren't installed
-          before on the guest.
+          before in the guest.
         </desc>
       </param>
       <param name="flags" type="AdditionsUpdateFlag" dir="in" safearray="yes">
@@ -14654,7 +15243,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
       <param name="currentPassword" type="wstring" dir="in">
         <desc>
-          The olcurrentd password the medium is protected with. Use an empty string to indicate
+          The current password the medium is protected with. Use an empty string to indicate
           that the medium isn't encrypted.
         </desc>
       </param>
@@ -17769,7 +18358,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IAudioAdapter" extends="$unknown"
-    uuid="921873db-5f3f-4b69-91f9-7be9e535a2cb"
+    uuid="280cc7f7-eddc-48b6-9bbb-5b1e8d761c0e"
     wsmap="managed"
     >
     <desc>
@@ -17782,6 +18371,18 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         guest system. If disabled, the virtual guest hardware will
         not contain any audio adapter. Can only be changed when
         the VM is not running.
+      </desc>
+    </attribute>
+    <attribute name="enabledIn" type="boolean">
+      <desc>
+        Flag whether the audio adapter is enabled for audio
+        input. Only relevant if the adapter is enabled.
+      </desc>
+    </attribute>
+    <attribute name="enabledOut" type="boolean">
+      <desc>
+        Flag whether the audio adapter is enabled for audio
+        output. Only relevant if the adapter is enabled.
       </desc>
     </attribute>
     <attribute name="audioController" type="AudioControllerType">
@@ -20978,7 +21579,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       A new snapshot of the machine has been taken.
       <see><link to="ISnapshot"/></see>
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -20997,7 +21598,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
       <see><link to="ISnapshot"/></see>
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21009,7 +21610,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Snapshot of the given machine has been restored.
       <see><link to="ISnapshot"/></see>
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21021,7 +21622,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Snapshot properties (name and/or description) have been changed.
       <see><link to="ISnapshot"/></see>
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21180,7 +21781,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should query IGuest attributes to
       find out what has changed.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21247,7 +21848,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <link to="IMachine::mediumAttachments">medium attachment</link>
       changes.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21741,7 +22342,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Notification when a guest file changed its current offset.
     </desc>
 
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21770,7 +22371,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Notification when data has been written to a guest file.
     </desc>
 
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21784,7 +22385,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should use IVRDEServer methods and attributes to
       find out what has changed.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21797,7 +22398,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       should use <link to="IConsole::VRDEServerInfo">IVRDEServerInfo</link>
       attributes to find out what is the current status.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21808,7 +22409,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>
       Notification when video capture settings have changed.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -21822,7 +22423,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Interested callees should use IUSBController methods and attributes to
       find out what has changed.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -22015,7 +22616,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IVetoEvent" extends="IEvent"
-    uuid="9a1a4130-69fe-472f-ac10-c6fa25d75007"
+    uuid="7c5e945f-2354-4267-883f-2f417d216519"
     wsmap="managed"
     >
     <desc>Base abstract interface for veto events.</desc>
@@ -22049,6 +22650,35 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="result" type="wstring" dir="return" safearray="yes">
         <desc>
           Array of reasons for veto provided by different event handlers.
+        </desc>
+      </param>
+    </method>
+
+    <method name="addApproval">
+      <desc>
+        Adds an approval on this event.
+      </desc>
+      <param name="reason" type="wstring" dir="in">
+        <desc>
+          Reason for approval, could be null or empty string.
+        </desc>
+      </param>
+    </method>
+
+    <method name="isApproved">
+      <desc>
+        If this event was approved.
+      </desc>
+      <param name="result" type="boolean" dir="return" />
+    </method>
+
+    <method name="getApprovals">
+      <desc>
+        Current approval reason list, if size is 0 - no approvals.
+      </desc>
+      <param name="result" type="wstring" dir="return" safearray="yes">
+        <desc>
+          Array of reasons for approval provided by different event handlers.
         </desc>
       </param>
     </method>
@@ -22101,7 +22731,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       remain valid at least until the next
       <link to="IConsole::state">machine state</link> change.
     </desc>
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <interface
@@ -22431,9 +23061,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   </interface>
 
   <!-- base class for modification events -->
-  <interface name="INATNetworkAlterEvent" extends="INATNetworkChangedEvent"
-             uuid="3f5a0822-163a-43b1-ad16-8d58b0ef6e75"
-             wsmap="managed" autogen="VBoxEvent" id="OnNATNetworkAlter"/>
+  <interface
+    name="INATNetworkAlterEvent" extends="INATNetworkChangedEvent"
+    uuid="d947adf5-4022-dc80-5535-6fb116815604"
+    wsmap="managed" autogen="VBoxEvent" id="OnNATNetworkAlter"
+    >
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
+  </interface>
 
   <interface name="INATNetworkCreationDeletionEvent" extends="INATNetworkAlterEvent"
              uuid="8d984a7e-b855-40b8-ab0c-44d3515b4528"
@@ -22468,7 +23102,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     wsmap="managed" autogen="VBoxEvent" id="OnHostNameResolutionConfigurationChange"
     dtracename="HostNameResCfgChangeEvent"
     >
-    <attribute name="midlDoesNotLikEmptyInterfaces" readonly="yes" type="boolean"/>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
   <module name="VBoxSVC" context="LocalServer">

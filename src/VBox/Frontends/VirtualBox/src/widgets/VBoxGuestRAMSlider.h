@@ -1,3 +1,4 @@
+/* $Id: VBoxGuestRAMSlider.h $ */
 /** @file
  * VBox Qt GUI - VBoxGuestRAMSlider class declaration.
  */

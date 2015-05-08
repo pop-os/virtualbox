@@ -1,3 +1,4 @@
+/* $Id: UIIconPool.h $ */
 /** @file
  * VBox Qt GUI - UIIconPool class declaration.
  */

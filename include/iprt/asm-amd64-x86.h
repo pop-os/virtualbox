@@ -1731,12 +1731,26 @@ DECLINLINE(RTCCUINTREG) ASMGetCR8(void)
  */
 DECLASM(uint64_t) ASMGetXcr0(void);
 
-
 /**
  * Sets the XCR0 register.
  * @param   uXcr0   The new XCR0 value.
  */
 DECLASM(void) ASMSetXcr0(uint64_t uXcr0);
+
+struct X86XSAVEAREA;
+/**
+ * Save extended CPU state.
+ * @param   pXStateArea     Where to save the state.
+ * @param   fComponents     Which state components to save.
+ */
+DECLASM(void) ASMXSave(struct X86XSAVEAREA *pXStateArea, uint64_t fComponents);
+
+/**
+ * Loads extended CPU state.
+ * @param   pXStateArea     Where to load the state from.
+ * @param   fComponents     Which state components to load.
+ */
+DECLASM(void) ASMXRstor(struct X86XSAVEAREA const *pXStateArea, uint64_t fComponents);
 
 
 /**
@@ -3077,6 +3091,49 @@ DECLINLINE(void) ASMReadFenceSSE2(void)
     }
 #endif
 }
+
+#if !defined(_MSC_VER) || !defined(RT_ARCH_AMD64)
+
+/*
+ * Clear the AC bit in the EFLAGS register.
+ * Requires the X86_CPUID_STEXT_FEATURE_EBX_SMAP CPUID bit set.
+ * Requires to be executed in R0.
+ */
+DECLINLINE(void) ASMClearAC(void)
+{
+#if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__ (".byte 0x0f,0x01,0xca\n\t");
+#else
+    __asm
+    {
+        _emit   0x0f
+        _emit   0x01
+        _emit   0xca
+    }
+#endif
+}
+
+
+/*
+ * Set the AC bit in the EFLAGS register.
+ * Requires the X86_CPUID_STEXT_FEATURE_EBX_SMAP CPUID bit set.
+ * Requires to be executed in R0.
+ */
+DECLINLINE(void) ASMSetAC(void)
+{
+#if RT_INLINE_ASM_GNU_STYLE
+    __asm__ __volatile__ (".byte 0x0f,0x01,0xcb\n\t");
+#else
+    __asm
+    {
+        _emit   0x0f
+        _emit   0x01
+        _emit   0xcb
+    }
+#endif
+}
+
+#endif /* !_MSC_VER) || !RT_ARCH_AMD64 */
 
 /** @} */
 #endif

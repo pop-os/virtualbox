@@ -1,3 +1,4 @@
+/* $Id: UIMachineSettingsSystem.h $ */
 /** @file
  * VBox Qt GUI - UIMachineSettingsSystem class declaration.
  */

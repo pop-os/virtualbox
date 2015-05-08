@@ -1,3 +1,4 @@
+/* $Id: ClientWatcher.cpp $ */
 /** @file
  *
  * VirtualBox API client session crash watcher

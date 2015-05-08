@@ -1,3 +1,4 @@
+/* $Id: ckeyDst2.c $ */
 #extension GL_ARB_texture_rectangle : enable
 uniform sampler2DRect uDstTex;
 uniform vec4 uDstClr;

@@ -1,3 +1,4 @@
+/* $Id: VirtualBoxErrorInfoImpl.h $ */
 /** @file
  * VirtualBoxErrorInfo COM class definition.
  */

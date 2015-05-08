@@ -1,3 +1,4 @@
+/* $Id: UISettingsSerializer.h $ */
 /** @file
  * VBox Qt GUI - UISettingsSerializer class declaration.
  */
@@ -21,16 +22,19 @@
 #include <QThread>
 #include <QVariant>
 #include <QWaitCondition>
-#include <QProgressDialog>
 #include <QMutex>
 #include <QList>
 #include <QMap>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "QIDialog.h"
 
 /* Forward declarations: */
 class UISettingsPage;
+class QProgressBar;
+class QILabel;
+class QLabel;
 
 /* Type definitions: */
 typedef QList<UISettingsPage*> UISettingsPageList;
@@ -44,21 +48,29 @@ class UISettingsSerializer : public QThread
 
 signals:
 
-    /** Notifies GUI thread about process has been started. */
+    /** Notifies listeners about process has been started. */
     void sigNotifyAboutProcessStarted();
+    /** Notifies listeners about process reached @a iValue. */
+    void sigNotifyAboutProcessProgressChanged(int iValue);
+    /** Notifies listeners about process has been finished. */
+    void sigNotifyAboutProcessFinished();
 
     /** Notifies GUI thread about some page was processed. */
     void sigNotifyAboutPageProcessed(int iPageId);
     /** Notifies GUI thread about all pages were processed. */
     void sigNotifyAboutPagesProcessed();
 
-    /** Notifies listeners about some page was post-processed. */
-    void sigNotifyAboutPagePostprocessed(int iPageId);
-    /** Notifies listeners about all pages were post-processed. */
-    void sigNotifyAboutPagesPostprocessed();
+    /** Notifies listeners about particular operation progress change.
+      * @param iOperations  holds the number of operations CProgress have,
+      * @param strOperation holds the description of the current CProgress operation,
+      * @param iOperation   holds the index of the current CProgress operation,
+      * @param iPercent     holds the percentage of the current CProgress operation. */
+    void sigOperationProgressChange(ulong iOperations, QString strOperation,
+                                    ulong iOperation, ulong iPercent);
 
-    /** Notifies listeners about process has been finished. */
-    void sigNotifyAboutProcessFinished();
+    /** Notifies listeners about particular COM error.
+      * @param strErrorInfo holds the details of the error happened. */
+    void sigOperationProgressError(QString strErrorInfo);
 
 public:
 
@@ -113,6 +125,8 @@ protected:
     QVariant m_data;
     /** Holds the page(s) to load/save the data to/from. */
     UISettingsPageMap m_pages;
+    /** Holds the page(s) to load/save the data to/from for which that task was done. */
+    UISettingsPageMap m_pagesDone;
 
     /** Holds whether the save was complete. */
     bool m_fSavingComplete;
@@ -124,9 +138,9 @@ protected:
     QWaitCondition m_condition;
 };
 
-/** QProgressDialog reimplementation used to
+/** QIDialog reimplementation used to
   * reflect the settings serialization operation. */
-class UISettingsSerializerProgress : public QIWithRetranslateUI<QProgressDialog>
+class UISettingsSerializerProgress : public QIWithRetranslateUI<QIDialog>
 {
     Q_OBJECT;
 
@@ -170,8 +184,20 @@ private slots:
     /** Starts the process. */
     void sltStartProcess();
 
-    /** Advances the current progress value. */
-    void sltAdvanceProgressValue() { setValue(value() + 1); }
+    /** Handles process progress change to @a iValue. */
+    void sltHandleProcessProgressChange(int iValue);
+
+    /** Handles particular operation progress change.
+      * @param iOperations  holds the number of operations CProgress have,
+      * @param strOperation holds the description of the current CProgress operation,
+      * @param iOperation   holds the index of the current CProgress operation,
+      * @param iPercent     holds the percentage of the current CProgress operation. */
+    void sltHandleOperationProgressChange(ulong iOperations, QString strOperation,
+                                          ulong iOperation, ulong iPercent);
+
+    /** Handles particular COM error.
+      * @param strErrorInfo holds the details of the error happened. */
+    void sltHandleOperationProgressError(QString strErrorInfo);
 
 private:
 
@@ -185,6 +211,19 @@ private:
 
     /** Holds the pointer to the thread loading/saving settings in async mode. */
     UISettingsSerializer *m_pSerializer;
+
+    /** Holds the operation progress label. */
+    QLabel *m_pLabelOperationProgress;
+    /** Holds the operation progress bar. */
+    QProgressBar *m_pBarOperationProgress;
+
+    /** Holds the sub-operation progress label. */
+    QILabel *m_pLabelSubOperationProgress;
+    /** Holds the sub-operation progress bar. */
+    QProgressBar *m_pBarSubOperationProgress;
+
+    /** Holds the template for the sub-operation progress label. */
+    static QString m_strProgressDescriptionTemplate;
 };
 
 #endif /* !___UISettingsSerializer_h___ */

@@ -1,3 +1,4 @@
+/* $Id: UIBootTable.h $ */
 /** @file
  * VBox Qt GUI - UIBootTable class declaration.
  */

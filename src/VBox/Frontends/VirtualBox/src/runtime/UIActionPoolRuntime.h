@@ -1,3 +1,4 @@
+/* $Id: UIActionPoolRuntime.h $ */
 /** @file
  * VBox Qt GUI - UIActionPoolRuntime class declaration.
  */

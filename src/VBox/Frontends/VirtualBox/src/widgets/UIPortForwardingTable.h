@@ -1,3 +1,4 @@
+/* $Id: UIPortForwardingTable.h $ */
 /** @file
  * VBox Qt GUI - UIPortForwardingTable class declaration.
  */

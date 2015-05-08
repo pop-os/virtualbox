@@ -9187,13 +9187,17 @@ static VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel)
 #define IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX() \
     do \
     { \
-        if (pIemCpu->fPrefixes & IEM_OP_PRF_LOCK) \
+        if (RT_LIKELY(!(pIemCpu->fPrefixes & IEM_OP_PRF_LOCK))) \
+        { /* likely */ } \
+        else \
             return IEMOP_RAISE_INVALID_LOCK_PREFIX(); \
     } while (0)
 #define IEMOP_HLP_DECODED_NL_1(a_uDisOpNo, a_fIemOpFlags, a_uDisParam0, a_fDisOpType) \
     do \
     { \
-        if (pIemCpu->fPrefixes & IEM_OP_PRF_LOCK) \
+        if (RT_LIKELY(!(pIemCpu->fPrefixes & IEM_OP_PRF_LOCK))) \
+        { /* likely */ } \
+        else \
         { \
             NOREF(a_uDisOpNo); NOREF(a_fIemOpFlags); NOREF(a_uDisParam0); NOREF(a_fDisOpType); \
             return IEMOP_RAISE_INVALID_LOCK_PREFIX(); \
@@ -9202,11 +9206,25 @@ static VBOXSTRICTRC iemMemMarkSelDescAccessed(PIEMCPU pIemCpu, uint16_t uSel)
 #define IEMOP_HLP_DECODED_NL_2(a_uDisOpNo, a_fIemOpFlags, a_uDisParam0, a_uDisParam1, a_fDisOpType) \
     do \
     { \
-        if (pIemCpu->fPrefixes & IEM_OP_PRF_LOCK) \
+        if (RT_LIKELY(!(pIemCpu->fPrefixes & IEM_OP_PRF_LOCK))) \
+        { /* likely */ } \
+        else \
         { \
             NOREF(a_uDisOpNo); NOREF(a_fIemOpFlags); NOREF(a_uDisParam0); NOREF(a_uDisParam1); NOREF(a_fDisOpType); \
             return IEMOP_RAISE_INVALID_LOCK_PREFIX(); \
         } \
+    } while (0)
+/**
+ * Done decoding, raise \#UD exception if any lock, repz or repnz prefixes
+ * are present.
+ */
+#define IEMOP_HLP_DONE_DECODING_NO_LOCK_REPZ_OR_REPNZ_PREFIXES() \
+    do \
+    { \
+        if (RT_LIKELY(!(pIemCpu->fPrefixes & (IEM_OP_PRF_LOCK | IEM_OP_PRF_REPNZ | IEM_OP_PRF_REPZ)))) \
+        { /* likely */ } \
+        else \
+            return IEMOP_RAISE_INVALID_OPCODE(); \
     } while (0)
 
 
@@ -10997,6 +11015,18 @@ VMM_INT_DECL(int) IEMExecInstr_iret(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore)
 #endif
 
 
+/**
+ * Macro used by the IEMExec* method to check the given instruction length.
+ *
+ * Will return on failure!
+ *
+ * @param   a_cbInstr   The given instruction length.
+ * @param   a_cbMin     The minimum length.
+ */
+#define IEMEXEC_ASSERT_INSTR_LEN_RETURN(a_cbInstr, a_cbMin) \
+    AssertMsgReturn((unsigned)(a_cbInstr) - (unsigned)(a_cbMin) <= (unsigned)15 - (unsigned)(a_cbMin), \
+                    ("cbInstr=%u cbMin=%u\n", (a_cbInstr), (a_cbMin)), VERR_IEM_INVALID_INSTR_LENGTH)
+
 
 /**
  * Interface for HM and EM for executing string I/O OUT (write) instructions.
@@ -11018,7 +11048,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecStringIoWrite(PVMCPU pVCpu, uint8_t cbValue, I
                                                 bool fRepPrefix, uint8_t cbInstr, uint8_t iEffSeg)
 {
     AssertMsgReturn(iEffSeg < X86_SREG_COUNT, ("%#x\n", iEffSeg), VERR_IEM_INVALID_EFF_SEG);
-    AssertReturn(cbInstr - 1U <= 14U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 1);
 
     /*
      * State init.
@@ -11135,7 +11165,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecStringIoWrite(PVMCPU pVCpu, uint8_t cbValue, I
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecStringIoRead(PVMCPU pVCpu, uint8_t cbValue, IEMMODE enmAddrMode,
                                                bool fRepPrefix, uint8_t cbInstr)
 {
-    AssertReturn(cbInstr - 1U <= 14U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 1);
 
     /*
      * State init.
@@ -11248,7 +11278,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecStringIoRead(PVMCPU pVCpu, uint8_t cbValue, IE
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxWrite(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iCrReg, uint8_t iGReg)
 {
-    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
     Assert(iCrReg < 16);
     Assert(iGReg < 16);
 
@@ -11272,7 +11302,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxWrite(PVMCPU pVCpu, uint8_t cbIns
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbInstr, uint8_t iGReg, uint8_t iCrReg)
 {
-    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
     Assert(iCrReg < 16);
     Assert(iGReg < 16);
 
@@ -11294,7 +11324,7 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbInst
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr)
 {
-    AssertReturn(cbInstr - 2U <= 15U - 2U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 2);
 
     PIEMCPU pIemCpu = &pVCpu->iem.s;
     iemInitExec(pIemCpu, false /*fBypassHandlers*/);
@@ -11315,11 +11345,34 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr)
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue)
 {
-    AssertReturn(cbInstr - 3U <= 15U - 3U, VERR_IEM_INVALID_INSTR_LENGTH);
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 3);
 
     PIEMCPU pIemCpu = &pVCpu->iem.s;
     iemInitExec(pIemCpu, false /*fBypassHandlers*/);
     VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_1(iemCImpl_lmsw, uValue);
+    return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
+}
+
+
+/**
+ * Interface for HM and EM to emulate the XSETBV instruction (loads XCRx).
+ *
+ * Takes input values in ecx and edx:eax of the CPU context of the calling EMT.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVCpu       The cross context per virtual CPU structure of the
+ *                      calling EMT.
+ * @param   cbInstr     The instruction length in bytes.
+ * @remarks In ring-0 not all of the state needs to be synced in.
+ * @threads EMT(pVCpu)
+ */
+VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedXsetbv(PVMCPU pVCpu, uint8_t cbInstr)
+{
+    IEMEXEC_ASSERT_INSTR_LEN_RETURN(cbInstr, 3);
+
+    PIEMCPU pIemCpu = &pVCpu->iem.s;
+    iemInitExec(pIemCpu, false /*fBypassHandlers*/);
+    VBOXSTRICTRC rcStrict = IEM_CIMPL_CALL_0(iemCImpl_xsetbv);
     return iemExecStatusCodeFiddling(pIemCpu, rcStrict);
 }
 

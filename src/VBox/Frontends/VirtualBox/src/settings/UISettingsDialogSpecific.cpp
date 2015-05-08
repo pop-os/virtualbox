@@ -60,6 +60,12 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+#ifdef Q_WS_MAC
+# if MAC_LEOPARD_STYLE
+#  define VBOX_GUI_WITH_TOOLBAR_SETTINGS
+# endif
+#endif
+
 UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent,
                                                const QString &strCategory /* = QString() */,
                                                const QString &strControl /* = QString() */)
@@ -277,6 +283,15 @@ void UISettingsDialogGlobal::retranslateUi()
 
     /* Set dialog's name: */
     setWindowTitle(title());
+}
+
+QString UISettingsDialogGlobal::titleExtension() const
+{
+#ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
+    return m_pSelector->itemText(m_pSelector->currentId());
+#else /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
+    return tr("Preferences");
+#endif /* !VBOX_GUI_WITH_TOOLBAR_SETTINGS */
 }
 
 QString UISettingsDialogGlobal::title() const
@@ -637,6 +652,15 @@ void UISettingsDialogMachine::retranslateUi()
 
     /* Set dialog's name: */
     setWindowTitle(title());
+}
+
+QString UISettingsDialogMachine::titleExtension() const
+{
+#ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
+    return m_pSelector->itemText(m_pSelector->currentId());
+#else /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
+    return tr("Settings");
+#endif /* !VBOX_GUI_WITH_TOOLBAR_SETTINGS */
 }
 
 QString UISettingsDialogMachine::title() const

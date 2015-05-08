@@ -1,3 +1,4 @@
+/* $Id: SessionImpl.h $ */
 /** @file
  * VBox Client Session COM Class definition
  */

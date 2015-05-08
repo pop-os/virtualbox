@@ -1,3 +1,4 @@
+/* $Id: ObjectState.h $ */
 /** @file
  *
  * VirtualBox object state handling definitions

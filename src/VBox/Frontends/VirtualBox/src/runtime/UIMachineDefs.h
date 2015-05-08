@@ -1,3 +1,4 @@
+/* $Id: UIMachineDefs.h $ */
 /** @file
  * VBox Qt GUI - Defines for Virtual Machine classes.
  */

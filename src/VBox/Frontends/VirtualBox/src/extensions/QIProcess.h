@@ -1,3 +1,4 @@
+/* $Id: QIProcess.h $ */
 /** @file
  * VBox Qt GUI - QIProcess class declaration.
  */

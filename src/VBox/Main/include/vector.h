@@ -1,3 +1,4 @@
+/* $Id: vector.h $ */
 /** @file
  * STL-inspired vector implementation in C
  * @note  functions in this file are inline to prevent warnings about

@@ -1,3 +1,4 @@
+/* $Id: UIActionPoolSelector.h $ */
 /** @file
  * VBox Qt GUI - UIActionPoolSelector class declaration.
  */
@@ -45,7 +46,10 @@ enum UIActionIndexST
     UIActionIndexST_M_Group_S_Add,
     UIActionIndexST_M_Group_S_Rename,
     UIActionIndexST_M_Group_S_Remove,
-    UIActionIndexST_M_Group_P_StartOrShow,
+    UIActionIndexST_M_Group_M_StartOrShow,
+    UIActionIndexST_M_Group_M_StartOrShow_S_StartNormal,
+    UIActionIndexST_M_Group_M_StartOrShow_S_StartHeadless,
+    UIActionIndexST_M_Group_M_StartOrShow_S_StartDetachable,
     UIActionIndexST_M_Group_T_Pause,
     UIActionIndexST_M_Group_S_Reset,
     UIActionIndexST_M_Group_M_Close,
@@ -67,7 +71,10 @@ enum UIActionIndexST
     UIActionIndexST_M_Machine_S_Clone,
     UIActionIndexST_M_Machine_S_Remove,
     UIActionIndexST_M_Machine_S_AddGroup,
-    UIActionIndexST_M_Machine_P_StartOrShow,
+    UIActionIndexST_M_Machine_M_StartOrShow,
+    UIActionIndexST_M_Machine_M_StartOrShow_S_StartNormal,
+    UIActionIndexST_M_Machine_M_StartOrShow_S_StartHeadless,
+    UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable,
     UIActionIndexST_M_Machine_T_Pause,
     UIActionIndexST_M_Machine_S_Reset,
     UIActionIndexST_M_Machine_M_Close,

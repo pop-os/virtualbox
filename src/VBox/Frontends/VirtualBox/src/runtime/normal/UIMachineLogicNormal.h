@@ -1,3 +1,4 @@
+/* $Id: UIMachineLogicNormal.h $ */
 /** @file
  * VBox Qt GUI - UIMachineLogicNormal class declaration.
  */

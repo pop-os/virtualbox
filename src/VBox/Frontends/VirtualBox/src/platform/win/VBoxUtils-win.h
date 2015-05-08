@@ -1,3 +1,4 @@
+/* $Id: VBoxUtils-win.h $ */
 /** @file
  * VBox Qt GUI - Declarations of utility classes and functions for handling Win specific tasks.
  */

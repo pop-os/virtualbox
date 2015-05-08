@@ -1,3 +1,4 @@
+/* $Id: UIKeyboardHandler.h $ */
 /** @file
  * VBox Qt GUI - UIKeyboardHandler class declaration.
  */

@@ -1,3 +1,4 @@
+/* $Id: DrvHostFloppy.cpp $ */
 /** @file
  *
  * VBox storage devices:

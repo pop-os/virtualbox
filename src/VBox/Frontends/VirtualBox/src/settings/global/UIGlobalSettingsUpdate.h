@@ -1,3 +1,4 @@
+/* $Id: UIGlobalSettingsUpdate.h $ */
 /** @file
  * VBox Qt GUI - UIGlobalSettingsUpdate class declaration.
  */

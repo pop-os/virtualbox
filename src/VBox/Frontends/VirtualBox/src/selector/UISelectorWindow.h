@@ -1,3 +1,4 @@
+/* $Id: UISelectorWindow.h $ */
 /** @file
  * VBox Qt GUI - UISelectorWindow class declaration.
  */
@@ -86,6 +87,9 @@ private slots:
                                       const QString &strId = QString());
     void sltShowCloneMachineWizard();
     void sltPerformStartOrShowAction();
+    void sltPerformStartNormal();
+    void sltPerformStartHeadless();
+    void sltPerformStartDetachable();
     void sltPerformDiscardAction();
     void sltPerformPauseResumeAction(bool fPause);
     void sltPerformResetAction();
@@ -124,6 +128,8 @@ private:
     void prepareMenuFile(QMenu *pMenu);
     void prepareMenuGroup(QMenu *pMenu);
     void prepareMenuMachine(QMenu *pMenu);
+    void prepareMenuGroupStartOrShow(QMenu *pMenu);
+    void prepareMenuMachineStartOrShow(QMenu *pMenu);
     void prepareMenuGroupClose(QMenu *pMenu);
     void prepareMenuMachineClose(QMenu *pMenu);
     void prepareStatusBar();

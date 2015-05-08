@@ -1,3 +1,4 @@
+/* $Id: UIKeyboardHandlerFullscreen.h $ */
 /** @file
  * VBox Qt GUI - UIKeyboardHandlerFullscreen class declaration.
  */

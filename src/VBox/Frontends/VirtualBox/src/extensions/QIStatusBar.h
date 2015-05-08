@@ -1,3 +1,4 @@
+/* $Id: QIStatusBar.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QIStatusBar class declaration.
  */

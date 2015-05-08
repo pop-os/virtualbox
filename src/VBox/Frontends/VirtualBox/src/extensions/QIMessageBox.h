@@ -1,3 +1,4 @@
+/* $Id: QIMessageBox.h $ */
 /** @file
  * VBox Qt GUI - QIMessageBox class declaration.
  */

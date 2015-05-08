@@ -1,3 +1,4 @@
+/* $Id: objectslist.h $ */
 /** @file
  *
  * List of COM objects

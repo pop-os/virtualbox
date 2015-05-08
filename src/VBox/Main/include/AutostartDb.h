@@ -1,3 +1,4 @@
+/* $Id: AutostartDb.h $ */
 /** @file
  * Main - Autostart database Interfaces.
  */

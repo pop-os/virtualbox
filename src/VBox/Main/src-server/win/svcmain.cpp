@@ -1,3 +1,4 @@
+/* $Id: svcmain.cpp $ */
 /** @file
  *
  * SVCMAIN - COM out-of-proc server main entry

@@ -1,3 +1,4 @@
+/* $Id: module.cpp $ */
 /** @file
  *
  * XPCOM module implementation functions

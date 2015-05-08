@@ -1,3 +1,4 @@
+/* $Id: tstVBoxAPIXPCOM.cpp $ */
 /** @file
  *
  * tstVBoxAPIXPCOM - sample program to illustrate the VirtualBox

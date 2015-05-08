@@ -1,3 +1,4 @@
+/* $Id: UIDownloaderExtensionPack.h $ */
 /** @file
  * VBox Qt GUI - UIDownloaderExtensionPack class declaration.
  */

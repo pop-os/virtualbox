@@ -1,3 +1,4 @@
+/* $Id: UIMachineLogic.h $ */
 /** @file
  * VBox Qt GUI - UIMachineLogic class declaration.
  */
@@ -116,9 +117,12 @@ public:
     UIMachineWindow* mainMachineWindow() const;
     UIMachineWindow* activeMachineWindow() const;
 
-    /* Maintenance getters/setters: */
-    bool isPreventAutoClose() const { return m_fIsPreventAutoClose; }
-    void setPreventAutoClose(bool fIsPreventAutoClose) { m_fIsPreventAutoClose = fIsPreventAutoClose; }
+    /** Returns whether VM is in 'manual-override' mode.
+      * @note S.a. #m_fIsManualOverride description for more information. */
+    bool isManualOverrideMode() const { return m_fIsManualOverride; }
+    /** Defines whether VM is in 'manual-override' mode.
+      * @note S.a. #m_fIsManualOverride description for more information. */
+    void setManualOverrideMode(bool fIsManualOverride) { m_fIsManualOverride = fIsManualOverride; }
 
     /** Adjusts machine-window(s) geometry if necessary. */
     virtual void adjustMachineWindowsGeometry();
@@ -359,7 +363,11 @@ private:
     QMap<int, MenuUpdateHandler> m_menuUpdateHandlers;
 
     bool m_fIsWindowsCreated : 1;
-    bool m_fIsPreventAutoClose : 1;
+
+    /** Holds whether VM is in 'manual-override' mode
+      * which means there will be no automatic UI shutdowns,
+      * visual representation mode changes and other similar routines. */
+    bool m_fIsManualOverride : 1;
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /* Debugger functionality: */

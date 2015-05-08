@@ -1,3 +1,4 @@
+/* $Id: VBoxSnapshotDetailsDlg.h $ */
 /** @file
  * VBox Qt GUI - VBoxSnapshotDetailsDlg class declaration.
  */

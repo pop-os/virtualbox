@@ -593,7 +593,7 @@
     virtual machine. These interfaces require the guest operating system
     to recognize their presence and make use of them in order to leverage
     the benefits of communicating with the VirtualBox hypervisor.</para>
-    
+
     <para>Most mainstream, modern operating systems, including Windows and
     Linux, ship with support for one or more paravirtualization interfaces.
     Hence, there is typically no need to install additional software in the
@@ -604,7 +604,7 @@
       <itemizedlist>
         <listitem>
           <para><emphasis role="bold">Minimal</emphasis>: Announces the
-          presence of a virtualized environment, additionally reports the
+          presence of a virtualized environment. Additionally, reports the
           TSC and APIC frequency to the guest operating system. This provider
           is mandatory for running any Mac OS X guests.</para>
         </listitem>

@@ -1,3 +1,4 @@
+/* $Id: MachineImplCloneVM.h $ */
 /** @file
  * Definition of MachineCloneVM
  */

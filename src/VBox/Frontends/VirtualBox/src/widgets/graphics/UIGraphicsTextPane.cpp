@@ -1,10 +1,10 @@
 /* $Id: UIGraphicsTextPane.cpp $ */
 /** @file
- * VBox Qt GUI - UIGraphicsTextPane and UITask class implementation.
+ * VBox Qt GUI - UIGraphicsTextPane class implementation.
  */
 
 /*
- * Copyright (C) 2012-2014 Oracle Corporation
+ * Copyright (C) 2012-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,18 +20,17 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QApplication>
 # include <QPainter>
+# include <QTextLayout>
+# include <QApplication>
+# include <QFontMetrics>
+# include <QGraphicsSceneHoverEvent>
 
 /* GUI includes: */
 # include "UIGraphicsTextPane.h"
+# include "UIRichTextString.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-#include <QFontMetrics>
-#include <QGraphicsSceneHoverEvent>
-#include <QTextLayout>
-
 
 UIGraphicsTextPane::UIGraphicsTextPane(QIGraphicsWidget *pParent, QPaintDevice *pPaintDevice)
     : QIGraphicsWidget(pParent)
@@ -361,49 +360,15 @@ QTextLayout* UIGraphicsTextPane::buildTextLayout(const QFont &font, QPaintDevice
     /* Prepare variables: */
     QFontMetrics fm(font, pPaintDevice);
     int iLeading = fm.leading();
-    QString strModifiedText(strText);
-    QList<QTextLayout::FormatRange> formatRangeList;
 
-    /* Handle bold sub-strings: */
-    QRegExp boldRegExp("<b>([\\s\\S]+)</b>");
-    boldRegExp.setMinimal(true);
-    while (boldRegExp.indexIn(strModifiedText) != -1)
-    {
-        /* Prepare format: */
-        QTextLayout::FormatRange formatRange;
-        QFont font = formatRange.format.font();
-        font.setBold(true);
-        formatRange.format.setFont(font);
-        formatRange.start = boldRegExp.pos(0);
-        formatRange.length = boldRegExp.cap(1).size();
-        /* Add format range to list: */
-        formatRangeList << formatRange;
-        /* Replace sub-string: */
-        strModifiedText.replace(boldRegExp.cap(0), boldRegExp.cap(1));
-    }
-
-    /* Handle anchored sub-strings: */
-    QRegExp anchoredRegExp("<a href=([^>]+)>([^<>]+)</a>");
-    anchoredRegExp.setMinimal(true);
-    while (anchoredRegExp.indexIn(strModifiedText) != -1)
-    {
-        /* Prepare format: */
-        QTextLayout::FormatRange formatRange;
-        formatRange.format.setAnchor(true);
-        formatRange.format.setAnchorHref(anchoredRegExp.cap(1));
-        if (formatRange.format.anchorHref() == strHoveredAnchor)
-            formatRange.format.setForeground(qApp->palette().color(QPalette::Link));
-        formatRange.start = anchoredRegExp.pos(0);
-        formatRange.length = anchoredRegExp.cap(2).size();
-        /* Add format range to list: */
-        formatRangeList << formatRange;
-        /* Replace sub-string: */
-        strModifiedText.replace(anchoredRegExp.cap(0), anchoredRegExp.cap(2));
-    }
+    /* Parse incoming string with UIRichTextString capabilities: */
+    //printf("Text: {%s}\n", strText.toAscii().constData());
+    UIRichTextString ms(strText);
+    ms.setHoveredAnchor(strHoveredAnchor);
 
     /* Create layout; */
-    QTextLayout *pTextLayout = new QTextLayout(strModifiedText, font, pPaintDevice);
-    pTextLayout->setAdditionalFormats(formatRangeList);
+    QTextLayout *pTextLayout = new QTextLayout(ms.toString(), font, pPaintDevice);
+    pTextLayout->setAdditionalFormats(ms.formatRanges());
 
     /* Configure layout: */
     QTextOption textOption;

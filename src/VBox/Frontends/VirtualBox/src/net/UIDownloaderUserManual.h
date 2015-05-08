@@ -1,3 +1,4 @@
+/* $Id: UIDownloaderUserManual.h $ */
 /** @file
  * VBox Qt GUI - UIDownloaderUserManual class declaration.
  */

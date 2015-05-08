@@ -1,3 +1,4 @@
+/* $Id: seamless.h $ */
 /** @file
  * X11 Guest client - seamless mode, missing proper description while using the
  * potentially confusing word 'host'.

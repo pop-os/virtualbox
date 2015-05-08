@@ -1,3 +1,4 @@
+/* $Id: HGSMIHost.h $ */
 /** @file
  *
  * VBox Host Guest Shared Memory Interface (HGSMI).
@@ -5,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2010 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,27 +60,17 @@ HGSMIOFFSET HGSMIPointerToOffsetHost (PHGSMIINSTANCE pIns,
 int HGSMIHostChannelRegister (PHGSMIINSTANCE pIns,
                           uint8_t u8Channel,
                           PFNHGSMICHANNELHANDLER pfnChannelHandler,
-                          void *pvChannelHandler,
-                          HGSMICHANNELHANDLER *pOldHandler);
+                          void *pvChannelHandler);
 
 int HGSMIChannelRegisterName (PHGSMIINSTANCE pIns,
                               const char *pszChannel,
                               PFNHGSMICHANNELHANDLER pfnChannelHandler,
                               void *pvChannelHandler,
-                              uint8_t *pu8Channel,
-                              HGSMICHANNELHANDLER *pOldHandler);
+                              uint8_t *pu8Channel);
 
-int HGSMIChannelHandlerCall (PHGSMIINSTANCE pIns,
-                             const HGSMICHANNELHANDLER *pHandler,
-                             const HGSMIBUFFERHEADER *pHeader);
-
-
-int HGSMISetupHostHeap (PHGSMIINSTANCE pIns,
-                        HGSMIOFFSET    offHeap,
-                        HGSMISIZE      cbHeap);
-
-int HGSMISaveStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM);
-int HGSMILoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM);
+int HGSMIHostHeapSetup(PHGSMIINSTANCE pIns,
+                       HGSMIOFFSET    offHeap,
+                       HGSMISIZE      cbHeap);
 
 /*
  * Virtual hardware IO handlers.
@@ -111,21 +102,18 @@ void HGSMIClearHostGuestFlags(PHGSMIINSTANCE pIns, uint32_t flags);
  */
 
 /* Allocate a buffer in the host heap. */
-int HGSMIHostCommandAlloc (PHGSMIINSTANCE pIns,
-                           void **ppvMem,
-                           HGSMISIZE cbMem,
-                           uint8_t u8Channel,
-                           uint16_t u16ChannelInfo);
+int HGSMIHostCommandAlloc(PHGSMIINSTANCE pIns,
+                          void **ppvData,
+                          HGSMISIZE cbData,
+                          uint8_t u8Channel,
+                          uint16_t u16ChannelInfo);
 
-int HGSMIHostCommandProcess (PHGSMIINSTANCE pIns,
-                             void *pvMem);
+int HGSMIHostCommandSubmitAndFreeAsynch(PHGSMIINSTANCE pIns,
+                                        void *pvData,
+                                        bool fDoIrq);
 
-int HGSMIHostCommandProcessAndFreeAsynch (PHGSMIINSTANCE pIns,
-                             void *pvMem,
-                             bool bDoIrq);
-
-int HGSMIHostCommandFree (PHGSMIINSTANCE pIns,
-                          void *pvMem);
+int HGSMIHostCommandFree(PHGSMIINSTANCE pIns,
+                         void *pvData);
 
 int HGSMIHostLoadStateExec (PHGSMIINSTANCE pIns, PSSMHANDLE pSSM, uint32_t u32Version);
 

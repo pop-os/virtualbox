@@ -1,3 +1,4 @@
+/* $Id: CIShared.h $ */
 /** @file
  * VBox Qt GUI - Common VirtualBox classes: CIShared class declaration.
  */

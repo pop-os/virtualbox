@@ -283,11 +283,11 @@ public:
         BOOL                mAccelerate2DVideoEnabled;
         BOOL                mPAEEnabled;
         settings::Hardware::LongModeType mLongMode;
-        BOOL                mSyntheticCpu;
         BOOL                mTripleFaultReset;
         ULONG               mCPUCount;
         BOOL                mCPUHotPlugEnabled;
         ULONG               mCpuExecutionCap;
+        uint32_t            mCpuIdPortabilityLevel;
         BOOL                mAccelerate3DEnabled;
         BOOL                mHPETEnabled;
 
@@ -865,6 +865,8 @@ private:
     HRESULT setCPUHotPlugEnabled(BOOL aCPUHotPlugEnabled);
     HRESULT getCPUExecutionCap(ULONG *aCPUExecutionCap);
     HRESULT setCPUExecutionCap(ULONG aCPUExecutionCap);
+    HRESULT getCPUIDPortabilityLevel(ULONG *aCPUIDPortabilityLevel);
+    HRESULT setCPUIDPortabilityLevel(ULONG aCPUIDPortabilityLevel);
     HRESULT getMemorySize(ULONG *aMemorySize);
     HRESULT setMemorySize(ULONG aMemorySize);
     HRESULT getMemoryBalloonSize(ULONG *aMemoryBalloonSize);
@@ -1229,7 +1231,8 @@ private:
     HRESULT pushGuestProperty(const com::Utf8Str &aName,
                               const com::Utf8Str &aValue,
                               LONG64 aTimestamp,
-                              const com::Utf8Str &aFlags);
+                              const com::Utf8Str &aFlags,
+                              BOOL *aNotify);
     HRESULT lockMedia();
     HRESULT unlockMedia();
     HRESULT ejectMedium(const ComPtr<IMediumAttachment> &aAttachment,
@@ -1377,7 +1380,8 @@ private:
     HRESULT pushGuestProperty(const com::Utf8Str &aName,
                               const com::Utf8Str &aValue,
                               LONG64 aTimestamp,
-                              const com::Utf8Str &aFlags);
+                              const com::Utf8Str &aFlags,
+                              BOOL *aNotify);
     HRESULT lockMedia();
     HRESULT unlockMedia();
     HRESULT ejectMedium(const ComPtr<IMediumAttachment> &aAttachment,

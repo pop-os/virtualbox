@@ -1,3 +1,4 @@
+/* $Id: UIAddDiskEncryptionPasswordDialog.h $ */
 /** @file
  * VBox Qt GUI - UIAddDiskEncryptionPasswordDialog class declaration.
  */

@@ -1,3 +1,4 @@
+/* $Id: UISpacerWidgets.h $ */
 /** @file
  * VBox Qt GUI - UISpacerWidgets declarations.
  */

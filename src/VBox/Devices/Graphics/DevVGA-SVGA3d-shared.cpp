@@ -1,3 +1,4 @@
+/* $Id: DevVGA-SVGA3d-shared.cpp $ */
 /** @file
  * DevVMWare - VMWare SVGA device
  */
@@ -340,8 +341,10 @@ uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format)
         return 32;
     case SVGA3D_A16B16G16R16:
         return 8;
+
+    default:
+        AssertFailedReturn(4);
     }
-    AssertFailedReturn(4);
 }
 
 #ifdef LOG_ENABLED

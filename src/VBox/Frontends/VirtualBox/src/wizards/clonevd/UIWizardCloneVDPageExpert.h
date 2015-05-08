@@ -1,3 +1,4 @@
+/* $Id: UIWizardCloneVDPageExpert.h $ */
 /** @file
  * VBox Qt GUI - UIWizardCloneVDPageExpert class declaration.
  */

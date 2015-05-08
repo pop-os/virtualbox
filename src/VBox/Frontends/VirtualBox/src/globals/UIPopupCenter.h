@@ -1,3 +1,4 @@
+/* $Id: UIPopupCenter.h $ */
 /** @file
  * VBox Qt GUI - UIPopupCenter class declaration.
  */

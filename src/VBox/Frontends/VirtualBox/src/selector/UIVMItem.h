@@ -1,3 +1,4 @@
+/* $Id: UIVMItem.h $ */
 /** @file
  * VBox Qt GUI - UIVMItem class declarations.
  */
@@ -78,6 +79,7 @@ public:
     static bool isItemPoweredOff(UIVMItem *pItem);
     static bool isItemStarted(UIVMItem *pItem);
     static bool isItemRunning(UIVMItem *pItem);
+    static bool isItemRunningHeadless(UIVMItem *pItem);
     static bool isItemPaused(UIVMItem *pItem);
     static bool isItemStuck(UIVMItem *pItem);
 

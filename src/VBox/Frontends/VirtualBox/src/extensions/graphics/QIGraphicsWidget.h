@@ -1,3 +1,4 @@
+/* $Id: QIGraphicsWidget.h $ */
 /** @file
  * VBox Qt GUI - QIGraphicsWidget class declaration.
  */

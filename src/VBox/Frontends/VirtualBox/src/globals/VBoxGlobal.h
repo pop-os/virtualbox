@@ -1,3 +1,4 @@
+/* $Id: VBoxGlobal.h $ */
 /** @file
  * VBox Qt GUI - VBoxGlobal class declaration.
  */
@@ -153,6 +154,11 @@ public:
     bool shouldRestoreCurrentSnapshot() const { return mRestoreCurrentSnapshot; }
     /** Defines whether we should fRestore current snapshot before VM started. */
     void setShouldRestoreCurrentSnapshot(bool fRestore) { mRestoreCurrentSnapshot = fRestore; }
+
+    bool hasFloppyImageToMount() const    { return !m_strFloppyImage.isEmpty(); }
+    bool hasDvdImageToMount() const       { return !m_strDvdImage.isEmpty(); }
+    QString const &getFloppyImage() const { return m_strFloppyImage; }
+    QString const &getDvdImage() const    { return m_strDvdImage; }
 
     bool isPatmDisabled() const { return mDisablePatm; }
     bool isCsamDisabled() const { return mDisableCsam; }
@@ -479,6 +485,15 @@ private:
     bool mAgressiveCaching;
     /** The --restore-current option. */
     bool mRestoreCurrentSnapshot;
+    /** @name Ad-hoc VM reconfiguration.
+     * @{ */
+    /** Floppy image. */
+    QString m_strFloppyImage;
+    /** DVD image. */
+    QString m_strDvdImage;
+    /** @} */
+    /** @name VMM options
+     * @{ */
     /** The --disable-patm option. */
     bool mDisablePatm;
     /** The --disable-csam option. */
@@ -491,6 +506,7 @@ private:
     bool mExecuteAllInIem;
     /** The --warp-factor option value. */
     uint32_t mWarpPct;
+    /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /** Whether the debugger should be accessible or not.

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2014 Oracle Corporation
+ * Copyright (C) 2011-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 
 # include <VBox/GuestHost/DragAndDrop.h>
 # include <VBox/HostServices/DragAndDropSvc.h>
+# include <VBox/version.h>
 
 # ifdef LOG_GROUP
 #  undef LOG_GROUP
@@ -158,19 +159,45 @@
  *   (both in the host and the guest).
  */
 
+GuestDnDCallbackEvent::~GuestDnDCallbackEvent(void)
+{
+    if (NIL_RTSEMEVENT != mSemEvent)
+        RTSemEventDestroy(mSemEvent);
+}
+
+int GuestDnDCallbackEvent::Reset(void)
+{
+    int rc = VINF_SUCCESS;
+
+    if (NIL_RTSEMEVENT == mSemEvent)
+        rc = RTSemEventCreate(&mSemEvent);
+
+    mRc = VINF_SUCCESS;
+    return rc;
+}
+
+int GuestDnDCallbackEvent::Notify(int rc)
+{
+    mRc = rc;
+    return RTSemEventSignal(mSemEvent);
+}
+
+int GuestDnDCallbackEvent::Wait(RTMSINTERVAL msTimeout)
+{
+    return RTSemEventWait(mSemEvent, msTimeout);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+
 GuestDnDResponse::GuestDnDResponse(const ComObjPtr<Guest>& pGuest)
     : m_EventSem(NIL_RTSEMEVENT)
     , m_defAction(0)
     , m_allActions(0)
-    , m_pvData(0)
-    , m_cbData(0)
-    , m_cbDataCurrent(0)
-    , m_cbDataTotal(0)
-    , m_hFile(NIL_RTFILE)
     , m_parent(pGuest)
 {
     int rc = RTSemEventCreate(&m_EventSem);
-    AssertRC(rc);
+    if (RT_FAILURE(rc))
+        throw rc;
 }
 
 GuestDnDResponse::~GuestDnDResponse(void)
@@ -179,32 +206,6 @@ GuestDnDResponse::~GuestDnDResponse(void)
 
     int rc = RTSemEventDestroy(m_EventSem);
     AssertRC(rc);
-}
-
-int GuestDnDResponse::dataAdd(const void *pvData, uint32_t cbData,
-                              uint32_t *pcbCurSize)
-{
-    AssertPtrReturn(pvData, VERR_INVALID_POINTER);
-    AssertReturn(cbData, VERR_INVALID_PARAMETER);
-    /* pcbCurSize is optional. */
-
-    int rc = VINF_SUCCESS;
-
-    /** @todo Make reallocation scheme a bit smarter here. */
-    m_pvData = RTMemRealloc(m_pvData, m_cbData + cbData);
-    if (m_pvData)
-    {
-        memcpy(&static_cast<uint8_t*>(m_pvData)[m_cbData],
-               pvData, cbData);
-        m_cbData += cbData;
-
-        if (pcbCurSize)
-            *pcbCurSize = m_cbData;
-    }
-    else
-        rc = VERR_NO_MEMORY;
-
-    return rc;
 }
 
 /* static */
@@ -241,7 +242,7 @@ Utf8Str GuestDnDResponse::errorToString(const ComObjPtr<Guest>& pGuest, int gues
     return strError;
 }
 
-int GuestDnDResponse::notifyAboutGuestResponse(void)
+int GuestDnDResponse::notifyAboutGuestResponse(void) const
 {
     return RTSemEventSignal(m_EventSem);
 }
@@ -250,123 +251,251 @@ void GuestDnDResponse::reset(void)
 {
     LogFlowThisFuncEnter();
 
-    m_defAction = 0;
+    m_defAction  = 0;
     m_allActions = 0;
 
-    m_strDropDir = "";
-    m_strFormat = "";
-
-    if (m_pvData)
-    {
-        RTMemFree(m_pvData);
-        m_pvData = NULL;
-    }
-    m_cbData = 0;
-    m_cbDataCurrent = 0;
-    m_cbDataTotal = 0;
-
-    if (m_hFile != NIL_RTFILE)
-    {
-        RTFileClose(m_hFile);
-        m_hFile = NIL_RTFILE;
-    }
-    m_strFile = "";
+    m_strFormat  = "";
 }
 
 HRESULT GuestDnDResponse::resetProgress(const ComObjPtr<Guest>& pParent)
 {
     m_progress.setNull();
-    HRESULT rc = m_progress.createObject();
-    if (SUCCEEDED(rc))
+
+    HRESULT hr = m_progress.createObject();
+    if (SUCCEEDED(hr))
     {
-        rc = m_progress->init(static_cast<IGuest*>(pParent),
+        hr = m_progress->init(static_cast<IGuest *>(pParent),
                               Bstr(pParent->tr("Dropping data")).raw(),
-                              FALSE /* fCancelable */);
+                              TRUE /* aCancelable */);
     }
-    return rc;
+
+    return hr;
+}
+
+bool GuestDnDResponse::isProgressCanceled(void) const
+{
+    BOOL fCanceled;
+    if (!m_progress.isNull())
+    {
+        HRESULT hr = m_progress->COMGETTER(Canceled)(&fCanceled);
+        AssertComRC(hr);
+    }
+    else
+        fCanceled = TRUE;
+
+    return RT_BOOL(fCanceled);
+}
+
+int GuestDnDResponse::setCallback(uint32_t uMsg, PFNGUESTDNDCALLBACK pfnCallback, void *pvUser /* = NULL */)
+{
+    GuestDnDCallbackMap::iterator it = m_mapCallbacks.find(uMsg);
+
+    /* Add. */
+    if (pfnCallback)
+    {
+        if (it == m_mapCallbacks.end())
+        {
+            m_mapCallbacks[uMsg] = GuestDnDCallback(pfnCallback, uMsg, pvUser);
+            return VINF_SUCCESS;
+        }
+
+        AssertMsgFailed(("Callback for message %RU32 already registered\n", uMsg));
+        return VERR_ALREADY_EXISTS;
+    }
+
+    /* Remove. */
+    if (it != m_mapCallbacks.end())
+        m_mapCallbacks.erase(it);
+
+    return VINF_SUCCESS;
 }
 
 int GuestDnDResponse::setProgress(unsigned uPercentage,
-                                  uint32_t uState, int rcOp /* = VINF_SUCCESS */)
+                                  uint32_t uStatus, int rcOp /* = VINF_SUCCESS */)
 {
-    LogFlowFunc(("uPercentage=%RU32, uState=%RU32, rcOp=%Rrc\n",
-                 uPercentage, uState, rcOp));
+    LogFlowFunc(("uStatus=%RU32, uPercentage=%RU32, rcOp=%Rrc\n",
+                 uStatus, uPercentage, rcOp));
 
-    int vrc = VINF_SUCCESS;
+    int rc = VINF_SUCCESS;
     if (!m_progress.isNull())
     {
         BOOL fCompleted;
         HRESULT hr = m_progress->COMGETTER(Completed)(&fCompleted);
+        AssertComRC(hr);
+
+        BOOL fCanceled;
+        hr = m_progress->COMGETTER(Canceled)(&fCanceled);
+        AssertComRC(hr);
+
+        LogFlowFunc(("Current: fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
+
         if (!fCompleted)
         {
-            if (uState == DragAndDropSvc::DND_PROGRESS_ERROR)
+            switch (uStatus)
             {
-                hr = m_progress->i_notifyComplete(VBOX_E_IPRT_ERROR,
-                                                  COM_IIDOF(IGuest),
-                                                  m_parent->getComponentName(),
-                                                  GuestDnDResponse::errorToString(m_parent, rcOp).c_str());
-                reset();
-            }
-            else if (uState == DragAndDropSvc::DND_PROGRESS_CANCELLED)
-            {
-                hr = m_progress->Cancel();
-                if (SUCCEEDED(hr))
-                    vrc = VERR_CANCELLED;
+                case DragAndDropSvc::DND_PROGRESS_ERROR:
+                {
+                    hr = m_progress->i_notifyComplete(VBOX_E_IPRT_ERROR,
+                                                      COM_IIDOF(IGuest),
+                                                      m_parent->getComponentName(),
+                                                      GuestDnDResponse::errorToString(m_parent, rcOp).c_str());
+                    reset();
+                    break;
+                }
 
-                reset();
-            }
-            else /* uState == DragAndDropSvc::DND_PROGRESS_RUNNING */
-            {
-                hr = m_progress->SetCurrentOperationProgress(uPercentage);
-                AssertComRC(hr);
-                if (   uState      == DragAndDropSvc::DND_PROGRESS_COMPLETE
-                    || uPercentage >= 100)
+                case DragAndDropSvc::DND_PROGRESS_CANCELLED:
+                {
                     hr = m_progress->i_notifyComplete(S_OK);
+                    AssertComRC(hr);
+
+                    reset();
+                    break;
+                }
+
+                case DragAndDropSvc::DND_PROGRESS_RUNNING:
+                case DragAndDropSvc::DND_PROGRESS_COMPLETE:
+                {
+                    if (!fCanceled)
+                    {
+                        hr = m_progress->SetCurrentOperationProgress(uPercentage);
+                        AssertComRC(hr);
+                        if (   uStatus     == DragAndDropSvc::DND_PROGRESS_COMPLETE
+                            || uPercentage >= 100)
+                        {
+                            hr = m_progress->i_notifyComplete(S_OK);
+                            AssertComRC(hr);
+                        }
+                    }
+                    break;
+                }
+
+                default:
+                    break;
             }
         }
+
+        hr = m_progress->COMGETTER(Completed)(&fCompleted);
+        AssertComRC(hr);
+        hr = m_progress->COMGETTER(Canceled)(&fCanceled);
+        AssertComRC(hr);
+
+        LogFlowFunc(("New: fCompleted=%RTbool, fCanceled=%RTbool\n", fCompleted, fCanceled));
     }
-
-    return vrc;
-}
-
-int GuestDnDResponse::dataSetStatus(size_t cbDataAdd, size_t cbDataTotal /* = 0 */)
-{
-    if (cbDataTotal)
-    {
-#ifndef DEBUG_andy
-        AssertMsg(m_cbDataTotal <= cbDataTotal, ("New data size must not be smaller (%zu) than old value (%zu)\n",
-                                                 cbDataTotal, m_cbDataTotal));
-#endif
-        LogFlowFunc(("Updating total data size from %zu to %zu\n", m_cbDataTotal, cbDataTotal));
-        m_cbDataTotal = cbDataTotal;
-    }
-    AssertMsg(m_cbDataTotal, ("m_cbDataTotal must not be <= 0\n"));
-
-    m_cbDataCurrent += cbDataAdd;
-    unsigned int cPercentage = RT_MIN(m_cbDataCurrent * 100.0 / m_cbDataTotal, 100);
-
-    /** @todo Don't use anonymous enums (uint32_t). */
-    uint32_t uStatus = DragAndDropSvc::DND_PROGRESS_RUNNING;
-    if (m_cbDataCurrent >= m_cbDataTotal)
-        uStatus = DragAndDropSvc::DND_PROGRESS_COMPLETE;
-
-#ifdef DEBUG_andy
-    LogFlowFunc(("Updating transfer status (%zu/%zu), status=%ld\n",
-                 m_cbDataCurrent, m_cbDataTotal, uStatus));
-#else
-    AssertMsg(m_cbDataCurrent <= m_cbDataTotal,
-              ("More data transferred (%zu) than initially announced (%zu), cbDataAdd=%zu\n",
-              m_cbDataCurrent, m_cbDataTotal, cbDataAdd));
-#endif
-    int rc = setProgress(cPercentage, uStatus);
-
-    /** @todo For now we instantly confirm the cancel. Check if the
-     *        guest should first clean up stuff itself and than really confirm
-     *        the cancel request by an extra message. */
-    if (rc == VERR_CANCELLED)
-        rc = setProgress(100, DragAndDropSvc::DND_PROGRESS_CANCELLED);
 
     LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+int GuestDnDResponse::onDispatch(uint32_t u32Function, void *pvParms, uint32_t cbParms)
+{
+    LogFlowFunc(("u32Function=%RU32, pvParms=%p, cbParms=%RU32\n", u32Function, pvParms, cbParms));
+
+    int rc = VERR_WRONG_ORDER; /* Play safe. */
+    bool fTryCallbacks = false;
+
+    switch (u32Function)
+    {
+        case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
+        {
+            DragAndDropSvc::PVBOXDNDCBHGACKOPDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGACKOPDATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGACKOPDATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_ACK_OP == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+
+            setDefAction(pCBData->uAction);
+            rc = notifyAboutGuestResponse();
+            break;
+        }
+
+        case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
+        {
+            DragAndDropSvc::PVBOXDNDCBHGREQDATADATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGREQDATADATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGREQDATADATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_REQ_DATA == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+
+            if (   pCBData->cbFormat == 0
+                || pCBData->cbFormat >  _64K)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                setFormat(pCBData->pszFormat);
+
+                rc = VINF_SUCCESS;
+            }
+
+            int rc2 = notifyAboutGuestResponse();
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+            break;
+        }
+
+        case DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS:
+        {
+            DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA pCBData =
+               reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGEVTPROGRESSDATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_EVT_PROGRESS == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+
+            rc = setProgress(pCBData->uPercentage, pCBData->uStatus, pCBData->rc);
+            if (RT_SUCCESS(rc))
+                rc = notifyAboutGuestResponse();
+            break;
+        }
+#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+        case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
+        {
+            DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA pCBData =
+               reinterpret_cast<DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA>(pvParms);
+            AssertPtr(pCBData);
+            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBGHACKPENDINGDATA) == cbParms, VERR_INVALID_PARAMETER);
+            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_ACK_PENDING == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
+
+            if (   pCBData->cbFormat == 0
+                || pCBData->cbFormat >  _64K)
+            {
+                rc = VERR_INVALID_PARAMETER;
+            }
+            else
+            {
+                setFormat    (pCBData->pszFormat);
+                setDefAction (pCBData->uDefAction);
+                setAllActions(pCBData->uAllActions);
+
+                rc = VINF_SUCCESS;
+            }
+
+            int rc2 = notifyAboutGuestResponse();
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+            break;
+        }
+#endif /* VBOX_WITH_DRAG_AND_DROP_GH */
+        default:
+            /* * Try if the event is covered by a registered callback. */
+            fTryCallbacks = true;
+            break;
+    }
+
+    /*
+     * Try the host's installed callbacks (if any).
+     */
+    if (fTryCallbacks)
+    {
+        GuestDnDCallbackMap::const_iterator it = m_mapCallbacks.find(u32Function);
+        if (it != m_mapCallbacks.end())
+        {
+            AssertPtr(it->second.pfnCallback);
+            rc = it->second.pfnCallback(u32Function, pvParms, cbParms, it->second.pvUser);
+        }
+        else
+            rc = VERR_NO_DATA; /* Tell the guest. */
+    }
+
+    LogFlowFunc(("Returning rc=%Rrc\n", rc));
     return rc;
 }
 
@@ -375,65 +504,12 @@ HRESULT GuestDnDResponse::queryProgressTo(IProgress **ppProgress)
     return m_progress.queryInterfaceTo(ppProgress);
 }
 
-int GuestDnDResponse::waitForGuestResponse(RTMSINTERVAL msTimeout /*= 500 */)
+int GuestDnDResponse::waitForGuestResponse(RTMSINTERVAL msTimeout /*= 500 */) const
 {
     int rc = RTSemEventWait(m_EventSem, msTimeout);
 #ifdef DEBUG_andy
     LogFlowFunc(("msTimeout=%RU32, rc=%Rrc\n", msTimeout, rc));
 #endif
-    return rc;
-}
-
-int GuestDnDResponse::writeToFile(const char *pszPath, size_t cbPath,
-                                  void *pvData, size_t cbData, uint32_t fMode)
-{
-    /** @todo Support locking more than one file at a time! We
-     *        might want to have a table in DnDGuestImpl which
-     *        keeps those file pointers around, or extend the
-     *        actual protocol for explicit open calls.
-     *
-     *        For now we only keep one file open at a time, so if
-     *        a client does alternating writes to different files
-     *        this function will close the old and re-open the new
-     *        file on every call. */
-    int rc;
-    if (   m_hFile == NIL_RTFILE
-        || m_strFile != pszPath)
-    {
-        char *pszFile = RTPathJoinA(m_strDropDir.c_str(), pszPath);
-        if (pszFile)
-        {
-            RTFILE hFile;
-            /** @todo Respect fMode!  */
-            rc = RTFileOpen(&hFile, pszFile,
-                              RTFILE_O_OPEN_CREATE | RTFILE_O_DENY_WRITE
-                            | RTFILE_O_WRITE | RTFILE_O_APPEND);
-            if (RT_SUCCESS(rc))
-            {
-                LogFlowFunc(("Opening \"%s\" (fMode=0x%x) for writing ...\n",
-                             pszFile, fMode));
-
-                m_hFile = hFile;
-                m_strFile = pszPath;
-            }
-
-            RTStrFree(pszFile);
-        }
-        else
-            rc = VERR_NO_MEMORY;
-    }
-    else
-        rc = VINF_SUCCESS;
-
-    if (RT_SUCCESS(rc))
-    {
-        rc = RTFileWrite(m_hFile, pvData, cbData,
-                         NULL /* No partial writes */);
-
-        if (RT_SUCCESS(rc))
-            rc = dataSetStatus(cbData);
-    }
-
     return rc;
 }
 
@@ -506,12 +582,31 @@ int GuestDnD::hostCall(uint32_t u32Function, uint32_t cParms, PVBOXHGCMSVCPARM p
     if (!pVMMDev)
         return VERR_COM_OBJECT_NOT_FOUND;
 
-    int rc = pVMMDev->hgcmHostCall("VBoxDragAndDropSvc", u32Function,
-                                   cParms, paParms);
-    LogFlowFunc(("uMsg=%RU32, cParms=%RU32, rc=%Rrc\n",
-                 u32Function, cParms, rc));
+    int rc = pVMMDev->hgcmHostCall("VBoxDragAndDropSvc", u32Function, cParms, paParms);
+    LogFlowFunc(("uMsg=%RU32, cParms=%RU32, rc=%Rrc\n", u32Function, cParms, rc));
     return rc;
 }
+
+/* static */
+DECLCALLBACK(int) GuestDnD::notifyDnDDispatcher(void *pvExtension, uint32_t u32Function,
+                                                void *pvParms, uint32_t cbParms)
+{
+    LogFlowFunc(("pvExtension=%p, u32Function=%RU32, pvParms=%p, cbParms=%RU32\n",
+                 pvExtension, u32Function, pvParms, cbParms));
+
+    GuestDnD *pGuestDnD = reinterpret_cast<GuestDnD*>(pvExtension);
+    AssertPtrReturn(pGuestDnD, VERR_INVALID_POINTER);
+
+    /** @todo In case we need to handle multiple guest DnD responses at a time this
+     *        would be the place to lookup and dispatch to those. For the moment we
+     *        only have one response -- simple. */
+    GuestDnDResponse *pResp = pGuestDnD->m_pResponse;
+    if (pResp)
+        return pResp->onDispatch(u32Function, pvParms, cbParms);
+
+    return VERR_NOT_SUPPORTED;
+}
+
 
 /* static */
 com::Utf8Str GuestDnD::toFormatString(const std::vector<com::Utf8Str> &lstSupportedFormats,
@@ -636,204 +731,19 @@ void GuestDnD::toMainActions(uint32_t uActions,
         vecActions.push_back(lstActions.at(i));
 }
 
-/* static */
-DECLCALLBACK(int) GuestDnD::notifyDnDDispatcher(void *pvExtension, uint32_t u32Function,
-                                                void *pvParms, uint32_t cbParms)
-{
-    LogFlowFunc(("pvExtension=%p, u32Function=%RU32, pvParms=%p, cbParms=%RU32\n",
-                 pvExtension, u32Function, pvParms, cbParms));
-
-    GuestDnD *pGuestDnD = reinterpret_cast<GuestDnD*>(pvExtension);
-    AssertPtrReturn(pGuestDnD, VERR_INVALID_POINTER);
-
-    GuestDnDResponse *pResp = pGuestDnD->m_pResponse;
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
-
-    int rc;
-    switch (u32Function)
-    {
-        case DragAndDropSvc::GUEST_DND_HG_ACK_OP:
-        {
-            DragAndDropSvc::PVBOXDNDCBHGACKOPDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGACKOPDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGACKOPDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_ACK_OP == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            pResp->setDefAction(pCBData->uAction);
-
-            rc = pResp->notifyAboutGuestResponse();
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_HG_REQ_DATA:
-        {
-            DragAndDropSvc::PVBOXDNDCBHGREQDATADATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBHGREQDATADATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGREQDATADATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_REQ_DATA == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            pResp->setFormat(pCBData->pszFormat);
-
-            rc = pResp->notifyAboutGuestResponse();
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_HG_EVT_PROGRESS:
-        {
-            DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA pCBData =
-                reinterpret_cast <DragAndDropSvc::PVBOXDNDCBHGEVTPROGRESSDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBHGEVTPROGRESSDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_HG_EVT_PROGRESS == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            rc = pResp->setProgress(pCBData->uPercentage, pCBData->uState, pCBData->rc);
-            break;
-        }
-
-# ifdef VBOX_WITH_DRAG_AND_DROP_GH
-        case DragAndDropSvc::GUEST_DND_GH_ACK_PENDING:
-        {
-            DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA pCBData =
-                reinterpret_cast <DragAndDropSvc::PVBOXDNDCBGHACKPENDINGDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBGHACKPENDINGDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_ACK_PENDING == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            pResp->setFormat(pCBData->pszFormat);
-            pResp->setDefAction(pCBData->uDefAction);
-            pResp->setAllActions(pCBData->uAllActions);
-
-            rc = pResp->notifyAboutGuestResponse();
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_GH_SND_DATA:
-        {
-            DragAndDropSvc::PVBOXDNDCBSNDDATADATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBSNDDATADATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBSNDDATADATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_SND_DATA == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            rc = pGuestDnD->onGHSendData(pResp, pCBData->pvData, pCBData->cbData,
-                                         pCBData->cbTotalSize);
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_GH_SND_DIR:
-        {
-            DragAndDropSvc::PVBOXDNDCBSNDDIRDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBSNDDIRDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBSNDDIRDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_SND_DIR == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            rc = pGuestDnD->onGHSendDir(pResp, pCBData->pszPath, pCBData->cbPath, pCBData->fMode);
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_GH_SND_FILE:
-        {
-            DragAndDropSvc::PVBOXDNDCBSNDFILEDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBSNDFILEDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBSNDFILEDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_SND_FILE == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            rc = pGuestDnD->onGHSendFile(pResp, pCBData->pszFilePath, pCBData->cbFilePath,
-                                         pCBData->pvData, pCBData->cbData, pCBData->fMode);
-            break;
-        }
-
-        case DragAndDropSvc::GUEST_DND_GH_EVT_ERROR:
-        {
-            DragAndDropSvc::PVBOXDNDCBEVTERRORDATA pCBData = reinterpret_cast<DragAndDropSvc::PVBOXDNDCBEVTERRORDATA>(pvParms);
-            AssertPtr(pCBData);
-            AssertReturn(sizeof(DragAndDropSvc::VBOXDNDCBEVTERRORDATA) == cbParms, VERR_INVALID_PARAMETER);
-            AssertReturn(DragAndDropSvc::CB_MAGIC_DND_GH_EVT_ERROR == pCBData->hdr.u32Magic, VERR_INVALID_PARAMETER);
-
-            /* Cleanup. */
-            pResp->reset();
-            rc = pResp->setProgress(100, DragAndDropSvc::DND_PROGRESS_ERROR, pCBData->rc);
-            break;
-        }
-# endif /* VBOX_WITH_DRAG_AND_DROP_GH */
-        default:
-            rc = VERR_NOT_SUPPORTED; /* Tell the guest. */
-            break;
-    }
-
-    LogFlowFunc(("Returning rc=%Rrc\n", rc));
-    return rc;
-}
-
-# ifdef VBOX_WITH_DRAG_AND_DROP_GH
-int GuestDnD::onGHSendData(GuestDnDResponse *pResp,
-                           const void *pvData, size_t cbData, size_t cbTotalSize)
-{
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
-    AssertPtrReturn(pvData, VERR_INVALID_POINTER);
-    AssertReturn(cbData, VERR_INVALID_PARAMETER);
-    AssertReturn(cbTotalSize, VERR_INVALID_PARAMETER);
-
-    int rc = pResp->dataAdd(pvData, cbData, NULL /* Current size */);
-    if (RT_SUCCESS(rc))
-        rc = pResp->dataSetStatus(cbData, cbTotalSize);
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-int GuestDnD::onGHSendDir(GuestDnDResponse *pResp,
-                          const char *pszPath, size_t cbPath, uint32_t fMode)
-{
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
-    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
-    AssertReturn(cbPath, VERR_INVALID_PARAMETER);
-
-    LogFlowFunc(("pszPath=%s, cbPath=%zu, fMode=0x%x\n",
-                 pszPath, cbPath, fMode));
-
-    int rc;
-    char *pszDir = RTPathJoinA(pResp->dropDir().c_str(), pszPath);
-    if (pszDir)
-    {
-        rc = RTDirCreateFullPath(pszDir, fMode);
-        RTStrFree(pszDir);
-    }
-    else
-        rc = VERR_NO_MEMORY;
-
-    if (RT_SUCCESS(rc))
-        rc = pResp->dataSetStatus(cbPath);
-
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-
-int GuestDnD::onGHSendFile(GuestDnDResponse *pResp,
-                           const char *pszPath, size_t cbPath,
-                           void *pvData, size_t cbData, uint32_t fMode)
-{
-    AssertPtrReturn(pResp, VERR_INVALID_POINTER);
-    AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
-    AssertReturn(cbPath, VERR_INVALID_PARAMETER);
-
-    LogFlowFunc(("pszPath=%s, cbPath=%zu, fMode=0x%x\n",
-                 pszPath, cbPath, fMode));
-
-    int rc = pResp->writeToFile(pszPath, cbPath,
-                                pvData, cbData, fMode);
-    LogFlowFuncLeaveRC(rc);
-    return rc;
-}
-# endif /* VBOX_WITH_DRAG_AND_DROP_GH */
-
 ///////////////////////////////////////////////////////////////////////////////
 
 GuestDnDBase::GuestDnDBase(void)
 {
+    mDataBase.mfTransferIsPending = false;
+
+    /*
+     * Initialize public attributes.
+     */
     m_strFormats = GuestDnDInst()->defaultFormats();
 }
 
-HRESULT GuestDnDBase::isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSupported)
+HRESULT GuestDnDBase::i_isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSupported)
 {
     *aSupported = std::find(m_strFormats.begin(),
                             m_strFormats.end(), aFormat) != m_strFormats.end()
@@ -841,14 +751,14 @@ HRESULT GuestDnDBase::isFormatSupported(const com::Utf8Str &aFormat, BOOL *aSupp
     return S_OK;
 }
 
-HRESULT GuestDnDBase::getFormats(std::vector<com::Utf8Str> &aFormats)
+HRESULT GuestDnDBase::i_getFormats(std::vector<com::Utf8Str> &aFormats)
 {
     aFormats = m_strFormats;
 
     return S_OK;
 }
 
-HRESULT GuestDnDBase::addFormats(const std::vector<com::Utf8Str> &aFormats)
+HRESULT GuestDnDBase::i_addFormats(const std::vector<com::Utf8Str> &aFormats)
 {
     for (size_t i = 0; i < aFormats.size(); ++i)
     {
@@ -863,7 +773,7 @@ HRESULT GuestDnDBase::addFormats(const std::vector<com::Utf8Str> &aFormats)
     return S_OK;
 }
 
-HRESULT GuestDnDBase::removeFormats(const std::vector<com::Utf8Str> &aFormats)
+HRESULT GuestDnDBase::i_removeFormats(const std::vector<com::Utf8Str> &aFormats)
 {
     for (size_t i = 0; i < aFormats.size(); ++i)
     {
@@ -877,5 +787,143 @@ HRESULT GuestDnDBase::removeFormats(const std::vector<com::Utf8Str> &aFormats)
     return S_OK;
 }
 
+HRESULT GuestDnDBase::i_getProtocolVersion(ULONG *puVersion)
+{
+    int rc = getProtocolVersion((uint32_t *)puVersion);
+    return RT_SUCCESS(rc) ? S_OK : E_FAIL;
+}
+
+int GuestDnDBase::getProtocolVersion(uint32_t *puVersion)
+{
+    AssertPtrReturn(puVersion, VERR_INVALID_POINTER);
+
+    int rc;
+
+    uint32_t uVer, uVerAdditions = 0;
+    if (   m_pGuest
+        && (uVerAdditions = m_pGuest->i_getAdditionsVersion()) > 0)
+    {
+        uint32_t uVBoxMajor = VBOX_FULL_VERSION_GET_MAJOR(uVerAdditions);
+        uint32_t uVBoxMinor = VBOX_FULL_VERSION_GET_MINOR(uVerAdditions);
+
+#if 0 /*def DEBUG_andy*/
+        /* Hardcode the to-used protocol version; nice for testing side effects. */
+        uVer = 2;
+#else
+        uVer = (  uVBoxMajor  >= 5)
+             ? 2  /* VBox 5.0 and up: Protocol version 2. */
+             : 1; /* VBox <= 4.3:     Protocol version 1. */
+        /* Build revision is ignored. */
+#endif
+
+        LogFlowThisFunc(("uVerAdditions=%RU32 (%RU32.%RU32)\n", uVerAdditions, uVBoxMajor, uVBoxMinor));
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        uVer = 1; /* Fallback. */
+        rc = VERR_NOT_FOUND;
+    }
+
+    LogFlowThisFunc(("uVer=%RU32, uVerAdditions=%RU32, rc=%Rrc\n", uVer, uVerAdditions, rc));
+
+    *puVersion = uVer;
+    return rc;
+}
+
+int GuestDnDBase::msgQueueAdd(GuestDnDMsg *pMsg)
+{
+    mDataBase.mListOutgoing.push_back(pMsg);
+    return VINF_SUCCESS;
+}
+
+GuestDnDMsg *GuestDnDBase::msgQueueGetNext(void)
+{
+    if (mDataBase.mListOutgoing.empty())
+        return NULL;
+    return mDataBase.mListOutgoing.front();
+}
+
+void GuestDnDBase::msgQueueRemoveNext(void)
+{
+    if (!mDataBase.mListOutgoing.empty())
+    {
+        GuestDnDMsg *pMsg = mDataBase.mListOutgoing.front();
+        if (pMsg)
+            delete pMsg;
+        mDataBase.mListOutgoing.pop_front();
+    }
+}
+
+void GuestDnDBase::msgQueueClear(void)
+{
+    GuestDnDMsgList::iterator itMsg = mDataBase.mListOutgoing.begin();
+    while (itMsg != mDataBase.mListOutgoing.end())
+    {
+        delete *itMsg;
+    }
+
+    mDataBase.mListOutgoing.clear();
+}
+
+int GuestDnDBase::sendCancel(void)
+{
+    LogFlowFunc(("Generating cancel request ...\n"));
+
+    int rc;
+    try
+    {
+        GuestDnDMsg *pMsgCancel = new GuestDnDMsg();
+        pMsgCancel->setType(DragAndDropSvc::HOST_DND_HG_EVT_CANCEL);
+
+        rc = msgQueueAdd(pMsgCancel);
+    }
+    catch(std::bad_alloc & /*e*/)
+    {
+        rc = VERR_NO_MEMORY;
+    }
+
+    return rc;
+}
+
+/** @todo GuestDnDResponse *pResp needs to go. */
+int GuestDnDBase::waitForEvent(RTMSINTERVAL msTimeout, GuestDnDCallbackEvent &Event, GuestDnDResponse *pResp)
+{
+    int rc;
+
+    uint64_t tsStart = RTTimeMilliTS();
+    do
+    {
+        /*
+         * Wait until our desired callback triggered the
+         * wait event. As we don't want to block if the guest does not
+         * respond, so do busy waiting here.
+         */
+        rc = Event.Wait(500 /* ms */);
+        if (RT_SUCCESS(rc))
+        {
+            rc = Event.Result();
+            LogFlowFunc(("Callback done, result is %Rrc\n", rc));
+            break;
+        }
+        else if (rc == VERR_TIMEOUT) /* Continue waiting. */
+            rc = VINF_SUCCESS;
+
+        if (   msTimeout != RT_INDEFINITE_WAIT
+            && RTTimeMilliTS() - tsStart > msTimeout)
+        {
+            rc = VERR_TIMEOUT;
+        }
+        else if (pResp->isProgressCanceled())
+        {
+            pResp->setProgress(100 /* Percent */, DragAndDropSvc::DND_PROGRESS_CANCELLED);
+            rc = VERR_CANCELLED;
+        }
+
+    } while (RT_SUCCESS(rc));
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 

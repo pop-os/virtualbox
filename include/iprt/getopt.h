@@ -401,11 +401,14 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
  *                          freed by calling RTGetOptArgvFree.
  * @param   pcArgs          Where to return the argument count.
  * @param   pszCmdLine      The string to parse.
+ * @param   fFlags          A combination of the RTGETOPTARGV_CNV_XXX flags,
+ *                          except RTGETOPTARGV_CNV_UNQUOTED is not supported.
  * @param   pszSeparators   String containing the argument separators. If NULL,
  *                          then space, tab, line feed (\\n) and return (\\r)
  *                          are used.
  */
-RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *pszCmdLine, const char *pszSeparators);
+RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *pszCmdLine, uint32_t fFlags,
+                                   const char *pszSeparators);
 
 /**
  * Frees and argument vector returned by RTGetOptStringToArgv.
@@ -437,8 +440,10 @@ RTDECL(int) RTGetOptArgvToString(char **ppszCmdLine, const char * const *papszAr
 #define RTGETOPTARGV_CNV_QUOTE_MS_CRT       UINT32_C(0)
 /** Quote strings according to the Unix Bourne Shell. */
 #define RTGETOPTARGV_CNV_QUOTE_BOURNE_SH    UINT32_C(1)
+/** Don't quote any strings at all. */
+#define RTGETOPTARGV_CNV_UNQUOTED           UINT32_C(2)
 /** Mask for the quoting style. */
-#define RTGETOPTARGV_CNV_QUOTE_MASK         UINT32_C(1)
+#define RTGETOPTARGV_CNV_QUOTE_MASK         UINT32_C(3)
 /** @} */
 
 /**

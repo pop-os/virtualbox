@@ -22,14 +22,15 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/thread.h>
 
-#include "HMInternal.h"
-#include <VBox/vmm/vm.h>
-#include "HMSVMR0.h"
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/dbgf.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/gim.h>
+#include "HMInternal.h"
+#include <VBox/vmm/vm.h>
+#include "HMSVMR0.h"
 #include "dtrace/VBoxVMM.h"
 
 #ifdef DEBUG_ramshankar
@@ -287,6 +288,7 @@ static FNSVMEXITHANDLER hmR0SvmExitSetPendingXcptUD;
 static FNSVMEXITHANDLER hmR0SvmExitMsr;
 static FNSVMEXITHANDLER hmR0SvmExitReadDRx;
 static FNSVMEXITHANDLER hmR0SvmExitWriteDRx;
+static FNSVMEXITHANDLER hmR0SvmExitXsetbv;
 static FNSVMEXITHANDLER hmR0SvmExitIOInstr;
 static FNSVMEXITHANDLER hmR0SvmExitNestedPF;
 static FNSVMEXITHANDLER hmR0SvmExitVIntr;
@@ -723,7 +725,8 @@ VMMR0DECL(int) SVMR0SetupVM(PVM pVM)
                                         | SVM_CTRL2_INTERCEPT_SKINIT        /* SKINIT causes a #VMEXIT. */
                                         | SVM_CTRL2_INTERCEPT_WBINVD        /* WBINVD causes a #VMEXIT. */
                                         | SVM_CTRL2_INTERCEPT_MONITOR       /* MONITOR causes a #VMEXIT. */
-                                        | SVM_CTRL2_INTERCEPT_MWAIT;        /* MWAIT causes a #VMEXIT. */
+                                        | SVM_CTRL2_INTERCEPT_MWAIT         /* MWAIT causes a #VMEXIT. */
+                                        | SVM_CTRL2_INTERCEPT_XSETBV;       /* XSETBV causes a #VMEXIT. */
 
         /* CR0, CR4 reads must be intercepted, our shadow values are not necessarily the same as the guest's. */
         pVmcb->ctrl.u16InterceptRdCRx = RT_BIT(0) | RT_BIT(4);
@@ -1025,13 +1028,17 @@ static void hmR0SvmFlushTaggedTlb(PVMCPU pVCpu)
  */
 DECLASM(int) SVMR0VMSwitcherRun64(RTHCPHYS HCPhysVmcbHost, RTHCPHYS HCPhysVmcb, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu)
 {
-    uint32_t aParam[4];
+    uint32_t aParam[8];
     aParam[0] = (uint32_t)(HCPhysVmcbHost);             /* Param 1: HCPhysVmcbHost - Lo. */
     aParam[1] = (uint32_t)(HCPhysVmcbHost >> 32);       /* Param 1: HCPhysVmcbHost - Hi. */
     aParam[2] = (uint32_t)(HCPhysVmcb);                 /* Param 2: HCPhysVmcb - Lo. */
     aParam[3] = (uint32_t)(HCPhysVmcb >> 32);           /* Param 2: HCPhysVmcb - Hi. */
+    aParam[4] = VM_RC_ADDR(pVM, pVM);
+    aParam[5] = 0;
+    aParam[6] = VM_RC_ADDR(pVM, pVCpu);
+    aParam[7] = 0;
 
-    return SVMR0Execute64BitsHandler(pVM, pVCpu, pCtx, HM64ON32OP_SVMRCVMRun64, 4, &aParam[0]);
+    return SVMR0Execute64BitsHandler(pVM, pVCpu, pCtx, HM64ON32OP_SVMRCVMRun64, RT_ELEMENTS(aParam), &aParam[0]);
 }
 
 
@@ -1043,11 +1050,11 @@ DECLASM(int) SVMR0VMSwitcherRun64(RTHCPHYS HCPhysVmcbHost, RTHCPHYS HCPhysVmcb, 
  * @param   pVCpu       Pointer to the VMCPU.
  * @param   pCtx        Pointer to the guest-CPU context.
  * @param   enmOp       The operation to perform.
- * @param   cbParam     Number of parameters.
+ * @param   cParams     Number of parameters.
  * @param   paParam     Array of 32-bit parameters.
  */
-VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, HM64ON32OP enmOp, uint32_t cbParam,
-                                         uint32_t *paParam)
+VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, HM64ON32OP enmOp,
+                                         uint32_t cParams, uint32_t *paParam)
 {
     AssertReturn(pVM->hm.s.pfnHost32ToGuest64R0, VERR_HM_NO_32_TO_64_SWITCHER);
     Assert(enmOp > HM64ON32OP_INVALID && enmOp < HM64ON32OP_END);
@@ -1062,7 +1069,7 @@ VMMR0DECL(int) SVMR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, H
 
     CPUMSetHyperESP(pVCpu, VMMGetStackRC(pVCpu));
     CPUMSetHyperEIP(pVCpu, enmOp);
-    for (int i = (int)cbParam - 1; i >= 0; i--)
+    for (int i = (int)cParams - 1; i >= 0; i--)
         CPUMPushHyper(pVCpu, paParam[i]);
 
     STAM_PROFILE_ADV_START(&pVCpu->hm.s.StatWorldSwitch3264, z);
@@ -1244,6 +1251,7 @@ static int hmR0SvmLoadGuestControlRegs(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX pC
 
     /*
      * Guest CR4.
+     * ASSUMES this is done everytime we get in from ring-3! (XCR0)
      */
     if (HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_GUEST_CR4))
     {
@@ -1284,6 +1292,10 @@ static int hmR0SvmLoadGuestControlRegs(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX pC
 
         pVmcb->guest.u64CR4 = u64GuestCR4;
         pVmcb->ctrl.u64VmcbCleanBits &= ~HMSVM_VMCB_CLEAN_CRX_EFER;
+
+        /* Whether to save/load/restore XCR0 during world switch depends on CR4.OSXSAVE and host+guest XCR0. */
+        pVCpu->hm.s.fLoadSaveGuestXcr0 = (u64GuestCR4 & X86_CR4_OSXSAVE) && pCtx->aXcr[0] != ASMGetXcr0();
+
         HMCPU_CF_CLEAR(pVCpu, HM_CHANGED_GUEST_CR4);
     }
 
@@ -2110,7 +2122,7 @@ static void hmR0SvmLeave(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
  */
 static int hmR0SvmLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
-    HM_DISABLE_PREEMPT_IF_NEEDED();
+    HM_DISABLE_PREEMPT();
     Assert(!VMMRZCallRing3IsEnabled(pVCpu));
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
 
@@ -2133,7 +2145,7 @@ static int hmR0SvmLeaveSession(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /* Leave HM context. This takes care of local init (term). */
     int rc = HMR0LeaveCpu(pVCpu);
 
-    HM_RESTORE_PREEMPT_IF_NEEDED();
+    HM_RESTORE_PREEMPT();
     return rc;
 }
 
@@ -2175,7 +2187,7 @@ DECLCALLBACK(int) hmR0SvmCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enmOperati
          */
         VMMRZCallRing3RemoveNotification(pVCpu);
         VMMRZCallRing3Disable(pVCpu);
-        HM_DISABLE_PREEMPT_IF_NEEDED();
+        HM_DISABLE_PREEMPT();
 
         /* Restore host FPU state if necessary and resync on next R0 reentry .*/
         if (CPUMIsGuestFPUStateActive(pVCpu))
@@ -2190,7 +2202,7 @@ DECLCALLBACK(int) hmR0SvmCallRing3Callback(PVMCPU pVCpu, VMMCALLRING3 enmOperati
         /* Leave HM context. This takes care of local init (term). */
         HMR0LeaveCpu(pVCpu);
 
-        HM_RESTORE_PREEMPT_IF_NEEDED();
+        HM_RESTORE_PREEMPT();
         return VINF_SUCCESS;
     }
 
@@ -3578,6 +3590,9 @@ DECLINLINE(int) hmR0SvmHandleExit(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSv
                 case SVM_EXIT_WRITE_DR14:   case SVM_EXIT_WRITE_DR15:
                     return hmR0SvmExitWriteDRx(pVCpu, pCtx, pSvmTransient);
 
+                case SVM_EXIT_XSETBV:
+                    return hmR0SvmExitXsetbv(pVCpu, pCtx, pSvmTransient);
+
                 case SVM_EXIT_TASK_SWITCH:
                     return hmR0SvmExitTaskSwitch(pVCpu, pCtx, pSvmTransient);
 
@@ -4659,13 +4674,13 @@ HMSVM_EXIT_DECL hmR0SvmExitReadDRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
 
         /* We're playing with the host CPU state here, make sure we don't preempt or longjmp. */
         VMMRZCallRing3Disable(pVCpu);
-        HM_DISABLE_PREEMPT_IF_NEEDED();
+        HM_DISABLE_PREEMPT();
 
         /* Save the host & load the guest debug state, restart execution of the MOV DRx instruction. */
         CPUMR0LoadGuestDebugState(pVCpu, false /* include DR6 */);
         Assert(CPUMIsGuestDebugStateActive(pVCpu) || HC_ARCH_BITS == 32);
 
-        HM_RESTORE_PREEMPT_IF_NEEDED();
+        HM_RESTORE_PREEMPT();
         VMMRZCallRing3Enable(pVCpu);
 
         STAM_COUNTER_INC(&pVCpu->hm.s.StatDRxContextSwitch);
@@ -4702,6 +4717,25 @@ HMSVM_EXIT_DECL hmR0SvmExitWriteDRx(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT p
     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitDRxWrite);
     STAM_COUNTER_DEC(&pVCpu->hm.s.StatExitDRxRead);
     return rc;
+}
+
+
+/**
+ * #VMEXIT handler for XCRx write (SVM_EXIT_XSETBV). Conditional #VMEXIT.
+ */
+HMSVM_EXIT_DECL hmR0SvmExitXsetbv(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTransient)
+{
+    HMSVM_VALIDATE_EXIT_HANDLER_PARAMS();
+
+    /** @todo decode assists... */
+    VBOXSTRICTRC rcStrict = IEMExecOne(pVCpu);
+    if (rcStrict == VINF_IEM_RAISED_XCPT)
+        HMCPU_CF_SET(pVCpu, HM_CHANGED_ALL_GUEST);
+
+    pVCpu->hm.s.fLoadSaveGuestXcr0 = (pCtx->cr4 & X86_CR4_OSXSAVE) && pCtx->aXcr[0] != ASMGetXcr0();
+
+    HMSVM_CHECK_SINGLE_STEP(pVCpu, rcStrict);
+    return VBOXSTRICTRC_TODO(rcStrict);
 }
 
 
@@ -4812,7 +4846,7 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
         {
             /* We're playing with the host CPU state here, make sure we don't preempt or longjmp. */
             VMMRZCallRing3Disable(pVCpu);
-            HM_DISABLE_PREEMPT_IF_NEEDED();
+            HM_DISABLE_PREEMPT();
 
             STAM_COUNTER_INC(&pVCpu->hm.s.StatDRxIoCheck);
             CPUMR0DebugStateMaybeSaveGuest(pVCpu, false /*fDr6*/);
@@ -4831,7 +4865,7 @@ HMSVM_EXIT_DECL hmR0SvmExitIOInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
                      && (rcStrict == VINF_SUCCESS || rcStrict2 < rcStrict))
                 rcStrict = rcStrict2;
 
-            HM_RESTORE_PREEMPT_IF_NEEDED();
+            HM_RESTORE_PREEMPT();
             VMMRZCallRing3Enable(pVCpu);
         }
 
@@ -5203,7 +5237,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptNM(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSv
 
     /* We're playing with the host CPU state here, make sure we don't preempt or longjmp. */
     VMMRZCallRing3Disable(pVCpu);
-    HM_DISABLE_PREEMPT_IF_NEEDED();
+    HM_DISABLE_PREEMPT();
 
     int rc;
     /* If the guest FPU was active at the time of the #NM exit, then it's a guest fault. */
@@ -5221,7 +5255,7 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptNM(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSv
         Assert(rc == VINF_EM_RAW_GUEST_TRAP || (rc == VINF_SUCCESS && CPUMIsGuestFPUStateActive(pVCpu)));
     }
 
-    HM_RESTORE_PREEMPT_IF_NEEDED();
+    HM_RESTORE_PREEMPT();
     VMMRZCallRing3Enable(pVCpu);
 
     if (rc == VINF_SUCCESS)
