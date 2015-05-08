@@ -1,3 +1,4 @@
+/* $Id: VBoxDriversRegister.cpp $ */
 /** @file
  *
  * Main driver registration.

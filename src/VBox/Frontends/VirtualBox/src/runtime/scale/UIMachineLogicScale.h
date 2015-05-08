@@ -1,3 +1,4 @@
+/* $Id: UIMachineLogicScale.h $ */
 /** @file
  * VBox Qt GUI - UIMachineLogicScale class declaration.
  */

@@ -1,3 +1,4 @@
+/* $Id: UIGChooserModel.h $ */
 /** @file
  * VBox Qt GUI - UIGChooserModel class declaration.
  */

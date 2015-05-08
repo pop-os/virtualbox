@@ -1,3 +1,4 @@
+/* $Id: vboxmouse.c $ */
 /** @file
  * VirtualBox X11 Guest Additions, mouse driver for X.Org server 1.5
  */

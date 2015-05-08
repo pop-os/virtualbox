@@ -29,11 +29,12 @@
 
 /* GUI includes: */
 # include "UIProgressDialog.h"
+# include "UIMessageCenter.h"
+# include "UISpecialControls.h"
+# include "UIModalWindowManager.h"
 # include "QIDialogButtonBox.h"
 # include "QILabel.h"
-# include "UISpecialControls.h"
 # include "VBoxGlobal.h"
-# include "UIModalWindowManager.h"
 # ifdef Q_WS_MAC
 #  include "VBoxUtils-darwin.h"
 # endif /* Q_WS_MAC */
@@ -131,6 +132,14 @@ UIProgressDialog::UIProgressDialog(CProgress &progress,
     QTimer::singleShot(cMinDuration, this, SLOT(show()));
 }
 
+UIProgressDialog::~UIProgressDialog()
+{
+    /* Wait for CProgress to complete: */
+    m_progress.WaitForCompletion(-1);
+    /* Call the timer event handling delegate: */
+    handleTimerEvent();
+}
+
 void UIProgressDialog::retranslateUi()
 {
     m_strCancel = tr("Canceling...");
@@ -200,7 +209,27 @@ void UIProgressDialog::reject()
         sltCancelOperation();
 }
 
-void UIProgressDialog::timerEvent(QTimerEvent* /* pEvent */)
+void UIProgressDialog::timerEvent(QTimerEvent*)
+{
+    /* Call the timer event handling delegate: */
+    handleTimerEvent();
+}
+
+void UIProgressDialog::closeEvent(QCloseEvent *pEvent)
+{
+    if (m_fCancelEnabled)
+        sltCancelOperation();
+    else
+        pEvent->ignore();
+}
+
+void UIProgressDialog::sltCancelOperation()
+{
+    m_pCancelBtn->setEnabled(false);
+    m_progress.Cancel();
+}
+
+void UIProgressDialog::handleTimerEvent()
 {
     /* We should hide progress-dialog
      * if it was already finalized but not yet closed.
@@ -313,17 +342,77 @@ void UIProgressDialog::timerEvent(QTimerEvent* /* pEvent */)
         m_pEtaLbl->setText(m_strCancel);
 }
 
-void UIProgressDialog::closeEvent(QCloseEvent *pEvent)
+
+UIProgress::UIProgress(CProgress &progress, QObject *pParent /* = 0 */)
+    : QObject(pParent)
+    , m_progress(progress)
+    , m_cOperations(m_progress.GetOperationCount())
+    , m_fEnded(false)
 {
-    if (m_fCancelEnabled)
-        sltCancelOperation();
-    else
-        pEvent->ignore();
 }
 
-void UIProgressDialog::sltCancelOperation()
+void UIProgress::run(int iRefreshInterval)
 {
-    m_pCancelBtn->setEnabled(false);
-    m_progress.Cancel();
+    /* Make sure the CProgress still valid: */
+    if (!m_progress.isOk())
+        return;
+
+    /* Start the refresh timer: */
+    int id = startTimer(iRefreshInterval);
+
+    /* Create a local event-loop: */
+    {
+        QEventLoop eventLoop;
+        m_pEventLoop = &eventLoop;
+
+        /* Guard ourself for the case
+         * we destroyed ourself in our event-loop: */
+        QPointer<UIProgress> guard = this;
+
+        /* Start the blocking event-loop: */
+        eventLoop.exec();
+
+        /* Are we still valid? */
+        if (guard.isNull())
+            return;
+
+        m_pEventLoop = 0;
+    }
+
+    /* Kill the refresh timer: */
+    killTimer(id);
+}
+
+void UIProgress::timerEvent(QTimerEvent*)
+{
+    /* Make sure the UIProgress still 'running': */
+    if (m_fEnded)
+        return;
+
+    /* If progress had failed or finished: */
+    if (!m_progress.isOk() || m_progress.GetCompleted())
+    {
+        /* Notify listeners about the operation progress error: */
+        if (!m_progress.isOk() || m_progress.GetResultCode() != 0)
+            emit sigProgressError(UIMessageCenter::formatErrorInfo(m_progress));
+
+        /* Exit from the event-loop if there is any: */
+        if (m_pEventLoop)
+            m_pEventLoop->exit();
+
+        /* Mark UIProgress as 'ended': */
+        m_fEnded = true;
+
+        /* Return early: */
+        return;
+    }
+
+    /* If CProgress was not yet canceled: */
+    if (!m_progress.GetCanceled())
+    {
+        /* Notify listeners about the operation progress update: */
+        emit sigProgressChange(m_cOperations, m_progress.GetOperationDescription(),
+                               m_progress.GetOperation() + 1, m_progress.GetPercent());
+    }
 }
 

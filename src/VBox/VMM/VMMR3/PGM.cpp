@@ -1401,44 +1401,62 @@ VMMR3DECL(int) PGMR3Init(PVM pVM)
     {
         pVM->pgm.s.pTreesR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pTreesR3);
         pVM->pgm.s.pTreesRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pTreesR3);
+    }
 
-        /*
-         * Allocate the zero page.
-         */
+    /*
+     * Allocate the zero page.
+     */
+    if (RT_SUCCESS(rc))
+    {
         rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvZeroPgR3);
+        if (RT_SUCCESS(rc))
+        {
+            pVM->pgm.s.pvZeroPgRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pvZeroPgR3);
+            pVM->pgm.s.pvZeroPgR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pvZeroPgR3);
+            pVM->pgm.s.HCPhysZeroPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvZeroPgR3);
+            AssertRelease(pVM->pgm.s.HCPhysZeroPg != NIL_RTHCPHYS);
+        }
     }
+
+    /*
+     * Allocate the invalid MMIO page.
+     * (The invalid bits in HCPhysInvMmioPg are set later on init complete.)
+     */
     if (RT_SUCCESS(rc))
     {
-        pVM->pgm.s.pvZeroPgRC = MMHyperR3ToRC(pVM, pVM->pgm.s.pvZeroPgR3);
-        pVM->pgm.s.pvZeroPgR0 = MMHyperR3ToR0(pVM, pVM->pgm.s.pvZeroPgR3);
-        pVM->pgm.s.HCPhysZeroPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvZeroPgR3);
-        AssertRelease(pVM->pgm.s.HCPhysZeroPg != NIL_RTHCPHYS);
-
-        /*
-         * Allocate the invalid MMIO page.
-         * (The invalid bits in HCPhysInvMmioPg are set later on init complete.)
-         */
         rc = MMHyperAlloc(pVM, PAGE_SIZE, PAGE_SIZE, MM_TAG_PGM, &pVM->pgm.s.pvMmioPgR3);
+        if (RT_SUCCESS(rc))
+        {
+            ASMMemFill32(pVM->pgm.s.pvMmioPgR3, PAGE_SIZE, 0xfeedface);
+            pVM->pgm.s.HCPhysMmioPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvMmioPgR3);
+            AssertRelease(pVM->pgm.s.HCPhysMmioPg != NIL_RTHCPHYS);
+            pVM->pgm.s.HCPhysInvMmioPg = pVM->pgm.s.HCPhysMmioPg;
+        }
     }
-    if (RT_SUCCESS(rc))
-    {
-        ASMMemFill32(pVM->pgm.s.pvMmioPgR3, PAGE_SIZE, 0xfeedface);
-        pVM->pgm.s.HCPhysMmioPg = MMR3HyperHCVirt2HCPhys(pVM, pVM->pgm.s.pvMmioPgR3);
-        AssertRelease(pVM->pgm.s.HCPhysMmioPg != NIL_RTHCPHYS);
-        pVM->pgm.s.HCPhysInvMmioPg = pVM->pgm.s.HCPhysMmioPg;
 
-        /*
-         * Init the paging.
-         */
-        rc = pgmR3InitPaging(pVM);
-    }
+    /*
+     * Register the physical access handler protecting ROMs.
+     */
     if (RT_SUCCESS(rc))
-    {
-        /*
-         * Init the page pool.
-         */
+        rc = PGMR3HandlerPhysicalTypeRegister(pVM, PGMPHYSHANDLERKIND_WRITE,
+                                              pgmR3PhysRomWriteHandler,
+                                              NULL, "pgmPhysRomWriteHandler",
+                                              NULL, "pgmPhysRomWriteHandler",
+                                              "ROM write protection",
+                                              &pVM->pgm.s.hRomPhysHandlerType);
+
+    /*
+     * Init the paging.
+     */
+    if (RT_SUCCESS(rc))
+        rc = pgmR3InitPaging(pVM);
+
+    /*
+     * Init the page pool.
+     */
+    if (RT_SUCCESS(rc))
         rc = pgmR3PoolInit(pVM);
-    }
+
     if (RT_SUCCESS(rc))
     {
         for (VMCPUID i = 0; i < pVM->cCpus; i++)
@@ -2390,6 +2408,14 @@ VMMR3DECL(void) PGMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      */
     RTAvlroGCPhysDoWithAll(&pVM->pgm.s.pTreesR3->PhysHandlers,     true, pgmR3RelocatePhysHandler,      &offDelta);
     pVM->pgm.s.pLastPhysHandlerRC = NIL_RTRCPTR;
+
+    PPGMPHYSHANDLERTYPEINT pCurPhysType;
+    RTListOff32ForEach(&pVM->pgm.s.pTreesR3->HeadPhysHandlerTypes, pCurPhysType, PGMPHYSHANDLERTYPEINT, ListNode)
+    {
+        if (pCurPhysType->pfnHandlerRC)
+            pCurPhysType->pfnHandlerRC += offDelta;
+    }
+
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->VirtHandlers,      true, pgmR3RelocateVirtHandler,      &offDelta);
     RTAvlroGCPtrDoWithAll(&pVM->pgm.s.pTreesR3->HyperVirtHandlers, true, pgmR3RelocateHyperVirtHandler, &offDelta);
 
@@ -2421,8 +2447,6 @@ static DECLCALLBACK(int) pgmR3RelocatePhysHandler(PAVLROGCPHYSNODECORE pNode, vo
 {
     PPGMPHYSHANDLER pHandler = (PPGMPHYSHANDLER)pNode;
     RTGCINTPTR      offDelta = *(PRTGCINTPTR)pvUser;
-    if (pHandler->pfnHandlerRC)
-        pHandler->pfnHandlerRC += offDelta;
     if (pHandler->pvUserRC >= 0x10000)
         pHandler->pvUserRC += offDelta;
     return 0;
@@ -3868,10 +3892,10 @@ static DECLCALLBACK(int) pgmR3CmdPhysToFile(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp,
     DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
     PVM pVM = pUVM->pVM;
     DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs == 1 || cArgs == 2);
-    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[0].enmType != DBGCVAR_TYPE_STRING);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, paArgs[0].enmType == DBGCVAR_TYPE_STRING);
     if (cArgs == 2)
     {
-        DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, paArgs[2].enmType != DBGCVAR_TYPE_STRING);
+        DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 1, paArgs[1].enmType == DBGCVAR_TYPE_STRING);
         if (strcmp(paArgs[1].u.pszString, "nozero"))
             return DBGCCmdHlpFail(pCmdHlp, pCmd, "Invalid 2nd argument '%s', must be 'nozero'.\n", paArgs[1].u.pszString);
     }
@@ -4005,9 +4029,12 @@ static DECLCALLBACK(int) pgmR3CheckIntegrityPhysHandlerNode(PAVLROGCPHYSNODECORE
     PPGMCHECKINTARGS pArgs = (PPGMCHECKINTARGS)pvUser;
     PPGMPHYSHANDLER pCur = (PPGMPHYSHANDLER)pNode;
     AssertReleaseReturn(!((uintptr_t)pCur & 7), 1);
-    AssertReleaseMsg(pCur->Core.Key <= pCur->Core.KeyLast,("pCur=%p %RGp-%RGp %s\n", pCur, pCur->Core.Key, pCur->Core.KeyLast, pCur->pszDesc));
+    AssertReleaseMsg(pCur->Core.Key <= pCur->Core.KeyLast,
+                     ("pCur=%p %RGp-%RGp %s\n", pCur, pCur->Core.Key, pCur->Core.KeyLast, pCur->pszDesc));
     AssertReleaseMsg(   !pArgs->pPrevPhys
-                     || (pArgs->fLeftToRight ? pArgs->pPrevPhys->Core.KeyLast < pCur->Core.Key : pArgs->pPrevPhys->Core.KeyLast > pCur->Core.Key),
+                     || (  pArgs->fLeftToRight
+                         ? pArgs->pPrevPhys->Core.KeyLast < pCur->Core.Key
+                         : pArgs->pPrevPhys->Core.KeyLast > pCur->Core.Key),
                      ("pPrevPhys=%p %RGp-%RGp %s\n"
                       "     pCur=%p %RGp-%RGp %s\n",
                       pArgs->pPrevPhys, pArgs->pPrevPhys->Core.Key, pArgs->pPrevPhys->Core.KeyLast, pArgs->pPrevPhys->pszDesc,

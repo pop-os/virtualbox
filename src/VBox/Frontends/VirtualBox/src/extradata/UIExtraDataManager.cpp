@@ -549,7 +549,7 @@ private:
       * @{ */
         /** Data pane. */
         QWidget *m_pPaneOfData;
-        /** Dta filter. */
+        /** Data filter. */
         QLineEdit *m_pFilterOfData;
         /** Data pane: Table-view. */
         QTableView *m_pViewOfData;
@@ -777,7 +777,9 @@ void UIExtraDataManagerWindow::sltDataHandleCustomContextMenuRequested(const QPo
 {
     /* Prepare menu: */
     QMenu menu;
+    menu.addAction(m_pActionAdd);
     menu.addAction(m_pActionDel);
+    menu.addSeparator();
     menu.addAction(m_pActionSave);
     /* Execute menu: */
     m_pActionSave->setProperty("CalledFromContextMenu", true);
@@ -1201,7 +1203,7 @@ void UIExtraDataManagerWindow::prepareMenu()
             connect(m_pActionLoad, SIGNAL(triggered(bool)), this, SLOT(sltLoad()));
         }
         /* Create 'Save' action: */
-        m_pActionSave = pActionsMenu->addAction("Save");
+        m_pActionSave = pActionsMenu->addAction("Save As...");
         AssertReturnVoid(m_pActionSave);
         {
             /* Configure 'Save' action: */
@@ -1788,7 +1790,6 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 #endif /* !Q_WS_MAC */
            << GUI_StatusBar_Enabled << GUI_RestrictedStatusBarIndicators << GUI_StatusBar_IndicatorOrder
 #ifdef Q_WS_MAC
-           << GUI_PresentationModeEnabled
            << GUI_RealtimeDockIconUpdateEnabled << GUI_RealtimeDockIconUpdateMonitor
 #endif /* Q_WS_MAC */
            << GUI_PassCAD
@@ -3317,12 +3318,6 @@ void UIExtraDataManager::setStatusBarIndicatorOrder(const QList<IndicatorType> &
 }
 
 #ifdef Q_WS_MAC
-bool UIExtraDataManager::presentationModeEnabled(const QString &strID)
-{
-    /* 'False' unless feature allowed: */
-    return isFeatureAllowed(GUI_PresentationModeEnabled, strID);
-}
-
 bool UIExtraDataManager::realtimeDockIconUpdateEnabled(const QString &strID)
 {
     /* 'True' unless feature restricted: */
@@ -3644,11 +3639,6 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
             /* Runtime UI shortcut changed? */
             else if (strKey == GUI_Input_MachineShortcuts)
                 emit sigRuntimeUIShortcutChange();
-#ifdef Q_WS_MAC
-            /* 'Presentation mode' status changed (allowed if not restricted)? */
-            else if (strKey == GUI_PresentationModeEnabled)
-                emit sigPresentationModeChange(!isFeatureRestricted(strKey));
-#endif /* Q_WS_MAC */
         }
     }
     /* Machine extra-data 'change' event: */
@@ -3699,6 +3689,9 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
         /* Scaling optimization type change: */
         else if (strKey == GUI_Scaling_Optimization)
             emit sigScalingOptimizationTypeChange(strMachineID);
+        /* HiDPI optimization type change: */
+        else if (strKey == GUI_HiDPI_Optimization)
+            emit sigHiDPIOptimizationTypeChange(strMachineID);
         /* Unscaled HiDPI Output mode change: */
         else if (strKey == GUI_HiDPI_UnscaledOutput)
             emit sigUnscaledHiDPIOutputModeChange(strMachineID);

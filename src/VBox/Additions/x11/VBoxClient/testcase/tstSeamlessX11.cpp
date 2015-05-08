@@ -1,3 +1,4 @@
+/* $Id: tstSeamlessX11.cpp $ */
 /** @file
  * Linux seamless guest additions simulator in host.
  */

@@ -54,72 +54,55 @@
  *          Dave Airlie <airlied@redhat.com>
  */
 
+#include "vboxvideo.h"
+#include <VBox/VBoxGuest.h>
+#include <VBox/Hardware/VBoxVideoVBE.h>
+#include "version-generated.h"
+#include "product-generated.h"
+#include "revision-generated.h"
+
+/* Basic definitions and functions needed by all drivers. */
+#include "xf86.h"
+/* For video memory mapping. */
+#include "xf86_OSproc.h"
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
+/* PCI resources. */
+# include "xf86Resources.h"
+#endif
+/* Generic server linear frame-buffer APIs. */
+#include "fb.h"
+/* Colormap and visual handling. */
+#include "micmap.h"
+#include "xf86cmap.h"
+/* ShadowFB support */
+#include "shadowfb.h"
+/* VGA hardware functions for setting and restoring text mode */
+#include "vgaHW.h"
+#ifdef VBOX_DRI
+# include "xf86drm.h"
+# include "xf86drmMode.h"
+#endif
+#ifdef VBOXVIDEO_13
+/* X.org 1.3+ mode setting */
+# define _HAVE_STRING_ARCH_strsep /* bits/string2.h, __strsep_1c. */
+# include "xf86Crtc.h"
+# include "xf86Modes.h"
+/* For xf86RandR12GetOriginalVirtualSize(). */
+# include "xf86RandR12.h"
+#endif
+/* For setting the root window property. */
+#include "property.h"
+#include "X11/Xatom.h"
+
 #ifdef XORG_7X
 # include <stdlib.h>
 # include <string.h>
-#endif
-
-#include "xf86.h"
-#include "xf86_OSproc.h"
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 6
-# include "xf86Resources.h"
 #endif
 
 /* This was accepted upstream in X.Org Server 1.16 which bumped the video
  * driver ABI to 17. */
 #if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 17
 # define SET_HAVE_VT_PROPERTY
-#endif
-
-#ifndef PCIACCESS
-/* Drivers for PCI hardware need this */
-# include "xf86PciInfo.h"
-/* Drivers that need to access the PCI config space directly need this */
-# include "xf86Pci.h"
-#endif
-
-#include "fb.h"
-#include "os.h"
-
-#include "vboxvideo.h"
-#include <VBox/VBoxGuest.h>
-#include <VBox/Hardware/VBoxVideoVBE.h>
-#include "version-generated.h"
-#include "product-generated.h"
-#include <xf86.h>
-#include <misc.h>
-
-/* All drivers initialising the SW cursor need this */
-#include "mipointer.h"
-
-/* Colormap handling */
-#include "micmap.h"
-#include "xf86cmap.h"
-
-/* DPMS */
-/* #define DPMS_SERVER
-#include "extensions/dpms.h" */
-
-/* ShadowFB support */
-#include "shadowfb.h"
-
-/* VGA hardware functions for setting and restoring text mode */
-#include "vgaHW.h"
-
-#ifdef VBOXVIDEO_13
-/* X.org 1.3+ mode setting */
-# define _HAVE_STRING_ARCH_strsep /* bits/string2.h, __strsep_1c. */
-# include "xf86Crtc.h"
-# include "xf86Modes.h"
-#endif
-
-/* For setting the root window property. */
-#include <X11/Xatom.h>
-#include "property.h"
-
-#ifdef VBOX_DRI
-# include "xf86drm.h"
-# include "xf86drmMode.h"
 #endif
 
 /* Mandatory functions */
@@ -302,8 +285,8 @@ static Bool adjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
                        adjustedWidth, height, (unsigned) pVBox->cbFBMax / 1024);
             return FALSE;
         }
-        vbvxClearVRAM(pScrn, pScrn->virtualX * pScrn->virtualY * pScrn->bitsPerPixel / 8,
-                      adjustedWidth * height * pScrn->bitsPerPixel / 8);
+        vbvxClearVRAM(pScrn, ((size_t)pScrn->virtualX) * pScrn->virtualY * (pScrn->bitsPerPixel / 8),
+                      ((size_t)adjustedWidth) * height * (pScrn->bitsPerPixel / 8));
         pScreen->ModifyPixmapHeader(pPixmap, adjustedWidth, height, pScrn->depth, pScrn->bitsPerPixel, cbLine, pVBox->base);
     }
     pScrn->displayWidth = pScrn->virtualX = adjustedWidth;
@@ -352,7 +335,13 @@ static void setModeRandR12(ScrnInfoPtr pScrn, unsigned cScreen)
                                            pScrn->virtualY, pScrn->bitsPerPixel };
     unsigned cFirst = cScreen;
     unsigned cLast = cScreen != 0 ? cScreen + 1 : pVBox->cScreens;
+    int originalX, originalY;
 
+    /* Check that this code cannot trigger the resizing bug in X.Org Server 1.3.
+     * See the work-around in PreInit. */
+    xf86RandR12GetOriginalVirtualSize(pScrn, &originalX, &originalY);
+    VBVXASSERT(originalX == VBOX_VIDEO_MAX_VIRTUAL && originalY == VBOX_VIDEO_MAX_VIRTUAL, ("OriginalSize=%dx%d",
+               originalX, originalY));
     for (i = cFirst; i < cLast; ++i)
         if (pVBox->pScreens[i].paCrtcs->mode.HDisplay != 0 && pVBox->pScreens[i].paCrtcs->mode.VDisplay != 0)
             vbvxSetMode(pScrn, i, pVBox->pScreens[i].paCrtcs->mode.HDisplay, pVBox->pScreens[i].paCrtcs->mode.VDisplay,
@@ -576,7 +565,6 @@ vbox_output_get_modes (xf86OutputPtr output)
                                  RT_CLAMP(pVBox->pScreens[iScreen].aPreferredSize.cx, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL),
                                  RT_CLAMP(pVBox->pScreens[iScreen].aPreferredSize.cy, VBOX_VIDEO_MIN_SIZE, VBOX_VIDEO_MAX_VIRTUAL),
                                  TRUE, FALSE);
-    // VBOXEDIDSet(output, pMode);
     TRACE_EXIT();
     return pModes;
 }
@@ -837,9 +825,8 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     if (flags & PROBE_DETECT)
         return (FALSE);
 
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
-               "VirtualBox guest additions video driver version "
-               VBOX_VERSION_STRING "\n");
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VirtualBox guest additions video driver version " VBOX_VERSION_STRING "r%d\n",
+               VBOX_SVN_REV);
 
     /* Get our private data from the ScrnInfoRec structure. */
     VBOXSetRec(pScrn);
@@ -934,9 +921,10 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     vboxAddModes(pScrn);
 
 #ifdef VBOXVIDEO_13
-    /* Work around a bug in the original X server modesetting code, which
-     * took the first valid values set to these two as maxima over the
-     * server lifetime. */
+    /* Work around a bug in the original X server modesetting code, which took
+     * the first valid values set to these two as maxima over the server
+     * lifetime.  This bug was introduced on Feb 15 2007 and was fixed in commit
+     * fa877d7f three months later, so it was present in X.Org Server 1.3. */
     pScrn->virtualX = VBOX_VIDEO_MAX_VIRTUAL;
     pScrn->virtualY = VBOX_VIDEO_MAX_VIRTUAL;
 #else
@@ -1074,23 +1062,16 @@ static void setVirtualSizeRandR12(ScrnInfoPtr pScrn, bool fLimitedContext)
     }
     if (cx != 0 && cy != 0)
     {
-        if (fLimitedContext)
-        {
-            pScrn->virtualX = cx;
-            pScrn->virtualY = cy;
-        }
-        else
+        /* Do not set the virtual resolution in limited context as that can
+         * cause problems setting up RandR 1.2 which needs it set to the
+         * maximum size at this point. */
+        if (!fLimitedContext)
         {
             TRACE_LOG("cx=%u, cy=%u\n", cx, cy);
             xf86ScrnToScreen(pScrn)->width = cx;
             xf86ScrnToScreen(pScrn)->height = cy;
-#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 14
-            xf86UpdateDesktopDimensions();
-#elif GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 12
-            screenInfo.width = cx;
-            screenInfo.height = cy;
-#endif
             adjustScreenPixmap(pScrn, cx, cy);
+            vbvxSetSolarisMouseRange(cx, cy);
         }
     }
 }
@@ -1124,16 +1105,25 @@ static void setSizesRandR12(ScrnInfoPtr pScrn, bool fLimitedContext)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
+    if (!fLimitedContext)
+    {
 # if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 5
-    RRGetInfo(xf86ScrnToScreen(pScrn), TRUE);
+        RRGetInfo(xf86ScrnToScreen(pScrn), TRUE);
 # else
-    RRGetInfo(xf86ScrnToScreen(pScrn));
+        RRGetInfo(xf86ScrnToScreen(pScrn));
 # endif
+    }
     setVirtualSizeRandR12(pScrn, fLimitedContext);
     setScreenSizesRandR12(pScrn, fLimitedContext);
     if (!fLimitedContext)
     {
-        RRScreenSizeNotify(xf86ScrnToScreen(pScrn));
+        /* We use RRScreenSizeSet() here and not RRScreenSizeNotify() because
+         * the first also pushes the virtual screen size to the input driver.
+         * We were doing this manually by setting screenInfo.width and height
+         * and calling xf86UpdateDesktopDimensions() where appropriate, but this
+         * failed on Ubuntu 12.04.0 due to a problematic X server back-port. */
+        RRScreenSizeSet(xf86ScrnToScreen(pScrn), xf86ScrnToScreen(pScrn)->width, xf86ScrnToScreen(pScrn)->height,
+                        xf86ScrnToScreen(pScrn)->mmWidth, xf86ScrnToScreen(pScrn)->mmHeight);
         RRTellChanged(xf86ScrnToScreen(pScrn));
     }
 }
@@ -1156,7 +1146,7 @@ static void setSizesRandR11(ScrnInfoPtr pScrn, bool fLimitedContext)
 static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
-    
+
     TRACE_LOG("fScreenInitTime=%d\n", (int)fScreenInitTime);
 #ifdef VBOXVIDEO_13
     setSizesRandR12(pScrn, fScreenInitTime);
@@ -1369,7 +1359,7 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
     if (serverGeneration == 1)
         xf86ShowUnusedOptions(pScrn->scrnIndex, pScrn->options);
 
-    if (vbox_cursor_init(pScreen) != TRUE)
+    if (vbvxCursorInit(pScreen) != TRUE)
         xf86DrvMsg(pScrn->scrnIndex, X_ERROR,
                    "Unable to start the VirtualBox mouse pointer integration with the host system.\n");
 
@@ -1430,7 +1420,7 @@ static void VBOXLeaveVT(ScrnInfoPtr pScrn)
         vbox_crtc_dpms(pVBox->pScreens[i].paCrtcs, DPMSModeOff);
 #endif
     vboxDisableVbva(pScrn);
-    vbvxClearVRAM(pScrn, pScrn->virtualX * pScrn->virtualY * pScrn->bitsPerPixel / 8, 0);
+    vbvxClearVRAM(pScrn, ((size_t)pScrn->virtualX) * pScrn->virtualY * (pScrn->bitsPerPixel / 8), 0);
 #ifdef VBOX_DRI_OLD
     if (pVBox->useDRI)
         DRILock(xf86ScrnToScreen(pScrn), 0);
@@ -1461,7 +1451,7 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
             vbox_crtc_dpms(pVBox->pScreens[i].paCrtcs, DPMSModeOff);
 #endif
         vboxDisableVbva(pScrn);
-        vbvxClearVRAM(pScrn, pScrn->virtualX * pScrn->virtualY * pScrn->bitsPerPixel / 8, 0);
+        vbvxClearVRAM(pScrn, ((size_t)pScrn->virtualX) * pScrn->virtualY * (pScrn->bitsPerPixel / 8), 0);
     }
 #ifdef VBOX_DRI
 # ifndef VBOX_DRI_OLD  /* DRI2 */
@@ -1483,8 +1473,7 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
         VBOXUnmapVidMem(pScrn);
     pScrn->vtSema = FALSE;
 
-    /* Do additional bits which are separate for historical reasons */
-    vbox_close(pScrn, pVBox);
+    vbvxCursorTerm(pVBox);
 
     pScreen->CloseScreen = pVBox->CloseScreen;
 #if defined(VBOXVIDEO_13) && defined(RT_OS_LINUX)

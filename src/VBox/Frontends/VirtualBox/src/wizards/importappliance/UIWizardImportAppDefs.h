@@ -1,3 +1,4 @@
+/* $Id: UIWizardImportAppDefs.h $ */
 /** @file
  * VBox Qt GUI - UIWizardImportAppDefs class declaration.
  */

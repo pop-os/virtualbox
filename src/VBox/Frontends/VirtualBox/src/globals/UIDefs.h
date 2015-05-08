@@ -1,3 +1,4 @@
+/* $Id: UIDefs.h $ */
 /** @file
  * VBox Qt GUI - Global definitions.
  */

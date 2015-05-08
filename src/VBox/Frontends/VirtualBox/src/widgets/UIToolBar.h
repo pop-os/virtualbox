@@ -1,3 +1,4 @@
+/* $Id: UIToolBar.h $ */
 /** @file
  * VBox Qt GUI - UIToolBar class declaration.
  */

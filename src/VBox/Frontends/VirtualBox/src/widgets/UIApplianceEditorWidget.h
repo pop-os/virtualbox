@@ -1,3 +1,4 @@
+/* $Id: UIApplianceEditorWidget.h $ */
 /** @file
  * VBox Qt GUI - UIApplianceEditorWidget class declaration.
  */

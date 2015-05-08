@@ -1,3 +1,4 @@
+/* $Id: AudioAdapterImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation
@@ -231,6 +232,30 @@ HRESULT AudioAdapter::setEnabled(BOOL aEnabled)
     }
 
     return S_OK;
+}
+
+HRESULT AudioAdapter::getEnabledIn(BOOL *aEnabled)
+{
+    NOREF(aEnabled);
+    return E_NOTIMPL;
+}
+
+HRESULT AudioAdapter::setEnabledIn(BOOL aEnabled)
+{
+    NOREF(aEnabled);
+    return E_NOTIMPL;
+}
+
+HRESULT AudioAdapter::getEnabledOut(BOOL *aEnabled)
+{
+    NOREF(aEnabled);
+    return E_NOTIMPL;
+}
+
+HRESULT AudioAdapter::setEnabledOut(BOOL aEnabled)
+{
+    NOREF(aEnabled);
+    return E_NOTIMPL;
 }
 
 HRESULT AudioAdapter::getAudioDriver(AudioDriverType_T *aAudioDriver)

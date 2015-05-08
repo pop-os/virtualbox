@@ -233,7 +233,7 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
 
 void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
 {
-    LogRel(("GUI: UIMachineView::sltHandleNotifyChange: Screen=%d, Size=%dx%d.\n",
+    LogRel(("GUI: UIMachineView::sltHandleNotifyChange: Screen=%d, Size=%dx%d\n",
             (unsigned long)m_uScreenId, iWidth, iHeight));
 
     // TODO: Move to appropriate place!
@@ -303,7 +303,7 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
      * the viewport through IFramebuffer::NotifyUpdate): */
     display().InvalidateAndUpdateScreen(m_uScreenId);
 
-    LogRelFlow(("GUI: UIMachineView::sltHandleNotifyChange: Complete for Screen=%d, Size=%dx%d.\n",
+    LogRelFlow(("GUI: UIMachineView::sltHandleNotifyChange: Complete for Screen=%d, Size=%dx%d\n",
                 (unsigned long)m_uScreenId, iWidth, iHeight));
 }
 
@@ -407,8 +407,21 @@ void UIMachineView::sltHandleScalingOptimizationChange(const QString &strMachine
     if (strMachineID != vboxGlobal().managedVMUuid())
         return;
 
-    /* Take the scale-factor into account: */
+    /* Take the scaling-optimization type into account: */
     frameBuffer()->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
+
+    /* Update viewport: */
+    viewport()->update();
+}
+
+void UIMachineView::sltHandleHiDPIOptimizationChange(const QString &strMachineID)
+{
+    /* Skip unrelated machine IDs: */
+    if (strMachineID != vboxGlobal().managedVMUuid())
+        return;
+
+    /* Take the HiDPI-optimization type into account: */
+    frameBuffer()->setHiDPIOptimizationType(gEDataManager->hiDPIOptimizationType(vboxGlobal().managedVMUuid()));
 
     /* Update viewport: */
     viewport()->update();
@@ -555,7 +568,7 @@ void UIMachineView::prepareFrameBuffer()
         /* Assign it's view: */
         pFrameBuffer->setView(this);
         /* Mark frame-buffer as used again: */
-        LogRelFlow(("GUI: UIMachineView::prepareFrameBuffer: Start EMT callbacks accepting for screen: %d.\n", screenId()));
+        LogRelFlow(("GUI: UIMachineView::prepareFrameBuffer: Start EMT callbacks accepting for screen: %d\n", screenId()));
         pFrameBuffer->setMarkAsUnused(false);
         /* And remember our choice: */
         m_pFrameBuffer = pFrameBuffer;
@@ -574,7 +587,10 @@ void UIMachineView::prepareFrameBuffer()
 #endif /* !VBOX_WITH_VIDEOHWACCEL */
 
         /* Take HiDPI optimization type into account: */
-        m_pFrameBuffer->setHiDPIOptimizationType(uisession()->hiDPIOptimizationType());
+        m_pFrameBuffer->setHiDPIOptimizationType(gEDataManager->hiDPIOptimizationType(vboxGlobal().managedVMUuid()));
+
+        /* Take scaling optimization type into account: */
+        m_pFrameBuffer->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
 
 #ifdef Q_WS_MAC
         /* Take backing scale-factor into account: */
@@ -690,6 +706,9 @@ void UIMachineView::prepareConnections()
     /* Scaling-optimization change: */
     connect(gEDataManager, SIGNAL(sigScalingOptimizationTypeChange(const QString&)),
             this, SLOT(sltHandleScalingOptimizationChange(const QString&)));
+    /* HiDPI-optimization change: */
+    connect(gEDataManager, SIGNAL(sigHiDPIOptimizationTypeChange(const QString&)),
+            this, SLOT(sltHandleHiDPIOptimizationChange(const QString&)));
     /* Unscaled HiDPI output mode change: */
     connect(gEDataManager, SIGNAL(sigUnscaledHiDPIOutputModeChange(const QString&)),
             this, SLOT(sltHandleUnscaledHiDPIOutputModeChange(const QString&)));
@@ -729,7 +748,7 @@ void UIMachineView::cleanupFrameBuffer()
     AssertReturnVoid(m_pFrameBuffer == uisession()->frameBuffer(screenId()));
 
     /* Mark framebuffer as unused: */
-    LogRelFlow(("GUI: UIMachineView::cleanupFrameBuffer: Stop EMT callbacks accepting for screen: %d.\n", screenId()));
+    LogRelFlow(("GUI: UIMachineView::cleanupFrameBuffer: Stop EMT callbacks accepting for screen: %d\n", screenId()));
     m_pFrameBuffer->setMarkAsUnused(true);
 
     /* Process pending framebuffer events: */
@@ -891,7 +910,7 @@ QSize UIMachineView::guestSizeHint()
 
 void UIMachineView::handleScaleChange()
 {
-    LogRel(("GUI: UIMachineView::handleScaleChange: Screen=%d.\n",
+    LogRel(("GUI: UIMachineView::handleScaleChange: Screen=%d\n",
             (unsigned long)m_uScreenId));
 
     /* If machine-window is visible: */
@@ -931,7 +950,7 @@ void UIMachineView::handleScaleChange()
         frameBuffer()->performRescale();
     }
 
-    LogRelFlow(("GUI: UIMachineView::handleScaleChange: Complete for Screen=%d.\n",
+    LogRelFlow(("GUI: UIMachineView::handleScaleChange: Complete for Screen=%d\n",
                 (unsigned long)m_uScreenId));
 }
 
@@ -1442,7 +1461,6 @@ void UIMachineView::dragLeaveEvent(QDragLeaveEvent *pEvent)
 
 void UIMachineView::dragIsPending(void)
 {
-    /* At the moment we only support guest->host DnD. */
     /** @todo Add guest->guest DnD functionality here by getting
      *        the source of guest B (when copying from B to A). */
     CDnDSource dndSource = static_cast<CDnDSource>(guest().GetDnDSource());

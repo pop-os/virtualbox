@@ -1,3 +1,4 @@
+/* $Id: VBoxVersion.h $ */
 /** @file
  * VBox Qt GUI - VBoxVersion class declaration.
  */

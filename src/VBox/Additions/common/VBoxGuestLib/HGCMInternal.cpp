@@ -1,4 +1,4 @@
-/* $Revision: 94149 $ */
+/* $Id: HGCMInternal.cpp $ */
 /** @file
  * VBoxGuestLib - Host-Guest Communication Manager internal functions, implemented by VBoxGuest
  */

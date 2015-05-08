@@ -1,3 +1,4 @@
+/* $Id: UIWizardNewVDPageBasic3.h $ */
 /** @file
  * VBox Qt GUI - UIWizardNewVDPageBasic3 class declaration.
  */

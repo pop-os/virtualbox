@@ -1,3 +1,4 @@
+/* $Id: UIKeyboardHandlerScale.h $ */
 /** @file
  * VBox Qt GUI - UIKeyboardHandlerScale class declaration.
  */

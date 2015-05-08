@@ -120,9 +120,6 @@
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
-#if defined(RT_OS_DARWIN)
-# include "IOKit/IOKitLib.h"
-#endif
 
 
 /*******************************************************************************
@@ -130,72 +127,6 @@
 *******************************************************************************/
 static Utf8Str *GetExtraDataBoth(IVirtualBox *pVirtualBox, IMachine *pMachine, const char *pszName, Utf8Str *pStrValue);
 
-
-
-#if defined(RT_OS_DARWIN)
-
-static int DarwinSmcKey(char *pabKey, uint32_t cbKey)
-{
-    /*
-     * Method as described in Amit Singh's article:
-     *   http://osxbook.com/book/bonus/chapter7/tpmdrmmyth/
-     */
-    typedef struct
-    {
-        uint32_t   key;
-        uint8_t    pad0[22];
-        uint32_t   datasize;
-        uint8_t    pad1[10];
-        uint8_t    cmd;
-        uint32_t   pad2;
-        uint8_t    data[32];
-    } AppleSMCBuffer;
-
-    AssertReturn(cbKey >= 65, VERR_INTERNAL_ERROR);
-
-    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault,
-                                                       IOServiceMatching("AppleSMC"));
-    if (!service)
-        return VERR_NOT_FOUND;
-
-    io_connect_t    port = (io_connect_t)0;
-    kern_return_t   kr   = IOServiceOpen(service, mach_task_self(), 0, &port);
-    IOObjectRelease(service);
-
-    if (kr != kIOReturnSuccess)
-        return RTErrConvertFromDarwin(kr);
-
-    AppleSMCBuffer  inputStruct    = { 0, {0}, 32, {0}, 5, };
-    AppleSMCBuffer  outputStruct;
-    size_t          cbOutputStruct = sizeof(outputStruct);
-
-    for (int i = 0; i < 2; i++)
-    {
-        inputStruct.key = (uint32_t)(i == 0 ? 'OSK0' : 'OSK1');
-        kr = IOConnectCallStructMethod((mach_port_t)port,
-                                       (uint32_t)2,
-                                       (const void *)&inputStruct,
-                                       sizeof(inputStruct),
-                                       (void *)&outputStruct,
-                                       &cbOutputStruct);
-        if (kr != kIOReturnSuccess)
-        {
-            IOServiceClose(port);
-            return RTErrConvertFromDarwin(kr);
-        }
-
-        for (int j = 0; j < 32; j++)
-            pabKey[j + i*32] = outputStruct.data[j];
-    }
-
-    IOServiceClose(port);
-
-    pabKey[64] = 0;
-
-    return VINF_SUCCESS;
-}
-
-#endif /* RT_OS_DARWIN */
 
 /* Darwin compile kludge */
 #undef PVM
@@ -272,18 +203,12 @@ static int getSmcDeviceKey(IVirtualBox *pVirtualBox, IMachine *pMachine, Utf8Str
         return VINF_SUCCESS;
 
 #ifdef RT_OS_DARWIN
+
     /*
-     * Query it here and now.
+     * Work done in EFI/DevSmc
      */
-    char abKeyBuf[65];
-    int rc = DarwinSmcKey(abKeyBuf, sizeof(abKeyBuf));
-    if (SUCCEEDED(rc))
-    {
-        *pStrKey = abKeyBuf;
-        *pfGetKeyFromRealSMC = true;
-        return rc;
-    }
-    LogRel(("Warning: DarwinSmcKey failed with rc=%Rrc!\n", rc));
+    *pfGetKeyFromRealSMC = true;
+    int rc = VINF_SUCCESS;
 
 #else
     /*
@@ -818,6 +743,151 @@ DECLCALLBACK(int) Console::i_configConstructor(PUVM pUVM, PVM pVM, void *pvConso
 }
 
 
+#ifdef RT_OS_WINDOWS
+#include <psapi.h>
+
+/**
+ * Report versions of installed drivers to release log.
+ */
+static void reportDriverVersions(void)
+{
+    DWORD   err;
+    HRESULT hrc;
+    LPVOID  aDrivers[1024];
+    LPVOID *pDrivers      = aDrivers;
+    UINT    cNeeded       = 0;
+    TCHAR   szSystemRoot[MAX_PATH];
+    TCHAR  *pszSystemRoot = szSystemRoot;
+    LPVOID  pVerInfo      = NULL;
+    DWORD   cbVerInfo     = 0;
+
+    do
+    {
+        cNeeded = GetWindowsDirectory(szSystemRoot, RT_ELEMENTS(szSystemRoot));
+        if (cNeeded == 0)
+        {
+            err = GetLastError();
+            hrc = HRESULT_FROM_WIN32(err);
+            AssertLogRelMsgFailed(("GetWindowsDirectory failed, hr=%Rhrc (0x%x) err=%u\n",
+                                                   hrc, hrc, err));
+            break;
+        }
+        else if (cNeeded > RT_ELEMENTS(szSystemRoot))
+        {
+            /* The buffer is too small, allocate big one. */
+            pszSystemRoot = (TCHAR *)RTMemTmpAlloc(cNeeded * sizeof(_TCHAR));
+            if (!pszSystemRoot)
+            {
+                AssertLogRelMsgFailed(("RTMemTmpAlloc failed to allocate %d bytes\n", cNeeded));
+                break;
+            }
+            if (GetWindowsDirectory(pszSystemRoot, cNeeded) == 0)
+            {
+                err = GetLastError();
+                hrc = HRESULT_FROM_WIN32(err);
+                AssertLogRelMsgFailed(("GetWindowsDirectory failed, hr=%Rhrc (0x%x) err=%u\n",
+                                                   hrc, hrc, err));
+                break;
+            }
+        }
+
+        DWORD  cbNeeded = 0;
+        if (!EnumDeviceDrivers(aDrivers, sizeof(aDrivers), &cbNeeded) || cbNeeded > sizeof(aDrivers))
+        {
+            pDrivers = (LPVOID *)RTMemTmpAlloc(cbNeeded);
+            if (!EnumDeviceDrivers(pDrivers, cbNeeded, &cbNeeded))
+            {
+                err = GetLastError();
+                hrc = HRESULT_FROM_WIN32(err);
+                AssertLogRelMsgFailed(("EnumDeviceDrivers failed, hr=%Rhrc (0x%x) err=%u\n",
+                                                   hrc, hrc, err));
+                break;
+            }
+        }
+
+        LogRel(("Installed Drivers:\n"));
+
+        TCHAR szDriver[1024];
+        int cDrivers = cbNeeded / sizeof(pDrivers[0]);
+        for (int i = 0; i < cDrivers; i++)
+        {
+            if (GetDeviceDriverBaseName(pDrivers[i], szDriver, sizeof(szDriver) / sizeof(szDriver[0])))
+            {
+                if (_tcsnicmp(TEXT("vbox"), szDriver, 4))
+                    continue;
+            }
+            else
+                continue;
+            if (GetDeviceDriverFileName(pDrivers[i], szDriver, sizeof(szDriver) / sizeof(szDriver[0])))
+            {
+                _TCHAR szTmpDrv[1024];
+                _TCHAR *pszDrv = szDriver;
+                if (!_tcsncmp(TEXT("\\SystemRoot"), szDriver, 11))
+                {
+                    _tcscpy_s(szTmpDrv, pszSystemRoot);
+                    _tcsncat_s(szTmpDrv, szDriver + 11, sizeof(szTmpDrv) / sizeof(szTmpDrv[0]) - _tclen(pszSystemRoot));
+                    pszDrv = szTmpDrv;
+                }
+                else if (!_tcsncmp(TEXT("\\??\\"), szDriver, 4))
+                    pszDrv = szDriver + 4;
+
+                /* Allocate a buffer for version info. Reuse if large enough. */
+                DWORD cbNewVerInfo = GetFileVersionInfoSize(pszDrv, NULL);
+                if (cbNewVerInfo > cbVerInfo)
+                {
+                    if (pVerInfo)
+                        RTMemTmpFree(pVerInfo);
+                    cbVerInfo = cbNewVerInfo;
+                    pVerInfo = RTMemTmpAlloc(cbVerInfo);
+                    if (!pVerInfo)
+                    {
+                        AssertLogRelMsgFailed(("RTMemTmpAlloc failed to allocate %d bytes\n", cbVerInfo));
+                        break;
+                    }
+                }
+                        
+                if (GetFileVersionInfo(pszDrv, NULL, cbVerInfo, pVerInfo))
+                {
+                    UINT   cbSize = 0;
+                    LPBYTE lpBuffer = NULL;
+                    if (VerQueryValue(pVerInfo, TEXT("\\"), (VOID FAR* FAR*)&lpBuffer, &cbSize))
+                    {
+                        if (cbSize)
+                        {
+                            VS_FIXEDFILEINFO *pFileInfo = (VS_FIXEDFILEINFO *)lpBuffer;
+                            if (pFileInfo->dwSignature == 0xfeef04bd)
+                            {
+                                LogRel(("  %ls (Version: %d.%d.%d.%d)\n", pszDrv,
+                                        (pFileInfo->dwFileVersionMS >> 16) & 0xffff,
+                                        (pFileInfo->dwFileVersionMS >> 0) & 0xffff,
+                                        (pFileInfo->dwFileVersionLS >> 16) & 0xffff,
+                                        (pFileInfo->dwFileVersionLS >> 0) & 0xffff));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+    }
+    while (0);
+
+    if (pVerInfo)
+        RTMemTmpFree(pVerInfo);
+
+    if (pDrivers != aDrivers)
+        RTMemTmpFree(pDrivers);
+
+    if (pszSystemRoot != szSystemRoot)
+        RTMemTmpFree(pszSystemRoot);
+}
+#else /* !RT_OS_WINDOWS */
+static void reportDriverVersions(void)
+{
+}
+#endif /* !RT_OS_WINDOWS */
+
+
 /**
  * Worker for configConstructor.
  *
@@ -909,6 +979,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
     ULONG maxNetworkAdapters;
     hrc = systemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);        H();
+
+    reportDriverVersions();
     /*
      * Get root node first.
      * This is the only node in the tree.
@@ -1035,16 +1107,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 InsertConfigInteger(pCPUM, "MaxIntelFamilyModelStep", uMaxIntelFamilyModelStep);
         }
 
-        /* Synthetic CPU */
-        BOOL fSyntheticCpu = false;
-        hrc = pMachine->GetCPUProperty(CPUPropertyType_Synthetic, &fSyntheticCpu);          H();
-        InsertConfigInteger(pCPUM, "SyntheticCpu", fSyntheticCpu);
+        /* CPU Portability level, */
+        ULONG uCpuIdPortabilityLevel = 0;
+        hrc = pMachine->COMGETTER(CPUIDPortabilityLevel)(&uCpuIdPortabilityLevel);            H();
+        InsertConfigInteger(pCPUM, "PortableCpuIdLevel", uCpuIdPortabilityLevel);
 
         /* Physical Address Extension (PAE) */
         BOOL fEnablePAE = false;
         hrc = pMachine->GetCPUProperty(CPUPropertyType_PAE, &fEnablePAE);                   H();
         InsertConfigInteger(pRoot, "EnablePAE", fEnablePAE);
-
 
         /*
          * Hardware virtualization extensions.
@@ -1448,7 +1519,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             rc = getSmcDeviceKey(virtualBox, pMachine, &strKey, &fGetKeyFromRealSMC);
             AssertRCReturn(rc, rc);
 
-            InsertConfigString(pCfg,   "DeviceKey", strKey);
+            if (!fGetKeyFromRealSMC)
+                InsertConfigString(pCfg,   "DeviceKey", strKey);
             InsertConfigInteger(pCfg,  "GetKeyFromRealSMC", fGetKeyFromRealSMC);
         }
 
@@ -3619,10 +3691,13 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
             PCFGMNODE pCfg = NULL;
 
             /* Create correct instance. */
-            if (!fHotplug && !fAttachDetach)
-                InsertConfigNode(pCtlInst, Utf8StrFmt("%d", lPort).c_str(), &pCtlInst);
-            else if (fAttachDetach)
-                pCtlInst = CFGMR3GetChildF(pCtlInst, "%d/", lPort);
+            if (!fHotplug)
+            {
+                if (!fAttachDetach)
+                    InsertConfigNode(pCtlInst, Utf8StrFmt("%d", lPort).c_str(), &pCtlInst);
+                else
+                    pCtlInst = CFGMR3GetChildF(pCtlInst, "%d/", lPort);
+            }
 
             if (!fAttachDetach)
                 InsertConfigNode(pCtlInst, "Config", &pCfg);

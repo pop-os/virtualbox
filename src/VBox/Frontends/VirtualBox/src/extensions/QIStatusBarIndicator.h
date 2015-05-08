@@ -1,3 +1,4 @@
+/* $Id: QIStatusBarIndicator.h $ */
 /** @file
  * VBox Qt GUI - QIStatusBarIndicator interface declaration.
  */

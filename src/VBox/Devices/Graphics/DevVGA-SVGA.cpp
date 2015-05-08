@@ -1239,7 +1239,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         pThis->svga.u32IrqMask = u32;
 
         /* Irq pending after the above change? */
-        if (pThis->svga.u32IrqMask & pThis->svga.u32IrqStatus)
+        if (pThis->svga.u32IrqStatus & u32)
         {
             Log(("SVGA_REG_IRQMASK: Trigger interrupt with status %x\n", pThis->svga.u32IrqStatus));
             PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 1);
@@ -1497,7 +1497,10 @@ PDMBOTHCBDECL(int) vmsvgaIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
         ASMAtomicAndU32(&pThis->svga.u32IrqStatus, ~u32);
         /* Clear the irq in case all events have been cleared. */
         if (!(pThis->svga.u32IrqStatus & pThis->svga.u32IrqMask))
+        {
+            Log(("vmsvgaIOWrite SVGA_IRQSTATUS_PORT: clearing IRQ\n"));
             PDMDevHlpPCISetIrqNoWait(pDevIns, 0, 0);
+        }
         break;
     }
     return rc;
@@ -1935,20 +1938,16 @@ static DECLCALLBACK(int) vmsvgaRegisterGMR(PPDMDEVINS pDevIns, uint32_t gmrId)
 
     for (uint32_t i = 0; i < pGMR->numDescriptors; i++)
     {
-        rc = PGMR3HandlerPhysicalRegister(PDMDevHlpGetVM(pThis->pDevInsR3),
-                                            PGMPHYSHANDLERTYPE_PHYSICAL_WRITE,
-                                            pGMR->paDesc[i].GCPhys, pGMR->paDesc[i].GCPhys + pGMR->paDesc[i].numPages * PAGE_SIZE - 1,
-                                            vmsvgaR3GMRAccessHandler, pThis,
-                                            NULL, NULL, NULL,
-                                            NULL, NULL, NULL,
-                                            "VMSVGA GMR");
+        rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pThis->pDevInsR3),
+                                        pGMR->paDesc[i].GCPhys, pGMR->paDesc[i].GCPhys + pGMR->paDesc[i].numPages * PAGE_SIZE - 1,
+                                        pThis->svga.hGmrAccessHandlerType, pThis, NIL_RTR0PTR, NIL_RTRCPTR, "VMSVGA GMR");
         AssertRC(rc);
     }
     return VINF_SUCCESS;
 }
 
 /* Callback handler for VMR3ReqCallWait */
-static DECLCALLBACK(int) vmsvgaUnregisterGMR(PPDMDEVINS pDevIns, uint32_t gmrId)
+static DECLCALLBACK(int) vmsvgaDeregisterGMR(PPDMDEVINS pDevIns, uint32_t gmrId)
 {
     PVGASTATE    pThis = PDMINS_2_DATA(pDevIns, PVGASTATE);
     PVMSVGASTATE pSVGAState = (PVMSVGASTATE)pThis->svga.pSVGAState;
@@ -3197,19 +3196,32 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             ASMAtomicWriteU32(&pFIFO[SVGA_FIFO_STOP], offCurrentCmd);
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoCommands);
 
-            /* FIFO progress might trigger an interrupt. */
-            if (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS)
+            /*
+             * Raise IRQ if required.  Must enter the critical section here
+             * before making final decisions here, otherwise cubebench and
+             * others may end up waiting forever.
+             */
+            if (   u32IrqStatus
+                || (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS))
             {
-                Log(("vmsvgaFIFOLoop: fifo progress irq\n"));
-                u32IrqStatus |= SVGA_IRQFLAG_FIFO_PROGRESS;
-            }
+                PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
 
-            /* Irq pending? */
-            if (pThis->svga.u32IrqMask & u32IrqStatus)
-            {
-                Log(("vmsvgaFIFOLoop: Trigger interrupt with status %x\n", u32IrqStatus));
-                ASMAtomicOrU32(&pThis->svga.u32IrqStatus, u32IrqStatus);
-                PDMDevHlpPCISetIrqNoWait(pDevIns, 0, 1);
+                /* FIFO progress might trigger an interrupt. */
+                if (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS)
+                {
+                    Log(("vmsvgaFIFOLoop: fifo progress irq\n"));
+                    u32IrqStatus |= SVGA_IRQFLAG_FIFO_PROGRESS;
+                }
+
+                /* Unmasked IRQ pending? */
+                if (pThis->svga.u32IrqMask & u32IrqStatus)
+                {
+                    Log(("vmsvgaFIFOLoop: Trigger interrupt with status %x\n", u32IrqStatus));
+                    ASMAtomicOrU32(&pThis->svga.u32IrqStatus, u32IrqStatus);
+                    PDMDevHlpPCISetIrq(pDevIns, 0, 1);
+                }
+
+                PDMCritSectLeave(&pThis->CritSect);
             }
         }
 
@@ -3244,7 +3256,7 @@ void vmsvgaGMRFree(PVGASTATE pThis, uint32_t idGMR)
     {
         PGMR pGMR = &pSVGAState->aGMR[idGMR];
 # ifdef DEBUG_GMR_ACCESS
-        VMR3ReqCallWait(PDMDevHlpGetVM(pThis->pDevInsR3), VMCPUID_ANY, (PFNRT)vmsvgaUnregisterGMR, 2, pThis->pDevInsR3, idGMR);
+        VMR3ReqCallWait(PDMDevHlpGetVM(pThis->pDevInsR3), VMCPUID_ANY, (PFNRT)vmsvgaDeregisterGMR, 2, pThis->pDevInsR3, idGMR);
 # endif
 
         Assert(pGMR->paDesc);
@@ -3522,13 +3534,9 @@ DECLCALLBACK(int) vmsvgaR3IORegionMap(PPCIDEVICE pPciDev, int iRegion, RTGCPHYS 
 # ifdef DEBUG_FIFO_ACCESS
             if (RT_SUCCESS(rc))
             {
-                rc = PGMR3HandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns),
-                                                  PGMPHYSHANDLERTYPE_PHYSICAL_ALL,
-                                                  GCPhysAddress, GCPhysAddress + (VMSVGA_FIFO_SIZE - 1),
-                                                  vmsvgaR3FIFOAccessHandler, pThis,
-                                                  NULL, NULL, NULL,
-                                                  NULL, NULL, NULL,
-                                                  "VMSVGA FIFO");
+                rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns), GCPhysAddress, GCPhysAddress + (VMSVGA_FIFO_SIZE - 1),
+                                                pThis->svga.hFifoAccessHandlerType, pThis, NIL_RTR0PTR, NIL_RTRCPTR, 
+                                                "VMSVGA FIFO");
                 AssertRC(rc);
             }
 # endif
@@ -3929,6 +3937,20 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
         pThis->svga.u32MaxHeight -= 256;
     }
     Log(("VMSVGA: Maximum size (%d,%d)\n", pThis->svga.u32MaxWidth, pThis->svga.u32MaxHeight));
+
+# ifdef DEBUG_GMR_ACCESS
+    /* Register the GMR access handler type. */
+    rc = PGMR3HandlerPhysicalTypeRegister(PDMDevHlpGetVM(pThis->pDevInsR3), PGMPHYSHANDLERKIND_WRITE,
+                                          vmsvgaR3GMRAccessHandler, NULL, NULL, NULL, NULL, "VMSVGA GMR",
+                                          &pThis->svga.hGmrAccessHandlerType);
+    AssertRCReturn(rc, rc);
+# endif
+# ifdef DEBUG_FIFO_ACCESS
+    rc = PGMR3HandlerPhysicalTypeRegister(PDMDevHlpGetVM(pThis->pDevInsR3), PGMPHYSHANDLERKIND_ALL,
+                                          vmsvgaR3FIFOAccessHandler, NULL, NULL, NULL, NULL, "VMSVGA FIFO",
+                                          &pThis->svga.hFifoAccessHandlerType);
+    AssertRCReturn(rc, rc);
+#endif
 
     /* Create the async IO thread. */
     rc = PDMDevHlpThreadCreate(pDevIns, &pThis->svga.pFIFOIOThread, pThis, vmsvgaFIFOLoop, vmsvgaFIFOLoopWakeUp, 0,

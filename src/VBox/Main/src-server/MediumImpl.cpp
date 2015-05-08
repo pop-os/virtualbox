@@ -705,6 +705,9 @@ public:
             RTMemWipeThoroughly(mstrNewPassword.mutableRaw(), mstrNewPassword.length(), 10 /* cPasses */);
         if (mstrCurrentPassword.length())
             RTMemWipeThoroughly(mstrCurrentPassword.mutableRaw(), mstrCurrentPassword.length(), 10 /* cPasses */);
+
+        /* Keep any errors which might be set when deleting the lock list. */
+        ErrorInfoKeeper eik;
         delete mpMediumLockList;
     }
 
@@ -3176,10 +3179,15 @@ HRESULT Medium::changeEncryption(const com::Utf8Str &aCurrentPassword, const com
             throw rc;
         }
 
+        const char *pszAction = "Encrypting";
+        if (   aCurrentPassword.isNotEmpty()
+            && aCipher.isEmpty())
+            pszAction = "Decrypting";
+
         pProgress.createObject();
         rc = pProgress->init(m->pVirtualBox,
                              static_cast <IMedium *>(this),
-                             BstrFmt(tr("Encrypting medium '%s'"), m->strLocationFull.c_str()).raw(),
+                             BstrFmt(tr("%s medium '%s'"), pszAction, m->strLocationFull.c_str()).raw(),
                              TRUE /* aCancelable */);
         if (FAILED(rc))
         {
@@ -4638,6 +4646,26 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
             throw setError(VBOX_E_NOT_SUPPORTED,
                            tr("Medium format '%s' does not support storage deletion"),
                            m->strFormat.c_str());
+
+        /* Wait for a concurrently running Medium::i_queryInfo to complete. */
+        /** @todo r=klaus would be great if this could be moved to the async
+         * part of the operation as it can take quite a while */
+        if (m->queryInfoRunning)
+        {
+            while (m->queryInfoRunning)
+            {
+                multilock.release();
+                /* Must not hold the media tree lock or the object lock, as
+                 * Medium::i_queryInfo needs this lock and thus we would run
+                 * into a deadlock here. */
+                Assert(!m->pVirtualBox->i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
+                Assert(!isWriteLockOnCurrentThread());
+                {
+                    AutoReadLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
+                }
+                multilock.acquire();
+            }
+        }
 
         /* Note that we are fine with Inaccessible state too: a) for symmetry
          * with create calls and b) because it doesn't really harm to try, if

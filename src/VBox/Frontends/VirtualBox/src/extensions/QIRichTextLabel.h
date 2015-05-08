@@ -1,3 +1,4 @@
+/* $Id: QIRichTextLabel.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QIRichTextLabel class declaration.
  */

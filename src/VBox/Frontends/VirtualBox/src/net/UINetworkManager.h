@@ -1,3 +1,4 @@
+/* $Id: UINetworkManager.h $ */
 /** @file
  * VBox Qt GUI - UINetworkManager stuff declaration.
  */

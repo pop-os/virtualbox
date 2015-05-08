@@ -1,3 +1,4 @@
+/* $Id: COMDefs.h $ */
 /** @file
  * VBox Qt GUI - Various COM definitions and COM wrapper class declarations.
  *

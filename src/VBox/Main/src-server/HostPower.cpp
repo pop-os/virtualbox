@@ -1,3 +1,4 @@
+/* $Id: HostPower.cpp $ */
 /** @file
  *
  * VirtualBox interface to host's power notification service

@@ -1,3 +1,4 @@
+/* $Id: UIMachineSettingsUSB.h $ */
 /** @file
  * VBox Qt GUI - UIMachineSettingsUSB class declaration.
  */

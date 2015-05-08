@@ -1,3 +1,4 @@
+/* $Id: UISettingsDialog.h $ */
 /** @file
  * VBox Qt GUI - UISettingsDialog class declaration.
  */
@@ -32,7 +33,6 @@ class UIWarningPane;
 class VBoxSettingsSelector;
 class UISettingsPage;
 class UISettingsSerializer;
-class UISettingsSerializerProgress;
 
 /* Using declarations: */
 using namespace UISettingsDefs;
@@ -66,14 +66,12 @@ protected slots:
 
     /* Handlers for process bar: */
     void sltHandleProcessStarted();
-    void sltHandlePageProcessed();
+    void sltHandleProcessProgressChange(int iValue);
 
 protected:
 
     /** Returns the serialize process instance. */
     UISettingsSerializer* serializeProcess() const { return m_pSerializeProcess; }
-    /** Returns the serialize progress instance. */
-    UISettingsSerializerProgress* serializeProgress() const { return m_pSerializeProgress; }
 
     /** Loads the @a data. */
     void loadData(QVariant &data);
@@ -95,10 +93,10 @@ protected:
     /** Defines configuration access level. */
     void setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel);
 
-    /* Dialog title: */
+    /** Returns the dialog title extension. */
+    virtual QString titleExtension() const = 0;
+    /** Returns the dialog title. */
     virtual QString title() const = 0;
-    /* Dialog title extension: */
-    virtual QString titleExtension() const;
 
     /* Add settings page: */
     void addItem(const QString &strBigIcon, const QString &strMediumIcon, const QString &strSmallIcon,
@@ -144,8 +142,6 @@ private:
 
     /** Holds the serialize process instance. */
     UISettingsSerializer *m_pSerializeProcess;
-    /** Holds the serialize progress instance. */
-    UISettingsSerializerProgress *m_pSerializeProgress;
 
     /* Loading/saving stuff: */
     bool m_fLoaded;

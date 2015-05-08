@@ -1,4 +1,4 @@
-/* $Revision: 92917 $ */
+/* $Id: Mouse.cpp $ */
 /** @file
  * VBoxGuestLibR0 - Mouse Integration.
  */

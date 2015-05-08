@@ -1,3 +1,4 @@
+/* $Id: VBoxSettingsSelector.h $ */
 /** @file
  * VBox Qt GUI - VBoxSettingsSelector class declaration.
  */

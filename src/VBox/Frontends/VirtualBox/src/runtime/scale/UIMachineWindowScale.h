@@ -1,3 +1,4 @@
+/* $Id: UIMachineWindowScale.h $ */
 /** @file
  * VBox Qt GUI - UIMachineWindowScale class declaration.
  */

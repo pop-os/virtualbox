@@ -1,3 +1,4 @@
+/* $Id: SecretKeyStore.h $ */
 /** @file
  * Main - Secret key interface.
  */

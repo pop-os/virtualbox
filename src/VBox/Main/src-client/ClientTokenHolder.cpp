@@ -1,3 +1,4 @@
+/* $Id: ClientTokenHolder.cpp $ */
 /** @file
  *
  * VirtualBox API client session token holder (in the client process)

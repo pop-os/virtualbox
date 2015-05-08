@@ -1,3 +1,4 @@
+/* $Id: UIMenuBarEditorWindow.h $ */
 /** @file
  * VBox Qt GUI - UIMenuBarEditorWindow class declaration.
  */

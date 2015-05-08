@@ -1,3 +1,4 @@
+/* $Id: RemoteUSBBackend.h $ */
 /** @file
  *
  * VirtualBox Remote USB backend

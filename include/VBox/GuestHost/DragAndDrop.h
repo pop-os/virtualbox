@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014 Oracle Corporation
+ * Copyright (C) 2014-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/cdefs.h>
+#include <iprt/dir.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/types.h>
@@ -36,8 +37,31 @@
 #include <iprt/cpp/list.h>
 #include <iprt/cpp/ministring.h>
 
-int DnDDirCreateDroppedFilesEx(const char *pszPath, char *pszDropDir, size_t cbDropDir);
-int DnDDirCreateDroppedFiles(char *pszDropDir, size_t cbDropDir);
+/**
+ * Structure for maintaining a "dropped files" directory
+ * on the host or guest. This will contain all received files & directories
+ * for a single transfer.
+ */
+typedef struct DNDDIRDROPPEDFILES
+{
+    /** Directory handle for drop directory. */
+    PRTDIR                       hDir;
+    /** Absolute path to drop directory. */
+    RTCString                    strPathAbs;
+    /** List for holding created directories in the case of a rollback. */
+    RTCList<RTCString>           lstDirs;
+    /** List for holding created files in the case of a rollback. */
+    RTCList<RTCString>           lstFiles;
+
+} DNDDIRDROPPEDFILES, *PDNDDIRDROPPEDFILES;
+
+int DnDDirDroppedAddFile(PDNDDIRDROPPEDFILES pDir, const char *pszFile);
+int DnDDirDroppedAddDir(PDNDDIRDROPPEDFILES pDir, const char *pszDir);
+int DnDDirDroppedFilesCreateAndOpenEx(const char *pszPath, PDNDDIRDROPPEDFILES pDir);
+int DnDDirDroppedFilesCreateAndOpenTemp(PDNDDIRDROPPEDFILES pDir);
+int DnDDirDroppedFilesClose(PDNDDIRDROPPEDFILES pDir, bool fRemove);
+const char *DnDDirDroppedFilesGetDirAbs(PDNDDIRDROPPEDFILES pDir);
+int DnDDirDroppedFilesRollback(PDNDDIRDROPPEDFILES pDir);
 
 bool DnDMIMEHasFileURLs(const char *pcszFormat, size_t cchFormatMax);
 bool DnDMIMENeedsDropDir(const char *pcszFormat, size_t cchFormatMax);
@@ -59,25 +83,46 @@ public:
         Directory
     };
 
+    enum Dest
+    {
+        Source = 0,
+        Target
+    };
+
+    DnDURIObject(void);
     DnDURIObject(Type type,
-                 const RTCString &strSrcPath,
-                 const RTCString &strDstPath,
-                 uint32_t fMode, uint64_t cbSize);
+                 const RTCString &strSrcPath = "",
+                 const RTCString &strDstPath = "",
+                 uint32_t fMode = 0, uint64_t cbSize = 0);
     virtual ~DnDURIObject(void);
 
 public:
 
     const RTCString &GetSourcePath(void) const { return m_strSrcPath; }
-    const RTCString &GetDestPath(void) const { return m_strDstPath; }
+    const RTCString &GetDestPath(void) const { return m_strTgtPath; }
     uint32_t GetMode(void) const { return m_fMode; }
+    uint64_t GetProcessed(void) const { return m_cbProcessed; }
     uint64_t GetSize(void) const { return m_cbSize; }
     Type GetType(void) const { return m_Type; }
 
 public:
 
+    int SetSize(uint64_t uSize) { m_cbSize = uSize; return VINF_SUCCESS; }
+
+public:
+
+    void Close(void);
     bool IsComplete(void) const;
-    static int RebaseURIPath(RTCString &strPath, const RTCString &strBaseOld, const RTCString &strBaseNew);
-    int Read(void *pvBuf, uint32_t cbToRead, uint32_t *pcbRead);
+    bool IsOpen(void) const;
+    int Open(Dest enmDest, uint64_t fOpen, uint32_t fMode = 0);
+    int OpenEx(const RTCString &strPath, Type enmType, Dest enmDest, uint64_t fOpen = 0, uint32_t fMode = 0, uint32_t fFlags = 0);
+    int Read(void *pvBuf, size_t cbBuf, uint32_t *pcbRead);
+    void Reset(void);
+    int Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten);
+
+public:
+
+    static int RebaseURIPath(RTCString &strPath, const RTCString &strBaseOld = "", const RTCString &strBaseNew = "");
 
 protected:
 
@@ -87,7 +132,8 @@ protected:
 
     Type      m_Type;
     RTCString m_strSrcPath;
-    RTCString m_strDstPath;
+    RTCString m_strTgtPath;
+    /** Object (file/directory) mode. */
     uint32_t  m_fMode;
     /** Size (in bytes) to read/write. */
     uint64_t  m_cbSize;
@@ -121,8 +167,9 @@ public:
     bool IsEmpty(void) { return m_lstTree.isEmpty(); }
     void RemoveFirst(void);
     int RootFromURIData(const void *pvData, size_t cbData, uint32_t fFlags);
-    RTCString RootToString(const RTCString &strBasePath = "", const RTCString &strSeparator = "\r\n");
+    RTCString RootToString(const RTCString &strPathBase = "", const RTCString &strSeparator = "\r\n");
     size_t RootCount(void) { return m_lstRoot.size(); }
+    uint32_t TotalCount(void) { return m_cTotal; }
     size_t TotalBytes(void) { return m_cbTotal; }
 
 protected:
@@ -137,6 +184,8 @@ protected:
     RTCList<RTCString>     m_lstRoot;
     /** List of all URI objects added. */
     RTCList<DnDURIObject>  m_lstTree;
+    /** Total number of all URI objects. */
+    uint32_t               m_cTotal;
     /** Total size of all URI objects, that is, the file
      *  size of all objects (in bytes). */
     size_t                 m_cbTotal;

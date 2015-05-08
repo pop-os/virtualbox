@@ -1,3 +1,4 @@
+/* $Id: UISettingsPage.h $ */
 /** @file
  * VBox Qt GUI - UISettingsPage class declaration.
  */
@@ -76,6 +77,20 @@ typedef QPair<QString, QStringList> UIValidationMessage;
 class UISettingsPage : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
+
+signals:
+
+    /** Notifies listeners about particular operation progress change.
+      * @param iOperations  holds the number of operations CProgress have,
+      * @param strOperation holds the description of the current CProgress operation,
+      * @param iOperation   holds the index of the current CProgress operation,
+      * @param iPercent     holds the percentage of the current CProgress operation. */
+    void sigOperationProgressChange(ulong iOperations, QString strOperation,
+                                    ulong iOperation, ulong iPercent);
+
+    /** Notifies listeners about particular COM error.
+      * @param strErrorInfo holds the details of the error happened. */
+    void sigOperationProgressError(QString strErrorInfo);
 
 public:
 

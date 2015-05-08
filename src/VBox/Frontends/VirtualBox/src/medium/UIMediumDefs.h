@@ -1,3 +1,4 @@
+/* $Id: UIMediumDefs.h $ */
 /** @file
  * VBox Qt GUI - UIMedium related declarations.
  */

@@ -1,3 +1,4 @@
+/* $Id: VBoxCocoaHelper.h $ */
 /** @file
  * VBox Qt GUI - VBoxCocoa Helper.
  */

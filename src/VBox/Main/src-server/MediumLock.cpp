@@ -1,3 +1,4 @@
+/* $Id: MediumLock.cpp $ */
 /** @file
  *
  * Medium lock management helper classes

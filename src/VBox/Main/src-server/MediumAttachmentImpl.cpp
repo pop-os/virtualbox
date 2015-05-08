@@ -1,3 +1,4 @@
+/* $Id: MediumAttachmentImpl.cpp $ */
 /** @file
  *
  * VirtualBox COM class implementation

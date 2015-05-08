@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest Control Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2014 Oracle Corporation
+Copyright (C) 2010-2015 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 96152 $"
+__version__ = "$Revision: 100056 $"
 
 # Disable bitching about too many arguments per function.
 # pylint: disable=R0913
@@ -261,7 +261,7 @@ class tdTestExec(tdTestGuestCtrlBase):
         tdTestGuestCtrlBase.__init__(self);
         self.oCreds = tdCtxCreds(sUser, sPassword, sDomain);
         self.sCmd = sCmd;
-        self.aArgs = aArgs;
+        self.aArgs = aArgs if aArgs is not None else [sCmd,];
         self.aEnv = aEnv;
         self.aFlags = aFlags or [];
         self.timeoutMS = timeoutMS;
@@ -338,6 +338,28 @@ class tdTestFileReadWrite(tdTestGuestCtrlBase):
         self.cbOffset = cbOffset;
         self.cbToReadWrite = cbToReadWrite;
         self.aBuf = aBuf;
+
+    def getOpenAction(self):
+        """ Converts string disposition to open action enum. """
+        if self.sDisposition == 'oe': return vboxcon.FileOpenAction_OpenExisting;
+        if self.sDisposition == 'oc': return vboxcon.FileOpenAction_OpenOrCreate;
+        if self.sDisposition == 'ce': return vboxcon.FileOpenAction_CreateNew;
+        if self.sDisposition == 'ca': return vboxcon.FileOpenAction_CreateOrReplace;
+        if self.sDisposition == 'ot': return vboxcon.FileOpenAction_OpenExistingTruncated;
+        if self.sDisposition == 'oa': return vboxcon.FileOpenAction_AppendOrCreate;
+        raise base.GenError(self.sDisposition);
+
+    def getAccessMode(self):
+        """ Converts open mode to access mode enum. """
+        if self.sOpenMode == 'r':  return vboxcon.FileOpenMode_ReadOnly;
+        if self.sOpenMode == 'w':  return vboxcon.FileOpenMode_WriteOnly;
+        if self.sOpenMode == 'w+': return vboxcon.FileOpenMode_ReadWrite;
+        if self.sOpenMode == 'r+': return vboxcon.FileOpenMode_ReadWrite;
+        raise base.GenError(self.sOpenMode);
+
+    def getSharingMode(self):
+        """ Converts the sharing mode. """
+        return vboxcon.FileSharingMode_All;
 
 class tdTestSession(tdTestGuestCtrlBase):
     """
@@ -656,7 +678,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         fRc = True; # Be optimistic.
         try:
             reporter.log2('Copying guest file "%s" to host "%s"' % (sSrc, sDst));
-            curProgress = oGuestSession.copyFrom(sSrc, sDst, aFlags);
+            if self.oTstDrv.fpApiVer >= 5.0:
+                curProgress = oGuestSession.fileCopyFromGuest(sSrc, sDst, aFlags);
+            else:
+                curProgress = oGuestSession.copyFrom(sSrc, sDst, aFlags);
             if curProgress is not None:
                 oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self, "gctrlCopyFrm");
                 try:
@@ -683,7 +708,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         fRc = True; # Be optimistic.
         try:
             reporter.log2('Copying host file "%s" to guest "%s"' % (sSrc, sDst));
-            curProgress = oGuestSession.copyTo(sSrc, sDst, aFlags);
+            if self.oTstDrv.fpApiVer >= 5.0:
+                curProgress = oGuestSession.fileCopyToGuest(sSrc, sDst, aFlags);
+            else:
+                curProgress = oGuestSession.copyTo(sSrc, sDst, aFlags);
             if curProgress is not None:
                 oProgress = vboxwrappers.ProgressWrapper(curProgress, self.oTstDrv.oVBoxMgr, self, "gctrlCopyTo");
                 try:
@@ -864,7 +892,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         try:
             oGuestSession.directoryCreate(oTest.sDirectory, \
                                           oTest.fMode, oTest.aFlags);
-            fDirExists = oGuestSession.directoryExists(oTest.sDirectory);
+            if self.oTstDrv.fpApiVer >= 5.0:
+                fDirExists = oGuestSession.directoryExists(oTest.sDirectory, False);
+            else:
+                fDirExists = oGuestSession.directoryExists(oTest.sDirectory);
             if      fDirExists is False \
                 and oRes.fRc is True:
                 # Directory does not exist but we want it to.
@@ -997,9 +1028,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                       % (oTest.sCmd, oTest.aFlags, oTest.timeoutMS, \
                          oTest.aArgs, oTest.aEnv));
         try:
-            curProc = oGuestSession.processCreate(oTest.sCmd, \
-                                                  oTest.aArgs, oTest.aEnv, \
-                                                  oTest.aFlags, oTest.timeoutMS);
+            curProc = oGuestSession.processCreate(oTest.sCmd,
+                                                  oTest.aArgs if self.oTstDrv.fpApiVer >= 5.0 else oTest.aArgs[1:],
+                                                  oTest.aEnv, oTest.aFlags, oTest.timeoutMS);
             if curProc is not None:
                 reporter.log2('Process start requested, waiting for start (%ldms) ...' % (oTest.timeoutMS,));
                 fWaitFor = [ vboxcon.ProcessWaitForFlag_Start ];
@@ -1069,7 +1100,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
     def testGuestCtrlSessionEnvironment(self, oSession, oTxsSession, oTestVm): # pylint: disable=R0914
         """
-        Tests the guest session environment.
+        Tests the guest session environment changes.
         """
 
         if oTestVm.isWindows():
@@ -1111,6 +1142,9 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
               tdTestResultSessionEnv(fRc = True, cNumVars = 1) ]
         ];
 
+        # The IGuestSession::environment attribute changed late in 5.0 development.
+        sEnvironmentChangesAttr = 'environmentChanges' if self.oTstDrv.fpApiVer >= 5.0 else 'environment';
+
         # Parameters.
         fRc = True;
         for (i, aTest) in enumerate(aaTests):
@@ -1126,29 +1160,32 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 fRc = False;
                 break;
             # Make sure environment is empty.
-            curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, 'environment');
+            curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, sEnvironmentChangesAttr);
             reporter.log2('Test #%d: Environment initially has %d elements' % (i, len(curEnv)));
             if len(curEnv) != 0:
                 reporter.error('Test #%d failed: Initial session environment has %d vars, expected 0' % (i, len(curEnv)));
                 fRc = False;
                 break;
             try:
-                for (_, aEnv) in enumerate(curTest.aEnv): # Enumerate only will work with a sequence (e.g > 1 entries).
+                for (_, aEnv) in enumerate(curTest.aEnv):
                     aElems = aEnv.split('=');
-                    strKey = '';
+                    strKey = '';  ## @todo s/Key/Var/g
                     strValue = '';
                     if len(aElems) > 0:
                         strKey = aElems[0];
                     if len(aElems) == 2:
                         strValue = aElems[1];
-                    reporter.log2('Test #%d: Single key="%s", value="%s" (%d) ...' \
+                    reporter.log2('Test #%d: Single var="%s", value="%s" (%d) ...' \
                                   % (i, strKey, strValue, len(aElems)));
                     try:
-                        curGuestSession.environmentSet(strKey, strValue); # No return (e.g. boolean) value available thru wrapper.
+                        if self.oTstDrv.fpApiVer >= 5.0:
+                            curGuestSession.environmentScheduleSet(strKey, strValue);
+                        else:
+                            curGuestSession.environmentSet(strKey, strValue);
                     except:
                         # Setting environment variables might fail (e.g. if empty name specified). Check.
                         reporter.logXcpt('Test #%d failed: Setting environment variable failed:' % (i,));
-                        curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, 'environment');
+                        curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, sEnvironmentChangesAttr);
                         if len(curEnv) is not curRes.cNumVars:
                             reporter.error('Test #%d failed: Session environment has %d vars, expected %d' \
                                            % (i, len(curEnv), curRes.cNumVars));
@@ -1156,30 +1193,35 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                             break;
                         else:
                             reporter.log('Test #%d: API reported an error (single), good' % (i,));
-                    reporter.log2('Getting key="%s" ...' % (strKey,));
-                    try:
-                        strValue2 = curGuestSession.environmentGet(strKey);
-                        if      strKey.isalnum() \
-                            and strValue != strValue2:
-                            reporter.error('Test #%d failed: Got environment variable "%s", expected "%s" (key: "%s")' \
-                                           % (i, strValue2, strValue, strKey));
-                            fRc = False;
-                            break;
-                        # Getting back an empty value when specifying an invalid key is fine.
-                        reporter.log2('Got key "%s=%s"' % (strKey, strValue2));
-                    except UnicodeDecodeError: # Might happen on unusal values, fine.
-                        if strValue != strValue2:
-                            reporter.error('Test #%d failed: Got (undecoded) environment variable "%s", ' \
-                                           'expected "%s" (key: "%s")' \
-                                           % (i, strValue2, strValue, strKey));
-                            fRc = False;
-                            break;
-                    except:
-                        if     strKey == "" \
-                            or not strKey.isalnum():
-                            reporter.log('Test #%d: API reported an error (invalid key "%s"), good' % (i, strKey));
-                        else:
-                            reporter.errorXcpt('Test #%d failed: Getting environment variable:' % (i));
+                    ## @todo environmentGet() has been removed in 5.0 because it's not up to the task of returning all the
+                    ## putenv strings forms and gives the impression that the environment is something it isn't. This test
+                    ## should be rewritten using the attribute.  What's more, there should be an Unset test here, shouldn't
+                    ## there?
+                    #
+                    #reporter.log2('Getting key="%s" ...' % (strKey,));
+                    #try:
+                    #    strValue2 = curGuestSession.environmentGet(strKey);
+                    #    if      strKey.isalnum() \
+                    #        and strValue != strValue2:
+                    #        reporter.error('Test #%d failed: Got environment value "%s", expected "%s" (var: "%s")' \
+                    #                       % (i, strValue2, strValue, strKey));
+                    #        fRc = False;
+                    #        break;
+                    #    # Getting back an empty value when specifying an invalid key is fine.
+                    #    reporter.log2('Got key "%s=%s"' % (strKey, strValue2));
+                    #except UnicodeDecodeError: # Might happen on unusal values, fine.
+                    #    if strValue != strValue2:
+                    #        reporter.error('Test #%d failed: Got (undecoded) environment variable "%s", ' \
+                    #                       'expected "%s" (var: "%s")' \
+                    #                       % (i, strValue2, strValue, strKey));
+                    #        fRc = False;
+                    #        break;
+                    #except:
+                    #    if     strKey == "" \
+                    #        or not strKey.isalnum():
+                    #        reporter.log('Test #%d: API reported an error (invalid key "%s"), good' % (i, strKey));
+                    #    else:
+                    #        reporter.errorXcpt('Test #%d failed: Getting environment variable:' % (i));
                 if fRc is False:
                     continue;
                 # Set the same stuff again, this time all at once using the array.
@@ -1191,7 +1233,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         pass;
                     except:
                         # Setting environment variables might fail (e.g. if empty name specified). Check.
-                        curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, 'environment');
+                        curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, sEnvironmentChangesAttr);
                         if len(curEnv) is not curRes.cNumVars:
                             reporter.error('Test #%d failed: Session environment has %d vars, expected %d (array)' \
                                            % (i, len(curEnv), curRes.cNumVars));
@@ -1201,15 +1243,16 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                             reporter.log('Test #%d: API reported an error (array), good' % (i,));
                 ## @todo Get current system environment and add it to curRes.cNumVars before comparing!
                 reporter.log('Test #%d: Environment size' % (i,));
-                curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, 'environment');
+                curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, sEnvironmentChangesAttr);
                 reporter.log2('Test #%d: Environment (%d) -> %s' % (i, len(curEnv), curEnv));
                 if len(curEnv) != curRes.cNumVars:
                     reporter.error('Test #%d failed: Session environment has %d vars (%s), expected %d' \
                                    % (i, len(curEnv), curEnv, curRes.cNumVars));
                     fRc = False;
                     break;
-                curGuestSession.environmentClear(); # No return (e.g. boolean) value available thru wrapper.
-                curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, 'environment');
+
+                self.oTstDrv.oVBoxMgr.setArray(curGuestSession, sEnvironmentChangesAttr, []);
+                curEnv = self.oTstDrv.oVBoxMgr.getArray(curGuestSession, sEnvironmentChangesAttr);
                 if len(curEnv) is not 0:
                     reporter.error('Test #%d failed: Session environment has %d vars, expected 0');
                     fRc = False;
@@ -1412,7 +1455,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             reporter.log2('Opening stale files');
             for i in range(0, cStaleFiles):
                 try:
-                    oGuestSession.fileOpen(sFile, "r", "oe", 0);
+                    if self.oTstDrv.fpApiVer >= 5.0:
+                        oGuestSession.fileOpen(sFile, vboxcon.FileAccessMode_ReadOnly, vboxcon.FileOpenAction_OpenExisting, 0);
+                    else:
+                        oGuestSession.fileOpen(sFile, "r", "oe", 0);
                     # Note: Use a timeout in the call above for not letting the stale processes
                     #       hanging around forever.  This can happen if the installed Guest Additions
                     #       do not support terminating guest processes.
@@ -1435,7 +1481,11 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 aaFiles = [];
                 for i in range(0, cStaleFiles):
                     try:
-                        oCurFile = oGuestSession.fileOpen(sFile, "r", "oe", 0);
+                        if self.oTstDrv.fpApiVer >= 5.0:
+                            oCurFile = oGuestSession.fileOpen(sFile, vboxcon.FileAccessMode_ReadOnly,
+                                                              vboxcon.FileOpenAction_OpenExisting, 0);
+                        else:
+                            oCurFile = oGuestSession.fileOpen(sFile, "r", "oe", 0);
                         aaFiles.append(oCurFile);
                     except:
                         reporter.errorXcpt('Opening non-stale file #%ld failed:' % (i,));
@@ -1510,7 +1560,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             sPassword = "password";
             sDomain = "";
             sCmd = "C:\\windows\\system32\\cmd.exe";
-            sArgs = [];
+            aArgs = [sCmd,];
 
         # Number of stale guest processes to create.
         cStaleProcs = 10;
@@ -1541,8 +1591,8 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             reporter.log2('Starting stale processes');
             for i in range(0, cStaleProcs):
                 try:
-                    oGuestSession.processCreate(sCmd, \
-                                                sArgs, [], \
+                    oGuestSession.processCreate(sCmd,
+                                                aArgs if self.oTstDrv.fpApiVer >= 5.0 else aArgs[1:], [],
                                                 [ vboxcon.ProcessCreateFlag_WaitForStdOut ], \
                                                 30 * 1000);
                     # Note: Use a timeout in the call above for not letting the stale processes
@@ -1564,15 +1614,13 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 # Fire off non-stale processes and wait for termination.
                 #
                 if oTestVm.isWindows():
-                    sArgs = [ '/C', 'dir', '/S', 'C:\\Windows\\system'];
+                    aArgs = [ sCmd, '/C', 'dir', '/S', 'C:\\Windows\\system'];
                 reporter.log2('Starting non-stale processes');
                 aaProcs = [];
                 for i in range(0, cStaleProcs):
                     try:
-                        oCurProc = oGuestSession.processCreate(sCmd, \
-                                                               sArgs, [], \
-                                                               [], \
-                                                               0); # Infinite timeout.
+                        oCurProc = oGuestSession.processCreate(sCmd, aArgs if self.oTstDrv.fpApiVer >= 5.0 else aArgs[1:],
+                                                               [], [], 0); # Infinite timeout.
                         aaProcs.append(oCurProc);
                     except:
                         reporter.logXcpt('Creating non-stale process #%ld failed:' % (i,));
@@ -1616,14 +1664,13 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
                 # Fire off blocking processes which are terminated via terminate().
                 if oTestVm.isWindows():
-                    sArgs = [ '/C', 'dir', '/S', 'C:\\Windows'];
+                    aArgs = [ sCmd, '/C', 'dir', '/S', 'C:\\Windows'];
                 reporter.log2('Starting blocking processes');
                 aaProcs = [];
                 for i in range(0, cStaleProcs):
                     try:
-                        oCurProc = oGuestSession.processCreate(sCmd, \
-                                                               sArgs, [], \
-                                                               [], 30 * 1000);
+                        oCurProc = oGuestSession.processCreate(sCmd, aArgs if self.oTstDrv.fpApiVer >= 5.0 else aArgs[1:],
+                                                               [],  [], 30 * 1000);
                         # Note: Use a timeout in the call above for not letting the stale processes
                         #       hanging around forever.  This can happen if the installed Guest Additions
                         #       do not support terminating guest processes.
@@ -1697,62 +1744,62 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         ];
 
         if oTestVm.isWindows():
+            sVBoxControl = "C:\\Program Files\\Oracle\\VirtualBox Guest Additions\\VBoxControl.exe";
             aaExec = [
                 # Basic executon.
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32\\kernel32.dll' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32\\kernel32.dll' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32\\nonexist.dll' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32\\nonexist.dll' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', '/wrongparam' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', '/wrongparam' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
                 # Paths with spaces.
                 ## @todo Get path of installed Guest Additions. Later.
-                [ tdTestExec(sCmd = "C:\\Program Files\\Oracle\\VirtualBox Guest Additions\\VBoxControl.exe",
-                             aArgs = [ 'version' ],
+                [ tdTestExec(sCmd = sVBoxControl, aArgs = [ sVBoxControl, 'version' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
                 # StdOut.
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'stdout-non-existing' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'stdout-non-existing' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
                 # StdErr.
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'stderr-non-existing' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'stderr-non-existing' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
                 # StdOut + StdErr.
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'c:\\windows\\system32' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'c:\\windows\\system32' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True) ],
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir', '/S', 'stdouterr-non-existing' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir', '/S', 'stdouterr-non-existing' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ]
                 # FIXME: Failing tests.
                 # Environment variables.
-                # [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'set', 'TEST_NONEXIST' ],
+                # [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'set', 'TEST_NONEXIST' ],
                 #              sUser = sUser, sPassword = sPassword),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ]
-                # [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'set', 'windir' ],
+                # [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'set', 'windir' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, sBuf = 'windir=C:\\WINDOWS\r\n') ],
-                # [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'set', 'TEST_FOO' ],
+                # [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'set', 'TEST_FOO' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aEnv = [ 'TEST_FOO=BAR' ],
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, sBuf = 'TEST_FOO=BAR\r\n') ],
-                # [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'set', 'TEST_FOO' ],
+                # [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'set', 'TEST_FOO' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aEnv = [ 'TEST_FOO=BAR', 'TEST_BAZ=BAR' ],
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
@@ -1764,7 +1811,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
 
             # Manual test, not executed automatically.
             aaManual = [
-                [ tdTestExec(sCmd = sImageOut, aArgs = [ '/C', 'dir /S C:\\Windows' ],
+                [ tdTestExec(sCmd = sImageOut, aArgs = [ sImageOut, '/C', 'dir /S C:\\Windows' ],
                              sUser = sUser, sPassword = sPassword,
                              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                   tdTestResultExec(fRc = True, cbStdOut = 497917) ] ];
@@ -1921,64 +1968,64 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
         if oTestVm.isWindows():
             aaTests.extend([
                 # Simple.
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'wrongcommand' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'wrongcommand' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'exit', '22' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'exit', '22' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 22) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'set', 'ERRORLEVEL=234' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'set', 'ERRORLEVEL=234' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'echo', '%WINDIR%' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'echo', '%WINDIR%' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'set', 'ERRORLEVEL=0' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'set', 'ERRORLEVEL=0' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\windows\\system32' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\windows\\system32' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\windows\\system32\\kernel32.dll' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\windows\\system32\\kernel32.dll' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-file' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-file' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-dir\\' ],
+                [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-dir\\' ],
                              sUser = sUser, sPassword = sPassword),
                   tdTestResultExec(fRc = True, iExitCode = 1) ]
                 # FIXME: Failing tests.
                 # With stdout.
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\windows\\system32' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\windows\\system32' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-file' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-file' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-dir\\' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-dir\\' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ],
                 # With stderr.
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\windows\\system32' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\windows\\system32' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-file' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-file' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-dir\\' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-dir\\' ],
                 #              sUser = sUser, sPassword = sPassword, aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ],
                 # With stdout/stderr.
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\windows\\system32' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\windows\\system32' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 0) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-file' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-file' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ],
-                # [ tdTestExec(sCmd = sImage, aArgs = [ '/C', 'dir', 'c:\\nonexisting-dir\\' ],
+                # [ tdTestExec(sCmd = sImage, aArgs = [ sImage, '/C', 'dir', 'c:\\nonexisting-dir\\' ],
                 #              sUser = sUser, sPassword = sPassword,
                 #              aFlags = [ vboxcon.ProcessCreateFlag_WaitForStdOut, vboxcon.ProcessCreateFlag_WaitForStdErr ]),
                 #   tdTestResultExec(fRc = True, iExitCode = 1) ]
@@ -2030,7 +2077,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             # Create a process which never terminates and should timeout when
             # waiting for termination.
             try:
-                curProc = oGuestSession.processCreate(sImage, [], \
+                curProc = oGuestSession.processCreate(sImage, [sImage,] if self.oTstDrv.fpApiVer >= 5.0 else [], \
                                                       [], [], 30 * 1000);
                 reporter.log('Waiting for process 1 being started ...');
                 waitRes = curProc.waitForArray([ vboxcon.ProcessWaitForFlag_Start ], 30 * 1000);
@@ -2061,7 +2108,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             # guest because it ran out of execution time (5 seconds).
             if fRc:
                 try:
-                    curProc = oGuestSession.processCreate(sImage, [], \
+                    curProc = oGuestSession.processCreate(sImage, [sImage,] if self.oTstDrv.fpApiVer >= 5.0 else [], \
                                                           [], [], 5 * 1000);
                     reporter.log('Waiting for process 2 being started ...');
                     waitRes = curProc.waitForArray([ vboxcon.ProcessWaitForFlag_Start ], 30 * 1000);
@@ -2325,7 +2372,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
             curTest.closeSession();
             if sDirTemp  != "":
                 reporter.log2('Temporary directory is: %s' % (sDirTemp,));
-                fExists = curGuestSession.directoryExists(sDirTemp);
+                if self.oTstDrv.fpApiVer >= 5.0:
+                    fExists = curGuestSession.directoryExists(sDirTemp, False);
+                else:
+                    fExists = curGuestSession.directoryExists(sDirTemp);
                 if fExists is False:
                     reporter.error('Test #%d failed: Temporary directory "%s" does not exists' % (i, sDirTemp));
                     fRc = False;
@@ -2469,7 +2519,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
             try:
-                curGuestSession.fileRemove(curTest.sFile);
+                if self.oTstDrv.fpApiVer >= 5.0:
+                    curGuestSession.fsObjRemove(curTest.sFile);
+                else:
+                    curGuestSession.fileRemove(curTest.sFile);
             except:
                 if curRes.fRc is True:
                     reporter.errorXcpt('Removing file "%s" failed:' % (curTest.sFile,));
@@ -2541,7 +2594,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 break;
             fileObjInfo = None;
             try:
-                fileObjInfo = curGuestSession.fileQueryInfo(curTest.sFile);
+                if self.oTstDrv.fpApiVer >= 5.0:
+                    fileObjInfo = curGuestSession.fsObjQueryInfo(curTest.sFile, True);
+                else:
+                    fileObjInfo = curGuestSession.fileQueryInfo(curTest.sFile);
             except:
                 if curRes.fRc is True:
                     reporter.errorXcpt('Querying file information for "%s" failed:' % (curTest.sFile,));
@@ -2663,9 +2719,14 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
             try:
-                if curTest.cbOffset > 0:
-                    curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
-                                                         curTest.sSharingMode, curTest.lCreationMode, curTest.cbOffset);
+                if curTest.cbOffset > 0: # The offset parameter is gone.
+                    if self.oTstDrv.fpApiVer >= 5.0:
+                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.getAccessMode(), curTest.getOpenAction(),
+                                                             curTest.getSharingMode(), curTest.lCreationMode, []);
+                        curFile.seek(curTest.cbOffset, vboxcon.FileSeekOrigin_Begin);
+                    else:
+                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                                                             curTest.sSharingMode, curTest.lCreationMode, curTest.cbOffset);
                     curOffset = long(curFile.offset);
                     resOffset = long(curTest.cbOffset);
                     if curOffset != resOffset:
@@ -2673,8 +2734,12 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                                        % (i, curOffset, resOffset));
                         fRc = False;
                 else:
-                    curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
-                                                       curTest.lCreationMode);
+                    if self.oTstDrv.fpApiVer >= 5.0:
+                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.getAccessMode(), curTest.getOpenAction(),
+                                                           curTest.lCreationMode);
+                    else:
+                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                                                           curTest.lCreationMode);
                 if  fRc \
                 and curTest.cbToReadWrite > 0:
                     ## @todo Split this up in 64K reads. Later.
@@ -2768,9 +2833,14 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                 reporter.error('Test #%d failed: Could not create session' % (i,));
                 break;
             try:
-                if curTest.cbOffset > 0:
-                    curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
-                                                         curTest.sSharingMode, curTest.lCreationMode, curTest.cbOffset);
+                if curTest.cbOffset > 0: # The offset parameter is gone.
+                    if self.oTstDrv.fpApiVer >= 5.0:
+                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.getAccessMode(), curTest.getOpenAction(),
+                                                             curTest.getSharingMode(), []);
+                        curFile.seek(curTest.cbOffset, vboxcon.FileSeekOrigin_Begin);
+                    else:
+                        curFile = curGuestSession.fileOpenEx(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                                                             curTest.sSharingMode, curTest.lCreationMode, curTest.cbOffset);
                     curOffset = long(curFile.offset);
                     resOffset = long(curTest.cbOffset);
                     if curOffset != resOffset:
@@ -2778,8 +2848,12 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                                        % (i, curOffset, resOffset));
                         fRc = False;
                 else:
-                    curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
-                                                       curTest.lCreationMode);
+                    if self.oTstDrv.fpApiVer >= 5.0:
+                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.getAccessMode(), curTest.getOpenAction(),
+                                                           curTest.lCreationMode);
+                    else:
+                        curFile = curGuestSession.fileOpen(curTest.sFile, curTest.sOpenMode, curTest.sDisposition, \
+                                                           curTest.lCreationMode);
                 if  fRc \
                 and curTest.cbToReadWrite > 0:
                     ## @todo Split this up in 64K writes. Later.
@@ -2794,7 +2868,10 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                         # Verify written content by seeking back to the initial offset and
                         # re-read & compare the written data.
                         try:
-                            curFile.seek(-(curTest.cbToReadWrite), vboxcon.FileSeekType_Current);
+                            if self.oTstDrv.fpApiVer >= 5.0:
+                                curFile.seek(-(curTest.cbToReadWrite), vboxcon.FileSeekOrigin_Current);
+                            else:
+                                curFile.seek(-(curTest.cbToReadWrite), vboxcon.FileSeekType_Current);
                         except:
                             reporter.logXcpt('Seeking back to initial write position failed:');
                             fRc = False;
@@ -3281,14 +3358,13 @@ class tdAddGuestCtrl(vbox.TestDriver):                                         #
         _ = oGuestSession.waitForArray(aWaitFor, 30 * 1000);
 
         sCmd = 'c:\\windows\\system32\\cmd.exe';
-        aArgs = [ '/C', 'dir', '/S', 'c:\\windows' ];
+        aArgs = [ sCmd, '/C', 'dir', '/S', 'c:\\windows' ];
         aEnv = [];
         aFlags = [];
 
         for _ in range(100):
-            oProc = oGuestSession.processCreate(sCmd,
-                                                aArgs, aEnv,
-                                                aFlags, 30 * 1000);
+            oProc = oGuestSession.processCreate(sCmd, aArgs if self.fpApiVer >= 5.0 else aArgs[1:],
+                                                aEnv, aFlags, 30 * 1000);
 
             aWaitFor = [ vboxcon.ProcessWaitForFlag_Terminate ];
             _ = oProc.waitForArray(aWaitFor, 30 * 1000);

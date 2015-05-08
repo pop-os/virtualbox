@@ -1,3 +1,4 @@
+/* $Id: UIWizardImportAppPageExpert.h $ */
 /** @file
  * VBox Qt GUI - UIWizardImportAppPageExpert class declaration.
  */

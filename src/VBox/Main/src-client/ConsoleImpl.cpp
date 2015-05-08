@@ -265,7 +265,7 @@ public:
     {
     }
 
-    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent * aEvent)
+    STDMETHOD(HandleEvent)(VBoxEventType_T aType, IEvent *aEvent)
     {
         switch(aType)
         {
@@ -277,12 +277,9 @@ public:
                 HRESULT rc = E_FAIL;
                 Assert(pNREv);
 
-                Bstr interestedId;
-                rc = pMachine->COMGETTER(Id)(interestedId.asOutParam());
-                AssertComRC(rc);
                 rc = pNREv->COMGETTER(MachineId)(id.asOutParam());
                 AssertComRC(rc);
-                if (id != interestedId)
+                if (id != mConsole->i_getId())
                     break;
                 /* now we can operate with redirects */
                 NATProtocol_T proto;
@@ -341,6 +338,7 @@ public:
             default:
               AssertFailed();
         }
+
         return S_OK;
     }
 private:
@@ -475,6 +473,9 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
     /* Cache essential properties and objects, and create child objects */
 
     rc = mMachine->COMGETTER(State)(&mMachineState);
+    AssertComRCReturnRC(rc);
+
+    rc = mMachine->COMGETTER(Id)(mstrUuid.asOutParam());
     AssertComRCReturnRC(rc);
 
 #ifdef VBOX_WITH_EXTPACK
@@ -1064,14 +1065,10 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
         return VERR_ACCESS_DENIED;
     }
 
-    Bstr id;
-    HRESULT hrc = mMachine->COMGETTER(Id)(id.asOutParam());
-    Guid uuid = Guid(id);
-
-    AssertComRCReturn(hrc, VERR_ACCESS_DENIED);
+    Guid uuid = Guid(i_getId());
 
     AuthType_T authType = AuthType_Null;
-    hrc = mVRDEServer->COMGETTER(AuthType)(&authType);
+    HRESULT hrc = mVRDEServer->COMGETTER(AuthType)(&authType);
     AssertComRCReturn(hrc, VERR_ACCESS_DENIED);
 
     ULONG authTimeout = 0;
@@ -1418,16 +1415,12 @@ void Console::i_VRDPClientDisconnect(uint32_t u32ClientId,
 #endif
     }
 
-    Bstr uuid;
-    HRESULT hrc = mMachine->COMGETTER(Id)(uuid.asOutParam());
-    AssertComRC(hrc);
-
     AuthType_T authType = AuthType_Null;
-    hrc = mVRDEServer->COMGETTER(AuthType)(&authType);
+    HRESULT hrc = mVRDEServer->COMGETTER(AuthType)(&authType);
     AssertComRC(hrc);
 
     if (authType == AuthType_External)
-        mConsoleVRDPServer->AuthDisconnect(uuid, u32ClientId);
+        mConsoleVRDPServer->AuthDisconnect(i_getId(), u32ClientId);
 
 #ifdef VBOX_WITH_GUEST_PROPS
     i_guestPropertiesVRDPUpdateDisconnect(u32ClientId);
@@ -1761,10 +1754,12 @@ DECLCALLBACK(int) Console::i_doGuestPropNotification(void *pvExtension,
     Bstr value(pCBData->pcszValue);
     Bstr flags(pCBData->pcszFlags);
     ComObjPtr<Console> pConsole = reinterpret_cast<Console *>(pvExtension);
+    BOOL fNotify = FALSE;
     HRESULT hrc = pConsole->mControl->PushGuestProperty(name.raw(),
                                                         value.raw(),
                                                         pCBData->u64Timestamp,
-                                                        flags.raw());
+                                                        flags.raw(),
+                                                        &fNotify);
     if (SUCCEEDED(hrc))
         rc = VINF_SUCCESS;
     else
@@ -1773,6 +1768,8 @@ DECLCALLBACK(int) Console::i_doGuestPropNotification(void *pvExtension,
                  hrc, pCBData->pcszName, pCBData->pcszValue, pCBData->pcszFlags));
         rc = Global::vboxStatusCodeFromCOM(hrc);
     }
+    if (fNotify)
+        fireGuestPropertyChangedEvent(pConsole->mEventSource, pConsole->i_getId().raw(), name.raw(), value.raw(), flags.raw());
     return rc;
 }
 
@@ -2994,7 +2991,7 @@ HRESULT Console::createSharedFolder(const com::Utf8Str &aName, const com::Utf8St
         SharedFolderDataMap::const_iterator it;
         if (i_findOtherSharedFolder(aName, it))
         {
-            rc = removeSharedFolder(aName);
+            rc = i_removeSharedFolder(aName);
             if (FAILED(rc))
                 return rc;
         }
@@ -3019,8 +3016,6 @@ HRESULT Console::createSharedFolder(const com::Utf8Str &aName, const com::Utf8St
 HRESULT Console::removeSharedFolder(const com::Utf8Str &aName)
 {
     LogFlowThisFunc(("Entering for '%s'\n", aName.c_str()));
-
-    Utf8Str strName(aName);
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -3053,20 +3048,20 @@ HRESULT Console::removeSharedFolder(const com::Utf8Str &aName)
          * folder. */
 
         /* first, remove the given folder */
-        rc = removeSharedFolder(strName);
+        rc = i_removeSharedFolder(aName);
         if (FAILED(rc)) return rc;
 
         /* first, remove the machine or the global folder if there is any */
         SharedFolderDataMap::const_iterator it;
-        if (i_findOtherSharedFolder(strName, it))
+        if (i_findOtherSharedFolder(aName, it))
         {
-            rc = i_createSharedFolder(strName, it->second);
+            rc = i_createSharedFolder(aName, it->second);
             /* don't check rc here because we need to remove the console
              * folder from the collection even on failure */
         }
     }
 
-    m_mapSharedFolders.erase(strName);
+    m_mapSharedFolders.erase(aName);
 
     /* Notify console callbacks after the folder is removed from the list. */
     alock.release();
@@ -5669,10 +5664,8 @@ HRESULT Console::i_onExtraDataChange(IN_BSTR aMachineId, IN_BSTR aKey, IN_BSTR a
 
     HRESULT hrc = S_OK;
     Bstr idMachine(aMachineId);
-    Bstr idSelf;
-    hrc = mMachine->COMGETTER(Id)(idSelf.asOutParam());
     if (   FAILED(hrc)
-        || idMachine != idSelf)
+        || idMachine != i_getId())
         return hrc;
 
     /* don't do anything if the VM isn't running */
@@ -6207,12 +6200,13 @@ HRESULT Console::i_pause(Reason_T aReason)
         case MachineState_Paused:
         case MachineState_TeleportingPausedVM:
         case MachineState_OnlineSnapshotting:
-
-        /* Remove any keys which are supposed to be removed on a suspend. */
-        if (   aReason == Reason_HostSuspend
-            || aReason == Reason_HostBatteryLow)
-            i_removeSecretKeysOnSuspend();
-
+            /* Remove any keys which are supposed to be removed on a suspend. */
+            if (   aReason == Reason_HostSuspend
+                || aReason == Reason_HostBatteryLow)
+            {
+                i_removeSecretKeysOnSuspend();
+                return S_OK;
+            }
             return setError(VBOX_E_INVALID_VM_STATE, tr("Already paused"));
 
         default:
@@ -6229,7 +6223,7 @@ HRESULT Console::i_pause(Reason_T aReason)
 
     LogFlowThisFunc(("Sending PAUSE request...\n"));
     if (aReason != Reason_Unspecified)
-        LogRel(("Pausing VM execution, reason \"%s\"\n", Global::stringifyReason(aReason)));
+        LogRel(("Pausing VM execution, reason '%s'\n", Global::stringifyReason(aReason)));
 
     /** @todo r=klaus make use of aReason */
     VMSUSPENDREASON enmReason = VMSUSPENDREASON_USER;
@@ -6275,7 +6269,7 @@ HRESULT Console::i_resume(Reason_T aReason, AutoWriteLock &alock)
 
     LogFlowThisFunc(("Sending RESUME request...\n"));
     if (aReason != Reason_Unspecified)
-        LogRel(("Resuming VM execution, reason \"%s\"\n", Global::stringifyReason(aReason)));
+        LogRel(("Resuming VM execution, reason '%s'\n", Global::stringifyReason(aReason)));
 
     int vrc;
     if (VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_CREATED)
@@ -6292,7 +6286,16 @@ HRESULT Console::i_resume(Reason_T aReason, AutoWriteLock &alock)
     {
         VMRESUMEREASON enmReason = VMRESUMEREASON_USER;
         if (aReason == Reason_HostResume)
+        {
+            /*
+             * Host resume may be called multiple times successively. We don't want to VMR3Resume->vmR3Resume->vmR3TrySetState()
+             * to assert on us, hence check for the VM state here and bail if it's already in the 'running' state.
+             * See @bugref{3495}.
+             */
             enmReason = VMRESUMEREASON_HOST_RESUME;
+            if (VMR3GetStateU(ptrVM.rawUVM()) == VMSTATE_RUNNING)
+                return S_OK;
+        }
         else if (aReason == Reason_Snapshot)
             enmReason = VMRESUMEREASON_STATE_SAVED;
 
@@ -6357,7 +6360,7 @@ HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgres
                         tr("Saving the execution state is disabled for this VM"));
 
     if (aReason != Reason_Unspecified)
-        LogRel(("Saving state of VM, reason \"%s\"\n", Global::stringifyReason(aReason)));
+        LogRel(("Saving state of VM, reason '%s'\n", Global::stringifyReason(aReason)));
 
     /* ensure the directory for the saved state file exists */
     {
@@ -6703,8 +6706,10 @@ HRESULT Console::i_onShowWindow(BOOL aCheck, BOOL *aCanShow, LONG64 *aWinId)
             if (pCanShowEvent)
             {
                 BOOL fVetoed = FALSE;
+                BOOL fApproved = FALSE;
                 pCanShowEvent->IsVetoed(&fVetoed);
-                *aCanShow = !fVetoed;
+                pCanShowEvent->IsApproved(&fApproved);
+                *aCanShow = fApproved || !fVetoed;
             }
             else
             {
@@ -7730,7 +7735,7 @@ HRESULT Console::i_setMachineState(MachineState_T aMachineState,
     {
         LogThisFunc(("machineState=%s -> %s aUpdateServer=%RTbool\n",
                      Global::stringifyMachineState(mMachineState), Global::stringifyMachineState(aMachineState), aUpdateServer));
-        LogRel(("Console: machine state changed to %s\n", Global::stringifyMachineState(aMachineState)));
+        LogRel(("Console: Machine state changed to '%s'\n", Global::stringifyMachineState(aMachineState)));
         mMachineState = aMachineState;
 
         /// @todo (dmik)
@@ -7890,7 +7895,7 @@ HRESULT Console::i_fetchSharedFolders(BOOL aGlobal)
                                  || m_mapGlobalSharedFolders.find(strName) != m_mapGlobalSharedFolders.end()
                                )
                             {
-                                rc = removeSharedFolder(strName);
+                                rc = i_removeSharedFolder(strName);
                                 if (FAILED(rc)) throw rc;
                             }
 
@@ -7917,7 +7922,7 @@ HRESULT Console::i_fetchSharedFolders(BOOL aGlobal)
                     else
                     {
                         /* remove the outdated machine folder */
-                        rc = removeSharedFolder(it->first);
+                        rc = i_removeSharedFolder(it->first);
                         if (FAILED(rc)) throw rc;
 
                         /* create the global folder if there is any */

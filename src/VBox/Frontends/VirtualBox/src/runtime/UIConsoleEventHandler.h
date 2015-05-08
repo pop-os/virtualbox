@@ -1,3 +1,4 @@
+/* $Id: UIConsoleEventHandler.h $ */
 /** @file
  * VBox Qt GUI - UIConsoleEventHandler class declaration.
  */

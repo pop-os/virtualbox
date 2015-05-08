@@ -46,15 +46,19 @@
  * We include some extra stuff here that the corresponding shell would normally
  * require quoting of.
  */
-static uint8_t const g_abmQuoteChars[RTGETOPTARGV_CNV_QUOTE_MASK + 1][128/8] =
+static uint8_t
+#ifndef IPRT_REGENERATE_QUOTE_CHARS
+const
+#endif
+g_abmQuoteChars[RTGETOPTARGV_CNV_QUOTE_MASK + 1][16] =
 {
-    { 0xfe, 0xff, 0x0f, 0x00, 0x65, 0x00, 0x00, 0x50 },
-    { 0xfe, 0xff, 0x0f, 0x00, 0xd7, 0x07, 0x00, 0xd8 },
+    { 0xfe, 0xff, 0xff, 0xff, 0x65, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10 },
+    { 0xfe, 0xff, 0xff, 0xff, 0xd7, 0x07, 0x00, 0xd8, 0x00, 0x00, 0x00, 0x18, 0x01, 0x00, 0x00, 0x50 },
 };
 
 
-#if 0   /* To re-generate the bitmaps. */
-#include <stdio.h>
+#ifdef IPRT_REGENERATE_QUOTE_CHARS   /* To re-generate the bitmaps. */
+# include <stdio.h>
 int main()
 {
     RT_ZERO(g_abmQuoteChars);
@@ -65,7 +69,10 @@ int main()
                 ASMBitSet(&g_abmQuoteChars[iType], (ch)); \
         } while (0)
 # define SET(ConstSuffix, ch) \
-        ASMBitSet(&g_abmQuoteChars[RTGETOPTARGV_CNV_QUOTE_##ConstSuffix], (ch));
+        do { \
+            ASMBitSet(&g_abmQuoteChars[RTGETOPTARGV_CNV_QUOTE_##ConstSuffix], (ch)); \
+            printf(#ConstSuffix ": %#x %d %c\n", (ch), (ch), (ch)); \
+        } while (0)
 
     /* just flag all the control chars as in need of quoting. */
     for (char ch = 1; ch < 0x20; ch++)
@@ -75,12 +82,12 @@ int main()
     SET_ALL(' ');
 
     /* MS CRT / CMD.EXE: */
-    SET(MS_CRT, '"')
-    SET(MS_CRT, '&')
-    SET(MS_CRT, '>')
-    SET(MS_CRT, '<')
-    SET(MS_CRT, '|')
-    SET(MS_CRT, '%')
+    SET(MS_CRT, '"');
+    SET(MS_CRT, '&');
+    SET(MS_CRT, '>');
+    SET(MS_CRT, '<');
+    SET(MS_CRT, '|');
+    SET(MS_CRT, '%');
 
     /* Bourne shell: */
     SET(BOURNE_SH, '!');
@@ -104,14 +111,14 @@ int main()
     for (size_t iType = 0; iType <= RTGETOPTARGV_CNV_QUOTE_MASK; iType++)
     {
         printf("    {");
-        for (size_t iByte = 0; iByte < 8; iByte++)
+        for (size_t iByte = 0; iByte < 16; iByte++)
             printf(iByte == 0 ? " 0x%02x" : ", 0x%02x", g_abmQuoteChars[iType][iByte]);
         printf(" },\n");
     }
     return 0;
 }
-#endif /* To re-generate the bitmaps. */
 
+#else /* !IPRT_REGENERATE_QUOTE_CHARS */
 
 /**
  * Look for an unicode code point in the separator string.
@@ -213,7 +220,8 @@ static int rtGetOptSkipDelimiters(const char **ppszSrc, const char *pszSeparator
 }
 
 
-RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *pszCmdLine, const char *pszSeparators)
+RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *pszCmdLine,
+                                   uint32_t fFlags, const char *pszSeparators)
 {
     /*
      * Some input validation.
@@ -221,6 +229,8 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
     AssertPtr(pszCmdLine);
     AssertPtr(pcArgs);
     AssertPtr(ppapszArgv);
+    AssertReturn(   fFlags == RTGETOPTARGV_CNV_QUOTE_BOURNE_SH
+                 || fFlags == RTGETOPTARGV_CNV_QUOTE_MS_CRT, VERR_INVALID_FLAGS);
     if (!pszSeparators)
         pszSeparators = " \t\n\r";
     else
@@ -261,28 +271,106 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
         }
         papszArgs[iArg++] = pszDst;
 
-        /* Parse and copy the string over. */
-        RTUNICP CpQuote = 0;
+        /*
+         * Parse and copy the string over.
+         */
         RTUNICP Cp;
-        for (;;)
+        if ((fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) == RTGETOPTARGV_CNV_QUOTE_BOURNE_SH)
         {
-            rc = RTStrGetCpEx(&pszSrc, &Cp);
-            if (RT_FAILURE(rc) || !Cp)
-                break;
-            if (!CpQuote)
+            /*
+             * Bourne shell style.
+             */
+            RTUNICP CpQuote = 0;
+            for (;;)
             {
-                if (Cp == '"' || Cp == '\'')
-                    CpQuote = Cp;
-                else if (rtGetOptIsCpInSet(Cp, pszSeparators, cchSeparators))
+                rc = RTStrGetCpEx(&pszSrc, &Cp);
+                if (RT_FAILURE(rc) || !Cp)
                     break;
+                if (!CpQuote)
+                {
+                    if (Cp == '"' || Cp == '\'')
+                        CpQuote = Cp;
+                    else if (rtGetOptIsCpInSet(Cp, pszSeparators, cchSeparators))
+                        break;
+                    else if (Cp != '\\')
+                        pszDst = RTStrPutCp(pszDst, Cp);
+                    else
+                    {
+                        /* escaped char */
+                        rc = RTStrGetCpEx(&pszSrc, &Cp);
+                        if (RT_FAILURE(rc) || !Cp)
+                            break;
+                        pszDst = RTStrPutCp(pszDst, Cp);
+                    }
+                }
+                else if (CpQuote != Cp)
+                {
+                    if (Cp != '\\' || CpQuote == '\'')
+                        pszDst = RTStrPutCp(pszDst, Cp);
+                    else
+                    {
+                        /* escaped char */
+                        rc = RTStrGetCpEx(&pszSrc, &Cp);
+                        if (RT_FAILURE(rc) || !Cp)
+                            break;
+                        pszDst = RTStrPutCp(pszDst, Cp);
+                    }
+                }
                 else
-                    pszDst = RTStrPutCp(pszDst, Cp);
+                    CpQuote = 0;
             }
-            else if (CpQuote != Cp)
-                pszDst = RTStrPutCp(pszDst, Cp);
-            else
-                CpQuote = 0;
         }
+        else
+        {
+            /*
+             * Microsoft CRT style.
+             */
+            Assert((fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) == RTGETOPTARGV_CNV_QUOTE_MS_CRT);
+            bool fInQuote = false;
+            for (;;)
+            {
+                rc = RTStrGetCpEx(&pszSrc, &Cp);
+                if (RT_FAILURE(rc) || !Cp)
+                    break;
+                if (Cp == '"')
+                    fInQuote = !fInQuote;
+                else if (!fInQuote && rtGetOptIsCpInSet(Cp, pszSeparators, cchSeparators))
+                    break;
+                else if (Cp != '\\')
+                    pszDst = RTStrPutCp(pszDst, Cp);
+                else
+                {
+                    /* A backslash sequence is only relevant if followed by
+                       a double quote, then it will work like an escape char. */
+                    size_t cQuotes = 1;
+                    while (*pszSrc == '\\')
+                    {
+                        cQuotes++;
+                        pszSrc++;
+                    }
+                    if (*pszSrc != '"')
+                        /* Not an escape sequence.  */
+                        while (cQuotes-- > 0)
+                            pszDst = RTStrPutCp(pszDst, '\\');
+                    else
+                    {
+                        /* Escape sequence.  Output half of the slashes.  If odd
+                           number, output the escaped double quote . */
+                        while (cQuotes >= 2)
+                        {
+                            pszDst = RTStrPutCp(pszDst, '\\');
+                            cQuotes -= 2;
+                        }
+                        if (!cQuotes)
+                            fInQuote = !fInQuote;
+                        else
+                            pszDst = RTStrPutCp(pszDst, '"');
+                        pszSrc++;
+                    }
+                }
+            }
+        }
+
         *pszDst++ = '\0';
         if (RT_FAILURE(rc) || !Cp)
             break;
@@ -339,17 +427,22 @@ RTDECL(void) RTGetOptArgvFree(char **papszArgv)
  */
 DECLINLINE(bool) rtGetOpArgvRequiresQuoting(const char *pszArg, uint32_t fFlags, size_t *pcch)
 {
-    char const *psz = pszArg;
-    unsigned char ch;
-    while ((ch = (unsigned char)*psz))
+    if ((fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) != RTGETOPTARGV_CNV_UNQUOTED)
     {
-        if (   ch < 128
-            && ASMBitTest(&g_abmQuoteChars[fFlags & RTGETOPTARGV_CNV_QUOTE_MASK], ch))
-            return true;
-        psz++;
-    }
+        char const *psz = pszArg;
+        unsigned char ch;
+        while ((ch = (unsigned char)*psz))
+        {
+            if (   ch < 128
+                && ASMBitTest(&g_abmQuoteChars[fFlags & RTGETOPTARGV_CNV_QUOTE_MASK], ch))
+                return true;
+            psz++;
+        }
 
-    *pcch = psz - pszArg;
+        *pcch = psz - pszArg;
+    }
+    else
+        *pcch = strlen(pszArg);
     return false;
 }
 
@@ -388,7 +481,7 @@ DECLINLINE(bool) rtGetOptArgvMsCrtIsSlashQuote(const char *psz)
 
 RTDECL(int) RTGetOptArgvToString(char **ppszCmdLine, const char * const *papszArgv, uint32_t fFlags)
 {
-    AssertReturn(!(fFlags & ~RTGETOPTARGV_CNV_QUOTE_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(fFlags <= RTGETOPTARGV_CNV_UNQUOTED, VERR_INVALID_PARAMETER);
 
 #define PUT_CH(ch) \
         if (RT_UNLIKELY(off + 1 >= cbCmdLineAlloc)) { \
@@ -509,4 +602,6 @@ RTDECL(int) RTGetOptArgvToUtf16String(PRTUTF16 *ppwszCmdLine, const char * const
     }
     return rc;
 }
+
+#endif  /* !IPRT_REGENERATE_QUOTE_CHARS */
 

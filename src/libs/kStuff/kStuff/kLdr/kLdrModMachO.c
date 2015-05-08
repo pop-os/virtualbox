@@ -1,4 +1,4 @@
-/* $Id: kLdrModMachO.c 66 2014-01-20 11:33:48Z bird $ */
+/* $Id: kLdrModMachO.c 69 2015-04-29 12:18:07Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the MACH-O format.
  */
@@ -1020,6 +1020,9 @@ static int  kldrModMachOPreParseLoadCommands(KU8 *pbLoadCommands, const mach_hea
                 /** @todo valid command size. */
                 break;
 
+            case LC_FUNCTION_STARTS:    /** @todo dylib++ */
+                /* Ignore for now. */
+                break;
             case LC_ID_DYLIB:           /** @todo dylib */
             case LC_LOAD_DYLIB:         /** @todo dylib */
             case LC_LOAD_DYLINKER:      /** @todo dylib */
@@ -1032,7 +1035,6 @@ static int  kldrModMachOPreParseLoadCommands(KU8 *pbLoadCommands, const mach_hea
             case LC_DYLD_INFO:          /** @todo dylib */
             case LC_DYLD_INFO_ONLY:     /** @todo dylib */
             case LC_LOAD_UPWARD_DYLIB:  /** @todo dylib */
-            case LC_FUNCTION_STARTS:    /** @todo dylib++ */
             case LC_DYLD_ENVIRONMENT:   /** @todo dylib */
             case LC_MAIN: /** @todo parse this and find and entry point or smth. */
                 /** @todo valid command size. */
@@ -3077,10 +3079,12 @@ static int  kldrModMachOFixupSectionAMD64(PKLDRMODMACHO pModMachO, KU8 *pbSectBi
                             KLDRMODMACHO_CHECK_RETURN(Fixup.r.r_length == 2, KLDR_ERR_BAD_FIXUP);
                             SymAddr -= 4;
                             break;
-                        case X86_64_RELOC_SIGNED_1: SymAddr -= 1; break;
-                        case X86_64_RELOC_SIGNED_2: SymAddr -= 2; break;
                         case X86_64_RELOC_SIGNED:
-                        case X86_64_RELOC_SIGNED_4: SymAddr -= 4; break;
+                        case X86_64_RELOC_SIGNED_1:
+                        case X86_64_RELOC_SIGNED_2:
+                        case X86_64_RELOC_SIGNED_4:
+                            SymAddr -= 4;
+                            break;
                         default:
                             KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_BAD_FIXUP);
                     }
@@ -3160,55 +3164,73 @@ static int  kldrModMachOFixupSectionAMD64(PKLDRMODMACHO pModMachO, KU8 *pbSectBi
                                               && Fixup2.r_length == Fixup.r.r_length
                                               && Fixup2.r_type == X86_64_RELOC_UNSIGNED
                                               && !Fixup2.r_pcrel
-                                              && Fixup2.r_extern /*??*/
                                               && Fixup2.r_symbolnum < cSyms,
                                               KLDR_ERR_BAD_FIXUP);
 
-                    pSym = &paSyms[Fixup.r.r_symbolnum];
-                    KLDRMODMACHO_CHECK_RETURN(!(pSym->n_type & MACHO_N_STAB), KLDR_ERR_BAD_FIXUP);
-
-                    /* Add it's value to SymAddr. */
-                    switch (pSym->n_type & MACHO_N_TYPE)
+                    if (Fixup2.r_extern)
                     {
-                        case MACHO_N_SECT:
+                        KLDRMODMACHO_CHECK_RETURN(Fixup2.r_symbolnum < cSyms, KLDR_ERR_BAD_FIXUP);
+                        pSym = &paSyms[Fixup2.r_symbolnum];
+                        KLDRMODMACHO_CHECK_RETURN(!(pSym->n_type & MACHO_N_STAB), KLDR_ERR_BAD_FIXUP);
+
+                        /* Add it's value to SymAddr. */
+                        switch (pSym->n_type & MACHO_N_TYPE)
                         {
-                            PKLDRMODMACHOSECT pSymSect;
-                            KLDRMODMACHO_CHECK_RETURN((KU32)pSym->n_sect - 1 <= pModMachO->cSections, KLDR_ERR_MACHO_BAD_SYMBOL);
-                            pSymSect = &pModMachO->paSections[pSym->n_sect - 1];
-                            SymAddr += pSym->n_value - pSymSect->LinkAddress + pSymSect->RVA + NewBaseAddress;
-                            break;
+                            case MACHO_N_SECT:
+                            {
+                                PKLDRMODMACHOSECT pSymSect;
+                                KLDRMODMACHO_CHECK_RETURN((KU32)pSym->n_sect - 1 <= pModMachO->cSections, KLDR_ERR_MACHO_BAD_SYMBOL);
+                                pSymSect = &pModMachO->paSections[pSym->n_sect - 1];
+                                SymAddr += pSym->n_value - pSymSect->LinkAddress + pSymSect->RVA + NewBaseAddress;
+                                break;
+                            }
+
+                            case MACHO_N_UNDF:
+                            case MACHO_N_ABS:
+                                SymAddr += pSym->n_value;
+                                break;
+
+                            case MACHO_N_INDR:
+                            case MACHO_N_PBUD:
+                                KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_TODO);
+                            default:
+                                KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_MACHO_BAD_SYMBOL);
                         }
-
-                        case MACHO_N_UNDF:
-                        case MACHO_N_ABS:
-                            SymAddr += pSym->n_value;
-                            break;
-
-                        case MACHO_N_INDR:
-                        case MACHO_N_PBUD:
-                            KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_TODO);
-                        default:
-                            KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_MACHO_BAD_SYMBOL);
                     }
+                    else if (Fixup2.r_symbolnum != R_ABS)
+                    {
+                        PKLDRMODMACHOSECT pSymSect;
+                        KLDRMODMACHO_CHECK_RETURN(Fixup2.r_symbolnum <= pModMachO->cSections, KLDR_ERR_BAD_FIXUP);
+                        pSymSect = &pModMachO->paSections[Fixup2.r_symbolnum - 1];
+                        SymAddr += pSymSect->RVA + NewBaseAddress;
+                    }
+                    else
+                        KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_BAD_FIXUP);
                 }
                 break;
             }
         }
         else
         {
-            /* verify against fixup type */
+            /* verify against fixup type and make adjustments */
             switch (Fixup.r.r_type)
             {
                 case X86_64_RELOC_UNSIGNED:
-                case X86_64_RELOC_SIGNED:
+                    KLDRMODMACHO_CHECK_RETURN(!Fixup.r.r_pcrel, KLDR_ERR_BAD_FIXUP);
+                    break;
                 case X86_64_RELOC_BRANCH:
-                /*case X86_64_RELOC_GOT_LOAD:*/
-                /*case X86_64_RELOC_GOT: */
-                /*case X86_64_RELOC_SUBTRACTOR: - ???*/
+                    KLDRMODMACHO_CHECK_RETURN(Fixup.r.r_pcrel, KLDR_ERR_BAD_FIXUP);
+                    SymAddr += 4; /* dunno what the assmbler/linker really is doing here... */
+                    break;
+                case X86_64_RELOC_SIGNED:
                 case X86_64_RELOC_SIGNED_1:
                 case X86_64_RELOC_SIGNED_2:
                 case X86_64_RELOC_SIGNED_4:
+                    KLDRMODMACHO_CHECK_RETURN(Fixup.r.r_pcrel, KLDR_ERR_BAD_FIXUP);
                     break;
+                /*case X86_64_RELOC_GOT_LOAD:*/
+                /*case X86_64_RELOC_GOT: */
+                /*case X86_64_RELOC_SUBTRACTOR: - must be r_extern=1 says as. */
                 default:
                     KLDRMODMACHO_CHECK_RETURN(0, KLDR_ERR_BAD_FIXUP);
             }
@@ -3220,6 +3242,8 @@ static int  kldrModMachOFixupSectionAMD64(PKLDRMODMACHO pModMachO, KU8 *pbSectBi
 
                 SymAddr -= pSymSect->LinkAddress;
                 SymAddr += pSymSect->RVA + NewBaseAddress;
+                if (Fixup.r.r_pcrel)
+                    SymAddr += Fixup.r.r_address;
             }
         }
 

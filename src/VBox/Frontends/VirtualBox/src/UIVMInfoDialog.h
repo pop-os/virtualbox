@@ -1,3 +1,4 @@
+/* $Id: UIVMInfoDialog.h $ */
 /** @file
  * VBox Qt GUI - UIVMInfoDialog class declaration.
  */

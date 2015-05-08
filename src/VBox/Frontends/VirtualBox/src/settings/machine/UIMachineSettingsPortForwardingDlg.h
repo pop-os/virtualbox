@@ -1,3 +1,4 @@
+/* $Id: UIMachineSettingsPortForwardingDlg.h $ */
 /** @file
  * VBox Qt GUI - UIMachineSettingsPortForwardingDlg class declaration.
  */

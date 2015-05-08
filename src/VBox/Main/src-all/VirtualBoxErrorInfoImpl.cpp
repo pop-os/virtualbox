@@ -1,3 +1,4 @@
+/* $Id: VirtualBoxErrorInfoImpl.cpp $ */
 /** @file
  *
  * VirtualBoxErrorInfo COM class implementation

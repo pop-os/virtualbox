@@ -1,3 +1,4 @@
+/* $Id: QIWithRetranslateUI.h $ */
 /** @file
  * VBox Qt GUI - Qt extensions: QIWithRetranslateUI class declaration.
  */

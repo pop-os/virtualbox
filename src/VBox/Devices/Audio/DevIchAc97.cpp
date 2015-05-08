@@ -48,11 +48,6 @@
 *   Defined Constants And Macros                                               *
 *******************************************************************************/
 #undef LOG_VOICES
-#ifndef VBOX
-//#define USE_MIXER
-#else
-# define USE_MIXER
-#endif
 
 #ifdef DEBUG
 //#define DEBUG_LUN
@@ -565,7 +560,7 @@ static void ichac97OpenStream(PAC97STATE pThis, int index, uint16_t freq)
         streamCfg.uHz           = freq;
         streamCfg.cChannels     = 2;
         streamCfg.enmFormat     = AUD_FMT_S16;
-        streamCfg.enmEndianness = PDMAUDIOHOSTENDIANESS;
+        streamCfg.enmEndianness = PDMAUDIOHOSTENDIANNESS;
 
         char *pszDesc;
 
@@ -834,8 +829,6 @@ static void ichac97ResetStreams(PAC97STATE pThis, uint8_t active[LAST_INDEX])
 #endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
 }
 
-#ifdef USE_MIXER
-
 #ifdef VBOX_WITH_PDM_AUDIO_DRIVER
 static void ichac97SetVolume(PAC97STATE pThis, int index, PDMAUDIOMIXERCTL mt, uint32_t val)
 #else
@@ -843,19 +836,29 @@ static void ichac97SetVolume(PAC97STATE pThis, int index, audmixerctl_t mt, uint
 #endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
 {
     int mute = (val >> MUTE_SHIFT) & 1;
-    uint8_t rvol = VOL_MASK - (val & VOL_MASK);
-    uint8_t lvol = VOL_MASK - ((val >> 8) & VOL_MASK);
-    rvol = 255 * rvol / VOL_MASK;
-    lvol = 255 * lvol / VOL_MASK;
+    uint8_t rvol = val & VOL_MASK;
+    uint8_t lvol = (val >> 8) & VOL_MASK;
 
-    LogFunc(("mt=%ld, val=%RU32, mute=%RTbool\n", mt, val, RT_BOOL(mute)));
+    /* For the master volume, 0 corresponds to 0dB gain. But for the other
+     * volume controls, 0 corresponds to +12dB and 8 to 0dB. */
+    if (mt != PDMAUDIOMIXERCTL_VOLUME)
+    {
+        /* NB: Currently there is no gain support, only attenuation. */
+        lvol = lvol < 8 ? 0 : lvol - 8;
+        rvol = rvol < 8 ? 0 : rvol - 8;
+    }
+
+    /* AC'97 has 1.5dB steps; we use 0.375dB steps. */
+    rvol = 255 - rvol * 4;
+    lvol = 255 - lvol * 4;
+
+    LogFunc(("mt=%ld, val=%RX32, mute=%RTbool\n", mt, val, RT_BOOL(mute)));
 
 #ifdef SOFT_VOLUME
 # ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     if (pThis->pMixer) /* Device can be in reset state, so no mixer available. */
     {
         PDMAUDIOVOLUME vol = { RT_BOOL(mute), lvol, rvol };
-        PAC97DRIVER pDrv;
         switch (mt)
         {
             case PDMAUDIOMIXERCTL_VOLUME:
@@ -956,8 +959,6 @@ static void ichac97RecordSelect(PAC97STATE pThis, uint32_t val)
     ichac97MixerStore(pThis, AC97_Record_Select, rs | (ls << 8));
 }
 
-#endif /* USE_MIXER */
-
 static void ichac97MixerReset(PAC97STATE pThis)
 {
     LogFlowFuncEnter();
@@ -992,7 +993,7 @@ static void ichac97MixerReset(PAC97STATE pThis)
         streamCfg.uHz           = 41000;
         streamCfg.cChannels     = 2;
         streamCfg.enmFormat     = AUD_FMT_S16;
-        streamCfg.enmEndianness = PDMAUDIOHOSTENDIANESS;
+        streamCfg.enmEndianness = PDMAUDIOHOSTENDIANNESS;
 
         rc2 = audioMixerSetDeviceFormat(pThis->pMixer, &streamCfg);
         AssertRC(rc2);
@@ -1025,12 +1026,6 @@ static void ichac97MixerReset(PAC97STATE pThis)
     ichac97MixerStore(pThis, AC97_3D_Control              , 0x0000);
     ichac97MixerStore(pThis, AC97_Powerdown_Ctrl_Stat     , 0x000f);
 
-    /*
-     * Sigmatel 9700 (STAC9700)
-     */
-    ichac97MixerStore(pThis, AC97_Vendor_ID1              , 0x8384);
-    ichac97MixerStore(pThis, AC97_Vendor_ID2              , 0x7600); /* 7608 */
-
     ichac97MixerStore(pThis, AC97_Extended_Audio_ID       , 0x0809);
     ichac97MixerStore(pThis, AC97_Extended_Audio_Ctrl_Stat, 0x0009);
     ichac97MixerStore(pThis, AC97_PCM_Front_DAC_Rate      , 0xbb80);
@@ -1039,7 +1034,18 @@ static void ichac97MixerReset(PAC97STATE pThis)
     ichac97MixerStore(pThis, AC97_PCM_LR_ADC_Rate         , 0xbb80);
     ichac97MixerStore(pThis, AC97_MIC_ADC_Rate            , 0xbb80);
 
-#ifdef USE_MIXER
+    if (PCIDevGetSubSystemVendorId(&pThis->PciDev) == 0x1028)
+    {
+        /* Analog Devices 1980 (AD1980) */
+        ichac97MixerStore(pThis, AC97_Vendor_ID1              , 0x4144);
+        ichac97MixerStore(pThis, AC97_Vendor_ID2              , 0x5370);
+    }
+    else
+    {
+        /* Sigmatel 9700 (STAC9700) */
+        ichac97MixerStore(pThis, AC97_Vendor_ID1              , 0x8384);
+        ichac97MixerStore(pThis, AC97_Vendor_ID2              , 0x7600); /* 7608 */
+    }
     ichac97RecordSelect(pThis, 0);
 # ifdef VBOX_WITH_PDM_AUDIO_DRIVER
     ichac97SetVolume(pThis, AC97_Master_Volume_Mute,  PDMAUDIOMIXERCTL_VOLUME,  0x8000);
@@ -1050,12 +1056,6 @@ static void ichac97MixerReset(PAC97STATE pThis)
     ichac97SetVolume(pThis, AC97_PCM_Out_Volume_Mute, AUD_MIXER_PCM,     0x8808);
     ichac97SetVolume(pThis, AC97_Line_In_Volume_Mute, AUD_MIXER_LINE_IN, 0x8808);
 # endif
-#else
-    ichac97MixerStore(pThis, AC97_Record_Select, 0);
-    ichac97MixerStore(pThis, AC97_Master_Volume_Mute,  0x8000);
-    ichac97MixerStore(pThis, AC97_PCM_Out_Volume_Mute, 0x8808);
-    ichac97MixerStore(pThis, AC97_Line_In_Volume_Mute, 0x8808);
-#endif
 
     /* Reset all streams. */
     uint8_t active[LAST_INDEX] = { 0 };
@@ -1230,7 +1230,7 @@ static int ichac97ReadAudio(PAC97STATE pThis, PAC97BMREG pReg, uint32_t cbMax, u
 
     uint32_t cbRead = 0;
 
-    size_t cbMixBuf = cbMax;
+    uint32_t cbMixBuf = cbMax;
     uint32_t cbToRead = RT_MIN((uint32_t)(pReg->picb << 1), cbMixBuf);
 
     if (!cbToRead)
@@ -1909,7 +1909,6 @@ static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns,
                     u32 |= ichac97MixerLoad(pThis, index) & 0xf;
                     ichac97MixerStore(pThis, index, u32);
                     break;
-#ifdef USE_MIXER
                 case AC97_Master_Volume_Mute:
 #ifdef VBOX_WITH_PDM_AUDIO_DRIVER
                     ichac97SetVolume(pThis, index, PDMAUDIOMIXERCTL_VOLUME, u32);
@@ -1934,14 +1933,6 @@ static DECLCALLBACK(int) ichac97IOPortNAMWrite(PPDMDEVINS pDevIns,
                 case AC97_Record_Select:
                     ichac97RecordSelect(pThis, u32);
                     break;
-#else  /* !USE_MIXER */
-                case AC97_Master_Volume_Mute:
-                case AC97_PCM_Out_Volume_Mute:
-                case AC97_Line_In_Volume_Mute:
-                case AC97_Record_Select:
-                    ichac97MixerStore(pThis, index, u32);
-                    break;
-#endif /* !USE_MIXER */
                 case AC97_Vendor_ID1:
                 case AC97_Vendor_ID2:
                     LogFlowFunc(("Attempt to write vendor ID to %#x\n", u32));
@@ -2133,7 +2124,6 @@ static DECLCALLBACK(int) ichac97LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, ui
     uint8_t active[LAST_INDEX];
     SSMR3GetMem(pSSM, active, sizeof(active));
 
-#ifdef USE_MIXER
     ichac97RecordSelect(pThis, ichac97MixerLoad(pThis, AC97_Record_Select));
 # define V_(a, b) ichac97SetVolume(pThis, a, b, ichac97MixerLoad(pThis, a))
 # ifdef VBOX_WITH_PDM_AUDIO_DRIVER
@@ -2146,7 +2136,6 @@ static DECLCALLBACK(int) ichac97LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, ui
     V_(AC97_Line_In_Volume_Mute, AUD_MIXER_LINE_IN);
 # endif /* VBOX_WITH_PDM_AUDIO_DRIVER */
 # undef V_
-#endif /* USE_MIXER */
     ichac97ResetStreams(pThis, active);
 
     pThis->bup_flag = 0;
@@ -2315,15 +2304,46 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
 {
     PAC97STATE pThis = PDMINS_2_DATA(pDevIns, PAC97STATE);
 
+#ifdef VBOX_WITH_PDM_AUDIO_DRIVER
+    /* NB: This must be done *before* any possible failure (and running the destructor). */
+    RTListInit(&pThis->lstDrv);
+#endif
+
     Assert(iInstance == 0);
     PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Validations.
      */
-    if (!CFGMR3AreValuesValid(pCfg, "\0"))
+    if (!CFGMR3AreValuesValid(pCfg, "Type\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
-                                N_("Invalid configuration for the AC97 device"));
+                                N_("Invalid configuration for the AC'97 device"));
+
+    /*
+     * Determine the chip type.
+     */
+    char szType[20];
+    int rc = CFGMR3QueryStringDef(pCfg, "Type", &szType[0], sizeof(szType), "STAC9700");
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
+                                N_("AC'97 configuration error: Querying \"Type\" as string failed"));
+
+    /*
+     * The AD1980 codec (with corresponding PCI subsystem vendor ID) is whitelisted
+     * in the Linux kernel; Linux makes no attempt to measure the data rate and assumes
+     * 48 kHz rate, which is exactly what we need.
+     */
+    bool fChipAD1980 = false;
+    if (!strcmp(szType, "STAC9700"))
+        fChipAD1980 = false;
+    else if (!strcmp(szType, "AD1980"))
+        fChipAD1980 = true;
+    else
+    {
+        return PDMDevHlpVMSetError(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES, RT_SRC_POS,
+                                   N_("AC'97 configuration error: The \"Type\" value \"%s\" is unsupported"),
+                                   szType);
+    }
 
     /*
      * Initialize data (most of it anyway).
@@ -2346,16 +2366,25 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
                                true /* fIoSpace */, false /* fPrefetchable */, false /* f64Bit */, 0x00000000); Assert(pThis->PciDev.config[0x10] == 0x01); Assert(pThis->PciDev.config[0x11] == 0x00); Assert(pThis->PciDev.config[0x12] == 0x00); Assert(pThis->PciDev.config[0x13] == 0x00);
     PCIDevSetBaseAddress      (&pThis->PciDev, 1,       /* 14 rw - nabmbar - native audio bus mastering. */
                                true /* fIoSpace */, false /* fPrefetchable */, false /* f64Bit */, 0x00000000); Assert(pThis->PciDev.config[0x14] == 0x01); Assert(pThis->PciDev.config[0x15] == 0x00); Assert(pThis->PciDev.config[0x16] == 0x00); Assert(pThis->PciDev.config[0x17] == 0x00);
-    PCIDevSetSubSystemVendorId(&pThis->PciDev, 0x8086); /* 2c ro - intel.) */              Assert(pThis->PciDev.config[0x2c] == 0x86); Assert(pThis->PciDev.config[0x2d] == 0x80);
-    PCIDevSetSubSystemId      (&pThis->PciDev, 0x0000); /* 2e ro. */                       Assert(pThis->PciDev.config[0x2e] == 0x00); Assert(pThis->PciDev.config[0x2f] == 0x00);
     PCIDevSetInterruptLine    (&pThis->PciDev, 0x00);   /* 3c rw. */                       Assert(pThis->PciDev.config[0x3c] == 0x00);
     PCIDevSetInterruptPin     (&pThis->PciDev, 0x01);   /* 3d ro - INTA#. */               Assert(pThis->PciDev.config[0x3d] == 0x01);
+
+    if (fChipAD1980)
+    {
+        PCIDevSetSubSystemVendorId(&pThis->PciDev, 0x1028); /* 2c ro - Dell.) */
+        PCIDevSetSubSystemId      (&pThis->PciDev, 0x0177); /* 2e ro. */
+    }
+    else
+    {
+        PCIDevSetSubSystemVendorId(&pThis->PciDev, 0x8086); /* 2c ro - Intel.) */
+        PCIDevSetSubSystemId      (&pThis->PciDev, 0x0000); /* 2e ro. */
+    }
 
     /*
      * Register the PCI device, it's I/O regions, the timer and the
      * saved state item.
      */
-    int rc = PDMDevHlpPCIRegister(pDevIns, &pThis->PciDev);
+    rc = PDMDevHlpPCIRegister(pDevIns, &pThis->PciDev);
     if (RT_FAILURE (rc))
         return rc;
 
@@ -2375,8 +2404,6 @@ static DECLCALLBACK(int) ichac97Construct(PPDMDEVINS pDevIns, int iInstance, PCF
      * Attach driver.
      */
 #ifdef VBOX_WITH_PDM_AUDIO_DRIVER
-    RTListInit(&pThis->lstDrv);
-
     uint8_t uLUN;
     for (uLUN = 0; uLUN < UINT8_MAX; uLUN)
     {
