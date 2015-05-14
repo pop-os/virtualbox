@@ -773,7 +773,7 @@ static int stac9220ResetNode(PHDACODEC pThis, uint8_t nodenum, PCODECNODE pNode)
                                             | CODEC_F00_0C_CAP_IMPENDANCE_SENSE;//(17 << 8)|RT_BIT(6)|RT_BIT(5)|RT_BIT(2)|RT_BIT(1)|RT_BIT(0);
             pNode->node.au32F00_param[0x0B] = CODEC_F00_0B_PCM;
             pNode->node.au32F00_param[0x0D] = CODEC_MAKE_F00_0D(1, 0x0, 0x7F, 0x7F);
-            pNode->node.au32F00_param[0x12] = CODEC_MAKE_F00_12(1, 0x0, 0x7F, 0x7F);
+            pNode->node.au32F00_param[0x12] = CODEC_MAKE_F00_12(1, 0x2, 0x7F, 0x7F);
             pNode->node.au32F00_param[0x11] = CODEC_MAKE_F00_11(1, 1, 0, 0, 4);//0xc0000004;
             pNode->node.au32F00_param[0x0F] = CODEC_F00_0F_D3|CODEC_F00_0F_D2|CODEC_F00_0F_D1|CODEC_F00_0F_D0;
             pNode->afg.u32F05_param = CODEC_MAKE_F05(0, 0, 0, CODEC_F05_D2, CODEC_F05_D2);//0x2 << 4| 0x2; /* PS-Act: D3, PS->Set D3  */
@@ -1170,6 +1170,42 @@ DECLISNODEOFTYPE(Reserved)
  * Misc helpers.
  */
 
+/* 2 ^^ (i / 32.0) -- more or less */
+static uint8_t aVolConv[256] = {
+    0,     0,     0,     0,     0,     0,     0,     0, /*   8 */
+    0,     0,     0,     0,     0,     0,     0,     0, /*  16 */
+    0,     0,     1,     1,     1,     1,     1,     1, /*  24 */
+    1,     1,     1,     1,     1,     1,     1,     1, /*  32 */
+    1,     1,     1,     1,     1,     1,     1,     1, /*  40 */
+    1,     1,     2,     2,     2,     2,     2,     2, /*  48 */
+    2,     2,     2,     2,     2,     2,     2,     2, /*  56 */
+    2,     3,     3,     3,     3,     3,     3,     3, /*  64 */
+    3,     3,     3,     3,     3,     4,     4,     4, /*  72 */
+    4,     4,     4,     4,     4,     4,     5,     5, /*  80 */
+    5,     5,     5,     5,     5,     5,     6,     6, /*  88 */
+    6,     6,     6,     6,     6,     7,     7,     7, /*  96 */
+    7,     7,     8,     8,     8,     8,     8,     9, /* 104 */
+    9,     9,     9,     9,    10,    10,    10,    10, /* 112 */
+   11,    11,    11,    11,    12,    12,    12,    12, /* 120 */
+   13,    13,    13,    14,    14,    14,    15,    15, /* 128 */
+   15,    16,    16,    16,    17,    17,    18,    18, /* 136 */
+   18,    19,    19,    20,    20,    21,    21,    22, /* 144 */
+   22,    23,    23,    24,    24,    25,    25,    26, /* 152 */
+   26,    27,    28,    28,    29,    30,    30,    31, /* 160 */
+   32,    32,    33,    34,    35,    35,    36,    37, /* 168 */
+   38,    39,    40,    40,    41,    42,    43,    44, /* 176 */
+   45,    46,    47,    48,    49,    51,    52,    53, /* 184 */
+   54,    55,    56,    58,    59,    60,    62,    63, /* 192 */
+   64,    66,    67,    69,    70,    72,    73,    75, /* 200 */
+   77,    78,    80,    82,    84,    86,    88,    90, /* 208 */
+   91,    94,    96,    98,   100,   102,   104,   107, /* 216 */
+  109,   111,   114,   116,   119,   122,   124,   127, /* 224 */
+  130,   133,   136,   139,   142,   145,   148,   151, /* 232 */
+  155,   158,   161,   165,   169,   172,   176,   180, /* 240 */
+  184,   188,   192,   196,   201,   205,   210,   214, /* 248 */
+  219,   224,   229,   234,   239,   244,   250,   255, /* 256 */
+};
+
 static int hdaCodecToAudVolume(AMPLIFIER *pAmp, audmixerctl_t mt)
 {
     uint32_t dir = AMPLIFIER_OUT;
@@ -1190,9 +1226,17 @@ static int hdaCodecToAudVolume(AMPLIFIER *pAmp, audmixerctl_t mt)
     uint8_t lVol = AMPLIFIER_REGISTER(*pAmp, dir, AMPLIFIER_LEFT, 0) & 0x7f;
     uint8_t rVol = AMPLIFIER_REGISTER(*pAmp, dir, AMPLIFIER_RIGHT, 0) & 0x7f;
 
-    LogFlowFunc(("mt=%ld, lVol=%RU8, rVol=%RU8\n", mt, lVol, rVol));
+    /* The HDA codec has a 0 to -96dB range in 128 steps. We have a 0 to -46dB
+     * range in 256 steps. Adjust the volume control.
+     */
+    uint8_t lAdjVol = 255 - (lVol < 64 ? 254 : (127 - lVol) * 4);
+    uint8_t rAdjVol = 255 - (rVol < 64 ? 254 : (127 - rVol) * 4);
+    /* The internal volume control isn't logarithmic. Try to fudge things a bit. */
+    uint8_t lMixVol = aVolConv[lAdjVol];
+    uint8_t rMixVol = aVolConv[rAdjVol];
+    LogFlowFunc(("mt=%ld, lVol=%RU8, rVol=%RU8, lMixVol=%RU8, rMixVol=%RU8\n", mt, lVol, rVol, lMixVol, rMixVol));
 
-    AUD_set_volume(mt, &mute, &lVol, &rVol);
+    AUD_set_volume(mt, &mute, &lMixVol, &rMixVol);
     return VINF_SUCCESS;
 }
 
@@ -1341,7 +1385,7 @@ static DECLCALLBACK(int) vrbProcSetAmplifier(PHDACODEC pThis, uint32_t cmd, uint
         if (fIsRight)
             hdaCodecSetRegisterU8(&AMPLIFIER_REGISTER(*pAmplifier, AMPLIFIER_OUT, AMPLIFIER_RIGHT, u8Index), cmd, 0);
 
-        hdaCodecToAudVolume(pAmplifier, AUD_MIXER_VOLUME);
+        hdaCodecToAudVolume(pAmplifier, AUD_MIXER_PCM);
     }
 
     return VINF_SUCCESS;
@@ -2357,9 +2401,9 @@ int hdaCodecLoadState(PHDACODEC pThis, PSSMHANDLE pSSM, uint32_t uVersion)
      * Update stuff after changing the state.
      */
     if (hdaCodecIsDacNode(pThis, pThis->u8DacLineOut))
-        hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].dac.B_params, AUD_MIXER_VOLUME);
+        hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].dac.B_params, AUD_MIXER_PCM);
     else if (hdaCodecIsSpdifOutNode(pThis, pThis->u8DacLineOut))
-        hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].spdifout.B_params, AUD_MIXER_VOLUME);
+        hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].spdifout.B_params, AUD_MIXER_PCM);
     hdaCodecToAudVolume(&pThis->paNodes[pThis->u8AdcVolsLineIn].adcvol.B_params, AUD_MIXER_LINE_IN);
 
     return VINF_SUCCESS;
@@ -2413,7 +2457,7 @@ int hdaCodecConstruct(PPDMDEVINS pDevIns, PHDACODEC pThis, PCFGMNODE pCfg)
         pThis->pfnCodecNodeReset(pThis, i, &pThis->paNodes[i]);
     }
 
-    hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].dac.B_params, AUD_MIXER_VOLUME);
+    hdaCodecToAudVolume(&pThis->paNodes[pThis->u8DacLineOut].dac.B_params, AUD_MIXER_PCM);
     hdaCodecToAudVolume(&pThis->paNodes[pThis->u8AdcVolsLineIn].adcvol.B_params, AUD_MIXER_LINE_IN);
 
     /* If no host voices were created, then fallback to nul audio. */

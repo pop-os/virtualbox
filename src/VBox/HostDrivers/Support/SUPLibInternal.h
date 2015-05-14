@@ -91,6 +91,7 @@
 # define supR3HardenedOpenLog              supR3HardenedStaticOpenLog
 # define supR3HardenedLogV                 supR3HardenedStaticLogV
 # define supR3HardenedLog                  supR3HardenedStaticLog
+# define supR3HardenedLogFlush             supR3HardenedStaticLogFlush
 # define supR3HardenedVerifyAll            supR3HardenedStaticVerifyAll
 # define supR3HardenedVerifyFixedDir       supR3HardenedStaticVerifyFixedDir
 # define supR3HardenedVerifyFixedFile      supR3HardenedStaticVerifyFixedFile
@@ -427,6 +428,11 @@ DECLHIDDEN(void)    supR3HardenedLogV(const char *pszFormat, va_list va);
  * Write to the startup log file.
  */
 DECLHIDDEN(void)    supR3HardenedLog(const char *pszFormat, ...);
+
+/**
+ * Flushes the log file.
+ */
+DECLHIDDEN(void)    supR3HardenedLogFlush(void);
 
 
 DECLHIDDEN(int)     supR3HardenedVerifyAll(bool fFatal, const char *pszProgName);

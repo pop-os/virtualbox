@@ -647,6 +647,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            autostartdbpath null|<folder> |\n"
                      "                            loghistorycount <value>\n"
                      "                            defaultfrontend default|<name>\n"
+                     "                            logginglevel <log setting>\n"
                      "\n", SEP);
 
     if (fCategory & USAGE_USBFILTER_ADD)

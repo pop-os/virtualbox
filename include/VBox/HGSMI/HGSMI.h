@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2012 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -199,6 +199,21 @@ typedef struct _HGSMICHANNELINFO
 
 RT_C_DECLS_BEGIN
 
+DECLINLINE(HGSMIBUFFERHEADER *) HGSMIBufferHeaderFromPtr(void *pvBuffer)
+{
+    return (HGSMIBUFFERHEADER *)pvBuffer;
+}
+
+DECLINLINE(uint8_t *) HGSMIBufferDataFromPtr(void *pvBuffer)
+{
+    return (uint8_t *)pvBuffer + sizeof(HGSMIBUFFERHEADER);
+}
+
+DECLINLINE(HGSMIBUFFERTAIL *) HGSMIBufferTailFromPtr(void *pvBuffer, uint32_t u32DataSize)
+{
+    return (HGSMIBUFFERTAIL *)(HGSMIBufferDataFromPtr(pvBuffer) + u32DataSize);
+}
+
 DECLINLINE(HGSMISIZE) HGSMIBufferMinimumSize (void)
 {
     return sizeof (HGSMIBUFFERHEADER) + sizeof (HGSMIBUFFERTAIL);
@@ -256,8 +271,6 @@ DECLINLINE(uint8_t *) HGSMIBufferDataAndChInfoFromOffset (const HGSMIAREA *pArea
     }
     return NULL;
 }
-
-HGSMICHANNEL *HGSMIChannelFindById (HGSMICHANNELINFO * pChannelInfo, uint8_t u8Channel);
 
 uint32_t HGSMIChecksum (HGSMIOFFSET offBuffer,
                         const HGSMIBUFFERHEADER *pHeader,
@@ -341,16 +354,18 @@ DECLINLINE(HGSMISIZE) HGSMIHeapSize(HGSMIHEAP *pHeap)
     return pHeap->area.cbArea;
 }
 
-int HGSMIChannelRegister (HGSMICHANNELINFO * pChannelInfo,
-                                 uint8_t u8Channel,
-                                 const char *pszName,
-                                 PFNHGSMICHANNELHANDLER pfnChannelHandler,
-                                 void *pvChannelHandler,
-                                 HGSMICHANNELHANDLER *pOldHandler);
+HGSMICHANNEL *HGSMIChannelFindById(HGSMICHANNELINFO *pChannelInfo,
+                                   uint8_t u8Channel);
 
-int HGSMIBufferProcess (HGSMIAREA *pArea,
-                         HGSMICHANNELINFO * pChannelInfo,
-                         HGSMIOFFSET offBuffer);
+int HGSMIChannelRegister(HGSMICHANNELINFO *pChannelInfo,
+                         uint8_t u8Channel,
+                         const char *pszName,
+                         PFNHGSMICHANNELHANDLER pfnChannelHandler,
+                         void *pvChannelHandler);
+
+int HGSMIBufferProcess(HGSMIAREA *pArea,
+                       HGSMICHANNELINFO *pChannelInfo,
+                       HGSMIOFFSET offBuffer);
 RT_C_DECLS_END
 
 #endif /* !___VBox_HGSMI_HGSMI_h */

@@ -119,6 +119,10 @@ void UIMachineLogicSeamless::sltCheckForRequestedVisualStateType()
     if (!uisession()->isRunning() && !uisession()->isPaused())
         return;
 
+    /* Do not try to change visual-state type in 'manual override' mode: */
+    if (isManualOverrideMode())
+        return;
+
     /* If 'seamless' visual-state type is no more supported: */
     if (!uisession()->isGuestSupportsSeamless())
     {

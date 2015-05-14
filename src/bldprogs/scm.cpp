@@ -481,7 +481,7 @@ static int scmSettingsBaseParseString(PSCMSETTINGSBASE pBase, const char *pszLin
 {
     int    cArgs;
     char **papszArgs;
-    int rc = RTGetOptArgvFromString(&papszArgs, &cArgs, pszLine, NULL);
+    int rc = RTGetOptArgvFromString(&papszArgs, &cArgs, pszLine, RTGETOPTARGV_CNV_QUOTE_BOURNE_SH, NULL);
     if (RT_SUCCESS(rc))
     {
         RTGETOPTUNION   ValueUnion;
@@ -1540,7 +1540,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 89658 $";
+                static const char s_szRev[] = "$Revision: 100061 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

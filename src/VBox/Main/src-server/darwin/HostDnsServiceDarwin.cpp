@@ -76,12 +76,12 @@ void HostDnsServiceDarwin::hostDnsServiceStoreCallback(void *, void *, void *inf
 {
     HostDnsServiceDarwin *pThis = (HostDnsServiceDarwin *)info;
 
-    ALock l(pThis);
+    RTCLock grab(pThis->m_LockMtx);
     pThis->updateInfo();
 }
 
 
-HRESULT HostDnsServiceDarwin::init()
+HRESULT HostDnsServiceDarwin::init(VirtualBox *virtualbox)
 {
     SCDynamicStoreContext ctx;
     RT_ZERO(ctx);
@@ -106,7 +106,7 @@ HRESULT HostDnsServiceDarwin::init()
     m->m_Stopper = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &sctx);
     AssertReturn(m->m_Stopper, E_FAIL);
 
-    HRESULT hrc = HostDnsMonitor::init();
+    HRESULT hrc = HostDnsMonitor::init(virtualbox);
     AssertComRCReturn(hrc, hrc);
 
     return updateInfo();
@@ -115,7 +115,7 @@ HRESULT HostDnsServiceDarwin::init()
 
 void HostDnsServiceDarwin::monitorThreadShutdown()
 {
-    ALock l(this);
+    RTCLock grab(m_LockMtx);
     if (!m->m_fStop)
     {
         CFRunLoopSourceSignal(m->m_Stopper);

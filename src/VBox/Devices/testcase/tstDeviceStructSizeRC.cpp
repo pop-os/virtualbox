@@ -1331,6 +1331,7 @@ int main()
     GEN_CHECK_OFF(AHCI, cPortsImpl);
     GEN_CHECK_OFF(AHCI, cCmdSlotsAvail);
     GEN_CHECK_OFF(AHCI, f8ByteMMIO4BytesWrittenSuccessfully);
+    GEN_CHECK_OFF(AHCI, fPortsHotpluggable);
     GEN_CHECK_OFF(AHCI, pSupDrvSession);
 #endif /* VBOX_WITH_AHCI */
 

@@ -344,13 +344,13 @@ protected:
     }
 };
 
-class UIActionSimplePerformSave : public UIActionSimple
+class UIActionSimplePerformSaveState : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    UIActionSimplePerformSave(UIActionPool *pParent)
+    UIActionSimplePerformSaveState(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/vm_save_state_16px.png", ":/vm_save_state_disabled_16px.png")
     {
         retranslateUi();
@@ -360,7 +360,7 @@ protected:
 
     QString shortcutExtraDataID() const
     {
-        return QString("Save");
+        return QString("SaveState");
     }
 
     void retranslateUi()
@@ -1236,7 +1236,7 @@ void UIActionPoolRuntime::createActions()
 #endif /* Q_WS_X11 */
     m_pool[UIActionIndexRuntime_Toggle_Pause] = new UIActionTogglePause(this);
     m_pool[UIActionIndexRuntime_Simple_Reset] = new UIActionSimplePerformReset(this);
-    m_pool[UIActionIndexRuntime_Simple_Save] = new UIActionSimplePerformSave(this);
+    m_pool[UIActionIndexRuntime_Simple_SaveState] = new UIActionSimplePerformSaveState(this);
     m_pool[UIActionIndexRuntime_Simple_Shutdown] = new UIActionSimplePerformShutdown(this);
     m_pool[UIActionIndexRuntime_Simple_PowerOff] = new UIActionSimplePerformPowerOff(this);
     m_pool[UIActionIndexRuntime_Simple_Close] = new UIActionSimplePerformClose(this);

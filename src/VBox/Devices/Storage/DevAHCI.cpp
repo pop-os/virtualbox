@@ -705,6 +705,8 @@ typedef struct AHCI
 
     /** Flag whether we have written the first 4bytes in an 8byte MMIO write successfully. */
     volatile bool                   f8ByteMMIO4BytesWrittenSuccessfully;
+    /** Flag whether whether hotplugging is enabled for the controller. */
+    bool                            fPortsHotpluggable;
 
 #if HC_ARCH_BITS == 64
     uint32_t                        Alignment7;
@@ -2018,9 +2020,12 @@ static void ahciPortSwReset(PAHCIPort pAhciPort)
     pAhciPort->regIS   = 0;
     pAhciPort->regIE   = 0;
     pAhciPort->regCMD  = AHCI_PORT_CMD_CPD  | /* Cold presence detection */
-                         AHCI_PORT_CMD_HPCP | /* Hotplugging supported. */
                          AHCI_PORT_CMD_SUD  | /* Device has spun up. */
                          AHCI_PORT_CMD_POD;   /* Port is powered on. */
+
+    if (pAhciPort->CTX_SUFF(pAhci)->fPortsHotpluggable)
+        pAhciPort->regCMD |= AHCI_PORT_CMD_HPCP;
+
     pAhciPort->regTFD  = (1 << 8) | ATA_STAT_SEEK | ATA_STAT_WRERR;
     pAhciPort->regSIG  = ~0;
     pAhciPort->regSSTS = 0;
@@ -3330,7 +3335,7 @@ static size_t atapiGetConfigurationFillFeatureListProfiles(PAHCIPort pAhciPort, 
         return 0;
 
     ataH2BE_U16(pbBuf, 0x0); /* feature 0: list of profiles supported */
-    pbBuf[2] = (0 << 2) | (1 << 1) | (1 || 0); /* version 0, persistent, current */
+    pbBuf[2] = (0 << 2) | (1 << 1) | (1 << 0); /* version 0, persistent, current */
     pbBuf[3] = 8; /* additional bytes for profiles */
     /* The MMC-3 spec says that DVD-ROM read capability should be reported
      * before CD-ROM read capability. */
@@ -8152,7 +8157,8 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                                     "PortCount\0"
                                     "UseAsyncInterfaceIfAvailable\0"
                                     "Bootable\0"
-                                    "CmdSlotsAvail\0"))
+                                    "CmdSlotsAvail\0"
+                                    "PortsHotpluggable\0"))
         return PDMDEV_SET_ERROR(pDevIns, VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES,
                                 N_("AHCI configuration error: unknown option specified"));
 
@@ -8205,6 +8211,11 @@ static DECLCALLBACK(int) ahciR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
         return PDMDevHlpVMSetError(pDevIns, VERR_INVALID_PARAMETER, RT_SRC_POS,
                                    N_("AHCI configuration error: CmdSlotsAvail=%u should be at least 1"),
                                    pThis->cCmdSlotsAvail);
+
+    rc = CFGMR3QueryBoolDef(pCfg, "PortsHotpluggable", &pThis->fPortsHotpluggable, true);
+    if (RT_FAILURE(rc))
+        return PDMDEV_SET_ERROR(pDevIns, rc,
+                                N_("AHCI configuration error: failed to read \"PortsHotpluggable\" as boolean"));
 
     /*
      * Initialize the instance data (everything touched by the destructor need

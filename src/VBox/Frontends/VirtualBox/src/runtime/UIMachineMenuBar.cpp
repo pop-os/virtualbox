@@ -311,7 +311,7 @@ void UIMachineMenuBar::prepareMenuMachine(QMenu *pMenu)
         gActionPool->action(UIActionIndexRuntime_Simple_Reset)->setEnabled(false);
     /* SaveState action: */
     if (!(m_pSession->allowedActionsMenuMachine() & RuntimeMenuMachineActionType_SaveState))
-        gActionPool->action(UIActionIndexRuntime_Simple_Save)->setEnabled(false);
+        gActionPool->action(UIActionIndexRuntime_Simple_SaveState)->setEnabled(false);
     /* Shutdown action: */
     if (m_pSession->allowedActionsMenuMachine() & RuntimeMenuMachineActionType_Shutdown)
     {

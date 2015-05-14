@@ -67,7 +67,7 @@ typedef struct VBOXUSBHUB_PNPHOOK_COMPLETION
 #define VBOX_USB3PORT
 
 #ifdef VBOX_USB3PORT
-#define VBOXUSBMON_MAXDRIVERS 3
+#define VBOXUSBMON_MAXDRIVERS 5
 typedef struct VBOXUSB_PNPDRIVER
 {
     PDRIVER_OBJECT     DriverObject;
@@ -189,8 +189,8 @@ NTSTATUS VBoxUsbMonQueryBusRelations(PDEVICE_OBJECT pDevObj, PFILE_OBJECT pFileO
         WARN(("IoBuildDeviceIoControlRequest failed!!"));
         return STATUS_INSUFFICIENT_RESOURCES;
     }
-    IoStatus.Status = STATUS_NOT_SUPPORTED;
-
+    pIrp->IoStatus.Status = STATUS_NOT_SUPPORTED;
+	
     pSl = IoGetNextIrpStackLocation(pIrp);
     pSl->MajorFunction = IRP_MJ_PNP;
     pSl->MinorFunction = IRP_MN_QUERY_DEVICE_RELATIONS;
@@ -1136,7 +1136,9 @@ NTSTATUS _stdcall VBoxUsbMonPnPHook(IN PDEVICE_OBJECT pDevObj, IN PIRP pIrp)
 VBOX_PNPHOOKSTUB(0)
 VBOX_PNPHOOKSTUB(1)
 VBOX_PNPHOOKSTUB(2)
-AssertCompile(VBOXUSBMON_MAXDRIVERS == 3);
+VBOX_PNPHOOKSTUB(3)
+VBOX_PNPHOOKSTUB(4)
+AssertCompile(VBOXUSBMON_MAXDRIVERS == 5);
 
 typedef struct VBOXUSBMONHOOKDRIVERWALKER
 {
@@ -1859,7 +1861,9 @@ NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
     VBOX_PNPHOOKSTUB_INIT(0);
     VBOX_PNPHOOKSTUB_INIT(1);
     VBOX_PNPHOOKSTUB_INIT(2);
-    AssertCompile(VBOXUSBMON_MAXDRIVERS == 3);
+    VBOX_PNPHOOKSTUB_INIT(3);
+    VBOX_PNPHOOKSTUB_INIT(4);
+    AssertCompile(VBOXUSBMON_MAXDRIVERS == 5);
 #endif /* VBOX_USB3PORT */
     KeInitializeEvent(&g_VBoxUsbMonGlobals.OpenSynchEvent, SynchronizationEvent, TRUE /* signaled */);
     IoInitializeRemoveLock(&g_VBoxUsbMonGlobals.RmLock, VBOXUSBMON_MEMTAG, 1, 100);

@@ -47,6 +47,8 @@ vboxvideo_xorg_INCS = \
 	$(VBOX_PATH_X11_ROOT)/xf86driproto-2.1.0 \
 	$(VBOX_PATH_X11_ROOT)/xproto-7.0.18
 
+vboxvideo.c_DEPS = $(VBOX_SVN_REV_HEADER)
+
 #
 # vboxvideo_drv
 #
@@ -166,7 +168,7 @@ vboxvideo_drv_13_INCS = \
 	$(vboxvideo_xorg_INCS) \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.3.0.0
 vboxvideo_drv_13_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
-vboxvideo_drv_13_SOURCES = $(vboxvideo_drv_SOURCES) edid.c
+vboxvideo_drv_13_SOURCES = $(vboxvideo_drv_SOURCES)
 
 
 #
@@ -379,7 +381,6 @@ vboxvideo_drv_117_INCS = \
 	$(VBOX_PATH_X11_ROOT)/xorg-server-1.17.1
 vboxvideo_drv_117_INCS += $(PATH_ROOT)/src/VBox/Runtime/include
 vboxvideo_drv_117_SOURCES := $(vboxvideo_drv_17_SOURCES)
-
 
 ifdef VBOX_USE_SYSTEM_XORG_HEADERS
  # Build using local X.Org headers.  We assume X.Org Server 1.7 or later.

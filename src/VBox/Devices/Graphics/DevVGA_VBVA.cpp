@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2013 Oracle Corporation
+ * Copyright (C) 2006-2015 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2190,6 +2190,10 @@ static DECLCALLBACK(int) vbvaChannelHandler (void *pvHandler, uint16_t u16Channe
             {
                 pConf32->u32Value = pVGAState->fHostCursorCapabilities;
             }
+            else if (pConf32->u32Index == VBOX_VBVA_CONF32_SCREEN_FLAGS)
+            {
+                pConf32->u32Value = VBVA_SCREEN_F_ACTIVE | VBVA_SCREEN_F_DISABLED;
+            }
             else
             {
                 Log(("Unsupported VBVA_QUERY_CONF32 index %d!!!\n",
@@ -2687,8 +2691,6 @@ DECLCALLBACK(void) vbvaPortReportHostCursorPosition
     PDMCritSectLeave(&pThis->CritSect);
 }
 
-static HGSMICHANNELHANDLER sOldChannelHandler;
-
 int VBVAInit (PVGASTATE pVGAState)
 {
     PPDMDEVINS pDevIns = pVGAState->pDevInsR3;
@@ -2710,8 +2712,7 @@ int VBVAInit (PVGASTATE pVGAState)
          rc = HGSMIHostChannelRegister (pVGAState->pHGSMI,
                                     HGSMI_CH_VBVA,
                                     vbvaChannelHandler,
-                                    pVGAState,
-                                    &sOldChannelHandler);
+                                    pVGAState);
          if (RT_SUCCESS (rc))
          {
              VBVACONTEXT *pCtx = (VBVACONTEXT *)HGSMIContext (pVGAState->pHGSMI);

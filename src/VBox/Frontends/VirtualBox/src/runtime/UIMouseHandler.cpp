@@ -623,7 +623,14 @@ bool UIMouseHandler::eventFilter(QObject *pWatched, QEvent *pEvent)
                         m_pHoveredWindow = 0;
                     }
 
-                    /* This event should be also processed using next 'case': */
+                    m_iLastMouseWheelDelta = 0;
+                    /* Old Qt versions had a bug where mouse-buttons coming with the event were not quite valid.
+                     * For now we will be asking the QApplication for the valid button combination instead. */
+                    if (mouseEvent(pOldMouseEvent->type(), uScreenId,
+                                   pOldMouseEvent->pos(), pOldMouseEvent->globalPos(),
+                                   QApplication::mouseButtons(), 0, Qt::Horizontal))
+                        return true;
+                    break;
                 }
                 case QEvent::MouseButtonPress:
                 case QEvent::MouseButtonDblClick:

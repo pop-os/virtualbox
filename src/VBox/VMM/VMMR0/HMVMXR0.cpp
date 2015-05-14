@@ -763,9 +763,14 @@ static int hmR0VmxEnterRootMode(PVM pVM, RTHCPHYS HCPhysCpuPage, void *pvCpuPage
 
     /* Enter VMX root mode. */
     int rc = VMXEnable(HCPhysCpuPage);
-    if (   RT_FAILURE(rc)
-        && !(uOldCr4 & X86_CR4_VMXE))
-        SUPR0ChangeCR4(0, ~X86_CR4_VMXE);
+    if (RT_FAILURE(rc))
+    {
+        if (!(uOldCr4 & X86_CR4_VMXE))
+            SUPR0ChangeCR4(0, ~X86_CR4_VMXE);
+
+        if (pVM)
+            pVM->hm.s.vmx.HCPhysVmxEnableError = HCPhysCpuPage;
+    }
 
     /* Restore interrupts. */
     ASMSetFlags(uEflags);
@@ -4872,6 +4877,7 @@ VMMR0DECL(int) VMXR0Execute64BitsHandler(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, H
     {
         SUPR0ChangeCR4(0, ~X86_CR4_VMXE);
         ASMSetFlags(uOldEflags);
+        pVM->hm.s.vmx.HCPhysVmxEnableError = HCPhysCpuPage;
         return rc2;
     }
 
@@ -8676,8 +8682,7 @@ static uint32_t hmR0VmxCheckGuestState(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 #if HC_ARCH_BITS == 64 || defined(VBOX_WITH_HYBRID_32BIT_KERNEL)
         if (HMVMX_IS_64BIT_HOST_MODE())
         {
-            if (   fLongModeGuest
-                && !fUnrestrictedGuest)
+            if (fLongModeGuest)
             {
                 HMVMX_CHECK_BREAK(u32GuestCR0 & X86_CR0_PG, VMX_IGS_CR0_PG_LONGMODE);
                 HMVMX_CHECK_BREAK(u32GuestCR4 & X86_CR4_PAE, VMX_IGS_CR4_PAE_LONGMODE);

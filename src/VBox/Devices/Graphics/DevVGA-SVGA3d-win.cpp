@@ -247,7 +247,7 @@ static SSMFIELD const g_aVMSVGASHADERCONSTFields[] =
 #define VMSVGA3D_UPDATE_TRANSFORM       RT_BIT(5)
 #define VMSVGA3D_UPDATE_MATERIAL        RT_BIT(6)
 
-typedef struct
+typedef struct VMSVGA3DCONTEXT
 {
     uint32_t                id;
 #ifdef VBOX_VMSVGA3D_WITH_OPENGL
@@ -342,12 +342,14 @@ typedef struct
     /** Window request semaphore. */
     RTSEMEVENT              WndRequestSem;
 
-    /** The size of papContexts  */
+    /** The size of papContexts. */
     uint32_t                cContexts;
+    /** The size of papSurfaces. */
     uint32_t                cSurfaces;
     /** Contexts indexed by ID.  Grown as needed. */
     PVMSVGA3DCONTEXT       *papContexts;
-    PVMSVGA3DSURFACE        paSurface;
+    /** Surfaces indexed by ID.  Grown as needed. */
+    PVMSVGA3DSURFACE       *papSurfaces;
 
     bool                    fSupportedSurfaceINTZ;
     bool                    fSupportedSurfaceNULL;
@@ -368,7 +370,7 @@ static SSMFIELD const g_aVMSVGA3DSTATEFields[] =
     SSMFIELD_ENTRY(                 VMSVGA3DSTATE, cContexts),
     SSMFIELD_ENTRY(                 VMSVGA3DSTATE, cSurfaces),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGA3DSTATE, papContexts),
-    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGA3DSTATE, paSurface),
+    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGA3DSTATE, papSurfaces),
     SSMFIELD_ENTRY_IGNORE(          VMSVGA3DSTATE, fSupportedSurfaceINTZ),
     SSMFIELD_ENTRY_IGNORE(          VMSVGA3DSTATE, fSupportedSurfaceNULL),
     SSMFIELD_ENTRY_TERM()
@@ -594,8 +596,8 @@ int vmsvga3dReset(PVGASTATE pThis)
     /* Destroy all leftover surfaces. */
     for (uint32_t i = 0; i < pState->cSurfaces; i++)
     {
-        if (pState->paSurface[i].id != SVGA3D_INVALID_ID)
-            vmsvga3dSurfaceDestroy(pThis, pState->paSurface[i].id);
+        if (pState->papSurfaces[i]->id != SVGA3D_INVALID_ID)
+            vmsvga3dSurfaceDestroy(pThis, pState->papSurfaces[i]->id);
     }
 
     /* Destroy all leftover contexts. */
@@ -1399,20 +1401,25 @@ int vmsvga3dSurfaceDefine(PVGASTATE pThis, uint32_t sid, uint32_t surfaceFlags, 
 
     if (sid >= pState->cSurfaces)
     {
-        void *pvNew = RTMemRealloc(pState->paSurface, sizeof(VMSVGA3DSURFACE) * (sid + 1));
+        /* Grow the array. */
+        uint32_t cNew = RT_ALIGN(sid + 15, 16);
+        void *pvNew = RTMemRealloc(pState->papSurfaces, sizeof(pState->papSurfaces[0]) * cNew);
         AssertReturn(pvNew, VERR_NO_MEMORY);
-        pState->paSurface = (PVMSVGA3DSURFACE)pvNew;
-        memset(&pState->paSurface[pState->cSurfaces], 0, sizeof(VMSVGA3DSURFACE) * (sid + 1 - pState->cSurfaces));
-        for (uint32_t i = pState->cSurfaces; i < sid + 1; i++)
-            pState->paSurface[i].id = SVGA3D_INVALID_ID;
-
-        pState->cSurfaces = sid + 1;
+        pState->papSurfaces = (PVMSVGA3DSURFACE *)pvNew;
+        while (pState->cSurfaces < cNew)
+        {
+            pSurface = (PVMSVGA3DSURFACE)RTMemAllocZ(sizeof(*pSurface));
+            AssertReturn(pSurface, VERR_NO_MEMORY);
+            pSurface->id = SVGA3D_INVALID_ID;
+            pState->papSurfaces[pState->cSurfaces++] = pSurface;
+        }
     }
+    pSurface = pState->papSurfaces[sid];
+
     /* If one already exists with this id, then destroy it now. */
-    if (pState->paSurface[sid].id != SVGA3D_INVALID_ID)
+    if (pSurface->id != SVGA3D_INVALID_ID)
         vmsvga3dSurfaceDestroy(pThis, sid);
 
-    pSurface = &pState->paSurface[sid];
     memset(pSurface, 0, sizeof(*pSurface));
     pSurface->id                    = sid;
     pSurface->idAssociatedContext   = SVGA3D_INVALID_ID;
@@ -1610,9 +1617,9 @@ int vmsvga3dSurfaceDestroy(PVGASTATE pThis, uint32_t sid)
     AssertReturn(pState, VERR_NO_MEMORY);
 
     if (    sid < pState->cSurfaces
-        &&  pState->paSurface[sid].id == sid)
+        &&  pState->papSurfaces[sid]->id == sid)
     {
-        PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+        PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
 
         Log(("vmsvga3dSurfaceDestroy id %x\n", sid));
 
@@ -1750,11 +1757,11 @@ static PVMSVGA3DSHAREDSURFACE vmsvga3dSurfaceGetSharedCopy(PVGASTATE pThis, PVMS
 static int vmsvga3dSurfaceTrackUsage(PVGASTATE pThis, PVMSVGA3DCONTEXT pContext, uint32_t sid)
 {
     PVMSVGA3DSTATE   pState = (PVMSVGA3DSTATE)pThis->svga.p3dState;
-    PVMSVGA3DSURFACE pSurface  = &pState->paSurface[sid];
+    PVMSVGA3DSURFACE pSurface  = pState->papSurfaces[sid];
     HRESULT          hr;
 
     AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+    AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
     /* Nothing to do if this surface hasn't been shared. */
     if (pSurface->pSharedObjectTree == NULL)
@@ -1819,12 +1826,12 @@ int vmsvga3dSurfaceCopy(PVGASTATE pThis, SVGA3dSurfaceImageId dest, SVGA3dSurfac
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(sidSrc < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sidSrc < pState->cSurfaces && pState->paSurface[sidSrc].id == sidSrc, VERR_INVALID_PARAMETER);
+    AssertReturn(sidSrc < pState->cSurfaces && pState->papSurfaces[sidSrc]->id == sidSrc, VERR_INVALID_PARAMETER);
     AssertReturn(sidDest < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sidDest < pState->cSurfaces && pState->paSurface[sidDest].id == sidDest, VERR_INVALID_PARAMETER);
+    AssertReturn(sidDest < pState->cSurfaces && pState->papSurfaces[sidDest]->id == sidDest, VERR_INVALID_PARAMETER);
 
-    pSurfaceSrc  = &pState->paSurface[sidSrc];
-    pSurfaceDest = &pState->paSurface[sidDest];
+    pSurfaceSrc  = pState->papSurfaces[sidSrc];
+    pSurfaceDest = pState->papSurfaces[sidDest];
 
     AssertReturn(pSurfaceSrc->faces[0].numMipLevels > src.mipmap, VERR_INVALID_PARAMETER);
     AssertReturn(pSurfaceDest->faces[0].numMipLevels > dest.mipmap, VERR_INVALID_PARAMETER);
@@ -2195,12 +2202,12 @@ int vmsvga3dSurfaceStretchBlt(PVGASTATE pThis, SVGA3dSurfaceImageId dest, SVGA3d
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(sidSrc < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sidSrc < pState->cSurfaces && pState->paSurface[sidSrc].id == sidSrc, VERR_INVALID_PARAMETER);
+    AssertReturn(sidSrc < pState->cSurfaces && pState->papSurfaces[sidSrc]->id == sidSrc, VERR_INVALID_PARAMETER);
     AssertReturn(sidDest < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sidDest < pState->cSurfaces && pState->paSurface[sidDest].id == sidDest, VERR_INVALID_PARAMETER);
+    AssertReturn(sidDest < pState->cSurfaces && pState->papSurfaces[sidDest]->id == sidDest, VERR_INVALID_PARAMETER);
 
-    pSurfaceSrc  = &pState->paSurface[sidSrc];
-    pSurfaceDest = &pState->paSurface[sidDest];
+    pSurfaceSrc  = pState->papSurfaces[sidSrc];
+    pSurfaceDest = pState->papSurfaces[sidDest];
     AssertReturn(pSurfaceSrc->faces[0].numMipLevels > src.mipmap, VERR_INVALID_PARAMETER);
     AssertReturn(pSurfaceDest->faces[0].numMipLevels > dest.mipmap, VERR_INVALID_PARAMETER);
 
@@ -2322,9 +2329,9 @@ int vmsvga3dSurfaceDMA(PVGASTATE pThis, SVGA3dGuestImage guest, SVGA3dSurfaceIma
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+    AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
-    pSurface = &pState->paSurface[sid];
+    pSurface = pState->papSurfaces[sid];
     AssertReturn(pSurface->faces[0].numMipLevels > host.mipmap, VERR_INVALID_PARAMETER);
     pMipLevel = &pSurface->pMipmapLevels[host.mipmap];
 
@@ -2686,9 +2693,9 @@ int vmsvga3dSurfaceBlitToScreen(PVGASTATE pThis, uint32_t dest, SVGASignedRect d
             PVMSVGA3DCONTEXT    pContext;
             uint32_t            sid = src.sid;
             AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-            AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+            AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
-            pSurface = &pState->paSurface[sid];
+            pSurface = pState->papSurfaces[sid];
             uint32_t            cid;
 
             /* @todo stricter checks for associated context */
@@ -2729,9 +2736,9 @@ int vmsvga3dGenerateMipmaps(PVGASTATE pThis, uint32_t sid, SVGA3dTextureFilter f
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+    AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
-    pSurface = &pState->paSurface[sid];
+    pSurface = pState->papSurfaces[sid];
     AssertReturn(pSurface->idAssociatedContext != SVGA3D_INVALID_ID, VERR_INTERNAL_ERROR);
 
     Assert(filter != SVGA3D_TEX_FILTER_FLATCUBIC);
@@ -2793,9 +2800,9 @@ int vmsvga3dCommandPresent(PVGASTATE pThis, uint32_t sid, uint32_t cRects, SVGA3
 
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+    AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
-    pSurface = &pState->paSurface[sid];
+    pSurface = pState->papSurfaces[sid];
     AssertReturn(pSurface->idAssociatedContext != SVGA3D_INVALID_ID, VERR_INTERNAL_ERROR);
 
     /* @todo stricter checks for associated context */
@@ -3048,7 +3055,7 @@ int vmsvga3dContextDestroy(PVGASTATE pThis, uint32_t cid)
         /* Check for all surfaces that are associated with this context to remove all dependencies */
         for (uint32_t sid = 0; sid < pState->cSurfaces; sid++)
         {
-            PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+            PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
             if (    pSurface->id == sid
                 &&  pSurface->idAssociatedContext == cid)
             {
@@ -3195,7 +3202,7 @@ int vmsvga3dChangeMode(PVGASTATE pThis)
             /* Sync back all surface data as everything is lost after the Reset. */
             for (uint32_t sid = 0; sid < pState->cSurfaces; sid++)
             {
-                PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+                PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
                 if (    pSurface->id == sid
                     &&  pSurface->idAssociatedContext == cid
                     &&  pSurface->u.pSurface)
@@ -3411,9 +3418,9 @@ int vmsvga3dChangeMode(PVGASTATE pThis)
             if (pContext->state.u32UpdateFlags & VMSVGA3D_UPDATE_VIEWPORT)
                 vmsvga3dSetViewPort(pThis, cid, &pContext->state.RectViewPort);
             if (pContext->state.u32UpdateFlags & VMSVGA3D_UPDATE_VERTEXSHADER)
-                vmsvga3dShaderSet(pThis, cid, SVGA3D_SHADERTYPE_VS, pContext->state.shidVertex);
+                vmsvga3dShaderSet(pThis, pContext, cid, SVGA3D_SHADERTYPE_VS, pContext->state.shidVertex);
             if (pContext->state.u32UpdateFlags & VMSVGA3D_UPDATE_PIXELSHADER)
-                vmsvga3dShaderSet(pThis, cid, SVGA3D_SHADERTYPE_PS, pContext->state.shidPixel);
+                vmsvga3dShaderSet(pThis, pContext, cid, SVGA3D_SHADERTYPE_PS, pContext->state.shidPixel);
             /** @todo restore more state data */
 #endif /* #ifdef VMSVGA3D_DIRECT3D9_RESET */
         }
@@ -4262,7 +4269,6 @@ int vmsvga3dSetRenderTarget(PVGASTATE pThis, uint32_t cid, SVGA3dRenderTargetTyp
     AssertReturn(pState, VERR_NO_MEMORY);
     AssertReturn(type < SVGA3D_RT_MAX, VERR_INVALID_PARAMETER);
     AssertReturn(target.face == 0, VERR_INVALID_PARAMETER);
-    AssertReturn(target.mipmap == 0, VERR_INVALID_PARAMETER);
 
     Log(("vmsvga3dSetRenderTarget cid=%x type=%x surface id=%x\n", cid, type, target.sid));
 
@@ -4334,13 +4340,14 @@ int vmsvga3dSetRenderTarget(PVGASTATE pThis, uint32_t cid, SVGA3dRenderTargetTyp
     }
 
     AssertReturn(target.sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-    AssertReturn(target.sid < pState->cSurfaces && pState->paSurface[target.sid].id == target.sid, VERR_INVALID_PARAMETER);
-    pRenderTarget = &pState->paSurface[target.sid];
+    AssertReturn(target.sid < pState->cSurfaces && pState->papSurfaces[target.sid]->id == target.sid, VERR_INVALID_PARAMETER);
+    pRenderTarget = pState->papSurfaces[target.sid];
 
     switch (type)
     {
     case SVGA3D_RT_DEPTH:
     case SVGA3D_RT_STENCIL:
+        AssertReturn(target.mipmap == 0, VERR_INVALID_PARAMETER);
         if (!pRenderTarget->u.pSurface)
         {
             DWORD cQualityLevels = 0;
@@ -4486,20 +4493,21 @@ int vmsvga3dSetRenderTarget(PVGASTATE pThis, uint32_t cid, SVGA3dRenderTargetTyp
                 PVMSVGA3DSHAREDSURFACE pSharedSurface = vmsvga3dSurfaceGetSharedCopy(pThis, pContext, pRenderTarget);
                 AssertReturn(pSharedSurface, VERR_INTERNAL_ERROR);
 
-                hr = pSharedSurface->u.pTexture->GetSurfaceLevel(0 /* Texture level 0 */,
+                hr = pSharedSurface->u.pTexture->GetSurfaceLevel(target.mipmap,
                                                                  &pSurface);
 
                 fShared = true;
             }
             else
 #endif
-                hr = pRenderTarget->u.pTexture->GetSurfaceLevel(0 /* Texture level 0 */,
+                hr = pRenderTarget->u.pTexture->GetSurfaceLevel(target.mipmap,
                                                                 &pSurface);
 
             AssertMsgReturn(hr == D3D_OK, ("vmsvga3dSetRenderTarget: GetSurfaceLevel failed with %x\n", hr), VERR_INTERNAL_ERROR);
         }
         else
         {
+            AssertReturn(target.mipmap == 0, VERR_INVALID_PARAMETER);
             if (!pRenderTarget->u.pSurface)
             {
                 DWORD cQualityLevels = 0;
@@ -4821,9 +4829,9 @@ int vmsvga3dSetTextureState(PVGASTATE pThis, uint32_t cid, uint32_t cTextureStat
                 uint32_t sid = pTextureState[i].value;
 
                 AssertReturn(sid < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-                AssertReturn(sid < pState->cSurfaces && pState->paSurface[sid].id == sid, VERR_INVALID_PARAMETER);
+                AssertReturn(sid < pState->cSurfaces && pState->papSurfaces[sid]->id == sid, VERR_INVALID_PARAMETER);
 
-                PVMSVGA3DSURFACE pSurface = &pState->paSurface[sid];
+                PVMSVGA3DSURFACE pSurface = pState->papSurfaces[sid];
 
                 Log(("SVGA3D_TS_BIND_TEXTURE: stage %d, texture surface id=%x (%d,%d)\n", currentStage, pTextureState[i].value, pSurface->pMipmapLevels[0].size.width, pSurface->pMipmapLevels[0].size.height));
 
@@ -5294,9 +5302,9 @@ int vmsvga3dDrawPrimitivesProcessVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
         PVMSVGA3DSURFACE    pVertexSurface;
 
         AssertReturn(sidVertex < SVGA3D_MAX_SURFACE_IDS, VERR_INVALID_PARAMETER);
-        AssertReturn(sidVertex < pState->cSurfaces && pState->paSurface[sidVertex].id == sidVertex, VERR_INVALID_PARAMETER);
+        AssertReturn(sidVertex < pState->cSurfaces && pState->papSurfaces[sidVertex]->id == sidVertex, VERR_INVALID_PARAMETER);
 
-        pVertexSurface = &pState->paSurface[sidVertex];
+        pVertexSurface = pState->papSurfaces[sidVertex];
         Log(("vmsvga3dDrawPrimitives: vertex surface %x stream %d\n", sidVertex, idStream));
         Log(("vmsvga3dDrawPrimitives: type=%s (%d) method=%s (%d) usage=%s (%d) usageIndex=%d stride=%d offset=%d\n", vmsvgaDeclType2String(pVertexDecl[iVertex].identity.type), pVertexDecl[iVertex].identity.type, vmsvgaDeclMethod2String(pVertexDecl[iVertex].identity.method), pVertexDecl[iVertex].identity.method, vmsvgaDeclUsage2String(pVertexDecl[iVertex].identity.usage), pVertexDecl[iVertex].identity.usage, pVertexDecl[iVertex].identity.usageIndex, pVertexDecl[iVertex].array.stride, pVertexDecl[iVertex].array.offset));
 
@@ -5366,7 +5374,7 @@ int vmsvga3dDrawPrimitivesProcessVertexDecls(PVMSVGA3DSTATE pState, PVMSVGA3DCON
     unsigned         sidVertex = pVertexDecl[0].array.surfaceId;
     unsigned         strideVertex = pVertexDecl[0].array.stride;
 
-    pVertexSurface = &pState->paSurface[sidVertex];
+    pVertexSurface = pState->papSurfaces[sidVertex];
 
     Log(("vmsvga3dDrawPrimitives: SetStreamSource %d min offset=%d stride=%d\n", idStream, uVertexMinOffset, strideVertex));
     hr = pContext->pDevice->SetStreamSource(idStream,
@@ -5504,14 +5512,14 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
 
             if (    sidIndex >= SVGA3D_MAX_SURFACE_IDS
                 ||  sidIndex >= pState->cSurfaces
-                ||  pState->paSurface[sidIndex].id != sidIndex)
+                ||  pState->papSurfaces[sidIndex]->id != sidIndex)
             {
                 Assert(sidIndex < SVGA3D_MAX_SURFACE_IDS);
-                Assert(sidIndex < pState->cSurfaces && pState->paSurface[sidIndex].id == sidIndex);
+                Assert(sidIndex < pState->cSurfaces && pState->papSurfaces[sidIndex]->id == sidIndex);
                 rc = VERR_INVALID_PARAMETER;
                 goto internal_error;
             }
-            pIndexSurface = &pState->paSurface[sidIndex];
+            pIndexSurface = pState->papSurfaces[sidIndex];
             Log(("vmsvga3dDrawPrimitives: index surface %x\n", sidIndex));
 
             if (!pIndexSurface->u.pIndexBuffer)
@@ -5566,7 +5574,7 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
         unsigned         sidVertex = pVertexDecl[0].array.surfaceId;
         unsigned         strideVertex = pVertexDecl[0].array.stride;
 
-        pVertexSurface = &pState->paSurface[sidVertex];
+        pVertexSurface = pState->papSurfaces[sidVertex];
 
         if (!pIndexSurface)
         {
@@ -5864,15 +5872,15 @@ int vmsvga3dShaderDestroy(PVGASTATE pThis, uint32_t cid, uint32_t shid, SVGA3dSh
     return VINF_SUCCESS;
 }
 
-int vmsvga3dShaderSet(PVGASTATE pThis, uint32_t cid, SVGA3dShaderType type, uint32_t shid)
+int vmsvga3dShaderSet(PVGASTATE pThis, PVMSVGA3DCONTEXT pContext, uint32_t cid, SVGA3dShaderType type, uint32_t shid)
 {
-    PVMSVGA3DCONTEXT    pContext;
     PVMSVGA3DSTATE      pState = (PVMSVGA3DSTATE)pThis->svga.p3dState;
     AssertReturn(pState, VERR_NO_MEMORY);
     HRESULT             hr;
 
     Log(("vmsvga3dShaderSet %x type=%s shid=%d\n", cid, (type == SVGA3D_SHADERTYPE_VS) ? "VERTEX" : "PIXEL", shid));
 
+    NOREF(pContext);
     if (    cid >= pState->cContexts
         ||  pState->papContexts[cid]->id != cid)
     {

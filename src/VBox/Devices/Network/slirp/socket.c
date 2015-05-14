@@ -908,11 +908,15 @@ sorecvfrom(PNATState pData, struct socket *so)
             }
 
             /*
-             *  last argument should be changed if Slirp will inject IP attributes
-             *  Note: Here we can't check if dnsproxy's sent initial request
+             * DNS proxy requests are forwarded to the real resolver,
+             * but its socket's so_faddr is that of the DNS proxy
+             * itself.
+             *
+             * last argument should be changed if Slirp will inject IP attributes
              */
             if (   pData->fUseDnsProxy
-                && so->so_fport == RT_H2N_U16_C(53))
+                && so->so_fport == RT_H2N_U16_C(53)
+                && CTL_CHECK(so->so_faddr.s_addr, CTL_DNS))
                 dnsproxy_answer(pData, so, m);
 
             /* packets definetly will be fragmented, could confuse receiver peer. */
@@ -1420,28 +1424,11 @@ send_icmp_to_guest(PNATState pData, char *buff, size_t len, const struct sockadd
     ip->ip_src.s_addr = src;
     ip->ip_dst.s_addr = dst;
     icmp_reflect(pData, m);
+    /* m was freed */
+    icm->im_m = NULL;
+    icm->im_so->so_m = NULL;
     LIST_REMOVE(icm, im_list);
     pData->cIcmpCacheSize--;
-    /* Don't call m_free here*/
-
-    if (   type == ICMP_TIMXCEED
-        || type == ICMP_UNREACH)
-    {
-        icm->im_so->so_m = NULL;
-        switch (proto)
-        {
-            case  IPPROTO_UDP:
-                /*XXX: so->so_m already freed so we shouldn't call sofree */
-                udp_detach(pData, icm->im_so);
-            break;
-            case  IPPROTO_TCP:
-                /*close tcp should be here */
-            break;
-            default:
-            /* do nothing */
-            break;
-        }
-    }
     RTMemFree(icm);
 }
 

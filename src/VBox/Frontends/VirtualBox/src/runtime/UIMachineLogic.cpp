@@ -337,8 +337,9 @@ UIMachineView* UIMachineLogic::dockPreviewView() const
 
 void UIMachineLogic::saveState()
 {
-    /* Prevent auto-closure: */
-    setPreventAutoClose(true);
+    /* Enable 'manual-override',
+     * preventing automatic Runtime UI closing: */
+    setManualOverrideMode(true);
 
     /* Was the step successful? */
     bool fSuccess = true;
@@ -350,8 +351,8 @@ void UIMachineLogic::saveState()
     if (fSuccess)
         fSuccess = uisession()->saveState();
 
-    /* Allow auto-closure: */
-    setPreventAutoClose(false);
+    /* Disable 'manual-override' finally: */
+    setManualOverrideMode(false);
 
     /* Manually close Runtime UI: */
     if (fSuccess)
@@ -371,8 +372,9 @@ void UIMachineLogic::shutdown()
 
 void UIMachineLogic::powerOff(bool fDiscardingState)
 {
-    /* Prevent auto-closure: */
-    setPreventAutoClose(true);
+    /* Enable 'manual-override',
+     * preventing automatic Runtime UI closing: */
+    setManualOverrideMode(true);
 
     /* Was the step successful? */
     bool fSuccess = true;
@@ -380,8 +382,8 @@ void UIMachineLogic::powerOff(bool fDiscardingState)
     bool fServerCrashed = false;
     fSuccess = uisession()->powerOff(fDiscardingState, fServerCrashed) || fServerCrashed;
 
-    /* Allow auto-closure: */
-    setPreventAutoClose(false);
+    /* Disable 'manual-override' finally: */
+    setManualOverrideMode(false);
 
     /* Manually close Runtime UI: */
     if (fSuccess)
@@ -499,8 +501,8 @@ void UIMachineLogic::sltMachineStateChanged()
         case KMachineState_Teleported:
         case KMachineState_Aborted:
         {
-            /* Is it allowed to close Runtime UI? */
-            if (!isPreventAutoClose())
+            /* If not in 'manual-override' mode: */
+            if (!isManualOverrideMode())
             {
                 /* VM has been powered off, saved, teleported or aborted.
                  * We must close Runtime UI: */
@@ -565,6 +567,10 @@ void UIMachineLogic::sltKeyboardLedsChanged()
      * [bool] uisession() -> isNumLock(), isCapsLock(), isScrollLock() can be used for that. */
 
     if (!isHidLedsSyncEnabled())
+        return;
+
+    /* Check if we accidentally trying to manipulate LEDs when host LEDs state was deallocated. */
+    if (!m_pHostLedsState)
         return;
 
 #if defined(Q_WS_MAC)
@@ -667,7 +673,7 @@ UIMachineLogic::UIMachineLogic(QObject *pParent, UISession *pSession, UIVisualSt
     , m_pSharedClipboardActions(0)
     , m_pDragAndDropActions(0)
     , m_fIsWindowsCreated(false)
-    , m_fIsPreventAutoClose(false)
+    , m_fIsManualOverride(false)
 #ifdef VBOX_WITH_DEBUGGER_GUI
     , m_pDbgGui(0)
     , m_pDbgGuiVT(0)
@@ -890,7 +896,7 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_AdjustWindow));
 
     /* Move actions into running-n-paused actions group: */
-    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_Save));
+    m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SaveState));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_SettingsDialog));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TakeSnapshot));
     m_pRunningOrPausedActions->addAction(gActionPool->action(UIActionIndexRuntime_Simple_TakeScreenshot));
@@ -941,7 +947,7 @@ void UIMachineLogic::prepareActionConnections()
             this, SLOT(sltPause(bool)));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_Reset), SIGNAL(triggered()),
             this, SLOT(sltReset()));
-    connect(gActionPool->action(UIActionIndexRuntime_Simple_Save), SIGNAL(triggered()),
+    connect(gActionPool->action(UIActionIndexRuntime_Simple_SaveState), SIGNAL(triggered()),
             this, SLOT(sltSaveState()));
     connect(gActionPool->action(UIActionIndexRuntime_Simple_Shutdown), SIGNAL(triggered()),
             this, SLOT(sltShutdown()));
@@ -1484,8 +1490,8 @@ void UIMachineLogic::sltClose()
     if (!isMachineWindowsCreated())
         return;
 
-    /* Do not try to close machine-window if restricted: */
-    if (isPreventAutoClose())
+    /* Do not close machine-window in 'manual-override' mode: */
+    if (isManualOverrideMode())
         return;
 
     /* First, we have to close/hide any opened modal & popup application widgets.

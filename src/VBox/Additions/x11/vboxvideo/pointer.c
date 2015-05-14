@@ -113,8 +113,7 @@ vbox_show_shape(unsigned short w, unsigned short h, CARD32 bg, unsigned char *im
 * Main functions                                                          *
 **************************************************************************/
 
-void
-vbox_close(ScrnInfoPtr pScrn, VBOXPtr pVBox)
+void vbvxCursorTerm(VBOXPtr pVBox)
 {
     TRACE_ENTRY();
 
@@ -437,8 +436,7 @@ vbox_load_cursor_argb(ScrnInfoPtr pScrn, CursorPtr pCurs)
 }
 #endif
 
-Bool
-vbox_cursor_init(ScreenPtr pScreen)
+Bool vbvxCursorInit(ScreenPtr pScreen)
 {
     ScrnInfoPtr pScrn = xf86Screens[pScreen->myNum];
     VBOXPtr pVBox = pScrn->driverPrivate;
@@ -457,7 +455,8 @@ vbox_cursor_init(ScreenPtr pScreen)
         pCurs->MaxHeight = VBOX_MAX_CURSOR_HEIGHT;
         pCurs->Flags =   HARDWARE_CURSOR_TRUECOLOR_AT_8BPP
                        | HARDWARE_CURSOR_SOURCE_MASK_INTERLEAVE_1
-                       | HARDWARE_CURSOR_BIT_ORDER_MSBFIRST;
+                       | HARDWARE_CURSOR_BIT_ORDER_MSBFIRST
+                       | HARDWARE_CURSOR_UPDATE_UNHIDDEN;
 
         pCurs->SetCursorColors   = vbox_set_cursor_colors;
         pCurs->SetCursorPosition = vbox_set_cursor_position;

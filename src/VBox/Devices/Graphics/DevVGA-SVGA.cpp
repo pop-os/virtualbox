@@ -69,7 +69,11 @@
 #include "vmsvga/svga3d_caps.h"
 #ifdef VBOX_WITH_VMSVGA3D
 # include "DevVGA-SVGA3d.h"
+# ifdef RT_OS_DARWIN
+#  include "DevVGA-SVGA3d-cocoa.h"
+# endif
 #endif
+
 
 /*******************************************************************************
 *   Defined Constants And Macros                                               *
@@ -1240,7 +1244,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         pThis->svga.u32IrqMask = u32;
 
         /* Irq pending after the above change? */
-        if (pThis->svga.u32IrqMask & pThis->svga.u32IrqStatus)
+        if (pThis->svga.u32IrqStatus & u32)
         {
             Log(("SVGA_REG_IRQMASK: Trigger interrupt with status %x\n", pThis->svga.u32IrqStatus));
             PDMDevHlpPCISetIrqNoWait(pThis->CTX_SUFF(pDevIns), 0, 1);
@@ -1498,7 +1502,10 @@ PDMBOTHCBDECL(int) vmsvgaIOWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
         ASMAtomicAndU32(&pThis->svga.u32IrqStatus, ~u32);
         /* Clear the irq in case all events have been cleared. */
         if (!(pThis->svga.u32IrqStatus & pThis->svga.u32IrqMask))
+        {
+            Log(("vmsvgaIOWrite SVGA_IRQSTATUS_PORT: clearing IRQ\n"));
             PDMDevHlpPCISetIrqNoWait(pDevIns, 0, 0);
+        }
         break;
     }
     return rc;
@@ -2204,6 +2211,13 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
     uint32_t volatile * const pFIFO = pThis->svga.pFIFOR3;
     while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
+# if defined(RT_OS_DARWIN) && defined(VBOX_WITH_VMSVGA3D)
+        /*
+         * Should service the run loop every so often.
+         */
+        if (pThis->svga.f3DEnabled)
+            vmsvga3dCocoaServiceRunLoop();
+# endif
 
         /*
          * Wait for at most 250 ms to start polling.
@@ -3087,7 +3101,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                         SVGA3dCmdSetShader *pCmd = (SVGA3dCmdSetShader *)(pHdr + 1);
                         VMSVGAFIFO_CHECK_3D_CMD_MIN_SIZE_BREAK(sizeof(*pCmd));
 
-                        rc = vmsvga3dShaderSet(pThis, pCmd->cid, pCmd->type, pCmd->shid);
+                        rc = vmsvga3dShaderSet(pThis, NULL, pCmd->cid, pCmd->type, pCmd->shid);
                         break;
                     }
 
@@ -3198,19 +3212,32 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             ASMAtomicWriteU32(&pFIFO[SVGA_FIFO_STOP], offCurrentCmd);
             STAM_REL_COUNTER_INC(&pSVGAState->StatFifoCommands);
 
-            /* FIFO progress might trigger an interrupt. */
-            if (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS)
+            /*
+             * Raise IRQ if required.  Must enter the critical section here
+             * before making final decisions here, otherwise cubebench and
+             * others may end up waiting forever.
+             */
+            if (   u32IrqStatus
+                || (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS))
             {
-                Log(("vmsvgaFIFOLoop: fifo progress irq\n"));
-                u32IrqStatus |= SVGA_IRQFLAG_FIFO_PROGRESS;
-            }
+                PDMCritSectEnter(&pThis->CritSect, VERR_IGNORED);
 
-            /* Irq pending? */
-            if (pThis->svga.u32IrqMask & u32IrqStatus)
-            {
-                Log(("vmsvgaFIFOLoop: Trigger interrupt with status %x\n", u32IrqStatus));
-                ASMAtomicOrU32(&pThis->svga.u32IrqStatus, u32IrqStatus);
-                PDMDevHlpPCISetIrqNoWait(pDevIns, 0, 1);
+                /* FIFO progress might trigger an interrupt. */
+                if (pThis->svga.u32IrqMask & SVGA_IRQFLAG_FIFO_PROGRESS)
+                {
+                    Log(("vmsvgaFIFOLoop: fifo progress irq\n"));
+                    u32IrqStatus |= SVGA_IRQFLAG_FIFO_PROGRESS;
+                }
+
+                /* Unmasked IRQ pending? */
+                if (pThis->svga.u32IrqMask & u32IrqStatus)
+                {
+                    Log(("vmsvgaFIFOLoop: Trigger interrupt with status %x\n", u32IrqStatus));
+                    ASMAtomicOrU32(&pThis->svga.u32IrqStatus, u32IrqStatus);
+                    PDMDevHlpPCISetIrq(pDevIns, 0, 1);
+                }
+
+                PDMCritSectLeave(&pThis->CritSect);
             }
         }
 

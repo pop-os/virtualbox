@@ -577,7 +577,6 @@ int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects
     uint32_t c2DRects = 0;
     CR_TEXDATA *pEnteredTex = NULL;
     PCR_BLITTER pEnteredBlitter = NULL;
-    RTPOINT EntryPoint = {0};
 
     VBoxVrListInit(&List);
     int rc = VBoxVrListRectsAdd(&List, 1, CrVrScrCompositorRectGet(&hFb->Compositor), NULL);
@@ -594,6 +593,10 @@ int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects
             pEntry;
             pEntry = CrVrScrCompositorConstIterNext(&Iter))
     {
+        RTPOINT EntryPoint;
+        EntryPoint.x = CrVrScrCompositorEntryRectGet(pEntry)->xLeft + pPos->x;
+        EntryPoint.y = CrVrScrCompositorEntryRectGet(pEntry)->yTop + pPos->y;
+
         uint32_t cRegions;
         const RTRECT *pRegions;
         rc = CrVrScrCompositorEntryRegionsGet(&hFb->Compositor, pEntry, &cRegions, NULL, NULL, &pRegions);
@@ -676,8 +679,6 @@ int CrFbBltGetContents(HCR_FRAMEBUFFER hFb, const RTPOINT *pPos, uint32_t cRects
                     }
 
                     pEnteredTex = pTex;
-                    EntryPoint.x = CrVrScrCompositorEntryRectGet(pEntry)->xLeft + pPos->x;
-                    EntryPoint.y = CrVrScrCompositorEntryRectGet(pEntry)->yTop + pPos->y;
                 }
 
                 rc = CrTdBltDataAcquire(pTex, GL_BGRA, false, &pSrcImg);
@@ -1283,6 +1284,12 @@ static CR_FRAMEBUFFER_ENTRY* crFbEntryCreate(CR_FRAMEBUFFER *pFb, CR_TEXDATA* pT
 
 int CrFbEntryCreateForTexData(CR_FRAMEBUFFER *pFb, struct CR_TEXDATA *pTex, uint32_t fFlags, HCR_FRAMEBUFFER_ENTRY *phEntry)
 {
+    if (pTex == NULL)
+    {
+        WARN(("pTex is NULL"));
+        return VERR_INVALID_PARAMETER;
+    }
+
     RTRECT Rect;
     Rect.xLeft = 0;
     Rect.yTop = 0;

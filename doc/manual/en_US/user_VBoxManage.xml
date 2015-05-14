@@ -2574,6 +2574,17 @@ Value: 2006.01.01</screen>
             <xref linkend="vboxmanage-startvm" />.</para>
           </glossdef>
         </glossentry>
+
+        <glossentry>
+          <glossterm><computeroutput>logginglevel</computeroutput></glossterm>
+
+          <glossdef>
+            <para>This configures the VBoxSVC release logging details.<footnote>
+              <para><ulink url="http://www.virtualbox.org/wiki/VBoxLogging">http://www.virtualbox.org/wiki/VBoxLogging</ulink>.</para>
+              </footnote>
+            </para>
+          </glossdef>
+        </glossentry>
       </glosslist></para>
   </sect1>
 
@@ -2772,7 +2783,7 @@ Value: 2006.01.01</screen>
             [--environment "&lt;NAME&gt;=&lt;VALUE&gt; [&lt;NAME&gt;=&lt;VALUE&gt;]"]
             [--verbose] [--timeout &lt;msec&gt;]
             [--wait-exit] [--wait-stdout] [--wait-stderr]
-            [--dos2unix] [--unix2dos]
+            [--dos2unix] [--unquoted-args] [--unix2dos]
             -- [[&lt;argument1&gt;] ... [&lt;argumentN&gt;]]</screen>
 
           <para>where the parameters mean: <glosslist>
@@ -2829,6 +2840,17 @@ Value: 2006.01.01</screen>
                 <glossdef>
                   Converts output from DOS/Windows guests to UNIX-compatible
                   line endings (CR + LF -> LF). Not implemented yet.
+                </glossdef>
+              </glossentry>
+
+              <glossentry>
+                <glossterm><computeroutput>--unquoted-args</computeroutput></glossterm>
+
+                <glossdef>
+                  Work around for Windows and OS/2 applications not following normal
+                  argument quoting and escaping rules. The arguments are passed to the
+                  application without any extra quoting, just a single space between each.
+                  <footnote>This parameter was introduced with VirtualBox 4.3.28</footnote>
                 </glossdef>
               </glossentry>
 

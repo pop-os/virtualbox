@@ -1545,7 +1545,8 @@ int DragAndDropService::run(bool fDaemonised /* = false */)
             VBClFatalError(("Failed to connect to the VirtualBox kernel service, rc=%Rrc\n", rc));
         /* Initialize our service */
         rc = VbglR3DnDInit();
-        if (RT_FAILURE(rc))
+        /* Not RT_FAILURE: VINF_PERMISSION_DENIED is host service not present. */
+        if (rc != VINF_SUCCESS)
             break;
 
         /* Initialize X11 DND */

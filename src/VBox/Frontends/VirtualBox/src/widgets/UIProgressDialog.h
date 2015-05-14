@@ -49,9 +49,11 @@ class UIProgressDialog: public QIWithRetranslateUI2<QIDialog>
 
 public:
 
-    /* Constructor/destructor: */
+    /** Constructor. */
     UIProgressDialog(CProgress &progress, const QString &strTitle,
                      QPixmap *pImage = 0, int cMinDuration = 2000, QWidget *pParent = 0);
+    /** Destructor. */
+    ~UIProgressDialog();
 
     /* API: Run stuff: */
     int run(int aRefreshInterval);
@@ -79,6 +81,9 @@ private slots:
     void sltCancelOperation();
 
 private:
+
+    /** Timer event handling delegate. */
+    void handleTimerEvent();
 
     /* Variables: */
     CProgress &m_progress;

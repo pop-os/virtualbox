@@ -1,6 +1,169 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
   <sect1>
+    <title>Version 4.3.28 (2015-05-13)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed a Guru Meditation when rebooting certain guests (for
+          example Solaris doing fast reboot) by fixing the implementation for INIT IPI</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: added some information for diagnosing rare
+          <emphasis>VERR_VMX_INVALID_VMXON_PTR</emphasis> Guru Meditations (VT-x only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: HID LEDs sync: prevent synchronization if VM window has no focus
+          (Windows and Mac OS X hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: fixed drag and drop moving the cursor between guest screens on
+          certain hosts</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed a crash on restoring the VM state on X11 hosts (bug #12737)</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed a crash on restoring the VM state</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: fixed a crash on Linux guest shutdown (bug #12772)</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed incompatibility with rdesktop 1.8.3</para>
+      </listitem>
+
+      <listitem>
+        <para>VRDP: fixed listening for IPv6 on some systems (bug #14038)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: don't crash if creating an asynchronous I/O context
+          fails (e.g. when starting many VMs) and show a proper error message</para>
+      </listitem>
+
+      <listitem>
+        <para>Floppy: several fixes</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: improved the behavior of the volume control for the
+          HD audio device emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: increase the number of supported drivers from 3 to 5
+          (Windows hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>PS/2 keyboard: synchronize the LED state on VM restore
+          (Windows and Mac OS X hosts only)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT Network: when running multiple NAT networks with multiple VMs,
+          only stop the respective services when stopping VMs (bug #14090)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: don't kill UDP bindings on ICMP errors (bug #13475)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: bandwidth limit now works properly with NAT (bug #11485)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: fixed the returned size value of the VBE 2.0 PMI function 0Ah
+          (4.2.0 regression; bug #14096)</para>
+      </listitem>
+
+      <listitem>
+        <para>Guest Control: fixed parameter quoting in Windows guests
+          (bug #13157)</para>
+      </listitem>
+
+      <listitem>
+        <para>Webcam passthrough improvements for Linux (V4L2) hosts to support more
+          webcam models</para>
+      </listitem>
+
+      <listitem>
+        <para>API: don't fail starting a VM with <emphasis>VBOX_E_INVALID_OBJECT_STATE</emphasis>
+          under certain conditions (bug #13617)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: be more verbose on <emphasis>VBOX_E_INVALID_OBJECT_STATE</emphasis>
+          if a medium is attached to a running VM (bug #13560)</para>
+      </listitem>
+
+      <listitem>
+        <para>API: fixed a bug which could result in losing certain screen resize
+          events with multi-monitor guests</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: fixed path to the keymaps (bug #12066)</para>
+      </listitem>
+
+      <listitem>
+        <para>rdesktop-vrdp: switch to version 1.8.3</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: more hardening fixes (e.g. bugs #14051, #14052)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: another fix for activated SMAP on Linux 3.19
+          and newer (Broadwell and later; bug #13961)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Linux 4.1 compile fix (bug #14081)</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: fixed using of VNIC templates with Crossbow based
+          bridged networking to be compatible with vanity interface names</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed crash during VM termination under rare
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions/WDDM: improved video memory utilization and allow
+          more/bigger guest screens with large resolutions (including HiDPI)</para>
+      </listitem>
+
+      <listitem>
+        <para>X11 Additions: prevent flickering when updating mouse cursor</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: fixed incorrect usage of 'prtconf' while
+          installing Guest Additions (Solaris 10 only)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 4.3.26 (2015-03-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -632,7 +795,7 @@
       </listitem>
 
       <listitem>
-        <para>3D: fixed white window appearing on entering FullScreen mode on OSX host</para>
+        <para>3D: fixed white window appearing on entering FullScreen mode on Mac OS X host</para>
       </listitem>
 
       <listitem>
@@ -695,7 +858,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: made the HDA sound emulation work with certain OSX guests
+        <para>Audio: made the HDA sound emulation work with certain Mac OS X guests
           (e.g. Mountain Lion)</para>
       </listitem>
 
@@ -2823,7 +2986,7 @@
 
       <listitem>
         <para>X11 Additions: reduced the CPU load of VBoxClient in
-          drag'and'drop mode</para>
+          drag and drop mode</para>
       </listitem>
 
       <listitem>
@@ -3442,7 +3605,7 @@
 
       <listitem>
         <para>GUI: fixed crash with multiple guest screens on certain
-          conditions (OS X hosts only)</para>
+          conditions (Mac OS X hosts only)</para>
       </listitem>
 
       <listitem>
@@ -3519,7 +3682,7 @@
       </listitem>
 
       <listitem>
-        <para>GUI: added menu for runtime drag-and-drop option change</para>
+        <para>GUI: added menu for runtime drag and drop option change</para>
       </listitem>
 
       <listitem>
@@ -3702,7 +3865,7 @@
       </listitem>
 
       <listitem>
-        <para>Added experimental support for Drag'n'drop from the host to
+        <para>Added experimental support for drag and drop from the host to
           Linux guests. Support for more guests and for guest-to-host is
           planned. (bug #81)</para>
       </listitem>
@@ -4957,8 +5120,8 @@
       </listitem>
 
       <listitem>
-        <para>GUI: keep the aspect ratio in scale mode (Windows and OSX hosts only;
-          bug #7822)</para>
+        <para>GUI: keep the aspect ratio in scale mode (Windows and Mac OS X hosts
+          only; bug #7822)</para>
       </listitem>
 
       <listitem>
@@ -10712,7 +10875,7 @@
       </listitem>
 
       <listitem>
-        <para>Shared Folders: respect umask settings on Linux, OSX and Solaris
+        <para>Shared Folders: respect umask settings on Linux, Mac OS X and Solaris
         hosts when creating files</para>
       </listitem>
 
