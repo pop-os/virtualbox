@@ -1,3 +1,11 @@
+virtualbox (4.3.28-dfsg-1) unstable; urgency=medium
+
+  * New upstream release.
+    - patch refresh.
+    - remove d/p/37-diff_smap_4.patch.
+
+ -- Gianfranco Costamagna <costamagnagianfranco@yahoo.it>  Thu, 14 May 2015 09:36:52 +0200
+
 virtualbox (4.3.26-dfsg-3) unstable; urgency=medium
 
   [ Adam Conrad ]
